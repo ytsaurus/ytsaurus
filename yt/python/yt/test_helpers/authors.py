@@ -4,6 +4,7 @@ def pytest_configure(config):
         "authors(*authors): mark explicating test authors (owners)",
         "skip_if(condition)",
         "timeout(timeout)",
+        "opensource",
     ]:
         config.addinivalue_line("markers", line)
 

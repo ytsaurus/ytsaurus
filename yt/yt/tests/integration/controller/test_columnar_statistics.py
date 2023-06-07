@@ -787,3 +787,41 @@ class TestColumnarStatisticsRenamedColumns(_TestColumnarStatisticsBase):
 class TestColumnarStatisticsRpcProxy(TestColumnarStatistics):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
+
+
+##################################################################
+
+
+class TestColumnarStatisticsUseControllerAgentDefault(_TestColumnarStatisticsBase):
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "use_columnar_statistics_default": True,
+        },
+    }
+
+    @authors("yuryalekseev")
+    def test_columnar_statistics_with_map(self):
+        create("table", "//tmp/t", attributes={"optimize_for": "scan"})
+        create("table", "//tmp/d")
+        for i in range(10):
+            write_table(
+                "<append=%true>//tmp/t",
+                [{"a": "x" * 50, "b": "y" * 50} for j in range(10)],
+            )
+        assert get("//tmp/t/@data_weight") == 101 * 10 ** 2
+        self._expect_statistics(0, 100, "a,b", [50 * 10 ** 2, 50 * 10 ** 2])
+
+        op = map(
+            in_="//tmp/t{a}",
+            out="//tmp/d",
+            spec={"data_weight_per_job": 1000},
+            command="echo '{a=1}'",
+        )
+
+        op.track()
+
+        # Here we rely on the fact that number of jobs <= number of chunks.
+        # Without the use_columnar_statistics_default option the number of
+        # jobs (chunks) is 11. This test expects that with the
+        # use_columnar_statistics_default option the number of jobs will be 6.
+        assert 5 <= get("//tmp/d/@chunk_count") <= 7

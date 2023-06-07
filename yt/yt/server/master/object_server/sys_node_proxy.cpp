@@ -152,7 +152,6 @@ private:
                 return true;
 
             case EInternedAttributeKey::ChunkReplicatorEnabled:
-                RequireLeader();
                 BuildYsonFluently(consumer)
                     .Value(chunkManager->IsChunkReplicatorEnabled());
                 return true;

@@ -32,13 +32,13 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A helper base which makes callbacks track their invocation time and profile their wait time.
-class TProfileWrapper
+class TInvokerProfileWrapper
 {
 public:
     /*! #invokerFamily defines a family of invokers, e.g. "serialized" or "prioriized" and appears in the sensor name.
     *  #invokerName defines a particular instance of the invoker and gets into the tag "invoker".
     */
-    TProfileWrapper(NProfiling::IRegistryImplPtr registry, const TString& invokerFamily, const TString& invokerName);
+    TInvokerProfileWrapper(NProfiling::IRegistryImplPtr registry, const TString& invokerFamily, const TString& invokerName);
 
 protected:
     TClosure WrapCallback(TClosure callback);

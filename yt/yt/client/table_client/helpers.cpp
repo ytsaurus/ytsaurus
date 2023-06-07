@@ -178,7 +178,7 @@ TUnversionedOwningRow YsonToSchemafulRow(
                 column,
                 /*typeAnyAcceptsAllValues*/ true,
                 /*ignoreRequired*/ false,
-                /*validateAnyIsValidYson*/ true);
+                /*validateAnyIsValidYson*/ false);
         }
 
         rowBuilder.AddValue(value);

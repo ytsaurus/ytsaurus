@@ -976,7 +976,7 @@ public:
         YT_VERIFY(HasHydraContext());
 
         if (!Queues_.insert(node).second) {
-            YT_LOG_ALERT("Attempting to register a queue twice (Node: %v, Path: %Qv)",
+            YT_LOG_ALERT("Attempting to register a queue twice (Node: %v, Path: %v)",
                 node->GetId(),
                 Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
         }
@@ -988,7 +988,7 @@ public:
         YT_VERIFY(HasHydraContext());
 
         if (!Queues_.erase(node)) {
-            YT_LOG_ALERT("Attempting to unregister an unknown queue (Node: %v, Path: %Qv)",
+            YT_LOG_ALERT("Attempting to unregister an unknown queue (Node: %v, Path: %v)",
                 node->GetId(),
                 Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
         }

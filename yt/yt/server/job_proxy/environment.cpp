@@ -668,17 +668,17 @@ class TSimpleJobProxyEnvironment
 public:
     void SetCpuGuarantee(double /* value */) override
     {
-        YT_LOG_WARNING("Cpu guarantees are not supported in simple job environment");
+        YT_LOG_WARNING("CPU guarantees are not supported in simple job environment");
     }
 
     void SetCpuLimit(double /* value */) override
     {
-        YT_LOG_WARNING("Cpu limits are not supported in simple job environment");
+        YT_LOG_WARNING("CPU limits are not supported in simple job environment");
     }
 
     void SetCpuPolicy(const TString& /* value */) override
     {
-        YT_LOG_WARNING("Cpu policy is not supported in simple job environment");
+        YT_LOG_WARNING("CPU policy is not supported in simple job environment");
     }
 
     TErrorOr<std::optional<TJobEnvironmentCpuStatistics>> GetCpuStatistics() const override

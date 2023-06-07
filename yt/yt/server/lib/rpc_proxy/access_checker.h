@@ -9,7 +9,7 @@ namespace NYT::NRpcProxy {
 struct IAccessChecker
     : public TRefCounted
 {
-    virtual TError ValidateAccess(const TString& user) const = 0;
+    virtual TError CheckAccess(const TString& user) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IAccessChecker)

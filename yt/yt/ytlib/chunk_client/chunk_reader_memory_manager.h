@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/concurrency/async_semaphore.h>
 
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
 #include <library/cpp/yt/memory/ref.h>
 
 namespace NYT::NChunkClient {
@@ -19,13 +21,16 @@ struct TChunkReaderMemoryManagerOptions
     explicit TChunkReaderMemoryManagerOptions(
         i64 bufferSize,
         NProfiling::TTagList profilingTagList = {},
-        bool enableDetailedLogging = false);
+        bool enableDetailedLogging = false,
+        ITypedNodeMemoryTrackerPtr memoryUsageTracker = nullptr);
 
     i64 BufferSize;
 
     NProfiling::TTagList ProfilingTagList;
 
     const bool EnableDetailedLogging;
+
+    const ITypedNodeMemoryTrackerPtr MemoryUsageTracker;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -60,7 +65,7 @@ public:
     virtual TGuid GetId() const = 0;
 
     //! Indicates that memory requirements of this manager will not increase anymore.
-    virtual void Finalize() = 0;
+    virtual TFuture<void> Finalize() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IReaderMemoryManager)
@@ -92,15 +97,13 @@ public:
     TGuid GetId() const override;
 
     //! Called by fetcher when all blocks were fetched.
-    void Finalize() override;
+    TFuture<void> Finalize() override;
 
     //! Always succeeds, possibly with overcommit.
     TMemoryUsageGuardPtr Acquire(i64 size);
 
     //! Future is set, when enough free size is available.
     TFuture<TMemoryUsageGuardPtr> AsyncAcquire(i64 size);
-
-    void Release(i64 size);
 
     void TryUnregister();
 
@@ -115,14 +118,14 @@ public:
 
     void SetPrefetchMemorySize(i64 size);
 
+    i64 GetUsedMemorySize() const;
+
 private:
     void OnSemaphoreAcquired(TPromise<TMemoryUsageGuardPtr> promise, NConcurrency::TAsyncSemaphoreGuard semaphoreGuard);
 
     void OnMemoryRequirementsUpdated();
 
     void DoUnregister();
-
-    i64 GetUsedMemorySize() const;
 
     TChunkReaderMemoryManagerOptions Options_;
 
@@ -140,11 +143,15 @@ private:
 
     TWeakPtr<IReaderMemoryManagerHost> HostMemoryManager_;
 
+    ITypedNodeMemoryTrackerPtr MemoryUsageTracker_;
+
     NProfiling::TTagList ProfilingTagList_;
 
     const TGuid Id_;
 
     const NLogging::TLogger Logger;
+
+    TPromise<void> FinalizeEvent_ = NewPromise<void>();
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReaderMemoryManager)
@@ -159,7 +166,13 @@ public:
 
     TMemoryUsageGuard(
         NConcurrency::TAsyncSemaphoreGuard guard,
-        TWeakPtr<TChunkReaderMemoryManager> memoryManager);
+        TWeakPtr<TChunkReaderMemoryManager> memoryManager,
+        std::optional<TMemoryUsageTrackerGuard> memoryUsageTrackerGuard = {});
+
+    TMemoryUsageGuard(const TMemoryUsageGuard& other) = delete;
+    TMemoryUsageGuard(TMemoryUsageGuard&& other);
+    TMemoryUsageGuard& operator=(const TMemoryUsageGuard& other) = delete;
+    TMemoryUsageGuard& operator=(TMemoryUsageGuard&& other);
 
     ~TMemoryUsageGuard();
 
@@ -169,10 +182,17 @@ public:
 
     TWeakPtr<TChunkReaderMemoryManager> GetMemoryManager() const;
 
+    TMemoryUsageGuardPtr TransferMemory(i64 slots);
+
 private:
     NConcurrency::TAsyncSemaphoreGuard Guard_;
     TWeakPtr<TChunkReaderMemoryManager> MemoryManager_;
+    std::optional<TMemoryUsageTrackerGuard> MemoryUsageTrackerGuard_;
     TSharedRef Block_;
+
+    void MoveFrom(TMemoryUsageGuard&& other);
+
+    void Release();
 };
 
 DEFINE_REFCOUNTED_TYPE(TMemoryUsageGuard)

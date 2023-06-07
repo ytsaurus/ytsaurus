@@ -31,9 +31,6 @@ void TChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("allow_multiple_erasure_parts_per_node", &TThis::AllowMultipleErasurePartsPerNode)
         .Default(false);
 
-    registrar.Parameter("replicator_enabled_check_period", &TThis::ReplicatorEnabledCheckPeriod)
-        .Default(TDuration::Seconds(1));
-
     registrar.Parameter("repair_queue_balancer_weight_decay_interval", &TThis::RepairQueueBalancerWeightDecayInterval)
         .Default(TDuration::Seconds(60));
     registrar.Parameter("repair_queue_balancer_weight_decay_factor", &TThis::RepairQueueBalancerWeightDecayFactor)
@@ -440,6 +437,9 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .Default(6000);
     registrar.Parameter("max_time_per_journal_chunk_refresh", &TThis::MaxTimePerJournalChunkRefresh)
         .Default(TDuration::MilliSeconds(60));
+
+    registrar.Parameter("replicator_enabled_check_period", &TThis::ReplicatorEnabledCheckPeriod)
+        .Default(TDuration::Seconds(30));
 
     registrar.Parameter("enable_chunk_requisition_update", &TThis::EnableChunkRequisitionUpdate)
         .Default(true);

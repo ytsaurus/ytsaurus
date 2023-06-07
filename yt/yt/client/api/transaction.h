@@ -174,7 +174,7 @@ struct ITransaction
         i64 newOffset);
 
     void AdvanceConsumer(
-        const NYPath::TYPath& consumerPath,
+        const NYPath::TRichYPath& consumerPath,
         const NYPath::TRichYPath& queuePath,
         int partitionIndex,
         std::optional<i64> oldOffset,

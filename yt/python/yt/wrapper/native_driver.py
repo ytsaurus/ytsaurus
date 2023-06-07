@@ -4,7 +4,7 @@ from .constants import RPC_PACKAGE_INSTALLATION_TEXT
 from .errors import create_response_error, YtError
 from .string_iter_io import StringIterIO
 from .response_stream import ResponseStream
-from .http_helpers import get_proxy_url, get_token
+from .http_helpers import get_proxy_address_url, get_token
 
 import yt.logger as logger
 import yt.logger_config as logger_config
@@ -168,7 +168,7 @@ def get_driver_instance(client):
         if config["backend"] == "rpc":
             if driver_config.get("connection_type") is None:
                 driver_config = update(
-                    {"connection_type": "rpc", "cluster_url": "http://" + get_proxy_url(client=client)},
+                    {"connection_type": "rpc", "cluster_url": get_proxy_address_url(client=client)},
                     driver_config)
             elif config["backend"] != driver_config["connection_type"]:
                 raise YtError(

@@ -68,6 +68,17 @@ class TestChunkMerger(YTEnvSetup):
         }
     }
 
+    @classmethod
+    def modify_node_config(cls, config):
+        config["resource_limits"] = {
+            "memory_limits": {
+                "system_jobs": {
+                    "type": "static",
+                    "value": 1000000
+                }
+            }
+        }
+
     def _get_chunk_merger_txs(self):
         txs = []
         for tx in ls("//sys/transactions", attributes=["title"]):

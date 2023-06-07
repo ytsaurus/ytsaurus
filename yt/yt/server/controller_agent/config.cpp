@@ -804,6 +804,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_job_interrupts", &TThis::EnableJobInterrupts)
         .Default(true);
 
+    registrar.Parameter("use_columnar_statistics_default", &TThis::UseColumnarStatisticsDefault)
+        .Default(false);
+
     registrar.Parameter("heavy_job_spec_slice_count_threshold", &TThis::HeavyJobSpecSliceCountThreshold)
         .Default(1000)
         .GreaterThan(0);

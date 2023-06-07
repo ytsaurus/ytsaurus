@@ -287,7 +287,9 @@ public:
         try {
             auto* lcaPool = FindMapObjectLCA(srcPool, dstPool);
             if (!lcaPool) {
-                YT_LOG_ALERT("Pools do not have common ancestor (SrcPool: %Qv, DstPool: %Qv)", srcPool->GetName(), dstPool->GetName());
+                YT_LOG_ALERT("Pools do not have common ancestor (SrcPool: %v, DstPool: %v)",
+                    srcPool->GetName(),
+                    dstPool->GetName());
                 THROW_ERROR_EXCEPTION("Pools do not have common ancestor")
                     << TErrorAttribute("src_pool", srcPool->GetName())
                     << TErrorAttribute("dst_pool", dstPool->GetName());

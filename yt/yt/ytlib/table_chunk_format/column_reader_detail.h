@@ -12,8 +12,9 @@
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/schema.h>
 
+#include <yt/yt/library/numeric/algorithm_helpers.h>
+
 #include <yt/yt/core/misc/bitmap.h>
-#include <yt/yt/core/misc/algorithm_helpers.h>
 #include <yt/yt/core/misc/bit_packed_unsigned_vector.h>
 
 namespace NYT::NTableChunkFormat {

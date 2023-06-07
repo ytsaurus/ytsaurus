@@ -120,10 +120,10 @@
 #include <yt/yt/core/concurrency/periodic_yielder.h>
 
 #include <yt/yt/library/erasure/impl/codec.h>
+#include <yt/yt/library/numeric/algorithm_helpers.h>
 
 #include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
-#include <yt/yt/core/misc/algorithm_helpers.h>
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/crash_handler.h>
 #include <yt/yt/core/misc/error.h>
@@ -5589,7 +5589,8 @@ void TOperationControllerBase::FetchInputTables()
             const auto& table = InputTables_[tableIndex];
             req->set_fetch_all_meta_extensions(false);
             req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-            if (table->Path.GetColumns() && Spec_->InputTableColumnarStatistics->Enabled) {
+
+            if (table->Path.GetColumns() && Spec_->InputTableColumnarStatistics->Enabled.value_or(Config->UseColumnarStatisticsDefault)) {
                 req->add_extension_tags(TProtoExtensionTag<THeavyColumnStatisticsExt>::Value);
             }
             if (table->Dynamic || IsBoundaryKeysFetchEnabled()) {
@@ -5691,7 +5692,7 @@ void TOperationControllerBase::FetchInputTables()
             // We fetch columnar statistics only for the tables that have column selectors specified.
             auto hasColumnSelectors = table->Path.GetColumns().operator bool();
             bool shouldSkip = IsUnavailable(inputChunk, GetChunkAvailabilityPolicy()) && Spec_->UnavailableChunkStrategy == EUnavailableChunkAction::Skip;
-            if (hasColumnSelectors && Spec_->InputTableColumnarStatistics->Enabled && !shouldSkip) {
+            if (hasColumnSelectors && Spec_->InputTableColumnarStatistics->Enabled.value_or(Config->UseColumnarStatisticsDefault) && !shouldSkip) {
                 auto stableColumnNames = MapNamesToStableNames(
                     *table->Schema,
                     *table->Path.GetColumns(),
@@ -6971,7 +6972,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
     }
 
 
-    auto proxy = CreateObjectServiceWriteProxy(OutputClient);
+    auto proxy = CreateObjectServiceReadProxy(OutputClient, EMasterChannelKind::Follower);
     auto batchReq = proxy.ExecuteBatch();
 
     for (const auto& files : GetValues(UserJobFiles_)) {

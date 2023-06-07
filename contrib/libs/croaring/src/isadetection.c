@@ -115,7 +115,7 @@ static inline void cpuid(uint32_t *eax, uint32_t *ebx, uint32_t *ecx,
 }
 
 
-static inline uint64_t xgetbv() {
+static inline uint64_t xgetbv(void) {
 #if defined(_MSC_VER)
   return _xgetbv(0);
 #else
@@ -130,7 +130,7 @@ static inline uint64_t xgetbv() {
  * *once* per compilation units. Normally, the CRoaring library is built
  * as one compilation unit.
  */
-static inline uint32_t dynamic_croaring_detect_supported_architectures() {
+static inline uint32_t dynamic_croaring_detect_supported_architectures(void) {
   uint32_t eax, ebx, ecx, edx;
   uint32_t host_isa = 0x0;
   // Can be found on Intel ISA Reference for CPUID
@@ -228,13 +228,13 @@ static inline uint32_t dynamic_croaring_detect_supported_architectures() {
 #if defined(__x86_64__) || defined(_M_AMD64) // x64
 
 #if CROARING_ATOMIC_IMPL == CROARING_ATOMIC_IMPL_CPP
-static inline uint32_t croaring_detect_supported_architectures() {
+static inline uint32_t croaring_detect_supported_architectures(void) {
     // thread-safe as per the C++11 standard.
     static uint32_t buffer = dynamic_croaring_detect_supported_architectures();
     return buffer;
 }
 #elif CROARING_ATOMIC_IMPL == CROARING_ATOMIC_IMPL_C
-static uint32_t croaring_detect_supported_architectures() {
+static uint32_t croaring_detect_supported_architectures(void) {
     // we use an atomic for thread safety
     static _Atomic uint32_t buffer = CROARING_UNINITIALIZED;
     if (buffer == CROARING_UNINITIALIZED) {
@@ -245,7 +245,7 @@ static uint32_t croaring_detect_supported_architectures() {
 }
 #else
 // If we do not have atomics, we do the best we can.
-static inline uint32_t croaring_detect_supported_architectures() {
+static inline uint32_t croaring_detect_supported_architectures(void) {
     static uint32_t buffer = CROARING_UNINITIALIZED;
     if (buffer == CROARING_UNINITIALIZED) {
       buffer = dynamic_croaring_detect_supported_architectures();
@@ -256,17 +256,17 @@ static inline uint32_t croaring_detect_supported_architectures() {
 
 #ifdef ROARING_DISABLE_AVX
 
-int croaring_hardware_support() {
+int croaring_hardware_support(void) {
     return 0;
 }
 
 #elif defined(__AVX512F__) && defined(__AVX512DQ__) && defined(__AVX512BW__) && defined(__AVX512VBMI2__) && defined(__AVX512BITALG__) && defined(__AVX512VPOPCNTDQ__)
-int croaring_hardware_support() {
+int croaring_hardware_support(void) {
     return  ROARING_SUPPORTS_AVX2 | ROARING_SUPPORTS_AVX512;
 }
 #elif defined(__AVX2__)
 
-int croaring_hardware_support() {
+int croaring_hardware_support(void) {
   static int support = 0xFFFFFFF;
   if(support == 0xFFFFFFF) {
     bool avx512_support = false;
@@ -280,7 +280,7 @@ int croaring_hardware_support() {
 }
 #else
 
-int croaring_hardware_support() {
+int croaring_hardware_support(void) {
   static int support = 0xFFFFFFF;
   if(support == 0xFFFFFFF) {
     bool has_avx2 = (croaring_detect_supported_architectures() & CROARING_AVX2) == CROARING_AVX2;

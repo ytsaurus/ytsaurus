@@ -11,9 +11,9 @@
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/yt/core/concurrency/async_semaphore.h>
+#include <yt/yt/library/numeric/algorithm_helpers.h>
 
-#include <yt/yt/core/misc/algorithm_helpers.h>
+#include <yt/yt/core/concurrency/async_semaphore.h>
 
 namespace NYT::NTableClient {
 

@@ -122,6 +122,12 @@ class TestListJobsBase(YTEnvSetup):
             "operation_time_limit_check_period": 100,
             "snapshot_period": 500,
             "operations_update_period": 100,
+            "job_reporter": {
+                "enabled": True,
+                "reporting_period": 10,
+                "min_repeat_delay": 10,
+                "max_repeat_delay": 10,
+            },
         },
     }
 
@@ -757,6 +763,9 @@ class TestListJobs(TestListJobsBase):
         )
 
         (job_id,) = wait_breakpoint()
+
+        wait(lambda: get_job_from_table(op.id, job_id)["controller_state"] == "running")
+
         release_breakpoint()
         op.track()
 

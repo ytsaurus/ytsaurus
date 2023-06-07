@@ -12,8 +12,9 @@
 
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/column_meta.pb.h>
 
+#include <yt/yt/library/numeric/algorithm_helpers.h>
+
 #include <yt/yt/core/misc/heap.h>
-#include <yt/yt/core/misc/algorithm_helpers.h>
 
 // This definition is used to hide code when checking code coverage in unittests.
 // Code under for this case will be removed or reworked in future.

@@ -92,10 +92,10 @@ public:
     //! Configuration for various per-location throttlers.
     TEnumIndexedVector<EChunkLocationThrottlerKind, NConcurrency::TThroughputThrottlerConfigPtr> Throttlers;
 
-    //! IO Engine type.
+    //! IO engine type.
     NIO::EIOEngineType IOEngineType;
 
-    //! IO Engine config.
+    //! IO engine config.
     NYTree::INodePtr IOConfig;
 
     TDuration ThrottleDuration;
@@ -109,8 +109,6 @@ public:
     double IOWeight;
 
     bool ResetUuid;
-
-    bool EnableUring;
 
     void ApplyDynamicInplace(const TChunkLocationDynamicConfig& dynamicConfig);
 
@@ -605,6 +603,8 @@ class TChunkMergerConfig
 public:
     // Testing options.
     bool FailShallowMergeValidation;
+
+    i64 ReadWindowSize;
 
     REGISTER_YSON_STRUCT(TChunkMergerConfig);
 

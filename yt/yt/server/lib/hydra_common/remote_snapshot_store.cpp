@@ -406,9 +406,8 @@ private:
                 try {
                     id = FromString<int>(key);
                 } catch (const std::exception& ex) {
-                    YT_LOG_WARNING("Unrecognized item %Qv in remote store %v",
-                        key,
-                        Path_);
+                    YT_LOG_WARNING("Unrecognized item (Key: %v)%",
+                        key);
                     continue;
                 }
                 if (id <= maxSnapshotId && id > latestSnapshotId) {

@@ -61,7 +61,7 @@ public:
 
     NJobAgent::EJobState GetState() const;
 
-    const NClusterNode::TJobResources& GetResourceUsage() const;
+    NClusterNode::TJobResources GetResourceUsage() const;
 
     NJobTrackerClient::NProto::TJobResult GetResult() const;
 
@@ -78,6 +78,7 @@ protected:
     const TString JobTrackerAddress_;
 
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
+    const ITypedNodeMemoryTrackerPtr MemoryUsageTracker_;
 
     const TInstant StartTime_;
 

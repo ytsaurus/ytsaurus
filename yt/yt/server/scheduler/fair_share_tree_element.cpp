@@ -1490,7 +1490,7 @@ void TSchedulerPoolElement::AttachParent(TSchedulerCompositeElement* parent)
     Parent_ = parent;
     TreeElementHost_->GetResourceTree()->AttachParent(ResourceTreeElement_, parent->ResourceTreeElement_);
 
-    YT_LOG_DEBUG("Pool %Qv is attached to pool %Qv",
+    YT_LOG_DEBUG("Pool is attached (PoolId: %v, ParentId: %v)",
         Id_,
         parent->GetId());
 }

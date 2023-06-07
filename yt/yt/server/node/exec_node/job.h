@@ -129,7 +129,7 @@ public:
 
     int GetSlotIndex() const;
 
-    const NClusterNode::TJobResources& GetResourceUsage() const;
+    NClusterNode::TJobResources GetResourceUsage() const;
     bool IsGpuRequested() const;
 
     const TError& GetJobError() const;

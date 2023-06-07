@@ -33,14 +33,16 @@
 #include <yt/yt/ytlib/chunk_client/confirming_writer.h>
 #include <yt/yt/ytlib/chunk_client/meta_aggregating_writer.h>
 #include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
+#include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
+#include <yt/yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/yt/ytlib/chunk_client/erasure_adaptive_repair.h>
 #include <yt/yt/ytlib/chunk_client/erasure_repair.h>
 #include <yt/yt/ytlib/chunk_client/erasure_part_writer.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 #include <yt/yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/yt/ytlib/chunk_client/replication_writer.h>
-#include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/striped_erasure_reader.h>
 
 #include <yt/yt/ytlib/job_tracker_client/proto/job.pb.h>
@@ -55,6 +57,9 @@
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/yt/ytlib/object_client/helpers.h>
+
+#include <yt/yt/ytlib/misc/public.h>
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/ytlib/table_client/chunk_state.h>
 #include <yt/yt/ytlib/table_client/columnar_chunk_meta.h>
@@ -229,7 +234,7 @@ EJobState TMasterJobBase::GetState() const
     return JobState_;
 }
 
-const TJobResources& TMasterJobBase::GetResourceUsage() const
+TJobResources TMasterJobBase::GetResourceUsage() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -780,7 +785,10 @@ private:
 
         if (stripedErasure) {
             auto windowSize = GetDynamicConfig()->WindowSize;
-            auto memoryManager = New<TChunkReaderMemoryManager>(TChunkReaderMemoryManagerOptions(windowSize));
+            auto memoryManager = New<TChunkReaderMemoryManager>(TChunkReaderMemoryManagerOptions(
+                windowSize,
+                {},
+                false));
 
             return NChunkClient::RepairErasedPartsStriped(
                 adaptiveRepairConfig,
@@ -1076,6 +1084,77 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJobSystemMemoryUsageTracker
+    : public ITypedNodeMemoryTracker
+{
+public:
+    TJobSystemMemoryUsageTracker(
+        TWeakPtr<TResourceHolder> resourceHolder)
+        : ResourceHolder_(std::move(resourceHolder))
+    { }
+
+    void Acquire(i64 size) override
+    {
+        TJobResources resources;
+        resources.SystemMemory = size;
+        ResourceHolder_.Lock()->ChangeCumulativeResourceUsage(resources);
+    }
+
+    TError TryAcquire(i64 /*size*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    TError TryChange(i64 /*size*/) override
+    {
+        // Job cannot set self memory.
+        YT_UNIMPLEMENTED();
+    }
+
+    void Release(i64 size) override
+    {
+        TJobResources resources;
+        resources.SystemMemory = -size;
+        ResourceHolder_.Lock()->ChangeCumulativeResourceUsage(resources);
+    }
+
+    i64 GetFree() const override
+    {
+        return GetLimit() - GetUsed();
+    }
+
+    void SetLimit(i64 /*size*/) override
+    {
+        // Job cannot set self limits.
+        YT_UNIMPLEMENTED();
+    }
+
+    i64 GetLimit() const override
+    {
+        auto resource = ResourceHolder_.Lock()->GetResourceLimits();
+        return resource.SystemMemory ? resource.SystemMemory : std::numeric_limits<i64>::max();
+    }
+
+    i64 GetUsed() const override
+    {
+        auto holder = ResourceHolder_.Lock();
+        auto resource = holder->GetResourceUsage();
+        return resource.SystemMemory;
+    }
+
+    bool IsExceeded() const override
+    {
+        return GetFree() <= 0;
+    }
+
+private:
+    const TWeakPtr<TResourceHolder> ResourceHolder_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobSystemMemoryUsageTracker);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkMergeJob
     : public TMasterJobBase
 {
@@ -1096,6 +1175,8 @@ public:
             bootstrap)
         , JobSpecExt_(JobSpec_.GetExtension(TMergeChunksJobSpecExt::merge_chunks_job_spec_ext))
         , CellTag_(FromProto<TCellTag>(JobSpecExt_.cell_tag()))
+        , MemoryUsageTracker_(New<TJobSystemMemoryUsageTracker>(
+            MakeWeak(this)))
     { }
 
 private:
@@ -1104,6 +1185,7 @@ private:
     bool DeepMergeFallbackOccurred_ = false;
     TError ShallowMergeValidationError_;
     NChunkClient::EChunkMergerMode MergeMode_;
+    const ITypedNodeMemoryTrackerPtr MemoryUsageTracker_;
 
     TTableSchemaPtr Schema_;
     NCompression::ECodec CompressionCodec_;
@@ -1119,7 +1201,7 @@ private:
         IChunkReaderPtr Reader;
         TDeferredChunkMetaPtr Meta;
         TChunkId ChunkId;
-        int BlockCount;
+        std::vector<ui64> BlockSizes;
         NChunkClient::IChunkReader::TReadBlocksOptions Options;
         TMergeChunkInfo MergeChunkInfo;
     };
@@ -1133,12 +1215,14 @@ private:
             std::vector<TChunkReadContext> contexts,
             TTableSchemaPtr schema,
             TNameTablePtr nameTable,
-            bool permuteRows)
+            bool permuteRows,
+            IMultiReaderMemoryManagerPtr memoryManager)
             : Bootstrap_(bootstrap)
             , Contexts_(contexts)
             , Schema_(std::move(schema))
             , NameTable_(std::move(nameTable))
             , PermuteRows_(permuteRows)
+            , MemoryManager_(std::move(memoryManager))
         {
             OpenReader();
         }
@@ -1146,6 +1230,7 @@ private:
         std::optional<std::vector<TUnversionedRow>> ReadRows(const TRowBufferPtr& rowBuffer)
         {
             IUnversionedRowBatchPtr batch;
+
             while (!batch) {
                 batch = ReadRowBatch(ChunkReader_);
                 if (!batch) {
@@ -1198,6 +1283,7 @@ private:
         const TNameTablePtr NameTable_;
 
         const bool PermuteRows_;
+        const IMultiReaderMemoryManagerPtr MemoryManager_;
 
         int CurrentChunkIndex_ = 0;
         ISchemalessChunkReaderPtr ChunkReader_;
@@ -1226,7 +1312,9 @@ private:
                 /*keyColumns*/ {},
                 /*omittedInaccessibleColumns*/ {},
                 NTableClient::TColumnFilter(),
-                NChunkClient::TReadRange());
+                NChunkClient::TReadRange(),
+                std::nullopt,
+                MemoryManager_->CreateChunkReaderMemoryManager());
         }
     };
 
@@ -1312,11 +1400,18 @@ private:
         auto chunkMeta = GetChunkMeta(reader, options.ClientOptions);
         auto blockMetaExt = GetProtoExtension<NTableClient::NProto::TDataBlockMetaExt>(chunkMeta->extensions());
 
+        std::vector<ui64> blockSizes;
+        blockSizes.reserve(blockMetaExt.data_blocks_size());
+
+        for (const auto& block : blockMetaExt.data_blocks()) {
+            blockSizes.push_back(block.uncompressed_size());
+        }
+
         return TChunkReadContext{
             .Reader = std::move(reader),
             .Meta = std::move(chunkMeta),
             .ChunkId = chunkId,
-            .BlockCount = blockMetaExt.data_blocks_size(),
+            .BlockSizes = std::move(blockSizes),
             .Options = options,
             .MergeChunkInfo = chunk
         };
@@ -1377,12 +1472,31 @@ private:
             writer->AbsorbMeta(chunkReadContext.Meta, chunkReadContext.ChunkId);
         }
 
+        ui64 maxBlocksSize = GetDynamicConfig()->ReadWindowSize;
+
         for (const auto& chunkReadContext : InputChunkReadContexts_) {
             int currentBlockCount = 0;
-            auto inputChunkBlockCount = chunkReadContext.BlockCount;
+            auto blockSizes = chunkReadContext.BlockSizes;
+            auto inputChunkBlockCount = std::ssize(blockSizes);
+
             while (currentBlockCount < inputChunkBlockCount) {
-                std::vector<int> blockIndices(inputChunkBlockCount - currentBlockCount);
-                std::iota(blockIndices.begin(), blockIndices.end(), currentBlockCount);
+                ui64 currentSummarySize = 0;
+                int start = currentBlockCount;
+                int end = currentBlockCount;
+
+                while (end < inputChunkBlockCount) {
+                    currentSummarySize += blockSizes[end++];
+
+                    if (currentSummarySize >= maxBlocksSize) {
+                        break;
+                    }
+                }
+
+                std::vector<int> blockIndices(end - start);
+                std::iota(blockIndices.begin(), blockIndices.end(), start);
+
+                auto memoryGuard = TMemoryUsageTrackerGuard::Acquire(MemoryUsageTracker_, currentSummarySize);
+
                 auto asyncResult = chunkReadContext.Reader->ReadBlocks(
                     chunkReadContext.Options,
                     blockIndices);
@@ -1402,7 +1516,24 @@ private:
             .ThrowOnError();
 
         if (JobSpecExt_.validate_shallow_merge()) {
-            ShallowMergeValidationError_ = ValidateShallowMerge(writer);
+            auto readWindowSize = GetDynamicConfig()->ReadWindowSize;
+
+            TParallelReaderMemoryManagerOptions parallelReaderMemoryManagerOptions{
+                .TotalReservedMemorySize = readWindowSize,
+                .MaxInitialReaderReservedMemory = readWindowSize,
+                .MemoryUsageTracker = MemoryUsageTracker_
+            };
+            auto multiReaderMemoryManager = CreateParallelReaderMemoryManager(
+                parallelReaderMemoryManagerOptions,
+                NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
+
+            ShallowMergeValidationError_ = ValidateShallowMerge(writer, multiReaderMemoryManager);
+
+            auto result = WaitFor(multiReaderMemoryManager->Finalize());
+            YT_LOG_FATAL_IF(
+                !result.IsOK(),
+                result,
+                "Error releasing reader resources");
         }
     }
 
@@ -1451,23 +1582,43 @@ private:
         auto rowBuffer = New<TRowBuffer>();
         auto writerNameTable = writer->GetNameTable();
 
-        TMergeChunkReader chunkReader(
-            Bootstrap_,
-            InputChunkReadContexts_,
-            Schema_,
-            writerNameTable,
-            /*permuteRows*/ true);
+        auto readWindowSize = GetDynamicConfig()->ReadWindowSize;
 
-        while (auto rows = chunkReader.ReadRows(rowBuffer)) {
-            if (!writer->Write(MakeRange(*rows))) {
-                WaitFor(writer->GetReadyEvent())
-                    .ThrowOnError();
+        TParallelReaderMemoryManagerOptions parallelReaderMemoryManagerOptions{
+            .TotalReservedMemorySize = readWindowSize,
+            .MaxInitialReaderReservedMemory = readWindowSize,
+            .MemoryUsageTracker = MemoryUsageTracker_
+        };
+        auto multiReaderMemoryManager = CreateParallelReaderMemoryManager(
+            parallelReaderMemoryManagerOptions,
+            NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
+
+        {
+            TMergeChunkReader chunkReader(
+                Bootstrap_,
+                InputChunkReadContexts_,
+                Schema_,
+                writerNameTable,
+                /*permuteRows*/ true,
+                multiReaderMemoryManager);
+
+            while (auto rows = chunkReader.ReadRows(rowBuffer)) {
+                if (!writer->Write(MakeRange(*rows))) {
+                    WaitFor(writer->GetReadyEvent())
+                        .ThrowOnError();
+                }
+                rowBuffer->Clear();
             }
-            rowBuffer->Clear();
+
+            WaitFor(writer->Close())
+                .ThrowOnError();
         }
 
-        WaitFor(writer->Close())
-            .ThrowOnError();
+        auto result = WaitFor(multiReaderMemoryManager->Finalize());
+        YT_LOG_FATAL_IF(
+            !result.IsOK(),
+            result,
+            "Error releasing reader resources");
     }
 
     IChunkWriterPtr CreateWriter()
@@ -1542,7 +1693,9 @@ private:
         return deferredChunkMeta;
     }
 
-    TError ValidateShallowMerge(const IMetaAggregatingWriterPtr& writer)
+    TError ValidateShallowMerge(
+        const IMetaAggregatingWriterPtr& writer,
+        const IMultiReaderMemoryManagerPtr& multiReaderMemoryManager)
     {
         YT_LOG_DEBUG("Validating shallow merge result");
 
@@ -1562,12 +1715,14 @@ private:
         i64 outputChunkRowsRead = 0;
 
         auto outputChunkReadContext = GetChunkReadContext(writer);
+
         TMergeChunkReader outputChunkReader(
             Bootstrap_,
             {outputChunkReadContext},
             Schema_,
             nameTable,
-            /*permuteRows*/ false);
+            /*permuteRows*/ false,
+            multiReaderMemoryManager);
 
         // NB: #InputChunkReadContexts_ could be already used during merge.
         PrepareInputChunkReadContexts();
@@ -1576,7 +1731,8 @@ private:
             InputChunkReadContexts_,
             Schema_,
             nameTable,
-            /*permuteRows*/ true);
+            /*permuteRows*/ true,
+            multiReaderMemoryManager);
 
         i64 outputChunkRowCount = outputChunkReadContext.MergeChunkInfo.row_count();
         i64 inputChunksRowCount = 0;

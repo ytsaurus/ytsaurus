@@ -152,7 +152,7 @@ const NProfiling::NProto::TSummaryDuration& GetSummaryDuration(
     const TString& sensorName)
 {
     for (const auto& cube : sensorDump.cubes()) {
-        if (cube.Getname() == sensorName) {
+        if (cube.name() == sensorName) {
             for (const auto& projection : cube.projections()) {
                 if (projection.has_value() && projection.has_timer() && projection.tag_ids_size() == 0) {
                     return projection.timer();

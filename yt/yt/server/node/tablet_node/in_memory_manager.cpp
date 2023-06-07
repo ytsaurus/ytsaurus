@@ -42,6 +42,8 @@
 
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
 
+#include <yt/yt/library/numeric/algorithm_helpers.h>
+
 #include <yt/yt/core/compression/codec.h>
 
 #include <yt/yt/core/concurrency/async_semaphore.h>
@@ -51,7 +53,6 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/periodic_yielder.h>
 
-#include <yt/yt/core/misc/algorithm_helpers.h>
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/memory_reference_tracker.h>
 

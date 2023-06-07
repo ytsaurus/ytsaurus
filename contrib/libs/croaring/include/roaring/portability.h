@@ -97,7 +97,7 @@ extern "C" {  // portability definitions are in global scope, not a namespace
 #undef CROARING_IS_X64
 #endif
 
-#ifdef CROARING_DISABLE_X64
+#ifdef ROARING_DISABLE_X64
 #undef CROARING_IS_X64
 #endif
 // we include the intrinsic header
@@ -426,7 +426,9 @@ static inline int roaring_hamming(uint64_t x) {
 #endif // !defined(CROARING_ATOMIC_IMPL)
 
 #if !defined(CROARING_ATOMIC_IMPL)
-  #pragma message ( "No atomic implementation found, copy on write bitmaps will not be threadsafe" )
+  #ifndef CROARING_SILENT_BUILD
+    #pragma message ( "No atomic implementation found, copy on write bitmaps will not be threadsafe" )
+  #endif // CROARING_SILENT_BUILD
   #define CROARING_ATOMIC_IMPL CROARING_ATOMIC_IMPL_NONE
 #endif
 
@@ -503,6 +505,7 @@ static inline uint32_t croaring_refcount_get(croaring_refcount_t *val) {
     return *val;
 }
 #elif CROARING_ATOMIC_IMPL == CROARING_ATOMIC_IMPL_NONE
+#include <assert.h>
 typedef uint32_t croaring_refcount_t;
 
 static inline void croaring_refcount_inc(croaring_refcount_t *val) {

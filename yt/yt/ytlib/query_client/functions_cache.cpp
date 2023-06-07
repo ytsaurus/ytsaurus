@@ -325,7 +325,7 @@ void AppendUdfDescriptors(
             }));
 
         if (functionDescriptor) {
-            YT_LOG_DEBUG("Appending function UDF descriptor %Qv", name);
+            YT_LOG_DEBUG("Appending function UDF descriptor (Name: %v)", name);
 
             functionBody.IsAggregate = false;
             functionBody.SymbolName = functionDescriptor->Name;
@@ -352,7 +352,7 @@ void AppendUdfDescriptors(
         }
 
         if (aggregateDescriptor) {
-            YT_LOG_DEBUG("Appending aggregate UDF descriptor %Qv", name);
+            YT_LOG_DEBUG("Appending aggregate UDF descriptor (Name: %v)", name);
 
             functionBody.IsAggregate = true;
             functionBody.SymbolName = aggregateDescriptor->Name;

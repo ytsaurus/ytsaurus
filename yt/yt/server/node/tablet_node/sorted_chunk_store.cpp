@@ -671,13 +671,17 @@ public:
 
     TDataStatistics GetDataStatistics() const override
     {
-        YT_VERIFY(UnderlyingReaderInitialized_.load());
+        if (!UnderlyingReaderInitialized_.load()) {
+            return {};
+        }
         return UnderlyingReader_->GetDataStatistics();
     }
 
     TCodecStatistics GetDecompressionStatistics() const override
     {
-        YT_VERIFY(UnderlyingReaderInitialized_.load());
+        if (!UnderlyingReaderInitialized_.load()) {
+            return {};
+        }
         return UnderlyingReader_->GetDecompressionStatistics();
     }
 

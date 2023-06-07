@@ -293,7 +293,10 @@ private:
         queryLogTables.push_back(TClickHouseTableConfig::Create("system", "query_log", Config_->QueryLog->Engine));
 
         for (const auto& table : queryLogTables) {
-            YT_LOG_DEBUG("Preparing query log table (Database: %v, Name: %v, Engine: %Qv)", table->Database, table->Name, table->Engine);
+            YT_LOG_DEBUG("Preparing query log table (Database: %v, Name: %v, Engine: %v)",
+                table->Database,
+                table->Name,
+                table->Engine);
             // NB: This is not a real QueryLog, it is needed only to create a table with proper query log structure.
             auto queryLog = std::make_shared<DB::QueryLog>(
                 ServerContext_,
@@ -305,7 +308,9 @@ private:
             // prepareTable is public in ISystemLog interface, but is overwritten as private in QueryLog.
             auto* systemLog = static_cast<DB::ISystemLog*>(queryLog.get());
             systemLog->prepareTable();
-            YT_LOG_DEBUG("Query log table prepared (Database: %v, Name: %v)", table->Database, table->Name);
+            YT_LOG_DEBUG("Query log table prepared (Database: %v, Name: %v)",
+                table->Database,
+                table->Name);
         }
 
         YT_LOG_DEBUG("Tables for query log prepared");

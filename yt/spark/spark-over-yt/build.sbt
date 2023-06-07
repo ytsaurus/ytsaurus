@@ -272,6 +272,10 @@ lazy val root = (project in file("."))
     `spark-submit`
   )
   .settings(
+    prepareBuildDirectory := {
+      streams.value.log.info(s"Preparing build directory in ${baseDirectory.value}")
+      deleteBuildDirectory(baseDirectory.value)
+    },
     spytPublishCluster := {
       if (publishYtEnabled) {
         (cluster / publishYt).value

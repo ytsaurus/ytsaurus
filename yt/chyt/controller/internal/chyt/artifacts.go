@@ -45,10 +45,12 @@ func (c *Controller) buildArtifact(ctx context.Context, artifact artifact) (path
 func (c *Controller) appendArtifacts(ctx context.Context, speclet *Speclet, filePaths *[]ypath.Rich, description *map[string]interface{}) (err error) {
 	artifacts := []artifact{
 		{"ytserver-clickhouse", CHYTBinaryDirectory.Child(speclet.CHYTVersionOrDefault())},
-		{"ytserver-log-tailer", LogTailerBinaryDirectory.Child(speclet.LogTailerVersionOrDefault())},
 		{"clickhouse-trampoline", TrampolineBinaryDirectory.Child(speclet.TrampolineVersionOrDefault())},
 	}
 
+	if c.config.EnableLogTailerOrDefault() {
+		artifacts = append(artifacts, artifact{"ytserver-log-tailer", LogTailerBinaryDirectory.Child(speclet.LogTailerVersionOrDefault())})
+	}
 	if speclet.EnableGeoDataOrDefault() {
 		artifacts = append(artifacts, artifact{"geodata.tgz", speclet.GeoDataPathOrDefault()})
 	}

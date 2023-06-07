@@ -284,8 +284,7 @@ struct TOneOrMany
     /// @endcond
 
     /// Initialize with empty sequence.
-    TOneOrMany()
-    { }
+    TOneOrMany() = default;
 
     // Initialize from initializer list.
     template<class U>
@@ -723,7 +722,7 @@ public:
     TVector<TColumnSchema>& MutableColumns();
 
     /// Check if schema has any described column
-    bool Empty() const;
+    [[nodiscard]] bool Empty() const;
 
     /// Add column
     TTableSchema& AddColumn(const TString& name, const NTi::TTypePtr& type, ESortOrder sortOrder) &;
@@ -755,7 +754,7 @@ public:
     TTableSchema SortBy(const TSortColumns& columns) &&;
 
     /// Get yson description of table schema
-    TNode ToNode() const;
+    [[nodiscard]] TNode ToNode() const;
 
     /// Parse schema from yson node
     static NYT::TTableSchema FromNode(const TNode& node);

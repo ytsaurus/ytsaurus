@@ -98,7 +98,21 @@ void TInstanceLimitsTracker::DoUpdateLimits()
 
         TInstanceLimits limits;
         limits.Cpu = cpuLimit.SecondsFloat();
-        setIfOk(&limits.Memory, memoryStatistics.MemoryLimit, "MemoryLimit");
+
+        if (memoryStatistics.AnonLimit.IsOK() && memoryStatistics.MemoryLimit.IsOK()) {
+            i64 anonLimit = memoryStatistics.AnonLimit.Value();
+            i64 memoryLimit = memoryStatistics.MemoryLimit.Value();
+
+            if (anonLimit > 0 && memoryLimit > 0) {
+                limits.Memory = std::min(anonLimit, memoryLimit);
+            } else if (anonLimit > 0) {
+                limits.Memory = anonLimit;
+            } else {
+                limits.Memory = memoryLimit;
+            }
+        } else {
+            setIfOk(&limits.Memory, memoryStatistics.MemoryLimit, "MemoryLimit");
+        }
 
         static constexpr bool DontFireAlertOnError = {};
         setIfOk(&limits.NetTx, netStatistics.TxLimit, "NetTxLimit", DontFireAlertOnError);

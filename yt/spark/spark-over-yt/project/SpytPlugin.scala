@@ -11,6 +11,7 @@ import spyt.SpytSnapshot._
 
 import java.io.File
 import java.nio.file.{Files, StandardCopyOption}
+import scala.reflect.io.Directory
 
 object SpytPlugin extends AutoPlugin {
   override def trigger = NoTrigger
@@ -40,6 +41,7 @@ object SpytPlugin extends AutoPlugin {
     val spytPublishClientRelease = taskKey[Unit]("Publish spyt client with snapshot version")
     val spytPublishSparkForkRelease = taskKey[Unit]("Publish spyt client & cluster with snapshot version")
 
+    val prepareBuildDirectory = taskKey[Unit]("")
     val spytPublishCluster = taskKey[Unit]("Publish spyt cluster")
     val spytPublishClient = taskKey[Unit]("Publish spyt client")
     val spytPublishSparkFork = taskKey[Unit]("Publish spyt client & cluster")
@@ -76,6 +78,11 @@ object SpytPlugin extends AutoPlugin {
 
     private def getBuildDirectory(rootDirectory: File): File = {
       rootDirectory / "build_output"
+    }
+
+    def deleteBuildDirectory(rootDirectory: File): Unit = {
+      val directory = new Directory(getBuildDirectory(rootDirectory))
+      directory.deleteRecursively()
     }
 
     def makeLinkToBuildDirectory(target: File, rootDirectory: File, linkName: String): File = {

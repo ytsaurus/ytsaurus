@@ -16,11 +16,12 @@
 
 #include <yt/yt/client/security_client/acl.h>
 
+#include <yt/yt/library/numeric/algorithm_helpers.h>
+
 #include <yt/yt/core/concurrency/async_rw_lock.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 
-#include <yt/yt/core/misc/algorithm_helpers.h>
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/atomic_object.h>
 
@@ -28,7 +29,6 @@
 
 #include <yt/yt/core/ytree/service_combiner.h>
 #include <yt/yt/core/ytree/virtual.h>
-
 
 namespace NYT::NScheduler {
 

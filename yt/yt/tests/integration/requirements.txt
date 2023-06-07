@@ -1,0 +1,26 @@
+pytest==7.3.1
+pytest-timeout==2.1.0
+flaky==3.7.0
+
+zstd==1.5.5.1
+pytz==2023.3
+kazoo==2.9.0
+python-dateutil==2.8.2
+requests==2.30.0
+urllib3==2.0.2
+pydantic==1.10.7
+psutil==5.9.5
+
+protobuf==4.23.1
+portopy==5.2.8
+grpcio==1.54.2
+
+# From python libraries dependencies
+simplejson==3.18.3
+decorator==4.4.2
+tqdm==4.64.1
+argcomplete==2.0.0
+six==1.16.0
+charset-normalizer==2.0.10
+typing-extensions==4.5.0
+attrs==22.2.0

@@ -44,7 +44,7 @@ public:
         proxyCoordinator->SubscribeOnProxyRoleChanged(BIND(&TAccessChecker::OnProxyRoleChanged, MakeWeak(this)));
     }
 
-    TError ValidateAccess(const TString& user) const override
+    TError CheckAccess(const TString& user) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

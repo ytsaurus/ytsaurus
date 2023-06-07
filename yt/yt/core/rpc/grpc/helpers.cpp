@@ -70,6 +70,39 @@ TStringBuf TGrpcMetadataArray::Find(const char* key) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TGrpcSlice::~TGrpcSlice()
+{
+    grpc_slice_unref(Native_);
+}
+
+void TGrpcSlice::Reset(grpc_slice&& other)
+{
+    grpc_slice_unref(Native_);
+    Native_ = std::move(other);
+}
+
+grpc_slice* TGrpcSlice::Unwrap()
+{
+    return &Native_;
+}
+
+const ui8* TGrpcSlice::Data() const
+{
+    return GRPC_SLICE_START_PTR(Native_);
+}
+
+size_t TGrpcSlice::Size() const
+{
+    return GRPC_SLICE_LENGTH(Native_);
+}
+
+TString TGrpcSlice::AsString() const
+{
+    return NGrpc::ToString(Native_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TGrpcMetadataArrayBuilder::Add(const char* key, TString value)
 {
     Strings_.push_back(TSharedRef::FromString(std::move(value)));
@@ -169,8 +202,7 @@ grpc_ssl_pem_key_cert_pair* TGrpcPemKeyCertPair::Unwrap()
 ////////////////////////////////////////////////////////////////////////////////
 
 TGrpcByteBufferStream::TGrpcByteBufferStream(grpc_byte_buffer* buffer)
-    : CurrentSlice_(grpc_empty_slice())
-    , RemainingBytes_(grpc_byte_buffer_length(buffer))
+    : RemainingBytes_(grpc_byte_buffer_length(buffer))
 {
     YT_VERIFY(grpc_byte_buffer_reader_init(&Reader_, buffer) == 1);
 }
@@ -178,19 +210,17 @@ TGrpcByteBufferStream::TGrpcByteBufferStream(grpc_byte_buffer* buffer)
 TGrpcByteBufferStream::~TGrpcByteBufferStream()
 {
     grpc_byte_buffer_reader_destroy(&Reader_);
-    grpc_slice_unref(CurrentSlice_);
 }
 
 bool TGrpcByteBufferStream::ReadNextSlice()
 {
-    grpc_slice_unref(CurrentSlice_);
-    CurrentSlice_ = grpc_empty_slice();
+    CurrentSlice_.Reset(grpc_empty_slice());
 
-    if (grpc_byte_buffer_reader_next(&Reader_, &CurrentSlice_) == 0) {
+    if (grpc_byte_buffer_reader_next(&Reader_, CurrentSlice_.Unwrap()) == 0) {
         return false;
     }
 
-    AvailableBytes_ = GRPC_SLICE_LENGTH(CurrentSlice_);
+    AvailableBytes_ = CurrentSlice_.Size();
     return true;
 }
 
@@ -204,8 +234,8 @@ size_t TGrpcByteBufferStream::DoRead(void* buf, size_t len)
         }
     }
 
-    const auto* sliceData = GRPC_SLICE_START_PTR(CurrentSlice_);
-    auto offset = GRPC_SLICE_LENGTH(CurrentSlice_) - AvailableBytes_;
+    const auto* sliceData = CurrentSlice_.Data();
+    auto offset = CurrentSlice_.Size() - AvailableBytes_;
 
     size_t toRead = std::min(len, AvailableBytes_);
     ::memcpy(buf, sliceData + offset, toRead);

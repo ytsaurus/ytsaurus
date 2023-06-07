@@ -76,7 +76,11 @@ public:
         initialReaderMemory = std::max<i64>(initialReaderMemory, 0);
 
         auto memoryManager = New<TChunkReaderMemoryManager>(
-            TChunkReaderMemoryManagerOptions(initialReaderMemory, profilingTagList, Options_.EnableDetailedLogging),
+            TChunkReaderMemoryManagerOptions(
+                initialReaderMemory,
+                profilingTagList,
+                Options_.EnableDetailedLogging,
+                Options_.MemoryUsageTracker),
             MakeWeak(this));
         FreeMemory_ -= initialReaderMemory;
 
@@ -101,10 +105,11 @@ public:
         initialReservedMemory = std::max<i64>(initialReservedMemory, 0);
 
         TParallelReaderMemoryManagerOptions options{
-            initialReservedMemory,
-            Options_.MaxInitialReaderReservedMemory,
-            profilingTagList,
-            Options_.EnableDetailedLogging
+            .TotalReservedMemorySize = initialReservedMemory,
+            .MaxInitialReaderReservedMemory = Options_.MaxInitialReaderReservedMemory,
+            .ProfilingTagList = profilingTagList,
+            .EnableProfiling = Options_.EnableDetailedLogging,
+            .MemoryUsageTracker = Options_.MemoryUsageTracker
         };
         auto memoryManager = New<TParallelReaderMemoryManager>(options, MakeWeak(this), Invoker_);
         FreeMemory_ -= initialReservedMemory;
@@ -173,13 +178,14 @@ public:
         return FreeMemory_;
     }
 
-    void Finalize() override
+    TFuture<void> Finalize() override
     {
         YT_LOG_DEBUG("Finalizing parallel reader memory manager (AlreadyFinalized: %v)",
             Finalized_.load());
 
         Finalized_ = true;
         Invoker_->Invoke(BIND(&TParallelReaderMemoryManager::TryUnregister, MakeWeak(this)));
+        return FinalizeEvent_.ToFuture();
     }
 
     const TTagList& GetProfilingTagList() const override
@@ -268,6 +274,8 @@ private:
     //! Memory managers with reserved_memory >= required_memory and reserved_memory < desired_memory
     //! ordered by desired_memory - reserved_memory.
     std::set<std::pair<i64, IReaderMemoryManagerPtr>> ReadersWithoutDesiredMemoryAmount_;
+
+    TPromise<void> FinalizeEvent_ = NewPromise<void>();
 
     const TTagList ProfilingTagList_;
     TProfiler Profiler_;
@@ -555,6 +563,8 @@ private:
             if (auto host = Host_.Lock()) {
                 host->Unregister(MakeStrong(this));
             }
+
+            FinalizeEvent_.TrySet(TError());
         }
 
         TryLogFullState();

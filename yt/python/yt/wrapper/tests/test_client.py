@@ -7,8 +7,10 @@ import yt.wrapper.http_helpers as http
 
 try:
     from yt.packages.six.moves import xrange
+    from yt.packages.six.moves.urllib.parse import urlparse
 except ImportError:
     from six.moves import xrange
+    from six.moves.urllib.parse import urlparse
 
 import yt.type_info as type_info
 import yt.wrapper as yt
@@ -16,6 +18,7 @@ import yt.wrapper as yt
 import pytest
 import time
 import tempfile
+import requests_mock
 from copy import deepcopy
 
 
@@ -249,28 +252,58 @@ class TestClient(object):
 
         assert http.get_token(client=yt.YtClient(config={"token": ""})) is None
 
-    @authors("verytable")
+    @authors("denvr")
+    def test_client_proxy_url(self):
+        if yt.config["backend"] != "native":
+            url_original_parts = urlparse('//{}'.format(yt.config["proxy"]["url"]))
+            client = yt.YtClient(proxy="http://{}:{}".format(url_original_parts.hostname, url_original_parts.port or ""))
+            assert client.get("/")
+            client = None
+
+            client = yt.YtClient(proxy="https://{}:{}".format(url_original_parts.hostname, url_original_parts.port or ""))
+
+            mocked_adapter_https = requests_mock.Adapter()
+            mocked_adapter_http = requests_mock.Adapter()
+            yt.http_helpers._get_session(client=client).mount("http://", mocked_adapter_http)
+            yt.http_helpers._get_session(client=client).mount("https://", mocked_adapter_https)
+            mocked_adapter_https.register_uri("GET", requests_mock.ANY, text='[{"name": "get", "input_type": "null", "output_type": "structured", "is_volatile": false, "is_heavy": false}]')
+
+            try:
+                client.get("/")
+            except:
+                pass
+
+            assert len(mocked_adapter_http.request_history) == 0
+            assert len(mocked_adapter_https.request_history) >= 1
+            assert mocked_adapter_https.request_history[0].url.startswith("https://")
+
+    @authors("verytable", "denvr")
     def test_get_proxy_url(self):
         for test_name, proxy_config, expected_url in [
             (
                 "cluster_name",
-                {"url": "hume"},
-                "hume.yt.yandex.net",
+                {"url": "cluster1"},
+                "cluster1.yt.yandex.net",
+            ),
+            (
+                "localhost_w_port",
+                {"url": "localhost:23924"},
+                "localhost:23924",
             ),
             (
                 "proxy_fqdn",
-                {"url": "sas4-5340-proxy-hume.man-pre.yp-c.yandex.net:80"},
-                "sas4-5340-proxy-hume.man-pre.yp-c.yandex.net:80",
+                {"url": "sas4-5340-proxy-cluster1.man-pre.yp-c.yandex.net:80"},
+                "sas4-5340-proxy-cluster1.man-pre.yp-c.yandex.net:80",
             ),
             (
                 "tvm_only",
-                {"url": "hume", "tvm_only": True},
-                "tvm.hume.yt.yandex.net:{}".format(http.TVM_ONLY_HTTP_PROXY_PORT),
+                {"url": "cluster1", "tvm_only": True},
+                "tvm.cluster1.yt.yandex.net:{}".format(http.TVM_ONLY_HTTP_PROXY_PORT),
             ),
             (
                 "default_suffix",
-                {"url": "hume", "default_suffix": ".imaginary.yt.yandex.net"},
-                "hume.imaginary.yt.yandex.net",
+                {"url": "cluster1", "default_suffix": ".imaginary.yt.yandex.net"},
+                "cluster1.imaginary.yt.yandex.net",
             ),
         ]:
             client = yt.YtClient(config={"proxy": proxy_config})
@@ -279,3 +312,119 @@ class TestClient(object):
         client = yt.YtClient()
         with pytest.raises(YtError):
             http.get_proxy_url(client=client)
+
+    @authors("denvr")
+    def test_get_proxy_address_url(self):
+        config_copy = deepcopy(yt.config.config)
+        for test_name, proxy_config, expected_url in [
+            (
+                "localhost",
+                {"url": "localhost"},
+                "http://localhost",
+            ),
+            (
+                "localhost w port",
+                {"url": "localhost:23924"},
+                "http://localhost:23924",
+            ),
+            (
+                "short name w port",
+                {"url": "hostname:123"},
+                "http://hostname:123",
+            ),
+            (
+                "short_host_w_schame",
+                {"url": "https://cluster1"},
+                "https://cluster1",
+            ),
+            (
+                "cluster name",
+                {"url": "cluster1"},
+                "http://cluster1.yt.yandex.net",
+            ),
+            (
+                "proxy_fqdn",
+                {"url": "sas4-5340-proxy-cluster1.man-pre.yp-c.yandex.net:80"},
+                "http://sas4-5340-proxy-cluster1.man-pre.yp-c.yandex.net:80",
+            ),
+            (
+                "tvm_only",
+                {"url": "cluster1", "tvm_only": True},
+                "http://tvm.cluster1.yt.yandex.net:{}".format(http.TVM_ONLY_HTTP_PROXY_PORT),
+            ),
+            (
+                "default_suffix",
+                {"url": "cluster1", "default_suffix": ".imaginary.yt.yandex.net"},
+                "http://cluster1.imaginary.yt.yandex.net",
+            ),
+            (
+                "cluster_name config https",
+                {"url": "cluster1", "prefer_https": True},
+                "https://cluster1.yt.yandex.net",
+            ),
+            (
+                "localhost",
+                {"url": "localhost", "prefer_https": True},
+                "https://localhost",
+            ),
+            (
+                "localhost override",
+                {"url": "http://localhost", "prefer_https": True},
+                "http://localhost",
+            ),
+            (
+                "cluster_name url priority over config 1",
+                {"url": "http://cluster1.yt.domain.net", "prefer_https": True},
+                "http://cluster1.yt.domain.net",
+            ),
+            (
+                "cluster_name url priority over config 2",
+                {"url": "https://cluster1.yt.domain.net", "prefer_https": False},
+                "https://cluster1.yt.domain.net",
+            ),
+            (
+                "proxy_fqdn config https",
+                {"url": "sas4-5340-proxy-cluster1.man-pre.yp-c.domain.net:80", "prefer_https": True},
+                "https://sas4-5340-proxy-cluster1.man-pre.yp-c.domain.net:80",
+            ),
+            (
+                "tvm_only config https",
+                {"url": "cluster1", "tvm_only": True, "prefer_https": True},
+                "https://tvm.cluster1.yt.yandex.net:{}".format(http.TVM_ONLY_HTTP_PROXY_PORT),
+            ),
+            (
+                "default_suffix config https",
+                {"url": "cluster1", "default_suffix": ".imaginary.yt.cluster.net", "prefer_https": True},
+                "https://cluster1.imaginary.yt.cluster.net",
+            ),
+        ]:
+            client = yt.YtClient(config={"proxy": proxy_config})
+            assert http.get_proxy_address_url(client=client) == expected_url, test_name
+            for f in ["url", "default_suffix", "prefer_https", "tvm_only"]:
+                yt.config["proxy"][f] = proxy_config.get(f, config_copy["proxy"][f])
+            assert http.get_proxy_address_url(client=None) == expected_url, test_name
+            for f in ["url", "default_suffix", "prefer_https", "tvm_only"]:
+                yt.config["proxy"][f] = config_copy["proxy"][f]
+
+        # check empty
+        client = yt.YtClient()
+        assert http.get_proxy_address_url(required=False, client=client) is None
+        with pytest.raises(YtError):
+            http.get_proxy_address_url(client=client)
+
+        # check custom
+        client = yt.YtClient(config={"proxy": {"url": "test1:555", "prefer_https": True}})
+        assert http.get_proxy_address_url(client=client, replace_host=None) == "https://test1:555"
+        assert http.get_proxy_address_url(client=client, replace_host="custom") == "https://custom.yt.yandex.net"
+        assert http.get_proxy_address_url(client=client, replace_host="custom:666") == "https://custom:666"
+        assert http.get_proxy_address_url(client=client, replace_host="http://scheme_override") == "http://scheme_override"
+        assert http.get_proxy_address_url(client=client, replace_host="custom", add_path="aaa/bbb") == "https://custom.yt.yandex.net/aaa/bbb"
+        assert http.get_proxy_address_url(client=client, replace_host="custom", add_path="/aaa/bbb") == "https://custom.yt.yandex.net/aaa/bbb"
+
+        assert http.get_proxy_address_netloc(client=client, replace_host=None) == "test1:555"
+        assert http.get_proxy_address_netloc(client=client, replace_host="custom") == "custom.yt.yandex.net"
+        assert http.get_proxy_address_netloc(client=client, replace_host="custom.aaa.ru:123") == "custom.aaa.ru:123"
+        assert http.get_proxy_address_netloc(client=client, replace_host="http://custom.aaa.ru") == "custom.aaa.ru"
+
+        client = yt.YtClient(config={"proxy": {"url": "https://secuered.host:555", "prefer_https": None}})
+        assert http.get_proxy_address_url(client=client, replace_host="must_secured.host") == "https://must_secured.host"

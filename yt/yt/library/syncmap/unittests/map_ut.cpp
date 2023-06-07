@@ -26,12 +26,16 @@ TEST(TSyncMap, SingleInsert)
 
 TEST(TSyncMap, SingleEmplace)
 {
-    struct TestVal: TNonCopyable
+    struct TTestValue
+        : public TNonCopyable
     {
-        TestVal(int value) : Value(value) { };
+        explicit TTestValue(int value)
+            : Value(value)
+        { }
+
         int Value;
     };
-    TSyncMap<int, TestVal> map;
+    TSyncMap<int, TTestValue> map;
 
     auto ptr = map.Find(0);
     EXPECT_EQ(ptr, nullptr);

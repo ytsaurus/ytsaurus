@@ -1297,11 +1297,12 @@ func (e *Encoder) CheckPermission(
 func (e *Encoder) DisableChunkLocations(
 	ctx context.Context,
 	nodeAddress string,
-	locationUuids []guid.GUID,
+	locationUUIDs []guid.GUID,
+	opts *yt.DisableChunkLocationsOptions,
 ) (response *yt.DisableChunkLocationsResponse, err error) {
 	req := &rpc_proxy.TReqDisableChunkLocations{
 		NodeAddress:   &nodeAddress,
-		LocationUuids: convertGUIDs(locationUuids),
+		LocationUuids: convertGUIDs(locationUUIDs),
 	}
 
 	call := e.newCall(MethodDisableChunkLocations, NewDisableChunkLocationsRequest(req), nil)
@@ -1314,7 +1315,7 @@ func (e *Encoder) DisableChunkLocations(
 
 	response, err = makeDisableChunkLocationsResponse(&rsp)
 	if err != nil {
-		return nil, xerrors.Errorf("unable to deserializer response: %w", err)
+		return nil, xerrors.Errorf("unable to deserialize response: %w", err)
 	}
 
 	return
@@ -1323,11 +1324,12 @@ func (e *Encoder) DisableChunkLocations(
 func (e *Encoder) DestroyChunkLocations(
 	ctx context.Context,
 	nodeAddress string,
-	locationUuids []guid.GUID,
+	locationUUIDs []guid.GUID,
+	opts *yt.DestroyChunkLocationsOptions,
 ) (response *yt.DestroyChunkLocationsResponse, err error) {
 	req := &rpc_proxy.TReqDestroyChunkLocations{
 		NodeAddress:   &nodeAddress,
-		LocationUuids: convertGUIDs(locationUuids),
+		LocationUuids: convertGUIDs(locationUUIDs),
 	}
 
 	call := e.newCall(MethodDestroyChunkLocations, NewDestroyChunkLocationsRequest(req), nil)
@@ -1340,7 +1342,7 @@ func (e *Encoder) DestroyChunkLocations(
 
 	response, err = makeDestroyChunkLocationsResponse(&rsp)
 	if err != nil {
-		return nil, xerrors.Errorf("unable to deserializer response: %w", err)
+		return nil, xerrors.Errorf("unable to deserialize response: %w", err)
 	}
 
 	return
@@ -1349,11 +1351,12 @@ func (e *Encoder) DestroyChunkLocations(
 func (e *Encoder) ResurrectChunkLocations(
 	ctx context.Context,
 	nodeAddress string,
-	locationUuids []guid.GUID,
+	locationUUIDs []guid.GUID,
+	opts *yt.ResurrectChunkLocationsOptions,
 ) (response *yt.ResurrectChunkLocationsResponse, err error) {
 	req := &rpc_proxy.TReqResurrectChunkLocations{
 		NodeAddress:   &nodeAddress,
-		LocationUuids: convertGUIDs(locationUuids),
+		LocationUuids: convertGUIDs(locationUUIDs),
 	}
 
 	call := e.newCall(MethodResurrectChunkLocations, NewResurrectChunkLocationsRequest(req), nil)
@@ -1366,7 +1369,7 @@ func (e *Encoder) ResurrectChunkLocations(
 
 	response, err = makeResurrectChunkLocationsResponse(&rsp)
 	if err != nil {
-		return nil, xerrors.Errorf("unable to deserializer response: %w", err)
+		return nil, xerrors.Errorf("unable to deserialize response: %w", err)
 	}
 
 	return

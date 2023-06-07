@@ -1358,14 +1358,14 @@ void ManageSystemAccountLimit(const TSchedulerInputState& input, TSchedulerMutat
             mutations->LoweredSystemAccountLimit[accountName] = newQuota;
         }
 
-        YT_LOG_INFO("Adjusting system account resource limits (AccountName: %v, NewResourceLimit: %Qv, OldResourceLimit: %Qv)",
+        YT_LOG_INFO("Adjusting system account resource limits (AccountName: %v, NewResourceLimit: %v, OldResourceLimit: %v)",
             accountName,
             ConvertToYsonString(newQuota, EYsonFormat::Text),
             ConvertToYsonString(accountInfo->ResourceLimits, EYsonFormat::Text));
     }
 
     mutations->ChangedRootSystemAccountLimit = rootQuota;
-    YT_LOG_INFO("Adjusting root system account resource limits(NewResourceLimit: %Qv, OldResourceLimit: %Qv)",
+    YT_LOG_INFO("Adjusting root system account resource limits(NewResourceLimit: %v, OldResourceLimit: %v)",
         ConvertToYsonString(rootQuota, EYsonFormat::Text),
         ConvertToYsonString(input.RootSystemAccount->ResourceLimits, EYsonFormat::Text));
 }
@@ -2139,7 +2139,7 @@ void ManageBundlesDynamicConfig(TSchedulerInputState& input, TSchedulerMutations
         return;
     }
 
-    YT_LOG_INFO("Bundles dynamic config has changed (Config: %Qv)",
+    YT_LOG_INFO("Bundles dynamic config has changed (Config: %v)",
         ConvertToYsonString(freshConfig, EYsonFormat::Text));
 
     mutations->DynamicConfig = freshConfig;

@@ -16,10 +16,12 @@ using namespace NLogging;
 TChunkReaderMemoryManagerOptions::TChunkReaderMemoryManagerOptions(
     i64 bufferSize,
     NProfiling::TTagList profilingTagList,
-    bool enableDetailedLogging)
+    bool enableDetailedLogging,
+    ITypedNodeMemoryTrackerPtr memoryUsageTracker)
     : BufferSize(bufferSize)
     , ProfilingTagList(std::move(profilingTagList))
     , EnableDetailedLogging(enableDetailedLogging)
+    , MemoryUsageTracker(std::move(memoryUsageTracker))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,6 +34,7 @@ TChunkReaderMemoryManager::TChunkReaderMemoryManager(
     , PrefetchMemorySize_(Options_.BufferSize)
     , AsyncSemaphore_(New<TAsyncSemaphore>(Options_.BufferSize))
     , HostMemoryManager_(std::move(hostMemoryManager))
+    , MemoryUsageTracker_(Options_.MemoryUsageTracker)
     , ProfilingTagList_(std::move(Options_.ProfilingTagList))
     , Id_(TGuid::Create())
     , Logger(ReaderMemoryManagerLogger.WithTag("Id: %v", Id_))
@@ -115,7 +118,10 @@ TMemoryUsageGuardPtr TChunkReaderMemoryManager::Acquire(i64 size)
         size,
         GetFreeMemorySize());
 
-    return New<TMemoryUsageGuard>(TAsyncSemaphoreGuard::Acquire(AsyncSemaphore_, size), MakeWeak(this));
+    return New<TMemoryUsageGuard>(
+        TAsyncSemaphoreGuard::Acquire(AsyncSemaphore_, size),
+        MakeWeak(this),
+        MemoryUsageTracker_ ? TMemoryUsageTrackerGuard::Acquire(MemoryUsageTracker_, size) : std::optional<TMemoryUsageTrackerGuard>());
 }
 
 TFuture<TMemoryUsageGuardPtr> TChunkReaderMemoryManager::AsyncAcquire(i64 size)
@@ -137,16 +143,6 @@ TFuture<TMemoryUsageGuardPtr> TChunkReaderMemoryManager::AsyncAcquire(i64 size)
     return memoryFuture.ToImmediatelyCancelable();
 }
 
-void TChunkReaderMemoryManager::Release(i64 size)
-{
-    YT_LOG_DEBUG_IF(Options_.EnableDetailedLogging, "Releasing memory (MemorySize: %v, FreeMemorySize: %v)",
-        size,
-        GetFreeMemorySize());
-
-    AsyncSemaphore_->Release(size);
-    TryUnregister();
-}
-
 void TChunkReaderMemoryManager::TryUnregister()
 {
     if (Finalized_) {
@@ -160,7 +156,11 @@ void TChunkReaderMemoryManager::TryUnregister()
 
 i64 TChunkReaderMemoryManager::GetFreeMemorySize() const
 {
-    return AsyncSemaphore_->GetFree();
+    if (MemoryUsageTracker_) {
+        return std::min(AsyncSemaphore_->GetFree(), MemoryUsageTracker_->GetFree());
+    } else {
+        return AsyncSemaphore_->GetFree();
+    }
 }
 
 void TChunkReaderMemoryManager::SetTotalSize(i64 size)
@@ -204,20 +204,27 @@ void TChunkReaderMemoryManager::SetPrefetchMemorySize(i64 size)
     OnMemoryRequirementsUpdated();
 }
 
-void TChunkReaderMemoryManager::Finalize()
+TFuture<void> TChunkReaderMemoryManager::Finalize()
 {
     YT_LOG_DEBUG("Finalizing chunk reader memory manager (AlreadyFinalized: %v)",
         Finalized_.load());
 
     Finalized_ = true;
     TryUnregister();
+
+    return FinalizeEvent_.ToFuture();
 }
 
 void TChunkReaderMemoryManager::OnSemaphoreAcquired(TPromise<TMemoryUsageGuardPtr> promise, TAsyncSemaphoreGuard semaphoreGuard)
 {
-    YT_LOG_DEBUG_IF(Options_.EnableDetailedLogging, "Semaphore acquired (MemorySize: %v)", semaphoreGuard.GetSlots());
+    auto size = semaphoreGuard.GetSlots();
 
-    promise.Set(New<TMemoryUsageGuard>(std::move(semaphoreGuard), MakeWeak(this)));
+    YT_LOG_DEBUG_IF(Options_.EnableDetailedLogging, "Semaphore acquired (MemorySize: %v)", size);
+
+    promise.Set(New<TMemoryUsageGuard>(
+        std::move(semaphoreGuard),
+        MakeWeak(this),
+        MemoryUsageTracker_ ? TMemoryUsageTrackerGuard::Acquire(MemoryUsageTracker_, size) : std::optional<TMemoryUsageTrackerGuard>()));
 }
 
 void TChunkReaderMemoryManager::OnMemoryRequirementsUpdated()
@@ -243,6 +250,8 @@ void TChunkReaderMemoryManager::DoUnregister()
             hostMemoryManager->Unregister(MakeStrong(this));
         }
     }
+
+    FinalizeEvent_.TrySet(TError());
 }
 
 i64 TChunkReaderMemoryManager::GetUsedMemorySize() const
@@ -254,16 +263,48 @@ i64 TChunkReaderMemoryManager::GetUsedMemorySize() const
 
 TMemoryUsageGuard::TMemoryUsageGuard(
     NConcurrency::TAsyncSemaphoreGuard guard,
-    TWeakPtr<TChunkReaderMemoryManager> memoryManager)
+    TWeakPtr<TChunkReaderMemoryManager> memoryManager,
+    std::optional<TMemoryUsageTrackerGuard> memoryUsageTrackerGuard)
     : Guard_(std::move(guard))
     , MemoryManager_(std::move(memoryManager))
+    , MemoryUsageTrackerGuard_(std::move(memoryUsageTrackerGuard))
 { }
 
 TMemoryUsageGuard::~TMemoryUsageGuard()
 {
-    Guard_.Release();
-    if (auto memoryManager = MemoryManager_.Lock()) {
+    Release();
+}
 
+void TMemoryUsageGuard::MoveFrom(TMemoryUsageGuard&& other)
+{
+    Guard_ = std::move(other.Guard_);
+    MemoryManager_ = other.MemoryManager_;
+    MemoryUsageTrackerGuard_ = std::move(other.MemoryUsageTrackerGuard_);
+}
+
+TMemoryUsageGuard::TMemoryUsageGuard(TMemoryUsageGuard&& other)
+{
+    MoveFrom(std::move(other));
+}
+
+TMemoryUsageGuard& TMemoryUsageGuard::operator=(TMemoryUsageGuard&& other)
+{
+    if (this != &other) {
+        Release();
+        MoveFrom(std::move(other));
+    }
+    return *this;
+}
+
+void TMemoryUsageGuard::Release()
+{
+    Guard_.Release();
+
+    if (MemoryUsageTrackerGuard_) {
+        MemoryUsageTrackerGuard_->Release();
+    }
+
+    if (auto memoryManager = MemoryManager_.Lock()) {
         memoryManager->TryUnregister();
     }
 }
@@ -276,6 +317,21 @@ TAsyncSemaphoreGuard* TMemoryUsageGuard::GetGuard()
 TWeakPtr<TChunkReaderMemoryManager> TMemoryUsageGuard::GetMemoryManager() const
 {
     return MemoryManager_;
+}
+
+TMemoryUsageGuardPtr TMemoryUsageGuard::TransferMemory(i64 slots)
+{
+    YT_VERIFY(Guard_.GetSlots() >= slots);
+
+    auto transferred = Guard_.TransferSlots(slots);
+    auto memoryUsageGuard = MemoryUsageTrackerGuard_
+        ? MemoryUsageTrackerGuard_->TransferMemory(slots)
+        : std::optional<TMemoryUsageTrackerGuard>();
+
+    return New<TMemoryUsageGuard>(
+        std::move(transferred),
+        MemoryManager_,
+        std::move(memoryUsageGuard));
 }
 
 void TMemoryUsageGuard::CaptureBlock(TSharedRef block)

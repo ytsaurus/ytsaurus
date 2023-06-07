@@ -667,9 +667,10 @@ func (e *Encoder) DeleteRows(
 func (e *Encoder) DisableChunkLocations(
 	ctx context.Context,
 	nodeAddress string,
-	locationUuids []guid.GUID,
+	locationUUIDs []guid.GUID,
+	options *yt.DisableChunkLocationsOptions,
 ) (response *yt.DisableChunkLocationsResponse, err error) {
-	call := e.newCall(NewDisableChunkLocationsParams(nodeAddress, locationUuids))
+	call := e.newCall(NewDisableChunkLocationsParams(nodeAddress, locationUUIDs, options))
 	err = e.do(ctx, call, func(res *CallResult) error {
 		return res.decode(&response)
 	})
@@ -679,9 +680,10 @@ func (e *Encoder) DisableChunkLocations(
 func (e *Encoder) DestroyChunkLocations(
 	ctx context.Context,
 	nodeAddress string,
-	locationUuids []guid.GUID,
+	locationUUIDs []guid.GUID,
+	options *yt.DestroyChunkLocationsOptions,
 ) (response *yt.DestroyChunkLocationsResponse, err error) {
-	call := e.newCall(NewDestroyChunkLocationsParams(nodeAddress, locationUuids))
+	call := e.newCall(NewDestroyChunkLocationsParams(nodeAddress, locationUUIDs, options))
 	err = e.do(ctx, call, func(res *CallResult) error {
 		return res.decode(&response)
 	})
@@ -691,9 +693,10 @@ func (e *Encoder) DestroyChunkLocations(
 func (e *Encoder) ResurrectChunkLocations(
 	ctx context.Context,
 	nodeAddress string,
-	locationUuids []guid.GUID,
+	locationUUIDs []guid.GUID,
+	options *yt.ResurrectChunkLocationsOptions,
 ) (response *yt.ResurrectChunkLocationsResponse, err error) {
-	call := e.newCall(NewResurrectChunkLocationsParams(nodeAddress, locationUuids))
+	call := e.newCall(NewResurrectChunkLocationsParams(nodeAddress, locationUUIDs, options))
 	err = e.do(ctx, call, func(res *CallResult) error {
 		return res.decode(&response)
 	})

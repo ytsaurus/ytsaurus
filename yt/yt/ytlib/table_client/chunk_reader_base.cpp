@@ -7,7 +7,8 @@
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
 
-#include <yt/yt/core/misc/algorithm_helpers.h>
+#include <yt/yt/library/numeric/algorithm_helpers.h>
+
 #include <yt/yt/core/misc/range_formatters.h>
 
 #include <algorithm>

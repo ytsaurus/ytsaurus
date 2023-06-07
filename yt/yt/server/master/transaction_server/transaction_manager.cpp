@@ -728,11 +728,11 @@ public:
             }
 
             if (transactionToCheck == transaction) {
-                YT_LOG_ALERT("Unexpected transaction state encountered while replicating (TransactionId: %v, TransactionState: %Qlv)",
+                YT_LOG_ALERT("Unexpected transaction state encountered while replicating (TransactionId: %v, TransactionState: %v)",
                     transaction->GetId(),
                     state);
             } else {
-                YT_LOG_ALERT("Unexpected ancestor transaction state encountered while replicating (TransactionId: %v, AncestorTransactionId: %v, AncestorTransactionState: %Qlv)",
+                YT_LOG_ALERT("Unexpected ancestor transaction state encountered while replicating (TransactionId: %v, AncestorTransactionId: %v, AncestorTransactionState: %v)",
                     transaction->GetId(),
                     transactionToCheck->GetId(),
                     state);

@@ -16,6 +16,7 @@ func emit(f file, out io.Writer) error {
 	write("package internal")
 
 	write("import (")
+	write("%q", "go.ytsaurus.tech/yt/go/guid")
 	write("%q", "go.ytsaurus.tech/yt/go/yson")
 	write("%q", "go.ytsaurus.tech/yt/go/ypath")
 	write("%q", "go.ytsaurus.tech/yt/go/yt")

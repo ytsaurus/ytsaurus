@@ -130,7 +130,7 @@ void TApi::PutUserIntoBanCache(const TString& user)
 
 TError TApi::ValidateAccess(const TString& user)
 {
-    return AccessChecker_->ValidateAccess(user);
+    return AccessChecker_->CheckAccess(user);
 }
 
 int TApi::GetNumberOfConcurrentRequests()
