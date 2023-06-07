@@ -125,6 +125,12 @@ type CreateNodeOptions struct {
 	*PrerequisiteOptions
 }
 
+func (options *CreateNodeOptions) initAttributes() {
+	if options.Attributes == nil {
+		options.Attributes = map[string]interface{}{}
+	}
+}
+
 type CreateObjectOptions struct {
 	Recursive      bool `http:"recursive"`
 	IgnoreExisting bool `http:"ignore_existing"`
