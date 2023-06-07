@@ -121,9 +121,9 @@ func (f Field) Interface() interface{} {
 	return f.iface
 }
 
-// Any returns contained data as interface{}
+// Any returns contained data as any
 // nolint: gocyclo
-func (f Field) Any() interface{} {
+func (f Field) Any() any {
 	switch f.Type() {
 	case FieldTypeNil:
 		return nil
@@ -170,7 +170,7 @@ func String(key, value string) Field {
 }
 
 // Sprintf constructs field of string type with formatting
-func Sprintf(key, format string, args ...interface{}) Field {
+func Sprintf(key, format string, args ...any) Field {
 	return Field{key: key, ftype: FieldTypeString, string: fmt.Sprintf(format, args...)}
 }
 
@@ -357,12 +357,12 @@ func Errors(key string, value []error) Field {
 }
 
 // Array constructs field of array type
-func Array(key string, value interface{}) Field {
+func Array(key string, value any) Field {
 	return Field{key: key, ftype: FieldTypeArray, iface: value}
 }
 
 // Reflect constructs field of unknown type
-func Reflect(key string, value interface{}) Field {
+func Reflect(key string, value any) Field {
 	return Field{key: key, ftype: FieldTypeReflect, iface: value}
 }
 
@@ -376,7 +376,7 @@ func ByteString(key string, value []byte) Field {
 // or parts of it in user's code (when you need to log interface{} types with unknown content).
 // Otherwise please use specialized functions.
 // nolint: gocyclo
-func Any(key string, value interface{}) Field {
+func Any(key string, value any) Field {
 	switch val := value.(type) {
 	case bool:
 		return Bool(key, val)

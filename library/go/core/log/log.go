@@ -56,17 +56,17 @@ type Fmt interface {
 
 type loggerFmt interface {
 	// Tracef logs at Trace log level using fmt formatter
-	Tracef(format string, args ...interface{})
+	Tracef(format string, args ...any)
 	// Debugf logs at Debug log level using fmt formatter
-	Debugf(format string, args ...interface{})
+	Debugf(format string, args ...any)
 	// Infof logs at Info log level using fmt formatter
-	Infof(format string, args ...interface{})
+	Infof(format string, args ...any)
 	// Warnf logs at Warn log level using fmt formatter
-	Warnf(format string, args ...interface{})
+	Warnf(format string, args ...any)
 	// Errorf logs at Error log level using fmt formatter
-	Errorf(format string, args ...interface{})
+	Errorf(format string, args ...any)
 	// Fatalf logs at Fatal log level using fmt formatter
-	Fatalf(format string, args ...interface{})
+	Fatalf(format string, args ...any)
 }
 
 type toStructured interface {

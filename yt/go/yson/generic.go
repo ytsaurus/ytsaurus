@@ -2,14 +2,14 @@ package yson
 
 // ValueWithAttrs is a generic representation of YSON node with attached attributes.
 type ValueWithAttrs struct {
-	Attrs map[string]interface{} `yson:",attrs"`
-	Value interface{}            `yson:",value"`
+	Attrs map[string]any `yson:",attrs"`
+	Value any            `yson:",value"`
 }
 
 // AttrsOf is a helper function to work with ValueWithAttrs.
 // If value is a pointer to ValueWithAttrs, returns attributes.
 // Otherwise returns nil.
-func AttrsOf(value interface{}) map[string]interface{} {
+func AttrsOf(value any) map[string]any {
 	if v, ok := value.(*ValueWithAttrs); ok {
 		return v.Attrs
 	}
@@ -19,21 +19,21 @@ func AttrsOf(value interface{}) map[string]interface{} {
 // ValueOf is a helper function to work with ValueWithAttrs.
 // If value is a pointer to ValueWithAttrs, returns inner value.
 // Otherwise returns value directly.
-func ValueOf(value interface{}) interface{} {
+func ValueOf(value any) any {
 	if v, ok := value.(*ValueWithAttrs); ok {
 		return v.Value
 	}
 	return value
 }
 
-func decodeGeneric(r *Reader, v *interface{}) error {
+func decodeGeneric(r *Reader, v *any) error {
 	e, err := r.Next(false)
 	if err != nil {
 		return err
 	}
 
 	if e == EventBeginAttrs {
-		attrs := make(map[string]interface{})
+		attrs := make(map[string]any)
 
 		var valueWithAttrs ValueWithAttrs
 		*v = &valueWithAttrs
@@ -50,7 +50,7 @@ func decodeGeneric(r *Reader, v *interface{}) error {
 			}
 
 			attrName := r.String()
-			var attrValue interface{}
+			var attrValue any
 			if err = decodeGeneric(r, &attrValue); err != nil {
 				return err
 			}
@@ -90,7 +90,7 @@ func decodeGeneric(r *Reader, v *interface{}) error {
 			panic("missed type")
 		}
 	case EventBeginMap:
-		m := make(map[string]interface{})
+		m := make(map[string]any)
 		*v = m
 		for {
 			if ok, err := r.NextKey(); err != nil {
@@ -100,7 +100,7 @@ func decodeGeneric(r *Reader, v *interface{}) error {
 			}
 
 			mapKey := r.String()
-			var mapValue interface{}
+			var mapValue any
 			if err = decodeGeneric(r, &mapValue); err != nil {
 				return err
 			}
@@ -117,7 +117,7 @@ func decodeGeneric(r *Reader, v *interface{}) error {
 			panic("invalid decoder state")
 		}
 	case EventBeginList:
-		a := []interface{}{}
+		a := []any{}
 
 		for {
 			ok, err := r.NextListItem()
@@ -128,7 +128,7 @@ func decodeGeneric(r *Reader, v *interface{}) error {
 				break
 			}
 
-			var e interface{}
+			var e any
 			if err = decodeGeneric(r, &e); err != nil {
 				return err
 			}
@@ -151,7 +151,7 @@ func decodeGeneric(r *Reader, v *interface{}) error {
 	return nil
 }
 
-func decodeMap(r *Reader, v *map[string]interface{}) error {
+func decodeMap(r *Reader, v *map[string]any) error {
 	e, err := r.Next(true)
 	if err != nil {
 		return err
@@ -163,7 +163,7 @@ func decodeMap(r *Reader, v *map[string]interface{}) error {
 			panic("invalid decoder state")
 		}
 	case EventBeginMap:
-		m := make(map[string]interface{})
+		m := make(map[string]any)
 		*v = m
 		for {
 			if ok, err := r.NextKey(); err != nil {
@@ -173,7 +173,7 @@ func decodeMap(r *Reader, v *map[string]interface{}) error {
 			}
 
 			mapKey := r.String()
-			var mapValue interface{}
+			var mapValue any
 			if err = decodeGeneric(r, &mapValue); err != nil {
 				return err
 			}

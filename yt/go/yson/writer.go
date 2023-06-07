@@ -660,7 +660,7 @@ func (w *Writer) RawNode(raw []byte) {
 	}
 }
 
-func (w *Writer) Any(v interface{}) {
+func (w *Writer) Any(v any) {
 	if w.err != nil {
 		return
 	}

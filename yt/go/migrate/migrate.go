@@ -132,7 +132,7 @@ func OnConflictTryAlter(ctx context.Context, yc yt.Client) ConflictFn {
 
 type Table struct {
 	Schema     schema.Schema
-	Attributes map[string]interface{}
+	Attributes map[string]any
 }
 
 // EnsureTables creates and mounts dynamic tables.
@@ -157,7 +157,7 @@ func EnsureTables(
 		}
 
 		if !ok {
-			attrs := make(map[string]interface{})
+			attrs := make(map[string]any)
 			for k, v := range table.Attributes {
 				attrs[k] = v
 			}

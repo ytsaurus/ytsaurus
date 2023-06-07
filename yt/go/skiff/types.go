@@ -9,7 +9,7 @@ import (
 
 var (
 	emptyStructType = reflect.TypeOf(struct{}{})
-	genericMapType  = reflect.TypeOf(map[string]interface{}{})
+	genericMapType  = reflect.TypeOf(map[string]any{})
 )
 
 type fieldOp struct {

@@ -38,7 +38,7 @@ type StreamMarshaler interface {
 	MarshalYSON(*Writer) error
 }
 
-func (e *Encoder) Encode(value interface{}) (err error) {
+func (e *Encoder) Encode(value any) (err error) {
 	err = encodeAny(e.w, value, e.opts)
 	if err != nil {
 		return
@@ -105,11 +105,11 @@ func (e *Encoder) Encode(value interface{}) (err error) {
 // Values implementing encoding.TextMarshaler and encoding.BinaryMarshaler interface are encoded as YSON strings.
 //
 // Interface values are encoded as the value contained in the interface. A nil interface value encodes as the YSON entity value.
-func Marshal(value interface{}) ([]byte, error) {
+func Marshal(value any) ([]byte, error) {
 	return MarshalFormat(value, FormatText)
 }
 
-func MarshalFormat(value interface{}, format Format) ([]byte, error) {
+func MarshalFormat(value any, format Format) ([]byte, error) {
 	var buf bytes.Buffer
 	writer := NewWriterFormat(&buf, format)
 	encoder := Encoder{w: writer}
@@ -117,7 +117,7 @@ func MarshalFormat(value interface{}, format Format) ([]byte, error) {
 	return buf.Bytes(), err
 }
 
-func MarshalOptions(value interface{}, opts *EncoderOptions) ([]byte, error) {
+func MarshalOptions(value any, opts *EncoderOptions) ([]byte, error) {
 	var buf bytes.Buffer
 	writer := NewWriterFormat(&buf, FormatText)
 	encoder := Encoder{w: writer, opts: opts}
@@ -125,7 +125,7 @@ func MarshalOptions(value interface{}, opts *EncoderOptions) ([]byte, error) {
 	return buf.Bytes(), err
 }
 
-func encodeAny(w *Writer, value interface{}, opts *EncoderOptions) (err error) {
+func encodeAny(w *Writer, value any, opts *EncoderOptions) (err error) {
 	vv := reflect.ValueOf(value)
 	if value == nil || vv.Kind() == reflect.Ptr && vv.IsNil() {
 		w.Entity()
@@ -265,7 +265,7 @@ func encodeAny(w *Writer, value interface{}, opts *EncoderOptions) (err error) {
 	case RawValue:
 		w.RawNode([]byte(vv))
 
-	case map[string]interface{}:
+	case map[string]any:
 		w.BeginMap()
 		for k, item := range vv {
 			w.MapKeyString(k)

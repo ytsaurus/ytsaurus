@@ -179,7 +179,7 @@ type Format struct {
 	Name string `yson:",value"`
 
 	// either skiff.Schema of reference into registry
-	TableSchemas []interface{} `yson:"table_skiff_schemas,attr"`
+	TableSchemas []any `yson:"table_skiff_schemas,attr"`
 
 	// schemas shared between multiple tables
 	SchemaRegistry map[string]*Schema `yson:"skiff_schema_registry,attr"`

@@ -17,11 +17,11 @@ func TestEncoder(t *testing.T) {
 	require.NoError(t, e.Write(TestRow{First: ptr.Int64(5)}))
 	require.NoError(t, e.Write(TestRow{Second: 6}))
 	require.NoError(t, e.Write(TestRow{Third: "abbacaba"}))
-	require.NoError(t, e.Write(map[string]interface{}{
+	require.NoError(t, e.Write(map[string]any{
 		"first": 7,
 		"third": "foobar",
 	}))
-	require.NoError(t, e.WriteRow([]interface{}{
+	require.NoError(t, e.WriteRow([]any{
 		nil,
 		nil,
 		nil,

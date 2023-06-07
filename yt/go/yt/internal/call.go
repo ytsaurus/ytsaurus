@@ -40,16 +40,16 @@ type CallResult struct {
 	YSONValue []byte
 }
 
-func (res *CallResult) decodeSingle(key string, value interface{}) (err error) {
+func (res *CallResult) decodeSingle(key string, value any) (err error) {
 	err = yson.Unmarshal(res.YSONValue, &unmapper{key: key, value: value})
 	return
 }
 
-func (res *CallResult) decodeValue(value interface{}) (err error) {
+func (res *CallResult) decodeValue(value any) (err error) {
 	return res.decodeSingle("value", value)
 }
 
-func (res *CallResult) decode(value interface{}) (err error) {
+func (res *CallResult) decode(value any) (err error) {
 	err = yson.Unmarshal(res.YSONValue, value)
 	return
 }

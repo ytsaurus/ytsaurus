@@ -30,10 +30,10 @@ type testBasicTypes struct {
 	B []byte
 	innerStruct
 
-	A0 interface{}
+	A0 any
 	A1 innerStruct
-	A2 map[string]interface{}
-	A3 [3]interface{}
+	A2 map[string]any
+	A3 [3]any
 
 	T0 time.Time
 }
@@ -137,11 +137,11 @@ func TestInferType(t *testing.T) {
 	_, err = Infer(b)
 	require.Error(t, err)
 
-	var c interface{}
+	var c any
 	_, err = Infer(c)
 	require.Error(t, err)
 
-	d := make(map[interface{}]interface{})
+	d := make(map[any]any)
 	_, err = Infer(d)
 	require.Error(t, err)
 }
@@ -277,7 +277,7 @@ func TestInferMapType(t *testing.T) {
 	_, err = Infer(b)
 	require.Error(t, err)
 
-	var c interface{}
+	var c any
 	_, err = Infer(c)
 	require.Error(t, err)
 
@@ -286,7 +286,7 @@ func TestInferMapType(t *testing.T) {
 }
 
 func TestInferMapNonStringKeys(t *testing.T) {
-	a := make(map[int]interface{})
+	a := make(map[int]any)
 	_, err := Infer(a)
 	require.Error(t, err)
 }
@@ -305,11 +305,11 @@ func TestInferMap(t *testing.T) {
 	var S string
 	var B []byte
 
-	var A0 interface{}
+	var A0 any
 	var A1 innerStruct
-	var A2 map[string]interface{}
+	var A2 map[string]any
 
-	testMap := make(map[string]interface{})
+	testMap := make(map[string]any)
 	testMap["I"] = I
 	testMap["I64"] = I64
 	testMap["I32"] = I32

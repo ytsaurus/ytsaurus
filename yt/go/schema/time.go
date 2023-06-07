@@ -14,8 +14,8 @@ var (
 )
 
 type RangeError struct {
-	MinValue interface{}
-	MaxValue interface{}
+	MinValue any
+	MaxValue any
 }
 
 func (r RangeError) Error() string {

@@ -30,9 +30,9 @@ type ErrorCode int
 //
 // Error supports brief and full formatting using %v and %+v format specifiers.
 type Error struct {
-	Code       ErrorCode              `yson:"code" json:"code"`
-	Message    string                 `yson:"message" json:"message"`
-	Attributes map[string]interface{} `yson:"attributes,omitempty" json:"attributes,omitempty"`
+	Code       ErrorCode      `yson:"code" json:"code"`
+	Message    string         `yson:"message" json:"message"`
+	Attributes map[string]any `yson:"attributes,omitempty" json:"attributes,omitempty"`
 
 	// NOTE: Unwrap() always returns last inner error.
 	InnerErrors []*Error `yson:"inner_errors,omitempty" json:"inner_errors,omitempty"`
@@ -116,9 +116,9 @@ func (yt *Error) HasAttr(name string) bool {
 	return ok
 }
 
-func (yt *Error) AddAttr(name string, value interface{}) {
+func (yt *Error) AddAttr(name string, value any) {
 	if yt.Attributes == nil {
-		yt.Attributes = map[string]interface{}{}
+		yt.Attributes = map[string]any{}
 	}
 
 	yt.Attributes[name] = value
@@ -163,7 +163,7 @@ func (yt *Error) FormatError(p xerrors.Printer) (next error) {
 		}
 		sort.Strings(names)
 
-		formatAttr := func(v interface{}) string {
+		formatAttr := func(v any) string {
 			b, _ := yson.MarshalFormat(v, yson.FormatText)
 			return string(b)
 		}
@@ -202,17 +202,17 @@ func (yt *Error) FormatError(p xerrors.Printer) (next error) {
 
 type ErrorAttr struct {
 	Name  string
-	Value interface{}
+	Value any
 }
 
-func Attr(name string, value interface{}) ErrorAttr {
+func Attr(name string, value any) ErrorAttr {
 	return ErrorAttr{Name: name, Value: value}
 }
 
 // Err creates new error of type Error.
 //
 // NOTE: when passing multiple inner errors, only the last one will be accessible by errors.Is and errors.As.
-func Err(args ...interface{}) error {
+func Err(args ...any) error {
 	err := new(Error)
 	err.Code = 1
 	err.Message = "Error"
@@ -253,7 +253,7 @@ func (yt *Error) UnmarshalJSON(b []byte) error {
 
 	yt.Message = decodeNonASCII(yt.Message)
 	if yt.Attributes != nil {
-		yt.Attributes = fixStrings(yt.Attributes, decodeNonASCII).(map[string]interface{})
+		yt.Attributes = fixStrings(yt.Attributes, decodeNonASCII).(map[string]any)
 	}
 	return nil
 }
@@ -273,12 +273,12 @@ func (yt *Error) MarshalJSON() ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		var attrs interface{}
+		var attrs any
 		if err := json.Unmarshal(attrsJS, &attrs); err != nil {
 			return nil, err
 		}
 
-		fixed.Attributes = fixStrings(attrs, encodeNonASCII).(map[string]interface{})
+		fixed.Attributes = fixStrings(attrs, encodeNonASCII).(map[string]any)
 	}
 
 	return json.Marshal(fixed)

@@ -42,7 +42,7 @@ func (c *Controller) buildArtifact(ctx context.Context, artifact artifact) (path
 	return
 }
 
-func (c *Controller) appendArtifacts(ctx context.Context, speclet *Speclet, filePaths *[]ypath.Rich, description *map[string]interface{}) (err error) {
+func (c *Controller) appendArtifacts(ctx context.Context, speclet *Speclet, filePaths *[]ypath.Rich, description *map[string]any) (err error) {
 	artifacts := []artifact{
 		{"ytserver-clickhouse", CHYTBinaryDirectory.Child(speclet.CHYTVersionOrDefault())},
 		{"clickhouse-trampoline", TrampolineBinaryDirectory.Child(speclet.TrampolineVersionOrDefault())},
