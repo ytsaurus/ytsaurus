@@ -940,7 +940,7 @@ func makeListJobsResult(result *rpc_proxy.TListJobsResult) (*yt.ListJobsResult, 
 	return ret, nil
 }
 
-func convertTabletRangelOptions(opts *yt.TabletRangeOptions) *rpc_proxy.TTabletRangeOptions {
+func convertTabletRangeOptions(opts *yt.TabletRangeOptions) *rpc_proxy.TTabletRangeOptions {
 	if opts == nil {
 		return nil
 	}

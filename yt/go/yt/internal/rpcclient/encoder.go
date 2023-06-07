@@ -704,7 +704,7 @@ func (e *Encoder) MountTable(
 		CellId:             convertGUIDPtr(opts.CellID),
 		Freeze:             &opts.Freeze,
 		MutatingOptions:    convertMutatingOptions(opts.MutatingOptions),
-		TabletRangeOptions: convertTabletRangelOptions(opts.TabletRangeOptions),
+		TabletRangeOptions: convertTabletRangeOptions(opts.TabletRangeOptions),
 		TargetCellIds:      convertGUIDs(opts.TargetCellIDs),
 	}
 
@@ -732,7 +732,7 @@ func (e *Encoder) UnmountTable(
 		Path:               ptr.String(path.YPath().String()),
 		Force:              &opts.Force,
 		MutatingOptions:    convertMutatingOptions(opts.MutatingOptions),
-		TabletRangeOptions: convertTabletRangelOptions(opts.TabletRangeOptions),
+		TabletRangeOptions: convertTabletRangeOptions(opts.TabletRangeOptions),
 	}
 
 	call := e.newCall(MethodUnmountTable, NewUnmountTableRequest(req), nil)
@@ -758,7 +758,7 @@ func (e *Encoder) RemountTable(
 	req := &rpc_proxy.TReqRemountTable{
 		Path:               ptr.String(path.YPath().String()),
 		MutatingOptions:    convertMutatingOptions(opts.MutatingOptions),
-		TabletRangeOptions: convertTabletRangelOptions(opts.TabletRangeOptions),
+		TabletRangeOptions: convertTabletRangeOptions(opts.TabletRangeOptions),
 	}
 
 	call := e.newCall(MethodRemountTable, NewRemountTableRequest(req), nil)
@@ -791,11 +791,11 @@ func (e *Encoder) ReshardTable(
 		TabletCount:        intPtrToInt32Ptr(opts.TabletCount),
 		Uniform:            nil, // todo
 		MutatingOptions:    convertMutatingOptions(opts.MutatingOptions),
-		TabletRangeOptions: convertTabletRangelOptions(opts.TabletRangeOptions),
+		TabletRangeOptions: convertTabletRangeOptions(opts.TabletRangeOptions),
 		RowsetDescriptor:   nil,
 	}
 
-	call := e.newCall(MethodResshardTable, NewReshardTableRequest(req), attachments)
+	call := e.newCall(MethodReshardTable, NewReshardTableRequest(req), attachments)
 	var rsp rpc_proxy.TRspReshardTable
 	err = e.Invoke(ctx, call, &rsp)
 	if err != nil {
@@ -852,7 +852,7 @@ func (e *Encoder) FreezeTable(
 	req := &rpc_proxy.TReqFreezeTable{
 		Path:               ptr.String(path.YPath().String()),
 		MutatingOptions:    convertMutatingOptions(opts.MutatingOptions),
-		TabletRangeOptions: convertTabletRangelOptions(opts.TabletRangeOptions),
+		TabletRangeOptions: convertTabletRangeOptions(opts.TabletRangeOptions),
 	}
 
 	call := e.newCall(MethodFreezeTable, NewFreezeTableRequest(req), nil)
@@ -878,7 +878,7 @@ func (e *Encoder) UnfreezeTable(
 	req := &rpc_proxy.TReqUnfreezeTable{
 		Path:               ptr.String(path.YPath().String()),
 		MutatingOptions:    convertMutatingOptions(opts.MutatingOptions),
-		TabletRangeOptions: convertTabletRangelOptions(opts.TabletRangeOptions),
+		TabletRangeOptions: convertTabletRangeOptions(opts.TabletRangeOptions),
 	}
 
 	call := e.newCall(MethodUnfreezeTable, NewUnfreezeTableRequest(req), nil)
@@ -1288,7 +1288,7 @@ func (e *Encoder) CheckPermission(
 
 	response, err = makeCheckPermissionResponse(&rsp)
 	if err != nil {
-		return nil, xerrors.Errorf("unable to deserializer response: %w", err)
+		return nil, xerrors.Errorf("unable to deserialize response: %w", err)
 	}
 
 	return
@@ -1632,7 +1632,7 @@ func (e *Encoder) ListOperations(
 
 	operations, err = makeListOperationsResult(rsp.Result)
 	if err != nil {
-		return nil, xerrors.Errorf("unable to deserializer response: %w", err)
+		return nil, xerrors.Errorf("unable to deserialize response: %w", err)
 	}
 
 	return
@@ -1712,7 +1712,7 @@ func (e *Encoder) ListJobs(
 
 	r, err = makeListJobsResult(rsp.Result)
 	if err != nil {
-		return nil, xerrors.Errorf("unable to deserializer response: %w", err)
+		return nil, xerrors.Errorf("unable to deserialize response: %w", err)
 	}
 
 	return
@@ -1763,7 +1763,7 @@ func (e *Encoder) LockNode(
 
 	lr, err = makeLockNodeResult(&rsp)
 	if err != nil {
-		return yt.LockResult{}, xerrors.Errorf("unable to deserializer response: %w", err)
+		return yt.LockResult{}, xerrors.Errorf("unable to deserialize response: %w", err)
 	}
 
 	return
