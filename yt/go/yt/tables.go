@@ -103,6 +103,12 @@ func WithForce() CreateTableOption {
 	}
 }
 
+func WithIgnoreExisting() CreateTableOption {
+	return func(options *CreateNodeOptions) {
+		options.IgnoreExisting = true
+	}
+}
+
 func WithRecursive() CreateTableOption {
 	return func(options *CreateNodeOptions) {
 		options.Recursive = true
