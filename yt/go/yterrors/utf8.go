@@ -33,18 +33,18 @@ func decodeNonASCII(s string) string {
 	return string(result)
 }
 
-func fixStrings(v interface{}, cb func(string) string) interface{} {
+func fixStrings(v any, cb func(string) string) any {
 	switch vv := v.(type) {
 	case string:
 		return cb(vv)
-	case map[string]interface{}:
-		copy := map[string]interface{}{}
+	case map[string]any:
+		copy := map[string]any{}
 		for k, v := range vv {
 			copy[k] = fixStrings(v, cb)
 		}
 		return copy
-	case []interface{}:
-		copy := []interface{}{}
+	case []any:
+		copy := []any{}
 		for _, v := range vv {
 			copy = append(copy, fixStrings(v, cb))
 		}

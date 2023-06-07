@@ -46,7 +46,7 @@ func (c *Config) EnableYandexSpecificLinksOrDefault() bool {
 type Controller struct {
 	ytc                     yt.Client
 	l                       log.Logger
-	cachedClusterConnection map[string]interface{}
+	cachedClusterConnection map[string]any
 	root                    ypath.Path
 	cluster                 string
 	tvmSecret               string
@@ -77,7 +77,7 @@ func (c *Controller) getTvmID() (int64, bool) {
 }
 
 func (c *Controller) updateClusterConnection(ctx context.Context) (changed bool, err error) {
-	var clusterConnection map[string]interface{}
+	var clusterConnection map[string]any
 	err = c.ytc.GetNode(ctx, ypath.Path("//sys/@cluster_connection"), &clusterConnection, nil)
 	if err != nil {
 		c.l.Error("failed to update cluster connection", log.Error(err))
@@ -117,7 +117,7 @@ func (c *Controller) buildCommand(speclet *Speclet) string {
 }
 
 func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
-	spec map[string]interface{}, description map[string]interface{}, annotations map[string]interface{}, err error) {
+	spec map[string]any, description map[string]any, annotations map[string]any, err error) {
 	alias := oplet.Alias()
 
 	description = buildDescription(c.cluster, alias, c.config.EnableYandexSpecificLinksOrDefault())
@@ -154,9 +154,9 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 	// Build command.
 	command := c.buildCommand(&speclet)
 
-	spec = map[string]interface{}{
-		"tasks": map[string]interface{}{
-			"instances": map[string]interface{}{
+	spec = map[string]any{
+		"tasks": map[string]any{
+			"instances": map[string]any{
 				"command":                            command,
 				"job_count":                          speclet.Resources.InstanceCount,
 				"file_paths":                         filePaths,
@@ -175,13 +175,13 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 		"core_table_path":      runtimePaths.CoreTable,
 		"title":                "CHYT clique *" + alias,
 	}
-	annotations = map[string]interface{}{
+	annotations = map[string]any{
 		"is_clique": true,
 		"expose":    true,
 	}
 
 	if c.tvmSecret != "" {
-		spec["secure_vault"] = map[string]interface{}{
+		spec["secure_vault"] = map[string]any{
 			"TVM_SECRET": c.tvmSecret,
 		}
 	}

@@ -23,7 +23,7 @@ type tableReader struct {
 	rspParams tableReaderRspParams
 }
 
-func (r *tableReader) Scan(value interface{}) error {
+func (r *tableReader) Scan(value any) error {
 	if r.err != nil {
 		return r.err
 	}
@@ -117,7 +117,7 @@ func newTableReader(r io.ReadCloser) *tableReader {
 	return &tableReader{raw: r, y: yson.NewReaderKind(r, yson.StreamListFragment)}
 }
 
-func zeroInitialize(v interface{}) {
+func zeroInitialize(v any) {
 	value := reflect.ValueOf(v)
 	if value.Kind() != reflect.Ptr {
 		return

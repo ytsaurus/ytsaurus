@@ -33,7 +33,7 @@ func (n *netError) Temporary() bool {
 var _ net.Error = &netError{}
 
 func TestReadOnlyMethods(t *testing.T) {
-	for _, p := range []interface{}{
+	for _, p := range []any{
 		&GetNodeParams{},
 		&ListNodeParams{},
 		&NodeExistsParams{},

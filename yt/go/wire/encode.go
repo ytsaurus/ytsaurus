@@ -15,7 +15,7 @@ type NameTableEntry struct {
 	Name string
 }
 
-func Encode(items []interface{}) (NameTable, []Row, error) {
+func Encode(items []any) (NameTable, []Row, error) {
 	rows := make([]Row, 0, len(items))
 
 	indexMap := make(map[NameTableEntry]uint16)
@@ -42,7 +42,7 @@ func Encode(items []interface{}) (NameTable, []Row, error) {
 	return nameTable, rows, nil
 }
 
-func encode(item interface{}, indexMap map[NameTableEntry]uint16) (Row, error) {
+func encode(item any, indexMap map[NameTableEntry]uint16) (Row, error) {
 	vv := reflect.ValueOf(item)
 	if item == nil || vv.Kind() == reflect.Ptr && vv.IsNil() {
 		return nil, xerrors.Errorf("unsupported nil item")
@@ -339,7 +339,7 @@ func isZeroValue(v reflect.Value) bool {
 	return false
 }
 
-func EncodePivotKeys(keys []interface{}) ([]Row, error) {
+func EncodePivotKeys(keys []any) ([]Row, error) {
 	rows := make([]Row, 0, len(keys))
 
 	for _, key := range keys {
@@ -353,7 +353,7 @@ func EncodePivotKeys(keys []interface{}) ([]Row, error) {
 	return rows, nil
 }
 
-func encodeReflectPivotKey(key interface{}) (row Row, err error) {
+func encodeReflectPivotKey(key any) (row Row, err error) {
 	vv := reflect.ValueOf(key)
 	if vv.Kind() != reflect.Slice {
 		return nil, xerrors.Errorf("unsupported pivot key type: %v", vv.Kind())

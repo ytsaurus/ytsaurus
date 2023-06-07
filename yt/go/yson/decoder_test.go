@@ -8,17 +8,17 @@ import (
 	"testing"
 )
 
-func testDecoder(t *testing.T, input []byte, expected interface{}, generic bool) {
+func testDecoder(t *testing.T, input []byte, expected any, generic bool) {
 	t.Helper()
 
 	t.Logf("testing input: %#v", string(input))
 	t.Logf("expected output: %#v", expected)
 
-	var copyPtr interface{}
+	var copyPtr any
 	if !generic {
 		copyPtr = reflect.New(reflect.TypeOf(expected)).Interface()
 	} else {
-		var value interface{}
+		var value any
 		copyPtr = &value
 	}
 
@@ -38,7 +38,7 @@ func testDecoder(t *testing.T, input []byte, expected interface{}, generic bool)
 
 type testCase struct {
 	input    string
-	expected interface{}
+	expected any
 }
 
 func runTests(t *testing.T, tests []testCase) {

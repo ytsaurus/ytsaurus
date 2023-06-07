@@ -20,7 +20,7 @@ type BlobTableReader interface {
 	Err() error
 
 	// ScanKey reads current row directly from underlying reader.
-	ScanKey(key interface{}) error
+	ScanKey(key any) error
 
 	// Read implements io.Reader, reading YT blob.
 	Read([]byte) (int, error)
@@ -46,7 +46,7 @@ type blobTableReader struct {
 	row               blobRow
 }
 
-func (r *blobTableReader) ScanKey(key interface{}) error {
+func (r *blobTableReader) ScanKey(key any) error {
 	if r.err != nil {
 		return r.err
 	}

@@ -8,7 +8,7 @@ import (
 
 // unmapper decodes value of single key inside YSON map.
 type unmapper struct {
-	value interface{}
+	value any
 	key   string
 }
 

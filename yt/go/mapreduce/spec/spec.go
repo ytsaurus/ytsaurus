@@ -11,10 +11,10 @@ import (
 )
 
 type File struct {
-	FileName            string      `yson:"file_name,attr,omitempty"`
-	Format              interface{} `yson:"format,attr,omitempty"`
-	Executable          bool        `yson:"executable,attr,omitempty"`
-	BypassArtifactCache bool        `yson:"bypass_artifact_cache,attr,omitempty"`
+	FileName            string `yson:"file_name,attr,omitempty"`
+	Format              any    `yson:"format,attr,omitempty"`
+	Executable          bool   `yson:"executable,attr,omitempty"`
+	BypassArtifactCache bool   `yson:"bypass_artifact_cache,attr,omitempty"`
 
 	CypressPath ypath.Path `yson:",value"`
 }
@@ -25,9 +25,9 @@ type UserScript struct {
 	// mapreduce package uses command for it's own purpose. User should not set this field.
 	Command string `yson:"command"`
 
-	Format             interface{}       `yson:"format,omitempty"`
-	InputFormat        interface{}       `yson:"input_format,omitempty"`
-	OutputFormat       interface{}       `yson:"output_format,omitempty"`
+	Format             any               `yson:"format,omitempty"`
+	InputFormat        any               `yson:"input_format,omitempty"`
+	OutputFormat       any               `yson:"output_format,omitempty"`
 	Environment        map[string]string `yson:"environment,omitempty"`
 	FilePaths          []File            `yson:"file_paths,omitempty"`
 	LayerPaths         []ypath.Path      `yson:"layer_paths,omitempty"`
@@ -72,8 +72,8 @@ type ControlAttributes struct {
 }
 
 type JobIO struct {
-	TableReader       interface{}        `yson:"table_reader,omitempty"`
-	TableWriter       interface{}        `yson:"table_writer,omitempty"`
+	TableReader       any                `yson:"table_reader,omitempty"`
+	TableWriter       any                `yson:"table_writer,omitempty"`
 	ControlAttributes *ControlAttributes `yson:"control_attributes,omitempty"`
 }
 
@@ -108,10 +108,10 @@ type AutoMerge struct {
 type Spec struct {
 	Type yt.OperationType `yson:"-"`
 
-	Title       string                 `yson:"title,omitempty"`
-	StartedBy   map[string]interface{} `yson:"started_by,omitempty"`
-	Annotations map[string]interface{} `yson:"annotations"`
-	Description map[string]interface{} `yson:"description,omitempty"`
+	Title       string         `yson:"title,omitempty"`
+	StartedBy   map[string]any `yson:"started_by,omitempty"`
+	Annotations map[string]any `yson:"annotations"`
+	Description map[string]any `yson:"description,omitempty"`
 
 	Pool                string   `yson:"pool,omitempty"`
 	Weight              float64  `yson:"weight,omitempty"`
@@ -128,12 +128,12 @@ type Spec struct {
 	OutputTablePath        ypath.YPath   `yson:"output_table_path,omitempty"`
 	MapperOutputTableCount int           `yson:"mapper_output_table_count,omitempty"`
 
-	Atomicity string          `yson:"atomicity,omitempty"`
-	Ordered   bool            `yson:"ordered,omitempty"`
-	ReduceBy  []string        `yson:"reduce_by,omitempty"`
-	SortBy    []string        `yson:"sort_by,omitempty"`
-	JoinBy    []string        `yson:"join_by,omitempty"`
-	PivotKeys [][]interface{} `yson:"pivot_keys,omitempty"`
+	Atomicity string   `yson:"atomicity,omitempty"`
+	Ordered   bool     `yson:"ordered,omitempty"`
+	ReduceBy  []string `yson:"reduce_by,omitempty"`
+	SortBy    []string `yson:"sort_by,omitempty"`
+	JoinBy    []string `yson:"join_by,omitempty"`
+	PivotKeys [][]any  `yson:"pivot_keys,omitempty"`
 
 	MergeMode      string   `yson:"mode,omitempty"`
 	MergeBy        []string `yson:"merge_by,omitempty"`
@@ -220,7 +220,7 @@ func (s *Spec) AddSecureVaultVar(name, value string) *Spec {
 	return s
 }
 
-func (s *Spec) AddAnnotations(annotations map[string]interface{}) *Spec {
+func (s *Spec) AddAnnotations(annotations map[string]any) *Spec {
 	if s.Annotations == nil {
 		s.Annotations = annotations
 		return s

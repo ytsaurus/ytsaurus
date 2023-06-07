@@ -119,7 +119,7 @@ func (app App) acquireLock() (lost <-chan struct{}, err error) {
 			ytlock.Options{
 				CreateIfMissing: true,
 				LockMode:        yt.LockExclusive,
-				TxAttributes: map[string]interface{}{
+				TxAttributes: map[string]any{
 					"host": hostname,
 					"pid":  os.Getpid(),
 				},
