@@ -79,9 +79,7 @@ type CreateTableOption func(options *CreateNodeOptions)
 
 func WithSchema(schema schema.Schema) CreateTableOption {
 	return func(options *CreateNodeOptions) {
-		if options.Attributes == nil {
-			options.Attributes = map[string]interface{}{}
-		}
+		options.initAttributes()
 
 		options.Attributes["schema"] = schema
 	}
@@ -89,9 +87,7 @@ func WithSchema(schema schema.Schema) CreateTableOption {
 
 func WithInferredSchema(row interface{}) CreateTableOption {
 	return func(options *CreateNodeOptions) {
-		if options.Attributes == nil {
-			options.Attributes = map[string]interface{}{}
-		}
+		options.initAttributes()
 
 		options.Attributes["schema"] = schema.MustInfer(row)
 	}
@@ -111,9 +107,7 @@ func WithRecursive() CreateTableOption {
 
 func WithAttributes(attrs map[string]interface{}) CreateTableOption {
 	return func(options *CreateNodeOptions) {
-		if options.Attributes == nil {
-			options.Attributes = map[string]interface{}{}
-		}
+		options.initAttributes()
 
 		for k, v := range attrs {
 			if _, ok := options.Attributes[k]; !ok {
