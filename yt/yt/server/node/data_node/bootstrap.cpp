@@ -414,6 +414,11 @@ public:
         return LocationHealthChecker_;
     }
 
+    void SetLocationUuidsRequired(bool value) override
+    {
+        MasterConnector_->SetLocationUuidsRequired(value);
+    }
+
 private:
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
 

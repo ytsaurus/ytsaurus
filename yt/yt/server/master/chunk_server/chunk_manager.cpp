@@ -84,6 +84,8 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 
+#include <yt/yt/ytlib/data_node_tracker_client/location_directory.h>
+
 #include <yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h>
 
 #include <yt/yt/ytlib/job_tracker_client/helpers.h>
@@ -164,6 +166,7 @@ using namespace NTabletClient;
 using namespace NTransactionSupervisor;
 
 using NChunkClient::TSessionId;
+using NDataNodeTrackerClient::TChunkLocationDirectory;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -2713,6 +2716,9 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
+    // COMPAT(kvk1920)
+    TInstant TestingOnlyLastRecoveryTime_;
+
     TChunkLocation* FindLocationOnConfirmation(
         TChunk* chunk,
         TNode* node,
@@ -3173,6 +3179,49 @@ private:
         }
     }
 
+    template <class THeartbeat>
+    TCompactVector<TRealChunkLocation*, TypicalChunkLocationCount> ParseLocationDirectoryOrThrow(
+        const TNode* node,
+        const THeartbeat& request)
+    {
+        using namespace NDataNodeTrackerClient::NProto;
+        static_assert(
+            std::is_same_v<THeartbeat, TReqFullHeartbeat> ||
+            std::is_same_v<THeartbeat, TReqIncrementalHeartbeat>,
+            "THeartbeat must be either TReqFullHeartbeat or TReqIncrementalHeartbeat");
+
+        auto rawLocationDirectory = FromProto<TChunkLocationDirectory>(request.location_directory());
+        // NB: Location directory was previously parsed in
+        // `TDataNodeService::*Heartbeat()` so there is no need to validate it again.
+
+        constexpr bool fullHeartbeat = std::is_same_v<THeartbeat, TReqFullHeartbeat>;
+
+        auto checkLocationIndices = [&] (const auto& chunkInfos) {
+            for (const auto& chunkInfo : chunkInfos) {
+                AlertAndThrowOnInvalidLocationIndex<fullHeartbeat>(chunkInfo, node, rawLocationDirectory.Uuids().size());
+            }
+        };
+
+        if constexpr (fullHeartbeat) {
+            checkLocationIndices(request.chunks());
+        } else {
+            checkLocationIndices(request.added_chunks());
+            checkLocationIndices(request.removed_chunks());
+        }
+
+        TCompactVector<TRealChunkLocation*, TypicalChunkLocationCount> locationDirectory;
+        locationDirectory.reserve(rawLocationDirectory.Uuids().size());
+
+        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+        for (auto uuid : rawLocationDirectory.Uuids()) {
+            // All locations were checked in `TDataNodeTracker::Hydra*Heartbeat()`
+            // so it should be safe to use `GetChunkLocationByUuid()` here.
+            locationDirectory.push_back(dataNodeTracker->GetChunkLocationByUuid(uuid));
+        }
+
+        return locationDirectory;
+    }
+
     void OnFullDataNodeHeartbeat(
         TNode* node,
         NDataNodeTrackerClient::NProto::TReqFullHeartbeat* request,
@@ -3209,12 +3258,10 @@ private:
         std::vector<TChunk*> announceReplicaRequests;
         announceReplicaRequests.reserve(request->chunks().size());
 
-        for (const auto& chunkInfo : request->chunks()) {
-            AlertAndThrowOnDanglingLocation<true>(chunkInfo, node);
-        }
+        auto locationDirectory = ParseLocationDirectoryOrThrow(node, *request);
 
         for (const auto& chunkInfo : request->chunks()) {
-            if (auto* chunk = ProcessAddedChunk(node, chunkInfo, false)) {
+            if (auto* chunk = ProcessAddedChunk(node, locationDirectory, chunkInfo, false)) {
                 if (chunk->IsBlob()) {
                     announceReplicaRequests.push_back(chunk);
                 }
@@ -3250,33 +3297,38 @@ private:
     }
 
     template <bool FullHeartbeat>
-    void AlertAndThrowOnDanglingLocation(const auto& chunkInfo, TNode* node)
+    void AlertAndThrowOnInvalidLocationIndex(
+        const auto& chunkInfo,
+        const TNode* node,
+        unsigned int locationDirectorySize)
     {
-        if (!chunkInfo.has_location_uuid()) {
-            return;
-        }
+        // Heartbeats should no longer contain location uuids but if node was
+        // registered before master server update it still can send  heartbeats
+        // with location uuids.
+        YT_ASSERT(
+            !chunkInfo.has_location_uuid() ||
+            node->GetRegisterTime() < TestingOnlyLastRecoveryTime_);
 
-        auto uuid = FromProto<TChunkLocationUuid>(chunkInfo.location_uuid());
-        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
-        auto* location = dataNodeTracker->FindChunkLocationByUuid(uuid);
-
-        if (location->GetState() == EChunkLocationState::Online) {
-            return;
-        }
+        using TChunkInfo = std::decay_t<decltype(chunkInfo)>;
+        static_assert(std::is_same_v<TChunkInfo, TChunkAddInfo> || std::is_same_v<TChunkInfo, TChunkRemoveInfo>,
+            "TChunkInfo must be either TChunkAddInfo or TChunkRemoveInfo");
 
         constexpr bool isRemoval = !FullHeartbeat &&
             std::is_same_v<std::decay_t<decltype(chunkInfo)>, TChunkRemoveInfo>;
 
-        YT_VERIFY(!location->GetNode());
-        YT_LOG_ALERT("Data node reported %v heartbeat with dangling location (%vChunkId: %v, NodeId: %v, NodeAddress: %v, LocationId: %v)",
-            FullHeartbeat ? "full" : "incremental",
-            FullHeartbeat ? "" : (isRemoval ? "Removed" : "Added"),
-            FromProto<TChunkId>(chunkInfo.chunk_id()),
-            node->GetId(),
-            node->GetDefaultAddress(),
-            location->GetId());
-        THROW_ERROR_EXCEPTION("%v heartbeats with replicas in dangling locations are invalid",
-            FullHeartbeat ? "Full" : "Incremental");
+        if (static_cast<ui32>(chunkInfo.location_index()) >= locationDirectorySize) {
+            YT_LOG_ALERT(
+                "Data node reported % heartbeat with invalid location index "
+                "(%vChunkId: %v, NodeAddress: %v, LocationIndex: %v)",
+                FullHeartbeat ? "full" : "incremental",
+                FullHeartbeat ? "" : (isRemoval ? "Removed" : "Added"),
+                FromProto<TChunkId>(chunkInfo.chunk_id()),
+                node->GetDefaultAddress(),
+                chunkInfo.location_index());
+
+            THROW_ERROR_EXCEPTION("%v heartbeat contains an incorrect location index",
+                FullHeartbeat ? "Full" : "Incremental");
+        }
     }
 
     void ScheduleEndorsement(TChunk* chunk)
@@ -3370,12 +3422,7 @@ private:
             }
         }
 
-        for (const auto& chunkInfo : request->added_chunks()) {
-            AlertAndThrowOnDanglingLocation<false>(chunkInfo, node);
-        }
-        for (const auto& chunkInfo : request->removed_chunks()) {
-            AlertAndThrowOnDanglingLocation<false>(chunkInfo, node);
-        }
+        auto locationDirectory = ParseLocationDirectoryOrThrow(node, *request);
 
         std::vector<TChunk*> announceReplicaRequests;
         for (const auto& chunkInfo : request->added_chunks()) {
@@ -3390,7 +3437,7 @@ private:
                 }
                 continue;
             }
-            if (auto* chunk = ProcessAddedChunk(node, chunkInfo, true)) {
+            if (auto* chunk = ProcessAddedChunk(node, locationDirectory, chunkInfo, true)) {
                 if (chunk->IsBlob()) {
                     announceReplicaRequests.push_back(chunk);
                 }
@@ -3407,7 +3454,7 @@ private:
             if (!node->UseImaginaryChunkLocations() && chunkInfo.caused_by_medium_change()) {
                 continue;
             }
-            if (auto* chunk = ProcessRemovedChunk(node, chunkInfo)) {
+            if (auto* chunk = ProcessRemovedChunk(node, locationDirectory, chunkInfo)) {
                 if (IsObjectAlive(chunk) && chunk->IsBlob()) {
                     ScheduleEndorsement(chunk);
                 }
@@ -4895,6 +4942,8 @@ private:
 
         BufferedProducer_->SetEnabled(true);
         CrpBufferedProducer_->SetEnabled(true);
+
+        TestingOnlyLastRecoveryTime_ = NProfiling::GetInstant();
     }
 
     void OnLeaderActive() override
@@ -5108,9 +5157,9 @@ private:
 
     std::pair<TChunkLocation*, TDomesticMedium*> FindLocationAndMediumOnProcessChunk(
         TNode* node,
+        TRealChunkLocation* realLocation,
         TChunkIdWithIndexes chunkIdWithIndexes,
-        EChunkReplicaEventType reason,
-        std::optional<TChunkLocationUuid> locationUuid)
+        EChunkReplicaEventType reason)
     {
         if (node->UseImaginaryChunkLocations()) {
             auto* medium = FindMediumByIndex(chunkIdWithIndexes.MediumIndex);
@@ -5140,32 +5189,7 @@ private:
             return {location, medium->AsDomestic()};
         }
 
-        if (!locationUuid.has_value()) {
-            YT_LOG_ALERT(
-                "Real chunk locations are used but chunk event does not contain location UUID "
-                "(NodeId: %v, Address: %v, ChunkId: %v, ChunkEventType: %v)",
-                node->GetId(),
-                node->GetDefaultAddress(),
-                chunkIdWithIndexes,
-                reason);
-            return {nullptr, nullptr};
-        }
-
-        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
-        auto* location = dataNodeTracker->FindChunkLocationByUuid(*locationUuid);
-        if (!IsObjectAlive(location)) {
-            YT_LOG_ALERT(
-                "Cannot process chunk event with unknown location "
-                "(NodeId: %v, Address: %v, ChunkId: %v, LocationUuid: %v, ChunkEventType: %v)",
-                node->GetId(),
-                node->GetDefaultAddress(),
-                chunkIdWithIndexes,
-                locationUuid,
-                reason);
-            return {nullptr, nullptr};
-        }
-
-        int mediumIndex = location->GetEffectiveMediumIndex();
+        int mediumIndex = realLocation->GetEffectiveMediumIndex();
         auto* medium = FindMediumByIndex(mediumIndex);
         if (!IsObjectAlive(medium)) {
             YT_LOG_ALERT(
@@ -5191,11 +5215,12 @@ private:
             return {nullptr, nullptr};
         }
 
-        return {location, medium->AsDomestic()};
+        return {realLocation, medium->AsDomestic()};
     }
 
     TChunk* ProcessAddedChunk(
         TNode* node,
+        const TCompactVector<TRealChunkLocation*, TypicalChunkLocationCount>& locationDirectory,
         const TChunkAddInfo& chunkAddInfo,
         bool incremental)
     {
@@ -5206,11 +5231,9 @@ private:
 
         auto [location, medium] = FindLocationAndMediumOnProcessChunk(
             node,
+            locationDirectory[chunkAddInfo.location_index()],
             chunkIdWithIndexes,
-            EChunkReplicaEventType::Add,
-            chunkAddInfo.has_location_uuid()
-                ? std::optional(FromProto<TChunkLocationUuid>(chunkAddInfo.location_uuid()))
-                : std::nullopt);
+            EChunkReplicaEventType::Add);
 
         if (!location || !medium) {
             return nullptr;
@@ -5264,6 +5287,7 @@ private:
 
     TChunk* ProcessRemovedChunk(
         TNode* node,
+        const TCompactVector<TRealChunkLocation*, TypicalChunkLocationCount>& locationDirectory,
         const TChunkRemoveInfo& chunkInfo)
     {
         auto nodeId = node->GetId();
@@ -5271,11 +5295,9 @@ private:
 
         auto [location, medium] = FindLocationAndMediumOnProcessChunk(
             node,
+            locationDirectory[chunkInfo.location_index()],
             TChunkIdWithIndexes(chunkIdWithIndex, chunkInfo.medium_index()),
-            EChunkReplicaEventType::Remove,
-            chunkInfo.has_location_uuid()
-                ? std::optional(FromProto<TChunkLocationUuid>(chunkInfo.location_uuid()))
-                : std::nullopt);
+            EChunkReplicaEventType::Remove);
 
         if (!location || !medium) {
             return nullptr;

@@ -710,7 +710,7 @@ TChunkPtrWithReplicaInfo TNode::PickRandomReplica(int mediumIndex)
         return it->second->PickRandomReplica();
     }
 
-    TCompactVector<TRealChunkLocation*, TypicalLocationCount> feasibleLocations;
+    TCompactVector<TRealChunkLocation*, TypicalChunkLocationCount> feasibleLocations;
     std::copy_if(
         RealChunkLocations_.begin(),
         RealChunkLocations_.end(),

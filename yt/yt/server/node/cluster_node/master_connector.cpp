@@ -551,6 +551,8 @@ private:
                     ToProto(req->add_chunk_location_uuids(), location->GetUuid());
                 }
             }
+            // COMPAT(kvk1920)
+            req->set_location_directory_supported(true);
         }
 
         auto tableMountConfig = New<NTabletNode::TTableMountConfig>();
@@ -575,7 +577,10 @@ private:
 
                 YT_VERIFY(dataNodeInfoExt.has_medium_overrides());
                 mediumUpdater->UpdateLocationMedia(dataNodeInfoExt.medium_overrides(), /*onInitialize*/ true);
+
+                dataNodeBootstrap->SetLocationUuidsRequired(dataNodeInfoExt.require_location_uuids());
             } else {
+                dataNodeBootstrap->SetLocationUuidsRequired(true);
                 mediumUpdater->UpdateLocationMedia({}, /*onInitialize*/ true);
             }
         }

@@ -30,6 +30,7 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/data_node_tracker_client/data_node_tracker_service_proxy.h>
+#include <yt/yt/ytlib/data_node_tracker_client/location_directory.h>
 
 #include <yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h>
 
@@ -108,6 +109,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        LocationUuidsRequired_ = true;
+
         for (auto cellTag : Bootstrap_->GetMasterCellTags()) {
             auto cellId = Bootstrap_->GetConnection()->GetMasterCellId(cellTag);
 
@@ -169,20 +172,22 @@ public:
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         req->set_write_sessions_disabled(sessionManager->GetDisableWriteSessions());
 
+        const auto& chunkStore = Bootstrap_->GetChunkStore();
+        TChunkLocationDirectory locationDirectory(chunkStore->Locations().size());
+
         TMediumMap<int> chunkCounts;
 
         int storedChunkCount = 0;
 
         auto addStoredChunkInfo = [&] (const IChunkPtr& chunk) {
             if (CellTagFromId(chunk->GetId()) == cellTag) {
-                *req->add_chunks() = BuildAddChunkInfo(chunk);
+                *req->add_chunks() = BuildAddChunkInfo(chunk, locationDirectory);
                 auto mediumIndex = chunk->GetLocation()->GetMediumDescriptor().Index;
                 ++chunkCounts[mediumIndex];
                 ++storedChunkCount;
             }
         };
 
-        const auto& chunkStore = Bootstrap_->GetChunkStore();
         for (const auto& chunk : chunkStore->GetChunks()) {
             addStoredChunkInfo(chunk);
         }
@@ -194,6 +199,8 @@ public:
                 mediumChunkStatistics->set_chunk_count(chunkCount);
             }
         }
+
+        ToProto(req->mutable_location_directory(), locationDirectory);
 
         return req;
     }
@@ -220,18 +227,20 @@ public:
 
         auto* delta = GetChunksDelta(cellTag);
 
+        TChunkLocationDirectory locationDirectory(Bootstrap_->GetChunkStore()->Locations().size());
+
         int chunkEventCount = 0;
         delta->ReportedAdded.clear();
         for (const auto& chunk : delta->AddedSinceLastSuccess) {
             YT_VERIFY(delta->ReportedAdded.emplace(chunk, chunk->GetVersion()).second);
-            *req->add_added_chunks() = BuildAddChunkInfo(chunk);
+            *req->add_added_chunks() = BuildAddChunkInfo(chunk, locationDirectory);
             ++chunkEventCount;
         }
 
         delta->ReportedRemoved.clear();
         for (const auto& chunk : delta->RemovedSinceLastSuccess) {
             YT_VERIFY(delta->ReportedRemoved.insert(chunk).second);
-            *req->add_removed_chunks() = BuildRemoveChunkInfo(chunk);
+            *req->add_removed_chunks() = BuildRemoveChunkInfo(chunk, locationDirectory);
             ++chunkEventCount;
         }
 
@@ -244,11 +253,11 @@ public:
                 break;
             }
             YT_VERIFY(delta->ReportedChangedMedium.insert({chunk, oldMediumIndex}).second);
-            auto removeChunkInfo = BuildRemoveChunkInfo(chunk, /*onMediumChange*/ true);
+            auto removeChunkInfo = BuildRemoveChunkInfo(chunk, locationDirectory, /*onMediumChange*/ true);
             removeChunkInfo.set_medium_index(oldMediumIndex);
             *req->add_removed_chunks() = removeChunkInfo;
             ++chunkEventCount;
-            *req->add_added_chunks() = BuildAddChunkInfo(chunk, /*onMediumChange*/ true);
+            *req->add_added_chunks() = BuildAddChunkInfo(chunk, locationDirectory, /*onMediumChange*/ true);
             ++chunkEventCount;
         }
 
@@ -270,6 +279,8 @@ public:
             counters.Reported.MediumChangedChunks.Increment(delta->ReportedChangedMedium.size());
             counters.ConfirmedAnnouncementRequests.Increment(req->confirmed_replica_announcement_requests().size());
         }
+
+        ToProto(req->mutable_location_directory(), locationDirectory);
 
         return req;
     }
@@ -445,6 +456,12 @@ public:
         return OnlineCellCount_.load() == std::ssize(Bootstrap_->GetMasterCellTags());
     }
 
+    void SetLocationUuidsRequired(bool value) override
+    {
+        LocationUuidsRequired_ = value;
+        YT_LOG_INFO("Location uuids in data node heartbeats are %vabled", value ? "en" : "dis");
+    }
+
 private:
     struct TChunksDelta
     {
@@ -546,6 +563,9 @@ private:
     };
 
     THashMap<TCellTag, TIncrementalHeartbeatCounters> IncrementalHeartbeatCounters_;
+
+    // COMPAT(kvk1920)
+    bool LocationUuidsRequired_ = true;
 
     const TIncrementalHeartbeatCounters& GetIncrementalHeartbeatCounters(TCellTag cellTag)
     {
@@ -943,7 +963,10 @@ private:
         return true;
     }
 
-    TChunkAddInfo BuildAddChunkInfo(const IChunkPtr& chunk, bool onMediumChange = false)
+    TChunkAddInfo BuildAddChunkInfo(
+        const IChunkPtr& chunk,
+        TChunkLocationDirectory& locationDirectory,
+        bool onMediumChange = false)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -953,14 +976,23 @@ private:
         chunkAddInfo.set_medium_index(chunk->GetLocation()->GetMediumDescriptor().Index);
         chunkAddInfo.set_active(chunk->IsActive());
         chunkAddInfo.set_sealed(chunk->GetInfo().sealed());
-        ToProto(chunkAddInfo.mutable_location_uuid(), chunk->GetLocation()->GetUuid());
+
+        auto locationUuid = chunk->GetLocation()->GetUuid();
+        chunkAddInfo.set_location_index(locationDirectory.GetOrCreateIndex(locationUuid));
+        // COMPAT(kvk1920): Remove after 23.2.
+        if (LocationUuidsRequired_) {
+            ToProto(chunkAddInfo.mutable_location_uuid(), locationUuid);
+        }
 
         chunkAddInfo.set_caused_by_medium_change(onMediumChange);
 
         return chunkAddInfo;
     }
 
-    TChunkRemoveInfo BuildRemoveChunkInfo(const IChunkPtr& chunk, bool onMediumChange = false)
+    TChunkRemoveInfo BuildRemoveChunkInfo(
+        const IChunkPtr& chunk,
+        TChunkLocationDirectory& locationDirectory,
+        bool onMediumChange = false)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -968,7 +1000,12 @@ private:
 
         ToProto(chunkRemoveInfo.mutable_chunk_id(), chunk->GetId());
         chunkRemoveInfo.set_medium_index(chunk->GetLocation()->GetMediumDescriptor().Index);
-        ToProto(chunkRemoveInfo.mutable_location_uuid(), chunk->GetLocation()->GetUuid());
+
+        auto locationUuid = chunk->GetLocation()->GetUuid();
+        chunkRemoveInfo.set_location_index(locationDirectory.GetOrCreateIndex(locationUuid));
+        if (LocationUuidsRequired_) {
+            ToProto(chunkRemoveInfo.mutable_location_uuid(), locationUuid);
+        }
 
         chunkRemoveInfo.set_caused_by_medium_change(onMediumChange);
 

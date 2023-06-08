@@ -935,10 +935,10 @@ target_proto_messages(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/heartbeat.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/medium_directory.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/session_id.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cypress_client/proto/rpc.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cypress_client/proto/cypress_ypath.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cypress_server/proto/sequoia_actions.proto
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/election/proto/election_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/exec_node_admin/proto/exec_node_admin_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/exec_node_tracker_client/proto/exec_node_tracker_service.proto
@@ -1130,6 +1130,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cypress_client/public.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cypress_client/batch_attribute_fetcher.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cypress_client/rpc_helpers.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/data_node_tracker_client/location_directory.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/driver/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/election/cell_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/election/config.cpp

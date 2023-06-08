@@ -86,6 +86,8 @@ constexpr TConsistentReplicaPlacementHash NullConsistentReplicaPlacementHash = 0
 constexpr int ChunkShardCount = 60;
 static_assert(ChunkShardCount < std::numeric_limits<i8>::max(), "|ChunkShardCount| must fit into i8");
 
+constexpr int TypicalChunkLocationCount = 20;
+
 struct TAllyReplicasInfo;
 
 DEFINE_BIT_ENUM(EBlockType,

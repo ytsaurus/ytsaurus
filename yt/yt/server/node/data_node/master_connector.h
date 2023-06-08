@@ -41,6 +41,9 @@ struct IMasterConnector
      *  Thread affinity: any
      */
     virtual bool IsOnline() const = 0;
+
+    // COMPAT(kvk1920): Remove after 23.2.
+    virtual void SetLocationUuidsRequired(bool value) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IMasterConnector)

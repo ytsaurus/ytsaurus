@@ -53,6 +53,7 @@ using NChunkClient::NullConsistentReplicaPlacementHash;
 using NChunkClient::ChunkReplicaIndexBound;
 using NChunkClient::TChunkReplicaWithLocationList;
 using NChunkClient::ChunkShardCount;
+using NChunkClient::TypicalChunkLocationCount;
 
 using NJobTrackerClient::TJobId;
 using NJobTrackerClient::EJobType;
@@ -219,9 +220,6 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(EChunkReplicaState, i8,
     ((Unsealed)              (2))
     ((Sealed)                (3))
 );
-
-//! Typical chunk location count on data node.
-constexpr int TypicalLocationCount = 20;
 
 DEFINE_ENUM(EChunkLocationState,
     // Belongs to a node that is not online.

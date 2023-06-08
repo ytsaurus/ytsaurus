@@ -1814,7 +1814,7 @@ void TChunkReplicator::ScheduleRemovalJobs(IJobSchedulingContext* context)
             TChunkLocation::TDestroyedReplicasIterator ReplicaIterator;
             bool Active = true;
         };
-        TCompactVector<TLocationInfo, TypicalLocationCount> locations;
+        TCompactVector<TLocationInfo, TypicalChunkLocationCount> locations;
         for (auto* location : node->ChunkLocations()) {
             if (!location->DestroyedReplicas().empty()) {
                 locations.push_back({location, location->GetDestroyedReplicasIterator()});
@@ -1859,7 +1859,7 @@ void TChunkReplicator::ScheduleRemovalJobs(IJobSchedulingContext* context)
     {
         TCompactVector<
             std::pair<TChunkLocation*, TChunkLocation::TChunkRemovalQueue::iterator>,
-            TypicalLocationCount> locations;
+            TypicalChunkLocationCount> locations;
         for (auto* location : node->ChunkLocations()) {
             auto& queue = location->ChunkRemovalQueue();
             if (!queue.empty()) {

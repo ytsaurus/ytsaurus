@@ -21,6 +21,7 @@
 #include <yt/yt/server/master/node_tracker_server/node.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 
+#include <yt/yt/ytlib/data_node_tracker_client/location_directory.h>
 #include <yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h>
 
 #include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
@@ -47,6 +48,7 @@ using namespace NObjectServer;
 using namespace NChunkClient;
 using namespace NYTree;
 
+using NDataNodeTrackerClient::TChunkLocationDirectory;
 using NNodeTrackerClient::NProto::TReqRegisterNode;
 using NNodeTrackerClient::NProto::TRspRegisterNode;
 
@@ -242,6 +244,12 @@ public:
                 }
             }
         }
+
+        // COMPAT(kvk1920)
+        THROW_ERROR_EXCEPTION_IF(
+            !chunkLocationUuids.empty() && !request->location_directory_supported(),
+            "Cannot register node %Qv: location directory is required by master server but not supported by data node",
+            address);
     }
 
     void ProcessRegisterNode(
@@ -284,6 +292,8 @@ public:
             const auto& chunkManager = Bootstrap_->GetChunkManager();
             SerializeMediumDirectory(dataNodeInfoExt->mutable_medium_directory(), chunkManager);
             SerializeMediumOverrides(node, dataNodeInfoExt->mutable_medium_overrides());
+
+            dataNodeInfoExt->set_require_location_uuids(false);
         }
 
         node->ClearChunkLocations();
@@ -444,6 +454,63 @@ private:
         return alerts;
     }
 
+    void ValidateLocationDirectory(
+        const TNode* node,
+        const google::protobuf::RepeatedPtrField<NYT::NProto::TGuid>& protoDirectory,
+        bool fullHeartbeat)
+    {
+        auto locationDirectory = FromProto<TChunkLocationDirectory>(protoDirectory);
+        YT_ASSERT(locationDirectory.IsValid());
+
+        TCompactVector<TChunkLocation*, TypicalChunkLocationCount> locations;
+
+        for (auto uuid : locationDirectory.Uuids()) {
+            auto* location = FindChunkLocationByUuid(uuid);
+            if (!location) {
+                YT_LOG_ALERT(
+                    "Data node reported %v heartbeat with invalid location directory: "
+                    "location does not exist (NodeAddress: %v, LocationUuid: %v)",
+                    fullHeartbeat ? "full" : "incremental",
+                    node->GetDefaultAddress(),
+                    uuid);
+                THROW_ERROR_EXCEPTION(
+                    "Heartbeats with unknown location in location directory are invalid")
+                    << TErrorAttribute("location_uuid", uuid);
+            }
+
+            auto* locationNode = location->GetNode();
+
+            if (!locationNode) {
+                YT_LOG_ALERT(
+                    "Data node reported %v heartbeat with invalid location directory: "
+                    "location does not have owning node "
+                    "(NodeAddress: %v, LocationUuid: %v)",
+                    node->GetDefaultAddress(),
+                    uuid);
+                THROW_ERROR_EXCEPTION(
+                    "Heartbeats with dangling locations in location directory are invalid")
+                    << TErrorAttribute("location_uuid", uuid);
+            }
+
+            if (locationNode != node) {
+                YT_LOG_ALERT(
+                    "Data node reported %v heartbeat with invalid location directory: "
+                    "location belongs to another node "
+                    "(NodeAddress: %v, LocationUuid: %v, AnotherNodeAddress: %v)",
+                    fullHeartbeat ? "full" : "incremental",
+                    node->GetDefaultAddress(),
+                    uuid,
+                    locationNode->GetDefaultAddress());
+                THROW_ERROR_EXCEPTION(
+                    "Heartbeat's location directory cannot contain location which belongs to other node")
+                    << TErrorAttribute("location_uuid", uuid)
+                    << TErrorAttribute("node", locationNode->GetDefaultAddress());
+            }
+
+            locations.push_back(location);
+        }
+    }
+
     void HydraIncrementalDataNodeHeartbeat(
         const TCtxIncrementalHeartbeatPtr& /*context*/,
         TReqIncrementalHeartbeat* request,
@@ -461,6 +528,11 @@ private:
                 NNodeTrackerClient::EErrorCode::InvalidState,
                 "Cannot process an incremental data node heartbeat until full data node heartbeat is sent");
         }
+
+        ValidateLocationDirectory(
+            node,
+            request->location_directory(),
+            /*fullHeartbeat*/ false);
 
         YT_PROFILE_TIMING("/node_tracker/incremental_data_node_heartbeat_time") {
             YT_LOG_DEBUG("Processing incremental data node heartbeat (NodeId: %v, Address: %v, State: %v)",
@@ -491,6 +563,11 @@ private:
                 NNodeTrackerClient::EErrorCode::InvalidState,
                 "Full data node heartbeat is already sent");
         }
+
+        ValidateLocationDirectory(
+            node,
+            request->location_directory(),
+            /*fullHeartbeat*/ true);
 
         YT_PROFILE_TIMING("/node_tracker/full_data_node_heartbeat_time") {
             YT_LOG_DEBUG("Processing full data node heartbeat (NodeId: %v, Address: %v, State: %v)",
@@ -623,7 +700,6 @@ private:
         FullHeartbeatSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentFullHeartbeats);
         IncrementalHeartbeatSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentIncrementalHeartbeats);
     }
-
 
 
     void Clear() override
