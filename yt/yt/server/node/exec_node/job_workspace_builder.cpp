@@ -221,26 +221,7 @@ private:
         ValidateJobPhase(EJobPhase::PreparingSandboxDirectories);
         SetJobPhase(EJobPhase::PreparingRootVolume);
 
-        if (Settings_.UserSandboxOptions.EnableDiskQuota &&
-            Settings_.UserSandboxOptions.HasRootFsQuota &&
-            (Settings_.UserSandboxOptions.DiskSpaceLimit || Settings_.UserSandboxOptions.InodeLimit))
-        {
-            return DirectoryManager_->ApplyQuota(
-                CombinePaths(Settings_.Slot->GetSlotPath(), GetRootFsUserDirectory()),
-                TJobDirectoryProperties{
-                    .DiskSpaceLimit = Settings_.UserSandboxOptions.DiskSpaceLimit,
-                    .InodeLimit = Settings_.UserSandboxOptions.InodeLimit,
-                    .UserId = Settings_.UserSandboxOptions.UserId
-                })
-                .Apply(BIND([=] (const TError& result) {
-                    if (!result.IsOK()) {
-                        THROW_ERROR_EXCEPTION(TError(EErrorCode::RootVolumePreparationFailed, "Failed to set quotas")
-                            << result);
-                    }
-                }));
-        } else {
-            return VoidFuture;
-        }
+        return VoidFuture;
     }
 
     TFuture<void> DoRunSetupCommand()
@@ -435,30 +416,6 @@ private:
                     UpdateTimers_.Fire(MakeStrong(this));
                     ResultHolder_.RootVolume = volumeOrError.Value();
                 }));
-        } else if (Settings_.UserSandboxOptions.EnableDiskQuota &&
-            Settings_.UserSandboxOptions.HasRootFsQuota &&
-            (Settings_.UserSandboxOptions.DiskSpaceLimit || Settings_.UserSandboxOptions.InodeLimit))
-        {
-            VolumePrepareStartTime_ = TInstant::Now();
-            UpdateTimers_.Fire(MakeStrong(this));
-
-            return DirectoryManager_->ApplyQuota(
-                CombinePaths(Settings_.Slot->GetSlotPath(), GetRootFsUserDirectory()),
-                TJobDirectoryProperties{
-                    .DiskSpaceLimit = Settings_.UserSandboxOptions.DiskSpaceLimit,
-                    .InodeLimit = Settings_.UserSandboxOptions.InodeLimit,
-                    .UserId = Settings_.UserSandboxOptions.UserId
-                })
-                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& result) {
-                    if (!result.IsOK()) {
-                        THROW_ERROR_EXCEPTION(TError(EErrorCode::RootVolumePreparationFailed, "Failed to set quotas")
-                            << result);
-                    }
-
-                    VolumePrepareFinishTime_ = TInstant::Now();
-                    UpdateTimers_.Fire(MakeStrong(this));
-                })
-                .Via(Invoker_));
         } else {
             return VoidFuture;
         }

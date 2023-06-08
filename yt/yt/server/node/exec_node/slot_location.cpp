@@ -706,32 +706,6 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
                 }
             }
 
-            if (Bootstrap_->GetConfig()->ExecNode->UseCommonRootFsQuota) {
-                // TODO(don-dron): Remove sandbox and tmp after updating to next release
-                std::vector<TString> oldDirectories = {
-                    NFS::CombinePaths(GetSlotPath(slotIndex), "sandbox"),
-                    NFS::CombinePaths(GetSlotPath(slotIndex), "tmp"),
-                    NFS::CombinePaths(GetSlotPath(slotIndex), GetRootFsUserDirectory())
-                };
-
-                for (const auto& path : oldDirectories) {
-                    if (Exists(path)) {
-                        YT_LOG_DEBUG("Removing job directories (Path: %v)", path);
-
-                        WaitFor(JobDirectoryManager_->CleanDirectories(path))
-                            .ThrowOnError();
-
-                        YT_LOG_DEBUG("Cleaning sandbox directory (Path: %v)", path);
-
-                        if (Bootstrap_->IsSimpleEnvironment()) {
-                            RemoveRecursive(path);
-                        } else {
-                            RunTool<TRemoveDirAsRootTool>(path);
-                        }
-                    }
-                }
-            }
-
             // Prepare slot for the next job.
             BuildSlotRootDirectory(slotIndex);
         } catch (const std::exception& ex) {
@@ -1204,8 +1178,6 @@ TRootDirectoryConfigPtr TSlotLocation::CreateDefaultRootDirectoryConfig(
 
         return directory;
     };
-
-    config->Directories.push_back(getDirectory(CombinePaths(GetSlotPath(slotIndex), GetRootFsUserDirectory()), uid, 0777));
 
     // Since we make slot user to be owner, but job proxy creates some files during job shell
     // initialization we leave write access for everybody. Presumably this will not ruin job isolation.
