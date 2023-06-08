@@ -1,18 +1,22 @@
 #include "oauth_service.h"
 
 #include "config.h"
-#include "library/cpp/yt/string/string_builder.h"
 #include "private.h"
 #include "helpers.h"
 
-#include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/http/client.h>
+#include <yt/yt/core/http/helpers.h>
 #include <yt/yt/core/http/http.h>
+#include <yt/yt/core/http/public.h>
+#include <yt/yt/core/http/retriable_client.h>
 #include <yt/yt/core/https/client.h>
 #include <yt/yt/core/https/config.h>
+
+#include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/poller.h>
 #include <yt/yt/core/json/json_parser.h>
-#include <yt/yt/core/json/public.h>
 #include <yt/yt/core/profiling/timing.h>
+#include <yt/yt/core/rpc/dispatcher.h>
 
 namespace NYT::NAuth {
 
@@ -35,20 +39,27 @@ public:
         IPollerPtr poller,
         NProfiling::TProfiler profiler)
         : Config_(std::move(config))
-        , HttpClient_(Config_->Secure
-            ? NHttps::CreateClient(Config_->HttpClient, std::move(poller))
-            : NHttp::CreateClient(Config_->HttpClient, std::move(poller)))
+        , HttpClient_(
+            CreateRetrieableClient(
+                Config_->RetriableClient,
+                Config_->Secure
+                    ? NHttps::CreateClient(Config_->HttpClient, poller)
+                    : NHttp::CreateClient(Config_->HttpClient, poller),
+                poller->GetInvoker()))
         , OAuthCalls_(profiler.Counter("/oauth_calls"))
         , OAuthCallErrors_(profiler.Counter("/oauth_call_errors"))
-        , OAuthCallFatalErrors_(profiler.Counter("/oauth_call_fatal_errors"))
         , OAuthCallTime_(profiler.Timer("/oauth_call_time"))
     { }
 
-
+    TFuture<TOAuthUserInfoResult> GetUserInfo(const TString& accessToken) override {
+        return BIND(&TOAuthService::DoGetUserInfo, MakeStrong(this), accessToken)
+            .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker())
+            .Run();
+    }
 
 private:
     const TOAuthServiceConfigPtr Config_;
-    const NHttp::IClientPtr HttpClient_;
+    const NHttp::IRetriableClientPtr HttpClient_;
 
     NProfiling::TCounter OAuthCalls_;
     NProfiling::TCounter OAuthCallErrors_;
@@ -56,74 +67,6 @@ private:
     NProfiling::TEventTimer OAuthCallTime_;
 
 private:
-    TFuture<TOAuthUserInfoResult> GetUserInfo(const TString& accessToken) {
-        auto deadline = TInstant::Now() + Config_->RequestTimeout;
-        auto callId = TGuid::Create();
-
-        // TSafeUrlBuilder builder;
-        const auto url = Format("%v://%v:%v/%v?",
-            Config_->Secure ? "https" : "http",
-            Config_->Host,
-            Config_->Port,
-            Config_->UserInfoEndpoint);
-
-        auto httpHeaders = New<THeaders>();
-        httpHeaders->Add("Authorization", "Bearer " + accessToken);
-
-        std::vector<TError> accumulatedErrors;
-        for (int attempt = 1; TInstant::Now() < deadline || attempt == 1; ++attempt) {
-            INodePtr result;
-            try {
-                OAuthCalls_.Increment();
-                result = DoGetCall(
-                    callId,
-                    attempt,
-                    url,
-                    httpHeaders,
-                    deadline);
-            } catch (const std::exception& ex) {
-                OAuthCallErrors_.Increment();
-                YT_LOG_WARNING(
-                    ex,
-                    "OAuth call attempt failed, backing off (CallId: %v, Attempt: %v)",
-                    callId,
-                    attempt);
-                auto error = TError("OAuth call attempt %v failed", attempt)
-                    << ex
-                    << TErrorAttribute("call_id", callId)
-                    << TErrorAttribute("attempt", attempt);
-                accumulatedErrors.push_back(std::move(error));
-            }
-
-            // Check for known exceptions to retry.
-            if (result) {
-                auto loginNode = result->AsMap()->FindChild(Config_->UserInfoLoginField);
-                if (!loginNode || loginNode->GetType() != ENodeType::String) {
-                    auto userInfoResult = TOAuthUserInfoResult{
-                        .Login = loginNode->AsString()->GetValue()
-                    };
-                    return MakeFuture(userInfoResult);
-                }
-
-                YT_LOG_WARNING("OAuth didn't return login, backing off (CallId: %v, Attempt: %v)",
-                    callId,
-                    attempt);
-            }
-
-            auto now = TInstant::Now();
-            if (now > deadline) {
-                break;
-            }
-
-            TDelayedExecutor::WaitForDuration(std::min(Config_->BackoffTimeout, deadline - now));
-        }
-
-        OAuthCallFatalErrors_.Increment();
-        THROW_ERROR_EXCEPTION("OAuth call failed")
-            << std::move(accumulatedErrors)
-            << TErrorAttribute("call_id", callId);
-    }
-
     static NJson::TJsonFormatConfigPtr MakeJsonFormatConfig()
     {
         auto config = New<NJson::TJsonFormatConfig>();
@@ -131,78 +74,55 @@ private:
         return config;
     }
 
-    INodePtr DoGetCall(
-        TGuid callId,
-        int attempt,
-        const TString& url,
-        const THeadersPtr& headers,
-        TInstant deadline)
-    {
-        auto onError = [&] (TError error) {
-            error.MutableAttributes()->Set("call_id", callId);
-            YT_LOG_DEBUG(error);
-            THROW_ERROR(error);
-        };
-
+    TOAuthUserInfoResult DoGetUserInfo(const TString& accessToken) {
+        OAuthCalls_.Increment();
         NProfiling::TWallTimer timer;
-        auto timeout = std::min(deadline - TInstant::Now(), Config_->AttemptTimeout);
+        
+        auto callId = TGuid::Create();
+        auto httpHeaders = New<THeaders>();
+        httpHeaders->Add("Authorization", "Bearer " + accessToken);
 
-        YT_LOG_DEBUG("Calling OAuth (Url: %v, CallId: %v, Attempt: %v, Timeout: %v)",
-            url,
-            callId,
-            attempt,
-            timeout);
+        auto jsonResponseChecker = CreateJsonResponseChecker(BIND([this] (const IResponsePtr& rsp, const NYTree::INodePtr& json) -> TError {
+            if (rsp->GetStatusCode() != EStatusCode::OK) {
+                return TError("OAuth call returned HTTP status code %v", static_cast<int>(rsp->GetStatusCode()));
+            }
 
-        auto rspOrError = WaitFor(HttpClient_->Get(url, headers));
-        if (!rspOrError.IsOK()) {
-            onError(TError("OAuth call failed")
-                << rspOrError);
+            if (json->GetType() != ENodeType::Map) {
+                return TError("OAuth call has returned an improper result")
+                    << TErrorAttribute("expected_result_type", ENodeType::Map)
+                    << TErrorAttribute("actual_result_type", json->GetType());
+            }
+
+            auto loginNode = json->AsMap()->FindChild(Config_->UserInfoLoginField);
+            if (!loginNode || loginNode->GetType() != ENodeType::String) {
+                return TError("OAuth call didn't return login");
+            }
+
+            return {};
+        }), MakeJsonFormatConfig());
+
+        const auto url = Format("%v://%v:%v/%v",
+            Config_->Secure ? "https" : "http",
+            Config_->Host,
+            Config_->Port,
+            Config_->UserInfoEndpoint);
+        
+        YT_LOG_DEBUG("Calling OAuth get user info (Url: %v, CallId: %v)", NHttp::SanitizeUrl(url), callId);
+
+        auto result = WaitFor(HttpClient_->Get(jsonResponseChecker, url, httpHeaders));
+        OAuthCallTime_.Record(timer.GetElapsedTime());
+        if (!result.IsOK()) {
+            OAuthCallErrors_.Increment();
+            auto error = TError("OAuth call failed")
+                << result
+                << TErrorAttribute("call_id", callId);
+            YT_LOG_WARNING(error);
+            THROW_ERROR(error);
         }
 
-        const auto& rsp = rspOrError.Value();
-        if (rsp->GetStatusCode() != EStatusCode::OK) {
-            onError(TError("OAuth call returned HTTP status code %v",
-                static_cast<int>(rsp->GetStatusCode())));
-        }
-
-        INodePtr rootNode;
-        try {
-
-            YT_LOG_DEBUG("Started reading response body from OAuth (CallId: %v, Attempt: %v)",
-                callId,
-                attempt);
-
-            auto body = rsp->ReadAll();
-
-            YT_LOG_DEBUG("Finished reading response body from OAuth (CallId: %v, Attempt: %v)\n%v",
-                callId,
-                attempt,
-                body);
-
-            TMemoryInput stream(body.Begin(), body.Size());
-            auto factory = NYTree::CreateEphemeralNodeFactory();
-            auto builder = NYTree::CreateBuilderFromFactory(factory.get());
-            static const auto Config = MakeJsonFormatConfig();
-            NJson::ParseJson(&stream, builder.get(), Config);
-            rootNode = builder->EndTree();
-
-            OAuthCallTime_.Record(timer.GetElapsedTime());
-            YT_LOG_DEBUG("Parsed OAuth daemon reply (CallId: %v, Attempt: %v)",
-                callId,
-                attempt);
-        } catch (const std::exception& ex) {
-            onError(TError(
-                "Error parsing OAuth response")
-                << ex);
-        }
-
-        if (rootNode->GetType() != ENodeType::Map) {
-            THROW_ERROR_EXCEPTION("OAuth has returned an improper result")
-                << TErrorAttribute("expected_result_type", ENodeType::Map)
-                << TErrorAttribute("actual_result_type", rootNode->GetType());
-        }
-
-        return rootNode;
+        return TOAuthUserInfoResult{
+            .Login = jsonResponseChecker->GetFormattedResponse()->AsMap()->FindChild(Config_->UserInfoLoginField)->AsString()->GetValue()
+        };
     }
 };
 

@@ -19,7 +19,7 @@ struct TOAuthUserInfoResult {
 struct IOAuthService
     : public virtual TRefCounted
 {
-    virtual TFuture<TOAuthUserInfoResult> GetUserInfo(const TString& accessToken);
+    virtual TFuture<TOAuthUserInfoResult> GetUserInfo(const TString& accessToken) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOAuthService)

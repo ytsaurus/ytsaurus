@@ -1,5 +1,6 @@
 #pragma once
 
+#include "library/cpp/yt/memory/ref_counted.h"
 #include <yt/yt/core/misc/common.h>
 
 namespace NYT::NHttp {
@@ -15,12 +16,15 @@ DECLARE_REFCOUNTED_CLASS(IActiveRequest)
 
 DECLARE_REFCOUNTED_STRUCT(IServer)
 DECLARE_REFCOUNTED_STRUCT(IClient)
+DECLARE_REFCOUNTED_STRUCT(IRetriableClient)
+DECLARE_REFCOUNTED_STRUCT(IResponseChecker)
 
 DECLARE_REFCOUNTED_STRUCT(IHttpHandler)
 
 DECLARE_REFCOUNTED_CLASS(THttpIOConfig)
 DECLARE_REFCOUNTED_CLASS(TServerConfig)
 DECLARE_REFCOUNTED_CLASS(TClientConfig)
+DECLARE_REFCOUNTED_CLASS(TRetrialbeClientConfig)
 DECLARE_REFCOUNTED_CLASS(TCorsConfig)
 DECLARE_REFCOUNTED_CLASS(TConnectionPool)
 DECLARE_REFCOUNTED_CLASS(IRequestPathMatcher)

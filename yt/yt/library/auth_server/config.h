@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <yt/yt/core/http/public.h>
 #include <yt/yt/core/https/public.h>
 
 #include <yt/yt/core/misc/cache_config.h>
@@ -175,10 +176,6 @@ class TOAuthCookieAuthenticatorConfig
     : public virtual NYTree::TYsonStruct
 {
 public:
-    // TString Domain;
-    // TString ClientId;
-    // TString ClientSecret;
-
     REGISTER_YSON_STRUCT(TOAuthCookieAuthenticatorConfig);
 
     static void Register(TRegistrar registrar);
@@ -192,20 +189,15 @@ class TOAuthServiceConfig
     : public virtual NYTree::TYsonStruct
 {
 public:
+    NHttp::TRetrialbeClientConfigPtr RetriableClient;
     NHttps::TClientConfigPtr HttpClient;
+
     TString Host;
     int Port;
     bool Secure;
 
     TString UserInfoEndpoint;
     TString UserInfoLoginField;
-
-    TString ClientId;
-    TString ClientSecret;
-
-    TDuration RequestTimeout;
-    TDuration AttemptTimeout;
-    TDuration BackoffTimeout;
 
     REGISTER_YSON_STRUCT(TOAuthServiceConfig);
 
@@ -398,7 +390,6 @@ public:
     TTvmServiceConfigPtr TvmService;
     TBlackboxTicketAuthenticatorConfigPtr BlackboxTicketAuthenticator;
     TCachingOAuthCookieAuthenticatorConfigPtr OAuthCookieAuthenticator;
-    // TOAuthCookieAuthenticatorConfigPtr OAuthCookieAuthenticator;
     TOAuthServiceConfigPtr OAuthService;
 
     TCypressCookieManagerConfigPtr CypressCookieManager;
