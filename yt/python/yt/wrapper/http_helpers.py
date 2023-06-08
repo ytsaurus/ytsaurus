@@ -505,11 +505,15 @@ def _get_proxy_url_parts(required=True, client=None, replace_host=None):
 
 
 def get_proxy_address_netloc(required=True, client=None, replace_host=None):
+    """Get proxy "hostname:port" from config or params
+    """
     scheme, netloc = _get_proxy_url_parts(required=required, client=client, replace_host=replace_host)
     return netloc
 
 
 def get_proxy_address_url(required=True, client=None, add_path=None, replace_host=None):
+    """Get proxy "schema://hostname:port" from config or params
+    """
     scheme, netloc = _get_proxy_url_parts(required=required, client=client, replace_host=replace_host)
     if not netloc:
         return None
@@ -519,7 +523,8 @@ def get_proxy_address_url(required=True, client=None, add_path=None, replace_hos
 
 
 def get_proxy_url(required=True, client=None):
-    # legacy
+    """Get proxy "hostname:port" from config or params (legacy, use get_proxy_address_netloc or get_proxy_address_url)
+    """
     return get_proxy_address_netloc(required=required, client=client)
 
 
