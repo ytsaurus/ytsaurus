@@ -52,7 +52,8 @@ TParameterizedReassignSolverConfig TParameterizedReassignSolverConfig::MergeWith
     return TParameterizedReassignSolverConfig{
         .EnableSwaps = groupConfig->EnableSwaps.value_or(EnableSwaps),
         .MaxMoveActionCount = groupConfig->MaxActionCount.value_or(MaxMoveActionCount),
-        .DeviationThreshold = groupConfig->DeviationThreshold.value_or(DeviationThreshold),
+        .NodeDeviationThreshold = groupConfig->NodeDeviationThreshold.value_or(NodeDeviationThreshold),
+        .CellDeviationThreshold = groupConfig->CellDeviationThreshold.value_or(CellDeviationThreshold),
         .MinRelativeMetricImprovement = groupConfig->MinRelativeMetricImprovement.value_or(
             MinRelativeMetricImprovement),
         .Metric = groupConfig->Metric.Empty()
@@ -313,15 +314,32 @@ bool TParameterizedReassignSolver::ShouldTrigger() const
             return lhs.second.Metric < rhs.second.Metric;
         });
 
+    bool byNodeTrigger = maxNode->second.Metric >=
+        minNode->second.Metric * (1 + Config_.NodeDeviationThreshold);
+
+    auto [minCell, maxCell] = std::minmax_element(
+        Cells_.begin(),
+        Cells_.end(),
+        [] (auto lhs, auto rhs) {
+            return lhs.second.Metric < rhs.second.Metric;
+        });
+
+    bool byCellTrigger = maxCell->second.Metric >=
+        minCell->second.Metric * (1 + Config_.CellDeviationThreshold);
+
     YT_LOG_DEBUG_IF(
         Bundle_->Config->EnableVerboseLogging,
         "Arguments for checking whether parameterized balancing should trigger have been calculated "
-        "(MinNodeMetric: %v, MaxNodeMetric: %v, DeviationThreshold: %v)",
-        minNode->second.Address,
-        maxNode->second.Address,
-        Config_.DeviationThreshold);
+        "(MinNodeMetric: %v, MaxNodeMetric: %v, MinCellMetric: %v, MaxCellMetric: %v, "
+        "NodeDeviationThreshold: %v, CellDeviationThreshold: %v)",
+        minNode->second.Metric,
+        maxNode->second.Metric,
+        minCell->second.Metric,
+        maxCell->second.Metric,
+        Config_.NodeDeviationThreshold,
+        Config_.CellDeviationThreshold);
 
-    return maxNode->second.Metric >= minNode->second.Metric * (1 + Config_.DeviationThreshold);
+    return byNodeTrigger || byCellTrigger;
 }
 
 double TParameterizedReassignSolver::GetTabletMetric(const TTabletPtr& tablet) const
@@ -681,8 +699,10 @@ std::vector<TMoveDescriptor> TParameterizedReassignSolver::BuildActionDescriptor
     Initialize();
 
     if (!ShouldTrigger()) {
-        YT_LOG_DEBUG("Parameterized balancing was not triggered (DeviationThreshold: %v)",
-            Config_.DeviationThreshold);
+        YT_LOG_DEBUG("Parameterized balancing was not triggered "
+            "(NodeDeviationThreshold: %v, CellDeviationThreshold: %v)",
+            Config_.NodeDeviationThreshold,
+            Config_.CellDeviationThreshold);
         return {};
     }
 

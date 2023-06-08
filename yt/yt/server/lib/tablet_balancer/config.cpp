@@ -15,7 +15,10 @@ void TParameterizedBalancingConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_action_count", &TThis::MaxActionCount)
         .Default()
         .GreaterThanOrEqual(0);
-    registrar.Parameter("deviation_threshold", &TThis::DeviationThreshold)
+    registrar.Parameter("node_deviation_threshold", &TThis::NodeDeviationThreshold)
+        .Default()
+        .GreaterThanOrEqual(0);
+    registrar.Parameter("cell_deviation_threshold", &TThis::CellDeviationThreshold)
         .Default()
         .GreaterThanOrEqual(0);
     registrar.Parameter("min_relative_metric_improvement", &TThis::MinRelativeMetricImprovement)

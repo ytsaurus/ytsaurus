@@ -33,7 +33,8 @@ struct TParameterizedReassignSolverConfig
 {
     bool EnableSwaps = true;
     int MaxMoveActionCount = 0;
-    double DeviationThreshold = 0;
+    double NodeDeviationThreshold = 0;
+    double CellDeviationThreshold = 0;
     double MinRelativeMetricImprovement = 0;
     TString Metric;
 

@@ -31,11 +31,6 @@ class TestStandaloneTabletBalancerBase:
     def _get_enable_tablet_balancer(self):
         return get("//sys/tablet_balancer/config/enable")
 
-    def _set_parameterized_deviation_threshold(self, value):
-        self._apply_dynamic_config_patch({
-            "parameterized_deviation_threshold": value
-        })
-
     @classmethod
     def modify_tablet_balancer_config(cls, config):
         update_inplace(config, {
@@ -244,7 +239,8 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         assert tablets[2]["cell_id"] == tablets[3]["cell_id"]
 
     @authors("alexelexa")
-    def test_parameterized_balancing_trigger(self):
+    @pytest.mark.parametrize("trigger_by", ["node", "cell"])
+    def test_parameterized_balancing_trigger(self, trigger_by):
         parameterized_balancing_metric = "double([/statistics/uncompressed_data_size])"
 
         cells = sync_create_cells(2)
@@ -259,7 +255,15 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
             "enable_auto_tablet_move": True,
         }
         set("//tmp/t/@tablet_balancer_config", config)
-        self._set_parameterized_deviation_threshold(0.3)
+
+        self._apply_dynamic_config_patch({
+            f"parameterized_{trigger_by}_deviation_threshold": 0.3
+        })
+
+        other_trigger = "node" if trigger_by == "cell" else "cell"
+        self._apply_dynamic_config_patch({
+            f"parameterized_{other_trigger}_deviation_threshold": 0.
+        })
 
         sync_reshard_table("//tmp/t", [[]] + [[i] for i in range(1, 20)])
 
@@ -279,7 +283,10 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         assert (sum(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets")) == 9)
         assert (sum(t["cell_id"] == cells[1] for t in get("//tmp/t/@tablets")) == 11)
 
-        self._set_parameterized_deviation_threshold(0.)
+        self._apply_dynamic_config_patch({
+            f"parameterized_{trigger_by}_deviation_threshold": 0.
+        })
+
         wait(lambda: sum(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets")) == 10)
 
 

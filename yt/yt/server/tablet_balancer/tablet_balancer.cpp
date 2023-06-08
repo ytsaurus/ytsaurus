@@ -602,7 +602,8 @@ void TTabletBalancer::BalanceViaMoveParameterized(const TBundleStatePtr& bundleS
             TParameterizedReassignSolverConfig{
                 .EnableSwaps = dynamicConfig->EnableSwaps,
                 .MaxMoveActionCount = dynamicConfig->MaxParameterizedMoveActionCount,
-                .DeviationThreshold = dynamicConfig->ParameterizedDeviationThreshold,
+                .NodeDeviationThreshold = dynamicConfig->ParameterizedNodeDeviationThreshold,
+                .CellDeviationThreshold = dynamicConfig->ParameterizedCellDeviationThreshold,
                 .MinRelativeMetricImprovement = dynamicConfig->ParameterizedMinRelativeMetricImprovement,
                 .Metric = dynamicConfig->DefaultParameterizedMetric,
             }.MergeWith(groupConfig->Parameterized),
