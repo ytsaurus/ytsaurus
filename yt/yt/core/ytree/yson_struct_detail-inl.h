@@ -178,6 +178,8 @@ T DeserializeMapKey(TStringBuf value)
         return ParseEnum<T>(value);
     } else if constexpr (std::is_same_v<T, TGuid>) {
         return TGuid::FromString(value);
+    } else if constexpr (TStrongTypedefTraits<T>::IsStrongTypedef) {
+        return T(DeserializeMapKey<typename TStrongTypedefTraits<T>::TUnderlying>(value));
     } else {
         return FromString<T>(value);
     }

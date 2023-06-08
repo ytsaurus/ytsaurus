@@ -15,6 +15,12 @@ TString ToYPathLiteral(E value)
     return FormatEnum(value);
 }
 
+template <class T, class TTag>
+TString ToYPathLiteral(const TStrongTypedef<T, TTag>& value)
+{
+    return ToYPathLiteral(value.Underlying());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYPath

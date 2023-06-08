@@ -1966,6 +1966,25 @@ struct TSerializerTraits<std::pair<F, S>, C, typename std::enable_if<!NMpl::TIsP
     using TComparer = TValueBoundComparer;
 };
 
+template <class T, class TTag, class C>
+struct TSerializerTraits<TStrongTypedef<T, TTag>, C, void>
+{
+    struct TSerializer
+    {
+        static void Save(C& context, const TStrongTypedef<T, TTag>& value)
+        {
+            NYT::Save(context, value.Underlying());
+        }
+
+        static void Load(C& context, TStrongTypedef<T, TTag>& value)
+        {
+            NYT::Load(context, value.Underlying());
+        }
+    };
+
+    using TComparer = TValueBoundComparer;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

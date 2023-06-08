@@ -155,6 +155,9 @@ void Deserialize(TIntrusivePtr<T>& value, TYsonPullParserCursor* cursor);
 template <class T>
 void Deserialize(std::unique_ptr<T>& value, TYsonPullParserCursor* cursor);
 
+template <class T, class TTag>
+void Deserialize(TStrongTypedef<T, TTag>& value, TYsonPullParserCursor* cursor);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TTo>

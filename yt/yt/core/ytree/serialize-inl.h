@@ -454,6 +454,12 @@ void Serialize(
     SerializeProtobufMessage(message, NYson::ReflectProtobufMessageType<T>(), consumer);
 }
 
+template <class T, class TTag>
+void Serialize(const TStrongTypedef<T, TTag>& value, NYson::IYsonConsumer* consumer)
+{
+    Serialize(value.Underlying(), consumer);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
@@ -624,6 +630,12 @@ void Deserialize(
     typename std::enable_if<std::is_convertible<T*, google::protobuf::Message*>::value, void>::type*)
 {
     Deserialize(message, NYson::ExtractTo<NYTree::INodePtr>(cursor));
+}
+
+template <class T, class TTag>
+void Deserialize(TStrongTypedef<T, TTag>& value, INodePtr node)
+{
+    Deserialize(value.Underlying(), node);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

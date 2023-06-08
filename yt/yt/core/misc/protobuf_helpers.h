@@ -143,6 +143,12 @@ void ToProto(
     ::google::protobuf::RepeatedField<TSerialized>* serializedArray,
     const TEnumIndexedVector<E, T, Min, Max>& originalArray);
 
+template <class TSerialized, class T, class TTag>
+void FromProto(TStrongTypedef<T, TTag>* original, const TSerialized& serialized);
+
+template <class TSerialized, class T, class TTag>
+void ToProto(TSerialized* serialized, const TStrongTypedef<T, TTag>& original);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TSerialized, class TOriginal, class... TArgs>

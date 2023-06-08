@@ -26,8 +26,11 @@ TString ToYPathLiteral(TStringBuf value);
 TString ToYPathLiteral(i64 value);
 TString ToYPathLiteral(TGuid value);
 template <class E>
-requires TEnumTraits<E>::IsEnum
+    requires TEnumTraits<E>::IsEnum
 TString ToYPathLiteral(E value);
+
+template <class T, class TTag>
+TString ToYPathLiteral(const TStrongTypedef<T, TTag>& value);
 
 void AppendYPathLiteral(TStringBuilderBase* builder, TStringBuf value);
 void AppendYPathLiteral(TStringBuilderBase* builder, i64 value);

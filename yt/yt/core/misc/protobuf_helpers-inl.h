@@ -569,4 +569,18 @@ struct TValueFormatter<::google::protobuf::RepeatedPtrField<T>>
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TSerialized, class T, class TTag>
+void FromProto(TStrongTypedef<T, TTag>* original, const TSerialized& serialized)
+{
+    FromProto(&original->Underlying(), serialized);
+}
+
+template <class TSerialized, class T, class TTag>
+void ToProto(TSerialized* serialized, const TStrongTypedef<T, TTag>& original)
+{
+    ToProto(serialized, original.Underlying());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT

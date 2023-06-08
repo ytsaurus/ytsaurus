@@ -148,6 +148,10 @@ void Serialize(
     NYson::IYsonConsumer* consumer,
     typename std::enable_if<std::is_convertible<T*, google::protobuf::Message*>::value, void>::type* = nullptr);
 
+
+template <class T, class TTag>
+void Serialize(const TStrongTypedef<T, TTag>& value, NYson::IYsonConsumer* consumer);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
@@ -249,6 +253,9 @@ void Deserialize(
     T& message,
     NYson::TYsonPullParserCursor* cursor,
     typename std::enable_if<std::is_convertible<T*, google::protobuf::Message*>::value, void>::type* = nullptr);
+
+template <class T, class TTag>
+void Deserialize(TStrongTypedef<T, TTag>& value, INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 

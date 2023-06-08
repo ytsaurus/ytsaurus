@@ -118,6 +118,7 @@ void TUserReadRequestComplexityLimitsOptions::Register(TRegistrar registrar)
         THROW_ERROR_EXCEPTION_IF(config->DefaultResultSize.value_or(0) < 0,
             "\"result_size\" cannot be negative");
     });
+    std::unique_ptr<int> a;
 }
 
 TReadRequestComplexity TUserReadRequestComplexityLimitsOptions::GetValue() const

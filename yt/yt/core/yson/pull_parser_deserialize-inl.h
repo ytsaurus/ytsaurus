@@ -354,6 +354,12 @@ void Deserialize(std::unique_ptr<T>& value, TYsonPullParserCursor* cursor)
     DeserializePtr(*value, cursor);
 }
 
+template <class T, class TTag>
+void Deserialize(TStrongTypedef<T, TTag>& value, TYsonPullParserCursor* cursor)
+{
+    Deserialize(value.Underlying(), cursor);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TTo>
