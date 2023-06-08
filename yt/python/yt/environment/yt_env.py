@@ -33,6 +33,7 @@ except ImportError:
     from six.moves import xrange, map as imap
 
 import yt.packages.requests as requests
+from yt.common import get_fqdn
 
 import logging
 import os
@@ -503,6 +504,8 @@ class YTInstance(object):
             if self.yt_config.http_proxy_count > 0:
                 # NB: it is used to determine proper operation URL in local mode.
                 client.set("//sys/@local_mode_proxy_address", self.get_http_proxy_address())
+                # NB: it is used for enabling local mode optimizations in C++ API.
+                client.set("//sys/@local_mode_fqdn", get_fqdn())
 
             if on_masters_started_func is not None:
                 on_masters_started_func()
