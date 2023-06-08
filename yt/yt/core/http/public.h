@@ -1,6 +1,5 @@
 #pragma once
 
-#include "library/cpp/yt/memory/ref_counted.h"
 #include <yt/yt/core/misc/common.h>
 
 namespace NYT::NHttp {

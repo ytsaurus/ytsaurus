@@ -5,7 +5,6 @@
 #include "cookie_authenticator.h"
 #include "cypress_cookie_manager.h"
 #include "cypress_token_authenticator.h"
-#include "library/cpp/yt/logging/logger.h"
 #include "ticket_authenticator.h"
 #include "token_authenticator.h"
 #include "config.h"
@@ -17,11 +16,7 @@
 
 #include <yt/yt/library/tvm/service/tvm_service.h>
 
-#include "private.h"
-
 namespace NYT::NAuth {
-
-static const auto& Logger = AuthLogger;
 
 using namespace NApi;
 using namespace NConcurrency;
@@ -121,36 +116,13 @@ public:
                 AuthProfiler.WithPrefix("/blackbox_cookie_authenticator/cache")));
         }
 
-        if (config->OAuthCookieAuthenticator) {
-            YT_LOG_WARNING("config->OAuthCookieAuthenticator presnt");
-
-        } else {
-            YT_LOG_WARNING("NO config->OAuthCookieAuthenticator");
-        }
-
-        if (config->OAuthService) {
-            YT_LOG_WARNING("config->OAuthService presnt");
-
-        } else {
-            YT_LOG_WARNING("NO config->OAuthService");
-        }
-
         if (config->OAuthCookieAuthenticator && oauthService) {
-            YT_LOG_WARNING("Adding OAuthCookieAuthenticator");
             cookieAuthenticators.push_back(CreateCachingCookieAuthenticator(
                 config->OAuthCookieAuthenticator,
                 CreateOAuthCookieAuthenticator(
                     config->OAuthCookieAuthenticator,
                     oauthService),
                 profiler.WithPrefix("/oauth_cookie_authenticator/cache")));
-        } else {
-            YT_LOG_WARNING("Not adding OAuthCookieAuthenticator");
-            if (!config->OAuthCookieAuthenticator) {
-                YT_LOG_WARNING("NO config->OAuthCookieAuthenticator");
-            }
-            if (!oauthService) {
-                YT_LOG_WARNING("NO oauthService");
-            }
         }
 
         if (blackboxService && config->BlackboxTicketAuthenticator) {

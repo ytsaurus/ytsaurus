@@ -2,7 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/core/https/public.h>
 #include <yt/yt/core/net/public.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
