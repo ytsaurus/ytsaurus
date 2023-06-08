@@ -33,6 +33,7 @@ target_link_options(unittester-core-concurrency PRIVATE
   -lutil
 )
 target_sources(unittester-core-concurrency PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/unittests/async_barrier_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/unittests/async_rw_lock_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/unittests/async_stream_pipe_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/unittests/async_stream_ut.cpp

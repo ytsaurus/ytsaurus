@@ -99,6 +99,7 @@ target_sources(yt-yt-core PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/compression/zlib.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/compression/zstd.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/action_queue.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/async_barrier.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/async_semaphore.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/async_rw_lock.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/async_stream.cpp

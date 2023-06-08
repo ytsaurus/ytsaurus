@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+#include <library/cpp/yt/assert/assert.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -29,10 +31,8 @@ public:
     class TIterator
     {
     public:
-        TIterator()
-        { }
-
-        TIterator(const TIterator& other) = default;
+        TIterator() = default;
+        TIterator(const TIterator&) = default;
 
         const T& operator* () const
         {
@@ -78,7 +78,6 @@ public:
         { }
 
         T* Ptr_;
-
     };
 
     TRingQueue()
@@ -178,6 +177,21 @@ public:
         } else {
             --it.Ptr_;
         }
+    }
+
+
+    T& operator[](size_t index)
+    {
+        YT_ASSERT(index < size());
+        auto headToEnd = static_cast<size_t>(End_ - Head_);
+        return index < headToEnd
+            ? Head_[index]
+            : Begin_[index - headToEnd];
+    }
+
+    const T& operator[](size_t index) const
+    {
+        return const_cast<TRingQueue*>(this)->operator[](index);
     }
 
 
