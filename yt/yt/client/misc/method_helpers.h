@@ -2,6 +2,7 @@
 
 #include <util/generic/string.h>
 #include <util/generic/yexception.h>
+#include <util/system/compiler.h>
 
 namespace NYT {
 
@@ -34,10 +35,6 @@ namespace NYT {
 // Map input arguments types into corresponding parameter names.
 // Example: Y_PASS_METHOD_USED_ARGS((int, TString)) ---> a2, a1.
 #define Y_PASS_METHOD_USED_ARGS(Args) Y_MAP_ARGS_WITH_LAST_N(Y_PASS_ARG_COMMA, Y_PASS_ARG, Y_PASS_VA_ARGS(Y_VA_ARGS Args))
-
-// Use at the end of macros declaration. It allows macros usage only with semicolon at the end.
-// It prevents from warnings for extra semicolons when building with -pedantic mode.
-#define Y_SEMICOLON_GUARD static_assert(true, "missing semicolon")
 
 #define UNIMPLEMENTED_METHOD(ReturnType, MethodName, Args) NO_METHOD_IMPL(ReturnType, MethodName, "Not implemented", Args)
 #define UNIMPLEMENTED_CONST_METHOD(ReturnType, MethodName, Args) NO_CONST_METHOD_IMPL(ReturnType, MethodName, "Not implemented", Args)
