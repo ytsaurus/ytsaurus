@@ -373,7 +373,7 @@ private:
             if (role) {
                 NProfiling::TSolomonRegistry::Get()->SetDynamicTags({NProfiling::TTag{"proxy_role", *role}});
             } else {
-                NProfiling::TSolomonRegistry::Get()->SetDynamicTags({NProfiling::TTag{"proxy_role", DefaultProxyRole}});
+                NProfiling::TSolomonRegistry::Get()->SetDynamicTags({NProfiling::TTag{"proxy_role", DefaultRpcProxyRole}});
             }
         }
         {
@@ -386,7 +386,7 @@ private:
                 const auto& attributes = child.second->Attributes();
 
                 bool banned = attributes.Get(BannedAttributeName, false);
-                auto role = attributes.Get<TString>(RoleAttributeName, DefaultProxyRole);
+                auto role = attributes.Get<TString>(RoleAttributeName, DefaultRpcProxyRole);
                 auto addresses = attributes.Get<TProxyAddressMap>(AddressesAttributeName, {});
                 bool alive = static_cast<bool>(child.second->AsMap()->FindChild(AliveNodeName));
 
@@ -411,7 +411,7 @@ private:
     {
         ProxyCoordinator_->ValidateOperable();
 
-        auto roleFilter = request->has_role() ? request->role() : DefaultProxyRole;
+        auto roleFilter = request->has_role() ? request->role() : DefaultRpcProxyRole;
         auto addressType = request->has_address_type()
             ? CheckedEnumCast<EAddressType>(request->address_type())
             : DefaultAddressType;

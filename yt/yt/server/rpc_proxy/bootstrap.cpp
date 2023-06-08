@@ -193,7 +193,7 @@ void TBootstrap::DoRun()
         Config_->SolomonExporter,
         &MonitoringManager_,
         &orchidRoot);
-    NProfiling::TSolomonRegistry::Get()->SetDynamicTags({NProfiling::TTag{"proxy_role", DefaultProxyRole}});
+    NProfiling::TSolomonRegistry::Get()->SetDynamicTags({NProfiling::TTag{"proxy_role", DefaultRpcProxyRole}});
 
     SetNodeByYPath(
         orchidRoot,

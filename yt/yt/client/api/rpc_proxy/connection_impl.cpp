@@ -453,7 +453,7 @@ void TConnection::OnProxyListUpdate()
     } else {
         YT_ABORT();
     }
-    attributes->Set("proxy_role", Config_->ProxyRole.value_or(DefaultProxyRole));
+    attributes->Set("proxy_role", Config_->ProxyRole.value_or(DefaultRpcProxyRole));
 
     auto backoff = Config_->ProxyListRetryPeriod;
     for (int attempt = 0;; ++attempt) {

@@ -15,7 +15,7 @@ namespace NYT::NDriver {
 struct TProxyDiscoveryRequest
 {
     NApi::EProxyType Type;
-    TString Role = NApi::DefaultProxyRole;
+    TString Role = NApi::DefaultRpcProxyRole;
     NApi::NRpcProxy::EAddressType AddressType = NApi::NRpcProxy::DefaultAddressType;
     TString NetworkName = NApi::NRpcProxy::DefaultNetworkName;
     bool IgnoreBalancers = false;

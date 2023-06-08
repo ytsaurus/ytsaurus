@@ -39,7 +39,7 @@ void TCoordinatorConfig::Register(TRegistrar registrar)
     registrar.Parameter("public_fqdn", &TThis::PublicFqdn)
         .Default();
     registrar.Parameter("default_role_filter", &TThis::DefaultRoleFilter)
-        .Default("data");
+        .Default(NApi::DefaultHttpProxyRole);
 
     registrar.Parameter("heartbeat_interval", &TThis::HeartbeatInterval)
         .Default(TDuration::Seconds(5));
@@ -182,7 +182,7 @@ void TProxyConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("role", &TThis::Role)
-        .Default("data");
+        .Default(NApi::DefaultHttpProxyRole);
 
     registrar.Parameter("coordinator", &TThis::Coordinator)
         .DefaultNew();

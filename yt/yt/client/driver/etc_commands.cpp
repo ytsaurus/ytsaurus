@@ -383,7 +383,7 @@ TDiscoverProxiesCommand::TDiscoverProxiesCommand()
     RegisterParameter("type", Type)
         .Default(EProxyType::Rpc);
     RegisterParameter("role", Role)
-        .Default(DefaultProxyRole);
+        .Default(DefaultRpcProxyRole);
     RegisterParameter("address_type", AddressType)
         .Default(NApi::NRpcProxy::DefaultAddressType);
     RegisterParameter("network_name", NetworkName)
