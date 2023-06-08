@@ -774,8 +774,10 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("environment", &TThis::Environment)
-        .Default(THashMap<TString, TString>())
-        .MergeBy(NYTree::EMergeStrategy::Combine);
+        .Default({
+            {"HOME", "$(SandboxPath)"},
+            {"TMPDIR", "$(SandboxPath)"},
+        }).MergeBy(NYTree::EMergeStrategy::Combine);
 
     registrar.Parameter("enable_controller_failure_spec_option", &TThis::EnableControllerFailureSpecOption)
         .Default(false);

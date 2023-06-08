@@ -2356,3 +2356,47 @@ class TestNestingLevelLimitOperations(YTEnvSetup):
 
 
 ##################################################################
+
+
+class TestEnvironment(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    HOME_PATH_FROM_CONFIG = "//tmp/other/path"
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operations_update_period": 10,
+            "environment": {
+                "HOME": HOME_PATH_FROM_CONFIG
+            }
+        },
+    }
+
+    @authors("nadya73")
+    def test_map_operation(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"a": "b"})
+
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=r'cat; echo "{v1=\"$TMPDIR\"};{v2=\"$HOME\"}"',
+        )
+
+        op.track()
+
+        res = read_table("//tmp/t2")
+        assert len(res) == 3
+        assert res[0] == {"a": "b"}
+        assert "v1" in res[1]
+        assert res[1]["v1"].startswith("/")
+
+        assert "v2" in res[2]
+        assert res[2]["v2"] == TestEnvironment.HOME_PATH_FROM_CONFIG
+
+
+##################################################################
