@@ -39,12 +39,12 @@ cd "$SOURCE_ROOT" && pip install -e yt/python/packages
   
   5. Run `generate_python_proto` to build proto modules (it requires protoc to be installed, see [build instruction](https://github.com/ytsaurus/ytsaurus/blob/main/BUILD.md)).
 ```
-generate_python_proto --source-root "$SOURCE_ROOT" --output "$YTSAURUS_PYTHON"`
+generate_python_proto --source-root "$SOURCE_ROOT" --output "$YTSAURUS_PYTHON"
 ```
 
   6. Run `prepare_python_modules` to prepare all python modules
 ```
-prepare_python_modules --source-root "$SOURCE_ROOT" --build-root "$BUILD_ROOT" --output-path "$YTSAURUS_PYTHON" --prepare-bindings-libraries`
+prepare_python_modules --source-root "$SOURCE_ROOT" --build-root "$BUILD_ROOT" --output-path "$YTSAURUS_PYTHON" --prepare-bindings-libraries
 ```
 
 After that ytsaurus python libraries can be used by adding `<ytsaurus_python>` to PYTHONPATH.
