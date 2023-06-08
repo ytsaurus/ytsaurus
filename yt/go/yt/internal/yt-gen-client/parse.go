@@ -27,7 +27,7 @@ type optionsType struct {
 	fields []optionField
 }
 
-func errorf(pos token.Pos, msg string, args ...interface{}) error {
+func errorf(pos token.Pos, msg string, args ...any) error {
 	return fmt.Errorf("%s: %s", fset.Position(pos).String(), fmt.Sprintf(msg, args...))
 }
 
@@ -185,7 +185,7 @@ func parseClient(typeSpec *ast.TypeSpec) (c *interfaceType, err error) {
 						typeName = "yt." + typeName
 					}
 				case *ast.InterfaceType:
-					typeName = "interface{}"
+					typeName = "any"
 				default:
 					var b strings.Builder
 					_ = printer.Fprint(&b, fset, p.Type)

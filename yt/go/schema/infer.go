@@ -136,7 +136,7 @@ func parseTag(fieldName string, typ reflect.Type, tag reflect.StructTag) (c *Col
 // Go type string is mapped to YT type utf8.
 //
 // Go types implementing encoding.TextMarshaler interface are mapped to YT type utf8.
-func Infer(value interface{}) (s Schema, err error) {
+func Infer(value any) (s Schema, err error) {
 	v, err := reflectValueOfType(value, reflect.Struct)
 	if err != nil {
 		return
@@ -196,7 +196,7 @@ func Infer(value interface{}) (s Schema, err error) {
 // Column name inferred from key itself, and column type inferred from the type of value.
 //
 // To avoid ambiguity key type should always be string, while value type doesn't matter.
-func InferMap(value interface{}) (s Schema, err error) {
+func InferMap(value any) (s Schema, err error) {
 	v, err := reflectValueOfType(value, reflect.Map)
 	if err != nil {
 		return
@@ -242,7 +242,7 @@ func InferMap(value interface{}) (s Schema, err error) {
 // MustInferMap infers Schema from go map[string]interface{}.
 //
 // MustInferMap panics on errors.
-func MustInferMap(value interface{}) (s Schema) {
+func MustInferMap(value any) (s Schema) {
 	s, err := InferMap(value)
 	if err != nil {
 		panic(err)
@@ -251,7 +251,7 @@ func MustInferMap(value interface{}) (s Schema) {
 }
 
 // reflectValueOfType creates value reflection of requested type for schema inferring.
-func reflectValueOfType(value interface{}, k reflect.Kind) (v reflect.Value, err error) {
+func reflectValueOfType(value any, k reflect.Kind) (v reflect.Value, err error) {
 	// Check for nil, reflect of nil value causes panic.
 	if value == nil {
 		err = xerrors.New("can't infer schema from nil value")
@@ -272,7 +272,7 @@ func reflectValueOfType(value interface{}, k reflect.Kind) (v reflect.Value, err
 // MustInfer infers Schema from go struct.
 //
 // MustInfer panics on errors.
-func MustInfer(value interface{}) Schema {
+func MustInfer(value any) Schema {
 	s, err := Infer(value)
 	if err != nil {
 		panic(err)

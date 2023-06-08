@@ -168,7 +168,7 @@ func (e *Encoder) writeString(v []byte, opt bool) error {
 	return e.w.err
 }
 
-func (e *Encoder) writeAny(v interface{}, opt bool) error {
+func (e *Encoder) writeAny(v any, opt bool) error {
 	if opt {
 		e.w.writeByte(1)
 	}
@@ -179,7 +179,7 @@ func (e *Encoder) writeAny(v interface{}, opt bool) error {
 	return e.w.err
 }
 
-func (e *Encoder) WriteRow(cols []interface{}) error {
+func (e *Encoder) WriteRow(cols []any) error {
 	if e.schema == nil || len(cols) != len(e.schema.Children) {
 		return xerrors.Errorf("skiff: can't encode row, col count mismatch, expected %v actual %v", len(e.schema.Children), len(cols))
 	}
@@ -402,7 +402,7 @@ func (e *Encoder) getTranscoder(typ reflect.Type) (ops []fieldOp, err error) {
 	return
 }
 
-func (e *Encoder) Write(value interface{}) error {
+func (e *Encoder) Write(value any) error {
 	e.w.writeUint16(0) // variant tag
 	if e.w.err != nil {
 		return e.w.err

@@ -10,7 +10,7 @@ import (
 //
 // Function returns attribute names of struct fields
 // including exported fields of yson-untagged anonymous fields
-func InferAttrs(v interface{}) ([]string, error) {
+func InferAttrs(v any) ([]string, error) {
 	if v == nil {
 		return nil, xerrors.New("can't infer attrs from nil value")
 	}
@@ -64,7 +64,7 @@ func InferAttrs(v interface{}) ([]string, error) {
 }
 
 // MustInferAttrs is like InferAttrs but panics in case of an error.
-func MustInferAttrs(v interface{}) []string {
+func MustInferAttrs(v any) []string {
 	attrs, err := InferAttrs(v)
 	if err != nil {
 		panic(err)

@@ -23,10 +23,10 @@ type Walk struct {
 	Attributes []string
 
 	// Node is optional pointer to type that will hold deserialized cypress node.
-	Node interface{}
+	Node any
 
 	// OnNode is invoked for each node during traversal.
-	OnNode func(path ypath.Path, node interface{}) error
+	OnNode func(path ypath.Path, node any) error
 
 	// RespectOpaque defines whether we stop at opaque nodes (true) or not (false).
 	RespectOpaque bool
@@ -34,7 +34,7 @@ type Walk struct {
 
 type treeOrValue struct {
 	Children map[string]tree
-	Value    interface{}
+	Value    any
 }
 
 func (s *treeOrValue) UnmarshalYSON(r *yson.Reader) error {
@@ -53,8 +53,8 @@ func (s *treeOrValue) UnmarshalYSON(r *yson.Reader) error {
 }
 
 type tree struct {
-	Attributes map[string]interface{} `yson:",attrs"`
-	Value      treeOrValue            `yson:",value"`
+	Attributes map[string]any `yson:",attrs"`
+	Value      treeOrValue    `yson:",value"`
 }
 
 func Do(ctx context.Context, yc yt.Client, w *Walk) error {
@@ -69,7 +69,7 @@ func Do(ctx context.Context, yc yt.Client, w *Walk) error {
 
 	var walk func(path ypath.Path, t tree) error
 	walk = func(path ypath.Path, t tree) error {
-		var node interface{}
+		var node any
 		if w.Node != nil {
 			node = reflect.New(reflect.TypeOf(w.Node).Elem()).Interface()
 

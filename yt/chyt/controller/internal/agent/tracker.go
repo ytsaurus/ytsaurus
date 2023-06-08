@@ -53,7 +53,7 @@ func TrackChildren(ctx context.Context, root ypath.Path, period time.Duration, y
 					Root:       root,
 					Attributes: []string{"revision"},
 					Node:       new(myNode),
-					OnNode: func(path ypath.Path, node interface{}) error {
+					OnNode: func(path ypath.Path, node any) error {
 						path = ypath.Path(strings.TrimPrefix(string(path), string(root)))
 						myNode := node.(*myNode)
 						found[path] = struct{}{}

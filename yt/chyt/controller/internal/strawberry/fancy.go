@@ -19,7 +19,7 @@ func navigationStringURL(clusterURL string, path ypath.Path) string {
 	return clusterURL + "/navigation?path=" + path.String()
 }
 
-func navigationYsonURL(clusterURL string, path ypath.Path) interface{} {
+func navigationYsonURL(clusterURL string, path ypath.Path) any {
 	return ToYsonURL(navigationStringURL(clusterURL, path))
 }
 
@@ -27,17 +27,17 @@ func operationStringURL(clusterURL string, opID yt.OperationID) string {
 	return clusterURL + "/operations/" + opID.String()
 }
 
-func operationYsonURL(clusterURL string, opID yt.OperationID) interface{} {
+func operationYsonURL(clusterURL string, opID yt.OperationID) any {
 	return ToYsonURL(operationStringURL(clusterURL, opID))
 }
 
-func (oplet *Oplet) OpAnnotations() map[string]interface{} {
-	return map[string]interface{}{
+func (oplet *Oplet) OpAnnotations() map[string]any {
+	return map[string]any{
 		"strawberry_family":              oplet.c.Family(),
 		"strawberry_stage":               oplet.agentInfo.Stage,
 		"strawberry_operation_namespace": oplet.agentInfo.OperationNamespace,
 		"strawberry_node":                oplet.cypressNode,
-		"strawberry_controller": map[string]interface{}{
+		"strawberry_controller": map[string]any{
 			"address": oplet.agentInfo.Hostname,
 			// TODO(max42): build Revision, etc.
 		},
@@ -46,8 +46,8 @@ func (oplet *Oplet) OpAnnotations() map[string]interface{} {
 	}
 }
 
-func (oplet *Oplet) OpDescription() map[string]interface{} {
-	desc := map[string]interface{}{
+func (oplet *Oplet) OpDescription() map[string]any {
+	desc := map[string]any{
 		"strawberry_node":        navigationYsonURL(oplet.agentInfo.ClusterURL, oplet.cypressNode),
 		"strawberry_incarnation": oplet.NextIncarnationIndex(),
 	}

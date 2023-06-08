@@ -30,7 +30,7 @@ func TestInferAttrs(t *testing.T) {
 
 	for _, tc := range []struct {
 		name     string
-		input    interface{}
+		input    any
 		expected *inferResults
 	}{
 		{

@@ -16,13 +16,13 @@ type (
 	}
 
 	NullTest struct {
-		Val    *NullTestVal           `json:"val,omitempty" yson:"val,omitempty"`
-		Int    *int                   `json:"int,omitempty" yson:"int,omitempty"`
-		Map    map[string]interface{} `json:"map,omitempty" yson:"map,omitempty"`
-		MapStr map[string]string      `json:"map_str,omitempty" yson:"map_str,omitempty"`
-		Array  []string               `json:"array,omitempty" yson:"array,omitempty"`
-		Str    string                 `json:"str,omitempty" yson:"str,omitempty"`
-		Bytes  []byte                 `json:"bytes,omitempty" yson:"bytes,omitempty"`
+		Val    *NullTestVal      `json:"val,omitempty" yson:"val,omitempty"`
+		Int    *int              `json:"int,omitempty" yson:"int,omitempty"`
+		Map    map[string]any    `json:"map,omitempty" yson:"map,omitempty"`
+		MapStr map[string]string `json:"map_str,omitempty" yson:"map_str,omitempty"`
+		Array  []string          `json:"array,omitempty" yson:"array,omitempty"`
+		Str    string            `json:"str,omitempty" yson:"str,omitempty"`
+		Bytes  []byte            `json:"bytes,omitempty" yson:"bytes,omitempty"`
 	}
 )
 
@@ -111,7 +111,7 @@ func TestMapKeys(t *testing.T) {
 }
 
 func TestFieldEmbedding(t *testing.T) {
-	type makeInOut func() (interface{}, interface{})
+	type makeInOut func() (any, any)
 
 	for _, tc := range []struct {
 		name   string
@@ -120,7 +120,7 @@ func TestFieldEmbedding(t *testing.T) {
 	}{
 		{
 			name: "untagged",
-			init: func() (in interface{}, out interface{}) {
+			init: func() (in any, out any) {
 				type I1 struct {
 					ID int
 				}
@@ -147,7 +147,7 @@ func TestFieldEmbedding(t *testing.T) {
 		},
 		{
 			name: "untagged_nil",
-			init: func() (in interface{}, out interface{}) {
+			init: func() (in any, out any) {
 				type I struct {
 					ID int
 				}
@@ -163,7 +163,7 @@ func TestFieldEmbedding(t *testing.T) {
 		},
 		{
 			name: "untagged_basic_type",
-			init: func() (in interface{}, out interface{}) {
+			init: func() (in any, out any) {
 				type ID = int
 
 				type S struct {
@@ -178,7 +178,7 @@ func TestFieldEmbedding(t *testing.T) {
 		},
 		{
 			name: "tagged_basic_type",
-			init: func() (in interface{}, out interface{}) {
+			init: func() (in any, out any) {
 				type ID = int
 
 				type S struct {
@@ -194,7 +194,7 @@ func TestFieldEmbedding(t *testing.T) {
 		},
 		{
 			name: "untagged_declaration",
-			init: func() (in interface{}, out interface{}) {
+			init: func() (in any, out any) {
 				type ID string
 
 				type S struct {
@@ -210,7 +210,7 @@ func TestFieldEmbedding(t *testing.T) {
 		},
 		{
 			name: "tagged_declaration",
-			init: func() (in interface{}, out interface{}) {
+			init: func() (in any, out any) {
 				type ID string
 
 				type S struct {
@@ -226,7 +226,7 @@ func TestFieldEmbedding(t *testing.T) {
 		},
 		{
 			name: "untagged_unexported",
-			init: func() (in interface{}, out interface{}) {
+			init: func() (in any, out any) {
 				type i struct {
 					ID string `yson:"id" json:"id"`
 				}
@@ -242,7 +242,7 @@ func TestFieldEmbedding(t *testing.T) {
 		},
 		{
 			name: "untagged_unexported_ptr",
-			init: func() (in interface{}, out interface{}) {
+			init: func() (in any, out any) {
 				type i struct {
 					ID string `yson:"id" json:"id"`
 				}
@@ -258,7 +258,7 @@ func TestFieldEmbedding(t *testing.T) {
 		},
 		{
 			name: "embedded_value",
-			init: func() (in interface{}, out interface{}) {
+			init: func() (in any, out any) {
 				type I struct {
 					ID string `yson:"id" json:"id"`
 				}
@@ -274,7 +274,7 @@ func TestFieldEmbedding(t *testing.T) {
 		},
 		{
 			name: "embedded_attr",
-			init: func() (in interface{}, out interface{}) {
+			init: func() (in any, out any) {
 				type I struct {
 					ID string `yson:"id" json:"id"`
 				}
@@ -290,7 +290,7 @@ func TestFieldEmbedding(t *testing.T) {
 		},
 		{
 			name: "attr_of_embedded_attr",
-			init: func() (in interface{}, out interface{}) {
+			init: func() (in any, out any) {
 				type I struct {
 					ID string `yson:"id,attr" json:"id"`
 				}
@@ -413,10 +413,10 @@ func TestRecursiveTypes(t *testing.T) {
 func TestInvalidSkip(t *testing.T) {
 	var row struct {
 		Name  string
-		Value [][]interface{}
+		Value [][]any
 	}
 	row.Name = "foo"
-	row.Value = [][]interface{}{
+	row.Value = [][]any{
 		{1, 2, 0.1},
 		{3, 4, 0.5},
 	}
@@ -493,7 +493,7 @@ var (
 )
 
 func TestHookPriority(t *testing.T) {
-	for _, v := range []interface{}{
+	for _, v := range []any{
 		&ysonBeforeBinary{},
 		&textBeforeBinary{},
 	} {
@@ -563,7 +563,7 @@ func TestUnmarshalEmbeddedUnexportedNilPtr(t *testing.T) {
 }
 
 func TestUnmarshalEmbeddedUnexportedNonStruct(t *testing.T) {
-	type i interface{}
+	type i any
 	type S struct {
 		i
 	}

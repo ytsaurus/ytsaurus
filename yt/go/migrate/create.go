@@ -12,7 +12,7 @@ import (
 func Create(ctx context.Context, yc yt.Client, path ypath.Path, schema schema.Schema) error {
 	_, err := yc.CreateNode(ctx, path, yt.NodeTable, &yt.CreateNodeOptions{
 		Recursive: true,
-		Attributes: map[string]interface{}{
+		Attributes: map[string]any{
 			"dynamic": true,
 			"schema":  schema,
 		},

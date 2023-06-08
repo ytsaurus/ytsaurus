@@ -29,7 +29,7 @@ var (
 
 	testFormat = Format{
 		Name:           "skiff",
-		TableSchemas:   []interface{}{&testSchema},
+		TableSchemas:   []any{&testSchema},
 		SchemaRegistry: nil,
 	}
 )
@@ -105,16 +105,16 @@ func TestDecoder(t *testing.T) {
 
 	require.True(t, decoder.Next())
 
-	expected := map[string]interface{}{
+	expected := map[string]any{
 		"first": int64(6),
 		"third": []byte("foobar"),
 	}
 
-	var i interface{}
+	var i any
 	require.NoError(t, decoder.Scan(&i))
 	require.Equal(t, expected, i)
 
-	var m map[string]interface{}
+	var m map[string]any
 	require.NoError(t, decoder.Scan(&m))
 	require.Equal(t, expected, m)
 

@@ -9,27 +9,27 @@ import (
 
 func TestCompare(t *testing.T) {
 	for i, testCase := range []struct {
-		a, b []interface{}
+		a, b []any
 	}{
-		{[]interface{}{}, []interface{}{1}},
-		{[]interface{}{}, []interface{}{uint(1)}},
-		{[]interface{}{}, []interface{}{"foo"}},
-		{[]interface{}{}, []interface{}{true}},
-		{[]interface{}{}, []interface{}{[]byte("bar")}},
-		{[]interface{}{}, []interface{}{1}},
+		{[]any{}, []any{1}},
+		{[]any{}, []any{uint(1)}},
+		{[]any{}, []any{"foo"}},
+		{[]any{}, []any{true}},
+		{[]any{}, []any{[]byte("bar")}},
+		{[]any{}, []any{1}},
 
-		{[]interface{}{nil}, []interface{}{uint(1)}},
-		{[]interface{}{nil}, []interface{}{"foo"}},
-		{[]interface{}{nil}, []interface{}{true}},
-		{[]interface{}{nil}, []interface{}{[]byte("bar")}},
-		{[]interface{}{nil}, []interface{}{0.1}},
+		{[]any{nil}, []any{uint(1)}},
+		{[]any{nil}, []any{"foo"}},
+		{[]any{nil}, []any{true}},
+		{[]any{nil}, []any{[]byte("bar")}},
+		{[]any{nil}, []any{0.1}},
 
-		{[]interface{}{1}, []interface{}{2}},
-		{[]interface{}{false}, []interface{}{true}},
-		{[]interface{}{0.1}, []interface{}{0.2}},
-		{[]interface{}{uint64(1)}, []interface{}{uint64(2)}},
-		{[]interface{}{"a"}, []interface{}{"b"}},
-		{[]interface{}{[]byte("a")}, []interface{}{[]byte("b")}},
+		{[]any{1}, []any{2}},
+		{[]any{false}, []any{true}},
+		{[]any{0.1}, []any{0.2}},
+		{[]any{uint64(1)}, []any{uint64(2)}},
+		{[]any{"a"}, []any{"b"}},
+		{[]any{[]byte("a")}, []any{[]byte("b")}},
 	} {
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
 			t.Logf("a = %#v", testCase.a)

@@ -149,7 +149,7 @@ func (r *smartReader) Err() error {
 	return r.err
 }
 
-func (r *smartReader) Scan(row interface{}) error {
+func (r *smartReader) Scan(row any) error {
 	if r.r == nil {
 		return fmt.Errorf("Scan() called before Next()")
 	}

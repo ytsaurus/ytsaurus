@@ -59,7 +59,7 @@ func SliceYPathAttrs(ypath []byte) (n int, err error) {
 }
 
 func SliceYPathString(ypath []byte, str *[]byte) (n int, err error) {
-	var value interface{}
+	var value any
 	n, err = SliceYPathValue(ypath, &value)
 	if err != nil {
 		return
@@ -77,7 +77,7 @@ func SliceYPathString(ypath []byte, str *[]byte) (n int, err error) {
 // SliceYPathValue decodes single YSON value from beginning of ypath.
 //
 // Returned value might point into the buffer.
-func SliceYPathValue(ypath []byte, value *interface{}) (n int, err error) {
+func SliceYPathValue(ypath []byte, value *any) (n int, err error) {
 	var r Reader
 	r.s.reset(StreamNode)
 	r.s.stateEndTop = stateEndYPathLiteral

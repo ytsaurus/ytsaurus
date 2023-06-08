@@ -6,7 +6,7 @@ import (
 )
 
 func emit(f file, out io.Writer) error {
-	write := func(msg string, args ...interface{}) {
+	write := func(msg string, args ...any) {
 		_, _ = fmt.Fprintf(out, msg, args...)
 		_, _ = fmt.Fprintf(out, "\n")
 	}

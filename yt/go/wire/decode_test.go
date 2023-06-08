@@ -50,7 +50,7 @@ func TestDecoder_UnmarshalRow(t *testing.T) {
 		name      string
 		nameTable NameTable
 		in        Row
-		expected  interface{}
+		expected  any
 		isErr     bool
 	}{
 		{
@@ -190,7 +190,7 @@ func TestDecoder_UnmarshalRow(t *testing.T) {
 				NewAny(15, []byte(`{id=88;name=foo;}`)),
 				NewAny(16, []byte(`{id=89;name=bar;}`)),
 			},
-			expected: &map[string]interface{}{
+			expected: &map[string]any{
 				"i":      int64(-1),
 				"i64":    int64(-64),
 				"i32":    int64(-32),
@@ -206,11 +206,11 @@ func TestDecoder_UnmarshalRow(t *testing.T) {
 				"bool":   true,
 				"string": []byte("hello"),
 				"bytes":  []byte("world"),
-				"struct": map[string]interface{}{
+				"struct": map[string]any{
 					"id":   int64(88),
 					"name": "foo",
 				},
-				"struct_ptr": map[string]interface{}{
+				"struct_ptr": map[string]any{
 					"id":   int64(89),
 					"name": "bar",
 				},
@@ -320,6 +320,6 @@ func TestDecoder_UnmarshalRow(t *testing.T) {
 
 func TestDecoder_nilRow(t *testing.T) {
 	d := NewDecoder(nil)
-	var out interface{}
+	var out any
 	require.NoError(t, d.UnmarshalRow(nil, &out))
 }

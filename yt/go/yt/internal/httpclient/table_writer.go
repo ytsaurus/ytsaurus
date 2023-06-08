@@ -21,7 +21,7 @@ func newTableWriter(w io.WriteCloser, cancelFunc func()) *tableWriter {
 	}
 }
 
-func (w *tableWriter) Write(value interface{}) error {
+func (w *tableWriter) Write(value any) error {
 	if w.err != nil {
 		return w.err
 	}

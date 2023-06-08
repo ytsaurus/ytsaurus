@@ -9,8 +9,8 @@ import (
 
 // ReadLimit is either table key or row index.
 type ReadLimit struct {
-	Key      []interface{} `yson:"key,omitempty"`
-	RowIndex *int64        `yson:"row_index,omitempty"`
+	Key      []any  `yson:"key,omitempty"`
+	RowIndex *int64 `yson:"row_index,omitempty"`
 }
 
 // RowIndex creates ReadLimit from row index.
@@ -19,9 +19,9 @@ func RowIndex(index int64) ReadLimit {
 }
 
 // RowIndex creates ReadLimit from table key.
-func Key(values ...interface{}) ReadLimit {
+func Key(values ...any) ReadLimit {
 	if values == nil {
-		values = []interface{}{}
+		values = []any{}
 	}
 	return ReadLimit{Key: values}
 }
@@ -81,7 +81,7 @@ type Rich struct {
 	Compression CompressionCodec `yson:"compression_codec,attr,omitempty"`
 	Erasure     ErasureCodec     `yson:"erasure_codec,attr,omitempty"`
 
-	TransactionID interface{}       `yson:"transaction_id,attr,omitempty"`
+	TransactionID any               `yson:"transaction_id,attr,omitempty"`
 	RenameColumns map[string]string `yson:"rename_columns,attr,omitempty"`
 }
 

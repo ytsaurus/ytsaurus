@@ -18,14 +18,14 @@ func NewErrorFromProto(proto *TError) error {
 	err.Message = proto.GetMessage()
 
 	if proto.Attributes != nil {
-		err.Attributes = map[string]interface{}{}
+		err.Attributes = map[string]any{}
 
 		for _, protoAttr := range proto.Attributes.Attributes {
 			if protoAttr.Key == nil || protoAttr.Value == nil {
 				continue
 			}
 
-			var attr interface{}
+			var attr any
 			if yson.Unmarshal(protoAttr.Value, &attr) != nil {
 				err.Attributes[*protoAttr.Key] = yson.RawValue(protoAttr.Value)
 			} else {
