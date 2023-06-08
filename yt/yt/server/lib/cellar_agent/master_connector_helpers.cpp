@@ -201,7 +201,7 @@ TError UpdateSolomonTags(
         });
     } else {
         NProfiling::TSolomonRegistry::Get()->SetDynamicTags({});
-        return TError("Conflicting Solomon tags")
+        return TError("Conflicting profiling tags")
             << TErrorAttribute("cellar_type", cellarType)
             << TErrorAttribute("tags", seenTags);
     }
