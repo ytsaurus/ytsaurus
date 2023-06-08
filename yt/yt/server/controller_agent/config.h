@@ -1124,7 +1124,6 @@ public:
     //! Size limit for YT_SECRET_VAULT environment variable exposed to jobs,
     //! i.e. maximum size of secret vault encoded as text YSON.
     i64 SecureVaultLengthLimit;
-    TDuration FullJobInfoWaitTimeout;
 
     NChunkClient::TChunkTeleporterConfigPtr ChunkTeleporter;
 

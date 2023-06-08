@@ -655,9 +655,9 @@ public:
                     response->mutable_agent_to_scheduler_running_job_statistics_updates());
 
                 agent->GetJobEventsOutbox()->HandleStatus(
-                    request->scheduler_to_agent_job_events());
+                    request->scheduler_to_agent_aborted_job_events());
                 agent->GetJobEventsOutbox()->BuildOutcoming(
-                    response->mutable_scheduler_to_agent_job_events(),
+                    response->mutable_scheduler_to_agent_aborted_job_events(),
                     config->MaxMessageJobEventCount);
 
                 agent->GetOperationEventsOutbox()->HandleStatus(

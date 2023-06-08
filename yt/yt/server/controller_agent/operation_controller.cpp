@@ -343,11 +343,6 @@ public:
         return Underlying_->GetMinNeededJobResources();
     }
 
-    void OnJobFinishedEventReceivedFromScheduler(TFinishedJobSummary&& finishedJobSummary) override
-    {
-        Underlying_->OnJobFinishedEventReceivedFromScheduler(std::move(finishedJobSummary));
-    }
-
     void OnJobAbortedEventReceivedFromScheduler(TAbortedBySchedulerJobSummary&& eventSummary) override
     {
         Underlying_->OnJobAbortedEventReceivedFromScheduler(std::move(eventSummary));

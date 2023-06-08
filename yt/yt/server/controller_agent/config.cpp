@@ -988,9 +988,6 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("secure_vault_length_limit", &TThis::SecureVaultLengthLimit)
         .Default(64_MB);
 
-    registrar.Parameter("full_job_info_wait_timeout", &TThis::FullJobInfoWaitTimeout)
-        .Default(TDuration::Seconds(15));
-
     registrar.Parameter("chunk_teleporter", &TThis::ChunkTeleporter)
         .DefaultNew();
 

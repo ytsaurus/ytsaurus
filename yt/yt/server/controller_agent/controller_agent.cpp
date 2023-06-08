@@ -1583,7 +1583,7 @@ private:
             Config_->MaxRunningJobStatisticsUpdateCountPerHeartbeat);
 
         auto error = WaitFor(BIND([&, request] {
-                JobEventsInbox_->ReportStatus(request->mutable_scheduler_to_agent_job_events());
+                JobEventsInbox_->ReportStatus(request->mutable_scheduler_to_agent_aborted_job_events());
             })
             .AsyncVia(JobEventsInvoker_)
             .Run());
@@ -1949,47 +1949,28 @@ private:
 
     void HandleJobEvents(const TControllerAgentTrackerServiceProxy::TRspHeartbeatPtr& rsp)
     {
-        struct TOperationJobEvents
-        {
-            std::vector<TFinishedJobSummary> FinishedJobEvents;
-            std::vector<TAbortedBySchedulerJobSummary> AbortedJobEvents;
-        };
+        auto jobSummariesPerOperationIdOrError = WaitFor(BIND([this, rsp] {
+                THashMap<TOperationId, std::vector<TAbortedBySchedulerJobSummary>> jobSummariesPerOperationId;
 
-        auto jobEventsPerOperationIdOrError = WaitFor(BIND([this, rsp] {
-                THashMap<TOperationId, TOperationJobEvents> jobEventsPerOperationId;
+                JobEventsInbox_->HandleIncoming<TAbortedBySchedulerJobSummary>(
+                    rsp->mutable_scheduler_to_agent_aborted_job_events(),
+                    [&] (TAbortedBySchedulerJobSummary&& jobSummary) {
+                        jobSummariesPerOperationId[jobSummary.OperationId].push_back(std::move(jobSummary));
+                    });
 
-                auto handleJobSummary = [&] (auto&& jobSummary) {
-                    auto& operationJobEvents = jobEventsPerOperationId[jobSummary.OperationId];
-                    auto& storage = TOverloaded{
-                        [&] (const TFinishedJobSummary&) -> auto& {
-                            return operationJobEvents.FinishedJobEvents;
-                        },
-                        [&] (const TAbortedBySchedulerJobSummary&) -> auto& {
-                            return operationJobEvents.AbortedJobEvents;
-                        }
-                    }(jobSummary);
-
-                    storage.push_back(std::move(jobSummary));
-                };
-
-                JobEventsInbox_->HandleIncoming<TSchedulerToAgentJobEvent>(
-                    rsp->mutable_scheduler_to_agent_job_events(),
-                    [&] (TSchedulerToAgentJobEvent&& jobEvent) {
-                        std::visit(
-                            handleJobSummary,
-                            std::move(jobEvent.EventSummary));
-                        });
-
-                return jobEventsPerOperationId;
+                return jobSummariesPerOperationId;
             })
             .AsyncVia(JobEventsInvoker_)
             .Run());
 
-        YT_LOG_FATAL_IF(!jobEventsPerOperationIdOrError.IsOK(), jobEventsPerOperationIdOrError, "Failed to parse scheduler message");
+        YT_LOG_FATAL_IF(
+            !jobSummariesPerOperationIdOrError.IsOK(),
+            jobSummariesPerOperationIdOrError,
+            "Failed to parse scheduler message");
 
-        auto jobEventsPerOperationId = std::move(jobEventsPerOperationIdOrError.Value());
+        auto jobSummariesPerOperationId = std::move(jobSummariesPerOperationIdOrError.Value());
 
-        for (auto& [operationId, events] : jobEventsPerOperationId) {
+        for (auto& [operationId, jobSummaries] : jobSummariesPerOperationId) {
             auto operation = this->FindOperation(operationId);
             if (!operation) {
                 continue;
@@ -1997,12 +1978,9 @@ private:
 
             auto controller = operation->GetController();
             controller->GetCancelableInvoker(Config_->JobEventsControllerQueue)->Invoke(
-                BIND([rsp, controller, this_ = MakeStrong(this), events = std::move(events)] () mutable {
-                    for (auto& finishedJobInfo : events.FinishedJobEvents) {
-                        controller->OnJobFinishedEventReceivedFromScheduler(std::move(finishedJobInfo));
-                    }
-                    for (auto& abortedJobInfo : events.AbortedJobEvents) {
-                        controller->OnJobAbortedEventReceivedFromScheduler(std::move(abortedJobInfo));
+                BIND([rsp, controller, jobSummaries = std::move(jobSummaries)] () mutable {
+                    for (auto& jobSummary : jobSummaries) {
+                        controller->OnJobAbortedEventReceivedFromScheduler(std::move(jobSummary));
                     }
                 }));
         }

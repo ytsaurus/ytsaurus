@@ -19,7 +19,6 @@ DEFINE_ENUM(EPredecessorType,
 
 class TOperationControllerBase;
 
-DECLARE_REFCOUNTED_CLASS(TFinishedJobInfo)
 DECLARE_REFCOUNTED_STRUCT(TJoblet)
 DECLARE_REFCOUNTED_STRUCT(TCompletedJob)
 

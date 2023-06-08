@@ -155,13 +155,6 @@ struct TRunningJobSummary
     inline static constexpr EJobState ExpectedState = EJobState::Running;
 };
 
-struct TFinishedJobSummary
-{
-    TOperationId OperationId;
-    TJobId Id;
-    TInstant FinishTime;
-};
-
 struct TAbortedBySchedulerJobSummary
 {
     TOperationId OperationId;
@@ -172,41 +165,11 @@ struct TAbortedBySchedulerJobSummary
     bool Scheduled;
 };
 
-struct TSchedulerToAgentJobEvent
-{
-    std::variant<TFinishedJobSummary, TAbortedBySchedulerJobSummary> EventSummary;
-};
-
-void ToProto(NScheduler::NProto::TSchedulerToAgentFinishedJobEvent* protoEvent, const TFinishedJobSummary& summary);
-void FromProto(TFinishedJobSummary* summary, NScheduler::NProto::TSchedulerToAgentFinishedJobEvent* protoEvent);
 void ToProto(NScheduler::NProto::TSchedulerToAgentAbortedJobEvent* proto, const TAbortedBySchedulerJobSummary& summary);
 void FromProto(TAbortedBySchedulerJobSummary* summary, NScheduler::NProto::TSchedulerToAgentAbortedJobEvent* protoEvent);
 
-void ToProto(NScheduler::NProto::TSchedulerToAgentJobEvent* proto, const TSchedulerToAgentJobEvent& event);
-void FromProto(TSchedulerToAgentJobEvent* event, NScheduler::NProto::TSchedulerToAgentJobEvent* proto);
-
 std::unique_ptr<TJobSummary> ParseJobSummary(
     NProto::TJobStatus* const status,
-    const NLogging::TLogger& Logger);
-
-std::unique_ptr<TFailedJobSummary> MergeJobSummaries(
-    std::unique_ptr<TFailedJobSummary> nodeJobSummary,
-    TFinishedJobSummary&& schedulerJobSummary,
-    const NLogging::TLogger& Logger);
-
-std::unique_ptr<TAbortedJobSummary> MergeJobSummaries(
-    std::unique_ptr<TAbortedJobSummary> nodeJobSummary,
-    TFinishedJobSummary&& schedulerJobSummary,
-    const NLogging::TLogger& Logger);
-
-std::unique_ptr<TCompletedJobSummary> MergeJobSummaries(
-    std::unique_ptr<TCompletedJobSummary> nodeJobSummary,
-    TFinishedJobSummary&& schedulerJobSummary,
-    const NLogging::TLogger& Logger);
-
-std::unique_ptr<TJobSummary> MergeJobSummaries(
-    std::unique_ptr<TJobSummary> nodeJobSummary,
-    TFinishedJobSummary&& schedulerJobSummary,
     const NLogging::TLogger& Logger);
 
 template <class TJobSummaryType>

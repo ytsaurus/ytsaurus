@@ -333,12 +333,6 @@ struct IOperationControllerSchedulerHost
      */
     virtual IInvokerPtr GetInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const = 0;
 
-    //! Called during heartbeat processing to notify the controller that a job has finished.
-    /*!
-     *  \note Invoker affinity: cancellable Controller invoker
-     */
-    virtual void OnJobFinishedEventReceivedFromScheduler(TFinishedJobSummary&& finishedJobSummary) = 0;
-
     //! Called when scheduler aborts job.
     /*!
      *  \note Invoker affinity: cancellable Controller invoker

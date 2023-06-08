@@ -99,6 +99,7 @@ DEFINE_ENUM(EAbortReason,
     ((JobOnUnexpectedNode)             ( 21))
     ((ShallowMergeFailed)              ( 22))
     ((InconsistentJobState)            ( 23))
+    // COMPAT(pogorelov)
     ((JobStatisticsWaitTimeout)        ( 24))
     ((OperationFailed)                 ( 25))
     ((JobRevivalDisabled)              ( 26))

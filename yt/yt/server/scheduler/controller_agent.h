@@ -25,7 +25,6 @@ namespace NYT::NScheduler {
 using TStartedJobSummary = NControllerAgent::TStartedJobSummary;
 using TFinishedJobSummary = NControllerAgent::TFinishedJobSummary;
 using TAbortedBySchedulerJobSummary = NControllerAgent::TAbortedBySchedulerJobSummary;
-using TSchedulerToAgentJobEvent = NControllerAgent::TSchedulerToAgentJobEvent;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,7 +60,7 @@ void ToProto(NProto::TScheduleJobRequest* protoRequest, const TScheduleJobReques
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TSchedulerToAgentJobEventOutboxPtr = TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentJobEvent>>;
+using TSchedulerToAgentJobEventOutboxPtr = TIntrusivePtr<TMessageQueueOutbox<TAbortedBySchedulerJobSummary>>;
 using TSchedulerToAgentOperationEventOutboxPtr = TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentOperationEvent>>;
 using TScheduleJobRequestOutboxPtr = TIntrusivePtr<TMessageQueueOutbox<TScheduleJobRequestPtr>>;
 

@@ -182,35 +182,6 @@ void TJoblet::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFinishedJobInfo::TFinishedJobInfo(std::unique_ptr<TJobSummary> nodeJobSummary)
-    : NodeJobSummary(std::move(nodeJobSummary))
-{ }
-
-TFinishedJobInfo::TFinishedJobInfo(TFinishedJobSummary&& schedulerJobSummary)
-    : SchedulerJobSummary(std::move(schedulerJobSummary))
-{ }
-
-void TFinishedJobInfo::StartRemoving()
-{
-    YT_VERIFY(!IsRemoving_);
-    IsRemoving_ = true;
-}
-
-bool TFinishedJobInfo::IsRemoving() const noexcept
-{
-    return IsRemoving_;
-}
-
-TFinishedJobInfoPtr TFinishedJobInfo::CreateRemovingInfo() noexcept
-{
-    auto result = New<TFinishedJobInfo>();
-    result->StartRemoving();
-
-    return result;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TCompletedJob::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;

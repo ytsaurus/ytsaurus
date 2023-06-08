@@ -13,6 +13,8 @@
 
 #include <yt/yt/client/chunk_client/data_statistics.h>
 
+#include <yt/yt/client/job_tracker_client/helpers.h>
+
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <library/cpp/yt/misc/variant.h>
@@ -36,15 +38,6 @@ using NScheduler::NProto::TSchedulerJobResultExt;
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-void MergeJobSummaries(
-    TJobSummary& nodeJobSummary,
-    TFinishedJobSummary&& schedulerJobSummary)
-{
-    YT_VERIFY(nodeJobSummary.Id == schedulerJobSummary.Id);
-
-    nodeJobSummary.FinishTime = schedulerJobSummary.FinishTime;
-}
 
 EAbortReason GetAbortReason(const TError& resultError, const TLogger& Logger)
 {
@@ -112,6 +105,10 @@ TJobSummary::TJobSummary(NProto::TJobStatus* status)
 
     StatusTimestamp = FromProto<TInstant>(status->status_timestamp());
     JobExecutionCompleted = status->job_execution_completed();
+
+    if (NJobTrackerClient::IsJobFinished(State)) {
+        FinishTime = TInstant::Now();
+    }
 }
 
 void TJobSummary::Persist(const TPersistenceContext& context)
@@ -309,20 +306,6 @@ TRunningJobSummary::TRunningJobSummary(NProto::TJobStatus* status)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NScheduler::NProto::TSchedulerToAgentFinishedJobEvent* protoEvent, const TFinishedJobSummary& finishedJobSummary)
-{
-    JobEventsCommonPartToProto(protoEvent, finishedJobSummary);
-    protoEvent->set_finish_time(ToProto<ui64>(finishedJobSummary.FinishTime));
-}
-
-void FromProto(TFinishedJobSummary* finishedJobSummary, NScheduler::NProto::TSchedulerToAgentFinishedJobEvent* protoEvent)
-{
-    JobEventsCommonPartFromProto(finishedJobSummary, protoEvent);
-    finishedJobSummary->FinishTime = FromProto<TInstant>(protoEvent->finish_time());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void ToProto(NScheduler::NProto::TSchedulerToAgentAbortedJobEvent* protoEvent, const TAbortedBySchedulerJobSummary& abortedJobSummary)
 {
     JobEventsCommonPartToProto(protoEvent, abortedJobSummary);
@@ -346,97 +329,6 @@ void FromProto(TAbortedBySchedulerJobSummary* abortedJobSummary, NScheduler::NPr
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-void ToProto(NScheduler::NProto::TSchedulerToAgentJobEvent* proto, const TSchedulerToAgentJobEvent& event)
-{
-    Visit(
-        event.EventSummary,
-        [&] (const TFinishedJobSummary& summary) {
-            ToProto(proto->mutable_finished(), summary);
-        },
-        [&] (const TAbortedBySchedulerJobSummary& summary) {
-            ToProto(proto->mutable_aborted_by_scheduler(), summary);
-        });
-}
-
-void FromProto(TSchedulerToAgentJobEvent* event, NScheduler::NProto::TSchedulerToAgentJobEvent* proto)
-{
-    using TProtoMessage = NScheduler::NProto::TSchedulerToAgentJobEvent;
-    switch (proto->job_event_case()) {
-        case TProtoMessage::JobEventCase::kFinished: {
-            TFinishedJobSummary summary;
-            FromProto(&summary, proto->mutable_finished());
-            event->EventSummary = std::move(summary);
-            return;
-        }
-        case TProtoMessage::JobEventCase::kAbortedByScheduler: {
-            TAbortedBySchedulerJobSummary summary;
-            FromProto(&summary, proto->mutable_aborted_by_scheduler());
-            event->EventSummary = std::move(summary);
-            return;
-        }
-        default:
-            YT_ABORT();
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-std::unique_ptr<TFailedJobSummary> MergeJobSummaries(
-    std::unique_ptr<TFailedJobSummary> nodeJobSummary,
-    TFinishedJobSummary&& schedulerJobSummary,
-    const TLogger& /*Logger*/)
-{
-    MergeJobSummaries(*nodeJobSummary, std::move(schedulerJobSummary));
-
-    return nodeJobSummary;
-}
-
-std::unique_ptr<TAbortedJobSummary> MergeJobSummaries(
-    std::unique_ptr<TAbortedJobSummary> nodeJobSummary,
-    TFinishedJobSummary&& schedulerJobSummary,
-    const TLogger& /*Logger*/)
-{
-    MergeJobSummaries(*nodeJobSummary, std::move(schedulerJobSummary));
-
-    return nodeJobSummary;
-}
-
-std::unique_ptr<TCompletedJobSummary> MergeJobSummaries(
-    std::unique_ptr<TCompletedJobSummary> nodeJobSummary,
-    TFinishedJobSummary&& schedulerJobSummary,
-    const TLogger& /*Logger*/)
-{
-    MergeJobSummaries(*nodeJobSummary, std::move(schedulerJobSummary));
-
-    return nodeJobSummary;
-}
-
-std::unique_ptr<TJobSummary> MergeJobSummaries(
-    std::unique_ptr<TJobSummary> nodeJobSummary,
-    TFinishedJobSummary&& schedulerJobSummary,
-    const TLogger& Logger)
-{
-    switch (nodeJobSummary->State) {
-        case EJobState::Aborted:
-            return MergeJobSummaries(
-                SummaryCast<TAbortedJobSummary>(std::move(nodeJobSummary)),
-                std::move(schedulerJobSummary),
-                Logger);
-        case EJobState::Completed:
-            return MergeJobSummaries(
-                SummaryCast<TCompletedJobSummary>(std::move(nodeJobSummary)),
-                std::move(schedulerJobSummary),
-                Logger);
-        case EJobState::Failed:
-            return MergeJobSummaries(
-                SummaryCast<TFailedJobSummary>(std::move(nodeJobSummary)),
-                std::move(schedulerJobSummary),
-                Logger);
-        default:
-            YT_ABORT();
-    }
-}
 
 std::unique_ptr<TJobSummary> ParseJobSummary(NProto::TJobStatus* const status, const TLogger& Logger)
 {

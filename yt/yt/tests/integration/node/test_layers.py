@@ -297,14 +297,14 @@ class TestProbingLayer(TestLayers):
 
         command = (
             "if test -e $YT_ROOT_FS/test; then "
-            "    sed 's/LAYER/default/'; "
+            "    sed 's/LAYER/default/'; sleep 0.1; "
             "else "
             "    sed 's/LAYER/probing/'; "
             "fi"
         )
 
         for try_count in range(self.MAX_TRIES + 1):
-            op = self.run_map(command, job_count, user_slots=1)
+            op = self.run_map(command, job_count, user_slots=2)
 
             assert op.get_job_count("failed") == 0
 
@@ -325,14 +325,14 @@ class TestProbingLayer(TestLayers):
 
         command = (
             "if test -e $YT_ROOT_FS/test; then "
-            "    sed 's/LAYER/default/g'; "
+            "    sed 's/LAYER/default/g'; sleep 0.1; "
             "else "
             "    sed 's/LAYER/probing/g'; exit 1; "
             "fi"
         )
 
         for try_count in range(self.MAX_TRIES + 1):
-            op = self.run_map(command, job_count, user_slots=1)
+            op = self.run_map(command, job_count, user_slots=2)
 
             assert op.get_job_count("failed") == 0
 

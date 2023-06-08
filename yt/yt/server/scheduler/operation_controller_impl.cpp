@@ -453,27 +453,6 @@ TFuture<void> TOperationControllerImpl::UpdateRuntimeParameters(TOperationRuntim
     return InvokeAgent<TControllerAgentServiceProxy::TRspUpdateOperationRuntimeParameters>(req).As<void>();
 }
 
-void TOperationControllerImpl::OnJobFinished(
-    const TJobPtr& job)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    if (ShouldSkipJobEvent(job)) {
-        return;
-    }
-
-    TFinishedJobSummary eventSummary{
-        .OperationId = OperationId_,
-        .Id = job->GetId(),
-        .FinishTime = TInstant::Now(),
-    };
-
-    auto result = EnqueueJobEvent(std::move(eventSummary));
-    YT_LOG_TRACE("Job finish notification %v (JobId: %v)",
-        result ? "enqueued" : "dropped",
-        job->GetId());
-}
-
 void TOperationControllerImpl::OnJobAborted(
     TJobId jobId,
     const TError& error,
@@ -496,7 +475,7 @@ void TOperationControllerImpl::OnJobAborted(
         .Scheduled = scheduled,
     };
 
-    auto result = EnqueueJobEvent(std::move(eventSummary));
+    auto result = EnqueueAbortedJobEvent(std::move(eventSummary));
     YT_LOG_TRACE("%v abort notification %v (JobId: %v)",
         scheduled ? "Job" : "Nonscheduled job",
         result ? "enqueued" : "dropped",
@@ -771,12 +750,11 @@ bool TOperationControllerImpl::ShouldSkipJobEvent(const TJobPtr& job) const
     return ShouldSkipJobEvent(job->GetId(), job->GetControllerEpoch());
 }
 
-template <class TEvent>
-bool TOperationControllerImpl::EnqueueJobEvent(TEvent&& event)
+bool TOperationControllerImpl::EnqueueAbortedJobEvent(TAbortedBySchedulerJobSummary&& summary)
 {
     auto guard = Guard(SpinLock_);
     if (IncarnationId_) {
-        JobEventsOutbox_->Enqueue(TSchedulerToAgentJobEvent{std::move(event)});
+        JobEventsOutbox_->Enqueue(std::move(summary));
         return true;
     } else {
         // All job notifications must be dropped after agent disconnection.

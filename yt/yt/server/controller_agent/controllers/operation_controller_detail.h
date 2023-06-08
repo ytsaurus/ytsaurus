@@ -166,12 +166,6 @@ private: \
         true)
     IMPLEMENT_SAFE_METHOD(
         void,
-        OnJobFinishedEventReceivedFromScheduler,
-        (TFinishedJobSummary&& finishedJobSummary),
-        (std::move(finishedJobSummary)),
-        true)
-    IMPLEMENT_SAFE_METHOD(
-        void,
         OnJobAbortedEventReceivedFromScheduler,
         (TAbortedBySchedulerJobSummary&& abortedJobSummary),
         (std::move(abortedJobSummary)),
@@ -243,13 +237,6 @@ private: \
         OnJobInfoReceivedFromNode,
         (std::unique_ptr<TJobSummary> jobSummary),
         (std::move(jobSummary)),
-        true)
-
-    IMPLEMENT_SAFE_METHOD(
-        void,
-        AbortJobWithPartiallyReceivedJobInfo,
-        (TJobId jobId),
-        (jobId),
         true)
 
 #undef IMPLEMENT_SAFE_METHOD
@@ -1264,8 +1251,6 @@ private:
     TInstant FinishTime_;
     std::vector<NScheduler::TExperimentAssignmentPtr> ExperimentAssignments_;
 
-    THashMap<TJobId, TFinishedJobInfoPtr> JobsWaitingForFinalization_;
-
     struct TLivePreviewChunkDescriptor
     {
         TDataFlowGraph::TVertexDescriptor VertexDescriptor;
@@ -1424,13 +1409,6 @@ private:
         TTransactionIdFunc tableToTransactionId,
         TCellTagFunc tableToCellTag) const;
 
-    void StartWaitingJobInfoFromNode(TFinishedJobSummary&& finishedJobSummary);
-    void OnFinishedJobInfoFullyReceived(std::unique_ptr<TJobSummary> nodeJobSummary, TFinishedJobSummary&& schedulerJobSummary);
-
-    void RemoveJobWaitingForFinalization(TJobId jobId);
-
-    TFinishedJobInfoPtr FindJobWaitingForFinalization(TJobId jobId) const noexcept;
-
     //! Returns list of operation tasks that have a vertex in data flow graph,
     //! ordered according to topological order of data flow graph.
     std::vector<TTaskPtr> GetTopologicallyOrderedTasks() const;
@@ -1440,11 +1418,6 @@ private:
     void BuildFeatureYson(NYTree::TFluentAny fluent) const;
 
     void UpdateRunningJobStatistics(TJobletPtr joblet, std::unique_ptr<TRunningJobSummary> jobStatus);
-
-    template <class TJobSummaryType>
-    std::unique_ptr<TJobSummaryType> MergeJobSummaries(
-        std::unique_ptr<TJobSummary> nodeJobSummary,
-        TFinishedJobSummary&& schedulerJobSummary);
 
     NYTree::IYPathServicePtr BuildZombieOrchid();
 

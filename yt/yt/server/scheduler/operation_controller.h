@@ -195,12 +195,6 @@ struct IOperationController
 
     // These methods can be called even without agent being assigned.
 
-    //! Called during heartbeat processing to notify the controller that a job has finished.
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual void OnJobFinished(const TJobPtr& job) = 0;
-
     //! Called to notify the controller that a job has been aborted by scheduler.
     /*!
      *  \note Thread affinity: any

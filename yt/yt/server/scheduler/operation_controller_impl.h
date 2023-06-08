@@ -38,7 +38,6 @@ public:
     TFuture<TOperationControllerUnregisterResult> Unregister() override;
     TFuture<void> UpdateRuntimeParameters(TOperationRuntimeParametersUpdatePtr update) override;
 
-    void OnJobFinished(const TJobPtr& job) override;
     void OnNonscheduledJobAborted(
         TJobId jobId,
         EAbortReason abortReason,
@@ -48,7 +47,7 @@ public:
         const TError& error,
         bool scheduled,
         std::optional<EAbortReason> abortReason) override;
-    
+
     TFuture<void> AbandonJob(TOperationId operationId, TJobId jobId) override;
 
     void OnInitializationFinished(const TErrorOr<TOperationControllerInitializeResult>& resultOrError) override;
@@ -110,8 +109,7 @@ private:
     bool ShouldSkipJobEvent(TJobId jobId, TControllerEpoch jobEpoch) const;
     bool ShouldSkipJobEvent(const TJobPtr& job) const;
 
-    template <class TEvent>
-    bool EnqueueJobEvent(TEvent&& event);
+    bool EnqueueAbortedJobEvent(TAbortedBySchedulerJobSummary&& summary);
     void EnqueueOperationEvent(TSchedulerToAgentOperationEvent&& event);
     void EnqueueScheduleJobRequest(TScheduleJobRequestPtr&& event);
 

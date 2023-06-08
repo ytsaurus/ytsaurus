@@ -1425,7 +1425,6 @@ void TOperationControllerBase::AbortAllJoblets(EAbortReason abortReason)
         jobsToRelease.push_back({jobId, {}});
     }
     JobletMap.clear();
-    JobsWaitingForFinalization_.clear();
 
     if (!std::empty(jobsToRelease)) {
         YT_LOG_DEBUG(
@@ -1904,50 +1903,6 @@ NLogging::TLogger TOperationControllerBase::GetLogger() const
     return Logger;
 }
 
-void TOperationControllerBase::SafeAbortJobWithPartiallyReceivedJobInfo(const TJobId jobId)
-{
-    try {
-        YT_LOG_DEBUG("Aborting job since job info has not been received from node (JobId: %v)", jobId);
-        auto finishedJobInfo = FindJobWaitingForFinalization(jobId);
-        // Finished job info may be already deleted for job, because of race caused by TDelayedExecutor::Cancel.
-        if (!finishedJobInfo) {
-            // TODO(pogorelov): Remove logging after node heartbeats become stable.
-            YT_LOG_DEBUG("No finished job info, abort skipped (JobId: %v)", jobId);
-            return;
-        }
-
-        if (finishedJobInfo->IsRemoving()) {
-            YT_LOG_DEBUG("Job is already finalizing, abort skipped (JobId: %v)", jobId);
-            return;
-        }
-
-        finishedJobInfo->StartRemoving();
-
-        Host->AbortJobOnNode(
-            jobId,
-            EAbortReason::JobStatisticsWaitTimeout);
-
-        auto abortedJobSummary = std::make_unique<TAbortedJobSummary>(
-            jobId,
-            EAbortReason::JobStatisticsWaitTimeout);
-
-        OnJobAborted(std::move(abortedJobSummary));
-    } catch (const std::exception& ex) {
-        YT_LOG_WARNING(ex, "Failed to abort job with partially received job info (JobId: %v)", jobId);
-    }
-}
-
-template <class TJobSummaryType>
-std::unique_ptr<TJobSummaryType> TOperationControllerBase::MergeJobSummaries(
-    std::unique_ptr<TJobSummary> nodeJobSummary,
-    TFinishedJobSummary&& schedulerJobSummary)
-{
-    return NControllerAgent::MergeJobSummaries(
-        SummaryCast<TJobSummaryType>(std::move(nodeJobSummary)),
-        std::move(schedulerJobSummary),
-        Logger);
-}
-
 IYPathServicePtr TOperationControllerBase::BuildZombieOrchid()
 {
     IYPathServicePtr orchid;
@@ -2281,11 +2236,11 @@ void TOperationControllerBase::SafeCommit()
 
     YT_LOG_INFO("Committing results");
 
+    SleepInCommitStage(EDelayInsideOperationCommitStage::Start);
+
     RemoveRemainingJobsOnOperationFinished();
 
     FinalizeFeatures();
-
-    SleepInCommitStage(EDelayInsideOperationCommitStage::Start);
 
     StartOutputCompletionTransaction();
     StartDebugCompletionTransaction();
@@ -3143,7 +3098,6 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
             ReleaseJobs({jobId});
         }
 
-        RemoveJobWaitingForFinalization(jobId);
         UnregisterJoblet(joblet);
     }
 
@@ -3256,7 +3210,6 @@ void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jo
         });
 
         UnregisterJoblet(joblet);
-        RemoveJobWaitingForFinalization(jobId);
     }
 
     ProcessJobFinishedResult(taskJobResult);
@@ -3382,7 +3335,6 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
         });
 
         UnregisterJoblet(joblet);
-        RemoveJobWaitingForFinalization(jobId);
     }
 
     ProcessJobFinishedResult(taskJobResult);
@@ -3415,73 +3367,14 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
     }
 }
 
-void TOperationControllerBase::SafeOnJobFinishedEventReceivedFromScheduler(TFinishedJobSummary&& finishedJobSummary)
-{
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->JobEventsControllerQueue));
-
-    auto jobId = finishedJobSummary.Id;
-
-    YT_LOG_DEBUG(
-        "Job info received from scheduler (JobId: %v, FinishTime: %v)",
-        jobId,
-        finishedJobSummary.FinishTime);
-
-    auto finishedJobInfo = FindJobWaitingForFinalization(jobId);
-
-    if (!FindJoblet(jobId)) {
-        YT_LOG_DEBUG("Joblet is not found, looks like job has been abandoned, ignore job event (JobId: %v)", jobId);
-
-        YT_VERIFY(!finishedJobInfo);
-        return;
-    }
-
-    if (!finishedJobInfo) {
-        StartWaitingJobInfoFromNode(std::move(finishedJobSummary));
-        return;
-    }
-
-    YT_LOG_DEBUG("Found finished job info (JobId: %v)", jobId);
-
-    // Here we assume that scheduler never re-sends events.
-    YT_LOG_FATAL_IF(
-        finishedJobInfo->IsRemoving() || finishedJobInfo->SchedulerJobSummary,
-        "Received multiple finished job events from scheduler (JobId: %v)",
-        jobId);
-
-    finishedJobInfo->StartRemoving();
-
-    auto& nodeSummary = finishedJobInfo->NodeJobSummary;
-    auto& schedulerSummary = finishedJobSummary;
-
-    YT_VERIFY(finishedJobInfo->NodeJobSummary);
-
-    OnFinishedJobInfoFullyReceived(
-        std::move(nodeSummary),
-        std::move(schedulerSummary));
-}
-
 void TOperationControllerBase::SafeOnJobAbortedEventReceivedFromScheduler(TAbortedBySchedulerJobSummary&& abortedJobSummary)
 {
     YT_LOG_DEBUG("Aborting job by scheduler request (JobId: %v)", abortedJobSummary.Id);
 
-    auto finishedJobInfo = FindJobWaitingForFinalization(abortedJobSummary.Id);
-
     if (!FindJoblet(abortedJobSummary.Id)) {
         YT_LOG_DEBUG("Joblet is not found, looks like job has been abandoned, ignore job event (JobId: %v)", abortedJobSummary.Id);
 
-        YT_VERIFY(!finishedJobInfo);
         return;
-    }
-
-    if (finishedJobInfo) {
-        YT_LOG_FATAL_IF(
-            finishedJobInfo->IsRemoving(),
-            "Received multiple finished job events from scheduler (JobId: %v)",
-            abortedJobSummary.Id);
-
-        finishedJobInfo->StartRemoving();
-    } else {
-        EmplaceOrCrash(JobsWaitingForFinalization_, abortedJobSummary.Id, TFinishedJobInfo::CreateRemovingInfo());
     }
 
     Host->AbortJobOnNode(
@@ -3591,12 +3484,6 @@ void TOperationControllerBase::SafeAbandonJob(TJobId jobId)
             OperationId);
     }
 
-    if (FindJobWaitingForFinalization(jobId)) {
-        THROW_ERROR_EXCEPTION("Cannot abandon job %v of operation %v since it is not running",
-            jobId,
-            OperationId);
-    }
-
     auto joblet = GetJobletOrThrow(jobId);
 
     switch (joblet->JobType) {
@@ -3621,8 +3508,6 @@ void TOperationControllerBase::SafeAbandonJob(TJobId jobId)
             jobId,
             OperationId);
     }
-
-    EmplaceOrCrash(JobsWaitingForFinalization_, jobId, TFinishedJobInfo::CreateRemovingInfo());
 
     Host->AbortJobOnNode(jobId, EAbortReason::Other);
 
@@ -5869,111 +5754,19 @@ void TOperationControllerBase::SafeOnJobInfoReceivedFromNode(std::unique_ptr<TJo
         return;
     }
 
-    auto finishedJobInfo = FindJobWaitingForFinalization(jobId);
-    if (!finishedJobInfo) {
-        EmplaceOrCrash(JobsWaitingForFinalization_, jobId, New<TFinishedJobInfo>(std::move(jobSummary)));
-
-        YT_LOG_DEBUG(
-            "No finished job info; waiting for job info from scheduler (JobId: %v)",
-            jobId);
-        return;
-    }
-
-    YT_LOG_DEBUG("Found finished job info (JobId: %v)", jobId);
-
-    if (finishedJobInfo->IsRemoving()) {
-        YT_LOG_DEBUG(
-            "Ignore job info received from node since job is finalizing (JobId: %v)",
-            jobSummary->Id);
-        return;
-    }
-
-    if (finishedJobInfo->NodeJobSummary) {
-        YT_LOG_DEBUG(
-            "Received multiple finished job info from node (JobId: %v, PreviousJobState: %v, PreviousFinishTime: %v)",
-            jobSummary->Id,
-            finishedJobInfo->NodeJobSummary->State,
-            finishedJobInfo->NodeJobSummary->FinishTime);
-
-        YT_VERIFY(finishedJobInfo->NodeJobSummary->State == jobSummary->State);
-        return;
-    }
-
-    finishedJobInfo->StartRemoving();
-
-    YT_LOG_FATAL_IF(
-        !finishedJobInfo->SchedulerJobSummary,
-        "Finished job info does not contain summary from either scheduler or node (JobId: %v)",
-        jobId);
-
-    TDelayedExecutor::Cancel(finishedJobInfo->JobAbortCookie);
-
-    auto& schedulerSummary = *finishedJobInfo->SchedulerJobSummary;
-    auto& nodeSummary = jobSummary;
-
-    OnFinishedJobInfoFullyReceived(std::move(nodeSummary), std::move(schedulerSummary));
-}
-
-void TOperationControllerBase::RemoveJobWaitingForFinalization(TJobId jobId)
-{
-    YT_LOG_DEBUG("Removing finished job info (JobId: %v)", jobId);
-    auto it = JobsWaitingForFinalization_.find(jobId);
-    YT_VERIFY(it != std::end(JobsWaitingForFinalization_));
-    YT_VERIFY(it->second->IsRemoving());
-
-    JobsWaitingForFinalization_.erase(it);
-}
-
-TFinishedJobInfoPtr TOperationControllerBase::FindJobWaitingForFinalization(TJobId jobId) const noexcept
-{
-    auto it = JobsWaitingForFinalization_.find(jobId);
-    return it == std::cend(JobsWaitingForFinalization_) ? nullptr : it->second;
-}
-
-void TOperationControllerBase::StartWaitingJobInfoFromNode(TFinishedJobSummary&& schedulerJobSummary)
-{
-    auto jobId = schedulerJobSummary.Id;
-    YT_LOG_DEBUG("Waiting job info from node (JobId: %v, Timeout: %v)", jobId, Config->FullJobInfoWaitTimeout);
-
-    auto finishedJobInfo = New<TFinishedJobInfo>(std::move(schedulerJobSummary));
-
-    // COMPAT(pogorelov)
-    finishedJobInfo->JobAbortCookie = TDelayedExecutor::Submit(
-        BIND(&TOperationControllerBase::AbortJobWithPartiallyReceivedJobInfo, MakeWeak(this), jobId),
-        Config->FullJobInfoWaitTimeout,
-        GetCancelableInvoker(Config->JobEventsControllerQueue));
-
-    EmplaceOrCrash(JobsWaitingForFinalization_, jobId, std::move(finishedJobInfo));
-}
-
-void TOperationControllerBase::OnFinishedJobInfoFullyReceived(
-    std::unique_ptr<TJobSummary> nodeJobSummary,
-    TFinishedJobSummary&& schedulerJobSummary)
-{
-    YT_LOG_DEBUG("Job info is fully received (JobId: %v)", schedulerJobSummary.Id);
-
-    switch (nodeJobSummary->State) {
-        case EJobState::Completed: {
-            auto completedJobSummary = MergeJobSummaries<TCompletedJobSummary>(
-                std::move(nodeJobSummary),
-                std::move(schedulerJobSummary));
-            OnJobCompleted(std::move(completedJobSummary));
+    switch (jobSummary->State) {
+        case EJobState::Completed:
+            OnJobCompleted(
+                SummaryCast<TCompletedJobSummary>(std::move(jobSummary)));
             break;
-        }
-        case EJobState::Failed: {
-            auto failedJobSummary = MergeJobSummaries<TFailedJobSummary>(
-                std::move(nodeJobSummary),
-                std::move(schedulerJobSummary));
-            OnJobFailed(std::move(failedJobSummary));
+        case EJobState::Failed:
+            OnJobFailed(
+                SummaryCast<TFailedJobSummary>(std::move(jobSummary)));
             break;
-        }
-        case EJobState::Aborted: {
-            auto abortedJobSummary = MergeJobSummaries<TAbortedJobSummary>(
-                std::move(nodeJobSummary),
-                std::move(schedulerJobSummary));
-            OnJobAborted(std::move(abortedJobSummary));
+        case EJobState::Aborted:
+            OnJobAborted(
+                SummaryCast<TAbortedJobSummary>(std::move(jobSummary)));
             break;
-        }
         default:
             YT_ABORT();
     }
@@ -10246,17 +10039,6 @@ void TOperationControllerBase::DoAbortJobByController(
     Host->AbortJob(
         jobId,
         error);
-
-    auto finishedJobInfo = FindJobWaitingForFinalization(jobId);
-    if (!finishedJobInfo) {
-        finishedJobInfo = TFinishedJobInfo::CreateRemovingInfo();
-        EmplaceOrCrash(JobsWaitingForFinalization_, jobId, finishedJobInfo);
-    } else if (finishedJobInfo->IsRemoving()) {
-        YT_LOG_DEBUG("Job is already finalizing, abort skipped (JobId: %v)", jobId);
-        return;
-    } else {
-        finishedJobInfo->StartRemoving();
-    }
 
     if (requestNodeTrackerJobAbortion) {
         Host->AbortJobOnNode(jobId, abortReason);

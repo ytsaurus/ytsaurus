@@ -94,7 +94,7 @@ class TestJobTracker(YTEnvSetup):
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             pass
 
-        op = run_sleeping_vanilla(job_count=1)
+        op = run_sleeping_vanilla()
 
         op.ensure_running()
 
@@ -162,7 +162,7 @@ class TestJobTracker(YTEnvSetup):
 
     @authors("pogorelov")
     def test_node_disconnection(self):
-        op = run_sleeping_vanilla(job_count=1)
+        op = run_sleeping_vanilla()
 
         op.ensure_running()
 
@@ -203,7 +203,15 @@ class TestJobTracker(YTEnvSetup):
 
     @authors("pogorelov")
     def test_job_finish(self):
-        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=1)
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            spec={
+                "testing": {
+                    "delay_inside_operation_commit": 1000,
+                    "delay_inside_operation_commit_stage": "start",
+                }
+            },
+        )
 
         op.ensure_running()
 
@@ -264,7 +272,7 @@ class TestJobTracker(YTEnvSetup):
 
     @authors("pogorelov")
     def test_job_revival(self):
-        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=1)
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
 
         op.ensure_running()
 
@@ -318,7 +326,7 @@ class TestJobTracker(YTEnvSetup):
 
         time.sleep(1)
 
-        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=1)
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
 
         op.ensure_running()
 
@@ -412,7 +420,7 @@ class TestJobTracker(YTEnvSetup):
 
         aborted_job_profiler = JobCountProfiler("aborted", tags={"tree": "default", "job_type": "vanilla", "abort_reason": "vanished"})
 
-        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=1)
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
 
         (job_id, ) = wait_breakpoint()
 

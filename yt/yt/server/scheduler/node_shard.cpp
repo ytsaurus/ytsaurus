@@ -1398,7 +1398,7 @@ void TNodeShard::EndScheduleJob(const NProto::TScheduleJobResponse& response)
     auto operationId = FromProto<TOperationId>(response.operation_id());
 
     auto it = JobIdToScheduleEntry_.find(jobId);
-    if (it == std::cend(JobIdToScheduleEntry_)) {
+    if (it == std::end(JobIdToScheduleEntry_)) {
         YT_LOG_WARNING("No schedule entry for job, probably job was scheduled by controller too late (OperationId: %v, JobId: %v)",
             operationId,
             jobId);
@@ -1449,7 +1449,7 @@ void TNodeShard::RemoveOutdatedScheduleJobEntries()
 
     for (auto jobId : jobIdsToRemove) {
         auto it = JobIdToScheduleEntry_.find(jobId);
-        if (it == std::cend(JobIdToScheduleEntry_)) {
+        if (it == std::end(JobIdToScheduleEntry_)) {
             return;
         }
 
@@ -2444,12 +2444,6 @@ void TNodeShard::OnJobFinished(const TJobPtr& job)
     }
 
     SetFinishedState(job);
-
-    auto* operationState = FindOperationState(job->GetOperationId());
-    if (operationState) {
-        const auto& controller = operationState->Controller;
-        controller->OnJobFinished(job);
-    }
 
     UnregisterJob(job);
 }

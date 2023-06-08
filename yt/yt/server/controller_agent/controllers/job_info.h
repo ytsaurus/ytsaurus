@@ -172,35 +172,6 @@ DEFINE_REFCOUNTED_TYPE(TJoblet)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFinishedJobInfo
-    : public TRefCounted
-{
-public:
-    explicit TFinishedJobInfo(std::unique_ptr<TJobSummary> nodeJobSummary);
-    explicit TFinishedJobInfo(TFinishedJobSummary&& schedulerJobSummary);
-
-    TFinishedJobInfo(TFinishedJobInfo&& other) = default;
-
-    std::unique_ptr<TJobSummary> NodeJobSummary;
-    std::optional<TFinishedJobSummary> SchedulerJobSummary;
-    NConcurrency::TDelayedExecutorCookie JobAbortCookie;
-
-    void StartRemoving();
-    bool IsRemoving() const noexcept;
-
-    static TFinishedJobInfoPtr CreateRemovingInfo() noexcept;
-
-protected:
-    TFinishedJobInfo() = default;
-
-private:
-    bool IsRemoving_ = false;
-};
-
-DEFINE_REFCOUNTED_TYPE(TFinishedJobInfo)
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TCompletedJob
     : public TRefCounted
 {
