@@ -6,7 +6,12 @@ except ImportError:
 from yt.wrapper.common import generate_uuid
 
 import logging
-from pipes import quote
+
+try:
+    from shlex import quote
+except ImportError:
+    # Python2 doesn't have shelx.quote :(
+    from pipes import quote
 
 disable_porto = False
 try:
