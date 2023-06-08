@@ -63,7 +63,6 @@ private:
 
     NProfiling::TCounter OAuthCalls_;
     NProfiling::TCounter OAuthCallErrors_;
-    NProfiling::TCounter OAuthCallFatalErrors_;
     NProfiling::TEventTimer OAuthCallTime_;
 
 private:
