@@ -27,7 +27,7 @@ cd "$BUILD_ROOT" && ninja yson_lib driver_lib driver_rpc_lib
 
   2. Create directory to store prepared modules, let call it <ytsaurus_python> 
 ```
-mkdir "$YTSAURUS_PYTHON"
+mkdir "$PYTHON_ROOT"
 ```
 
   3. Install wheel package `pip3 install wheel`
@@ -39,12 +39,12 @@ cd "$SOURCE_ROOT" && pip install -e yt/python/packages
   
   5. Run `generate_python_proto` to build proto modules (it requires protoc to be installed, see [build instruction](https://github.com/ytsaurus/ytsaurus/blob/main/BUILD.md)).
 ```
-generate_python_proto --source-root "$SOURCE_ROOT" --output "$YTSAURUS_PYTHON"
+generate_python_proto --source-root "$SOURCE_ROOT" --output "$PYTHON_ROOT"
 ```
 
   6. Run `prepare_python_modules` to prepare all python modules
 ```
-prepare_python_modules --source-root "$SOURCE_ROOT" --build-root "$BUILD_ROOT" --output-path "$YTSAURUS_PYTHON" --prepare-bindings-libraries
+prepare_python_modules --source-root "$SOURCE_ROOT" --build-root "$BUILD_ROOT" --output-path "$PYTHON_ROOT" --prepare-bindings-libraries
 ```
 
 After that ytsaurus python libraries can be used by adding `<ytsaurus_python>` to PYTHONPATH.
@@ -55,4 +55,4 @@ To build package you need to copy `setup.py` from `yt/python/packages/<package_n
 
 For pure python libraries (ytsaurus-client, ytsaurus-local) you should run `python3 setup.py bdist_wheel --universal`, for binary libraries (ytsaurus-yson, ytsaurus-rpc-driver) you should run `python3 setup.py bdist_wheel --py-limited-api cp34`
 
-You will find wheel files .whl files in `$YTSAURUS_PYTHON/dist` directory, alternatively you can specify `--dist-dir` option.
+You will find wheel files .whl files in `$PYTHON_ROOT/dist` directory, alternatively you can specify `--dist-dir` option.

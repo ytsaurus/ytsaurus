@@ -70,7 +70,7 @@ jobs:
         shell: bash
         run: |
           bash ./yt/docker/yt_nightly/build_py.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build
- 
+
       - name: Docker Hub login
         shell: bash
         run: |
@@ -122,6 +122,11 @@ jobs:
           cp ./yt/yt/scripts/run_unittests.sh ../build/
           cd ../build
           ./run_unittests.sh
+
+      - name: Integration tests
+        shell: bash
+        run: |
+          yt/yt/scripts/run_integration_tests.sh
 
   stop-vm:
     name: Stop VM

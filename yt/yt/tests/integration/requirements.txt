@@ -12,8 +12,10 @@ pydantic==1.10.7
 psutil==5.9.5
 
 protobuf==4.23.1
-portopy==5.2.8
 grpcio==1.54.2
+
+# TODO: Enable when portopy will be available in public pypi.
+# portopy==5.2.8
 
 # From python libraries dependencies
 simplejson==3.18.3
