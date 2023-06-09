@@ -3,7 +3,7 @@ name: C++ CI
 on:
   push:
     branches:
-      - main
+      - test_fix
 
 jobs:
   start-vm:
