@@ -713,7 +713,7 @@ protected:
         for (int index = 0; index < size; index++) {
             data[index] = rand();
         }
-        return std::move(data);
+        return data;
     }
 };
 
