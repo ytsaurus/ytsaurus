@@ -788,7 +788,7 @@ private:
         StorageHeavyThreadPool_ = CreateThreadPool(
             Config_->DataNode->StorageHeavyThreadCount,
             "StorageHeavy");
-        StorageHeavyInvoker_ = CreatePrioritizedInvoker(StorageHeavyThreadPool_->GetInvoker());
+        StorageHeavyInvoker_ = CreatePrioritizedInvoker(StorageHeavyThreadPool_->GetInvoker(), "bootstrap");
         StorageLightThreadPool_ = CreateThreadPool(
             Config_->DataNode->StorageLightThreadCount,
             "StorageLight");

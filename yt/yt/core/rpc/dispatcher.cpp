@@ -22,7 +22,7 @@ class TDispatcher::TImpl
 public:
     TImpl()
         : CompressionPoolInvoker_(BIND([this] {
-            return CreatePrioritizedInvoker(CompressionPool_->GetInvoker());
+            return CreatePrioritizedInvoker(CompressionPool_->GetInvoker(), "rpc_dispatcher");
         }))
     { }
 

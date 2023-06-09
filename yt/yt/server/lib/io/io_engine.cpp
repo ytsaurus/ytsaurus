@@ -151,8 +151,8 @@ public:
         NLogging::TLogger /* logger */)
         : ReadThreadPool_(CreateThreadPool(config->ReadThreadCount, Format("IOR:%v", locationId)))
         , WriteThreadPool_(CreateThreadPool(config->WriteThreadCount, Format("IOW:%v", locationId)))
-        , ReadInvoker_(CreatePrioritizedInvoker(ReadThreadPool_->GetInvoker()))
-        , WriteInvoker_(CreatePrioritizedInvoker(WriteThreadPool_->GetInvoker()))
+        , ReadInvoker_(CreatePrioritizedInvoker(ReadThreadPool_->GetInvoker(), NProfiling::TTagSet({{"invoker", "fixed_priority_executor_reader"}, {"location_id", locationId}})))
+        , WriteInvoker_(CreatePrioritizedInvoker(WriteThreadPool_->GetInvoker(), NProfiling::TTagSet({{"invoker", "fixed_priority_executor_writer"}, {"location_id", locationId}})))
     { }
 
     IInvokerPtr GetReadInvoker(EWorkloadCategory category, TIOEngineBase::TSessionId)
@@ -214,7 +214,7 @@ public:
             Format("FSH:%v", locationId),
             New<TPoolWeightProvider>(config->DefaultPoolWeight, config->UserInteractivePoolWeight)))
         , WriteThreadPool_(CreateThreadPool(config->WriteThreadCount, Format("IOW:%v", locationId)))
-        , WriteInvoker_(CreatePrioritizedInvoker(WriteThreadPool_->GetInvoker()))
+        , WriteInvoker_(CreatePrioritizedInvoker(WriteThreadPool_->GetInvoker(), NProfiling::TTagSet({{"invoker", "io_fair_share_thread_pool_writer"}, {"location_id", locationId}})))
         , Logger(logger)
         , DefaultPool_{"Default", config->DefaultPoolWeight}
         , UserInteractivePool_{"UserInteractive", config->UserInteractivePoolWeight}

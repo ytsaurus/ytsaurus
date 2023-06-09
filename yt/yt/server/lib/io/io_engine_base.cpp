@@ -229,8 +229,8 @@ TIOEngineBase::TIOEngineBase(
     , Config_(StaticConfig_)
     , AuxThreadPool_(CreateThreadPool(StaticConfig_->AuxThreadCount, Format("IOA:%v", LocationId_)))
     , FsyncThreadPool_(CreateThreadPool(StaticConfig_->FsyncThreadCount, Format("IOS:%v", LocationId_)))
-    , AuxInvoker_(CreatePrioritizedInvoker(AuxThreadPool_->GetInvoker()))
-    , FsyncInvoker_(CreatePrioritizedInvoker(FsyncThreadPool_->GetInvoker()))
+    , AuxInvoker_(CreatePrioritizedInvoker(AuxThreadPool_->GetInvoker(), NProfiling::TTagSet({{"invoker", "io_engine_base_aux"}, {"location_id", LocationId_}})))
+    , FsyncInvoker_(CreatePrioritizedInvoker(FsyncThreadPool_->GetInvoker(), NProfiling::TTagSet({{"invoker", "io_engine_base_fsync"}, {"location_id", LocationId_}})))
 {
     InitProfilerSensors();
 }
