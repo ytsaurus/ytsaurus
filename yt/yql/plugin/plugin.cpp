@@ -1,6 +1,6 @@
 #include "plugin.h"
 
-#include <ydb/library/yql/utils/log/log.h>
+#include <iostream>
 
 namespace NYT::NYqlPlugin {
 
@@ -8,8 +8,8 @@ namespace NYT::NYqlPlugin {
 
 Y_WEAK std::unique_ptr<IYqlPlugin> CreateYqlPlugin(TYqlPluginOptions& /*options*/) noexcept
 {
-    YQL_LOG(FATAL) << "No YQL plugin implementation is available; link against either "
-                   << "yt/yql/plugin/native or yt/yql/plugin/dynamic";
+    std::cerr << "No YQL plugin implementation is available; link against either "
+              << "yt/yql/plugin/native or yt/yql/plugin/dynamic" << std::endl;
     exit(1);
 }
 
