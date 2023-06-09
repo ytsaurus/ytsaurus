@@ -3317,7 +3317,7 @@ void TChunkReplicator::StopRefresh(int shardIndex)
     clearChunkSetShard(UnexpectedOverreplicatedChunks_);
     clearChunkSetShard(QuorumMissingChunks_);
     clearChunkSetShard(UnsafelyPlacedChunks_);
-clearChunkSetShard(InconsistentlyPlacedChunks_);
+    clearChunkSetShard(InconsistentlyPlacedChunks_);
 
     // |OldestPartMissingChunks| should be ordered, so we use std::set
     // instead of sharded set for it. However this set is always small,
