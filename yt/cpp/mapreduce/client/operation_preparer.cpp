@@ -11,9 +11,12 @@
 
 #include <yt/cpp/mapreduce/common/helpers.h>
 #include <yt/cpp/mapreduce/common/retry_lib.h>
+#include <yt/cpp/mapreduce/common/wait_proxy.h>
 
 #include <yt/cpp/mapreduce/raw_client/raw_requests.h>
 #include <yt/cpp/mapreduce/raw_client/raw_batch_request.h>
+
+#include <yt/cpp/mapreduce/interface/error_codes.h>
 
 #include <yt/cpp/mapreduce/interface/logging/yt_log.h>
 
@@ -141,7 +144,7 @@ TOperationPreparer::TOperationPreparer(TClientPtr client, TTransactionId transac
         Client_->GetRetryPolicy(),
         Client_->GetContext(),
         TransactionId_,
-        GetTransactionPinger()->GetChildTxPinger(),
+        Client_->GetTransactionPinger()->GetChildTxPinger(),
         TStartTransactionOptions()))
     , ClientRetryPolicy_(Client_->GetRetryPolicy())
     , PreparationId_(CreateGuidAsString())
@@ -157,9 +160,9 @@ TTransactionId TOperationPreparer::GetTransactionId() const
     return TransactionId_;
 }
 
-ITransactionPingerPtr TOperationPreparer::GetTransactionPinger() const
+TClientPtr TOperationPreparer::GetClient() const
 {
-    return Client_->GetTransactionPinger();
+    return Client_;
 }
 
 const TString& TOperationPreparer::GetPreparationId() const
@@ -298,6 +301,7 @@ public:
         TString result;
         result.ReserveAndResize(md5Size);
         MD5::File(FileName_.data(), result.Detach());
+        MD5_ = result;
         return result;
     }
 
@@ -311,9 +315,14 @@ public:
         return FileName_;
     }
 
+    ui64 GetDataSize() const override
+    {
+        return GetFileLength(FileName_);
+    }
+
 private:
     TString FileName_;
-    TMaybe<TString> MD5_;
+    mutable TMaybe<TString> MD5_;
 };
 
 class TDataToUpload
@@ -342,6 +351,11 @@ public:
     TString GetDescription() const override
     {
         return Description_;
+    }
+
+    ui64 GetDataSize() const override
+    {
+        return Data_.size();
     }
 
 private:
@@ -481,6 +495,84 @@ int TJobPreparer::GetFileCacheReplicationFactor() const
     }
 }
 
+void TJobPreparer::CreateFileInCypress(const TString& path) const
+{
+    auto attributes = TNode()("replication_factor", GetFileCacheReplicationFactor());
+    if (Options_.FileExpirationTimeout_) {
+        attributes["expiration_timeout"] = Options_.FileExpirationTimeout_->MilliSeconds();
+    }
+
+    Create(
+        OperationPreparer_.GetClientRetryPolicy()->CreatePolicyForGenericRequest(),
+        OperationPreparer_.GetContext(),
+        Options_.FileStorageTransactionId_,
+        path,
+        NT_FILE,
+        TCreateOptions()
+            .IgnoreExisting(true)
+            .Recursive(true)
+            .Attributes(attributes)
+    );
+}
+
+TString TJobPreparer::PutFileToCypressCache(
+    const TString& path,
+    const TString& md5Signature,
+    TTransactionId transactionId) const
+{
+    auto putFileToCacheOptions = TPutFileToCacheOptions();
+    if (Options_.FileExpirationTimeout_) {
+        putFileToCacheOptions.PreserveExpirationTimeout(true);
+    }
+
+    auto cachePath = PutFileToCache(
+        OperationPreparer_.GetClientRetryPolicy()->CreatePolicyForGenericRequest(),
+        OperationPreparer_.GetContext(),
+        transactionId,
+        path,
+        md5Signature,
+        GetCachePath(),
+        putFileToCacheOptions);
+
+    Remove(
+        OperationPreparer_.GetClientRetryPolicy()->CreatePolicyForGenericRequest(),
+        OperationPreparer_.GetContext(),
+        transactionId,
+        path,
+        TRemoveOptions().Force(true));
+
+    return cachePath;
+}
+
+TMaybe<TString> TJobPreparer::GetItemFromCypressCache(const TString& md5Signature, const TString& fileName) const
+{
+    constexpr ui32 LockConflictRetryCount = 30;
+    auto retryPolicy = MakeIntrusive<TRetryPolicyIgnoringLockConflicts>(
+        LockConflictRetryCount,
+        OperationPreparer_.GetContext().Config);
+    auto maybePath = GetFileFromCache(
+        retryPolicy,
+        OperationPreparer_.GetContext(),
+        TTransactionId(),
+        md5Signature,
+        GetCachePath(),
+        TGetFileFromCacheOptions());
+    if (maybePath) {
+        YT_LOG_DEBUG("File is already in cache (FileName: %v)",
+            fileName,
+            *maybePath);
+    }
+    return maybePath;
+}
+
+TDuration TJobPreparer::GetWaitForUploadTimeout(const IItemToUpload& itemToUpload) const
+{
+    const TDuration extraTime = OperationPreparer_.GetContext().Config->WaitLockPollInterval +
+        TDuration::MilliSeconds(100);
+    const double dataSizeGb = static_cast<double>(itemToUpload.GetDataSize()) / 1_GB;
+    return extraTime + dataSizeGb * OperationPreparer_.GetContext().Config->CacheLockTimeoutPerGb;
+}
+
 TString TJobPreparer::UploadToRandomPath(const IItemToUpload& itemToUpload) const
 {
     TString uniquePath = AddPathPrefix(
@@ -491,33 +583,85 @@ TString TJobPreparer::UploadToRandomPath(const IItemToUpload& itemToUpload) cons
         uniquePath,
         OperationPreparer_.GetPreparationId());
 
-    auto attributes = TNode()("replication_factor", GetFileCacheReplicationFactor());
-    if (Options_.FileExpirationTimeout_) {
-        attributes["expiration_timeout"] = Options_.FileExpirationTimeout_->MilliSeconds();
-    }
+    CreateFileInCypress(uniquePath);
 
-    Create(
-        OperationPreparer_.GetClientRetryPolicy()->CreatePolicyForGenericRequest(),
-        OperationPreparer_.GetContext(),
-        Options_.FileStorageTransactionId_,
-        uniquePath,
-        NT_FILE,
-        TCreateOptions()
-            .IgnoreExisting(true)
-            .Recursive(true)
-            .Attributes(attributes)
-    );
     {
         TFileWriter writer(
             uniquePath,
             OperationPreparer_.GetClientRetryPolicy(),
-            OperationPreparer_.GetTransactionPinger(),
+            OperationPreparer_.GetClient()->GetTransactionPinger(),
             OperationPreparer_.GetContext(),
-            Options_.FileStorageTransactionId_);
+            Options_.FileStorageTransactionId_,
+            TFileWriterOptions().ComputeMD5(true));
         itemToUpload.CreateInputStream()->ReadAll(writer);
         writer.Finish();
     }
     return uniquePath;
+}
+
+TMaybe<TString> TJobPreparer::TryUploadWithDeduplication(const IItemToUpload& itemToUpload) const
+{
+    const auto md5Signature = itemToUpload.CalculateMD5();
+
+    auto fileName = ::TStringBuilder() << GetFileStorage() << "/cpp_md5_" << md5Signature;
+    if (OperationPreparer_.GetContext().Config->CacheUploadDeduplicationMode == EUploadDeduplicationMode::Host) {
+        fileName << "_" << MD5::Data(TProcessState::Get()->FqdnHostName);
+    }
+    TString cypressPath = AddPathPrefix(fileName, OperationPreparer_.GetContext().Config->Prefix);
+
+    CreateFileInCypress(cypressPath);
+
+    auto uploadTx = OperationPreparer_.GetClient()->StartTransaction(TStartTransactionOptions());
+    ILockPtr lock;
+    try {
+        lock = uploadTx->Lock(cypressPath, ELockMode::LM_EXCLUSIVE, TLockOptions().Waitable(true));
+    } catch (const TErrorResponse& e) {
+        if (e.GetError().ContainsErrorCode(NClusterErrorCodes::NYTree::ResolveError)) {
+            // If the node doesn't exist, it must be removed by concurrent uploading process.
+            // Let's try to find it in the cache.
+            return GetItemFromCypressCache(md5Signature, itemToUpload.GetDescription());
+        }
+        throw;
+    }
+
+    auto waitTimeout = GetWaitForUploadTimeout(itemToUpload);
+    YT_LOG_DEBUG("Waiting for the lock on file (FileName: %v; CypressPath: %v; LockTimeout: %v)",
+            itemToUpload.GetDescription(),
+            cypressPath,
+            waitTimeout);
+
+    if (!TWaitProxy::Get()->WaitFuture(lock->GetAcquiredFuture(), waitTimeout)) {
+        YT_LOG_DEBUG("Waiting for the lock timed out. Fallback to random path uploading (FileName: %v; CypressPath: %v)",
+            itemToUpload.GetDescription(),
+            cypressPath);
+        return Nothing();
+    }
+
+    YT_LOG_DEBUG("Exclusive lock successfully acquired (FileName: %v; CypressPath: %v)",
+            itemToUpload.GetDescription(),
+            cypressPath);
+
+    // Ensure that this process is the first to take a lock.
+    if (auto cachedItemPath = GetItemFromCypressCache(md5Signature, itemToUpload.GetDescription())) {
+        return *cachedItemPath;
+    }
+
+    YT_LOG_INFO("Uploading file to cypress (FileName: %v; CypressPath: %v; PreparationId: %v)",
+        itemToUpload.GetDescription(),
+        cypressPath,
+        OperationPreparer_.GetPreparationId());
+
+    {
+        auto writer = uploadTx->CreateFileWriter(cypressPath, TFileWriterOptions().ComputeMD5(true));
+        YT_VERIFY(writer);
+        itemToUpload.CreateInputStream()->ReadAll(*writer);
+        writer->Finish();
+    }
+
+    auto path = PutFileToCypressCache(cypressPath, md5Signature, uploadTx->GetId());
+
+    uploadTx->Commit();
+    return path;
 }
 
 TString TJobPreparer::UploadToCacheUsingApi(const IItemToUpload& itemToUpload) const
@@ -525,78 +669,22 @@ TString TJobPreparer::UploadToCacheUsingApi(const IItemToUpload& itemToUpload) c
     auto md5Signature = itemToUpload.CalculateMD5();
     Y_VERIFY(md5Signature.size() == 32);
 
-    constexpr ui32 LockConflictRetryCount = 30;
-    auto retryPolicy = MakeIntrusive<TRetryPolicyIgnoringLockConflicts>(LockConflictRetryCount, OperationPreparer_.GetContext().Config);
-    auto maybePath = GetFileFromCache(
-        retryPolicy,
-        OperationPreparer_.GetContext(),
-        TTransactionId(),
-        md5Signature,
-        GetCachePath(),
-        TGetFileFromCacheOptions());
-    if (maybePath) {
-        YT_LOG_DEBUG("File is already in cache (FileName: %v)",
-            itemToUpload.GetDescription(),
-            *maybePath);
-        return *maybePath;
+    if (auto cachedItemPath = GetItemFromCypressCache(md5Signature, itemToUpload.GetDescription())) {
+        return *cachedItemPath;
     }
 
-    TString uniquePath = AddPathPrefix(
-        ::TStringBuilder() << GetFileStorage() << "/cpp_" << CreateGuidAsString(),
-        OperationPreparer_.GetContext().Config->Prefix);
-    YT_LOG_INFO("File not found in cache; uploading to cypress (FileName: %v; CypressPath: %v; PreparationId: %v)",
+    YT_LOG_INFO("File not found in cache; uploading to cypress (FileName: %v; PreparationId: %v)",
         itemToUpload.GetDescription(),
-        uniquePath,
         OperationPreparer_.GetPreparationId());
 
-    auto attributes = TNode()("replication_factor", GetFileCacheReplicationFactor());
-    auto putFileToCacheOptions = TPutFileToCacheOptions();
-    if (Options_.FileExpirationTimeout_) {
-        attributes["expiration_timeout"] = Options_.FileExpirationTimeout_->MilliSeconds();
-        putFileToCacheOptions.PreserveExpirationTimeout(true);
+    if (OperationPreparer_.GetContext().Config->CacheUploadDeduplicationMode != EUploadDeduplicationMode::Disabled) {
+        if (auto path = TryUploadWithDeduplication(itemToUpload)) {
+            return *path;
+        }
     }
 
-    Create(
-        OperationPreparer_.GetClientRetryPolicy()->CreatePolicyForGenericRequest(),
-        OperationPreparer_.GetContext(),
-        TTransactionId(),
-        uniquePath,
-        NT_FILE,
-        TCreateOptions()
-            .IgnoreExisting(true)
-            .Recursive(true)
-            .Attributes(attributes));
-
-    {
-        TFileWriter writer(
-            uniquePath,
-            OperationPreparer_.GetClientRetryPolicy(),
-            OperationPreparer_.GetTransactionPinger(),
-            OperationPreparer_.GetContext(),
-            TTransactionId(),
-            TFileWriterOptions().ComputeMD5(true));
-        itemToUpload.CreateInputStream()->ReadAll(writer);
-        writer.Finish();
-    }
-
-    auto cachePath = PutFileToCache(
-        retryPolicy,
-        OperationPreparer_.GetContext(),
-        TTransactionId(),
-        uniquePath,
-        md5Signature,
-        GetCachePath(),
-        putFileToCacheOptions);
-
-    Remove(
-        OperationPreparer_.GetClientRetryPolicy()->CreatePolicyForGenericRequest(),
-        OperationPreparer_.GetContext(),
-        TTransactionId(),
-        uniquePath,
-        TRemoveOptions().Force(true));
-
-    LockedFileSignatures_.push_back(md5Signature);
-    return cachePath;
+    auto path = UploadToRandomPath(itemToUpload);
+    return PutFileToCypressCache(path, md5Signature, TTransactionId());
 }
 
 TString TJobPreparer::UploadToCache(const IItemToUpload& itemToUpload) const
