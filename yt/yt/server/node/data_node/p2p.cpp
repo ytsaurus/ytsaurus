@@ -284,7 +284,7 @@ void TP2PSnooper::UpdateConfig(const TP2PConfigPtr& config)
 
 TP2PConfigPtr TP2PSnooper::GetConfig()
 {
-    auto dynamicConfig = DynamicConfig_.Load();
+    auto dynamicConfig = DynamicConfig_.Acquire();
     return dynamicConfig ? dynamicConfig : Config_;
 }
 
@@ -594,7 +594,7 @@ void TP2PDistributor::UpdateConfig(const TP2PConfigPtr& config)
 
 TP2PConfigPtr TP2PDistributor::GetConfig()
 {
-    auto dynamicConfig = DynamicConfig_.Load();
+    auto dynamicConfig = DynamicConfig_.Acquire();
     return dynamicConfig ? dynamicConfig : Config_;
 }
 

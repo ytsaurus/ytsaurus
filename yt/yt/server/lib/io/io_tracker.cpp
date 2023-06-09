@@ -9,12 +9,13 @@
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/periodic_yielder.h>
 
-#include <yt/yt/core/misc/atomic_object.h>
 #include <yt/yt/core/misc/mpsc_stack.h>
 
 #include <yt/yt/core/logging/fluent_log.h>
 
 #include <yt/yt/core/yson/pull_parser.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 namespace NYT::NIO {
 
@@ -413,12 +414,12 @@ public:
 
     bool IsEnabled() const override
     {
-        return Config_.Load()->Enable;
+        return GetConfig()->Enable;
     }
 
     TIOTrackerConfigPtr GetConfig() const override
     {
-        return Config_.Load();
+        return Config_.Acquire();
     }
 
     void SetConfig(TIOTrackerConfigPtr config) override
@@ -433,7 +434,7 @@ public:
         if (!IsEnabled()) {
             return;
         }
-        if (EventStackSize_.load() >= Config_.Load()->QueueSizeLimit) {
+        if (EventStackSize_.load() >= GetConfig()->QueueSizeLimit) {
             EventsDropped_.Increment();
             return;
         }
@@ -446,9 +447,10 @@ public:
     DECLARE_SIGNAL_OVERRIDE(void(const TIOCounters&, const TIOTagList&), OnPathAggregateEventLogged);
 
 private:
-    NProfiling::TProfiler Profiler_;
-    TActionQueuePtr ActionQueue_;
-    IInvokerPtr Invoker_;
+    const NProfiling::TProfiler Profiler_;
+    const TActionQueuePtr ActionQueue_;
+    const IInvokerPtr Invoker_;
+
     TMpscStack<TIOEvent> EventStack_;
     std::atomic<int> EventStackSize_ = 0;
     TDuration PeriodQuant_;
@@ -456,7 +458,7 @@ private:
     TRawEventSink RawSink_;
     TAggregateEventSink AggregateSink_;
     TAggregateEventSink PathAggregateSink_;
-    TAtomicObject<TIOTrackerConfigPtr> Config_;
+    TAtomicIntrusivePtr<TIOTrackerConfig> Config_;
     NProfiling::TCounter EventsDropped_;
     NProfiling::TCounter EventsProcessed_;
 
@@ -503,7 +505,7 @@ private:
 
         TPeriodicYielder yielder(TDuration::MilliSeconds(50));
         while (true) {
-            if (!Config_.Load()->EnableEventDequeue) {
+            if (!GetConfig()->EnableEventDequeue) {
                 TDelayedExecutor::WaitForDuration(PeriodQuant_);
                 continue;
             }

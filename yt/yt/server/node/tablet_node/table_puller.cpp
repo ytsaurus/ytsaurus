@@ -160,7 +160,7 @@ public:
             CreateReconfigurableThroughputThrottler(MountConfig_->ReplicationThrottler, Logger)
         }))
         , BannedReplicaTracker_(Logger)
-        , LastReplicationProgressAdvance_(*tablet->RuntimeData()->ReplicationProgress.Load())
+        , LastReplicationProgressAdvance_(*tablet->RuntimeData()->ReplicationProgress.Acquire())
     { }
 
     void Enable() override
@@ -232,7 +232,7 @@ private:
                     << HardErrorAttribute;
             }
 
-            auto replicationCard = tabletSnapshot->TabletRuntimeData->ReplicationCard.Load();
+            auto replicationCard = tabletSnapshot->TabletRuntimeData->ReplicationCard.Acquire();
             if (!replicationCard) {
                 THROW_ERROR_EXCEPTION("No replication card");
             }
@@ -274,7 +274,7 @@ private:
                 return;
             }
 
-            auto replicationProgress = tabletSnapshot->TabletRuntimeData->ReplicationProgress.Load();
+            auto replicationProgress = tabletSnapshot->TabletRuntimeData->ReplicationProgress.Acquire();
 
             if (!IsReplicationProgressGreaterOrEqual(*replicationProgress, LastReplicationProgressAdvance_)) {
                 YT_LOG_DEBUG("Skipping chaos agent iteration because last progress advance is not there yet "

@@ -349,7 +349,7 @@ IUserSlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequ
         this,
         std::move(bestLocation),
         JobEnvironment_,
-        RootVolumeManager_.Load(),
+        RootVolumeManager_.Acquire(),
         NodeTag_,
         slotType,
         cpuRequest.cpu(),
@@ -580,8 +580,7 @@ bool TSlotManager::Disable(const TError& error)
     auto syncResult = WaitFor(Bootstrap_->GetJobController()->RemoveSchedulerJobs()
         .WithTimeout(timeout));
 
-    auto volumeManager = RootVolumeManager_.Load();
-    if (volumeManager) {
+    if (auto volumeManager = RootVolumeManager_.Acquire()) {
         auto result = WaitFor(volumeManager->GetVolumeReleaseEvent()
             .WithTimeout(timeout));
         YT_LOG_FATAL_IF(
@@ -754,7 +753,7 @@ void TSlotManager::BuildOrchidYson(TFluentMap fluent) const
                 }
             });
 
-    if (auto rootVolumeManager = RootVolumeManager_.Load()) {
+    if (auto rootVolumeManager = RootVolumeManager_.Acquire()) {
         fluent
             .Item("root_volume_manager").DoMap(BIND(&IVolumeManager::BuildOrchidYson, rootVolumeManager));
     }

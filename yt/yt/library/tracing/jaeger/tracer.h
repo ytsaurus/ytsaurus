@@ -15,6 +15,8 @@
 
 #include <library/cpp/yt/threading/spin_lock.h>
 
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+
 namespace NYT::NTracing {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -158,7 +160,7 @@ private:
     const NConcurrency::TActionQueuePtr ActionQueue_;
     const NConcurrency::TPeriodicExecutorPtr FlushExecutor_;
 
-    TAtomicObject<TJaegerTracerConfigPtr> Config_;
+    TAtomicIntrusivePtr<TJaegerTracerConfig> Config_;
 
     TMpscStack<TTraceContextPtr> TraceQueue_;
 

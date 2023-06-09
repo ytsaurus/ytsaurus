@@ -27,11 +27,11 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/yt/core/misc/atomic_object.h>
+#include <library/cpp/yt/threading/spin_lock.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 #include <library/cpp/containers/concurrent_hash/concurrent_hash.h>
-
-#include <library/cpp/yt/threading/spin_lock.h>
 
 namespace NYT::NDataNode {
 
@@ -404,7 +404,7 @@ private:
         TInstant LastRequestTime;
 
         // Next item in the linked list of all nodes.
-        TAtomicObject<TNodeState*> NextInList;
+        std::atomic<TNodeState*> NextInList = nullptr;
 
         YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock);
     };
@@ -413,7 +413,7 @@ private:
     THashMap<TNodeId, std::unique_ptr<TNodeState>> NodeStates_;
 
     // Modified only from control thread.
-    TAtomicObject<TNodeState*> NodeListHead_ = nullptr;
+    std::atomic<TNodeState*> NodeListHead_ = nullptr;
 
     // Accessed only from control thread.
     TNodeState* NodeListTail_ = nullptr;
@@ -424,8 +424,7 @@ private:
     // Announcements with required confirmation since last heartbeat.
     THashMap<TCellTag, std::vector<std::pair<TChunkId, TRevision>>> UnconfirmedAnnouncements_;
 
-    TAtomicObject<TAllyReplicaManagerDynamicConfigPtr> Config_ =
-        New<TAllyReplicaManagerDynamicConfig>();
+    TAtomicIntrusivePtr<TAllyReplicaManagerDynamicConfig> Config_{New<TAllyReplicaManagerDynamicConfig>()};
 
     std::atomic<bool> EnableLazyAnnouncements_ = false;
 
@@ -458,15 +457,15 @@ private:
         auto holder = std::make_unique<TNodeState>(nodeId);
         auto* state = holder.get();
 
-        if (auto* head = NodeListHead_.Load()) {
-            state->NextInList.Store(head);
-            NodeListTail_->NextInList.Store(state);
+        if (auto* head = NodeListHead_.load()) {
+            state->NextInList.store(head);
+            NodeListTail_->NextInList.store(state);
         } else {
-            state->NextInList.Store(state);
+            state->NextInList.store(state);
             NodeListTail_ = state;
         }
 
-        NodeListHead_.Store(state);
+        NodeListHead_.store(state);
         NodeStates_[nodeId] = std::move(holder);
         return state;
     }
@@ -486,7 +485,7 @@ private:
                 break;
             }
 
-            current = current->NextInList.Load();
+            current = current->NextInList.load();
         } while (current != start);
 
         return current;
@@ -559,7 +558,7 @@ private:
         int pendingAnnouncementCount = 0;
 
         DoForAllNodesGuarded(
-            NodeListHead_.Load(),
+            NodeListHead_.load(),
             [&] (TNodeState* state) {
                 pendingAnnouncementCount +=
                     ssize(state->ImmediateAnnouncements) +
@@ -602,10 +601,10 @@ private:
 
         int announcementsSent = 0;
 
-        auto config = Config_.Load();
+        auto config = Config_.Acquire();
 
         if (!NodeListFlushPosition_) {
-            NodeListFlushPosition_ = NodeListHead_.Load();
+            NodeListFlushPosition_ = NodeListHead_.load();
         }
 
         NodeListFlushPosition_ = DoForAllNodesGuarded(

@@ -678,7 +678,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, DynamicStoreIdPool_);
     Save(context, DynamicStoreIdRequested_);
     Save(context, SchemaId_);
-    TNullableIntrusivePtrSerializer<>::Save(context, RuntimeData_->ReplicationProgress.Load());
+    TNullableIntrusivePtrSerializer<>::Save(context, RuntimeData_->ReplicationProgress.Acquire());
     Save(context, ChaosData_->ReplicationRound);
     Save(context, ChaosData_->CurrentReplicationRowIndexes.Load());
     Save(context, ChaosData_->PreparedWritePulledRowsTransactionId);
@@ -2300,8 +2300,8 @@ TTimestamp TTablet::GetOrderedChaosReplicationMinTimestamp()
 {
     YT_VERIFY(!TableSchema_->IsSorted());
 
-    auto replicationProgress = RuntimeData()->ReplicationProgress.Load();
-    auto replicationCard = RuntimeData()->ReplicationCard.Load();
+    auto replicationProgress = RuntimeData()->ReplicationProgress.Acquire();
+    auto replicationCard = RuntimeData()->ReplicationCard.Acquire();
 
     if (!replicationProgress ||
         !IsOrderedTabletReplicationProgress(*replicationProgress) ||

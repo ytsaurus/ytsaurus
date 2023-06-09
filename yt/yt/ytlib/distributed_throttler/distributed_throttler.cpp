@@ -7,7 +7,6 @@
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/yt/core/misc/atomic_object.h>
 #include <yt/yt/core/misc/historic_usage_aggregator.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -19,6 +18,8 @@
 #include <yt/yt/library/numeric/algorithm_helpers.h>
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 namespace NYT::NDistributedThrottler {
 
@@ -58,7 +59,7 @@ public:
     {
         HistoricUsageAggregator_.UpdateParameters(THistoricUsageAggregationParameters(
             EHistoricUsageAggregationMode::ExponentialMovingAverage,
-            Config_.Load()->EmaAlpha
+            Config_.Acquire()->EmaAlpha
         ));
     }
 
@@ -85,7 +86,7 @@ public:
 
     TThroughputThrottlerConfigPtr GetConfig()
     {
-        return ThrottlerConfig_.Load();
+        return ThrottlerConfig_.Acquire();
     }
 
     TFuture<void> GetAvailableFuture() override
@@ -95,10 +96,10 @@ public:
 
     TFuture<void> Throttle(i64 amount) override
     {
-        auto config = Config_.Load();
+        auto config = Config_.Acquire();
 
         if (config->Mode == EDistributedThrottlerMode::Precise) {
-            if (auto leaderChannel = LeaderChannel_.Load()) {
+            if (auto leaderChannel = LeaderChannel_.Acquire()) {
                 TDistributedThrottlerProxy proxy(leaderChannel);
 
                 auto req = proxy.Throttle();
@@ -122,7 +123,7 @@ public:
 
     bool TryAcquire(i64 amount) override
     {
-        YT_VERIFY(Config_.Load()->Mode != EDistributedThrottlerMode::Precise);
+        YT_VERIFY(Config_.Acquire()->Mode != EDistributedThrottlerMode::Precise);
 
         auto result = Underlying_->TryAcquire(amount);
         if (result) {
@@ -133,7 +134,7 @@ public:
 
     i64 TryAcquireAvailable(i64 amount) override
     {
-        YT_VERIFY(Config_.Load()->Mode != EDistributedThrottlerMode::Precise);
+        YT_VERIFY(Config_.Acquire()->Mode != EDistributedThrottlerMode::Precise);
 
         auto result = Underlying_->TryAcquireAvailable(amount);
         if (result > 0) {
@@ -144,7 +145,7 @@ public:
 
     void Acquire(i64 amount) override
     {
-        YT_VERIFY(Config_.Load()->Mode != EDistributedThrottlerMode::Precise);
+        YT_VERIFY(Config_.Acquire()->Mode != EDistributedThrottlerMode::Precise);
 
         UpdateHistoricUsage(amount);
         Underlying_->Acquire(amount);
@@ -152,21 +153,21 @@ public:
 
     bool IsOverdraft() override
     {
-        YT_VERIFY(Config_.Load()->Mode != EDistributedThrottlerMode::Precise);
+        YT_VERIFY(Config_.Acquire()->Mode != EDistributedThrottlerMode::Precise);
 
         return Underlying_->IsOverdraft();
     }
 
     i64 GetQueueTotalAmount() const override
     {
-        YT_VERIFY(Config_.Load()->Mode != EDistributedThrottlerMode::Precise);
+        YT_VERIFY(Config_.Acquire()->Mode != EDistributedThrottlerMode::Precise);
 
         return Underlying_->GetQueueTotalAmount();
     }
 
     void Reconfigure(TThroughputThrottlerConfigPtr config) override
     {
-        if (Config_.Load()->Mode == EDistributedThrottlerMode::Precise) {
+        if (Config_.Acquire()->Mode == EDistributedThrottlerMode::Precise) {
             Underlying_->Reconfigure(std::move(config));
         } else {
             ThrottlerConfig_.Store(CloneYsonStruct(std::move(config)));
@@ -196,12 +197,12 @@ private:
     const IReconfigurableThroughputThrottlerPtr Underlying_;
     const TString ThrottlerId_;
 
-    TAtomicObject<TDistributedThrottlerConfigPtr> Config_;
-    TAtomicObject<TThroughputThrottlerConfigPtr> ThrottlerConfig_;
+    TAtomicIntrusivePtr<TDistributedThrottlerConfig> Config_;
+    TAtomicIntrusivePtr<TThroughputThrottlerConfig> ThrottlerConfig_;
 
     const TDuration ThrottleRpcTimeout_;
 
-    TAtomicObject<IChannelPtr> LeaderChannel_;
+    TAtomicIntrusivePtr<IChannel> LeaderChannel_;
 
     TProfiler Profiler_;
     TGauge Limit_;
@@ -224,7 +225,7 @@ private:
         Limit_ = Profiler_.Gauge("/limit");
         Usage_ = Profiler_.Gauge("/usage");
 
-        Limit_.Update(ThrottlerConfig_.Load()->Limit.value_or(-1));
+        Limit_.Update(ThrottlerConfig_.Acquire()->Limit.value_or(-1));
     }
 
     void UpdateHistoricUsage(i64 amount)
@@ -326,7 +327,7 @@ public:
 
     void Reconfigure(const TDistributedThrottlerConfigPtr& config)
     {
-        auto oldConfig = Config_.Load();
+        auto oldConfig = Config_.Acquire();
 
         if (oldConfig->LimitUpdatePeriod != config->LimitUpdatePeriod) {
             auto guard = Guard(ReconfigurationLock_);
@@ -349,7 +350,7 @@ public:
 
     void UpdateUsageRate(const TMemberId& memberId, THashMap<TString, double> throttlerIdToUsageRate)
     {
-        auto config = Config_.Load();
+        auto config = Config_.Acquire();
 
         std::vector<std::vector<TString>> throttlerIdsByShard(ShardCount_);
         for (const auto& [throttlerId, usageRate] : throttlerIdToUsageRate) {
@@ -383,7 +384,7 @@ public:
 
     THashMap<TString, std::optional<double>> GetMemberLimits(const TMemberId& memberId, const std::vector<TString>& throttlerIds)
     {
-        auto config = Config_.Load();
+        auto config = Config_.Acquire();
 
         std::vector<std::vector<TString>> throttlerIdsByShard(ShardCount_);
         for (const auto& throttlerId : throttlerIds) {
@@ -454,7 +455,7 @@ private:
     bool Active_ = false;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ReconfigurationLock_);
-    TAtomicObject<TDistributedThrottlerConfigPtr> Config_;
+    TAtomicIntrusivePtr<TDistributedThrottlerConfig> Config_;
 
     struct TMemberShard
     {
@@ -481,7 +482,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NDistributedThrottler::NProto, Heartbeat)
     {
-        auto config = Config_.Load();
+        auto config = Config_.Acquire();
 
         if (config->Mode == EDistributedThrottlerMode::Precise) {
             THROW_ERROR_EXCEPTION(
@@ -519,7 +520,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NDistributedThrottler::NProto, Throttle)
     {
-        auto config = Config_.Load();
+        auto config = Config_.Acquire();
 
         if (config->Mode != EDistributedThrottlerMode::Precise) {
             THROW_ERROR_EXCEPTION(
@@ -618,7 +619,7 @@ private:
     {
         ForgetDeadThrottlers();
 
-        auto config = Config_.Load();
+        auto config = Config_.Acquire();
 
         if (config->Mode == EDistributedThrottlerMode::Precise) {
             return;
@@ -702,7 +703,7 @@ private:
 
     void ForgetDeadThrottlers()
     {
-        auto config = Config_.Load();
+        auto config = Config_.Acquire();
 
         for (auto& throttlerShard : ThrottlerShards_) {
             std::vector<TString> deadThrottlersIds;
@@ -816,7 +817,7 @@ public:
             std::move(invoker),
             DiscoveryClient_,
             GroupId_,
-            Config_.Load(),
+            Config_.Acquire(),
             RealmId_,
             Throttlers_,
             Logger,
@@ -900,7 +901,7 @@ public:
             DistributedThrottlerService_->SetTotalLimit(throttlerId, throttlerConfig->Limit);
             wrappedThrottler = New<TWrappedThrottler>(
                 throttlerId,
-                Config_.Load(),
+                Config_.Acquire(),
                 std::move(throttlerConfig),
                 throttleRpcTimeout,
                 Profiler_);
@@ -925,7 +926,7 @@ public:
         MemberClient_->Reconfigure(config->MemberClient);
         DiscoveryClient_->Reconfigure(config->DiscoveryClient);
 
-        auto oldConfig = Config_.Load();
+        auto oldConfig = Config_.Acquire();
 
         if (oldConfig->LimitUpdatePeriod != config->LimitUpdatePeriod) {
             UpdateLimitsExecutor_->SetPeriod(config->LimitUpdatePeriod);
@@ -964,7 +965,7 @@ private:
     const NLogging::TLogger Logger;
     TProfiler Profiler_;
 
-    TAtomicObject<TDistributedThrottlerConfigPtr> Config_;
+    TAtomicIntrusivePtr<TDistributedThrottlerConfig> Config_;
 
     const TThrottlersPtr Throttlers_ = New<TThrottlers>();
     const TDistributedThrottlerServicePtr DistributedThrottlerService_;
@@ -1001,7 +1002,7 @@ private:
             return;
         }
 
-        auto config = Config_.Load();
+        auto config = Config_.Acquire();
         if (config->Mode == EDistributedThrottlerMode::Precise) {
             return;
         }
@@ -1116,7 +1117,7 @@ private:
         IChannelPtr leaderChannel,
         const THashMap<TString, TWrappedThrottlerPtr>& throttlers)
     {
-        auto config = Config_.Load();
+        auto config = Config_.Acquire();
 
         TDistributedThrottlerProxy proxy(std::move(leaderChannel));
 
@@ -1225,7 +1226,7 @@ private:
             leaderChannel = LeaderChannel_;
         }
 
-        if (Config_.Load()->Mode == EDistributedThrottlerMode::Precise) {
+        if (Config_.Acquire()->Mode == EDistributedThrottlerMode::Precise) {
             auto guard = ReaderGuard(Throttlers_->Lock);
             for (const auto& [throttlerId, weakThrottler] : Throttlers_->Throttlers) {
                 auto throttler = weakThrottler.Lock();

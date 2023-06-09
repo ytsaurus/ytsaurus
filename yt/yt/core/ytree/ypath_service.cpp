@@ -20,8 +20,10 @@
 #include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/yt/core/misc/atomic_object.h>
 #include <yt/yt/core/misc/checksum.h>
+#include <yt/yt/core/misc/atomic_object.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 namespace NYT::NYTree {
 
@@ -740,13 +742,14 @@ private:
     const IYPathServicePtr UnderlyingService_;
     const IInvokerPtr WorkerInvoker_;
 
-    std::atomic<bool> IsCacheEnabled_ = {false};
-    std::atomic<bool> IsCacheValid_ = {false};
     const TPeriodicExecutorPtr PeriodicExecutor_;
+
+    std::atomic<bool> IsCacheEnabled_ = false;
+    std::atomic<bool> IsCacheValid_ = false;
 
     TCacheProfilingCountersPtr ProfilingCounters_;
 
-    TAtomicObject<TCacheSnapshotPtr> CurrentCacheSnapshot_ = nullptr;
+    TAtomicIntrusivePtr<TCacheSnapshot> CurrentCacheSnapshot_;
 
     bool DoInvoke(const IYPathServiceContextPtr& context) override;
 
@@ -814,7 +817,7 @@ bool TCachedYPathService::DoInvoke(const IYPathServiceContextPtr& context)
     if (IsCacheEnabled_ && IsCacheValid_) {
         WorkerInvoker_->Invoke(BIND([this, context, this_ = MakeStrong(this)]() {
             try {
-                auto cacheSnapshot = CurrentCacheSnapshot_.Load();
+                auto cacheSnapshot = CurrentCacheSnapshot_.Acquire();
                 YT_VERIFY(cacheSnapshot);
 
                 if (context->GetRequestMessage().Size() < 2) {

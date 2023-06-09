@@ -10,37 +10,37 @@ namespace NYT::NElection {
 
 void TElectionManagerThunk::Initialize()
 {
-    Underlying_.Load()->Initialize();
+    Underlying_.Acquire()->Initialize();
 }
 
 void TElectionManagerThunk::Finalize()
 {
-    Underlying_.Load()->Finalize();
+    Underlying_.Acquire()->Finalize();
 }
 
 void TElectionManagerThunk::Participate()
 {
-    Underlying_.Load()->Participate();
+    Underlying_.Acquire()->Participate();
 }
 
 TFuture<void> TElectionManagerThunk::Abandon(const TError& error)
 {
-    return Underlying_.Load()->Abandon(error);
+    return Underlying_.Acquire()->Abandon(error);
 }
 
 void TElectionManagerThunk::ReconfigureCell(TCellManagerPtr cellManager)
 {
-    Underlying_.Load()->ReconfigureCell(std::move(cellManager));
+    Underlying_.Acquire()->ReconfigureCell(std::move(cellManager));
 }
 
 NYson::TYsonProducer TElectionManagerThunk::GetMonitoringProducer()
 {
-    return Underlying_.Load()->GetMonitoringProducer();
+    return Underlying_.Acquire()->GetMonitoringProducer();
 }
 
 TPeerIdSet TElectionManagerThunk::GetAlivePeerIds()
 {
-    return Underlying_.Load()->GetAlivePeerIds();
+    return Underlying_.Acquire()->GetAlivePeerIds();
 }
 
 void TElectionManagerThunk::SetUnderlying(IElectionManagerPtr underlying)

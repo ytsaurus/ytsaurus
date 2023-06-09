@@ -214,7 +214,7 @@ i64 TIOEngineBase::GetTotalWrittenBytes() const
 
 EDirectIOPolicy TIOEngineBase::UseDirectIOForReads() const
 {
-    return Config_.Load()->UseDirectIOForReads;
+    return Config_.Acquire()->UseDirectIOForReads;
 }
 
 TIOEngineBase::TIOEngineBase(
@@ -338,7 +338,7 @@ void TIOEngineBase::DoResize(const TResizeRequest& request)
 
 void TIOEngineBase::AddWriteWaitTimeSample(TDuration duration)
 {
-    auto config = Config_.Load();
+    auto config = Config_.Acquire();
     if (config->SickWriteTimeThreshold && config->SickWriteTimeWindow && config->SicknessExpirationTimeout && !Sick_) {
         if (duration > *config->SickWriteTimeThreshold) {
             auto now = GetInstant();
@@ -360,7 +360,7 @@ void TIOEngineBase::AddWriteWaitTimeSample(TDuration duration)
 
 void TIOEngineBase::AddReadWaitTimeSample(TDuration duration)
 {
-    auto config = Config_.Load();
+    auto config = Config_.Acquire();
     if (config->SickReadTimeThreshold && config->SickReadTimeWindow && config->SicknessExpirationTimeout && !Sick_) {
         if (duration > *config->SickReadTimeThreshold) {
             auto now = GetInstant();
@@ -430,7 +430,7 @@ void TIOEngineBase::InitProfilerSensors()
 
 void TIOEngineBase::SetSickFlag(const TError& error)
 {
-    auto config = Config_.Load();
+    auto config = Config_.Acquire();
 
     if (!config->SicknessExpirationTimeout) {
         return;

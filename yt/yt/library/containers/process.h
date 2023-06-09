@@ -1,10 +1,10 @@
 #pragma once
 
-#include <yt/yt/library/containers/public.h>
+#include "public.h"
 
 #include <yt/yt/library/process/process.h>
 
-#include <yt/yt/core/misc/atomic_object.h>
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 #include <library/cpp/porto/libporto.hpp>
 
@@ -30,8 +30,9 @@ public:
     NContainers::IInstancePtr GetInstance();
 
 private:
-    NContainers::IInstanceLauncherPtr ContainerLauncher_;
-    TAtomicObject<NContainers::IInstancePtr> ContainerInstance_;
+    const NContainers::IInstanceLauncherPtr ContainerLauncher_;
+
+    TAtomicIntrusivePtr<NContainers::IInstance> ContainerInstance_;
     std::vector<NPipes::TNamedPipePtr> NamedPipes_;
 
     void DoSpawn() override;

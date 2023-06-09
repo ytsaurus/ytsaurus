@@ -2,7 +2,7 @@
 
 #include "changelog.h"
 
-#include <yt/yt/core/misc/atomic_object.h>
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 namespace NYT::NHydra {
 
@@ -17,7 +17,7 @@ public:
     void SetUnderlying(IChangelogStoreFactoryPtr underlying);
 
 private:
-    TAtomicObject<IChangelogStoreFactoryPtr> Underlying_;
+    TAtomicIntrusivePtr<IChangelogStoreFactory> Underlying_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChangelogStoreFactoryThunk)

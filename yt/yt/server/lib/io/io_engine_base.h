@@ -4,13 +4,13 @@
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
-#include <yt/yt/core/misc/atomic_object.h>
-
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/core/concurrency/public.h>
 
 #include <yt/yt/core/threading/public.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 #ifdef _linux_
     #ifndef FALLOC_FL_CONVERT_UNWRITTEN
@@ -197,7 +197,7 @@ protected:
 
 private:
     const TConfigPtr StaticConfig_;
-    TAtomicObject<TConfigPtr> Config_;
+    TAtomicIntrusivePtr<TConfig> Config_;
 
     const NConcurrency::IThreadPoolPtr AuxThreadPool_;
     const NConcurrency::IThreadPoolPtr FsyncThreadPool_;

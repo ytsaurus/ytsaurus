@@ -1708,12 +1708,8 @@ void TServiceBase::RegisterRequestQueue(
     });
 
     TMethodConfigPtr methodConfig;
-    if (auto config = Config_.Load()) {
-        if (auto methodIt = config->Methods.find(method);
-            methodIt != config->Methods.end())
-        {
-            methodConfig = methodIt->second;
-        }
+    if (auto config = Config_.Acquire()) {
+        methodConfig = GetOrDefault(config->Methods, method);
     }
     ConfigureRequestQueue(runtimeInfo, requestQueue, methodConfig);
 

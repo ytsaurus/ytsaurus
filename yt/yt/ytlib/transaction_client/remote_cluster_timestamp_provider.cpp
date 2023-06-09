@@ -12,9 +12,9 @@
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
 
-#include <yt/yt/core/misc/atomic_object.h>
-
 #include <yt/yt/core/logging/log.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 namespace NYT::NTransactionClient {
 
@@ -52,7 +52,7 @@ public:
 
     TFuture<TTimestamp> GenerateTimestamps(int count) override
     {
-        if (auto underlying = Underlying_.Load()) {
+        if (auto underlying = Underlying_.Acquire()) {
             return underlying->GenerateTimestamps(count);
         }
 
@@ -65,7 +65,7 @@ public:
         return nativeConnection->GetClusterDirectorySynchronizer()->Sync()
             .Apply(BIND(&TRemoteClusterTimestampProvider::OnClusterDirectorySync, MakeWeak(this)))
             .Apply(BIND([this, this_ = MakeStrong(this), count] {
-                if (auto underlying = Underlying_.Load()) {
+                if (auto underlying = Underlying_.Acquire()) {
                     return underlying->GenerateTimestamps(count);
                 }
                 return MakeFuture<TTimestamp>(TError(
@@ -76,7 +76,7 @@ public:
 
     TTimestamp GetLatestTimestamp() override
     {
-        if (auto underlying = Underlying_.Load()) {
+        if (auto underlying = Underlying_.Acquire()) {
             return underlying->GetLatestTimestamp();
         }
 
@@ -89,7 +89,7 @@ private:
 
     const NLogging::TLogger Logger;
 
-    TAtomicObject<ITimestampProviderPtr> Underlying_;
+    TAtomicIntrusivePtr<ITimestampProvider> Underlying_;
 
     void OnClusterDirectorySync(const TError& /*error*/)
     {
@@ -98,7 +98,7 @@ private:
             YT_LOG_DEBUG("Cannot initialize timestamp provider: connection terminated (ClockClusterTag: %v)",
                 ClockClusterTag_);
             return;
-        } 
+        }
 
         if (auto connection = FindRemoteConnection(nativeConnection, ClockClusterTag_)) {
             Underlying_.Store(connection->GetTimestampProvider());

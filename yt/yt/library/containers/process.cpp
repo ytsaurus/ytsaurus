@@ -38,8 +38,7 @@ TPortoProcess::TPortoProcess(
 
 void TPortoProcess::Kill(int signal)
 {
-    auto instance = ContainerInstance_.Load();
-    if (instance) {
+    if (auto instance = GetInstance()) {
         instance->Kill(signal);
     }
 }
@@ -47,21 +46,21 @@ void TPortoProcess::Kill(int signal)
 void TPortoProcess::DoSpawn()
 {
     YT_VERIFY(ProcessId_ == InvalidProcessId && !Finished_);
-    YT_VERIFY(!ContainerInstance_.Load());
+    YT_VERIFY(!GetInstance());
     YT_VERIFY(!Started_);
-    YT_VERIFY(Args_.size());
+    YT_VERIFY(!Args_.empty());
 
     if (!WorkingDirectory_.empty()) {
         ContainerLauncher_->SetCwd(WorkingDirectory_);
     }
+
     Started_ = true;
-    IInstancePtr instance;
 
     try {
         // TPortoProcess doesn't support running processes inside rootFS.
         YT_VERIFY(!ContainerLauncher_->HasRoot());
         std::vector<TString> args(Args_.begin() + 1, Args_.end());
-        instance = WaitFor(ContainerLauncher_->Launch(ResolvedPath_, args, DecomposeEnv()))
+        auto instance = WaitFor(ContainerLauncher_->Launch(ResolvedPath_, args, DecomposeEnv()))
             .ValueOrThrow();
         ContainerInstance_.Store(instance);
         FinishedPromise_.SetFrom(instance->Wait());
@@ -75,6 +74,24 @@ void TPortoProcess::DoSpawn()
             YT_LOG_DEBUG(ex, "Failed to get pid of root process (Container: %v)",
                 instance->GetName());
         }
+
+        YT_LOG_DEBUG("Process inside Porto spawned successfully (Path: %v, ExternalPid: %v, Container: %v)",
+            ResolvedPath_,
+            ProcessId_,
+            instance->GetName());
+
+        FinishedPromise_.ToFuture().Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& exitStatus) {
+            Finished_ = true;
+            if (exitStatus.IsOK()) {
+                YT_LOG_DEBUG("Process inside Porto exited gracefully (ExternalPid: %v, Container: %v)",
+                    ProcessId_,
+                    instance->GetName());
+            } else {
+                YT_LOG_DEBUG(exitStatus, "Process inside Porto exited with an error (ExternalPid: %v, Container: %v)",
+                    ProcessId_,
+                    instance->GetName());
+            }
+        }));
     } catch (const std::exception& ex) {
         Finished_ = true;
         THROW_ERROR_EXCEPTION("Failed to start child process inside Porto")
@@ -82,28 +99,11 @@ void TPortoProcess::DoSpawn()
             << TErrorAttribute("container", ContainerLauncher_->GetName())
             << ex;
     }
-    YT_LOG_DEBUG("Process inside Porto spawned successfully (Path: %v, ExternalPid: %v, Container: %v)",
-        ResolvedPath_,
-        ProcessId_,
-        instance->GetName());
-
-    FinishedPromise_.ToFuture().Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& exitStatus) {
-        Finished_ = true;
-        if (exitStatus.IsOK()) {
-            YT_LOG_DEBUG("Process inside Porto exited gracefully (ExternalPid: %v, Container: %v)",
-                ProcessId_,
-                instance->GetName());
-        } else {
-            YT_LOG_DEBUG(exitStatus, "Process inside Porto exited with an error (ExternalPid: %v, Container: %v)",
-                ProcessId_,
-                instance->GetName());
-        }
-    }));
 }
 
 IInstancePtr TPortoProcess::GetInstance()
 {
-    return ContainerInstance_.Load();
+    return ContainerInstance_.Acquire();
 }
 
 THashMap<TString, TString> TPortoProcess::DecomposeEnv() const

@@ -66,8 +66,6 @@
 #include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/yt/core/misc/atomic_object.h>
-
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/bus/tcp/dispatcher.h>
@@ -78,6 +76,8 @@
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/helpers.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 namespace NYT::NCellarAgent {
 
@@ -129,7 +129,7 @@ public:
 
     ICellarOccupierPtr GetOccupier() const override
     {
-        return Occupier_.Load();
+        return Occupier_.Acquire();
     }
 
     int GetIndex() const override
@@ -202,7 +202,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return HydraManager_.Load();
+        return HydraManager_.Acquire();
     }
 
     const IResponseKeeperPtr& GetResponseKeeper() const override
@@ -513,7 +513,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return DynamicOptions_.Load();
+        return DynamicOptions_.Acquire();
     }
 
     int GetDynamicConfigVersion() const override
@@ -569,7 +569,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (CanConfigure()) {
-            HydraManager_.Load()->Reconfigure(dynamicConfig);
+            HydraManager_.Acquire()->Reconfigure(dynamicConfig);
         }
     }
 
@@ -623,7 +623,7 @@ public:
 private:
     const TCellarOccupantConfigPtr Config_;
     const ICellarBootstrapProxyPtr Bootstrap_;
-    TAtomicObject<ICellarOccupierPtr> Occupier_;
+    TAtomicIntrusivePtr<ICellarOccupier> Occupier_;
     const int Index_;
 
     const TElectionManagerThunkPtr ElectionManagerThunk_ = New<TElectionManagerThunk>();
@@ -636,7 +636,7 @@ private:
 
     const TString CellBundleName_;
 
-    TAtomicObject<TDynamicTabletCellOptionsPtr> DynamicOptions_ = New<TDynamicTabletCellOptions>();
+    TAtomicIntrusivePtr<TDynamicTabletCellOptions> DynamicOptions_{New<TDynamicTabletCellOptions>()};
     int DynamicConfigVersion_ = -1;
 
     TTabletCellOptionsPtr Options_;
@@ -648,7 +648,7 @@ private:
 
     IElectionManagerPtr ElectionManager_;
 
-    TAtomicObject<IDistributedHydraManagerPtr> HydraManager_;
+    TAtomicIntrusivePtr<IDistributedHydraManager> HydraManager_;
 
     IResponseKeeperPtr ResponseKeeper_;
 

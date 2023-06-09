@@ -189,8 +189,7 @@ private:
             return;
         }
 
-        auto replicationCard = tablet->RuntimeData()->ReplicationCard.Load();
-
+        auto replicationCard = tablet->RuntimeData()->ReplicationCard.Acquire();
         if (!replicationCard) {
             return;
         }

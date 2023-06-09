@@ -34,9 +34,9 @@
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
-#include <yt/yt/core/misc/atomic_object.h>
-
 #include <library/cpp/yt/threading/spin_lock.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 namespace NYT::NTableClient {
 
@@ -746,7 +746,7 @@ public:
             return CreateEmptyRowBatch<TRow>();
         }
 
-        auto currentReader = CurrentReader_.Load();
+        auto currentReader = CurrentReader_.Acquire();
         if (PreviousReader_ != currentReader) {
             PreviousReader_ = currentReader;
         }
@@ -784,7 +784,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto currentReader = CurrentReader_.Load();
+        auto currentReader = CurrentReader_.Acquire();
         auto dataStatistics = currentReader ? currentReader->GetDataStatistics() : TDataStatistics{};
         auto guard = Guard(DataStatisticsLock_);
         CombineDataStatistics(&dataStatistics, AccumulatedDataStatistics_);
@@ -795,7 +795,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto currentReader = CurrentReader_.Load();
+        auto currentReader = CurrentReader_.Acquire();
         if (ChunkReaderFallbackOccurred_ && currentReader) {
             return currentReader->GetDecompressionStatistics();
         }
@@ -823,7 +823,7 @@ protected:
     const TClientChunkReadOptions ChunkReadOptions_;
     const TChunkReaderMemoryManagerPtr ReaderMemoryManager_;
 
-    TAtomicObject<IReaderPtr> CurrentReader_;
+    TAtomicIntrusivePtr<IReader> CurrentReader_;
     // NB: It is necessary to store failed reader until Read is called for the
     // new one since it may still own some rows that were read but not yet captured.
     IReaderPtr PreviousReader_;
@@ -966,7 +966,7 @@ protected:
 
         {
             auto guard = Guard(DataStatisticsLock_);
-            CombineDataStatistics(&AccumulatedDataStatistics_, CurrentReader_.Load()->GetDataStatistics());
+            CombineDataStatistics(&AccumulatedDataStatistics_, CurrentReader_.Acquire()->GetDataStatistics());
         }
 
         // Dynamic store was empty and flushed to no chunk.
@@ -1143,7 +1143,7 @@ private:
 
     TFuture<void> OpenCurrentReader() override
     {
-        return CurrentReader_.Load()->Open();
+        return CurrentReader_.Acquire()->Open();
     }
 };
 
@@ -1238,7 +1238,7 @@ public:
 
     i64 GetTableRowIndex() const override
     {
-        if (auto currentReader = CurrentReader_.Load()) {
+        if (auto currentReader = CurrentReader_.Acquire()) {
             return currentReader->GetTableRowIndex();
         }
         YT_VERIFY(FlushedToEmptyChunk_);
@@ -1272,7 +1272,7 @@ private:
     void UpdateContinuationToken(const IUnversionedRowBatchPtr& /*batch*/) override
     {
         YT_VERIFY(!ChunkReaderFallbackOccurred_);
-        TabletRowIndex_ = CurrentReader_.Load()->GetTableRowIndex();
+        TabletRowIndex_ = CurrentReader_.Acquire()->GetTableRowIndex();
     }
 
     void PatchChunkSpecWithContinuationToken() override
@@ -1329,7 +1329,7 @@ private:
 
     TFuture<void> OpenCurrentReader() override
     {
-        return CurrentReader_.Load()->GetReadyEvent();
+        return CurrentReader_.Acquire()->GetReadyEvent();
     }
 };
 

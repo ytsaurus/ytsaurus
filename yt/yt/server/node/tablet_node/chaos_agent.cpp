@@ -180,7 +180,7 @@ private:
         }
 
         ETabletWriteMode writeMode = ETabletWriteMode::Pull;
-        auto progress = Tablet_->RuntimeData()->ReplicationProgress.Load();
+        auto progress = Tablet_->RuntimeData()->ReplicationProgress.Acquire();
 
         YT_LOG_DEBUG("Checking self write mode (ReplicationProgress: %v, LastHistoryItemTimestamp: %v, IsProgressGreaterThanTimestamp: %v)",
             static_cast<TReplicationProgress>(*progress),
@@ -229,7 +229,7 @@ private:
 
     void ReportUpdatedReplicationProgress()
     {
-        auto progress = Tablet_->RuntimeData()->ReplicationProgress.Load();
+        auto progress = Tablet_->RuntimeData()->ReplicationProgress.Acquire();
         auto* counters = Tablet_->GetTableProfiler()->GetTablePullerCounters();
         if (Tablet_->RuntimeData()->WriteMode == ETabletWriteMode::Direct) {
             counters->LagTime.Update(TDuration::Zero());

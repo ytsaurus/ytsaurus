@@ -361,7 +361,7 @@ TJaegerTracer::TJaegerTracer(
     , Config_(config)
 {
     Profiler.AddFuncGauge("/enabled", MakeStrong(this), [this] {
-        return Config_.Load()->IsEnabled();
+        return Config_.Acquire()->IsEnabled();
     });
 
     FlushExecutor_->Start();
@@ -388,7 +388,7 @@ void TJaegerTracer::Stop()
     auto flushFuture = WaitFlush();
     FlushExecutor_->ScheduleOutOfBand();
 
-    auto config = Config_.Load();
+    auto config = Config_.Acquire();
     Y_UNUSED(WaitFor(flushFuture.WithTimeout(config->StopTimeout)));
 
     YT_UNUSED_FUTURE(FlushExecutor_->Stop());
@@ -525,7 +525,7 @@ void TJaegerTracer::Flush()
 {
     YT_LOG_DEBUG("Started span flush");
 
-    auto config = Config_.Load();
+    auto config = Config_.Acquire();
 
     DequeueAll(config);
 

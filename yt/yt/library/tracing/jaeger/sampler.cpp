@@ -7,7 +7,7 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NProfiling::TProfiler Profiler{"/jaeger"};
+static const NProfiling::TProfiler Profiler{"/jaeger"};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,7 +58,7 @@ TSampler::TSampler(const TSamplerConfigPtr& config)
 
 void TSampler::SampleTraceContext(const TString& user, const TTraceContextPtr& traceContext)
 {
-    TSamplerConfigPtr config = Config_.Load();
+    auto config = Config_.Acquire();
 
     auto [userState, inserted] = Users_.FindOrInsert(user, [&user] {
         auto state = New<TUserState>();

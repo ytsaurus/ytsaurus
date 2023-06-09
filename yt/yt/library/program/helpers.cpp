@@ -39,6 +39,8 @@
 
 #include <library/cpp/yt/threading/spin_wait_hook.h>
 
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+
 #include <util/string/split.h>
 #include <util/system/thread.h>
 
@@ -143,7 +145,12 @@ void ConfigureTCMalloc(const TTCMallocConfigPtr& config)
         tcmalloc::MallocExtension::ActivateGuardedSampling();
     }
 
-    LeakySingleton<TAtomicObject<TTCMallocConfigPtr>>()->Store(config);
+    struct TConfigSingleton
+    {
+        TAtomicIntrusivePtr<TTCMallocConfig> Config;
+    };
+
+    LeakySingleton<TConfigSingleton>()->Config.Store(config);
 
     if (tcmalloc::MallocExtension::NeedsProcessBackgroundActions()) {
         std::call_once(InitAggressiveReleaseThread, [] {
@@ -153,7 +160,7 @@ void ConfigureTCMalloc(const TTCMallocConfigPtr& config)
                 TCMallocLimitsAdjuster limitsAdjuster;
 
                 while (true) {
-                    auto config = LeakySingleton<TAtomicObject<TTCMallocConfigPtr>>()->Load();
+                    auto config = LeakySingleton<TConfigSingleton>()->Config.Acquire();
                     limitsAdjuster.Adjust(config);
 
                     auto freeBytes = tcmalloc::MallocExtension::GetNumericProperty("tcmalloc.page_heap_free");

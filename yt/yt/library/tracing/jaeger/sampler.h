@@ -6,9 +6,9 @@
 
 #include <yt/yt/library/syncmap/map.h>
 
-#include <yt/yt/core/misc/atomic_object.h>
-
 #include <yt/yt/core/ytree/yson_struct.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 namespace NYT::NTracing {
 
@@ -48,16 +48,14 @@ class TSampler
 {
 public:
     TSampler();
-
-    explicit TSampler(
-        const TSamplerConfigPtr& config);
+    explicit TSampler(const TSamplerConfigPtr& config);
 
     void SampleTraceContext(const TString& user, const TTraceContextPtr& traceContext);
 
     void UpdateConfig(const TSamplerConfigPtr& config);
 
 private:
-    TAtomicObject<TSamplerConfigPtr> Config_;
+    TAtomicIntrusivePtr<TSamplerConfig> Config_;
 
     struct TUserState final
     {

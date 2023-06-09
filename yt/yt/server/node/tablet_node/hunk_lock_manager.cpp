@@ -107,7 +107,9 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         const auto& configManager = Context_->GetDynamicConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&THunkLockManager::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(
+            BIND(&THunkLockManager::OnDynamicConfigChanged, MakeWeak(this))
+                .Via(Context_->GetAutomatonInvoker()));
     }
 
     void StartEpoch() override
@@ -117,11 +119,11 @@ public:
         auto config = GetDynamicConfig();
 
         if (Context_->GetAutomatonState() == EPeerState::Leading) {
-            UnlockExecutor_.Store(New<TPeriodicExecutor>(
+            UnlockExecutor_ = New<TPeriodicExecutor>(
                 Tablet_->GetEpochAutomatonInvoker(),
                 BIND(&THunkLockManager::UnlockStaleHunkStores, MakeWeak(this)),
-                config->UnlockCheckPeriod));
-            UnlockExecutor_.Load()->Start();
+                config->UnlockCheckPeriod);
+            UnlockExecutor_->Start();
         }
     }
 
@@ -129,7 +131,10 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        UnlockExecutor_.Store(nullptr);
+        if (UnlockExecutor_) {
+            UnlockExecutor_->Stop();
+        }
+        UnlockExecutor_.Reset();
 
         ClearTransientState();
     }
@@ -374,7 +379,7 @@ private:
     ITabletContext* const Context_;
     const NLogging::TLogger Logger;
 
-    TAtomicObject<TPeriodicExecutorPtr> UnlockExecutor_;
+    TPeriodicExecutorPtr UnlockExecutor_;
 
     THashMap<TChunkId, TPromise<void>> HunkStoreIdsBeingLockedToPromise_;
     THashMap<TChunkId, THunkStoreLockingState> HunkStoreIdToLockingState_;
@@ -412,11 +417,11 @@ private:
         const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
         const TClusterNodeDynamicConfigPtr& newNodeConfig)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         const auto& config = newNodeConfig->TabletNode->HunkLockManager;
-        if (auto unlockExecutor = UnlockExecutor_.Load()) {
-            unlockExecutor->SetPeriod(config->UnlockCheckPeriod);
+        if (UnlockExecutor_) {
+            UnlockExecutor_->SetPeriod(config->UnlockCheckPeriod);
         }
     }
 

@@ -14,7 +14,6 @@
 #include <yt/yt/core/net/socket.h>
 
 #include <yt/yt/core/misc/fs.h>
-#include <yt/yt/core/misc/atomic_object.h>
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
@@ -23,6 +22,8 @@
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 #include <library/cpp/yt/threading/spin_lock.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 #include <cerrno>
 
@@ -425,7 +426,7 @@ private:
 
     IPacketTranscoderFactory* const PacketTranscoderFactory_;
 
-    TAtomicObject<TIntrusivePtr<TServer>> Server_;
+    TAtomicIntrusivePtr<TServer> Server_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

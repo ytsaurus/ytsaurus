@@ -7,10 +7,11 @@
 #include <yt/yt/core/ytree/yson_serializable.h>
 
 #include <yt/yt/core/misc/sync_cache.h>
-#include <yt/yt/core/misc/atomic_object.h>
 
 #include <yt/yt/ytlib/chunk_client/block.h>
 #include <yt/yt/ytlib/chunk_client/block_id.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 namespace NYT::NDataNode {
 
@@ -187,7 +188,7 @@ public:
 
 private:
     const TP2PConfigPtr Config_;
-    TAtomicObject<TP2PConfigPtr> DynamicConfig_;
+    TAtomicIntrusivePtr<TP2PConfig> DynamicConfig_;
 
     const TGuid SessionId_ = TGuid::Create();
 
@@ -240,7 +241,7 @@ private:
     const NConcurrency::TPeriodicExecutorPtr AllocatorExecutor_;
     const NConcurrency::TPeriodicExecutorPtr CoolerExecutor_;
 
-    TAtomicObject<TP2PConfigPtr> DynamicConfig_;
+    TAtomicIntrusivePtr<TP2PConfig> DynamicConfig_;
 
     NProfiling::TCounter DistributionErrorsCounter_;
 

@@ -4,6 +4,7 @@
 
 #include <yt/yt/server/lib/job_agent/config.h>
 #include <yt/yt/server/lib/job_agent/gpu_helpers.h>
+#include <yt/yt/server/lib/job_agent/gpu_info_provider.h>
 
 #include <yt/yt/server/node/cluster_node/public.h>
 #include <yt/yt/server/node/cluster_node/node_resource_manager.h>
@@ -14,6 +15,8 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 namespace NYT::NExecNode {
 
@@ -91,7 +94,7 @@ public:
 private:
     IBootstrap* const Bootstrap_;
     const NJobAgent::TGpuManagerConfigPtr Config_;
-    TAtomicObject<NJobAgent::TGpuManagerDynamicConfigPtr> DynamicConfig_;
+    TAtomicIntrusivePtr<NJobAgent::TGpuManagerDynamicConfig> DynamicConfig_;
 
     const NConcurrency::TPeriodicExecutorPtr HealthCheckExecutor_;
     const NConcurrency::TPeriodicExecutorPtr FetchDriverLayerExecutor_;
@@ -119,7 +122,7 @@ private:
     NHydra::TRevision DriverLayerRevision_ = 0;
     std::optional<NDataNode::TArtifactKey> DriverLayerKey_;
     TString DriverVersionString_;
-    TAtomicObject<NJobAgent::IGpuInfoProviderPtr> GpuInfoProvider_;
+    TAtomicIntrusivePtr<NJobAgent::IGpuInfoProvider> GpuInfoProvider_;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 

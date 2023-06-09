@@ -4,7 +4,7 @@
 
 #include <yt/yt/library/tvm/service/tvm_service.h>
 
-#include <yt/yt/core/misc/atomic_object.h>
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 namespace NYT::NAuth {
 
@@ -27,7 +27,7 @@ public:
     void SetTvmService(IDynamicTvmServicePtr tvmService);
 
 private:
-    TAtomicObject<IDynamicTvmServicePtr> TvmService_;
+    TAtomicIntrusivePtr<IDynamicTvmService> TvmService_;
     std::atomic<bool> EnableValidation_ = false;
     std::atomic<bool> EnableSubmission_ = true;
 

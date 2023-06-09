@@ -31,6 +31,7 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 #include <library/cpp/yt/memory/ref.h>
 #include <library/cpp/yt/memory/new.h>
 
@@ -274,7 +275,7 @@ private:
     std::atomic<int> UserLock_ = 0;
     std::atomic<int> SystemLock_ = 0;
 
-    TAtomicObject<TEpochContextPtr> EpochContext_;
+    TAtomicIntrusivePtr<TEpochContext> EpochContext_;
 
     NHydra::IChangelogPtr Changelog_;
 

@@ -53,7 +53,7 @@ void TNativeAuthenticationManager::Reconfigure(const TNativeAuthenticationManage
 
 IDynamicTvmServicePtr TNativeAuthenticationManager::GetTvmService() const
 {
-    return TvmService_.Load();
+    return TvmService_.Acquire();
 }
 
 void TNativeAuthenticationManager::SetTvmService(IDynamicTvmServicePtr tvmService)

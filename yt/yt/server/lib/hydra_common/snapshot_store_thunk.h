@@ -2,7 +2,7 @@
 
 #include "snapshot.h"
 
-#include <yt/yt/core/misc/atomic_object.h>
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 namespace NYT::NHydra {
 
@@ -19,7 +19,7 @@ public:
     void SetUnderlying(ISnapshotStorePtr underlying);
 
 private:
-    TAtomicObject<ISnapshotStorePtr> Underlying_;
+    TAtomicIntrusivePtr<ISnapshotStore> Underlying_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSnapshotStoreThunk)

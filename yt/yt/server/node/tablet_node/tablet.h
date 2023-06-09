@@ -41,6 +41,8 @@
 
 #include <library/cpp/yt/small_containers/compact_set.h>
 
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+
 #include <atomic>
 
 namespace NYT::NTabletNode {
@@ -143,8 +145,8 @@ struct TRuntimeTabletData
     std::atomic<TInstant> AccessTime = TInstant::Zero();
     std::atomic<ETabletWriteMode> WriteMode = ETabletWriteMode::Direct;
     std::atomic<NChaosClient::TReplicationEra> ReplicationEra = NChaosClient::InvalidReplicationEra;
-    TAtomicObject<TRefCountedReplicationProgressPtr> ReplicationProgress;
-    TAtomicObject<NChaosClient::TReplicationCardPtr> ReplicationCard;
+    TAtomicIntrusivePtr<TRefCountedReplicationProgress> ReplicationProgress;
+    TAtomicIntrusivePtr<NChaosClient::TReplicationCard> ReplicationCard;
     TEnumIndexedVector<ETabletDynamicMemoryType, std::atomic<i64>> DynamicMemoryUsagePerType;
     TTabletErrors Errors;
 };
@@ -290,6 +292,7 @@ struct ITabletContext
     virtual NHydra::EPeerState GetAutomatonState() const = 0;
     virtual int GetAutomatonTerm() const = 0;
     virtual IInvokerPtr GetControlInvoker() const = 0;
+    virtual IInvokerPtr GetAutomatonInvoker() const = 0;
     virtual NQueryClient::IColumnEvaluatorCachePtr GetColumnEvaluatorCache() const = 0;
     virtual NQueryClient::IRowComparerProviderPtr GetRowComparerProvider() const = 0;
     virtual NApi::NNative::IClientPtr GetClient() const = 0;

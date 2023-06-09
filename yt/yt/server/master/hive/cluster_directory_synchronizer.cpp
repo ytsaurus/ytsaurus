@@ -23,7 +23,7 @@
 #include <yt/yt/server/master/object_server/object_manager.h>
 #include <yt/yt/server/master/object_server/object_proxy.h>
 
-#include <yt/yt/core/misc/atomic_object.h>
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 namespace NYT::NHiveServer {
 
@@ -90,13 +90,13 @@ public:
     DEFINE_SIGNAL_OVERRIDE(void(const TError&), Synchronized);
 
 private:
-    NCellMaster::TBootstrap* Bootstrap_;
+    NCellMaster::TBootstrap* const Bootstrap_;
     const TPeriodicExecutorPtr SyncExecutor_;
     const NObjectServer::IObjectManagerPtr ObjectManager_;
     const NCellMaster::IMulticellManagerPtr MulticellManager_;
     const NObjectClient::TCellTag CellTag_;
     const NHiveClient::TClusterDirectoryPtr ClusterDirectory_;
-    TAtomicObject<TClusterDirectorySynchronizerConfigPtr> Config_;
+    TAtomicIntrusivePtr<TClusterDirectorySynchronizerConfig> Config_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     bool Started_ = false;
@@ -130,10 +130,11 @@ private:
         try {
             YT_LOG_DEBUG("Started synchronizing cluster directory");
 
+            auto config = Config_.Acquire();
             TMasterReadOptions options{
                 .ReadFrom = EMasterChannelKind::Cache,
-                .ExpireAfterSuccessfulUpdateTime = Config_.Load()->ExpireAfterSuccessfulUpdateTime,
-                .ExpireAfterFailedUpdateTime = Config_.Load()->ExpireAfterFailedUpdateTime,
+                .ExpireAfterSuccessfulUpdateTime = config->ExpireAfterSuccessfulUpdateTime,
+                .ExpireAfterFailedUpdateTime = config->ExpireAfterFailedUpdateTime,
                 .CacheStickyGroupSize = 1
             };
 

@@ -19,6 +19,8 @@
 
 #include <library/cpp/yt/threading/notification_handle.h>
 
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+
 #include <library/cpp/yt/system/handle_eintr.h>
 
 #include <util/generic/size_literals.h>
@@ -373,7 +375,7 @@ public:
 
 private:
     const TConfigPtr StaticConfig_;
-    TAtomicObject<TConfigPtr> Config_;
+    TAtomicIntrusivePtr<TConfig> Config_;
 
     TThreadPool ThreadPool_;
     TRequestSlicer RequestSlicer_;
@@ -454,7 +456,7 @@ private:
             readWaitTime);
 
         NFS::WrapIOErrors([&] {
-            auto config = Config_.Load();
+            auto config = Config_.Acquire();
 
             while (toReadRemaining > 0) {
                 auto toRead = static_cast<ui32>(Min(toReadRemaining, config->MaxBytesPerRead));
@@ -513,7 +515,7 @@ private:
     {
         auto writtenBytes = DoWriteImpl(request, timer);
 
-        auto config = Config_.Load();
+        auto config = Config_.Acquire();
         if (config->FlushAfterWrite && request.Flush && writtenBytes) {
             DoFlushFileRange(TFlushFileRangeRequest{
                 .Handle = request.Handle,
@@ -547,7 +549,7 @@ private:
             int bufferIndex = 0;
             i64 bufferOffset = 0; // within current buffer
 
-            auto config = Config_.Load();
+            auto config = Config_.Acquire();
             while (toWriteRemaining > 0) {
                 auto isPwritevSupported = [&] {
 #ifdef _linux_

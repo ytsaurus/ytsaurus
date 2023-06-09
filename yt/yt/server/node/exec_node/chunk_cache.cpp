@@ -62,6 +62,7 @@
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/serialize.h>
 
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 #include <library/cpp/yt/memory/ref.h>
 
 #include <util/generic/algorithm.h>
@@ -89,7 +90,6 @@ using namespace NLogging;
 using namespace NTracing;
 
 using NChunkClient::TDataSliceDescriptor;
-using NChunkClient::TChunkReaderStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -394,7 +394,7 @@ public:
 
         auto chunkReadOptions = MakeClientChunkReadOptions(
             artifactDownloadOptions,
-            /* bypassArtifactCache */ false);
+            /*bypassArtifactCache*/ false);
 
         auto Logger = ExecNodeLogger.WithTag("Key: %v, ReadSessionId: %v",
             key,
@@ -429,7 +429,7 @@ public:
 
         auto chunkReadOptions = MakeClientChunkReadOptions(
             artifactDownloadOptions,
-            /* bypassArtifactCache */ true);
+            /*bypassArtifactCache*/ true);
 
         decltype(&TImpl::MakeFileProducer) producerBuilder;
         switch (CheckedEnumCast<EDataSourceType>(key.data_source().type())) {
@@ -482,7 +482,7 @@ private:
     const TDataNodeConfigPtr Config_;
     IBootstrap* const Bootstrap_;
 
-    TAtomicObject<TArtifactCacheReaderConfigPtr> ArtifactCacheReaderConfig_;
+    TAtomicIntrusivePtr<TArtifactCacheReaderConfig> ArtifactCacheReaderConfig_;
 
     //! Describes a registered but not yet validated chunk.
     struct TRegisteredChunkDescriptor
@@ -1546,11 +1546,11 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return ArtifactCacheReaderConfig_.Load();
+        return ArtifactCacheReaderConfig_.Acquire();
     }
 
     void OnDynamicConfigChanged(
-        const TClusterNodeDynamicConfigPtr& /* oldNodeConfig */,
+        const TClusterNodeDynamicConfigPtr& /*oldNodeConfig*/,
         const TClusterNodeDynamicConfigPtr& newNodeConfig)
     {
         VERIFY_THREAD_AFFINITY_ANY();

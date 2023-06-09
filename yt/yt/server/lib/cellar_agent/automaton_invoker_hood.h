@@ -1,12 +1,16 @@
 #pragma once
 
-#include <yt/yt/core/concurrency/public.h>
+#include "public.h"
+
+#include <yt/yt/server/lib/hydra_common/public.h>
+
+#include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/actions/public.h>
 
-#include <yt/yt/core/misc/atomic_object.h>
-
 #include <library/cpp/yt/misc/enum.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 namespace NYT::NCellarAgent {
 
@@ -25,8 +29,8 @@ public:
 protected:
     const NConcurrency::IEnumIndexedFairShareActionQueuePtr<EQueue> AutomatonQueue_;
 
-    TEnumIndexedVector<EQueue, TAtomicObject<IInvokerPtr>> EpochAutomatonInvokers_;
-    TEnumIndexedVector<EQueue, TAtomicObject<IInvokerPtr>> GuardedAutomatonInvokers_;
+    TEnumIndexedVector<EQueue, TAtomicIntrusivePtr<IInvoker>> EpochAutomatonInvokers_;
+    TEnumIndexedVector<EQueue, TAtomicIntrusivePtr<IInvoker>> GuardedAutomatonInvokers_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);

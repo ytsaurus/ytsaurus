@@ -7,7 +7,8 @@
 
 #include <yt/yt/core/misc/lazy_ptr.h>
 #include <yt/yt/core/misc/singleton.h>
-#include <yt/yt/core/misc/atomic_object.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 namespace NYT::NRpc {
 
@@ -66,7 +67,7 @@ public:
 
     IServiceDiscoveryPtr GetServiceDiscovery()
     {
-        return ServiceDiscovery_.Load();
+        return ServiceDiscovery_.Acquire();
     }
 
     void SetServiceDiscovery(IServiceDiscoveryPtr serviceDiscovery)
@@ -84,7 +85,7 @@ private:
 
     std::atomic<bool> AlertOnMissingRequestInfo_;
 
-    TAtomicObject<IServiceDiscoveryPtr> ServiceDiscovery_;
+    TAtomicIntrusivePtr<IServiceDiscovery> ServiceDiscovery_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

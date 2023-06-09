@@ -7,7 +7,6 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
-#include <yt/yt/core/misc/atomic_object.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/singleton.h>
 
@@ -18,6 +17,8 @@
 #include <yt/yt/library/tracing/tracer.h>
 
 #include <library/cpp/yt/threading/spin_lock.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 #include <atomic>
 #include <mutex>
@@ -77,7 +78,7 @@ void SetGlobalTracer(const ITracerPtr& tracer)
 
 struct TTracingConfigSingleton
 {
-    TAtomicObject<TTracingConfigPtr> Config = New<TTracingConfig>();
+    TAtomicIntrusivePtr<TTracingConfig> Config{New<TTracingConfig>()};
 };
 
 static TTracingConfigSingleton* GlobalTracingConfig()
@@ -92,7 +93,7 @@ void SetTracingConfig(TTracingConfigPtr config)
 
 TTracingConfigPtr GetTracingConfig()
 {
-    return GlobalTracingConfig()->Config.Load();
+    return GlobalTracingConfig()->Config.Acquire();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -6,7 +6,7 @@ namespace NYT::NHydra {
 
 TFuture<IChangelogStorePtr> TChangelogStoreFactoryThunk::Lock()
 {
-    return Underlying_.Load()->Lock();
+    return Underlying_.Acquire()->Lock();
 }
 
 void TChangelogStoreFactoryThunk::SetUnderlying(IChangelogStoreFactoryPtr underlying)

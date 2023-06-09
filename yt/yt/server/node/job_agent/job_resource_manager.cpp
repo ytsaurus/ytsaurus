@@ -17,13 +17,18 @@
 #include <yt/yt/server/lib/job_agent/config.h>
 
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
+
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
+
 #include <yt/yt/core/misc/atomic_object.h>
 #include <yt/yt/core/misc/proc.h>
+
 #include <yt/yt/core/net/helpers.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 namespace NYT::NJobAgent {
 
@@ -130,7 +135,7 @@ public:
             MemoryPressureDetector_ = New<TPeriodicExecutor>(
                 Bootstrap_->GetJobInvoker(),
                 BIND_NO_PROPAGATE(&TImpl::CheckMemoryPressure, MakeWeak(this)),
-                DynamicConfig_.Load()->MemoryPressureDetector->CheckPeriod);
+                DynamicConfig_.Acquire()->MemoryPressureDetector->CheckPeriod);
         }
     }
 
@@ -179,7 +184,7 @@ public:
         if (Bootstrap_->IsExecNode()) {
             MajorPageFaultsGauge_.Update(LastMajorPageFaultCount_);
 
-            if (FreeMemoryWatermarkMultiplier_ != 1.0 && DynamicConfig_.Load()->MemoryPressureDetector->Enabled) {
+            if (FreeMemoryWatermarkMultiplier_ != 1.0 && DynamicConfig_.Acquire()->MemoryPressureDetector->Enabled) {
                 FreeMemoryWatermarkMultiplierGauge_.Update(FreeMemoryWatermarkMultiplier_);
                 FreeMemoryWatermarkAddedMemoryGauge_.Update(GetFreeMemoryWatermark() - Config_->FreeMemoryWatermark);
                 FreeMemoryWatermarkIsIncreasedGauge_.Update(1);
@@ -297,7 +302,7 @@ public:
 
     i64 GetFreeMemoryWatermark() const
     {
-        return DynamicConfig_.Load()->MemoryPressureDetector->Enabled
+        return DynamicConfig_.Acquire()->MemoryPressureDetector->Enabled
             ? Config_->FreeMemoryWatermark * FreeMemoryWatermarkMultiplier_
             : Config_->FreeMemoryWatermark;
     }
@@ -487,7 +492,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto dynamicConfig = DynamicConfig_.Load();
+        auto dynamicConfig = DynamicConfig_.Acquire();
         if (dynamicConfig && dynamicConfig->EnableCpuToVCpuFactor) {
             if (dynamicConfig->CpuToVCpuFactor) {
                 return dynamicConfig->CpuToVCpuFactor.value();
@@ -793,7 +798,7 @@ private:
     const TIntrusivePtr<const TJobControllerConfig> Config_;
     IBootstrapBase* const Bootstrap_;
 
-    TAtomicObject<TJobControllerDynamicConfigPtr> DynamicConfig_ = New<TJobControllerDynamicConfig>();
+    TAtomicIntrusivePtr<TJobControllerDynamicConfig> DynamicConfig_{New<TJobControllerDynamicConfig>()};
 
     TAtomicObject<TNodeResourceLimitsOverrides> ResourceLimitsOverrides_;
 
@@ -891,7 +896,7 @@ private:
 
     void HandleMajorPageFaultsRateIncrease(i64 currentFaultCount)
     {
-        auto config = DynamicConfig_.Load()->MemoryPressureDetector;
+        auto config = DynamicConfig_.Acquire()->MemoryPressureDetector;
         YT_LOG_DEBUG(
             "Increased rate of major page faults in node container detected (MajorPageFaultCount: %v -> %v, Delta: %v, Threshold: %v, Period: %v)",
             LastMajorPageFaultCount_,

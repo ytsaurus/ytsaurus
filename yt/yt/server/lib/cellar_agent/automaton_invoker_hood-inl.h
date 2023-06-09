@@ -36,7 +36,7 @@ IInvokerPtr TAutomatonInvokerHood<EQueue>::GetEpochAutomatonInvoker(EQueue queue
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return EpochAutomatonInvokers_[queue].Load();
+    return EpochAutomatonInvokers_[queue].Acquire();
 }
 
 template <typename EQueue>
@@ -44,7 +44,7 @@ IInvokerPtr TAutomatonInvokerHood<EQueue>::GetGuardedAutomatonInvoker(EQueue que
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return GuardedAutomatonInvokers_[queue].Load();
+    return GuardedAutomatonInvokers_[queue].Acquire();
 }
 
 template <typename EQueue>
@@ -68,7 +68,7 @@ void TAutomatonInvokerHood<EQueue>::ResetEpochInvokers()
     VERIFY_THREAD_AFFINITY_ANY();
 
     for (auto& invoker : EpochAutomatonInvokers_) {
-	    invoker.Store(GetNullInvoker());
+        invoker.Store(GetNullInvoker());
     }
 }
 
@@ -92,7 +92,7 @@ void TAutomatonInvokerHood<EQueue>::ResetGuardedInvokers()
     VERIFY_THREAD_AFFINITY_ANY();
 
     for (auto& invoker : GuardedAutomatonInvokers_) {
-	    invoker.Store(GetNullInvoker());
+        invoker.Store(GetNullInvoker());
     }
 }
 

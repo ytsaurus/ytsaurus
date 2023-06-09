@@ -41,9 +41,10 @@
 
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
-#include <yt/yt/core/misc/atomic_object.h>
 
 #include <yt/yt/core/rpc/helpers.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 namespace NYT::NQueryClient {
 
@@ -65,7 +66,6 @@ using NNodeTrackerClient::INodeChannelFactoryPtr;
 using NObjectClient::TObjectId;
 using NObjectClient::FromObjectId;
 
-using NHiveClient::TCellDescriptor;
 using NHiveClient::TCellDescriptorPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -103,7 +103,7 @@ public:
 
     IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        auto reader = RowsetReader_.Load();
+        auto reader = RowsetReader_.Acquire();
         return reader
             ? reader->Read(options)
             : CreateEmptyUnversionedRowBatch();
@@ -111,7 +111,7 @@ public:
 
     TFuture<void> GetReadyEvent() const override
     {
-        auto reader = RowsetReader_.Load();
+        auto reader = RowsetReader_.Acquire();
         return reader
             ? reader->GetReadyEvent()
             : QueryResult_.As<void>();
@@ -148,7 +148,7 @@ private:
     const NLogging::TLogger Logger;
 
     TFuture<TQueryStatistics> QueryResult_;
-    TAtomicObject<ISchemafulUnversionedReaderPtr> RowsetReader_;
+    TAtomicIntrusivePtr<ISchemafulUnversionedReader> RowsetReader_;
 
     TQueryStatistics OnResponse(const TQueryServiceProxy::TRspExecutePtr& response)
     {

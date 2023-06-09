@@ -6,17 +6,17 @@ namespace NYT::NHydra {
 
 ISnapshotReaderPtr TSnapshotStoreThunk::CreateReader(int snapshotId)
 {
-    return Underlying_.Load()->CreateReader(snapshotId);
+    return Underlying_.Acquire()->CreateReader(snapshotId);
 }
 
 ISnapshotWriterPtr TSnapshotStoreThunk::CreateWriter(int snapshotId, const NProto::TSnapshotMeta& meta)
 {
-    return Underlying_.Load()->CreateWriter(snapshotId, meta);
+    return Underlying_.Acquire()->CreateWriter(snapshotId, meta);
 }
 
 TFuture<int> TSnapshotStoreThunk::GetLatestSnapshotId(int maxSnapshotId)
 {
-    return Underlying_.Load()->GetLatestSnapshotId(maxSnapshotId);
+    return Underlying_.Acquire()->GetLatestSnapshotId(maxSnapshotId);
 }
 
 void TSnapshotStoreThunk::SetUnderlying(ISnapshotStorePtr underlying)

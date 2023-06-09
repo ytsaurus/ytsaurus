@@ -403,7 +403,7 @@ public:
 
         auto commitTimestamp = transaction->GetCommitTimestamp();
 
-        auto progress = Tablet_->RuntimeData()->ReplicationProgress.Load();
+        auto progress = Tablet_->RuntimeData()->ReplicationProgress.Acquire();
         auto maxTimestamp = GetReplicationProgressMaxTimestamp(*progress);
         if (maxTimestamp >= commitTimestamp) {
             YT_LOG_ALERT("Tablet replication progress is beyond current serialized transaction commit timestamp "

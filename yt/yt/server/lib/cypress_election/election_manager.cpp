@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/misc/atomic_object.h>
 
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+
 namespace NYT::NCypressElection {
 
 using namespace NApi;
@@ -111,7 +113,7 @@ public:
             return Options_->TransactionAttributes;
         }
 
-        return CachedLeaderTransactionAttributes_.Load();
+        return CachedLeaderTransactionAttributes_.Acquire();
     }
 
     DEFINE_SIGNAL_OVERRIDE(void(), LeadingStarted);
@@ -126,15 +128,15 @@ private:
 
     const TPeriodicExecutorPtr LockAcquisitionExecutor_;
 
-    TObjectId LockNodeId_ = NullObjectId;
+    TObjectId LockNodeId_;
 
-    TAtomicObject<TTransactionId> PrerequisiteTransactionId_ = NullTransactionId;
+    TAtomicObject<TTransactionId> PrerequisiteTransactionId_;
 
     ITransactionPtr Transaction_;
-    TObjectId LockId_ = NullObjectId;
+    TObjectId LockId_;
 
     const TPeriodicExecutorPtr LeaderTransactionAttributeCacheExecutor_;
-    TAtomicObject<IAttributeDictionaryPtr> CachedLeaderTransactionAttributes_;
+    TAtomicIntrusivePtr<IAttributeDictionary> CachedLeaderTransactionAttributes_;
 
     std::atomic<bool> IsActive_ = false;
 

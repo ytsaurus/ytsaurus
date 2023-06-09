@@ -22,6 +22,8 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+
 namespace NYT::NDataNode {
 
 using namespace NConcurrency;
@@ -35,7 +37,6 @@ using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 
 using NJobTrackerClient::NProto::TJobSpec;
-using NNodeTrackerClient::NProto::TNodeResources;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -218,7 +219,7 @@ private:
 
     IJobResourceManagerPtr JobResourceManager_;
 
-    TAtomicObject<TJobControllerDynamicConfigPtr> DynamicConfig_ = New<TJobControllerDynamicConfig>();
+    TAtomicIntrusivePtr<TJobControllerDynamicConfig> DynamicConfig_{New<TJobControllerDynamicConfig>()};
 
     TMasterJobSensors MasterJobSensors_;
 

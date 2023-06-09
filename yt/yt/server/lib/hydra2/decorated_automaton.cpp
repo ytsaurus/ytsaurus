@@ -1122,7 +1122,7 @@ TEpochContextPtr TDecoratedAutomaton::GetEpochContext() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return EpochContext_.Load();
+    return EpochContext_.Acquire();
 }
 
 TEpochId TDecoratedAutomaton::GetEpochId() const
@@ -1130,7 +1130,7 @@ TEpochId TDecoratedAutomaton::GetEpochId() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     // TODO(babenko): optimize
-    return EpochContext_.Load()->EpochId;
+    return EpochContext_.Acquire()->EpochId;
 }
 
 ui64 TDecoratedAutomaton::GetStateHash() const

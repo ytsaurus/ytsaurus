@@ -196,7 +196,7 @@ void TGpuManager::OnDynamicConfigChanged(
 
 TDuration TGpuManager::GetHealthCheckTimeout() const
 {
-    auto dynamicConfig = DynamicConfig_.Load();
+    auto dynamicConfig = DynamicConfig_.Acquire();
     return dynamicConfig
         ? dynamicConfig->HealthCheckTimeout.value_or(Config_->HealthCheckTimeout)
         : Config_->HealthCheckTimeout;
@@ -204,7 +204,7 @@ TDuration TGpuManager::GetHealthCheckTimeout() const
 
 TDuration TGpuManager::GetHealthCheckFailureBackoff() const
 {
-    auto dynamicConfig = DynamicConfig_.Load();
+    auto dynamicConfig = DynamicConfig_.Acquire();
     return dynamicConfig
         ? dynamicConfig->HealthCheckFailureBackoff.value_or(Config_->HealthCheckFailureBackoff)
         : Config_->HealthCheckFailureBackoff;
@@ -212,7 +212,7 @@ TDuration TGpuManager::GetHealthCheckFailureBackoff() const
 
 THashMap<TString, TString> TGpuManager::GetCudaToolkitMinDriverVersion() const
 {
-    auto dynamicConfig = DynamicConfig_.Load();
+    auto dynamicConfig = DynamicConfig_.Acquire();
     return dynamicConfig
         ? dynamicConfig->CudaToolkitMinDriverVersion.value_or(Config_->CudaToolkitMinDriverVersion)
         : Config_->CudaToolkitMinDriverVersion;
@@ -227,7 +227,7 @@ void TGpuManager::OnHealthCheck()
     }
 
     try {
-        auto gpuInfos = GpuInfoProvider_.Load()->GetGpuInfos(GetHealthCheckTimeout());
+        auto gpuInfos = GpuInfoProvider_.Acquire()->GetGpuInfos(GetHealthCheckTimeout());
 
         THashSet<int> deviceIndices;
         for (const auto& info : gpuInfos) {

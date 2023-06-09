@@ -60,6 +60,8 @@
 
 #include <yt/yt/core/misc/atomic_object.h>
 
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+
 namespace NYT::NTabletServer {
 
 using namespace NCellMaster;
@@ -310,10 +312,10 @@ private:
 
     std::atomic<TDuration> GeneralCheckTimeout_ = TDuration::Minutes(1);
 
-    TAtomicObject<TBundleHealthCachePtr> BundleHealthCache_;
-    TAtomicObject<TClusterStateCachePtr> ClusterStateCache_;
-    TAtomicObject<NTabletNode::TReplicatorHintConfigPtr> ReplicatorHintConfig_;
-    std::atomic<i64> MaxIterationsWithoutAcceptableBundleHealth_{1};
+    TAtomicIntrusivePtr<TBundleHealthCache> BundleHealthCache_;
+    TAtomicIntrusivePtr<TClusterStateCache> ClusterStateCache_;
+    TAtomicIntrusivePtr<NTabletNode::TReplicatorHintConfig> ReplicatorHintConfig_;
+    std::atomic<i64> MaxIterationsWithoutAcceptableBundleHealth_ = 1;
 
     class TReplica
         : public TRefCounted
@@ -1223,9 +1225,9 @@ private:
                 replica->GetMode(),
                 replica->GetClusterName(),
                 replica->GetReplicaPath(),
-                BundleHealthCache_.Load(),
-                ClusterStateCache_.Load(),
-                ReplicatorHintConfig_.Load(),
+                BundleHealthCache_.Acquire(),
+                ClusterStateCache_.Acquire(),
+                ReplicatorHintConfig_.Acquire(),
                 std::move(client),
                 CheckerThreadPool_->GetInvoker(),
                 replica->ComputeReplicationLagTime(latestTimestamp),

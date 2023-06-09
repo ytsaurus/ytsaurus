@@ -660,6 +660,11 @@ private:
             return Owner_->Bootstrap_->GetControlInvoker();
         }
 
+        IInvokerPtr GetAutomatonInvoker() const override
+        {
+            return Owner_->Slot_->GetAutomatonInvoker(EAutomatonThreadQueue::Default);
+        }
+
         IColumnEvaluatorCachePtr GetColumnEvaluatorCache() const override
         {
             return Owner_->Bootstrap_->GetColumnEvaluatorCache();
@@ -1481,7 +1486,7 @@ private:
                 TRspUnmountTablet response;
                 ToProto(response.mutable_tablet_id(), tabletId);
                 *response.mutable_mount_hint() = tablet->GetMountHint();
-                if (auto replicationProgress = tablet->RuntimeData()->ReplicationProgress.Load()) {
+                if (auto replicationProgress = tablet->RuntimeData()->ReplicationProgress.Acquire()) {
                     ToProto(response.mutable_replication_progress(), *replicationProgress);
                 }
 
@@ -2597,7 +2602,7 @@ private:
                 round);
         }
 
-        auto progress = tablet->RuntimeData()->ReplicationProgress.Load();
+        auto progress = tablet->RuntimeData()->ReplicationProgress.Acquire();
         if (!IsReplicationProgressGreaterOrEqual(newProgress, *progress)) {
             THROW_ERROR_EXCEPTION("Tablet %v replication progress is not strictly behind",
                 tabletId);
@@ -2658,7 +2663,7 @@ private:
 
         // NB: It is legitimate for `progress` to be less than `tabletProgress`: tablet progress could have been
         // updated by some recent transaction while `progress` has been constructed even before `transaction` started.
-        auto tabletProgress = tablet->RuntimeData()->ReplicationProgress.Load();
+        auto tabletProgress = tablet->RuntimeData()->ReplicationProgress.Acquire();
         bool isStrictlyAdvanced = IsReplicationProgressGreaterOrEqual(*progress, *tabletProgress);
 
         YT_LOG_DEBUG("Serializing advance replication progress transaction "
@@ -3561,8 +3566,8 @@ private:
                 .Item("pending_user_write_record_count").Value(tablet->GetPendingUserWriteRecordCount())
                 .Item("pending_replicator_write_record_count").Value(tablet->GetPendingReplicatorWriteRecordCount())
                 .Item("upstream_replica_id").Value(tablet->GetUpstreamReplicaId())
-                .Item("replication_card").Value(tablet->RuntimeData()->ReplicationCard.Load())
-                .Item("replication_progress").Value(tablet->RuntimeData()->ReplicationProgress.Load())
+                .Item("replication_card").Value(tablet->RuntimeData()->ReplicationCard.Acquire())
+                .Item("replication_progress").Value(tablet->RuntimeData()->ReplicationProgress.Acquire())
                 .Item("replication_era").Value(tablet->RuntimeData()->ReplicationEra.load())
                 .Item("replication_round").Value(tablet->ChaosData()->ReplicationRound.load())
                 .Item("write_mode").Value(tablet->RuntimeData()->WriteMode.load())

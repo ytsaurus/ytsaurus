@@ -63,6 +63,8 @@
 #include <library/cpp/yt/threading/spin_lock.h>
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NApi;
@@ -74,10 +76,8 @@ using namespace NNodeTrackerClient;
 using namespace NTableClient;
 using namespace NTabletClient;
 
-using NChunkClient::NProto::TChunkMeta;
 using NChunkClient::NProto::TMiscExt;
 using NChunkClient::NProto::TBlocksExt;
-using NTableClient::NProto::TDataBlockMetaExt;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -275,11 +275,11 @@ public:
 
     TInMemoryManagerConfigPtr GetConfig() const override
     {
-        return Config_.Load();
+        return Config_.Acquire();
     }
 
 private:
-    TAtomicObject<TInMemoryManagerConfigPtr> Config_{New<TInMemoryManagerConfig>()};
+    TAtomicIntrusivePtr<TInMemoryManagerConfig> Config_{New<TInMemoryManagerConfig>()};
 
     IBootstrap* const Bootstrap_;
     const IInvokerPtr CompressionInvoker_;

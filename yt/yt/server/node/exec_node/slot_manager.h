@@ -13,7 +13,6 @@
 #include <yt/yt/core/concurrency/public.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/yt/core/misc/atomic_object.h>
 #include <yt/yt/core/misc/fs.h>
 
 #include <yt/yt/core/ytree/fluent.h>
@@ -158,12 +157,12 @@ private:
 
     std::atomic<ESlotManagerState> State_ = ESlotManagerState::Disabled;
 
-    std::atomic_bool JobProxyReady_ = false;
+    std::atomic<bool> JobProxyReady_ = false;
 
     TAtomicIntrusivePtr<TSlotManagerDynamicConfig> DynamicConfig_;
     TAtomicIntrusivePtr<NClusterNode::TClusterNodeDynamicConfig> ClusterConfig_;
 
-    TAtomicObject<IVolumeManagerPtr> RootVolumeManager_;
+    TAtomicIntrusivePtr<IVolumeManager> RootVolumeManager_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, LocationsLock_);
     std::vector<TSlotLocationPtr> Locations_;

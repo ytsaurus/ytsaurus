@@ -2,7 +2,7 @@
 
 #include "election_manager.h"
 
-#include <yt/yt/core/misc/atomic_object.h>
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 namespace NYT::NElection {
 
@@ -25,8 +25,7 @@ public:
     void SetUnderlying(IElectionManagerPtr underlying);
 
 private:
-    TAtomicObject<IElectionManagerPtr> Underlying_;
-
+    TAtomicIntrusivePtr<IElectionManager> Underlying_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TElectionManagerThunk)

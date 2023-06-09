@@ -39,10 +39,11 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/yt/core/misc/atomic_object.h>
 #include <yt/yt/core/misc/statistics.h>
 
 #include <yt/yt/core/ytree/ypath_resolver.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 namespace NYT::NExecNode {
 
@@ -62,7 +63,6 @@ using namespace NScheduler;
 using namespace NControllerAgent;
 
 using NControllerAgent::NProto::TJobSpec;
-using NControllerAgent::NProto::TJobResult;
 using NNodeTrackerClient::NProto::TNodeResources;
 
 using TControllerAgentConnectorPtr = TControllerAgentConnectorPool::TControllerAgentConnectorPtr;
@@ -300,7 +300,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto config = DynamicConfig_.Load();
+        auto config = DynamicConfig_.Acquire();
         YT_VERIFY(config);
 
         return config;
@@ -477,7 +477,7 @@ private:
     // It is needed because cpu_to_vcpu_factor can change between preparing request and processing response.
     double LastHeartbeatCpuToVCpuFactor_ = 1.0;
 
-    TAtomicObject<TJobControllerDynamicConfigPtr> DynamicConfig_ = New<TJobControllerDynamicConfig>();
+    TAtomicIntrusivePtr<TJobControllerDynamicConfig> DynamicConfig_{New<TJobControllerDynamicConfig>()};
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, JobMapLock_);
     THashMap<TJobId, TJobPtr> JobMap_;
@@ -1324,7 +1324,7 @@ private:
 
         const bool requestOperationInfosForJobs =
             TInstant::Now() > LastOperationInfosRequestTime_ +
-                DynamicConfig_.Load()->OperationInfosRequestPeriod;
+                DynamicConfig_.Acquire()->OperationInfosRequestPeriod;
         THashSet<TOperationId> operationIdsToRequestInfo;
 
         for (const auto& job : GetJobs()) {
@@ -2085,7 +2085,7 @@ private:
             try {
                 YT_LOG_DEBUG(error, "Trying to interrupt job");
                 job->Interrupt(
-                    DynamicConfig_.Load()->DisabledJobsInterruptionTimeout,
+                    DynamicConfig_.Acquire()->DisabledJobsInterruptionTimeout,
                     EInterruptReason::JobsDisabledOnNode,
                     /*preemptionReason*/ {},
                     /*preemptedFor*/ {});
