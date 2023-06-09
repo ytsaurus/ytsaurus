@@ -6,21 +6,22 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(arcadia_bridge)
 
-add_library(cpp-yt-logging)
-target_compile_options(cpp-yt-logging PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(cpp-yt-logging PUBLIC
+add_library(yql-plugin-bridge INTERFACE)
+target_link_libraries(yql-plugin-bridge INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  cpp-yt-assert
-  cpp-yt-memory
-  cpp-yt-misc
-  cpp-yt-yson_string
+  yt-yql-plugin
 )
-target_sources(cpp-yt-logging PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/yt/logging/logger.cpp
+
+add_global_library_for(yql-plugin-bridge.global yql-plugin-bridge)
+target_link_libraries(yql-plugin-bridge.global PUBLIC
+  contrib-libs-linux-headers
+  contrib-libs-cxxsupp
+  yutil
+  yt-yql-plugin
+)
+target_sources(yql-plugin-bridge.global PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yql/plugin/bridge/plugin.cpp
 )

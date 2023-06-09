@@ -6,9 +6,18 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(chyt)
-add_subdirectory(cpp)
-add_subdirectory(examples)
-add_subdirectory(yql)
-add_subdirectory(yt)
-add_subdirectory(yt_proto)
+
+add_library(yt-logging-arcadia_bridge)
+target_compile_options(yt-logging-arcadia_bridge PRIVATE
+  -Wdeprecated-this-capture
+)
+target_link_libraries(yt-logging-arcadia_bridge PUBLIC
+  contrib-libs-linux-headers
+  contrib-libs-cxxsupp
+  yutil
+  cpp-yt-assert
+  cpp-yt-logging
+)
+target_sources(yt-logging-arcadia_bridge PRIVATE
+  ${CMAKE_SOURCE_DIR}/library/cpp/yt/logging/arcadia_bridge/backend.cpp
+)

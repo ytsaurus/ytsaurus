@@ -6,9 +6,15 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(chyt)
-add_subdirectory(cpp)
-add_subdirectory(examples)
-add_subdirectory(yql)
-add_subdirectory(yt)
-add_subdirectory(yt_proto)
+add_subdirectory(bridge)
+
+add_library(yt-yql-plugin)
+target_link_libraries(yt-yql-plugin PUBLIC
+  contrib-libs-linux-headers
+  contrib-libs-cxxsupp
+  yutil
+  library-cpp-logger
+)
+target_sources(yt-yql-plugin PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yql/plugin/plugin.cpp
+)
