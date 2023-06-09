@@ -295,8 +295,8 @@ TException&& operator <<= (TException&& ex, TError&& error);
 #define THROW_ERROR \
     throw ::NYT::TErrorException() <<=
 
-#define THROW_ERROR_EXCEPTION(...) \
-    THROW_ERROR ::NYT::TError(__VA_ARGS__)
+#define THROW_ERROR_EXCEPTION(head, ...) \
+    THROW_ERROR ::NYT::TError(head __VA_OPT__(,) __VA_ARGS__)
 
 #define THROW_ERROR_EXCEPTION_IF_FAILED(error, ...) \
     if (const auto& error__ ## __LINE__  = (error); error__ ## __LINE__ .IsOK()) { \
@@ -304,14 +304,14 @@ TException&& operator <<= (TException&& ex, TError&& error);
         THROW_ERROR error__ ## __LINE__.Wrap(__VA_ARGS__); \
     }
 
-#define THROW_ERROR_EXCEPTION_UNLESS(condition, ...) \
+#define THROW_ERROR_EXCEPTION_UNLESS(condition, head, ...) \
     if ((condition)) {\
     } else { \
-        THROW_ERROR ::NYT::TError(__VA_ARGS__); \
+        THROW_ERROR ::NYT::TError(head __VA_OPT__(,) __VA_ARGS__); \
     }
 
-#define THROW_ERROR_EXCEPTION_IF(condition, ...) \
-    THROW_ERROR_EXCEPTION_UNLESS(!(condition), __VA_ARGS__)
+#define THROW_ERROR_EXCEPTION_IF(condition, head, ...) \
+    THROW_ERROR_EXCEPTION_UNLESS(!(condition), head, __VA_ARGS__)
 
 ////////////////////////////////////////////////////////////////////////////////
 
