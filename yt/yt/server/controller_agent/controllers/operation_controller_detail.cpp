@@ -8391,6 +8391,7 @@ void TOperationControllerBase::BuildBriefSpec(TFluentMap fluent) const
     fluent
         .OptionalItem("title", Spec_->Title)
         .OptionalItem("alias", Spec_->Alias)
+        .Item("user_transaction_id").Value(UserTransactionId)
         .Item("input_table_paths").ListLimited(inputPaths, 1)
         .Item("output_table_paths").ListLimited(outputPaths, 1);
 }

@@ -11,9 +11,9 @@ from yt_commands import (
     create, ls, get,
     set, remove, exists, create_account, create_tmpdir, create_user, create_pool, create_pool_tree,
     start_transaction, abort_transaction,
-    read_table, write_table, map, reduce, sort,
+    lookup_rows, read_table, write_table, map, reduce, sort,
     run_test_vanilla, run_sleeping_vanilla,
-    abort_job, get_job, get_job_fail_context, list_jobs, get_operation,
+    abort_job, get_job, get_job_fail_context, list_jobs, list_operations, get_operation, clean_operations,
     abandon_job, sync_create_cells, update_controller_agent_config, update_scheduler_config,
     set_banned_flag, PrepareTables, sorted_dicts)
 
@@ -25,7 +25,7 @@ from yt_scheduler_helpers import (
 from yt_helpers import JobCountProfiler, get_current_time, parse_yt_time, profiler_factory, get_job_count_profiling
 
 from yt.yson import YsonEntity
-from yt.common import YtResponseError, YtError
+from yt.common import uuid_to_parts, YtResponseError, YtError, datetime_to_string
 from yt.test_helpers import are_almost_equal
 import yt.environment.init_operation_archive as init_operation_archive
 from yt.environment import arcadia_interop
@@ -37,7 +37,7 @@ import shutil
 import time
 import subprocess
 import os.path
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 ##################################################################
 
@@ -1386,6 +1386,16 @@ class TestSchedulerAttributes(YTEnvSetup):
         "scheduler": {
             "event_log": {"retry_backoff_time": 7, "flush_period": 5000},
             "enable_operation_heavy_attributes_archivation": True,
+            "operations_cleaner": {
+                "enable": True,
+                "analysis_period": 100,
+                "archive_batch_timeout": 100,
+                "min_archivation_retry_sleep_delay": 100,
+                "max_archivation_retry_sleep_delay": 110,
+                "clean_delay": 50,
+                "fetch_batch_size": 1,
+                "max_operation_age": 100,
+            },
         },
     }
 
@@ -1496,6 +1506,39 @@ class TestSchedulerAttributes(YTEnvSetup):
         else:
             wait(lambda: exists(op.get_path() + "/@unrecognized_spec"))
             assert get(op.get_path() + "/@unrecognized_spec")["xxx"] == "yyy"
+
+    @authors("omgronny")
+    def test_brief_spec_in_archive(self):
+        sync_create_cells(1)
+        init_operation_archive.create_tables_latest_version(
+            self.Env.create_native_client(), override_tablet_cell_bundle="default",
+        )
+
+        transaction_id = start_transaction(timeout=300 * 1000)
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), tx=transaction_id)
+
+        wait_breakpoint()
+
+        wait(lambda: exists(op.get_path() + "/@brief_spec"))
+        assert get(op.get_path() + "/@brief_spec/user_transaction_id") == transaction_id
+        assert get_operation(op.id)["brief_spec"]["user_transaction_id"] == transaction_id
+
+        release_breakpoint()
+        op.track()
+
+        clean_operations()
+
+        id_hi, id_lo = uuid_to_parts(op.id)
+        rows = lookup_rows("//sys/operations_archive/ordered_by_id", [{"id_hi": id_hi, "id_lo": id_lo}])
+        assert rows[0]["brief_spec"]["user_transaction_id"] == transaction_id
+
+        assert get_operation(op.id)["brief_spec"]["user_transaction_id"] == transaction_id
+        res = list_operations(
+            include_archive=True,
+            from_time=datetime_to_string(datetime.utcfromtimestamp(0)),
+            to_time=datetime_to_string(datetime.utcnow()),
+        )
+        assert res["operations"][0]["brief_spec"]["user_transaction_id"] == transaction_id
 
 
 ##################################################################
