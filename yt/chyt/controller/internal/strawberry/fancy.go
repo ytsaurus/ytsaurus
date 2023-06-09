@@ -8,9 +8,9 @@ import (
 	"go.ytsaurus.tech/yt/go/yt"
 )
 
-func ToYsonURL(value interface{}) interface{} {
+func ToYsonURL(value any) any {
 	return &yson.ValueWithAttrs{
-		Attrs: map[string]interface{}{"_type_tag": "url"},
+		Attrs: map[string]any{"_type_tag": "url"},
 		Value: value,
 	}
 }

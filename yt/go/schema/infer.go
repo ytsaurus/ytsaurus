@@ -190,7 +190,7 @@ func Infer(value any) (s Schema, err error) {
 	return
 }
 
-// InferMap infers Schema from go map[string]interface{}.
+// InferMap infers Schema from go map[string]any.
 //
 // InferMap creates column for each key value pair.
 // Column name inferred from key itself, and column type inferred from the type of value.
@@ -239,7 +239,7 @@ func InferMap(value any) (s Schema, err error) {
 	return
 }
 
-// MustInferMap infers Schema from go map[string]interface{}.
+// MustInferMap infers Schema from go map[string]any.
 //
 // MustInferMap panics on errors.
 func MustInferMap(value any) (s Schema) {
