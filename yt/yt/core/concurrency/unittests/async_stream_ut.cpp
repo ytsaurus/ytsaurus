@@ -129,8 +129,8 @@ protected:
     }
 
 private:
-    IInputStream* InputStream_;
-    size_t MaxBlockSize_;
+    IInputStream* const InputStream_;
+    const size_t MaxBlockSize_;
 };
 
 //! This test creates a big block size async zero copy input stream
