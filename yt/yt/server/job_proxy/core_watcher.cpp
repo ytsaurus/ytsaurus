@@ -102,7 +102,7 @@ TCoreWatcher::TCoreWatcher(
     TChunkListId chunkList)
     : Config_(std::move(config))
     , ControlInvoker_(std::move(controlInvoker))
-    , IOInvoker_(CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker()))
+    , IOInvoker_(CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker(), "core_watcher"))
     , PeriodicExecutor_(New<TPeriodicExecutor>(
         ControlInvoker_,
         BIND(&TCoreWatcher::DoWatchCores, MakeWeak(this)),

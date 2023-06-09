@@ -5,6 +5,7 @@
 #include <yt/yt/core/actions/callback.h>
 
 #include <yt/yt/library/profiling/public.h>
+#include <yt/yt/library/profiling/tag.h>
 
 #include <library/cpp/yt/memory/public.h>
 
@@ -44,6 +45,11 @@ IInvokerPtr CreateSerializedInvoker(
     const TString& invokerName = "default",
     NProfiling::IRegistryImplPtr registry = nullptr);
 
+IInvokerPtr CreateSerializedInvoker(
+    IInvokerPtr underlyingInvoker,
+    const NProfiling::TTagSet& tagSet,
+    NProfiling::IRegistryImplPtr registry = nullptr);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Creates a wrapper around IInvoker that supports callback reordering.
@@ -53,6 +59,11 @@ IInvokerPtr CreateSerializedInvoker(
 IPrioritizedInvokerPtr CreatePrioritizedInvoker(
     IInvokerPtr underlyingInvoker,
     const TString& invokerName = "default",
+    NProfiling::IRegistryImplPtr registry = nullptr);
+
+IPrioritizedInvokerPtr CreatePrioritizedInvoker(
+    IInvokerPtr underlyingInvoker,
+    const NProfiling::TTagSet& tagSet,
     NProfiling::IRegistryImplPtr registry = nullptr);
 
 //! Creates a wrapper around IInvoker that implements IPrioritizedInvoker but

@@ -64,7 +64,7 @@ public:
         ISchemalessMultiChunkWriterPtr underlying)
         : TypeConversionConfig_(std::move(typeConversionConfig))
         , Underlying_(std::move(underlying))
-        , SerializedInvoker_(CreateSerializedInvoker(GetCurrentInvoker()))
+        , SerializedInvoker_(CreateSerializedInvoker(GetCurrentInvoker(), "multiplexing_writer"))
     { }
 
     // Create consumer corresponding to a stream no. |index| and having given schema.

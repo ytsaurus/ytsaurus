@@ -39,7 +39,7 @@ public:
         : ConnectionId_(TConnectionId::Create())
         , Config_(std::move(config))
         , Connection_(std::move(connection))
-        , Invoker_(CreateSerializedInvoker(std::move(invoker)))
+        , Invoker_(CreateSerializedInvoker(std::move(invoker), "zookeeper_proxy_connection"))
         , RequestHandler_(std::move(requestHandler))
         , FailHandler_(std::move(failHandler))
         , PacketEncoder_(GetZookeeperPacketTranscoderFactory()->CreateEncoder(

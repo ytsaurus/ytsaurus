@@ -101,7 +101,7 @@ public:
         IPollerPtr poller,
         IConnectionPtr connection)
         : Ctx_(std::move(ctx))
-        , Invoker_(CreateSerializedInvoker(poller->GetInvoker()))
+        , Invoker_(CreateSerializedInvoker(poller->GetInvoker(), "crypto_tls_connection"))
         , Underlying_(std::move(connection))
     {
         Ssl_ = SSL_new(Ctx_->Ctx);

@@ -34,7 +34,7 @@ public:
         : Config_(std::move(config))
         , Options_(std::move(options))
         , Client_(std::move(client))
-        , Invoker_(CreateSerializedInvoker(std::move(invoker)))
+        , Invoker_(CreateSerializedInvoker(std::move(invoker), NProfiling::TTagSet({{"invoker", "cypress_election_manager"}, {"group", Options_->GroupName}, {"path", Config_->LockPath}})))
         , Logger(CypressElectionLogger.WithTag("GroupName: %v, Path: %v", Options_->GroupName, Config_->LockPath))
         , LockAcquisitionExecutor_(New<TPeriodicExecutor>(
             Invoker_,

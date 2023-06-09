@@ -186,7 +186,7 @@ public:
         , JobEnvironmentType_(ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment)->Type)
         , PipeIOPool_(CreateThreadPool(JobIOConfig_->PipeIOPoolSize, "PipeIO"))
         , AuxQueue_(New<TActionQueue>("JobAux"))
-        , ReadStderrInvoker_(CreateSerializedInvoker(PipeIOPool_->GetInvoker()))
+        , ReadStderrInvoker_(CreateSerializedInvoker(PipeIOPool_->GetInvoker(), "user_job"))
         , TmpfsManager_(New<TTmpfsManager>(Config_->TmpfsManager))
         , MemoryTracker_(New<TMemoryTracker>(Config_->MemoryTracker, UserJobEnvironment_, TmpfsManager_))
     {

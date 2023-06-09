@@ -45,10 +45,8 @@ bool TInvokerWrapper::IsSerialized() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TInvokerProfileWrapper::TInvokerProfileWrapper(NProfiling::IRegistryImplPtr registry, const TString& invokerFamily, const TString& invokerName)
+TInvokerProfileWrapper::TInvokerProfileWrapper(NProfiling::IRegistryImplPtr registry, const TString& invokerFamily, const NProfiling::TTagSet& tagSet)
 {
-    NProfiling::TTagSet tagSet;
-    tagSet.AddTag(std::pair<TString, TString>("invoker", invokerName));
     auto profiler = NProfiling::TProfiler("/invoker", NProfiling::TProfiler::DefaultNamespace, tagSet, registry).WithHot();
     WaitTimer_ = profiler.Timer(invokerFamily + "/wait");
 }

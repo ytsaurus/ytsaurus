@@ -274,7 +274,7 @@ public:
             Bootstrap_))
         , JobTracker_(New<TJobTracker>(Bootstrap_, JobReporter_))
         , JobProfiler_(New<TJobProfiler>())
-        , JobEventsInvoker_(CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker()))
+        , JobEventsInvoker_(CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker(), "controller_agent"))
         , CachedExecNodeDescriptorsByTags_(New<TSyncExpiringCache<TSchedulingTagFilter, TFilteredExecNodeDescriptors>>(
             BIND_NO_PROPAGATE(&TImpl::FilterExecNodes, MakeStrong(this)),
             Config_->SchedulingTagFilterExpireTimeout,

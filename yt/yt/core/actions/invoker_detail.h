@@ -35,10 +35,12 @@ protected:
 class TInvokerProfileWrapper
 {
 public:
-    /*! #invokerFamily defines a family of invokers, e.g. "serialized" or "prioriized" and appears in the sensor name.
-    *  #invokerName defines a particular instance of the invoker and gets into the tag "invoker".
+    /*!
+    *  #registry defines a profile registry where sensors data is stored.
+    *  #invokerFamily defines a family of invokers, e.g. "serialized" or "prioriized" and appears in sensor's name.
+    *  #tagSet defines a particular instance of the invoker and appears in sensor's tags.
     */
-    TInvokerProfileWrapper(NProfiling::IRegistryImplPtr registry, const TString& invokerFamily, const TString& invokerName);
+    TInvokerProfileWrapper(NProfiling::IRegistryImplPtr registry, const TString& invokerFamily, const NProfiling::TTagSet& tagSet);
 
 protected:
     TClosure WrapCallback(TClosure callback);

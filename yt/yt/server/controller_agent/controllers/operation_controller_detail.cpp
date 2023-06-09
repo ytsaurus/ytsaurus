@@ -252,7 +252,7 @@ TOperationControllerBase::TOperationControllerBase(
     , DiagnosableInvokerPool_(CreateFairShareInvokerPool(
         CreateCodicilGuardedInvoker(
             CreateMemoryTaggingInvoker(
-                CreateSerializedInvoker(Host->GetControllerThreadPoolInvoker()),
+                CreateSerializedInvoker(Host->GetControllerThreadPoolInvoker(), "operation_controller_base"),
                 operation->GetMemoryTag()),
             Format(
                 "OperationId: %v\nAuthenticatedUser: %v",

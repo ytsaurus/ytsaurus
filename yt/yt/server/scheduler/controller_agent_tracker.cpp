@@ -497,7 +497,7 @@ public:
                 std::move(tags),
                 std::move(channel),
                 Bootstrap_->GetControlInvoker(EControlQueue::AgentTracker),
-                CreateSerializedInvoker(MessageOffloadThreadPool_->GetInvoker()));
+                CreateSerializedInvoker(MessageOffloadThreadPool_->GetInvoker(), "controller_agent_tracker"));
 
             agent->SetState(EControllerAgentState::Registering);
             EmplaceOrCrash(IdToAgent_, agent->GetId(), agent);

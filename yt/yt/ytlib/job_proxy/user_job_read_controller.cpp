@@ -46,7 +46,7 @@ public:
         IUserJobIOFactoryPtr userJobIOFactory,
         std::optional<TString> udfDirectory)
         : JobSpecHelper_(std::move(jobSpecHelper))
-        , SerializedInvoker_(CreateSerializedInvoker(std::move(invoker)))
+        , SerializedInvoker_(CreateSerializedInvoker(std::move(invoker), "user_job_read_controller"))
         , OnNetworkRelease_(onNetworkRelease)
         , UserJobIOFactory_(userJobIOFactory)
         , UdfDirectory_(std::move(udfDirectory))

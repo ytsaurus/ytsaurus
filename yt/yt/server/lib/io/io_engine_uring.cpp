@@ -1580,12 +1580,12 @@ public:
         NLogging::TLogger logger)
         : TIOEngineBase(
             config,
-            std::move(locationId),
+            locationId,
             std::move(profiler),
             std::move(logger))
         , StaticConfig_(std::move(config))
         , Config_(New<TUringConfigProvider>(StaticConfig_))
-        , ReconfigureInvoker_(CreateSerializedInvoker(GetAuxPoolInvoker()))
+        , ReconfigureInvoker_(CreateSerializedInvoker(GetAuxPoolInvoker(), NProfiling::TTagSet({{"invoker", "uring_io_engine_base"}, {"location_id", locationId}})))
         , ThreadPool_(New<TUringThreadPool>(
             Format("%v:%v", TRequestQueue::GetThreadPoolName(), LocationId_),
             LocationId_,

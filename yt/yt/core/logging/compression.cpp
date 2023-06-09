@@ -16,7 +16,7 @@ TAppendableCompressedFile::TAppendableCompressedFile(
     bool writeTruncateMessage)
     : Codec_(std::move(codec))
     , CompressInvoker_(std::move(compressInvoker))
-    , SerializedInvoker_(CreateSerializedInvoker(CompressInvoker_))
+    , SerializedInvoker_(CreateSerializedInvoker(CompressInvoker_, NProfiling::TTagSet({{"invoker", "appendable_compressed_file"}, {"file_name", file.GetName()}})))
     , MaxBlockSize_(static_cast<size_t>(Codec_->GetMaxBlockSize()))
     , File_(std::move(file))
 {

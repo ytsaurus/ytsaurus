@@ -463,7 +463,7 @@ private:
         auto memoryManager = New<TChunkReaderMemoryManager>(
             TChunkReaderMemoryManagerOptions(ReaderConfig_->WindowSize));
 
-        auto statisticsInvoker = CreateSerializedInvoker(GetCurrentInvoker());
+        auto statisticsInvoker = CreateSerializedInvoker(GetCurrentInvoker(), "shallow_merge_job");
 
         auto blockFetcher = New<TBlockFetcher>(
             ReaderConfig_,

@@ -196,7 +196,7 @@ TEST(TestInvokersWaitTime, SerializedInvoker)
     registry->Collect();
 
     auto sensorDump = registry->DumpSensors();
-    const auto& summary = GetSummaryDuration(sensorDump, "yt/invoker/serialized_invoker/wait");
+    const auto& summary = GetSummaryDuration(sensorDump, "yt/invoker/serialized/wait");
 
     // The action has been executed 3 times.
     EXPECT_EQ(summary.count(), 3);
@@ -232,7 +232,7 @@ TEST(TestInvokersWaitTime, PrioritizedInvoker)
     registry->Collect();
 
     auto sensorDump = registry->DumpSensors();
-    const auto& summary = GetSummaryDuration(sensorDump, "yt/invoker/prioritized_invoker/wait");
+    const auto& summary = GetSummaryDuration(sensorDump, "yt/invoker/prioritized/wait");
 
     // The action has been executed 1 time.
     EXPECT_EQ(summary.count(), 1);
