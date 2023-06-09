@@ -308,6 +308,7 @@ public:
     bool EnableDescendingSortOrder;
     bool EnableDescendingSortOrderDynamic;
     bool EnableTableColumnRenaming;
+    bool EnableDynamicTableColumnRenaming;
 
     NChunkServer::TDynamicChunkManagerConfigPtr ChunkManager;
     NCellServer::TDynamicCellManagerConfigPtr CellManager;

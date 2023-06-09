@@ -155,6 +155,10 @@ def skip_if_renaming_disabled(env):
     skip_if_old(env, (22, 2), "do not support column renaming")
 
 
+def skip_if_renaming_not_differentiated(env):
+    skip_if_old(env, (23, 1), "not differentiated renaming in static vs dynamic")
+
+
 def write_log_barrier(address, category="Barrier", driver=None, cluster_name="primary"):
     if driver is None:
         driver = get_driver(cluster=cluster_name)

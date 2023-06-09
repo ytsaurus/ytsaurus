@@ -673,7 +673,8 @@ public:
             ValidateNoDescendingSortOrder(*effectiveTableSchema);
         }
 
-        if (!dynamicConfig->EnableTableColumnRenaming) {
+        if (!dynamicConfig->EnableTableColumnRenaming ||
+            dynamic && !dynamicConfig->EnableDynamicTableColumnRenaming) {
             ValidateNoRenamedColumns(*effectiveTableSchema);
         }
 

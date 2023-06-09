@@ -1995,7 +1995,8 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             ValidateNoDescendingSortOrder(*schema);
         }
 
-        if (!config->EnableTableColumnRenaming) {
+        if (!config->EnableTableColumnRenaming ||
+            dynamic && !config->EnableDynamicTableColumnRenaming) {
             ValidateNoRenamedColumns(*schema);
         }
 

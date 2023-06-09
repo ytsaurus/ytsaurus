@@ -237,6 +237,7 @@ class YTEnvSetup(object):
     NUM_CYPRESS_PROXIES = 0
     ENABLE_RESOURCE_TRACKING = False
     ENABLE_TVM_ONLY_PROXIES = False
+    ENABLE_DYNAMIC_TABLE_COLUMN_RENAMES = True
 
     DELTA_DRIVER_CONFIG = {}
     DELTA_RPC_DRIVER_CONFIG = {}
@@ -1174,6 +1175,12 @@ class YTEnvSetup(object):
             dynamic_master_config["enable_descending_sort_order_dynamic"] = True
         if self.Env.get_component_version("ytserver-master").abi >= (22, 1):
             dynamic_master_config["enable_table_column_renaming"] = True
+        allow_dynamic_renames = \
+            self.Env.get_component_version("ytserver-master").abi >= (23, 1) and \
+            self.ENABLE_DYNAMIC_TABLE_COLUMN_RENAMES
+
+        if allow_dynamic_renames:
+            dynamic_master_config["enable_dynamic_table_column_renaming"] = True
 
         if self.USE_SEQUOIA:
             dynamic_master_config["sequoia_manager"]["enable"] = True

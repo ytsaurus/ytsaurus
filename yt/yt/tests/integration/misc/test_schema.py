@@ -19,7 +19,7 @@ from yt_type_helpers import (
     optional_type, list_type, dict_type, struct_type, tuple_type, variant_tuple_type, variant_struct_type,
     decimal_type, tagged_type)
 
-from yt_helpers import skip_if_renaming_disabled
+from yt_helpers import skip_if_renaming_disabled, skip_if_renaming_not_differentiated
 
 import yt_error_codes
 
@@ -2222,10 +2222,11 @@ class TestSchemaDepthLimit(YTEnvSetup):
             })
 
 
-class TestRenameColumns(YTEnvSetup):
-    USE_DYNAMIC_TABLES = True
-
+class TestRenameColumnsStatic(YTEnvSetup):
     _TABLE_PATH = "//tmp/test-alter-table"
+
+    USE_DYNAMIC_TABLES = True
+    ENABLE_DYNAMIC_TABLE_COLUMN_RENAMES = False
 
     @authors("levysotsky")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
@@ -2268,6 +2269,146 @@ class TestRenameColumns(YTEnvSetup):
         table_path_with_filter = "<columns=[a;c]>" + self._TABLE_PATH
         rows1_filtered = [{"a": 0, "c": True}]
         assert read_table(table_path_with_filter) == rows1_filtered
+
+    @authors("levysotsky")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_rename_static_several_chunks(self, optimize_for):
+        table_path_with_append = "<append=%true>" + self._TABLE_PATH
+
+        schema1 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("b", "string"),
+            make_column("c", "bool"),
+        ], unique_keys=True, strict=True)
+
+        create("table", self._TABLE_PATH, force=True, attributes={
+            "schema": schema1,
+            "optimize_for": optimize_for,
+        })
+
+        rows1 = [{"a": 0, "b": "foo", "c": True}]
+        write_table(self._TABLE_PATH, rows1)
+        assert read_table(self._TABLE_PATH) == rows1
+
+        schema2 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("c_new", "bool", stable_name="c"),
+            make_column("b_new", "string", stable_name="b"),
+        ], unique_keys=True, strict=True)
+
+        alter_table(self._TABLE_PATH, schema=schema2)
+
+        rows2 = [{"a": 0, "b_new": "foo", "c_new": True}]
+        assert read_table(self._TABLE_PATH) == rows2
+
+        write_table(table_path_with_append, [{"a": 1, "b_new": "bar", "c_new": True}])
+
+        rows2_new = rows2 + [{"a": 1, "b_new": "bar", "c_new": True}]
+        assert read_table(self._TABLE_PATH) == rows2_new
+
+        schema3 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("c_new", "bool", stable_name="c"),
+            make_column("d", type_v3=optional_type("int64")),
+            make_column("b_newer", "string", stable_name="b"),
+        ], unique_keys=True, strict=True)
+
+        alter_table(self._TABLE_PATH, schema=schema3)
+
+        rows3 = [
+            {"a": 0, "b_newer": "foo", "c_new": True},
+            {"a": 1, "b_newer": "bar", "c_new": True},
+        ]
+        assert read_table(self._TABLE_PATH) == rows3
+
+        write_table(table_path_with_append, [{"a": 22, "b_newer": "booh", "c_new": False, "d": -12}])
+
+        rows3_new = [
+            {"a": 0, "b_newer": "foo", "c_new": True},
+            {"a": 1, "b_newer": "bar", "c_new": True},
+            {"a": 22, "b_newer": "booh", "c_new": False, "d": -12},
+        ]
+        assert read_table(self._TABLE_PATH) == rows3_new
+
+        schema4 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("b", "string", stable_name="b"),
+            make_column("c", "bool", stable_name="c"),
+            make_column("d_new", type_v3=optional_type("int64"), stable_name="d"),
+        ], unique_keys=True, strict=True)
+
+        alter_table(self._TABLE_PATH, schema=schema4)
+
+        rows4 = [
+            {"a": 0, "b": "foo", "c": True},
+            {"a": 1, "b": "bar", "c": True},
+            {"a": 22, "b": "booh", "c": False, "d_new": -12},
+        ]
+        assert read_table(self._TABLE_PATH) == rows4
+
+    @authors("orlovorlov")
+    def test_rename_dynamic_disabled(self):
+        skip_if_renaming_not_differentiated(self.Env)
+
+        schema1 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("b", "string"),
+            make_column("c", "bool"),
+        ], unique_keys=True, strict=True)
+
+        create("table", self._TABLE_PATH, force=True, attributes={
+            "schema": schema1,
+            "optimize_for": "scan",
+        })
+
+        rows1 = [{"a": 0, "b": "blah", "c": False}]
+
+        write_table(self._TABLE_PATH, rows1)
+        sync_create_cells(1)
+        alter_table(self._TABLE_PATH, dynamic=True)
+
+        schema2 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("b", "string"),
+            make_column("cc", "bool", stable_name="c"),
+        ], unique_keys=True, strict=True)
+
+        with raises_yt_error("Table column renaming is not available yet"):
+            alter_table(self._TABLE_PATH, schema=schema2)
+
+    @authors("orlovorlov")
+    def test_rename_static_change_to_dynamic(self):
+        skip_if_renaming_not_differentiated(self.Env)
+
+        schema1 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("b", "string"),
+            make_column("c", "bool"),
+        ], unique_keys=True, strict=True)
+
+        create("table", self._TABLE_PATH, force=True, attributes={
+            "schema": schema1,
+            "optimize_for": "scan",
+        })
+
+        rows1 = [{"a": 0, "b": "blah", "c": False}]
+
+        write_table(self._TABLE_PATH, rows1)
+        schema2 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("b", "string"),
+            make_column("cc", "bool", stable_name="c"),
+        ], unique_keys=True, strict=True)
+        alter_table(self._TABLE_PATH, schema=schema2)
+
+        sync_create_cells(1)
+        with raises_yt_error("Table column renaming is not available yet"):
+            alter_table(self._TABLE_PATH, dynamic=True)
+
+
+class TestRenameColumnsDynamic(YTEnvSetup):
+    _TABLE_PATH = "//tmp/test-alter-table"
+    USE_DYNAMIC_TABLES = True
 
     @authors("levysotsky")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
@@ -2431,79 +2572,3 @@ class TestRenameColumns(YTEnvSetup):
         rows3_ordered_dyntable = self._to_ordered_dyntable_rows(rows3)
         assert list(select_rows("* from [{}]".format(self._TABLE_PATH))) == rows3_ordered_dyntable
         assert list(select_rows("* from [{}] where b != \"blah\"".format(self._TABLE_PATH))) == rows3_ordered_dyntable[1:]
-
-    @authors("levysotsky")
-    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_rename_static_several_chunks(self, optimize_for):
-        table_path_with_append = "<append=%true>" + self._TABLE_PATH
-
-        schema1 = make_schema([
-            make_column("a", "int64", sort_order="ascending"),
-            make_column("b", "string"),
-            make_column("c", "bool"),
-        ], unique_keys=True, strict=True)
-
-        create("table", self._TABLE_PATH, force=True, attributes={
-            "schema": schema1,
-            "optimize_for": optimize_for,
-        })
-
-        rows1 = [{"a": 0, "b": "foo", "c": True}]
-        write_table(self._TABLE_PATH, rows1)
-        assert read_table(self._TABLE_PATH) == rows1
-
-        schema2 = make_schema([
-            make_column("a", "int64", sort_order="ascending"),
-            make_column("c_new", "bool", stable_name="c"),
-            make_column("b_new", "string", stable_name="b"),
-        ], unique_keys=True, strict=True)
-
-        alter_table(self._TABLE_PATH, schema=schema2)
-
-        rows2 = [{"a": 0, "b_new": "foo", "c_new": True}]
-        assert read_table(self._TABLE_PATH) == rows2
-
-        write_table(table_path_with_append, [{"a": 1, "b_new": "bar", "c_new": True}])
-
-        rows2_new = rows2 + [{"a": 1, "b_new": "bar", "c_new": True}]
-        assert read_table(self._TABLE_PATH) == rows2_new
-
-        schema3 = make_schema([
-            make_column("a", "int64", sort_order="ascending"),
-            make_column("c_new", "bool", stable_name="c"),
-            make_column("d", type_v3=optional_type("int64")),
-            make_column("b_newer", "string", stable_name="b"),
-        ], unique_keys=True, strict=True)
-
-        alter_table(self._TABLE_PATH, schema=schema3)
-
-        rows3 = [
-            {"a": 0, "b_newer": "foo", "c_new": True},
-            {"a": 1, "b_newer": "bar", "c_new": True},
-        ]
-        assert read_table(self._TABLE_PATH) == rows3
-
-        write_table(table_path_with_append, [{"a": 22, "b_newer": "booh", "c_new": False, "d": -12}])
-
-        rows3_new = [
-            {"a": 0, "b_newer": "foo", "c_new": True},
-            {"a": 1, "b_newer": "bar", "c_new": True},
-            {"a": 22, "b_newer": "booh", "c_new": False, "d": -12},
-        ]
-        assert read_table(self._TABLE_PATH) == rows3_new
-
-        schema4 = make_schema([
-            make_column("a", "int64", sort_order="ascending"),
-            make_column("b", "string", stable_name="b"),
-            make_column("c", "bool", stable_name="c"),
-            make_column("d_new", type_v3=optional_type("int64"), stable_name="d"),
-        ], unique_keys=True, strict=True)
-
-        alter_table(self._TABLE_PATH, schema=schema4)
-
-        rows4 = [
-            {"a": 0, "b": "foo", "c": True},
-            {"a": 1, "b": "bar", "c": True},
-            {"a": 22, "b": "booh", "c": False, "d_new": -12},
-        ]
-        assert read_table(self._TABLE_PATH) == rows4

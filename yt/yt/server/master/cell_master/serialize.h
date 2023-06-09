@@ -153,6 +153,7 @@ DEFINE_ENUM(EMasterReign,
     ((TabletServants)                                               (2400))  // ifsmirnov
     ((MediumBase)                                                   (2401))  // gritukan
     ((S3Medium)                                                     (2402))  // gritukan
+    ((ColumnRenamingSeparateFlags)                                  (2403))  // orlovorlov
 );
 
 ////////////////////////////////////////////////////////////////////////////////
