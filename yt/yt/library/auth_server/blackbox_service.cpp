@@ -248,10 +248,9 @@ private:
 
             auto body = rsp->ReadAll();
 
-            YT_LOG_DEBUG("Finished reading response body from Blackbox (CallId: %v, Attempt: %v)\n%v",
+            YT_LOG_DEBUG("Finished reading response body from Blackbox (CallId: %v, Attempt: %v)",
                 callId,
-                attempt,
-                body);
+                attempt);
 
             TMemoryInput stream(body.Begin(), body.Size());
             auto factory = NYTree::CreateEphemeralNodeFactory();
