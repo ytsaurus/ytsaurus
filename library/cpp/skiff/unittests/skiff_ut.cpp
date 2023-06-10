@@ -253,7 +253,7 @@ Y_UNIT_TEST_SUITE(Skiff)
             TCheckedSkiffParser parser(schema, &bufferStream);
             UNIT_ASSERT_EXCEPTION(parser.ParseBoolean(), std::exception);
         }
-    };
+    }
 
     Y_UNIT_TEST(TestVariant8)
     {

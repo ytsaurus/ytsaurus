@@ -19,7 +19,7 @@ void TMetric::ClearValues(const TVector<TString>& names, TMap<TString, uint64_t>
 
     for (const auto&name : names)
         values[name] = 0;
-};
+}
 
 EError TMetric::GetValues(const TVector<TString>& names, TMap<TString, uint64_t>& values, TPortoApi& api) const {
     ClearValues(names, values);
