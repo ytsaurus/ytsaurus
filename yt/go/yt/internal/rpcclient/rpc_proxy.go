@@ -21,7 +21,7 @@ import (
 
 const ProtocolVersionMajor = 1
 
-func (c *client) listRPCProxies() ([]string, error) {
+func (c *Client) listRPCProxies() ([]string, error) {
 	if !c.stop.TryAdd() {
 		return nil, xerrors.New("client is stopped")
 	}
@@ -81,7 +81,7 @@ func (c *client) listRPCProxies() ([]string, error) {
 	return proxies.Proxies, nil
 }
 
-func (c *client) pickRPCProxy(ctx context.Context) (string, error) {
+func (c *Client) pickRPCProxy(ctx context.Context) (string, error) {
 	if c.rpcClusterURL.DisableDiscovery {
 		return c.rpcClusterURL.Address, nil
 	}

@@ -12,7 +12,7 @@ import (
 	"go.ytsaurus.tech/yt/go/yt/internal"
 )
 
-func (c *client) BeginTx(
+func (c *Client) BeginTx(
 	ctx context.Context,
 	opts *yt.StartTxOptions,
 ) (tx yt.Tx, err error) {

@@ -20,9 +20,9 @@ import (
 	"go.ytsaurus.tech/yt/go/yt/internal"
 )
 
-var _ yt.Client = (*client)(nil)
+var _ yt.Client = (*Client)(nil)
 
-type client struct {
+type Client struct {
 	Encoder
 
 	conf           *yt.Config
@@ -41,8 +41,8 @@ type client struct {
 	stop     *internal.StopGroup
 }
 
-func NewClient(conf *yt.Config) (*client, error) {
-	c := &client{
+func NewClient(conf *yt.Config) (*Client, error) {
+	c := &Client{
 		conf:           conf,
 		httpClusterURL: yt.NormalizeProxyURL(conf.Proxy, conf.UseTVMOnlyEndpoint, yt.TVMOnlyHTTPProxyPort),
 		rpcClusterURL:  yt.NormalizeProxyURL(conf.RPCProxy, conf.UseTVMOnlyEndpoint, yt.TVMOnlyRPCProxyPort),
@@ -106,7 +106,7 @@ func NewClient(conf *yt.Config) (*client, error) {
 	return c, nil
 }
 
-func (c *client) schema() string {
+func (c *Client) schema() string {
 	schema := "http"
 	if c.conf.UseTLS {
 		schema = "https"
@@ -114,7 +114,7 @@ func (c *client) schema() string {
 	return schema
 }
 
-func (c *client) doReadRow(
+func (c *Client) doReadRow(
 	ctx context.Context,
 	call *Call,
 	rsp ProtoRowset,
@@ -135,7 +135,7 @@ func (c *client) doReadRow(
 	return newTableReader(rows, rsp.GetRowsetDescriptor())
 }
 
-func (c *client) invoke(
+func (c *Client) invoke(
 	ctx context.Context,
 	call *Call,
 	rsp proto.Message,
@@ -195,7 +195,7 @@ func (c *client) invoke(
 	return err
 }
 
-func (c *client) requestCredentials(ctx context.Context) (yt.Credentials, error) {
+func (c *Client) requestCredentials(ctx context.Context) (yt.Credentials, error) {
 	if creds := yt.ContextCredentials(ctx); creds != nil {
 		return creds, nil
 	}
@@ -214,7 +214,7 @@ func (c *client) requestCredentials(ctx context.Context) (yt.Credentials, error)
 	return credentials, nil
 }
 
-func (c *client) getConn(ctx context.Context, addr string) (*conn, error) {
+func (c *Client) getConn(ctx context.Context, addr string) (*conn, error) {
 	dial, ok := GetDialer(ctx)
 	if ok {
 		conn := dial(ctx, addr)
@@ -224,12 +224,12 @@ func (c *client) getConn(ctx context.Context, addr string) (*conn, error) {
 	return c.connPool.Conn(ctx, addr)
 }
 
-func (c *client) Stop() {
+func (c *Client) Stop() {
 	c.connPool.Stop()
 	c.stop.Stop()
 }
 
-func (c *client) startCall() *Call {
+func (c *Client) startCall() *Call {
 	bf := backoff.NewExponentialBackOff()
 	bf.MaxElapsedTime = c.conf.GetLightRequestTimeout()
 	return &Call{
@@ -237,7 +237,7 @@ func (c *client) startCall() *Call {
 	}
 }
 
-func (c *client) injectTracing(ctx context.Context, opts *[]bus.SendOption) {
+func (c *Client) injectTracing(ctx context.Context, opts *[]bus.SendOption) {
 	if c.conf.TraceFn == nil {
 		return
 	}
@@ -251,7 +251,7 @@ func (c *client) injectTracing(ctx context.Context, opts *[]bus.SendOption) {
 }
 
 // LockRows wraps encoder's implementation with transaction.
-func (c *client) LockRows(
+func (c *Client) LockRows(
 	ctx context.Context,
 	path ypath.Path,
 	locks []string,
@@ -335,7 +335,7 @@ func (b *rowBatch) Batch() yt.RowBatch {
 	return b
 }
 
-func (c *client) NewRowBatchWriter() yt.RowBatchWriter {
+func (c *Client) NewRowBatchWriter() yt.RowBatchWriter {
 	return &rowBatch{}
 }
 
@@ -352,7 +352,7 @@ func buildBatch(rows []any) (yt.RowBatch, error) {
 }
 
 // InsertRows wraps encoder's implementation with transaction.
-func (c *client) InsertRows(
+func (c *Client) InsertRows(
 	ctx context.Context,
 	path ypath.Path,
 	rows []any,
@@ -370,7 +370,7 @@ func (c *client) InsertRows(
 	return c.InsertRowBatch(ctx, path, batch, opts)
 }
 
-func (c *client) InsertRowBatch(
+func (c *Client) InsertRowBatch(
 	ctx context.Context,
 	path ypath.Path,
 	rowBatch yt.RowBatch,
@@ -405,7 +405,7 @@ func (c *client) InsertRowBatch(
 }
 
 // DeleteRows wraps encoder's implementation with transaction.
-func (c *client) DeleteRows(
+func (c *Client) DeleteRows(
 	ctx context.Context,
 	path ypath.Path,
 	keys []any,

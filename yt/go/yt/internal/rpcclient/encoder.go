@@ -442,7 +442,7 @@ func (e *Encoder) LinkNode(
 	return
 }
 
-var _ yt.FileClient = (*client)(nil)
+var _ yt.FileClient = (*Client)(nil)
 
 func (e *Encoder) WriteFile(
 	ctx context.Context,
@@ -477,7 +477,7 @@ func (e *Encoder) GetFileFromCache(
 	return ypath.Path(""), xerrors.New("implement me")
 }
 
-var _ yt.TableClient = (*client)(nil)
+var _ yt.TableClient = (*Client)(nil)
 
 func (e *Encoder) WriteTable(
 	ctx context.Context,
@@ -495,7 +495,7 @@ func (e *Encoder) ReadTable(
 	return nil, xerrors.New("implement me")
 }
 
-var _ yt.TabletClient = (*client)(nil)
+var _ yt.TabletClient = (*Client)(nil)
 
 func (e *Encoder) SelectRows(
 	ctx context.Context,
@@ -688,7 +688,7 @@ func (e *Encoder) DeleteRows(
 	return
 }
 
-var _ yt.MountClient = (*client)(nil)
+var _ yt.MountClient = (*Client)(nil)
 
 func (e *Encoder) MountTable(
 	ctx context.Context,

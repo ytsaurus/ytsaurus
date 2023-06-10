@@ -27,13 +27,13 @@ type tabletTx struct {
 	txStartTimestamp yt.Timestamp
 
 	coordinator string
-	c           *client
+	c           *Client
 	ctx         context.Context
 
 	pinger *internal.Pinger
 }
 
-func (c *client) BeginTabletTx(
+func (c *Client) BeginTabletTx(
 	ctx context.Context,
 	opts *yt.StartTabletTxOptions,
 ) (yt.TabletTx, error) {
