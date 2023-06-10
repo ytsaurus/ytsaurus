@@ -284,13 +284,13 @@ public:
 
         auto cellId = mailbox->GetCellId();
 
-        CellMailboxMap_.Remove(cellId);
-
         // Following updates will change the map so we make a copy.
         auto registeredAvenues = mailbox->RegisteredAvenues();
         for (auto [id, avenueMailbox] : registeredAvenues) {
             UpdateAvenueCellConnection(avenueMailbox, /*cellMailbox*/ nullptr);
         }
+
+        CellMailboxMap_.Remove(cellId);
 
         {
             auto guard = WriterGuard(MailboxRuntimeDataMapLock_);
