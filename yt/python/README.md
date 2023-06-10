@@ -56,3 +56,27 @@ To build package you need to copy `setup.py` from `yt/python/packages/<package_n
 For pure python libraries (ytsaurus-client, ytsaurus-local) you should run `python3 setup.py bdist_wheel --universal`, for binary libraries (ytsaurus-yson, ytsaurus-rpc-driver) you should run `python3 setup.py bdist_wheel --py-limited-api cp34`
 
 You will find wheel files .whl files in `$PYTHON_ROOT/dist` directory, alternatively you can specify `--dist-dir` option.
+
+### Building pydoc
+
+To build python docs in HTML format perform following steps:
+
+  1. Install `sphinx` library
+```
+pip install sphinx
+```
+
+  2. Create directory for documentation files
+```
+export DOCS_ROOT=`<docs_root>`
+mkdir "$DOCS_ROOT"
+```
+
+  3. Run following commands
+```
+cd "$PYTHON_ROOT""
+PYTHONPATH="$PYTHON_ROOT" sphinx-apidoc -F -o "$DOCS_ROOT" yt yt/packages yt/test_helpers yt/testlib yt/tool yt/environment yt/local yt/entry
+PYTHONPATH="$PYTHON_ROOT" sphinx-build -b html "$DOCS_ROOT" "$DOCS_ROOT/_html"
+```
+
+After that you can find a cluster of HTML documents in `$DOCS_ROOT/_html`
