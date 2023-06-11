@@ -88,9 +88,12 @@ def prepare_path():
     try:
         from yt.environment import arcadia_interop
         destination = os.path.join(get_tests_sandbox(), "build")
-        os.makedirs(destination)
+        if not os.path.exists(destination):
+            os.makedirs(destination)
         path = arcadia_interop.prepare_yt_environment(destination, binary_root=get_build_root())
-        os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
+        environment_paths = os.environ.get("PATH", "").split(os.pathsep)
+        if path not in environment_paths:
+            os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
     except ImportError:
         pass
 
