@@ -13,7 +13,6 @@ target_link_libraries(yt-yql-plugin PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  library-cpp-logger
 )
 target_sources(yt-yql-plugin PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yql/plugin/plugin.cpp
