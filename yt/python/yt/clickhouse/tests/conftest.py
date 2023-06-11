@@ -20,7 +20,7 @@ def get_tests_location():
 
 def get_tests_sandbox():
     return get_tests_sandbox_impl(
-        os.environ.get("TESTS_SANDBOX", os.path.dirname(os.path.abspath(__file__)) + ".sandbox")
+        os.environ.get("YT_TESTS_SANDBOX", os.path.dirname(os.path.abspath(__file__)) + ".sandbox")
     )
 
 
