@@ -112,7 +112,7 @@ func convertAttributes(attrs map[string]any) (*ytree.TAttributeDictionary, error
 }
 
 func convertLegacyAttributeKeys(keys []string) *rpc_proxy.TLegacyAttributeKeys {
-	if keys == nil {
+	if len(keys) == 0 {
 		return &rpc_proxy.TLegacyAttributeKeys{All: ptr.Bool(true)}
 	}
 
@@ -120,7 +120,7 @@ func convertLegacyAttributeKeys(keys []string) *rpc_proxy.TLegacyAttributeKeys {
 }
 
 func convertAttributeFilter(keys []string) *ytree.TAttributeFilter {
-	if keys == nil {
+	if len(keys) == 0 {
 		return nil
 	}
 
@@ -168,7 +168,7 @@ func convertPrerequisiteOptions(opts *yt.PrerequisiteOptions) *rpc_proxy.TPrereq
 }
 
 func convertPrerequisiteTxIDs(ids []yt.TxID) []*misc.TGuid {
-	if ids == nil {
+	if len(ids) == 0 {
 		return nil
 	}
 
@@ -275,9 +275,10 @@ func convertAtomicity(a *yt.Atomicity) (*rpc_proxy.EAtomicity, error) {
 }
 
 func convertCheckPermissionColumns(columns []string) *rpc_proxy.TReqCheckPermission_TColumns {
-	if columns == nil {
+	if len(columns) == 0 {
 		return nil
 	}
+
 	return &rpc_proxy.TReqCheckPermission_TColumns{
 		Items: columns,
 	}
