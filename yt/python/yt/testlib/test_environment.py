@@ -89,11 +89,14 @@ class YtTestEnvironment(object):
         if not os.path.exists(prepare_dir):
             os.makedirs(prepare_dir)
 
-            self.binaries_path = arcadia_interop.prepare_yt_environment(
-                prepare_dir,
-                binary_root=get_build_root(),
-                copy_ytserver_all=not ytrecipe,
-                need_suid=need_suid and not ytrecipe)
+        self.binaries_path = arcadia_interop.prepare_yt_environment(
+            prepare_dir,
+            binary_root=get_build_root(),
+            copy_ytserver_all=not ytrecipe,
+            need_suid=need_suid and not ytrecipe)
+
+        environment_paths = os.environ.get("PATH", "").split(os.pathsep)
+        if self.binaries_path not in environment_paths:
             os.environ["PATH"] = os.pathsep.join([self.binaries_path, os.environ.get("PATH", "")])
 
         common_delta_node_config = {
