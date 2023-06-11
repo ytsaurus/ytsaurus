@@ -44,7 +44,7 @@ trait SparkLauncher {
   private def sparkHome = new File(env("SPARK_HOME", "./spark")).getAbsolutePath
 
   private def prepareSparkConf(): Unit = {
-    moveToSparkConfIfExists("metrics.properties")
+    copyToSparkConfIfExists("metrics.properties")
   }
 
   private def configureJavaOptions(): Seq[String] = {
@@ -56,12 +56,12 @@ trait SparkLauncher {
     }
   }
 
-  private def moveToSparkConfIfExists(filename: String): Unit = {
+  private def copyToSparkConfIfExists(filename: String): Unit = {
     val src = Path.of(home, filename)
     val dst = Path.of(sparkHome, "conf", filename)
     if (Files.exists(src)) {
       Files.deleteIfExists(dst)
-      Files.move(src, dst)
+      Files.copy(src, dst)
     }
   }
 

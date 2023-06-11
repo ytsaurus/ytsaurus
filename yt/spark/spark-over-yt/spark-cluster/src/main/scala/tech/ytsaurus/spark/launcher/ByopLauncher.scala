@@ -98,7 +98,7 @@ object ByopLauncher {
       path
     } else {
       val newPath = Paths.get(path.getParent.toString, binaryName)
-      Files.move(path, newPath)
+      Files.copy(path, newPath)
       newPath
     }
   }

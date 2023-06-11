@@ -63,7 +63,7 @@ trait VanillaLauncher {
   def prepareLog4jConfig(logJson: Boolean): Unit = {
     val log4jProperties = if (logJson) "log4j.clusterLogJson.properties" else "log4j.clusterLog.properties"
 
-    val path = Files.move(
+    val path = Files.copy(
       Path.of(getSparkHomeDir, "conf", log4jProperties),
       Path.of(getSparkHomeDir, "conf", "log4j.properties"),
       StandardCopyOption.REPLACE_EXISTING
