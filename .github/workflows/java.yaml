@@ -73,7 +73,7 @@ jobs:
           LATEST_TAG=${{ steps.latest_tag.outputs.tag }}; echo "RELEASE_VERSION=$(echo ${LATEST_TAG#java-sdk/})" >> $GITHUB_OUTPUT
 
       - name: Publish snapshot
-        run: ./gradlew -PossrhUsername=${{ secrets.OSSRH_USERNAME }} -PossrhPassword=${{ secrets.OSSRH_PASSWORD }} -Pversion=${{ steps.release_version.outputs.RELEASE_VERSION }}-SNAPSHOT publish
+        run: ./gradlew publish -PossrhUsername=${{ secrets.OSSRH_USERNAME }} -PossrhPassword=${{ secrets.OSSRH_PASSWORD }} -Pversion="${{ steps.release_version.outputs.RELEASE_VERSION }}-SNAPSHOT" -PsigningPassword=${{ secrets.GPG_PASSWORD }} -PsigningKey="${{ secrets.GPG_PRIVATE_KEY }}"
 
   stop-vm:
     name: Stop VM
