@@ -97,24 +97,11 @@ jobs:
           bash ./yt/docker/ytsaurus/build.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --ytsaurus-spyt-release-path ../build/spyt_release --ytsaurus-yql-package-path ../build/yql_package --output-path ../docker-ytsaurus-build --image-tag dev
           docker push ytsaurus/ytsaurus:dev
 
-      - name: Docker registry login
-        shell: bash
-        run: |
-          echo '${{ secrets.YC_SA_JSON_CREDENTIALS }}' > sa.json
-          cat sa.json | docker login --username json_key --password-stdin  cr.yandex
-
-      - name: Docker yt_nightly
-        shell: bash
-        run: |
-          mkdir -p ../docker-yt_nightly-build
-          bash ./yt/docker/yt_nightly/build.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --output-path ../docker-yt_nightly-build --registry cr.yandex/crpl84hkh3k16ihscv0j/ytsaurus-nightly --tag ${GITHUB_SHA}
-          docker push cr.yandex/crpl84hkh3k16ihscv0j/ytsaurus-nightly:${GITHUB_SHA}
-
       - name: Kube
         shell: bash
         run: |
           export HOME=/root
-          bash yt/docker/yt_nightly/kube.sh --ytsaurus-source-path $(pwd) --ytsaurus-docker ../docker-yt_nightly-build
+          bash yt/docker/yt_nightly/kube.sh --ytsaurus-source-path $(pwd)
 
       - name: Unittests
         shell: bash

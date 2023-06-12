@@ -3,7 +3,7 @@ kind: Ytsaurus
 metadata:
   name: minisaurus
 spec:
-  coreImage: local:current
+  coreImage: ytsaurus/ytsaurus:dev
   uiImage: ytsaurus/ui:stable
 
   cellTag: 1
