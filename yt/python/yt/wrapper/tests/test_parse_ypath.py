@@ -10,8 +10,6 @@ from yt.yson import loads, YsonString, YsonUnicode, YsonError, to_yson_type
 from yt.wrapper import YtError, YsonFormat, YPath
 from yt.ypath import YPathError, parse_ypath
 
-from library.python import resource
-
 try:
     from yt.packages.six.moves import xrange
 except ImportError:
@@ -117,6 +115,8 @@ def make_parse_ypath_request(path, client=None):
 
 
 def _load_and_parse_tests(path, fields_count):
+    from library.python import resource
+
     testdata = resource.find(path)
     lines = str(testdata).split("\n")
     line_idx = -1
