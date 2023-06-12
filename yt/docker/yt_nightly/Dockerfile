@@ -15,8 +15,14 @@ COPY ./ytserver-log-tailer /usr/bin/ytserver-log-tailer
 COPY ./chyt-controller /usr/bin/chyt-controller
 
 COPY ./ytsaurus_python /tmp/ytsaurus_python
-
-RUN pip3 install /tmp/ytsaurus_python/ytsaurus_native_driver_dist/$(ls /tmp/ytsaurus_python/ytsaurus_native_driver_dist | grep '^ytsaurus_native_driver.*whl$')
+RUN for package in native_driver; \
+  do \
+    dist_dir=/tmp/ytsaurus_python/ytsaurus_${package}_dist \
+    wheel_path=${dist_dir}/$(ls ${dist_dir} | grep "^ytsaurus_$package.*whl$") \
+    echo "DIST_DIR: ${dist_dir}" \
+    echo "WHEEL_PATH: ${wheel_path}" \
+    pip3 install ${wheel_path}; \
+  done
 
 RUN ln /usr/bin/ytserver-all /usr/bin/ytserver-master && \
     ln /usr/bin/ytserver-all /usr/bin/ytserver-clock && \
