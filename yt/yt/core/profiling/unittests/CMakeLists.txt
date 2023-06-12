@@ -20,7 +20,6 @@ target_link_libraries(unittester-core-profiling PUBLIC
   cpp-testing-gtest_main
   yt-yt-core
   yt-core-test_framework
-  ytserver
 )
 target_link_options(unittester-core-profiling PRIVATE
   -ldl
