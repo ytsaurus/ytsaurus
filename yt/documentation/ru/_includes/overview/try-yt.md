@@ -35,7 +35,7 @@ token=""
 #### Установка оператора
 
 1. Установите утилиту [helm](https://helm.sh/docs/intro/install/).
-2. Скачайте чарт `helm pull oci://docker.io/ytsaurus/ytop-chart --version 0.1.9 --untar`.
+2. Скачайте чарт `helm pull oci://docker.io/ytsaurus/ytop-chart --version 0.2.0 --untar`.
 3. Установите оператор `helm install ytsaurus ytop-chart/`.
 4. Проверьте результат:
 
@@ -61,6 +61,17 @@ kubectl create secret generic ytadminsec --from-literal=login=admin --from-liter
 
 Для запуска приложений использующих кластер, используйте тот же кластер Kubernetes. В качестве адреса кластера подставьте адрес сервиса http proxy - `http-proxies.<namespace>.svc.cluster.local`.
 
+#### Настройка логирования
+
+По умолчанию логирование включено на уровне `info` для большинства компонент. Есть возможность включить `debug` логирование. Для этого достаточно в спеке Ytsaurus в соответствуеющей компоненте указать `loggers`, например, так:
+
+```
+loggers:
+  - name: debug
+    writerType: file
+    minLogLevel: debug
+```
+
 ### Minikube
 
 Для корректной работы кластера необходимо 150 GiB дискового пространства и от 8-ми ядер на хосте.
@@ -79,7 +90,7 @@ https://kubernetes.io/ru/docs/tasks/tools/install-minikube/
 #### Установка оператора
 
 1. Установите утилиту [helm](https://helm.sh/docs/intro/install/).
-2. Скачайте чарт `helm pull oci://docker.io/ytsaurus/ytop-chart --version 0.1.9 --untar`.
+2. Скачайте чарт `helm pull oci://docker.io/ytsaurus/ytop-chart --version 0.2.0 --untar`.
 3. Установите оператор `helm install ytsaurus ytop-chart/`.
 4. Проверьте результат:
 
