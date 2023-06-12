@@ -70,12 +70,10 @@ func (c *ServiceTicketCredentials) SetExtension(req *rpc.TRequestHeader) {
 	)
 }
 
-type credentials struct{}
-
-var credentialsKey credentials
+type credentialsCtxKey struct{}
 
 func ContextCredentials(ctx context.Context) Credentials {
-	if v := ctx.Value(&credentialsKey); v != nil {
+	if v := ctx.Value(credentialsCtxKey{}); v != nil {
 		return v.(Credentials)
 	}
 
@@ -84,5 +82,5 @@ func ContextCredentials(ctx context.Context) Credentials {
 
 // WithCredentials allows overriding client credentials on per-call basis.
 func WithCredentials(ctx context.Context, credentials Credentials) context.Context {
-	return context.WithValue(ctx, &credentialsKey, credentials)
+	return context.WithValue(ctx, credentialsCtxKey{}, credentials)
 }
