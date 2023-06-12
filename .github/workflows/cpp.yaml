@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - stable/[0-9]+\.[0-9]+
 
 jobs:
   start-vm:
@@ -74,7 +75,7 @@ jobs:
       - name: Docker Hub login
         shell: bash
         run: |
-          echo '${{ secrets.DOCKER_HUB_PASSWORD }}' | docker login --username ${{ secrets.DOCKER_HUB_LOGIN}} --password-stdin
+          echo '${{ secrets.DOCKER_HUB_PASSWORD }}' | docker login --username ${{ secrets.DOCKER_HUB_LOGIN }} --password-stdin
 
       - name: Download SPYT
         uses: robinraju/release-downloader@v1.8
@@ -94,8 +95,13 @@ jobs:
           tar -xf spyt-1.69.tar -C ../build
           tar -xf yql-package.tar -C ../build
           mkdir -p ../docker-ytsaurus-build
-          bash ./yt/docker/ytsaurus/build.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --ytsaurus-spyt-release-path ../build/spyt_release --ytsaurus-yql-package-path ../build/yql_package --output-path ../docker-ytsaurus-build --image-tag dev
-          docker push ytsaurus/ytsaurus:dev
+          if [[ $GITHUB_REF =~ main$ ]];
+          then
+            IMAGE_TAG=dev
+          else
+            IMAGE_TAG=release-${GITHUB_REF#refs/*/stable/}
+          bash ./yt/docker/ytsaurus/build.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --ytsaurus-spyt-release-path ../build/spyt_release --ytsaurus-yql-package-path ../build/yql_package --output-path ../docker-ytsaurus-build --image-tag ${IMAGE_TAG}
+          docker push ytsaurus/ytsaurus:${IMAGE_TAG}
 
       - name: Kube
         shell: bash
