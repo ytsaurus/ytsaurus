@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "tech.ytsaurus"
-version = "1.0.1-SNAPSHOT"
+version = "no"
 
 repositories {
     mavenCentral()
@@ -19,6 +19,8 @@ java {
 dependencies{
     api("com.google.code.findbugs:jsr305:3.0.2")
 }
+
+version = project.properties["version"]
 
 publishing {
     publications {
@@ -96,5 +98,11 @@ signing {
     setRequired({
         !version.toString().endsWith("SNAPSHOT")
     })
+
+    val signingKey: String? by project
+    val signingPassword: String? by project
+
+    useInMemoryPgpKeys(signingKey, signingPassword)
+
     sign(publishing.publications["mavenJava"])
 }

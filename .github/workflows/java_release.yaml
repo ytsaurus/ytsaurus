@@ -1,9 +1,9 @@
-name: Java CI
+name: Release Java SDK
 
 on:
   push:
-    branches:
-      - main
+    tags:
+      - 'java-sdk/1.0.[0-9]+'
 
 jobs:
   start-vm:
@@ -38,8 +38,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-  check:
-    name: Run checks
+  release:
+    name: Run release
     needs:
       - start-vm
       - checkout
@@ -60,26 +60,18 @@ jobs:
       - name: Run tests
         run: ./gradlew test
 
-      - name: Get latest Java SDK tag
-        uses: oprypin/find-latest-tag@v1
-        id: latest_tag
-        with:
-          repository: ytsaurus/ytsaurus
-          regex: 'java-sdk/*'
-
-      - name: Get snapshot release version
-        id: release_version
+      - name: Parse tag
+        id: tag
         run: |
-          LATEST_TAG=${{ steps.latest_tag.outputs.tag }}; echo "RELEASE_VERSION=$(echo ${LATEST_TAG#java-sdk/})" >> $GITHUB_OUTPUT
-
-      - name: Publish snapshot
-        run: ./gradlew -PossrhUsername=${{ secrets.OSSRH_USERNAME }} -PossrhPassword=${{ secrets.OSSRH_PASSWORD }} -Pversion=${{ steps.release_version.outputs.RELEASE_VERSION }}-SNAPSHOT publish
-
+          echo "RELEASE_VERSION=$(echo ${GITHUB_REF#refs/*/java-sdk/})" >> $GITHUB_OUTPUT
+      - name: Publish
+        run: |
+          ./gradlew -PossrhUsername=${{ secrets.OSSRH_USERNAME }} -PossrhPassword=${{ secrets.OSSRH_PASSWORD }} -Pversion=${{ steps.tag.outputs.RELEASE_VERSION }} -PsigningPassword=${{ secrets.GPG_PASSWORD }} -PsigningKey="${{ secrets.GPG_PRIVATE_KEY }}" publish
   stop-vm:
     name: Stop VM
     needs:
       - start-vm
-      - check
+      - release
     runs-on: trampoline
     if: ${{ always() }}
     steps:

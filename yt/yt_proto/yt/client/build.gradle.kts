@@ -10,7 +10,7 @@ plugins {
 }
 
 group = "tech.ytsaurus"
-version = "1.0.1-SNAPSHOT"
+version = "no"
 
 repositories {
     mavenCentral()
@@ -52,6 +52,8 @@ val prepareProto = tasks.register<Copy>("prepareProto") {
 afterEvaluate {
     tasks.getByName("extractProto").dependsOn(prepareProto)
 }
+version = project.properties["version"]
+
 publishing {
     publications {
         create<MavenPublication>("mavenJava") {
@@ -128,5 +130,11 @@ signing {
     setRequired({
         !version.toString().endsWith("SNAPSHOT")
     })
+
+    val signingKey: String? by project
+    val signingPassword: String? by project
+
+    useInMemoryPgpKeys(signingKey, signingPassword)
+
     sign(publishing.publications["mavenJava"])
 }
