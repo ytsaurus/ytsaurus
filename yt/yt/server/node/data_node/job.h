@@ -109,7 +109,7 @@ protected:
 private:
     void DoSetFinished(NJobAgent::EJobState finalState, const TError& error);
 
-    void OnResourcesAcquired() override;
+    void OnResourcesAcquired() noexcept override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TMasterJobBase)

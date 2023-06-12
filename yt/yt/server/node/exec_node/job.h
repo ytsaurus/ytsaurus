@@ -82,7 +82,8 @@ public:
 
     ~TJob();
 
-    void Start();
+    void Start() noexcept;
+    void DoStart();
     bool IsStarted() const;
 
     void Abort(TError error);
@@ -489,7 +490,7 @@ private:
 
     TFuture<TSharedRef> DumpSensors();
 
-    void OnResourcesAcquired() override;
+    void OnResourcesAcquired() noexcept override;
 
     void Finalize(
         TError error,

@@ -175,7 +175,7 @@ bool TMasterJobBase::IsStarted() const noexcept
     return Started_;
 }
 
-void TMasterJobBase::OnResourcesAcquired()
+void TMasterJobBase::OnResourcesAcquired() noexcept
 {
     Start();
 }

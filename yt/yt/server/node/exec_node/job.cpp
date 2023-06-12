@@ -213,30 +213,15 @@ TJob::~TJob()
         BIND([jobSpec = std::move(jobSpec)] () mutable { jobSpec.reset(); }));
 }
 
-void TJob::Start()
+void TJob::DoStart()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    TCurrentTraceContextGuard guard(TraceContext_);
-
-    YT_VERIFY(!std::exchange(Started_, true));
-
-    if (JobPhase_ != EJobPhase::Created) {
-        YT_LOG_FATAL("Cannot start job, unexpected job phase (JobState: %v, JobPhase: %v)",
-            JobState_,
-            JobPhase_);
-        return;
-    }
-
     GuardedAction([&] () {
-        StartUserJobMonitoring();
-
-        SetJobState(EJobState::Running);
-
         auto now = TInstant::Now();
         PrepareTime_ = now;
 
-        YT_LOG_INFO("Starting job");
+        StartUserJobMonitoring();
 
         InitializeArtifacts();
 
@@ -288,11 +273,35 @@ bool TJob::IsStarted() const
     return Started_;
 }
 
-void TJob::OnResourcesAcquired()
+void TJob::OnResourcesAcquired() noexcept
 {
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    Start();
+}
+
+void TJob::Start() noexcept
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    TCurrentTraceContextGuard guard(TraceContext_);
+
+    YT_VERIFY(!std::exchange(Started_, true));
+
+    if (JobPhase_ != EJobPhase::Created) {
+        YT_LOG_FATAL("Cannot start job, unexpected job phase (JobState: %v, JobPhase: %v)",
+            JobState_,
+            JobPhase_);
+        return;
+    }
+
+    YT_LOG_INFO("Starting job");
+
+    SetJobState(EJobState::Running);
+
     Bootstrap_
         ->GetJobInvoker()
-        ->Invoke(BIND(&TJob::Start, MakeStrong(this)));
+        ->Invoke(BIND(&TJob::DoStart, MakeStrong(this)));
 }
 
 void TJob::Abort(TError error)
@@ -1461,7 +1470,6 @@ bool TJob::HandleFinishingPhase()
             return true;
 
         case EJobPhase::Created:
-            YT_VERIFY(JobState_ == EJobState::Waiting);
             return false;
 
         default:

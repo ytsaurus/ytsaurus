@@ -159,7 +159,7 @@ private:
 
     class TAcquiredResources;
     void SetAcquiredResources(TAcquiredResources&& acquiredResources);
-    virtual void OnResourcesAcquired() = 0;
+    virtual void OnResourcesAcquired() noexcept = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TResourceHolder)
