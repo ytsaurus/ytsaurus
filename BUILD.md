@@ -35,7 +35,7 @@
     sudo apt-get update
     ```
 
- 1. Install python (for Ubuntu 18.04).
+ 1. Install python (only for Ubuntu 18.04, skip this step for 20.04).
 
     ```
     sudo add-apt-repository ppa:deadsnakes/ppa
