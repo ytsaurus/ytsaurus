@@ -68,7 +68,6 @@ ytserver_log_tailer="${ytsaurus_build_path}/yt/yt/server/log_tailer/bin/ytserver
 chyt_controller="${ytsaurus_source_path}/yt/chyt/controller/cmd/chyt-controller/chyt-controller"
 init_operation_archive="${ytsaurus_source_path}/yt/python/yt/environment/init_operation_archive.py"
 clickhouse_trampoline="${ytsaurus_source_path}/yt/chyt/trampoline/clickhouse-trampoline.py"
-driver_wheel="${ytsaurus_build_path}/ytsaurus_python/dist/ytsaurus_native_driver-1.0.0-cp34-abi3-linux_x86_64.whl"
 credits="${ytsaurus_source_path}/yt/docker/ytsaurus/credits"
 dockerfile="${ytsaurus_source_path}/yt/docker/ytsaurus/Dockerfile"
 
@@ -78,7 +77,9 @@ cp ${ytserver_log_tailer} ${output_path}
 cp ${chyt_controller} ${output_path}
 cp ${init_operation_archive} ${output_path}
 cp ${clickhouse_trampoline} ${output_path}
-cp ${driver_wheel} ${output_path}
+
+cp -r ${ytsaurus_build_path}/ytsaurus_python ${output_path}
+
 cp ${dockerfile} ${output_path}
 cp -r ${ytsaurus_yql_package_path} ${output_path}
 cp -r ${ytsaurus_spyt_release_path} ${output_path}

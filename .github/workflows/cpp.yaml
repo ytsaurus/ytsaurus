@@ -66,23 +66,23 @@ jobs:
           cd ../build
           ninja
 
-      - name: Build Py
+      - name: Build Python packages
         shell: bash
         run: |
-          bash ./yt/docker/yt_nightly/build_py.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build
-
+          YTSAURUS_COMMIT_HASH=${GITHUB_SHA} bash ./yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build
+ 
       - name: Docker Hub login
         shell: bash
         run: |
           echo '${{ secrets.DOCKER_HUB_PASSWORD }}' | docker login --username ${{ secrets.DOCKER_HUB_LOGIN}} --password-stdin
 
-      - name: Get spyt
+      - name: Download SPYT
         uses: robinraju/release-downloader@v1.8
         with:
           latest: true
           fileName: "spyt-1.69.tar"
 
-      - name: Get yql
+      - name: Download YQL
         uses: robinraju/release-downloader@v1.8
         with:
           latest: true
@@ -94,8 +94,8 @@ jobs:
           tar -xf spyt-1.69.tar -C ../build
           tar -xf yql-package.tar -C ../build
           mkdir -p ../docker-ytsaurus-build
-          bash ./yt/docker/ytsaurus/build.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --ytsaurus-spyt-release-path ../build/spyt_release --ytsaurus-yql-package-path ../build/yql_package --output-path ../docker-ytsaurus-build --image-tag 23.1-latest
-          docker push ytsaurus/ytsaurus:23.1-latest
+          bash ./yt/docker/ytsaurus/build.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --ytsaurus-spyt-release-path ../build/spyt_release --ytsaurus-yql-package-path ../build/yql_package --output-path ../docker-ytsaurus-build --image-tag dev
+          docker push ytsaurus/ytsaurus:dev
 
       - name: Docker registry login
         shell: bash

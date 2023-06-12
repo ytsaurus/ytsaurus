@@ -67,15 +67,17 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
   python3.7-distutils
 
 RUN python3.7 -m pip install \
-    ytsaurus-client \
-    ytsaurus-yson \
-    ytsaurus-local \
     ytsaurus-spyt==${SPYT_VERSION}
 
-# Local built package with native driver bindings.
-COPY ./ytsaurus_native_driver-1.0.0-cp34-abi3-linux_x86_64.whl /tmp/ytsaurus_native_driver-1.0.0-py2.py3-none-any.whl
-RUN python3.7 -m pip install /tmp/ytsaurus_native_driver-1.0.0-py2.py3-none-any.whl
-RUN rm /tmp/ytsaurus_native_driver-1.0.0-py2.py3-none-any.whl
+COPY ./ytsaurus_python /tmp/ytsaurus_python
+RUN for package in client yson local native_driver; \
+  do \
+    dist_dir=/tmp/ytsaurus_python/ytsaurus_${package}_dist \
+    wheel_path=${dist_dir}/$(ls ${dist_dir} | grep "^ytsaurus_$package.*whl$") \
+    echo "DIST_DIR: ${dist_dir}" \
+    echo "WHEEL_PATH: ${wheel_path}" \
+    python3.7 -m pip install ${wheel_path}; \
+  done
 
 RUN ln -s /usr/lib/jvm/java-11-openjdk-amd64 /opt/jdk11
 

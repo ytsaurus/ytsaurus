@@ -13,9 +13,10 @@ COPY ./ytserver-all /usr/bin/ytserver-all
 COPY ./ytserver-clickhouse /usr/bin/ytserver-clickhouse
 COPY ./ytserver-log-tailer /usr/bin/ytserver-log-tailer
 COPY ./chyt-controller /usr/bin/chyt-controller
-COPY ./ytsaurus_native_driver-1.0.0-cp34-abi3-linux_x86_64.whl /tmp/ytsaurus_native_driver-1.0.0-py2.py3-none-any.whl 
 
-RUN pip3 install /tmp/ytsaurus_native_driver-1.0.0-py2.py3-none-any.whl 
+COPY ./ytsaurus_python /tmp/ytsaurus_python
+
+RUN pip3 install /tmp/ytsaurus_python/ytsaurus_native_driver_dist/$(ls /tmp/ytsaurus_python/ytsaurus_native_driver_dist | grep '^ytsaurus_native_driver.*whl$')
 
 RUN ln /usr/bin/ytserver-all /usr/bin/ytserver-master && \
     ln /usr/bin/ytserver-all /usr/bin/ytserver-clock && \

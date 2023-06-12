@@ -109,3 +109,18 @@ def execute_command(cmd, env=None, check=True, capture_output=False):
             logging.error("Command stderr: {}".format(stderr))
         raise RuntimeError("Executing of command '{}' failed. Process exited with code {}".format(cmd, returncode))
     return returncode, stdout, stderr
+
+
+def get_package_version(major_version):
+    package_version = os.getenv("YTSAURUS_PACKAGE_VERSION", default="")
+    if package_version:
+        if not package_version.startswith(major_version):
+            raise Exception(f"Package version `{package_version}` should have `{major_version}` major version")
+    else:
+        package_version = major_version + "-dev"
+
+    commit_hash = os.getenv("YTSAURUS_COMMIT_HASH", default="")
+    if commit_hash:
+        package_version += f'-{commit_hash}'
+
+    return package_version
