@@ -1,0 +1,136 @@
+name: Release python
+
+on:
+  push:
+    tags:
+      - 'python-test/ytsaurus-*/[0-9]+.[0-9]+.*'
+      - 'python/ytsaurus-*/[0-9]+.[0-9]+.*'
+
+jobs:
+  start-vm:
+    name: Start VM
+    runs-on: trampoline
+    outputs:
+      label: ${{ steps.start-yc-runner.outputs.label }}
+      instance-id: ${{ steps.start-yc-runner.outputs.instance-id }}
+    steps:
+      - name: Start YC runner
+        id: start-yc-runner
+        uses: yc-actions/yc-github-runner@v1
+        with:
+          mode: start
+          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          folder-id: b1gcvl619mdunf1cqqbv
+          image-id: fd8ref8pd2uefi7o6kh3
+          zone-id: 'ru-central1-b'
+          subnet-id: e2lno1rkqo63l729dlo7
+          cores: 16
+          memory: 32GB
+          core-fraction: 100
+          disk-type: network-ssd-nonreplicated
+          disk-size: 93GB
+
+  checkout:
+    name: Checkout sources
+    needs: start-vm
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+  build:
+    name: Run build
+    needs:
+      - start-vm
+      - checkout
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    outputs:
+      release_type: ${{ steps.tag.outputs.RELEASE_TYPE }}
+    steps:
+      - name: Parse tag
+        id: tag
+        run: |
+          tmp=${GITHUB_REF#refs/*/}; if [[ "${tmp%%/*}" == "python-test" ]]
+          then
+              echo "RELEASE_TYPE=test" >> $GITHUB_OUTPUT
+          elif [[ "${tmp%%/*}" == "python" ]]
+          then
+              echo "RELEASE_TYPE=prod" >> $GITHUB_OUTPUT
+          fi
+          echo "RELEASE_VERSION=$(echo ${GITHUB_REF#refs/*/python*/*/})" >> $GITHUB_OUTPUT
+          echo "PACKAGE_NAME=$(tmp=${GITHUB_REF#refs/*/python*/}; echo ${tmp%%/*})" >> $GITHUB_OUTPUT
+
+      - name: Configure
+        shell: bash
+        run: |
+          mkdir -p ../build
+          cd ../build
+          rm -rf *
+          cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/clang.toolchain ../ytsaurus
+
+      - name: Build C++
+        shell: bash
+        run: |
+          cd ../build
+          ninja yson_lib driver_lib driver_rpc_lib
+
+      - name: Build package
+        shell: bash
+        run: |
+          echo "RELEASE_VERSION: ${{ steps.tag.outputs.RELEASE_VERSION }}"
+          echo "PACKAGE_NAME: ${{ steps.tag.outputs.PACKAGE_NAME }}"
+          echo "RELEASE_TYPE: ${{ steps.tag.outputs.RELEASE_TYPE }}"
+          YTSAURUS_PACKAGE_VERSION=${{ steps.tag.outputs.RELEASE_VERSION }} bash ./yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --ytsaurus-package-name ${{ steps.tag.outputs.PACKAGE_NAME }}
+          ytsaurus_python=$(realpath "../build/ytsaurus_python")
+          mv "${ytsaurus_python}/$(echo ${{ steps.tag.outputs.PACKAGE_NAME }} | sed -E "s/-/_/g")_dist" dist
+
+  test_release:
+    name: Run release TestPyPi
+    needs:
+      - build
+      - checkout
+      - start-vm
+    if: ${{ needs.build.outputs.release_type == 'test' }}
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    steps:
+      - name: Publish package distributions to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+            repository-url: https://test.pypi.org/legacy/
+            password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+
+  prod_release:
+    name: Run release PyPi
+    needs:
+      - build
+      - checkout
+      - start-vm
+    if: ${{ needs.build.outputs.release_type == 'prod' }}
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    steps:
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+            password: ${{ secrets.PYPI_API_TOKEN }}
+
+  stop-vm:
+    name: Stop VM
+    needs:
+      - start-vm
+      - build
+      - test_release
+      - prod_release
+    runs-on: trampoline
+    if: ${{ always() }}
+    steps:
+      - name: Stop YC runner
+        uses: yc-actions/yc-github-runner@v1
+        with:
+          mode: stop
+          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          label: ${{ needs.start-vm.outputs.label }}
+          instance-id: ${{ needs.start-vm.outputs.instance-id }}
+
+
