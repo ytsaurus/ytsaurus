@@ -35,6 +35,12 @@ public:
         , Logger(logger)
     {
         if (Config_->MaxBlockSize) {
+            if (*Config_->MaxBlockSize < THashTableChunkIndexFormatDetail::SectorSize) {
+                THROW_ERROR_EXCEPTION("Cannot build hash table chunk index for specified parameters")
+                    << TErrorAttribute("max_block_size", *Config_->MaxBlockSize)
+                    << TErrorAttribute("sector_size", THashTableChunkIndexFormatDetail::SectorSize);
+            }
+
             auto maxSlotCountInBlock = THashTableChunkIndexFormatDetail::GetMaxSlotCountInBlock(
                 BlockFormatDetail_.GetGroupCount(),
                 Config_->EnableGroupReordering,

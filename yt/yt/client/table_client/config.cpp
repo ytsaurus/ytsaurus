@@ -82,12 +82,7 @@ void THashTableChunkIndexWriterConfig::Register(TRegistrar registrar)
         .GreaterThan(0);
     registrar.Parameter("enable_group_reordering", &TThis::EnableGroupReordering)
         .Default(false);
-
-    //! Equals to THashTableChunkIndexFormatDetail::SectorSize.
-    constexpr i64 SectorSize = 4_KB;
-
     registrar.Parameter("max_block_size", &TThis::MaxBlockSize)
-        .GreaterThanOrEqual(SectorSize)
         .Default(128_KB);
 }
 
