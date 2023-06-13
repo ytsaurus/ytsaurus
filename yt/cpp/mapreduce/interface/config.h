@@ -105,6 +105,9 @@ struct TConfig
     int ReadRetryCount;
     int StartOperationRetryCount;
 
+    /// @brief Period for checking status of running operation.
+    TDuration OperationTrackerPollPeriod = TDuration::Seconds(5);
+
     TString RemoteTempFilesDirectory;
     TString RemoteTempTablesDirectory;
 

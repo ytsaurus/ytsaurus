@@ -592,8 +592,8 @@ void WaitForOperation(
 {
     const TDuration checkOperationStateInterval =
         UseLocalModeOptimization(context, clientRetryPolicy)
-        ? TDuration::MilliSeconds(100)
-        : TDuration::Seconds(1);
+        ? Min(TDuration::MilliSeconds(100), context.Config->OperationTrackerPollPeriod)
+        : context.Config->OperationTrackerPollPeriod;
 
     while (true) {
         auto status = CheckOperation(clientRetryPolicy, context, operationId);
