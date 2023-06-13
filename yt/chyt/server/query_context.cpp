@@ -17,6 +17,8 @@
 
 #include <yt/yt/client/table_client/row_buffer.h>
 
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
@@ -142,6 +144,7 @@ TQueryContext::TQueryContext(
         SelectQueryIndex = secondaryQueryHeader->StorageIndex;
         ReadTransactionId = secondaryQueryHeader->ReadTransactionId;
         PathToNodeId = secondaryQueryHeader->PathToNodeId;
+        DynamicTableReadTimestamp = secondaryQueryHeader->DynamicTableReadTimestamp;
         WriteTransactionId = secondaryQueryHeader->WriteTransactionId;
         CreatedTablePath = secondaryQueryHeader->CreatedTablePath;
 
@@ -335,7 +338,7 @@ const TClusterNodes& TQueryContext::GetClusterNodesSnapshot()
 std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> TQueryContext::GetObjectAttributesSnapshot(
     const std::vector<NYPath::TYPath>& paths)
 {
-    if (Settings->Execution->TableReadLockMode == ETableReadLockMode::Sync) {
+    if (Settings->Execution->TableReadLockMode != ETableReadLockMode::None) {
         InitializeQueryReadTransaction();
     }
 
@@ -376,6 +379,7 @@ std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> TQueryContext::GetObjectA
         YT_VERIFY(ok);
     }
 
+    bool hasDynamicTable = false;
     std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> result;
     result.reserve(paths.size());
 
@@ -383,12 +387,23 @@ std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> TQueryContext::GetObjectA
         result.push_back(ObjectAttributesSnapshot_.at(path));
 
         const auto& attributesOrError = result.back();
-        if (Settings->Testing->CheckCHYTBanned && attributesOrError.IsOK()) {
+        if (attributesOrError.IsOK()) {
             const auto& attributes = attributesOrError.Value();
-            if (attributes->Get<bool>("chyt_banned", false)) {
-                THROW_ERROR_EXCEPTION("Table %Qv is banned via \"chyt_banned\" attribute", path);
+
+            if (Settings->Testing->CheckCHYTBanned) {
+                if (attributes->Get<bool>("chyt_banned", false)) {
+                    THROW_ERROR_EXCEPTION("Table %Qv is banned via \"chyt_banned\" attribute", path);
+                }
+            }
+
+            if (attributes->Get<bool>("dynamic", false)) {
+                hasDynamicTable = true;
             }
         }
+    }
+
+    if (Settings->Execution->TableReadLockMode != ETableReadLockMode::None && hasDynamicTable) {
+        InitializeDynamicTableReadTimestamp();
     }
 
     return result;
@@ -441,6 +456,16 @@ void TQueryContext::InitializeQueryReadTransaction()
     ReadTransactionId = InitialQueryReadTransaction_->GetId();
 
     YT_LOG_INFO("Read transaction is started (ReadTransactionId: %v)", ReadTransactionId);
+}
+
+void TQueryContext::InitializeDynamicTableReadTimestamp()
+{
+    if (DynamicTableReadTimestamp != AsyncLastCommittedTimestamp) {
+        return;
+    }
+    DynamicTableReadTimestamp = WaitFor(Client()->GetTimestampProvider()->GenerateTimestamps())
+        .ValueOrThrow();
+    YT_LOG_INFO("Timestamp for dynamic tables reading is initialized (Timestamp: %v)", DynamicTableReadTimestamp);
 }
 
 TFuture<THashMap<TYPath, TNodeId>> TQueryContext::AcquireSnapshotLocks(const THashSet<TYPath>& paths)

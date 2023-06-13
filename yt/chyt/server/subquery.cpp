@@ -161,8 +161,8 @@ public:
     }
 
 private:
-    TStorageContext* StorageContext_;
-    TQueryContext* QueryContext_;
+    const TStorageContext* StorageContext_;
+    const TQueryContext* QueryContext_;
 
     NApi::NNative::IClientPtr Client_;
 
@@ -605,6 +605,7 @@ private:
     void AddTableForFetching(const TTablePtr& table, int tableIndex)
     {
         if (table->Dynamic && QueryContext_->Settings->DynamicTable->FetchFromTablets &&
+            QueryContext_->Settings->Execution->TableReadLockMode == ETableReadLockMode::None &&
             table->TableMountInfo->MountedTablets.size() == table->TableMountInfo->Tablets.size())
         {
             TabletChunkSpecFetcher_->Add(
@@ -649,7 +650,7 @@ private:
                     /*columns*/ std::nullopt,
                     // TODO(max42): YT-10402, omitted inaccessible columns
                     /*omittedInaccessibleColumns*/ {},
-                    table->Path.GetTimestamp().value_or(AsyncLastCommittedTimestamp),
+                    table->Path.GetTimestamp().value_or(QueryContext_->DynamicTableReadTimestamp),
                     table->Path.GetRetentionTimestamp().value_or(NullTimestamp),
                     /*columnRenameDescriptors*/ {});
             } else {
@@ -668,6 +669,10 @@ private:
             }
         }
 
+        if (auto sleepDuration = QueryContext_->Settings->Testing->ChunkSpecFetcherSleepDuration) {
+            TDelayedExecutor::WaitForDuration(sleepDuration);
+            YT_LOG_DEBUG("Chunk spec fetcher slept (Duration: %v)", sleepDuration);
+        }
 
         std::vector<TFuture<void>> asyncResults = {
             MasterChunkSpecFetcher_->Fetch(),

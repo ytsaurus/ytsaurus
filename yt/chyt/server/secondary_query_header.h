@@ -36,6 +36,7 @@ public:
     TQueryId ParentQueryId;
     TSerializableSpanContextPtr SpanContext;
     THashMap<NYPath::TYPath, NCypressClient::TNodeId> PathToNodeId;
+    NTransactionClient::TTimestamp DynamicTableReadTimestamp;
     NTransactionClient::TTransactionId ReadTransactionId;
     NTransactionClient::TTransactionId WriteTransactionId;
     std::optional<NYPath::TYPath> CreatedTablePath;

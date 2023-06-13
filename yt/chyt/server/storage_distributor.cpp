@@ -200,6 +200,7 @@ DB::Pipe CreateRemoteSource(
     queryHeader->StorageIndex = storageIndex;
     queryHeader->QueryDepth = queryContext->QueryDepth + 1;
     queryHeader->PathToNodeId = queryContext->PathToNodeId;
+    queryHeader->DynamicTableReadTimestamp = queryContext->DynamicTableReadTimestamp;
     queryHeader->ReadTransactionId = queryContext->ReadTransactionId;
     queryHeader->WriteTransactionId = queryContext->WriteTransactionId;
     queryHeader->CreatedTablePath = queryContext->CreatedTablePath;
@@ -564,11 +565,6 @@ private:
 
     void PrepareInput()
     {
-        if (auto sleepDuration = QueryContext_->Settings->Testing->PreparerSleepDuration) {
-            TDelayedExecutor::WaitForDuration(sleepDuration);
-            YT_LOG_DEBUG("Input preparer slept (Duration: %v)", sleepDuration);
-        }
-
         SpecTemplate_ = TSubquerySpec();
         SpecTemplate_.InitialQuery = DB::serializeAST(*QueryInfo_.query);
         SpecTemplate_.QuerySettings = StorageContext_->Settings;

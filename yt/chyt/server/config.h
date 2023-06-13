@@ -93,7 +93,7 @@ public:
 
     bool CheckCHYTBanned;
 
-    TDuration PreparerSleepDuration;
+    TDuration ChunkSpecFetcherSleepDuration;
 
     REGISTER_YSON_STRUCT(TTestingSettings);
 

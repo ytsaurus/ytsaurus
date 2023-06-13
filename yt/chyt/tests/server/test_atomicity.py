@@ -1,9 +1,11 @@
 from yt_commands import (authors, raises_yt_error, create, write_table, remove, read_table,
-                         get, link)
+                         get, link, insert_rows, sync_mount_table)
 
 from yt.test_helpers import assert_items_equal
 
 from base import ClickHouseTestBase, Clique, QueryFailedError
+
+import yt.yson as yson
 
 import time
 import threading
@@ -27,7 +29,7 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
 
             settings = {
                 "chyt.execution.table_read_lock_mode": table_read_lock_mode,
-                "chyt.testing.preparer_sleep_duration": 1500,
+                "chyt.testing.chunk_spec_fetcher_sleep_duration": 1500,
             }
 
             query = "select * from `//tmp/t_in`"
@@ -135,7 +137,7 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
 
             settings = {
                 "chyt.execution.table_read_lock_mode": "sync",
-                "chyt.testing.preparer_sleep_duration": 1500,
+                "chyt.testing.chunk_spec_fetcher_sleep_duration": 1500,
             }
 
             query = ("select key, lhs, rhs from `//tmp/t1` t1 join (select * from `//tmp/t2`) t2 "
@@ -166,7 +168,7 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
 
             settings = {
                 "chyt.execution.table_read_lock_mode": "sync",
-                "chyt.testing.preparer_sleep_duration": 1500,
+                "chyt.testing.chunk_spec_fetcher_sleep_duration": 1500,
             }
 
             query = "select * from `//tmp/link`"
@@ -205,10 +207,73 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
 
             settings = {
                 "chyt.execution.table_read_lock_mode": "sync",
-                "chyt.testing.preparer_sleep_duration": 1500,
+                "chyt.testing.chunk_spec_fetcher_sleep_duration": 1500,
             }
 
             query = "select * from ytTables('//tmp/dir/t0', '//tmp/dir/t1') order by a"
             assert clique.make_query(query, settings=settings) == [{"a": 0}, {"a": 1}]
+
+            thread.join()
+
+    @authors("gudqeit")
+    @pytest.mark.parametrize("table_read_lock_mode", ["none", "sync"])
+    def test_read_for_dynamic_table(self, table_read_lock_mode):
+        config_patch = {
+            "yt": {
+                "subquery": {
+                    "min_data_weight_per_thread": 0,
+                },
+                "settings": {
+                    "dynamic_table": {
+                        "max_rows_per_write": 5000,
+                    },
+                },
+            },
+        }
+
+        with Clique(1, config_patch=config_patch) as clique:
+            create(
+                "table",
+                "//tmp/dt",
+                attributes={
+                    "dynamic": True,
+                    "schema": [
+                        {"name": "key", "type": "int64", "sort_order": "ascending"},
+                        {"name": "value", "type": "string"},
+                    ],
+                    "enable_dynamic_store_read": True,
+                    "dynamic_store_auto_flush_period": yson.YsonEntity(),
+                },
+            )
+            sync_mount_table("//tmp/dt")
+
+            data = [{"key": i, "value": "foo" + str(i)} for i in range(10)]
+
+            for i in range(10):
+                insert_rows("//tmp/dt", [data[i]])
+
+            extra_row = {"key": 10, "value": "foo10"}
+
+            def edit_table():
+                time.sleep(1)
+                insert_rows("//tmp/dt", [extra_row])
+
+            thread = threading.Thread(target=edit_table)
+            thread.start()
+
+            settings = {
+                "chyt.execution.table_read_lock_mode": table_read_lock_mode,
+                "chyt.testing.chunk_spec_fetcher_sleep_duration": 1500,
+            }
+
+            query = "select * from `//tmp/dt` order by key"
+            result = clique.make_query(query, settings=settings)
+
+            if table_read_lock_mode == "sync":
+                for row in result:
+                    assert row in data
+
+            elif table_read_lock_mode == "none":
+                assert result == data + [extra_row]
 
             thread.join()

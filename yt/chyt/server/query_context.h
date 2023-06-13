@@ -84,6 +84,8 @@ public:
     //! Snapshot of the used node ids. If snapshot locks are acquired, node ids should
     //! be used during data fetching.
     THashMap<NYPath::TYPath, NCypressClient::TNodeId> PathToNodeId;
+    //! DynamicTableReadTimestamp is used for dynamic tables if snapshot locks are taken.
+    NTransactionClient::TTimestamp DynamicTableReadTimestamp = NTransactionClient::AsyncLastCommittedTimestamp;
     //! WriteTransactionId is the id of the query transaction in which all write operations should be performed.
     NTransactionClient::TTransactionId WriteTransactionId;
     //! CreatedTablePath is the path of the table created in write transaction.
@@ -187,6 +189,8 @@ private:
     void InitializeQueryReadTransaction();
     TFuture<THashMap<NYPath::TYPath, NCypressClient::TNodeId>> AcquireSnapshotLocks(
         const THashSet<NYPath::TYPath>& paths);
+
+    void InitializeDynamicTableReadTimestamp();
 
     //! Constructs fake query context.
     //! It's private to avoid creating it accidently.

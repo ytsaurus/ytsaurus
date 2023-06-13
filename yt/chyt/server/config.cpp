@@ -62,7 +62,7 @@ void TTestingSettings::Register(TRegistrar registrar)
     registrar.Parameter("check_chyt_banned", &TThis::CheckCHYTBanned)
         .Default(true);
 
-    registrar.Parameter("preparer_sleep_duration", &TThis::PreparerSleepDuration)
+    registrar.Parameter("chunk_spec_fetcher_sleep_duration", &TThis::ChunkSpecFetcherSleepDuration)
         .Default();
 }
 
