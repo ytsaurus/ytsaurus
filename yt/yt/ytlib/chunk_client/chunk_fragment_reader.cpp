@@ -112,6 +112,10 @@ bool IsChunkLost(const TReplicasWithRevision& replicasWithRevision, NErasure::EC
         return replicasWithRevision.IsEmpty();
     }
 
+    if (replicasWithRevision.IsEmpty()) {
+        return true;
+    }
+
     auto availableReplicaCount = std::ssize(replicasWithRevision.Replicas);
     auto* codec = NErasure::GetCodec(codecId);
     auto safeReplicaCount = codec->GetTotalPartCount() - codec->GetGuaranteedRepairablePartCount();
@@ -266,6 +270,7 @@ private:
                     return replicaInfo.PeerInfo->NodeId == peerInfo->NodeId;
                 });
             if (IsChunkLost(chunkInfo->ReplicasWithRevision, chunkInfo->ErasureCodecId)) {
+                entryGuard.Release();
                 ChunkIdToChunkInfo_.erase(it);
                 YT_LOG_DEBUG("Dropped lost chunk from chunk info cache (ChunkId: %v)",
                     chunkId);
@@ -953,6 +958,8 @@ private:
                     lostChunkIds.push_back(probingResult.ChunkId);
                     continue;
                 }
+
+                YT_VERIFY(!probingResult.ReplicasWithRevision.IsEmpty());
 
                 {
                     // NB: This lock is actually redundant as this info has not been inserted yet.
