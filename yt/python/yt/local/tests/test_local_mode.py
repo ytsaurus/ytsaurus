@@ -102,7 +102,7 @@ def prepare_path():
 def local_yt(*args, **kwargs):
     environment = None
     try:
-        environment = start(*args, enable_debug_logging=True, **kwargs)
+        environment = start(*args, enable_debug_logging=True, fqdn="localhost", **kwargs)
         yield environment
     except:
         logger.exception("Failed to start local yt")
@@ -431,7 +431,7 @@ class TestLocalMode(object):
                     assert config["test_key"] == "test_value"
 
     def test_yt_local_binary(self):
-        env_id = self.yt_local("start", fqdn="localhost", id=_get_id("test_yt_local_binary_simple"))
+        env_id = self.yt_local("start", id=_get_id("test_yt_local_binary_simple"))
         try:
             client = YtClient(proxy=self.yt_local("get_proxy", env_id))
             assert "sys" in client.list("/")
@@ -440,7 +440,6 @@ class TestLocalMode(object):
 
         env_id = self.yt_local(
             "start",
-            fqdn="localhost",
             master_count=3,
             node_count=5,
             scheduler_count=2,
@@ -463,7 +462,6 @@ class TestLocalMode(object):
 
             env_id = self.yt_local(
                 "start",
-                fqdn="localhost",
                 node_count=1,
                 node_config=node_config.name,
                 scheduler_count=1,
@@ -492,21 +490,21 @@ class TestLocalMode(object):
             with tempfile.NamedTemporaryFile(dir=get_tests_sandbox(), delete=False) as yson_file:
                 yson.dump(patch, yson_file)
 
-            env_id = self.yt_local("start", fqdn="localhost", id=_get_id("test_yt_local_binary_with_configs"), scheduler_config=yson_file.name)
+            env_id = self.yt_local("start", id=_get_id("test_yt_local_binary_with_configs"), scheduler_config=yson_file.name)
             try:
                 client = YtClient(proxy=self.yt_local("get_proxy", env_id))
                 assert client.get("//sys/scheduler/orchid/scheduler/config/cluster_info_logging_period") == 1234
             finally:
                 self.yt_local("stop", env_id)
 
-            env_id = self.yt_local("start", fqdn="localhost", id=_get_id("test_yt_local_binary_with_configs"), scheduler_config_path=yson_file.name)
+            env_id = self.yt_local("start", id=_get_id("test_yt_local_binary_with_configs"), scheduler_config_path=yson_file.name)
             try:
                 client = YtClient(proxy=self.yt_local("get_proxy", env_id))
                 assert client.get("//sys/scheduler/orchid/scheduler/config/cluster_info_logging_period") == 1234
             finally:
                 self.yt_local("stop", env_id)
 
-            env_id = self.yt_local("start", fqdn="localhost", id=_get_id("test_yt_local_binary_with_configs"), scheduler_config=yson._dumps_to_native_str(patch))
+            env_id = self.yt_local("start", id=_get_id("test_yt_local_binary_with_configs"), scheduler_config=yson._dumps_to_native_str(patch))
             try:
                 client = YtClient(proxy=self.yt_local("get_proxy", env_id))
                 assert client.get("//sys/scheduler/orchid/scheduler/config/cluster_info_logging_period") == 1234
