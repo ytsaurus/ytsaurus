@@ -74,12 +74,12 @@ fi
 
 for package in ${packages[@]}; do
     cp "${ytsaurus_source_path}/yt/python/packages/${package}/setup.py" .
-    dist_dir="$(echo "${package}" | sed -e s/-/_/)_dist"
+    dist_dir="$(echo ${package} | sed -e s/-/_/g)_dist"
     if [[ ${package} == "ytsaurus-native-driver" ]] || [[ ${package} == "ytsaurus-yson" ]] 
     then
-        python3 setup.py bdist_wheel --py-limited-api cp34 --dist-dir "${dist_dir}"
+        python3 setup.py bdist_wheel --py-limited-api cp34 --dist-dir ${dist_dir}
     else
-        python3 setup.py bdist_wheel --universal --dist-dir "${dist_dir}"
+        python3 setup.py bdist_wheel --universal --dist-dir ${dist_dir}
     fi
 done
 

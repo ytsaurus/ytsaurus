@@ -109,6 +109,12 @@ jobs:
           docker tag ytsaurus/ytsaurus:dev cr.yandex/crpl84hkh3k16ihscv0j/ytsaurus-nightly:${GITHUB_SHA}
           docker push cr.yandex/crpl84hkh3k16ihscv0j/ytsaurus-nightly:${GITHUB_SHA}
 
+      - name: Kube
+        shell: bash
+        run: |
+          export HOME=/root
+          bash yt/docker/yt_nightly/kube.sh --ytsaurus-source-path $(pwd)
+
       - name: Unittests
         shell: bash
         run: |

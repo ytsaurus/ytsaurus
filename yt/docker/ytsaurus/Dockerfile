@@ -72,10 +72,10 @@ RUN python3.7 -m pip install \
 COPY ./ytsaurus_python /tmp/ytsaurus_python
 RUN for package in client yson local native_driver; \
   do \
-    dist_dir=/tmp/ytsaurus_python/ytsaurus_${package}_dist \
-    wheel_path=${dist_dir}/$(ls ${dist_dir} | grep "^ytsaurus_$package.*whl$") \
-    echo "DIST_DIR: ${dist_dir}" \
-    echo "WHEEL_PATH: ${wheel_path}" \
+    dist_dir="/tmp/ytsaurus_python/ytsaurus_${package}_dist"; \
+    wheel_path="${dist_dir}/$(ls ${dist_dir} | grep "^ytsaurus_$package.*whl$")"; \
+    echo "DIST_DIR: ${dist_dir}"; \
+    echo "WHEEL_PATH: ${wheel_path}"; \
     python3.7 -m pip install ${wheel_path}; \
   done
 
