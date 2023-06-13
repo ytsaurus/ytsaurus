@@ -23,6 +23,7 @@ namespace NProto {
 class TNameTableExt;
 class TLogicalType;
 class TColumnSchema;
+class TDeletedColumn;
 class TTableSchemaExt;
 class TKeyColumnsExt;
 class TSortColumnsExt;

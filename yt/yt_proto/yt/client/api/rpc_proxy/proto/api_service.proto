@@ -1199,11 +1199,17 @@ message TColumnSchema
     optional int64 max_inline_hunk_size = 10;
 }
 
+message TDeletedColumn
+{
+    required string stable_name = 1;
+}
+
 message TTableSchema
 {
     repeated TColumnSchema columns = 1;
     optional bool strict = 2 [default = true];
     optional bool unique_keys = 3 [default = false];
+    repeated TDeletedColumn deleted_columns = 5;
 }
 
 message TTabletInfo

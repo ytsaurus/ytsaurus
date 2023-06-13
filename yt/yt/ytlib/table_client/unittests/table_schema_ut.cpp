@@ -242,6 +242,11 @@ TEST_F(TTableSchemaTest, TableSchemaValidation)
 
 TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
 {
+    TSchemaUpdateEnabledFeatures enabledFeatures{
+        true /*EnableStaticTableDropColumn*/,
+        true /*EnableStaticTableDropColumn*/
+    };
+
     std::vector<std::vector<TTableSchema>> invalidUpdates{
         {
             // Changing Strict = false to Strict = true is not ok.
@@ -356,13 +361,46 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
                 TColumnSchema("KeyName2", EValueType::String),
             }, false /* strict */)
         },
+        {
+            // Deleting a key column from the strict schema is not allowed.
+            TTableSchema({
+                TColumnSchema("KeyName1", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending),
+                TColumnSchema("KeyName2", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending),
+                TColumnSchema("Value1", EValueType::String)
+            }, true /* strict */, true /* uniqueKeys */, ETableSchemaModification::None, {}),
+            TTableSchema({
+                TColumnSchema("KeyName1", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending),
+                TColumnSchema("Value1", EValueType::String)
+            }, true /* strict */, true /* uniqueKeys */, ETableSchemaModification::None, {
+                TDeletedColumn(TStableName("Value")),
+            })
+        },
+        {
+            // Removing a column from the deleted column list in the strict schema is not allowed.
+            TTableSchema({
+                TColumnSchema("KeyName1", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending),
+                TColumnSchema("Value1", EValueType::String)
+            }, true /* strict */, true /* uniqueKeys */, ETableSchemaModification::None, {
+                TDeletedColumn(TStableName("Value")),
+            }),
+            TTableSchema({
+                TColumnSchema("KeyName1", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending),
+                TColumnSchema("Value1", EValueType::String)
+            }, true /* strict */, true /* uniqueKeys */, ETableSchemaModification::None, {}),
+        },
     };
 
     for (const auto& pairOfSchemas : invalidUpdates) {
-        EXPECT_THROW(ValidateTableSchemaUpdate(pairOfSchemas[0], pairOfSchemas[1]), std::exception);
+        EXPECT_THROW(ValidateTableSchemaUpdateInternal(
+            pairOfSchemas[0], pairOfSchemas[1], enabledFeatures), std::exception);
     }
 
-    EXPECT_THROW(ValidateTableSchemaUpdate(
+    EXPECT_THROW(ValidateTableSchemaUpdateInternal(
         TTableSchema({
             TColumnSchema("KeyName1", EValueType::String)
                 .SetSortOrder(ESortOrder::Ascending),
@@ -372,12 +410,12 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
             TColumnSchema("KeyName1", EValueType::String),
             TColumnSchema("Name1", EValueType::Int64)
         }, true /* strict */),
-        true /* isDynamicTable */), std::exception);
+        enabledFeatures, true /* isDynamicTable */), std::exception);
 
-    EXPECT_THROW(ValidateTableSchemaUpdate(
+    EXPECT_THROW(ValidateTableSchemaUpdateInternal(
         TTableSchema({}, true),
         TTableSchema({}, false),
-        true /* isDynamicTable */), std::exception);
+        enabledFeatures, true /* isDynamicTable */), std::exception);
 
     std::vector<std::vector<TTableSchema>> validUpdates{
         {
@@ -511,14 +549,44 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
                 TColumnSchema("KeyName2", EValueType::String),
             }, false)
         },
+        {
+            // Adding a previously unknown column to the deleted column list is ok.
+            TTableSchema({
+                TColumnSchema("KeyName1", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending),
+                TColumnSchema("Value1", EValueType::String)
+            }, true /* strict */, true /* uniqueKeys */, ETableSchemaModification::None, {}),
+            TTableSchema({
+                TColumnSchema("KeyName1", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending),
+                TColumnSchema("Value1", EValueType::String)
+            }, true /* strict */, true /* uniqueKeys */, ETableSchemaModification::None, {
+                TDeletedColumn(TStableName("Value")),
+            }),
+        },
+        {
+            // Same as the previous case, but not strict.
+            TTableSchema({
+                TColumnSchema("KeyName1", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending),
+                TColumnSchema("Value1", EValueType::String)
+            }, false /* strict */, true /* uniqueKeys */, ETableSchemaModification::None, {}),
+            TTableSchema({
+                TColumnSchema("KeyName1", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending),
+                TColumnSchema("Value1", EValueType::String)
+            }, false /* strict */, true /* uniqueKeys */, ETableSchemaModification::None, {
+                TDeletedColumn(TStableName("Value")),
+            }),
+        }
     };
 
     for (const auto& pairOfSchemas : validUpdates) {
-        ValidateTableSchemaUpdate(pairOfSchemas[0], pairOfSchemas[1]);
+        ValidateTableSchemaUpdateInternal(pairOfSchemas[0], pairOfSchemas[1], enabledFeatures);
     }
 
     // It is allowed to add computed columns if table is empty.
-    ValidateTableSchemaUpdate(
+    ValidateTableSchemaUpdateInternal(
         TTableSchema({
             TColumnSchema("Name", EValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending),
@@ -529,7 +597,7 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
             TColumnSchema("Name2", EValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending)
                 .SetExpression(TString("Name"))
-        }), false /* isDynamicTable */, true /* isEmptyTable */);
+        }), enabledFeatures, false /* isDynamicTable */, true /* isEmptyTable */);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

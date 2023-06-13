@@ -119,6 +119,9 @@ std::vector<int> BuildColumnIdMapping(
     if (columnFilter.IsUniversal()) {
         for (int chunkColumnId = 0; chunkColumnId < chunkNamesCount; ++chunkColumnId) {
             auto stableName = chunkNameTable->GetName(chunkColumnId);
+            if (readerSchema->GetNameMapping().IsDeleted(TStableName(TString(stableName)))) {
+                continue;
+            }
             auto name = readerSchema->GetNameMapping().StableNameToName(TStableName(TString(stableName)));
 
             if (omittedInaccessibleColumnSet.contains(name)) {

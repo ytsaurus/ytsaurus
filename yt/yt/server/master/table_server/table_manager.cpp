@@ -20,6 +20,7 @@
 #include <yt/yt/server/master/object_server/object_manager.h>
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 
+#include <yt/yt/server/master/table_server/helpers.h>
 #include <yt/yt/server/master/tablet_server/config.h>
 #include <yt/yt/server/master/tablet_server/mount_config_storage.h>
 
@@ -666,9 +667,9 @@ public:
             THROW_ERROR_EXCEPTION("Cannot create table with nontrivial schema modification");
         }
 
-        ValidateTableSchemaUpdate(TTableSchema(), *effectiveTableSchema, dynamic, true);
-
         const auto& dynamicConfig = Bootstrap_->GetConfigManager()->GetConfig();
+        ValidateTableSchemaUpdateInternal(TTableSchema(), *effectiveTableSchema, GetSchemaUpdateEnabledFeatures(dynamicConfig), dynamic, true);
+
         if (!dynamicConfig->EnableDescendingSortOrder || (dynamic && !dynamicConfig->EnableDescendingSortOrderDynamic)) {
             ValidateNoDescendingSortOrder(*effectiveTableSchema);
         }

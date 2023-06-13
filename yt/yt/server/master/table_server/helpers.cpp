@@ -85,6 +85,19 @@ TFuture<TYsonString> GetQueueAgentAttributeAsync(
     return AsyncYPathGet(queueAgentObjectService, remoteKey);
 }
 
+NTableClient::TSchemaUpdateEnabledFeatures
+GetSchemaUpdateEnabledFeatures(NCellMaster::TDynamicClusterConfigPtr config)
+{
+    return NTableClient::TSchemaUpdateEnabledFeatures{
+        config->EnableTableColumnRenaming && config->EnableStaticTableDropColumn,
+
+        // TODO(orlovorlov) YT-16507 add && config->EnableDynamicTableColumnRenaming here when
+        // review/3730137 is merged.
+        config->EnableTableColumnRenaming && config->EnableStaticTableDropColumn &&
+            config->EnableDynamicTableDropColumn
+    };
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableServer

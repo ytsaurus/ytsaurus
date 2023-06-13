@@ -115,7 +115,6 @@ private:
 void FormatValue(TStringBuilderBase* builder, const TStableName& stableName, TStringBuf spec);
 
 bool operator == (const TStableName& lhs, const TStableName& rhs);
-bool operator != (const TStableName& lhs, const TStableName& rhs);
 bool operator < (const TStableName& lhs, const TStableName& rhs);
 
 void ToProto(TString* protoStableName, const TStableName& stableName);
@@ -192,14 +191,29 @@ private:
     bool IsOfV1Type_;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TDeletedColumn
+{
+public:
+    TDeletedColumn();
+    explicit TDeletedColumn(TStableName stableName);
+
+    DEFINE_BYREF_RO_PROPERTY(TStableName, StableName);
+    TDeletedColumn& SetStableName(TStableName stableName);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 void FormatValue(TStringBuilderBase* builder, const TColumnSchema& schema, TStringBuf spec);
 
 void Serialize(const TColumnSchema& schema, NYson::IYsonConsumer* consumer);
-void Deserialize(TColumnSchema& schema, NYTree::INodePtr node);
-void Deserialize(TColumnSchema& schema, NYson::TYsonPullParserCursor* cursor);
 
 void ToProto(NProto::TColumnSchema* protoSchema, const TColumnSchema& schema);
 void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema);
+
+void ToProto(NProto::TDeletedColumn* protoSchema, const TDeletedColumn& schema);
+void FromProto(TDeletedColumn* schema, const NProto::TDeletedColumn& protoSchema);
 
 void PrintTo(const TColumnSchema& columnSchema, std::ostream* os);
 
@@ -212,6 +226,8 @@ public:
     {
     public:
         explicit TNameMapping(const TTableSchema& schema);
+
+        bool IsDeleted(const TStableName& stableName) const;
         TString StableNameToName(const TStableName& stableName) const;
         TStableName NameToStableName(TStringBuf name) const;
 
@@ -221,6 +237,8 @@ public:
 
 public:
     const std::vector<TColumnSchema>& Columns() const;
+    const std::vector<TDeletedColumn>& DeletedColumns() const;
+
     //! Strict schema forbids columns not specified in the schema.
     DEFINE_BYVAL_RO_PROPERTY(bool, Strict, false);
     DEFINE_BYVAL_RO_PROPERTY(bool, UniqueKeys, false);
@@ -235,9 +253,11 @@ public:
         std::vector<TColumnSchema> columns,
         bool strict = true,
         bool uniqueKeys = false,
-        ETableSchemaModification schemaModification = ETableSchemaModification::None);
+        ETableSchemaModification schemaModification = ETableSchemaModification::None,
+        std::vector<TDeletedColumn> deletedColumns = {});
 
     const TColumnSchema* FindColumnByStableName(const TStableName& stableName) const;
+    const TDeletedColumn* FindDeletedColumn(const TStableName& stableName) const;
 
     int GetColumnIndex(const TColumnSchema& column) const;
 
@@ -325,9 +345,6 @@ public:
     //! Returns just the key columns.
     TTableSchemaPtr ToKeys() const;
 
-    //! Returns the non-key columns.
-    TTableSchemaPtr ToValues() const;
-
     //! Returns the schema with UniqueKeys set to |true|.
     TTableSchemaPtr ToUniqueKeys() const;
 
@@ -370,6 +387,7 @@ public:
 
 private:
     std::shared_ptr<const std::vector<TColumnSchema>> Columns_;
+    std::vector<TDeletedColumn> DeletedColumns_;
 
     int KeyColumnCount_ = 0;
     bool HasComputedColumns_ = false;
@@ -380,6 +398,7 @@ private:
     // inside TTableSchema.
     THashMap<TStringBuf, int> StableNameToColumnIndex_;
     THashMap<TStringBuf, int> NameToColumnIndex_;
+    THashMap<TStringBuf, int> StableNameToDeletedColumnIndex_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableSchema)
@@ -421,16 +440,11 @@ void PrintTo(const TTableSchema& tableSchema, std::ostream* os);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Serialize(const TTableSchema& schema, NYson::IYsonConsumer* consumer);
-void Deserialize(TTableSchema& schema, NYTree::INodePtr node);
-
-////////////////////////////////////////////////////////////////////////////////
-
 bool operator == (const TColumnSchema& lhs, const TColumnSchema& rhs);
-bool operator != (const TColumnSchema& lhs, const TColumnSchema& rhs);
+
+bool operator == (const TDeletedColumn& lhs, const TDeletedColumn& rhs);
 
 bool operator == (const TTableSchema& lhs, const TTableSchema& rhs);
-bool operator != (const TTableSchema& lhs, const TTableSchema& rhs);
 
 // Compat function for https://st.yandex-team.ru/YT-10668 workaround.
 bool IsEqualIgnoringRequiredness(const TTableSchema& lhs, const TTableSchema& rhs);
@@ -562,6 +576,12 @@ template <>
 struct THash<NYT::NTableClient::TStableName>
 {
     size_t operator()(const NYT::NTableClient::TStableName& stableName) const;
+};
+
+template <>
+struct THash<NYT::NTableClient::TDeletedColumn>
+{
+    size_t operator()(const NYT::NTableClient::TDeletedColumn& deletedColumn) const;
 };
 
 template <>

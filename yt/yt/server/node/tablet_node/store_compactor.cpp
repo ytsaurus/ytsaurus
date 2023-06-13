@@ -111,6 +111,13 @@ static const size_t FinishedTaskQueueSize = 100;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCompactionSessionFinalizeResult
+{
+    std::vector<NChunkClient::NProto::TDataStatistics> WriterStatistics;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TStoreCompactionSessionBase
     : public TRefCounted
 {
@@ -151,15 +158,15 @@ protected:
     { }
 
     template <class F>
-    auto DoRun(const F& func) -> decltype(func())
+    auto DoRun(const F& func) -> std::pair<decltype(func()), TCompactionSessionFinalizeResult>
     {
         Initialize();
 
-        auto result = func();
+        auto compactionResult = func();
 
-        Finalize();
+        auto finalizeResult = Finalize();
 
-        return result;
+        return std::make_pair(compactionResult, finalizeResult);
     }
 
     IVersionedMultiChunkWriterPtr CreateWriter()
@@ -260,10 +267,14 @@ private:
             .ValueOrThrow();
     }
 
-    void Finalize()
+    TCompactionSessionFinalizeResult Finalize()
     {
         WaitFor(AllSucceeded(std::move(CloseFutures_)))
             .ThrowOnError();
+
+        TCompactionSessionFinalizeResult result;
+        result.WriterStatistics.reserve(Writers_.size());
+
         if (TabletSnapshot_->PhysicalSchema->HasHunkColumns()) {
             WaitFor(HunkChunkPayloadWriter_->Close())
                 .ThrowOnError();
@@ -271,6 +282,7 @@ private:
 
         std::vector<TChunkInfo> chunkInfos;
         for (const auto& writer : Writers_) {
+            result.WriterStatistics.push_back(writer->GetDataStatistics());
             for (const auto& chunkSpec : writer->GetWrittenChunkSpecs()) {
                 chunkInfos.push_back({
                     .ChunkId = FromProto<TChunkId>(chunkSpec.chunk_id()),
@@ -307,6 +319,8 @@ private:
                 registerReplicas(HunkChunkWriter_->GetChunkId(), HunkChunkWriter_->GetWrittenChunkReplicas());
             }
         }
+
+        return result;
     }
 
     IVersionedChunkWriterPtr CreateUnderlyingWriterAdapter(IChunkWriterPtr underlyingWriter) const
@@ -359,7 +373,7 @@ public:
             std::move(logger))
     { }
 
-    TEdenPartitioningResult Run(
+    std::pair<TEdenPartitioningResult, TCompactionSessionFinalizeResult> Run(
         const IVersionedReaderPtr& reader,
         const std::vector<TLegacyOwningKey>& pivotKeys,
         const TLegacyOwningKey& nextTabletPivotKey)
@@ -532,7 +546,8 @@ public:
             std::move(logger))
     { }
 
-    TPartitionCompactionResult Run(const IVersionedReaderPtr& reader)
+    std::pair<TPartitionCompactionResult, TCompactionSessionFinalizeResult>
+    Run(const IVersionedReaderPtr& reader)
     {
         return DoRun([&] {
             auto writer = CreateWriter();
@@ -1505,6 +1520,7 @@ private:
 
         IVersionedReaderPtr reader;
         TEdenPartitioningResult partitioningResult;
+        TCompactionSessionFinalizeResult finalizeResult;
 
         auto readerProfiler = New<TReaderProfiler>();
         auto writerProfiler = New<TWriterProfiler>();
@@ -1580,7 +1596,7 @@ private:
                 .AsyncVia(ThreadPool_->GetInvoker())
                 .Run();
 
-            partitioningResult = WaitFor(parititioningResultFuture)
+            std::tie(partitioningResult, finalizeResult) = WaitFor(parititioningResultFuture)
                 .ValueOrThrow();
             const auto& partitionWriters = partitioningResult.PartitionStoreWriters;
 
@@ -1870,6 +1886,7 @@ private:
 
         IVersionedReaderPtr reader;
         TPartitionCompactionResult compactionResult;
+        TCompactionSessionFinalizeResult finalizeResult;
 
         auto writerProfiler = New<TWriterProfiler>();
         auto readerProfiler = New<TReaderProfiler>();
@@ -1966,7 +1983,7 @@ private:
                 .AsyncVia(ThreadPool_->GetInvoker())
                 .Run();
 
-            compactionResult = WaitFor(compactionResultFuture)
+            std::tie(compactionResult, finalizeResult) = WaitFor(compactionResultFuture)
                 .ValueOrThrow();
 
             // We can release semaphore, because we are no longer actively using resources.
@@ -1986,6 +2003,11 @@ private:
             }
             tabletSnapshot->PerformanceCounters->CompactionDataWeight +=
                 compactionResult.StoreWriter->GetDataStatistics().data_weight();
+
+            i64 outputTotalDataWeight = 0;
+            for (const auto& statistics : finalizeResult.WriterStatistics) {
+                outputTotalDataWeight += statistics.data_weight();
+            }
 
             YT_LOG_INFO("Partition compaction completed "
                 "(RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v%v, WallTime: %v)",
@@ -2008,6 +2030,7 @@ private:
                         .Item("hunk_chunk_id_to_add").Value(compactionResult.HunkWriter->GetChunkId());
                 })
                 .Item("output_row_count").Value(compactionResult.RowCount)
+                .Item("output_data_weight").Value(outputTotalDataWeight)
                 .Item("trace_id").Value(traceId);
 
             FinishTabletStoresUpdateTransaction(tablet, slot, std::move(actionRequest), std::move(transaction), Logger);

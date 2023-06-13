@@ -41,6 +41,16 @@ std::pair<ESchemaCompatibility, TError> CheckTableSchemaCompatibilityImpl(
     // Check that columns are the same.
     for (const auto& outputColumn : outputSchema.Columns()) {
         const auto* inputColumn = inputSchema.FindColumn(outputColumn.Name());
+        const auto* deletedColumn = inputSchema.FindDeletedColumn(outputColumn.StableName());
+
+        if (deletedColumn) {
+            return {
+                ESchemaCompatibility::Incompatible,
+                TError("Column %v in output schema was deleted in the input schema",
+                    outputColumn.GetDiagnosticNameString()),
+            };
+        }
+
         if (inputColumn) {
             if (inputColumn->StableName() != outputColumn.StableName()) {
                 return {
@@ -99,6 +109,32 @@ std::pair<ESchemaCompatibility, TError> CheckTableSchemaCompatibilityImpl(
                 ESchemaCompatibility::Incompatible,
                 TError("Required column %v is present in output schema and is missing in input schema",
                     outputColumn.GetDiagnosticNameString()),
+            };
+        }
+    }
+
+    for (const auto& deletedOutputColumn : outputSchema.DeletedColumns()) {
+        const auto& stableName = deletedOutputColumn.StableName();
+        const auto* inputColumn = inputSchema.FindColumnByStableName(stableName);
+        const auto* deletedColumn = inputSchema.FindDeletedColumn(stableName);
+
+        if (!inputColumn && !deletedColumn) {
+            return {
+                ESchemaCompatibility::Incompatible,
+                TError("Deleted column \"%v\" is missing in the input schema",
+                    deletedOutputColumn.StableName().Get())
+            };
+        }
+    }
+
+    for (const auto& deletedInputColumn : inputSchema.DeletedColumns()) {
+        const auto& stableName = deletedInputColumn.StableName();
+        const auto* deletedOutputColumn = outputSchema.FindDeletedColumn(stableName);
+        if (!deletedOutputColumn) {
+            return {
+                ESchemaCompatibility::Incompatible,
+                TError("Deleted column \"%v\" must be deleted in the output schema",
+                    deletedInputColumn.StableName().Get())
             };
         }
     }

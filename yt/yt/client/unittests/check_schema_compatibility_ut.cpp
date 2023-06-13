@@ -302,6 +302,47 @@ TEST_F(TTableSchemaCompatibilityTest, TestCheckTableSchemaCompatibility)
             false).first);
 }
 
+TEST_F(TTableSchemaCompatibilityTest, DeletedColumns)
+{
+    auto comp = CheckTableSchemaCompatibility(
+            TTableSchema({
+                TColumnSchema("key1", ESimpleLogicalValueType::String, ESortOrder::Descending),
+                TColumnSchema("value", ESimpleLogicalValueType::String),
+            }, true, true, ETableSchemaModification::None,
+            {
+                TDeletedColumn(TStableName("value1")),
+            }),
+            TTableSchema({
+                TColumnSchema("key1", ESimpleLogicalValueType::String, ESortOrder::Descending),
+                TColumnSchema("value", ESimpleLogicalValueType::String),
+                TColumnSchema("value1", ESimpleLogicalValueType::String),
+            }, true, true, {}),
+        false);
+
+    EXPECT_EQ(ESchemaCompatibility::Incompatible, comp.first);
+    EXPECT_EQ("Column \"value1\" in output schema was deleted in the input schema",
+        comp.second.InnerErrors()[0].GetMessage());
+
+
+    comp = CheckTableSchemaCompatibility(
+            TTableSchema({
+                TColumnSchema("key1", ESimpleLogicalValueType::String, ESortOrder::Descending),
+                TColumnSchema("value", ESimpleLogicalValueType::String),
+            }, true, true, ETableSchemaModification::None, {}),
+            TTableSchema({
+                TColumnSchema("key1", ESimpleLogicalValueType::String, ESortOrder::Descending),
+                TColumnSchema("value", ESimpleLogicalValueType::String),
+            }, true, true, ETableSchemaModification::None,
+            {
+                TDeletedColumn(TStableName("value1")),
+            }),
+        false);
+
+    EXPECT_EQ(ESchemaCompatibility::Incompatible, comp.first);
+    EXPECT_EQ("Deleted column \"value1\" is missing in the input schema",
+        comp.second.InnerErrors()[0].GetMessage());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

@@ -23,6 +23,10 @@ private:
     THashMap<TColumnSchema, int> ColumnToId_;
     std::vector<TColumnSchema> IdToColumn_;
 
+    //! Separate id space for deleted columns.
+    THashMap<TDeletedColumn, int> DeletedColumnToId_;
+    std::vector<TDeletedColumn> IdToDeletedColumn_;
+
     using TTableSchemaInternal = NProto::TSchemaDictionary::TTableSchemaInternal;
 
     //! Hasher for proto class TTableSchemaInternal.
@@ -42,6 +46,8 @@ private:
     THashMap<TTableSchemaInternal, int, THashInternal, TEqualsInternal> TableInternalToId_;
     std::vector<TTableSchemaInternal> IdToTableInternal_;
     std::vector<TTableSchemaPtr> IdToTable_;
+
+    int GetIdOrRegisterDeletedColumn(const TDeletedColumn& deletedColumn);
 
     friend void ToProto(NProto::TSchemaDictionary* protoDictionary, const TSchemaDictionary& dictionary);
     friend void FromProto(TSchemaDictionary* dictionary, const NProto::TSchemaDictionary& protoDictionary);

@@ -306,6 +306,10 @@ void TDynamicClusterConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("enable_dynamic_table_column_renaming", &TThis::EnableDynamicTableColumnRenaming)
         .Default(false);
+    registrar.Parameter("enable_static_table_drop_column", &TThis::EnableStaticTableDropColumn)
+        .Default(false);
+    registrar.Parameter("enable_dynamic_table_drop_column", &TThis::EnableDynamicTableDropColumn)
+        .Default(false);
 
     registrar.Parameter("chunk_manager", &TThis::ChunkManager)
         .DefaultNew();

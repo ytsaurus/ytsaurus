@@ -343,7 +343,8 @@ static NTableClient::TTableSchemaPtr SetStableNames(
         std::move(columns),
         schema->GetStrict(),
         schema->GetUniqueKeys(),
-        schema->GetSchemaModification());
+        schema->GetSchemaModification(),
+        schema->DeletedColumns());
 }
 
 // COMPAT(levysotsky): We need to distinguish between two cases:

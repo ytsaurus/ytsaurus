@@ -13,6 +13,13 @@ def make_column(name, type_v3, **attributes):
     return result
 
 
+def make_deleted_column(stable_name):
+    return {
+        "stable_name": stable_name,
+        "deleted": True
+    }
+
+
 def make_sorted_column(name, type_v3, **attributes):
     return make_column(name, type_v3, sort_order="ascending", **attributes)
 

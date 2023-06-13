@@ -2,6 +2,8 @@
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 
+#include <yt/yt/library/heavy_schema_validation/schema_validation.h>
+
 #include <yt/yt/server/master/table_server/table_node.h>
 
 namespace NYT::NTableServer {
@@ -19,6 +21,9 @@ TFuture<NYson::TYsonString> GetQueueAgentAttributeAsync(
     const NTableServer::TTableNode* table,
     const NYPath::TYPath& path,
     NYTree::TInternedAttributeKey key);
+
+NTableClient::TSchemaUpdateEnabledFeatures
+GetSchemaUpdateEnabledFeatures(NCellMaster::TDynamicClusterConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

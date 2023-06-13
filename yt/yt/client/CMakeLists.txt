@@ -138,6 +138,7 @@ target_sources(yt-yt-client PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/client/table_client/row_batch.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/table_client/row_buffer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/table_client/schema.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/table_client/schema_serialization_helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/table_client/serialize.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/table_client/logical_type.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/table_client/name_table.cpp

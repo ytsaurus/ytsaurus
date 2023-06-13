@@ -238,6 +238,8 @@ class YTEnvSetup(object):
     ENABLE_RESOURCE_TRACKING = False
     ENABLE_TVM_ONLY_PROXIES = False
     ENABLE_DYNAMIC_TABLE_COLUMN_RENAMES = True
+    ENABLE_STATIC_DROP_COLUMN = True
+    ENABLE_DYNAMIC_DROP_COLUMN = True
 
     DELTA_DRIVER_CONFIG = {}
     DELTA_RPC_DRIVER_CONFIG = {}
@@ -1181,6 +1183,9 @@ class YTEnvSetup(object):
 
         if allow_dynamic_renames:
             dynamic_master_config["enable_dynamic_table_column_renaming"] = True
+
+        dynamic_master_config["enable_static_table_drop_column"] = self.ENABLE_STATIC_DROP_COLUMN
+        dynamic_master_config["enable_dynamic_table_drop_column"] = self.ENABLE_DYNAMIC_DROP_COLUMN
 
         if self.USE_SEQUOIA:
             dynamic_master_config["sequoia_manager"]["enable"] = True

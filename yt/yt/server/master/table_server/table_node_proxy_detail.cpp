@@ -1983,13 +1983,14 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             table->ValidateAllTabletsUnmounted("Cannot change replication progress");
         }
 
-        ValidateTableSchemaUpdate(
+        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
+
+        ValidateTableSchemaUpdateInternal(
             *table->GetSchema()->AsTableSchema(),
             *schema,
+            GetSchemaUpdateEnabledFeatures(config),
             dynamic,
             table->IsEmpty() && !table->IsDynamic());
-
-        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
 
         if (!config->EnableDescendingSortOrder || (dynamic && !config->EnableDescendingSortOrderDynamic)) {
             ValidateNoDescendingSortOrder(*schema);

@@ -9,13 +9,14 @@ from yt_commands import (
     insert_rows, select_rows, lookup_rows,
     alter_table, read_table, write_table,
     merge, sort,
-    mount_table, wait_for_tablet_state, sync_create_cells, sync_mount_table, sync_unmount_table,
+    mount_table, wait_for_tablet_state, sync_create_cells,
+    sync_compact_table, sync_flush_table, sync_mount_table, sync_unmount_table,
     raises_yt_error, get_driver)
 
 from decimal_helpers import decode_decimal, encode_decimal, YtNaN, MAX_DECIMAL_PRECISION
 
 from yt_type_helpers import (
-    make_schema, normalize_schema, make_sorted_column, make_column,
+    make_schema, normalize_schema, make_sorted_column, make_column, make_deleted_column,
     optional_type, list_type, dict_type, struct_type, tuple_type, variant_tuple_type, variant_struct_type,
     decimal_type, tagged_type)
 
@@ -28,6 +29,7 @@ import yt.yson as yson
 
 import pytest
 
+import builtins
 import collections
 import decimal
 import json
@@ -1943,6 +1945,31 @@ class TestAlterTable(YTEnvSetup):
         self.check_bad_alter_type(lhs_type_v3, rhs_type_v3, dynamic)
         self.check_bad_alter_type(rhs_type_v3, lhs_type_v3, dynamic)
 
+    @authors("orlovorlov")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_add_column(self, optimize_for):
+        schema1 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("b", "string"),
+        ], unique_keys=True, strict=True)
+
+        create("table", self._TABLE_PATH, force=True, attributes={
+            "schema": schema1,
+            "optimize_for": optimize_for,
+        })
+
+        rows = [{"a": 0, "b": "foo"}]
+        write_table(self._TABLE_PATH, rows)
+        sync_create_cells(1)
+        alter_table(self._TABLE_PATH, dynamic=True)
+
+        schema2 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("b", "string"),
+            make_column("c", optional_type("string")),
+        ], unique_keys=True, strict=True)
+        alter_table(self._TABLE_PATH, schema=schema2, verbose=True)
+
     @authors("ermolovd", "dakovalkov")
     @pytest.mark.parametrize("dynamic", [False, True])
     def test_alter_simple_types(self, dynamic):
@@ -2223,40 +2250,49 @@ class TestSchemaDepthLimit(YTEnvSetup):
 
 
 class TestRenameColumnsStatic(YTEnvSetup):
-    _TABLE_PATH = "//tmp/test-alter-table"
-
     USE_DYNAMIC_TABLES = True
     ENABLE_DYNAMIC_TABLE_COLUMN_RENAMES = False
+    NUM_SCHEDULERS = 1
 
-    @authors("levysotsky")
-    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_rename_static(self, optimize_for):
-        schema1 = make_schema([
+    _TABLE_PATH = "//tmp/test-alter-table"
+
+    def create_default_schema(self):
+        return make_schema([
             make_column("a", "int64", sort_order="ascending"),
             make_column("b", "string"),
             make_column("c", "bool"),
         ], unique_keys=True, strict=True)
 
-        create("table", self._TABLE_PATH, force=True, attributes={
+    def create_and_populate_table(self, path, optimize_for, schema1, index):
+        create("table", path, force=True, attributes={
             "schema": schema1,
             "optimize_for": optimize_for,
         })
 
-        rows1 = [{"a": 0, "b": "foo", "c": True}]
+        rows1 = [{"a": index, "b": "foo", "c": True}]
 
-        write_table(self._TABLE_PATH, rows1)
-        assert read_table(self._TABLE_PATH) == rows1
+        write_table(path, rows1)
+        assert read_table(path) == rows1
+        return rows1
 
+    def rename_columns(self, path, index):
         schema2 = make_schema([
             make_column("a", "int64", sort_order="ascending"),
             make_column("c_new", "bool", stable_name="c"),
             make_column("b_new", "string", stable_name="b"),
         ], unique_keys=True, strict=True)
 
-        alter_table(self._TABLE_PATH, schema=schema2)
+        alter_table(path, schema=schema2)
 
-        rows2 = [{"a": 0, "b_new": "foo", "c_new": True}]
-        assert read_table(self._TABLE_PATH) == rows2
+        rows2 = [{"a": index, "b_new": "foo", "c_new": True}]
+        assert read_table(path) == rows2
+
+    @authors("levysotsky")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_rename_static(self, optimize_for):
+        schema1 = self.create_default_schema()
+        rows1 = self.create_and_populate_table(self._TABLE_PATH, optimize_for, schema1, 0)
+        self.rename_columns(self._TABLE_PATH, 0)
 
         table_path_with_filter = "<columns=[a;b_new]>" + self._TABLE_PATH
         rows2_filtered = [{"a": 0, "b_new": "foo"}]
@@ -2269,6 +2305,40 @@ class TestRenameColumnsStatic(YTEnvSetup):
         table_path_with_filter = "<columns=[a;c]>" + self._TABLE_PATH
         rows1_filtered = [{"a": 0, "c": True}]
         assert read_table(table_path_with_filter) == rows1_filtered
+
+    @authors("orlovorlov")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_rename_no_teleportation(self, optimize_for):
+        in1 = "//tmp/in1"
+        in2 = "//tmp/in2"
+
+        schema1 = self.create_default_schema()
+        self.create_and_populate_table(in1, optimize_for, schema1, 0)
+        self.create_and_populate_table(in2, optimize_for, schema1, 1)
+
+        m1 = "//tmp/m1"
+        create("table", m1)
+        merge(in_=[in1, in2], out=m1)
+
+        in1_chunks = get(in1 + "/@chunk_ids")
+        in2_chunks = get(in2 + "/@chunk_ids")
+        m1_chunks = get(m1 + "/@chunk_ids")
+
+        assert m1_chunks == in1_chunks + in2_chunks
+
+        self.rename_columns(in1, 0)
+        self.rename_columns(in2, 1)
+
+        m2 = "//tmp/m2"
+        create("table", m2)
+        merge(in_=[in1, in2], out=m2)
+
+        m2_schema = get(m2 + "/@schema")
+        m2_chunks = get(m2 + "/@chunk_ids")
+
+        assert 'stable_name' not in m2_schema[1]
+        assert 'stable_name' not in m2_schema[2]
+        assert not builtins.set(m2_chunks).intersection(builtins.set(in1_chunks + in2_chunks))
 
     @authors("levysotsky")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
@@ -2572,3 +2642,794 @@ class TestRenameColumnsDynamic(YTEnvSetup):
         rows3_ordered_dyntable = self._to_ordered_dyntable_rows(rows3)
         assert list(select_rows("* from [{}]".format(self._TABLE_PATH))) == rows3_ordered_dyntable
         assert list(select_rows("* from [{}] where b != \"blah\"".format(self._TABLE_PATH))) == rows3_ordered_dyntable[1:]
+
+    @authors("levysotsky")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_rename_static_several_chunks(self, optimize_for):
+        table_path_with_append = "<append=%true>" + self._TABLE_PATH
+
+        schema1 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("b", "string"),
+            make_column("c", "bool"),
+        ], unique_keys=True, strict=True)
+
+        create("table", self._TABLE_PATH, force=True, attributes={
+            "schema": schema1,
+            "optimize_for": optimize_for,
+        })
+
+        rows1 = [{"a": 0, "b": "foo", "c": True}]
+        write_table(self._TABLE_PATH, rows1)
+        assert read_table(self._TABLE_PATH) == rows1
+
+        schema2 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("c_new", "bool", stable_name="c"),
+            make_column("b_new", "string", stable_name="b"),
+        ], unique_keys=True, strict=True)
+
+        alter_table(self._TABLE_PATH, schema=schema2)
+
+        rows2 = [{"a": 0, "b_new": "foo", "c_new": True}]
+        assert read_table(self._TABLE_PATH) == rows2
+
+        write_table(table_path_with_append, [{"a": 1, "b_new": "bar", "c_new": True}])
+
+        rows2_new = rows2 + [{"a": 1, "b_new": "bar", "c_new": True}]
+        assert read_table(self._TABLE_PATH) == rows2_new
+
+        schema3 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("c_new", "bool", stable_name="c"),
+            make_column("d", type_v3=optional_type("int64")),
+            make_column("b_newer", "string", stable_name="b"),
+        ], unique_keys=True, strict=True)
+
+        alter_table(self._TABLE_PATH, schema=schema3)
+
+        rows3 = [
+            {"a": 0, "b_newer": "foo", "c_new": True},
+            {"a": 1, "b_newer": "bar", "c_new": True},
+        ]
+        assert read_table(self._TABLE_PATH) == rows3
+
+        write_table(table_path_with_append, [{"a": 22, "b_newer": "booh", "c_new": False, "d": -12}])
+
+        rows3_new = [
+            {"a": 0, "b_newer": "foo", "c_new": True},
+            {"a": 1, "b_newer": "bar", "c_new": True},
+            {"a": 22, "b_newer": "booh", "c_new": False, "d": -12},
+        ]
+        assert read_table(self._TABLE_PATH) == rows3_new
+
+        schema4 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("b", "string", stable_name="b"),
+            make_column("c", "bool", stable_name="c"),
+            make_column("d_new", type_v3=optional_type("int64"), stable_name="d"),
+        ], unique_keys=True, strict=True)
+
+        alter_table(self._TABLE_PATH, schema=schema4)
+
+        rows4 = [
+            {"a": 0, "b": "foo", "c": True},
+            {"a": 1, "b": "bar", "c": True},
+            {"a": 22, "b": "booh", "c": False, "d_new": -12},
+        ]
+        assert read_table(self._TABLE_PATH) == rows4
+
+
+class TestDeleteColumnsDisabledStatic(YTEnvSetup):
+    USE_DYNAMIC_TABLES = True
+    NUM_SCHEDULERS = 1
+
+    ENABLE_STATIC_DROP_COLUMN = False
+
+    _TABLE_PATH = "//tmp/test-alter-table"
+
+    @authors("orlovorlov")
+    def test_drop_column(self):
+        schema1 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("b", "string"),
+            make_column("c", "bool"),
+        ], unique_keys=True, strict=True)
+
+        create("table", self._TABLE_PATH, force=True, attributes={
+            "schema": schema1,
+            "optimize_for": "lookup",
+        })
+
+        rows = [{"a": 0, "b": "foo", "c": False}]
+        write_table(self._TABLE_PATH, rows)
+
+        schema2 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("b", "string"),
+            make_deleted_column("c"),
+        ], unique_keys=True, strict=True)
+        with raises_yt_error('Cannot remove column "c" from a strict schema'):
+            alter_table(self._TABLE_PATH, schema=schema2, verbose=True)
+
+
+class TestDeleteColumnsDisabledDynamic(YTEnvSetup):
+    USE_DYNAMIC_TABLES = True
+    NUM_SCHEDULERS = 1
+
+    ENABLE_STATIC_DROP_COLUMN = True
+    ENABLE_DYNAMIC_DROP_COLUMN = False
+
+    _TABLE_PATH = "//tmp/test-alter-table"
+
+    @authors("orlovorlov")
+    def test_drop_change_to_dynamic(self):
+        schema1 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("b", "string"),
+            make_column("c", "bool"),
+        ], unique_keys=True, strict=True)
+
+        create("table", self._TABLE_PATH, force=True, attributes={
+            "schema": schema1,
+            "optimize_for": "lookup",
+        })
+
+        rows = [{"a": 0, "b": "foo", "c": False}]
+        write_table(self._TABLE_PATH, rows)
+
+        schema2 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("b", "string"),
+            make_deleted_column("c"),
+        ], unique_keys=True, strict=True)
+        alter_table(self._TABLE_PATH, schema=schema2, verbose=True)
+
+        sync_create_cells(1)
+        with raises_yt_error("Deleting columns is not allowed on a dynamic table"):
+            alter_table(self._TABLE_PATH, dynamic=True)
+
+    @authors("orlovorlov")
+    def test_drop_dynamic(self):
+        schema1 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("b", "string"),
+            make_column("c", "bool"),
+        ], unique_keys=True, strict=True)
+
+        create("table", self._TABLE_PATH, force=True, attributes={
+            "schema": schema1,
+            "optimize_for": "lookup",
+        })
+
+        rows = [{"a": 0, "b": "foo", "c": False}]
+        write_table(self._TABLE_PATH, rows)
+
+        sync_create_cells(1)
+        alter_table(self._TABLE_PATH, dynamic=True)
+
+        schema2 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("b", "string"),
+            make_deleted_column("c"),
+        ], unique_keys=True, strict=True)
+        with raises_yt_error('Cannot remove column "c" from a strict schema'):
+            alter_table(self._TABLE_PATH, schema=schema2, verbose=True)
+
+
+class TestDeleteColumns(YTEnvSetup):
+    USE_DYNAMIC_TABLES = True
+    NUM_SCHEDULERS = 1
+
+    _TABLE_PATH = "//tmp/test-alter-table"
+
+    def fetch_node_events(self, event_type):
+        events = []
+        for k in range(self.NUM_NODES):
+            allEvents = [json.loads(line) for line in open(self.path_to_run + '/logs/node-%d.json.log' % k)]
+            events = events + [event for event in allEvents if event.get('event_type', '') == event_type]
+        return events
+
+    @authors("orlovorlov")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_drop_column(self, optimize_for):
+        schema1 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("b", "string"),
+            make_column("c", "bool"),
+        ], unique_keys=True, strict=True)
+
+        create("table", self._TABLE_PATH, force=True, attributes={
+            "schema": schema1,
+            "optimize_for": optimize_for,
+        })
+
+        rows = [{"a": 0, "b": "foo", "c": False}]
+        write_table(self._TABLE_PATH, rows)
+        sync_create_cells(1)
+        alter_table(self._TABLE_PATH, dynamic=True)
+
+        schema2 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("b", "string"),
+            make_deleted_column("c"),
+        ], unique_keys=True, strict=True)
+        alter_table(self._TABLE_PATH, schema=schema2, verbose=True)
+
+        schema3 = get(self._TABLE_PATH + "/@schema")
+        assert schema3[2]['stable_name'] == 'c'
+        assert schema3[2]['deleted']
+
+        sync_mount_table(self._TABLE_PATH)
+        rows = lookup_rows(self._TABLE_PATH, [{"a": 0}])
+        assert rows == [{"a": 0, "b": "foo"}]
+        sync_unmount_table(self._TABLE_PATH)
+
+        schema4 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("b", "string"),
+        ], unique_keys=True, strict=True)
+        with raises_yt_error("Deleted column c must remain in the deleted column list"):
+            alter_table(self._TABLE_PATH, schema=schema4, verbose=True)
+
+        schema5 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("b", "string"),
+            make_column("c", "bool"),
+        ], unique_keys=True, strict=True)
+        with raises_yt_error("Deleted column c must remain in the deleted column list"):
+            alter_table(self._TABLE_PATH, schema=schema5, verbose=True)
+
+        schema6 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("b", "string"),
+            make_column("cc", "bool", stable_name="c"),
+            make_deleted_column("c"),
+        ], unique_keys=True, strict=True)
+        with raises_yt_error("Duplicate column stable name \"c\""):
+            alter_table(self._TABLE_PATH, schema=schema6, verbose=True)
+
+    @authors("orlovorlov")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_drop_renamed_column(self, optimize_for):
+        schema1 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("b", "string"),
+            make_column("c", "bool"),
+        ], unique_keys=True, strict=True)
+
+        create("table", self._TABLE_PATH, force=True, attributes={
+            "schema": schema1,
+            "optimize_for": optimize_for,
+        })
+
+        rows = [{"a": 0, "b": "foo", "c": False}]
+        write_table(self._TABLE_PATH, rows)
+        sync_create_cells(1)
+        alter_table(self._TABLE_PATH, dynamic=True)
+
+        schema2 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("bb", "string", stable_name="b"),
+            make_column("c", "bool"),
+        ], unique_keys=True, strict=True)
+        alter_table(self._TABLE_PATH, schema=schema2, verbose=True)
+
+        schema3 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("c", "bool"),
+            make_deleted_column("bb"),
+        ], unique_keys=True, strict=True)
+        with raises_yt_error("To remove column \"bb\" (stable name \"b\") from "):
+            alter_table(self._TABLE_PATH, schema=schema3, verbose=True)
+
+        schema4 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("c", "bool"),
+            make_deleted_column("b"),
+        ], unique_keys=True, strict=True)
+        alter_table(self._TABLE_PATH, schema=schema4, verbose=True)
+
+    @authors("orlovorlov")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_drop_reintroduce_column(self, optimize_for):
+        schema1 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("b", "string"),
+            make_column("c", "bool"),
+        ], unique_keys=True, strict=True)
+
+        create("table", self._TABLE_PATH, force=True, attributes={
+            "schema": schema1,
+            "optimize_for": optimize_for,
+        })
+
+        rows = [{"a": 0, "b": "foo", "c": False}]
+        write_table(self._TABLE_PATH, rows)
+        sync_create_cells(1)
+        alter_table(self._TABLE_PATH, dynamic=True)
+
+        schema2 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("c", "bool"),
+            make_deleted_column("b"),
+        ], unique_keys=True, strict=True)
+        alter_table(self._TABLE_PATH, schema=schema2, verbose=True)
+
+        schema3 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("c", "bool"),
+            make_column("b", "string"),
+            make_deleted_column("b"),
+        ], unique_keys=True, strict=True)
+        with raises_yt_error("Duplicate column stable name \"b\""):
+            alter_table(self._TABLE_PATH, schema=schema3, verbose=True)
+
+        schema4 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("c", "bool"),
+            make_column("b", optional_type("string"), stable_name="bb"),
+            make_deleted_column("b"),
+        ], unique_keys=True, strict=True)
+        alter_table(self._TABLE_PATH, schema=schema4, verbose=True)
+
+    @authors("orlovorlov")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_drop_key_column_not_allowed(self, optimize_for):
+        schema1 = make_schema([
+            make_column("a", "string", sort_order="ascending"),
+            make_column("b", "string", sort_order="ascending"),
+            make_column("c", "int64"),
+            make_column("d", "int64"),
+        ], unique_keys=True, strict=True)
+
+        create("table", self._TABLE_PATH, force=True, attributes={
+            "schema": schema1,
+            "optimize_for": optimize_for,
+        })
+
+        rows = [{"a": "0", "b": "foo", "c": -1, "d": 0}]
+        write_table(self._TABLE_PATH, rows)
+        sync_create_cells(1)
+        alter_table(self._TABLE_PATH, dynamic=True)
+
+        schema2 = make_schema([
+            make_column("a", "string", sort_order="ascending"),
+            make_column("c", "int64"),
+            make_column("d", "int64"),
+            make_deleted_column("b"),
+        ], unique_keys=True, strict=True)
+
+        with raises_yt_error("Key column \"b\" may not be deleted"):
+            alter_table(self._TABLE_PATH, schema=schema2, verbose=True)
+
+    @authors("orlovorlov")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_drop_multiple_columns(self, optimize_for):
+        schema1 = make_schema([
+            make_column("a", "string", sort_order="ascending"),
+            make_column("b", "string"),
+            make_column("c", "int64"),
+            make_column("d", "bool"),
+            make_column("e", optional_type("int64")),
+        ], unique_keys=True, strict=True)
+
+        create("table", self._TABLE_PATH, force=True, attributes={
+            "schema": schema1,
+            "optimize_for": optimize_for,
+        })
+
+        def string_key(i):
+            return "%04x%04x" % (i, i)
+
+        def random_string():
+            return ''.join([chr(ord('a') + random.randint(0, 25)) for i in range(10)])
+
+        n_rows = 1000
+        ne = 100
+        n_updated = 250
+
+        rows = [
+            {
+                "a": string_key(i),
+                "b": random_string(),
+                "c": random.randint(-2**63, 2**63 - 1),
+                "d": bool(random.randint(0, 1))
+            } for i in range(n_rows)]
+
+        rindex = {}
+        for row in rows:
+            rindex[row['a']] = row
+
+        dindx = list(range(n_rows))
+        random.shuffle(dindx)
+        dindx = dindx[:ne]
+
+        for j in dindx:
+            rows[j]['e'] = random.randint(0, 100)
+
+        write_table(self._TABLE_PATH, rows)
+        sync_create_cells(1)
+
+        alter_table(self._TABLE_PATH, dynamic=True)
+
+        schema2 = make_schema([
+            make_column("a", "string", sort_order="ascending"),
+            make_column("b", "string"),
+            make_column("c", "int64"),
+            make_column("e", optional_type("int64")),
+            make_deleted_column("d"),
+        ], unique_keys=True, strict=True)
+        alter_table(self._TABLE_PATH, schema=schema2)
+
+        sync_mount_table(self._TABLE_PATH)
+        rowsd = lookup_rows(self._TABLE_PATH, [{"a": string_key(i)} for i in range(n_rows)])
+        sync_unmount_table(self._TABLE_PATH)
+
+        for row in rows:
+            del row['d']
+            if 'e' not in row:
+                row['e'] = yson.YsonEntity()
+
+        assert rowsd == rows
+
+        schema3 = make_schema([
+            make_column("a", "string", sort_order="ascending"),
+            make_column("c", "int64"),
+            make_column("e", optional_type("int64")),
+            make_deleted_column("d"),
+            make_deleted_column("b"),
+        ], unique_keys=True, strict=True)
+        alter_table(self._TABLE_PATH, schema=schema3)
+
+        sync_mount_table(self._TABLE_PATH)
+        rowsdb = lookup_rows(self._TABLE_PATH, [{"a": string_key(i)} for i in range(n_rows)])
+        sync_unmount_table(self._TABLE_PATH)
+
+        for row in rows:
+            del row['b']
+
+        assert rowsdb == rows
+
+        schema4 = make_schema([
+            make_column("a", "string", sort_order="ascending"),
+            make_column("c", "int64"),
+            make_column("b", optional_type("string"), stable_name="bb"),
+            make_column("d", optional_type("string"), stable_name="dd"),
+            make_column("e", optional_type("int64")),
+            make_deleted_column("d"),
+            make_deleted_column("b"),
+        ], unique_keys=True, strict=True)
+        alter_table(self._TABLE_PATH, schema=schema4)
+
+        updatedb = rows.copy()
+        random.shuffle(updatedb)
+        updatedb = updatedb[:n_updated]
+
+        rupdated = {}
+
+        for row in updatedb:
+            row['b'] = random_string()
+            rindex[row['a']]['b'] = row['b']
+            rupdated[row['a']] = True
+
+        updatedd = rows.copy()
+        random.shuffle(updatedd)
+        updatedd = updatedd[:n_updated]
+
+        for row in updatedd:
+            row['d'] = random_string()
+            rindex[row['a']]['d'] = row['d']
+            rupdated[row['a']] = True
+
+        for row in rows:
+            if 'b' not in row:
+                row['b'] = yson.YsonEntity()
+            if 'd' not in row:
+                row['d'] = yson.YsonEntity()
+
+        sync_mount_table(self._TABLE_PATH)
+        insert_rows(self._TABLE_PATH, [row for row in rows if row['a'] in rupdated])
+        rowsu = lookup_rows(self._TABLE_PATH, [{"a": string_key(i)} for i in range(n_rows)])
+        sync_unmount_table(self._TABLE_PATH)
+
+        assert rowsu == rows
+
+    def generate_string(self, n):
+        return ''.join([chr(ord('a') + random.randint(0, 25)) for _ in range(n)])
+
+    @authors("orlovorlov")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_drop_and_compact(self, optimize_for):
+        schema1 = make_schema([
+            make_column("a", "string", sort_order="ascending"),
+            make_column("b", "int64"),
+            make_column("c", "string"),
+        ], unique_keys=True, strict=True)
+
+        create("table", self._TABLE_PATH, force=True, attributes={
+            "schema": schema1,
+            "optimize_for": optimize_for,
+        })
+
+        rows = [{"a": "0", "b": 2, "c": self.generate_string(2048)}]
+        write_table(self._TABLE_PATH, rows)
+        sync_create_cells(1)
+        alter_table(self._TABLE_PATH, dynamic=True)
+        sync_mount_table(self._TABLE_PATH)
+        rows = [
+            {"a": "1", "b": 3, "c": self.generate_string(2048)},
+            {"a": "2", "b": 4, "c": self.generate_string(2048)},
+        ]
+
+        insert_rows(self._TABLE_PATH, rows)
+
+        sync_flush_table(self._TABLE_PATH)
+        sync_compact_table(self._TABLE_PATH)
+        initial_compaction = self.fetch_node_events('end_compaction')[-1]
+        assert initial_compaction['output_data_weight'] > 1000
+
+        sync_unmount_table(self._TABLE_PATH)
+
+        schema2 = make_schema([
+            make_column("a", "string", sort_order="ascending"),
+            make_column("b", "int64"),
+            make_deleted_column("c"),
+        ], unique_keys=True, strict=True)
+        alter_table(self._TABLE_PATH, schema=schema2)
+
+        sync_mount_table(self._TABLE_PATH)
+        sync_flush_table(self._TABLE_PATH)
+        sync_compact_table(self._TABLE_PATH)
+        last_compaction = self.fetch_node_events('end_compaction')[-1]
+        assert last_compaction['sequence_number'] > initial_compaction['sequence_number']
+        assert last_compaction['output_data_weight'] < 100
+
+    def create_and_populate_table(self, table_name, optimize_for, index):
+        schema = make_schema([
+            make_column("a", "string", sort_order="ascending"),
+            make_column("b", "int64"),
+            make_column("c", "string"),
+        ], unique_keys=True, strict=True)
+
+        create("table", table_name, force=True, attributes={
+            "schema": schema,
+            "optimize_for": optimize_for,
+        })
+
+        rows = [{
+            "a": "%04x" % (i + index * 10000),
+            "b": 2,
+            "c": self.generate_string(1024)
+        } for i in range(1000)]
+
+        write_table(table_name, rows)
+
+    def make_dynamic(self, table_name):
+        sync_create_cells(1)
+        alter_table(table_name, dynamic=True)
+        sync_mount_table(table_name)
+
+    def alter_drop_column(self, table_name):
+        schema = make_schema([
+            make_column("a", "string", sort_order="ascending"),
+            make_column("b", "int64"),
+            make_deleted_column("c"),
+        ], unique_keys=True, strict=True)
+        alter_table(table_name, schema=schema)
+
+    def alter_drop_column_dynamic(self, table_name):
+        sync_unmount_table(table_name)
+        self.alter_drop_column(table_name)
+        sync_mount_table(table_name)
+
+    @authors("orlovorlov")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_drop_no_teleportation(self, optimize_for):
+        in1 = "//tmp/merge1"
+        in2 = "//tmp/merge2"
+
+        self.create_and_populate_table(in1, optimize_for, 0)
+        self.create_and_populate_table(in2, optimize_for, 1)
+
+        m1 = "//tmp/m1"
+        create("table", m1)
+
+        merge(in_=[in1, in2], out=m1)
+
+        in1_chunks = get(in1 + "/@chunk_ids")
+        in2_chunks = get(in2 + "/@chunk_ids")
+        m1_chunks = get(m1 + "/@chunk_ids")
+
+        assert m1_chunks == in1_chunks + in2_chunks
+
+        self.alter_drop_column(in1)
+        self.alter_drop_column(in2)
+
+        m2 = "//tmp/m2"
+        create("table", m2)
+
+        merge(in_=[in1, in2], out=m2)
+        m2_chunks = get(m2 + "/@chunk_ids")
+        m2_schema = get(m2 + "/@schema")
+
+        assert not builtins.set(m2_chunks).intersection(builtins.set(in1_chunks + in2_chunks))
+        assert len(m2_schema) == 2
+
+    @authors("orlovorlov")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_drop_merge(self, optimize_for):
+        in1 = "//tmp/merge1"
+        in2 = "//tmp/merge2"
+        self.create_and_populate_table(in1, optimize_for, 0)
+        self.make_dynamic(in1)
+        self.create_and_populate_table(in2, optimize_for, 1)
+        self.make_dynamic(in2)
+
+        m1 = "//tmp/m1"
+        create("table", m1)
+
+        merge(in_=[in1, in2], out=m1)
+        input_chunks = get(in1 + "/@chunk_ids") + get(in2 + "/@chunk_ids")
+        output_chunks = get(m1 + "/@chunk_ids")
+
+        assert not builtins.set(input_chunks).intersection(output_chunks)
+
+        m2 = "//tmp/m2"
+        create("table", m2)
+
+        self.alter_drop_column_dynamic(in1)
+        self.alter_drop_column_dynamic(in2)
+
+        merge(in_=[in1, in2], out=m2)
+        output_chunks = get(m1 + "/@chunk_ids")
+
+        assert not builtins.set(input_chunks).intersection(output_chunks)
+
+        merged_schema = get("//tmp/m2/@schema")
+        assert not [col for col in merged_schema if col.get('stable_name', '') == 'c' or col.get('name') == 'c']
+
+    @authors("orlovorlov")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_drop_switch_to_static(self, optimize_for):
+        self.create_and_populate_table(self._TABLE_PATH, optimize_for, 0)
+        self.make_dynamic(self._TABLE_PATH)
+        self.alter_drop_column_dynamic(self._TABLE_PATH)
+
+        sync_unmount_table(self._TABLE_PATH)
+        with raises_yt_error("Cannot switch mode from dynamic to static: table is sorted"):
+            alter_table(self._TABLE_PATH, dynamic=False)
+
+    @authors("orlovorlov")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_ordered_append(self, optimize_for):
+        schema = make_schema([
+            {"name": "a", "type": "string"},
+            {"name": "b", "type": "int64"},
+            {"name": "c", "type": "string"},
+        ], strict=True)
+        create("table", self._TABLE_PATH, force=True, attributes={
+            "schema": schema,
+            "optimize_for": optimize_for,
+        })
+
+        rows = [{
+            'a': self.generate_string(1024),
+            'b': random.randint(-10**12, 10**12),
+            'c': self.generate_string(1024),
+        } for i in range(20)]
+
+        write_table(self._TABLE_PATH, rows)
+        sync_create_cells(1)
+        alter_table(self._TABLE_PATH, dynamic=True)
+        sync_mount_table(self._TABLE_PATH)
+
+        rows1 = [{
+            'a': self.generate_string(1024),
+            'b': random.randint(-10**12, 10**12),
+            'c': self.generate_string(1024),
+        } for i in range(20)]
+        insert_rows(self._TABLE_PATH, rows1)
+        sync_unmount_table(self._TABLE_PATH)
+
+        schema1 = make_schema([
+            {"name": "a", "type": "string"},
+            {"name": "b", "type": "int64"},
+            {"stable_name": "c", "deleted": True},
+        ])
+
+        alter_table(self._TABLE_PATH, schema=schema1)
+        sync_mount_table(self._TABLE_PATH)
+
+        out = select_rows("* from [" + self._TABLE_PATH + "]")
+        expected = (rows + rows1).copy()
+        for i, r in enumerate(expected):
+            del r['c']
+            r['$row_index'] = i
+            r['$tablet_index'] = 0
+        assert out == expected
+
+    @authors("orlovorlov")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_drop_static(self, optimize_for):
+        schema1 = make_schema([
+            make_column("a", "string", sort_order="ascending"),
+            make_column("b", "int64"),
+            make_column("c", "string"),
+        ], unique_keys=True, strict=True)
+
+        create("table", self._TABLE_PATH, force=True, attributes={
+            "schema": schema1,
+            "optimize_for": optimize_for,
+        })
+
+        rows = [{
+            "a": "%4x" % (1000 * i),
+            "b": random.randint(-1000, 1000),
+            "c": "foo"
+        } for i in range(20)]
+
+        write_table(self._TABLE_PATH, rows)
+
+        schema2 = make_schema([
+            make_column("a", "string", sort_order="ascending"),
+            make_column("b", "int64"),
+            make_deleted_column("c"),
+        ], unique_keys=True, strict=True)
+        alter_table(self._TABLE_PATH, schema=schema2)
+
+        rows1 = [{
+            "a": "%4x" % (1000 * i + 20000 + 123),
+            "b": random.randint(-1000, 1000),
+        } for i in range(20)]
+        write_table('<append=%true>' + self._TABLE_PATH, rows1)
+
+        out = read_table(self._TABLE_PATH)
+        expected = (rows + rows1).copy()
+        for r in expected:
+            if 'c' in r:
+                del r['c']
+
+        assert out == expected
+
+    @authors("orlovorlov")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_ordered_change_to_static(self, optimize_for):
+        schema = make_schema([
+            {"name": "a", "type": "string"},
+            {"name": "b", "type": "int64"},
+            {"name": "c", "type": "boolean"},
+        ], strict=True)
+        create("table", self._TABLE_PATH, force=True, attributes={
+            "schema": schema,
+            "optimize_for": optimize_for,
+        })
+
+        rows = [{"a": "foo", "b": 123, "c": True}]
+        write_table(self._TABLE_PATH, rows)
+
+        sync_create_cells(1)
+        alter_table(self._TABLE_PATH, dynamic=True)
+        sync_mount_table(self._TABLE_PATH)
+        assert not get(self._TABLE_PATH + "/@sorted")
+        sync_unmount_table(self._TABLE_PATH)
+        schema1 = make_schema([
+            {"name": "a", "type": "string"},
+            {"name": "b", "type": "int64"},
+            make_deleted_column("c"),
+        ])
+        alter_table(self._TABLE_PATH, schema=schema1)
+        alter_table(self._TABLE_PATH, dynamic=False)
+
+        updated_schema = get(self._TABLE_PATH + "/@schema")
+        assert updated_schema[2]['deleted']
+        assert updated_schema[2]['stable_name'] == 'c'
+
+        rows = [{"a": "bar", "b": 456}]
+        write_table('<append=%true>' + self._TABLE_PATH, rows)
+
+        data = read_table(self._TABLE_PATH)
+        assert data == [
+            {"a": "foo", "b": 123},
+            {"a": "bar", "b": 456},
+        ]

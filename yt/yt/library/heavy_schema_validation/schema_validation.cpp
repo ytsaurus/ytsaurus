@@ -80,14 +80,51 @@ void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSch
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Validates that all columns from the old schema are present in the new schema.
-void ValidateColumnsNotRemoved(const TTableSchema& oldSchema, const TTableSchema& newSchema)
+//! Validates that all columns from the old schema are present in the new schema,
+//! potentially among the deleted ones.
+static void ValidateColumnRemoval(
+    const TTableSchema& oldSchema,
+    const TTableSchema& newSchema,
+    TSchemaUpdateEnabledFeatures enabledFeatures,
+    bool isTableDynamic)
 {
     YT_VERIFY(newSchema.GetStrict());
     for (const auto& oldColumn : oldSchema.Columns()) {
-        if (!newSchema.FindColumnByStableName(oldColumn.StableName())) {
+        if (newSchema.FindColumnByStableName(oldColumn.StableName())) {
+            continue;
+        }
+
+        if (!enabledFeatures.EnableStaticTableDropColumn && !isTableDynamic ||
+            !enabledFeatures.EnableDynamicTableDropColumn && isTableDynamic) {
             THROW_ERROR_EXCEPTION("Cannot remove column %v from a strict schema",
                 oldColumn.GetDiagnosticNameString());
+        }
+
+        if (!newSchema.FindDeletedColumn(oldColumn.StableName())) {
+            THROW_ERROR_EXCEPTION("To remove column %v from a strict schema, put it into "
+                "deleted columns.", oldColumn.GetDiagnosticNameString());
+        }
+
+        if (oldColumn.SortOrder() && newSchema.FindDeletedColumn(oldColumn.StableName())) {
+            THROW_ERROR_EXCEPTION("Key column %v may not be deleted",
+                oldColumn.GetDiagnosticNameString());
+        }
+    }
+    if (!newSchema.DeletedColumns().empty()) {
+        if (!enabledFeatures.EnableDynamicTableDropColumn && isTableDynamic) {
+            THROW_ERROR_EXCEPTION("Deleting columns is not allowed on a dynamic table, "
+                "got %v deleted columns", std::ssize(newSchema.DeletedColumns()));
+        }
+
+        if (!enabledFeatures.EnableStaticTableDropColumn && !isTableDynamic) {
+            THROW_ERROR_EXCEPTION("Deleting columns is not allowed on a static table, "
+                "got %v deleted columns", std::ssize(newSchema.DeletedColumns()));
+        }
+    }
+    for (const auto& oldDeletedColumn : oldSchema.DeletedColumns()) {
+        if (!newSchema.FindDeletedColumn(oldDeletedColumn.StableName())) {
+            THROW_ERROR_EXCEPTION("Deleted column %v must remain in the deleted column list",
+                oldDeletedColumn.StableName().Get());
         }
     }
 }
@@ -271,9 +308,10 @@ void ValidateComputedColumns(const TTableSchema& schema, bool isTableDynamic)
 }
 
 //! TODO(max42): document this functions somewhere (see also https://st.yandex-team.ru/YT-1433).
-void ValidateTableSchemaUpdate(
+void ValidateTableSchemaUpdateInternal(
     const TTableSchema& oldSchema,
     const TTableSchema& newSchema,
+    TSchemaUpdateEnabledFeatures enabledFeatures,
     bool isTableDynamic,
     bool isTableEmpty)
 {
@@ -314,7 +352,7 @@ void ValidateTableSchemaUpdate(
         }
 
         if (oldSchema.GetStrict()) {
-            ValidateColumnsNotRemoved(oldSchema, newSchema);
+            ValidateColumnRemoval(oldSchema, newSchema, enabledFeatures, isTableDynamic);
         } else {
             ValidateColumnsNotInserted(oldSchema, newSchema);
         }
@@ -337,6 +375,26 @@ void ValidateTableSchemaUpdate(
             << TErrorAttribute("new_schema", newSchema)
             << ex;
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ValidateTableSchemaUpdate(
+    const TTableSchema& oldSchema,
+    const TTableSchema& newSchema,
+    bool isTableDynamic,
+    bool isTableEmpty)
+{
+    ValidateTableSchemaUpdateInternal(
+        oldSchema,
+        newSchema,
+        TSchemaUpdateEnabledFeatures{
+            false,  /* EnableStaticTableDropColumn */
+            false  /* EnableDynamicTableDropColumn */
+        },
+        isTableDynamic,
+        isTableEmpty
+    );
 }
 
 ////////////////////////////////////////////////////////////////////////////////

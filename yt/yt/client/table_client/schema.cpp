@@ -5,7 +5,11 @@
 #include "logical_type.h"
 #include "unversioned_row.h"
 
+#include <optional>
+
 #include <yt/yt/client/tablet_client/public.h>
+
+#include <yt/yt/client/table_client/schema_serialization_helpers.h>
 
 #include <yt/yt/core/yson/public.h>
 #include <yt/yt/core/yson/pull_parser_deserialize.h>
@@ -89,11 +93,6 @@ void FormatValue(TStringBuilderBase* builder, const TStableName& stableName, TSt
 bool operator == (const TStableName& lhs, const TStableName& rhs)
 {
     return lhs.Get() == rhs.Get();
-}
-
-bool operator != (const TStableName& lhs, const TStableName& rhs)
-{
-    return !(lhs == rhs);
 }
 
 bool operator < (const TStableName& lhs, const TStableName& rhs)
@@ -271,153 +270,22 @@ TString TColumnSchema::GetDiagnosticNameString() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static void RunColumnSchemaPostprocessor(
-    TColumnSchema& schema,
-    std::optional<TStableName> stableName,
-    std::optional<ESimpleLogicalValueType> logicalTypeV1,
-    std::optional<bool> requiredV1,
-    const TLogicalTypePtr& logicalTypeV3)
+TDeletedColumn::TDeletedColumn()
 {
-    // Name
-    if (schema.Name().empty()) {
-        THROW_ERROR_EXCEPTION("Column name cannot be empty");
-    }
-
-    if (stableName.has_value()) {
-        if (stableName->Get().empty()) {
-            THROW_ERROR_EXCEPTION("Column stable name cannot be empty");
-        }
-        schema.SetStableName(*stableName);
-    } else {
-        schema.SetStableName(TStableName(schema.Name()));
-    }
-
-    try {
-        int setTypeVersion = 0;
-        if (logicalTypeV3) {
-            schema.SetLogicalType(logicalTypeV3);
-            setTypeVersion = 3;
-        }
-
-        if (logicalTypeV1) {
-            if (setTypeVersion == 0) {
-                schema.SetLogicalType(MakeLogicalType(*logicalTypeV1, requiredV1.value_or(false)));
-                setTypeVersion = 1;
-            } else {
-                if (*logicalTypeV1 != schema.CastToV1Type()) {
-                    THROW_ERROR_EXCEPTION(
-                        "\"type_v%v\" does not match \"type\"; \"type_v%v\": %Qv \"type\": %Qlv expected \"type\": %Qlv",
-                        setTypeVersion,
-                        setTypeVersion,
-                        *schema.LogicalType(),
-                        *logicalTypeV1,
-                        schema.CastToV1Type());
-                }
-            }
-        }
-
-        if (requiredV1 && setTypeVersion > 1 && *requiredV1 != schema.Required()) {
-            THROW_ERROR_EXCEPTION(
-                "\"type_v%v\" does not match \"required\"; \"type_v%v\": %Qv \"required\": %Qlv",
-                setTypeVersion,
-                setTypeVersion,
-                *schema.LogicalType(),
-                *requiredV1);
-        }
-
-        if (setTypeVersion == 0) {
-            THROW_ERROR_EXCEPTION("Column type is not specified");
-        }
-
-        if (*DetagLogicalType(schema.LogicalType()) == *SimpleLogicalType(ESimpleLogicalValueType::Any)) {
-            THROW_ERROR_EXCEPTION("Column of type %Qlv cannot be \"required\"",
-                ESimpleLogicalValueType::Any);
-        }
-
-        // Lock
-        if (schema.Lock() && schema.Lock()->empty()) {
-            THROW_ERROR_EXCEPTION("Lock name cannot be empty");
-        }
-
-        // Group
-        if (schema.Group() && schema.Group()->empty()) {
-            THROW_ERROR_EXCEPTION("Group name cannot be empty");
-        }
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error validating column %Qv in table schema",
-            schema.GetDiagnosticNameString())
-            << ex;
-    }
 }
 
-struct TSerializableColumnSchema
-    : public TYsonStructLite
-    , private TColumnSchema
+TDeletedColumn::TDeletedColumn(TStableName stableName)
+    : StableName_(stableName)
 {
-    REGISTER_YSON_STRUCT_LITE(TSerializableColumnSchema);
+}
 
-    static void Register(TRegistrar registrar)
-    {
-        registrar.BaseClassParameter("name", &TSerializableColumnSchema::Name_)
-            .NonEmpty();
-        registrar.Parameter("stable_name", &TSerializableColumnSchema::SerializedStableName_)
-            .Default();
-        registrar.Parameter("type", &TThis::LogicalTypeV1_)
-            .Default(std::nullopt);
-        registrar.Parameter("required", &TThis::RequiredV1_)
-            .Default(std::nullopt);
-        registrar.Parameter("type_v3", &TSerializableColumnSchema::LogicalTypeV3_)
-            .Default();
-        registrar.BaseClassParameter("lock", &TSerializableColumnSchema::Lock_)
-            .Default();
-        registrar.BaseClassParameter("expression", &TSerializableColumnSchema::Expression_)
-            .Default();
-        registrar.BaseClassParameter("aggregate", &TSerializableColumnSchema::Aggregate_)
-            .Default();
-        registrar.BaseClassParameter("sort_order", &TSerializableColumnSchema::SortOrder_)
-            .Default();
-        registrar.BaseClassParameter("group", &TSerializableColumnSchema::Group_)
-            .Default();
-        registrar.BaseClassParameter("max_inline_hunk_size", &TSerializableColumnSchema::MaxInlineHunkSize_)
-            .Default();
+TDeletedColumn& TDeletedColumn::SetStableName(TStableName value)
+{
+    StableName_ = std::move(value);
+    return *this;
+}
 
-        registrar.Postprocessor([] (TSerializableColumnSchema* schema) {
-            RunColumnSchemaPostprocessor(
-                *schema,
-                schema->SerializedStableName_
-                    ? TStableName(*schema->SerializedStableName_)
-                    : std::optional<TStableName>(),
-                schema->LogicalTypeV1_,
-                schema->RequiredV1_,
-                schema->LogicalTypeV3_ ? schema->LogicalTypeV3_->LogicalType : nullptr);
-        });
-    }
-
-public:
-    void SetColumnSchema(const TColumnSchema& columnSchema)
-    {
-        static_cast<TColumnSchema&>(*this) = columnSchema;
-        if (IsRenamed()) {
-            SerializedStableName_ = StableName().Get();
-        }
-        LogicalTypeV1_ = columnSchema.CastToV1Type();
-        RequiredV1_ = columnSchema.Required();
-        LogicalTypeV3_ = TTypeV3LogicalTypeWrapper{columnSchema.LogicalType()};
-    }
-
-    const TColumnSchema& GetColumnSchema() const
-    {
-        return *this;
-    }
-
-private:
-    std::optional<TString> SerializedStableName_;
-
-    std::optional<ESimpleLogicalValueType> LogicalTypeV1_;
-    std::optional<bool> RequiredV1_;
-
-    std::optional<TTypeV3LogicalTypeWrapper> LogicalTypeV3_;
-};
+////////////////////////////////////////////////////////////////////////////////
 
 void FormatValue(TStringBuilderBase* builder, const TColumnSchema& schema, TStringBuf /*spec*/)
 {
@@ -464,70 +332,14 @@ void FormatValue(TStringBuilderBase* builder, const TColumnSchema& schema, TStri
     builder->AppendChar('}');
 }
 
-void Serialize(const TColumnSchema& schema, IYsonConsumer* consumer)
+void FormatValue(TStringBuilderBase* builder, const TDeletedColumn& schema, TStringBuf spec)
 {
-    TSerializableColumnSchema wrapper = TSerializableColumnSchema::Create();
-    wrapper.SetColumnSchema(schema);
-    Serialize(static_cast<const TYsonStructLite&>(wrapper), consumer);
-}
+    builder->AppendChar('{');
 
-void Deserialize(TColumnSchema& schema, INodePtr node)
-{
-    TSerializableColumnSchema wrapper = TSerializableColumnSchema::Create();
-    Deserialize(static_cast<TYsonStructLite&>(wrapper), node);
-    schema = wrapper.GetColumnSchema();
-}
+    FormatValue(builder, schema.StableName(), spec);
+    builder->AppendFormat("; deleted=true");
 
-void Deserialize(TColumnSchema& schema, NYson::TYsonPullParserCursor* cursor)
-{
-    std::optional<TStableName> stableName;
-    std::optional<ESimpleLogicalValueType> logicalTypeV1;
-    std::optional<bool> requiredV1;
-    TLogicalTypePtr logicalTypeV3;
-
-    cursor->ParseMap([&] (NYson::TYsonPullParserCursor* cursor) {
-        EnsureYsonToken("column schema attribute key", *cursor, EYsonItemType::StringValue);
-        auto key = (*cursor)->UncheckedAsString();
-        if (key == TStringBuf("name")) {
-            cursor->Next();
-            schema.SetName(ExtractTo<TString>(cursor));
-        } else if (key == TStringBuf("required")) {
-            cursor->Next();
-            requiredV1 = ExtractTo<bool>(cursor);
-        } else if (key == TStringBuf("type")) {
-            cursor->Next();
-            logicalTypeV1 = ExtractTo<ESimpleLogicalValueType>(cursor);
-        } else if (key == TStringBuf("type_v3")) {
-            cursor->Next();
-            DeserializeV3(logicalTypeV3, cursor);
-        } else if (key == TStringBuf("lock")) {
-            cursor->Next();
-            schema.SetLock(ExtractTo<std::optional<TString>>(cursor));
-        } else if (key == TStringBuf("expression")) {
-            cursor->Next();
-            schema.SetExpression(ExtractTo<std::optional<TString>>(cursor));
-        } else if (key == TStringBuf("aggregate")) {
-            cursor->Next();
-            schema.SetAggregate(ExtractTo<std::optional<TString>>(cursor));
-        } else if (key == TStringBuf("sort_order")) {
-            cursor->Next();
-            schema.SetSortOrder(ExtractTo<std::optional<ESortOrder>>(cursor));
-        } else if (key == TStringBuf("group")) {
-            cursor->Next();
-            schema.SetGroup(ExtractTo<std::optional<TString>>(cursor));
-        } else if (key == TStringBuf("max_inline_hunk_size")) {
-            cursor->Next();
-            schema.SetMaxInlineHunkSize(ExtractTo<std::optional<i64>>(cursor));
-        } else if (key == TStringBuf("stable_name")) {
-            cursor->Next();
-            stableName = TStableName(ExtractTo<TString>(cursor));
-        } else {
-            cursor->Next();
-            cursor->SkipComplexValue();
-        }
-    });
-
-    RunColumnSchemaPostprocessor(schema, stableName, logicalTypeV1, requiredV1, logicalTypeV3);
+    builder->AppendChar('}');
 }
 
 void ToProto(NProto::TColumnSchema* protoSchema, const TColumnSchema& schema)
@@ -582,6 +394,11 @@ void ToProto(NProto::TColumnSchema* protoSchema, const TColumnSchema& schema)
     }
 }
 
+void ToProto(NProto::TDeletedColumn* protoSchema, const TDeletedColumn& schema)
+{
+    protoSchema->set_stable_name(schema.StableName().Get());
+}
+
 void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
 {
     schema->SetName(protoSchema.name());
@@ -611,6 +428,11 @@ void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
     schema->SetMaxInlineHunkSize(protoSchema.has_max_inline_hunk_size() ? std::make_optional(protoSchema.max_inline_hunk_size()) : std::nullopt);
 }
 
+void FromProto(TDeletedColumn* schema, const NProto::TDeletedColumn& protoSchema)
+{
+    schema->SetStableName(TStableName{protoSchema.stable_name()});
+}
+
 void PrintTo(const TColumnSchema& columnSchema, std::ostream* os)
 {
     *os << Format("%v", columnSchema);
@@ -621,6 +443,11 @@ void PrintTo(const TColumnSchema& columnSchema, std::ostream* os)
 TTableSchema::TNameMapping::TNameMapping(const TTableSchema& schema)
     : Schema_(schema)
 { }
+
+bool TTableSchema::TNameMapping::IsDeleted(const TStableName& stableName) const
+{
+    return Schema_.FindDeletedColumn(stableName) != nullptr;
+}
 
 TString TTableSchema::TNameMapping::StableNameToName(const TStableName& stableName) const
 {
@@ -658,15 +485,22 @@ const std::vector<TColumnSchema>& TTableSchema::Columns() const
     }
 }
 
+const std::vector<TDeletedColumn>& TTableSchema::DeletedColumns() const
+{
+    return DeletedColumns_;
+}
+
 TTableSchema::TTableSchema(
     std::vector<TColumnSchema> columns,
     bool strict,
     bool uniqueKeys,
-    ETableSchemaModification schemaModification)
+    ETableSchemaModification schemaModification,
+    std::vector<TDeletedColumn> deletedColumns)
     : Strict_(strict)
     , UniqueKeys_(uniqueKeys)
     , SchemaModification_(schemaModification)
     , Columns_(std::make_shared<const std::vector<TColumnSchema>>(std::move(columns)))
+    , DeletedColumns_(std::move(deletedColumns))
 {
     for (int index = 0; index < std::ssize(Columns()); ++index) {
         const auto& column = Columns()[index];
@@ -687,6 +521,10 @@ TTableSchema::TTableSchema(
         NameToColumnIndex_.emplace(column.Name(), index);
         StableNameToColumnIndex_.emplace(column.StableName().Get(), index);
     }
+    for (int index = 0; index < std::ssize(DeletedColumns()); ++index) {
+        const auto& deletedColumn = DeletedColumns()[index];
+        StableNameToDeletedColumnIndex_.emplace(deletedColumn.StableName().Get(), index);
+    }
 }
 
 const TColumnSchema* TTableSchema::FindColumnByStableName(const TStableName& stableName) const
@@ -696,6 +534,15 @@ const TColumnSchema* TTableSchema::FindColumnByStableName(const TStableName& sta
         return nullptr;
     }
     return &Columns()[it->second];
+}
+
+const TDeletedColumn* TTableSchema::FindDeletedColumn(const TStableName& stableName) const
+{
+    auto it = StableNameToDeletedColumnIndex_.find(stableName.Get());
+    if (it == StableNameToDeletedColumnIndex_.end()) {
+        return nullptr;
+    }
+    return &DeletedColumns()[it->second];
 }
 
 const TColumnSchema* TTableSchema::FindColumn(TStringBuf name) const
@@ -789,7 +636,9 @@ TTableSchemaPtr TTableSchema::Filter(const TColumnFilter& columnFilter, bool dis
     return New<TTableSchema>(
         std::move(columns),
         Strict_,
-        UniqueKeys_ && (newKeyColumnCount == GetKeyColumnCount()));
+        UniqueKeys_ && (newKeyColumnCount == GetKeyColumnCount()),
+        ETableSchemaModification::None,
+        DeletedColumns_);
 }
 
 TTableSchemaPtr TTableSchema::Filter(const THashSet<TString>& columnNames, bool discardSortOrder) const
@@ -1022,7 +871,8 @@ TTableSchemaPtr TTableSchema::ToQuery() const
                 .SetSortOrder(ESortOrder::Ascending)
         };
         columns.insert(columns.end(), Columns().begin(), Columns().end());
-        return New<TTableSchema>(std::move(columns));
+        return New<TTableSchema>(std::move(columns), true, false,
+            ETableSchemaModification::None, DeletedColumns_);
     }
 }
 
@@ -1046,7 +896,8 @@ TTableSchemaPtr TTableSchema::ToWrite() const
             }
         }
     }
-    return New<TTableSchema>(std::move(columns), Strict_, UniqueKeys_);
+    return New<TTableSchema>(std::move(columns), Strict_, UniqueKeys_,
+        ETableSchemaModification::None, DeletedColumns_);
 }
 
 TTableSchemaPtr TTableSchema::WithTabletIndex() const
@@ -1057,7 +908,8 @@ TTableSchemaPtr TTableSchema::WithTabletIndex() const
         auto columns = Columns();
         // XXX: Is it ok? $tablet_index is usually a key column.
         columns.push_back(TColumnSchema(TabletIndexColumnName, ESimpleLogicalValueType::Int64));
-        return New<TTableSchema>(std::move(columns), Strict_, UniqueKeys_);
+        return New<TTableSchema>(std::move(columns), Strict_, UniqueKeys_,
+            ETableSchemaModification::None, DeletedColumns_);
     }
 }
 
@@ -1069,7 +921,8 @@ TTableSchemaPtr TTableSchema::ToVersionedWrite() const
         auto columns = Columns();
         columns.insert(columns.begin(), TColumnSchema(TabletIndexColumnName, ESimpleLogicalValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending));
-        return New<TTableSchema>(std::move(columns), Strict_, UniqueKeys_);
+        return New<TTableSchema>(std::move(columns), Strict_, UniqueKeys_,
+            ETableSchemaModification::None, DeletedColumns_);
     }
 }
 
@@ -1081,7 +934,7 @@ TTableSchemaPtr TTableSchema::ToLookup() const
             columns.push_back(column);
         }
     }
-    return New<TTableSchema>(std::move(columns), Strict_, UniqueKeys_);
+    return New<TTableSchema>(std::move(columns), Strict_, UniqueKeys_, ETableSchemaModification::None, DeletedColumns_);
 }
 
 TTableSchemaPtr TTableSchema::ToDelete() const
@@ -1092,18 +945,14 @@ TTableSchemaPtr TTableSchema::ToDelete() const
 TTableSchemaPtr TTableSchema::ToKeys() const
 {
     std::vector<TColumnSchema> columns(Columns().begin(), Columns().begin() + KeyColumnCount_);
-    return New<TTableSchema>(std::move(columns), Strict_, UniqueKeys_);
-}
-
-TTableSchemaPtr TTableSchema::ToValues() const
-{
-    std::vector<TColumnSchema> columns(Columns().begin() + KeyColumnCount_, Columns().end());
-    return New<TTableSchema>(std::move(columns), Strict_, false);
+    return New<TTableSchema>(std::move(columns), Strict_, UniqueKeys_,
+        ETableSchemaModification::None, DeletedColumns_);
 }
 
 TTableSchemaPtr TTableSchema::ToUniqueKeys() const
 {
-    return New<TTableSchema>(Columns(), Strict_, /*uniqueKeys*/ true);
+    return New<TTableSchema>(Columns(), Strict_, /*uniqueKeys*/ true,
+        ETableSchemaModification::None, DeletedColumns_);
 }
 
 TTableSchemaPtr TTableSchema::ToStrippedColumnAttributes() const
@@ -1113,7 +962,8 @@ TTableSchemaPtr TTableSchema::ToStrippedColumnAttributes() const
         auto& strippedColumn = strippedColumns.emplace_back(column.Name(), column.LogicalType());
         strippedColumn.SetStableName(column.StableName());
     }
-    return New<TTableSchema>(std::move(strippedColumns), Strict_, /*uniqueKeys*/ false);
+    return New<TTableSchema>(std::move(strippedColumns), Strict_, /*uniqueKeys*/ false,
+        ETableSchemaModification::None, DeletedColumns_);
 }
 
 TTableSchemaPtr TTableSchema::ToSortedStrippedColumnAttributes() const
@@ -1123,7 +973,8 @@ TTableSchemaPtr TTableSchema::ToSortedStrippedColumnAttributes() const
         auto& strippedColumn = strippedColumns.emplace_back(column.Name(), column.LogicalType(), column.SortOrder());
         strippedColumn.SetStableName(column.StableName());
     }
-    return New<TTableSchema>(std::move(strippedColumns), Strict_, UniqueKeys_);
+    return New<TTableSchema>(std::move(strippedColumns), Strict_, UniqueKeys_,
+        ETableSchemaModification::None, DeletedColumns_);
 }
 
 TTableSchemaPtr TTableSchema::ToCanonical() const
@@ -1135,7 +986,8 @@ TTableSchemaPtr TTableSchema::ToCanonical() const
         [] (const TColumnSchema& lhs, const TColumnSchema& rhs) {
             return lhs.Name() < rhs.Name();
         });
-    return New<TTableSchema>(columns, Strict_, UniqueKeys_);
+    return New<TTableSchema>(columns, Strict_, UniqueKeys_,
+        ETableSchemaModification::None, DeletedColumns_);
 }
 
 TTableSchemaPtr TTableSchema::ToSorted(const TKeyColumns& keyColumns) const
@@ -1193,7 +1045,8 @@ TTableSchemaPtr TTableSchema::ToSorted(const TSortColumns& sortColumns) const
         it->SetSortOrder(std::nullopt);
     }
 
-    return New<TTableSchema>(std::move(columns), Strict_, uniqueKeys, GetSchemaModification());
+    return New<TTableSchema>(std::move(columns), Strict_, uniqueKeys, GetSchemaModification(),
+            DeletedColumns_);
 }
 
 TTableSchemaPtr TTableSchema::ToReplicationLog() const
@@ -1227,7 +1080,12 @@ TTableSchemaPtr TTableSchema::ToReplicationLog() const
         }
         columns.push_back(TColumnSchema(TReplicationLogTable::ValueColumnNamePrefix + TabletIndexColumnName, ESimpleLogicalValueType::Int64));
     }
-    return New<TTableSchema>(std::move(columns), /* strict */ true, /* uniqueKeys */ false);
+    return New<TTableSchema>(
+            std::move(columns),
+            /* strict */ true,
+            /* uniqueKeys */ false,
+            ETableSchemaModification::None,
+            DeletedColumns_);
 }
 
 TTableSchemaPtr TTableSchema::ToUnversionedUpdate(bool sorted) const
@@ -1263,7 +1121,12 @@ TTableSchemaPtr TTableSchema::ToUnversionedUpdate(bool sorted) const
             MakeLogicalType(ESimpleLogicalValueType::Uint64, /*required*/ false));
     }
 
-    return New<TTableSchema>(std::move(columns), /*strict*/ true, /*uniqueKeys*/ sorted);
+    return New<TTableSchema>(
+            std::move(columns),
+            /*strict*/ true,
+            /*uniqueKeys*/ sorted,
+            ETableSchemaModification::None,
+            DeletedColumns_);
 }
 
 TTableSchemaPtr TTableSchema::ToModifiedSchema(ETableSchemaModification schemaModification) const
@@ -1351,6 +1214,13 @@ void FormatValue(TStringBuilderBase* builder, const TTableSchema& schema, TStrin
         builder->AppendFormat("%v", column);
         first = false;
     }
+    for (const auto& deletedColumn : schema.DeletedColumns()) {
+        if (!first) {
+            builder->AppendString(TStringBuf("; "));
+        }
+        builder->AppendFormat("%v", deletedColumn);
+        first = false;
+    }
     builder->AppendChar(']');
 }
 
@@ -1389,84 +1259,10 @@ void DeserializeFromWireProto(TTableSchemaPtr* schema, const TString& serialized
     FromProto(schema, protoSchema);
 }
 
-void Serialize(const TTableSchema& schema, IYsonConsumer* consumer)
-{
-    BuildYsonFluently(consumer)
-        .BeginAttributes()
-            .Item("strict").Value(schema.GetStrict())
-            .Item("unique_keys").Value(schema.GetUniqueKeys())
-            .DoIf(schema.HasNontrivialSchemaModification(), [&] (TFluentMap fluent) {
-                fluent.Item("schema_modification").Value(schema.GetSchemaModification());
-            })
-        .EndAttributes()
-        .Value(schema.Columns());
-}
-
-void Deserialize(TTableSchema& schema, INodePtr node)
-{
-    schema = TTableSchema(
-        ConvertTo<std::vector<TColumnSchema>>(node),
-        node->Attributes().Get<bool>("strict", true),
-        node->Attributes().Get<bool>("unique_keys", false),
-        node->Attributes().Get<ETableSchemaModification>(
-            "schema_modification",
-            ETableSchemaModification::None));
-}
-
-void Deserialize(TTableSchema& schema, NYson::TYsonPullParserCursor* cursor)
-{
-    bool strict = true;
-    bool uniqueKeys = false;
-    ETableSchemaModification modification = ETableSchemaModification::None;
-    std::vector<TColumnSchema> columns;
-
-    if ((*cursor)->GetType() == EYsonItemType::BeginAttributes) {
-        cursor->ParseAttributes([&] (TYsonPullParserCursor* cursor) {
-            EnsureYsonToken(TStringBuf("table schema attribute key"), *cursor, EYsonItemType::StringValue);
-            auto key = (*cursor)->UncheckedAsString();
-            if (key == TStringBuf("strict")) {
-                cursor->Next();
-                strict = ExtractTo<bool>(cursor);
-            } else if (key == TStringBuf("unique_keys")) {
-                cursor->Next();
-                uniqueKeys = ExtractTo<bool>(cursor);
-            } else if (key == TStringBuf("schema_modification")) {
-                cursor->Next();
-                modification = ExtractTo<ETableSchemaModification>(cursor);
-            } else {
-                cursor->Next();
-                cursor->SkipComplexValue();
-            }
-        });
-    }
-    EnsureYsonToken(TStringBuf("table schema"), *cursor, EYsonItemType::BeginList);
-    columns = ExtractTo<std::vector<TColumnSchema>>(cursor);
-    schema = TTableSchema(std::move(columns), strict, uniqueKeys, modification);
-}
-
-void Serialize(const TTableSchemaPtr& schema, IYsonConsumer* consumer)
-{
-    Serialize(*schema, consumer);
-}
-
-
-void Deserialize(TTableSchemaPtr& schema, INodePtr node)
-{
-    TTableSchema actualSchema;
-    Deserialize(actualSchema, node);
-    schema = New<TTableSchema>(std::move(actualSchema));
-}
-
-void Deserialize(TTableSchemaPtr& schema, NYson::TYsonPullParserCursor* cursor)
-{
-    TTableSchema actualSchema;
-    Deserialize(actualSchema, cursor);
-    schema = New<TTableSchema>(std::move(actualSchema));
-}
-
 void ToProto(NProto::TTableSchemaExt* protoSchema, const TTableSchema& schema)
 {
     ToProto(protoSchema->mutable_columns(), schema.Columns());
+    ToProto(protoSchema->mutable_deleted_columns(), schema.DeletedColumns());
     protoSchema->set_strict(schema.GetStrict());
     protoSchema->set_unique_keys(schema.GetUniqueKeys());
     protoSchema->set_schema_modification(static_cast<int>(schema.GetSchemaModification()));
@@ -1478,7 +1274,8 @@ void FromProto(TTableSchema* schema, const NProto::TTableSchemaExt& protoSchema)
         FromProto<std::vector<TColumnSchema>>(protoSchema.columns()),
         protoSchema.strict(),
         protoSchema.unique_keys(),
-        CheckedEnumCast<ETableSchemaModification>(protoSchema.schema_modification()));
+        CheckedEnumCast<ETableSchemaModification>(protoSchema.schema_modification()),
+        FromProto<std::vector<TDeletedColumn>>(protoSchema.deleted_columns()));
 }
 
 void FromProto(
@@ -1499,10 +1296,15 @@ void FromProto(
         auto& columnSchema = columns[columnIndex];
         YT_VERIFY(!columnSchema.SortOrder());
     }
+
+    auto deletedColumns = FromProto<std::vector<TDeletedColumn>>(protoSchema.deleted_columns());
+
     *schema = TTableSchema(
         std::move(columns),
         protoSchema.strict(),
-        protoSchema.unique_keys());
+        protoSchema.unique_keys(),
+        ETableSchemaModification::None,
+        deletedColumns);
 }
 
 void ToProto(NProto::TTableSchemaExt* protoSchema, const TTableSchemaPtr& schema)
@@ -1547,9 +1349,9 @@ bool operator==(const TColumnSchema& lhs, const TColumnSchema& rhs)
         lhs.MaxInlineHunkSize() == rhs.MaxInlineHunkSize();
 }
 
-bool operator!=(const TColumnSchema& lhs, const TColumnSchema& rhs)
+bool operator==(const TDeletedColumn& lhs, const TDeletedColumn& rhs)
 {
-    return !(lhs == rhs);
+    return lhs.StableName() == rhs.StableName();
 }
 
 bool operator==(const TTableSchema& lhs, const TTableSchema& rhs)
@@ -1558,7 +1360,8 @@ bool operator==(const TTableSchema& lhs, const TTableSchema& rhs)
         lhs.Columns() == rhs.Columns() &&
         lhs.GetStrict() == rhs.GetStrict() &&
         lhs.GetUniqueKeys() == rhs.GetUniqueKeys() &&
-        lhs.GetSchemaModification() == rhs.GetSchemaModification();
+        lhs.GetSchemaModification() == rhs.GetSchemaModification() &&
+        lhs.DeletedColumns() == rhs.DeletedColumns();
 }
 
 // Compat code for https://st.yandex-team.ru/YT-10668 workaround.
@@ -1575,11 +1378,6 @@ bool IsEqualIgnoringRequiredness(const TTableSchema& lhs, const TTableSchema& rh
         return TTableSchema(resultColumns, schema.GetStrict(), schema.GetUniqueKeys());
     };
     return dropRequiredness(lhs) == dropRequiredness(rhs);
-}
-
-bool operator!=(const TTableSchema& lhs, const TTableSchema& rhs)
-{
-    return !(lhs == rhs);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1835,6 +1633,12 @@ void ValidateColumnUniqueness(const TTableSchema& schema)
         if (!columnNames.insert(column.Name()).second) {
             THROW_ERROR_EXCEPTION("Duplicate column name %Qv in table schema",
                 column.Name());
+        }
+    }
+    for (const auto& deletedColumn : schema.DeletedColumns()) {
+        if (!columnStableNames.insert(deletedColumn.StableName().Get()).second) {
+            THROW_ERROR_EXCEPTION("Duplicate column stable name %Qv in table schema",
+                deletedColumn.StableName());
         }
     }
 }
@@ -2169,6 +1973,11 @@ size_t THash<NYT::NTableClient::TColumnSchema>::operator()(const NYT::NTableClie
         columnSchema.MaxInlineHunkSize());
 }
 
+size_t THash<NYT::NTableClient::TDeletedColumn>::operator()(const NYT::NTableClient::TDeletedColumn& columnSchema) const
+{
+    return THash<NYT::NTableClient::TStableName>()(columnSchema.StableName());
+}
+
 size_t THash<NYT::NTableClient::TTableSchema>::operator()(const NYT::NTableClient::TTableSchema& tableSchema) const
 {
     size_t result = CombineHashes(THash<bool>()(tableSchema.GetUniqueKeys()), THash<bool>()(tableSchema.GetStrict()));
@@ -2179,6 +1988,10 @@ size_t THash<NYT::NTableClient::TTableSchema>::operator()(const NYT::NTableClien
     }
     for (const auto& columnSchema : tableSchema.Columns()) {
         result = CombineHashes(result, THash<NYT::NTableClient::TColumnSchema>()(columnSchema));
+    }
+    for (const auto& deletedColumnSchema : tableSchema.DeletedColumns()) {
+        result = CombineHashes(result, THash<NYT::NTableClient::TDeletedColumn>()(
+            deletedColumnSchema));
     }
     return result;
 }

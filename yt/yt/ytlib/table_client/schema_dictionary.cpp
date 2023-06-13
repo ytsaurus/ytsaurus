@@ -5,6 +5,7 @@
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <library/cpp/yt/farmhash/farm_hash.h>
+#include <library/cpp/yt/logging/logger.h>
 
 namespace NYT::NTableClient {
 
@@ -20,6 +21,11 @@ int TSchemaDictionary::GetIdOrRegisterTable(const TTableSchema& table)
         tableInternal.add_columns(id);
     }
 
+    for (const auto& deletedColumn : table.DeletedColumns()) {
+        int id = GetIdOrRegisterDeletedColumn(deletedColumn);
+        tableInternal.add_deleted_columns(id);
+    }
+
     int newId = TableInternalToId_.size();
     auto result = TableInternalToId_.insert({tableInternal, newId});
     if (result.second) {
@@ -29,6 +35,18 @@ int TSchemaDictionary::GetIdOrRegisterTable(const TTableSchema& table)
     } else {
         return result.first->second;
     }
+}
+
+int TSchemaDictionary::GetIdOrRegisterDeletedColumn(const TDeletedColumn& deletedColumn)
+{
+  auto newId = DeletedColumnToId_.size();
+  auto result = DeletedColumnToId_.insert({deletedColumn, newId});
+  if (result.second) {
+    IdToDeletedColumn_.emplace_back(deletedColumn);
+    return newId;
+  } else {
+    return result.first->second;
+  }
 }
 
 int TSchemaDictionary::GetIdOrRegisterColumn(const TColumnSchema& column)
@@ -83,6 +101,7 @@ void ToProto(NProto::TSchemaDictionary* protoDictionary, const TSchemaDictionary
     using NYT::ToProto;
 
     ToProto(protoDictionary->mutable_columns(), dictionary.IdToColumn_);
+    ToProto(protoDictionary->mutable_deleted_columns(), dictionary.IdToDeletedColumn_);
     for (const auto& table : dictionary.IdToTableInternal_) {
         auto* protoTable = protoDictionary->add_tables();
         protoTable->MergeFrom(table);
@@ -97,6 +116,10 @@ void FromProto(TSchemaDictionary* dictionary, const NProto::TSchemaDictionary& p
     for (int index = 0; index < std::ssize(dictionary->IdToColumn_); ++index) {
         YT_VERIFY(dictionary->ColumnToId_.insert({dictionary->IdToColumn_[index], index}).second);
     }
+    FromProto(&dictionary->IdToDeletedColumn_, protoDictionary.deleted_columns());
+    for (int index = 0; index < std::ssize(dictionary->IdToDeletedColumn_); ++index) {
+        YT_VERIFY(dictionary->DeletedColumnToId_.insert({dictionary->IdToDeletedColumn_[index], index}).second);
+    }
     for (int index = 0; index < protoDictionary.tables().size(); ++index) {
         const auto& protoTable = protoDictionary.tables().Get(index);
         dictionary->IdToTableInternal_.emplace_back(protoTable);
@@ -105,10 +128,16 @@ void FromProto(TSchemaDictionary* dictionary, const NProto::TSchemaDictionary& p
         for (int id : protoTable.columns()) {
             columns.emplace_back(dictionary->IdToColumn_[id]);
         }
+        std::vector<TDeletedColumn> deletedColumns;
+        for (int id : protoTable.deleted_columns()) {
+            deletedColumns.emplace_back(dictionary->IdToDeletedColumn_[id]);
+        }
         dictionary->IdToTable_.push_back(New<TTableSchema>(
             std::move(columns),
             protoTable.strict(),
-            protoTable.unique_keys()));
+            protoTable.unique_keys(),
+            ETableSchemaModification::None,
+            deletedColumns));
     }
 }
 

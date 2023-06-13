@@ -1,12 +1,29 @@
+#pragma once
+
 #include <yt/yt/client/table_client/public.h>
 
 namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSchemaUpdateEnabledFeatures
+{
+    bool EnableStaticTableDropColumn = false;
+    bool EnableDynamicTableDropColumn = false;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ValidateColumnSchemaUpdate(
     const TColumnSchema& oldColumn,
     const TColumnSchema& newColumn);
+
+void ValidateTableSchemaUpdateInternal(
+    const TTableSchema& oldSchema,
+    const TTableSchema& newSchema,
+    TSchemaUpdateEnabledFeatures enabledFeatures,
+    bool isTableDynamic = false,
+    bool isTableEmpty = false);
 
 void ValidateTableSchemaUpdate(
     const TTableSchema& oldSchema,

@@ -269,6 +269,15 @@ TTimestamp ExtractTimestampFromPulledRow(TVersionedRow row)
         << TErrorAttribute("key", ToOwningKey(row));
 }
 
+
+TSchemaUpdateEnabledFeatures GetSchemaUpdateEnabledFeatures()
+{
+    return TSchemaUpdateEnabledFeatures {
+        true,  /*EnableStaticTableDropColumn*/
+        true  /*EnableDynamicTableDropColumn*/
+    };
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -333,9 +342,10 @@ private:
 
         if (auto it = ExpectedTableSchemas_.find(path.GetPath())) {
             try {
-                ValidateTableSchemaUpdate(
+                ValidateTableSchemaUpdateInternal(
                     *it->second,
                     *tableInfo->Schemas[ETableSchemaKind::Primary],
+                    GetSchemaUpdateEnabledFeatures(),
                     true,
                     false);
             } catch (const std::exception& ex) {
@@ -798,9 +808,10 @@ TRowset TClient::DoLookupRowsOnce(
     }
 
     if (options.FallbackTableSchema && tableInfo->ReplicationCardId) {
-        ValidateTableSchemaUpdate(
+        ValidateTableSchemaUpdateInternal(
             *options.FallbackTableSchema,
             *tableInfo->Schemas[ETableSchemaKind::Primary],
+            GetSchemaUpdateEnabledFeatures(),
             true,
             false);
     }
@@ -2658,7 +2669,12 @@ TPullRowsResult TClient::DoPullRows(
     const auto& schema = tableInfo->Schemas[ETableSchemaKind::VersionedWrite];
 
     if (options.TableSchema) {
-        ValidateTableSchemaUpdate(*tableInfo->Schemas[ETableSchemaKind::Primary], *options.TableSchema, true, false);
+        ValidateTableSchemaUpdateInternal(
+            *tableInfo->Schemas[ETableSchemaKind::Primary],
+            *options.TableSchema,
+            GetSchemaUpdateEnabledFeatures(),
+            true,
+            false);
     }
 
     auto& segments = options.ReplicationProgress.Segments;

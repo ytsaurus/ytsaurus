@@ -5,6 +5,8 @@
 
 #include <yt/yt/client/table_client/comparator.h>
 #include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/schema_serialization_helpers.h>
+
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
 
 #include <yt/yt/core/ytree/convert.h>
@@ -24,7 +26,9 @@ using namespace NYTree;
 
 TColumnSchema ColumnFromYson(const TString& yson)
 {
-    return ConvertTo<TColumnSchema>(TYsonStringBuf(yson));
+    auto maybeDeletedColumn = ConvertTo<TMaybeDeletedColumnSchema>(TYsonStringBuf(yson));
+    YT_VERIFY(!maybeDeletedColumn.Deleted());
+    return static_cast<TColumnSchema>(maybeDeletedColumn);
 }
 
 TEST(TTableSchemaTest, ColumnTypeV1Deserialization)
