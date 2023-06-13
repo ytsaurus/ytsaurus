@@ -312,7 +312,7 @@ class TestLocalMode(object):
             assert set(client.search("//test")) == set(["//test", "//test/folder", table])
 
     def test_use_context_manager(self):
-        with yt_local.LocalYt(id=_get_id("test_use_context_manager")) as client:
+        with yt_local.LocalYt(id=_get_id("test_use_context_manager"), fqdn="localhost") as client:
             client.config["tabular_data_format"] = yt.format.DsvFormat()
             client.mkdir("//test")
 
@@ -333,7 +333,7 @@ class TestLocalMode(object):
 
             assert set(client.search("//test")) == set(["//test", "//test/folder", table])
 
-        with yt_local.LocalYt(path=os.path.join(get_tests_sandbox(), "test_path"), enable_debug_logging=True):
+        with yt_local.LocalYt(path=os.path.join(get_tests_sandbox(), "test_path"), fqdn="localhost", enable_debug_logging=True):
             pass
 
     def test_local_cypress_synchronization(self):
