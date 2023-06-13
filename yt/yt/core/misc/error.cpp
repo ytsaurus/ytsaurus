@@ -23,6 +23,8 @@
 
 #include <library/cpp/yt/misc/thread_name.h>
 
+#include <util/string/subst.h>
+
 #include <util/system/error.h>
 #include <util/system/thread.h>
 
@@ -846,7 +848,15 @@ void AppendIndent(TStringBuilderBase* builer, int indent)
 void AppendAttribute(TStringBuilderBase* builder, const TString& key, const TString& value, int indent)
 {
     AppendIndent(builder, indent + 4);
-    builder->AppendFormat("%-15s %s", key, value);
+    if (!value.Contains('\n')) {
+        builder->AppendFormat("%-15s %s", key, value);
+    } else {
+        builder->AppendString(key);
+        TString indentedValue = "\n" + value;
+        SubstGlobal(indentedValue, "\n", "\n" + TString{static_cast<size_t>(indent + 8), ' '});
+        // Now first line in indentedValue is empty and every other line is indented by 8 spaces.
+        builder->AppendString(indentedValue);
+    }
     builder->AppendChar('\n');
 }
 

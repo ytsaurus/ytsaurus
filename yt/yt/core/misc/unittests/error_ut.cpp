@@ -7,6 +7,8 @@
 #include <yt/yt/core/ytree/convert.h>
 
 #include <util/stream/str.h>
+#include <util/string/join.h>
+#include <util/string/split.h>
 
 namespace NYT {
 namespace {
@@ -186,6 +188,29 @@ TEST(TErrorTest, SimpleLoadAfterSave)
     loadedError.Load(loadContext);
 
     EXPECT_EQ(ToString(savedError), ToString(loadedError));
+}
+
+TEST(TErrorTest, AttributeSerialization)
+{
+    auto getWeededText = [](const TError& err) {
+        std::vector<TString> lines;
+        for (const auto& line : StringSplitter(ToString(err)).Split('\n')) {
+            if (!line.Contains("origin") && !line.Contains("datetime")) {
+                lines.push_back(TString{line});
+            }
+        }
+        return JoinSeq("\n", lines);
+    };
+
+    EXPECT_EQ(getWeededText(TError("E1") << TErrorAttribute("A1", "V1")), TString(
+        "E1\n"
+        "    A1              V1\n"));
+    EXPECT_EQ(getWeededText(TError("E1") << TErrorAttribute("A1", "L1\nL2\nL3")), TString(
+        "E1\n"
+        "    A1\n"
+        "        L1\n"
+        "        L2\n"
+        "        L3\n"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
