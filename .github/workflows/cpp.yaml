@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - stable/[0-9]+\.[0-9]+
 
 jobs:
   start-vm:
@@ -95,19 +94,20 @@ jobs:
           tar -xf spyt-1.69.tar -C ../build
           tar -xf yql-package.tar -C ../build
           mkdir -p ../docker-ytsaurus-build
-          if [[ $GITHUB_REF =~ main$ ]];
-          then
-            IMAGE_TAG=dev
-          else
-            IMAGE_TAG=release-${GITHUB_REF#refs/*/stable/}
-          bash ./yt/docker/ytsaurus/build.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --ytsaurus-spyt-release-path ../build/spyt_release --ytsaurus-yql-package-path ../build/yql_package --output-path ../docker-ytsaurus-build --image-tag ${IMAGE_TAG}
-          docker push ytsaurus/ytsaurus:${IMAGE_TAG}
+          bash ./yt/docker/ytsaurus/build.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --ytsaurus-spyt-release-path ../build/spyt_release --ytsaurus-yql-package-path ../build/yql_package --output-path ../docker-ytsaurus-build --image-tag dev
+          docker push ytsaurus/ytsaurus:dev
 
-      - name: Kube
+      - name: Docker registry login
         shell: bash
         run: |
-          export HOME=/root
-          bash yt/docker/yt_nightly/kube.sh --ytsaurus-source-path $(pwd)
+          echo '${{ secrets.YC_SA_JSON_CREDENTIALS }}' > sa.json
+          cat sa.json | docker login --username json_key --password-stdin  cr.yandex
+
+      - name: Docker yt_nightly
+        shell: bash
+        run: |
+          docker tag ytsaurus/ytsaurus:dev cr.yandex/crpl84hkh3k16ihscv0j/ytsaurus-nightly:${GITHUB_SHA}
+          docker push cr.yandex/crpl84hkh3k16ihscv0j/ytsaurus-nightly:${GITHUB_SHA}
 
       - name: Unittests
         shell: bash
