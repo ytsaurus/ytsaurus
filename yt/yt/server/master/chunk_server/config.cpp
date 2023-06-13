@@ -175,6 +175,9 @@ void TDynamicMasterCellChunkStatisticsCollectorConfig::Register(TRegistrar regis
         .Default(GenerateChunkCreationTimeHistogramBucketBounds(TInstant::ParseIso8601("2023-02-15 00:00:00Z")));
 
     registrar.Postprocessor([] (TThis* config) {
+        THROW_ERROR_EXCEPTION_IF(config->CreationTimeHistogramBucketBounds.empty(),
+            "\"creation_time_histogram_bucket_bounds\" cannot be empty");
+
         if (std::ssize(config->CreationTimeHistogramBucketBounds) > MaxChunkCreationTimeHistogramBuckets) {
             THROW_ERROR_EXCEPTION("\"creation_time_histogram_bucket_bounds\" is too large")
                 << TErrorAttribute("size", std::ssize(config->CreationTimeHistogramBucketBounds))

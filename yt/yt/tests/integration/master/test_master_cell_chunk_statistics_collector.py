@@ -3,7 +3,8 @@ from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE
 from yt_commands import (
     authors, create, remove, get, ls, set, wait, write_table, print_debug,
     switch_leader, is_active_primary_master_leader, is_active_primary_master_follower,
-    get_active_primary_master_leader_address, get_active_primary_master_follower_address)
+    get_active_primary_master_leader_address, get_active_primary_master_follower_address,
+    raises_yt_error)
 
 from yt_helpers import profiler_factory
 
@@ -117,3 +118,10 @@ class TestMasterCellChunkStatisticsCollector(YTEnvSetup):
             pass
 
         wait(self._check_histogram)
+
+    @authors("kvk1920")
+    def test_empty_bounds(self):
+        with raises_yt_error("cannot be empty"):
+            set(
+                "//sys/@config/chunk_manager/master_cell_chunk_statistics_collector/creation_time_histogram_bucket_bounds",
+                [])
