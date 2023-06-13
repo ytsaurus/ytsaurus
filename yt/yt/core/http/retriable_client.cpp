@@ -1,12 +1,8 @@
 #include "config.h"
 
-#include "library/cpp/yt/memory/intrusive_ptr.h"
 #include "retriable_client.h"
 #include "private.h"
-#include "yt/yt/core/actions/public.h"
-#include "yt/yt/core/misc/error.h"
 
-#include <utility>
 #include <yt/yt/core/http/client.h>
 #include <yt/yt/core/http/helpers.h>
 #include <yt/yt/core/http/public.h>
