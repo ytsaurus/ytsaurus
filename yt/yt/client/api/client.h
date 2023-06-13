@@ -1260,6 +1260,8 @@ struct TListJobsOptions
     std::optional<bool> WithCompetitors;
     std::optional<TString> TaskName;
 
+    TDuration RunningJobsLookbehindPeriod = TDuration::Max();
+
     EJobSortField SortField = EJobSortField::None;
     EJobSortDirection SortOrder = EJobSortDirection::Ascending;
 
@@ -1271,7 +1273,6 @@ struct TListJobsOptions
     bool IncludeControllerAgent = false;
     bool IncludeArchive = false;
     EDataSource DataSource = EDataSource::Auto;
-    TDuration RunningJobsLookbehindPeriod = TDuration::Max();
 };
 
 struct TAbandonJobOptions

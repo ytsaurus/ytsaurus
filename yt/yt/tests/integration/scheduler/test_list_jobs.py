@@ -5,6 +5,7 @@ from yt_commands import (
     get, create_tmpdir,
     create_pool, insert_rows, select_rows, lookup_rows, write_table, map, map_reduce, vanilla, run_test_vanilla,
     abort_job, list_jobs, clean_operations, mount_table, unmount_table, wait_for_cells, sync_create_cells,
+    update_controller_agent_config,
     make_random_string, raises_yt_error, clear_metadata_caches, ls)
 
 from yt_scheduler_helpers import scheduler_new_orchid_pool_tree_path
@@ -145,7 +146,7 @@ class TestListJobsBase(YTEnvSetup):
         self._tmpdir = create_tmpdir("list_jobs")
         self.failed_job_id_fname = os.path.join(self._tmpdir, "failed_job_id")
 
-    def restart_nodes_and_wait_jobs_table(self):
+    def restart_nodes_and_ca_and_wait_jobs_table(self):
         def get_user_slots_limit():
             return get(scheduler_new_orchid_pool_tree_path("default") + "/resource_limits/user_slots")
 
@@ -153,7 +154,7 @@ class TestListJobsBase(YTEnvSetup):
 
         unmount_table("//sys/operations_archive/jobs")
         wait(lambda: get("//sys/operations_archive/jobs/@tablet_state") == "unmounted")
-        with Restarter(self.Env, NODES_SERVICE):
+        with Restarter(self.Env, [CONTROLLER_AGENTS_SERVICE, NODES_SERVICE]):
             pass
         clear_metadata_caches()
         wait_for_cells()
@@ -677,6 +678,8 @@ class TestListJobs(TestListJobsBase):
 
     @authors("ignat")
     def test_running_aborted_jobs(self):
+        update_controller_agent_config("enable_snapshot_loading", False)
+
         input_table, output_table = self._create_tables()
         op = map(
             track=False,
@@ -690,11 +693,9 @@ class TestListJobs(TestListJobsBase):
 
         op.suspend()
 
-        self.restart_nodes_and_wait_jobs_table()
+        self.restart_nodes_and_ca_and_wait_jobs_table()
 
         op.resume()
-
-        op.track()
 
         @wait_no_assert
         def check():

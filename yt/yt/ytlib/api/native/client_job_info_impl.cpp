@@ -75,6 +75,7 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NScheduler;
 using namespace NNodeTrackerClient;
+using namespace NJobTrackerClient;
 
 using NChunkClient::TDataSliceDescriptor;
 using NNodeTrackerClient::TNodeDescriptor;
@@ -116,6 +117,16 @@ static const auto DefaultGetJobAttributes = [] {
 }();
 
 static const auto SupportedJobAttributes = DefaultGetJobAttributes;
+
+static const auto FinishedJobStatesString = [] {
+    TCompactVector<TString, TEnumTraits<EJobState>::GetDomainSize()> finishedJobStates;
+    for (const auto& jobState : TEnumTraitsImpl_EJobState::GetDomainValues()) {
+        if (IsJobFinished(jobState)) {
+            finishedJobStates.push_back("\"" + FormatEnum(jobState) + "\"");
+        }
+    }
+    return JoinSeq(", ", finishedJobStates);
+}();
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -950,8 +961,10 @@ static TQueryBuilder GetListJobsQueryBuilder(
         operationId.Parts64[1]));
 
     builder.AddWhereConjunct(Format(
-        R""(job_state IN ("aborted", "failed", "completed", "lost") )""
-        "OR (NOT is_null(update_time) AND update_time >= %v)",
+        "controller_state IN (%v) OR job_state IN (%v) "
+        "OR ((NOT is_null(update_time)) AND update_time >= %v)",
+        FinishedJobStatesString,
+        FinishedJobStatesString,
         (TInstant::Now() - options.RunningJobsLookbehindPeriod).MicroSeconds()));
 
     if (options.Address) {
@@ -1216,7 +1229,7 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
 
         // We intentionally mark stderr as missing if job has no spec since
         // it is impossible to check permissions without spec.
-        if (job.GetState() && NJobTrackerClient::IsJobFinished(*job.GetState()) && !job.HasSpec) {
+        if (job.GetState() && IsJobFinished(*job.GetState()) && !job.HasSpec) {
             job.StderrSize = std::nullopt;
         }
     }

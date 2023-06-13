@@ -2084,7 +2084,7 @@ message TReqListJobs
     optional bool include_archive = 14 [default = false];
 
     optional EDataSource data_source = 15 [default = DS_AUTO];
-    optional uint64 running_jobs_lookbehind_period = 16 [default = 60000000]; // TDuration, 1 minute by default
+    optional uint64 running_jobs_lookbehind_period = 16;
 
     optional NYT.NProto.TGuid job_competition_id = 17;
     optional bool with_competitors = 18;
