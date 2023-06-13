@@ -68,14 +68,6 @@ EEncoding TConfig::GetEncoding(const char* var)
     }
 }
 
- EUploadDeduplicationMode TConfig::GetUploadingDeduplicationMode(
-        const char* var,
-        EUploadDeduplicationMode defaultValue)
-{
-    const TString deduplicationMode = GetEnv(var, TEnumTraits<EUploadDeduplicationMode>::ToString(defaultValue));
-    return TEnumTraits<EUploadDeduplicationMode>::FromString(deduplicationMode);
-}
-
 void TConfig::ValidateToken(const TString& token)
 {
     for (size_t i = 0; i < token.size(); ++i) {
@@ -158,8 +150,6 @@ void TConfig::LoadTimings()
 
     AddressCacheExpirationTimeout = TDuration::Minutes(15);
 
-    CacheLockTimeoutPerGb = TDuration::MilliSeconds(1000.0 * 1_GB * 8 / 20_MB); // 20 Mbps = 20 MBps / 8.
-
     TxTimeout = GetDuration("YT_TX_TIMEOUT",
         TDuration::Seconds(120));
 
@@ -210,8 +200,6 @@ void TConfig::Reset()
     LoadToken();
     LoadSpec();
     LoadTimings();
-
-    CacheUploadDeduplicationMode = GetUploadingDeduplicationMode("YT_UPLOAD_DEDUPLICATION", EUploadDeduplicationMode::Host);
 
     RetryCount = Max(GetInt("YT_RETRY_COUNT", 10), 1);
     ReadRetryCount = Max(GetInt("YT_READ_RETRY_COUNT", 30), 1);
