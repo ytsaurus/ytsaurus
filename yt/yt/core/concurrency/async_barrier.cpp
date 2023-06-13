@@ -60,6 +60,28 @@ TFuture<void> TAsyncBarrier::GetBarrierFuture()
     return future;
 }
 
+void TAsyncBarrier::Clear(const TError& error)
+{
+    std::vector<TPromise<void>> promises;
+
+    {
+        auto guard = Guard(Lock_);
+
+        SlotOccupied_.clear();
+
+        while (!Subscriptions_.empty()) {
+            promises.push_back(std::move(Subscriptions_.front().Promise));
+            Subscriptions_.pop();
+        }
+
+        FirstSlotCookie_ = 1;
+    }
+
+    for (const auto& promise : promises) {
+        promise.Set(error);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NConcurrency

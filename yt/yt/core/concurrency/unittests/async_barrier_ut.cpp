@@ -81,6 +81,20 @@ TEST(TAsyncBarrierTest, Nested)
     EXPECT_TRUE(future2.IsSet());
 }
 
+TEST(TAsyncBarrierTest, Clear)
+{
+    TAsyncBarrier barrier;
+
+    Y_UNUSED(barrier.Insert());
+
+    auto future = barrier.GetBarrierFuture();
+    EXPECT_FALSE(future.IsSet());
+
+    barrier.Clear(TError("oops"));
+    EXPECT_TRUE(future.IsSet());
+    EXPECT_FALSE(future.Get().IsOK());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

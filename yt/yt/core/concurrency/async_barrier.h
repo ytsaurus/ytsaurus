@@ -17,6 +17,9 @@ namespace NYT::NConcurrency {
 //! An opaque handle to an item in TAsyncBarrier.
 YT_DEFINE_STRONG_TYPEDEF(TAsyncBarrierCookie, i64);
 
+//! A sentinel value that can never be returned by TAsyncBarrier::Insert.
+inline const TAsyncBarrierCookie InvalidAsyncBarrierCookie = TAsyncBarrierCookie(0);
+
 //! Maintains (but does not store) a set of items and enables tracking moments
 //! when all items that are currently present in the set become removed.
 /*!
@@ -37,10 +40,13 @@ public:
     //! set are removed.
     TFuture<void> GetBarrierFuture();
 
+    //! Clears the state and also propagates #error to all subscribers.
+    void Clear(const TError& error);
+
 private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
 
-    i64 FirstSlotCookie_ = 0;
+    i64 FirstSlotCookie_ = 1;
     TRingQueue<bool> SlotOccupied_;
 
     struct TSubscription
