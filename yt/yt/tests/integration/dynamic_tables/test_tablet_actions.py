@@ -948,14 +948,13 @@ class TabletBalancerBase(TabletActionsBase):
         sync_mount_table("//tmp/t")
         wait(lambda: get("//tmp/t/@tablet_count") == 1)
 
-    @authors("savrus", "ifsmirnov", "alexelexa")
-    @pytest.mark.parametrize("in_memory_mode", ["none", "uncompressed"])
-    @pytest.mark.parametrize("with_hunks", [True, False])
-    def test_tablet_split(self, in_memory_mode, with_hunks):
+    def _test_tablet_split(self, in_memory_mode, with_hunks, with_slicing=False):
         self._set_enable_tablet_balancer(False)
 
         if with_hunks and in_memory_mode != "none" and not self.ENABLE_STANDALONE_TABLET_BALANCER:
             return
+
+        expected_tablet_count = 3 if with_slicing else 2
 
         divider = 32 * int(with_hunks) + int(not with_hunks)
 
@@ -998,7 +997,7 @@ class TabletBalancerBase(TabletActionsBase):
 
         self._set_enable_tablet_balancer(True)
 
-        wait(lambda: get("//tmp/t/@tablet_count") == 2)
+        wait(lambda: get("//tmp/t/@tablet_count") == expected_tablet_count)
         assert len(get("//tmp/t/@chunk_ids")) > 1
 
         wait_for_tablet_state("//tmp/t", "mounted")
@@ -1011,11 +1010,17 @@ class TabletBalancerBase(TabletActionsBase):
         remove("//tmp/t/@tablet_balancer_config/min_tablet_size")
         remove("//tmp/t/@tablet_balancer_config/max_tablet_size")
         remove("//tmp/t/@tablet_balancer_config/desired_tablet_size")
-        wait(lambda: get("//tmp/t/@tablet_count") == 2)
+        wait(lambda: get("//tmp/t/@tablet_count") == expected_tablet_count)
 
         wait_for_tablet_state("//tmp/t", "mounted")
         set("//tmp/t/@tablet_balancer_config/desired_tablet_count", 1)
         wait(lambda: get("//tmp/t/@tablet_count") == 1)
+
+    @authors("savrus", "ifsmirnov", "alexelexa")
+    @pytest.mark.parametrize("in_memory_mode", ["none", "uncompressed"])
+    @pytest.mark.parametrize("with_hunks", [True, False])
+    def test_tablet_split(self, in_memory_mode, with_hunks):
+        self._test_tablet_split(in_memory_mode, with_hunks)
 
     @authors("savrus")
     def test_tablet_balancer_disabled(self):

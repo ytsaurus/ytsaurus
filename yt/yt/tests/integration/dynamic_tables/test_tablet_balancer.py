@@ -77,6 +77,14 @@ class TestStandaloneTabletBalancerBase:
 class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalancerBase):
     NUM_TEST_PARTITIONS = 5
 
+    def _test_simple_reshard(self):
+        self._configure_bundle("default")
+        sync_create_cells(2)
+        self._create_sorted_table("//tmp/t2")
+        sync_reshard_table("//tmp/t2", [[], [1]])
+        sync_mount_table("//tmp/t2")
+        wait(lambda: get("//tmp/t2/@tablet_count") == 1)
+
     @authors("alexelexa")
     def test_builtin_tablet_balancer_disabled(self):
         assert not get("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer")
@@ -98,13 +106,29 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
         self._apply_dynamic_config_patch({
             "fetch_tablet_cells_from_secondary_masters": True
         })
+        self._test_simple_reshard()
 
-        self._configure_bundle("default")
-        sync_create_cells(2)
-        self._create_sorted_table("//tmp/t")
-        sync_reshard_table("//tmp/t", [[], [1]])
-        sync_mount_table("//tmp/t")
-        wait(lambda: get("//tmp/t/@tablet_count") == 1)
+    @authors("alexelexa")
+    def test_pick_pivot_keys_merge(self):
+        self._apply_dynamic_config_patch({
+            "pick_reshard_pivot_keys": True,
+        })
+
+        self._test_simple_reshard()
+
+    @authors("alexelexa")
+    @pytest.mark.parametrize("in_memory_mode", ["none", "uncompressed"])
+    @pytest.mark.parametrize("with_hunks", [True, False])
+    def test_pick_pivot_keys_split(self, in_memory_mode, with_hunks):
+        self._apply_dynamic_config_patch({
+            "pick_reshard_pivot_keys": True,
+            "enable": False,
+        })
+
+        self._test_tablet_split(
+            in_memory_mode=in_memory_mode,
+            with_hunks=with_hunks,
+            with_slicing=True)
 
 
 class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTablesBase):

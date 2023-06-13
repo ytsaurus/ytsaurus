@@ -166,9 +166,7 @@ std::vector<TLegacyOwningKey> PickPivotKeysWithSlicing(
 
         auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
         if (!IsBlobChunkId(chunkId)) {
-            THROW_ERROR_EXCEPTION("Unexpected chunk store type in table %v; possibly tablet is not unmounted",
-                path)
-                << TErrorAttribute("chunk_id", chunkId);
+            continue;
         }
 
         if ((chunkSpec.has_lower_limit() || chunkSpec.has_upper_limit()) &&

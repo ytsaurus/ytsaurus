@@ -62,6 +62,8 @@ public:
     TTimeFormula Schedule;
 
     bool FetchTabletCellsFromSecondaryMasters;
+    bool PickReshardPivotKeys;
+    std::optional<double> ReshardSlicingAccuracy;
 
     REGISTER_YSON_STRUCT(TTabletBalancerDynamicConfig);
 

@@ -349,7 +349,12 @@ IAttributeDictionaryPtr TActionManager::MakeActionAttributes(const TActionDescri
         [&] (const TReshardDescriptor& descriptor) {
             attributes->Set("kind", "reshard");
             attributes->Set("tablet_ids", descriptor.Tablets);
-            attributes->Set("tablet_count", descriptor.TabletCount);
+
+            if (!descriptor.PivotKeys.empty()) {
+                attributes->Set("pivot_keys", descriptor.PivotKeys);
+            } else {
+                attributes->Set("tablet_count", descriptor.TabletCount);
+            }
         });
     attributes->Set("expiration_timeout", ExpirationTimeout_);
     return attributes;
