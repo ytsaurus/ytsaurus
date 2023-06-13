@@ -283,6 +283,14 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
                                    for driver in self._get_drivers())
         return replica_registrations and cached_registrations
 
+    def form_queue_name(self, queue, cluster='', root='//tmp'):
+        queue_obj = f"{root}/{queue}-{cluster}"
+        return self.form_path(queue_obj, cluster)
+
+    def form_path(self, object, cluster=''):
+        if len(cluster) > 0:
+            return f'<cluster={cluster}>{object}'
+        return object
     # The tests below are parametrized with a function that creates a registration table.
     # It returns a dict with the resulting configuration options:
     #     local_replica_path: path to local registration table on clusters where it exists
@@ -304,82 +312,127 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
 
         local_replica_path = config["local_replica_path"]
         replica_clusters = config["replica_clusters"]
+        clusters = self.get_cluster_names()
+        consumer_cluster = "primary"
 
         attrs = {"dynamic": True, "schema": [{"name": "a", "type": "string"}]}
-        create("table", "//tmp/q", attributes=attrs)
         create("table", "//tmp/c1", attributes=attrs)
         create("table", "//tmp/c2", attributes=attrs)
+        for cluster in clusters:
+            create("table", self.form_queue_name("q", cluster), attributes=attrs, driver=get_driver(cluster=cluster))
 
-        set("//tmp/q/@inherit_acl", False)
         set("//tmp/c1/@inherit_acl", False)
         set("//tmp/c2/@inherit_acl", False)
+        for cluster in clusters:
+            queue_name = self.form_queue_name("q", cluster)
+            set(f"{queue_name}/@inherit_acl", False, driver=get_driver(cluster=cluster))
 
-        create_user("egor")
-        create_user("bulat")
-        create_user("yura")
+        for cluster in clusters:
+            create_user("egor", driver=get_driver(cluster=cluster))
+            create_user("bulat", driver=get_driver(cluster=cluster))
+            create_user("yura", driver=get_driver(cluster=cluster))
 
         # Nobody is allowed to register consumers yet.
         for consumer, user in zip(("//tmp/c1", "//tmp/c2"), ("egor", "bulat", "yura")):
-            with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
-                register_queue_consumer("//tmp/q", consumer, vital=False, authenticated_user=user)
+            for cluster in clusters:
+                with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
+                    register_queue_consumer(self.form_queue_name("q", cluster), self.form_path(consumer, consumer_cluster),
+                                            vital=False, authenticated_user=user, driver=get_driver(cluster=cluster))
+        for cluster in clusters:
+            queue = self.form_queue_name("q", cluster)
+            set(f"{queue}/@acl/end", {"action": "allow", "permissions": ["register_queue_consumer"], "vital": True,
+                                      "subjects": ["egor"]}, driver=get_driver(cluster=cluster))
+            assert check_permission("egor", "register_queue_consumer", queue, vital=True, driver=get_driver(cluster=cluster))["action"] == "allow"
 
-        set("//tmp/q/@acl/end", {"action": "allow", "permissions": ["register_queue_consumer"], "vital": True,
-                                 "subjects": ["egor"]})
-        assert check_permission("egor", "register_queue_consumer", "//tmp/q", vital=True)["action"] == "allow"
+            set(f"{queue}/@acl/end", {"action": "allow", "permissions": ["register_queue_consumer"], "vital": True,
+                                      "subjects": ["bulat"]}, driver=get_driver(cluster=cluster))
+            assert check_permission("bulat", "register_queue_consumer", queue, vital=True, driver=get_driver(cluster=cluster))["action"] == "allow"
 
-        set("//tmp/q/@acl/end", {"action": "allow", "permissions": ["register_queue_consumer"], "vital": True,
-                                 "subjects": ["bulat"]})
-        assert check_permission("bulat", "register_queue_consumer", "//tmp/q", vital=True)["action"] == "allow"
-
-        set("//tmp/q/@acl/end", {"action": "allow", "permissions": ["register_queue_consumer"], "vital": False,
-                                 "subjects": ["yura"]})
-        assert check_permission("yura", "register_queue_consumer", "//tmp/q", vital=False)["action"] == "allow"
-        assert check_permission("yura", "register_queue_consumer", "//tmp/q", vital=True)["action"] == "deny"
+            set(f"{queue}/@acl/end", {"action": "allow", "permissions": ["register_queue_consumer"], "vital": False,
+                                      "subjects": ["yura"]}, driver=get_driver(cluster=cluster))
+            assert check_permission("yura", "register_queue_consumer", queue, vital=False, driver=get_driver(cluster=cluster))["action"] == "allow"
+            assert check_permission("yura", "register_queue_consumer", queue, vital=True, driver=get_driver(cluster=cluster))["action"] == "deny"
 
         # Yura is not allowed to register vital consumers.
-        with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
-            register_queue_consumer("//tmp/q", "//tmp/c2", vital=True, authenticated_user="yura")
+        for cluster in clusters:
+            with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
+                register_queue_consumer(self.form_queue_name("q", cluster), self.form_path("//tmp/c2", consumer_cluster),
+                                        vital=True, authenticated_user="yura", driver=get_driver(cluster=cluster))
 
-        register_queue_consumer("//tmp/q", "//tmp/c1", vital=True, authenticated_user="bulat")
-        register_queue_consumer("//tmp/q", "//tmp/c2", vital=False, authenticated_user="yura")
-        wait(lambda: self._registrations_are(local_replica_path, replica_clusters, {
-            ("primary", "//tmp/q", "primary", "//tmp/c1", True),
-            ("primary", "//tmp/q", "primary", "//tmp/c2", False)
-        }))
+        registrations = builtins.set()
+        for cluster in clusters:
+            queue_name = f"//tmp/q-{cluster}"
+            register_queue_consumer(self.form_queue_name("q", cluster), self.form_path("//tmp/c1", consumer_cluster),
+                                    vital=True, authenticated_user="bulat", driver=get_driver(cluster=consumer_cluster))
+            register_queue_consumer(self.form_queue_name("q", cluster), self.form_path("//tmp/c2", consumer_cluster),
+                                    vital=False, authenticated_user="yura", driver=get_driver(cluster=consumer_cluster))
+            registrations.add((cluster, queue_name, "primary", "//tmp/c1", True))
+            registrations.add((cluster, queue_name, "primary", "//tmp/c2", False))
+        wait(lambda: self._registrations_are(local_replica_path, replica_clusters, registrations))
 
         # Remove permissions on either the queue or the consumer are needed.
-        with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
-            unregister_queue_consumer("//tmp/q", "//tmp/c1", authenticated_user="bulat")
+        for cluster in clusters:
+            with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
+                unregister_queue_consumer(self.form_queue_name("q", cluster), self.form_path("//tmp/c1", consumer_cluster),
+                                          authenticated_user="bulat", driver=get_driver(cluster=cluster))
 
         set("//tmp/c1/@acl/end", {"action": "allow", "permissions": ["remove"], "subjects": ["bulat"]})
-
         # Bulat can unregister his own consumer.
-        unregister_queue_consumer("//tmp/q", "//tmp/c1", authenticated_user="bulat")
-
-        wait(lambda: self._registrations_are(local_replica_path, replica_clusters, {
-            ("primary", "//tmp/q", "primary", "//tmp/c2", False)
-        }))
+        for cluster in clusters:
+            queue_name = f"//tmp/q-{cluster}"
+            unregister_queue_consumer(self.form_queue_name("q", cluster), self.form_path("//tmp/c1", consumer_cluster),
+                                      authenticated_user="bulat", driver=get_driver(cluster=consumer_cluster))
+            registrations.remove((cluster, queue_name, "primary", "//tmp/c1", True))
+        wait(lambda: self._registrations_are(local_replica_path, replica_clusters, registrations))
 
         # Bulat cannot unregister Yura's consumer.
-        with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
-            unregister_queue_consumer("//tmp/q", "//tmp/c2", authenticated_user="bulat")
+        for cluster in clusters:
+            with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
+                unregister_queue_consumer(self.form_queue_name("q", cluster), self.form_path("//tmp/c2", consumer_cluster),
+                                          authenticated_user="bulat", driver=get_driver(cluster=cluster))
 
         # Remove permissions on either the queue or the consumer are needed.
-        with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
-            unregister_queue_consumer("//tmp/q", "//tmp/c2", authenticated_user="egor")
+        for cluster in clusters:
+            with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
+                unregister_queue_consumer(self.form_queue_name("q", cluster), self.form_path("//tmp/c2", consumer_cluster),
+                                          authenticated_user="egor", driver=get_driver(cluster=cluster))
 
-        set("//tmp/q/@acl/end", {"action": "allow", "permissions": ["remove"], "subjects": ["egor"]})
+        for cluster in clusters:
+            set(f"{self.form_queue_name('q', cluster)}/@acl/end", {"action": "allow", "permissions": ["remove"], "subjects": ["egor"]}, driver=get_driver(cluster=cluster))
 
         # Now Egor can unregister any consumer to his queue.
-        unregister_queue_consumer("//tmp/q", "//tmp/c2", authenticated_user="egor")
-
+        for cluster in clusters:
+            unregister_queue_consumer(self.form_queue_name("q", cluster), self.form_path("//tmp/c2", consumer_cluster),
+                                      authenticated_user="egor", driver=get_driver(cluster=consumer_cluster))
         wait(lambda: self._registrations_are(local_replica_path, replica_clusters, builtins.set()))
 
-        register_queue_consumer("//tmp/q", "//tmp/c2", vital=True)
-        remove("//tmp/q")
+        # Users can register and unregister queue consumer from any cluster.
+        queue_cluster = clusters[1]
+        registrations = builtins.set()
+        for cluster in clusters:
+            queue_name = f"//tmp/q-{queue_cluster}"
+            register_queue_consumer(self.form_queue_name("q", queue_cluster), self.form_path("//tmp/c1", consumer_cluster),
+                                    vital=True, authenticated_user="bulat", driver=get_driver(cluster=cluster))
+            register_queue_consumer(self.form_queue_name("q", queue_cluster), self.form_path("//tmp/c2", consumer_cluster),
+                                    vital=False, authenticated_user="egor", driver=get_driver(cluster=cluster))
+            wait(lambda: self._registrations_are(local_replica_path, replica_clusters, {
+                (queue_cluster, queue_name, consumer_cluster, "//tmp/c1", True),
+                (queue_cluster, queue_name, consumer_cluster, "//tmp/c2", False)
+            }))
+            unregister_queue_consumer(self.form_queue_name("q", queue_cluster), self.form_path("//tmp/c1", consumer_cluster),
+                                      authenticated_user="bulat", driver=get_driver(cluster=cluster))
+            unregister_queue_consumer(self.form_queue_name("q", queue_cluster), self.form_path("//tmp/c2", consumer_cluster),
+                                      authenticated_user="egor", driver=get_driver(cluster=cluster))
+            wait(lambda: self._registrations_are(local_replica_path, replica_clusters, builtins.set()))
+
+        for cluster in clusters:
+            register_queue_consumer(self.form_queue_name('q', cluster), self.form_path("//tmp/c2", consumer_cluster), vital=True, driver=get_driver(cluster=consumer_cluster))
+            remove(self.form_queue_name('q', cluster), driver=get_driver(cluster=cluster))
         # Bulat can unregister any consumer to a deleted queue.
         # No neat solution here, we cannot check permissions on deleted objects :(
-        self._insistent_call(lambda: unregister_queue_consumer("//tmp/q", "//tmp/c2", authenticated_user="bulat"))
+        for cluster in clusters:
+            self._insistent_call(lambda: unregister_queue_consumer(self.form_queue_name('q', cluster), self.form_path("//tmp/c2", consumer_cluster),
+                                                                   authenticated_user="bulat", driver=get_driver(cluster=consumer_cluster)))
         wait(lambda: self._registrations_are(local_replica_path, replica_clusters, builtins.set()))
 
     @authors("achulkov2")
