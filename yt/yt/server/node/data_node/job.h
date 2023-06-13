@@ -94,6 +94,8 @@ protected:
 
     virtual void DoRun() = 0;
 
+    virtual TFuture<void> ReleaseCumulativeResources();
+
     void GuardedRun();
 
     void SetCompleted();

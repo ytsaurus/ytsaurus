@@ -1092,7 +1092,10 @@ TJobResources TResourceHolder::SetResourceUsage(TJobResources newResourceUsage)
 {
     auto guard = WriterGuard(ResourcesLock_);
 
-    YT_VERIFY(State_ == EResourcesState::Acquired);
+    YT_LOG_FATAL_IF(
+        State_ != EResourcesState::Acquired,
+        "Resources should be allocated only while resource acquired (CurrentState: %v)",
+        State_);
 
     auto resourceDelta = newResourceUsage - Resources_;
     ResourceManagerImpl_->OnResourcesUpdated(ResourcesConsumerType_, GetLogger(), resourceDelta);
@@ -1105,6 +1108,11 @@ TJobResources TResourceHolder::SetResourceUsage(TJobResources newResourceUsage)
 TJobResources TResourceHolder::ChangeCumulativeResourceUsage(TJobResources resourceUsageDelta)
 {
     auto guard = WriterGuard(ResourcesLock_);
+
+    YT_LOG_FATAL_IF(
+        State_ != EResourcesState::Acquired,
+        "Resources should be allocated only while resource acquired (CurrentState: %v)",
+        State_);
 
     ResourceManagerImpl_->OnResourcesUpdated(ResourcesConsumerType_, GetLogger(), resourceUsageDelta);
     Resources_ += resourceUsageDelta;

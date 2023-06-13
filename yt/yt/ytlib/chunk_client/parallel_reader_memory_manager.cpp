@@ -185,7 +185,9 @@ public:
 
         Finalized_ = true;
         Invoker_->Invoke(BIND(&TParallelReaderMemoryManager::TryUnregister, MakeWeak(this)));
-        return FinalizeEvent_.ToFuture();
+        return FinalizeEvent_
+            .ToFuture()
+            .ToUncancelable();
     }
 
     const TTagList& GetProfilingTagList() const override

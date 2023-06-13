@@ -537,9 +537,9 @@ private:
 
         YT_LOG_FATAL_UNLESS(
             IsJobFinished(job->GetState()),
-            "Removing job in unexpected state (State: %v)",
-            job->GetState());
-        YT_VERIFY(job->GetResourceUsage() == ZeroJobResources());
+            "Removing job in unexpected state (State: %v, JobId: %v)",
+            job->GetState(),
+            job->GetId());
 
         auto& jobMap = JobMaps_[job->GetJobTrackerAddress()];
 

@@ -180,6 +180,11 @@ void TMasterJobBase::OnResourcesAcquired() noexcept
     Start();
 }
 
+TFuture<void> TMasterJobBase::ReleaseCumulativeResources()
+{
+    return VoidFuture;
+}
+
 void TMasterJobBase::Abort(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -322,7 +327,9 @@ IChunkPtr TMasterJobBase::GetLocalChunkOrThrow(TChunkId chunkId, int mediumIndex
     return chunkStore->GetChunkOrThrow(chunkId, mediumIndex);
 }
 
-void TMasterJobBase::DoSetFinished(EJobState finalState, const TError& error)
+void TMasterJobBase::DoSetFinished(
+    EJobState finalState,
+    const TError& error)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -330,13 +337,42 @@ void TMasterJobBase::DoSetFinished(EJobState finalState, const TError& error)
         return;
     }
 
+    // Job resources lifetime steps:
+    // 1. Resources are allocated for job for the entire lifetime of job.
+    // 2. Job started.
+    // 3. Resources are allocated for a job by request of the job (while ResourceState == Acquired).
+    // 4. Job finished.
+    // 5. Resources are released for a job by request of the job (while ResourceState == Acquired).
+    // 6. Resources allocated for the entire lifetime of the job are released (allocated resources are reset to zero).
+
+    // 4th step.
     JobState_ = finalState;
     ToProto(Result_.mutable_error(), error);
-    ReleaseResources();
 
     JobFinished_.Fire();
 
+    auto jobFuture = JobFuture_;
     JobFuture_.Reset();
+
+    jobFuture.Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
+        YT_LOG_DEBUG_IF(
+            !error.IsOK(),
+            error,
+            "Master job finished with error");
+
+        // 5th step.
+        ReleaseCumulativeResources()
+            // 6th step.
+            .Apply(BIND(&TMasterJobBase::ReleaseResources, MakeStrong(this))
+            .AsyncVia(Bootstrap_->GetJobInvoker()))
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
+                YT_LOG_FATAL_IF(
+                    !error.IsOK(),
+                    error,
+                    "Failed to release master job resources");
+            })
+            .Via(Bootstrap_->GetJobInvoker()));
+    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1177,7 +1213,19 @@ public:
         , CellTag_(FromProto<TCellTag>(JobSpecExt_.cell_tag()))
         , MemoryUsageTracker_(New<TJobSystemMemoryUsageTracker>(
             MakeWeak(this)))
-    { }
+    {
+        auto readWindowSize = GetDynamicConfig()->ReadWindowSize;
+
+        TParallelReaderMemoryManagerOptions parallelReaderMemoryManagerOptions{
+            .TotalReservedMemorySize = readWindowSize,
+            .MaxInitialReaderReservedMemory = readWindowSize,
+            .MemoryUsageTracker = MemoryUsageTracker_
+        };
+
+        MultiReaderMemoryManager_ = CreateParallelReaderMemoryManager(
+            parallelReaderMemoryManagerOptions,
+            NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
+    }
 
 private:
     const TMergeChunksJobSpecExt JobSpecExt_;
@@ -1186,6 +1234,7 @@ private:
     TError ShallowMergeValidationError_;
     NChunkClient::EChunkMergerMode MergeMode_;
     const ITypedNodeMemoryTrackerPtr MemoryUsageTracker_;
+    IMultiReaderMemoryManagerPtr MultiReaderMemoryManager_;
 
     TTableSchemaPtr Schema_;
     NCompression::ECodec CompressionCodec_;
@@ -1330,6 +1379,11 @@ private:
             YT_LOG_ALERT(ShallowMergeValidationError_, "Shallow merge validation failed");
             THROW_ERROR ShallowMergeValidationError_;
         }
+    }
+
+    TFuture<void> ReleaseCumulativeResources() override
+    {
+        return MultiReaderMemoryManager_->Finalize();
     }
 
     void DoRun() override
@@ -1516,24 +1570,9 @@ private:
             .ThrowOnError();
 
         if (JobSpecExt_.validate_shallow_merge()) {
-            auto readWindowSize = GetDynamicConfig()->ReadWindowSize;
+            YT_VERIFY(MultiReaderMemoryManager_);
 
-            TParallelReaderMemoryManagerOptions parallelReaderMemoryManagerOptions{
-                .TotalReservedMemorySize = readWindowSize,
-                .MaxInitialReaderReservedMemory = readWindowSize,
-                .MemoryUsageTracker = MemoryUsageTracker_
-            };
-            auto multiReaderMemoryManager = CreateParallelReaderMemoryManager(
-                parallelReaderMemoryManagerOptions,
-                NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
-
-            ShallowMergeValidationError_ = ValidateShallowMerge(writer, multiReaderMemoryManager);
-
-            auto result = WaitFor(multiReaderMemoryManager->Finalize());
-            YT_LOG_FATAL_IF(
-                !result.IsOK(),
-                result,
-                "Error releasing reader resources");
+            ShallowMergeValidationError_ = ValidateShallowMerge(writer, MultiReaderMemoryManager_);
         }
     }
 
@@ -1582,25 +1621,16 @@ private:
         auto rowBuffer = New<TRowBuffer>();
         auto writerNameTable = writer->GetNameTable();
 
-        auto readWindowSize = GetDynamicConfig()->ReadWindowSize;
-
-        TParallelReaderMemoryManagerOptions parallelReaderMemoryManagerOptions{
-            .TotalReservedMemorySize = readWindowSize,
-            .MaxInitialReaderReservedMemory = readWindowSize,
-            .MemoryUsageTracker = MemoryUsageTracker_
-        };
-        auto multiReaderMemoryManager = CreateParallelReaderMemoryManager(
-            parallelReaderMemoryManagerOptions,
-            NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
-
         {
+            YT_VERIFY(MultiReaderMemoryManager_);
+
             TMergeChunkReader chunkReader(
                 Bootstrap_,
                 InputChunkReadContexts_,
                 Schema_,
                 writerNameTable,
                 /*permuteRows*/ true,
-                multiReaderMemoryManager);
+                MultiReaderMemoryManager_);
 
             while (auto rows = chunkReader.ReadRows(rowBuffer)) {
                 if (!writer->Write(MakeRange(*rows))) {
@@ -1613,12 +1643,6 @@ private:
             WaitFor(writer->Close())
                 .ThrowOnError();
         }
-
-        auto result = WaitFor(multiReaderMemoryManager->Finalize());
-        YT_LOG_FATAL_IF(
-            !result.IsOK(),
-            result,
-            "Error releasing reader resources");
     }
 
     IChunkWriterPtr CreateWriter()

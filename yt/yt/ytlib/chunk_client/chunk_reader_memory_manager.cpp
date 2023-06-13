@@ -212,7 +212,9 @@ TFuture<void> TChunkReaderMemoryManager::Finalize()
     Finalized_ = true;
     TryUnregister();
 
-    return FinalizeEvent_.ToFuture();
+    return FinalizeEvent_
+        .ToFuture()
+        .ToUncancelable();
 }
 
 void TChunkReaderMemoryManager::OnSemaphoreAcquired(TPromise<TMemoryUsageGuardPtr> promise, TAsyncSemaphoreGuard semaphoreGuard)
