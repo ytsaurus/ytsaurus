@@ -3,6 +3,7 @@
 #include "config.h"
 #include "private.h"
 #include "helpers.h"
+#include "yt/yt/core/misc/error.h"
 
 #include <yt/yt/core/http/client.h>
 #include <yt/yt/core/http/helpers.h>
@@ -51,7 +52,8 @@ public:
         , OAuthCallTime_(profiler.Timer("/oauth_call_time"))
     { }
 
-    TFuture<TOAuthUserInfoResult> GetUserInfo(const TString& accessToken) override {
+    TFuture<TOAuthUserInfoResult> GetUserInfo(const TString& accessToken) override
+    {
         return BIND(&TOAuthService::DoGetUserInfo, MakeStrong(this), accessToken)
             .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker())
             .Run();
@@ -73,7 +75,8 @@ private:
         return config;
     }
 
-    TOAuthUserInfoResult DoGetUserInfo(const TString& accessToken) {
+    TOAuthUserInfoResult DoGetUserInfo(const TString& accessToken)
+    {
         OAuthCalls_.Increment();
         NProfiling::TWallTimer timer;
         
@@ -94,7 +97,8 @@ private:
 
             auto loginNode = json->AsMap()->FindChild(Config_->UserInfoLoginField);
             if (!loginNode || loginNode->GetType() != ENodeType::String) {
-                return TError("OAuth call didn't return login");
+                return TError("OAuth call did not return login")
+                    << TErrorAttribute("login_field", Config_->UserInfoLoginField);
             }
 
             return {};

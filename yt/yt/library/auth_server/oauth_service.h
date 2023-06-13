@@ -9,7 +9,8 @@ namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TOAuthUserInfoResult {
+struct TOAuthUserInfoResult
+{
     TString Sub;
     TString Login;
 };

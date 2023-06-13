@@ -1,8 +1,12 @@
 #include "config.h"
 
+#include "library/cpp/yt/memory/intrusive_ptr.h"
 #include "retriable_client.h"
 #include "private.h"
+#include "yt/yt/core/actions/public.h"
+#include "yt/yt/core/misc/error.h"
 
+#include <utility>
 #include <yt/yt/core/http/client.h>
 #include <yt/yt/core/http/helpers.h>
 #include <yt/yt/core/http/public.h>
@@ -26,11 +30,12 @@ public:
         TJsonErrorChecker errorChecker,
         NJson::TJsonFormatConfigPtr jsonFormatConfig
     )
-    : JsonFormatConfig_(std::move(jsonFormatConfig))
-    , ErrorChecker_(std::move(errorChecker))
+        : JsonFormatConfig_(std::move(jsonFormatConfig))
+        , ErrorChecker_(std::move(errorChecker))
     { }
 
-    TError CheckError(const IResponsePtr& response) override {
+    TError CheckError(const IResponsePtr& response) override
+    {
         try {
             auto body = response->ReadAll();
             TMemoryInput stream(body.Begin(), body.Size());
@@ -38,9 +43,9 @@ public:
             auto builder = NYTree::CreateBuilderFromFactory(factory.get());
             NJson::ParseJson(&stream, builder.get(), JsonFormatConfig_);
             Json_ = builder->EndTree();
-        } catch (const std::exception& err) {
+        } catch (const std::exception& ex) {
             return TError("Error parsing response")
-                << err;
+                << ex;
         }
 
         if (Json_ == nullptr) {
@@ -55,7 +60,8 @@ public:
         }
     }
 
-    NYTree::INodePtr GetFormattedResponse() const override {
+    NYTree::INodePtr GetFormattedResponse() const override
+    {
         return Json_;
     }
 
@@ -86,9 +92,9 @@ public:
         const TRetrialbeClientConfigPtr& config,
         const IClientPtr& client,
         const IInvokerPtr& invoker)
-    : Config_(config)
-    , Invoker_(invoker)
-    , UnderlyingClient_(client)
+        : Config_(config)
+        , Invoker_(invoker)
+        , UnderlyingClient_(client)
     { }
 
     TFuture<IResponsePtr> Get(
@@ -149,48 +155,70 @@ private:
         Args&&... args)
     {
         return BIND([=, this, this_ = MakeStrong(this), func = std::move(func), ...args = std::move(args)] () {
-            const auto deadline = TInstant::Now() + Config_->RequestTimeout;
-            const auto sanitizedUrl = SanitizeUrl(url);
+            return DoMakeRequest(std::move(func), responseChecker, url, std::forward<Args>(args)...);
+        }).AsyncVia(Invoker_).Run();
+    }
 
-            YT_LOG_DEBUG("Making request (Url: %v, Deadline: %v, Max attempts: %v", sanitizedUrl, deadline, Config_->MaxAttemptCount);
-            std::vector<TError> accumulatedErrors;
+    template <typename TCallable, typename... Args>
+    IResponsePtr DoMakeRequest(
+        TCallable&& func,
+        const IResponseCheckerPtr& responseChecker,
+        const TString& url,
+        Args&&... args)
+    {
+        const auto deadline = TInstant::Now() + Config_->RequestTimeout;
+        const auto sanitizedUrl = SanitizeUrl(url);
 
-            for (int attempt = 1; (TInstant::Now() < deadline && attempt <= Config_->MaxAttemptCount) || attempt == 1; ++attempt) {
-                auto future = BIND(func, UnderlyingClient_, url, std::forward<Args>(args)...)();
-                auto rspOrError = WaitFor(future.WithTimeout(Config_->AttemptTimeout));
-                if (!rspOrError.IsOK()) {
-                    auto error = TError("Request attempt %v failed", attempt)
-                        << rspOrError
-                        << TErrorAttribute("attempt", attempt);
-                    
-                    YT_LOG_WARNING(error, "Request attempt failed (Url: %v, Attempt: %v)", sanitizedUrl, attempt);
-                    accumulatedErrors.push_back(std::move(error));
-                    continue;
-                }
+        YT_LOG_DEBUG("Making request (Url: %v, Deadline: %v, Max attempts: %v)", sanitizedUrl, deadline, Config_->MaxAttemptCount);
+        std::vector<TError> accumulatedErrors;
 
-                auto& rsp = rspOrError.Value();
-                const auto responseCheck = responseChecker->CheckError(rsp);
-                if (responseCheck.IsOK()) {
-                    return MakeFuture(rsp);
-                }
-
-                auto error = TError("Error checking response")
-                    << responseCheck
+        int attempt = 0;
+        while (attempt == 0 || (TInstant::Now() < deadline && attempt < Config_->MaxAttemptCount)) {
+            ++attempt;
+            auto future = BIND(func, UnderlyingClient_, url, std::forward<Args>(args)...)();
+            auto rspOrError = WaitFor(future.WithTimeout(Config_->AttemptTimeout));
+            if (!rspOrError.IsOK()) {
+                auto error = TError("Request attempt %v failed", attempt)
+                    << rspOrError
                     << TErrorAttribute("attempt", attempt);
-                YT_LOG_WARNING(error, "Request attempt failed while checking response (Url: %v, Attempt: %v)", sanitizedUrl, attempt);
+                
+                YT_LOG_WARNING(
+                    error,
+                    "Request attempt failed (Url: %v, Attempt: %v)",
+                    sanitizedUrl,
+                    attempt);
                 accumulatedErrors.push_back(std::move(error));
-
-                auto now = TInstant::Now();
-                if (now > deadline) {
-                    break;
-                }
-                TDelayedExecutor::WaitForDuration(std::min(Config_->BackoffTimeout, deadline - now));
+                continue;
             }
 
-            THROW_ERROR_EXCEPTION("HTTP retriable call failed")
-                << std::move(accumulatedErrors)
-                << TErrorAttribute("url", sanitizedUrl);
-        }).AsyncVia(Invoker_).Run();
+            auto& rsp = rspOrError.Value();
+            const auto responseCheck = responseChecker->CheckError(rsp);
+            if (responseCheck.IsOK()) {
+                return rsp;
+            }
+
+            auto error = TError("Error checking response")
+                << responseCheck
+                << TErrorAttribute("attempt", attempt);
+            YT_LOG_WARNING(
+                error,
+                "Request attempt failed while checking response (Url: %v, Attempt: %v)",
+                sanitizedUrl,
+                attempt);
+            accumulatedErrors.push_back(std::move(error));
+
+            auto now = TInstant::Now();
+            if (now > deadline) {
+                break;
+            }
+            TDelayedExecutor::WaitForDuration(std::min(Config_->BackoffTimeout, deadline - now));
+        }
+
+        THROW_ERROR_EXCEPTION("HTTP request failed")
+            << std::move(accumulatedErrors)
+            << TErrorAttribute("url", sanitizedUrl)
+            << TErrorAttribute("attempts", attempt)
+            << TErrorAttribute("max_attempts", Config_->MaxAttemptCount);
     }
 
 };
