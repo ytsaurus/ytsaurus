@@ -520,13 +520,18 @@ TString TJobPreparer::PutFileToCypressCache(
     const TString& md5Signature,
     TTransactionId transactionId) const
 {
+    constexpr ui32 LockConflictRetryCount = 30;
+    auto retryPolicy = MakeIntrusive<TRetryPolicyIgnoringLockConflicts>(
+        LockConflictRetryCount,
+        OperationPreparer_.GetContext().Config);
+
     auto putFileToCacheOptions = TPutFileToCacheOptions();
     if (Options_.FileExpirationTimeout_) {
         putFileToCacheOptions.PreserveExpirationTimeout(true);
     }
 
     auto cachePath = PutFileToCache(
-        OperationPreparer_.GetClientRetryPolicy()->CreatePolicyForGenericRequest(),
+        retryPolicy,
         OperationPreparer_.GetContext(),
         transactionId,
         path,
