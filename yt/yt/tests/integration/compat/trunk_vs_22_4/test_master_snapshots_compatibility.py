@@ -85,7 +85,7 @@ def check_maintenance_flags():
 
 
 def check_cypress_transactions():
-    old_tx = start_transaction()
+    old_tx = start_transaction(timeout=10000000)
     create("map_node", "//tmp/old", tx=old_tx)
 
     yield
