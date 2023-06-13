@@ -248,6 +248,7 @@ private:
         TQueryServiceProxy proxy(GetChannelForRandomInstance());
         auto req = proxy.ExecuteQuery();
 
+        SetAuthenticationIdentity(req, TAuthenticationIdentity(User_));
         req->set_row_count_limit(Config_->RowCountLimit);
         auto* chytRequest = req->mutable_chyt_request();
         chytRequest->set_query(Query_);

@@ -1,6 +1,6 @@
 from yt_commands import (authors, create_access_control_object_namespace,
                          create_access_control_object, create, write_table,
-                         raises_yt_error)
+                         raises_yt_error, create_user, set, make_ace)
 
 from yt.test_helpers import assert_items_equal
 
@@ -20,14 +20,6 @@ class TestQueriesChyt(ClickHouseTestBase):
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
     }
 
-    CONFIG_PATCH = {
-        "yt": {
-            "discovery": {
-                "version": 2
-            },
-        }
-    }
-
     def setup_method(self, method):
         super().setup_method(method)
         create_access_control_object_namespace(name="chyt")
@@ -35,7 +27,7 @@ class TestQueriesChyt(ClickHouseTestBase):
 
     @authors("gudqeit")
     def test_simple_query(self, query_tracker):
-        with Clique(1, config_patch=TestQueriesChyt.CONFIG_PATCH, alias="*ch_alias"):
+        with Clique(1, alias="*ch_alias"):
             settings = {"clique": "ch_alias", "cluster": "primary"}
             query = start_query("chyt", "select 1", settings=settings)
             query.track()
@@ -50,7 +42,7 @@ class TestQueriesChyt(ClickHouseTestBase):
         create("table", "//tmp/test_table", attributes={"schema": table_schema})
         write_table("//tmp/test_table", [{"value": 1}])
 
-        with Clique(1, config_patch=TestQueriesChyt.CONFIG_PATCH, alias="*ch_alias"):
+        with Clique(1, alias="*ch_alias"):
             settings = {"clique": "ch_alias", "cluster": "primary"}
             query = start_query("chyt", "select * from `//tmp/test_table`", settings=settings)
             query.track()
@@ -72,7 +64,7 @@ class TestQueriesChyt(ClickHouseTestBase):
         create("table", "//tmp/t1", attributes={"schema": table_schema})
         write_table("//tmp/t1", [{"value": 1}])
 
-        with Clique(1, config_patch=TestQueriesChyt.CONFIG_PATCH, alias="*ch_alias"):
+        with Clique(1, alias="*ch_alias"):
             settings = {"clique": "ch_alias", "cluster": "primary"}
             query = "create table `//tmp/t2` engine=YtTable() as select * from `//tmp/t1`"
             query = start_query("chyt", query, settings=settings)
@@ -91,7 +83,7 @@ class TestQueriesChyt(ClickHouseTestBase):
 
     @authors("gudqeit")
     def test_query_settings(self, query_tracker):
-        with Clique(1, config_patch=TestQueriesChyt.CONFIG_PATCH, alias="*ch_alias"):
+        with Clique(1, alias="*ch_alias"):
             query_text = "select * from numbers(5)"
             expected = [{"number": 0}]
             settings = {
@@ -119,7 +111,7 @@ class TestQueriesChyt(ClickHouseTestBase):
 
     @authors("gudqeit")
     def test_query_error(self, query_tracker):
-        with Clique(1, config_patch=TestQueriesChyt.CONFIG_PATCH, alias="*ch_alias"):
+        with Clique(1, alias="*ch_alias"):
             settings = {"clique": "ch_alias", "cluster": "primary"}
             query = start_query("chyt", "select * from `//tmp/t`", settings=settings)
             with raises_yt_error("failed"):
@@ -160,7 +152,7 @@ class TestQueriesChyt(ClickHouseTestBase):
             }
         ])
 
-        with Clique(1, config_patch=TestQueriesChyt.CONFIG_PATCH, alias="*ch_alias"):
+        with Clique(1, alias="*ch_alias"):
             settings = {"clique": "ch_alias", "cluster": "primary"}
             query = start_query("chyt", "select * from `//tmp/t`", settings=settings)
             query.track()
@@ -177,3 +169,52 @@ class TestQueriesChyt(ClickHouseTestBase):
                     "string": yson.YsonEntity(),
                 },
             ])
+
+    @authors("gudqeit")
+    def test_user_has_no_access_to_clique(self, query_tracker):
+        create_user("u1")
+        acl = [make_ace("deny", "u1", "use")]
+        set("//sys/access_control_object_namespaces/chyt/ch_alias/principal/@acl", acl)
+
+        table_schema = [{"name": "value", "type": "int64"}]
+        create("table", "//tmp/test_table", attributes={"schema": table_schema})
+
+        with Clique(1, alias="*ch_alias"):
+            settings = {
+                "clique": "ch_alias",
+                "cluster": "primary",
+            }
+
+            query = start_query(
+                "chyt", "select * from `//tmp/test_table`",
+                settings=settings,
+                authenticated_user="u1",
+            )
+
+            with raises_yt_error("User \"u1\" has no access to clique ch_alias"):
+                query.track()
+
+    @authors("gudqeit")
+    def test_user_has_no_access_to_data(self, query_tracker):
+        create_user("u1")
+        acl = [make_ace("allow", "u1", "use")]
+        set("//sys/access_control_object_namespaces/chyt/ch_alias/principal/@acl", acl)
+
+        acl = [make_ace("deny", "u1", "read")]
+        table_schema = [{"name": "value", "type": "int64"}]
+        create("table", "//tmp/test_table", attributes={"schema": table_schema, "acl": acl})
+
+        with Clique(1, alias="*ch_alias"):
+            settings = {
+                "clique": "ch_alias",
+                "cluster": "primary",
+            }
+
+            query = start_query(
+                "chyt", "select * from `//tmp/test_table`",
+                settings=settings,
+                authenticated_user="u1",
+            )
+
+            with raises_yt_error("\"read\" permission for node //tmp/test_table is denied for \"u1\""):
+                query.track()
