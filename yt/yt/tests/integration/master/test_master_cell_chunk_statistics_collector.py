@@ -87,6 +87,12 @@ class TestMasterCellChunkStatisticsCollector(YTEnvSetup):
         return histogram == true_histogram
 
     @authors("kvk1920")
+    def test_empty_histogram_bounds(self):
+        path = "//sys/@config/chunk_manager/master_cell_chunk_statistics_collector/creation_time_histogram_bucket_bounds"
+        set(path, [])
+        assert len(get(path)) == 1
+
+    @authors("kvk1920")
     @pytest.mark.parametrize("inject_leader_switch", [False, True])
     def test_chunk_creation_time_histogram(self, inject_leader_switch):
         create("table", "//tmp/t")

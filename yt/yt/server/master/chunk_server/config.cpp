@@ -183,6 +183,11 @@ void TDynamicMasterCellChunkStatisticsCollectorConfig::Register(TRegistrar regis
                 << TErrorAttribute("size", std::ssize(config->CreationTimeHistogramBucketBounds))
                 << TErrorAttribute("limit", MaxChunkCreationTimeHistogramBuckets);
         }
+        // COMPAT(kvk1920): Exception cannot be throwed here without master reign advancing.
+        if (config->CreationTimeHistogramBucketBounds.empty()) {
+            config->CreationTimeHistogramBucketBounds = {TInstant::Zero()};
+        }
+
         Sort(config->CreationTimeHistogramBucketBounds);
     });
 }
