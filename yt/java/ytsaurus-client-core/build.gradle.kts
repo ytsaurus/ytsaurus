@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "tech.ytsaurus"
-version = "no"
+version = project.properties["version"]
 
 repositories {
     mavenCentral()
