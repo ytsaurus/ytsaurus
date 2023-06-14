@@ -36,7 +36,6 @@ target_include_directories(clickhouse-src-Parsers PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/libs/double-conversion
   ${CMAKE_SOURCE_DIR}/contrib/libs/miniselect/include
   ${CMAKE_SOURCE_DIR}/contrib/libs/pdqsort
-  ${CMAKE_SOURCE_DIR}/contrib/libs/re2
   ${CMAKE_SOURCE_DIR}/contrib/restricted/cityhash-1.0.2
 )
 target_link_libraries(clickhouse-src-Parsers PUBLIC

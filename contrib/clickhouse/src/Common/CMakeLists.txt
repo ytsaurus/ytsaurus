@@ -45,7 +45,6 @@ target_include_directories(clickhouse-src-Common PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/libs/lz4
   ${CMAKE_SOURCE_DIR}/contrib/libs/miniselect/include
   ${CMAKE_SOURCE_DIR}/contrib/libs/pdqsort
-  ${CMAKE_SOURCE_DIR}/contrib/libs/re2
   ${CMAKE_SOURCE_DIR}/contrib/libs/xxhash
   ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/include
   ${CMAKE_SOURCE_DIR}/contrib/restricted/cityhash-1.0.2

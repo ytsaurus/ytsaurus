@@ -61,7 +61,6 @@ target_include_directories(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/libs/msgpack/include
   ${CMAKE_SOURCE_DIR}/contrib/libs/pdqsort
   ${CMAKE_SOURCE_DIR}/contrib/libs/rapidjson/include
-  ${CMAKE_SOURCE_DIR}/contrib/libs/re2
   ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
   ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/include
   ${CMAKE_SOURCE_DIR}/contrib/restricted/cityhash-1.0.2
@@ -1465,7 +1464,6 @@ target_include_directories(contrib-clickhouse-src.global PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/libs/msgpack/include
   ${CMAKE_SOURCE_DIR}/contrib/libs/pdqsort
   ${CMAKE_SOURCE_DIR}/contrib/libs/rapidjson/include
-  ${CMAKE_SOURCE_DIR}/contrib/libs/re2
   ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
   ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/include
   ${CMAKE_SOURCE_DIR}/contrib/restricted/cityhash-1.0.2
