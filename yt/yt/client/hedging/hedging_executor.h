@@ -1,5 +1,6 @@
 #pragma once
 
+#include "config.h"
 #include "counter.h"
 #include "penalty_provider.h"
 #include "public.h"
@@ -21,33 +22,6 @@
 
 
 namespace NYT::NClient::NHedging::NRpc {
-
-////////////////////////////////////////////////////////////////////////////////
-
-// @brief options for hedging client.
-struct THedgingClientOptions
-{
-    struct TClientOptions
-    {
-        TClientOptions(NApi::IClientPtr client,
-                      TString clusterName,
-                      TDuration initialPenalty,
-                      TCounterPtr counter = {});
-
-        TClientOptions(NApi::IClientPtr client,
-                       TDuration initialPenalty,
-                       TCounterPtr counter = {});
-
-        NApi::IClientPtr Client;
-        TString ClusterName;
-        TDuration InitialPenalty;
-        TCounterPtr Counter;
-    };
-
-    TVector<TClientOptions> Clients;
-    TDuration BanPenalty;
-    TDuration BanDuration;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

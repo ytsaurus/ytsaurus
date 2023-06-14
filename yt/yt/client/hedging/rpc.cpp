@@ -14,13 +14,84 @@
 
 namespace NYT::NClient::NHedging::NRpc {
 
+NCompression::ECodec GetResponseCodecFromProto(const ECompressionCodec& protoCodec)
+{
+    switch (protoCodec) {
+        case ECompressionCodec::None:
+            return NCompression::ECodec::None;
+        case ECompressionCodec::Lz4:
+            return NCompression::ECodec::Lz4;
+    }
+    Y_UNREACHABLE();
+}
+
+NApi::NRpcProxy::TConnectionConfigPtr GetConnectionConfig(const TConfig& config)
+{
+    auto connectionConfig = New<NApi::NRpcProxy::TConnectionConfig>();
+    connectionConfig->SetDefaults();
+
+    connectionConfig->ClusterUrl = config.GetClusterName();
+    if (!config.GetProxyRole().empty()) {
+        connectionConfig->ProxyRole = config.GetProxyRole();
+    }
+    if (0 != config.GetChannelPoolSize()) {
+        connectionConfig->DynamicChannelPool->MaxPeerCount = config.GetChannelPoolSize();
+    }
+    if (0 != config.GetChannelPoolRebalanceIntervalSeconds()) {
+        connectionConfig->DynamicChannelPool->RandomPeerEvictionPeriod = TDuration::Seconds(config.GetChannelPoolRebalanceIntervalSeconds());
+    }
+    if (0 != config.GetModifyRowsBatchCapacity()) {
+        connectionConfig->ModifyRowsBatchCapacity = config.GetModifyRowsBatchCapacity();
+    }
+
+#define SET_TIMEOUT_OPTION(name) \
+    if (0 != config.Get##name()) connectionConfig->name = TDuration::MilliSeconds(config.Get ## name())
+
+    SET_TIMEOUT_OPTION(DefaultTransactionTimeout);
+    SET_TIMEOUT_OPTION(DefaultSelectRowsTimeout);
+    SET_TIMEOUT_OPTION(DefaultLookupRowsTimeout);
+    SET_TIMEOUT_OPTION(DefaultTotalStreamingTimeout);
+    SET_TIMEOUT_OPTION(DefaultStreamingStallTimeout);
+    SET_TIMEOUT_OPTION(DefaultPingPeriod);
+
+#undef SET_TIMEOUT_OPTION
+
+    connectionConfig->ResponseCodec = GetResponseCodecFromProto(config.GetResponseCodec());
+    connectionConfig->EnableRetries = config.GetEnableRetries();
+
+    if (config.HasRetryBackoffTime()) {
+        connectionConfig->RetryingChannel->RetryBackoffTime = TDuration::MilliSeconds(config.GetRetryBackoffTime());
+    }
+    if (config.HasRetryAttempts()) {
+        connectionConfig->RetryingChannel->RetryAttempts = config.GetRetryAttempts();
+    }
+    if (config.HasRetryTimeout()) {
+        connectionConfig->RetryingChannel->RetryTimeout = TDuration::MilliSeconds(config.GetRetryTimeout());
+    }
+
+    connectionConfig->Postprocess();
+
+    return connectionConfig;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-std::pair<TStringBuf, TStringBuf> ExtractClusterAndProxyRole(TStringBuf clusterUrl) {
+std::pair<TStringBuf, TStringBuf> ExtractClusterAndProxyRole(TStringBuf clusterUrl)
+{
     TStringBuf cluster;
     TStringBuf proxyRole;
     clusterUrl.Split('/', cluster, proxyRole);
     return {cluster, proxyRole};
+}
+
+void SetClusterUrl(const NApi::NRpcProxy::TConnectionConfigPtr& config, TStringBuf clusterUrl)
+{
+    auto [cluster, proxyRole] = ExtractClusterAndProxyRole(clusterUrl);
+    if (!proxyRole.empty()) {
+        Y_ENSURE(!config->ProxyRole || config->ProxyRole.value().empty(), "ProxyRole specified in both: config and url");
+        config->ProxyRole = ToString(proxyRole);
+    }
+    config->ClusterUrl = ToString(cluster);
 }
 
 void SetClusterUrl(TConfig& config, TStringBuf clusterUrl)
@@ -33,68 +104,24 @@ void SetClusterUrl(TConfig& config, TStringBuf clusterUrl)
     config.SetClusterName(ToString(cluster));
 }
 
-NYT::NCompression::ECodec GetResponseCodecFromProto(const ECompressionCodec& protoCodec)
+NApi::IClientPtr CreateClient(const NApi::NRpcProxy::TConnectionConfigPtr& config, const NApi::TClientOptions& options)
 {
-    switch (protoCodec) {
-        case ECompressionCodec::None:
-            return NYT::NCompression::ECodec::None;
-        case ECompressionCodec::Lz4:
-            return NYT::NCompression::ECodec::Lz4;
-    }
-    Y_UNREACHABLE();
+    return NApi::NRpcProxy::CreateConnection(config)->CreateClient(options);
 }
 
 NApi::IClientPtr CreateClient(const TConfig& config, const NApi::TClientOptions& options)
 {
-    auto ytConfig = New<NApi::NRpcProxy::TConnectionConfig>();
-    ytConfig->SetDefaults();
-    ytConfig->ClusterUrl = config.GetClusterName();
+    return CreateClient(GetConnectionConfig(config), options);
+}
 
-    if (!config.GetProxyRole().empty()) {
-        ytConfig->ProxyRole = config.GetProxyRole();
-    }
-    if (0 != config.GetChannelPoolSize()) {
-        ytConfig->DynamicChannelPool->MaxPeerCount = config.GetChannelPoolSize();
-    }
-    if (0 != config.GetChannelPoolRebalanceIntervalSeconds()) {
-        ytConfig->DynamicChannelPool->RandomPeerEvictionPeriod = TDuration::Seconds(config.GetChannelPoolRebalanceIntervalSeconds());
-    }
-    if (0 != config.GetModifyRowsBatchCapacity()) {
-        ytConfig->ModifyRowsBatchCapacity = config.GetModifyRowsBatchCapacity();
-    }
-
-#define SET_TIMEOUT_OPTION(name) \
-    if (0 != config.Get##name()) ytConfig->name = TDuration::MilliSeconds(config.Get ## name())
-
-    SET_TIMEOUT_OPTION(DefaultTransactionTimeout);
-    SET_TIMEOUT_OPTION(DefaultSelectRowsTimeout);
-    SET_TIMEOUT_OPTION(DefaultLookupRowsTimeout);
-    SET_TIMEOUT_OPTION(DefaultTotalStreamingTimeout);
-    SET_TIMEOUT_OPTION(DefaultStreamingStallTimeout);
-    SET_TIMEOUT_OPTION(DefaultPingPeriod);
-
-#undef SET_TIMEOUT_OPTION
-
-    ytConfig->ResponseCodec = GetResponseCodecFromProto(config.GetResponseCodec());
-
-    ytConfig->EnableRetries = config.GetEnableRetries();
-
-    if (config.HasRetryBackoffTime()) {
-        ytConfig->RetryingChannel->RetryBackoffTime = TDuration::MilliSeconds(config.GetRetryBackoffTime());
-    }
-    if (config.HasRetryAttempts()) {
-        ytConfig->RetryingChannel->RetryAttempts = config.GetRetryAttempts();
-    }
-    if (config.HasRetryTimeout()) {
-        ytConfig->RetryingChannel->RetryTimeout = TDuration::MilliSeconds(config.GetRetryTimeout());
-    }
-    ytConfig->Postprocess();
-    return NApi::NRpcProxy::CreateConnection(ytConfig)->CreateClient(options);
+NApi::IClientPtr CreateClient(const NApi::NRpcProxy::TConnectionConfigPtr& config)
+{
+    return CreateClient(config, GetClientOpsFromEnvStatic());
 }
 
 NApi::IClientPtr CreateClient(const TConfig& config)
 {
-    return CreateClient(config, GetClientOpsFromEnvStatic());
+    return CreateClient(GetConnectionConfig(config));
 }
 
 NApi::IClientPtr CreateClient(TStringBuf clusterUrl)
@@ -104,10 +131,10 @@ NApi::IClientPtr CreateClient(TStringBuf clusterUrl)
 
 NApi::IClientPtr CreateClient(TStringBuf cluster, TStringBuf proxyRole)
 {
-    TConfig config;
-    config.SetClusterName(ToString(cluster));
+    auto config = New<NApi::NRpcProxy::TConnectionConfig>();
+    config->ClusterUrl = ToString(cluster);
     if (!proxyRole.empty()) {
-        config.SetProxyRole(ToString(proxyRole));
+        config->ProxyRole = ToString(proxyRole);
     }
     return CreateClient(config);
 }

@@ -9,28 +9,6 @@ namespace NYT::NClient::NHedging::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THedgingClientOptions::TClientOptions::TClientOptions(
-    NApi::IClientPtr client,
-    TString clusterName,
-    TDuration initialPenalty,
-    TCounterPtr counter
-)
-    : Client(std::move(client))
-    , ClusterName(std::move(clusterName))
-    , InitialPenalty(initialPenalty)
-    , Counter(std::move(counter))
-{
-}
-
-THedgingClientOptions::TClientOptions::TClientOptions(
-    NApi::IClientPtr client,
-    TDuration initialPenalty,
-    TCounterPtr counter
-)
-    : TClientOptions(client, "default", initialPenalty, counter)
-{
-}
-
 THedgingExecutor::THedgingExecutor(const THedgingClientOptions& options, const IPenaltyProviderPtr& penaltyProvider)
     : BanPenalty_(NProfiling::DurationToCpuDuration(options.BanPenalty))
     , BanDuration_(NProfiling::DurationToCpuDuration(options.BanDuration))
