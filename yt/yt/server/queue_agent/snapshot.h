@@ -1,6 +1,7 @@
 #pragma once
 
 #include "performance_counters.h"
+#include "yt/yt/server/queue_agent/private.h"
 
 #include <yt/yt/ytlib/queue_client/dynamic_state.h>
 
@@ -60,6 +61,8 @@ struct TQueuePartitionSnapshot
 
     //! Meta-information specific to given queue family.
     NYson::TYsonString Meta;
+
+    NTabletClient::ETabletState TabletState;
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueuePartitionSnapshot)

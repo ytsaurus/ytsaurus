@@ -3,7 +3,8 @@ from yt_env_setup import (YTEnvSetup, Restarter, QUEUE_AGENTS_SERVICE)
 from yt_commands import (authors, get, set, ls, wait, assert_yt_error, create, sync_mount_table, sync_create_cells,
                          insert_rows, delete_rows, remove, raises_yt_error, exists, start_transaction, select_rows,
                          sync_unmount_table, sync_reshard_table, trim_rows, print_debug, alter_table,
-                         register_queue_consumer, unregister_queue_consumer, mount_table, wait_for_tablet_state)
+                         register_queue_consumer, unregister_queue_consumer, mount_table, wait_for_tablet_state,
+                         sync_freeze_table, sync_unfreeze_table)
 
 from yt.common import YtError, update_inplace, update
 
@@ -498,6 +499,36 @@ class TestQueueAgent(TestQueueAgentBase):
 
         status = queue_orchid.get_queue_orchid("primary://tmp/q").get_status()
         assert status["partition_count"] == 1
+
+    @authors("cherepashka")
+    def test_frozen_tablets_do_not_contain_errors(self):
+        queue_orchid = QueueAgentOrchid()
+        self._create_queue("//tmp/q")
+        self._wait_for_component_passes()
+
+        # Frozen queue doesn't have errors.
+        sync_freeze_table("//tmp/q")
+        self._wait_for_component_passes()
+        partitions = queue_orchid.get_queue_orchid("primary://tmp/q").get_partitions()
+        for partition in partitions:
+            assert "error" not in partition
+
+        # Consumer of frozen queue doesn't have errors.
+        self._create_consumer("//tmp/c", mount=True)
+        insert_rows("//sys/queue_agents/consumer_registrations", [
+            {
+                "queue_cluster": "primary",
+                "queue_path": "//tmp/q",
+                "consumer_cluster": "primary",
+                "consumer_path": "//tmp/c",
+                "vital": False,
+            }
+        ])
+        self._wait_for_component_passes()
+        consumer_registrations = get("//tmp/c/@queue_consumer_status/registrations")
+        consumer_queues = get("//tmp/c/@queue_consumer_status/queues")
+        for registration in consumer_registrations:
+            assert "error" not in consumer_queues[registration["queue"]]
 
 
 class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
@@ -1305,6 +1336,66 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         })
 
         self._wait_for_row_count("//tmp/q", 0, 3)
+
+    @authors("cherepashka")
+    def test_trim_only_mounted_tablets(self):
+        queue_agent_orchid = QueueAgentOrchid()
+
+        self._create_queue("//tmp/q", partition_count=3)
+        self._create_registered_consumer("//tmp/c1", "//tmp/q", vital=True)
+        self._create_registered_consumer("//tmp/c2", "//tmp/q", vital=False)
+        set("//tmp/q/@auto_trim_config", {"enable": True})
+
+        self._wait_for_component_passes()
+        vital_consumer_offsets = [0, 0, 0]
+        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "first tablet data"}] * 5)
+        insert_rows("//tmp/q", [{"$tablet_index": 1, "data": "second tablet data"}] * 6)
+        insert_rows("//tmp/q", [{"$tablet_index": 2, "data": "third tablet data"}] * 7)
+        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+
+        # Nothing should be trimmed from the first partition, since it is frozen.
+        sync_freeze_table("//tmp/q", first_tablet_index=0, last_tablet_index=0)
+        self._advance_consumer("//tmp/c1", "//tmp/q", 0, 2)
+        self._advance_consumer("//tmp/c2", "//tmp/q", 0, 1)
+        self._wait_for_row_count("//tmp/q", 0, 5)
+        vital_consumer_offsets[0] = 2
+
+        # Rows should be trimmed by vital consumer in mounted tablets.
+        self._advance_consumer("//tmp/c1", "//tmp/q", 1, 4)
+        self._advance_consumer("//tmp/c2", "//tmp/q", 1, 1)
+        vital_consumer_offsets[1] = 4
+        self._wait_for_row_count("//tmp/q", 1, 6 - vital_consumer_offsets[1])
+
+        self._advance_consumer("//tmp/c1", "//tmp/q", 2, 3)
+        self._advance_consumer("//tmp/c2", "//tmp/q", 2, 1)
+        vital_consumer_offsets[2] = 3
+        self._wait_for_row_count("//tmp/q", 2, 7 - vital_consumer_offsets[2])
+
+        # After unfreezing tablet rows should be trimmed by vital consumer.
+        sync_unfreeze_table("//tmp/q", first_tablet_index=0, last_tablet_index=0)
+        self._wait_for_row_count("//tmp/q", 0, 5 - vital_consumer_offsets[0])
+
+        # Nothing should be trimmed from first two partitions, since they are frozen.
+        sync_freeze_table("//tmp/q", first_tablet_index=0, last_tablet_index=1)
+        self._advance_consumer("//tmp/c1", "//tmp/q", 0, 4)
+        self._advance_consumer("//tmp/c2", "//tmp/q", 0, 2)
+        self._advance_consumer("//tmp/c1", "//tmp/q", 1, 5)
+        self._advance_consumer("//tmp/c2", "//tmp/q", 1, 2)
+        self._wait_for_row_count("//tmp/q", 0, 5 - vital_consumer_offsets[0])
+        self._wait_for_row_count("//tmp/q", 1, 6 - vital_consumer_offsets[1])
+        vital_consumer_offsets[0] = 4
+        vital_consumer_offsets[1] = 5
+
+        # In mounted tablet trimming should work.
+        self._advance_consumer("//tmp/c1", "//tmp/q", 2, 5)
+        self._advance_consumer("//tmp/c2", "//tmp/q", 2, 2)
+        vital_consumer_offsets[2] = 5
+        self._wait_for_row_count("//tmp/q", 2, 7 - vital_consumer_offsets[2])
+
+        # After unfreezing first two tablets they should be trimmed by vital consumer.
+        sync_unfreeze_table("//tmp/q", first_tablet_index=0, last_tablet_index=1)
+        self._wait_for_row_count("//tmp/q", 0, 5 - vital_consumer_offsets[0])
+        self._wait_for_row_count("//tmp/q", 1, 6 - vital_consumer_offsets[1])
 
 
 class TestMultipleAgents(TestQueueAgentBase):

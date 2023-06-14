@@ -134,8 +134,9 @@ private:
         tabletIndexes.reserve(partitionCount);
         for (int index = 0; index < partitionCount; ++index) {
             const auto& tabletInfo = tableInfo->Tablets[index];
-            if (tabletInfo->State != ETabletState::Mounted) {
-                partitionSnapshots[index]->Error = TError("Tablet %v is not mounted", tabletInfo->TabletId)
+            partitionSnapshots[index]->TabletState = tabletInfo->State;
+            if (tabletInfo->State != ETabletState::Mounted && tabletInfo->State != ETabletState::Frozen) {
+                partitionSnapshots[index]->Error = TError("Tablet %v is not mounted or frozen", tabletInfo->TabletId)
                     << TErrorAttribute("state", tabletInfo->State);
             } else {
                 tabletIndexes.push_back(index);
@@ -488,6 +489,10 @@ private:
         for (int partitionIndex = 0; partitionIndex < queueSnapshot->PartitionCount; ++partitionIndex) {
             const auto& partitionSnapshot = queueSnapshot->PartitionSnapshots[partitionIndex];
 
+            if (partitionSnapshot->TabletState != NTabletClient::ETabletState::Mounted) {
+                YT_LOG_DEBUG("Partition %v is not in mounted state, actual state is %v, skip from trimming", partitionIndex, partitionSnapshot->TabletState);
+                continue;
+            }
             TError partitionError;
 
             if (!partitionSnapshot->Error.IsOK()) {
