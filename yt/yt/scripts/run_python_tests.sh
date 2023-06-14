@@ -8,6 +8,11 @@ export TESTS_SANDBOX="$(realpath ../tests_sandbox)"
 
 source "$VIRTUALENV_PATH/bin/activate"
 
-cd yt/yt/tests/integration
+cd "$PYTHON_ROOT"
 
-./run_tests.sh -m opensource
+export PYTHONPATH="$PYTHON_ROOT"
+export YT_BUILD_ROOT="${BUILD_ROOT}"
+export YT_TESTS_SANDBOX="$TESTS_SANDBOX" 
+
+python3 -m pytest -vs "yt/local" "yt/yson" "yt/skiff"
+python3 -m pytest -vs "yt/wrapper/tests" -m opensource

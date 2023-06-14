@@ -67,6 +67,7 @@ class TestCypressCommands(object):
         assert wrong_schema != schema
         assert wrong_schema != schema_from_attr
 
+    @pytest.mark.opensource
     @authors("asaitgalin")
     def test_get_set_exists(self):
         assert yt.get("/")

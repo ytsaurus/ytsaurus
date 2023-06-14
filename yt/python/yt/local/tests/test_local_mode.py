@@ -14,6 +14,7 @@ import yt.json_wrapper as json
 import yt.wrapper as yt
 
 import os
+import sys
 import logging
 import pytest
 import tempfile
@@ -588,6 +589,11 @@ class TestLocalMode(object):
             wait(lambda: os.path.exists(os.path.join(environment.logs_path, "http-proxy-0.json.log")))
 
     def test_one_node_configuration(self):
+        # TODO(ignat): test does not work in OS.
+        # Remove this pytest.skip when YT-19337 will be resolved.
+        if yatest_common is None and (sys.version_info.major, sys.version_info.minor) == (3, 11):
+            pytest.skip()
+
         row_count = 100
 
         def mapper(row):

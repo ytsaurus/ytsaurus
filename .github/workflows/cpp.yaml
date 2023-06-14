@@ -70,7 +70,7 @@ jobs:
         shell: bash
         run: |
           YTSAURUS_COMMIT_HASH=${GITHUB_SHA} bash ./yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build
- 
+
       - name: Docker Hub login
         shell: bash
         run: |
@@ -122,10 +122,20 @@ jobs:
           cd ../build
           ./run_unittests.sh
 
+      - name: Prepare pytest environment
+        shell: bash
+        run: |
+          yt/yt/scripts/prepare_pytest_environment.sh
+
       - name: Integration tests
         shell: bash
         run: |
           yt/yt/scripts/run_integration_tests.sh
+
+      - name: Python tests
+        shell: bash
+        run: |
+          yt/yt/scripts/run_python_tests.sh
 
   stop-vm:
     name: Stop VM
