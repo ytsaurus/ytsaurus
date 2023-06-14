@@ -360,7 +360,7 @@ TNodeResourceManager::TNodeResourceManager(IBootstrap* bootstrap)
         Bootstrap_->GetConfig()->ResourceLimitsUpdatePeriod))
 {
     const auto& staticLimits = Bootstrap_->GetConfig()->ResourceLimits;
-    auto networkLimit = Bootstrap_->GetConfig()->NetworkBandwidth;
+    const auto networkLimit = Bootstrap_->GetConfig()->NetworkBandwidth;
     Limits_.Store(NContainers::TInstanceLimits{
         .Cpu = staticLimits->TotalCpu.value_or(0),
         .Memory = staticLimits->TotalMemory,
@@ -483,20 +483,12 @@ i64 TNodeResourceManager::GetMemoryDemand() const
 
 std::optional<i64> TNodeResourceManager::GetNetTxLimit() const
 {
-    if (auto tx = Limits_.Load().NetTx) {
-        return tx;
-    }
-
-    return {};
+    return Limits_.Load().NetTx;
 }
 
 std::optional<i64> TNodeResourceManager::GetNetRxLimit() const
 {
-    if (auto rx = Limits_.Load().NetRx) {
-        return rx;
-    }
-
-    return {};
+    return Limits_.Load().NetRx;
 }
 
 void TNodeResourceManager::SetResourceLimitsOverride(const TNodeResourceLimitsOverrides& resourceLimitsOverride)

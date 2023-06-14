@@ -136,8 +136,8 @@ struct TInstanceLimits
 {
     double Cpu = 0;
     i64 Memory = 0;
-    i64 NetTx = 0;
-    i64 NetRx = 0;
+    std::optional<i64> NetTx;
+    std::optional<i64> NetRx;
 
     bool operator==(const TInstanceLimits&) const = default;
 };
