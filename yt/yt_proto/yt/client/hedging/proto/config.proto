@@ -1,5 +1,9 @@
 package NYT.NClient.NHedging.NRpc;
 
+import "yt_proto/yt/core/yson/proto/protobuf_interop.proto";
+
+option (NYT.NYson.NProto.derive_underscore_case_names) = true;
+
 enum ECompressionCodec {
     None = 0;
     Lz4 = 1;
@@ -38,7 +42,9 @@ message TClustersConfig
     // DefaultConfig is used for clusters not mentioned in ClusterConfigs.
     optional TConfig DefaultConfig = 1;
     // Per-cluster configs.
-    map<string, TConfig> ClusterConfigs = 2;
+    map<string, TConfig> ClusterConfigs = 2 [
+        (NYT.NYson.NProto.yson_map) = true
+    ];
 };
 
 message THedgingClientConfig
@@ -52,7 +58,9 @@ message THedgingClientConfig
     repeated TClientOptions Clients = 1;
     optional uint32 BanPenalty = 2 [default = 1];  // The penalty increment during ban.
     optional uint32 BanDuration = 3 [default = 50]; // How long need to ban cllent after error.
-    map<string, string> Tags = 4;  // Tags for profiling.
+    map<string, string> Tags = 4 [
+        (NYT.NYson.NProto.yson_map) = true
+    ];  // Tags for profiling.
 }
 
 message TReplicationLagPenaltyProviderConfig
