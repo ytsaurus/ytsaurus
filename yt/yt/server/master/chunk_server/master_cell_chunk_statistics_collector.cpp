@@ -67,6 +67,10 @@ public:
     {
         YT_VERIFY(HasMutationContext());
 
+        if (chunk->IsJournal()) {
+            return;
+        }
+
         for (const auto& statisticsPieceCollector : StatisticsPieceCollectors_) {
             statisticsPieceCollector->OnChunkCreated(chunk);
         }
@@ -84,6 +88,10 @@ public:
     void OnChunkDestroyed(TChunk* chunk) override
     {
         YT_VERIFY(HasMutationContext());
+
+        if (chunk->IsJournal()) {
+            return;
+        }
 
         // NB: This chunk have to be unconditionally removed from statistics.
         // If this chunk has not been scanned yet then global chunk scan is

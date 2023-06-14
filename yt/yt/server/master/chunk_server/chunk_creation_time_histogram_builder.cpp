@@ -54,17 +54,20 @@ public:
 
     void OnChunkCreated(TChunk* chunk) noexcept override
     {
+        YT_ASSERT(!chunk->IsJournal());
         Histogram_.Add(GetCreationTime(chunk).MillisecondsFloat());
     }
 
     void OnChunkDestroyed(TChunk* chunk) noexcept override
     {
+        YT_ASSERT(!chunk->IsJournal());
         Histogram_.Remove(GetCreationTime(chunk).MillisecondsFloat());
     }
 
     void OnChunkScan(TChunk* chunk) noexcept override
     {
         YT_ASSERT(Delta_.size() == Bounds_.size() + 1);
+        YT_ASSERT(!chunk->IsJournal());
 
         auto estimatedCreationTime = GetCreationTime(chunk);
         auto bucketIndex = std::upper_bound(Bounds_.begin(), Bounds_.end(), estimatedCreationTime) - Bounds_.begin();
@@ -176,7 +179,7 @@ public:
             return;
         }
 
-        // TODO(kvk1920): Move all new cluster related code to `SetZeroState()`.
+        // COMPAT(kvk1920): Move all new cluster related code to `SetZeroState()`.
 
         Bounds_ = GetDynamicConfig()->CreationTimeHistogramBucketBounds;
         InitializeHistogram();
