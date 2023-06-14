@@ -11,6 +11,8 @@
 
 namespace NYT::NTableClient {
 
+using namespace NChunkClient;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<bool> GetCompositeColumnFlags(const TTableSchemaPtr& schema)
@@ -24,8 +26,19 @@ std::vector<bool> GetCompositeColumnFlags(const TTableSchemaPtr& schema)
     return compositeColumnFlag;
 }
 
-std::vector<bool> GetHunkColumnFlags(const TTableSchemaPtr& schema)
+std::vector<bool> GetHunkColumnFlags(
+    EChunkFormat chunkFormat,
+    NChunkClient::EChunkFeatures chunkFeatures,
+    const TTableSchemaPtr& schema)
 {
+    if ((chunkFormat == EChunkFormat::TableUnversionedSchemaful ||
+        chunkFormat == EChunkFormat::TableUnversionedColumnar ||
+        chunkFormat == EChunkFormat::TableUnversionedSchemalessHorizontal) &&
+        None(chunkFeatures & EChunkFeatures::UnversionedHunks))
+    {
+        return {};
+    }
+
     std::vector<bool> columnHunkFlags;
     if (schema->HasHunkColumns()) {
         auto columnCount = schema->GetColumnCount();

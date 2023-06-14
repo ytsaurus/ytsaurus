@@ -129,13 +129,14 @@ void TPartitionChunkReader::InitFirstBlock()
     TCurrentTraceContextGuard traceGuard(TraceContext_);
 
     YT_VERIFY(CurrentBlock_ && CurrentBlock_.IsSet());
+
     auto schema = GetTableSchema(*ChunkMeta_);
 
     BlockReader_ = new THorizontalBlockReader(
         CurrentBlock_.Get().ValueOrThrow().Data,
         BlockMetaExt_.data_blocks(CurrentBlockIndex_),
         GetCompositeColumnFlags(schema),
-        GetHunkColumnFlags(schema),
+        GetHunkColumnFlags(FromProto<EChunkFormat>(ChunkMeta_->format()), FromProto<EChunkFeatures>(ChunkMeta_->features()), schema),
         /*hunkChunkMetasExt*/ {},
         /*hunkChunkRefsExt*/ {},
         ChunkToReaderIdMapping_,

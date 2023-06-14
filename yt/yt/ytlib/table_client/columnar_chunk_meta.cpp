@@ -59,6 +59,7 @@ TColumnarChunkMeta::TColumnarChunkMeta(const TChunkMeta& chunkMeta)
 {
     ChunkType_ = CheckedEnumCast<EChunkType>(chunkMeta.type());
     ChunkFormat_ = CheckedEnumCast<EChunkFormat>(chunkMeta.format());
+    ChunkFeatures_ = FromProto<EChunkFeatures>(chunkMeta.features());
 
     Misc_ = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
     DataBlockMeta_ = New<TRefCountedDataBlockMeta>(GetProtoExtension<TDataBlockMetaExt>(chunkMeta.extensions()));

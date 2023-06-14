@@ -17,6 +17,7 @@ class TColumnarChunkMeta
 public:
     DEFINE_BYVAL_RO_PROPERTY(NChunkClient::EChunkType, ChunkType);
     DEFINE_BYVAL_RO_PROPERTY(NChunkClient::EChunkFormat, ChunkFormat);
+    DEFINE_BYVAL_RO_PROPERTY(NChunkClient::EChunkFeatures, ChunkFeatures);
     DEFINE_BYREF_RO_PROPERTY(TRefCountedDataBlockMetaPtr, DataBlockMeta);
     DEFINE_BYREF_RO_PROPERTY(TRefCountedSystemBlockMetaPtr, SystemBlockMeta);
     DEFINE_BYREF_RO_PROPERTY(TRefCountedColumnMetaPtr, ColumnMeta);

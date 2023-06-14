@@ -53,15 +53,8 @@ using namespace NApi;
 using namespace NTracing;
 
 using NChunkClient::TDataSliceDescriptor;
-using NChunkClient::TLegacyReadLimit;
-using NChunkClient::TLegacyReadRange;
 using NChunkClient::TReadLimit;
 using NChunkClient::TReadRange;
-using NChunkClient::NProto::TMiscExt;
-using NChunkClient::TChunkReaderStatistics;
-
-using NYT::FromProto;
-using NYT::TRange;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -690,7 +683,7 @@ void THorizontalSchemalessRangeChunkReader::InitFirstBlock()
         CurrentBlock_.Get().ValueOrThrow().Data,
         blockMeta,
         GetCompositeColumnFlags(ChunkMeta_->ChunkSchema()),
-        GetHunkColumnFlags(ChunkMeta_->ChunkSchema()),
+        GetHunkColumnFlags(ChunkMeta_->GetChunkFormat(), ChunkMeta_->GetChunkFeatures(), ChunkMeta_->ChunkSchema()),
         ChunkMeta_->HunkChunkMetasExt(),
         ChunkMeta_->HunkChunkRefsExt(),
         ChunkToReaderIdMapping_,
@@ -1106,7 +1099,7 @@ void THorizontalSchemalessLookupChunkReaderBase::InitFirstBlock()
         CurrentBlock_.Get().ValueOrThrow().Data,
         blockMeta,
         GetCompositeColumnFlags(ChunkMeta_->ChunkSchema()),
-        GetHunkColumnFlags(ChunkMeta_->ChunkSchema()),
+        GetHunkColumnFlags(ChunkMeta_->GetChunkFormat(), ChunkMeta_->GetChunkFeatures(), ChunkMeta_->ChunkSchema()),
         ChunkMeta_->HunkChunkMetasExt(),
         ChunkMeta_->HunkChunkRefsExt(),
         ChunkToReaderIdMapping_,
