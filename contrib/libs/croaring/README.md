@@ -16,7 +16,7 @@ Bitsets, also called bitmaps, are commonly used as fast data structures. Unfortu
 
 Roaring bitmaps are compressed bitmaps which tend to outperform conventional compressed bitmaps such as WAH, EWAH or Concise.
 They are used by several major systems such as [Apache Lucene][lucene] and derivative systems such as [Solr][solr] and
-[Elasticsearch][elasticsearch], [Metamarkets' Druid][druid], [LinkedIn Pinot][pinot], [Netflix Atlas][atlas],  [Apache Spark][spark], [OpenSearchServer][opensearchserver], [Cloud Torrent][cloudtorrent], [Whoosh][whoosh], [InfluxDB](https://www.influxdata.com), [Pilosa][pilosa], [Bleve](http://www.blevesearch.com), [Microsoft Visual Studio Team Services (VSTS)][vsts], and eBay's [Apache Kylin][kylin]. The CRoaring library is used in several systems such as [Apache Doris](http://doris.incubator.apache.org). The YouTube SQL Engine, [Google Procella](https://research.google/pubs/pub48388/), uses Roaring bitmaps for indexing.
+[Elasticsearch][elasticsearch], [Metamarkets' Druid][druid], [LinkedIn Pinot][pinot], [Netflix Atlas][atlas],  [Apache Spark][spark], [OpenSearchServer][opensearchserver], [Cloud Torrent][cloudtorrent], [Whoosh][whoosh], [InfluxDB](https://www.influxdata.com), [Pilosa][pilosa], [Bleve](http://www.blevesearch.com), [Microsoft Visual Studio Team Services (VSTS)][vsts], and eBay's [Apache Kylin][kylin]. The CRoaring library is used in several systems such as [Apache Doris](http://doris.incubator.apache.org), [StarRocks](https://github.com/StarRocks/starrocks). The YouTube SQL Engine, [Google Procella](https://research.google/pubs/pub48388/), uses Roaring bitmaps for indexing.
 
 We published a peer-reviewed article on the design and evaluation of this library:
 

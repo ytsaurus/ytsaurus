@@ -107,7 +107,7 @@ extern "C" {  // portability definitions are in global scope, not a namespace
 
 
 
-#ifdef CROARING_CLANG_VISUAL_STUDIO
+#if CROARING_CLANG_VISUAL_STUDIO
 
 /**
  * You are not supposed, normally, to include these
@@ -132,6 +132,7 @@ extern "C" {  // portability definitions are in global scope, not a namespace
 #include <avxintrin.h>
 #include <avx2intrin.h>
 #include <wmmintrin.h>
+#if _MSC_VER >= 1920
 // Important: we need the AVX-512 headers:
 #include <avx512fintrin.h>
 #include <avx512dqintrin.h>
@@ -141,6 +142,7 @@ extern "C" {  // portability definitions are in global scope, not a namespace
 #include <avx512vbmiintrin.h>
 #include <avx512vbmi2intrin.h>
 #include <avx512vpopcntdqintrin.h>
+#endif // _MSC_VER >= 1920
 // unfortunately, we may not get _blsr_u64, but, thankfully, clang
 // has it as a macro.
 #ifndef _blsr_u64
