@@ -459,6 +459,26 @@ std::vector<std::pair<TDataSource, TString>> InferRanges(
     const NLogging::TLogger& Logger)
 {
     auto tableId = dataSource.ObjectId;
+    auto ranges = dataSource.Ranges;
+    auto keys = dataSource.Keys;
+
+    if (ranges) {
+        auto prunedRanges = GetPrunedRanges(
+            query,
+            tableId,
+            ranges,
+            rowBuffer,
+            connection->GetColumnEvaluatorCache(),
+            GetBuiltinRangeExtractors(),
+            options);
+
+        YT_LOG_DEBUG("Ranges are refined (PrunedRangeCount: %v, OriginalRangeCount: %v, TableId: %v)",
+            prunedRanges.size(),
+            ranges.Size(),
+            tableId);
+
+        ranges = MakeSharedRange(std::move(prunedRanges), rowBuffer);
+    }
 
     auto tableMountCache = connection->GetTableMountCache();
     auto tableInfo = WaitFor(tableMountCache->GetTableInfo(FromObjectId(tableId)))
@@ -497,7 +517,7 @@ std::vector<std::pair<TDataSource, TString>> InferRanges(
     };
 
     std::vector<std::pair<TDataSource, TString>> subsources;
-    auto getSubsource = [&] (TShardIt it, size_t keyWidth) {
+    auto makeSubsource = [&] (TShardIt it, size_t keyWidth) {
         // `.Slice(1, tablets.size())`, `*(it - 1)` and `(*shardIt)->PivotKey` are related.
         // If there would be (*shardIt)->NextPivotKey then no .Slice(1, tablets.size()) and *(it - 1) are needed.
 
@@ -519,27 +539,6 @@ std::vector<std::pair<TDataSource, TString>> InferRanges(
 
         return &subsources.emplace_back(std::move(dataSubsource), address).first;
     };
-
-    auto ranges = dataSource.Ranges;
-    auto keys = dataSource.Keys;
-
-    if (ranges) {
-        auto prunedRanges = GetPrunedRanges(
-            query,
-            tableId,
-            ranges,
-            rowBuffer,
-            connection->GetColumnEvaluatorCache(),
-            GetBuiltinRangeExtractors(),
-            options);
-
-        YT_LOG_DEBUG("Ranges are refined (PrunedRangeCount: %v, OriginalRangeCount: %v, TableId: %v)",
-            prunedRanges.size(),
-            ranges.Size(),
-            tableId);
-
-        ranges = MakeSharedRange(std::move(prunedRanges), rowBuffer);
-    }
 
     YT_LOG_DEBUG("Splitting %v (RangeCount: %v, TabletsCount: %v, LowerCapBound: %v, UpperCapBound: %v)",
         ranges ? "ranges" : "keys",
@@ -585,11 +584,11 @@ std::vector<std::pair<TDataSource, TString>> InferRanges(
                         result.emplace_back(rowBuffer->CaptureRow(lower), rowBuffer->CaptureRow(upper));
                     });
 
-                    getSubsource(shardIt, keyWidth)->Ranges = MakeSharedRange(
+                    makeSubsource(shardIt, keyWidth)->Ranges = MakeSharedRange(
                         result,
                         ranges.GetHolder());
                 } else {
-                    getSubsource(shardIt, keyWidth)->Ranges = MakeSharedRange(
+                    makeSubsource(shardIt, keyWidth)->Ranges = MakeSharedRange(
                         MakeRange(rangesIt, rangesItEnd),
                         ranges.GetHolder());
                 }
@@ -610,7 +609,7 @@ std::vector<std::pair<TDataSource, TString>> InferRanges(
             tableInfo->LowerCapBound,
             tableInfo->UpperCapBound,
             [&] (auto shardIt, auto keysIt, auto keysItEnd) {
-                getSubsource(shardIt, fullKeySize)->Keys = MakeSharedRange(
+                makeSubsource(shardIt, fullKeySize)->Keys = MakeSharedRange(
                     MakeRange(keysIt, keysItEnd),
                     keys.GetHolder());
             });

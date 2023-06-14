@@ -7,6 +7,8 @@
 #include <yt/yt/library/query/engine_api/coordinator.h>
 #include <yt/yt/library/query/engine_api/range_inferrer.h>
 
+#include <yt/yt/ytlib/api/native/connection.h>
+
 #include <yt/yt/client/api/public.h>
 
 #include <yt/yt/client/api/rowset.h>
@@ -32,7 +34,7 @@ void GetQueryInfo(
     const NApi::TExplainQueryOptions& options)
 {
     const auto& keyColumns = query->GetKeyColumns();
-    const auto& expression = query->WhereClause;
+    const auto& predicate = query->WhereClause;
 
     std::vector<TRange<TConstJoinClausePtr>> groupedJoins;
 
@@ -44,7 +46,7 @@ void GetQueryInfo(
 
     fluent
         .BeginMap()
-        .Item("where_expression").Value(InferName(expression, true))
+        .Item("where_expression").Value(InferName(predicate, true))
         .Item("is_ordered_scan").Value(query->IsOrdered())
         .Item("joins").BeginList()
             .DoFor(groupedJoins, [&] (auto fluent, TRange<TConstJoinClausePtr> joinGroup) {
@@ -77,10 +79,31 @@ void GetQueryInfo(
         })
         .DoIf(!keyColumns.empty(), [&] (auto fluent) {
             auto buffer = New<TRowBuffer>();
-            auto trie = ExtractMultipleConstraints(expression, keyColumns, buffer, GetBuiltinRangeExtractors().Get());
+            auto trie = ExtractMultipleConstraints(predicate, keyColumns, buffer, GetBuiltinRangeExtractors().Get());
             fluent.Item("key_trie").Value(ToString(trie));
 
-            auto ranges = GetRangesFromTrieWithinRange(TRowRange(MinKey(), MaxKey()), trie, buffer);
+            auto tableId = dataSource.ObjectId;
+            auto ranges = dataSource.Ranges;
+            auto keys = dataSource.Keys;
+
+            TQueryOptions queryOptions;
+            queryOptions.RangeExpansionLimit = options.RangeExpansionLimit;
+            queryOptions.VerboseLogging = options.VerboseLogging;
+            queryOptions.MaxSubqueries = options.MaxSubqueries;
+
+            if (ranges) {
+                auto prunedRanges = GetPrunedRanges(
+                    query,
+                    tableId,
+                    ranges,
+                    buffer,
+                    connection->GetColumnEvaluatorCache(),
+                    GetBuiltinRangeExtractors(),
+                    queryOptions);
+
+                ranges = MakeSharedRange(std::move(prunedRanges), buffer);
+            }
+
             fluent.Item("ranges")
                 .DoListFor(ranges, [&] (auto fluent, auto range) {
                     fluent.Item()
@@ -91,11 +114,6 @@ void GetQueryInfo(
                 });
 
             if (options.VerboseOutput && !isSubquery) {
-                TQueryOptions queryOptions;
-                queryOptions.RangeExpansionLimit = options.RangeExpansionLimit;
-                queryOptions.VerboseLogging = options.VerboseLogging;
-                queryOptions.MaxSubqueries = options.MaxSubqueries;
-
                 auto Logger = MakeQueryLogger(query);
 
                 auto allSplits = InferRanges(connection, query, dataSource, queryOptions, buffer, Logger);
