@@ -2828,7 +2828,7 @@ void TOperationControllerBase::SafeOnJobStarted(TJobId jobId)
 
     joblet->LastActivityTime = TInstant::Now();
     joblet->TaskName = joblet->Task->GetVertexDescriptor();
-    joblet->IsStarted = true;
+    YT_VERIFY(!std::exchange(joblet->JobState, EJobState::Waiting));
 
     Host->RegisterJob(TStartedJobInfo{jobId, joblet->NodeDescriptor.Address});
 
@@ -3432,6 +3432,8 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
     }
 
     auto joblet = GetJoblet(jobSummary->Id);
+
+    joblet->JobState = EJobState::Running;
 
     if (jobSummary->StatusTimestamp <= joblet->LastUpdateTime) {
         YT_LOG_DEBUG(
@@ -5086,8 +5088,7 @@ void TOperationControllerBase::OnJobFinished(std::unique_ptr<TJobSummary> summar
     auto coreInfoCount = schedulerJobResult.core_infos().size();
 
     auto joblet = GetJoblet(jobId);
-    // Job is not actually started.
-    if (!joblet->StartTime) {
+    if (!joblet->IsStarted()) {
         return;
     }
 
@@ -5146,7 +5147,7 @@ void TOperationControllerBase::OnJobFinished(std::unique_ptr<TJobSummary> summar
         RetainedJobsCoreInfoCount_ += coreInfoCount;
     }
 
-    if (joblet->IsStarted) {
+    if (joblet->IsStarted()) {
         IncreaseAccountResourceUsageLease(joblet->DiskRequestAccount, -joblet->DiskQuota);
     }
 }
@@ -8582,12 +8583,12 @@ NYson::TYsonString TOperationControllerBase::DoBuildJobsYson()
             auto jobId = pair.first;
             const auto& joblet = pair.second;
 
-            if (joblet->StartTime) {
+            if (joblet->IsStarted()) {
                 fluent.Item(ToString(jobId)).BeginMap()
                     .Do([&] (TFluentMap fluent) {
                         BuildJobAttributes(
                             joblet,
-                            EJobState::Running,
+                            *joblet->JobState,
                             /*outputStatistics*/ false,
                             joblet->StderrSize,
                             fluent);

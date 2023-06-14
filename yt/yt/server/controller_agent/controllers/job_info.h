@@ -55,8 +55,8 @@ struct TJoblet
     TInstant LastUpdateTime = TInstant();
     TInstant LastStatisticsUpdateTime = TInstant();
 
-    // XXX: refactor possibles job states, that identified by presence of StartTime and IsStarted flag.
-    bool IsStarted = false;
+    // There are no joblets for finished jobs, JobState may not contain finished states.
+    std::optional<EJobState> JobState;
 
     TString DebugArtifactsAccount;
     bool Suspicious = false;
@@ -166,6 +166,7 @@ struct TJoblet
     TJobStatisticsTags GetAggregationTags(EJobState state);
 
     bool ShouldLogFinishedEvent() const;
+    bool IsStarted() const noexcept;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJoblet)

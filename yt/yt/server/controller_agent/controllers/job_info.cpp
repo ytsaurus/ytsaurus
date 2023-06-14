@@ -123,7 +123,12 @@ bool TJoblet::ShouldLogFinishedEvent() const
     // But there is a situation when job has been saved to snapshot before
     // OnJobStarted, after that it has been actually started, but we failed to recognize it after revive.
     // In case of revived job we cannot definitely recognize whether job has been actually started or not, but want to log finished event.
-    return Revived || IsStarted;
+    return Revived || IsStarted();
+}
+
+bool TJoblet::IsStarted() const noexcept
+{
+    return JobState.has_value();
 }
 
 void TJoblet::Persist(const TPersistenceContext& context)
@@ -134,7 +139,17 @@ void TJoblet::Persist(const TPersistenceContext& context)
     Persist(context, NodeDescriptor);
     Persist(context, StartTime);
     Persist(context, FinishTime);
-    Persist(context, IsStarted);
+    // COMPAT(pogorelov)
+    if (context.GetVersion() < ESnapshotVersion::JobStateInJoblet) {
+        bool isStarted;
+        Persist(context, isStarted);
+
+        if (isStarted) {
+            JobState = EJobState::Waiting;
+        }
+    } else {
+        Persist(context, JobState);
+    }
     Persist(context, DebugArtifactsAccount);
     Persist(context, Suspicious);
     Persist(context, LastActivityTime);
