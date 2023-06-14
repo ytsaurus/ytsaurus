@@ -186,6 +186,7 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
     int tabletIndex,
     i64 lowerRowIndex,
     i64 upperRowIndex,
+    NTransactionClient::TTimestamp /*timestamp*/,
     const TColumnFilter& columnFilter,
     const TClientChunkReadOptions& chunkReadOptions,
     std::optional<EWorkloadCategory> workloadCategory)

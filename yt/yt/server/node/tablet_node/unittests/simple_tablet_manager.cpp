@@ -65,46 +65,46 @@ TSimpleTabletManager::TSimpleTabletManager(
 
 void TSimpleTabletManager::InitializeTablet(TTabletOptions options)
 {
-    bool sorted = options.Schema->IsSorted();
+    WaitFor(BIND([=, this, this_ = MakeStrong(this)] {
+        bool sorted = options.Schema->IsSorted();
 
-    auto nameTable = TNameTable::FromSchema(*options.Schema);
+        auto nameTable = TNameTable::FromSchema(*options.Schema);
 
-    auto tablet = std::make_unique<TTablet>(
-        NullTabletId,
-        TTableSettings::CreateNew(),
-        0,
-        NullObjectId,
-        "ut",
-        &TabletContext_,
-        /*schemaId*/ NullObjectId,
-        options.Schema,
-        sorted ? MinKey() : TLegacyOwningKey(),
-        sorted ? MaxKey() : TLegacyOwningKey(),
-        options.Atomicity,
-        options.CommitOrdering,
-        TTableReplicaId(),
-        /*retainedTimestamp*/ NullTimestamp,
-        /*cumulativeDataWeight*/ 0);
+        auto tablet = std::make_unique<TTablet>(
+            NullTabletId,
+            TTableSettings::CreateNew(),
+            0,
+            NullObjectId,
+            "ut",
+            &TabletContext_,
+            /*schemaId*/ NullObjectId,
+            options.Schema,
+            sorted ? MinKey() : TLegacyOwningKey(),
+            sorted ? MaxKey() : TLegacyOwningKey(),
+            options.Atomicity,
+            options.CommitOrdering,
+            TTableReplicaId(),
+            /*retainedTimestamp*/ NullTimestamp,
+            /*cumulativeDataWeight*/ 0);
 
-    TRawTableSettings rawSettings;
-    rawSettings.CreateNewProvidedConfigs();
-    rawSettings.Provided.MountConfigNode = CreateEphemeralNodeFactory()
-        ->CreateMap();
-    rawSettings.GlobalPatch = New<TTableConfigPatch>();
-    tablet->RawSettings() = std::move(rawSettings);
+        TRawTableSettings rawSettings;
+        rawSettings.CreateNewProvidedConfigs();
+        rawSettings.Provided.MountConfigNode = CreateEphemeralNodeFactory()
+            ->CreateMap();
+        rawSettings.GlobalPatch = New<TTableConfigPatch>();
+        tablet->RawSettings() = std::move(rawSettings);
+        tablet->SetStructuredLogger(CreateMockPerTabletStructuredLogger(tablet.get()));
 
-    tablet->SetStructuredLogger(CreateMockPerTabletStructuredLogger(tablet.get()));
-    WaitFor(BIND([&, tablet = std::move(tablet)] () mutable {
         TabletMap_.Insert(NullTabletId, std::move(tablet));
+
+        InitializeStoreManager(sorted);
+
+        StoreManager_->StartEpoch(nullptr);
+        StoreManager_->Mount({}, {}, true, NProto::TMountHint{});
     })
         .AsyncVia(AutomatonInvoker_)
         .Run())
         .ThrowOnError();
-
-    InitializeStoreManager(sorted);
-
-    StoreManager_->StartEpoch(nullptr);
-    StoreManager_->Mount({}, {}, true, NProto::TMountHint{});
 }
 
 void TSimpleTabletManager::InitializeStoreManager(bool sorted)
@@ -233,15 +233,11 @@ TTablet* TSimpleTabletManager::GetTablet()
 
 void TSimpleTabletManager::LoadKeys(TLoadContext& context)
 {
-    using NYT::Load;
-
     TabletMap_.LoadKeys(context);
 }
 
 void TSimpleTabletManager::LoadValues(TLoadContext& context)
 {
-    using NYT::Load;
-
     TabletMap_.LoadValues(context);
 
     auto* tablet = GetTablet();
@@ -258,15 +254,11 @@ void TSimpleTabletManager::LoadAsync(TLoadContext& context)
 
 void TSimpleTabletManager::SaveKeys(TSaveContext& context)
 {
-    using NYT::Save;
-
     TabletMap_.SaveKeys(context);
 }
 
 void TSimpleTabletManager::SaveValues(TSaveContext& context)
 {
-    using NYT::Save;
-
     TabletMap_.SaveValues(context);
 }
 
@@ -279,7 +271,7 @@ void TSimpleTabletManager::Clear()
 {
     TCompositeAutomatonPart::Clear();
 
-    WaitFor(BIND([&] {
+    WaitFor(BIND([this, this_ = MakeStrong(this)] {
         TabletMap_.Clear();
     })
         .AsyncVia(AutomatonInvoker_)

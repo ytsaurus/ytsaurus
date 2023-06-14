@@ -639,7 +639,7 @@ protected:
 
         ExpectFullyUnlocked();
 
-        // Handle transaction barrier. 
+        // Handle transaction barrier.
         EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
         HydraManager()->ApplyAll();
     }

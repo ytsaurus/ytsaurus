@@ -3868,7 +3868,7 @@ private:
         }
     }
 
-    TTabletHunkWriterConfigPtr DeserializeTabletHunkWriterConfig(const TYsonString& str, const TTabletId tabletId)
+    TTabletHunkWriterConfigPtr DeserializeTabletHunkWriterConfig(const TYsonString& str, TTabletId tabletId)
     {
         try {
             return ConvertTo<TTabletHunkWriterConfigPtr>(str);

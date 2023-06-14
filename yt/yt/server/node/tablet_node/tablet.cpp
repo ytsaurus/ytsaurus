@@ -75,8 +75,6 @@ using namespace NYson;
 using namespace NYTree;
 
 using NProto::TMountHint;
-
-using NYT::FromProto;
 using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1435,7 +1433,7 @@ int TTablet::GetColumnLockCount() const
 
 i64 TTablet::GetTotalRowCount() const
 {
-    return RuntimeData_->TotalRowCount;
+    return RuntimeData_->TotalRowCount.load();
 }
 
 void TTablet::UpdateTotalRowCount()
@@ -1539,6 +1537,7 @@ void TTablet::StartEpoch(const ITabletSlotPtr& slot)
     ResetRowDigestRequestTime();
 
     HunkLockManager_->StartEpoch();
+    TabletWriteManager_->StartEpoch();
 }
 
 void TTablet::StopEpoch()
@@ -1560,6 +1559,7 @@ void TTablet::StopEpoch()
     RowCache_.Reset();
 
     HunkLockManager_->StopEpoch();
+    TabletWriteManager_->StopEpoch();
 }
 
 IInvokerPtr TTablet::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) const

@@ -57,6 +57,7 @@ public:
         int tabletIndex,
         i64 lowerRowIndex,
         i64 upperRowIndex,
+        NTransactionClient::TTimestamp timestamp,
         const NTableClient::TColumnFilter& columnFilter,
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         std::optional<EWorkloadCategory> workloadCategory) override;
@@ -73,7 +74,7 @@ private:
     const std::optional<int> TimestampColumnId_;
     const std::optional<int> CumulativeDataWeightColumnId_;
 
-    std::atomic<i64> StoreRowCount_ = {0};
+    std::atomic<i64> StoreRowCount_ = 0;
 
     std::array<std::unique_ptr<TOrderedDynamicRowSegment>, MaxOrderedDynamicSegments> Segments_;
     int CurrentSegmentIndex_ = -1;
@@ -97,8 +98,8 @@ private:
         int tabletIndex,
         i64 lowerRowIndex,
         i64 upperRowIndex,
+        NTransactionClient::TTimestamp timestmap,
         const std::optional<NTableClient::TColumnFilter>& columnFilter);
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TOrderedDynamicStore)

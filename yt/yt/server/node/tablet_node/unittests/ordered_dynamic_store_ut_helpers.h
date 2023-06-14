@@ -16,13 +16,14 @@ inline std::vector<TUnversionedOwningRow> ReadRowsImpl(
     i64 lowerRowIndex,
     i64 upperRowIndex,
     const TColumnFilter& columnFilter = TColumnFilter::MakeUniversal(),
-    NChunkClient::TClientChunkReadOptions chunkReadOptions = NChunkClient::TClientChunkReadOptions{})
+    NChunkClient::TClientChunkReadOptions chunkReadOptions = {})
 {
     auto reader = store->CreateReader(
         store->GetTablet()->BuildSnapshot(nullptr),
         tabletIndex,
         lowerRowIndex,
         upperRowIndex,
+        AsyncLastCommittedTimestamp,
         columnFilter,
         chunkReadOptions,
         /*workloadCategory*/ std::nullopt);
@@ -74,6 +75,7 @@ protected:
             -1,
             store->GetStartingRowIndex() + index,
             store->GetStartingRowIndex() + index + 1,
+            AsyncLastCommittedTimestamp,
             columnFilter,
             ChunkReadOptions_,
             /*workloadCategory*/ std::nullopt);

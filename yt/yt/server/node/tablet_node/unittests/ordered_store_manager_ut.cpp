@@ -50,6 +50,8 @@ protected:
         PrepareTransaction(transaction.get());
         CommitTransaction(transaction.get());
 
+        Tablet_->UpdateTotalRowCount();
+
         return rowRef;
     }
 

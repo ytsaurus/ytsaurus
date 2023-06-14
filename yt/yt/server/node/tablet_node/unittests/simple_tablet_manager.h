@@ -41,7 +41,6 @@ public:
     void InitializeStoreManager(bool sorted);
 
     // ITabletCellWriteManagerHost
-
     i64 LockTablet(TTablet* tablet, ETabletLockType lockType) override;
     i64 UnlockTablet(TTablet* tablet, ETabletLockType lockType) override;
     void OnTabletRowUnlocked(TTablet* tablet) override;

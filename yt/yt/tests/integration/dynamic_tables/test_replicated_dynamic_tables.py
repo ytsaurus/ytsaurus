@@ -1065,17 +1065,13 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             assert before_ts1 == before_ts2
 
             insert_rows("//tmp/t", [{"key": 1, "value1": "test", "value2": 123}])
-            # TODO(babenko): fix distributed commit for ordered tables
-            wait(
-                lambda: _last_row(select_rows("* from [//tmp/r1]", driver=self.replica_driver))
-                == {
-                    "$tablet_index": 0,
-                    "$row_index": before_index1,
-                    "key": 1,
-                    "value1": "test",
-                    "value2": 123,
-                }
-            )
+            assert _last_row(select_rows("* from [//tmp/r1]", driver=self.replica_driver)) == {
+                "$tablet_index": 0,
+                "$row_index": before_index1,
+                "key": 1,
+                "value1": "test",
+                "value2": 123,
+            }
             wait(
                 lambda: _last_row(select_rows("* from [//tmp/r2]", driver=self.replica_driver))
                 == {
@@ -1088,16 +1084,13 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             )
 
             insert_rows("//tmp/t", [{"key": 1, "value1": "new_test"}])
-            wait(
-                lambda: select_rows("* from [//tmp/r1]", driver=self.replica_driver)[-1]
-                == {
-                    "$tablet_index": 0,
-                    "$row_index": before_index1 + 1,
-                    "key": 1,
-                    "value1": "new_test",
-                    "value2": yson.YsonEntity(),
-                }
-            )
+            assert select_rows("* from [//tmp/r1]", driver=self.replica_driver)[-1] == {
+                "$tablet_index": 0,
+                "$row_index": before_index1 + 1,
+                "key": 1,
+                "value1": "new_test",
+                "value2": yson.YsonEntity(),
+            }
             wait(
                 lambda: select_rows("* from [//tmp/r2]", driver=self.replica_driver)[-1]
                 == {
@@ -1110,16 +1103,13 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             )
 
             insert_rows("//tmp/t", [{"key": 1, "value2": 456}])
-            wait(
-                lambda: select_rows("* from [//tmp/r1]", driver=self.replica_driver)[-1]
-                == {
-                    "$tablet_index": 0,
-                    "$row_index": before_index1 + 2,
-                    "key": 1,
-                    "value1": yson.YsonEntity(),
-                    "value2": 456,
-                }
-            )
+            assert select_rows("* from [//tmp/r1]", driver=self.replica_driver)[-1] == {
+                "$tablet_index": 0,
+                "$row_index": before_index1 + 2,
+                "key": 1,
+                "value1": yson.YsonEntity(),
+                "value2": 456,
+            }
             wait(
                 lambda: select_rows("* from [//tmp/r2]", driver=self.replica_driver)[-1]
                 == {
@@ -2671,8 +2661,6 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         def get_rows_from_sync_replica():
             return select_rows("* from [//tmp/r1]", driver=self.replica_driver)
-        # TODO(gritukan, babenko): Remove wait when YT-8746 will be ready.
-        wait(lambda: len(get_rows_from_sync_replica()) > 0)
         rows = get_rows_from_sync_replica()
         assert len(rows) == 1
         row1 = rows[0]

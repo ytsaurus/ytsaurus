@@ -80,6 +80,9 @@ struct ITabletWriteManager
 
     virtual void BuildOrchidYson(TTransaction* transaction, NYson::IYsonConsumer* consumer) = 0;
 
+    virtual void StartEpoch() = 0;
+    virtual void StopEpoch() = 0;
+
     virtual void Clear() = 0;
 
     virtual void Save(TSaveContext& context) const = 0;

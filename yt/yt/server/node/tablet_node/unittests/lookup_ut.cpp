@@ -92,7 +92,7 @@ public:
 
     void OnChunkStoresAdded()
     {
-        DoSetUp();
+        TSortedStoreManagerTestBase::SetUp();
     }
 
     TUnversionedOwningRow BuildRow(TString rowString)

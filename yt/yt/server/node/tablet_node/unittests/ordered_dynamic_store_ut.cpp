@@ -76,7 +76,7 @@ private:
         auto config = New<TTabletManagerConfig>();
         Store_ = New<TOrderedDynamicStore>(
             config,
-            TTabletId(),
+            TStoreId(),
             Tablet_.get());
     }
 

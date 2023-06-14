@@ -364,7 +364,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
     const TColumnFilter& columnFilter,
     TLegacyOwningKey lowerBound,
     TLegacyOwningKey upperBound,
-    TReadTimestampRange /*timestampRange*/,
+    TReadTimestampRange timestampRange,
     const TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     std::optional<EWorkloadCategory> workloadCategory)
@@ -377,12 +377,12 @@ ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
         ThrowUponDistributedThrottlerOverdraft(*tabletThrottlerKind, tabletSnapshot, chunkReadOptions);
     }
 
-    const i64 infinity = std::numeric_limits<i64>::max() / 2;
+    constexpr i64 infinity = std::numeric_limits<i64>::max() / 2;
 
     auto valueToInt = [] (const TUnversionedValue& value) {
         switch (value.Type) {
             case EValueType::Int64:
-                return std::max(std::min(value.Data.Int64, +infinity), -infinity);
+                return std::clamp(value.Data.Int64, -infinity, +infinity);
             case EValueType::Min:
                 return -infinity;
             case EValueType::Max:
@@ -394,7 +394,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
 
     int tabletIndex = 0;
     i64 lowerRowIndex = 0;
-    i64 upperRowIndex = std::numeric_limits<i64>::max();
+    i64 upperRowIndex = infinity;
     if (lowerBound < upperBound) {
         if (lowerBound[0].Type == EValueType::Min) {
             tabletIndex = 0;
@@ -427,11 +427,6 @@ ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
     i64 trimmedRowCount = tabletSnapshot->TabletRuntimeData->TrimmedRowCount;
     if (lowerRowIndex < trimmedRowCount) {
         lowerRowIndex = trimmedRowCount;
-    }
-
-    i64 totalRowCount = tabletSnapshot->TabletRuntimeData->TotalRowCount;
-    if (upperRowIndex > totalRowCount) {
-        upperRowIndex = totalRowCount;
     }
 
     std::vector<int> storeIndices;
@@ -476,6 +471,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
                 tabletIndex,
                 lowerRowIndex,
                 upperRowIndex,
+                timestampRange.Timestamp,
                 columnFilter,
                 chunkReadOptions,
                 workloadCategory);

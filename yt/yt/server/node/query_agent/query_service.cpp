@@ -840,13 +840,14 @@ private:
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto cellId = FromProto<TCellId>(request->cell_id());
         auto readSessionId = FromProto<TReadSessionId>(request->read_session_id());
+        auto timestamp = request->timestamp();
 
         context->SetRequestInfo("StoreId: %v, TabletId: %v, CellId: %v, ReadSessionId: %v, Timestamp: %v",
             storeId,
             tabletId,
             cellId,
             readSessionId,
-            request->timestamp());
+            timestamp);
 
         const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
         auto tabletSnapshot = snapshotStore->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
@@ -891,7 +892,6 @@ private:
             auto upperBound = request->has_upper_bound()
                 ? FromProto<TLegacyOwningKey>(request->upper_bound())
                 : MaxKey();
-            auto timestamp = request->timestamp();
 
             // NB: Options and throttler are not used by the reader.
             auto reader = dynamicStore->AsSorted()->CreateReader(
@@ -972,9 +972,10 @@ private:
             // NB: Options and throttler are not used by the reader.
             auto reader = dynamicStore->AsOrdered()->CreateReader(
                 tabletSnapshot,
-                /* tabletIndex */ -1, // fake
+                /*tabletIndex*/ -1, // fake
                 startRowIndex,
                 endRowIndex,
+                timestamp,
                 columnFilter,
                 /*chunkReadOptions*/ {},
                 /*workloadCategory*/ {});
@@ -1534,6 +1535,7 @@ private:
             tabletIndex,
             /*lowerRowIndex*/ rowIndex,
             /*upperRowIndex*/ std::numeric_limits<i64>::max(),
+            AsyncLastCommittedTimestamp,
             TColumnFilter::MakeUniversal(),
             chunkReadOptions,
             chunkReadOptions.WorkloadDescriptor.Category);

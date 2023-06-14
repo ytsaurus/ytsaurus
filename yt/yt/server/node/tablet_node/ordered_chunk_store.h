@@ -33,6 +33,7 @@ public:
         int tabletIndex,
         i64 lowerRowIndex,
         i64 upperRowIndex,
+        NTransactionClient::TTimestamp timestamp,
         const TColumnFilter& columnFilter,
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         std::optional<EWorkloadCategory> workloadCategory) override;

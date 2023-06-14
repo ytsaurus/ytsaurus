@@ -47,7 +47,6 @@ using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NHydra;
 
-using NChunkClient::NProto::TChunkSpec;
 using NChunkClient::NProto::TChunkMeta;
 using NChunkClient::NProto::TDataStatistics;
 
@@ -69,32 +68,65 @@ public:
         int tabletIndex,
         i64 lowerRowIndex,
         i64 upperRowIndex,
+        TTimestamp timestamp,
         const std::optional<TColumnFilter>& optionalColumnFilter)
         : Store_(std::move(store))
         , TabletIndex_(tabletIndex)
-        , UpperRowIndex_(std::min(upperRowIndex, Store_->GetStartingRowIndex() + Store_->GetRowCount()))
-        , MaybeColumnFilter_(optionalColumnFilter)
+        , LowerRowIndex_(lowerRowIndex)
+        , UpperRowIndex_(upperRowIndex)
+        , Timestamp_(timestamp)
+        , Logger(Store_->Logger)
+        , OptionalColumnFilter_(optionalColumnFilter)
         , CurrentRowIndex_(std::max(lowerRowIndex, Store_->GetStartingRowIndex()))
     {
-        if (!MaybeColumnFilter_) {
+        if (!OptionalColumnFilter_) {
             // For flushes and snapshots only.
             return;
         }
 
-        if (MaybeColumnFilter_->IsUniversal()) {
+        if (OptionalColumnFilter_->IsUniversal()) {
             TColumnFilter::TIndexes columnFilterIndexes;
             // +2 is for (tablet_index, row_index).
             for (int id = 0; id < Store_->Schema_->GetColumnCount() + 2; ++id) {
                 columnFilterIndexes.push_back(id);
             }
-            MaybeColumnFilter_.emplace(std::move(columnFilterIndexes));
+            OptionalColumnFilter_.emplace(std::move(columnFilterIndexes));
         }
 
         Pool_ = std::make_unique<TChunkedMemoryPool>(TOrderedDynamicStoreReaderPoolTag(), ReaderPoolSize);
+
+        PrepareBarrierFuture();
     }
 
     IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
+        switch (State_) {
+            case EState::Created:
+                if (BarrierFuture_) {
+                    State_ = EState::WaitingForBarrier;
+                    YT_LOG_DEBUG("Started waiting for prepared transactions to commit");
+                    return CreateEmptyUnversionedRowBatch();
+                }
+                State_ = EState::Reading;
+                break;
+
+            case EState::WaitingForBarrier:
+                YT_VERIFY(BarrierFuture_.IsSet());
+                YT_VERIFY(BarrierFuture_.Get().IsOK());
+                AdjustUpperRowIndex();
+                YT_LOG_DEBUG("Finished waiting for prepared transactions to commit (UpperRowIndex: %v)",
+                    UpperRowIndex_);
+                BarrierFuture_.Reset();
+                State_ = EState::Reading;
+                break;
+
+            case EState::Reading:
+                break;
+
+            default:
+                YT_ABORT();
+        }
+
         std::vector<TUnversionedRow> rows;
         rows.reserve(options.MaxRowsPerRead);
 
@@ -119,7 +151,8 @@ public:
 
     TFuture<void> GetReadyEvent() const override
     {
-        YT_ABORT();
+        YT_VERIFY(BarrierFuture_);
+        return BarrierFuture_;
     }
 
     TDataStatistics GetDataStatistics() const override
@@ -148,27 +181,86 @@ public:
 private:
     const TOrderedDynamicStorePtr Store_;
     const int TabletIndex_;
-    const i64 UpperRowIndex_;
-    std::optional<TColumnFilter> MaybeColumnFilter_;
+    const i64 LowerRowIndex_;
+    i64 UpperRowIndex_;
+    const TTimestamp Timestamp_;
 
+    const NLogging::TLogger& Logger;
+
+    std::optional<TColumnFilter> OptionalColumnFilter_;
     std::unique_ptr<TChunkedMemoryPool> Pool_;
+
+    enum class EState
+    {
+        Created,
+        WaitingForBarrier,
+        Reading,
+    };
+
+    EState State_ = EState::Created;
+    TFuture<void> BarrierFuture_;
 
     i64 CurrentRowIndex_;
     i64 RowCount_ = 0;
     i64 DataWeight_ = 0;
 
 
+    i64 GetEndingRowIndex()
+    {
+        return Store_->StartingRowIndex_ + Store_->StoreRowCount_.load();
+    }
+
+    void AdjustUpperRowIndex()
+    {
+        UpperRowIndex_ = std::min(UpperRowIndex_, GetEndingRowIndex());
+    }
+
+    void PrepareBarrierFuture()
+    {
+        if (Timestamp_ == AsyncLastCommittedTimestamp) {
+            // Don't wait for barrier in AsyncLastCommittedTimestamp mode.
+            AdjustUpperRowIndex();
+            return;
+        }
+
+        auto maxUpperRowIndex = GetEndingRowIndex();
+        if (UpperRowIndex_ <= maxUpperRowIndex) {
+            // Don't wait for barrier if enough rows are already visibile.
+            return;
+        }
+
+        auto barrierFuture = Store_->Tablet_->RuntimeData()->PreparedTransactionBarrier.GetBarrierFuture();
+        if (barrierFuture.IsSet()) {
+            // Don't wait for barrier if the future is alreay set (e.g. no transaction is in prepared state).
+            AdjustUpperRowIndex();
+            return;
+        }
+
+        YT_LOG_DEBUG("Will wait for prepared transactions to commit (LowerRowIndex: %v, UpperRowIndex: %v, MaxUpperRowIndex: %v)",
+            LowerRowIndex_,
+            UpperRowIndex_,
+            maxUpperRowIndex);
+
+        BarrierFuture_ = barrierFuture
+            .WithTimeout(Store_->Config_->MaxBlockedRowWaitTime)
+            .Apply(BIND([] (const TError& error) {
+                if (error.GetCode() == NYT::EErrorCode::Timeout) {
+                    THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::BlockedRowWaitTimeout, "Timed out waiting on blocked row");
+                }
+            }));
+    }
+
     TUnversionedRow CaptureRow(TOrderedDynamicRow dynamicRow)
     {
-        if (!MaybeColumnFilter_) {
+        if (!OptionalColumnFilter_) {
             // For flushes and snapshots only.
             return dynamicRow;
         }
 
-        auto columnCount = std::ssize(MaybeColumnFilter_->GetIndexes());
+        auto columnCount = std::ssize(OptionalColumnFilter_->GetIndexes());
         auto row = TMutableUnversionedRow::Allocate(Pool_.get(), columnCount);
         for (int index = 0; index < columnCount; ++index) {
-            ui16 id = static_cast<ui16>(MaybeColumnFilter_->GetIndexes()[index]);
+            ui16 id = static_cast<ui16>(OptionalColumnFilter_->GetIndexes()[index]);
             auto& dstValue = row[index];
             if (id == 0) {
                 dstValue = MakeUnversionedInt64Value(TabletIndex_, id);
@@ -227,6 +319,7 @@ ISchemafulUnversionedReaderPtr TOrderedDynamicStore::CreateFlushReader()
         -1,
         StartingRowIndex_,
         StartingRowIndex_ + FlushRowCount_,
+        AsyncLastCommittedTimestamp,
         std::nullopt);
 }
 
@@ -236,6 +329,7 @@ ISchemafulUnversionedReaderPtr TOrderedDynamicStore::CreateSnapshotReader()
         -1,
         StartingRowIndex_,
         StartingRowIndex_ + GetRowCount(),
+        AsyncLastCommittedTimestamp,
         std::nullopt);
 }
 
@@ -518,6 +612,7 @@ ISchemafulUnversionedReaderPtr TOrderedDynamicStore::CreateReader(
     int tabletIndex,
     i64 lowerRowIndex,
     i64 upperRowIndex,
+    TTimestamp timestamp,
     const TColumnFilter& columnFilter,
     const NChunkClient::TClientChunkReadOptions& /*chunkReadOptions*/,
     std::optional<EWorkloadCategory> /*workloadCategory*/)
@@ -527,6 +622,7 @@ ISchemafulUnversionedReaderPtr TOrderedDynamicStore::CreateReader(
             tabletIndex,
             lowerRowIndex,
             upperRowIndex,
+            timestamp,
             columnFilter),
         PerformanceCounters_,
         NTableClient::EDataSource::DynamicStore,
@@ -587,6 +683,7 @@ ISchemafulUnversionedReaderPtr TOrderedDynamicStore::DoCreateReader(
     int tabletIndex,
     i64 lowerRowIndex,
     i64 upperRowIndex,
+    TTimestamp timestamp,
     const std::optional<TColumnFilter>& optionalColumnFilter)
 {
     return New<TReader>(
@@ -594,6 +691,7 @@ ISchemafulUnversionedReaderPtr TOrderedDynamicStore::DoCreateReader(
         tabletIndex,
         lowerRowIndex,
         upperRowIndex,
+        timestamp,
         optionalColumnFilter);
 }
 

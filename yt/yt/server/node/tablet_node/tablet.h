@@ -37,6 +37,8 @@
 #include <yt/yt/core/misc/ref_tracked.h>
 #include <yt/yt/core/misc/atomic_object.h>
 
+#include <yt/yt/core/concurrency/async_barrier.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <library/cpp/yt/small_containers/compact_set.h>
@@ -149,6 +151,7 @@ struct TRuntimeTabletData
     TAtomicIntrusivePtr<NChaosClient::TReplicationCard> ReplicationCard;
     TEnumIndexedVector<ETabletDynamicMemoryType, std::atomic<i64>> DynamicMemoryUsagePerType;
     TTabletErrors Errors;
+    NConcurrency::TAsyncBarrier PreparedTransactionBarrier;
 };
 
 DEFINE_REFCOUNTED_TYPE(TRuntimeTabletData)
@@ -377,7 +380,6 @@ public:
 
 private:
     const TRuntimeTableReplicaDataPtr RuntimeData_ = New<TRuntimeTableReplicaData>();
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -338,7 +338,7 @@ protected:
         TTransactionSignature commitSignature)
     {
         auto* tablet = TabletSlot_->TabletManager()->GetTablet();
-        RunInAutomaton([=, this] {
+        RunInAutomaton([&] {
             auto writer = CreateWireProtocolWriter();
             i64 dataWeight = 0;
             for (const auto& row : rows) {
@@ -369,7 +369,7 @@ protected:
     {
         auto* tablet = TabletSlot_->TabletManager()->GetTablet();
         auto tabletSnapshot = tablet->BuildSnapshot(nullptr);
-        auto asyncResult = BIND([transactionId, rows = std::move(rows), signature, tabletWriteManager = TabletCellWriteManager(), tabletSnapshot] {
+        return BIND([transactionId, rows = std::move(rows), signature, tabletWriteManager = TabletCellWriteManager(), tabletSnapshot] {
             auto writer = CreateWireProtocolWriter();
             i64 dataWeight = 0;
             for (const auto& row : rows) {
@@ -409,7 +409,6 @@ protected:
         })
             .AsyncVia(AutomatonInvoker())
             .Run();
-        return asyncResult;
     }
 
     TFuture<void> PrepareTransactionCommit(TTransactionId transactionId, bool persistent, TTimestamp prepareTimestamp)

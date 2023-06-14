@@ -24,6 +24,7 @@ using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYson;
 using namespace NYTree;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,7 +96,7 @@ public:
         // anything here.
         auto writeContext = CreateWriteContext(transaction);
         if (transaction->GetTransientGeneration() == generation && !lockless) {
-            auto transientWriteState = GetTransactionTransientWriteState(transaction->GetId());
+            auto transientWriteState = GetOrCreateTransactionTransientWriteState(transaction->GetId());
             auto& prelockedRows = transientWriteState->PrelockedRows;
 
             for (int index = 0; index < writeRecord.RowCount; ++index) {
@@ -198,9 +199,12 @@ public:
             return;
         }
 
-        auto persistentWriteState = GetTransactionPersistentWriteState(transaction->GetId());
-        YT_VERIFY(!persistentWriteState->RowsPrepared);
-        persistentWriteState->RowsPrepared = true;
+        auto persistentWriteState = GetOrCreateTransactionPersistentWriteState(transaction->GetId());
+        YT_VERIFY(!std::exchange(persistentWriteState->RowsPrepared, true));
+
+        // NB: This only makes sense for persistently prepared transactions since only these participate in 2PC
+        // and may cause issues with committed rows not being visible.
+        InsertTransactionToBarrier(transaction, persistentWriteState);
 
         if (IsReplicatorWrite(transaction) &&
             Tablet_->GetBackupCheckpointTimestamp() &&
@@ -241,8 +245,8 @@ public:
 
         auto commitTimestamp = transaction->GetCommitTimestamp();
 
-        auto persistentWriteState = GetTransactionPersistentWriteState(transaction->GetId());
-        auto transientWriteState = GetTransactionTransientWriteState(transaction->GetId());
+        auto persistentWriteState = GetOrCreateTransactionPersistentWriteState(transaction->GetId());
+        auto transientWriteState = GetOrCreateTransactionTransientWriteState(transaction->GetId());
 
         YT_VERIFY(transientWriteState->PrelockedRows.empty());
 
@@ -321,7 +325,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
-        auto transientWriteState = GetTransactionTransientWriteState(transaction->GetId());
+        auto transientWriteState = GetOrCreateTransactionTransientWriteState(transaction->GetId());
         YT_VERIFY(transientWriteState->LockedRows.empty());
         YT_VERIFY(transientWriteState->PrelockedRows.empty());
 
@@ -454,6 +458,7 @@ public:
 
         Tablet_->RecomputeReplicaStatuses();
 
+        RemovePreparedTransactionFromBarrier(transaction);
         DropTransactionWriteLogs(transaction);
         TransactionIdToPersistentWriteState_.erase(transaction->GetId());
         TransactionIdToTransientWriteState_.erase(transaction->GetId());
@@ -463,8 +468,36 @@ public:
             transaction->GetId());
     }
 
+    void StartEpoch() override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        // NB: Could be null in tests.
+        if (!Host_) {
+            return;
+        }
+
+        const auto& transactionManager = Host_->GetTransactionManager();
+        for (const auto& [transactionId, writeState] : TransactionIdToPersistentWriteState_) {
+            if (writeState->RowsPrepared) {
+                auto* transaction = transactionManager->GetPersistentTransaction(transactionId);
+                InsertTransactionToBarrier(transaction, writeState);
+            }
+        }
+    }
+
+    void StopEpoch() override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        const auto& runtimeData = Tablet_->RuntimeData();
+        runtimeData->PreparedTransactionBarrier.Clear(TError("Epoch stopped"));
+    }
+
     void Clear() override
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         TransactionIdToTransientWriteState_.clear();
         TransactionIdToPersistentWriteState_.clear();
 
@@ -475,14 +508,14 @@ public:
     {
         using NYT::Save;
 
-        TMapSerializer<TDefaultSerializer, TNonNullableIntrusivePtrSerializer<TDefaultSerializer>, TSortedTag>::Save(context, TransactionIdToPersistentWriteState_);
+        TMapSerializer<TDefaultSerializer, TNonNullableIntrusivePtrSerializer<TDefaultSerializer>>::Save(context, TransactionIdToPersistentWriteState_);
     }
 
     void Load(TLoadContext& context) override
     {
         using NYT::Load;
 
-        TMapSerializer<TDefaultSerializer, TNonNullableIntrusivePtrSerializer<TDefaultSerializer>, TSortedTag>::Load(context, TransactionIdToPersistentWriteState_);
+        TMapSerializer<TDefaultSerializer, TNonNullableIntrusivePtrSerializer<TDefaultSerializer>>::Load(context, TransactionIdToPersistentWriteState_);
     }
 
     TCallback<void(TSaveContext&)> AsyncSave() override
@@ -522,10 +555,12 @@ public:
         const auto& transactionManager = Host_->GetTransactionManager();
         for (const auto& [transactionId, writeState] : TransactionIdToPersistentWriteState_) {
             auto* transaction = transactionManager->GetPersistentTransaction(transactionId);
+
             for (const auto& writeRecord : writeState->LockedWriteLog) {
                 LockRows(transaction, writeRecord);
                 UpdateWriteRecordCounters(transaction, writeRecord);
             }
+
             for (const auto& writeRecord : writeState->LocklessWriteLog) {
                 UpdateWriteRecordCounters(transaction, writeRecord);
             }
@@ -541,11 +576,9 @@ public:
     }
 
 private:
-    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
-
-    TTablet* Tablet_;
-    ITabletContext* Context_;
-    ITabletWriteManagerHost* Host_;
+    TTablet* const Tablet_;
+    ITabletContext* const Context_;
+    ITabletWriteManagerHost* const Host_;
 
     const NLogging::TLogger Logger;
 
@@ -553,14 +586,18 @@ private:
     // so we don't worry about per-pool management here.
     TMemoryUsageTrackerGuard WriteLogsMemoryTrackerGuard_;
 
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-    struct TTransactionPersistentWriteState
-        : public TRefCounted
+
+    struct TTransactionPersistentWriteState final
     {
         TTransactionWriteLog LocklessWriteLog;
         TTransactionWriteLog LockedWriteLog;
 
         bool RowsPrepared = false;
+
+        // NB: Not persisted. Only valid during an epoch.
+        TAsyncBarrierCookie PreparedBarrierCookie = InvalidAsyncBarrierCookie;
 
         void Save(TSaveContext& context) const
         {
@@ -599,8 +636,7 @@ private:
     };
     using TTransactionPersistentWriteStatePtr = TIntrusivePtr<TTransactionPersistentWriteState>;
 
-    struct TTransactionTransientWriteState
-        : public TRefCounted
+    struct TTransactionTransientWriteState final
     {
         TRingQueue<TSortedDynamicRowRef> PrelockedRows;
         std::vector<TSortedDynamicRowRef> LockedRows;
@@ -613,22 +649,15 @@ private:
     TTransactionPersistentWriteStatePtr FindTransactionPersistentWriteState(TTransactionId transactionId)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-
         YT_VERIFY(TypeFromId(transactionId) != EObjectType::NonAtomicTabletTransaction);
 
-        auto it = TransactionIdToPersistentWriteState_.find(transactionId);
-        if (it == TransactionIdToPersistentWriteState_.end()) {
-            return nullptr;
-        } else {
-            return it->second;
-        }
+        return GetOrDefault(TransactionIdToPersistentWriteState_, transactionId);
     }
 
-    TTransactionPersistentWriteStatePtr GetTransactionPersistentWriteState(TTransactionId transactionId)
+    TTransactionPersistentWriteStatePtr GetOrCreateTransactionPersistentWriteState(TTransactionId transactionId)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
-
         YT_VERIFY(TypeFromId(transactionId) != EObjectType::NonAtomicTabletTransaction);
 
         auto it = TransactionIdToPersistentWriteState_.find(transactionId);
@@ -644,21 +673,14 @@ private:
     TTransactionTransientWriteStatePtr FindTransactionTransientWriteState(TTransactionId transactionId)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-
         YT_VERIFY(TypeFromId(transactionId) != EObjectType::NonAtomicTabletTransaction);
 
-        auto it = TransactionIdToTransientWriteState_.find(transactionId);
-        if (it == TransactionIdToTransientWriteState_.end()) {
-            return nullptr;
-        } else {
-            return it->second;
-        }
+        return GetOrDefault(TransactionIdToTransientWriteState_, transactionId);
     }
 
-    TTransactionTransientWriteStatePtr GetTransactionTransientWriteState(TTransactionId transactionId)
+    TTransactionTransientWriteStatePtr GetOrCreateTransactionTransientWriteState(TTransactionId transactionId)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-
         YT_VERIFY(TypeFromId(transactionId) != EObjectType::NonAtomicTabletTransaction);
 
         auto it = TransactionIdToTransientWriteState_.find(transactionId);
@@ -678,6 +700,43 @@ private:
         return
             FindTransactionTransientWriteState(transactionId) ||
             FindTransactionPersistentWriteState(transactionId);
+    }
+
+    void InsertTransactionToBarrier(TTransaction* transaction, const TTransactionPersistentWriteStatePtr& writeState)
+    {
+        if (!Tablet_->IsPhysicallyOrdered()) {
+            return;
+        }
+
+        YT_LOG_DEBUG("Transaction inserted into per-tablet barrier (TransactionId: %v)",
+            transaction->GetId());
+
+        const auto& runtimeData = Tablet_->RuntimeData();
+        auto cookie = runtimeData->PreparedTransactionBarrier.Insert();
+        YT_VERIFY(std::exchange(writeState->PreparedBarrierCookie, cookie) == InvalidAsyncBarrierCookie);
+    }
+
+    void RemovePreparedTransactionFromBarrier(TTransaction* transaction)
+    {
+        if (!Tablet_->IsPhysicallyOrdered()) {
+            return;
+        }
+
+        auto writeState = FindTransactionPersistentWriteState(transaction->GetId());
+        if (!writeState) {
+            return;
+        }
+
+        auto cookie = std::exchange(writeState->PreparedBarrierCookie, InvalidAsyncBarrierCookie);
+        if (cookie == InvalidAsyncBarrierCookie) {
+            return;
+        }
+
+        YT_LOG_DEBUG("Transaction removed from per-tablet barrier (TransactionId: %v)",
+            transaction->GetId());
+
+        const auto& runtimeData = Tablet_->RuntimeData();
+        runtimeData->PreparedTransactionBarrier.Remove(cookie);
     }
 
     void UpdateWriteRecordCounters(
@@ -700,7 +759,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
-        auto persistentWriteState = GetTransactionPersistentWriteState(transaction->GetId());
+        auto persistentWriteState = GetOrCreateTransactionPersistentWriteState(transaction->GetId());
         auto* writeLog = lockless ? &persistentWriteState->LocklessWriteLog : &persistentWriteState->LockedWriteLog;
         writeLog->Enqueue(writeRecord);
 
@@ -732,7 +791,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
-        const auto& persistentWriteState = GetTransactionPersistentWriteState(transaction->GetId());
+        const auto& persistentWriteState = GetOrCreateTransactionPersistentWriteState(transaction->GetId());
         auto lockedRowCount = GetWriteLogRowCount(persistentWriteState->LockedWriteLog);
         auto locklessRowCount = GetWriteLogRowCount(persistentWriteState->LocklessWriteLog);
 
@@ -757,7 +816,7 @@ private:
             return;
         }
 
-        auto persistentWriteState = GetTransactionPersistentWriteState(transaction->GetId());
+        auto persistentWriteState = GetOrCreateTransactionPersistentWriteState(transaction->GetId());
         if (IsReplicatorWrite(transaction) && !persistentWriteState->LocklessWriteLog.Empty()) {
             Tablet_->PreparedReplicatorTransactionIds().insert(transaction->GetId());
         }
@@ -793,7 +852,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
-        auto writeState = GetTransactionPersistentWriteState(transaction->GetId());
+        auto writeState = GetOrCreateTransactionPersistentWriteState(transaction->GetId());
         auto& locklessWriteLog = writeState->LocklessWriteLog;
         if (locklessWriteLog.Empty()) {
             return;
@@ -931,7 +990,7 @@ private:
         TCompactFlatMap<TTableReplicaInfo*, int, 8> replicaToRowCount;
         int rowCount = 0;
 
-        auto persistentWriteState = GetTransactionPersistentWriteState(transaction->GetId());
+        auto persistentWriteState = GetOrCreateTransactionPersistentWriteState(transaction->GetId());
         const auto& locklessWriteLog = persistentWriteState->LocklessWriteLog;
         for (const auto& writeRecord : locklessWriteLog) {
             for (auto replicaId : writeRecord.SyncReplicaIds) {
@@ -1013,7 +1072,7 @@ private:
             }
         };
 
-        auto transientWriteState = GetTransactionTransientWriteState(transactionId);
+        auto transientWriteState = GetOrCreateTransactionTransientWriteState(transactionId);
         const auto& lockedRows = transientWriteState->LockedRows;
         for (const auto& lockedRow : lockedRows) {
             prepareRow(lockedRow);
@@ -1042,8 +1101,8 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
-        auto persistentWriteState = GetTransactionPersistentWriteState(transaction->GetId());
-        auto transientWriteState = GetTransactionTransientWriteState(transaction->GetId());
+        auto persistentWriteState = GetOrCreateTransactionPersistentWriteState(transaction->GetId());
+        auto transientWriteState = GetOrCreateTransactionTransientWriteState(transaction->GetId());
 
         YT_VERIFY(transientWriteState->PrelockedRows.empty());
         auto& lockedRows = transientWriteState->LockedRows;
@@ -1187,7 +1246,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto writeState = GetTransactionTransientWriteState(transaction->GetId());
+        auto writeState = GetOrCreateTransactionTransientWriteState(transaction->GetId());
         auto& prelockedRows = writeState->PrelockedRows;
         auto prelockedRowCount = prelockedRows.size();
 
@@ -1458,7 +1517,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto persistentWriteState = GetTransactionPersistentWriteState(transaction->GetId());
+        auto persistentWriteState = GetOrCreateTransactionPersistentWriteState(transaction->GetId());
         return
             !persistentWriteState->LocklessWriteLog.Empty() &&
             Tablet_->GetCommitOrdering() == ECommitOrdering::Strong;
@@ -1468,7 +1527,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        const auto& transientWriteState = GetTransactionTransientWriteState(transaction->GetId());
+        auto transientWriteState = GetOrCreateTransactionTransientWriteState(transaction->GetId());
         return TWriteContext{
             .Transaction = transaction,
             .PrelockedRows = &transientWriteState->PrelockedRows,
