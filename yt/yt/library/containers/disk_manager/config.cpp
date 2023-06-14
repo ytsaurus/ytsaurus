@@ -25,7 +25,7 @@ void TMockedDiskConfig::Register(TRegistrar registrar)
 void TDiskManagerProxyConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("disk_manager_address", &TThis::DiskManagerAddress)
-        .Default("unix:/var/run/diskman.sock");
+        .Default("unix:/run/yandex-diskmanager/yandex-diskmanager.sock");
     registrar.Parameter("disk_manager_service_name", &TThis::DiskManagerServiceName)
         .Default("diskman.DiskManager");
 
