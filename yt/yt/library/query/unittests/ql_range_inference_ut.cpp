@@ -77,6 +77,41 @@ TEST(TKeyRangeTest, IsEmpty)
 ////////////////////////////////////////////////////////////////////////////////
 // Refinement tests.
 
+TMutableRowRanges GetRangesFromTrieWithinRange(
+    const TKeyRange& keyRange,
+    TKeyTriePtr trie,
+    TRowBufferPtr rowBuffer,
+    ui64 rangeCountLimit = std::numeric_limits<ui64>::max())
+{
+    return GetRangesFromTrieWithinRange(
+        TRowRange(keyRange.first, keyRange.second),
+        trie,
+        rowBuffer,
+        false,
+        rangeCountLimit);
+}
+
+TMutableRowRanges GetRangesFromExpression(
+    TRowBufferPtr buffer,
+    const TKeyColumns& keyColumns,
+    TConstExpressionPtr predicate,
+    const TKeyRange& keyRange,
+    ui64 rangeCountLimit = std::numeric_limits<ui64>::max())
+{
+    auto keyTrie = ExtractMultipleConstraints(
+        predicate,
+        keyColumns,
+        buffer);
+
+    auto result = GetRangesFromTrieWithinRange(
+        keyRange,
+        keyTrie,
+        buffer,
+        rangeCountLimit);
+
+    return result;
+}
+
 TKeyRange RefineKeyRange(
     const TKeyColumns& keyColumns,
     const TKeyRange& keyRange,
@@ -719,21 +754,6 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts3)
     EXPECT_EQ(YsonToKey("50;" _MAX_), result.second);
 }
 
-
-TMutableRowRanges GetRangesFromTrieWithinRange(
-    const TKeyRange& keyRange,
-    TKeyTriePtr trie,
-    TRowBufferPtr rowBuffer,
-    ui64 rangeCountLimit = std::numeric_limits<ui64>::max())
-{
-    return GetRangesFromTrieWithinRange(
-        TRowRange(keyRange.first, keyRange.second),
-        trie,
-        rowBuffer,
-        false,
-        rangeCountLimit);
-}
-
 TEST_F(TRefineKeyRangeTest, EmptyKeyTrie)
 {
     auto rowBuffer = New<TRowBuffer>();
@@ -752,15 +772,11 @@ TEST_F(TRefineKeyRangeTest, MultipleDisjuncts)
         *GetSampleTableSchema());
 
     auto rowBuffer = New<TRowBuffer>();
-    auto keyTrie = ExtractMultipleConstraints(
-        expr,
+    auto result = GetRangesFromExpression(
+        rowBuffer,
         GetSampleKeyColumns(),
-        rowBuffer);
-
-    auto result = GetRangesFromTrieWithinRange(
-        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
-        keyTrie,
-        rowBuffer);
+        expr,
+        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")));
 
     EXPECT_EQ(2u, result.size());
 
@@ -778,15 +794,11 @@ TEST_F(TRefineKeyRangeTest, NotEqualToMultipleRanges)
         *GetSampleTableSchema());
 
     auto rowBuffer = New<TRowBuffer>();
-    auto keyTrie = ExtractMultipleConstraints(
-        expr,
+    auto result = GetRangesFromExpression(
+        rowBuffer,
         GetSampleKeyColumns(),
-        rowBuffer);
-
-    auto result = GetRangesFromTrieWithinRange(
-        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
-        keyTrie,
-        rowBuffer);
+        expr,
+        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")));
 
     EXPECT_EQ(2u, result.size());
 
@@ -804,15 +816,11 @@ TEST_F(TRefineKeyRangeTest, RangesProduct)
         *GetSampleTableSchema());
 
     auto rowBuffer = New<TRowBuffer>();
-    auto keyTrie = ExtractMultipleConstraints(
-        expr,
+    auto result = GetRangesFromExpression(
+        rowBuffer,
         GetSampleKeyColumns(),
-        rowBuffer);
-
-    auto result = GetRangesFromTrieWithinRange(
-        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
-        keyTrie,
-        rowBuffer);
+        expr,
+        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")));
 
     EXPECT_EQ(9u, result.size());
 
@@ -851,15 +859,11 @@ TEST_F(TRefineKeyRangeTest, RangesProductWithOverlappingKeyPositions)
         *GetSampleTableSchema());
 
     auto rowBuffer = New<TRowBuffer>();
-    auto keyTrie = ExtractMultipleConstraints(
-        expr,
+    auto result = GetRangesFromExpression(
+        rowBuffer,
         GetSampleKeyColumns(),
-        rowBuffer);
-
-    auto result = GetRangesFromTrieWithinRange(
-        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
-        keyTrie,
-        rowBuffer);
+        expr,
+        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")));
 
     EXPECT_EQ(4u, result.size());
 
@@ -890,15 +894,11 @@ TEST_F(TRefineKeyRangeTest, BetweenRanges)
         *GetSampleTableSchema());
 
     auto rowBuffer = New<TRowBuffer>();
-    auto keyTrie = ExtractMultipleConstraints(
-        expr,
+    auto result = GetRangesFromExpression(
+        rowBuffer,
         GetSampleKeyColumns(),
-        rowBuffer);
-
-    auto result = GetRangesFromTrieWithinRange(
-        std::make_pair(YsonToKey("0"), YsonToKey("100")),
-        keyTrie,
-        rowBuffer);
+        expr,
+        std::make_pair(YsonToKey("0"), YsonToKey("100")));
 
     EXPECT_EQ(4u, result.size());
 
@@ -990,16 +990,11 @@ TEST_F(TRefineKeyRangeTest, MultipleRangeDisjuncts)
         *GetSampleTableSchema());
 
     auto rowBuffer = New<TRowBuffer>();
-    auto keyColumns = GetSampleKeyColumns();
-    auto keyTrie = ExtractMultipleConstraints(
+    auto result = GetRangesFromExpression(
+        rowBuffer,
+        GetSampleKeyColumns(),
         expr,
-        keyColumns,
-        rowBuffer);
-
-    auto result = GetRangesFromTrieWithinRange(
-        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
-        keyTrie,
-        rowBuffer);
+        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")));
 
     EXPECT_EQ(2u, result.size());
 
@@ -1017,16 +1012,11 @@ TEST_F(TRefineKeyRangeTest, SecondDimensionRange)
         *GetSampleTableSchema());
 
     auto rowBuffer = New<TRowBuffer>();
-    auto keyColumns = GetSampleKeyColumns();
-    auto keyTrie = ExtractMultipleConstraints(
+    auto result = GetRangesFromExpression(
+        rowBuffer,
+        GetSampleKeyColumns(),
         expr,
-        keyColumns,
-        rowBuffer);
-
-    auto result = GetRangesFromTrieWithinRange(
-        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
-        keyTrie,
-        rowBuffer);
+        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")));
 
     EXPECT_EQ(1u, result.size());
 
@@ -1041,15 +1031,11 @@ TEST_F(TRefineKeyRangeTest, RangeExpansionLimit)
         *GetSampleTableSchema());
 
     auto rowBuffer = New<TRowBuffer>();
-    auto keyTrie = ExtractMultipleConstraints(
-        expr,
-        GetSampleKeyColumns(),
-        rowBuffer);
-
-    auto result = GetRangesFromTrieWithinRange(
-        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
-        keyTrie,
+    auto result = GetRangesFromExpression(
         rowBuffer,
+        GetSampleKeyColumns(),
+        expr,
+        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")),
         7);
 
     EXPECT_EQ(5u, result.size());

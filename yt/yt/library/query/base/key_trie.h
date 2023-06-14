@@ -78,10 +78,6 @@ struct TKeyTrie
         return nullptr;
     }
 
-    static TKeyTriePtr FromLowerBound(const TLegacyOwningKey & bound);
-    static TKeyTriePtr FromUpperBound(const TLegacyOwningKey & bound);
-    static TKeyTriePtr FromRange(const TKeyRange& range);
-
     friend TKeyTriePtr UniteKeyTrie(TKeyTriePtr lhs, TKeyTriePtr rhs);
     friend TKeyTriePtr UniteKeyTrie(const std::vector<TKeyTriePtr>& tries);
     friend TKeyTriePtr IntersectKeyTrie(TKeyTriePtr lhs, TKeyTriePtr rhs);

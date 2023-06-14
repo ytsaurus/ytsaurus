@@ -85,8 +85,8 @@ void GetQueryInfo(
                 .DoListFor(ranges, [&] (auto fluent, auto range) {
                     fluent.Item()
                     .BeginList()
-                        .Item().Value(ToString(range.first))
-                        .Item().Value(ToString(range.second))
+                        .Item().Value(Format("%kv", range.first))
+                        .Item().Value(Format("%kv", range.second))
                     .EndList();
                 });
 
@@ -97,9 +97,8 @@ void GetQueryInfo(
                 queryOptions.MaxSubqueries = options.MaxSubqueries;
 
                 auto Logger = MakeQueryLogger(query);
-                auto rowBuffer = New<TRowBuffer>(TQueryExecutorRowBufferTag{});
 
-                auto allSplits = InferRanges(connection, query, dataSource, queryOptions, rowBuffer, Logger);
+                auto allSplits = InferRanges(connection, query, dataSource, queryOptions, buffer, Logger);
 
                 THashMap<TString, std::vector<TDataSource>> groupsByAddress;
                 for (const auto& split : allSplits) {
@@ -121,8 +120,8 @@ void GetQueryInfo(
                             .DoFor(ranges.Ranges, [&] (auto fluent, auto range) {
                                 fluent.Item()
                                 .BeginList()
-                                    .Item().Value(ToString(range.first))
-                                    .Item().Value(ToString(range.second))
+                                    .Item().Value(Format("%kv", range.first))
+                                    .Item().Value(Format("%kv", range.second))
                                 .EndList();
                             }).EndList();
                         });

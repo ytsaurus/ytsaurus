@@ -215,71 +215,6 @@ TKeyTriePtr UniteKeyTrie(const std::vector<TKeyTriePtr>& tries)
     return result;
 }
 
-TKeyTriePtr TKeyTrie::FromLowerBound(const TLegacyOwningKey& bound)
-{
-    auto result = TKeyTrie::Universal();
-
-    for (int offset = 0; offset < bound.GetCount(); ++offset) {
-        if (bound[offset].Type != EValueType::Min && bound[offset].Type != EValueType::Max) {
-            auto node = New<TKeyTrie>(offset);
-
-            if (offset + 1 < bound.GetCount()) {
-                if (bound[offset + 1].Type == EValueType::Min) {
-                    node->Bounds.emplace_back(bound[offset], true);
-                    node->Bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), true);
-                } else if (bound[offset + 1].Type == EValueType::Max) {
-                    node->Bounds.emplace_back(bound[offset], false);
-                    node->Bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), true);
-                } else {
-                    node->Next.emplace_back(bound[offset], TKeyTrie::Universal());
-                }
-            } else {
-                node->Bounds.emplace_back(bound[offset], true);
-                node->Bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), true);
-            }
-
-            result = IntersectKeyTrie(result, node);
-        }
-    }
-
-    return result;
-}
-
-TKeyTriePtr TKeyTrie::FromUpperBound(const TLegacyOwningKey& bound)
-{
-    auto result = TKeyTrie::Universal();
-
-    for (int offset = 0; offset < bound.GetCount(); ++offset) {
-        if (bound[offset].Type != EValueType::Min && bound[offset].Type != EValueType::Max) {
-            auto node = New<TKeyTrie>(offset);
-
-            if (offset + 1 < bound.GetCount()) {
-                if (bound[offset + 1].Type == EValueType::Min) {
-                    node->Bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), true);
-                    node->Bounds.emplace_back(bound[offset], false);
-                } else if (bound[offset + 1].Type == EValueType::Max) {
-                    node->Bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), true);
-                    node->Bounds.emplace_back(bound[offset], true);
-                } else {
-                    node->Next.emplace_back(bound[offset], TKeyTrie::Universal());
-                }
-            } else {
-                node->Bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), true);
-                node->Bounds.emplace_back(bound[offset], false);
-            }
-
-            result = IntersectKeyTrie(result, node);
-        }
-    }
-
-    return result;
-}
-
-TKeyTriePtr TKeyTrie::FromRange(const TKeyRange& range)
-{
-    return IntersectKeyTrie(FromLowerBound(range.first), FromUpperBound(range.second));
-}
-
 TKeyTriePtr UniteKeyTrie(TKeyTriePtr lhs, TKeyTriePtr rhs)
 {
     return UniteKeyTrie({lhs, rhs});
@@ -723,9 +658,9 @@ TString ToString(TKeyTriePtr node) {
 
                 for (int i = 0; i < std::ssize(node->Bounds); i += 2) {
                     str += node->Bounds[i].Included ? "[" : "(";
-                    str += ToString(node->Bounds[i].Value);
+                    str += Format("%k", node->Bounds[i].Value);
                     str += ":";
-                    str += ToString(node->Bounds[i+1].Value);
+                    str += Format("%k", node->Bounds[i+1].Value);
                     str += node->Bounds[i+1].Included ? "]" : ")";
                     if (i + 2 < std::ssize(node->Bounds)) {
                         str += ", ";
@@ -737,7 +672,7 @@ TString ToString(TKeyTriePtr node) {
                 for (const auto& next : node->Next) {
                     str += "\n";
                     str += printOffset(node->Offset);
-                    str += ToString(next.first);
+                    str += Format("%k", next.first);
                     str += ":\n";
                     str += printNode(next.second, offset + 1);
                 }
