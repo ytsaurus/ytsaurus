@@ -148,6 +148,7 @@ type Spec struct {
 	MaxFailedJobCount             int           `yson:"max_failed_job_count,omitempty"`
 	MaxSpeculativeJobCountPerTask *int          `yson:"max_speculative_job_count_per_task,omitempty"`
 	FailOnJobRestart              *bool         `yson:"fail_on_job_restart,omitempty"`
+	TryAvoidDuplicatingJobs       *bool         `yson:"try_avoid_duplicating_jobs,omitempty"`
 	StderrTablePath               ypath.Path    `yson:"stderr_table_path,omitempty"`
 	CoreTablePath                 ypath.Path    `yson:"core_table_path,omitempty"`
 
