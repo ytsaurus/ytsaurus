@@ -145,9 +145,22 @@ echo '{a=b}' | yt write-table //home/t1 --format yson
 yt map cat --src //home/t1 --dst //home/t2 --format json 
 ```
 
-### Удаление кластера
+#### Удаление кластера
+
 
 Чтобы удалить кластер {{product-name}} выполните команду:
 ```
 kubectl delete -f cluster_v1_minikube.yaml
 ```
+
+## Настройка экспорта метрик в Prometheus
+
+Установите prometheus-operator с помощью [инструкции](https://github.com/prometheus-operator/prometheus-operator#quickstart).
+
+Сервисы для мониторинга создаются оператором YTsaurus автоматически. 
+Для того чтобы начать собирать метрики необходимо:
+
+- создать [ServiceMonitor](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/prometheus/prometheus_service_monitor.yaml);
+- создать [сервисный аккаунт](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/prometheus/prometheus_service_account.yaml);
+- выдать созданному аккаунту [роль](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/prometheus/prometheus_role_binding.yaml);
+- [cоздать ресурс Prometheus](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/prometheus/prometheus.yaml).
