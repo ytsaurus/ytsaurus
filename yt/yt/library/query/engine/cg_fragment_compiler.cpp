@@ -1729,18 +1729,20 @@ TCodegenExpression MakeCodegenArithmeticBinaryOpExpr(
                                 });
                         });
 
-                    CodegenIf<TCGBaseContext>(
-                        builder,
-                        builder->CreateAnd(
-                            builder->CreateICmpEQ(lhsData, builder->getInt64(std::numeric_limits<i64>::min())),
-                            builder->CreateICmpEQ(rhsData, builder->getInt64(-1))),
-                        [] (TCGBaseContext& builder) {
-                            builder->CreateCall(
-                                builder.Module->GetRoutine("ThrowQueryException"),
-                                {
-                                    builder->CreateGlobalStringPtr("Division of INT_MIN by -1")
-                                });
-                        });
+                    if (operandType == EValueType::Int64) {
+                        CodegenIf<TCGBaseContext>(
+                            builder,
+                            builder->CreateAnd(
+                                builder->CreateICmpEQ(lhsData, builder->getInt64(std::numeric_limits<i64>::min())),
+                                builder->CreateICmpEQ(rhsData, builder->getInt64(-1))),
+                            [] (TCGBaseContext& builder) {
+                                builder->CreateCall(
+                                    builder.Module->GetRoutine("ThrowQueryException"),
+                                    {
+                                        builder->CreateGlobalStringPtr("Division of INT_MIN by -1")
+                                    });
+                            });
+                    }
 
                     switch (operandType) {
                         case EValueType::Int64:
@@ -1785,7 +1787,7 @@ TCodegenExpression MakeCodegenArithmeticBinaryOpExpr(
                         OP(BitAnd, And)
                         OP(BitOr, Or)
                         OP(LeftShift, Shl)
-                        OP(RightShift, LShr)
+                        OP(RightShift, AShr)
                         default:
                             YT_ABORT();
                     }

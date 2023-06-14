@@ -38,8 +38,8 @@ using namespace NYPath;
 void PrintTo(TConstExpressionPtr expr, ::std::ostream* os);
 
 TValue MakeInt64(i64 value);
-TValue MakeUint64(i64 value);
-TValue MakeDouble(i64 value);
+TValue MakeUint64(ui64 value);
+TValue MakeDouble(double value);
 TValue MakeBoolean(bool value);
 TValue MakeString(TStringBuf value);
 TValue MakeNull();
