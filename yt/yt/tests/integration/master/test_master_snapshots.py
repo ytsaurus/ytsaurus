@@ -81,7 +81,7 @@ def check_forked_schema():
     )
 
     create("table", "//tmp/forked_schema_table", attributes={"schema": schema1})
-    tx = start_transaction(timeout=60000)
+    tx = start_transaction(timeout=120000)
     lock("//tmp/forked_schema_table", mode="snapshot", tx=tx)
 
     alter_table("//tmp/forked_schema_table", schema=schema2)
