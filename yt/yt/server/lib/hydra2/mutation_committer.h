@@ -273,7 +273,7 @@ public:
     void Stop();
 
 private:
-    const TPromise<void> СaughtUpPromise_ = NewPromise<void>();
+    const TPromise<void> CaughtUpPromise_ = NewPromise<void>();
 
     // Accepted, but not logged.
     TRingQueue<TPendingMutationPtr> AcceptedMutations_;

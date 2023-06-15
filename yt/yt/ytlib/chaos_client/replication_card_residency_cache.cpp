@@ -94,7 +94,7 @@ public:
     {
         auto connection = Owner_->Connection_.Lock();
         if (!connection) {
-            THROW_ERROR_EXCEPTION("Unable to locate replication card: сonnection terminated");
+            THROW_ERROR_EXCEPTION("Unable to locate replication card: connection terminated");
         }
 
         const auto& cellDirectory = connection->GetCellDirectory();

@@ -462,7 +462,7 @@ private:
 
             // NB! Reset response handler explicitly.
             // Implicit destruction in ~TCallHandler is impossible
-            // because of the following cycle dependencу:
+            // because of the following cycle dependency:
             // futureState -> TCallHandler -> responseHandler -> futureState.
             result.Swap(ResponseHandler_);
 

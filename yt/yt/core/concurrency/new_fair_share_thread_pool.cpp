@@ -748,7 +748,7 @@ private:
     {
         VERIFY_SPINLOCK_AFFINITY(MainLock_);
 
-        YT_LOG_DEBUG_IF(VerboseLogging_, "Вuckets: %v",
+        YT_LOG_DEBUG_IF(VerboseLogging_, "Buckets: %v",
             MakeFormattableView(
                 xrange(size_t(0), ActivePoolsHeap_.GetSize()),
                 [&] (auto* builder, auto index) {

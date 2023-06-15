@@ -1026,7 +1026,7 @@ TEST_W(TSchedulerTest, TraceBaggagePropagation)
     auto expected = ConvertToYsonString(baggage);
     traceContext->PackBaggage(baggage);
 
-    auto childContext = traceContext->CreateChild("Сhild");
+    auto childContext = traceContext->CreateChild("Child");
     auto childBaggage = childContext->UnpackBaggage();
     auto result = ConvertToYsonString(childBaggage);
     childBaggage->Set("myKey3", "myValue3");

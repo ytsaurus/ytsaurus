@@ -18,7 +18,7 @@ This feature is only available for [schematic data.](../../../user-guide/storage
 
 Set `Cs` is usually specified by the user when setting a column filter, for example, via [YPath](../../../user-guide/storage/ypath.md). When no filter is specified, `Cs` are considered a set of all columns described in the table schema. If the table schema is not strict, additional columns can be found in the data, but no special checks are made for them.
 
-In addition to having a `read` permission for the entire table, the user must also have a `read` permission for each column of set `Сs`.
+In addition to having a `read` permission for the entire table, the user must also have a `read` permission for each column of set `Cs`.
 
 The latter property is checked as follows: let's consider the name of column `C` from `Cs`. Let's build an effective ACL of table `T`. From the ACEs that make it up, select those that are columnar and applicable to `C` (contain `C` in the `columns` attribute). Label the result `L`.
 

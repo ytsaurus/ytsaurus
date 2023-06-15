@@ -174,7 +174,7 @@ TFuture<TReplicationCardPtr> TReplicationCardCache::DoGet(const TReplicationCard
     auto connection = Connection_.Lock();
     if (!connection) {
         return MakeFuture<TReplicationCardPtr>(
-            TError("Unable to get replication card: сonnection terminated")
+            TError("Unable to get replication card: connection terminated")
                 << TErrorAttribute("replication_card_id", key.CardId));
     }
 

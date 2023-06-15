@@ -1173,8 +1173,8 @@ void TFollowerCommitter::CatchUp()
     RecoveryComplete_ = true;
 
     while (true) {
-        Y_UNUSED(WaitFor(СaughtUpPromise_.ToFuture().ToUncancelable().WithTimeout(FollowerCatchupLoggingPeriod)));
-        if (СaughtUpPromise_.IsSet()) {
+        Y_UNUSED(WaitFor(CaughtUpPromise_.ToFuture().ToUncancelable().WithTimeout(FollowerCatchupLoggingPeriod)));
+        if (CaughtUpPromise_.IsSet()) {
             break;
         }
         // NB: Keep this diagnostics in sync with #CheckIfCaughtUp.
@@ -1185,14 +1185,14 @@ void TFollowerCommitter::CatchUp()
     }
 
     // Promise must be set by now.
-    СaughtUpPromise_
+    CaughtUpPromise_
         .Get()
         .ThrowOnError();
 }
 
 void TFollowerCommitter::CheckIfCaughtUp()
 {
-    if (СaughtUpPromise_.IsSet()) {
+    if (CaughtUpPromise_.IsSet()) {
         return;
     }
 
@@ -1213,7 +1213,7 @@ void TFollowerCommitter::CheckIfCaughtUp()
         return;
     }
 
-    СaughtUpPromise_.TrySet();
+    CaughtUpPromise_.TrySet();
 }
 
 bool TFollowerCommitter::AcceptMutations(
@@ -1513,7 +1513,7 @@ void TFollowerCommitter::Stop()
     }
 
     auto error = MakeStoppedError();
-    СaughtUpPromise_.TrySet(error);
+    CaughtUpPromise_.TrySet(error);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

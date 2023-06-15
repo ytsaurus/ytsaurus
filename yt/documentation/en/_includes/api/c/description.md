@@ -751,7 +751,7 @@ If the operation reads from multiple tables, the table index can be retrieved fr
 
 ### Protobuf backend
 
-When using protobuf, it is possible to specify different record types for input and output tables. In this case, the declaration of the job's basic class uses `TTableReader` or `TTableWriter` not from a specific custom protobuf class, but from the basic `Messagе`:
+When using protobuf, it is possible to specify different record types for input and output tables. In this case, the declaration of the job's basic class uses `TTableReader` or `TTableWriter` not from a specific custom protobuf class, but from the basic `Message`:
 
 ```c++
 class TProtoReducer

@@ -2558,7 +2558,7 @@ private:
 
             auto chunkCount = delta;
             auto masterMemoryUsage = masterMemoryUsageDelta;
-            // Сharge once per account.
+            // Charge once per account.
             if (account == lastAccount) {
                 chunkCount = 0;
                 masterMemoryUsage = 0;

@@ -87,7 +87,7 @@ public:
     int DeadInstanceRetryCount;
 
     //! How many times the proxy can retry sending the request with old discovery from the cache.
-    //! If this limit is exсeeded, next retry will be performed after force update of discovery.
+    //! If this limit is exceeded, next retry will be performed after force update of discovery.
     int RetryWithoutUpdateLimit;
 
     //! Force update can be skipped by discovery if the data is younger than this age threshold.
