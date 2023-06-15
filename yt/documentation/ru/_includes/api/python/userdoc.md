@@ -996,7 +996,7 @@ if __name__ == "__main__":
 
 При запуске операции `map_reduce` с несколькими входными таблицами нужно иметь в виду, что клиент {{product-name}} может добавить во входные записи переключатели таблиц, что может привести к попаданию этих переключателей в выходной поток (если эти записи передавать в выходной поток as is, e.g. mapper из одной строки `yield row`). Это может привести к ошибке записи в несуществующую таблицу. Чтобы избежать подобной ситуации следует либо выключить table index с помощью опции `enable_input_table_index` в спецификации, либо вручную удалять table index перед записью в выходной поток — `del row["@table_index"]`.
 
-У функции [run_map_reduce](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.run_map_reduce) все опции, специфичные для конкретного джоба, продублированы в трех экземплярах – для mapper-а, для reducer-а и для reduce_сombiner-а. То есть у функции есть опции `map_local_files`, `reduce_local_files`, `reduce_combiner_local_files`, и.т.п. Полный список опций можно посмотреть в [pydoc-е](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.run_map_reduce).
+У функции [run_map_reduce](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.run_map_reduce) все опции, специфичные для конкретного джоба, продублированы в трех экземплярах – для mapper-а, для reducer-а и для reduce_combiner-а. То есть у функции есть опции `map_local_files`, `reduce_local_files`, `reduce_combiner_local_files`, и.т.п. Полный список опций можно посмотреть в [pydoc-е](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.run_map_reduce).
 
 ### Работа с операциями и джобами { #operation_and_job_commands }
 

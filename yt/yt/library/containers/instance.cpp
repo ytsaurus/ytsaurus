@@ -405,7 +405,7 @@ public:
             .ThrowOnError();
     }
 
-    TErrorOr<ui64> СalculateCpuUserUsage(
+    TErrorOr<ui64> CalculateCpuUserUsage(
         TErrorOr<ui64>& cpuUsage,
         TErrorOr<ui64>& cpuSystemUsage) const
     {
@@ -513,7 +513,7 @@ public:
         }
 
         if (userTimeRequested) {
-            result[EStatField::CpuUserUsage] = СalculateCpuUserUsage(
+            result[EStatField::CpuUserUsage] = CalculateCpuUserUsage(
                 result[EStatField::CpuUsage],
                 result[EStatField::CpuSystemUsage]);
         }

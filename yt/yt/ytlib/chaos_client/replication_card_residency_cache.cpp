@@ -225,7 +225,7 @@ TFuture<TCellTag> TReplicationCardResidencyCache::DoGet(
     auto connection = Connection_.Lock();
     if (!connection) {
         return MakeFuture<TCellTag>(
-            TError("Unable to locate replication card: сonnection terminated")
+            TError("Unable to locate replication card: connection terminated")
                 << TErrorAttribute("replication_card_id", replicationCardId));
     }
 
