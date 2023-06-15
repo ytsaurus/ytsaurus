@@ -115,12 +115,12 @@ def get_package_version(major_version):
     package_version = os.getenv("YTSAURUS_PACKAGE_VERSION", default="")
     if package_version:
         if not package_version.startswith(major_version):
-            raise Exception(f"Package version `{package_version}` should have `{major_version}` major version")
+            raise Exception("Package version `{}` should have `{}` major version".format(package_version, major_version))
     else:
         package_version = major_version + "-dev"
 
     commit_hash = os.getenv("YTSAURUS_COMMIT_HASH", default="")
     if commit_hash:
-        package_version += f'-{commit_hash}'
+        package_version += "-{}".format(commit_hash)
 
     return package_version
