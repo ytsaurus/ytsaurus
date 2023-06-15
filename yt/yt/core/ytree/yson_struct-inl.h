@@ -180,6 +180,9 @@ TYsonStructRegistrar<TStruct>::operator TYsonStructRegistrar<TBase>()
 template <class T>
 TIntrusivePtr<T> CloneYsonStruct(const TIntrusivePtr<T>& obj)
 {
+    if (!obj) {
+        return nullptr;
+    }
     return ConvertTo<TIntrusivePtr<T>>(NYson::ConvertToYsonString(*obj));
 }
 
