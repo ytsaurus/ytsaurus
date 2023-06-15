@@ -1677,7 +1677,7 @@ private:
         StartJobsScheduled_ = false;
     }
 
-    TJobPtr CreateJob(
+    void CreateJob(
         TJobId jobId,
         TOperationId operationId,
         const NClusterNode::TJobResources& resourceLimits,
@@ -1703,14 +1703,36 @@ private:
             waitingJobTimeout = FromProto<TDuration>(jobSpecExt.waiting_job_timeout());
         }
 
-        auto job = NExecNode::CreateJob(
-            jobId,
-            operationId,
-            resourceLimits,
-            resourceAttributes,
-            std::move(jobSpec),
-            controllerAgentDescriptor,
-            Bootstrap_->GetExecNodeBootstrap());
+        TJobPtr job;
+        try {
+            job = NExecNode::CreateJob(
+                jobId,
+                operationId,
+                resourceLimits,
+                resourceAttributes,
+                std::move(jobSpec),
+                controllerAgentDescriptor,
+                Bootstrap_->GetExecNodeBootstrap());
+        } catch (const std::exception& ex) {
+            auto error = TError(ex);
+            YT_LOG_DEBUG(
+                error,
+                "Scheduler job was not created (JobId: %v, OperationId: %v)",
+                jobId,
+                operationId);
+            JobRegistrationFailed_.Fire(
+                AllocationIdFromJobId(jobId),
+                operationId,
+                controllerAgentDescriptor,
+                error);
+
+            return;
+        } catch (...) {
+            YT_LOG_FATAL(
+                "Unexpected failure during job creation (JobId: %v, OperationId: %v)",
+                jobId,
+                operationId);
+        }
 
         YT_LOG_INFO("Scheduler job created (JobId: %v, OperationId: %v, JobType: %v)",
             jobId,
@@ -1718,8 +1740,6 @@ private:
             jobType);
 
         RegisterJob(jobId, job, waitingJobTimeout);
-
-        return job;
     }
 
     void RegisterJob(TJobId jobId, const TJobPtr& job, TDuration waitingJobTimeout)

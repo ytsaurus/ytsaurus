@@ -451,7 +451,7 @@ TControllerAgentConnectorPool::GetControllerAgentConnector(
     }
 
     if (const auto it = ControllerAgentConnectors_.find(job->GetControllerAgentDescriptor());
-        it != std::cend(ControllerAgentConnectors_))
+        it != std::end(ControllerAgentConnectors_))
     {
         auto result = it->second;
         YT_VERIFY(result);
@@ -583,7 +583,7 @@ IChannelPtr TControllerAgentConnectorPool::GetOrCreateChannel(
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
 
     if (const auto it = ControllerAgentConnectors_.find(agentDescriptor);
-        it != std::cend(ControllerAgentConnectors_))
+        it != std::end(ControllerAgentConnectors_))
     {
         return it->second->GetChannel();
     }

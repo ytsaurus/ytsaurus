@@ -194,8 +194,15 @@ TJob::TJob(
         ResolvedNodeAddresses_.reserve(addresses.size());
         for (const auto& [addressName, address] : addresses) {
             auto* resolver = TAddressResolver::Get();
-            auto resolvedAddress = WaitFor(resolver->Resolve(address))
-                .ValueOrThrow();
+            auto resolvedAddressOrError = WaitFor(resolver->Resolve(address));
+            YT_LOG_DEBUG_IF(
+                !resolvedAddressOrError.IsOK(),
+                resolvedAddressOrError,
+                "Failed to resolve node address (AddressName: %v, Address: %v)",
+                addressName,
+                address);
+
+            auto resolvedAddress = std::move(resolvedAddressOrError).ValueOrThrow();
             YT_VERIFY(resolvedAddress.IsIP6());
             ResolvedNodeAddresses_.emplace_back(addressName, resolvedAddress.ToIP6Address());
         }
