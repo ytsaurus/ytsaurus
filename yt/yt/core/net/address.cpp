@@ -1,14 +1,16 @@
 #include "address.h"
+
+#include "local_address.h"
 #include "config.h"
 #include "private.h"
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/yt/core/logging/log.h>
+#include <yt/yt/core/dns/dns_resolver.h>
+#include <yt/yt/core/dns/ares_dns_resolver.h>
 
-#include <yt/yt/core/net/dns_resolver.h>
-#include <yt/yt/core/net/local_address.h>
+#include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/async_expiring_cache.h>
 #include <yt/yt/core/misc/fs.h>
@@ -43,8 +45,7 @@ namespace NYT::NNet {
 using namespace NConcurrency;
 using namespace NYson;
 using namespace NYTree;
-
-using ::ToString;
+using namespace NDns;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -914,7 +915,7 @@ private:
 
     const TActionQueuePtr Queue_ = New<TActionQueue>("AddressResolver");
 
-    TDnsResolver DnsResolver_;
+    std::unique_ptr<IDnsResolver> DnsResolver_;
 
     TFuture<TNetworkAddress> DoGet(const TString& hostName, bool isPeriodicUpdate) noexcept override;
 
@@ -925,12 +926,12 @@ private:
 
 TAddressResolver::TImpl::TImpl(TAddressResolverConfigPtr config)
     : TAsyncExpiringCache(config)
-    , DnsResolver_(
+    , DnsResolver_(CreateAresDnsResolver(
         config->Retries,
         config->ResolveTimeout,
         config->MaxResolveTimeout,
         config->WarningTimeout,
-        config->Jitter)
+        config->Jitter))
 {
     Configure(std::move(config));
 }
@@ -949,10 +950,13 @@ TFuture<TNetworkAddress> TAddressResolver::TImpl::Resolve(const TString& hostNam
     return Get(hostName);
 }
 
-TFuture<TNetworkAddress> TAddressResolver::TImpl::DoGet(const TString& hostname, bool /*isPeriodicUpdate*/) noexcept
+TFuture<TNetworkAddress> TAddressResolver::TImpl::DoGet(const TString& hostName, bool /*isPeriodicUpdate*/) noexcept
 {
-    return DnsResolver_
-        .ResolveName(hostname, Config_->EnableIPv4, Config_->EnableIPv6)
+    TDnsResolveOptions options{
+        .EnableIPv4 = Config_->EnableIPv4,
+        .EnableIPv6 = Config_->EnableIPv6,
+    };
+    return DnsResolver_->Resolve(hostName, options)
         .Apply(BIND([=] (const TErrorOr<TNetworkAddress>& result) {
             // Empty callback just to forward future callbacks into proper thread.
             return result.ValueOrThrow();
@@ -1221,3 +1225,11 @@ std::optional<TString> InferYTClusterFromClusterUrl(TStringBuf clusterUrl)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NNet
+
+size_t THash<NYT::NNet::TNetworkAddress>::operator()(const NYT::NNet::TNetworkAddress& address) const
+{
+    TStringBuf rawAddress{
+        reinterpret_cast<const char*>(address.GetSockAddr()),
+        static_cast<size_t>(address.GetLength())};
+    return ComputeHash(rawAddress);
+}
