@@ -1634,7 +1634,7 @@ private:
         StartJobsScheduled_ = false;
     }
 
-    TJobPtr CreateJob(
+    void CreateJob(
         TJobId jobId,
         TOperationId operationId,
         const TNodeResources& resourceLimits,
@@ -1655,12 +1655,34 @@ private:
             waitingJobTimeout = FromProto<TDuration>(jobSpecExt.waiting_job_timeout());
         }
 
-        auto job = factory(
+        TJobPtr job;
+        try {
+            job = factory(
             jobId,
             operationId,
             resourceLimits,
             std::move(jobSpec),
             controllerAgentDescriptor);
+        } catch (const std::exception& ex) {
+            auto error = TError(ex);
+            YT_LOG_DEBUG(
+                error,
+                "Scheduler job was not created (JobId: %v, OperationId: %v)",
+                jobId,
+                operationId);
+            JobRegistrationFailed_.Fire(
+                AllocationIdFromJobId(jobId),
+                operationId,
+                controllerAgentDescriptor,
+                error);
+
+            return;
+        } catch (...) {
+            YT_LOG_FATAL(
+                "Unexpected failure during job creation (JobId: %v, OperationId: %v)",
+                jobId,
+                operationId);
+        }
 
         YT_LOG_INFO("Scheduler job created (JobId: %v, OperationId: %v, JobType: %v)",
             jobId,
@@ -1668,8 +1690,6 @@ private:
             type);
 
         RegisterJob(jobId, job, waitingJobTimeout);
-
-        return job;
     }
 
     void RegisterJob(TJobId jobId, const TJobPtr& job, TDuration waitingJobTimeout)
