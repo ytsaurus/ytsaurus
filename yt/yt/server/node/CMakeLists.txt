@@ -75,6 +75,7 @@ target_link_libraries(yt-server-node PUBLIC
   yutil
   library-query-engine
   library-query-row_comparer
+  library-dns_over_rpc-server
   server-node-cellar_node
   server-node-chaos_node
   yt-server-tools

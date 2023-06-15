@@ -6,19 +6,5 @@
 # original buildsystem will not be accepted.
 
 
-
-add_library(server-lib-job_proxy)
-target_compile_options(server-lib-job_proxy PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(server-lib-job_proxy PUBLIC
-  contrib-libs-linux-headers
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-core
-  library-dns_over_rpc-client
-  server-lib-misc
-)
-target_sources(server-lib-job_proxy PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/job_proxy/config.cpp
-)
+add_subdirectory(client)
+add_subdirectory(server)

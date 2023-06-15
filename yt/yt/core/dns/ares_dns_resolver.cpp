@@ -525,19 +525,19 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IDnsResolver> CreateAresDnsResolver(
+IDnsResolverPtr CreateAresDnsResolver(
     int retries,
     TDuration resolveTimeout,
     TDuration maxResolveTimeout,
     TDuration warningTimeout,
     std::optional<double> jitter)
 {
-    return std::unique_ptr<IDnsResolver>(std::make_unique<TAresDnsResolver>(
+    return New<TAresDnsResolver>(
         retries,
         resolveTimeout,
         maxResolveTimeout,
         warningTimeout,
-        jitter));
+        jitter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

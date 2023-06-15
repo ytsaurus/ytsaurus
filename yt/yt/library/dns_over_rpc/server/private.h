@@ -1,19 +1,11 @@
 #pragma once
 
-#include "public.h"
+#include <yt/yt/core/dns/private.h>
 
 namespace NYT::NDns {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IDnsResolverPtr CreateAresDnsResolver(
-    int retries,
-    TDuration resolveTimeout,
-    TDuration maxResolveTimeout,
-    TDuration warningTimeout,
-    std::optional<double> jitter);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NDns
-

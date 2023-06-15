@@ -7,18 +7,17 @@
 
 
 
-add_library(server-lib-job_proxy)
-target_compile_options(server-lib-job_proxy PRIVATE
+add_library(library-dns_over_rpc-server)
+target_compile_options(library-dns_over_rpc-server PRIVATE
   -Wdeprecated-this-capture
 )
-target_link_libraries(server-lib-job_proxy PUBLIC
+target_link_libraries(library-dns_over_rpc-server PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-yt-core
   library-dns_over_rpc-client
-  server-lib-misc
 )
-target_sources(server-lib-job_proxy PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/job_proxy/config.cpp
+target_sources(library-dns_over_rpc-server PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/dns_over_rpc/server/dns_over_rpc_service.cpp
 )

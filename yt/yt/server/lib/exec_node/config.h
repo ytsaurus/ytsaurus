@@ -8,6 +8,8 @@
 
 #include <yt/yt/library/containers/config.h>
 
+#include <yt/yt/library/dns_over_rpc/client/config.h>
+
 #include <yt/yt/server/lib/misc/config.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
@@ -454,6 +456,8 @@ public:
     bool JobProxyUploadDebugArtifactChunks;
 
     bool JobProxySendHeartbeatBeforeAbort;
+
+    NDns::TDnsOverRpcResolverConfigPtr JobProxyDnsOverRpcResolver;
 
     //! This is a special testing option.
     //! Instead of actually setting root fs, it just provides special environment variable.

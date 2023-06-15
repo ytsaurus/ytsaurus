@@ -522,6 +522,9 @@ void TExecNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("job_proxy_send_heartbeat_before_abort", &TThis::JobProxySendHeartbeatBeforeAbort)
         .Default(false);
 
+    registrar.Parameter("job_proxy_dns_over_rpc_resolver", &TThis::JobProxyDnsOverRpcResolver)
+        .DefaultNew();
+
     registrar.Parameter("test_root_fs", &TThis::TestRootFS)
         .Default(false);
 
