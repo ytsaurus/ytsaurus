@@ -2806,23 +2806,16 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
     }
 }
 
-void TOperationControllerBase::SafeOnJobStarted(TJobId jobId)
+void TOperationControllerBase::SafeOnJobStarted(const TJobletPtr& joblet)
 {
     VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
 
     if (State != EControllerState::Running) {
-        YT_LOG_DEBUG("Stale job started, ignored (JobId: %v)", jobId);
+        YT_LOG_DEBUG("Stale job started, ignored (JobId: %v)", joblet->JobId);
         return;
     }
 
-    auto joblet = FindJoblet(jobId);
-
-    if (!joblet) {
-        YT_LOG_DEBUG("Joblet is not found, looks like job has been aborted in controller, ignore job event (JobId: %v)", jobId);
-        return;
-    }
-
-    YT_LOG_DEBUG("Job started (JobId: %v)", jobId);
+    YT_LOG_DEBUG("Job started (JobId: %v)", joblet->JobId);
 
     Host->GetJobProfiler()->ProfileStartedJob(*joblet);
 
@@ -2830,7 +2823,10 @@ void TOperationControllerBase::SafeOnJobStarted(TJobId jobId)
     joblet->TaskName = joblet->Task->GetVertexDescriptor();
     YT_VERIFY(!std::exchange(joblet->JobState, EJobState::Waiting));
 
-    Host->RegisterJob(TStartedJobInfo{jobId, joblet->NodeDescriptor.Address});
+    if (!joblet->Revived) {
+        Host->RegisterJob(
+            TStartedJobInfo{joblet->JobId, joblet->NodeDescriptor.Address});
+    }
 
     IncreaseAccountResourceUsageLease(joblet->DiskRequestAccount, joblet->DiskQuota);
 
@@ -2838,7 +2834,7 @@ void TOperationControllerBase::SafeOnJobStarted(TJobId jobId)
     ReportControllerStateToArchive(joblet, EJobState::Running);
 
     LogEventFluently(ELogEventType::JobStarted)
-        .Item("job_id").Value(jobId)
+        .Item("job_id").Value(joblet->JobId)
         .Item("operation_id").Value(OperationId)
         .Item("resource_limits").Value(joblet->ResourceLimits)
         .Item("node_address").Value(joblet->NodeDescriptor.Address)
@@ -5735,11 +5731,25 @@ void TOperationControllerBase::SafeOnJobInfoReceivedFromNode(std::unique_ptr<TJo
         jobSummary->State,
         jobSummary->FinishTime);
 
-    if (!FindJoblet(jobId)) {
+    auto joblet = FindJoblet(jobId);
+
+    if (!joblet) {
         YT_LOG_DEBUG(
             "Received job info for unknown job (JobId: %v)",
             jobId);
         return;
+    }
+
+    if (!joblet->IsStarted()) {
+        YT_VERIFY(joblet->Revived);
+
+        YT_LOG_DEBUG(
+            "Received revived job info for job that is not marked started in snapshot; processing job start"
+            "(JobId: %v, JobState: %v)",
+            jobId,
+            jobSummary->State);
+
+        OnJobStarted(joblet);
     }
 
     if (jobSummary->State == EJobState::Waiting) {
@@ -8665,7 +8675,16 @@ TSharedRef TOperationControllerBase::ExtractJobSpec(TJobId jobId)
         .ValueOrThrow();
     joblet->JobSpecProtoFuture.Reset();
 
-    OnJobStarted(jobId);
+    auto operationState = State.load();
+    if (operationState != EControllerState::Running) {
+        YT_LOG_DEBUG(
+            "Stale job spec request; send error instead of spec (JobId: %v, OperationState: %v)",
+            jobId,
+            operationState);
+        THROW_ERROR_EXCEPTION("Operation is not running");
+    }
+
+    OnJobStarted(joblet);
 
     return result;
 }

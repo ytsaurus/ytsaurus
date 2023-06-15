@@ -161,8 +161,8 @@ private: \
     IMPLEMENT_SAFE_METHOD(
         void,
         OnJobStarted,
-        (TJobId jobId),
-        (jobId),
+        (const TJobletPtr& joblet),
+        (joblet),
         true)
     IMPLEMENT_SAFE_METHOD(
         void,
