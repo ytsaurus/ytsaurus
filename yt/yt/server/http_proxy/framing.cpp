@@ -25,15 +25,15 @@ TFramingAsyncOutputStream::TFramingAsyncOutputStream(
 
 TFuture<void> TFramingAsyncOutputStream::WriteDataFrame(const TSharedRef& buffer)
 {
-    if (buffer.Size() > std::numeric_limits<uint32_t>::max()) {
+    if (buffer.Size() > std::numeric_limits<ui32>::max()) {
         THROW_ERROR_EXCEPTION("Data frame is too large: got %v bytes, limit is %v",
             buffer.Size(),
-            std::numeric_limits<uint32_t>::max());
+            std::numeric_limits<ui32>::max());
     }
-    auto header = TString::Uninitialized(1 + sizeof(uint32_t));
+    auto header = TString::Uninitialized(1 + sizeof(ui32));
     header[0] = static_cast<char>(EFrameType::Data);
-    auto littleEndianSize = HostToLittle(static_cast<uint32_t>(buffer.Size()));
-    WriteUnaligned<uint32_t>(header.Detach() + 1, littleEndianSize);
+    auto littleEndianSize = HostToLittle(static_cast<ui32>(buffer.Size()));
+    WriteUnaligned<ui32>(header.Detach() + 1, littleEndianSize);
     return DoWriteFrame(std::move(header), buffer);
 }
 

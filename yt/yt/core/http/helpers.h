@@ -53,8 +53,8 @@ NTracing::TSpanId GetSpanId(const IRequestPtr& req);
 
 NTracing::TTraceContextPtr GetOrCreateTraceContext(const IRequestPtr& req);
 
-std::optional<std::pair<int64_t, int64_t>> FindBytesRange(const THeadersPtr& headers);
-void SetBytesRange(const THeadersPtr& headers, std::pair<int64_t, int64_t> range);
+std::optional<std::pair<i64, i64>> FindBytesRange(const THeadersPtr& headers);
+void SetBytesRange(const THeadersPtr& headers, std::pair<i64, i64> range);
 
 ////////////////////////////////////////////////////////////////////////////////
 

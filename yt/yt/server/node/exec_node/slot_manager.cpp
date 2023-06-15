@@ -454,7 +454,7 @@ double TSlotManager::GetIdleCpuFraction() const
         : Config_->IdleCpuFraction;
 }
 
-int64_t TSlotManager::GetMajorPageFaultCount() const
+i64 TSlotManager::GetMajorPageFaultCount() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 

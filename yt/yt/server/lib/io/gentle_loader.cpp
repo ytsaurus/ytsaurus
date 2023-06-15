@@ -257,7 +257,7 @@ private:
     const TString TempFilesDir;
 
     std::vector<TNonblockingQueuePtr> WritersQueue_;
-    std::atomic_uint32_t FileCounter_;
+    std::atomic<ui32> FileCounter_;
 
     void CloseFile(TWriterInfo& info)
     {

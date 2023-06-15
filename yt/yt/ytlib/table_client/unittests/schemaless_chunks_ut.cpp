@@ -625,18 +625,18 @@ protected:
     TUnversionedRow CreateSentinelRow(TUnversionedRow lastRow, TTableSchemaPtr schema, TNameTablePtr nameTable)
     {
         TMutableUnversionedRow result = TMutableUnversionedRow::Allocate(&Pool_, lastRow.GetCount());
-        for (uint64_t i = 0; i < lastRow.GetCount(); ++i) {
+        for (ui64 i = 0; i < lastRow.GetCount(); ++i) {
             const auto& column = schema->Columns()[i];
             int id = nameTable->GetIdOrRegisterName(column.Name());
             const auto& value = lastRow[i];
             switch (value.Type) {
                 case EValueType::Int64: {
-                    YT_ASSERT(value.Data.Int64 < std::numeric_limits<int64_t>::max());
+                    YT_ASSERT(value.Data.Int64 < std::numeric_limits<i64>::max());
                     result[i] = MakeUnversionedInt64Value(value.Data.Int64 + 1, id);
                     break;
                 }
                 case EValueType::Uint64:
-                    YT_ASSERT(value.Data.Uint64 < std::numeric_limits<uint64_t>::max());
+                    YT_ASSERT(value.Data.Uint64 < std::numeric_limits<ui64>::max());
                     result[i] = MakeUnversionedUint64Value(value.Data.Uint64 + 1, id);
                     break;
                 case EValueType::Double:

@@ -72,7 +72,7 @@ private:
 
         switch (key) {
             case EInternedAttributeKey::ProjectId:
-                networkProject->SetProjectId(ConvertTo<uint32_t>(value));
+                networkProject->SetProjectId(ConvertTo<ui32>(value));
                 return true;
 
             case EInternedAttributeKey::Name:

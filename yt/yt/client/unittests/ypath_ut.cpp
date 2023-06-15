@@ -775,7 +775,7 @@ TEST_F(TYPathTest, RangesTypeHintsInt64)
 
     TComparator comparator({ESortOrder::Ascending, ESortOrder::Ascending});
 
-    auto makeMixedRow = [&] (uint64_t first, double second) {
+    auto makeMixedRow = [&] (ui64 first, double second) {
         std::vector<TUnversionedValue> unversionedValues;
         unversionedValues.emplace_back(MakeUnversionedUint64Value(first));
         unversionedValues.emplace_back(MakeUnversionedDoubleValue(second));
@@ -814,7 +814,7 @@ TEST_F(TYPathTest, RangesTypeHintsUint64)
 
     TComparator comparator({ESortOrder::Ascending, ESortOrder::Ascending});
 
-    auto makeMixedRow = [&] (int64_t first, double second) {
+    auto makeMixedRow = [&] (i64 first, double second) {
         std::vector<TUnversionedValue> unversionedValues;
         unversionedValues.emplace_back(MakeUnversionedInt64Value(first));
         unversionedValues.emplace_back(MakeUnversionedDoubleValue(second));

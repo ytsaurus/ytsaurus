@@ -437,7 +437,7 @@ NTracing::TTraceContextPtr GetOrCreateTraceContext(const IRequestPtr& req)
     return traceContext;
 }
 
-std::optional<std::pair<int64_t, int64_t>> FindBytesRange(const THeadersPtr& headers)
+std::optional<std::pair<i64, i64>> FindBytesRange(const THeadersPtr& headers)
 {
     auto range = headers->Find(RangeHeaderName);
     if (!range) {
@@ -451,12 +451,12 @@ std::optional<std::pair<int64_t, int64_t>> FindBytesRange(const THeadersPtr& hea
     }
 
     auto indices = range->substr(bytesPrefix.size());
-    std::pair<int64_t, int64_t> rangeValue;
+    std::pair<i64, i64> rangeValue;
     StringSplitter(indices).Split('-').CollectInto(&rangeValue.first, &rangeValue.second);
     return rangeValue;
 }
 
-void SetBytesRange(const THeadersPtr& headers, std::pair<int64_t, int64_t> range)
+void SetBytesRange(const THeadersPtr& headers, std::pair<i64, i64> range)
 {
     headers->Set(ContentRangeHeaderName, Format("bytes %v-%v/*", range.first, range.second));
 }

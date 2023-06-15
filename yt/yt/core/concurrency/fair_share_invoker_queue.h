@@ -62,7 +62,7 @@ private:
         NProfiling::TCpuDuration ExcessTime = 0;
 
         // ceil(UnitWeight / weight).
-        int64_t InversedWeight = UnitWeight;
+        i64 InversedWeight = UnitWeight;
     };
 
     std::vector<TBucket> Buckets_;
@@ -82,4 +82,3 @@ DEFINE_REFCOUNTED_TYPE(TFairShareInvokerQueue)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NConcurrency
-

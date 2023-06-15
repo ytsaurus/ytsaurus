@@ -1376,7 +1376,7 @@ TEST(TRangeHeadersTest, Test)
     EXPECT_EQ(FindBytesRange(headers), std::nullopt);
 
     headers->Set("Range", "bytes=2-1234");
-    std::pair<int64_t, int64_t> result{2, 1234};
+    std::pair<i64, i64> result{2, 1234};
     EXPECT_EQ(FindBytesRange(headers), result);
 
     headers->Set("Range", "bytes=1234-");

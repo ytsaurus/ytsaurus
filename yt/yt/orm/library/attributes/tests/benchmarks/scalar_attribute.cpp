@@ -63,7 +63,7 @@ static void InitMapSimpleFields(NProto::TMessage& message)
 
     auto& map = *message.mutable_string_to_int32_map();
     for (int i = 0; i < 20; ++i) {
-        auto key = ToString(rng.Generate<uint32_t>());
+        auto key = ToString(rng.Generate<ui32>());
         map.insert({key, i});
     }
 }
@@ -74,7 +74,7 @@ static void InitMapNestedFields(NProto::TMessage& message)
 
     auto& map = *message.mutable_nested_message_map();
     for (int i = 0; i < 10; ++i) {
-        auto key = ToString(rng.Generate<uint32_t>());
+        auto key = ToString(rng.Generate<ui32>());
         auto& message = map[key];
         InitNestedMessage(message);
     }
