@@ -86,6 +86,8 @@
 
 #include <yt/yt/core/ypath/token.h>
 
+#include <yt/yt/library/dns_over_rpc/client/dns_over_rpc_resolver.h>
+
 #include <util/system/fs.h>
 #include <util/system/execpath.h>
 
@@ -674,6 +676,14 @@ TJobResult TJobProxy::RunJob()
             supervisorChannel = CreateServiceTicketInjectingChannel(
                 std::move(supervisorChannel),
                 NAuth::TAuthenticationOptions::FromServiceTicketAuth(serviceTicketAuth));
+        }
+
+        if (Config_->DnsOverRpcResolver) {
+            YT_LOG_INFO("Installing DNS-over-RPC resolver");
+            auto dnsResolver = NDns::CreateDnsOverRpcResolver(Config_->DnsOverRpcResolver, supervisorChannel);
+            NNet::TAddressResolver::Get()->SetDnsResolver(std::move(dnsResolver));
+            // This is to enable testing the feature.
+            NNet::TAddressResolver::Get()->PurgeCache();
         }
 
         SupervisorProxy_ = std::make_unique<TSupervisorServiceProxy>(supervisorChannel);

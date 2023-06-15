@@ -40,6 +40,8 @@ std::atomic<char*> LocalHostNamePtr;
 char LocalYPClusterData[MaxLocalFieldDataSize] = "(unknown)";
 std::atomic<char*> LocalYPClusterPtr;
 
+std::atomic<bool> IPv6Enabled_ = false;
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -158,6 +160,20 @@ void UpdateLocalHostName(const TAddressResolverConfigPtr& config)
     }
 
     WriteLocalHostName(TStringBuf(response->ai_canonname));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TString& GetLoopbackAddress()
+{
+    static const TString ipv4result("[127.0.1.1]");
+    static const TString ipv6result("[::1]");
+    return IPv6Enabled_.load(std::memory_order::relaxed) ? ipv6result : ipv4result;
+}
+
+void UpdateLoopbackAddress(const TAddressResolverConfigPtr& config)
+{
+    IPv6Enabled_ = config->EnableIPv6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

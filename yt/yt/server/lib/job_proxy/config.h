@@ -24,6 +24,8 @@
 #include <yt/yt/core/ytree/node.h>
 #include <yt/yt/core/ytree/yson_struct.h>
 
+#include <yt/yt/library/dns_over_rpc/client/config.h>
+
 namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -229,6 +231,8 @@ public:
     bool SendHeartbeatBeforeAbort;
 
     std::optional<int> StatisticsOutputTableCountLimit;
+
+    NDns::TDnsOverRpcResolverConfigPtr DnsOverRpcResolver;
 
     REGISTER_YSON_STRUCT(TJobProxyConfig);
 

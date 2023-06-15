@@ -26,6 +26,11 @@
 #include <yt/yt/ytlib/auth/native_authentication_manager.h>
 #include <yt/yt/ytlib/auth/tvm_bridge_service.h>
 
+#include <yt/yt/library/dns_over_rpc/server/dns_over_rpc_service.h>
+
+#include <yt/yt/core/net/address.h>
+#include <yt/yt/core/net/local_address.h>
+
 #include <yt/yt/core/ytree/virtual.h>
 
 namespace NYT::NExecNode {
@@ -170,8 +175,12 @@ public:
 
         GetRpcServer()->RegisterService(CreateExecNodeAdminService(this));
 
-        // NB(psushin): initialize chunk cache first, because slot manager (and root
-        // volume manager inside it) can start using it to populate tmpfs layers cache,
+        GetRpcServer()->RegisterService(NDns::CreateDnsOverRpcService(
+            NNet::TAddressResolver::Get()->GetDnsResolver(),
+            DnsOverRpcActionQueue_->GetInvoker()));
+
+        // NB(psushin): initialize chunk cache first because slot manager (and root
+        // volume manager inside it) can start using it to populate tmpfs layers cache.
         ChunkCache_->Initialize();
         SlotManager_->Initialize();
         JobController_->Initialize();
@@ -267,6 +276,8 @@ public:
 private:
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
 
+    const TActionQueuePtr DnsOverRpcActionQueue_ = New<TActionQueue>("DnsOverRpc");
+
     TSlotManagerPtr SlotManager_;
 
     TGpuManagerPtr GpuManager_;
@@ -294,8 +305,7 @@ private:
 
     void BuildJobProxyConfigTemplate()
     {
-        auto localRpcAddresses = GetLocalAddresses(GetConfig()->Addresses, GetConfig()->RpcPort);
-        auto localAddress = GetDefaultAddress(localRpcAddresses);
+        auto localAddress = NNet::BuildServiceAddress(NNet::GetLoopbackAddress(), GetConfig()->RpcPort);
 
         JobProxyConfigTemplate_ = New<NJobProxy::TJobProxyConfig>();
 
@@ -310,7 +320,6 @@ private:
         JobProxyConfigTemplate_->ClusterConnection->Static->OverrideMasterAddresses({localAddress});
 
         JobProxyConfigTemplate_->SupervisorConnection = New<NYT::NBus::TBusClientConfig>();
-
         JobProxyConfigTemplate_->SupervisorConnection->Address = localAddress;
 
         JobProxyConfigTemplate_->SupervisorRpcTimeout = GetConfig()->ExecNode->SupervisorRpcTimeout;
@@ -342,6 +351,8 @@ private:
             JobProxyConfigTemplate_->TvmBridge = New<NAuth::TTvmBridgeConfig>();
             JobProxyConfigTemplate_->TvmBridge->SelfTvmId = tvmService->GetSelfTvmId();
         }
+
+        JobProxyConfigTemplate_->DnsOverRpcResolver = CloneYsonStruct(GetConfig()->ExecNode->JobProxyDnsOverRpcResolver);
     }
 
     void OnDynamicConfigChanged(

@@ -22,13 +22,14 @@ TString ToString(const TDnsResolveOptions& options);
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IDnsResolver
+    : public TRefCounted
 {
-    virtual ~IDnsResolver() = default;
-
     virtual TFuture<NNet::TNetworkAddress> Resolve(
         const TString& hostName,
         const TDnsResolveOptions& options) = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(IDnsResolver)
 
 ////////////////////////////////////////////////////////////////////////////////
 

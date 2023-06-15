@@ -2,18 +2,18 @@
 
 #include "public.h"
 
+#include <yt/yt/core/dns/public.h>
+
+#include <yt/yt/core/rpc/public.h>
+
 namespace NYT::NDns {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IDnsResolverPtr CreateAresDnsResolver(
-    int retries,
-    TDuration resolveTimeout,
-    TDuration maxResolveTimeout,
-    TDuration warningTimeout,
-    std::optional<double> jitter);
+IDnsResolverPtr CreateDnsOverRpcResolver(
+    TDnsOverRpcResolverConfigPtr config,
+    NRpc::IChannelPtr channel);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NDns
-

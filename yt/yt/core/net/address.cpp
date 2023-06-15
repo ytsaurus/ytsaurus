@@ -9,6 +9,7 @@
 
 #include <yt/yt/core/dns/dns_resolver.h>
 #include <yt/yt/core/dns/ares_dns_resolver.h>
+#include <yt/yt/core/dns/private.h>
 
 #include <yt/yt/core/logging/log.h>
 
@@ -18,6 +19,8 @@
 #include <yt/yt/core/profiling/timing.h>
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 #include <util/generic/singleton.h>
 
@@ -50,6 +53,17 @@ using namespace NDns;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = NetLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+// These are implemented in local_address.cpp.
+
+// Update* function interacts with the system to determine actual hostname
+// of the local machine (by calling `gethostname` and `getaddrinfo`).
+// On success, calls Write* with the hostname, throws on errors.
+void UpdateLocalHostName(const TAddressResolverConfigPtr& config);
+
+// Updates the loopback address based on available configuration.
+void UpdateLoopbackAddress(const TAddressResolverConfigPtr& config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -100,66 +114,74 @@ const TNetworkAddress NullNetworkAddress;
 
 TNetworkAddress::TNetworkAddress()
 {
-    Storage = {};
-    Storage.ss_family = AF_UNSPEC;
-    Length = sizeof(Storage);
+    Storage_ = {};
+    Storage_.ss_family = AF_UNSPEC;
+    Length_ = sizeof(Storage_);
 }
 
 TNetworkAddress::TNetworkAddress(const TNetworkAddress& other, int port)
 {
-    memcpy(&Storage, &other.Storage, sizeof(Storage));
-    switch (Storage.ss_family) {
+    memcpy(&Storage_, &other.Storage_, sizeof(Storage_));
+    switch (Storage_.ss_family) {
         case AF_INET:
-            reinterpret_cast<sockaddr_in*>(&Storage)->sin_port = htons(port);
-            Length = sizeof(sockaddr_in);
+            reinterpret_cast<sockaddr_in*>(&Storage_)->sin_port = htons(port);
+            Length_ = sizeof(sockaddr_in);
             break;
         case AF_INET6:
-            reinterpret_cast<sockaddr_in6*>(&Storage)->sin6_port = htons(port);
-            Length = sizeof(sockaddr_in6);
+            reinterpret_cast<sockaddr_in6*>(&Storage_)->sin6_port = htons(port);
+            Length_ = sizeof(sockaddr_in6);
             break;
         default:
-            YT_ABORT();
+            THROW_ERROR_EXCEPTION("Unknown network address family")
+                << TErrorAttribute("family", Storage_.ss_family);
     }
 }
 
 TNetworkAddress::TNetworkAddress(const sockaddr& other, socklen_t length)
 {
-    Length = length == 0 ? GetGenericLength(other) : length;
-    memcpy(&Storage, &other, Length);
+    Length_ = length == 0 ? GetGenericLength(other) : length;
+    memcpy(&Storage_, &other, Length_);
 }
 
 TNetworkAddress::TNetworkAddress(int family, const char* addr, size_t size)
 {
-    Storage = {};
-    Storage.ss_family = family;
-    switch (Storage.ss_family) {
+    Storage_ = {};
+    Storage_.ss_family = family;
+    switch (Storage_.ss_family) {
         case AF_INET: {
-            auto* typedSockAddr = reinterpret_cast<sockaddr_in*>(&Storage);
-            YT_ASSERT(size <= sizeof(sockaddr_in));
+            auto* typedSockAddr = reinterpret_cast<sockaddr_in*>(&Storage_);
+            if (size > sizeof(sockaddr_in)) {
+                THROW_ERROR_EXCEPTION("Wrong size of AF_INET address")
+                    << TErrorAttribute("size", size);
+            }
             memcpy(&typedSockAddr->sin_addr, addr, size);
-            Length = sizeof(sockaddr_in);
+            Length_ = sizeof(sockaddr_in);
             break;
         }
         case AF_INET6: {
-            auto* typedSockAddr = reinterpret_cast<sockaddr_in6*>(&Storage);
-            YT_ASSERT(size <= sizeof(sockaddr_in6));
+            auto* typedSockAddr = reinterpret_cast<sockaddr_in6*>(&Storage_);
+            if (size > sizeof(sockaddr_in6)) {
+                THROW_ERROR_EXCEPTION("Wrong size of AF_INET6 address")
+                    << TErrorAttribute("size", size);
+            }
             memcpy(&typedSockAddr->sin6_addr, addr, size);
-            Length = sizeof(sockaddr_in6);
+            Length_ = sizeof(sockaddr_in6);
             break;
         }
         default:
-            YT_ABORT();
+            THROW_ERROR_EXCEPTION("Unknown network address family")
+                << TErrorAttribute("family", family);
     }
 }
 
 sockaddr* TNetworkAddress::GetSockAddr()
 {
-    return reinterpret_cast<sockaddr*>(&Storage);
+    return reinterpret_cast<sockaddr*>(&Storage_);
 }
 
 const sockaddr* TNetworkAddress::GetSockAddr() const
 {
-    return reinterpret_cast<const sockaddr*>(&Storage);
+    return reinterpret_cast<const sockaddr*>(&Storage_);
 }
 
 socklen_t TNetworkAddress::GetGenericLength(const sockaddr& sockAddr)
@@ -167,25 +189,25 @@ socklen_t TNetworkAddress::GetGenericLength(const sockaddr& sockAddr)
     switch (sockAddr.sa_family) {
 #ifdef _unix_
         case AF_UNIX:
-            return sizeof (sockaddr_un);
+            return sizeof(sockaddr_un);
 #endif
         case AF_INET:
-            return sizeof (sockaddr_in);
+            return sizeof(sockaddr_in);
         case AF_INET6:
-            return sizeof (sockaddr_in6);
+            return sizeof(sockaddr_in6);
         default:
             // Don't know its actual size, report the maximum possible.
-            return sizeof (sockaddr_storage);
+            return sizeof(sockaddr_storage);
     }
 }
 
-ui16 TNetworkAddress::GetPort() const
+int TNetworkAddress::GetPort() const
 {
-    switch (Storage.ss_family) {
+    switch (Storage_.ss_family) {
         case AF_INET:
-            return ntohs(reinterpret_cast<const sockaddr_in*>(&Storage)->sin_port);
+            return ntohs(reinterpret_cast<const sockaddr_in*>(&Storage_)->sin_port);
         case AF_INET6:
-            return ntohs(reinterpret_cast<const sockaddr_in6*>(&Storage)->sin6_port);
+            return ntohs(reinterpret_cast<const sockaddr_in6*>(&Storage_)->sin6_port);
         default:
             THROW_ERROR_EXCEPTION("Address has no port");
     }
@@ -193,7 +215,7 @@ ui16 TNetworkAddress::GetPort() const
 
 bool TNetworkAddress::IsUnix() const
 {
-    return Storage.ss_family == AF_UNIX;
+    return Storage_.ss_family == AF_UNIX;
 }
 
 bool TNetworkAddress::IsIP() const
@@ -203,33 +225,33 @@ bool TNetworkAddress::IsIP() const
 
 bool TNetworkAddress::IsIP4() const
 {
-    return Storage.ss_family == AF_INET;
+    return Storage_.ss_family == AF_INET;
 }
 
 bool TNetworkAddress::IsIP6() const
 {
-    return Storage.ss_family == AF_INET6;
+    return Storage_.ss_family == AF_INET6;
 }
 
 TIP6Address TNetworkAddress::ToIP6Address() const
 {
-    if (Storage.ss_family != AF_INET6) {
+    if (Storage_.ss_family != AF_INET6) {
         THROW_ERROR_EXCEPTION("Address is not an IPv6 address");
     }
 
-    auto addr = reinterpret_cast<const sockaddr_in6*>(&Storage)->sin6_addr;
+    auto addr = reinterpret_cast<const sockaddr_in6*>(&Storage_)->sin6_addr;
     std::reverse(addr.s6_addr, addr.s6_addr + sizeof(addr));
     return TIP6Address::FromRawBytes(addr.s6_addr);
 }
 
 socklen_t TNetworkAddress::GetLength() const
 {
-    return Length;
+    return Length_;
 }
 
 socklen_t* TNetworkAddress::GetLengthPtr()
 {
-    return &Length;
+    return &Length_;
 }
 
 TErrorOr<TNetworkAddress> TNetworkAddress::TryParse(TStringBuf address)
@@ -271,7 +293,7 @@ TErrorOr<TNetworkAddress> TNetworkAddress::TryParse(TStringBuf address)
     }
 
     {
-        // Try to parse as ipv4.
+        // Try to parse as IPv4.
         struct sockaddr_in sa = {};
         if (inet_pton(AF_INET, ipAddress.c_str(), &sa.sin_addr) == 1) {
             if (port) {
@@ -282,7 +304,7 @@ TErrorOr<TNetworkAddress> TNetworkAddress::TryParse(TStringBuf address)
         }
     }
     {
-        // Try to parse as ipv6.
+        // Try to parse as IPv6.
         struct sockaddr_in6 sa = {};
         if (inet_pton(AF_INET6, ipAddress.c_str(), &(sa.sin6_addr))) {
             if (port) {
@@ -332,7 +354,7 @@ TNetworkAddress TNetworkAddress::CreateUnixDomainSocketAddress(const TString& so
     memcpy(sockAddr.sun_path, socketPath.data(), socketPath.length());
     return TNetworkAddress(
         *reinterpret_cast<sockaddr*>(&sockAddr),
-        sizeof (sockAddr.sun_family) +
+        sizeof(sockAddr.sun_family) +
         socketPath.length());
 #else
     Y_UNUSED(socketPath);
@@ -348,6 +370,22 @@ TNetworkAddress TNetworkAddress::CreateAbstractUnixDomainSocketAddress(const TSt
 TNetworkAddress TNetworkAddress::Parse(TStringBuf address)
 {
     return TryParse(address).ValueOrThrow();
+}
+
+void ToProto(TString* protoAddress, const TNetworkAddress& address)
+{
+    *protoAddress = TString(reinterpret_cast<const char*>(&address.Storage_), address.Length_);
+}
+
+void FromProto(TNetworkAddress* address, const TString& protoAddress)
+{
+    if (protoAddress.size() > sizeof(address->Storage_)) {
+        THROW_ERROR_EXCEPTION("Network address size is too big")
+            << TErrorAttribute("size", protoAddress.size());
+    }
+    address->Storage_ = {};
+    memcpy(&address->Storage_, protoAddress.data(), protoAddress.size());
+    address->Length_ = protoAddress.size();
 }
 
 TString ToString(const TNetworkAddress& address, const TNetworkAddressFormatOptions& options)
@@ -894,138 +932,132 @@ class TAddressResolver::TImpl
     , private TAsyncExpiringCache<TString, TNetworkAddress>
 {
 public:
-    explicit TImpl(TAddressResolverConfigPtr config);
+    explicit TImpl(TAddressResolverConfigPtr config)
+        : TAsyncExpiringCache(
+            config,
+            /*logger*/ {},
+            DnsProfiler.WithPrefix("/resolve_cache"))
+    {
+        SetDnsResolver(CreateAresDnsResolver(
+            config->Retries,
+            config->ResolveTimeout,
+            config->MaxResolveTimeout,
+            config->WarningTimeout,
+            config->Jitter));
+        Configure(std::move(config));
+    }
 
-    TFuture<TNetworkAddress> Resolve(const TString& hostName);
+    TFuture<TNetworkAddress> Resolve(const TString& hostName)
+    {
+        // Check if |address| parses into a valid IPv4 or IPv6 address.
+        if (auto result = TNetworkAddress::TryParse(hostName); result.IsOK()) {
+            return MakeFuture(result);
+        }
 
-    void EnsureLocalHostName();
+        // Run async resolution.
+        return Get(hostName);
+    }
 
-    bool IsLocalAddress(const TNetworkAddress& address);
+    IDnsResolverPtr GetDnsResolver()
+    {
+        return DnsResolver_.Acquire();
+    }
 
-    void PurgeCache();
+    void SetDnsResolver(IDnsResolverPtr dnsResolver)
+    {
+        DnsResolver_ = std::move(dnsResolver);
+    }
 
-    void Configure(TAddressResolverConfigPtr config);
+    void EnsureLocalHostName()
+    {
+        if (Config_->LocalHostNameOverride) {
+            return;
+        }
+
+        UpdateLocalHostName(Config_);
+
+        YT_LOG_INFO("Localhost name determined via system call (LocalHostName: %v, ResolveHostNameIntoFqdn: %v)",
+            GetLocalHostName(),
+            Config_->ResolveHostNameIntoFqdn);
+    }
+
+    bool IsLocalAddress(const TNetworkAddress& address)
+    {
+        TNetworkAddress localIP{address, 0};
+
+        const auto& localAddresses = GetLocalAddresses();
+        auto&& it = std::find(localAddresses.begin(), localAddresses.end(), localIP);
+        auto jt = localAddresses.end();
+        return it != jt;
+    }
+
+    void PurgeCache()
+    {
+        Clear();
+        YT_LOG_INFO("Address cache purged");
+    }
+
+    void Configure(TAddressResolverConfigPtr config)
+    {
+        Config_ = std::move(config);
+
+        if (Config_->LocalHostNameOverride) {
+            WriteLocalHostName(*Config_->LocalHostNameOverride);
+            YT_LOG_INFO("Localhost name configured via config override (LocalHostName: %v)",
+                Config_->LocalHostNameOverride);
+        }
+
+        UpdateLoopbackAddress(Config_);
+    }
 
 private:
     TAddressResolverConfigPtr Config_;
 
-    std::atomic<bool> HasCachedLocalAddresses_ = {false};
+    std::atomic<bool> HasCachedLocalAddresses_ = false;
     std::vector<TNetworkAddress> CachedLocalAddresses_;
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CacheLock_);
 
     const TActionQueuePtr Queue_ = New<TActionQueue>("AddressResolver");
 
-    std::unique_ptr<IDnsResolver> DnsResolver_;
+    TAtomicIntrusivePtr<IDnsResolver> DnsResolver_;
 
-    TFuture<TNetworkAddress> DoGet(const TString& hostName, bool isPeriodicUpdate) noexcept override;
-
-    const std::vector<TNetworkAddress>& GetLocalAddresses();
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-TAddressResolver::TImpl::TImpl(TAddressResolverConfigPtr config)
-    : TAsyncExpiringCache(config)
-    , DnsResolver_(CreateAresDnsResolver(
-        config->Retries,
-        config->ResolveTimeout,
-        config->MaxResolveTimeout,
-        config->WarningTimeout,
-        config->Jitter))
-{
-    Configure(std::move(config));
-}
-
-TFuture<TNetworkAddress> TAddressResolver::TImpl::Resolve(const TString& hostName)
-{
-    // Check if |address| parses into a valid IPv4 or IPv6 address.
+    TFuture<TNetworkAddress> DoGet(const TString& hostName, bool /*isPeriodicUpdate*/) noexcept override
     {
-        auto result = TNetworkAddress::TryParse(hostName);
-        if (result.IsOK()) {
-            return MakeFuture(result);
+        TDnsResolveOptions options{
+            .EnableIPv4 = Config_->EnableIPv4,
+            .EnableIPv6 = Config_->EnableIPv6,
+        };
+        return GetDnsResolver()->Resolve(hostName, options)
+            .Apply(BIND([=] (const TErrorOr<TNetworkAddress>& result) {
+                // Empty callback just to forward future callbacks into proper thread.
+                return result.ValueOrThrow();
+            })
+            .AsyncVia(Queue_->GetInvoker()));
+    }
+
+    const std::vector<TNetworkAddress>& GetLocalAddresses()
+    {
+        if (HasCachedLocalAddresses_) {
+            return CachedLocalAddresses_;
         }
-    }
 
-    // Run async resolution.
-    return Get(hostName);
-}
+        std::vector<TNetworkAddress> localAddresses;
+        for (const auto& interface : NAddr::GetNetworkInterfaces()) {
+            localAddresses.push_back(TNetworkAddress(*interface.Address->Addr()));
+        }
 
-TFuture<TNetworkAddress> TAddressResolver::TImpl::DoGet(const TString& hostName, bool /*isPeriodicUpdate*/) noexcept
-{
-    TDnsResolveOptions options{
-        .EnableIPv4 = Config_->EnableIPv4,
-        .EnableIPv6 = Config_->EnableIPv6,
-    };
-    return DnsResolver_->Resolve(hostName, options)
-        .Apply(BIND([=] (const TErrorOr<TNetworkAddress>& result) {
-            // Empty callback just to forward future callbacks into proper thread.
-            return result.ValueOrThrow();
-        })
-        .AsyncVia(Queue_->GetInvoker()));
-}
+        {
+            auto guard = WriterGuard(CacheLock_);
+            // NB: Only update CachedLocalAddresses_ once.
+            if (!HasCachedLocalAddresses_) {
+                CachedLocalAddresses_ = std::move(localAddresses);
+                HasCachedLocalAddresses_ = true;
+            }
+        }
 
-void TAddressResolver::TImpl::EnsureLocalHostName()
-{
-    if (Config_->LocalHostNameOverride) {
-        return;
-    }
-
-    UpdateLocalHostName(Config_);
-
-    YT_LOG_INFO("Localhost name determined via system call (LocalHostName: %v, ResolveHostNameIntoFqdn: %v)",
-        GetLocalHostName(),
-        Config_->ResolveHostNameIntoFqdn);
-}
-
-bool TAddressResolver::TImpl::IsLocalAddress(const TNetworkAddress& address)
-{
-    TNetworkAddress localIP{address, 0};
-
-    const auto& localAddresses = GetLocalAddresses();
-    auto&& it = std::find(localAddresses.begin(), localAddresses.end(), localIP);
-    auto jt = localAddresses.end();
-    return it != jt;
-}
-
-const std::vector<TNetworkAddress>& TAddressResolver::TImpl::GetLocalAddresses()
-{
-    if (HasCachedLocalAddresses_) {
         return CachedLocalAddresses_;
     }
-
-    std::vector<TNetworkAddress> localAddresses;
-    for (const auto& interface : NAddr::GetNetworkInterfaces()) {
-        localAddresses.push_back(TNetworkAddress(*interface.Address->Addr()));
-    }
-
-    {
-        auto guard = WriterGuard(CacheLock_);
-        // NB: Only update CachedLocalAddresses_ once.
-        if (!HasCachedLocalAddresses_) {
-            CachedLocalAddresses_ = std::move(localAddresses);
-            HasCachedLocalAddresses_ = true;
-        }
-    }
-
-    return CachedLocalAddresses_;
-}
-
-void TAddressResolver::TImpl::PurgeCache()
-{
-    Clear();
-    YT_LOG_INFO("Address cache purged");
-}
-
-void TAddressResolver::TImpl::Configure(TAddressResolverConfigPtr config)
-{
-    Config_ = std::move(config);
-
-    if (Config_->LocalHostNameOverride) {
-        WriteLocalHostName(*Config_->LocalHostNameOverride);
-        YT_LOG_INFO("Localhost name configured via config override (LocalHostName: %v)",
-            Config_->LocalHostNameOverride);
-    }
-}
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1043,6 +1075,16 @@ TFuture<TNetworkAddress> TAddressResolver::Resolve(const TString& address)
     return Impl_->Resolve(address);
 }
 
+IDnsResolverPtr TAddressResolver::GetDnsResolver()
+{
+    return Impl_->GetDnsResolver();
+}
+
+void TAddressResolver::SetDnsResolver(IDnsResolverPtr dnsResolver)
+{
+    Impl_->SetDnsResolver(std::move(dnsResolver));
+}
+
 void TAddressResolver::EnsureLocalHostName()
 {
     return Impl_->EnsureLocalHostName();
@@ -1055,13 +1097,11 @@ bool TAddressResolver::IsLocalAddress(const TNetworkAddress& address)
 
 void TAddressResolver::PurgeCache()
 {
-    YT_ASSERT(Impl_);
     return Impl_->PurgeCache();
 }
 
 void TAddressResolver::Configure(TAddressResolverConfigPtr config)
 {
-    YT_ASSERT(Impl_);
     return Impl_->Configure(std::move(config));
 }
 

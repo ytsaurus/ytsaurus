@@ -194,6 +194,9 @@ void TJobProxyConfig::Register(TRegistrar registrar)
     registrar.Parameter("statistics_output_table_count_limit", &TThis::StatisticsOutputTableCountLimit)
         .Default();
 
+    registrar.Parameter("dns_over_rpc_resolver", &TThis::DnsOverRpcResolver)
+        .Default();
+
     registrar.Preprocessor([] (TThis* config) {
         config->SolomonExporter->EnableSelfProfiling = false;
         config->SolomonExporter->WindowSize = 1;

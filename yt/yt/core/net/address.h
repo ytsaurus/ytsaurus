@@ -5,9 +5,9 @@
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/singleton.h>
 
-#include <yt/yt/core/actions/future.h>
+#include <yt/yt/core/dns/public.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/actions/future.h>
 
 #include <util/generic/hash.h>
 
@@ -58,7 +58,12 @@ public:
     const sockaddr* GetSockAddr() const;
     socklen_t GetLength() const;
     socklen_t* GetLengthPtr();
-    ui16 GetPort() const;
+    int GetPort() const;
+
+    bool IsUnix() const;
+    bool IsIP() const;
+    bool IsIP4() const;
+    bool IsIP6() const;
 
     static TErrorOr<TNetworkAddress> TryParse(TStringBuf address);
     static TNetworkAddress Parse(TStringBuf address);
@@ -68,18 +73,16 @@ public:
     static TNetworkAddress CreateUnixDomainSocketAddress(const TString& socketPath);
     static TNetworkAddress CreateAbstractUnixDomainSocketAddress(const TString& socketName);
 
-    bool IsUnix() const;
-    bool IsIP() const;
-    bool IsIP4() const;
-    bool IsIP6() const;
-
     TIP6Address ToIP6Address() const;
 
 private:
-    sockaddr_storage Storage;
-    socklen_t Length;
+    sockaddr_storage Storage_;
+    socklen_t Length_;
 
     static socklen_t GetGenericLength(const sockaddr& sockAddr);
+
+    friend void ToProto(TString* protoAddress, const TNetworkAddress& address);
+    friend void FromProto(TNetworkAddress* address, const TString& protoAddress);
 };
 
 extern const TNetworkAddress NullNetworkAddress;
@@ -183,6 +186,12 @@ public:
      *  Caches successful resolutions.
      */
     TFuture<TNetworkAddress> Resolve(const TString& address);
+
+    //! Returns the currently installed global DNS resolver.
+    NDns::IDnsResolverPtr GetDnsResolver();
+
+    //! Sets the global DNS resolver.
+    void SetDnsResolver(NDns::IDnsResolverPtr dnsResolver);
 
     //! Sets localhost name up if it was not provided via |localhost_name_override| config section.
     //! Depending on |resolve_localhost_into_fqdn| option, localhost name is either additionally resolved

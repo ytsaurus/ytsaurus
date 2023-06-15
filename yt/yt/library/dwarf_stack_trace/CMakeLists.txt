@@ -6,7 +6,6 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(unittests)
 
 add_library(yt-library-dwarf_stack_trace INTERFACE)
 target_link_libraries(yt-library-dwarf_stack_trace INTERFACE
