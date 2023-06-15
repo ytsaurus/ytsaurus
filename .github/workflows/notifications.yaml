@@ -1,0 +1,41 @@
+name: Notifications
+
+on:
+  issues:
+    types: [opened]
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  pr-notifications:
+    name: Send notifications about PR
+    runs-on: trampoline
+    if: ${{ github.event_name == 'pull_request' }}
+    steps:
+      - uses: kceb/pull-request-url-action@v1
+        id: pr-url
+      - name: Send telegram message
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_NOTIFICATIONS_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          disable_web_page_preview: true
+          format: markdown
+          message: |
+            New pull request: ${{ steps.pr-url.outputs.url }}
+
+  issue-notifications:
+    name: Send notifications about issues
+    runs-on: trampoline
+    if: ${{ github.event_name == 'issues' }}
+    steps:
+      - name: Send telegram message
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_NOTIFICATIONS_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          disable_web_page_preview: true
+          format: markdown
+          message: |
+            New issue: ${{ github.event.issues.url }}
