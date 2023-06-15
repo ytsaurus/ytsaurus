@@ -2338,7 +2338,14 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
     @pytest.mark.parametrize("with_alter", [True, False])
     @pytest.mark.parametrize("with_pivots", [True, False])
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_reshard_with_slicing_after_alter(self, with_alter, with_pivots, optimize_for):
+    @pytest.mark.parametrize("with_after_alter_reshard", [True, False])
+    def test_reshard_with_slicing_after_alter(self, with_alter, with_pivots, optimize_for, with_after_alter_reshard):
+        if with_after_alter_reshard and not with_alter:
+            return
+
+        if with_after_alter_reshard and not with_pivots:
+            return
+
         sync_create_cells(1)
         self._create_simple_table(
             "//tmp/t",
@@ -2371,10 +2378,15 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
 
         tablet_count = 3
         expected = [[], [32], [65]]
+
         if with_alter:
             alter_table("//tmp/t", schema=new_schema)
+
             if with_pivots:
-                expected[-1] = expected[-1] + [yson.YsonEntity()]
+                if with_after_alter_reshard:
+                    sync_reshard_table("//tmp/t", [[], [80, 0]])
+                else:
+                    expected[-1] = expected[-1] + [yson.YsonEntity()]
 
         sync_reshard_table("//tmp/t", tablet_count, enable_slicing=True)
         assert get("//tmp/t/@tablet_count") == tablet_count
