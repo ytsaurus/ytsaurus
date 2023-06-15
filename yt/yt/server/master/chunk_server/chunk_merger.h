@@ -171,13 +171,15 @@ private:
     THashSet<NCypressClient::TObjectId> NodesBeingMerged_;
     i64 ConfigVersion_ = 0;
 
-    struct TChunkReplacementStatistics
+    struct TChunkMergerStatistics
     {
         i64 ChunkReplacementsSucceeded = 0;
         i64 ChunkReplacementsFailed = 0;
         i64 ChunkCountSaving = 0;
+
+        TChunkMergerViolatedCriteriaStatistics ViolatedCriteria;
     };
-    THashMap<NCypressClient::TObjectId, TChunkReplacementStatistics> AccountToChunkReplacementStatistics_;
+    THashMap<NCypressClient::TObjectId, TChunkMergerStatistics> AccountToChunkMergerStatistics_;
 
     TEnumIndexedVector<NChunkClient::EChunkMergerMode, i64> CompletedJobCountPerMode_;
     i64 AutoMergeFallbackJobCount_ = 0;

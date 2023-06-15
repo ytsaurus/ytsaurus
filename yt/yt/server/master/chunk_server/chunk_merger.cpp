@@ -505,14 +505,41 @@ private:
         };
         mergerCriteria.AssignNotNull(accountCriteria);
 
-        if (CurrentRowCount_ + chunk->GetRowCount() < mergerCriteria.MaxRowCount &&
-            CurrentDataWeight_ + chunk->GetDataWeight() < mergerCriteria.MaxDataWeight &&
-            CurrentCompressedDataSize_ + chunk->GetCompressedDataSize() < mergerCriteria.MaxCompressedDataSize &&
-            CurrentUncompressedDataSize_ + chunk->GetUncompressedDataSize() < mergerCriteria.MaxUncompressedDataSize &&
-            std::ssize(ChunkIds_) < mergerCriteria.MaxChunkCount &&
-            chunk->GetDataWeight() < mergerCriteria.MaxInputChunkDataWeight &&
-            (ParentChunkListId_ == NullObjectId || ParentChunkListId_ == parent->GetId()))
-        {
+        auto satisfiedCriteriaCount = 0;
+        const auto targetSatisfiedCriteriaCount = 7;
+
+        auto& statistics = TraversalInfo_.ViolatedCriteriaStatistics;
+        auto incrementSatisfiedOrViolatedCriteriaCount = [&] (bool condition, auto& violatedCriteriaCount) {
+            if (condition) {
+                ++satisfiedCriteriaCount;
+            } else {
+                ++violatedCriteriaCount;
+            }
+        };
+
+        incrementSatisfiedOrViolatedCriteriaCount(CurrentRowCount_ + chunk->GetRowCount() < mergerCriteria.MaxRowCount,
+            statistics.MaxRowCountViolatedCriteria);
+
+        incrementSatisfiedOrViolatedCriteriaCount(CurrentDataWeight_ + chunk->GetDataWeight() < mergerCriteria.MaxDataWeight,
+            statistics.MaxDataWeightViolatedCriteria);
+
+        incrementSatisfiedOrViolatedCriteriaCount(CurrentCompressedDataSize_ + chunk->GetCompressedDataSize() < mergerCriteria.MaxCompressedDataSize,
+            statistics.MaxCompressedDataSizeViolatedCriteria);
+
+        incrementSatisfiedOrViolatedCriteriaCount(CurrentUncompressedDataSize_ + chunk->GetUncompressedDataSize() < mergerCriteria.MaxUncompressedDataSize,
+            statistics.MaxUncompressedDataSizeViolatedCriteria);
+
+        incrementSatisfiedOrViolatedCriteriaCount(std::ssize(ChunkIds_) < mergerCriteria.MaxChunkCount,
+            statistics.MaxChunkCountViolatedCriteria);
+
+        incrementSatisfiedOrViolatedCriteriaCount(chunk->GetDataWeight() < mergerCriteria.MaxInputChunkDataWeight,
+            statistics.MaxInputChunkDataWeightViolatedCriteria);
+
+        if (ParentChunkListId_ == NullObjectId || ParentChunkListId_ == parent->GetId()) {
+            ++satisfiedCriteriaCount;
+        }
+
+        if (satisfiedCriteriaCount == targetSatisfiedCriteriaCount) {
             CurrentRowCount_ += chunk->GetRowCount();
             CurrentDataWeight_ += chunk->GetDataWeight();
             CurrentCompressedDataSize_ += chunk->GetCompressedDataSize();
@@ -749,7 +776,7 @@ void TChunkMerger::OnProfiling(TSensorBuffer* buffer)
     buffer->AddGauge("/chunk_merger_jobs_awaiting_node_heartbeat", JobsAwaitingNodeHeartbeat_.size());
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
-    for (const auto& [accountId, statistics] : AccountToChunkReplacementStatistics_) {
+    for (const auto& [accountId, statistics] : AccountToChunkMergerStatistics_) {
         auto* account = securityManager->FindAccount(accountId);
         if (!IsObjectAlive(account)) {
             continue;
@@ -758,8 +785,16 @@ void TChunkMerger::OnProfiling(TSensorBuffer* buffer)
         buffer->AddGauge("/chunk_merger_chunk_replacements_succeeded", statistics.ChunkReplacementsSucceeded);
         buffer->AddGauge("/chunk_merger_chunk_replacements_failed", statistics.ChunkReplacementsFailed);
         buffer->AddGauge("/chunk_merger_chunk_count_saving", statistics.ChunkCountSaving);
+
+        const auto& violatedCriteria = statistics.ViolatedCriteria;
+        buffer->AddGauge("/chunk_merger_max_chunk_count_violated_criteria", violatedCriteria.MaxChunkCountViolatedCriteria);
+        buffer->AddGauge("/chunk_merger_max_row_count_violated_criteria", violatedCriteria.MaxRowCountViolatedCriteria);
+        buffer->AddGauge("/chunk_merger_max_data_weight_violated_criteria", violatedCriteria.MaxDataWeightViolatedCriteria);
+        buffer->AddGauge("/chunk_merger_max_uncompressed_data_violated_criteria", violatedCriteria.MaxUncompressedDataSizeViolatedCriteria);
+        buffer->AddGauge("/chunk_merger_max_compressed_data_violated_criteria", violatedCriteria.MaxCompressedDataSizeViolatedCriteria);
+        buffer->AddGauge("/chunk_merger_max_input_chunk_data_weight_violated_criteria", violatedCriteria.MaxInputChunkDataWeightViolatedCriteria);
     }
-    AccountToChunkReplacementStatistics_.clear();
+    AccountToChunkMergerStatistics_.clear();
 
     buffer->AddCounter("/chunk_merger_sessions_awaiting_finalization", SessionsAwaitingFinalization_.size());
 
@@ -1158,6 +1193,9 @@ void TChunkMerger::OnTraversalFinished(TObjectId nodeId, EMergeSessionResult res
     if (session.IsReadyForFinalization()) {
         ScheduleSessionFinalization(nodeId, result);
     }
+
+    auto& statistics = AccountToChunkMergerStatistics_[session.AccountId];
+    statistics.ViolatedCriteria += traversalInfo.ViolatedCriteriaStatistics;
 }
 
 void TChunkMerger::ScheduleSessionFinalization(TObjectId nodeId, EMergeSessionResult result)
@@ -1687,7 +1725,7 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
     auto chunkListId = FromProto<TChunkListId>(request->chunk_list_id());
     auto accountId = FromProto<TObjectId>(request->account_id());
 
-    auto& statistics = AccountToChunkReplacementStatistics_[accountId];
+    auto& statistics = AccountToChunkMergerStatistics_[accountId];
     auto updateFailedReplacements = [&] (int replacementCount) {
         if (!IsLeader()) {
             return;

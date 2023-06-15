@@ -363,7 +363,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
         originatingNode->DeltaStatistics() = branchedNode->DeltaStatistics();
         originatingNode->SnapshotSecurityTags() = branchedNode->SnapshotSecurityTags();
         originatingNode->DeltaSecurityTags() = branchedNode->DeltaSecurityTags();
-        originatingNode->ChunkMergerTraversalInfo() = {0, 0};
+        originatingNode->ChunkMergerTraversalInfo() = {};
     } else {
         YT_VERIFY(branchedMode == NChunkClient::EUpdateMode::Append);
 
