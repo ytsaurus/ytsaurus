@@ -10,10 +10,6 @@ namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NProfiling::TProfiler AuthProfiler;
-
-////////////////////////////////////////////////////////////////////////////////
-
 DECLARE_REFCOUNTED_CLASS(TAuthCacheConfig)
 DECLARE_REFCOUNTED_CLASS(TBlackboxServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TBlackboxTicketAuthenticatorConfig)

@@ -484,18 +484,18 @@ private:
         RequestTimeGauge_.Update(elapsed);
 
         if (elapsed > WarningTimeout_ || timeouts > 0) {
-            YT_LOG_WARNING("Ares DNS resolve took too long (RequestId: %v, HostName: %v, Duration: %v, Timeouts: %v)",
+            YT_LOG_WARNING("Ares resolve took too long (RequestId: %v, HostName: %v, Timeouts: %v, Elapsed: %v)",
                 request->RequestId,
                 request->HostName,
-                elapsed,
-                timeouts);
+                timeouts,
+                elapsed);
         }
 
         if (status != ARES_SUCCESS) {
-            YT_LOG_WARNING("Ares DNS resolve failed (RequestId: %v, HostName: %v)",
+            YT_LOG_WARNING("Ares resolve failed (RequestId: %v, HostName: %v)",
                 request->RequestId,
                 request->HostName);
-            request->Promise.TrySet(TError("Ares DNS resolve failed for %Qv",
+            request->Promise.TrySet(TError("Ares resolve failed for %Qv",
                 request->HostName)
                 << TError(ares_strerror(status)));
             FailureCounter_.Increment();
@@ -506,11 +506,12 @@ private:
         YT_VERIFY(hostent->h_addr_list && hostent->h_addr_list[0]);
 
         TNetworkAddress result(hostent->h_addrtype, hostent->h_addr, hostent->h_length);
-        YT_LOG_DEBUG("Ares DNS resolve completed (RequestId: %v, HostName: %v, Result: %v, Hostent: %v)",
+        YT_LOG_DEBUG("Ares resolve completed (RequestId: %v, HostName: %v, Result: %v, Hostent: %v, Elapsed: %v)",
             request->RequestId,
             request->HostName,
             result,
-            hostent);
+            hostent,
+            elapsed);
 
         request->Promise.TrySet(result);
     }

@@ -414,7 +414,6 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DECLARE_REFCOUNTED_CLASS(TUserJobMonitoringConfig)
 DEFINE_REFCOUNTED_TYPE(TUserJobMonitoringConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -430,7 +429,6 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DECLARE_REFCOUNTED_CLASS(TUserJobMonitoringDynamicConfig)
 DEFINE_REFCOUNTED_TYPE(TUserJobMonitoringDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////

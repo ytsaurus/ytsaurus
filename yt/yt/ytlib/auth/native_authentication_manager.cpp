@@ -3,6 +3,8 @@
 #include "config.h"
 #include "private.h"
 
+#include <yt/yt/library/auth_server/private.h>
+
 namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////

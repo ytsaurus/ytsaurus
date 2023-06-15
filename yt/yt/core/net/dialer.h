@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/net/address.h>
 
+#include <library/cpp/yt/logging/public.h>
+
 #include <library/cpp/yt/memory/ref.h>
 
 #include <util/network/init.h>

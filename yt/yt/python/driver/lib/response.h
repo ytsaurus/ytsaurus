@@ -11,6 +11,8 @@
 
 #include <yt/yt/core/misc/blob_output.h>
 
+#include <yt/yt/core/tracing/trace_context.h>
+
 #include <CXX/Extensions.hxx> // pycxx
 
 namespace NYT::NPython {

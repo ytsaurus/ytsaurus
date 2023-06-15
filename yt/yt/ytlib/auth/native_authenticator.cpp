@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/rpc/authenticator.h>
 
+#include <yt/yt_proto/yt/core/rpc/proto/rpc.pb.h>
+
 namespace NYT::NAuth {
 
 using namespace NRpc;

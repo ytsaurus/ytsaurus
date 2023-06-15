@@ -6,7 +6,10 @@
 
 #include <yt/yt/library/tvm/tvm_base.h>
 
+#include <yt/yt/library/auth_server/private.h>
+
 #include <yt/yt/core/rpc/channel_detail.h>
+#include <yt/yt/core/rpc/client.h>
 
 namespace NYT::NAuth {
 

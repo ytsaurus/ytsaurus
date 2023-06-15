@@ -4,6 +4,8 @@
 
 #include <yt/yt/client/api/public.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
 #include <yt/yt/core/actions/public.h>
 
 #include <yt/yt/core/rpc/public.h>

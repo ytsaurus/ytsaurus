@@ -40,7 +40,6 @@ target_sources(yt-library-auth_server PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/cypress_cookie_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/cypress_cookie_store.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/cypress_token_authenticator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/public.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/secret_vault_service.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/ticket_authenticator.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/token_authenticator.cpp

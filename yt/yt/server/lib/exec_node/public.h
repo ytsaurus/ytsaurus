@@ -91,14 +91,17 @@ DECLARE_REFCOUNTED_CLASS(TSchedulerConnectorConfig)
 DECLARE_REFCOUNTED_CLASS(TControllerAgentConnectorConfig)
 DECLARE_REFCOUNTED_CLASS(TMasterConnectorConfig)
 DECLARE_REFCOUNTED_CLASS(TExecNodeConfig)
-DECLARE_REFCOUNTED_CLASS(TUserJobSensor)
+DECLARE_REFCOUNTED_CLASS(TUserJobMonitoringConfig)
 
+DECLARE_REFCOUNTED_CLASS(TUserJobMonitoringDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TMasterConnectorDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulerConnectorDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TControllerAgentConnectorDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TSlotManagerDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TVolumeManagerDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TExecNodeDynamicConfig)
+
+DECLARE_REFCOUNTED_CLASS(TUserJobSensor)
 
 ////////////////////////////////////////////////////////////////////////////////
 

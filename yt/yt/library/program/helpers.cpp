@@ -108,7 +108,7 @@ void ConfigureSingletonsImpl(const TConfig& config)
     }
 
     NNet::TAddressResolver::Get()->Configure(config->AddressResolver);
-    // By default, server component must have reasonable fqdn.
+    // By default, server components must have a reasonable FQDN.
     // Failure to do so may result in issues like YT-4561.
     NNet::TAddressResolver::Get()->EnsureLocalHostName();
 
