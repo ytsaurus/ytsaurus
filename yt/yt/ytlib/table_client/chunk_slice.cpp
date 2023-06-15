@@ -458,6 +458,9 @@ i64 GetChunkSliceDataWeight(
         ? sliceUpperLimit.KeyBound()
         : chunkUpperBound;
 
+    sliceLowerBound = ShortenKeyBound(sliceLowerBound, chunkComparator.GetLength());
+    sliceUpperBound = ShortenKeyBound(sliceUpperBound, chunkComparator.GetLength());
+
     i64 lowerBlockChunkRowCount = 0;
     std::optional<i64> upperBlockChunkRowCount;
 
