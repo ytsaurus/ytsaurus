@@ -3,7 +3,7 @@ name: Release Java SDK
 on:
   push:
     tags:
-      - 'java-sdk/1.0.[0-9]+'
+      - 'java-sdk/1\.[0-9]+\.[0-9]+'
 
 jobs:
   start-vm:
