@@ -96,6 +96,10 @@ jobs:
           mkdir -p ../docker-ytsaurus-build
           bash ./yt/docker/ytsaurus/build.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --ytsaurus-spyt-release-path ../build/spyt_release --ytsaurus-yql-package-path ../build/yql_package --output-path ../docker-ytsaurus-build --image-tag dev
           docker push ytsaurus/ytsaurus:dev
+          docker tag ytsaurus/ytsaurus:dev ytsaurus/ytsaurus-nightly:dev-${GITHUB_SHA}
+          docker push ytsaurus/ytsaurus-nightly:dev-${GITHUB_SHA}
+          docker tag ytsaurus/ytsaurus-nightly:dev-${GITHUB_SHA} ytsaurus/ytsaurus-nightly:latest
+          docker push ytsaurus/ytsaurus-nightly:latest
 
       - name: Docker registry login
         shell: bash
