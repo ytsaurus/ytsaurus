@@ -128,7 +128,7 @@ class YtLocalBinary(object):
             else:
                 command.extend(["--" + key, str(value)])
 
-            command.extend(["--enable-debug-logging"])
+            command.extend(["--enable-debug-logging", "--fqdn", "localhost"])
 
         env = {
             "YT_LOCAL_ROOT_PATH": self.root_path,
