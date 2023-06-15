@@ -6,7 +6,7 @@ spec:
   restartPolicy: OnFailure
   containers:
   - name: ytentry
-    image: ytsaurus/ytsaurus:dev
+    image: ytsaurus/ytsaurus-nightly:latest
     env:
     - name: YT_CONFIG_PATCHES
       value: '{proxy={enable_proxy_discovery=%false}}'
