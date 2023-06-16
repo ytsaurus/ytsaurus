@@ -6,7 +6,7 @@ from yt_commands import authors
 
 class TestMapReduceCommandsCompatNewCA(BaseTestMapReduceCommands):
     ARTIFACT_COMPONENTS = {
-        "22_4": ["master", "node", "job-proxy", "exec", "tools"],
+        "23_1": ["master", "node", "job-proxy", "exec", "tools"],
         "trunk": ["scheduler", "controller-agent", "proxy", "http-proxy"],
     }
 
@@ -20,13 +20,10 @@ class TestMapReduceCommandsCompatNewCA(BaseTestMapReduceCommands):
         },
     })
 
-    # COMPAT(gepardo): Remove this after 22.4.
-    USE_NATIVE_AUTH = False
-
 
 class TestMapReduceCommandsCompatNewNodes(BaseTestMapReduceCommands):
     ARTIFACT_COMPONENTS = {
-        "22_4": ["master", "scheduler", "controller-agent"],
+        "23_1": ["master", "scheduler", "controller-agent"],
         "trunk": ["node", "job-proxy", "exec", "tools", "proxy", "http-proxy"],
     }
 
@@ -39,9 +36,6 @@ class TestMapReduceCommandsCompatNewNodes(BaseTestMapReduceCommands):
             },
         },
     })
-
-    # COMPAT(gepardo): Remove this after 22.4.
-    USE_NATIVE_AUTH = False
 
     # TODO(gritukan, levysotsky): Drop me!
     @authors("levysotsky")

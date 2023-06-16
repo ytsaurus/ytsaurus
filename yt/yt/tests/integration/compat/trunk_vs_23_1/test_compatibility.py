@@ -31,9 +31,6 @@ class ClusterSetupTestBase(YTEnvSetup):
     ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
 
-    # COMPAT(gepardo): Remove this after 22.4.
-    USE_NATIVE_AUTH = False
-
     @authors("max42")
     def test_cluster_start(self):
         # Just check that cluster is able to start and stop properly.
@@ -63,50 +60,35 @@ class ClusterSetupTestBase(YTEnvSetup):
 
 class TestEverythingIsOld(ClusterSetupTestBase):
     ARTIFACT_COMPONENTS = {
-        "22_4": ["master", "node", "job-proxy", "exec", "tools", "scheduler",
+        "23_1": ["master", "node", "job-proxy", "exec", "tools", "scheduler",
                  "controller-agent", "proxy", "http-proxy"]
     }
-
-    # COMPAT(gepardo): Remove this after 22.4.
-    USE_NATIVE_AUTH = False
 
 
 class TestNewUpToProxies(ClusterSetupTestBase):
     ARTIFACT_COMPONENTS = {
-        "22_4": ["master", "node", "job-proxy", "exec", "tools", "scheduler",
+        "23_1": ["master", "node", "job-proxy", "exec", "tools", "scheduler",
                  "controller-agent"],
         "trunk": ["proxy", "http-proxy"],
     }
 
-    # COMPAT(gepardo): Remove this after 22.4.
-    USE_NATIVE_AUTH = False
-
 
 class TestNewUpToSchedulerAndCA(ClusterSetupTestBase):
     ARTIFACT_COMPONENTS = {
-        "22_4": ["master", "node", "job-proxy", "exec", "tools"],
+        "23_1": ["master", "node", "job-proxy", "exec", "tools"],
         "trunk": ["scheduler", "controller-agent", "proxy", "http-proxy"],
     }
-
-    # COMPAT(gepardo): Remove this after 22.4.
-    USE_NATIVE_AUTH = False
 
 
 class TestNewUpToNodes(ClusterSetupTestBase):
     ARTIFACT_COMPONENTS = {
-        "22_4": ["master"],
+        "23_1": ["master"],
         "trunk": ["node", "job-proxy", "exec", "tools", "scheduler", "controller-agent", "proxy", "http-proxy"],
     }
-
-    # COMPAT(gepardo): Remove this after 22.4.
-    USE_NATIVE_AUTH = False
 
 
 class TestNewNodesOldSchedulerAndCA(ClusterSetupTestBase):
     ARTIFACT_COMPONENTS = {
-        "22_4": ["master", "scheduler", "controller-agent"],
+        "23_1": ["master", "scheduler", "controller-agent"],
         "trunk": ["node", "job-proxy", "exec", "tools", "proxy", "http-proxy"],
     }
-
-    # COMPAT(gepardo): Remove this after 22.4.
-    USE_NATIVE_AUTH = False

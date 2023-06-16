@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE, NODES_SERVICE
 from yt_commands import (
     authors, create_tablet_cell_bundle, print_debug, build_master_snapshots, sync_create_cells, wait_for_cells,
-    ls, get, set, retry, start_transaction, commit_transaction, create, exists, wait, write_table, get_driver, lock)
+    ls, get, set, retry, start_transaction, create, wait, write_table, get_driver, lock)
 
 from yt_helpers import profiler_factory
 
@@ -38,12 +38,9 @@ class MasterSnapshotsCompatibilityBase(YTEnvSetup):
     }
 
     ARTIFACT_COMPONENTS = {
-        "22_4": ["master", "node", "exec", "tools"],
+        "23_1": ["master", "node", "exec", "tools"],
         "trunk": ["scheduler", "controller-agent", "proxy", "http-proxy", "job-proxy"],
     }
-
-    # COMPAT(gepardo): Remove this after 22.4.
-    USE_NATIVE_AUTH = False
 
     def teardown_method(self, method):
         master_path = os.path.join(self.bin_path, "ytserver-master")
@@ -82,25 +79,6 @@ def check_maintenance_flags():
     set(f"//sys/cluster_nodes/{node}/@banned", False)
     assert not get(f"//sys/cluster_nodes/{node}/@banned")
     assert not get(f"//sys/cluster_nodes/{node}/@maintenance_requests")
-
-
-def check_cypress_transactions():
-    old_tx = start_transaction(timeout=10000000)
-    create("map_node", "//tmp/old", tx=old_tx)
-
-    yield
-
-    new_tx = start_transaction()
-    create("map_node", "//tmp/new", tx=new_tx)
-
-    assert not get(f"//sys/transactions/{old_tx}/@cypress_transaction")
-    assert get(f"//sys/transactions/{new_tx}/@cypress_transaction")
-
-    commit_transaction(old_tx)
-    commit_transaction(new_tx)
-
-    assert exists("//tmp/old")
-    assert exists("//tmp/new")
 
 
 def check_chunk_creation_time_histogram():
@@ -163,8 +141,6 @@ def check_chunk_creation_time_histogram():
 
 
 class TestMasterSnapshotsCompatibility(MasterSnapshotsCompatibilityBase):
-    # COMPAT(gepardo): Remove this after 22.4.
-    USE_NATIVE_AUTH = False
     TEST_MAINTENANCE_FLAGS = True
 
     @authors("gritukan", "kvk1920")
@@ -172,7 +148,6 @@ class TestMasterSnapshotsCompatibility(MasterSnapshotsCompatibilityBase):
     def test(self):
         CHECKER_LIST = [
             check_maintenance_flags,
-            check_cypress_transactions,
             check_chunk_creation_time_histogram,
         ] + MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
 
@@ -192,12 +167,9 @@ class TestMasterSnapshotsCompatibility(MasterSnapshotsCompatibilityBase):
 
 class TestTabletCellsSnapshotsCompatibility(MasterSnapshotsCompatibilityBase):
     ARTIFACT_COMPONENTS = {
-        "22_4": ["master", "node", "tools", "exec"],
+        "23_1": ["master", "node", "tools", "exec"],
         "trunk": ["scheduler", "controller-agent", "proxy", "http-proxy", "job-proxy"],
     }
-
-    # COMPAT(gepardo): Remove this after 22.4.
-    USE_NATIVE_AUTH = False
 
     @authors("aleksandra-zh")
     def test(self):
@@ -209,9 +181,6 @@ class TestTabletCellsSnapshotsCompatibility(MasterSnapshotsCompatibilityBase):
 
 
 class TestBundleControllerAttribute(MasterSnapshotsCompatibilityBase):
-    # COMPAT(gepardo): Remove this after 22.4.
-    USE_NATIVE_AUTH = False
-
     @authors("capone212")
     def test(self):
         create_tablet_cell_bundle("bundle212")

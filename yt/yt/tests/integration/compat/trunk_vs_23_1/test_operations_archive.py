@@ -49,9 +49,6 @@ class TestOperationsArchive(YTEnvSetup):
 
     FORCE_CREATE_ENVIRONMENT = True
 
-    # COMPAT(gepardo): Remove this after 22.4.
-    USE_NATIVE_AUTH = False
-
     def setup_method(self, method):
         super(TestOperationsArchive, self).setup_method(method)
         sync_create_cells(1)
