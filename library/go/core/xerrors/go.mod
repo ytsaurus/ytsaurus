@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/pkg/errors v0.9.1
-	github.com/stretchr/testify v1.8.1
+	github.com/stretchr/testify v1.8.2
 	go.ytsaurus.tech/library/go/test/testhelpers v0.0.1
 	go.ytsaurus.tech/library/go/x/xreflect v0.0.1
 	go.ytsaurus.tech/library/go/x/xruntime v0.0.3
