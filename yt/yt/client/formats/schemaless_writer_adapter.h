@@ -34,7 +34,7 @@ public:
 
     i64 GetWrittenSize() const override;
 
-    void Flush() override;
+    TFuture<void> Flush() override;
 
 protected:
     const NTableClient::TNameTablePtr NameTable_;

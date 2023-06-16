@@ -67,7 +67,8 @@ public:
 
         Data_.clear();
         Writer_->Write(rows);
-        Writer_->Flush();
+        WaitFor(Writer_->Flush())
+            .ThrowOnError();
 
         auto rowRefs = TSharedRef::FromString(Data_);
 

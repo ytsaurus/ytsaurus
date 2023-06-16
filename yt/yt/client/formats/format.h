@@ -49,7 +49,7 @@ struct ISchemalessFormatWriter
 
     virtual i64 GetWrittenSize() const = 0;
 
-    virtual void Flush() = 0;
+    [[nodiscard]] virtual TFuture<void> Flush() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchemalessFormatWriter)

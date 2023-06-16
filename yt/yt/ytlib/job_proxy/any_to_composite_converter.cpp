@@ -111,9 +111,9 @@ TRange<TUnversionedRow> TAnyToCompositeConverter::ConvertAnyToComposite(TRange<T
     return ConvertedRows_;
 }
 
-void TAnyToCompositeConverter::Flush()
+TFuture<void> TAnyToCompositeConverter::Flush()
 {
-    UnderlyingWriter_->Flush();
+    return UnderlyingWriter_->Flush();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

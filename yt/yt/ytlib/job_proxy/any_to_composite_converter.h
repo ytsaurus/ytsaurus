@@ -24,7 +24,7 @@ public:
     TBlob GetContext() const override;
     i64 GetWrittenSize() const override;
     TFuture<void> Close() override;
-    void Flush() override;
+    TFuture<void> Flush() override;
 
 private:
     NFormats::ISchemalessFormatWriterPtr UnderlyingWriter_;

@@ -31,8 +31,6 @@ namespace NYT::NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using NYTree::ConvertTo;
-
 using namespace NSkiff;
 using namespace NSkiffExt;
 using namespace NTableClient;
@@ -1013,10 +1011,10 @@ private:
         Flush();
     }
 
-    void Flush() override
+    TFuture<void> Flush() override
     {
         SkiffWriter_->Flush();
-        TSchemalessFormatWriterBase::Flush();
+        return TSchemalessFormatWriterBase::Flush();
     }
 
     TFuture<void> Close() override

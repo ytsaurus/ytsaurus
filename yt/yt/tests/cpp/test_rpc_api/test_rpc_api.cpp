@@ -816,6 +816,69 @@ TEST_F(TClearTmpTestBase, TestEmptyTableSkiffReading_YT18817)
     }
 }
 
+TEST_F(TClearTmpTestBase, TestErrorneousSkiffReading_YTADMINREQ_32428)
+{
+    TRichYPath tablePath{"//tmp/test_errorneous_skiff_reading"};
+    TCreateNodeOptions options;
+    options.Attributes = NYTree::CreateEphemeralAttributes();
+    // options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{{"a", EValueType::Int64}}));
+    options.Force = true;
+
+    WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
+        .ThrowOnError();
+
+    {
+        auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
+            .ValueOrThrow();
+        auto aColumnId = writer->GetNameTable()->GetIdOrRegisterName("a");
+
+        auto value = MakeUnversionedInt64Value(1, aColumnId);
+        TUnversionedOwningRow owningRow(MakeRange(&value, 1));
+
+        std::vector<TUnversionedRow> rows;
+        rows.push_back(owningRow);
+        YT_VERIFY(writer->Write(rows));
+        WaitFor(writer->Close())
+            .ThrowOnError();
+    }
+
+
+    auto apiServiceProxy = VerifyDynamicCast<NYT::NApi::NRpcProxy::TClientBase*>(Client_.Get())->CreateApiServiceProxy();
+    auto req = apiServiceProxy.ReadTable();
+
+    req->set_desired_rowset_format(NRpcProxy::NProto::ERowsetFormat::RF_FORMAT);
+    auto format = BuildYsonStringFluently()
+        .BeginAttributes()
+            .Item("table_skiff_schemas")
+            .BeginList()
+                .Item()
+                .BeginMap()
+                    .Item("wire_type")
+                    .Value("tuple")
+                    .Item("children")
+                    .BeginList()
+                        .Item()
+                        .BeginMap()
+                            .Item("wire_type")
+                            .Value("string32")
+                            .Item("name")
+                            .Value("a")
+                        .EndMap()
+                    .EndList()
+                .EndMap()
+            .EndList()
+        .EndAttributes()
+        .Value("skiff");
+
+    req->set_format(format.ToString());
+
+    ToProto(req->mutable_path(), tablePath);
+    auto stream = WaitFor(NRpc::CreateRpcClientInputStream(req))
+        .ValueOrThrow();
+
+    EXPECT_THROW_WITH_SUBSTRING(stream->ReadAll(), "Unexpected type of");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

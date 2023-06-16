@@ -306,9 +306,10 @@ void TSchemalessFormatWriterBase::RegisterError(const TError& error)
     Error_ = error;
 }
 
-void TSchemalessFormatWriterBase::Flush()
+TFuture<void> TSchemalessFormatWriterBase::Flush()
 {
     TryFlushBuffer(/*force*/ true);
+    return MakeFuture(Error_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

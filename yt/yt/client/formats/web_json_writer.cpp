@@ -485,7 +485,7 @@ public:
     TBlob GetContext() const override;
     i64 GetWrittenSize() const override;
     TFuture<void> Close() override;
-    void Flush() override;
+    TFuture<void> Flush() override;
 
 private:
     const TWebJsonFormatConfigPtr Config_;
@@ -592,9 +592,11 @@ TFuture<void> TWriterForWebJson<TValueWriter>::Close()
 }
 
 template <typename TValueWriter>
-void TWriterForWebJson<TValueWriter>::Flush()
+TFuture<void> TWriterForWebJson<TValueWriter>::Flush()
 {
     DoFlush(/*force*/ true);
+
+    return GetReadyEvent();
 }
 
 template <typename TValueWriter>
