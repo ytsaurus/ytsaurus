@@ -649,14 +649,14 @@ public:
             } else {
                 for (const auto& [offloadingPoolTreeName, offloadingPoolSettings] : offloadingSettings) {
                     if (runtimeParameters->SchedulingOptionsPerPoolTree.contains(offloadingPoolTreeName)) {
-                        YT_LOG_DEBUG("Ignoring offloading pool since offloading pool tree is already used (OffloadingPoolTree: %v, OffloadingPool: %v, OperationId: %v)",
+                        YT_LOG_DEBUG("Ignoring offloading pool since offloading pool tree is already used (OffloadingTreeId: %v, OffloadingPool: %v, OperationId: %v)",
                             offloadingPoolTreeName,
                             offloadingPoolSettings->Pool,
                             operationId);
                     } else {
                         auto tree = FindTree(offloadingPoolTreeName);
                         if (!tree) {
-                            YT_LOG_DEBUG("Ignoring offloading pool since offloading pool tree does not exist (OffloadingPoolTree: %v, OffloadingPool: %v, OperationId: %v)",
+                            YT_LOG_DEBUG("Ignoring offloading pool since offloading pool tree does not exist (OffloadingTreeId: %v, OffloadingPool: %v, OperationId: %v)",
                                 offloadingPoolTreeName,
                                 offloadingPoolSettings->Pool,
                                 operationId);

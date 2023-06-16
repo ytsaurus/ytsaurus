@@ -1192,7 +1192,7 @@ TSchedulerPoolElement::TSchedulerPoolElement(
         treeId,
         id,
         EResourceTreeElementKind::Pool,
-        logger.WithTag("PoolId: %v, SchedulingMode: %v",
+        logger.WithTag("Pool: %v, SchedulingMode: %v",
             id,
             config->Mode))
     , TSchedulerPoolElementFixedState(id, objectId)
@@ -1490,7 +1490,7 @@ void TSchedulerPoolElement::AttachParent(TSchedulerCompositeElement* parent)
     Parent_ = parent;
     TreeElementHost_->GetResourceTree()->AttachParent(ResourceTreeElement_, parent->ResourceTreeElement_);
 
-    YT_LOG_DEBUG("Pool is attached (PoolId: %v, ParentId: %v)",
+    YT_LOG_DEBUG("Pool is attached (Pool: %v, ParentPool: %v)",
         Id_,
         parent->GetId());
 }
@@ -2221,7 +2221,7 @@ TSchedulerRootElement::TSchedulerRootElement(
         treeId,
         RootPoolName,
         EResourceTreeElementKind::Root,
-        logger.WithTag("PoolId: %v, SchedulingMode: %v",
+        logger.WithTag("Pool: %v, SchedulingMode: %v",
             RootPoolName,
             ESchedulingMode::FairShare))
 {
