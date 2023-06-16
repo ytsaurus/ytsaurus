@@ -16,6 +16,11 @@ repositories {
     mavenCentral()
 }
 
+java {
+    withSourcesJar()
+    withJavadocJar()
+}
+
 dependencies {
     api("com.google.protobuf:protobuf-java:3.21.12")
 
