@@ -442,9 +442,13 @@ TGrpcPemKeyCertPair LoadPemKeyCertPair(const TSslPemKeyCertPairConfigPtr& config
 
 TGrpcChannelCredentialsPtr LoadChannelCredentials(const TChannelCredentialsConfigPtr& config)
 {
-    auto rootCerts = config->PemRootCerts ? config->PemRootCerts->LoadBlob() : TString{};
-    auto identityCerts = config->PemKeyCertPair->CertChain ? config->PemKeyCertPair->CertChain->LoadBlob() : TString{};
-    auto identityPrivateKey = config->PemKeyCertPair->PrivateKey ? config->PemKeyCertPair->PrivateKey->LoadBlob() : TString{};
+    TString rootCerts = config->PemRootCerts ? config->PemRootCerts->LoadBlob() : TString{};
+    TString identityCerts;
+    TString identityPrivateKey;
+    if (config->PemKeyCertPair) {
+        identityCerts = config->PemKeyCertPair->CertChain ? config->PemKeyCertPair->CertChain->LoadBlob() : TString{};
+        identityPrivateKey = config->PemKeyCertPair->PrivateKey ? config->PemKeyCertPair->PrivateKey->LoadBlob() : TString{};
+    }
 
     grpc_tls_identity_pairs* tlsPairs = nullptr;
     if (identityCerts && identityPrivateKey) {
