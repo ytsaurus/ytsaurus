@@ -44,19 +44,24 @@ public:
     explicit TYqlPlugin(TYqlPluginOptions& options)
         : TDynamicYqlPlugin(options.YqlPluginSharedLibrary)
     {
-        std::vector<TBridgeYqlPluginOptions::TBridgeAdditionalCluster> bridgeAdditionalClusters;
-        for (const auto& [cluster, proxy]: options.AdditionalClusters) {
-            bridgeAdditionalClusters.push_back({
+        std::vector<TBridgeYqlPluginOptions::TBridgeCluster> bridgeClusters;
+        for (const auto& [cluster, proxy]: options.Clusters) {
+            bridgeClusters.push_back({
                .Cluster = cluster.data(),
                .Proxy = proxy.data(),
            });
         }
 
+        const char* defaultCluster = options.DefaultCluster
+            ? options.DefaultCluster->data()
+            : nullptr;
+
         TBridgeYqlPluginOptions bridgeOptions {
             .MRJobBinary = options.MRJobBinary.data(),
             .UdfDirectory = options.UdfDirectory.data(),
-            .AdditionalClusterCount = static_cast<int>(bridgeAdditionalClusters.size()),
-            .AdditionalClusters = bridgeAdditionalClusters.data(),
+            .ClusterCount = static_cast<int>(bridgeClusters.size()),
+            .Clusters = bridgeClusters.data(),
+            .DefaultCluster = defaultCluster,
             .YTToken = options.YTToken.data(),
             .LogBackend = &options.LogBackend,
         };

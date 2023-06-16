@@ -19,7 +19,10 @@ void TYqlPluginConfig::Register(TRegistrar registrar)
         .Default("./mrjob");
     registrar.Parameter("udf_directory", &TThis::UdfDirectory)
         .Default();
-    registrar.Parameter("additional_clusters", &TThis::AdditionalClusters)
+    registrar.Parameter("clusters", &TThis::Clusters)
+        .Alias("additional_clusters")
+        .Default();
+    registrar.Parameter("default_cluster", &TThis::DefaultCluster)
         .Default();
     registrar.Parameter("yt_token", &TThis::YTToken)
         .Default();

@@ -14,13 +14,14 @@ struct TBridgeYqlPluginOptions
     const char* MRJobBinary;
     const char* UdfDirectory;
 
-    struct TBridgeAdditionalCluster
+    struct TBridgeCluster
     {
         const char* Cluster;
         const char* Proxy;
     };
-    ssize_t AdditionalClusterCount;
-    TBridgeAdditionalCluster* AdditionalClusters;
+    ssize_t ClusterCount;
+    TBridgeCluster* Clusters;
+    const char* DefaultCluster;
 
     const char* YTToken;
 

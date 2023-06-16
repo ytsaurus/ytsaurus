@@ -53,7 +53,8 @@ public:
         NYqlPlugin::TYqlPluginOptions options{
             .MRJobBinary = Config_->MRJobBinary,
             .UdfDirectory = Config_->UdfDirectory,
-            .AdditionalClusters = Config_->AdditionalClusters,
+            .Clusters = Config_->Clusters,
+            .DefaultCluster = Config_->DefaultCluster,
             .YTToken = Config_->YTToken,
             .LogBackend = NYT::NLogging::NBridge::CreateLogBackend(TLogger("YqlPlugin")),
             .YqlPluginSharedLibrary = Config_->YqlPluginSharedLibrary,

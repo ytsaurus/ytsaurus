@@ -24,7 +24,8 @@ public:
     TString UdfDirectory;
 
     //! Mapping cluster name -> proxy address.
-    THashMap<TString, TString> AdditionalClusters;
+    THashMap<TString, TString> Clusters;
+    std::optional<TString> DefaultCluster;
 
     TString YTToken;
 
