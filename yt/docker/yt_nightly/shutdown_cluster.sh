@@ -1,10 +1,15 @@
 #!/bin/bash
 
+ytsaurus_source_path="."
 namespace=""
 
 while [[ $# -gt 0 ]]; do
     key="$1"
     case $key in
+        --ytsaurus-source-path)
+        ytsaurus_source_path=$(realpath "$2")
+        shift 2
+        ;;
         --namespace)
         namespace="$2"
         shift 2

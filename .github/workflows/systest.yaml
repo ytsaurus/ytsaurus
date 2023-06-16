@@ -71,7 +71,7 @@ jobs:
         shell: bash
         run: |
           export HOME=/root
-          bash yt/docker/yt_nightly/shutdown_cluster.sh --namespace $(cat /root/ns)
+          bash yt/docker/yt_nightly/shutdown_cluster.sh --ytsaurus-source-path $(pwd) --namespace $(cat /root/ns)
 
   stop-vm:
     name: Stop VM
