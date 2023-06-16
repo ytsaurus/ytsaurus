@@ -36,6 +36,7 @@ public class YTsaurusClientConfig {
     private final JavaOptions javaOptions;
     private final String version;
     private final Duration operationPingPeriod;
+    private final boolean tvmOnly;
 
     YTsaurusClientConfig(Builder builder) {
         if (builder.rpcOptions == null) {
@@ -56,6 +57,7 @@ public class YTsaurusClientConfig {
         this.specPatch = builder.specPatch;
         this.jobSpecPatch = builder.jobSpecPatch;
         this.operationPingPeriod = builder.operationPingPeriod;
+        this.tvmOnly = builder.tvmOnly;
     }
 
     public static Builder builder() {
@@ -73,7 +75,8 @@ public class YTsaurusClientConfig {
                 .setJavaBinary(javaBinary)
                 .setJavaOptions(javaOptions)
                 .setVersion(version)
-                .setOperationPingPeriod(operationPingPeriod);
+                .setOperationPingPeriod(operationPingPeriod)
+                .setTvmOnly(tvmOnly);
     }
 
     public RpcOptions getRpcOptions() {
@@ -114,6 +117,10 @@ public class YTsaurusClientConfig {
 
     public Duration getOperationPingPeriod() {
         return operationPingPeriod;
+    }
+
+    public boolean getTvmOnly() {
+        return tvmOnly;
     }
 
     private static int getJavaMajorVersion() {
@@ -166,6 +173,8 @@ public class YTsaurusClientConfig {
         private YTreeNode jobSpecPatch;
         @Nullable
         private YTreeNode specPatch;
+
+        private boolean tvmOnly = false;
 
         public Builder setRpcOptions(RpcOptions rpcOptions) {
             this.rpcOptions = rpcOptions;
@@ -234,6 +243,11 @@ public class YTsaurusClientConfig {
 
         public Builder setSpecPatch(@Nullable YTreeNode specPatch) {
             this.specPatch = specPatch;
+            return this;
+        }
+
+        public Builder setTvmOnly(boolean tvmOnly) {
+            this.tvmOnly = tvmOnly;
             return this;
         }
 

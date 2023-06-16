@@ -83,9 +83,9 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
             BusConnector connector,
             String clusterName,
             YTsaurusClientAuth auth,
-            YTsaurusClientConfig configuration
+            YTsaurusClientConfig config
     ) {
-        this(connector, new YTsaurusCluster(clusterName), auth, configuration);
+        this(connector, new YTsaurusCluster(clusterName), auth, config);
     }
 
     public YTsaurusClient(BusConnector connector, String clusterName, YTsaurusClientAuth auth) {
@@ -130,6 +130,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
                 builder.builder.clusters,
                 builder.builder.preferredClusterName,
                 builder.builder.proxyRole,
+                builder.builder.config.getTvmOnly(),
                 builder.auth,
                 rpcClientFactory,
                 builder.builder.config.getRpcOptions(),
@@ -266,6 +267,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
                 List<YTsaurusCluster> clusters,
                 @Nullable String localDataCenterName,
                 @Nullable String proxyRole,
+                boolean tvmOnly,
                 YTsaurusClientAuth auth,
                 RpcClientFactory rpcClientFactory,
                 RpcOptions options,
@@ -292,6 +294,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
                                     .setDataCenterName(curCluster.getName())
                                     .setBalancerAddress(curCluster.balancerFqdn, curCluster.httpPort)
                                     .setRole(proxyRole)
+                                    .setTvmOnly(tvmOnly)
                                     .setToken(auth.getToken().orElse(null))
                                     .setOptions(options)
                                     .setClientFactory(rpcClientFactory)

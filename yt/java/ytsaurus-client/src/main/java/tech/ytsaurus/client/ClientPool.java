@@ -285,6 +285,7 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
                 httpClient,
                 Objects.requireNonNull(httpBuilder.balancerAddress),
                 httpBuilder.role,
+                httpBuilder.tvmOnly,
                 httpBuilder.token
         );
 
@@ -398,6 +399,7 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
     abstract static class BaseBuilder<T extends BaseBuilder<T>> {
         @Nullable
         String role;
+        boolean tvmOnly = false;
         @Nullable
         String token;
         @Nullable
@@ -443,6 +445,12 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
 
         T setRole(@Nullable String role) {
             this.role = role;
+            //noinspection unchecked
+            return (T) this;
+        }
+
+        T setTvmOnly(boolean tvmOnly) {
+            this.tvmOnly = tvmOnly;
             //noinspection unchecked
             return (T) this;
         }
@@ -809,13 +817,16 @@ class HttpProxyGetter implements ProxyGetter {
     String balancerHost;
     @Nullable
     String role;
+    boolean tvmOnly;
     @Nullable
     String token;
 
-    HttpProxyGetter(HttpClient httpClient, String balancerHost, @Nullable String role, @Nullable String token) {
+    HttpProxyGetter(HttpClient httpClient, String balancerHost, @Nullable String role,
+                    boolean tvmOnly, @Nullable String token) {
         this.httpClient = httpClient;
         this.balancerHost = balancerHost;
         this.role = role;
+        this.tvmOnly = tvmOnly;
         this.token = token;
     }
 
@@ -824,6 +835,9 @@ class HttpProxyGetter implements ProxyGetter {
         String discoverProxiesUrl = String.format("http://%s/api/v4/discover_proxies?type=rpc", balancerHost);
         if (role != null) {
             discoverProxiesUrl += "&role=" + role;
+        }
+        if (tvmOnly) {
+            discoverProxiesUrl += "&address_type=tvm_only_internal_rpc";
         }
         HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(URI.create(discoverProxiesUrl))
                 .setHeader("X-YT-Header-Format", YTreeTextSerializer.serialize(YtFormat.YSON_TEXT))
@@ -868,8 +882,16 @@ class HttpProxyGetter implements ProxyGetter {
                     .map(HostPort::parse)
                     .collect(Collectors.toList());
         });
+
         resultFuture.whenComplete((result, error) -> responseFuture.cancel(true));
-        return resultFuture;
+
+        String finalDiscoverProxiesUrl = discoverProxiesUrl;
+        return resultFuture.handle((result, error) -> {
+            if (error != null) {
+                throw new RuntimeException("Failed to get proxies from " + finalDiscoverProxiesUrl, error);
+            }
+            return result;
+        });
     }
 }
 
