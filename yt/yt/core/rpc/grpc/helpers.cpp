@@ -442,35 +442,16 @@ TGrpcPemKeyCertPair LoadPemKeyCertPair(const TSslPemKeyCertPairConfigPtr& config
 
 TGrpcChannelCredentialsPtr LoadChannelCredentials(const TChannelCredentialsConfigPtr& config)
 {
-    TString rootCerts = config->PemRootCerts ? config->PemRootCerts->LoadBlob() : TString{};
-    TString identityCerts;
-    TString identityPrivateKey;
+    auto rootCerts = config->PemRootCerts ? config->PemRootCerts->LoadBlob() : TString();
+    std::optional<TGrpcPemKeyCertPair> keyCertPair;
     if (config->PemKeyCertPair) {
-        identityCerts = config->PemKeyCertPair->CertChain ? config->PemKeyCertPair->CertChain->LoadBlob() : TString{};
-        identityPrivateKey = config->PemKeyCertPair->PrivateKey ? config->PemKeyCertPair->PrivateKey->LoadBlob() : TString{};
+        keyCertPair.emplace(LoadPemKeyCertPair(config->PemKeyCertPair));
     }
-
-    grpc_tls_identity_pairs* tlsPairs = nullptr;
-    if (identityCerts && identityPrivateKey) {
-        tlsPairs = grpc_tls_identity_pairs_create();
-        grpc_tls_identity_pairs_add_pair(
-            tlsPairs,
-            identityPrivateKey.c_str(),
-            identityCerts.c_str());
-    }
-
-    TGrpcTlsCertificateProviderPtr certProvider(grpc_tls_certificate_provider_static_data_create(
+    return TGrpcChannelCredentialsPtr(grpc_ssl_credentials_create(
         rootCerts ? rootCerts.c_str() : nullptr,
-        tlsPairs));
-
-    grpc_tls_credentials_options* tlsOptions = grpc_tls_credentials_options_create();
-    grpc_tls_credentials_options_set_verify_server_cert(tlsOptions, config->VerifyServerCert);
-    grpc_tls_credentials_options_set_certificate_provider(tlsOptions, certProvider.Unwrap());
-    // Provider won't provide certs if not explicitly asked to watch them
-    grpc_tls_credentials_options_watch_root_certs(tlsOptions);
-    grpc_tls_credentials_options_watch_identity_key_cert_pairs(tlsOptions);
-
-    return TGrpcChannelCredentialsPtr(grpc_tls_credentials_create(tlsOptions));
+        keyCertPair ? keyCertPair->Unwrap() : nullptr,
+        nullptr,
+        nullptr));
 }
 
 TGrpcServerCredentialsPtr LoadServerCredentials(const TServerCredentialsConfigPtr& config)

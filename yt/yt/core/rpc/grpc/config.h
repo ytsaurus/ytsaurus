@@ -111,7 +111,6 @@ class TChannelCredentialsConfig
 public:
     NCrypto::TPemBlobConfigPtr PemRootCerts;
     TSslPemKeyCertPairConfigPtr PemKeyCertPair;
-    bool VerifyServerCert;
 
     REGISTER_YSON_STRUCT(TChannelCredentialsConfig);
 
