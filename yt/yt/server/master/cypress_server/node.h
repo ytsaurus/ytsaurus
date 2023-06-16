@@ -286,6 +286,9 @@ public:
     //! Returns tablet resources of the node. Makes sense only for trunk nodes.
     virtual NTabletServer::TTabletResources GetTabletResourceUsage() const;
 
+    std::optional<TInstant> TryGetEffectiveExpirationTime() const;
+    std::optional<TDuration> TryGetEffectiveExpirationTimeout() const;
+
     //! Returns |true| if object is being created.
     bool IsBeingCreated() const;
 

@@ -184,6 +184,32 @@ NHydra::TRevision TCypressNode::GetNativeContentRevision() const
     return NativeContentRevision_;
 }
 
+std::optional<TInstant> TCypressNode::TryGetEffectiveExpirationTime() const
+{
+    std::optional<TInstant> effectiveExpirationTime;
+    for (auto* node = this; node; node = node->GetParent()) {
+        if (auto optionalExpirationTime = node->TryGetExpirationTime()) {
+            if (!effectiveExpirationTime || optionalExpirationTime < effectiveExpirationTime) {
+                effectiveExpirationTime = optionalExpirationTime;
+            }
+        }
+    }
+    return effectiveExpirationTime;
+}
+
+std::optional<TDuration> TCypressNode::TryGetEffectiveExpirationTimeout() const
+{
+    std::optional<TDuration> effectiveExpirationTimeout;
+    for (auto* node = this; node; node = node->GetParent()) {
+        if (auto optionalExpirationTimeout = node->TryGetExpirationTimeout()) {
+            if (!effectiveExpirationTimeout || optionalExpirationTimeout < effectiveExpirationTimeout) {
+                effectiveExpirationTimeout = optionalExpirationTimeout;
+            }
+        }
+    }
+    return effectiveExpirationTimeout;
+}
+
 void TCypressNode::SetNativeContentRevision(NHydra::TRevision revision)
 {
     YT_VERIFY(IsForeign());

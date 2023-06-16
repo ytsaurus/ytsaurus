@@ -565,13 +565,17 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Key)
         .SetPresent(hasKey));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExpirationTime)
-        .SetPresent(node->TryGetExpirationTime().operator bool())
+        .SetPresent(node->TryGetExpirationTime().has_value())
         .SetWritable(true)
         .SetRemovable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExpirationTimeout)
-        .SetPresent(node->TryGetExpirationTimeout().operator bool())
+        .SetPresent(node->TryGetExpirationTimeout().has_value())
         .SetWritable(true)
         .SetRemovable(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EffectiveExpirationTime)
+        .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EffectiveExpirationTimeout)
+        .SetOpaque(true));
     descriptors->push_back(EInternedAttributeKey::CreationTime);
     descriptors->push_back(EInternedAttributeKey::ModificationTime);
     descriptors->push_back(EInternedAttributeKey::AccessTime);
@@ -700,6 +704,26 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
             }
             BuildYsonFluently(consumer)
                 .Value(*optionalExpirationTimeout);
+            return true;
+        }
+
+        case EInternedAttributeKey::EffectiveExpirationTime: {
+            auto effectiveExpirationTime = node->TryGetEffectiveExpirationTime();
+            if (!effectiveExpirationTime) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(*effectiveExpirationTime);
+            return true;
+        }
+
+        case EInternedAttributeKey::EffectiveExpirationTimeout: {
+            auto effectiveExpirationTimeout = node->TryGetEffectiveExpirationTimeout();
+            if (!effectiveExpirationTimeout) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(*effectiveExpirationTimeout);
             return true;
         }
 
