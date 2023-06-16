@@ -1,0 +1,20 @@
+package NYT.NTest.NProto;
+
+import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
+
+enum EColumnType {
+    ENone = 0;
+    EInt8 = 1;
+    EInt16 = 2;
+    EInt64 = 3;
+    ELatinString100 = 4;
+    EBytes64K = 6;
+}
+
+message TDataColumn {
+    optional string name = 1;
+}
+
+message TTable {
+    repeated TDataColumn columns = 1;
+}

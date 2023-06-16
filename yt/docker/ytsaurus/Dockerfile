@@ -31,6 +31,7 @@ COPY ./chyt-controller /usr/bin/chyt-controller
 COPY ./clickhouse-trampoline.py /usr/bin/clickhouse-trampoline
 COPY ./ytserver-clickhouse /usr/bin/ytserver-clickhouse
 COPY ./ytserver-log-tailer /usr/bin/ytserver-log-tailer
+COPY ./systest /usr/bin/systest
 
 # SPYT pieces.
 COPY ./spyt_release/home/spark/conf/releases/${SPARK_VERSION}/metrics.properties /usr/bin/metrics.properties

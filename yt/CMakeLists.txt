@@ -9,6 +9,7 @@
 add_subdirectory(chyt)
 add_subdirectory(cpp)
 add_subdirectory(examples)
+add_subdirectory(systest)
 add_subdirectory(yql)
 add_subdirectory(yt)
 add_subdirectory(yt_proto)

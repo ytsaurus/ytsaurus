@@ -1,0 +1,9 @@
+package NYT.NTest.NProto;
+
+import "yt/systest/proto/table.proto";
+import "yt/systest/proto/operation.proto";
+
+message TMapper {
+    required TTable table = 1;
+    required TMultiMapper operation = 2;
+}

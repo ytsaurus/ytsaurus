@@ -1,0 +1,93 @@
+package NYT.NTest.NProto;
+
+import "yt/systest/proto/table.proto";
+
+message TOperationInputColumns {
+    repeated int32 index = 1;
+}
+
+message TOperationOutputColumns {
+    repeated TDataColumn columns = 2;
+}
+
+message TRowMapper {
+    oneof operation {
+        TSetSeedRowMapper set_seed = 1;
+        TGenerateRandomRowMapper generate_random = 2;
+        TConcatenateColumnsRowMapper concatenate_columns = 3;
+    }
+};
+
+message TMultiMapper {
+    oneof operation {
+        TFilterMultiMapper filter = 1;
+        TSingleMultiMapper single = 2;
+        TRepeatMultiMapper repeat = 3;
+        TCombineMultiMapper combine = 4;
+    }
+}
+
+message TReducer {
+    oneof operation {
+        TMapperReducer mapper = 1;
+        TSequenceReducer sequence = 2;
+        TSumReducer sum = 3;
+        TConcatenateColumnsReducer concatenate_columns = 4;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TSetSeedRowMapper {
+    required int32 input_column_index = 1;
+}
+
+message TGenerateRandomRowMapper {
+    required EColumnType column_type = 1;
+    required TOperationOutputColumns columns = 2;
+}
+
+
+message TConcatenateColumnsRowMapper {
+    repeated TRowMapper inner_operations = 1;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TFilterMultiMapper {
+    required int32 input_column_index = 1;
+    required bytes value = 2;
+}
+
+message TSingleMultiMapper {
+    required TRowMapper inner = 1;
+}
+
+message TRepeatMultiMapper {
+    required int32 count = 1;
+    required TRowMapper inner = 2;
+}
+
+message TCombineMultiMapper {
+    repeated TRowMapper single_operations = 1;
+    required TMultiMapper multi_operation = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TMapperReducer {
+    required TMultiMapper inner = 1;
+}
+
+message TSequenceReducer {
+    repeated TReducer operations = 1;
+};
+
+message TSumReducer {
+    required int32 input_column_index = 1;
+    required TDataColumn output_column = 2;
+};
+
+message TConcatenateColumnsReducer {
+    repeated TReducer operations = 1;
+};
