@@ -49,4 +49,4 @@ docker pull ytsaurus/ytsaurus:${image_tag}
 kubectl apply -f ${ytsaurus_source_path}/yt/docker/yt_nightly/cluster_v1_minikube_without_yql.yaml
 kubectl apply -f ${ytsaurus_source_path}/yt/docker/yt_nightly/tester.yaml
 
-bash ${ytsaurus_source_path}/yt/docker/yt_nightly/wait_tester.sh
+bash ${ytsaurus_source_path}/yt/docker/yt_nightly/wait.sh --name tester

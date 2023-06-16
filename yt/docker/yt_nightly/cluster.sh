@@ -46,6 +46,11 @@ if [[ ${namespace} != "" ]]; then
 fi
 
 kubectl apply $nsflags -f ${ytsaurus_source_path}/yt/docker/yt_nightly/cluster.yaml
-kubectl apply $nsflags -f ${ytsaurus_source_path}/yt/docker/yt_nightly/tester.yaml
 
-bash ${ytsaurus_source_path}/yt/docker/yt_nightly/wait_tester.sh ${tester_flags}
+# Wait for Cypress
+kubectl apply $nsflags -f ${ytsaurus_source_path}/yt/docker/yt_nightly/tester.yaml
+bash ${ytsaurus_source_path}/yt/docker/yt_nightly/wait.sh --name tester ${tester_flags}
+
+kubectl apply $nsflags -f ${ytsaurus_source_path}/yt/docker/yt_nightly/systest.yaml
+
+bash ${ytsaurus_source_path}/yt/docker/yt_nightly/wait.sh --name systest ${tester_flags}
