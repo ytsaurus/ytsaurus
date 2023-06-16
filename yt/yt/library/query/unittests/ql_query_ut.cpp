@@ -67,6 +67,38 @@ void SetObjectId(TDataSplit* /*dataSplit*/, NObjectClient::TObjectId /*objectId*
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static bool IsTimeDumpEnabled()
+{
+    static bool result = (getenv("DUMP_TIME") != nullptr);
+    return result;
+}
+
+static void SumCodegenExecute(
+    const TQueryStatistics& statistics,
+    TDuration* codegen,
+    TDuration* execute)
+{
+    *codegen += statistics.CodegenTime;
+    *execute += statistics.ExecuteTime;
+
+    for (auto& inner : statistics.InnerStatistics) {
+        SumCodegenExecute(inner, codegen, execute);
+    }
+}
+
+static void DumpTime(const TQueryStatistics& statistics)
+{
+    auto codegen = TDuration();
+    auto execute = TDuration();
+
+    SumCodegenExecute(statistics, &codegen, &execute);
+
+    Cerr << "Codegen: " << codegen << Endl;
+    Cerr << "Execute: " << execute << Endl;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TQueryPrepareTest
     : public ::testing::Test
 {
@@ -1566,6 +1598,8 @@ protected:
 
         size_t sourceIndex = 1;
 
+        auto aggregatedStatistics = TQueryStatistics();
+
         auto profileCallback = [&] (TQueryPtr subquery, TConstJoinClausePtr joinClause) mutable {
             auto rows = owningSources[sourceIndex++];
 
@@ -1583,14 +1617,20 @@ protected:
 
                 auto pipe = New<NTableClient::TSchemafulPipe>(GetDefaultMemoryChunkProvider());
 
-                DoExecuteQuery(
-                    Evaluator_,
-                    rows,
-                    FunctionProfilers_,
-                    AggregateProfilers_,
-                    preparedSubquery,
-                    pipe->GetWriter(),
-                    options);
+                auto statistics = WaitFor(BIND(&DoExecuteQuery)
+                    .AsyncVia(ActionQueue_->GetInvoker())
+                    .Run(
+                        Evaluator_,
+                        rows,
+                        FunctionProfilers_,
+                        AggregateProfilers_,
+                        preparedSubquery,
+                        pipe->GetWriter(),
+                        options,
+                        nullptr))
+                    .ValueOrThrow();
+
+                aggregatedStatistics.AddInnerStatistics(statistics);
 
                 return pipe->GetReader();
             };
@@ -1602,7 +1642,7 @@ protected:
 
             std::tie(writer, asyncResultRowset) = CreateSchemafulRowsetWriter(primaryQuery->GetTableSchema());
 
-            auto queryStatistics = DoExecuteQuery(
+            auto resultStatistics = DoExecuteQuery(
                 Evaluator_,
                 owningSources.front(),
                 FunctionProfilers_,
@@ -1612,12 +1652,18 @@ protected:
                 options,
                 profileCallback);
 
+            resultStatistics.AddInnerStatistics(aggregatedStatistics);
+
+            if (IsTimeDumpEnabled()) {
+                DumpTime(resultStatistics);
+            }
+
             auto resultRowset = WaitFor(asyncResultRowset)
                 .ValueOrThrow();
 
             resultMatcher(resultRowset->GetRows(), *primaryQuery->GetTableSchema());
 
-            return std::make_pair(primaryQuery, queryStatistics);
+            return std::make_pair(primaryQuery, resultStatistics);
         };
 
         if (failure) {
