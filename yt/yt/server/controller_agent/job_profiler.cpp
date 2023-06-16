@@ -14,6 +14,8 @@ namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using namespace NProfiling;
+
 using NControllers::TJoblet;
 using NScheduler::ProfilingPoolTreeKey;
 
@@ -42,136 +44,240 @@ TJobProfiler::TJobProfiler()
 void TJobProfiler::ProfileStartedJob(const TJoblet& joblet)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    const auto jobType = joblet.JobType;
-    const auto& treeId = joblet.TreeId;
-
-    auto key = std::make_tuple(jobType, treeId);
+    auto jobType = joblet.JobType;
+    auto treeId = joblet.TreeId;
 
     GetProfilerInvoker()->Invoke(
-        BIND(&TJobProfiler::DoProfileStartedJob, MakeStrong(this), Passed(std::move(key))));
+        BIND(&TJobProfiler::DoProfileStartedJob, MakeStrong(this), jobType, Passed(std::move(treeId))));
 }
 
-void TJobProfiler::DoProfileStartedJob(TStartedJobCounterKey key)
+void TJobProfiler::DoProfileStartedJob(EJobType jobType, TString treeId)
 {
-    auto it = StartedJobCounter_.find(key);
-    if (it == StartedJobCounter_.end()) {
-        const auto& [jobType, treeId] = key;
+    auto key = std::make_tuple(jobType, treeId);
+
+    auto it = StartedJobCounters_.find(key);
+    if (it == StartedJobCounters_.end()) {
         auto counter = ControllerAgentProfiler
             .WithTag("job_type", FormatEnum(jobType))
             .WithTag(NScheduler::ProfilingPoolTreeKey, treeId)
             .Counter("/jobs/started_job_count");
 
-        it = StartedJobCounter_.emplace(
+        it = StartedJobCounters_.emplace(
             std::move(key),
             std::move(counter)).first;
     }
 
     it->second.Increment();
+
+    DoUpdateInProgressJobCount(
+        EJobState::Waiting,
+        jobType,
+        std::move(treeId),
+        /*increment*/ true);
+}
+
+void TJobProfiler::ProfileRunningJob(const NControllers::TJoblet& joblet)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    YT_VERIFY(joblet.IsStarted());
+
+    if (*joblet.JobState == EJobState::Running) {
+        return;
+    }
+
+    auto jobType = joblet.JobType;
+    auto treeId = joblet.TreeId;
+
+    GetProfilerInvoker()->Invoke(
+        BIND(
+            &TJobProfiler::DoProfileRunningJob,
+            MakeStrong(this),
+            jobType,
+            Passed(std::move(treeId))));
+}
+
+void TJobProfiler::DoProfileRunningJob(EJobType jobType, TString treeId)
+{
+    DoUpdateInProgressJobCount(
+        EJobState::Waiting,
+        jobType,
+        treeId,
+        /*increment*/ false);
+    DoUpdateInProgressJobCount(
+        EJobState::Running,
+        jobType,
+        std::move(treeId),
+        /*increment*/ true);
+}
+
+void TJobProfiler::ProfileRevivedJob(const NControllers::TJoblet& joblet)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    if (!joblet.JobState) {
+        return;
+    }
+
+    YT_VERIFY(*joblet.JobState <= EJobState::Running);
+
+    auto jobType = joblet.JobType;
+    auto treeId = joblet.TreeId;
+
+    GetProfilerInvoker()->Invoke(
+        BIND(
+            &TJobProfiler::DoProfileRevivedJob,
+            MakeStrong(this),
+            jobType,
+            Passed(std::move(treeId)),
+            *joblet.JobState));
+}
+
+void TJobProfiler::DoProfileRevivedJob(EJobType jobType, TString treeId, EJobState jobState)
+{
+    DoUpdateInProgressJobCount(
+        jobState,
+        jobType,
+        std::move(treeId),
+        /*increment*/ true);
 }
 
 void TJobProfiler::ProfileCompletedJob(const TJoblet& joblet, const TCompletedJobSummary& jobSummary)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    const auto interruptReason = jobSummary.InterruptReason;
+    auto interruptionReason = jobSummary.InterruptReason;
 
-    const auto jobType = joblet.JobType;
-    const auto& treeId = joblet.TreeId;
-    const auto duration = GetJobDuration(joblet);
+    auto jobType = joblet.JobType;
+    auto treeId = joblet.TreeId;
+    auto duration = GetJobDuration(joblet);
 
-    auto key = std::make_tuple(jobType, interruptReason, treeId);
-
-    GetProfilerInvoker()->Invoke(
-        BIND(&TJobProfiler::DoProfileCompletedJob, MakeStrong(this), Passed(std::move(key)), duration));
+    GetProfilerInvoker()->Invoke(BIND(
+        &TJobProfiler::DoProfileCompletedJob,
+        MakeStrong(this),
+        jobType,
+        interruptionReason,
+        Passed(std::move(treeId)),
+        duration,
+        joblet.JobState));
 }
 
-void TJobProfiler::DoProfileCompletedJob(TCompletedJobCounterKey key, const TDuration duration)
+void TJobProfiler::DoProfileCompletedJob(
+    EJobType jobType,
+    EInterruptReason interruptionReason,
+    TString treeId,
+    TDuration duration,
+    std::optional<EJobState> previousJobState)
 {
-    auto it = CompletedJobCounter_.find(key);
-    if (it == CompletedJobCounter_.end()) {
-        const auto& [jobType, interruptReason, treeId] = key;
+    auto key = std::make_tuple(jobType, interruptionReason, treeId);
+
+    auto it = CompletedJobCounters_.find(key);
+    if (it == CompletedJobCounters_.end()) {
         auto counter = ControllerAgentProfiler
             .WithTag("job_type", FormatEnum(jobType))
-            .WithTag("interrupt_reason", FormatEnum(interruptReason))
+            .WithTag("interruption_reason", FormatEnum(interruptionReason))
             .WithTag(ProfilingPoolTreeKey, treeId)
             .Counter("/jobs/completed_job_count");
 
-        it = CompletedJobCounter_.emplace(
+        it = CompletedJobCounters_.emplace(
             std::move(key),
             std::move(counter)).first;
     }
     it->second.Increment();
 
     TotalCompletedJobTime_.Add(duration);
+
+    DoProfileFinishedJob(jobType, previousJobState, treeId);
 }
 
 void TJobProfiler::ProfileFailedJob(const TJoblet& joblet, [[maybe_unused]] const TFailedJobSummary& jobSummary)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    const auto jobType = joblet.JobType;
-    const auto& treeId = joblet.TreeId;
-    const auto duration = GetJobDuration(joblet);
+    auto jobType = joblet.JobType;
+    auto treeId = joblet.TreeId;
+    auto duration = GetJobDuration(joblet);
 
-    auto key = std::make_tuple(jobType, treeId);
-
-    GetProfilerInvoker()->Invoke(
-        BIND(&TJobProfiler::DoProfileFailedJob, MakeStrong(this), Passed(std::move(key)), duration));
+    GetProfilerInvoker()->Invoke(BIND(
+        &TJobProfiler::DoProfileFailedJob,
+        MakeStrong(this),
+        jobType,
+        Passed(std::move(treeId)),
+        duration,
+        joblet.JobState));
 }
 
-void TJobProfiler::DoProfileFailedJob(TFailedJobCounterKey key, const TDuration duration)
+void TJobProfiler::DoProfileFailedJob(
+    EJobType jobType,
+    TString treeId,
+    TDuration duration,
+    std::optional<EJobState> previousJobState)
 {
-    auto it = FailedJobCounter_.find(key);
-    if (it == FailedJobCounter_.end()) {
-        const auto& [jobType, treeId] = key;
+    auto key = std::make_tuple(jobType, treeId);
+
+    auto it = FailedJobCounters_.find(key);
+    if (it == FailedJobCounters_.end()) {
         auto counter = ControllerAgentProfiler
             .WithTag("job_type", FormatEnum(jobType))
             .WithTag(NScheduler::ProfilingPoolTreeKey, treeId)
             .Counter("/jobs/failed_job_count");
 
-        it = FailedJobCounter_.emplace(
+        it = FailedJobCounters_.emplace(
             std::move(key),
             std::move(counter)).first;
     }
     it->second.Increment();
 
     TotalFailedJobTime_.Add(duration);
+
+    DoProfileFinishedJob(jobType, previousJobState, treeId);
 }
 
 void TJobProfiler::ProfileAbortedJob(const TJoblet& joblet, const TAbortedJobSummary& jobSummary)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    const auto abortReason = jobSummary.AbortReason;
+    auto abortReason = jobSummary.AbortReason;
     // Job result may be missing if the job summary is synthetic.
     auto error = jobSummary.Result
         ? NYT::FromProto<TError>(jobSummary.GetJobResult().error())
         : TError();
 
-    const auto jobType = joblet.JobType;
-    const auto& treeId = joblet.TreeId;
+    auto jobType = joblet.JobType;
+    auto treeId = joblet.TreeId;
 
-    const auto duration = GetJobDuration(joblet);
+    auto duration = GetJobDuration(joblet);
 
-    auto key = std::make_tuple(jobType, abortReason, treeId);
-
-    GetProfilerInvoker()->Invoke(
-        BIND(&TJobProfiler::DoProfileAbortedJob, MakeStrong(this), Passed(std::move(key)), duration, Passed(std::move(error))));
+    GetProfilerInvoker()->Invoke(BIND(
+        &TJobProfiler::DoProfileAbortedJob,
+        MakeStrong(this),
+        jobType,
+        abortReason,
+        Passed(std::move(treeId)),
+        duration,
+        Passed(std::move(error)),
+        joblet.JobState));
 }
 
-void TJobProfiler::DoProfileAbortedJob(TAbortedJobCounterKey key, const TDuration duration, const TError error)
+void TJobProfiler::DoProfileAbortedJob(
+    EJobType jobType,
+    EAbortReason abortReason,
+    TString treeId,
+    TDuration duration,
+    TError error,
+    std::optional<EJobState> previousJobState)
 {
-    const auto& [jobType, abortReason, treeId] = key;
+    auto key = std::make_tuple(jobType, abortReason, treeId);
 
-    auto it = AbortedJobCounter_.find(key);
-    if (it == AbortedJobCounter_.end()) {
+    auto it = AbortedJobCounters_.find(key);
+    if (it == AbortedJobCounters_.end()) {
         auto counter = ControllerAgentProfiler
             .WithTag("job_type", FormatEnum(jobType))
             .WithTag("abort_reason", FormatEnum(abortReason))
             .WithTag(NScheduler::ProfilingPoolTreeKey, treeId)
             .Counter("/jobs/aborted_job_count");
 
-        it = AbortedJobCounter_.emplace(
+        it = AbortedJobCounters_.emplace(
             key,
             std::move(counter)).first;
     }
@@ -183,23 +289,25 @@ void TJobProfiler::DoProfileAbortedJob(TAbortedJobCounterKey key, const TDuratio
 
     ProfileAbortedJobByError(treeId, jobType, error, NRpc::EErrorCode::TransportError);
     ProfileAbortedJobByError(treeId, jobType, error, NNet::EErrorCode::ResolveTimedOut);
+
+    DoProfileFinishedJob(jobType, previousJobState, treeId);
 }
 
 template <class EErrorCodeType>
 void TJobProfiler::ProfileAbortedJobByError(
     const TString& treeId,
-    const EJobType jobType,
+    EJobType jobType,
     const TError& error,
-    const EErrorCodeType errorCode)
+    EErrorCodeType errorCode)
 {
     if (!error.FindMatching(errorCode)) {
         return;
     }
 
     auto key = std::make_tuple(jobType, static_cast<int>(errorCode), treeId);
-    auto it = AbortedJobByErrorCounter_.find(key);
-    if (it == AbortedJobByErrorCounter_.end()) {
-        it = AbortedJobByErrorCounter_.emplace(
+    auto it = AbortedJobByErrorCounters_.find(key);
+    if (it == AbortedJobByErrorCounters_.end()) {
+        it = AbortedJobByErrorCounters_.emplace(
             std::move(key),
             ControllerAgentProfiler
                 .WithTag("job_type", FormatEnum(jobType))
@@ -208,6 +316,57 @@ void TJobProfiler::ProfileAbortedJobByError(
                 .Counter("/jobs/aborted_job_count_by_error")).first;
     }
     it->second.Increment();
+}
+
+void TJobProfiler::DoUpdateInProgressJobCount(
+    EJobState jobState,
+    EJobType jobType,
+    TString treeId,
+    bool increment)
+{
+    YT_VERIFY(jobState <= EJobState::Running);
+
+    auto key = std::make_tuple(jobState, jobType, treeId);
+
+    auto createGauge = [&] {
+        return ControllerAgentProfiler
+            .WithTags(TTagSet(TTagList{
+                {NScheduler::ProfilingPoolTreeKey, treeId},
+                {"job_type", FormatEnum(jobType)},
+                {"state", FormatEnum(jobState)}}))
+            .Gauge("/allocations/running_allocation_count");
+    };
+
+    auto it = InProgressJobCounters_.find(key);
+    if (it == InProgressJobCounters_.end()) {
+        it = InProgressJobCounters_.emplace(
+            key,
+            std::make_pair(
+                0,
+                createGauge())).first;
+    }
+
+    auto& [count, gauge] = it->second;
+    if (increment) {
+        ++count;
+    } else {
+        --count;
+    }
+    gauge.Update(count);
+}
+
+void TJobProfiler::DoProfileFinishedJob(
+    EJobType jobType,
+    std::optional<EJobState> previousJobState,
+    const TString& treeId)
+{
+    if (!previousJobState) {
+        return;
+    }
+
+    YT_VERIFY(*previousJobState <= EJobState::Running);
+
+    DoUpdateInProgressJobCount(*previousJobState, jobType, treeId, /*increment*/ false);
 }
 
 IInvokerPtr TJobProfiler::GetProfilerInvoker() const

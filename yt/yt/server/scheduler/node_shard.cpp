@@ -2522,13 +2522,9 @@ void TNodeShard::SubmitJobsToStrategy()
 
 void TNodeShard::UpdateProfilingCounter(const TJobPtr& job, int value)
 {
-    const auto allocationState = job->GetAllocationState();
+    auto allocationState = job->GetAllocationState();
 
-    // Decrement started job counter here when it will be moved to CA.
-    if (allocationState == EAllocationState::Scheduled) {
-        return;
-    }
-    YT_VERIFY(allocationState == EAllocationState::Running || allocationState == EAllocationState::Waiting);
+    YT_VERIFY(allocationState <= EAllocationState::Running);
 
     auto createGauge = [&] {
         return SchedulerProfiler.WithTags(TTagSet(TTagList{
@@ -2537,10 +2533,12 @@ void TNodeShard::UpdateProfilingCounter(const TJobPtr& job, int value)
             .Gauge("/allocations/running_allocation_count");
     };
 
-    auto it = AllocationCounter_.find(allocationState);
+    TAllocationCounterKey key(allocationState, job->GetTreeId());
+
+    auto it = AllocationCounter_.find(key);
     if (it == AllocationCounter_.end()) {
         it = AllocationCounter_.emplace(
-            allocationState,
+            std::move(key),
             std::make_pair(
                 0,
                 createGauge())).first;
@@ -2623,6 +2621,8 @@ void TNodeShard::RegisterJob(const TJobPtr& job)
     YT_VERIFY(node->Jobs().insert(job).second);
     YT_VERIFY(node->IdToJob().emplace(job->GetId(), job).second);
     ++ActiveJobCount_;
+
+    UpdateProfilingCounter(job, 1);
 
     YT_LOG_DEBUG("Job registered (JobId: %v, Revived: %v, OperationId: %v, ControllerEpoch: %v, SchedulingIndex: %v)",
         job->GetId(),

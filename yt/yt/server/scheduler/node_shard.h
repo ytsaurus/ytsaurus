@@ -236,6 +236,8 @@ private:
     std::atomic<int> JobReporterWriteFailuresCount_ = 0;
     std::atomic<int> JobReporterQueueIsTooLargeNodeCount_ = 0;
 
+    using TAllocationCounterKey = std::tuple<EAllocationState, TString>;
+    using TAllocationCounter = THashMap<TAllocationCounterKey, std::pair<i64, NProfiling::TGauge>>;
     TAllocationCounter AllocationCounter_;
 
     NProfiling::TCounter HardConcurrentHeartbeatLimitReachedCounter_;

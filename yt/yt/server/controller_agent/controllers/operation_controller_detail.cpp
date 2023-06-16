@@ -2817,10 +2817,11 @@ void TOperationControllerBase::SafeOnJobStarted(const TJobletPtr& joblet)
 
     YT_LOG_DEBUG("Job started (JobId: %v)", joblet->JobId);
 
-    Host->GetJobProfiler()->ProfileStartedJob(*joblet);
-
     joblet->LastActivityTime = TInstant::Now();
     joblet->TaskName = joblet->Task->GetVertexDescriptor();
+
+    Host->GetJobProfiler()->ProfileStartedJob(*joblet);
+
     YT_VERIFY(!std::exchange(joblet->JobState, EJobState::Waiting));
 
     if (!joblet->Revived) {
@@ -3429,8 +3430,6 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
 
     auto joblet = GetJoblet(jobSummary->Id);
 
-    joblet->JobState = EJobState::Running;
-
     if (jobSummary->StatusTimestamp <= joblet->LastUpdateTime) {
         YT_LOG_DEBUG(
             "Stale job running event ignored because its timestamp is older than joblet last update time "
@@ -3442,6 +3441,11 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
     }
 
     UpdateJobletFromSummary(*jobSummary, joblet);
+
+    Host->GetJobProfiler()->ProfileRunningJob(*joblet);
+
+    joblet->JobState = EJobState::Running;
+
     joblet->Task->OnJobRunning(joblet, *jobSummary);
 
     if (const auto& timeStatistics = jobSummary->TimeStatistics; timeStatistics.ExecDuration || timeStatistics.PrepareDuration) {
@@ -10429,6 +10433,10 @@ void TOperationControllerBase::OnOperationReady() const
     YT_LOG_DEBUG("Register operation in job controller (JobCount: %v)", std::size(revivedJobs));
 
     Host->ReviveJobs(std::move(revivedJobs));
+
+    for (const auto& [jobId, joblet] : JobletMap) {
+        Host->GetJobProfiler()->ProfileRevivedJob(*joblet);
+    }
 }
 
 bool TOperationControllerBase::ShouldProcessJobEvents() const

@@ -38,8 +38,6 @@ class TJobMetrics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TAllocationCounter = THashMap<EAllocationState, std::pair<i64, NProfiling::TGauge>>;
-
 using TNonOwningElementList = std::vector<TSchedulerElement*>;
 
 using TNonOwningOperationElementList = std::vector<TSchedulerOperationElement*>;
