@@ -411,7 +411,7 @@ public:
         auto maxTimestamp = GetReplicationProgressMaxTimestamp(*progress);
         if (maxTimestamp >= commitTimestamp) {
             YT_LOG_ALERT("Tablet replication progress is beyond current serialized transaction commit timestamp "
-                "(TabletId: %v, TransactionId: %v, CommitTimestamp: %v, MaxReplicationProgressTimestamp: %v, ReplicatiomProgress: %v)",
+                "(TabletId: %v, TransactionId: %v, CommitTimestamp: %v, MaxReplicationProgressTimestamp: %v, ReplicationProgress: %v)",
                 Tablet_->GetId(),
                 transaction->GetId(),
                 commitTimestamp,
@@ -422,7 +422,7 @@ public:
             progress = New<TRefCountedReplicationProgress>(std::move(newProgress));
             Tablet_->RuntimeData()->ReplicationProgress.Store(progress);
 
-            YT_LOG_DEBUG("Replication progress updated (TabetId: %v, TrnsactionId: %v, ReplicationProgress: %v)",
+            YT_LOG_DEBUG("Replication progress updated (TabletId: %v, TransactionId: %v, ReplicationProgress: %v)",
                 Tablet_->GetId(),
                 transaction->GetId(),
                 static_cast<TReplicationProgress>(*progress));

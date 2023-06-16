@@ -119,7 +119,7 @@ void TRowCache::UpdateItems(
             //
             // Cached row revision is updated to maximum value after insertion
             // if RowCache->FlushIndex is still not greater than cached row initial revision.
-            // Otherwise the second step of insertion is failed and inserted row beacomes outdated.
+            // Otherwise the second step of insertion is failed and inserted row becomes outdated.
             // Its revision is also checked when reading it in lookup thread.
             //
             // If updating revision to maximum value takes too long time it can be canceled by

@@ -445,10 +445,10 @@ private:
         return result;
     }
 
-    void BuildSnapshotsListOrchidYson(const std::vector<TTabletSnapshotPtr>& snaphots, IYsonConsumer* consumer) const
+    void BuildSnapshotsListOrchidYson(const std::vector<TTabletSnapshotPtr>& snapshots, IYsonConsumer* consumer) const
     {
         BuildYsonFluently(consumer)
-            .DoListFor(snaphots, [&] (TFluentList fluent, const TTabletSnapshotPtr& snapshot) {
+            .DoListFor(snapshots, [&] (TFluentList fluent, const TTabletSnapshotPtr& snapshot) {
                  fluent
                     .Item().BeginMap()
                         .Do(BIND(&TTabletSnapshotStore::BuildSnapshotOrchidYson, Unretained(this), snapshot))

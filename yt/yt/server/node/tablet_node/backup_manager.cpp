@@ -302,7 +302,7 @@ private:
 
     // Tablets with confirmed checkpoint timestamp.
     // They are waiting for one of the events:
-    //  - a transaction with commit timestamp greater than their chekpoint
+    //  - a transaction with commit timestamp greater than their checkpoint
     //    timestamp is serialized (commit_ordering=strong only).
     //  - barrier timestamp overruns their checkpoint timestamp and no transaction
     //    affecting that tablet is pending serialization.

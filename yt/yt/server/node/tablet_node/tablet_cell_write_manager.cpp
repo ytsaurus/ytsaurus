@@ -697,7 +697,7 @@ private:
         if (!tablet) {
             // NB: Tablet could be missing if it was, e.g., forcefully removed.
             YT_LOG_DEBUG(
-                "Received delayed rows for unexistent tablet; ignored ",
+                "Received delayed rows for nonexistent tablet; ignored ",
                 "(TabletId: %v, TransactionId: %v)",
                 tabletId,
                 transactionId);

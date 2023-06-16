@@ -34,7 +34,7 @@ public:
     void Load(TLoadContext& context);
 
     void Lock(TTabletId tabletId);
-    void Unlock(TTabletId tabetId);
+    void Unlock(TTabletId tabletId);
     bool IsLockedByTablet(TTabletId tabletId) const;
 
     void Lock(TTransactionId transactionId, EObjectLockMode lockMode);

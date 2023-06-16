@@ -70,7 +70,7 @@ public:
      *  #transaction could be null.
      *  The row is committed immediately.
      *
-     *  If #commitTimstamp is null then checks and takes the locks.
+     *  If #commitTimestamp is null then checks and takes the locks.
      *  #transaction cannot be null.
      *
      *  On lock failure, throws TErrorException explaining the cause.

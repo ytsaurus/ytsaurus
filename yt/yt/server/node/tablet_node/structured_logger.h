@@ -63,7 +63,7 @@ DEFINE_REFCOUNTED_TYPE(IStructuredLogger)
  *
  * Some events are logged fluently by the caller using LogEvent(), others
  * are implemented in this class (OnSmthHappened methods). There is no actual
- * difference, dedicated methods are mostly used to incapsulate clumsy
+ * difference, dedicated methods are mostly used to encapsulate clumsy
  * or repeating lines of logging.
  *
  * NB: though unlikely, the logger may outlive its tablet. All methods except
@@ -106,7 +106,7 @@ struct IPerTabletStructuredLogger
     virtual void OnTabletStoresUpdateCommitted(
         const std::vector<IStorePtr>& addedStores,
         const std::vector<TStoreId>& removedStoreIds,
-        const std::vector<THunkChunkPtr>& addedHunkChunkds,
+        const std::vector<THunkChunkPtr>& addedHunkChunks,
         const std::vector<NChunkClient::TChunkId>& removedHunkChunkIds,
         NTabletClient::ETabletStoresUpdateReason updateReason,
         TDynamicStoreId allocatedDynamicStoreId,

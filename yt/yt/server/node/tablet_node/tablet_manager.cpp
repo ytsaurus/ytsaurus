@@ -3028,7 +3028,7 @@ private:
         }
 
         YT_LOG_INFO("Checking if tablet cell is decommissioned "
-            "(LifeStage: %v, TabletMapEmpty: %v, TransactionManagerDecommissined: %v, TransactionSupervisorDecommissioned: %v)",
+            "(LifeStage: %v, TabletMapEmpty: %v, TransactionManagerDecommissioned: %v, TransactionSupervisorDecommissioned: %v)",
             CellLifeStage_,
             TabletMap_.empty(),
             Slot_->GetTransactionManager()->IsDecommissioned(),
@@ -3075,7 +3075,7 @@ private:
 
         YT_LOG_INFO(
             "Checking if tablet cell is suspended"
-            "(TransactionManagerDecommissined: %v, TransactionSupervisorDecommissioned: %v)",
+            "(TransactionManagerDecommissioned: %v, TransactionSupervisorDecommissioned: %v)",
             Slot_->GetTransactionManager()->IsDecommissioned(),
             Slot_->GetTransactionSupervisor()->IsDecommissioned());
 

@@ -586,7 +586,7 @@ protected:
 
             for (const auto* current = end - 1; current >= begin; --current) {
                 if (Store_->TimestampFromRevision(ExtractRevision(*current)) < minTimestamp) {
-                    // Interrupt upon reaching the first timestamp that is less than minTimstamp.
+                    // Interrupt upon reaching the first timestamp that is less than minTimestamp.
                     return;
                 }
                 valueExtractor(*current);

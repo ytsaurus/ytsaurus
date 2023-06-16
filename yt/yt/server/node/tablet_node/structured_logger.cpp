@@ -328,7 +328,7 @@ public:
     void OnTabletStoresUpdateCommitted(
         const std::vector<IStorePtr>& addedStores,
         const std::vector<TStoreId>& removedStoreIds,
-        const std::vector<THunkChunkPtr>& addedHunkChunkds,
+        const std::vector<THunkChunkPtr>& addedHunkChunks,
         const std::vector<NChunkClient::TChunkId>& removedHunkChunkIds,
         ETabletStoresUpdateReason updateReason,
         TDynamicStoreId allocatedDynamicStoreId,
@@ -347,7 +347,7 @@ public:
                 })
             .Item("removed_store_ids").List(removedStoreIds)
             .Item("added_hunk_chunks").DoMapFor(
-                addedHunkChunkds,
+                addedHunkChunks,
                 [&] (auto fluent, const THunkChunkPtr& hunkChunk) {
                     fluent
                         .Item(ToString(hunkChunk->GetId()))

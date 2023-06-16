@@ -765,7 +765,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             sortedDynamicStore->IsMergeRowsOnFlushAllowed();
 
         if (mountConfig->MergeRowsOnFlush && !sortedDynamicStore->IsMergeRowsOnFlushAllowed()) {
-            YT_LOG_DEBUG("Merge rows on flush is disabled cinse backup is in progress");
+            YT_LOG_DEBUG("Merge rows on flush is disabled since backup is in progress");
         }
 
         YT_LOG_DEBUG("Sorted store flush started (StoreId: %v, MergeRowsOnFlush: %v, "

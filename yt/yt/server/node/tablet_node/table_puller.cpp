@@ -576,7 +576,7 @@ private:
 
             for (auto row : unversionedRows) {
                 if (row[*timestampColumnIndex].Id != *timestampColumnIndex) {
-                    YT_LOG_ALERT("Could not identify timestamp column in pulled row. Timesamp validation disabled (Row: %v, TimestampColumnIndex: %v)",
+                    YT_LOG_ALERT("Could not identify timestamp column in pulled row. Timestamp validation disabled (Row: %v, TimestampColumnIndex: %v)",
                         row,
                         *timestampColumnIndex);
                 }

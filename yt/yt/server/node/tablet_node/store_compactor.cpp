@@ -1586,7 +1586,7 @@ private:
                 transaction,
                 Logger);
 
-            auto parititioningResultFuture =
+            auto partitioningResultFuture =
                 BIND(
                     &TEdenPartitioningSession::Run,
                     partitioningSession,
@@ -1596,7 +1596,7 @@ private:
                 .AsyncVia(ThreadPool_->GetInvoker())
                 .Run();
 
-            std::tie(partitioningResult, finalizeResult) = WaitFor(parititioningResultFuture)
+            std::tie(partitioningResult, finalizeResult) = WaitFor(partitioningResultFuture)
                 .ValueOrThrow();
             const auto& partitionWriters = partitioningResult.PartitionStoreWriters;
 

@@ -522,7 +522,7 @@ TCallback<void(TSaveContext&)> TOrderedDynamicStore::AsyncSave()
             }
         }
 
-        // pushsin@ forbids empty chunks.
+        // psushin@ forbids empty chunks.
         if (rowCount == 0) {
             Save(context, false);
             return;
