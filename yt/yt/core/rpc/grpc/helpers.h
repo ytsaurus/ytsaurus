@@ -59,6 +59,7 @@ using TGrpcCompletionQueuePtr = TGrpcObjectPtr<grpc_completion_queue, grpc_compl
 using TGrpcServerPtr = TGrpcObjectPtr<grpc_server, grpc_server_destroy>;
 using TGrpcChannelCredentialsPtr = TGrpcObjectPtr<grpc_channel_credentials, grpc_channel_credentials_release>;
 using TGrpcServerCredentialsPtr = TGrpcObjectPtr<grpc_server_credentials, grpc_server_credentials_release>;
+using TGrpcTlsCertificateProviderPtr = TGrpcObjectPtr<grpc_tls_certificate_provider, grpc_tls_certificate_provider_release>;
 using TGrpcAuthContextPtr = TGrpcObjectPtr<grpc_auth_context, grpc_auth_context_release>;
 
 ////////////////////////////////////////////////////////////////////////////////
