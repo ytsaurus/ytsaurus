@@ -20,6 +20,7 @@ public:
     const TClientContext& GetContext() const;
     TTransactionId GetTransactionId() const;
     ITransactionPingerPtr GetTransactionPinger() const;
+    TClientPtr GetClient() const;
 
     const TString& GetPreparationId() const;
 
@@ -55,6 +56,7 @@ struct IItemToUpload
     virtual TString CalculateMD5() const = 0;
     virtual THolder<IInputStream> CreateInputStream() const = 0;
     virtual TString GetDescription() const = 0;
+    virtual ui64 GetDataSize() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -85,7 +87,6 @@ private:
 
     TVector<TRichYPath> CypressFiles_;
     TVector<TRichYPath> CachedFiles_;
-    mutable TVector<TString> LockedFileSignatures_;
 
     TString ClassName_;
     TString Command_;
@@ -100,8 +101,14 @@ private:
 
     void CreateStorage() const;
 
+    void CreateFileInCypress(const TString& path) const;
+    TString PutFileToCypressCache(const TString& path, const TString& md5Signature, TTransactionId transactionId) const;
+    TMaybe<TString> GetItemFromCypressCache(const TString& md5Signature, const TString& fileName) const;
+
+    TDuration GetWaitForUploadTimeout(const IItemToUpload& itemToUpload) const;
     TString UploadToRandomPath(const IItemToUpload& itemToUpload) const;
     TString UploadToCacheUsingApi(const IItemToUpload& itemToUpload) const;
+    TMaybe<TString> TryUploadWithDeduplication(const IItemToUpload& itemToUpload) const;
     TString UploadToCache(const IItemToUpload& itemToUpload) const;
 
     void UseFileInCypress(const TRichYPath& file);

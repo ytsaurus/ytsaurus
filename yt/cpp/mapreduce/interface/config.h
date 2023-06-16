@@ -4,6 +4,8 @@
 #include "common.h"
 #include "node.h"
 
+#include <library/cpp/yt/misc/enum.h>
+
 #include <util/generic/maybe.h>
 #include <util/generic/string.h>
 #include <util/generic/hash_set.h>
@@ -36,6 +38,19 @@ enum class ETraceHttpRequestsMode
     // Dump all http requests.
     Always /* "always" */,
 };
+
+DEFINE_ENUM(EUploadDeduplicationMode,
+    // For each file only one process' thread from all possible hosts can upload it to the file cache at the same time.
+    // The others will wait for the uploading to finish and use already cached file.
+    ((Global)   (0))
+
+    // For each file and each particular host only one process' thread can upload it to the file cache at the same time.
+    // The others will wait for the uploading to finish and use already cached file.
+    ((Host)     (1))
+
+    // All processes' threads will upload a file to the cache concurrently.
+    ((Disabled) (2))
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -112,6 +127,19 @@ struct TConfig
     /// to use them in operations.
     int FileCacheReplicationFactor = 10;
 
+    /// @brief Used when waiting for other process which uploads the same file to the file cache.
+    ///
+    /// If CacheUploadDeduplicationMode is not Disabled, current process can wait for some other
+    /// process which is uploading the same file. This value is proportional to the timeout of waiting,
+    /// actual timeout computes as follows: fileSizeGb * CacheLockTimeoutPerGb.
+    /// Default timeout assumes that host has uploading speed equal to 20 Mb/s.
+    /// If timeout was reached, the file will be uploaded by current process without any other waits.
+    TDuration CacheLockTimeoutPerGb;
+
+    /// @brief Used to prevent concurrent uploading of the same file to the file cache.
+    /// NB: Each mode affects only users with the same mode enabled.
+    EUploadDeduplicationMode CacheUploadDeduplicationMode;
+
     bool MountSandboxInTmpfs;
 
     /// @brief Set upload options (e.g.) for files created by library.
@@ -153,6 +181,9 @@ struct TConfig
     static int GetInt(const char* var, int defaultValue);
     static TDuration GetDuration(const char* var, TDuration defaultValue);
     static EEncoding GetEncoding(const char* var);
+    static EUploadDeduplicationMode GetUploadingDeduplicationMode(
+        const char* var,
+        EUploadDeduplicationMode defaultValue);
 
     static void ValidateToken(const TString& token);
     static TString LoadTokenFromFile(const TString& tokenPath);
