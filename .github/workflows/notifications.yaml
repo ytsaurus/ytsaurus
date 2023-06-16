@@ -38,4 +38,4 @@ jobs:
           disable_web_page_preview: true
           format: markdown
           message: |
-            New issue: ${{ github.event.issues.url }}
+            New issue: ${{github.server_url}}/${{github.repository}}/issues/${{ github.event.issue.number }}
