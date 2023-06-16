@@ -781,9 +781,15 @@ class TestChaos(ChaosTestBase):
 
     @authors("babenko")
     def test_chaos_replicated_table_requires_valid_card_id(self):
-        with pytest.raises(YtError):
-            create("chaos_replicated_table", "//tmp/crt")
-            create("chaos_replicated_table", "//tmp/crt", attributes={"replication_card_id": "1-2-3-4"})
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+
+        with pytest.raises(YtError, match="Malformed replication card id"):
+            create(
+                "chaos_replicated_table",
+                "//tmp/crt",
+                attributes={"chaos_cell_bundle": "c", "replication_card_id": "1-2-3-4"}
+            )
 
     @authors("savrus")
     def test_chaos_replicated_table_requires_bundle_use(self):
