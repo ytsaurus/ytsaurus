@@ -74,7 +74,7 @@ class JobShell(object):
         self.terminal_mode = True
         self.output = FileIO(sys.stdout.fileno(), mode='w', closefd=False)
 
-        self.proxy_url = get_proxy_address_url(client=client)
+        self.proxy_url = get_proxy_address_url(client=self.yt_client)
         self.api_version = get_api_version(client=client)
 
         self.environment = [b"YT_PROXY=" + b(self.proxy_url)]
@@ -100,7 +100,7 @@ class JobShell(object):
                 "{0}/hosts?role=control".format(self.proxy_url),
                 client=self.yt_client).json()
             if control_proxies:
-                self.current_proxy = random.choice(control_proxies)
+                self.current_proxy = get_proxy_address_url(client=self.yt_client, replace_host=random.choice(control_proxies))
             else:
                 self.current_proxy = self.proxy_url
 
