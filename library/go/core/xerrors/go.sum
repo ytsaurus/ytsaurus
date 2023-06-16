@@ -20,8 +20,8 @@ github.com/stretchr/testify v1.8.2 h1:+h33VjcLVPDHtOdpUCuF+7gSuG3yGIftsP1YvFihtJ
 github.com/stretchr/testify v1.8.2/go.mod h1:w2LPCIKwWwSfY2zedu0+kehJoqGctiVI29o6fzry7u4=
 go.ytsaurus.tech/library/go/test/testhelpers v0.0.1 h1:X2y+zhLgd2y0DxF4V6HJyZwIp7rpewFKXlb+XZWGjio=
 go.ytsaurus.tech/library/go/test/testhelpers v0.0.1/go.mod h1:kDwN91Sg68g0gYeYhLTA1sVlLJHdAtxZq6xWYj32TLI=
-go.ytsaurus.tech/library/go/x/xreflect v0.0.1 h1:U2nIJSzcNTKZcGrwNdhZZZmTQh48E9lyTyJV1ahZBm0=
-go.ytsaurus.tech/library/go/x/xreflect v0.0.1/go.mod h1:o+lsYjag7qm63gJyqsJVnS5xq1FmkD6i15MDvokpz6g=
+go.ytsaurus.tech/library/go/x/xreflect v0.0.2 h1:S+lfg3G+WrfiBfTYz8droZeyiYYvT4mxLxEbQcNXQFs=
+go.ytsaurus.tech/library/go/x/xreflect v0.0.2/go.mod h1:FJB6bzAVFQxi99CZjUqDSAMu5puEjswFW9Qwj41Yyy8=
 go.ytsaurus.tech/library/go/x/xruntime v0.0.3 h1:/km3v+CPSuID5FsPKvE2LcwmYJPS8TcxeBMGH1MjtVs=
 go.ytsaurus.tech/library/go/x/xruntime v0.0.3/go.mod h1:b+ypj9bGoFpoupNQW2rLJRSrT8rLA0NcUfyBYQwHc68=
 golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 h1:H2TDz8ibqkAF6YGhCdN3jS9O0/s90v0rJh3X/OLHEUk=
