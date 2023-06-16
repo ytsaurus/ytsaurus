@@ -8880,10 +8880,19 @@ TSharedRef TOperationControllerBase::ExtractJobSpec(TJobId jobId)
     auto operationState = State.load();
     if (operationState != EControllerState::Running) {
         YT_LOG_DEBUG(
-            "Stale job spec request; send error instead of spec (JobId: %v, OperationState: %v)",
+            "Stale job spec request, operation is already not running; send error instead of spec "
+            "(JobId: %v, OperationState: %v)",
             jobId,
             operationState);
         THROW_ERROR_EXCEPTION("Operation is not running");
+    }
+
+    if (!FindJoblet(jobId)) {
+        YT_LOG_DEBUG(
+            "Stale job spec request, job is already finished; send error instead of spec "
+            "(JobId: %v)",
+            jobId);
+        THROW_ERROR_EXCEPTION("Job is already finished");
     }
 
     OnJobStarted(joblet);
