@@ -2,7 +2,7 @@ name: Systest
 
 on:
   schedule:
-    - cron: '0 * * * *'
+    - cron: '0 */4 * * *'
 
 jobs:
   start-vm:
