@@ -1,3 +1,4 @@
+#include <optional>
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/server/cell_balancer/bundle_scheduler.h>
@@ -75,6 +76,7 @@ TBundleInfoPtr SetBundleInfo(
     config->TabletNodeResourceGuarantee = New<TInstanceResources>();
     config->TabletNodeResourceGuarantee->Vcpu = 9999;
     config->TabletNodeResourceGuarantee->Memory = 88_GB;
+    config->TabletNodeResourceGuarantee->Net = 1_GB;
     config->RpcProxyResourceGuarantee->Vcpu = 1111;
     config->RpcProxyResourceGuarantee->Memory = 18_GB;
     config->CpuLimits->WriteThreadPoolSize = writeThreadCount;
@@ -118,6 +120,7 @@ void VerifyNodeAllocationRequests(const TSchedulerMutations& mutations, int expe
         EXPECT_TRUE(spec->InstanceRole == YTRoleTypeTabNode);
         EXPECT_EQ(spec->ResourceRequest->Vcpu, 9999);
         EXPECT_EQ(spec->ResourceRequest->MemoryMb, static_cast<i64>(88_GB / 1_MB));
+        EXPECT_EQ(spec->ResourceRequest->NetworkBandwidth, std::optional<i64>(1_GB / 8));
     }
 }
 
@@ -136,6 +139,7 @@ void VerifyProxyAllocationRequests(const TSchedulerMutations& mutations, int exp
         EXPECT_TRUE(spec->InstanceRole == YTRoleTypeRpcProxy);
         EXPECT_EQ(spec->ResourceRequest->Vcpu, 1111);
         EXPECT_EQ(spec->ResourceRequest->MemoryMb, static_cast<i64>(18_GB / 1_MB));
+        EXPECT_EQ(spec->ResourceRequest->NetworkBandwidth, std::optional<i64>());
     }
 }
 
@@ -308,6 +312,7 @@ void GenerateNodeAllocationsForBundle(TSchedulerInputState& inputState, const TS
         spec->YPCluster = "pre-pre";
         spec->ResourceRequest->Vcpu = 9999;
         spec->ResourceRequest->MemoryMb = 88_GB / 1_MB;
+        spec->ResourceRequest->NetworkBandwidth = 1_GB / 8;
         spec->PodIdTemplate = podIdTemplate;
     }
 }
@@ -572,6 +577,7 @@ TEST(TBundleSchedulerTest, AllocationProgressTrackCompleted)
         EXPECT_EQ(annotations->NannyService, "nanny-bunny-tablet-nodes");
         EXPECT_EQ(annotations->Resource->Vcpu, 9999);
         EXPECT_EQ(annotations->Resource->Memory, static_cast<i64>(88_GB));
+        EXPECT_EQ(annotations->Resource->Net, std::optional<i64>(1_GB));
         EXPECT_TRUE(annotations->Allocated);
         EXPECT_FALSE(annotations->DeallocatedAt);
 
@@ -2789,9 +2795,34 @@ TEST(TBundleSchedulerTest, ReAllocateOutdatedNodes)
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
 
-    for (auto& [_, nodeInfo] : input.TabletNodes)
-    {
+    for (auto& [_, nodeInfo] : input.TabletNodes) {
         nodeInfo->Annotations->Resource->Vcpu /= 2;
+        EXPECT_TRUE(nodeInfo->Annotations->Resource->Vcpu);
+    }
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    VerifyNodeAllocationRequests(mutations, 2);
+}
+
+TEST(TBundleSchedulerTest, ReAllocateOutdatedNetworkLimits)
+{
+    auto input = GenerateSimpleInputContext(5);
+    input.Config->ReallocateInstanceBudget = 2;
+    GenerateNodesForBundle(input, "bigd", 5, false, 5, 2);
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
+
+    for (auto& [_, nodeInfo] : input.TabletNodes) {
+        nodeInfo->Annotations->Resource->Net = *nodeInfo->Annotations->Resource->Net / 2;
         EXPECT_TRUE(nodeInfo->Annotations->Resource->Vcpu);
     }
 
@@ -2816,10 +2847,34 @@ TEST(TBundleSchedulerTest, ReAllocateOutdatedProxies)
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
 
-    for (auto& [_, proxyInfo] : input.RpcProxies)
-    {
+    for (auto& [_, proxyInfo] : input.RpcProxies) {
         proxyInfo->Annotations->Resource->Memory /= 2;
         EXPECT_TRUE(proxyInfo->Annotations->Resource->Memory);
+    }
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    VerifyProxyAllocationRequests(mutations, 4);
+}
+
+TEST(TBundleSchedulerTest, ReAllocateOutdatedNetworkProxies)
+{
+    auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 5);
+    input.Config->ReallocateInstanceBudget = 4;
+    GenerateProxiesForBundle(input, "bigd", 5);
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
+
+    for (auto& [_, proxyInfo] : input.RpcProxies) {
+        proxyInfo->Annotations->Resource->Net = 1024;
     }
 
     mutations = TSchedulerMutations{};

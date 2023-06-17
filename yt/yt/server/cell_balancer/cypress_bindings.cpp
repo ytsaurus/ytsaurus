@@ -47,6 +47,8 @@ void TInstanceResources::Register(TRegistrar registrar)
     registrar.Parameter("memory", &TThis::Memory)
         .GreaterThanOrEqual(0)
         .Default(120_GB);
+    registrar.Parameter("net", &TThis::Net)
+        .Optional();
     registrar.Parameter("type", &TThis::Type)
         .Default();
 }
@@ -103,12 +105,18 @@ void THulkInstanceResources::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("memory_mb", &TThis::MemoryMb)
         .Default();
+    registrar.Parameter("network_bandwidth", &TThis::NetworkBandwidth)
+        .Optional();
 }
 
 THulkInstanceResources& THulkInstanceResources::operator=(const TInstanceResources& resources)
 {
     Vcpu = resources.Vcpu;
     MemoryMb = resources.Memory / 1_MB;
+
+    if (resources.Net) {
+        NetworkBandwidth = *resources.Net / 8;
+    }
 
     return *this;
 }
@@ -118,12 +126,16 @@ TInstanceResources& TInstanceResources::operator=(const THulkInstanceResources& 
     Vcpu = resources.Vcpu;
     Memory = resources.MemoryMb * 1_MB;
 
+    if (resources.NetworkBandwidth) {
+        Net = *resources.NetworkBandwidth * 8;
+    }
+
     return *this;
 }
 
 bool TInstanceResources::operator==(const TInstanceResources& other) const
 {
-    return std::tie(Vcpu, Memory) == std::tie(other.Vcpu, other.Memory);
+    return std::tie(Vcpu, Memory, Net) == std::tie(other.Vcpu, other.Memory, other.Net);
 }
 
 void TBundleConfig::Register(TRegistrar registrar)

@@ -2,6 +2,7 @@
 
 #include "private.h"
 
+#include <optional>
 #include <yt/yt/client/tablet_client/public.h>
 
 #include <yt/yt/core/ytree/yson_serializable.h>
@@ -133,6 +134,8 @@ struct TInstanceResources
 {
     int Vcpu;
     i64 Memory;
+    std::optional<i64> Net;
+
     TString Type;
 
     TInstanceResources& operator=(const THulkInstanceResources& resources);
@@ -341,6 +344,7 @@ struct THulkInstanceResources
 {
     int Vcpu;
     i64 MemoryMb;
+    std::optional<int> NetworkBandwidth;
 
     THulkInstanceResources& operator=(const TInstanceResources& resources);
 
