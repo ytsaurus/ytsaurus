@@ -860,16 +860,26 @@ private:
 
     TFuture<void> SendNextBatch()
     {
+        return BIND([this_ = MakeStrong(this), this] () {
+            while (DoSendNextBatch())
+            { }
+        })
+        .AsyncVia(GetCurrentInvoker())
+        .Run();
+    }
+
+    bool DoSendNextBatch()
+    {
         auto guard = Guard(SpinLock_);
         if (Blocks_.empty()) {
-            return VoidFuture;
+            return false;
         }
 
         if (Nodes_.empty()) {
             Dropped_ = true;
             Blocks_.clear();
             CurrentSize_ = 0;
-            return MakeFuture(TError("All sessions are dropped"));
+            THROW_ERROR_EXCEPTION("All sessions are dropped");
         }
 
         std::vector<std::pair<TBlockId, TSharedRef>> blocks;
@@ -906,11 +916,16 @@ private:
             asyncResults.push_back(req->Invoke());
         }
 
-        return AllSet(asyncResults)
+        auto future = AllSet(asyncResults)
             .Apply(BIND(&TRemoteInMemoryBlockCache::OnSendResponse, MakeStrong(this)));
+
+        WaitFor(future).
+            ThrowOnError();
+
+        return true;
     }
 
-    TFuture<void> OnSendResponse(
+    void OnSendResponse(
         const std::vector<TErrorOr<TInMemoryServiceProxy::TRspPutBlocksPtr>>& results)
     {
         std::vector<TNodePtr> activeNodes;
@@ -935,8 +950,6 @@ private:
         }
 
         Nodes_.swap(activeNodes);
-
-        return SendNextBatch();
     }
 
     TFuture<void> DoFinish(const std::vector<TChunkInfo>& chunkInfos)
