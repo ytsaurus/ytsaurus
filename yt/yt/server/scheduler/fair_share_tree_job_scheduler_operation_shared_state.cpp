@@ -389,6 +389,7 @@ void TFairShareTreeJobSchedulerOperationSharedState::AddJob(TJobId jobId, const 
             .PreemptionStatus = EJobPreemptionStatus::Preemptible,
             .JobIdListIterator = --preemptibleJobs.end(),
             .ResourceUsage = {},
+            .DiskQuota = resourceUsage.GetDiskQuota(),
         });
 
     ++RunningJobCount_;
