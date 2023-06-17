@@ -19,7 +19,7 @@ require (
 	go.uber.org/atomic v1.10.0
 	go.uber.org/zap v1.24.0
 	go.ytsaurus.tech/library/go/blockcodecs v0.0.2
-	go.ytsaurus.tech/library/go/core/log v0.0.2
+	go.ytsaurus.tech/library/go/core/log v0.0.3
 	go.ytsaurus.tech/library/go/core/xerrors v0.0.3
 	go.ytsaurus.tech/library/go/ptr v0.0.1
 	golang.org/x/sync v0.2.0
