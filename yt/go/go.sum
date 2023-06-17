@@ -75,13 +75,13 @@ go.ytsaurus.tech/library/go/blockcodecs v0.0.2 h1:i5rnrhhMBtBZZk0jEa/Urh+n7dBTaL
 go.ytsaurus.tech/library/go/blockcodecs v0.0.2/go.mod h1:foVTVRMNgz8S5Hzibrs8zzVfC8J0WXl9fElJOgdbSgU=
 go.ytsaurus.tech/library/go/core/log v0.0.2 h1:imaTXaiqfkfcRXeABaCSs/qROzkt+vE/JVIuVqnKGvM=
 go.ytsaurus.tech/library/go/core/log v0.0.2/go.mod h1:t5f/0eRcGtA1ypTX8kVDIbhNn6mBJ2PbmF7trAA0W8Y=
-go.ytsaurus.tech/library/go/core/xerrors v0.0.2 h1:ctanM/huSj1ZlwXOoo14uF8omujbxPdeYL6+SOyupYw=
-go.ytsaurus.tech/library/go/core/xerrors v0.0.2/go.mod h1:IEJR/hWc5KxhLGTJGMpGd32BQWONQrSV8xCBIZQANyM=
+go.ytsaurus.tech/library/go/core/xerrors v0.0.3 h1:RLr4bByQ4V4n77eeCdgqM4tBUNe4QDGDSTMqTj/nZn0=
+go.ytsaurus.tech/library/go/core/xerrors v0.0.3/go.mod h1:8u4Vm+WwEJceSGO3+D1m70vdQBc6E+q8cTfXMxKHAPs=
 go.ytsaurus.tech/library/go/ptr v0.0.1 h1:TXR35NUQREmcifYt4qic7eYGIFgdc0cn+KNqkwpnsBU=
 go.ytsaurus.tech/library/go/ptr v0.0.1/go.mod h1:3HhS2x1phVP+4agBp7QZ7ywdOL7Jo1aYRYEyrxFbKSA=
 go.ytsaurus.tech/library/go/test/testhelpers v0.0.1 h1:X2y+zhLgd2y0DxF4V6HJyZwIp7rpewFKXlb+XZWGjio=
-go.ytsaurus.tech/library/go/x/xreflect v0.0.1 h1:U2nIJSzcNTKZcGrwNdhZZZmTQh48E9lyTyJV1ahZBm0=
-go.ytsaurus.tech/library/go/x/xreflect v0.0.1/go.mod h1:o+lsYjag7qm63gJyqsJVnS5xq1FmkD6i15MDvokpz6g=
+go.ytsaurus.tech/library/go/x/xreflect v0.0.2 h1:S+lfg3G+WrfiBfTYz8droZeyiYYvT4mxLxEbQcNXQFs=
+go.ytsaurus.tech/library/go/x/xreflect v0.0.2/go.mod h1:FJB6bzAVFQxi99CZjUqDSAMu5puEjswFW9Qwj41Yyy8=
 go.ytsaurus.tech/library/go/x/xruntime v0.0.3 h1:/km3v+CPSuID5FsPKvE2LcwmYJPS8TcxeBMGH1MjtVs=
 go.ytsaurus.tech/library/go/x/xruntime v0.0.3/go.mod h1:b+ypj9bGoFpoupNQW2rLJRSrT8rLA0NcUfyBYQwHc68=
 golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACkg1iLfiJU5Ep61QUkGW8qpdssI0+w=
