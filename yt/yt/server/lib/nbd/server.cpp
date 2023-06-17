@@ -530,12 +530,11 @@ private:
         TSharedRef ReadBuffer(size_t size)
         {
             auto buffer = TSharedMutableRef::Allocate<TNbdNetworkBufferTag>(size);
-            auto readSize = WaitFor(Connection_->Read(buffer))
-                .ValueOrThrow();
-            if (readSize != size) {
-                THROW_ERROR_EXCEPTION("Read size mismatch: expected %v bytes but got only %v",
-                    size,
-                    readSize);
+            for (size_t offset = 0; offset < size; ) {
+                auto readSize = WaitFor(Connection_->Read(buffer.Slice(offset, size)))
+                    .ValueOrThrow();
+
+                offset += readSize;
             }
             return buffer;
         }
