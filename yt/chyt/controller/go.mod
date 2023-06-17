@@ -9,7 +9,7 @@ require (
 	go.uber.org/zap v1.24.0
 	go.ytsaurus.tech/library/go/core/log v0.0.3
 	go.ytsaurus.tech/library/go/ptr v0.0.1
-	go.ytsaurus.tech/yt/go v0.0.5
+	go.ytsaurus.tech/yt/go v0.0.6
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 )
 
@@ -28,7 +28,7 @@ require (
 	github.com/pierrec/lz4 v2.6.1+incompatible // indirect
 	github.com/spf13/pflag v1.0.6-0.20201009195203-85dd5c8bc61c // indirect
 	go.uber.org/multierr v1.9.0 // indirect
-	go.ytsaurus.tech/library/go/blockcodecs v0.0.1 // indirect
+	go.ytsaurus.tech/library/go/blockcodecs v0.0.2 // indirect
 	go.ytsaurus.tech/library/go/core/xerrors v0.0.3 // indirect
 	go.ytsaurus.tech/library/go/x/xreflect v0.0.2 // indirect
 	go.ytsaurus.tech/library/go/x/xruntime v0.0.3 // indirect
