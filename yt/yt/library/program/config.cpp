@@ -14,6 +14,16 @@ void TRpcConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void THeapSizeLimit::Register(TRegistrar registrar)
+{
+    registrar.Parameter("container_memory_ratio", &TThis::ContainerMemoryRatio)
+        .Optional();
+    registrar.Parameter("is_hard", &TThis::IsHard)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TTCMallocConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("background_release_rate", &TThis::BackgroundReleaseRate)
@@ -23,12 +33,18 @@ void TTCMallocConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("aggressive_release_threshold", &TThis::AggressiveReleaseThreshold)
         .Default(20_GB);
+    registrar.Parameter("aggressive_release_threshold_ratio", &TThis::AggressiveReleaseThresholdRatio)
+        .Optional();
+
     registrar.Parameter("aggressive_release_size", &TThis::AggressiveReleaseSize)
         .Default(128_MB);
     registrar.Parameter("aggressive_release_period", &TThis::AggressiveReleasePeriod)
         .Default(TDuration::MilliSeconds(100));
     registrar.Parameter("guarded_sampling_rate", &TThis::GuardedSamplingRate)
         .Default(128_MB);
+
+    registrar.Parameter("heap_size_limit", &TThis::HeapSizeLimit)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
