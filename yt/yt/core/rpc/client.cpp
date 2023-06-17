@@ -632,11 +632,8 @@ void TClientResponse::Deserialize(TSharedRefArray responseMessage)
     if (attachmentCodecId == NCompression::ECodec::None) {
         Attachments_.clear();
         Attachments_.reserve(compressedAttachments.Size());
-        for (const auto& attachment : compressedAttachments) {
-            struct TCopiedAttachmentTag
-            { };
-            auto copiedAttachment = TSharedMutableRef::MakeCopy<TCopiedAttachmentTag>(attachment);
-            Attachments_.push_back(std::move(copiedAttachment));
+        for (auto& attachment : compressedAttachments) {
+            Attachments_.push_back(std::move(attachment));
         }
     } else {
         Attachments_ = DecompressAttachments(compressedAttachments, attachmentCodecId);

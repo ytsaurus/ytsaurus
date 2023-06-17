@@ -89,6 +89,30 @@ using TInMemorySessionId = TGuid;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void CollocateImMemoryBlocks(std::vector<NChunkClient::TBlock>& blocks, const INodeMemoryReferenceTrackerPtr& memoryReferenceTracker)
+{
+    i64 totalSize = 0;
+    for (const auto& block: blocks) {
+        totalSize += block.Data.Size();
+    }
+
+    YT_LOG_DEBUG("Collocating memory blocks (BlockCount: %v, TotalByteCount: %v)",
+        blocks.size(),
+        totalSize);
+
+    auto buffer = TSharedMutableRef::Allocate<TPreloadedBlockTag>(totalSize, {.InitializeStorage = false});
+    i64 offset = 0;
+
+    for (auto& block : blocks) {
+        auto slice = buffer.Slice(offset, offset + block.Data.Size());
+        ::memcpy(slice.Begin(), block.Data.Begin(), block.Data.Size());
+        offset += block.Data.Size();
+        block.Data = TrackMemory(memoryReferenceTracker, EMemoryCategory::TabletStatic, std::move(slice));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TInMemoryChunkDataPtr CreateInMemoryChunkData(
     NChunkClient::TChunkId chunkId,
     NTabletClient::EInMemoryMode mode,
@@ -99,6 +123,8 @@ TInMemoryChunkDataPtr CreateInMemoryChunkData(
     const INodeMemoryReferenceTrackerPtr& memoryReferenceTracker,
     const IMemoryUsageTrackerPtr& memoryTracker)
 {
+    CollocateImMemoryBlocks(blocksWithCategory, memoryReferenceTracker);
+
     std::vector<NChunkClient::TBlock> blocks;
     blocks.reserve(blocksWithCategory.size());
 
@@ -603,8 +629,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         switch (mode) {
             case EInMemoryMode::Compressed: {
                 for (const auto& compressedBlock : compressedBlocks) {
-                    auto preloadedData = TSharedRef::MakeCopy<TPreloadedBlockTag>(compressedBlock.Data);
-                    auto block = TBlock(preloadedData, compressedBlock.Checksum);
+                    auto block = TBlock(compressedBlock.Data, compressedBlock.Checksum);
                     blocks.push_back(std::move(block));
                 }
 
@@ -655,7 +680,6 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     i64 allocatedMemory = 0;
     for (auto& block: blocks) {
         allocatedMemory += block.Size();
-        block.Data = TrackMemory(memoryReferenceTracker, EMemoryCategory::TabletStatic, std::move(block.Data));
     }
 
     if (memoryUsageGuard) {
