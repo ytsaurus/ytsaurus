@@ -158,6 +158,10 @@ void TNodeDiscoveryManager::UpdateNodeList()
 
     auto updateSelectedNodeSet = [&] (int maxPeersPerRack) {
         for (auto [_, node] : Bootstrap_->GetNodeTracker()->Nodes()) {
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
+
             if (nodesToReplaceCount == 0) {
                 break;
             }

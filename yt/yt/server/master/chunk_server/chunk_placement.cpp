@@ -220,16 +220,22 @@ TChunkPlacement::TChunkPlacement(
 
 void TChunkPlacement::Clear()
 {
-    const auto& nodes = Bootstrap_->GetNodeTracker()->Nodes();
-    for (auto [nodeId, node] : nodes) {
-        UnregisterNode(node);
-    }
+    MediumToLoadFactorToNode_.clear();
+    IsDataCenterAware_ = false;
+    StorageDataCenters_.clear();
+    BannedStorageDataCenters_.clear();
+    AliveStorageDataCenters_.clear();
+    DataCenterSetErrors_.clear();
 }
 
 void TChunkPlacement::Initialize()
 {
     const auto& nodes = Bootstrap_->GetNodeTracker()->Nodes();
     for (auto [nodeId, node] : nodes) {
+        if (!IsObjectAlive(node)) {
+            continue;
+        }
+
         OnNodeUpdated(node);
     }
 }
@@ -412,9 +418,14 @@ TNodeList TChunkPlacement::GetWriteTargets(
         return *consistentPlacementWriteTargets;
     }
 
-    PrepareLoadFactorIterator(medium);
-    if (!LoadFactorToNodeIterator_.IsValid()) {
+    const TLoadFactorToNodeMap* loadFactorToNodeMap = nullptr;
+
+    if (auto it = MediumToLoadFactorToNode_.find(medium);
+        it == MediumToLoadFactorToNode_.end())
+    {
         return TNodeList();
+    } else {
+        loadFactorToNodeMap = &it->second;
     }
 
     TTargetCollector collector(
@@ -444,15 +455,18 @@ TNodeList TChunkPlacement::GetWriteTargets(
         return std::ssize(collector.GetAddedNodes()) == desiredCount;
     };
 
+    auto loadFactorToNodeIterator = loadFactorToNodeMap->begin();
+
     auto tryAddAll = [&] (bool enableRackAwareness, bool enableDataCenterAwareness) {
         YT_VERIFY(!hasEnoughTargets());
 
         bool hasProgress = false;
-        if (!LoadFactorToNodeIterator_.IsValid()) {
-            PrepareLoadFactorIterator(medium);
+        if (loadFactorToNodeIterator == loadFactorToNodeMap->end()) {
+            loadFactorToNodeIterator = loadFactorToNodeMap->begin();
         }
-        for ( ; !hasEnoughTargets() && LoadFactorToNodeIterator_.IsValid(); ++LoadFactorToNodeIterator_) {
-            auto* node = LoadFactorToNodeIterator_->second;
+
+        for ( ; !hasEnoughTargets() && loadFactorToNodeIterator != loadFactorToNodeMap->end(); ++loadFactorToNodeIterator) {
+            auto* node = loadFactorToNodeIterator->second;
             hasProgress |= tryAdd(node, enableRackAwareness, enableDataCenterAwareness);
         }
         return hasProgress;
@@ -1026,15 +1040,6 @@ int TChunkPlacement::GetMaxReplicasPerDataCenter(
 const std::vector<TError>& TChunkPlacement::GetAlerts() const
 {
     return DataCenterSetErrors_;
-}
-
-void TChunkPlacement::PrepareLoadFactorIterator(const TMedium* medium)
-{
-    LoadFactorToNodeIterator_.Reset();
-    auto it = MediumToLoadFactorToNode_.find(medium);
-    if (it != MediumToLoadFactorToNode_.end()) {
-        LoadFactorToNodeIterator_.AddRange(it->second);
-    }
 }
 
 const TDynamicChunkManagerConfigPtr& TChunkPlacement::GetDynamicConfig() const

@@ -63,6 +63,10 @@ public:
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         for (auto [_, node] : nodeTracker->Nodes()) {
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
+
             OnNodeChanged(node);
         }
     }
@@ -115,6 +119,10 @@ private:
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         for (auto [_, node] : nodeTracker->Nodes()) {
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
+
             AddOrRemoveNode(nodeSet, area, node);
         }
     }

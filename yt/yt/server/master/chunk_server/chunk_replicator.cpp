@@ -2577,6 +2577,10 @@ void TChunkReplicator::OnProfiling(TSensorBuffer* buffer, TSensorBuffer* crpBuff
     auto now = NProfiling::GetInstant();
     if (now - LastPerNodeProfilingTime_ >= GetDynamicConfig()->DestroyedReplicasProfilingPeriod) {
         for (auto [_, node] : Bootstrap_->GetNodeTracker()->Nodes()) {
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
+
             TWithTagGuard tagGuard(crpBuffer, "node_address", node->GetDefaultAddress());
 
             i64 pullReplicationQueueSize = 0;

@@ -4515,6 +4515,10 @@ private:
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         for (auto [id, node] : nodeTracker->Nodes()) {
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
+
             for (auto [chunk, revision] : node->ReplicaEndorsements()) {
                 YT_VERIFY(!chunk->GetNodeWithEndorsement());
                 chunk->SetNodeWithEndorsement(node);
@@ -4529,6 +4533,10 @@ private:
         InitBuiltins();
 
         for (auto [_, node] : nodeTracker->Nodes()) {
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
+
             if (node->IsValidWriteTarget()) {
                 ConsistentChunkPlacement_->AddNode(node);
             }
@@ -5628,6 +5636,10 @@ private:
             } else {
                 const auto& nodeTracker = Bootstrap_->GetNodeTracker();
                 for (const auto& [id, node] : nodeTracker->Nodes()) {
+                    if (!IsObjectAlive(node)) {
+                        continue;
+                    }
+
                     node->IncrementalHeartbeatCounters().reset();
                 }
             }
