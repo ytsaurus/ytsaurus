@@ -155,6 +155,7 @@ DEFINE_ENUM(EMasterReign,
     ((MediumBase)                                                   (2401))  // gritukan
     ((S3Medium)                                                     (2402))  // gritukan
     ((ColumnRenamingSeparateFlags)                                  (2403))  // orlovorlov
+    ((MasterCellChunkStatisticsCollectorConfig)                     (2404))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////
