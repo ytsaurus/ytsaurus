@@ -594,9 +594,6 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .Default(false)
         .DontSerializeDefault();
 
-    registrar.Parameter("enable_per_location_node_disposal", &TThis::EnablePerLocationNodeDisposal)
-        .Default(false);
-
     registrar.Preprocessor([] (TThis* config) {
         config->JobThrottler->Limit = 10'000;
         for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
