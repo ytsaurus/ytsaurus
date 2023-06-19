@@ -2338,7 +2338,8 @@ void TClient::DoRegisterQueueConsumer(
     bool vital,
     const TRegisterQueueConsumerOptions& options)
 {
-    const auto& tableMountCache = Connection_->GetTableMountCache();
+    auto queueConnection = FindRemoteConnection(Connection_, queuePath.GetCluster());
+    const auto& tableMountCache = queueConnection->GetTableMountCache();
     auto queueTableInfo = WaitFor(tableMountCache->GetTableInfo(queuePath.GetPath()))
         .ValueOrThrow();
 
@@ -2348,7 +2349,7 @@ void TClient::DoRegisterQueueConsumer(
         .Permission = EPermission::RegisterQueueConsumer,
         .Vital = vital,
     };
-    const auto& permissionCache = Connection_->GetPermissionCache();
+    const auto& permissionCache = queueConnection->GetPermissionCache();
     WaitFor(permissionCache->Get(permissionKey))
         .ThrowOnError();
 
@@ -2368,7 +2369,8 @@ void TClient::DoUnregisterQueueConsumer(
     const NYPath::TRichYPath& consumerPath,
     const TUnregisterQueueConsumerOptions& /*options*/)
 {
-    const auto& tableMountCache = Connection_->GetTableMountCache();
+    auto queueConnection = FindRemoteConnection(Connection_, queuePath.GetCluster());
+    const auto& tableMountCache = queueConnection->GetTableMountCache();
     auto queueTableInfoOrError = WaitFor(tableMountCache->GetTableInfo(queuePath.GetPath()));
 
     auto consumerConnection = FindRemoteConnection(Connection_, consumerPath.GetCluster());
@@ -2393,7 +2395,7 @@ void TClient::DoUnregisterQueueConsumer(
         };
 
         WaitFor(AnySucceeded(std::vector{
-            Connection_->GetPermissionCache()->Get(queuePermissionKey),
+            queueConnection->GetPermissionCache()->Get(queuePermissionKey),
             consumerConnection->GetPermissionCache()->Get(consumerPermissionKey)
         }))
             .ThrowOnError();
