@@ -30,6 +30,8 @@
 
 #include <yt/yt/ytlib/misc/public.h>
 
+#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
+
 #include <yt/yt/library/profiling/solomon/public.h>
 
 #include <yt/yt/client/node_tracker_client/public.h>
@@ -190,8 +192,6 @@ struct IBootstrap
 {
     virtual void Initialize() = 0;
     virtual void Run() = 0;
-
-    virtual void ValidateSnapshot(const TString& fileName) = 0;
 
     virtual const IMasterConnectorPtr& GetMasterConnector() const = 0;
 

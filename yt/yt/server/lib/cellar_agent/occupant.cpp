@@ -8,21 +8,21 @@
 #include <yt/yt/server/lib/election/election_manager.h>
 #include <yt/yt/server/lib/election/distributed_election_manager.h>
 
+#include <yt/yt/server/lib/hydra_common/changelog_store_factory_thunk.h>
 #include <yt/yt/server/lib/hydra_common/changelog.h>
+#include <yt/yt/server/lib/hydra_common/config.h>
 #include <yt/yt/server/lib/hydra_common/hydra_manager.h>
 #include <yt/yt/server/lib/hydra_common/hydra_service.h>
-#include <yt/yt/server/lib/hydra_common/snapshot.h>
-#include <yt/yt/server/lib/hydra_common/changelog.h>
-#include <yt/yt/server/lib/hydra_common/snapshot.h>
-#include <yt/yt/server/lib/hydra_common/hydra_manager.h>
-#include <yt/yt/server/lib/hydra_common/snapshot_store_thunk.h>
-#include <yt/yt/server/lib/hydra_common/changelog_store_factory_thunk.h>
+#include <yt/yt/server/lib/hydra_common/local_snapshot_store.h>
 #include <yt/yt/server/lib/hydra_common/remote_changelog_store.h>
 #include <yt/yt/server/lib/hydra_common/remote_snapshot_store.h>
+#include <yt/yt/server/lib/hydra_common/snapshot_store_thunk.h>
+#include <yt/yt/server/lib/hydra_common/snapshot.h>
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 
 #include <yt/yt/server/lib/hydra2/distributed_hydra_manager.h>
+#include <yt/yt/server/lib/hydra2/dry_run_hydra_manager.h>
 
 #include <yt/yt/server/lib/election/election_manager.h>
 #include <yt/yt/server/lib/election/election_manager_thunk.h>
@@ -268,6 +268,43 @@ public:
         return Initialized_ && !Finalizing_;
     }
 
+    void ConfigureSnapshotStore(NNative::IConnectionPtr connection)
+    {
+        auto snapshotClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::TabletCellSnapshotterUserName));
+        auto storesPath = GetStoresPath();
+
+        auto snapshotStore = Config_->Snapshots;
+        switch (snapshotStore->StoreType) {
+            case ESnapshotStoreType::Remote : {
+                auto remoteSnapshotStore = ConvertTo<TRemoteSnapshotStoreConfigPtr>(snapshotStore);
+                auto snapshotStore = CreateRemoteSnapshotStore(
+                    remoteSnapshotStore,
+                    Options_,
+                    storesPath + "/snapshots",
+                    snapshotClient,
+                    PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId);
+                SnapshotStoreThunk_->SetUnderlying(snapshotStore);
+                break;
+            }
+
+            case ESnapshotStoreType::Local : {
+                SnapshotLocalIOQueue_ = New<TActionQueue>("SnapshotIO");
+                auto localSnapshotStore = ConvertTo<TLocalSnapshotStoreConfigPtr>(snapshotStore);
+                auto snapshotStoreFuture = CreateLocalSnapshotStore(
+                    localSnapshotStore,
+                    SnapshotLocalIOQueue_->GetInvoker());
+                auto snapshotStore = WaitFor(snapshotStoreFuture)
+                    .ValueOrThrow();
+
+                SnapshotStoreThunk_->SetUnderlying(snapshotStore);
+                break;
+            }
+
+            default:
+                YT_ABORT();
+        }
+    }
+
     void Configure(const TConfigureCellSlotInfo& configureInfo) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -329,24 +366,17 @@ public:
 
         // COMPAT(akozhikhov)
         auto connection = Bootstrap_->GetClient()->GetNativeConnection();
-        auto snapshotClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::TabletCellSnapshotterUserName));
-        auto changelogClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::TabletCellChangeloggerUserName));
 
-        auto storesPath = GetStoresPath();
-
-        auto snapshotStore = CreateRemoteSnapshotStore(
-            Config_->Snapshots,
-            Options_,
-            storesPath + "/snapshots",
-            snapshotClient,
-            PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId);
-        SnapshotStoreThunk_->SetUnderlying(snapshotStore);
+        ConfigureSnapshotStore(connection);
 
         auto addTags = [this] (auto profiler) {
             return profiler
                 .WithRequiredTag("tablet_cell_bundle", CellBundleName_ ? CellBundleName_ : UnknownProfilingTag)
                 .WithTag("cell_id", ToString(CellDescriptor_.CellId), -1);
         };
+
+        auto changelogClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::TabletCellChangeloggerUserName));
+        auto storesPath = GetStoresPath();
 
         auto changelogProfiler = addTags(occupier->GetProfiler().WithPrefix("/remote_changelog"));
         auto changelogStoreFactory = CreateRemoteChangelogStoreFactory(
@@ -401,7 +431,19 @@ public:
             };
 
             IDistributedHydraManagerPtr hydraManager;
-            if (Config_->UseNewHydra) {
+            if (Config_->EnableDryRun) {
+                hydraManagerOptions.UseFork = false;
+
+                auto dryRunHydraManager = NHydra2::CreateDryRunHydraManager(
+                    Config_->HydraManager,
+                    Bootstrap_->GetControlInvoker(),
+                    occupier->GetMutationAutomatonInvoker(),
+                    Automaton_,
+                    SnapshotStoreThunk_,
+                    hydraManagerOptions,
+                    CellManager_);
+                hydraManager = StaticPointerCast<IDistributedHydraManager>(dryRunHydraManager);
+            } else if (Config_->UseNewHydra) {
                 hydraManager = NHydra2::CreateDistributedHydraManager(
                     Config_->HydraManager,
                     Bootstrap_->GetControlInvoker(),
@@ -620,6 +662,11 @@ public:
         }
     }
 
+    const IInvokerPtr& GetSnapshotLocalIOInvoker() const override
+    {
+        return SnapshotLocalIOQueue_->GetInvoker();
+    }
+
 private:
     const TCellarOccupantConfigPtr Config_;
     const ICellarBootstrapProxyPtr Bootstrap_;
@@ -667,6 +714,8 @@ private:
     IYPathServicePtr OrchidService_;
 
     TError UnrecognizedOptionsAlert_;
+
+    NConcurrency::TActionQueuePtr SnapshotLocalIOQueue_;
 
     NLogging::TLogger Logger;
 

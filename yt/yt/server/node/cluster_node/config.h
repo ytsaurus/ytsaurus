@@ -284,6 +284,9 @@ public:
     //! Timestamp provider config. Contains addresses used for timestamp generation.
     NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
 
+    //! Dry run config.
+    NHydra::THydraDryRunConfigPtr DryRun;
+
     //! Known node addresses.
     NNodeTrackerClient::TNetworkAddressList Addresses;
 

@@ -251,6 +251,8 @@ void TClusterNodeConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("timestamp_provider", &TThis::TimestampProvider)
         .Default();
+    registrar.Parameter("dry_run", &TThis::DryRun)
+        .DefaultNew();
     registrar.Parameter("addresses", &TThis::Addresses)
         .Default();
     registrar.Parameter("tags", &TThis::Tags)

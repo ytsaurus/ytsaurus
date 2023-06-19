@@ -1,6 +1,6 @@
 #pragma once
 
-#include "private.h"
+#include <yt/yt/server/lib/hydra_common/public.h>
 
 namespace NYT::NHydra {
 
@@ -12,13 +12,6 @@ struct TSnapshotValidationOptions
     bool EnableTotalWriteCountReport = false;
     TSerializationDumperConfigPtr DumpConfig;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ValidateSnapshot(
-    const IAutomatonPtr& automaton,
-    const ISnapshotReaderPtr& reader,
-    const TSnapshotValidationOptions& options = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

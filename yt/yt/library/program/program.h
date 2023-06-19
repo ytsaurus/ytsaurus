@@ -6,6 +6,8 @@
 
 #include <library/cpp/getopt/last_getopt.h>
 
+#include <yt/yt/core/yson/string.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -108,8 +110,11 @@ private:
 //! Helper for TOpt::StoreMappedResult to validate file paths for existance.
 TString CheckPathExistsArgMapper(const TString& arg);
 
-//! Helper for TOpt::StoreMappedResult to parse guids.
+//! Helper for TOpt::StoreMappedResult to parse GUIDs.
 TGuid CheckGuidArgMapper(const TString& arg);
+
+//! Helper for TOpt::StoreMappedResult to parse YSON strings.
+NYson::TYsonString CheckYsonArgMapper(const TString& arg);
 
 //! Drop privileges and save them if running with suid-bit.
 void ConfigureUids();

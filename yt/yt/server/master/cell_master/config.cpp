@@ -359,14 +359,4 @@ void TDynamicClusterConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TMasterDryRunConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("enable_host_name_validation", &TThis::EnableHostNameValidation)
-        .Default(true);
-    registrar.Parameter("enable_dry_run", &TThis::EnableDryRun)
-        .Default(false);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NCellMaster

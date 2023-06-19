@@ -328,7 +328,7 @@ public:
         return Params_;
     }
 
-    DEFINE_SIGNAL(void(), Closed);
+    DEFINE_SIGNAL_OVERRIDE(void(), Closed);
 
 private:
     const TString FileName_;
@@ -479,229 +479,6 @@ DEFINE_REFCOUNTED_TYPE(TLocalSnapshotWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLocalSystemSnapshotStore
-    : public ILegacySnapshotStore
-{
-public:
-    TLocalSystemSnapshotStore(
-        TLocalSnapshotStoreConfigPtr config,
-        IInvokerPtr ioInvoker)
-        : Config_(std::move(config))
-        , IOInvoker_(std::move(ioInvoker))
-        , Logger(HydraLogger.WithTag("Path: %v", Config_->Path))
-    { }
-
-    TFuture<void> Initialize()
-    {
-        return BIND(&TLocalSystemSnapshotStore::DoInitialize, MakeStrong(this))
-            .AsyncVia(IOInvoker_)
-            .Run();
-    }
-
-    TFuture<int> GetLatestSnapshotId(int maxSnapshotId) override
-    {
-        auto guard = Guard(SpinLock_);
-
-        auto it = RegisteredSnapshotIds_.upper_bound(maxSnapshotId);
-        if (it == RegisteredSnapshotIds_.begin()) {
-            return MakeFuture(InvalidSegmentId);
-        }
-
-        int snapshotId = *(--it);
-        YT_VERIFY(snapshotId <= maxSnapshotId);
-        return MakeFuture(snapshotId);
-    }
-
-    ISnapshotReaderPtr CreateReader(int snapshotId) override
-    {
-        if (!CheckSnapshotExists(snapshotId)) {
-            THROW_ERROR_EXCEPTION(EErrorCode::NoSuchSnapshot, "No such snapshot %v", snapshotId);
-        }
-
-        return CreateLocalSnapshotReader(
-            GetSnapshotPath(snapshotId),
-            snapshotId,
-            IOInvoker_);
-    }
-
-    ISnapshotReaderPtr CreateRawReader(int snapshotId, i64 offset) override
-    {
-        return New<TRawLocalSnapshotReader>(
-            GetSnapshotPath(snapshotId),
-            snapshotId,
-            offset,
-            IOInvoker_);
-    }
-
-    ISnapshotWriterPtr CreateWriter(int snapshotId, const TSnapshotMeta& meta) override
-    {
-        return DoCreateWriter(
-            snapshotId,
-            GetSnapshotPath(snapshotId),
-            Config_->Codec,
-            snapshotId,
-            meta,
-            /*raw*/ false);
-    }
-
-    ISnapshotWriterPtr CreateRawWriter(int snapshotId) override
-    {
-        return DoCreateWriter(
-            snapshotId,
-            GetSnapshotPath(snapshotId),
-            Config_->Codec,
-            snapshotId,
-            TSnapshotMeta(),
-            /*raw*/ true);
-    }
-
-private:
-    const TLocalSnapshotStoreConfigPtr Config_;
-    const IInvokerPtr IOInvoker_;
-    const NLogging::TLogger Logger;
-
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
-    std::set<int> RegisteredSnapshotIds_;
-    THashMap<int, TWeakPtr<TLocalSnapshotWriter>> SnapshotIdToWriter_;
-
-
-    TString GetSnapshotPath(int snapshotId)
-    {
-        return NFS::CombinePaths(
-            Config_->Path,
-            Format("%09d.%v", snapshotId, SnapshotExtension));
-    }
-
-    bool CheckSnapshotExists(int snapshotId)
-    {
-        if (NFS::Exists(GetSnapshotPath(snapshotId))) {
-            return true;
-        }
-
-        {
-            auto guard = Guard(SpinLock_);
-            if (RegisteredSnapshotIds_.erase(snapshotId) == 1) {
-                YT_LOG_WARNING("Erased orphaned snapshot from store (SnapshotId: %v)",
-                    snapshotId);
-            }
-        }
-
-        return false;
-    }
-
-    void DoInitialize()
-    {
-        auto path = Config_->Path;
-
-        YT_LOG_INFO("Preparing snapshot directory");
-
-        NFS::MakeDirRecursive(path);
-        NFS::CleanTempFiles(path);
-
-        YT_LOG_INFO("Snapshot scan started");
-
-        auto fileNames = EnumerateFiles(path);
-        for (const auto& fileName : fileNames) {
-            auto extension = NFS::GetFileExtension(fileName);
-            if (extension != SnapshotExtension) {
-                continue;
-            }
-
-            auto name = NFS::GetFileNameWithoutExtension(fileName);
-
-            int snapshotId;
-            if (!TryFromString(name, snapshotId)) {
-                YT_LOG_WARNING("Found unrecognized file in snapshot directory (FileName: %v)",
-                    fileName);
-                continue;
-            }
-
-            RegisterSnapshot(snapshotId);
-        }
-
-        YT_LOG_INFO("Snapshot scan completed");
-    }
-
-    template <class... TArgs>
-    ISnapshotWriterPtr DoCreateWriter(int snapshotId, TArgs&&... args)
-    {
-        bool snapshotExists = NFS::Exists(GetSnapshotPath(snapshotId));
-
-        auto guard = Guard(SpinLock_);
-
-        if (!snapshotExists && RegisteredSnapshotIds_.erase(snapshotId) > 0) {
-            YT_LOG_WARNING("Erased orphaned snapshot from store (SnapshotId: %v)",
-                snapshotId);
-        }
-
-        if (RegisteredSnapshotIds_.contains(snapshotId)) {
-            THROW_ERROR_EXCEPTION("Snapshot %v is already present in store",
-                snapshotId);
-        }
-
-        // Scan through registered writers dropping expired ones and checking for conflicts.
-        for (auto it = SnapshotIdToWriter_.begin(); it != SnapshotIdToWriter_.end();) {
-            if (it->second.IsExpired()) {
-                SnapshotIdToWriter_.erase(it++);
-                continue;
-            }
-
-            if (it->first == snapshotId) {
-                THROW_ERROR_EXCEPTION("Snapshot %v is already being written",
-                    snapshotId);
-            }
-
-            ++it;
-        }
-
-        auto writer = New<TLocalSnapshotWriter>(std::forward<TArgs>(args)..., IOInvoker_);
-        writer->SubscribeClosed(BIND(
-            &TLocalSystemSnapshotStore::OnWriterClosed,
-            MakeWeak(this),
-            snapshotId));
-
-        SnapshotIdToWriter_[snapshotId] = writer;
-
-        return writer;
-    }
-
-    void OnWriterClosed(int snapshotId)
-    {
-        auto guard = Guard(SpinLock_);
-
-        EraseOrCrash(SnapshotIdToWriter_, snapshotId);
-        InsertOrCrash(RegisteredSnapshotIds_, snapshotId);
-
-        YT_LOG_INFO("Snapshot registered (SnapshotId: %v)",
-            snapshotId);
-    }
-
-    void RegisterSnapshot(int snapshotId)
-    {
-        auto guard = Guard(SpinLock_);
-
-        InsertOrCrash(RegisteredSnapshotIds_, snapshotId);
-
-        YT_LOG_INFO("Snapshot registered (SnapshotId: %v)",
-            snapshotId);
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-TFuture<ILegacySnapshotStorePtr> CreateLocalSnapshotStore(
-    TLocalSnapshotStoreConfigPtr config,
-    IInvokerPtr ioInvoker)
-{
-    auto store = New<TLocalSystemSnapshotStore>(
-        std::move(config),
-        std::move(ioInvoker));
-    return store->Initialize()
-        .Apply(BIND([=] () -> ILegacySnapshotStorePtr { return store; }));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TUncompressedHeaderlessLocalSnapshotReader
     : public ISnapshotReader
 {
@@ -847,7 +624,7 @@ public:
         return {};
     }
 
-    DEFINE_SIGNAL(void(), Closed);
+    DEFINE_SIGNAL_OVERRIDE(void(), Closed);
 
 private:
     const TString FileName_;
@@ -917,13 +694,233 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISnapshotWriterPtr CreateUncompressedHeaderlessLocalSnapshotWriter(
-    TString fileName,
+class TLocalSystemSnapshotStore
+    : public ILegacySnapshotStore
+{
+public:
+    TLocalSystemSnapshotStore(
+        TLocalSnapshotStoreConfigPtr config,
+        IInvokerPtr ioInvoker)
+        : Config_(std::move(config))
+        , IOInvoker_(std::move(ioInvoker))
+        , Logger(HydraLogger.WithTag("Path: %v", Config_->Path))
+    { }
+
+    TFuture<void> Initialize()
+    {
+        return BIND(&TLocalSystemSnapshotStore::DoInitialize, MakeStrong(this))
+            .AsyncVia(IOInvoker_)
+            .Run();
+    }
+
+    TFuture<int> GetLatestSnapshotId(int maxSnapshotId) override
+    {
+        auto guard = Guard(SpinLock_);
+
+        auto it = RegisteredSnapshotIds_.upper_bound(maxSnapshotId);
+        if (it == RegisteredSnapshotIds_.begin()) {
+            return MakeFuture(InvalidSegmentId);
+        }
+
+        int snapshotId = *(--it);
+        YT_VERIFY(snapshotId <= maxSnapshotId);
+        return MakeFuture(snapshotId);
+    }
+
+    ISnapshotReaderPtr CreateReader(int snapshotId) override
+    {
+        if (!CheckSnapshotExists(snapshotId)) {
+            THROW_ERROR_EXCEPTION(EErrorCode::NoSuchSnapshot, "No such snapshot %v", snapshotId);
+        }
+
+        return CreateLocalSnapshotReader(
+            GetSnapshotPath(snapshotId),
+            snapshotId,
+            IOInvoker_);
+    }
+
+    ISnapshotReaderPtr CreateRawReader(int snapshotId, i64 offset) override
+    {
+        return New<TRawLocalSnapshotReader>(
+            GetSnapshotPath(snapshotId),
+            snapshotId,
+            offset,
+            IOInvoker_);
+    }
+
+    ISnapshotWriterPtr CreateWriter(int snapshotId, const TSnapshotMeta& meta) override
+    {
+        return DoCreateWriter(
+            snapshotId,
+            GetSnapshotPath(snapshotId),
+            Config_->Codec,
+            snapshotId,
+            meta,
+            /*raw*/ false);
+    }
+
+    ISnapshotWriterPtr CreateRawWriter(int snapshotId) override
+    {
+        return DoCreateWriter(
+            snapshotId,
+            GetSnapshotPath(snapshotId),
+            Config_->Codec,
+            snapshotId,
+            TSnapshotMeta(),
+            /*raw*/ true);
+    }
+
+private:
+    const TLocalSnapshotStoreConfigPtr Config_;
+    const IInvokerPtr IOInvoker_;
+    const NLogging::TLogger Logger;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    std::set<int> RegisteredSnapshotIds_;
+    THashMap<int, TWeakPtr<ISnapshotWriter>> SnapshotIdToWriter_;
+
+
+    TString GetSnapshotPath(int snapshotId)
+    {
+        return NFS::CombinePaths(
+            Config_->Path,
+            Format("%09d.%v", snapshotId, SnapshotExtension));
+    }
+
+    bool CheckSnapshotExists(int snapshotId)
+    {
+        if (NFS::Exists(GetSnapshotPath(snapshotId))) {
+            return true;
+        }
+
+        {
+            auto guard = Guard(SpinLock_);
+            if (RegisteredSnapshotIds_.erase(snapshotId) == 1) {
+                YT_LOG_WARNING("Erased orphaned snapshot from store (SnapshotId: %v)",
+                    snapshotId);
+            }
+        }
+
+        return false;
+    }
+
+    void DoInitialize()
+    {
+        auto path = Config_->Path;
+
+        YT_LOG_INFO("Preparing snapshot directory");
+
+        NFS::MakeDirRecursive(path);
+        NFS::CleanTempFiles(path);
+
+        YT_LOG_INFO("Snapshot scan started");
+
+        auto fileNames = EnumerateFiles(path);
+        for (const auto& fileName : fileNames) {
+            auto extension = NFS::GetFileExtension(fileName);
+            if (extension != SnapshotExtension) {
+                continue;
+            }
+
+            auto name = NFS::GetFileNameWithoutExtension(fileName);
+
+            int snapshotId;
+            if (!TryFromString(name, snapshotId)) {
+                YT_LOG_WARNING("Found unrecognized file in snapshot directory (FileName: %v)",
+                    fileName);
+                continue;
+            }
+
+            RegisterSnapshot(snapshotId);
+        }
+
+        YT_LOG_INFO("Snapshot scan completed");
+    }
+
+    template <class... TArgs>
+    ISnapshotWriterPtr DoCreateWriter(int snapshotId, TArgs&&... args)
+    {
+        bool snapshotExists = NFS::Exists(GetSnapshotPath(snapshotId));
+
+        auto guard = Guard(SpinLock_);
+
+        if (!snapshotExists && RegisteredSnapshotIds_.erase(snapshotId) > 0) {
+            YT_LOG_WARNING("Erased orphaned snapshot from store (SnapshotId: %v)",
+                snapshotId);
+        }
+
+        if (RegisteredSnapshotIds_.contains(snapshotId)) {
+            THROW_ERROR_EXCEPTION("Snapshot %v is already present in store",
+                snapshotId);
+        }
+
+        // Scan through registered writers dropping expired ones and checking for conflicts.
+        for (auto it = SnapshotIdToWriter_.begin(); it != SnapshotIdToWriter_.end();) {
+            if (it->second.IsExpired()) {
+                SnapshotIdToWriter_.erase(it++);
+                continue;
+            }
+
+            if (it->first == snapshotId) {
+                THROW_ERROR_EXCEPTION("Snapshot %v is already being written",
+                    snapshotId);
+            }
+
+            ++it;
+        }
+
+        ISnapshotWriterPtr writer;
+        if (Config_->UseHeaderlessWriter) {
+            writer = New<TUncompressedHeaderlessLocalSnapshotWriter>(
+                GetSnapshotPath(snapshotId),
+                IOInvoker_);
+        } else {
+            writer = New<TLocalSnapshotWriter>(std::forward<TArgs>(args)..., IOInvoker_);
+        }
+
+        writer->SubscribeClosed(BIND(
+        &TLocalSystemSnapshotStore::OnWriterClosed,
+        MakeWeak(this),
+        snapshotId));
+
+        SnapshotIdToWriter_[snapshotId] = writer;
+
+        return writer;
+    }
+
+    void OnWriterClosed(int snapshotId)
+    {
+        auto guard = Guard(SpinLock_);
+
+        EraseOrCrash(SnapshotIdToWriter_, snapshotId);
+        InsertOrCrash(RegisteredSnapshotIds_, snapshotId);
+
+        YT_LOG_INFO("Snapshot registered (SnapshotId: %v)",
+            snapshotId);
+    }
+
+    void RegisterSnapshot(int snapshotId)
+    {
+        auto guard = Guard(SpinLock_);
+
+        InsertOrCrash(RegisteredSnapshotIds_, snapshotId);
+
+        YT_LOG_INFO("Snapshot registered (SnapshotId: %v)",
+            snapshotId);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<ILegacySnapshotStorePtr> CreateLocalSnapshotStore(
+    TLocalSnapshotStoreConfigPtr config,
     IInvokerPtr ioInvoker)
 {
-    return New<TUncompressedHeaderlessLocalSnapshotWriter>(
-        std::move(fileName),
+    auto store = New<TLocalSystemSnapshotStore>(
+        std::move(config),
         std::move(ioInvoker));
+    return store->Initialize()
+        .Apply(BIND([=] () -> ILegacySnapshotStorePtr { return store; }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

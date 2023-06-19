@@ -9,9 +9,19 @@
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/yt/server/node/tablet_node/security_manager.h>
+#include <yt/yt/server/node/tablet_node/tablet_cell_snapshot_validator.h>
 
 #include <yt/yt/server/lib/cellar_agent/bootstrap_proxy.h>
 #include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
+#include <yt/yt/server/lib/cellar_agent/occupant.h>
+
+#include <yt/yt/server/lib/hydra_common/composite_automaton.h>
+#include <yt/yt/server/lib/hydra_common/dry_run/dry_run_hydra_manager.h>
+#include <yt/yt/server/lib/hydra_common/dry_run/journal_as_local_file_read_only_changelog.h>
+#include <yt/yt/server/lib/hydra_common/dry_run/public.h>
+#include <yt/yt/server/lib/hydra_common/local_snapshot_store.h>
+
+#include <yt/yt/core/misc/fs.h>
 
 namespace NYT::NCellarNode {
 
@@ -21,6 +31,7 @@ using namespace NCellarClient;
 using namespace NClusterNode;
 using namespace NConcurrency;
 using namespace NElection;
+using namespace NHydra;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NRpc;
@@ -29,6 +40,7 @@ using namespace NSecurityServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = CellarNodeLogger;
+static inline const NLogging::TLogger DryRunLogger("DryRun");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -146,6 +158,7 @@ public:
             cellarConfig->Occupant->TransactionSupervisor = GetConfig()->TabletNode->TransactionSupervisor;
             cellarConfig->Occupant->ResponseKeeper = GetConfig()->TabletNode->HydraManager->ResponseKeeper;
             cellarConfig->Occupant->UseNewHydra = GetConfig()->TabletNode->HydraManager->UseNewHydra;
+            cellarConfig->Occupant->EnableDryRun = GetConfig()->DryRun->EnableDryRun;
 
             auto cellarManagerConfig = CloneYsonStruct(config);
             cellarManagerConfig->Cellars.insert({ECellarType::Tablet, std::move(cellarConfig)});
@@ -196,6 +209,45 @@ public:
         }
     }
 
+    void LoadSnapshotOrThrow(
+        const TString& fileName,
+        NHydra::NProto::TSnapshotMeta meta = {},
+        bool dumpSnapshot = false) override
+    {
+        BIND(&TBootstrap::DoLoadSnapshot, this, fileName, meta, dumpSnapshot)
+            .AsyncVia(GetControlInvoker())
+            .Run()
+            .Get()
+            .ThrowOnError();
+    }
+
+    void ReplayChangelogsOrThrow(std::vector<TString> changelogFileNames) override
+    {
+        BIND(&TBootstrap::DoReplayChangelogs, this, Passed(std::move(changelogFileNames)))
+            .AsyncVia(GetControlInvoker())
+            .Run()
+            .Get()
+            .ThrowOnError();
+    }
+
+    void BuildSnapshotOrThrow() override
+    {
+        BIND(&TBootstrap::DoBuildSnapshot, this)
+            .AsyncVia(GetControlInvoker())
+            .Run()
+            .Get()
+            .ThrowOnError();
+    }
+
+    void FinishDryRunOrThrow() override
+    {
+        BIND(&TBootstrap::DoFinishDryRun, this)
+            .AsyncVia(GetControlInvoker())
+            .Run()
+            .Get()
+            .ThrowOnError();
+    }
+
 private:
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
 
@@ -206,6 +258,81 @@ private:
     ICellarManagerPtr CellarManager_;
 
     IMasterConnectorPtr MasterConnector_;
+
+    ICellarOccupantPtr DryRunOccupant_ = nullptr;
+
+    void EnsureDryRunOccupantCreated()
+    {
+        if (DryRunOccupant_) {
+            return;
+        }
+
+        auto cellId = GetConfig()->DryRun->TabletCellId;
+        YT_VERIFY(cellId);
+
+        YT_LOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Creating dry-run occupant (CellId: %v)",
+            cellId);
+
+        DryRunOccupant_ = NTabletNode::CreateFakeOccupant(ClusterNodeBootstrap_, cellId);
+    }
+
+    void DoLoadSnapshot(
+        const TString& fileName,
+        NHydra::NProto::TSnapshotMeta meta = {},
+        bool dumpSnapshot = false)
+    {
+        YT_LOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Snapshot meta received (Meta: %v)",
+            meta);
+
+        EnsureDryRunOccupantCreated();
+        auto snapshotReader = CreateUncompressedHeaderlessLocalSnapshotReader(
+            fileName,
+            meta,
+            DryRunOccupant_->GetSnapshotLocalIOInvoker());
+
+        const auto& automaton = DryRunOccupant_->GetAutomaton();
+        automaton->SetSnapshotValidationOptions({dumpSnapshot, false, nullptr});
+
+        const auto& hydraManager = DryRunOccupant_->GetHydraManager();
+        auto dryRunHydraManager = StaticPointerCast<IDryRunHydraManager>(hydraManager);
+        dryRunHydraManager->DryRunLoadSnapshot(std::move(snapshotReader));
+    }
+
+    void DoReplayChangelogs(const std::vector<TString>& changelogFileNames)
+    {
+        EnsureDryRunOccupantCreated();
+        const auto& hydraManager = DryRunOccupant_->GetHydraManager();
+        auto dryRunHydraManager = StaticPointerCast<IDryRunHydraManager>(hydraManager);
+
+        for (auto changelogFileName : changelogFileNames) {
+            auto changelogId = TryFromString<int>(NFS::GetFileNameWithoutExtension(changelogFileName));
+            if (changelogId.Empty()) {
+                changelogId = InvalidSegmentId;
+                YT_LOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Can't parse changelog name as id, using id %v as substitute",
+                    changelogId);
+            }
+
+            YT_LOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Started loading changelog");
+            auto changelog = CreateJournalAsLocalFileReadOnlyChangelog(changelogFileName, *changelogId);
+            dryRunHydraManager->DryRunReplayChangelog(changelog);
+        }
+    }
+
+    void DoBuildSnapshot()
+    {
+        EnsureDryRunOccupantCreated();
+        const auto& hydraManager = DryRunOccupant_->GetHydraManager();
+        auto dryRunHydraManager = StaticPointerCast<IDryRunHydraManager>(hydraManager);
+        dryRunHydraManager->DryRunBuildSnapshot();
+    }
+
+    void DoFinishDryRun()
+    {
+        EnsureDryRunOccupantCreated();
+        const auto& hydraManager = DryRunOccupant_->GetHydraManager();
+        auto dryRunHydraManager = StaticPointerCast<IDryRunHydraManager>(hydraManager);
+        dryRunHydraManager->DryRunShutdown();
+    }
 
     void OnDynamicConfigChanged(
         const TClusterNodeDynamicConfigPtr& /*oldConfig*/,

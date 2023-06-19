@@ -829,8 +829,8 @@ public:
     //! Limits resources consumed by tablets.
     TResourceLimitsConfigPtr ResourceLimits;
 
-    //! Remote snapshots.
-    NHydra::TRemoteSnapshotStoreConfigPtr Snapshots;
+    //! Remote by default, can be set to local.
+    NHydra::TSnapshotStoreConfigBasePtr Snapshots;
 
     //! Remote changelogs.
     NHydra::TRemoteChangelogStoreConfigPtr Changelogs;

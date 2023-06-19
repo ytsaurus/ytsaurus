@@ -12,6 +12,7 @@
 #include <yt/yt/core/ytalloc/bindings.h>
 
 #include <yt/yt/core/yson/writer.h>
+#include <yt/yt/core/yson/null_consumer.h>
 
 #include <yt/yt/core/logging/log_manager.h>
 
@@ -253,6 +254,12 @@ TGuid CheckGuidArgMapper(const TString& arg)
         throw TProgramException(Format("Error parsing guid %Qv", arg));
     }
     return result;
+}
+
+NYson::TYsonString CheckYsonArgMapper(const TString& arg)
+{
+    ParseYsonStringBuffer(arg, EYsonType::Node, GetNullYsonConsumer());
+    return NYson::TYsonString(arg);
 }
 
 void ConfigureUids()

@@ -6,7 +6,7 @@ namespace NYT::NCellMaster {
 
 /////////////////////////////////////////////////////////////////////////////
 
-void ExportSnapshot(TBootstrap* bootstrap, const TString& snapshotPath, const TString& exportConfig);
+void ExportSnapshot(TBootstrap* bootstrap, const TString& configPath);
 
 /////////////////////////////////////////////////////////////////////////////
 

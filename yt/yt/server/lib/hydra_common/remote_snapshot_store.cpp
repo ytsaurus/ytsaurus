@@ -235,7 +235,7 @@ private:
 
         TFuture<void> Write(const TSharedRef& buffer) override
         {
-            YT_VERIFY(Opened_ && !Closed_);
+            YT_VERIFY(IsOpened_ && !IsClosed_);
             Length_ += buffer.Size();
             return Writer_->Write(buffer);
         }
@@ -249,9 +249,11 @@ private:
 
         TSnapshotParams GetParams() const override
         {
-            YT_VERIFY(Closed_);
+            YT_VERIFY(IsClosed_);
             return Params_;
         }
+
+        DEFINE_SIGNAL_OVERRIDE(void(), Closed);
 
     private:
         const TRemoteSnapshotStorePtr Store_;
@@ -265,8 +267,8 @@ private:
         IFileWriterPtr Writer_;
         i64 Length_ = 0;
         TSnapshotParams Params_;
-        bool Opened_ = false;
-        bool Closed_ = false;
+        bool IsOpened_ = false;
+        bool IsClosed_ = false;
 
 
         IInvokerPtr GetInvoker()
@@ -277,7 +279,7 @@ private:
         void DoOpen()
         {
             try {
-                YT_VERIFY(!Opened_);
+                YT_VERIFY(!IsOpened_);
 
                 YT_LOG_DEBUG("Starting remote snapshot upload transaction");
                 {
@@ -347,7 +349,7 @@ private:
                 }
                 YT_LOG_DEBUG("Remote snapshot writer opened");
 
-                Opened_ = true;
+                IsOpened_ = true;
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error opening remote snapshot for writing")
                     << TErrorAttribute("snapshot_path", Path_)
@@ -358,7 +360,7 @@ private:
         void DoClose()
         {
             try {
-                YT_VERIFY(Opened_ && !Closed_);
+                YT_VERIFY(IsOpened_ && !IsClosed_);
 
                 YT_LOG_DEBUG("Closing remote snapshot writer");
                 WaitFor(Writer_->Close())
@@ -374,7 +376,7 @@ private:
                 Params_.CompressedLength = Length_;
                 Params_.UncompressedLength = Length_;
 
-                Closed_ = true;
+                IsClosed_ = true;
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error closing remote snapshot")
                     << TErrorAttribute("snapshot_path", Path_)

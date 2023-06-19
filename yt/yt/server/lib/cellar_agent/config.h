@@ -85,7 +85,8 @@ class TCellarOccupantConfig
     : public NYTree::TYsonStruct
 {
 public:
-    NHydra::TRemoteSnapshotStoreConfigPtr Snapshots;
+    // Remote store by default, but can be configured as a local one for dry run.
+    NHydra::TSnapshotStoreConfigBasePtr Snapshots;
 
     NHydra::TRemoteChangelogStoreConfigPtr Changelogs;
 
@@ -100,6 +101,8 @@ public:
     NRpc::TResponseKeeperConfigPtr ResponseKeeper;
 
     bool UseNewHydra;
+
+    bool EnableDryRun;
 
     REGISTER_YSON_STRUCT(TCellarOccupantConfig);
 

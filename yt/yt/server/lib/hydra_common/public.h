@@ -70,16 +70,18 @@ class TEntityBase;
 class TSaveContext;
 class TLoadContext;
 
+DECLARE_REFCOUNTED_CLASS(TDistributedHydraManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TDynamicDistributedHydraManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TFileChangelogConfig)
 DECLARE_REFCOUNTED_CLASS(TFileChangelogDispatcherConfig)
 DECLARE_REFCOUNTED_CLASS(TFileChangelogStoreConfig)
-DECLARE_REFCOUNTED_CLASS(TLocalSnapshotStoreConfig)
-DECLARE_REFCOUNTED_CLASS(TRemoteSnapshotStoreConfig)
-DECLARE_REFCOUNTED_CLASS(TRemoteChangelogStoreConfig)
-DECLARE_REFCOUNTED_CLASS(TDistributedHydraManagerConfig)
-DECLARE_REFCOUNTED_CLASS(TDynamicDistributedHydraManagerConfig)
+DECLARE_REFCOUNTED_CLASS(THydraDryRunConfig)
 DECLARE_REFCOUNTED_CLASS(THydraJanitorConfig)
 DECLARE_REFCOUNTED_CLASS(TLocalHydraJanitorConfig)
+DECLARE_REFCOUNTED_CLASS(TLocalSnapshotStoreConfig)
+DECLARE_REFCOUNTED_CLASS(TRemoteChangelogStoreConfig)
+DECLARE_REFCOUNTED_CLASS(TRemoteSnapshotStoreConfig)
+DECLARE_REFCOUNTED_CLASS(TSnapshotStoreConfigBase)
 
 using TReign = int;
 

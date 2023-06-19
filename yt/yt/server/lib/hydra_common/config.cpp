@@ -56,11 +56,25 @@ void TFileChangelogStoreConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TSnapshotStoreConfigBase::Register(TRegistrar registrar)
+{
+    registrar.Parameter("store_type", &TThis::StoreType)
+        .Default(ESnapshotStoreType::Remote);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TLocalSnapshotStoreConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("path", &TThis::Path);
     registrar.Parameter("codec", &TThis::Codec)
         .Default(NCompression::ECodec::Lz4);
+    registrar.Parameter("use_headerless_writer", &TThis::UseHeaderlessWriter)
+        .Default(false);
+
+    registrar.Preprocessor([] (TThis* config) {
+        config->StoreType = ESnapshotStoreType::Local;
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -78,6 +92,7 @@ void TRemoteSnapshotStoreConfig::Register(TRegistrar registrar)
 
         //! We want to evenly distribute snapshot load across the cluster.
         config->Writer->PreferLocalHost = false;
+        config->StoreType = ESnapshotStoreType::Remote;
     });
 }
 
@@ -476,6 +491,18 @@ void TSerializationDumperConfig::Register(TRegistrar registrar)
                 << TErrorAttribute("upper_limit", config->UpperLimit);
         }
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void THydraDryRunConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable_host_name_validation", &TThis::EnableHostNameValidation)
+        .Default(true);
+    registrar.Parameter("enable_dry_run", &TThis::EnableDryRun)
+        .Default(false);
+    registrar.Parameter("tablet_cell_id", &TThis::TabletCellId)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

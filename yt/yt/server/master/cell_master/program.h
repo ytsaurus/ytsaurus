@@ -2,6 +2,8 @@
 #include "config.h"
 #include "snapshot_exporter.h"
 
+#include <yt/yt/server/lib/hydra_common/dry_run/utils.h>
+
 #include <yt/yt/library/program/program.h>
 #include <yt/yt/library/program/program_config_mixin.h>
 #include <yt/yt/library/program/program_pdeathsig_mixin.h>
@@ -12,13 +14,13 @@
 #include <yt/yt/core/logging/file_log_writer.h>
 #include <yt/yt/core/misc/fs.h>
 
-#include <library/cpp/yt/phdr_cache/phdr_cache.h>
-
-#include <library/cpp/yt/mlock/mlock.h>
-
 #include <yt/yt/core/bus/tcp/dispatcher.h>
 
 #include <yt/yt/core/misc/shutdown.h>
+
+#include <library/cpp/yt/phdr_cache/phdr_cache.h>
+
+#include <library/cpp/yt/mlock/mlock.h>
 
 #include <util/system/thread.h>
 
@@ -40,15 +42,15 @@ public:
     {
         Opts_
             .AddLongOption("dump-snapshot", "dump master snapshot and exit")
-            .StoreMappedResult(&DumpSnapshot_, &CheckPathExistsArgMapper)
+            .StoreMappedResult(&SnapshotPath_, &CheckPathExistsArgMapper)
             .RequiredArgument("SNAPSHOT");
         Opts_
             .AddLongOption("dump-config", "config for snapshot dumping, which contains 'lower_limit' and 'upper_limit'")
-            .StoreResult(&DumpConfig_)
+            .StoreResult(&DumpSnapshotConfig_)
             .RequiredArgument("CONFIG_YSON");
         Opts_
             .AddLongOption("export-snapshot", "export master snapshot\nexpects path to snapshot")
-            .StoreMappedResult(&ExportSnapshot_, &CheckPathExistsArgMapper)
+            .StoreMappedResult(&SnapshotPath_, &CheckPathExistsArgMapper)
             .RequiredArgument("SNAPSHOT");
         Opts_
             .AddLongOption("export-config", "user config for master snapshot exporting\nexpects yson which may have keys "
@@ -57,7 +59,7 @@ public:
             .RequiredArgument("CONFIG_YSON");
         Opts_
             .AddLongOption("validate-snapshot", "load master snapshot in a dry run mode")
-            .StoreMappedResult(&ValidateSnapshot_, &CheckPathExistsArgMapper)
+            .StoreMappedResult(&SnapshotPath_, &CheckPathExistsArgMapper)
             .RequiredArgument("SNAPSHOT");
         Opts_
             .AddLongOption("replay-changelogs", "replay one or more consecutive master changelogs\n"
@@ -70,10 +72,6 @@ public:
                                              "By default snapshot will be saved in the working directory")
             .StoreResult(&SnapshotBuildDirectory_)
             .OptionalArgument("DIRECTORY");
-        Opts_
-            .AddLongOption("force-log-level-info", "set log level to info for dry run")
-            .SetFlag(&ForceLogLevelInfo_)
-            .NoArgument();
         Opts_
             .AddLongOption("report-total-write-count")
             .SetFlag(&EnableTotalWriteCountReport_)
@@ -97,6 +95,10 @@ protected:
 
         if (dumpSnapshot + validateSnapshot + exportSnapshot > 1) {
             THROW_ERROR_EXCEPTION("Options 'dump-snapshot', 'validate-snapshot' and 'export-snapshot' are mutually exclusive");
+        }
+
+        if ((dumpSnapshot || exportSnapshot) && replayChangelogs) {
+            THROW_ERROR_EXCEPTION("Option 'replay-changelogs' can not be used with 'dump-snapshot' or 'export-snapshot'");
         }
 
         if (buildSnapshot && !replayChangelogs && !validateSnapshot) {
@@ -124,53 +126,36 @@ protected:
 
         auto config = GetConfig();
 
-        auto isDryRun = dumpSnapshot || validateSnapshot || exportSnapshot || replayChangelogs;
+        auto loadSnapshot = dumpSnapshot || validateSnapshot || exportSnapshot;
+        auto isDryRun = loadSnapshot || replayChangelogs;
 
         if (isDryRun) {
             NBus::TTcpDispatcher::Get()->DisableNetworking();
             config->DryRun->EnableHostNameValidation = false;
             config->DryRun->EnableDryRun = true;
             config->Logging->ShutdownGraceTimeout = TDuration::Seconds(10);
-
-            if (ForceLogLevelInfo_) {
-                config->Logging->Rules[0]->MinLevel = NLogging::ELogLevel::Info;
-            }
+            config->Snapshots->Path = NFS::GetDirectoryName(".");
         }
 
         if (replayChangelogs) {
             auto changelogDirectory = NFS::GetDirectoryName(ChangelogFileNames_.front());
             for (const auto& fileName : ChangelogFileNames_) {
-                if (changelogDirectory != NFS::GetDirectoryName(fileName)) {
-                    THROW_ERROR_EXCEPTION("Changelogs must be located in one directory");
-                }
+                THROW_ERROR_EXCEPTION_IF(
+                    changelogDirectory != NFS::GetDirectoryName(fileName),
+                    "Changelogs must be located in one directory");
             }
-        }
-
-        if (buildSnapshot) {
-            config->Snapshots->Path = SnapshotBuildDirectory_.empty()
-                ? NFS::GetDirectoryName(".")
-                : NFS::GetRealPath(SnapshotBuildDirectory_);
         }
 
         if (dumpSnapshot) {
             config->Logging = NLogging::TLogManagerConfig::CreateSilent();
         } else if (validateSnapshot) {
-            config->Logging = NLogging::TLogManagerConfig::CreateQuiet();
-
-            auto silentRule = New<NLogging::TRuleConfig>();
-            silentRule->MinLevel = NLogging::ELogLevel::Debug;
-            silentRule->Writers.push_back(TString("dev_null"));
-
-            auto writerConfig = New<NLogging::TLogWriterConfig>();
-            writerConfig->Type = NLogging::TFileLogWriterConfig::Type;
-
-            auto fileWriterConfig = New<NLogging::TFileLogWriterConfig>();
-            fileWriterConfig->FileName = "/dev/null";
-
-            config->Logging->Rules.push_back(silentRule);
-            config->Logging->Writers.emplace(TString("dev_null"), writerConfig->BuildFullConfig(fileWriterConfig));
+            NHydra::ConfigureDryRunLogging(config);
         } else if (exportSnapshot) {
             config->Logging = NLogging::TLogManagerConfig::CreateQuiet();
+        }
+
+        if (buildSnapshot && !SnapshotBuildDirectory_.empty()) {
+            config->Snapshots->Path = NFS::GetRealPath(SnapshotBuildDirectory_);
         }
 
         ConfigureNativeSingletons(config);
@@ -186,28 +171,23 @@ protected:
             NConcurrency::TDelayedExecutor::WaitForDuration(TDuration::Seconds(10));
         }
 
-        if (dumpSnapshot) {
-            bootstrap->LoadSnapshotOrThrow(DumpSnapshot_, true, false, DumpConfig_);
-        }
-
-        if (exportSnapshot) {
-            ExportSnapshot(bootstrap, ExportSnapshot_, ExportSnapshotConfig_);
-        }
-
-        if (validateSnapshot) {
-            bootstrap->LoadSnapshotOrThrow(ValidateSnapshot_, false, EnableTotalWriteCountReport_, {});
-        }
-        if (replayChangelogs) {
-            bootstrap->ReplayChangelogsOrThrow(std::move(ChangelogFileNames_));
-        }
-        if (buildSnapshot) {
-            bootstrap->BuildSnapshotOrThrow();
-        }
-
-        if (isDryRun) {
-            bootstrap->FinishDryRunOrThrow();
-        } else {
+        if (!isDryRun) {
             bootstrap->Run();
+        } else {
+            if (loadSnapshot) {
+                bootstrap->LoadSnapshotOrThrow(SnapshotPath_, dumpSnapshot, EnableTotalWriteCountReport_, DumpSnapshotConfig_);
+            }
+            if (exportSnapshot) {
+                // TODO (h0pless): maybe rename this to ExportState
+                ExportSnapshot(bootstrap, ExportSnapshotConfig_);
+            }
+            if (replayChangelogs) {
+                bootstrap->ReplayChangelogsOrThrow(std::move(ChangelogFileNames_));
+            }
+            if (buildSnapshot) {
+                bootstrap->BuildSnapshotOrThrow();
+            }
+            bootstrap->FinishDryRunOrThrow();
         }
 
         // XXX(babenko): ASAN complains about memory leak on graceful exit.
@@ -216,16 +196,13 @@ protected:
     }
 
 private:
-    TString DumpSnapshot_;
-    TString DumpConfig_;
-    TString ExportSnapshot_;
+    TString SnapshotPath_;
+    TString DumpSnapshotConfig_;
     TString ExportSnapshotConfig_;
-    TString ValidateSnapshot_;
     std::vector<TString> ChangelogFileNames_;
     TString SnapshotBuildDirectory_;
     bool EnableTotalWriteCountReport_ = false;
     bool SleepAfterInitialize_ = false;
-    bool ForceLogLevelInfo_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

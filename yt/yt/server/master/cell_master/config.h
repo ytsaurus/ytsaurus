@@ -213,7 +213,7 @@ public:
     NHydra::TLocalSnapshotStoreConfigPtr Snapshots;
     TMasterHydraManagerConfigPtr HydraManager;
 
-    TMasterDryRunConfigPtr DryRun;
+    NHydra::THydraDryRunConfigPtr DryRun;
 
     NHiveClient::TCellDirectoryConfigPtr CellDirectory;
     NHiveServer::TCellDirectorySynchronizerConfigPtr CellDirectorySynchronizer;
@@ -337,23 +337,6 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicClusterConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TMasterDryRunConfig
-    : public NYTree::TYsonStruct
-{
-public:
-    bool EnableHostNameValidation;
-
-    bool EnableDryRun;
-
-    REGISTER_YSON_STRUCT(TMasterDryRunConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TMasterDryRunConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

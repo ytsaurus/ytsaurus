@@ -1,6 +1,6 @@
 #pragma once
 
-#include "distributed_hydra_manager.h"
+#include <yt/yt/server/lib/hydra_common/distributed_hydra_manager.h>
 
 namespace NYT::NHydra {
 

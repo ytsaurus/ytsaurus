@@ -5,11 +5,8 @@
 #include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
 #include <yt/yt/server/lib/cellar_agent/cellar.h>
 #include <yt/yt/server/lib/cellar_agent/occupant.h>
-#include <yt/yt/server/lib/cellar_agent/occupier.h>
 
-#include <yt/yt/server/lib/hydra_common/composite_automaton.h>
 #include <yt/yt/server/lib/hydra_common/snapshot.h>
-#include <yt/yt/server/lib/hydra_common/validate_snapshot.h>
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 
@@ -20,8 +17,6 @@
 #include <yt/yt/ytlib/tablet_client/config.h>
 
 #include <yt/yt/client/object_client/helpers.h>
-
-#include <yt/yt/core/concurrency/async_stream.h>
 
 namespace NYT::NTabletNode {
 
@@ -39,27 +34,31 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateTabletCellSnapshot(IBootstrapBase* bootstrap, const NHydra::ISnapshotReaderPtr& reader)
+static const auto FakeTransactionId = MakeWellKnownId(EObjectType::Transaction, 1);
+static const TString FakeAccount = "fake-account";
+static const TString FakeBundle = "fake-bundle";
+
+////////////////////////////////////////////////////////////////////////////////
+
+ICellarOccupantPtr CreateFakeOccupant(IBootstrapBase* bootstrap, TGuid cellId)
 {
     const auto& cellarManager = bootstrap
         ->GetCellarNodeBootstrap()
         ->GetCellarManager();
     const auto& cellar = cellarManager->GetCellar(ECellarType::Tablet);
 
-    auto cellId = MakeRandomId(EObjectType::TabletCell, 1);
-
     // We create fake tablet slot here populating descriptors with the least amount
     // of data such that configuration succeeds.
     {
         auto options = New<TTabletCellOptions>();
-        options->SnapshotAccount = "a";
-        options->ChangelogAccount = "a";
+        options->SnapshotAccount = FakeAccount;
+        options->ChangelogAccount = FakeAccount;
 
         TCreateCellSlotInfo protoInfo;
         ToProto(protoInfo.mutable_cell_id(), cellId);
         protoInfo.set_peer_id(0);
         protoInfo.set_options(ConvertToYsonString(*options).ToString());
-        protoInfo.set_cell_bundle("b");
+        protoInfo.set_cell_bundle(FakeBundle);
 
         cellar->CreateOccupant(protoInfo);
     }
@@ -73,23 +72,15 @@ void ValidateTabletCellSnapshot(IBootstrapBase* bootstrap, const NHydra::ISnapsh
         TCellPeerDescriptor peerDescriptor;
         peerDescriptor.SetVoting(true);
         cellDescriptor.Peers = {peerDescriptor};
-        auto prerequisiteTransactionId = MakeId(EObjectType::Transaction, 1, 1, 1);
 
         TConfigureCellSlotInfo protoInfo;
         ToProto(protoInfo.mutable_cell_descriptor(), cellDescriptor);
-        ToProto(protoInfo.mutable_prerequisite_transaction_id(), prerequisiteTransactionId);
+        ToProto(protoInfo.mutable_prerequisite_transaction_id(), FakeTransactionId);
 
         cellar->ConfigureOccupant(occupant, protoInfo);
     }
 
-    BIND([=] {
-            auto automaton = occupant->GetAutomaton();
-            ValidateSnapshot(automaton, reader);
-        })
-        .AsyncVia(occupant->GetOccupier()->GetOccupierAutomatonInvoker())
-        .Run()
-        .Get()
-        .ThrowOnError();
+    return occupant;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

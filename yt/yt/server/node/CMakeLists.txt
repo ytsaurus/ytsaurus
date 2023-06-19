@@ -91,6 +91,7 @@ target_link_libraries(yt-server-node PUBLIC
   server-lib-exec_node
   server-lib-tablet_server
   server-lib-hydra
+  lib-hydra_common-dry_run
   server-lib-hydra2
   server-lib-lsm
   server-lib-rpc

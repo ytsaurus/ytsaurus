@@ -10,8 +10,22 @@ namespace NYT::NCellarNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IBootstrapDryRunBase
+{
+    virtual void LoadSnapshotOrThrow(
+        const TString& fileName,
+        NHydra::NProto::TSnapshotMeta meta = {},
+        bool dump = false) = 0;
+    virtual void ReplayChangelogsOrThrow(std::vector<TString> changelogFileNames) = 0;
+    virtual void BuildSnapshotOrThrow() = 0;
+    virtual void FinishDryRunOrThrow() = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IBootstrap
     : public virtual NClusterNode::IBootstrapBase
+    , public virtual IBootstrapDryRunBase
 {
     virtual void Initialize() = 0;
     virtual void Run() = 0;

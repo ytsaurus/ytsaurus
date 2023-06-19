@@ -4,8 +4,9 @@
 #include "hydra_manager.h"
 #include "mutation_context.h"
 #include "snapshot.h"
-#include "validate_snapshot.h"
 #include "serialize.h"
+
+#include <yt/yt/server/lib/hydra_common/dry_run/public.h>
 
 #include <yt/yt/ytlib/hydra/proto/hydra_service.pb.h>
 
