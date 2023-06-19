@@ -75,6 +75,10 @@ public:
 
         int nodeCount = 0;
         for (auto [nodeId, node] : nodeTracker->Nodes()) {
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
+
             if (isGood(node)) {
                 ++nodeCount;
             }
@@ -83,6 +87,10 @@ public:
         std::vector<TNodeHolder> nodes;
         nodes.reserve(nodeCount);
         for (auto [nodeId, node] : nodeTracker->Nodes()) {
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
+
             if (!isGood(node)) {
                 continue;
             }

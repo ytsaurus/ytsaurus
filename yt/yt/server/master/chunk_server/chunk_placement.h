@@ -20,55 +20,6 @@ namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! An iterator-like device that merges (sorted) iterator ranges on the fly (i.e. lazily).
-/*!
- *  The iterator is reusable and non-copyable to avoid unnecessary allocations.
- *
- *  NB: this may require some rewriting when ranges make it to the C++ standard.
- *  However, keep in mind that the number of allocations should be kept to the
- *  minimum here. This may be hard to achieve with the classic view-iterator approach.
- */
-template <class T, class TCompare>
-class TReusableMergeIterator
-{
-private:
-    struct TRange
-    {
-        TRange(const T& begin, const T& end)
-            : Begin(begin)
-            , End(end)
-        { }
-
-        T Begin;
-        T End;
-    };
-
-    struct TRangeCompare;
-
-public:
-    TReusableMergeIterator() = default;
-
-    TReusableMergeIterator(const TReusableMergeIterator&) = delete;
-    TReusableMergeIterator& operator=(const TReusableMergeIterator&) = delete;
-
-    // U's begin and end should be T.
-    template <class U>
-    void AddRange(U&& range);
-
-    void Reset();
-
-    decltype(*std::declval<T>()) operator*();
-    decltype(&*std::declval<T>()) operator->();
-    bool IsValid();
-    TReusableMergeIterator& operator++();
-
-private:
-    // The ranges are arranged (no pun intended) into a heap (by the their first elements).
-    // The front of the heap holds the smallest range (according to TCompare).
-    // Empty ranges are immediately removed.
-    std::vector<TRange> Ranges_;
-};
-
 struct TLoadFactorToNodeMapItemComparator
 {
     TLoadFactorToNodeMapItemComparator() = default;
@@ -157,8 +108,6 @@ private:
     const TChunkManagerConfigPtr Config_;
     const TConsistentChunkPlacementPtr ConsistentPlacement_;
 
-    TReusableMergeIterator<TLoadFactorToNodeIterator, TLoadFactorToNodeMapItemComparator> LoadFactorToNodeIterator_;
-
     using TLoadFactorToNodeMaps = THashMap<const TDomesticMedium*, TLoadFactorToNodeMap>;
 
     //! Nodes listed here must pass #IsValidWriteTargetToInsert test.
@@ -225,8 +174,6 @@ private:
         int mediumIndex,
         NChunkClient::ESessionType sessionType);
 
-    void PrepareLoadFactorIterator(const TDomesticMedium* medium);
-
     const TDynamicChunkManagerConfigPtr& GetDynamicConfig() const;
     bool IsConsistentChunkPlacementEnabled() const;
 
@@ -238,7 +185,3 @@ DEFINE_REFCOUNTED_TYPE(TChunkPlacement)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer
-
-#define CHUNK_PLACEMENT_INL_H_
-#include "chunk_placement-inl.h"
-#undef CHUNK_PLACEMENT_INL_H_
