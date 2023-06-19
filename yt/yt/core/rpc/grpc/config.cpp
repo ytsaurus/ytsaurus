@@ -67,6 +67,8 @@ void TChannelCredentialsConfig::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("pem_key_cert_pair", &TThis::PemKeyCertPair)
         .Optional();
+    registrar.Parameter("verify_server_cert", &TThis::VerifyServerCert)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
