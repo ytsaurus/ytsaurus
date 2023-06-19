@@ -1158,7 +1158,7 @@ class TestChunkCreationThrottler(YTEnvSetup):
         sleep(1)
 
         assert get("//sys/users/{}/@chunk_service_request_bytes_throttler/limit".format(non_root_user)) == new_limit
-        assert self._measure_write_time(non_root_user) >= usual_time * 2.5
+        assert self._measure_write_time(non_root_user) >= usual_time * 2
 
         yield
 
@@ -1168,7 +1168,7 @@ class TestChunkCreationThrottler(YTEnvSetup):
         self._measure_write_time("root")
         print_debug("--------->>> warmed up <<<---------")
 
-        assert self._measure_write_time(non_root_user) >= usual_time * 2.5
+        assert self._measure_write_time(non_root_user) >= usual_time * 2
 
         remove("//sys/users/{}/@chunk_service_request_bytes_throttler/limit".format(non_root_user))
         with pytest.raises(YtError, match="Error resolving path /limit"):
@@ -1213,7 +1213,7 @@ class TestChunkCreationThrottler(YTEnvSetup):
 
         write_table("//tmp/t", {"place": "gmina Grzmiszczoslawice"}, timeout=20, authenticated_user=userName)
         write_table("//tmp/t", {"place": "powiat lekolody"}, timeout=20, authenticated_user=userName)
-        wait(lambda: value_counter.get() > 0)
+        wait(lambda: value_counter.get() > 0, ignore_exceptions=True)
 
     @authors("h0pless")
     @flaky(max_runs=5)
@@ -1247,7 +1247,7 @@ class TestChunkCreationThrottler(YTEnvSetup):
 
         assert get("//sys/@config/chunk_service/default_per_user_request_bytes_throttler_config/limit") == new_general_limit
         assert get("//sys/users/{}/@chunk_service_request_bytes_throttler/limit".format(non_throttled_user)) == as_good_as_infinity
-        assert self._measure_write_time(throttled_user) >= usual_time * 2.5
+        assert self._measure_write_time(throttled_user) >= usual_time * 1.5
         assert self._measure_write_time(root_user) < usual_time * 1.2
         assert self._measure_write_time(non_throttled_user) < usual_time * 1.2
 

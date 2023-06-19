@@ -168,20 +168,18 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectorDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBatchingChunkServiceConfig
+class TProxyingChunkServiceConfig
     : public NYTree::TYsonStruct
 {
 public:
-    TDuration MaxBatchDelay;
-    int MaxBatchCost;
     NConcurrency::TThroughputThrottlerConfigPtr CostThrottler;
 
-    REGISTER_YSON_STRUCT(TBatchingChunkServiceConfig);
+    REGISTER_YSON_STRUCT(TProxyingChunkServiceConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TBatchingChunkServiceConfig)
+DEFINE_REFCOUNTED_TYPE(TProxyingChunkServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -278,8 +276,8 @@ public:
     //! Metadata cache service configuration.
     NObjectClient::TCachingObjectServiceConfigPtr CachingObjectService;
 
-    //! Chunk Service batcher and redirector.
-    TBatchingChunkServiceConfigPtr BatchingChunkService;
+    //! Chunk service redirector.
+    TProxyingChunkServiceConfigPtr ProxyingChunkService;
 
     //! Timestamp provider config. Contains addresses used for timestamp generation.
     NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;

@@ -1,7 +1,7 @@
 #include "bootstrap.h"
 
 #include "config.h"
-#include "batching_chunk_service.h"
+#include "proxying_chunk_service.h"
 #include "dynamic_config_manager.h"
 #include "node_resource_manager.h"
 #include "master_connector.h"
@@ -851,18 +851,18 @@ private:
 
         RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
 
-        auto createBatchingChunkService = [&] (const auto& config) {
-            RpcServer_->RegisterService(CreateBatchingChunkService(
+        auto createProxyingChunkService = [&] (const auto& config) {
+            RpcServer_->RegisterService(CreateProxyingChunkService(
                 config->CellId,
-                Config_->BatchingChunkService,
+                Config_->ProxyingChunkService,
                 config,
                 Connection_->GetChannelFactory(),
                 NativeAuthenticator_));
         };
 
-        createBatchingChunkService(Config_->ClusterConnection->Static->PrimaryMaster);
+        createProxyingChunkService(Config_->ClusterConnection->Static->PrimaryMaster);
         for (const auto& config : Config_->ClusterConnection->Static->SecondaryMasters) {
-            createBatchingChunkService(config);
+            createProxyingChunkService(config);
         }
 
         MasterConnector_ = NClusterNode::CreateMasterConnector(

@@ -317,14 +317,14 @@ private:
         auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CellTag_);
         TChunkServiceProxy proxy(channel);
 
-        auto batchReq = proxy.ExecuteBatch();
-        GenerateMutationId(batchReq);
-        batchReq->set_suppress_upstream_sync(true);
-
-        auto* req = batchReq->add_confirm_chunk_subrequests();
+        auto req = proxy.ConfirmChunk();
+        GenerateMutationId(req);
         ToProto(req->mutable_chunk_id(), SessionId_.ChunkId);
         *req->mutable_chunk_info() = UnderlyingWriter_->GetChunkInfo();
         *req->mutable_chunk_meta() = *ChunkMeta_;
+
+        auto* multicellSyncExt = req->Header().MutableExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);
+        multicellSyncExt->set_suppress_upstream_sync(true);
 
         auto memoryUsageGuard = TMemoryUsageTrackerGuard::Acquire(
             Options_->MemoryTracker,
@@ -342,16 +342,15 @@ private:
             ToProto(replicaInfo->mutable_location_uuid(), replica.GetChunkLocationUuid());
         }
 
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        auto rspOrError = WaitFor(req->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(
-            GetCumulativeError(batchRspOrError),
+            rspOrError,
             EErrorCode::MasterCommunicationFailed,
             "Failed to confirm chunk %v",
             SessionId_.ChunkId);
 
-        const auto& batchRsp = batchRspOrError.Value();
-        const auto& rsp = batchRsp->confirm_chunk_subresponses(0);
-        DataStatistics_ = rsp.statistics();
+        const auto& rsp = rspOrError.Value();
+        DataStatistics_ = rsp->statistics();
 
         Closed_ = true;
 

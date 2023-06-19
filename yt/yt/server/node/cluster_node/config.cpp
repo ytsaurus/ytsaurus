@@ -176,12 +176,8 @@ void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TBatchingChunkServiceConfig::Register(TRegistrar registrar)
+void TProxyingChunkServiceConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("max_batch_delay", &TThis::MaxBatchDelay)
-        .Default(TDuration::Zero());
-    registrar.Parameter("max_batch_cost", &TThis::MaxBatchCost)
-        .Default(1000);
     registrar.Parameter("cost_throttler", &TThis::CostThrottler)
         .DefaultNew();
 }
@@ -247,7 +243,7 @@ void TClusterNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("caching_object_service", &TThis::CachingObjectService)
         .Alias("master_cache_service")
         .DefaultNew();
-    registrar.Parameter("batching_chunk_service", &TThis::BatchingChunkService)
+    registrar.Parameter("proxying_chunk_service", &TThis::ProxyingChunkService)
         .DefaultNew();
     registrar.Parameter("timestamp_provider", &TThis::TimestampProvider)
         .Default();

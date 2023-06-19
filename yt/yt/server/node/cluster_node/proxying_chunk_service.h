@@ -12,9 +12,9 @@ namespace NYT::NClusterNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NRpc::IServicePtr CreateBatchingChunkService(
+NRpc::IServicePtr CreateProxyingChunkService(
     NElection::TCellId cellId,
-    TBatchingChunkServiceConfigPtr serviceConfig,
+    TProxyingChunkServiceConfigPtr serviceConfig,
     NApi::NNative::TMasterConnectionConfigPtr connectionConfig,
     NRpc::IChannelFactoryPtr channelFactory,
     NRpc::IAuthenticatorPtr authenticator);

@@ -108,7 +108,7 @@ target_proto_messages(yt-server-node PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/transaction_manager.proto
 )
 target_sources(yt-server-node PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/cluster_node/batching_chunk_service.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/cluster_node/proxying_chunk_service.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/cluster_node/dynamic_config_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/cluster_node/node_resource_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/cluster_node/master_connector.cpp
