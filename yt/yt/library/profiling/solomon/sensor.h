@@ -116,7 +116,7 @@ public:
     void Remove(double value, int count) noexcept override;
     void Reset() noexcept override;
 
-    THistogramSnapshot GetSnapshot() const override;
+    THistogramSnapshot GetSnapshot(bool reset) override;
     void LoadSnapshot(THistogramSnapshot snapshot) override;
 
 private:

@@ -223,14 +223,18 @@ void THistogram::Reset() noexcept
     }
 }
 
-THistogramSnapshot THistogram::GetSnapshot() const
+THistogramSnapshot THistogram::GetSnapshot(bool reset)
 {
     THistogramSnapshot snapshot;
     snapshot.Bounds = Bounds_;
     snapshot.Values.resize(Buckets_.size());
 
     for (int i = 0; i < std::ssize(Buckets_); ++i) {
-        snapshot.Values[i] = Buckets_[i].load(std::memory_order::relaxed);
+        if (!reset) {
+            snapshot.Values[i] = Buckets_[i].load(std::memory_order::relaxed);
+        } else {
+            snapshot.Values[i] = Buckets_[i].exchange(0, std::memory_order::relaxed);
+        }
     }
 
     return snapshot;

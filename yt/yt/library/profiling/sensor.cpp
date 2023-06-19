@@ -174,7 +174,7 @@ THistogramSnapshot TGaugeHistogram::GetSnapshot() const
         return {};
     }
 
-    return Histogram_->GetSnapshot();
+    return Histogram_->GetSnapshot(false);
 }
 
 void TGaugeHistogram::LoadSnapshot(THistogramSnapshot snapshot)
