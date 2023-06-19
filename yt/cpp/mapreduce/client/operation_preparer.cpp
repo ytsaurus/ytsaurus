@@ -694,7 +694,7 @@ TString TJobPreparer::UploadToCacheUsingApi(const IItemToUpload& itemToUpload) c
     }
 
     auto path = UploadToRandomPath(itemToUpload);
-    return PutFileToCypressCache(path, md5Signature, OperationPreparer_.GetTransactionId());
+    return PutFileToCypressCache(path, md5Signature, Options_.FileStorageTransactionId_);
 }
 
 TString TJobPreparer::UploadToCache(const IItemToUpload& itemToUpload) const
