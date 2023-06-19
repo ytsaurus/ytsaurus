@@ -533,6 +533,8 @@ void TChunkMergerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("fail_shallow_merge_validation", &TThis::FailShallowMergeValidation)
         .Default(false);
+    registrar.Parameter("read_memory_limit", &TThis::ReadMemoryLimit)
+        .Default(1_GB);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

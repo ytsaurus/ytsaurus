@@ -33,11 +33,14 @@
 #include <yt/yt/ytlib/chunk_client/confirming_writer.h>
 #include <yt/yt/ytlib/chunk_client/meta_aggregating_writer.h>
 #include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
+#include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
+#include <yt/yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/yt/ytlib/chunk_client/erasure_adaptive_repair.h>
 #include <yt/yt/ytlib/chunk_client/erasure_repair.h>
 #include <yt/yt/ytlib/chunk_client/erasure_part_writer.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 #include <yt/yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/yt/ytlib/chunk_client/replication_writer.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
@@ -1090,7 +1093,8 @@ public:
         TString jobTrackerAddress,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
-        IBootstrap* bootstrap)
+        IBootstrap* bootstrap,
+        i64 readMemoryLimit)
         : TMasterJobBase(
             jobId,
             std::move(jobSpec),
@@ -1100,11 +1104,16 @@ public:
             bootstrap)
         , JobSpecExt_(JobSpec_.GetExtension(TMergeChunksJobSpecExt::merge_chunks_job_spec_ext))
         , CellTag_(FromProto<TCellTag>(JobSpecExt_.cell_tag()))
-    { }
+        , ReadMemoryLimit_(readMemoryLimit)
+    {
+        YT_VERIFY(readMemoryLimit > 0);
+    }
 
 private:
     const TMergeChunksJobSpecExt JobSpecExt_;
     const TCellTag CellTag_;
+    const i64 ReadMemoryLimit_;
+
     bool DeepMergeFallbackOccurred_ = false;
     TError ShallowMergeValidationError_;
     NChunkClient::EChunkMergerMode MergeMode_;
@@ -1137,12 +1146,14 @@ private:
             std::vector<TChunkReadContext> contexts,
             TTableSchemaPtr schema,
             TNameTablePtr nameTable,
-            bool permuteRows)
+            bool permuteRows,
+            IMultiReaderMemoryManagerPtr memoryManager)
             : Bootstrap_(bootstrap)
             , Contexts_(contexts)
             , Schema_(std::move(schema))
             , NameTable_(std::move(nameTable))
             , PermuteRows_(permuteRows)
+            , MemoryManager_(std::move(memoryManager))
         {
             OpenReader();
         }
@@ -1202,6 +1213,7 @@ private:
         const TNameTablePtr NameTable_;
 
         const bool PermuteRows_;
+        const IMultiReaderMemoryManagerPtr MemoryManager_;
 
         int CurrentChunkIndex_ = 0;
         ISchemalessChunkReaderPtr ChunkReader_;
@@ -1230,7 +1242,9 @@ private:
                 /*keyColumns*/ {},
                 /*omittedInaccessibleColumns*/ {},
                 NTableClient::TColumnFilter(),
-                NChunkClient::TReadRange());
+                NChunkClient::TReadRange(),
+                /*partitionTag*/ std::nullopt,
+                MemoryManager_->CreateChunkReaderMemoryManager());
         }
     };
 
@@ -1406,7 +1420,15 @@ private:
             .ThrowOnError();
 
         if (JobSpecExt_.validate_shallow_merge()) {
-            ShallowMergeValidationError_ = ValidateShallowMerge(writer);
+            TParallelReaderMemoryManagerOptions parallelReaderMemoryManagerOptions{
+                .TotalReservedMemorySize = ReadMemoryLimit_,
+                .MaxInitialReaderReservedMemory = ReadMemoryLimit_
+            };
+            auto multiReaderMemoryManager = CreateParallelReaderMemoryManager(
+                parallelReaderMemoryManagerOptions,
+                NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
+
+            ShallowMergeValidationError_ = ValidateShallowMerge(writer, multiReaderMemoryManager);
         }
     }
 
@@ -1455,12 +1477,21 @@ private:
         auto rowBuffer = New<TRowBuffer>();
         auto writerNameTable = writer->GetNameTable();
 
+        TParallelReaderMemoryManagerOptions parallelReaderMemoryManagerOptions{
+            .TotalReservedMemorySize = ReadMemoryLimit_,
+            .MaxInitialReaderReservedMemory = ReadMemoryLimit_
+        };
+        auto multiReaderMemoryManager = CreateParallelReaderMemoryManager(
+            parallelReaderMemoryManagerOptions,
+            NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
+
         TMergeChunkReader chunkReader(
             Bootstrap_,
             InputChunkReadContexts_,
             Schema_,
             writerNameTable,
-            /*permuteRows*/ true);
+            /*permuteRows*/ true,
+            multiReaderMemoryManager);
 
         while (auto rows = chunkReader.ReadRows(rowBuffer)) {
             if (!writer->Write(MakeRange(*rows))) {
@@ -1546,7 +1577,9 @@ private:
         return deferredChunkMeta;
     }
 
-    TError ValidateShallowMerge(const IMetaAggregatingWriterPtr& writer)
+    TError ValidateShallowMerge(
+        const IMetaAggregatingWriterPtr& writer,
+        const IMultiReaderMemoryManagerPtr& multiReaderMemoryManager)
     {
         YT_LOG_DEBUG("Validating shallow merge result");
 
@@ -1571,7 +1604,8 @@ private:
             {outputChunkReadContext},
             Schema_,
             nameTable,
-            /*permuteRows*/ false);
+            /*permuteRows*/ false,
+            multiReaderMemoryManager);
 
         // NB: #InputChunkReadContexts_ could be already used during merge.
         PrepareInputChunkReadContexts();
@@ -1580,7 +1614,8 @@ private:
             InputChunkReadContexts_,
             Schema_,
             nameTable,
-            /*permuteRows*/ true);
+            /*permuteRows*/ true,
+            multiReaderMemoryManager);
 
         i64 outputChunkRowCount = outputChunkReadContext.MergeChunkInfo.row_count();
         i64 inputChunksRowCount = 0;
@@ -2554,15 +2589,29 @@ TMasterJobBasePtr CreateJob(
                 std::move(config),
                 bootstrap);
 
-        case EJobType::MergeChunks:
+        case EJobType::MergeChunks: {
+            auto totalMergeJobMemoryLimit = bootstrap
+                ->GetDynamicConfigManager()
+                ->GetConfig()
+                ->DataNode
+                ->ChunkMerger
+                ->ReadMemoryLimit;
+            auto mergeSlots = bootstrap
+                ->GetJobResourceManager()
+                .Get()
+                ->GetResourceLimits()
+                .merge_slots();
+            auto readMemoryLimit = totalMergeJobMemoryLimit / mergeSlots;
+
             return New<TChunkMergeJob>(
                 jobId,
                 std::move(jobSpec),
                 std::move(jobTrackerAddress),
                 resourceLimits,
                 std::move(config),
-                bootstrap);
-
+                bootstrap,
+                readMemoryLimit);
+        }
         case EJobType::AutotomizeChunk:
             return New<TChunkAutotomyJob>(
                 jobId,
