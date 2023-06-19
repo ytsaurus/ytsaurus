@@ -23,7 +23,9 @@ jobs:
           disable_web_page_preview: true
           format: markdown
           message: |
-            New pull request: ${{ steps.pr-url.outputs.url }}
+            New PR in *${{github.repository}}*: `${{github.event.pull_request.title}}`
+            Author: ${{github.event.pull_request.user.login}}
+            ${{ steps.pr-url.outputs.url }}
 
   issue-notifications:
     name: Send notifications about issues
@@ -38,4 +40,6 @@ jobs:
           disable_web_page_preview: true
           format: markdown
           message: |
-            New issue: ${{github.server_url}}/${{github.repository}}/issues/${{ github.event.issue.number }}
+            New issue in *${{github.repository}}*: `${{github.event.issue.title}}`
+            ${{github.server_url}}/${{github.repository}}/issues/${{ github.event.issue.number }}
+
