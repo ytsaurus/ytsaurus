@@ -146,7 +146,7 @@ public:
 
     void Load(NCellMaster::TLoadContext& context) override
     {
-        NeedBuildHistogramFromSnapshot_ = context.GetVersion() < EMasterReign::MasterCellChunkStatisticsCollector;
+        NeedBuildHistogramFromSnapshot_ = context.GetVersion() < EMasterReign::FixChunkCreationTimeHistogram;
 
         using NYT::Load;
 
@@ -158,7 +158,7 @@ public:
             // NB: It's a temporary measure. This issue only happens if we are
             // trying to load snapshot which was written between new cluster
             // start and `OnDynamicConfigChanged()`.
-            // See TODO in `OnAfterSnapshotLoaded()`.
+            // See COMPAT in `OnAfterSnapshotLoaded()`.
             YT_LOG_DEBUG("Chunk creation time histogram bounds is empty; using {0} as histogram bounds");
             Bounds_ = {TInstant::Zero()};
         }
