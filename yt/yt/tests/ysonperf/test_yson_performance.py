@@ -1,14 +1,11 @@
 from yt_env_setup import is_asan_build, is_msan_build
 
+from yt_commands import print_debug
+
 import yt.yson as yson
 
-from flaky import flaky
-
-import gc
 import os
-import sys
 import pytest
-import time
 
 
 def is_debug():
@@ -20,84 +17,44 @@ def is_debug():
     return is_debug_build()
 
 
-class Timer(object):
-    def __init__(self):
-        self._running = False
-        self._extra_info = None
+def _benchmark_loads(benchmark, dataset_path):
+    raw_data = open(dataset_path, "rb").read()
 
-    def start(self):
-        assert not self._running
-        self._running = True
+    def loads(raw_data):
+        return list(yson.loads(raw_data, yson_type="list_fragment", always_create_attributes=False, encoding=None))
 
-        gc.disable()
-        gc.collect()
-
-        self.start_wall_clock = time.perf_counter()
-
-    def stop(self):
-        assert self._running
-        self._running = False
-
-        self.finish_wall_clock = time.perf_counter()
-
-        gc.collect()
-        gc.enable()
-
-    def set_extra_info(self, extra_info):
-        self._extra_info = extra_info
-
-    def dump_stats(self):
-        def dump_stats_line(key, value):
-            sys.stderr.write("  {0:>30s} | {1}\n".format(key, value))
-
-        sys.stderr.write("\n=== {0}\n".format(self._extra_info or repr(self)))
-        dump_stats_line("wall clock time", "{0:.3f}s".format(self.finish_wall_clock - self.start_wall_clock))
-
-    def __enter__(self):
-        if not self._running:
-            self.start()
-        return self
-
-    def __exit__(self, type, value, traceback):
-        if self._running:
-            self.stop()
-        self.dump_stats()
+    return benchmark(loads, raw_data)
 
 
+def _benchmark_dumps(benchmark, dataset_path):
+    raw_data = open(dataset_path, "rb").read()
+    data = list(yson.loads(raw_data, yson_type="list_fragment", always_create_attributes=False, encoding=None))
+    return benchmark(yson.dumps, data, yson_type="list_fragment", yson_format="binary", ignore_inner_attributes=True)
+
+
+@pytest.mark.benchmark(
+    disable_gc=True,
+    min_rounds=5,
+    warmup=3,
+)
 class TestYsonPerformance(object):
     ACCEPTABLE_TIME_GROW_RATIO = 0.20
-    ITERATIONS_COUNT = 5
     DATASETS_PATH = "testdata"
 
-    @flaky(max_runs=5)
     @pytest.mark.parametrize(
-        "dataset,expected_loads_time,expected_dumps_time", [("access_log.yson", 5.0, 4.0), ("numbers.yson", 2.5, 2.5)]
+        "benchmark_function,dataset,expected_time",
+        [
+            (_benchmark_loads, "access_log.yson", 3.5),
+            (_benchmark_dumps, "access_log.yson", 4.0),
+            (_benchmark_loads, "numbers.yson", 2.0),
+            (_benchmark_dumps, "numbers.yson", 2.5),
+        ],
     )
-    def test_yson_performance(self, dataset, expected_loads_time, expected_dumps_time):
+    def test_yson_performance(self, benchmark, benchmark_function, dataset, expected_time):
         if is_debug() or is_asan_build() or is_msan_build() or yson.TYPE != "BINARY":
             pytest.skip()
 
         dataset_path = os.path.join(self.DATASETS_PATH, dataset)
-        raw_data = open(dataset_path, "rb").read()
-
-        loads_results = []
-        dumps_results = []
-
-        for iteration in range(self.ITERATIONS_COUNT):
-            with Timer() as t:
-                loaded = list(yson.loads(raw_data, yson_type="list_fragment", always_create_attributes=False, encoding=None))
-                t.set_extra_info("{0}: loaded {1} rows".format(dataset, len(loaded)))
-            loads_results.append(t.finish_wall_clock - t.start_wall_clock)
-
-            with Timer() as t:
-                dumped = yson.dumps(
-                    loaded, yson_type="list_fragment", yson_format="binary", ignore_inner_attributes=True,
-                )
-                t.set_extra_info("{0}: dumped {1} bytes".format(dataset, len(dumped)))
-            dumps_results.append(t.finish_wall_clock - t.start_wall_clock)
-
-        min_loads_time = min(loads_results)
-        min_dumps_time = min(dumps_results)
-
-        assert min_loads_time <= (1.0 + self.ACCEPTABLE_TIME_GROW_RATIO) * expected_loads_time
-        assert min_dumps_time <= (1.0 + self.ACCEPTABLE_TIME_GROW_RATIO) * expected_dumps_time
+        benchmark_function(benchmark, dataset_path)
+        print_debug(benchmark_function, dataset, benchmark.stats["mean"])
+        assert benchmark.stats["mean"] <= (1.0 + self.ACCEPTABLE_TIME_GROW_RATIO) * expected_time
