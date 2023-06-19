@@ -1,0 +1,16 @@
+commit 4d47e69bfd6410017d21f273b2f11b40afdd8dc9
+author: alex-shishkin
+date: 2023-06-11T13:49:24+03:00
+
+    SPYT-451: Add user defined listener to pyspark
+
+--- yt/spark/spark/python/pyspark/sql/session.py	(7de92252a5208e67371f89d7f2d359f89f038683)
++++ yt/spark/spark/python/pyspark/sql/session.py	(4d47e69bfd6410017d21f273b2f11b40afdd8dc9)
+@@ -265,6 +265,7 @@ class SparkSession(SparkConversionMixin):
+             SparkSession._activeSession = self
+             self._jvm.SparkSession.setDefaultSession(self._jsparkSession)
+             self._jvm.SparkSession.setActiveSession(self._jsparkSession)
++            self._jvm.SparkSession.addUserDefinedListeners(self._jsparkSession)
+ 
+     def _repr_html_(self):
+         return """

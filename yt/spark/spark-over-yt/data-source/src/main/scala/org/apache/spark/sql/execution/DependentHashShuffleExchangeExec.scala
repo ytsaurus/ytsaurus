@@ -7,7 +7,7 @@ import org.apache.spark.sql.catalyst.expressions.{Attribute, Expression, UnsafeP
 import org.apache.spark.sql.catalyst.plans.physical.Partitioning
 import org.apache.spark.sql.execution.exchange.ShuffleExchangeExec.createShuffleWriteProcessor
 import org.apache.spark.sql.execution.exchange.{REPARTITION_BY_NUM, ShuffleExchangeExec, ShuffleOrigin}
-import org.apache.spark.sql.execution.metric.{SQLMetric, SQLShuffleWriteMetricsReporter}
+import org.apache.spark.sql.execution.metric.{SQLMetric, SQLMetrics, SQLShuffleWriteMetricsReporter}
 import org.apache.spark.util.MutablePair
 import org.apache.spark.{Partitioner, ShuffleDependency}
 import tech.ytsaurus.spyt.common.utils.TuplePoint
@@ -30,21 +30,22 @@ class DependentHashShuffleExchangeExec(dependentPartitioning: Partitioning,
     this(DependentHashPartitioning(expressions, pivots), child)
   }
 
-  // copied from shuffleExec source
-  private lazy val writeMetrics =
-    SQLShuffleWriteMetricsReporter.createShuffleWriteMetrics(sparkContext)
-
   private val serializer: Serializer =
     new UnsafeRowSerializer(child.output.size, longMetric("dataSize"))
 
   @transient
   override lazy val shuffleDependency : ShuffleDependency[Int, InternalRow, InternalRow] = {
-    prepareShuffleDependency(
+    val dep = prepareShuffleDependency(
       inputRDD,
       child.output,
       dependentPartitioning,
       serializer,
-      writeMetrics)
+      metrics)
+    metrics("numPartitions").set(dep.partitioner.numPartitions)
+    val executionId = sparkContext.getLocalProperty(SQLExecution.EXECUTION_ID_KEY)
+    SQLMetrics.postDriverMetricUpdates(
+      sparkContext, executionId, metrics("numPartitions") :: Nil)
+    dep
   }
 
   def prepareShuffleDependency(rdd: RDD[InternalRow],
@@ -94,11 +95,11 @@ class DependentHashShuffleExchangeExec(dependentPartitioning: Partitioning,
     // are in the form of (partitionId, row) and every partitionId is in the expected range
     // [0, part.numPartitions - 1]. The partitioner of this is a PartitionIdPassthrough.
     val dependency =
-    new ShuffleDependency[Int, InternalRow, InternalRow](
-      rddWithPartitionIds,
-      new PartitionIdPassthrough(part.numPartitions),
-      serializer,
-      shuffleWriterProcessor = createShuffleWriteProcessor(writeMetrics))
+      new ShuffleDependency[Int, InternalRow, InternalRow](
+        rddWithPartitionIds,
+        new PartitionIdPassthrough(part.numPartitions),
+        serializer,
+        shuffleWriterProcessor = createShuffleWriteProcessor(writeMetrics))
 
     dependency
   }

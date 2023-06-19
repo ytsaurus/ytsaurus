@@ -1,6 +1,6 @@
 package tech.ytsaurus.spyt.format.optimizer
 
-import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.catalyst.expressions.CodegenObjectFactoryMode
 import org.apache.spark.sql.execution.exchange.{ReusedExchangeExec, ShuffleExchangeExec}
 import org.apache.spark.sql.execution.joins.SortMergeJoinExec
@@ -11,12 +11,13 @@ import org.mockito.scalatest.MockitoSugar
 import org.scalatest.{FlatSpec, Matchers}
 import tech.ytsaurus.spyt._
 import tech.ytsaurus.spyt.format.conf.SparkYtConfiguration
-import tech.ytsaurus.spyt.test.{LocalSpark, TmpDir}
+import tech.ytsaurus.spyt.test.{DynTableTestUtils, LocalSpark, TmpDir}
 
 import java.util.UUID
 import scala.language.postfixOps
 
-class YtSortedTableJoinTest extends FlatSpec with Matchers with LocalSpark with TmpDir with MockitoSugar {
+class YtSortedTableJoinTest extends FlatSpec with Matchers with LocalSpark with TmpDir
+  with MockitoSugar with DynTableTestUtils {
   import spark.implicits._
 
   // 1Kb ~ 60 rows with 2 long numbers
@@ -262,6 +263,26 @@ class YtSortedTableJoinTest extends FlatSpec with Matchers with LocalSpark with 
       findNotProcessedJoin(res).length shouldBe 0
       findProcessedOneSideJoin(res).length shouldBe 1
       findProcessedBothSideJoin(res).length shouldBe 0
+    }
+  }
+
+  it should "work on dynamic table" in {
+    withConfs(conf) {
+      val tmpPath2 = tmpPath + "2"
+      prepareTestTable(tmpPath2, testData, Seq(Seq(), Seq(3), Seq(6)))
+
+      val staticTableReader = spark.read.yt(commonTable)
+      val dynTableReader = spark.read.yt(tmpPath2).select("a", "b").toDF("a", "b_new")
+
+      val res = staticTableReader.join(dynTableReader, "a")
+      val collectedRes = res.collect()
+
+      val expected = (1 to 10).map(i => Row(i, i / 10, i * 2))
+      collectedRes should contain theSameElementsAs expected
+
+      findNotProcessedJoin(res).length shouldBe 0
+      findProcessedOneSideJoin(res).length shouldBe 0
+      findProcessedBothSideJoin(res).length shouldBe 1
     }
   }
 }

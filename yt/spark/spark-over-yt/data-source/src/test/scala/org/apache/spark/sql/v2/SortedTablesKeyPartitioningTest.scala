@@ -12,7 +12,7 @@ import tech.ytsaurus.spyt.common.utils.{TuplePoint, TupleSegment}
 import tech.ytsaurus.spyt.format.YtInputSplit
 import tech.ytsaurus.spyt.format.conf.SparkYtConfiguration
 import tech.ytsaurus.spyt.serializers.PivotKeysConverter
-import tech.ytsaurus.spyt.test.{LocalSpark, TmpDir}
+import tech.ytsaurus.spyt.test.{DynTableTestUtils, LocalSpark, TmpDir}
 import tech.ytsaurus.spyt.{YtReader, YtWriter}
 import tech.ytsaurus.spyt.common.utils.{MInfinity, PInfinity, RealValue}
 import tech.ytsaurus.spyt.format.YtPartitionedFile
@@ -20,8 +20,8 @@ import tech.ytsaurus.spyt.format.YtPartitionedFile
 import java.sql.{Date, Timestamp}
 import java.time.LocalDate
 
-class StaticTableKeyPartitioningTest extends FlatSpec with Matchers with LocalSpark
-  with TmpDir with MockitoSugar {
+class SortedTablesKeyPartitioningTest extends FlatSpec with Matchers with LocalSpark
+  with TmpDir with MockitoSugar with DynTableTestUtils {
   behavior of "YtScan"
 
   import spark.implicits._
@@ -362,6 +362,31 @@ class StaticTableKeyPartitioningTest extends FlatSpec with Matchers with LocalSp
       (Some(pivotKeys(0)), Some(pivotKeys(1))),
       (Some(pivotKeys(1)), Some(pivotKeys(2))),
       (Some(pivotKeys(2)), Some(pivotKeys(3)))
+    )
+  }
+
+  it should "work on dynamic table" in {
+    val tmpPath2 = tmpPath + "dynTable1"
+    prepareTestTable(tmpPath2, testData, Seq(Seq(), Seq(3, 2), Seq(3, 3), Seq(3, 4)))
+
+    val keys = getParsedKeys(tmpPath2)
+    keys should contain theSameElementsAs Seq(
+      (TupleSegment.mInfinity, TuplePoint(Seq(RealValue(3), RealValue(2)))),
+      (TuplePoint(Seq(RealValue(3), RealValue(2))), TuplePoint(Seq(RealValue(3), RealValue(3)))),
+      (TuplePoint(Seq(RealValue(3), RealValue(3))), TuplePoint(Seq(RealValue(3), RealValue(4)))),
+      (TuplePoint(Seq(RealValue(3), RealValue(4))), TupleSegment.pInfinity)
+    )
+  }
+
+  it should "work on dynamic table with merging pivots" in {
+    val tmpPath2 = tmpPath + "dynTable2"
+    prepareTestTable(tmpPath2, testData, Seq(Seq(), Seq(3, 2), Seq(3, 3), Seq(6)))
+
+    val keys = getParsedKeys(tmpPath2)
+    keys should contain theSameElementsAs Seq(
+      (TupleSegment.mInfinity, TuplePoint(Seq(RealValue(3)))),
+      (TuplePoint(Seq(RealValue(3))), TuplePoint(Seq(RealValue(6)))),
+      (TuplePoint(Seq(RealValue(6))), TupleSegment.pInfinity)
     )
   }
 }

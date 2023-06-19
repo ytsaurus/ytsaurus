@@ -215,14 +215,14 @@ object YtFilePartition {
       s"Required keys: ${requiredKeysO.map(_.mkString(",")).getOrElse("-")}")
     if (keys.nonEmpty && keyPartitioningConfig.enabled && requiredKeysO.forall(keys.startsWith(_))) {
       val isSupportedFiles = splitFiles.forall {
-        case file: YtPartitionedFile => !file.isDynamic
+        case _: YtPartitionedFile => true
         case _ => false
       }
       if (isSupportedFiles) {
         log.info("Key partitioning supports all files")
         val ytSplitFiles = splitFiles.asInstanceOf[Seq[YtPartitionedFile]]
         if (ytSplitFiles.isEmpty) {
-          log.info("Empty file list")
+          log.warn("Empty file list")
           Some(Seq.empty)
         } else {
           if (ytSplitFiles.forall(ytSplitFiles.head.filePath == _.filePath)) {
@@ -269,6 +269,13 @@ object YtFilePartition {
     }
   }
 
+  private def checkAllFilesType(splitFiles: Seq[YtPartitionedFile], isDynamic: Boolean): Boolean = {
+    splitFiles.forall {
+      case file: YtPartitionedFile => file.isDynamic == isDynamic
+      case _ => false
+    }
+  }
+
   private def getKeyPartitions(schema: StructType, currentKeys: Seq[String],
                                splitFiles: Seq[YtPartitionedFile], keyPartitioningConfig: KeyPartitioningConfig)
                               (implicit yt: CompoundClient): Option[Seq[YtPartitionedFile]] = {
@@ -278,17 +285,34 @@ object YtFilePartition {
       log.error("Key partitioning schema is " + keySchema + ", but other keys (" + currentKeys + ") required")
       None
     } else {
-      if (keySchema.fields.forall(f => ExpressionTransformer.isSupportedDataType(f.dataType))) { // always true
+      if (keySchema.fields.forall(f => ExpressionTransformer.isSupportedDataType(f.dataType))) { // Always true
         log.info("All columns are supported for key partitioning")
-        // file is from -inf to +inf
-        val pivotKeys = getPivotKeys(keySchema, currentKeys, splitFiles)
-        log.info("Pivot keys: " + pivotKeys.mkString(", "))
-        val filesGroupedByKey = seqGroupBy(pivotKeys.zip(splitFiles))
-        if (filesGroupedByKey.forall { case (_, files) => files.length <= keyPartitioningConfig.unionLimit }) {
-          log.info("Coalesced partitions satisfy union limit")
-          Some(getFilesWithUniquePivots(currentKeys, filesGroupedByKey))
+        // File is from -inf to +inf
+        val isStatic = checkAllFilesType(splitFiles, isDynamic = false)
+        val isDynamic = checkAllFilesType(splitFiles, isDynamic = true)
+        if (isStatic || isDynamic) {
+          val pivotKeys = if (isStatic) {
+            log.info("Retrieving pivot keys from static tables")
+            getPivotKeys(keySchema, currentKeys, splitFiles)
+          } else {
+            log.info("Using keys of dynamic tables")
+            splitFiles.map {
+              ypf =>
+                val beginPoint = ypf.beginPoint.get
+                TuplePoint(beginPoint.points.take(currentKeys.length))
+            }
+          }
+          log.info("Pivot keys: " + pivotKeys.mkString(", "))
+          val filesGroupedByKey = seqGroupBy(pivotKeys.zip(splitFiles))
+          if (filesGroupedByKey.forall { case (_, files) => files.length <= keyPartitioningConfig.unionLimit }) {
+            log.info("Coalesced partitions satisfy union limit")
+            Some(getFilesWithUniquePivots(currentKeys, filesGroupedByKey))
+          } else {
+            log.info("Coalesced partitions don't satisfy union limit")
+            None
+          }
         } else {
-          log.info("Coalesced partitions don't satisfy union limit")
+          log.info("Selected files have different types")
           None
         }
       } else {

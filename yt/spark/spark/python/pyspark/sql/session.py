@@ -265,6 +265,7 @@ class SparkSession(SparkConversionMixin):
             SparkSession._activeSession = self
             self._jvm.SparkSession.setDefaultSession(self._jsparkSession)
             self._jvm.SparkSession.setActiveSession(self._jsparkSession)
+            self._jvm.SparkSession.addUserDefinedListeners(self._jsparkSession)
 
     def _repr_html_(self):
         return """

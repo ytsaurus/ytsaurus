@@ -97,17 +97,9 @@ case class YtScan(sparkSession: SparkSession,
   private[v2] def getPartitions: Seq[FilePartition] = partitions
 
   private def tryGetKeyPartitioning(columns: Option[Seq[String]] = None): Option[Seq[FilePartition]] = {
-    val optimizedForScan =
-      options.getOrDefault(YtTableSparkSettings.OptimizedForScan.name, "false").toBoolean
+    val (_, splitFiles) = preparePartitioning()
 
-    // TODO row count couldn't be calculated
-    if (!optimizedForScan) {
-      val (_, splitFiles) = preparePartitioning()
-
-      tryGetKeyPartitions(sparkSession, splitFiles, readDataSchema, keyPartitioningConf, columns)
-    } else {
-      None
-    }
+    tryGetKeyPartitions(sparkSession, splitFiles, readDataSchema, keyPartitioningConf, columns)
   }
 
   private def addKeyPartitioningHint(partitions: Seq[FilePartition]): YtScan = {

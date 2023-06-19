@@ -7,13 +7,13 @@ import org.mockito.scalatest.MockitoSugar
 import org.scalatest.{FlatSpec, Matchers}
 import tech.ytsaurus.spyt._
 import tech.ytsaurus.spyt.format.conf.SparkYtConfiguration
-import tech.ytsaurus.spyt.test.{LocalSpark, TmpDir}
+import tech.ytsaurus.spyt.test.{DynTableTestUtils, LocalSpark, TmpDir}
 
 import java.util.UUID
 import scala.language.postfixOps
 
 class YtSortedTableAggregationTest extends FlatSpec with Matchers with LocalSpark
-  with TmpDir with MockitoSugar {
+  with TmpDir with MockitoSugar with DynTableTestUtils {
   behavior of "YtInputSplit"
 
   import spark.implicits._
@@ -95,6 +95,35 @@ class YtSortedTableAggregationTest extends FlatSpec with Matchers with LocalSpar
         findFakeShuffles(res).length shouldBe 0
         findRealShuffles(res).length shouldBe 1
       }
+    }
+  }
+
+  it should "work on with scan optimized table" in {
+    withConfs(conf) {
+      val tmpPath2 = tmpPath + "3"
+      val data = (1L to 2000L).map(x => (x / 10, x / 10))
+      val df = data
+        .toDF("a", "b")
+      df.write.sortedBy("a", "b").optimizeFor("scan").yt(tmpPath2)
+
+      val res = spark.read.yt(tmpPath2).groupBy("a").count()
+      res.collect()
+
+      findFakeShuffles(res).length shouldBe 1
+      findRealShuffles(res).length shouldBe 0
+    }
+  }
+
+  it should "work on dynamic table" in {
+    withConfs(conf) {
+      val tmpPath2 = tmpPath + "4"
+      prepareTestTable(tmpPath2, testData, Seq(Seq(), Seq(3), Seq(6)))
+
+      val res = spark.read.yt(tmpPath2).groupBy("a").count()
+      res.collect()
+
+      findFakeShuffles(res).length shouldBe 1
+      findRealShuffles(res).length shouldBe 0
     }
   }
 

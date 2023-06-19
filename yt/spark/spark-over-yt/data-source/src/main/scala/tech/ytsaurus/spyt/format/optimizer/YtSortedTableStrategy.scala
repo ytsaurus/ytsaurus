@@ -12,6 +12,7 @@ case class YtSortedTableStrategy(spark: SparkSession) extends Strategy {
       // aggregation
       val sortOrders = getAttributes(keys, inner.output).map(SortOrder(_, Ascending, NullsFirst, Seq.empty))
       if (sortOrders.isEmpty) {
+        logWarning(s"Sort marker dropped. Attributes are inconsistency")
         planLater(inner) :: Nil
       } else {
         logInfo(s"Fake sort shuffle inserted to plan")
@@ -22,6 +23,7 @@ case class YtSortedTableStrategy(spark: SparkSession) extends Strategy {
       val plannedLater = planLater(inner)
       val attributes = getAttributes(keys, inner.output)
       if (attributes.isEmpty) {
+        logWarning(s"Shuffle marker dropped. Attributes are inconsistency")
         plannedLater :: Nil
       } else {
         logInfo(s"Fake hash shuffle inserted to plan")

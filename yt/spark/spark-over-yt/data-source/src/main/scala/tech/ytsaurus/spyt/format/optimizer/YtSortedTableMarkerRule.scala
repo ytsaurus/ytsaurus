@@ -3,7 +3,7 @@ package tech.ytsaurus.spyt.format.optimizer
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.expressions.{And, AttributeReference, EqualTo, Expression}
 import org.apache.spark.sql.catalyst.plans.Inner
-import org.apache.spark.sql.catalyst.plans.logical.{Aggregate, Filter, Join, LogicalPlan}
+import org.apache.spark.sql.catalyst.plans.logical.{Aggregate, Filter, Join, LogicalPlan, Project}
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation
 import org.apache.spark.sql.v2.YtScan.ScanDescription
@@ -20,6 +20,7 @@ class YtSortedTableMarkerRule(spark: SparkSession) extends Rule[LogicalPlan] {
       logInfo("Plan optimization try")
       transformPlan(plan)
     } else {
+      logInfo("Plan optimization is disabled")
       plan
     }
   }
@@ -108,6 +109,7 @@ object YtSortedTableMarkerRule {
   @tailrec
   private def getYtScan(node: LogicalPlan): Option[YtScan] = {
     node match {
+      case Project(_, child) => getYtScan(child)
       case Filter(_, child) => getYtScan(child)
       case DataSourceV2ScanRelation(_, scan: YtScan, _) => Some(scan)
       case _ => None
@@ -116,6 +118,7 @@ object YtSortedTableMarkerRule {
 
   private def replaceYtScan(node: LogicalPlan, newYtScan: YtScan): LogicalPlan = {
     node match {
+      case p@Project(_, child) => p.copy(child = replaceYtScan(child, newYtScan))
       case f@Filter(_, child) => f.copy(child = replaceYtScan(child, newYtScan))
       case r@DataSourceV2ScanRelation(_, _: YtScan, _) => r.copy(scan = newYtScan)
       case _ => throw new IllegalArgumentException("Couldn't replace yt scan, optimization broke execution plan")
