@@ -8,24 +8,33 @@ namespace NYT::NObjectClient {
 
 void TObjectAttributeCacheConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("read_from", &TThis::ReadFrom)
-        .Default(NApi::EMasterChannelKind::Follower);
-    registrar.Parameter("master_cache_expire_after_successful_update_time", &TThis::MasterCacheExpireAfterSuccessfulUpdateTime)
-        .Default(TDuration::Seconds(15));
-    registrar.Parameter("master_cache_expire_after_failed_update_time", &TThis::MasterCacheExpireAfterFailedUpdateTime)
-        .Default(TDuration::Seconds(15));
-    registrar.Parameter("master_cache_cache_sticky_group_size", &TThis::MasterCacheStickyGroupSize)
+    registrar.Parameter("master_read_options", &TThis::MasterReadOptions)
         .Default();
-}
 
-NApi::TMasterReadOptions TObjectAttributeCacheConfig::GetMasterReadOptions()
-{
-    return NApi::TMasterReadOptions{
-        .ReadFrom = ReadFrom,
-        .ExpireAfterSuccessfulUpdateTime = MasterCacheExpireAfterSuccessfulUpdateTime,
-        .ExpireAfterFailedUpdateTime = MasterCacheExpireAfterFailedUpdateTime,
-        .CacheStickyGroupSize = MasterCacheStickyGroupSize
-    };
+    // COMPAT(dakovalkov)
+    registrar.Parameter("read_from", &TThis::ReadFrom_)
+        .Optional();
+    registrar.Parameter("master_cache_expire_after_successful_update_time", &TThis::MasterCacheExpireAfterSuccessfulUpdateTime_)
+        .Optional();
+    registrar.Parameter("master_cache_expire_after_failed_update_time", &TThis::MasterCacheExpireAfterFailedUpdateTime_)
+        .Optional();
+    registrar.Parameter("master_cache_cache_sticky_group_size", &TThis::MasterCacheStickyGroupSize_)
+        .Optional();
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->ReadFrom_) {
+            config->MasterReadOptions.ReadFrom = *config->ReadFrom_;
+        }
+        if (config->MasterCacheExpireAfterSuccessfulUpdateTime_) {
+            config->MasterReadOptions.ExpireAfterSuccessfulUpdateTime = *config->MasterCacheExpireAfterSuccessfulUpdateTime_;
+        }
+        if (config->MasterCacheExpireAfterFailedUpdateTime_) {
+            config->MasterReadOptions.ExpireAfterFailedUpdateTime = *config->MasterCacheExpireAfterFailedUpdateTime_;
+        }
+        if (config->MasterCacheStickyGroupSize_) {
+            config->MasterReadOptions.CacheStickyGroupSize = *config->MasterCacheStickyGroupSize_;
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

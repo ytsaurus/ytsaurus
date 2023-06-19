@@ -71,8 +71,6 @@ private:
     //! you may want to discard unrelated errors (like request queue size exceeded) from being cached.
     bool CanCacheError(const TError& error) noexcept override;
 
-    NApi::TMasterReadOptions GetMasterReadOptions();
-
     //! Make proper request for given key: `TReqCheckPermission` for keys with `Object` set,
     //! `TReqCheckPermissionByAcl` for keys with `Acl` set.
     NYTree::TYPathRequestPtr MakeRequest(

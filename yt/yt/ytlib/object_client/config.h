@@ -2,11 +2,11 @@
 
 #include "public.h"
 
+#include <yt/yt/client/api/client.h>
+
 #include <yt/yt/core/misc/cache_config.h>
 
 #include <yt/yt/core/rpc/config.h>
-
-#include <yt/yt/client/api/public.h>
 
 namespace NYT::NObjectClient {
 
@@ -16,18 +16,20 @@ class TObjectAttributeCacheConfig
     : public TAsyncExpiringCacheConfig
 {
 public:
-    NApi::EMasterChannelKind ReadFrom;
-    // All of the following parameters make sense only if ReadFrom is Cache.
-    TDuration MasterCacheExpireAfterSuccessfulUpdateTime;
-    TDuration MasterCacheExpireAfterFailedUpdateTime;
-    std::optional<int> MasterCacheStickyGroupSize;
-
-    // TODO(max42): eliminate this by proper inheritance.
-    NApi::TMasterReadOptions GetMasterReadOptions();
+    NApi::TMasterReadOptions MasterReadOptions;
 
     REGISTER_YSON_STRUCT(TObjectAttributeCacheConfig);
 
     static void Register(TRegistrar registrar);
+
+private:
+    // COMPAT(dakovalkov): following options are deprecated.
+    // Use MasterReadOptions instead.
+    // TODO(dakovalkov): delete them after elimination from all configs.
+    std::optional<NApi::EMasterChannelKind> ReadFrom_;
+    std::optional<TDuration> MasterCacheExpireAfterSuccessfulUpdateTime_;
+    std::optional<TDuration> MasterCacheExpireAfterFailedUpdateTime_;
+    std::optional<int> MasterCacheStickyGroupSize_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TObjectAttributeCacheConfig)

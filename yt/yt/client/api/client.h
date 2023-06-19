@@ -161,6 +161,10 @@ struct TMasterReadOptions
     TDuration SuccessStalenessBound;
 };
 
+void Serialize(const TMasterReadOptions& options, NYson::IYsonConsumer* consumer);
+void Deserialize(TMasterReadOptions& options, NYTree::INodePtr node);
+void Deserialize(TMasterReadOptions& options, NYson::TYsonPullParserCursor* cursor);
+
 struct TPrerequisiteRevisionConfig
     : public NYTree::TYsonStruct
 {

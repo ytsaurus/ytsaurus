@@ -116,11 +116,11 @@ TFuture<void> TPermissionCache::DoGet(const TPermissionKey& key, bool isPeriodic
 
     TObjectServiceProxy proxy(
         connection,
-        Config_->ReadFrom,
+        Config_->MasterReadOptions.ReadFrom,
         PrimaryMasterCellTagSentinel,
         connection->GetStickyGroupSizeCache());
     auto batchReq = proxy.ExecuteBatch();
-    SetBalancingHeader(batchReq, connection, GetMasterReadOptions());
+    SetBalancingHeader(batchReq, connection, Config_->MasterReadOptions);
     batchReq->SetUser(isPeriodicUpdate || Config_->AlwaysUseRefreshUser ? Config_->RefreshUser : key.User);
     batchReq->AddRequest(MakeRequest(connection, key));
 
@@ -157,7 +157,7 @@ TFuture<std::vector<TError>> TPermissionCache::DoGetMany(
 
     TObjectServiceProxy proxy(
         connection,
-        Config_->ReadFrom,
+        Config_->MasterReadOptions.ReadFrom,
         PrimaryMasterCellTagSentinel,
         /*stickyGroupSizeCache*/ nullptr);
     auto batchReq = proxy.ExecuteBatch();
@@ -191,16 +191,6 @@ bool TPermissionCache::CanCacheError(const TError& error) noexcept
     return error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError).has_value();
 }
 
-NApi::TMasterReadOptions TPermissionCache::GetMasterReadOptions()
-{
-    return NApi::TMasterReadOptions{
-        .ReadFrom = Config_->ReadFrom,
-        .ExpireAfterSuccessfulUpdateTime = Config_->ExpireAfterSuccessfulUpdateTime,
-        .ExpireAfterFailedUpdateTime = Config_->ExpireAfterFailedUpdateTime,
-        .CacheStickyGroupSize = 1,
-    };
-}
-
 NYTree::TYPathRequestPtr TPermissionCache::MakeRequest(
     const IConnectionPtr& connection,
     const TPermissionKey& key)
@@ -226,7 +216,7 @@ NYTree::TYPathRequestPtr TPermissionCache::MakeRequest(
         typedReq->set_ignore_missing_subjects(true);
         req = std::move(typedReq);
     }
-    SetCachingHeader(req, connection, GetMasterReadOptions());
+    SetCachingHeader(req, connection, Config_->MasterReadOptions);
     NCypressClient::SetSuppressAccessTracking(req, true);
     return req;
 }

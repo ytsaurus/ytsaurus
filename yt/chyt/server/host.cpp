@@ -317,7 +317,7 @@ public:
             GetCurrentInvoker(),
             TableAttributesToFetch,
             Logger,
-            Config_->TableAttributeCache->GetMasterReadOptions()))
+            Config_->TableAttributeCache->MasterReadOptions))
             .ValueOrThrow();
 
         std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> attributes;

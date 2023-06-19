@@ -109,6 +109,70 @@ NRpc::TMutationId TMutatingOptions::GetOrGenerateMutationId() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSerializableMasterReadOptions
+    : public TYsonStructLite
+    , public TMasterReadOptions
+{
+    REGISTER_YSON_STRUCT_LITE(TSerializableMasterReadOptions);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.BaseClassParameter("read_from", &TThis::ReadFrom)
+            .Optional();
+        registrar.BaseClassParameter("disable_per_user_cache", &TThis::DisablePerUserCache)
+            .Optional();
+        registrar.BaseClassParameter("expire_after_successful_update_time", &TThis::ExpireAfterSuccessfulUpdateTime)
+            .Optional();
+        registrar.BaseClassParameter("expire_after_failed_update_time", &TThis::ExpireAfterFailedUpdateTime)
+            .Optional();
+        registrar.BaseClassParameter("cache_sticky_group_size", &TThis::CacheStickyGroupSize)
+            .Optional();
+        registrar.BaseClassParameter("enable_client_cache_stickiness", &TThis::EnableClientCacheStickiness)
+            .Optional();
+        registrar.BaseClassParameter("success_staleness_bound", &TThis::SuccessStalenessBound)
+            .Optional();
+
+        registrar.Preprocessor([] (TThis* options) {
+            // Set default values, because .Optional() overrides them to type's default.
+            static_cast<TMasterReadOptions&>(*options) = TMasterReadOptions();
+        });
+    }
+
+public:
+    static TThis Wrap(const TMasterReadOptions& source)
+    {
+        TThis result = Create();
+        static_cast<TMasterReadOptions&>(result) = source;
+        return result;
+    }
+
+    TMasterReadOptions Unwrap()
+    {
+        return static_cast<TMasterReadOptions>(*this);
+    }
+};
+
+void Serialize(const TMasterReadOptions& options, NYson::IYsonConsumer* consumer)
+{
+    NYTree::Serialize(TSerializableMasterReadOptions::Wrap(options), consumer);
+}
+
+void Deserialize(TMasterReadOptions& options, INodePtr node)
+{
+    auto serializableMasterReadOptions = TSerializableMasterReadOptions::Create();
+    NYTree::Deserialize(serializableMasterReadOptions, node);
+    options = serializableMasterReadOptions.Unwrap();
+}
+
+void Deserialize(TMasterReadOptions& options, NYson::TYsonPullParserCursor* cursor)
+{
+    auto serializableMasterReadOptions = TSerializableMasterReadOptions::Create();
+    NYTree::Deserialize(serializableMasterReadOptions, cursor);
+    options = serializableMasterReadOptions.Unwrap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TJournalWriterPerformanceCounters::TJournalWriterPerformanceCounters(const NProfiling::TProfiler& profiler)
 {
 #define XX(name) \

@@ -6,8 +6,11 @@ namespace NYT::NSecurityClient {
 
 void TPermissionCacheConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("read_from", &TThis::ReadFrom)
-        .Default(NApi::EMasterChannelKind::Cache);
+    registrar.Parameter("master_read_options", &TThis::MasterReadOptions)
+        .Default(NApi::TMasterReadOptions{
+            .ReadFrom = NApi::EMasterChannelKind::Cache,
+            .CacheStickyGroupSize = 1,
+        });
     registrar.Parameter("refresh_user", &TThis::RefreshUser)
         // COMPAT(babenko): separate user
         .Default(RootUserName);
@@ -15,11 +18,25 @@ void TPermissionCacheConfig::Register(TRegistrar registrar)
         // COMPAT(babenko): turn this off and remove the feature flag
         .Default(true);
 
+    // COMPAT(dakovalkov)
+    registrar.Parameter("read_from", &TThis::ReadFrom_)
+        .Optional();
+
     registrar.Preprocessor([] (TThis* config) {
         config->ExpireAfterAccessTime = TDuration::Minutes(5);
         config->ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(3);
         config->RefreshTime = TDuration::Minutes(1);
         config->BatchUpdate = true;
+    });
+
+    registrar.Postprocessor([] (TThis* config) {
+        config->MasterReadOptions.ExpireAfterSuccessfulUpdateTime = config->ExpireAfterSuccessfulUpdateTime;
+        config->MasterReadOptions.ExpireAfterFailedUpdateTime = config->ExpireAfterFailedUpdateTime;
+
+        // COMPAT(dakovalkov)
+        if (config->ReadFrom_) {
+            config->MasterReadOptions.ReadFrom = *config->ReadFrom_;
+        }
     });
 }
 
