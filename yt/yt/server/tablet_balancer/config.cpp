@@ -50,7 +50,7 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
         .Default(0.1)
         .GreaterThanOrEqual(0);
     registrar.Parameter("parameterized_min_relative_metric_improvement", &TThis::ParameterizedMinRelativeMetricImprovement)
-        .Default(0.001)
+        .Default(0.0)
         .GreaterThanOrEqual(0);
     registrar.Parameter("default_parameterized_metric", &TThis::DefaultParameterizedMetric)
         .Default(DefaultParameterizedMetricFormula)

@@ -711,7 +711,8 @@ std::vector<TMoveDescriptor> TParameterizedReassignSolver::BuildActionDescriptor
         LogMessageCount_ = 0;
         if (TryFindBestAction(/*canMakeSwap*/ availableActionCount >= 2)) {
             YT_VERIFY(BestAction_.Callback);
-            if (BestAction_.Metric >= CurrentMetric_ * (1 - Config_.MinRelativeMetricImprovement)) {
+            if (BestAction_.Metric >= CurrentMetric_ * (1 - Config_.MinRelativeMetricImprovement / std::ssize(Nodes_)))
+            {
                 YT_LOG_DEBUG(
                     "Metric-improving action is not better enough (CurrentMetric: %v, MetricAfterAction: %v)",
                     CurrentMetric_,
