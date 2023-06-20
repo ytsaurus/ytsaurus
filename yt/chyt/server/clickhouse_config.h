@@ -111,6 +111,52 @@ DEFINE_REFCOUNTED_TYPE(TSystemLogConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TPocoInvalidCertificateHandlerConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TString Name;
+
+    REGISTER_YSON_STRUCT(TPocoInvalidCertificateHandlerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TPocoInvalidCertificateHandlerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPocoOpenSSLConfigEntry
+    : public NYTree::TYsonStruct
+{
+public:
+    TPocoInvalidCertificateHandlerConfigPtr InvalidCertificateHandler;
+
+    REGISTER_YSON_STRUCT(TPocoOpenSSLConfigEntry);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TPocoOpenSSLConfigEntry)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPocoOpenSSLConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TPocoOpenSSLConfigEntryPtr Server;
+    TPocoOpenSSLConfigEntryPtr Client;
+
+    REGISTER_YSON_STRUCT(TPocoOpenSSLConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TPocoOpenSSLConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Config containing native clickhouse settings. Do not add our own settings here.
 class TClickHouseConfig
     : public NYTree::TYsonStruct
@@ -153,6 +199,8 @@ public:
     //! Refer to https://clickhouse.yandex/docs/en/operations/settings/settings/ for a complete list.
     //! This map is merged into `users/profiles/default`.
     THashMap<TString, NYTree::INodePtr> Settings;
+
+    TPocoOpenSSLConfigPtr OpenSSL;
 
     REGISTER_YSON_STRUCT(TClickHouseConfig);
 

@@ -6,16 +6,6 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSystemLogConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("engine", &TThis::Engine)
-        .Default("ENGINE = Buffer('system', 'query_log_older', 1, 1, 1800, 1000000000000, 1000000000000, 1000000000000, 1000000000000)");
-    registrar.Parameter("flush_interval_milliseconds", &TThis::FlushIntervalMilliseconds)
-        .Default(100);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TUserConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("profiles", &TThis::Profiles)
@@ -79,6 +69,44 @@ void TDictionaryConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TSystemLogConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("engine", &TThis::Engine)
+        .Default("ENGINE = Buffer('system', 'query_log_older', 1, 1, 1800, 1000000000000, 1000000000000, 1000000000000, 1000000000000)");
+    registrar.Parameter("flush_interval_milliseconds", &TThis::FlushIntervalMilliseconds)
+        .Default(100);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TPocoInvalidCertificateHandlerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("name", &TThis::Name)
+        .Default("RejectCertificateHandler");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TPocoOpenSSLConfigEntry::Register(TRegistrar registrar)
+{
+    // NOTE(dakovalkov): options names are in camelCase because they correspond to Poco::Net::SSLManager's options.
+    // https://docs.pocoproject.org/current/Poco.Net.SSLManager.html
+    registrar.Parameter("invalidCertificateHandler", &TThis::InvalidCertificateHandler)
+        .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TPocoOpenSSLConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("server", &TThis::Server)
+        .DefaultNew();
+    registrar.Parameter("client", &TThis::Client)
+        .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TClickHouseConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("users", &TThis::Users)
@@ -131,6 +159,11 @@ void TClickHouseConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("max_server_memory_usage", &TThis::MaxServerMemoryUsage)
         .Default();
+
+    // NOTE(dakovalkov): this option name correspond to Poco::Net::SSLManager's config option.
+    // https://docs.pocoproject.org/current/Poco.Net.SSLManager.html
+    registrar.Parameter("openSSL", &TThis::OpenSSL)
+        .DefaultNew();
 
     registrar.Preprocessor([] (TThis* config) {
         config->Settings["max_memory_usage_for_all_queries"] = NYTree::ConvertToNode(9_GB);
