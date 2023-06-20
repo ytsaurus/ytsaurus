@@ -60,7 +60,8 @@ def lazy_import_driver_bindings(backend_type, allow_fallback_to_native_driver):
 
 
 def read_config(path):
-    driver_config = yson.load(open(path, "rb"))
+    with open(path, "rb") as inf:
+        driver_config = yson.load(inf)
     if "driver" in driver_config:
         return (
             driver_config["driver"],
