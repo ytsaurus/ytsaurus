@@ -440,7 +440,7 @@ bool TTableNode::IsDynamic() const
 
 bool TTableNode::IsQueue() const
 {
-    return IsDynamic() && !IsSorted() && !IsReplicated();
+    return IsDynamic() && !IsSorted();
 }
 
 bool TTableNode::IsQueueObject() const

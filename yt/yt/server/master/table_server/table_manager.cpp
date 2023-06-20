@@ -1159,6 +1159,9 @@ private:
     TPeriodicExecutorPtr StatisticsGossipExecutor_;
     IReconfigurableThroughputThrottlerPtr StatisticsGossipThrottler_;
 
+    // COMPAT(cherepashka, achulkov2)
+    bool NeedToAddReplicatedQueues_ = false;
+
     //! Contains native trunk nodes for which IsQueue() is true.
     THashSet<TTableNode*> Queues_;
     //! Contains native trunk nodes for which IsConsumer() is true.
@@ -1467,6 +1470,7 @@ private:
         StatisticsUpdateRequests_.Clear();
         Queues_.clear();
         Consumers_.clear();
+        NeedToAddReplicatedQueues_ = false;
     }
 
     void SetZeroState() override
@@ -1523,6 +1527,8 @@ private:
 
         Load(context, Queues_);
         Load(context, Consumers_);
+
+        NeedToAddReplicatedQueues_ = context.GetVersion() < EMasterReign::QueueReplicatedTablesList;
     }
 
     void OnBeforeSnapshotLoaded() override
@@ -1540,6 +1546,17 @@ private:
         //   - on old snapshots that don't contain schema map (or this automaton
         //     part altogether) this initialization is crucial.
         InitBuiltins();
+
+        if (NeedToAddReplicatedQueues_) {
+            for (auto [nodeId, node] : Bootstrap_->GetCypressManager()->Nodes()) {
+                if (node->GetType() == NObjectClient::EObjectType::ReplicatedTable) {
+                    auto* replicatedTableNode = node->As<TReplicatedTableNode>();
+                    if (replicatedTableNode->IsQueueObject()) {
+                        RegisterQueue(replicatedTableNode);
+                    }
+                }
+            }
+        }
     }
 
     void SaveKeys(NCellMaster::TSaveContext& context) const

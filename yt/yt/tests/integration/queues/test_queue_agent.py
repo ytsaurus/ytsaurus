@@ -1756,12 +1756,13 @@ class TestMasterIntegration(TestQueueAgentBase):
         create("table", "//tmp/q_sorted_dynamic",
                attributes={"dynamic": True, "schema": [{"name": "key", "type": "string", "sort_order": "ascending"},
                                                        {"name": "value", "type": "string"}]})
-        create("replicated_table", "//tmp/q_ordered_replicated",
-               attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
+        create("replicated_table", "//tmp/q_sorted_replicated",
+               attributes={"dynamic": True, "schema": [{"name": "data", "type": "string", "sort_order": "ascending"},
+                                                       {"name": "value", "type": "string"}]})
         queue_attributes = ["queue_status", "queue_partitions"]
 
         result = get("//tmp", attributes=queue_attributes)
-        for name in ("q_static", "q_sorted_dynamic", "q_ordered_replicated"):
+        for name in ("q_static", "q_sorted_dynamic", "q_sorted_replicated"):
             assert not result[name].attributes
             for attribute in queue_attributes:
                 assert not exists("//tmp/" + name + "/@" + attribute)

@@ -1,3 +1,4 @@
+import builtins
 from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE, NODES_SERVICE
 from yt_commands import (
     authors, create_tablet_cell_bundle, print_debug, build_master_snapshots, sync_create_cells, wait_for_cells,
@@ -140,6 +141,19 @@ def check_chunk_creation_time_histogram():
     wait(check_histogram)
 
 
+def check_replication_queue_list():
+    revisions_path = "//sys/@queue_agent_object_revisions"
+    create("replicated_table", "//tmp/rep_q1", attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
+    create("replicated_table", "//tmp/rep_q2", attributes={"dynamic": True, "schema":
+                                                           [{"name": "data", "type": "string", "sort_order": "ascending"},
+                                                            {"name": "test", "type": "string"}]})
+    create("table", "//tmp/q1", attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
+    assert builtins.set(get(revisions_path)["queues"].keys()) == {"//tmp/q1"}
+    yield
+
+    assert builtins.set(get(revisions_path)["queues"].keys()) == {"//tmp/rep_q1", "//tmp/q1"}
+
+
 class TestMasterSnapshotsCompatibility(MasterSnapshotsCompatibilityBase):
     TEST_MAINTENANCE_FLAGS = True
 
@@ -149,6 +163,7 @@ class TestMasterSnapshotsCompatibility(MasterSnapshotsCompatibilityBase):
         CHECKER_LIST = [
             check_maintenance_flags,
             check_chunk_creation_time_histogram,
+            check_replication_queue_list,
         ] + MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
 
         checker_state_list = [iter(c()) for c in CHECKER_LIST]

@@ -157,6 +157,7 @@ DEFINE_ENUM(EMasterReign,
     ((S3Medium)                                                     (2402))  // gritukan
     ((ColumnRenamingSeparateFlags)                                  (2403))  // orlovorlov
     ((MasterCellChunkStatisticsCollectorConfig)                     (2404))  // kvk1920
+    ((QueueReplicatedTablesList)                                    (2405))  // cherepashka
 );
 
 ////////////////////////////////////////////////////////////////////////////////
