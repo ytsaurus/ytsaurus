@@ -23,6 +23,8 @@ from yt.test_helpers import are_almost_equal
 from yt.common import YtError
 import yt.environment.init_operation_archive as init_operation_archive
 
+import yt_error_codes
+
 from yt.yson.yson_types import YsonEntity
 
 import pytest
@@ -1763,7 +1765,7 @@ class TestPoolTreeOperationLimits(YTEnvSetup):
         create_pool_tree("other", config={"nodes_filter": "other"})
         create_pool("pool", pool_tree="other", attributes={"max_running_operation_count": 0, "max_operation_count": 0})
 
-        with pytest.raises(YtError):
+        with raises_yt_error(yt_error_codes.TooManyOperations):
             run_sleeping_vanilla(spec={"pool": "pool", "pool_trees": ["default", "other"]})
 
         op = run_sleeping_vanilla(spec={
@@ -1774,12 +1776,13 @@ class TestPoolTreeOperationLimits(YTEnvSetup):
         wait(lambda: get(op.get_path() + "/@runtime_parameters/erased_trees", default=None) == ["other"])
         wait(lambda: ls(op.get_path() + "/@runtime_parameters/scheduling_options_per_pool_tree") == ["default"])
 
-        with pytest.raises(YtError):
+        with raises_yt_error(yt_error_codes.TooManyOperations) as errors:
             run_sleeping_vanilla(spec={
                 "pool": "pool",
                 "pool_trees": ["other"],
                 "erase_trees_with_pool_limit_violations": True,
             })
+        assert "All trees have been erased for operation" in errors[0].inner_errors[0]["inner_errors"][0]["message"]
 
 
 ##################################################################
