@@ -25,7 +25,7 @@ jobs:
           message: |
             New PR in *${{github.repository}}*: `${{github.event.pull_request.title}}`
             Author: ${{github.event.pull_request.user.login}}
-            ${{ steps.pr-url.outputs.url }}
+            ${{github.server_url}}/${{github.repository}}/pull/${{github.event.number}}
 
   issue-notifications:
     name: Send notifications about issues
