@@ -284,15 +284,17 @@ private:
             jobId,
             jobType);
 
-        auto job = NDataNode::CreateJob(jobId,
-                std::move(jobSpec),
-                jobTrackerAddress,
-                resourceLimits,
-                resourceAttributes,
-                Bootstrap_->GetDataNodeBootstrap(),
-                MasterJobSensors_);
+        auto job = NDataNode::CreateJob(
+            jobId,
+            std::move(jobSpec),
+            jobTrackerAddress,
+            resourceLimits,
+            resourceAttributes,
+            Bootstrap_->GetDataNodeBootstrap(),
+            MasterJobSensors_);
 
-        YT_LOG_INFO("Master job created (JobId: %v, JobType: %v, JobTrackerAddress: %v)",
+        YT_LOG_INFO(
+            "Master job created (JobId: %v, JobType: %v, JobTrackerAddress: %v)",
             jobId,
             jobType,
             jobTrackerAddress);

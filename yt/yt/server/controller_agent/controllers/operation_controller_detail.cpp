@@ -5748,7 +5748,7 @@ void TOperationControllerBase::SafeOnJobInfoReceivedFromNode(std::unique_ptr<TJo
         YT_VERIFY(joblet->Revived);
 
         YT_LOG_DEBUG(
-            "Received revived job info for job that is not marked started in snapshot; processing job start"
+            "Received revived job info for job that is not marked started in snapshot; processing job start "
             "(JobId: %v, JobState: %v)",
             jobId,
             jobSummary->State);
