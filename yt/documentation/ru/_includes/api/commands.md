@@ -976,7 +976,7 @@ OUTPUT "//tmp/yt_wrapper/file_storage/new_cache/5d/a3dcb4d229de6fde0db5686dee471
 
 Подробную информацию про динамические таблицы можно найти в разделе [Динамические таблицы](../../user-guide/dynamic-tables/overview.md).
 
-### write_table
+### write_table { #write_table }
 
 Свойства команды: **Мутирующая**, **Тяжелая**.
 
@@ -1023,7 +1023,7 @@ INPUT { "id" = 2; "value" = 2.000; };
 INPUT { "id" = 3; "value" = 3.850; };
 ```
 
-### read_table
+### read_table { #read_table }
 
 Свойства команды: **Немутирующая**, **Тяжелая**.
 

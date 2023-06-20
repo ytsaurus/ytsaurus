@@ -63,7 +63,7 @@ Erasure-кодирование имеет следующие недостатк�
 
 - CLI
     ```bash
-    yt transform --src //path/to/table --dst //path/to/table --erasure-codec lrc_12_2_2 --compression-codec brotli_6
+    yt transform --src //path/to/table --dst //path/to/table --erasure-codec reed_solomon_6_3 --compression-codec brotli_6
     ```
 
 - Python
@@ -79,7 +79,7 @@ Erasure-кодирование имеет следующие недостатк�
 
 CLI
 ```bash
-yt set //path/to/table/@erasure_codec lrc_12_2_2
+yt set //path/to/table/@erasure_codec reed_solomon_6_3
 yt set //path/to/table/@compression_codec brotli_6
 yt merge --src //path/to/table --dst //path/to/table --spec '{force_transform = %true;data_size_per_job=N}
 ```
