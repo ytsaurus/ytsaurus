@@ -668,7 +668,8 @@ public:
                         : EObjectType::OrderedDynamicTabletStore);
                 auto* dynamicStore = CreateDynamicStore(tablet, storeId);
                 chunksToAttach.push_back(dynamicStore);
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Dynamic store attached to tablet during flush (TableId: %v, TabletId: %v, StoreId: %v)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Dynamic store attached to tablet during flush "
+                    "(TableId: %v, TabletId: %v, StoreId: %v)",
                     table->GetId(),
                     tablet->GetId(),
                     storeId);
@@ -810,10 +811,13 @@ public:
 
         counters->UpdateTabletStoresStoreCount.Increment(chunksToAttach.size() + chunksOrViewsToDetach.size());
 
-        return Format("AttachedChunkIds: %v, DetachedChunkOrViewIds: %v, AttachedRowCount: %v, "
-            "DetachedRowCount: %v",
+        return Format("AttachedChunkIds: %v, DetachedChunkOrViewIds: %v, "
+            "AttachedHunkChunkIds: %v, DetachedHunkChunkIds: %v, "
+            "AttachedRowCount: %v, DetachedRowCount: %v",
             MakeFormattableView(chunksToAttach, TObjectIdFormatter()),
             MakeFormattableView(chunksOrViewsToDetach, TObjectIdFormatter()),
+            MakeFormattableView(hunkChunksToAttach, TObjectIdFormatter()),
+            MakeFormattableView(hunkChunksToDetach, TObjectIdFormatter()),
             attachedRowCount,
             detachedRowCount);
     }
@@ -1164,6 +1168,35 @@ public:
             }
         }
 
+        std::vector<TChunkTree*> hunkChunksToAttach;
+        auto attachHunkChunks = [&] (TChunk* chunk) {
+            auto hunkChunks = GetReferencedHunkChunks(chunk);
+            if (!hunkChunks.empty()) {
+                YT_VERIFY(std::ssize(hunkChunks) == 1);
+                hunkChunksToAttach.push_back(hunkChunks[0]);
+            }
+        };
+
+        for (auto* store : storesToAttach) {
+            switch (store->GetType()) {
+                case EObjectType::Chunk: {
+                    attachHunkChunks(store->AsChunk());
+                    break;
+                }
+
+                case EObjectType::ChunkView: {
+                    auto* chunkView = store->AsChunkView();
+                    auto* underlyingTree = chunkView->GetUnderlyingTree();
+                    YT_VERIFY(underlyingTree->GetType() == EObjectType::Chunk);
+                    attachHunkChunks(underlyingTree->AsChunk());
+                    break;
+                }
+
+                default:
+                    YT_ABORT();
+            }
+        }
+
         chunkManager->DetachFromChunkList(
             chunkList,
             storesToDetach,
@@ -1171,6 +1204,11 @@ public:
                 ? EChunkDetachPolicy::SortedTablet
                 : EChunkDetachPolicy::OrderedTabletSuffix);
         chunkManager->AttachToChunkList(chunkList, storesToAttach);
+
+        if (!hunkChunksToAttach.empty()) {
+            auto* hunkChunkList = tablet->GetHunkChunkList();
+            chunkManager->AttachToChunkList(hunkChunkList, hunkChunksToAttach);
+        }
 
         auto newStatistics = tablet->GetTabletStatistics();
         table->AccountTabletStatistics(newStatistics);
@@ -1385,7 +1423,6 @@ private:
                 auto error = TError("Cumulative row count exceeded cutoff row index")
                     << TErrorAttribute("cumulative_row_count", cumulativeRowCount);
                 return wrapInternalErrorAndLog(error);
-
             }
 
             if (cumulativeRowCount == descriptor.CutoffRowIndex) {

@@ -1,6 +1,6 @@
 from yt_commands import (
     authors, get, insert_rows, select_rows, mount_table, sync_reshard_table, sync_create_cells,
-    remove, sync_mount_table, sync_flush_table, sync_freeze_table, sync_unmount_table,
+    remove, exists, sync_mount_table, sync_flush_table, sync_freeze_table, sync_unmount_table,
     create_table_backup, restore_table_backup, raises_yt_error, update_nodes_dynamic_config,
     wait, start_transaction, commit_transaction, print_debug, lookup_rows,
     generate_timestamp, set, sync_compact_table, read_table, merge, create,
@@ -408,15 +408,114 @@ class TestBackups(DynamicTablesBase):
         assert error.contains_text(
             "Failed to confirm checkpoint timestamp in time due to a transaction with later timestamp")
 
-    # YT-15032
-    def test_backup_hunks(self):
+    @authors("akozhikhov")
+    def test_backup_hunks_simple(self):
         schema = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},
             {"name": "value", "type": "string", "max_inline_hunk_size": 1},
         ]
-        self._create_sorted_table("//tmp/t", schema=schema)
-        with raises_yt_error():
-            create_table_backup(["//tmp/t", "//tmp/bak"])
+
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t", schema=schema, dynamic_store_auto_flush_period=yson.YsonEntity())
+        sync_mount_table("//tmp/t")
+        rows = [{"key": 1, "value": "aa"}]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+        src_hunk_chunk_ids = self._get_hunk_chunk_ids("//tmp/t")
+        assert len(src_hunk_chunk_ids) == 1
+
+        create_table_backup(["//tmp/t", "//tmp/bak"])
+        assert get("//tmp/bak/@tablet_backup_state") == "backup_completed"
+        assert get("//tmp/bak/@backup_state") == "backup_completed"
+
+        restore_table_backup(["//tmp/bak", "//tmp/res"])
+        assert get("//tmp/res/@tablet_backup_state") == "none"
+        assert get("//tmp/res/@backup_state") == "none"
+        sync_mount_table("//tmp/res")
+        assert_items_equal(select_rows("* from [//tmp/res]"), rows)
+        dst_hunk_chunk_ids = self._get_hunk_chunk_ids("//tmp/res")
+        assert src_hunk_chunk_ids == dst_hunk_chunk_ids
+
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("remove_backup_first", [True, False])
+    def test_backup_hunks_restore_after_flush(self, remove_backup_first):
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string", "max_inline_hunk_size": 1},
+        ]
+
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t",
+                                  schema=schema,
+                                  dynamic_store_auto_flush_period=yson.YsonEntity(),
+                                  enable_compaction_and_partitioning=False)
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 1, "value": "aa"}])
+        sync_flush_table("//tmp/t")
+        hunk_chunk_id_1 = self._get_hunk_chunk_ids("//tmp/t")
+        assert len(hunk_chunk_id_1) == 1
+        hunk_chunk_id_1 = hunk_chunk_id_1[0]
+
+        set("//tmp/t/@mount_config/enable_store_flush", False)
+        remount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": 2, "value": "bb"}])
+
+        create_table_backup(["//tmp/t", "//tmp/bak"])
+        assert get("//tmp/bak/@tablet_backup_state") == "backup_completed"
+        assert get("//tmp/bak/@backup_state") == "backup_completed"
+
+        set("//tmp/t/@mount_config/enable_store_flush", True)
+        remount_table("//tmp/t")
+        sync_flush_table("//tmp/t")
+        hunk_chunk_id_2 = [hunk_chunk_id for hunk_chunk_id in self._get_hunk_chunk_ids("//tmp/t") if hunk_chunk_id != hunk_chunk_id_1]
+        assert len(hunk_chunk_id_2) == 1
+        hunk_chunk_id_2 = hunk_chunk_id_2[0]
+
+        insert_rows("//tmp/t", [{"key": 3, "value": "cc"}])
+        sync_flush_table("//tmp/t")
+        hunk_chunk_id_3 = [hunk_chunk_id for hunk_chunk_id in self._get_hunk_chunk_ids("//tmp/t") if hunk_chunk_id not in [hunk_chunk_id_1, hunk_chunk_id_2]]
+        assert len(hunk_chunk_id_3) == 1
+        hunk_chunk_id_3 = hunk_chunk_id_3[0]
+
+        sync_unmount_table("//tmp/t")
+        remove("//tmp/t")
+        wait(lambda: not exists("#{}".format(hunk_chunk_id_3)))
+        assert exists("#{}".format(hunk_chunk_id_2))
+        assert exists("#{}".format(hunk_chunk_id_1))
+
+        restore_table_backup(["//tmp/bak", "//tmp/res"])
+        assert get("//tmp/res/@tablet_backup_state") == "none"
+        assert get("//tmp/res/@backup_state") == "none"
+        sync_mount_table("//tmp/res")
+        assert_items_equal(select_rows("* from [//tmp/res]"), [{"key": 1, "value": "aa"}, {"key": 2, "value": "bb"}])
+        dst_hunk_chunk_ids = self._get_hunk_chunk_ids("//tmp/res")
+        assert [hunk_chunk_id_1, hunk_chunk_id_2] == dst_hunk_chunk_ids
+
+        if remove_backup_first:
+            remove("//tmp/bak")
+            sleep(5)
+            assert exists("#{}".format(hunk_chunk_id_2))
+            assert exists("#{}".format(hunk_chunk_id_1))
+            assert_items_equal(select_rows("* from [//tmp/res]"), [{"key": 1, "value": "aa"}, {"key": 2, "value": "bb"}])
+
+            set("//tmp/res/@mount_config/enable_store_flush", True)
+            remount_table("//tmp/res")
+            sync_unmount_table("//tmp/res")
+            remove("//tmp/res")
+        else:
+            set("//tmp/res/@mount_config/enable_store_flush", True)
+            remount_table("//tmp/res")
+            sync_unmount_table("//tmp/res")
+            remove("//tmp/res")
+            sleep(5)
+            assert exists("#{}".format(hunk_chunk_id_2))
+            assert exists("#{}".format(hunk_chunk_id_1))
+
+            remove("//tmp/bak")
+
+        wait(lambda: not exists("#{}".format(hunk_chunk_id_2)))
+        wait(lambda: not exists("#{}".format(hunk_chunk_id_1)))
 
     def test_ordered_at_least(self):
         tablet_count = 10

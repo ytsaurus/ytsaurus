@@ -149,6 +149,7 @@ DEFINE_ENUM(EMasterReign,
     ((MoveReplicatorEnabledCheckPeriodToDynamicConfig)              (2334))  // danilalexeev
     ((FixAlterWithSchemaId)                                         (2335))  // h0pless
     ((LocationDirectory)                                            (2336))  // kvk1920
+    ((HunksBackup)                                                  (2337))  // akozhikhov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

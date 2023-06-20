@@ -1962,7 +1962,7 @@ public:
             YT_VERIFY(sourceRootChunkList->Children().size() == sourceTablets.size());
         }
 
-        for (int index = 0; index < static_cast<int>(sourceTablets.size()); ++index) {
+        for (int index = 0; index < std::ssize(sourceTablets); ++index) {
             auto* sourceTablet = sourceTablets[index];
 
             auto* clonedTablet = CreateTablet(trunkClonedTable, EObjectType::Tablet)->As<TTablet>();
@@ -2093,7 +2093,6 @@ public:
                 trunkSourceTable,
                 sourceTable->GetTransaction());
         }
-
 
         UpdateResourceUsage(
             trunkClonedTable,

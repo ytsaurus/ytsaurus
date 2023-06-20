@@ -897,9 +897,9 @@ private:
                 const auto& replicaInfo = tablet->Replicas()[descriptor.ReplicaId];
 
                 auto* protoReplicaInfo = req.add_replicas();
-                ToProto(protoReplicaInfo ->mutable_replica_id(), descriptor.ReplicaId);
+                ToProto(protoReplicaInfo->mutable_replica_id(), descriptor.ReplicaId);
 
-                auto* statistics = protoReplicaInfo ->mutable_replica_statistics();
+                auto* statistics = protoReplicaInfo->mutable_replica_statistics();
                 switch (replicaInfo.GetMode()) {
                     case ETableReplicaMode::Sync:
                         statistics->set_committed_replication_row_index(tablet->GetTotalRowCount());

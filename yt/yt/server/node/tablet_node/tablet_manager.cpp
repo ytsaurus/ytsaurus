@@ -1616,7 +1616,9 @@ private:
         std::vector<TStoreId> storeIdsToAdd;
         for (const auto& descriptor : request->stores_to_add()) {
             auto storeId = FromProto<TStoreId>(descriptor.store_id());
-            if (auto optionalHunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(descriptor.chunk_meta().extensions())) {
+            if (auto optionalHunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(
+                descriptor.chunk_meta().extensions()))
+            {
                 for (const auto& ref : optionalHunkChunkRefsExt->refs()) {
                     auto chunkId = FromProto<TChunkId>(ref.chunk_id());
                     if (!hunkChunkIdsToAdd.contains(chunkId)) {
@@ -1704,7 +1706,9 @@ private:
         }
 
         for (const auto& descriptor : request->stores_to_add()) {
-            if (auto optionalHunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(descriptor.chunk_meta().extensions())) {
+            if (auto optionalHunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(
+                descriptor.chunk_meta().extensions()))
+            {
                 for (const auto& ref : optionalHunkChunkRefsExt->refs()) {
                     auto chunkId = FromProto<TChunkId>(ref.chunk_id());
                     if (!hunkChunkIdsToAdd.contains(chunkId)) {
@@ -1872,7 +1876,7 @@ private:
         THashSet<TChunkId> hunkChunkIdsToAdd;
         for (const auto& descriptor : request->hunk_chunks_to_add()) {
             auto chunkId = FromProto<TChunkId>(descriptor.chunk_id());
-            YT_VERIFY(hunkChunkIdsToAdd.insert(chunkId).second);
+            InsertOrCrash(hunkChunkIdsToAdd, chunkId);
         }
 
         // COMPAT(aleksandra-zh)
@@ -1887,7 +1891,9 @@ private:
         }
 
         for (const auto& descriptor : request->stores_to_add()) {
-            if (auto optionalHunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(descriptor.chunk_meta().extensions())) {
+            if (auto optionalHunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(
+                descriptor.chunk_meta().extensions()))
+            {
                 for (const auto& ref : optionalHunkChunkRefsExt->refs()) {
                     auto chunkId = FromProto<TChunkId>(ref.chunk_id());
                     if (!hunkChunkIdsToAdd.contains(chunkId)) {

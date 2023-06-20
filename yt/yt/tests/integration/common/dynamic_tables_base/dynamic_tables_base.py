@@ -142,3 +142,11 @@ class DynamicTablesBase(YTEnvSetup):
             return True
 
         wait(check)
+
+    def _get_store_chunk_ids(self, path):
+        chunk_ids = get(path + "/@chunk_ids")
+        return [chunk_id for chunk_id in chunk_ids if get("#{}/@chunk_type".format(chunk_id)) == "table"]
+
+    def _get_hunk_chunk_ids(self, path):
+        chunk_ids = get(path + "/@chunk_ids")
+        return [chunk_id for chunk_id in chunk_ids if get("#{}/@chunk_type".format(chunk_id)) == "hunk"]
