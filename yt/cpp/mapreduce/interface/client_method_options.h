@@ -1037,6 +1037,7 @@ struct TCreateClientOptions
     TSelf& ServiceTicketAuth(const NAuth::IServiceTicketAuthPtrWrapper& wrapper);
     /// @}
 
+    /// @brief Use tvm-only endpoints in cluster connection.
     FLUENT_FIELD_DEFAULT(bool, TvmOnly, false);
 
     /// @brief Use HTTPs (use HTTP client from yt/yt/core always).
