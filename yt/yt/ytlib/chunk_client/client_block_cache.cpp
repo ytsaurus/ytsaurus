@@ -46,12 +46,12 @@ DEFINE_REFCOUNTED_TYPE(TAsyncBlockCacheEntry)
 
 TCachedBlock PrepareBlockToCache(TCachedBlock block, const INodeMemoryReferenceTrackerPtr& tracker)
 {
-    static constexpr double TOLERATED_OVERHEAD_THRESHOLD = 1.2;
+    static constexpr double ToleratedOverheadThreshold = 1.05;
 
     if (const auto& holder = block.Data.GetHolder()) {
         auto totalMemory = holder->GetTotalByteSize();
 
-        if (totalMemory && *totalMemory > block.Data.Size() * TOLERATED_OVERHEAD_THRESHOLD) {
+        if (totalMemory && *totalMemory > block.Data.Size() * ToleratedOverheadThreshold) {
             struct TCopiedBlockCache
             { };
 
