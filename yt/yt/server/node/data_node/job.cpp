@@ -1201,7 +1201,8 @@ public:
         TString jobTrackerAddress,
         const TJobResources& resourceLimits,
         const TJobResourceAttributes& resourceAttributes,
-        IBootstrap* bootstrap)
+        IBootstrap* bootstrap,
+        i64 readMemoryLimit)
         : TMasterJobBase(
             jobId,
             std::move(jobSpec),
@@ -1213,12 +1214,13 @@ public:
         , CellTag_(FromProto<TCellTag>(JobSpecExt_.cell_tag()))
         , MemoryUsageTracker_(New<TJobSystemMemoryUsageTracker>(
             MakeWeak(this)))
+        , ReadMemoryLimit_(readMemoryLimit)
     {
-        auto readWindowSize = GetDynamicConfig()->ReadWindowSize;
+        YT_VERIFY(readMemoryLimit > 0);
 
         TParallelReaderMemoryManagerOptions parallelReaderMemoryManagerOptions{
-            .TotalReservedMemorySize = readWindowSize,
-            .MaxInitialReaderReservedMemory = readWindowSize,
+            .TotalReservedMemorySize = ReadMemoryLimit_,
+            .MaxInitialReaderReservedMemory = ReadMemoryLimit_,
             .MemoryUsageTracker = MemoryUsageTracker_
         };
 
@@ -1234,6 +1236,7 @@ private:
     TError ShallowMergeValidationError_;
     NChunkClient::EChunkMergerMode MergeMode_;
     const ITypedNodeMemoryTrackerPtr MemoryUsageTracker_;
+    const i64 ReadMemoryLimit_;
     IMultiReaderMemoryManagerPtr MultiReaderMemoryManager_;
 
     TTableSchemaPtr Schema_;
@@ -1250,7 +1253,7 @@ private:
         IChunkReaderPtr Reader;
         TDeferredChunkMetaPtr Meta;
         TChunkId ChunkId;
-        std::vector<ui64> BlockSizes;
+        std::vector<i64> BlockSizes;
         NChunkClient::IChunkReader::TReadBlocksOptions Options;
         TMergeChunkInfo MergeChunkInfo;
     };
@@ -1362,7 +1365,7 @@ private:
                 /*omittedInaccessibleColumns*/ {},
                 NTableClient::TColumnFilter(),
                 NChunkClient::TReadRange(),
-                std::nullopt,
+                /*partitionTag*/ std::nullopt,
                 MemoryManager_->CreateChunkReaderMemoryManager());
         }
     };
@@ -1454,7 +1457,7 @@ private:
         auto chunkMeta = GetChunkMeta(reader, options.ClientOptions);
         auto blockMetaExt = GetProtoExtension<NTableClient::NProto::TDataBlockMetaExt>(chunkMeta->extensions());
 
-        std::vector<ui64> blockSizes;
+        std::vector<i64> blockSizes;
         blockSizes.reserve(blockMetaExt.data_blocks_size());
 
         for (const auto& block : blockMetaExt.data_blocks()) {
@@ -1526,22 +1529,20 @@ private:
             writer->AbsorbMeta(chunkReadContext.Meta, chunkReadContext.ChunkId);
         }
 
-        ui64 maxBlocksSize = GetDynamicConfig()->ReadWindowSize;
-
         for (const auto& chunkReadContext : InputChunkReadContexts_) {
             int currentBlockCount = 0;
             auto blockSizes = chunkReadContext.BlockSizes;
             auto inputChunkBlockCount = std::ssize(blockSizes);
 
             while (currentBlockCount < inputChunkBlockCount) {
-                ui64 currentSummarySize = 0;
+                i64 currentSummarySize = 0;
                 int start = currentBlockCount;
                 int end = currentBlockCount;
 
                 while (end < inputChunkBlockCount) {
                     currentSummarySize += blockSizes[end++];
 
-                    if (currentSummarySize >= maxBlocksSize) {
+                    if (currentSummarySize >= ReadMemoryLimit_) {
                         break;
                     }
                 }
@@ -2730,15 +2731,29 @@ TMasterJobBasePtr CreateJob(
                 resourceAttributes,
                 bootstrap);
 
-        case EJobType::MergeChunks:
+        case EJobType::MergeChunks: {
+            auto totalMergeJobMemoryLimit = bootstrap
+                ->GetDynamicConfigManager()
+                ->GetConfig()
+                ->DataNode
+                ->ChunkMerger
+                ->ReadMemoryLimit;
+            auto mergeSlots = bootstrap
+                ->GetJobResourceManager()
+                .Get()
+                ->GetResourceLimits()
+                .MergeSlots;
+            auto readMemoryLimit = totalMergeJobMemoryLimit / mergeSlots;
+
             return New<TChunkMergeJob>(
                 jobId,
                 std::move(jobSpec),
                 std::move(jobTrackerAddress),
                 resourceLimits,
                 resourceAttributes,
-                bootstrap);
-
+                bootstrap,
+                readMemoryLimit);
+        }
         case EJobType::AutotomizeChunk:
             return New<TChunkAutotomyJob>(
                 jobId,

@@ -604,7 +604,7 @@ public:
     // Testing options.
     bool FailShallowMergeValidation;
 
-    i64 ReadWindowSize;
+    i64 ReadMemoryLimit;
 
     REGISTER_YSON_STRUCT(TChunkMergerConfig);
 
