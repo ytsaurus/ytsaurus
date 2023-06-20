@@ -156,6 +156,8 @@ void TReplicationReaderConfig::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("enable_local_throttling", &TThis::EnableLocalThrottling)
         .Default(false);
+    registrar.Parameter("chunk_meta_cache_failure_probability", &TThis::ChunkMetaCacheFailureProbability)
+        .Default();
     registrar.Parameter("use_direct_io", &TThis::UseDirectIO)
         .Default(false);
 

@@ -61,11 +61,6 @@ public:
 
     TInstant GetLastFailureTime() const override;
 
-    void UpdateBannedPartIndices();
-    TPartIndexSet GetBannedPartIndices();
-
-    TError CheckPartReaderIsSlow(int partIndex, i64 bytesReceived, TDuration timePassed);
-
 private:
     friend class TErasureReaderWithOverridenThrottlers;
 
@@ -251,7 +246,7 @@ IChunkReaderPtr CreateAdaptiveRepairingErasureReader(
     return New<TAdaptiveRepairingErasureReader>(
         chunkId,
         codec,
-        config,
+        std::move(config),
         partReaders,
         logger);
 }

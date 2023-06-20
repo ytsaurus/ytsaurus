@@ -1546,7 +1546,8 @@ private:
     IChunkReaderPtr CreateReader(const NChunkClient::NProto::TMergeChunkInfo& chunk)
     {
         auto inputChunkId = FromProto<TChunkId>(chunk.id());
-        YT_LOG_INFO("Reading input chunk (ChunkId: %v)", inputChunkId);
+        YT_LOG_INFO("Reading input chunk (ChunkId: %v)",
+            inputChunkId);
 
         auto erasureReaderConfig = New<TErasureReaderConfig>();
         erasureReaderConfig->EnableAutoRepair = false;

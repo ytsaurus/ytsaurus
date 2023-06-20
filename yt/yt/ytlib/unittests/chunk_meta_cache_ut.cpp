@@ -184,6 +184,15 @@ TEST(TCachedChunkMetaTest, FailedRequests)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TChunkId GenerateBlockChunkId(int seed)
+{
+    return MakeId(
+        NObjectClient::EObjectType::Chunk,
+        NObjectClient::InvalidCellTag,
+        seed,
+        seed);
+}
+
 TEST(TClientChunkMetaCacheTest, Simple)
 {
     auto config = CreateCacheConfig(10000);
@@ -201,12 +210,12 @@ TEST(TClientChunkMetaCacheTest, Simple)
     }
 
     for (int index = 0; index < 5; ++index) {
-        WaitFor(cache->Fetch(TChunkId(index, index), std::vector<int>{}, fetchFunc))
+        WaitFor(cache->Fetch(GenerateBlockChunkId(index), std::vector<int>{}, fetchFunc))
             .ValueOrThrow();
     }
 
     for (int index = 0; index < 5; ++index) {
-        WaitFor(cache->Fetch(TChunkId(0, 0), std::vector<int>{}, fetchFunc))
+        WaitFor(cache->Fetch(GenerateBlockChunkId(0), std::vector<int>{}, fetchFunc))
             .ValueOrThrow();
     }
 }
@@ -241,23 +250,23 @@ TEST(TClientChunkMetaCacheTest, Eviction)
     }
 
     for (int index = 0; index < 100; ++index) {
-        WaitFor(cache->Fetch(TChunkId(index, index), std::vector<int>{1,}, fetchFunc))
+        WaitFor(cache->Fetch(GenerateBlockChunkId(index), std::vector<int>{1,}, fetchFunc))
             .ValueOrThrow();
     }
     for (int index = 0; index < 100; ++index) {
-        WaitFor(cache->Fetch(TChunkId(index, index), std::vector<int>{1,}, fetchFunc))
+        WaitFor(cache->Fetch(GenerateBlockChunkId(index), std::vector<int>{1,}, fetchFunc))
             .ValueOrThrow();
     }
 
     // A few last items should be cached.
     for (int index = 95; index < 100; ++index) {
-        WaitFor(cache->Fetch(TChunkId(index, index), std::vector<int>{1,}, fetchFunc))
+        WaitFor(cache->Fetch(GenerateBlockChunkId(index), std::vector<int>{1,}, fetchFunc))
             .ValueOrThrow();
     }
 
     // Item which does not fit in cache.
     for (int index = 0; index < 5; ++index) {
-        WaitFor(cache->Fetch(TChunkId(0, 0), hugeTagList, fetchFunc))
+        WaitFor(cache->Fetch(GenerateBlockChunkId(index), hugeTagList, fetchFunc))
             .ValueOrThrow();
     }
 }

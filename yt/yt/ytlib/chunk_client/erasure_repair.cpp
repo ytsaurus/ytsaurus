@@ -276,10 +276,7 @@ private:
 
     void ProcessPlacementExt(const TErasurePlacementExt& placementExt)
     {
-        ParityPartSplitInfo_ = TParityPartSplitInfo(
-            placementExt.parity_block_size(),
-            NYT::FromProto<std::vector<int>>(placementExt.parity_block_count_per_stripe()),
-            NYT::FromProto<std::vector<i64>>(placementExt.parity_last_block_size_per_stripe()));
+        ParityPartSplitInfo_ = TParityPartSplitInfo(placementExt);
 
         auto repairIndices = Codec_->GetRepairIndices(ErasedIndices_);
         YT_VERIFY(repairIndices);
@@ -398,10 +395,10 @@ public:
         , PlacementExt_(placementExt)
         , BlockIndexes_(blockIndexes)
         , ReadBlocksOptions_(options)
-        , Logger(logger)
-        , ParityPartSplitInfo_(GetParityPartSplitInfo(PlacementExt_))
-        , DataBlocksPlacementInParts_(BuildDataBlocksPlacementInParts(BlockIndexes_, PlacementExt_, ParityPartSplitInfo_))
         , ReaderInvoker_(readerInvoker)
+        , Logger(logger)
+        , ParityPartSplitInfo_(PlacementExt_)
+        , DataBlocksPlacementInParts_(BuildDataBlocksPlacementInParts(BlockIndexes_, PlacementExt_, ParityPartSplitInfo_))
     {
         auto repairIndices = *Codec_->GetRepairIndices(ErasedIndices_);
         YT_VERIFY(std::is_sorted(ErasedIndices_.begin(), ErasedIndices_.end()));
@@ -489,6 +486,7 @@ private:
     const TErasurePlacementExt PlacementExt_;
     const std::vector<int> BlockIndexes_;
     const IChunkReader::TReadBlocksOptions ReadBlocksOptions_;
+    const IInvokerPtr ReaderInvoker_;
     const TLogger Logger;
 
     TParityPartSplitInfo ParityPartSplitInfo_;
@@ -505,7 +503,6 @@ private:
 
     std::vector<TPartRange> RepairRanges_;
 
-    IInvokerPtr ReaderInvoker_;
 
     void RepairBlocks()
     {

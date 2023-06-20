@@ -16,6 +16,7 @@ namespace NYT::NChunkClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NConcurrency;
+using namespace NObjectClient;
 using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,8 +67,8 @@ public:
 
         // Fast path.
         {
-            std::vector<TFuture<void>> tagFtures;
-            tagFtures.reserve(extensionTags->size());
+            std::vector<TFuture<void>> tagFutures;
+            tagFutures.reserve(extensionTags->size());
             bool containsMissingExtensions = false;
 
             auto guard = ReaderGuard(Lock_);
@@ -75,7 +76,7 @@ public:
             for (int tag : *extensionTags) {
                 auto it = Extensions_.find(tag);
                 if (it != Extensions_.end() && (!it->second.IsSet() || it->second.Get().IsOK())) {
-                    tagFtures.emplace_back(it->second.AsVoid());
+                    tagFutures.emplace_back(it->second.AsVoid());
                 } else {
                     containsMissingExtensions = true;
                     break;
@@ -83,7 +84,7 @@ public:
             }
 
             if (!containsMissingExtensions) {
-                return AllSucceeded(tagFtures)
+                return AllSucceeded(tagFutures)
                     .Apply(BIND(&TCachedChunkMeta::AssembleChunkMeta, MakeStrong(this), extensionTags));
             }
         }
@@ -273,6 +274,9 @@ public:
         const std::optional<std::vector<int>>& extensionTags,
         const TMetaFetchCallback& metaFetchCallback) override
     {
+        // Using either erasure chunk part id or journal chunk id as a key is forbidden.
+        YT_VERIFY(IsBlobChunkId(chunkId));
+
         // TODO(dakovalkov): Support it.
         if (!extensionTags) {
             return metaFetchCallback(extensionTags);
@@ -290,7 +294,7 @@ protected:
     }
 
 private:
-    IInvokerPtr Invoker_;
+    const IInvokerPtr Invoker_;
 
     TRefCountedChunkMetaPtr DoFetch(
         TChunkId chunkId,
@@ -301,9 +305,18 @@ private:
 
         if (cookie.IsActive()) {
             auto metaFuture = metaFetchCallback(extensionTags);
-            auto meta = WaitFor(metaFuture)
-                .ValueOrThrow();
-            cookie.EndInsert(New<TCachedChunkMeta>(chunkId, meta));
+            auto metaOrError = WaitFor(metaFuture);
+            if (metaOrError.IsOK()) {
+                cookie.EndInsert(New<TCachedChunkMeta>(chunkId, metaOrError.Value()));
+            } else {
+                auto error = TError(
+                    NChunkClient::EErrorCode::ChunkMetaCacheFetchFailed,
+                    "Error fetching meta for chunk %v",
+                    chunkId)
+                    << metaOrError;
+                cookie.Cancel(error);
+                THROW_ERROR(error);
+            }
         }
 
         auto cachedMeta = WaitFor(cookie.GetValue())

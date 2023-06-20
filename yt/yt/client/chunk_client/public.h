@@ -76,6 +76,7 @@ YT_DEFINE_ERROR_ENUM(
     ((LocationDiskFailed)                    (749))
     ((LocationCrashed)                       (750))
     ((LocationDiskWaitingReplacement)        (751))
+    ((ChunkMetaCacheFetchFailed)             (752))
 );
 
 using TChunkId = NObjectClient::TObjectId;

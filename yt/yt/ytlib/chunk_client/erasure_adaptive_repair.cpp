@@ -24,7 +24,6 @@ TRepairingReadersObserver::TRepairingReadersObserver(
     std::vector<IChunkReaderAllowingRepairPtr> readers)
     : Codec_(codec)
     , Config_(std::move(config))
-    , Invoker_(std::move(invoker))
     , Readers_(std::move(readers))
     , SlowReaderBanTimes_(codec->GetTotalPartCount(), TInstant())
 {
@@ -43,7 +42,7 @@ TRepairingReadersObserver::TRepairingReadersObserver(
     }
 
     CheckReadersForUnbanExecutor_ = New<NConcurrency::TPeriodicExecutor>(
-        Invoker_,
+        std::move(invoker),
         BIND(&TRepairingReadersObserver::CheckReadersForUnban, MakeWeak(this)),
         std::min(Config_->SlowReaderExpirationTimeout, Config_->ReplicationReaderFailureTimeout));
     CheckReadersForUnbanExecutor_->Start();
@@ -107,6 +106,11 @@ bool TRepairingReadersObserver::IsReaderRecentlyFailed(TInstant now, int index) 
         return now < lastFailureTime + Config_->ReplicationReaderFailureTimeout;
     }
     return false;
+}
+
+const TErasureReaderConfigPtr& TRepairingReadersObserver::GetConfig() const
+{
+    return Config_;
 }
 
 void TRepairingReadersObserver::UpdateBannedPartIndices()

@@ -158,7 +158,8 @@ public:
         , BandwidthThrottler_(chunkReaderHost->BandwidthThrottler)
         , RpsThrottler_(chunkReaderHost->RpsThrottler)
         , Networks_(Client_->GetNativeConnection()->GetNetworks())
-        , Logger(ChunkClientLogger.WithTag("ChunkId: %v", ChunkId_))
+        , Logger(ChunkClientLogger.WithTag("ChunkId: %v",
+            ChunkId_))
         , InitialSeeds_(std::move(seedReplicas))
     {
         YT_VERIFY(NodeDirectory_);
@@ -586,7 +587,7 @@ protected:
         return *GetOrCrash(Peers_, address).NodeDescriptor;
     }
 
-    //! Register peer and install into the peer queue if neccessary.
+    //! Register peer and install it into the peer queue if necessary.
     bool AddPeer(
         TNodeId nodeId,
         const TString& address,
@@ -2494,6 +2495,15 @@ private:
             return;
         }
 
+        if (ReaderConfig_->ChunkMetaCacheFailureProbability &&
+            RandomNumber<double>() < *ReaderConfig_->ChunkMetaCacheFailureProbability)
+        {
+            TError simulatedError("Simulated chunk meta fetch failure");
+            YT_LOG_ERROR(simulatedError);
+            Promise_.TrySet(simulatedError);
+            return;
+        }
+
         auto peers = PickPeerCandidates(
             reader,
             ReaderConfig_->MetaRpcHedgingDelay ? 2 : 1,
@@ -2637,9 +2647,10 @@ TFuture<TRefCountedChunkMetaPtr> TReplicationReader::GetMeta(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    if (!partitionTag && ChunkMetaCache_ && Config_->EnableChunkMetaCache) {
+    auto decodedChunkId = DecodeChunkId(ChunkId_).Id;
+    if (!partitionTag && !IsJournalChunkId(decodedChunkId) && ChunkMetaCache_ && Config_->EnableChunkMetaCache) {
         return ChunkMetaCache_->Fetch(
-            GetChunkId(),
+            decodedChunkId,
             extensionTags,
             BIND(&TReplicationReader::FetchMeta, MakeStrong(this), options, std::nullopt));
     } else {
