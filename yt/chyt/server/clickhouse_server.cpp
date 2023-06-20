@@ -43,6 +43,7 @@
 #include <Poco/DirectoryIterator.h>
 #include <Poco/ThreadPool.h>
 #include <Poco/Util/LayeredConfiguration.h>
+#include <Poco/Util/ServerApplication.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -68,7 +69,15 @@ public:
         , SharedContext_(DB::Context::createShared())
         , ServerContext_(DB::Context::createGlobal(SharedContext_.get()))
         , LayeredConfig_(ConvertToLayeredConfig(ConvertToNode(Config_)))
+        , PocoApplication_(std::make_unique<Poco::Util::ServerApplication>())
     {
+        // NOTE(dakovalkov): We do not use Poco's Application class directly, but it is used via
+        // Application::instance() in Poco's SSLManager to obtain a config for initialization.
+        // Although it's possible to initialize SSLManager manually without the Application instance,
+        // it would require copy-pasting a lot of code from SSLManager::initDefaultContext.
+        // So we just create "fake" Application, add the config to it and forget about it.
+        PocoApplication_->config().add(LayeredConfig_);
+
         SetupLogger();
 
         // NB: under debug build this method does not fit in regular fiber stack
@@ -144,6 +153,9 @@ private:
 
     // Poco representation of Config_.
     Poco::AutoPtr<Poco::Util::LayeredConfiguration> LayeredConfig_;
+
+    // Fake Poco::Util::Application instance for proper SSLManager initialization.
+    std::unique_ptr<Poco::Util::ServerApplication> PocoApplication_;
 
     Poco::AutoPtr<Poco::Channel> LogChannel;
 
