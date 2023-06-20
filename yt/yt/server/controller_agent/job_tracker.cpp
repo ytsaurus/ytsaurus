@@ -129,6 +129,7 @@ public:
         auto producer = TYsonProducer(BIND([
             jobTracker = JobTracker_,
             nodeId,
+            // Orchid service is a member of JobTracker.
             this
         ] (IYsonConsumer* consumer) {
             auto nodeIt = jobTracker->RegisteredNodes_.find(nodeId);
@@ -141,7 +142,7 @@ public:
 
             BuildYsonFluently(consumer)
                 .BeginMap()
-                    .Item("jobs").DoMapFor(nodeJobs.Jobs, [this] (TFluentMap fluent, const auto& pair) {
+                    .Item("jobs").DoMapFor(nodeJobs.Jobs, [&] (TFluentMap fluent, const auto& pair) {
                         const auto& [jobId, jobInfo] = pair;
 
                         fluent
@@ -898,7 +899,7 @@ void TJobTracker::HandleRunningJobInfo(
     if (newJobStage == EJobStage::Running) {
         Visit(
             jobStatus.RequestedActionInfo,
-            [] (std::monostate) {},
+            [] (TNoActionRequested) {},
             [&] (const TInterruptionRequestOptions& requestOptions) {
                 ProcessInterruptionRequest(response, requestOptions, jobId, Logger);
             },
@@ -912,7 +913,7 @@ void TJobTracker::HandleRunningJobInfo(
 
     Visit(
         jobStatus.RequestedActionInfo,
-        [] (std::monostate) {},
+        [] (TNoActionRequested) {},
         [&] (const TInterruptionRequestOptions& /*requestOptions*/) {
             YT_LOG_DEBUG("Job is already finished; interruption request ignored");
         },
@@ -951,7 +952,7 @@ void TJobTracker::HandleFinishedJobInfo(
     ToProto(
         response->add_jobs_to_store(),
         TJobToStore{
-            .JobId = jobId
+            .JobId = jobId,
         });
 
     YT_LOG_DEBUG(
@@ -1264,7 +1265,7 @@ void TJobTracker::DoReleaseJobs(
     }
 }
 
-void TJobTracker::DoAbortJobOnNode(TJobId jobId, TOperationId operationId, EAbortReason reason)
+void TJobTracker::RequestJobAbortion(TJobId jobId, TOperationId operationId, EAbortReason reason)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
@@ -1384,7 +1385,7 @@ void TJobTracker::TryRequestJobAction(
     }
 }
 
-void TJobTracker::TryInterruptJob(
+void TJobTracker::RequestJobInterruption(
     TJobId jobId,
     TOperationId operationId,
     EInterruptReason reason,
@@ -1394,12 +1395,12 @@ void TJobTracker::TryInterruptJob(
         jobId,
         operationId,
         [&] (TRequestedActionInfo& requestedActionInfo) {
-            DoInterruptJob(requestedActionInfo, jobId, operationId, reason, timeout);
+            DoRequestJobInterruption(requestedActionInfo, jobId, operationId, reason, timeout);
         },
         /*actionName*/ "interruption");
 }
 
-void TJobTracker::DoInterruptJob(
+void TJobTracker::DoRequestJobInterruption(
     TRequestedActionInfo& requestedActionInfo,
     TJobId jobId,
     TOperationId operationId,
@@ -1410,7 +1411,7 @@ void TJobTracker::DoInterruptJob(
 
     Visit(
         requestedActionInfo,
-        [&] (std::monostate) {
+        [&] (TNoActionRequested) {
             requestedActionInfo = TInterruptionRequestOptions{
                 .Reason = reason,
                 .Timeout = timeout,
@@ -1450,7 +1451,7 @@ void TJobTracker::DoInterruptJob(
 }
 
 
-void TJobTracker::TryFailJob(TJobId jobId, TOperationId operationId)
+void TJobTracker::RequestJobFailure(TJobId jobId, TOperationId operationId)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
@@ -1458,12 +1459,12 @@ void TJobTracker::TryFailJob(TJobId jobId, TOperationId operationId)
         jobId,
         operationId,
         [&] (TRequestedActionInfo& requestedActionInfo) {
-            DoFailJob(requestedActionInfo, jobId, operationId);
+            DoRequestJobFailure(requestedActionInfo, jobId, operationId);
         },
         /*actionName*/ "failure");
 }
 
-void TJobTracker::DoFailJob(
+void TJobTracker::DoRequestJobFailure(
     TRequestedActionInfo& requestedActionInfo,
     TJobId jobId,
     TOperationId operationId)
@@ -1472,7 +1473,7 @@ void TJobTracker::DoFailJob(
 
     Visit(
         requestedActionInfo,
-        [&] (std::monostate) {
+        [&] (TNoActionRequested) {
             requestedActionInfo = TFailureRequestOptions();
         },
         [&] (const TInterruptionRequestOptions& /*requestOptions*/) {
@@ -1885,7 +1886,7 @@ void TJobTrackerOperationHandler::ReleaseJobs(std::vector<TJobToRelease> jobs)
         std::move(jobs)));
 }
 
-void TJobTrackerOperationHandler::AbortJobOnNode(
+void TJobTrackerOperationHandler::RequestJobAbortion(
     TJobId jobId,
     EAbortReason reason)
 {
@@ -1896,14 +1897,14 @@ void TJobTrackerOperationHandler::AbortJobOnNode(
     }
 
     CancelableInvoker_->Invoke(BIND(
-        &TJobTracker::DoAbortJobOnNode,
+        &TJobTracker::RequestJobAbortion,
         MakeStrong(JobTracker_),
         jobId,
         OperationId_,
         reason));
 }
 
-void TJobTrackerOperationHandler::InterruptJob(
+void TJobTrackerOperationHandler::RequestJobInterruption(
     TJobId jobId,
     EInterruptReason reason,
     TDuration timeout)
@@ -1915,7 +1916,7 @@ void TJobTrackerOperationHandler::InterruptJob(
     }
 
     CancelableInvoker_->Invoke(BIND(
-        &TJobTracker::TryInterruptJob,
+        &TJobTracker::RequestJobInterruption,
         MakeStrong(JobTracker_),
         jobId,
         OperationId_,
@@ -1923,7 +1924,7 @@ void TJobTrackerOperationHandler::InterruptJob(
         timeout));
 }
 
-void TJobTrackerOperationHandler::FailJob(TJobId jobId)
+void TJobTrackerOperationHandler::RequestJobFailure(TJobId jobId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1932,7 +1933,7 @@ void TJobTrackerOperationHandler::FailJob(TJobId jobId)
     }
 
     CancelableInvoker_->Invoke(BIND(
-        &TJobTracker::TryFailJob,
+        &TJobTracker::RequestJobFailure,
         MakeStrong(JobTracker_),
         jobId,
         OperationId_));

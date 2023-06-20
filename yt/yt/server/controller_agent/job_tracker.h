@@ -91,6 +91,7 @@ private:
         THashSet<TJobId> TrackedJobIds;
     };
 
+    struct TNoActionRequested { };
 
     struct TInterruptionRequestOptions
     {
@@ -101,7 +102,7 @@ private:
     struct TFailureRequestOptions { };
 
     using TRequestedActionInfo = std::variant<
-        std::monostate,
+        TNoActionRequested,
         TInterruptionRequestOptions,
         TFailureRequestOptions>;
 
@@ -217,7 +218,7 @@ private:
         TOperationId operationId,
         const std::vector<TJobToRelease>& jobs);
 
-    void DoAbortJobOnNode(TJobId jobId, TOperationId operationId, EAbortReason reason);
+    void RequestJobAbortion(TJobId jobId, TOperationId operationId, EAbortReason reason);
 
     template <class TAction>
     void TryRequestJobAction(
@@ -226,22 +227,22 @@ private:
         TAction action,
         TStringBuf actionName);
 
-    void TryInterruptJob(
+    void RequestJobInterruption(
         TJobId jobId,
         TOperationId operationId,
         EInterruptReason reason,
         TDuration timeout);
-    void DoInterruptJob(
+    void DoRequestJobInterruption(
         TRequestedActionInfo& requestedActionInfo,
         TJobId jobId,
         TOperationId operationId,
         EInterruptReason reason,
         TDuration timeout);
 
-    void TryFailJob(
+    void RequestJobFailure(
         TJobId jobId,
         TOperationId operationId);
-    void DoFailJob(
+    void DoRequestJobFailure(
         TRequestedActionInfo& requestedActionInfo,
         TJobId jobId,
         TOperationId operationId);
@@ -300,16 +301,16 @@ public:
 
     void ReleaseJobs(std::vector<TJobToRelease> jobs);
 
-    void AbortJobOnNode(
+    void RequestJobAbortion(
         TJobId jobId,
         EAbortReason reason);
 
-    void InterruptJob(
+    void RequestJobInterruption(
         TJobId jobId,
         EInterruptReason reason,
         TDuration timeout);
 
-    void FailJob(TJobId jobId);
+    void RequestJobFailure(TJobId jobId);
 
 private:
     TJobTracker* const JobTracker_;

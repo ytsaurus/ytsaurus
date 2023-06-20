@@ -225,7 +225,7 @@ void TOperationControllerHost::InterruptJob(TJobId jobId, EInterruptReason reaso
             .ReleaseFlags = {},
         });
     } else {
-        JobTrackerOperationHandler_->InterruptJob(jobId, reason, timeout);
+        JobTrackerOperationHandler_->RequestJobInterruption(jobId, reason, timeout);
     }
 
     YT_LOG_DEBUG("Job interrupt request enqueued (OperationId: %v, JobId: %v)",
@@ -260,7 +260,7 @@ void TOperationControllerHost::FailJob(TJobId jobId, bool viaScheduler)
             .ReleaseFlags = {},
         });
     } else {
-        JobTrackerOperationHandler_->FailJob(jobId);
+        JobTrackerOperationHandler_->RequestJobFailure(jobId);
     }
 
     YT_LOG_DEBUG("Job failure request enqueued (OperationId: %v, JobId: %v)",
@@ -324,7 +324,7 @@ void TOperationControllerHost::AbortJobOnNode(
     TJobId jobId,
     NScheduler::EAbortReason abortReason)
 {
-    JobTrackerOperationHandler_->AbortJobOnNode(jobId, abortReason);
+    JobTrackerOperationHandler_->RequestJobAbortion(jobId, abortReason);
 }
 
 std::optional<TString> TOperationControllerHost::RegisterJobForMonitoring(TOperationId operationId, TJobId jobId)
