@@ -26,7 +26,7 @@
 * `ephemeral_subpool_config` — словарь, описывающий конфигурацию виртуальных пулов;
 * `integral-guarantees` - интегральные гарантии.
 
-Подробное описание указанных атрибутов в разделе [Характеристики пулов] (../../../../user-guide/data-processing/scheduler/pool-settings.md#pools).
+Подробное описание указанных атрибутов в разделе [Характеристики пулов](../../../../user-guide/data-processing/scheduler/pool-settings.md#pools).
 
 ### Валидация
 
