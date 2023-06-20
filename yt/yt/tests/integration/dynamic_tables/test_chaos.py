@@ -3745,6 +3745,23 @@ class TestChaosMetaCluster(ChaosTestBase):
         remove(f"#{card_id1}")
         assert not exists(f"#{card_id1}")
 
+    @authors("ponasenko-rs")
+    def test_alien_cell_health(self):
+        [alpha_cell, _] = self._create_dedicated_areas_and_cells()
+        _, _, remote_driver1, remote_driver2 = self._get_drivers()
+        for cluster in ("remote_1", "remote_2"):
+            driver = get_driver(cluster=cluster)
+
+            cells = ls("//sys/chaos_cells", attributes=["health"], driver=driver)
+            assert len(cells) == 2
+            assert all(cell.attributes["health"] == "good" for cell in cells)
+
+        cluster_names = self.get_cluster_names()
+        area_id = get(f"#{alpha_cell}/@area_id", driver=remote_driver1)
+        with self.CellsDisabled(clusters=cluster_names[-2:-1], area_ids=[area_id]):
+            assert get(f"//sys/chaos_cells/{alpha_cell}/@health", driver=remote_driver1) == "failed"
+            assert get(f"//sys/chaos_cells/{alpha_cell}/@health", driver=remote_driver2) == "good"
+
 ##################################################################
 
 
