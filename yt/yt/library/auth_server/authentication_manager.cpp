@@ -59,7 +59,7 @@ public:
             oauthService = CreateOAuthService(
                 config->OAuthService,
                 poller,
-                profiler.WithPrefix("/oauth"));
+                AuthProfiler.WithPrefix("/oauth"));
         }
 
         if (config->CypressCookieManager) {
@@ -122,7 +122,7 @@ public:
                 CreateOAuthCookieAuthenticator(
                     config->OAuthCookieAuthenticator,
                     oauthService),
-                profiler.WithPrefix("/oauth_cookie_authenticator/cache")));
+                AuthProfiler.WithPrefix("/oauth_cookie_authenticator/cache")));
         }
 
         if (blackboxService && config->BlackboxTicketAuthenticator) {
