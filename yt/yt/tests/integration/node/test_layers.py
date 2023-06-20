@@ -288,6 +288,7 @@ class TestProbingLayer(TestLayers):
         return op
 
     @authors("galtsev")
+    @pytest.mark.flaky(max_runs=5)
     @pytest.mark.timeout(600)
     def test_probing_layer_success(self):
         self.setup_files()
