@@ -31,10 +31,11 @@ public:
     NErasure::TPartIndexSet GetBannedPartIndices();
     bool IsReaderRecentlyFailed(TInstant now, int index) const;
 
+    const TErasureReaderConfigPtr& GetConfig() const;
+
 private:
     const NErasure::ICodec* const Codec_;
     const TErasureReaderConfigPtr Config_;
-    const IInvokerPtr Invoker_;
     const std::vector<IChunkReaderAllowingRepairPtr> Readers_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, IndicesLock_);
@@ -94,6 +95,7 @@ private:
     const IInvokerPtr Invoker_;
     const TTarget Target_;
     const NLogging::TLogger Logger;
+
     NProfiling::TCounter AdaptivelyRepairedCounter_;
 
 

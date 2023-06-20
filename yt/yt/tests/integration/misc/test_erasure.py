@@ -212,6 +212,19 @@ class TestErasure(TestErasureBase):
         assert has_failed, "Expected to fail due to unavailable chunk specs"
 
     @authors("akozhikhov")
+    def test_chunk_meta_cache_failures(self):
+        self._prepare_table("isa_lrc_12_2_2")
+        data_1 = read_table("//tmp/table")
+        data_2 = read_table(
+            "//tmp/table",
+            table_reader={
+                "chunk_meta_cache_failure_probability" : 0.5,
+            },
+            # verbose=False,
+        )
+        assert data_1 == data_2
+
+    @authors("akozhikhov")
     @pytest.mark.parametrize("erasure_codec", ["isa_lrc_12_2_2", "lrc_12_2_2"])
     def test_repair_works(self, erasure_codec):
         has_failed = self._test_fetching_specs("restore", erasure_codec)

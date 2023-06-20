@@ -688,7 +688,8 @@ IChunkReaderPtr CreateRemoteReader(
 
     if (IsErasureChunkId(chunkId)) {
         auto erasureCodecId = ECodec(chunkSpec.erasure_codec());
-        YT_LOG_DEBUG("Creating erasure remote reader (Codec: %v)", erasureCodecId);
+        YT_LOG_DEBUG("Creating erasure remote reader (Codec: %v)",
+            erasureCodecId);
 
         std::array<TNodeId, ::NErasure::MaxTotalPartCount> partIndexToNodeId;
         std::fill(partIndexToNodeId.begin(), partIndexToNodeId.end(), InvalidNodeId);
@@ -725,7 +726,7 @@ IChunkReaderPtr CreateRemoteReader(
             readers.push_back(reader);
         }
 
-        return CreateAdaptiveRepairingErasureReader(chunkId, erasureCodec, config, readers, Logger);
+        return CreateAdaptiveRepairingErasureReader(chunkId, erasureCodec, std::move(config), readers, Logger);
     } else {
         YT_LOG_DEBUG("Creating regular remote reader");
 

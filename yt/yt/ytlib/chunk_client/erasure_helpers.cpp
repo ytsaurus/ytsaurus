@@ -124,12 +124,10 @@ std::vector<TPartRange> Union(const std::vector<TPartRange>& ranges_)
 ////////////////////////////////////////////////////////////////////////////////
 
 TParityPartSplitInfo::TParityPartSplitInfo(
-    i64 parityBlockSize,
-    const std::vector<int>& stripeBlockCounts,
-    const std::vector<i64>& stripeLastBlockSizes)
-    : BlockSize_(parityBlockSize)
-    , StripeBlockCounts_(stripeBlockCounts)
-    , StripeLastBlockSizes_(stripeLastBlockSizes)
+    const TErasurePlacementExt& placementExt)
+    : BlockSize_(placementExt.parity_block_size())
+    , StripeBlockCounts_(FromProto<std::vector<int>>(placementExt.parity_block_count_per_stripe()))
+    , StripeLastBlockSizes_(FromProto<std::vector<i64>>(placementExt.parity_last_block_size_per_stripe()))
 {
     YT_VERIFY(StripeBlockCounts_.size() > 0);
     YT_VERIFY(StripeLastBlockSizes_.size() == StripeBlockCounts_.size());
@@ -611,20 +609,11 @@ TFuture<NProto::TErasurePlacementExt> GetPlacementMeta(
 {
     return reader->GetMeta(
         options,
-        std::nullopt,
-        std::vector<int>{
-            TProtoExtensionTag<NProto::TErasurePlacementExt>::Value
-        }).Apply(BIND([] (const TRefCountedChunkMetaPtr& meta) {
+        /*partitionTag*/ std::nullopt,
+        std::vector<int>{ TProtoExtensionTag<NProto::TErasurePlacementExt>::Value })
+        .Apply(BIND([] (const TRefCountedChunkMetaPtr& meta) {
             return GetProtoExtension<NProto::TErasurePlacementExt>(meta->extensions());
         }));
-}
-
-TParityPartSplitInfo GetParityPartSplitInfo(const TErasurePlacementExt& placementExt)
-{
-    return TParityPartSplitInfo(
-        placementExt.parity_block_size(),
-        NYT::FromProto<std::vector<int>>(placementExt.parity_block_count_per_stripe()),
-        NYT::FromProto<std::vector<i64>>(placementExt.parity_last_block_size_per_stripe()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -4,6 +4,8 @@
 #include "erasure_adaptive_repair.h"
 #endif
 
+#include <yt/yt/client/chunk_client/config.h>
+
 #include <yt/yt/library/erasure/impl/codec.h>
 
 #include <yt/yt/core/concurrency/scheduler_api.h>
@@ -23,7 +25,8 @@ TFuture<TResultType> TAdaptiveErasureRepairingSession::Run(TDoRepairAttempt<TRes
 template <typename TResultType>
 TResultType TAdaptiveErasureRepairingSession::DoRun(TDoRepairAttempt<TResultType> doRepairAttempt)
 {
-    std::optional<NErasure::TPartIndexSet> erasedIndicesOnPreviousIteration;
+    bool metaFetchFailure = false;
+    std::optional<NErasure::TPartIndexSet> previousBannedPartIndices;
     std::vector<TError> innerErrors;
 
     static const int MaxAttemptCount = 5;
@@ -32,7 +35,9 @@ TResultType TAdaptiveErasureRepairingSession::DoRun(TDoRepairAttempt<TResultType
         const auto bannedPartIndices = CalculateBannedParts();
         const auto bannedPartIndicesList = ToReadersIndexList(bannedPartIndices);
 
-        if (erasedIndicesOnPreviousIteration && bannedPartIndices == *erasedIndicesOnPreviousIteration) {
+        if (!metaFetchFailure &&
+            bannedPartIndices == previousBannedPartIndices)
+        {
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::AutoRepairFailed,
                 "Error reading chunk %v with repair; cannot proceed since the list of valid underlying part readers did not change",
@@ -41,7 +46,8 @@ TResultType TAdaptiveErasureRepairingSession::DoRun(TDoRepairAttempt<TResultType
                 << innerErrors;
         }
 
-        erasedIndicesOnPreviousIteration = bannedPartIndices;
+        metaFetchFailure = false;
+        previousBannedPartIndices = bannedPartIndices;
 
         auto optionalRepairIndices = Codec_->GetRepairIndices(bannedPartIndicesList);
         if (!optionalRepairIndices) {
@@ -81,8 +87,7 @@ TResultType TAdaptiveErasureRepairingSession::DoRun(TDoRepairAttempt<TResultType
         auto future = doRepairAttempt(bannedPartIndicesList, readers);
         auto result = NConcurrency::WaitFor(future);
         if (result.IsOK()) {
-
-            if (attempt) {
+            if (attempt != 0) {
                 AdaptivelyRepairedCounter_.Increment();
             }
 
@@ -94,6 +99,14 @@ TResultType TAdaptiveErasureRepairingSession::DoRun(TDoRepairAttempt<TResultType
         if (result.FindMatching(NChunkClient::EErrorCode::UnrecoverableRepairError)) {
             // Giving up additional attempts on unrecoverable error.
             result.ThrowOnError();
+        }
+
+        if (result.FindMatching(NChunkClient::EErrorCode::ChunkMetaCacheFetchFailed)) {
+            metaFetchFailure = true;
+            // NB: This is solely for testing purposes. We want to eliminate unlikely test flaps.
+            if (Observer_->GetConfig()->ChunkMetaCacheFailureProbability) {
+                --attempt;
+            }
         }
     }
 

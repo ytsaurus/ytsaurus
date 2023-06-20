@@ -225,6 +225,10 @@ public:
     //! If |true| network throttlers will be applied even in case of requests to local host.
     bool EnableLocalThrottling;
 
+    //! For testing purposes.
+    //! Unless null, reader will simulate failure of accessing chunk meta cache with such probability.
+    std::optional<double> ChunkMetaCacheFailureProbability;
+
     //! Will open and read with DirectIO (unless already opened w/o DirectIO or disabled via location config).
     // NB: Right now is used only with data node lookup + chunk index.
     bool UseDirectIO;

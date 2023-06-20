@@ -223,7 +223,7 @@ public:
             }
 
             if (ChunkRegistry_ && ReaderConfig_->PreferLocalReplicas) {
-                auto chunk = ChunkRegistry_->FindChunk(owner->GetChunkId()); // ChunkId_);
+                auto chunk = ChunkRegistry_->FindChunk(owner->GetChunkId());
                 if (IsLocalChunkValid(chunk)) {
                     createLocalReaders(chunk, std::move(blockCache));
                     return;

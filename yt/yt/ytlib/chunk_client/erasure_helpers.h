@@ -38,10 +38,7 @@ class TParityPartSplitInfo
 {
 public:
     TParityPartSplitInfo() = default;
-    TParityPartSplitInfo(
-        i64 parityBlockSize,
-        const std::vector<int>& stripeBlockCounts,
-        const std::vector<i64>& stripeLastBlockSizes);
+    TParityPartSplitInfo(const NProto::TErasurePlacementExt& placementExt);
 
     i64 GetStripeOffset(int stripeIndex) const;
     i64 GetPartSize() const;
@@ -171,10 +168,6 @@ TFuture<NProto::TErasurePlacementExt> GetPlacementMeta(
     const IChunkReaderPtr& reader,
     const TClientChunkReadOptions& options);
 
-TParityPartSplitInfo GetParityPartSplitInfo(const NProto::TErasurePlacementExt& placementExt);
-
-std::vector<i64> GetBlockSizes(int partIndex, const NProto::TErasurePlacementExt& placementExt);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TDataBlocksPlacementInPart
@@ -225,4 +218,3 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient::NErasureHelpers
-
