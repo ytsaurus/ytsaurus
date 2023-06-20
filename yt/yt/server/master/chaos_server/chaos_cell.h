@@ -48,6 +48,7 @@ public:
     int GetDescriptorConfigVersion() const override;
 
     bool IsAlienPeer(TPeerId peerId) const override;
+    NCellServer::ECellHealth GetHealth() const override;
 
     void UpdateAlienPeer(TPeerId peerId, const NNodeTrackerClient::TNodeDescriptor& descriptor);
 
@@ -58,6 +59,8 @@ public:
 
 private:
     int CumulativeAlienConfigVersion_ = 0;
+
+    bool IsAlienCell() const;
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TChaosCell)

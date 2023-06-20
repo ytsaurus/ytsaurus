@@ -56,6 +56,15 @@ bool TChaosCell::IsAlienPeer(int peerId) const
     return options->Peers[peerId]->AlienCluster.has_value();
 }
 
+ECellHealth TChaosCell::GetHealth() const
+{
+    if (IsAlienCell()) {
+        return ECellHealth::Good;
+    }
+
+    return TCellBase::GetHealth();
+}
+
 void TChaosCell::UpdateAlienPeer(TPeerId peerId, const NNodeTrackerClient::TNodeDescriptor& descriptor)
 {
     YT_VERIFY(IsAlienPeer(peerId));
@@ -101,6 +110,17 @@ const TChaosHydraConfigPtr& TChaosCell::GetChaosOptions() const
     return GetArea()->ChaosOptions()
         ? GetArea()->ChaosOptions()
         : GetChaosCellBundle()->ChaosOptions();
+}
+
+bool TChaosCell::IsAlienCell() const
+{
+    for (int peerId = 0; peerId < std::ssize(Peers_); ++peerId) {
+        if (!IsAlienPeer(peerId)) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

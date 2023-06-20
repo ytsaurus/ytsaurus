@@ -115,6 +115,9 @@ public:
 
     virtual bool IsAlienPeer(int peerId) const;
 
+    //! Computes the health from a point of view of a single master.
+    virtual ECellHealth GetHealth() const;
+
     TPeerId FindPeerId(const TString& address) const;
     TPeerId GetPeerId(const TString& address) const;
 
@@ -138,9 +141,6 @@ public:
     //! If peers are not independent std::nullopt should be passed as peerId.
     NTransactionServer::TTransaction* GetPrerequisiteTransaction(std::optional<int> peerId) const;
     void SetPrerequisiteTransaction(std::optional<int> peerId, NTransactionServer::TTransaction* transaction);
-
-    //! Computes the health from a point of view of a single master.
-    ECellHealth GetHealth() const;
 
     //! Returns |true| if the cell has a leading peer and is thus ready
     //! to serve mutations.
