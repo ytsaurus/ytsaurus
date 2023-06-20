@@ -65,7 +65,7 @@ void THunkChunk::Unlock(TTransactionId transactionId, EObjectLockMode lockMode)
 
 bool THunkChunk::IsDangling() const
 {
-    return StoreRefCount_ == 0 && PreparedStoreRefCount_ == 0;
+    return StoreRefCount_ == 0 && PreparedStoreRefCount_ == 0 && !LockingState_.IsLocked();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
