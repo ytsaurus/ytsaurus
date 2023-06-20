@@ -65,19 +65,10 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
                                   hunk_chunk_writer={
                                       "desired_block_size": 50,
                                   },
-                                  min_hunk_compaction_total_hunk_length=1,
                                   max_hunk_compaction_garbage_ratio=0.5,
                                   enable_lsm_verbose_logging=True,
                                   chunk_format=chunk_format,
                                   hunk_erasure_codec=hunk_erasure_codec)
-
-    def _get_store_chunk_ids(self, path):
-        chunk_ids = get(path + "/@chunk_ids")
-        return [chunk_id for chunk_id in chunk_ids if get("#{}/@chunk_type".format(chunk_id)) == "table"]
-
-    def _get_hunk_chunk_ids(self, path):
-        chunk_ids = get(path + "/@chunk_ids")
-        return [chunk_id for chunk_id in chunk_ids if get("#{}/@chunk_type".format(chunk_id)) == "hunk"]
 
     @authors("babenko")
     @pytest.mark.parametrize("chunk_format", ["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim"])
@@ -1276,7 +1267,6 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
                                   hunk_chunk_writer={
                                       "desired_block_size": 50,
                                   },
-                                  min_hunk_compaction_total_hunk_length=1,
                                   max_hunk_compaction_garbage_ratio=0.5,
                                   enable_lsm_verbose_logging=True,
                                   optimize_for=optimize_for,

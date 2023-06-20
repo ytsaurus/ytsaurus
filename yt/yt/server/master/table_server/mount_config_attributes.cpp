@@ -104,7 +104,6 @@ bool IsOldStyleMountConfigAttribute(TStringBuf key)
         "enable_new_scan_reader_for_lookup",
         "enable_new_scan_reader_for_select",
         "enable_hunk_columnar_profiling",
-        "min_hunk_compaction_total_hunk_length",
         "max_hunk_compaction_garbage_ratio",
         "max_hunk_compaction_size",
         "hunk_compaction_size_base",

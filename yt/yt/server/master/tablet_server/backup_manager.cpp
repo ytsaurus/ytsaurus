@@ -111,15 +111,9 @@ public:
             MakeFormattableView(replicaBackupDescriptors, [] (auto* builder, const auto& descriptor) {
                 builder->AppendFormat("%v", descriptor.ReplicaId);
             }));
+
         if (timestamp == NullTimestamp) {
             THROW_ERROR_EXCEPTION("Checkpoint timestamp cannot be null");
-        }
-
-        // TODO(ifsmirnov): YT-15032 - backups for tables with hunks.
-        const auto& schema = table->GetSchema()->AsTableSchema();
-        if (schema->HasHunkColumns()) {
-            THROW_ERROR_EXCEPTION("Cannot backup table with hunk columns")
-                << TErrorAttribute("table_id", table->GetId());
         }
 
         for (auto* tabletBase : table->GetTrunkNode()->Tablets()) {
@@ -236,7 +230,7 @@ public:
             }
         }
 
-        YT_VERIFY(transaction->TablesWithBackupCheckpoints().insert(table).second);
+        InsertOrCrash(transaction->TablesWithBackupCheckpoints(), table);
         UpdateAggregatedBackupState(table);
     }
 
