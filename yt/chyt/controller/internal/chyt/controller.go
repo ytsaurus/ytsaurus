@@ -25,7 +25,7 @@ type Config struct {
 }
 
 const (
-	DefaultEnableLogTailer           = true
+	DefaultEnableLogTailer           = false
 	DefaultEnableYandexSpecificLinks = false
 )
 
