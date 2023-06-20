@@ -150,6 +150,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixAlterWithSchemaId)                                         (2335))  // h0pless
     ((LocationDirectory)                                            (2336))  // kvk1920
     ((HunksBackup)                                                  (2337))  // akozhikhov
+    ((FixChunkCreationTimeHistogram)                                (2338))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////
