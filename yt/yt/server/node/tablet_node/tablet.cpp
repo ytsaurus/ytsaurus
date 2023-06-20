@@ -644,7 +644,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, CumulativeDataWeight_);
 
     TSizeSerializer::Save(context, StoreIdMap_.size());
-        for (auto it : GetSortedIterators(StoreIdMap_)) {
+    for (auto it : GetSortedIterators(StoreIdMap_)) {
         const auto& [storeId, store] = *it;
         Save(context, store->GetType());
         Save(context, storeId);
