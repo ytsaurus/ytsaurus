@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - stable/[0-9]+\.[0-9]+
 
 jobs:
   start-vm:
@@ -94,12 +95,21 @@ jobs:
           tar -xf spyt-1.69.tar -C ../build
           tar -xf yql-package.tar -C ../build
           mkdir -p ../docker-ytsaurus-build
-          bash ./yt/docker/ytsaurus/build.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --ytsaurus-spyt-release-path ../build/spyt_release --ytsaurus-yql-package-path ../build/yql_package --output-path ../docker-ytsaurus-build --image-tag dev
-          docker push ytsaurus/ytsaurus:dev
-          docker tag ytsaurus/ytsaurus:dev ytsaurus/ytsaurus-nightly:dev-${GITHUB_SHA}
-          docker push ytsaurus/ytsaurus-nightly:dev-${GITHUB_SHA}
-          docker tag ytsaurus/ytsaurus-nightly:dev-${GITHUB_SHA} ytsaurus/ytsaurus-nightly:latest
-          docker push ytsaurus/ytsaurus-nightly:latest
+          if [[ $GITHUB_REF =~ main$ ]];
+          then
+            IMAGE_TAG=dev
+          else
+            IMAGE_TAG=dev-${GITHUB_REF#refs/*/stable/}
+          fi
+          bash ./yt/docker/ytsaurus/build.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --ytsaurus-spyt-release-path ../build/spyt_release --ytsaurus-yql-package-path ../build/yql_package --output-path ../docker-ytsaurus-build --image-tag ${IMAGE_TAG}
+          docker push ytsaurus/ytsaurus:${IMAGE_TAG}
+          docker tag ytsaurus/ytsaurus:${IMAGE_TAG} ytsaurus/ytsaurus-nightly:${IMAGE_TAG}-${GITHUB_SHA}
+          docker push ytsaurus/ytsaurus-nightly:${IMAGE_TAG}-${GITHUB_SHA}
+          if [[ $IMAGE_TAG == 'dev' ]];
+          then
+            docker tag ytsaurus/ytsaurus-nightly:${IMAGE_TAG}-${GITHUB_SHA} ytsaurus/ytsaurus-nightly:latest
+            docker push ytsaurus/ytsaurus-nightly:latest
+          fi
 
       - name: Docker registry login
         shell: bash
@@ -110,8 +120,11 @@ jobs:
       - name: Docker yt_nightly
         shell: bash
         run: |
-          docker tag ytsaurus/ytsaurus:dev cr.yandex/crpl84hkh3k16ihscv0j/ytsaurus-nightly:${GITHUB_SHA}
-          docker push cr.yandex/crpl84hkh3k16ihscv0j/ytsaurus-nightly:${GITHUB_SHA}
+          if [[ $GITHUB_REF =~ main$ ]];
+          then
+            docker tag ytsaurus/ytsaurus:dev cr.yandex/crpl84hkh3k16ihscv0j/ytsaurus-nightly:${GITHUB_SHA}
+            docker push cr.yandex/crpl84hkh3k16ihscv0j/ytsaurus-nightly:${GITHUB_SHA}
+          fi
 
       - name: Kube
         shell: bash
