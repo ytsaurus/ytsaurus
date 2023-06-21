@@ -7,6 +7,8 @@
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 
+#include <yt/yt/library/xor_filter/public.h>
+
 #include <library/cpp/yt/memory/ref_counted.h>
 #include <library/cpp/yt/farmhash/farm_hash.h>
 
@@ -14,18 +16,7 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class IKeyFilter
-    : public TRefCounted
-{
-public:
-    virtual bool Contains(TFingerprint fingerprint) const = 0;
-
-    virtual TUnversionedRow GetLastKey() const = 0;
-
-    bool Contains(TLegacyKey key) const;
-};
-
-DEFINE_REFCOUNTED_TYPE(IKeyFilter)
+bool Contains(const TXorFilter& filter, TLegacyKey key);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,8 +36,6 @@ public:
 DEFINE_REFCOUNTED_TYPE(IKeyFilterBuilder)
 
 ////////////////////////////////////////////////////////////////////////////////
-
-IKeyFilterPtr CreateXorFilter(const NProto::TXorFilterSystemBlockMeta& meta, TSharedRef data);
 
 IKeyFilterBuilderPtr CreateXorFilterBuilder(TKeyFilterWriterConfigPtr config);
 

@@ -188,9 +188,6 @@ public:
 
     bool EnableLookupHashTable;
 
-    // TODO(ifsmirnov, akozhikhov): Only for tests, to be removed in YT-18325.
-    bool TestingOnlyUseKeyFilter;
-
     i64 LookupCacheRowsPerTablet;
     double LookupCacheRowsRatio;
     bool EnableLookupCacheByDefault;
@@ -233,6 +230,7 @@ public:
     bool EnableDataNodeLookup;
 
     bool EnableHashChunkIndexForLookup;
+    bool EnableKeyFilterForLookup;
 
     int LookupRpcMultiplexingParallelism;
 

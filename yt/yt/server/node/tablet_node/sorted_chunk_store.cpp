@@ -183,7 +183,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(ifsmirnov, akozhikhov): Only for tests, to be removed in YT-18325.
 class TKeyFilteringReader
     : public IVersionedReader
 {
@@ -273,88 +272,6 @@ private:
 
     i64 ReadRowCount_ = 0;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO(ifsmirnov, akozhikhov): Only for tests, to be removed in YT-18325.
-bool PrepareKeyFilteringReader(
-    const TTabletSnapshotPtr& tabletSnapshot,
-    const TCachedVersionedChunkMetaPtr& chunkMeta,
-    const IChunkReaderPtr& chunkReader,
-    const TClientChunkReadOptions& chunkReadOptions,
-    TSharedRange<TLegacyKey>* keys,
-    std::vector<ui8> *missingKeyMask)
-{
-    if (!tabletSnapshot->Settings.MountConfig->TestingOnlyUseKeyFilter) {
-        return false;
-    }
-
-    std::vector<IKeyFilterPtr> keyFilters;
-
-    auto systemBlockMeta = chunkMeta->SystemBlockMeta();
-    if (!systemBlockMeta) {
-        return false;
-    }
-
-    int dataBlockCount = chunkMeta->DataBlockMeta()->data_blocks_size();
-
-    IChunkReader::TReadBlocksOptions readBlocksOptions{
-        .ClientOptions = chunkReadOptions,
-    };
-
-    for (const auto& [index, blockMeta] : Enumerate(systemBlockMeta->system_blocks())) {
-        if (!blockMeta.HasExtension(TXorFilterSystemBlockMeta::xor_filter_system_block_meta_ext)) {
-            continue;
-        }
-
-        auto xorFilterBlockMeta = blockMeta.GetExtension(
-            TXorFilterSystemBlockMeta::xor_filter_system_block_meta_ext);
-
-        auto blocks = WaitFor(chunkReader->ReadBlocks(
-            readBlocksOptions,
-            dataBlockCount + index,
-            1))
-            .ValueOrThrow();
-        YT_VERIFY(ssize(blocks) == 1);
-
-        auto compressedBlock = TBlock::Unwrap(blocks)[0];
-
-        auto codecName = static_cast<NCompression::ECodec>(chunkMeta->Misc().compression_codec());
-        auto codec = NCompression::GetCodec(codecName);
-        auto decompressedBlock = codec->Decompress(compressedBlock);
-
-        keyFilters.push_back(CreateXorFilter(xorFilterBlockMeta, std::move(decompressedBlock)));
-    }
-
-    if (keyFilters.empty()) {
-        return false;
-    }
-
-    missingKeyMask->clear();
-    missingKeyMask->reserve(keys->size());
-
-    std::vector<TLegacyKey> filteredKeys;
-
-    int filterIndex = 0;
-
-    for (auto key : *keys) {
-        // NB: This is probably incorrect, should use WidenKey or something.
-        while (filterIndex < ssize(keyFilters) && keyFilters[filterIndex]->GetLastKey() < key) {
-            ++filterIndex;
-        }
-
-        if (filterIndex < ssize(keyFilters) && keyFilters[filterIndex]->Contains(key)) {
-            filteredKeys.push_back(std::move(key));
-            missingKeyMask->push_back(0);
-        } else {
-            missingKeyMask->push_back(1);
-        }
-    }
-
-    *keys = MakeSharedRange(std::move(filteredKeys));
-
-    return true;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -725,7 +642,6 @@ private:
     std::atomic<bool> UnderlyingReaderInitialized_ = false;
     IVersionedReaderPtr UnderlyingReader_;
 
-    bool NeedKeyFilteringReader_ = false;
     std::vector<ui8> MissingKeyMask_;
 
 
@@ -797,7 +713,7 @@ private:
         }
 
         if (auto chunkMeta = chunk->FindCachedVersionedChunkMeta(enableNewScanReader)) {
-            OnGotChunkMeta(
+            return OnGotChunkMeta(
                 chunk,
                 tabletSnapshot,
                 std::move(keys),
@@ -807,7 +723,6 @@ private:
                 chunkReadOptions,
                 std::move(backendReaders),
                 std::move(chunkMeta));
-            return VoidFuture;
         } else {
             return chunk->GetCachedVersionedChunkMeta(
                 backendReaders.ChunkReader,
@@ -817,12 +732,12 @@ private:
                     =,
                     this,
                     this_ = MakeStrong(this),
-                    // NB: We need to ref it here.
+                    // NB: Here as we initiate asynchronous execution we need to ref chunk.
                     chunk = MakeStrong(chunk),
                     keys = std::move(keys),
                     backendReaders = std::move(backendReaders)
                 ] (TCachedVersionedChunkMetaPtr&& chunkMeta) mutable {
-                    OnGotChunkMeta(
+                    return OnGotChunkMeta(
                         chunk.Get(),
                         tabletSnapshot,
                         std::move(keys),
@@ -838,7 +753,7 @@ private:
         }
     }
 
-    void OnGotChunkMeta(
+    TFuture<void> OnGotChunkMeta(
         TSortedChunkStore* const chunk,
         const TTabletSnapshotPtr& tabletSnapshot,
         TSharedRange<TLegacyKey> keys,
@@ -849,16 +764,76 @@ private:
         TBackendReaders backendReaders,
         TCachedVersionedChunkMetaPtr chunkMeta)
     {
-        // TODO(ifsmirnov, akozhikhov): Only for tests, to be removed in YT-18325.
-        NeedKeyFilteringReader_ = PrepareKeyFilteringReader(
-            tabletSnapshot,
-            chunkMeta,
-            backendReaders.ChunkReader,
-            chunkReadOptions,
-            &keys,
-            &MissingKeyMask_);
+        TFuture<TKeyFilteringResult> filteringResultFuture;
+        if (tabletSnapshot->Settings.MountConfig->EnableKeyFilterForLookup &&
+            chunkMeta->XorFilterMeta())
+        {
+            filteringResultFuture = chunk->PerformXorKeyFiltering(
+                chunkMeta,
+                backendReaders.ChunkReader,
+                chunkReadOptions,
+                std::move(keys));
+        }
 
-        if (NeedKeyFilteringReader_ && std::count(MissingKeyMask_.begin(), MissingKeyMask_.end(), 0) == 0) {
+        TSharedRange<TLegacyKey> filteredKeys;
+        if (!filteringResultFuture) {
+            filteredKeys = std::move(keys);
+        } else if (filteringResultFuture.IsSet() && filteringResultFuture.Get().IsOK()) {
+            auto filteringResult = std::move(filteringResultFuture.Get().Value());
+            filteredKeys = std::move(filteringResult.FilteredKeys);
+            MissingKeyMask_ = std::move(filteringResult.MissingKeyMask);
+        }
+
+        if (filteredKeys) {
+            OnKeysFiltered(
+                chunk,
+                tabletSnapshot,
+                std::move(filteredKeys),
+                timestamp,
+                produceAllVersions,
+                columnFilter,
+                chunkReadOptions,
+                std::move(backendReaders),
+                std::move(chunkMeta));
+            return VoidFuture;
+        }
+
+        return filteringResultFuture.ApplyUnique(BIND([
+            =,
+            this,
+            this_ = MakeStrong(this),
+            // NB: Here as we initiate asynchronous execution we need to ref chunk.
+            chunk = MakeStrong(chunk),
+            backendReaders = std::move(backendReaders),
+            chunkMeta = std::move(chunkMeta)
+        ] (TKeyFilteringResult&& filteringResult) mutable {
+            MissingKeyMask_ = std::move(filteringResult.MissingKeyMask);
+            OnKeysFiltered(
+                chunk.Get(),
+                tabletSnapshot,
+                std::move(filteringResult.FilteredKeys),
+                timestamp,
+                produceAllVersions,
+                columnFilter,
+                chunkReadOptions,
+                std::move(backendReaders),
+                std::move(chunkMeta));
+        }));
+        // NB: Do not append AsyncVia here because PerformXorKeyFiltering already does.
+    }
+
+    void OnKeysFiltered(
+        TSortedChunkStore* const chunk,
+        const TTabletSnapshotPtr& tabletSnapshot,
+        TSharedRange<TLegacyKey> keys,
+        TTimestamp timestamp,
+        bool produceAllVersions,
+        const TColumnFilter& columnFilter,
+        const TClientChunkReadOptions& chunkReadOptions,
+        TBackendReaders backendReaders,
+        TCachedVersionedChunkMetaPtr chunkMeta)
+    {
+        if (!MissingKeyMask_.empty() && std::count(MissingKeyMask_.begin(), MissingKeyMask_.end(), 0) == 0) {
             int initialKeyCount = SkippedBefore_ + SkippedAfter_ + keys.Size();
             UnderlyingReader_ = CreateEmptyVersionedReader(initialKeyCount);
             UnderlyingReaderInitialized_.store(true);
@@ -942,7 +917,7 @@ private:
     {
         // TODO(akozhikhov): Avoid extra wrappers TKeyFilteringReader and TFilteringReader,
         // implement their logic in this reader.
-        if (NeedKeyFilteringReader_) {
+        if (!MissingKeyMask_.empty()) {
             underlyingReader = New<TKeyFilteringReader>(
                 std::move(underlyingReader),
                 MissingKeyMask_);
@@ -1265,6 +1240,141 @@ ISortedStorePtr TSortedChunkStore::GetSortedBackingStore() const
 {
     auto backingStore = GetBackingStore();
     return backingStore ? backingStore->AsSorted() : nullptr;
+}
+
+TFuture<TSortedChunkStore::TKeyFilteringResult> TSortedChunkStore::PerformXorKeyFiltering(
+    const TCachedVersionedChunkMetaPtr& chunkMeta,
+    const IChunkReaderPtr& chunkReader,
+    const TClientChunkReadOptions& chunkReadOptions,
+    TSharedRange<TLegacyKey> keys) const
+{
+    YT_VERIFY(chunkMeta->XorFilterMeta());
+    const auto& xorFilterMeta = *chunkMeta->XorFilterMeta();
+
+    int chunkKeyColumnCount = chunkMeta->GetChunkKeyColumnCount();
+    auto codecId = CheckedEnumCast<NCompression::ECodec>(chunkMeta->Misc().compression_codec());
+
+    int currentBlockIndex = 0;
+    int currentKeyIndex = 0;
+    std::vector<TXorFilterBlockInfo> blockInfos;
+
+    while (currentKeyIndex < std::ssize(keys)) {
+        currentBlockIndex = BinarySearch(
+            currentBlockIndex,
+            std::ssize(xorFilterMeta.BlockMetas),
+            [&] (int blockIndex) {
+                return CompareWithWidening(
+                    ToKeyRef(xorFilterMeta.BlockMetas[blockIndex].BlockLastKey, chunkKeyColumnCount),
+                    ToKeyRef(keys[currentKeyIndex])) < 0;
+            });
+
+        if (currentBlockIndex == std::ssize(xorFilterMeta.BlockMetas)) {
+            break;
+        }
+
+        int nextKeyIndex = BinarySearch(
+            currentKeyIndex,
+            std::ssize(keys),
+            [&] (int keyIndex) {
+                return CompareWithWidening(
+                    ToKeyRef(xorFilterMeta.BlockMetas[currentBlockIndex].BlockLastKey, chunkKeyColumnCount),
+                    ToKeyRef(keys[keyIndex])) >= 0;
+            });
+        YT_VERIFY(currentKeyIndex < nextKeyIndex);
+
+        blockInfos.push_back({
+            .BlockIndex = xorFilterMeta.BlockMetas[currentBlockIndex].BlockIndex,
+            .Keys = TRange(keys).Slice(currentKeyIndex, nextKeyIndex),
+        });
+
+        currentKeyIndex = nextKeyIndex;
+        ++currentBlockIndex;
+    }
+
+    std::vector<int> requestedBlockIndexes;
+    for (auto& blockInfo : blockInfos) {
+        auto blockData = BlockCache_->FindBlock(
+            NChunkClient::TBlockId(ChunkId_, blockInfo.BlockIndex),
+            EBlockType::XorFilter)
+            .Data;
+        if (blockData) {
+            blockInfo.XorFilter.Initialize(std::move(blockData));
+        } else {
+            requestedBlockIndexes.push_back(blockInfo.BlockIndex);
+        }
+    }
+
+    if (requestedBlockIndexes.empty()) {
+        return MakeFuture<TKeyFilteringResult>(OnXorKeyFilterBlocksRead(
+            codecId,
+            std::move(blockInfos),
+            std::move(keys),
+            /*requestedBlocks*/ {}));
+    }
+
+    return chunkReader->ReadBlocks(
+        IChunkReader::TReadBlocksOptions{
+            .ClientOptions = chunkReadOptions,
+        },
+        requestedBlockIndexes)
+        .ApplyUnique(BIND(
+            &TSortedChunkStore::OnXorKeyFilterBlocksRead,
+            MakeStrong(this),
+            codecId,
+            Passed(std::move(blockInfos)),
+            Passed(std::move(keys)))
+        .AsyncVia(GetCurrentInvoker()));
+}
+
+TSortedChunkStore::TKeyFilteringResult TSortedChunkStore::OnXorKeyFilterBlocksRead(
+    NCompression::ECodec codecId,
+    std::vector<TXorFilterBlockInfo> blockInfos,
+    TSharedRange<TLegacyKey> keys,
+    std::vector<TBlock>&& requestedBlocks) const
+{
+    TKeyFilteringResult filteringResult;
+    filteringResult.MissingKeyMask.reserve(keys.size());
+
+    int requestedBlockIndex = 0;
+    std::vector<TLegacyKey> filteredKeys;
+    for (auto& blockInfo : blockInfos) {
+        auto& xorFilter = blockInfo.XorFilter;
+        if (!xorFilter.IsInitialized()) {
+            YT_VERIFY(requestedBlockIndex < std::ssize(requestedBlocks));
+
+            auto* codec = NCompression::GetCodec(codecId);
+            auto decompressedBlock = codec->Decompress(std::move(requestedBlocks[requestedBlockIndex].Data));
+            ++requestedBlockIndex;
+
+            BlockCache_->PutBlock(
+                NChunkClient::TBlockId(ChunkId_, blockInfo.BlockIndex),
+                EBlockType::XorFilter,
+                TBlock(decompressedBlock));
+            xorFilter.Initialize(std::move(decompressedBlock));
+        }
+
+        for (auto key : blockInfo.Keys) {
+            if (Contains(xorFilter, key)) {
+                filteredKeys.push_back(key);
+                filteringResult.MissingKeyMask.push_back(0);
+            } else {
+                filteringResult.MissingKeyMask.push_back(1);
+            }
+        }
+    }
+
+    YT_VERIFY(requestedBlockIndex == std::ssize(requestedBlocks));
+
+    // NB: Account keys that are behind last key of last xor filter block.
+    while (filteringResult.MissingKeyMask.size() < keys.size()) {
+        filteringResult.MissingKeyMask.push_back(1);
+    }
+
+    filteringResult.FilteredKeys = MakeSharedRange(
+        std::move(filteredKeys),
+        std::move(keys.ReleaseHolder()));
+
+    return filteringResult;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

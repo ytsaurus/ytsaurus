@@ -12,6 +12,8 @@
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/versioned_row.h>
 
+#include <yt/yt/library/xor_filter/xor_filter.h>
+
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -135,6 +137,31 @@ private:
     const NTableClient::TKeyComparer& GetKeyComparer() const override;
 
     ISortedStorePtr GetSortedBackingStore() const;
+
+    struct TKeyFilteringResult
+    {
+        TSharedRange<TLegacyKey> FilteredKeys;
+        std::vector<ui8> MissingKeyMask;
+    };
+
+    struct TXorFilterBlockInfo
+    {
+        int BlockIndex;
+        TXorFilter XorFilter;
+        TRange<TLegacyKey> Keys;
+    };
+
+    TFuture<TKeyFilteringResult> PerformXorKeyFiltering(
+        const NTableClient::TCachedVersionedChunkMetaPtr& chunkMeta,
+        const NChunkClient::IChunkReaderPtr& chunkReader,
+        const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+        TSharedRange<TLegacyKey> keys) const;
+
+    TKeyFilteringResult OnXorKeyFilterBlocksRead(
+        NCompression::ECodec codecId,
+        std::vector<TXorFilterBlockInfo> blockInfos,
+        TSharedRange<TLegacyKey> keys,
+        std::vector<NChunkClient::TBlock>&& requestedBlocks) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSortedChunkStore)

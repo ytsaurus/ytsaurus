@@ -501,7 +501,8 @@ TYPED_TEST(TIndexedVersionedBlocksTestOneRow, HashTableChunkIndexMeta)
     EXPECT_EQ(1, systemBlockMeta.system_blocks_size());
 
     auto systemBlock = systemBlockMeta.system_blocks(0);
-    auto chunkIndexBlockMetaExt = systemBlock.GetExtension(NProto::THashTableChunkIndexSystemBlockMeta::hash_table_chunk_index_system_block_meta_ext);
+    auto chunkIndexBlockMetaExt = systemBlock.GetExtension(
+        NProto::THashTableChunkIndexSystemBlockMeta::hash_table_chunk_index_system_block_meta_ext);
     EXPECT_EQ(2, chunkIndexBlockMetaExt.slot_count());
     auto lastKey = ::NYT::FromProto<TLegacyOwningKey>(chunkIndexBlockMetaExt.last_key());
     EXPECT_EQ(

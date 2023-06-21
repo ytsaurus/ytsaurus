@@ -27,22 +27,37 @@ namespace NYT::NTableClient {
 
 struct THashTableChunkIndexMeta
 {
-    struct TChunkIndexBlockMeta
+    struct TBlockMeta
     {
-        TChunkIndexBlockMeta(
+        TBlockMeta(
             int blockIndex,
             const TIndexedVersionedBlockFormatDetail& indexedBlockFormatDetail,
             const NProto::THashTableChunkIndexSystemBlockMeta& hashTableChunkIndexSystemBlockMetaExt);
 
-        int BlockIndex;
-        THashTableChunkIndexFormatDetail FormatDetail;
-        TLegacyOwningKey BlockLastKey;
+        const int BlockIndex;
+        const THashTableChunkIndexFormatDetail FormatDetail;
+        const TLegacyOwningKey BlockLastKey;
     };
 
     explicit THashTableChunkIndexMeta(const TTableSchemaPtr& schema);
 
     TIndexedVersionedBlockFormatDetail IndexedBlockFormatDetail;
-    std::vector<TChunkIndexBlockMeta> ChunkIndexBlockMetas;
+    std::vector<TBlockMeta> BlockMetas;
+};
+
+struct TXorFilterMeta
+{
+    struct TBlockMeta
+    {
+        TBlockMeta(
+            int blockIndex,
+            const NProto::TXorFilterSystemBlockMeta& xorFilterSystemBlockMetaExt);
+
+        const int BlockIndex;
+        const TLegacyOwningKey BlockLastKey;
+    };
+
+    std::vector<TBlockMeta> BlockMetas;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -52,6 +67,7 @@ class TCachedVersionedChunkMeta
 {
 public:
     DEFINE_BYREF_RO_PROPERTY(std::optional<THashTableChunkIndexMeta>, HashTableChunkIndexMeta);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<TXorFilterMeta>, XorFilterMeta);
 
     static TCachedVersionedChunkMetaPtr Create(
         bool preparedColumnarMeta,
@@ -83,6 +99,7 @@ private:
 
 
     void ParseHashTableChunkIndexMeta(const NProto::TSystemBlockMetaExt& systemBlockMetaExt);
+    void ParseXorFilterMeta(const NProto::TSystemBlockMetaExt& systemBlockMetaExt);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachedVersionedChunkMeta)

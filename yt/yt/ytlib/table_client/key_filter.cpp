@@ -20,37 +20,10 @@ const static auto& Logger = TableClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IKeyFilter::Contains(TLegacyKey key) const
+bool Contains(const TXorFilter& filter, TLegacyKey key)
 {
-    return Contains(GetFarmFingerprint(key.Elements()));
+    return filter.Contains(GetFarmFingerprint(key.Elements()));
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TXorFilter
-    : public IKeyFilter
-{
-public:
-    TXorFilter(const NProto::TXorFilterSystemBlockMeta meta, TSharedRef data)
-    {
-        UnderlyingFilter_ = New<NYT::TXorFilter>(std::move(data));
-        FromProto(&LastKey_, meta.last_key());
-    }
-
-    bool Contains(TFingerprint fingerprint) const override
-    {
-        return UnderlyingFilter_->Contains(fingerprint);
-    }
-
-    TUnversionedRow GetLastKey() const override
-    {
-        return LastKey_;
-    }
-
-private:
-    NYT::TXorFilterPtr UnderlyingFilter_;
-    TLegacyOwningKey LastKey_;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -111,20 +84,23 @@ private:
 
     void DoFlushBlock(TLegacyKey key)
     {
-        NYT::TXorFilterPtr filter;
+        TSharedRef filterData;
 
         try {
-            filter = NYT::TXorFilter::Build(
+            filterData = NYT::TXorFilter::Build(
                 MakeRange(Keys_),
                 Config_->EffectiveBitsPerKey,
                 Config_->TrialCount);
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to build XOR filter (KeyCount: %v)", ssize(Keys_));
+            YT_LOG_WARNING(ex, "Failed to build XOR filter (KeyCount: %v)",
+                ssize(Keys_));
 
             Keys_.clear();
             FilterBuildingFailed_ = true;
             return;
         }
+
+        YT_VERIFY(filterData);
 
         Keys_.clear();
 
@@ -132,17 +108,10 @@ private:
         auto* xorFilterMetaExt = protoMeta.MutableExtension(TXorFilterSystemBlockMeta::xor_filter_system_block_meta_ext);
         ToProto(xorFilterMetaExt->mutable_last_key(), key.Elements());
 
-        ProducedBlocks_.push_back(filter->GetData());
+        ProducedBlocks_.push_back(std::move(filterData));
         ProducedMetas_.push_back(std::move(protoMeta));
     }
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-IKeyFilterPtr CreateXorFilter(const NProto::TXorFilterSystemBlockMeta& meta, TSharedRef data)
-{
-    return New<TXorFilter>(meta, std::move(data));
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

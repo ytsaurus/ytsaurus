@@ -475,7 +475,6 @@ public:
             produceAllVersions,
             schemaIdMapping)
         , Keys_(keys)
-        , KeyFilterTest_(Keys_.Size(), true)
     {
         SetReadyEvent(DoOpen(GetBlockSequence(), ChunkMeta_->Misc()));
     }
@@ -525,39 +524,35 @@ public:
         while (rows.size() < rows.capacity()) {
             YT_VERIFY(KeyIndex_ < std::ssize(Keys_));
 
-            if (!KeyFilterTest_[KeyIndex_]) {
-                rows.push_back(TVersionedRow());
+            const auto& key = Keys_[KeyIndex_];
+            if (!BlockReader_->SkipToKey(key)) {
+                HasMoreBlocks_ = OnBlockEnded();
+                break;
+            }
+
+            if (key == BlockReader_->GetKey()) {
+                auto row = BlockReader_->GetRow(&MemoryPool_);
+                if (hasHunkColumns) {
+                    GlobalizeHunkValues(&MemoryPool_, ChunkMeta_, row);
+                }
+                rows.push_back(row);
+                ++KeyIndex_;
+                ++rowCount;
+                dataWeight += GetDataWeight(rows.back());
+            } else if (BlockReader_->GetKey() > key) {
+                auto nextKeyIt = std::lower_bound(
+                    Keys_.begin() + KeyIndex_,
+                    Keys_.end(),
+                    BlockReader_->GetKey());
+
+                size_t skippedKeys = std::distance(Keys_.begin() + KeyIndex_, nextKeyIt);
+                skippedKeys = std::min(skippedKeys, rows.capacity() - rows.size());
+
+                rows.insert(rows.end(), skippedKeys, TVersionedRow());
+                KeyIndex_ += skippedKeys;
+                dataWeight += skippedKeys * GetDataWeight(TVersionedRow());
             } else {
-                const auto& key = Keys_[KeyIndex_];
-                if (!BlockReader_->SkipToKey(key)) {
-                    HasMoreBlocks_ = OnBlockEnded();
-                    break;
-                }
-
-                if (key == BlockReader_->GetKey()) {
-                    auto row = BlockReader_->GetRow(&MemoryPool_);
-                    if (hasHunkColumns) {
-                        GlobalizeHunkValues(&MemoryPool_, ChunkMeta_, row);
-                    }
-                    rows.push_back(row);
-                    ++KeyIndex_;
-                    ++rowCount;
-                    dataWeight += GetDataWeight(rows.back());
-                } else if (BlockReader_->GetKey() > key) {
-                    auto nextKeyIt = std::lower_bound(
-                        Keys_.begin() + KeyIndex_,
-                        Keys_.end(),
-                        BlockReader_->GetKey());
-
-                    size_t skippedKeys = std::distance(Keys_.begin() + KeyIndex_, nextKeyIt);
-                    skippedKeys = std::min(skippedKeys, rows.capacity() - rows.size());
-
-                    rows.insert(rows.end(), skippedKeys, TVersionedRow());
-                    KeyIndex_ += skippedKeys;
-                    dataWeight += skippedKeys * GetDataWeight(TVersionedRow());
-                } else {
-                    YT_ABORT();
-                }
+                YT_ABORT();
             }
         }
 
@@ -573,7 +568,6 @@ private:
 
     const TSharedRange<TLegacyKey> Keys_;
 
-    std::vector<bool> KeyFilterTest_;
     std::vector<int> BlockIndexes_;
 
     int NextBlockIndex_ = 0;

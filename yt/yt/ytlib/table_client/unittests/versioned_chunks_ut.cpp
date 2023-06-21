@@ -545,13 +545,13 @@ TEST_F(TVersionedChunkLookupTest, TestIndexedMetadata)
 
     EXPECT_TRUE(versionedChunkMeta->HashTableChunkIndexMeta());
     const auto& hashTableChunkIndexMeta = *versionedChunkMeta->HashTableChunkIndexMeta();
-    EXPECT_LT(100, std::ssize(hashTableChunkIndexMeta.ChunkIndexBlockMetas));
-    const auto* prevChunkIndexBlockMeta = &hashTableChunkIndexMeta.ChunkIndexBlockMetas[0];
-    for (int i = 1; i < std::ssize(hashTableChunkIndexMeta.ChunkIndexBlockMetas); ++i) {
-        const auto* currentChunkIndexBlockMeta = &hashTableChunkIndexMeta.ChunkIndexBlockMetas[i];
-        EXPECT_EQ(prevChunkIndexBlockMeta->BlockIndex + 1, currentChunkIndexBlockMeta->BlockIndex);
-        EXPECT_LT(prevChunkIndexBlockMeta->BlockLastKey, currentChunkIndexBlockMeta->BlockLastKey);
-        prevChunkIndexBlockMeta = currentChunkIndexBlockMeta;
+    EXPECT_LT(100, std::ssize(hashTableChunkIndexMeta.BlockMetas));
+    const auto* prevSystemBlockMeta = &hashTableChunkIndexMeta.BlockMetas[0];
+    for (int i = 1; i < std::ssize(hashTableChunkIndexMeta.BlockMetas); ++i) {
+        const auto* currentSystemBlockMeta = &hashTableChunkIndexMeta.BlockMetas[i];
+        EXPECT_EQ(prevSystemBlockMeta->BlockIndex + 1, currentSystemBlockMeta->BlockIndex);
+        EXPECT_LT(prevSystemBlockMeta->BlockLastKey, currentSystemBlockMeta->BlockLastKey);
+        prevSystemBlockMeta = currentSystemBlockMeta;
     }
 
     const auto& dataBlockMeta = versionedChunkMeta->DataBlockMeta()->data_blocks(0);
