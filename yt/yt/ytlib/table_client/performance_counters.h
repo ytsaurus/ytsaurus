@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
 
 namespace NYT::NTableClient {
@@ -9,7 +8,7 @@ namespace NYT::NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkReaderPerformanceCounters
-    : public virtual TRefCounted
+    : public TRefCounted
 {
     std::atomic<i64> StaticChunkRowReadCount = 0;
     std::atomic<i64> StaticChunkRowReadDataWeight = 0;
@@ -55,13 +54,13 @@ DEFINE_ENUM(ERequestType,
 
 IVersionedReaderPtr CreateVersionedPerformanceCountingReader(
     IVersionedReaderPtr reader,
-    const TTabletPerformanceCountersPtr& performanceCounters,
+    TTabletPerformanceCountersPtr performanceCounters,
     EDataSource source,
     ERequestType type);
 
 ISchemafulUnversionedReaderPtr CreateSchemafulPerformanceCountingReader(
     ISchemafulUnversionedReaderPtr reader,
-    const TTabletPerformanceCountersPtr& performanceCounters,
+    TTabletPerformanceCountersPtr performanceCounters,
     EDataSource source,
     ERequestType type);
 

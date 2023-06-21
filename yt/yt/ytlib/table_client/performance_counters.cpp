@@ -1,4 +1,4 @@
-#include "performance_counting.h"
+#include "performance_counters.h"
 #include "private.h"
 
 #include <yt/yt/client/table_client/versioned_reader.h>
@@ -36,7 +36,7 @@ class TPerformanceCountingReaderBase
     : public virtual IReaderBase
 {
 public:
-    TPerformanceCountingReaderBase(IReaderBasePtr reader)
+    explicit TPerformanceCountingReaderBase(IReaderBasePtr reader)
         : Reader_(std::move(reader))
     { }
 
@@ -106,10 +106,10 @@ public:
     }
 
 private:
-    IVersionedReaderPtr Reader_;
-    TTabletPerformanceCountersPtr PerformanceCounters_;
-    EDataSource DataSource_;
-    ERequestType RequestType_;
+    const IVersionedReaderPtr Reader_;
+    const TTabletPerformanceCountersPtr PerformanceCounters_;
+    const EDataSource DataSource_;
+    const ERequestType RequestType_;
 };
 
 class TSchemafulPerformanceCountingReader
@@ -144,36 +144,36 @@ public:
     }
 
 private:
-    ISchemafulUnversionedReaderPtr Reader_;
-    TTabletPerformanceCountersPtr PerformanceCounters_;
-    EDataSource DataSource_;
-    ERequestType RequestType_;
+    const ISchemafulUnversionedReaderPtr Reader_;
+    const TTabletPerformanceCountersPtr PerformanceCounters_;
+    const EDataSource DataSource_;
+    const ERequestType RequestType_;
 };
 
 IVersionedReaderPtr CreateVersionedPerformanceCountingReader(
     IVersionedReaderPtr reader,
-    const TTabletPerformanceCountersPtr& performanceCounters,
+    TTabletPerformanceCountersPtr performanceCounters,
     EDataSource source,
     ERequestType type)
 {
     YT_ASSERT(!DynamicPointerCast<TVersionedPerformanceCountingReader>(reader));
     return New<TVersionedPerformanceCountingReader>(
         std::move(reader),
-        performanceCounters,
+        std::move(performanceCounters),
         source,
         type);
 }
 
 ISchemafulUnversionedReaderPtr CreateSchemafulPerformanceCountingReader(
     ISchemafulUnversionedReaderPtr reader,
-    const TTabletPerformanceCountersPtr& performanceCounters,
+    TTabletPerformanceCountersPtr performanceCounters,
     EDataSource source,
     ERequestType type)
 {
     YT_ASSERT(!DynamicPointerCast<TSchemafulPerformanceCountingReader>(reader));
     return New<TSchemafulPerformanceCountingReader>(
         std::move(reader),
-        performanceCounters,
+        std::move(performanceCounters),
         source,
         type);
 }

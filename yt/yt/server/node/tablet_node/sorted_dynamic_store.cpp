@@ -15,7 +15,7 @@
 
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/yt/ytlib/table_client/chunk_state.h>
-#include <yt/yt/ytlib/table_client/performance_counting.h>
+#include <yt/yt/ytlib/table_client/performance_counters.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_writer.h>
 
@@ -616,7 +616,6 @@ public:
 
         const auto& keyComparer = Store_->GetRowKeyComparer();
 
-        i64 dataWeight = 0;
         while (Iterator_.IsValid() && rows.size() < rows.capacity()) {
             if (keyComparer(Iterator_.GetCurrent(), ToKeyRef(UpperBound_)) >= 0) {
                 UpdateLimits();
@@ -628,7 +627,7 @@ public:
             auto row = ProduceRow(Iterator_.GetCurrent());
             if (row) {
                 rows.push_back(row);
-                dataWeight += GetDataWeight(row);
+                DataWeight_ += GetDataWeight(row);
             }
 
             Iterator_.MoveNext();
@@ -637,7 +636,6 @@ public:
         i64 rowCount = rows.size();
 
         RowCount_ += rowCount;
-        DataWeight_ += dataWeight;
 
         return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
