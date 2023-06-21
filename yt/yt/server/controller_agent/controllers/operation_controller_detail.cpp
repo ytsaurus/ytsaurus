@@ -1638,7 +1638,7 @@ TFuture<NNative::ITransactionPtr> TOperationControllerBase::StartTransaction(
         parentTransactionId,
         replicateToCellTags);
 
-    TTransactionStartOptions options;
+    NApi::NNative::TNativeTransactionStartOptions options;
     options.AutoAbort = false;
     options.PingAncestors = false;
     auto attributes = CreateEphemeralAttributes();
