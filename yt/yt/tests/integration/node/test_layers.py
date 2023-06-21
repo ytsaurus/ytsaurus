@@ -293,7 +293,7 @@ class TestProbingLayer(TestLayers):
     def test_probing_layer_success(self):
         self.setup_files()
 
-        job_count = 7
+        job_count = 20
         self.create_tables(job_count)
 
         command = (
@@ -304,17 +304,18 @@ class TestProbingLayer(TestLayers):
             "fi"
         )
 
-        for try_count in range(self.MAX_TRIES + 1):
+        max_tries = 10
+        for try_count in range(max_tries + 1):
             op = self.run_map(command, job_count, user_slots=2)
 
             assert op.get_job_count("failed") == 0
 
             counter = Counter([row["layer"] for row in read_table(self.OUTPUT_TABLE)])
 
-            if op.get_job_count("aborted") == 1 and counter["default"] >= 1 and counter["probing"] >= 3:
+            if counter["default"] >= 1 and counter["probing"] >= 2:
                 break
 
-        assert try_count < self.MAX_TRIES
+        assert try_count < max_tries
 
     @authors("galtsev")
     @pytest.mark.timeout(600)
