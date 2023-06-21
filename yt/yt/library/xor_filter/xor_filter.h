@@ -15,22 +15,18 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TXorFilter
-    : public TRefCounted
 {
 public:
-    explicit TXorFilter(TSharedRef data);
+    TXorFilter() = default;
 
-    TXorFilter(int bitsPerKey, int slotCount);
+    bool IsInitialized() const;
+    void Initialize(TSharedRef data);
 
     bool Contains(TFingerprint key) const;
 
-    TSharedRef GetData() const;
-
-    static int ComputeSlotCount(int keyCount);
     static int ComputeByteSize(int keyCount, int bitsPerKey);
-    static int ComputeAllocationSize(int slotCount, int bitsPerKey);
 
-    static TXorFilterPtr Build(TRange<TFingerprint> keys, int bitsPerKey, int trialCount = 10);
+    static TSharedRef Build(TRange<TFingerprint> keys, int bitsPerKey, int trialCount = 10);
 
 private:
     constexpr static int WordSize = 64;
@@ -53,28 +49,31 @@ private:
     constexpr static int MetaSize = sizeof(BitsPerKey_) + sizeof(Salts_) + sizeof(SlotCount_);
     static_assert(MetaSize == 40, "Consider changing FormatVersion");
 
-    TSharedMutableRef MutableData_;
-    const TSharedRef Data_;
+    TSharedRef Data_;
 
-    ui64 GetUi64Word(int index) const;
-    void SetUi64Word(int index, ui64 value);
+
+    //! Used when building filter.
+    TXorFilter(int bitsPerKey, int slotCount);
+
+    void LoadMeta();
+    void SaveMeta(TMutableRef data) const;
+
+    ui64 GetUi64Word(TRef data, int index) const;
+    void SetUi64Word(TMutableRef data, int index, ui64 value) const;
+
+    ui64 GetEntry(TRef data, int index) const;
+    void SetEntry(TMutableRef data, int index, ui64 value) const;
 
     ui64 GetHash(ui64 key, int hashIndex) const;
-
-    ui64 GetEntry(int index) const;
-    void SetEntry(int index, ui64 value);
 
     int GetSlot(ui64 key, int hashIndex) const;
 
     ui64 GetExpectedXorFingerprint(ui64 key) const;
 
-    void SaveMeta();
-    void LoadMeta();
-
-    static TXorFilterPtr DoBuild(TRange<TFingerprint> keys, int bitsPerKey);
+    static TSharedRef DoBuild(TRange<TFingerprint> keys, int bitsPerKey);
+    static int ComputeSlotCount(int keyCount);
+    int ComputeAllocationSize() const;
 };
-
-DEFINE_REFCOUNTED_TYPE(TXorFilter)
 
 ////////////////////////////////////////////////////////////////////////////////
 

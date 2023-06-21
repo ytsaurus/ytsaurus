@@ -70,7 +70,7 @@ public:
             GroupIndexesToRead_);
 
         auto chunkKeyColumnCount = ChunkMeta_->GetChunkKeyColumnCount();
-        const auto& chunkIndexBlockMetas = ChunkMeta_->HashTableChunkIndexMeta()->ChunkIndexBlockMetas;
+        const auto& systemBlockMetas = ChunkMeta_->HashTableChunkIndexMeta()->BlockMetas;
 
         KeyRequests_.reserve(Keys_.size());
         Result_.resize(Keys_.size());
@@ -80,14 +80,14 @@ public:
 
             auto metaIndex = BinarySearch(
                 0,
-                std::ssize(chunkIndexBlockMetas),
+                std::ssize(systemBlockMetas),
                 [&] (int blockIndex) {
                     return CompareWithWidening(
-                        ToKeyRef(chunkIndexBlockMetas[blockIndex].BlockLastKey, chunkKeyColumnCount),
+                        ToKeyRef(systemBlockMetas[blockIndex].BlockLastKey, chunkKeyColumnCount),
                         ToKeyRef(key)) < 0;
                 });
 
-            if (metaIndex == chunkIndexBlockMetas.size()) {
+            if (metaIndex == systemBlockMetas.size()) {
                 // Key is missing.
                 KeyRequests_.emplace_back();
                 continue;
@@ -99,10 +99,10 @@ public:
 
             YT_ASSERT(static_cast<int>(key.GetCount()) >= chunkKeyColumnCount);
             auto& request = KeyRequests_.emplace_back(
-                chunkIndexBlockMetas[metaIndex].BlockIndex,
+                systemBlockMetas[metaIndex].BlockIndex,
                 GetFarmFingerprint(MakeRange(key.Begin(), chunkKeyColumnCount)),
                 startSlotIndex,
-                &chunkIndexBlockMetas[metaIndex].FormatDetail);
+                &systemBlockMetas[metaIndex].FormatDetail);
 
             if (GroupCount_ > 1) {
                 request.GroupOffsets.resize(GroupCount_);

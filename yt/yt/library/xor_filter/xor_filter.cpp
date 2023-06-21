@@ -14,42 +14,27 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TXorFilter::TXorFilter(TSharedRef data)
-    : Data_(std::move(data))
+bool TXorFilter::IsInitialized() const
 {
-    LoadMeta();
+    return static_cast<bool>(Data_);
 }
 
-TXorFilter::TXorFilter(int bitsPerKey, int slotCount)
-    : BitsPerKey_(bitsPerKey)
-    , SlotCount_(slotCount)
-    , MutableData_(TSharedMutableRef::Allocate(
-        ComputeAllocationSize(SlotCount_, BitsPerKey_)))
-    , Data_(MutableData_)
+void TXorFilter::Initialize(TSharedRef data)
 {
-    if (bitsPerKey >= WordSize) {
-        THROW_ERROR_EXCEPTION("Cannot create xor filter: expected bits_per_key < %v, got %v",
-            WordSize,
-            bitsPerKey);
-    }
-
-    for (int i = 0; i < 4; ++i) {
-        Salts_[i] = RandomNumber<ui64>();
-    }
+    YT_VERIFY(!IsInitialized());
+    Data_ = std::move(data);
+    LoadMeta();
 }
 
 bool TXorFilter::Contains(TFingerprint key) const
 {
+    YT_ASSERT(IsInitialized());
+
     ui64 actualXorFingerprint = 0;
     for (int hashIndex = 0; hashIndex < 3; ++hashIndex) {
-        actualXorFingerprint ^= GetEntry(GetSlot(key, hashIndex));
+        actualXorFingerprint ^= GetEntry(Data_, GetSlot(key, hashIndex));
     }
     return actualXorFingerprint == GetExpectedXorFingerprint(key);
-}
-
-TSharedRef TXorFilter::GetData() const
-{
-    return MutableData_ ? MutableData_ : Data_;
 }
 
 int TXorFilter::ComputeSlotCount(int keyCount)
@@ -67,26 +52,26 @@ int TXorFilter::ComputeByteSize(int keyCount, int bitsPerKey)
     return DivCeil(ComputeSlotCount(keyCount) * bitsPerKey, WordSize) * sizeof(ui64);
 }
 
-int TXorFilter::ComputeAllocationSize(int slotCount, int bitsPerKey)
+int TXorFilter::ComputeAllocationSize() const
 {
-    int dataSize = DivCeil(slotCount * bitsPerKey, WordSize) * sizeof(ui64);
+    int dataSize = DivCeil(SlotCount_ * BitsPerKey_, WordSize) * sizeof(ui64);
     return FormatVersionSize + dataSize + MetaSize;
 }
 
-ui64 TXorFilter::GetUi64Word(int index) const
+ui64 TXorFilter::GetUi64Word(TRef data, int index) const
 {
     ui64 result;
     std::memcpy(
         &result,
-        Data_.begin() + index * sizeof(result) + FormatVersionSize,
+        data.begin() + index * sizeof(result) + FormatVersionSize,
         sizeof(result));
     return result;
 }
 
-void TXorFilter::SetUi64Word(int index, ui64 value)
+void TXorFilter::SetUi64Word(TMutableRef data, int index, ui64 value) const
 {
     std::memcpy(
-        MutableData_.begin() + index * sizeof(value) + FormatVersionSize,
+        data.begin() + index * sizeof(value) + FormatVersionSize,
         &value,
         sizeof(value));
 }
@@ -98,51 +83,49 @@ ui64 TXorFilter::GetHash(ui64 key, int hashIndex) const
     return hash;
 }
 
-ui64 TXorFilter::GetEntry(int index) const
+ui64 TXorFilter::GetEntry(TRef data, int index) const
 {
     // Fast path.
     if (BitsPerKey_ == 8) {
-        return static_cast<ui8>(Data_[index + FormatVersionSize]);
+        return static_cast<ui8>(data[index + FormatVersionSize]);
     }
 
     int startBit = index * BitsPerKey_;
     int wordIndex = startBit / WordSize;
     int offset = startBit % WordSize;
 
-    auto loWord = GetUi64Word(wordIndex);
+    auto loWord = GetUi64Word(data, wordIndex);
     auto result = loWord >> offset;
 
     if (offset + BitsPerKey_ > WordSize) {
-        auto hiWord = GetUi64Word(wordIndex + 1);
+        auto hiWord = GetUi64Word(data, wordIndex + 1);
         result |= hiWord << (WordSize - offset);
     }
 
     return result & MaskLowerBits(BitsPerKey_);
 }
 
-void TXorFilter::SetEntry(int index, ui64 value)
+void TXorFilter::SetEntry(TMutableRef data, int index, ui64 value) const
 {
-    YT_ASSERT(MutableData_);
-
     // Fast path.
     if (BitsPerKey_ == 8) {
-        MutableData_[index + FormatVersionSize] = static_cast<ui8>(value);
+        data[index + FormatVersionSize] = static_cast<ui8>(value);
     }
 
     int startBit = index * BitsPerKey_;
     int wordIndex = startBit / WordSize;
     int offset = startBit % WordSize;
 
-    auto loWord = GetUi64Word(wordIndex);
+    auto loWord = GetUi64Word(data, wordIndex);
     loWord &= ~(MaskLowerBits(BitsPerKey_) << offset);
     loWord ^= value << offset;
-    SetUi64Word(wordIndex, loWord);
+    SetUi64Word(data, wordIndex, loWord);
 
     if (offset + BitsPerKey_ > WordSize) {
-        auto hiWord = GetUi64Word(wordIndex + 1);
+        auto hiWord = GetUi64Word(data, wordIndex + 1);
         hiWord &= ~(MaskLowerBits(BitsPerKey_) >> (WordSize - offset));
         hiWord ^= value >> (WordSize - offset);
-        SetUi64Word(wordIndex + 1, hiWord);
+        SetUi64Word(data, wordIndex + 1, hiWord);
     }
 }
 
@@ -164,24 +147,26 @@ ui64 TXorFilter::GetExpectedXorFingerprint(ui64 key) const
     return GetHash(key, 3) & MaskLowerBits(BitsPerKey_);
 }
 
-void TXorFilter::SaveMeta()
+void TXorFilter::SaveMeta(TMutableRef data) const
 {
     {
-        char* ptr = MutableData_.begin();
+        char* ptr = data.begin();
         WritePod(ptr, static_cast<i32>(FormatVersion));
     }
 
     {
-        char* ptr = MutableData_.end() - MetaSize;
+        char* ptr = data.end() - MetaSize;
         WritePod(ptr, Salts_);
         WritePod(ptr, BitsPerKey_);
         WritePod(ptr, SlotCount_);
-        YT_VERIFY(ptr == Data_.end());
+        YT_VERIFY(ptr == data.end());
     }
 }
 
 void TXorFilter::LoadMeta()
 {
+    YT_ASSERT(IsInitialized());
+
     int formatVersion;
     {
         const char* ptr = Data_.begin();
@@ -202,11 +187,26 @@ void TXorFilter::LoadMeta()
     }
 }
 
-TXorFilterPtr TXorFilter::Build(TRange<TFingerprint> keys, int bitsPerKey, int trialCount)
+TXorFilter::TXorFilter(int bitsPerKey, int slotCount)
+    : BitsPerKey_(bitsPerKey)
+    , SlotCount_(slotCount)
+{
+    if (bitsPerKey >= WordSize) {
+        THROW_ERROR_EXCEPTION("Cannot create xor filter: expected bits_per_key < %v, got %v",
+            WordSize,
+            bitsPerKey);
+    }
+
+    for (int i = 0; i < 4; ++i) {
+        Salts_[i] = RandomNumber<ui64>();
+    }
+}
+
+TSharedRef TXorFilter::Build(TRange<TFingerprint> keys, int bitsPerKey, int trialCount)
 {
     for (int trialIndex = 0; trialIndex < trialCount; ++trialIndex) {
-        if (auto filter = DoBuild(keys, bitsPerKey)) {
-            return filter;
+        if (auto data = DoBuild(keys, bitsPerKey)) {
+            return data;
         }
     }
 
@@ -214,17 +214,19 @@ TXorFilterPtr TXorFilter::Build(TRange<TFingerprint> keys, int bitsPerKey, int t
         trialCount);
 }
 
-TXorFilterPtr TXorFilter::DoBuild(TRange<TFingerprint> keys, int bitsPerKey)
+TSharedRef TXorFilter::DoBuild(TRange<TFingerprint> keys, int bitsPerKey)
 {
     int slotCount = ComputeSlotCount(std::ssize(keys));
-    auto filter = New<TXorFilter>(bitsPerKey, slotCount);
+
+    TXorFilter filter(bitsPerKey, slotCount);
+    auto data = TSharedMutableRef::Allocate(filter.ComputeAllocationSize());
 
     std::vector<int> assignedKeysXor(slotCount);
     std::vector<int> hitCount(slotCount);
 
     for (auto [keyIndex, key] : Enumerate(keys)) {
         for (int hashIndex = 0; hashIndex < 3; ++hashIndex) {
-            int slot = filter->GetSlot(key, hashIndex);
+            int slot = filter.GetSlot(key, hashIndex);
             assignedKeysXor[slot] ^= keyIndex;
             ++hitCount[slot];
         }
@@ -258,7 +260,7 @@ TXorFilterPtr TXorFilter::DoBuild(TRange<TFingerprint> keys, int bitsPerKey)
 
         auto key = keys[keyIndex];
         for (int hashIndex = 0; hashIndex < 3; ++hashIndex) {
-            int slot = filter->GetSlot(key, hashIndex);
+            int slot = filter.GetSlot(key, hashIndex);
             assignedKeysXor[slot] ^= keyIndex;
             if (--hitCount[slot] == 1 && !inQueue[slot]) {
                 inQueue[slot] = true;
@@ -268,7 +270,7 @@ TXorFilterPtr TXorFilter::DoBuild(TRange<TFingerprint> keys, int bitsPerKey)
     }
 
     if (std::ssize(order) < std::ssize(keys)) {
-        return nullptr;
+        return {};
     }
 
     std::reverse(order.begin(), order.end());
@@ -276,21 +278,21 @@ TXorFilterPtr TXorFilter::DoBuild(TRange<TFingerprint> keys, int bitsPerKey)
     for (auto [keyIndex, candidateSlot] : order) {
         auto key = keys[keyIndex];
 
-        YT_VERIFY(filter->GetEntry(candidateSlot) == 0);
+        YT_VERIFY(filter.GetEntry(data, candidateSlot) == 0);
 
-        ui64 expectedXor = filter->GetExpectedXorFingerprint(key);
+        ui64 expectedXor = filter.GetExpectedXorFingerprint(key);
         ui64 actualXor = 0;
 
         for (int hashIndex = 0; hashIndex < 3; ++hashIndex) {
-            actualXor ^= filter->GetEntry(filter->GetSlot(key, hashIndex));
+            actualXor ^= filter.GetEntry(data, filter.GetSlot(key, hashIndex));
         }
 
-        filter->SetEntry(candidateSlot, actualXor ^ expectedXor);
+        filter.SetEntry(data, candidateSlot, actualXor ^ expectedXor);
     }
 
-    filter->SaveMeta();
+    filter.SaveMeta(data);
 
-    return filter;
+    return data;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -21,7 +21,6 @@ import yt.yson as yson
 
 from yt_driver_bindings import Driver
 
-from flaky import flaky
 import pytest
 
 from copy import deepcopy
@@ -655,11 +654,15 @@ class TestLookup(TestSortedDynamicTablesBase):
         wait(lambda: request_counter.get_delta() > 0)
 
     @authors("akozhikhov")
-    @flaky(max_runs=3)
     def test_lookup_row_count_sensors(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": 0, "value": "0"}, {"key": 2, "value": "2"}])
+        sync_flush_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": 1, "value": "1"}, {"key": 2, "value": "22"}])
 
         row_count = profiler_factory().at_tablet_node("//tmp/t").counter(
             name="lookup/row_count")
@@ -669,11 +672,6 @@ class TestLookup(TestSortedDynamicTablesBase):
             name="lookup/unmerged_row_count")
         unmerged_missing_row_count = profiler_factory().at_tablet_node("//tmp/t").counter(
             name="lookup/unmerged_missing_row_count")
-
-        insert_rows("//tmp/t", [{"key": 0, "value": "0"}, {"key": 2, "value": "2"}])
-        sync_flush_table("//tmp/t")
-
-        insert_rows("//tmp/t", [{"key": 1, "value": "1"}, {"key": 2, "value": "22"}])
 
         assert lookup_rows("//tmp/t", [{"key": 0}, {"key": 1}, {"key": 2}, {"key": 3}]) == \
             [{"key": 0, "value": "0"}, {"key": 1, "value": "1"}, {"key": 2, "value": "22"}]
@@ -734,7 +732,7 @@ class TestLookup(TestSortedDynamicTablesBase):
         # Node shall not be suspicious anymore.
         assert lookup_rows("//tmp/t", [{"key": 1}]) == row
 
-    @authors("ifsmirnov")
+    @authors("ifsmirnov", "akozhikhov")
     def test_key_filter(self):
         sync_create_cells(1)
         self._create_simple_table(
@@ -746,12 +744,13 @@ class TestLookup(TestSortedDynamicTablesBase):
                 },
             },
             mount_config={
-                "testing_only_use_key_filter": True,
-            })
+                "enable_key_filter_for_lookup": True,
+            },
+        )
         sync_mount_table("//tmp/t")
 
         keys = [{"key": i} for i in range(10000)]
-        rows = [{"key": i, "value": str(i)} for i in range(0, 10000, 2)]
+        rows = [{"key": i, "value": str(i)} for i in range(1, 9999, 2)]
         insert_rows("//tmp/t", rows)
         sync_flush_table("//tmp/t")
 

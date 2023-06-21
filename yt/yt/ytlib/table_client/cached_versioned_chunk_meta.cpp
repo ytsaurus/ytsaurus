@@ -28,10 +28,10 @@ THashTableChunkIndexMeta::THashTableChunkIndexMeta(const TTableSchemaPtr& schema
     : IndexedBlockFormatDetail(schema)
 { }
 
-THashTableChunkIndexMeta::TChunkIndexBlockMeta::TChunkIndexBlockMeta(
+THashTableChunkIndexMeta::TBlockMeta::TBlockMeta(
     int blockIndex,
     const TIndexedVersionedBlockFormatDetail& indexedBlockFormatDetail,
-    const NProto::THashTableChunkIndexSystemBlockMeta& hashTableChunkIndexSystemBlockMetaExt)
+    const THashTableChunkIndexSystemBlockMeta& hashTableChunkIndexSystemBlockMetaExt)
     : BlockIndex(blockIndex)
     , FormatDetail(
         hashTableChunkIndexSystemBlockMetaExt.seed(),
@@ -39,6 +39,13 @@ THashTableChunkIndexMeta::TChunkIndexBlockMeta::TChunkIndexBlockMeta(
         indexedBlockFormatDetail.GetGroupCount(),
         /*groupReorderingEnabled*/ false)
     , BlockLastKey(FromProto<TLegacyOwningKey>(hashTableChunkIndexSystemBlockMetaExt.last_key()))
+{ }
+
+TXorFilterMeta::TBlockMeta::TBlockMeta(
+    int blockIndex,
+    const TXorFilterSystemBlockMeta& xorFilterSystemBlockMetaExt)
+    : BlockIndex(blockIndex)
+    , BlockLastKey(FromProto<TLegacyOwningKey>(xorFilterSystemBlockMetaExt.last_key()))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -70,6 +77,7 @@ TCachedVersionedChunkMeta::TCachedVersionedChunkMeta(
 
     if (auto optionalSystemBlockMetaExt = FindProtoExtension<TSystemBlockMetaExt>(chunkMeta.extensions())) {
         ParseHashTableChunkIndexMeta(*optionalSystemBlockMetaExt);
+        ParseXorFilterMeta(*optionalSystemBlockMetaExt);
     }
 
     if (ColumnarMetaPrepared_) {
@@ -108,7 +116,8 @@ i64 TCachedVersionedChunkMeta::GetMemoryUsage() const
         + PreparedMetaSize_;
 }
 
-TIntrusivePtr<NNewTableClient::TPreparedChunkMeta> TCachedVersionedChunkMeta::GetPreparedChunkMeta(NNewTableClient::IBlockDataProvider* blockProvider)
+TIntrusivePtr<NNewTableClient::TPreparedChunkMeta> TCachedVersionedChunkMeta::GetPreparedChunkMeta(
+    NNewTableClient::IBlockDataProvider* blockProvider)
 {
     auto currentMeta = PreparedMeta_.Acquire();
     TIntrusivePtr<NNewTableClient::TPreparedChunkMeta> newPreparedMeta = nullptr;
@@ -162,13 +171,35 @@ void TCachedVersionedChunkMeta::ParseHashTableChunkIndexMeta(
     }
 
     HashTableChunkIndexMeta_.emplace(ChunkSchema_);
-    HashTableChunkIndexMeta_->ChunkIndexBlockMetas.reserve(blockMetas.size());
+    HashTableChunkIndexMeta_->BlockMetas.reserve(blockMetas.size());
     for (const auto& [blockIndex, blockMeta] : blockMetas) {
-        HashTableChunkIndexMeta_->ChunkIndexBlockMetas.emplace_back(
+        HashTableChunkIndexMeta_->BlockMetas.emplace_back(
             blockIndex,
             HashTableChunkIndexMeta_->IndexedBlockFormatDetail,
             blockMeta);
     }
+}
+
+void TCachedVersionedChunkMeta::ParseXorFilterMeta(
+    const TSystemBlockMetaExt& systemBlockMetaExt)
+{
+    std::vector<TXorFilterMeta::TBlockMeta> blockMetas;
+    for (int blockIndex = 0; blockIndex < systemBlockMetaExt.system_blocks_size(); ++blockIndex) {
+        const auto& systemBlockMeta = systemBlockMetaExt.system_blocks(blockIndex);
+        if (systemBlockMeta.HasExtension(TXorFilterSystemBlockMeta::xor_filter_system_block_meta_ext)) {
+            blockMetas.emplace_back(
+                DataBlockMeta()->data_blocks_size() + blockIndex,
+                systemBlockMeta.GetExtension(
+                    TXorFilterSystemBlockMeta::xor_filter_system_block_meta_ext));
+        }
+    }
+
+    if (blockMetas.empty()) {
+        return;
+    }
+
+    XorFilterMeta_.emplace();
+    XorFilterMeta_->BlockMetas = std::move(blockMetas);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

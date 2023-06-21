@@ -776,7 +776,7 @@ public:
     TVersionedRow FetchRow()
     {
         YT_ASSERT(IsReaderReady());
-        return RowBatch_->MaterializeRows()[RowIndex_++];
+        return Rows_[RowIndex_++];
     }
 
     bool PrepareBatch()
@@ -786,13 +786,19 @@ public:
         }
 
         RowIndex_ = 0;
-        RowBatch_ = Reader_->Read(TRowBatchReadOptions{
+
+        auto rowBatch = Reader_->Read(TRowBatchReadOptions{
             .MaxRowsPerRead = RowBufferCapacity
         });
 
-        YT_VERIFY(RowBatch_);
+        YT_VERIFY(rowBatch);
+        if (rowBatch->IsEmpty()) {
+            Rows_.Reset();
+            return false;
+        }
 
-        return !RowBatch_->IsEmpty();
+        Rows_ = rowBatch->MaterializeRows();
+        return true;
     }
 
     TFuture<void> GetReadyEvent() const
@@ -813,12 +819,12 @@ public:
 private:
     const IVersionedReaderPtr Reader_;
 
-    IVersionedRowBatchPtr RowBatch_;
+    TSharedRange<TVersionedRow> Rows_;
     int RowIndex_ = -1;
 
     bool IsReaderReady() const
     {
-        return RowBatch_ && RowIndex_ < RowBatch_->GetRowCount();
+        return Rows_ && RowIndex_ < std::ssize(Rows_);
     }
 };
 

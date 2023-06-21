@@ -49,8 +49,6 @@ class TVersionedRowDigestExt;
 
 using TRefCountedDataBlockMeta = TRefCountedProto<NProto::TDataBlockMetaExt>;
 using TRefCountedDataBlockMetaPtr = TIntrusivePtr<TRefCountedDataBlockMeta>;
-using TRefCountedSystemBlockMeta = TRefCountedProto<NProto::TSystemBlockMetaExt>;
-using TRefCountedSystemBlockMetaPtr = TIntrusivePtr<TRefCountedSystemBlockMeta>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
