@@ -2717,6 +2717,35 @@ std::optional<TString> TMapNodeProxy::FindChildKey(const IConstNodePtr& child)
         Transaction_);
 }
 
+void TMapNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
+{
+    TBase::ListSystemAttributes(descriptors);
+
+    if (Bootstrap_->GetConfig()->ExposeTestingFacilities) {
+        descriptors->push_back(EInternedAttributeKey::CoWCookie);
+    }
+}
+
+bool TMapNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
+{
+    switch(key) {
+        case EInternedAttributeKey::CoWCookie: {
+            if (!Bootstrap_->GetConfig()->ExposeTestingFacilities) {
+                break;
+            }
+            const auto* node = GetThisImpl();
+            BuildYsonFluently(consumer)
+                .Value(node->GetMapNodeChildrenAddress());
+            return true;
+        }
+
+        default:
+            break;
+    }
+
+    return TBase::GetBuiltinAttribute(key, consumer);
+}
+
 bool TMapNodeProxy::DoInvoke(const IYPathServiceContextPtr& context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(List);

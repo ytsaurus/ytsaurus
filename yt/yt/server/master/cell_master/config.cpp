@@ -241,6 +241,8 @@ void TCellMasterConfig::Register(TRegistrar registrar)
         ->AsMap());
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
+    registrar.Parameter("expose_testing_facilities", &TThis::ExposeTestingFacilities)
+        .Default(false);
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->SecondaryMasters.size() > MaxSecondaryMasterCells) {

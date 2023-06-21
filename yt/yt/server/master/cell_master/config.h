@@ -253,6 +253,8 @@ public:
 
     bool AbortOnUnrecognizedOptions;
 
+    bool ExposeTestingFacilities;
+
     REGISTER_YSON_STRUCT(TCellMasterConfig);
 
     static void Register(TRegistrar registrar);

@@ -113,6 +113,7 @@
     XX(ContentRevision, content_revision) \
     XX(CoordinatorCellIds, coordinator_cell_ids) \
     XX(CountByHealth, count_by_health) \
+    XX(CoWCookie, cow_cookie) \
     XX(CreateEphemeralSubpools, create_ephemeral_subpools) \
     XX(CreationTime, creation_time) \
     XX(CumulativeStatistics, cumulative_statistics) \

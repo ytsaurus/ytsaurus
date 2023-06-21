@@ -6,6 +6,21 @@ namespace NYT::NObjectServer {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+template <class Object>
+concept CCoWObject = requires (
+    Object obj,
+    NCellMaster::TSaveContext& saveContext,
+    NCellMaster::TLoadContext& loadContext,
+    Object* srcObj)
+{
+    obj.Ref();
+    obj.Unref();
+    { obj.GetRefCount() } -> std::convertible_to<int>;
+    obj.Save(saveContext);
+    obj.Load(loadContext);
+    { Object::Copy(srcObj) } -> std::same_as<std::unique_ptr<Object>>;
+};
+
 //! A device for making parts of TObjects copy-on-write. Essentially, this is a
 //! smart(ish) pointer with CoW support. It also supports saveloading.
 /*!
@@ -24,18 +39,10 @@ namespace NYT::NObjectServer {
  *  object part, but attempting to write-access any of them will result in
  *  copying and splitting the pointers.
  *
- *  TObjectPart must be intrusive ref-countable and must implement the following
- *  methods:
- *    - refcounting: Ref(), Unref(), GetRefCount();
- *    - saveloading: Save(context), Load(context);
- *    - lifetime management:
- *        default ctor;
- *        static Copy() method.
- *
  *  Default ctor and Copy() must return a new TObjectPart with 0 ref-counter. If
  *  the ref-counter falls to 0 (during a call to #Reset()), object part is destroyed.
  */
-template <class TObjectPart>
+template <CCoWObject TObjectPart>
 class TObjectPartCoWPtr
 {
 public:
@@ -53,7 +60,7 @@ public:
 
     void Assign(const TObjectPartCoWPtr& rhs);
 
-    //! Unrefs the part and calls TObjectPart::Destroy if refcounter becomes zero.
+    //! Unrefs the part and deletes TObjectPart if refcounter becomes zero.
     //! Must be called when the object of which this is a part of is destroyed.
     void Reset();
 

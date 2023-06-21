@@ -1538,6 +1538,19 @@ class TestCypressLocks(YTEnvSetup):
                            "transaction .* its descendants already have . locks associated with them"):
             lock("//tmp/table", mode="shared", tx=tx12)
 
+    @authors("danilalexeev")
+    def test_map_node_copy_on_write(self):
+        create("map_node", "//tmp/m")
+        tx = start_transaction()
+
+        lock("//tmp/m", mode="shared", tx=tx)
+
+        assert get("//tmp/m/@cow_cookie") == get("//tmp/m/@cow_cookie", tx=tx)
+
+        create("table", "//tmp/m/t", tx=tx)
+
+        assert get("//tmp/m/@cow_cookie") != get("//tmp/m/@cow_cookie", tx=tx)
+
 
 ##################################################################
 

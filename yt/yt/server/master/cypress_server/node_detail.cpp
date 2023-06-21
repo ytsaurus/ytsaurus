@@ -952,7 +952,11 @@ TDetailedMasterMemory TMapNode::GetDetailedMasterMemoryUsage() const
 void TMapNode::AssignChildren(const TObjectPartCoWPtr<TMapNodeChildren>& children)
 {
     Children_.Assign(children);
-    MutableChildren().RecomputeMasterMemoryUsage();
+}
+
+uintptr_t TMapNode::GetMapNodeChildrenAddress() const
+{
+    return reinterpret_cast<uintptr_t>(&Children_.Get());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -856,6 +856,8 @@ public:
 
     void AssignChildren(const NObjectServer::TObjectPartCoWPtr<TMapNodeChildren>& children);
 
+    uintptr_t GetMapNodeChildrenAddress() const;
+
 private:
     NObjectServer::TObjectPartCoWPtr<TMapNodeChildren> Children_;
 

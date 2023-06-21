@@ -450,6 +450,10 @@ public:
     void RemoveChild(const NYTree::INodePtr& child) override;
     std::optional<TString> FindChildKey(const NYTree::IConstNodePtr& child) override;
 
+protected:
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
+    bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
+
 private:
     using TBase = TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IMapNode, TMapNode>;
 

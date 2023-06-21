@@ -8,35 +8,35 @@ namespace NYT::NObjectServer {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-template <class TObjectPart>
+template <CCoWObject TObjectPart>
 TObjectPart TObjectPartCoWPtr<TObjectPart>::DefaultObjectPart;
 
-template <class TObjectPart>
+template <CCoWObject TObjectPart>
 TObjectPartCoWPtr<TObjectPart>::~TObjectPartCoWPtr()
 {
     Reset();
 }
 
-template <class TObjectPart>
+template <CCoWObject TObjectPart>
 TObjectPartCoWPtr<TObjectPart>::operator bool() const
 {
     return static_cast<bool>(ObjectPart_);
 }
 
-template <class TObjectPart>
+template <CCoWObject TObjectPart>
 inline const TObjectPart& TObjectPartCoWPtr<TObjectPart>::Get() const
 {
     return ObjectPart_ ? *ObjectPart_ : DefaultObjectPart;
 }
 
-template <class TObjectPart>
+template <CCoWObject TObjectPart>
 TObjectPart& TObjectPartCoWPtr<TObjectPart>::MutableGet()
 {
     MaybeCopyOnWrite();
     return *ObjectPart_;
 }
 
-template <class TObjectPart>
+template <CCoWObject TObjectPart>
 void TObjectPartCoWPtr<TObjectPart>::Assign(const TObjectPartCoWPtr& rhs)
 {
     if (ObjectPart_ == rhs.ObjectPart_) {
@@ -51,7 +51,7 @@ void TObjectPartCoWPtr<TObjectPart>::Assign(const TObjectPartCoWPtr& rhs)
     }
 }
 
-template <class TObjectPart>
+template <CCoWObject TObjectPart>
 void TObjectPartCoWPtr<TObjectPart>::Reset()
 {
     if (ObjectPart_) {
@@ -64,7 +64,7 @@ void TObjectPartCoWPtr<TObjectPart>::Reset()
     }
 }
 
-template <class TObjectPart>
+template <CCoWObject TObjectPart>
 void TObjectPartCoWPtr<TObjectPart>::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
@@ -80,7 +80,7 @@ void TObjectPartCoWPtr<TObjectPart>::Save(NCellMaster::TSaveContext& context) co
     }
 }
 
-template <class TObjectPart>
+template <CCoWObject TObjectPart>
 void TObjectPartCoWPtr<TObjectPart>::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
@@ -106,7 +106,7 @@ void TObjectPartCoWPtr<TObjectPart>::Load(NCellMaster::TLoadContext& context)
     }
 }
 
-template <class TObjectPart>
+template <CCoWObject TObjectPart>
 void TObjectPartCoWPtr<TObjectPart>::MaybeCopyOnWrite()
 {
     if (!ObjectPart_) {
@@ -124,7 +124,7 @@ void TObjectPartCoWPtr<TObjectPart>::MaybeCopyOnWrite()
     YT_VERIFY(ObjectPart_ && ObjectPart_->GetRefCount() == 1);
 }
 
-template <class TObjectPart>
+template <CCoWObject TObjectPart>
 void TObjectPartCoWPtr<TObjectPart>::ResetToDefaultConstructed()
 {
     YT_VERIFY(!ObjectPart_);
