@@ -151,6 +151,7 @@ DEFINE_ENUM(EMasterReign,
     ((LocationDirectory)                                            (2336))  // kvk1920
     ((HunksBackup)                                                  (2337))  // akozhikhov
     ((FixChunkCreationTimeHistogram)                                (2338))  // kvk1920
+    ((SysOperationsTransactionAction)                               (2339))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////

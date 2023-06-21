@@ -16,6 +16,7 @@
 #include <yt/yt/server/lib/chunk_pools/ordered_chunk_pool.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/transaction.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_scraper.h>

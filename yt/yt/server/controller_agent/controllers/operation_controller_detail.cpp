@@ -80,6 +80,8 @@
 #include <yt/yt/ytlib/api/native/transaction.h>
 #include <yt/yt/ytlib/api/native/config.h>
 
+#include <yt/yt/ytlib/api/native/proto/transaction_actions.pb.h>
+
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/yt/ytlib/object_client/helpers.h>
 
@@ -1470,7 +1472,7 @@ ITransactionPtr TOperationControllerBase::AttachTransaction(
 
 void TOperationControllerBase::StartTransactions()
 {
-    std::vector<TFuture<ITransactionPtr>> asyncResults = {
+    std::vector<TFuture<NNative::ITransactionPtr>> asyncResults = {
         StartTransaction(ETransactionType::Async, Client),
         StartTransaction(ETransactionType::Input, InputClient, GetInputTransactionParentId()),
         StartTransaction(ETransactionType::Output, OutputClient, GetOutputTransactionParentId()),
@@ -1561,14 +1563,14 @@ TAutoMergeDirector* TOperationControllerBase::GetAutoMergeDirector()
     return AutoMergeDirector_.get();
 }
 
-TFuture<ITransactionPtr> TOperationControllerBase::StartTransaction(
+TFuture<NNative::ITransactionPtr> TOperationControllerBase::StartTransaction(
     ETransactionType type,
     const NNative::IClientPtr& client,
     TTransactionId parentTransactionId)
 {
     if (!IsTransactionNeeded(type)) {
         YT_LOG_INFO("Skipping transaction as it is not needed (Type: %v)", type);
-        return MakeFuture(ITransactionPtr());
+        return MakeFuture(NNative::ITransactionPtr());
     }
 
     auto collectTableCellTags = [] (const std::vector<TOutputTablePtr>& tables) {
@@ -1656,9 +1658,11 @@ TFuture<ITransactionPtr> TOperationControllerBase::StartTransaction(
     options.PingPeriod = Config->OperationTransactionPingPeriod;
     options.ReplicateToMasterCellTags = std::move(replicateToCellTags);
 
-    auto transactionFuture = client->StartTransaction(NTransactionClient::ETransactionType::Master, options);
+    auto transactionFuture = client->StartNativeTransaction(
+        NTransactionClient::ETransactionType::Master,
+        options);
 
-    return transactionFuture.Apply(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<ITransactionPtr>& transactionOrError){
+    return transactionFuture.Apply(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<NNative::ITransactionPtr>& transactionOrError) {
         THROW_ERROR_EXCEPTION_IF_FAILED(
             transactionOrError,
             "Error starting %Qlv transaction",
@@ -2110,8 +2114,37 @@ void TOperationControllerBase::StartOutputCompletionTransaction()
 
 void TOperationControllerBase::CommitOutputCompletionTransaction()
 {
-    // Set committed flag.
-    {
+    auto useTransactionAction = GetConfig()->SetCommittedAttributeViaTransactionAction;
+
+    if (useTransactionAction && OutputCompletionTransaction) {
+        auto path = GetOperationPath(OperationId);
+
+        auto getRequest = TYPathProxy::Get(path + "/@" + IdAttributeName);
+        SetTransactionId(
+            getRequest,
+            OutputCompletionTransaction->GetId());
+        auto proxy = CreateObjectServiceReadProxy(
+            Host->GetClient(),
+            EMasterChannelKind::Follower);
+        auto getResponse = WaitFor(proxy.Execute(getRequest))
+            .ValueOrThrow();
+
+        auto nodeId = ConvertTo<NCypressClient::TNodeId>(TYsonString(getResponse->value()));
+
+        NNative::NProto::TReqSetAttributeOnTransactionCommit action;
+        ToProto(action.mutable_node_id(), nodeId);
+        action.set_attribute(CommittedAttribute);
+        action.set_value(ConvertToYsonStringNestingLimited(true).ToString());
+
+        // NB: Transaction action cannot be executed on node native cell
+        // directly because it leads to distributed transaction commit which
+        // cannot be done with prerequisites.
+        auto transactionCoordinatorCellTag = CellTagFromId(OutputCompletionTransaction->GetId());
+        auto connection = Client->GetNativeConnection();
+        OutputCompletionTransaction->AddAction(
+            connection->GetMasterCellId(transactionCoordinatorCellTag),
+            MakeTransactionActionData(action));
+    } else {
         auto proxy = CreateObjectServiceWriteProxy(Host->GetClient());
 
         auto path = GetOperationPath(OperationId) + "/@" + CommittedAttribute;
@@ -8082,20 +8115,20 @@ void TOperationControllerBase::RegisterCores(const TJobletPtr& joblet, const TJo
         chunkListId);
 }
 
-const ITransactionPtr& TOperationControllerBase::GetTransactionForOutputTable(const TOutputTablePtr& table) const
+const ITransaction* TOperationControllerBase::GetTransactionForOutputTable(const TOutputTablePtr& table) const
 {
     if (table->OutputType == EOutputTableType::Output) {
         if (OutputCompletionTransaction) {
-            return OutputCompletionTransaction;
+            return OutputCompletionTransaction.Get();
         } else {
-            return OutputTransaction;
+            return OutputTransaction.Get();
         }
     } else {
         YT_VERIFY(table->OutputType == EOutputTableType::Stderr || table->OutputType == EOutputTableType::Core);
         if (DebugCompletionTransaction) {
-            return DebugCompletionTransaction;
+            return DebugCompletionTransaction.Get();
         } else {
-            return DebugTransaction;
+            return DebugTransaction.Get();
         }
     }
 }

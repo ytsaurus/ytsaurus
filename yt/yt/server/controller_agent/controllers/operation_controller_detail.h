@@ -552,7 +552,7 @@ protected:
     NApi::ITransactionPtr InputTransaction;
     NApi::ITransactionPtr OutputTransaction;
     NApi::ITransactionPtr DebugTransaction;
-    NApi::ITransactionPtr OutputCompletionTransaction;
+    NApi::NNative::ITransactionPtr OutputCompletionTransaction;
     NApi::ITransactionPtr DebugCompletionTransaction;
     NApi::ITransactionPtr UserTransaction;
     std::vector<NApi::ITransactionPtr> NestedInputTransactions;
@@ -620,7 +620,7 @@ protected:
 
     virtual bool IsTransactionNeeded(ETransactionType type) const;
 
-    TFuture<NApi::ITransactionPtr> StartTransaction(
+    TFuture<NApi::NNative::ITransactionPtr> StartTransaction(
         ETransactionType type,
         const NApi::NNative::IClientPtr& client,
         NTransactionClient::TTransactionId parentTransactionId = {});
@@ -926,7 +926,7 @@ protected:
         const NApi::NNative::IClientPtr& client,
         bool ping = false);
 
-    const NApi::ITransactionPtr& GetTransactionForOutputTable(const TOutputTablePtr& table) const;
+    const NApi::ITransaction* GetTransactionForOutputTable(const TOutputTablePtr& table) const;
 
     void AttachToIntermediateLivePreview(NChunkClient::TChunkId chunkId) override;
 
