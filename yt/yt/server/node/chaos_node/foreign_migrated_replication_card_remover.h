@@ -20,7 +20,7 @@ DEFINE_REFCOUNTED_TYPE(IForeignMigratedReplicationCardRemover)
 IForeignMigratedReplicationCardRemoverPtr CreateForeignMigratedReplicationCardRemover(
     TForeignMigratedReplicationCardRemoverConfigPtr config,
     IChaosSlotPtr slot,
-    NHydra::ISimpleHydraManager* hydraManager);
+    NHydra::ISimpleHydraManagerPtr hydraManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 
