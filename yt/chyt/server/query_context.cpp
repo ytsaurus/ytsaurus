@@ -339,7 +339,7 @@ std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> TQueryContext::GetObjectA
     const std::vector<NYPath::TYPath>& paths)
 {
     if (Settings->Execution->TableReadLockMode != ETableReadLockMode::None) {
-        InitializeQueryReadTransaction();
+        InitializeQueryReadTransactionFuture();
     }
 
     THashSet<NYPath::TYPath> missingPathSet;
@@ -360,9 +360,15 @@ std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> TQueryContext::GetObjectA
 
     std::vector<NYPath::TYPath> missingPaths = {missingPathSet.begin(), missingPathSet.end()};
 
-    if (Settings->Execution->TableReadLockMode != ETableReadLockMode::None && !paths.empty()) {
+    if (QueryKind == EQueryKind::InitialQuery &&
+        Settings->Execution->TableReadLockMode != ETableReadLockMode::None &&
+        !tablesToLock.empty())
+    {
         auto future = AcquireSnapshotLocks(tablesToLock);
         if (Settings->Execution->TableReadLockMode == ETableReadLockMode::Sync) {
+            // Here we save read transaction id, which will be used in attribute fetch.
+            EnsureQueryReadTransactionCreated();
+
             auto acquiredPathToNodeId = WaitFor(future)
                 .ValueOrThrow();
             PathToNodeId.insert(acquiredPathToNodeId.begin(), acquiredPathToNodeId.end());
@@ -377,9 +383,16 @@ std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> TQueryContext::GetObjectA
         const auto& attributes = missingAttributes[index];
         auto [_, ok] = ObjectAttributesSnapshot_.emplace(path, attributes);
         YT_VERIFY(ok);
+
+        if (Settings->Execution->TableReadLockMode == ETableReadLockMode::BestEffort &&
+            attributes.IsOK() &&
+            attributes.Value()->Get<bool>("dynamic", false) &&
+            !PathToNodeId.contains(path))
+        {
+            PathToNodeId[path] = attributes.Value()->Get<TObjectId>("id");
+        }
     }
 
-    bool hasDynamicTable = false;
     std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> result;
     result.reserve(paths.size());
 
@@ -397,12 +410,12 @@ std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> TQueryContext::GetObjectA
             }
 
             if (attributes->Get<bool>("dynamic", false)) {
-                hasDynamicTable = true;
+                HasDynamicTable = true;
             }
         }
     }
 
-    if (Settings->Execution->TableReadLockMode != ETableReadLockMode::None && hasDynamicTable) {
+    if (Settings->Execution->TableReadLockMode != ETableReadLockMode::None && HasDynamicTable) {
         InitializeDynamicTableReadTimestamp();
     }
 
@@ -445,17 +458,26 @@ void TQueryContext::CommitWriteTransaction()
     }
 }
 
-void TQueryContext::InitializeQueryReadTransaction()
+void TQueryContext::InitializeQueryReadTransactionFuture()
 {
-    if (ReadTransactionId) {
+    if (ReadTransactionFuture_ || ReadTransactionId) {
         return;
     }
 
-    InitialQueryReadTransaction_ = WaitFor(Client()->StartNativeTransaction(ETransactionType::Master))
+    ReadTransactionFuture_ = Client()->StartNativeTransaction(ETransactionType::Master);
+}
+
+void TQueryContext::EnsureQueryReadTransactionCreated()
+{
+    if (!ReadTransactionFuture_ || ReadTransactionId) {
+        return;
+    }
+
+    InitialQueryReadTransaction_ = WaitForFast(ReadTransactionFuture_)
         .ValueOrThrow();
     ReadTransactionId = InitialQueryReadTransaction_->GetId();
 
-    YT_LOG_INFO("Read transaction is started (ReadTransactionId: %v)", ReadTransactionId);
+    YT_LOG_INFO("Read transaction is saved (ReadTransactionId: %v)", ReadTransactionId);
 }
 
 void TQueryContext::InitializeDynamicTableReadTimestamp()
@@ -470,9 +492,16 @@ void TQueryContext::InitializeDynamicTableReadTimestamp()
 
 TFuture<THashMap<TYPath, TNodeId>> TQueryContext::AcquireSnapshotLocks(const THashSet<TYPath>& paths)
 {
-    return BIND(&DoAcquireSnapshotLocks, paths, Client(), ReadTransactionId, Logger)
-        .AsyncVia(Host->GetControlInvoker())
-        .Run();
+    if (!ReadTransactionFuture_) {
+        THROW_ERROR_EXCEPTION(
+            "Read transaction future wasn't initialized before lock acquisition; "
+            "this is a bug; please, file an issue in CHYT queue")
+            << TErrorAttribute("query_kind", QueryKind);
+    }
+    return ReadTransactionFuture_
+        .Apply(BIND([paths, client = Client(), logger = Logger] (const NNative::ITransactionPtr& readTransaction) {
+            return DoAcquireSnapshotLocks(paths, client, readTransaction->GetId(), logger);
+        }));
 }
 
 std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetTableAttributes(const std::vector<TYPath>& missingPaths)

@@ -398,6 +398,11 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
 
     TLogger Logger(queryContext->Logger);
 
+    if (auto sleepDuration = queryContext->Settings->Testing->InputStreamFactorySleepDuration) {
+        TDelayedExecutor::WaitForDuration(sleepDuration);
+        YT_LOG_DEBUG("Input stream factory slept (Duration: %v)", sleepDuration);
+    }
+
     auto chunkReaderHost = TChunkReaderHost::FromClient(queryContext->Client());
 
     if (!subquerySpec.DataSourceDirectory->DataSources().empty() &&

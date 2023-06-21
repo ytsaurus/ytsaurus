@@ -78,6 +78,8 @@ public:
     std::optional<TString> DataLensRequestId;
     std::optional<TString> YqlOperationId;
 
+    bool HasDynamicTable = false;
+
     // Transactionality
     //! ReadTransactionId is the id of the query transaction in which snapshot locks are taken.
     NTransactionClient::TTransactionId ReadTransactionId;
@@ -152,6 +154,8 @@ public:
     void InitializeQueryWriteTransaction();
     void CommitWriteTransaction();
 
+    void EnsureQueryReadTransactionCreated();
+
 private:
     TInstant StartTime_;
     TInstant FinishTime_;
@@ -186,7 +190,9 @@ private:
     NApi::NNative::ITransactionPtr InitialQueryReadTransaction_;
     NApi::NNative::ITransactionPtr InitialQueryWriteTransaction_;
 
-    void InitializeQueryReadTransaction();
+    TFuture<NApi::NNative::ITransactionPtr> ReadTransactionFuture_;
+
+    void InitializeQueryReadTransactionFuture();
     TFuture<THashMap<NYPath::TYPath, NCypressClient::TNodeId>> AcquireSnapshotLocks(
         const THashSet<NYPath::TYPath>& paths);
 

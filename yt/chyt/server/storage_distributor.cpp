@@ -416,6 +416,14 @@ public:
             static_cast<ui64>(settings.max_threads),
             ThreadSubqueries_.size());
 
+        // Dynamic tables are changing rapidly,
+        // so we want to read their table attributes under the transaction in BestEffort mode.
+        if (QueryContext_->HasDynamicTable &&
+            QueryContext_->Settings->Execution->TableReadLockMode != ETableReadLockMode::None)
+        {
+            QueryContext_->EnsureQueryReadTransactionCreated();
+        }
+
         auto newContext = DB::Context::createCopy(Context_);
         newContext->setSettings(PrepareLeafJobSettings(settings));
 
@@ -526,7 +534,7 @@ private:
     std::vector<TString> VirtualColumnNames_;
     DB::SelectQueryInfo QueryInfo_;
     DB::ContextPtr Context_;
-    TQueryContext* const QueryContext_;
+    TQueryContext* QueryContext_;
     TStorageContext* const StorageContext_;
     const DB::QueryProcessingStage::Enum ProcessingStage_;
     size_t DistributionSeed_;

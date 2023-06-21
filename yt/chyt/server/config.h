@@ -94,6 +94,7 @@ public:
     bool CheckCHYTBanned;
 
     TDuration ChunkSpecFetcherSleepDuration;
+    TDuration InputStreamFactorySleepDuration;
 
     REGISTER_YSON_STRUCT(TTestingSettings);
 

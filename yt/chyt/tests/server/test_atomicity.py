@@ -1,5 +1,5 @@
 from yt_commands import (authors, raises_yt_error, create, write_table, remove, read_table,
-                         get, link, insert_rows, sync_mount_table)
+                         get, link, insert_rows, sync_mount_table, sync_unmount_table)
 
 from yt.test_helpers import assert_items_equal
 
@@ -13,6 +13,20 @@ import pytest
 
 
 class TestClickHouseAtomicity(ClickHouseTestBase):
+    def get_config_for_dynamic_table_tests(self):
+        return {
+            "yt": {
+                "subquery": {
+                    "min_data_weight_per_thread": 0,
+                },
+                "settings": {
+                    "dynamic_table": {
+                        "max_rows_per_write": 5000,
+                    },
+                },
+            },
+        }
+
     @authors("gudqeit")
     @pytest.mark.parametrize("table_read_lock_mode", ["none", "sync"])
     def test_read_for_static_table(self, table_read_lock_mode):
@@ -218,20 +232,7 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
     @authors("gudqeit")
     @pytest.mark.parametrize("table_read_lock_mode", ["none", "sync"])
     def test_read_for_dynamic_table(self, table_read_lock_mode):
-        config_patch = {
-            "yt": {
-                "subquery": {
-                    "min_data_weight_per_thread": 0,
-                },
-                "settings": {
-                    "dynamic_table": {
-                        "max_rows_per_write": 5000,
-                    },
-                },
-            },
-        }
-
-        with Clique(1, config_patch=config_patch) as clique:
+        with Clique(1, config_patch=self.get_config_for_dynamic_table_tests()) as clique:
             create(
                 "table",
                 "//tmp/dt",
@@ -275,5 +276,53 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
 
             elif table_read_lock_mode == "none":
                 assert result == data + [extra_row]
+
+            thread.join()
+
+    @authors("gudqeit")
+    @pytest.mark.parametrize("table_read_lock_mode", ["none", "best_effort", "sync"])
+    def test_locks_and_chunk_removing(self, table_read_lock_mode):
+        create(
+            "table",
+            "//tmp/dt",
+            attributes={
+                "dynamic": True,
+                "schema": [
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"},
+                ],
+                "enable_dynamic_store_read": True,
+                "dynamic_store_auto_flush_period": yson.YsonEntity(),
+            },
+        )
+        sync_mount_table("//tmp/dt")
+
+        data = [{"key": i, "value": "foo" + str(i)} for i in range(10)]
+        insert_rows("//tmp/dt", data)
+
+        sync_unmount_table("//tmp/dt")
+        sync_mount_table("//tmp/dt")
+
+        with Clique(1, config_patch=self.get_config_for_dynamic_table_tests()) as clique:
+            def remove_table():
+                time.sleep(1)
+                remove("//tmp/dt")
+
+            thread = threading.Thread(target=remove_table)
+            thread.start()
+
+            settings = {
+                "chyt.execution.table_read_lock_mode": table_read_lock_mode,
+                "chyt.testing.input_stream_factory_sleep_duration": 2500,
+            }
+
+            query = "select * from `//tmp/dt` order by key"
+
+            if table_read_lock_mode == "none":
+                with raises_yt_error(QueryFailedError):
+                    clique.make_query(query, settings=settings)
+
+            elif table_read_lock_mode in ["best_effort", "sync"]:
+                clique.make_query(query, settings=settings) == data
 
             thread.join()

@@ -203,9 +203,13 @@ DEFINE_ENUM(EInvalidateCacheMode,
 
 DEFINE_ENUM(ETableReadLockMode,
     // Snapshot lock for table is not acquired.
-    ((None) (0))
+    ((None)       (0))
     // Table info is fetched after the snapshot lock is acquired.
-    ((Sync) (1))
+    ((Sync)       (1))
+    // In this mode we try to acquire locks asynchronously
+    // without adding latency to most requests.
+    // It doesn't guarantee full atomicity.
+    ((BestEffort) (2))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

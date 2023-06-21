@@ -64,6 +64,8 @@ void TTestingSettings::Register(TRegistrar registrar)
 
     registrar.Parameter("chunk_spec_fetcher_sleep_duration", &TThis::ChunkSpecFetcherSleepDuration)
         .Default();
+    registrar.Parameter("input_stream_factory_sleep_duration", &TThis::InputStreamFactorySleepDuration)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -115,7 +117,7 @@ void TExecutionSettings::Register(TRegistrar registrar)
         .Default(EDistributedInsertStage::WithMergeableState);
 
     registrar.Parameter("table_read_lock_mode", &TThis::TableReadLockMode)
-        .Default(ETableReadLockMode::None);
+        .Default(ETableReadLockMode::BestEffort);
 }
 ////////////////////////////////////////////////////////////////////////////////
 
