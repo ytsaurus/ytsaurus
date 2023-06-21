@@ -33,9 +33,7 @@ TFuture<NApi::ITransactionPtr> TClient::StartTransaction(
     ETransactionType type,
     const TTransactionStartOptions& options)
 {
-    TTransactionStartOptions adjustedOptions;
-    static_cast<TTransactionStartOptions&>(adjustedOptions) = options;
-    return StartNativeTransaction(type, adjustedOptions).As<NApi::ITransactionPtr>();
+    return StartNativeTransaction(type, options).As<NApi::ITransactionPtr>();
 }
 
 NApi::ITransactionPtr TClient::AttachTransaction(

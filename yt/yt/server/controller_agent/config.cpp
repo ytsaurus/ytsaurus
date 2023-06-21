@@ -1031,6 +1031,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("network_projects_allowed_for_offloading", &TThis::NetworkProjectsAllowedForOffloading)
         .Default();
 
+    registrar.Parameter("set_committed_attribute_via_transaction_action", &TThis::SetCommittedAttributeViaTransactionAction)
+        .Default(false);
+
     registrar.Preprocessor([&] (TControllerAgentConfig* config) {
         config->EventLog->MaxRowWeight = 128_MB;
         if (!config->EventLog->Path) {

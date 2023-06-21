@@ -374,6 +374,8 @@ def get_controller_agent_config():
             abort_vanished_jobs = %true;
             duration_before_job_considered_vanished = 1000;
         };
+
+        set_committed_attribute_via_transaction_action = %true;
     };
 }
 """)

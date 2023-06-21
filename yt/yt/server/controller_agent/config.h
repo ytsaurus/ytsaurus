@@ -1154,6 +1154,9 @@ public:
 
     THashSet<TString> NetworkProjectsAllowedForOffloading;
 
+    // COMPAT(kvk1920): Remove after all masters will be updated to 23.1.
+    bool SetCommittedAttributeViaTransactionAction;
+
     REGISTER_YSON_STRUCT(TControllerAgentConfig);
 
     static void Register(TRegistrar registrar);

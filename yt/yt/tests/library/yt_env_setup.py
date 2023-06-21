@@ -706,6 +706,10 @@ class YTEnvSetup(object):
                 config["controller_agent"]["control_job_lifetime_at_scheduler"] = True
                 config["controller_agent"]["job_tracker"]["abort_vanished_jobs"] = False
 
+            # COMPAT(kvk1920)
+            if "master" in cls.ARTIFACT_COMPONENTS.get("22_4", []) + cls.ARTIFACT_COMPONENTS.get("23_1", []):
+                config["controller_agent"]["set_committed_attribute_via_transaction_action"] = False
+
             configs["controller_agent"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_controller_agent_config(configs["controller_agent"][index])
         for index, config in enumerate(configs["node"]):

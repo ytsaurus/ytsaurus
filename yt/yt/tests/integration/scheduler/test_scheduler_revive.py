@@ -4,6 +4,7 @@ from yt_env_setup import (
     SCHEDULERS_SERVICE,
     CONTROLLER_AGENTS_SERVICE,
     NODES_SERVICE,
+    MASTERS_SERVICE,
 )
 
 from yt_commands import (
@@ -832,7 +833,12 @@ class OperationReviveBase(YTEnvSetup):
     # NB: we hope that complete finish first phase before we kill scheduler. But we cannot guarantee that this happen.
     @authors("ignat")
     @flaky(max_runs=3)
-    def test_completing(self):
+    @pytest.mark.parametrize("use_tx_action", [False, True])  # COMPAT(kvk1920)
+    def test_completing(self, use_tx_action):
+        update_controller_agent_config(
+            "set_committed_attribute_via_transaction_action",
+            use_tx_action)
+
         self._prepare_tables()
 
         op = self._start_op("echo '{foo=bar}'; sleep 15", track=False)
@@ -854,6 +860,25 @@ class OperationReviveBase(YTEnvSetup):
 
         if self.OP_TYPE == "map":
             assert read_table("//tmp/t_out") == []
+
+    @authors("kvk1920")
+    def test_operation_committed_attribute(self):
+        self._prepare_tables()
+
+        op = self._start_op("echo '{foo=bar}'; sleep 15", track=False)
+
+        self._wait_for_state(op, "running")
+
+        op.complete(ignore_result=True)
+
+        self._wait_for_state(op, "completing")
+
+        wait(lambda: exists(op.get_path() + "/@committed"))
+
+        with Restarter(self.Env, MASTERS_SERVICE):
+            pass
+
+        assert get(op.get_path() + "/@committed")
 
     # NB: test rely on timings and can flap if we hang at some point.
     @authors("ignat")

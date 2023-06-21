@@ -151,6 +151,7 @@ DEFINE_ENUM(EMasterReign,
     ((LocationDirectory)                                            (2336))  // kvk1920
     ((FixChunkCreationTimeHistogram)                                (2337))  // kvk1920
     ((HunksBackup)                                                  (2338))  // akozhikhov
+    ((SysOperationsTransactionAction)                               (2339))  // kvk1920
     // 23.2 starts here.
     ((TabletServants)                                               (2400))  // ifsmirnov
     ((MediumBase)                                                   (2401))  // gritukan
