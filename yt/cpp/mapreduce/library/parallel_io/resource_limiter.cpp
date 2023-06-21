@@ -97,6 +97,9 @@ TResourceGuard::~TResourceGuard() {
     }
 }
 
+size_t TResourceGuard::GetLockedAmount() const {
+    return LockAmount_;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

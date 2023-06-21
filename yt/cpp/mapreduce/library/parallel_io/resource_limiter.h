@@ -61,6 +61,9 @@ public:
     TResourceGuard(TResourceGuard&& other);
 
     ~TResourceGuard();
+
+    size_t GetLockedAmount() const;
+
 private:
     ::TIntrusivePtr<TResourceLimiter> Limiter_;
     size_t LockAmount_;
