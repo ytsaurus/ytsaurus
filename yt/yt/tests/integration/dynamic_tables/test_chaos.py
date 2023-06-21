@@ -2142,11 +2142,11 @@ class TestChaos(ChaosTestBase):
 
         assert lookup_rows("//tmp/t", keys, replica_consistency="sync") == values
         assert select_rows("* from [//tmp/t]", replica_consistency="sync") == values
-        versined_rows = lookup_rows("//tmp/t", keys, replica_consistency="sync", versioned=True)
-        rows = [{"key": row["key"], "value": str(row["value"][0])} for row in versined_rows]
+        versioned_rows = lookup_rows("//tmp/t", keys, replica_consistency="sync", versioned=True)
+        rows = [{"key": row["key"], "value": str(row["value"][0])} for row in versioned_rows]
         assert rows == values
-        ts = versined_rows[0].attributes["write_timestamps"][0]
-        assert all(row.attributes["write_timestamps"][0] == ts for row in versined_rows)
+        ts = versioned_rows[0].attributes["write_timestamps"][0]
+        assert all(row.attributes["write_timestamps"][0] == ts for row in versioned_rows)
 
     @authors("shakurov")
     def test_chaos_cell_peer_snapshot_loss(self):
