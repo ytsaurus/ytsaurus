@@ -620,7 +620,8 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 	if oplet.strawberrySpeclet.NetworkProject != nil {
 		networkProject = oplet.strawberrySpeclet.NetworkProject
 	}
-	if _, ok := spec["tasks"]; ok && networkProject != nil {
+
+	if _, ok := spec["tasks"]; ok {
 		tasks, ok := spec["tasks"].(map[string]any)
 		if !ok {
 			return yterrors.Err("tasks type is not 'map'",
@@ -635,7 +636,12 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 					yterrors.Attr("task", tasks[key]),
 					yterrors.Attr("type", reflect.TypeOf(tasks[key]).String()))
 			}
-			task["network_project"] = *networkProject
+			if networkProject != nil {
+				task["network_project"] = *networkProject
+			}
+			if oplet.strawberrySpeclet.LayerPaths != nil {
+				task["layer_paths"] = oplet.strawberrySpeclet.LayerPaths
+			}
 		}
 	}
 
@@ -832,7 +838,7 @@ func (oplet *Oplet) Status() (s OpletStatus, err error) {
 				s.SpecletDiff = specletDiff(oplet.ytOpControllerSpeclet, oplet.controllerSpeclet)
 			}
 			if !reflect.DeepEqual(oplet.strawberrySpeclet.RestartRequiredOptions, oplet.ytOpStrawberrySpeclet.RestartRequiredOptions) {
-				diff := specletDiff(oplet.strawberrySpeclet.RestartRequiredOptions, oplet.ytOpStrawberrySpeclet.RestartRequiredOptions)
+				diff := specletDiff(oplet.ytOpStrawberrySpeclet.RestartRequiredOptions, oplet.strawberrySpeclet.RestartRequiredOptions)
 				if s.SpecletDiff == nil {
 					s.SpecletDiff = diff
 				} else {

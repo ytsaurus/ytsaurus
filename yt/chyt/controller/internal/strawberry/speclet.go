@@ -1,12 +1,16 @@
 package strawberry
 
-import "go.ytsaurus.tech/yt/go/yt"
+import (
+	"go.ytsaurus.tech/yt/go/ypath"
+	"go.ytsaurus.tech/yt/go/yt"
+)
 
 // Change of these parameters leads to operation restart.
 type RestartRequiredOptions struct {
-	Stage          *string `yson:"stage"`
-	NetworkProject *string `yson:"network_project"`
-	PreemptionMode *string `yson:"preemption_mode"`
+	Stage          *string      `yson:"stage"`
+	NetworkProject *string      `yson:"network_project"`
+	PreemptionMode *string      `yson:"preemption_mode"`
+	LayerPaths     []ypath.Path `yson:"layer_paths"`
 }
 
 type Speclet struct {
