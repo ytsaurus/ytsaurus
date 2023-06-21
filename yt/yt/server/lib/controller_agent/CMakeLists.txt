@@ -60,6 +60,7 @@ target_sources(server-lib-controller_agent PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/controller_agent/job_size_constraints.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/controller_agent/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/controller_agent/public.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/controller_agent/job_report.cpp
 )
 target_proto_addincls(server-lib-controller_agent
   ./yt

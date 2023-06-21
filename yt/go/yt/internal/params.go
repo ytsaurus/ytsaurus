@@ -4,6 +4,7 @@ package internal
 
 import (
 	"go.ytsaurus.tech/library/go/core/log"
+	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
@@ -2503,6 +2504,117 @@ func (p *RemoveMemberParams) MutatingOptions() **yt.MutatingOptions {
 
 func (p *RemoveMemberParams) PrerequisiteOptions() **yt.PrerequisiteOptions {
 	return &p.options.PrerequisiteOptions
+}
+
+type DisableChunkLocationsParams struct {
+	verb          Verb
+	nodeAddress   string
+	locationUuids []guid.GUID
+}
+
+func NewDisableChunkLocationsParams(
+	nodeAddress string,
+	locationUuids []guid.GUID,
+) *DisableChunkLocationsParams {
+	return &DisableChunkLocationsParams{
+		Verb("disable_chunk_locations"),
+		nodeAddress,
+		locationUuids,
+	}
+}
+
+func (p *DisableChunkLocationsParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *DisableChunkLocationsParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *DisableChunkLocationsParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("nodeAddress", p.nodeAddress),
+		log.Any("locationUuids", p.locationUuids),
+	}
+}
+
+func (p *DisableChunkLocationsParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("node_address")
+	w.Any(p.nodeAddress)
+	w.MapKeyString("location_uuids")
+	w.Any(p.locationUuids)
+}
+
+type DestroyChunkLocationsParams struct {
+	verb          Verb
+	nodeAddress   string
+	locationUuids []guid.GUID
+}
+
+func NewDestroyChunkLocationsParams(
+	nodeAddress string,
+	locationUuids []guid.GUID,
+) *DestroyChunkLocationsParams {
+	return &DestroyChunkLocationsParams{
+		Verb("disable_chunk_locations"),
+		nodeAddress,
+		locationUuids,
+	}
+}
+
+func (p *DestroyChunkLocationsParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *DestroyChunkLocationsParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *DestroyChunkLocationsParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("nodeAddress", p.nodeAddress),
+		log.Any("locationUuids", p.locationUuids),
+	}
+}
+
+func (p *DestroyChunkLocationsParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("node_address")
+	w.Any(p.nodeAddress)
+	w.MapKeyString("location_uuids")
+	w.Any(p.locationUuids)
+}
+
+type ResurrectChunkLocationsParams struct {
+	verb          Verb
+	nodeAddress   string
+	locationUuids []guid.GUID
+}
+
+func NewResurrectChunkLocationsParams(
+	nodeAddress string,
+	locationUuids []guid.GUID,
+) *ResurrectChunkLocationsParams {
+	return &ResurrectChunkLocationsParams{
+		Verb("disable_chunk_locations"),
+		nodeAddress,
+		locationUuids,
+	}
+}
+
+func (p *ResurrectChunkLocationsParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *ResurrectChunkLocationsParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *ResurrectChunkLocationsParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("nodeAddress", p.nodeAddress),
+		log.Any("locationUuids", p.locationUuids),
+	}
+}
+
+func (p *ResurrectChunkLocationsParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("node_address")
+	w.Any(p.nodeAddress)
+	w.MapKeyString("location_uuids")
+	w.Any(p.locationUuids)
 }
 
 type TransferAccountResourcesParams struct {

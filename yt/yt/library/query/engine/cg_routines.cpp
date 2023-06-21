@@ -1708,6 +1708,11 @@ extern "C" void NumericToString(
     TUnversionedValue* value
 )
 {
+    if (value->Type == EValueType::Null) {
+        result->Type = EValueType::Null;
+        return;
+    }
+
     TString resultYson;
     TStringOutput output(resultYson);
     TYsonWriter writer(&output, EYsonFormat::Text);

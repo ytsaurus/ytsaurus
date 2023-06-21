@@ -95,6 +95,8 @@ public:
 
     void Terminate() override;
 
+    bool DoesOperationsArchiveExist() override;
+
     // Transactions
     // COMPAT(kvk1920)
     TFuture<ITransactionPtr> StartNativeTransaction(
@@ -679,7 +681,7 @@ public:
         (component, address, target, options))
 
 
-    IMPLEMENT_METHOD(std::vector<NChaosClient::TAlienCellDescriptor>, SyncAlienCells, (
+    IMPLEMENT_METHOD(TSyncAlienCellsResult, SyncAlienCells, (
         const std::vector<NChaosClient::TAlienCellDescriptorLite>& alienCellDescriptors,
         const TSyncAlienCellOptions& options),
         (alienCellDescriptors, options))
@@ -1183,12 +1185,6 @@ private:
     void DoAlterReplicationCard(
         NChaosClient::TReplicationCardId replicationCardId,
         const TAlterReplicationCardOptions& options);
-    NRpc::IChannelPtr WrapChaosChannel(NRpc::IChannelPtr channel);
-    template <class TPrefetcher, class TFetcher>
-    NRpc::IChannelPtr DoGetChaosChannel(
-        NObjectClient::TCellTag cellTag,
-        TPrefetcher channelPrefetcher,
-        TFetcher channelFetcher);
     NRpc::IChannelPtr GetChaosChannelByCellId(
         NObjectClient::TCellId cellId,
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader);
@@ -1379,7 +1375,6 @@ private:
     // Operation info
     //
 
-    bool DoesOperationsArchiveExist();
     int DoGetOperationsArchiveVersion();
 
     struct TGetOperationFromCypressResult
@@ -1601,7 +1596,7 @@ private:
         const TGetClusterMetaOptions& options);
     void DoCheckClusterLiveness(
         const TCheckClusterLivenessOptions& options);
-    std::vector<NChaosClient::TAlienCellDescriptor> DoSyncAlienCells(
+    TSyncAlienCellsResult DoSyncAlienCells(
         const std::vector<NChaosClient::TAlienCellDescriptorLite>& alienCellDescriptors,
         const TSyncAlienCellOptions& options);
 

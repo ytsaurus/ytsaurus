@@ -117,7 +117,6 @@ public:
         IChunkReaderPtr underlyingReader,
         IBlockCachePtr blockCache,
         const TClientChunkReadOptions& chunkReadOptions,
-        TChunkReaderPerformanceCountersPtr performanceCounters,
         int keyColumnCount,
         const TChunkReaderMemoryManagerPtr& memoryManager,
         TKeyComparer keyComparer = {});
@@ -145,8 +144,6 @@ protected:
 
     i64 RowCount_ = 0;
     i64 DataWeight_ = 0;
-
-    TChunkReaderPerformanceCountersPtr PerformanceCounters_;
 };
 
 TSimpleVersionedChunkReaderBase::TSimpleVersionedChunkReaderBase(
@@ -156,7 +153,6 @@ TSimpleVersionedChunkReaderBase::TSimpleVersionedChunkReaderBase(
     IChunkReaderPtr underlyingReader,
     IBlockCachePtr blockCache,
     const TClientChunkReadOptions& chunkReadOptions,
-    TChunkReaderPerformanceCountersPtr performanceCounters,
     int keyColumnCount,
     const TChunkReaderMemoryManagerPtr& memoryManager,
     TKeyComparer keyComparer)
@@ -171,11 +167,9 @@ TSimpleVersionedChunkReaderBase::TSimpleVersionedChunkReaderBase(
     , KeyColumnCount_(keyColumnCount)
     , KeyComparer_(std::move(keyComparer))
     , MemoryPool_(TVersionedChunkReaderPoolTag())
-    , PerformanceCounters_(std::move(performanceCounters))
 {
     YT_VERIFY(ChunkMeta_->Misc().sorted());
     YT_VERIFY(ChunkMeta_->GetChunkType() == EChunkType::Table);
-    YT_VERIFY(PerformanceCounters_);
 
     if (dataSource) {
         PackBaggageForChunkReader(TraceContext_, *dataSource, MakeExtraChunkTags(ChunkMeta_->Misc()));
@@ -200,7 +194,6 @@ public:
         const TClientChunkReadOptions& chunkReadOptions,
         TSharedRange<TRowRange> ranges,
         const std::vector<TColumnIdMapping>& schemaIdMapping,
-        TChunkReaderPerformanceCountersPtr performanceCounters,
         TTimestamp timestamp,
         bool produceAllVersions,
         const TSharedRange<TRowRange>& singletonClippingRange,
@@ -213,7 +206,6 @@ public:
             std::move(underlyingReader),
             std::move(blockCache),
             chunkReadOptions,
-            std::move(performanceCounters),
             keyColumnCount,
             memoryManager)
         , TBlockReaderAdapter<TBlockReader>(
@@ -305,8 +297,6 @@ public:
 
         RowCount_ += rowCount;
         DataWeight_ += dataWeight;
-        PerformanceCounters_->StaticChunkRowReadCount += rowCount;
-        PerformanceCounters_->StaticChunkRowReadDataWeightCount += dataWeight;
 
         return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
@@ -407,6 +397,7 @@ private:
                     .BlockIndex = blockIndex,
                     .Priority = priority,
                     .UncompressedDataSize = blockMeta.uncompressed_size(),
+                    .BlockType = EBlockType::UncompressedData,
                 });
             }
 
@@ -465,7 +456,6 @@ public:
         const TClientChunkReadOptions& chunkReadOptions,
         const TSharedRange<TLegacyKey>& keys,
         const std::vector<TColumnIdMapping>& schemaIdMapping,
-        TChunkReaderPerformanceCountersPtr performanceCounters,
         TKeyComparer keyComparer,
         TTimestamp timestamp,
         bool produceAllVersions,
@@ -477,7 +467,6 @@ public:
             std::move(underlyingReader),
             std::move(blockCache),
             chunkReadOptions,
-            std::move(performanceCounters),
             keyColumnCount,
             memoryManager,
             std::move(keyComparer))
@@ -528,9 +517,6 @@ public:
                 ++KeyIndex_;
             }
 
-            PerformanceCounters_->StaticChunkRowLookupCount += rowCount;
-            PerformanceCounters_->StaticChunkRowLookupDataWeightCount += dataWeight;
-
             return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
         }
 
@@ -541,7 +527,6 @@ public:
 
             if (!KeyFilterTest_[KeyIndex_]) {
                 rows.push_back(TVersionedRow());
-                ++PerformanceCounters_->StaticChunkRowLookupTrueNegativeCount;
             } else {
                 const auto& key = Keys_[KeyIndex_];
                 if (!BlockReader_->SkipToKey(key)) {
@@ -578,8 +563,6 @@ public:
 
         RowCount_ += rowCount;
         DataWeight_ += dataWeight;
-        PerformanceCounters_->StaticChunkRowLookupCount += rowCount;
-        PerformanceCounters_->StaticChunkRowLookupDataWeightCount += dataWeight;
 
         return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
@@ -602,6 +585,7 @@ private:
     {
         const auto& blockMetaExt = ChunkMeta_->DataBlockMeta();
         const auto& blockLastKeys = ChunkMeta_->BlockLastKeys();
+        YT_VERIFY(std::ssize(blockLastKeys) == blockMetaExt->data_blocks_size());
 
         std::vector<TBlockFetcher::TBlockInfo> blocks;
 
@@ -641,6 +625,7 @@ private:
                     .BlockIndex = blockIndex,
                     .Priority = priority,
                     .UncompressedDataSize = blockMeta.uncompressed_size(),
+                    .BlockType = EBlockType::UncompressedData,
                 });
 
                 ++blocksIt;
@@ -687,7 +672,6 @@ public:
         IBlockCachePtr blockCache,
         const TClientChunkReadOptions& chunkReadOptions,
         const std::vector<TColumnIdMapping>& schemaIdMapping,
-        TChunkReaderPerformanceCountersPtr performanceCounters,
         TTimestamp timestamp,
         const TChunkReaderMemoryManagerPtr& memoryManager)
         : TBase(
@@ -704,12 +688,10 @@ public:
         , ChunkMeta_(std::move(chunkMeta))
         , Timestamp_(timestamp)
         , SchemaIdMapping_(schemaIdMapping)
-        , PerformanceCounters_(std::move(performanceCounters))
     {
         YT_VERIFY(ChunkMeta_->Misc().sorted());
         YT_VERIFY(ChunkMeta_->GetChunkType() == EChunkType::Table);
         YT_VERIFY(ChunkMeta_->GetChunkFormat() == EChunkFormat::TableVersionedColumnar);
-        YT_VERIFY(PerformanceCounters_);
 
         const auto& chunkSchema = ChunkMeta_->GetChunkSchema();
         const auto& columnMeta = ChunkMeta_->ColumnMeta();
@@ -770,7 +752,6 @@ protected:
     const TCachedVersionedChunkMetaPtr ChunkMeta_;
     const TTimestamp Timestamp_;
     const std::vector<TColumnIdMapping> SchemaIdMapping_;
-    const TChunkReaderPerformanceCountersPtr PerformanceCounters_;
 
     i64 RowCount_ = 0;
     i64 DataWeight_ = 0;
@@ -1107,7 +1088,6 @@ public:
         const TClientChunkReadOptions& chunkReadOptions,
         TSharedRange<TRowRange> ranges,
         const std::vector<TColumnIdMapping>& schemaIdMapping,
-        TChunkReaderPerformanceCountersPtr performanceCounters,
         TTimestamp timestamp,
         const TChunkReaderMemoryManagerPtr& memoryManager,
         IInvokerPtr sessionInvoker)
@@ -1121,7 +1101,6 @@ public:
             std::move(blockCache),
             chunkReadOptions,
             schemaIdMapping,
-            std::move(performanceCounters),
             timestamp,
             memoryManager)
         , RowBuilder_(
@@ -1236,19 +1215,10 @@ public:
             }
         }
 
-        i64 rowCount = 0;
-        i64 dataWeight = 0;
         for (auto row : rows) {
-            if (row) {
-                ++rowCount;
-            }
-            dataWeight += GetDataWeight(row);
+            RowCount_ += static_cast<bool>(row);
+            DataWeight_ += GetDataWeight(row);
         }
-
-        RowCount_ += rowCount;
-        DataWeight_ += dataWeight;
-        PerformanceCounters_->StaticChunkRowReadCount += rowCount;
-        PerformanceCounters_->StaticChunkRowReadDataWeightCount += dataWeight;
 
         return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
@@ -1465,7 +1435,6 @@ public:
         const TClientChunkReadOptions& chunkReadOptions,
         const TSharedRange<TLegacyKey>& keys,
         const std::vector<TColumnIdMapping>& schemaIdMapping,
-        TChunkReaderPerformanceCountersPtr performanceCounters,
         TTimestamp timestamp,
         const TChunkReaderMemoryManagerPtr& memoryManager)
         : TColumnarVersionedChunkReaderBase(
@@ -1478,7 +1447,6 @@ public:
             std::move(blockCache),
             chunkReadOptions,
             schemaIdMapping,
-            std::move(performanceCounters),
             timestamp,
             memoryManager)
         , HasHunkColumns_(ChunkMeta_->GetChunkSchema()->HasHunkColumns())
@@ -1555,19 +1523,10 @@ public:
             }
         }
 
-        i64 rowCount = 0;
-        i64 dataWeight = 0;
         for (auto row : rows) {
-            if (row) {
-                ++rowCount;
-            }
-            dataWeight += GetDataWeight(row);
+            RowCount_ += static_cast<bool>(row);
+            DataWeight_ += GetDataWeight(row);
         }
-
-        RowCount_ += rowCount;
-        DataWeight_ += dataWeight;
-        PerformanceCounters_->StaticChunkRowLookupCount += rowCount;
-        PerformanceCounters_->StaticChunkRowLookupDataWeightCount += dataWeight;
 
         return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
@@ -1731,7 +1690,6 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     IInvokerPtr sessionInvoker)
 {
     const auto& blockCache = chunkState->BlockCache;
-    const auto& performanceCounters = chunkState->PerformanceCounters;
 
     auto getCappedBounds = [&ranges, &singletonClippingRange] {
         TLegacyKey lowerBound = ranges.Front().first;
@@ -1780,7 +1738,6 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     chunkReadOptions,
                     std::move(ranges),
                     schemaIdMapping,
-                    performanceCounters,
                     timestamp,
                     produceAllVersions,
                     singletonClippingRange,
@@ -1827,7 +1784,6 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     chunkReadOptions,
                     getCappedBounds(),
                     schemaIdMapping,
-                    performanceCounters,
                     timestamp,
                     memoryManager,
                     sessionInvoker);
@@ -1960,7 +1916,6 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     const TChunkReaderMemoryManagerPtr& memoryManager)
 {
     const auto& blockCache = chunkState->BlockCache;
-    const auto& performanceCounters = chunkState->PerformanceCounters;
     const auto& keyComparer = chunkState->KeyComparer;
 
     if (chunkState->OverrideTimestamp && timestamp < chunkState->OverrideTimestamp) {
@@ -1991,7 +1946,6 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     chunkReadOptions,
                     keys,
                     schemaIdMapping,
-                    performanceCounters,
                     keyComparer,
                     timestamp,
                     produceAllVersions,
@@ -2038,7 +1992,6 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     chunkReadOptions,
                     keys,
                     schemaIdMapping,
-                    performanceCounters,
                     timestamp,
                     memoryManager);
             };
@@ -2080,7 +2033,6 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     /*omittedInaccessibleColumns*/ {},
                     columnFilter,
                     keys,
-                    nullptr,
                     std::nullopt,
                     memoryManager);
             };

@@ -84,6 +84,11 @@ DEFINE_ENUM(EFifoSortParameter,
     (PendingJobCount)
 );
 
+DEFINE_ENUM(EFifoPoolSchedulingOrder,
+    (Fifo)
+    (Satisfaction)
+);
+
 DEFINE_ENUM(ESchedulingSegment,
     (Default)
     (LargeGpu)

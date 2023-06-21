@@ -1634,10 +1634,10 @@ class TYPathServiceContext
     , public IYPathServiceContext
 {
 public:
-    template <class... TArg>
-    TYPathServiceContext(const TReadRequestComplexity& limits, TArg&&... arg)
-        : TServiceContextBase(std::forward<TArg>(arg)...)
-        , ReadComplexityLimiter_(New<TReadRequestComplexityLimiter>(limits))
+    template <class... TArgs>
+    TYPathServiceContext(TArgs&&... args)
+        : TServiceContextBase(std::forward<TArgs>(args)...)
+        , ReadComplexityLimiter_(New<TReadRequestComplexityLimiter>())
     { }
 
     TReadRequestComplexityLimiterPtr GetReadRequestComplexityLimiter() final
@@ -1650,7 +1650,6 @@ protected:
     const NProto::TYPathHeaderExt* YPathExt_ = nullptr;
     TReadRequestComplexityLimiterPtr ReadComplexityLimiter_;
 
-
     const NProto::TYPathHeaderExt& GetYPathExt()
     {
         if (!YPathExt_) {
@@ -1658,7 +1657,6 @@ protected:
         }
         return *YPathExt_;
     }
-
 
     void DoReply() override
     { }
@@ -1729,6 +1727,13 @@ protected:
             delimitedBuilder->AppendFormat("User: %v", RequestHeader_->user());
         }
 
+        if (auto limiter = GetReadRequestComplexityLimiter()) {
+            auto usage = limiter->GetUsage();
+            delimitedBuilder->AppendFormat("ResponseNodeCount: %v, ResponseSize: %v",
+                usage.NodeCount,
+                usage.ResultSize);
+        }
+
         for (const auto& info : ResponseInfos_) {
             delimitedBuilder->AppendString(info);
         }
@@ -1750,13 +1755,11 @@ protected:
 IYPathServiceContextPtr CreateYPathContext(
     TSharedRefArray requestMessage,
     NLogging::TLogger logger,
-    NLogging::ELogLevel logLevel,
-    const TReadRequestComplexity* readComplexityLimits)
+    NLogging::ELogLevel logLevel)
 {
     YT_ASSERT(requestMessage);
 
     return New<TYPathServiceContext>(
-        readComplexityLimits ? *readComplexityLimits : TReadRequestComplexity{},
         std::move(requestMessage),
         std::move(logger),
         logLevel);
@@ -1766,13 +1769,11 @@ IYPathServiceContextPtr CreateYPathContext(
     std::unique_ptr<TRequestHeader> requestHeader,
     TSharedRefArray requestMessage,
     NLogging::TLogger logger,
-    NLogging::ELogLevel logLevel,
-    const TReadRequestComplexity* readComplexityLimits)
+    NLogging::ELogLevel logLevel)
 {
     YT_ASSERT(requestMessage);
 
     return New<TYPathServiceContext>(
-        readComplexityLimits ? *readComplexityLimits : TReadRequestComplexity{},
         std::move(requestHeader),
         std::move(requestMessage),
         std::move(logger),

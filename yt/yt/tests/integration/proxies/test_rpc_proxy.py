@@ -824,7 +824,6 @@ class TestModifyRowsRpcProxy(TestRpcProxyBase):
     @authors("kiselyovp")
     def test_modify_rows_batching(self):
         self._test_modify_rows_batching(60, 7, "tablet")
-        self._test_modify_rows_batching(65, 7, "master")
 
 
 ##################################################################

@@ -1775,8 +1775,9 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         # After reshard all errors should be gone.
         assert get("//tmp/t/@tablet_error_count") == 0
 
-    @authors("savrus", "babenko")
+    @authors("savrus", "babenko", "h0pless")
     def test_disallowed_dynamic_table_alter(self):
+        sync_create_cells(1)
         sorted_schema = make_schema(
             [
                 {"name": "key", "type": "string", "sort_order": "ascending"},
@@ -1795,10 +1796,17 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         create("table", "//tmp/t1", attributes={"schema": ordered_schema, "dynamic": True})
         create("table", "//tmp/t2", attributes={"schema": sorted_schema, "dynamic": True})
-        with pytest.raises(YtError):
+        with pytest.raises(YtError, match="Cannot change dynamic table type from sorted to ordered or vice versa"):
             alter_table("//tmp/t1", schema=sorted_schema)
-        with pytest.raises(YtError):
+        with pytest.raises(YtError, match="Cannot change dynamic table type from sorted to ordered or vice versa"):
             alter_table("//tmp/t2", schema=ordered_schema)
+
+        sorted_schema_id = get("//tmp/t2/@schema_id")
+        sync_mount_table("//tmp/t1")
+        with pytest.raises(YtError, match="Cannot change table schema"):
+            alter_table("//tmp/t1", schema=sorted_schema)
+        with pytest.raises(YtError, match="Cannot change table schema"):
+            alter_table("//tmp/t1", schema_id=sorted_schema_id)
 
     @authors("savrus")
     def test_disable_tablet_cells(self):
@@ -2906,6 +2914,75 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         with pytest.raises(YtError, match="Cannot mount table since it has column \"value\" with value type \"null\""):
             sync_mount_table("//tmp/t")
+
+    @authors("alexelexa")
+    def test_performance_counters_attribute(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
+
+        tablets = get("//tmp/t/@tablets")
+        tablet_id = tablets[0]["tablet_id"]
+
+        assert "performance_counters" in tablets[0]
+        assert get("#" + tablet_id + "/@")["performance_counters"]
+
+        set("//sys/@config/tablet_manager/add_perf_counters_to_tablets_attribute", False)
+
+        assert "performance_counters" not in get("//tmp/t/@tablets")[0]
+        assert not get("#" + tablet_id + "/@")["performance_counters"]
+
+        tablet_performance_counters = get("//tmp/t/@tablet_performance_counters")
+        assert len(tablet_performance_counters) == len(tablets)
+        assert tablet_performance_counters[0]["tablet_id"] == tablet_id
+        assert "dynamic_row_write_count" in get("#" + tablet_id + "/@performance_counters")
+
+    @authors("alexelexa")
+    def test_bundle_ban(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 0, "value": "0"}]
+        keys = [{"key": r["key"]} for r in rows]
+        insert_rows("//tmp/t", rows)
+        assert lookup_rows("//tmp/t", keys) == rows
+        assert select_rows("* from [//tmp/t]") == rows
+
+        set(
+            "//sys/tablet_cell_bundles/default/@dynamic_options/ban_message",
+            "I'm banned",
+        )
+
+        def check_error(func):
+            try:
+                func()
+                return False
+            except YtError as e:
+                return e.contains_code(yt_error_codes.BundleIsBanned)
+
+        wait(lambda: check_error(lambda: insert_rows("//tmp/t", rows)))
+        assert check_error(lambda: lookup_rows("//tmp/t", keys))
+        assert check_error(lambda: select_rows("* from [//tmp/t]"))
+
+        remove("//sys/tablet_cell_bundles/default/@dynamic_options/ban_message")
+
+        row = {"key": 1, "value": "1"}
+        rows.append(row)
+        keys = [{"key": r["key"]} for r in rows]
+
+        def check_no_error(func):
+            try:
+                func()
+                return True
+            except YtError:
+                return False
+
+        wait(lambda: check_no_error(lambda: insert_rows("//tmp/t", [row])))
+        assert lookup_rows("//tmp/t", keys) == rows
+        assert select_rows("* from [//tmp/t]") == rows
 
 
 ##################################################################

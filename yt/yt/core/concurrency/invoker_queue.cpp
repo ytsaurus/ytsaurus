@@ -21,24 +21,61 @@ constinit thread_local TCpuProfilerTagGuard CpuProfilerTagGuard;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr int MaxTryDequeueCount = 512;
-
-Y_FORCE_INLINE void TMpmcQueueImpl::Enqueue(TEnqueuedAction action)
+void TMpmcQueueImpl::Enqueue(TEnqueuedAction&& action)
 {
-    YT_VERIFY(Queue_.enqueue(std::move(action)));
+    DoEnqueue(
+        action.EnqueuedAt,
+        [&] (TBucket* bucket) {
+            EnqueueTo(bucket, std::move(action));
+        });
+}
+
+void TMpmcQueueImpl::Enqueue(TMutableRange<TEnqueuedAction> actions)
+{
+    if (Y_UNLIKELY(actions.empty())) {
+        return;
+    }
+
+    DoEnqueue(
+        actions[0].EnqueuedAt,
+        [&] (TBucket* bucket) {
+            EnqueueTo(bucket, actions);
+        });
+}
+
+template <class T>
+void TMpmcQueueImpl::DoEnqueue(TCpuInstant instant, T&& func)
+{
+    auto currentSelector = BucketSelector_.load(std::memory_order::acquire);
+    auto currentBucketIndex = currentSelector & 1;
+    auto& bucket = Buckets_[currentBucketIndex];
+    func(&bucket);
+    auto currentSelectorState = currentSelector & 3;
+    if (currentSelectorState == 0 || currentSelectorState == 3) {
+        auto currentEpoch = currentSelector >> 2;
+        auto newEpoch = EpochFromInstant(instant);
+        if (newEpoch != currentEpoch) {
+            auto newSelectorState = (currentSelectorState == 0 ? 1UL : 2UL);
+            auto newSelector = newSelectorState | (newEpoch << 2);
+            BucketSelector_.compare_exchange_weak(currentSelector, newSelector);
+        }
+    }
+}
+
+Y_FORCE_INLINE void TMpmcQueueImpl::EnqueueTo(TBucket* bucket, TEnqueuedAction&& action)
+{
+    YT_VERIFY(bucket->enqueue(std::move(action)));
     Size_.fetch_add(1, std::memory_order::release);
 }
 
-Y_FORCE_INLINE void TMpmcQueueImpl::Enqueue(TMutableRange<TEnqueuedAction> actions)
+Y_FORCE_INLINE void TMpmcQueueImpl::EnqueueTo(TBucket* bucket, TMutableRange<TEnqueuedAction> actions)
 {
     auto size = std::ssize(actions);
-    YT_VERIFY(Queue_.enqueue_bulk(
-        std::make_move_iterator(actions.Begin()),
-        size));
+    YT_VERIFY(bucket->enqueue_bulk(std::make_move_iterator(actions.Begin()), size));
     Size_.fetch_add(size, std::memory_order::release);
 }
 
-Y_FORCE_INLINE bool TMpmcQueueImpl::TryDequeue(TEnqueuedAction* action, TConsumerToken* token)
+bool TMpmcQueueImpl::TryDequeue(TEnqueuedAction* action, TConsumerToken* token)
 {
     if (Size_.load() <= 0) {
         return false;
@@ -57,39 +94,46 @@ Y_FORCE_INLINE bool TMpmcQueueImpl::TryDequeue(TEnqueuedAction* action, TConsume
         }
     }
 
-    for (int tryIndex = 0; tryIndex < MaxTryDequeueCount; ++tryIndex) {
+    constexpr int MaxSpinCount = 100;
+    for (int spinCount = 0; ; spinCount++) {
+        auto currentSelector = BucketSelector_.load(std::memory_order::acquire);
+        auto currentBucketIndex = (currentSelector & 3) >> 1;
+        auto& bucket = Buckets_[currentBucketIndex];
         bool result = token
-            ? Queue_.try_dequeue(*token, *action)
-            : Queue_.try_dequeue(*action);
+            ? bucket.try_dequeue((*token)[currentBucketIndex], *action)
+            : bucket.try_dequeue(*action);
         if (result) {
-            if (tryIndex > 100) {
-                YT_LOG_WARNING("Action has been dequeued (TryIndex: %v)", tryIndex);
-            } else if (tryIndex > 1) {
-                YT_LOG_DEBUG("Action has been dequeued (TryIndex: %v)", tryIndex);
-            }
-
-            return true;
+            break;
+        }
+        auto currentSelectorState = currentSelector & 3;
+        if (currentSelectorState == 1 || currentSelectorState == 2 || spinCount > MaxSpinCount) {
+            auto newSelectorState = currentSelectorState <= 1 ? 3UL : 0UL;
+            auto newEpoch = EpochFromInstant(GetApproximateCpuInstant());
+            auto newSelector = newSelectorState | (newEpoch << 2);
+            BucketSelector_.compare_exchange_weak(currentSelector, newSelector);
+            spinCount = 0;
         }
     }
 
-    YT_ABORT();
+    return true;
 }
 
 void TMpmcQueueImpl::DrainProducer()
 {
     auto queueSize = Size_.load();
-    // Must use cas to prevent modifying Size_ if it is negative.
+    // Must use CAS to prevent modifying Size_ if it is negative.
     while (queueSize > 0 && !Size_.compare_exchange_weak(queueSize, 0));
 
     TEnqueuedAction action;
     while (queueSize-- > 0) {
         [&] {
-            for (int tryIndex = 0; tryIndex < MaxTryDequeueCount; ++tryIndex) {
-                if (Queue_.try_dequeue(action)) {
-                    return;
+            while (true) {
+                for (auto& bucket : Buckets_) {
+                    if (bucket.try_dequeue(action)) {
+                        return;
+                    }
                 }
             }
-            YT_ABORT();
         }();
     }
 }
@@ -101,7 +145,10 @@ void TMpmcQueueImpl::DrainConsumer()
 
 TMpmcQueueImpl::TConsumerToken TMpmcQueueImpl::MakeConsumerToken()
 {
-    return TConsumerToken(Queue_);
+    return {
+        moodycamel::ConsumerToken(Buckets_[0]),
+        moodycamel::ConsumerToken(Buckets_[1]),
+    };
 }
 
 bool TMpmcQueueImpl::IsEmpty() const
@@ -114,9 +161,15 @@ bool TMpmcQueueImpl::HasSingleConsumer() const
     return false;
 }
 
+ui64 TMpmcQueueImpl::EpochFromInstant(TCpuInstant instant)
+{
+    // ~1 ms for 1 GHz clock.
+    return instant >> 20;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_FORCE_INLINE void TMpscQueueImpl::Enqueue(TEnqueuedAction action)
+Y_FORCE_INLINE void TMpscQueueImpl::Enqueue(TEnqueuedAction&& action)
 {
     Queue_.Enqueue(std::move(action));
 }
@@ -352,7 +405,7 @@ TCpuInstant TInvokerQueue<TQueueImpl>::EnqueueCallbacks(
     }
 
     std::vector<TEnqueuedAction> actions;
-    actions.reserve(std::ssize(callbacks));
+    actions.reserve(callbacks.size());
 
     for (auto& callback : callbacks) {
         actions.push_back(MakeAction(std::move(callback), profilingTag, profilerTag, cpuInstant));

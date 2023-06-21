@@ -45,7 +45,7 @@
 
 #include <yt/yt/client/rpc/helpers.h>
 
-#include <yt/yt/server/lib/rpc/per_workload_category_queue.h>
+#include <yt/yt/server/lib/rpc/per_workload_category_request_queue_provider.h>
 
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -206,17 +206,17 @@ public:
             .SetCancelable(true)
             .SetQueueSizeLimit(5'000)
             .SetConcurrencyLimit(5'000)
-            .SetRequestQueueProvider(GetBlockSetQueue_.GetProvider()));
+            .SetRequestQueueProvider(GetBlockSetQueue_));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockRange)
             .SetCancelable(true)
             .SetQueueSizeLimit(5'000)
             .SetConcurrencyLimit(5'000)
-            .SetRequestQueueProvider(GetBlockRangeQueue_.GetProvider()));
+            .SetRequestQueueProvider(GetBlockRangeQueue_));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkFragmentSet)
             .SetInvoker(Bootstrap_->GetStorageLookupInvoker())
             .SetQueueSizeLimit(100'000)
             .SetConcurrencyLimit(100'000)
-            .SetRequestQueueProvider(GetChunkFragmentSetQueue_.GetProvider()));
+            .SetRequestQueueProvider(GetChunkFragmentSetQueue_));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupRows)
             .SetInvoker(Bootstrap_->GetStorageLookupInvoker())
             .SetCancelable(true)
@@ -227,7 +227,7 @@ public:
             .SetQueueSizeLimit(5'000)
             .SetConcurrencyLimit(5'000)
             .SetHeavy(true)
-            .SetRequestQueueProvider(GetChunkMetaQueue_.GetProvider()));
+            .SetRequestQueueProvider(GetChunkMetaQueue_));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkSliceDataWeights)
             .SetCancelable(true)
             .SetHeavy(true));
@@ -257,10 +257,10 @@ private:
     const TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
     IBootstrap* const Bootstrap_;
 
-    TPerWorkloadCategoryRequestQueue GetBlockSetQueue_;
-    TPerWorkloadCategoryRequestQueue GetBlockRangeQueue_;
-    TPerWorkloadCategoryRequestQueue GetChunkFragmentSetQueue_;
-    TPerWorkloadCategoryRequestQueue GetChunkMetaQueue_;
+    IRequestQueueProviderPtr GetBlockSetQueue_ = CreatePerWorkloadCategoryRequestQueueProvider();
+    IRequestQueueProviderPtr GetBlockRangeQueue_ = CreatePerWorkloadCategoryRequestQueueProvider();
+    IRequestQueueProviderPtr GetChunkFragmentSetQueue_ = CreatePerWorkloadCategoryRequestQueueProvider();
+    IRequestQueueProviderPtr GetChunkMetaQueue_ = CreatePerWorkloadCategoryRequestQueueProvider();
 
     TDataNodeDynamicConfigPtr GetDynamicConfig() const
     {
@@ -623,48 +623,6 @@ private:
         }
     }
 
-    std::vector<NChunkClient::TBlock> ReadBlocksFromP2P(
-        const TChunkId chunkId,
-        const std::vector<int>& blockIndexes,
-        const TChunkReaderStatisticsPtr& chunkReaderStatistics)
-    {
-        const auto& p2pBlockCache = Bootstrap_->GetP2PBlockCache();
-
-        // New P2P implementation stores blocks in separate block cache.
-        auto blocks = p2pBlockCache->LookupBlocks(chunkId, blockIndexes);
-
-        size_t bytesRead = 0;
-        for (const auto& block : blocks) {
-            if (block) {
-                bytesRead += block.Size();
-            }
-        }
-        if (bytesRead > 0) {
-            chunkReaderStatistics->DataBytesReadFromCache.fetch_add(
-                bytesRead,
-                std::memory_order::relaxed);
-            return blocks;
-        }
-
-        blocks = {};
-
-        auto blockCache = Bootstrap_->GetBlockCache();
-
-        // Old P2P implementation stores blocks in shared block cache.
-        auto type = NObjectClient::TypeFromId(chunkId);
-        if (type == NObjectClient::EObjectType::Chunk || type == NObjectClient::EObjectType::ErasureChunk) {
-            for (int blockIndex : blockIndexes) {
-                auto blockId = TBlockId(chunkId, blockIndex);
-                auto block = blockCache->FindBlock(blockId, EBlockType::CompressedData).Block;
-                blocks.push_back(block);
-                chunkReaderStatistics->DataBytesReadFromCache.fetch_add(
-                    block.Size(),
-                    std::memory_order::relaxed);
-            }
-        }
-        return blocks;
-    }
-
     void AddBlockPeers(
         google::protobuf::RepeatedPtrField<TPeerDescriptor>* peers,
         const std::vector<TP2PSuggestion>& blockPeers)
@@ -878,8 +836,12 @@ private:
             }
 
             if (!chunk && options.FetchFromCache) {
-                blocks = ReadBlocksFromP2P(chunkId, blockIndexes, chunkReaderStatistics);
                 readFromP2P = true;
+
+                blocks = Bootstrap_->GetP2PBlockCache()->LookupBlocks(chunkId, blockIndexes);
+                chunkReaderStatistics->DataBytesReadFromCache.fetch_add(
+                    GetByteSize(blocks),
+                    std::memory_order::relaxed);
             } else if (chunk) {
                 auto blocksFuture = chunk->ReadBlockSet(
                     blockIndexes,
@@ -1274,6 +1236,11 @@ private:
 
                             response->mutable_chunk_reader_statistics()->set_data_bytes_read_from_disk(dataBytesReadFromDisk);
                             response->mutable_chunk_reader_statistics()->set_data_io_requests(dataIORequests);
+                            if (const auto* traceContext = NTracing::GetCurrentTraceContext()) {
+                                NTracing::FlushCurrentTraceContextTime();
+                                response->mutable_chunk_reader_statistics()->set_remote_cpu_time(
+                                    traceContext->GetElapsedTime().GetValue());
+                            }
 
                             const auto& netThrottler = Bootstrap_->GetOutThrottler(workloadDescriptor);
                             if (netThrottler->IsOverdraft()) {
@@ -1392,8 +1359,8 @@ private:
                 response->set_fetched_rows(true);
 
                 const auto& chunkReaderStatistics = chunkReadSession->GetChunkReaderStatistics();
-                if (const auto* traceContext = NTracing::TryGetCurrentTraceContext()) {
-                    NTracing::FlushCurrentTraceContextElapsedTime();
+                if (const auto* traceContext = NTracing::GetCurrentTraceContext()) {
+                    NTracing::FlushCurrentTraceContextTime();
                     chunkReaderStatistics->RemoteCpuTime.fetch_add(
                         traceContext->GetElapsedTime().GetValue(),
                         std::memory_order_relaxed);

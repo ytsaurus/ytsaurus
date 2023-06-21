@@ -154,7 +154,7 @@ public:
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
-            SealScanner_->Start(shardIndex, chunkManager->GetGlobalJournalChunkScanDescriptor(shardIndex));
+            SealScanner_->Start(chunkManager->GetGlobalJournalChunkScanDescriptor(shardIndex));
         }
 
         SealExecutor_ = New<TPeriodicExecutor>(
@@ -238,7 +238,7 @@ public:
 
         TCompactVector<
             std::pair<TChunkLocation*, TChunkLocation::TChunkSealQueue::iterator>,
-            TypicalLocationCount> locations;
+            TypicalChunkLocationCount> locations;
         for (auto* location : node->ChunkLocations()) {
             auto& queue = location->ChunkSealQueue();
             if (!queue.empty()) {

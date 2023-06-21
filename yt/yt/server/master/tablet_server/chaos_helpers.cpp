@@ -43,6 +43,7 @@ void ScatterReplicationProgress(NTableServer::TTableNode* table, TReplicationPro
     std::vector<TLegacyKey> pivotKeys;
     std::vector<TLegacyOwningKey> buffer;
     pivotKeys.reserve(std::ssize(table->Tablets()));
+
     for (int index = 0; index < std::ssize(table->Tablets()); ++index) {
         auto* tablet = table->Tablets()[index]->As<TTablet>();
         pivotKeys.push_back(GetTabletReplicationProgressPivotKey(tablet, index, &buffer));

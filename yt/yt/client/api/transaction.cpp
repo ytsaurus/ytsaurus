@@ -139,18 +139,23 @@ void ITransaction::AdvanceConsumer(
     std::optional<i64> oldOffset,
     i64 newOffset)
 {
+    THROW_ERROR_EXCEPTION_IF(newOffset < 0, "Queue consumer offset %v cannot be negative", newOffset);
+
     auto consumerClient = CreateBigRTConsumerClient(GetClient(), path);
     consumerClient->Advance(MakeStrong(this), partitionIndex, oldOffset, newOffset);
 }
 
 void ITransaction::AdvanceConsumer(
-    const NYPath::TYPath& consumerPath,
+    const NYPath::TRichYPath& consumerPath,
     const NYPath::TRichYPath& queuePath,
     int partitionIndex,
     std::optional<i64> oldOffset,
     i64 newOffset)
 {
-    auto subConsumerClient = CreateSubConsumerClient(GetClient(), consumerPath, queuePath);
+    THROW_ERROR_EXCEPTION_IF(newOffset < 0, "Queue consumer offset %v cannot be negative", newOffset);
+
+    // TODO(achulkov2): Support consumers from any cluster.
+    auto subConsumerClient = CreateSubConsumerClient(GetClient(), consumerPath.GetPath(), queuePath);
     return subConsumerClient->Advance(MakeStrong(this), partitionIndex, oldOffset, newOffset);
 }
 

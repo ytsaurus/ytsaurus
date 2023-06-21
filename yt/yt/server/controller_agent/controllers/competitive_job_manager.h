@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/controller_agent/helpers.h>
 
+#include <yt/yt/client/job_tracker_client/public.h>
+
 namespace NYT::NControllerAgent::NControllers {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -24,7 +26,7 @@ class ICompetitiveJobManagerHost
 public:
     virtual void OnSecondaryJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitonType) = 0;
     virtual void AbortJobViaScheduler(TJobId jobId, NScheduler::EAbortReason abortReason) = 0;
-    virtual void AbortJobFromController(TJobId jobId, NScheduler::EAbortReason abortReason) = 0;
+    virtual void AbortJobByController(TJobId jobId, NScheduler::EAbortReason abortReason) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -39,7 +41,8 @@ public:
         ICompetitiveJobManagerHost* host,
         NLogging::TLogger logger,
         int maxSecondaryJobCount,
-        EJobCompetitionType competitionType);
+        EJobCompetitionType competitionType,
+        EAbortReason resultLost);
 
     //! This method may be called either by derived class (in case of probing) or by external code (in case of speculative).
     bool TryAddCompetitiveJob(const TJobletPtr& joblet);
@@ -52,10 +55,14 @@ public:
 
     NChunkPools::IChunkPoolOutput::TCookie PeekJobCandidate() const;
 
-    void OnJobScheduled(const TJobletPtr& joblet);
-
     bool OnJobAborted(const TJobletPtr& joblet, EAbortReason reason);
     bool OnJobFailed(const TJobletPtr& joblet);
+    void OnJobLost(NChunkPools::IChunkPoolOutput::TCookie cookie);
+
+    virtual void OnJobScheduled(const TJobletPtr& joblet);
+    virtual void OnJobCompleted(const TJobletPtr& joblet) = 0;
+
+    virtual std::optional<EAbortReason> ShouldAbortCompletingJob(const TJobletPtr& joblet) = 0;
 
     bool IsRelevant(const TJobletPtr& joblet) const;
 
@@ -87,7 +94,6 @@ protected:
 
 protected:
     void OnJobFinished(const TJobletPtr& joblet);
-    void OnJobLost(NChunkPools::IChunkPoolOutput::TCookie cookie, EAbortReason reason);
     void MarkCompetitionAsCompleted(const TJobletPtr& joblet);
     void BanCookie(NChunkPools::IChunkPoolOutput::TCookie cookie);
 
@@ -107,11 +113,13 @@ private:
     int MaxCompetitiveJobCount_ = -1;
 
     EJobCompetitionType CompetitionType_;
+    EAbortReason ResultLost_;
 
     //! Return value indicates whether an appropriate cookie must be returned to chunk pool.
     virtual bool OnUnsuccessfulJobFinish(
         const TJobletPtr& joblet,
-        const std::function<void(TProgressCounterGuard*)>& updateJobCounter) = 0;
+        const std::function<void(TProgressCounterGuard*)>& updateJobCounter,
+        const NJobTrackerClient::EJobState state) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

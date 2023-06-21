@@ -41,7 +41,7 @@ TReplicationCardId ReplicationCardIdFromReplicaId(TReplicaId replicaId)
 
 TReplicationCardId ReplicationCardIdFromUpstreamReplicaIdOrNull(TReplicaId upstreamReplicaId)
 {
-    return TypeFromId(upstreamReplicaId) == EObjectType::ChaosTableReplica
+    return IsChaosTableReplicaType(TypeFromId(upstreamReplicaId))
         ? ReplicationCardIdFromReplicaId(upstreamReplicaId)
         : TReplicationCardId();
 }
@@ -79,7 +79,7 @@ bool IsOrderedTabletReplicationProgress(const TReplicationProgress& progress)
         return false;
     }
 
-    return true; 
+    return true;
 }
 
 void ValidateOrderedTabletReplicationProgress(const TReplicationProgress& progress)

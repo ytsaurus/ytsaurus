@@ -161,7 +161,9 @@ void TFileChunkWriter::FlushBlock()
 
     BlocksExtSize_ += sizeof(TBlockInfo);
 
-    EncodingChunkWriter_->WriteBlock(TSharedRef::FromBlob(std::move(Buffer_)));
+    EncodingChunkWriter_->WriteBlock(
+        TSharedRef::FromBlob(std::move(Buffer_)),
+        EBlockType::UncompressedData);
 }
 
 TFuture<void> TFileChunkWriter::Close()

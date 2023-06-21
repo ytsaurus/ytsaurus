@@ -315,6 +315,12 @@ public:
         return layers;
     }
 
+    TFuture<void> GetVolumeReleaseEvent()
+    {
+        auto guard = Guard(SpinLock_);
+        return VolumesReleaseEvent_;
+    }
+
     void Disable(const TError& error)
     {
         // TODO(don-dron): Research and fix unconditional Disabled.
@@ -419,8 +425,11 @@ private:
     std::atomic<int> LayerImportsInProgress_ = 0;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+
     THashMap<TLayerId, TLayerMeta> Layers_;
     THashMap<TVolumeId, TVolumeMeta> Volumes_;
+
+    TPromise<void> VolumesReleaseEvent_ = MakePromise<void>(TError());
 
     mutable i64 AvailableSpace_ = 0;
     i64 UsedSpace_ = 0;
@@ -567,11 +576,11 @@ private:
             meta.Id = id;
             meta.Path = GetLayerPath(id);
 
-            UsedSpace_ += meta.size();
-
             {
                 auto guard = Guard(SpinLock_);
                 YT_VERIFY(Layers_.emplace(id, meta).second);
+
+                UsedSpace_ += meta.size();
             }
         }
     }
@@ -690,19 +699,25 @@ private:
 
         NFS::Rename(temporaryLayerMetaFileName, layerMetaFileName);
 
-        AvailableSpace_ -= layerMeta.size();
-        UsedSpace_ += layerMeta.size();
+        i64 usedSpace;
+        i64 availableSpace;
 
         {
             auto guard = Guard(SpinLock_);
             Layers_[layerMeta.Id] = layerMeta;
+
+            AvailableSpace_ -= layerMeta.size();
+            UsedSpace_ += layerMeta.size();
+
+            usedSpace = UsedSpace_;
+            availableSpace = AvailableSpace_;
         }
 
         YT_LOG_INFO("Finished layer import (LayerId: %v, LayerPath: %v, UsedSpace: %v, AvailableSpace: %v, Tag: %v)",
             layerMeta.Id,
             layerMeta.Path,
-            UsedSpace_,
-            AvailableSpace_,
+            usedSpace,
+            availableSpace,
             tag);
     }
 
@@ -813,6 +828,17 @@ private:
         auto layerPath = GetLayerPath(layerId);
         auto layerMetaPath = GetLayerMetaPath(layerId);
 
+        {
+            auto guard = Guard(SpinLock_);
+
+            if (!Layers_.contains(layerId)) {
+                YT_LOG_FATAL("Layer already removed (LayerId: %v, LayerPath: %v, IsSquashfs: %v)",
+                    layerId,
+                    layerPath,
+                    isSquashfsLayer);
+            }
+        }
+
         try {
             YT_LOG_INFO("Removing layer (LayerId: %v, LayerPath: %v, IsSquashfs: %v)",
                 layerId,
@@ -831,6 +857,15 @@ private:
             }
 
             NFS::Remove(layerMetaPath);
+
+            {
+                auto guard = Guard(SpinLock_);
+                i64 layerSize = Layers_[layerId].size();
+                YT_VERIFY(Layers_.erase(layerId));
+
+                UsedSpace_ -= layerSize;
+                AvailableSpace_ += layerSize;
+            }
         } catch (const std::exception& ex) {
             auto error = TError("Failed to remove layer %v",
                 layerId)
@@ -838,17 +873,6 @@ private:
             Disable(error);
             YT_ABORT();
         }
-
-        i64 layerSize = -1;
-
-        {
-            auto guard = Guard(SpinLock_);
-            layerSize = Layers_[layerId].size();
-            Layers_.erase(layerId);
-        }
-
-        UsedSpace_ -= layerSize;
-        AvailableSpace_ += layerSize;
     }
 
     TVolumeMeta DoCreateVolume(
@@ -941,6 +965,10 @@ private:
             {
                 auto guard = Guard(SpinLock_);
                 YT_VERIFY(Volumes_.emplace(id, volumeMeta).second);
+
+                if (VolumesReleaseEvent_.IsSet()) {
+                    VolumesReleaseEvent_ = NewPromise<void>();
+                }
             }
 
             return volumeMeta;
@@ -956,14 +984,20 @@ private:
     {
         ValidateEnabled();
 
-        {
-            auto guard = Guard(SpinLock_);
-            YT_VERIFY(Volumes_.contains(volumeId));
-        }
-
         auto volumePath = GetVolumePath(volumeId);
         auto mountPath = NFS::CombinePaths(volumePath, MountSuffix);
         auto volumeMetaPath = GetVolumeMetaPath(volumeId);
+
+        {
+            auto guard = Guard(SpinLock_);
+
+            if (!Volumes_.contains(volumeId)) {
+                YT_LOG_FATAL("Volume already removed (VolumeId: %v, VolumePath: %v, VolumeMetaPath: %v)",
+                    volumeId,
+                    volumePath,
+                    volumeMetaPath);
+            }
+        }
 
         try {
             YT_LOG_DEBUG("Removing volume (VolumeId: %v)",
@@ -985,7 +1019,11 @@ private:
 
             {
                 auto guard = Guard(SpinLock_);
-                YT_VERIFY(Volumes_.erase(volumeId) == 1);
+                YT_VERIFY(Volumes_.erase(volumeId));
+
+                if (Volumes_.size() == 0) {
+                    VolumesReleaseEvent_ = MakePromise(TError());
+                }
             }
         } catch (const std::exception& ex) {
             auto error = TError("Failed to remove volume %v", volumeId)
@@ -1550,6 +1588,9 @@ public:
             for (const auto& layerMeta : location->GetAllLayers()) {
                 TArtifactKey key;
                 key.MergeFrom(layerMeta.artifact_key());
+
+                YT_LOG_DEBUG("Loading existing cached porto layer (LayerId: %v)", layerMeta.Id);
+
                 auto layer = New<TLayer>(layerMeta, key, location);
                 auto cookie = BeginInsert(layer->GetKey());
                 if (cookie.IsActive()) {
@@ -1787,6 +1828,7 @@ private:
                     auto layerMeta = WaitFor(location->MountSquashfsLayer(artifactKey, artifactChunk->GetFileName(), tag))
                         .ValueOrThrow();
 
+                    YT_LOG_DEBUG("New squashfs porto layer initialized (LayerId: %v, Tag: %v)", layerMeta.Id, tag);
                     auto layer = New<TLayer>(layerMeta, artifactKey, location);
                     layer->SetUnderlyingArtifact(artifactChunk);
                     return layer;
@@ -1909,9 +1951,6 @@ public:
 
     ~TLayeredVolume() override
     {
-        YT_LOG_INFO("Destroying volume (VolumeId: %v)",
-            VolumeMeta_.Id);
-
         Remove();
     }
 
@@ -2042,6 +2081,17 @@ public:
             MemoryUsageTracker_,
             Bootstrap_);
         return LayerCache_->Initialize();
+    }
+
+    TFuture<void> GetVolumeReleaseEvent() override
+    {
+        std::vector<TFuture<void>> futures;
+        for (const auto& location : Locations_) {
+            futures.push_back(location->GetVolumeReleaseEvent());
+        }
+
+        return AllSet(std::move(futures))
+            .AsVoid();
     }
 
     TFuture<IVolumePtr> PrepareVolume(

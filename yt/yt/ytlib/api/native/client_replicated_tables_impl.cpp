@@ -217,13 +217,15 @@ std::vector<TTableReplicaId> TClient::GetChaosTableInSyncReplicas(
     auto evaluatedKeys = PermuteAndEvaluateKeys(tableInfo, nameTable, keys);
     std::vector<TTableReplicaId> replicaIds;
 
-    auto isTimestampInSync = [&] (const auto& replica, auto timestmap) {
-        if (auto item = replica.History.back(); IsReplicaReallySync(item.Mode, item.State) && timestmap >= item.Timestamp) {
+    auto isTimestampInSync = [&] (const auto& replica, auto timestamp) {
+        if (const auto& item = replica.History.back();
+            IsReplicaReallySync(item.Mode, item.State) && timestamp >= item.Timestamp)
+        {
             return true;
         }
         if (userTimestamp >= MinTimestamp &&
             userTimestamp <= MaxTimestamp &&
-            timestmap >= userTimestamp)
+            timestamp >= userTimestamp)
         {
             return true;
         }
@@ -232,14 +234,14 @@ std::vector<TTableReplicaId> TClient::GetChaosTableInSyncReplicas(
 
     auto isReplicaInSync = [&] (const auto& replica) {
         if (allKeys) {
-            auto timestmap = GetReplicationProgressMinTimestamp(replica.ReplicationProgress);
-            if (!isTimestampInSync(replica, timestmap)) {
+            auto timestamp = GetReplicationProgressMinTimestamp(replica.ReplicationProgress);
+            if (!isTimestampInSync(replica, timestamp)) {
                 return false;
             }
         } else {
             for (auto key : evaluatedKeys) {
-                auto timestmap = GetReplicationProgressTimestampForKeyOrThrow(replica.ReplicationProgress, key);
-                if (!isTimestampInSync(replica, timestmap)) {
+                auto timestamp = GetReplicationProgressTimestampForKeyOrThrow(replica.ReplicationProgress, key);
+                if (!isTimestampInSync(replica, timestamp)) {
                     return false;
                 }
             }

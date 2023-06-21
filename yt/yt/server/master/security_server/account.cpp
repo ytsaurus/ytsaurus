@@ -136,6 +136,84 @@ TAccountMulticellStatistics SubtractAccountMulticellStatistics(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TChunkMergerCriteria::AssignNotNull(const TChunkMergerCriteria& rhs) {
+#define XX(type, camelCaseName, snakeCaseName) \
+    if (rhs.camelCaseName) { \
+        camelCaseName = rhs.camelCaseName; \
+    }
+
+    FOR_EACH_CHUNK_MERGER_CRITERIA_FIELD(XX)
+#undef XX
+}
+
+bool TChunkMergerCriteria::IsEmpty() const {
+#define XX(type, camelCaseName, snakeCaseName) camelCaseName ||
+    return !(FOR_EACH_CHUNK_MERGER_CRITERIA_FIELD(XX) false);
+#undef XX
+}
+
+void TChunkMergerCriteria::Validate() const {
+    if (MaxChunkCount && MaxChunkCount <= 1) {
+        THROW_ERROR_EXCEPTION("Invalid chunk merger criteria: expected max_chunk_count > 1, found %v",
+            *MaxChunkCount);
+    }
+
+#define XX(type, camelCaseName, snakeCaseName) \
+    if (camelCaseName && camelCaseName <= 0) { \
+        THROW_ERROR_EXCEPTION("Invalid chunk merger criteria: " #snakeCaseName " must be positive, found %v", \
+            *camelCaseName); \
+    }
+
+    FOR_EACH_CHUNK_MERGER_CRITERIA_FIELD(XX)
+#undef XX
+}
+
+void TChunkMergerCriteria::Save(NCellMaster::TSaveContext& context) const
+{
+    using NYT::Save;
+#define XX(type, camelCaseName, snakeCaseName) Save(context, camelCaseName);
+    FOR_EACH_CHUNK_MERGER_CRITERIA_FIELD(XX)
+#undef XX
+}
+
+void TChunkMergerCriteria::Load(NCellMaster::TLoadContext& context)
+{
+    using NYT::Load;
+#define XX(type, camelCaseName, snakeCaseName) Load(context, camelCaseName);
+    FOR_EACH_CHUNK_MERGER_CRITERIA_FIELD(XX)
+#undef XX
+}
+
+void Serialize(const TChunkMergerCriteria& criteria, NYson::IYsonConsumer* consumer)
+{
+#define XX(type, camelCaseName, snakeCaseName) \
+    .DoIf(criteria.camelCaseName.has_value(), [&] (TFluentMap fluent) { \
+        fluent.Item(#snakeCaseName).Value(criteria.camelCaseName); \
+    })
+
+    BuildYsonFluently(consumer).BeginMap()
+    FOR_EACH_CHUNK_MERGER_CRITERIA_FIELD(XX)
+    .EndMap();
+#undef XX
+}
+
+void Deserialize(TChunkMergerCriteria& criteria, NYTree::INodePtr node)
+{
+    TChunkMergerCriteria result;
+
+    auto map = node->AsMap();
+
+#define XX(type, camelCaseName, snakeCaseName) \
+    result.camelCaseName = map->FindChildValue<type>(#snakeCaseName);
+
+    FOR_EACH_CHUNK_MERGER_CRITERIA_FIELD(XX)
+#undef XX
+
+    criteria = std::move(result);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TAccount::TAccount(TAccountId id, bool isRoot)
     : TNonversionedMapObjectBase<TAccount>(id, isRoot)
     , MergeJobThrottler_(CreateReconfigurableThroughputThrottler(TThroughputThrottlerConfig::Create(0)))
@@ -180,6 +258,7 @@ void TAccount::Save(NCellMaster::TSaveContext& context) const
     Save(context, FolderId_);
     Save(context, ChunkMergerNodeTraversalConcurrency_);
     Save(context, AllowUsingChunkMerger_);
+    Save(context, ChunkMergerCriteria_);
 }
 
 void TAccount::Load(NCellMaster::TLoadContext& context)
@@ -212,6 +291,10 @@ void TAccount::Load(NCellMaster::TLoadContext& context)
 
     if (context.GetVersion() >= EMasterReign::AllowSettingChunkMergerMode) {
         Load(context, AllowUsingChunkMerger_);
+    }
+
+    if (context.GetVersion() >= EMasterReign::SupportAccountChunkMergerCriteria) {
+        Load(context, ChunkMergerCriteria_);
     }
 
     MergeJobThrottler_->SetLimit(MergeJobRateLimit_);

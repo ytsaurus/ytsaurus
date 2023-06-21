@@ -1915,6 +1915,10 @@ INSTANTIATE_TEST_SUITE_P(
             "numeric_to_string(double)",
             MakeString("0.")),
         std::tuple<const char*, const char*, TUnversionedValue>(
+            "int64=#",
+            "numeric_to_string(int64)",
+            MakeNull()),
+        std::tuple<const char*, const char*, TUnversionedValue>(
             "string=\"1\"",
             "parse_int64(string)",
             MakeInt64(1)),

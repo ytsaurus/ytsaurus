@@ -181,6 +181,7 @@ private:
 
     // Reused between ModifyRow calls.
     std::vector<ui32> WriteRevisions_;
+    i64 LatestRevisionMutationSequenceNumber_ = 0;
 
     i64 MaxDataWeight_ = 0;
     TSortedDynamicRow MaxDataWeightWitness_;

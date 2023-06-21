@@ -148,11 +148,13 @@ class TTwoLevelFairShareQueue
 public:
     TTwoLevelFairShareQueue(
         TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
-        const TString& threadNamePrefix)
+        const TString& threadNamePrefix,
+        IPoolWeightProviderPtr poolWeightProvider)
         : CallbackEventCount_(std::move(callbackEventCount))
         , ThreadNamePrefix_(threadNamePrefix)
         , Profiler_(TProfiler("/fair_share_queue")
             .WithHot())
+        , PoolWeightProvider_(std::move(poolWeightProvider))
     { }
 
     ~TTwoLevelFairShareQueue()
@@ -165,7 +167,7 @@ public:
         ThreadCount_.store(threadCount);
     }
 
-    IInvokerPtr GetInvoker(const TString& poolName, double weight, const TFairShareThreadPoolTag& tag)
+    IInvokerPtr GetInvoker(const TString& poolName, const TFairShareThreadPoolTag& tag)
     {
         while (true) {
             auto guard = Guard(SpinLock_);
@@ -185,7 +187,9 @@ public:
 
             auto poolId = poolIt->second;
             const auto& pool = IdToPool_[poolId];
-            pool->Weight = weight;
+            if (PoolWeightProvider_) {
+                pool->Weight = PoolWeightProvider_->GetWeight(poolName);
+            }
 
             TBucketPtr bucket;
             auto bucketIt = pool->TagToBucket.find(tag);
@@ -428,6 +432,7 @@ private:
     const TIntrusivePtr<NThreading::TEventCount> CallbackEventCount_;
     const TString ThreadNamePrefix_;
     const TProfiler Profiler_;
+    const IPoolWeightProviderPtr PoolWeightProvider_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     std::vector<std::unique_ptr<TExecutionPool>> IdToPool_;
@@ -616,11 +621,13 @@ class TTwoLevelFairShareThreadPool
 public:
     TTwoLevelFairShareThreadPool(
         int threadCount,
-        const TString& threadNamePrefix)
+        const TString& threadNamePrefix,
+        IPoolWeightProviderPtr poolWeightProvider)
         : TThreadPoolBase(threadNamePrefix)
         , Queue_(New<TTwoLevelFairShareQueue>(
             CallbackEventCount_,
-            ThreadNamePrefix_))
+            ThreadNamePrefix_,
+            std::move(poolWeightProvider)))
     {
         Configure(threadCount);
         EnsureStarted();
@@ -643,11 +650,10 @@ public:
 
     IInvokerPtr GetInvoker(
         const TString& poolName,
-        double weight,
         const TFairShareThreadPoolTag& tag) override
     {
         EnsureStarted();
-        return Queue_->GetInvoker(poolName, weight, tag);
+        return Queue_->GetInvoker(poolName, tag);
     }
 
     void Shutdown() override
@@ -697,11 +703,13 @@ private:
 
 ITwoLevelFairShareThreadPoolPtr CreateTwoLevelFairShareThreadPool(
     int threadCount,
-    const TString& threadNamePrefix)
+    const TString& threadNamePrefix,
+    IPoolWeightProviderPtr poolWeightProvider)
 {
     return New<TTwoLevelFairShareThreadPool>(
         threadCount,
-        threadNamePrefix);
+        threadNamePrefix,
+        std::move(poolWeightProvider));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

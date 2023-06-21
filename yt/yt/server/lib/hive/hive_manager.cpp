@@ -58,7 +58,7 @@ static constexpr auto ReadOnlyCheckPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NConcurrency::TFlsSlot<TCellId> HiveMutationSenderId;
+static NConcurrency::TFls<TCellId> HiveMutationSenderId;
 
 bool IsHiveMutation()
 {
@@ -659,7 +659,7 @@ private:
             message->Type,
             SelfCellId_);
 
-        auto* traceContext = NTracing::TryGetCurrentTraceContext();
+        auto traceContext = NTracing::GetCurrentTraceContext();
 
         auto* mutationContext = TryGetCurrentMutationContext();
 
@@ -708,7 +708,7 @@ private:
             message->Type,
             SelfCellId_);
 
-        auto* traceContext = NTracing::TryGetCurrentTraceContext();
+        auto traceContext = NTracing::GetCurrentTraceContext();
 
         for (auto* mailbox : mailboxes) {
             if (!mailbox->GetConnected()) {
@@ -1566,7 +1566,7 @@ private:
     // since no commits are possible before this point.
     void OnLeaderActive() override
     {
-        TCompositeAutomatonPart::OnLeaderRecoveryComplete();
+        TCompositeAutomatonPart::OnLeaderActive();
         ReconnectMailboxes();
         PrepareLeaderMailboxes();
     }

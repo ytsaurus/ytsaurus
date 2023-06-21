@@ -220,10 +220,33 @@ class YtClient(ClientState):
             member, group,
             client=self)
 
+    def advance_consumer(
+            self,
+            consumer_path, queue_path, partition_index, old_offset, new_offset):
+        """
+        Advances consumer offset for the given queue.
+        If the old offset is specified, the command fails if it is not equal to the current stored offset.
+
+        :param consumer_path: path to consumer table.
+        :type consumer_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param queue_path: path to queue table.
+        :type queue_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param partition_index: tablet index
+        :type partition_index: int
+        :param old_offset: expected current offset
+        :type old_offset: None or int
+        :param new_offset: new offset to set
+        :type new_offset: int
+
+        """
+        return client_api.advance_consumer(
+            consumer_path, queue_path, partition_index, old_offset, new_offset,
+            client=self)
+
     def alter_table(
             self,
             path,
-            schema=None, dynamic=None, upstream_replica_id=None):
+            schema=None, schema_id=None, dynamic=None, upstream_replica_id=None):
         """
         Performs schema and other table meta information modifications.
         Applicable to static and dynamic tables.
@@ -231,6 +254,7 @@ class YtClient(ClientState):
         :param path: path to table
         :type path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
         :param schema: new schema to set on table
+        :param schema_id: new schema_id to set on table
         :param bool dynamic: dynamic
         :param str upstream_replica_id: upstream_replica_id
 
@@ -238,7 +262,7 @@ class YtClient(ClientState):
         return client_api.alter_table(
             path,
             client=self,
-            schema=schema, dynamic=dynamic, upstream_replica_id=upstream_replica_id)
+            schema=schema, schema_id=schema_id, dynamic=dynamic, upstream_replica_id=upstream_replica_id)
 
     def alter_table_replica(
             self,
@@ -1227,7 +1251,7 @@ class YtClient(ClientState):
             self,
             queue_path=None, consumer_path=None, format=None):
         """
-        List queue consumer registrations.
+        Lists queue consumer registrations.
 
         :param queue_path: path to queue table.
         :type queue_path: None or str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
@@ -1409,6 +1433,58 @@ class YtClient(ClientState):
             client=self,
             timeout=timeout, retry_config=retry_config)
 
+    def pull_consumer(
+            self,
+            consumer_path, queue_path, offset, partition_index,
+            max_row_count=None, max_data_weight=None, format=None, raw=None):
+        """
+        Reads rows from a single partition of a queue (i.e. any ordered dynamic table) with authorization via consumer.
+        Returns at most max_row_count consecutive rows of a single tablet with row indexes larger than the given offset.
+
+        :param consumer_path: path to consumer table.
+        :type consumer_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param queue_path: path to queue table.
+        :type queue_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param offset: starting row index.
+        :type offset: int
+        :param partition_index: index of tablet to read from.
+        :type partition_index: int
+        :param max_row_count: maximum number of rows to read.
+        :type max_row_count: int
+        :param max_data_weight: a hint for the maximum data weight of the returned batch in bytes.
+        :type max_data_weight: int
+
+        """
+        return client_api.pull_consumer(
+            consumer_path, queue_path, offset, partition_index,
+            client=self,
+            max_row_count=max_row_count, max_data_weight=max_data_weight, format=format, raw=raw)
+
+    def pull_queue(
+            self,
+            queue_path, offset, partition_index,
+            max_row_count=None, max_data_weight=None, format=None, raw=None):
+        """
+        Reads rows from a single partition of a queue (i.e. any ordered dynamic table).
+        Returns at most max_row_count consecutive rows of a single tablet with row indexes larger than the given offset.
+
+        :param queue_path: path to queue table.
+        :type queue_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param offset: starting row index.
+        :type offset: int
+        :param partition_index: index of tablet to read from.
+        :type partition_index: int
+        :param max_row_count: maximum number of rows to read.
+        :type max_row_count: int
+        :param max_data_weight: a hint for the maximum data weight of the returned batch in bytes.
+        :type max_data_weight: int
+
+        """
+        return client_api.pull_queue(
+            queue_path, offset, partition_index,
+            client=self,
+            max_row_count=max_row_count, max_data_weight=max_data_weight, format=format, raw=raw)
+
     def put_file_to_cache(
             self,
             path, md5,
@@ -1530,9 +1606,10 @@ class YtClient(ClientState):
 
     def register_queue_consumer(
             self,
-            queue_path, consumer_path, vital):
+            queue_path, consumer_path, vital,
+            partitions=None):
         """
-        Register queue consumer.
+        Registers queue consumer.
 
         :param queue_path: path to queue table.
         :type queue_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
@@ -1543,7 +1620,8 @@ class YtClient(ClientState):
         """
         return client_api.register_queue_consumer(
             queue_path, consumer_path, vital,
-            client=self)
+            client=self,
+            partitions=partitions)
 
     def remount_table(
             self,
@@ -2469,7 +2547,7 @@ class YtClient(ClientState):
             self,
             queue_path, consumer_path):
         """
-        Unregister queue consumer.
+        Unregisters queue consumer.
 
         :param queue_path: path to queue table.
         :type queue_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`

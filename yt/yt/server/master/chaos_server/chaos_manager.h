@@ -16,6 +16,10 @@ struct IChaosManager
     virtual void Initialize() = 0;
 
     virtual const TAlienClusterRegistryPtr& GetAlienClusterRegistry() const = 0;
+    virtual TChaosCell* GetBundleMetadataCell(const TChaosCellBundle* cellBundle) const = 0;
+    virtual void SetBundleMetadataCells(
+        TChaosCellBundle* cellBundle,
+        const std::vector<TChaosCellId>& metadataCellIds) const = 0;
 
     virtual TChaosCell* FindChaosCellById(TChaosCellId cellId) const = 0;
     virtual TChaosCell* GetChaosCellByIdOrThrow(TChaosCellId cellId) const = 0;

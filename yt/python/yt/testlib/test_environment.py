@@ -167,6 +167,7 @@ class YtTestEnvironment(object):
             rpc_proxy_count=1,
             fqdn="localhost",
             allow_chunk_storage_in_tmpfs=True,
+            store_location_count=1,
             enable_log_compression=True,
             log_compression_method="zstd",
             cluster_name=cluster_name,

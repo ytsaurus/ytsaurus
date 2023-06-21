@@ -19,11 +19,12 @@ from yt_commands import (
     align_chaos_cell_tag, migrate_replication_cards, alter_replication_card,
     get_in_sync_replicas, generate_timestamp, MaxTimestamp, raises_yt_error,
     create_table_replica, sync_enable_table_replica, get_tablet_infos, ban_node,
-    suspend_chaos_cells, resume_chaos_cells, merge)
+    suspend_chaos_cells, resume_chaos_cells, merge, add_maintenance, remove_maintenance,
+    sync_freeze_table)
 
 from yt_type_helpers import make_schema
 
-from yt.environment.helpers import assert_items_equal
+from yt.environment.helpers import assert_items_equal, are_items_equal
 from yt.common import YtError
 
 import yt.yson as yson
@@ -829,9 +830,9 @@ class TestChaos(ChaosTestBase):
 
         wait(lambda: get("#{0}/@era".format(card_id)) == 1)
 
+        assert get("//tmp/crt/@era") == get("#{0}/@era".format(card_id))
+        wait(lambda: get("//tmp/crt/@coordinator_cell_ids") == get("#{0}/@coordinator_cell_ids".format(card_id)))
         card = get("#{0}/@".format(card_id))
-        assert get("//tmp/crt/@era") == card["era"]
-        assert get("//tmp/crt/@coordinator_cell_ids") == card["coordinator_cell_ids"]
 
         crt_replicas = get("//tmp/crt/@replicas")
         assert len(crt_replicas) == 2
@@ -1023,7 +1024,7 @@ class TestChaos(ChaosTestBase):
 
         assert not exists("//sys/chaos_cell_bundles/c1/@metadata_cell_id")
 
-        with pytest.raises(YtError, match="No cell with id .* is known"):
+        with pytest.raises(YtError, match="No chaos cell with id .* is known"):
             set("//sys/chaos_cell_bundles/c1/@metadata_cell_id", "1-2-3-4")
 
         cell_id1 = self._sync_create_chaos_cell(name="c1")
@@ -1038,7 +1039,7 @@ class TestChaos(ChaosTestBase):
         assert not exists("//sys/chaos_cell_bundles/c1/@metadata_cell_id")
 
         cell_id3 = self._sync_create_chaos_cell(name="c2")
-        with pytest.raises(YtError, match="Cell .* belongs to a different bundle .*"):
+        with pytest.raises(YtError, match="Cell .* belongs to a different bundle"):
             set("//sys/chaos_cell_bundles/c1/@metadata_cell_id", cell_id3)
 
     @authors("babenko")
@@ -1236,7 +1237,7 @@ class TestChaos(ChaosTestBase):
         card_id = get("//tmp/crt/@replication_card_id")
         self._sync_replication_era(card_id, replicas)
 
-        def _filter_rows(rows, schema, dump=False):
+        def _filter_rows(rows, schema):
             columns = builtins.set([c["name"] for c in schema])
             for row in rows:
                 row_columns = list(row.keys())
@@ -1254,7 +1255,7 @@ class TestChaos(ChaosTestBase):
         def _check_read_replica(values_row, replica_path, remote_driver, schema):
             values = _filter_rows([values_row], schema)
             keys = [{"key": values_row["key"]}]
-            wait(lambda: _filter_rows(lookup_rows(replica_path, keys, driver=remote_driver), schema, True) == values)
+            wait(lambda: _filter_rows(lookup_rows(replica_path, keys, driver=remote_driver), schema) == values)
 
         # check data written and can be read
         values0 = {"key": 0, "value": "0", "value2": "10"}
@@ -1281,7 +1282,7 @@ class TestChaos(ChaosTestBase):
         for i, r in enumerate(new_replicas):
             if r["content_type"] == "data":
                 continue
-            new_replica_ids[i] = self._create_chaos_table_replicas([new_replicas[i]], table_path="//tmp/crt")[0]
+            new_replica_ids[i] = self._create_chaos_table_replica(new_replicas[i], table_path="//tmp/crt")
             self._create_replica_tables([new_replicas[i]], [new_replica_ids[i]], schema=new_schema)
             _validate_schema(new_schema, "//tmp/q.new", get_driver(cluster=r["cluster_name"]))
 
@@ -1330,8 +1331,13 @@ class TestChaos(ChaosTestBase):
                 driver=driver
             )
             replication_progress = get("//tmp/t/@replication_progress", driver=driver)
-            alter_table("//tmp/t.new", dynamic=True, upstream_replica_id=new_replica_ids[data_replica_index], driver=driver)
-            alter_table("//tmp/t.new", replication_progress=replication_progress, driver=driver)
+            alter_table(
+                "//tmp/t.new",
+                dynamic=True,
+                upstream_replica_id=new_replica_ids[data_replica_index],
+                replication_progress=replication_progress,
+                driver=driver
+            )
             sync_mount_table("//tmp/t.new", driver=driver)
 
             # remove old replicas and tables
@@ -1463,6 +1469,152 @@ class TestChaos(ChaosTestBase):
 
         assert str(row[0]["value"][0]) == "0"
         assert row[0].attributes["write_timestamps"][0] == ts
+
+    @authors("ponasenko-rs")
+    def test_migrate_replicated_table_to_chaos_replicated_table(self):
+        schema = yson.YsonList([
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ])
+
+        def _create_replica_with_table(path, cluster_name, mode, table):
+            replica_id = create_table_replica(
+                table,
+                cluster_name,
+                path,
+                attributes={"mode": mode}
+            )
+
+            replica_driver = get_driver(cluster=cluster_name)
+            create("table", path, driver=replica_driver, attributes={
+                "schema": schema,
+                "dynamic": True,
+                "upstream_replica_id": replica_id
+            })
+            sync_mount_table(path, driver=replica_driver)
+
+            sync_enable_table_replica(replica_id)
+            return replica_id
+
+        _keys = [{"key": i} for i in range(15)]
+        _values = [{"key": key["key"], "value": ""} for key in _keys]
+
+        def _checked_insert_values(path, iteration):
+            def gen_values(iteration):
+                assert iteration < len(_keys)
+                return [
+                    {"key": _keys[i]["key"], "value": str(_keys[i]["key"] * iteration)}
+                    for i in range(0, len(_keys), iteration)
+                ]
+
+            def update_values(values, new_values):
+                for new_value in new_values:
+                    for value in values:
+                        if value["key"] == new_value["key"]:
+                            value["value"] = new_value["value"]
+
+            def _check(keys, values):
+                for replica in replicas:
+                    driver = get_driver(cluster=replica["cluster_name"])
+                    path = replica["replica_path"]
+                    if replica["mode"] == "sync":
+                        assert lookup_rows(path, keys, driver=driver) == values
+                    else:
+                        wait(lambda: lookup_rows(path, keys, driver=driver) == values)
+
+            new_values = gen_values(iteration=iteration)
+            update_values(_values, new_values)
+            insert_rows(path, new_values)
+            assert lookup_rows(path, _keys) == _values
+            _check(_keys, _values)
+
+        def _in_sync(path, replica_ids):
+            timestamp = generate_timestamp()
+
+            def _checkable():
+                return are_items_equal(
+                    get_in_sync_replicas(path, [], all_keys=True, timestamp=timestamp),
+                    replica_ids
+                )
+            return _checkable
+
+        def _switch(from_replica_ids, to_replica_ids):
+            for replica_id in from_replica_ids:
+                alter_table_replica(replica_id, enabled=False)
+
+            for i, replica_id in enumerate(to_replica_ids):
+                replica = replicas[i]
+                path = replica["replica_path"]
+                driver = get_driver(cluster=replica["cluster_name"])
+                sync_unmount_table(path, driver=driver)
+                alter_table(
+                    path,
+                    upstream_replica_id=replica_id,
+                    driver=driver
+                )
+                sync_mount_table(path, driver=driver)
+                alter_table_replica(replica_id, enabled=True)
+
+        # Setup environment.
+        for driver in self._get_drivers():
+            sync_create_cells(1, driver=driver)
+
+        cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
+        set("//sys/chaos_cell_bundles/chaos_bundle/@metadata_cell_id", cell_id)
+
+        # Replicated table initialization.
+        create("replicated_table", "//tmp/rt", attributes={"schema": schema, "dynamic": True})
+
+        sync_mount_table("//tmp/rt")
+        replicas = [
+            {"cluster_name": "remote_0", "content_type": "data", "mode": "async", "enabled": False, "replica_path": "//tmp/r0"},
+            {"cluster_name": "remote_1", "content_type": "data", "mode": "sync", "enabled": False, "replica_path": "//tmp/r1"},
+        ]
+
+        rt_replica_ids = [
+            _create_replica_with_table(
+                replica["replica_path"],
+                replica["cluster_name"],
+                replica["mode"],
+                "//tmp/rt"
+            )
+            for replica in replicas
+        ]
+
+        _checked_insert_values("//tmp/rt", 1)
+
+        # Chaos intialization.
+        create("chaos_replicated_table", "//tmp/crt", attributes={"chaos_cell_bundle": "chaos_bundle", "schema": schema})
+        card_id = get("//tmp/crt/@replication_card_id")
+
+        queues = [
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/q0"},
+            {"cluster_name": "remote_1", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q1"},
+        ]
+        crt_replica_ids = self._create_chaos_table_replicas(replicas, table_path="//tmp/crt")
+        queues_replica_ids = self._create_chaos_table_replicas(queues, table_path="//tmp/crt")
+        self._create_replica_tables(queues, queues_replica_ids, schema=schema)
+
+        # Switch to chaos.
+        _checked_insert_values("//tmp/rt", 2)
+        sync_freeze_table("//tmp/rt")
+        wait(_in_sync("//tmp/rt", rt_replica_ids))
+        sync_unmount_table("//tmp/rt")
+
+        _switch(rt_replica_ids, crt_replica_ids)
+
+        self._sync_replication_era(card_id, replicas)
+        wait(_in_sync("//tmp/crt", crt_replica_ids))
+
+        _checked_insert_values("//tmp/crt", 3)
+
+        # Switch back.
+        sync_mount_table("//tmp/rt")
+        _switch(crt_replica_ids, rt_replica_ids)
+        wait(_in_sync("//tmp/rt", rt_replica_ids))
+
+        _checked_insert_values("//tmp/rt", 4)
+        wait(_in_sync("//tmp/rt", rt_replica_ids))
 
     @authors("savrus")
     @pytest.mark.parametrize("disable_data", [True, False])
@@ -1665,14 +1817,15 @@ class TestChaos(ChaosTestBase):
 
     @authors("savrus")
     @pytest.mark.parametrize("mode", ["sync", "async"])
-    def test_new_replica_with_progress(self, mode):
+    @pytest.mark.parametrize("method", ["replica", "table"])
+    def test_new_replica_with_progress(self, mode, method):
         cell_id = self._sync_create_chaos_bundle_and_cell()
         drivers = self._get_drivers()
 
         replicas = [
             {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": False, "replica_path": "//tmp/t"},
             {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
-            {"cluster_name": "remote_1", "content_type": "data", "mode": mode, "enabled": True, "replica_path": "//tmp/r"},
+            {"cluster_name": "remote_0", "content_type": "data", "mode": mode, "enabled": True, "replica_path": "//tmp/r"},
         ]
         card_id, replica_ids = self._create_chaos_tables(cell_id, replicas[:2])
 
@@ -1689,8 +1842,28 @@ class TestChaos(ChaosTestBase):
         }
         print_debug("Creating new replica with progress:", replication_progress)
 
-        replica_ids.append(self._create_chaos_table_replica(replicas[2], replication_card_id=card_id, replication_progress=replication_progress))
-        self._create_replica_tables(replicas[2:], replica_ids[2:])
+        if method == "replica":
+            # set replication progress in replica creation
+            replica_ids.append(self._create_chaos_table_replica(
+                replicas[2],
+                replication_card_id=card_id,
+                replication_progress=replication_progress
+            ))
+            self._create_replica_tables(replicas[2:], replica_ids[2:])
+        else:
+            # set replication progress in table creation
+            replica_ids.append(self._create_chaos_table_replica(replicas[2], replication_card_id=card_id))
+
+            self._create_sorted_table(
+                "//tmp/r",
+                dynamic=True,
+                upstream_replica_id=replica_ids[2],
+                replication_progress=replication_progress,
+                driver=drivers[1]
+            )
+
+            sync_mount_table("//tmp/r", driver=drivers[1])
+
         if mode == "sync":
             self._sync_replication_era(card_id, replicas)
 
@@ -1701,9 +1874,9 @@ class TestChaos(ChaosTestBase):
         wait(lambda: select_rows("* from [//tmp/t]") == values0 + values1)
 
         if mode == "sync":
-            assert select_rows("* from [//tmp/r]", driver=drivers[2]) == values1
+            assert select_rows("* from [//tmp/r]", driver=drivers[1]) == values1
         else:
-            wait(lambda: select_rows("* from [//tmp/r]", driver=drivers[2]) == values1)
+            wait(lambda: select_rows("* from [//tmp/r]", driver=drivers[1]) == values1)
 
     @authors("savrus")
     def test_coordinator_suspension(self):
@@ -1993,12 +2166,23 @@ class TestChaos(ChaosTestBase):
         wait(lambda: len(ls("//sys/chaos_cells/{}/2/snapshots".format(cell_id), driver=remote_driver1)) != 0)
 
         assert get("//sys/chaos_cells/{}/@health".format(cell_id)) == "good"
+
+        def get_alive_non_alien_peer_count():
+            peers = get("//sys/chaos_cells/{}/@peers".format(cell_id), driver=remote_driver1)
+            return len([peer for peer in peers if not peer.get("alien", False) and peer["state"] != "none"])
+
+        chaos_nodes = ls("//sys/chaos_nodes", driver=remote_driver1)
+        assert len(chaos_nodes) == 1
+        maintenance_id = add_maintenance("cluster_node", chaos_nodes[0], "ban", comment="", driver=remote_driver1)
+
         set("//sys/chaos_cell_bundles/chaos_bundle/@node_tag_filter", "empty_set_of_nodes", driver=remote_driver1)
         wait(lambda: get("//sys/chaos_cells/{}/@local_health".format(cell_id), driver=remote_driver1) != "good")
+        wait(lambda: get_alive_non_alien_peer_count() == 0)
 
         remove("//sys/chaos_cells/{}/2/snapshots/*".format(cell_id), driver=remote_driver1)
 
         set("//sys/chaos_cell_bundles/chaos_bundle/@node_tag_filter", "", driver=remote_driver1)
+        remove_maintenance("cluster_node", chaos_nodes[0], id=maintenance_id, driver=remote_driver1)
         wait(lambda: get("//sys/chaos_cells/{}/@local_health".format(cell_id), driver=remote_driver1) == "good")
         wait(lambda: get("//sys/chaos_cells/{}/@health".format(cell_id)) == "good")
         assert len(ls("//sys/chaos_cells/{}/2/snapshots".format(cell_id), driver=remote_driver1)) != 0
@@ -2492,24 +2676,7 @@ class TestChaos(ChaosTestBase):
             with raises_yt_error("Trying to move incomplete collocation"):
                 migrate_replication_cards(cell_id, [card1], destination_cell_id=dst_cell_id)
 
-            def _sync_migrate_replication_cards(cell_id, card_ids, destination_cell_id):
-                migrate_replication_cards(cell_id, card_ids, destination_cell_id=destination_cell_id)
-
-                def _get_orchid_path(cell_id):
-                    address = get("#{0}/@peers/0/address".format(cell_id))
-                    return "//sys/cluster_nodes/{0}/orchid/chaos_cells/{1}".format(address, cell_id)
-
-                cell_orchid_path = _get_orchid_path(cell_id)
-                dst_orchid_path = _get_orchid_path(destination_cell_id)
-
-                for card_id in card_ids:
-                    migration_path = "{0}/chaos_manager/replication_cards/{1}/state".format(cell_orchid_path, card_id)
-                    wait(lambda: get(migration_path) == "migrated")
-
-                    migrated_card_path = "{0}/chaos_manager/replication_cards/{1}".format(dst_orchid_path, card_id)
-                    wait(lambda: exists(migrated_card_path))
-
-            _sync_migrate_replication_cards(cell_id, [card1, card2], destination_cell_id=dst_cell_id)
+            self._sync_migrate_replication_cards(cell_id, [card1, card2], dst_cell_id)
 
             self._sync_replication_era(card1, replicas1)
             self._sync_replication_era(card2, replicas2)
@@ -2778,6 +2945,48 @@ class TestChaos(ChaosTestBase):
             insert_rows(table, new_values)
             for tablet_index in range(tablet_count):
                 _check(tablet_index, values[tablet_index])
+
+    @authors("ponasenko-rs")
+    @pytest.mark.parametrize("mode", ["data/ordered", "ordered/replication_log"])
+    def test_content_type_incompatibility(self, mode):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        content_type = "queue" if mode == "ordered/replication_log" else "data"
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": content_type, "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, create_replica_tables=False, sync_replication_era=False)
+        _, remote_driver0, remote_driver1 = self._get_drivers()
+
+        if mode == "ordered/replication_log":
+            self._create_replica_tables(replicas[:1], replica_ids[:1], ordered=True)
+            self._create_replica_tables(replicas[1:], replica_ids[1:])
+        else:
+            self._create_replica_tables(replicas[:1], replica_ids[:1])
+            self._create_replica_tables(replicas[1:], replica_ids[1:], ordered=True)
+
+        self._sync_replication_era(card_id, replicas)
+
+        def _values():
+            if mode == "ordered/replication_log":
+                return [{"key": 0, "value": "0"}]
+            else:
+                return [{"key": 0, "value": "0", "$tablet_index": 0}]
+
+        insert_rows("//tmp/q", _values())
+
+        def _check():
+            tablet_infos = get_tablet_infos("//tmp/t", [0], request_errors=True)
+            errors = tablet_infos["tablets"][0]["tablet_errors"]
+            if len(errors) == 0 or errors[0]["attributes"]["background_activity"] != "pull":
+                return False
+            message = errors[0]["message"]
+            if message.startswith("Table schemas are incompatible"):
+                return True
+            return False
+        wait(_check)
 
     @authors("savrus")
     @pytest.mark.parametrize("schemas", [
@@ -3116,6 +3325,7 @@ class TestChaosMulticell(TestChaos):
 
 class TestChaosMetaCluster(ChaosTestBase):
     NUM_REMOTE_CLUSTERS = 3
+    NUM_CHAOS_NODES = 2
 
     def _create_dedicated_areas_and_cells(self, name="c"):
         align_chaos_cell_tag()
@@ -3170,6 +3380,57 @@ class TestChaosMetaCluster(ChaosTestBase):
         assert card["id"] == card_id
         assert len(card["replicas"]) == 3
 
+    @authors("ponasenko-rs")
+    def test_metadata_cell_ids_rotate(self):
+        [alpha_cell, beta_cell] = self._create_dedicated_areas_and_cells()
+        remote_driver2 = get_driver(cluster="remote_2")
+
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", alpha_cell)
+        assert get("//sys/chaos_cell_bundles/c/@metadata_cell_id") == alpha_cell
+        assert get("//sys/chaos_cell_bundles/c/@metadata_cell_ids") == [alpha_cell]
+
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_ids", [beta_cell, alpha_cell])
+        assert get("//sys/chaos_cell_bundles/c/@metadata_cell_id") == beta_cell
+        assert get("//sys/chaos_cell_bundles/c/@metadata_cell_ids") == [beta_cell, alpha_cell]
+
+        set("//sys/@config/chaos_manager/enable_metadata_cells", False, driver=remote_driver2)
+        wait(lambda: get("//sys/chaos_cell_bundles/c/@metadata_cell_id") == alpha_cell)
+        assert get("//sys/chaos_cell_bundles/c/@metadata_cell_ids") == [beta_cell, alpha_cell]
+
+        set("//sys/@config/chaos_manager/enable_metadata_cells", True, driver=remote_driver2)
+        wait(lambda: get("//sys/chaos_cell_bundles/c/@metadata_cell_id") == beta_cell)
+        assert get("//sys/chaos_cell_bundles/c/@metadata_cell_ids") == [beta_cell, alpha_cell]
+
+    @authors("ponasenko-rs")
+    def test_metadata_cell_ids_use(self):
+        [alpha_cell, beta_cell] = self._create_dedicated_areas_and_cells()
+
+        with pytest.raises(YtError):
+            set("//sys/chaos_cell_bundles/c/@metadata_cell_ids", ["surely not guid"])
+
+        with pytest.raises(YtError):
+            set("//sys/chaos_cell_bundles/c/@metadata_cell_ids", ["1-2-3-4"])
+
+        with pytest.raises(YtError):
+            set("//sys/chaos_cell_bundles/c/@metadata_cell_ids", [alpha_cell, beta_cell, alpha_cell])
+
+        # use the same bundle and area as were created in _create_dedicated_areas_and_cells
+        cluster_names = self.get_cluster_names()
+        alpha_meta_cluster_names = cluster_names[:-2] + cluster_names[-1:]
+        alpha_peer_cluster_names = cluster_names[-2:-1]
+
+        another_alpha_cell = self._sync_create_chaos_cell(
+            meta_cluster_names=alpha_meta_cluster_names,
+            peer_cluster_names=alpha_peer_cluster_names
+        )
+
+        with pytest.raises(YtError):
+            set("//sys/chaos_cell_bundles/c/@metadata_cell_ids", [beta_cell, another_alpha_cell])
+
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_ids", [alpha_cell])
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_ids", [beta_cell])
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_ids", [alpha_cell, beta_cell])
+
     @authors("savrus")
     def test_dedicated_areas(self):
         cells = self._create_dedicated_areas_and_cells()
@@ -3191,8 +3452,8 @@ class TestChaosMetaCluster(ChaosTestBase):
             peer = get("//sys/chaos_cells/{0}/@peers/0/address".format(cell), driver=driver)
             return get("//sys/cluster_nodes/{0}/orchid/chaos_cells/{1}/chaos_manager/coordinators".format(peer, cell), driver=driver)
 
-        assert len(_get_coordinators(cells[0], drivers[-2])) == 2
-        assert len(_get_coordinators(cells[1], drivers[-1])) == 2
+        wait(lambda: len(_get_coordinators(cells[0], drivers[-2])) == 2)
+        wait(lambda: len(_get_coordinators(cells[1], drivers[-1])) == 2)
 
     @authors("savrus")
     def test_dedicated_chaos_table(self):
@@ -3306,6 +3567,43 @@ class TestChaosMetaCluster(ChaosTestBase):
                 return False
         wait(_check)
 
+    @authors("ponasenko-rs")
+    @pytest.mark.parametrize("migrate", ["migrate", "stay"])
+    def test_remove_crt_with_migrated_replication_card(self, migrate):
+        cells = self._create_dedicated_areas_and_cells()
+        drivers = self._get_drivers()
+
+        schema = yson.YsonList([
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ])
+        card_id = create_replication_card(chaos_cell_id=cells[0])
+
+        create(
+            "chaos_replicated_table",
+            "//tmp/crt",
+            attributes={"chaos_cell_bundle": "c", "schema": schema, "replication_card_id": card_id}
+        )
+
+        if migrate == "migrate":
+            self._sync_migrate_replication_cards(
+                cells[0],
+                [card_id],
+                cells[1],
+                origin_driver=drivers[-2],
+                destination_driver=drivers[-1]
+            )
+
+        remove("//tmp/crt")
+
+        def _check():
+            try:
+                return not exists(f"#{card_id}")
+            except YtError as err:
+                print_debug(f"Replication card {card_id} exists failed", err)
+                return False
+        wait(_check)
+
     @authors("savrus")
     @pytest.mark.parametrize("alter", ["alter", "noalter"])
     def test_alter_replica_during_coordinator_suspension(self, alter):
@@ -3327,7 +3625,7 @@ class TestChaosMetaCluster(ChaosTestBase):
 
         def _alter(mode):
             if alter == "alter":
-                self._sync_alter_replica(card_id, replicas, replica_ids, 0, mode="async")
+                self._sync_alter_replica(card_id, replicas, replica_ids, 0, mode=mode)
 
         _check(0)
 
@@ -3344,6 +3642,79 @@ class TestChaosMetaCluster(ChaosTestBase):
         _alter("sync")
         _check(2)
 
+    @authors("ponasenko-rs")
+    @pytest.mark.parametrize("action", ["migration", "write"])
+    def test_client_keeps_connection_to_chaos_cell(self, action):
+        [alpha_cell, beta_cell] = self._create_dedicated_areas_and_cells()
+        remote_driver2 = get_driver(cluster="remote_2")
+
+        nodes = ls("//sys/chaos_nodes", driver=remote_driver2)
+        assert len(nodes) == 2
+
+        beta_area_id = get("//sys/chaos_cell_bundles/c/@areas/beta/id", driver=remote_driver2)
+
+        set(f"//sys/chaos_nodes/{nodes[0]}/@user_tags", ["custom"], driver=remote_driver2)
+        set(f"#{beta_area_id}/@node_tag_filter", "custom", driver=remote_driver2)
+
+        def cell_located_on_node(cell, node, driver=None):
+            def get_peer():
+                peers = get(f"//sys/chaos_cells/{cell}/@peers", driver=driver)
+                assert len(peers) == 1
+                peer = peers[0]
+                assert "alien" not in peer
+                return peer
+
+            def checkable():
+                peer = get_peer()
+                return "address" in peer and peer["address"] == node
+            return checkable
+
+        wait(cell_located_on_node(beta_cell, nodes[0], driver=remote_driver2))
+
+        card_id1 = create_replication_card(chaos_cell_id=beta_cell)
+
+        def values(key: int):
+            return [{"key": key, "value": str(key)}]
+
+        if action == "migration":
+            migrate_replication_cards(beta_cell, [card_id1], destination_cell_id=alpha_cell)
+
+            card_id2 = create_replication_card(chaos_cell_id=beta_cell)
+            card_id3 = create_replication_card(chaos_cell_id=beta_cell)
+        else:
+            replicas = [
+                {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
+                {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/r"},
+                {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
+            ]
+            replica_ids = self._create_chaos_table_replicas(replicas, replication_card_id=card_id1)
+            self._create_replica_tables(replicas, replica_ids)
+            self._sync_replication_era(card_id1, replicas)
+
+            insert_rows("//tmp/t", values(0))
+
+        set(f"#{beta_area_id}/@node_tag_filter", "!custom", driver=remote_driver2)
+        wait(cell_located_on_node(beta_cell, nodes[1], driver=remote_driver2))
+
+        assert exists(f"#{card_id1}")
+
+        if action == "migration":
+            assert exists(f"#{card_id2}")
+            assert exists(f"#{card_id3}")
+
+            migrate_replication_cards(beta_cell, [card_id2], destination_cell_id=alpha_cell)
+
+            remove(f"#{card_id2}")
+            assert not exists(f"#{card_id2}")
+            remove(f"#{card_id3}")
+            assert not exists(f"#{card_id2}")
+        else:
+            wait(lambda: lookup_rows("//tmp/r", [{"key": 0}]) == values(0))
+            insert_rows("//tmp/t", values(1))
+            wait(lambda: lookup_rows("//tmp/r", [{"key": 1}]) == values(1))
+
+        remove(f"#{card_id1}")
+        assert not exists(f"#{card_id1}")
 
 ##################################################################
 

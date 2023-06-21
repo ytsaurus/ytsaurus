@@ -1,25 +1,27 @@
 #include "controller_agent.h"
-#include "operation_controller.h"
-#include "master_connector.h"
+
 #include "config.h"
-#include "private.h"
-#include "operation_controller_host.h"
-#include "operation.h"
-#include "scheduling_context.h"
-#include "memory_tag_queue.h"
 #include "bootstrap.h"
 #include "helpers.h"
 #include "job_monitoring_index_manager.h"
 #include "job_profiler.h"
+#include "job_tracker.h"
+#include "master_connector.h"
+#include "memory_tag_queue.h"
 #include "memory_watchdog.h"
-
-#include <yt/yt/server/lib/job_agent/job_reporter.h>
+#include "operation.h"
+#include "operation_controller.h"
+#include "operation_controller_host.h"
+#include "private.h"
+#include "scheduling_context.h"
 
 #include <yt/yt/server/lib/scheduler/message_queue.h>
 #include <yt/yt/server/lib/scheduler/controller_agent_tracker_service_proxy.h>
 #include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
 #include <yt/yt/server/lib/scheduler/helpers.h>
 #include <yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
+
+#include <yt/yt/server/lib/misc/job_reporter.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -263,13 +265,14 @@ public:
             Config_->EventLog,
             Bootstrap_->GetClient(),
             Bootstrap_->GetControlInvoker()))
-        , JobReporter_(New<NJobAgent::TJobReporter>(
+        , JobReporter_(New<TJobReporter>(
             Config_->JobReporter,
             Bootstrap_->GetClient()->GetNativeConnection()))
         , MasterConnector_(std::make_unique<TMasterConnector>(
             Config_,
             std::move(configNode),
             Bootstrap_))
+        , JobTracker_(New<TJobTracker>(Bootstrap_, JobReporter_))
         , JobProfiler_(New<TJobProfiler>())
         , JobEventsInvoker_(CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker()))
         , CachedExecNodeDescriptorsByTags_(New<TSyncExpiringCache<TSchedulingTagFilter, TFilteredExecNodeDescriptors>>(
@@ -304,10 +307,13 @@ public:
         auto dynamicOrchidService = GetDynamicOrchidService()
             ->Via(Bootstrap_->GetControlInvoker());
 
+        auto jobTrackerOrchidService = GetJobTrackerOrchidService();
+
         return New<TServiceCombiner>(
             std::vector<IYPathServicePtr>{
                 staticOrchidService->Via(Bootstrap_->GetControlInvoker()),
-                std::move(dynamicOrchidService)
+                std::move(dynamicOrchidService),
+                std::move(jobTrackerOrchidService),
             },
             Config_->ControllerOrchidKeysUpdatePeriod);
     }
@@ -413,6 +419,13 @@ public:
         return MasterConnector_.get();
     }
 
+    TJobTracker* GetJobTracker() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return JobTracker_.Get();
+    }
+
     TJobProfiler* GetJobProfiler() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -450,6 +463,8 @@ public:
         Config_ = config;
 
         ReconfigureNativeSingletons(Bootstrap_->GetConfig(), Config_);
+
+        JobTracker_->UpdateConfig(Config_);
 
         ChunkLocationThrottlerManager_->Reconfigure(Config_->ChunkLocationThrottler);
 
@@ -515,9 +530,16 @@ public:
         return EventLogWriter_;
     }
 
-    const NJobAgent::TJobReporterPtr& GetJobReporter() const
+    const TJobReporterPtr& GetJobReporter() const
     {
         return JobReporter_;
+    }
+
+    IInvokerPtr CreateCancelableInvoker(const IInvokerPtr& invoker)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return CancelableContext_->CreateInvoker(invoker);
     }
 
     TOperationPtr FindOperation(TOperationId operationId) const
@@ -570,15 +592,8 @@ public:
         YT_VERIFY(Connected_);
 
         auto operation = New<TOperation>(descriptor);
+
         auto operationId = operation->GetId();
-        auto host = New<TOperationControllerHost>(
-            operation.Get(),
-            CancelableControlInvoker_,
-            Bootstrap_->GetControlInvoker(),
-            OperationEventsOutbox_,
-            JobEventsOutbox_,
-            Bootstrap_);
-        operation->SetHost(host);
 
         {
             auto spec = ParseOperationSpec<TOperationSpecBase>(operation->GetSpec());
@@ -588,15 +603,41 @@ public:
             operation->SetMemoryTag(MemoryTagQueue_->AssignTagToOperation(operationId, testingAllocationSize));
         }
 
-        try {
-            auto controller = CreateControllerForOperation(Config_, operation.Get());
-            operation->SetController(controller);
-        } catch (...) {
-            MemoryTagQueue_->ReclaimTag(operation->GetMemoryTag());
-            throw;
+        {
+            // TODO(pogorelov): Refactor operation creation.
+
+            // COMPAT(pogorelov): Remove it when job tracker becomes stable.
+            auto config = Config_;
+
+            bool controlJobLifetimeAtControllerAgent = !config->ControlJobLifetimeAtScheduler;
+
+            auto host = New<TOperationControllerHost>(
+                operation.Get(),
+                CancelableControlInvoker_,
+                Bootstrap_->GetControlInvoker(),
+                OperationEventsOutbox_,
+                JobEventsOutbox_,
+                RunningJobStatisticsUpdatesOutbox_,
+                Bootstrap_);
+            operation->SetHost(host);
+
+            try {
+                auto controller = CreateControllerForOperation(std::move(config), operation.Get());
+                operation->SetController(controller);
+            } catch (...) {
+                MemoryTagQueue_->ReclaimTag(operation->GetMemoryTag());
+                throw;
+            }
+
+            auto jobTrackerOperationHandler = JobTracker_->RegisterOperation(
+                operationId,
+                controlJobLifetimeAtControllerAgent,
+                MakeWeak(operation->GetController()));
+
+            host->SetJobTrackerOperationHandler(std::move(jobTrackerOperationHandler));
         }
 
-        YT_VERIFY(IdToOperation_.emplace(operationId, operation).second);
+        EmplaceOrCrash(IdToOperation_, operationId, std::move(operation));
 
         MasterConnector_->RegisterOperation(operationId);
 
@@ -616,12 +657,16 @@ public:
             auto operation = GetOperationOrThrow(operationId);
             auto controller = operation->GetController();
             if (controller) {
-                WaitFor(BIND(&IOperationControllerSchedulerHost::Dispose, controller)
+                auto error = WaitFor(BIND(&IOperationControllerSchedulerHost::Dispose, controller)
                     // It is called in regular invoker since controller is canceled
                     // but we want to make some final actions.
                     .AsyncVia(controller->GetInvoker())
-                    .Run())
-                    .ThrowOnError();
+                    .Run());
+
+                YT_LOG_FATAL_IF(
+                    !error.IsOK(),
+                    error,
+                    "Unexpected operation disposal fail");
 
                 result.ResidualJobMetrics = controller->PullJobMetricsDelta(/* force */ true);
             }
@@ -645,8 +690,10 @@ public:
         YT_VERIFY(Connected_);
 
         auto operation = GetOperationOrThrow(operationId);
-        auto controller = operation->GetController();
-        if (controller) {
+
+        {
+            auto controller = operation->GetController();
+
             controller->Cancel();
 
             // We carefully destroy controller and log warning if we detect that controller is actually leaked.
@@ -660,11 +707,13 @@ public:
             }
         }
 
-        YT_VERIFY(IdToOperation_.erase(operationId) == 1);
-
         MasterConnector_->UnregisterOperation(operationId);
 
         JobMonitoringIndexManager_.TryRemoveOperationJobs(operationId);
+
+        JobTracker_->UnregisterOperation(operationId);
+
+        EraseOrCrash(IdToOperation_, operationId);
 
         YT_LOG_DEBUG("Operation unregistered (OperationId: %v)", operationId);
     }
@@ -1078,8 +1127,9 @@ private:
     const IThroughputThrottlerPtr JobSpecSliceThrottler_;
     const TAsyncSemaphorePtr CoreSemaphore_;
     const IEventLogWriterPtr EventLogWriter_;
-    const NJobAgent::TJobReporterPtr JobReporter_;
+    const TJobReporterPtr JobReporter_;
     const std::unique_ptr<TMasterConnector> MasterConnector_;
+    const TJobTrackerPtr JobTracker_;
     const TJobProfilerPtr JobProfiler_;
 
     bool Connected_= false;
@@ -1119,6 +1169,7 @@ private:
     TAgentToSchedulerOperationEventOutboxPtr OperationEventsOutbox_;
     TAgentToSchedulerJobEventOutboxPtr JobEventsOutbox_;
     TAgentToSchedulerScheduleJobResponseOutboxPtr ScheduleJobResposesOutbox_;
+    TAgentToSchedulerRunningJobStatisticsOutboxPtr RunningJobStatisticsUpdatesOutbox_;
 
     std::unique_ptr<TMessageQueueInbox> JobEventsInbox_;
     std::unique_ptr<TMessageQueueInbox> OperationEventsInbox_;
@@ -1171,6 +1222,7 @@ private:
             OnConnected();
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Error connecting to scheduler");
+
             SchedulerDisconnected_.Fire();
             DoCleanup();
             ScheduleConnect(false);
@@ -1190,6 +1242,15 @@ private:
         YT_VERIFY(!CancelableContext_);
         CancelableContext_ = New<TCancelableContext>();
         CancelableControlInvoker_ = CancelableContext_->CreateInvoker(Bootstrap_->GetControlInvoker());
+
+        {
+            auto error = WaitFor(JobTracker_->Initialize());
+
+            YT_LOG_FATAL_IF(
+                !error.IsOK(),
+                error,
+                "Unexpected failure in job tracker initialization");
+        }
 
         SwitchTo(CancelableControlInvoker_);
 
@@ -1288,6 +1349,13 @@ private:
             Bootstrap_->GetControlInvoker(),
             /*supportTracing*/ true);
 
+        RunningJobStatisticsUpdatesOutbox_ = New<TMessageQueueOutbox<TAgentToSchedulerRunningJobStatistics>>(
+            ControllerAgentLogger.WithTag(
+                "Kind: AgentToSchedulerRunningJobStatistics, IncarnationId: %v",
+                IncarnationId_),
+            ControllerAgentProfiler.WithTag("queue", "running_job_statistics"),
+            Bootstrap_->GetControlInvoker());
+
         JobEventsInbox_ = std::make_unique<TMessageQueueInbox>(
             ControllerAgentLogger.WithTag("Kind: SchedulerToAgentJobs, IncarnationId: %v",
                 IncarnationId_),
@@ -1322,6 +1390,9 @@ private:
 
         ZombieOperationOrchids_->Clean();
         ZombieOperationOrchids_->StartPeriodicCleaning(CancelableControlInvoker_);
+
+        // TODO(pogorelov): Do not call it directly, subscribe on signal when job tracker becomes stable.
+        JobTracker_->OnSchedulerConnected(IncarnationId_);
 
         SchedulerConnected_.Fire(IncarnationId_);
     }
@@ -1365,6 +1436,8 @@ private:
         }
         CancelableControlInvoker_.Reset();
 
+        JobTracker_->Cleanup();
+
         CachedExecNodeDescriptorsByTags_->Clear();
 
         if (HeartbeatExecutor_) {
@@ -1376,6 +1449,7 @@ private:
         OperationEventsOutbox_.Reset();
         JobEventsOutbox_.Reset();
         ScheduleJobResposesOutbox_.Reset();
+        RunningJobStatisticsUpdatesOutbox_.Reset();
 
         JobEventsInbox_.reset();
         OperationEventsInbox_.reset();
@@ -1497,6 +1571,13 @@ private:
                 }
             });
 
+        RunningJobStatisticsUpdatesOutbox_->BuildOutcoming(
+            request->mutable_agent_to_scheduler_running_job_statistics_updates(),
+            [] (auto* protoStatistics, const auto& statistics) {
+                ToProto(protoStatistics, statistics);
+            },
+            Config_->MaxRunningJobStatisticsUpdateCountPerHeartbeat);
+
         auto error = WaitFor(BIND([&, request] {
                 JobEventsInbox_->ReportStatus(request->mutable_scheduler_to_agent_job_events());
             })
@@ -1609,6 +1690,7 @@ private:
 
         OperationEventsOutbox_->HandleStatus(rsp->agent_to_scheduler_operation_events());
         JobEventsOutbox_->HandleStatus(rsp->agent_to_scheduler_job_events());
+        RunningJobStatisticsUpdatesOutbox_->HandleStatus(rsp->agent_to_scheduler_running_job_statistics_updates());
 
         HandleJobEvents(rsp);
         HandleOperationEvents(rsp);
@@ -1625,6 +1707,9 @@ private:
                     protoDescriptor.node_id(),
                     std::move(descriptor)).second);
             }
+
+            JobTracker_->UpdateExecNodes(execNodeDescriptors);
+
             {
                 auto guard = WriterGuard(ExecNodeDescriptorsLock_);
                 std::swap(CachedExecNodeDescriptors_, execNodeDescriptors);
@@ -2038,6 +2123,13 @@ private:
         return dynamicOrchidService;
     }
 
+    IYPathServicePtr GetJobTrackerOrchidService()
+    {
+        auto service = New<TCompositeMapService>();
+        service->AddChild("job_tracker", JobTracker_->GetOrchidService());
+        return service;
+    }
+
     class TOperationsService
         : public TVirtualMapBase
     {
@@ -2147,6 +2239,11 @@ TMasterConnector* TControllerAgent::GetMasterConnector()
     return Impl_->GetMasterConnector();
 }
 
+TJobTracker* TControllerAgent::GetJobTracker() const
+{
+    return Impl_->GetJobTracker();
+}
+
 TJobProfiler* TControllerAgent::GetJobProfiler() const
 {
     return Impl_->GetJobProfiler();
@@ -2212,7 +2309,7 @@ const IEventLogWriterPtr& TControllerAgent::GetEventLogWriter() const
     return Impl_->GetEventLogWriter();
 }
 
-const NJobAgent::TJobReporterPtr& TControllerAgent::GetJobReporter() const
+const TJobReporterPtr& TControllerAgent::GetJobReporter() const
 {
     return Impl_->GetJobReporter();
 }
@@ -2220,6 +2317,11 @@ const NJobAgent::TJobReporterPtr& TControllerAgent::GetJobReporter() const
 TMemoryTagQueue* TControllerAgent::GetMemoryTagQueue()
 {
     return Impl_->GetMemoryTagQueue();
+}
+
+IInvokerPtr TControllerAgent::CreateCancelableInvoker(const IInvokerPtr& invoker)
+{
+    return Impl_->CreateCancelableInvoker(invoker);
 }
 
 TOperationPtr TControllerAgent::FindOperation(TOperationId operationId)

@@ -121,7 +121,7 @@ public:
     const NNodeTrackerServer::IExecNodeTrackerPtr& GetExecNodeTracker() const;
     const NCellServer::ICellarNodeTrackerPtr& GetCellarNodeTracker() const;
     const NTabletServer::ITabletNodeTrackerPtr& GetTabletNodeTracker() const;
-    const NTransactionServer::TTransactionManagerPtr& GetTransactionManager() const;
+    const NTransactionServer::ITransactionManagerPtr& GetTransactionManager() const;
     const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() const;
     const NTransactionSupervisor::ITransactionSupervisorPtr& GetTransactionSupervisor() const;
     const NCypressServer::ICypressManagerPtr& GetCypressManager() const;
@@ -158,7 +158,8 @@ public:
         NDistributedThrottler::TDistributedThrottlerConfigPtr config,
         IInvokerPtr invoker,
         const TString& groupIdPrefix,
-        NLogging::TLogger logger) const;
+        NLogging::TLogger logger,
+        NProfiling::TProfiler profiler) const;
 
     void Initialize();
     void Run();
@@ -206,7 +207,7 @@ protected:
     NNodeTrackerServer::IExecNodeTrackerPtr ExecNodeTracker_;
     NCellServer::ICellarNodeTrackerPtr CellarNodeTracker_;
     NTabletServer::ITabletNodeTrackerPtr TabletNodeTracker_;
-    NTransactionServer::TTransactionManagerPtr TransactionManager_;
+    NTransactionServer::ITransactionManagerPtr TransactionManager_;
     NTimestampServer::TTimestampManagerPtr TimestampManager_;
     NTransactionClient::ITimestampProviderPtr TimestampProvider_;
     NTransactionSupervisor::ITransactionSupervisorPtr TransactionSupervisor_;

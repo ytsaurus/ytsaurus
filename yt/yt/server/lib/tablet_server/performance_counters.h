@@ -19,11 +19,7 @@ namespace NYT::NTabletServer {
     XX(static_chunk_row_read,                   StaticChunkRowRead) \
     XX(static_chunk_row_read_data_weight,       StaticChunkRowReadDataWeight) \
     XX(static_chunk_row_lookup,                 StaticChunkRowLookup) \
-    XX(static_chunk_row_lookup_true_negative,   StaticChunkRowLookupTrueNegative) \
-    XX(static_chunk_row_lookup_false_positive,  StaticChunkRowLookupFalsePositive) \
     XX(static_chunk_row_lookup_data_weight,     StaticChunkRowLookupDataWeight) \
-    XX(unmerged_row_read,                       UnmergedRowRead) \
-    XX(merged_row_read,                         MergedRowRead) \
     XX(compaction_data_weight,                  CompactionDataWeight) \
     XX(partitioning_data_weight,                PartitioningDataWeight) \
     XX(lookup_error,                            LookupErrorCount) \

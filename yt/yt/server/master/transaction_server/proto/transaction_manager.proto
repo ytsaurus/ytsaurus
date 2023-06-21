@@ -24,6 +24,8 @@ message TReqStartTransaction
     // COMPAT(shakurov): remove this once transaction sharding is deployed to all masters.
     optional bool dont_replicate = 11;
 
+    optional bool is_cypress_transaction = 13;
+
     reserved 2;
 }
 
@@ -57,6 +59,7 @@ message TReqStartForeignTransaction
     optional string operation_type = 5;
     optional string operation_id = 6;
     optional string operation_title = 7;
+    optional bool is_cypress_transaction = 8;
 }
 
 // Used as a signal when replication of a missing transaction was requested.
@@ -77,6 +80,23 @@ message TReqReturnBoomerang
 
 message TReqRemoveStuckBoomerangWaves
 {
+}
+
+message TReqCommitCypressTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required uint64 commit_timestamp = 2; // NTransactionClient::TTimestamp
+    repeated NYT.NProto.TGuid prerequisite_transaction_ids = 3;
+    required string user = 4;
+    optional string user_tag = 5;
+}
+
+message TReqAbortCypressTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required bool force = 2;
+    required string user = 3;
+    optional string user_tag = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

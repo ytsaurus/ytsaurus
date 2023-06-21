@@ -80,6 +80,8 @@ void ToProto(NProto::TPrepareOperationResult* resultProto, const TOperationContr
     if (result.Attributes) {
         resultProto->set_attributes(result.Attributes.ToString());
     }
+
+    resultProto->set_control_job_lifetime_at_scheduler(result.ControlJobLifetimeAtScheduler);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -109,6 +111,7 @@ void ToProto(NProto::TReviveOperationResult* resultProto, const TOperationContro
         jobProto->set_node_id(job.NodeId);
         jobProto->set_node_address(job.NodeAddress);
     }
+    resultProto->set_control_job_lifetime_at_scheduler(result.ControlJobLifetimeAtScheduler);
     ToProto(resultProto->mutable_revived_banned_tree_ids(), result.RevivedBannedTreeIds);
     ToProto(resultProto->mutable_composite_needed_resources(), result.NeededResources);
     ToProto(resultProto->mutable_min_needed_job_resources(), result.MinNeededJobResources);
@@ -119,6 +122,17 @@ void ToProto(NProto::TReviveOperationResult* resultProto, const TOperationContro
 
 void ToProto(NProto::TCommitOperationResult* /* resultProto */, const TOperationControllerCommitResult& /* result */)
 { }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(
+    NScheduler::NProto::TAgentToSchedulerRunningJobStatistics* jobStatisticsProto,
+    const TAgentToSchedulerRunningJobStatistics& jobStatistics)
+{
+    ToProto(jobStatisticsProto->mutable_job_id(), jobStatistics.JobId);
+
+    jobStatisticsProto->set_preemptible_progress_time(ToProto<i64>(jobStatistics.PreemptibleProgressTime));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -294,6 +308,21 @@ public:
         return Underlying_->GetPendingJobCount();
     }
 
+    i64 GetFailedJobCount() const override
+    {
+        return Underlying_->GetFailedJobCount();
+    }
+
+    bool ShouldUpdateLightOperationAttributes() const override
+    {
+        return Underlying_->ShouldUpdateLightOperationAttributes();
+    }
+
+    void SetLightOperationAttributesUpdated() override
+    {
+        Underlying_->SetLightOperationAttributesUpdated();
+    }
+
     bool IsRunning() const override
     {
         return Underlying_->IsRunning();
@@ -339,6 +368,11 @@ public:
         Underlying_->OnJobInfoReceivedFromNode(std::move(jobSummary));
     }
 
+    void AbortJobByJobTracker(TJobId jobId, EAbortReason abortReason) override
+    {
+        Underlying_->AbortJobByJobTracker(jobId, abortReason);
+    }
+
     TControllerScheduleJobResultPtr ScheduleJob(
         ISchedulingContext* context,
         const TJobResources& jobLimits,
@@ -352,14 +386,14 @@ public:
         Underlying_->UpdateConfig(config);
     }
 
-    bool ShouldUpdateProgress() const override
+    bool ShouldUpdateProgressAttributes() const override
     {
-        return Underlying_->ShouldUpdateProgress();
+        return Underlying_->ShouldUpdateProgressAttributes();
     }
 
-    void SetProgressUpdated() override
+    void SetProgressAttributesUpdated() override
     {
-        Underlying_->SetProgressUpdated();
+        Underlying_->SetProgressAttributesUpdated();
     }
 
     bool HasProgress() const override

@@ -39,7 +39,16 @@ static const auto& Logger = ConcurrencyLogger;
 TExecutionStackBase::TExecutionStackBase(size_t size)
     : Stack_(nullptr)
     , Size_(RoundUpToPage(size))
-{ }
+{
+    auto cookie = GetRefCountedTypeCookie<TExecutionStack>();
+    TRefCountedTrackerFacade::AllocateSpace(cookie, Size_);
+}
+
+TExecutionStackBase::~TExecutionStackBase()
+{
+    auto cookie = GetRefCountedTypeCookie<TExecutionStack>();
+    TRefCountedTrackerFacade::FreeSpace(cookie, Size_);
+}
 
 void* TExecutionStackBase::GetStack() const
 {

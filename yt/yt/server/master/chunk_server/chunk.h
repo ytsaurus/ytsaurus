@@ -37,6 +37,8 @@ struct TChunkExportData
 {
     ui32 RefCounter = 0;
     TChunkRequisitionIndex ChunkRequisitionIndex = EmptyChunkRequisitionIndex;
+
+    void Persist(const NCellMaster::TPersistenceContext& context);
 };
 
 static_assert(sizeof(TChunkExportData) == 8, "sizeof(TChunkExportData) != 8");
@@ -82,6 +84,7 @@ struct TChunkDynamicData
     //! chunks. (The two lists are separate.)
     TIntrusiveLinkedListNode<TChunk> LinkedListNode;
 };
+static_assert(sizeof(TChunkDynamicData) == 144);
 
 ////////////////////////////////////////////////////////////////////////////////
 

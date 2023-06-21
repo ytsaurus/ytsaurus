@@ -6,29 +6,17 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FromProto(TReadRequestComplexity* complexity, const NProto::TReadRequestComplexityLimits& proto)
-{
-    complexity->NodeCount = proto.has_node_count() ? std::optional(proto.node_count()) : std::nullopt;
-    complexity->ResultSize = proto.has_result_size() ? std::optional(proto.result_size()) : std::nullopt;
-}
-
-void ToProto(NProto::TReadRequestComplexityLimits* proto, const TReadRequestComplexity& complexity)
-{
-    if (complexity.NodeCount.has_value()) {
-        proto->set_node_count(*complexity.NodeCount);
-    }
-    if (complexity.ResultSize.has_value()) {
-        proto->set_result_size(*complexity.ResultSize);
-    }
-}
-
 namespace {
+
+////////////////////////////////////////////////////////////////////////////////
 
 void VerifyNonNegative(const TReadRequestComplexity& complexity) noexcept
 {
     YT_VERIFY(complexity.NodeCount.value_or(0) >= 0);
     YT_VERIFY(complexity.ResultSize.value_or(0) >= 0);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 
@@ -39,16 +27,8 @@ TReadRequestComplexity::TReadRequestComplexity(std::optional<i64> nodeCount, std
     VerifyNonNegative(*this);
 }
 
-void TReadRequestComplexity::Sanitize(
-    const TReadRequestComplexity& defaults,
-    const TReadRequestComplexity& max) noexcept
+void TReadRequestComplexity::Sanitize(const TReadRequestComplexity& max) noexcept
 {
-    auto applyDefault = [] (std::optional<i64> value, std::optional<i64> defaultValue) {
-        return value.has_value() ? value : defaultValue;
-    };
-    NodeCount = applyDefault(NodeCount, defaults.NodeCount);
-    ResultSize = applyDefault(ResultSize, defaults.ResultSize);
-
     auto applyMax = [] (std::optional<i64> value, std::optional<i64> maxValue) {
         return (value.has_value() && maxValue.has_value())
             ? std::optional(std::min(*value, *maxValue))
@@ -123,9 +103,12 @@ TError TReadRequestComplexityLimits::CheckOverdraught(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReadRequestComplexityLimiter::TReadRequestComplexityLimiter(const TReadRequestComplexity& limits) noexcept
-    : Limits_(limits)
-{ }
+TReadRequestComplexityLimiter::TReadRequestComplexityLimiter() noexcept = default;
+
+void TReadRequestComplexityLimiter::Reconfigure(const TReadRequestComplexity& limits) noexcept
+{
+    Limits_ = TReadRequestComplexityLimits(limits);
+}
 
 void TReadRequestComplexityLimiter::Charge(const TReadRequestComplexityUsage& usage) noexcept
 {
@@ -142,6 +125,11 @@ void TReadRequestComplexityLimiter::ThrowIfOverdraught() const
     if (auto error = CheckOverdraught(); !error.IsOK()) {
         THROW_ERROR error;
     }
+}
+
+TReadRequestComplexity TReadRequestComplexityLimiter::GetUsage() const noexcept
+{
+    return Usage_.AsComplexity();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

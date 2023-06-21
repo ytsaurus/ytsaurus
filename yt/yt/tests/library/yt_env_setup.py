@@ -221,6 +221,7 @@ class YTEnvSetup(object):
     NUM_RPC_PROXIES = 2
     DRIVER_BACKEND = "native"
     NODE_PORT_SET_SIZE = None
+    STORE_LOCATION_COUNT = 1
     ARTIFACT_COMPONENTS = {}
     FORCE_CREATE_ENVIRONMENT = False
     NUM_CELL_BALANCERS = 0
@@ -411,6 +412,7 @@ class YTEnvSetup(object):
             enable_log_compression=True,
             log_compression_method="zstd",
             node_port_set_size=cls.get_param("NODE_PORT_SET_SIZE", index),
+            store_location_count=cls.get_param("STORE_LOCATION_COUNT", index),
             node_io_engine_type=cls.get_param("NODE_IO_ENGINE_TYPE", index),
             node_use_direct_io_for_reads=cls.get_param("NODE_USE_DIRECT_IO_FOR_READS", index),
             cluster_name=cls.get_cluster_name(index),
@@ -654,8 +656,11 @@ class YTEnvSetup(object):
                 cls.modify_master_config(configs["master"][tag][index], tag, index)
         for index, config in enumerate(configs["scheduler"]):
             config = update_inplace(config, cls.get_param("DELTA_SCHEDULER_CONFIG", cluster_index))
+            # COMPAT(pogorelov)
             if "scheduler" in cls.ARTIFACT_COMPONENTS.get("22_4", []):
                 config["scheduler"]["send_registered_agents_to_node"] = True
+            if "node" in cls.ARTIFACT_COMPONENTS.get("22_4", []):
+                config["scheduler"]["control_unknown_operation_jobs_lifetime"] = True
             configs["scheduler"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_scheduler_config(configs["scheduler"][index])
         for index, config in enumerate(configs["queue_agent"]):
@@ -680,6 +685,12 @@ class YTEnvSetup(object):
                 update_inplace(config, YTEnvSetup._DEFAULT_DELTA_CONTROLLER_AGENT_CONFIG),
                 delta_config,
             )
+
+            old_components = cls.ARTIFACT_COMPONENTS.get("22_4", [])
+            if "scheduler" in old_components or "controller-agent" in old_components or "node" in old_components:
+                config["controller_agent"]["control_job_lifetime_at_scheduler"] = True
+                config["controller_agent"]["job_tracker"]["abort_vanished_jobs"] = False
+
             configs["controller_agent"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_controller_agent_config(configs["controller_agent"][index])
         for index, config in enumerate(configs["node"]):
@@ -692,6 +703,7 @@ class YTEnvSetup(object):
             # COMPAT(pogorelov)
             if "node" in cls.ARTIFACT_COMPONENTS.get("22_4", []):
                 config["exec_agent"]["controller_agent_connector"]["running_job_sending_backoff"] = 0
+                config["exec_agent"]["controller_agent_connector"]["use_new_job_tracker_service"] = True
                 config["exec_agent"]["scheduler_connector"]["use_allocation_tracker_service"] = True
 
             config["exec_agent"]["job_proxy_upload_debug_artifact_chunks"] = cls.UPLOAD_DEBUG_ARTIFACT_CHUNKS
@@ -1164,6 +1176,14 @@ class YTEnvSetup(object):
             "nodes_filter": "",
             "main_resource": "cpu",
             "min_child_heap_size": 3,
+            "prioritized_regular_scheduling": {
+                "medium_priority_operation_count_limit": 3,
+                "low_priority_fallback_min_spare_job_resources": {
+                    "cpu": 1.5,
+                    "user_slots": 1,
+                    "memory": 512 * 1024 * 1024,
+                },
+            },
             # Make default settings suitable for starvation and preemption.
             "preemptive_scheduling_backoff": 500,
             "max_unpreemptible_running_job_count": 0,
@@ -1258,6 +1278,11 @@ class YTEnvSetup(object):
 
     def _setup_nodes_dynamic_config(self, driver=None):
         config = get_dynamic_node_config()
+
+        # COMPAT(pogorelov)
+        if "controller-agent" in self.__class__.ARTIFACT_COMPONENTS.get("22_4", []):
+            config["%true"]["exec_agent"]["controller_agent_connector"]["send_waiting_jobs"] = False
+
         yt_commands.set("//sys/cluster_nodes/@config", config, driver=driver)
 
         nodes = yt_commands.ls("//sys/cluster_nodes", driver=driver)

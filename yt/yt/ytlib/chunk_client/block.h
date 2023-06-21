@@ -13,14 +13,7 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EBlockOrigin,
-    (Unknown)
-    (Cache)
-    (Disk)
-);
-
 /*!
- * Block == data + optional checksum.
  *
  * Empty block represents a special 'null value' and is often used in cases when
  * no data is available or to signal the end of stream.
@@ -29,17 +22,10 @@ struct TBlock
 {
     TBlock() = default;
     explicit TBlock(TSharedRef block);
-    TBlock(
-        TSharedRef block,
-        TChecksum checksum,
-        EBlockOrigin origin = EBlockOrigin::Unknown);
+    TBlock(TSharedRef block, TChecksum checksum);
 
     TSharedRef Data;
     TChecksum Checksum = NullChecksum;
-    //! Origin of a compressed block read from cache or from the disk.
-    //! NB: This field is not used for uncompressed blocks nor it is
-    //! used when writing blocks.
-    EBlockOrigin BlockOrigin = EBlockOrigin::Unknown;
     //! For columnar table chunks, index of the group. This field is used
     //! for block reordering (see TBlockReorderer).
     std::optional<int> GroupIndex;

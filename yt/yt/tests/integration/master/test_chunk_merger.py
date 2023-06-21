@@ -2,13 +2,15 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, wait, create, ls, get, set, copy, remove,
-    exists, concatenate, move,
+    exists, concatenate, move, lookup_rows,
     create_account, create_user, make_ace, insert_rows,
     alter_table, read_table, write_table, map, merge,
     sync_create_cells, sync_mount_table, update_nodes_dynamic_config,
     start_transaction, abort_transaction, commit_transaction,
     sync_unmount_table, create_dynamic_table, wait_for_sys_config_sync,
     get_singular_chunk_id)
+
+from yt.test_helpers import assert_items_equal
 
 from yt_helpers import get_chunk_owner_master_cell_counters
 
@@ -103,7 +105,7 @@ class TestChunkMerger(YTEnvSetup):
 
         assert merged_rows == rows
 
-    @authors("aleksandra-zh")
+    @authors("aleksandra-zh", "danilalexeev")
     def test_merge_attributes(self):
         create("table", "//tmp/t")
 
@@ -131,6 +133,29 @@ class TestChunkMerger(YTEnvSetup):
         with pytest.raises(YtError):
             set("//sys/accounts/a/@chunk_merger_node_traversal_concurrency", -1)
         assert get("//sys/accounts/a/@chunk_merger_node_traversal_concurrency") == 12
+
+        create_account("d")
+
+        data = {'max_chunk_count': 3, 'max_compressed_data_size': 7}
+        set("//sys/accounts/d/@chunk_merger_criteria", data)
+        assert get("//sys/accounts/d/@chunk_merger_criteria") == data
+
+        with pytest.raises(YtError):
+            set("//sys/accounts/d/@chunk_merger_criteria/max_row_count", -1)
+        set("//sys/accounts/d/@chunk_merger_criteria/max_row_count", 2)
+        assert get("//sys/accounts/d/@chunk_merger_criteria/max_row_count") == 2
+
+    @authors("danilalexeev")
+    def test_remove_account_criteria(self):
+        create_account("d")
+        assert not exists("//sys/accounts/d/@chunk_merger_criteria")
+
+        data = {'max_uncompressed_data_size': 512, 'max_input_chunk_data_weight': 128}
+        set("//sys/accounts/d/@chunk_merger_criteria", data)
+        assert get("//sys/accounts/d/@chunk_merger_criteria") == data
+
+        remove("//sys/accounts/d/@chunk_merger_criteria")
+        assert not exists("//sys/accounts/d/@chunk_merger_criteria")
 
     @authors("aleksandra-zh")
     @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
@@ -207,9 +232,11 @@ class TestChunkMerger(YTEnvSetup):
         rows = read_table("//tmp/t")
 
         self._wait_for_merge("//tmp/t", merge_mode)
-
         alter_table("//tmp/t", dynamic=True)
         sync_mount_table("//tmp/t")
+
+        keys = [{"key": i} for i in range(1, 4)]
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
 
         merged_rows = read_table("//tmp/t")
         assert _schematize_rows(rows, schema) == _schematize_rows(merged_rows, schema)
@@ -391,6 +418,27 @@ class TestChunkMerger(YTEnvSetup):
         wait(lambda: get("//tmp/t/@chunk_count") == 1)
 
         assert read_table("//tmp/t") == rows
+
+    @authors("danilalexeev")
+    def test_account_priority(self):
+        create_account("d")
+        set("//sys/accounts/d/@chunk_merger_criteria/max_row_count", 3)
+        create("table", "//tmp/t", attributes={"account": "d"})
+
+        write_table("//tmp/t", {"a": "b"})
+        write_table("<append=true>//tmp/t", {"b": "c"})
+        write_table("<append=true>//tmp/t", {"c": "d"})
+        write_table("<append=true>//tmp/t", {"q": "d"})
+
+        set("//sys/accounts/d/@merge_job_rate_limit", 10)
+        set("//sys/accounts/d/@chunk_merger_node_traversal_concurrency", 1)
+        set("//tmp/t/@chunk_merger_mode", "deep")
+
+        try:
+            # [{"a": "b"}, {"b": "c"}], [{"c": "d"}, {"q": "d"}]
+            wait(lambda: get("//tmp/t/@chunk_count") == 2)
+        finally:
+            self._abort_chunk_merger_txs()
 
     @authors("aleksandra-zh")
     def test_chunk_tail(self):

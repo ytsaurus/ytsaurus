@@ -137,7 +137,7 @@ struct IFairShareTree
         TOperationId operationId,
         const TOperationFairShareTreeRuntimeParametersPtr& runtimeParameters) = 0;
 
-    virtual void RegisterJobsFromRevivedOperation(TOperationId operationId, const std::vector<TJobPtr>& jobs) = 0;
+    virtual void RegisterJobsFromRevivedOperation(TOperationId operationId, std::vector<TJobPtr> jobs) = 0;
 
     virtual void RegisterNode(NNodeTrackerClient::TNodeId nodeId) = 0;
     virtual void UnregisterNode(NNodeTrackerClient::TNodeId nodeId) = 0;

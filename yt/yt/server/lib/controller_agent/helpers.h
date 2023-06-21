@@ -2,9 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/ytlib/job_tracker_client/public.h>
-
-#include <yt/yt/ytlib/job_tracker_client/proto/job_tracker_service.pb.h>
+#include <yt/yt/server/lib/controller_agent/proto/job_tracker_service.pb.h>
 
 #include <yt/yt/client/table_client/public.h>
 
@@ -12,7 +10,11 @@
 
 #include <yt/yt/core/tracing/public.h>
 
-namespace NYT::NJobTrackerClient {
+namespace NYT::NControllerAgent {
+
+////////////////////////////////////////////////////////////////////////////////
+
+TAllocationId AllocationIdFromJobId(TJobId jobId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,6 +43,22 @@ struct TJobToRelease
 
 TString ToString(const TReleaseJobFlags& releaseFlags);
 
+struct TJobToAbort
+{
+    TJobId JobId;
+    NScheduler::EAbortReason AbortReason;
+};
+
+struct TJobToStore
+{
+    TJobId JobId;
+};
+
+struct TJobToConfirm
+{
+    TJobId JobId;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 NTableClient::TTableSchemaPtr RenameColumnsInSchema(
@@ -52,39 +70,54 @@ NTableClient::TTableSchemaPtr RenameColumnsInSchema(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NProto {
-
-void ToProto(
-    NProto::TJobToRemove* protoJobToRemove,
-    const NJobTrackerClient::TJobToRelease& jobToRelease);
-
-void FromProto(
-    NJobTrackerClient::TJobToRelease* jobToRelease,
-    const NProto::TJobToRemove& protoJobToRemove);
-
-void ToProto(
-    NProto::TReleaseJobFlags* protoReleaseJobFlags,
-    const NJobTrackerClient::TReleaseJobFlags& releaseJobFlags);
-
-void FromProto(
-    NJobTrackerClient::TReleaseJobFlags* releaseJobFlags,
-    const NProto::TReleaseJobFlags& protoReleaseJobFlags);
-
-} // namespace NProto
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYT::NJobTrackerClient
-
-namespace NYT::NControllerAgent {
-
-////////////////////////////////////////////////////////////////////////////////
-
 void PackBaggageFromJobSpec(
     const NTracing::TTraceContextPtr& traceContext,
     const NProto::TJobSpec& jobSpec,
     TOperationId operationId,
     TJobId jobId);
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NProto {
+
+void ToProto(
+    NProto::TJobToRemove* protoJobToRemove,
+    const NControllerAgent::TJobToRelease& jobToRelease);
+
+void FromProto(
+    NControllerAgent::TJobToRelease* jobToRelease,
+    const NProto::TJobToRemove& protoJobToRemove);
+
+void ToProto(
+    NProto::TReleaseJobFlags* protoReleaseJobFlags,
+    const NControllerAgent::TReleaseJobFlags& releaseJobFlags);
+
+void FromProto(
+    NControllerAgent::TReleaseJobFlags* releaseJobFlags,
+    const NProto::TReleaseJobFlags& protoReleaseJobFlags);
+
+void ToProto(
+    NProto::TJobToAbort* protoJobToAbort,
+    const NControllerAgent::TJobToAbort& jobToAbort);
+void FromProto(
+    NControllerAgent::TJobToAbort* jobToAbort,
+    const NProto::TJobToAbort& protoJobToAbort);
+
+void ToProto(
+    NProto::TJobToStore* protoJobToStore,
+    const NControllerAgent::TJobToStore& jobToStore);
+void FromProto(
+    NControllerAgent::TJobToStore* jobToStore,
+    const NProto::TJobToStore& protoJobToStore);
+
+void ToProto(
+    NProto::TJobToConfirm* protoJobToConfirm,
+    const NControllerAgent::TJobToConfirm& jobToConfirm);
+void FromProto(
+    NControllerAgent::TJobToConfirm* jobToConfirm,
+    const NProto::TJobToConfirm& protoJobToConfirm);
+
+} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 

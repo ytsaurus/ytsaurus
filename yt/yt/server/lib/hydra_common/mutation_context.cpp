@@ -123,11 +123,11 @@ bool TMutationContext::GetResponseKeeperSuppressed()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NConcurrency::TFlsSlot<TMutationContext*> CurrentMutationContextSlot;
+static NConcurrency::TFls<TMutationContext*> CurrentMutationContext;
 
 TMutationContext* TryGetCurrentMutationContext()
 {
-    return *CurrentMutationContextSlot;
+    return *CurrentMutationContext;
 }
 
 TMutationContext* GetCurrentMutationContext()
@@ -144,7 +144,7 @@ bool HasMutationContext()
 
 void SetCurrentMutationContext(TMutationContext* context)
 {
-    *CurrentMutationContextSlot = context;
+    *CurrentMutationContext = context;
     SetCurrentHydraContext(context);
 }
 

@@ -104,8 +104,11 @@ public:
         const IOperationControllerPtr& controller,
         bool jobsReady);
     void StartOperationRevival(TOperationId operationId, TControllerEpoch newControllerEpoch);
-    void FinishOperationRevival(TOperationId operationId, const std::vector<TJobPtr>& jobs);
-    void ResetOperationRevival(TOperationId operationId);
+    void FinishOperationRevival(
+        TOperationId operationId,
+        const std::vector<TJobPtr>& jobs,
+        bool controlJobLifetimeAtScheduler);
+    void ResetOperationRevival(TOperationId operationId, bool controlJobLifetimeAtScheduler);
     void UnregisterOperation(TOperationId operationId);
 
     void ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context);
@@ -133,7 +136,7 @@ public:
     void AbortJobs(const std::vector<TJobId>& jobIds, const TError& error);
     void InterruptJob(TJobId jobId, EInterruptReason reason);
     void FailJob(TJobId jobId);
-    void ReleaseJob(TJobId jobId, NJobTrackerClient::TReleaseJobFlags releaseFlags);
+    void ReleaseJob(TJobId jobId, NControllerAgent::TReleaseJobFlags releaseFlags);
 
     void BuildNodesYson(NYTree::TFluentMap fluent);
 
@@ -172,6 +175,18 @@ public:
         NNodeTrackerClient::TAddressMap addresses,
         TIncarnationId incarnationId);
     void UnregisterAgent(TAgentId id);
+
+    struct TRunningJobTimeStatistics
+    {
+        TDuration PreemptibleProgressTime;
+    };
+
+    struct TRunningJobStatisticsUpdate
+    {
+        TJobId JobId;
+        TRunningJobTimeStatistics TimeStatistics;
+    };
+    void UpdateRunningJobsStatistics(const std::vector<TRunningJobStatisticsUpdate>& updates);
 
 private:
     const int Id_;
@@ -282,6 +297,8 @@ private:
         //! Prevents leaking #AbortUnconfirmedJobs between different incarnations of the same operation.
         TShardEpoch ShardEpoch;
         TControllerEpoch ControllerEpoch;
+
+        bool ControlJobLifetimeAtScheduler;
     };
 
     THashMap<TOperationId, TOperationState> IdToOpertionState_;
@@ -422,6 +439,8 @@ private:
     void AddRegisteredControllerAgentsToResponse(auto* response);
 
     void SetMinSpareResources(TScheduler::TCtxNodeHeartbeat::TTypedResponse* response);
+
+    void UpdateJobTimeStatisticsIfNeeded(const TJobPtr& job, TRunningJobTimeStatistics timeStatistics);
 };
 
 DEFINE_REFCOUNTED_TYPE(TNodeShard)

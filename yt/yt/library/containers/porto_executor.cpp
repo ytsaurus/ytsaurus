@@ -17,6 +17,8 @@
 
 #include <library/cpp/porto/proto/rpc.pb.h>
 
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+
 #include <string>
 
 namespace NYT::NContainers {
@@ -123,10 +125,17 @@ public:
             BIND(&TPortoExecutor::DoPoll, MakeWeak(this)),
             Config_->PollPeriod))
     {
+        DynamicConfig_.Store(New<TPortoExecutorDynamicConfig>());
+
         Api_->SetTimeout(Config_->ApiTimeout.Seconds());
         Api_->SetDiskTimeout(Config_->ApiDiskTimeout.Seconds());
 
         PollExecutor_->Start();
+    }
+
+    void OnDynamicConfigChanged(const TPortoExecutorDynamicConfigPtr& newConfig) override
+    {
+        DynamicConfig_.Store(newConfig);
     }
 
     TFuture<void> CreateContainer(const TString& container) override
@@ -338,9 +347,9 @@ private:
     const TPortoExecutorConfigPtr Config_;
     const TActionQueuePtr Queue_;
     const NProfiling::TProfiler Profiler_;
-
     const std::unique_ptr<Porto::TPortoApi> Api_ = std::make_unique<Porto::TPortoApi>();
     const TPeriodicExecutorPtr PollExecutor_;
+    TAtomicIntrusivePtr<TPortoExecutorDynamicConfig> DynamicConfig_;
 
     std::vector<TString> Containers_;
     THashMap<TString, TPromise<int>> ContainerMap_;
@@ -365,6 +374,20 @@ private:
     THashMap<TString, TCommandEntry> CommandToEntry_;
 
     static const std::vector<TString> ContainerRequestVars_;
+
+    bool IsTestPortoFailureEnabled() const
+    {
+        auto config = DynamicConfig_.Acquire();
+        auto flag = config->EnableTestPortoFailures;
+        return flag.value_or(Config_->EnableTestPortoFailures);
+    }
+
+    EPortoErrorCode GetFailedStubError() const
+    {
+        auto config = DynamicConfig_.Acquire();
+        auto code = config->StubErrorCode;
+        return code.value_or(Config_->StubErrorCode);
+    }
 
     static TError CreatePortoError(EPortoErrorCode errorCode, const TString& message)
     {
@@ -433,7 +456,10 @@ private:
             }
         }
 
-        if (!spec.IPAddresses.empty() && Config_->EnableNetworkIsolation) {
+        if (spec.DisableNetwork) {
+            auto* netConfig = portoSpec.mutable_net()->add_cfg();
+            netConfig->set_opt("none");
+        } else if (!spec.IPAddresses.empty() && Config_->EnableNetworkIsolation) {
             // This label is intended for HBF-agent: YT-12512.
             auto* label = portoSpec.mutable_labels()->add_map();
             label->set_key("HBF.ignore_address");
@@ -481,7 +507,7 @@ private:
             auto* portoBind = portoSpec.mutable_bind()->add_bind();
             portoBind->set_target(bind.TargetPath);
             portoBind->set_source(bind.SourcePath);
-            portoBind->add_flag(bind.IsReadOnly ? "ro" : "rw");
+            portoBind->add_flag(bind.ReadOnly ? "ro" : "rw");
         };
 
         if (spec.RootFS) {
@@ -822,12 +848,17 @@ private:
         const TString& command,
         bool idempotent)
     {
+        if (IsTestPortoFailureEnabled()) {
+            THROW_ERROR CreatePortoError(GetFailedStubError(), "Porto stub error");
+        }
+
         YT_LOG_DEBUG("Porto API call started (Command: %v)", command);
 
         auto* entry = GetCommandEntry(command);
         auto startTime = NProfiling::GetInstant();
         while (true) {
             EError error;
+
             {
                 NProfiling::TWallTimer timer;
                 error = callback();

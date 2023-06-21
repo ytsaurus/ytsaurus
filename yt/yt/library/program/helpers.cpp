@@ -15,6 +15,7 @@
 
 #include <yt/yt/library/profiling/resource_tracker/resource_tracker.h>
 
+#include <yt/yt/library/containers/config.h>
 #include <yt/yt/library/containers/porto_resource_tracker.h>
 
 #include <yt/yt/core/logging/log_manager.h>
@@ -142,7 +143,7 @@ void ConfigureSingletonsImpl(const TConfig& config)
     }
 
     if (config->EnablePortoResourceTracker) {
-        NContainers::EnablePortoResourceTracker();
+        NContainers::EnablePortoResourceTracker(config->PodSpec);
     }
 }
 

@@ -135,6 +135,16 @@ private:
             NodeDisposalExecutor_->Stop();
             NodeDisposalExecutor_.Reset();
         }
+
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        for (auto nodeId : NodesBeingDisposed_) {
+            auto* node = nodeTracker->FindNode(nodeId);
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
+
+            node->SetDisposalTickScheduled(false);
+        }
     }
 
     void Load(NCellMaster::TLoadContext& context)
@@ -196,7 +206,24 @@ private:
 
         YT_VERIFY(IsLeader());
 
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         for (auto nodeId : NodesBeingDisposed_) {
+            auto* node = nodeTracker->FindNode(nodeId);
+
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
+
+            if (node->GetDisposalTickScheduled()) {
+                continue;
+            }
+
+            node->SetDisposalTickScheduled(true);
+
+            YT_LOG_DEBUG("Scheduling node disposal tick (NodeId: %v, Address: %v)",
+                node->GetId(),
+                node->GetDefaultAddress());
+
             TReqNodeDisposalTick request;
             request.set_node_id(nodeId);
 
@@ -245,6 +272,8 @@ private:
             if (!IsObjectAlive(node)) {
                 return;
             }
+
+            node->SetDisposalTickScheduled(false);
 
             YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Starting node disposal tick (NodeId: %v, Address: %v)",
                 node->GetId(),

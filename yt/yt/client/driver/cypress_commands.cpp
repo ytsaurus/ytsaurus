@@ -30,10 +30,6 @@ TGetCommand::TGetCommand()
         .Optional();
     RegisterParameter("return_only_value", ShouldReturnOnlyValue)
         .Default(false);
-    RegisterParameter("node_count_limit", Options.ComplexityLimits.NodeCount)
-        .Optional();
-    RegisterParameter("result_size_limit", Options.ComplexityLimits.ResultSize)
-        .Optional();
 }
 
 void TGetCommand::DoExecute(ICommandContextPtr context)
@@ -128,10 +124,6 @@ TListCommand::TListCommand()
         .Optional();
     RegisterParameter("return_only_value", ShouldReturnOnlyValue)
         .Default(false);
-    RegisterParameter("node_count_limit", Options.ComplexityLimits.NodeCount)
-        .Optional();
-    RegisterParameter("result_size_limit", Options.ComplexityLimits.ResultSize)
-        .Optional();
 }
 
 void TListCommand::DoExecute(ICommandContextPtr context)
@@ -441,13 +433,6 @@ TConcatenateCommand::TConcatenateCommand()
 
     RegisterParameter("uniqualize_chunks", Options.UniqualizeChunks)
         .Default(false);
-
-    RegisterPostprocessor([&] {
-        for (auto& path : SourcePaths) {
-            path = path.Normalize();
-        }
-        DestinationPath = DestinationPath.Normalize();
-    });
 }
 
 void TConcatenateCommand::DoExecute(ICommandContextPtr context)

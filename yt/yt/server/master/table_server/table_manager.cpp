@@ -29,6 +29,8 @@
 
 #include <yt/yt/server/lib/tablet_server/replicated_table_tracker.h>
 
+#include <yt/yt/library/heavy_schema_validation/schema_validation.h>
+
 #include <yt/yt/client/chunk_client/data_statistics.h>
 
 #include <yt/yt/client/object_client/public.h>
@@ -47,15 +49,16 @@ using namespace NChunkServer;
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NCypressServer;
+using namespace NCypressServer::NProto;
+using namespace NHydra;
 using namespace NObjectClient;
 using namespace NObjectServer;
-using namespace NHydra;
 using namespace NSecurityServer;
 using namespace NTableClient;
 using namespace NTabletServer;
 using namespace NTransactionServer;
-using namespace NYTree;
 using namespace NYson;
+using namespace NYTree;
 
 using NCypressServer::TNodeId;
 
@@ -136,8 +139,12 @@ public:
         objectManager->RegisterHandler(New<TMasterTableSchemaTypeHandler>(this));
         objectManager->RegisterHandler(CreateTableCollocationTypeHandler(Bootstrap_, &TableCollocationMap_));
 
+        auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
+        EmptyMasterTableSchemaId_ = MakeWellKnownId(EObjectType::MasterTableSchema, primaryCellTag, 0xffffffffffffffff);
+
+        // COMPAT(h0pless): Remove this after schema migration is complete.
         auto cellTag = Bootstrap_->GetMulticellManager()->GetCellTag();
-        EmptyMasterTableSchemaId_ = MakeWellKnownId(EObjectType::MasterTableSchema, cellTag, 0xffffffffffffffff);
+        OldEmptyMasterTableSchemaId_ = MakeWellKnownId(EObjectType::MasterTableSchema, cellTag, 0xffffffffffffffff);
     }
 
     void Initialize() override
@@ -240,19 +247,10 @@ public:
         return nullptr;
     }
 
-    TMasterTableSchema* GetEmptyMasterTableSchema() override
+    TMasterTableSchema* GetEmptyMasterTableSchema() const override
     {
         YT_VERIFY(EmptyMasterTableSchema_);
         return EmptyMasterTableSchema_;
-    }
-
-    // COMPAT(shakurov)
-    TMasterTableSchema* GetOrCreateEmptyMasterTableSchema() override
-    {
-        // Right now this may be called during compat-loading table nodes, which
-        // precedes initialization of builtins by OnAfterSnapshotLoaded.
-        InitBuiltins();
-        return GetEmptyMasterTableSchema();
     }
 
     void SetTableSchema(ISchemafulNode* table, TMasterTableSchema* schema) override
@@ -281,6 +279,18 @@ public:
         auto* tableAccount = table->GetAccount();
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->UpdateMasterMemoryUsage(schema, tableAccount);
+    }
+
+    void SetTableSchemaOrThrow(ISchemafulNode* table, TMasterTableSchemaId schemaId) override
+    {
+        auto* existingSchema = GetMasterTableSchemaOrThrow(schemaId);
+        SetTableSchema(table, existingSchema);
+    }
+
+    void SetTableSchemaOrCrash(ISchemafulNode* table, TMasterTableSchemaId schemaId) override
+    {
+        auto* existingSchema = GetMasterTableSchema(schemaId);
+        SetTableSchema(table, existingSchema);
     }
 
     void ResetTableSchema(ISchemafulNode* table) override
@@ -314,27 +324,101 @@ public:
         return schema;
     }
 
-    TMasterTableSchema* FindMasterTableSchema(const TTableSchema& tableSchema) const override
+    TMasterTableSchema* FindNativeMasterTableSchema(const TTableSchema& tableSchema) const override
     {
-        auto it = TableSchemaToObjectMap_.find(tableSchema);
-        return it != TableSchemaToObjectMap_.end()
+        auto it = NativeTableSchemaToObjectMap_.find(tableSchema);
+        return it != NativeTableSchemaToObjectMap_.end()
             ? it->second
             : nullptr;
     }
 
-    TMasterTableSchema* GetOrCreateMasterTableSchema(const TTableSchema& tableSchema, ISchemafulNode* schemaHolder) override
+    TMasterTableSchema* FindImportedMasterTableSchema(const TTableSchema& tableSchema, const TCellTag cellTag) const override
     {
-        auto* schema = DoGetOrCreateMasterTableSchema(tableSchema);
+        auto it = ImportedTableSchemaToObjectMap_.find(TCellTaggedTableSchema(tableSchema, cellTag));
+        return it != ImportedTableSchemaToObjectMap_.end()
+            ? it->second
+            : nullptr;
+    }
+
+    TMasterTableSchema* CreateImportedMasterTableSchema(
+        const NTableClient::TTableSchema& tableSchema,
+        ISchemafulNode* schemaHolder,
+        TMasterTableSchemaId hintId) override
+    {
+        return CreateMasterTableSchema(tableSchema, schemaHolder, /* isNative */ false, hintId);
+    }
+
+    TMasterTableSchema* CreateImportedMasterTableSchema(
+        const NTableClient::TTableSchema& tableSchema,
+        NTransactionServer::TTransaction* schemaHolder,
+        TMasterTableSchemaId hintId) override
+    {
+        return CreateMasterTableSchema(tableSchema, schemaHolder, /* isNative */ false, hintId);
+    }
+
+    TMasterTableSchema* GetOrCreateNativeMasterTableSchema(
+        const TTableSchema& schema,
+        ISchemafulNode* schemaHolder) override
+    {
+        auto* existingSchema = FindNativeMasterTableSchema(schema);
+        if (!existingSchema) {
+            return CreateMasterTableSchema(schema, schemaHolder, /* isNative */ true);
+        }
+
+        SetTableSchema(schemaHolder, existingSchema);
+        return existingSchema;
+    }
+
+    TMasterTableSchema* GetOrCreateNativeMasterTableSchema(
+        const TTableSchema& schema,
+        TTransaction* schemaHolder) override
+    {
+        auto* existingSchema = FindNativeMasterTableSchema(schema);
+        if (!existingSchema) {
+            return CreateMasterTableSchema(schema, schemaHolder, /* isNative */ true);
+        }
+
+        if (!schemaHolder->StagedObjects().contains(existingSchema)) {
+            const auto& transactionManager = Bootstrap_->GetTransactionManager();
+            transactionManager->StageObject(schemaHolder, existingSchema);
+        }
+        return existingSchema;
+    }
+
+    TMasterTableSchema* CreateMasterTableSchema(
+        const TTableSchema& tableSchema,
+        ISchemafulNode* schemaHolder,
+        bool isNative,
+        TMasterTableSchemaId hintId = NObjectClient::NullObjectId)
+    {
+        auto* schema = FindMasterTableSchema(hintId);
+        if (!schema) {
+            schema = DoCreateMasterTableSchema(tableSchema, hintId, isNative);
+        } else if(!IsObjectAlive(schema)) {
+            ResurrectMasterTableSchema(schema);
+            YT_VERIFY(*schema->TableSchema_ == tableSchema);
+        }
         SetTableSchema(schemaHolder, schema);
         YT_VERIFY(IsObjectAlive(schema));
         return schema;
     }
 
-    TMasterTableSchema* GetOrCreateMasterTableSchema(const TTableSchema& tableSchema, TTransaction* schemaHolder) override
+    TMasterTableSchema* CreateMasterTableSchema(
+        const TTableSchema& tableSchema,
+        TTransaction* schemaHolder,
+        bool isNative,
+        TMasterTableSchemaId hintId = NObjectClient::NullObjectId)
     {
         YT_VERIFY(IsObjectAlive(schemaHolder));
 
-        auto* schema = DoGetOrCreateMasterTableSchema(tableSchema);
+        auto* schema = FindMasterTableSchema(hintId);
+        if (!schema) {
+            schema = DoCreateMasterTableSchema(tableSchema, hintId, isNative);
+        } else if (!IsObjectAlive(schema)) {
+            ResurrectMasterTableSchema(schema);
+            YT_VERIFY(*schema->TableSchema_ == tableSchema);
+        }
+
         if (!schemaHolder->StagedObjects().contains(schema)) {
             const auto& transactionManager = Bootstrap_->GetTransactionManager();
             transactionManager->StageObject(schemaHolder, schema);
@@ -343,32 +427,50 @@ public:
         return schema;
     }
 
-    TMasterTableSchema* DoGetOrCreateMasterTableSchema(const TTableSchema& tableSchema)
-    {
-        // NB: freshly created schemas have zero refcounter and are technically not alive.
-        if (auto* schema = FindMasterTableSchema(tableSchema)) {
-            return schema;
-        }
-
-        return CreateMasterTableSchema(tableSchema);
-    }
-
-    TMasterTableSchema* CreateMasterTableSchemaUnsafely(
-        TMasterTableSchemaId tableSchemaId,
-        const TTableSchema& tableSchema) override
-    {
-        // During compat-migration, Create...Unsafely should only be called once per unique schema.
-        YT_VERIFY(!FindMasterTableSchema(tableSchema));
-        YT_VERIFY(!FindMasterTableSchema(tableSchemaId));
-
-        return DoCreateMasterTableSchema(tableSchemaId, tableSchema);
-    }
-
-    TMasterTableSchema* CreateMasterTableSchema(const TTableSchema& tableSchema)
+    TMasterTableSchema* DoCreateMasterTableSchema(
+        const TTableSchema& tableSchema,
+        TMasterTableSchemaId hintId,
+        bool isNative)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto id = objectManager->GenerateId(EObjectType::MasterTableSchema);
-        auto* schema = DoCreateMasterTableSchema(id, tableSchema);
+        auto id = objectManager->GenerateId(EObjectType::MasterTableSchema, hintId);
+
+        auto sharedTableSchema = New<TTableSchema>(tableSchema);
+
+        TMasterTableSchema* schema;
+        if (isNative){
+            auto it = EmplaceOrCrash(
+                NativeTableSchemaToObjectMap_,
+                std::move(sharedTableSchema),
+                nullptr);
+
+            auto schemaHolder = TPoolAllocator::New<TMasterTableSchema>(id, it);
+            schema = MasterTableSchemaMap_.Insert(id, std::move(schemaHolder));
+            it->second = schema;
+            YT_VERIFY(schema->GetNativeTableSchemaToObjectMapIterator()->second == schema);
+        } else {
+            auto [it, emplaced] = ImportedTableSchemaToObjectMap_.emplace(
+                TCellTaggedTableSchemaPtr(std::move(sharedTableSchema), CellTagFromId(id)),
+                nullptr);
+
+            if (!emplaced) {
+                // This schema should become zombie, thus it's doomed.
+                auto* doomedSchema = it->second;
+                YT_VERIFY(doomedSchema->GetId() != hintId);
+                YT_LOG_DEBUG("Rewriting table schema (OldSchemaId: %v, NewSchemaId: %v)",
+                    doomedSchema->GetId(),
+                    hintId);
+                doomedSchema->ResetImportedTableSchemaToObjectMapIterator();
+            }
+
+            auto schemaHolder = TPoolAllocator::New<TMasterTableSchema>(id, it);
+            schema = MasterTableSchemaMap_.Insert(id, std::move(schemaHolder));
+            it->second = schema;
+            YT_VERIFY(schema->GetImportedTableSchemaToObjectMapIterator()->second == schema);
+        }
+
+        YT_VERIFY(!schema->CellTagToExportCount_);
+        YT_VERIFY(schema->IsNative() == isNative);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Schema created (Id: %v)", id);
 
@@ -378,6 +480,8 @@ public:
     void ZombifyMasterTableSchema(TMasterTableSchema* schema)
     {
         YT_VERIFY(schema != EmptyMasterTableSchema_);
+
+        schema->AlertIfNonEmptyExportCount();
 
         if (!schema->ReferencingAccounts().empty()) {
             YT_LOG_ALERT("Table schema being destroyed is still referenced by some accounts (SchemaId: %v, AccountCount: %v)",
@@ -391,34 +495,215 @@ public:
                 schema->ChargedMasterMemoryUsage().size());
         }
 
-        TableSchemaToObjectMap_.erase(schema->GetTableSchemaToObjectMapIterator());
-        schema->ResetTableSchemaToObjectMapIterator();
+        // COMPAT(h0pless): Remove this after schema migration is complete.
+        if (schema->GetId() == OldEmptyMasterTableSchemaId_) {
+            return;
+        }
+
+        if (schema->IsNative()) {
+            if (auto it = schema->GetNativeTableSchemaToObjectMapIterator()) {
+                NativeTableSchemaToObjectMap_.erase(it);
+            }
+            schema->ResetNativeTableSchemaToObjectMapIterator();
+        } else {
+            if (auto it = schema->GetImportedTableSchemaToObjectMapIterator()) {
+                ImportedTableSchemaToObjectMap_.erase(it);
+            }
+            schema->ResetImportedTableSchemaToObjectMapIterator();
+        }
+
     }
 
-    TMasterTableSchema* DoCreateMasterTableSchema(TMasterTableSchemaId id, TTableSchema tableSchema)
-    {
-        auto sharedTableSchema = New<TTableSchema>(std::move(tableSchema));
-        auto [it, inserted] = TableSchemaToObjectMap_.emplace(std::move(sharedTableSchema), nullptr);
-        YT_VERIFY(inserted);
+    void ResurrectMasterTableSchema(TMasterTableSchema* schema) {
+        YT_VERIFY(!schema->IsDisposed());
+        YT_VERIFY(FindMasterTableSchema(schema->GetId()));
 
-        auto schemaHolder = TPoolAllocator::New<TMasterTableSchema>(id, it);
-        auto* schema = MasterTableSchemaMap_.Insert(id, std::move(schemaHolder));
-        it->second = schema;
+        YT_LOG_DEBUG("Resurrecting master table schema object (SchemaId: %v)",
+            schema->GetId());
 
-        YT_VERIFY(schema->GetTableSchemaToObjectMapIterator()->second == schema);
-
-        return schema;
+        const auto& tableSchema = schema->TableSchema_;
+        if (schema->IsNative()) {
+            auto it = EmplaceOrCrash(
+                NativeTableSchemaToObjectMap_,
+                tableSchema,
+                schema);
+            schema->SetNativeTableSchemaToObjectMapIterator(it);
+        } else {
+            auto cellTag = CellTagFromId(schema->GetId());
+            auto it = EmplaceOrCrash(
+                ImportedTableSchemaToObjectMap_,
+                TCellTaggedTableSchemaPtr(tableSchema, cellTag),
+                schema);
+            schema->SetImportedTableSchemaToObjectMapIterator(it);
+        }
     }
 
-    TMasterTableSchema::TTableSchemaToObjectMapIterator RegisterSchema(
+    TMasterTableSchema::TNativeTableSchemaToObjectMapIterator RegisterNativeSchema(
         TMasterTableSchema* schema,
         TTableSchema tableSchema) override
     {
         YT_VERIFY(IsObjectAlive(schema));
         auto sharedTableSchema = New<TTableSchema>(std::move(tableSchema));
-        auto [it, inserted] = TableSchemaToObjectMap_.emplace(std::move(sharedTableSchema), schema);
-        YT_VERIFY(inserted);
-        return it;
+        return EmplaceOrCrash(
+            NativeTableSchemaToObjectMap_,
+            sharedTableSchema,
+            schema);
+    }
+
+    TMasterTableSchema::TImportedTableSchemaToObjectMapIterator RegisterImportedSchema(
+        TMasterTableSchema* schema,
+        TTableSchema tableSchema) override
+    {
+        YT_VERIFY(IsObjectAlive(schema));
+        auto cellTag = CellTagFromId(schema->GetId());
+        auto sharedTableSchema = New<TTableSchema>(std::move(tableSchema));
+        return EmplaceOrCrash(
+            ImportedTableSchemaToObjectMap_,
+            TCellTaggedTableSchemaPtr(std::move(sharedTableSchema), cellTag),
+            schema);
+    }
+
+    void ValidateTableSchemaCorrespondence(
+        TVersionedNodeId nodeId,
+        const TTableSchemaPtr& tableSchema,
+        TMasterTableSchemaId schemaId) override
+    {
+        auto type = TypeFromId(nodeId.ObjectId);
+        YT_VERIFY(IsSchemafulType(type));
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto nativeCellTag = CellTagFromId(nodeId.ObjectId);
+        auto native = nativeCellTag == multicellManager->GetCellTag();
+
+        const auto& tableManager = Bootstrap_->GetTableManager();
+        TMasterTableSchema* schemaById = nullptr;
+        if (native) {
+            if (schemaId) {
+                schemaById = tableManager->GetMasterTableSchemaOrThrow(schemaId);
+            }
+        } else {
+            // On external cells schemaId should always be present.
+            // COMPAT(h0pless): Change this to YT_VERIFY after schema migration is complete.
+            YT_LOG_ALERT_IF(!schemaId, "Request to create a foreign node has no schema id on external cell "
+                "(NodeId: %v, NativeCellTag: %v, CellTag: %v)",
+                nodeId,
+                nativeCellTag,
+                multicellManager->GetCellTag());
+
+            schemaById = FindMasterTableSchema(schemaId);
+
+            if (!schemaById) {
+                // COMPAT(h0pless): Change this to YT_VERIFY after schema migration is complete.
+                YT_LOG_ALERT_IF(!tableSchema, "Request to create a foreign node has schema id of an unimported schema on external cell "
+                    "(NodeId: %v, NativeCellTag: %v, CellTag: %v, SchemaId: %v)",
+                    nodeId,
+                    nativeCellTag,
+                    multicellManager->GetCellTag(),
+                    schemaId);
+            }
+        }
+
+        if (tableSchema && schemaById && schemaById->IsNative()) {
+            auto* schemaByYson = tableManager->FindNativeMasterTableSchema(*tableSchema);
+            if (IsObjectAlive(schemaByYson)) {
+                if (schemaById != schemaByYson) {
+                    THROW_ERROR_EXCEPTION("Both \"schema\" and \"schema_id\" specified and they refer to different schemas");
+                }
+            } else {
+                if (*schemaById->AsTableSchema(/* crashOnZombie */ false) != *tableSchema) {
+                    THROW_ERROR_EXCEPTION("Both \"schema\" and \"schema_id\" specified and the schemas do not match");
+                }
+            }
+        }
+    }
+
+    const TTableSchema* ProcessSchemaFromAttributes(
+        TTableSchemaPtr& tableSchema,
+        TMasterTableSchemaId schemaId,
+        bool dynamic,
+        bool chaos,
+        TVersionedNodeId nodeId) override
+    {
+        auto type = TypeFromId(nodeId.ObjectId);
+
+        if (dynamic && !chaos && !tableSchema && !schemaId) {
+            THROW_ERROR_EXCEPTION("Either \"schema\" or \"schema_id\" must be specified for dynamic tables");
+        }
+
+        ValidateTableSchemaCorrespondence(
+            nodeId,
+            tableSchema,
+            schemaId);
+
+        const auto& tableManager = Bootstrap_->GetTableManager();
+        const TTableSchema* effectiveTableSchema = nullptr;
+        auto* schemaById = tableManager->FindMasterTableSchema(schemaId);
+        if (schemaById) {
+            effectiveTableSchema = schemaById->AsTableSchema(/* crashOnZombie */ false).Get();
+        } else if (tableSchema) {
+            effectiveTableSchema = tableSchema.Get();
+        } else {
+            return nullptr;
+        }
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto native = CellTagFromId(nodeId.ObjectId) == multicellManager->GetCellTag();
+
+        // NB: Sorted dynamic tables contain unique keys, set this for user.
+        if (dynamic && effectiveTableSchema->IsSorted() && !effectiveTableSchema->GetUniqueKeys()) {
+            if (!native) {
+                // COMPAT(h0pless): Change this to YT_VERIFY after schema migration is complete.
+                YT_LOG_ALERT("Schema doesn't have \"unique_keys\" set to true on the external cell for a dynamic table (TableId: %v, Schema: %v)",
+                    nodeId,
+                    tableSchema);
+            }
+
+            tableSchema = effectiveTableSchema->ToUniqueKeys();
+            effectiveTableSchema = tableSchema.Get();
+        }
+
+        if (effectiveTableSchema->HasNontrivialSchemaModification()) {
+            THROW_ERROR_EXCEPTION("Cannot create table with nontrivial schema modification");
+        }
+
+        ValidateTableSchemaUpdate(TTableSchema(), *effectiveTableSchema, dynamic, true);
+
+        const auto& dynamicConfig = Bootstrap_->GetConfigManager()->GetConfig();
+        if (!dynamicConfig->EnableDescendingSortOrder || (dynamic && !dynamicConfig->EnableDescendingSortOrderDynamic)) {
+            ValidateNoDescendingSortOrder(*effectiveTableSchema);
+        }
+
+        if (!dynamicConfig->EnableTableColumnRenaming) {
+            ValidateNoRenamedColumns(*effectiveTableSchema);
+        }
+
+        if (type == EObjectType::ReplicationLogTable && !effectiveTableSchema->IsSorted()) {
+            THROW_ERROR_EXCEPTION("Could not create unsorted replication log table");
+        }
+
+        return effectiveTableSchema;
+    }
+
+    void EnsureSchemaExported(
+        const ISchemafulNode* node,
+        TCellTag externalCellTag,
+        TTransactionId externalizedTransactionId,
+        const IMulticellManagerPtr& multicellManager) override
+    {
+        auto* schema = node->GetSchema();
+        YT_VERIFY(schema);
+
+        if (!schema->IsExported(externalCellTag)) {
+            TReqExportTableSchema exportRequest;
+
+            ToProto(exportRequest.mutable_schema_id(), schema->GetId());
+            ToProto(exportRequest.mutable_schema(), schema->AsTableSchema());
+            ToProto(exportRequest.mutable_transaction_id(), externalizedTransactionId);
+
+            multicellManager->PostToMaster(exportRequest, externalCellTag);
+        }
+
+        schema->ExportRef(externalCellTag);
     }
 
     TTableCollocation* CreateTableCollocation(
@@ -796,6 +1081,36 @@ public:
         }
     }
 
+    void TransformForeignSchemaIdsToNative() override
+    {
+        std::vector<std::unique_ptr<TMasterTableSchema>> schemasToUpdate;
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto cellTag = multicellManager->GetCellTag();
+        for (auto it = MasterTableSchemaMap_.begin(); it != MasterTableSchemaMap_.end();) {
+            auto schemaId = it->first;
+            ++it;
+
+            if (CellTagFromId(schemaId) != cellTag && schemaId != EmptyMasterTableSchemaId_) {
+                auto schemaPtr = MasterTableSchemaMap_.Release(schemaId);
+
+                auto newSchemaId = GenerateNativeSchemaIdFromForeign(schemaPtr->GetId(), cellTag);
+                schemaPtr->SetId(newSchemaId);
+
+                YT_LOG_ALERT("Updating schema ID for a native schema (NewSchemaId: %v, SchemaId: %v, Schema: %v)",
+                    schemaId,
+                    schemaPtr->AsTableSchema(),
+                    newSchemaId);
+
+                schemasToUpdate.push_back(std::move(schemaPtr));
+            }
+        }
+
+        for (auto i = 0; i < std::ssize(schemasToUpdate); ++i) {
+            auto schemaId = schemasToUpdate[i]->GetId();
+            MasterTableSchemaMap_.Insert(schemaId, std::move(schemasToUpdate[i]));
+        }
+    }
+
     DEFINE_SIGNAL_OVERRIDE(void(TTableCollocationData), ReplicationCollocationUpdated);
     DEFINE_SIGNAL_OVERRIDE(void(TTableCollocationId), ReplicationCollocationDestroyed);
 
@@ -826,7 +1141,12 @@ private:
     static const NYson::TYsonString EmptyYsonTableSchema;
 
     NHydra::TEntityMap<TMasterTableSchema> MasterTableSchemaMap_;
-    TMasterTableSchema::TTableSchemaToObjectMap TableSchemaToObjectMap_;
+
+    TMasterTableSchema::TNativeTableSchemaToObjectMap NativeTableSchemaToObjectMap_;
+    TMasterTableSchema::TImportedTableSchemaToObjectMap ImportedTableSchemaToObjectMap_;
+
+    // COMPAT(h0pless): Remove this after schema migration is complete.
+    TMasterTableSchemaId OldEmptyMasterTableSchemaId_;
 
     TMasterTableSchemaId EmptyMasterTableSchemaId_;
     TMasterTableSchema* EmptyMasterTableSchema_ = nullptr;
@@ -867,6 +1187,18 @@ private:
         return IsTableType(type) || type == EObjectType::File || type == EObjectType::HunkStorage;
     }
 
+    TMasterTableSchemaId GenerateNativeSchemaIdFromForeign(TMasterTableSchemaId oldSchemaId, TCellTag cellTag) {
+        YT_VERIFY(oldSchemaId);
+
+        auto imposterCellTag = CellTagFromId(oldSchemaId);
+        auto type = TypeFromId(oldSchemaId);
+        YT_VERIFY(type == EObjectType::MasterTableSchema);
+        return TMasterTableSchemaId(
+            (oldSchemaId.Parts32[0] & 0xffff) | (imposterCellTag << 16),   // keep the original cell tag
+            (cellTag << 16) | static_cast<ui32>(type),                     // keep type and replace native cell tag
+            oldSchemaId.Parts32[2],
+            oldSchemaId.Parts32[3]);
+    }
 
     void InitBuiltins()
     {
@@ -880,7 +1212,16 @@ private:
             return;
         }
 
-        EmptyMasterTableSchema_ = DoCreateMasterTableSchema(EmptyMasterTableSchemaId_, EmptyTableSchema);
+        EmptyMasterTableSchema_ = DoCreateMasterTableSchema(EmptyTableSchema, EmptyMasterTableSchemaId_, /* isNative */ true);
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        EmptyMasterTableSchema_->ExportRef(multicellManager->GetPrimaryCellTag());
+        for (auto cellTag : multicellManager->GetSecondaryCellTags()) {
+            EmptyMasterTableSchema_->ExportRef(cellTag);
+        }
+
+        // Bring export counter on the current cell to 0.
+        EmptyMasterTableSchema_->UnexportRef(multicellManager->GetCellTag());
+
         YT_VERIFY(EmptyMasterTableSchema_->RefObject() == 1);
     }
 
@@ -1117,7 +1458,8 @@ private:
         TMasterAutomatonPart::Clear();
 
         MasterTableSchemaMap_.Clear();
-        TableSchemaToObjectMap_.clear();
+        NativeTableSchemaToObjectMap_.clear();
+        ImportedTableSchemaToObjectMap_.clear();
         EmptyMasterTableSchema_ = nullptr;
         TableCollocationMap_.Clear();
         StatisticsUpdateRequests_.Clear();
@@ -1143,6 +1485,37 @@ private:
     void LoadValues(NCellMaster::TLoadContext& context)
     {
         MasterTableSchemaMap_.LoadValues(context);
+
+        // COMPAT(h0pless)
+        if (context.GetVersion() < EMasterReign::ExportMasterTableSchemas) {
+            // Forcefully reseting old empty schema.
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            if (!multicellManager->IsPrimaryMaster()) {
+                const auto& objectManager = Bootstrap_->GetObjectManager();
+                auto* oldEmptyMasterTableSchema_ = GetMasterTableSchema(OldEmptyMasterTableSchemaId_);
+
+                objectManager->UnrefObject(oldEmptyMasterTableSchema_);
+                NativeTableSchemaToObjectMap_.erase(oldEmptyMasterTableSchema_->GetNativeTableSchemaToObjectMapIterator());
+                oldEmptyMasterTableSchema_->ResetNativeTableSchemaToObjectMapIterator();
+
+                EmptyMasterTableSchema_ = DoCreateMasterTableSchema(
+                    EmptyTableSchema,
+                    EmptyMasterTableSchemaId_,
+                    /* isNative */ true);
+                YT_VERIFY(EmptyMasterTableSchema_->RefObject() == 1);
+            } else {
+                EmptyMasterTableSchema_ = GetMasterTableSchema(EmptyMasterTableSchemaId_);
+            }
+
+            EmptyMasterTableSchema_->ExportRef(multicellManager->GetPrimaryCellTag());
+            for (auto cellTag : multicellManager->GetSecondaryCellTags()) {
+                EmptyMasterTableSchema_->ExportRef(cellTag);
+            }
+
+            // Bring export counter on the current cell to 0.
+            EmptyMasterTableSchema_->UnexportRef(multicellManager->GetCellTag());
+        }
+
         Load(context, StatisticsUpdateRequests_);
         TableCollocationMap_.LoadValues(context);
 

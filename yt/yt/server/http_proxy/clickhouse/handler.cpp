@@ -161,7 +161,7 @@ public:
             .Item("in_bytes").Value(Request_->GetReadByteCount())
             .Item("out_bytes").Value(Response_->GetWriteByteCount())
 
-            .OptionalItem("trace_id", TryGetCurrentTraceContext() ?
+            .OptionalItem("trace_id", GetCurrentTraceContext() ?
                 std::make_optional(GetCurrentTraceContext()->GetTraceId()) :
                 std::nullopt)
             .OptionalItem("query_id", ProxiedResponse_ && ProxiedResponse_->GetHeaders()->Find("X-ClickHouse-Query-Id") ?
@@ -369,7 +369,7 @@ private:
             CgiParameters_.EraseAll("user");
             CgiParameters_.EraseAll("password");
 
-            auto* traceContext = TryGetCurrentTraceContext();
+            auto* traceContext = GetCurrentTraceContext();
             YT_VERIFY(traceContext);
             traceContext->AddTag("user", User_);
             traceContext->AddTag("clique_id", OperationId_);

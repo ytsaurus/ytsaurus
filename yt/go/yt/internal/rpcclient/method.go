@@ -48,4 +48,7 @@ const (
 	MethodGenerateTimestamps        Method = "GenerateTimestamps"
 	MethodLockNode                  Method = "LockNode"
 	MethodUnlockNode                Method = "UnlockNode"
+	MethodDisableChunkLocations     Method = "DisableChunkLocations"
+	MethodDestroyChunkLocations     Method = "DestroyChunkLocations"
+	MethodResurrectChunkLocations   Method = "ResurrectChunkLocations"
 )

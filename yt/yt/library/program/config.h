@@ -22,6 +22,8 @@
 
 #include <yt/yt/library/profiling/solomon/exporter.h>
 
+#include <yt/yt/library/containers/config.h>
+
 #include <yt/yt/library/tracing/jaeger/tracer.h>
 
 namespace NYT {
@@ -88,6 +90,7 @@ public:
     bool EnableResourceTracker;
     bool EnablePortoResourceTracker;
     std::optional<double> ResourceTrackerVCpuFactor;
+    NContainers::TPodSpecConfigPtr PodSpec;
 
     REGISTER_YSON_STRUCT(TSingletonsConfig);
 

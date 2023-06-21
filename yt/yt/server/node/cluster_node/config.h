@@ -33,6 +33,8 @@
 
 #include <yt/yt/library/profiling/solomon/exporter.h>
 
+#include <yt/yt/library/containers/public.h>
+
 #include <yt/yt/core/rpc/config.h>
 
 #include <yt/yt/core/concurrency/config.h>
@@ -217,9 +219,6 @@ public:
     //! Period between consequent lease transaction pings.
     std::optional<TDuration> LeaseTransactionPingPeriod;
 
-    //! Splay for the first node registration.
-    std::optional<TDuration> FirstRegisterSplay;
-
     //! Period between consequent registration attempts.
     std::optional<TDuration> RegisterRetryPeriod;
 
@@ -335,6 +334,9 @@ public:
 
     NConcurrency::TFairThrottlerConfigPtr OutThrottler;
 
+    //! Porto executor config.
+    NContainers::TPortoExecutorConfigPtr PortoExecutor;
+
     //! Bucket configuration for in network throttlers.
     THashMap<TString, NConcurrency::TFairThrottlerBucketConfigPtr> InThrottlers;
 
@@ -393,6 +395,11 @@ public:
 
     //! IO tracker config.
     NIO::TIOTrackerConfigPtr IOTracker;
+
+    //! Porto executor config.
+    NContainers::TPortoExecutorDynamicConfigPtr PortoExecutor;
+
+    bool EnableJobEnvironmentResurrection;
 
     bool EnableMemoryReferenceTracker;
 

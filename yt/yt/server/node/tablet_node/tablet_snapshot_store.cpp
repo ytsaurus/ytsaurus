@@ -7,6 +7,8 @@
 #include "security_manager.h"
 #include "slot_manager.h"
 
+#include <yt/yt/server/lib/cellar_agent/cellar.h>
+
 #include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
@@ -29,6 +31,7 @@ namespace NYT::NTabletNode {
 using namespace NConcurrency;
 using namespace NHydra;
 using namespace NObjectClient;
+using namespace NTabletClient;
 using namespace NYTree;
 using namespace NYson;
 
@@ -123,6 +126,35 @@ public:
                     tabletSnapshot->TabletId)
                     << TErrorAttribute("tablet_id", tabletSnapshot->TabletId);
             }
+        }
+    }
+
+    void ValidateBundleNotBanned(
+        const TTabletSnapshotPtr& tabletSnapshot,
+        const ITabletSlotPtr& slot) override
+    {
+        TDynamicTabletCellOptionsPtr dynamicOptions;
+        if (slot) {
+            dynamicOptions = slot->GetDynamicOptions();
+        } else {
+            const auto& occupant = Bootstrap_
+                ->GetCellarNodeBootstrap()
+                ->GetCellarManager()
+                ->GetCellar(NCellarClient::ECellarType::Tablet)
+                ->FindOccupant(tabletSnapshot->CellId);
+            if (!occupant) {
+                return;
+            }
+
+            dynamicOptions = occupant->GetDynamicOptions();
+        }
+
+        if (dynamicOptions->BanMessage.has_value()) {
+            THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::BundleIsBanned,
+                "Bundle %Qv is banned: %v",
+                dynamicOptions->BanMessage.value())
+                << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
+                << TErrorAttribute("table_path", tabletSnapshot->TablePath);
         }
     }
 
@@ -588,6 +620,13 @@ public:
     void ValidateTabletAccess(
         const TTabletSnapshotPtr& /*tabletSnapshot*/,
         NTransactionClient::TTimestamp /*timestamp*/) override
+    {
+        return;
+    }
+
+    void ValidateBundleNotBanned(
+        const TTabletSnapshotPtr& /*tabletSnapshot*/,
+        const ITabletSlotPtr& /*slot*/) override
     {
         return;
     }

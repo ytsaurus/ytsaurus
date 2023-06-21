@@ -27,90 +27,119 @@ TListOperationsCountingFilter::TListOperationsCountingFilter(const TListOperatio
 { }
 
 bool TListOperationsCountingFilter::Filter(
-    const std::optional<THashMap<TString, TString>>& poolTreeToPool,
-    const std::optional<std::vector<TString>>& pools,
-    TStringBuf user,
-    EOperationState state,
-    EOperationType type,
+    const TCountingFilterAttributes& countingFilterAttributes,
     i64 count)
 {
     YT_VERIFY(Options_);
 
-    if (poolTreeToPool) {
-        for (const auto& [poolTree, pool] : *poolTreeToPool) {
+    TCompactVector<EListOperationsCountingFilterType, TEnumTraits<EListOperationsCountingFilterType>::GetDomainSize()> failedFilters;
+    bool poolTreeFailed = [&] {
+        if (!Options_->PoolTree) {
+            return false;
+        }
+        if (!countingFilterAttributes.PoolTreeToPool) {
+            return true;
+        }
+
+        auto it = countingFilterAttributes.PoolTreeToPool->find(*Options_->PoolTree);
+        return it == countingFilterAttributes.PoolTreeToPool->end() ||
+            (Options_->Pool && it->second != Options_->Pool);
+    }();
+
+    if (poolTreeFailed) {
+        failedFilters.push_back(EListOperationsCountingFilterType::PoolTree);
+    }
+
+    bool poolFailed = [&] {
+        if (!Options_->Pool) {
+            return false;
+        }
+
+        const auto& pools = countingFilterAttributes.Pools;
+        return !pools ||
+            std::find(pools->begin(), pools->end(), *Options_->Pool) == pools->end();
+    }();
+
+    if (poolFailed) {
+        failedFilters.push_back(EListOperationsCountingFilterType::Pool);
+    }
+
+    if (Options_->UserFilter && *Options_->UserFilter != countingFilterAttributes.User) {
+        failedFilters.push_back(EListOperationsCountingFilterType::User);
+    }
+
+    if (Options_->StateFilter && *Options_->StateFilter != countingFilterAttributes.State) {
+        failedFilters.push_back(EListOperationsCountingFilterType::OperationState);
+    }
+
+    if (Options_->TypeFilter && *Options_->TypeFilter != countingFilterAttributes.Type) {
+        failedFilters.push_back(EListOperationsCountingFilterType::OperationType);
+    }
+
+    if (Options_->WithFailedJobs && *Options_->WithFailedJobs != countingFilterAttributes.HasFailedJobs) {
+        failedFilters.push_back(EListOperationsCountingFilterType::WithFailedJobs);
+    }
+
+    if (std::ssize(failedFilters) > 1) {
+        return false;
+    }
+
+    auto shouldIncrementFilterCounter = [&] (EListOperationsCountingFilterType type) {
+        return failedFilters.empty() || failedFilters[0] == type;
+    };
+
+    if (shouldIncrementFilterCounter(EListOperationsCountingFilterType::PoolTree) && countingFilterAttributes.PoolTreeToPool) {
+        for (const auto& [poolTree, pool] : *countingFilterAttributes.PoolTreeToPool) {
             if (!Options_->Pool || pool == *Options_->Pool) {
-                PoolTreeCounts[poolTree] += count;
+                PoolTreeCounts_[poolTree] += count;
             }
         }
     }
 
-    if (Options_->PoolTree) {
-        if (!poolTreeToPool ||
-            !poolTreeToPool->contains(*Options_->PoolTree) ||
-            (Options_->Pool && poolTreeToPool->at(*Options_->PoolTree) != Options_->Pool)) {
-            return false;
+    if (shouldIncrementFilterCounter(EListOperationsCountingFilterType::Pool) && countingFilterAttributes.Pools) {
+        for (const auto& pool : *countingFilterAttributes.Pools) {
+            PoolCounts_[pool] += count;
         }
     }
 
-    UserCounts[user] += count;
-
-    if (Options_->UserFilter && *Options_->UserFilter != user) {
-        return false;
+    if (shouldIncrementFilterCounter(EListOperationsCountingFilterType::User)) {
+        UserCounts_[countingFilterAttributes.User] += count;
     }
 
-    if (pools) {
-        for (const auto& pool : *pools) {
-            PoolCounts[pool] += count;
-        }
+    if (shouldIncrementFilterCounter(EListOperationsCountingFilterType::OperationState)) {
+        StateCounts_[countingFilterAttributes.State] += count;
     }
 
-    if (Options_->Pool && (!pools || std::find(pools->begin(), pools->end(), *Options_->Pool) == pools->end())) {
-        return false;
+    if (shouldIncrementFilterCounter(EListOperationsCountingFilterType::OperationType)) {
+        TypeCounts_[countingFilterAttributes.Type] += count;
     }
 
-    StateCounts[state] += count;
-
-    if (Options_->StateFilter && *Options_->StateFilter != state) {
-        return false;
+    if (shouldIncrementFilterCounter(EListOperationsCountingFilterType::WithFailedJobs) && countingFilterAttributes.HasFailedJobs) {
+        WithFailedJobsCount_ += count;
     }
 
-    TypeCounts[type] += count;
-
-    if (Options_->TypeFilter && *Options_->TypeFilter != type) {
-        return false;
-    }
-
-    return true;
+    return failedFilters.empty();
 }
 
-bool TListOperationsCountingFilter::FilterByFailedJobs(bool hasFailedJobs, i64 count)
-{
-    YT_VERIFY(Options_);
-
-    if (hasFailedJobs) {
-        FailedJobsCount += count;
-    }
-    return !Options_->WithFailedJobs || (*Options_->WithFailedJobs == hasFailedJobs);
-}
 
 void TListOperationsCountingFilter::MergeFrom(const TListOperationsCountingFilter& otherFilter)
 {
-    for (const auto& [poolTree, count] : otherFilter.PoolTreeCounts) {
-        PoolTreeCounts[poolTree] += count;
+    for (const auto& [poolTree, count] : otherFilter.PoolTreeCounts()) {
+        PoolTreeCounts_[poolTree] += count;
     }
-    for (const auto& [pool, count] : otherFilter.PoolCounts) {
-        PoolCounts[pool] += count;
+    for (const auto& [pool, count] : otherFilter.PoolCounts()) {
+        PoolCounts_[pool] += count;
     }
-    for (const auto& [user, count] : otherFilter.UserCounts) {
-        UserCounts[user] += count;
+    for (const auto& [user, count] : otherFilter.UserCounts()) {
+        UserCounts_[user] += count;
     }
     for (auto operationState : TEnumTraits<EOperationState>::GetDomainValues()) {
-        StateCounts[operationState] += otherFilter.StateCounts[operationState];
+        StateCounts_[operationState] += otherFilter.StateCounts()[operationState];
     }
     for (auto operationType : TEnumTraits<EOperationType>::GetDomainValues()) {
-        TypeCounts[operationType] += otherFilter.TypeCounts[operationType];
+        TypeCounts_[operationType] += otherFilter.TypeCounts()[operationType];
     }
-    FailedJobsCount += otherFilter.FailedJobsCount;
+    WithFailedJobsCount_ += otherFilter.WithFailedJobsCount_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -278,6 +307,9 @@ public:
         TransferAndGetYson("controller_features", Operation_.ControllerFeatures, cursor);
     }
 
+    void OnHasFailedJobs(bool /*hasFailedJobs*/)
+    { }
+
 private:
     TOperation& Operation_;
     const THashSet<TString>& Attributes_;
@@ -352,9 +384,6 @@ void ParseOperationToConsumer(TYsonPullParserCursor* cursor, TConsumer* consumer
         } else if (key == TStringBuf("unrecognized_spec")) {
             cursor->Next();
             consumer->OnUnrecognizedSpec(cursor);
-        } else if (key == TStringBuf("brief_progress")) {
-            cursor->Next();
-            consumer->OnBriefProgress(cursor);
         } else if (key == TStringBuf("progress")) {
             cursor->Next();
             consumer->OnProgress(cursor);
@@ -385,6 +414,9 @@ void ParseOperationToConsumer(TYsonPullParserCursor* cursor, TConsumer* consumer
         } else if (key == TStringBuf("controller_features")) {
             cursor->Next();
             consumer->OnControllerFeatures(cursor);
+        } else if (key == "has_failed_jobs") {
+            cursor->Next();
+            consumer->OnHasFailedJobs(ExtractTo<bool>(cursor));
         } else {
             cursor->Next();
             cursor->SkipComplexValue();
@@ -405,35 +437,6 @@ auto RunYsonPullParser(TStringBuf yson, TFunction function, TArgs&&... args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TListOperationsFilter::TBriefProgress ParseBriefProgress(TYsonPullParserCursor* cursor)
-{
-    TListOperationsFilter::TBriefProgress result = {};
-    cursor->ParseMap([&] (TYsonPullParserCursor* cursor) {
-        YT_VERIFY((*cursor)->GetType() == EYsonItemType::StringValue);
-        auto key = (*cursor)->UncheckedAsString();
-        if (key == TStringBuf("build_time")) {
-            cursor->Next();
-            result.BuildTime = ExtractTo<TInstant>(cursor);
-        } else if (key == TStringBuf("jobs")) {
-            cursor->Next();
-            cursor->ParseMap([&] (TYsonPullParserCursor* cursor) {
-                auto innerKey = (*cursor)->UncheckedAsString();
-                if (innerKey == TStringBuf("failed")) {
-                    cursor->Next();
-                    result.HasFailedJobs = ExtractTo<i64>(cursor) > 0;
-                } else {
-                    cursor->Next();
-                    cursor->SkipComplexValue();
-                }
-            });
-        } else {
-            cursor->Next();
-            cursor->SkipComplexValue();
-        }
-    });
-    return result;
-}
-
 class TFilteringConsumer
 {
 public:
@@ -444,32 +447,33 @@ public:
         , Options_(options)
     { }
 
-    std::optional<TListOperationsFilter::TLightOperation> ExtractCurrent()
+    TListOperationsFilter::TLightOperation ExtractCurrent()
     {
-        if (PassedFilter_) {
-            return std::move(CurrentOperation_);
-        } else {
-            return {};
-        }
+        return std::move(CurrentOperation_);
     }
 
     void OnBeginOperation()
     {
-        PoolTreeToPool_.clear();
-        Pools_.clear();
+        CurrentOperation_ = {};
+        CurrentOperation_.FilterAttributes.PoolTreeToPool.emplace();
+        CurrentOperation_.FilterAttributes.Pools.emplace();
         HasAcl_ = false;
         SubstringFound_ = false;
-        CurrentOperation_ = {};
     }
 
     void OnEndOperation()
     {
-        PassedFilter_ = Filter();
+        CurrentOperation_.FilterPassed = Filter();
+    }
+
+    void OnHasFailedJobs(bool operationHasFailedJobs)
+    {
+        CurrentOperation_.FilterAttributes.HasFailedJobs = operationHasFailedJobs;
     }
 
     void OnId(TOperationId id)
     {
-        CurrentOperation_.Id_ = id;
+        CurrentOperation_.Id = id;
         if (Options_.SubstrFilter) {
             TextFactorsBuilder_.Reset();
             FormatValue(&TextFactorsBuilder_, id, "%v");
@@ -479,7 +483,7 @@ public:
 
     void OnType(EOperationType type)
     {
-        Type_ = type;
+        CurrentOperation_.FilterAttributes.Type = type;
         if (Options_.SubstrFilter) {
             TextFactorsBuilder_.Reset();
             FormatValue(&TextFactorsBuilder_, type, "%lv");
@@ -489,7 +493,7 @@ public:
 
     void OnState(EOperationState state)
     {
-        State_ = state;
+        CurrentOperation_.FilterAttributes.State = state;
         if (Options_.SubstrFilter) {
             TextFactorsBuilder_.Reset();
             FormatValue(&TextFactorsBuilder_, state, "%lv");
@@ -499,7 +503,7 @@ public:
 
     void OnStartTime(TInstant startTime)
     {
-        CurrentOperation_.StartTime_ = startTime;
+        CurrentOperation_.StartTime = startTime;
     }
 
     void OnFinishTime(TInstant /*finishTime*/)
@@ -507,7 +511,7 @@ public:
 
     void OnAuthenticatedUser(TStringBuf authenticatedUser)
     {
-        AuthenticatedUser_ = authenticatedUser;
+        CurrentOperation_.FilterAttributes.User = authenticatedUser;
         if (Options_.SubstrFilter) {
             SearchSubstring(authenticatedUser);
         }
@@ -571,11 +575,6 @@ public:
         cursor->SkipComplexValue();
     }
 
-    void OnBriefProgress(TYsonPullParserCursor* cursor)
-    {
-        CurrentOperation_.BriefProgress_ = ParseBriefProgress(cursor);
-    }
-
     void OnProgress(TYsonPullParserCursor* cursor)
     {
         cursor->SkipComplexValue();
@@ -600,9 +599,10 @@ public:
                         auto innerKey = (*cursor)->UncheckedAsString();
                         if (innerKey == TStringBuf("pool")) {
                             cursor->Next();
-                            Pools_.push_back(ExtractTo<TString>(cursor));
-                            PoolTreeToPool_.emplace(poolTree, Pools_.back());
-                            SearchSubstring(Pools_.back());
+                            auto pool = ExtractTo<TString>(cursor);
+                            CurrentOperation_.FilterAttributes.PoolTreeToPool->emplace(poolTree, pool);
+                            SearchSubstring(pool);
+                            CurrentOperation_.FilterAttributes.Pools->push_back(std::move(pool));
                         } else {
                             cursor->Next();
                             cursor->SkipComplexValue();
@@ -689,13 +689,7 @@ private:
     TListOperationsCountingFilter* CountingFilter_;
     const TListOperationsOptions Options_;
 
-    bool PassedFilter_ = false;
     TListOperationsFilter::TLightOperation CurrentOperation_ = {};
-    NScheduler::EOperationState State_ = {};
-    NScheduler::EOperationType Type_ = {};
-    TString AuthenticatedUser_;
-    THashMap<TString, TString> PoolTreeToPool_;
-    std::vector<TString> Pools_;
     bool HasAcl_ = false;
     TSerializableAccessControlList Acl_;
     TString Annotations_;
@@ -725,8 +719,8 @@ private:
 
     bool Filter()
     {
-        if ((Options_.FromTime && CurrentOperation_.StartTime_ < *Options_.FromTime) ||
-            (Options_.ToTime && CurrentOperation_.StartTime_ >= *Options_.ToTime))
+        if ((Options_.FromTime && CurrentOperation_.StartTime < *Options_.FromTime) ||
+            (Options_.ToTime && CurrentOperation_.StartTime >= *Options_.ToTime))
         {
             return false;
         }
@@ -748,12 +742,12 @@ private:
             return false;
         }
 
-        auto state = State_;
+        auto state = CurrentOperation_.FilterAttributes.State;
         if (state != EOperationState::Pending && IsOperationInProgress(state)) {
             state = EOperationState::Running;
         }
 
-        return CountingFilter_->Filter(PoolTreeToPool_, Pools_, AuthenticatedUser_, state, Type_, /* count = */ 1);
+        return CountingFilter_->Filter(CurrentOperation_.FilterAttributes, /*count*/ 1);
     }
 
     void OnAnnotations(TYsonPullParserCursor* cursor)
@@ -784,46 +778,6 @@ TListOperationsFilter::TListOperationsFilter(
     , Logger(logger)
 { }
 
-void TListOperationsFilter::OnBriefProgressFinished()
-{
-    YT_LOG_DEBUG("Applying filtration by brief progress (OperationCount: %v)", LightOperations_.size());
-
-    std::vector<TLightOperation> filtered;
-    for (const auto& operation : LightOperations_) {
-        const auto& [hasFailedJobs, buildTime] = operation.BriefProgress_;
-        if (!CountingFilter_.FilterByFailedJobs(hasFailedJobs, /* count = */ 1)) {
-            continue;
-        }
-        if (Options_.CursorTime &&
-            ((Options_.CursorDirection == EOperationSortDirection::Past && operation.StartTime_ >= *Options_.CursorTime) ||
-            (Options_.CursorDirection == EOperationSortDirection::Future && operation.StartTime_ <= *Options_.CursorTime)))
-        {
-            continue;
-        }
-        filtered.push_back(operation);
-    }
-
-    auto operationsToRetain = static_cast<i64>(Options_.Limit) + 1;
-    if (std::ssize(filtered) > operationsToRetain) {
-        // Leave only |operationsToRetain| operations:
-        // either oldest (|cursor_direction == "future"|) or newest (|cursor_direction == "past"|).
-        std::nth_element(
-            filtered.begin(),
-            filtered.begin() + operationsToRetain,
-            filtered.end(),
-            [&] (const TLightOperation& lhs, const TLightOperation& rhs) {
-                return
-                    (Options_.CursorDirection == EOperationSortDirection::Future && lhs.StartTime_ < rhs.StartTime_) ||
-                    (Options_.CursorDirection == EOperationSortDirection::Past && lhs.StartTime_ > rhs.StartTime_);
-            });
-        filtered.resize(operationsToRetain);
-    }
-
-    LightOperations_.swap(filtered);
-
-    YT_LOG_DEBUG("Filtration by brief progress finished (FilteredOperationCount: %v)", LightOperations_.size());
-}
-
 std::vector<TOperation> TListOperationsFilter::BuildOperations(const THashSet<TString>& attributes) const
 {
     YT_LOG_DEBUG("Building final operations result");
@@ -832,7 +786,7 @@ std::vector<TOperation> TListOperationsFilter::BuildOperations(const THashSet<TS
     operations.reserve(LightOperations_.size());
     for (const auto& lightOperation : LightOperations_) {
         TConstructingOperationConsumer consumer(operations.emplace_back(), attributes);
-        RunYsonPullParser(lightOperation.Yson_, ParseOperationToConsumer<TConstructingOperationConsumer>, &consumer);
+        RunYsonPullParser(lightOperation.Yson, ParseOperationToConsumer<TConstructingOperationConsumer>, &consumer);
     }
 
     YT_LOG_DEBUG("Operations result built (OperationCount: %v)", operations.size());
@@ -869,9 +823,31 @@ void TListOperationsFilter::ParseResponses(std::vector<TYsonString> operationsRe
 
     for (auto& result : parseResults) {
         for (auto& operation : result.Operations) {
+            if (Options_.CursorTime &&
+                ((Options_.CursorDirection == EOperationSortDirection::Past && operation.StartTime >= *Options_.CursorTime) ||
+                (Options_.CursorDirection == EOperationSortDirection::Future && operation.StartTime <= *Options_.CursorTime)))
+            {
+                continue;
+            }
             LightOperations_.emplace_back(std::move(operation));
         }
         CountingFilter_.MergeFrom(result.CountingFilter);
+    }
+
+    auto operationsToRetain = static_cast<i64>(Options_.Limit) + 1;
+    if (std::ssize(LightOperations_) > operationsToRetain) {
+        // Leave only |operationsToRetain| operations:
+        // either oldest (|cursor_direction == "future"|) or newest (|cursor_direction == "past"|).
+        std::nth_element(
+            LightOperations_.begin(),
+            LightOperations_.begin() + operationsToRetain,
+            LightOperations_.end(),
+            [&] (const TLightOperation& lhs, const TLightOperation& rhs) {
+                return
+                    (Options_.CursorDirection == EOperationSortDirection::Future && lhs.StartTime < rhs.StartTime) ||
+                    (Options_.CursorDirection == EOperationSortDirection::Past && lhs.StartTime > rhs.StartTime);
+            });
+        LightOperations_.resize(operationsToRetain);
     }
 
     YT_LOG_DEBUG("Cypress responses parsed (OperationCount: %v)", LightOperations_.size());
@@ -901,11 +877,12 @@ TListOperationsFilter::TParseResult TListOperationsFilter::ParseOperationsYson(T
                 singleOperationYson,
                 ParseOperationToConsumer<TFilteringConsumer>,
                 &filteringConsumer);
-            if (auto operation = filteringConsumer.ExtractCurrent()) {
+            auto operation = filteringConsumer.ExtractCurrent();
+            if (operation.FilterPassed) {
                 // Copy without COW (it is faster: otherwise on the next iteration
                 // |singleOperationYson| will be incrementally reallocated during |TransferComplexValue}).
-                operation->Yson_ = singleOperationYson.copy();
-                operations.emplace_back(std::move(*operation));
+                operation.Yson = singleOperationYson.copy();
+                operations.push_back(std::move(operation));
             }
         });
     });
@@ -916,26 +893,6 @@ TListOperationsFilter::TParseResult TListOperationsFilter::ParseOperationsYson(T
 const TListOperationsCountingFilter& TListOperationsFilter::GetCountingFilter() const
 {
     return CountingFilter_;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-NObjectClient::TOperationId TListOperationsFilter::TLightOperation::GetId() const
-{
-    return Id_;
-}
-
-void TListOperationsFilter::TLightOperation::UpdateBriefProgress(TStringBuf briefProgressYson)
-{
-    auto newBriefProgress = RunYsonPullParser(briefProgressYson, ParseBriefProgress);
-    if (newBriefProgress.BuildTime >= BriefProgress_.BuildTime) {
-        BriefProgress_ = newBriefProgress;
-    }
-}
-
-void TListOperationsFilter::TLightOperation::SetYson(TString yson)
-{
-    Yson_ = std::move(yson);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

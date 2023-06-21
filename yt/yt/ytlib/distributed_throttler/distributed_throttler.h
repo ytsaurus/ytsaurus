@@ -39,7 +39,8 @@ IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
     NRpc::IServerPtr rpcServer,
     TString address,
     NLogging::TLogger logger,
-    NRpc::IAuthenticatorPtr authenticator);
+    NRpc::IAuthenticatorPtr authenticator,
+    NProfiling::TProfiler profiler = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

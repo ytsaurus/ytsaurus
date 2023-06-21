@@ -19,7 +19,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(int, ReadQuorum);
     DEFINE_BYVAL_RW_PROPERTY(int, WriteQuorum);
 
-    DEFINE_BYREF_RW_PROPERTY(THashSet<NCypressClient::TVersionedNodeId>, UsingNodeIds);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<NCypressClient::TVersionedNodeId>, AssociatedNodeIds);
 
 protected:
     using TBase = TTabletOwnerBase;

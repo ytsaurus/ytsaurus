@@ -393,14 +393,20 @@ class TestChunkServerMulticell(TestChunkServer):
     NUM_SCHEDULERS = 1
 
     @authors("babenko")
-    def test_validate_chunk_host_cell_role(self):
+    def test_validate_chunk_host_cell_role1(self):
         set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["cypress_node_host"]}})
         with pytest.raises(YtError):
-            create(
-                "table",
-                "//tmp/t",
-                attributes={"external": True, "external_cell_tag": 11},
-            )
+            create("table", "//tmp/t", attributes={"external": True, "external_cell_tag": 11})
+
+    @authors("aleksandra-zh")
+    def test_validate_chunk_host_cell_role2(self):
+        set("//sys/@config/multicell_manager/remove_secondary_cell_default_roles", True)
+        set("//sys/@config/multicell_manager/cell_descriptors", {})
+        with pytest.raises(YtError):
+            create("table", "//tmp/t", attributes={"external": True, "external_cell_tag": 11})
+
+        set("//sys/@config/multicell_manager/remove_secondary_cell_default_roles", False)
+        create("table", "//tmp/t", attributes={"external": True, "external_cell_tag": 11})
 
     @authors("babenko")
     def test_owning_nodes3(self):
@@ -1000,7 +1006,7 @@ class TestChunkWeightStatisticsHistogram(YTEnvSetup):
             profiler = profiler_factory().at_primary_master(master_address)
             histogram = profiler.histogram("chunk_server/histograms/" + histogram_name)
 
-            histogram_bins = histogram.get_bins(verbose=False)
+            histogram_bins = histogram.get_bins()
             for i in range(0, 39):
                 assert int(histogram_bins[i]['count']) == result[i]
 

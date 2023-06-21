@@ -317,7 +317,7 @@ private:
                 }
             }
 
-            if (const auto traceContext = NTracing::TryGetCurrentTraceContext()) {
+            if (const auto traceContext = NTracing::GetCurrentTraceContext()) {
                 InitialMetadataBuilder_.Add(TracingTraceIdMetadataKey, ToString(traceContext->GetTraceId()));
                 InitialMetadataBuilder_.Add(TracingSpanIdMetadataKey, ToString(traceContext->GetSpanId()));
                 if (traceContext->IsSampled()) {
@@ -389,7 +389,7 @@ private:
         // TCompletionQueueTag overrides
         void Run(bool success, int /*cookie*/) override
         {
-            const auto guard = TraceContext_.MakeTraceContextGuard();
+            const auto guard = TraceContext_.GetTraceContextGuard();
 
             auto error = success ? TError() : Tracer_->GetError();
 

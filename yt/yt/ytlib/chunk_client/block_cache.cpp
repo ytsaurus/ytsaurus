@@ -2,15 +2,11 @@
 
 #include <yt/yt/core/actions/future.h>
 
+#include <yt/yt/core/misc/singleton.h>
+
 namespace NYT::NChunkClient {
 
 using namespace NNodeTrackerClient;
-
-////////////////////////////////////////////////////////////////////////////////
-
-TCachedBlock::TCachedBlock(TBlock block)
-    : Block(std::move(block))
-{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,12 +19,17 @@ public:
         return true;
     }
 
-    TFuture<TCachedBlock> GetBlockFuture() const override
+    TFuture<void> GetBlockFuture() const override
     {
         YT_ABORT();
     }
 
-    void SetBlock(TErrorOr<TCachedBlock> /* blockOrError */) override
+    TCachedBlock GetBlock() const override
+    {
+        YT_ABORT();
+    }
+
+    void SetBlock(TErrorOr<TCachedBlock> /*blockOrError*/) override
     { }
 };
 
@@ -47,12 +48,17 @@ public:
         return false;
     }
 
-    TFuture<TCachedBlock> GetBlockFuture() const override
+    TFuture<void> GetBlockFuture() const override
     {
-        return MakeFuture<TCachedBlock>(CachedBlock_);
+        return VoidFuture;
     }
 
-    void SetBlock(TErrorOr<TCachedBlock> /* blockOrError */) override
+    TCachedBlock GetBlock() const override
+    {
+        return CachedBlock_;
+    }
+
+    void SetBlock(TErrorOr<TCachedBlock> /*blockOrError*/) override
     {
         YT_ABORT();
     }
@@ -71,6 +77,48 @@ std::unique_ptr<ICachedBlockCookie> CreateActiveCachedBlockCookie()
 std::unique_ptr<ICachedBlockCookie> CreatePresetCachedBlockCookie(TCachedBlock cachedBlock)
 {
     return std::make_unique<TPresetCachedBlockCookie>(std::move(cachedBlock));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TNullBlockCache
+    : public IBlockCache
+{
+public:
+    void PutBlock(
+        const TBlockId& /*id*/,
+        EBlockType /*type*/,
+        const TBlock& /*data*/) override
+    { }
+
+    TCachedBlock FindBlock(
+        const TBlockId& /*id*/,
+        EBlockType /*type*/) override
+    {
+        return {};
+    }
+
+    std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
+        const TBlockId& /*id*/,
+        EBlockType /*type*/) override
+    {
+        return CreateActiveCachedBlockCookie();
+    }
+
+    EBlockType GetSupportedBlockTypes() const override
+    {
+        return EBlockType::None;
+    }
+
+    bool IsBlockTypeActive(EBlockType /*blockType*/) const override
+    {
+        return false;
+    }
+};
+
+IBlockCachePtr GetNullBlockCache()
+{
+    return LeakyRefCountedSingleton<TNullBlockCache>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

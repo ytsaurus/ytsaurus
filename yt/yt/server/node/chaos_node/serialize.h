@@ -25,6 +25,7 @@ DEFINE_ENUM(EChaosReign,
     ((AllowAlterInCataclysm)        (300008)) // savrus
     ((ChaosCellSuspension)          (300009)) // savrus
     ((RevokeFromSuspended)          (300010)) // savrus
+    ((RemoveMigratedCards)          (300011)) // ponasenko-rs
 );
 
 ////////////////////////////////////////////////////////////////////////////////

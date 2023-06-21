@@ -169,7 +169,8 @@ std::vector<TConsumerRegistrationTableRow> TQueueConsumerRegistrationManager::Li
 void TQueueConsumerRegistrationManager::RegisterQueueConsumer(
     const TRichYPath& queue,
     const TRichYPath& consumer,
-    bool vital)
+    bool vital,
+    const std::optional<std::vector<int>>& partitions)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -179,6 +180,7 @@ void TQueueConsumerRegistrationManager::RegisterQueueConsumer(
         .Queue = FillCrossClusterReferencesFromRichYPath(queue, ClusterName_),
         .Consumer = FillCrossClusterReferencesFromRichYPath(consumer, ClusterName_),
         .Vital = vital,
+        .Partitions = partitions,
     }}))
         .ValueOrThrow();
 }
@@ -392,16 +394,20 @@ void TQueueConsumerRegistrationManager::BuildOrchid(TFluentAny fluent)
     }
 
     fluent
+        .BeginAttributes()
+            .Item("opaque").Value(true)
+        .EndAttributes()
         .BeginMap()
             .Item("effective_config").Value(config)
             .Item("registrations").DoListFor(registrations, [&] (TFluentList fluent, const auto& pair) {
-                const auto& registration = pair.second;
+                const TConsumerRegistrationTableRow& registration = pair.second;
                 fluent
                     .Item()
                         .BeginMap()
                             .Item("queue").Value(registration.Queue)
                             .Item("consumer").Value(registration.Consumer)
                             .Item("vital").Value(registration.Vital)
+                            .Item("partitions").Value(registration.Partitions)
                         .EndMap();
             })
         .EndMap();

@@ -8,8 +8,6 @@
 
 #include <yt/yt/core/yson/string.h>
 
-#include <yt/yt/core/concurrency/public.h>
-
 #include <yt/yt/library/tracing/public.h>
 
 #include <library/cpp/yt/threading/spin_lock.h>
@@ -249,19 +247,8 @@ TString ToString(const TTraceContextPtr* context);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Returns the current trace context, if any is installed, or null if none.
-TTraceContext* TryGetCurrentTraceContext();
-
-//! Returns the current trace context. Fails if none.
 TTraceContext* GetCurrentTraceContext();
-
-//! Flushes the elapsed time of the current trace context (if any).
-void FlushCurrentTraceContextElapsedTime();
-
-//! Used in fibers trace context printer.
-//! Do not rename or change its signature.
-//! See devtools/gdb/yt_fibers_printer.py.
-TTraceContext* GetTraceContextFromPropagatingStorage(const NConcurrency::TPropagatingStorage& storage);
+void FlushCurrentTraceContextTime();
 
 //! Creates a new trace context. If the current trace context exists, it becomes the parent of the
 //! created trace context.
@@ -365,26 +352,25 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TFn>
-void AnnotateTraceContext(TFn&& fn);
+void AnnotateTraceContext(const TFn& fn);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(babenko): move impl to cpp.
 class TTraceContextHandler
 {
 public:
     TTraceContextHandler()
-        : TraceContext_(NTracing::TryGetCurrentTraceContext())
+        : TraceContext_(NTracing::GetCurrentTraceContext())
     { }
 
-    NTracing::TCurrentTraceContextGuard MakeTraceContextGuard() const
+    NTracing::TCurrentTraceContextGuard GetTraceContextGuard() const
     {
         return NTracing::TCurrentTraceContextGuard(TraceContext_);
     }
 
     void UpdateTraceContext()
     {
-        TraceContext_ = NTracing::TryGetCurrentTraceContext();
+        TraceContext_.Reset(NTracing::GetCurrentTraceContext());
     }
 
 private:

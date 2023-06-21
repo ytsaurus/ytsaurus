@@ -45,7 +45,7 @@ void TMessageQueueOutbox<TItem>::Enqueue(TItem&& item)
 
     Stack_.Enqueue(TItemRequest{
         std::move(item),
-        SupportTracing_ ? NTracing::TryGetCurrentTraceContext() : nullptr
+        SupportTracing_ ? NTracing::GetCurrentTraceContext() : nullptr
     });
 }
 
@@ -58,7 +58,7 @@ void TMessageQueueOutbox<TItem>::Enqueue(std::vector<TItem>&& items)
 
     Stack_.Enqueue(TItemsRequest{
         std::move(items),
-        SupportTracing_ ? NTracing::TryGetCurrentTraceContext() : nullptr
+        SupportTracing_ ? NTracing::GetCurrentTraceContext() : nullptr
     });
 }
 

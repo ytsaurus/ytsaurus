@@ -805,51 +805,29 @@ TYsonString DoGetMulticellOwningNodes(
         requestIdsFromCell(cellTag);
     }
 
-    // Request node paths from the primary cell.
     {
-        auto proxy = CreateObjectServiceReadProxy(
-            bootstrap->GetRootClient(),
-            NApi::EMasterChannelKind::Follower);
-
-        // TODO(babenko): improve
-        auto batchReq = proxy.ExecuteBatch();
-        for (const auto& versionedId : nodeIds) {
-            auto req = TCypressYPathProxy::Get(FromObjectId(versionedId.ObjectId) + "/@path");
-            SetTransactionId(req, versionedId.TransactionId);
-            batchReq->AddRequest(req, "get_path");
-        }
-
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error requesting owning nodes paths");
-        const auto& batchRsp = batchRspOrError.Value();
-
-        auto rsps = batchRsp->GetResponses<TCypressYPathProxy::TRspGet>("get_path");
-        YT_VERIFY(rsps.size() == nodeIds.size());
+        const auto& objectManager = bootstrap->GetObjectManager();
+        auto pathOrErrors = WaitFor(objectManager->ResolveObjectIdsToPaths(nodeIds))
+            .ValueOrThrow();
 
         TStringStream stream;
         TBufferedBinaryYsonWriter writer(&stream);
         writer.OnBeginList();
 
-        for (int index = 0; index < std::ssize(rsps); ++index) {
-            const auto& rspOrError = rsps[index];
+        for (int index = 0; index < std::ssize(nodeIds); ++index) {
+            const auto& pathOrError = pathOrErrors[index];
             const auto& versionedId = nodeIds[index];
-            auto code = rspOrError.GetCode();
+            auto code = pathOrError.GetCode();
             if (code == NYTree::EErrorCode::ResolveError || code == NTransactionClient::EErrorCode::NoSuchTransaction) {
                 continue;
             }
 
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting path for node %v",
+            THROW_ERROR_EXCEPTION_IF_FAILED(pathOrError, "Error requesting path for node %v",
                 versionedId);
-            const auto& rsp = rspOrError.Value();
+            const auto& path = pathOrError.Value();
 
             writer.OnListItem();
-            if (versionedId.TransactionId) {
-                writer.OnBeginAttributes();
-                writer.OnKeyedItem("transaction_id");
-                writer.OnStringScalar(ToString(versionedId.TransactionId));
-                writer.OnEndAttributes();
-            }
-            writer.OnRaw(rsp->value(), EYsonType::Node);
+            SerializeNodePath(&writer, path.Path, path.TransactionId);
         }
 
         writer.OnEndList();
@@ -867,6 +845,22 @@ TFuture<TYsonString> GetMulticellOwningNodes(
     return BIND(&DoGetMulticellOwningNodes, bootstrap, chunkTree->GetId())
         .AsyncVia(GetCurrentInvoker())
         .Run();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void SerializeNodePath(
+    IYsonConsumer* consumer,
+    const NYPath::TYPath& path,
+    TTransactionId transactionId)
+{
+    if (transactionId) {
+        consumer->OnBeginAttributes();
+        consumer->OnKeyedItem("transaction_id");
+        NYTree::Serialize(transactionId, consumer);
+        consumer->OnEndAttributes();
+    }
+    consumer->OnStringScalar(path);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1243,6 +1237,23 @@ void SerializeMediumOverrides(
 int GetChunkShardIndex(TChunkId chunkId)
 {
     return TDirectObjectIdHash()(chunkId) % ChunkShardCount;
+}
+
+std::vector<TInstant> GenerateChunkCreationTimeHistogramBucketBounds(TInstant now)
+{
+    std::vector<TInstant> bounds;
+    bounds.reserve(5 + 11 + 3 + 1);
+    for (int yearDelta = 5; yearDelta > 0; --yearDelta) {
+        bounds.push_back(now - TDuration::Days(yearDelta * 365));
+    }
+    for (int monthDelta = 11; monthDelta > 0; --monthDelta) {
+        bounds.push_back(now - TDuration::Days(monthDelta * 30));
+    }
+    for (int weekDelta = 3; weekDelta > 0; --weekDelta) {
+        bounds.push_back(now - TDuration::Days(weekDelta * 7));
+    }
+    bounds.push_back(now);
+    return bounds;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

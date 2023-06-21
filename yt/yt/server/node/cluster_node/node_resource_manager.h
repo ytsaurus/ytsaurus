@@ -8,7 +8,11 @@
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
+#include <yt/yt/core/misc/atomic_object.h>
+
 #include <yt/yt/core/ytree/ypath_service.h>
+
+#include <yt/yt/library/containers/public.h>
 
 namespace NYT::NClusterNode {
 
@@ -38,11 +42,14 @@ public:
     double GetCpuDemand() const;
     i64 GetMemoryDemand() const;
 
+    std::optional<i64> GetNetTxLimit() const;
+    std::optional<i64> GetNetRxLimit() const;
+
     // TODO(gritukan): Drop it in favour of dynamic config.
     void SetResourceLimitsOverride(const NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides& resourceLimitsOverride);
 
-    void OnInstanceLimitsUpdated(double cpuLimit, double cpuGuarantee, i64 memoryLimit);
-    
+    void OnInstanceLimitsUpdated(const NContainers::TInstanceLimits& limits);
+
     NYTree::IYPathServicePtr GetOrchidService();
 
     DEFINE_SIGNAL(void(), JobsCpuLimitUpdated);
@@ -54,9 +61,7 @@ private:
 
     const NConcurrency::TPeriodicExecutorPtr UpdateExecutor_;
 
-    std::optional<double> CpuGuarantee_;
-    std::optional<double> CpuLimit_;
-    i64 TotalMemory_ = 0;
+    TAtomicObject<NContainers::TInstanceLimits> Limits_;
 
     i64 SelfMemoryGuarantee_ = 0;
     std::atomic<double> JobsCpuLimit_ = 0;

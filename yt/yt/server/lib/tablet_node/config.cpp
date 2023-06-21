@@ -217,6 +217,9 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_lookup_hash_table", &TThis::EnableLookupHashTable)
         .Default(false);
 
+    registrar.Parameter("testing_only_use_key_filter", &TThis::TestingOnlyUseKeyFilter)
+        .Default(false);
+
     registrar.Parameter("lookup_cache_rows_per_tablet", &TThis::LookupCacheRowsPerTablet)
         .Default(0);
     registrar.Parameter("lookup_cache_rows_ratio", &TThis::LookupCacheRowsRatio)
@@ -305,6 +308,9 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_new_scan_reader_for_lookup", &TThis::EnableNewScanReaderForLookup)
         .Default(true);
     registrar.Parameter("enable_new_scan_reader_for_select", &TThis::EnableNewScanReaderForSelect)
+        .Default(true);
+
+    registrar.Parameter("single_column_group_by_default", &TThis::SingleColumnGroupByDefault)
         .Default(true);
 
     registrar.Parameter("enable_hunk_columnar_profiling", &TThis::EnableHunkColumnarProfiling)

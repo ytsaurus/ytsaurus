@@ -293,16 +293,14 @@ struct TFilteredSpecAttributes
 
 TString GetFilterFactors(const TArchiveOperationRequest& request)
 {
-    auto getOriginalPath = [] (const TString& path) -> TString {
+    auto getOriginalPath = [] (const INodePtr& node) -> std::optional<TString> {
         try {
-            auto parsedPath = NYPath::TRichYPath::Parse(path);
-            auto originalPath = parsedPath.Attributes().Find<TString>("original_path");
-            if (originalPath) {
+            if (auto originalPath = node->Attributes().Find<TString>("original_path")) {
                 return *originalPath;
             }
-            return parsedPath.GetPath();
+            return NYPath::TRichYPath::Parse(node->AsString()->GetValue()).GetPath();
         } catch (const std::exception& ex) {
-            return "";
+            return {};
         }
     };
 
@@ -334,9 +332,8 @@ TString GetFilterFactors(const TArchiveOperationRequest& request)
         if (node && node->GetType() == ENodeType::List) {
             auto child = node->AsList()->FindChild(0);
             if (child && child->GetType() == ENodeType::String) {
-                auto path = getOriginalPath(child->AsString()->GetValue());
-                if (!path.empty()) {
-                    parts.push_back(path);
+                if (auto path = getOriginalPath(child)) {
+                    parts.push_back(*path);
                 }
             }
         }
@@ -344,9 +341,8 @@ TString GetFilterFactors(const TArchiveOperationRequest& request)
 
     for (const auto& node : {filteredSpec.OutputTablePath, filteredSpec.TablePath}) {
         if (node && node->GetType() == ENodeType::String) {
-            auto path = getOriginalPath(node->AsString()->GetValue());
-            if (!path.empty()) {
-                parts.push_back(path);
+            if (auto path = getOriginalPath(node)) {
+                parts.push_back(*path);
             }
         }
     }
@@ -661,8 +657,11 @@ public:
         , Client_(Bootstrap_->GetClient()->GetNativeConnection()
             ->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::OperationsCleanerUserName)))
     {
-        Profiler.AddFuncGauge("/remove_pending", MakeStrong(this), [this] {
-            return RemovePending_.load();
+        Profiler.WithTag("locked", "true").AddFuncGauge("/remove_pending", MakeStrong(this), [this] {
+            return RemovePendingLocked_.load();
+        });
+        Profiler.WithTag("locked", "false").AddFuncGauge("/remove_pending", MakeStrong(this), [this] {
+            return RemovePending_.load() - RemovePendingLocked_.load();
         });
         Profiler.AddFuncGauge("/archive_pending", MakeStrong(this), [this] {
             return ArchivePending_.load();
@@ -679,98 +678,35 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        DoStart(/* fetchFinishedOperations */ false);
+        GetUncancelableInvoker()->Invoke(BIND(&TImpl::DoStart, MakeStrong(this), /*fetchFinishedOperations*/ false));
     }
 
     void Stop()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        DoStop();
+        GetUncancelableInvoker()->Invoke(BIND(&TImpl::DoStop, MakeStrong(this)));
     }
 
     void UpdateConfig(const TOperationsCleanerConfigPtr& config)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        bool enable = Config_->Enable;
-        bool enableOperationArchivation = Config_->EnableOperationArchivation;
-        bool enableOperationAlertEventArchivation = Config_->EnableOperationAlertEventArchivation;
-        Config_ = config;
-
-        if (enable != Config_->Enable) {
-            if (Config_->Enable) {
-                DoStart(/* fetchFinishedOperations */ true);
-            } else {
-                DoStop();
-            }
-        }
-
-        if (enableOperationArchivation != Config_->EnableOperationArchivation) {
-            if (Config_->EnableOperationArchivation) {
-                DoStartOperationArchivation();
-            } else {
-                DoStopOperationArchivation();
-            }
-        }
-
-        if (enableOperationAlertEventArchivation != Config_->EnableOperationAlertEventArchivation) {
-            if (Config_->EnableOperationAlertEventArchivation) {
-                DoStartAlertEventArchivation();
-            } else {
-                DoStopAlertEventArchivation();
-            }
-        }
-
-        CheckAndTruncateAlertEvents();
-        if (OperationAlertEventSenderExecutor_) {
-            OperationAlertEventSenderExecutor_->SetPeriod(Config_->OperationAlertEventSendPeriod);
-        }
-
-        ArchiveBatcher_->UpdateMaxBatchSize(Config_->ArchiveBatchSize);
-        ArchiveBatcher_->UpdateBatchDuration(Config_->ArchiveBatchTimeout);
-
-        RemoveBatcher_->UpdateMaxBatchSize(Config_->RemoveBatchSize);
-        RemoveBatcher_->UpdateBatchDuration(Config_->RemoveBatchTimeout);
-
-        YT_LOG_INFO("Operations cleaner config updated (Enable: %v, EnableOperationArchivation: %v, EnableOperationAlertEventArchivation: %v)",
-            Config_->Enable,
-            Config_->EnableOperationArchivation,
-            Config_->EnableOperationAlertEventArchivation);
+        GetUncancelableInvoker()->Invoke(BIND(&TImpl::DoUpdateConfig, MakeStrong(this), config));
     }
 
     void SubmitForArchivation(TArchiveOperationRequest request)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
         if (!IsEnabled()) {
             return;
         }
 
-        auto id = request.Id;
-
-        // Can happen if scheduler reported operation and archiver was turned on and
-        // fetched the same operation from Cypress.
-        if (OperationMap_.find(id) != OperationMap_.end()) {
-            return;
-        }
-
-        auto deadline = request.FinishTime + Config_->CleanDelay;
-
-        ArchiveTimeToOperationIdMap_.emplace(deadline, id);
-        YT_VERIFY(OperationMap_.emplace(id, std::move(request)).second);
-
-        ++Submitted_;
-
-        YT_LOG_DEBUG("Operation submitted for archivation (OperationId: %v, ArchivationStartTime: %v)",
-            id,
-            deadline);
+        GetCancelableInvoker()->Invoke(
+            BIND(&TImpl::DoSubmitForArchivation, MakeStrong(this), Passed(std::move(request))));
     }
 
     void SubmitForArchivation(std::vector<TOperationId> operationIds)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
         if (!IsEnabled()) {
             return;
         }
@@ -778,20 +714,35 @@ public:
             operationIds.size());
 
         BIND(&TImpl::DoFetchFinishedOperationsById, MakeStrong(this))
-            .AsyncVia(GetInvoker())
+            .AsyncVia(GetCancelableInvoker())
             .Run(std::move(operationIds))
-            .Subscribe(BIND([
-                bootstrap = Bootstrap_,
-                disconnectOnFailure = Config_->DisconnectOnFinishedOperationFetchFailure
-            ] (const TError& error) {
+            .Subscribe(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
                 if (!error.IsOK()) {
+                    auto disconnectOnFailure = Config_->DisconnectOnFinishedOperationFetchFailure;
                     YT_LOG_WARNING(error, "Failed to fetch finished operations from Cypress (DisconnectOnFailure: %v)",
                         disconnectOnFailure);
                     if (disconnectOnFailure) {
-                        bootstrap->GetScheduler()->GetMasterConnector()->Disconnect(error);
+                        Bootstrap_->GetControlInvoker(EControlQueue::MasterConnector)->Invoke(
+                            BIND(
+                                &TMasterConnector::Disconnect,
+                                Bootstrap_->GetScheduler()->GetMasterConnector(),
+                                std::move(error)));
                     }
                 }
-            }).Via(GetInvoker()));
+            }).Via(GetCancelableInvoker()));
+    }
+
+    void SubmitForRemoval(std::vector<TOperationId> operationIds)
+    {
+        if (!IsEnabled()) {
+            return;
+        }
+
+        GetCancelableInvoker()->Invoke(BIND([this, this_ = MakeStrong(this), operationIds = std::move(operationIds)] {
+            for (auto operationId : operationIds) {
+                EnqueueForRemoval(operationId);
+            }
+        }));
     }
 
     void SetArchiveVersion(int version)
@@ -803,8 +754,6 @@ public:
 
     bool IsEnabled() const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
         return Enabled_;
     }
 
@@ -818,22 +767,31 @@ public:
             .Item("remove_pending").Value(RemovePending_.load())
             .Item("archive_pending").Value(ArchivePending_.load())
             .Item("submitted").Value(Submitted_.load())
-            .Item("enqueued_alert_events").Value(EnqueuedAlertEvents_.load());
+            .Item("enqueued_alert_events").Value(EnqueuedAlertEvents_.load())
+            .Item("remove_pending_locked").Value(RemovePendingLocked_.load());
     }
 
     void EnqueueOperationAlertEvent(
         TOperationId operationId,
         EOperationAlertType alertType,
-        const TError& alert)
+        TError alert)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        OperationAlertEventQueue_.push_back({
-            operationId,
-            alertType,
-            alert.HasDatetime() ? alert.GetDatetime() : TInstant::Now(),
-            alert});
-        CheckAndTruncateAlertEvents();
+        if (!IsEnabled()) {
+            return;
+        }
+
+        GetCancelableInvoker()->Invoke(
+            BIND([this, this_ = MakeStrong(this), operationId, alertType, alert = std::move(alert)] {
+                OperationAlertEventQueue_.push_back({
+                    operationId,
+                    alertType,
+                    alert.HasDatetime() ? alert.GetDatetime() : TInstant::Now(),
+                    alert,
+                });
+                CheckAndTruncateAlertEvents();
+            }));
     }
 
 private:
@@ -845,12 +803,12 @@ private:
     TPeriodicExecutorPtr OperationAlertEventSenderExecutor_;
 
     TCancelableContextPtr CancelableContext_;
-    IInvokerPtr CancelableControlInvoker_;
+    IInvokerPtr CancelableInvoker_;
 
-    int ArchiveVersion_ = -1;
+    std::atomic<i64> ArchiveVersion_{-1};
 
-    bool Enabled_ = false;
-    bool OperationArchivationEnabled_ = false;
+    std::atomic<bool> Enabled_{false};
+    std::atomic<bool> OperationArchivationEnabled_{false};
 
     TDelayedExecutorCookie OperationArchivationStartCookie_;
 
@@ -859,6 +817,7 @@ private:
 
     TIntrusivePtr<TNonblockingBatch<TOperationId>> RemoveBatcher_;
     TIntrusivePtr<TNonblockingBatch<TOperationId>> ArchiveBatcher_;
+    std::deque<std::pair<TOperationId, TInstant>> LockedOperationQueue_;
 
     std::deque<TOperationAlertEvent> OperationAlertEventQueue_;
     TInstant LastOperationAlertEventSendTime_;
@@ -870,6 +829,7 @@ private:
     std::atomic<i64> ArchivePending_{0};
     std::atomic<i64> Submitted_{0};
     std::atomic<i64> EnqueuedAlertEvents_{0};
+    std::atomic<i64> RemovePendingLocked_{0};
 
     TCounter ArchivedOperationCounter_ = Profiler.Counter("/archived");
     TCounter RemovedOperationCounter_ = Profiler.Counter("/removed");
@@ -883,48 +843,64 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
 private:
-    IInvokerPtr GetInvoker() const
+    IInvokerPtr GetCancelableInvoker() const
     {
-        return CancelableControlInvoker_;
+        return CancelableInvoker_;
+    }
+
+    IInvokerPtr GetUncancelableInvoker() const
+    {
+        return Host_->GetOperationsCleanerInvoker();
     }
 
     void ScheduleArchiveOperations()
     {
-        GetInvoker()->Invoke(BIND(&TImpl::ArchiveOperations, MakeStrong(this)));
+        GetCancelableInvoker()->Invoke(BIND(&TImpl::ArchiveOperations, MakeStrong(this)));
+    }
+
+    void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert)
+    {
+        VERIFY_INVOKER_AFFINITY(GetUncancelableInvoker());
+
+        Bootstrap_->GetControlInvoker(EControlQueue::OperationsCleaner)->Invoke(
+            BIND(&IOperationsCleanerHost::SetSchedulerAlert, Host_, alertType, alert));
     }
 
     void DoStart(bool fetchFinishedOperations)
     {
-        if (Config_->Enable && !Enabled_) {
-            Enabled_ = true;
+        VERIFY_INVOKER_AFFINITY(GetUncancelableInvoker());
 
-            YT_VERIFY(!CancelableContext_);
-            CancelableContext_ = New<TCancelableContext>();
-            CancelableControlInvoker_ = CancelableContext_->CreateInvoker(
-                Bootstrap_->GetControlInvoker(EControlQueue::OperationsCleaner));
-
-            AnalysisExecutor_ = New<TPeriodicExecutor>(
-                CancelableControlInvoker_,
-                BIND(&TImpl::OnAnalyzeOperations, MakeWeak(this)),
-                Config_->AnalysisPeriod);
-
-            AnalysisExecutor_->Start();
-
-            GetInvoker()->Invoke(BIND(&TImpl::RemoveOperations, MakeStrong(this)));
-
-            ScheduleArchiveOperations();
-            DoStartOperationArchivation();
-            DoStartAlertEventArchivation();
-
-            // If operations cleaner was disabled during scheduler runtime and then
-            // enabled then we should fetch all finished operation since scheduler did not
-            // reported them.
-            if (fetchFinishedOperations) {
-                GetInvoker()->Invoke(BIND(&TImpl::FetchFinishedOperations, MakeStrong(this)));
-            }
-
-            YT_LOG_INFO("Operations cleaner started");
+        if (!Config_->Enable || Enabled_) {
+            return;
         }
+
+        Enabled_ = true;
+
+        YT_VERIFY(!CancelableContext_);
+        CancelableContext_ = New<TCancelableContext>();
+        CancelableInvoker_ = CancelableContext_->CreateInvoker(GetUncancelableInvoker());
+
+        AnalysisExecutor_ = New<TPeriodicExecutor>(
+            CancelableInvoker_,
+            BIND(&TImpl::OnAnalyzeOperations, MakeWeak(this)),
+            Config_->AnalysisPeriod);
+
+        AnalysisExecutor_->Start();
+
+        GetCancelableInvoker()->Invoke(BIND(&TImpl::RemoveOperations, MakeStrong(this)));
+
+        ScheduleArchiveOperations();
+        DoStartOperationArchivation();
+        DoStartAlertEventArchivation();
+
+        // If operations cleaner was disabled during scheduler runtime and then
+        // enabled then we should fetch all finished operation since scheduler did not
+        // reported them.
+        if (fetchFinishedOperations) {
+            GetCancelableInvoker()->Invoke(BIND(&TImpl::FetchFinishedOperations, MakeStrong(this)));
+        }
+
+        YT_LOG_INFO("Operations cleaner started");
     }
 
     void DoStartOperationArchivation()
@@ -932,7 +908,7 @@ private:
         if (Config_->Enable && Config_->EnableOperationArchivation && !OperationArchivationEnabled_) {
             OperationArchivationEnabled_ = true;
             TDelayedExecutor::CancelAndClear(OperationArchivationStartCookie_);
-            Host_->SetSchedulerAlert(ESchedulerAlertType::OperationsArchivation, TError());
+            SetSchedulerAlert(ESchedulerAlertType::OperationsArchivation, TError());
 
             YT_LOG_INFO("Operations archivation started");
         }
@@ -942,7 +918,7 @@ private:
     {
         if (Config_->Enable && Config_->EnableOperationAlertEventArchivation && !OperationAlertEventSenderExecutor_) {
             OperationAlertEventSenderExecutor_ = New<TPeriodicExecutor>(
-                CancelableControlInvoker_,
+                CancelableInvoker_,
                 BIND(&TImpl::SendOperationAlerts, MakeWeak(this)),
                 Config_->OperationAlertEventSendPeriod);
             OperationAlertEventSenderExecutor_->Start();
@@ -959,7 +935,7 @@ private:
 
         OperationArchivationEnabled_ = false;
         TDelayedExecutor::CancelAndClear(OperationArchivationStartCookie_);
-        Host_->SetSchedulerAlert(ESchedulerAlertType::OperationsArchivation, TError());
+        SetSchedulerAlert(ESchedulerAlertType::OperationsArchivation, TError());
 
         YT_LOG_INFO("Operations archivation stopped");
     }
@@ -977,6 +953,8 @@ private:
 
     void DoStop()
     {
+        VERIFY_INVOKER_AFFINITY(GetUncancelableInvoker());
+
         if (!Enabled_) {
             return;
         }
@@ -988,7 +966,7 @@ private:
         }
         CancelableContext_.Reset();
 
-        CancelableControlInvoker_ = nullptr;
+        CancelableInvoker_ = nullptr;
 
         if (AnalysisExecutor_) {
             YT_UNUSED_FUTURE(AnalysisExecutor_->Stop());
@@ -1004,15 +982,96 @@ private:
         RemoveBatcher_->Drop();
         ArchiveTimeToOperationIdMap_.clear();
         OperationMap_.clear();
+        OperationAlertEventQueue_.clear();
+        LockedOperationQueue_.clear();
         ArchivePending_ = 0;
         RemovePending_ = 0;
+        RemovePendingLocked_ = 0;
 
         YT_LOG_INFO("Operations cleaner stopped");
     }
 
+    void DoUpdateConfig(TOperationsCleanerConfigPtr config)
+    {
+        VERIFY_INVOKER_AFFINITY(GetUncancelableInvoker());
+
+        bool oldEnable = Config_->Enable;
+        bool oldEnableOperationArchivation = Config_->EnableOperationArchivation;
+        bool oldEnableOperationAlertEventArchivation = Config_->EnableOperationAlertEventArchivation;
+        Config_ = std::move(config);
+
+        if (oldEnable != Config_->Enable) {
+            if (Config_->Enable) {
+                DoStart(/*fetchFinishedOperations*/ true);
+            } else {
+                DoStop();
+            }
+        }
+
+        if (oldEnableOperationArchivation != Config_->EnableOperationArchivation) {
+            if (Config_->EnableOperationArchivation) {
+                DoStartOperationArchivation();
+            } else {
+                DoStopOperationArchivation();
+            }
+        }
+
+        if (oldEnableOperationAlertEventArchivation != Config_->EnableOperationAlertEventArchivation) {
+            if (Config_->EnableOperationAlertEventArchivation) {
+                DoStartAlertEventArchivation();
+            } else {
+                DoStopAlertEventArchivation();
+            }
+        }
+
+        CheckAndTruncateAlertEvents();
+        if (OperationAlertEventSenderExecutor_) {
+            OperationAlertEventSenderExecutor_->SetPeriod(Config_->OperationAlertEventSendPeriod);
+        }
+
+        if (AnalysisExecutor_) {
+            AnalysisExecutor_->SetPeriod(Config_->AnalysisPeriod);
+        }
+
+        ArchiveBatcher_->UpdateMaxBatchSize(Config_->ArchiveBatchSize);
+        ArchiveBatcher_->UpdateBatchDuration(Config_->ArchiveBatchTimeout);
+
+        RemoveBatcher_->UpdateMaxBatchSize(Config_->RemoveBatchSize);
+        RemoveBatcher_->UpdateBatchDuration(Config_->RemoveBatchTimeout);
+
+        YT_LOG_INFO("Operations cleaner config updated (Enable: %v, EnableOperationArchivation: %v, EnableOperationAlertEventArchivation: %v)",
+            Config_->Enable,
+            Config_->EnableOperationArchivation,
+            Config_->EnableOperationAlertEventArchivation);
+    }
+
+    void DoSubmitForArchivation(TArchiveOperationRequest request)
+    {
+        VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+
+        auto id = request.Id;
+
+        // Can happen if scheduler reported operation and archiver was turned on and
+        // fetched the same operation from Cypress.
+        if (OperationMap_.find(id) != OperationMap_.end()) {
+            return;
+        }
+
+        auto deadline = request.FinishTime + Config_->CleanDelay;
+
+        ArchiveTimeToOperationIdMap_.emplace(deadline, id);
+        EmplaceOrCrash(OperationMap_, id, std::move(request));
+
+        ++Submitted_;
+
+        YT_LOG_DEBUG("Operation submitted for archivation (OperationId: %v, ArchivationStartTime: %v)",
+            id,
+            deadline);
+    }
+
     void OnAnalyzeOperations()
     {
-        VERIFY_INVOKER_AFFINITY(GetInvoker());
+        VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
         YT_LOG_INFO("Analyzing operations submitted for archivation (SubmittedOperationCount: %v)",
             ArchiveTimeToOperationIdMap_.size());
@@ -1089,7 +1148,7 @@ private:
 
     void EnqueueForRemoval(TOperationId operationId)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKER_AFFINITY(GetUncancelableInvoker());
 
         YT_LOG_DEBUG("Operation enqueued for removal (OperationId: %v)", operationId);
         RemovePending_++;
@@ -1098,7 +1157,7 @@ private:
 
     void EnqueueForArchivation(TOperationId operationId)
     {
-        VERIFY_INVOKER_AFFINITY(GetInvoker());
+        VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
         YT_LOG_DEBUG("Operation enqueued for archivation (OperationId: %v)", operationId);
         ArchivePending_++;
@@ -1107,7 +1166,7 @@ private:
 
     void CleanOperation(TOperationId operationId)
     {
-        VERIFY_INVOKER_AFFINITY(GetInvoker());
+        VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
         if (IsOperationArchivationEnabled()) {
             EnqueueForArchivation(operationId);
@@ -1118,7 +1177,7 @@ private:
 
     void TryArchiveOperations(const std::vector<TOperationId>& operationIds)
     {
-        VERIFY_INVOKER_AFFINITY(GetInvoker());
+        VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
         int version = ArchiveVersion_;
         if (version == -1) {
@@ -1280,7 +1339,7 @@ private:
 
     void ArchiveOperations()
     {
-        VERIFY_INVOKER_AFFINITY(GetInvoker());
+        VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
         auto batch = WaitFor(ArchiveBatcher_->DequeueBatch())
             .ValueOrThrow();
@@ -1306,11 +1365,11 @@ private:
                     if (!error.IsOK()) {
                         alertError.MutableInnerErrors()->push_back(error);
                     }
-                    Host_->SetSchedulerAlert(
+                    SetSchedulerAlert(
                         ESchedulerAlertType::OperationsArchivation,
                         alertError);
                 } else {
-                    Host_->SetSchedulerAlert(
+                    SetSchedulerAlert(
                         ESchedulerAlertType::OperationsArchivation,
                         TError());
                 }
@@ -1343,6 +1402,8 @@ private:
     {
         YT_LOG_DEBUG("Removing operations from Cypress (OperationCount: %v)", operationIds.size());
 
+        ProcessWaitingLockedOperations();
+
         std::vector<TOperationId> failedOperationIds;
         std::vector<TOperationId> removedOperationIds;
         std::vector<TOperationId> operationIdsToRemove;
@@ -1367,8 +1428,9 @@ private:
             if (batchRspOrError.IsOK()) {
                 const auto& batchRsp = batchRspOrError.Value();
                 auto rsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_lock_count");
-                YT_VERIFY(rsps.size() == operationIds.size());
+                YT_VERIFY(std::ssize(rsps) == std::ssize(operationIds));
 
+                auto now = TInstant::Now();
                 for (int index = 0; index < std::ssize(rsps); ++index) {
                     bool isLocked = false;
                     const auto rsp = rsps[index];
@@ -1381,7 +1443,7 @@ private:
 
                     auto operationId = operationIds[index];
                     if (isLocked) {
-                        failedOperationIds.push_back(operationId);
+                        LockedOperationQueue_.emplace_back(std::move(operationId), now);
                         ++lockedOperationCount;
                     } else {
                         operationIdsToRemove.push_back(operationId);
@@ -1395,7 +1457,7 @@ private:
 
                 failedOperationIds = operationIds;
 
-                failedToRemoveOperationCount = operationIds.size();
+                failedToRemoveOperationCount = std::ssize(operationIds);
             }
         }
 
@@ -1407,14 +1469,14 @@ private:
 
             std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> responseFutures;
 
-            int subbatchCount = DivCeil(static_cast<int>(operationIdsToRemove.size()), subbatchSize);
+            int subbatchCount = DivCeil(static_cast<int>(std::ssize(operationIdsToRemove)), subbatchSize);
 
             std::vector<int> subbatchSizes;
             for (int subbatchIndex = 0; subbatchIndex < subbatchCount; ++subbatchIndex) {
                 auto batchReq = proxy.ExecuteBatch();
 
                 int startIndex = subbatchIndex * subbatchSize;
-                int endIndex = std::min(static_cast<int>(operationIdsToRemove.size()), startIndex + subbatchSize);
+                int endIndex = std::min(static_cast<int>(std::ssize(operationIdsToRemove)), startIndex + subbatchSize);
                 for (int index = startIndex; index < endIndex; ++index) {
                     auto req = TYPathProxy::Remove(GetOperationPath(operationIdsToRemove[index]));
                     req->set_recursive(true);
@@ -1430,7 +1492,7 @@ private:
 
             for (int subbatchIndex = 0; subbatchIndex < subbatchCount; ++subbatchIndex) {
                 int startIndex = subbatchIndex * subbatchSize;
-                int endIndex = std::min(static_cast<int>(operationIdsToRemove.size()), startIndex + subbatchSize);
+                int endIndex = std::min(static_cast<int>(std::ssize(operationIdsToRemove)), startIndex + subbatchSize);
 
                 const auto& batchRspOrError = responseResults[subbatchIndex];
                 if (batchRspOrError.IsOK()) {
@@ -1469,11 +1531,11 @@ private:
             }
         }
 
-        YT_VERIFY(operationIds.size() == failedOperationIds.size() + removedOperationIds.size());
-        int removedCount = removedOperationIds.size();
+        YT_VERIFY(std::ssize(operationIds) == std::ssize(failedOperationIds) + std::ssize(removedOperationIds) + lockedOperationCount);
+        int removedCount = std::ssize(removedOperationIds);
 
-        RemovedOperationCounter_.Increment(removedOperationIds.size());
-        RemoveOperationErrorCounter_.Increment(failedOperationIds.size());
+        RemovedOperationCounter_.Increment(std::ssize(removedOperationIds));
+        RemoveOperationErrorCounter_.Increment(std::ssize(failedOperationIds) + lockedOperationCount);
 
         ProcessRemovedOperations(removedOperationIds);
 
@@ -1481,6 +1543,7 @@ private:
             RemoveBatcher_->Enqueue(operationId);
         }
 
+        RemovePendingLocked_ += lockedOperationCount;
         RemovePending_ -= removedCount;
         YT_LOG_DEBUG(
             "Successfully removed operations from Cypress (Count: %v, LockedCount: %v, FailedToRemoveCount: %v)",
@@ -1491,7 +1554,7 @@ private:
 
     void RemoveOperations()
     {
-        VERIFY_INVOKER_AFFINITY(GetInvoker());
+        VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
         auto batch = WaitFor(RemoveBatcher_->DequeueBatch())
             .ValueOrThrow();
@@ -1501,19 +1564,19 @@ private:
         }
 
         auto callback = BIND(&TImpl::RemoveOperations, MakeStrong(this))
-            .Via(GetInvoker());
+            .Via(GetCancelableInvoker());
 
         TDelayedExecutor::Submit(callback, RandomDuration(Config_->MaxRemovalSleepDelay));
     }
 
     void TemporarilyDisableArchivation()
     {
-        VERIFY_INVOKER_AFFINITY(GetInvoker());
+        VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
         DoStopOperationArchivation();
 
         auto enableCallback = BIND(&TImpl::DoStartOperationArchivation, MakeStrong(this))
-            .Via(GetInvoker());
+            .Via(GetCancelableInvoker());
 
         OperationArchivationStartCookie_ = TDelayedExecutor::Submit(
             enableCallback,
@@ -1521,7 +1584,7 @@ private:
 
         auto enableTime = TInstant::Now() + Config_->ArchivationEnableDelay;
 
-        Host_->SetSchedulerAlert(
+        SetSchedulerAlert(
             ESchedulerAlertType::OperationsArchivation,
             TError("Max enqueued operations limit reached; archivation is temporarily disabled")
             << TErrorAttribute("enable_time", enableTime));
@@ -1584,8 +1647,6 @@ private:
 
     void DoFetchFinishedOperationsById(std::vector<TOperationId> operationIds)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
         YT_LOG_INFO("Started fetching finished operations from Cypress (OperationCount: %v)", operationIds.size());
         auto operations = FetchOperationsFromCypressForCleaner(
             operationIds,
@@ -1612,7 +1673,7 @@ private:
 
     const TArchiveOperationRequest& GetRequest(TOperationId operationId) const
     {
-        VERIFY_INVOKER_AFFINITY(GetInvoker());
+        VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
         return GetOrCrash(OperationMap_, operationId);
     }
@@ -1634,10 +1695,10 @@ private:
 
     void SendOperationAlerts()
     {
-        VERIFY_INVOKER_AFFINITY(GetInvoker());
+        VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
         if (ArchiveVersion_ < 43 || OperationAlertEventQueue_.empty()) {
-            Host_->SetSchedulerAlert(ESchedulerAlertType::OperationAlertArchivation, TError());
+            SetSchedulerAlert(ESchedulerAlertType::OperationAlertArchivation, TError());
             return;
         }
 
@@ -1659,14 +1720,14 @@ private:
                 .Run())
                 .ThrowOnError();
             LastOperationAlertEventSendTime_ = TInstant::Now();
-            Host_->SetSchedulerAlert(ESchedulerAlertType::OperationAlertArchivation, TError());
+            SetSchedulerAlert(ESchedulerAlertType::OperationAlertArchivation, TError());
             ArchivedOperationAlertEventCounter_.Increment(eventsToSend.size());
         } catch (const std::exception& ex) {
             auto error = TError("Failed to write operation alert events to archive")
                 << ex;
             YT_LOG_WARNING(error);
             if (TInstant::Now() - LastOperationAlertEventSendTime_ > Config_->OperationAlertSenderAlertThreshold) {
-                Host_->SetSchedulerAlert(ESchedulerAlertType::OperationAlertArchivation, error);
+                SetSchedulerAlert(ESchedulerAlertType::OperationAlertArchivation, error);
             }
 
             while (!eventsToSend.empty() && std::ssize(OperationAlertEventQueue_) < Config_->MaxEnqueuedOperationAlertEventCount) {
@@ -1683,6 +1744,20 @@ private:
             OperationAlertEventQueue_.pop_front();
         }
         EnqueuedAlertEvents_.store(std::ssize(OperationAlertEventQueue_));
+    }
+
+    void ProcessWaitingLockedOperations()
+    {
+        auto now = TInstant::Now();
+        while (!LockedOperationQueue_.empty()) {
+            const auto& [operationId, enqueueInstant] = LockedOperationQueue_.front();
+            if (enqueueInstant + Config_->LockedOperationWaitTimeout > now) {
+                break;
+            }
+            RemoveBatcher_->Enqueue(operationId);
+            LockedOperationQueue_.pop_front();
+            --RemovePendingLocked_;
+        }
     }
 };
 
@@ -1718,6 +1793,11 @@ void TOperationsCleaner::SubmitForArchivation(std::vector<TOperationId> operatio
     Impl_->SubmitForArchivation(std::move(operationIds));
 }
 
+void TOperationsCleaner::SubmitForRemoval(std::vector<TOperationId> operationIds)
+{
+    Impl_->SubmitForRemoval(std::move(operationIds));
+}
+
 void TOperationsCleaner::UpdateConfig(const TOperationsCleanerConfigPtr& config)
 {
     Impl_->UpdateConfig(config);
@@ -1741,9 +1821,9 @@ void TOperationsCleaner::BuildOrchid(TFluentMap fluent) const
 void TOperationsCleaner::EnqueueOperationAlertEvent(
     TOperationId operationId,
     EOperationAlertType alertType,
-    const TError& alert)
+    TError alert)
 {
-    Impl_->EnqueueOperationAlertEvent(operationId, alertType, alert);
+    Impl_->EnqueueOperationAlertEvent(operationId, alertType, std::move(alert));
 }
 
 DELEGATE_SIGNAL(TOperationsCleaner, void(const std::vector<TArchiveOperationRequest>& requests), OperationsRemovedFromCypress, *Impl_);

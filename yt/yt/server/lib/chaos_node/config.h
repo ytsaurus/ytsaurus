@@ -43,6 +43,21 @@ DEFINE_REFCOUNTED_TYPE(TReplicationCardObserverConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMigratedReplicationCardRemoverConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TDuration RemovePeriod;
+
+    REGISTER_YSON_STRUCT(TMigratedReplicationCardRemoverConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMigratedReplicationCardRemoverConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChaosManagerConfig
     : public NYTree::TYsonStruct
 {
@@ -50,6 +65,7 @@ public:
     TChaosCellSynchronizerConfigPtr ChaosCellSynchronizer;
     TReplicationCardObserverConfigPtr ReplicationCardObserver;
     TDuration EraCommencingPeriod;
+    TMigratedReplicationCardRemoverConfigPtr MigratedReplicationCardRemover;
 
     REGISTER_YSON_STRUCT(TChaosManagerConfig);
 

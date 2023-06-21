@@ -10,6 +10,7 @@ namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using NScheduler::TAllocationId;
 using NScheduler::TExecNodeDescriptorMap;
 using NScheduler::TRefCountedExecNodeDescriptorMapPtr;
 using NScheduler::TIncarnationId;
@@ -58,6 +59,7 @@ extern const TString JobProxyCpuUsagePath;
 DEFINE_ENUM(EJobCompetitionType,
     (Speculative)
     (Probing)
+    (LayerProbing)
 )
 
 ////////////////////////////////////////////////////////////////////////////////

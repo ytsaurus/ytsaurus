@@ -5,7 +5,8 @@ from yt_commands import (
     get, create_tmpdir,
     create_pool, insert_rows, select_rows, lookup_rows, write_table, map, map_reduce, vanilla, run_test_vanilla,
     abort_job, list_jobs, clean_operations, mount_table, unmount_table, wait_for_cells, sync_create_cells,
-    make_random_string, raises_yt_error, clear_metadata_caches)
+    update_controller_agent_config,
+    make_random_string, raises_yt_error, clear_metadata_caches, ls)
 
 from yt_scheduler_helpers import scheduler_new_orchid_pool_tree_path
 
@@ -139,7 +140,7 @@ class TestListJobsBase(YTEnvSetup):
         self._tmpdir = create_tmpdir("list_jobs")
         self.failed_job_id_fname = os.path.join(self._tmpdir, "failed_job_id")
 
-    def restart_nodes_and_wait_jobs_table(self):
+    def restart_nodes_and_ca_and_wait_jobs_table(self):
         def get_user_slots_limit():
             return get(scheduler_new_orchid_pool_tree_path("default") + "/resource_limits/user_slots")
 
@@ -147,7 +148,7 @@ class TestListJobsBase(YTEnvSetup):
 
         unmount_table("//sys/operations_archive/jobs")
         wait(lambda: get("//sys/operations_archive/jobs/@tablet_state") == "unmounted")
-        with Restarter(self.Env, NODES_SERVICE):
+        with Restarter(self.Env, [CONTROLLER_AGENTS_SERVICE, NODES_SERVICE]):
             pass
         clear_metadata_caches()
         wait_for_cells()
@@ -166,14 +167,25 @@ class TestListJobsBase(YTEnvSetup):
 
     @staticmethod
     def _validate_address_filter(op):
-        address_to_job_ids = defaultdict(list)
+        nodes = ls("//sys/cluster_nodes")
+        random_address = nodes[0]
+        prefixes = []
+        for node in nodes:
+            prefixes.append(node)
+            prefixes.append(node[:-1])
+        for small_prefix in ["", random_address[:1], random_address[:2]]:
+            prefixes.append(small_prefix)
+        for wrong_prefix in [random_address[2:5], random_address[3:7], random_address[1:4]]:
+            prefixes.append(wrong_prefix)
+
         jobs = checked_list_jobs(op.id)["jobs"]
-        for job in jobs:
-            address = job["address"]
-            address_to_job_ids[address].append(job["id"])
-        for address, job_ids in address_to_job_ids.items():
-            actual_jobs_for_address = checked_list_jobs(op.id, address=address)["jobs"]
-            assert builtins.set(job["id"] for job in actual_jobs_for_address) == builtins.set(job_ids)
+        prefix_to_expected_job_list = defaultdict(list)
+        for prefix in prefixes:
+            prefix_to_expected_job_list[prefix] = [job["id"] for job in jobs if job["address"].startswith(prefix)]
+
+        for prefix, expected_jobs in prefix_to_expected_job_list.items():
+            actual_jobs_for_address = checked_list_jobs(op.id, address=prefix)["jobs"]
+            assert builtins.set(job["id"] for job in actual_jobs_for_address) == builtins.set(expected_jobs)
 
     @staticmethod
     def _get_answers_for_filters_during_map(job_ids):
@@ -533,7 +545,7 @@ class TestListJobsBase(YTEnvSetup):
         completed_map_job = completed_map_job_list[0]
 
         check_times(completed_map_job)
-        assert completed_map_job["controller_agent_state"] == "completed"
+        assert completed_map_job["controller_state"] == "completed"
         assert completed_map_job["archive_state"] == "running"
         assert completed_map_job["type"] == "partition_map"
         assert "slot_index" in completed_map_job["exec_attributes"]
@@ -672,6 +684,8 @@ class TestListJobs(TestListJobsBase):
 
     @authors("ignat")
     def test_running_aborted_jobs(self):
+        update_controller_agent_config("enable_snapshot_loading", False)
+
         input_table, output_table = self._create_tables()
         op = map(
             track=False,
@@ -685,11 +699,9 @@ class TestListJobs(TestListJobsBase):
 
         op.suspend()
 
-        self.restart_nodes_and_wait_jobs_table()
+        self.restart_nodes_and_ca_and_wait_jobs_table()
 
         op.resume()
-
-        op.track()
 
         def check():
             actual_jobs = checked_list_jobs(op.id, running_jobs_lookbehind_period=1000)["jobs"]
@@ -761,6 +773,8 @@ class TestListJobs(TestListJobsBase):
         release_breakpoint()
         op.track()
 
+        wait(lambda: get_job_from_table(op.id, job_id)["controller_state"] == "completed")
+
         def has_job_state_converged():
             set_job_in_table(op.id, job_id, {"transient_state": "running"})
             time.sleep(1)
@@ -773,7 +787,7 @@ class TestListJobs(TestListJobsBase):
         assert len(res_jobs) == 1
         res_job = res_jobs[0]
 
-        assert res_job.get("controller_agent_state") is None
+        assert res_job.get("controller_state") == "completed"
         assert res_job["archive_state"] == "running"
         assert res_job.get("is_stale")
 
@@ -799,7 +813,7 @@ class TestListJobs(TestListJobsBase):
         assert len(res_jobs) == 1
         res_job = res_jobs[0]
 
-        assert res_job.get("controller_agent_state") == "running"
+        assert res_job.get("controller_state") == "running"
         assert res_job.get("archive_state") == "running"
         assert not res_job.get("is_stale")
 

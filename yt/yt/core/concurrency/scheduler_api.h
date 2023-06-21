@@ -38,24 +38,13 @@ void SetCurrentFiberId(TFiberId id);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// NB: Use function pointer to minimize the overhead.
-using TGlobalContextSwitchHandler = void(*)();
-
-void InstallGlobalContextSwitchHandlers(
-    TGlobalContextSwitchHandler outHandler,
-    TGlobalContextSwitchHandler inHandler);
-
-////////////////////////////////////////////////////////////////////////////////
-
-using TContextSwitchHandler = std::function<void()>;
+void PushContextHandler(std::function<void()> out, std::function<void()> in);
+void PopContextHandler();
 
 class TContextSwitchGuard
 {
 public:
-    TContextSwitchGuard(
-        TContextSwitchHandler outHandler,
-        TContextSwitchHandler inHandler);
-
+    TContextSwitchGuard(std::function<void()> out, std::function<void()> in);
     TContextSwitchGuard(const TContextSwitchGuard& other) = delete;
     ~TContextSwitchGuard();
 };
@@ -64,7 +53,7 @@ class TOneShotContextSwitchGuard
     : public TContextSwitchGuard
 {
 public:
-    explicit TOneShotContextSwitchGuard(TContextSwitchHandler outHandler);
+    explicit TOneShotContextSwitchGuard(std::function<void()> handler);
 
 private:
     bool Active_;

@@ -22,6 +22,7 @@
 #include <yt/yt/server/master/cell_master/serialize.h>
 
 #include <yt/yt/server/master/chunk_server/chunk_list.h>
+#include <yt/yt/server/master/chunk_server/medium.h>
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/yt/server/master/cypress_server/node_detail.h>
@@ -240,6 +241,9 @@ public:
         const TYPath& path,
         TTransaction* transaction,
         const TResolvePathOptions& options) override;
+
+    TFuture<std::vector<TErrorOr<TVersionedObjectPath>>> ResolveObjectIdsToPaths(
+        const std::vector<TVersionedObjectId>& objectIds) override;
 
     void ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites) override;
 
@@ -1404,6 +1408,12 @@ TObject* TObjectManager::CreateObject(
 
     auto* object = handler->CreateObject(hintId, attributes);
 
+    // COMPAT(aleksandra-zh): medium replication hotfix.
+    if (replicate && type == EObjectType::Medium) {
+        auto* medium = object->As<TMedium>();
+        replicatedAttributes->Set("index", medium->GetIndex());
+    }
+
     if (multicellManager->IsMulticell() && Any(flags & ETypeFlags::TwoPhaseCreation)) {
         object->SetLifeStage(EObjectLifeStage::CreationStarted);
         object->ResetLifeStageVoteCount();
@@ -1575,6 +1585,50 @@ TObject* TObjectManager::ResolvePathToObject(const TYPath& path, TTransaction* t
     }
 
     return payload->Object;
+}
+
+auto TObjectManager::ResolveObjectIdsToPaths(const std::vector<TVersionedObjectId>& objectIds)
+    -> TFuture<std::vector<TErrorOr<TVersionedObjectPath>>>
+{
+    // Request object paths from the primary cell.
+    auto proxy = CreateObjectServiceReadProxy(
+        Bootstrap_->GetRootClient(),
+        NApi::EMasterChannelKind::Follower);
+
+    // TODO(babenko): improve
+    auto batchReq = proxy.ExecuteBatch();
+    for (const auto& versionedId : objectIds) {
+        auto req = TCypressYPathProxy::Get(FromObjectId(versionedId.ObjectId) + "/@path");
+        SetTransactionId(req, versionedId.TransactionId);
+        batchReq->AddRequest(req);
+    }
+
+    return
+        batchReq->Invoke()
+        .Apply(BIND([=] (const TErrorOr<TObjectServiceProxy::TRspExecuteBatchPtr>& batchRspOrError) -> TErrorOr<std::vector<TErrorOr<TVersionedObjectPath>>> {
+            if (!batchRspOrError.IsOK()) {
+                return TError("Error requesting object paths")
+                    << batchRspOrError;
+            }
+
+            const auto& batchRsp = batchRspOrError.Value();
+            auto rspOrErrors = batchRsp->GetResponses<TCypressYPathProxy::TRspGet>();
+            YT_VERIFY(rspOrErrors.size() == objectIds.size());
+
+            std::vector<TErrorOr<TVersionedObjectPath>> results;
+            results.reserve(rspOrErrors.size());
+            for (int index = 0; index < std::ssize(rspOrErrors); ++index) {
+                const auto& rspOrError = rspOrErrors[index];
+                if (rspOrError.IsOK()) {
+                    const auto& rsp = rspOrError.Value();
+                    results.push_back(TVersionedObjectPath{ConvertTo<TYPath>(TYsonString(rsp->value())), objectIds[index].TransactionId});
+                } else {
+                    results.push_back(TError(rspOrError));
+                }
+            }
+
+            return results;
+        }));
 }
 
 void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites)
@@ -1768,7 +1822,7 @@ void TObjectManager::HydraExecuteLeader(
     }
 
     std::optional<NTracing::TChildTraceContextGuard> traceContextGuard;
-    if (auto* traceContext = NTracing::TryGetCurrentTraceContext()) {
+    if (auto* traceContext = NTracing::GetCurrentTraceContext()) {
         traceContextGuard.emplace(
             traceContext,
             ConcatToString(TStringBuf("YPathWrite:"), rpcContext->GetService(), TStringBuf("."), rpcContext->GetMethod()));

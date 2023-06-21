@@ -70,7 +70,7 @@ TFuture<TChunkQuorumInfo> ComputeQuorumInfo(
     NChunkClient::TChunkId chunkId,
     bool overlayed,
     NErasure::ECodec codecId,
-    int quorum,
+    int readQuorum,
     i64 replicaLagLimit,
     std::vector<TChunkReplicaDescriptor> replicas,
     TDuration requestTimeout,

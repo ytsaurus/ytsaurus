@@ -59,9 +59,13 @@ TColumnarChunkMeta::TColumnarChunkMeta(const TChunkMeta& chunkMeta)
 {
     ChunkType_ = CheckedEnumCast<EChunkType>(chunkMeta.type());
     ChunkFormat_ = CheckedEnumCast<EChunkFormat>(chunkMeta.format());
+    ChunkFeatures_ = FromProto<EChunkFeatures>(chunkMeta.features());
 
     Misc_ = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
     DataBlockMeta_ = New<TRefCountedDataBlockMeta>(GetProtoExtension<TDataBlockMetaExt>(chunkMeta.extensions()));
+    if (HasProtoExtension<TSystemBlockMetaExt>(chunkMeta.extensions())) {
+        SystemBlockMeta_ = New<TRefCountedSystemBlockMeta>(GetProtoExtension<TSystemBlockMetaExt>(chunkMeta.extensions()));
+    }
 
     // This is for old horizontal versioned chunks, since TCachedVersionedChunkMeta use this call.
     if (auto columnMeta = FindProtoExtension<TColumnMetaExt>(chunkMeta.extensions())) {
@@ -121,6 +125,7 @@ i64 TColumnarChunkMeta::GetMemoryUsage() const
         sizeof (TKey) * BlockLastKeys_.Size() +
         Misc_.SpaceUsedLong() +
         DataBlockMeta_->GetSize() * metaMemoryFactor +
+        (SystemBlockMeta_ ? SystemBlockMeta_->GetSize() * metaMemoryFactor : 0) +
         (ColumnMeta_ ? ColumnMeta_->GetSize() * metaMemoryFactor : 0) +
         ChunkSchema_->GetMemoryUsage();
 }

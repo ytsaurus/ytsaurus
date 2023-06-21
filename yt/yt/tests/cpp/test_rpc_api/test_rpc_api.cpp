@@ -26,10 +26,14 @@
 #include <yt/yt/client/table_client/name_table.h>
 
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
+#include <yt/yt/client/api/rpc_proxy/client_impl.h>
 
 #include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/fluent.h>
+
+#include <util/generic/cast.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -760,6 +764,55 @@ TEST_F(TClearTmpTestBase, TestAnyCompatibleTypes)
         auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
                                            .ValueOrThrow());
         EXPECT_EQ(rowCount, 0);
+    }
+}
+
+TEST_F(TClearTmpTestBase, TestEmptyTableSkiffReading_YT18817)
+{
+    TRichYPath tablePath{"//tmp/test_empty_table_skiff_reading"};
+    TCreateNodeOptions options;
+    options.Attributes = NYTree::CreateEphemeralAttributes();
+    options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{{"a", EValueType::Int64}}));
+    options.Force = true;
+
+    WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
+        .ThrowOnError();
+
+    for (int i = 0; i < 100; ++i) {
+        auto apiServiceProxy = VerifyDynamicCast<NYT::NApi::NRpcProxy::TClientBase*>(Client_.Get())->CreateApiServiceProxy();
+        auto req = apiServiceProxy.ReadTable();
+
+        req->set_desired_rowset_format(NRpcProxy::NProto::ERowsetFormat::RF_FORMAT);
+        auto format = BuildYsonStringFluently()
+        .BeginAttributes()
+            .Item("table_skiff_schemas")
+            .BeginList()
+                .Item()
+                .BeginMap()
+                    .Item("wire_type")
+                    .Value("tuple")
+                    .Item("children")
+                    .BeginList()
+                        .Item()
+                        .BeginMap()
+                            .Item("wire_type")
+                            .Value("int64")
+                            .Item("name")
+                            .Value("a")
+                        .EndMap()
+                    .EndList()
+                .EndMap()
+            .EndList()
+        .EndAttributes()
+        .Value("skiff");
+
+        req->set_format(format.ToString());
+
+        ToProto(req->mutable_path(), tablePath);
+        auto stream = WaitFor(NRpc::CreateRpcClientInputStream(req))
+            .ValueOrThrow();
+
+        stream->ReadAll();
     }
 }
 

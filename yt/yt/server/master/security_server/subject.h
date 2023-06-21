@@ -18,8 +18,6 @@ class TSubject
     : public NObjectServer::TObject
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(TString, Name);
-
     using TGroupSet = THashSet<TGroup*>;
     //! Set of groups containing this given subject.
     DEFINE_BYREF_RW_PROPERTY(TGroupSet, MemberOf);
@@ -38,6 +36,9 @@ public:
     using TObject::TObject;
     explicit TSubject(TSubjectId id);
 
+    TString GetName() const;
+    virtual void SetName(const TString& name);
+
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
@@ -54,6 +55,8 @@ public:
     //! Decrements the counter and removes #object from |LinkedObjects| if the counter drops to zero.
     void UnlinkObject(TObject* object);
 
+protected:
+    TString Name_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -29,6 +29,8 @@ class TestGpuJobSetup(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "test_root_fs": True,
+            "use_artifact_binds": True,
+            "use_common_root_fs_quota": True,
             "job_controller": {
                 "job_setup_command": {
                     "path": "/static-bin/static-bash",
@@ -121,6 +123,8 @@ class TestSkipGpuJobSetup(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "test_root_fs": True,
+            "use_artifact_binds": True,
+            "use_common_root_fs_quota": True,
             "job_controller": {
                 "job_setup_command": {
                     "path": "/static-bin/static-bash",
@@ -190,6 +194,8 @@ class TestGpuLayer(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "test_root_fs": True,
+            "use_artifact_binds": True,
+            "use_common_root_fs_quota": True,
             "job_controller": {
                 "job_setup_command": {
                     "path": "/static-bin/static-bash",
@@ -296,6 +302,8 @@ class TestGpuLayerUpdate(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "test_root_fs": True,
+            "use_artifact_binds": True,
+            "use_common_root_fs_quota": True,
             "job_controller": {
                 "gpu_manager": {
                     "driver_layer_directory_path": "//tmp/drivers",
@@ -404,6 +412,8 @@ class TestCudaLayer(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "test_root_fs": True,
+            "use_artifact_binds": True,
+            "use_common_root_fs_quota": True,
             "job_controller": {
                 "job_setup_command": {
                     "path": "/static-bin/static-bash",
@@ -540,6 +550,8 @@ class TestForceCudaLayer(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "test_root_fs": True,
+            "use_artifact_binds": True,
+            "use_common_root_fs_quota": True,
             "job_controller": {
                 "gpu_manager": {
                     "driver_version": "0",
@@ -647,6 +659,8 @@ class TestSetupUser(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "test_root_fs": True,
+            "use_artifact_binds": True,
+            "use_common_root_fs_quota": True,
             "job_controller": {
                 "job_setup_command": {
                     "path": "/static-bin/static-bash",
@@ -813,6 +827,8 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "test_root_fs": True,
+            "use_artifact_binds": True,
+            "use_common_root_fs_quota": True,
             "job_controller": {
                 "gpu_manager": {
                     "driver_version": "0",
@@ -1157,6 +1173,8 @@ class TestExtraGpuCheckFailure(YTEnvSetup, GpuCheckBase):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "test_root_fs": True,
+            "use_artifact_binds": True,
+            "use_common_root_fs_quota": True,
             "job_controller": {
                 "gpu_manager": {
                     "driver_version": "0",
@@ -1215,10 +1233,3 @@ class TestExtraGpuCheckFailure(YTEnvSetup, GpuCheckBase):
         alerts = get(alerts_path)
         assert len(alerts) == 1
         assert "GPU check command failed" in str(alerts[0])
-
-
-@authors("don-dron")
-class TestGpuJobWorkspaceSetup(TestGpuCheck):
-    @classmethod
-    def modify_node_config(cls, config):
-        config["exec_agent"]["use_common_root_fs_quota"] = True

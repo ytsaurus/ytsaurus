@@ -75,6 +75,11 @@ public:
         return EBlockType::UncompressedData;
     }
 
+    bool IsBlockTypeActive(EBlockType blockType) const override
+    {
+        return blockType == EBlockType::UncompressedData;
+    }
+
 private:
     const int StartBlockIndex_;
     const std::vector<TBlock>& Blocks_;
@@ -177,7 +182,6 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTable(
             TColumnFilter(0),
             nullptr,
             blockManagerFactory,
-            New<TChunkReaderPerformanceCounters>(),
             true);
 
         return CreateChunkLookupHashTableForColumnarFormat(keysReader, chunkRowCount);
@@ -187,7 +191,8 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTable(
         chunkFormat != EChunkFormat::TableVersionedIndexed &&
         chunkFormat != EChunkFormat::TableUnversionedSchemalessHorizontal)
     {
-        YT_LOG_INFO("Cannot create lookup hash table for improper chunk format (ChunkId: %v, ChunkFormat: %v)",
+        YT_LOG_INFO("Cannot create lookup hash table for improper chunk format "
+            "(ChunkId: %v, ChunkFormat: %v)",
             chunkId,
             chunkFormat);
         return nullptr;
@@ -195,7 +200,8 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTable(
 
     int lastBlockIndex = endBlockIndex - 1;
     if (lastBlockIndex > MaxBlockIndex) {
-        YT_LOG_INFO("Cannot create lookup hash table because chunk has too many blocks (ChunkId: %v, LastBlockIndex: %v)",
+        YT_LOG_INFO("Cannot create lookup hash table because chunk has too many blocks "
+            "(ChunkId: %v, LastBlockIndex: %v)",
             chunkId,
             lastBlockIndex);
         return nullptr;
@@ -209,9 +215,10 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTable(
 
     for (int blockIndex = startBlockIndex; blockIndex <= lastBlockIndex; ++blockIndex) {
         auto blockId = TBlockId(chunkId, blockIndex);
-        auto uncompressedBlock = blockCache->FindBlock(blockId, EBlockType::UncompressedData).Block;
+        auto uncompressedBlock = blockCache->FindBlock(blockId, EBlockType::UncompressedData);
         if (!uncompressedBlock) {
-            YT_LOG_INFO("Cannot create lookup hash table because chunk data is missing in the cache (ChunkId: %v, BlockIndex: %v)",
+            YT_LOG_INFO("Cannot create lookup hash table because chunk data is missing in the cache "
+                "(ChunkId: %v, BlockIndex: %v)",
                 chunkId,
                 blockIndex);
             return nullptr;

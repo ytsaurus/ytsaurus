@@ -30,8 +30,14 @@ public:
         IBlockCachePtr blockCache,
         NLogging::TLogger logger);
 
-    void WriteBlock(std::vector<TSharedRef> vectorizedBlock, std::optional<int> groupIndex = {});
-    void WriteBlock(TSharedRef block, std::optional<int> groupIndex = {});
+    void WriteBlock(
+        std::vector<TSharedRef> vectorizedBlock,
+        EBlockType blockType,
+        std::optional<int> groupIndex = {});
+    void WriteBlock(
+        TSharedRef block,
+        EBlockType blockType,
+        std::optional<int> groupIndex = {});
 
     void Close();
 
@@ -57,6 +63,8 @@ private:
     i64 LargestBlockSize_ = 0;
 
     bool Closed_ = false;
+
+    void VerifyBlockType(EBlockType blockType) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TEncodingChunkWriter)

@@ -9,7 +9,6 @@ option go_package = "go.ytsaurus.tech/yt/go/proto/client/api/rpc_proxy";
 import "yt_proto/yt/core/misc/proto/guid.proto";
 import "yt_proto/yt/core/misc/proto/error.proto";
 import "yt_proto/yt/core/ytree/proto/attributes.proto";
-import "yt_proto/yt/core/ytree/proto/request_complexity_limits.proto";
 import "yt_proto/yt/client/hive/proto/timestamp_map.proto";
 import "yt_proto/yt/client/chunk_client/proto/data_statistics.proto";
 import "yt_proto/yt/client/chaos_client/proto/replication_card.proto";
@@ -636,6 +635,13 @@ message TReqRegisterQueueConsumer
     optional string queue_path = 1;
     optional string consumer_path = 2;
     optional bool vital = 3;
+
+    // The most reasonable way to make a std::optional<std::vector<int>> field.
+    message TRegistrationPartitions
+    {
+        repeated int32 items = 1;
+    }
+    optional TRegistrationPartitions partitions = 4;
 }
 
 message TRspRegisterQueueConsumer
@@ -669,6 +675,13 @@ message TRspListQueueConsumerRegistrations
         optional string queue_path = 1;
         optional string consumer_path = 2;
         optional bool vital = 3;
+
+        // The most reasonable way to make a std::optional<std::vector<int>> field.
+        message TRegistrationPartitions
+        {
+            repeated int32 items = 1;
+        }
+        optional TRegistrationPartitions partitions = 4;
     }
 
     repeated TQueueConsumerRegistration registrations = 1;
@@ -1097,14 +1110,14 @@ message TReqGetNode
 
     optional int64 max_size = 3;
 
-    optional NYT.NYTree.NProto.TReadRequestComplexityLimits complexity_limits = 5;
-
     optional TTransactionalOptions transactional_options = 100;
     optional TPrerequisiteOptions prerequisite_options = 101;
     optional TMasterReadOptions master_read_options = 102;
     optional TSuppressableAccessTrackingOptions suppressable_access_tracking_options = 104;
 
     optional NYT.NYTree.NProto.TAttributeDictionary options = 200;
+
+    reserved 5;
 }
 
 message TRspGetNode
@@ -1124,12 +1137,12 @@ message TReqListNode
 
     optional int64 max_size = 3;
 
-    optional NYT.NYTree.NProto.TReadRequestComplexityLimits complexity_limits = 5;
-
     optional TTransactionalOptions transactional_options = 100;
     optional TPrerequisiteOptions prerequisite_options = 101;
     optional TMasterReadOptions master_read_options = 102;
     optional TSuppressableAccessTrackingOptions suppressable_access_tracking_options = 104;
+
+    reserved 5;
 }
 
 message TRspListNode
@@ -1662,6 +1675,7 @@ message TReqAlterTable
     optional NYT.NProto.TGuid upstream_replica_id = 4;
     optional ETableSchemaModification schema_modification = 5;
     optional NYT.NChaosClient.NProto.TReplicationProgress replication_progress = 6;
+    optional NYT.NProto.TGuid schema_id = 7;
 
     optional TTransactionalOptions transactional_options = 100;
     optional TMutatingOptions mutating_options = 103;
@@ -2049,7 +2063,7 @@ message TReqListJobs
     optional bool include_archive = 14 [default = false];
 
     optional EDataSource data_source = 15 [default = DS_AUTO];
-    optional uint64 running_jobs_lookbehind_period = 16 [default = 60000000]; // TDuration, 1 minute by default
+    optional uint64 running_jobs_lookbehind_period = 16;
 
     optional NYT.NProto.TGuid job_competition_id = 17;
     optional bool with_competitors = 18;
@@ -2613,7 +2627,7 @@ message TJob
     optional bytes input_paths = 13; // YSON
     optional bytes core_infos = 14; // YSON
     optional NYT.NProto.TGuid operation_id = 15;
-    optional EJobState controller_agent_state = 16;
+    optional EJobState controller_state = 16;
     optional EJobState archive_state = 17;
     optional NYT.NProto.TGuid job_competition_id = 18;
     optional bool has_competitors = 19;

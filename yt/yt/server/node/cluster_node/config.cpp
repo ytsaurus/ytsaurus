@@ -312,6 +312,9 @@ void TClusterNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("out_throttlers", &TThis::OutThrottlers)
         .Default();
 
+    registrar.Parameter("porto_executor", &TThis::PortoExecutor)
+        .DefaultNew();
+
     registrar.Postprocessor([] (TThis* config) {
         NNodeTrackerClient::ValidateNodeTags(config->Tags);
 
@@ -373,10 +376,6 @@ void TClusterNodeConfig::Register(TRegistrar registrar)
         }
         if (!config->MasterConnector->LeaseTransactionPingPeriod) {
             config->MasterConnector->LeaseTransactionPingPeriod = config->DataNode->LeaseTransactionPingPeriod;
-        }
-        if (!config->MasterConnector->FirstRegisterSplay) {
-            // This is not a mistake!
-            config->MasterConnector->FirstRegisterSplay = config->DataNode->IncrementalHeartbeatPeriod;
         }
         if (!config->MasterConnector->RegisterRetryPeriod) {
             config->MasterConnector->RegisterRetryPeriod = config->DataNode->RegisterRetryPeriod;
@@ -442,6 +441,10 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("throttler_free_bandwidth_ratio", &TThis::ThrottlerFreeBandwidthRatio)
         .InRange(0.0, 1.0)
         .Optional();
+    registrar.Parameter("porto_executor", &TThis::PortoExecutor)
+        .DefaultNew();
+    registrar.Parameter("enable_job_environment_resurrection", &TThis::EnableJobEnvironmentResurrection)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

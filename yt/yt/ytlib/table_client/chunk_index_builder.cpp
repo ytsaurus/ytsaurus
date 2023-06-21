@@ -74,6 +74,11 @@ public:
         return DoBuildIndex(lastKey, systemBlockMetaExt, rowToSlotIndex);
     }
 
+    EBlockType GetBlockType() const override
+    {
+        return EBlockType::HashTableChunkIndex;
+    }
+
 private:
     struct TChunkIndexBlock
     {

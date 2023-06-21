@@ -1200,34 +1200,47 @@ private:
 
         // This should be done before processing mutations, otherwise we might apply a mutation
         // with a greater sequence number.
-        if (controlState == EPeerState::Following && request->has_snapshot_request()) {
+        if (request->has_snapshot_request()) {
             const auto& snapshotRequest = request->snapshot_request();
             auto snapshotId = snapshotRequest.snapshot_id();
+
             if (snapshotId < SnapshotId_) {
                 THROW_ERROR_EXCEPTION(
                     NRpc::EErrorCode::Unavailable,
                     "Received a snapshot request with a snapshot id %v while last snapshot id %v is greater",
                     snapshotId,
                     SnapshotId_);
-            } else if (snapshotId == SnapshotId_) {
-                YT_LOG_DEBUG("Received a redundant snapshot request, ignoring (SnapshotId: %v)",
-                    SnapshotId_);
-            } else {
-                auto readOnly = snapshotRequest.read_only();
-                auto snapshotSequenceNumber = snapshotRequest.sequence_number();
-                SetReadOnly(readOnly);
+            }
 
-                SnapshotId_ = snapshotRequest.snapshot_id();
-                YT_LOG_INFO("Received a new snapshot request (SnapshotId: %v, SequenceNumber: %v, ReadOnly: %v)",
-                    SnapshotId_,
-                    snapshotSequenceNumber,
-                    readOnly);
-                if (Options_.WriteSnapshotsAtFollowers) {
-                    SnapshotFuture_ = BIND(&TDecoratedAutomaton::BuildSnapshot, DecoratedAutomaton_)
-                        .AsyncVia(epochContext->EpochUserAutomatonInvoker)
-                        .Run(SnapshotId_, snapshotSequenceNumber);
+            if (controlState == EPeerState::Following) {
+                if (snapshotId == SnapshotId_) {
+                    YT_LOG_DEBUG("Received a redundant snapshot request, ignoring (SnapshotId: %v)",
+                        SnapshotId_);
                 } else {
-                    SnapshotFuture_ = MakeFuture<TRemoteSnapshotParams>(TError("Followers cannot build snapshot"));
+                    auto readOnly = snapshotRequest.read_only();
+                    auto snapshotSequenceNumber = snapshotRequest.sequence_number();
+                    SetReadOnly(readOnly);
+
+                    SnapshotId_ = snapshotId;
+                    YT_LOG_INFO("Received a new snapshot request (SnapshotId: %v, SequenceNumber: %v, ReadOnly: %v)",
+                        SnapshotId_,
+                        snapshotSequenceNumber,
+                        readOnly);
+                    if (Options_.WriteSnapshotsAtFollowers) {
+                        SnapshotFuture_ = BIND(&TDecoratedAutomaton::BuildSnapshot, DecoratedAutomaton_)
+                            .AsyncVia(epochContext->EpochUserAutomatonInvoker)
+                            .Run(SnapshotId_, snapshotSequenceNumber);
+                    } else {
+                        SnapshotFuture_ = MakeFuture<TRemoteSnapshotParams>(TError("Followers cannot build snapshot"));
+                    }
+                }
+            } else {
+                YT_VERIFY(controlState == EPeerState::FollowerRecovery);
+                YT_VERIFY(SnapshotId_ <= snapshotId);
+
+                if (SnapshotId_ < snapshotId) {
+                    SnapshotId_ = snapshotId;
+                    SnapshotFuture_ = MakeFuture<TRemoteSnapshotParams>(TError("Cannot build snapshot during recovery"));
                 }
             }
 
@@ -2031,8 +2044,6 @@ private:
                 Options_.ResponseKeeper->Start();
             }
 
-            ApplyFinalRecoveryAction(/*isLeader*/ true);
-
             WaitFor(BIND(&TDistributedHydraManager::OnLeaderActiveAutomaton, MakeWeak(this))
                 .AsyncVia(epochContext->EpochSystemAutomatonInvoker)
                 .Run())
@@ -2043,7 +2054,7 @@ private:
             auto mutationCount = DecoratedAutomaton_->GetMutationCountSinceLastSnapshot();
             auto mutationSize = DecoratedAutomaton_->GetMutationSizeSinceLastSnapshot();
             auto lastSnapshotId = DecoratedAutomaton_->GetLastSuccessfulSnapshotId();
-            auto tailChangelogCount = epochContext->ReachableState.SegmentId - lastSnapshotId - 1;
+            auto tailChangelogCount = epochContext->ReachableState.SegmentId - lastSnapshotId;
             if (tailChangelogCount >= Config_->Get()->MaxChangelogsForRecovery ||
                 mutationCount >= Config_->Get()->MaxChangelogMutationCountForRecovery ||
                 mutationSize >= Config_->Get()->MaxTotalChangelogSizeForRecovery)
@@ -2284,22 +2295,18 @@ private:
 
             YT_LOG_INFO("Follower recovery completed");
 
-            // Do not complete recovery -- we do not want to become active.
-            // Just wait for leader to die, so that we can die as well.
-            if (ApplyFinalRecoveryAction(/*isLeader*/ false)) {
-                SystemLockGuard_.Release();
+            SystemLockGuard_.Release();
 
-                WaitFor(BIND(&TDistributedHydraManager::OnFollowerRecoveryCompleteAutomaton, MakeWeak(this))
-                    .AsyncVia(epochContext->EpochSystemAutomatonInvoker)
-                    .Run())
-                    .ThrowOnError();
+            WaitFor(BIND(&TDistributedHydraManager::OnFollowerRecoveryCompleteAutomaton, MakeWeak(this))
+                .AsyncVia(epochContext->EpochSystemAutomatonInvoker)
+                .Run())
+                .ThrowOnError();
 
-                if (Options_.ResponseKeeper) {
-                    Options_.ResponseKeeper->Start();
-                }
-
-                FollowerRecovered_ = true;
+            if (Options_.ResponseKeeper) {
+                Options_.ResponseKeeper->Start();
             }
+
+            FollowerRecovered_ = true;
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Follower recovery failed, backing off");
             TDelayedExecutor::WaitForDuration(Config_->Get()->RestartBackoffTime);
@@ -2421,65 +2428,6 @@ private:
             BIND(&TDistributedHydraManager::RecoverFollower, MakeStrong(this)));
 
         return true;
-    }
-
-    bool ApplyFinalRecoveryAction(bool isLeader)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto epochContext = ControlEpochContext_;
-
-        auto finalActionOrError = WaitFor(BIND(&TDecoratedAutomaton::GetFinalRecoveryAction, DecoratedAutomaton_)
-            .AsyncVia(epochContext->EpochSystemAutomatonInvoker)
-            .Run());
-
-        auto finalAction = finalActionOrError.ValueOrThrow();
-
-        if (finalAction == EFinalRecoveryAction::None) {
-            return true;
-        }
-
-        YT_LOG_INFO("Applying final recovery action (FinalRecoveryAction: %v)",
-            finalAction);
-
-        switch (finalAction) {
-            case EFinalRecoveryAction::BuildSnapshotAndRestart: {
-                // Do not do anything for follower: after leader finalizes followers will
-                // die naturally.
-                if (!isLeader) {
-                    return false;
-                }
-
-                YT_LOG_INFO("Building compatibility snapshot");
-
-                const auto& leaderCommitter = epochContext->LeaderCommitter;
-                if (leaderCommitter->CanBuildSnapshot()) {
-                    SetReadOnly(true);
-
-                    auto snapshotIdOrError = WaitFor(leaderCommitter->BuildSnapshot(
-                        /*waitForSnapshotCompletion*/ true,
-                        /*setReadOnly*/ true));
-                    if (snapshotIdOrError.IsOK()) {
-                        const auto& snapshotId = snapshotIdOrError.Value();
-                        YT_LOG_INFO("Compatibility snapshot built (SnapshotId: %v)",
-                            snapshotId);
-                    } else {
-                        YT_LOG_WARNING(snapshotIdOrError, "Error building compatibility snapshot");
-                    }
-                } else {
-                    YT_LOG_WARNING("Cannot build compatibility snapshot");
-                }
-
-                YT_LOG_INFO("Stopping Hydra instance and waiting for resurrection");
-                WaitFor(Finalize())
-                    .ThrowOnError();
-
-                // Unreachable because Finalize stops epoch executor.
-                YT_ABORT();
-            }
-            default:
-                YT_ABORT();
-        }
     }
 
     IInvokerPtr CreateEpochInvoker(const TEpochContextPtr& epochContext, const IInvokerPtr& underlying)

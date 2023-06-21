@@ -7,6 +7,8 @@
 #include <yt/yt/client/table_client/versioned_row.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
+#include <yt/yt/ytlib/chunk_client/public.h>
+
 #include <yt/yt/core/yson/lexer.h>
 
 namespace NYT::NTableClient {
@@ -26,7 +28,11 @@ struct TKeyWideningOptions
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<bool> GetCompositeColumnFlags(const TTableSchemaPtr& schema);
-std::vector<bool> GetHunkColumnFlags(const TTableSchemaPtr& schema);
+// COMPAT(babenko): the first two arguments are needed due to YT-19339.
+std::vector<bool> GetHunkColumnFlags(
+    NChunkClient::EChunkFormat chunkFormat,
+    NChunkClient::EChunkFeatures chunkFeatures,
+    const TTableSchemaPtr& schema);
 
 ////////////////////////////////////////////////////////////////////////////////
 

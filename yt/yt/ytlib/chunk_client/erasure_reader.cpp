@@ -51,16 +51,13 @@ public:
         const std::optional<std::vector<int>>& extensionTags) override;
 
     TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientChunkReadOptions& options,
-        const std::vector<int>& blockIndexes,
-        std::optional<i64> estimatedSize,
-        IInvokerPtr sessionInvoker = {}) override;
+        const TReadBlocksOptions& options,
+        const std::vector<int>& blockIndexes) override;
 
     TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientChunkReadOptions& options,
+        const TReadBlocksOptions& options,
         int firstBlockIndex,
-        int blockCount,
-        std::optional<i64> estimatedSize) override;
+        int blockCount) override;
 
     TInstant GetLastFailureTime() const override;
 
@@ -78,10 +75,10 @@ private:
         const std::optional<std::vector<int>>& extensionTags);
 
     // ReadBlocks implementation with customizable readers list.
+    // TODO(akozhikhov): Get rid of this.
     TFuture<std::vector<TBlock>> ReadBlocksImpl(
-        const TClientChunkReadOptions& options,
+        const TReadBlocksOptions& options,
         const std::vector<int>& blockIndexes,
-        std::optional<i64> estimatedSize,
         const std::vector<IChunkReaderAllowingRepairPtr>& readers);
 
 private:
@@ -143,33 +140,26 @@ NErasure::TPartIndexList GetDataPartIndices(const NErasure::ICodec* codec)
 
 
 TFuture<std::vector<TBlock>> TAdaptiveRepairingErasureReader::ReadBlocks(
-    const TClientChunkReadOptions& options,
-    const std::vector<int>& blockIndexes,
-    std::optional<i64> estimatedSize,
-    IInvokerPtr /*sessionInvoker*/)
+    const TReadBlocksOptions& options,
+    const std::vector<int>& blockIndexes)
 {
-    return ReadBlocksImpl(options, blockIndexes, estimatedSize, Readers_);
+    return ReadBlocksImpl(options, blockIndexes, Readers_);
 }
 
 TFuture<std::vector<TBlock>> TAdaptiveRepairingErasureReader::ReadBlocks(
-    const TClientChunkReadOptions& options,
+    const TReadBlocksOptions& options,
     int firstBlockIndex,
-    int blockCount,
-    std::optional<i64> estimatedSize)
+    int blockCount)
 {
     std::vector<int> blockIndexes(blockCount);
     std::iota(blockIndexes.begin(), blockIndexes.end(), firstBlockIndex);
-    return ReadBlocks(
-        options,
-        blockIndexes,
-        estimatedSize);
+    return ReadBlocks(options, blockIndexes);
 }
 
 TFuture<std::vector<TBlock>> TAdaptiveRepairingErasureReader::ReadBlocksImpl(
-        const TClientChunkReadOptions& options,
-        const std::vector<int>& blockIndexes,
-        std::optional<i64> estimatedSize,
-        const std::vector<IChunkReaderAllowingRepairPtr>& allReaders)
+    const TReadBlocksOptions& options,
+    const std::vector<int>& blockIndexes,
+    const std::vector<IChunkReaderAllowingRepairPtr>& allReaders)
 {
     auto target = TAdaptiveErasureRepairingSession::TTarget {
         .Existing = GetDataPartIndices(Codec_)
@@ -184,23 +174,25 @@ TFuture<std::vector<TBlock>> TAdaptiveRepairingErasureReader::ReadBlocksImpl(
         target,
         Logger);
 
-    return session->Run<std::vector<TBlock>>([=, this, this_ = MakeStrong(this)] (
-        const NErasure::TPartIndexList& erasedParts,
-        const std::vector<IChunkReaderAllowingRepairPtr>& availableReaders) {
+    return session->Run<std::vector<TBlock>>(
+        [=, this, this_ = MakeStrong(this)] (
+            const NErasure::TPartIndexList& erasedParts,
+            const std::vector<IChunkReaderAllowingRepairPtr>& availableReaders)
+        {
             if (!erasedParts.empty()) {
                 YT_LOG_DEBUG("Reading blocks with repair (BlockIndexes: %v, BannedPartIndices: %v)",
                     blockIndexes,
                     erasedParts);
             }
 
-            auto repairingReader = CreateRepairingErasureReader(
+            return CreateRepairingErasureReader(
                 GetChunkId(),
                 Codec_,
                 erasedParts,
                 availableReaders,
-                Logger);
-            return repairingReader->ReadBlocks(options, blockIndexes, estimatedSize);
-    });
+                Logger)
+                ->ReadBlocks(options, blockIndexes);
+        });
 }
 
 TInstant TAdaptiveRepairingErasureReader::GetLastFailureTime() const
@@ -288,30 +280,23 @@ public:
     }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientChunkReadOptions& options,
-        const std::vector<int>& blockIndexes,
-        std::optional<i64> estimatedSize,
-        IInvokerPtr /*sessionInvoker*/ = {}) override
+        const TReadBlocksOptions& options,
+        const std::vector<int>& blockIndexes) override
     {
         return UnderlyingReader_->ReadBlocksImpl(
             options,
             blockIndexes,
-            estimatedSize,
             ReaderAdapters_);
     }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientChunkReadOptions& options,
+        const TReadBlocksOptions& options,
         int firstBlockIndex,
-        int blockCount,
-        std::optional<i64> estimatedSize) override
+        int blockCount) override
     {
         std::vector<int> blockIndexes(blockCount);
         std::iota(blockIndexes.begin(), blockIndexes.end(), firstBlockIndex);
-        return ReadBlocks(
-            options,
-            blockIndexes,
-            estimatedSize);
+        return ReadBlocks(options, blockIndexes);
     }
 
     TFuture<TRefCountedChunkMetaPtr> GetMeta(

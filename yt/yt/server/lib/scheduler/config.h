@@ -207,6 +207,23 @@ DEFINE_REFCOUNTED_TYPE(TFairShareStrategySsdPriorityPreemptionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TPrioritizedRegularSchedulingConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    int MediumPriorityOperationCountLimit;
+
+    TJobResourcesConfigPtr LowPriorityFallbackMinSpareJobResources;
+
+    REGISTER_YSON_STRUCT(TPrioritizedRegularSchedulingConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TPrioritizedRegularSchedulingConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTreeTestingOptions
     : public NYTree::TYsonStruct
 {
@@ -394,6 +411,15 @@ public:
 
     TDuration RunningJobStatisticsUpdatePeriod;
 
+    TPrioritizedRegularSchedulingConfigPtr PrioritizedRegularScheduling;
+
+    EFifoPoolSchedulingOrder FifoPoolSchedulingOrder;
+
+    bool UsePoolSatisfactionForScheduling;
+
+    THistogramDigestConfigPtr PerPoolSatisfactionDigest;
+    std::vector<double> PerPoolSatisfactionProfilingQuantiles;
+
     REGISTER_YSON_STRUCT(TFairShareStrategyTreeConfig);
 
     static void Register(TRegistrar registrar);
@@ -516,6 +542,9 @@ public:
     // Testing option that enables sleeping after node state checking.
     TDelayConfigPtr NodeHeartbeatProcessingDelay;
 
+    // Testing option that enables sleeping after creation of operation node, but before creation of secure vault node.
+    TDelayConfigPtr SecureVaultCreationDelay;
+
     REGISTER_YSON_STRUCT(TTestingOptions);
 
     static void Register(TRegistrar registrar);
@@ -614,6 +643,9 @@ public:
     //! If alert events are not successfully sent
     //! within this period, alert is raised.
     TDuration OperationAlertSenderAlertThreshold;
+
+    //! How often to retry removing a previously locked operation.
+    TDuration LockedOperationWaitTimeout;
 
     //! Disconnect from master in case of finished operation fetch failure.
     //! This option does not affect fetching after cleaner is re-enabled.
@@ -818,8 +850,6 @@ public:
 
     TDuration OperationsUpdatePeriod;
 
-    TDuration OperationsDestroyPeriod;
-
     TTestingOptionsPtr TestingOptions;
 
     NEventLog::TEventLogManagerConfigPtr EventLog;
@@ -900,10 +930,11 @@ public:
 
     bool EnableHeavyRuntimeParameters;
 
+    bool EnableOperationHeavyAttributesArchivation;
+    TDuration OperationHeavyAttributesArchivationTimeout;
+
     TDuration ScheduleJobEntryRemovalTimeout;
     TDuration ScheduleJobEntryCheckPeriod;
-
-    TDuration CheckNodesWithUnsupportedInterruptionPeriod;
 
     NRpc::TResponseKeeperConfigPtr OperationServiceResponseKeeper;
 
@@ -912,6 +943,8 @@ public:
     bool CrashOnJobHeartbeatProcessingException;
 
     int MinRequiredArchiveVersion;
+
+    bool ControlUnknownOperationJobsLifetime;
 
     REGISTER_YSON_STRUCT(TSchedulerConfig);
 

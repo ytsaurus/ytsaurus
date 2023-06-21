@@ -30,7 +30,9 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NTableClient;
 using namespace NCellServer;
+using namespace NChaosClient;
 using namespace NTableServer;
+using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NNodeTrackerServer;
 
@@ -48,6 +50,7 @@ private:
     void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
         const auto* cellBundle = GetThisImpl<TChaosCellBundle>();
+        const auto& chaosManager = Bootstrap_->GetChaosManager();
 
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChaosOptions)
             .SetReplicated(true)
@@ -56,14 +59,21 @@ private:
             .SetWritable(true)
             .SetRemovable(true)
             .SetReplicated(true)
-            .SetPresent(IsObjectAlive(cellBundle->GetMetadataCell())));
+            .SetPresent(chaosManager->GetBundleMetadataCell(cellBundle)));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MetadataCellIds)
+            .SetWritable(true)
+            .SetRemovable(true)
+            .SetReplicated(true)
+            .SetPresent(!cellBundle->MetadataCells().empty()));
 
         TBase::ListSystemAttributes(descriptors);
     }
 
+
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         const auto* cellBundle = GetThisImpl<TChaosCellBundle>();
+        const auto& chaosManager = Bootstrap_->GetChaosManager();
 
         switch (key) {
             case EInternedAttributeKey::ChaosOptions:
@@ -72,13 +82,25 @@ private:
                 return true;
 
             case EInternedAttributeKey::MetadataCellId:
-                if (const auto* metadataCell = cellBundle->GetMetadataCell()) {
+                if (const auto* metadataCell = chaosManager->GetBundleMetadataCell(cellBundle)) {
                     BuildYsonFluently(consumer)
                         .Value(metadataCell->GetId());
                     return true;
                 } else {
                     return false;
                 }
+
+            case EInternedAttributeKey::MetadataCellIds:
+                if (cellBundle->MetadataCells().empty()) {
+                    return false;
+                }
+
+                BuildYsonFluently(consumer)
+                    .DoListFor(cellBundle->MetadataCells(), [] (TFluentList fluent, const TChaosCell* cell) {
+                        fluent
+                            .Item().Value(cell->GetId());
+                    });
+                return true;
 
             default:
                 break;
@@ -90,19 +112,15 @@ private:
     bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
     {
         auto* cellBundle = GetThisImpl<TChaosCellBundle>();
-
+        const auto& chaosManager = Bootstrap_->GetChaosManager();
         switch (key) {
-            case EInternedAttributeKey::MetadataCellId: {
-                auto metadataCellId = ConvertTo<TChaosCellId>(value);
-                const auto& cellManager = Bootstrap_->GetTamedCellManager();
-                auto* metadataCell = cellManager->GetCellOrThrow(metadataCellId);
-                if (metadataCell->CellBundle() != cellBundle) {
-                    THROW_ERROR_EXCEPTION("Cell %v belongs to a different bundle %Qv",
-                        metadataCell->CellBundle()->GetName());
-                }
-                cellBundle->SetMetadataCell(metadataCell->As<TChaosCell>());
+            case EInternedAttributeKey::MetadataCellId:
+                chaosManager->SetBundleMetadataCells(cellBundle, {ConvertTo<TChaosCellId>(value)});
                 return true;
-            }
+
+            case EInternedAttributeKey::MetadataCellIds:
+                chaosManager->SetBundleMetadataCells(cellBundle, ConvertTo<std::vector<TChaosCellId>>(value));
+                return true;
 
             default:
                 break;
@@ -117,7 +135,9 @@ private:
 
         switch (key) {
             case EInternedAttributeKey::MetadataCellId:
-                cellBundle->SetMetadataCell(nullptr);
+                [[fallthrough]];
+            case EInternedAttributeKey::MetadataCellIds:
+                cellBundle->MetadataCells().clear();
                 return true;
 
             default:

@@ -20,6 +20,7 @@
 
 #include <yt/yt/server/lib/exec_node/config.h>
 #include <yt/yt/server/lib/exec_node/supervisor_service_proxy.h>
+#include <yt/yt/server/lib/exec_node/helpers.h>
 
 #include <yt/yt/server/lib/misc/public.h>
 
@@ -192,7 +193,6 @@ public:
         Host_->GetRpcServer()->RegisterService(CreateUserJobSynchronizerService(Logger, ExecutorPreparedPromise_, AuxQueue_->GetInvoker()));
 
         auto jobEnvironmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
-        MemoryWatchdogPeriod_ = jobEnvironmentConfig->MemoryWatchdogPeriod;
 
         UserJobReadController_ = CreateUserJobReadController(
             Host_->GetJobSpecHelper(),
@@ -211,9 +211,14 @@ public:
         MemoryWatchdogExecutor_ = New<TPeriodicExecutor>(
             AuxQueue_->GetInvoker(),
             BIND(&TUserJob::CheckMemoryUsage, MakeWeak(this)),
-            MemoryWatchdogPeriod_);
+            jobEnvironmentConfig->MemoryWatchdogPeriod);
 
-        if (JobEnvironmentType_ != EJobEnvironmentType::Simple) {
+        ThrashingDetector_ = New<TPeriodicExecutor>(
+            AuxQueue_->GetInvoker(),
+            BIND(&TUserJob::CheckThrashing, MakeWeak(this)),
+            jobEnvironmentConfig->JobThrashingDetector->CheckPeriod);
+
+        if (JobEnvironmentType_ == EJobEnvironmentType::Porto) {
             UserId_ = jobEnvironmentConfig->StartUid + Config_->SlotIndex;
         }
 
@@ -304,6 +309,8 @@ public:
                     .ThrowOnError();
             }
             WaitFor(MemoryWatchdogExecutor_->Stop())
+                .ThrowOnError();
+            WaitFor(ThrashingDetector_->Stop())
                 .ThrowOnError();
         } else {
             JobErrorPromise_.TrySet(TError("Job aborted"));
@@ -474,7 +481,7 @@ public:
 
             SetPermissions(artifactPath, permissions);
 
-            YT_LOG_INFO("Artifact materialized");
+            YT_LOG_INFO("Artifact materialized with permissions (Permissions: %x)", permissions);
         } catch (const TSystemError& ex) {
             // For util functions.
             onError(TError::FromSystem(ex));
@@ -546,7 +553,6 @@ private:
     const TTmpfsManagerPtr TmpfsManager_;
 
     const TMemoryTrackerPtr MemoryTracker_;
-    TDuration MemoryWatchdogPeriod_;
 
     std::vector<std::unique_ptr<IOutputStream>> TableOutputs_;
 
@@ -594,6 +600,7 @@ private:
     TPeriodicExecutorPtr MemoryWatchdogExecutor_;
     TPeriodicExecutorPtr BlockIOWatchdogExecutor_;
     TPeriodicExecutorPtr InputPipeBlinker_;
+    TPeriodicExecutorPtr ThrashingDetector_;
 
     TPromise<TExecutorInfo> ExecutorPreparedPromise_ = NewPromise<TExecutorInfo>();
 
@@ -605,6 +612,9 @@ private:
     std::optional<TString> FailContext_;
 
     std::atomic<bool> NotFullyConsumed_ = false;
+
+    i64 LastMajorPageFaultCount_ = 0;
+    i64 PageFaultLimitOverflowCount_ = 0;
 
     TFuture<void> SpawnUserProcess()
     {
@@ -986,6 +996,7 @@ private:
 
             // In case of YAMR jobs dup 1 and 3 fd for YAMR compatibility
             auto wrappingError = TError("Error writing to output table %v", i);
+
             auto reader = (UserJobSpec_.use_yamr_descriptors() && jobDescriptor == 3)
                 ? PrepareOutputPipe({1, jobDescriptor}, TableOutputs_[i].get(), &OutputActions_, wrappingError)
                 : PrepareOutputPipe({jobDescriptor}, TableOutputs_[i].get(), &OutputActions_, wrappingError);
@@ -1117,13 +1128,14 @@ private:
         // fd == 3 * (N - 1) for the N-th input table (if exists)
         // fd == 3 * (N - 1) + 1 for the N-th output table (if exists)
         // fd == 2 for the error stream
+        // fd == 5 for statistics
+        // fd == 8 for job profiles
         // e. g.
-        // 0 - first input table
+        // 0 - all input tables
         // 1 - first output table
         // 2 - error stream
-        // 3 - second input
-        // 4 - second output
-        // etc.
+        // 3 - not used
+        // 4 - second output table
         //
         // A special option (ToDo(psushin): which one?) enables concatenating
         // all input streams into fd == 0.
@@ -1474,17 +1486,21 @@ private:
             .ValueOrThrow();
 
         MemoryWatchdogExecutor_->Start();
+        ThrashingDetector_->Start();
 
         if (!JobErrorPromise_.IsSet()) {
             Host_->OnPrepared();
             // Now writing pipe is definitely ready, so we can start blinking.
             InputPipeBlinker_->Start();
             JobStarted_ = true;
-        } else {
+        } else if (!ExecutorInfo_ || ExecutorInfo_->ProcessPid == 0) {
+            // Actually, ExecutorInfo_ must be non-null at this point, since it is
+            // explicitly set a few lines before. We still keep the condition as a
+            // defensive measure from possible future code changes.
             YT_LOG_ERROR(JobErrorPromise_.Get(), "Failed to prepare executor");
             return;
         }
-        YT_LOG_INFO("Start actions finished");
+        YT_LOG_INFO("Start actions finished (UserProcessPid: %v)", ExecutorInfo_->ProcessPid);
         auto inputFutures = runActions(InputActions_, onIOError, PipeIOPool_->GetInvoker());
         auto outputFutures = runActions(OutputActions_, onIOError, PipeIOPool_->GetInvoker());
         auto stderrFutures = runActions(StderrActions_, onIOError, ReadStderrInvoker_);
@@ -1568,6 +1584,57 @@ private:
         }
 
         Host_->SetUserJobMemoryUsage(memoryUsage);
+    }
+
+    void CheckThrashing()
+    {
+        i64 currentFaultCount;
+        try {
+            currentFaultCount = UserJobEnvironment_->GetMajorPageFaultCount();
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(
+                ex,
+                "Error getting information about major page faults in user job container");
+            return;
+        }
+
+        if (currentFaultCount != LastMajorPageFaultCount_) {
+            HandleMajorPageFaultCountIncrease(currentFaultCount);
+        }
+    }
+
+    void HandleMajorPageFaultCountIncrease(i64 currentFaultCount)
+    {
+        auto config = ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment)->JobThrashingDetector;
+        YT_LOG_DEBUG(
+            "Increased rate of major page faults in user job container detected "
+            "(MajorPageFaultCount: %v -> %v, Delta: %v, Threshold: %v, Period: %v, PageFaultLimitOverflowCount: %v)",
+            LastMajorPageFaultCount_,
+            currentFaultCount,
+            currentFaultCount - LastMajorPageFaultCount_,
+            config->MajorPageFaultCountLimit,
+            config->CheckPeriod,
+            PageFaultLimitOverflowCount_);
+
+        if (config->Enabled &&
+            currentFaultCount - LastMajorPageFaultCount_ > config->MajorPageFaultCountLimit)
+        {
+            ++PageFaultLimitOverflowCount_;
+
+            if (PageFaultLimitOverflowCount_ > config->LimitOverflowCountThresholdToAbortJob) {
+                YT_LOG_DEBUG(
+                    "Too many times in a row page fault count limit was violated, aborting job "
+                    "(PageFaultLimitOverflowCountThresholdToAbortJob: %v, MajorPageFaultCountLimit: %v, CheckPeriod: %v)",
+                    config->LimitOverflowCountThresholdToAbortJob,
+                    config->MajorPageFaultCountLimit,
+                    config->CheckPeriod);
+                Host_->OnJobMemoryThrashing();
+            }
+        } else {
+            PageFaultLimitOverflowCount_ = 0;
+        }
+
+        LastMajorPageFaultCount_ = currentFaultCount;
     }
 
     void CheckBlockIOUsage()

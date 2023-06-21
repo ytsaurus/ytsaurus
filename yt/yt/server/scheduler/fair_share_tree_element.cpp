@@ -10,7 +10,7 @@
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
 #include <yt/yt/core/misc/finally.h>
-#include <yt/yt/core/misc/historic_usage_aggregator.h>
+#include <yt/yt/core/misc/digest.h>
 #include <yt/yt/core/misc/string_builder.h>
 
 #include <yt/yt/core/profiling/timing.h>
@@ -94,7 +94,6 @@ void TSchedulerElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdateContext* 
     HasSpecifiedResourceLimits_ = GetSpecifiedResourceLimits() != TJobResources::Infinite();
 
     auto specifiedResourceLimits = GetSpecifiedResourceLimits();
-
     if (PersistentAttributes_.AppliedResourceLimits != specifiedResourceLimits) {
         std::vector<TResourceTreeElementPtr> descendantOperationElements;
         if (!IsOperation() && PersistentAttributes_.AppliedResourceLimits == TJobResources::Infinite() && specifiedResourceLimits != TJobResources::Infinite()) {
@@ -262,7 +261,7 @@ TInstant TSchedulerElement::GetStartTime() const
     return StartTime_;
 }
 
-int TSchedulerElement::GetPendingJobCount() const
+i64 TSchedulerElement::GetPendingJobCount() const
 {
     return PendingJobCount_;
 }
@@ -775,6 +774,7 @@ void TSchedulerCompositeElement::BuildSchedulableChildrenLists(TFairSharePostUpd
             YT_VERIFY(child->IsOperation());
             sortedChildren.push_back(dynamic_cast<TSchedulerOperationElement*>(child.Get()));
         }
+
         std::sort(
             sortedChildren.begin(),
             sortedChildren.end(),
@@ -784,18 +784,21 @@ void TSchedulerCompositeElement::BuildSchedulableChildrenLists(TFairSharePostUpd
 
         for (auto* child : sortedChildren) {
             child->BuildSchedulableChildrenLists(context);
-            PostUpdateAttributes_.UnschedulableOperationsResourceUsage += child->PostUpdateAttributes().UnschedulableOperationsResourceUsage;
-            if (SchedulableElementCount_ >= *maxSchedulableElementCount &&
-                Dominates(TResourceVector::SmallEpsilon(), child->Attributes().FairShare.Total))
-            {
-                child->OnFifoSchedulableElementCountLimitReached(context);
-            }
             if (child->IsSchedulable()) {
-                SchedulableChildren_.push_back(child);
-                updateSchedulableCounters(child);
+                bool shouldSkip = SchedulableElementCount_ >= *maxSchedulableElementCount &&
+                    Dominates(TResourceVector::SmallEpsilon(), child->Attributes().FairShare.Total);
+                if (shouldSkip) {
+                    child->OnFifoSchedulableElementCountLimitReached(context);
+                } else {
+                    SchedulableChildren_.push_back(child);
+                    updateSchedulableCounters(child);
+                }
             }
+
+            PostUpdateAttributes_.UnschedulableOperationsResourceUsage += child->PostUpdateAttributes().UnschedulableOperationsResourceUsage;
         }
     }
+
     if (IsRoot() || IsSchedulable()) {
         ++SchedulableElementCount_;
         ++SchedulablePoolCount_;
@@ -807,14 +810,11 @@ void TSchedulerCompositeElement::ComputeSatisfactionRatioAtUpdate()
     TSchedulerElement::ComputeSatisfactionRatioAtUpdate();
 
     auto isBetterChild = [&] (const TSchedulerElement* lhs, const TSchedulerElement* rhs) {
-        switch (GetMode()) {
-            case ESchedulingMode::Fifo:
-                return HasHigherPriorityInFifoMode(lhs, rhs);
-            case ESchedulingMode::FairShare:
-                return lhs->PostUpdateAttributes().SatisfactionRatio < rhs->PostUpdateAttributes().SatisfactionRatio;
-            default:
-                YT_ABORT();
+        if (ShouldUseFifoSchedulingOrder()) {
+            return HasHigherPriorityInFifoMode(lhs, rhs);
         }
+
+        return lhs->PostUpdateAttributes().SatisfactionRatio < rhs->PostUpdateAttributes().SatisfactionRatio;
     };
 
     TSchedulerElement* bestChild = nullptr;
@@ -830,8 +830,15 @@ void TSchedulerCompositeElement::ComputeSatisfactionRatioAtUpdate()
         }
     }
 
-    if (bestChild) {
-        PostUpdateAttributes_.SatisfactionRatio = std::min(bestChild->PostUpdateAttributes().SatisfactionRatio, PostUpdateAttributes_.SatisfactionRatio);
+    if (!bestChild) {
+        return;
+    }
+
+    PostUpdateAttributes_.SatisfactionRatio = bestChild->PostUpdateAttributes().SatisfactionRatio;
+    if (EffectiveUsePoolSatisfactionForScheduling_) {
+        PostUpdateAttributes_.SatisfactionRatio  = std::min(
+            PostUpdateAttributes_.SatisfactionRatio,
+            PostUpdateAttributes_.LocalSatisfactionRatio);
     }
 }
 
@@ -1049,6 +1056,12 @@ bool TSchedulerCompositeElement::ContainsChild(
     return map.find(child) != map.end();
 }
 
+bool TSchedulerCompositeElement::ShouldUseFifoSchedulingOrder() const
+{
+    return Mode_ == ESchedulingMode::Fifo &&
+        EffectiveFifoPoolSchedulingOrder_ == EFifoPoolSchedulingOrder::Fifo;
+}
+
 bool TSchedulerCompositeElement::HasHigherPriorityInFifoMode(const TSchedulerElement* lhs, const TSchedulerElement* rhs) const
 {
     for (auto parameter : FifoSortParameters_) {
@@ -1096,6 +1109,22 @@ void TSchedulerCompositeElement::UpdateEffectiveRecursiveAttributes()
     YT_VERIFY(Mutable_);
 
     TSchedulerElement::UpdateEffectiveRecursiveAttributes();
+
+    if (IsRoot()) {
+        YT_VERIFY(GetSpecifiedFifoPoolSchedulingOrder());
+        EffectiveFifoPoolSchedulingOrder_ = *GetSpecifiedFifoPoolSchedulingOrder();
+
+        YT_VERIFY(ShouldUsePoolSatisfactionForScheduling());
+        EffectiveUsePoolSatisfactionForScheduling_ = *ShouldUsePoolSatisfactionForScheduling();
+    } else {
+        YT_VERIFY(Parent_);
+
+        EffectiveFifoPoolSchedulingOrder_ = GetSpecifiedFifoPoolSchedulingOrder().value_or(
+            Parent_->GetEffectiveFifoPoolSchedulingOrder());
+
+        EffectiveUsePoolSatisfactionForScheduling_ = ShouldUsePoolSatisfactionForScheduling().value_or(
+            Parent_->GetEffectiveUsePoolSatisfactionForScheduling());
+    }
 
     for (const auto& child : EnabledChildren_) {
         child->UpdateEffectiveRecursiveAttributes();
@@ -1247,6 +1276,16 @@ std::optional<bool> TSchedulerPoolElement::IsAggressiveStarvationEnabled() const
 TJobResourcesConfigPtr TSchedulerPoolElement::GetSpecifiedNonPreemptibleResourceUsageThresholdConfig() const
 {
     return Config_->NonPreemptibleResourceUsageThreshold;
+}
+
+std::optional<EFifoPoolSchedulingOrder> TSchedulerPoolElement::GetSpecifiedFifoPoolSchedulingOrder() const
+{
+    return Config_->FifoPoolSchedulingOrder;
+}
+
+std::optional<bool> TSchedulerPoolElement::ShouldUsePoolSatisfactionForScheduling() const
+{
+    return Config_->UsePoolSatisfactionForScheduling;
 }
 
 TString TSchedulerPoolElement::GetId() const
@@ -1692,6 +1731,18 @@ void TSchedulerOperationElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdate
     Tentative_ = RuntimeParameters_->Tentative;
     StartTime_ = OperationHost_->GetStartTime();
 
+    TSchedulerElement::PreUpdateBottomUp(context);
+
+    // NB(eshcherbin): This is a hotfix, see YT-19127.
+    if (Spec_->ApplySpecifiedResourceLimitsToDemand && HasSpecifiedResourceLimits_) {
+        auto specifiedResourceLimits = GetSpecifiedResourceLimits();
+        TotalNeededResources_ = Max(
+            Min(ResourceDemand_, specifiedResourceLimits) - ResourceUsageAtUpdate_,
+            TJobResources());
+        ResourceDemand_ = ResourceUsageAtUpdate_ + TotalNeededResources_;
+        PendingJobCount_ = TotalNeededResources_.GetUserSlots();
+    }
+
     // NB: It was moved from regular fair share update for performing split.
     // It can be performed in fair share thread as second step of preupdate.
     if (PersistentAttributes_.LastBestAllocationRatioUpdateTime + TreeConfig_->BestAllocationRatioUpdatePeriod > context->Now) {
@@ -1708,8 +1759,6 @@ void TSchedulerOperationElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdate
             DiskRequestMedia_.insert(index);
         }
     }
-
-    TSchedulerElement::PreUpdateBottomUp(context);
 }
 
 void TSchedulerOperationElement::BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context)
@@ -2213,11 +2262,12 @@ void TSchedulerRootElement::PostUpdate(TFairSharePostUpdateContext* postUpdateCo
     YT_VERIFY(schedulableElementCount == SchedulableElementCount_);
     TreeSize_ = EnumerateElements(/*startIndex*/ schedulableElementCount, /*isSchedulableValueFilter*/ false);
 
-    ComputeSatisfactionRatioAtUpdate();
-
     BuildElementMapping(postUpdateContext);
 
     UpdateEffectiveRecursiveAttributes();
+
+    ComputeSatisfactionRatioAtUpdate();
+    BuildPoolSatisfactionDigests(postUpdateContext);
 }
 
 const TSchedulingTagFilter& TSchedulerRootElement::GetSchedulingTagFilter() const
@@ -2263,6 +2313,36 @@ std::optional<bool> TSchedulerRootElement::IsAggressiveStarvationEnabled() const
 TJobResourcesConfigPtr TSchedulerRootElement::GetSpecifiedNonPreemptibleResourceUsageThresholdConfig() const
 {
     return TreeConfig_->NonPreemptibleResourceUsageThreshold;
+}
+
+std::optional<EFifoPoolSchedulingOrder> TSchedulerRootElement::GetSpecifiedFifoPoolSchedulingOrder() const
+{
+    return TreeConfig_->FifoPoolSchedulingOrder;
+}
+
+std::optional<bool> TSchedulerRootElement::ShouldUsePoolSatisfactionForScheduling() const
+{
+    return TreeConfig_->UsePoolSatisfactionForScheduling;
+}
+
+void TSchedulerRootElement::BuildPoolSatisfactionDigests(TFairSharePostUpdateContext* postUpdateContext)
+{
+    PostUpdateAttributes_.SatisfactionDigest = CreateHistogramDigest(TreeConfig_->PerPoolSatisfactionDigest);
+    for (const auto& [_, pool] : postUpdateContext->PoolNameToElement) {
+        pool->PostUpdateAttributes_.SatisfactionDigest = CreateHistogramDigest(TreeConfig_->PerPoolSatisfactionDigest);
+    }
+
+    for (const auto& [_, operation] : postUpdateContext->EnabledOperationIdToElement) {
+        double operationSatisfaction = operation->PostUpdateAttributes().SatisfactionRatio;
+        auto* ancestor = operation->GetMutableParent();
+        while (ancestor) {
+            const auto& digest = ancestor->PostUpdateAttributes().SatisfactionDigest;
+            YT_ASSERT(digest);
+            digest->AddSample(operationSatisfaction);
+
+            ancestor = ancestor->GetMutableParent();
+        }
+    }
 }
 
 void TSchedulerRootElement::CheckForStarvation(TInstant /*now*/)

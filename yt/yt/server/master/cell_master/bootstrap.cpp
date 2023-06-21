@@ -244,8 +244,7 @@ using namespace NDistributedThrottler;
 using namespace NZookeeperMaster;
 using namespace NZookeeperServer;
 
-using NTransactionServer::TTransactionManager;
-using NTransactionServer::TTransactionManagerPtr;
+using NTransactionServer::ITransactionManagerPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -402,7 +401,7 @@ const ITabletNodeTrackerPtr& TBootstrap::GetTabletNodeTracker() const
     return TabletNodeTracker_;
 }
 
-const TTransactionManagerPtr& TBootstrap::GetTransactionManager() const
+const ITransactionManagerPtr& TBootstrap::GetTransactionManager() const
 {
     return TransactionManager_;
 }
@@ -561,7 +560,8 @@ NDistributedThrottler::IDistributedThrottlerFactoryPtr TBootstrap::CreateDistrib
     TDistributedThrottlerConfigPtr config,
     IInvokerPtr invoker,
     const TString& groupIdPrefix,
-    NLogging::TLogger logger) const
+    NLogging::TLogger logger,
+    NProfiling::TProfiler profiler) const
 {
     return NDistributedThrottler::CreateDistributedThrottlerFactory(
         std::move(config),
@@ -573,7 +573,8 @@ NDistributedThrottler::IDistributedThrottlerFactoryPtr TBootstrap::CreateDistrib
         RpcServer_,
         BuildServiceAddress(GetLocalHostName(), Config_->RpcPort),
         std::move(logger),
-        NativeAuthenticator_);
+        NativeAuthenticator_,
+        profiler);
 }
 
 void TBootstrap::Initialize()
@@ -862,7 +863,7 @@ void TBootstrap::DoInitialize()
 
     SecurityManager_ = CreateSecurityManager(this);
 
-    TransactionManager_ = New<TTransactionManager>(this);
+    TransactionManager_ = CreateTransactionManager(this);
 
     MaintenanceTracker_ = CreateMaintenanceTracker(this);
 

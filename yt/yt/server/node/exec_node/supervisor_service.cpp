@@ -74,6 +74,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PollThrottlingRequest)
             .SetQueueSizeLimit(5000)
             .SetConcurrencyLimit(5000));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(OnJobMemoryThrashing));
     }
 
 private:
@@ -254,8 +255,6 @@ private:
 
         auto job = GetSchedulerJobOrThrow(jobId);
 
-        job->OnResultReceived(std::move(result));
-
         auto jobReport = TNodeJobReport().Error(error);
         if (request->has_statistics()) {
             auto ysonStatistics = TYsonString(request->statistics());
@@ -286,6 +285,8 @@ private:
         for (const auto& profile : request->profiles()) {
             job->AddProfile({profile.type(), profile.blob(), profile.profiling_probability()});
         }
+
+        job->OnResultReceived(std::move(result));
 
         context->Reply();
     }
@@ -399,6 +400,17 @@ private:
         }
         response->set_completed(optionalResult.has_value());
         context->SetResponseInfo("Completed: %v", response->completed());
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, OnJobMemoryThrashing)
+    {
+        auto jobId = FromProto<TJobId>(request->job_id());
+
+        context->SetRequestInfo("JobId: %v", jobId);
+
+        Bootstrap_->GetJobController()->OnJobMemoryThrashing(jobId);
+
         context->Reply();
     }
 };

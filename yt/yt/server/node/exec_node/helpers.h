@@ -1,8 +1,10 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 
 #include <yt/yt/server/node/data_node/artifact.h>
+
+#include <yt/yt/server/lib/scheduler/proto/allocation_tracker_service.pb.h>
 
 #include <yt/yt/client/api/public.h>
 
@@ -27,6 +29,12 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
     NHydra::TRevision contentRevision,
     IBootstrap const* bootstrap,
     const NLogging::TLogger& logger);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TErrorOr<TControllerAgentDescriptor> TryParseControllerAgentDescriptor(
+    const NScheduler::NProto::NNode::TControllerAgentDescriptor& proto,
+    const NNodeTrackerClient::TNetworkPreferenceList& localNetworks);
 
 ////////////////////////////////////////////////////////////////////////////////
 

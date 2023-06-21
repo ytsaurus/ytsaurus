@@ -24,6 +24,14 @@ using namespace NControllerAgent;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// NB(eshcherbin): Set to true, when in pain.
+static constexpr bool EnableDebugLogging = false;
+static const NLogging::TLogger Logger = EnableDebugLogging
+    ? NLogging::TLogger("TestDebug")
+    : NLogging::TLogger();
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSchedulerStrategyHostMock
     : public TRefCounted
     , public ISchedulerStrategyHost
@@ -510,13 +518,23 @@ class TFairShareTreeJobSchedulerTest
     : public testing::Test
 {
 public:
-    TFairShareTreeJobSchedulerTest()
+    void SetUp() override
     {
+        auto minSpareJobResources = New<TJobResourcesConfig>();
+        minSpareJobResources->UserSlots = 1;
+        minSpareJobResources->Cpu = 1.0;
+        minSpareJobResources->Memory = 1;
+
+        SchedulerConfig_->MinSpareJobResourcesOnNode = minSpareJobResources;
+
         TreeConfig_->AggressivePreemptionSatisfactionThreshold = 0.5;
         TreeConfig_->MinChildHeapSize = 3;
         TreeConfig_->EnableConditionalPreemption = true;
         TreeConfig_->UseResourceUsageWithPrecommit = false;
         TreeConfig_->ShouldDistributeFreeVolumeAmongChildren = true;
+
+        TreeConfig_->PrioritizedRegularScheduling = New<TPrioritizedRegularSchedulingConfig>();
+        TreeConfig_->PrioritizedRegularScheduling->MediumPriorityOperationCountLimit = 3;
     }
 
 protected:
@@ -527,10 +545,10 @@ protected:
     NConcurrency::TActionQueuePtr NodeShardActionQueue_ = New<NConcurrency::TActionQueue>("NodeShard");
 
     TScheduleJobsStage NonPreemptiveSchedulingStage_{
-        .Type = EJobSchedulingStage::NonPreemptive,
+        .Type = EJobSchedulingStage::RegularMediumPriority,
         .ProfilingCounters = TScheduleJobsProfilingCounters(NProfiling::TProfiler{"/non_preemptive_test_scheduling_stage"})};
     TScheduleJobsStage PreemptiveSchedulingStage_{
-        .Type = EJobSchedulingStage::Preemptive,
+        .Type = EJobSchedulingStage::PreemptiveNormal,
         .ProfilingCounters = TScheduleJobsProfilingCounters(NProfiling::TProfiler{"/preemptive_test_scheduling_stage"})};
 
     int SlotIndex_ = 0;
@@ -750,7 +768,7 @@ protected:
         const TFairShareTreeJobSchedulerPtr& treeScheduler,
         const TSchedulerRootElementPtr& rootElement,
         TInstant now = TInstant(),
-        std::optional<TInstant> previousUpdateTime = std::nullopt)
+        std::optional<TInstant> previousUpdateTime = {})
     {
         ResetFairShareFunctionsRecursively(rootElement.Get());
 
@@ -1153,7 +1171,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestConditionalPreemption)
         EXPECT_NE(EJobPreemptionStatus::Preemptible, treeScheduler->GetJobPreemptionStatusInTest(donorOperationElement.Get(), donorJobs[jobIndex]->GetId()));
     }
 
-    auto targetOperationPreemptionPriority = EOperationPreemptionPriority::Regular;
+    auto targetOperationPreemptionPriority = EOperationPreemptionPriority::Normal;
     EXPECT_EQ(guaranteedPool.Get(), context.FindPreemptionBlockingAncestor(donorOperationElement.Get(), targetOperationPreemptionPriority));
     for (int jobIndex = 10; jobIndex < 15; ++jobIndex) {
         const auto& job = donorJobs[jobIndex];
@@ -1200,9 +1218,172 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestConditionalPreemption)
     EXPECT_EQ(TJobResources(), schedulingContext->GetConditionalDiscountForOperation(blockingOperation->GetId()));
 }
 
-TEST_F(TFairShareTreeJobSchedulerTest, TestChildHeap)
+TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableOperationsOrder)
 {
     TJobResourcesWithQuota nodeResources;
+    nodeResources.SetUserSlots(100);
+    nodeResources.SetCpu(100);
+    nodeResources.SetMemory(100);
+    nodeResources.SetDiskQuota(CreateDiskQuota(100));
+    auto execNode = CreateTestExecNode(nodeResources);
+
+    auto strategyHost = CreateTestStrategyHost(CreateTestExecNodeList(1, nodeResources));
+    auto treeSchedulerHost = CreateTestTreeJobSchedulerHost(strategyHost);
+    auto treeScheduler = CreateTestTreeScheduler(treeSchedulerHost, strategyHost.Get());
+
+    // Root element.
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
+
+    // Pool.
+    auto pool = CreateTestPool(strategyHost.Get(), "pool");
+    pool->AttachParent(rootElement.Get());
+
+    TJobResourcesWithQuota operationJobResources;
+    operationJobResources.SetUserSlots(1);
+    operationJobResources.SetCpu(1);
+    operationJobResources.SetMemory(1);
+    operationJobResources.SetDiskQuota(CreateDiskQuota(0));
+
+    // For both pools create 10 operations, each with 1 demanded job.
+    constexpr int OperationCount = 10;
+    static const std::vector<int> ExpectedOperationIndicesFifo{3, 5, 6, 7, 0, 1, 8, 4, 9, 2};
+    static const std::vector<int> ExpectedOperationIndicesFairShare{7, 0, 8, 1, 5, 2, 9, 4, 6, 3};
+    std::vector<TOperationStrategyHostMockPtr> operations;
+    std::vector<TSchedulerOperationElementPtr> operationElements;
+    TNonOwningOperationElementList nonOwningOperationElements;
+    for (int opIndex = 0; opIndex < OperationCount; ++opIndex) {
+        auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
+        operationOptions->Weight = static_cast<double>(OperationCount - ExpectedOperationIndicesFifo[opIndex]);
+
+        operations.push_back(New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, operationJobResources)));
+        operationElements.push_back(CreateTestOperationElement(
+            strategyHost.Get(),
+            treeScheduler,
+            operations.back().Get(),
+            pool.Get(),
+            std::move(operationOptions)));
+        nonOwningOperationElements.push_back(operationElements.back().Get());
+    }
+
+    for (int opIndex = 0; opIndex < OperationCount; ++opIndex) {
+        const int jobCount = ExpectedOperationIndicesFairShare[opIndex];
+        for (int jobIndex = 0; jobIndex < jobCount; ++jobIndex) {
+            treeScheduler->OnJobStartedInTest(operationElements[opIndex].Get(), TJobId::Create(), operationJobResources);
+        }
+    }
+
+    auto checkOrder = [&] (
+        const std::optional<TNonOwningOperationElementList>& consideredOperations,
+        const std::vector<int>& expectedOperationIndices) {
+        // Here we check operations order three times using different methods.
+        auto treeSnapshot = DoFairShareUpdate(strategyHost.Get(), treeScheduler, rootElement);
+
+        // First, we start with the scheduling indices, which are computed during post update.
+        for (int opIndex = 0; opIndex < OperationCount; ++opIndex) {
+            const auto& element = operationElements[opIndex];
+
+            YT_LOG_INFO("Checking operation index (ExpectedIndex: %v, ActualIndex: %v, Weight: %v)",
+                expectedOperationIndices[opIndex],
+                treeSnapshot->SchedulingSnapshot()->StaticAttributesList().AttributesOf(element.Get()).SchedulingIndex,
+                element->GetWeight());
+
+            EXPECT_EQ(
+                expectedOperationIndices[opIndex],
+                treeSnapshot->SchedulingSnapshot()->StaticAttributesList().AttributesOf(element.Get()).SchedulingIndex);
+        }
+
+        auto doCheckOrderDuringSchedulingStage = [&] (auto getBestOperation) {
+            auto scheduleJobsContextWithDependencies = PrepareScheduleJobsContext(strategyHost.Get(), treeSnapshot, execNode);
+            auto& context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
+            context.StartStage(&NonPreemptiveSchedulingStage_);
+            context.PrepareForScheduling();
+            context.PrescheduleJob(consideredOperations);
+            auto finally = Finally([&] {
+                context.FinishStage();
+            });
+
+            THashMap<TSchedulerElement*, int> operationToIndex;
+            for (int opIndex = 0; opIndex < OperationCount; ++opIndex) {
+                auto* element = getBestOperation(context.DynamicAttributesOf(pool.Get()));
+                EmplaceOrCrash(
+                    operationToIndex,
+                    element,
+                    opIndex);
+
+                context.DeactivateOperationInTest(static_cast<TSchedulerOperationElement*>(element));
+            }
+
+            for (int opIndex = 0; opIndex < OperationCount; ++opIndex) {
+                const auto& element = operationElements[opIndex];
+
+                YT_LOG_INFO("Checking operation index (ExpectedIndex: %v, ActualIndex: %v, Weight: %v, Satisfaction: %v)",
+                    expectedOperationIndices[opIndex],
+                    operationToIndex[element.Get()],
+                    element->GetWeight(),
+                    context.DynamicAttributesOf(element.Get()).LocalSatisfactionRatio);
+
+                EXPECT_EQ(expectedOperationIndices[opIndex], operationToIndex[element.Get()]);
+            }
+        };
+
+        // Second, we check the order given by getting the best leaf descendant and deactivating it
+        // until no active operation remains.
+        YT_LOG_INFO("Best leaf descendant");
+
+        doCheckOrderDuringSchedulingStage([] (const TDynamicAttributes& attributes) {
+            return attributes.BestLeafDescendant;
+        });
+
+        // Third, we check the order inside schedulable children set.
+        if (consideredOperations) {
+            YT_LOG_INFO("Schedulable children set");
+
+            doCheckOrderDuringSchedulingStage([] (const TDynamicAttributes& attributes) {
+                auto& childSet = attributes.SchedulableChildSet;
+                return childSet->GetBestActiveChild();
+            });
+        }
+    };
+
+    auto fifoPoolConfig = New<TPoolConfig>();
+    fifoPoolConfig->Mode = ESchedulingMode::Fifo;
+    fifoPoolConfig->FifoSortParameters = {EFifoSortParameter::Weight};
+    fifoPoolConfig->FifoPoolSchedulingOrder = EFifoPoolSchedulingOrder::Fifo;
+
+    auto fifoPoolWithSatisfactionOrderConfig = NYTree::CloneYsonStruct(fifoPoolConfig);
+    fifoPoolWithSatisfactionOrderConfig->FifoPoolSchedulingOrder = EFifoPoolSchedulingOrder::Satisfaction;
+
+    for (const auto& poolConfig : {New<TPoolConfig>(), fifoPoolConfig, fifoPoolWithSatisfactionOrderConfig}) {
+        pool->SetConfig(poolConfig);
+
+        for (int minChildHeapSize : {3, 100}) {
+            TreeConfig_->MinChildHeapSize = minChildHeapSize;
+
+            for (const auto& consideredOperations : {{}, std::make_optional(nonOwningOperationElements)}) {
+                YT_LOG_INFO(
+                    "Testing schedulable operations order "
+                    "(PoolMode: %v, FifoPoolSchedulingOrder: %v, MinChildHeapSize: %v, UseConsideredOperations: %v)",
+                    pool->GetConfig()->Mode,
+                    pool->GetConfig()->FifoPoolSchedulingOrder,
+                    TreeConfig_->MinChildHeapSize,
+                    consideredOperations.has_value());
+
+                bool shouldUseFifoOrder = pool->GetConfig()->Mode == ESchedulingMode::Fifo &&
+                    pool->GetConfig()->FifoPoolSchedulingOrder == EFifoPoolSchedulingOrder::Fifo;
+                checkOrder(
+                    consideredOperations,
+                    shouldUseFifoOrder
+                        ? ExpectedOperationIndicesFifo
+                        : ExpectedOperationIndicesFairShare);
+            }
+        }
+    }
+}
+
+TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableChildSetWithPrioritizedScheduling)
+{
+    TJobResourcesWithQuota nodeResources;
+    nodeResources.SetUserSlots(100);
     nodeResources.SetCpu(100);
     nodeResources.SetMemory(100);
     nodeResources.SetDiskQuota(CreateDiskQuota(100));
@@ -1217,26 +1398,22 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestChildHeap)
 
     // 1/10 of all resources.
     TJobResourcesWithQuota operationJobResources;
+    operationJobResources.SetUserSlots(1);
     operationJobResources.SetCpu(10);
     operationJobResources.SetMemory(10);
     operationJobResources.SetDiskQuota(CreateDiskQuota(0));
 
-    // Create 5 operations.
+    // Create 5 operations, each with 2 jobs.
     constexpr int OperationCount = 5;
     std::vector<TOperationStrategyHostMockPtr> operations(OperationCount);
     std::vector<TSchedulerOperationElementPtr> operationElements(OperationCount);
     for (int opIndex = 0; opIndex < OperationCount; ++opIndex) {
-        auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
-        operationOptions->Weight = 1.0;
-        // Operation with 2 jobs.
-
         operations[opIndex] = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(2, operationJobResources));
         operationElements[opIndex] = CreateTestOperationElement(
             strategyHost.Get(),
             treeScheduler,
             operations[opIndex].Get(),
-            rootElement.Get(),
-            operationOptions);
+            rootElement.Get());
     }
 
     // Expect 2 ScheduleJob calls for each operation.
@@ -1254,54 +1431,552 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestChildHeap)
             }));
     }
 
-    auto treeSnapshot = DoFairShareUpdate(strategyHost.Get(), treeScheduler, rootElement);
-    auto scheduleJobsContextWithDependencies = PrepareScheduleJobsContext(strategyHost.Get(), treeSnapshot, execNode);
-    auto& context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
+    auto checkRootChildSet = [rootElement = rootElement.Get()] (
+        const TScheduleJobsContext& context,
+        int expectedChildCount,
+        bool expectedUsesHeap)
+    {
+        const auto& childSet = context.DynamicAttributesOf(rootElement).SchedulableChildSet;
 
-    context.StartStage(&NonPreemptiveSchedulingStage_);
-    context.PrepareForScheduling();
-    context.PrescheduleJob();
+        ASSERT_TRUE(childSet);
+        EXPECT_EQ(expectedChildCount, std::ssize(childSet->GetChildren()));
+        EXPECT_EQ(expectedUsesHeap, childSet->UsesHeapInTest());
 
-    for (auto operationElement : operationElements) {
-        const auto& dynamicAttributes = context.DynamicAttributesOf(rootElement.Get());
-        ASSERT_TRUE(dynamicAttributes.Active);
+        int childIndex = 0;
+        for (auto* element : childSet->GetChildren()) {
+            EXPECT_EQ(context.DynamicAttributesOf(element).SchedulableChildSetIndex, childIndex);
+            ++childIndex;
+        }
+    };
+
+    // With heap.
+
+    const int HighPriorityOperationCount = TreeConfig_->PrioritizedRegularScheduling->MediumPriorityOperationCountLimit;
+
+    {
+        auto treeSnapshot = DoFairShareUpdate(strategyHost.Get(), treeScheduler, rootElement);
+        auto scheduleJobsContextWithDependencies = PrepareScheduleJobsContext(strategyHost.Get(), treeSnapshot, execNode);
+        auto& context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
+
+        auto sortedOperationElements = operationElements;
+        SortBy(sortedOperationElements, [&] (const TSchedulerOperationElementPtr& element) {
+            return treeSnapshot->SchedulingSnapshot()->StaticAttributesList().AttributesOf(element.Get()).SchedulingIndex;
+        });
+
+        const auto& schedulableOperationsPerPriority = treeSnapshot->SchedulingSnapshot()->SchedulableOperationsPerPriority();
+        ASSERT_EQ(HighPriorityOperationCount, std::ssize(schedulableOperationsPerPriority[EOperationSchedulingPriority::Medium]));
+        ASSERT_EQ(OperationCount - HighPriorityOperationCount, std::ssize(schedulableOperationsPerPriority[EOperationSchedulingPriority::Low]));
+
+        {
+            // High priority.
+
+            context.StartStage(&NonPreemptiveSchedulingStage_);
+            context.PrepareForScheduling();
+            context.PrescheduleJob(schedulableOperationsPerPriority[EOperationSchedulingPriority::Medium]);
+
+            for (int i = 0; i < HighPriorityOperationCount; ++i) {
+                const auto& operationElement = sortedOperationElements[i];
+                EXPECT_EQ(schedulableOperationsPerPriority[EOperationSchedulingPriority::Medium][i], operationElement.Get());
+
+                const auto& dynamicAttributes = context.DynamicAttributesOf(operationElement.Get());
+                EXPECT_TRUE(dynamicAttributes.Active);
+            }
+            for (int i = HighPriorityOperationCount; i < OperationCount; ++i) {
+                const auto& operationElement = sortedOperationElements[i];
+                EXPECT_EQ(schedulableOperationsPerPriority[EOperationSchedulingPriority::Low][i - HighPriorityOperationCount], operationElement.Get());
+
+                const auto& dynamicAttributes = context.DynamicAttributesOf(operationElement.Get());
+                EXPECT_FALSE(dynamicAttributes.Active);
+            }
+
+            for (int iter = 0; iter < 2; ++iter) {
+                for (int i = 0; i < HighPriorityOperationCount; ++i) {
+                    EXPECT_TRUE(context.SchedulingContext()->CanStartMoreJobs());
+
+                    const auto& operationElement = sortedOperationElements[i];
+                    auto scheduleJobResult = context.ScheduleJob(operationElement.Get(), /*ignorePacking*/ true);
+                    EXPECT_TRUE(scheduleJobResult.Scheduled);
+
+                    checkRootChildSet(context, /*expectedChildCount*/ 3, /*expectedUsesHeap*/ true);
+                }
+            }
+
+            context.FinishStage();
+        }
+
+        {
+            // Medium priority.
+
+            // NB(eshcherbin): It is impossible to have two consecutive non-preemptive scheduling stages, however
+            // here we only need to trigger the second PrescheduleJob call so that the child heap is rebuilt.
+            context.StartStage(&NonPreemptiveSchedulingStage_);
+            context.PrepareForScheduling();
+            context.PrescheduleJob(schedulableOperationsPerPriority[EOperationSchedulingPriority::Low]);
+
+            for (int i = 0; i < HighPriorityOperationCount; ++i) {
+                const auto& operationElement = sortedOperationElements[i];
+                EXPECT_EQ(schedulableOperationsPerPriority[EOperationSchedulingPriority::Medium][i], operationElement.Get());
+
+                const auto& dynamicAttributes = context.DynamicAttributesOf(operationElement.Get());
+                EXPECT_FALSE(dynamicAttributes.Active);
+            }
+            for (int i = HighPriorityOperationCount; i < OperationCount; ++i) {
+                const auto& operationElement = sortedOperationElements[i];
+                EXPECT_EQ(schedulableOperationsPerPriority[EOperationSchedulingPriority::Low][i - HighPriorityOperationCount], operationElement.Get());
+
+                const auto& dynamicAttributes = context.DynamicAttributesOf(operationElement.Get());
+                EXPECT_TRUE(dynamicAttributes.Active);
+            }
+
+            TJobResources FallbackMinSpareResources;
+            FallbackMinSpareResources.SetCpu(50.0);
+
+            for (int iter = 0; iter < 2; ++iter) {
+                for (int i = HighPriorityOperationCount; i < OperationCount; ++i) {
+                    EXPECT_FALSE(context.SchedulingContext()->CanStartMoreJobs(FallbackMinSpareResources));
+                    EXPECT_TRUE(context.SchedulingContext()->CanStartMoreJobs());
+
+                    const auto& operationElement = sortedOperationElements[i];
+                    auto scheduleJobResult = context.ScheduleJob(operationElement.Get(), /*ignorePacking*/ true);
+                    EXPECT_TRUE(scheduleJobResult.Scheduled);
+
+                    checkRootChildSet(context, /*expectedChildCount*/ 2, /*expectedUsesHeap*/ false);
+                }
+            }
+
+            context.FinishStage();
+        }
     }
 
-    for (int iter = 0; iter < 2; ++iter) {
-        for (auto operationElement : operationElements) {
-            auto scheduleJobResult = context.ScheduleJob(operationElement.Get(), /*ignorePacking*/ true);
-            EXPECT_TRUE(scheduleJobResult.Scheduled);
+    // Without heap.
 
-            const auto& childHeapMap = context.GetChildHeapMapInTest();
-            YT_VERIFY(childHeapMap.contains(rootElement->GetTreeIndex()));
+    constexpr int NewOperationCount = 2;
+    while (std::ssize(operations) > NewOperationCount) {
+        const auto& operationElement = operationElements.back();
+        operationElement->DetachParent();
 
-            const auto& childHeap = GetOrCrash(childHeapMap, rootElement->GetTreeIndex());
+        operationElements.pop_back();
+        operations.pop_back();
+    }
 
-            int heapIndex = 0;
-            for (auto* element : childHeap.GetHeap()) {
-                EXPECT_EQ(context.DynamicAttributesOf(element).HeapIndex, heapIndex);
-                ++heapIndex;
+    {
+        auto treeSnapshot = DoFairShareUpdate(strategyHost.Get(), treeScheduler, rootElement);
+        auto scheduleJobsContextWithDependencies = PrepareScheduleJobsContext(strategyHost.Get(), treeSnapshot, execNode);
+        auto& context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
+
+        const auto& schedulableOperationsPerPriority = treeSnapshot->SchedulingSnapshot()->SchedulableOperationsPerPriority();
+        ASSERT_EQ(2, std::ssize(schedulableOperationsPerPriority[EOperationSchedulingPriority::Medium]));
+        ASSERT_EQ(0, std::ssize(schedulableOperationsPerPriority[EOperationSchedulingPriority::Low]));
+
+        {
+            context.StartStage(&NonPreemptiveSchedulingStage_);
+            context.PrepareForScheduling();
+            context.PrescheduleJob(schedulableOperationsPerPriority[EOperationSchedulingPriority::Medium]);
+
+            checkRootChildSet(context, /*expectedChildCount*/ 2, /*expectedUsesHeap*/ false);
+
+            context.FinishStage();
+        }
+
+        {
+            context.StartStage(&NonPreemptiveSchedulingStage_);
+            context.PrepareForScheduling();
+            context.PrescheduleJob(schedulableOperationsPerPriority[EOperationSchedulingPriority::Low]);
+
+            checkRootChildSet(context, /*expectedChildCount*/ 0, /*expectedUsesHeap*/ false);
+
+            context.FinishStage();
+        }
+    }
+}
+
+TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableChildSetWithoutPrioritizedScheduling)
+{
+    TJobResourcesWithQuota nodeResources;
+    nodeResources.SetUserSlots(100);
+    nodeResources.SetCpu(100);
+    nodeResources.SetMemory(100);
+    nodeResources.SetDiskQuota(CreateDiskQuota(100));
+    auto execNode = CreateTestExecNode(nodeResources);
+
+    auto strategyHost = CreateTestStrategyHost(CreateTestExecNodeList(1, nodeResources));
+    auto treeSchedulerHost = CreateTestTreeJobSchedulerHost(strategyHost);
+    auto treeScheduler = CreateTestTreeScheduler(treeSchedulerHost, strategyHost.Get());
+
+    // Root element.
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
+
+    // 1/10 of all resources.
+    TJobResourcesWithQuota operationJobResources;
+    operationJobResources.SetUserSlots(1);
+    operationJobResources.SetCpu(10);
+    operationJobResources.SetMemory(10);
+    operationJobResources.SetDiskQuota(CreateDiskQuota(0));
+
+    // Create 5 operations, each with 2 jobs.
+    constexpr int OperationCount = 5;
+    std::vector<TOperationStrategyHostMockPtr> operations(OperationCount);
+    std::vector<TSchedulerOperationElementPtr> operationElements(OperationCount);
+    for (int opIndex = 0; opIndex < OperationCount; ++opIndex) {
+        operations[opIndex] = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(2, operationJobResources));
+        operationElements[opIndex] = CreateTestOperationElement(
+            strategyHost.Get(),
+            treeScheduler,
+            operations[opIndex].Get(),
+            rootElement.Get());
+    }
+
+    // Expect 2 ScheduleJob calls for each operation.
+    for (auto operation : operations) {
+        auto& operationControllerStrategyHost = operation->GetOperationControllerStrategyHost();
+        EXPECT_CALL(
+            operationControllerStrategyHost,
+            ScheduleJob(testing::_, testing::_, testing::_, testing::_, testing::_))
+            .Times(2)
+            .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
+                auto result = New<TControllerScheduleJobResult>();
+                result->StartDescriptor.emplace(TGuid::Create(), operationJobResources, /*interruptible*/ false);
+                return MakeFuture<TControllerScheduleJobResultPtr>(
+                    TErrorOr<TControllerScheduleJobResultPtr>(result));
+            }));
+    }
+
+    // With heap.
+
+    {
+        auto treeSnapshot = DoFairShareUpdate(strategyHost.Get(), treeScheduler, rootElement);
+        auto scheduleJobsContextWithDependencies = PrepareScheduleJobsContext(strategyHost.Get(), treeSnapshot, execNode);
+        auto& context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
+
+        context.StartStage(&NonPreemptiveSchedulingStage_);
+        context.PrepareForScheduling();
+        context.PrescheduleJob();
+
+        for (const auto& operationElement : operationElements) {
+            const auto& dynamicAttributes = context.DynamicAttributesOf(operationElement.Get());
+            ASSERT_TRUE(dynamicAttributes.Active);
+        }
+
+        for (int iter = 0; iter < 2; ++iter) {
+            for (auto operationElement : operationElements) {
+                YT_VERIFY(context.SchedulingContext()->CanStartMoreJobs());
+
+                auto scheduleJobResult = context.ScheduleJob(operationElement.Get(), /*ignorePacking*/ true);
+                EXPECT_TRUE(scheduleJobResult.Scheduled);
+
+                const auto& childSet = context.DynamicAttributesOf(rootElement.Get()).SchedulableChildSet;
+
+                ASSERT_TRUE(childSet);
+                EXPECT_TRUE(childSet->UsesHeapInTest());
+
+                int childIndex = 0;
+                for (auto* element : childSet->GetChildren()) {
+                    EXPECT_EQ(context.DynamicAttributesOf(element).SchedulableChildSetIndex, childIndex);
+                    ++childIndex;
+                }
             }
         }
-    }
-    context.FinishStage();
 
-    // NB(eshcherbin): It is impossible to have two consecutive non-preemptive scheduling stages, however
-    // here we only need to trigger the second PrescheduleJob call so that the child heap is rebuilt.
-    context.StartStage(&NonPreemptiveSchedulingStage_);
-    context.PrepareForScheduling();
-    context.PrescheduleJob();
+        context.FinishStage();
 
-    for (auto operationElement : operationElements) {
-        const auto& childHeapMap = context.GetChildHeapMapInTest();
-        YT_VERIFY(childHeapMap.contains(rootElement->GetTreeIndex()));
+        // NB(eshcherbin): It is impossible to have two consecutive non-preemptive scheduling stages, however
+        // here we only need to trigger the second PrescheduleJob call so that the child heap is rebuilt.
+        context.StartStage(&NonPreemptiveSchedulingStage_);
+        context.PrepareForScheduling();
+        context.PrescheduleJob();
 
-        const auto& childHeap = GetOrCrash(childHeapMap, rootElement->GetTreeIndex());
-        int heapIndex = 0;
-        for (auto* element : childHeap.GetHeap()) {
-            EXPECT_EQ(context.DynamicAttributesOf(element).HeapIndex, heapIndex);
-            ++heapIndex;
+        const auto& childSet = context.DynamicAttributesOf(rootElement.Get()).SchedulableChildSet;
+
+        ASSERT_TRUE(childSet);
+        EXPECT_TRUE(childSet->UsesHeapInTest());
+
+        int childIndex = 0;
+        for (auto* element : childSet->GetChildren()) {
+            EXPECT_EQ(context.DynamicAttributesOf(element).SchedulableChildSetIndex, childIndex);
+            ++childIndex;
         }
+
+        context.FinishStage();
+    }
+
+    // Without heap.
+
+    constexpr int NewOperationCount = 2;
+    while (std::ssize(operations) > NewOperationCount) {
+        const auto& operationElement = operationElements.back();
+        operationElement->DetachParent();
+
+        operationElements.pop_back();
+        operations.pop_back();
+    }
+
+    {
+        auto treeSnapshot = DoFairShareUpdate(strategyHost.Get(), treeScheduler, rootElement);
+        auto scheduleJobsContextWithDependencies = PrepareScheduleJobsContext(strategyHost.Get(), treeSnapshot, execNode);
+        auto& context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
+
+        context.StartStage(&NonPreemptiveSchedulingStage_);
+        context.PrepareForScheduling();
+        context.PrescheduleJob();
+
+        const auto& childSet = context.DynamicAttributesOf(rootElement.Get()).SchedulableChildSet;
+
+        EXPECT_FALSE(childSet);
+
+        context.FinishStage();
+    }
+}
+
+TEST_F(TFairShareTreeJobSchedulerTest, TestCollectConsideredSchedulableChildrenPerPool)
+{
+    TJobResourcesWithQuota nodeResources;
+    nodeResources.SetCpu(100);
+    nodeResources.SetMemory(100);
+    nodeResources.SetDiskQuota(CreateDiskQuota(100));
+    auto execNode = CreateTestExecNode(nodeResources);
+
+    auto strategyHost = CreateTestStrategyHost(CreateTestExecNodeList(1, nodeResources));
+    auto treeSchedulerHost = CreateTestTreeJobSchedulerHost(strategyHost);
+    auto treeScheduler = CreateTestTreeScheduler(treeSchedulerHost, strategyHost.Get());
+
+    // Create pools.
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
+    auto poolA = CreateTestPool(strategyHost.Get(), "poolA");
+    auto poolB = CreateTestPool(strategyHost.Get(), "poolB");
+    auto poolBX = CreateTestPool(strategyHost.Get(), "poolBX");
+    auto poolBY = CreateTestPool(strategyHost.Get(), "poolBY");
+
+    poolA->AttachParent(rootElement.Get());
+    poolB->AttachParent(rootElement.Get());
+    poolBX->AttachParent(poolB.Get());
+    poolBY->AttachParent(poolB.Get());
+
+    // Create operations.
+    auto operationRoot = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
+    auto operationElementRoot = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operationRoot.Get(), rootElement.Get());
+    auto operationA = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
+    auto operationElementA = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operationA.Get(), poolA.Get());
+    auto operationB = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
+    auto operationElementB = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operationB.Get(), poolB.Get());
+    auto operationBX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
+    auto operationElementBX = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operationBX.Get(), poolBX.Get());
+    auto operationBY = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
+    auto operationElementBY = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operationBY.Get(), poolBY.Get());
+
+    const std::vector<TSchedulerElement*> treeElements{
+        static_cast<TSchedulerElement*>(rootElement.Get()),
+        static_cast<TSchedulerElement*>(poolA.Get()),
+        static_cast<TSchedulerElement*>(poolB.Get()),
+        static_cast<TSchedulerElement*>(poolBX.Get()),
+        static_cast<TSchedulerElement*>(poolBY.Get()),
+        static_cast<TSchedulerElement*>(operationElementRoot.Get()),
+        static_cast<TSchedulerElement*>(operationElementA.Get()),
+        static_cast<TSchedulerElement*>(operationElementB.Get()),
+        static_cast<TSchedulerElement*>(operationElementBX.Get()),
+        static_cast<TSchedulerElement*>(operationElementBY.Get()),
+    };
+
+    auto doTestCase = [&] (
+        const THashSet<TSchedulerOperationElement*>& consideredOperations,
+        const THashSet<TSchedulerCompositeElement*>& expectedActivePools)
+    {
+        THashSet<TSchedulerElement*> expectedActiveElements;
+        for (auto* pool : expectedActivePools) {
+            expectedActiveElements.insert(pool);
+        }
+
+        std::vector<TSchedulerOperationElement*> consideredOperationsList;
+        for (auto* operation : consideredOperations) {
+            consideredOperationsList.push_back(operation);
+            expectedActiveElements.insert(operation);
+        }
+
+        auto treeSnapshot = DoFairShareUpdate(strategyHost.Get(), treeScheduler, rootElement);
+        auto scheduleJobsContextWithDependencies = PrepareScheduleJobsContext(strategyHost.Get(), treeSnapshot, execNode);
+        auto& context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
+        context.StartStage(&NonPreemptiveSchedulingStage_);
+        auto finally = Finally([&] {
+            context.FinishStage();
+        });
+
+        context.PrepareForScheduling();
+        context.PrescheduleJob(consideredOperationsList);
+
+        for (auto* element : treeElements) {
+            YT_LOG_INFO("Testing element activeness (ElementId: %v, ExpectedActive: %v, ActualActive: %v)",
+                element->GetId(),
+                expectedActiveElements.contains(element),
+                context.DynamicAttributesOf(element).Active);
+
+            EXPECT_EQ(expectedActiveElements.contains(element), context.DynamicAttributesOf(element).Active);
+
+            if (auto* pool = dynamic_cast<TSchedulerCompositeElement*>(element)) {
+                YT_LOG_INFO("Testing pool's child set presence: (ExpectedPresent: %v, ActualPresent: %v)",
+                    expectedActiveElements.contains(pool),
+                    context.DynamicAttributesOf(pool).SchedulableChildSet.has_value());
+
+                ASSERT_EQ(
+                    expectedActiveElements.contains(pool),
+                    context.DynamicAttributesOf(pool).SchedulableChildSet.has_value());
+            }
+        }
+
+        for (auto* pool : expectedActivePools) {
+            const auto& childSet = context.DynamicAttributesOf(pool).SchedulableChildSet;
+            auto isChildInSet = [&childSet] (TSchedulerElement* child) {
+                const auto& children = childSet->GetChildren();
+                return std::find(children.begin(), children.end(), child) != children.end();
+            };
+
+            for (const auto& child : pool->SchedulableChildren()) {
+                EXPECT_EQ(expectedActiveElements.contains(child.Get()), isChildInSet(child.Get()));
+            }
+        }
+    };
+
+    YT_LOG_INFO("All operations");
+    doTestCase(
+        /*consideredOperations*/ {
+            operationElementRoot.Get(),
+            operationElementA.Get(),
+            operationElementB.Get(),
+            operationElementBX.Get(),
+            operationElementBY.Get(),
+        },
+        /*expectedActivePools*/ {
+            rootElement.Get(),
+            poolA.Get(),
+            poolB.Get(),
+            poolBX.Get(),
+            poolBY.Get(),
+        });
+
+    YT_LOG_INFO("== Root operation");
+    doTestCase(
+        /*consideredOperations*/ {
+            operationElementRoot.Get(),
+        },
+        /*expectedActivePools*/ {
+            rootElement.Get(),
+        });
+
+    YT_LOG_INFO("== Operation A");
+    doTestCase(
+        /*consideredOperations*/ {
+            operationElementA.Get(),
+        },
+        /*expectedActivePools*/ {
+            rootElement.Get(),
+            poolA.Get(),
+        });
+
+    YT_LOG_INFO("== OperationB");
+    doTestCase(
+        /*consideredOperations*/ {
+            operationElementB.Get(),
+        },
+        /*expectedActivePools*/ {
+            rootElement.Get(),
+            poolB.Get(),
+        });
+
+    YT_LOG_INFO("== OperationBX");
+    doTestCase(
+        /*consideredOperations*/ {
+            operationElementBX.Get(),
+        },
+        /*expectedActivePools*/ {
+            rootElement.Get(),
+            poolB.Get(),
+            poolBX.Get(),
+        });
+
+    YT_LOG_INFO("== Operations A, B");
+    doTestCase(
+        /*consideredOperations*/ {
+            operationElementA.Get(),
+            operationElementB.Get(),
+        },
+        /*expectedActivePools*/ {
+            rootElement.Get(),
+            poolA.Get(),
+            poolB.Get(),
+        });
+
+    YT_LOG_INFO("== Operations A, BX");
+    doTestCase(
+        /*consideredOperations*/ {
+            operationElementA.Get(),
+            operationElementBX.Get(),
+        },
+        /*expectedActivePools*/ {
+            rootElement.Get(),
+            poolA.Get(),
+            poolB.Get(),
+            poolBX.Get(),
+        });
+
+    YT_LOG_INFO("== Operations BX, BY");
+    doTestCase(
+        /*consideredOperations*/ {
+            operationElementBX.Get(),
+            operationElementBY.Get(),
+        },
+        /*expectedActivePools*/ {
+            rootElement.Get(),
+            poolB.Get(),
+            poolBX.Get(),
+            poolBY.Get(),
+        });
+
+    YT_LOG_INFO("== Operations B, BY");
+    doTestCase(
+        /*consideredOperations*/ {
+            operationElementB.Get(),
+            operationElementBY.Get(),
+        },
+        /*expectedActivePools*/ {
+            rootElement.Get(),
+            poolB.Get(),
+            poolBY.Get(),
+        });
+
+    YT_LOG_INFO("== Operations A, B, BY");
+    doTestCase(
+        /*consideredOperations*/ {
+            operationElementA.Get(),
+            operationElementB.Get(),
+            operationElementBY.Get(),
+        },
+        /*expectedActivePools*/ {
+            rootElement.Get(),
+            poolA.Get(),
+            poolB.Get(),
+            poolBY.Get(),
+        });
+
+    // Corner cases.
+    {
+        YT_LOG_INFO("== No operations");
+
+        auto treeSnapshot = DoFairShareUpdate(strategyHost.Get(), treeScheduler, rootElement);
+        auto scheduleJobsContextWithDependencies = PrepareScheduleJobsContext(strategyHost.Get(), treeSnapshot, execNode);
+        auto& context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
+        context.StartStage(&NonPreemptiveSchedulingStage_);
+        auto finally = Finally([&] {
+            context.FinishStage();
+        });
+
+        context.PrepareForScheduling();
+        context.PrescheduleJob(TNonOwningOperationElementList{});
+
+        for (auto* element : treeElements) {
+            EXPECT_FALSE(context.DynamicAttributesOf(element).Active);
+        }
+
+        const auto& childSet = context.DynamicAttributesOf(rootElement.Get()).SchedulableChildSet;
+        EXPECT_TRUE(childSet.has_value());
+        EXPECT_TRUE(childSet->GetChildren().empty());
     }
 }
 
@@ -1319,7 +1994,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestBuildDynamicAttributesListFromSnapsho
 
     // Pools.
     auto rootElement = CreateTestRootElement(strategyHost.Get());
-    auto pool = CreateTestPool(strategyHost.Get(), "pool", CreateSimplePoolConfig());
+    auto pool = CreateTestPool(strategyHost.Get(), "pool");
 
     pool->AttachParent(rootElement.Get());
 

@@ -212,19 +212,16 @@ public:
     }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientChunkReadOptions& /*options*/,
-        const std::vector<int>& /*blockIndices*/,
-        std::optional<i64> /*estimatedSize*/,
-        IInvokerPtr /*sessionInvoker*/) override
+        const TReadBlocksOptions& /*options*/,
+        const std::vector<int>& /*blockIndices*/) override
     {
         return MakeFuture<std::vector<TBlock>>(MakeError());
     }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientChunkReadOptions& /*options*/,
+        const TReadBlocksOptions& /*options*/,
         int /*firstblockIndex*/,
-        int /*blockCount*/,
-        std::optional<i64> /*estimatedSize*/) override
+        int /*blockCount*/) override
     {
         return MakeFuture<std::vector<TBlock>>(MakeError());
     }
@@ -237,13 +234,14 @@ public:
     void SetSlownessChecker(TCallback<TError(i64, TDuration)> /*slownessChecker*/) override
     { }
 
-    static TError MakeError()
-    {
-        return TError("Part is unavailable");
-    }
-
 private:
-    TChunkId ChunkId_;
+    const TChunkId ChunkId_;
+
+    TError MakeError() const
+    {
+        return TError("Part %v is unavailable",
+            ChunkId_);
+    }
 };
 
 IChunkReaderAllowingRepairPtr CreateUnavailablePartReader(TChunkId chunkId)

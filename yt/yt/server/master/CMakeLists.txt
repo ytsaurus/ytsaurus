@@ -211,6 +211,18 @@ get_built_tool_path(
   contrib/tools/protoc/plugins/cpp_styleguide
   cpp_styleguide
 )
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
+)
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
 
 add_library(yt-server-master)
 target_compile_options(yt-server-master PRIVATE
@@ -254,6 +266,7 @@ target_proto_messages(yt-server-master PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/cell_master/proto/response_keeper_manager.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chaos_server/proto/alien_cell.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chaos_server/proto/chaos_manager.proto
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/proto/master_cell_chunk_statistics_collector.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/proto/chunk_autotomizer.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/proto/chunk_manager.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/proto/chunk_merger.proto
@@ -324,6 +337,7 @@ target_sources(yt-server-master PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chaos_server/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_autotomizer.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_creation_time_histogram_builder.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_list.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_list_proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_list_type_handler.cpp
@@ -365,6 +379,7 @@ target_sources(yt-server-master PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/dynamic_store_proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/dynamic_store_type_handler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/helpers.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/master_cell_chunk_statistics_collector.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/medium.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/medium_proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/medium_type_handler.cpp
@@ -469,6 +484,7 @@ target_sources(yt-server-master PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/object_server/cypress_integration.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/object_server/features.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/object_server/garbage_collector.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/object_server/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/object_server/map_object.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/object_server/map_object_proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/object_server/map_object_type_handler.cpp
@@ -487,7 +503,6 @@ target_sources(yt-server-master PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/object_server/sys_node_type_handler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/object_server/sys_node_proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/object_server/type_handler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/object_server/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/object_server/request_profiling_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/object_server/yson_intern_registry.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/scheduler_pool_server/config.cpp
@@ -536,7 +551,6 @@ target_sources(yt-server-master PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/replicated_table_node.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/replicated_table_node_proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/replicated_table_node_type_handler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/schemaful_node_helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/table_collocation.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/table_collocation_proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/table_collocation_type_handler.cpp
@@ -604,6 +618,7 @@ target_sources(yt-server-master PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/transaction_server/transaction_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/transaction_server/transaction_rotator.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/transaction_server/transaction_service.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/transaction_server/transaction_type_handler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/hive/cell_directory_synchronizer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/hive/cluster_directory_synchronizer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/orchid_server/cypress_integration.cpp

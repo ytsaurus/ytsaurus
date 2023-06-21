@@ -207,6 +207,15 @@ struct IObjectManager
         NTransactionServer::TTransaction* transaction,
         const TResolvePathOptions& options) = 0;
 
+    struct TVersionedObjectPath
+    {
+        NYPath::TYPath Path;
+        NTransactionServer::TTransactionId TransactionId;
+    };
+
+    virtual TFuture<std::vector<TErrorOr<TVersionedObjectPath>>> ResolveObjectIdsToPaths(
+        const std::vector<TVersionedObjectId>& objectIds) = 0;
+
     //! Validates prerequisites, throws on failure.
     virtual void ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites) = 0;
 

@@ -148,7 +148,7 @@ protected:
     static constexpr int SampleCount = 10000;
     static constexpr int Seed = 225;
 
-    std::unique_ptr<IDigest> Digest_;
+    std::shared_ptr<IDigest> Digest_;
 };
 
 TEST_F(THistogramDigestTest, TestStrictFixtureInRange)

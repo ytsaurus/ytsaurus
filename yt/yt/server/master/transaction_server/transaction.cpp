@@ -1,4 +1,5 @@
 #include "transaction.h"
+#include "private.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/serialize.h>
@@ -17,12 +18,18 @@
 
 namespace NYT::NTransactionServer {
 
-using namespace NYTree;
-using namespace NYson;
 using namespace NCellMaster;
 using namespace NChunkClient;
+using namespace NHydra;
 using namespace NObjectClient;
+using namespace NObjectServer;
 using namespace NSecurityServer;
+using namespace NYson;
+using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = TransactionServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -94,7 +101,9 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, TablesWithBackupCheckpoints_);
     Save(context, Depth_);
     Save(context, Upload_);
+    Save(context, RecursiveLockCount_);
     Save(context, NativeCommitMutationRevision_);
+    Save(context, IsCypressTransaction_);
     Save(context, AccountResourceUsageLeases_);
     Save(context, IsSequoiaTransaction_);
     Save(context, SequoiaWriteSet_);
@@ -130,7 +139,18 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, TablesWithBackupCheckpoints_);
     Load(context, Depth_);
     Load(context, Upload_);
+    // COMPAT(h0pless)
+    if (context.GetVersion() >= EMasterReign::TooManyLocksCheck) {
+        Load(context, RecursiveLockCount_);
+    }
+
     Load(context, NativeCommitMutationRevision_);
+
+    // COMPAT(gritukan)
+    if (context.GetVersion() >= EMasterReign::CypressTransactions) {
+        Load(context, IsCypressTransaction_);
+    }
+
     Load(context, AccountResourceUsageLeases_);
     Load(context, IsSequoiaTransaction_);
     Load(context, SequoiaWriteSet_);
@@ -170,6 +190,75 @@ TTransactionId TTransaction::GetOriginalTransactionId() const
 {
     YT_VERIFY(IsExternalized());
     return NTransactionClient::OriginalFromExternalizedTransactionId(Id_);
+}
+
+int TTransaction::GetRecursiveLockCount() const
+{
+    return RecursiveLockCount_;
+}
+
+void TTransaction::AttachLock(NCypressServer::TLock* lock, const IObjectManagerPtr& objectManager)
+{
+    EmplaceOrCrash(Locks_, lock);
+    lock->SetTransaction(this);
+    objectManager->RefObject(lock);
+
+    auto* currentTransaction = this;
+    while (currentTransaction) {
+        currentTransaction->IncrementRecursiveLockCount();
+
+        YT_LOG_TRACE_IF(IsMutationLoggingEnabled(),
+            "Transaction recursive lock count increased (RecursiveLockCount: %v, TransactionId: %v, LockId: %v)",
+            currentTransaction->GetRecursiveLockCount(),
+            currentTransaction->GetId(),
+            lock->GetId());
+
+        currentTransaction = currentTransaction->GetParent();
+    }
+}
+
+void TTransaction::DetachLock(
+    NCypressServer::TLock* lock,
+    const IObjectManagerPtr& objectManager,
+    bool resetLockTransaction)
+{
+    EraseOrCrash(Locks_, lock);
+    if (resetLockTransaction) {
+        lock->SetTransaction(nullptr);
+    }
+    objectManager->UnrefObject(lock);
+
+    auto* currentTransaction = this;
+    while (currentTransaction) {
+        currentTransaction->DecrementRecursiveLockCount();
+
+        YT_LOG_TRACE_IF(IsMutationLoggingEnabled(),
+            "Transaction recursive lock count decreased (RecursiveLockCount: %v, TransactionId: %v, LockId: %v)",
+            currentTransaction->GetRecursiveLockCount(),
+            currentTransaction->GetId(),
+            lock->GetId());
+
+        currentTransaction = currentTransaction->GetParent();
+    }
+}
+
+void TTransaction::IncreaseRecursiveLockCount(int delta)
+{
+    YT_VERIFY(delta >= 0);
+    RecursiveLockCount_ += delta;
+}
+
+void TTransaction::IncrementRecursiveLockCount()
+{
+    ++RecursiveLockCount_;
+}
+
+void TTransaction::DecrementRecursiveLockCount()
+{
+    YT_LOG_ALERT_IF(--RecursiveLockCount_ < 0,
+        "Transaction recursive lock count is negative (TransactionId: %v, RecursiveLockCount: %v)",
+        GetId(),
+        RecursiveLockCount_);
 }
 
 namespace {

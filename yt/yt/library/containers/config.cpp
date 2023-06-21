@@ -4,6 +4,14 @@ namespace NYT::NContainers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TPodSpecConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("cpu_to_vcpu_factor", &TThis::CpuToVCpuFactor)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 bool TCGroupConfig::IsCGroupSupported(const TString& cgroupType) const
 {
     auto it = std::find_if(
@@ -43,6 +51,20 @@ void TPortoExecutorConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(30));
     registrar.Parameter("enable_network_isolation", &TThis::EnableNetworkIsolation)
         .Default(true);
+    registrar.Parameter("enable_test_porto_failures", &TThis::EnableTestPortoFailures)
+        .Default(false);
+    registrar.Parameter("stub_error_code", &TThis::StubErrorCode)
+        .Default(EPortoErrorCode::SocketError);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TPortoExecutorDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable_test_porto_failures", &TThis::EnableTestPortoFailures)
+        .Default();
+    registrar.Parameter("stub_error_code", &TThis::StubErrorCode)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

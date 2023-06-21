@@ -898,7 +898,7 @@ void CalculateResourceUsage(TSchedulerInputState& input)
             auto aliveNodes = GetAliveNodes(bundleName, input.BundleNodes[bundleName], input, EGracePeriodBehaviour::Wait);
             calculateResources(aliveNodes, input.TabletNodes, aliveResourceUsage, input.AliveNodesBySize[bundleName]);
 
-            auto aliveProxies = GetAliveProxies(input.BundleProxies[bundleName], input);
+            auto aliveProxies = GetAliveProxies(input.BundleProxies[bundleName], input, EGracePeriodBehaviour::Wait);
             calculateResources(aliveProxies, input.RpcProxies, aliveResourceUsage, input.AliveProxiesBySize[bundleName]);
 
             aliveResources[bundleName] = aliveResourceUsage;
@@ -968,14 +968,24 @@ THashSet<TString> GetAliveNodes(
 
 THashSet<TString> GetAliveProxies(
     const std::vector<TString>& bundleProxies,
-    const TSchedulerInputState& input)
+    const TSchedulerInputState& input,
+    EGracePeriodBehaviour gracePeriodBehaviour)
 {
+    auto now = TInstant::Now();
     THashSet<TString> aliveProxies;
 
     for (const auto& proxyName : bundleProxies) {
         const auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
-        if (!proxyInfo->Annotations->Allocated || proxyInfo->Banned || !proxyInfo->Alive) {
+        if (!proxyInfo->Annotations->Allocated || proxyInfo->Banned) {
             continue;
+        }
+
+        if (!proxyInfo->Alive) {
+            if (gracePeriodBehaviour == EGracePeriodBehaviour::Immediately ||
+                now - proxyInfo->ModificationTime > input.Config->OfflineInstanceGracePeriod)
+            {
+                continue;
+            }
         }
 
         aliveProxies.insert(proxyName);
@@ -2067,7 +2077,7 @@ void ManageInstancies(TSchedulerInputState& input, TSchedulerMutations* mutation
         nodeAllocator.ManageInstancies(bundleName, &nodeAdapter, input, mutations, zoneDisruptedInfo.IsNodesDisrupted());
 
         const auto& bundleProxies = input.BundleProxies[bundleName];
-        auto aliveProxies = GetAliveProxies(bundleProxies, input);
+        auto aliveProxies = GetAliveProxies(bundleProxies, input, EGracePeriodBehaviour::Wait);
         TRpcProxyAllocatorAdapter proxyAdapter(bundleState, bundleProxies, aliveProxies);
         proxyAllocator.ManageInstancies(bundleName, &proxyAdapter, input, mutations, zoneDisruptedInfo.IsProxiesDisrupted());
     }

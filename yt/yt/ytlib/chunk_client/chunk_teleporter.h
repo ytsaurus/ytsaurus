@@ -63,9 +63,11 @@ private:
 
     int GetExportedObjectCount(NObjectClient::TCellTag cellTag);
     void Export();
+    void DoExport(NObjectClient::TCellTag cellTag, const std::vector<TChunkEntry*>& chunks);
 
     int GetImportedObjectCount(NObjectClient::TCellTag cellTag);
     void Import();
+    void DoImport(NObjectClient::TCellTag cellTag, const std::vector<TChunkEntry*>& chunks);
 
 };
 

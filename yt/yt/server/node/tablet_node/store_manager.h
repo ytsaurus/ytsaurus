@@ -137,7 +137,9 @@ DEFINE_REFCOUNTED_TYPE(ISortedStoreManager)
 //! A refinement of IStoreManager for ordered tablets.
 struct IOrderedStoreManager
     : public virtual IStoreManager
-{ };
+{
+    virtual void LockHunkStores(TWriteContext* context) = 0;
+};
 
 DEFINE_REFCOUNTED_TYPE(IOrderedStoreManager)
 

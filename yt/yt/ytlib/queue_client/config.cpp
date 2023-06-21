@@ -14,10 +14,6 @@ void TQueueAgentDynamicStateConfig::Register(TRegistrar registrar)
         .Default("//sys/queue_agents");
     registrar.Parameter("consumer_registration_table_path", &TThis::ConsumerRegistrationTablePath)
         .Default("//sys/queue_agents/consumer_registrations");
-
-    registrar.Postprocessor([] (TThis* config) {
-        config->ConsumerRegistrationTablePath = config->ConsumerRegistrationTablePath.Normalize();
-    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -36,11 +32,6 @@ void TQueueConsumerRegistrationManagerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(60));
     registrar.Parameter("user", &TThis::User)
         .Default(RootUserName);
-
-    registrar.Postprocessor([] (TThis* config) {
-        config->StateWritePath = config->StateWritePath.Normalize();
-        config->StateReadPath = config->StateReadPath.Normalize();
-    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

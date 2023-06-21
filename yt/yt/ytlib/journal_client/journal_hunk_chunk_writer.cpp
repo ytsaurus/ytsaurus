@@ -44,6 +44,11 @@ public:
         return UnderlyingWriter_->Open();
     }
 
+    TFuture<void> Close() override
+    {
+        return UnderlyingWriter_->Close();
+    }
+
     TFuture<std::vector<TJournalHunkDescriptor>> WriteHunks(std::vector<TSharedRef> payloads) override
     {
         std::vector<TJournalHunkDescriptor> descriptors;

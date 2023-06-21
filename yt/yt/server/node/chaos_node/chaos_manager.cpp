@@ -4,6 +4,7 @@
 #include "bootstrap.h"
 #include "chaos_cell_synchronizer.h"
 #include "chaos_slot.h"
+#include "migrated_replication_card_remover.h"
 #include "private.h"
 #include "replication_card.h"
 #include "replication_card_collocation.h"
@@ -98,6 +99,7 @@ public:
             BIND(&TChaosManager::PeriodicCurrentTimestampPropagation, MakeWeak(this)),
             Config_->EraCommencingPeriod))
         , ReplicationCardObserver_(CreateReplicationCardObserver(Config_->ReplicationCardObserver, slot))
+        , MigratedReplicationCardRemover_(CreateMigratedReplicationCardRemover(Config_->MigratedReplicationCardRemover, slot, bootstrap))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
@@ -290,7 +292,7 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(ReplicationCard, TReplicationCard);
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(ReplicationCardCollocation, TReplicationCardCollocation);
 
-    TReplicationCard* GetReplicationCardOrThrow(TReplicationCardId replicationCardId) override
+    TReplicationCard* GetReplicationCardOrThrow(TReplicationCardId replicationCardId, bool allowMigrated=false) override
     {
         auto* replicationCard = ReplicationCardMap_.Find(replicationCardId);
 
@@ -305,7 +307,7 @@ public:
             }
         }
 
-        if (IsReplicationCardMigrated(replicationCard)) {
+        if (!allowMigrated && IsReplicationCardMigrated(replicationCard)) {
             THROW_ERROR_EXCEPTION(NChaosClient::EErrorCode::ReplicationCardMigrated, "Replication card has been migrated")
                 << TErrorAttribute("replication_card_id", replicationCardId)
                 << TErrorAttribute("immigrated_to_cell_id", replicationCard->Migration().ImmigratedToCellId)
@@ -374,6 +376,7 @@ private:
     const IChaosCellSynchronizerPtr ChaosCellSynchronizer_;
     const TPeriodicExecutorPtr CommencerExecutor_;
     const IReplicationCardObserverPtr ReplicationCardObserver_;
+    const IMigratedReplicationCardRemoverPtr MigratedReplicationCardRemover_;
 
     TEntityMap<TReplicationCard> ReplicationCardMap_;
     TEntityMap<TReplicationCardCollocation> CollocationMap_;
@@ -415,6 +418,7 @@ private:
         Save(context, CoordinatorCellIds_);
         Save(context, SuspendedCoordinators_);
         Save(context, Suspended_);
+        MigratedReplicationCardRemover_->Save(context);
     }
 
     void LoadKeys(TLoadContext& context)
@@ -444,6 +448,10 @@ private:
         // COMPAT(savrus)
         if (context.GetVersion() >= EChaosReign::ChaosCellSuspension) {
             Load(context, Suspended_);
+        }
+        // COMPAT(ponasenko-rs)
+        if (context.GetVersion() >= EChaosReign::RemoveMigratedCards) {
+            MigratedReplicationCardRemover_->Load(context);
         }
 
         NeedRecomputeReplicationCardState_ = context.GetVersion() < EChaosReign::Migration;
@@ -495,6 +503,7 @@ private:
         ChaosCellSynchronizer_->Start();
         CommencerExecutor_->Start();
         ReplicationCardObserver_->Start();
+        MigratedReplicationCardRemover_->Start();
         Slot_->GetReplicatedTableTracker()->EnableTracking();
     }
 
@@ -507,6 +516,7 @@ private:
         ChaosCellSynchronizer_->Stop();
         YT_UNUSED_FUTURE(CommencerExecutor_->Stop());
         ReplicationCardObserver_->Stop();
+        MigratedReplicationCardRemover_->Stop();
         Slot_->GetReplicatedTableTracker()->DisableTracking();
     }
 
@@ -692,7 +702,15 @@ private:
         NChaosClient::NProto::TRspRemoveReplicationCard* /*response*/)
     {
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
-        auto* replicationCard = GetReplicationCardOrThrow(replicationCardId);
+        bool isHiveMutation = IsHiveMutation();
+        auto* replicationCard = GetReplicationCardOrThrow(replicationCardId, isHiveMutation);
+
+        if (IsReplicationCardMigrated(replicationCard)) {
+            YT_VERIFY(isHiveMutation);
+            MigratedReplicationCardRemover_->EnqueueRemoval(replicationCardId);
+            return;
+        }
+
         replicationCard->ValidateCollocationNotMigrating();
 
         RevokeShortcuts(replicationCard);
@@ -715,6 +733,7 @@ private:
             /*collocation*/ nullptr);
         UnbindReplicationCardFromRTT(replicationCard);
         ReplicationCardMap_.Remove(replicationCardId);
+        MigratedReplicationCardRemover_->ConfirmRemoval(replicationCardId);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication card removed (ReplicationCardId: %v)",
             replicationCardId);
@@ -761,6 +780,7 @@ private:
         }
 
         ReplicationCardMap_.Remove(replicationCardId);
+        MigratedReplicationCardRemover_->ConfirmRemoval(replicationCardId);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication card removed (ReplicationCardId: %v)",
             replicationCardId);
@@ -1448,7 +1468,7 @@ private:
         }
 
         const auto& hiveManager = Slot_->GetHiveManager();
-        auto* mailbox = hiveManager->GetMailbox(immigratedToCellId);
+        auto* mailbox = hiveManager->GetOrCreateMailbox(immigratedToCellId);
         hiveManager->PostMessage(mailbox, req);
 
         replicationCard->SetState(EReplicationCardState::Migrated);
@@ -1482,7 +1502,7 @@ private:
         Suspended_ = false;
     }
 
-    void PeriodicCurrentTimestampPropagation(void)
+    void PeriodicCurrentTimestampPropagation()
     {
         if (!IsLeader()) {
             return;

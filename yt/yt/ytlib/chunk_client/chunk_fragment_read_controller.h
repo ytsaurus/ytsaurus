@@ -69,6 +69,7 @@ struct IChunkFragmentReadController
     virtual ~IChunkFragmentReadController() = default;
 
     virtual TChunkId GetChunkId() const = 0;
+    virtual NErasure::ECodec GetCodecId() const = 0;
 
     virtual void RegisterRequest(const TFragmentRequest& request) = 0;
 

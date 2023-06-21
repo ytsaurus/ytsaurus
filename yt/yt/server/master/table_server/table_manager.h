@@ -45,46 +45,87 @@ public:
     //! Looks up a master table schema by id. Throws if no such schema exists.
     virtual TMasterTableSchema* GetMasterTableSchemaOrThrow(TMasterTableSchemaId id) = 0;
 
-    //! Looks up a table schema. Returns an existing schema object or nullptr if
-    //! no such schema exists. This is the means of schema deduplication.
-    virtual TMasterTableSchema* FindMasterTableSchema(const NTableClient::TTableSchema& schema) const = 0;
+    //! Looks up a table schema. Returns an existing schema object or nullptr if no such schema exists.
+    //! This is the means of schema deduplication.
+    virtual TMasterTableSchema* FindNativeMasterTableSchema(
+        const NTableClient::TTableSchema& tableSchema) const = 0;
 
-    //! Looks up a schema or creates one if no such schema exists.
+    //! Looks up a table schema and cellTag combination. Returns an existing schema object or nullptr if
+    //! no such pair exists. This is the means of schema deduplication.
+    virtual TMasterTableSchema* FindImportedMasterTableSchema(
+        const NTableClient::TTableSchema& tableSchema,
+        const NObjectClient::TCellTag cellTag) const = 0;
+
+    //! Creates an imported schema with the specified id. If id is null - generates a new id.
     /*!
      *  #schemaHolder will have its schema set to the resulting schema.
      *  The schema itself will be referenced by the table.
      *
      *  NB: This is the means of schema deduplication.
      */
-    virtual TMasterTableSchema* GetOrCreateMasterTableSchema(
+    virtual TMasterTableSchema* CreateImportedMasterTableSchema(
+        const NTableClient::TTableSchema& tableSchema,
+        ISchemafulNode* schemaHolder,
+        TMasterTableSchemaId hintId) = 0;
+
+    //! Same as above but associates resulting schema with a transaction instead
+    //! of a table.
+    virtual TMasterTableSchema* CreateImportedMasterTableSchema(
+        const NTableClient::TTableSchema& tableSchema,
+        NTransactionServer::TTransaction* schemaHolder,
+        TMasterTableSchemaId hintId) = 0;
+
+    //! Looks up a schema or creates one if no such schema exists.
+    /*!
+     *  #schemaHolder will have its schema set to the resulting schema.
+     *  The schema itself will be referenced by the schemaful node.
+     *
+     *  NB: This is the means of schema deduplication.
+     */
+    virtual TMasterTableSchema* GetOrCreateNativeMasterTableSchema(
         const NTableClient::TTableSchema& schema,
         ISchemafulNode* schemaHolder) = 0;
 
     //! Same as above but associates resulting schema with a transaction instead
-    //! of a table.
-    virtual TMasterTableSchema* GetOrCreateMasterTableSchema(
+    //! of a schemaful node.
+    virtual TMasterTableSchema* GetOrCreateNativeMasterTableSchema(
         const NTableClient::TTableSchema& schema,
         NTransactionServer::TTransaction* schemaHolder) = 0;
 
-    //! Creates a new schema object with a specified ID.
-    //! The object will be free-floating and will have zero refcounter.
-    // COMPAT(shakurov)
-    virtual TMasterTableSchema* CreateMasterTableSchemaUnsafely(
-        TMasterTableSchemaId schemaId,
-        const NTableClient::TTableSchema& schema) = 0;
-
     // For loading from snapshot.
-    virtual TMasterTableSchema::TTableSchemaToObjectMapIterator RegisterSchema(
+    virtual TMasterTableSchema::TNativeTableSchemaToObjectMapIterator RegisterNativeSchema(
+        TMasterTableSchema* schema,
+        NTableClient::TTableSchema tableSchema) = 0;
+    virtual TMasterTableSchema::TImportedTableSchemaToObjectMapIterator RegisterImportedSchema(
         TMasterTableSchema* schema,
         NTableClient::TTableSchema tableSchema) = 0;
 
-    virtual TMasterTableSchema* GetEmptyMasterTableSchema() = 0;
-
-    // COMPAT(shakurov)
-    virtual TMasterTableSchema* GetOrCreateEmptyMasterTableSchema() = 0;
+    virtual TMasterTableSchema* GetEmptyMasterTableSchema() const = 0;
 
     virtual void SetTableSchema(ISchemafulNode* table, TMasterTableSchema* schema) = 0;
+    virtual void SetTableSchemaOrThrow(ISchemafulNode* table, TMasterTableSchemaId schemaId) = 0;
+    virtual void SetTableSchemaOrCrash(ISchemafulNode* table, TMasterTableSchemaId schemaId) = 0;
     virtual void ResetTableSchema(ISchemafulNode* table) = 0;
+
+    virtual void ValidateTableSchemaCorrespondence(
+        NCypressClient::TVersionedNodeId nodeId,
+        const NTableClient::TTableSchemaPtr& tableSchema,
+        TMasterTableSchemaId schemaId) = 0;
+
+    virtual const NTableClient::TTableSchema* ProcessSchemaFromAttributes(
+        NTableClient::TTableSchemaPtr& tableSchema,
+        TMasterTableSchemaId schemaId,
+        bool dynamic,
+        bool chaos,
+        NCypressClient::TVersionedNodeId nodeId) = 0;
+
+    //! Schema export counter to cell tag is incremented by 1.
+    //! Schema is also sent to the external cell iff it was not exported there before.
+    virtual void EnsureSchemaExported(
+        const ISchemafulNode* node,
+        NObjectClient::TCellTag externalCellTag,
+        NTransactionServer::TTransactionId externalizedTransactionId,
+        const NCellMaster::IMulticellManagerPtr& multicellManager) = 0;
 
     //! Table collocation management.
     virtual TTableCollocation* CreateTableCollocation(
@@ -107,6 +148,9 @@ public:
     virtual void UnregisterConsumer(TTableNode* node) = 0;
 
     virtual TFuture<NYson::TYsonString> GetQueueAgentObjectRevisionsAsync() const = 0;
+
+    // COMPAT(h0pless): Remove this after schema migration is complete.
+    virtual void TransformForeignSchemaIdsToNative() = 0;
 
     DECLARE_INTERFACE_SIGNAL(void(NTabletServer::TTableCollocationData), ReplicationCollocationUpdated);
     DECLARE_INTERFACE_SIGNAL(void(NTableClient::TTableCollocationId), ReplicationCollocationDestroyed);

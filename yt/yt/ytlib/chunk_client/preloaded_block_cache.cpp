@@ -48,6 +48,11 @@ public:
         return EBlockType::UncompressedData;
     }
 
+    bool IsBlockTypeActive(EBlockType blockType) const override
+    {
+        return blockType == EBlockType::UncompressedData;
+    }
+
     std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
         const NChunkClient::TBlockId& /*id*/,
         EBlockType /*type*/) override
@@ -57,19 +62,19 @@ public:
 
 private:
     const TChunkId ChunkId_;
-    std::vector<NChunkClient::TBlock> Blocks_;
+    const std::vector<NChunkClient::TBlock> Blocks_;
 };
 
 IBlockCachePtr GetPreloadedBlockCache(IChunkReaderPtr chunkReader)
 {
-    auto meta = NConcurrency::WaitFor(chunkReader->GetMeta(/* chunkReadOptions */ {}))
+    auto meta = NConcurrency::WaitFor(chunkReader->GetMeta(/*chunkReadOptions*/ {}))
         .ValueOrThrow();
 
     auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta->extensions());
     auto blockMetaExt = GetProtoExtension<NTableClient::NProto::TDataBlockMetaExt>(meta->extensions());
 
     auto compressedBlocks = NConcurrency::WaitFor(chunkReader->ReadBlocks(
-        /* chunkReadOptions */ {},
+        /*options*/ {},
         0,
         blockMetaExt.data_blocks_size()))
         .ValueOrThrow();
@@ -82,7 +87,7 @@ IBlockCachePtr GetPreloadedBlockCache(IChunkReaderPtr chunkReader)
         cachedBlocks.emplace_back(codec->Decompress(compressedBlock.Data));
     }
 
-    return New<TPreloadedBlockCache>(chunkReader->GetChunkId(), cachedBlocks);
+    return New<TPreloadedBlockCache>(chunkReader->GetChunkId(), std::move(cachedBlocks));
 }
 
 IBlockCachePtr GetPreloadedBlockCache(TChunkId chunkId, const std::vector<NChunkClient::TBlock>& blocks)

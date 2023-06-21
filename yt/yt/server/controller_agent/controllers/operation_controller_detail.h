@@ -19,6 +19,7 @@
 #include <yt/yt/server/controller_agent/master_connector.h>
 
 #include <yt/yt/server/lib/controller_agent/serialize.h>
+#include <yt/yt/server/lib/controller_agent/job_report.h>
 
 #include <yt/yt/server/lib/scheduler/event_log.h>
 #include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
@@ -277,14 +278,18 @@ public:
     IInvokerPtr GetInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const override;
 
     NScheduler::TCompositePendingJobCount GetPendingJobCount() const override;
+    i64 GetFailedJobCount() const override;
     NScheduler::TCompositeNeededResources GetNeededResources() const override;
+
+    bool ShouldUpdateLightOperationAttributes() const override;
+    void SetLightOperationAttributesUpdated() override;
 
     NScheduler::TJobResourcesWithQuotaList GetMinNeededJobResources() const override;
 
     bool IsRunning() const override;
 
-    void SetProgressUpdated() override;
-    bool ShouldUpdateProgress() const override;
+    void SetProgressAttributesUpdated() override;
+    bool ShouldUpdateProgressAttributes() const override;
 
     bool HasProgress() const override;
 
@@ -433,7 +438,8 @@ public:
     void RegisterOutputTables(const std::vector<NYPath::TRichYPath>& outputTablePaths) override;
 
     void AbortJobViaScheduler(TJobId jobId, EAbortReason abortReason) override;
-    void AbortJobFromController(TJobId jobId, EAbortReason abortReason) override;
+    void AbortJobByController(TJobId jobId, EAbortReason abortReason) override;
+    void AbortJobByJobTracker(TJobId jobId, EAbortReason abortReason) final;
 
     bool CanInterruptJobs() const override;
     void InterruptJob(TJobId jobId, EInterruptReason reason) override;
@@ -487,6 +493,8 @@ protected:
 
     // Intentionally transient.
     NScheduler::TControllerEpoch ControllerEpoch;
+
+    const bool ControlJobLifetimeAtScheduler;
 
     // Usually these clients are all the same (and connected to the current cluster).
     // But `remote copy' operation connects InputClient to remote cluster.
@@ -607,6 +615,8 @@ protected:
     // These values are transient.
     int MonitoredUserJobCount_ = 0;
     int MonitoredUserJobAttemptCount_ = 0;
+
+    THashMap<TString, TUserFile> BaseLayers_;
 
     virtual bool IsTransactionNeeded(ETransactionType type) const;
 
@@ -1164,7 +1174,7 @@ private:
     const NProfiling::TCpuDuration LogProgressBackoff;
     NProfiling::TCpuInstant NextLogProgressDeadline = 0;
 
-    std::atomic<bool> ShouldUpdateProgressInCypress_ = {true};
+    std::atomic<bool> ShouldUpdateProgressAttributesInCypress_ = true;
     NYson::TYsonString ProgressString_;
     NYson::TYsonString BriefProgressString_;
 
@@ -1182,10 +1192,11 @@ private:
     int RetainedJobCount_ = 0;
     int JobSpecCompletedArchiveCount_ = 0;
 
-    int FailedJobCount_ = 0;
+    std::atomic<i64> FailedJobCount_ = 0;
+    std::atomic<bool> ShouldUpdateLightOperationAttributes_ = false;
 
     // Release job flags to be sent to scheduler in EAgentToSchedulerJobEventType::Released.
-    THashMap<TJobId, NJobTrackerClient::TReleaseJobFlags> ReleaseJobFlags_;
+    THashMap<TJobId, TReleaseJobFlags> JobIdToReleaseFlags_;
     std::vector<std::pair<TJobId, NYson::TYsonString>> RetainedFinishedJobs_;
 
     NChunkPools::IPersistentChunkPoolInputPtr Sink_;
@@ -1286,6 +1297,15 @@ private:
     //! Per transaction intermediate data weight limit for the fast medium (SSD)
     //! in the public intermediate account.
     i64 FastIntermediateMediumLimit_ = 0;
+
+    struct TRunningJobTimeStatistics
+    {
+        TDuration PreparationTime;
+        TDuration ExecutionTime;
+    };
+    THashMap<TJobId, TRunningJobTimeStatistics> RunningJobTimeStatisticsUpdates_;
+
+    const NConcurrency::TPeriodicExecutorPtr SendRunningJobTimeStatisticsUpdatesExecutor_;
 
     void AccountExternalScheduleJobFailures() const;
 
@@ -1393,6 +1413,8 @@ private:
 
     void MaybeCancel(NScheduler::ECancelationStage cancelationStage);
 
+    void HandleJobReport(const TJobletPtr& joblet, TControllerJobReport&& jobReport);
+
     void ReportJobHasCompetitors(const TJobletPtr& joblet, EJobCompetitionType competitionType);
 
     template <class TTable, class TTransactionIdFunc, class TCellTagFunc>
@@ -1431,6 +1453,7 @@ private:
     void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary);
 
     void ReportJobCookieToArchive(const TJobletPtr& joblet);
+    void ReportControllerStateToArchive(const TJobletPtr& joblet, EJobState state);
 
     //! Helper class that implements IPersistentChunkPoolInput interface for output tables.
     class TSink
@@ -1468,6 +1491,20 @@ private:
     void RegisterUnavailableInputChunk(NChunkClient::TChunkId chunkId);
     void UnregisterUnavailableInputChunk(NChunkClient::TChunkId chunkId);
     bool NeedEraseOffloadingTrees() const;
+
+    void SendRunningJobTimeStatisticsUpdates();
+
+    void RemoveRemainingJobsOnOperationFinished();
+
+    void DoAbortJobByController(
+        TJobId jobId,
+        EAbortReason abortReason,
+        TError error,
+        bool requestNodeTrackerJobAbortion);
+
+    void OnOperationReady() const;
+
+    bool ShouldProcessJobEvents() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -125,7 +125,7 @@ TEventTimerGuard::~TEventTimerGuard()
         return;
     }
 
-    auto duration = CpuDurationToDuration(GetCpuInstant() - StartTime_);
+    auto duration = GetElapsedTime();
     if (Timer_) {
         Timer_.Record(duration);
     }
@@ -134,19 +134,24 @@ TEventTimerGuard::~TEventTimerGuard()
     }
 }
 
+TDuration TEventTimerGuard::GetElapsedTime() const
+{
+    return CpuDurationToDuration(GetCpuInstant() - StartTime_);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-void TGaugeHistogram::Add(double value, int count)
+void TGaugeHistogram::Add(double value, int count) noexcept
 {
     Histogram_->Add(value, count);
 }
 
-void TGaugeHistogram::Remove(double value, int count)
+void TGaugeHistogram::Remove(double value, int count) noexcept
 {
     Histogram_->Remove(value, count);
 }
 
-void TGaugeHistogram::Reset()
+void TGaugeHistogram::Reset() noexcept
 {
     Histogram_->Reset();
 }

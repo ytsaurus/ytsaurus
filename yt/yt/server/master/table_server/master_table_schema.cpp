@@ -1,5 +1,7 @@
 #include "master_table_schema.h"
 
+#include "private.h"
+
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 
@@ -12,17 +14,28 @@
 
 namespace NYT::NTableServer {
 
+using namespace NCellMaster;
 using namespace NConcurrency;
+using namespace NObjectClient;
 using namespace NSecurityServer;
 using namespace NTableClient;
 using namespace NYson;
 
+static const auto& Logger = TableServerLogger;
+
 ///////////////////////////////////////////////////////////////////////////////
 
-TMasterTableSchema::TMasterTableSchema(TMasterTableSchemaId id, TTableSchemaToObjectMapIterator it)
+TMasterTableSchema::TMasterTableSchema(TMasterTableSchemaId id, TNativeTableSchemaToObjectMapIterator it)
     : TBase(id)
 {
-    SetTableSchemaToObjectMapIterator(it);
+    SetNativeTableSchemaToObjectMapIterator(it);
+}
+
+TMasterTableSchema::TMasterTableSchema(TMasterTableSchemaId id, TImportedTableSchemaToObjectMapIterator it)
+    : TBase(id)
+{
+    SetForeign();
+    SetImportedTableSchemaToObjectMapIterator(it);
 }
 
 void TMasterTableSchema::Save(NCellMaster::TSaveContext& context) const
@@ -32,6 +45,13 @@ void TMasterTableSchema::Save(NCellMaster::TSaveContext& context) const
     using NYT::Save;
 
     Save(context, *TableSchema_);
+
+    if (CellTagToExportCount_) {
+        Save(context, true);
+        Save(context, *CellTagToExportCount_);
+    } else {
+        Save(context, false);
+    }
 }
 
 void TMasterTableSchema::Load(NCellMaster::TLoadContext& context)
@@ -42,17 +62,36 @@ void TMasterTableSchema::Load(NCellMaster::TLoadContext& context)
 
     auto tableSchema = Load<TTableSchema>(context);
 
-    if (IsObjectAlive(this)) {
-        const auto& tableManager = context.GetBootstrap()->GetTableManager();
-        SetTableSchemaToObjectMapIterator(tableManager->RegisterSchema(this, std::move(tableSchema)));
+    // COMPAT(h0pless)
+    if (context.GetVersion() < EMasterReign::ExportMasterTableSchemas) {
+        if (IsObjectAlive(this)) {
+            const auto& tableManager = context.GetBootstrap()->GetTableManager();
+            SetNativeTableSchemaToObjectMapIterator(tableManager->RegisterNativeSchema(this, std::move(tableSchema)));
+        } else {
+            TableSchema_ = New<TTableSchema>(std::move(tableSchema));
+        }
     } else {
-        TableSchema_ = New<TTableSchema>(std::move(tableSchema));
+        if (IsObjectAlive(this)) {
+            const auto& tableManager = context.GetBootstrap()->GetTableManager();
+
+            if (IsNative()) {
+                SetNativeTableSchemaToObjectMapIterator(tableManager->RegisterNativeSchema(this, std::move(tableSchema)));
+            } else {
+                SetImportedTableSchemaToObjectMapIterator(tableManager->RegisterImportedSchema(this, std::move(tableSchema)));
+            }
+        } else {
+            TableSchema_ = New<TTableSchema>(std::move(tableSchema));
+        }
+
+        if (Load<bool>(context)) {
+            CellTagToExportCount_ = std::make_unique<TCellIndexToExportRefcount>(Load<TCellIndexToExportRefcount>(context));
+        }
     }
 }
 
-const NTableClient::TTableSchemaPtr& TMasterTableSchema::AsTableSchema() const
+const NTableClient::TTableSchemaPtr& TMasterTableSchema::AsTableSchema(bool crashOnZombie) const
 {
-    YT_ASSERT(IsObjectAlive(this));
+    YT_VERIFY(IsObjectAlive(this) || !crashOnZombie);
 
     return TableSchema_;
 }
@@ -115,6 +154,74 @@ bool TMasterTableSchema::UnrefBy(TAccount* account)
     }
 }
 
+void TMasterTableSchema::ExportRef(TCellTag cellTag)
+{
+    YT_VERIFY(cellTag != NotReplicatedCellTagSentinel);
+
+    if (!CellTagToExportCount_) {
+        CellTagToExportCount_ = std::make_unique<TCellIndexToExportRefcount>();
+    }
+
+    auto [it, inserted] = CellTagToExportCount_->emplace(cellTag, 1);
+    if (!inserted) {
+        YT_VERIFY(it->second > 0);
+        ++it->second;
+    }
+
+    YT_LOG_DEBUG("Schema export counter incremented (SchemaId: %v, CellTag: %v, ExportCounter: %v)",
+        GetId(),
+        cellTag,
+        it->second);
+}
+
+// NB: UnexportRef should be only called on native cells.
+void TMasterTableSchema::UnexportRef(TCellTag cellTag)
+{
+    YT_VERIFY(cellTag != NotReplicatedCellTagSentinel);
+    YT_VERIFY(CellTagToExportCount_);
+
+    auto it = GetIteratorOrCrash(*CellTagToExportCount_, cellTag);
+    YT_VERIFY(it->second > 0);
+
+    YT_LOG_DEBUG("Schema export counter decremented (SchemaId: %v, CellTag: %v, ExportCounter: %v)",
+        GetId(),
+        cellTag,
+        it->second - 1);
+
+    if (--it->second != 0) {
+        return;
+    }
+
+    CellTagToExportCount_->erase(it);
+    if (CellTagToExportCount_->empty()) {
+        CellTagToExportCount_.reset();
+    }
+}
+
+bool TMasterTableSchema::IsExported(TCellTag cellTag) const
+{
+    if (!CellTagToExportCount_) {
+        return false;
+    }
+
+    auto it = CellTagToExportCount_->find(cellTag);
+    if (it == CellTagToExportCount_->end()) {
+        return false;
+    }
+
+    YT_VERIFY(it->second > 0);
+    return true;
+}
+
+void TMasterTableSchema::AlertIfNonEmptyExportCount()
+{
+    if (CellTagToExportCount_) {
+        YT_LOG_ALERT("Table schema being destroyed has non-empty export count (SchemaId: %v, ExportCount: %v)",
+            GetId(),
+            CellTagToExportCount_->size());
+    }
+}
+
 i64 TMasterTableSchema::GetMasterMemoryUsage(TAccount* account) const
 {
     return ReferencingAccounts_.contains(account) ? AsTableSchema()->GetMemoryUsage() : 0;
@@ -140,18 +247,42 @@ void TMasterTableSchema::SetChargedMasterMemoryUsage(TAccount* account, i64 usag
     }
 }
 
-TMasterTableSchema::TTableSchemaToObjectMapIterator TMasterTableSchema::GetTableSchemaToObjectMapIterator() const
+void TMasterTableSchema::SetId(TMasterTableSchemaId id)
 {
-    return TableSchemaToObjectMapIterator_;
+    Id_ = id;
 }
 
-void TMasterTableSchema::SetTableSchemaToObjectMapIterator(TTableSchemaToObjectMapIterator it)
+TMasterTableSchema::TNativeTableSchemaToObjectMapIterator TMasterTableSchema::GetNativeTableSchemaToObjectMapIterator() const
 {
-    TableSchemaToObjectMapIterator_ = it;
+    const auto* it = std::get_if<TNativeTableSchemaToObjectMapIterator>(&TableSchemaToObjectMapIterator_);
+    return it ? *it : TNativeTableSchemaToObjectMapIterator{};
+}
+
+TMasterTableSchema::TImportedTableSchemaToObjectMapIterator TMasterTableSchema::GetImportedTableSchemaToObjectMapIterator() const
+{
+    const auto* it = std::get_if<TImportedTableSchemaToObjectMapIterator>(&TableSchemaToObjectMapIterator_);
+    return it ? *it : TImportedTableSchemaToObjectMapIterator{};
+}
+
+void TMasterTableSchema::SetNativeTableSchemaToObjectMapIterator(TNativeTableSchemaToObjectMapIterator it)
+{
+    TableSchemaToObjectMapIterator_.emplace<TNativeTableSchemaToObjectMapIterator>(it);
     TableSchema_ = it->first;
 }
 
-void TMasterTableSchema::ResetTableSchemaToObjectMapIterator()
+void TMasterTableSchema::SetImportedTableSchemaToObjectMapIterator(TImportedTableSchemaToObjectMapIterator it)
+{
+    TableSchemaToObjectMapIterator_.emplace<TImportedTableSchemaToObjectMapIterator>(it);
+    TableSchema_ = it->first.TableSchema;
+}
+
+void TMasterTableSchema::ResetNativeTableSchemaToObjectMapIterator()
+{
+    TableSchemaToObjectMapIterator_ = {};
+    // NB: Retain TableSchema_ for possible future snapshot serialization.
+}
+
+void TMasterTableSchema::ResetImportedTableSchemaToObjectMapIterator()
 {
     TableSchemaToObjectMapIterator_ = {};
     // NB: Retain TableSchema_ for possible future snapshot serialization.

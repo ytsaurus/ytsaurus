@@ -97,6 +97,22 @@ private:
     }
 };
 
+class TSyncRoamingRequestControl
+    : public TClientRequestControlThunk
+{
+public:
+    TSyncRoamingRequestControl(
+        IClientRequestControlPtr requestControl,
+        IChannelPtr channel)
+        : Channel_(std::move(channel))
+    {
+        SetUnderlying(std::move(requestControl));
+    }
+
+private:
+    const IChannelPtr Channel_;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRoamingChannel
@@ -131,10 +147,12 @@ public:
         if (auto channelOrError = asyncChannel.TryGet()) {
             if (channelOrError->IsOK()) {
                 const auto& channel = channelOrError->Value();
-                return channel->Send(
-                    std::move(request),
-                    std::move(responseHandler),
-                    options);
+                return New<TSyncRoamingRequestControl>(
+                    channel->Send(
+                        std::move(request),
+                        std::move(responseHandler),
+                        options),
+                    channel);
             } else {
                 responseHandler->HandleError(*channelOrError);
                 return New<TClientRequestControlThunk>();

@@ -139,6 +139,7 @@ public:
 
     TMessageQueueInbox* GetOperationEventsInbox();
     TMessageQueueInbox* GetJobEventsInbox();
+    TMessageQueueInbox* GetRunningJobStatisticsUpdatesInbox();
     TMessageQueueInbox* GetScheduleJobResponsesInbox();
 
     const TSchedulerToAgentJobEventOutboxPtr& GetJobEventsOutbox();
@@ -171,6 +172,7 @@ private:
 
     std::unique_ptr<TMessageQueueInbox> OperationEventsInbox_;
     std::unique_ptr<TMessageQueueInbox> JobEventsInbox_;
+    std::unique_ptr<TMessageQueueInbox> RunningJobStatisticsUpdatesInbox_;
     std::unique_ptr<TMessageQueueInbox> ScheduleJobResponsesInbox_;
 
     TSchedulerToAgentJobEventOutboxPtr JobEventsOutbox_;

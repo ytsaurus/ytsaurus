@@ -21,7 +21,8 @@ TSpeculativeJobManager::TSpeculativeJobManager(
         host,
         logger,
         maxSpeculativeJobCount,
-        EJobCompetitionType::Speculative)
+        EJobCompetitionType::Speculative,
+        EAbortReason::SpeculativeCompetitorResultLost)
 { }
 
 void TSpeculativeJobManager::OnJobScheduled(const TJobletPtr& joblet)
@@ -53,14 +54,10 @@ void TSpeculativeJobManager::OnJobCompleted(const TJobletPtr& joblet)
     }
 }
 
-void TSpeculativeJobManager::OnJobLost(IChunkPoolOutput::TCookie cookie)
-{
-    TCompetitiveJobManagerBase::OnJobLost(cookie, EAbortReason::SpeculativeCompetitorResultLost);
-}
-
 bool TSpeculativeJobManager::OnUnsuccessfulJobFinish(
     const TJobletPtr& joblet,
-    const std::function<void(TProgressCounterGuard*)>& updateJobCounter)
+    const std::function<void(TProgressCounterGuard*)>& updateJobCounter,
+    const NJobTrackerClient::EJobState /*state*/)
 {
     if (!IsRelevant(joblet)) {
         // By default after unsuccessful finish of job a cookie is returned to chunk pool.
@@ -82,7 +79,7 @@ bool TSpeculativeJobManager::OnUnsuccessfulJobFinish(
     return true;
 }
 
-std::optional<EAbortReason> TSpeculativeJobManager::ShouldAbortCompletingJob(const TJobletPtr& joblet) const
+std::optional<EAbortReason> TSpeculativeJobManager::ShouldAbortCompletingJob(const TJobletPtr& joblet)
 {
     if (!IsRelevant(joblet)) {
         return std::nullopt;

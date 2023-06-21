@@ -146,6 +146,9 @@ void TJobProxyConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_nat64", &TThis::EnableNat64)
         .Default(false);
 
+    registrar.Parameter("disable_network", &TThis::DisableNetwork)
+        .Default(false);
+
     registrar.Parameter("network_addresses", &TThis::NetworkAddresses)
         .Default();
 

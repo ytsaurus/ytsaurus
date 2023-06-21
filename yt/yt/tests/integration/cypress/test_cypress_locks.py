@@ -1496,6 +1496,48 @@ class TestCypressLocks(YTEnvSetup):
         assert exists("#{}/@acquisition_time".format(lock_id2))
         assert parse_yt_time(get("#{}/@acquisition_time".format(lock_id2))) < get_current_time()
 
+    @authors("h0pless")
+    def test_lock_count_limit(self):
+        set("//sys/@config/cypress_manager/max_locks_per_transaction_subtree", 2)
+        create("table", "//tmp/table")
+        table_native_cell_tag = get("//tmp/table/@native_cell_tag")
+
+        tx1 = start_transaction()
+        lock("//tmp/table", mode="shared", tx=tx1)["lock_id"]
+        assert get("#{}/@recursive_lock_count".format(tx1))[str(table_native_cell_tag)] == 1
+
+        tx2 = start_transaction()
+        lock("//tmp/table", mode="shared", tx=tx2)["lock_id"]
+        assert get("#{}/@recursive_lock_count".format(tx2))[str(table_native_cell_tag)] == 1
+
+        tx11 = start_transaction(tx=tx1)
+        lock("//tmp/table", mode="shared", tx=tx11)["lock_id"]
+        assert get("#{}/@recursive_lock_count".format(tx11))[str(table_native_cell_tag)] == 1
+        assert get("#{}/@recursive_lock_count".format(tx2))[str(table_native_cell_tag)] == 1
+        assert get("#{}/@recursive_lock_count".format(tx1))[str(table_native_cell_tag)] == 2
+
+        tx12 = start_transaction(tx=tx1)
+        with pytest.raises(YtError,
+                           match="Cannot create \"shared\" lock for node .* since "
+                           "transaction .* its decendants already have . locks associated with them"):
+            lock("//tmp/table", mode="shared", tx=tx12)
+
+        unlock("//tmp/table", tx=tx11)
+        assert get("#{}/@recursive_lock_count".format(tx1))[str(table_native_cell_tag)] == 1
+
+        lock("//tmp/table", mode="shared", tx=tx11)
+        assert get("#{}/@recursive_lock_count".format(tx11))[str(table_native_cell_tag)] == 1
+        assert get("#{}/@recursive_lock_count".format(tx1))[str(table_native_cell_tag)] == 2
+
+        commit_transaction(tx=tx11)
+        get("#{}/@recursive_lock_count".format(tx1))
+        assert get("#{}/@recursive_lock_count".format(tx1))[str(table_native_cell_tag)] == 2
+
+        with pytest.raises(YtError,
+                           match="Cannot create \"shared\" lock for node .* since "
+                           "transaction .* its decendants already have . locks associated with them"):
+            lock("//tmp/table", mode="shared", tx=tx12)
+
 
 ##################################################################
 

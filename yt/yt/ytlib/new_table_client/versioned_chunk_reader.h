@@ -40,7 +40,6 @@ NTableClient::IVersionedReaderPtr CreateVersionedChunkReader(
     const NTableClient::TColumnFilter& columnFilter,
     const NTableClient::TChunkColumnMappingPtr& chunkColumnMapping,
     TBlockManagerFactory blockManagerFactory,
-    NTableClient::TChunkReaderPerformanceCountersPtr performanceCounters,
     bool produceAll,
     TReaderStatisticsPtr readerStatistics = nullptr);
 

@@ -821,7 +821,7 @@ private:
 
     void SetupTracing(const IServiceContextPtr& context)
     {
-        auto* traceContext = NTracing::TryGetCurrentTraceContext();
+        auto traceContext = NTracing::GetCurrentTraceContext();
         if (!traceContext) {
             return;
         }
@@ -1533,9 +1533,6 @@ private:
         if (request->has_options()) {
             options.Options = NYTree::FromProto(request->options());
         }
-        if (request->has_complexity_limits()) {
-            NYTree::FromProto(&options.ComplexityLimits, request->complexity_limits());
-        }
 
         context->SetRequestInfo("Path: %v, AttributeFilter: %v",
             path,
@@ -1580,9 +1577,6 @@ private:
         }
         if (request->has_suppressable_access_tracking_options()) {
             FromProto(&options, request->suppressable_access_tracking_options());
-        }
-        if (request->has_complexity_limits()) {
-            NYTree::FromProto(&options.ComplexityLimits, request->complexity_limits());
         }
 
         context->SetRequestInfo("Path: %v, AttributeFilter: %v",
@@ -2340,6 +2334,9 @@ private:
         SetMutatingOptions(&options, request, context.Get());
         if (request->has_schema()) {
             options.Schema = ConvertTo<TTableSchema>(TYsonString(request->schema()));
+        }
+        if (request->has_schema_id()) {
+            options.SchemaId = FromProto<TMasterTableSchemaId>(request->schema_id());
         }
         if (request->has_dynamic()) {
             options.Dynamic = request->dynamic();
@@ -3880,12 +3877,16 @@ private:
 
         TRegisterQueueConsumerOptions options;
         SetTimeoutOptions(&options, context.Get());
+        if (request->has_partitions()) {
+            options.Partitions = FromProto<std::vector<int>>(request->partitions().items());
+        }
 
         context->SetRequestInfo(
-            "QueuePath: %Qv, ConsumerPath: %Qv, Vital: %v",
+            "QueuePath: %Qv, ConsumerPath: %Qv, Vital: %v, Partitions: %v",
             queuePath,
             consumerPath,
-            vital);
+            vital,
+            options.Partitions);
 
         ExecuteCall(
             context,
@@ -3957,6 +3958,9 @@ private:
                     ToProto(protoRegistration->mutable_queue_path(), registration.QueuePath);
                     ToProto(protoRegistration->mutable_consumer_path(), registration.ConsumerPath);
                     protoRegistration->set_vital(registration.Vital);
+                    if (registration.Partitions) {
+                        ToProto(protoRegistration->mutable_partitions()->mutable_items(), *registration.Partitions);
+                    }
                 }
 
                 context->SetResponseInfo("Registrations: %v", registrations.size());

@@ -2,6 +2,7 @@
 #include "private.h"
 
 #include <yt/yt/server/lib/exec_node/public.h>
+#include <yt/yt/server/lib/exec_node/helpers.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>

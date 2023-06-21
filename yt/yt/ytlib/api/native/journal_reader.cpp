@@ -240,12 +240,14 @@ private:
             }
 
             // TODO(savrus): profile chunk reader statistics.
-            TClientChunkReadOptions chunkReadOptions{
-                .WorkloadDescriptor = Config_->WorkloadDescriptor
+            IChunkReader::TReadBlocksOptions readBlocksOptions{
+                .ClientOptions = TClientChunkReadOptions{
+                    .WorkloadDescriptor = Config_->WorkloadDescriptor,
+                },
             };
 
             auto rowsOrError = WaitFor(CurrentChunkReader_->ReadBlocks(
-                chunkReadOptions,
+                readBlocksOptions,
                 CurrentRowIndex_,
                 static_cast<int>(EndRowIndex_ - CurrentRowIndex_)));
             THROW_ERROR_EXCEPTION_IF_FAILED(rowsOrError);

@@ -7,15 +7,22 @@
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/data_sink.h>
 
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+
 #include <yt/yt/ytlib/scheduler/proto/output_result.pb.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
 
+#include <util/string/split.h>
+
 namespace NYT::NControllerAgent::NControllers {
 
+using namespace NApi;
 using namespace NChunkClient;
 using namespace NChunkPools;
+using namespace NConcurrency;
 using namespace NTableClient;
+using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
 
@@ -212,7 +219,7 @@ void Serialize(const TControllerFeatures& features, NYson::IYsonConsumer* consum
 
 NTableClient::TTableReaderOptionsPtr CreateTableReaderOptions(const NScheduler::TJobIOConfigPtr& ioConfig)
 {
-    auto options = New<TTableReaderOptions>();
+    auto options = New<NTableClient::TTableReaderOptions>();
     options->EnableRowIndex = ioConfig->ControlAttributes->EnableRowIndex;
     options->EnableTableIndex = ioConfig->ControlAttributes->EnableTableIndex;
     options->EnableRangeIndex = ioConfig->ControlAttributes->EnableRangeIndex;
@@ -244,6 +251,53 @@ void UpdateAggregatedJobStatistics(
     // NB. We need the second check of custom statistics count to ensure that the limit was not
     // violated after the update.
     *isLimitExceeded = targetStatistics.CalculateCustomStatisticsCount() > customStatisticsLimit;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<TRichYPath> GetLayerPathsFromDockerImage(
+    NNative::IClientPtr client,
+    const TString& dockerImage)
+{
+    try {
+        TStringBuf image;
+        TStringBuf tag;
+
+        if (!StringSplitter(dockerImage).Split(':').Limit(2).TryCollectInto(&image, &tag)) {
+            image = dockerImage;
+            tag = "latest";
+        }
+
+        auto tagsPath = TYPath::Join("//", image, "/_tags");
+
+        auto proxy = NObjectClient::CreateObjectServiceReadProxy(client, EMasterChannelKind::Follower);
+        auto req = TYPathProxy::Get(tagsPath);
+        auto rspOrError = WaitFor(proxy.Execute(req));
+
+        if (!rspOrError.IsOK()) {
+            THROW_ERROR_EXCEPTION("Failed to read tags from %Qv", tagsPath)
+                << rspOrError;
+        }
+
+        auto rspTags = ConvertToNode(TYsonString(rspOrError.ValueOrThrow()->value()));
+        if (!rspTags || rspTags->GetType() != ENodeType::Map) {
+            THROW_ERROR_EXCEPTION("Tags document %Qv is not a map", tagsPath);
+        }
+
+        auto rspTag = rspTags->AsMap()->FindChild(TString(tag));
+        if (!rspTag) {
+            THROW_ERROR_EXCEPTION(
+                "No tag %Qv in %Qv, available tags are %v",
+                tag,
+                tagsPath,
+                rspTags->AsMap()->GetKeys());
+        }
+
+        return ConvertTo<std::vector<TRichYPath>>(rspTag);
+    } catch (const std::exception& exc) {
+        THROW_ERROR_EXCEPTION("Failed to load docker image %Qv", dockerImage)
+            << exc;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

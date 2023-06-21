@@ -150,6 +150,7 @@ message TRspInitializeOperation
 message TPrepareOperationResult
 {
     optional bytes attributes = 1; // YSON
+    required bool control_job_lifetime_at_scheduler = 2;
 }
 
 message TReqPrepareOperation
@@ -206,10 +207,11 @@ message TReviveOperationResult
     required bytes attributes = 1; // YSON
     required bool revived_from_snapshot = 2;
     repeated TRevivedJob revived_jobs = 3;
+    required bool control_job_lifetime_at_scheduler = 7;
     repeated string revived_banned_tree_ids = 4;
     required TCompositeNeededResources composite_needed_resources = 5;
     repeated NScheduler.NProto.TJobResourcesWithQuota min_needed_job_resources = 6;
-    required int32 controller_epoch = 7;
+    required int32 controller_epoch = 8;
 }
 
 message TReqReviveOperation

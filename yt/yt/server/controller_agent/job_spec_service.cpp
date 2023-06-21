@@ -71,8 +71,16 @@ private:
                 FormatValue(builder, req.JobId, TStringBuf());
             }));
 
-        controllerAgent->ExtractJobSpecs(jobSpecRequests)
-            .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TErrorOr<TSharedRef>>>& resultsOrError) {
+        auto future = controllerAgent->ExtractJobSpecs(jobSpecRequests);
+
+        future.Subscribe(BIND(
+            [
+                =,
+                this,
+                this_ = MakeStrong(this),
+                jobSpecRequests = std::move(jobSpecRequests)
+            ] (const TErrorOr<std::vector<TErrorOr<TSharedRef>>>& resultsOrError)
+            {
                 const auto& results = resultsOrError.ValueOrThrow();
                 std::vector<TSharedRef> jobSpecs;
                 jobSpecs.reserve(jobSpecRequests.size());
@@ -80,6 +88,7 @@ private:
                     const auto& subrequest = jobSpecRequests[index];
                     const auto& subresponse = results[index];
                     auto* protoSubresponse = response->add_responses();
+                    ToProto(protoSubresponse->mutable_job_id(), jobSpecRequests[index].JobId);
                     if (subresponse.IsOK() && subresponse.Value()) {
                         jobSpecs.push_back(std::move(subresponse.Value()));
                     } else {

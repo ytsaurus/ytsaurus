@@ -111,22 +111,16 @@ void DumpTimeInfo()
     WriteToStderr(formatter);
 }
 
-using TCodicilStack = std::vector<TString>;
-
-NConcurrency::TFlsSlot<TCodicilStack>& CodicilStackSlot()
-{
-    static NConcurrency::TFlsSlot<TCodicilStack> Slot;
-    return Slot;
-}
+NConcurrency::TFls<std::vector<TString>> CodicilsStack;
 
 //! Dump codicils.
 void DumpCodicils()
 {
     // NB: Avoid constructing FLS slot to avoid allocations; these may lead to deadlocks if the
     // program crashes during an allocation itself.
-    if (CodicilStackSlot().IsInitialized() && !CodicilStackSlot()->empty()) {
+    if (CodicilsStack.IsInitialized() && !CodicilsStack->empty()) {
         WriteToStderr("*** Begin codicils ***\n");
-        for (const auto& data : *CodicilStackSlot()) {
+        for (const auto& data : *CodicilsStack) {
             TFormatter formatter;
             formatter.AppendString(data.c_str());
             formatter.AppendString("\n");
@@ -529,7 +523,7 @@ void CrashSignalHandler(int /*signal*/)
 void PushCodicil(const TString& data)
 {
 #ifdef _unix_
-    CodicilStackSlot()->push_back(data);
+    CodicilsStack->push_back(data);
 #else
     Y_UNUSED(data);
 #endif
@@ -538,15 +532,15 @@ void PushCodicil(const TString& data)
 void PopCodicil()
 {
 #ifdef _unix_
-    YT_VERIFY(!CodicilStackSlot()->empty());
-    CodicilStackSlot()->pop_back();
+    YT_VERIFY(!CodicilsStack->empty());
+    CodicilsStack->pop_back();
 #endif
 }
 
 std::vector<TString> GetCodicils()
 {
 #ifdef _unix_
-    return *CodicilStackSlot();
+    return *CodicilsStack;
 #else
     return {};
 #endif

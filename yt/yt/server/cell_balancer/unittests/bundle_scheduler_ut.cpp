@@ -2417,6 +2417,41 @@ TEST(TProxyRoleManagement, TestBundleProxyRolesWithSpare)
     EXPECT_EQ(0, std::ssize(mutations.ChangedProxyRole));
 }
 
+TEST(TProxyRoleManagement, TestBundleProxyRolesWentOffline)
+{
+    const bool SetProxyRole = true;
+    const auto OfflineInstanceGracePeriod = TDuration::Minutes(40);
+
+    auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 2);
+    input.Config->OfflineInstanceGracePeriod = OfflineInstanceGracePeriod;
+    input.Bundles["bigd"]->EnableRpcProxyManagement = true;
+
+    auto proxies = GenerateProxiesForBundle(input, "bigd", 2, SetProxyRole);
+
+    // Generate Spare proxies
+    auto zoneInfo = input.Zones["default-zone"];
+    zoneInfo->SpareTargetConfig->RpcProxyCount = 3;
+    auto spareProxies = GenerateProxiesForBundle(input, SpareBundleName, 3);
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    CheckEmptyAlerts(mutations);
+    EXPECT_EQ(0, std::ssize(mutations.ChangedProxyRole));
+
+    for (const auto& proxyName : proxies) {
+        auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
+        proxyInfo->ModificationTime = TInstant::Now() - OfflineInstanceGracePeriod / 2;
+        proxyInfo->Alive.Reset();
+    }
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    CheckEmptyAlerts(mutations);
+    EXPECT_EQ(2, std::ssize(mutations.ChangedProxyRole));
+}
+
 TEST(TProxyRoleManagement, TestBundleProxyCustomRolesWithSpare)
 {
     const bool SetProxyRole = true;
@@ -3137,6 +3172,53 @@ TEST(TBundleSchedulerTest, OfflineInstanceGracePeriod)
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(5, std::ssize(mutations.NewAllocations));
     EXPECT_EQ(5, std::ssize(mutations.ChangedStates["bigd"]->NodeAllocations));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TBundleSchedulerTest, OfflineRpcProxiesGracePeriod)
+{
+    const auto OfflineInstanceGracePeriod = TDuration::Minutes(40);
+
+    auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 5);
+    input.Config->OfflineInstanceGracePeriod = OfflineInstanceGracePeriod;
+    auto proxies = GenerateProxiesForBundle(input, "bigd", 5);;
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->NodeAllocations));
+
+    for (const auto& proxy : proxies) {
+        auto& proxyInfo = GetOrCrash(input.RpcProxies, proxy);
+        proxyInfo->Alive.Reset();
+        proxyInfo->ModificationTime = TInstant::Now() - OfflineInstanceGracePeriod / 2;
+    }
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->NodeAllocations));
+
+    for (const auto& proxy : proxies) {
+        auto& proxyInfo = GetOrCrash(input.RpcProxies, proxy);
+        proxyInfo->Alive.Reset();
+        proxyInfo->ModificationTime = TInstant::Now() - OfflineInstanceGracePeriod * 2;
+    }
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    EXPECT_EQ(5, std::ssize(mutations.NewAllocations));
+    EXPECT_EQ(5, std::ssize(mutations.ChangedStates["bigd"]->ProxyAllocations));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

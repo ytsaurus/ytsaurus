@@ -34,7 +34,7 @@ public:
 
     TFuture<void> FlushOperationNode(TOperationId operationId);
 
-    TFuture<void> UpdateInitializedOperationNode(TOperationId operationId);
+    TFuture<void> UpdateInitializedOperationNode(TOperationId operationId, bool isCleanOperationStart);
 
     TFuture<void> AttachToLivePreview(
         TOperationId operationId,

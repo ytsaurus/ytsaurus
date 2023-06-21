@@ -222,7 +222,7 @@ private:
 
                 handler->HandleRequest(request, response);
 
-                NTracing::FlushCurrentTraceContextElapsedTime();
+                NTracing::FlushCurrentTraceContextTime();
 
                 YT_LOG_DEBUG("Finished handling HTTP request (RequestId: %v, WallTime: %v, CpuTime: %v)",
                     request->GetRequestId(),

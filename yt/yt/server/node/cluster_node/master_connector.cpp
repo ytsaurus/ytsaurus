@@ -225,7 +225,7 @@ public:
         Reset();
 
         auto delay = firstTime
-            ? RandomDuration(*Config_->FirstRegisterSplay)
+            ? TDuration::Zero()
             : *Config_->RegisterRetryPeriod + RandomDuration(*Config_->RegisterRetrySplay);
 
         TDelayedExecutor::Submit(
@@ -236,7 +236,7 @@ public:
 
     NRpc::IChannelPtr GetMasterChannel(TCellTag cellTag) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
         auto cellId = Bootstrap_->GetCellId(cellTag);
         const auto& client = Bootstrap_->GetClient();
@@ -476,12 +476,15 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         const auto& connection = Bootstrap_->GetClient()->GetNativeConnection();
+        // NB: Node lease transaction is not Cypress to avoid chicken and egg problem with
+        // Sequoia in future.
         TTransactionStartOptions options{
             .Timeout = Config_->LeaseTransactionTimeout,
             .PingPeriod = Config_->LeaseTransactionPingPeriod,
             .SuppressStartTimestampGeneration = true,
             .CoordinatorMasterCellTag = connection->GetPrimaryMasterCellTag(),
-            .ReplicateToMasterCellTags = connection->GetSecondaryMasterCellTags()
+            .ReplicateToMasterCellTags = connection->GetSecondaryMasterCellTags(),
+            .StartCypressTransaction = false,
         };
 
         auto attributes = CreateEphemeralAttributes();
@@ -548,6 +551,8 @@ private:
                     ToProto(req->add_chunk_location_uuids(), location->GetUuid());
                 }
             }
+            // COMPAT(kvk1920)
+            req->set_location_directory_supported(true);
         }
 
         auto tableMountConfig = New<NTabletNode::TTableMountConfig>();
@@ -572,7 +577,10 @@ private:
 
                 YT_VERIFY(dataNodeInfoExt.has_medium_overrides());
                 mediumUpdater->UpdateLocationMedia(dataNodeInfoExt.medium_overrides(), /*onInitialize*/ true);
+
+                dataNodeBootstrap->SetLocationUuidsRequired(dataNodeInfoExt.require_location_uuids());
             } else {
+                dataNodeBootstrap->SetLocationUuidsRequired(true);
                 mediumUpdater->UpdateLocationMedia({}, /*onInitialize*/ true);
             }
         }

@@ -89,9 +89,6 @@ public:
     // is subclass-specific).
     TString MediumName;
 
-    //! Disk family in this location (HDD, SDD, etc.)
-    TString DiskFamily;
-
     //! Configuration for various per-location throttlers.
     TEnumIndexedVector<EChunkLocationThrottlerKind, NConcurrency::TThroughputThrottlerConfigPtr> Throttlers;
 
@@ -106,12 +103,6 @@ public:
     //! Maximum number of bytes in the gap between two adjacent read locations
     //! in order to join them together during read coalescing.
     i64 CoalescedReadMaxGapSize;
-
-    //! Block device name.
-    TString DeviceName;
-
-    //! Storage device vendor info.
-    TString DeviceModel;
 
     i64 MaxWriteRateByDwpd;
 
@@ -587,30 +578,15 @@ DEFINE_REFCOUNTED_TYPE(TIOThroughputMeterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLocationHealthCheckerConfig
+class TLocationHealthCheckerDynamicConfig
     : public NYTree::TYsonStruct
 {
 public:
     bool Enabled;
 
+    bool EnableManualDiskFailures;
+
     TDuration HealthCheckPeriod;
-
-    REGISTER_YSON_STRUCT(TLocationHealthCheckerConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TLocationHealthCheckerConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TLocationHealthCheckerDynamicConfig
-    : public NYTree::TYsonStruct
-{
-public:
-    std::optional<bool> Enabled;
-
-    std::optional<TDuration> HealthCheckPeriod;
 
     REGISTER_YSON_STRUCT(TLocationHealthCheckerDynamicConfig);
 
@@ -735,10 +711,6 @@ public:
 
     //! Table schema and row key comparer cache.
     TTableSchemaCacheConfigPtr TableSchemaCache;
-
-    //! Configuration of the location health checker that is responsible for looking up
-    //! for failed locations and alerting about them.
-    TLocationHealthCheckerConfigPtr LocationHealthChecker;
 
     //! Configuration of the interaction with the host disk manager.
     NContainers::TDiskManagerProxyConfigPtr DiskManagerProxy;
@@ -940,6 +912,8 @@ public:
 
     //! Publish disabled locations to master.
     std::optional<bool> PublishDisabledLocations;
+
+    NContainers::TActiveDiskCheckerDynamicConfigPtr ActiveDiskChecker;
 
     TP2PConfigPtr P2P;
 

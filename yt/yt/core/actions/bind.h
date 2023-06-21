@@ -61,7 +61,7 @@ namespace NYT {
 //
 //   cb(); // Prints "17"
 //   cb(); // Prints "17"
-//   *n = 42;
+//   *px = 42;
 //   cb(); // Prints "42"
 //
 //   cb.Reset(); // |px| is deleted.

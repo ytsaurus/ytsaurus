@@ -498,6 +498,23 @@ void TUserFileLimitsPatchConfig::Register(TRegistrar registrar)
         .Default();
 }
 
+void TJobTrackerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("node_disconnection_timeout", &TThis::NodeDisconnectionTimeout)
+        .Default(TDuration::Seconds(120))
+        .GreaterThan(TDuration::Zero());
+    registrar.Parameter("job_confirmation_timeout", &TThis::JobConfirmationTimeout)
+        .Default(TDuration::Seconds(240))
+        .GreaterThan(TDuration::Zero());
+    registrar.Parameter("logging_job_sample_size", &TThis::LoggingJobSampleSize)
+        .Default(3)
+        .GreaterThanOrEqual(0);
+    registrar.Parameter("abort_vanished_jobs", &TThis::AbortVanishedJobs)
+        .Default(false);
+    registrar.Parameter("duration_before_job_considered_vanished", &TThis::DurationBeforeJobConsideredVanished)
+        .Default(TDuration::Seconds(5));
+}
+
 void TControllerAgentConfig::Register(TRegistrar registrar)
 {
     registrar.UnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
@@ -983,10 +1000,31 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_job_profiling", &TThis::EnableJobProfiling)
         .Default();
 
+    registrar.Parameter("max_running_job_statistics_update_count_per_heartbeat", &TThis::MaxRunningJobStatisticsUpdateCountPerHeartbeat)
+        .Default(std::numeric_limits<int>::max());
+
+    registrar.Parameter("running_job_time_statistics_updates_send_period", &TThis::RunningJobTimeStatisticsUpdatesSendPeriod)
+        .Default(TDuration::Seconds(2));
+
+    registrar.Parameter("control_job_lifetime_at_scheduler", &TThis::ControlJobLifetimeAtScheduler)
+        .Default(true);
+
+    registrar.Parameter("interrupt_jobs_via_scheduler", &TThis::InterruptJobsViaScheduler)
+        .Default(false);
+
+    registrar.Parameter("job_tracker", &TThis::JobTracker)
+        .DefaultNew();
+
     registrar.Parameter("fast_intermediate_medium", &TThis::FastIntermediateMedium)
         .Default("ssd_blobs");
     registrar.Parameter("fast_intermediate_medium_limit", &TThis::FastIntermediateMediumLimit)
         .Default(0);
+
+    registrar.Parameter("release_failed_job_on_exception", &TThis::ReleaseFailedJobOnException)
+        .Default(true);
+
+    registrar.Parameter("network_projects_allowed_for_offloading", &TThis::NetworkProjectsAllowedForOffloading)
+        .Default();
 
     registrar.Preprocessor([&] (TControllerAgentConfig* config) {
         config->EventLog->MaxRowWeight = 128_MB;

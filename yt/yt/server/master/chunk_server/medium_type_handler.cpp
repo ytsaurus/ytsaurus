@@ -51,9 +51,10 @@ public:
         // These three are optional.
         auto priority = attributes->FindAndRemove<int>("priority");
         auto transient = attributes->FindAndRemove<bool>("transient");
+        auto index = attributes->FindAndRemove<int>("index");
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        return chunkManager->CreateMedium(name, transient, priority, hintId);
+        return chunkManager->CreateMedium(name, transient, priority, index, hintId);
     }
 
 private:

@@ -36,6 +36,14 @@ DECLARE_REFCOUNTED_CLASS(TZombieOperationOrchids)
 DECLARE_REFCOUNTED_CLASS(TJobProfiler)
 
 DECLARE_REFCOUNTED_CLASS(TJobTracker)
+DECLARE_REFCOUNTED_CLASS(TJobTrackerOperationHandler)
+DECLARE_REFCOUNTED_CLASS(TJobTrackerConfig)
+
+struct TStartedJobInfo
+{
+    TJobId JobId;
+    TString NodeAddress;
+};
 
 struct TLivePreviewTableBase;
 

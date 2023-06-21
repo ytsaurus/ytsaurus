@@ -11,24 +11,24 @@ TAttributeFragmentConsumer::TAttributeFragmentConsumer(IAsyncYsonConsumer* under
 
 TAttributeFragmentConsumer::~TAttributeFragmentConsumer()
 {
-    End();
+    YT_ASSERT(Finished_ || std::uncaught_exceptions() > 0);
 }
 
 void TAttributeFragmentConsumer::OnRaw(TFuture<TYsonString> asyncStr)
 {
-    Begin();
+    Start();
     UnderlyingConsumer_->OnRaw(std::move(asyncStr));
 }
 
 void TAttributeFragmentConsumer::OnRaw(TStringBuf yson, EYsonType type)
 {
     if (!yson.empty()) {
-        Begin();
+        Start();
         UnderlyingConsumer_->OnRaw(yson, type);
     }
 }
 
-// Calling Begin() on other events is redundant.
+// Calling Start() on other events is redundant.
 
 void TAttributeFragmentConsumer::OnEndAttributes()
 {
@@ -47,7 +47,7 @@ void TAttributeFragmentConsumer::OnEndMap()
 
 void TAttributeFragmentConsumer::OnKeyedItem(TStringBuf key)
 {
-    Begin();
+    Start();
     UnderlyingConsumer_->OnKeyedItem(key);
 }
 
@@ -101,7 +101,7 @@ void TAttributeFragmentConsumer::OnStringScalar(TStringBuf value)
     UnderlyingConsumer_->OnStringScalar(value);
 }
 
-void TAttributeFragmentConsumer::Begin()
+void TAttributeFragmentConsumer::Start()
 {
     if (!HasAttributes_) {
         UnderlyingConsumer_->OnBeginAttributes();
@@ -109,11 +109,12 @@ void TAttributeFragmentConsumer::Begin()
     }
 }
 
-void TAttributeFragmentConsumer::End()
+void TAttributeFragmentConsumer::Finish()
 {
     if (HasAttributes_) {
         UnderlyingConsumer_->OnEndAttributes();
     }
+    Finished_ = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -122,6 +122,7 @@ TTableSettings GetTableSettings(
         result.Provided.StoreWriterOptions->ChunksVital = chunkReplication.GetVital();
         result.Provided.StoreWriterOptions->OptimizeFor = table->GetOptimizeFor();
         result.Provided.StoreWriterOptions->ChunkFormat = table->TryGetChunkFormat();
+        result.Provided.StoreWriterOptions->SingleColumnGroupByDefault = result.EffectiveMountConfig->SingleColumnGroupByDefault;
         if (result.Provided.StoreWriterOptions->ChunkFormat) {
             ValidateTableChunkFormatVersioned(*result.Provided.StoreWriterOptions->ChunkFormat, /*versioned*/ true);
         }

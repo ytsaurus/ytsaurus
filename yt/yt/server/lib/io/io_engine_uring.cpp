@@ -1836,7 +1836,7 @@ bool IsUringIOEngineSupported()
 #ifdef _linux_
 
     io_uring uring;
-    auto result = io_uring_queue_init(1, &uring, /* flags */ 0);
+    auto result = io_uring_queue_init(MaxUringConcurrentRequestsPerThread, &uring, /* flags */ 0);
     if (result < 0) {
         return false;
     }

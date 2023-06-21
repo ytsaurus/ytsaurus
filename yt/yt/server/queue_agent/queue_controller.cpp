@@ -459,7 +459,7 @@ private:
             if (!consumerSnapshot) {
                 THROW_ERROR_EXCEPTION(
                     "Trimming iteration skipped due to missing registered vital consumer %Qv",
-                    consumerSnapshot->Row.Ref);
+                    registration.Consumer);
             } else if (!consumerSnapshot->Error.IsOK()) {
                 THROW_ERROR_EXCEPTION(
                     "Trimming iteration skipped due to erroneous registered vital consumer %Qv",

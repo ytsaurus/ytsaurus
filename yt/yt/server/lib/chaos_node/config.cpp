@@ -27,6 +27,14 @@ void TReplicationCardObserverConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TMigratedReplicationCardRemoverConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("remove_period", &TThis::RemovePeriod)
+        .Default(TDuration::Seconds(15));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TChaosManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("chaos_cell_synchronizer", &TThis::ChaosCellSynchronizer)
@@ -35,6 +43,8 @@ void TChaosManagerConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("era_commencing_period", &TThis::EraCommencingPeriod)
         .Default(TDuration::Seconds(15));
+    registrar.Parameter("migrated_replication_card_remover", &TThis::MigratedReplicationCardRemover)
+        .DefaultNew();
 }
 ////////////////////////////////////////////////////////////////////////////////
 

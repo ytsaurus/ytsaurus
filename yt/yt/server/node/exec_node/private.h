@@ -38,6 +38,10 @@ void FormatValue(
 
 DECLARE_REFCOUNTED_CLASS(TJob)
 
+DECLARE_REFCOUNTED_STRUCT(TSchedulerHeartbeatContext)
+
+DECLARE_REFCOUNTED_STRUCT(TAgentHeartbeatContext)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 inline const NLogging::TLogger ExecNodeLogger("ExecNode");

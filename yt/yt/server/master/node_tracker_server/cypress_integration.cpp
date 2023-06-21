@@ -258,6 +258,9 @@ private:
                     case EInternedAttributeKey::Mixed:
                         state = ENodeState::Mixed;
                         break;
+                    case EInternedAttributeKey::BeingDisposed:
+                        state = ENodeState::BeingDisposed;
+                        break;
                     default:
                         YT_ABORT();
                 }

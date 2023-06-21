@@ -37,9 +37,6 @@ public:
     //! Should only be used in local mode to enable writing erasure chunks in a cluster with just one node.
     bool AllowMultipleErasurePartsPerNode;
 
-    //! Interval between consequent replicator state checks.
-    TDuration ReplicatorEnabledCheckPeriod;
-
     //! When balancing chunk repair queues for multiple media, how often do
     //! their weights decay. (Weights are essentially repaired data sizes.)
     TDuration RepairQueueBalancerWeightDecayInterval;
@@ -145,6 +142,24 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicChunkMergerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDynamicMasterCellChunkStatisticsCollectorConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    int MaxChunksPerScan;
+    TDuration ChunkScanPeriod;
+
+    std::vector<TInstant> CreationTimeHistogramBucketBounds;
+
+    REGISTER_YSON_STRUCT(TDynamicMasterCellChunkStatisticsCollectorConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicMasterCellChunkStatisticsCollectorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -418,6 +433,9 @@ public:
     //! Maximum amount of time allowed to spend during a refresh iteration.
     TDuration MaxTimePerJournalChunkRefresh;
 
+    //! Interval between consequent replicator state checks.
+    TDuration ReplicatorEnabledCheckPeriod;
+
     //! If set to false, fully disables background chunk requisition updates;
     //! see #EnableChunkRefresh for a rationale.
     bool EnableChunkRequisitionUpdate;
@@ -501,6 +519,8 @@ public:
     TDynamicChunkTreeBalancerConfigPtr ChunkTreeBalancer;
 
     TDynamicChunkMergerConfigPtr ChunkMerger;
+
+    TDynamicMasterCellChunkStatisticsCollectorConfigPtr MasterCellChunkStatisticsCollector;
 
     TDynamicChunkReincarnatorConfigPtr ChunkReincarnator;
 

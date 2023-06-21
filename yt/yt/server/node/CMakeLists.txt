@@ -171,6 +171,7 @@ target_sources(yt-server-node PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/job_agent/job_resource_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/query_agent/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/query_agent/helpers.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/query_agent/multiread_request_queue_provider.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/query_agent/query_executor.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/query_agent/query_service.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/automaton.cpp

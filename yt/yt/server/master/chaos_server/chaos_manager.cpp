@@ -33,6 +33,8 @@
 
 #include <yt/yt/ytlib/object_client/public.h>
 
+#include <yt/yt/client/chaos_client/helpers.h>
+
 namespace NYT::NChaosServer {
 
 using namespace NCellMaster;
@@ -105,6 +107,53 @@ public:
     const TAlienClusterRegistryPtr& GetAlienClusterRegistry() const override
     {
         return AlienClusterRegistry_;
+    }
+
+    TChaosCell* GetBundleMetadataCell(const TChaosCellBundle* cellBundle) const override
+    {
+        YT_ASSERT(cellBundle->MetadataCells().size() <= 2);
+
+        for (auto* metadataCell : cellBundle->MetadataCells()) {
+            // COMPAT(shakurov)
+            if (!metadataCell) {
+                YT_LOG_ALERT("Null metadata cell encountered (CellBundleId: %v)",
+                    cellBundle->GetId());
+                continue;
+            }
+
+            if (IsMetadataCellInEnabledCluster(metadataCell)) {
+                return metadataCell;
+            }
+        }
+
+        return nullptr;
+    }
+
+    void SetBundleMetadataCells(TChaosCellBundle* cellBundle, const std::vector<TChaosCellId>& metadataCellIds) const override
+    {
+        if (metadataCellIds.size() > 2) {
+            THROW_ERROR_EXCEPTION("Expected 2 or less metadata cells ids, got %v",
+                metadataCellIds.size());
+        }
+        if (metadataCellIds.size() == 2 &&
+            GetSiblingChaosCellTag(CellTagFromId(metadataCellIds[0])) != CellTagFromId(metadataCellIds[1]))
+        {
+            THROW_ERROR_EXCEPTION("Metadata cells should be siblings");
+        }
+
+        std::vector<TChaosCell*> metadataCells;
+        for (auto cellId : metadataCellIds) {
+            auto* cell = GetChaosCellByIdOrThrow(cellId);
+            if (cell->CellBundle() != cellBundle) {
+                THROW_ERROR_EXCEPTION("Cell %v belongs to a different bundle %Qv",
+                    cellId,
+                    cell->CellBundle()->GetName());
+            }
+
+            metadataCells.push_back(cell);
+        }
+
+        cellBundle->MetadataCells() = std::move(metadataCells);
     }
 
     TChaosCell* FindChaosCellById(TChaosCellId cellId) const override
@@ -192,7 +241,24 @@ private:
 
     const TAlienClusterRegistryPtr AlienClusterRegistry_;
     const IAlienCellSynchronizerPtr AlienCellSynchronizer_;
+    THashSet<TString> EnabledMetadataClusters_;
 
+    bool IsMetadataCellInEnabledCluster(const TChaosCell* chaosCell) const
+    {
+        YT_VERIFY(chaosCell);
+
+        if (chaosCell->GetDescriptor().Peers.empty()) {
+            return false;
+        }
+
+        const auto& alienCluster = chaosCell->GetDescriptor().Peers[0].GetAlienCluster();
+
+        if (!alienCluster) {
+            return true;
+        }
+
+        return EnabledMetadataClusters_.contains(alienCluster.value());
+    }
 
     void OnCellCreated(TCellBase* cellBase)
     {
@@ -231,7 +297,18 @@ private:
         auto constellations = FromProto<std::vector<TAlienCellConstellation>>(request->constellations());
         auto fullSync = request->full_sync();
 
-        for (const auto& [alienClusterIndex, alienCells, lostAlienCellIds] : constellations) {
+        if (fullSync) {
+            EnabledMetadataClusters_.clear();
+        }
+
+        for (const auto& [alienClusterIndex, alienCells, lostAlienCellIds, enableMetadataCells] : constellations) {
+            const auto& clusterName = AlienClusterRegistry_->GetAlienClusterName(alienClusterIndex);
+            if (enableMetadataCells) {
+                EnabledMetadataClusters_.insert(clusterName);
+            } else {
+                EnabledMetadataClusters_.erase(clusterName);
+            }
+
             for (const auto& alienCell : alienCells) {
                 auto* cell = FindChaosCellById(alienCell.CellId);
                 if (!IsObjectAlive(cell)) {
@@ -246,7 +323,7 @@ private:
                         YT_LOG_ALERT("Trying to update alien peer with invalid peer id (ChaosCellId: %v, PeerId: %v, AlienCluster: %v)",
                             cell->GetId(),
                             alienPeer.PeerId,
-                            AlienClusterRegistry_->GetAlienClusterName(alienClusterIndex));
+                            clusterName);
                         continue;
                     }
 
@@ -254,7 +331,7 @@ private:
                         YT_LOG_ALERT("Trying to update local peer as alien, ignored (ChaosCellId: %v, PeerId: %v, AlienCluster: %v)",
                             cell->GetId(),
                             alienPeer.PeerId,
-                            AlienClusterRegistry_->GetAlienClusterName(alienClusterIndex));
+                            clusterName);
                         continue;
                     }
 
@@ -263,7 +340,7 @@ private:
                     YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Updated alien peer config (ChaosCellId: %v, "
                         "AlienCluster: %v, AlienConfigVersion: %v, PeerAddress: %v)",
                         cell->GetId(),
-                        AlienClusterRegistry_->GetAlienClusterName(alienClusterIndex),
+                        clusterName,
                         alienCell.ConfigVersion,
                         alienPeer.NodeDescriptor.GetDefaultAddress());
                 }
@@ -281,14 +358,14 @@ private:
                     const auto& options = cell->GetChaosOptions();
                     for (int peerId = 0; peerId < std::ssize(options->Peers); ++peerId) {
                         const auto& alienCluster = options->Peers[peerId]->AlienCluster;
-                        if (alienCluster && alienCluster == AlienClusterRegistry_->GetAlienClusterName(alienClusterIndex)) {
+                        if (alienCluster && alienCluster == clusterName) {
                             cell->UpdateAlienPeer(peerId, {});
                         }
                     }
 
                     YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Updated alien peer config for lost peers (ChaosCellId: %v, AlienCluster: %v)",
                         cellId,
-                        AlienClusterRegistry_->GetAlienClusterName(alienClusterIndex));
+                        clusterName);
 
                     cell->SetAlienConfigVersion(alienClusterIndex, 0);
                 }
@@ -353,6 +430,7 @@ private:
     void SaveKeys(NCellMaster::TSaveContext& context) const
     {
         Save(context, *AlienClusterRegistry_);
+        Save(context, EnabledMetadataClusters_);
     }
 
     void LoadKeys(NCellMaster::TLoadContext& context)
@@ -360,6 +438,11 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         Load(context, *AlienClusterRegistry_);
+
+        // COMPAT(ponasenko-rs)
+        if (context.GetVersion() >= EMasterReign::UseMetadataCellIds) {
+            Load(context, EnabledMetadataClusters_);
+        }
     }
 
     void Clear() override

@@ -210,6 +210,9 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_table_collocation_size", &TThis::MaxTableCollocationSize)
         .Default(200);
 
+    registrar.Parameter("add_perf_counters_to_tablets_attribute", &TThis::AddPerfCountersToTabletsAttribute)
+        .Default(true);
+
     registrar.Preprocessor([] (TThis* config) {
         config->StoreChunkReader->SuspiciousNodeGracePeriod = TDuration::Minutes(5);
         config->StoreChunkReader->BanPeersPermanently = false;

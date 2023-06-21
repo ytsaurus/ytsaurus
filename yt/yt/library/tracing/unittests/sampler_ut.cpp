@@ -7,9 +7,7 @@
 namespace NYT::NTracing {
 namespace {
 
-////////////////////////////////////////////////////////////////////////////////
-
-TEST(TSamplerTest, PerUser)
+TEST(Sampler, PerUser)
 {
     auto config = New<TSamplerConfig>();
     config->MinPerUserSamples = 1;
@@ -32,8 +30,6 @@ TEST(TSamplerTest, PerUser)
     sampler->SampleTraceContext("prime", traceContext);
     ASSERT_TRUE(traceContext->IsSampled());
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 } // namespace NYT::NTracing

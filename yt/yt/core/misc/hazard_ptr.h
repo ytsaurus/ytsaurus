@@ -2,8 +2,6 @@
 
 #include <yt/yt/core/misc/public.h>
 
-#include <yt/yt/core/concurrency/scheduler_api.h>
-
 #include <library/cpp/yt/logging/logger.h>
 
 #include <atomic>
@@ -34,11 +32,11 @@ struct THazardPtrReclaimGuard
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Relcaims hazard pointers on destruction and also on context switch.
-struct  THazardPtrReclaimOnContextSwitchGuard
+struct THazardPtrReclaimOnContextSwitchGuard
     : public THazardPtrReclaimGuard
-    , public NConcurrency::TContextSwitchGuard
 {
     THazardPtrReclaimOnContextSwitchGuard();
+    ~THazardPtrReclaimOnContextSwitchGuard();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

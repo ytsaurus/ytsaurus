@@ -52,6 +52,7 @@
     XX(AllowUsingChunkMerger, allow_using_chunk_merger) \
     XX(Banned, banned) \
     XX(BannedNodeCount, banned_node_count) \
+    XX(BeingDisposed, being_disposed) \
     XX(BoundaryKeys, boundary_keys) \
     XX(BranchedNodeIds, branched_node_ids) \
     XX(Broken, broken) \
@@ -77,8 +78,10 @@
     XX(ChunkIds, chunk_ids) \
     XX(ChunkListId, chunk_list_id) \
     XX(ChunkLocations, chunk_locations) \
+    XX(ChunkMediaStatistics, chunk_media_statistics) \
     XX(ChunkMergerMode, chunk_merger_mode) \
     XX(ChunkMergerNodeTraversalConcurrency, chunk_merger_node_traversal_concurrency) \
+    XX(ChunkMergerCriteria, chunk_merger_criteria) \
     XX(ChunkMergerTraversalInfo, chunk_merger_traversal_info) \
     XX(ChunkReader, chunk_reader) \
     XX(ChunkReplicaCount, chunk_replica_count) \
@@ -103,6 +106,7 @@
     XX(ConfigPreset, config_preset) \
     XX(ConfigVersion, config_version) \
     XX(Confirmed, confirmed) \
+    XX(UsePoolSatisfactionForScheduling, use_pool_satisfaction_for_scheduling) \
     XX(ConsistentReplicaPlacement, consistent_replica_placement) \
     XX(ConsistentReplicaPlacementHash, consistent_replica_placement_hash) \
     XX(ConsistentReplicaPlacementTokenCount, consistent_replica_placement_token_count) \
@@ -115,6 +119,7 @@
     XX(CurrentCommitRevision, current_commit_revision) \
     XX(CurrentMountTransactionId, current_mount_transaction_id) \
     XX(CustomProfilingTagFilter, custom_profiling_tag_filter) \
+    XX(CypressTransaction, cypress_transaction) \
     XX(DataCenter, data_center) \
     XX(DataWeight, data_weight) \
     XX(Deadline, deadline) \
@@ -185,6 +190,7 @@
     XX(FairShareAggressiveStarvationTimeout, fair_share_aggressive_starvation_timeout) \
     XX(FairShareStarvationTolerance, fair_share_starvation_tolerance) \
     XX(FifoSortParameters, fifo_sort_parameters) \
+    XX(FifoPoolSchedulingOrder, fifo_pool_scheduling_order) \
     XX(FileName, file_name) \
     XX(Flavors, flavors) \
     XX(FlushLagTime, flush_lag_time) \
@@ -285,6 +291,7 @@
     XX(MemoryUsage, memory_usage) \
     XX(MergeJobRateLimit, merge_job_rate_limit) \
     XX(MetadataCellId, metadata_cell_id) \
+    XX(MetadataCellIds, metadata_cell_ids) \
     XX(MetaSize, meta_size) \
     XX(MeteringTags, metering_tags) \
     XX(MinChildHeapSize, min_child_heap_size) \
@@ -378,6 +385,7 @@
     XX(RecursiveCommittedResourceUsage, recursive_committed_resource_usage) \
     XX(RecursiveResourceUsage, recursive_resource_usage) \
     XX(RecursiveViolatedResourceLimits, recursive_violated_resource_limits) \
+    XX(RecursiveLockCount, recursive_lock_count) \
     XX(RefCounter, ref_counter) \
     XX(ReferencingAccounts, referencing_accounts) \
     XX(RegisterTime, register_time) \
@@ -469,6 +477,7 @@
     XX(TabletErrorsUntrimmed, tablet_errors_untrimmed) \
     XX(TabletId, tablet_id) \
     XX(TabletIds, tablet_ids) \
+    XX(TabletPerformanceCounters, tablet_performance_counters) \
     XX(TabletSlots, tablet_slots) \
     XX(TabletState, tablet_state) \
     XX(TabletStatistics, tablet_statistics) \
@@ -512,10 +521,11 @@
     XX(UserAttributes, user_attributes) \
     XX(UserAttributeKeys, user_attribute_keys) \
     XX(UserTags, user_tags) \
-    XX(UsingNodes, using_nodes) \
+    XX(AssociatedNodes, associated_nodes) \
     XX(Value, value) \
     XX(ValueCount, value_count) \
     XX(Version, version) \
+    XX(VersionedResourceUsage, versioned_resource_usage) \
     XX(ViolatedResourceLimits, violated_resource_limits) \
     XX(Vital, vital) \
     XX(VitalQueueConsumer, vital_queue_consumer) \

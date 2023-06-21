@@ -8,7 +8,9 @@ from .table_commands import (  # noqa
     write_table_structured, read_table_structured)
 from .download_core_dump import download_core_dump  # noqa
 from .dynamic_table_commands import select_rows, insert_rows, delete_rows, lookup_rows, lock_rows, explain_query  # noqa
-from .queue_commands import register_queue_consumer, unregister_queue_consumer, list_queue_consumer_registrations  # noqa
+from .queue_commands import (  # noqa
+    register_queue_consumer, unregister_queue_consumer, list_queue_consumer_registrations, pull_queue, pull_consumer,
+    advance_consumer)
 from .query_commands import start_query, abort_query, read_query_result, get_query, list_queries  # noqa
 from .run_operation_commands import (  # noqa
     run_erase, run_merge, run_sort, run_map_reduce, run_map, run_reduce,

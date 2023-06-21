@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE
 
 from yt_commands import (
     authors, wait, create, ls, get, set, exists, remove,
@@ -7,7 +7,10 @@ from yt_commands import (
     add_member, remove_member, remove_group, remove_user,
     remove_network_project, start_transaction, raises_yt_error,
     set_user_password, issue_token, revoke_token, list_user_tokens,
+    build_snapshot,
 )
+
+from yt_helpers import profiler_factory
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
@@ -507,7 +510,7 @@ class TestUsers(YTEnvSetup):
             )
 
     @authors("aleksandra-zh")
-    def test_distributed_throttler(self):
+    def test_distributed_throttler_simple(self):
         create_user("u")
 
         set("//sys/@config/security_manager/enable_distributed_throttler", True)
@@ -515,6 +518,36 @@ class TestUsers(YTEnvSetup):
 
         set("//sys/@config/security_manager/enable_distributed_throttler", False)
         get("//tmp", authenticated_user="u")
+
+    @authors("aleksandra-zh")
+    def test_distributed_throttler_profiler(self):
+        create_user("u")
+
+        set("//sys/@config/security_manager/enable_distributed_throttler", True)
+        get("//tmp", authenticated_user="u")
+
+        master_address = ls("//sys/primary_masters")[0]
+        profiler = profiler_factory().at_primary_master(master_address)
+
+        def get_throttler_gauge(name):
+            # Provoke limits update
+            get("//tmp", authenticated_user="u")
+
+            path = "security/distributed_throttler/{}".format(name)
+            gauge = profiler.gauge(name=path, fixed_tags={"throttler_id": "u:request_count:Read"}).get()
+            if gauge is None:
+                return 0
+            return gauge
+
+        wait(lambda: get_throttler_gauge("usage") > 0)
+        wait(lambda: get_throttler_gauge("limit") > 0)
+
+        for _ in range(5):
+            with Restarter(self.Env, MASTERS_SERVICE):
+                pass
+
+            wait(lambda: get_throttler_gauge("usage") > 0)
+            wait(lambda: get_throttler_gauge("limit") > 0)
 
     @authors("gritukan")
     def test_recomute_membership_closure_on_group_destruction(self):
@@ -628,6 +661,45 @@ class TestUsers(YTEnvSetup):
 
         revoke_token("u", t2_hash, "u", authenticated_user="u")
         assert list_user_tokens("u") == []
+
+    @authors("shakurov")
+    def test_user_request_profiling(self):
+        master_address = ls("//sys/primary_masters")[0]
+        profiler = profiler_factory().at_primary_master(master_address)
+
+        def check_profiling_counters(user_name, should_exist):
+            read_time = profiler.counter("security/user_read_time", tags={"user": user_name})
+            write_time = profiler.counter("security/user_write_time", tags={"user": user_name})
+            read_request_count = profiler.counter("security/user_read_request_count", tags={"user": user_name})
+            write_request_count = profiler.counter("security/user_write_request_count", tags={"user": user_name})
+            request_count = profiler.counter("security/user_request_count", tags={"user": user_name})
+            request_queue_size = profiler.counter("security/user_request_queue_size", tags={"user": user_name})
+
+            wait(lambda: (read_time.get() is not None) == should_exist)
+            wait(lambda: (write_time.get() is not None) == should_exist)
+            wait(lambda: (write_request_count.get() is not None) == should_exist)
+            wait(lambda: (read_request_count.get() is not None) == should_exist)
+            wait(lambda: (request_count.get() is not None) == should_exist)
+            wait(lambda: (request_queue_size.get() is not None) == should_exist)
+
+        create_user("u")
+        check_profiling_counters("u", True)
+
+        set("//sys/users/u/@name", "v")
+        assert not exists("//sys/users/u")
+        assert exists("//sys/users/v")
+
+        check_profiling_counters("u", False)
+        check_profiling_counters("v", True)
+
+        build_snapshot(cell_id=None)
+
+        # Shutdown masters and wait a bit.
+        with Restarter(self.Env, MASTERS_SERVICE):
+            pass
+
+        check_profiling_counters("u", False)
+        check_profiling_counters("v", True)
 
 
 ##################################################################

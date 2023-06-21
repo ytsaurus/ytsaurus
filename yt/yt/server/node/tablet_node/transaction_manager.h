@@ -91,6 +91,9 @@ public:
         TTransactionId transactionId,
         bool pingAncestors) override;
 
+    bool CommitTransaction(TCtxCommitTransactionPtr context) override;
+    bool AbortTransaction(TCtxAbortTransactionPtr context) override;
+
 public:
     TTransactionManager(
         TTransactionManagerConfigPtr config,
@@ -103,13 +106,11 @@ public:
     //! If it does not exist then creates a new transaction
     //! (either persistent or transient, depending on #transient).
     //! Throws if tablet cell is decommissioned or suspended.
-    //! \param fresh An out-param indicating if the transaction was just-created.
     TTransaction* GetOrCreateTransactionOrThrow(
         TTransactionId transactionId,
         TTimestamp startTimestamp,
         TDuration timeout,
-        bool transient,
-        bool* fresh = nullptr);
+        bool transient);
 
     //! Finds a transaction by id.
     //! If a persistent instance is found, just returns it.
@@ -128,9 +129,6 @@ public:
     //! Fails if no transaction is found.
     //! Throws if tablet cell is decommissioned or suspended.
     TTransaction* MakeTransactionPersistentOrThrow(TTransactionId transactionId);
-
-    //! Removes a given #transaction, which must be transient.
-    void DropTransaction(TTransaction* transaction);
 
     //! Returns the full list of transactions, including transient and persistent.
     std::vector<TTransaction*> GetTransactions();

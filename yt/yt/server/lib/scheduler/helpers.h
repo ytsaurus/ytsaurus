@@ -41,7 +41,8 @@ EAllocationState JobStateToAllocationState(const EJobState jobState);
 struct TAllocationToAbort
 {
     TAllocationId AllocationId;
-    std::optional<NScheduler::EAbortReason> AbortReason{};
+    // TODO(pogorelov): Make AbortReason non-nullable.
+    std::optional<NScheduler::EAbortReason> AbortReason;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

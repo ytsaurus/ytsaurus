@@ -296,7 +296,11 @@ protected:
         BlockMetaExtSize_ += block.Meta.ByteSizeLong();
         BlockMetaExt_.add_data_blocks()->Swap(&block.Meta);
 
-        EncodingChunkWriter_->WriteBlock(std::move(block.Data), block.GroupIndex);
+        // NB: Currently schemaless writer does not support system blocks.
+        EncodingChunkWriter_->WriteBlock(
+            std::move(block.Data),
+            EBlockType::UncompressedData,
+            block.GroupIndex);
     }
 
     void ProcessRowset(TRange<TUnversionedRow> rows)
@@ -437,7 +441,7 @@ private:
     NProto::TSamplesExt SamplesExt_;
     i64 SamplesExtSize_ = 0;
 
-    mutable NProto::TColumnarStatisticsExt ColumnarStatisticsExt_;
+    NProto::TColumnarStatisticsExt ColumnarStatisticsExt_;
 
     void FillCommonMeta(TChunkMeta* meta) const
     {
@@ -446,14 +450,20 @@ private:
 
         {
             auto chunkFeatures = FromProto<EChunkFeatures>(meta->features());
+
             bool hasDescendingColumns = false;
             for (const auto& column : Schema_->Columns()) {
                 if (column.SortOrder() == ESortOrder::Descending) {
                     hasDescendingColumns = true;
                 }
             }
+
             if (hasDescendingColumns) {
                 chunkFeatures |= EChunkFeatures::DescendingSortOrder;
+            }
+
+            if (Schema_->HasHunkColumns()) {
+                chunkFeatures |= EChunkFeatures::UnversionedHunks;
             }
 
             meta->set_features(static_cast<ui64>(chunkFeatures));

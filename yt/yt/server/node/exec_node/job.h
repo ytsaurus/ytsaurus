@@ -14,9 +14,12 @@
 #include <yt/yt/library/containers/public.h>
 
 #include <yt/yt/server/lib/exec_node/public.h>
+#include <yt/yt/server/lib/exec_node/job_report.h>
 
-#include <yt/yt/server/lib/job_agent/job_report.h>
+#include <yt/yt/server/lib/misc/job_report.h>
+
 #include <yt/yt/server/lib/job_agent/public.h>
+#include <yt/yt/server/lib/job_agent/structs.h>
 
 #include <yt/yt/server/lib/job_proxy/public.h>
 
@@ -84,7 +87,7 @@ public:
 
     NJobAgent::TResourceHolder* AsResourceHolder();
 
-    void Abort(const TError& error);
+    void Abort(TError error);
 
     void OnJobProxySpawned();
 
@@ -182,7 +185,7 @@ public:
         const NJobProberClient::TJobShellDescriptor& jobShellDescriptor,
         const NYson::TYsonString& parameters);
 
-    void HandleJobReport(NJobAgent::TNodeJobReport&& jobReport);
+    void HandleJobReport(NExecNode::TNodeJobReport&& jobReport);
 
     void ReportSpec();
 
@@ -202,7 +205,7 @@ public:
 
     bool GetStored() const;
 
-    void SetStored(bool value);
+    void SetStored();
 
     bool IsJobProxyCompleted() const noexcept;
 
@@ -224,6 +227,8 @@ public:
     const std::optional<NScheduler::TPreemptedFor>& GetPreemptedFor() const noexcept;
 
     bool IsFinished() const noexcept;
+
+    TFuture<void> GetCleanupFinishedEvent();
 
 private:
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
@@ -273,7 +278,7 @@ private:
 
     NProfiling::TBufferedProducerPtr UserJobSensorProducer_;
 
-    NJobAgent::TExecAttributes ExecAttributes_;
+    TExecAttributes ExecAttributes_;
 
     std::optional<TError> Error_;
     std::optional<NScheduler::NProto::TSchedulerJobResultExt> JobResultExtension_;
@@ -319,15 +324,15 @@ private:
     EJobState JobState_ = EJobState::Waiting;
     EJobPhase JobPhase_ = EJobPhase::Created;
 
-    bool Finalized_ = false;
-
-    NJobAgent::TJobEvents JobEvents_;
+    TJobEvents JobEvents_;
 
     NScheduler::EInterruptReason InterruptionReason_ = NScheduler::EInterruptReason::None;
     std::optional<NScheduler::TPreemptedFor> PreemptedFor_;
 
     //! True if scheduler asked to store this job.
     bool Stored_ = false;
+
+    TPromise<void> CleanupFinished_ = NewPromise<void>();
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, JobProbeLock_);
     NJobProberClient::IJobProbePtr JobProbe_;
@@ -420,7 +425,8 @@ private:
 
     void OnJobProxyFinished(const TError& error);
 
-    void GuardedAction(std::function<void()> action);
+    template <class TCallback>
+    void GuardedAction(const TCallback& action);
 
     void FinishPrepare(const TErrorOr<TJobWorkspaceBuildResult>& resultOrError);
 
@@ -465,7 +471,7 @@ private:
 
     NContainers::TRootFS MakeWritableRootFS();
 
-    NJobAgent::TNodeJobReport MakeDefaultJobReport();
+    TNodeJobReport MakeDefaultJobReport();
 
     void InitializeJobProbe();
 
@@ -489,7 +495,14 @@ private:
 
     void OnResourcesAcquired() override;
 
-    void Finalize();
+    void Finalize(
+        TError error,
+        std::optional<NScheduler::NProto::TSchedulerJobResultExt> jobResultExtension,
+        bool byJobProxyCompletion);
+
+    void Finalize(TError error);
+
+    bool NeedsGpuCheck() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJob)

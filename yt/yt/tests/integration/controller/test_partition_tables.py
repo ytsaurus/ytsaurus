@@ -5,6 +5,8 @@ from yt_commands import (
 
 from yt.yson import dumps, to_yson_type
 
+import pytest
+
 
 class TestPartitionTablesBase(YTEnvSetup):
     def setup_method(self, method):
@@ -165,27 +167,52 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
         assert len(partitions) == requested_rows
 
     @authors("galtsev")
-    def test_max_partition_count_exceeded_strict(self):
-        table = "//tmp/sorted-static"
-        chunk_count = 6
-        rows_per_chunk = 1000
-        row_weight = 1000
-        data_weight = self._create_table(table, chunk_count, rows_per_chunk, row_weight)
+    @pytest.mark.parametrize("partition_mode", ["ordered", "unordered"])
+    @pytest.mark.parametrize(
+        "tables_parameters", [
+            [("//tmp/sorted-static", 6, 1000, 1000)],
+            [("//tmp/sorted-static-1", 6, 1000, 1000), ("//tmp/sorted-static-2", 6, 1000, 100)],
+        ],
+    )
+    def test_max_partition_count_exceeded_strict(self, partition_mode, tables_parameters):
+        data_weight = 0
+        tables = []
+        for (table, chunk_count, rows_per_chunk, row_weight) in tables_parameters:
+            data_weight += self._create_table(table, chunk_count, rows_per_chunk, row_weight)
+            tables.append(table)
 
-        max_partition_count = 1
+        max_partition_count = 2
         with raises_yt_error(f"Maximum partition count exceeded: {max_partition_count}"):
-            partition_tables([table], data_weight_per_partition=data_weight // 6, max_partition_count=max_partition_count, adjust_data_weight_per_partition=False)
+            partition_tables(
+                tables,
+                partition_mode=partition_mode,
+                data_weight_per_partition=data_weight // 6,
+                max_partition_count=max_partition_count,
+                adjust_data_weight_per_partition=False,
+            )
 
     @authors("galtsev")
-    def test_adjust_data_weight_per_partition(self):
-        table = "//tmp/sorted-static"
-        chunk_count = 6
-        rows_per_chunk = 1000
-        row_weight = 1000
-        data_weight = self._create_table(table, chunk_count, rows_per_chunk, row_weight)
+    @pytest.mark.parametrize("partition_mode", ["ordered", "unordered"])
+    @pytest.mark.parametrize(
+        "tables_parameters", [
+            [("//tmp/sorted-static", 6, 1000, 1000)],
+            [("//tmp/sorted-static-1", 6, 1000, 1000), ("//tmp/sorted-static-2", 6, 1000, 100)],
+        ],
+    )
+    def test_adjust_data_weight_per_partition(self, partition_mode, tables_parameters):
+        data_weight = 0
+        tables = []
+        for (table, chunk_count, rows_per_chunk, row_weight) in tables_parameters:
+            data_weight += self._create_table(table, chunk_count, rows_per_chunk, row_weight)
+            tables.append(table)
 
-        max_partition_count = 1
-        partitions = partition_tables([table], data_weight_per_partition=data_weight // 6, max_partition_count=max_partition_count)
+        max_partition_count = 2
+        partitions = partition_tables(
+            tables,
+            partition_mode=partition_mode,
+            data_weight_per_partition=data_weight // 6,
+            max_partition_count=max_partition_count,
+        )
         assert len(partitions) == max_partition_count
 
     @authors("galtsev")

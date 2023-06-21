@@ -150,12 +150,6 @@ private:
 
             auto cellDescriptors = FromProto<std::vector<TCellDescriptor>>(rsp->cell_descriptors());
 
-            THashMap<TCellTag, TCellId> observedCells;
-            {
-                auto guard = Guard(SpinLock_);
-                observedCells = ObservedCells_;
-            }
-
             for (auto descriptor : cellDescriptors) {
                 auto cellTag = CellTagFromId(descriptor.CellId);
                 TCellId cellId;

@@ -869,8 +869,9 @@ void ToProto(NProto::TJob* protoJob, const NApi::TJob& job)
     if (auto state = job.GetState()) {
         protoJob->set_state(ConvertJobStateToProto(*state));
     }
-    if (job.ControllerAgentState) {
-        protoJob->set_controller_agent_state(ConvertJobStateToProto(*job.ControllerAgentState));
+    if (job.ControllerState) {
+        protoJob->set_controller_state(
+            ConvertJobStateToProto(*job.ControllerState));
     }
     if (job.ArchiveState) {
         protoJob->set_archive_state(ConvertJobStateToProto(*job.ArchiveState));
@@ -960,10 +961,10 @@ void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
     } else {
         job->Type.reset();
     }
-    if (protoJob.has_controller_agent_state()) {
-        job->ControllerAgentState = ConvertJobStateFromProto(protoJob.controller_agent_state());
+    if (protoJob.has_controller_state()) {
+        job->ControllerState = ConvertJobStateFromProto(protoJob.controller_state());
     } else {
-        job->ControllerAgentState.reset();
+        job->ControllerState.reset();
     }
     if (protoJob.has_archive_state()) {
         job->ArchiveState = ConvertJobStateFromProto(protoJob.archive_state());

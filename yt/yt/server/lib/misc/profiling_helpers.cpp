@@ -18,7 +18,7 @@ const TString UnknownProfilingTag("unknown");
 ////////////////////////////////////////////////////////////////////////////////
 
 TServiceProfilerGuard::TServiceProfilerGuard()
-    : TraceContext_(NTracing::TryGetCurrentTraceContext())
+    : TraceContext_(NTracing::GetCurrentTraceContext())
     , StartTime_(NProfiling::GetCpuInstant())
 { }
 
@@ -30,7 +30,7 @@ TServiceProfilerGuard::~TServiceProfilerGuard()
         return;
     }
 
-    NTracing::FlushCurrentTraceContextElapsedTime();
+    NTracing::FlushCurrentTraceContextTime();
     TimeCounter_.Add(CpuDurationToDuration(TraceContext_->GetElapsedCpuTime()));
 }
 

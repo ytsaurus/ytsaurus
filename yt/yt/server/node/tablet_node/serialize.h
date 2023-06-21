@@ -32,6 +32,7 @@ DEFINE_ENUM(ETabletReign,
     // 23.1 starts here.
     ((LockingState)                       (100700)) // gritukan
     ((JournalHunks)                       (100701)) // aleksandra-zh
+    ((FixHunkStorage)                     (100702)) // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

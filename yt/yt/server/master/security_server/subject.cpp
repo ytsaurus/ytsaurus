@@ -16,6 +16,16 @@ TSubject::TSubject(TSubjectId id)
     , Acd_(this)
 { }
 
+TString TSubject::GetName() const
+{
+    return Name_;
+}
+
+void TSubject::SetName(const TString& name)
+{
+    Name_ = name;
+}
+
 void TSubject::Save(NCellMaster::TSaveContext& context) const
 {
     TObject::Save(context);

@@ -9,6 +9,8 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
+#include <yt/yt/core/misc/digest.h>
+
 #include <yt/yt/core/yson/null_consumer.h>
 
 #include <library/cpp/testing/gtest/gtest.h>
@@ -787,6 +789,15 @@ TEST_F(TFairShareTreeElementTest, TestSatisfactionRatio)
         // in this case, we take the minimum of the pool's local satisfaction (1/3) and the first child's satisfaction (0.5).
         EXPECT_NEAR(1.0 / 3.0, poolC->PostUpdateAttributes().SatisfactionRatio, 1e-7);
         EXPECT_EQ(InfiniteSatisfactionRatio, poolD->PostUpdateAttributes().SatisfactionRatio);
+
+        const auto& digest = rootElement->PostUpdateAttributes().SatisfactionDigest;
+        ASSERT_TRUE(digest);
+        EXPECT_NEAR(0.0, digest->GetQuantile(0.0), 1e-7);
+        EXPECT_NEAR(0.0, digest->GetQuantile(0.25), 1e-7);
+        EXPECT_NEAR(0.0, digest->GetQuantile(0.5), 1e-7);
+        EXPECT_NEAR(0.5, digest->GetQuantile(0.51), 1e-7);
+        EXPECT_NEAR(0.5, digest->GetQuantile(0.75), 1e-7);
+        EXPECT_NEAR(0.5, digest->GetQuantile(1.0), 1e-7);
     }
 
     for (int i = 0; i < 10; ++i) {
@@ -807,6 +818,15 @@ TEST_F(TFairShareTreeElementTest, TestSatisfactionRatio)
         EXPECT_EQ(InfiniteSatisfactionRatio, poolB->PostUpdateAttributes().SatisfactionRatio);
         EXPECT_EQ(0.5, poolC->PostUpdateAttributes().SatisfactionRatio);
         EXPECT_EQ(InfiniteSatisfactionRatio, poolD->PostUpdateAttributes().SatisfactionRatio);
+
+        const auto& digest = rootElement->PostUpdateAttributes().SatisfactionDigest;
+        ASSERT_TRUE(digest);
+        EXPECT_NEAR(0.0, digest->GetQuantile(0.0), 1e-7);
+        EXPECT_NEAR(0.5, digest->GetQuantile(0.25), 1e-7);
+        EXPECT_NEAR(0.5, digest->GetQuantile(0.5), 1e-7);
+        EXPECT_NEAR(0.5, digest->GetQuantile(0.51), 1e-7);
+        EXPECT_NEAR(0.5, digest->GetQuantile(0.75), 1e-7);
+        EXPECT_NEAR(0.5, digest->GetQuantile(1.0), 1e-7);
     }
 }
 

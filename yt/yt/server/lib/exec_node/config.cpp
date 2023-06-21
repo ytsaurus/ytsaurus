@@ -9,6 +9,20 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TJobThrashingDetectorConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enabled", &TThis::Enabled)
+        .Default(false);
+    registrar.Parameter("check_period", &TThis::CheckPeriod)
+        .Default(TDuration::Seconds(60));
+    registrar.Parameter("major_page_fault_count_threshold", &TThis::MajorPageFaultCountLimit)
+        .Default(500);
+    registrar.Parameter("limit_overflow_count_threshold_to_abort_job", &TThis::LimitOverflowCountThresholdToAbortJob)
+        .Default(5);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TJobEnvironmentConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("type", &TThis::Type)
@@ -19,6 +33,9 @@ void TJobEnvironmentConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("memory_watchdog_period", &TThis::MemoryWatchdogPeriod)
         .Default(TDuration::Seconds(1));
+
+    registrar.Parameter("job_thrashing_detector", &TThis::JobThrashingDetector)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -113,6 +130,8 @@ void TSlotManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("file_copy_chunk_size", &TThis::FileCopyChunkSize)
         .GreaterThanOrEqual(1_KB)
         .Default(10_MB);
+    registrar.Parameter("enable_read_write_copy", &TThis::EnableReadWriteCopy)
+        .Default(false);
 
     registrar.Parameter("disk_resources_update_period", &TThis::DiskResourcesUpdatePeriod)
         .Alias("disk_info_update_period")
@@ -192,8 +211,8 @@ void TControllerAgentConnectorDynamicConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("running_job_statistics_sending_backoff", &TThis::RunningJobStatisticsSendingBackoff)
         .Default();
-    registrar.Parameter("use_new_job_tracker_service", &TThis::UseNewJobTrackerService)
-        .Default();
+    registrar.Parameter("send_waiting_jobs", &TThis::SendWaitingJobs)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -449,6 +468,11 @@ const THashMap<TString, TUserJobSensorPtr>& TUserJobMonitoringConfig::GetDefault
                 .Item("source").Value("gpu")
                 .Item("profiling_name").Value("/user_job/gpu/clock_sm")
             .EndMap()
+            .Item("gpu/stuck").BeginMap()
+                .Item("type").Value("gauge")
+                .Item("source").Value("gpu")
+                .Item("profiling_name").Value("/user_job/gpu/stuck")
+            .EndMap()
         .EndMap());
 
     return DefaultSensors;
@@ -501,6 +525,9 @@ void TExecNodeConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("test_root_fs", &TThis::TestRootFS)
+        .Default(false);
+
+    registrar.Parameter("enable_artifact_copy_tracking", &TThis::EnableArtifactCopyTracking)
         .Default(false);
 
     registrar.Parameter("use_common_root_fs_quota", &TThis::UseCommonRootFsQuota)
@@ -638,6 +665,8 @@ void TExecNodeDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("job_abortion_timeout", &TThis::JobAbortionTimeout)
         .Default();
+    registrar.Parameter("slot_release_timeout", &TThis::SlotReleaseTimeout)
+        .Default(TDuration::Minutes(20));
 
     registrar.Parameter("abort_on_jobs_disabled", &TThis::AbortOnJobsDisabled)
         .Default(false);

@@ -168,7 +168,7 @@ public:
     THashMap<NObjectServer::TCellTag, TMasterCellDescriptorPtr> CellDescriptors;
 
     // COMPAT(aleksandra-zh)
-    THashMap<NObjectServer::TCellTag, EMasterCellRoles> CellRoles;
+    bool RemoveSecondaryCellDefaultRoles;
 
     REGISTER_YSON_STRUCT(TDynamicMulticellManagerConfig);
 

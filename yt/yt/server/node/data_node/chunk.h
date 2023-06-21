@@ -31,7 +31,7 @@ struct TChunkReadOptions
 //! Represents a chunk stored locally at Data Node.
 /*!
  *  \note
- *  Thread affinity: ControlThread (unless indicated otherwise)
+ *  Thread affinity: any
  */
 struct IChunk
     : public virtual TRefCounted
@@ -56,26 +56,17 @@ struct IChunk
     /*!
      *  \note
      *  The meta is fetched asynchronously and is cached.
-     *  Thread affinity: any
      */
     virtual TFuture<NChunkClient::TRefCountedChunkMetaPtr> ReadMeta(
         const TChunkReadOptions& options,
         const std::optional<std::vector<int>>& extensionTags = std::nullopt) = 0;
 
     //! Asynchronously reads a set of blocks.
-    /*!
-     *  \note
-     *  Thread affinity: any
-     */
     virtual TFuture<std::vector<NChunkClient::TBlock>> ReadBlockSet(
         const std::vector<int>& blockIndexes,
         const TChunkReadOptions& options) = 0;
 
     //! Asynchronously reads a range of blocks.
-    /*!
-     *  \note
-     *  Thread affinity: any
-     */
     virtual TFuture<std::vector<NChunkClient::TBlock>> ReadBlockRange(
         int firstBlockIndex,
         int blockCount,
@@ -88,9 +79,6 @@ struct IChunk
      *  If null future is returned then the underlying reader is already open and prepared (this is the fast path).
      *  Otherwise the caller must wait for the returned future to become set to access the underlying reader.
      *  If file has not been opened yet, will consider #useDirectIO as a hint to use DirectIO.
-     *
-     *  \note
-     *  Thread affinity: any
      */
     virtual TFuture<void> PrepareToReadChunkFragments(
         const NChunkClient::TClientChunkReadOptions& options,
@@ -100,9 +88,6 @@ struct IChunk
     /*!
      *  #PrepareToReadChunkFragments must be invoked and its returned future
      *  must be set prior to this call.
-     *
-     *  \note
-     *  Thread affinity: any
      */
     virtual NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
         const NIO::TChunkFragmentDescriptor& fragmentDescriptor,
@@ -112,9 +97,6 @@ struct IChunk
     /*!
      *  Succeeds if removal is not scheduled yet.
      *  Concurrent update locks do not interfere with read locks.
-     *
-     *  \note
-     *  Thread affinity: any
      */
     virtual void AcquireReadLock() = 0;
 
@@ -122,9 +104,6 @@ struct IChunk
     /*!
      *  If this was the last read lock and chunk removal is pending,
      *  enqueues removal actions to the appropriate thread.
-     *
-     *  \note
-     *  Thread affinity: any
      */
     virtual void ReleaseReadLock() = 0;
 
@@ -132,9 +111,6 @@ struct IChunk
     /*!
      *  Succeeds if removal is not scheduled yet and no other update lock is
      *  currently taken.
-     *
-     *  \note
-     *  Thread affinity: any
      */
     virtual void AcquireUpdateLock() = 0;
 
@@ -142,9 +118,6 @@ struct IChunk
     /*!
      *  If this was the last lock and chunk removal is pending,
      *  enqueues removal actions to the appropriate thread.
-     *
-     *  \note
-     *  Thread affinity: any
      */
     virtual void ReleaseUpdateLock() = 0;
 
@@ -157,10 +130,6 @@ struct IChunk
     virtual TFuture<void> ScheduleRemove() = 0;
 
     //! Returns |true| if #ScheduleRemove was called.
-    /*!
-     *  \note
-     *  Thread affinity: any
-     */
     virtual bool IsRemoveScheduled() const = 0;
 
     //! Performs synchronous physical removal of chunk files.

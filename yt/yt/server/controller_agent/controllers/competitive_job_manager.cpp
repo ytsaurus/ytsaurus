@@ -16,12 +16,14 @@ TCompetitiveJobManagerBase::TCompetitiveJobManagerBase(
     ICompetitiveJobManagerHost* host,
     NLogging::TLogger logger,
     int maxSecondaryJobCount,
-    EJobCompetitionType competitionType)
+    EJobCompetitionType competitionType,
+    EAbortReason resultLost)
     : Host_(host)
     , JobCounter_(New<TProgressCounter>())
     , Logger(logger.WithTag("CompetitionType: %v", competitionType))
     , MaxCompetitiveJobCount_(maxSecondaryJobCount)
     , CompetitionType_(competitionType)
+    , ResultLost_(resultLost)
 { }
 
 bool TCompetitiveJobManagerBase::TryAddCompetitiveJob(const TJobletPtr& joblet)
@@ -117,25 +119,27 @@ bool TCompetitiveJobManagerBase::OnJobAborted(const TJobletPtr& joblet, EAbortRe
 {
     return OnUnsuccessfulJobFinish(
         joblet,
-        [=] (TProgressCounterGuard* guard) { guard->OnAborted(reason); });
+        [=] (TProgressCounterGuard* guard) { guard->OnAborted(reason); },
+        NJobTrackerClient::EJobState::Aborted);
 }
 
 bool TCompetitiveJobManagerBase::OnJobFailed(const TJobletPtr& joblet)
 {
     return OnUnsuccessfulJobFinish(
         joblet,
-        [=] (TProgressCounterGuard* guard) { guard->OnFailed(); });
+        [=] (TProgressCounterGuard* guard) { guard->OnFailed(); },
+        NJobTrackerClient::EJobState::Failed);
 }
 
-void TCompetitiveJobManagerBase::OnJobLost(IChunkPoolOutput::TCookie cookie, EAbortReason abortReason)
+void TCompetitiveJobManagerBase::OnJobLost(IChunkPoolOutput::TCookie cookie)
 {
     auto it = CookieToCompetition_.find(cookie);
     if (it != CookieToCompetition_.end()) {
         YT_LOG_DEBUG("Aborting competititve job from controller since job result is lost (OutputCookie: %v, AbortReason: %v)",
             cookie,
-            abortReason);
+            ResultLost_);
         YT_VERIFY(it->second->Competitors.size() == 1);
-        Host_->AbortJobFromController(it->second->Competitors[0], abortReason);
+        Host_->AbortJobByController(it->second->Competitors[0], ResultLost_);
     }
 }
 

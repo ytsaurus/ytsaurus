@@ -14,8 +14,6 @@
 #include <yt/yt/core/misc/config.h>
 #include <yt/yt/core/misc/memory_reference_tracker.h>
 #include <yt/yt/core/misc/property.h>
-#include <yt/yt/core/misc/singleton.h>
-#include <yt/yt/core/misc/sync_cache.h>
 
 namespace NYT::NChunkClient {
 
@@ -33,9 +31,7 @@ class TAsyncBlockCacheEntry
     : public TAsyncCacheValueBase<TBlockId, TAsyncBlockCacheEntry>
 {
 public:
-    DEFINE_BYVAL_RO_PROPERTY(TCachedBlock, CachedBlock);
-
-    std::atomic<bool> Used{false};
+    DEFINE_BYREF_RO_PROPERTY(TCachedBlock, CachedBlock);
 
 public:
     TAsyncBlockCacheEntry(TBlockId id, TCachedBlock cachedBlock)
@@ -58,8 +54,8 @@ public:
     explicit TCachedBlockCookie(
         TAsyncCacheCookie cookie,
         INodeMemoryReferenceTrackerPtr memoryReferenceTracker)
-        : Cookie_(std::move(cookie))
-        , MemoryReferenceTracker_(std::move(memoryReferenceTracker))
+        : MemoryReferenceTracker_(std::move(memoryReferenceTracker))
+        , Cookie_(std::move(cookie))
     { }
 
     bool IsActive() const override
@@ -67,17 +63,16 @@ public:
         return Cookie_.IsActive();
     }
 
-    TFuture<TCachedBlock> GetBlockFuture() const override
+    TFuture<void> GetBlockFuture() const override
     {
-        return Cookie_.GetValue().Apply(BIND(
-            [] (const TErrorOr<TIntrusivePtr<TAsyncBlockCacheEntry>>& entryOrError) -> TErrorOr<TCachedBlock> {
-                if (entryOrError.IsOK()) {
-                    auto block = entryOrError.Value()->GetCachedBlock().Block;
-                    return TCachedBlock(std::move(block));
-                } else {
-                    return static_cast<TError>(entryOrError);
-                }
-            }));
+        return Cookie_.GetValue().AsVoid();
+    }
+
+    TCachedBlock GetBlock() const override
+    {
+        const auto& future = Cookie_.GetValue();
+        YT_VERIFY(future.IsSet() && future.Get().IsOK());
+        return future.Get().Value()->CachedBlock();
     }
 
     void SetBlock(TErrorOr<TCachedBlock> blockOrError) override
@@ -87,11 +82,9 @@ public:
         }
 
         if (blockOrError.IsOK()) {
-            auto block = blockOrError.Value().Block;
+            auto block = std::move(blockOrError).Value();
             block.Data = TrackMemory(MemoryReferenceTracker_, EMemoryCategory::BlockCache, std::move(block.Data));
-            auto entry = New<TAsyncBlockCacheEntry>(
-                Cookie_.GetKey(),
-                TCachedBlock(std::move(block)));
+            auto entry = New<TAsyncBlockCacheEntry>(Cookie_.GetKey(), std::move(block));
             Cookie_.EndInsert(std::move(entry));
         } else {
             Cookie_.Cancel(static_cast<TError>(blockOrError));
@@ -99,9 +92,10 @@ public:
     }
 
 private:
+    const INodeMemoryReferenceTrackerPtr MemoryReferenceTracker_;
+
     TAsyncCacheCookie Cookie_;
     std::atomic<bool> BlockSet_ = false;
-    const INodeMemoryReferenceTrackerPtr MemoryReferenceTracker_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -126,8 +120,7 @@ public:
 
     void PutBlock(const TBlockId& id, const TBlock& block)
     {
-        if (GetCapacity() == 0) {
-            // Shortcut when cache is disabled.
+        if (!IsEnabled()) {
             return;
         }
 
@@ -150,8 +143,7 @@ public:
 
     TCachedBlock FindBlock(const TBlockId& id)
     {
-        if (GetCapacity() == 0) {
-            // Shortcut when cache is disabled.
+        if (!IsEnabled()) {
             return {};
         }
 
@@ -160,7 +152,7 @@ public:
             YT_LOG_TRACE("Block cache hit (BlockId: %v, BlockType: %v)",
                 id,
                 Type_);
-            return block->GetCachedBlock();
+            return block->CachedBlock();
         } else {
             YT_LOG_TRACE("Block cache miss (BlockId: %v, BlockType: %v)",
                 id,
@@ -175,14 +167,19 @@ public:
     {
         YT_VERIFY(type == Type_);
 
-        if (GetCapacity() == 0) {
-            // Shortcut when cache is disabled.
+        if (!IsEnabled()) {
             return CreateActiveCachedBlockCookie();
         }
 
         auto cookie = BeginInsert(id);
         return std::make_unique<TCachedBlockCookie>(std::move(cookie), MemoryReferenceTracker_);
     }
+
+    bool IsBlockTypeActive(EBlockType type) const
+    {
+        return type == Type_ && IsEnabled();
+    }
+
 private:
     const EBlockType Type_;
     const INodeMemoryReferenceTrackerPtr MemoryReferenceTracker_;
@@ -191,7 +188,12 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return entry->GetCachedBlock().Block.Size();
+        return entry->CachedBlock().Size();
+    }
+
+    bool IsEnabled() const
+    {
+        return GetCapacity() != 0;
     }
 };
 
@@ -221,14 +223,18 @@ public:
                     config,
                     profiler.WithPrefix("/" + FormatEnum(type)),
                     MemoryReferenceTracker_);
-                YT_VERIFY(PerTypeCaches_.emplace(type, cache).second);
+                EmplaceOrCrash(PerTypeCaches_, type, cache);
                 capacity += cache->GetCapacity();
+            } else {
+                EmplaceOrCrash(PerTypeCaches_, type, nullptr);
             }
         };
         initType(EBlockType::CompressedData, config->CompressedData);
         initType(EBlockType::UncompressedData, config->UncompressedData);
+        initType(EBlockType::HashTableChunkIndex, config->HashTableChunkIndex);
+        initType(EBlockType::XorFilter, config->XorFilter);
 
-        // NB: We simply override the limit as underlying per-type caches know nothing about this cascading structure.
+        // NB: We simply override the limit as underlying per-type caches are unaware of this cascading structure.
         MemoryTracker_->SetLimit(capacity);
     }
 
@@ -237,7 +243,7 @@ public:
         EBlockType type,
         const TBlock& block) override
     {
-        if (const auto& cache = FindPerTypeCache(type)) {
+        if (const auto& cache = GetOrCrash(PerTypeCaches_, type)) {
             auto cachedBlock = block;
             cachedBlock.Data = TrackMemory(MemoryReferenceTracker_, EMemoryCategory::BlockCache, std::move(cachedBlock.Data));
             cache->PutBlock(id, std::move(cachedBlock));
@@ -248,10 +254,8 @@ public:
         const TBlockId& id,
         EBlockType type) override
     {
-        const auto& cache = FindPerTypeCache(type);
-        if (cache) {
-            auto block = cache->FindBlock(id).Block;
-            return TCachedBlock(std::move(block));
+        if (const auto& cache = GetOrCrash(PerTypeCaches_, type)) {
+            return cache->FindBlock(id);
         } else {
             return TCachedBlock();
         }
@@ -261,7 +265,7 @@ public:
         const TBlockId& id,
         EBlockType type) override
     {
-        const auto& cache = FindPerTypeCache(type);
+        const auto& cache = GetOrCrash(PerTypeCaches_, type);
         return cache
             ? cache->GetBlockCookie(id, type)
             : CreateActiveCachedBlockCookie();
@@ -272,17 +276,27 @@ public:
         return SupportedBlockTypes_;
     }
 
+    bool IsBlockTypeActive(EBlockType type) const override
+    {
+        const auto& cache = GetOrCrash(PerTypeCaches_, type);
+        return cache
+            ? cache->IsBlockTypeActive(type)
+            : false;
+    }
+
     void Reconfigure(const TBlockCacheDynamicConfigPtr& config) override
     {
         i64 newCapacity = 0;
         auto reconfigureType = [&] (EBlockType type, TSlruCacheDynamicConfigPtr config) {
-            if (const auto& cache = FindPerTypeCache(type)) {
+            if (const auto& cache = GetOrCrash(PerTypeCaches_, type)) {
                 cache->Reconfigure(config);
                 newCapacity += cache->GetCapacity();
             }
         };
         reconfigureType(EBlockType::CompressedData, config->CompressedData);
         reconfigureType(EBlockType::UncompressedData, config->UncompressedData);
+        reconfigureType(EBlockType::HashTableChunkIndex, config->HashTableChunkIndex);
+        reconfigureType(EBlockType::XorFilter, config->XorFilter);
 
         // NB: We simply override the limit as underlying per-type caches know nothing about this cascading structure.
         MemoryTracker_->SetLimit(newCapacity);
@@ -294,15 +308,10 @@ private:
 
     const EBlockType SupportedBlockTypes_;
 
-    THashMap<EBlockType, TPerTypeClientBlockCachePtr> PerTypeCaches_;
-
-    const TPerTypeClientBlockCachePtr& FindPerTypeCache(EBlockType type)
-    {
-        auto it = PerTypeCaches_.find(type);
-        static TPerTypeClientBlockCachePtr NullCache;
-        return it == PerTypeCaches_.end() ? NullCache : it->second;
-    }
+    TCompactFlatMap<EBlockType, TPerTypeClientBlockCachePtr, TEnumTraits<EBlockType>::GetDomainSize()> PerTypeCaches_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 IClientBlockCachePtr CreateClientBlockCache(
     TBlockCacheConfigPtr config,
@@ -321,43 +330,6 @@ IClientBlockCachePtr CreateClientBlockCache(
         std::move(memoryTracker),
         std::move(memoryReferenceTracker),
         profiler);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TNullBlockCache
-    : public IBlockCache
-{
-public:
-    void PutBlock(
-        const TBlockId& /* id */,
-        EBlockType /* type */,
-        const TBlock& /* data */) override
-    { }
-
-    TCachedBlock FindBlock(
-        const TBlockId& /* id */,
-        EBlockType /* type */) override
-    {
-        return TCachedBlock();
-    }
-
-    std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
-        const TBlockId& /* id */,
-        EBlockType /* type */) override
-    {
-        return CreateActiveCachedBlockCookie();
-    }
-
-    EBlockType GetSupportedBlockTypes() const override
-    {
-        return EBlockType::None;
-    }
-};
-
-IBlockCachePtr GetNullBlockCache()
-{
-    return LeakyRefCountedSingleton<TNullBlockCache>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -6,7 +6,13 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJobReport;
+
 DECLARE_REFCOUNTED_CLASS(TServerConfig)
+
+DECLARE_REFCOUNTED_CLASS(TJobReporterConfig)
+DECLARE_REFCOUNTED_CLASS(TJobReporter)
+DECLARE_REFCOUNTED_CLASS(TJobReporterDynamicConfig)
 
 DECLARE_REFCOUNTED_CLASS(TDiskHealthChecker)
 DECLARE_REFCOUNTED_CLASS(TDiskHealthCheckerConfig)
@@ -39,6 +45,8 @@ extern const TString ConfigAttributeName;
 DECLARE_REFCOUNTED_CLASS(TArchiveReporterConfig)
 DECLARE_REFCOUNTED_CLASS(TArchiveHandlerConfig)
 DECLARE_REFCOUNTED_CLASS(TArchiveVersionHolder)
+DECLARE_REFCOUNTED_CLASS(TRebootManager)
+
 DECLARE_REFCOUNTED_STRUCT(IArchiveReporter)
 
 struct IArchiveRowlet;

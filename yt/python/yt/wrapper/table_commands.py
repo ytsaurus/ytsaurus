@@ -1016,19 +1016,21 @@ def is_sorted(table, client=None):
             client=client)
 
 
-def alter_table(path, schema=None, dynamic=None, upstream_replica_id=None, client=None):
+def alter_table(path, schema=None, schema_id=None, dynamic=None, upstream_replica_id=None, client=None):
     """Performs schema and other table meta information modifications.
        Applicable to static and dynamic tables.
 
     :param path: path to table
     :type path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
     :param schema: new schema to set on table
+    :param schema_id: new schema_id to set on table
     :param bool dynamic: dynamic
     :param str upstream_replica_id: upstream_replica_id
     """
 
     params = {"path": TablePath(path, client=client)}
     set_param(params, "schema", schema)
+    set_param(params, "schema_id", schema_id)
     set_param(params, "dynamic", dynamic)
     set_param(params, "upstream_replica_id", upstream_replica_id)
 

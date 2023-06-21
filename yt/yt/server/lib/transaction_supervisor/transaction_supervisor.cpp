@@ -765,6 +765,11 @@ private:
                 prerequisiteTransactionIds,
                 maxAllowedCommitTimestamp);
 
+            if (owner->TransactionManager_->CommitTransaction(context)) {
+                return;
+            }
+
+            // NB: Custom abort handler takes care of response keeper itself.
             if (owner->ResponseKeeper_->TryReplyFrom(context, /*subscribeToResponse*/ false)) {
                 return;
             }
@@ -772,7 +777,7 @@ private:
             // NB: cellIdsToSyncWithBeforePrepare is only respected by participants, not the coordinator.
             auto readyEvent = owner->TransactionManager_->GetReadyToPrepareTransactionCommit(
                 prerequisiteTransactionIds,
-                {} /*cellIdsToSyncWith*/);
+                /*cellIdsToSyncWith*/ {});
 
             TFuture<TSharedRefArray> asyncResponseMessage;
             if (readyEvent.IsSet() && readyEvent.Get().IsOK()) {
@@ -830,6 +835,11 @@ private:
 
             auto owner = GetOwnerOrThrow();
 
+            if (owner->TransactionManager_->AbortTransaction(context)) {
+                return;
+            }
+
+            // NB: Custom abort handler takes care of response keeper itself.
             if (owner->ResponseKeeper_->TryReplyFrom(context, /*subscribeToResponse*/ false)) {
                 return;
             }

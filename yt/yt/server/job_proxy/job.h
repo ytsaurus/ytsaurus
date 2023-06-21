@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/job_agent/job_report.h>
+#include <yt/yt/server/lib/misc/job_report.h>
 
 #include <yt/yt/server/job_proxy/environment.h>
 #include <yt/yt/library/containers/porto_resource_tracker.h>
@@ -81,6 +81,8 @@ struct IJobHost
         const TString& artifactName,
         const TString& artifactPath,
         const TError& error) = 0;
+
+    virtual void OnJobMemoryThrashing() = 0;
 
     virtual NChunkClient::TChunkReaderHostPtr GetChunkReaderHost() const = 0;
 

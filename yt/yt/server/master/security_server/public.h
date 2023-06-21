@@ -63,9 +63,11 @@ DECLARE_REFCOUNTED_STRUCT(ISecurityManager)
 DECLARE_REFCOUNTED_CLASS(TUserRequestLimitsOptions)
 DECLARE_REFCOUNTED_CLASS(TUserQueueSizeLimitsOptions)
 DECLARE_REFCOUNTED_CLASS(TUserRequestLimitsConfig)
+DECLARE_REFCOUNTED_CLASS(TUserReadRequestComplexityLimitsOptions)
 DECLARE_REFCOUNTED_CLASS(TSerializableUserRequestLimitsOptions)
 DECLARE_REFCOUNTED_CLASS(TSerializableUserQueueSizeLimitsOptions)
 DECLARE_REFCOUNTED_CLASS(TSerializableUserRequestLimitsConfig)
+DECLARE_REFCOUNTED_CLASS(TSerializableUserReadRequestComplexityLimitsOptions)
 class TSubject;
 
 struct TAccessControlEntry;
@@ -86,6 +88,7 @@ class TClusterResources;
 class TRichClusterResources;
 class TClusterResourceLimits;
 class TViolatedClusterResourceLimits;
+struct TChunkMergerCriteria;
 
 class TDetailedMasterMemory;
 

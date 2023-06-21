@@ -84,7 +84,8 @@ public:
         YT_VERIFY(Slot_);
         YT_VERIFY(Bootstrap_);
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(Write));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Write)
+            .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterTransactionActions));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Trim));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SuspendTabletCell));
@@ -158,6 +159,9 @@ private:
         TCurrentInvokerGuard invokerGuard(epochInvoker.Get());
 
         auto tabletSnapshot = GetTabletSnapshotOrThrow(tabletId, mountRevision);
+        Bootstrap_
+            ->GetTabletSnapshotStore()
+            ->ValidateBundleNotBanned(tabletSnapshot, Slot_);
 
         try {
             if (tabletSnapshot->Atomicity != atomicity) {
@@ -318,6 +322,9 @@ private:
             trimmedRowCount);
 
         auto tabletSnapshot = GetTabletSnapshotOrThrow(tabletId, mountRevision);
+        Bootstrap_
+            ->GetTabletSnapshotStore()
+            ->ValidateBundleNotBanned(tabletSnapshot, Slot_);
 
         const auto& tabletManager = Slot_->GetTabletManager();
         auto future = tabletManager->Trim(tabletSnapshot, trimmedRowCount);

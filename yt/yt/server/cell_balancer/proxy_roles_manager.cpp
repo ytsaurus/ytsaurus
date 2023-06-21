@@ -30,7 +30,7 @@ TSpareProxiesInfo GetSpareProxiesInfo(
     }
 
     const auto& spareProxies = spareProxiesIt->second;
-    auto aliveProxies = GetAliveProxies(spareProxies, input);
+    auto aliveProxies = GetAliveProxies(spareProxies, input, EGracePeriodBehaviour::Immediately);
 
     TSpareProxiesInfo result;
 
@@ -108,7 +108,7 @@ void SetProxyRole(
     TSchedulerMutations* mutations)
 {
     const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
-    auto aliveProxies = GetAliveProxies(bundleProxies, input);
+    auto aliveProxies = GetAliveProxies(bundleProxies, input, EGracePeriodBehaviour::Immediately);
 
     TString proxyRole = bundleInfo->RpcProxyRole ? *bundleInfo->RpcProxyRole : bundleName;
 

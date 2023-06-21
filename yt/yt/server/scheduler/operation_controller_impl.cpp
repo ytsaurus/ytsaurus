@@ -466,9 +466,6 @@ void TOperationControllerImpl::OnJobFinished(
         .OperationId = OperationId_,
         .Id = job->GetId(),
         .FinishTime = TInstant::Now(),
-        .InterruptReason = job->GetInterruptionReason(),
-        .PreemptedFor = job->GetPreemptedFor(),
-        .PreemptionReason = job->GetPreemptionReason(),
     };
 
     auto result = EnqueueJobEvent(std::move(eventSummary));
@@ -610,8 +607,9 @@ void TOperationControllerImpl::OnRevivalFinished(const TErrorOr<TOperationContro
 
         YT_LOG_DEBUG(
             "Successful revival result received "
-            "(RevivedFromSnapshot: %v, RevivedJobCount: %v, RevivedBannedTreeIds: %v, NeededResources: %v)",
+            "(RevivedFromSnapshot: %v, ControlJobLifetimeAtScheduler: %v, RevivedJobCount: %v, RevivedBannedTreeIds: %v, NeededResources: %v)",
             result.RevivedFromSnapshot,
+            result.ControlJobLifetimeAtScheduler,
             result.RevivedJobs.size(),
             result.RevivedBannedTreeIds,
             FormatResources(result.NeededResources));

@@ -2,7 +2,6 @@ package NYT.NYTree.NProto;
 
 import "yt_proto/yt/core/rpc/proto/rpc.proto";
 import "yt_proto/yt/core/ytree/proto/attributes.proto";
-import "yt_proto/yt/core/ytree/proto/request_complexity_limits.proto";
 
 option go_package = "go.ytsaurus.tech/yt/go/proto/core/ytree";
 
@@ -31,8 +30,7 @@ message TYPathHeaderExt
     //! A copy of additional_paths in case of path rewrite.
     repeated string original_additional_paths = 5;
 
-    // COMPAT(kvk1920): optional -> required after 23.2.
-    optional TReadRequestComplexityLimits complexity_limits = 6;
+    reserved 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

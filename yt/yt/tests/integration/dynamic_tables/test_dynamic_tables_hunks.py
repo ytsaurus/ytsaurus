@@ -1338,14 +1338,11 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
         rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
         insert_rows("//tmp/t", rows)
+        hunk_store_id = self._get_active_store_id("//tmp/h")
+
         for i in range(len(rows)):
             rows[i]["$tablet_index"] = 0
             rows[i]["$row_index"] = i
-
-        hunk_store_id = self._get_active_store_id("//tmp/h")
-        set("//sys/cluster_nodes/@config", {"%true": {
-            "tablet_node": {"hunk_lock_manager": {"hunk_store_extra_lifetime": 123, "unlock_check_period": 127}}
-        }})
 
         sync_unmount_table("//tmp/t")
         sync_mount_table("//tmp/t")
@@ -1377,9 +1374,13 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
     @authors("aleksandra-zh")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_journal_hunk_chunk_parents(self, optimize_for):
+    @pytest.mark.parametrize("enable_dynamic_store_read", [True, False])
+    def test_journal_hunk_chunk_parents(self, optimize_for, enable_dynamic_store_read):
+        set("//sys/@config/tablet_manager/enable_dynamic_store_read_by_default", enable_dynamic_store_read)
+
         sync_create_cells(1)
         self._create_table(optimize_for=optimize_for)
+        set("//tmp/t/@enable_dynamic_store_read", enable_dynamic_store_read)
 
         create("hunk_storage", "//tmp/h", attributes={
             "store_rotation_period": 20000,

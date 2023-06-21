@@ -347,6 +347,7 @@ void TOperation::SetStateAndEnqueueEvent(
 
 void TOperation::SetSlotIndex(const TString& treeId, int value)
 {
+    ShouldFlush_ = true;
     TreeIdToSlotIndex_[treeId] = value;
 }
 

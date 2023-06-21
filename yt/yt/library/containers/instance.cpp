@@ -135,6 +135,8 @@ const THashMap<EStatField, TPortoStatRule> PortoStatRules = {
     {EStatField::MemoryGuarantee, {"memory_guarantee", LongExtractor}},
     {EStatField::MemoryLimit, {"memory_limit_total", LongExtractor}},
     {EStatField::MaxMemoryUsage, {"memory.max_usage_in_bytes", LongExtractor}},
+    {EStatField::OomKills, {"oom_kills", LongExtractor}},
+    {EStatField::OomKillsTotal, {"oom_kills_total", LongExtractor}},
 
     {EStatField::IOReadByte, {"io_read", GetIOStatExtractor()}},
     {EStatField::IOWriteByte, {"io_write", GetIOStatExtractor()}},
@@ -146,14 +148,14 @@ const THashMap<EStatField, TPortoStatRule> PortoStatRules = {
     {EStatField::IOTotalTime, {"io_time", GetIOStatExtractor()}},
     {EStatField::IOWaitTime, {"io_wait", GetIOStatExtractor()}},
 
-    {EStatField::NetTxBytes, {"net_tx_bytes[Uplink]", LongExtractor}},
-    {EStatField::NetTxPackets, {"net_tx_packets[Uplink]", LongExtractor}},
-    {EStatField::NetTxDrops, {"net_tx_drops[Uplink]", LongExtractor}},
-    {EStatField::NetTxLimit, {"net_limit[Uplink]", LongExtractor}},
-    {EStatField::NetRxBytes, {"net_rx_bytes[Uplink]", LongExtractor}},
-    {EStatField::NetRxPackets, {"net_rx_packets[Uplink]", LongExtractor}},
-    {EStatField::NetRxDrops, {"net_rx_drops[Uplink]", LongExtractor}},
-    {EStatField::NetRxLimit, {"net_rx_limit[Uplink]", LongExtractor}},
+    {EStatField::NetTxBytes, {"net_tx_bytes[veth]", LongExtractor}},
+    {EStatField::NetTxPackets, {"net_tx_packets[veth]", LongExtractor}},
+    {EStatField::NetTxDrops, {"net_tx_drops[veth]", LongExtractor}},
+    {EStatField::NetTxLimit, {"net_limit[veth]", LongExtractor}},
+    {EStatField::NetRxBytes, {"net_rx_bytes[veth]", LongExtractor}},
+    {EStatField::NetRxPackets, {"net_rx_packets[veth]", LongExtractor}},
+    {EStatField::NetRxDrops, {"net_rx_drops[veth]", LongExtractor}},
+    {EStatField::NetRxLimit, {"net_rx_limit[veth]", LongExtractor}},
 };
 
 std::optional<TString> GetParentName(const TString& name)
@@ -296,6 +298,14 @@ public:
     {
         Spec_.IPAddresses = addresses;
         Spec_.EnableNat64 = enableNat64;
+        Spec_.DisableNetwork = false;
+    }
+
+    void DisableNetwork() override
+    {
+        Spec_.DisableNetwork = true;
+        Spec_.IPAddresses.clear();
+        Spec_.EnableNat64 = false;
     }
 
     void SetHostName(const TString& hostName) override
@@ -400,7 +410,7 @@ public:
         TErrorOr<ui64>& cpuSystemUsage) const
     {
         if (cpuUsage.IsOK() && cpuSystemUsage.IsOK()) {
-            return cpuUsage.Value() - cpuSystemUsage.Value();
+            return cpuUsage.Value() > cpuSystemUsage.Value() ? cpuUsage.Value() - cpuSystemUsage.Value() : 0;
         } else if (cpuUsage.IsOK()) {
             return TError("Missing property %Qlv in Porto response", EStatField::CpuSystemUsage)
                 << TErrorAttribute("container", Name_);

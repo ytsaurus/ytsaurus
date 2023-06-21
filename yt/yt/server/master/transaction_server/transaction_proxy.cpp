@@ -1,4 +1,5 @@
 #include "transaction_proxy.h"
+
 #include "transaction_manager.h"
 #include "transaction.h"
 
@@ -6,16 +7,17 @@
 
 #include <yt/yt/server/master/cypress_server/node.h>
 
-#include <yt/yt/server/lib/misc/interned_attributes.h>
-
 #include <yt/yt/server/master/security_server/account.h>
 #include <yt/yt/server/master/security_server/account_resource_usage_lease.h>
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
 
-#include <yt/yt/client/object_client/helpers.h>
+#include <yt/yt/server/lib/misc/interned_attributes.h>
+
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
+
+#include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
@@ -81,6 +83,8 @@ private:
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LockIds)
             .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RecursiveLockCount)
+            .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ResourceUsage)
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MulticellResourceUsage)
@@ -92,6 +96,7 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Deadline)
             .SetPresent(transaction->GetDeadline().operator bool()));
         descriptors->push_back(EInternedAttributeKey::Depth);
+        descriptors->push_back(EInternedAttributeKey::CypressTransaction);
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -182,6 +187,11 @@ private:
                 return true;
             }
 
+            case EInternedAttributeKey::CypressTransaction: {
+                BuildYsonFluently(consumer)
+                    .Value(transaction->GetIsCypressTransaction());
+                return true;
+            }
 
             default:
                 break;
@@ -247,7 +257,7 @@ private:
                         });
                 }).AsyncVia(GetCurrentInvoker()));
 
-            case EInternedAttributeKey::StagedNodeIds: {
+            case EInternedAttributeKey::StagedNodeIds:
                 return FetchMergeableAttribute(
                     key.Unintern(),
                     [&] {
@@ -255,9 +265,8 @@ private:
                             fluent.Item().Value(node->GetId());
                         });
                     });
-            }
 
-            case EInternedAttributeKey::BranchedNodeIds: {
+            case EInternedAttributeKey::BranchedNodeIds:
                 return FetchMergeableAttribute(
                     key.Unintern(),
                     [&] {
@@ -265,9 +274,8 @@ private:
                             fluent.Item().Value(node->GetId());
                         });
                     });
-            }
 
-            case EInternedAttributeKey::LockedNodeIds: {
+            case EInternedAttributeKey::LockedNodeIds:
                 return FetchMergeableAttribute(
                     key.Unintern(),
                     [&] {
@@ -275,9 +283,8 @@ private:
                             fluent.Item().Value(node->GetId());
                         });
                     });
-            }
 
-            case EInternedAttributeKey::LockIds: {
+            case EInternedAttributeKey::LockIds:
                 return FetchMergeableAttribute(
                     key.Unintern(),
                     [&] {
@@ -285,9 +292,15 @@ private:
                             fluent.Item().Value(lock->GetId());
                         });
                     });
-            }
 
-            case EInternedAttributeKey::StagedObjectIds: {
+            case EInternedAttributeKey::RecursiveLockCount:
+                return FetchMergeableAttribute(
+                    key.Unintern(),
+                    [&] {
+                        return ConvertToYsonString(transaction->GetRecursiveLockCount());
+                    });
+
+            case EInternedAttributeKey::StagedObjectIds:
                 return FetchMergeableAttribute(
                     key.Unintern(),
                     [&] {
@@ -295,7 +308,6 @@ private:
                             fluent.Item().Value(object->GetId());
                         });
                     });
-            }
 
             case EInternedAttributeKey::ImportedObjectCount:
                 return FetchSummableAttribute(
@@ -548,7 +560,6 @@ private:
             [] (const TSessionPtr& session) {
                 return ConvertToYsonString(session->Value);
             });
-
     }
 };
 

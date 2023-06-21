@@ -438,7 +438,6 @@ class TestGetJobInput(YTEnvSetup):
         create("table", "//tmp/t_output")
 
         write_table("//tmp/t_input", [{"foo": i} for i in range(100)])
-
         op = map(
             in_="//tmp/t_input",
             out="//tmp/t_output",
@@ -450,24 +449,18 @@ class TestGetJobInput(YTEnvSetup):
         wait_for_data_in_job_archive(op.id, job_ids)
 
         rows = get_job_spec_rows_for_jobs(job_ids)
-        updated = []
         for r in rows:
             new_r = {}
             for key in ["job_id_hi", "job_id_lo"]:
                 new_r[key] = r[key]
             new_r["spec"] = "junk"
-            updated.append(new_r)
-        insert_rows(OPERATION_JOB_SPEC_ARCHIVE_TABLE, updated, update=True, atomicity="none")
+            insert_rows(OPERATION_JOB_SPEC_ARCHIVE_TABLE, [new_r], update=True, atomicity="none")
 
-        keys = []
         for r in rows:
-            key = {}
-            for k in ["job_id_hi", "job_id_lo"]:
-                key[k] = r[k]
-            keys.append(key)
-        # We need to remove operation_id entries to ensure spec fetching
-        # from archive, not from the node.
-        delete_rows(OPERATION_IDS_ARCHIVE_TABLE, keys, atomicity="none")
+            key = {k: r[k] for k in ["job_id_hi", "job_id_lo"]}
+            # We need to remove operation_id entries to ensure spec fetching
+            # from archive, not from the node.
+            delete_rows(OPERATION_IDS_ARCHIVE_TABLE, [key], atomicity="none")
 
         job_ids = os.listdir(self._tmpdir)
         assert job_ids

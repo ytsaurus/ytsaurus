@@ -91,6 +91,11 @@ TFuture<NYson::TYsonString> GetMulticellOwningNodes(
     NCellMaster::TBootstrap* bootstrap,
     TChunkTree* chunkTree);
 
+void SerializeNodePath(
+    NYson::IYsonConsumer* consumer,
+    const NYPath::TYPath& path,
+    TTransactionId transactionId);
+
 bool IsEmpty(const TChunkList* chunkList);
 bool IsEmpty(const TChunkTree* chunkTree);
 
@@ -145,6 +150,8 @@ void SerializeMediumOverrides(
     NDataNodeTrackerClient::NProto::TMediumOverrides* protoMediumOverrides);
 
 int GetChunkShardIndex(TChunkId chunkId);
+
+std::vector<TInstant> GenerateChunkCreationTimeHistogramBucketBounds(TInstant now);
 
 ////////////////////////////////////////////////////////////////////////////////
 

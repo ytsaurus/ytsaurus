@@ -507,8 +507,8 @@ protected:
 
         //! When a request is received and parsed, RPC service puts it into a queue.
         //! This enables specifying a relevant queue on a per-request basis.
-        //! If not given or returns null then the default (per-method) queue is used.
-        TRequestQueueProvider RequestQueueProvider;
+        //! If not given or provides null, the default (per-method) queue is used.
+        IRequestQueueProviderPtr RequestQueueProvider;
 
         //! When a request is dequeued from its queue, it is delegated to an appropriate
         //! invoker for the actual execution.
@@ -565,7 +565,7 @@ protected:
         //! If |true| then requests and responses are pooled.
         bool Pooled = true;
 
-        TMethodDescriptor SetRequestQueueProvider(TRequestQueueProvider value) const;
+        TMethodDescriptor SetRequestQueueProvider(IRequestQueueProviderPtr value) const;
         TMethodDescriptor SetInvoker(IInvokerPtr value) const;
         TMethodDescriptor SetInvokerProvider(TInvokerProvider value) const;
         TMethodDescriptor SetHeavy(bool value) const;
@@ -924,6 +924,10 @@ private:
     void RegisterRequestQueue(
         TRuntimeMethodInfo* runtimeInfo,
         TRequestQueue* requestQueue);
+    void ConfigureRequestQueue(
+        TRuntimeMethodInfo* runtimeInfo,
+        TRequestQueue* requestQueue,
+        const TMethodConfigPtr& config);
 
     TRequestBucket* GetRequestBucket(TRequestId requestId);
     TQueuedReplyBucket* GetQueuedReplyBucket(TRequestId requestId);

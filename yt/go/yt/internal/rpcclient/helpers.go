@@ -75,6 +75,14 @@ func makeGUID(g *misc.TGuid) guid.GUID {
 	return guid.FromHalves(g.GetFirst(), g.GetSecond())
 }
 
+func makeGUIDs(guids []*misc.TGuid) []guid.GUID {
+	ret := make([]guid.GUID, 0, len(guids))
+	for _, g := range guids {
+		ret = append(ret, makeGUID(g))
+	}
+	return ret
+}
+
 func makeNodeID(g *misc.TGuid) yt.NodeID {
 	return yt.NodeID(makeGUID(g))
 }
@@ -338,6 +346,42 @@ func makeCheckPermissionResponse(response *rpc_proxy.TRspCheckPermission) (*yt.C
 	ret := &yt.CheckPermissionResponse{
 		CheckPermissionResult: result,
 		Columns:               columns,
+	}
+
+	return ret, nil
+}
+
+func makeDisableChunkLocationsResponse(response *rpc_proxy.TRspDisableChunkLocations) (*yt.DisableChunkLocationsResponse, error) {
+	if response == nil {
+		return nil, nil
+	}
+
+	ret := &yt.DisableChunkLocationsResponse{
+		LocationUuids: makeGUIDs(response.LocationUuids),
+	}
+
+	return ret, nil
+}
+
+func makeDestroyChunkLocationsResponse(response *rpc_proxy.TRspDestroyChunkLocations) (*yt.DestroyChunkLocationsResponse, error) {
+	if response == nil {
+		return nil, nil
+	}
+
+	ret := &yt.DestroyChunkLocationsResponse{
+		LocationUuids: makeGUIDs(response.LocationUuids),
+	}
+
+	return ret, nil
+}
+
+func makeResurrectChunkLocationsResponse(response *rpc_proxy.TRspResurrectChunkLocations) (*yt.ResurrectChunkLocationsResponse, error) {
+	if response == nil {
+		return nil, nil
+	}
+
+	ret := &yt.ResurrectChunkLocationsResponse{
+		LocationUuids: makeGUIDs(response.LocationUuids),
 	}
 
 	return ret, nil

@@ -406,6 +406,12 @@ TEST(TSerializationTest, Enum)
     }
 }
 
+TEST(TSerializationTest, EnumUnknownValue)
+{
+    auto unknownValue = static_cast<ETestEnum>(ToUnderlying(TEnumTraits<ETestEnum>::GetMaxValue()) + 1);
+    TestSerializationDeserialization(unknownValue);
+}
+
 TEST(TSerializationTest, BitEnum)
 {
     for (const auto original : TEnumTraits<ETestBitEnum>::GetDomainValues()) {

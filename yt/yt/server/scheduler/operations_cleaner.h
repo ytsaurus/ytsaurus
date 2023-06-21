@@ -54,6 +54,7 @@ struct IOperationsCleanerHost
     virtual ~IOperationsCleanerHost() = default;
     virtual void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert) = 0;
     virtual IInvokerPtr GetBackgroundInvoker() const = 0;
+    virtual IInvokerPtr GetOperationsCleanerInvoker() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -79,6 +80,8 @@ public:
     void SubmitForArchivation(TArchiveOperationRequest request);
     void SubmitForArchivation(std::vector<TOperationId> operations);
 
+    void SubmitForRemoval(std::vector<TOperationId> operations);
+
     void UpdateConfig(const TOperationsCleanerConfigPtr& config);
 
     void SetArchiveVersion(int version);
@@ -93,7 +96,7 @@ public:
     void EnqueueOperationAlertEvent(
         TOperationId operationId,
         EOperationAlertType alertType,
-        const TError& alert);
+        TError alert);
 
     //! Raised when a new portion of operations has been archived.
     DECLARE_SIGNAL(void(const std::vector<TArchiveOperationRequest>&), OperationsRemovedFromCypress);

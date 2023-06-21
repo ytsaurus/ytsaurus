@@ -24,6 +24,7 @@ typedef TParser::token_type TToken;
     all = ^0;
     wss = space+;
 
+    kw_select = 'select'i;
     kw_from = 'from'i;
     kw_where = 'where'i;
     kw_having = 'having'i;
@@ -51,7 +52,7 @@ typedef TParser::token_type TToken;
     kw_yson_false = '%false'i;
     kw_yson_true = '%true'i;
 
-    keyword = kw_from | kw_where | kw_having | kw_offset | kw_limit | kw_join | kw_using | kw_group_by
+    keyword = kw_select | kw_from | kw_where | kw_having | kw_offset | kw_limit | kw_join | kw_using | kw_group_by
         | kw_with_totals | kw_order_by | kw_asc | kw_desc | kw_left | kw_as | kw_on | kw_and | kw_or | kw_not
         | kw_null | kw_between | kw_in | kw_transform | kw_false | kw_true | kw_yson_false | kw_yson_true;
 
@@ -90,6 +91,7 @@ typedef TParser::token_type TToken;
 
     main := |*
 
+        kw_select => { type = TToken::KwSelect; fbreak; };
         kw_from => { type = TToken::KwFrom; fbreak; };
         kw_where => { type = TToken::KwWhere; fbreak; };
         kw_having => { type = TToken::KwHaving; fbreak; };

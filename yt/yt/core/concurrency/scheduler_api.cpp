@@ -13,8 +13,6 @@
 
 #include <library/cpp/yt/small_containers/compact_vector.h>
 
-#include <library/cpp/yt/threading/fork_aware_spin_lock.h>
-
 #include <library/cpp/ytalloc/api/ytalloc.h>
 
 namespace NYT::NConcurrency {
@@ -77,6 +75,35 @@ void SetCurrentFiberId(TFiberId id)
 {
     CurrentFiberId = id;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TContextSwitchGuard::TContextSwitchGuard(std::function<void()> out, std::function<void()> in)
+{
+    PushContextHandler(std::move(out), std::move(in));
+}
+
+TContextSwitchGuard::~TContextSwitchGuard()
+{
+    PopContextHandler();
+}
+
+TOneShotContextSwitchGuard::TOneShotContextSwitchGuard(std::function<void()> handler)
+    : TContextSwitchGuard(
+        [this, handler = std::move(handler)] () noexcept {
+            if (!Active_) {
+                return;
+            }
+            Active_ = false;
+            handler();
+        },
+        nullptr)
+    , Active_(true)
+{ }
+
+TForbidContextSwitchGuard::TForbidContextSwitchGuard()
+    : TOneShotContextSwitchGuard( [] { YT_ABORT(); })
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -188,73 +215,6 @@ TFiberCanceler GetCurrentFiberCanceler()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TContextSwitchManager
-{
-public:
-    static TContextSwitchManager* Get()
-    {
-        return Singleton<TContextSwitchManager>();
-    }
-
-    void RegisterGlobalHandlers(
-        TGlobalContextSwitchHandler outHandler,
-        TGlobalContextSwitchHandler inHandler)
-    {
-        auto guard = Guard(Lock_);
-        int index = HandlerCount_.load();
-        YT_VERIFY(index < MaxHandlerCount);
-        Handlers_[index] = {outHandler, inHandler};
-        ++HandlerCount_;
-    }
-
-    void OnOut()
-    {
-        int count = HandlerCount_.load(std::memory_order::acquire);
-        for (int index = 0; index < count; ++index) {
-            if (const auto& handler = Handlers_[index].Out) {
-                handler();
-            }
-        }
-    }
-
-    void OnIn()
-    {
-        int count = HandlerCount_.load();
-        for (int index = count - 1; index >= 0; --index) {
-            if (const auto& handler = Handlers_[index].In) {
-                handler();
-            }
-        }
-    }
-
-private:
-    NThreading::TForkAwareSpinLock Lock_;
-
-    struct TGlobalContextSwitchHandlers
-    {
-        TGlobalContextSwitchHandler Out;
-        TGlobalContextSwitchHandler In;
-    };
-
-    static constexpr int MaxHandlerCount = 16;
-    std::array<TGlobalContextSwitchHandlers, MaxHandlerCount> Handlers_;
-    std::atomic<int> HandlerCount_ = 0;
-
-    TContextSwitchManager() = default;
-    Y_DECLARE_SINGLETON_FRIEND()
-};
-
-void InstallGlobalContextSwitchHandlers(
-    TGlobalContextSwitchHandler outHandler,
-    TGlobalContextSwitchHandler inHandler)
-{
-    TContextSwitchManager::Get()->RegisterGlobalHandlers(
-        outHandler,
-        inHandler);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! All context thread local variables which must be preserved for each fiber are listed here.
 class TBaseSwitchHandler
 {
@@ -262,21 +222,24 @@ protected:
     void OnSwitch()
     {
         MemoryTag_ = SwapMemoryTag(MemoryTag_);
-        Fls_ = SwapCurrentFls(Fls_);
+        FsdHolder_ = NDetail::SetCurrentFsdHolder(FsdHolder_);
         FiberId_ = SwapFiberId(FiberId_);
+        PropagatingStorage_ = SwapCurrentPropagatingStorage(PropagatingStorage_);
     }
 
     ~TBaseSwitchHandler()
     {
         YT_VERIFY(MemoryTag_ == NYTAlloc::NullMemoryTag);
-        YT_VERIFY(!Fls_);
+        YT_VERIFY(!FsdHolder_);
         YT_VERIFY(FiberId_ == InvalidFiberId);
+        YT_VERIFY(PropagatingStorage_.IsNull());
     }
 
 private:
     NYTAlloc::TMemoryTag MemoryTag_ = NYTAlloc::NullMemoryTag;
-    TFls* Fls_ = nullptr;
+    NDetail::TFsdHolder* FsdHolder_ = nullptr;
     TFiberId FiberId_ = InvalidFiberId;
+    TPropagatingStorage PropagatingStorage_;
 
     static NYTAlloc::TMemoryTag SwapMemoryTag(NYTAlloc::TMemoryTag tag)
     {
@@ -291,6 +254,12 @@ private:
         SetCurrentFiberId(fiberId);
         return result;
     }
+};
+
+struct TContextSwitchHandlers
+{
+    std::function<void()> Out;
+    std::function<void()> In;
 };
 
 class TSwitchHandler
@@ -320,7 +289,8 @@ public:
         OnSwitch();
     }
 
-    friend TContextSwitchGuard;
+    friend void PushContextHandler(std::function<void()> out, std::function<void()> in);
+    friend void PopContextHandler();
     friend TSwitchHandler* GetSwitchHandler();
     friend TCancelerPtr& GetCanceler();
 
@@ -347,12 +317,6 @@ public:
     };
 
 private:
-    struct TContextSwitchHandlers
-    {
-        TContextSwitchHandler Out;
-        TContextSwitchHandler In;
-    };
-
     TCompactVector<TContextSwitchHandlers, 16> UserHandlers_;
     TSwitchHandler* SavedThis_;
     static thread_local TSwitchHandler* This_;
@@ -373,8 +337,7 @@ private:
     // On finish fiber running.
     void OnOut()
     {
-        TContextSwitchManager::Get()->OnOut();
-        for (auto it = UserHandlers_.begin(); it != UserHandlers_.end(); ++it) {
+        for (auto it = UserHandlers_.rbegin(); it != UserHandlers_.rend(); ++it) {
             if (it->Out) {
                 it->Out();
             }
@@ -391,7 +354,6 @@ private:
                 it->In();
             }
         }
-        TContextSwitchManager::Get()->OnIn();
     }
 };
 
@@ -409,41 +371,20 @@ TCancelerPtr& GetCanceler()
     return switchHandler->Canceler_;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-TContextSwitchGuard::TContextSwitchGuard(std::function<void()> out, std::function<void()> in)
+void PushContextHandler(std::function<void()> out, std::function<void()> in)
 {
     if (auto* switchHandler = GetSwitchHandler()) {
         switchHandler->UserHandlers_.push_back({std::move(out), std::move(in)});
     }
 }
 
-TContextSwitchGuard::~TContextSwitchGuard()
+void PopContextHandler()
 {
     if (auto switchHandler = GetSwitchHandler()) {
         YT_VERIFY(!switchHandler->UserHandlers_.empty());
         switchHandler->UserHandlers_.pop_back();
     }
 }
-
-TOneShotContextSwitchGuard::TOneShotContextSwitchGuard(std::function<void()> handler)
-    : TContextSwitchGuard(
-        [this, handler = std::move(handler)] () noexcept {
-            if (!Active_) {
-                return;
-            }
-            Active_ = false;
-            handler();
-        },
-        nullptr)
-    , Active_(true)
-{ }
-
-TForbidContextSwitchGuard::TForbidContextSwitchGuard()
-    : TOneShotContextSwitchGuard( [] { YT_ABORT(); })
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
 
 void RunInFiberContext(TClosure callback)
 {
@@ -454,10 +395,14 @@ void RunInFiberContext(TClosure callback)
     SetCurrentFiberId(fiberId);
 
     // Enable fiber local storage.
-    TFls fls;
-    YT_VERIFY(!SwapCurrentFls(&fls));
+    NDetail::TFsdHolder fsdHolder;
+    auto* oldFsd = NDetail::SetCurrentFsdHolder(&fsdHolder);
+    YT_VERIFY(!oldFsd);
     auto fsdGuard = Finally([&] {
-        YT_VERIFY(SwapCurrentFls(nullptr) == &fls);
+        auto* oldFsd = NDetail::SetCurrentFsdHolder(nullptr);
+        if (oldFsd != &fsdHolder) {
+            YT_LOG_FATAL("Unexpected fiber specific data (Expected: %v, Actual: %v)", &fsdHolder, oldFsd);
+        }
 
         YT_VERIFY(GetCurrentFiberId() == fiberId);
         SetCurrentFiberId(InvalidFiberId);

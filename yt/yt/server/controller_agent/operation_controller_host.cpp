@@ -1,8 +1,10 @@
 #include "operation_controller_host.h"
-#include "master_connector.h"
-#include "controller_agent.h"
-#include "operation.h"
+
 #include "bootstrap.h"
+#include "controller_agent.h"
+#include "job_tracker.h"
+#include "master_connector.h"
+#include "operation.h"
 #include "private.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -14,8 +16,6 @@ using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NScheduler;
 using namespace NYTree;
-using NJobTrackerClient::TJobToRelease;
-using NJobTrackerClient::TReleaseJobFlags;
 using namespace NCoreDump;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -190,32 +190,44 @@ TOperationControllerHost::TOperationControllerHost(
     IInvokerPtr uncancelableControlInvoker,
     TAgentToSchedulerOperationEventOutboxPtr operationEventsOutbox,
     TAgentToSchedulerJobEventOutboxPtr jobEventsOutbox,
+    TAgentToSchedulerRunningJobStatisticsOutboxPtr runningJobStatisticsUpdatesOutbox,
     TBootstrap* bootstrap)
     : OperationId_(operation->GetId())
     , CancelableControlInvoker_(std::move(cancelableControlInvoker))
     , UncancelableControlInvoker_(std::move(uncancelableControlInvoker))
     , OperationEventsOutbox_(std::move(operationEventsOutbox))
     , JobEventsOutbox_(std::move(jobEventsOutbox))
+    , RunningJobStatisticsUpdatesOutbox_(std::move(runningJobStatisticsUpdatesOutbox))
     , Bootstrap_(bootstrap)
     , IncarnationId_(Bootstrap_->GetControllerAgent()->GetIncarnationId())
     , ControllerEpoch_(operation->GetControllerEpoch())
 { }
+
+void TOperationControllerHost::SetJobTrackerOperationHandler(TJobTrackerOperationHandlerPtr jobTrackerOperationHandler)
+{
+    YT_VERIFY(!std::exchange(JobTrackerOperationHandler_, jobTrackerOperationHandler));
+}
 
 void TOperationControllerHost::Disconnect(const TError& error)
 {
     Bootstrap_->GetControlInvoker()->Invoke(BIND(&TControllerAgent::Disconnect, Bootstrap_->GetControllerAgent(), error));
 }
 
-void TOperationControllerHost::InterruptJob(TJobId jobId, EInterruptReason reason)
+void TOperationControllerHost::InterruptJob(TJobId jobId, EInterruptReason reason, TDuration timeout, bool viaScheduler)
 {
-    JobEventsOutbox_->Enqueue(TAgentToSchedulerJobEvent{
-        .EventType = EAgentToSchedulerJobEventType::Interrupted,
-        .JobId = jobId,
-        .ControllerEpoch = ControllerEpoch_,
-        .Error = {},
-        .InterruptReason = reason,
-        .ReleaseFlags = {},
-    });
+    if (viaScheduler) {
+        JobEventsOutbox_->Enqueue(TAgentToSchedulerJobEvent{
+            .EventType = EAgentToSchedulerJobEventType::Interrupted,
+            .JobId = jobId,
+            .ControllerEpoch = ControllerEpoch_,
+            .Error = {},
+            .InterruptReason = reason,
+            .ReleaseFlags = {},
+        });
+    } else {
+        JobTrackerOperationHandler_->InterruptJob(jobId, reason, timeout);
+    }
+
     YT_LOG_DEBUG("Job interrupt request enqueued (OperationId: %v, JobId: %v)",
         OperationId_,
         jobId);
@@ -236,23 +248,56 @@ void TOperationControllerHost::AbortJob(TJobId jobId, const TError& error)
         jobId);
 }
 
-void TOperationControllerHost::FailJob(TJobId jobId)
+void TOperationControllerHost::FailJob(TJobId jobId, bool viaScheduler)
 {
-    JobEventsOutbox_->Enqueue(TAgentToSchedulerJobEvent{
-        .EventType = EAgentToSchedulerJobEventType::Failed,
-        .JobId = jobId,
-        .ControllerEpoch = ControllerEpoch_,
-        .Error = {},
-        .InterruptReason = {},
-        .ReleaseFlags = {},
-    });
+    if (viaScheduler) {
+        JobEventsOutbox_->Enqueue(TAgentToSchedulerJobEvent{
+            .EventType = EAgentToSchedulerJobEventType::Failed,
+            .JobId = jobId,
+            .ControllerEpoch = ControllerEpoch_,
+            .Error = {},
+            .InterruptReason = {},
+            .ReleaseFlags = {},
+        });
+    } else {
+        JobTrackerOperationHandler_->FailJob(jobId);
+    }
+
     YT_LOG_DEBUG("Job failure request enqueued (OperationId: %v, JobId: %v)",
         OperationId_,
         jobId);
 }
 
-void TOperationControllerHost::ReleaseJobs(const std::vector<TJobToRelease>& jobsToRelease)
+void TOperationControllerHost::UpdateRunningJobsStatistics(
+    std::vector<TAgentToSchedulerRunningJobStatistics> runningJobStatisticsUpdates)
 {
+    if (std::empty(runningJobStatisticsUpdates)) {
+        return;
+    }
+
+    RunningJobStatisticsUpdatesOutbox_->Enqueue(std::move(runningJobStatisticsUpdates));
+
+    YT_LOG_DEBUG("Jobs statistics update request enqueued (OperationId: %v, JobCount: %v)",
+        OperationId_,
+        runningJobStatisticsUpdates.size());
+}
+
+void TOperationControllerHost::RegisterJob(TStartedJobInfo jobInfo)
+{
+    JobTrackerOperationHandler_->RegisterJob(std::move(jobInfo));
+}
+
+void TOperationControllerHost::ReviveJobs(std::vector<TStartedJobInfo> jobs)
+{
+    JobTrackerOperationHandler_->ReviveJobs(std::move(jobs));
+}
+
+void TOperationControllerHost::ReleaseJobs(std::vector<TJobToRelease> jobsToRelease)
+{
+    if (std::empty(jobsToRelease)) {
+        return;
+    }
+
     std::vector<TAgentToSchedulerJobEvent> events;
     events.reserve(jobsToRelease.size());
     for (const auto& jobToRelease : jobsToRelease) {
@@ -265,10 +310,21 @@ void TOperationControllerHost::ReleaseJobs(const std::vector<TJobToRelease>& job
             .ReleaseFlags = jobToRelease.ReleaseFlags,
         });
     }
+    // COMPAT(pogorelov)
     JobEventsOutbox_->Enqueue(std::move(events));
+
+    JobTrackerOperationHandler_->ReleaseJobs(std::move(jobsToRelease));
+
     YT_LOG_DEBUG("Jobs release request enqueued (OperationId: %v, JobCount: %v)",
         OperationId_,
         jobsToRelease.size());
+}
+
+void TOperationControllerHost::AbortJobOnNode(
+    TJobId jobId,
+    NScheduler::EAbortReason abortReason)
+{
+    JobTrackerOperationHandler_->AbortJobOnNode(jobId, abortReason);
 }
 
 std::optional<TString> TOperationControllerHost::RegisterJobForMonitoring(TOperationId operationId, TJobId jobId)
@@ -302,11 +358,11 @@ TFuture<void> TOperationControllerHost::FlushOperationNode()
         .Run(OperationId_);
 }
 
-TFuture<void> TOperationControllerHost::UpdateInitializedOperationNode()
+TFuture<void> TOperationControllerHost::UpdateInitializedOperationNode(bool isClean)
 {
     return BIND(&NControllerAgent::TMasterConnector::UpdateInitializedOperationNode, Bootstrap_->GetControllerAgent()->GetMasterConnector())
         .AsyncVia(CancelableControlInvoker_)
-        .Run(OperationId_);
+        .Run(OperationId_, isClean);
 }
 
 TFuture<void> TOperationControllerHost::AttachChunkTreesToLivePreview(
@@ -397,6 +453,11 @@ TJobProfiler* TOperationControllerHost::GetJobProfiler() const
     return Bootstrap_->GetControllerAgent()->GetJobProfiler();
 }
 
+TJobTracker* TOperationControllerHost::GetJobTracker() const
+{
+    return Bootstrap_->GetControllerAgent()->GetJobTracker();
+}
+
 int TOperationControllerHost::GetOnlineExecNodeCount()
 {
     return Bootstrap_->GetControllerAgent()->GetOnlineExecNodeCount();
@@ -427,7 +488,7 @@ const NConcurrency::IThroughputThrottlerPtr& TOperationControllerHost::GetJobSpe
     return Bootstrap_->GetControllerAgent()->GetJobSpecSliceThrottler();
 }
 
-const NJobAgent::TJobReporterPtr& TOperationControllerHost::GetJobReporter()
+const TJobReporterPtr& TOperationControllerHost::GetJobReporter()
 {
     return Bootstrap_->GetControllerAgent()->GetJobReporter();
 }

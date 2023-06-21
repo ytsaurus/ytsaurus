@@ -61,6 +61,123 @@ static const TTableSchemaPtr WidenedSchemaWithGroups = New<TTableSchema>(std::ve
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TMockSystemBlockCache)
+
+class TMockSystemBlockCache
+    : public IBlockCache
+{
+public:
+    struct TBlockAccessStatistics
+    {
+        int HitCount = 0;
+        int MissCount = 0;
+        int InsertCount = 0;
+    };
+
+    TMockSystemBlockCache(
+        bool enabled,
+        TChunkId chunkId,
+        const std::vector<TSharedRef>& blocks)
+        : Enabled_(enabled)
+        , ChunkId_(chunkId)
+        , Blocks_(blocks)
+    { }
+
+    void PutBlock(
+        const NChunkClient::TBlockId& id,
+        EBlockType type,
+        const NChunkClient::TBlock& data) override
+    {
+        EXPECT_TRUE(Enabled_);
+
+        EXPECT_EQ(id.ChunkId, ChunkId_);
+        EXPECT_LT(0, id.BlockIndex);
+        EXPECT_LT(id.BlockIndex, std::ssize(Blocks_));
+        EXPECT_EQ(type, EBlockType::HashTableChunkIndex);
+
+        EXPECT_FALSE(CachedSystemBlockFlags_[id.BlockIndex - 1]);
+        CachedSystemBlockFlags_[id.BlockIndex - 1] = true;
+        ++BlockIndexToAccessStatistics_[id.BlockIndex].InsertCount;
+
+        EXPECT_EQ(data.Data.Size(), Blocks_[id.BlockIndex].Size());
+        EXPECT_EQ(0, memcmp(data.Data.Begin(), Blocks_[id.BlockIndex].Begin(), data.Data.Size()));
+    }
+
+    TCachedBlock FindBlock(
+        const NChunkClient::TBlockId& id,
+        EBlockType type) override
+    {
+        EXPECT_TRUE(Enabled_);
+
+        EXPECT_EQ(id.ChunkId, ChunkId_);
+        EXPECT_LT(0, id.BlockIndex);
+        EXPECT_LT(id.BlockIndex, std::ssize(Blocks_));
+        EXPECT_EQ(type, EBlockType::HashTableChunkIndex);
+
+
+        if (CachedSystemBlockFlags_[id.BlockIndex - 1]) {
+            ++BlockIndexToAccessStatistics_[id.BlockIndex].HitCount;
+            return TCachedBlock(Blocks_[id.BlockIndex]);
+        } else {
+            ++BlockIndexToAccessStatistics_[id.BlockIndex].MissCount;
+            return TCachedBlock();
+        }
+    }
+
+    std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
+        const NChunkClient::TBlockId& /*id*/,
+        EBlockType /*type*/) override
+    {
+        YT_ABORT();
+    }
+
+    EBlockType GetSupportedBlockTypes() const override
+    {
+        return EBlockType::HashTableChunkIndex;
+    }
+
+    bool IsBlockTypeActive(EBlockType blockType) const override
+    {
+        return Enabled_ && blockType == EBlockType::HashTableChunkIndex;
+    }
+
+    void MarkCachedSystemBlocks(std::vector<int> cachedSystemBlockFlags)
+    {
+        YT_VERIFY(Enabled_);
+        CachedSystemBlockFlags_ = std::move(cachedSystemBlockFlags);
+        YT_VERIFY(Blocks_.size() - 1 == CachedSystemBlockFlags_.size());
+    }
+
+    THashMap<int, TBlockAccessStatistics>& GetBlockAccessStatistics()
+    {
+        YT_VERIFY(Enabled_);
+        return BlockIndexToAccessStatistics_;
+    }
+
+private:
+    const bool Enabled_;
+    const TChunkId ChunkId_;
+    const std::vector<TSharedRef>& Blocks_;
+
+    std::vector<int> CachedSystemBlockFlags_;
+
+    THashMap<int, TBlockAccessStatistics> BlockIndexToAccessStatistics_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TMockSystemBlockCache)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TControllerUnittestingOptions
+{
+    TColumnFilter ColumnFilter = {};
+    TTimestamp Timestamp = AsyncLastCommittedTimestamp;
+    bool ProduceAllVersions = false;
+    std::optional<int> FingerprintDomainSize = std::nullopt;
+    std::optional<int> MaxBlockSize = std::nullopt;
+    std::vector<int> CachedSystemBlockFlags = {};
+};
+
 class TTestHashTableChunkIndexReadController
     : public ::testing::Test
 {
@@ -73,11 +190,7 @@ public:
         const TTableSchemaPtr& readSchema,
         const std::vector<TUnversionedOwningRow>& owningKeys,
         std::vector<int> keySlots,
-        const TColumnFilter& columnFilter = {},
-        TTimestamp timestamp = AsyncLastCommittedTimestamp,
-        bool produceAllVersions = false,
-        std::optional<int> fingerprintDomainSize = std::nullopt,
-        std::optional<int> maxBlockSize = std::nullopt)
+        TControllerUnittestingOptions options = {})
     {
         Blocks_.clear();
 
@@ -87,8 +200,8 @@ public:
         TIndexedVersionedBlockFormatDetail blockFormatDetail(writeSchema);
 
         auto builderConfig = New<TChunkIndexesWriterConfig>();
-        if (maxBlockSize) {
-            builderConfig->HashTable->MaxBlockSize = *maxBlockSize;
+        if (options.MaxBlockSize) {
+            builderConfig->HashTable->MaxBlockSize = *options.MaxBlockSize;
         }
         YT_VERIFY(slotCount >= std::ssize(rows));
         builderConfig->HashTable->LoadFactor = static_cast<double>(std::ssize(rows)) / slotCount;
@@ -146,43 +259,61 @@ public:
             keys.push_back(key);
         }
 
+        auto cacheEnabled = !options.CachedSystemBlockFlags.empty();
+        SystemBlockCache_ = New<TMockSystemBlockCache>(
+            cacheEnabled,
+            ChunkId_,
+            Blocks_);
+        if (cacheEnabled) {
+            SystemBlockCache_->MarkCachedSystemBlocks(options.CachedSystemBlockFlags);
+        }
+
         return CreateChunkIndexReadController(
             ChunkId_,
-            columnFilter,
+            options.ColumnFilter,
             versionedChunkMeta,
             MakeSharedRange(keys),
             /*keyComparer*/ TKeyComparer(),
             readSchema,
-            timestamp,
-            produceAllVersions,
+            options.Timestamp,
+            options.ProduceAllVersions,
+            SystemBlockCache_,
             TChunkIndexReadControllerTestingOptions{
                 .KeySlotIndexes = keySlots,
-                .FingerprintDomainSize = fingerprintDomainSize
+                .FingerprintDomainSize = options.FingerprintDomainSize
             });
     }
 
-    std::vector<TSharedRef> GetFragments(
-        const std::vector<IChunkFragmentReader::TChunkFragmentRequest>& requests) const
+    IChunkIndexReadController::TReadResponse BuildResponse(
+        const IChunkIndexReadController::TReadRequest& request) const
     {
-        std::vector<TSharedRef> fragments;
-        fragments.reserve(requests.size());
-        for (const auto& request : requests) {
-            EXPECT_EQ(ChunkId_, request.ChunkId);
+        IChunkIndexReadController::TReadResponse response;
 
-            EXPECT_EQ(NErasure::ECodec::None, request.ErasureCodec);
-            EXPECT_EQ(std::nullopt, request.BlockSize);
+        response.Fragments.reserve(request.FragmentSubrequests.size());
+        for (const auto& subrequest : request.FragmentSubrequests) {
+            EXPECT_EQ(ChunkId_, subrequest.ChunkId);
 
-            EXPECT_LT(request.BlockIndex, std::ssize(Blocks_));
-            EXPECT_LT(0, request.Length);
-            EXPECT_LE(request.BlockOffset + request.Length, std::ssize(Blocks_[request.BlockIndex]));
+            EXPECT_EQ(NErasure::ECodec::None, subrequest.ErasureCodec);
+            EXPECT_EQ(std::nullopt, subrequest.BlockSize);
 
-            fragments.push_back(
-                Blocks_[request.BlockIndex].Slice(
-                    request.BlockOffset,
-                    request.BlockOffset + request.Length));
+            EXPECT_LT(subrequest.BlockIndex, std::ssize(Blocks_));
+            EXPECT_LT(0, subrequest.Length);
+            EXPECT_LE(subrequest.BlockOffset + subrequest.Length, std::ssize(Blocks_[subrequest.BlockIndex]));
+
+            response.Fragments.push_back(
+                Blocks_[subrequest.BlockIndex].Slice(
+                    subrequest.BlockOffset,
+                    subrequest.BlockOffset + subrequest.Length));
         }
 
-        return fragments;
+        response.SystemBlocks.reserve(request.SystemBlockIndexes.size());
+        for (auto blockIndex : request.SystemBlockIndexes) {
+            // First block is data block.
+            EXPECT_LT(0, blockIndex);
+            response.SystemBlocks.emplace_back(Blocks_[blockIndex]);
+        }
+
+        return response;
     }
 
     const std::vector<TSharedRef>& GetBlocks() const
@@ -190,10 +321,17 @@ public:
         return Blocks_;
     }
 
+    const TMockSystemBlockCachePtr& GetSystemBlockCache() const
+    {
+        return SystemBlockCache_;
+    }
+
 private:
     const TChunkId ChunkId_ = TGuid::Create();
 
     std::vector<TSharedRef> Blocks_;
+
+    TMockSystemBlockCachePtr SystemBlockCache_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -217,14 +355,15 @@ TEST_F(TTestHashTableChunkIndexReadController, MissingKey1)
         keys,
         /*keySlots*/ {0});
 
-    auto requests = controller->GetFragmentRequests();
-    EXPECT_EQ(1, std::ssize(requests));
+    auto request = controller->GetReadRequest();
+    EXPECT_EQ(0, std::ssize(request.SystemBlockIndexes));
+    EXPECT_EQ(1, std::ssize(request.FragmentSubrequests));
 
-    EXPECT_EQ(THashTableChunkIndexFormatDetail::SectorSize, requests[0].Length);
-    EXPECT_EQ(1, requests[0].BlockIndex);
-    EXPECT_EQ(0, requests[0].BlockOffset);
+    EXPECT_EQ(THashTableChunkIndexFormatDetail::SectorSize, request.FragmentSubrequests[0].Length);
+    EXPECT_EQ(1, request.FragmentSubrequests[0].BlockIndex);
+    EXPECT_EQ(0, request.FragmentSubrequests[0].BlockOffset);
 
-    controller->HandleFragmentsResponse(GetFragments(requests));
+    controller->HandleReadResponse(BuildResponse(request));
     EXPECT_TRUE(controller->IsFinished());
 
     const auto& result = controller->GetResult();
@@ -277,7 +416,7 @@ TEST_F(TTestHashTableChunkIndexReadController, MissingKey3)
             keys,
             /*keySlots*/ {slotIndex});
 
-        controller->HandleFragmentsResponse(GetFragments(controller->GetFragmentRequests()));
+        controller->HandleReadResponse(BuildResponse(controller->GetReadRequest()));
         EXPECT_TRUE(controller->IsFinished());
 
         const auto& result = controller->GetResult();
@@ -309,7 +448,7 @@ TEST_F(TTestHashTableChunkIndexReadController, MissingKey4)
             keys,
             /*keySlots*/ {slotIndex});
 
-        controller->HandleFragmentsResponse(GetFragments(controller->GetFragmentRequests()));
+        controller->HandleReadResponse(BuildResponse(controller->GetReadRequest()));
         EXPECT_TRUE(controller->IsFinished());
 
         const auto& result = controller->GetResult();
@@ -337,9 +476,9 @@ TEST_F(TTestHashTableChunkIndexReadController, SimpleLookup)
         keys,
         /*keySlots*/ {0});
 
-    controller->HandleFragmentsResponse(GetFragments(controller->GetFragmentRequests()));
+    controller->HandleReadResponse(BuildResponse(controller->GetReadRequest()));
     EXPECT_FALSE(controller->IsFinished());
-    controller->HandleFragmentsResponse(GetFragments(controller->GetFragmentRequests()));
+    controller->HandleReadResponse(BuildResponse(controller->GetReadRequest()));
 
     EXPECT_TRUE(controller->IsFinished());
     auto result = controller->GetResult();
@@ -373,13 +512,15 @@ TEST_F(TTestHashTableChunkIndexReadController, SlotClash)
             keys,
             /*keySlots*/ {slotIndex, 1 - slotIndex, slotIndex, slotIndex, slotIndex, 1 - slotIndex});
 
-        auto requests = controller->GetFragmentRequests();
-        EXPECT_EQ(1, std::ssize(requests));
-        controller->HandleFragmentsResponse(GetFragments(requests));
+        auto request = controller->GetReadRequest();
+        EXPECT_EQ(0, std::ssize(request.SystemBlockIndexes));
+        EXPECT_EQ(1, std::ssize(request.FragmentSubrequests));
+        controller->HandleReadResponse(BuildResponse(request));
 
-        requests = controller->GetFragmentRequests();
-        EXPECT_EQ(2, std::ssize(requests));
-        controller->HandleFragmentsResponse(GetFragments(requests));
+        request = controller->GetReadRequest();
+        EXPECT_EQ(0, std::ssize(request.SystemBlockIndexes));
+        EXPECT_EQ(2, std::ssize(request.FragmentSubrequests));
+        controller->HandleReadResponse(BuildResponse(request));
 
         EXPECT_TRUE(controller->IsFinished());
         auto result = controller->GetResult();
@@ -423,6 +564,9 @@ TEST_F(TTestHashTableChunkIndexReadController, ColumnFilter)
             }
         }
 
+        TControllerUnittestingOptions testingOptions{
+            .ColumnFilter = TColumnFilter(columnIndexes),
+        };
         auto controller = InitializeController(
             rows,
             /*rowSlots*/ {0},
@@ -431,16 +575,16 @@ TEST_F(TTestHashTableChunkIndexReadController, ColumnFilter)
             SchemaWithGroups,
             keys,
             /*keySlots*/ {0, 0, 0},
-            TColumnFilter(columnIndexes));
+            testingOptions);
 
-        auto requests = controller->GetFragmentRequests();
-        EXPECT_EQ(1, std::ssize(requests));
-        controller->HandleFragmentsResponse(GetFragments(requests));
+        auto request = controller->GetReadRequest();
+        EXPECT_EQ(0, std::ssize(request.SystemBlockIndexes));
+        EXPECT_EQ(1, std::ssize(request.FragmentSubrequests));
+        controller->HandleReadResponse(BuildResponse(request));
 
-        requests = controller->GetFragmentRequests();
-        controller->HandleFragmentsResponse(GetFragments(requests));
-
+        controller->HandleReadResponse(BuildResponse(controller->GetReadRequest()));
         EXPECT_TRUE(controller->IsFinished());
+
         auto result = controller->GetResult();
         EXPECT_EQ(3, std::ssize(result));
         ExpectSchemafulRowsEqual(TVersionedRow(), result[0]);
@@ -472,6 +616,9 @@ TEST_F(TTestHashTableChunkIndexReadController, LookupByTimestamp1)
     std::vector<TUnversionedOwningRow> keys = { YsonToKey("0") };
 
     for (int valueIndex = 0; valueIndex < 1; ++valueIndex) {
+        TControllerUnittestingOptions testingOptions{
+            .Timestamp = timestamps[valueIndex],
+        };
         auto controller = InitializeController(
             rows,
             /*rowSlots*/ {0},
@@ -480,11 +627,10 @@ TEST_F(TTestHashTableChunkIndexReadController, LookupByTimestamp1)
             SimpleSchema,
             keys,
             /*keySlots*/ {0},
-            /*columnFilter*/ {},
-            timestamps[valueIndex]);
+            testingOptions);
 
-        controller->HandleFragmentsResponse(GetFragments(controller->GetFragmentRequests()));
-        controller->HandleFragmentsResponse(GetFragments(controller->GetFragmentRequests()));
+        controller->HandleReadResponse(BuildResponse(controller->GetReadRequest()));
+        controller->HandleReadResponse(BuildResponse(controller->GetReadRequest()));
 
         auto result = controller->GetResult();
         EXPECT_EQ(1, std::ssize(result));
@@ -507,6 +653,9 @@ TEST_F(TTestHashTableChunkIndexReadController, VersionedLookup)
 
     std::vector<TUnversionedOwningRow> keys = { YsonToKey("0") };
 
+    TControllerUnittestingOptions testingOptions{
+        .ProduceAllVersions = true,
+    };
     auto controller = InitializeController(
         rows,
         /*rowSlots*/ {0},
@@ -515,12 +664,10 @@ TEST_F(TTestHashTableChunkIndexReadController, VersionedLookup)
         SimpleSchema,
         keys,
         /*keySlots*/ {0},
-        /*columnFilter*/ {},
-        /*timestamp*/ AsyncLastCommittedTimestamp,
-        /*produceAllVersions*/ true);
+        testingOptions);
 
-    controller->HandleFragmentsResponse(GetFragments(controller->GetFragmentRequests()));
-    controller->HandleFragmentsResponse(GetFragments(controller->GetFragmentRequests()));
+    controller->HandleReadResponse(BuildResponse(controller->GetReadRequest()));
+    controller->HandleReadResponse(BuildResponse(controller->GetReadRequest()));
 
     auto result = controller->GetResult();
     EXPECT_EQ(1, std::ssize(result));
@@ -547,8 +694,8 @@ TEST_F(TTestHashTableChunkIndexReadController, WidenedSchema1)
         keys,
         /*keySlots*/ {0, 0, 0});
 
-    controller->HandleFragmentsResponse(GetFragments(controller->GetFragmentRequests()));
-    controller->HandleFragmentsResponse(GetFragments(controller->GetFragmentRequests()));
+    controller->HandleReadResponse(BuildResponse(controller->GetReadRequest()));
+    controller->HandleReadResponse(BuildResponse(controller->GetReadRequest()));
 
     auto result = controller->GetResult();
     EXPECT_EQ(3, std::ssize(result));
@@ -574,6 +721,9 @@ TEST_F(TTestHashTableChunkIndexReadController, WidenedSchema2)
 
     std::vector<TUnversionedOwningRow> keys = { YsonToKey("0; #; #"), YsonToKey("0; 0; 0"), YsonToKey("1; k2; #") };
 
+    TControllerUnittestingOptions testingOptions{
+        .ColumnFilter = TColumnFilter({3, 5, 7, 8}),
+    };
     auto controller = InitializeController(
         rows,
         /*rowSlots*/ {1, 1},
@@ -582,10 +732,10 @@ TEST_F(TTestHashTableChunkIndexReadController, WidenedSchema2)
         WidenedSchemaWithGroups,
         keys,
         /*keySlots*/ {1, 2, 1},
-        TColumnFilter({3, 5, 7, 8}));
+        testingOptions);
 
-    controller->HandleFragmentsResponse(GetFragments(controller->GetFragmentRequests()));
-    controller->HandleFragmentsResponse(GetFragments(controller->GetFragmentRequests()));
+    controller->HandleReadResponse(BuildResponse(controller->GetReadRequest()));
+    controller->HandleReadResponse(BuildResponse(controller->GetReadRequest()));
 
     auto result = controller->GetResult();
     EXPECT_EQ(3, std::ssize(result));
@@ -629,15 +779,15 @@ TEST_F(TTestHashTableChunkIndexReadController, MultipleSectors)
             SimpleSchema,
             SimpleSchema,
             keys,
-            {130, 170, 130, 170, 130, 170});
+            /*keySlots*/ {130, 170, 130, 170, 130, 170});
 
         auto expectedSectorCount = slotCount == 300 ? 2 : 3;
         EXPECT_EQ(THashTableChunkIndexFormatDetail::SectorSize * expectedSectorCount, std::ssize(GetBlocks()[1]));
 
-        controller->HandleFragmentsResponse(GetFragments(controller->GetFragmentRequests()));
-        controller->HandleFragmentsResponse(GetFragments(controller->GetFragmentRequests()));
+        controller->HandleReadResponse(BuildResponse(controller->GetReadRequest()));
+        controller->HandleReadResponse(BuildResponse(controller->GetReadRequest()));
         if (slotCount == 400) {
-            controller->HandleFragmentsResponse(GetFragments(controller->GetFragmentRequests()));
+            controller->HandleReadResponse(BuildResponse(controller->GetReadRequest()));
         }
 
         auto result = controller->GetResult();
@@ -665,6 +815,9 @@ TEST_F(TTestHashTableChunkIndexReadController, FingerprintClash)
 
     std::vector<TUnversionedOwningRow> keys = { YsonToKey("-1"), YsonToKey("0"), YsonToKey("1") };
 
+    TControllerUnittestingOptions testingOptions{
+        .FingerprintDomainSize = 2,
+    };
     auto controller = InitializeController(
         rows,
         {1, 1},
@@ -673,26 +826,27 @@ TEST_F(TTestHashTableChunkIndexReadController, FingerprintClash)
         SimpleSchema,
         keys,
         {1, 1, 1},
-        /*columnFilter*/ {},
-        /*timestamp*/ AsyncLastCommittedTimestamp,
-        /*produceAllVersions*/ false,
-        /*fingerprintDomainSize*/ 2);
+        testingOptions);
 
-    auto requests = controller->GetFragmentRequests();
-    EXPECT_EQ(1, std::ssize(requests));
-    controller->HandleFragmentsResponse(GetFragments(requests));
+    auto request = controller->GetReadRequest();
+    EXPECT_EQ(0, std::ssize(request.SystemBlockIndexes));
+    EXPECT_EQ(1, std::ssize(request.FragmentSubrequests));
+    controller->HandleReadResponse(BuildResponse(request));
 
-    requests = controller->GetFragmentRequests();
-    EXPECT_EQ(3, std::ssize(requests));
-    controller->HandleFragmentsResponse(GetFragments(requests));
+    request = controller->GetReadRequest();
+    EXPECT_EQ(0, std::ssize(request.SystemBlockIndexes));
+    EXPECT_EQ(3, std::ssize(request.FragmentSubrequests));
+    controller->HandleReadResponse(BuildResponse(request));
 
-    requests = controller->GetFragmentRequests();
-    EXPECT_EQ(1, std::ssize(requests));
-    controller->HandleFragmentsResponse(GetFragments(requests));
+    request = controller->GetReadRequest();
+    EXPECT_EQ(0, std::ssize(request.SystemBlockIndexes));
+    EXPECT_EQ(1, std::ssize(request.FragmentSubrequests));
+    controller->HandleReadResponse(BuildResponse(request));
 
-    requests = controller->GetFragmentRequests();
-    EXPECT_EQ(2, std::ssize(requests));
-    controller->HandleFragmentsResponse(GetFragments(requests));
+    request = controller->GetReadRequest();
+    EXPECT_EQ(0, std::ssize(request.SystemBlockIndexes));
+    EXPECT_EQ(2, std::ssize(request.FragmentSubrequests));
+    controller->HandleReadResponse(BuildResponse(request));
 
     EXPECT_TRUE(controller->IsFinished());
     auto result = controller->GetResult();
@@ -715,6 +869,10 @@ TEST_F(TTestHashTableChunkIndexReadController, LookupByTimestamp2)
 
     std::vector<TUnversionedOwningRow> keys = { YsonToKey("0"), YsonToKey("1") };
 
+    TControllerUnittestingOptions testingOptions{
+        .Timestamp = 100,
+        .FingerprintDomainSize = 2,
+    };
     auto controller = InitializeController(
         rows,
         /*rowSlots*/ {0, 0},
@@ -723,15 +881,12 @@ TEST_F(TTestHashTableChunkIndexReadController, LookupByTimestamp2)
         SimpleSchema,
         keys,
         /*keySlots*/ {0, 0},
-        /*columnFilter*/ {},
-        /*timestamp*/ 100,
-        /*produceAllVersions*/ false,
-        /*fingerprintDomainSize*/ 2);
+        testingOptions);
 
-    controller->HandleFragmentsResponse(GetFragments(controller->GetFragmentRequests()));
-    controller->HandleFragmentsResponse(GetFragments(controller->GetFragmentRequests()));
-    controller->HandleFragmentsResponse(GetFragments(controller->GetFragmentRequests()));
-    controller->HandleFragmentsResponse(GetFragments(controller->GetFragmentRequests()));
+    controller->HandleReadResponse(BuildResponse(controller->GetReadRequest()));
+    controller->HandleReadResponse(BuildResponse(controller->GetReadRequest()));
+    controller->HandleReadResponse(BuildResponse(controller->GetReadRequest()));
+    controller->HandleReadResponse(BuildResponse(controller->GetReadRequest()));
 
     auto result = controller->GetResult();
     EXPECT_EQ(2, std::ssize(result));
@@ -754,6 +909,9 @@ TEST_F(TTestHashTableChunkIndexReadController, MultipleBlocks)
     auto getController = [&] (const std::vector<TUnversionedOwningRow>& keys) {
         std::vector<int> keySlots(keys.size(), 0);
 
+        TControllerUnittestingOptions testingOptions{
+            .MaxBlockSize = THashTableChunkIndexFormatDetail::SectorSize,
+        };
         auto controller = InitializeController(
             rows,
             {0, 0},
@@ -762,11 +920,7 @@ TEST_F(TTestHashTableChunkIndexReadController, MultipleBlocks)
             SimpleSchema,
             keys,
             keySlots,
-            /*columnFilter*/ {},
-            /*timestamp*/ AsyncLastCommittedTimestamp,
-            /*produceAllVersions*/ false,
-            /*fingerprintDomainSize*/ std::nullopt,
-            /*maxBlockSize*/ THashTableChunkIndexFormatDetail::SectorSize);
+            testingOptions);
 
         EXPECT_EQ(3, std::ssize(GetBlocks()));
         EXPECT_EQ(THashTableChunkIndexFormatDetail::SectorSize, std::ssize(GetBlocks()[1]));
@@ -779,15 +933,17 @@ TEST_F(TTestHashTableChunkIndexReadController, MultipleBlocks)
         std::vector<TUnversionedOwningRow> keys = { YsonToKey("0"), YsonToKey("1") };
         auto controller = getController(keys);
 
-        auto requests = controller->GetFragmentRequests();
-        EXPECT_EQ(1, std::ssize(requests));
-        EXPECT_EQ(1, requests[0].BlockIndex);
-        controller->HandleFragmentsResponse(GetFragments(requests));
+        auto request = controller->GetReadRequest();
+        EXPECT_EQ(0, std::ssize(request.SystemBlockIndexes));
+        EXPECT_EQ(1, std::ssize(request.FragmentSubrequests));
+        EXPECT_EQ(1, request.FragmentSubrequests[0].BlockIndex);
+        controller->HandleReadResponse(BuildResponse(request));
 
-        requests = controller->GetFragmentRequests();
-        EXPECT_EQ(1, std::ssize(requests));
-        EXPECT_EQ(0, requests[0].BlockIndex);
-        controller->HandleFragmentsResponse(GetFragments(requests));
+        request = controller->GetReadRequest();
+        EXPECT_EQ(0, std::ssize(request.SystemBlockIndexes));
+        EXPECT_EQ(1, std::ssize(request.FragmentSubrequests));
+        EXPECT_EQ(0, request.FragmentSubrequests[0].BlockIndex);
+        controller->HandleReadResponse(BuildResponse(request));
 
         auto result = controller->GetResult();
         ExpectSchemafulRowsEqual(TVersionedRow(), result[0]);
@@ -798,15 +954,17 @@ TEST_F(TTestHashTableChunkIndexReadController, MultipleBlocks)
         std::vector<TUnversionedOwningRow> keys = { YsonToKey("2"), YsonToKey("3") };
         auto controller = getController(keys);
 
-        auto requests = controller->GetFragmentRequests();
-        EXPECT_EQ(1, std::ssize(requests));
-        EXPECT_EQ(2, requests[0].BlockIndex);
-        controller->HandleFragmentsResponse(GetFragments(requests));
+        auto request = controller->GetReadRequest();
+        EXPECT_EQ(0, std::ssize(request.SystemBlockIndexes));
+        EXPECT_EQ(1, std::ssize(request.FragmentSubrequests));
+        EXPECT_EQ(2, request.FragmentSubrequests[0].BlockIndex);
+        controller->HandleReadResponse(BuildResponse(request));
 
-        requests = controller->GetFragmentRequests();
-        EXPECT_EQ(1, std::ssize(requests));
-        EXPECT_EQ(0, requests[0].BlockIndex);
-        controller->HandleFragmentsResponse(GetFragments(requests));
+        request = controller->GetReadRequest();
+        EXPECT_EQ(0, std::ssize(request.SystemBlockIndexes));
+        EXPECT_EQ(1, std::ssize(request.FragmentSubrequests));
+        EXPECT_EQ(0, request.FragmentSubrequests[0].BlockIndex);
+        controller->HandleReadResponse(BuildResponse(request));
 
         auto result = controller->GetResult();
         ExpectSchemafulRowsEqual(TVersionedRow(), result[0]);
@@ -817,17 +975,19 @@ TEST_F(TTestHashTableChunkIndexReadController, MultipleBlocks)
         std::vector<TUnversionedOwningRow> keys = { YsonToKey("1"), YsonToKey("3") };
         auto controller = getController(keys);
 
-        auto requests = controller->GetFragmentRequests();
-        EXPECT_EQ(2, std::ssize(requests));
-        EXPECT_EQ(1, requests[0].BlockIndex);
-        EXPECT_EQ(2, requests[1].BlockIndex);
-        controller->HandleFragmentsResponse(GetFragments(requests));
+        auto request = controller->GetReadRequest();
+        EXPECT_EQ(0, std::ssize(request.SystemBlockIndexes));
+        EXPECT_EQ(2, std::ssize(request.FragmentSubrequests));
+        EXPECT_EQ(1, request.FragmentSubrequests[0].BlockIndex);
+        EXPECT_EQ(2, request.FragmentSubrequests[1].BlockIndex);
+        controller->HandleReadResponse(BuildResponse(request));
 
-        requests = controller->GetFragmentRequests();
-        EXPECT_EQ(2, std::ssize(requests));
-        EXPECT_EQ(0, requests[0].BlockIndex);
-        EXPECT_EQ(0, requests[1].BlockIndex);
-        controller->HandleFragmentsResponse(GetFragments(requests));
+        request = controller->GetReadRequest();
+        EXPECT_EQ(0, std::ssize(request.SystemBlockIndexes));
+        EXPECT_EQ(2, std::ssize(request.FragmentSubrequests));
+        EXPECT_EQ(0, request.FragmentSubrequests[0].BlockIndex);
+        EXPECT_EQ(0, request.FragmentSubrequests[1].BlockIndex);
+        controller->HandleReadResponse(BuildResponse(request));
 
         auto result = controller->GetResult();
         ExpectSchemafulRowsEqual(rows[0], result[0]);
@@ -838,11 +998,12 @@ TEST_F(TTestHashTableChunkIndexReadController, MultipleBlocks)
         std::vector<TUnversionedOwningRow> keys = { YsonToKey("0"), YsonToKey("2") };
         auto controller = getController(keys);
 
-        auto requests = controller->GetFragmentRequests();
-        EXPECT_EQ(2, std::ssize(requests));
-        EXPECT_EQ(1, requests[0].BlockIndex);
-        EXPECT_EQ(2, requests[1].BlockIndex);
-        controller->HandleFragmentsResponse(GetFragments(requests));
+        auto request = controller->GetReadRequest();
+        EXPECT_EQ(0, std::ssize(request.SystemBlockIndexes));
+        EXPECT_EQ(2, std::ssize(request.FragmentSubrequests));
+        EXPECT_EQ(1, request.FragmentSubrequests[0].BlockIndex);
+        EXPECT_EQ(2, request.FragmentSubrequests[1].BlockIndex);
+        controller->HandleReadResponse(BuildResponse(request));
 
         auto result = controller->GetResult();
         ExpectSchemafulRowsEqual(TVersionedRow(), result[0]);
@@ -873,8 +1034,286 @@ TEST_F(TTestHashTableChunkIndexReadController, ChecksumMismatch)
     blockBegin[0] ^= 1;
 
     EXPECT_THROW(
-        controller->HandleFragmentsResponse(GetFragments(controller->GetFragmentRequests())),
+        controller->HandleReadResponse(BuildResponse(controller->GetReadRequest())),
         std::exception);
+}
+
+TEST_F(TTestHashTableChunkIndexReadController, BlockCacheSimple1)
+{
+    std::vector<TVersionedOwningRow> rows = {
+        YsonToVersionedRow(
+            "<id=0> 0",
+            "<id=1;ts=100> 0")
+    };
+
+    std::vector<TUnversionedOwningRow> keys = { YsonToKey("0") };
+
+    TControllerUnittestingOptions testingOptions{
+        .CachedSystemBlockFlags = { 0 },
+    };
+    auto controller = InitializeController(
+        rows,
+        /*rowSlots*/ {0},
+        /*slotCount*/ 1,
+        SimpleSchema,
+        SimpleSchema,
+        keys,
+        /*keySlots*/ {0},
+        testingOptions);
+
+    auto systemBlockCache = GetSystemBlockCache();
+    auto& blockAccessStatistics = systemBlockCache->GetBlockAccessStatistics();
+
+    auto request = controller->GetReadRequest();
+    EXPECT_EQ(1, std::ssize(request.SystemBlockIndexes));
+    EXPECT_EQ(0, std::ssize(request.FragmentSubrequests));
+    EXPECT_EQ(1, request.SystemBlockIndexes[0]);
+    controller->HandleReadResponse(BuildResponse(request));
+
+    EXPECT_EQ(0, blockAccessStatistics[1].HitCount);
+    EXPECT_EQ(1, blockAccessStatistics[1].MissCount);
+    EXPECT_EQ(1, blockAccessStatistics[1].InsertCount);
+
+    request = controller->GetReadRequest();
+    EXPECT_EQ(0, std::ssize(request.SystemBlockIndexes));
+    EXPECT_EQ(1, std::ssize(request.FragmentSubrequests));
+    EXPECT_EQ(0, request.FragmentSubrequests[0].BlockIndex);
+    controller->HandleReadResponse(BuildResponse(request));
+
+    EXPECT_EQ(0, blockAccessStatistics[1].HitCount);
+    EXPECT_EQ(1, blockAccessStatistics[1].MissCount);
+    EXPECT_EQ(1, blockAccessStatistics[1].InsertCount);
+
+    auto result = controller->GetResult();
+    ExpectSchemafulRowsEqual(rows[0], result[0]);
+}
+
+TEST_F(TTestHashTableChunkIndexReadController, BlockCacheSimple2)
+{
+    std::vector<TVersionedOwningRow> rows = {
+        YsonToVersionedRow(
+            "<id=0> 0",
+            "<id=1;ts=100> 0")
+    };
+
+    std::vector<TUnversionedOwningRow> keys = { YsonToKey("0") };
+
+    TControllerUnittestingOptions testingOptions{
+        .CachedSystemBlockFlags = { 1 },
+    };
+    auto controller = InitializeController(
+        rows,
+        /*rowSlots*/ {0},
+        /*slotCount*/ 1,
+        SimpleSchema,
+        SimpleSchema,
+        keys,
+        /*keySlots*/ {0},
+        testingOptions);
+
+    auto systemBlockCache = GetSystemBlockCache();
+    auto& blockAccessStatistics = systemBlockCache->GetBlockAccessStatistics();
+
+    auto request = controller->GetReadRequest();
+    EXPECT_EQ(0, std::ssize(request.SystemBlockIndexes));
+    EXPECT_EQ(1, std::ssize(request.FragmentSubrequests));
+    EXPECT_EQ(0, request.FragmentSubrequests[0].BlockIndex);
+
+    EXPECT_EQ(1, blockAccessStatistics[1].HitCount);
+    EXPECT_EQ(0, blockAccessStatistics[1].MissCount);
+    EXPECT_EQ(0, blockAccessStatistics[1].InsertCount);
+
+    controller->HandleReadResponse(BuildResponse(request));
+
+    EXPECT_EQ(1, blockAccessStatistics[1].HitCount);
+    EXPECT_EQ(0, blockAccessStatistics[1].MissCount);
+    EXPECT_EQ(0, blockAccessStatistics[1].InsertCount);
+
+    auto result = controller->GetResult();
+    ExpectSchemafulRowsEqual(rows[0], result[0]);
+}
+
+TEST_F(TTestHashTableChunkIndexReadController, BlockCacheEmpty1)
+{
+    std::vector<TVersionedOwningRow> rows = {
+        YsonToVersionedRow(
+            "<id=0> 1",
+            "<id=1;ts=100> 1")
+    };
+
+    std::vector<TUnversionedOwningRow> keys = { YsonToKey("0") };
+
+    TControllerUnittestingOptions testingOptions{
+        .CachedSystemBlockFlags = { 0 },
+    };
+    auto controller = InitializeController(
+        rows,
+        /*rowSlots*/ {0},
+        /*slotCount*/ 1,
+        SimpleSchema,
+        SimpleSchema,
+        keys,
+        /*keySlots*/ {0},
+        testingOptions);
+
+    auto systemBlockCache = GetSystemBlockCache();
+    auto& blockAccessStatistics = systemBlockCache->GetBlockAccessStatistics();
+
+    auto request = controller->GetReadRequest();
+    EXPECT_EQ(1, std::ssize(request.SystemBlockIndexes));
+    EXPECT_EQ(0, std::ssize(request.FragmentSubrequests));
+    EXPECT_EQ(1, request.SystemBlockIndexes[0]);
+    controller->HandleReadResponse(BuildResponse(request));
+
+    EXPECT_EQ(0, blockAccessStatistics[1].HitCount);
+    EXPECT_EQ(1, blockAccessStatistics[1].MissCount);
+    EXPECT_EQ(1, blockAccessStatistics[1].InsertCount);
+
+    auto result = controller->GetResult();
+    ExpectSchemafulRowsEqual(TVersionedRow(), result[0]);
+}
+
+TEST_F(TTestHashTableChunkIndexReadController, BlockCacheEmpty2)
+{
+    std::vector<TVersionedOwningRow> rows = {
+        YsonToVersionedRow(
+            "<id=0> 1",
+            "<id=1;ts=100> 1")
+    };
+
+    std::vector<TUnversionedOwningRow> keys = { YsonToKey("0") };
+
+    TControllerUnittestingOptions testingOptions{
+        .CachedSystemBlockFlags = { 1 },
+    };
+    auto controller = InitializeController(
+        rows,
+        /*rowSlots*/ {0},
+        /*slotCount*/ 1,
+        SimpleSchema,
+        SimpleSchema,
+        keys,
+        /*keySlots*/ {0},
+        testingOptions);
+
+    auto systemBlockCache = GetSystemBlockCache();
+    auto& blockAccessStatistics = systemBlockCache->GetBlockAccessStatistics();
+    EXPECT_EQ(1, blockAccessStatistics[1].HitCount);
+    EXPECT_EQ(0, blockAccessStatistics[1].MissCount);
+    EXPECT_EQ(0, blockAccessStatistics[1].InsertCount);
+
+    EXPECT_TRUE(controller->IsFinished());
+
+    auto result = controller->GetResult();
+    ExpectSchemafulRowsEqual(TVersionedRow(), result[0]);
+}
+
+TEST_F(TTestHashTableChunkIndexReadController, BlockCacheMultipleBlocks)
+{
+    std::vector<TVersionedOwningRow> rows = {
+        YsonToVersionedRow(
+            "<id=0> 0",
+            "<id=1;ts=100> 0"),
+        YsonToVersionedRow(
+            "<id=0> 1",
+            "<id=1;ts=100> 1"),
+        YsonToVersionedRow(
+            "<id=0> 2",
+            "<id=1;ts=100> 2"),
+        YsonToVersionedRow(
+            "<id=0> 3",
+            "<id=1;ts=100> 3"),
+    };
+
+    std::vector<TUnversionedOwningRow> keys = { YsonToKey("0"), YsonToKey("1"), YsonToKey("2"), YsonToKey("3") };
+
+    TControllerUnittestingOptions testingOptions{
+        .MaxBlockSize = THashTableChunkIndexFormatDetail::SectorSize,
+        .CachedSystemBlockFlags = { 1, 0 },
+    };
+    auto controller = InitializeController(
+        rows,
+        {0, 0, 100, 100},
+        /*slotCount*/ 300,
+        SimpleSchema,
+        SimpleSchema,
+        keys,
+        /*keySlots*/ {0, 0, 100, 100},
+        testingOptions);
+
+    EXPECT_EQ(3, std::ssize(GetBlocks()));
+    EXPECT_EQ(THashTableChunkIndexFormatDetail::SectorSize, std::ssize(GetBlocks()[1]));
+    EXPECT_EQ(THashTableChunkIndexFormatDetail::SectorSize, std::ssize(GetBlocks()[2]));
+
+    auto systemBlockCache = GetSystemBlockCache();
+    auto& blockAccessStatistics = systemBlockCache->GetBlockAccessStatistics();
+
+    auto request = controller->GetReadRequest();
+    EXPECT_EQ(1, std::ssize(request.SystemBlockIndexes));
+    EXPECT_EQ(2, std::ssize(request.FragmentSubrequests));
+    EXPECT_EQ(2, request.SystemBlockIndexes[0]);
+    controller->HandleReadResponse(BuildResponse(request));
+
+    EXPECT_EQ(1, blockAccessStatistics[1].HitCount);
+    EXPECT_EQ(0, blockAccessStatistics[1].MissCount);
+    EXPECT_EQ(0, blockAccessStatistics[1].InsertCount);
+    EXPECT_EQ(0, blockAccessStatistics[2].HitCount);
+    EXPECT_EQ(2, blockAccessStatistics[2].MissCount);
+    EXPECT_EQ(1, blockAccessStatistics[2].InsertCount);
+
+    request = controller->GetReadRequest();
+    EXPECT_EQ(0, std::ssize(request.SystemBlockIndexes));
+    EXPECT_EQ(2, std::ssize(request.FragmentSubrequests));
+    controller->HandleReadResponse(BuildResponse(request));
+
+    auto result = controller->GetResult();
+    ExpectSchemafulRowsEqual(rows[0], result[0]);
+    ExpectSchemafulRowsEqual(rows[1], result[1]);
+    ExpectSchemafulRowsEqual(rows[2], result[2]);
+    ExpectSchemafulRowsEqual(rows[3], result[3]);
+}
+
+TEST_F(TTestHashTableChunkIndexReadController, BlockCacheMultipleSectors)
+{
+    std::vector<TVersionedOwningRow> rows = {
+        YsonToVersionedRow(
+            "<id=0> 1",
+            "<id=1;ts=100> 1"),
+    };
+
+    std::vector<TUnversionedOwningRow> keys = { YsonToKey("0"), YsonToKey("1") };
+
+    TControllerUnittestingOptions testingOptions{
+        .CachedSystemBlockFlags = { 1 },
+    };
+    auto controller = InitializeController(
+        rows,
+        {299},
+        /*slotCount*/ 300,
+        SimpleSchema,
+        SimpleSchema,
+        keys,
+        /*keySlots*/ {0, 299},
+        testingOptions);
+
+    EXPECT_EQ(2, std::ssize(GetBlocks()));
+    EXPECT_EQ(2 * THashTableChunkIndexFormatDetail::SectorSize, std::ssize(GetBlocks()[1]));
+
+    auto systemBlockCache = GetSystemBlockCache();
+    auto& blockAccessStatistics = systemBlockCache->GetBlockAccessStatistics();
+
+    auto request = controller->GetReadRequest();
+    EXPECT_EQ(0, std::ssize(request.SystemBlockIndexes));
+    EXPECT_EQ(1, std::ssize(request.FragmentSubrequests));
+    controller->HandleReadResponse(BuildResponse(request));
+
+    EXPECT_EQ(1, blockAccessStatistics[1].HitCount);
+    EXPECT_EQ(0, blockAccessStatistics[1].MissCount);
+    EXPECT_EQ(0, blockAccessStatistics[1].InsertCount);
+
+    auto result = controller->GetResult();
+    ExpectSchemafulRowsEqual(TVersionedRow(), result[0]);
+    ExpectSchemafulRowsEqual(rows[0], result[1]);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -20,8 +20,7 @@
 #include <yt/yt/server/node/data_node/bootstrap.h>
 #include <yt/yt/server/node/data_node/ytree_integration.h>
 
-#include <yt/yt/server/lib/job_agent/job_reporter.h>
-
+#include <yt/yt/server/lib/misc/job_reporter.h>
 #include <yt/yt/server/lib/misc/address_helpers.h>
 
 #include <yt/yt/ytlib/auth/native_authentication_manager.h>
@@ -71,8 +70,7 @@ public:
 
         JobReporter_ = New<TJobReporter>(
             GetConfig()->ExecNode->JobReporter,
-            GetConnection(),
-            GetLocalDescriptor().GetDefaultAddress());
+            GetConnection());
 
         MasterConnector_ = CreateMasterConnector(this);
 
@@ -85,7 +83,7 @@ public:
         // via signal.
         JobController_ = CreateJobController(this);
 
-        ControllerAgentConnectorPool_ = New<TControllerAgentConnectorPool>(GetConfig()->ExecNode->ControllerAgentConnector, this);
+        ControllerAgentConnectorPool_ = New<TControllerAgentConnectorPool>(GetConfig()->ExecNode, this);
 
         BuildJobProxyConfigTemplate();
 
@@ -122,6 +120,7 @@ public:
             }
         }
 
+        // TODO(pogorelov): Remove this.
         auto createSchedulerJob = BIND([this] (
             TJobId jobId,
             TOperationId operationId,
@@ -196,6 +195,8 @@ public:
         MasterConnector_->Initialize();
 
         SchedulerConnector_->Start();
+
+        ControllerAgentConnectorPool_->Start();
     }
 
     const TGpuManagerPtr& GetGpuManager() const override

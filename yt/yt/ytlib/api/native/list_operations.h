@@ -15,31 +15,54 @@ DECLARE_REFCOUNTED_CLASS(TListOperationsFilter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EListOperationsCountingFilterType,
+    (PoolTree)
+    (Pool)
+    (User)
+    (OperationState)
+    (OperationType)
+    (WithFailedJobs)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCountingFilterAttributes
+{
+    std::optional<THashMap<TString, TString>> PoolTreeToPool;
+    std::optional<std::vector<TString>> Pools;
+    TString User;
+    NScheduler::EOperationState State = {};
+    NScheduler::EOperationType Type = {};
+    bool HasFailedJobs = false;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TCountByPoolTree = THashMap<TString, i64>;
+using TCountByPool = THashMap<TString, i64>;
+using TCountByUser = THashMap<TString, i64>;
+using TCountByType = TEnumIndexedVector<NScheduler::EOperationType, i64>;
+using TCountByState = TEnumIndexedVector<NScheduler::EOperationState, i64>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TListOperationsCountingFilter
 {
+public:
+    DEFINE_BYREF_RW_PROPERTY(TCountByPoolTree, PoolTreeCounts);
+    DEFINE_BYREF_RW_PROPERTY(TCountByPool, PoolCounts);
+    DEFINE_BYREF_RW_PROPERTY(TCountByUser, UserCounts);
+    DEFINE_BYREF_RW_PROPERTY(TCountByState, StateCounts);
+    DEFINE_BYREF_RW_PROPERTY(TCountByType, TypeCounts);
+    DEFINE_BYVAL_RW_PROPERTY(i64, WithFailedJobsCount);
+
 public:
     TListOperationsCountingFilter() = default;
 
     explicit TListOperationsCountingFilter(const TListOperationsOptions& options);
 
-    bool Filter(
-        const std::optional<THashMap<TString, TString>>& poolTreeToPool,
-        const std::optional<std::vector<TString>>& pools,
-        TStringBuf user,
-        NScheduler::EOperationState state,
-        NScheduler::EOperationType type,
-        i64 count);
-    bool FilterByFailedJobs(bool hasFailedJobs, i64 count);
-
+    bool Filter(const TCountingFilterAttributes& countingFilterAttributes, i64 count);
     void MergeFrom(const TListOperationsCountingFilter& otherFilter);
-
-public:
-    THashMap<TString, i64> PoolTreeCounts;
-    THashMap<TString, i64> PoolCounts;
-    THashMap<TString, i64> UserCounts;
-    TEnumIndexedVector<NScheduler::EOperationState, i64> StateCounts;
-    TEnumIndexedVector<NScheduler::EOperationType, i64> TypeCounts;
-    i64 FailedJobsCount = 0;
 
 private:
     // NB: we have to use pointer instead of reference since
@@ -53,26 +76,17 @@ class TListOperationsFilter
 public:
     struct TBriefProgress
     {
-        bool HasFailedJobs;
+        bool HasFailedJobs = false;
         TInstant BuildTime;
     };
 
     struct TLightOperation
     {
-    public:
-        [[nodiscard]] NObjectClient::TOperationId GetId() const;
-        void UpdateBriefProgress(TStringBuf briefProgressYson);
-        void SetYson(TString yson);
-
-    private:
-        NObjectClient::TOperationId Id_;
-        TInstant StartTime_;
-        TBriefProgress BriefProgress_;
-        TString Yson_;
-
-    private:
-        friend class TFilteringConsumer;
-        friend class TListOperationsFilter;
+        TCountingFilterAttributes FilterAttributes;
+        bool FilterPassed;
+        NObjectClient::TOperationId Id;
+        TInstant StartTime;
+        TString Yson;
     };
 
 public:
@@ -95,9 +109,6 @@ public:
     [[nodiscard]] std::vector<TOperation> BuildOperations(const THashSet<TString>& attributes) const;
 
     [[nodiscard]] i64 GetCount() const;
-
-    // Confirms that |brief_progress| field is relevant and filtration by it can be applied.
-    void OnBriefProgressFinished();
 
     const TListOperationsCountingFilter& GetCountingFilter() const;
 

@@ -6,26 +6,13 @@
 
 #include <yt/yt/server/lib/controller_agent/job_tracker_service_proxy.h>
 
+#include <yt/yt/server/lib/scheduler/proto/allocation_tracker_service.pb.h>
+
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
 namespace NYT::NExecNode {
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TAgentHeartbeatContext
-    : public TRefCounted
-{
-    TControllerAgentDescriptor AgentDescriptor;
-    NConcurrency::IThroughputThrottlerPtr StatisticsThrottler;
-    TDuration RunningJobStatisticsSendingBackoff;
-    TInstant LastTotalConfirmationTime;
-
-    THashSet<TJobPtr> SentEnqueuedJobs;
-};
-
-DEFINE_REFCOUNTED_TYPE(TAgentHeartbeatContext)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,16 +29,35 @@ public:
         TControllerAgentConnector(
             TControllerAgentConnectorPool* controllerAgentConnectorPool,
             TControllerAgentDescriptor controllerAgentDescriptor);
-
         NRpc::IChannelPtr GetChannel() const noexcept;
         void SendOutOfBandHeartbeatIfNeeded();
         void EnqueueFinishedJob(const TJobPtr& job);
 
         void OnConfigUpdated();
 
+        const TControllerAgentDescriptor& GetDescriptor() const;
+
+        void AddUnconfirmedJobIds(std::vector<TJobId> unconfirmedJobIds);
+
+        struct TJobStartInfo
+        {
+            TAllocationId AllocationId;
+            TOperationId OperationId;
+        };
+
         ~TControllerAgentConnector();
 
+        using TRspHeartbeat = NRpc::TTypedClientResponse<
+            NControllerAgent::NProto::TRspHeartbeat>;
+        using TReqHeartbeat = NRpc::TTypedClientRequest<
+            NControllerAgent::NProto::TReqHeartbeat,
+            TRspHeartbeat>;
+        using TRspHeartbeatPtr = TIntrusivePtr<TRspHeartbeat>;
+        using TReqHeartbeatPtr = TIntrusivePtr<TReqHeartbeat>;
+
     private:
+        friend class TControllerAgentConnectorPool;
+
         struct THeartbeatInfo
         {
             TInstant LastSentHeartbeatTime;
@@ -60,10 +66,10 @@ public:
         };
         THeartbeatInfo HeartbeatInfo_;
 
-        TControllerAgentConnectorPoolPtr ControllerAgentConnectorPool_;
-        TControllerAgentDescriptor ControllerAgentDescriptor_;
+        const TControllerAgentConnectorPoolPtr ControllerAgentConnectorPool_;
+        const TControllerAgentDescriptor ControllerAgentDescriptor_;
 
-        NRpc::IChannelPtr Channel_;
+        const NRpc::IChannelPtr Channel_;
 
         const NConcurrency::TPeriodicExecutorPtr HeartbeatExecutor_;
 
@@ -74,22 +80,45 @@ public:
         TInstant LastTotalConfirmationTime_;
 
         THashSet<TJobPtr> EnqueuedFinishedJobs_;
+        std::vector<TJobId> UnconfirmedJobIds_;
         bool ShouldSendOutOfBand_ = false;
 
-        DECLARE_THREAD_AFFINITY_SLOT(JobThread);
+        THashSet<TJobId> JobIdsToConfirm_;
+
+        THashMap<TAllocationId, TOperationId> AllocationIdsWaitingForSpec_;
 
         void SendHeartbeat();
         void OnAgentIncarnationOutdated() noexcept;
 
-        template <class TJobTrackerServiceProxy>
         void DoSendHeartbeat();
+
+        void PrepareHeartbeatRequest(
+            const TReqHeartbeatPtr& request,
+            const TAgentHeartbeatContextPtr& context);
+        void ProcessHeartbeatResponse(
+            const TRspHeartbeatPtr& response,
+            const TAgentHeartbeatContextPtr& context);
+
+        void DoPrepareHeartbeatRequest(
+            const TReqHeartbeatPtr& request,
+            const TAgentHeartbeatContextPtr& context);
+        void DoProcessHeartbeatResponse(
+            const TRspHeartbeatPtr& response,
+            const TAgentHeartbeatContextPtr& context);
+
+        TFuture<std::vector<TErrorOr<NControllerAgent::NProto::TJobSpec>>>
+        RequestJobSpecs(const std::vector<TJobStartInfo>& jobStartInfos);
+
+        void OnJobRegistered(const TJobPtr& job);
+
+        void OnJobRegistrationFailed(TAllocationId allocationId);
     };
 
     using TControllerAgentConnectorPtr = TIntrusivePtr<TControllerAgentConnector>;
 
-    TControllerAgentConnectorPool(TControllerAgentConnectorConfigPtr config, IBootstrap* bootstrap);
+    TControllerAgentConnectorPool(TExecNodeConfigPtr config, IBootstrap* bootstrap);
 
-    NRpc::IChannelPtr GetOrCreateChannel(const TControllerAgentDescriptor& controllerAgentDescriptor);
+    void Start();
 
     void SendOutOfBandHeartbeatsIfNeeded();
 
@@ -101,6 +130,13 @@ public:
 
     void OnRegisteredAgentSetReceived(THashSet<TControllerAgentDescriptor> controllerAgentDescriptors);
 
+    TFuture<std::vector<TErrorOr<NControllerAgent::NProto::TJobSpec>>>
+    RequestJobSpecs(
+        const TControllerAgentDescriptor& agentDescriptor,
+        const std::vector<TControllerAgentConnector::TJobStartInfo>& jobStartInfos);
+
+    THashMap<TAllocationId, TOperationId> GetAllocationIdsWaitingForSpec() const;
+
 private:
     THashMap<TControllerAgentDescriptor, TControllerAgentConnectorPtr> ControllerAgentConnectors_;
 
@@ -110,20 +146,58 @@ private:
     IBootstrap* const Bootstrap_;
 
     TDuration TestHeartbeatDelay_{};
-    bool UseNewJobTrackerService_ = false;
+    TDuration GetJobSpecTimeout_;
+
+    // COMPAT(pogorelov)
+    bool SendWaitingJobs_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
     NRpc::IChannelPtr CreateChannel(const TControllerAgentDescriptor& agentDescriptor);
 
-    TWeakPtr<TControllerAgentConnector> AddControllerAgentConnector(TControllerAgentDescriptor descriptor);
+    TWeakPtr<TControllerAgentConnector> AddControllerAgentConnector(
+        TControllerAgentDescriptor agentDescriptor);
+
+    TIntrusivePtr<TControllerAgentConnector> GetControllerAgentConnector(
+        const TControllerAgentDescriptor& agentDescriptor);
+
+    NRpc::IChannelPtr GetOrCreateChannel(const TControllerAgentDescriptor& controllerAgentDescriptor);
 
     void OnConfigUpdated();
 
-    void ScanOutdatedAgents();
+    void OnJobFinished(const TJobPtr& job);
+
+    void OnJobRegistered(const TJobPtr& job);
+
+    void OnJobRegistrationFailed(
+        TAllocationId allocationId,
+        TOperationId operationId,
+        const TControllerAgentDescriptor& agentDescriptor,
+        const TError& error);
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgentConnectorPool)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TAgentHeartbeatContext
+    : public TRefCounted
+{
+    TControllerAgentConnectorPool::TControllerAgentConnectorPtr ControllerAgentConnector;
+    NConcurrency::IThroughputThrottlerPtr StatisticsThrottler;
+    TDuration RunningJobStatisticsSendingBackoff;
+    TInstant LastTotalConfirmationTime;
+
+    THashSet<TJobPtr> JobsToForcefullySend;
+    std::vector<TJobId> UnconfirmedJobIds;
+
+    // COMPAT(pogorelov)
+    bool SendWaitingJobs;
+
+    THashMap<TAllocationId, TOperationId> AllocationIdsWaitingForSpec;
+};
+
+DEFINE_REFCOUNTED_TYPE(TAgentHeartbeatContext)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -26,8 +26,7 @@ class TSyncInvoker
 public:
     void Invoke(TClosure callback) override
     {
-        static TFlsSlot<TFiberState> StateSlot;
-        auto& state = *StateSlot;
+        auto& state = *FiberState_;
 
         // We optimize invocation of recursion-free callbacks, i.e. those that do
         // not invoke anything in our invoker. This is done by introducing the AlreadyInvoking
@@ -87,7 +86,11 @@ private:
         bool AlreadyInvoking = false;
         std::optional<TRingQueue<TClosure>> DeferredCallbacks;
     };
+
+    static TFls<TFiberState> FiberState_;
 };
+
+TFls<TSyncInvoker::TFiberState> TSyncInvoker::FiberState_;
 
 IInvokerPtr GetSyncInvoker()
 {

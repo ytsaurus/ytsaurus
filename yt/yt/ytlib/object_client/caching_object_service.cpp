@@ -25,7 +25,7 @@
 
 #include <yt/yt_proto/yt/core/ytree/proto/ypath.pb.h>
 
-#include <yt/yt/core/rpc/per_user_queues.h>
+#include <yt/yt/core/rpc/per_user_request_queue_provider.h>
 
 namespace NYT::NObjectClient {
 
@@ -70,7 +70,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
             .SetQueueSizeLimit(10'000)
             .SetConcurrencyLimit(10'000)
-            .SetRequestQueueProvider(ExecuteRequestQueue_.GetProvider()));
+            .SetRequestQueueProvider(ExecuteRequestQueueProvider_));
 
         DeclareServerFeature(EMasterFeature::Portals);
         DeclareServerFeature(EMasterFeature::PortalExitSynchronization);
@@ -134,7 +134,7 @@ private:
     std::atomic<double> CacheTtlRatio_;
     std::atomic<i64> EntryByteRateLimit_;
 
-    TPerUserRequestQueues ExecuteRequestQueue_;
+    IRequestQueueProviderPtr ExecuteRequestQueueProvider_ = New<TPerUserRequestQueueProvider>();
 
     std::atomic<bool> CachingEnabled_ = false;
 

@@ -42,6 +42,7 @@ private:
 
     const TIntrusivePtr<NThreading::TEventCount> EventCount_;
     const NProfiling::TCounter WakeupCounter_;
+    const NProfiling::TCounter WakeupByTimeoutCounter_;
     const TDuration PollingPeriod_;
 
     std::atomic<bool> NotifyLock_ = false;

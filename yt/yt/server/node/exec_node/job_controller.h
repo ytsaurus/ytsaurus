@@ -2,6 +2,9 @@
 
 #include "job.h"
 
+#include "controller_agent_connector.h"
+#include "scheduler_connector.h"
+
 #include <yt/yt/server/job_proxy/public.h>
 
 #include <yt/yt/server/node/cluster_node/public.h>
@@ -62,48 +65,43 @@ public:
     //! Set value of flag disabling all scheduler jobs.
     virtual void SetDisableSchedulerJobs(bool value) = 0;
 
+    virtual TFuture<void> RemoveSchedulerJobs() = 0;
+
     virtual bool AreSchedulerJobsDisabled() const noexcept = 0;
 
-    using TRspAgentHeartbeat = NRpc::TTypedClientResponse<
-        NControllerAgent::NProto::TRspHeartbeat>;
-    using TReqAgentHeartbeat = NRpc::TTypedClientRequest<
-        NControllerAgent::NProto::TReqHeartbeat,
-        TRspAgentHeartbeat>;
-    using TRspAgentHeartbeatPtr = TIntrusivePtr<TRspAgentHeartbeat>;
-    using TReqAgentHeartbeatPtr = TIntrusivePtr<TReqAgentHeartbeat>;
-
-    using TRspSchedulerHeartbeat = NRpc::TTypedClientResponse<
-        NScheduler::NProto::NNode::TRspHeartbeat>;
-    using TReqSchedulerHeartbeat = NRpc::TTypedClientRequest<
-        NScheduler::NProto::NNode::TReqHeartbeat,
-        TRspSchedulerHeartbeat>;
-    using TRspSchedulerHeartbeatPtr = TIntrusivePtr<TRspSchedulerHeartbeat>;
-    using TReqSchedulerHeartbeatPtr = TIntrusivePtr<TReqSchedulerHeartbeat>;
-
     virtual void PrepareAgentHeartbeatRequest(
-        const TReqAgentHeartbeatPtr& request,
+        const TControllerAgentConnectorPool::TControllerAgentConnector::TReqHeartbeatPtr& request,
         const TAgentHeartbeatContextPtr& context) = 0;
     virtual void ProcessAgentHeartbeatResponse(
-        const TRspAgentHeartbeatPtr& response,
+        const TControllerAgentConnectorPool::TControllerAgentConnector::TRspHeartbeatPtr& response,
         const TAgentHeartbeatContextPtr& context) = 0;
 
     //! Prepares a scheduler heartbeat request.
-    virtual TFuture<void> PrepareSchedulerHeartbeatRequest(
-        const TReqSchedulerHeartbeatPtr& request) = 0;
+    virtual void PrepareSchedulerHeartbeatRequest(
+        const TSchedulerConnector::TReqHeartbeatPtr& request,
+        const TSchedulerHeartbeatContextPtr& context) = 0;
 
     //! Handles scheduler heartbeat response, i.e. starts new jobs, aborts and removes old ones etc.
-    virtual TFuture<void> ProcessSchedulerHeartbeatResponse(
-        const TRspSchedulerHeartbeatPtr& response) = 0;
+    virtual void ProcessSchedulerHeartbeatResponse(
+        const TSchedulerConnector::TRspHeartbeatPtr& response,
+        const TSchedulerHeartbeatContextPtr& context) = 0;
 
     virtual TBuildInfoPtr GetBuildInfo() const = 0;
 
     virtual void BuildJobProxyBuildInfo(NYTree::TFluentAny fluent) const = 0;
     virtual void BuildJobsInfo(NYTree::TFluentAny fluent) const = 0;
+    virtual void BuildJobControllerInfo(NYTree::TFluentMap fluent) const = 0;
 
     virtual int GetActiveJobCount() const = 0;
 
     virtual void OnAgentIncarnationOutdated(const TControllerAgentDescriptor& controllerAgentDescriptor) = 0;
 
+    virtual void OnJobMemoryThrashing(TJobId jobId) = 0;
+
+    DECLARE_INTERFACE_SIGNAL(void(const TJobPtr&), JobRegistered);
+    DECLARE_INTERFACE_SIGNAL(
+        void(TAllocationId, TOperationId, const TControllerAgentDescriptor&, const TError&),
+        JobRegistrationFailed);
     DECLARE_INTERFACE_SIGNAL(void(const TJobPtr&), JobFinished);
     DECLARE_INTERFACE_SIGNAL(void(const TError& error), JobProxyBuildInfoUpdated);
 };

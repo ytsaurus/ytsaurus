@@ -121,6 +121,7 @@ struct TJobTableDescriptor
         const int PoolTree;
         const int MonitoringDescriptor;
         const int JobCookie;
+        const int ControllerState;
     };
 
     const NTableClient::TNameTablePtr NameTable;

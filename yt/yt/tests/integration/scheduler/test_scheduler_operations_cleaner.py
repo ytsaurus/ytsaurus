@@ -1,13 +1,18 @@
 from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE
 
 from yt_commands import (
-    authors, wait, create, get, set, remove, exists,
+    authors, wait, create, create_table, get, set, remove, exists,
+    start_transaction, lock, unlock,
     lookup_rows, write_table,
-    map, list_operations, get_operation_cypress_path, sync_create_cells)
+    map, list_operations, get_operation_cypress_path, sync_create_cells, clean_operations, run_test_vanilla,
+    update_scheduler_config,
+    events_on_fs)
 
 import yt.environment.init_operation_archive as init_operation_archive
 
 from yt.common import uuid_to_parts, YT_DATETIME_FORMAT_STRING, YtError, YtResponseError
+
+from yt_helpers import profiler_factory
 
 import pytest
 
@@ -80,9 +85,11 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
                 "max_operation_count_per_user": 3,
                 "fetch_batch_size": 1,
                 "max_removal_sleep_delay": 100,
+                "max_operation_age": 5000,
             },
             "static_orchid_cache_update_period": 100,
             "alerts_update_period": 100,
+            "enable_operation_heavy_attributes_archivation": True,
         }
     }
 
@@ -136,6 +143,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
             assert "start_time" in row
             assert "alerts" in row
             assert row["runtime_parameters"]["scheduling_options_per_pool_tree"]["default"]["pool"] == "root"
+            assert row["full_spec"] != {}
 
     @authors("asaitgalin")
     def test_operations_archive_is_not_initialized(self):
@@ -248,3 +256,126 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         )
         assert res["failed_jobs_count"] == 3
         assert len(res["operations"]) == 3
+
+    @authors("omgronny")
+    def test_get_original_path(self):
+        init_operation_archive.create_tables_latest_version(
+            self.Env.create_native_client(), override_tablet_cell_bundle="default"
+        )
+
+        input_table_name = "//tmp/input"
+        input_table_id = create_table(input_table_name)
+        write_table(input_table_name, [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
+        output_table_name = "//tmp/output"
+        output_table_id = create_table(output_table_name)
+        op = map(
+            in_="<original_path=\"{}\">#{}".format(input_table_name, input_table_id),
+            out="<original_path=\"{}\">#{}".format(output_table_name, output_table_id),
+            command="cat",
+        )
+
+        clean_operations()
+
+        row = self._lookup_ordered_by_id_row(op.id)
+        assert row["state"] == "completed"
+        assert op.id in row["filter_factors"]
+        assert input_table_name in row["filter_factors"]
+        assert output_table_name in row["filter_factors"]
+
+    @authors("omgronny")
+    def test_profiling(self):
+        init_operation_archive.create_tables_latest_version(
+            self.Env.create_native_client(), override_tablet_cell_bundle="default"
+        )
+
+        config = {
+            "analysis_period": 1 * 1000,
+            "min_archivation_retry_sleep_delay": 1 * 1000,
+            "max_archivation_retry_sleep_delay": 2 * 1000,
+            "max_removal_sleep_delay": 1 * 1000,
+
+            "archive_batch_size": 3,
+            "archive_batch_timeout": 1000 * 1000,
+
+            "remove_batch_size": 4,
+            "remove_batch_timeout": 1000 * 1000,
+        }
+        update_scheduler_config("operations_cleaner", config)
+
+        profiler = profiler_factory().at_scheduler()
+        remove_pending = profiler.gauge("operations_cleaner/remove_pending", fixed_tags={"locked": "false"})
+        remove_pending_locked = profiler.gauge("operations_cleaner/remove_pending", fixed_tags={"locked": "true"})
+        submitted = profiler.gauge("operations_cleaner/submitted")
+        archive_pending = profiler.gauge("operations_cleaner/archive_pending")
+
+        transaction_id = start_transaction(timeout=300 * 1000)
+        op = run_test_vanilla("sleep 1")
+        lock(
+            op.get_path(),
+            mode="shared",
+            transaction_id=transaction_id,
+        )
+        run_test_vanilla("sleep 1")
+        run_test_vanilla(events_on_fs().wait_event_cmd("should_archive_operations", timeout=timedelta(seconds=1000)))
+        run_test_vanilla(events_on_fs().wait_event_cmd("should_remove_operations", timeout=timedelta(seconds=1000)))
+
+        wait(lambda: submitted.get() == 2.0)
+        wait(lambda: archive_pending.get() == 2.0)
+
+        events_on_fs().notify_event("should_archive_operations")
+
+        wait(lambda: remove_pending_locked.get() == 0.0 and remove_pending.get() == 3.0)
+
+        events_on_fs().notify_event("should_remove_operations")
+        run_test_vanilla("sleep 1")
+        run_test_vanilla("sleep 1")
+
+        wait(lambda: remove_pending_locked.get() == 1.0 and remove_pending.get() == 2.0)
+
+    @authors("omgronny")
+    def test_locked_operations(self):
+        init_operation_archive.create_tables_latest_version(
+            self.Env.create_native_client(), override_tablet_cell_bundle="default"
+        )
+
+        config = {
+            "locked_operation_wait_timeout": 1000 * 1000,
+            "max_operation_age": 100,
+            "max_removal_sleep_delay": 100,
+
+            "remove_batch_size": 3,
+            "remove_batch_timeout": 1000 * 1000,
+        }
+        update_scheduler_config("operations_cleaner", config)
+
+        transaction_id = start_transaction(timeout=300 * 1000)
+        op = run_test_vanilla("sleep 1")
+        lock(
+            op.get_path(),
+            mode="shared",
+            transaction_id=transaction_id,
+        )
+        run_test_vanilla("sleep 1")
+
+        wait(lambda: get(CLEANER_ORCHID + "/remove_pending") == 2 and get(CLEANER_ORCHID + "/remove_pending_locked") == 0)
+        run_test_vanilla("sleep 1")
+        wait(lambda: get(CLEANER_ORCHID + "/remove_pending") == 1 and get(CLEANER_ORCHID + "/remove_pending_locked") == 1)
+
+        unlock(
+            op.get_path(),
+            tx=transaction_id,
+        )
+
+        run_test_vanilla("sleep 1")
+
+        wait(lambda: get(CLEANER_ORCHID + "/remove_pending") == 2 and get(CLEANER_ORCHID + "/remove_pending_locked") == 1)
+
+        config = {
+            "remove_batch_size": 2,
+            "locked_operation_wait_timeout": 100
+        }
+        update_scheduler_config("operations_cleaner", config)
+
+        run_test_vanilla("sleep 1")
+
+        wait(lambda: get(CLEANER_ORCHID + "/remove_pending") == 0 and get(CLEANER_ORCHID + "/remove_pending_locked") == 0)

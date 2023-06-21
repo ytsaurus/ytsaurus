@@ -454,7 +454,13 @@ private:
         YT_LOG_DEBUG("Requesting rows from replica (PartIndex: %v, EstimatedSize: %v)",
             partIndex,
             estimatedSize);
-        return replica.ChunkReader->ReadBlocks(Options_, FirstRowIndex_, AdjustedReadRowCount_, estimatedSize)
+        return replica.ChunkReader->ReadBlocks(
+            IChunkReader::TReadBlocksOptions{
+                .ClientOptions = Options_,
+                .EstimatedSize = estimatedSize,
+            },
+            FirstRowIndex_,
+            AdjustedReadRowCount_)
             .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TBlock>>& blocksOrError) {
                 if (!blocksOrError.IsOK()) {
                     YT_LOG_DEBUG(blocksOrError, "Error requesting rows from replica (PartIndex: %v)",

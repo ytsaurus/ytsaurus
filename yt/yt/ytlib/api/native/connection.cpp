@@ -13,6 +13,7 @@
 
 #include <yt/yt/ytlib/chaos_client/banned_replica_tracker.h>
 #include <yt/yt/ytlib/chaos_client/chaos_cell_directory_synchronizer.h>
+#include <yt/yt/ytlib/chaos_client/chaos_cell_channel_factory.h>
 #include <yt/yt/ytlib/chaos_client/native_replication_card_cache_detail.h>
 #include <yt/yt/ytlib/chaos_client/replication_card_channel_factory.h>
 #include <yt/yt/ytlib/chaos_client/replication_card_residency_cache.h>
@@ -273,6 +274,10 @@ public:
             ChaosCellDirectorySynchronizer_,
             config->ChaosCellChannel);
 
+        ChaosCellChannelFactory_ = CreateChaosCellChannelFactory(
+            CellDirectory_,
+            ChaosCellDirectorySynchronizer_);
+
         BannedReplicaTrackerCache_->Reconfigure(config->BannedReplicaTrackerCache);
 
         if (Options_.BlockCache) {
@@ -495,6 +500,26 @@ public:
         return SchedulerChannel_;
     }
 
+    IChannelPtr GetChaosChannelByCellId(TCellId cellId, EPeerKind peerKind) override
+    {
+        return WrapChaosChannel(ChaosCellChannelFactory_->CreateChannel(cellId, peerKind));
+    }
+
+    IChannelPtr GetChaosChannelByCellTag(TCellTag cellTag, EPeerKind peerKind) override
+    {
+        return WrapChaosChannel(ChaosCellChannelFactory_->CreateChannel(cellTag, peerKind));
+    }
+
+    IChannelPtr GetChaosChannelByCardId(TReplicationCardId replicationCardId, EPeerKind peerKind) override
+    {
+        if (TypeFromId(replicationCardId) != EObjectType::ReplicationCard) {
+            THROW_ERROR_EXCEPTION("Malformed replication card id %v",
+                replicationCardId);
+        }
+
+        return WrapChaosChannel(ReplicationCardChannelFactory_->CreateChannel(replicationCardId, peerKind));
+    }
+
     const IChannelPtr& GetQueueAgentChannelOrThrow(TStringBuf stage) const override
     {
         auto it = QueueAgentChannels_.find(stage);
@@ -575,11 +600,6 @@ public:
     const NChaosClient::IChaosCellDirectorySynchronizerPtr& GetChaosCellDirectorySynchronizer() override
     {
         return ChaosCellDirectorySynchronizer_;
-    }
-
-    const IReplicationCardChannelFactoryPtr& GetReplicationCardChannelFactory() override
-    {
-        return ReplicationCardChannelFactory_;
     }
 
     const TNodeDirectoryPtr& GetNodeDirectory() override
@@ -823,6 +843,7 @@ private:
     IThreadPoolPtr ConnectionThreadPool_;
 
     IReplicationCardChannelFactoryPtr ReplicationCardChannelFactory_;
+    IChaosCellChannelFactoryPtr ChaosCellChannelFactory_;
 
     std::atomic<bool> Terminated_ = false;
 
@@ -1015,6 +1036,22 @@ private:
         } else {
             THROW_ERROR_EXCEPTION("Query tracker stage %Qv is not found in cluster directory", stage);
         }
+    }
+
+    IChannelPtr WrapChaosChannel(IChannelPtr channel)
+    {
+        return CreateRetryingChannel(
+            GetConfig()->ChaosCellChannel,
+            std::move(channel),
+            BIND([] (const TError& error) {
+                if (IsRetriableError(error)) {
+                    return true;
+                }
+
+                auto code = error.GetCode();
+                return code == NChaosClient::EErrorCode::ReplicationCardMigrated ||
+                    code == NChaosClient::EErrorCode::ReplicationCardNotKnown;
+            }));
     }
 };
 

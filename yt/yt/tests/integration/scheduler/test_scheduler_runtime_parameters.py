@@ -275,6 +275,32 @@ class TestRuntimeParameters(YTEnvSetup):
         error = YtResponseError(response.error())
         assert error.contains_text("Max running operation count of pool \"busy\" violated")
 
+    @authors("omgronny")
+    def test_change_pool_slot_index_in_cypress(self):
+        create_pool("first")
+        create_pool("second")
+
+        first_ops = []
+        second_ops = []
+        for _ in range(2):
+            first_ops.append(run_sleeping_vanilla(spec={"pool": "first"}))
+        for _ in range(5):
+            second_ops.append(run_sleeping_vanilla(spec={"pool": "second"}))
+        second_ops[-1].wait_for_state("running")
+
+        def get_slot_index(op):
+            return get(op.get_path() + "/@slot_index_per_pool_tree/default")
+
+        op = run_sleeping_vanilla(spec={"pool": "first"})
+        op.wait_for_state("running")
+        wait(lambda: get_slot_index(op) == 2)
+
+        update_op_parameters(op.id, parameters={"pool": "second"})
+        wait(lambda: get_slot_index(op) == 5)
+
+        update_op_parameters(op.id, parameters={"pool": "first"})
+        wait(lambda: get_slot_index(op) == 2)
+
     @authors("eshcherbin")
     def test_change_pool_slot_index_conflict(self):
         # YT-15199

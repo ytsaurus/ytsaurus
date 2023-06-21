@@ -2,11 +2,11 @@ package NYT.NScheduler.NProto;
 
 import "yt_proto/yt/core/misc/proto/guid.proto";
 import "yt_proto/yt/core/misc/proto/error.proto";
-import "yt/ytlib/job_tracker_client/proto/job.proto";
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
 import "yt_proto/yt/core/tracing/proto/tracing_ext.proto";
 import "yt/ytlib/scheduler/proto/job.proto";
 import "yt/ytlib/controller_agent/proto/controller_agent_service.proto";
+import "yt/ytlib/controller_agent/proto/job.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,7 +86,14 @@ message TAgentToSchedulerJobEvent
     optional int32 interrupt_reason = 4; // EInterruptReason
 
     // for Release
-    optional NYT.NJobTrackerClient.NProto.TReleaseJobFlags release_job_flags = 9;
+    optional NYT.NControllerAgent.NProto.TReleaseJobFlags release_job_flags = 9;
+}
+
+message TAgentToSchedulerRunningJobStatistics
+{
+    required NYT.NProto.TGuid job_id = 1;
+
+    required int64 preemptible_progress_time = 2;
 }
 
 message TSchedulerToAgentFinishedJobEvent
@@ -94,13 +101,6 @@ message TSchedulerToAgentFinishedJobEvent
     required NYT.NProto.TGuid operation_id = 1;
     required NYT.NProto.TGuid job_id = 2;
     required uint64 finish_time = 3;
-
-    // for Aborted
-    optional NYT.NJobTrackerClient.NProto.TPreemptedFor preempted_for = 5;
-    optional string preemption_reason = 7;
-
-    // for Completed
-    optional int32 interrupt_reason = 9; // EInterruptReason
 }
 
 message TSchedulerToAgentAbortedJobEvent
@@ -205,6 +205,12 @@ message TReqHeartbeat
         repeated TAgentToSchedulerJobEvent items = 2;
     }
 
+    message TAgentToSchedulerRunningJobStatisticsUpdatesOutbox
+    {
+        required int64 first_item_id = 1;
+        repeated TAgentToSchedulerRunningJobStatistics items = 2;
+    }
+
     required string agent_id = 1;
     required NYT.NProto.TGuid incarnation_id = 2;
     repeated TOperationInfo operations = 3;
@@ -213,6 +219,7 @@ message TReqHeartbeat
 
     required TAgentToSchedulerOperationEventsOutbox agent_to_scheduler_operation_events = 7;
     required TAgentToSchedulerJobEventsOutbox agent_to_scheduler_job_events = 8;
+    required TAgentToSchedulerRunningJobStatisticsUpdatesOutbox agent_to_scheduler_running_job_statistics_updates = 15;
 
     required TEventQueueInbox scheduler_to_agent_job_events = 10;
     required TEventQueueInbox scheduler_to_agent_operation_events = 11;
@@ -245,6 +252,7 @@ message TRspHeartbeat
 
     required TEventQueueInbox agent_to_scheduler_operation_events = 2;
     required TEventQueueInbox agent_to_scheduler_job_events = 3;
+    required TEventQueueInbox agent_to_scheduler_running_job_statistics_updates = 11;
 
     required TSchedulerToAgentJobEventsOutbox scheduler_to_agent_job_events = 4;
     required TSchedulerToAgentOperationEventsOutbox scheduler_to_agent_operation_events = 5;

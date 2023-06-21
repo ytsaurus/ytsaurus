@@ -306,7 +306,7 @@ public:
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, GetTraceBaggage)
     {
         context->SetRequestInfo();
-        auto* traceContext = NTracing::TryGetCurrentTraceContext();
+        auto traceContext = NTracing::GetCurrentTraceContext();
         response->set_baggage(NYson::ConvertToYsonString(traceContext->UnpackBaggage()).ToString());
         context->Reply();
     }

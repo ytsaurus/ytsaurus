@@ -159,7 +159,7 @@ public:
         return static_cast<double>(ProcessedBlocksSize_) / TotalBlocksSize_;
     }
 
-    virtual TStatistics GetStatistics() const override
+    TStatistics GetStatistics() const override
     {
         return {
             .ChunkReaderStatistics = ChunkReadOptions_.ChunkReaderStatistics,
@@ -455,6 +455,7 @@ private:
                     .ReaderIndex = chunkIndex,
                     .BlockIndex = blockIndex,
                     .UncompressedDataSize = blockSizes[blockIndex],
+                    .BlockType = EBlockType::None,
                 });
             }
         }

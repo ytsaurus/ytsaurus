@@ -176,6 +176,12 @@ private:
             .SetWritable(true)
             .SetWritePermission(EPermission::Administer)
             .SetReplicated(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkMergerCriteria)
+            .SetWritable(true)
+            .SetWritePermission(EPermission::Administer)
+            .SetReplicated(true)
+            .SetRemovable(true)
+            .SetPresent(!account->ChunkMergerCriteria().IsEmpty()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::AllowUsingChunkMerger)
             .SetWritable(true)
             .SetReplicated(true));
@@ -303,6 +309,12 @@ private:
                 return true;
             }
 
+            case EInternedAttributeKey::ChunkMergerCriteria: {
+                BuildYsonFluently(consumer)
+                    .Value(account->ChunkMergerCriteria());
+                return true;
+            }
+
             case EInternedAttributeKey::AllowUsingChunkMerger: {
                 BuildYsonFluently(consumer)
                     .Value(account->GetAllowUsingChunkMerger());
@@ -374,6 +386,15 @@ private:
                 return true;
             }
 
+            case EInternedAttributeKey::ChunkMergerCriteria: {
+                ValidateSuperuser(key);
+
+                auto criteria = ConvertTo<TChunkMergerCriteria>(value);
+                criteria.Validate();
+                account->ChunkMergerCriteria() = criteria;
+                return true;
+            }
+
             case EInternedAttributeKey::AllowUsingChunkMerger: {
                 ValidateSuperuser(key);
 
@@ -417,6 +438,11 @@ private:
         auto* account = GetThisImpl();
 
         switch (key) {
+            case EInternedAttributeKey::ChunkMergerCriteria: {
+                account->ChunkMergerCriteria() = {};
+                return true;
+            }
+
             case EInternedAttributeKey::Abc: {
                 account->SetAbcConfig(nullptr);
                 return true;

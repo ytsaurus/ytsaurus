@@ -1,13 +1,14 @@
 #include "service_detail.h"
 #include "private.h"
+#include "authenticator.h"
+#include "authentication_identity.h"
 #include "config.h"
 #include "dispatcher.h"
 #include "helpers.h"
 #include "message.h"
+#include "request_queue_provider.h"
 #include "response_keeper.h"
 #include "server_detail.h"
-#include "authenticator.h"
-#include "authentication_identity.h"
 #include "stream.h"
 
 #include <yt/yt/core/bus/bus.h>
@@ -81,7 +82,7 @@ TServiceBase::TMethodDescriptor::TMethodDescriptor(
     , HeavyHandler(std::move(heavyHandler))
 { }
 
-auto TServiceBase::TMethodDescriptor::SetRequestQueueProvider(TRequestQueueProvider value) const -> TMethodDescriptor
+auto TServiceBase::TMethodDescriptor::SetRequestQueueProvider(IRequestQueueProviderPtr value) const -> TMethodDescriptor
 {
     auto result = *this;
     result.RequestQueueProvider = std::move(value);
@@ -827,7 +828,7 @@ private:
     std::optional<TDuration> GetTraceContextTime() const override
     {
         if (TraceContext_) {
-            FlushCurrentTraceContextElapsedTime();
+            FlushCurrentTraceContextTime();
             return TraceContext_->GetElapsedTime();
         } else {
             return std::nullopt;
@@ -1671,8 +1672,8 @@ TRequestQueue* TServiceBase::GetRequestQueue(
     const NRpc::NProto::TRequestHeader& requestHeader)
 {
     TRequestQueue* requestQueue = nullptr;
-    if (runtimeInfo->Descriptor.RequestQueueProvider) {
-        requestQueue = runtimeInfo->Descriptor.RequestQueueProvider(requestHeader);
+    if (auto& provider = runtimeInfo->Descriptor.RequestQueueProvider) {
+        requestQueue = provider->GetQueue(requestHeader);
     }
     if (!requestQueue) {
         requestQueue = runtimeInfo->DefaultRequestQueue.Get();
@@ -1688,8 +1689,9 @@ void TServiceBase::RegisterRequestQueue(
         return;
     }
 
+    const auto& method = runtimeInfo->Descriptor.Method;
     YT_LOG_DEBUG("Request queue registered (Method: %v, Queue: %v)",
-        runtimeInfo->Descriptor.Method,
+        method,
         requestQueue->GetName());
 
     auto profiler = runtimeInfo->Profiler.WithSparse();
@@ -1703,15 +1705,34 @@ void TServiceBase::RegisterRequestQueue(
         return requestQueue->GetConcurrency();
     });
 
+    TMethodConfigPtr methodConfig;
     if (auto config = Config_.Load()) {
-        if (auto methodIt = config->Methods.find(runtimeInfo->Descriptor.Method)) {
-            requestQueue->Configure(methodIt->second);
+        if (auto methodIt = config->Methods.find(method);
+            methodIt != config->Methods.end())
+        {
+            methodConfig = methodIt->second;
         }
     }
+    ConfigureRequestQueue(runtimeInfo, requestQueue, methodConfig);
 
     {
         auto guard = Guard(runtimeInfo->RequestQueuesLock);
         runtimeInfo->RequestQueues.push_back(requestQueue);
+    }
+}
+
+void TServiceBase::ConfigureRequestQueue(
+    TRuntimeMethodInfo* runtimeInfo,
+    TRequestQueue* requestQueue,
+    const TMethodConfigPtr& config)
+{
+    if (auto& provider = runtimeInfo->Descriptor.RequestQueueProvider;
+        provider &&
+        requestQueue != runtimeInfo->DefaultRequestQueue.Get())
+    {
+        provider->ConfigureQueue(requestQueue, config);
+    } else if (config) {
+        requestQueue->Configure(config);
     }
 }
 
@@ -2319,7 +2340,7 @@ void TServiceBase::DoConfigure(
             {
                 auto guard = Guard(runtimeInfo->RequestQueuesLock);
                 for (auto* requestQueue : runtimeInfo->RequestQueues) {
-                    requestQueue->Configure(methodConfig);
+                    ConfigureRequestQueue(runtimeInfo.Get(), requestQueue, methodConfig);
                 }
             }
 

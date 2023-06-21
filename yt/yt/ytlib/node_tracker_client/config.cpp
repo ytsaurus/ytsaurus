@@ -15,6 +15,10 @@ void TNodeDirectorySynchronizerConfig::Register(TRegistrar registrar)
     registrar.Parameter("expire_after_failed_update_time", &TThis::ExpireAfterFailedUpdateTime)
         .Alias("failure_expiration_time")
         .Default(TDuration::Minutes(2));
+
+    registrar.Parameter("cache_sticky_group_size", &TThis::CacheStickyGroupSize)
+        .Default();
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -3,10 +3,14 @@
 #include "job_gpu_checker.h"
 #include "job_directory_manager.h"
 
+#include <yt/yt/server/lib/exec_node/helpers.h>
+
 #include <yt/yt/core/actions/cancelable_context.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
+
+#include <yt/yt/core/misc/fs.h>
 
 namespace NYT::NExecNode
 {
@@ -41,7 +45,7 @@ TJobWorkspaceBuilder::TJobWorkspaceBuilder(
     }
 }
 
-template<TFuture<void> (TJobWorkspaceBuilder::*Method)()>
+template<TFuture<void>(TJobWorkspaceBuilder::*Method)()>
 TFuture<void> TJobWorkspaceBuilder::GuardedAction()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -65,7 +69,7 @@ TFuture<void> TJobWorkspaceBuilder::GuardedAction()
     return (*this.*Method)();
 }
 
-template<TFuture<void> (TJobWorkspaceBuilder::*Method)()>
+template<TFuture<void>(TJobWorkspaceBuilder::*Method)()>
 TCallback<TFuture<void>()> TJobWorkspaceBuilder::MakeStep()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -111,7 +115,8 @@ TFuture<TJobWorkspaceBuildResult> TJobWorkspaceBuilder::Run()
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareRootVolume>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunSetupCommand>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunGpuCheckCommand>())
-        .Apply(BIND([=, this, this_ = MakeStrong(this)] () {
+        .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& result) {
+            ResultHolder_.Result = result;
             return std::move(ResultHolder_);
         }).AsyncVia(Invoker_));
 }
@@ -192,6 +197,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
+        ValidateJobPhase(EJobPhase::DownloadingArtifacts);
+        SetJobPhase(EJobPhase::PreparingSandboxDirectories);
+
         YT_LOG_INFO("Started preparing sandbox directories");
 
         auto slot = Settings_.Slot;
@@ -213,26 +221,7 @@ private:
         ValidateJobPhase(EJobPhase::PreparingSandboxDirectories);
         SetJobPhase(EJobPhase::PreparingRootVolume);
 
-        if (Settings_.UserSandboxOptions.EnableDiskQuota &&
-            Settings_.UserSandboxOptions.HasRootFsQuota &&
-            (Settings_.UserSandboxOptions.DiskSpaceLimit || Settings_.UserSandboxOptions.InodeLimit))
-        {
-            return DirectoryManager_->ApplyQuota(
-                CombinePaths(Settings_.Slot->GetSlotPath(), GetRootFsUserDirectory()),
-                TJobDirectoryProperties{
-                    .DiskSpaceLimit = Settings_.UserSandboxOptions.DiskSpaceLimit,
-                    .InodeLimit = Settings_.UserSandboxOptions.InodeLimit,
-                    .UserId = Settings_.UserSandboxOptions.UserId
-                })
-                .Apply(BIND([=] (const TErrorOr<void>& volumeOrError) {
-                    if (!volumeOrError.IsOK()) {
-                        THROW_ERROR_EXCEPTION(TError(EErrorCode::RootVolumePreparationFailed, "Failed to set quotas")
-                            << volumeOrError);
-                    }
-                }));
-        } else {
-            return VoidFuture;
-        }
+        return VoidFuture;
     }
 
     TFuture<void> DoRunSetupCommand()
@@ -324,9 +313,37 @@ private:
         }
     }
 
+    void SetArtifactPermissions()
+    {
+        for (const auto& artifact : Settings_.Artifacts) {
+            if (!artifact.BypassArtifactCache && !artifact.CopyFile) {
+                YT_VERIFY(artifact.Chunk);
+
+                int permissions = artifact.Executable ? 0755 : 0644;
+
+                YT_LOG_INFO(
+                    "Set permissions for artifact (FileName: %v, Permissions: "
+                    "%v, SandboxKind: %v, CompressedDataSize: %v)",
+                    artifact.Name,
+                    permissions,
+                    artifact.SandboxKind,
+                    artifact.Key.GetCompressedDataSize());
+
+                SetPermissions(
+                    artifact.Chunk->GetFileName(),
+                    permissions);
+            } else {
+                YT_VERIFY(artifact.SandboxKind == ESandboxKind::User);
+            }
+        }
+    }
+
     TFuture<void> DoPrepareSandboxDirectories()
     {
         VERIFY_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::DownloadingArtifacts);
+        SetJobPhase(EJobPhase::PreparingSandboxDirectories);
 
         YT_LOG_INFO("Started preparing sandbox directories");
 
@@ -336,6 +353,8 @@ private:
 
         if (Settings_.LayerArtifactKeys.empty() || !Settings_.UserSandboxOptions.EnableArtifactBinds) {
             MakeArtifactSymlinks();
+        } else {
+            SetArtifactPermissions();
         }
 
         YT_LOG_INFO("Finished preparing sandbox directories");
@@ -349,13 +368,13 @@ private:
 
         YT_VERIFY(ResultHolder_.RootVolume);
 
-        std::vector<TBind> binds = Settings_.Binds;
+        auto binds = Settings_.Binds;
 
         for (const auto& bind : ResultHolder_.RootBinds) {
             binds.push_back(bind);
         }
 
-        return TRootFS {
+        return TRootFS{
             .RootPath = ResultHolder_.RootVolume->GetPath(),
             .IsRootReadOnly = false,
             .Binds = binds
@@ -396,29 +415,6 @@ private:
                     VolumePrepareFinishTime_ = TInstant::Now();
                     UpdateTimers_.Fire(MakeStrong(this));
                     ResultHolder_.RootVolume = volumeOrError.Value();
-                }));
-        } else if (Settings_.UserSandboxOptions.EnableDiskQuota &&
-            Settings_.UserSandboxOptions.HasRootFsQuota &&
-            (Settings_.UserSandboxOptions.DiskSpaceLimit || Settings_.UserSandboxOptions.InodeLimit))
-        {
-            VolumePrepareStartTime_ = TInstant::Now();
-            UpdateTimers_.Fire(MakeStrong(this));
-
-            return DirectoryManager_->ApplyQuota(
-                CombinePaths(Settings_.Slot->GetSlotPath(), GetRootFsUserDirectory()),
-                TJobDirectoryProperties{
-                    .DiskSpaceLimit = Settings_.UserSandboxOptions.DiskSpaceLimit,
-                    .InodeLimit = Settings_.UserSandboxOptions.InodeLimit,
-                    .UserId = Settings_.UserSandboxOptions.UserId
-                })
-                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<void>& volumeOrError) {
-                    if (!volumeOrError.IsOK()) {
-                        THROW_ERROR_EXCEPTION(TError(EErrorCode::RootVolumePreparationFailed, "Failed to set quotas")
-                            << volumeOrError);
-                    }
-
-                    VolumePrepareFinishTime_ = TInstant::Now();
-                    UpdateTimers_.Fire(MakeStrong(this));
                 }));
         } else {
             return VoidFuture;
@@ -493,7 +489,7 @@ private:
             return BIND(&TJobGpuChecker::RunGpuCheck, checker)
                 .AsyncVia(Invoker_)
                 .Run()
-                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<void>& result) {
+                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& result) {
                     ValidateJobPhase(EJobPhase::RunningGpuCheckCommand);
                     if (!result.IsOK()) {
                         auto checkError = TError(EErrorCode::GpuCheckCommandFailed, "Preliminary GPU check command failed")

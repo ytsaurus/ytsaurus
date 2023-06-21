@@ -39,7 +39,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TLockingState
+struct THunkStoreLockingState
 {
     // Persistent.
     int PersistentLockCount = 0;
@@ -76,14 +76,14 @@ struct TLockingState
 };
 
 
-void FormatValue(TStringBuilderBase* builder, const TLockingState& ref, TStringBuf /*spec*/)
+void FormatValue(TStringBuilderBase* builder, const THunkStoreLockingState& ref, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("PersistentLockCount: %v, TransientLockCount}",
+    builder->AppendFormat("PersistentLockCount: %v, TransientLockCount: %v}",
         ref.PersistentLockCount,
         ref.TransientLockCount);
 }
 
-TString ToString(const TLockingState& ref)
+TString ToString(const THunkStoreLockingState& ref)
 {
     return ToStringViaBuilder(ref);
 }
@@ -95,11 +95,11 @@ class THunkLockManager
 {
 public:
     THunkLockManager(
-        ITabletContext* context,
-        TTabletId tabletId)
-        : TabletId_(tabletId)
+        TTablet* tablet,
+        ITabletContext* context)
+        : Tablet_(tablet)
         , Context_(context)
-        , Logger(TabletNodeLogger.WithTag("LockerTabletId: %v", TabletId_))
+        , Logger(TabletNodeLogger.WithTag("LockerTabletId: %v", tablet->GetId()))
     { }
 
     void Initialize() override
@@ -118,7 +118,7 @@ public:
 
         if (Context_->GetAutomatonState() == EPeerState::Leading) {
             UnlockExecutor_.Store(New<TPeriodicExecutor>(
-                Context_->GetEpochAutomatonInvoker(),
+                Tablet_->GetEpochAutomatonInvoker(),
                 BIND(&THunkLockManager::UnlockStaleHunkStores, MakeWeak(this)),
                 config->UnlockCheckPeriod));
             UnlockExecutor_.Load()->Start();
@@ -150,7 +150,7 @@ public:
             hunkCellId,
             hunkTabletId);
 
-        TLockingState lockingState{
+        THunkStoreLockingState lockingState{
             .HunkCellId = hunkCellId,
             .HunkTabletId = hunkTabletId,
             .HunkMountRevision = hunkMountRevision,
@@ -373,14 +373,14 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
-    const TTabletId TabletId_;
+    TTablet* const Tablet_;
     ITabletContext* const Context_;
     const NLogging::TLogger Logger;
 
     TAtomicObject<TPeriodicExecutorPtr> UnlockExecutor_;
 
     THashMap<TChunkId, TPromise<void>> HunkStoreIdsBeingLockedToPromise_;
-    THashMap<TChunkId, TLockingState> HunkStoreIdToLockingState_;
+    THashMap<TChunkId, THunkStoreLockingState> HunkStoreIdToLockingState_;
 
     void Save(TSaveContext& context) const override
     {
@@ -438,7 +438,7 @@ private:
         }
     }
 
-    void Touch(TLockingState& state)
+    void Touch(THunkStoreLockingState& state)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -465,7 +465,7 @@ private:
                 NTabletClient::NProto::TReqToggleHunkTabletStoreLock hunkRequest;
                 ToProto(hunkRequest.mutable_tablet_id(), hunkTabletId);
                 ToProto(hunkRequest.mutable_store_id(), hunkStoreId);
-                ToProto(hunkRequest.mutable_locker_tablet_id(), TabletId_);
+                ToProto(hunkRequest.mutable_locker_tablet_id(), Tablet_->GetId());
                 hunkRequest.set_lock(lock);
                 hunkRequest.set_mount_revision(hunkMountRevision);
                 transaction->AddAction(hunkCellId, MakeTransactionActionData(hunkRequest));
@@ -473,7 +473,7 @@ private:
                 NTabletClient::NProto::TReqBoggleHunkTabletStoreLock localRequest;
                 ToProto(localRequest.mutable_hunk_tablet_id(), hunkTabletId);
                 ToProto(localRequest.mutable_store_id(), hunkStoreId);
-                ToProto(localRequest.mutable_tablet_id(), TabletId_);
+                ToProto(localRequest.mutable_tablet_id(), Tablet_->GetId());
                 ToProto(localRequest.mutable_hunk_cell_id(), hunkCellId);
                 localRequest.set_lock(lock);
                 localRequest.set_mount_revision(hunkMountRevision);
@@ -503,8 +503,9 @@ private:
 
         for (auto& [hunkStoreId, lockingState] : HunkStoreIdToLockingState_) {
             if (lockingState.TransientLockCount + lockingState.PersistentLockCount == 0 &&
-                now - lockingState.LastChangeTime >= config->HunkStoreExtraLifeTime &&
-                !lockingState.IsBeingUnlocked)
+                !lockingState.IsBeingUnlocked &&
+                (now - lockingState.LastChangeTime >= config->HunkStoreExtraLifeTime ||
+                Tablet_->GetState() != ETabletState::Mounted))
             {
                 YT_LOG_DEBUG("Unlocking hunk store (HunkStoreId: %v, HunkCellId: %v, HunkTabletId: %v)",
                     hunkStoreId,
@@ -542,10 +543,10 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IHunkLockManagerPtr CreateHunkLockManager(
-    ITabletContext* context,
-    TTabletId tabletId)
+    TTablet* tablet,
+    ITabletContext* context)
 {
-    return New<THunkLockManager>(context, tabletId);
+    return New<THunkLockManager>(tablet, context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

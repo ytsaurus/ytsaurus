@@ -6,6 +6,8 @@ from yt_commands import (
     sync_flush_table, sync_unmount_table, create_dynamic_table,
     disable_tablet_cells_on_node)
 
+import builtins
+
 #################################################################
 
 
@@ -20,6 +22,11 @@ class TestStoreCompactorOrchid(TestSortedDynamicTablesBase):
             result[state] = [task for task in result[state] if task["table_path"] in table_paths]
             result[state[:-1] + "_count"] = len(result[state])
         return result
+
+    @staticmethod
+    def _drop_unrecognized(dct, known_keys):
+        for k in builtins.set(dct.keys()).difference(known_keys):
+            del dct[k]
 
     @authors("akozhikhov")
     def test_compaction_orchid(self):
@@ -74,13 +81,9 @@ class TestStoreCompactorOrchid(TestSortedDynamicTablesBase):
         def _compaction_task_finished():
             compaction_tasks = self._fetch_orchid(node, "compaction", table_names)
             for task in compaction_tasks["finished_tasks"]:
-                # We don't want to predict priorities in integration test
-                del task["task_priority"]
-                del task["partition_id"]
-                del task["mount_revision"]
-                del task["start_time"]
-                del task["duration"]
-                del task["finish_time"]
+                self._drop_unrecognized(
+                    task,
+                    {"tablet_id", "store_count", "table_path", "reason", "tablet_cell_bundle"})
             compaction_tasks["finished_tasks"].sort(key=lambda x: x["table_path"])
 
             expected_compaction_tasks = {
@@ -130,8 +133,8 @@ class TestStoreCompactorOrchid(TestSortedDynamicTablesBase):
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
 
-        def _partition_task_finished():
-            expected_partition_task = {
+        def _partitioning_task_finished():
+            expected_partitioning_tasks = {
                 "pending_task_count": 0,
                 "running_task_count": 0,
                 "finished_task_count": 1,
@@ -139,21 +142,15 @@ class TestStoreCompactorOrchid(TestSortedDynamicTablesBase):
                 "running_tasks": [],
                 "finished_tasks": [{"tablet_id": tablet_id, "store_count": 1}],
             }
-            partition_task = self._fetch_orchid(node, "partitioning", ["//tmp/t"])
-            if partition_task["finished_task_count"] != 1:
+            partitioning_tasks = self._fetch_orchid(node, "partitioning", ["//tmp/t"])
+            if partitioning_tasks["finished_task_count"] != 1:
                 return False
-            del partition_task["finished_tasks"][0]["task_priority"]
-            del partition_task["finished_tasks"][0]["partition_id"]
-            del partition_task["finished_tasks"][0]["mount_revision"]
-            del partition_task["finished_tasks"][0]["reason"]
-            del partition_task["finished_tasks"][0]["table_path"]
-            del partition_task["finished_tasks"][0]["tablet_cell_bundle"]
-            del partition_task["finished_tasks"][0]["start_time"]
-            del partition_task["finished_tasks"][0]["duration"]
-            del partition_task["finished_tasks"][0]["finish_time"]
-            return partition_task == expected_partition_task
+            self._drop_unrecognized(
+                partitioning_tasks["finished_tasks"][0],
+                {"tablet_id", "store_count"})
+            return partitioning_tasks == expected_partitioning_tasks
 
-        wait(lambda: _partition_task_finished())
+        wait(lambda: _partitioning_task_finished())
 
     @authors("ifsmirnov")
     def test_running_tasks(self):

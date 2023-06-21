@@ -79,19 +79,14 @@ void TTraceContext::AddTag(const TString& tagName, const T& tagValue)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
-
-extern thread_local TTraceContext* CurrentTraceContext;
-
-TTraceContextPtr SwapTraceContext(TTraceContextPtr newContext);
-
-} // namespace NDetail
+// For internal use only.
+TTraceContextPtr SwitchTraceContext(TTraceContextPtr traceContext);
 
 Y_FORCE_INLINE TCurrentTraceContextGuard::TCurrentTraceContextGuard(TTraceContextPtr traceContext)
     : Active_(static_cast<bool>(traceContext))
 {
     if (Active_) {
-        OldTraceContext_ = NDetail::SwapTraceContext(std::move(traceContext));
+        OldTraceContext_ = SwitchTraceContext(std::move(traceContext));
     }
 }
 
@@ -115,7 +110,7 @@ Y_FORCE_INLINE bool TCurrentTraceContextGuard::IsActive() const
 Y_FORCE_INLINE void TCurrentTraceContextGuard::Release()
 {
     if (Active_) {
-        NDetail::SwapTraceContext(std::move(OldTraceContext_));
+        SwitchTraceContext(std::move(OldTraceContext_));
         Active_ = false;
     }
 }
@@ -129,7 +124,7 @@ Y_FORCE_INLINE const TTraceContextPtr& TCurrentTraceContextGuard::GetOldTraceCon
 
 Y_FORCE_INLINE TNullTraceContextGuard::TNullTraceContextGuard()
     : Active_(true)
-    , OldTraceContext_(NDetail::SwapTraceContext(nullptr))
+    , OldTraceContext_(SwitchTraceContext(nullptr))
 { }
 
 Y_FORCE_INLINE TNullTraceContextGuard::TNullTraceContextGuard(TNullTraceContextGuard&& other)
@@ -152,7 +147,7 @@ Y_FORCE_INLINE bool TNullTraceContextGuard::IsActive() const
 Y_FORCE_INLINE void TNullTraceContextGuard::Release()
 {
     if (Active_) {
-        NDetail::SwapTraceContext(std::move(OldTraceContext_));
+        SwitchTraceContext(std::move(OldTraceContext_));
         Active_ = false;
     }
 }
@@ -166,7 +161,7 @@ Y_FORCE_INLINE const TTraceContextPtr& TNullTraceContextGuard::GetOldTraceContex
 
 inline TTraceContextGuard::TTraceContextGuard(TTraceContextPtr traceContext)
     : TraceContextGuard_(std::move(traceContext))
-    , FinishGuard_(TryGetCurrentTraceContext())
+    , FinishGuard_(GetCurrentTraceContext())
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -180,13 +175,13 @@ inline TChildTraceContextGuard::TChildTraceContextGuard(
     const TTraceContextPtr& traceContext,
     TString spanName)
     : TraceContextGuard_(IsRecorded(traceContext) ? traceContext->CreateChild(spanName) : nullptr)
-    , FinishGuard_(IsRecorded(traceContext) ? TryGetCurrentTraceContext() : nullptr)
+    , FinishGuard_(IsRecorded(traceContext) ? GetCurrentTraceContext() : nullptr)
 { }
 
 inline TChildTraceContextGuard::TChildTraceContextGuard(
     TString spanName)
     : TChildTraceContextGuard(
-        TryGetCurrentTraceContext(),
+        GetCurrentTraceContext(),
         std::move(spanName))
 { }
 
@@ -205,29 +200,29 @@ inline TTraceContextFinishGuard::~TTraceContextFinishGuard()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_FORCE_INLINE TTraceContext* TryGetCurrentTraceContext()
-{
-    return NDetail::CurrentTraceContext;
-}
+namespace NDetail {
+
+extern thread_local TTraceContext* CurrentTraceContext;
+
+} // namespace NDetail
 
 Y_FORCE_INLINE TTraceContext* GetCurrentTraceContext()
 {
-    YT_ASSERT(NDetail::CurrentTraceContext);
     return NDetail::CurrentTraceContext;
 }
 
 Y_FORCE_INLINE TTraceContextPtr CreateTraceContextFromCurrent(TString spanName)
 {
-    auto* context = TryGetCurrentTraceContext();
+    auto context = GetCurrentTraceContext();
     return context ? context->CreateChild(std::move(spanName)) : TTraceContext::NewRoot(std::move(spanName));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TFn>
-void AnnotateTraceContext(TFn&& fn)
+void AnnotateTraceContext(const TFn& fn)
 {
-    if (auto* traceContext = TryGetCurrentTraceContext(); traceContext && traceContext->IsRecorded()) {
+    if (auto traceContext = NTracing::GetCurrentTraceContext(); traceContext && traceContext->IsRecorded()) {
         fn(traceContext);
     }
 }

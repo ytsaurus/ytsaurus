@@ -12,7 +12,6 @@
 
 #include <yt/yt/server/master/cell_server/tamed_cell_manager.h>
 
-#include <yt/yt/server/master/table_server/schemaful_node_helpers.h>
 #include <yt/yt/server/master/table_server/table_manager.h>
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
@@ -28,6 +27,7 @@ using namespace NCypressServer;
 using namespace NHydra;
 using namespace NObjectClient;
 using namespace NSecurityServer;
+using namespace NTableClient;
 using namespace NTableServer;
 using namespace NTransactionServer;
 using namespace NYTree;
@@ -87,14 +87,17 @@ private:
 
         auto ownsReplicationCard = combinedAttributes->GetAndRemove<bool>("owns_replication_card", true);
 
-        const auto& dynamicConfig = this->Bootstrap_->GetConfigManager()->GetConfig();
+        auto tableSchema = combinedAttributes->FindAndRemove<TTableSchemaPtr>("schema");
+        auto schemaId = combinedAttributes->GetAndRemove<TObjectId>("schema_id", NullObjectId);
+
         const auto& tableManager = this->Bootstrap_->GetTableManager();
-        auto [effectiveTableSchema, tableSchema] = ProcessSchemafulNodeAttributes(
-            combinedAttributes,
+        // NB: Chaos replicated table is always native.
+        auto* effectiveTableSchema = tableManager->ProcessSchemaFromAttributes(
+            tableSchema,
+            schemaId,
             /*dynamic*/ true,
             /*chaos*/ true,
-            dynamicConfig,
-            tableManager);
+            /*nodeId*/ id);
 
         auto nodeHolder = TCypressNodeTypeHandlerBase::DoCreate(id, context);
         auto* node = nodeHolder.get();
@@ -105,7 +108,10 @@ private:
             chaosManager->SetChaosCellBundle(node, chaosCellBundle);
 
             if (effectiveTableSchema) {
-                tableManager->GetOrCreateMasterTableSchema(*effectiveTableSchema, node);
+                tableManager->GetOrCreateNativeMasterTableSchema(*effectiveTableSchema, node);
+            } else {
+                auto* emptyTableSchema = tableManager->GetEmptyMasterTableSchema();
+                tableManager->SetTableSchema(node, emptyTableSchema);
             }
 
             return nodeHolder;

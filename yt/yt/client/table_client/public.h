@@ -48,6 +48,8 @@ class TVersionedRowDigestExt;
 
 using TRefCountedDataBlockMeta = TRefCountedProto<NProto::TDataBlockMetaExt>;
 using TRefCountedDataBlockMetaPtr = TIntrusivePtr<TRefCountedDataBlockMeta>;
+using TRefCountedSystemBlockMeta = TRefCountedProto<NProto::TSystemBlockMetaExt>;
+using TRefCountedSystemBlockMetaPtr = TIntrusivePtr<TRefCountedSystemBlockMeta>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -209,6 +211,7 @@ DEFINE_ENUM(EMisconfiguredPartitionTactics,
 
 using TTableId = NCypressClient::TNodeId;
 using TTableCollocationId = NObjectClient::TObjectId;
+using TMasterTableSchemaId = NObjectClient::TObjectId;
 
 //! NB: |int| is important since we use negative values to indicate that
 //! certain values need to be dropped. Cf. #TRowBuffer::CaptureAndPermuteRow.
@@ -320,6 +323,8 @@ DECLARE_REFCOUNTED_CLASS(TChunkWriterTestingOptions)
 
 DECLARE_REFCOUNTED_CLASS(TChunkReaderConfig)
 DECLARE_REFCOUNTED_CLASS(TChunkWriterConfig)
+
+DECLARE_REFCOUNTED_CLASS(TKeyFilterWriterConfig)
 
 DECLARE_REFCOUNTED_CLASS(TTableReaderConfig)
 DECLARE_REFCOUNTED_CLASS(TTableWriterConfig)

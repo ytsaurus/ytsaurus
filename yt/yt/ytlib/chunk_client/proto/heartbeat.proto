@@ -9,13 +9,15 @@ import "yt_proto/yt/core/misc/proto/guid.proto";
 message TChunkAddInfo
 {
     required NYT.NProto.TGuid chunk_id = 1;
+    // COMPAT(kvk1920): Remove after 23.2.
     optional NYT.NProto.TGuid location_uuid = 2;
-    // COMPAT(kvk1920): Remove this field.
+    required int32 location_index = 7;
+    // COMPAT(kvk1920): Remove after real locations will be enabled everywhere.
     required int32 medium_index = 5;
     optional bool active = 3 [default = false];
     optional bool sealed = 4 [default = false];
 
-    // COMPAT(kvk1920)
+    // COMPAT(kvk1920): Make `required` after real locations will be enabled everywhere.
     // NB: If real chunk locations are used this replica must be ignored.
     optional bool caused_by_medium_change = 6 [default = false];
 }
@@ -23,10 +25,12 @@ message TChunkAddInfo
 message TChunkRemoveInfo
 {
     required NYT.NProto.TGuid chunk_id = 1;
+    // COMPAT(kvk1920): Remove after 23.2.
     optional NYT.NProto.TGuid location_uuid = 2;
-    // COMPAT(kvk1920): Remove this field.
+    optional int32 location_index = 5;
+    // COMPAT(kvk1920): Remove after real locations will be enabled everywhere.
     required int32 medium_index = 3;
-    // COMPAT(kvk1920)
+    // COMPAT(kvk1920): Make `required` after real locations will be enabled everywhere.
     // NB: If real chunk locations are used this message must be ignored.
     optional bool caused_by_medium_change = 4 [default = false];
 }

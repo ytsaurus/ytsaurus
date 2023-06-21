@@ -34,11 +34,15 @@ TRichYPath::TRichYPath(const TRichYPath& other)
 
 TRichYPath::TRichYPath(const char* path)
     : Path_(path)
-{ }
+{
+    *this = Normalize();
+}
 
 TRichYPath::TRichYPath(const TYPath& path)
     : Path_(path)
-{ }
+{
+    *this = Normalize();
+}
 
 TRichYPath::TRichYPath(TRichYPath&& other)
     : Path_(std::move(other.Path_))
@@ -709,6 +713,7 @@ void Deserialize(TRichYPath& richPath, INodePtr node)
     richPath.SetPath(node->GetValue<TString>());
     richPath.Attributes().Clear();
     richPath.Attributes().MergeFrom(node->Attributes());
+    richPath = richPath.Normalize();
 }
 
 void Deserialize(TRichYPath& richPath, TYsonPullParserCursor* cursor)

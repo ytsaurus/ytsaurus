@@ -218,6 +218,7 @@ protected:
         transactionOptions.ParentId = options.TransactionId;
         transactionOptions.Attributes = std::move(transactionAttributes);
         transactionOptions.RequirePortalExitSynchronization = requirePortalExitSynchronization;
+        transactionOptions.StartCypressTransaction = false;
         auto transactionOrError = WaitFor(Client_->StartNativeTransaction(
             ETransactionType::Master,
             transactionOptions));

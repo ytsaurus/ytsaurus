@@ -84,6 +84,7 @@ void FromProto(TOperationControllerPrepareResult* result, const NControllerAgent
     result->Attributes = resultProto.has_attributes()
         ? TYsonString(resultProto.attributes(), EYsonType::MapFragment)
         : TYsonString();
+    result->ControlJobLifetimeAtScheduler = resultProto.control_job_lifetime_at_scheduler();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -127,6 +128,7 @@ void FromProto(
         job->SetAllocationState(EAllocationState::Running);
         result->RevivedJobs.push_back(job);
     }
+    result->ControlJobLifetimeAtScheduler = resultProto.control_job_lifetime_at_scheduler();
     result->RevivedBannedTreeIds = FromProto<THashSet<TString>>(resultProto.revived_banned_tree_ids());
     result->NeededResources = FromProto<TCompositeNeededResources>(resultProto.composite_needed_resources());
     result->MinNeededJobResources = FromProto<TJobResourcesWithQuotaList>(resultProto.min_needed_job_resources());

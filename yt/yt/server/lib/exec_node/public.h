@@ -80,6 +80,7 @@ extern const TString EmptyCpuSet;
 
 DECLARE_REFCOUNTED_CLASS(TSlotLocationConfig)
 DECLARE_REFCOUNTED_CLASS(TNumaNodeConfig)
+DECLARE_REFCOUNTED_CLASS(TJobThrashingDetectorConfig)
 DECLARE_REFCOUNTED_CLASS(TJobEnvironmentConfig)
 DECLARE_REFCOUNTED_CLASS(TSimpleJobEnvironmentConfig)
 DECLARE_REFCOUNTED_CLASS(TTestingJobEnvironmentConfig)
@@ -98,12 +99,6 @@ DECLARE_REFCOUNTED_CLASS(TControllerAgentConnectorDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TSlotManagerDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TVolumeManagerDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TExecNodeDynamicConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-TString GetRootFsUserDirectory();
-
-TString GetSandboxRelPath(ESandboxKind sandboxKind);
 
 ////////////////////////////////////////////////////////////////////////////////
 

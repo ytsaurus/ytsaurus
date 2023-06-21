@@ -1268,7 +1268,7 @@ private:
             }
 
             auto journalChunk = chunk->AsJournalChunk();
-            chunkStore->UnregisterChunk(chunk, false);
+            chunkStore->UnregisterChunk(chunk);
 
             const auto& dispatcher = Impl_->ChunkContext_->JournalDispatcher;
             WaitFor(dispatcher->RemoveJournal(journalChunk, /*enableMultiplexing*/ false))

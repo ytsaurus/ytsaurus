@@ -7,7 +7,7 @@
 #include <yt/yt/server/lib/scheduler/structs.h>
 #include <yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
 
-#include <yt/yt/server/lib/job_agent/job_report.h>
+#include <yt/yt/server/lib/job_agent/structs.h>
 
 #include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
@@ -74,10 +74,11 @@ struct TJobSummary
     //! Total output data statistics. May be absent for running job summary or for abandoned completed job summary.
     std::optional<NChunkClient::NProto::TDataStatistics> TotalOutputDataStatistics;
 
-    NJobTrackerClient::TReleaseJobFlags ReleaseFlags;
+    TReleaseJobFlags ReleaseFlags;
 
     TInstant StatusTimestamp;
     bool JobExecutionCompleted = false;
+    bool FinishedOnNode = false;
 };
 
 struct TCompletedJobSummary
@@ -101,16 +102,24 @@ struct TCompletedJobSummary
 
 std::unique_ptr<TCompletedJobSummary> CreateAbandonedJobSummary(TJobId jobId);
 
+DEFINE_ENUM(EJobAbortInitiator,
+    (Scheduler)
+    (ControllerAgent)
+    (Node)
+);
+
 struct TAbortedJobSummary
     : public TJobSummary
 {
     TAbortedJobSummary(TJobId id, EAbortReason abortReason);
     TAbortedJobSummary(const TJobSummary& other, EAbortReason abortReason);
-    explicit TAbortedJobSummary(NProto::TJobStatus* status);
+    explicit TAbortedJobSummary(NProto::TJobStatus* status, const NLogging::TLogger& Logger);
 
     EAbortReason AbortReason = EAbortReason::None;
+
     std::optional<NScheduler::TPreemptedFor> PreemptedFor;
-    bool AbortedByScheduler = false;
+
+    EJobAbortInitiator AbortInitiator = EJobAbortInitiator::Node;
 
     bool Scheduled = true;
 
@@ -122,16 +131,22 @@ std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(TAbortedBySchedulerJ
 struct TFailedJobSummary
     : public TJobSummary
 {
-    explicit TFailedJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event);
     explicit TFailedJobSummary(NProto::TJobStatus* status);
 
     inline static constexpr EJobState ExpectedState = EJobState::Failed;
 };
 
+struct TWaitingJobSummary
+    : public TJobSummary
+{
+    explicit TWaitingJobSummary(NProto::TJobStatus* status);
+
+    inline static constexpr EJobState ExpectedState = EJobState::Waiting;
+};
+
 struct TRunningJobSummary
     : public TJobSummary
 {
-    explicit TRunningJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event);
     explicit TRunningJobSummary(NProto::TJobStatus* status);
 
     double Progress = 0;
@@ -145,11 +160,6 @@ struct TFinishedJobSummary
     TOperationId OperationId;
     TJobId Id;
     TInstant FinishTime;
-
-    // COMPAT(pogorelov)
-    EInterruptReason InterruptReason;
-    std::optional<NScheduler::TPreemptedFor> PreemptedFor;
-    std::optional<TString> PreemptionReason;
 };
 
 struct TAbortedBySchedulerJobSummary

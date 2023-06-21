@@ -193,7 +193,6 @@ std::pair<std::optional<TErrorCode>, TTabletInfoPtr> TTableMountCacheBase::Inval
 {
     static const std::vector<TErrorCode> retriableCodes = {
         NTabletClient::EErrorCode::NoSuchTablet,
-        NTabletClient::EErrorCode::NoSuchCell,
         NTabletClient::EErrorCode::TabletNotMounted,
         NTabletClient::EErrorCode::InvalidMountRevision,
         NYTree::EErrorCode::ResolveError

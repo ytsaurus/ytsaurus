@@ -6,7 +6,6 @@ namespace NYT::NJobAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TJobReport;
 struct TTimeStatistics;
 
 DECLARE_REFCOUNTED_CLASS(TGpuInfoSourceConfig)
@@ -15,13 +14,10 @@ DECLARE_REFCOUNTED_CLASS(TMappedMemoryControllerConfig)
 DECLARE_REFCOUNTED_CLASS(TMemoryPressureDetectorConfig)
 DECLARE_REFCOUNTED_CLASS(TResourceLimitsConfig)
 DECLARE_REFCOUNTED_CLASS(TJobControllerConfig)
-DECLARE_REFCOUNTED_CLASS(TJobReporterConfig)
 DECLARE_REFCOUNTED_CLASS(TShellCommandConfig)
-DECLARE_REFCOUNTED_CLASS(TJobReporter)
 
 DECLARE_REFCOUNTED_CLASS(TJobControllerDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TGpuManagerDynamicConfig)
-DECLARE_REFCOUNTED_CLASS(TJobReporterDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

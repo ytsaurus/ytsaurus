@@ -891,6 +891,63 @@ func (r *CheckPermissionRequest) SetTxOptions(opts *TransactionOptions) {
 
 func (r *CheckPermissionRequest) ReadRetryOptions() {}
 
+type DisableChunkLocationsRequest struct {
+	*rpc_proxy.TReqDisableChunkLocations
+}
+
+func NewDisableChunkLocationsRequest(r *rpc_proxy.TReqDisableChunkLocations) *DisableChunkLocationsRequest {
+	return &DisableChunkLocationsRequest{TReqDisableChunkLocations: r}
+}
+
+func (r DisableChunkLocationsRequest) Log() []log.Field {
+	return []log.Field{
+		log.String("node_address", r.GetNodeAddress()),
+		log.Any("location_uuids", r.GetLocationUuids()),
+	}
+}
+
+func (r DisableChunkLocationsRequest) Path() (string, bool) {
+	return "", false
+}
+
+type DestroyChunkLocationsRequest struct {
+	*rpc_proxy.TReqDestroyChunkLocations
+}
+
+func NewDestroyChunkLocationsRequest(r *rpc_proxy.TReqDestroyChunkLocations) *DestroyChunkLocationsRequest {
+	return &DestroyChunkLocationsRequest{TReqDestroyChunkLocations: r}
+}
+
+func (r DestroyChunkLocationsRequest) Log() []log.Field {
+	return []log.Field{
+		log.String("node_address", r.GetNodeAddress()),
+		log.Any("location_uuids", r.GetLocationUuids()),
+	}
+}
+
+func (r DestroyChunkLocationsRequest) Path() (string, bool) {
+	return "", false
+}
+
+type ResurrectChunkLocationsRequest struct {
+	*rpc_proxy.TReqResurrectChunkLocations
+}
+
+func NewResurrectChunkLocationsRequest(r *rpc_proxy.TReqResurrectChunkLocations) *ResurrectChunkLocationsRequest {
+	return &ResurrectChunkLocationsRequest{TReqResurrectChunkLocations: r}
+}
+
+func (r ResurrectChunkLocationsRequest) Log() []log.Field {
+	return []log.Field{
+		log.String("node_address", r.GetNodeAddress()),
+		log.Any("location_uuids", r.GetLocationUuids()),
+	}
+}
+
+func (r ResurrectChunkLocationsRequest) Path() (string, bool) {
+	return "", false
+}
+
 var _ TransactionalRequest = (*LockNodeRequest)(nil)
 var _ MutatingRequest = (*LockNodeRequest)(nil)
 

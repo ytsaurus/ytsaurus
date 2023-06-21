@@ -6,7 +6,6 @@ from yt_commands import (
     wait, wait_breakpoint, with_breakpoint, write_table,
 )
 
-from copy import deepcopy
 from time import sleep
 
 import builtins
@@ -38,6 +37,7 @@ class TestIntermediateMediumSwitch(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
+    STORE_LOCATION_COUNT = 2
 
     FAST_MEDIUM = "ssd_blobs"
     SLOW_MEDIUM = "default"
@@ -60,15 +60,10 @@ class TestIntermediateMediumSwitch(YTEnvSetup):
 
     @classmethod
     def modify_node_config(cls, config):
-        assert len(config["data_node"]["store_locations"]) == 1
-        location_prototype = config["data_node"]["store_locations"][0]
+        assert len(config["data_node"]["store_locations"]) == 2
 
-        config["data_node"]["store_locations"] = []
-        for i, medium in enumerate([cls.SLOW_MEDIUM, cls.FAST_MEDIUM]):
-            location = deepcopy(location_prototype)
-            location["path"] += f"_{i}"
-            location["medium_name"] = medium
-            config["data_node"]["store_locations"].append(location)
+        config["data_node"]["store_locations"][0]["medium_name"] = cls.SLOW_MEDIUM
+        config["data_node"]["store_locations"][1]["medium_name"] = cls.FAST_MEDIUM
 
     @classmethod
     def on_masters_started(cls):
@@ -130,7 +125,7 @@ class TestIntermediateMediumSwitch(YTEnvSetup):
             reduce_by="key",
             sort_by="key",
             mapper_command=with_breakpoint('if [ "$YT_JOB_INDEX" != "0" ]; then BREAKPOINT; fi; cat'),
-            reducer_command=with_breakpoint("BREAKPOINT; cat"),
+            reducer_command=with_breakpoint("cat; BREAKPOINT"),
             spec={
                 "data_weight_per_sort_job": 1,
                 "fast_intermediate_medium_limit": 1,

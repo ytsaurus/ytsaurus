@@ -24,6 +24,7 @@ struct IJournalChunkWriter
     : public TRefCounted
 {
     virtual TFuture<void> Open() = 0;
+    virtual TFuture<void> Close() = 0;
 
     virtual TFuture<void> WriteRecord(TSharedRef record) = 0;
 

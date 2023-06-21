@@ -10,6 +10,7 @@
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 
 #include <yt/yt/ytlib/data_node_tracker_client/data_node_tracker_service_proxy.h>
+#include <yt/yt/ytlib/data_node_tracker_client/location_directory.h>
 
 namespace NYT::NChunkServer {
 
@@ -44,6 +45,7 @@ private:
     {
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
+        ValidateLocationDirectory(*request);
         SyncWithUpstream();
 
         auto nodeId = request->node_id();
@@ -65,6 +67,7 @@ private:
     {
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
+        ValidateLocationDirectory(*request);
         SyncWithUpstream();
 
         auto nodeId = request->node_id();
@@ -80,6 +83,27 @@ private:
 
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
         dataNodeTracker->ProcessIncrementalHeartbeat(context);
+    }
+
+    void ValidateLocationDirectory(const auto& request)
+    {
+        using namespace NDataNodeTrackerClient::NProto;
+        using TReqHeartbeat = std::decay_t<decltype(request)>;
+        static_assert(
+            std::is_same_v<TReqHeartbeat, TReqFullHeartbeat> ||
+            std::is_same_v<TReqHeartbeat, TReqIncrementalHeartbeat>,
+            "TReqHeartbeat must be either TReqFullHeartbeat or TReqIncrementalHeartbeat");
+
+        constexpr bool fullHeartbeat = std::is_same_v<TReqHeartbeat, TReqFullHeartbeat>;
+
+        if (!FromProto<TChunkLocationDirectory>(request.location_directory()).IsValid()) {
+            YT_LOG_ALERT(
+                "Invalid data node %v heartbeat: location directory contains duplicates "
+                "(NodeId: %v)",
+                fullHeartbeat ? "full" : "incremental",
+                request.node_id());
+            THROW_ERROR_EXCEPTION("Location directory contains duplicates");
+        }
     }
 };
 

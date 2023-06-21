@@ -189,6 +189,7 @@ class CypressSynchronizerOrchid(OrchidWithRegularPasses, OrchidSingleLeaderMixin
 
 class TestQueueAgentBase(YTEnvSetup):
     NUM_QUEUE_AGENTS = 1
+    NUM_DISCOVERY_SERVERS = 3
 
     USE_DYNAMIC_TABLES = True
 
@@ -384,6 +385,29 @@ class TestQueueAgentBase(YTEnvSetup):
         wait(lambda: cypress_synchronizer_elected(), sleep_backoff=0.15)
         wait(lambda: queue_agent_sharding_manager_elected(), sleep_backoff=0.15)
 
+    @classmethod
+    def _wait_for_discovery(cls, instances=None):
+        if instances is None:
+            instances = cls.INSTANCES
+        assert instances is not None
+
+        instance_set = builtins.set(instances)
+
+        discovery_instances = ls("//sys/discovery_servers")
+
+        def discovery_membership_updated():
+            for discovery_instance in discovery_instances:
+                members = ls(f"//sys/discovery_servers/{discovery_instance}"
+                             f"/orchid/discovery_server/queue_agents/@members")
+                member_set = builtins.set(members)
+                if member_set != instance_set:
+                    print_debug(f"Discovery group membership is stale: expected {instance_set}, found {member_set}")
+                    return False
+
+            return True
+
+        wait(discovery_membership_updated)
+
     # Waits for a complete pass by all queue agent components.
     # More specifically, it performs the following (in order):
     #     1. Waits for a complete pass by the leading cypress synchronizer.
@@ -401,6 +425,8 @@ class TestQueueAgentBase(YTEnvSetup):
 
         if not skip_cypress_synchronizer:
             leading_cypress_synchronizer_orchid.wait_fresh_pass()
+
+        cls._wait_for_discovery(instances=instances)
         leading_queue_agent_sharding_manager.wait_fresh_pass()
 
         cls.wait_fresh_pass(queue_agent_orchids)
@@ -492,13 +518,13 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
 
         wrong_schema = copy.deepcopy(init_queue_agent_state.QUEUE_TABLE_SCHEMA)
         for i in range(len(wrong_schema)):
-            if wrong_schema[i]["name"] == "object_type":
-                wrong_schema[i]["type"] = "int64"
+            if wrong_schema[i]["name"] == "cluster":
+                wrong_schema.pop(i)
                 break
         self._prepare_tables(queue_table_schema=wrong_schema)
 
         orchid.wait_fresh_pass()
-        assert_yt_error(orchid.get_pass_error(), "Row range schema is incompatible with queue table row schema")
+        assert_yt_error(orchid.get_pass_error(), "No such column")
 
         self._prepare_tables(force=True)
         orchid.wait_fresh_pass()

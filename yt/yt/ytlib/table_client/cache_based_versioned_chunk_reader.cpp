@@ -214,12 +214,11 @@ private:
 
         TBlockId blockId(ChunkId_, blockIndex);
 
-        auto cachedBlock = blockCache->FindBlock(blockId, EBlockType::UncompressedData).Block;
-        if (cachedBlock) {
-            return cachedBlock.Data;
+        if (auto block = blockCache->FindBlock(blockId, EBlockType::UncompressedData)) {
+            return std::move(block).Data;
         }
 
-        auto compressedBlock = blockCache->FindBlock(blockId, EBlockType::CompressedData).Block;
+        auto compressedBlock = blockCache->FindBlock(blockId, EBlockType::CompressedData);
         if (compressedBlock) {
             NCompression::ECodec codecId;
             YT_VERIFY(TryEnumCast(chunkMeta->Misc().compression_codec(), &codecId));
@@ -235,8 +234,8 @@ private:
             return uncompressedBlock;
         }
 
-        YT_LOG_FATAL("Cached block is missing (BlockId: %v)", blockId);
-        YT_ABORT();
+        YT_LOG_FATAL("Cached block is missing (BlockId: %v)",
+            blockId);
     }
 };
 
@@ -387,17 +386,12 @@ private:
 
             rows.push_back(Lookup(Keys_[KeyIndex_++]));
 
-            if (rows.back()) {
-                ++rowCount;
-            }
-
+            rowCount += static_cast<bool>(rows.back());
             dataWeight += GetDataWeight(rows.back());
         }
 
         this->RowCount_ += rowCount;
         this->DataWeight_ += dataWeight;
-        this->ChunkState_->PerformanceCounters->StaticChunkRowLookupCount += rowCount;
-        this->ChunkState_->PerformanceCounters->StaticChunkRowLookupDataWeightCount += dataWeight;
 
         return {
             std::move(rows),
@@ -453,7 +447,6 @@ private:
         if (!blockReader->SkipToKey(key) ||
             CompareKeys(blockReader->GetKey(), key, this->KeyComparer_) != 0)
         {
-            ++this->ChunkState_->PerformanceCounters->StaticChunkRowLookupFalsePositiveCount;
             return {};
         }
 
@@ -680,8 +673,6 @@ private:
 
         this->RowCount_ += rowCount;
         this->DataWeight_ += dataWeight;
-        this->ChunkState_->PerformanceCounters->StaticChunkRowReadCount += rowCount;
-        this->ChunkState_->PerformanceCounters->StaticChunkRowReadDataWeightCount += dataWeight;
 
         return {
             std::move(rows),

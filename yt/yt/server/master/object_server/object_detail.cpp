@@ -656,7 +656,11 @@ bool TObjectProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
 
         case EInternedAttributeKey::EstimatedCreationTime: {
             const auto& epochHistoryManager = Bootstrap_->GetEpochHistoryManager();
-            auto [minTime, maxTime] = epochHistoryManager->GetEstimatedCreationTime(GetId());
+            auto [minTime, maxTime] = epochHistoryManager->GetEstimatedCreationTime(
+                GetId(),
+                NHydra::HasMutationContext()
+                    ? NHydra::GetCurrentMutationContext()->GetTimestamp()
+                    : NProfiling::GetInstant());
             BuildYsonFluently(consumer)
                 .BeginMap()
                     .Item("min").Value(minTime)

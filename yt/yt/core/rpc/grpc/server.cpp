@@ -333,7 +333,7 @@ private:
         {
             const auto traceContextGuard = [&] {
                 auto guard = Guard(TraceContextSpinLock_);
-                return TraceContextHandler_.MakeTraceContextGuard();
+                return TraceContextHandler_.GetTraceContextGuard();
             }();
 
             auto cookie = static_cast<EServerCallCookie>(cookie_);

@@ -2,6 +2,8 @@
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
+#include <yt/yt/core/misc/digest.h>
+
 namespace NYT::NScheduler {
 
 using namespace NProfiling;
@@ -88,7 +90,7 @@ void TFairShareTreeProfileManager::UnregisterPool(const TSchedulerCompositeEleme
 
 void TFairShareTreeProfileManager::ProfileTree(
     const TFairShareTreeSnapshotPtr& treeSnapshot,
-    const THashMap<TOperationId, TResourceVolume>& operationIdToAccumulatedResourceUsage)
+    const THashMap<TOperationId, TResourceVolume>& operationIdToAccumulatedResourceUsageDelta)
 {
     VERIFY_INVOKER_AFFINITY(ProfilingInvoker_);
 
@@ -103,7 +105,7 @@ void TFairShareTreeProfileManager::ProfileTree(
 
     CleanupPoolProfilingEntries();
 
-    ProfileOperations(treeSnapshot, operationIdToAccumulatedResourceUsage);
+    ProfileOperations(treeSnapshot, operationIdToAccumulatedResourceUsageDelta);
     ProfilePools(treeSnapshot);
 }
 
@@ -152,6 +154,9 @@ void TFairShareTreeProfileManager::PrepareOperationProfilingEntries(const TFairS
                 });
             YT_VERIFY(insertResult.second);
             it = insertResult.first;
+
+            EmplaceOrCrash(OperationIdToAccumulatedResourceUsage_, operationId, TResourceVolume{});
+
             createProfilers = true;
         } else {
             auto& profilingEntry = it->second;
@@ -205,6 +210,7 @@ void TFairShareTreeProfileManager::PrepareOperationProfilingEntries(const TFairS
     }
     for (auto operationId : operationIdsToRemove) {
         OperationIdToProfilingEntry_.erase(operationId);
+        OperationIdToAccumulatedResourceUsage_.erase(operationId);
         JobMetricsMap_.erase(ToString(operationId));
     }
 }
@@ -408,7 +414,7 @@ void TFairShareTreeProfileManager::ProfileElement(
 
 void TFairShareTreeProfileManager::ProfileOperations(
     const TFairShareTreeSnapshotPtr& treeSnapshot,
-    const THashMap<TOperationId, TResourceVolume>& operationIdToAccumulatedResourceUsage)
+    const THashMap<TOperationId, TResourceVolume>& operationIdToAccumulatedResourceUsageDelta)
 {
     VERIFY_INVOKER_AFFINITY(ProfilingInvoker_);
 
@@ -423,9 +429,16 @@ void TFairShareTreeProfileManager::ProfileOperations(
             element,
             treeSnapshot->TreeConfig());
         {
-            auto it = operationIdToAccumulatedResourceUsage.find(operationId);
-            if (it != operationIdToAccumulatedResourceUsage.end()) {
-                ProfileResourceVolume(&buffer, it->second, "/accumulated_resource_usage", EMetricType::Counter);
+            if (auto itUsage = OperationIdToAccumulatedResourceUsage_.find(operationId);
+                itUsage != OperationIdToAccumulatedResourceUsage_.end())
+            {
+                auto& accumulatedResourceUsageVolume = itUsage->second;
+                if (auto itUsageDelta = operationIdToAccumulatedResourceUsageDelta.find(operationId);
+                    itUsageDelta != operationIdToAccumulatedResourceUsageDelta.end())
+                {
+                    accumulatedResourceUsageVolume += itUsageDelta->second;
+                }
+                ProfileResourceVolume(&buffer, accumulatedResourceUsageVolume, "/accumulated_resource_usage", EMetricType::Counter);
             }
         }
         GetOrCrash(OperationIdToProfilingEntry_, operationId).BufferedProducer->Update(std::move(buffer));
@@ -470,6 +483,14 @@ void TFairShareTreeProfileManager::ProfilePool(
             &buffer,
             element->Attributes().VolumeOverflow,
             "/volume_overflow");
+    }
+
+    for (auto quantile : treeConfig->PerPoolSatisfactionProfilingQuantiles) {
+        const auto& digest = element->PostUpdateAttributes().SatisfactionDigest;
+        YT_ASSERT(digest);
+
+        TWithTagGuard guard(&buffer, "quantile", ToString(quantile));
+        buffer.AddGauge("/operation_satisfaction_distribution", digest->GetQuantile(quantile));
     }
 
     producer->Update(std::move(buffer));

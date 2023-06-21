@@ -13,10 +13,12 @@
 #include <yt/yt/core/concurrency/public.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/atomic_object.h>
+#include <yt/yt/core/misc/fs.h>
 
 #include <yt/yt/core/ytree/fluent.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 namespace NYT::NExecNode {
 
@@ -28,6 +30,15 @@ DEFINE_ENUM(ESlotManagerAlertType,
     ((TooManyConsecutiveJobAbortions)   (2))
     ((JobProxyUnavailable)              (3))
     ((TooManyConsecutiveGpuJobFailures) (4))
+)
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(ESlotManagerState,
+    ((Disabled)                    (0))
+    ((Disabling)                   (1))
+    ((Initialized)                 (2))
+    ((Initializing)              (3))
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -49,12 +60,17 @@ class TSlotManager
     : public TRefCounted
 {
 public:
+    DEFINE_SIGNAL(void(), Disabled);
+
+public:
     TSlotManager(
         TSlotManagerConfigPtr config,
         IBootstrap* bootstrap);
 
     //! Initializes slots etc.
     void Initialize();
+
+    TFuture<void> InitializeEnvironment();
 
     void OnDynamicConfigChanged(
         const NClusterNode::TClusterNodeDynamicConfigPtr& oldNodeConfig,
@@ -70,7 +86,7 @@ public:
             TSlotManagerPtr slotManager,
             ESlotType slotType,
             double requestedCpu,
-            const std::optional<i64>& numaNodeIdAffinity);
+            std::optional<i64> numaNodeIdAffinity);
         ~TSlotGuard();
 
     private:
@@ -95,7 +111,7 @@ public:
     bool IsEnabled() const;
     bool HasFatalAlert() const;
 
-    void ResetAlert(ESlotManagerAlertType alertType);
+    void ResetAlerts(const std::vector<ESlotManagerAlertType>& alertTypes);
 
     NNodeTrackerClient::NProto::TDiskResources GetDiskResources();
 
@@ -109,7 +125,7 @@ public:
      *  \note
      *  Thread affinity: any
      */
-    void Disable(const TError& error);
+    bool Disable(const TError& error);
 
     /*!
      *  \note
@@ -129,6 +145,8 @@ public:
      */
     void InitMedia(const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
 
+    bool IsJobEnvironmentResurrectionEnabled();
+
     static bool IsResettableAlertType(ESlotManagerAlertType alertType);
 
 private:
@@ -136,11 +154,14 @@ private:
     IBootstrap* const Bootstrap_;
     const int SlotCount_;
     const TString NodeTag_;
+    const NContainers::TPortoHealthCheckerPtr PortoHealthChecker_;
 
-    std::atomic_bool Initialized_ = false;
+    std::atomic<ESlotManagerState> State_ = ESlotManagerState::Disabled;
+
     std::atomic_bool JobProxyReady_ = false;
 
-    TAtomicObject<TSlotManagerDynamicConfigPtr> DynamicConfig_;
+    TAtomicIntrusivePtr<TSlotManagerDynamicConfig> DynamicConfig_;
+    TAtomicIntrusivePtr<NClusterNode::TClusterNodeDynamicConfig> ClusterConfig_;
 
     TAtomicObject<IVolumeManagerPtr> RootVolumeManager_;
 
@@ -157,7 +178,6 @@ private:
 
     double IdlePolicyRequestedCpu_ = 0;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     TEnumIndexedVector<ESlotManagerAlertType, TError> Alerts_;
 
     //! If we observe too many consecutive aborts, we disable user slots on
@@ -172,16 +192,30 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
+    bool HasNonFatalAlerts() const;
+    bool HasGpuAlerts() const;
     bool HasSlotDisablingAlert() const;
+
+    void SetDisableState();
+    bool CanResurrect() const;
 
     double GetIdleCpuFraction() const;
 
     bool EnableNumaNodeScheduling() const;
 
+    void OnPortoHealthCheckSuccess();
+    void OnPortoHealthCheckFailed(const TError& result);
+
+    void ForceInitialize();
+    TFuture<void> Resurrect();
     void AsyncInitialize();
 
     int DoAcquireSlot(ESlotType slotType);
-    void ReleaseSlot(ESlotType slotType, int slotIndex, double requestedCpu, const std::optional<i64>& numaNodeIdAffinity);
+    void ReleaseSlot(
+        ESlotType slotType,
+        int slotIndex,
+        double requestedCpu,
+        const std::optional<i64>& numaNodeIdAffinity);
 
     /*!
      *  \note

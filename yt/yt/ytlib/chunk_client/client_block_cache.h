@@ -8,15 +8,6 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TBlockCacheEntry
-{
-    TBlockId BlockId;
-    EBlockType BlockType;
-    TCachedBlock Block;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct IClientBlockCache
     : public IBlockCache
 {
@@ -27,16 +18,13 @@ DEFINE_REFCOUNTED_TYPE(IClientBlockCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Creates a simple client-side block cache.
+//! Creates reconfigurable client-side block cache.
 IClientBlockCachePtr CreateClientBlockCache(
     TBlockCacheConfigPtr config,
     EBlockType supportedBlockTypes,
     IMemoryUsageTrackerPtr memoryTracker = nullptr,
     INodeMemoryReferenceTrackerPtr memoryReferenceTracker = nullptr,
     const NProfiling::TProfiler& profiler = {});
-
-//! Returns an always-empty block cache.
-IBlockCachePtr GetNullBlockCache();
 
 ////////////////////////////////////////////////////////////////////////////////
 

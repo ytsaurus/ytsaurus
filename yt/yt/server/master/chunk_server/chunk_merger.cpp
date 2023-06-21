@@ -493,12 +493,23 @@ private:
             return false;
         }
 
-        if (CurrentRowCount_ + chunk->GetRowCount() < config->MaxRowCount &&
-            CurrentDataWeight_ + chunk->GetDataWeight() < config->MaxDataWeight &&
-            CurrentCompressedDataSize_ + chunk->GetCompressedDataSize() < config->MaxCompressedDataSize &&
-            CurrentUncompressedDataSize_ + chunk->GetUncompressedDataSize() < config->MaxUncompressedDataSize &&
-            std::ssize(ChunkIds_) < config->MaxChunkCount &&
-            chunk->GetDataWeight() < config->MaxInputChunkDataWeight &&
+        auto accountCriteria = Account_->ChunkMergerCriteria();
+        auto mergerCriteria = TChunkMergerCriteria{
+            config->MaxChunkCount,
+            config->MaxRowCount,
+            config->MaxDataWeight,
+            config->MaxUncompressedDataSize,
+            config->MaxCompressedDataSize,
+            config->MaxInputChunkDataWeight
+        };
+        mergerCriteria.AssignNotNull(accountCriteria);
+
+        if (CurrentRowCount_ + chunk->GetRowCount() < mergerCriteria.MaxRowCount &&
+            CurrentDataWeight_ + chunk->GetDataWeight() < mergerCriteria.MaxDataWeight &&
+            CurrentCompressedDataSize_ + chunk->GetCompressedDataSize() < mergerCriteria.MaxCompressedDataSize &&
+            CurrentUncompressedDataSize_ + chunk->GetUncompressedDataSize() < mergerCriteria.MaxUncompressedDataSize &&
+            std::ssize(ChunkIds_) < mergerCriteria.MaxChunkCount &&
+            chunk->GetDataWeight() < mergerCriteria.MaxInputChunkDataWeight &&
             (ParentChunkListId_ == NullObjectId || ParentChunkListId_ == parent->GetId()))
         {
             CurrentRowCount_ += chunk->GetRowCount();
@@ -519,19 +530,19 @@ private:
                 NodeId_,
                 CurrentRowCount_,
                 chunk->GetRowCount(),
-                config->MaxRowCount,
+                *mergerCriteria.MaxRowCount,
                 CurrentDataWeight_,
                 chunk->GetDataWeight(),
-                config->MaxDataWeight,
-                config->MaxInputChunkDataWeight,
+                *mergerCriteria.MaxDataWeight,
+                *mergerCriteria.MaxInputChunkDataWeight,
                 CurrentCompressedDataSize_,
                 chunk->GetCompressedDataSize(),
-                config->MaxCompressedDataSize,
+                *mergerCriteria.MaxCompressedDataSize,
                 CurrentUncompressedDataSize_,
                 chunk->GetUncompressedDataSize(),
-                config->MaxUncompressedDataSize,
+                *mergerCriteria.MaxUncompressedDataSize,
                 std::ssize(ChunkIds_),
-                config->MaxChunkCount,
+                *mergerCriteria.MaxChunkCount,
                 ParentChunkListId_,
                 parent->GetId());
         }
@@ -1336,6 +1347,14 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
         return false;
     }
 
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+    auto* chunkRequisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
+    auto* outputChunk = chunkManager->FindChunk(jobInfo.OutputChunkId);
+    if (!IsObjectAlive(outputChunk)) {
+        return false;
+    }
+    auto erasureCodec = outputChunk->GetErasureCodec();
+
     TChunkMergerWriterOptions chunkMergerWriterOptions;
     if (chunkOwner->GetType() == EObjectType::Table) {
         const auto* table = chunkOwner->As<TTableNode>();
@@ -1343,7 +1362,7 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
         chunkMergerWriterOptions.set_optimize_for(ToProto<int>(table->GetOptimizeFor()));
     }
     chunkMergerWriterOptions.set_compression_codec(ToProto<int>(chunkOwner->GetCompressionCodec()));
-    chunkMergerWriterOptions.set_erasure_codec(ToProto<int>(chunkOwner->GetErasureCodec()));
+    chunkMergerWriterOptions.set_erasure_codec(ToProto<int>(erasureCodec));
     chunkMergerWriterOptions.set_enable_skynet_sharing(chunkOwner->GetEnableSkynetSharing());
     chunkMergerWriterOptions.set_merge_mode(ToProto<int>(jobInfo.MergeMode));
     chunkMergerWriterOptions.set_max_heavy_columns(Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->MaxHeavyColumns);
@@ -1352,7 +1371,6 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
     TMergeJob::TChunkVector inputChunks;
     inputChunks.reserve(jobInfo.InputChunkIds.size());
 
-    const auto& chunkManager = Bootstrap_->GetChunkManager();
     for (auto chunkId : jobInfo.InputChunkIds) {
         auto* chunk = chunkManager->FindChunk(chunkId);
         if (!IsObjectAlive(chunk)) {
@@ -1361,18 +1379,11 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
         inputChunks.emplace_back(chunk);
     }
 
-    auto* chunkRequisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
-    auto* outputChunk = chunkManager->FindChunk(jobInfo.OutputChunkId);
-    if (!IsObjectAlive(outputChunk)) {
-        return false;
-    }
-
     const auto& requisition = outputChunk->GetAggregatedRequisition(chunkRequisitionRegistry);
     TChunkIdWithIndexes chunkIdWithIndexes(
         jobInfo.OutputChunkId,
         GenericChunkReplicaIndex,
         requisition.begin()->MediumIndex);
-    auto erasureCodec = outputChunk->GetErasureCodec();
     int targetCount = erasureCodec == NErasure::ECodec::None
         ? outputChunk->GetAggregatedReplicationFactor(
             chunkIdWithIndexes.MediumIndex,

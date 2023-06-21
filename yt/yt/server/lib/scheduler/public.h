@@ -108,6 +108,7 @@ DEFINE_ENUM(EOperationAlertType,
     ((MemoryOverconsumption)                       (27))
     ((InvalidControllerRuntimeData)                (28))
     ((CustomStatisticsLimitExceeded)               (31))
+    ((BaseLayerProbeFailed)                        (33))
 );
 
 DEFINE_ENUM(EAgentToSchedulerOperationEventType,
@@ -204,6 +205,7 @@ DECLARE_REFCOUNTED_CLASS(TSchedulerBootstrapConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulerIntegralGuaranteesConfig)
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategySchedulingSegmentsConfig)
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategySsdPriorityPreemptionConfig)
+DECLARE_REFCOUNTED_CLASS(TPrioritizedRegularSchedulingConfig)
 
 DECLARE_REFCOUNTED_STRUCT(TExperimentEffectConfig)
 DECLARE_REFCOUNTED_STRUCT(TExperimentGroupConfig)

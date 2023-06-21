@@ -13,6 +13,7 @@
 #include "shallow_merge_job.h"
 
 #include <yt/yt/library/containers/public.h>
+#include <yt/yt/server/lib/exec_node/helpers.h>
 
 #include <yt/yt/server/lib/controller_agent/helpers.h>
 
@@ -972,18 +973,41 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
 
         // Please observe the hierarchy of binds for correct mounting!
         // TODO(don-dron): Make topological sorting.
-        rootFS.Binds.emplace_back(TBind{GetPreparationPath(), GetSlotPath(), /*readOnly*/ false});
+        rootFS.Binds.push_back(TBind{
+            .SourcePath = GetPreparationPath(),
+            .TargetPath = GetSlotPath(),
+            .ReadOnly = false
+        });
+
         for (const auto& tmpfsPath : Config_->TmpfsManager->TmpfsPaths) {
-            rootFS.Binds.emplace_back(TBind{tmpfsPath, AdjustPath(tmpfsPath), /*readOnly*/ false});
+            rootFS.Binds.push_back(TBind{
+                .SourcePath = tmpfsPath,
+                .TargetPath = AdjustPath(tmpfsPath),
+                .ReadOnly= false
+            });
         }
 
         // Temporary workaround for nirvana - make tmp directories writable.
         auto tmpPath = NFS::CombinePaths(NFs::CurrentWorkingDirectory(), GetSandboxRelPath(ESandboxKind::Tmp));
-        rootFS.Binds.emplace_back(TBind{tmpPath, "/tmp", /*readOnly*/ false});
-        rootFS.Binds.emplace_back(TBind{tmpPath, "/var/tmp", /*readOnly*/ false});
+
+        rootFS.Binds.push_back(TBind{
+            .SourcePath = tmpPath,
+            .TargetPath = "/tmp",
+            .ReadOnly = false
+        });
+
+        rootFS.Binds.push_back(TBind{
+            .SourcePath = tmpPath,
+            .TargetPath = "/var/tmp",
+            .ReadOnly = false
+        });
 
         for (const auto& bind : Config_->Binds) {
-            rootFS.Binds.emplace_back(TBind{bind->ExternalPath, bind->InternalPath, bind->ReadOnly});
+            rootFS.Binds.push_back(TBind{
+                .SourcePath = bind->ExternalPath,
+                .TargetPath = bind->InternalPath,
+                .ReadOnly = bind->ReadOnly
+            });
         }
 
         return rootFS;
@@ -995,6 +1019,7 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
         .HostName = Config_->HostName,
         .NetworkAddresses = Config_->NetworkAddresses,
         .EnableNat64 = Config_->EnableNat64,
+        .DisableNetwork = Config_->DisableNetwork,
         .EnableCudaGpuCoreDump = options.EnableGpuCoreDumps,
         .EnablePortoMemoryTracking = options.EnablePortoMemoryTracking,
         .EnablePorto = options.EnablePorto,
@@ -1138,6 +1163,15 @@ void TJobProxy::OnArtifactPreparationFailed(
     req->set_artifact_name(artifactName);
     req->set_artifact_path(artifactPath);
     ToProto(req->mutable_error(), error);
+
+    WaitFor(req->Invoke())
+        .ThrowOnError();
+}
+
+void TJobProxy::OnJobMemoryThrashing()
+{
+    auto req = SupervisorProxy_->OnJobMemoryThrashing();
+    ToProto(req->mutable_job_id(), JobId_);
 
     WaitFor(req->Invoke())
         .ThrowOnError();

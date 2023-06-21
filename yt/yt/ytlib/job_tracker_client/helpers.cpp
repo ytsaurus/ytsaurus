@@ -24,6 +24,16 @@ void FromProto(NJobTrackerClient::TJobToAbort* jobToAbort, const NProto::TJobToA
     }
 }
 
+void ToProto(NProto::TJobToRemove* protoJobToRemove, const NJobTrackerClient::TJobToRemove& jobToRemove)
+{
+    ToProto(protoJobToRemove->mutable_job_id(), jobToRemove.JobId);
+}
+
+void FromProto(NJobTrackerClient::TJobToRemove* jobToRemove, const NProto::TJobToRemove& protoJobToRemove)
+{
+    jobToRemove->JobId = NYT::FromProto<TJobId>(protoJobToRemove.job_id());
+}
+
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////

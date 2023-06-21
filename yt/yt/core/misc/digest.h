@@ -41,7 +41,8 @@ std::unique_ptr<IPersistentDigest> CreateLogDigest(TLogDigestConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IDigest> CreateHistogramDigest(THistogramDigestConfigPtr config);
+// TODO(eshcherbin): Make IDigest TRefCounted for consistency and stylistic reasons.
+std::shared_ptr<IDigest> CreateHistogramDigest(THistogramDigestConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

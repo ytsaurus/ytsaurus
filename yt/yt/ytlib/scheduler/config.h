@@ -268,6 +268,7 @@ public:
     std::optional<int> MaxOperationCount;
 
     std::vector<EFifoSortParameter> FifoSortParameters;
+    std::optional<EFifoPoolSchedulingOrder> FifoPoolSchedulingOrder;
 
     bool ForbidImmediateOperations;
 
@@ -298,6 +299,8 @@ public:
     TOffloadingSettings OffloadingSettings;
 
     TJobResourcesConfigPtr NonPreemptibleResourceUsageThreshold;
+
+    std::optional<bool> UsePoolSatisfactionForScheduling;
 
     void Validate(const TString& poolName);
 
@@ -443,6 +446,8 @@ public:
 
     std::optional<int> MaxUnpreemptibleRunningJobCount;
 
+    bool TryAvoidDuplicatingJobs;
+
     int MaxSpeculativeJobCountPerTask;
     int MaxProbingJobCountPerTask;
 
@@ -460,6 +465,8 @@ public:
     TTestingOperationOptionsPtr TestingOperationOptions;
 
     bool EraseTreesWithPoolLimitViolations;
+
+    bool ApplySpecifiedResourceLimitsToDemand;
 
     REGISTER_YSON_STRUCT(TStrategyOperationSpec);
 
@@ -840,6 +847,9 @@ public:
     //! Replication factor for intermediate data.
     int IntermediateDataReplicationFactor;
 
+    //! Minimum replication factor for intermediate data.
+    int IntermediateMinDataReplicationFactor;
+
     //! SyncOnClose option for intermediate data.
     bool IntermediateDataSyncOnClose;
 
@@ -1179,8 +1189,25 @@ public:
 
     std::optional<TString> SystemLayerPath;
 
+    //! The docker image to use in the operation.
+    std::optional<TString> DockerImage;
+
     //! Default base layer used if no other layers are requested.
     std::optional<TString> DefaultBaseLayerPath;
+
+    //! The probing base layer used to check if the operation can use it.
+    std::optional<TString> ProbingBaseLayerPath;
+
+    //! Do not run any more base layer probes if the `MaxFailedBaseLayerProbes` of them failed.
+    int MaxFailedBaseLayerProbes;
+
+    //! Use the base layer `ProbingBaseLayerPath` for all subsequent jobs
+    //! if the probing job completed successfully.
+    bool SwitchBaseLayerOnProbeSuccess;
+
+    //! If true the alert is set even if some of non-probing jobs have failed too.
+    //! To reduce the false positive rate by default the alert is set only when all failed jobs are probing.
+    bool AlertOnAnyProbingFailure;
 
     //! If set, overrides |Profilers| from operation spec.
     std::optional<std::vector<TJobProfilerSpecPtr>> Profilers;

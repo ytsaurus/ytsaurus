@@ -137,6 +137,7 @@ class TChunkWriterConfig
 {
 public:
     i64 BlockSize;
+
     i64 MaxSegmentValueCount;
 
     i64 MaxBufferSize;
@@ -159,12 +160,39 @@ public:
 
     TChunkWriterTestingOptionsPtr TestingOptions;
 
+    TKeyFilterWriterConfigPtr KeyFilter;
+
     REGISTER_YSON_STRUCT(TChunkWriterConfig);
 
     static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkWriterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TKeyFilterWriterConfig
+    : public virtual NYTree::TYsonStruct
+{
+public:
+    bool Enable;
+
+    i64 BlockSize;
+
+    int TrialCount;
+
+    std::optional<int> BitsPerKey;
+    std::optional<double> FalsePositiveRate;
+
+    static constexpr int DefaultBitsPerKey = 8;
+    int EffectiveBitsPerKey;
+
+    REGISTER_YSON_STRUCT(TKeyFilterWriterConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TKeyFilterWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -276,6 +304,7 @@ public:
     bool EnableSkynetSharing;
     bool ReturnBoundaryKeys;
     bool CastAnyToComposite = false;
+    bool SingleColumnGroupByDefault = false;
     NYTree::INodePtr CastAnyToCompositeNode;
 
     ETableSchemaModification SchemaModification;

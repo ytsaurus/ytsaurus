@@ -1,6 +1,7 @@
 #include "striped_erasure_reader.h"
 
 #include "private.h"
+#include "block_cache.h"
 #include "block_fetcher.h"
 #include "chunk_reader_allowing_repair.h"
 #include "chunk_writer.h"
@@ -58,8 +59,7 @@ public:
         const TSegmentPartFetchPlan& plan,
         const NProto::TStripedErasurePlacementExt& placement,
         TChunkReaderMemoryManagerPtr memoryManager,
-        IBlockCachePtr blockCache,
-        const TClientChunkReadOptions& chunkReadOptions)
+        const IChunkReader::TReadBlocksOptions& readBlocksOptions)
         : Codec_(codec)
         , Placement_(placement)
         , HeavyInvoker_(TDispatcher::Get()->GetReaderInvoker())
@@ -118,7 +118,8 @@ public:
                     .ReaderIndex = GetOrCrash(PartIndexToReaderIndex_, partIndex),
                     .BlockIndex = segmentIndex,
                     .Priority = segmentPartIndex,
-                    .UncompressedDataSize = segmentSizes[segmentIndex] / Codec_->GetDataPartCount()
+                    .UncompressedDataSize = segmentSizes[segmentIndex] / Codec_->GetDataPartCount(),
+                    .BlockType = EBlockType::None,
                 });
             };
 
@@ -147,10 +148,11 @@ public:
             std::move(blockInfos),
             std::move(memoryManager),
             std::move(partReaders),
-            std::move(blockCache),
+            GetNullBlockCache(),
             NCompression::ECodec::None,
             /*compressionRatio*/ 1.0,
-            chunkReadOptions);
+            readBlocksOptions.ClientOptions,
+            readBlocksOptions.SessionInvoker);
         BlockFetcher_->Start();
     }
 
@@ -376,14 +378,12 @@ public:
         const NErasure::ICodec* codec,
         std::vector<IChunkReaderAllowingRepairPtr> partReaders,
         TChunkReaderMemoryManagerPtr memoryManager,
-        IBlockCachePtr blockCache,
-        TClientChunkReadOptions chunkReadOptions)
+        IChunkReader::TReadBlocksOptions readBlocksOptions)
         : Config_(std::move(config))
         , Codec_(codec)
         , PartReaders_(std::move(partReaders))
         , MemoryManager_(std::move(memoryManager))
-        , BlockCache_(std::move(blockCache))
-        , ChunkReadOptions_(std::move(chunkReadOptions))
+        , ReadBlocksOptions_(std::move(readBlocksOptions))
     { }
 
 protected:
@@ -393,9 +393,8 @@ protected:
     const std::vector<IChunkReaderAllowingRepairPtr> PartReaders_;
 
     const TChunkReaderMemoryManagerPtr MemoryManager_;
-    const IBlockCachePtr BlockCache_;
 
-    const TClientChunkReadOptions ChunkReadOptions_;
+    const IChunkReader::TReadBlocksOptions ReadBlocksOptions_;
 
     NProto::TStripedErasurePlacementExt PlacementExt_;
 
@@ -403,7 +402,7 @@ protected:
     {
         const auto& reader = PartReaders_[RandomNumber(PartReaders_.size())];
         return reader->GetMeta(
-            ChunkReadOptions_,
+            ReadBlocksOptions_.ClientOptions,
             /*partitionTag*/ std::nullopt,
             std::vector<int>{
                 TProtoExtensionTag<NProto::TStripedErasurePlacementExt>::Value
@@ -425,15 +424,13 @@ public:
         std::vector<IChunkReaderAllowingRepairPtr> partReaders,
         std::vector<IChunkWriterPtr> partWriters,
         TChunkReaderMemoryManagerPtr memoryManager,
-        IBlockCachePtr blockCache,
-        TClientChunkReadOptions chunkReadOptions)
+        IChunkReader::TReadBlocksOptions readBlocksOptions)
         : TErasureReaderSessionBase(
             std::move(config),
             std::move(codec),
             std::move(partReaders),
             std::move(memoryManager),
-            std::move(blockCache),
-            std::move(chunkReadOptions))
+            std::move(readBlocksOptions))
         , PartWriters_(std::move(partWriters))
     {
         for (const auto& writer : PartWriters_) {
@@ -495,8 +492,7 @@ private:
                 fetchPlan,
                 PlacementExt_,
                 MemoryManager_,
-                BlockCache_,
-                ChunkReadOptions_);
+                ReadBlocksOptions_);
         }
 
 
@@ -511,7 +507,7 @@ private:
                     .ValueOrThrow();
 
                 const auto& writer = PartWriters_[writerIndex];
-                if (!writer->WriteBlock(ChunkReadOptions_.WorkloadDescriptor, segmentPart)) {
+                if (!writer->WriteBlock(ReadBlocksOptions_.ClientOptions.WorkloadDescriptor, segmentPart)) {
                     WaitFor(writer->GetReadyEvent())
                         .ThrowOnError();
                 }
@@ -520,7 +516,7 @@ private:
 
         // Fetch chunk meta.
         const auto& reader = PartReaders_[RandomNumber(PartReaders_.size())];
-        auto meta = WaitFor(reader->GetMeta(ChunkReadOptions_))
+        auto meta = WaitFor(reader->GetMeta(ReadBlocksOptions_.ClientOptions))
             .ValueOrThrow();
 
         auto deferredMeta = New<TDeferredChunkMeta>();
@@ -532,7 +528,9 @@ private:
             std::vector<TFuture<void>> futures;
             futures.reserve(PartWriters_.size());
             for (const auto& writer : PartWriters_) {
-                futures.push_back(writer->Close(ChunkReadOptions_.WorkloadDescriptor, deferredMeta));
+                futures.push_back(writer->Close(
+                    ReadBlocksOptions_.ClientOptions.WorkloadDescriptor,
+                    deferredMeta));
             }
             WaitFor(AllSucceeded(std::move(futures)))
                 .ThrowOnError();
@@ -548,8 +546,7 @@ TFuture<void> RepairErasedPartsStriped(
     std::vector<IChunkReaderAllowingRepairPtr> partReaders,
     std::vector<IChunkWriterPtr> partWriters,
     TChunkReaderMemoryManagerPtr memoryManager,
-    IBlockCachePtr blockCache,
-    TClientChunkReadOptions chunkReadOptions)
+    IChunkReader::TReadBlocksOptions readBlocksOptions)
 {
     auto repairSession = New<TErasureRepairSession>(
         std::move(config),
@@ -557,8 +554,7 @@ TFuture<void> RepairErasedPartsStriped(
         std::move(partReaders),
         std::move(partWriters),
         std::move(memoryManager),
-        std::move(blockCache),
-        std::move(chunkReadOptions));
+        std::move(readBlocksOptions));
     return repairSession->Run();
 }
 

@@ -12,7 +12,7 @@ public:
     TExecutionStackBase(const TExecutionStackBase& other) = delete;
     TExecutionStackBase& operator=(const TExecutionStackBase& other) = delete;
 
-    virtual ~TExecutionStackBase() = default;
+    virtual ~TExecutionStackBase();
 
     void* GetStack() const;
     size_t GetSize() const;

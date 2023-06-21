@@ -1,7 +1,5 @@
 package NYT.NControllerAgent.NProto;
 
-import "yt/ytlib/job_tracker_client/proto/job.proto";
-
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
 
 import "yt_proto/yt/client/chunk_client/proto/data_statistics.proto";
@@ -35,7 +33,28 @@ message TReleaseJobFlags
     required bool archive_stderr = 2;
     required bool archive_fail_context = 3;
     required bool archive_profile = 4;
-};
+}
+
+message TJobToRemove
+{
+    required NYT.NProto.TGuid job_id = 1;
+    required TReleaseJobFlags release_job_flags = 6;
+}
+
+message TTimeStatistics
+{
+    optional int64 prepare_duration = 1;
+    optional int64 exec_duration = 2;
+    optional int64 artifacts_download_duration = 3;
+    optional int64 prepare_root_fs_duration = 4;
+    optional int64 gpu_check_duration = 5;
+}
+
+message TPreemptedFor
+{
+    required NYT.NProto.TGuid operation_id = 1;
+    required NYT.NProto.TGuid job_id = 2;
+}
 
 // Describes the current job status.
 message TJobStatus
@@ -56,9 +75,9 @@ message TJobStatus
     optional int64 stderr_size = 13;
 
     optional int32 interruption_reason = 18;
-    optional NJobTrackerClient.NProto.TPreemptedFor preempted_for = 19;
+    optional TPreemptedFor preempted_for = 19;
 
-    required NJobTrackerClient.NProto.TTimeStatistics time_statistics = 15;
+    required TTimeStatistics time_statistics = 15;
     optional int64 status_timestamp = 16;
     optional bool job_execution_completed = 17 [default = false];
 }

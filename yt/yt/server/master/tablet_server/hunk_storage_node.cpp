@@ -31,7 +31,7 @@ void THunkStorageNode::Save(TSaveContext& context) const
     Save(context, ReadQuorum_);
     Save(context, WriteQuorum_);
 
-    Save(context, UsingNodeIds_);
+    Save(context, AssociatedNodeIds_);
 }
 
 void THunkStorageNode::Load(TLoadContext& context)
@@ -45,7 +45,7 @@ void THunkStorageNode::Load(TLoadContext& context)
 
     // COMPAT(aleksandra-zh)
     if (context.GetVersion() >= EMasterReign::LinkHunkStorageNode) {
-        Load(context, UsingNodeIds_);
+        Load(context, AssociatedNodeIds_);
     }
 }
 

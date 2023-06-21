@@ -9,6 +9,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 const std::array<ui8, ZeroBufferSize> ZeroBuffer{};
+static NConcurrency::TFls<int> CrashOnErrorDepth;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,29 +25,19 @@ void VerifySerializationAligned(i64 byteSize)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-int& CrashOnErrorDepth()
-{
-    static NConcurrency::TFlsSlot<int> Slot;
-    return *Slot;
-}
-
-} // namespace
-
 TCrashOnDeserializationErrorGuard::TCrashOnDeserializationErrorGuard()
 {
-    ++CrashOnErrorDepth();
+    ++*CrashOnErrorDepth;
 }
 
 TCrashOnDeserializationErrorGuard::~TCrashOnDeserializationErrorGuard()
 {
-    YT_VERIFY(--CrashOnErrorDepth() >= 0);
+    YT_VERIFY(--*CrashOnErrorDepth >= 0);
 }
 
 void TCrashOnDeserializationErrorGuard::OnError()
 {
-    YT_VERIFY(CrashOnErrorDepth() == 0);
+    YT_VERIFY(*CrashOnErrorDepth == 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

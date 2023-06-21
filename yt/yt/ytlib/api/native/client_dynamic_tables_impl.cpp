@@ -9,11 +9,9 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/ytlib/chaos_client/banned_replica_tracker.h>
-#include <yt/yt/ytlib/chaos_client/chaos_cell_directory_synchronizer.h>
 #include <yt/yt/ytlib/chaos_client/chaos_master_service_proxy.h>
 #include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
 #include <yt/yt/ytlib/chaos_client/coordinator_service_proxy.h>
-#include <yt/yt/ytlib/chaos_client/replication_card_channel_factory.h>
 
 #include <yt/yt/library/query/base/query_preparer.h>
 #include <yt/yt/library/query/base/functions.h>
@@ -90,12 +88,6 @@
 #include <yt/yt/core/concurrency/action_queue.h>
 #include "yt/yt/core/misc/numeric_helpers.h"
 #include <yt/yt/core/misc/protobuf_helpers.h>
-
-#include <yt/yt/core/rpc/bus/channel.h>
-
-#include <yt/yt/core/rpc/balancing_channel.h>
-#include <yt/yt/core/rpc/retrying_channel.h>
-#include <yt/yt/core/rpc/config.h>
 
 #include <library/cpp/int128/int128.h>
 
@@ -1616,6 +1608,7 @@ void TClient::ExecuteTabletServiceRequest(
     transactionOptions.SuppressStartTimestampGeneration = true,
     transactionOptions.CoordinatorMasterCellTag = nativeCellTag;
     transactionOptions.ReplicateToMasterCellTags = TCellTagList{externalCellTag};
+    transactionOptions.StartCypressTransaction = false;
     auto asyncTransaction = StartNativeTransaction(
         NTransactionClient::ETransactionType::Master,
         transactionOptions);
@@ -1931,6 +1924,9 @@ void TClient::DoAlterTable(
 
     if (options.Schema) {
         ToProto(req->mutable_schema(), *options.Schema);
+    }
+    if (options.SchemaId) {
+        ToProto(req->mutable_schema_id(), *options.SchemaId);
     }
     if (options.Dynamic) {
         req->set_dynamic(*options.Dynamic);
@@ -2340,7 +2336,7 @@ void TClient::DoRegisterQueueConsumer(
     const NYPath::TRichYPath& queuePath,
     const NYPath::TRichYPath& consumerPath,
     bool vital,
-    const TRegisterQueueConsumerOptions& /*options*/)
+    const TRegisterQueueConsumerOptions& options)
 {
     const auto& tableMountCache = Connection_->GetTableMountCache();
     auto queueTableInfo = WaitFor(tableMountCache->GetTableInfo(queuePath.GetPath()))
@@ -2357,9 +2353,14 @@ void TClient::DoRegisterQueueConsumer(
         .ThrowOnError();
 
     auto registrationCache = Connection_->GetQueueConsumerRegistrationManager();
-    registrationCache->RegisterQueueConsumer(queuePath, consumerPath, vital);
+    registrationCache->RegisterQueueConsumer(queuePath, consumerPath, vital, options.Partitions);
 
-    YT_LOG_DEBUG("Registered queue consumer (Queue: %v, Consumer: %v, Vital: %v)", queuePath, consumerPath, vital);
+    YT_LOG_DEBUG(
+        "Registered queue consumer (Queue: %v, Consumer: %v, Vital: %v, Partitions: %v)",
+        queuePath,
+        consumerPath,
+        vital,
+        options.Partitions);
 }
 
 void TClient::DoUnregisterQueueConsumer(
@@ -2419,13 +2420,14 @@ std::vector<TListQueueConsumerRegistrationsResult> TClient::DoListQueueConsumerR
             .QueuePath = registration.Queue,
             .ConsumerPath = registration.Consumer,
             .Vital = registration.Vital,
+            .Partitions = registration.Partitions,
         });
     }
 
     return result;
 }
 
-std::vector<TAlienCellDescriptor> TClient::DoSyncAlienCells(
+TSyncAlienCellsResult TClient::DoSyncAlienCells(
     const std::vector<TAlienCellDescriptorLite>& alienCellDescriptors,
     const TSyncAlienCellOptions& options)
 {
@@ -2440,7 +2442,10 @@ std::vector<TAlienCellDescriptor> TClient::DoSyncAlienCells(
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
 
-    return FromProto<std::vector<TAlienCellDescriptor>>(rsp->cell_descriptors());
+    return {
+        FromProto<std::vector<TAlienCellDescriptor>>(rsp->cell_descriptors()),
+        rsp->enable_metadata_cells()
+    };
 }
 
 class TTabletPullRowsSession
@@ -2793,63 +2798,19 @@ TPullRowsResult TClient::DoPullRows(
     return combinedResult;
 }
 
-IChannelPtr TClient::WrapChaosChannel(IChannelPtr channel)
-{
-    return CreateRetryingChannel(
-        GetNativeConnection()->GetConfig()->ChaosCellChannel,
-        std::move(channel));
-}
-
 IChannelPtr TClient::GetChaosChannelByCellId(TCellId cellId, EPeerKind peerKind)
 {
-    const auto& cellDirectory = GetNativeConnection()->GetCellDirectory();
-    if (auto channel = cellDirectory->FindChannelByCellId(cellId, peerKind)) {
-        return WrapChaosChannel(std::move(channel));
-    }
-
-    auto cellTag = CellTagFromId(cellId);
-    const auto& synchronizer = GetNativeConnection()->GetChaosCellDirectorySynchronizer();
-    synchronizer->AddCellTag(cellTag);
-    if (!cellDirectory->FindChannelByCellTag(cellTag)) {
-        YT_LOG_DEBUG("Synchronizing replication card chaos cells");
-        WaitFor(synchronizer->Sync())
-            .ThrowOnError();
-        YT_LOG_DEBUG("Finished synchronizing replication card chaos cells");
-    }
-
-    auto channel = cellDirectory->GetChannelByCellIdOrThrow(cellId, peerKind);
-    return WrapChaosChannel(std::move(channel));
+    return GetNativeConnection()->GetChaosChannelByCellId(cellId, peerKind);
 }
 
 IChannelPtr TClient::GetChaosChannelByCellTag(TCellTag cellTag, EPeerKind peerKind)
 {
-    const auto& cellDirectory = GetNativeConnection()->GetCellDirectory();
-    if (auto channel = cellDirectory->FindChannelByCellTag(cellTag, peerKind)) {
-        return WrapChaosChannel(std::move(channel));
-    }
-
-    const auto& synchronizer = GetNativeConnection()->GetChaosCellDirectorySynchronizer();
-    synchronizer->AddCellTag(cellTag);
-    if (!cellDirectory->FindChannelByCellTag(cellTag)) {
-        YT_LOG_DEBUG("Synchronizing replication card chaos cells");
-        WaitFor(synchronizer->Sync())
-            .ThrowOnError();
-        YT_LOG_DEBUG("Finished synchronizing replication card chaos cells");
-    }
-
-    auto channel = cellDirectory->GetChannelByCellTagOrThrow(cellTag, peerKind);
-    return WrapChaosChannel(std::move(channel));
+    return GetNativeConnection()->GetChaosChannelByCellTag(cellTag, peerKind);
 }
 
 IChannelPtr TClient::GetChaosChannelByCardId(TReplicationCardId replicationCardId, EPeerKind peerKind)
 {
-    if (TypeFromId(replicationCardId) != EObjectType::ReplicationCard) {
-        THROW_ERROR_EXCEPTION("Malformed replication card id %v",
-            replicationCardId);
-    }
-
-    auto connection = GetNativeConnection();
-    return WrapChaosChannel(connection->GetReplicationCardChannelFactory()->CreateChannel(replicationCardId, peerKind));
+    return GetNativeConnection()->GetChaosChannelByCardId(replicationCardId, peerKind);
 }
 
 TReplicationCardPtr TClient::GetSyncReplicationCard(const TTableMountInfoPtr& tableInfo)

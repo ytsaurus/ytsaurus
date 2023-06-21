@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 
 #include <yt/yt/server/lib/chunk_pools/config.h>
 
@@ -695,6 +695,29 @@ DEFINE_REFCOUNTED_TYPE(TUserFileLimitsPatchConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJobTrackerConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TDuration NodeDisconnectionTimeout;
+
+    TDuration JobConfirmationTimeout;
+
+    int LoggingJobSampleSize;
+
+    bool AbortVanishedJobs;
+
+    TDuration DurationBeforeJobConsideredVanished;
+
+    REGISTER_YSON_STRUCT(TJobTrackerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobTrackerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TControllerAgentConfig
     : public TNativeSingletonsDynamicConfig
 {
@@ -1057,7 +1080,7 @@ public:
 
     NScheduler::EEnablePorto DefaultEnablePorto;
 
-    NJobAgent::TJobReporterConfigPtr JobReporter;
+    TJobReporterConfigPtr JobReporter;
 
     //! Timeout for the response to a heavy request to the operation controller,
     //! such as Initialize, Prepare, Materialize, Revive or Commit.
@@ -1113,6 +1136,19 @@ public:
 
     //! Enables job profiling.
     bool EnableJobProfiling;
+
+    int MaxRunningJobStatisticsUpdateCountPerHeartbeat;
+    TDuration RunningJobTimeStatisticsUpdatesSendPeriod;
+
+    bool ReleaseFailedJobOnException;
+
+    bool ControlJobLifetimeAtScheduler;
+
+    bool InterruptJobsViaScheduler;
+
+    TJobTrackerConfigPtr JobTracker;
+
+    THashSet<TString> NetworkProjectsAllowedForOffloading;
 
     REGISTER_YSON_STRUCT(TControllerAgentConfig)
 

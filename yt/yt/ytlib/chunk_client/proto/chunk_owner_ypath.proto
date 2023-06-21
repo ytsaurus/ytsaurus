@@ -54,16 +54,19 @@ message TRspGetUploadParams
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Don't forget to patch corresponding replication method in EndUpload
+// when adding new fields to this message that are used on an external cell.
 message TReqEndUpload
 {
     optional TDataStatistics statistics = 1;
     optional NYT.NTableClient.NProto.TTableSchemaExt table_schema = 6;
     optional int32 schema_mode = 7; // ETableSchemaMode
     optional int32 optimize_for = 8; // EOptimizeFor
-    optional int32 chunk_format = 13; // EChunkFormat
     optional int32 compression_codec = 9; // NCompression::ECodec
     optional int32 erasure_codec = 10; // NErasure::ECodec
     optional NYT.NCrypto.NProto.TMD5Hasher md5_hasher = 11;
+    optional int32 chunk_format = 13; // EChunkFormat
+    optional NYT.NProto.TGuid table_schema_id = 14;
 
     message TSecurityTags
     {

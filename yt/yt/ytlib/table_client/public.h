@@ -134,6 +134,9 @@ DEFINE_ENUM(ETableCollocationType,
 
 DECLARE_REFCOUNTED_STRUCT(IChunkIndexBuilder)
 
+DECLARE_REFCOUNTED_CLASS(IKeyFilter)
+DECLARE_REFCOUNTED_CLASS(IKeyFilterBuilder)
+
 constexpr int VersionedBlockValueSize = 16;
 
 constexpr int IndexedRowTypicalGroupCount = 1;
@@ -141,6 +144,8 @@ constexpr int IndexedRowTypicalGroupCount = 1;
 class TIndexedVersionedBlockFormatDetail;
 
 DECLARE_REFCOUNTED_STRUCT(IChunkIndexReadController)
+
+DECLARE_REFCOUNTED_STRUCT(TTabletPerformanceCounters)
 
 ////////////////////////////////////////////////////////////////////////////////
 

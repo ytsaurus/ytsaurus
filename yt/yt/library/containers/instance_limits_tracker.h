@@ -19,11 +19,12 @@ class TInstanceLimitsTracker
 {
 public:
     //! Raises when container limits change.
-    DEFINE_SIGNAL(void(double, double, i64), LimitsUpdated);
+    DEFINE_SIGNAL(void(const TInstanceLimits&), LimitsUpdated);
 
 public:
     TInstanceLimitsTracker(
         IInstancePtr instance,
+        IInstancePtr root,
         IInvokerPtr invoker,
         TDuration updatePeriod);
 
@@ -36,18 +37,22 @@ private:
     void DoUpdateLimits();
     void DoBuildOrchid(NYson::IYsonConsumer* consumer) const;
 
-    const IInstancePtr Instance_;
+    TPortoResourceTrackerPtr SelfTracker_;
+    TPortoResourceTrackerPtr RootTracker_;
     const IInvokerPtr Invoker_;
     const NConcurrency::TPeriodicExecutorPtr Executor_;
 
-    std::optional<double> CpuGuarantee_;
-    std::optional<double> CpuLimit_;
-    std::optional<i64> MemoryLimit_;
+    std::optional<TDuration> CpuGuarantee_;
+    std::optional<TInstanceLimits> InstanceLimits_;
     std::optional<i64> MemoryUsage_;
     bool Running_ = false;
 };
 
 DEFINE_REFCOUNTED_TYPE(TInstanceLimitsTracker)
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FormatValue(TStringBuilderBase* builder, const TInstanceLimits& limits, TStringBuf format);
 
 ////////////////////////////////////////////////////////////////////////////////
 

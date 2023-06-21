@@ -87,11 +87,12 @@ struct TAgentToSchedulerJobEvent
     NScheduler::TControllerEpoch ControllerEpoch;
     TError Error;
     std::optional<EInterruptReason> InterruptReason;
-    std::optional<NJobTrackerClient::TReleaseJobFlags> ReleaseFlags;
+    std::optional<TReleaseJobFlags> ReleaseFlags;
 };
 
 using TAgentToSchedulerJobEventOutboxPtr = TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerJobEvent>>;
 using TAgentToSchedulerOperationEventOutboxPtr = TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerOperationEvent>>;
+using TAgentToSchedulerRunningJobStatisticsOutboxPtr = TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerRunningJobStatistics>>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -105,14 +106,24 @@ public:
         IInvokerPtr uncancelableControlInvoker,
         TAgentToSchedulerOperationEventOutboxPtr operationEventsOutbox,
         TAgentToSchedulerJobEventOutboxPtr jobEventsOutbox,
+        TAgentToSchedulerRunningJobStatisticsOutboxPtr runningJobStatisticsUpdatesOutbox,
         TBootstrap* bootstrap);
+
+    void SetJobTrackerOperationHandler(TJobTrackerOperationHandlerPtr jobTrackerOperationHandler);
 
     void Disconnect(const TError& error) override;
 
-    void InterruptJob(TJobId jobId, EInterruptReason reason) override;
+    void InterruptJob(TJobId jobId, EInterruptReason reason, TDuration timeout, bool viaScheduler) override;
     void AbortJob(TJobId jobId, const TError& error) override;
-    void FailJob(TJobId jobId) override;
-    void ReleaseJobs(const std::vector<NJobTrackerClient::TJobToRelease>& TJobToRelease) override;
+    void FailJob(TJobId jobId, bool viaScheduler) override;
+    void UpdateRunningJobsStatistics(std::vector<TAgentToSchedulerRunningJobStatistics> runningJobStatisticsUpdates) override;
+
+    void RegisterJob(TStartedJobInfo jobInfo) override;
+    void ReviveJobs(std::vector<TStartedJobInfo> jobs) override;
+    void ReleaseJobs(std::vector<TJobToRelease> jobs) override;
+    void AbortJobOnNode(
+        TJobId jobId,
+        NScheduler::EAbortReason abortReason) override;
 
     std::optional<TString> RegisterJobForMonitoring(TOperationId operationId, TJobId jobId) override;
     bool UnregisterJobForMonitoring(TOperationId operationId, TJobId jobId) override;
@@ -121,7 +132,7 @@ public:
     TFuture<void> RemoveSnapshot() override;
 
     TFuture<void> FlushOperationNode() override;
-    TFuture<void> UpdateInitializedOperationNode() override;
+    TFuture<void> UpdateInitializedOperationNode(bool isCleanOperationStart) override;
 
     TFuture<void> AttachChunkTreesToLivePreview(
         NTransactionClient::TTransactionId transactionId,
@@ -143,11 +154,13 @@ public:
     const NCoreDump::ICoreDumperPtr& GetCoreDumper() override;
     const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() override;
     const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() override;
-    const NJobAgent::TJobReporterPtr& GetJobReporter() override;
+    const TJobReporterPtr& GetJobReporter() override;
     const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() override;
     TMemoryTagQueue* GetMemoryTagQueue() override;
 
     TJobProfiler* GetJobProfiler() const override;
+
+    TJobTracker* GetJobTracker() const override;
 
     int GetOnlineExecNodeCount() override;
     TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter, bool onlineOnly = false) override;
@@ -174,8 +187,10 @@ private:
     const TOperationId OperationId_;
     const IInvokerPtr CancelableControlInvoker_;
     const IInvokerPtr UncancelableControlInvoker_;
+    TJobTrackerOperationHandlerPtr JobTrackerOperationHandler_;
     const TAgentToSchedulerOperationEventOutboxPtr OperationEventsOutbox_;
     const TAgentToSchedulerJobEventOutboxPtr JobEventsOutbox_;
+    const TAgentToSchedulerRunningJobStatisticsOutboxPtr RunningJobStatisticsUpdatesOutbox_;
     TBootstrap* const Bootstrap_;
     const TIncarnationId IncarnationId_;
     const NScheduler::TControllerEpoch ControllerEpoch_;

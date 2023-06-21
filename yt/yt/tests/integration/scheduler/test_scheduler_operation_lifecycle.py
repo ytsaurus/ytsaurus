@@ -11,9 +11,9 @@ from yt_commands import (
     ls, get,
     set, remove, exists, create_account, create_tmpdir, create_user, create_pool, create_pool_tree,
     start_transaction, abort_transaction,
-    read_table, write_table, map, sort,
+    lookup_rows, read_table, write_table, map, reduce, sort,
     run_test_vanilla, run_sleeping_vanilla,
-    abort_job, get_job, get_job_fail_context, list_jobs, get_operation,
+    abort_job, get_job, get_job_fail_context, list_jobs, list_operations, get_operation, clean_operations,
     abandon_job, sync_create_cells, update_controller_agent_config, update_scheduler_config,
     set_banned_flag, PrepareTables, sorted_dicts)
 
@@ -25,7 +25,7 @@ from yt_scheduler_helpers import (
 from yt_helpers import JobCountProfiler, get_current_time, parse_yt_time, profiler_factory, get_job_count_profiling
 
 from yt.yson import YsonEntity
-from yt.common import YtResponseError, YtError
+from yt.common import uuid_to_parts, YtResponseError, YtError, datetime_to_string
 from yt.test_helpers import are_almost_equal
 import yt.environment.init_operation_archive as init_operation_archive
 from yt.environment import arcadia_interop
@@ -37,7 +37,7 @@ import shutil
 import time
 import subprocess
 import os.path
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 ##################################################################
 
@@ -850,6 +850,16 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         cpu_demand_sensor = profiler.gauge(metric_prefix + "resource_demand/cpu")
         user_slots_demand_sensor = profiler.gauge(metric_prefix + "resource_demand/user_slots")
 
+        tags1 = {"slot_index": "0"}
+        tags2 = {"slot_index": "1"}
+
+        accumulated_resource_usage_cpu_sensors = dict()
+        accumulated_resource_usage_user_slots_sensors = dict()
+
+        for name, tags in (("tags1", tags1), ("tags2", tags2)):
+            accumulated_resource_usage_cpu_sensors[name] = profiler.counter(metric_prefix + "accumulated_resource_usage/cpu", tags=tags)
+            accumulated_resource_usage_user_slots_sensors[name] = profiler.counter(metric_prefix + "accumulated_resource_usage/user_slots", tags=tags)
+
         op1 = run_sleeping_vanilla(spec={"pool": "some_pool"})
         wait(lambda: op1.get_job_count("running") == 1)
         op2 = run_sleeping_vanilla(spec={"pool": "some_pool"})
@@ -858,33 +868,38 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         def get_slot_index(op):
             return op.get_runtime_progress("scheduling_info_per_pool_tree/default/slot_index", default=-1)
 
-        wait(lambda: get_slot_index(op1) == 0)
-        wait(lambda: get_slot_index(op2) == 1)
+        wait(lambda: get_slot_index(op1) == int(tags1["slot_index"]))
+        wait(lambda: get_slot_index(op2) == int(tags2["slot_index"]))
 
-        wait(lambda: are_almost_equal(dominant_fair_share_sensor.get(tags={"slot_index": "0"}), 0.5))
-        wait(lambda: dominant_usage_share_sensor.get(tags={"slot_index": "0"}) == 1.0)
-        wait(lambda: dominant_demand_share_sensor.get(tags={"slot_index": "0"}) == 1.0)
-        wait(lambda: are_almost_equal(dominant_promised_fair_share_sensor.get(tags={"slot_index": "0"}), 0.5))
-        wait(lambda: cpu_usage_sensor.get(tags={"slot_index": "0"}) == 1)
-        wait(lambda: user_slots_usage_sensor.get(tags={"slot_index": "0"}) == 1)
-        wait(lambda: cpu_demand_sensor.get(tags={"slot_index": "0"}) == 1)
-        wait(lambda: user_slots_demand_sensor.get(tags={"slot_index": "0"}) == 1)
+        wait(lambda: are_almost_equal(dominant_fair_share_sensor.get(tags=tags1), 0.5))
+        wait(lambda: dominant_usage_share_sensor.get(tags=tags1) == 1.0)
+        wait(lambda: dominant_demand_share_sensor.get(tags=tags1) == 1.0)
+        wait(lambda: are_almost_equal(dominant_promised_fair_share_sensor.get(tags=tags1), 0.5))
+        wait(lambda: cpu_usage_sensor.get(tags=tags1) == 1)
+        wait(lambda: user_slots_usage_sensor.get(tags=tags1) == 1)
+        wait(lambda: cpu_demand_sensor.get(tags=tags1) == 1)
+        wait(lambda: user_slots_demand_sensor.get(tags=tags1) == 1)
+        # Some non-trivial lower bound on resource consumption.
+        wait(lambda: accumulated_resource_usage_cpu_sensors["tags1"].get_delta() > 2.0)
+        wait(lambda: accumulated_resource_usage_user_slots_sensors["tags1"].get_delta() > 2.0)
 
-        wait(lambda: are_almost_equal(dominant_fair_share_sensor.get(tags={"slot_index": "1"}), 0.5))
-        wait(lambda: dominant_usage_share_sensor.get(tags={"slot_index": "1"}) == 0)
-        wait(lambda: dominant_demand_share_sensor.get(tags={"slot_index": "1"}) == 1.0)
-        wait(lambda: are_almost_equal(dominant_promised_fair_share_sensor.get(tags={"slot_index": "1"}), 0.5))
-        wait(lambda: cpu_usage_sensor.get(tags={"slot_index": "1"}) == 0)
-        wait(lambda: user_slots_usage_sensor.get(tags={"slot_index": "1"}) == 0)
-        wait(lambda: cpu_demand_sensor.get(tags={"slot_index": "1"}) == 1)
-        wait(lambda: user_slots_demand_sensor.get(tags={"slot_index": "1"}) == 1)
+        wait(lambda: are_almost_equal(dominant_fair_share_sensor.get(tags=tags2), 0.5))
+        wait(lambda: dominant_usage_share_sensor.get(tags=tags2) == 0)
+        wait(lambda: dominant_demand_share_sensor.get(tags=tags2) == 1.0)
+        wait(lambda: are_almost_equal(dominant_promised_fair_share_sensor.get(tags=tags2), 0.5))
+        wait(lambda: cpu_usage_sensor.get(tags=tags2) == 0)
+        wait(lambda: user_slots_usage_sensor.get(tags=tags2) == 0)
+        wait(lambda: cpu_demand_sensor.get(tags=tags2) == 1)
+        wait(lambda: user_slots_demand_sensor.get(tags=tags2) == 1)
+        wait(lambda: accumulated_resource_usage_cpu_sensors["tags2"].get_delta() == 0.0)
+        wait(lambda: accumulated_resource_usage_user_slots_sensors["tags2"].get_delta() == 0.0)
 
         op1.abort(wait_until_finished=True)
 
-        wait(lambda: dominant_fair_share_sensor.get(tags={"slot_index": "1"}) == 1.0)
-        wait(lambda: dominant_usage_share_sensor.get(tags={"slot_index": "1"}) == 1.0)
-        wait(lambda: dominant_demand_share_sensor.get(tags={"slot_index": "1"}) == 1.0)
-        wait(lambda: dominant_promised_fair_share_sensor.get(tags={"slot_index": "1"}) == 1.0)
+        wait(lambda: dominant_fair_share_sensor.get(tags=tags2) == 1.0)
+        wait(lambda: dominant_usage_share_sensor.get(tags=tags2) == 1.0)
+        wait(lambda: dominant_demand_share_sensor.get(tags=tags2) == 1.0)
+        wait(lambda: dominant_promised_fair_share_sensor.get(tags=tags2) == 1.0)
 
     @authors("ignat", "eshcherbin")
     def test_operations_by_user_profiling(self):
@@ -1019,14 +1034,14 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
 
     @authors("eshcherbin")
     def test_aborted_job_count_profiling_per_tree(self):
-        aborted_job_profiler = JobCountProfiler("aborted")
+        default_tree_aborted_job_profiler = JobCountProfiler("aborted", tags={"tree": "default"})
+        other_tree_aborted_job_profiler = JobCountProfiler("aborted", tags={"tree": "other"})
 
         op1 = run_sleeping_vanilla()
         wait(lambda: get(scheduler_orchid_operation_path(op1.id) + "/resource_usage/cpu", default=None) == 1.0)
         op1.abort()
 
-        wait(lambda: aborted_job_profiler.get_job_count_delta(tags={"tree": "default"}) == 1)
-        wait(lambda: aborted_job_profiler.get_job_count_delta() == 1)
+        wait(lambda: default_tree_aborted_job_profiler.get_job_count_delta() == 1)
 
         set("//sys/pool_trees/default/@config/nodes_filter", "!other")
         create_pool_tree("other", config={"nodes_filter": "other"})
@@ -1038,15 +1053,14 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: get(scheduler_orchid_operation_path(op2.id, tree="other") + "/resource_usage/cpu", default=None) == 1.0)
         op2.abort()
 
-        wait(lambda: aborted_job_profiler.get_job_count_delta(tags={"tree": "other"}) == 1)
-        wait(lambda: aborted_job_profiler.get_job_count_delta(tags={"tree": "default"}) == 1)
-        wait(lambda: aborted_job_profiler.get_job_count_delta() == 2)
+        wait(lambda: other_tree_aborted_job_profiler.get_job_count_delta() == 1)
+        wait(lambda: default_tree_aborted_job_profiler.get_job_count_delta() == 1)
 
     @authors("ignat")
     def test_scheduling_index_profiling(self):
         profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default"})
 
-        tags = {"scheduling_index": "0", "scheduling_stage": "non_preemptive"}
+        tags = {"scheduling_index": "0", "scheduling_stage": "regular_medium_priority"}
         operation_scheduling_index_attempt_count = profiler.counter(
             "scheduler/operation_scheduling_index_attempt_count",
             tags=tags)
@@ -1362,6 +1376,170 @@ class TestSafeAssertionsMode(YTEnvSetup):
             op.track()
         print_debug(op.get_error())
         assert op.get_error().contains_code(213)  # NScheduler::EErrorCode::TestingError
+
+
+class TestSchedulerAttributes(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 5
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "event_log": {"retry_backoff_time": 7, "flush_period": 5000},
+            "enable_operation_heavy_attributes_archivation": True,
+            "operations_cleaner": {
+                "enable": True,
+                "analysis_period": 100,
+                "archive_batch_timeout": 100,
+                "min_archivation_retry_sleep_delay": 100,
+                "max_archivation_retry_sleep_delay": 110,
+                "clean_delay": 50,
+                "fetch_batch_size": 1,
+                "max_operation_age": 100,
+            },
+        },
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operation_options": {"spec_template": {"data_weight_per_job": 1000}},
+            "map_operation_options": {
+                "spec_template": {
+                    "data_weight_per_job": 2000,
+                    "max_failed_job_count": 10,
+                }
+            },
+        },
+    }
+
+    @authors("ignat")
+    def test_specs(self):
+        create("table", "//tmp/t_in")
+        write_table("<append=true;sorted_by=[foo]>//tmp/t_in", {"foo": "bar"})
+
+        create("table", "//tmp/t_out")
+
+        op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", track=False, fail_fast=False)
+
+        full_spec_path = "//sys/scheduler/orchid/scheduler/operations/{0}/full_spec".format(op.id)
+        wait(lambda: exists(full_spec_path))
+
+        assert get("{}/data_weight_per_job".format(full_spec_path)) == 2000
+        assert get("{}/max_failed_job_count".format(full_spec_path)) == 10
+
+        op.abort()
+
+        op = reduce(
+            command="sleep 1000",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            reduce_by=["foo"],
+            track=False,
+            fail_fast=False,
+        )
+        wait(lambda: op.get_state() == "running")
+
+        full_spec_path = "//sys/scheduler/orchid/scheduler/operations/{0}/full_spec".format(op.id)
+        wait(lambda: exists(full_spec_path))
+
+        assert get("{}/data_weight_per_job".format(full_spec_path)) == 1000
+        assert get("{}/max_failed_job_count".format(full_spec_path)) == 10
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+
+        op.ensure_running()
+
+        assert get("{}/data_weight_per_job".format(full_spec_path)) == 1000
+        assert get("{}/max_failed_job_count".format(full_spec_path)) == 10
+
+        op.abort()
+
+    @authors("ignat")
+    def test_unrecognized_spec(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"a": "b"}])
+        create("table", "//tmp/t_out")
+        op = map(
+            command="sleep 1000",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            track=False,
+            spec={"xxx": "yyy"},
+        )
+
+        wait(lambda: exists(op.get_path() + "/@unrecognized_spec"))
+        assert get(op.get_path() + "/@unrecognized_spec") == {"xxx": "yyy"}
+
+    @authors("ignat")
+    def test_brief_progress(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"a": "b"}])
+        create("table", "//tmp/t_out")
+        op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", track=False)
+
+        wait(lambda: exists(op.get_path() + "/@brief_progress"))
+        assert "jobs" in list(get(op.get_path() + "/@brief_progress"))
+
+    @authors("omgronny")
+    @pytest.mark.parametrize("enable_spec_archivation", [True, False])
+    def test_specs_in_archive(self, enable_spec_archivation):
+        sync_create_cells(1)
+        init_operation_archive.create_tables_latest_version(
+            self.Env.create_native_client(), override_tablet_cell_bundle="default",
+        )
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        update_scheduler_config("enable_operation_heavy_attributes_archivation", enable_spec_archivation)
+
+        op = run_test_vanilla(
+            command="sleep 1000",
+            track=False,
+            spec={"xxx": "yyy"}
+        )
+
+        if enable_spec_archivation:
+            wait(lambda: "unrecognized_spec" in get_operation(op.id, attributes=["unrecognized_spec"]))
+            assert not exists(op.get_path() + "/@unrecognized_spec")
+            assert get_operation(op.id, attributes=["unrecognized_spec"])["unrecognized_spec"]["xxx"] == "yyy"
+        else:
+            wait(lambda: exists(op.get_path() + "/@unrecognized_spec"))
+            assert get(op.get_path() + "/@unrecognized_spec")["xxx"] == "yyy"
+
+    @authors("omgronny")
+    def test_brief_spec_in_archive(self):
+        sync_create_cells(1)
+        init_operation_archive.create_tables_latest_version(
+            self.Env.create_native_client(), override_tablet_cell_bundle="default",
+        )
+
+        transaction_id = start_transaction(timeout=300 * 1000)
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), tx=transaction_id)
+
+        wait_breakpoint()
+
+        wait(lambda: exists(op.get_path() + "/@brief_spec"))
+        assert get(op.get_path() + "/@brief_spec/user_transaction_id") == transaction_id
+        assert get_operation(op.id)["brief_spec"]["user_transaction_id"] == transaction_id
+
+        release_breakpoint()
+        op.track()
+
+        clean_operations()
+
+        id_hi, id_lo = uuid_to_parts(op.id)
+        rows = lookup_rows("//sys/operations_archive/ordered_by_id", [{"id_hi": id_hi, "id_lo": id_lo}])
+        assert rows[0]["brief_spec"]["user_transaction_id"] == transaction_id
+
+        assert get_operation(op.id)["brief_spec"]["user_transaction_id"] == transaction_id
+        res = list_operations(
+            include_archive=True,
+            from_time=datetime_to_string(datetime.utcfromtimestamp(0)),
+            to_time=datetime_to_string(datetime.utcnow()),
+        )
+        assert res["operations"][0]["brief_spec"]["user_transaction_id"] == transaction_id
 
 
 ##################################################################

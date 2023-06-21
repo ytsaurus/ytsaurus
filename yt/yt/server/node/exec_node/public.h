@@ -4,11 +4,17 @@
 
 #include <yt/yt/server/lib/job_agent/public.h>
 
+#include <yt/yt/server/lib/scheduler/public.h>
+
 #include <yt/yt/core/actions/callback.h>
 
 #include <optional>
 
 namespace NYT::NExecNode {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using NScheduler::TAllocationId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,8 +86,6 @@ DECLARE_REFCOUNTED_CLASS(TControllerAgentConnectorPool)
 DECLARE_REFCOUNTED_CLASS(TSchedulerConnector)
 
 DECLARE_REFCOUNTED_STRUCT(IJobEnvironment)
-
-DECLARE_REFCOUNTED_STRUCT(TAgentHeartbeatContext)
 
 DEFINE_ENUM(EExecNodeThrottlerKind,
     //! Controls incoming bandwidth used by Artifact Cache downloads.

@@ -42,7 +42,8 @@ public:
     void RegisterQueueConsumer(
         const NYPath::TRichYPath& queue,
         const NYPath::TRichYPath& consumer,
-        bool vital);
+        bool vital,
+        const std::optional<std::vector<int>>& partitions = {});
 
     // NB: Using the registration cache immediately after this call may return stale results.
     void UnregisterQueueConsumer(

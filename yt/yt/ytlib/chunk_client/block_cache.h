@@ -11,15 +11,7 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCachedBlock
-{
-    TBlock Block;
-
-    TCachedBlock() = default;
-
-    explicit TCachedBlock(
-        TBlock block);
-};
+using TCachedBlock = TBlock;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,12 +19,13 @@ struct ICachedBlockCookie
 {
     virtual ~ICachedBlockCookie() = default;
 
-    //! If true, block should be fetched and put into the cache via
-    //! #SetBlock call.
-    //! If false, block can be obtained via #GetBlockFuture call.
+    //! If |true|, block should be fetched and put into the cache via #SetBlock call.
+    //! If |false|, block should be waited for on #GetBlockFuture call and then captured via #GetBlock call.
     virtual bool IsActive() const = 0;
 
-    virtual TFuture<TCachedBlock> GetBlockFuture() const = 0;
+    virtual TFuture<void> GetBlockFuture() const = 0;
+
+    virtual TCachedBlock GetBlock() const = 0;
 
     virtual void SetBlock(TErrorOr<TCachedBlock> blockOrError) = 0;
 };
@@ -77,9 +70,17 @@ struct IBlockCache
 
     //! Returns the set of supported block types.
     virtual EBlockType GetSupportedBlockTypes() const = 0;
+
+    //! Returns whether block type is supported by block cache that has nonzero capacity.
+    virtual bool IsBlockTypeActive(EBlockType blockType) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IBlockCache)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Returns an always-empty block cache.
+IBlockCachePtr GetNullBlockCache();
 
 ////////////////////////////////////////////////////////////////////////////////
 

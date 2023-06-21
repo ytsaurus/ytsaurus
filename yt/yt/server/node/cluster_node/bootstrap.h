@@ -16,9 +16,9 @@
 
 #include <yt/yt/server/node/chaos_node/public.h>
 
-#include <yt/yt/server/lib/cellar_agent/public.h>
+#include <yt/yt/server/lib/misc/reboot_manager.h>
 
-#include <yt/yt/library/containers/public.h>
+#include <yt/yt/server/lib/cellar_agent/public.h>
 
 #include <yt/yt/server/lib/job_proxy/public.h>
 
@@ -28,13 +28,15 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
+#include <yt/yt/ytlib/misc/public.h>
+
 #include <yt/yt/library/profiling/solomon/public.h>
 
 #include <yt/yt/client/node_tracker_client/public.h>
 
-#include <yt/yt/library/query/base/public.h>
+#include <yt/yt/library/containers/public.h>
 
-#include <yt/yt/ytlib/misc/public.h>
+#include <yt/yt/library/query/base/public.h>
 
 #include <yt/yt/library/monitoring/public.h>
 
@@ -127,7 +129,6 @@ struct IBootstrapBase
 
     // Common node caches.
     virtual const NChunkClient::IBlockCachePtr& GetBlockCache() const = 0;
-    virtual const NChunkClient::IClientBlockCachePtr& GetClientBlockCache() const = 0;
     virtual const NDataNode::IChunkMetaManagerPtr& GetChunkMetaManager() const = 0;
     virtual const NTabletNode::IVersionedChunkMetaManagerPtr& GetVersionedChunkMetaManager() const = 0;
     virtual const NDataNode::TChunkReaderSweeperPtr& GetChunkReaderSweeper() const = 0;
@@ -152,6 +153,9 @@ struct IBootstrapBase
 
     // Job resource manager.
     virtual const NJobAgent::IJobResourceManagerPtr& GetJobResourceManager() const = 0;
+
+    // Reboot manager for hot swap functionality.
+    virtual const TRebootManagerPtr& GetRebootManager() const = 0;
 
     // Job environment.
     virtual NExecNode::EJobEnvironmentType GetJobEnvironmentType() const = 0;
@@ -269,7 +273,6 @@ public:
     const INodeMemoryReferenceTrackerPtr& GetNodeMemoryReferenceTracker() const override;
 
     const NChunkClient::IBlockCachePtr& GetBlockCache() const override;
-    const NChunkClient::IClientBlockCachePtr& GetClientBlockCache() const override;
     const NDataNode::IChunkMetaManagerPtr& GetChunkMetaManager() const override;
     const NTabletNode::IVersionedChunkMetaManagerPtr& GetVersionedChunkMetaManager() const override;
     const NDataNode::TChunkReaderSweeperPtr& GetChunkReaderSweeper() const override;
@@ -286,6 +289,8 @@ public:
     const NDataNode::IBlobReaderCachePtr& GetBlobReaderCache() const override;
 
     const NJobAgent::IJobResourceManagerPtr& GetJobResourceManager() const override;
+
+    const TRebootManagerPtr& GetRebootManager() const override;
 
     NExecNode::EJobEnvironmentType GetJobEnvironmentType() const override;
 

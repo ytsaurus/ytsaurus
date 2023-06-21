@@ -66,6 +66,7 @@ def get_dynamic_master_config():
         chunk_seal_backoff_time = 1000;
         sequoia_chunk_probability = 100;
         removal_job_schedule_delay = 0;
+        replicator_enabled_check_period = 1000;
     };
 
     node_tracker = {
@@ -210,8 +211,8 @@ def get_scheduler_config():
             heartbeat_timeout = 10000;
             enable_response_keeper = %true;
         };
-        check_nodes_with_unsupported_interruption_period = 1000;
         crash_on_job_heartbeat_processing_exception = %true;
+        control_unknown_operation_jobs_lifetime = %false;
     };
 }
 """)
@@ -366,6 +367,16 @@ def get_controller_agent_config():
         };
 
         enable_bulk_insert_for_everyone = %true;
+
+        running_job_time_statistics_updates_send_period = 10;
+
+        control_job_lifetime_at_scheduler = %false;
+
+        job_tracker = {
+            logging_job_sample_size = 1000;
+            abort_vanished_jobs = %true;
+            duration_before_job_considered_vanished = 1000;
+        };
     };
 }
 """)
@@ -482,12 +493,12 @@ def get_node_config():
             failed_heartbeat_backoff_start_time = 50;
             failed_heartbeat_backoff_max_time = 50;
             failed_heartbeat_backoff_multiplier = 1.0;
-            heartbeat_period = 200;
+            heartbeat_period = 100;
         };
 
         controller_agent_connector = {
             running_job_statistics_sending_backoff = 0;
-            use_new_job_tracker_service = %true;
+            heartbeat_period = 100;
         };
 
         job_proxy_heartbeat_period = 200;
@@ -495,7 +506,7 @@ def get_node_config():
         job_controller = {
             total_confirmation_period = 5000;
             cpu_per_tablet_slot = 0.0;
-            send_job_result_extension_to_scheduler = %false;
+            unknown_operation_jobs_removal_delay = 5000;
         };
 
         master_connector = {
@@ -708,6 +719,14 @@ def get_dynamic_node_config():
         config_annotation = "default";
         exec_agent = {
             abort_on_jobs_disabled = %true;
+
+            job_controller = {
+                operation_infos_request_period = 1000;
+            };
+
+            controller_agent_connector = {
+                send_waiting_jobs = %true;
+            };
         };
     };
 }

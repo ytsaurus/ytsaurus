@@ -141,6 +141,16 @@ TMasterTableSchema* TEndCopyContext::GetSchemaOrThrow(TEntitySerializationKey ke
     return SchemaRegistry_.GetObjectOrThrow(key);
 }
 
+bool TEndCopyContext::IsOpaqueChild() const
+{
+    return OpaqueChild_;
+}
+
+void TEndCopyContext::SetOpaqueChild(bool opaqueChild)
+{
+    OpaqueChild_ = opaqueChild;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressServer

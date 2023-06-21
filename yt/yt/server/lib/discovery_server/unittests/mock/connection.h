@@ -146,11 +146,26 @@ public:
     {
         YT_UNIMPLEMENTED();
     }
-    const NRpc::IChannelFactoryPtr& GetChannelFactory() override
+    NRpc::IChannelPtr GetChaosChannelByCellId(
+        NObjectClient::TCellId /*cellId*/,
+        NHydra::EPeerKind /*peerKind*/) override
     {
         YT_UNIMPLEMENTED();
     }
-    const NChaosClient::IReplicationCardChannelFactoryPtr& GetReplicationCardChannelFactory() override
+    NRpc::IChannelPtr GetChaosChannelByCellTag(
+        NObjectClient::TCellTag /*cellTag*/,
+        NHydra::EPeerKind /*peerKind*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+    NRpc::IChannelPtr GetChaosChannelByCardId(
+        NChaosClient::TReplicationCardId /*replicationCardId*/,
+        NHydra::EPeerKind /*peerKind*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    const NRpc::IChannelFactoryPtr& GetChannelFactory() override
     {
         YT_UNIMPLEMENTED();
     }

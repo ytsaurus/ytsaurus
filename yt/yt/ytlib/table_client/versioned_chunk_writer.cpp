@@ -8,6 +8,7 @@
 #include "row_merger.h"
 #include "versioned_block_writer.h"
 #include "versioned_row_digest.h"
+#include "key_filter.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -93,6 +94,9 @@ public:
         , SamplingThreshold_(static_cast<ui64>(MaxFloor<ui64>() * Config_->SampleRate))
         , SamplingRowMerger_(New<TRowBuffer>(TVersionedChunkWriterBaseTag()), Schema_)
         , RowDigestBuilder_(CreateVersionedRowDigestBuilder(Config_->VersionedRowDigest))
+        , KeyFilterBuilder_(Config_->KeyFilter->Enable
+            ? CreateXorFilterBuilder(Config_->KeyFilter)
+            : nullptr)
         , TraceContext_(CreateTraceContextFromCurrent("ChunkWriter"))
         , FinishGuard_(TraceContext_)
     {
@@ -141,9 +145,19 @@ public:
             }
         }
 
+        if (KeyFilterBuilder_) {
+            for (auto row : rows) {
+                KeyFilterBuilder_->AddKey(GetFarmFingerprint(row.Keys()));
+            }
+        }
+
         DoWriteRows(rows);
 
         LastKey_ = TLegacyOwningKey(rows.Back().Keys());
+
+        if (KeyFilterBuilder_) {
+            KeyFilterBuilder_->FlushBlock(LastKey_, /*force*/ false);
+        }
 
         return EncodingChunkWriter_->IsReady();
     }
@@ -235,6 +249,7 @@ protected:
     NProto::TColumnarStatisticsExt ColumnarStatisticsExt_;
 
     IVersionedRowDigestBuilderPtr RowDigestBuilder_;
+    IKeyFilterBuilderPtr KeyFilterBuilder_;
 
     const TTraceContextPtr TraceContext_;
     const TTraceContextFinishGuard FinishGuard_;
@@ -432,7 +447,7 @@ protected:
 
         auto blocks = ChunkIndexBuilder_->BuildIndex(lastKey, systemBlockMetaExt);
         for (auto& block : blocks) {
-            encodingChunkWriter->WriteBlock(std::move(block));
+            encodingChunkWriter->WriteBlock(std::move(block), ChunkIndexBuilder_->GetBlockType());
         }
 
         auto chunkFeatures = FromProto<EChunkFeatures>(meta->features());
@@ -441,6 +456,7 @@ protected:
 
         auto& miscExt = encodingChunkWriter->MiscExt();
         miscExt.set_block_format_version(TIndexedVersionedBlockWriter::GetBlockFormatVersion());
+        miscExt.set_system_block_count(blocks.size());
     }
 
     EChunkFormat GetChunkFormat() const
@@ -575,7 +591,7 @@ private:
         BlockMetaExtSize_ += block.Meta.ByteSizeLong();
 
         BlockMetaExt_.add_data_blocks()->Swap(&block.Meta);
-        EncodingChunkWriter_->WriteBlock(std::move(block.Data));
+        EncodingChunkWriter_->WriteBlock(std::move(block.Data), EBlockType::UncompressedData);
 
         MaxTimestamp_ = std::max(MaxTimestamp_, BlockWriter_->GetMaxTimestamp());
         MinTimestamp_ = std::min(MinTimestamp_, BlockWriter_->GetMinTimestamp());
@@ -597,6 +613,15 @@ private:
         }
 
         OnDataBlocksWritten(LastKey_.Elements(), &SystemBlockMetaExt_, EncodingChunkWriter_);
+
+        if (KeyFilterBuilder_) {
+            KeyFilterBuilder_->FlushBlock(LastKey_, /*force*/ true);
+
+            auto blocks = KeyFilterBuilder_->SerializeBlocks(&SystemBlockMetaExt_);
+            for (auto& block : blocks) {
+                EncodingChunkWriter_->WriteBlock(std::move(block), KeyFilterBuilder_->GetBlockType());
+            }
+        }
 
         PrepareChunkMeta();
 
@@ -683,6 +708,8 @@ public:
                 }
 
                 blockWriter = it->second;
+            } else if (Options_->SingleColumnGroupByDefault) {
+                blockWriter = mainBlockWriter;
             } else {
                 blockWriter = createBlockWriter();
             }
@@ -811,7 +838,7 @@ private:
         BlockMetaExtSize_ += block.Meta.ByteSizeLong();
 
         BlockMetaExt_.add_data_blocks()->Swap(&block.Meta);
-        EncodingChunkWriter_->WriteBlock(std::move(block.Data));
+        EncodingChunkWriter_->WriteBlock(std::move(block.Data), EBlockType::UncompressedData);
     }
 
     void PrepareChunkMeta() override

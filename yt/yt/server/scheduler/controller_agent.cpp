@@ -109,6 +109,12 @@ void TControllerAgent::SetIncarnationTransaction(NApi::ITransactionPtr transacti
             GetIncarnationId()),
         SchedulerProfiler.WithTag("queue", "job_events"),
         MessageOffloadInvoker_);
+    RunningJobStatisticsUpdatesInbox_ = std::make_unique<TMessageQueueInbox>(
+        SchedulerLogger.WithTag("Kind: AgentToSchedulerRunningJobStatisticsUpdates, AgentId: %v, IncarnationId: %v",
+            Id_,
+            GetIncarnationId()),
+        SchedulerProfiler.WithTag("queue", "running_job_statistics_updates"),
+        MessageOffloadInvoker_);
     ScheduleJobResponsesInbox_ = std::make_unique<TMessageQueueInbox>(
         SchedulerLogger.WithTag("Kind: AgentToSchedulerScheduleJobResponses, AgentId: %v, IncarnationId: %v",
             Id_,
@@ -145,6 +151,11 @@ TMessageQueueInbox* TControllerAgent::GetOperationEventsInbox()
 TMessageQueueInbox* TControllerAgent::GetJobEventsInbox()
 {
     return JobEventsInbox_.get();
+}
+
+TMessageQueueInbox* TControllerAgent::GetRunningJobStatisticsUpdatesInbox()
+{
+    return RunningJobStatisticsUpdatesInbox_.get();
 }
 
 TMessageQueueInbox* TControllerAgent::GetScheduleJobResponsesInbox()

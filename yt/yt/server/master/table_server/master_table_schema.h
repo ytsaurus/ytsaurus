@@ -20,13 +20,23 @@ class TMasterTableSchema
     : public NObjectServer::TObject
 {
 public:
-    using TTableSchemaToObjectMap = THashMap<
+    using TNativeTableSchemaToObjectMap = THashMap<
         NTableClient::TTableSchemaPtr,
         TMasterTableSchema*,
         NTableClient::TTableSchemaHash,
         NTableClient::TTableSchemaEquals
     >;
-    using TTableSchemaToObjectMapIterator = TTableSchemaToObjectMap::iterator;
+    using TImportedTableSchemaToObjectMap = THashMap<
+        NTableClient::TCellTaggedTableSchemaPtr,
+        TMasterTableSchema*,
+        NTableClient::TCellTaggedTableSchemaHash,
+        NTableClient::TCellTaggedTableSchemaEquals
+    >;
+
+    using TNativeTableSchemaToObjectMapIterator = TNativeTableSchemaToObjectMap::iterator;
+    using TImportedTableSchemaToObjectMapIterator = TImportedTableSchemaToObjectMap::iterator;
+
+    using TCellIndexToExportRefcount = THashMap<NObjectClient::TCellTag, int>;
 
     using TAccountToMasterMemoryUsage = TCompactFlatMap<NSecurityServer::TAccount*, i64, 2>;
     using TAccountToRefCounterMap = TCompactFlatMap<NSecurityServer::TAccount*, i64, 2>;
@@ -36,12 +46,13 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TAccountToRefCounterMap, ReferencingAccounts);
 
     using TObject::TObject;
-    TMasterTableSchema(TMasterTableSchemaId id, TTableSchemaToObjectMapIterator it);
+    TMasterTableSchema(TMasterTableSchemaId id, TNativeTableSchemaToObjectMapIterator it);
+    TMasterTableSchema(TMasterTableSchemaId id, TImportedTableSchemaToObjectMapIterator it);
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
-    const NTableClient::TTableSchemaPtr& AsTableSchema() const;
+    const NTableClient::TTableSchemaPtr& AsTableSchema(bool crashOnZombie=true) const;
     const TFuture<NYson::TYsonString>& AsYsonAsync() const;
     // Whenever possible, prefer the above.
     NYson::TYsonString AsYsonSync() const;
@@ -55,24 +66,44 @@ public:
     //! refcounter has come down to zero).
     [[nodiscard]] bool UnrefBy(NSecurityServer::TAccount* account);
 
+    //! Increments export ref counter.
+    void ExportRef(NObjectClient::TCellTag cellTag);
+
+    //! Decrements export ref counter.
+    void UnexportRef(NObjectClient::TCellTag cellTag);
+
+    bool IsExported(NObjectClient::TCellTag cellTag) const;
+
+    void AlertIfNonEmptyExportCount();
+
     i64 GetMasterMemoryUsage(NSecurityServer::TAccount* account) const;
     i64 GetChargedMasterMemoryUsage(NSecurityServer::TAccount* account) const;
     void SetChargedMasterMemoryUsage(NSecurityServer::TAccount* account, i64 usage);
+
+    // COMPAT(h0pless): Remove this after schema migration is complete.
+    void SetId(TMasterTableSchemaId id);
 
 private:
     friend class TTableManager;
 
     using TBase = NObjectServer::TObject;
 
-    TTableSchemaToObjectMapIterator TableSchemaToObjectMapIterator_;
+    std::unique_ptr<TCellIndexToExportRefcount> CellTagToExportCount_;
+
+    std::variant<TNativeTableSchemaToObjectMapIterator, TImportedTableSchemaToObjectMapIterator> TableSchemaToObjectMapIterator_;
     NTableClient::TTableSchemaPtr TableSchema_;
 
     mutable TFuture<NYson::TYsonString> MemoizedYson_;
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MemoizedYsonLock_);
 
-    TTableSchemaToObjectMapIterator GetTableSchemaToObjectMapIterator() const;
-    void SetTableSchemaToObjectMapIterator(TTableSchemaToObjectMapIterator it);
-    void ResetTableSchemaToObjectMapIterator();
+    TNativeTableSchemaToObjectMapIterator GetNativeTableSchemaToObjectMapIterator() const;
+    TImportedTableSchemaToObjectMapIterator GetImportedTableSchemaToObjectMapIterator() const;
+
+    void SetNativeTableSchemaToObjectMapIterator(TNativeTableSchemaToObjectMapIterator it);
+    void SetImportedTableSchemaToObjectMapIterator(TImportedTableSchemaToObjectMapIterator it);
+
+    void ResetNativeTableSchemaToObjectMapIterator();
+    void ResetImportedTableSchemaToObjectMapIterator();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

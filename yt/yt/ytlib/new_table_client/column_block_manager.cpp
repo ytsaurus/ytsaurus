@@ -175,6 +175,8 @@ std::vector<TBlockFetcher::TBlockInfo> BuildBlockInfos(
 
             auto& blockIndexes = groupBlockIndexes[groupId];
 
+            // NB: This reader can only read data blocks, hence in block infos we set block type to UncompressedData.
+            YT_VERIFY(static_cast<int>(blockIndexes.Back()) < blockMetas->data_blocks_size());
             auto blockIt = ExponentialSearch(blockIndexes.begin(), blockIndexes.end(), [&] (auto blockIt) {
                 const auto& blockMeta = blockMetas->data_blocks(*blockIt);
                 return blockMeta.chunk_row_count() <= startRowIndex;
@@ -190,7 +192,8 @@ std::vector<TBlockFetcher::TBlockInfo> BuildBlockInfos(
                     .ReaderIndex = 0,
                     .BlockIndex = static_cast<int>(*blockIt),
                     .Priority = static_cast<int>(blockMeta.chunk_row_count() - blockMeta.row_count()),
-                    .UncompressedDataSize = blockMeta.uncompressed_size()
+                    .UncompressedDataSize = blockMeta.uncompressed_size(),
+                    .BlockType = EBlockType::UncompressedData,
                 });
             }
         }
@@ -320,16 +323,20 @@ TBlockManagerFactory CreateAsyncBlockWindowManagerFactory(
     IInvokerPtr sessionInvoker)
 {
     return [=] (std::vector<TGroupBlockHolder> blockHolders, TRange<TSpanMatching> windowsList) -> std::unique_ptr<IBlockManager> {
-        std::vector<TRange<ui32>> groupBlockIds;
+        std::vector<TRange<ui32>> groupBlockIndexes;
+        groupBlockIndexes.reserve(blockHolders.size());
         for (const auto& blockHolder : blockHolders) {
-            groupBlockIds.push_back(blockHolder.GetBlockIds());
+            groupBlockIndexes.push_back(blockHolder.GetBlockIds());
         }
 
         size_t uncompressedBlocksSize = 0;
         size_t blockCount = 0;
 
         auto buildBlockInfosStartInstant = GetCpuInstant();
-        auto blockInfos = BuildBlockInfos(std::move(groupBlockIds), windowsList, chunkMeta->DataBlockMeta());
+        auto blockInfos = BuildBlockInfos(
+            std::move(groupBlockIndexes),
+            windowsList,
+            chunkMeta->DataBlockMeta());
         TDuration buildBlockInfosTime = CpuDurationToDuration(GetCpuInstant() - buildBlockInfosStartInstant);
 
         blockCount = blockInfos.size();
@@ -360,7 +367,8 @@ TBlockManagerFactory CreateAsyncBlockWindowManagerFactory(
 
             TDuration createBlockFetcherTime = CpuDurationToDuration(GetCpuInstant() - createBlockFetcherStartInstant);
 
-            YT_LOG_DEBUG("Creating block manager (BlockCount: %v, UncompressedBlocksSize: %v, BuildBlockInfos: %v, CreateBlockFetcherTime: %v)",
+            YT_LOG_DEBUG("Creating block manager "
+                "(BlockCount: %v, UncompressedBlocksSize: %v, BuildBlockInfos: %v, CreateBlockFetcherTime: %v)",
                 blockCount,
                 uncompressedBlocksSize,
                 buildBlockInfosTime,
@@ -448,12 +456,11 @@ private:
     {
         NChunkClient::TBlockId blockId(ChunkId_, blockIndex);
 
-        auto cachedBlock = BlockCache_->FindBlock(blockId, EBlockType::UncompressedData);
-        if (cachedBlock.Block) {
-            return std::move(cachedBlock.Block.Data);
+        if (auto block = BlockCache_->FindBlock(blockId, EBlockType::UncompressedData)) {
+            return std::move(block.Data);
         }
 
-        auto compressedBlock = BlockCache_->FindBlock(blockId, EBlockType::CompressedData).Block;
+        auto compressedBlock = BlockCache_->FindBlock(blockId, EBlockType::CompressedData);
         if (compressedBlock) {
             auto* codec = NCompression::GetCodec(CodecId_);
 
@@ -467,7 +474,8 @@ private:
             return uncompressedBlock;
         }
 
-        YT_LOG_FATAL("Cached block is missing (BlockId: %v)", blockId);
+        YT_LOG_FATAL("Cached block is missing (BlockId: %v)",
+            blockId);
     }
 };
 

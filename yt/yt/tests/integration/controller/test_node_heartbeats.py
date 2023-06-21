@@ -1,10 +1,8 @@
-from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
+from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, create, map, wait, with_breakpoint, wait_breakpoint,
+    authors, create, map, wait,
     write_table, update_controller_agent_config, update_nodes_dynamic_config)
-
-from yt_helpers import JobCountProfiler
 
 ##################################################################
 
@@ -48,7 +46,7 @@ class TestNodeHeartbeats(YTEnvSetup):
             spec={"data_size_per_job": 1},
         )
 
-        wait(lambda: op.get_job_count("aborted") >= 3)
+        wait(lambda: op.get_job_count("aborted") >= 3, ignore_exceptions=True)
         assert op.get_state() == "running"
 
         fixup()
@@ -71,26 +69,3 @@ class TestNodeHeartbeats(YTEnvSetup):
             })
 
         self._test(fixup)
-
-    @authors("pogorelov")
-    def test_abort_by_scheduler(self):
-        create("table", "//tmp/in")
-        create("table", "//tmp/out")
-        write_table("//tmp/in", {"foo": "bar"})
-
-        op = map(
-            track=False,
-            in_="//tmp/in",
-            out="//tmp/out",
-            command=with_breakpoint("BREAKPOINT"),
-            spec={"data_size_per_job": 1},
-        )
-
-        wait_breakpoint()
-
-        aborted_job_profiler = JobCountProfiler("aborted", tags={"tree": "default", "job_type": "map"})
-
-        with Restarter(self.Env, NODES_SERVICE):
-            wait(lambda: op.get_job_count("aborted") == 1)
-            wait(lambda: aborted_job_profiler.get_job_count_delta(tags={"abort_reason": "node_offline"}) == 1)
-            assert aborted_job_profiler.get_job_count_delta(tags={"abort_reason": "job_statistics_wait_timeout"}) == 0

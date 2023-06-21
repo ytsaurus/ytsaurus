@@ -127,7 +127,7 @@ private:
             return New<TRemoteService>(Bootstrap_, objectId);
         } else {
             const auto& epochHistoryManager = Bootstrap_->GetEpochHistoryManager();
-            auto timeSpan = epochHistoryManager->GetEstimatedCreationTime(objectId);
+            auto timeSpan = epochHistoryManager->GetEstimatedCreationTime(objectId, NProfiling::GetInstant());
             return IYPathService::FromProducer(BIND([timeSpan] (NYson::IYsonConsumer* consumer) {
                 BuildYsonFluently(consumer)
                     .BeginMap()

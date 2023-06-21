@@ -222,6 +222,9 @@ void TNontemplateCypressNodeTypeHandlerBase::EndCopyInplaceCore(
     }
 
     LoadInplace(trunkNode, context, factory);
+
+    // NB: OpaqueChild flag is set during LoadInplace.
+    YT_VERIFY(!context->IsOpaqueChild());
 }
 
 bool TNontemplateCypressNodeTypeHandlerBase::LoadInplace(
@@ -310,6 +313,10 @@ bool TNontemplateCypressNodeTypeHandlerBase::LoadInplace(
     }
 
     auto opaqueChild = Load<bool>(*context);
+
+    // Doing this to prevent premature locking (and, thus, branching) during EndCopyNode.
+    context->SetOpaqueChild(opaqueChild);
+
     return !opaqueChild;
 }
 

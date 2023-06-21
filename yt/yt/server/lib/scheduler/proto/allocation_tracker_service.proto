@@ -2,16 +2,31 @@ package NYT.NScheduler.NProto.NNode;
 
 import "yt/server/lib/scheduler/proto/allocation.proto";
 
-import "yt/ytlib/job_tracker_client/proto/job_tracker_service.proto";
-import "yt/ytlib/job_tracker_client/proto/job.proto";
+import "yt/ytlib/controller_agent/proto/job.proto";
 
 import "yt/ytlib/scheduler/proto/job.proto";
 
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
 
+import "yt_proto/yt/core/misc/proto/error.proto";
+
 import "yt_proto/yt/core/misc/proto/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TControllerAgentDescriptor
+{
+    required NYT.NProto.TGuid incarnation_id = 1;
+    required NNodeTrackerClient.NProto.TAddressMap addresses = 2;
+    optional string agent_id = 3;
+}
+
+message TSpecFetchFailedAllocationInfo
+{
+    required NYT.NProto.TGuid allocation_id = 1;
+    required NYT.NProto.TGuid operation_id = 2;
+    required NYT.NProto.TError error = 3;
+};
 
 // Informs Allocation Tracker about node status and requests orders.
 message TReqHeartbeat
@@ -28,8 +43,12 @@ message TReqHeartbeat
 
     repeated NYT.NProto.TGuid operations_ids_to_request_info = 11;
 
+    repeated TSpecFetchFailedAllocationInfo spec_fetch_failed_allocations = 12;
+
     // COMPAT(pogorelov)
     repeated NYT.NProto.TGuid unconfirmed_allocations = 9;
+
+    // COMPAT(pogorelov)
     required int64 confirmed_job_count = 10;
 }
 
@@ -40,7 +59,7 @@ message TAllocationStartInfo
     // Resource limits as predicted by the controller.
     required NNodeTrackerClient.NProto.TNodeResources resource_limits = 3;
 
-    required NJobTrackerClient.NProto.TControllerAgentDescriptor controller_agent_descriptor = 4;
+    required TControllerAgentDescriptor controller_agent_descriptor = 4;
 }
 
 message TAllocationToAbort
@@ -56,7 +75,7 @@ message TAllocationToInterrupt
     required int64 timeout = 2;
     optional string preemption_reason = 3;
     optional int32 interruption_reason = 4; // NScheduler::EInterruptReason
-    optional NYT.NJobTrackerClient.NProto.TPreemptedFor preempted_for = 5;
+    optional NYT.NControllerAgent.NProto.TPreemptedFor preempted_for = 5;
 }
 
 message TOperationInfo
@@ -64,7 +83,13 @@ message TOperationInfo
     required NYT.NProto.TGuid operation_id = 1;
     required bool running = 2;
 
-    optional NJobTrackerClient.NProto.TControllerAgentDescriptor controller_agent_descriptor = 3;
+    optional TControllerAgentDescriptor controller_agent_descriptor = 3;
+}
+
+message TJobToConfirm
+{
+    required TControllerAgentDescriptor controller_agent_descriptor = 1;
+    required NYT.NProto.TGuid job_id = 2;
 }
 
 message TRspHeartbeat
@@ -75,14 +100,16 @@ message TRspHeartbeat
     optional bool scheduling_skipped = 4;
     optional int32 operation_archive_version = 5;
 
-    repeated NJobTrackerClient.NProto.TJobToRemove jobs_to_remove = 6;
+    // COMPAT(pogorelov)
+    repeated NYT.NControllerAgent.NProto.TJobToRemove jobs_to_remove = 6;
     repeated NYT.NProto.TGuid jobs_to_store = 7;
+    repeated TJobToConfirm jobs_to_confirm = 9;
+
     repeated NYT.NProto.TGuid jobs_to_fail = 8;
-    repeated NJobTrackerClient.NProto.TJobToConfirm jobs_to_confirm = 9;
 
     repeated TOperationInfo operation_infos = 10;
 
-    repeated NJobTrackerClient.NProto.TControllerAgentDescriptor registered_controller_agents = 11;
+    repeated TControllerAgentDescriptor registered_controller_agents = 11;
 
     optional TJobResources min_spare_resources = 12;
 }

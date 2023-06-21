@@ -12,8 +12,6 @@
 #include <yt/yt/server/node/exec_node/bootstrap.h>
 #include <yt/yt/server/node/exec_node/job_controller.h>
 
-#include <yt/yt/server/lib/controller_agent/helpers.h>
-
 #include <yt/yt/server/lib/job_agent/config.h>
 
 #include <yt/yt/ytlib/job_tracker_client/helpers.h>
@@ -416,8 +414,6 @@ private:
         ToProto(status->mutable_job_id(), job->GetId());
         status->set_job_type(static_cast<int>(job->GetType()));
         status->set_state(static_cast<int>(job->GetState()));
-
-        status->set_status_timestamp(ToProto<ui64>(TInstant::Now()));
     }
 
     void DoPrepareHeartbeatRequest(
@@ -444,10 +440,6 @@ private:
 
             auto* jobStatus = request->add_jobs();
 
-            // COMPAT(pogorelov)
-            jobStatus->mutable_time_statistics();
-            ToProto(jobStatus->mutable_operation_id(), TOperationId{});
-
             FillJobStatus(jobStatus, job);
             switch (job->GetState()) {
                 case EJobState::Running:
@@ -464,8 +456,6 @@ private:
                     break;
             }
         }
-
-        request->set_confirmed_job_count(0);
     }
 
     void DoProcessHeartbeatResponse(
@@ -475,9 +465,8 @@ private:
         VERIFY_THREAD_AFFINITY(JobThread);
 
         for (const auto& protoJobToRemove : response->jobs_to_remove()) {
-            auto jobToRemove = FromProto<TJobToRelease>(protoJobToRemove);
+            auto jobToRemove = FromProto<TJobToRemove>(protoJobToRemove);
             auto jobId = jobToRemove.JobId;
-            YT_VERIFY(jobToRemove.ReleaseFlags.IsTrivial());
 
             if (auto job = FindJob(jobTrackerAddress, jobId)) {
                 RemoveJob(std::move(job));

@@ -40,6 +40,8 @@ void TDynamicTabletCellOptions::Register(TRegistrar registrar)
         .Default(0.15);
     registrar.Parameter("increase_upload_replication_factor", &TThis::IncreaseUploadReplicationFactor)
         .Default(false);
+    registrar.Parameter("ban_message", &TThis::BanMessage)
+        .Optional();
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->MaxBackingStoreMemoryRatio &&

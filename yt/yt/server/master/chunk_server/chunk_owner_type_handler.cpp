@@ -124,6 +124,9 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
     auto primaryMediumName = combinedAttributes->GetAndRemove<TString>("primary_medium", NChunkClient::DefaultStoreMediumName);
     auto* primaryMedium = chunkManager->GetMediumByNameOrThrow(primaryMediumName);
 
+    const auto& securityManager = this->Bootstrap_->GetSecurityManager();
+    securityManager->ValidatePermission(primaryMedium, EPermission::Use);
+
     std::optional<TSecurityTags> securityTags;
     if (auto securityTagItems = combinedAttributes->FindAndRemove<TSecurityTagsItems>("security_tags")) {
         securityTags = TSecurityTags{std::move(*securityTagItems)};

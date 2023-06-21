@@ -108,6 +108,9 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("forbid_list_node_creation", &TThis::ForbidListNodeCreation)
         .Default(false);
+
+    registrar.Parameter("max_locks_per_transaction_subtree", &TThis::MaxLocksPerTransactionSubtree)
+        .Default(100'000);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

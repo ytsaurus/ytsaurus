@@ -20,6 +20,26 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJobThrashingDetectorConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    bool Enabled;
+
+    TDuration CheckPeriod;
+
+    int MajorPageFaultCountLimit;
+
+    // Job will be aborted upon violating MajorPageFaultCountLimit this number of times in a row.
+    int LimitOverflowCountThresholdToAbortJob;
+
+    REGISTER_YSON_STRUCT(TJobThrashingDetectorConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobThrashingDetectorConfig)
+
 //! Describes configuration of a single environment.
 class TJobEnvironmentConfig
     : public virtual NYTree::TYsonStruct
@@ -32,6 +52,8 @@ public:
     int StartUid;
 
     TDuration MemoryWatchdogPeriod;
+
+    TJobThrashingDetectorConfigPtr JobThrashingDetector;
 
     REGISTER_YSON_STRUCT(TJobEnvironmentConfig);
 
@@ -183,6 +205,8 @@ public:
     //! Polymorphic job environment configuration.
     NYTree::INodePtr JobEnvironment;
 
+    bool EnableReadWriteCopy;
+
     //! Chunk size used for copying chunks if #copy_chunks is set to %true in operation spec.
     i64 FileCopyChunkSize;
 
@@ -264,8 +288,7 @@ public:
     TDuration TestHeartbeatDelay;
     NConcurrency::TThroughputThrottlerConfigPtr StatisticsThrottler;
     std::optional<TDuration> RunningJobStatisticsSendingBackoff;
-
-    bool UseNewJobTrackerService;
+    bool SendWaitingJobs;
 
     REGISTER_YSON_STRUCT(TControllerAgentConnectorDynamicConfig);
 
@@ -418,7 +441,7 @@ class TExecNodeConfig
 public:
     TSlotManagerConfigPtr SlotManager;
     NJobAgent::TJobControllerConfigPtr JobController;
-    NJobAgent::TJobReporterConfigPtr JobReporter;
+    TJobReporterConfigPtr JobReporter;
     TControllerAgentConnectorConfigPtr ControllerAgentConnector;
     TSchedulerConnectorConfigPtr SchedulerConnector;
 
@@ -438,7 +461,7 @@ public:
     //! This is a special testing option.
     //! Instead of actually setting root fs, it just provides special environment variable.
     bool TestRootFS;
-
+    bool EnableArtifactCopyTracking;
     bool UseCommonRootFsQuota;
     bool UseArtifactBinds;
 
@@ -573,12 +596,13 @@ public:
 
     NJobAgent::TJobControllerDynamicConfigPtr JobController;
 
-    NJobAgent::TJobReporterDynamicConfigPtr JobReporter;
+    TJobReporterDynamicConfigPtr JobReporter;
 
     TSchedulerConnectorDynamicConfigPtr SchedulerConnector;
     TControllerAgentConnectorDynamicConfigPtr ControllerAgentConnector;
 
     std::optional<TDuration> JobAbortionTimeout;
+    TDuration SlotReleaseTimeout;
 
     bool AbortOnJobsDisabled;
 

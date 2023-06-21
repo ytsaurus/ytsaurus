@@ -73,7 +73,7 @@ void TTransactionRotator::Rotate()
     // this committed transaction.
     auto previousTransaction = std::exchange(PreviousTransaction_, {});
     if (IsObjectAlive(previousTransaction.Get())) {
-        transactionManager->CommitTransaction(
+        transactionManager->CommitMasterTransaction(
             previousTransaction.Get(),
             /*commitOptions*/ {});
     }
@@ -87,7 +87,8 @@ void TTransactionRotator::Rotate()
         /*timeout*/ std::nullopt,
         /*deadline*/ std::nullopt,
         TransactionTitle_,
-        EmptyAttributes()));
+        EmptyAttributes(),
+        /*isCypressTransaction*/ false));
 }
 
 TTransactionId TTransactionRotator::TransactionIdFromPtr(const TTransactionWeakPtr& ptr)

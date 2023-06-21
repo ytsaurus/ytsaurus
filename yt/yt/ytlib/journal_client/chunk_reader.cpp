@@ -134,10 +134,8 @@ public:
     }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientChunkReadOptions& /*options*/,
-        const std::vector<int>& /*blockIndexes*/,
-        std::optional<i64> /*estimatedSize*/,
-        IInvokerPtr /*sessionInvoker*/) override
+        const TReadBlocksOptions& /*options*/,
+        const std::vector<int>& /*blockIndexes*/) override
     {
         YT_ABORT();
     }
@@ -282,12 +280,11 @@ public:
     };
 
     TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientChunkReadOptions& options,
+        const TReadBlocksOptions& options,
         int firstBlockIndex,
-        int blockCount,
-        std::optional<i64> /*estimatedSize*/) override
+        int blockCount) override
     {
-        return New<TReadBlocksSession>(this, options, firstBlockIndex, blockCount)
+        return New<TReadBlocksSession>(this, options.ClientOptions, firstBlockIndex, blockCount)
             ->Run();
     }
 

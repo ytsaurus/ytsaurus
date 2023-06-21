@@ -673,6 +673,7 @@ struct TRpcProxyInfo
     TString Role;
     TInstanceAnnotationsPtr Annotations;
     THashMap<TString, TCmsMaintenanceRequestPtr> CmsMaintenanceRequests;
+    TInstant ModificationTime;
 
     TRpcProxyAlivePtr Alive;
 

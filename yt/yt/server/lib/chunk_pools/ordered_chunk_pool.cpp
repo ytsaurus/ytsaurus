@@ -276,6 +276,17 @@ private:
                 JobSizeConstraints_->GetSamplingPrimaryDataWeightPerJob());
         }
 
+        if (JobSizeConstraints_->IsExplicitJobCount() && !SingleJob_ && !JobSizeConstraints_->GetSamplingRate()) {
+            i64 totalDataWeight = 0;
+            for (int inputCookie = 0; inputCookie < std::ssize(Stripes_); ++inputCookie) {
+                const auto& stripe = Stripes_[inputCookie].GetStripe();
+                for (const auto& dataSlice : stripe->DataSlices) {
+                    totalDataWeight += dataSlice->GetDataWeight();
+                }
+            }
+            JobSizeConstraints_->UpdateInputDataWeight(totalDataWeight);
+        }
+
         int droppedTeleportChunkCount = 0;
         int chunksTeleported = 0;
 

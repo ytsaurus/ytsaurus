@@ -13,7 +13,7 @@ from yt_commands import (
     sync_create_cells, sync_mount_table, sync_freeze_table, sync_reshard_table, get_singular_chunk_id,
     get_account_disk_space, create_dynamic_table, build_snapshot,
     build_master_snapshots, clear_metadata_caches, create_pool_tree, create_pool, move, create_medium,
-    create_chaos_cell_bundle, sync_create_chaos_cell, generate_chaos_cell_id)
+    create_chaos_cell_bundle, sync_create_chaos_cell, generate_chaos_cell_id, select_rows)
 
 from yt.common import YtError
 from yt_type_helpers import make_schema, normalize_schema
@@ -495,6 +495,34 @@ def check_tablet_balancer_config():
     assert get("//tmp/tablet_balancer_test_table/@tablet_balancer_config/animal") == "zebra"
 
 
+def check_performance_counters_refactoring():
+    path = "//tmp/performance_counters_test_table"
+    create_dynamic_table(
+        path,
+        schema=[
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ],
+    )
+    sync_mount_table(path)
+
+    insert_rows(path, [{"key": 0, "value": "hello"}])
+
+    perf_counter = path + "/@tablets/0/performance_counters"
+    wait(lambda: get(perf_counter + "/dynamic_row_write_data_weight_count") > 0)
+
+    select_rows(f"* from [{path}]")
+    wait(lambda: get(perf_counter + "/dynamic_row_read_data_weight_count") > 0)
+    assert get(perf_counter + "/dynamic_row_read_count") == 1
+
+    yield
+
+    assert get(perf_counter + "/dynamic_row_read_count") == 1
+
+    select_rows(f"* from [{path}]")
+    wait(lambda: get(perf_counter + "/dynamic_row_read_count") > 1)
+
+
 MASTER_SNAPSHOT_CHECKER_LIST = [
     check_simple_node,
     check_schema,
@@ -512,6 +540,7 @@ MASTER_SNAPSHOT_CHECKER_LIST = [
     check_scheduler_pool_subtree_size_recalculation,
     check_exported_chunks,
     check_chunk_locations,
+    check_performance_counters_refactoring,
     check_account_resource_usage_lease,
     check_removed_account,  # keep this item last as it's sensitive to timings
 ]
@@ -584,6 +613,7 @@ class TestAllMastersSnapshots(YTEnvSetup):
             check_hierarchical_accounts,
             check_transactions,
             check_tablet_balancer_config,
+            check_performance_counters_refactoring,
             check_removed_account,  # keep this item last as it's sensitive to timings
         ]
 

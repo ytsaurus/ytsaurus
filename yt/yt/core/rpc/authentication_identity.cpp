@@ -46,8 +46,8 @@ namespace {
 
 const TAuthenticationIdentity** GetCurrentAuthenticationIdentityPtr()
 {
-    static NConcurrency::TFlsSlot<const TAuthenticationIdentity*> Slot;
-    return Slot.GetOrCreate();
+    static NConcurrency::TFls<const TAuthenticationIdentity*> IdentityPtr;
+    return IdentityPtr.Get();
 }
 
 } // namespace

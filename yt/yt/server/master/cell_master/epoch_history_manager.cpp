@@ -58,26 +58,26 @@ public:
         Bootstrap_->GetConfigManager()->SubscribeConfigChanged(BIND(&TEpochHistoryManager::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
-    std::pair<TInstant, TInstant> GetEstimatedMutationTime(TVersion version) const override
+    std::pair<TInstant, TInstant> GetEstimatedMutationTime(TVersion version, TInstant now) const override
     {
-        YT_VERIFY(!NHydra::HasHydraContext());
-
         int index = std::upper_bound(Versions_.begin(), Versions_.end(), version) - Versions_.begin();
         if (index == 0) {
             return {};
         }
-        return {
-            Instants_[index - 1],
-            index < std::ssize(Instants_) ? Instants_[index] : NProfiling::GetInstant()
-        };
+
+        if (index == std::ssize(Instants_)) {
+            return {Instants_[index - 1], now};
+        }
+
+        return {Instants_[index - 1], Instants_[index]};
     }
 
-    std::pair<TInstant, TInstant> GetEstimatedCreationTime(TObjectId id) const override
+    std::pair<TInstant, TInstant> GetEstimatedCreationTime(TObjectId id, TInstant now) const override
     {
         if (IsSequoiaId(id)) {
             return TimestampToInstant(TimestampFromId(id));
         } else {
-            return GetEstimatedMutationTime(VersionFromId(id));
+            return GetEstimatedMutationTime(VersionFromId(id), now);
         }
     }
 

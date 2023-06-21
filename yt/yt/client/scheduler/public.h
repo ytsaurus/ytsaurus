@@ -114,6 +114,15 @@ DEFINE_ENUM(EAbortReason,
     ((NodeResourceOvercommit)          ( 36))
     ((ProbingCompetitorResultLost)     ( 37))
     ((SpeculativeCompetitorResultLost) ( 38))
+    ((LayerProbingFailed)              ( 39))
+    ((LayerProbingResultLost)          ( 40))
+    ((LayerProbingToUnsuccessfulJob)   ( 41))
+    ((LayerProbingRunLost)             ( 42))
+    ((LayerProbingRunWon)              ( 43))
+    ((OperationCompleted)              ( 44))
+    ((OperationAborted)                ( 45))
+    ((OperationFinished)               ( 46))
+    ((JobMemoryThrashing)              ( 47))
     ((SchedulingFirst)                 (100))
     ((SchedulingTimeout)               (101))
     ((SchedulingResourceOvercommit)    (102))
@@ -131,6 +140,7 @@ DEFINE_ENUM(EInterruptReason,
     ((UserRequest)        (2))
     ((JobSplit)           (3))
     ((Unknown)            (4))
+    ((JobsDisabledOnNode) (5))
 );
 
 DEFINE_ENUM(EAutoMergeMode,

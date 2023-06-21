@@ -322,6 +322,7 @@ private:
                 transactionOptions.Attributes = std::move(transactionAttributes);
                 transactionOptions.CoordinatorMasterCellTag = CellTagFromId(tablet->GetId());
                 transactionOptions.ReplicateToMasterCellTags = TCellTagList();
+                transactionOptions.StartCypressTransaction = false;
                 auto asyncTransaction = Bootstrap_->GetClient()->StartNativeTransaction(
                     NTransactionClient::ETransactionType::Master,
                     transactionOptions);

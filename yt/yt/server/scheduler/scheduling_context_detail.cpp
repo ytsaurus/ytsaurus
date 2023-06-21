@@ -31,7 +31,7 @@ TSchedulingContextBase::TSchedulingContextBase(
     , NodeDescriptor_(Node_->BuildExecDescriptor())
     , NodeTags_(Node_->Tags())
     , MediumDirectory_(mediumDirectory)
-    , MinSpareJobResources_(
+    , DefaultMinSpareJobResources_(
         Config_->MinSpareJobResourcesOnNode
         ? ToJobResources(*Config_->MinSpareJobResourcesOnNode, TJobResources())
         : TJobResources())
@@ -108,9 +108,10 @@ bool TSchedulingContextBase::CanStartJobForOperation(
         CanSatisfyDiskQuotaRequests(DiskResources_, diskRequests);
 }
 
-bool TSchedulingContextBase::CanStartMoreJobs() const
+bool TSchedulingContextBase::CanStartMoreJobs(const std::optional<TJobResources>& customMinSpareJobResources) const
 {
-    if (!CanSatisfyResourceRequest(MinSpareJobResources_, MaxConditionalUsageDiscount_)) {
+    auto minSpareJobResources = customMinSpareJobResources.value_or(DefaultMinSpareJobResources_);
+    if (!CanSatisfyResourceRequest(minSpareJobResources, MaxConditionalUsageDiscount_)) {
         return false;
     }
 

@@ -377,7 +377,7 @@ void TChunkReplicator::OnEpochStarted()
     EnabledCheckExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Periodic),
         BIND(&TChunkReplicator::OnCheckEnabled, MakeWeak(this)),
-        Config_->ReplicatorEnabledCheckPeriod);
+        GetDynamicConfig()->ReplicatorEnabledCheckPeriod);
     EnabledCheckExecutor_->Start();
 
     // Just in case.
@@ -1231,7 +1231,6 @@ void TChunkReplicator::OnChunkDestroyed(TChunk* chunk)
 {
     // NB: We have to handle chunk here even if it should not be processed by replicator
     // since it may be in some of the queues being put when replicator processed this chunk.
-
     GetChunkRefreshScanner(chunk)->OnChunkDestroyed(chunk);
     GetChunkRequisitionUpdateScanner(chunk)->OnChunkDestroyed(chunk);
     ResetChunkStatus(chunk);
@@ -1748,7 +1747,7 @@ void TChunkReplicator::ScheduleRemovalJobs(IJobSchedulingContext* context)
             TChunkLocation::TDestroyedReplicasIterator ReplicaIterator;
             bool Active = true;
         };
-        TCompactVector<TLocationInfo, TypicalLocationCount> locations;
+        TCompactVector<TLocationInfo, TypicalChunkLocationCount> locations;
         for (auto* location : node->ChunkLocations()) {
             if (!location->DestroyedReplicas().empty()) {
                 locations.push_back({location, location->GetDestroyedReplicasIterator()});
@@ -1793,7 +1792,7 @@ void TChunkReplicator::ScheduleRemovalJobs(IJobSchedulingContext* context)
     {
         TCompactVector<
             std::pair<TChunkLocation*, TChunkLocation::TChunkRemovalQueue::iterator>,
-            TypicalLocationCount> locations;
+            TypicalChunkLocationCount> locations;
         for (auto* location : node->ChunkLocations()) {
             auto& queue = location->ChunkRemovalQueue();
             if (!queue.empty()) {
@@ -2286,8 +2285,8 @@ void TChunkReplicator::ScheduleGlobalChunkRefresh()
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
         if (IsShardActive(shardIndex)) {
-            BlobRefreshScanner_->ScheduleGlobalScan(shardIndex, chunkManager->GetGlobalBlobChunkScanDescriptor(shardIndex));
-            JournalRefreshScanner_->ScheduleGlobalScan(shardIndex, chunkManager->GetGlobalJournalChunkScanDescriptor(shardIndex));
+            BlobRefreshScanner_->ScheduleGlobalScan(chunkManager->GetGlobalBlobChunkScanDescriptor(shardIndex));
+            JournalRefreshScanner_->ScheduleGlobalScan(chunkManager->GetGlobalJournalChunkScanDescriptor(shardIndex));
         }
     }
 }
@@ -3164,6 +3163,9 @@ void TChunkReplicator::OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig
     if (RefreshExecutor_) {
         RefreshExecutor_->SetPeriod(GetDynamicConfig()->ChunkRefreshPeriod);
     }
+    if (EnabledCheckExecutor_) {
+        EnabledCheckExecutor_->SetPeriod(GetDynamicConfig()->ReplicatorEnabledCheckPeriod);
+    }
     if (RequisitionUpdateExecutor_) {
         RequisitionUpdateExecutor_->SetPeriod(GetDynamicConfig()->ChunkRequisitionUpdatePeriod);
     }
@@ -3194,8 +3196,8 @@ bool TChunkReplicator::UsePullReplication(TChunk* chunk) const
 void TChunkReplicator::StartRefresh(int shardIndex)
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();
-    BlobRefreshScanner_->Start(shardIndex, chunkManager->GetGlobalBlobChunkScanDescriptor(shardIndex));
-    JournalRefreshScanner_->Start(shardIndex, chunkManager->GetGlobalJournalChunkScanDescriptor(shardIndex));
+    BlobRefreshScanner_->Start(chunkManager->GetGlobalBlobChunkScanDescriptor(shardIndex));
+    JournalRefreshScanner_->Start(chunkManager->GetGlobalJournalChunkScanDescriptor(shardIndex));
 
     auto& jobEpoch = JobEpochs_[shardIndex];
     YT_VERIFY(jobEpoch == InvalidJobEpoch);
@@ -3263,8 +3265,8 @@ void TChunkReplicator::StartRequisitionUpdate()
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
-        BlobRequisitionUpdateScanner_->Start(shardIndex, chunkManager->GetGlobalBlobChunkScanDescriptor(shardIndex));
-        JournalRequisitionUpdateScanner_->Start(shardIndex, chunkManager->GetGlobalJournalChunkScanDescriptor(shardIndex));
+        BlobRequisitionUpdateScanner_->Start(chunkManager->GetGlobalBlobChunkScanDescriptor(shardIndex));
+        JournalRequisitionUpdateScanner_->Start(chunkManager->GetGlobalJournalChunkScanDescriptor(shardIndex));
     }
 
     YT_VERIFY(!std::exchange(RequisitionUpdateRunning_, true));

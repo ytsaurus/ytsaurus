@@ -40,22 +40,32 @@ TEncodingChunkWriter::TEncodingChunkWriter(
     MiscExt_.set_eden(options->ChunksEden);
 }
 
-void TEncodingChunkWriter::WriteBlock(std::vector<TSharedRef> vectorizedBlock, std::optional<int> groupIndex)
+void TEncodingChunkWriter::WriteBlock(
+    std::vector<TSharedRef> vectorizedBlock,
+    EBlockType blockType,
+    std::optional<int> groupIndex)
 {
+    VerifyBlockType(blockType);
+
     ++CurrentBlockIndex_;
 
     i64 blockSize = GetByteSize(vectorizedBlock);
     LargestBlockSize_ = std::max(LargestBlockSize_, blockSize);
 
-    EncodingWriter_->WriteBlock(std::move(vectorizedBlock), groupIndex);
+    EncodingWriter_->WriteBlock(std::move(vectorizedBlock), blockType, groupIndex);
 }
 
-void TEncodingChunkWriter::WriteBlock(TSharedRef block, std::optional<int> groupIndex)
+void TEncodingChunkWriter::WriteBlock(
+    TSharedRef block,
+    EBlockType blockType,
+    std::optional<int> groupIndex)
 {
+    VerifyBlockType(blockType);
+
     ++CurrentBlockIndex_;
 
     LargestBlockSize_ = std::max(LargestBlockSize_, static_cast<i64>(block.Size()));
-    EncodingWriter_->WriteBlock(std::move(block), groupIndex);
+    EncodingWriter_->WriteBlock(std::move(block), blockType, groupIndex);
 }
 
 void TEncodingChunkWriter::Close()
@@ -121,6 +131,11 @@ TCodecStatistics TEncodingChunkWriter::GetCompressionStatistics() const
 bool TEncodingChunkWriter::IsCloseDemanded() const
 {
     return ChunkWriter_->IsCloseDemanded();
+}
+
+void TEncodingChunkWriter::VerifyBlockType(EBlockType blockType) const
+{
+    YT_VERIFY(blockType != EBlockType::None && blockType != EBlockType::CompressedData);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

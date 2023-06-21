@@ -17,6 +17,7 @@
 
 #include <yt/yt/ytlib/scheduler/job_resources_with_quota.h>
 
+#include <yt/yt/core/misc/public.h>
 #include <yt/yt/core/misc/historic_usage_aggregator.h>
 
 #include <yt/yt/library/vector_hdrf/resource_vector.h>
@@ -129,6 +130,9 @@ struct TSchedulerElementPostUpdateAttributes
 
     double SatisfactionRatio = 0.0;
     double LocalSatisfactionRatio = 0.0;
+
+    // Only for pools.
+    std::shared_ptr<IDigest> SatisfactionDigest;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -194,7 +198,7 @@ protected:
 
     // Assigned in preupdate, used in fair share update.
     TJobResources TotalResourceLimits_;
-    int PendingJobCount_ = 0;
+    i64 PendingJobCount_ = 0;
     TInstant StartTime_;
 
     const TString TreeId_;
@@ -366,7 +370,7 @@ protected:
 private:
     // Update methods.
     virtual std::optional<double> GetSpecifiedWeight() const = 0;
-    int GetPendingJobCount() const;
+    i64 GetPendingJobCount() const;
 
     friend class TSchedulerCompositeElement;
     friend class TSchedulerOperationElement;
@@ -387,6 +391,10 @@ public:
 
     // Computed in fair share update and used in schedule jobs.
     DEFINE_BYREF_RO_PROPERTY(std::vector<TSchedulerElementPtr>, SchedulableChildren);
+
+    // Computed in post update and used in schedule jobs.
+    DEFINE_BYVAL_RO_PROPERTY(EFifoPoolSchedulingOrder, EffectiveFifoPoolSchedulingOrder);
+    DEFINE_BYVAL_RO_PROPERTY(bool, EffectiveUsePoolSatisfactionForScheduling);
 
 protected:
     // Used in fair share update.
@@ -468,7 +476,11 @@ public:
 
     bool IsSchedulable() const override;
 
+    virtual std::optional<EFifoPoolSchedulingOrder> GetSpecifiedFifoPoolSchedulingOrder() const = 0;
+    virtual std::optional<bool> ShouldUsePoolSatisfactionForScheduling() const = 0;
+
     //! Schedule jobs related methods.
+    bool ShouldUseFifoSchedulingOrder() const;
     bool HasHigherPriorityInFifoMode(const TSchedulerElement* lhs, const TSchedulerElement* rhs) const;
 
     NYPath::TYPath GetFullPath(bool explicitOnly, bool withTreeId = true) const;
@@ -628,6 +640,9 @@ public:
     std::optional<bool> IsAggressiveStarvationEnabled() const override;
 
     TJobResourcesConfigPtr GetSpecifiedNonPreemptibleResourceUsageThresholdConfig() const override;
+
+    std::optional<EFifoPoolSchedulingOrder> GetSpecifiedFifoPoolSchedulingOrder() const override;
+    std::optional<bool> ShouldUsePoolSatisfactionForScheduling() const override;
 
     //! Other methods.
     void BuildResourceMetering(
@@ -945,6 +960,11 @@ public:
     std::optional<bool> IsAggressiveStarvationEnabled() const override;
 
     TJobResourcesConfigPtr GetSpecifiedNonPreemptibleResourceUsageThresholdConfig() const override;
+
+    std::optional<EFifoPoolSchedulingOrder> GetSpecifiedFifoPoolSchedulingOrder() const override;
+    std::optional<bool> ShouldUsePoolSatisfactionForScheduling() const override;
+
+    void BuildPoolSatisfactionDigests(TFairSharePostUpdateContext* postUpdateContext);
 
     //! Other methods.
     THashSet<TString> GetAllowedProfilingTags() const override;

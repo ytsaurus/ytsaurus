@@ -50,7 +50,10 @@ TEncodingWriter::TEncodingWriter(
     , CodecTime_({Options_->CompressionCodec, TDuration::Zero()})
 { }
 
-void TEncodingWriter::WriteBlock(TSharedRef block, std::optional<int> groupIndex)
+void TEncodingWriter::WriteBlock(
+    TSharedRef block,
+    EBlockType blockType,
+    std::optional<int> groupIndex)
 {
     block = TrackMemory(Options_->MemoryReferenceTracker, std::move(block));
 
@@ -68,6 +71,7 @@ void TEncodingWriter::WriteBlock(TSharedRef block, std::optional<int> groupIndex
         &TEncodingWriter::DoCompressBlock,
         MakeWeak(this),
         std::move(block),
+        blockType,
         AddedBlockIndex_,
         groupIndex,
         std::move(promise)),
@@ -76,7 +80,10 @@ void TEncodingWriter::WriteBlock(TSharedRef block, std::optional<int> groupIndex
     ++AddedBlockIndex_;
 }
 
-void TEncodingWriter::WriteBlock(std::vector<TSharedRef> vectorizedBlock, std::optional<int> groupIndex)
+void TEncodingWriter::WriteBlock(
+    std::vector<TSharedRef> vectorizedBlock,
+    EBlockType blockType,
+    std::optional<int> groupIndex)
 {
     for (auto& part: vectorizedBlock) {
         part = TrackMemory(Options_->MemoryReferenceTracker, std::move(part));
@@ -98,6 +105,7 @@ void TEncodingWriter::WriteBlock(std::vector<TSharedRef> vectorizedBlock, std::o
         &TEncodingWriter::DoCompressVector,
         MakeWeak(this),
         std::move(vectorizedBlock),
+        blockType,
         AddedBlockIndex_,
         groupIndex,
         std::move(promise)),
@@ -123,15 +131,19 @@ void TEncodingWriter::EnsureOpen()
     }
 }
 
-void TEncodingWriter::CacheUncompressedBlock(const TSharedRef& block, int blockIndex)
+void TEncodingWriter::CacheUncompressedBlock(
+    const TSharedRef& block,
+    EBlockType blockType,
+    int blockIndex)
 {
     // We cannot cache blocks before chunk writer is open, since we do not know the #ChunkId.
     auto blockId = TBlockId(ChunkWriter_->GetChunkId(), blockIndex);
-    BlockCache_->PutBlock(blockId, EBlockType::UncompressedData, TBlock(block));
+    BlockCache_->PutBlock(blockId, blockType, TBlock(block));
 }
 
 void TEncodingWriter::DoCompressBlock(
     const TSharedRef& uncompressedBlock,
+    EBlockType blockType,
     int blockIndex,
     std::optional<int> groupIndex,
     TPromise<TBlock> promise,
@@ -166,11 +178,12 @@ void TEncodingWriter::DoCompressBlock(
         blockIndex,
         Codec_->GetId());
 
-    if (Any(BlockCache_->GetSupportedBlockTypes() & EBlockType::UncompressedData)) {
+    if (Any(BlockCache_->GetSupportedBlockTypes() & blockType)) {
         YT_UNUSED_FUTURE(OpenFuture_.Apply(BIND(
             &TEncodingWriter::CacheUncompressedBlock,
             MakeWeak(this),
             uncompressedBlock,
+            blockType,
             blockIndex)));
     }
 
@@ -186,6 +199,7 @@ void TEncodingWriter::DoCompressBlock(
 
 void TEncodingWriter::DoCompressVector(
     const std::vector<TSharedRef>& uncompressedVectorizedBlock,
+    EBlockType blockType,
     int blockIndex,
     std::optional<int> groupIndex,
     TPromise<TBlock> promise,
@@ -220,7 +234,7 @@ void TEncodingWriter::DoCompressVector(
         blockIndex,
         Codec_->GetId());
 
-    if (Any(BlockCache_->GetSupportedBlockTypes() & EBlockType::UncompressedData)) {
+    if (Any(BlockCache_->GetSupportedBlockTypes() & blockType)) {
         struct TMergedTag { };
         // Handle none codec separately to avoid merging block parts twice.
         auto uncompressedBlock = Options_->CompressionCodec == NCompression::ECodec::None
@@ -230,6 +244,7 @@ void TEncodingWriter::DoCompressVector(
             &TEncodingWriter::CacheUncompressedBlock,
             MakeWeak(this),
             uncompressedBlock,
+            blockType,
             blockIndex)));
     }
 

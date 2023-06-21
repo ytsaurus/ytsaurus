@@ -119,13 +119,6 @@ void TChunkLocationConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(0)
         .Default(0);
 
-    registrar.Parameter("disk_family", &TThis::DiskFamily)
-        .Default("UNKNOWN");
-    registrar.Parameter("device_name", &TThis::DeviceName)
-        .Default("UNKNOWN");
-    registrar.Parameter("device_model", &TThis::DeviceModel)
-        .Default("UNKNOWN");
-
     registrar.Parameter("io_weight", &TThis::IOWeight)
         .GreaterThanOrEqual(0)
         .Default(1.0);
@@ -522,24 +515,16 @@ void TIOThroughputMeterConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TLocationHealthCheckerConfig::Register(TRegistrar registrar)
+void TLocationHealthCheckerDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enabled", &TThis::Enabled)
         .Default(false);
 
+    registrar.Parameter("enable_manual_disk_failures", &TThis::EnableManualDiskFailures)
+        .Default(false);
+
     registrar.Parameter("health_check_period", &TThis::HealthCheckPeriod)
         .Default(TDuration::Seconds(60));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TLocationHealthCheckerDynamicConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("enabled", &TThis::Enabled)
-        .Default();
-
-    registrar.Parameter("health_check_period", &TThis::HealthCheckPeriod)
-        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -626,8 +611,6 @@ void TDataNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("changelog_reader_cache", &TThis::ChangelogReaderCache)
         .DefaultNew();
     registrar.Parameter("table_schema_cache", &TThis::TableSchemaCache)
-        .DefaultNew();
-    registrar.Parameter("location_health_checker", &TThis::LocationHealthChecker)
         .DefaultNew();
 
     registrar.Parameter("session_timeout", &TThis::SessionTimeout)
@@ -918,6 +901,9 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("testing_options", &TThis::TestingOptions)
+        .DefaultNew();
+
+    registrar.Parameter("active_disk_checker", &TThis::ActiveDiskChecker)
         .DefaultNew();
 
     registrar.Postprocessor([] (TThis* config) {

@@ -460,6 +460,65 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         # Resource usage in parent pool wasn't transfered and new jobs weren't scheduled as resource_limits exceeded.
         wait(lambda: op2.get_running_jobs())
 
+    @authors("eshcherbin")
+    def test_apply_specified_resource_limits_to_demand(self):
+        update_scheduler_config("operation_hangup_safe_timeout", 100000000)
+
+        create_pool("pool", attributes={"resource_limits": {"cpu": 0}})
+
+        op = run_sleeping_vanilla(job_count=3, spec={
+            "pool": "pool",
+            "apply_specified_resource_limits_to_demand": True,
+        })
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_demand/cpu", default=None) == 3.0)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_demand/user_slots") == 3)
+
+        update_op_parameters(op.id, parameters={
+            "scheduling_options_per_pool_tree": {
+                "default": {
+                    "resource_limits": {"cpu": 3.0, "user_slots": 2},
+                },
+            }
+        })
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_demand/cpu") == 3.0)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_demand/user_slots") == 2)
+
+        update_op_parameters(op.id, parameters={
+            "scheduling_options_per_pool_tree": {
+                "default": {
+                    "resource_limits": {"cpu": 1.0, "user_slots": 2},
+                },
+            }
+        })
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_demand/cpu") == 1.0)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_demand/user_slots") == 2)
+
+        set("//sys/pool_trees/default/pool/@non_preemptible_resource_usage_threshold", {"user_slots": 3})
+        set("//sys/pool_trees/default/pool/@resource_limits", {"cpu": 2.0})
+
+        update_op_parameters(op.id, parameters={
+            "scheduling_options_per_pool_tree": {
+                "default": {
+                    "resource_limits": {"cpu": 3.0, "user_slots": 3},
+                },
+            }
+        })
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_demand/cpu") == 3.0)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_demand/user_slots") == 3)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_usage/user_slots") == 2)
+
+        update_op_parameters(op.id, parameters={
+            "scheduling_options_per_pool_tree": {
+                "default": {
+                    "resource_limits": {"cpu": 1.0, "user_slots": 0},
+                },
+            }
+        })
+        time.sleep(3.0)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_demand/cpu") == 2.0)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_demand/user_slots") == 2)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_usage/user_slots") == 2)
+
 
 ##################################################################
 
@@ -3200,14 +3259,39 @@ class TestSatisfactionRatio(YTEnvSetup):
         }
     }
 
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "resource_limits": {
+                    "cpu": 8,
+                    "user_slots": 8,
+                },
+                "gpu_manager": {"test_resource": True, "test_gpu_count": 8},
+            }
+        }
+    }
+
+    def setup_method(self, method):
+        super(TestSatisfactionRatio, self).setup_method(method)
+        update_pool_tree_config("default", {
+            "non_preemptible_resource_usage_threshold": {
+                "user_slots": 10,
+            },
+        })
+
     @authors("eshcherbin")
     def test_satisfaction_simple(self):
         create_pool("pool")
 
-        op1 = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool": "pool"}, job_count=2)
-        wait_breakpoint(job_count=1)
+        op1 = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            spec={"pool": "pool"},
+            job_count=3,
+            task_patch={"cpu_limit": 4.0},
+        )
+        wait_breakpoint(job_count=2)
 
-        op2 = run_sleeping_vanilla(spec={"pool": "pool"})
+        op2 = run_sleeping_vanilla(spec={"pool": "pool"}, task_patch={"cpu_limit": 4.0})
 
         wait(
             lambda: are_almost_equal(
@@ -3234,6 +3318,145 @@ class TestSatisfactionRatio(YTEnvSetup):
             )
         )
         wait(lambda: are_almost_equal(get(scheduler_orchid_pool_path("pool") + "/satisfaction_ratio"), 1.0))
+
+    @authors("eshcherbin")
+    def test_use_pool_satisfaction_for_scheduling(self):
+        create_pool("first", attributes={
+            "use_pool_satisfaction_for_scheduling": False,
+            "strong_guarantee_resources": {"cpu": 3.0},
+        })
+        create_pool("second", attributes={"strong_guarantee_resources": {"cpu": 3.0}})
+
+        set("//sys/pool_trees/default/first/@resource_limits", {"user_slots": 1})
+        set("//sys/pool_trees/default/second/@resource_limits", {"user_slots": 1})
+
+        wait(lambda: get(scheduler_orchid_pool_path("second") + "/effective_use_pool_satisfaction_for_scheduling", default=None))
+        wait(lambda: not get(scheduler_orchid_pool_path("first") + "/effective_use_pool_satisfaction_for_scheduling"))
+        wait(lambda: get(scheduler_orchid_pool_path("<Root>") + "/effective_use_pool_satisfaction_for_scheduling"))
+
+        op1 = run_sleeping_vanilla(job_count=2, spec={"pool": "first"})
+        op2 = run_sleeping_vanilla(job_count=3, spec={"pool": "second"})
+
+        wait(lambda: get(scheduler_orchid_operation_path(op1.id) + "/resource_usage/user_slots", default=None) == 1)
+        wait(lambda: get(scheduler_orchid_operation_path(op2.id) + "/resource_usage/user_slots") == 1)
+
+        blocking_op = run_sleeping_vanilla(task_patch={"cpu_limit": 6.0})
+        wait(lambda: get(scheduler_orchid_operation_path(blocking_op.id) + "/resource_usage/user_slots", default=None) == 1)
+
+        remove("//sys/pool_trees/default/first/@resource_limits")
+        remove("//sys/pool_trees/default/second/@resource_limits")
+
+        op3 = run_sleeping_vanilla(spec={"pool": "first"}, task_patch={"gpu_limit": 1, "enable_gpu_layers": False})
+
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op1.id) + "/satisfaction_ratio"), 0.5))
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op2.id) + "/satisfaction_ratio"), 1.0 / 3.0))
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op3.id) + "/satisfaction_ratio", default=None), 0.0))
+        wait(lambda: are_almost_equal(get(scheduler_orchid_pool_path("first") + "/satisfaction_ratio"), 0.0))
+        wait(lambda: are_almost_equal(get(scheduler_orchid_pool_path("second") + "/satisfaction_ratio"), 1.0 / 3.0))
+
+        wait(lambda: are_almost_equal(get(scheduler_orchid_pool_path("first") + "/local_satisfaction_ratio"), 0.0))
+
+        wait(lambda: get(scheduler_orchid_operation_path(op1.id) + "/scheduling_index") == 2)
+        wait(lambda: get(scheduler_orchid_operation_path(op2.id) + "/scheduling_index") == 1)
+        wait(lambda: get(scheduler_orchid_operation_path(op3.id) + "/scheduling_index") == 0)
+
+        remove("//sys/pool_trees/default/first/@use_pool_satisfaction_for_scheduling")
+
+        wait(lambda: get(scheduler_orchid_operation_path(op1.id) + "/scheduling_index") == 1)
+        wait(lambda: get(scheduler_orchid_operation_path(op2.id) + "/scheduling_index") == 2)
+        wait(lambda: get(scheduler_orchid_operation_path(op3.id) + "/scheduling_index") == 0)
+
+    @authors("eshcherbin")
+    def test_operation_satisfaction_distribution_profiling(self):
+        UPPER_BOUND = 2.0
+        PRECISION = 0.001
+        QUANTILES = [0.2, 0.25, 0.4, 0.5, 0.6, 0.75, 0.8, 1.0]
+        update_pool_tree_config("default", {
+            "per_pool_satisfaction_digest": {
+                "lower_bound": 0.0,
+                "upper_bound": UPPER_BOUND,
+                "absolute_precision": PRECISION,
+            },
+            "per_pool_satisfaction_profiling_quantiles": QUANTILES,
+            "non_preemptible_resource_usage_threshold": {
+                "user_slots": 10,
+            },
+        })
+
+        create_pool("pool", attributes={"strong_guarantee_resources": {"cpu": 8.0}})
+
+        OP_USAGE_AND_DEMANDS = [
+            (0, 1),
+            (1, 2),
+            (2, 2),
+            (2, 3),
+        ]
+
+        ops = []
+        blocking_demand = 0
+        for usage, demand in OP_USAGE_AND_DEMANDS:
+            op = run_sleeping_vanilla(
+                job_count=demand,
+                spec={
+                    "scheduling_options_per_pool_tree": {
+                        "default": {
+                            "resource_limits": {"user_slots": usage}
+                        },
+                    },
+                    "pool": "pool",
+                }
+            )
+            ops.append(op)
+
+            blocking_demand += demand - usage
+
+        for i, op in enumerate(ops):
+            wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_usage/user_slots", default=None) == OP_USAGE_AND_DEMANDS[i][0])
+        wait(lambda: are_almost_equal(get(scheduler_orchid_pool_path("pool") + "/demand_share/user_slots"), 1.0))
+
+        blocking_op = run_sleeping_vanilla(job_count=blocking_demand)
+        wait(lambda: get(scheduler_orchid_operation_path(blocking_op.id) + "/resource_usage/user_slots", default=None) == blocking_demand)
+
+        for i, op in enumerate(ops):
+            update_op_parameters(op.id, parameters={"scheduling_options_per_pool_tree": {
+                "default": {"resource_limits": {"user_slots": OP_USAGE_AND_DEMANDS[i][1]}}},
+            })
+
+        for i, op in enumerate(ops):
+            satisfaction = OP_USAGE_AND_DEMANDS[i][0] / OP_USAGE_AND_DEMANDS[i][1]
+            wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/local_satisfaction_ratio") == satisfaction)
+        wait(lambda: get(scheduler_orchid_operation_path(blocking_op.id) + "/local_satisfaction_ratio") >= UPPER_BOUND)
+
+        profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default"})
+        root_satisfaction_distribution_sensor = profiler.gauge(
+            "scheduler/pools/operation_satisfaction_distribution",
+            fixed_tags={"pool": "<Root>"})
+        pool_satisfaction_distribution_sensor = profiler.gauge(
+            "scheduler/pools/operation_satisfaction_distribution",
+            fixed_tags={"pool": "pool"})
+
+        def format_quantile(q):
+            if q == 1.0:
+                return '1'
+            return str(q)
+
+        satisfactions = sorted(usage / demand for usage, demand in OP_USAGE_AND_DEMANDS)
+        for i, satisfaction in enumerate(satisfactions):
+            quantile = (i + 1) / len(satisfactions)
+            wait(lambda: are_almost_equal(
+                pool_satisfaction_distribution_sensor.get(tags={"quantile": format_quantile(quantile)}),
+                satisfaction,
+                absolute_error=PRECISION,
+            ))
+
+        satisfactions.append(UPPER_BOUND)
+        for i, satisfaction in enumerate(satisfactions):
+            quantile = (i + 1) / len(satisfactions)
+            wait(lambda: are_almost_equal(
+                root_satisfaction_distribution_sensor.get(tags={"quantile": format_quantile(quantile)}),
+                satisfaction,
+                absolute_error=PRECISION,
+            ))
 
 
 ##################################################################
@@ -3537,6 +3760,53 @@ class TestFifoPools(YTEnvSetup):
         wait(lambda: schedulable_element_count_sensor.get() == 3)
         wait(lambda: schedulable_pool_count_sensor.get() == 1)
         wait(lambda: schedulable_operation_count_sensor.get() == 2)
+
+    @authors("eshcherbin")
+    def test_fifo_pool_scheduling_order(self):
+        update_pool_tree_config("default", {
+            "non_preemptible_resource_usage_threshold": {"user_slots": 10},
+        })
+
+        create_pool("first", attributes={"mode": "fifo", "fifo_pool_scheduling_order": "satisfaction"})
+        create_pool("second", attributes={"mode": "fifo"})
+
+        wait(lambda: get(scheduler_orchid_pool_path("second") + "/effective_fifo_pool_scheduling_order", default=None) == "fifo")
+        wait(lambda: get(scheduler_orchid_pool_path("first") + "/effective_fifo_pool_scheduling_order") == "satisfaction")
+        wait(lambda: get(scheduler_orchid_pool_path("<Root>") + "/effective_fifo_pool_scheduling_order") == "fifo")
+
+        set("//sys/pool_trees/default/first/@resource_limits", {"user_slots": 1})
+        set("//sys/pool_trees/default/second/@resource_limits", {"user_slots": 1})
+
+        op_a1 = run_sleeping_vanilla(job_count=2, spec={"pool": "first"})
+        op_b1 = run_sleeping_vanilla(job_count=2, spec={"pool": "second"})
+
+        time.sleep(0.1)
+        wait(lambda: get(scheduler_orchid_operation_path(op_a1.id) + "/resource_usage/user_slots", default=None) == 1)
+        wait(lambda: get(scheduler_orchid_operation_path(op_b1.id) + "/resource_usage/user_slots") == 1)
+
+        op_a2 = run_sleeping_vanilla(spec={"pool": "first"})
+        op_b2 = run_sleeping_vanilla(spec={"pool": "second"})
+
+        blocking_op = run_sleeping_vanilla(task_patch={"cpu_limit": 8.0})
+        wait(lambda: get(scheduler_orchid_operation_path(blocking_op.id) + "/resource_usage/user_slots", default=None) == 1)
+
+        remove("//sys/pool_trees/default/first/@resource_limits")
+        remove("//sys/pool_trees/default/second/@resource_limits")
+
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op_a1.id) + "/satisfaction_ratio"), 0.5))
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op_b1.id) + "/satisfaction_ratio"), 0.5))
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op_a2.id) + "/satisfaction_ratio"), 0.0))
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op_b2.id) + "/satisfaction_ratio"), 0.0))
+
+        def check():
+            op_a1_index = get(scheduler_orchid_operation_path(op_a1.id) + "/scheduling_index")
+            op_a2_index = get(scheduler_orchid_operation_path(op_a2.id) + "/scheduling_index")
+            op_b1_index = get(scheduler_orchid_operation_path(op_b1.id) + "/scheduling_index")
+            op_b2_index = get(scheduler_orchid_operation_path(op_b2.id) + "/scheduling_index")
+
+            return (op_a2_index < op_a1_index) and (op_a2_index < op_b1_index < op_b2_index)
+
+        wait(check)
 
 
 ##################################################################

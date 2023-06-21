@@ -31,12 +31,11 @@ public:
         std::optional<double> probingRatio,
         std::optional<TString> probingPoolTree);
 
-    void OnJobScheduled(const TJobletPtr& joblet);
-    void OnJobCompleted(const TJobletPtr& joblet);
-    void OnJobLost(NChunkPools::IChunkPoolOutput::TCookie cookie);
+    void OnJobScheduled(const TJobletPtr& joblet) override;
+    void OnJobCompleted(const TJobletPtr& joblet) override;
 
     // If competitive job of this joblet completed we should abort the joblet even if it has completed.
-    std::optional<EAbortReason> ShouldAbortCompletingJob(const TJobletPtr& joblet) const;
+    std::optional<EAbortReason> ShouldAbortCompletingJob(const TJobletPtr& joblet) override;
 
     void UpdatePendingJobCount(NScheduler::TCompositePendingJobCount* pendingJobCount) const;
 
@@ -51,7 +50,8 @@ private:
 
     virtual bool OnUnsuccessfulJobFinish(
         const TJobletPtr& joblet,
-        const std::function<void(TProgressCounterGuard*)>& updateJobCounter) override;
+        const std::function<void(TProgressCounterGuard*)>& updateJobCounter,
+        const NJobTrackerClient::EJobState state) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

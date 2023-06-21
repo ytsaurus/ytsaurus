@@ -898,6 +898,7 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   yt-library-heavy_schema_validation
   yt-library-quantile_digest
   library-tvm-service
+  yt-library-xor_filter
   yt-client-formats
   library-query-engine
   library-query-row_comparer_api
@@ -932,10 +933,10 @@ target_proto_messages(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/heartbeat.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/medium_directory.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/session_id.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cypress_client/proto/rpc.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cypress_client/proto/cypress_ypath.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cypress_server/proto/sequoia_actions.proto
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/election/proto/election_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/exec_node_admin/proto/exec_node_admin_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/exec_node_tracker_client/proto/exec_node_tracker_service.proto
@@ -1048,6 +1049,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cell_master_client/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chaos_client/alien_cell.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chaos_client/banned_replica_tracker.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chaos_client/chaos_cell_channel_factory.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chaos_client/chaos_cell_directory_synchronizer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chaos_client/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chaos_client/native_replication_card_cache_detail.cpp
@@ -1126,6 +1128,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cypress_client/public.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cypress_client/batch_attribute_fetcher.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cypress_client/rpc_helpers.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/data_node_tracker_client/location_directory.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/driver/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/election/cell_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/election/config.cpp
@@ -1254,12 +1257,14 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/column_filter_dictionary.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/hunks.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/key_filter.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/key_set.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/indexed_versioned_chunk_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/overlapping_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/partition_chunk_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/partition_sort_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/partitioner.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/performance_counting.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/remote_dynamic_store_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/row_merger.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/samples_fetcher.cpp
@@ -1504,6 +1509,7 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
   yt-library-heavy_schema_validation
   yt-library-quantile_digest
   library-tvm-service
+  yt-library-xor_filter
   yt-client-formats
   library-query-engine
   library-query-row_comparer_api

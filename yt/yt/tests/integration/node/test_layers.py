@@ -3,17 +3,21 @@ from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 from yt_commands import (
     authors, wait, create, ls, get, set, remove, link, exists,
     write_file, write_table, get_job, abort_job,
-    run_test_vanilla, map, wait_for_nodes, update_nodes_dynamic_config)
+    raises_yt_error, read_table, run_test_vanilla, map, wait_for_nodes, update_nodes_dynamic_config)
 
 from yt.common import YtError
 import yt.yson as yson
 
 from yt_helpers import profiler_factory
 
+from pydantic.utils import deep_update
+
 import pytest
 
 import os
 import time
+
+from collections import Counter
 
 
 class TestLayers(YTEnvSetup):
@@ -21,6 +25,7 @@ class TestLayers(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "test_root_fs": True,
+            "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
             "slot_manager": {
                 "job_environment": {
@@ -235,6 +240,309 @@ class TestLayers(YTEnvSetup):
             assert b"static-bin" in op.read_stderr(job_id)
 
 
+class TestProbingLayer(TestLayers):
+    NUM_TEST_PARTITIONS = 5
+
+    INPUT_TABLE = "//tmp/input_table"
+    OUTPUT_TABLE = "//tmp/output_table"
+
+    MAX_TRIES = 3
+
+    @staticmethod
+    def create_tables(job_count):
+        create("table", TestProbingLayer.INPUT_TABLE)
+        create("table", TestProbingLayer.OUTPUT_TABLE)
+
+        for key in range(job_count):
+            write_table(f"<append=%true>{TestProbingLayer.INPUT_TABLE}", [{"k": key, "layer": "LAYER"}])
+
+    @staticmethod
+    def get_spec(user_slots, **options):
+        spec = {
+            "mapper": {
+                "default_base_layer_path": "//tmp/layer2",
+                "probing_base_layer_path": "//tmp/layer1",
+                "alert_on_any_probing_failure": True,
+                "format": "json",
+            },
+            "data_weight_per_job": 1,
+            "resource_limits": {
+                "user_slots": user_slots,
+            },
+            "max_failed_job_count": 0,
+        }
+        return deep_update(spec, options)
+
+    @staticmethod
+    def run_map(command, job_count, user_slots, **options):
+        op = map(
+            in_=TestProbingLayer.INPUT_TABLE,
+            out=TestProbingLayer.OUTPUT_TABLE,
+            command=command,
+            spec=TestProbingLayer.get_spec(user_slots, **options),
+        )
+
+        assert get(f"{TestProbingLayer.INPUT_TABLE}/@row_count") == get(f"{TestProbingLayer.OUTPUT_TABLE}/@row_count")
+
+        assert op.get_job_count("completed") == job_count
+
+        return op
+
+    @authors("galtsev")
+    def test_probing_layer_success(self):
+        self.setup_files()
+
+        job_count = 7
+        self.create_tables(job_count)
+
+        command = (
+            "if test -e $YT_ROOT_FS/test; then "
+            "    sed 's/LAYER/default/'; "
+            "else "
+            "    sed 's/LAYER/probing/'; "
+            "fi"
+        )
+
+        for try_count in range(self.MAX_TRIES + 1):
+            op = self.run_map(command, job_count, user_slots=1)
+
+            assert op.get_job_count("failed") == 0
+
+            counter = Counter([row["layer"] for row in read_table(self.OUTPUT_TABLE)])
+
+            if op.get_job_count("aborted") == 1 and counter["default"] >= 1 and counter["probing"] >= 3:
+                break
+
+        assert try_count < self.MAX_TRIES
+
+    @authors("galtsev")
+    def test_probing_layer_failure(self):
+        self.setup_files()
+
+        job_count = 7
+        self.create_tables(job_count)
+
+        command = (
+            "if test -e $YT_ROOT_FS/test; then "
+            "    sed 's/LAYER/default/g'; "
+            "else "
+            "    sed 's/LAYER/probing/g'; exit 1; "
+            "fi"
+        )
+
+        for try_count in range(self.MAX_TRIES + 1):
+            op = self.run_map(command, job_count, user_slots=1)
+
+            assert op.get_job_count("failed") == 0
+
+            counter = Counter([row["layer"] for row in read_table(self.OUTPUT_TABLE)])
+            assert counter["default"] == job_count
+            assert counter["probing"] == 0
+
+            assert op.get_job_count("aborted") == 2 or "base_layer_probe_failed" in op.get_alerts()
+
+            if op.get_job_count("aborted") >= 2:
+                break
+
+        assert try_count < self.MAX_TRIES
+
+    @pytest.mark.parametrize("options", [
+        {"fail_on_job_restart": True},
+        {"mapper": {"layer_paths": ["//tmp/layer2"]}},
+        {"max_speculative_job_count_per_task": 0},
+        {"try_avoid_duplicating_jobs": True},
+    ])
+    @authors("galtsev")
+    def test_probing_layer_disabled(self, options):
+        self.setup_files()
+
+        job_count = 7
+        self.create_tables(job_count)
+
+        command = (
+            "if test -e $YT_ROOT_FS/test; then "
+            "    sed 's/LAYER/default/g'; "
+            "else "
+            "    sed 's/LAYER/probing/g'; "
+            "fi"
+        )
+
+        op = self.run_map(command, job_count, user_slots=1, **options)
+
+        assert op.get_job_count("failed") == 0
+
+        counter = Counter([row["layer"] for row in read_table(self.OUTPUT_TABLE)])
+        assert counter["default"] == job_count
+        assert counter["probing"] == 0
+
+        assert op.get_job_count("aborted") == 0
+
+    @authors("galtsev")
+    @pytest.mark.timeout(600)
+    def test_probing_layer_races(self):
+        self.setup_files()
+
+        job_count = 10
+        self.create_tables(job_count)
+
+        command = (
+            "if test -e $YT_ROOT_FS/test; then "
+            "    sed 's/LAYER/default/'; "
+            "else "
+            "    sed 's/LAYER/probing/'; "
+            "fi"
+        )
+
+        for iterations in range(3):
+            for try_count in range(self.MAX_TRIES + 1):
+                op = self.run_map(command, job_count, user_slots=2 + iterations)
+
+                assert op.get_job_count("failed") == 0
+
+                if op.get_job_count("aborted") >= 1:
+                    break
+
+            assert try_count < self.MAX_TRIES
+
+    @authors("galtsev")
+    @pytest.mark.timeout(600)
+    def test_alert(self):
+        self.setup_files()
+
+        job_count = 10
+        self.create_tables(job_count)
+        alert_count = 0
+
+        for default_failure_rate in range(2, 6):
+            for probing_failure_rate in range(2, 6):
+
+                command = (
+                    f"if test -e $YT_ROOT_FS/test; then "
+                    f"    if [ $(($RANDOM % {default_failure_rate})) -eq 0 ]; then "
+                    f"        exit 1; "
+                    f"    fi; "
+                    f"    sed 's/LAYER/default/g'; "
+                    f"else "
+                    f"    if [ $(($RANDOM % {probing_failure_rate})) -eq 0 ]; then "
+                    f"        exit 1; "
+                    f"    fi; "
+                    f"    sed 's/LAYER/probing/g'; "
+                    f"fi"
+                )
+
+                op = self.run_map(command, job_count, user_slots=5, max_failed_job_count=1000)
+
+                counter = Counter([row["layer"] for row in read_table(self.OUTPUT_TABLE)])
+
+                if "base_layer_probe_failed" in op.get_alerts():
+                    attributes = op.get_alerts()["base_layer_probe_failed"]["attributes"]
+                    assert attributes["failed_non_layer_probing_job_count"] == op.get_job_count("failed")
+                    assert attributes["succeeded_layer_probing_job_count"] > 0 or counter["probing"] == 0
+                    alert_count += 1
+
+        assert alert_count > 1
+
+
+class TestDockerImage(TestLayers):
+    INPUT_TABLE = "//tmp/input_table"
+    OUTPUT_TABLE = "//tmp/output_table"
+    COMMAND = "test -e $YT_ROOT_FS/test && test -e $YT_ROOT_FS/static-bin"
+    IMAGE = "tmp/test-image"
+    TAG_DOCUMENT_PATH = f"//{IMAGE}/_tags"
+
+    @staticmethod
+    def create_tables():
+        create("table", TestDockerImage.INPUT_TABLE)
+        create("table", TestDockerImage.OUTPUT_TABLE)
+
+        write_table(TestDockerImage.INPUT_TABLE, [{"a": 1}])
+
+    @staticmethod
+    def create_mock_docker_image(document):
+        create(
+            "document",
+            TestDockerImage.TAG_DOCUMENT_PATH,
+            attributes={"value": document},
+            recursive=True,
+        )
+
+    @staticmethod
+    def run_map(docker_image, **kwargs):
+        spec = {
+            "mapper": {
+                "docker_image": docker_image,
+            },
+        }
+        spec["mapper"].update(kwargs)
+
+        map(
+            in_=TestDockerImage.INPUT_TABLE,
+            out=TestDockerImage.OUTPUT_TABLE,
+            command=TestDockerImage.COMMAND,
+            spec=spec,
+        )
+
+    @authors("galtsev")
+    def test_docker_image_success(self):
+        self.setup_files()
+        self.create_tables()
+
+        tag = "tag"
+        self.create_mock_docker_image({tag: ["//tmp/layer1", "//tmp/layer2"]})
+
+        self.run_map(f"{TestDockerImage.IMAGE}:{tag}")
+
+    @authors("galtsev")
+    def test_docker_image_and_layer_paths(self):
+        self.setup_files()
+        self.create_tables()
+
+        tag = "tag"
+        self.create_mock_docker_image({tag: ["//tmp/layer1"]})
+
+        self.run_map(f"{TestDockerImage.IMAGE}:{tag}", layer_paths=["//tmp/layer2"])
+
+    @authors("galtsev")
+    def test_default_docker_tag(self):
+        self.setup_files()
+        self.create_tables()
+
+        default_docker_tag = "latest"
+        self.create_mock_docker_image({default_docker_tag: ["//tmp/layer1", "//tmp/layer2"]})
+
+        self.run_map(f"{TestDockerImage.IMAGE}")
+
+    @authors("galtsev")
+    def test_no_tag(self):
+        self.setup_files()
+        self.create_tables()
+
+        tag = "tag"
+        wrong_tag = "wrong_tag"
+        self.create_mock_docker_image({tag: ["//tmp/layer1", "//tmp/layer2"]})
+
+        with raises_yt_error(f'No tag "{wrong_tag}" in "{TestDockerImage.TAG_DOCUMENT_PATH}", available tags are [{tag}]'):
+            self.run_map(f"{TestDockerImage.IMAGE}:{wrong_tag}")
+
+    @authors("galtsev")
+    def test_no_image(self):
+        self.setup_files()
+        self.create_tables()
+
+        with raises_yt_error(f'Failed to read tags from "{TestDockerImage.TAG_DOCUMENT_PATH}"'):
+            self.run_map(f"{TestDockerImage.IMAGE}:tag")
+
+    @authors("galtsev")
+    def test_wrong_tag_document_type(self):
+        self.setup_files()
+        self.create_tables()
+
+        self.create_mock_docker_image("wrong tag document type")
+
+        with raises_yt_error(f'Tags document "{TestDockerImage.TAG_DOCUMENT_PATH}" is not a map'):
+            self.run_map(f"{TestDockerImage.IMAGE}:tag")
+
+
 @authors("psushin")
 class TestTmpfsLayerCache(YTEnvSetup):
     NUM_SCHEDULERS = 1
@@ -242,6 +550,7 @@ class TestTmpfsLayerCache(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "test_root_fs": True,
+            "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
             "slot_manager": {
                 "job_environment": {
@@ -350,6 +659,8 @@ class TestJobSetup(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "test_root_fs": True,
+            "use_artifact_binds": True,
+            "use_common_root_fs_quota": True,
             "job_controller": {
                 "job_setup_command": {
                     "path": "/static-bin/static-bash",
@@ -407,6 +718,7 @@ class TestJobSetup(YTEnvSetup):
 class TestSquashfsLayers(TestLayers):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
+            "use_artifact_binds": True,
             "test_root_fs": True,
             "use_common_root_fs_quota": True,
             "slot_manager": {
@@ -430,6 +742,7 @@ class TestSquashfsTmpfsLayerCache(TestTmpfsLayerCache):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "test_root_fs": True,
+            "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
             "slot_manager": {
                 "job_environment": {
@@ -464,6 +777,7 @@ class TestJobAbortDuringVolumePreparation(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "test_root_fs": True,
+            "use_artifact_binds": True,
             "use_common_root_fs_quota": True,
             "slot_manager": {
                 "job_environment": {

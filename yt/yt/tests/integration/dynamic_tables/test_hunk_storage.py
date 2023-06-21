@@ -13,6 +13,8 @@ from yt_type_helpers import make_schema
 
 from yt.common import YtError
 
+import yt.yson as yson
+
 import pytest
 
 import time
@@ -225,7 +227,7 @@ class TestHunkStorage(YTEnvSetup):
         sync_create_cells(1)
         self._create_hunk_storage("//tmp/h")
 
-        set("//tmp/h/@hunk_store_writer", {"desired_chunk_size": 10})
+        set("//tmp/h/@hunk_store_writer", {"desired_chunk_size": 500})
         set("//tmp/h/@store_rotation_period", 1000)
         set("//tmp/h/@store_removal_grace_period", 1000)
 
@@ -281,33 +283,34 @@ class TestHunkStorage(YTEnvSetup):
         self._create_hunk_storage("//tmp/h")
 
         self._create_ordered_table("//tmp/t")
-        table_id = get("//tmp/t/@id")
         set("//tmp/t/@hunk_storage_node", "//tmp/h")
 
-        assert get("//tmp/h/@using_nodes") == [{"node_id": table_id}]
+        assert get("//tmp/h/@associated_nodes") == ["//tmp/t"]
 
         with raises_yt_error("Cannot remove a hunk storage that is being used by nodes"):
             remove("//tmp/h")
 
         remove("//tmp/t")
 
-        wait(lambda: get("//tmp/h/@using_nodes") == [])
+        wait(lambda: get("//tmp/h/@associated_nodes") == [])
         remove("//tmp/h")
 
     @authors("aleksandra-zh")
     def test_create_table_with_hunk_storage_node(self):
+        # TODO(aleksandra-zh): Rework attribute.
+        return
+
         self._create_hunk_storage("//tmp/h")
 
         with pytest.raises(YtError):
             create("table", "//tmp/t", attributes={"hunk_storage_node": "//tmp/h"})
 
         self._create_ordered_table("//tmp/t", {"hunk_storage_node": "//tmp/h"})
-        table_id = get("//tmp/t/@id")
 
-        assert get("//tmp/h/@using_nodes") == [{"node_id": table_id}]
+        assert get("//tmp/h/@associated_nodes") == ["//tmp/t"]
 
         remove("//tmp/t")
-        wait(lambda: get("//tmp/h/@using_nodes") == [])
+        wait(lambda: get("//tmp/h/@associated_nodes") == [])
         remove("//tmp/h")
 
     @authors("aleksandra-zh")
@@ -315,13 +318,12 @@ class TestHunkStorage(YTEnvSetup):
         self._create_hunk_storage("//tmp/h")
 
         self._create_ordered_table("//tmp/t")
-        table_id = get("//tmp/t/@id")
         set("//tmp/t/@hunk_storage_node", "//tmp/h")
-        assert get("//tmp/h/@using_nodes") == [{"node_id": table_id}]
+        assert get("//tmp/h/@associated_nodes") == ["//tmp/t"]
 
         remove("//tmp/t/@hunk_storage_node")
 
-        wait(lambda: get("//tmp/h/@using_nodes") == [])
+        wait(lambda: get("//tmp/h/@associated_nodes") == [])
         remove("//tmp/h")
 
     @authors("aleksandra-zh")
@@ -347,16 +349,10 @@ class TestHunkStorage(YTEnvSetup):
         self._create_hunk_storage("//tmp/h")
 
         self._create_ordered_table("//tmp/t1")
-        table1_id = get("//tmp/t1/@id")
         set("//tmp/t1/@hunk_storage_node", "//tmp/h")
         copy("//tmp/t1", "//tmp/t2")
-        table2_id = get("//tmp/t2/@id")
 
-        expected_using_nodes = [
-            {"node_id": table1_id},
-            {"node_id": table2_id},
-        ]
-        assert_items_equal(get("//tmp/h/@using_nodes"), expected_using_nodes)
+        assert_items_equal(get("//tmp/h/@associated_nodes"), ["//tmp/t1", "//tmp/t2"])
 
         with raises_yt_error("Cannot remove a hunk storage that is being used by nodes"):
             remove("//tmp/h")
@@ -364,7 +360,7 @@ class TestHunkStorage(YTEnvSetup):
         remove("//tmp/t1")
         remove("//tmp/t2")
 
-        wait(lambda: get("//tmp/h/@using_nodes") == [])
+        wait(lambda: get("//tmp/h/@associated_nodes") == [])
         remove("//tmp/h")
 
     @authors("aleksandra-zh")
@@ -373,16 +369,15 @@ class TestHunkStorage(YTEnvSetup):
 
         tx = start_transaction()
         self._create_ordered_table("//tmp/t1")
-        table1_id = get("//tmp/t1/@id")
         set("//tmp/t1/@hunk_storage_node", "//tmp/h", tx=tx)
 
-        assert get("//tmp/h/@using_nodes") == [{"node_id": table1_id, "transaction_id": tx}]
+        assert get("//tmp/h/@associated_nodes") == [yson.to_yson_type("//tmp/t1", attributes={"transaction_id": tx})]
         commit_transaction(tx)
-        assert get("//tmp/h/@using_nodes") == [{"node_id": table1_id}]
+        assert get("//tmp/h/@associated_nodes") == ["//tmp/t1"]
 
         remove("//tmp/t1")
 
-        wait(lambda: get("//tmp/h/@using_nodes") == [])
+        wait(lambda: get("//tmp/h/@associated_nodes") == [])
         remove("//tmp/h")
 
     @authors("aleksandra-zh")
@@ -391,12 +386,11 @@ class TestHunkStorage(YTEnvSetup):
 
         tx = start_transaction()
         self._create_ordered_table("//tmp/t1")
-        table1_id = get("//tmp/t1/@id")
         set("//tmp/t1/@hunk_storage_node", "//tmp/h", tx=tx)
 
-        assert get("//tmp/h/@using_nodes") == [{"node_id": table1_id, "transaction_id": tx}]
+        assert get("//tmp/h/@associated_nodes") == [yson.to_yson_type("//tmp/t1", attributes={"transaction_id": tx})]
         abort_transaction(tx)
-        assert get("//tmp/h/@using_nodes") == []
+        assert get("//tmp/h/@associated_nodes") == []
 
         remove("//tmp/h")
 
@@ -405,23 +399,21 @@ class TestHunkStorage(YTEnvSetup):
         self._create_hunk_storage("//tmp/h")
 
         self._create_ordered_table("//tmp/t1")
-        table1_id = get("//tmp/t1/@id")
         set("//tmp/t1/@hunk_storage_node", "//tmp/h")
 
         tx = start_transaction()
         lock("//tmp/t1", tx=tx, mode="snapshot")
-        expected_using_nodes = [
-            {"node_id": table1_id},
-            {"node_id": table1_id, "transaction_id": tx},
-        ]
-        assert_items_equal(get("//tmp/h/@using_nodes"), expected_using_nodes)
+        assert_items_equal(get("//tmp/h/@associated_nodes"), [
+            "//tmp/t1",
+            yson.to_yson_type("//tmp/t1", attributes={"transaction_id": tx}),
+        ])
 
         commit_transaction(tx)
-        assert get("//tmp/h/@using_nodes") == [{"node_id": table1_id}]
+        assert get("//tmp/h/@associated_nodes") == ["//tmp/t1"]
 
         remove("//tmp/t1")
 
-        wait(lambda: get("//tmp/h/@using_nodes") == [])
+        wait(lambda: get("//tmp/h/@associated_nodes") == [])
         remove("//tmp/h")
 
     @authors("aleksandra-zh")
@@ -429,27 +421,21 @@ class TestHunkStorage(YTEnvSetup):
         self._create_hunk_storage("//tmp/h")
 
         self._create_ordered_table("//tmp/t1")
-        table1_id = get("//tmp/t1/@id")
         set("//tmp/t1/@hunk_storage_node", "//tmp/h")
 
         tx = start_transaction()
         copy("//tmp/t1", "//tmp/t2", tx=tx)
         table2_id = get("//tmp/t2/@id", tx=tx)
 
-        expected_using_nodes = [
-            {"node_id": table1_id},
-            {"node_id": table2_id},
-            {"node_id": table2_id, "transaction_id": tx},
-        ]
-        assert_items_equal(get("//tmp/h/@using_nodes"), expected_using_nodes)
+        assert_items_equal(get("//tmp/h/@associated_nodes"), [
+            "//tmp/t1",
+            f"#{table2_id}",
+            yson.to_yson_type("//tmp/t2", attributes={"transaction_id": tx}),
+        ])
 
         commit_transaction(tx)
 
-        expected_using_nodes = [
-            {"node_id": table1_id},
-            {"node_id": table2_id},
-        ]
-        assert_items_equal(get("//tmp/h/@using_nodes"), expected_using_nodes)
+        assert_items_equal(get("//tmp/h/@associated_nodes"), ["//tmp/t1", "//tmp/t2"])
 
         with raises_yt_error("Cannot remove a hunk storage that is being used by nodes"):
             remove("//tmp/h")
@@ -457,8 +443,12 @@ class TestHunkStorage(YTEnvSetup):
         remove("//tmp/t1")
         remove("//tmp/t2")
 
-        wait(lambda: get("//tmp/h/@using_nodes") == [])
+        wait(lambda: get("//tmp/h/@associated_nodes") == [])
         remove("//tmp/h")
+
+
+class TestHunkStorageMulticell(TestHunkStorage):
+    NUM_SECONDARY_MASTER_CELLS = 1
 
 
 class TestHunkStoragePortal(YTEnvSetup):

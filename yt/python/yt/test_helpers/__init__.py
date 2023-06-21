@@ -85,20 +85,19 @@ def are_items_equal(actual_seq, expected_seq):
     return missing == [] and unexpected == []
 
 
-def are_almost_equal(lhs, rhs, decimal_places=None, relative_error=None):
+def are_almost_equal(lhs, rhs, absolute_error=None, relative_error=None):
     if lhs is None or rhs is None:
         return False
-    if decimal_places is not None and relative_error is not None:
-        assert False, "decimal_places and relative_error cannot be specified simultaneously"
+    if absolute_error is not None and relative_error is not None:
+        assert False, "absolute_error and relative_error cannot be specified simultaneously"
     if relative_error is not None:
         diff = abs(lhs - rhs)
         magnitude = max(abs(lhs), abs(rhs))
         return diff < relative_error * magnitude
     else:
-        if decimal_places is None:
-            decimal_places = 4
-        eps = 10**(-decimal_places)
-        return abs(lhs - rhs) < eps
+        if absolute_error is None:
+            absolute_error = 10**(-4)
+        return abs(lhs - rhs) < absolute_error
 
 
 # TODO(ignat): move it to arcadia_interop.

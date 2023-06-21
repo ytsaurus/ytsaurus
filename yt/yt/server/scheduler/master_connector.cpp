@@ -35,14 +35,18 @@
 #include <yt/yt/client/security_client/acl.h>
 
 #include <yt/yt/client/api/transaction.h>
+#include <yt/yt/client/api/operation_archive_schema.h>
+
+#include <yt/yt/client/table_client/row_buffer.h>
+
+#include <yt/yt/core/actions/cancelable_context.h>
+#include <yt/yt/core/actions/new_with_offloaded_dtor.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/misc/numeric_helpers.h>
 
 #include <yt/yt/core/utilex/random.h>
-
-#include <yt/yt/core/actions/cancelable_context.h>
 
 namespace NYT::NScheduler {
 
@@ -213,6 +217,7 @@ public:
                                 });
                         })
                         .Item("acl").Value(MakeOperationArtifactAcl(operation->GetRuntimeParameters()->Acl))
+                        .Item("has_secure_vault").Value(static_cast<bool>(operation->GetSecureVault()))
                     .EndAttributes()
                     .BeginMap()
                         .Item("jobs").BeginAttributes()
@@ -237,6 +242,8 @@ public:
 
 
             if (operation->GetSecureVault()) {
+                MaybeDelay(Config_->TestingOptions->SecureVaultCreationDelay);
+
                 auto batchReq = StartObjectBatchRequest();
 
                 // Create secure vault.
@@ -269,6 +276,62 @@ public:
             operationId);
     }
 
+    bool TryReportOperationHeavyAttributesInArchive(const TOperationPtr& operation)
+    {
+        const auto& initializationAttributes = operation->ControllerAttributes().InitializeAttributes;
+
+        if (!initializationAttributes) {
+            return false;
+        }
+
+        const auto& fullSpec = initializationAttributes->FullSpec;
+        const auto& unrecognizedSpec = initializationAttributes->UnrecognizedSpec;
+
+        auto operationId = operation->GetId();
+
+        const auto& client = Bootstrap_->GetClient();
+        auto transaction = WaitFor(client->StartTransaction(ETransactionType::Tablet, TTransactionStartOptions{}))
+           .ValueOrThrow();
+
+        YT_LOG_DEBUG("Operation heavy attributes report transaction started (TransactionId: %v, OperationId: %v)",
+           transaction->GetId(),
+           operationId);
+
+        TOrderedByIdTableDescriptor tableDescriptor;
+        TUnversionedRowBuilder builder;
+        builder.AddValue(MakeUnversionedUint64Value(operationId.Parts64[0], tableDescriptor.Index.IdHi));
+        builder.AddValue(MakeUnversionedUint64Value(operationId.Parts64[1], tableDescriptor.Index.IdLo));
+        builder.AddValue(MakeUnversionedAnyValue(fullSpec.ToString(), tableDescriptor.Index.FullSpec));
+        builder.AddValue(MakeUnversionedAnyValue(unrecognizedSpec.ToString(), tableDescriptor.Index.UnrecognizedSpec));
+
+        auto rowBuffer = New<TRowBuffer>();
+        auto row = rowBuffer->CaptureRow(builder.GetRow());
+        i64 orderedByIdRowsDataWeight = GetDataWeight(row);
+
+        transaction->WriteRows(
+            GetOperationsArchiveOrderedByIdPath(),
+            tableDescriptor.NameTable,
+            MakeSharedRange(TCompactVector<TUnversionedRow, 1>{1, row}, std::move(rowBuffer)));
+
+        auto error = WaitFor(transaction->Commit()
+            .ToUncancelable()
+            .WithTimeout(Config_->OperationHeavyAttributesArchivationTimeout));
+
+        if (!error.IsOK()) {
+            YT_LOG_WARNING(
+                error,
+                "Operation heavy attributes report in archive failed (TransactionId: %v, OperationId: %v)",
+                transaction->GetId(),
+                operationId);
+        } else {
+            YT_LOG_DEBUG("Operation heavy attributes reported successfully (TransactionId: %v, DataWeight: %v, OperationId: %v)",
+                transaction->GetId(),
+                orderedByIdRowsDataWeight,
+                operationId);
+        }
+        return error.IsOK();
+    }
+
     TFuture<void> CreateOperationNode(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -292,8 +355,13 @@ public:
 
         auto batchReq = StartObjectBatchRequest();
 
+        bool heavyAttributesArchived = false;
+        if (Config_->EnableOperationHeavyAttributesArchivation && DoesOperationsArchiveExist()) {
+            heavyAttributesArchived = TryReportOperationHeavyAttributesInArchive(operation);
+        }
+
         auto attributes = BuildAttributeDictionaryFluently()
-            .Do(BIND(&BuildFullOperationAttributes, operation, /*includeOperationId*/ true))
+            .Do(BIND(&BuildFullOperationAttributes, operation, /*includeOperationId*/ true, /*includeHeavyAttributes*/ !heavyAttributesArchived))
             .Item("brief_spec").Value(operation->BriefSpecString())
             .Finish();
 
@@ -601,6 +669,8 @@ private:
 
     TEnumIndexedVector<ESchedulerAlertType, TError> Alerts_;
 
+    std::optional<bool> ArchiveExists_;
+
     struct TOperationNodeUpdate
     {
         explicit TOperationNodeUpdate(TOperationPtr operation)
@@ -734,6 +804,14 @@ private:
 
         Disconnect(TError("Lock transaction aborted")
             << error);
+    }
+
+    bool DoesOperationsArchiveExist()
+    {
+        if (!ArchiveExists_) {
+            ArchiveExists_ = Bootstrap_->GetClient()->DoesOperationsArchiveExist();
+        }
+        return *ArchiveExists_;
     }
 
 
@@ -944,15 +1022,21 @@ private:
             TOperationId OperationId;
         };
 
-        std::vector<TOperationPtr> ParseOperationsBatch(
+        struct TProcessedOperationsBatch final
+        {
+            std::vector<TOperationPtr> Operations;
+            std::vector<TOperationId> IncompleteOperationIds;
+        };
+
+        TProcessedOperationsBatch ProcessOperationsBatch(
             const std::vector<TOperationDataToParse>& rspValuesChunk,
             const int parseOperationAttributesBatchSize,
             const bool skipOperationsWithMalformedSpecDuringRevival,
             const TSerializableAccessControlList& operationBaseAcl,
             const IInvokerPtr& cancelableOperationInvoker)
         {
-            std::vector<TOperationPtr> result;
-            result.reserve(parseOperationAttributesBatchSize);
+            TProcessedOperationsBatch result;
+            result.Operations.reserve(parseOperationAttributesBatchSize);
 
             for (const auto& rspValues : rspValuesChunk) {
                 auto attributesNode = ConvertToAttributes(rspValues.AttributesYson);
@@ -972,6 +1056,10 @@ private:
                             secureVaultNode->GetType(),
                             ENodeType::Map);
                     }
+                } else if (attributesNode->Get<bool>("has_secure_vault", false)) {
+                    YT_LOG_INFO("Operation secure vault is missing; operation skipped (OperationId: %v)", rspValues.OperationId);
+                    result.IncompleteOperationIds.push_back(rspValues.OperationId);
+                    continue;
                 }
 
                 try {
@@ -985,7 +1073,7 @@ private:
                         secureVault,
                         operationBaseAcl,
                         cancelableOperationInvoker);
-                    result.push_back(operation);
+                    result.Operations.push_back(operation);
                 } catch (const std::exception& ex) {
                     YT_LOG_ERROR(ex, "Error creating operation from Cypress node (OperationId: %v)",
                         rspValues.OperationId);
@@ -1024,8 +1112,11 @@ private:
                 "registration_index",
                 "alerts",
                 "provided_spec",
+                "has_secure_vault",
             };
             const int operationsCount = static_cast<int>(OperationIds_.size());
+
+            std::vector<TOperationId> operationIdsToRemove;
 
             YT_LOG_INFO("Fetching attributes and secure vaults for unfinished operations (UnfinishedOperationCount: %v)",
                 operationsCount);
@@ -1077,13 +1168,13 @@ private:
             {
                 const auto chunkSize = Owner_->Config_->ParseOperationAttributesBatchSize;
 
-                std::vector<TFuture<std::vector<TOperationPtr>>> futures;
+                std::vector<TFuture<TProcessedOperationsBatch>> futures;
                 futures.reserve(RoundUp(operationsCount, chunkSize));
 
                 for (auto startIndex = 0; startIndex < operationsCount; startIndex += chunkSize) {
-                    std::vector<TOperationDataToParse> operationsDataToParseBatch;
+                    std::vector<TOperationDataToParse> operationsDataToProcessBatch;
 
-                    operationsDataToParseBatch.reserve(chunkSize);
+                    operationsDataToProcessBatch.reserve(chunkSize);
                     for (auto index = startIndex; index < std::min(startIndex + chunkSize, operationsCount); ++index) {
                         const auto& operationId = OperationIds_[index];
 
@@ -1110,13 +1201,13 @@ private:
                             secureVaultYson = TYsonString(secureVaultRspOrError.Value()->value());
                         }
 
-                        operationsDataToParseBatch.push_back({std::move(atttibutesNodeStr), std::move(secureVaultYson), operationId});
+                        operationsDataToProcessBatch.push_back({std::move(atttibutesNodeStr), std::move(secureVaultYson), operationId});
                     }
 
                     futures.push_back(BIND(
-                            &TRegistrationPipeline::ParseOperationsBatch,
+                            &TRegistrationPipeline::ProcessOperationsBatch,
                             MakeStrong(this),
-                            std::move(operationsDataToParseBatch),
+                            std::move(operationsDataToProcessBatch),
                             chunkSize,
                             Owner_->Config_->SkipOperationsWithMalformedSpecDuringRevival,
                             Owner_->Bootstrap_->GetScheduler()->GetOperationBaseAcl(),
@@ -1131,9 +1222,12 @@ private:
                 Result_.Operations.reserve(OperationIds_.size());
                 auto result = WaitFor(AllSucceeded(futures)).ValueOrThrow();
 
-                for (auto& chunk : result) {
-                    for (auto& operation : chunk) {
+                for (auto& processedBatch : result) {
+                    for (auto& operation : processedBatch.Operations) {
                         Result_.Operations.push_back(std::move(operation));
+                    }
+                    for (auto operationId : processedBatch.IncompleteOperationIds) {
+                        operationIdsToRemove.push_back(operationId);
                     }
                 }
             }
@@ -1157,6 +1251,9 @@ private:
                     // We should sort operation by start time to respect pending operation queues.
                     return lhs->GetStartTime() < rhs->GetStartTime();
                 });
+
+            auto operationsCleaner = Owner_->Bootstrap_->GetScheduler()->GetOperationsCleaner();
+            operationsCleaner->SubmitForRemoval(std::move(operationIdsToRemove));
 
             YT_LOG_INFO("Operation objects created from attributes");
         }
@@ -1206,7 +1303,8 @@ private:
                     EPermissionSet(EPermission::Read | EPermission::Manage));
             }
 
-            auto operation = New<TOperation>(
+            auto operation = NewWithOffloadedDtor<TOperation>(
+                Owner_->Bootstrap_->GetScheduler()->GetBackgroundInvoker(),
                 operationId,
                 operationType,
                 attributes.Get<TMutationId>("mutation_id"),
@@ -1358,7 +1456,7 @@ private:
         }
     };
 
-    void GetTransactionsAndRevivalDiscriptor(const TOperationPtr& operation, IAttributeDictionaryPtr attributes)
+    void GetTransactionsAndRevivalDescriptor(const TOperationPtr& operation, IAttributeDictionaryPtr attributes)
     {
         auto operationId = operation->GetId();
         auto attachTransaction = [&] (TTransactionId transactionId, bool ping, const TString& name = TString()) -> ITransactionPtr {
@@ -1509,7 +1607,7 @@ private:
                         << ex;
                 }
                 futures.push_back(
-                    BIND(&TImpl::GetTransactionsAndRevivalDiscriptor, MakeStrong(this))
+                    BIND(&TImpl::GetTransactionsAndRevivalDescriptor, MakeStrong(this))
                         .AsyncVia(GetCancelableControlInvoker(EControlQueue::MasterConnector))
                         .Run(operation, attributes)
                 );
@@ -1794,6 +1892,13 @@ private:
                 auto req = multisetReq->add_subrequests();
                 req->set_attribute("alerts");
                 req->set_value(ConvertToYsonStringNestingLimited(operation->BuildAlertsString()).ToString());
+            }
+
+            // Set slot index per pool tree.
+            {
+                auto req = multisetReq->add_subrequests();
+                req->set_attribute("slot_index_per_pool_tree");
+                req->set_value(ConvertToYsonStringNestingLimited(operation->GetSlotIndices()).ToString());
             }
 
             // Set runtime parameters.

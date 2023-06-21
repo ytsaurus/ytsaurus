@@ -1751,7 +1751,7 @@ private:
                 NTransactionSupervisor::TTransactionAbortOptions options{
                     .Force = true
                 };
-                transactionManager->AbortTransaction(transaction, options);
+                transactionManager->AbortMasterTransaction(transaction, options);
             }
 
             UpdateNodeCounters(node, -1);
@@ -1882,6 +1882,9 @@ private:
         request.set_exec_node_is_not_data_node(originalRequest->exec_node_is_not_data_node());
 
         request.set_chunk_locations_supported(originalRequest->chunk_locations_supported());
+
+        // COMPAT(kvk1920)
+        request.set_location_directory_supported(originalRequest->location_directory_supported());
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToSecondaryMasters(request);

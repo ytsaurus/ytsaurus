@@ -189,6 +189,26 @@ class TestReplicatedDynamicTablesBase(DynamicTablesBase):
         except WaitFailed:
             return True
 
+    def _create_hunk_storage(self, name):
+        create("hunk_storage", name, attributes={
+            "store_rotation_period": 10000,
+            "store_removal_grace_period": 10000,
+        })
+
+    def _get_hunk_table_schema(self, schema, max_inline_hunk_size):
+        new_schema = deepcopy(schema)
+        new_schema[1]["max_inline_hunk_size"] = max_inline_hunk_size
+        return new_schema
+
+    def _get_active_store_id(self, hunk_storage, tablet_index=0):
+        tablets = get("{}/@tablets".format(hunk_storage))
+        tablet_id = tablets[tablet_index]["tablet_id"]
+        wait(lambda: exists("//sys/tablets/{}/orchid/active_store_id".format(tablet_id)))
+        return get("//sys/tablets/{}/orchid/active_store_id".format(tablet_id))
+
+    def _get_store_chunk_ids(self, path):
+        chunk_ids = get(path + "/@chunk_ids")
+        return [chunk_id for chunk_id in chunk_ids if get("#{}/@chunk_type".format(chunk_id)) == "table"]
 
 ##################################################################
 
@@ -468,6 +488,36 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         wait(lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp0) == [replica_id])
         wait(lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp1) == [replica_id])
 
+    @authors("ponasenko-rs")
+    @pytest.mark.parametrize("replica_ordering", ["sorted", "ordered"])
+    def test_incompatible_orderings(self, replica_ordering):
+        self._create_cells()
+        if replica_ordering == "sorted":
+            replicated_table_schema, replica_schema = self.SIMPLE_SCHEMA_ORDERED, self.SIMPLE_SCHEMA_SORTED
+        else:
+            replicated_table_schema, replica_schema = self.SIMPLE_SCHEMA_SORTED, self.SIMPLE_SCHEMA_ORDERED
+
+        self._create_replicated_table("//tmp/t", schema=replicated_table_schema)
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": "async"})
+        self._create_replica_table("//tmp/r", replica_id, schema=replica_schema)
+
+        sync_enable_table_replica(replica_id)
+
+        insert_rows("//tmp/t", [{"key": 1, "value1": "test", "value2": 123}], require_sync_replica=False)
+
+        def _check():
+            tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+            orchid = self._find_tablet_orchid(get_tablet_leader_address(tablet_id), tablet_id)
+            errors = orchid["replication_errors"]
+
+            if len(errors) == 0:
+                return False
+
+            message = list(errors.values())[0]["message"]
+            return message.startswith("Replicated table and replica table should be either both sorted or both ordered")
+
+        wait(_check)
+
     @authors("gridem")
     def test_in_sync_replicas_disabled(self):
         self._create_cells()
@@ -600,15 +650,24 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         delete_rows("//tmp/t", [{"key": 1}], require_sync_replica=False)
         wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [])
 
-    @authors("aozeritsky")
+    @authors("aozeritsky", "aleksandra-zh")
     @pytest.mark.parametrize("preserve_tablet_index", [False, True])
-    def test_async_replication_ordered(self, preserve_tablet_index):
+    @pytest.mark.parametrize("use_hunks", [False, True])
+    def test_async_replication_ordered(self, preserve_tablet_index, use_hunks):
         self._create_cells()
+        schema = self._get_hunk_table_schema(self.SIMPLE_SCHEMA_ORDERED, 1)
         self._create_replicated_table(
             "//tmp/t",
-            self.SIMPLE_SCHEMA_ORDERED,
+            schema,
             preserve_tablet_index=preserve_tablet_index,
+            min_replication_log_ttl=30000
         )
+
+        if use_hunks:
+            self._create_hunk_storage("//tmp/h")
+            set("//tmp/t/@hunk_storage_node", "//tmp/h")
+            sync_mount_table("//tmp/h")
+
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         self._create_replica_table("//tmp/r", replica_id, self.SIMPLE_SCHEMA_ORDERED)
 
@@ -619,6 +678,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             [{"key": 1, "value1": "test", "value2": 123}],
             require_sync_replica=False,
         )
+
         wait(
             lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver)
             == [
@@ -655,6 +715,25 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
                 "value2": 456,
             }
         )
+
+        # TODO(aleksandra-zh, gritukan): fix multicell
+        if use_hunks and not self.is_multicell():
+            set("//sys/cluster_nodes/@config", {"%true": {
+                "tablet_node": {"hunk_lock_manager": {"hunk_store_extra_lifetime": 123, "unlock_check_period": 127}}
+            }})
+
+            sync_unmount_table("//tmp/t")
+            sync_mount_table("//tmp/t")
+
+            store_chunk_ids = self._get_store_chunk_ids("//tmp/t")
+            assert len(store_chunk_ids) == 1
+
+            hunk_chunk_refs = get("#{}/@hunk_chunk_refs".format(store_chunk_ids[0]))
+            assert len(hunk_chunk_refs) == 1
+            assert hunk_chunk_refs[0]["hunk_count"] == 2
+
+            sync_unmount_table("//tmp/t")
+            sync_unmount_table("//tmp/h")
 
     @authors("aozeritsky")
     @pytest.mark.parametrize("mode", ["async", "sync"])
@@ -928,11 +1007,18 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         with pytest.raises(YtError):
             commit_transaction(tx2)
 
-    @authors("aozeritsky")
+    @authors("aozeritsky", "aleksandra-zh")
     @pytest.mark.parametrize("commit_ordering", ["weak", "strong"])
-    def test_sync_replication_ordered(self, commit_ordering):
+    @pytest.mark.parametrize("use_hunks", [False, True])
+    def test_sync_replication_ordered(self, commit_ordering, use_hunks):
         self._create_cells()
         self._create_replicated_table("//tmp/t", self.SIMPLE_SCHEMA_ORDERED)
+
+        if use_hunks:
+            self._create_hunk_storage("//tmp/h")
+            set("//tmp/t/@hunk_storage_node", "//tmp/h")
+            sync_mount_table("//tmp/h")
+
         replica_id1 = create_table_replica(
             "//tmp/t",
             self.REPLICA_CLUSTER_NAME,
@@ -1059,6 +1145,10 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         sync_alter_table_replica_mode(replica_id1, "sync")
 
         _do()
+
+        if use_hunks:
+            sync_unmount_table("//tmp/t")
+            sync_unmount_table("//tmp/h")
 
     @authors("aozeritsky")
     def test_replication_unversioned(self):
@@ -2724,8 +2814,9 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         sync_enable_table_replica(replica2)
 
         set("//tmp/t/@replicated_table_options/preferred_sync_replica_clusters", [self.REPLICA_CLUSTER_NAME])
-        wait(lambda: get("#{}/@mode".format(replica1)) == "async")
-        assert get("#{}/@mode".format(replica2)) == "sync"
+        wait(lambda:
+             get("#{}/@mode".format(replica1)) == "async" and
+             get("#{}/@mode".format(replica2)) == "sync")
 
     @authors("akozhikhov")
     def test_forbid_write_if_not_in_sync(self):

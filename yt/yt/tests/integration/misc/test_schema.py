@@ -1497,11 +1497,26 @@ class TestSchemaDeduplication(YTEnvSetup):
         assert get("//tmp/table2/@schema_duplicate_count") == 2
         assert get("//tmp/table3/@schema_duplicate_count") == 2
 
+    @authors("h0pless")
+    def test_alter_by_schema_id(self):
+        create("table", "//tmp/schema_holder", attributes={"schema": self._get_schema(True)})
+        create("table", "//tmp/table", attributes={"schema": self._get_schema(False)})
+
+        schema_id = get("//tmp/schema_holder/@schema_id")
+        alter_table("//tmp/table", schema_id=schema_id)
+
+        assert get("//tmp/table/@schema_id") == schema_id
+        assert get("//tmp/table/@schema") == get("//tmp/schema_holder/@schema")
+
+
+class TestSchemaDeduplicationRpcProxy(TestSchemaDeduplication):
+    NUM_RPC_PROXIES = 1
+
 
 class TestSchemaObjects(TestSchemaDeduplication):
     NUM_SECONDARY_MASTER_CELLS = 2
 
-    @authors("shakurov")
+    @authors("shakurov", "h0pless")
     def test_schema_map(self):
         create("table", "//tmp/empty_schema_holder")
         empty_schema_0_id = get("//tmp/empty_schema_holder/@schema_id")
@@ -1514,9 +1529,9 @@ class TestSchemaObjects(TestSchemaDeduplication):
         create("table", "//tmp/p2/empty_schema_holder")
         empty_schema_2_id = get("//tmp/p2/empty_schema_holder/@schema_id")
 
-        assert empty_schema_0_id != empty_schema_1_id
-        assert empty_schema_0_id != empty_schema_2_id
-        assert empty_schema_1_id != empty_schema_2_id
+        assert empty_schema_0_id == empty_schema_1_id
+        assert empty_schema_0_id == empty_schema_2_id
+        assert empty_schema_1_id == empty_schema_2_id
 
         create("table", "//tmp/schema_holder1", attributes={"schema": self._get_schema(True)})
         create("table", "//tmp/schema_holder2", attributes={"schema": self._get_schema(False)})
@@ -1526,11 +1541,9 @@ class TestSchemaObjects(TestSchemaDeduplication):
 
         expected_schemas = {
             empty_schema_0_id,
-            empty_schema_1_id,
-            empty_schema_2_id,
             schema1_id,
             schema2_id}
-        assert len(expected_schemas) == 5  # Validate there're no duplicates.
+        assert len(expected_schemas) == 3  # Validate there're no duplicates.
         actual_schemas = {schema_id for schema_id in ls("//sys/master_table_schemas")}
         for expected_schema_id in expected_schemas:
             assert expected_schema_id in actual_schemas
@@ -1540,14 +1553,12 @@ class TestSchemaObjects(TestSchemaDeduplication):
 
         expected_schemas = {
             empty_schema_0_id,
-            empty_schema_1_id,
-            empty_schema_2_id,
             schema1_id}
         actual_schemas = {schema_id for schema_id in ls("//sys/master_table_schemas")}
         for expected_schema_id in expected_schemas:
             assert expected_schema_id in actual_schemas
 
-    @authors("shakurov")
+    @authors("shakurov", "h0pless")
     def test_schema_id(self):
         # @schema only.
         create("table", "//tmp/table1", attributes={"schema": self._get_schema(True)})
@@ -1590,18 +1601,18 @@ class TestSchemaObjects(TestSchemaDeduplication):
         assert get("//tmp/table2/@schema_duplicate_count") == 3
         assert get("//tmp/table3/@schema_duplicate_count") == 3
 
-    @authors("shakurov")
+    @authors("shakurov", "h0pless")
     def test_create_with_schema(self):
         create("table", "//tmp/table1", attributes={"schema": self._get_schema(True), "external_cell_tag": 11})
         table_id = get("//tmp/table1/@id")
         schema_id = get("//tmp/table1/@schema_id")
         external_schema_id = get("#" + table_id + "/@schema_id", driver=get_driver(1))
-        assert schema_id != external_schema_id
+        assert schema_id == external_schema_id
         schema = get("//tmp/table1/@schema")
         external_schema = get("#" + table_id + "/@schema", driver=get_driver(1))
         assert schema == external_schema
 
-    @authors("shakurov")
+    @authors("shakurov", "h0pless")
     def test_create_with_schema_id(self):
         # Just to have a pre-existing schema to refer to by ID.
         create("table", "//tmp/schema_holder", attributes={"schema": self._get_schema(True)})
@@ -1611,12 +1622,12 @@ class TestSchemaObjects(TestSchemaDeduplication):
         table_id = get("//tmp/table1/@id")
         assert get("//tmp/table1/@schema_id") == schema_id
         external_schema_id = get("#" + table_id + "/@schema_id", driver=get_driver(1))
-        assert schema_id != external_schema_id
+        assert schema_id == external_schema_id
         schema = get("//tmp/table1/@schema")
         external_schema = get("#" + table_id + "/@schema", driver=get_driver(1))
         assert schema == external_schema
 
-    @authors("shakurov")
+    @authors("shakurov", "h0pless")
     @pytest.mark.parametrize("cross_shard", [False, True])
     def test_copy_with_schema(self, cross_shard):
         create("table", "//tmp/table1", attributes={"schema": self._get_schema(True), "external_cell_tag": 11})
@@ -1644,18 +1655,21 @@ class TestSchemaObjects(TestSchemaDeduplication):
         assert src_schema == dst_schema
         assert src_schema == external_dst_schema
 
-        # External schema is always shared.
-        assert external_src_schema_id == external_dst_schema_id
-        # Native schemas differ when on different cellls.
+        # Native and external schemas differ when native cells are different.
         if cross_shard:
             assert src_schema_id != dst_schema_id
+            assert src_schema_id != external_dst_schema_id
+            assert dst_schema_id != external_src_schema_id
+            assert external_src_schema_id != external_dst_schema_id
         else:
             assert src_schema_id == dst_schema_id
-        # Everything else always differs.
-        assert src_schema_id != external_src_schema_id
-        assert src_schema_id != external_dst_schema_id
-        assert external_src_schema_id != dst_schema_id
-        assert dst_schema_id != external_dst_schema_id
+            assert src_schema_id == external_dst_schema_id
+            assert dst_schema_id == external_src_schema_id
+            assert external_src_schema_id == external_dst_schema_id
+
+        # External schemas alwsays have same ids as native ones.
+        assert src_schema_id == external_src_schema_id
+        assert dst_schema_id == external_dst_schema_id
 
     @authors("cookiedoth")
     def test_schema_get(self):

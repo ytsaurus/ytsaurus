@@ -59,6 +59,7 @@ constexpr auto LastMasterJobType = EJobType::ReincarnateChunk;
 DEFINE_ENUM(EJobState,
     ((Waiting)    (0))
     ((Running)    (1))
+    // COMPAT(pogorelov): Remove it after 23.1
     ((Aborting)   (2))
     // |Completed| is used as sentinel in NJobTrackerClient::HasJobFinished.
     ((Completed)  (3))

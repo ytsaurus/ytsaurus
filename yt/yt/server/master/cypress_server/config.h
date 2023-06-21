@@ -86,6 +86,8 @@ public:
     // COMPAT(kvk1920)
     bool ForbidListNodeCreation;
 
+    int MaxLocksPerTransactionSubtree;
+
     REGISTER_YSON_STRUCT(TDynamicCypressManagerConfig);
 
     static void Register(TRegistrar registrar);

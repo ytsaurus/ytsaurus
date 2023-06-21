@@ -55,6 +55,10 @@ struct ITabletSnapshotStore
         const TTabletSnapshotPtr& tabletSnapshot,
         NTransactionClient::TTimestamp timestamp) = 0;
 
+    virtual void ValidateBundleNotBanned(
+        const TTabletSnapshotPtr& tabletSnapshot,
+        const ITabletSlotPtr& slot = nullptr) = 0;
+
     //! Informs the manager that some slot now serves #tablet.
     //! It is fine to update an already registered snapshot.
     virtual void RegisterTabletSnapshot(

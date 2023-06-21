@@ -23,6 +23,25 @@ THunkStore::THunkStore(TStoreId storeId, THunkTablet* tablet)
     , LockingState_(/*objectId*/ storeId)
 { }
 
+EHunkStoreState THunkStore::GetState() const
+{
+    return State_;
+}
+
+void THunkStore::SetState(EHunkStoreState newState)
+{
+    if (State_ == EHunkStoreState::Active && newState == EHunkStoreState::Passive) {
+        Writer_->Close().Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
+            YT_LOG_WARNING_UNLESS(
+                error.IsOK(),
+                error,
+                "Failed to close journal hunk chunk writer");
+        }));
+    }
+
+    State_ = newState;
+}
+
 TFuture<std::vector<TJournalHunkDescriptor>> THunkStore::WriteHunks(std::vector<TSharedRef> payloads)
 {
     if (State_ != EHunkStoreState::Active) {

@@ -129,11 +129,11 @@ public:
         OperationNodesAndArchiveUpdateExecutor_->RemoveUpdate(operationId);
     }
 
-    TFuture<void> UpdateInitializedOperationNode(TOperationId operationId)
+    TFuture<void> UpdateInitializedOperationNode(TOperationId operationId, bool isCleanOperationStart)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        return BIND(&TImpl::DoUpdateInitializedOperationNode, MakeStrong(this), operationId)
+        return BIND(&TImpl::DoUpdateInitializedOperationNode, MakeStrong(this), operationId, isCleanOperationStart)
             .AsyncVia(CancelableControlInvoker_)
             .Run();
     }
@@ -325,13 +325,10 @@ private:
         return Bootstrap_->GetControllerAgent()->IsConnected();
     }
 
-    // TODO: move this function and its copy from ytlib/api/native/client.cpp to common place
     bool DoesOperationsArchiveExist()
     {
         if (!ArchiveExists_) {
-            ArchiveExists_ = WaitFor(
-                Bootstrap_->GetClient()->NodeExists("//sys/operations_archive", TNodeExistsOptions()))
-                .ValueOrThrow();
+            ArchiveExists_ = Bootstrap_->GetClient()->DoesOperationsArchiveExist();
         }
         return *ArchiveExists_;
     }
@@ -530,12 +527,7 @@ private:
             channelKind,
             cellTag,
             /*stickyGroupSizeCache*/ nullptr);
-        auto batchReq = proxy.ExecuteBatch();
-
-        auto* prerequisitesExt = batchReq->Header().MutableExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
-        ToProto(prerequisitesExt->add_transactions()->mutable_transaction_id(), Bootstrap_->GetControllerAgent()->GetIncarnationId());
-
-        return batchReq;
+        return proxy.ExecuteBatch();
     }
 
     TObjectServiceProxy::TReqExecuteBatchPtr StartObjectBatchRequestWithPrerequisites(
@@ -639,7 +631,7 @@ private:
         }
     }
 
-    void DoUpdateInitializedOperationNode(TOperationId operationId)
+    void DoUpdateInitializedOperationNode(TOperationId operationId, bool isCleanOperationStart)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -656,6 +648,12 @@ private:
             auto req = TYPathProxy::Set(operationPath + "/@controller_agent_address");
             req->set_value(ConvertToYsonStringNestingLimited(GetDefaultAddress(Bootstrap_->GetLocalAddresses())).ToString());
             batchReq->AddRequest(req, "set_controller_agent_address");
+        }
+        // Initialize info about operation's failed jobs.
+        if (isCleanOperationStart) {
+            auto req = TYPathProxy::Set(operationPath + "/@has_failed_jobs");
+            req->set_value(ConvertToYsonStringNestingLimited(false).ToString());
+            batchReq->AddRequest(req, "set_has_failed_jobs");
         }
         // Update controller agent orchid, it should point to this controller agent.
         {
@@ -731,7 +729,7 @@ private:
         auto controller = operation->GetController();
 
         if (update->LivePreviewRequests.empty() &&
-            !controller->ShouldUpdateProgress())
+            !controller->ShouldUpdateProgressAttributes())
         {
             return {};
         }
@@ -750,33 +748,80 @@ private:
             return;
         }
 
-        TYsonString progress;
-        TYsonString briefProgress;
+        auto controller = operation->GetController();
+        bool shouldUpdateLightOperationAttributes = controller->ShouldUpdateLightOperationAttributes();
 
-        // Enclosing |controller| in a code block is needed to prevent lifetime prolongation due
-        // to strong pointer being kept in the stack while waiting for a batch request being invoked.
-        {
-            auto controller = operation->GetController();
-            if (!controller->HasProgress()) {
-                return;
-            }
-            controller->SetProgressUpdated();
-            progress = controller->GetProgress();
+        UpdateProgressAndLightAttributes(operationId, controller, controller->HasProgress(), shouldUpdateLightOperationAttributes);
+        if (shouldUpdateLightOperationAttributes) {
+            controller->SetLightOperationAttributesUpdated();
+        }
+    }
+
+    void UpdateProgressAndLightAttributes(
+        TOperationId operationId,
+        const IOperationControllerPtr& controller,
+        bool shouldUpdateProgress,
+        bool shouldUpdateLightOperationAttributes)
+    {
+        YT_LOG_DEBUG(
+            "Updating operation progress and failed jobs existence"
+            "(OperationId: %v, ShouldUpdateProgress: %v, ShouldUpdateLightOperationAttributes: %v)",
+            operationId,
+            shouldUpdateProgress,
+            shouldUpdateLightOperationAttributes);
+
+        auto batchReq = StartObjectBatchRequestWithPrerequisites();
+        GenerateMutationId(batchReq);
+
+        auto operationPath = GetOperationPath(operationId);
+
+        auto multisetReq = TYPathProxy::MultisetAttributes(operationPath + "/@");
+
+        bool hasSubrequests = false;
+
+        if (shouldUpdateProgress) {
+            controller->SetProgressAttributesUpdated();
+            auto progress = controller->GetProgress();
             YT_VERIFY(progress);
-            briefProgress = controller->GetBriefProgress();
+            auto briefProgress = controller->GetBriefProgress();
             YT_VERIFY(briefProgress);
+            ValidateYson(progress, GetYsonNestingLevelLimit());
+            ValidateYson(briefProgress, GetYsonNestingLevelLimit());
+
+            bool archiveUpdated = false;
+            if (Config_->EnableOperationProgressArchivation && DoesOperationsArchiveExist()) {
+                archiveUpdated = TryUpdateOperationProgressInArchive(operationId, progress, briefProgress);
+            }
+            if (!archiveUpdated) {
+                hasSubrequests = true;
+
+                auto progress_req = multisetReq->add_subrequests();
+                progress_req->set_attribute("progress");
+                progress_req->set_value(progress.ToString());
+
+                auto brief_progress_req = multisetReq->add_subrequests();
+                brief_progress_req->set_attribute("brief_progress");
+                brief_progress_req->set_value(briefProgress.ToString());
+            }
         }
 
-        ValidateYson(progress, GetYsonNestingLevelLimit());
-        ValidateYson(briefProgress, GetYsonNestingLevelLimit());
+        if (shouldUpdateLightOperationAttributes) {
+            hasSubrequests = true;
 
-        bool archiveUpdated = false;
-        if (Config_->EnableOperationProgressArchivation && DoesOperationsArchiveExist()) {
-            archiveUpdated = TryUpdateOperationProgressInArchive(operationId, progress, briefProgress);
+            bool operationHasFailedJobs = controller->GetFailedJobCount() > 0;
+            auto has_failed_jobs = multisetReq->add_subrequests();
+            has_failed_jobs->set_attribute("has_failed_jobs");
+            has_failed_jobs->set_value(ConvertToYsonStringNestingLimited(operationHasFailedJobs).ToString());
         }
-        if (!archiveUpdated) {
-            UpdateOperationProgressInCypress(operationId, progress, briefProgress);
+
+        if (hasSubrequests) {
+            batchReq->AddRequest(multisetReq, "update_op_node");
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
         }
+
+        YT_LOG_DEBUG("Operation progress and failed jobs existence updated (OperationId: %v)",
+            operationId);
     }
 
     bool TryUpdateOperationProgressInArchive(
@@ -825,38 +870,6 @@ private:
                 operationId);
         }
         return error.IsOK();
-    }
-
-    void UpdateOperationProgressInCypress(TOperationId operationId, const TYsonString& progress, const TYsonString& briefProgress)
-    {
-        YT_LOG_DEBUG("Updating operation progress in Cypress (OperationId: %v)",
-            operationId);
-
-        auto batchReq = StartObjectBatchRequestWithPrerequisites();
-        GenerateMutationId(batchReq);
-
-        auto operationPath = GetOperationPath(operationId);
-
-        auto multisetReq = TYPathProxy::MultisetAttributes(operationPath + "/@");
-
-        {
-            auto req = multisetReq->add_subrequests();
-            req->set_attribute("progress");
-            req->set_value(progress.ToString());
-        }
-
-        {
-            auto req = multisetReq->add_subrequests();
-            req->set_attribute("brief_progress");
-            req->set_value(briefProgress.ToString());
-        }
-
-        batchReq->AddRequest(multisetReq, "update_op_node");
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
-
-        YT_LOG_DEBUG("Operation progress in Cypress updated (OperationId: %v)",
-            operationId);
     }
 
     void AttachLivePreviewChunks(
@@ -1039,7 +1052,7 @@ private:
 
     TOperationSnapshot DoDownloadSnapshot(TOperationId operationId)
     {
-        auto batchReq = StartObjectBatchRequest();
+        auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
 
         {
             auto req = TYPathProxy::Get(GetSnapshotPath(operationId) + "/@version");
@@ -1540,9 +1553,9 @@ TFuture<void> TMasterConnector::FlushOperationNode(TOperationId operationId)
     return Impl_->FlushOperationNode(operationId);
 }
 
-TFuture<void> TMasterConnector::UpdateInitializedOperationNode(TOperationId operationId)
+TFuture<void> TMasterConnector::UpdateInitializedOperationNode(TOperationId operationId, bool isCleanOperationStart)
 {
-    return Impl_->UpdateInitializedOperationNode(operationId);
+    return Impl_->UpdateInitializedOperationNode(operationId, isCleanOperationStart);
 }
 
 TFuture<void> TMasterConnector::AttachToLivePreview(

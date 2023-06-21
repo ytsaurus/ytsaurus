@@ -55,7 +55,6 @@
 
 #include <yt/yt/core/profiling/public.h>
 
-#include <yt/yt/core/ytree/request_complexity_limiter.h>
 #include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/rpc/public.h>
@@ -249,6 +248,7 @@ struct TAlterTableOptions
     , public TTransactionalOptions
 {
     std::optional<NTableClient::TTableSchema> Schema;
+    std::optional<NTableClient::TMasterTableSchemaId> SchemaId;
     std::optional<bool> Dynamic;
     std::optional<NTabletClient::TTableReplicaId> UpstreamReplicaId;
     std::optional<NTableClient::ETableSchemaModification> SchemaModification;
@@ -485,6 +485,11 @@ struct TTransactionStartOptions
     //! Indicates the cells the transaction will be replicated to at the start. None by default,
     //! but usually the transaction will be able to be replicated at a later time on demand.
     std::optional<NObjectClient::TCellTagList> ReplicateToMasterCellTags;
+
+    //! Only for master transactions.
+    //! By default, all master transactions are Cypress expect for some
+    //! system ones (e.g. store flusher transactions).
+    bool StartCypressTransaction = true;
 };
 
 struct TTransactionAttachOptions
@@ -718,7 +723,6 @@ struct TGetNodeOptions
     NYTree::IAttributeDictionaryPtr Options;
     NYTree::TAttributeFilter Attributes;
     std::optional<i64> MaxSize;
-    NYTree::TReadRequestComplexity ComplexityLimits;
 };
 
 struct TSetNodeOptions
@@ -759,7 +763,6 @@ struct TListNodeOptions
 {
     NYTree::TAttributeFilter Attributes;
     std::optional<i64> MaxSize;
-    NYTree::TReadRequestComplexity ComplexityLimits;
 };
 
 struct TCreateObjectOptions
@@ -1004,7 +1007,9 @@ struct TPullConsumerOptions
 
 struct TRegisterQueueConsumerOptions
     : public TTimeoutOptions
-{ };
+{
+    std::optional<std::vector<int>> Partitions;
+};
 
 struct TUnregisterQueueConsumerOptions
     : public TTimeoutOptions
@@ -1229,6 +1234,8 @@ struct TListJobsOptions
     std::optional<bool> WithCompetitors;
     std::optional<TString> TaskName;
 
+    TDuration RunningJobsLookbehindPeriod = TDuration::Max();
+
     EJobSortField SortField = EJobSortField::None;
     EJobSortDirection SortOrder = EJobSortDirection::Ascending;
 
@@ -1240,7 +1247,6 @@ struct TListJobsOptions
     bool IncludeControllerAgent = false;
     bool IncludeArchive = false;
     EDataSource DataSource = EDataSource::Auto;
-    TDuration RunningJobsLookbehindPeriod = TDuration::Max();
 };
 
 struct TAbandonJobOptions
@@ -1370,7 +1376,7 @@ struct TJob
     NJobTrackerClient::TJobId Id;
     NJobTrackerClient::TJobId OperationId;
     std::optional<NJobTrackerClient::EJobType> Type;
-    std::optional<NJobTrackerClient::EJobState> ControllerAgentState;
+    std::optional<NJobTrackerClient::EJobState> ControllerState;
     std::optional<NJobTrackerClient::EJobState> ArchiveState;
     std::optional<TInstant> StartTime;
     std::optional<TInstant> FinishTime;
@@ -1456,6 +1462,7 @@ struct TListQueueConsumerRegistrationsResult
     NYPath::TRichYPath QueuePath;
     NYPath::TRichYPath ConsumerPath;
     bool Vital;
+    std::optional<std::vector<int>> Partitions;
 };
 
 struct TGetFileFromCacheResult

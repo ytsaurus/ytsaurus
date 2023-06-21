@@ -1,78 +1,98 @@
 #include "fls.h"
+#include "atomic_flag_spinlock.h"
 
-#include <library/cpp/yt/threading/fork_aware_spin_lock.h>
+#include <library/cpp/ytalloc/api/ytalloc.h>
 
-#include <util/system/sanitizers.h>
+namespace NYT::NConcurrency::NDetail {
 
-#include <array>
-
-namespace NYT::NConcurrency {
+using namespace NYTAlloc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
+static const int FlsMaxSize = 256;
+static std::atomic<int> FlsSize(0);
 
-constexpr int MaxFlsSize = 256;
-std::atomic<int> FlsSize;
+static std::atomic_flag FlsLock = ATOMIC_FLAG_INIT;
+static TFlsSlotDtor FlsDestructors[FlsMaxSize];
 
-NThreading::TForkAwareSpinLock FlsLock;
-std::array<TFlsSlotDtor, MaxFlsSize> FlsDtors;
+// Thread-specific storage implementation.
+// For native threads we use native TLS to store FLS.
 
-thread_local TFls* PerThreadFls =
-    [] {
-        auto* fls = new TFls();
-        NSan::MarkAsIntentionallyLeaked(fls);
-        return fls;
-    }();
-thread_local TFls* CurrentFls = PerThreadFls;
-
-int AllocateFlsSlot(TFlsSlotDtor dtor)
+int FlsAllocateSlot(TFlsSlotDtor dtor)
 {
-    auto guard = Guard(FlsLock);
+    // TODO: TForkAwareSpinLock
+    TGuard<std::atomic_flag> guard(FlsLock);
 
     int index = FlsSize++;
-    YT_VERIFY(index < MaxFlsSize);
+    YT_VERIFY(index < FlsMaxSize);
 
-    FlsDtors[index] = dtor;
+    FlsDestructors[index] = dtor;
 
     return index;
 }
 
-void DestructFlsSlot(int index, TFls::TCookie cookie)
+int FlsCountSlots()
 {
-    FlsDtors[index](cookie);
+    return FlsSize;
 }
 
-} // namespace NDetail
-
-////////////////////////////////////////////////////////////////////////////////
-
-TFls::~TFls()
+uintptr_t FlsConstruct(TFlsSlotCtor ctor)
 {
-    for (int index = 0; index < std::ssize(Slots_); ++index) {
-        if (auto cookie = Slots_[index]) {
-            NDetail::DestructFlsSlot(index, cookie);
+    TMemoryTagGuard guard(NullMemoryTag);
+    return ctor();
+}
+
+void FlsDestruct(int index, uintptr_t value)
+{
+    FlsDestructors[index](value);
+}
+
+uintptr_t& TFsdHolder::FsdAt(int index)
+{
+    if (Y_UNLIKELY(index >= std::ssize(Fsd_))) {
+        FsdResize();
+    }
+    return Fsd_[index];
+}
+
+void TFsdHolder::FsdResize()
+{
+    int oldSize = static_cast<int>(Fsd_.size());
+    int newSize = FlsCountSlots();
+
+    YT_ASSERT(newSize > oldSize);
+
+    Fsd_.resize(newSize);
+
+    for (int index = oldSize; index < newSize; ++index) {
+        Fsd_[index] = 0;
+    }
+}
+
+TFsdHolder::~TFsdHolder()
+{
+    for (int index = 0; index < std::ssize(Fsd_); ++index) {
+        const auto& slot = Fsd_[index];
+        if (slot) {
+           FlsDestruct(index, slot);
         }
     }
 }
 
-void TFls::Set(int index, TCookie cookie)
+static thread_local TFsdHolder TsdHolder;
+thread_local TFsdHolder* CurrentFsdHolder = &TsdHolder;
+
+TFsdHolder* SetCurrentFsdHolder(TFsdHolder* newFsd)
 {
-    if (Y_UNLIKELY(index >= std::ssize(Slots_))) {
-        int newSize = NDetail::FlsSize.load();
-        YT_VERIFY(index < newSize);
-        Slots_.resize(newSize);
-    }
-    Slots_[index] = cookie;
+    auto currentFsd = CurrentFsdHolder;
+    CurrentFsdHolder = newFsd ? newFsd : &TsdHolder;
+    return currentFsd != &TsdHolder ? currentFsd : nullptr;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-TFls* SwapCurrentFls(TFls* newFls)
+uintptr_t& FlsAt(int index)
 {
-    auto* oldFls = NDetail::CurrentFls == NDetail::PerThreadFls ? nullptr : NDetail::CurrentFls;
-    NDetail::CurrentFls = newFls ? newFls : NDetail::PerThreadFls;
-    return oldFls;
+    YT_ASSERT(CurrentFsdHolder);
+    return CurrentFsdHolder->FsdAt(index);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

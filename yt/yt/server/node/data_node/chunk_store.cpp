@@ -77,6 +77,15 @@ public:
         return Bootstrap_->GetMemoryUsageTracker();
     }
 
+    void CancelLocationSessions(const TChunkLocationPtr& location) override
+    {
+        auto sessionManager = Bootstrap_->GetDataNodeBootstrap()->GetSessionManager();
+
+        if (sessionManager) {
+            sessionManager->CancelLocationSessions(location);
+        }
+    }
+
 private:
     NClusterNode::IBootstrapBase* const Bootstrap_;
 };
@@ -343,13 +352,18 @@ void TChunkStore::DoRegisterExistingChunk(const IChunkPtr& chunk)
 {
     VERIFY_INVOKER_AFFINITY(chunk->GetLocation()->GetAuxPoolInvoker());
 
+    {
+        auto lockedChunkGuard = chunk->GetLocation()->TryLockChunk(chunk->GetId());
+        YT_VERIFY(lockedChunkGuard);
+        lockedChunkGuard.Release();
+    }
+
     IChunkPtr oldChunk;
     {
         auto guard = ReaderGuard(ChunkMapLock_);
         oldChunk = DoFindExistingChunk(chunk).Chunk;
     }
 
-    bool doRegister = true;
     if (oldChunk) {
         auto oldPath = oldChunk->GetLocation()->GetChunkPath(oldChunk->GetId());
         auto currentPath = chunk->GetLocation()->GetChunkPath(chunk->GetId());
@@ -372,7 +386,6 @@ void TChunkStore::DoRegisterExistingChunk(const IChunkPtr& chunk)
                     currentPath,
                     oldPath);
                 chunk->SyncRemove(true);
-                doRegister = false;
                 break;
             }
 
@@ -397,9 +410,9 @@ void TChunkStore::DoRegisterExistingChunk(const IChunkPtr& chunk)
                     longerRowCount);
                 shorterChunk->SyncRemove(true);
                 if (shorterChunk == oldChunk) {
-                    UnregisterChunk(oldChunk, false);
-                } else {
-                    doRegister = false;
+                    // But register new chunk.
+                    UnregisterChunk(oldChunk);
+                    FinishChunkRegistration(chunk);
                 }
                 break;
             }
@@ -407,24 +420,21 @@ void TChunkStore::DoRegisterExistingChunk(const IChunkPtr& chunk)
             default:
                 YT_ABORT();
         }
+    } else {
+        FinishChunkRegistration(chunk);
+    }
+}
+
+void TChunkStore::FinishChunkRegistration(const IChunkPtr& chunk)
+{
+    auto chunkEntry = BuildChunkEntry(chunk);
+
+    {
+        auto guard = WriterGuard(ChunkMapLock_);
+        ChunkMap_.emplace(chunk->GetId(), chunkEntry);
     }
 
-    if (doRegister) {
-        auto chunkEntry = BuildChunkEntry(chunk);
-
-        {
-            auto guard = WriterGuard(ChunkMapLock_);
-            ChunkMap_.emplace(chunk->GetId(), chunkEntry);
-        }
-
-        {
-            auto lockedChunkGuard = chunk->GetLocation()->TryLockChunk(chunk->GetId());
-            YT_VERIFY(lockedChunkGuard);
-            lockedChunkGuard.Release();
-        }
-
-        OnChunkRegistered(chunk);
-    }
+    OnChunkRegistered(chunk);
 }
 
 void TChunkStore::ChangeLocationMedium(const TChunkLocationPtr& location, int oldMediumIndex)
@@ -514,12 +524,14 @@ void TChunkStore::UpdateExistingChunk(const IChunkPtr& chunk)
     ChunkAdded_.Fire(chunk);
 }
 
-void TChunkStore::UnregisterChunk(const IChunkPtr& chunk, bool force)
+void TChunkStore::UnregisterChunk(const IChunkPtr& chunk)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     const auto& location = chunk->GetLocation();
-    if (!(location->IsEnabled() || force)) {
+    auto state = location->GetState();
+
+    if (!(state == ELocationState::Enabled || state == ELocationState::Disabling)) {
         return;
     }
 
@@ -611,9 +623,8 @@ TFuture<void> TChunkStore::RemoveChunk(const IChunkPtr& chunk)
         ->RegisterAction(
             BIND([=, this, this_ = MakeStrong(this)] () {
                 ChunkRemovalScheduled_.Fire(chunk);
-
-                return chunk->ScheduleRemove().Apply(
-                    BIND(&TChunkStore::UnregisterChunk, MakeStrong(this), chunk, false));
+                return chunk->ScheduleRemove()
+                    .Apply(BIND(&TChunkStore::UnregisterChunk, MakeStrong(this), chunk));
             }));
 }
 

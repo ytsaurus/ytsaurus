@@ -127,7 +127,9 @@ private:
         std::vector<TCellId> coordinators;
         if (fetchOptions.IncludeCoordinators) {
             for (const auto& [cellId, info] : replicationCard->Coordinators()) {
-                coordinators.push_back(cellId);
+                if (info.State == EShortcutState::Granted) {
+                    coordinators.push_back(cellId);
+                }
             }
             ToProto(protoReplicationCard->mutable_coordinator_cell_ids(), coordinators);
         }

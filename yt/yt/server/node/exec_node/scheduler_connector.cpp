@@ -15,9 +15,9 @@
 
 #include <yt/yt/server/lib/exec_node/config.h>
 
-#include <yt/yt/server/lib/job_agent/job_reporter.h>
-
 #include <yt/yt/server/lib/scheduler/allocation_tracker_service_proxy.h>
+
+#include <yt/yt/server/lib/misc/job_reporter.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -70,18 +70,14 @@ TSchedulerConnector::TSchedulerConnector(
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
 }
 
-void TSchedulerConnector::DoSendOutOfBandHeartbeatIfNeeded(bool force)
+void TSchedulerConnector::DoSendOutOfBandHeartbeatIfNeeded()
 {
     VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
 
     auto scheduleOutOfBandHeartbeat = [&] {
+        YT_LOG_DEBUG("Send out of band heartbeat to scheduler");
         HeartbeatExecutor_->ScheduleOutOfBand();
     };
-
-    if (force) {
-        scheduleOutOfBandHeartbeat();
-        return;
-    }
 
     const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
     auto resourceLimits = jobResourceManager->GetResourceLimits();
@@ -95,12 +91,25 @@ void TSchedulerConnector::DoSendOutOfBandHeartbeatIfNeeded(bool force)
     }
 }
 
-void TSchedulerConnector::SendOutOfBandHeartbeatIfNeeded(bool force)
+void TSchedulerConnector::SendOutOfBandHeartbeatIfNeeded()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     Bootstrap_->GetJobInvoker()->Invoke(
-        BIND(&TSchedulerConnector::DoSendOutOfBandHeartbeatIfNeeded, MakeStrong(this), force));
+        BIND(&TSchedulerConnector::DoSendOutOfBandHeartbeatIfNeeded, MakeStrong(this)));
+}
+
+void TSchedulerConnector::OnJobFinished(const TJobPtr& job)
+{
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
+
+    EnqueueFinishedJobs({job});
+
+    YT_LOG_DEBUG(
+        "Job finished, send out of band heartbeat to scheduler (JobId: %v)",
+        job->GetId());
+
+    HeartbeatExecutor_->ScheduleOutOfBand();
 }
 
 void TSchedulerConnector::OnResourcesAcquired()
@@ -116,8 +125,13 @@ void TSchedulerConnector::OnResourcesReleased(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    // Scheduler connector is subscribed to JobFinished scheduler job controller signal.
+    if (resourcesConsumerType == EResourcesConsumerType::SchedulerJob && fullyReleased) {
+        return;
+    }
+
     if (SendHeartbeatOnJobFinished_.load(std::memory_order::relaxed)) {
-        SendOutOfBandHeartbeatIfNeeded(/*force*/ resourcesConsumerType == EResourcesConsumerType::SchedulerJob && fullyReleased);
+        SendOutOfBandHeartbeatIfNeeded();
     }
 }
 
@@ -128,12 +142,51 @@ void TSchedulerConnector::SetMinSpareResources(const NScheduler::TJobResources& 
     MinSpareResources_ = minSpareResources;
 }
 
+void TSchedulerConnector::EnqueueFinishedJobs(std::vector<TJobPtr> jobs)
+{
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
+
+    for (auto& job : jobs) {
+        JobsToForcefullySend_.emplace(std::move(job));
+    }
+}
+
+void TSchedulerConnector::AddUnconfirmedJobIds(const std::vector<TJobId>& unconfirmedJobIds)
+{
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
+
+    for (auto jobId : unconfirmedJobIds) {
+        UnconfirmedJobIds_.emplace(jobId);
+    }
+}
+
+void TSchedulerConnector::RemoveSpecFetchFailedAllocations(THashMap<TAllocationId, TSpecFetchFailedAllocationInfo> allocations)
+{
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
+
+    for (auto [allocationId, _] : allocations) {
+        EraseOrCrash(SpecFetchFailedAllocations_, allocationId);
+    }
+}
+
 void TSchedulerConnector::Start()
 {
     const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
-    jobResourceManager->SubscribeResourcesAcquired(BIND(
+    jobResourceManager->SubscribeResourcesAcquired(BIND_NO_PROPAGATE(
         &TSchedulerConnector::OnResourcesAcquired,
         MakeWeak(this)));
+
+    const auto& jobController = Bootstrap_->GetJobController();
+
+    jobController->SubscribeJobFinished(BIND_NO_PROPAGATE(
+            &TSchedulerConnector::OnJobFinished,
+            MakeWeak(this))
+        .Via(Bootstrap_->GetJobInvoker()));
+
+    jobController->SubscribeJobRegistrationFailed(BIND_NO_PROPAGATE(
+            &TSchedulerConnector::OnJobRegistrationFailed,
+            MakeWeak(this))
+        .Via(Bootstrap_->GetJobInvoker()));
 
     HeartbeatExecutor_->Start();
 }
@@ -156,6 +209,9 @@ void TSchedulerConnector::OnDynamicConfigChanged(
             CurrentConfig_ = StaticConfig_;
             SendHeartbeatOnJobFinished_.store(true, std::memory_order::relaxed);
         }
+        YT_LOG_DEBUG(
+            "Set new scheduler heartbeat period (NewPeriod: %v)",
+            CurrentConfig_->HeartbeatPeriod);
         HeartbeatExecutor_->SetPeriod(CurrentConfig_->HeartbeatPeriod);
     }));
 }
@@ -171,14 +227,8 @@ void TSchedulerConnector::DoSendHeartbeat()
     auto req = proxy.Heartbeat();
     req->SetRequestCodec(NCompression::ECodec::Lz4);
 
-    const auto& jobController = Bootstrap_->GetJobController();
-    {
-        auto error = WaitFor(jobController->PrepareSchedulerHeartbeatRequest(req));
-        YT_LOG_FATAL_IF(
-            !error.IsOK(),
-            error,
-            "Failed to prepare scheduler heartbeat");
-    }
+    auto heartbeatContext = New<TSchedulerHeartbeatContext>();
+    PrepareHeartbeatRequest(req, heartbeatContext);
 
     auto profileInterval = [&] (TInstant lastTime, NProfiling::TEventTimer& counter) {
         if (lastTime != TInstant::Zero()) {
@@ -226,14 +276,7 @@ void TSchedulerConnector::DoSendHeartbeat()
         HeartbeatInfo_.LastFullyProcessedHeartbeatTime = TInstant::Now();
     }
 
-    if (rsp->has_operation_archive_version()) {
-        Bootstrap_->GetJobReporter()->SetOperationArchiveVersion(rsp->operation_archive_version());
-    }
-
-    {
-        auto error = WaitFor(jobController->ProcessSchedulerHeartbeatResponse(rsp));
-        YT_LOG_FATAL_IF(!error.IsOK(), error, "Error while processing scheduler heartbeat response");
-    }
+    ProcessHeartbeatResponse(rsp, heartbeatContext);
 }
 
 void TSchedulerConnector::SendHeartbeat()
@@ -258,6 +301,93 @@ void TSchedulerConnector::SendHeartbeat()
     }
 
     DoSendHeartbeat();
+}
+
+void TSchedulerConnector::PrepareHeartbeatRequest(
+    const TReqHeartbeatPtr& request,
+    const TSchedulerHeartbeatContextPtr& context)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto error = WaitFor(BIND(
+            &TSchedulerConnector::DoPrepareHeartbeatRequest,
+            MakeStrong(this),
+            request,
+            context)
+        .AsyncVia(Bootstrap_->GetJobInvoker())
+        .Run());
+
+    YT_LOG_FATAL_IF(
+        !error.IsOK(),
+        error,
+        "Failed to prepare scheduler heartbeat request");
+}
+
+void TSchedulerConnector::ProcessHeartbeatResponse(
+    const TRspHeartbeatPtr& response,
+    const TSchedulerHeartbeatContextPtr& context)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto error = WaitFor(BIND(
+            &TSchedulerConnector::DoProcessHeartbeatResponse,
+            MakeStrong(this),
+            response,
+            context)
+        .AsyncVia(Bootstrap_->GetJobInvoker())
+        .Run());
+
+    YT_LOG_FATAL_IF(
+        !error.IsOK(),
+        error,
+        "Error while processing scheduler heartbeat response");
+}
+
+void TSchedulerConnector::DoPrepareHeartbeatRequest(
+    const TReqHeartbeatPtr& request,
+    const TSchedulerHeartbeatContextPtr& context)
+{
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
+
+    context->JobsToForcefullySend = std::move(JobsToForcefullySend_);
+    context->UnconfirmedJobIds = std::move(UnconfirmedJobIds_);
+    context->SpecFetchFailedAllocations = SpecFetchFailedAllocations_;
+
+    const auto& jobController = Bootstrap_->GetJobController();
+    jobController->PrepareSchedulerHeartbeatRequest(request, context);
+}
+
+void TSchedulerConnector::DoProcessHeartbeatResponse(
+    const TRspHeartbeatPtr& response,
+    const TSchedulerHeartbeatContextPtr& context)
+{
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
+
+    if (response->has_operation_archive_version()) {
+        Bootstrap_->GetJobReporter()->SetOperationArchiveVersion(response->operation_archive_version());
+    }
+
+    const auto& jobController = Bootstrap_->GetJobController();
+    jobController->ProcessSchedulerHeartbeatResponse(response, context);
+
+    RemoveSpecFetchFailedAllocations(std::move(context->SpecFetchFailedAllocations));
+}
+
+void TSchedulerConnector::OnJobRegistrationFailed(
+    TAllocationId allocationId,
+    TOperationId operationId,
+    const TControllerAgentDescriptor& /*agentDescriptor*/,
+    const TError& error)
+{
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
+
+    EmplaceOrCrash(
+        SpecFetchFailedAllocations_,
+        allocationId,
+        TSpecFetchFailedAllocationInfo{
+            .OperationId = operationId,
+            .Error = error,
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

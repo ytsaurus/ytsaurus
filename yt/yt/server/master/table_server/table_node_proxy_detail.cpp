@@ -1,12 +1,13 @@
 #include "table_node_proxy_detail.h"
+
 #include "helpers.h"
+#include "master_table_schema.h"
+#include "mount_config_attributes.h"
 #include "private.h"
+#include "replicated_table_node.h"
 #include "table_collocation.h"
 #include "table_manager.h"
 #include "table_node.h"
-#include "replicated_table_node.h"
-#include "master_table_schema.h"
-#include "mount_config_attributes.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
@@ -46,6 +47,8 @@
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
+
 #include <yt/yt/ytlib/tablet_client/backup.h>
 #include <yt/yt/ytlib/tablet_client/config.h>
 
@@ -80,6 +83,7 @@ using namespace NChaosClient;
 using namespace NChunkClient;
 using namespace NChunkServer;
 using namespace NConcurrency;
+using namespace NCypressClient;
 using namespace NCypressServer;
 using namespace NHydra;
 using namespace NNodeTrackerServer;
@@ -92,8 +96,12 @@ using namespace NTabletClient;
 using namespace NTabletNode;
 using namespace NTabletServer;
 using namespace NTransactionServer;
-using namespace NYTree;
 using namespace NYson;
+using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = TableServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -196,6 +204,10 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetExternal(isExternal)
         .SetPresent(isDynamic && isSorted));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Tablets)
+        .SetExternal(isExternal)
+        .SetPresent(isDynamic)
+        .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletPerformanceCounters)
         .SetExternal(isExternal)
         .SetPresent(isDynamic)
         .SetOpaque(true));
@@ -487,10 +499,27 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                 .Value(trunkTable->GetLastCommitTimestamp());
             return true;
 
-        case EInternedAttributeKey::Tablets:
+        case EInternedAttributeKey::TabletPerformanceCounters:
             if (!isDynamic || isExternal) {
                 break;
             }
+            BuildYsonFluently(consumer)
+                .DoListFor(trunkTable->Tablets(), [&] (TFluentList fluent, TTabletBase* tabletBase) {
+                    auto* tablet = tabletBase->As<TTablet>();
+                    fluent
+                        .Item().BeginMap()
+                            .Item("tablet_id").Value(tablet->GetId())
+                            .Item("performance_counters").Value(tablet->PerformanceCounters())
+                        .EndMap();
+                });
+            return true;
+
+        case EInternedAttributeKey::Tablets: {
+            if (!isDynamic || isExternal) {
+                break;
+            }
+            auto addPerfCounters = Bootstrap_->GetConfigManager()->GetConfig()
+                ->TabletManager->AddPerfCountersToTabletsAttribute;
             BuildYsonFluently(consumer)
                 .DoListFor(trunkTable->Tablets(), [&] (TFluentList fluent, TTabletBase* tabletBase) {
                     auto* tablet = tabletBase->As<TTablet>();
@@ -499,7 +528,10 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                     fluent
                         .Item().BeginMap()
                             .Item("index").Value(tablet->GetIndex())
-                            .Item("performance_counters").Value(tablet->PerformanceCounters())
+                            .DoIf(addPerfCounters, [&] (TFluentMap fluent) {
+                                fluent
+                                    .Item("performance_counters").Value(tablet->PerformanceCounters());
+                            })
                             .DoIf(table->IsSorted(), [&] (TFluentMap fluent) {
                                 fluent
                                     .Item("pivot_key").Value(tablet->GetPivotKey());
@@ -533,6 +565,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                         .EndMap();
                 });
             return true;
+        }
 
         case EInternedAttributeKey::PivotKeys:
             if (!isDynamic || !isSorted || isExternal) {
@@ -1006,8 +1039,12 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
             return ComputeChunkStatistics(
                 Bootstrap_,
                 chunkLists,
-                [] (const TChunk* chunk) { return static_cast<ETableChunkFormat>(chunk->GetChunkFormat()); },
-                [] (const TChunk* chunk) { return chunk->GetChunkType() == EChunkType::Table; });
+                [] (const TChunk* chunk) -> std::optional<ETableChunkFormat> {
+                    if (chunk->GetChunkType() != EChunkType::Table) {
+                        return std::nullopt;
+                    }
+                    return static_cast<ETableChunkFormat>(chunk->GetChunkFormat());
+                });
 
         case EInternedAttributeKey::OptimizeForStatistics: {
             if (isExternal) {
@@ -1017,8 +1054,12 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
             return ComputeChunkStatistics(
                 Bootstrap_,
                 chunkLists,
-                [] (const TChunk* chunk) { return OptimizeForFromFormat(chunk->GetChunkFormat()); },
-                [] (const TChunk* chunk) { return chunk->GetChunkType() == EChunkType::Table; });
+                [] (const TChunk* chunk) -> std::optional<EOptimizeFor> {
+                    if (chunk->GetChunkType() != EChunkType::Table) {
+                        return std::nullopt;
+                    }
+                    return OptimizeForFromFormat(chunk->GetChunkFormat());
+                });
         }
 
         case EInternedAttributeKey::HunkStatistics: {
@@ -1798,6 +1839,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         std::optional<TTableReplicaId> UpstreamReplicaId;
         std::optional<ETableSchemaModification> SchemaModification;
         std::optional<TReplicationProgress> ReplicationProgress;
+        TObjectId SchemaId;
     } options;
 
     if (request->has_schema()) {
@@ -1815,9 +1857,13 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     if (request->has_replication_progress()) {
         options.ReplicationProgress = FromProto<TReplicationProgress>(request->replication_progress());
     }
+    if (request->has_schema_id()) {
+        options.SchemaId = FromProto<TObjectId>(request->schema_id());
+    }
 
-    context->SetRequestInfo("Schema: %v, Dynamic: %v, UpstreamReplicaId: %v, SchemaModification: %v, ReplicationProgress: %v",
+    context->SetRequestInfo("Schema: %v, SchemaId: %v, Dynamic: %v, UpstreamReplicaId: %v, SchemaModification: %v, ReplicationProgress: %v",
         options.Schema,
+        options.SchemaId,
         options.Dynamic,
         options.UpstreamReplicaId,
         options.SchemaModification,
@@ -1827,12 +1873,36 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     const auto& tableManager = Bootstrap_->GetTableManager();
     auto* table = LockThisImpl();
     auto dynamic = options.Dynamic.value_or(table->IsDynamic());
-    auto schema = options.Schema ? options.Schema : table->GetSchema()->AsTableSchema();
+    auto schemaReceived = options.SchemaId || options.Schema;
+
+    // If nothing was received on the native cell - nothing will be received on the external.
+    if (schemaReceived) {
+        tableManager->ValidateTableSchemaCorrespondence(
+            table->GetVersionedId(),
+            options.Schema,
+            options.SchemaId);
+    }
+
+    TTableSchemaPtr schema;
+    if (options.Schema) {
+        schema = options.Schema;
+    } else if (options.SchemaId) {
+        schema = tableManager->GetMasterTableSchemaOrThrow(options.SchemaId)->AsTableSchema();
+    } else {
+        schema = table->GetSchema()->AsTableSchema();
+    }
 
     bool isQueueObjectBefore = table->IsQueueObject();
 
     // NB: Sorted dynamic tables contain unique keys, set this for user.
-    if (dynamic && options.Schema && options.Schema->IsSorted() && !options.Schema->GetUniqueKeys()) {
+    if (dynamic && schemaReceived  && schema->IsSorted() && !schema->GetUniqueKeys()) {
+         // COMPAT(h0pless): Change this to YT_VERIFY after schema migration is complete.
+        YT_LOG_ALERT_IF(
+            !schema->IsUniqueKeys() && table->IsForeign(),
+            "Schema doesn't have UniqueKeys set to true on the external cell (TableId: %v, Schema: %v)",
+            table->GetId(),
+            schema);
+
         schema = schema->ToUniqueKeys();
     }
 
@@ -1843,12 +1913,12 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             THROW_ERROR_EXCEPTION("Cannot alter table with nontrivial schema modification");
         }
 
-        if (options.Schema && options.Schema->HasNontrivialSchemaModification()) {
+        if (schemaReceived && schema->HasNontrivialSchemaModification()) {
             THROW_ERROR_EXCEPTION("Schema modification cannot be specified as schema attribute");
         }
 
         if (table->IsPhysicallyLog()) {
-            if (options.Schema && table->GetType() != EObjectType::ReplicatedTable) {
+            if (schemaReceived && table->GetType() != EObjectType::ReplicatedTable) {
                 THROW_ERROR_EXCEPTION("Cannot change schema of a table of type %Qlv",
                     table->GetType());
             }
@@ -1866,7 +1936,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             THROW_ERROR_EXCEPTION("Cannot alter table with a hunk storage node to static");
         }
 
-        if (options.Schema && table->IsDynamic()) {
+        if (schemaReceived && table->IsDynamic()) {
             table->ValidateAllTabletsUnmounted("Cannot change table schema");
         }
 
@@ -1903,7 +1973,10 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             if (table->IsReplicated()) {
                 THROW_ERROR_EXCEPTION("Replication progress cannot be set for replicated tables");
             }
-            if (!table->GetReplicationCardId()) {
+
+            if (!table->GetReplicationCardId() &&
+                !(options.UpstreamReplicaId && IsChaosTableReplicaType(TypeFromId(*options.UpstreamReplicaId))))
+            {
                 THROW_ERROR_EXCEPTION("Replication progress can only be set for tables bound for chaos replication");
             }
 
@@ -1941,13 +2014,46 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         GetPath(),
         Transaction_);
 
-    if (options.Schema || options.SchemaModification) {
-        if (options.SchemaModification) {
-            schema = schema->ToModifiedSchema(*options.SchemaModification);
+    TMasterTableSchema* resultingSchema = nullptr;
+    if (options.SchemaModification) {
+        YT_LOG_ALERT_IF(table->IsForeign(), "Alter request with schema modification present was received by an external cell (TableId: %v)",
+            table->GetId());
+        schema = schema->ToModifiedSchema(*options.SchemaModification);
+    }
+
+    if (schemaReceived || options.SchemaModification) {
+        if (table->IsExternal()) {
+            auto masterTableSchema = table->GetSchema();
+            masterTableSchema->UnexportRef(table->GetExternalCellTag());
         }
 
-        const auto& tableManager = Bootstrap_->GetTableManager();
-        tableManager->GetOrCreateMasterTableSchema(*schema, table);
+        auto setCorrespondingTableSchema = [] (
+            TTableNode* table,
+            const TTableSchemaPtr& schema,
+            const TAlterTableOptions& options,
+            const auto& tableManager)
+        {
+            if (table->IsNative()) {
+                return tableManager->GetOrCreateNativeMasterTableSchema(*schema, table);
+            }
+
+            if (options.Schema) {
+                // COMPAT(h0pless): Remove this after schema migration is complete.
+                if (!options.SchemaId) {
+                    YT_LOG_ALERT("Created native schema on an external cell tag (TableId: %v)",
+                        table->GetId());
+                    return tableManager->GetOrCreateNativeMasterTableSchema(*schema, table);
+                }
+
+                return tableManager->CreateImportedMasterTableSchema(*schema, table, options.SchemaId);
+            }
+
+            auto* existingSchema = tableManager->GetMasterTableSchema(options.SchemaId);
+            tableManager->SetTableSchema(table, existingSchema);
+            return existingSchema;
+        };
+
+        resultingSchema = setCorrespondingTableSchema(table, schema, options, tableManager);
 
         table->SetSchemaMode(ETableSchemaMode::Strong);
     }
@@ -1969,7 +2075,37 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     }
 
     if (table->IsExternal()) {
-        ExternalizeToMasters(context, {table->GetExternalCellTag()});
+        auto replicationRequest = TTableYPathProxy::Alter(FromObjectId(GetId()));
+        if (request->has_dynamic()) {
+            replicationRequest->set_dynamic(request->dynamic());
+        }
+        if (request->has_upstream_replica_id()) {
+            replicationRequest->mutable_upstream_replica_id()->CopyFrom(request->upstream_replica_id());
+        }
+        if (request->has_replication_progress()) {
+            replicationRequest->mutable_replication_progress()->CopyFrom(request->replication_progress());
+        }
+
+        auto externalCellTag = table->GetExternalCellTag();
+        if (resultingSchema) {
+            auto schemaId = table->GetSchema()->GetId();
+            ToProto(replicationRequest->mutable_schema_id(), schemaId);
+
+            if (!resultingSchema->IsExported(externalCellTag)) {
+                ToProto(replicationRequest->mutable_schema(), resultingSchema->AsTableSchema());
+            }
+
+            resultingSchema->ExportRef(externalCellTag);
+        }
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        TCellTagList cellTag = {externalCellTag};
+        auto* transaction = GetTransaction();
+        auto externalizedTransactionId = transactionManager->ExternalizeTransaction(transaction, cellTag);
+        SetTransactionId(replicationRequest, externalizedTransactionId);
+
+        multicellManager->PostToMasters(replicationRequest, cellTag);
     }
 
     bool isQueueObjectAfter = table->IsQueueObject();

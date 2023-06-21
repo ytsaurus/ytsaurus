@@ -54,6 +54,8 @@ public:
     // There's no strong reason for this field to be persistent, but it may ease future debugging.
     DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, NativeCommitMutationRevision, NHydra::NullRevision);
 
+    DEFINE_BYVAL_RW_PROPERTY(bool, IsCypressTransaction);
+
     struct TExportEntry
     {
         NObjectServer::TObject* Object;
@@ -69,7 +71,7 @@ public:
     using TLockedNodeSet = THashSet<NCypressServer::TCypressNode*>;
     DEFINE_BYREF_RW_PROPERTY(TLockedNodeSet, LockedNodes);
     using TLockSet = THashSet<NCypressServer::TLock*>;
-    DEFINE_BYREF_RW_PROPERTY(TLockSet, Locks);
+    DEFINE_BYREF_RO_PROPERTY(TLockSet, Locks);
     using TBranchedNodeList = std::vector<NCypressServer::TCypressNode*>;
     DEFINE_BYREF_RW_PROPERTY(TBranchedNodeList, BranchedNodes);
     using TStagedNodeList = std::vector<NCypressServer::TCypressNode*>;
@@ -120,11 +122,27 @@ public:
     //! Returns |true| if this a (topmost or nested) externalized transaction.
     bool IsExternalized() const;
 
+    //! Returns total number of locks taken by transaction and it's children.
+    int GetRecursiveLockCount() const;
+
+    // COMPAT(h0pless)
+    void IncreaseRecursiveLockCount(int delta = 1);
+
+    void AttachLock(NCypressServer::TLock* lock, const NObjectServer::IObjectManagerPtr& objectManager);
+    void DetachLock(
+        NCypressServer::TLock* lock,
+        const NObjectServer::IObjectManagerPtr& objectManager,
+        bool resetLockTransaction = true);
+
     //! For externalized transactions only; returns the original transaction id.
     TTransactionId GetOriginalTransactionId() const;
 
 private:
+    void IncrementRecursiveLockCount();
+    void DecrementRecursiveLockCount();
+
     bool Upload_ = false;
+    int RecursiveLockCount_ = 0;
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TTransaction)

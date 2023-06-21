@@ -37,13 +37,12 @@ public:
     const NApi::NNative::IClientPtr& GetClient() const;
     NNodeTrackerClient::TAddressMap GetLocalAddresses() const;
     NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks() const;
-    IInvokerPtr GetControlInvoker() const;
+    const IInvokerPtr& GetControlInvoker() const;
     const IInvokerPtr& GetConnectionInvoker() const;
     const NControllerAgent::TControllerAgentPtr& GetControllerAgent() const;
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const;
     const NCoreDump::ICoreDumperPtr& GetCoreDumper() const;
     const NRpc::IAuthenticatorPtr& GetNativeAuthenticator() const;
-    const TJobTrackerPtr& GetJobTracker() const;
 
     void Run();
 
@@ -63,7 +62,6 @@ private:
     TControllerAgentPtr ControllerAgent_;
     NCoreDump::ICoreDumperPtr CoreDumper_;
     NRpc::IAuthenticatorPtr NativeAuthenticator_;
-    TJobTrackerPtr JobTracker_;
 
     void DoRun();
 };

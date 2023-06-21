@@ -1,6 +1,5 @@
 #pragma once
 
-#include "public.h"
 #include "private.h"
 
 #include <yt/yt/server/lib/job_agent/public.h>
@@ -8,7 +7,13 @@
 #include <yt/yt/server/lib/scheduler/structs.h>
 #include <yt/yt/server/lib/scheduler/job_metrics.h>
 
+#include <yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
+
 #include <yt/yt/server/lib/controller_agent/structs.h>
+
+#include <yt/yt/server/lib/misc/public.h>
+
+#include <yt/yt/library/coredumper/public.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 
@@ -73,6 +78,7 @@ void ToProto(NProto::TInitializeOperationResult* resultProto, const TOperationCo
 struct TOperationControllerPrepareResult
 {
     NYson::TYsonString Attributes;
+    bool ControlJobLifetimeAtScheduler;
 };
 
 void ToProto(NProto::TPrepareOperationResult* resultProto, const TOperationControllerPrepareResult& result);
@@ -148,6 +154,18 @@ struct TOperationSnapshot
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TAgentToSchedulerRunningJobStatistics
+{
+    TJobId JobId;
+    TDuration PreemptibleProgressTime;
+};
+
+void ToProto(
+    NScheduler::NProto::TAgentToSchedulerRunningJobStatistics* jobStatisticsProto,
+    const TAgentToSchedulerRunningJobStatistics& jobStatistics);
+
+////////////////////////////////////////////////////////////////////////////////
+
 /*!
  *  \note Thread affinity: Cancelable controller invoker
  */
@@ -156,10 +174,17 @@ struct IOperationControllerHost
 {
     virtual void Disconnect(const TError& error) = 0;
 
-    virtual void InterruptJob(TJobId jobId, EInterruptReason reason) = 0;
+    virtual void InterruptJob(TJobId jobId, EInterruptReason reason, TDuration timeout, bool viaScheduler) = 0;
     virtual void AbortJob(TJobId jobId, const TError& error) = 0;
-    virtual void FailJob(TJobId jobId) = 0;
-    virtual void ReleaseJobs(const std::vector<NJobTrackerClient::TJobToRelease>& jobsToRelease) = 0;
+    virtual void FailJob(TJobId jobId, bool viaScheduler) = 0;
+    virtual void UpdateRunningJobsStatistics(std::vector<TAgentToSchedulerRunningJobStatistics> runningJobStatisticsUpdates) = 0;
+
+    virtual void RegisterJob(TStartedJobInfo jobInfo) = 0;
+    virtual void ReviveJobs(std::vector<TStartedJobInfo> jobs) = 0;
+    virtual void ReleaseJobs(std::vector<TJobToRelease> jobs) = 0;
+    virtual void AbortJobOnNode(
+        TJobId jobId,
+        NScheduler::EAbortReason abortReason) = 0;
 
     //! Registers job for monitoring.
     //!
@@ -176,7 +201,7 @@ struct IOperationControllerHost
     virtual TFuture<void> RemoveSnapshot() = 0;
 
     virtual TFuture<void> FlushOperationNode() = 0;
-    virtual TFuture<void> UpdateInitializedOperationNode() = 0;
+    virtual TFuture<void> UpdateInitializedOperationNode(bool isCleanOperationStart) = 0;
 
     virtual TFuture<void> AttachChunkTreesToLivePreview(
         NTransactionClient::TTransactionId transactionId,
@@ -198,11 +223,13 @@ struct IOperationControllerHost
     virtual const NCoreDump::ICoreDumperPtr& GetCoreDumper() = 0;
     virtual const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() = 0;
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() = 0;
-    virtual const NJobAgent::TJobReporterPtr& GetJobReporter() = 0;
+    virtual const TJobReporterPtr& GetJobReporter() = 0;
     virtual const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() = 0;
     virtual TMemoryTagQueue* GetMemoryTagQueue() = 0;
 
     virtual TJobProfiler* GetJobProfiler() const = 0;
+
+    virtual TJobTracker* GetJobTracker() const = 0;
 
     virtual int GetOnlineExecNodeCount() = 0;
     virtual TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter, bool onlineOnly = false) = 0;
@@ -489,6 +516,10 @@ struct IOperationController
      *  \note Thread affinity: any
      */
     virtual NScheduler::TCompositePendingJobCount GetPendingJobCount() const = 0;
+    virtual i64 GetFailedJobCount() const = 0;
+
+    virtual bool ShouldUpdateLightOperationAttributes() const = 0;
+    virtual void SetLightOperationAttributesUpdated() = 0;
 
     //! Invokes controller finalization due to aborted or expired transaction.
     virtual void OnTransactionsAborted(const std::vector<NTransactionClient::TTransactionId>& transactionIds) = 0;
@@ -499,17 +530,17 @@ struct IOperationController
      */
     virtual void Cancel() = 0;
 
-    //! Marks that progress was dumped to Cypress.
+    //! Marks that progress attributes were dumped to Cypress.
     /*!
      *  \note Invoker affinity: any.
      */
-    virtual void SetProgressUpdated() = 0;
+    virtual void SetProgressAttributesUpdated() = 0;
 
-    //! Check that progress has changed and should be dumped to the Cypress.
+    //! Check that progress attributes have changed and should be dumped to the Cypress.
     /*!
      *  \note Invoker affinity: any.
      */
-    virtual bool ShouldUpdateProgress() const = 0;
+    virtual bool ShouldUpdateProgressAttributes() const = 0;
 
     //! Provides a string describing operation status and statistics.
     /*!
@@ -555,6 +586,12 @@ struct IOperationController
      *  \note Invoker affinity: cancelable Controller invoker
      */
     virtual void OnJobInfoReceivedFromNode(std::unique_ptr<TJobSummary> jobSummary) = 0;
+
+    //! Called when jobtracker desides to abort job.
+    /*!
+     *  \note Invoker affinity: cancelable Controller invoker
+     */
+    virtual void AbortJobByJobTracker(TJobId jobId, NScheduler::EAbortReason abortReason) = 0;
 
     //! Builds operation alerts.
     /*!

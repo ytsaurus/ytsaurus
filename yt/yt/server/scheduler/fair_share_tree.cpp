@@ -525,12 +525,12 @@ public:
         }
     }
 
-    void RegisterJobsFromRevivedOperation(TOperationId operationId, const std::vector<TJobPtr>& jobs) override
+    void RegisterJobsFromRevivedOperation(TOperationId operationId, std::vector<TJobPtr> jobs) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         const auto& element = FindOperationElement(operationId);
-        TreeScheduler_->RegisterJobsFromRevivedOperation(element.Get(), jobs);
+        TreeScheduler_->RegisterJobsFromRevivedOperation(element.Get(), std::move(jobs));
     }
 
     void RegisterNode(TNodeId nodeId) override
@@ -2693,6 +2693,14 @@ private:
                 fluent
                     .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "parent", element->GetParent()->GetId());
             }))
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(
+                filter,
+                "effective_fifo_pool_scheduling_order",
+                element->GetEffectiveFifoPoolSchedulingOrder())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(
+                filter,
+                "effective_use_pool_satisfaction_for_scheduling",
+                element->GetEffectiveUsePoolSatisfactionForScheduling())
             .Do(std::bind(&TFairShareTree::DoBuildElementYson, std::cref(treeSnapshot), element, std::cref(filter), std::placeholders::_1));
     }
 

@@ -784,6 +784,18 @@ type CheckPermissionResponse struct {
 	Columns []CheckPermissionResult `yson:"columns,omitempty"`
 }
 
+type DisableChunkLocationsResponse struct {
+	LocationUuids []guid.GUID
+}
+
+type DestroyChunkLocationsResponse struct {
+	LocationUuids []guid.GUID
+}
+
+type ResurrectChunkLocationsResponse struct {
+	LocationUuids []guid.GUID
+}
+
 type AdminClient interface {
 	// http:verb:"add_member"
 	// http:params:"group","member"
@@ -833,6 +845,30 @@ type AdminClient interface {
 		path ypath.YPath,
 		options *CheckPermissionOptions,
 	) (result *CheckPermissionResponse, err error)
+
+	// http:verb:"disable_chunk_locations"
+	// http:params:"node_address","location_uuids"
+	DisableChunkLocations(
+		ctx context.Context,
+		nodeAddress string,
+		locationUuids []guid.GUID,
+	) (result *DisableChunkLocationsResponse, err error)
+
+	// http:verb:"destroy_chunk_locations"
+	// http:params:"node_address","location_uuids"
+	DestroyChunkLocations(
+		ctx context.Context,
+		nodeAddress string,
+		locationUuids []guid.GUID,
+	) (result *DestroyChunkLocationsResponse, err error)
+
+	// http:verb:"resurrect_chunk_locations"
+	// http:params:"node_address","location_uuids"
+	ResurrectChunkLocations(
+		ctx context.Context,
+		nodeAddress string,
+		locationUuids []guid.GUID,
+	) (result *ResurrectChunkLocationsResponse, err error)
 }
 
 type LockNodeOptions struct {

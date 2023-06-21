@@ -53,7 +53,7 @@ TString ToString(const TEtag& Etag)
 
 void PutMethodInfoInTraceContext(const TStringBuf& methodName)
 {
-    if (auto* traceContext = TryGetCurrentTraceContext()) {
+    if (auto traceContext = GetCurrentTraceContext()) {
         auto baggage = traceContext->UnpackOrCreateBaggage();
         AddTagToBaggage(baggage, EAggregateIOTag::ApiMethod, methodName);
         AddTagToBaggage(baggage, EAggregateIOTag::ProxyKind, "http");

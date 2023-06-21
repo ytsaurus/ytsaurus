@@ -176,6 +176,21 @@ def sorted_dicts(list_of_dicts):
     return sorted(list_of_dicts, key=lambda dict: sorted(dict.items()))
 
 
+def is_subdict(lhs, rhs):
+    if isinstance(lhs, dict) != isinstance(rhs, dict):
+        return False
+
+    if isinstance(lhs, dict):
+        for key in lhs:
+            if key not in rhs:
+                return False
+            if not is_subdict(lhs[key], rhs[key]):
+                return False
+        return True
+    else:
+        return lhs == rhs
+
+
 def wait_assert(check_fn, *args, **kwargs):
     last_exception = []
     last_exc_info = []
@@ -879,6 +894,30 @@ def list_queue_consumer_registrations(queue_path=None, consumer_path=None,  **kw
     return execute_command("list_queue_consumer_registrations", kwargs, parse_yson=True)
 
 
+def pull_queue(queue_path, offset, partition_index, **kwargs):
+    kwargs["queue_path"] = queue_path
+    kwargs["offset"] = offset
+    kwargs["partition_index"] = partition_index
+    return execute_command_with_output_format("pull_queue", kwargs)
+
+
+def pull_consumer(consumer_path, queue_path, offset, partition_index, **kwargs):
+    kwargs["consumer_path"] = consumer_path
+    kwargs["queue_path"] = queue_path
+    kwargs["offset"] = offset
+    kwargs["partition_index"] = partition_index
+    return execute_command_with_output_format("pull_consumer", kwargs)
+
+
+def advance_consumer(consumer_path, queue_path, partition_index, old_offset, new_offset, **kwargs):
+    kwargs["consumer_path"] = consumer_path
+    kwargs["queue_path"] = queue_path
+    kwargs["partition_index"] = partition_index
+    kwargs["old_offset"] = old_offset
+    kwargs["new_offset"] = new_offset
+    return execute_command("advance_consumer", kwargs)
+
+
 def start_transaction(**kwargs):
     return execute_command("start_tx", kwargs, parse_yson=True)
 
@@ -1205,11 +1244,22 @@ class Operation(object):
         job_path = "//sys/scheduler/orchid/scheduler/jobs/{0}".format(job_id)
         return get(job_path + "/address", verbose=False, driver=self._driver)
 
-    def get_job_phase(self, job_id):
-        job_phase_path = "//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}/job_phase".format(
+    def get_job_node_orchid_path(self, job_id):
+        return "//sys/cluster_nodes/{0}/orchid".format(
+            self.get_node(job_id)
+        )
+
+    def get_job_node_orchid(self, job_id):
+        job_orchid_path = "//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}".format(
             self.get_node(job_id), job_id
         )
-        return get(job_phase_path, verbose=False, driver=self._driver)
+
+        return get(job_orchid_path, verbose=False, driver=self._driver)
+
+    def get_job_phase(self, job_id):
+        job_orchid = self.get_job_node_orchid(job_id)
+
+        return job_orchid["job_phase"]
 
     def ensure_running(self, timeout=10.0):
         print_debug("Waiting for operation %s to become running" % self.id)
@@ -1848,6 +1898,15 @@ def create_pool_tree(name, config=None, wait_for_orchid=True, allow_patching=Tru
     if allow_patching:
         if "min_child_heap_size" not in config:
             config["min_child_heap_size"] = 3
+        if "prioritized_regular_scheduling" not in config:
+            config["prioritized_regular_scheduling"] = {
+                "medium_priority_operation_count_limit": 3,
+                "low_priority_fallback_min_spare_job_resources": {
+                    "cpu": 1.5,
+                    "user_slots": 1,
+                    "memory": 512 * 1024 * 1024,
+                },
+            }
 
     kwargs["attributes"]["config"] = update(kwargs["attributes"].get("config", {}), config)
 
@@ -2944,7 +3003,7 @@ def create_table(path, force=None, dynamic=None, schema=None):
         kwargs.setdefault("attributes", {})["dynamic"] = dynamic
     if schema is not None:
         kwargs.setdefault("attributes", {})["schema"] = schema
-    create("table", path, **kwargs)
+    return create("table", path, **kwargs)
 
 
 def create_dynamic_table(path, schema=None, driver=None, **attributes):
@@ -3075,14 +3134,14 @@ def update_scheduler_config(path, value, wait_for_orchid=True):
 
     orchid_path = "{}/{}".format("//sys/scheduler/orchid/scheduler/config", path)
     if wait_for_orchid:
-        wait(lambda: get(orchid_path, default=None) == value)
+        wait(lambda: is_subdict(value, get(orchid_path, default=None)))
 
 
 def update_pool_tree_config_option(tree, option, value, wait_for_orchid=True):
     set("//sys/pool_trees/{}/@config/{}".format(tree, option), value)
     if wait_for_orchid:
         path = yt_scheduler_helpers.scheduler_orchid_pool_tree_config_path(tree) + "/{}".format(option)
-        wait(lambda: get(path, default=None) == value)
+        wait(lambda: is_subdict(value, get(path, default=None)))
 
 
 def update_pool_tree_config(tree, config, wait_for_orchid=True):

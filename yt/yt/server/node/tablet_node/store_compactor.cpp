@@ -731,6 +731,8 @@ private:
             ->Via(Bootstrap_->GetControlInvoker());
     }
 
+    class TOrchidServiceManager;
+
     template <typename T>
     static auto GetOrderingTuple(const T& task)
     {
@@ -780,6 +782,7 @@ private:
         // These fields are filled upon task invocation.
         TWeakPtr<TStoreCompactor> Owner;
         TAsyncSemaphoreGuard SemaphoreGuard;
+        TWeakPtr<TOrchidServiceManager> OrchidServiceManager;
 
         TTask() = delete;
         TTask(const TTask&) = delete;
@@ -807,24 +810,24 @@ private:
             , Reason(reason)
         { }
 
-        ~TTask()
-        {
-            if (auto owner = Owner.Lock()) {
-                owner->ChangeFutureEffect(TabletId, -Effect);
-            }
-        }
+        ~TTask();
 
         auto GetStoreCount()
         {
             return StoreIds.size();
         }
 
-        void Prepare(TStoreCompactor* owner, TAsyncSemaphoreGuard&& semaphoreGuard)
+        void Prepare(
+            TStoreCompactor* owner,
+            TOrchidServiceManager* orchidServiceManager,
+            TAsyncSemaphoreGuard&& semaphoreGuard)
         {
             Owner = MakeWeak(owner);
+            OrchidServiceManager = MakeWeak(orchidServiceManager);
             SemaphoreGuard = std::move(semaphoreGuard);
 
             owner->ChangeFutureEffect(TabletId, Effect);
+            orchidServiceManager->OnTaskStarted(this);
         }
 
         void StoreToStructuredLog(TFluentMap fluent)
@@ -964,7 +967,8 @@ private:
             : public TRefCounted
         {
             explicit TTaskInfo(const TTask& task)
-                : TabletId(task.TabletId)
+                : TaskId(task.TaskId)
+                , TabletId(task.TabletId)
                 , MountRevision(task.MountRevision)
                 , TablePath(task.TablePath)
                 , TabletCellBundle(task.TabletCellBundle)
@@ -978,6 +982,7 @@ private:
                 , Reason(task.Reason)
             { }
 
+            const TGuid TaskId;
             const TTabletId TabletId;
             const TRevision MountRevision;
             const TString TablePath;
@@ -1006,6 +1011,7 @@ private:
                 auto finishTime = FinishTime.load();
                 fluent.Item()
                 .BeginMap()
+                    .Item("trace_id").Value(TaskId)
                     .Item("tablet_id").Value(TabletId)
                     .Item("mount_revision").Value(MountRevision)
                     .Item("table_path").Value(TablePath)
@@ -1240,9 +1246,8 @@ private:
             ExtractHeap(tasks->begin(), tasks->begin() + *index, TTask::Comparer);
             --(*index);
             auto&& task = tasks->at(*index);
-            task->Prepare(this, std::move(semaphoreGuard));
+            task->Prepare(this, orchidServiceManager.Get(), std::move(semaphoreGuard));
             ++scheduled;
-            orchidServiceManager->OnTaskStarted(task.get());
 
             // TODO(sandello): Better ownership management.
             auto invoker = task->Invoker;
@@ -1324,6 +1329,7 @@ private:
         transactionOptions.Attributes = std::move(transactionAttributes);
         transactionOptions.CoordinatorMasterCellTag = CellTagFromId(tabletSnapshot->TabletId);
         transactionOptions.ReplicateToMasterCellTags = TCellTagList();
+        transactionOptions.StartCypressTransaction = false;
         auto transactionFuture = Bootstrap_->GetClient()->StartNativeTransaction(
             NTransactionClient::ETransactionType::Master,
             transactionOptions);
@@ -1408,12 +1414,10 @@ private:
         auto doneGuard = Finally([&] {
             ScheduleMorePartitionings();
         });
-        auto orchidManagerGuard = Finally([&] {
-            PartitioningOrchidServiceManager_->OnTaskFinished(task);
-        });
 
-        TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("StoreCompactor"));
-        auto traceId = GetCurrentTraceContext()->GetTraceId();
+        auto traceId = task->TaskId;
+        TTraceContextGuard traceContextGuard(
+            TTraceContext::NewRoot("StoreCompactor", traceId));
 
         const auto& slot = task->Slot;
         const auto& tabletManager = slot->GetTabletManager();
@@ -1597,7 +1601,7 @@ private:
                 for (const auto& chunkSpec : writer->GetWrittenChunkSpecs()) {
                     storeIdsToAdd.push_back(FromProto<TStoreId>(chunkSpec.chunk_id()));
                 }
-                tabletSnapshot->PerformanceCounters->PartitioningDataWeightCount +=
+                tabletSnapshot->PerformanceCounters->PartitioningDataWeight +=
                     writer->GetDataStatistics().data_weight();
             }
 
@@ -1780,12 +1784,10 @@ private:
         auto doneGuard = Finally([&] {
             ScheduleMoreCompactions();
         });
-        auto orchidManagerGuard = Finally([&] {
-            CompactionOrchidServiceManager_->OnTaskFinished(task);
-        });
 
-        TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("StoreCompactor"));
-        auto traceId = GetCurrentTraceContext()->GetTraceId();
+        auto traceId = task->TaskId;
+        TTraceContextGuard traceContextGuard(
+            TTraceContext::NewRoot("StoreCompactor", traceId));
 
         const auto& slot = task->Slot;
         const auto& tabletManager = slot->GetTabletManager();
@@ -1982,7 +1984,7 @@ private:
             for (const auto& chunkSpec : compactionResult.StoreWriter->GetWrittenChunkSpecs()) {
                 storeIdsToAdd.push_back(FromProto<TStoreId>(chunkSpec.chunk_id()));
             }
-            tabletSnapshot->PerformanceCounters->CompactionDataWeightCount +=
+            tabletSnapshot->PerformanceCounters->CompactionDataWeight +=
                 compactionResult.StoreWriter->GetDataStatistics().data_weight();
 
             YT_LOG_INFO("Partition compaction completed "
@@ -2290,6 +2292,17 @@ private:
             GetMasterChunkMetaExtensionTagsFilter());
     }
 };
+
+TStoreCompactor::TTask::~TTask()
+{
+    if (auto owner = Owner.Lock()) {
+        owner->ChangeFutureEffect(TabletId, -Effect);
+    }
+
+    if (auto orchidServiceManager = OrchidServiceManager.Lock()) {
+        orchidServiceManager->OnTaskFinished(this);
+    }
+}
 
 DEFINE_REFCOUNTED_TYPE(TStoreCompactor)
 

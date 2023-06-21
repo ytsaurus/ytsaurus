@@ -58,6 +58,9 @@ struct IBootstrap
 
     // Disk management.
     virtual const TLocationHealthCheckerPtr& GetLocationHealthChecker() const = 0;
+
+    // COMPAT(kvk1920)
+    virtual void SetLocationUuidsRequired(bool value) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

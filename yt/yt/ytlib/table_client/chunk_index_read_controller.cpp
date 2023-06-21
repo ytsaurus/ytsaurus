@@ -25,7 +25,7 @@ DEFINE_ENUM(EKeyRequestState,
     (Finished)
 );
 
-//////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 class THashTableChunkIndexReadController
     : public IChunkIndexReadController
@@ -40,12 +40,14 @@ public:
         const TTableSchemaPtr& tableSchema,
         TTimestamp timestamp,
         bool produceAllVersions,
+        IBlockCachePtr blockCache,
         std::optional<TChunkIndexReadControllerTestingOptions> testingOptions,
         const TLogger& logger)
         : ChunkId_(chunkId)
         , ChunkMeta_(std::move(chunkMeta))
         , Keys_(std::move(keys))
         , KeyComparer_(std::move(keyComparer))
+        , BlockCache_(std::move(blockCache))
         , GroupReorderingEnabled_(false)
         , SchemaIdMapping_(TChunkColumnMapping(tableSchema, ChunkMeta_->GetChunkSchema())
             .BuildVersionedSimpleSchemaIdMapping(columnFilter))
@@ -113,17 +115,19 @@ public:
 
         YT_VERIFY(KeyRequests_.size() == Result_.size());
 
+        BlockIndexToData_.clear();
+
         MakePlanForPendingSectors();
 
-        LogNewRequests();
+        OnRequestsGenerated();
     }
 
-    std::vector<TChunkFragmentRequest> GetFragmentRequests() override
+    TReadRequest GetReadRequest() override
     {
         YT_VERIFY(!IsFinished());
 
-        auto requests = std::move(FragmentRequests_);
-        return requests;
+        auto request = std::move(ReadRequest_);
+        return request;
     }
 
     const std::vector<TVersionedRow>& GetResult() const override
@@ -133,16 +137,19 @@ public:
         return Result_;
     }
 
-    void HandleFragmentsResponse(std::vector<TSharedRef> fragments) override
+    void HandleReadResponse(TReadResponse response) override
     {
         for (int pendingSectorIndex = 0; pendingSectorIndex < std::ssize(PendingSectorAddresses_); ++pendingSectorIndex) {
             auto address = PendingSectorAddresses_[pendingSectorIndex];
             auto descriptor = PendingSectorDescriptors_[pendingSectorIndex];
 
-            YT_VERIFY(descriptor.RequestIndex < std::ssize(fragments));
-            auto sectorData = TRef(fragments[descriptor.RequestIndex]).Slice(
-                descriptor.RequestOffset,
-                descriptor.RequestOffset + THashTableChunkIndexFormatDetail::SectorSize);
+            YT_VERIFY(descriptor.SubrequestIndex < std::ssize(response.Fragments));
+            YT_VERIFY(response.Fragments[descriptor.SubrequestIndex]);
+            YT_VERIFY(descriptor.SubrequestOffset + THashTableChunkIndexFormatDetail::SectorSize <=
+                std::ssize(response.Fragments[descriptor.SubrequestIndex]));
+            auto sectorData = TRef(response.Fragments[descriptor.SubrequestIndex]).Slice(
+                descriptor.SubrequestOffset,
+                descriptor.SubrequestOffset + THashTableChunkIndexFormatDetail::SectorSize);
 
             TChecksum expectedChecksum;
             memcpy(&expectedChecksum, sectorData.End() - sizeof(TChecksum), sizeof(TChecksum));
@@ -164,22 +171,35 @@ public:
         PendingSectorAddresses_.clear();
         PendingSectorDescriptors_.clear();
 
+        YT_VERIFY(PendingBlockIndexes_.size() == response.SystemBlocks.size());
+        for (int index = 0; index < std::ssize(PendingBlockIndexes_); ++index) {
+            auto block = std::move(response.SystemBlocks[index]);
+            YT_VERIFY(BlockCache_);
+            BlockCache_->PutBlock(
+                TBlockId(ChunkId_, PendingBlockIndexes_[index]),
+                EBlockType::HashTableChunkIndex,
+                block);
+            EmplaceOrCrash(BlockIndexToData_, PendingBlockIndexes_[index], std::move(block.Data));
+        }
+
+        PendingBlockIndexes_.clear();
+
         for (int requestIndex = 0; requestIndex < std::ssize(KeyRequests_); ++requestIndex) {
-            auto& request = KeyRequests_[requestIndex];
-            switch (request.State) {
+            auto& keyRequest = KeyRequests_[requestIndex];
+            switch (keyRequest.State) {
                 case EKeyRequestState::PendingIndexData:
-                    HandleKeyRequest(&request);
+                    HandleKeyRequest(&keyRequest);
                     break;
 
                 case EKeyRequestState::PendingRowData:
-                    YT_VERIFY(request.LastRequestIndex <= std::ssize(fragments));
-                    request.RowData.reserve(request.LastRequestIndex - request.FirstRequestIndex);
-                    for (auto index = request.FirstRequestIndex; index < request.LastRequestIndex; ++index) {
-                        YT_VERIFY(fragments[index]);
-                        request.RowData.push_back(std::move(fragments[index]));
+                    YT_VERIFY(keyRequest.LastSubrequestIndex <= std::ssize(response.Fragments));
+                    keyRequest.RowData.reserve(keyRequest.LastSubrequestIndex - keyRequest.FirstSubrequestIndex);
+                    for (auto index = keyRequest.FirstSubrequestIndex; index < keyRequest.LastSubrequestIndex; ++index) {
+                        YT_VERIFY(response.Fragments[index]);
+                        keyRequest.RowData.push_back(std::move(response.Fragments[index]));
                     }
 
-                    HandleRowData(requestIndex, &request);
+                    HandleRowData(requestIndex, &keyRequest);
 
                     break;
 
@@ -192,15 +212,16 @@ public:
         }
 
         PendingSectorAddressToData_.clear();
+        BlockIndexToData_.clear();
 
         MakePlanForPendingSectors();
 
-        LogNewRequests();
+        OnRequestsGenerated();
     }
 
     bool IsFinished() const override
     {
-        return FragmentRequests_.empty();
+        return ReadRequest_.SystemBlockIndexes.empty() && ReadRequest_.FragmentSubrequests.empty();
     }
 
 private:
@@ -234,8 +255,8 @@ private:
 
         EKeyRequestState State = EKeyRequestState::Finished;
 
-        int FirstRequestIndex = -1;
-        int LastRequestIndex = -1;
+        int FirstSubrequestIndex = -1;
+        int LastSubrequestIndex = -1;
 
         std::vector<int> GroupOffsets;
         std::vector<int> GroupIndexes;
@@ -268,8 +289,8 @@ private:
 
     struct TPendingSectorDescriptor
     {
-        int RequestIndex;
-        int RequestOffset;
+        int SubrequestIndex;
+        int SubrequestOffset;
     };
 
 
@@ -277,6 +298,7 @@ private:
     const TCachedVersionedChunkMetaPtr ChunkMeta_;
     const TSharedRange<TLegacyKey> Keys_;
     const TKeyComparer KeyComparer_;
+    const IBlockCachePtr BlockCache_;
     const bool GroupReorderingEnabled_;
     const std::vector<TColumnIdMapping> SchemaIdMapping_;
     const int GroupCount_;
@@ -290,12 +312,17 @@ private:
 
     std::vector<TKeyRequest> KeyRequests_;
 
+    // NB: These three fields are used only when no block cache is provided.
     // NB: Chunk index entry requests are grouped (and coalesced) by corresponding sector addresses.
     std::vector<TSectorAddress> PendingSectorAddresses_;
     std::vector<TPendingSectorDescriptor> PendingSectorDescriptors_;
     THashMap<TSectorAddress, TRef> PendingSectorAddressToData_;
 
-    std::vector<TChunkFragmentRequest> FragmentRequests_;
+    // NB: These two fields are used only when block cache is provided.
+    std::vector<int> PendingBlockIndexes_;
+    THashMap<int, TSharedRef> BlockIndexToData_;
+
+    TReadRequest ReadRequest_;
 
     std::vector<TVersionedRow> Result_;
 
@@ -308,13 +335,42 @@ private:
                 .SectorIndex = request->FormatDetail->GetSectorIndex(request->CurrentSlotIndex),
             };
 
-            auto sectorDataIt = PendingSectorAddressToData_.find(sectorAddress);
-            if (sectorDataIt != PendingSectorAddressToData_.end()) {
-                HandleChunkIndexSector(request, sectorDataIt->second, sectorAddress.SectorIndex);
+            if (BlockCache_) {
+                auto handleBlockData = [&] (const TSharedRef& blockData) {
+                    YT_VERIFY(blockData.Size() % THashTableChunkIndexFormatDetail::SectorSize == 0);
+                    auto sector = TRef(blockData).Slice(
+                        sectorAddress.SectorIndex * THashTableChunkIndexFormatDetail::SectorSize,
+                        (sectorAddress.SectorIndex + 1) * THashTableChunkIndexFormatDetail::SectorSize);
+                    HandleChunkIndexSector(request, sector, sectorAddress.SectorIndex);
+                };
+
+                auto it = BlockIndexToData_.find(sectorAddress.BlockIndex);
+                if (it != BlockIndexToData_.end()) {
+                    YT_VERIFY(it->second);
+                    handleBlockData(it->second);
+                } else {
+                    // NB: We simply access block cache synchronously here.
+                    // Asynchronous read may be performed on underlying reading layer.
+                    auto blockData = BlockCache_->FindBlock(
+                        TBlockId(ChunkId_, sectorAddress.BlockIndex),
+                        EBlockType::HashTableChunkIndex)
+                        .Data;
+                    if (blockData) {
+                        handleBlockData(blockData);
+                        BlockIndexToData_[sectorAddress.BlockIndex] = std::move(blockData);
+                    } else {
+                        PendingBlockIndexes_.push_back(sectorAddress.BlockIndex);
+                        break;
+                    }
+                }
             } else {
-                // TODO(akozhikhov): Use chunk index cache.
-                PendingSectorAddresses_.push_back(sectorAddress);
-                break;
+                auto sectorDataIt = PendingSectorAddressToData_.find(sectorAddress);
+                if (sectorDataIt != PendingSectorAddressToData_.end()) {
+                    HandleChunkIndexSector(request, sectorDataIt->second, sectorAddress.SectorIndex);
+                } else {
+                    PendingSectorAddresses_.push_back(sectorAddress);
+                    break;
+                }
             }
         }
     }
@@ -370,19 +426,19 @@ private:
                     }
                 }
 
-                request->FirstRequestIndex = std::ssize(FragmentRequests_);
+                request->FirstSubrequestIndex = std::ssize(ReadRequest_.FragmentSubrequests);
                 if (GroupIndexesToRead_.empty()) {
-                    request->LastRequestIndex = request->FirstRequestIndex + 1;
-                    FragmentRequests_.push_back(TChunkFragmentRequest{
+                    request->LastSubrequestIndex = request->FirstSubrequestIndex + 1;
+                    ReadRequest_.FragmentSubrequests.push_back(TChunkFragmentRequest{
                         .ChunkId = ChunkId_,
                         .Length = length,
                         .BlockIndex = blockIndex,
                         .BlockOffset = blockOffset,
                     });
                 } else {
-                    request->LastRequestIndex = request->FirstRequestIndex + std::ssize(GroupIndexesToRead_) + 1;
+                    request->LastSubrequestIndex = request->FirstSubrequestIndex + std::ssize(GroupIndexesToRead_) + 1;
 
-                    FragmentRequests_.push_back(TChunkFragmentRequest{
+                    ReadRequest_.FragmentSubrequests.push_back(TChunkFragmentRequest{
                         .ChunkId = ChunkId_,
                         .Length = groupOffsets[0],
                         .BlockIndex = blockIndex,
@@ -397,7 +453,7 @@ private:
                         auto nextGroupOffset = physicalGroupIndex + 1 == GroupCount_
                             ? static_cast<int>(length - sizeof(TChecksum))
                             : groupOffsets[physicalGroupIndex + 1];
-                        FragmentRequests_.push_back(TChunkFragmentRequest{
+                        ReadRequest_.FragmentSubrequests.push_back(TChunkFragmentRequest{
                             .ChunkId = ChunkId_,
                             .Length = nextGroupOffset - groupOffsets[physicalGroupIndex],
                             .BlockIndex = blockIndex,
@@ -451,6 +507,21 @@ private:
 
     void MakePlanForPendingSectors()
     {
+        if (BlockCache_) {
+            RequestBlocksForPendingSectors();
+        } else {
+            RequestFragmentsForPendingSectors();
+        }
+    }
+
+    void RequestBlocksForPendingSectors()
+    {
+        SortUnique(PendingBlockIndexes_);
+        ReadRequest_.SystemBlockIndexes = PendingBlockIndexes_;
+    }
+
+    void RequestFragmentsForPendingSectors()
+    {
         SortUnique(PendingSectorAddresses_);
 
         struct TPendingSectorRange
@@ -471,7 +542,7 @@ private:
 
         auto flushPendingSectorRange = [&] {
             auto sectorCount = currentSectorRange->EndSectorIndex - currentSectorRange->BeginSectorIndex;
-            FragmentRequests_.push_back(TChunkFragmentRequest{
+            ReadRequest_.FragmentSubrequests.push_back(TChunkFragmentRequest{
                 .ChunkId = ChunkId_,
                 .Length = sectorCount * THashTableChunkIndexFormatDetail::SectorSize,
                 .BlockIndex = currentSectorRange->BlockIndex,
@@ -497,10 +568,10 @@ private:
                 currentSectorRange->EndSectorIndex = sectorAddress.SectorIndex + 1;
             }
 
-            auto sectorIndexInRequest = sectorAddress.SectorIndex - currentSectorRange->BeginSectorIndex;
+            auto sectorIndexInSubrequest = sectorAddress.SectorIndex - currentSectorRange->BeginSectorIndex;
             PendingSectorDescriptors_.push_back(TPendingSectorDescriptor{
-                .RequestIndex = static_cast<int>(FragmentRequests_.size()),
-                .RequestOffset = static_cast<int>(sectorIndexInRequest * THashTableChunkIndexFormatDetail::SectorSize)
+                .SubrequestIndex = static_cast<int>(ReadRequest_.FragmentSubrequests.size()),
+                .SubrequestOffset = static_cast<int>(sectorIndexInSubrequest * THashTableChunkIndexFormatDetail::SectorSize)
             });
         }
 
@@ -509,22 +580,24 @@ private:
         }
     }
 
-    void LogNewRequests() const
+    void OnRequestsGenerated() const
     {
-        if (FragmentRequests_.empty()) {
+        if (IsFinished()) {
+            // Read session is finished now.
             YT_LOG_DEBUG("Hash table chunk index read contoller has no new requests");
             return;
         }
 
-        auto totalRequestSize = 0;
-        for (const auto& request : FragmentRequests_) {
-            totalRequestSize += request.Length;
+        int fragmentsSize = 0;
+        for (const auto& request : ReadRequest_.FragmentSubrequests) {
+            fragmentsSize += request.Length;
         }
 
         YT_LOG_DEBUG("Hash table chunk index read contoller generated new requests "
-            "(RequestCount: %v, RequestSize: %v, RequestedHashIndexSectorCount: %v)",
-            FragmentRequests_.size(),
-            totalRequestSize,
+            "(FragmentCount: %v, FragmentsSize: %v, SystemBlockCount: %v, RequestedHashIndexSectorCount: %v)",
+            ReadRequest_.FragmentSubrequests.size(),
+            fragmentsSize,
+            ReadRequest_.SystemBlockIndexes.size(),
             PendingSectorDescriptors_.size());
     }
 };
@@ -540,10 +613,15 @@ IChunkIndexReadControllerPtr CreateChunkIndexReadController(
     const TTableSchemaPtr& tableSchema,
     TTimestamp timestamp,
     bool produceAllVersions,
+    const IBlockCachePtr& blockCache,
     std::optional<TChunkIndexReadControllerTestingOptions> testingOptions,
     const TLogger& logger)
 {
     YT_VERIFY(chunkMeta->HashTableChunkIndexMeta());
+
+    auto actualBlockCache = blockCache->IsBlockTypeActive(EBlockType::HashTableChunkIndex)
+        ? blockCache
+        : nullptr;
 
     return New<THashTableChunkIndexReadController>(
         chunkId,
@@ -554,6 +632,7 @@ IChunkIndexReadControllerPtr CreateChunkIndexReadController(
         tableSchema,
         timestamp,
         produceAllVersions,
+        std::move(actualBlockCache),
         std::move(testingOptions),
         logger);
 }

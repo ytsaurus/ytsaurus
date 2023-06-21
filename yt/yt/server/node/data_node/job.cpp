@@ -721,7 +721,7 @@ private:
     TFuture<void> StartChunkRepairJob(
         NErasure::ICodec* codec,
         const NErasure::TPartIndexList& erasedPartIndexes,
-        const TClientChunkReadOptions& chunkReadOptions,
+        const IChunkReader::TReadBlocksOptions& readBlocksOptions,
         const std::vector<IChunkWriterPtr>& writers)
     {
         auto adaptiveRepairConfig = GetDynamicConfig()->Reader;
@@ -748,7 +748,7 @@ private:
                 erasedPartIndexes,
                 readers,
                 BIND(&TChunkRepairJob::CreateWriter, MakeStrong(this)),
-                chunkReadOptions,
+                readBlocksOptions,
                 Logger,
                 Sensors_.AdaptivelyRepairedChunksCounter);
 
@@ -792,15 +792,14 @@ private:
                 std::move(readers),
                 std::move(writers),
                 std::move(memoryManager),
-                GetNullBlockCache(),
-                chunkReadOptions);
+                readBlocksOptions);
         } else {
             return NChunkClient::RepairErasedParts(
                 codec,
                 erasedPartIndexes,
                 readers,
                 writers,
-                chunkReadOptions);
+                readBlocksOptions);
         }
     }
 
@@ -830,8 +829,10 @@ private:
             ChunkId_));
 
         // TODO(savrus): profile chunk reader statistics.
-        TClientChunkReadOptions chunkReadOptions{
-            .WorkloadDescriptor = workloadDescriptor
+        IChunkReader::TReadBlocksOptions readBlocksOptions{
+            .ClientOptions = TClientChunkReadOptions{
+                .WorkloadDescriptor = workloadDescriptor,
+            },
         };
 
         NErasure::TPartIndexList sourcePartIndexes;
@@ -859,7 +860,7 @@ private:
                     future = StartChunkRepairJob(
                         codec,
                         erasedPartIndexes,
-                        chunkReadOptions,
+                        readBlocksOptions,
                         writers);
                     break;
                 }
@@ -877,7 +878,7 @@ private:
                         erasedPartIndexes,
                         readers,
                         writers,
-                        chunkReadOptions,
+                        readBlocksOptions.ClientOptions,
                         Logger);
                     break;
                 }
@@ -994,8 +995,10 @@ private:
                 sourceReplicas);
 
             // TODO(savrus): profile chunk reader statistics.
-            TClientChunkReadOptions chunkReadOptions{
-                .WorkloadDescriptor = workloadDescriptor
+            IChunkReader::TReadBlocksOptions readBlocksOptions{
+                .ClientOptions = TClientChunkReadOptions{
+                    .WorkloadDescriptor = workloadDescriptor,
+                },
             };
 
             while (currentRowCount < sealRowCount) {
@@ -1004,7 +1007,7 @@ private:
                     sealRowCount - 1);
 
                 auto asyncBlocks = reader->ReadBlocks(
-                    chunkReadOptions,
+                    readBlocksOptions,
                     currentRowCount,
                     sealRowCount - currentRowCount);
                 auto blocks = WaitFor(asyncBlocks)
@@ -1121,7 +1124,7 @@ private:
         TDeferredChunkMetaPtr Meta;
         TChunkId ChunkId;
         int BlockCount;
-        TClientChunkReadOptions Options;
+        NChunkClient::IChunkReader::TReadBlocksOptions Options;
         TMergeChunkInfo MergeChunkInfo;
     };
     std::vector<TChunkReadContext> InputChunkReadContexts_;
@@ -1212,7 +1215,6 @@ private:
                 /*chunkMeta*/ nullptr,
                 /*chunkTimestamp*/ NullTimestamp,
                 /*lookupHashTable*/ nullptr,
-                /*performanceCounters*/ nullptr,
                 /*keyComparer*/ TKeyComparer{},
                 /*virtualValueDirectory*/ nullptr,
                 /*tableSchema*/ Schema_);
@@ -1224,7 +1226,7 @@ private:
                 TChunkReaderOptions::GetDefault(),
                 context.Reader,
                 New<TNameTable>(),
-                context.Options,
+                context.Options.ClientOptions,
                 /*keyColumns*/ {},
                 /*omittedInaccessibleColumns*/ {},
                 NTableClient::TColumnFilter(),
@@ -1308,10 +1310,10 @@ private:
         workloadDescriptor.Category = EWorkloadCategory::SystemMerge;
         workloadDescriptor.Annotations.push_back(Format("Merge chunk %v", chunkId));
 
-        TClientChunkReadOptions options;
-        options.WorkloadDescriptor = workloadDescriptor;
+        IChunkReader::TReadBlocksOptions options;
+        options.ClientOptions.WorkloadDescriptor = workloadDescriptor;
 
-        auto chunkMeta = GetChunkMeta(reader, options);
+        auto chunkMeta = GetChunkMeta(reader, options.ClientOptions);
         auto blockMetaExt = GetProtoExtension<NTableClient::NProto::TDataBlockMetaExt>(chunkMeta->extensions());
 
         return TChunkReadContext{
@@ -1392,7 +1394,7 @@ private:
                 auto readResult = WaitFor(asyncResult);
                 THROW_ERROR_EXCEPTION_IF_FAILED(readResult, "Error reading blocks");
                 auto blocks = readResult.Value();
-                if (!writer->WriteBlocks(chunkReadContext.Options.WorkloadDescriptor, blocks)) {
+                if (!writer->WriteBlocks(chunkReadContext.Options.ClientOptions.WorkloadDescriptor, blocks)) {
                     auto writeResult = WaitFor(writer->GetReadyEvent());
                     THROW_ERROR_EXCEPTION_IF_FAILED(writeResult, "Error writing block");
                 }
@@ -1823,7 +1825,6 @@ private:
             /*chunkMeta*/ nullptr,
             /*overrideTimestamp*/  NullTimestamp,
             /*lookupHashTable*/ nullptr,
-            /*performanceCounters*/ nullptr,
             /*keyComparer*/ TKeyComparer{},
             /*virtualValueDirectory*/ nullptr,
             /*tableSchema*/ columnarMeta->GetChunkSchema());
@@ -2171,8 +2172,8 @@ private:
             ErasureCodecId_,
             bodyChunkReplicas);
 
-        TClientChunkReadOptions chunkReadOptions;
-        auto& workloadDescriptor = chunkReadOptions.WorkloadDescriptor;
+        IChunkReader::TReadBlocksOptions readBlocksOptions;
+        auto& workloadDescriptor = readBlocksOptions.ClientOptions.WorkloadDescriptor;
         workloadDescriptor.Category = EWorkloadCategory::SystemTabletRecovery;
         workloadDescriptor.Annotations = {Format("Autotomy of chunk %v", BodyChunkId_)};
 
@@ -2184,7 +2185,7 @@ private:
                 lastRowIndex - 1);
 
             auto asyncBlocks = reader->ReadBlocks(
-                chunkReadOptions,
+                readBlocksOptions,
                 firstRowIndex,
                 lastRowIndex - firstRowIndex);
             auto blocks = WaitFor(asyncBlocks)

@@ -39,9 +39,10 @@ struct TLookupCounters
     NProfiling::TCounter CacheInserts;
 
     NProfiling::TCounter RowCount;
-    NProfiling::TCounter MissingKeyCount;
+    NProfiling::TCounter MissingRowCount;
     NProfiling::TCounter DataWeight;
     NProfiling::TCounter UnmergedRowCount;
+    NProfiling::TCounter UnmergedMissingRowCount;
     NProfiling::TCounter UnmergedDataWeight;
     NProfiling::TCounter WastedUnmergedDataWeight;
 

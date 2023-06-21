@@ -1166,6 +1166,9 @@ void TChunkLocation::MarkUninitializedLocationDisabled(const TError& error)
     }
 
     LocationDisabledAlert_.Store(TError("Chunk location at %v is disabled", GetPath())
+        << TErrorAttribute("location_uuid", GetUuid())
+        << TErrorAttribute("location_path", GetPath())
+        << TErrorAttribute("location_disk", StaticConfig_->DeviceName)
         << error);
 
     AvailableSpace_.store(0);
@@ -1828,7 +1831,7 @@ void TStoreLocation::RemoveLocationChunks()
 
     try {
         for (const auto& chunk : locationChunks) {
-            ChunkStore_->UnregisterChunk(chunk, true);
+            ChunkStore_->UnregisterChunk(chunk);
             UnlockChunk(chunk->GetId());
         }
     } catch (const std::exception& ex) {
@@ -1848,12 +1851,17 @@ bool TStoreLocation::ScheduleDisable(const TError& reason)
     YT_LOG_WARNING(reason, "Disabling location (LocationUuid: %v)", GetUuid());
 
     // No new actions can appear here. Please see TDiskLocation::RegisterAction.
-    auto error = TError("Chunk location at %v is disabled", GetPath());
-    error = error << reason;
+    auto error = TError("Chunk location at %v is disabled", GetPath())
+        << TErrorAttribute("location_uuid", GetUuid())
+        << TErrorAttribute("location_path", GetPath())
+        << TErrorAttribute("location_disk", StaticConfig_->DeviceName)
+        << reason;
     LocationDisabledAlert_.Store(error);
 
     BIND([=, this, this_ = MakeStrong(this)] () {
         try {
+            ChunkStoreHost_->CancelLocationSessions(MakeStrong(static_cast<TChunkLocation*>(this)));
+
             WaitFor(BIND(&TStoreLocation::SynchronizeActions, MakeStrong(this))
                 .AsyncVia(GetAuxPoolInvoker())
                 .Run())

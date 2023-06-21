@@ -7,13 +7,13 @@ from yt_commands import (
     ls, get, set, remove, link, exists, create_network_project, create_tmpdir,
     create_user, make_ace, start_transaction, lock,
     write_file, read_table,
-    write_table, map,
+    write_table, map, abort_op,
     vanilla, run_test_vanilla, abort_job,
     list_jobs, get_job, get_job_stderr,
     sync_create_cells, get_singular_chunk_id,
     update_nodes_dynamic_config, set_node_banned, check_all_stderrs, assert_statistics,
     heal_exec_node, ban_node,
-    make_random_string, raises_yt_error, update_controller_agent_config)
+    make_random_string, raises_yt_error, update_controller_agent_config, update_scheduler_config)
 
 
 import yt_error_codes
@@ -25,6 +25,8 @@ import yt.yson as yson
 from yt.test_helpers import are_almost_equal
 from yt.common import update, YtError
 
+from yt.wrapper.common import generate_uuid
+
 from flaky import flaky
 
 import pytest
@@ -32,6 +34,18 @@ import time
 import datetime
 import os
 import shutil
+import re
+
+##################################################################
+
+
+def find_operation_by_mutation_id(mutation_id):
+    for bucket in ls("//sys/operations"):
+        for operation_id, item in get("//sys/operations/{}".format(bucket), attributes=["mutation_id"]).items():
+            if item.attributes.get("mutation_id", "") == mutation_id:
+                return operation_id
+    return None
+
 
 ##################################################################
 
@@ -1168,7 +1182,6 @@ class TestUserJobIsolation(YTEnvSetup):
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
-                    "test_network": True,  # Deprecated from 21.2+
                     "porto_executor": {
                         "enable_network_isolation": False
                     }
@@ -1223,6 +1236,33 @@ class TestUserJobIsolation(YTEnvSetup):
         network_project_id, hostname, _ = get_job_stderr(op.id, job_id).split(b"\n")
         assert network_project_id == str(int("0xDEADBEEF", base=16)).encode("ascii")
         assert hostname.startswith(b"slot_")
+        release_breakpoint()
+        op.track()
+
+    @authors("psushin")
+    def test_network_disabled(self):
+        create_network_project("n")
+        set("//sys/network_projects/n/@project_id", 0xDEADBEEF)
+        set("//sys/network_projects/n/@disable_network", True)
+
+        op = run_test_vanilla(
+            with_breakpoint("ip -o a 1>&2; BREAKPOINT"),
+            task_patch={"network_project": "n"},
+        )
+
+        # ip6tnl0 is some kind of technical interface used by porto.
+        pattern = re.compile(b".: (lo|ip6tnl0)")
+        job_id = wait_breakpoint()[0]
+        interfaces = get_job_stderr(op.id, job_id)
+        for line in interfaces.split(b'\n'):
+            if line:
+                r'''
+                Typical response from ip -o.
+                1: lo    inet 127.0.0.1/8 scope host lo\       valid_lft forever preferred_lft forever
+                2: ip6tnl0    inet6 fe80::8c2d:f7ff:fe9f:eebb/64 scope link \       valid_lft forever preferred_lft forever
+                '''
+                assert pattern.match(line), line
+
         release_breakpoint()
         op.track()
 
@@ -1879,6 +1919,53 @@ class TestSecureVault(YTEnvSetup):
             command="cat",
         )
 
+    @authors("ignat")
+    def test_cypress_missing_secure_vault(self):
+        update_scheduler_config("testing_options/secure_vault_creation_delay", {
+            "duration": 3000,
+            "type": "async",
+        })
+
+        update_scheduler_config("operations_cleaner", {
+            "enable": True,
+            "hard_retained_operation_count": 0,
+            "clean_delay": 0,
+        })
+
+        mutation_id = generate_uuid()
+
+        op_response = run_test_vanilla(
+            spec={"secure_vault": self.secure_vault},
+            command="sleep 5",
+            return_response=True,
+            mutation_id=mutation_id,
+        )
+
+        wait(lambda: find_operation_by_mutation_id(mutation_id))
+
+        op_id = find_operation_by_mutation_id(mutation_id)
+        op_path = "//sys/operations/{}/{}".format(op_id[-2:], op_id)
+        assert get(op_path + "/@has_secure_vault")
+        assert not exists(op_path + "/secure_vault")
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            time.sleep(2)
+
+        op_response.wait()
+        assert not op_response.is_ok()
+
+        wait(lambda: not exists(op_path))
+
+        op = run_test_vanilla(
+            spec={"secure_vault": self.secure_vault},
+            command="sleep 5",
+            mutation_id=mutation_id,
+        )
+
+        assert op.id != op_id
+
+        op.track()
+
 
 ##################################################################
 
@@ -2208,7 +2295,7 @@ class TestHealExecNode(YTEnvSetup):
             if not os.path.exists(job_proxy_path):
                 shutil.move(job_proxy_moved_path, job_proxy_path)
 
-        assert has_job_proxy_build_info_missing_alert()
+        wait(lambda: has_job_proxy_build_info_missing_alert())
 
         with raises_yt_error("is not resettable"):
             heal_exec_node(node_address, alert_types_to_reset=["job_proxy_unavailable"])
@@ -2229,7 +2316,7 @@ class TestHealExecNode(YTEnvSetup):
 
         op = run_test_vanilla(
             "sleep 10",
-            spec={"job_testing_options": {"delay_in_finalize": 1000}, "sanity_check_delay": 60 * 1000},
+            spec={"job_testing_options": {"delay_in_cleanup": 1000}, "sanity_check_delay": 60 * 1000},
         )
 
         wait(lambda: op.list_jobs())
@@ -2443,6 +2530,8 @@ class TestConsecutiveJobAborts(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "test_root_fs": True,
+            "use_artifact_binds": True,
+            "use_common_root_fs_quota": True,
             "job_controller": {
                 "gpu_manager": {
                     "driver_version": "0",
@@ -2800,3 +2889,239 @@ class TestCpuSet(YTEnvSetup):
         op.track()
 
         assert self._get_actual_cpu_set(op, job_id)[:2] == "0-"
+
+
+class TestSlotManagerResurrect(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+    USE_PORTO = True
+
+    DELTA_MASTER_CONFIG = {
+        "cypress_manager": {
+            "default_table_replication_factor": 1,
+            "default_file_replication_factor": 1,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "test_root_fs": True,
+            "use_artifact_binds": True,
+            "use_common_root_fs_quota": True,
+            "abort_on_jobs_disabled": False,
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto"
+                }
+            }
+        },
+        "porto_executor": {
+            "api_timeout": 1000
+        }
+    }
+
+    def setup_files(self):
+        create("file", "//tmp/layer", attributes={"replication_factor": 1})
+        file_name = "layers/test.tar.gz"
+        write_file(
+            "//tmp/layer",
+            open(file_name, "rb").read(),
+            file_writer={"upload_replication_factor": 1},
+        )
+
+    @classmethod
+    def modify_node_config(cls, config):
+        if not os.path.exists(cls.default_disk_path):
+            os.makedirs(cls.default_disk_path)
+        config["exec_agent"]["slot_manager"]["locations"][0]["path"] = cls.default_disk_path
+
+    @authors("don-dron")
+    def test_simple_job_env_resurrect(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        update_nodes_dynamic_config({
+            "enable_job_environment_resurrection": True,
+        })
+
+        ##################################################################
+
+        def run_op():
+            return map(
+                command="cat; echo 'content' > tmpfs/file; ls tmpfs/ >&2; cat tmpfs/file >&2;",
+                in_="//tmp/t_input",
+                out="//tmp/t_output",
+                spec={
+                    "mapper": {
+                        "tmpfs_size": 1024 * 1024,
+                        "tmpfs_path": "tmpfs",
+                    },
+                    "max_failed_job_count": 1,
+                },
+            )
+
+        op = run_op()
+
+        wait(lambda: get(op.get_path() + "/@state") == "completed")
+
+        ##################################################################
+
+        update_nodes_dynamic_config({
+            "porto_executor": {
+                "enable_test_porto_failures": True
+            }
+        })
+
+        def check_disable():
+            node = ls("//sys/cluster_nodes")[0]
+            alerts = get("//sys/cluster_nodes/{}/@alerts".format(node))
+
+            if len(alerts) == 0:
+                return False
+            else:
+                for alert in alerts:
+                    if alert['message'] == "Scheduler jobs disabled":
+                        return True
+
+                return False
+
+        wait(lambda: check_disable())
+
+        ##################################################################
+
+        update_nodes_dynamic_config({
+            "porto_executor": {
+                "enable_test_porto_failures": False
+            }
+        })
+
+        def check_resurrect():
+            node = ls("//sys/cluster_nodes")[0]
+            alerts = get("//sys/cluster_nodes/{}/@alerts".format(node))
+
+            return len(alerts) == 0
+
+        wait(lambda: check_resurrect())
+
+        ##################################################################
+
+        op = run_op()
+
+        wait(lambda: get(op.get_path() + "/@state") == "completed")
+
+    @authors("don-dron")
+    def test_job_env_resurrect_with_volume_and_container_leak(self):
+        self.setup_files()
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        update_nodes_dynamic_config({
+            "enable_job_environment_resurrection": True,
+        })
+
+        ##################################################################
+
+        def run_op(time=30):
+            return run_test_vanilla(
+                command="sleep {}".format(time),
+                task_patch={
+                    "max_failed_job_count": 1,
+                    "layer_paths": ["//tmp/layer"]
+                }
+            )
+
+        op = run_op(1)
+
+        wait(lambda: get(op.get_path() + "/@state") == "completed")
+
+        op = run_op()
+
+        wait(lambda: get(op.get_path() + "/@state") == "running")
+
+        wait(lambda: len(op.list_jobs()) == 1)
+
+        job = op.list_jobs()[0]
+        wait(lambda: get_job(op.id, job)["state"] == "running")
+
+        update_nodes_dynamic_config({
+            "exec_agent": {
+                "slot_manager": {
+                    "job_environment": {
+                        "porto_executor": {
+                            "enable_test_porto_failures": True
+                        }
+                    },
+                    "abort_on_jobs_disabled": False
+                }
+            },
+            "data_node": {
+                "volume_manager": {
+                    "porto_executor": {
+                        "enable_test_porto_failures": True
+                    }
+                }
+            },
+            "porto_executor": {
+                "enable_test_porto_failures": True
+            }
+        })
+
+        def check_disable():
+            node = ls("//sys/cluster_nodes")[0]
+            alerts = get("//sys/cluster_nodes/{}/@alerts".format(node))
+
+            if len(alerts) == 0:
+                return False
+            else:
+                for alert in alerts:
+                    if alert['message'] == "Scheduler jobs disabled":
+                        return True
+
+                return False
+
+        wait(lambda: check_disable())
+
+        abort_op(op.id)
+        wait(lambda: get(op.get_path() + "/@state") == "failed" or get(op.get_path() + "/@state") == "aborted")
+
+        ##################################################################
+
+        update_nodes_dynamic_config({
+            "exec_agent": {
+                "slot_manager": {
+                    "job_environment": {
+                        "porto_executor": {
+                            "enable_test_porto_failures": False
+                        }
+                    },
+                    "abort_on_jobs_disabled": False
+                }
+            },
+            "data_node": {
+                "volume_manager": {
+                    "porto_executor": {
+                        "enable_test_porto_failures": False
+                    }
+                }
+            },
+            "porto_executor": {
+                "enable_test_porto_failures": False
+            }
+        })
+
+        def check_resurrect():
+            node = ls("//sys/cluster_nodes")[0]
+            alerts = get("//sys/cluster_nodes/{}/@alerts".format(node))
+
+            return len(alerts) == 0
+
+        wait(lambda: check_resurrect())
+
+        ##################################################################
+
+        op = run_op(0)
+
+        wait(lambda: get(op.get_path() + "/@state") == "completed")

@@ -1696,11 +1696,10 @@ protected:
                 partitionIndex);
             std::vector<TJobletPtr> partitionJoblets(ActiveJoblets_[partitionIndex].begin(), ActiveJoblets_[partitionIndex].end());
             for (const auto& joblet : partitionJoblets) {
-                Controller_->AbortJobFromController(joblet->JobId, EAbortReason::ChunkMappingInvalidated);
+                Controller_->AbortJobByController(joblet->JobId, EAbortReason::ChunkMappingInvalidated);
                 InvalidatedJoblets_[partitionIndex].insert(joblet);
             }
             for (const auto& jobOutput : JobOutputs_[partitionIndex]) {
-                YT_VERIFY(jobOutput.JobSummary.Statistics);
                 auto tableIndex = Controller_->GetRowCountLimitTableIndex();
                 if (tableIndex && jobOutput.JobSummary.OutputDataStatistics) {
                     auto count = VectorAtOr(*jobOutput.JobSummary.OutputDataStatistics, *tableIndex).row_count();
@@ -3018,6 +3017,9 @@ protected:
 
     void AccountRows(const TCompletedJobSummary& jobSummary)
     {
+        if (jobSummary.Abandoned) {
+            return;
+        }
         YT_VERIFY(jobSummary.TotalOutputDataStatistics);
         TotalOutputRowCount += jobSummary.TotalOutputDataStatistics->row_count();
     }

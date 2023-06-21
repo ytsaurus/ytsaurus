@@ -94,7 +94,7 @@ void TMutation::SetTraceContext(NTracing::TTraceContextPtr traceContext)
 
 void TMutation::SetCurrentTraceContext()
 {
-    SetTraceContext(NTracing::TryGetCurrentTraceContext());
+    SetTraceContext(NTracing::GetCurrentTraceContext());
 }
 
 const TString& TMutation::GetType() const

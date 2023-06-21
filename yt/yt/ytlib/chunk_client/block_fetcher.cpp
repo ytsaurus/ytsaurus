@@ -41,8 +41,12 @@ TBlockFetcher::TBlockFetcher(
     , BlockInfos_(std::move(blockInfos))
     , BlockCache_(std::move(blockCache))
     , SessionInvoker_(std::move(sessionInvoker))
-    , CompressionInvoker_(SessionInvoker_ ? SessionInvoker_ : GetCompressionInvoker(chunkReadOptions.WorkloadDescriptor))
-    , ReaderInvoker_(CreateSerializedInvoker(SessionInvoker_ ? SessionInvoker_ : TDispatcher::Get()->GetReaderInvoker()))
+    , CompressionInvoker_(SessionInvoker_
+        ? SessionInvoker_
+        : GetCompressionInvoker(chunkReadOptions.WorkloadDescriptor))
+    , ReaderInvoker_(CreateSerializedInvoker(SessionInvoker_
+        ? SessionInvoker_
+        : TDispatcher::Get()->GetReaderInvoker()))
     , CompressionRatio_(compressionRatio)
     , MemoryManager_(std::move(memoryManager))
     , Codec_(NCompression::GetCodec(codecId))
@@ -59,7 +63,8 @@ TBlockFetcher::TBlockFetcher(
     }
 
     if (ChunkReadOptions_.ReadSessionId) {
-        Logger.AddTag("ReadSessionId: %v", ChunkReadOptions_.ReadSessionId);
+        Logger.AddTag("ReadSessionId: %v",
+            ChunkReadOptions_.ReadSessionId);
     }
 
     auto getBlockDescriptor = [&] (const TBlockInfo& blockInfo) {
@@ -77,6 +82,12 @@ TBlockFetcher::TBlockFetcher(
                 std::make_tuple(lhs.Priority, lhs.ReaderIndex, lhs.BlockIndex) <
                 std::make_tuple(rhs.Priority, rhs.ReaderIndex, rhs.BlockIndex);
         });
+
+    YT_VERIFY(std::all_of(BlockInfos_.begin(), BlockInfos_.end(), [] (const TBlockInfo& info) {
+        return
+            info.BlockType == EBlockType::None ||
+            info.BlockType == EBlockType::UncompressedData;
+    }));
 
     int windowSize = 1;
     i64 totalRemainingSize = 0;
@@ -109,6 +120,7 @@ TBlockFetcher::TBlockFetcher(
             rightIndex != std::ssize(BlockInfos_) &&
             getBlockDescriptor(BlockInfos_[rightIndex]) == getBlockDescriptor(currentBlock))
         {
+            YT_VERIFY(BlockInfos_[rightIndex].BlockType == currentBlock.BlockType);
             ++rightIndex;
         }
 
@@ -242,14 +254,15 @@ TFuture<TBlock> TBlockFetcher::FetchBlock(int readerIndex, int blockIndex)
             blockIndex,
             windowIndex);
 
+        const auto& blockInfo = BlockInfos_[windowIndex];
         windowSlot.MemoryUsageGuard = MemoryManager_->Acquire(
-            BlockInfos_[windowIndex].UncompressedDataSize);
+            blockInfo.UncompressedDataSize);
 
         TBlockId blockId(chunkId, blockIndex);
 
         auto cachedBlock = Config_->UseUncompressedBlockCache
-            ? BlockCache_->FindBlock(blockId, EBlockType::UncompressedData).Block
-            : TBlock();
+            ? BlockCache_->FindBlock(blockId, blockInfo.BlockType)
+            : TCachedBlock();
         if (cachedBlock) {
             ChunkReadOptions_.ChunkReaderStatistics->DataBytesReadFromCache.fetch_add(
                 cachedBlock.Size(),
@@ -262,8 +275,8 @@ TFuture<TBlock> TBlockFetcher::FetchBlock(int readerIndex, int blockIndex)
 
             cachedBlock = TBlock(TSharedRef(ref, MakeSharedRangeHolder(std::move(windowSlot.MemoryUsageGuard))));
 
-            DoStartBlock(BlockInfos_[windowIndex]);
-            DoSetBlock(BlockInfos_[windowIndex], windowSlot, std::move(cachedBlock));
+            DoStartBlock(blockInfo);
+            DoSetBlock(blockInfo, windowSlot, std::move(cachedBlock));
         } else {
             TBlockDescriptor blockDescriptor{
                 .ReaderIndex = readerIndex,
@@ -345,7 +358,7 @@ void TBlockFetcher::DecompressBlocks(
         if (Config_->UseUncompressedBlockCache) {
             BlockCache_->PutBlock(
                 blockId,
-                EBlockType::UncompressedData,
+                blockInfo.BlockType,
                 TBlock(uncompressedBlock));
         }
 
@@ -422,8 +435,8 @@ void TBlockFetcher::FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryU
 
             TBlockId blockId(chunkId, blockIndex);
             auto cachedBlock = Config_->UseUncompressedBlockCache
-                ? BlockCache_->FindBlock(blockId, EBlockType::UncompressedData).Block
-                : TBlock();
+                ? BlockCache_->FindBlock(blockId, blockInfo.BlockType)
+                : TCachedBlock();
             if (cachedBlock) {
                 ChunkReadOptions_.ChunkReaderStatistics->DataBytesReadFromCache.fetch_add(
                     cachedBlock.Size(),
@@ -550,10 +563,12 @@ void TBlockFetcher::RequestBlocks(
             }
 
             return chunkReader->ReadBlocks(
-                ChunkReadOptions_,
-                blockIndices,
-                static_cast<i64>(uncompressedSize * CompressionRatio_),
-                SessionInvoker_);
+                IChunkReader::TReadBlocksOptions{
+                    .ClientOptions = ChunkReadOptions_,
+                    .EstimatedSize = static_cast<i64>(uncompressedSize * CompressionRatio_),
+                    .SessionInvoker = SessionInvoker_,
+                },
+                blockIndices);
         }();
 
         // NB: Handling |OnGotBlocks| in an arbitrary thread seems OK.
@@ -636,7 +651,7 @@ TSequentialBlockFetcher::TSequentialBlockFetcher(
     NCompression::ECodec codecId,
     double compressionRatio,
     const TClientChunkReadOptions& chunkReadOptions,
-    IInvokerPtr sessionnInvoker)
+    IInvokerPtr sessionInvoker)
     : TBlockFetcher(
         std::move(config),
         blockInfos,
@@ -646,7 +661,7 @@ TSequentialBlockFetcher::TSequentialBlockFetcher(
         codecId,
         compressionRatio,
         chunkReadOptions,
-        std::move(sessionnInvoker))
+        std::move(sessionInvoker))
     , OriginalOrderBlockInfos_(std::move(blockInfos))
 { }
 

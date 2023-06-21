@@ -453,6 +453,8 @@ void TRpcProxyInfo::Register(TRegistrar registrar)
         .DefaultNew();
     RegisterAttribute(registrar, "maintenance_requests", &TThis::CmsMaintenanceRequests)
         .Default();
+    RegisterAttribute(registrar, "modification_time", &TThis::ModificationTime)
+        .Default();
 
     registrar.Parameter("alive", &TThis::Alive)
         .Default();

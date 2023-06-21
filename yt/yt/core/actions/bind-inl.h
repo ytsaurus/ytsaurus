@@ -435,22 +435,24 @@ public:
         : Storage_(NConcurrency::GetCurrentPropagatingStorage())
     { }
 
-    NConcurrency::TPropagatingStorageGuard MakePropagatingStorageGuard()
+    NConcurrency::TPropagatingStorageGuard GetPropagatingStorageGuard()
     {
         return NConcurrency::TPropagatingStorageGuard(Storage_);
     }
 
 private:
-    const NConcurrency::TPropagatingStorage Storage_;
+    NConcurrency::TPropagatingStorage Storage_;
 };
 
 template <>
 class TPropagateMixin<false>
 {
 public:
-    std::monostate MakePropagatingStorageGuard()
+    struct TDummyGuard { };
+
+    TDummyGuard GetPropagatingStorageGuard()
     {
-        return {};
+        return TDummyGuard();
     }
 };
 
@@ -492,7 +494,7 @@ public:
         auto* volatile uninlined_state = state;
         Y_UNUSED(uninlined_state);
 
-        auto propagatingStorageGuard = state->MakePropagatingStorageGuard();
+        auto propagatingStorageGuard = state->GetPropagatingStorageGuard();
         Y_UNUSED(propagatingStorageGuard);
 
         return state->Functor(

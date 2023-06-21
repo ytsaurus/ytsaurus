@@ -127,6 +127,7 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (GraftingManager)
     (NodeStatisticsFixer)
     (MaintenanceTracker)
+    (MasterCellChunkStatisticsCollector)
 );
 
 DEFINE_ENUM(EAutomatonThreadBucket,

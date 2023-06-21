@@ -30,6 +30,7 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/data_node_tracker_client/data_node_tracker_service_proxy.h>
+#include <yt/yt/ytlib/data_node_tracker_client/location_directory.h>
 
 #include <yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h>
 
@@ -42,6 +43,8 @@
 #include <yt/yt/core/rpc/helpers.h>
 
 #include <yt/yt/core/utilex/random.h>
+
+#include <yt/yt/core/rpc/dispatcher.h>
 
 #include <util/random/shuffle.h>
 
@@ -106,6 +109,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        LocationUuidsRequired_ = true;
+
         for (auto cellTag : Bootstrap_->GetMasterCellTags()) {
             auto cellId = Bootstrap_->GetConnection()->GetMasterCellId(cellTag);
 
@@ -147,20 +152,28 @@ public:
                 .Via(controlInvoker));
     }
 
-    TReqFullHeartbeat GetFullHeartbeatRequest(TCellTag cellTag)
+    TDataNodeTrackerServiceProxy::TReqFullHeartbeatPtr BuildFullHeartbeatRequest(
+        TNodeId nodeId,
+        TCellTag cellTag)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
-        YT_VERIFY(Bootstrap_->IsConnected());
+        auto masterChannel = Bootstrap_->GetMasterChannel(cellTag);
+        TDataNodeTrackerServiceProxy proxy(masterChannel);
 
-        TReqFullHeartbeat heartbeat;
+        auto req = proxy.FullHeartbeat();
+        req->SetRequestCodec(NCompression::ECodec::Lz4);
+        req->SetTimeout(GetDynamicConfig()->FullHeartbeatTimeout);
 
-        heartbeat.set_node_id(Bootstrap_->GetNodeId());
+        req->set_node_id(nodeId);
 
-        ComputeStatistics(heartbeat.mutable_statistics());
+        ComputeStatistics(req->mutable_statistics());
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
-        heartbeat.set_write_sessions_disabled(sessionManager->GetDisableWriteSessions());
+        req->set_write_sessions_disabled(sessionManager->GetDisableWriteSessions());
+
+        const auto& chunkStore = Bootstrap_->GetChunkStore();
+        TChunkLocationDirectory locationDirectory(chunkStore->Locations().size());
 
         TMediumMap<int> chunkCounts;
 
@@ -168,59 +181,66 @@ public:
 
         auto addStoredChunkInfo = [&] (const IChunkPtr& chunk) {
             if (CellTagFromId(chunk->GetId()) == cellTag) {
-                auto info = BuildAddChunkInfo(chunk);
-                *heartbeat.add_chunks() = info;
+                *req->add_chunks() = BuildAddChunkInfo(chunk, locationDirectory);
                 auto mediumIndex = chunk->GetLocation()->GetMediumDescriptor().Index;
                 ++chunkCounts[mediumIndex];
                 ++storedChunkCount;
             }
         };
 
-        const auto& chunkStore = Bootstrap_->GetChunkStore();
         for (const auto& chunk : chunkStore->GetChunks()) {
             addStoredChunkInfo(chunk);
         }
 
         for (const auto& [mediumIndex, chunkCount] : chunkCounts) {
             if (chunkCount != 0) {
-                auto* mediumChunkStatistics = heartbeat.add_chunk_statistics();
+                auto* mediumChunkStatistics = req->add_chunk_statistics();
                 mediumChunkStatistics->set_medium_index(mediumIndex);
                 mediumChunkStatistics->set_chunk_count(chunkCount);
             }
         }
 
-        return heartbeat;
+        ToProto(req->mutable_location_directory(), locationDirectory);
+
+        return req;
     }
 
-    TReqIncrementalHeartbeat GetIncrementalHeartbeatRequest(TCellTag cellTag)
+    TDataNodeTrackerServiceProxy::TReqIncrementalHeartbeatPtr BuildIncrementalHeartbeatRequest(
+        TNodeId nodeId,
+        TCellTag cellTag)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YT_VERIFY(Bootstrap_->IsConnected());
+        auto masterChannel = Bootstrap_->GetMasterChannel(cellTag);
+        TDataNodeTrackerServiceProxy proxy(masterChannel);
 
-        TReqIncrementalHeartbeat heartbeat;
+        auto req = proxy.IncrementalHeartbeat();
+        req->SetRequestCodec(NCompression::ECodec::Lz4);
+        req->SetTimeout(GetDynamicConfig()->IncrementalHeartbeatTimeout);
 
-        heartbeat.set_node_id(Bootstrap_->GetNodeId());
+        req->set_node_id(nodeId);
 
-        ComputeStatistics(heartbeat.mutable_statistics());
+        ComputeStatistics(req->mutable_statistics());
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
-        heartbeat.set_write_sessions_disabled(sessionManager->GetDisableWriteSessions());
+        req->set_write_sessions_disabled(sessionManager->GetDisableWriteSessions());
 
         auto* delta = GetChunksDelta(cellTag);
+
+        TChunkLocationDirectory locationDirectory(Bootstrap_->GetChunkStore()->Locations().size());
 
         int chunkEventCount = 0;
         delta->ReportedAdded.clear();
         for (const auto& chunk : delta->AddedSinceLastSuccess) {
             YT_VERIFY(delta->ReportedAdded.emplace(chunk, chunk->GetVersion()).second);
-            *heartbeat.add_added_chunks() = BuildAddChunkInfo(chunk);
+            *req->add_added_chunks() = BuildAddChunkInfo(chunk, locationDirectory);
             ++chunkEventCount;
         }
 
         delta->ReportedRemoved.clear();
         for (const auto& chunk : delta->RemovedSinceLastSuccess) {
             YT_VERIFY(delta->ReportedRemoved.insert(chunk).second);
-            *heartbeat.add_removed_chunks() = BuildRemoveChunkInfo(chunk);
+            *req->add_removed_chunks() = BuildRemoveChunkInfo(chunk, locationDirectory);
             ++chunkEventCount;
         }
 
@@ -233,11 +253,11 @@ public:
                 break;
             }
             YT_VERIFY(delta->ReportedChangedMedium.insert({chunk, oldMediumIndex}).second);
-            auto removeChunkInfo = BuildRemoveChunkInfo(chunk, /*onMediumChange*/ true);
+            auto removeChunkInfo = BuildRemoveChunkInfo(chunk, locationDirectory, /*onMediumChange*/ true);
             removeChunkInfo.set_medium_index(oldMediumIndex);
-            *heartbeat.add_removed_chunks() = removeChunkInfo;
+            *req->add_removed_chunks() = removeChunkInfo;
             ++chunkEventCount;
-            *heartbeat.add_added_chunks() = BuildAddChunkInfo(chunk, /*onMediumChange*/ true);
+            *req->add_added_chunks() = BuildAddChunkInfo(chunk, locationDirectory, /*onMediumChange*/ true);
             ++chunkEventCount;
         }
 
@@ -246,7 +266,7 @@ public:
         const auto& allyReplicaManager = Bootstrap_->GetAllyReplicaManager();
         auto unconfirmedAnnouncementRequests = allyReplicaManager->TakeUnconfirmedAnnouncementRequests(cellTag);
         for (auto [chunkId, revision] : unconfirmedAnnouncementRequests) {
-            auto* protoRequest = heartbeat.add_confirmed_replica_announcement_requests();
+            auto* protoRequest = req->add_confirmed_replica_announcement_requests();
             ToProto(protoRequest->mutable_chunk_id(), chunkId);
             protoRequest->set_revision(revision);
         }
@@ -257,10 +277,12 @@ public:
             counters.Reported.AddedChunks.Increment(delta->ReportedAdded.size());
             counters.Reported.RemovedChunks.Increment(delta->ReportedRemoved.size());
             counters.Reported.MediumChangedChunks.Increment(delta->ReportedChangedMedium.size());
-            counters.ConfirmedAnnouncementRequests.Increment(heartbeat.confirmed_replica_announcement_requests().size());
+            counters.ConfirmedAnnouncementRequests.Increment(req->confirmed_replica_announcement_requests().size());
         }
 
-        return heartbeat;
+        ToProto(req->mutable_location_directory(), locationDirectory);
+
+        return req;
     }
 
     void OnFullHeartbeatResponse(
@@ -394,24 +416,6 @@ public:
         return delta->State;
     }
 
-    bool CanSendFullNodeHeartbeat(TCellTag cellTag) const
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        const auto& connection = Bootstrap_->GetClient()->GetNativeConnection();
-        if (cellTag != connection->GetPrimaryMasterCellTag()) {
-            return true;
-        }
-
-        for (const auto& [cellTag, cellTagData] : PerCellTagData_) {
-            const auto& chunksDelta = cellTagData->ChunksDelta;
-            if (cellTag != connection->GetPrimaryMasterCellTag() && chunksDelta->State != EMasterConnectorState::Online) {
-                return false;
-            }
-        }
-        return true;
-    }
-
     TFuture<void> GetHeartbeatBarrier(NObjectClient::TCellTag cellTag) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -450,6 +454,12 @@ public:
     bool IsOnline() const override
     {
         return OnlineCellCount_.load() == std::ssize(Bootstrap_->GetMasterCellTags());
+    }
+
+    void SetLocationUuidsRequired(bool value) override
+    {
+        LocationUuidsRequired_ = value;
+        YT_LOG_INFO("Location uuids in data node heartbeats are %vabled", value ? "en" : "dis");
     }
 
 private:
@@ -553,6 +563,9 @@ private:
     };
 
     THashMap<TCellTag, TIncrementalHeartbeatCounters> IncrementalHeartbeatCounters_;
+
+    // COMPAT(kvk1920)
+    bool LocationUuidsRequired_ = true;
 
     const TIncrementalHeartbeatCounters& GetIncrementalHeartbeatCounters(TCellTag cellTag)
     {
@@ -765,20 +778,13 @@ private:
 
         auto state = GetMasterConnectorState(cellTag);
         switch (state) {
-            case EMasterConnectorState::Registered: {
-                if (CanSendFullNodeHeartbeat(cellTag)) {
-                    ReportFullHeartbeat(cellTag);
-                } else {
-                    // Try later.
-                    DoScheduleHeartbeat(cellTag, /*immediately*/ false);
-                }
+            case EMasterConnectorState::Registered:
+                ReportFullHeartbeat(cellTag);
                 break;
-            }
 
-            case EMasterConnectorState::Online: {
+            case EMasterConnectorState::Online:
                 ReportIncrementalHeartbeat(cellTag);
                 break;
-            }
 
             default:
                 YT_ABORT();
@@ -789,14 +795,15 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto masterChannel = Bootstrap_->GetMasterChannel(cellTag);
-        TDataNodeTrackerServiceProxy proxy(masterChannel);
+        YT_VERIFY(Bootstrap_->IsConnected());
+        auto nodeId = Bootstrap_->GetNodeId();
 
-        auto req = proxy.FullHeartbeat();
-        req->SetRequestCodec(NCompression::ECodec::Lz4);
-        req->SetTimeout(GetDynamicConfig()->FullHeartbeatTimeout);
-
-        static_cast<TReqFullHeartbeat&>(*req) = GetFullHeartbeatRequest(cellTag);
+        // Full heartbeat construction can take a while; offload it RPC Heavy thread pool.
+        auto req = WaitFor(
+            BIND(&TMasterConnector::BuildFullHeartbeatRequest, MakeStrong(this), nodeId, cellTag)
+                .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+                .Run())
+            .ValueOrThrow();
 
         YT_LOG_INFO("Sending full data node heartbeat to master (CellTag: %v, %v)",
             cellTag,
@@ -826,14 +833,10 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto masterChannel = Bootstrap_->GetMasterChannel(cellTag);
-        TDataNodeTrackerServiceProxy proxy(masterChannel);
+        YT_VERIFY(Bootstrap_->IsConnected());
+        auto nodeId = Bootstrap_->GetNodeId();
 
-        auto req = proxy.IncrementalHeartbeat();
-        req->SetRequestCodec(NCompression::ECodec::Lz4);
-        req->SetTimeout(GetDynamicConfig()->IncrementalHeartbeatTimeout);
-
-        static_cast<TReqIncrementalHeartbeat&>(*req) = GetIncrementalHeartbeatRequest(cellTag);
+        auto req = BuildIncrementalHeartbeatRequest(nodeId, cellTag);
 
         YT_LOG_INFO("Sending incremental data node heartbeat to master (CellTag: %v, %v)",
             cellTag,
@@ -867,7 +870,7 @@ private:
 
     void ComputeStatistics(TDataNodeStatistics* statistics) const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
         i64 totalAvailableSpace = 0;
         i64 totalLowWatermarkSpace = 0;
@@ -947,7 +950,7 @@ private:
 
     bool IsLocationWriteable(const TStoreLocationPtr& location) const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
         if (!location->IsWritable()) {
             return false;
@@ -960,9 +963,12 @@ private:
         return true;
     }
 
-    TChunkAddInfo BuildAddChunkInfo(IChunkPtr chunk, bool onMediumChange = false)
+    TChunkAddInfo BuildAddChunkInfo(
+        const IChunkPtr& chunk,
+        TChunkLocationDirectory& locationDirectory,
+        bool onMediumChange = false)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
         TChunkAddInfo chunkAddInfo;
 
@@ -970,22 +976,36 @@ private:
         chunkAddInfo.set_medium_index(chunk->GetLocation()->GetMediumDescriptor().Index);
         chunkAddInfo.set_active(chunk->IsActive());
         chunkAddInfo.set_sealed(chunk->GetInfo().sealed());
-        ToProto(chunkAddInfo.mutable_location_uuid(), chunk->GetLocation()->GetUuid());
+
+        auto locationUuid = chunk->GetLocation()->GetUuid();
+        chunkAddInfo.set_location_index(locationDirectory.GetOrCreateIndex(locationUuid));
+        // COMPAT(kvk1920): Remove after 23.2.
+        if (LocationUuidsRequired_) {
+            ToProto(chunkAddInfo.mutable_location_uuid(), locationUuid);
+        }
 
         chunkAddInfo.set_caused_by_medium_change(onMediumChange);
 
         return chunkAddInfo;
     }
 
-    TChunkRemoveInfo BuildRemoveChunkInfo(IChunkPtr chunk, bool onMediumChange = false)
+    TChunkRemoveInfo BuildRemoveChunkInfo(
+        const IChunkPtr& chunk,
+        TChunkLocationDirectory& locationDirectory,
+        bool onMediumChange = false)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
         TChunkRemoveInfo chunkRemoveInfo;
 
         ToProto(chunkRemoveInfo.mutable_chunk_id(), chunk->GetId());
         chunkRemoveInfo.set_medium_index(chunk->GetLocation()->GetMediumDescriptor().Index);
-        ToProto(chunkRemoveInfo.mutable_location_uuid(), chunk->GetLocation()->GetUuid());
+
+        auto locationUuid = chunk->GetLocation()->GetUuid();
+        chunkRemoveInfo.set_location_index(locationDirectory.GetOrCreateIndex(locationUuid));
+        if (LocationUuidsRequired_) {
+            ToProto(chunkRemoveInfo.mutable_location_uuid(), locationUuid);
+        }
 
         chunkRemoveInfo.set_caused_by_medium_change(onMediumChange);
 

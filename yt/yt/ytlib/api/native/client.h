@@ -79,6 +79,12 @@ struct TSyncAlienCellOptions
     bool FullSync = false;
 };
 
+struct TSyncAlienCellsResult
+{
+    std::vector<NChaosClient::TAlienCellDescriptor> AlienCellDescriptors;
+    bool EnableMetadataCells;
+};
+
 struct IClient
     : public IClientBase
     , public virtual NApi::IClient
@@ -111,9 +117,11 @@ struct IClient
         NTransactionClient::TTransactionId transactionId,
         const TTransactionAttachOptions& options = TTransactionAttachOptions()) = 0;
 
-    virtual TFuture<std::vector<NChaosClient::TAlienCellDescriptor>> SyncAlienCells(
+    virtual TFuture<TSyncAlienCellsResult> SyncAlienCells(
         const std::vector<NChaosClient::TAlienCellDescriptorLite>& alienCellDescriptors,
         const TSyncAlienCellOptions& options = {}) = 0;
+
+    virtual bool DoesOperationsArchiveExist() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IClient)

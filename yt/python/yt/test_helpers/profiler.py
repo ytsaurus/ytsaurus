@@ -118,6 +118,8 @@ class Profiler(object):
             self.start_value = self.get(default=0)
 
         def get_delta(self, **kwargs):
+            # To support it, get_all could be called in __init__.
+            assert "tags" not in kwargs, "Tags is not supported now, use fixed_tags"
             return self.get(
                 verbose_value_name="delta",
                 postprocessor=lambda value: int(value) - self.start_value,

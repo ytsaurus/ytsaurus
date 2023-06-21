@@ -133,6 +133,9 @@ void TDynamicMulticellManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("cell_descriptors", &TThis::CellDescriptors)
         .Default();
 
+    registrar.Parameter("remove_secondary_cell_default_roles", &TThis::RemoveSecondaryCellDefaultRoles)
+        .Default(false);
+
     registrar.Postprocessor([] (TThis* config) {
         THashMap<TString, NObjectServer::TCellTag> nameToCellTag;
         for (auto& [cellTag, descriptor] : config->CellDescriptors) {

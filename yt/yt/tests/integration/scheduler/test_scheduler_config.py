@@ -1,13 +1,11 @@
 from yt_env_setup import (
     YTEnvSetup,
-    Restarter,
-    CONTROLLER_AGENTS_SERVICE,
 )
 from yt_commands import (
     authors, wait, create,
     ls, get,
     set, exists, write_table,
-    map, reduce)
+    map)
 
 
 ##################################################################
@@ -61,75 +59,6 @@ class TestSchedulerConfig(YTEnvSetup):
         addresses = get("//sys/scheduler/@addresses")
         assert addresses["ipv4"].startswith("127.0.0.1:")
         assert addresses["ipv6"].startswith("::1:")
-
-    @authors("ignat")
-    def test_specs(self):
-        create("table", "//tmp/t_in")
-        write_table("<append=true;sorted_by=[foo]>//tmp/t_in", {"foo": "bar"})
-
-        create("table", "//tmp/t_out")
-
-        op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", track=False, fail_fast=False)
-
-        full_spec_path = "//sys/scheduler/orchid/scheduler/operations/{0}/full_spec".format(op.id)
-        wait(lambda: exists(full_spec_path))
-
-        assert get("{}/data_weight_per_job".format(full_spec_path)) == 2000
-        assert get("{}/max_failed_job_count".format(full_spec_path)) == 10
-
-        op.abort()
-
-        op = reduce(
-            command="sleep 1000",
-            in_=["//tmp/t_in"],
-            out="//tmp/t_out",
-            reduce_by=["foo"],
-            track=False,
-            fail_fast=False,
-        )
-        wait(lambda: op.get_state() == "running")
-
-        full_spec_path = "//sys/scheduler/orchid/scheduler/operations/{0}/full_spec".format(op.id)
-        wait(lambda: exists(full_spec_path))
-
-        assert get("{}/data_weight_per_job".format(full_spec_path)) == 1000
-        assert get("{}/max_failed_job_count".format(full_spec_path)) == 10
-
-        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
-            pass
-
-        op.ensure_running()
-
-        assert get("{}/data_weight_per_job".format(full_spec_path)) == 1000
-        assert get("{}/max_failed_job_count".format(full_spec_path)) == 10
-
-        op.abort()
-
-    @authors("ignat")
-    def test_unrecognized_spec(self):
-        create("table", "//tmp/t_in")
-        write_table("//tmp/t_in", [{"a": "b"}])
-        create("table", "//tmp/t_out")
-        op = map(
-            command="sleep 1000",
-            in_=["//tmp/t_in"],
-            out="//tmp/t_out",
-            track=False,
-            spec={"xxx": "yyy"},
-        )
-
-        wait(lambda: exists(op.get_path() + "/@unrecognized_spec"))
-        assert get(op.get_path() + "/@unrecognized_spec") == {"xxx": "yyy"}
-
-    @authors("ignat")
-    def test_brief_progress(self):
-        create("table", "//tmp/t_in")
-        write_table("//tmp/t_in", [{"a": "b"}])
-        create("table", "//tmp/t_out")
-        op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", track=False)
-
-        wait(lambda: exists(op.get_path() + "/@brief_progress"))
-        assert "jobs" in list(get(op.get_path() + "/@brief_progress"))
 
     @authors("ignat")
     def test_cypress_config(self):

@@ -226,6 +226,9 @@ public:
         TErrorOr<ui64> MemoryGuarantee;
         TErrorOr<ui64> MemoryLimit;
         TErrorOr<ui64> MaxMemoryUsage;
+
+        TErrorOr<ui64> OomKills;
+        TErrorOr<ui64> OomKillsTotal;
     };
 
     explicit TMemory(const TString& name);

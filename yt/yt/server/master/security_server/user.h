@@ -13,6 +13,8 @@
 
 #include <yt/yt/core/concurrency/public.h>
 
+#include <yt/yt/core/ytree/request_complexity_limiter.h>
+
 namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -65,6 +67,24 @@ DEFINE_REFCOUNTED_TYPE(TUserQueueSizeLimitsOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TUserReadRequestComplexityLimitsOptions
+    : public NYTree::TYsonStruct
+{
+public:
+    std::optional<i64> DefaultNodeCount;
+    std::optional<i64> DefaultResultSize;
+
+    NYTree::TReadRequestComplexity GetValue() const;
+
+    REGISTER_YSON_STRUCT(TUserReadRequestComplexityLimitsOptions);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TUserReadRequestComplexityLimitsOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TUserRequestLimitsConfig
     : public NYTree::TYsonStruct
 {
@@ -72,6 +92,7 @@ public:
     TUserRequestLimitsOptionsPtr ReadRequestRateLimits;
     TUserRequestLimitsOptionsPtr WriteRequestRateLimits;
     TUserQueueSizeLimitsOptionsPtr RequestQueueSizeLimits;
+    TUserReadRequestComplexityLimitsOptionsPtr ReadRequestComplexityLimits;
 
     REGISTER_YSON_STRUCT(TUserRequestLimitsConfig);
 
@@ -128,6 +149,28 @@ DEFINE_REFCOUNTED_TYPE(TSerializableUserQueueSizeLimitsOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSerializableUserReadRequestComplexityLimitsOptions
+    : public NYTree::TYsonStruct
+{
+public:
+    static TSerializableUserReadRequestComplexityLimitsOptionsPtr CreateFrom(
+        const TUserReadRequestComplexityLimitsOptionsPtr& options);
+
+    TUserReadRequestComplexityLimitsOptionsPtr ToLimitsOrThrow() const;
+
+    REGISTER_YSON_STRUCT(TSerializableUserReadRequestComplexityLimitsOptions);
+
+    static void Register(TRegistrar registrar);
+
+private:
+    std::optional<i64> DefaultNodeCount_;
+    std::optional<i64> DefaultResultSize_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TSerializableUserReadRequestComplexityLimitsOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSerializableUserRequestLimitsConfig
     : public NYTree::TYsonStruct
 {
@@ -146,6 +189,7 @@ private:
     TSerializableUserRequestLimitsOptionsPtr ReadRequestRateLimits_;
     TSerializableUserRequestLimitsOptionsPtr WriteRequestRateLimits_;
     TSerializableUserQueueSizeLimitsOptionsPtr RequestQueueSizeLimits_;
+    TSerializableUserReadRequestComplexityLimitsOptionsPtr ReadRequestComplexityLimits_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSerializableUserRequestLimitsConfig)
@@ -187,6 +231,8 @@ public:
     using TSubject::TSubject;
     explicit TUser(TUserId id);
 
+    void SetName(const TString& name) override;
+
     TString GetLowercaseObjectName() const override;
     TString GetCapitalizedObjectName() const override;
     TString GetObjectPath() const override;
@@ -220,6 +266,7 @@ private:
     NProfiling::TCounter WriteRequestCounter_;
     NProfiling::TSummary RequestQueueSizeSummary_;
 
+    void InitializeCounters();
     void UpdatePasswordRevision();
 };
 

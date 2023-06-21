@@ -674,9 +674,7 @@ public:
         if (cell->GetType() == EObjectType::ChaosCell) {
             auto* chaosCell = cell->As<TChaosCell>();
             auto* chaosCellBundle = cellBundle->As<TChaosCellBundle>();
-            if (chaosCellBundle->GetMetadataCell() == chaosCell) {
-                chaosCellBundle->SetMetadataCell(nullptr);
-            }
+            chaosCellBundle->RemoveMetadataCell(chaosCell);
         }
 
         auto* area = cell->GetArea();
@@ -1323,6 +1321,27 @@ private:
             }
 
             cell->GossipStatus().Initialize(Bootstrap_);
+        }
+
+        // COMPAT(shakurov)
+        for (auto [id, bundle] : CellBundleMap_) {
+            if (!IsObjectAlive(bundle)) {
+                continue;
+            }
+
+            if (bundle->GetType() != EObjectType::ChaosCellBundle) {
+                continue;
+            }
+
+            auto* chaosCellBundle = bundle->As<TChaosCellBundle>();
+            if (auto nullCellCount = std::erase(chaosCellBundle->MetadataCells(), nullptr);
+                nullCellCount != 0)
+            {
+                YT_LOG_ALERT("Null metadata cells encountered; cleaning them out "
+                    "(CellBundleId: %v, NullMetadataCellCount: %v)",
+                    id,
+                    nullCellCount);
+            }
         }
 
         AfterSnapshotLoaded_.Fire();
@@ -2310,13 +2329,14 @@ private:
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->StartTransaction(
-            nullptr /*parent*/,
-            {} /*prerequisiteTransactions*/,
+            /*parent*/ nullptr,
+            /*prerequisiteTransactions*/ {},
             secondaryCellTags,
-            std::nullopt /*timeout*/,
-            std::nullopt /*deadline*/,
+            /*timeout*/ std::nullopt,
+            /*deadline*/ std::nullopt,
             title,
-            EmptyAttributes());
+            EmptyAttributes(),
+            /*isCypressTransaction*/ false);
 
         YT_VERIFY(!cell->GetPrerequisiteTransaction(peerId));
         EmplaceOrCrash(TransactionToCellMap_, transaction, std::make_pair(cell, peerId));
@@ -2418,7 +2438,7 @@ private:
             .Force = true
         };
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        transactionManager->AbortTransaction(transaction, options);
+        transactionManager->AbortMasterTransaction(transaction, options);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cell prerequisite transaction aborted (CellId: %v, PeerId: %v, TransactionId: %v)",
             cell->GetId(),

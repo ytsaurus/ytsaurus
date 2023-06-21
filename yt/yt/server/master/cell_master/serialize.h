@@ -130,6 +130,25 @@ DEFINE_ENUM(EMasterReign,
     ((GeneralizeMaintenanceRequestsApi)                             (2315))  // kvk1920
     ((ReadRequestComplexityLimits)                                  (2316))  // kvk1920
     ((DropChunkExpirationTracker)                                   (2317))  // shakurov
+    ((CypressTransactions)                                          (2318))  // gritukan
+    ((UseMetadataCellIds)                                           (2319))  // ponasenko-rs
+    ((UpdatePerUserThrottlerLimits)                                 (2320))  // h0pless
+    ((RequireMediumUsePermissionForChunkOwnerCreation)              (2321))  // kvk1920
+    ((MakePerformanceCountersOpaque)                                (2322))  // alexelexa
+    ((FixMulticellHunkStorage)                                      (2323))  // gritukan
+    ((FixAttachHunksWithDynamicStoreRead)                           (2324))  // aleksandra-zh
+    ((BundlesBan)                                                   (2325))  // alexelexa
+    ((TooManyLocksCheck)                                            (2326))  // h0pless
+    ((RemoveDefaultSecondaryRoles)                                  (2327))  // aleksandra-zh
+    ((MasterCellChunkStatisticsCollector)                           (2328))  // kvk1920
+    ((FixHunkChunksAttach)                                          (2329))  // gritukan
+    ((ExportMasterTableSchemas)                                     (2330))  // h0pless
+    ((SupportAccountChunkMergerCriteria)                            (2331))  // danilalexeev
+    ((PerUserReadRequestComplexityLimits)                           (2332))  // kvk1920
+    ((SimplerChunkExportDataSaveLoad)                               (2333))  // shakurov
+    ((MoveReplicatorEnabledCheckPeriodToDynamicConfig)              (2334))  // danilalexeev
+    ((FixAlterWithSchemaId)                                         (2335))  // h0pless
+    ((LocationDirectory)                                            (2336))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////

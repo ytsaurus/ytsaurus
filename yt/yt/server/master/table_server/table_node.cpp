@@ -304,6 +304,15 @@ void TTableNode::EndUpload(const TEndUploadContext& context)
     }
 
     SchemaMode_ = context.SchemaMode;
+    YT_VERIFY(context.Schema);
+
+    auto* schema = GetSchema();
+    if (IsExternal() && schema != context.Schema) {
+        auto externalCellTag = GetExternalCellTag();
+
+        context.Schema->ExportRef(externalCellTag);
+        schema->UnexportRef(externalCellTag);
+    }
 
     const auto& tableManager = context.Bootstrap->GetTableManager();
     tableManager->SetTableSchema(this, context.Schema);
@@ -769,7 +778,7 @@ void TTableNode::CheckInvariants(NCellMaster::TBootstrap* bootstrap) const
     TChunkOwnerBase::CheckInvariants(bootstrap);
 
     // TODO(gritukan): extend this to non-trunk nodes.
-    if (auto* chunkList = GetChunkList(); IsObjectAlive(chunkList) && IsTrunk()) {
+    if (auto* chunkList = GetChunkList(); IsObjectAlive(chunkList) && IsObjectAlive(this) && IsTrunk()) {
         if (GetDynamic()) {
             if (IsPhysicallySorted()) {
                 YT_VERIFY(chunkList->GetKind() == EChunkListKind::SortedDynamicRoot);
@@ -785,12 +794,14 @@ void TTableNode::CheckInvariants(NCellMaster::TBootstrap* bootstrap) const
 
     if (DynamicTableAttributes_ && DynamicTableAttributes_->HunkStorageNode) {
         auto id = GetVersionedId();
-        YT_VERIFY(DynamicTableAttributes_->HunkStorageNode->UsingNodeIds().contains(id));
+        YT_VERIFY(DynamicTableAttributes_->HunkStorageNode->AssociatedNodeIds().contains(id));
     }
 
-    // NB: Const-cast due to const-correctness rabbit-hole, which led to TTableNode* being stored in the set.
-    YT_VERIFY(bootstrap->GetTableManager()->GetQueues().contains(const_cast<TTableNode*>(this)) == IsQueueObject());
-    YT_VERIFY(bootstrap->GetTableManager()->GetConsumers().contains(const_cast<TTableNode*>(this)) == IsConsumerObject());
+    if (IsObjectAlive(this)) {
+        // NB: Const-cast due to const-correctness rabbit-hole, which led to TTableNode* being stored in the set.
+        YT_VERIFY(bootstrap->GetTableManager()->GetQueues().contains(const_cast<TTableNode*>(this)) == IsQueueObject());
+        YT_VERIFY(bootstrap->GetTableManager()->GetConsumers().contains(const_cast<TTableNode*>(this)) == IsConsumerObject());
+    }
 }
 
 const TMountConfigStorage* TTableNode::FindMountConfigStorage() const
@@ -813,7 +824,7 @@ void TTableNode::ResetHunkStorageNode()
     }
 
     auto id = GetVersionedId();
-    EraseOrCrash(DynamicTableAttributes_->HunkStorageNode->UsingNodeIds(), id);
+    EraseOrCrash(DynamicTableAttributes_->HunkStorageNode->AssociatedNodeIds(), id);
 
     DynamicTableAttributes_->HunkStorageNode.Reset();
 }
@@ -831,7 +842,7 @@ void TTableNode::SetHunkStorageNode(THunkStorageNode* node)
     THunkStorageNodePtr hunkStorageNodePtr(node);
     DynamicTableAttributes_->HunkStorageNode = std::move(hunkStorageNodePtr);
     auto id = GetVersionedId();
-    InsertOrCrash(DynamicTableAttributes_->HunkStorageNode->UsingNodeIds(), id);
+    InsertOrCrash(DynamicTableAttributes_->HunkStorageNode->AssociatedNodeIds(), id);
 }
 
 THunkStorageNode* TTableNode::GetHunkStorageNode() const

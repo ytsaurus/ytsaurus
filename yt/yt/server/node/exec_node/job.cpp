@@ -27,9 +27,13 @@
 
 #include <yt/yt/server/lib/io/io_tracker.h>
 
-#include <yt/yt/server/lib/job_agent/job_reporter.h>
+#include <yt/yt/server/lib/exec_node/helpers.h>
 
 #include <yt/yt/server/lib/scheduler/helpers.h>
+
+#include <yt/yt/server/lib/job_agent/structs.h>
+
+#include <yt/yt/server/lib/misc/job_reporter.h>
 
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
@@ -327,19 +331,21 @@ TResourceHolder* TJob::AsResourceHolder()
     return this;
 }
 
-void TJob::Abort(const TError& error)
+void TJob::Abort(TError error)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
     auto timeout = DynamicConfig_->JobAbortionTimeout.value_or(Config_->JobAbortionTimeout);
 
-    YT_LOG_INFO(error, "Job abort requested (Phase: %v, Timeout: %v)",
+    YT_LOG_INFO(
+        error,
+        "Job abort requested (Phase: %v, Timeout: %v)",
         JobPhase_,
         timeout);
 
-    auto startAbortion = [&, error{std::move(error)}] () {
-        SetJobStatePhase(EJobState::Aborting, EJobPhase::WaitingAbort);
-        DoSetResult(std::move(error));
+    auto doAbort = [&, error{std::move(error)}] {
+        SetJobPhase(EJobPhase::WaitingAbort);
+        Finalize(std::move(error));
         TDelayedExecutor::Submit(
             BIND(&TJob::OnJobAbortionTimeout, MakeStrong(this))
                 .Via(Invoker_),
@@ -352,7 +358,7 @@ void TJob::Abort(const TError& error)
         case EJobPhase::RunningGpuCheckCommand:
         case EJobPhase::RunningExtraGpuCheckCommand:
         case EJobPhase::Running:
-            startAbortion();
+            doAbort();
             ArtifactsFuture_.Cancel(TError("Job aborted"));
 
             // Do the actual cleanup asynchronously.
@@ -369,7 +375,7 @@ void TJob::Abort(const TError& error)
         case EJobPhase::SpawningJobProxy:
         case EJobPhase::PreparingJob:
             // Wait for the next event handler to complete the abortion.
-            startAbortion();
+            doAbort();
             Slot_->CancelPreparation();
             break;
 
@@ -523,21 +529,26 @@ void TJob::OnJobPrepared()
     });
 }
 
-void TJob::Finalize()
+void TJob::Finalize(TError error)
+{
+    Finalize(std::move(error), /*jobResultExtension*/ std::nullopt, /*byJobProxyCompletion*/ false);
+}
+
+void TJob::Finalize(
+    TError error,
+    std::optional<NScheduler::NProto::TSchedulerJobResultExt> jobResultExtension,
+    bool byJobProxyCompletion)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    if (std::exchange(Finalized_, true)) {
-        YT_LOG_DEBUG("Job is already finalized");
-
+    if (IsFinished()) {
+        YT_LOG_DEBUG("Job already finalized");
         return;
     }
 
-    if (auto delay = JobTestingOptions_->DelayInFinalize) {
-        TDelayedExecutor::WaitForDuration(*delay);
-    }
-
     TForbidContextSwitchGuard guard;
+
+    DoSetResult(std::move(error), std::move(jobResultExtension), byJobProxyCompletion);
 
     YT_LOG_DEBUG("Finalize job");
 
@@ -550,39 +561,43 @@ void TJob::Finalize()
     FillTrafficStatistics(ExecAgentTrafficStatisticsPrefix, statistics, TrafficMeter_);
     StatisticsYson_ = ConvertToYsonString(statistics);
 
-    auto& error = *Error_;
+    auto& currentError = *Error_;
 
-    if (error.IsOK()) {
+    if (currentError.IsOK()) {
         SetJobState(EJobState::Completed);
-    } else if (IsFatalError(error)) {
-        error.MutableAttributes()->Set("fatal", true);
+    } else if (IsFatalError(currentError)) {
+        currentError.MutableAttributes()->Set("fatal", true);
         SetJobState(EJobState::Failed);
     } else {
         auto abortReason = GetAbortReason();
         if (abortReason) {
-            error.MutableAttributes()->Set("abort_reason", abortReason);
+            currentError.MutableAttributes()->Set("abort_reason", abortReason);
             SetJobState(EJobState::Aborted);
         } else {
             SetJobState(EJobState::Failed);
         }
     }
 
-    if (!error.IsOK()) {
+    if (!currentError.IsOK()) {
         // NB: it is required to report error that occurred in some place different
         // from OnJobFinished method.
-        HandleJobReport(MakeDefaultJobReport().Error(error));
+        HandleJobReport(MakeDefaultJobReport().Error(currentError));
     }
 
     // NB: we should disable slot here to give scheduler information about job failure.
-    if (error.FindMatching(EErrorCode::GpuCheckCommandFailed) && !error.FindMatching(EErrorCode::GpuCheckCommandIncorrect)) {
-        Bootstrap_->GetSlotManager()->OnGpuCheckCommandFailed(error);
+    if (currentError.FindMatching(EErrorCode::GpuCheckCommandFailed) &&
+        !currentError.FindMatching(EErrorCode::GpuCheckCommandIncorrect))
+    {
+        Bootstrap_->GetSlotManager()->OnGpuCheckCommandFailed(currentError);
     }
 
     YT_LOG_INFO(
-        error,
+        currentError,
         "Setting final job state (JobState: %v, ResourceUsage: %v)",
         GetState(),
         GetResourceUsage());
+
+    YT_VERIFY(IsFinished());
 
     JobFinished_.Fire();
 }
@@ -599,10 +614,20 @@ void TJob::OnResultReceived(TJobResult jobResult)
             schedulerResultExtension = std::move(
                 *jobResult.ReleaseExtension(NScheduler::NProto::TSchedulerJobResultExt::job_result_ext));
         }
-        DoSetResult(
-            FromProto<TError>(jobResult.error()),
-            std::move(schedulerResultExtension),
-            /*receivedFromJobProxy*/ true);
+
+        if (auto error = FromProto<TError>(jobResult.error());
+            error.IsOK() || !NeedsGpuCheck())
+        {
+            Finalize(
+                std::move(error),
+                std::move(schedulerResultExtension),
+                /*byJobProxyCompletion*/ true);
+        } else {
+            DoSetResult(
+                std::move(error),
+                /*jobResultExtension*/ std::nullopt,
+                /*receivedFromJobProxy*/ true);
+        }
     });
 }
 
@@ -1032,7 +1057,6 @@ std::optional<TString> TJob::GetStderr()
 
     if (JobPhase_ < EJobPhase::Running ||
         JobState_ == EJobState::Aborted ||
-        JobState_ == EJobState::Aborting ||
         JobState_ == EJobState::Failed)
     {
         return std::nullopt;
@@ -1102,7 +1126,8 @@ void TJob::HandleJobReport(TNodeJobReport&& jobReport)
     Bootstrap_->GetJobReporter()->HandleJobReport(
         jobReport
             .OperationId(GetOperationId())
-            .JobId(GetId()));
+            .JobId(GetId())
+            .Address(Bootstrap_->GetLocalDescriptor().GetDefaultAddress()));
 }
 
 void TJob::ReportSpec()
@@ -1262,11 +1287,11 @@ bool TJob::GetStored() const
     return Stored_;
 }
 
-void TJob::SetStored(bool value)
+void TJob::SetStored()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    Stored_ = value;
+    Stored_ = true;
 }
 
 bool TJob::IsJobProxyCompleted() const noexcept
@@ -1339,7 +1364,14 @@ const std::optional<NScheduler::TPreemptedFor>& TJob::GetPreemptedFor() const no
 
 bool TJob::IsFinished() const noexcept
 {
-    return JobPhase_ == EJobPhase::Finished;
+    switch (JobState_) {
+        case EJobState::Aborted:
+        case EJobState::Completed:
+        case EJobState::Failed:
+            return true;
+        default:
+            return false;
+    }
 }
 
 // Helpers.
@@ -1425,6 +1457,10 @@ void TJob::DoSetResult(
         return;
     }
 
+    YT_VERIFY(!error.IsOK() || jobResultExtension);
+
+    YT_LOG_DEBUG("Setting job result (Error: %v)", error);
+
     if (Config_->TestJobErrorTruncation) {
         if (!error.IsOK()) {
             for (int index = 0; index < 10; ++index) {
@@ -1435,14 +1471,11 @@ void TJob::DoSetResult(
     }
 
     JobResultExtension_ = std::nullopt;
-    if (jobResultExtension)
-    {
+    if (jobResultExtension) {
         JobResultExtension_ = std::move(jobResultExtension);
     }
 
-    {
-        Error_ = error.Truncate();
-    }
+    Error_ = error.Truncate();
 
     JobProxyCompleted_ = receivedFromJobProxy;
 
@@ -1467,7 +1500,6 @@ bool TJob::HandleFinishingPhase()
             return false;
 
         default:
-            YT_VERIFY(JobState_ == EJobState::Running);
             return false;
     }
 }
@@ -1547,8 +1579,6 @@ void TJob::OnArtifactsDownloaded(const TErrorOr<std::vector<NDataNode::IChunkPtr
         }
 
         CopyTime_ = TInstant::Now();
-        SetJobPhase(EJobPhase::PreparingSandboxDirectories);
-
         RunWithWorkspaceBuilder();
     });
 }
@@ -1562,7 +1592,11 @@ void TJob::RunWithWorkspaceBuilder()
     binds.reserve(Config_->RootFSBinds.size());
 
     for (const auto& bind : Config_->RootFSBinds) {
-        binds.push_back({bind->ExternalPath, bind->InternalPath, bind->ReadOnly});
+        binds.push_back(TBind{
+            .SourcePath = bind->ExternalPath,
+            .TargetPath = bind->InternalPath,
+            .ReadOnly = bind->ReadOnly
+        });
     }
 
     TUserSandboxOptions options = BuildUserSandboxOptions();
@@ -1580,7 +1614,7 @@ void TJob::RunWithWorkspaceBuilder()
         .LayerArtifactKeys = LayerArtifactKeys_,
         .SetupCommands = GetSetupCommands(),
 
-        .NeedGpuCheck = UserJobSpec_ && UserJobSpec_->has_gpu_check_binary_path(),
+        .NeedGpuCheck = NeedsGpuCheck(),
         .TestExtraGpuCheckCommandFailure = Config_->JobController->GpuManager->TestExtraGpuCheckCommandFailure,
         .GpuCheckBinaryPath = UserJobSpec_
             ? std::make_optional(UserJobSpec_->gpu_check_binary_path())
@@ -1619,17 +1653,19 @@ void TJob::FinishPrepare(const TErrorOr<TJobWorkspaceBuildResult>& resultOrError
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    GuardedAction([&] {
-        if (resultOrError.IsOK()) {
-            auto result = resultOrError.Value();
-            TmpfsPaths_ = result.TmpfsPaths;
-            RootVolume_ = result.RootVolume;
-            SetupCommandCount_ = result.SetupCommandCount;
+    YT_VERIFY(resultOrError.IsOK());
 
-            RunJobProxy();
-        } else {
-            THROW_ERROR_EXCEPTION(resultOrError);
-        }
+    GuardedAction([&] {
+        auto& holder = resultOrError.Value();
+        TmpfsPaths_ = holder.TmpfsPaths;
+        RootVolume_ = std::move(holder.RootVolume);
+        SetupCommandCount_ = holder.SetupCommandCount;
+
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            holder.Result,
+            "Job preparation failed");
+
+        RunJobProxy();
     });
 }
 
@@ -1644,12 +1680,16 @@ void TJob::OnExtraGpuCheckCommandFinished(const TError& error)
     }
 
     ValidateJobPhase(EJobPhase::RunningExtraGpuCheckCommand);
+
+    YT_VERIFY(Error_ && !Error_->IsOK());
+
+    auto initialError = std::move(*Error_);
+
     if (!error.IsOK()) {
         YT_LOG_FATAL_IF(
             !Error_ || Error_->IsOK(),
             "Job error is not set (Error: %v)", Error_);
 
-        auto initialError = std::move(*Error_);
         // Reset Error_ to set it with checkError
         Error_ = {};
         JobResultExtension_.reset();
@@ -1659,7 +1699,9 @@ void TJob::OnExtraGpuCheckCommandFinished(const TError& error)
             << initialError;
 
         YT_LOG_WARNING(checkError, "Extra GPU check command executed after job failure is also failed");
-        DoSetResult(std::move(checkError));
+        Finalize(std::move(checkError));
+    } else {
+        Finalize(std::move(initialError));
     }
 
     Cleanup();
@@ -1722,7 +1764,8 @@ void TJob::OnJobPreparationTimeout(TDuration prepareTimeLimit, bool fatal)
             fatal ? EErrorCode::FatalJobPreparationTimeout : EErrorCode::JobPreparationTimeout,
             "Failed to prepare job within timeout")
             << TErrorAttribute("prepare_time_limit", prepareTimeLimit)
-            << TErrorAttribute("job_start_time", StartTime_);
+            << TErrorAttribute("job_start_time", StartTime_)
+            << TErrorAttribute("job_phase", JobPhase_);
         Abort(error);
     }
 }
@@ -1731,7 +1774,7 @@ void TJob::OnJobAbortionTimeout()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    if (JobState_ == EJobState::Aborting) {
+    if (JobPhase_ == EJobPhase::WaitingAbort) {
         auto error = TError("Failed to abort job within timeout")
             << TErrorAttribute("job_id", Id_)
             << TErrorAttribute("operation_id", OperationId_)
@@ -1744,18 +1787,18 @@ void TJob::OnJobProxyFinished(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
+    YT_LOG_INFO("Job proxy finished");
+
     ResetJobProbe();
 
     if (HandleFinishingPhase()) {
         return;
     }
 
-    YT_LOG_INFO("Job proxy finished");
-
     const auto& currentError = Error_
         ? *Error_
         : TError();
-    if (!currentError.IsOK() && UserJobSpec_ && UserJobSpec_->has_gpu_check_binary_path()) {
+    if (!currentError.IsOK() && NeedsGpuCheck()) {
         SetJobPhase(EJobPhase::RunningExtraGpuCheckCommand);
 
         TJobGpuCheckerSettings settings {
@@ -1789,15 +1832,18 @@ void TJob::OnJobProxyFinished(const TError& error)
                 .Via(Invoker_));
     } else {
         if (!error.IsOK()) {
-            DoSetResult(TError(EErrorCode::JobProxyFailed, "Job proxy failed")
+            Finalize(TError(EErrorCode::JobProxyFailed, "Job proxy failed")
                 << BuildJobProxyError(error));
+        } else {
+            YT_VERIFY(IsFinished());
         }
 
         Cleanup();
     }
 }
 
-void TJob::GuardedAction(std::function<void()> action)
+template <class TCallback>
+void TJob::GuardedAction(const TCallback& action)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -1811,7 +1857,7 @@ void TJob::GuardedAction(std::function<void()> action)
     } catch (const std::exception& ex) {
         // TODO(pogorelov): This method is called not only in preparation states, do something with log message.
         YT_LOG_WARNING(ex, "Error preparing scheduler job");
-        DoSetResult(ex);
+        Finalize(ex);
         Cleanup();
     }
 }
@@ -1821,7 +1867,7 @@ void TJob::Cleanup()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    Finalize();
+    YT_VERIFY(IsFinished());
 
     if (JobPhase_ == EJobPhase::Cleanup || JobPhase_ == EJobPhase::Finished) {
         return;
@@ -1829,10 +1875,13 @@ void TJob::Cleanup()
 
     YT_LOG_INFO("Cleaning up after scheduler job");
 
-    FinishTime_ = TInstant::Now();
-    SetJobPhase(EJobPhase::Cleanup);
-
     TDelayedExecutor::Cancel(InterruptionTimeoutCookie_);
+
+    if (auto delay = JobTestingOptions_->DelayInCleanup) {
+        TDelayedExecutor::WaitForDuration(*delay);
+    }
+
+    SetJobPhase(EJobPhase::Cleanup);
 
     if (Slot_) {
         try {
@@ -1865,6 +1914,16 @@ void TJob::Cleanup()
         TResourceHolder::SetResourceUsage(oneUserSlotResources);
     }
 
+    if (RootVolume_) {
+        auto removeResult = WaitFor(RootVolume_->Remove());
+        YT_LOG_ERROR_IF(
+            !removeResult.IsOK(),
+            removeResult,
+            "Volume remove failed (VolumePath: %v)",
+            RootVolume_->GetPath());
+        RootVolume_.Reset();
+    }
+
     if (Slot_) {
         if (ShouldCleanSandboxes()) {
             try {
@@ -1886,7 +1945,14 @@ void TJob::Cleanup()
 
     SetJobPhase(EJobPhase::Finished);
 
+    CleanupFinished_.Set();
+
     YT_LOG_INFO("Job finished (JobState: %v)", GetState());
+}
+
+TFuture<void> TJob::GetCleanupFinishedEvent()
+{
+    return CleanupFinished_.ToFuture();
 }
 
 // Preparation.
@@ -2026,7 +2092,7 @@ TJobProxyConfigPtr TJob::CreateConfig()
                     auto bind = New<TBindConfig>();
                     bind->ExternalPath = artifact.Chunk->GetFileName();
                     bind->InternalPath = targetPath;
-                    bind->ReadOnly = false;
+                    bind->ReadOnly = true;
 
                     proxyConfig->Binds.push_back(std::move(bind));
                 }
@@ -2085,6 +2151,10 @@ TJobProxyConfigPtr TJob::CreateConfig()
 
         if (UserJobSpec_ && UserJobSpec_->has_enable_nat64()) {
             proxyConfig->EnableNat64 = UserJobSpec_->enable_nat64();
+        }
+
+        if (UserJobSpec_ && UserJobSpec_->has_disable_network()) {
+            proxyConfig->DisableNetwork = UserJobSpec_->disable_network();
         }
 
         proxyConfig->HostName = Format("slot_%v.%v",
@@ -2147,7 +2217,7 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
     // NB: this eventually results in job failure.
     options.DiskOverdraftCallback = BIND(&TJob::Abort, MakeWeak(this))
         .Via(Invoker_);
-    options.HasRootFsQuota = Config_->UseCommonRootFsQuota;
+    options.HasRootFsQuota = false;
     options.EnableArtifactBinds = Config_->UseArtifactBinds;
     options.EnableDiskQuota = Bootstrap_->GetConfig()->DataNode->VolumeManager->EnableDiskQuota;
     options.UserId = Slot_->GetUserId();
@@ -2496,6 +2566,7 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
     i64 totalMemoryTotal = 0;
     i64 totalCumulativeSMUtilization = 0;
     i64 totalCumulativeSMOccupancy = 0;
+    i64 aggregateMaxStuckDuration = 0;
 
     auto gpuInfoMap = Bootstrap_->GetGpuManager()->GetGpuInfoMap();
     for (int index = 0; index < std::ssize(GpuSlots_); ++index) {
@@ -2511,34 +2582,25 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
             gpuInfo = it->second;
         }
 
-        slotStatistics.CumulativeUtilizationGpu +=
-            (gpuInfo.UpdateTime - slotStatistics.LastUpdateTime).MilliSeconds() *
-            gpuInfo.UtilizationGpuRate;
+        auto period = gpuInfo.UpdateTime - slotStatistics.LastUpdateTime;
+        slotStatistics.CumulativeUtilizationGpu += period.MilliSeconds() * gpuInfo.UtilizationGpuRate;
         if (gpuInfo.UtilizationGpuRate > 0) {
-            slotStatistics.CumulativeLoad += (gpuInfo.UpdateTime - slotStatistics.LastUpdateTime).MilliSeconds();
+            slotStatistics.CumulativeLoad += period.MilliSeconds();
         }
-        slotStatistics.CumulativeUtilizationMemory +=
-            (gpuInfo.UpdateTime - slotStatistics.LastUpdateTime).MilliSeconds() *
-            gpuInfo.UtilizationMemoryRate;
-        slotStatistics.CumulativeMemory +=
-            (gpuInfo.UpdateTime - slotStatistics.LastUpdateTime).MilliSeconds() *
-            gpuInfo.MemoryUsed;
-        slotStatistics.CumulativeUtilizationPower +=
-            (gpuInfo.UpdateTime - slotStatistics.LastUpdateTime).MilliSeconds() *
-            (gpuInfo.PowerDraw / gpuInfo.PowerLimit);
-        slotStatistics.CumulativePower +=
-            (gpuInfo.UpdateTime - slotStatistics.LastUpdateTime).MilliSeconds() *
-            gpuInfo.PowerDraw;
-        slotStatistics.CumulativeUtilizationClocksSm +=
-            (gpuInfo.UpdateTime - slotStatistics.LastUpdateTime).MilliSeconds() *
+        slotStatistics.CumulativeUtilizationMemory += period.MilliSeconds() * gpuInfo.UtilizationMemoryRate;
+        slotStatistics.CumulativeMemory += period.MilliSeconds() * gpuInfo.MemoryUsed;
+        slotStatistics.CumulativeUtilizationPower += period.MilliSeconds() * (gpuInfo.PowerDraw / gpuInfo.PowerLimit);
+        slotStatistics.CumulativePower += period.MilliSeconds() * gpuInfo.PowerDraw;
+        slotStatistics.CumulativeUtilizationClocksSm += period.MilliSeconds() *
             (static_cast<double>(gpuInfo.ClocksSm) / gpuInfo.ClocksMaxSm);
-        slotStatistics.CumulativeSMUtilization +=
-            (gpuInfo.UpdateTime - slotStatistics.LastUpdateTime).MilliSeconds() *
-            gpuInfo.SMUtilizationRate;
-        slotStatistics.CumulativeSMOccupancy +=
-            (gpuInfo.UpdateTime - slotStatistics.LastUpdateTime).MilliSeconds() *
-            gpuInfo.SMOccupancyRate;
+        slotStatistics.CumulativeSMUtilization += period.MilliSeconds() * gpuInfo.SMUtilizationRate;
+        slotStatistics.CumulativeSMOccupancy += period.MilliSeconds() * gpuInfo.SMOccupancyRate;
         slotStatistics.MaxMemoryUsed = std::max(slotStatistics.MaxMemoryUsed, gpuInfo.MemoryUsed);
+        if (gpuInfo.Stuck.Status && gpuInfo.Stuck.LastTransitionTime) {
+            slotStatistics.MaxStuckDuration = std::max(
+                slotStatistics.MaxStuckDuration,
+                static_cast<i64>((gpuInfo.UpdateTime - *gpuInfo.Stuck.LastTransitionTime).MilliSeconds()));
+        }
         slotStatistics.LastUpdateTime = gpuInfo.UpdateTime;
 
         totalCumulativeUtilizationGpu += slotStatistics.CumulativeUtilizationGpu;
@@ -2551,6 +2613,7 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
         totalCumulativeSMOccupancy += slotStatistics.CumulativeSMOccupancy;
         totalMaxMemoryUsed += slotStatistics.MaxMemoryUsed;
         totalMemoryTotal += gpuInfo.MemoryTotal;
+        aggregateMaxStuckDuration = std::max(aggregateMaxStuckDuration, slotStatistics.MaxStuckDuration);
     }
 
     statistics->AddSample("/user_job/gpu/cumulative_utilization_gpu", totalCumulativeUtilizationGpu);
@@ -2563,12 +2626,14 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
     statistics->AddSample("/user_job/gpu/memory_total", totalMemoryTotal);
     statistics->AddSample("/user_job/gpu/cumulative_sm_utilization", totalCumulativeSMUtilization);
     statistics->AddSample("/user_job/gpu/cumulative_sm_occupancy", totalCumulativeSMOccupancy);
+    statistics->AddSample("/user_job/gpu/max_stuck_duration", aggregateMaxStuckDuration);
 }
 
 void TJob::EnrichStatisticsWithDiskInfo(TStatistics* statistics)
 {
     auto diskStatistics = Slot_->GetDiskStatistics();
     MaxDiskUsage_ = std::max(MaxDiskUsage_, diskStatistics.Usage);
+    statistics->AddSample("/user_job/disk/usage", diskStatistics.Usage);
     statistics->AddSample("/user_job/disk/max_usage", MaxDiskUsage_);
     if (diskStatistics.Limit) {
         statistics->AddSample("/user_job/disk/limit", *diskStatistics.Limit);
@@ -2675,7 +2740,11 @@ NContainers::TRootFS TJob::MakeWritableRootFS()
     rootFS.Binds.reserve(Config_->RootFSBinds.size());
 
     for (const auto& bind : Config_->RootFSBinds) {
-        rootFS.Binds.push_back({bind->ExternalPath, bind->InternalPath, bind->ReadOnly});
+        rootFS.Binds.push_back(TBind{
+            .SourcePath = bind->ExternalPath,
+            .TargetPath = bind->InternalPath,
+            .ReadOnly = bind->ReadOnly
+        });
     }
 
     return rootFS;
@@ -2851,6 +2920,8 @@ void TJob::CollectSensorsFromGpuInfo(ISensorWriter* writer)
     static const TString SMUtilizationName = "gpu/sm_utilization";
     static const TString SMOccupancyName = "gpu/sm_occupancy";
 
+    static const TString StuckName = "gpu/stuck";
+
     auto gpuInfoMap = Bootstrap_->GetGpuManager()->GetGpuInfoMap();
     for (int index = 0; index < std::ssize(GpuSlots_); ++index) {
         const auto& slot = GpuSlots_[index];
@@ -2864,32 +2935,24 @@ void TJob::CollectSensorsFromGpuInfo(ISensorWriter* writer)
 
         TWithTagGuard tagGuard(writer, "gpu_slot", ToString(index));
 
-        if (sensorNames.contains(UtilizationGpuName)) {
-            ProfileSensor(UtilizationGpuName, writer, gpuInfo.UtilizationGpuRate);
-        }
+        auto profileSensorIfNeeded = [&] (const TString& name, double value) {
+            if (sensorNames.contains(name)) {
+                ProfileSensor(name, writer, value);
+            }
+        };
 
-        if (sensorNames.contains(UtilizationMemoryName)) {
-            ProfileSensor(UtilizationMemoryName, writer, gpuInfo.UtilizationMemoryRate);
-        }
-        if (sensorNames.contains(MemoryName)) {
-            ProfileSensor(MemoryName, writer, gpuInfo.MemoryUsed);
-        }
-
-        if (sensorNames.contains(UtilizationPowerName)) {
-            auto utilizationPower = gpuInfo.PowerLimit == 0
-                ? 0
-                : gpuInfo.PowerDraw / gpuInfo.PowerLimit;
-            ProfileSensor(UtilizationPowerName, writer, utilizationPower);
-        }
-        if (sensorNames.contains(PowerName)) {
-            ProfileSensor(PowerName, writer, gpuInfo.PowerDraw);
-        }
-        if (sensorNames.contains(SMUtilizationName)) {
-            ProfileSensor(SMUtilizationName, writer, gpuInfo.SMUtilizationRate);
-        }
-        if (sensorNames.contains(SMOccupancyName)) {
-            ProfileSensor(SMOccupancyName, writer, gpuInfo.SMOccupancyRate);
-        }
+        profileSensorIfNeeded(UtilizationGpuName, gpuInfo.UtilizationGpuRate);
+        profileSensorIfNeeded(UtilizationMemoryName, gpuInfo.UtilizationMemoryRate);
+        profileSensorIfNeeded(MemoryName, gpuInfo.MemoryUsed);
+        profileSensorIfNeeded(
+            UtilizationPowerName,
+            gpuInfo.PowerLimit == 0.0
+                ? 0.0
+                : gpuInfo.PowerDraw / gpuInfo.PowerLimit);
+        profileSensorIfNeeded(PowerName, gpuInfo.PowerDraw);
+        profileSensorIfNeeded(SMUtilizationName, gpuInfo.SMUtilizationRate);
+        profileSensorIfNeeded(SMOccupancyName, gpuInfo.SMOccupancyRate);
+        profileSensorIfNeeded(StuckName, static_cast<double>(gpuInfo.Stuck.Status));
     }
 }
 
@@ -2903,6 +2966,11 @@ TFuture<TSharedRef> TJob::DumpSensors()
         .AsyncVia(Invoker_)
         .Run()
         .WithTimeout(Config_->SensorDumpTimeout);
+}
+
+bool TJob::NeedsGpuCheck() const
+{
+    return UserJobSpec_ && UserJobSpec_->has_gpu_check_binary_path();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

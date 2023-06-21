@@ -7,6 +7,7 @@
 #include "extended_job_resources.h"
 #include "job_splitter.h"
 #include "helpers.h"
+#include "layer_probing_job_manager.h"
 #include "probing_job_manager.h"
 #include "aggregated_job_statistics.h"
 
@@ -247,6 +248,9 @@ public:
     //! Switches all future jobs in the task to the slow intermediate medium.
     void SwitchIntermediateMedium();
 
+    //! A layer probing job has succeeded and all future jobs in the task should use the probing base layer.
+    bool ShouldUseProbingLayer() const;
+
 protected:
     NLogging::TSerializableLogger Logger;
 
@@ -411,6 +415,8 @@ private:
 
     TSpeculativeJobManager SpeculativeJobManager_;
     TProbingJobManager ProbingJobManager_;
+    TLayerProbingJobManager LayerProbingJobManager_;
+    std::array<TCompetitiveJobManagerBase*, 3> JobManagers_ = {&SpeculativeJobManager_, &ProbingJobManager_, &LayerProbingJobManager_};
 
     //! Time of first job scheduling.
     std::optional<TInstant> StartTime_;
@@ -466,7 +472,7 @@ private:
     void OnSecondaryJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitonType) override;
 
     void AbortJobViaScheduler(TJobId jobId, NScheduler::EAbortReason abortReason) override;
-    void AbortJobFromController(TJobId jobId, NScheduler::EAbortReason abortReason) override;
+    void AbortJobByController(TJobId jobId, NScheduler::EAbortReason abortReason) override;
 
     double GetJobProxyMemoryReserveFactor() const;
 

@@ -2282,7 +2282,7 @@ public:
         response->set_confirmed(it && it->second.PendingTabletCount == 0);
     }
 
-    void RecomputeTableTabletStatistics(TTableNode* table)
+    void RecomputeTableTabletStatistics(TTabletOwnerBase* table)
     {
         table->ResetTabletStatistics();
         for (const auto* tablet : table->Tablets()) {
@@ -2292,19 +2292,19 @@ public:
 
     void OnNodeStorageParametersUpdated(TChunkOwnerBase* node)
     {
-        if (!IsTableType(node->GetType())) {
+        if (!IsTabletOwnerType(node->GetType())) {
+            return;
+        }
+        if (IsTableType(node->GetType()) && !node->As<TTableNode>()->IsDynamic()) {
             return;
         }
 
-        auto* tableNode = node->As<TTableNode>();
-        if (!tableNode->IsDynamic()) {
-            return;
-        }
+        auto* tabletOwner = node->As<TTabletOwnerBase>();
 
-        YT_LOG_DEBUG("Table replication changed, will recompute tablet statistics "
-            "(TableId: %v)",
-            tableNode->GetId());
-        RecomputeTableTabletStatistics(tableNode);
+        YT_LOG_DEBUG("Tablet owner replication changed, will recompute tablet statistics "
+            "(NodeId: %v)",
+            tabletOwner->GetId());
+        RecomputeTableTabletStatistics(tabletOwner);
     }
 
     TTabletCell* GetTabletCellOrThrow(TTabletCellId id)
@@ -4696,8 +4696,8 @@ private:
             return;
         }
 
-        YT_VERIFY(IsTableType(node->GetType()));
-        auto* table = node->As<TTableNode>();
+        YT_VERIFY(IsTabletOwnerType(node->GetType()));
+        auto* tabletOwner = node->As<TTabletOwnerBase>();
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Received update upstream tablet state request "
             "(TableId: %v, ActualTabletState: %v, ExpectedTabletState: %v, ExpectedLastMountTransactionId: %v, ActualLastMountTransactionId: %v)",
@@ -4705,17 +4705,17 @@ private:
             actualState,
             expectedState,
             transactionId,
-            table->GetLastMountTransactionId());
+            tabletOwner->GetLastMountTransactionId());
 
         if (actualState) {
-            table->SetActualTabletState(*actualState);
+            tabletOwner->SetActualTabletState(*actualState);
         }
 
-        if (transactionId == table->GetLastMountTransactionId()) {
+        if (transactionId == tabletOwner->GetLastMountTransactionId()) {
             if (expectedState) {
-                table->SetExpectedTabletState(*expectedState);
+                tabletOwner->SetExpectedTabletState(*expectedState);
             }
-            table->SetLastMountTransactionId(TTransactionId());
+            tabletOwner->SetLastMountTransactionId(TTransactionId());
         }
     }
 
@@ -4731,17 +4731,18 @@ private:
             return;
         }
 
-        YT_VERIFY(IsTableType(node->GetType()));
-        auto* table = node->As<TTableNode>();
+        YT_VERIFY(IsTabletOwnerType(node->GetType()));
+        auto* tabletOwner = node->As<TTabletOwnerBase>();
         auto transactionId = FromProto<TTransactionId>(request->last_mount_transaction_id());
-        table->SetPrimaryLastMountTransactionId(transactionId);
+        tabletOwner->SetPrimaryLastMountTransactionId(transactionId);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table tablet state check request received (TableId: %v, LastMountTransactionId: %v, PrimaryLastMountTransactionId: %v)",
-            table->GetId(),
-            table->GetLastMountTransactionId(),
-            table->GetPrimaryLastMountTransactionId());
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            "Table tablet state check request received (TableId: %v, LastMountTransactionId: %v, PrimaryLastMountTransactionId: %v)",
+            tabletOwner->GetId(),
+            tabletOwner->GetLastMountTransactionId(),
+            tabletOwner->GetPrimaryLastMountTransactionId());
 
-        UpdateTabletState(table);
+        UpdateTabletState(tabletOwner);
     }
 
     void UpdateTabletState(TTabletOwnerBase* table)
@@ -5325,24 +5326,30 @@ private:
         }
 
         auto* table = tablet->GetTable();
-        if (!table->IsPhysicallySorted()) {
-            const auto& chunkListStatistics = tablet->GetChunkList()->Statistics();
-            if (tablet->GetTrimmedRowCount() > chunkListStatistics.LogicalRowCount) {
-                auto message = Format(
-                    "Trimmed row count exceeds total row count of the tablet "
-                    "and will be rolled back (TableId: %v, TabletId: %v, CellId: %v, "
-                    "TrimmedRowCount: %v, LogicalRowCount: %v)",
-                    table->GetId(),
-                    tablet->GetId(),
-                    cellId,
-                    tablet->GetTrimmedRowCount(),
-                    chunkListStatistics.LogicalRowCount);
-                if (force) {
-                    YT_LOG_WARNING_IF(IsMutationLoggingEnabled(), message);
-                    tablet->SetTrimmedRowCount(chunkListStatistics.LogicalRowCount);
-                } else {
-                    YT_LOG_ALERT(message);
+        auto* chunkList = tablet->GetChunkList();
+        if (!chunkList) {
+            YT_VERIFY(force);
+        } else {
+            if (chunkList->GetKind() == EChunkListKind::OrderedDynamicTablet) {
+                const auto& chunkListStatistics = chunkList->Statistics();
+                if (tablet->GetTrimmedRowCount() > chunkListStatistics.LogicalRowCount) {
+                    auto message = Format(
+                        "Trimmed row count exceeds total row count of the tablet "
+                        "and will be rolled back (TableId: %v, TabletId: %v, CellId: %v, "
+                        "TrimmedRowCount: %v, LogicalRowCount: %v)",
+                        table->GetId(),
+                        tablet->GetId(),
+                        cellId,
+                        tablet->GetTrimmedRowCount(),
+                        chunkListStatistics.LogicalRowCount);
+                    if (force) {
+                        YT_LOG_WARNING_IF(IsMutationLoggingEnabled(), message);
+                        tablet->SetTrimmedRowCount(chunkListStatistics.LogicalRowCount);
+                    } else {
+                        YT_LOG_ALERT(message);
+                    }
                 }
+
             }
         }
 

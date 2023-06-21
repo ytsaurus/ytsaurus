@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include "helpers.h"
+
 #include <yt/yt/client/job_tracker_client/helpers.h>
 
 #include <yt/yt/core/concurrency/config.h>
@@ -28,9 +30,6 @@ void TChunkManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("allow_multiple_erasure_parts_per_node", &TThis::AllowMultipleErasurePartsPerNode)
         .Default(false);
-
-    registrar.Parameter("replicator_enabled_check_period", &TThis::ReplicatorEnabledCheckPeriod)
-        .Default(TDuration::Seconds(1));
 
     registrar.Parameter("repair_queue_balancer_weight_decay_interval", &TThis::RepairQueueBalancerWeightDecayInterval)
         .Default(TDuration::Seconds(60));
@@ -152,6 +151,33 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("allow_setting_chunk_merger_mode", &TThis::AllowSettingChunkMergerMode)
         .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TDynamicMasterCellChunkStatisticsCollectorConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("max_chunks_per_scan", &TThis::MaxChunksPerScan)
+        .Default(500);
+    registrar.Parameter("chunk_scan_period", &TThis::ChunkScanPeriod)
+        .Default(TDuration::Minutes(1));
+
+    registrar.Parameter("creation_time_histogram_bucket_bounds", &TThis::CreationTimeHistogramBucketBounds)
+        .Default(GenerateChunkCreationTimeHistogramBucketBounds(TInstant::ParseIso8601("2023-02-15 00:00:00Z")));
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (std::ssize(config->CreationTimeHistogramBucketBounds) > MaxChunkCreationTimeHistogramBuckets) {
+            THROW_ERROR_EXCEPTION("creation_time_histogram_bucket_bounds is too large")
+                << TErrorAttribute("size", std::ssize(config->CreationTimeHistogramBucketBounds))
+                << TErrorAttribute("limit", MaxChunkCreationTimeHistogramBuckets);
+        }
+        // COMPAT(kvk1920): Exception cannot be throwed here without master reign advancing.
+        if (config->CreationTimeHistogramBucketBounds.empty()) {
+            config->CreationTimeHistogramBucketBounds = {TInstant::Zero()};
+        }
+
+        Sort(config->CreationTimeHistogramBucketBounds);
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -408,6 +434,9 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_time_per_journal_chunk_refresh", &TThis::MaxTimePerJournalChunkRefresh)
         .Default(TDuration::MilliSeconds(60));
 
+    registrar.Parameter("replicator_enabled_check_period", &TThis::ReplicatorEnabledCheckPeriod)
+        .Default(TDuration::Seconds(30));
+
     registrar.Parameter("enable_chunk_requisition_update", &TThis::EnableChunkRequisitionUpdate)
         .Default(true);
     registrar.Parameter("chunk_requisition_update_period", &TThis::ChunkRequisitionUpdatePeriod)
@@ -492,6 +521,8 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("chunk_merger", &TThis::ChunkMerger)
         .DefaultNew();
 
+    registrar.Parameter("master_cell_chunk_statistics_collector", &TThis::MasterCellChunkStatisticsCollector)
+        .DefaultNew();
 
     registrar.Parameter("chunk_reincarnator", &TThis::ChunkReincarnator)
         .DefaultNew();

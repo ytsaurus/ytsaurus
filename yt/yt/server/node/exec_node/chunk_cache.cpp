@@ -1027,6 +1027,7 @@ private:
                     .BlockIndex = index,
                     .Priority = index,
                     .UncompressedDataSize = blocksExt.blocks(index).size(),
+                    .BlockType = EBlockType::None,
                 });
             }
 
@@ -1046,7 +1047,7 @@ private:
                 std::vector<IChunkReaderPtr>({chunkReader}),
                 GetNullBlockCache(),
                 NCompression::ECodec::None,
-                1.0, /* compressionRatio */
+                /*compressionRatio*/ 1.0,
                 chunkReadOptions);
             blockFetcher->Start();
 

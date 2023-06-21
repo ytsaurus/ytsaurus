@@ -526,6 +526,9 @@ void TMetaAggregatingWriter::FinalizeMeta()
     if (MaxTimestamp_ != NullTimestamp) {
         MiscExt_.set_max_timestamp(MaxTimestamp_);
     }
+    if (TableSchemaExt_) {
+        MiscExt_.set_unique_keys(TableSchemaExt_->unique_keys());
+    }
     SetProtoExtension(ChunkMeta_->mutable_extensions(), MiscExt_);
 
     MetaFinalized_ = true;

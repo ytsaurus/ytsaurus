@@ -75,12 +75,12 @@ TFuture<NYson::TYsonString> ComputeChunkStatistics(
     const TChunkLists& chunkLists,
     TKeyExtractor keyExtractor);
 
-template <class TKeyExtractor, class TPredicate>
+template <class TKeyExtractor, class TKeyFormatter>
 TFuture<NYson::TYsonString> ComputeChunkStatistics(
     NCellMaster::TBootstrap* bootstrap,
     const TChunkLists& chunkLists,
     TKeyExtractor keyExtractor,
-    TPredicate predicate);
+    TKeyFormatter keyFormatter);
 
 ////////////////////////////////////////////////////////////////////////////////
 

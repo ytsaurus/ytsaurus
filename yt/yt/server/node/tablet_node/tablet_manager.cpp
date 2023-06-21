@@ -656,11 +656,6 @@ private:
             return Owner_->Bootstrap_->GetControlInvoker();
         }
 
-        IInvokerPtr GetEpochAutomatonInvoker() const override
-        {
-            return Owner_->Slot_->GetEpochAutomatonInvoker();
-        }
-
         IColumnEvaluatorCachePtr GetColumnEvaluatorCache() const override
         {
             return Owner_->Bootstrap_->GetColumnEvaluatorCache();
@@ -4384,7 +4379,7 @@ private:
 
                 ++it;
                 ++jt;
-            } else if (jt == jtEnd || it == itEnd || it->first < jt->first) {
+            } else if (jt == jtEnd || (it != itEnd && it->first < jt->first)) {
                 // Previously matching experiment is now gone.
                 return scheduleUpdate();
             } else {

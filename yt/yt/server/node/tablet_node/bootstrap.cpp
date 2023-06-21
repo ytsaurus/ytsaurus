@@ -43,7 +43,9 @@
 #include <yt/yt/core/ytree/ypath_service.h>
 
 #include <yt/yt/core/concurrency/two_level_fair_share_thread_pool.h>
+#include <yt/yt/core/concurrency/new_fair_share_thread_pool.h>
 
+#include <yt/yt/core/misc/async_expiring_cache.h>
 
 namespace NYT::NTabletNode {
 
@@ -62,6 +64,85 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = TabletNodeLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TPoolWeightCache)
+
+class TPoolWeightCache
+    : public TAsyncExpiringCache<TString, double>
+    , public IPoolWeightProvider
+{
+public:
+    TPoolWeightCache(
+        TAsyncExpiringCacheConfigPtr config,
+        TWeakPtr<NApi::NNative::IClient> client,
+        IInvokerPtr invoker)
+        : TAsyncExpiringCache(
+            std::move(config),
+            TabletNodeLogger.WithTag("Cache: PoolWeight"))
+        , Client_(std::move(client))
+        , Invoker_(std::move(invoker))
+    { }
+
+    double GetWeight(const TString& poolName) override
+    {
+        auto poolWeight = DefaultQLExecutionPoolWeight;
+        auto weightFuture = this->Get(poolName);
+        if (auto optionalWeightOrError = weightFuture.TryGet()) {
+            poolWeight = optionalWeightOrError->ValueOrThrow();
+        }
+        return poolWeight;
+    }
+
+private:
+    static constexpr double DefaultQLExecutionPoolWeight = 1.0;
+
+    const TWeakPtr<NApi::NNative::IClient> Client_;
+    const IInvokerPtr Invoker_;
+
+    TFuture<double> DoGet(
+        const TString& poolName,
+        bool /*isPeriodicUpdate*/) noexcept override
+    {
+        auto client = Client_.Lock();
+        if (!client) {
+            return MakeFuture<double>(TError(NYT::EErrorCode::Canceled, "Client destroyed"));
+        }
+        return BIND(GetPoolWeight, std::move(client), poolName)
+            .AsyncVia(Invoker_)
+            .Run();
+    }
+
+    static double GetPoolWeight(const NApi::NNative::IClientPtr& client, const TString& poolName)
+    {
+        auto path = QueryPoolsPath + "/" + NYPath::ToYPathLiteral(poolName);
+
+        NApi::TGetNodeOptions options;
+        options.ReadFrom = NApi::EMasterChannelKind::Cache;
+        auto rspOrError = WaitFor(client->GetNode(path + "/@weight", options));
+
+        if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+            return DefaultQLExecutionPoolWeight;
+        }
+
+        if (!rspOrError.IsOK()) {
+            YT_LOG_WARNING(rspOrError, "Failed to get pool info from Cypress, assuming defaults (Pool: %v)",
+                poolName);
+            return DefaultQLExecutionPoolWeight;
+        }
+
+        try {
+            return ConvertTo<double>(rspOrError.Value());
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(ex, "Error parsing pool weight retrieved from Cypress, assuming default (Pool: %v)",
+                poolName);
+            return DefaultQLExecutionPoolWeight;
+        }
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TPoolWeightCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -103,9 +184,14 @@ public:
 
         TableDynamicConfigManager_ = New<TTableDynamicConfigManager>(this);
 
-        QueryThreadPool_ = CreateTwoLevelFairShareThreadPool(
+        QueryThreadPool_ = CreateNewTwoLevelFairShareThreadPool(
             GetConfig()->QueryAgent->QueryThreadPoolSize,
-            "Query");
+            "Query",
+            New<TPoolWeightCache>(
+                GetConfig()->QueryAgent->PoolWeightCache,
+                GetClient(),
+                GetControlInvoker()));
+
         TableReplicatorThreadPool_ = CreateThreadPool(
             GetConfig()->TabletNode->TabletManager->ReplicatorThreadPoolSize,
             "Replicator");
@@ -194,6 +280,8 @@ public:
         LsmInterop_ = CreateLsmInterop(this, StoreCompactor_, PartitionBalancer_, StoreRotator_);
 
         GetRpcServer()->RegisterService(CreateQueryService(GetConfig()->QueryAgent, this));
+
+        GetRpcServer()->RegisterService(CreateTabletCellService(this));
 
         SlotManager_->Initialize();
     }
@@ -328,10 +416,9 @@ public:
 
     IInvokerPtr GetQueryPoolInvoker(
         const TString& poolName,
-        double weight,
         const TFairShareThreadPoolTag& tag) const override
     {
-        return QueryThreadPool_->GetInvoker(poolName, weight, tag);
+        return QueryThreadPool_->GetInvoker(poolName, tag);
     }
 
     const IThroughputThrottlerPtr& GetThrottler(NTabletNode::ETabletNodeThrottlerKind kind) const override

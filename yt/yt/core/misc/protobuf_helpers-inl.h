@@ -332,6 +332,16 @@ void FromProtoArrayImpl(
     }
 }
 
+template <class TOriginal, class TSerializedArray, size_t N>
+void FromProtoArrayImpl(
+    std::array<TOriginal, N>* originalArray,
+    const TSerializedArray& serializedArray)
+{
+    for (int i = 0; i < std::ssize(serializedArray) && i < std::ssize(*originalArray); ++i) {
+        FromProto(&(*originalArray)[i], serializedArray.Get(i));
+    }
+}
+
 } // namespace NDetail
 
 template <class TSerialized, class TOriginal>
@@ -346,6 +356,22 @@ template <class TSerialized, class TOriginal>
 void ToProto(
     ::google::protobuf::RepeatedField<TSerialized>* serializedArray,
     const std::vector<TOriginal>& originalArray)
+{
+    NYT::NDetail::ToProtoArrayImpl(serializedArray, originalArray);
+}
+
+template <class TSerialized, class TOriginal, size_t N>
+void ToProto(
+    ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,
+    const std::array<TOriginal, N>& originalArray)
+{
+    NYT::NDetail::ToProtoArrayImpl(serializedArray, originalArray);
+}
+
+template <class TSerialized, class TOriginal, size_t N>
+void ToProto(
+    ::google::protobuf::RepeatedField<TSerialized>* serializedArray,
+    const std::array<TOriginal, N>& originalArray)
 {
     NYT::NDetail::ToProtoArrayImpl(serializedArray, originalArray);
 }

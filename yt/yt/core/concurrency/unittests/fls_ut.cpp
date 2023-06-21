@@ -7,19 +7,20 @@
 #include <yt/yt/core/actions/callback.h>
 #include <yt/yt/core/actions/future.h>
 
-#include <util/system/yield.h>
 
 namespace NYT::NConcurrency {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::atomic<int> CtorCalls;
-std::atomic<int> DtorCalls;
-
+template <class T>
 struct TMyValue
 {
-    TString Value;
+    static int CtorCalls;
+    static int DtorCalls;
+
+    T Value;
+
     static void Reset()
     {
         CtorCalls = 0;
@@ -37,37 +38,33 @@ struct TMyValue
     }
 };
 
+template <> int TMyValue<int>::CtorCalls = 0;
+template <> int TMyValue<int>::DtorCalls = 0;
+
+template <> int TMyValue<TString>::CtorCalls = 0;
+template <> int TMyValue<TString>::DtorCalls = 0;
+
 class TFlsTest
     : public ::testing::Test
 {
 protected:
-    const TActionQueuePtr ActionQueue = New<TActionQueue>();
-
     void SetUp() override
     {
-        TMyValue::Reset();
+        TMyValue<int>::Reset();
+        TMyValue<TString>::Reset();
     }
+
+    TActionQueuePtr ActionQueue = New<TActionQueue>();
 
     void TearDown() override
     {
         ActionQueue->Shutdown();
     }
+
 };
 
-TFlsSlot<TMyValue> Slot;
-
-TEST_F(TFlsTest, IsInitialized)
-{
-    BIND([&] {
-        EXPECT_FALSE(Slot.IsInitialized());
-    })
-        .AsyncVia(ActionQueue->GetInvoker())
-        .Run()
-        .Get();
-
-    EXPECT_EQ(CtorCalls, 0);
-    EXPECT_EQ(DtorCalls, 0);
-}
+TFls<TMyValue<int>> IntValue;
+TFls<TMyValue<TString>> StringValue;
 
 TEST_F(TFlsTest, TwoFibers)
 {
@@ -75,22 +72,22 @@ TEST_F(TFlsTest, TwoFibers)
     auto p2 = NewPromise<void>();
 
     auto f1 = BIND([&] {
-        Slot->Value = "fiber1";
+        StringValue->Value = "fiber1";
         WaitFor(p1.ToFuture())
             .ThrowOnError();
-        EXPECT_EQ("fiber1", Slot->Value);
+        EXPECT_EQ("fiber1", StringValue->Value);
     })
-        .AsyncVia(ActionQueue->GetInvoker())
-        .Run();
+    .AsyncVia(ActionQueue->GetInvoker())
+    .Run();
 
     auto f2 = BIND([&] {
-        Slot->Value = "fiber2";
+        StringValue->Value = "fiber2";
         WaitFor(p2.ToFuture())
             .ThrowOnError();
-        EXPECT_EQ("fiber2", Slot->Value);
+        EXPECT_EQ("fiber2", StringValue->Value);
     })
-        .AsyncVia(ActionQueue->GetInvoker())
-        .Run();
+    .AsyncVia(ActionQueue->GetInvoker())
+    .Run();
 
     p1.Set();
     p2.Set();
@@ -99,12 +96,78 @@ TEST_F(TFlsTest, TwoFibers)
         .ThrowOnError();
     WaitFor(f2)
         .ThrowOnError();
-
-    EXPECT_EQ(CtorCalls, 2);
-    while (DtorCalls != 2) {
-        ThreadYield();
-    }
 }
+
+#if 0
+
+TEST_F(TFlsTest, OneFiber)
+{
+    auto fiber = New<TFiber>(BIND([] () {
+        EXPECT_EQ(0, TMyValue<int>::CtorCalls);
+        IntValue->Value = 1;
+        EXPECT_EQ(1, TMyValue<int>::CtorCalls);
+    }));
+
+    fiber->Run();
+    EXPECT_EQ(EFiberState::Terminated, fiber->GetState());
+
+    fiber.Reset();
+
+    EXPECT_EQ(1, TMyValue<int>::CtorCalls);
+    EXPECT_EQ(1, TMyValue<int>::DtorCalls);
+}
+
+TEST_F(TFlsTest, TwoFibers)
+{
+    auto fiber1 = New<TFiber>(BIND([] () {
+        EXPECT_EQ(0, TMyValue<TString>::CtorCalls);
+        StringValue->Value = "fiber1";
+        EXPECT_EQ(1, TMyValue<TString>::CtorCalls);
+
+        Yield();
+
+        EXPECT_EQ("fiber1", StringValue->Value);
+    }));
+
+    auto fiber2 = New<TFiber>(BIND([] () {
+        EXPECT_EQ(1, TMyValue<TString>::CtorCalls);
+        StringValue->Value = "fiber2";
+        EXPECT_EQ(2, TMyValue<TString>::CtorCalls);
+
+        Yield();
+
+        EXPECT_EQ("fiber2", StringValue->Value);
+    }));
+
+    fiber1->Run();
+    EXPECT_EQ(EFiberState::Suspended, fiber1->GetState());
+
+    EXPECT_EQ(1, TMyValue<TString>::CtorCalls);
+    EXPECT_EQ(0, TMyValue<int>::DtorCalls);
+
+    fiber2->Run();
+    EXPECT_EQ(EFiberState::Suspended, fiber2->GetState());
+
+    EXPECT_EQ(2, TMyValue<TString>::CtorCalls);
+    EXPECT_EQ(0, TMyValue<TString>::DtorCalls);
+
+    fiber1->Run();
+    EXPECT_EQ(EFiberState::Terminated, fiber1->GetState());
+
+    EXPECT_EQ(2, TMyValue<TString>::CtorCalls);
+    EXPECT_EQ(0, TMyValue<TString>::DtorCalls);
+
+    fiber2->Run();
+    EXPECT_EQ(EFiberState::Terminated, fiber2->GetState());
+
+    fiber1.Reset();
+    fiber2.Reset();
+
+    EXPECT_EQ(2, TMyValue<TString>::CtorCalls);
+    EXPECT_EQ(2, TMyValue<TString>::DtorCalls);
+}
+
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -92,7 +92,7 @@ TFuture<std::vector<TRow>> TTableBase<TRow>::Select(TStringBuf columns, TStringB
     return Client_->SelectRows(query)
         .Apply(BIND([&] (const TSelectRowsResult& result) {
             const auto& rowset = result.Rowset;
-            return TRow::ParseRowRange(rowset->GetRows(), rowset->GetNameTable(), rowset->GetSchema());
+            return TRow::ParseRowRange(rowset->GetRows(), rowset->GetNameTable());
         }));
 }
 
@@ -143,22 +143,13 @@ TTableSchemaPtr TQueueTableDescriptor::Schema = New<TTableSchema>(std::vector<TC
 
 std::vector<TQueueTableRow> TQueueTableRow::ParseRowRange(
     TRange<TUnversionedRow> rows,
-    const TNameTablePtr& nameTable,
-    const TTableSchemaPtr& schema)
+    const TNameTablePtr& nameTable)
 {
     std::vector<TQueueTableRow> typedRows;
     typedRows.reserve(rows.size());
 
-    if (auto [compatibility, error] = CheckTableSchemaCompatibility(*schema, *TQueueTableDescriptor::Schema, /*ignoreSortOrder*/ true);
-        compatibility != ESchemaCompatibility::FullyCompatible) {
-        THROW_ERROR_EXCEPTION("Row range schema is incompatible with queue table row schema")
-            << error;
-    }
-
-    auto clusterId = nameTable->FindId("cluster");
-    auto pathId = nameTable->FindId("path");
-    // Ensured by compatibility check above.
-    YT_VERIFY(clusterId && pathId);
+    auto clusterId = nameTable->GetIdOrThrow("cluster");
+    auto pathId = nameTable->GetIdOrThrow("path");
 
     auto objectTypeId = nameTable->FindId("object_type");
     auto rowRevisionId = nameTable->FindId("row_revision");
@@ -171,7 +162,7 @@ std::vector<TQueueTableRow> TQueueTableRow::ParseRowRange(
 
     for (const auto& row : rows) {
         auto& typedRow = typedRows.emplace_back();
-        typedRow.Ref = TCrossClusterReference{row[*clusterId].AsString(), row[*pathId].AsString()};
+        typedRow.Ref = TCrossClusterReference{row[clusterId].AsString(), row[pathId].AsString()};
 
         auto findValue = [&] (std::optional<int> id) -> std::optional<TUnversionedValue> {
             if (id && row[*id].Type != EValueType::Null) {
@@ -329,23 +320,14 @@ TTableSchemaPtr TConsumerTableDescriptor::Schema = New<TTableSchema>(std::vector
 
 std::vector<TConsumerTableRow> TConsumerTableRow::ParseRowRange(
     TRange<TUnversionedRow> rows,
-    const TNameTablePtr& nameTable,
-    const TTableSchemaPtr& schema)
+    const TNameTablePtr& nameTable)
 {
     // TODO(max42): eliminate copy-paste?
     std::vector<TConsumerTableRow> typedRows;
     typedRows.reserve(rows.size());
 
-    if (auto [compatibility, error] = CheckTableSchemaCompatibility(*schema, *TConsumerTableDescriptor::Schema, /*ignoreSortOrder*/ true);
-        compatibility != ESchemaCompatibility::FullyCompatible) {
-        THROW_ERROR_EXCEPTION("Row range schema is incompatible with consumer table row schema")
-            << error;
-    }
-
-    auto clusterId = nameTable->FindId("cluster");
-    auto pathId = nameTable->FindId("path");
-    // Ensured by compatibility check above.
-    YT_VERIFY(clusterId && pathId);
+    auto clusterId = nameTable->GetIdOrThrow("cluster");
+    auto pathId = nameTable->GetIdOrThrow("path");
 
     auto rowRevisionId = nameTable->FindId("row_revision");
     auto revisionId = nameTable->FindId("revision");
@@ -357,7 +339,7 @@ std::vector<TConsumerTableRow> TConsumerTableRow::ParseRowRange(
 
     for (const auto& row : rows) {
         auto& typedRow = typedRows.emplace_back();
-        typedRow.Ref = TCrossClusterReference{row[*clusterId].AsString(), row[*pathId].AsString()};
+        typedRow.Ref = TCrossClusterReference{row[clusterId].AsString(), row[pathId].AsString()};
 
         auto findValue = [&] (std::optional<int> id) -> std::optional<TUnversionedValue> {
             for (const auto& value : row) {
@@ -505,20 +487,12 @@ TTableSchemaPtr TQueueAgentObjectMappingTableDescriptor::Schema = New<TTableSche
 
 std::vector<TQueueAgentObjectMappingTableRow> TQueueAgentObjectMappingTableRow::ParseRowRange(
     TRange<TUnversionedRow> rows,
-    const TNameTablePtr& nameTable,
-    const TTableSchemaPtr& schema)
+    const TNameTablePtr& nameTable)
 {
     // TODO(max42): eliminate copy-paste?
     std::vector<TQueueAgentObjectMappingTableRow> typedRows;
     typedRows.reserve(rows.size());
 
-    if (auto [compatibility, error] = CheckTableSchemaCompatibility(*schema, *TQueueAgentObjectMappingTableDescriptor::Schema, /*ignoreSortOrder*/ true);
-        compatibility != ESchemaCompatibility::FullyCompatible) {
-        THROW_ERROR_EXCEPTION("Row range schema is incompatible with registration table row schema")
-            << error;
-    }
-
-    // TODO(achulkov2): Fix schema checks. See YT-16786.
     auto objectId = nameTable->GetIdOrThrow("object");
     auto hostId = nameTable->GetIdOrThrow("host");
 
@@ -596,40 +570,30 @@ TTableSchemaPtr TConsumerRegistrationTableDescriptor::Schema = New<TTableSchema>
     TColumnSchema("consumer_cluster", EValueType::String, ESortOrder::Ascending),
     TColumnSchema("consumer_path", EValueType::String, ESortOrder::Ascending),
     TColumnSchema("vital", EValueType::Boolean),
+    TColumnSchema("partitions", EValueType::Any),
 });
 
 std::vector<TConsumerRegistrationTableRow> TConsumerRegistrationTableRow::ParseRowRange(
     TRange<TUnversionedRow> rows,
-    const TNameTablePtr& nameTable,
-    const TTableSchemaPtr& schema)
+    const TNameTablePtr& nameTable)
 {
     // TODO(max42): eliminate copy-paste?
     std::vector<TConsumerRegistrationTableRow> typedRows;
     typedRows.reserve(rows.size());
 
-    if (auto [compatibility, error] = CheckTableSchemaCompatibility(*schema, *TConsumerRegistrationTableDescriptor::Schema, /*ignoreSortOrder*/ true);
-        compatibility != ESchemaCompatibility::FullyCompatible) {
-        THROW_ERROR_EXCEPTION("Row range schema is incompatible with registration table row schema")
-            << error;
-    }
-
-    auto queueClusterId = nameTable->FindId("queue_cluster");
-    auto queuePathId = nameTable->FindId("queue_path");
-    auto consumerClusterId = nameTable->FindId("consumer_cluster");
-    auto consumerPathId = nameTable->FindId("consumer_path");
-    // Ensured by compatibility checks above.
-    YT_VERIFY(queueClusterId);
-    YT_VERIFY(queuePathId);
-    YT_VERIFY(consumerClusterId);
-    YT_VERIFY(consumerPathId);
+    auto queueClusterId = nameTable->GetIdOrThrow("queue_cluster");
+    auto queuePathId = nameTable->GetIdOrThrow("queue_path");
+    auto consumerClusterId = nameTable->GetIdOrThrow("consumer_cluster");
+    auto consumerPathId = nameTable->GetIdOrThrow("consumer_path");
 
     auto vitalId = nameTable->FindId("vital");
+    auto partitionsId = nameTable->FindId("partitions");
 
     for (const auto& row : rows) {
         auto& typedRow = typedRows.emplace_back();
         // TODO(max42): mark all relevant fields in schemas of dynamic state tables as required.
-        typedRow.Queue = TCrossClusterReference{row[*queueClusterId].AsString(), row[*queuePathId].AsString()};
-        typedRow.Consumer = TCrossClusterReference{row[*consumerClusterId].AsString(), row[*consumerPathId].AsString()};
+        typedRow.Queue = TCrossClusterReference{row[queueClusterId].AsString(), row[queuePathId].AsString()};
+        typedRow.Consumer = TCrossClusterReference{row[consumerClusterId].AsString(), row[consumerPathId].AsString()};
 
         auto findValue = [&] (std::optional<int> id) -> std::optional<TUnversionedValue> {
             if (id && row[*id].Type != EValueType::Null) {
@@ -638,12 +602,20 @@ std::vector<TConsumerRegistrationTableRow> TConsumerRegistrationTableRow::ParseR
             return std::nullopt;
         };
 
+        auto setSimpleOptional = [&]<class T>(std::optional<int> id, std::optional<T>& valueToSet) {
+            if (auto value = findValue(id)) {
+                valueToSet = FromUnversionedValue<T>(*value);
+            }
+        };
+
         if (auto value = findValue(vitalId)) {
             YT_VERIFY(value->Type == EValueType::Boolean);
             typedRow.Vital = FromUnversionedValue<bool>(*value);
         } else {
             typedRow.Vital = false;
         }
+
+        setSimpleOptional(partitionsId, typedRow.Partitions);
     }
 
     return typedRows;
@@ -663,6 +635,7 @@ IUnversionedRowsetPtr TConsumerRegistrationTableRow::InsertRowRange(TRange<TCons
         rowBuilder.AddValue(ToUnversionedValue(row.Consumer.Cluster, rowBuffer, nameTable->GetIdOrThrow("consumer_cluster")));
         rowBuilder.AddValue(ToUnversionedValue(row.Consumer.Path, rowBuffer, nameTable->GetIdOrThrow("consumer_path")));
         rowBuilder.AddValue(ToUnversionedValue(row.Vital, rowBuffer, nameTable->GetIdOrThrow("vital")));
+        rowBuilder.AddValue(ToUnversionedValue(row.Partitions, rowBuffer, nameTable->GetIdOrThrow("partitions")));
 
         rowsBuilder.AddRow(rowBuilder.GetRow());
     }

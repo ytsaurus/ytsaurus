@@ -69,6 +69,7 @@ TPortoResourceProfilerPtr CreateDeltaPortoProfiler(IPortoExecutorPtr executor, c
 
     return LeakyRefCountedSingleton<TPortoResourceProfiler>(
         portoResourceTracker,
+        New<TPodSpecConfig>(),
         TProfiler("/porto")
             .WithTag("porto_name", instance->GetName())
             .WithTag("container_category", "yt_daemon"));

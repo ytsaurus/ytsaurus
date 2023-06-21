@@ -34,6 +34,7 @@ struct IChunkStoreHost
     virtual void SubscribePopulateAlerts(TCallback<void(std::vector<TError>*)> alerts) = 0;
     virtual NClusterNode::TMasterEpoch GetMasterEpoch() = 0;
     virtual INodeMemoryTrackerPtr GetMemoryUsageTracker() = 0;
+    virtual void CancelLocationSessions(const TChunkLocationPtr& location) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkStoreHost)
@@ -87,7 +88,7 @@ public:
     void UpdateExistingChunk(const IChunkPtr& chunk);
 
     //! Unregisters the chunk but does not remove any of its files.
-    void UnregisterChunk(const IChunkPtr& chunk, bool force);
+    void UnregisterChunk(const IChunkPtr& chunk);
 
     //! Finds a chunk by id on the specified medium (or on the highest priority
     //! medium if #mediumIndex == AllMediaIndex).
@@ -211,6 +212,10 @@ private:
         int mediumIndex);
 
     void DoRegisterExistingChunk(const IChunkPtr& chunk);
+
+    void DoRegisterExistingJournalChunk(const IChunkPtr& chunk);
+
+    void FinishChunkRegistration(const IChunkPtr& chunk);
 
     void OnChunkRegistered(const IChunkPtr& chunk);
 

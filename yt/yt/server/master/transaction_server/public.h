@@ -21,7 +21,8 @@ using TRspReplicateTransactions = NTransactionClient::NProto::TRspReplicateTrans
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TTransactionManager)
+DECLARE_REFCOUNTED_STRUCT(ITransactionManager)
+
 DECLARE_REFCOUNTED_CLASS(TDynamicTransactionManagerConfig)
 
 DECLARE_REFCOUNTED_CLASS(TTransactionPresenceCache)

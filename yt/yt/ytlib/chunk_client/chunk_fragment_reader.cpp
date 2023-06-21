@@ -35,6 +35,8 @@
 
 #include <yt/yt/core/rpc/helpers.h>
 
+#include <yt/yt/library/erasure/impl/codec.h>
+
 #include <library/cpp/yt/assert/assert.h>
 
 namespace NYT::NChunkClient {
@@ -61,6 +63,7 @@ using TPeerInfoCachePtr = TIntrusivePtr<TPeerInfoCache>;
 
 struct TChunkProbingResult
 {
+    TChunkId ChunkId;
     TReplicasWithRevision ReplicasWithRevision;
 };
 
@@ -81,7 +84,7 @@ struct TPeerProbingInfo
 
 struct TChunkInfo final
 {
-    TChunkId ChunkId;
+    NErasure::ECodec ErasureCodecId;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock);
     TInstant LastAccessTime;
@@ -102,6 +105,32 @@ struct TChunkFragmentReadState final
 };
 
 using TChunkFragmentReadStatePtr = TIntrusivePtr<TChunkFragmentReadState>;
+
+bool IsChunkLost(const TReplicasWithRevision& replicasWithRevision, NErasure::ECodec codecId)
+{
+    if (codecId == NErasure::ECodec::None) {
+        return replicasWithRevision.IsEmpty();
+    }
+
+    if (replicasWithRevision.IsEmpty()) {
+        return true;
+    }
+
+    auto availableReplicaCount = std::ssize(replicasWithRevision.Replicas);
+    auto* codec = NErasure::GetCodec(codecId);
+    auto safeReplicaCount = codec->GetTotalPartCount() - codec->GetGuaranteedRepairablePartCount();
+    if (availableReplicaCount >= safeReplicaCount) {
+        return false;
+    }
+
+    NErasure::TPartIndexList partIndexes;
+    for (const auto& replica : replicasWithRevision.Replicas) {
+        partIndexes.push_back(replica.ReplicaIndex);
+    }
+    SortUnique(partIndexes);
+    YT_VERIFY(std::ssize(partIndexes) == availableReplicaCount);
+    return !codec->CanRepair(partIndexes);
+}
 
 }  // namespace
 
@@ -200,23 +229,53 @@ private:
         });
     }
 
-    // TODO(babenko): deal with erasure
     void DropChunkReplica(TChunkId chunkId, const TPeerInfoPtr& peerInfo)
     {
-        auto mapGuard = ReaderGuard(ChunkIdToChunkInfoLock_);
+        {
+            auto mapReaderGuard = ReaderGuard(ChunkIdToChunkInfoLock_);
 
-        auto it = ChunkIdToChunkInfo_.find(chunkId);
-        if (it == ChunkIdToChunkInfo_.end()) {
-            return;
+            auto it = ChunkIdToChunkInfo_.find(chunkId);
+            if (it == ChunkIdToChunkInfo_.end()) {
+                return;
+            }
+
+            const auto& chunkInfo = it->second;
+            auto entryGuard = Guard(chunkInfo->Lock);
+            auto replicasWithRevision = chunkInfo->ReplicasWithRevision;
+            EraseIf(
+                replicasWithRevision.Replicas,
+                [&] (const TChunkReplicaInfo& replicaInfo) {
+                    return replicaInfo.PeerInfo->NodeId == peerInfo->NodeId;
+                });
+
+            if (!IsChunkLost(replicasWithRevision, chunkInfo->ErasureCodecId)) {
+                chunkInfo->ReplicasWithRevision = std::move(replicasWithRevision);
+                return;
+            }
         }
 
-        const auto& chunkInfo = it->second;
-        auto entryGuard = Guard(chunkInfo->Lock);
-        EraseIf(
-            chunkInfo->ReplicasWithRevision.Replicas,
-            [&] (const TChunkReplicaInfo& replicaInfo) {
-                return replicaInfo.PeerInfo->NodeId == peerInfo->NodeId;
-            });
+        {
+            auto mapWriterGuard = WriterGuard(ChunkIdToChunkInfoLock_);
+
+            auto it = ChunkIdToChunkInfo_.find(chunkId);
+            if (it == ChunkIdToChunkInfo_.end()) {
+                return;
+            }
+
+            const auto& chunkInfo = it->second;
+            auto entryGuard = Guard(chunkInfo->Lock);
+            EraseIf(
+                chunkInfo->ReplicasWithRevision.Replicas,
+                [&] (const TChunkReplicaInfo& replicaInfo) {
+                    return replicaInfo.PeerInfo->NodeId == peerInfo->NodeId;
+                });
+            if (IsChunkLost(chunkInfo->ReplicasWithRevision, chunkInfo->ErasureCodecId)) {
+                entryGuard.Release();
+                ChunkIdToChunkInfo_.erase(it);
+                YT_LOG_DEBUG("Dropped lost chunk from chunk info cache (ChunkId: %v)",
+                    chunkId);
+            }
+        }
     }
 
     void RunPeriodicProbing();
@@ -279,16 +338,29 @@ protected:
             .Via(SessionInvoker_));
     }
 
+    void TryDiscardLostChunkReplicas(const std::vector<TChunkId>& lostChunkIds) const
+    {
+        if (lostChunkIds.empty()) {
+            return;
+        }
+
+        for (auto chunkId : lostChunkIds) {
+            TryDiscardChunkReplicas(chunkId);
+        }
+
+        YT_LOG_DEBUG("Some chunks are lost (ChunkIds: %v)",
+            lostChunkIds);
+    }
+
     // Returns whether probing session may be stopped.
     virtual bool OnNonexistentChunk(TChunkId chunkId) = 0;
-    virtual void OnLostChunk(TChunkId chunkId) = 0;
     virtual void OnPeerProbingFailed(
         const TPeerInfoPtr& peerInfo,
         const TError& error) = 0;
     virtual void OnPeerInfoFailed(TNodeId nodeId, const TError& error) = 0;
     virtual void OnFinished(
         int probingRequestCount,
-        THashMap<TChunkId, TChunkProbingResult>&& chunkIdToReplicas) = 0;
+        std::vector<TChunkProbingResult>&& chunkProbingResults) = 0;
 
 private:
     std::vector<TChunkId> ChunkIds_;
@@ -378,14 +450,22 @@ private:
 
         YT_VERIFY(probingInfos.size() == probingRspOrErrors.size());
 
-        THashMap<TChunkId, TChunkProbingResult> chunkIdToProbingResult;
+        // NB: Some slots may remain blank if some chunks were omitted in #OnGotAllyReplicas.
+        std::vector<TChunkProbingResult> chunkProbingResults;
+        chunkProbingResults.resize(ChunkIds_.size());
 
         int successfulProbingRequestCount = 0;
         int failedProbingRequestCount = 0;
         for (int nodeIndex = 0; nodeIndex < std::ssize(probingInfos); ++nodeIndex) {
             const auto& probingInfo = probingInfos[nodeIndex];
             for (auto chunkIndex : probingInfo.ChunkIndexes) {
-                chunkIdToProbingResult.try_emplace(ChunkIds_[chunkIndex]);
+                auto chunkId = ChunkIds_[chunkIndex];
+                auto& actualChunkId = chunkProbingResults[chunkIndex].ChunkId;
+                if (actualChunkId) {
+                    YT_VERIFY(actualChunkId == chunkId);
+                } else {
+                    actualChunkId = chunkId;
+                }
             }
 
             const auto& peerInfoOrError = probingInfo.PeerInfoOrError;
@@ -478,7 +558,7 @@ private:
                         subresponse.disk_queue_size());
                 }
 
-                auto& replicasWithRevision = chunkIdToProbingResult[chunkIdWithIndex.Id].ReplicasWithRevision;
+                auto& replicasWithRevision = chunkProbingResults[chunkIndex].ReplicasWithRevision;
                 replicasWithRevision.Revision = ReplicaInfos_[chunkIndex].Revision;
                 replicasWithRevision.Replicas.push_back(TChunkReplicaInfo{
                     .Penalty = ComputeProbingPenalty(probingRsp->net_queue_size(), subresponse.disk_queue_size()),
@@ -491,29 +571,12 @@ private:
         Reader_->SuccessfulProbingRequestCounter_.Increment(successfulProbingRequestCount);
         Reader_->FailedProbingRequestCounter_.Increment(failedProbingRequestCount);
 
-        std::vector<TChunkId> lostChunkIds;
-        for (auto it = chunkIdToProbingResult.begin(); it != chunkIdToProbingResult.end();) {
-            auto& [chunkId, probingResult] = *it;
-            if (probingResult.ReplicasWithRevision.IsEmpty()) {
-                TryDiscardChunkReplicas(chunkId);
-                OnLostChunk(chunkId);
-
-                lostChunkIds.push_back(chunkId);
-                chunkIdToProbingResult.erase(it++);
-            } else {
-                ++it;
-            }
-        }
-
-        YT_LOG_DEBUG_IF(!lostChunkIds.empty(), "Some chunks are lost (ChunkIds: %v)",
-            lostChunkIds);
-
         YT_LOG_DEBUG("Chunk fragment reader probing session completed (WallTime: %v)",
             Timer_.GetElapsedTime());
 
         OnFinished(
             std::ssize(probingInfos),
-            std::move(chunkIdToProbingResult));
+            std::move(chunkProbingResults));
     }
 
     template <typename TResponse>
@@ -682,8 +745,13 @@ private:
         auto now = NProfiling::GetInstant();
         auto mapGuard = ReaderGuard(Reader_->ChunkIdToChunkInfoLock_);
         for (const auto& [chunkId, chunkInfo] : Reader_->ChunkIdToChunkInfo_) {
-            auto entryGuard = Guard(chunkInfo->Lock);
-            if (IsChunkInfoExpired(chunkInfo, now)) {
+            bool expired;
+            {
+                auto entryGuard = Guard(chunkInfo->Lock);
+                expired = IsChunkInfoExpired(chunkInfo, now);
+            }
+
+            if (expired) {
                 ExpiredChunkIds_.push_back(chunkId);
             } else {
                 LiveChunkIds_.push_back(chunkId);
@@ -693,7 +761,7 @@ private:
 
     bool IsChunkInfoExpired(const TChunkInfoPtr& chunkInfo, TInstant now) const
     {
-        VERIFY_SPINLOCK_AFFINITY(Reader_->ChunkIdToChunkInfoLock_);
+        VERIFY_SPINLOCK_AFFINITY(chunkInfo->Lock);
         return chunkInfo->LastAccessTime + Config_->ChunkInfoCacheExpirationTimeout < now;
     }
 
@@ -701,11 +769,6 @@ private:
     {
         NonexistentChunkIds_.push_back(chunkId);
         return false;
-    }
-
-    void OnLostChunk(TChunkId chunkId) override
-    {
-        LostChunkIds_.push_back(chunkId);
     }
 
     void OnPeerInfoFailed(TNodeId /*nodeId*/, const TError& /*error*/) override
@@ -716,22 +779,34 @@ private:
 
     virtual void OnFinished(
         int /*probingRequestCount*/,
-        THashMap<TChunkId, TChunkProbingResult>&& chunkIdToProbingResult) override
+        std::vector<TChunkProbingResult>&& chunkProbingResults) override
     {
         {
             auto mapGuard = ReaderGuard(Reader_->ChunkIdToChunkInfoLock_);
 
-            for (auto& [chunkId, probingResult] : chunkIdToProbingResult) {
-                auto it = Reader_->ChunkIdToChunkInfo_.find(chunkId);
+            for (auto& probingResult : chunkProbingResults) {
+                if (!probingResult.ChunkId) {
+                    continue;
+                }
+
+                auto it = Reader_->ChunkIdToChunkInfo_.find(probingResult.ChunkId);
                 if (it == Reader_->ChunkIdToChunkInfo_.end()) {
                     continue;
                 }
 
                 const auto& chunkInfo = it->second;
+
+                if (IsChunkLost(probingResult.ReplicasWithRevision, chunkInfo->ErasureCodecId)) {
+                    LostChunkIds_.push_back(probingResult.ChunkId);
+                    continue;
+                }
+
                 auto entryGuard = Guard(chunkInfo->Lock);
                 chunkInfo->ReplicasWithRevision = std::move(probingResult.ReplicasWithRevision);
             }
         }
+
+        TryDiscardLostChunkReplicas(LostChunkIds_);
 
         EraseBadChunksIfAny();
 
@@ -755,7 +830,9 @@ private:
             for (auto chunkId : ExpiredChunkIds_) {
                 auto it = Reader_->ChunkIdToChunkInfo_.find(chunkId);
                 if (it != Reader_->ChunkIdToChunkInfo_.end()) {
+                    auto entryGuard = Guard(it->second->Lock);
                     if (IsChunkInfoExpired(it->second, now)) {
+                        entryGuard.Release();
                         Reader_->ChunkIdToChunkInfo_.erase(it);
                     }
                 }
@@ -794,16 +871,15 @@ public:
             std::move(logger))
     { }
 
-    TFuture<void> Run(std::vector<TChunkId> chunkIds)
+    TFuture<void> Run(
+        std::vector<TChunkId> chunkIds,
+        std::vector<TChunkInfoPtr> pendingChunkInfos)
     {
+        YT_VERIFY(chunkIds.size() == pendingChunkInfos.size());
+
+        PendingChunkInfos_ = std::move(pendingChunkInfos);
         DoRun(std::move(chunkIds));
         return Promise_;
-    }
-
-    TChunkInfoPtr FindChunkInfo(TChunkId chunkId) const
-    {
-        auto it = ChunkIdToInfo_.find(chunkId);
-        return it == ChunkIdToInfo_.end() ? nullptr : it->second;
     }
 
     int GetProbingRequestCount()
@@ -816,9 +892,15 @@ public:
         return Failures_;
     }
 
+    const THashMap<TChunkId, TChunkInfoPtr>& GetPopulationResult() const
+    {
+        return ChunkIdToInfo_;
+    }
+
 private:
     const TPromise<void> Promise_ = NewPromise<void>();
 
+    std::vector<TChunkInfoPtr> PendingChunkInfos_;
     THashMap<TChunkId, TChunkInfoPtr> ChunkIdToInfo_;
     int ProbingRequestCount_ = 0;
     std::vector<std::pair<TPeerInfoPtr, TError>> Failures_;
@@ -838,9 +920,6 @@ private:
         return true;
     }
 
-    void OnLostChunk(TChunkId /*chunkId*/) override
-    { }
-
     void OnPeerInfoFailed(TNodeId /*nodeId*/, const TError& error) override
     {
         if (error.FindMatching(NNodeTrackerClient::EErrorCode::NoSuchNetwork)) {
@@ -855,38 +934,50 @@ private:
 
     void OnFinished(
         int probingRequestCount,
-        THashMap<TChunkId, TChunkProbingResult>&& chunkIdToProbingResult) override
+        std::vector<TChunkProbingResult>&& chunkProbingResults) override
     {
+        YT_VERIFY(PendingChunkInfos_.size() == chunkProbingResults.size());
+
         ProbingRequestCount_ = probingRequestCount;
 
         auto now = TInstant::Now();
 
-        int addedChunkCount = 0;
+        std::vector<TChunkId> lostChunkIds;
         {
             auto mapGuard = WriterGuard(Reader_->ChunkIdToChunkInfoLock_);
 
-            for (auto& [chunkId, probingResult] : chunkIdToProbingResult) {
-                YT_VERIFY(!probingResult.ReplicasWithRevision.IsEmpty());
+            for (int chunkIndex = 0; chunkIndex < std::ssize(chunkProbingResults); ++chunkIndex) {
+                auto& probingResult = chunkProbingResults[chunkIndex];
+                auto& chunkInfo = PendingChunkInfos_[chunkIndex];
 
-                auto it = Reader_->ChunkIdToChunkInfo_.find(chunkId);
-                if (it == Reader_->ChunkIdToChunkInfo_.end()) {
-                    auto chunkInfo = New<TChunkInfo>();
-                    chunkInfo->ChunkId = chunkId;
-                    chunkInfo->LastAccessTime = now;
-                    it = EmplaceOrCrash(Reader_->ChunkIdToChunkInfo_, chunkId, std::move(chunkInfo));
-                    ++addedChunkCount;
+                if (probingResult.ChunkId == NullObjectId) {
+                    continue;
                 }
 
-                const auto& chunkInfo = it->second;
-                EmplaceOrCrash(ChunkIdToInfo_, chunkId, chunkInfo);
+                if (IsChunkLost(probingResult.ReplicasWithRevision, chunkInfo->ErasureCodecId)) {
+                    lostChunkIds.push_back(probingResult.ChunkId);
+                    continue;
+                }
 
-                auto entryGuard = Guard(chunkInfo->Lock);
-                chunkInfo->ReplicasWithRevision = std::move(probingResult.ReplicasWithRevision);
+                YT_VERIFY(!probingResult.ReplicasWithRevision.IsEmpty());
+
+                {
+                    // NB: This lock is actually redundant as this info has not been inserted yet.
+                    auto entryGuard = Guard(chunkInfo->Lock);
+                    chunkInfo->LastAccessTime = now;
+                    chunkInfo->ReplicasWithRevision = std::move(probingResult.ReplicasWithRevision);
+                }
+
+                Reader_->ChunkIdToChunkInfo_[probingResult.ChunkId] = chunkInfo;
+
+                EmplaceOrCrash(ChunkIdToInfo_, probingResult.ChunkId, std::move(chunkInfo));
             }
         }
 
-        YT_LOG_DEBUG_IF(addedChunkCount > 0, "Added chunk infos within populating probing session (ChunkCount: %v)",
-            addedChunkCount);
+        TryDiscardLostChunkReplicas(lostChunkIds);
+
+        YT_LOG_DEBUG("Added chunk infos within populating probing session (ChunkCount: %v)",
+            ChunkIdToInfo_.size());
 
         Promise_.TrySet();
     }
@@ -1062,6 +1153,7 @@ private:
 
         // Fetch chunk infos from cache.
         std::vector<TChunkId> uncachedChunkIds;
+        std::vector<TChunkInfoPtr> uncachedChunkInfos;
         auto now = Timer_.GetStartTime();
         {
             auto mapGuard = ReaderGuard(Reader_->ChunkIdToChunkInfoLock_);
@@ -1070,13 +1162,18 @@ private:
                 auto it = Reader_->ChunkIdToChunkInfo_.find(chunkId);
                 if (it == Reader_->ChunkIdToChunkInfo_.end()) {
                     uncachedChunkIds.push_back(chunkId);
+                    uncachedChunkInfos.push_back(New<TChunkInfo>());
+                    uncachedChunkInfos.back()->ErasureCodecId = chunkState.Controller->GetCodecId();
                 } else {
                     const auto& chunkInfo = it->second;
-                    auto entryGuard = Guard(chunkInfo->Lock);
-                    chunkState.ReplicasWithRevision = chunkInfo->ReplicasWithRevision;
-                    if (chunkInfo->LastAccessTime < now) {
-                        chunkInfo->LastAccessTime = now;
+                    {
+                        auto entryGuard = Guard(chunkInfo->Lock);
+                        chunkState.ReplicasWithRevision = chunkInfo->ReplicasWithRevision;
+                        if (chunkInfo->LastAccessTime < now) {
+                            chunkInfo->LastAccessTime = now;
+                        }
                     }
+                    YT_VERIFY(!chunkState.ReplicasWithRevision.IsEmpty());
                 }
             }
         }
@@ -1084,17 +1181,19 @@ private:
         if (uncachedChunkIds.empty()) {
             OnChunkInfosReady();
         } else {
-            PopulateChunkInfos(std::move(uncachedChunkIds));
+            PopulateChunkInfos(
+                std::move(uncachedChunkIds),
+                std::move(uncachedChunkInfos));
         }
     }
 
-    void PopulateChunkInfos(std::vector<TChunkId> chunkIds)
+    void PopulateChunkInfos(std::vector<TChunkId> chunkIds, std::vector<TChunkInfoPtr> chunkInfos)
     {
         YT_LOG_DEBUG("Some chunk infos are missing; will populate the cache (ChunkIds: %v)",
             chunkIds);
 
         auto subsession = New<TPopulatingProbingSession>(Reader_, Options_, Logger);
-        subsession->Run(std::move(chunkIds)).Subscribe(
+        subsession->Run(std::move(chunkIds), std::move(chunkInfos)).Subscribe(
             BIND(&TSimpleReadFragmentsSession::OnChunkInfosPopulated, MakeStrong(this), subsession)
                 .Via(SessionInvoker_));
     }
@@ -1114,14 +1213,12 @@ private:
         }
 
         // Take chunk replicas from just finished populating session.
-        for (auto& [chunkId, chunkState] : ChunkIdToChunkState_) {
-            if (!chunkState.ReplicasWithRevision.IsEmpty()) {
-                continue;
-            }
-            if (auto chunkInfo = subsession->FindChunkInfo(chunkId)) {
-                auto entryGuard = Guard(chunkInfo->Lock);
-                chunkState.ReplicasWithRevision = chunkInfo->ReplicasWithRevision;
-            }
+        const auto& populationResult = subsession->GetPopulationResult();
+        for (auto& [chunkId, chunkInfo] : populationResult) {
+            auto& chunkState = GetOrCrash(ChunkIdToChunkState_, chunkId);
+            YT_VERIFY(chunkState.ReplicasWithRevision.IsEmpty());
+            auto entryGuard = Guard(chunkInfo->Lock);
+            chunkState.ReplicasWithRevision = chunkInfo->ReplicasWithRevision;
         }
 
         OnChunkInfosReady();

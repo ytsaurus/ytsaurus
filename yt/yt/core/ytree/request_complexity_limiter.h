@@ -2,8 +2,6 @@
 
 #include <yt/yt/core/yson/async_writer.h>
 
-#include <yt/yt_proto/yt/core/ytree/proto/ypath.pb.h>
-
 namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -15,11 +13,8 @@ struct TReadRequestComplexity
 
     TReadRequestComplexity() noexcept = default;
     TReadRequestComplexity(std::optional<i64> nodeCount, std::optional<i64> resultSize) noexcept;
-    void Sanitize(const TReadRequestComplexity& defaults, const TReadRequestComplexity& max) noexcept;
+    void Sanitize(const TReadRequestComplexity& max) noexcept;
 };
-
-void FromProto(TReadRequestComplexity* complexity, const NProto::TReadRequestComplexityLimits& proto);
-void ToProto(NProto::TReadRequestComplexityLimits* proto, const TReadRequestComplexity& complexity);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,12 +53,16 @@ class TReadRequestComplexityLimiter
     , public TNonCopyable
 {
 public:
-    explicit TReadRequestComplexityLimiter(const TReadRequestComplexity& limits) noexcept;
+    TReadRequestComplexityLimiter() noexcept;
+
+    void Reconfigure(const TReadRequestComplexity& limits) noexcept;
 
     void Charge(const TReadRequestComplexityUsage& usage) noexcept;
 
     TError CheckOverdraught() const noexcept;
     void ThrowIfOverdraught() const;
+
+    TReadRequestComplexity GetUsage() const noexcept;
 
 private:
     TReadRequestComplexityUsage Usage_;

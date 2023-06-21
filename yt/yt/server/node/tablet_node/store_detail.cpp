@@ -702,9 +702,10 @@ public:
         TInMemoryChunkDataPtr chunkData,
         TChunkId chunkId,
         IBlockCachePtr underlyingCache)
-        : Owner_(owner)
-        , ChunkData_(chunkData)
+        : Owner_(std::move(owner))
+        , ChunkData_(std::move(chunkData))
         , ChunkId_(chunkId)
+        , NativeBlockType_(GetBlockTypeFromInMemoryMode(ChunkData_->InMemoryMode))
         , UnderlyingCache_(std::move(underlyingCache))
     { }
 
@@ -720,7 +721,7 @@ public:
         const TBlockId& id,
         EBlockType type) override
     {
-        if (Any(type & GetSupportedBlockTypes())) {
+        if (Any(type & NativeBlockType_)) {
             YT_ASSERT(id.ChunkId == ChunkId_);
             int blockIndex = id.BlockIndex - ChunkData_->StartBlockIndex;
             YT_VERIFY(blockIndex >= 0 && blockIndex < std::ssize(ChunkData_->Blocks));
@@ -734,7 +735,7 @@ public:
         const TBlockId& id,
         EBlockType type) override
     {
-        if (Any(type & GetSupportedBlockTypes())) {
+        if (Any(type & NativeBlockType_)) {
             YT_ASSERT(id.ChunkId == ChunkId_);
             int blockIndex = id.BlockIndex - ChunkData_->StartBlockIndex;
             YT_VERIFY(blockIndex >= 0 && blockIndex < std::ssize(ChunkData_->Blocks));
@@ -746,13 +747,20 @@ public:
 
     EBlockType GetSupportedBlockTypes() const override
     {
-        return MapInMemoryModeToBlockType(ChunkData_->InMemoryMode);
+        return NativeBlockType_ | UnderlyingCache_->GetSupportedBlockTypes();
+    }
+
+    bool IsBlockTypeActive(EBlockType blockType) const override
+    {
+        return Any(blockType & NativeBlockType_) ||
+            UnderlyingCache_->IsBlockTypeActive(blockType);
     }
 
 private:
     const TWeakPtr<TChunkStoreBase> Owner_;
     const TInMemoryChunkDataPtr ChunkData_;
     const TChunkId ChunkId_;
+    const EBlockType NativeBlockType_;
     const IBlockCachePtr UnderlyingCache_;
 };
 
@@ -1159,7 +1167,6 @@ void TChunkStoreBase::Preload(TInMemoryChunkDataPtr chunkData)
         chunkData->ChunkMeta,
         OverrideTimestamp_,
         chunkData->LookupHashTable,
-        PerformanceCounters_,
         GetKeyComparer(),
         /*virtualValueDirectory*/ nullptr,
         Schema_,

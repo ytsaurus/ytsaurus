@@ -81,6 +81,7 @@ private:
             options.PopulateNodeDirectory = true;
             options.ExpireAfterSuccessfulUpdateTime = Config_->ExpireAfterSuccessfulUpdateTime;
             options.ExpireAfterFailedUpdateTime = Config_->ExpireAfterFailedUpdateTime;
+            options.CacheStickyGroupSize = Config_->CacheStickyGroupSize;
 
             // Request may block for prolonged periods of time;
             // handle cancelation requests (induced by stopping the executor) immediately.

@@ -29,7 +29,8 @@ TProbingJobManager::TProbingJobManager(
         host,
         logger,
         maxProbingJobCount,
-        EJobCompetitionType::Probing)
+        EJobCompetitionType::Probing,
+        EAbortReason::ProbingCompetitorResultLost)
     , ProbingRatio_(probingRatio)
     , ProbingPoolTree_(std::move(probingPoolTree))
     , RandomGenerator_(RandomDevice_())
@@ -63,14 +64,10 @@ void TProbingJobManager::OnJobCompleted(const TJobletPtr& joblet)
     MarkCompetitionAsCompleted(joblet);
 }
 
-void TProbingJobManager::OnJobLost(IChunkPoolOutput::TCookie cookie)
-{
-    TCompetitiveJobManagerBase::OnJobLost(cookie, EAbortReason::ProbingCompetitorResultLost);
-}
-
 bool TProbingJobManager::OnUnsuccessfulJobFinish(
     const TJobletPtr& joblet,
-    const std::function<void(TProgressCounterGuard*)>& updateJobCounter)
+    const std::function<void(TProgressCounterGuard*)>& updateJobCounter,
+    const NJobTrackerClient::EJobState /*state*/)
 {
     if (!IsRelevant(joblet)) {
         // By default after unsuccessful finish of job a cookie is returned to chunk pool.
@@ -104,7 +101,7 @@ bool TProbingJobManager::OnUnsuccessfulJobFinish(
     return returnCookieToChunkPool;
 }
 
-std::optional<EAbortReason> TProbingJobManager::ShouldAbortCompletingJob(const TJobletPtr& joblet) const
+std::optional<EAbortReason> TProbingJobManager::ShouldAbortCompletingJob(const TJobletPtr& joblet)
 {
     if (!IsRelevant(joblet)) {
         return std::nullopt;

@@ -47,7 +47,7 @@
 #include <yt/yt/core/rpc/message.h>
 #include <yt/yt/core/rpc/service_detail.h>
 #include <yt/yt/core/rpc/dispatcher.h>
-#include <yt/yt/core/rpc/per_user_queues.h>
+#include <yt/yt/core/rpc/per_user_request_queue_provider.h>
 
 #include <yt/yt/core/ytree/request_complexity_limiter.h>
 #include <yt/yt/core/ytree/ypath_detail.h>
@@ -182,7 +182,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
             .SetQueueSizeLimit(100'000)
             .SetConcurrencyLimit(100'000)
-            .SetRequestQueueProvider(ExecuteRequestQueue_.GetProvider())
+            .SetRequestQueueProvider(ExecuteRequestQueueProvider_)
             .SetCancelable(true)
             .SetInvoker(GetRpcInvoker())
             // NB: Execute request is always replied in heavy RPC invoker, so it should not be
@@ -225,7 +225,7 @@ private:
     class TExecuteSession;
     using TExecuteSessionPtr = TIntrusivePtr<TExecuteSession>;
 
-    TPerUserRequestQueues ExecuteRequestQueue_;
+    IRequestQueueProviderPtr ExecuteRequestQueueProvider_ = New<TPerUserRequestQueueProvider>();
 
     class TSessionScheduler;
 
@@ -267,41 +267,6 @@ private:
     std::atomic<bool> EnableTwoLevelCache_ = false;
     std::atomic<bool> EnableLocalReadExecutor_ = true;
     std::atomic<TDuration> ScheduleReplyRetryBackoff_ = TDuration::MilliSeconds(100);
-
-    class TAtomicReadRequestComplexity {
-    public:
-        TReadRequestComplexity Load() const
-        {
-            return {Load(NodeCount_), Load(ResultSize_)};
-        }
-
-        void Store(const TReadRequestComplexity& limits)
-        {
-            Store(NodeCount_, limits.NodeCount);
-            Store(ResultSize_, limits.ResultSize);
-        }
-
-    private:
-        constexpr static i64 None = -1;
-
-        std::atomic<i64> NodeCount_ = None;
-        std::atomic<i64> ResultSize_ = None;
-
-        static std::optional<i64> Load(const std::atomic<i64>& atomicValue)
-        {
-            i64 value = atomicValue.load(std::memory_order::relaxed);
-            return value == None ? std::nullopt : std::optional(value);
-        }
-
-        static void Store(std::atomic<i64>& atomicValue, std::optional<i64> value)
-        {
-            if (atomicValue.load(std::memory_order::relaxed) != value.value_or(-1)) {
-                atomicValue.store(value.value_or(None), std::memory_order::release);
-            }
-        }
-    };
-    TAtomicReadRequestComplexity DefaultReadRequestLimits_;
-    TAtomicReadRequestComplexity MaxReadRequestLimits_;
 
     static IInvokerPtr GetRpcInvoker()
     {
@@ -363,7 +328,7 @@ public:
         TCtxExecutePtr rpcContext)
         : Owner_(std::move(owner))
         , RpcContext_(std::move(rpcContext))
-        , TraceContext_(TryGetCurrentTraceContext())
+        , TraceContext_(GetCurrentTraceContext())
         , Bootstrap_(Owner_->Bootstrap_)
         , TotalSubrequestCount_(RpcContext_->Request().part_counts_size())
         , UserName_(RpcContext_->GetAuthenticationIdentity().User)
@@ -513,7 +478,6 @@ private:
         // may be either committed in the ordinary fashion or posted as a boomerang.
         // Mutually exclusive with RemoteTransactionReplicationFuture.
         TFuture<TMutationResponse> MutationResponseFuture;
-        TReadRequestComplexity ReadRequestComplexityLimits;
     };
 
     // For (local) read requests. (Write requests are handled by per-subrequest replication sessions.)
@@ -530,7 +494,10 @@ private:
 
     IInvokerPtr EpochAutomatonInvoker_;
     TCancelableContextPtr EpochCancelableContext_;
+
     TEphemeralObjectPtr<TUser> User_;
+    TReadRequestComplexity ReadRequestComplexityLimits_;
+
     bool SuppressTransactionCoordinatorSync_ = false;
     bool NeedsUserAccessValidation_ = true;
     bool RequestQueueSizeIncreased_ = false;
@@ -692,11 +659,6 @@ private:
             } else {
                 subrequest.ProfilingCounters->TotalReadRequestCounter.Increment();
             }
-
-            subrequest.ReadRequestComplexityLimits = FromProto<TReadRequestComplexity>(ypathExt->complexity_limits());
-            subrequest.ReadRequestComplexityLimits.Sanitize(
-                Owner_->DefaultReadRequestLimits_.Load(),
-                Owner_->MaxReadRequestLimits_.Load());
         }
 
         CellSyncSession_->SetSyncWithUpstream(!suppressUpstreamSync);
@@ -945,8 +907,7 @@ private:
         subrequest->RpcContext = CreateYPathContext(
             subrequest->RequestMessage,
             ObjectServerLogger,
-            NLogging::ELogLevel::Debug,
-            &subrequest->ReadRequestComplexityLimits);
+            NLogging::ELogLevel::Debug);
 
         if (mutating) {
             const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -1503,8 +1464,18 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
 
         if (!User_) {
-            auto* user = securityManager->GetUserByNameOrThrow(UserName_, true /*activeLifeStageOnly*/);
+            auto* user = securityManager->GetUserByNameOrThrow(UserName_, /*activeLifeStageOnly*/ true);
             User_ = TEphemeralObjectPtr<TUser>(user);
+
+            if (user != securityManager->GetRootUser()) {
+                const auto& userConfig = user->GetObjectServiceRequestLimits()->ReadRequestComplexityLimits;
+                ReadRequestComplexityLimits_ = userConfig->GetValue();
+
+                const auto& config = Owner_->GetDynamicConfig();
+                TReadRequestComplexity maxReadRequestComplexity;
+                config->MaxReadRequestComplexityLimits->ToReadRequestComplexity(maxReadRequestComplexity);
+                ReadRequestComplexityLimits_.Sanitize(maxReadRequestComplexity);
+            }
         }
 
         if (NeedsUserAccessValidation_) {
@@ -1596,7 +1567,7 @@ private:
             return !EnableLocalReadExecutor_ || subrequest->Type != EExecutionSessionSubrequestType::LocalRead;
         };
 
-        GuardedProcessSessions(&CurrentAutomatonSubrequestIndex_, subrequestFilter);
+        GuardedProcessSubrequests(&CurrentAutomatonSubrequestIndex_, subrequestFilter);
     }
 
     void GuardedRunRead()
@@ -1607,10 +1578,10 @@ private:
             return EnableLocalReadExecutor_ && subrequest->Type == EExecutionSessionSubrequestType::LocalRead;
         };
 
-        GuardedProcessSessions(&CurrentLocalReadSubrequestIndex_, subrequestFilter);
+        GuardedProcessSubrequests(&CurrentLocalReadSubrequestIndex_, subrequestFilter);
     }
 
-    void GuardedProcessSessions(
+    void GuardedProcessSubrequests(
         int* currentSubrequestIndex,
         std::function<bool(TSubrequest*)> filter)
     {
@@ -1745,8 +1716,7 @@ private:
 
         auto timeLeft = GetTimeLeft(subrequest);
 
-        if (subrequest->RemoteTransactionReplicationSession &&
-            !subrequest->MutationResponseFuture)
+        if (subrequest->RemoteTransactionReplicationSession && !subrequest->MutationResponseFuture)
         {
             YT_VERIFY(subrequest->Type == EExecutionSessionSubrequestType::LocalWrite);
 
@@ -1836,6 +1806,9 @@ private:
         try {
             const auto& objectManager = Bootstrap_->GetObjectManager();
             auto rootService = objectManager->GetRootService();
+
+            const auto& complexityLimiter = rpcContext->GetReadRequestComplexityLimiter();
+            complexityLimiter->Reconfigure(ReadRequestComplexityLimits_);
 
             ExecuteVerb(rootService, rpcContext);
 
@@ -2254,18 +2227,6 @@ void TObjectService::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig
 
     LocalReadExecutor_->Reconfigure(config->LocalReadWorkerCount);
     ProcessSessionsExecutor_->SetPeriod(config->ProcessSessionsPeriod);
-
-    auto updateReadRequestLimits = [] (
-        TAtomicReadRequestComplexity& atomicLimits,
-        const TIntrusivePtr<TReadRequestComplexityLimitsConfig>& config)
-    {
-        TReadRequestComplexity limits;
-        config->ToReadRequestComplexity(limits);
-        atomicLimits.Store(limits);
-    };
-
-    updateReadRequestLimits(DefaultReadRequestLimits_, config->DefaultReadRequestComlexityLimits);
-    updateReadRequestLimits(MaxReadRequestLimits_, config->MaxReadRequestComplexityLimits);
 }
 
 void TObjectService::EnqueueReadySession(TExecuteSessionPtr session)

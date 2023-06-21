@@ -204,19 +204,19 @@ void THistogram::Record(TDuration value)
     Buckets_[it - Bounds_.begin()].fetch_add(1, std::memory_order::relaxed);
 }
 
-void THistogram::Add(double value, int count)
+void THistogram::Add(double value, int count) noexcept
 {
     auto it = std::lower_bound(Bounds_.begin(), Bounds_.end(), value);
     Buckets_[it - Bounds_.begin()].fetch_add(count, std::memory_order::relaxed);
 }
 
-void THistogram::Remove(double value, int count)
+void THistogram::Remove(double value, int count) noexcept
 {
     auto it = std::lower_bound(Bounds_.begin(), Bounds_.end(), value);
     Buckets_[it - Bounds_.begin()].fetch_sub(count, std::memory_order::relaxed);
 }
 
-void THistogram::Reset()
+void THistogram::Reset() noexcept
 {
     for (int i = 0; i < std::ssize(Buckets_); ++i) {
         Buckets_[i] = 0;

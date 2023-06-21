@@ -1052,4 +1052,5 @@ class TestJobWorkspaceBuilder(TestMemoryReserveFactor):
 
     @classmethod
     def modify_node_config(cls, config):
+        config["exec_agent"]["use_artifact_binds"] = True
         config["exec_agent"]["use_common_root_fs_quota"] = True

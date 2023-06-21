@@ -6738,6 +6738,39 @@ TEST_F(TQueryEvaluateTest, QuotedColumnNames)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST_F(TQueryEvaluateTest, SelectKeyword)
+{
+    {
+        auto split = MakeSplit({{"a", EValueType::Int64}});
+        auto source = std::vector<TString>{
+            R"("a"=4)",
+            R"("a"=10)",
+        };
+
+        auto result = YsonToRows(source, split);
+
+        Evaluate("select a from [//t]", split, source, ResultMatcher(result));
+        Evaluate("SELECT a FROM [//t]", split, source, ResultMatcher(result));
+    }
+
+    {
+        auto split = MakeSplit({{"a", EValueType::Int64}, {"b", EValueType::String}, });
+        auto source = std::vector<TString>{
+            R"(a=4;b=four)",
+            R"(a=10;b=ten)",
+        };
+
+        auto result = YsonToRows(source, split);
+
+        Evaluate("select a, b from [//t]", split, source, ResultMatcher(result));
+        Evaluate("SELECT a, b FROM [//t]", split, source, ResultMatcher(result));
+        Evaluate("select * from [//t]", split, source, ResultMatcher(result));
+        Evaluate("SELECT * FROM [//t]", split, source, ResultMatcher(result));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TQueryEvaluatePlaceholdersTest
     : public TQueryEvaluateTest
     , public ::testing::WithParamInterface<std::tuple<

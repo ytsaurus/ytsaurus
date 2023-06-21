@@ -861,7 +861,7 @@ void Chmod(const TString& path, int mode)
 #endif
 }
 
-void ChunkedCopy(
+void SendfileChunkedCopy(
     const TString& existingPath,
     const TString& newPath,
     i64 chunkSize)
@@ -871,7 +871,7 @@ void ChunkedCopy(
         TFile src(existingPath, OpenExisting | RdOnly | Seq | CloseOnExec);
         TFile dst(newPath, CreateAlways | WrOnly | Seq | CloseOnExec);
         dst.Flock(LOCK_EX);
-        ChunkedCopy(src, dst, chunkSize);
+        SendfileChunkedCopy(src, dst, chunkSize);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to copy %v to %v",
             existingPath,
@@ -884,7 +884,7 @@ void ChunkedCopy(
 #endif
 }
 
-void ChunkedCopy(
+void SendfileChunkedCopy(
     const TFile& source,
     const TFile& destination,
     i64 chunkSize)
@@ -924,6 +924,158 @@ void ChunkedCopy(
             source.GetName(),
             destination.GetName())
             << ex;
+    }
+#else
+    Y_UNUSED(source, destination, chunkSize);
+    ThrowNotSupported();
+#endif
+}
+
+TFuture<void> ReadBuffer(
+    int fromFd,
+    int toFd,
+    std::vector<ui8> buffer,
+    int bufferSize)
+{
+    YT_VERIFY(bufferSize);
+
+    auto readSize = read(fromFd, buffer.data(), bufferSize);
+
+    if (readSize == -1) {
+        THROW_ERROR_EXCEPTION("Error while doing read")
+            << TError::FromSystem();
+    }
+
+    if (readSize == 0) {
+        return VoidFuture;
+    }
+
+    return BIND(&WriteBuffer)
+        .AsyncVia(GetCurrentInvoker())
+        .Run(fromFd, toFd, std::move(buffer), bufferSize, readSize);
+}
+
+TFuture<void> WriteBuffer(
+    int fromFd,
+    int toFd,
+    std::vector<ui8> buffer,
+    int bufferSize,
+    int readSize)
+{
+    YT_VERIFY(readSize);
+    YT_VERIFY(bufferSize);
+
+    auto size = write(toFd, buffer.data(), readSize);
+
+    if (size == -1) {
+        THROW_ERROR_EXCEPTION("Error while doing write")
+            << TError::FromSystem();
+    }
+
+    return BIND(&ReadBuffer)
+        .AsyncVia(GetCurrentInvoker())
+        .Run(fromFd, toFd, std::move(buffer), bufferSize);
+}
+
+TFuture<void> ReadWriteCopyAsync(
+    const TString& existingPath,
+    const TString& newPath,
+    i64 chunkSize)
+{
+#ifdef _linux_
+    try {
+        TFile src(existingPath, OpenExisting | RdOnly | Seq | CloseOnExec);
+        TFile dst(newPath, CreateAlways | WrOnly | Seq | CloseOnExec);
+        dst.Flock(LOCK_EX);
+        return ReadWriteCopyAsync(src, dst, chunkSize);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Failed to copy %v to %v",
+            existingPath,
+            newPath)
+            << ex;
+    }
+#else
+    Y_UNUSED(existingPath, newPath, chunkSize);
+    ThrowNotSupported();
+    return VoidFuture;
+#endif
+}
+
+TFuture<void> ReadWriteCopyAsync(
+    const TFile& source,
+    const TFile& destination,
+    i64 chunkSize)
+{
+#ifdef _linux_
+    int srcFd = source.GetHandle();
+    int dstFd = destination.GetHandle();
+    std::vector<ui8> buffer(chunkSize);
+
+    return ReadBuffer(srcFd, dstFd, std::move(buffer), chunkSize)
+        .Apply(BIND([=] (const TErrorOr<void>& result) {
+            THROW_ERROR_EXCEPTION_IF_FAILED(result,
+                TError("Failed to copy %v to %v",
+                    source.GetName(),
+                    destination.GetName()));
+        }));
+#else
+    Y_UNUSED(source, destination, chunkSize);
+    ThrowNotSupported();
+    return VoidFuture;
+#endif
+}
+
+void ReadWriteCopySync(
+    const TString& existingPath,
+    const TString& newPath,
+    i64 chunkSize)
+{
+#ifdef _linux_
+    try {
+        TFile src(existingPath, OpenExisting | RdOnly | Seq | CloseOnExec);
+        TFile dst(newPath, CreateAlways | WrOnly | Seq | CloseOnExec);
+        dst.Flock(LOCK_EX);
+        ReadWriteCopySync(src, dst, chunkSize);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Failed to copy %v to %v",
+            existingPath,
+            newPath)
+            << ex;
+    }
+#else
+    Y_UNUSED(existingPath, newPath, chunkSize);
+    ThrowNotSupported();
+#endif
+}
+
+void ReadWriteCopySync(
+    const TFile& source,
+    const TFile& destination,
+    i64 chunkSize)
+{
+#ifdef _linux_
+    int srcFd = source.GetHandle();
+    int dstFd = destination.GetHandle();
+    std::vector<ui8> buffer(chunkSize);
+
+    while (true) {
+        auto readSize = read(srcFd, buffer.data(), chunkSize);
+
+        if (readSize == -1) {
+            THROW_ERROR_EXCEPTION("Error while doing read")
+                << TError::FromSystem();
+        }
+
+        if (readSize == 0) {
+            return;
+        }
+
+        auto size = write(dstFd, buffer.data(), readSize);
+
+        if (size == -1) {
+            THROW_ERROR_EXCEPTION("Error while doing write")
+                << TError::FromSystem();
+        }
     }
 #else
     Y_UNUSED(source, destination, chunkSize);

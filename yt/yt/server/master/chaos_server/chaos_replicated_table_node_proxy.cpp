@@ -1,8 +1,8 @@
 #include "chaos_replicated_table_node_proxy.h"
 
-#include "chaos_replicated_table_node.h"
 #include "chaos_cell_bundle.h"
 #include "chaos_manager.h"
+#include "chaos_replicated_table_node.h"
 
 #include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
@@ -39,7 +39,6 @@
 
 namespace NYT::NChaosServer {
 
-using namespace NApi::NNative;
 using namespace NApi;
 using namespace NCellMaster;
 using namespace NChaosClient;
@@ -47,9 +46,10 @@ using namespace NCypressServer;
 using namespace NObjectServer;
 using namespace NSecurityServer;
 using namespace NTableClient;
+using namespace NTableServer;
 using namespace NTransactionServer;
-using namespace NYTree;
 using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -275,7 +275,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, GetMountInfo)
 
     const auto* trunkTable = GetThisImpl();
 
-    if (!trunkTable->GetSchema()) {
+    auto* schema = trunkTable->GetSchema();
+    if (!schema || schema->AsTableSchema()->Columns().empty()) {
         THROW_ERROR_EXCEPTION("Table schema is not specified");
     }
     if (!trunkTable->GetReplicationCardId()) {
@@ -296,9 +297,13 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)
     DeclareMutating();
 
     NTableClient::TTableSchemaPtr schema;
+    TMasterTableSchemaId schemaId;
 
     if (request->has_schema()) {
         schema = New<TTableSchema>(FromProto<TTableSchema>(request->schema()));
+    }
+    if (request->has_schema_id()) {
+        schemaId = FromProto<TMasterTableSchemaId>(request->schema_id());
     }
     if (request->has_dynamic() ||
         request->has_upstream_replica_id() ||
@@ -313,16 +318,35 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)
 
     auto* table = LockThisImpl();
 
-    // NB: Sorted dynamic tables contain unique keys, set this for user.
-    if (schema && schema->IsSorted() && !schema->GetUniqueKeys()) {
-        schema = schema->ToUniqueKeys();
+    const auto& tableManager = Bootstrap_->GetTableManager();
+    // NB: Chaos replicated table is always native.
+    auto schemaReceived = schemaId || schema;
+    if (schemaReceived) {
+        tableManager->ValidateTableSchemaCorrespondence(
+            table->GetVersionedId(),
+            schema,
+            schemaId);
     }
 
+    TTableSchemaPtr effectiveSchema;
     if (schema) {
+        effectiveSchema = schema;
+    } else if (schemaId) {
+        effectiveSchema = tableManager->GetMasterTableSchemaOrThrow(schemaId)->AsTableSchema();
+    } else {
+        effectiveSchema = table->GetSchema()->AsTableSchema();
+    }
+
+    // NB: Sorted dynamic tables contain unique keys, set this for user.
+    if (schemaReceived && effectiveSchema->IsSorted() && !effectiveSchema->GetUniqueKeys()) {
+        effectiveSchema = effectiveSchema->ToUniqueKeys();
+    }
+
+    if (schemaReceived) {
         const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
 
         if (!config->EnableDescendingSortOrder || !config->EnableDescendingSortOrderDynamic) {
-            ValidateNoDescendingSortOrder(*schema);
+            ValidateNoDescendingSortOrder(*effectiveSchema);
         }
     }
 
@@ -332,10 +356,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)
         GetPath(),
         Transaction_);
 
-    if (schema) {
-        const auto& tableManager = Bootstrap_->GetTableManager();
-        tableManager->GetOrCreateMasterTableSchema(*schema, table);
-    }
+    tableManager->GetOrCreateNativeMasterTableSchema(*effectiveSchema, table);
 
     context->Reply();
 }

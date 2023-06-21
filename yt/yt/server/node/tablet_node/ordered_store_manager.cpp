@@ -101,15 +101,20 @@ void TOrderedStoreManager::Mount(
     Tablet_->RecomputeReplicaStatuses();
 }
 
+void TOrderedStoreManager::LockHunkStores(TWriteContext* context)
+{
+    if (context->HunkChunksInfo) {
+        ActiveStore_->LockHunkStores(*context->HunkChunksInfo);
+    }
+}
+
 bool TOrderedStoreManager::ExecuteWrites(
     IWireProtocolReader* reader,
     TWriteContext* context)
 {
     YT_VERIFY(context->Phase == EWritePhase::Commit);
 
-    if (context->HunkChunksInfo) {
-        ActiveStore_->LockHunkStores(*context->HunkChunksInfo);
-    }
+    LockHunkStores(context);
 
     while (!reader->IsFinished()) {
         auto command = reader->ReadWriteCommand(

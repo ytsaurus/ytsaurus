@@ -764,6 +764,7 @@ private:
         if (options.Deadline) {
             req->set_deadline(ToProto<ui64>(*options.Deadline));
         }
+        req->set_is_cypress_transaction(options.StartCypressTransaction);
         if (options.ReplicateToMasterCellTags) {
             if (options.ReplicateToMasterCellTags->empty()) {
                 req->set_dont_replicate(true);

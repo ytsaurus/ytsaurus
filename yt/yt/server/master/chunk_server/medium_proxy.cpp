@@ -38,7 +38,9 @@ private:
             .SetWritable(true)
             .SetReplicated(true)
             .SetMandatory(true));
-        descriptors->push_back(EInternedAttributeKey::Index);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Index)
+            .SetReplicated(true)
+            .SetMandatory(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Transient)
             .SetReplicated(true)
             .SetMandatory(true));

@@ -61,7 +61,10 @@ public:
         const IOperationControllerPtr& controller,
         bool jobsReady);
     void StartOperationRevival(TOperationId operationId, TControllerEpoch newControllerEpoch);
-    TFuture<void> FinishOperationRevival(TOperationId operationId, std::vector<TJobPtr> jobs);
+    TFuture<void> FinishOperationRevival(
+        TOperationId operationId,
+        std::vector<TJobPtr> jobs,
+        bool controlJobLifetimeAtScheduler);
     TFuture<void> ResetOperationRevival(const TOperationPtr& operation);
     void UnregisterOperation(TOperationId operationId);
 

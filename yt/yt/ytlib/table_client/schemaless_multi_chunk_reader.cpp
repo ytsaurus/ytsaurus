@@ -210,7 +210,6 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             nullptr,
                             NullTimestamp,
                             /*lookupHashTable*/ nullptr,
-                            /*performanceCounters*/ nullptr,
                             TKeyComparer{},
                             dataSource.GetVirtualValueDirectory(),
                             dataSource.Schema());
@@ -254,7 +253,6 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                                 dataSource.OmittedInaccessibleColumns(),
                                 columnFilter.IsUniversal() ? CreateColumnFilter(dataSource.Columns(), nameTable) : columnFilter,
                                 hintKeyPrefixes->HintPrefixes,
-                                /*performanceCounters*/ nullptr,
                                 partitionTag,
                                 chunkReaderMemoryManager
                                     ? chunkReaderMemoryManager
@@ -1088,8 +1086,6 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         }),
         columnFilter);
 
-    auto performanceCounters = New<TChunkReaderPerformanceCounters>();
-
     if (!multiReaderMemoryManager) {
         multiReaderMemoryManager = CreateParallelReaderMemoryManager(
             TParallelReaderMemoryManagerOptions{
@@ -1107,7 +1103,6 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         chunkSpecs,
         tableSchema,
         versionedReadSchema = versionedReadSchema,
-        performanceCounters,
         timestamp,
         renameDescriptors,
         multiReaderMemoryManager,
@@ -1167,7 +1162,6 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             versionedChunkMeta,
             chunkSpec.has_override_timestamp() ? chunkSpec.override_timestamp() : NullTimestamp,
             /*lookupHashTable*/ nullptr,
-            performanceCounters,
             /*keyComparer*/ TKeyComparer{},
             /*virtualValueDirectory*/ nullptr,
             versionedReadSchema);
@@ -1204,7 +1198,6 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         chunkSpecs,
         tableSchema,
         columnFilter,
-        performanceCounters,
         timestamp,
         multiReaderMemoryManager,
         createVersionedChunkReader,

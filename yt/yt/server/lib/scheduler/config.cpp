@@ -14,6 +14,10 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
 TJobResourcesConfigPtr GetDefaultRequiredResourceLimitsForRemoteCopy()
 {
     auto config = New<TJobResourcesConfig>();
@@ -29,6 +33,30 @@ TJobResourcesConfigPtr GetDefaultMinSpareJobResourcesOnNode()
     config->Memory = 256_MB;
     return config;
 }
+
+TJobResourcesConfigPtr GetDefaultLowPriorityFallbackMinSpareJobResources()
+{
+    auto config = New<TJobResourcesConfig>();
+    config->UserSlots = 1;
+    config->Cpu = 5;
+    config->Memory = 1_GB;
+    return config;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+THistogramDigestConfigPtr GetDefaultPerPoolSatisfactionDigestConfig()
+{
+    auto config = New<THistogramDigestConfig>();
+    config->LowerBound = 0.0;
+    config->UpperBound = 2.0;
+    config->AbsolutePrecision = 0.001;
+    return config;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -187,6 +215,18 @@ void TFairShareStrategySsdPriorityPreemptionConfig::Register(TRegistrar registra
             THROW_ERROR_EXCEPTION("SSD node tag filter must be non-empty when SSD priority preemption is enabled");
         }
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TPrioritizedRegularSchedulingConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("medium_priority_operation_count_limit", &TThis::MediumPriorityOperationCountLimit)
+        .GreaterThanOrEqual(0)
+        .Default(1000);
+
+    registrar.Parameter("low_priority_fallback_min_spare_job_resources", &TThis::LowPriorityFallbackMinSpareJobResources)
+        .DefaultCtor(&GetDefaultLowPriorityFallbackMinSpareJobResources);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -446,6 +486,21 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("running_job_statistics_update_period", &TThis::RunningJobStatisticsUpdatePeriod)
         .Default(TDuration::Seconds(1));
 
+    registrar.Parameter("prioritized_regular_scheduling", &TThis::PrioritizedRegularScheduling)
+        .Default();
+
+    registrar.Parameter("fifo_pool_scheduling_order", &TThis::FifoPoolSchedulingOrder)
+        .Default(EFifoPoolSchedulingOrder::Fifo);
+
+    registrar.Parameter("use_pool_satisfaction_for_scheduling", &TThis::UsePoolSatisfactionForScheduling)
+        .Default(true);
+
+    registrar.Parameter("per_pool_satisfaction_digest", &TThis::PerPoolSatisfactionDigest)
+        .DefaultCtor(&GetDefaultPerPoolSatisfactionDigestConfig);
+
+    registrar.Parameter("per_pool_satisfaction_profiling_quantiles", &TThis::PerPoolSatisfactionProfilingQuantiles)
+        .Default({0.01, 0.05, 0.1, 0.25, 0.4, 0.5, 0.6, 0.75, 0.9, 0.95, 0.99});
+
     registrar.Postprocessor([&] (TFairShareStrategyTreeConfig* config) {
         if (config->AggressivePreemptionSatisfactionThreshold > config->PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive starvation satisfaction threshold must be less than starvation satisfaction threshold")
@@ -467,6 +522,24 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
         auto& nonPreemptibleUserSlotsUsage = config->NonPreemptibleResourceUsageThreshold->UserSlots;
         if (!nonPreemptibleUserSlotsUsage) {
             nonPreemptibleUserSlotsUsage = config->MaxUnpreemptibleRunningJobCount;
+        }
+    });
+
+    registrar.Postprocessor([&] (TFairShareStrategyTreeConfig* config) {
+        static const int MaxPerPoolProfilingQuantileCount = 20;
+
+        int quantileCount = std::ssize(config->PerPoolSatisfactionProfilingQuantiles);
+        if (quantileCount > MaxPerPoolProfilingQuantileCount) {
+            THROW_ERROR_EXCEPTION("Too many per pool profiling quantiles specified")
+                << TErrorAttribute("max_quantile_count", MaxPerPoolProfilingQuantileCount)
+                << TErrorAttribute("quantile_count", quantileCount);
+        }
+
+        for (auto quantile : config->PerPoolSatisfactionProfilingQuantiles) {
+            if (quantile < 0.0 || quantile > 1.0) {
+                THROW_ERROR_EXCEPTION("Per pool satisfaction profiling quantiles must be from range [0.0, 1.0]")
+                    << TErrorAttribute("out_of_range_quantile", quantile);
+            }
         }
     });
 }
@@ -594,6 +667,8 @@ void TTestingOptions::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("node_heartbeat_processing_delay", &TThis::NodeHeartbeatProcessingDelay)
         .Default();
+    registrar.Parameter("secure_vault_creation_delay", &TThis::SecureVaultCreationDelay)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -657,6 +732,8 @@ void TOperationsCleanerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(5));
     registrar.Parameter("operation_alert_sender_alert_threshold", &TThis::OperationAlertSenderAlertThreshold)
         .Default(TDuration::Minutes(5));
+    registrar.Parameter("locked_operation_wait_timeout", &TThis::LockedOperationWaitTimeout)
+        .Default(TDuration::Minutes(1));
     registrar.Parameter("disconnect_on_finished_operation_fetch_failure", &TThis::DisconnectOnFinishedOperationFetchFailure)
         .Default(true);
 
@@ -896,9 +973,6 @@ void TSchedulerConfig::Register(TRegistrar registrar)
     registrar.Parameter("finished_operation_job_storing_timeout", &TThis::FinishedOperationJobStoringTimeout)
         .Default(TDuration::Seconds(10));
 
-    registrar.Parameter("operations_destroy_period", &TThis::OperationsDestroyPeriod)
-        .Default(TDuration::Seconds(1));
-
     registrar.Parameter("testing_options", &TThis::TestingOptions)
         .DefaultNew();
 
@@ -988,13 +1062,16 @@ void TSchedulerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_heavy_runtime_parameters", &TThis::EnableHeavyRuntimeParameters)
         .Default(false);
 
+    registrar.Parameter("enable_operation_heavy_attributes_archivation", &TThis::EnableOperationHeavyAttributesArchivation)
+        .Default(false);
+
+    registrar.Parameter("operation_heavy_attributes_archivation_timeout", &TThis::OperationHeavyAttributesArchivationTimeout)
+        .Default(TDuration::Seconds(3));
+
     registrar.Parameter("schedule_job_entry_removal_timeout", &TThis::ScheduleJobEntryRemovalTimeout)
         .Default(TDuration::Minutes(2));
 
     registrar.Parameter("schedule_job_entry_check_period", &TThis::ScheduleJobEntryCheckPeriod)
-        .Default(TDuration::Minutes(1));
-
-    registrar.Parameter("check_nodes_with_unsupported_interruption_period", &TThis::CheckNodesWithUnsupportedInterruptionPeriod)
         .Default(TDuration::Minutes(1));
 
     registrar.Parameter("wait_for_agent_heartbeat_during_operation_unregistration_at_controller", &TThis::WaitForAgentHeartbeatDuringOperationUnregistrationAtController)
@@ -1004,7 +1081,10 @@ void TSchedulerConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("min_required_archive_version", &TThis::MinRequiredArchiveVersion)
-        .Default(47);
+        .Default(48);
+
+    registrar.Parameter("control_unknown_operation_jobs_lifetime", &TThis::ControlUnknownOperationJobsLifetime)
+        .Default(true);
 
     registrar.Preprocessor([&] (TSchedulerConfig* config) {
         config->EventLog->MaxRowWeight = 128_MB;

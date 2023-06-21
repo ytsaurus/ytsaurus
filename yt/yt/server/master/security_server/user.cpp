@@ -12,14 +12,34 @@
 #include <yt/yt/core/crypto/crypto.h>
 
 #include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/request_complexity_limiter.h>
 
 namespace NYT::NSecurityServer {
 
 using namespace NCellMaster;
 using namespace NConcurrency;
 using namespace NCrypto;
+using namespace NObjectClient;
 using namespace NYson;
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static void ValidateCellTags(const auto& perCell)
+{
+    for (const auto& [cellTag, value] : perCell) {
+        if (cellTag < MinValidCellTag || cellTag > MaxValidCellTag) {
+            THROW_ERROR_EXCEPTION("Invalid cell tag %v",
+                cellTag);
+        }
+
+        if (value <= 0) {
+            THROW_ERROR_EXCEPTION("Invalid limit for cell %v: value %v must be greater than zero",
+                cellTag,
+                value);
+        }
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,24 +52,13 @@ void TUserRequestLimitsOptions::Register(TRegistrar registrar)
         .Optional();
 
     registrar.Postprocessor([] (TThis* config) {
-        for (const auto& [cellTag, value] : config->PerCell) {
-            if (cellTag < NObjectClient::MinValidCellTag || cellTag > NObjectClient::MaxValidCellTag) {
-                THROW_ERROR_EXCEPTION("Invalid cell tag %v",
-                    cellTag);
-            }
-
-            if (value <= 0) {
-                THROW_ERROR_EXCEPTION("Invalid limit for cell %v: value %v must be greater than zero",
-                    cellTag,
-                    value);
-            }
-        }
+        ValidateCellTags(config->PerCell);
     });
 }
 
-void TUserRequestLimitsOptions::SetValue(NObjectServer::TCellTag cellTag, std::optional<int> value)
+void TUserRequestLimitsOptions::SetValue(TCellTag cellTag, std::optional<int> value)
 {
-    if (cellTag == NObjectClient::InvalidCellTag) {
+    if (cellTag == InvalidCellTag) {
         Default = value;
     } else {
         YT_VERIFY(value);
@@ -57,7 +66,7 @@ void TUserRequestLimitsOptions::SetValue(NObjectServer::TCellTag cellTag, std::o
     }
 }
 
-std::optional<int> TUserRequestLimitsOptions::GetValue(NObjectServer::TCellTag cellTag) const
+std::optional<int> TUserRequestLimitsOptions::GetValue(TCellTag cellTag) const
 {
     if (auto it = PerCell.find(cellTag)) {
         return it->second;
@@ -76,33 +85,44 @@ void TUserQueueSizeLimitsOptions::Register(TRegistrar registrar)
         .Optional();
 
     registrar.Postprocessor([] (TThis* config) {
-        for (const auto& [cellTag, value] : config->PerCell) {
-            if (cellTag < NObjectClient::MinValidCellTag || cellTag > NObjectClient::MaxValidCellTag) {
-                THROW_ERROR_EXCEPTION("Invalid cell tag %v",
-                    cellTag);
-            }
-
-            if (value <= 0) {
-                THROW_ERROR_EXCEPTION("Invalid limit for cell %v: value %v must be greater than zero",
-                    cellTag,
-                    value);
-            }
-        }
+        ValidateCellTags(config->PerCell);
     });
 }
 
-void TUserQueueSizeLimitsOptions::SetValue(NObjectServer::TCellTag cellTag, int value)
+void TUserQueueSizeLimitsOptions::SetValue(TCellTag cellTag, int value)
 {
-    if (cellTag == NObjectClient::InvalidCellTag) {
+    if (cellTag == InvalidCellTag) {
         Default = value;
     } else {
         PerCell[cellTag] = value;
     }
 }
 
-int TUserQueueSizeLimitsOptions::GetValue(NObjectServer::TCellTag cellTag) const
+int TUserQueueSizeLimitsOptions::GetValue(TCellTag cellTag) const
 {
     return PerCell.Value(cellTag, Default);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TUserReadRequestComplexityLimitsOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("node_count", &TThis::DefaultNodeCount)
+        .Default(200'000);
+    registrar.Parameter("result_size", &TThis::DefaultResultSize)
+        .Default(10'000'000);
+
+    registrar.Postprocessor([] (TThis* config) {
+        THROW_ERROR_EXCEPTION_IF(config->DefaultNodeCount.value_or(0) < 0,
+            "\"node_count\" cannot be negative");
+        THROW_ERROR_EXCEPTION_IF(config->DefaultResultSize.value_or(0) < 0,
+            "\"result_size\" cannot be negative");
+    });
+}
+
+TReadRequestComplexity TUserReadRequestComplexityLimitsOptions::GetValue() const
+{
+    return TReadRequestComplexity(DefaultNodeCount, DefaultResultSize);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -115,6 +135,8 @@ void TUserRequestLimitsConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("request_queue_size", &TThis::RequestQueueSizeLimits)
         .DefaultNew();
+    registrar.Parameter("read_request_complexity", &TThis::ReadRequestComplexityLimits)
+        .DefaultNew();
 
     registrar.Postprocessor([] (TThis* config) {
         if (!config->ReadRequestRateLimits) {
@@ -125,6 +147,9 @@ void TUserRequestLimitsConfig::Register(TRegistrar registrar)
         }
         if (!config->RequestQueueSizeLimits) {
             THROW_ERROR_EXCEPTION("\"request_queue_size\" must be set");
+        }
+        if (!config->ReadRequestComplexityLimits) {
+            THROW_ERROR_EXCEPTION("\"read_request_complexity\" must be set");
         }
     });
 }
@@ -195,6 +220,42 @@ TUserQueueSizeLimitsOptionsPtr TSerializableUserQueueSizeLimitsOptions::ToLimits
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TSerializableUserReadRequestComplexityLimitsOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("node_count", &TThis::DefaultNodeCount_)
+        .Default(200'000);
+    registrar.Parameter("result_size", &TThis::DefaultResultSize_)
+        .Default(10'000'000);
+
+    registrar.Postprocessor([] (TThis* config) {
+        THROW_ERROR_EXCEPTION_IF(config->DefaultNodeCount_.value_or(0) < 0,
+            "\"node_count\" cannot be negative");
+        THROW_ERROR_EXCEPTION_IF(config->DefaultResultSize_.value_or(0) < 0,
+            "\"result_size\" cannot be negative");
+    });
+}
+
+TSerializableUserReadRequestComplexityLimitsOptionsPtr TSerializableUserReadRequestComplexityLimitsOptions::CreateFrom(
+    const TUserReadRequestComplexityLimitsOptionsPtr& options)
+{
+    auto result = New<TSerializableUserReadRequestComplexityLimitsOptions>();
+
+    result->DefaultNodeCount_ = options->DefaultNodeCount;
+    result->DefaultResultSize_ = options->DefaultResultSize;
+
+    return result;
+}
+
+TUserReadRequestComplexityLimitsOptionsPtr TSerializableUserReadRequestComplexityLimitsOptions::ToLimitsOrThrow() const
+{
+    auto result = New<TUserReadRequestComplexityLimitsOptions>();
+    result->DefaultNodeCount = DefaultNodeCount_;
+    result->DefaultResultSize = DefaultResultSize_;
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 
 void TSerializableUserRequestLimitsConfig::Register(TRegistrar registrar)
 {
@@ -203,6 +264,8 @@ void TSerializableUserRequestLimitsConfig::Register(TRegistrar registrar)
     registrar.Parameter("write_request_rate", &TThis::WriteRequestRateLimits_)
         .DefaultNew();
     registrar.Parameter("request_queue_size", &TThis::RequestQueueSizeLimits_)
+        .DefaultNew();
+    registrar.Parameter("read_request_complexity", &TThis::ReadRequestComplexityLimits_)
         .DefaultNew();
 }
 
@@ -215,6 +278,7 @@ TSerializableUserRequestLimitsConfigPtr TSerializableUserRequestLimitsConfig::Cr
     result->ReadRequestRateLimits_ = TSerializableUserRequestLimitsOptions::CreateFrom(config->ReadRequestRateLimits, multicellManager);
     result->WriteRequestRateLimits_ = TSerializableUserRequestLimitsOptions::CreateFrom(config->WriteRequestRateLimits, multicellManager);
     result->RequestQueueSizeLimits_ = TSerializableUserQueueSizeLimitsOptions::CreateFrom(config->RequestQueueSizeLimits, multicellManager);
+    result->ReadRequestComplexityLimits_ = TSerializableUserReadRequestComplexityLimitsOptions::CreateFrom(config->ReadRequestComplexityLimits);
 
     return result;
 }
@@ -226,6 +290,7 @@ TUserRequestLimitsConfigPtr TSerializableUserRequestLimitsConfig::ToConfigOrThro
     result->ReadRequestRateLimits = ReadRequestRateLimits_->ToLimitsOrThrow(multicellManager);
     result->WriteRequestRateLimits = WriteRequestRateLimits_->ToLimitsOrThrow(multicellManager);
     result->RequestQueueSizeLimits = RequestQueueSizeLimits_->ToLimitsOrThrow(multicellManager);
+    result->ReadRequestComplexityLimits = ReadRequestComplexityLimits_->ToLimitsOrThrow();
     return result;
 }
 
@@ -235,6 +300,12 @@ TUser::TUser(TUserId id)
     : TSubject(id)
     , ObjectServiceRequestLimits_(New<TUserRequestLimitsConfig>())
 { }
+
+void TUser::SetName(const TString& name)
+{
+    TSubject::SetName(name);
+    InitializeCounters();
+}
 
 TString TUser::GetLowercaseObjectName() const
 {
@@ -284,6 +355,11 @@ void TUser::Load(TLoadContext& context)
         TNullableIntrusivePtrSerializer<>::Load(context, ChunkServiceUserRequestBytesThrottlerConfig_);
     }
 
+    InitializeCounters();
+}
+
+void TUser::InitializeCounters()
+{
     auto profiler = SecurityProfiler
         .WithSparse()
         .WithTag("user", Name_);

@@ -186,7 +186,7 @@ DB::Pipe CreateRemoteSource(
         processingStage);
     remoteQueryExecutor->setPoolMode(DB::PoolMode::GET_MANY);
 
-    auto* traceContext = TryGetCurrentTraceContext();
+    auto* traceContext = GetCurrentTraceContext();
     if (!traceContext) {
         traceContext = queryContext->TraceContext.Get();
     }

@@ -114,7 +114,7 @@ private:
         auto fullSync = IsTimeForFullSync();
         auto descriptorsMap = ScanCells();
 
-        std::vector<TFuture<std::vector<TAlienCellDescriptor>>> asyncAlienDescriptors;
+        std::vector<TFuture<NNative::TSyncAlienCellsResult>> asyncAlienClusterInfos;
         std::vector<int> clusterIndexes;
         std::vector<TString> clusterNames;
         std::vector<IClientPtr> clients;
@@ -127,7 +127,7 @@ private:
             auto clusterName = GetAlienClusterRegistry()->GetAlienClusterName(alienClusterIndex);
             if (auto client = GetAlienClusterClient(clusterName)) {
                 auto asyncResult = client->SyncAlienCells(std::move(descriptors), options);
-                asyncAlienDescriptors.push_back(std::move(asyncResult));
+                asyncAlienClusterInfos.push_back(std::move(asyncResult));
                 clients.push_back(std::move(client));
                 clusterIndexes.push_back(alienClusterIndex);
                 clusterNames.push_back(clusterName);
@@ -137,34 +137,35 @@ private:
         YT_LOG_DEBUG("Syncing alien cells (AlienClusters: %v)",
             clusterNames);
 
-        auto alienDescriptorsOrError = WaitFor(AllSet(asyncAlienDescriptors));
-        if (!alienDescriptorsOrError.IsOK()) {
-            YT_LOG_DEBUG(alienDescriptorsOrError, "Error synchronizing alien cells");
+        auto alienClusterInfosOrError = WaitFor(AllSet(asyncAlienClusterInfos));
+        if (!alienClusterInfosOrError.IsOK()) {
+            YT_LOG_DEBUG(alienClusterInfosOrError, "Error synchronizing alien cells");
             return;
         }
 
-        const auto& alienDescriptors = alienDescriptorsOrError.Value();
+        const auto& alienClusterInfos = alienClusterInfosOrError.Value();
         std::vector<TAlienCellConstellation> constellations;
-        YT_VERIFY(alienDescriptors.size() == clusterIndexes.size());
+        YT_VERIFY(alienClusterInfos.size() == clusterIndexes.size());
 
         for (int index = 0; index < std::ssize(clusterIndexes); ++index) {
-            const auto& descriptorsOrError = alienDescriptors[index];
+            const auto& alienClusterInfoOrError = alienClusterInfos[index];
             const auto& alienClusterIndex = clusterIndexes[index];
-            if (!descriptorsOrError.IsOK()) {
-                YT_LOG_DEBUG(descriptorsOrError, "Error synchronizing alien cells (Cluster: %v)",
+            if (!alienClusterInfoOrError.IsOK()) {
+                YT_LOG_DEBUG(alienClusterInfoOrError, "Error synchronizing alien cells (Cluster: %v)",
                     GetAlienClusterRegistry()->GetAlienClusterName(alienClusterIndex));
                 continue;
             }
 
-            const auto& descriptors = descriptorsOrError.Value();
+            const auto& alienClusterInfo = alienClusterInfoOrError.Value();
             auto lostAlienCellIds = fullSync
-                ? CalculateLostCellIds(descriptorsMap[alienClusterIndex], descriptors)
+                ? CalculateLostCellIds(descriptorsMap[alienClusterIndex], alienClusterInfo.AlienCellDescriptors)
                 : std::vector<TCellId>();
 
             constellations.push_back({
                 .AlienClusterIndex = alienClusterIndex,
-                .AlienCells = std::move(descriptors),
-                .LostAlienCellIds = std::move(lostAlienCellIds)
+                .AlienCells = std::move(alienClusterInfo.AlienCellDescriptors),
+                .LostAlienCellIds = std::move(lostAlienCellIds),
+                .EnableMetadataCells = alienClusterInfo.EnableMetadataCells
             });
         }
 

@@ -29,6 +29,8 @@
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/chunk_state.h>
 #include <yt/yt/ytlib/table_client/indexed_versioned_chunk_reader.h>
+#include <yt/yt/ytlib/table_client/key_filter.h>
+#include <yt/yt/ytlib/table_client/performance_counting.h>
 #include <yt/yt/ytlib/table_client/versioned_offloading_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_reader_adapter.h>
@@ -54,6 +56,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <library/cpp/iterator/enumerate.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NConcurrency;
@@ -71,8 +75,6 @@ using namespace NApi;
 using namespace NDataNode;
 using namespace NClusterNode;
 using namespace NQueryAgent;
-
-using NChunkClient::TLegacyReadLimit;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -178,6 +180,181 @@ private:
         return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows)));
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO(ifsmirnov, akozhikhov): Only for tests, to be removed in YT-18325.
+class TKeyFilteringReader
+    : public IVersionedReader
+{
+public:
+    TKeyFilteringReader(
+        IVersionedReaderPtr underlyingReader,
+        std::vector<ui8> missingKeyMask)
+        : UnderlyingReader_(std::move(underlyingReader))
+        , MissingKeyMask_(std::move(missingKeyMask))
+        , ReadRowCount_(0)
+    { }
+
+    TDataStatistics GetDataStatistics() const override
+    {
+        return UnderlyingReader_->GetDataStatistics();
+    }
+
+    TCodecStatistics GetDecompressionStatistics() const override
+    {
+        return UnderlyingReader_->GetDecompressionStatistics();
+    }
+
+    TFuture<void> Open() override
+    {
+        return UnderlyingReader_->Open();
+    }
+
+    TFuture<void> GetReadyEvent() const override
+    {
+        return UnderlyingReader_->GetReadyEvent();
+    }
+
+    bool IsFetchingCompleted() const override
+    {
+        return UnderlyingReader_->IsFetchingCompleted();
+    }
+
+    std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
+    {
+        return UnderlyingReader_->GetFailedChunkIds();
+    }
+
+    IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    {
+        if (ReadRowCount_ == ssize(MissingKeyMask_)) {
+            return nullptr;
+        }
+
+        int batchEndIndex = ReadRowCount_ + std::min(options.MaxRowsPerRead, ssize(MissingKeyMask_) - ReadRowCount_);
+        int neededUnderlyingRowCount = std::count(
+            MissingKeyMask_.begin() + ReadRowCount_,
+            MissingKeyMask_.begin() + batchEndIndex,
+            0);
+
+        auto underlyingOptions = options;
+        underlyingOptions.MaxRowsPerRead = neededUnderlyingRowCount;
+
+        auto underlyingBatch = neededUnderlyingRowCount > 0
+            ? UnderlyingReader_->Read(underlyingOptions)
+            : nullptr;
+
+        auto underlyingRows = underlyingBatch
+            ? underlyingBatch->MaterializeRows()
+            : TSharedRange<TVersionedRow>();
+
+        int underlyingRowIndex = 0;
+        std::vector<TVersionedRow> result;
+
+        while (ReadRowCount_ < batchEndIndex) {
+            if (MissingKeyMask_[ReadRowCount_]) {
+                result.emplace_back();
+                ++ReadRowCount_;
+            } else if (underlyingRows && underlyingRowIndex < std::ssize(underlyingRows)) {
+                result.push_back(underlyingRows[underlyingRowIndex++]);
+                ++ReadRowCount_;
+            } else {
+                break;
+            }
+        }
+
+        return CreateBatchFromVersionedRows(MakeSharedRange(std::move(result)));
+    }
+
+private:
+    const IVersionedReaderPtr UnderlyingReader_;
+    const std::vector<ui8> MissingKeyMask_;
+
+    i64 ReadRowCount_ = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO(ifsmirnov, akozhikhov): Only for tests, to be removed in YT-18325.
+bool PrepareKeyFilteringReader(
+    const TCustomTableMountConfigPtr& mountConfig,
+    const TCachedVersionedChunkMetaPtr& chunkMeta,
+    const IChunkReaderPtr& chunkReader,
+    const TClientChunkReadOptions& chunkReadOptions,
+    TSharedRange<TLegacyKey>* keys,
+    std::vector<ui8> *missingKeyMask)
+{
+    if (!mountConfig->TestingOnlyUseKeyFilter) {
+        return false;
+    }
+
+    std::vector<IKeyFilterPtr> keyFilters;
+
+    auto systemBlockMeta = chunkMeta->SystemBlockMeta();
+    if (!systemBlockMeta) {
+        return false;
+    }
+
+    int dataBlockCount = chunkMeta->DataBlockMeta()->data_blocks_size();
+
+    IChunkReader::TReadBlocksOptions readBlocksOptions{
+        .ClientOptions = chunkReadOptions,
+    };
+
+    for (const auto& [index, blockMeta] : Enumerate(systemBlockMeta->system_blocks())) {
+        if (!blockMeta.HasExtension(TXorFilterSystemBlockMeta::xor_filter_system_block_meta_ext)) {
+            continue;
+        }
+
+        auto xorFilterBlockMeta = blockMeta.GetExtension(
+            TXorFilterSystemBlockMeta::xor_filter_system_block_meta_ext);
+
+        auto blocks = WaitFor(chunkReader->ReadBlocks(
+            readBlocksOptions,
+            dataBlockCount + index,
+            1))
+            .ValueOrThrow();
+        YT_VERIFY(ssize(blocks) == 1);
+
+        auto compressedBlock = TBlock::Unwrap(blocks)[0];
+
+        auto codecName = static_cast<NCompression::ECodec>(chunkMeta->Misc().compression_codec());
+        auto codec = NCompression::GetCodec(codecName);
+        auto decompressedBlock = codec->Decompress(compressedBlock);
+
+        keyFilters.push_back(CreateXorFilter(xorFilterBlockMeta, std::move(decompressedBlock)));
+    }
+
+    if (keyFilters.empty()) {
+        return false;
+    }
+
+    missingKeyMask->clear();
+    missingKeyMask->reserve(keys->size());
+
+    std::vector<TLegacyKey> filteredKeys;
+
+    int filterIndex = 0;
+
+    for (auto key : *keys) {
+        // NB: This is probably incorrect, should use WidenKey or something.
+        while (filterIndex < ssize(keyFilters) && keyFilters[filterIndex]->GetLastKey() < key) {
+            ++filterIndex;
+        }
+
+        if (filterIndex < ssize(keyFilters) && keyFilters[filterIndex]->Contains(key)) {
+            filteredKeys.push_back(std::move(key));
+            missingKeyMask->push_back(0);
+        } else {
+            missingKeyMask->push_back(1);
+        }
+    }
+
+    *keys = MakeSharedRange(std::move(filteredKeys));
+
+    return true;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -305,6 +482,15 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
     bool enableNewScanReader = IsNewScanReaderEnabled(mountConfig);
 
+    auto wrapReaderWithPerformanceCounting = [&] (IVersionedReaderPtr underlyingReader)
+    {
+        return CreateVersionedPerformanceCountingReader(
+            underlyingReader,
+            PerformanceCounters_,
+            NTableClient::EDataSource::ChunkStore,
+            ERequestType::Read);
+    };
+
     // Fast lane: check for in-memory reads.
     if (auto reader = TryCreateCacheBasedReader(
         ranges,
@@ -315,7 +501,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         ReadRange_,
         enableNewScanReader))
     {
-        return MaybeWrapWithTimestampResettingAdapter(std::move(reader));
+        return wrapReaderWithPerformanceCounting(
+            MaybeWrapWithTimestampResettingAdapter(std::move(reader)));
     }
 
     // Another fast lane: check for backing store.
@@ -367,33 +554,35 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             // Enable current invoker for range reads.
             GetCurrentInvoker());
 
-        return MaybeWrapWithTimestampResettingAdapter(NNewTableClient::CreateVersionedChunkReader(
-            std::move(ranges),
-            timestamp,
-            chunkMeta,
-            Schema_,
-            columnFilter,
-            chunkState->ChunkColumnMapping,
-            blockManagerFactory,
-            chunkState->PerformanceCounters,
-            produceAllVersions));
+        return wrapReaderWithPerformanceCounting(
+            MaybeWrapWithTimestampResettingAdapter(
+                NNewTableClient::CreateVersionedChunkReader(
+                    std::move(ranges),
+                    timestamp,
+                    chunkMeta,
+                    Schema_,
+                    columnFilter,
+                    chunkState->ChunkColumnMapping,
+                    blockManagerFactory,
+                    produceAllVersions)));
     }
 
     // Reader can handle chunk timestamp itself if needed, no need to wrap with
     // timestamp resetting adapter.
-    return CreateVersionedChunkReader(
-        std::move(backendReaders.ReaderConfig),
-        std::move(backendReaders.ChunkReader),
-        chunkState,
-        chunkMeta,
-        chunkReadOptions,
-        std::move(ranges),
-        columnFilter,
-        timestamp,
-        produceAllVersions,
-        ReadRange_,
-        nullptr,
-        GetCurrentInvoker());
+    return wrapReaderWithPerformanceCounting(
+        CreateVersionedChunkReader(
+            std::move(backendReaders.ReaderConfig),
+            std::move(backendReaders.ChunkReader),
+            chunkState,
+            chunkMeta,
+            chunkReadOptions,
+            std::move(ranges),
+            columnFilter,
+            timestamp,
+            produceAllVersions,
+            ReadRange_,
+            nullptr,
+            GetCurrentInvoker()));
 }
 
 IVersionedReaderPtr TSortedChunkStore::TryCreateCacheBasedReader(
@@ -435,7 +624,6 @@ IVersionedReaderPtr TSortedChunkStore::TryCreateCacheBasedReader(
             columnFilter,
             chunkState->ChunkColumnMapping,
             blockManagerFactory,
-            chunkState->PerformanceCounters,
             produceAllVersions);
     }
 
@@ -478,10 +666,19 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         return CreateEmptyVersionedReader(keys.Size());
     }
 
+    // TODO(ifsmirnov, akozhikhov): Only for tests, to be removed in YT-18325.
+    bool needKeyFilteringReader = false;
+    std::vector<ui8> missingKeyMask;
+
     auto wrapReader = [&] (
         IVersionedReaderPtr underlyingReader,
         bool needSetTimestamp) -> IVersionedReaderPtr
     {
+        if (needKeyFilteringReader) {
+            underlyingReader = New<TKeyFilteringReader>(
+                std::move(underlyingReader),
+                missingKeyMask);
+        }
         if (skippedBefore > 0 || skippedAfter > 0) {
             underlyingReader = New<TFilteringReader>(
                 std::move(underlyingReader),
@@ -493,6 +690,15 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         } else {
             return underlyingReader;
         }
+    };
+
+    auto wrapReaderWithPerformanceCounting = [&] (IVersionedReaderPtr underlyingReader)
+    {
+        return CreateVersionedPerformanceCountingReader(
+            underlyingReader,
+            PerformanceCounters_,
+            NTableClient::EDataSource::ChunkStore,
+            ERequestType::Lookup);
     };
 
     const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
@@ -507,7 +713,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         chunkReadOptions,
         enableNewScanReader))
     {
-        return wrapReader(std::move(reader), /*needSetTimestamp*/ true);
+        return wrapReaderWithPerformanceCounting(
+            wrapReader(std::move(reader), /*needSetTimestamp*/ true));
     }
 
     // Another fast lane: check for backing store.
@@ -538,12 +745,12 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             .OverrideTimestamp = OverrideTimestamp_,
             .EnableHashChunkIndex = mountConfig->EnableHashChunkIndexForLookup
         });
-        return wrapReader(
+        return wrapReaderWithPerformanceCounting(wrapReader(
             CreateVersionedOffloadingLookupReader(
                 std::move(backendReaders.OffloadingReader),
                 std::move(options),
                 filteredKeys),
-            /*needSetTimestamp*/ true);
+            /*needSetTimestamp*/ true));
     }
 
     auto chunkState = PrepareChunkState(
@@ -551,6 +758,19 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         chunkReadOptions,
         enableNewScanReader);
     const auto& chunkMeta = chunkState->ChunkMeta;
+
+    // TODO(ifsmirnov, akozhikhov): Only for tests, to be removed in YT-18325.
+    needKeyFilteringReader = PrepareKeyFilteringReader(
+        mountConfig,
+        chunkMeta,
+        backendReaders.ChunkReader,
+        chunkReadOptions,
+        &filteredKeys,
+        &missingKeyMask);
+
+    if (needKeyFilteringReader && std::count(missingKeyMask.begin(), missingKeyMask.end(), 0) == 0) {
+        return CreateEmptyVersionedReader(keys.Size());
+    }
 
     ValidateBlockSize(tabletSnapshot, chunkState, chunkReadOptions.WorkloadDescriptor);
 
@@ -564,15 +784,17 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             tabletSnapshot->TableSchema,
             timestamp,
             produceAllVersions,
+            chunkState->BlockCache,
             /*testingOptions*/ std::nullopt,
             TabletNodeLogger);
 
-        return wrapReader(
+        return wrapReaderWithPerformanceCounting(wrapReader(
             CreateIndexedVersionedChunkReader(
                 chunkReadOptions,
                 std::move(controller),
+                std::move(backendReaders.ChunkReader),
                 tabletSnapshot->ChunkFragmentReader),
-            /*needSetTimestamp*/ true);
+            /*needSetTimestamp*/ true));
     }
 
     if (enableNewScanReader && chunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
@@ -591,9 +813,9 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             columnFilter,
             chunkState->ChunkColumnMapping,
             blockManagerFactory,
-            PerformanceCounters_,
             produceAllVersions);
-        return wrapReader(std::move(reader), /*needSetTimestamp*/ true);
+        return wrapReaderWithPerformanceCounting(
+            wrapReader(std::move(reader), /*needSetTimestamp*/ true));
     }
 
     auto reader = CreateVersionedChunkReader(
@@ -609,7 +831,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
 
     // Reader can handle chunk timestamp itself if needed, no need to wrap with
     // timestamp resetting adapter.
-    return wrapReader(std::move(reader), /*needSetTimestamp*/ false);
+    return wrapReaderWithPerformanceCounting(
+        wrapReader(std::move(reader), /*needSetTimestamp*/ false));
 }
 
 TSharedRange<TLegacyKey> TSortedChunkStore::FilterKeysByReadRange(
@@ -662,7 +885,6 @@ IVersionedReaderPtr TSortedChunkStore::TryCreateCacheBasedReader(
                     columnFilter,
                     chunkState->ChunkColumnMapping,
                     std::move(blockManagerFactory),
-                    chunkState->PerformanceCounters,
                     produceAllVersions);
             }
         }
@@ -675,7 +897,6 @@ IVersionedReaderPtr TSortedChunkStore::TryCreateCacheBasedReader(
             columnFilter,
             chunkState->ChunkColumnMapping,
             std::move(blockManagerFactory),
-            chunkState->PerformanceCounters,
             produceAllVersions);
     }
 
@@ -793,7 +1014,6 @@ TChunkStatePtr TSortedChunkStore::PrepareChunkState(
         chunkMeta,
         OverrideTimestamp_,
         /*lookupHashTable*/ nullptr,
-        PerformanceCounters_,
         GetKeyComparer(),
         /*virtualValueDirectory*/ nullptr,
         Schema_,

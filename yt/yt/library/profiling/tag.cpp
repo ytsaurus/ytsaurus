@@ -78,49 +78,49 @@ void TTagSet::Append(const TTagSet& other)
     }
 }
 
-TTagSet TTagSet::WithTag(TTag tag, int parent)
+TTagSet TTagSet::WithTag(TTag tag, int parent) const
 {
     auto copy = *this;
     copy.AddTag(std::move(tag), parent);
     return copy;
 }
 
-TTagSet TTagSet::WithRequiredTag(TTag tag, int parent)
+TTagSet TTagSet::WithRequiredTag(TTag tag, int parent) const
 {
     auto copy = *this;
     copy.AddRequiredTag(std::move(tag), parent);
     return copy;
 }
 
-TTagSet TTagSet::WithExcludedTag(TTag tag, int parent)
+TTagSet TTagSet::WithExcludedTag(TTag tag, int parent) const
 {
     auto copy = *this;
     copy.AddExcludedTag(std::move(tag), parent);
     return copy;
 }
 
-TTagSet TTagSet::WithAlternativeTag(TTag tag, int alternativeTo, int parent)
+TTagSet TTagSet::WithAlternativeTag(TTag tag, int alternativeTo, int parent) const
 {
     auto copy = *this;
     copy.AddAlternativeTag(std::move(tag), alternativeTo, parent);
     return copy;
 }
 
-TTagSet TTagSet::WithExtensionTag(TTag tag, int extensionOf)
+TTagSet TTagSet::WithExtensionTag(TTag tag, int extensionOf) const
 {
     auto copy = *this;
     copy.AddExtensionTag(std::move(tag), extensionOf);
     return copy;
 }
 
-TTagSet TTagSet::WithTagWithChild(TTag tag, int child)
+TTagSet TTagSet::WithTagWithChild(TTag tag, int child) const
 {
     auto copy = *this;
     copy.AddTagWithChild(std::move(tag), child);
     return copy;
 }
 
-TTagSet TTagSet::WithTagSet(const TTagSet& other)
+TTagSet TTagSet::WithTagSet(const TTagSet& other) const
 {
     auto copy = *this;
     copy.Append(other);

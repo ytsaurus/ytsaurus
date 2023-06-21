@@ -56,6 +56,11 @@ class TRegularChunkFragmentReadController
 public:
     using TChunkFragmentReadControllerBase::TChunkFragmentReadControllerBase;
 
+    NErasure::ECodec GetCodecId() const override
+    {
+        return NErasure::ECodec::None;
+    }
+
     void RegisterRequest(const TFragmentRequest& request) override
     {
         FragmentRequests_.push_back(request);
@@ -155,6 +160,11 @@ public:
         , DataPartCount_(Codec_->GetDataPartCount())
         , Replicas_(TotalPartCount_)
     { }
+
+    NErasure::ECodec GetCodecId() const override
+    {
+        return Codec_->GetId();
+    }
 
     void RegisterRequest(const TFragmentRequest& request) override
     {

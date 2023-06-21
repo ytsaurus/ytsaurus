@@ -29,7 +29,6 @@ using NTableClient::TColumnFilter;
 using NTableClient::IVersionedReader;
 using NTableClient::IVersionedReaderPtr;
 using NTableClient::TVersionedRow;
-using NTableClient::TChunkReaderPerformanceCountersPtr;
 
 using NChunkClient::TCodecStatistics;
 using NChunkClient::TChunkId;
@@ -430,7 +429,6 @@ public:
         std::unique_ptr<IBlockManager> blockManager,
         std::unique_ptr<IRowsetBuilder> rowsetBuilder,
         std::vector<TSpanMatching>&& windowsList,
-        TChunkReaderPerformanceCountersPtr performanceCounters,
         bool lookup,
         TReaderStatisticsPtr readerStatistics,
         int lookupKeyCount)
@@ -440,7 +438,6 @@ public:
             std::move(windowsList),
             std::move(readerStatistics))
         , PreparedMeta_(std::move(preparedMeta))
-        , PerformanceCounters_(std::move(performanceCounters))
         , ChunkMeta_(std::move(chunkMeta))
         , ColumnHunkFlags_(std::move(columnHunkFlags))
         , Lookup_(lookup)
@@ -521,12 +518,10 @@ public:
 private:
     // Hold reference to prepared meta.
     const TIntrusivePtr<TPreparedChunkMeta> PreparedMeta_;
-    const TChunkReaderPerformanceCountersPtr PerformanceCounters_;
     const TCachedVersionedChunkMetaPtr ChunkMeta_;
 
     const std::unique_ptr<bool[]> ColumnHunkFlags_;
 
-    // TODO(lukyan): Use performance counters adapter and increment counters uniformly and remove this flag.
     const bool Lookup_;
     const int LookupKeyCount_;
 
@@ -554,22 +549,10 @@ private:
             }
         }
 
-        i64 rowCount = 0;
-        for (auto row : *rows) {
-            if (row) {
-                ++rowCount;
-            }
-        }
-
-        RowCount_ += rowCount;
         DataWeight_ += dataWeight;
 
-        if (Lookup_) {
-            PerformanceCounters_->StaticChunkRowLookupCount += rowCount;
-            PerformanceCounters_->StaticChunkRowLookupDataWeightCount += dataWeight;
-        } else {
-            PerformanceCounters_->StaticChunkRowReadCount += rowCount;
-            PerformanceCounters_->StaticChunkRowReadDataWeightCount += dataWeight;
+        for (auto row : *rows) {
+            RowCount_ += static_cast<bool>(row);
         }
 
         if (hasMore) {
@@ -627,7 +610,6 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     const TColumnFilter& columnFilter,
     const TChunkColumnMappingPtr& chunkColumnMapping,
     TBlockManagerFactory blockManagerFactory,
-    TChunkReaderPerformanceCountersPtr performanceCounters,
     bool produceAll,
     TReaderStatisticsPtr readerStatistics)
 {
@@ -737,7 +719,6 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         std::move(blockManager),
         std::move(rowsetBuilder),
         std::move(windowsList),
-        std::move(performanceCounters),
         IsKeys(readItems),
         readerStatistics,
         readItemCount);
@@ -752,7 +733,6 @@ IVersionedReaderPtr CreateVersionedChunkReader<TSharedRange<TRowRange>>(
     const TColumnFilter& columnFilter,
     const TChunkColumnMappingPtr& chunkColumnMapping,
     TBlockManagerFactory blockManagerFactory,
-    TChunkReaderPerformanceCountersPtr performanceCounters,
     bool produceAll,
     TReaderStatisticsPtr readerStatistics);
 
@@ -765,7 +745,6 @@ IVersionedReaderPtr CreateVersionedChunkReader<TSharedRange<TLegacyKey>>(
     const TColumnFilter& columnFilter,
     const TChunkColumnMappingPtr& chunkColumnMapping,
     TBlockManagerFactory blockManagerFactory,
-    TChunkReaderPerformanceCountersPtr performanceCounters,
     bool produceAll,
     TReaderStatisticsPtr readerStatistics);
 
@@ -778,7 +757,6 @@ IVersionedReaderPtr CreateVersionedChunkReader<TKeysWithHints>(
     const TColumnFilter& columnFilter,
     const TChunkColumnMappingPtr& chunkColumnMapping,
     TBlockManagerFactory blockManagerFactory,
-    TChunkReaderPerformanceCountersPtr performanceCounters,
     bool produceAll,
     TReaderStatisticsPtr readerStatistics);
 

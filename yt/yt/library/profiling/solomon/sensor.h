@@ -112,9 +112,9 @@ public:
 
     void Record(TDuration value) override;
 
-    void Add(double value, int count) override;
-    void Remove(double value, int count) override;
-    void Reset() override;
+    void Add(double value, int count) noexcept override;
+    void Remove(double value, int count) noexcept override;
+    void Reset() noexcept override;
 
     THistogramSnapshot GetSnapshot() const override;
     void LoadSnapshot(THistogramSnapshot snapshot) override;

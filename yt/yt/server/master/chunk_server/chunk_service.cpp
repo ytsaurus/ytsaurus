@@ -39,7 +39,7 @@
 #include <yt/yt/ytlib/object_client/helpers.h>
 
 #include <yt/yt/core/rpc/helpers.h>
-#include <yt/yt/core/rpc/per_user_queues.h>
+#include <yt/yt/core/rpc/per_user_request_queue_provider.h>
 
 #include <yt/yt/library/erasure/impl/codec.h>
 
@@ -73,12 +73,12 @@ public:
             TChunkServiceProxy::GetDescriptor(),
             EAutomatonThreadQueue::ChunkService,
             ChunkServerLogger)
-        , ExecuteBatchRequestQueues_(
+        , ExecuteBatchRequestQueueProvider_(New<TPerUserRequestQueueProvider>(
             CreateReconfigurationCallback(bootstrap),
             ChunkServiceProfiler
                 .WithDefaultDisabled()
                 .WithSparse()
-                .WithTag("cell_tag", ToString(bootstrap->GetMulticellManager()->GetCellTag())))
+                .WithTag("cell_tag", ToString(bootstrap->GetMulticellManager()->GetCellTag()))))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LocateChunks)
             .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkLocator))
@@ -98,11 +98,23 @@ public:
             .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkOwningNodes)
             .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateChunk)
+            .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ConfirmChunk)
+            .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(SealChunk)
+            .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateChunkLists)
+            .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(UnstageChunkTree)
+            .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(AttachChunkTrees)
+            .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ExecuteBatch)
             .SetHeavy(true)
             .SetQueueSizeLimit(10000)
             .SetConcurrencyLimit(10000)
-            .SetRequestQueueProvider(ExecuteBatchRequestQueues_.GetProvider()));
+            .SetRequestQueueProvider(ExecuteBatchRequestQueueProvider_));
 
         const auto& configManager = Bootstrap_->GetConfigManager();
         configManager->SubscribeConfigChanged(BIND(&TChunkService::OnDynamicConfigChanged, MakeWeak(this)));
@@ -117,14 +129,15 @@ public:
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-    TPerUserRequestQueues ExecuteBatchRequestQueues_;
+    TPerUserRequestQueueProviderPtr ExecuteBatchRequestQueueProvider_;
 
-    static TPerUserRequestQueues::TReconfigurationCallback CreateReconfigurationCallback(TBootstrap* bootstrap)
+    static TPerUserRequestQueueProvider::TReconfigurationCallback CreateReconfigurationCallback(TBootstrap* bootstrap)
     {
         return [=] (TString userName, TRequestQueuePtr queue) {
             auto epochAutomatonInvoker = bootstrap->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkService);
 
-            // NB: After recovery OnDynamicConfigChanged will be called and invoker will be present, so we can reconfigure there.
+            // NB: Upon recovery, OnDynamicConfigChanged will be called and
+            // this invoker will be present.
             if (!epochAutomatonInvoker) {
                 return;
             }
@@ -189,30 +202,40 @@ private:
 
         const auto& oldConfig = oldClusterConfig->ChunkService;
 
-        // Checking if OnDynamicConfigChanged was triggered by an unrelated dynamic config change or by an epoch change.
-        // At least one reconfiguration call is needed to guarantee correct values for throttlers.
+        // Avoid unnecessary reconfiguration of request queues as it might create
+        // significant load on the automaton thread.
+        bool shouldReconfigureQueues = false;
+
         if (oldConfig == Bootstrap_->GetConfigManager()->GetConfig()->ChunkService) {
-            ExecuteBatchRequestQueues_.ReconfigureDefaultUserThrottlers({
+            // Either an epoch change or irrelevant modification to the config.
+
+            ExecuteBatchRequestQueueProvider_->UpdateDefaultConfigs({
                 config->DefaultPerUserRequestWeightThrottlerConfig,
                 config->DefaultPerUserRequestBytesThrottlerConfig});
+            // Crucial on epoch change for guaranteeing up-to-date configuration.
+            shouldReconfigureQueues = true;
         } else {
-            // Since ReconfigureDefaultUserThrottlers and EnableThrottling can create extra load on Automaton thread,
-            // we want to call them only when it's actually needed.
             if (oldConfig->DefaultPerUserRequestWeightThrottlerConfig != config->DefaultPerUserRequestWeightThrottlerConfig ||
                 oldConfig->DefaultPerUserRequestBytesThrottlerConfig != config->DefaultPerUserRequestBytesThrottlerConfig)
             {
-                ExecuteBatchRequestQueues_.ReconfigureDefaultUserThrottlers({
+                ExecuteBatchRequestQueueProvider_->UpdateDefaultConfigs({
                     config->DefaultPerUserRequestWeightThrottlerConfig,
                     config->DefaultPerUserRequestBytesThrottlerConfig});
+                shouldReconfigureQueues = true;
             }
 
             if (oldConfig->EnablePerUserRequestWeightThrottling != config->EnablePerUserRequestWeightThrottling ||
                 oldConfig->EnablePerUserRequestBytesThrottling != config->EnablePerUserRequestBytesThrottling)
             {
-                ExecuteBatchRequestQueues_.EnableThrottling(
+                ExecuteBatchRequestQueueProvider_->UpdateThrottlingEnabledFlags(
                     config->EnablePerUserRequestWeightThrottling,
                     config->EnablePerUserRequestBytesThrottling);
+                shouldReconfigureQueues = true;
             }
+        }
+
+        if (shouldReconfigureQueues) {
+            ExecuteBatchRequestQueueProvider_->ReconfigureAllUsers();
         }
     }
 
@@ -220,7 +243,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        ExecuteBatchRequestQueues_.ReconfigureCustomUserThrottlers(user->GetName());
+        ExecuteBatchRequestQueueProvider_->ReconfigureUser(user->GetName());
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, LocateChunks)
@@ -592,7 +615,7 @@ private:
             "ConfirmChunkCount: %v, "
             "SealChunkCount: %v, "
             "CreateChunkListsCount: %v, "
-            "UsageChunkListsCount: %v, "
+            "UnstageChunkTreeCount: %v, "
             "AttachChunkTreesCount: %v, "
             "SuppressUpstreamSync: %v",
             request->create_chunk_subrequests_size(),
@@ -607,20 +630,23 @@ private:
         ValidatePeer(EPeerKind::Leader);
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-
         // NB: supporting lazy transaction replication here is required for (at
         // least) the following reason. When starting operations, controller
         // agents first start all the necessary transactions, only then getting
         // basic attributes for output & debug tables. Thus, at the moment of
         // starting a transaction the set of cells it'll be needed to be
         // replicated to is yet unknown.
-
         std::vector<TTransactionId> transactionIds;
         for (const auto& createChunkSubrequest : request->create_chunk_subrequests()) {
             transactionIds.push_back(FromProto<TTransactionId>(createChunkSubrequest.transaction_id()));
         }
         for (const auto& createChunkListsSubrequest : request->create_chunk_lists_subrequests()) {
             transactionIds.push_back(FromProto<TTransactionId>(createChunkListsSubrequest.transaction_id()));
+        }
+        for (const auto& attachChunkTreesSubrequest : request->attach_chunk_trees_subrequests()) {
+            if (attachChunkTreesSubrequest.has_transaction_id()) {
+                transactionIds.push_back(FromProto<TTransactionId>(attachChunkTreesSubrequest.transaction_id()));
+            }
         }
         SortUnique(transactionIds);
 
@@ -675,6 +701,183 @@ private:
                     return VoidFuture;
                 }
             }).AsyncVia(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkService)));
+        }
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, AttachChunkTrees)
+    {
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto parentId = FromProto<TChunkListId>(request->parent_id());
+
+        context->SetRequestInfo(
+            "TransactionId: %v, "
+            "ParentId: %v",
+            transactionId,
+            parentId);
+
+        ValidateClusterInitialized();
+        ValidatePeer(EPeerKind::Leader);
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto suppressUpstreamSync = GetSuppressUpstreamSync(context->RequestHeader());
+        // TODO(shakurov): use mutation idempotizer for all mutations (not
+        // just the Object Service ones), then enable boomerangs here.
+        const auto enableMutationBoomerangs = false;
+        auto preparationFuture = NTransactionServer::RunTransactionReplicationSession(
+            !suppressUpstreamSync,
+            Bootstrap_,
+            {transactionId},
+            context,
+            chunkManager->CreateAttachChunkTreesMutation(context),
+            enableMutationBoomerangs);
+        YT_VERIFY(preparationFuture);
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, UnstageChunkTree)
+    {
+        auto chunkTreeId = FromProto<TChunkId>(request->chunk_tree_id());
+        context->SetRequestInfo(
+            "ChunkTreeId: %v, "
+            "Recursive: %v",
+            chunkTreeId,
+            request->recursive());
+
+        ValidateClusterInitialized();
+        ValidatePeer(EPeerKind::Leader);
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto mutation = chunkManager->CreateUnstageChunkTreeMutation(context);
+        mutation->SetCurrentTraceContext();
+        mutation->CommitAndReply(context);
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, CreateChunkLists)
+    {
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        context->SetRequestInfo(
+            "TransactionId: %v, "
+            "Count: %v",
+            transactionId,
+            request->count());
+
+        ValidateClusterInitialized();
+        ValidatePeer(EPeerKind::Leader);
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto suppressUpstreamSync = GetSuppressUpstreamSync(context->RequestHeader());
+        // TODO(shakurov): use mutation idempotizer for all mutations (not
+        // just the Object Service ones), then enable boomerangs here.
+        const auto enableMutationBoomerangs = false;
+        auto preparationFuture = NTransactionServer::RunTransactionReplicationSession(
+            !suppressUpstreamSync,
+            Bootstrap_,
+            {transactionId},
+            context,
+            chunkManager->CreateCreateChunkListsMutation(context),
+            enableMutationBoomerangs);
+        YT_VERIFY(preparationFuture);
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, SealChunk)
+    {
+        auto chunkId = FromProto<TChunkId>(request->chunk_id());
+        context->SetRequestInfo(
+            "ChunkId: %v, ",
+            chunkId);
+
+        ValidateClusterInitialized();
+        ValidatePeer(EPeerKind::Leader);
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto mutation = chunkManager->CreateSealChunkMutation(context);
+        mutation->SetCurrentTraceContext();
+        mutation->CommitAndReply(context);
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, CreateChunk)
+    {
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        context->SetRequestInfo(
+            "TransactionId: %v, ",
+            transactionId);
+
+        ValidateClusterInitialized();
+        ValidatePeer(EPeerKind::Leader);
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& configManager = Bootstrap_->GetConfigManager();
+
+        auto suppressUpstreamSync = GetSuppressUpstreamSync(context->RequestHeader());
+        // NB: supporting lazy transaction replication here is required for (at
+        // least) the following reason. When starting operations, controller
+        // agents first start all the necessary transactions, only then getting
+        // basic attributes for output & debug tables. Thus, at the moment of
+        // starting a transaction the set of cells it'll be needed to be
+        // replicated to is yet unknown.
+        if (configManager->GetConfig()->SequoiaManager->Enable && chunkManager->IsSequoiaCreateChunkRequest(*request)) {
+            // TODO(aleksandra-zh): YT-16872, Respect the Response Keeper!
+            auto preparationFuture = NTransactionServer::RunTransactionReplicationSession(
+                !suppressUpstreamSync,
+                Bootstrap_,
+                {transactionId},
+                context->GetRequestId());
+
+            preparationFuture.Apply(BIND([=] (const TError& error) {
+                if (!error.IsOK()) {
+                    context->Reply(error);
+                }
+
+                context->ReplyFrom(chunkManager->SequoiaCreateChunk(*request)
+                    .Apply(BIND([] (const NChunkClient::NProto::TRspCreateChunk& response) {
+                        return CreateResponseMessage(response);
+                    }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())));
+            }).AsyncVia(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkService)));
+        } else {
+            // TODO(shakurov): use mutation idempotizer for all mutations (not
+            // just the Object Service ones), then enable boomerangs here.
+            const auto enableMutationBoomerangs = false;
+
+            auto preparationFuture = NTransactionServer::RunTransactionReplicationSession(
+                !suppressUpstreamSync,
+                Bootstrap_,
+                {transactionId},
+                context,
+                chunkManager->CreateCreateChunkMutation(context),
+                enableMutationBoomerangs);
+            YT_VERIFY(preparationFuture);
+        }
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ConfirmChunk)
+    {
+        auto chunkId = FromProto<TChunkId>(request->chunk_id());
+        context->SetRequestInfo(
+            "ChunkId: %v, ",
+            chunkId);
+
+        ValidateClusterInitialized();
+        ValidatePeer(EPeerKind::Leader);
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& configManager = Bootstrap_->GetConfigManager();
+
+        // COMPAT(kvk1920)
+        if (!configManager->GetConfig()->ChunkManager->EnableChunkConfirmationWithoutLocationUuid) {
+            YT_LOG_ALERT_UNLESS(
+                request->location_uuids_supported(),
+                "Chunk confirmation request without location uuids is received");
+        }
+
+        if (configManager->GetConfig()->SequoiaManager->Enable && chunkManager->IsSequoiaConfirmChunkRequest(*request)) {
+            context->ReplyFrom(chunkManager->SequoiaConfirmChunk(*request)
+                .Apply(BIND([] (const NChunkClient::NProto::TRspConfirmChunk& response) {
+                    return CreateResponseMessage(response);
+                }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())));
+        } else {
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            auto mutation = chunkManager->CreateConfirmChunkMutation(context);
+            mutation->SetCurrentTraceContext();
+            mutation->CommitAndReply(context);
         }
     }
 

@@ -148,7 +148,7 @@ public:
         : CallbackEventCount_(std::move(callbackEventCount))
     {
         auto profiler = TProfiler{"/fair_share_queue"}.WithHot().WithTags(tags);
-        BucketCounter_ = profiler.Gauge("/buckets");
+        BucketCounter_ = profiler.Summary("/buckets");
         SizeCounter_ = profiler.Summary("/size");
         WaitTimeCounter_ = profiler.Timer("/time/wait");
         ExecTimeCounter_ = profiler.Timer("/time/exec");
@@ -177,7 +177,7 @@ public:
             inserted->second = invoker;
         }
 
-        BucketCounter_.Update(TagToBucket_.size());
+        BucketCounter_.Record(TagToBucket_.size());
         return invoker;
     }
 
@@ -220,7 +220,7 @@ public:
             TagToBucket_.erase(it);
         }
 
-        BucketCounter_.Update(TagToBucket_.size());
+        BucketCounter_.Record(TagToBucket_.size());
     }
 
     void Shutdown()
@@ -347,7 +347,7 @@ private:
 
     std::atomic<int> QueueSize_ = 0;
 
-    TGauge BucketCounter_;
+    NProfiling::TSummary BucketCounter_;
     NProfiling::TSummary SizeCounter_;
     TEventTimer WaitTimeCounter_;
     TEventTimer ExecTimeCounter_;
@@ -390,7 +390,7 @@ private:
         AccountCurrentlyExecutingBuckets(tscp);
 
         #ifdef YT_ENABLE_TRACE_LOGGING
-        {
+        if (Logger.IsLevelEnabled(NLogging::ELogLevel::Trace)) {
             auto guard = Guard(TagMappingSpinLock_);
             YT_LOG_TRACE("Buckets: [%v]",
                 MakeFormattableView(

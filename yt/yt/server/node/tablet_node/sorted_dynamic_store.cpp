@@ -15,6 +15,7 @@
 
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/yt/ytlib/table_client/chunk_state.h>
+#include <yt/yt/ytlib/table_client/performance_counting.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_writer.h>
 
@@ -30,8 +31,8 @@
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/yt/core/misc/skip_list.h>
 #include <yt/yt/core/misc/linear_probe.h>
+#include <yt/yt/core/misc/skip_list.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
@@ -637,8 +638,6 @@ public:
 
         RowCount_ += rowCount;
         DataWeight_ += dataWeight;
-        Store_->PerformanceCounters_->DynamicRowReadCount += rowCount;
-        Store_->PerformanceCounters_->DynamicRowReadDataWeightCount += dataWeight;
 
         return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
@@ -674,6 +673,7 @@ public:
 private:
     const TSharedRange<TRowRange> Ranges_;
     const bool SnapshotMode_;
+
     TLegacyKey LowerBound_;
     TLegacyKey UpperBound_;
     size_t RangeIndex_ = 0;
@@ -768,8 +768,6 @@ public:
             return nullptr;
         }
 
-        i64 dataWeight = 0;
-
         while (rows.size() < rows.capacity()) {
             YT_VERIFY(RowCount_ < std::ssize(Keys_));
 
@@ -787,7 +785,8 @@ public:
             }
             rows.push_back(row);
             ++RowCount_;
-            dataWeight += GetDataWeight(row);
+            ExistingRowCount_ += static_cast<bool>(row);
+            DataWeight_ += GetDataWeight(row);
         }
 
         if (rows.empty()) {
@@ -795,17 +794,13 @@ public:
             return nullptr;
         }
 
-        DataWeight_ += dataWeight;
-        Store_->PerformanceCounters_->DynamicRowLookupCount += rows.size();
-        Store_->PerformanceCounters_->DynamicRowLookupDataWeightCount += dataWeight;
-
         return CreateBatchFromVersionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
 
     TDataStatistics GetDataStatistics() const override
     {
         TDataStatistics dataStatistics;
-        dataStatistics.set_row_count(RowCount_);
+        dataStatistics.set_row_count(ExistingRowCount_);
         dataStatistics.set_data_weight(DataWeight_);
         return dataStatistics;
     }
@@ -827,7 +822,9 @@ public:
 
 private:
     const TSharedRange<TLegacyKey> Keys_;
+
     i64 RowCount_  = 0;
+    i64 ExistingRowCount_ = 0;
     i64 DataWeight_ = 0;
     bool Finished_ = false;
 
@@ -1053,7 +1050,7 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(
     } else {
         ++PerformanceCounters_->DynamicRowWriteCount;
     }
-    PerformanceCounters_->DynamicRowWriteDataWeightCount += dataWeight;
+    PerformanceCounters_->DynamicRowWriteDataWeight += dataWeight;
     ++context->RowCount;
     context->DataWeight += dataWeight;
 
@@ -1127,7 +1124,7 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(TVersionedRow row, TWriteContex
 
     auto dataWeight = GetDataWeight(row);
     ++PerformanceCounters_->DynamicRowWriteCount;
-    PerformanceCounters_->DynamicRowWriteDataWeightCount += dataWeight;
+    PerformanceCounters_->DynamicRowWriteDataWeight += dataWeight;
     ++context->RowCount;
     context->DataWeight += dataWeight;
 
@@ -1837,15 +1834,19 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
     const TClientChunkReadOptions& /*chunkReadOptions*/,
     std::optional<EWorkloadCategory> /*workloadCategory*/)
 {
-    return New<TRangeReader>(
-        this,
-        tabletSnapshot,
-        std::move(ranges),
-        timestamp,
-        produceAllVersions,
-        /*snapshotMode*/ false,
-        MaxRevision,
-        columnFilter);
+    return CreateVersionedPerformanceCountingReader(
+        New<TRangeReader>(
+            this,
+            tabletSnapshot,
+            std::move(ranges),
+            timestamp,
+            produceAllVersions,
+            /*snapshotMode*/ false,
+            MaxRevision,
+            columnFilter),
+        tabletSnapshot->PerformanceCounters,
+        NTableClient::EDataSource::DynamicStore,
+        ERequestType::Read);
 }
 
 IVersionedReaderPtr TSortedDynamicStore::CreateReader(
@@ -1857,13 +1858,17 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
     const TClientChunkReadOptions& /*chunkReadOptions*/,
     std::optional<EWorkloadCategory> /*workloadCategory*/)
 {
-    return New<TLookupReader>(
-        this,
-        tabletSnapshot,
-        keys,
-        timestamp,
-        produceAllVersions,
-        columnFilter);
+    return CreateVersionedPerformanceCountingReader(
+        New<TLookupReader>(
+            this,
+            tabletSnapshot,
+            keys,
+            timestamp,
+            produceAllVersions,
+            columnFilter),
+        tabletSnapshot->PerformanceCounters,
+        NTableClient::EDataSource::DynamicStore,
+        ERequestType::Lookup);
 }
 
 bool TSortedDynamicStore::CheckRowLocks(
@@ -2160,13 +2165,22 @@ ui32 TSortedDynamicStore::RegisterRevision(TTimestamp timestamp)
 {
     YT_VERIFY(timestamp >= MinTimestamp && timestamp <= MaxTimestamp);
 
+    i64 mutationSequenceNumber = 0;
+    if (auto* mutationContext = TryGetCurrentMutationContext()) {
+        mutationSequenceNumber = mutationContext->GetSequenceNumber();
+    }
+
     auto latestRevision = GetLatestRevision();
-    if (TimestampFromRevision(latestRevision) == timestamp) {
+    if (mutationSequenceNumber == LatestRevisionMutationSequenceNumber_ &&
+        TimestampFromRevision(latestRevision) == timestamp)
+    {
         return latestRevision;
     }
 
     YT_VERIFY(RevisionToTimestamp_.Size() < HardRevisionsPerDynamicStoreLimit);
     RevisionToTimestamp_.PushBack(timestamp);
+    LatestRevisionMutationSequenceNumber_ = mutationSequenceNumber;
+
     return GetLatestRevision();
 }
 

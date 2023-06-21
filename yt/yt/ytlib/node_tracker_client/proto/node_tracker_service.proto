@@ -36,6 +36,9 @@ message TReqRegisterNode
     // This flag is only needed for replication nodes to secondary cells.
     optional bool suppress_unsupported_chunk_locations_alert = 14;
 
+    // COMPAT(kvk1920)
+    optional bool location_directory_supported = 15 [default = false];
+
     reserved 2;
 }
 
@@ -61,6 +64,9 @@ message TDataNodeInfoExt
 
     optional NChunkClient.NProto.TMediumDirectory medium_directory = 1;
     optional NDataNodeTrackerClient.NProto.TMediumOverrides medium_overrides = 2;
+
+    // COMPAT(kvk1920): Remove after location directory will be enabled everywhere.
+    optional bool require_location_uuids = 3 [default = true];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

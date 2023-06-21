@@ -60,7 +60,6 @@ target_link_libraries(yt-yt-core PUBLIC
   isa-l_crc_yt_patch
   yt_proto-yt-core
   cpp-yt-coding
-  cpp-yt-malloc
   cpp-yt-small_containers
   cpp-yt-system
   cpp-yt-threading
@@ -115,6 +114,7 @@ target_sources(yt-yt-core PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/fiber_scheduler_thread.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/finalizer_thread.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/fls.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/new_fair_share_thread_pool.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/notify_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/invoker_alarm.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/invoker_queue.cpp
@@ -213,6 +213,7 @@ target_sources(yt-yt-core PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/net/socket.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/profiling/timing.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/authentication_identity.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/authenticator.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/balancing_channel.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/caching_channel_factory.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/channel_detail.cpp
@@ -220,13 +221,17 @@ target_sources(yt-yt-core PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/dispatcher.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/dynamic_channel_pool.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/hedging_channel.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/local_channel.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/local_server.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/message.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/message_format.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/null_channel.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/per_user_queues.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/per_user_request_queue_provider.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/protocol_version.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/public.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/request_queue_provider.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/response_keeper.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/retrying_channel.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/roaming_channel.cpp
@@ -235,12 +240,8 @@ target_sources(yt-yt-core PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/service.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/service_detail.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/static_channel_factory.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/throttling_channel.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/hedging_channel.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/message_format.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/authenticator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/protocol_version.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/stream.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/throttling_channel.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/viable_peer_registry.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/bus/server.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/bus/channel.cpp
@@ -249,6 +250,7 @@ target_sources(yt-yt-core PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/tracing/allocation_tags.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/tracing/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/tracing/public.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/tracing/trace_context.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/utilex/random.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/ypath/stack.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/ypath/token.cpp
@@ -278,6 +280,7 @@ target_sources(yt-yt-core PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/yson/writer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/yson/string_merger.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/yson/ypath_designated_consumer.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/yson/attributes_stripper.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/attribute_consumer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/attributes.cpp
@@ -349,7 +352,6 @@ target_link_libraries(yt-yt-core.global PUBLIC
   isa-l_crc_yt_patch
   yt_proto-yt-core
   cpp-yt-coding
-  cpp-yt-malloc
   cpp-yt-small_containers
   cpp-yt-system
   cpp-yt-threading
@@ -367,5 +369,5 @@ target_sources(yt-yt-core.global PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/guid.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/ref_tracked.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/tracing/allocation_hooks.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/tracing/trace_context.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/tracing/debug_helpers.cpp
 )

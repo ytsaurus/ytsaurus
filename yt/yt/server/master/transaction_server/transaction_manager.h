@@ -24,32 +24,21 @@ namespace NYT::NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTransactionManager
+struct ITransactionManager
     : public NTransactionSupervisor::ITransactionManager
 {
-public:
     //! Raised when a new transaction is started.
-    DECLARE_SIGNAL(void(TTransaction*), TransactionStarted);
+    DECLARE_INTERFACE_SIGNAL(void(TTransaction*), TransactionStarted);
 
     //! Raised when a transaction is committed.
-    DECLARE_SIGNAL(void(TTransaction*), TransactionCommitted);
+    DECLARE_INTERFACE_SIGNAL(void(TTransaction*), TransactionCommitted);
 
     //! Raised when a transaction is aborted.
-    DECLARE_SIGNAL(void(TTransaction*), TransactionAborted);
+    DECLARE_INTERFACE_SIGNAL(void(TTransaction*), TransactionAborted);
 
-    //! A set of native transactions with no parent.
-    DECLARE_BYREF_RO_PROPERTY(THashSet<TTransaction*>, NativeTopmostTransactions);
+    virtual void Initialize() = 0;
 
-    DECLARE_BYREF_RO_PROPERTY(THashSet<TTransaction*>, NativeTransactions);
-
-public:
-    explicit TTransactionManager(NCellMaster::TBootstrap* bootstrap);
-
-    ~TTransactionManager();
-
-    void Initialize();
-
-    TTransaction* StartTransaction(
+    virtual TTransaction* StartTransaction(
         TTransaction* parent,
         std::vector<TTransaction*> prerequisiteTransactions,
         const NObjectClient::TCellTagList& replicatedToCellTags,
@@ -57,45 +46,51 @@ public:
         std::optional<TInstant> deadline,
         const std::optional<TString>& title,
         const NYTree::IAttributeDictionary& attributes,
-	    TTransactionId hintId = NullTransactionId);
-    TTransaction* StartUploadTransaction(
+        bool isCypressTransaction,
+        TTransactionId hintId = NullTransactionId) = 0;
+    virtual void CommitMasterTransaction(
+        TTransaction* transaction,
+        const NTransactionSupervisor::TTransactionCommitOptions& options) = 0;
+    virtual void AbortMasterTransaction(
+        TTransaction* transaction,
+        const NTransactionSupervisor::TTransactionAbortOptions& options) = 0;
+    virtual TTransaction* StartUploadTransaction(
         TTransaction* parent,
         const NObjectClient::TCellTagList& replicatedToCellTags,
         std::optional<TDuration> timeout,
         const std::optional<TString>& title,
-        TTransactionId hintId);
-    void CommitTransaction(
+        TTransactionId hintId) = 0;
+    virtual TTransactionId ExternalizeTransaction(
         TTransaction* transaction,
-        const NTransactionSupervisor::TTransactionCommitOptions& options);
-    void AbortTransaction(
+        NObjectClient::TCellTagList dstCellTags) = 0;
+    virtual TTransactionId GetNearestExternalizedTransactionAncestor(
         TTransaction* transaction,
-        const NTransactionSupervisor::TTransactionAbortOptions& options);
-    TTransactionId ExternalizeTransaction(
-        TTransaction* transaction,
-        NObjectClient::TCellTagList dstCellTags);
-    TTransactionId GetNearestExternalizedTransactionAncestor(
-        TTransaction* transaction,
-        NObjectClient::TCellTag dstCellTag);
+        NObjectClient::TCellTag dstCellTag) = 0;
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction);
+    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction);
+
+    virtual NHydra::TEntityMap<TTransaction>* MutableTransactionMap() = 0;
+
+    virtual const THashSet<TTransaction*>& NativeTransactions() const = 0;
+    virtual const THashSet<TTransaction*>& NativeTopmostTransactions() const = 0;
 
     //! Finds transaction by id, throws if nothing is found.
-    TTransaction* GetTransactionOrThrow(TTransactionId transactionId);
+    virtual TTransaction* GetTransactionOrThrow(TTransactionId transactionId) = 0;
 
     //! Asynchronously returns the (approximate) moment when transaction with
     //! a given #transactionId was last pinged.
-    TFuture<TInstant> GetLastPingTime(const TTransaction* transaction);
+    virtual TFuture<TInstant> GetLastPingTime(const TTransaction* transaction) = 0;
 
     //! Sets the transaction timeout. Current lease is not renewed.
-    void SetTransactionTimeout(
+    virtual void SetTransactionTimeout(
         TTransaction* transaction,
-        TDuration timeout);
+        TDuration timeout) = 0;
 
     //! Registers and references the object with the transaction.
     //! The same object can only be staged once.
-    void StageObject(
+    virtual void StageObject(
         TTransaction* transaction,
-        NObjectServer::TObject* object);
+        NObjectServer::TObject* object) = 0;
 
     //! Unregisters the object from its staging transaction (which must be equal to #transaction),
     //! calls IObjectTypeHandler::UnstageObject and
@@ -103,94 +98,72 @@ public:
     /*!
      *  If #recursive is |true| then all child objects are also released.
      */
-    void UnstageObject(
+    virtual void UnstageObject(
         TTransaction* transaction,
         NObjectServer::TObject* object,
-        bool recursive);
+        bool recursive) = 0;
 
     //! Registers (and references) the node with the transaction.
-    void StageNode(
+    virtual void StageNode(
         TTransaction* transaction,
-        NCypressServer::TCypressNode* trunkNode);
+        NCypressServer::TCypressNode* trunkNode) = 0;
 
     //! Registers and references the object with the transaction.
     //! The reference is dropped if the transaction aborts
     //! but is preserved if the transaction commits.
     //! The same object as be exported more than once.
-    void ExportObject(
+    virtual void ExportObject(
         TTransaction* transaction,
         NObjectServer::TObject* object,
-        NObjectClient::TCellTag destinationCellTag);
+        NObjectClient::TCellTag destinationCellTag) = 0;
 
     //! Registers and references the object with the transaction.
     //! The reference is dropped if the transaction aborts or commits.
     //! The same object as be exported more than once.
-    void ImportObject(
+    virtual void ImportObject(
         TTransaction* transaction,
-        NObjectServer::TObject* object);
+        NObjectServer::TObject* object) = 0;
 
-    void RegisterTransactionActionHandlers(
+    virtual void RegisterTransactionActionHandlers(
         const NTransactionSupervisor::TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
         const NTransactionSupervisor::TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
-        const NTransactionSupervisor::TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor);
+        const NTransactionSupervisor::TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor) = 0;
 
     using TCtxStartTransaction = NRpc::TTypedServiceContext<
         NTransactionClient::NProto::TReqStartTransaction,
         NTransactionClient::NProto::TRspStartTransaction>;
     using TCtxStartTransactionPtr = TIntrusivePtr<TCtxStartTransaction>;
-    std::unique_ptr<NHydra::TMutation> CreateStartTransactionMutation(
+    virtual std::unique_ptr<NHydra::TMutation> CreateStartTransactionMutation(
         TCtxStartTransactionPtr context,
-        const NTransactionServer::NProto::TReqStartTransaction& request);
+        const NTransactionServer::NProto::TReqStartTransaction& request) = 0;
 
     using TCtxRegisterTransactionActions = NRpc::TTypedServiceContext<
         NProto::TReqRegisterTransactionActions,
         NProto::TRspRegisterTransactionActions>;
     using TCtxRegisterTransactionActionsPtr = TIntrusivePtr<TCtxRegisterTransactionActions>;
-    std::unique_ptr<NHydra::TMutation> CreateRegisterTransactionActionsMutation(
-        TCtxRegisterTransactionActionsPtr context);
+    virtual std::unique_ptr<NHydra::TMutation> CreateRegisterTransactionActionsMutation(
+        TCtxRegisterTransactionActionsPtr context) = 0;
 
     using TCtxReplicateTransactions = NRpc::TTypedServiceContext<
         NProto::TReqReplicateTransactions,
         NProto::TRspReplicateTransactions>;
     using TCtxReplicateTransactionsPtr = TIntrusivePtr<TCtxReplicateTransactions>;
-    std::unique_ptr<NHydra::TMutation> CreateReplicateTransactionsMutation(
-        TCtxReplicateTransactionsPtr context);
+    virtual std::unique_ptr<NHydra::TMutation> CreateReplicateTransactionsMutation(
+        TCtxReplicateTransactionsPtr context) = 0;
 
-    void CreateOrRefTimestampHolder(TTransactionId transactionId);
-    void SetTimestampHolderTimestamp(TTransactionId transactionId, TTimestamp timestamp);
-    TTimestamp GetTimestampHolderTimestamp(TTransactionId transactionId);
-    void UnrefTimestampHolder(TTransactionId transactionId);
+    virtual void CreateOrRefTimestampHolder(TTransactionId transactionId) = 0;
+    virtual void SetTimestampHolderTimestamp(TTransactionId transactionId, TTimestamp timestamp) = 0;
+    virtual TTimestamp GetTimestampHolderTimestamp(TTransactionId transactionId) = 0;
+    virtual void UnrefTimestampHolder(TTransactionId transactionId) = 0;
 
-    const TTransactionPresenceCachePtr& GetTransactionPresenceCache();
-
-private:
-    class TImpl;
-    class TTransactionTypeHandler;
-
-    const TIntrusivePtr<TImpl> Impl_;
-
-    // ITransactionManager overrides
-    TFuture<void> GetReadyToPrepareTransactionCommit(
-        const std::vector<TTransactionId>& prerequisiteTransactionIds,
-        const std::vector<NElection::TCellId>& cellIdsToSyncWith) override;
-    void PrepareTransactionCommit(
-        TTransactionId transactionId,
-        const NTransactionSupervisor::TTransactionPrepareOptions& options) override;
-    void PrepareTransactionAbort(
-        TTransactionId transactionId,
-        const NTransactionSupervisor::TTransactionAbortOptions& options) override;
-    void CommitTransaction(
-        TTransactionId transactionId,
-        const NTransactionSupervisor::TTransactionCommitOptions& options) override;
-    void AbortTransaction(
-        TTransactionId transactionId,
-        const NTransactionSupervisor::TTransactionAbortOptions& options) override;
-    void PingTransaction(
-        TTransactionId transactionId,
-        bool pingAncestors) override;
+    virtual const TTransactionPresenceCachePtr& GetTransactionPresenceCache() = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TTransactionManager)
+DEFINE_REFCOUNTED_TYPE(ITransactionManager)
+
+////////////////////////////////////////////////////////////////////////////////
+
+ITransactionManagerPtr CreateTransactionManager(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

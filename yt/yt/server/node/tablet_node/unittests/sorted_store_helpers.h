@@ -42,10 +42,8 @@ public:
 
     // IChunkReader implementation.
     TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientChunkReadOptions& /*options*/,
-        const std::vector<int>& blockIndexes,
-        std::optional<i64> /*estimatedSize*/,
-        IInvokerPtr /*sessionInvoker*/) override
+        const IChunkReader::TReadBlocksOptions& /*options*/,
+        const std::vector<int>& blockIndexes) override
     {
         std::vector<TBlock> result;
         for (auto index : blockIndexes) {
@@ -56,10 +54,9 @@ public:
     }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientChunkReadOptions& /*options*/,
+        const IChunkReader::TReadBlocksOptions& /*options*/,
         int /*firstBlockIndex*/,
-        int /*blockCount*/,
-        std::optional<i64> /*estimatedSize*/) override
+        int /*blockCount*/) override
     {
         YT_ABORT();
     }

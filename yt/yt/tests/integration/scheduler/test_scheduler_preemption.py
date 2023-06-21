@@ -643,6 +643,31 @@ class TestSchedulerPreemption(YTEnvSetup):
         wait(lambda: len(op1.get_running_jobs()) == 5)
         wait(lambda: earlier_job in op1.get_running_jobs())
 
+    @authors("eshcherbin")
+    def test_retain_preemptible_status_after_revive(self):
+        update_scheduler_config("min_spare_job_resources_on_node", {"cpu": 0.5, "user_slots": 1}, wait_for_orchid=False)
+
+        create_pool("research", attributes={"resource_limits": {"user_slots": 5}})
+        create_pool("production", attributes={"strong_guarantee_resources": {"cpu": 0.5}})
+
+        op = run_sleeping_vanilla(job_count=6, task_patch={"cpu_limit": 0.5}, spec={"pool": "research"})
+        wait(lambda: len(op.get_running_jobs()) == 5)
+
+        time.sleep(0.5)
+        set("//sys/pool_trees/default/research/@resource_limits", {})
+        wait(lambda: len(op.get_running_jobs()) == 6)
+
+        preemptible_job, _ = max(op.get_running_jobs().items(), key=lambda job: job[1]["start_time"])
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_usage/cpu", default=None) == 3.0)
+
+        run_sleeping_vanilla(task_patch={"cpu_limit": 0.5}, spec={"pool": "production"})
+        wait(lambda: len(op.get_running_jobs()) == 5)
+        wait(lambda: preemptible_job not in op.get_running_jobs())
+
 
 class TestNonPreemptibleResourceUsageThreshold(YTEnvSetup):
     NUM_MASTERS = 1
@@ -918,7 +943,7 @@ class TestPreemptionPriorityScope(YTEnvSetup):
                 scheduler_orchid_node_path(node) +
                 "/last_preemptive_heartbeat_statistics/operation_count_by_preemption_priority"
             )
-            return op_count["none"] == 2 and op_count["regular"] == 1
+            return op_count["none"] == 2 and op_count["normal"] == 1
         wait(check)
 
         update_pool_tree_config_option("default", "scheduling_preemption_priority_scope", "operation_and_ancestors")

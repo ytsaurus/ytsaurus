@@ -68,10 +68,6 @@ TReadTableCommand::TReadTableCommand()
         .Default(false);
     RegisterParameter("omit_inaccessible_columns", Options.OmitInaccessibleColumns)
         .Default(false);
-
-    RegisterPostprocessor([&] {
-        Path = Path.Normalize();
-    });
 }
 
 void TReadTableCommand::DoExecute(ICommandContextPtr context)
@@ -167,10 +163,6 @@ TReadBlobTableCommand::TReadBlobTableCommand()
         .Default(0);
     RegisterParameter("offset", Offset)
         .Default(0);
-
-    RegisterPostprocessor([&] {
-        Path = Path.Normalize();
-    });
 }
 
 void TReadBlobTableCommand::DoExecute(ICommandContextPtr context)
@@ -223,10 +215,6 @@ void TReadBlobTableCommand::DoExecute(ICommandContextPtr context)
 TLocateSkynetShareCommand::TLocateSkynetShareCommand()
 {
     RegisterParameter("path", Path);
-
-    RegisterPostprocessor([&] {
-        Path = Path.Normalize();
-    });
 }
 
 void TLocateSkynetShareCommand::DoExecute(ICommandContextPtr context)
@@ -260,9 +248,6 @@ TWriteTableCommand::TWriteTableCommand()
         .Default();
     RegisterParameter("max_row_buffer_size", MaxRowBufferSize)
         .Default(1_MB);
-    RegisterPostprocessor([&] {
-        Path = Path.Normalize();
-    });
 }
 
 void TWriteTableCommand::DoExecute(ICommandContextPtr context)
@@ -331,11 +316,6 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
     }
 
     Options.FetcherMode = FetcherMode;
-
-    // NB: Important for columns to appear in the paths' attributes.
-    for (auto& path : Paths) {
-        path = path.Normalize();
-    }
 
     auto transaction = AttachTransaction(context, false);
 
@@ -429,11 +409,6 @@ void TPartitionTablesCommand::DoExecute(ICommandContextPtr context)
     Options.MaxPartitionCount = MaxPartitionCount;
     Options.EnableKeyGuarantee = EnableKeyGuarantee;
     Options.AdjustDataWeightPerPartition = AdjustDataWeightPerPartition;
-
-    // NB: Important for columns to appear in the paths' attributes.
-    for (auto& path : Paths) {
-        path = path.Normalize();
-    }
 
     auto partitions = WaitFor(context->GetClient()->PartitionTables(Paths, Options))
        .ValueOrThrow();
@@ -605,6 +580,8 @@ TAlterTableCommand::TAlterTableCommand()
 {
     RegisterParameter("path", Path);
     RegisterParameter("schema", Options.Schema)
+        .Optional();
+    RegisterParameter("schema_id", Options.SchemaId)
         .Optional();
     RegisterParameter("dynamic", Options.Dynamic)
         .Optional();

@@ -291,6 +291,9 @@ public:
 
     int MaxTableCollocationSize;
 
+    // COMPAT(alexelexa)
+    bool AddPerfCountersToTabletsAttribute;
+
     REGISTER_YSON_STRUCT(TDynamicTabletManagerConfig);
 
     static void Register(TRegistrar registrar);

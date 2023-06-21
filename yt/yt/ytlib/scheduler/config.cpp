@@ -467,6 +467,7 @@ const std::vector<TString>& TUserJobMonitoringConfig::GetDefaultSensorNames()
         "gpu/memory",
         "gpu/power",
         "gpu/clock_sm",
+        "gpu/stuck",
     };
     return DefaultSensorNames;
 }
@@ -530,6 +531,8 @@ void TOperationSpecBase::Register(TRegistrar registrar)
         .Default(NCompression::ECodec::Lz4);
     registrar.Parameter("intermediate_data_replication_factor", &TThis::IntermediateDataReplicationFactor)
         .Default(2);
+    registrar.Parameter("intermediate_min_data_replication_factor", &TThis::IntermediateMinDataReplicationFactor)
+        .Default(1);
     registrar.Parameter("intermediate_data_sync_on_close", &TThis::IntermediateDataSyncOnClose)
         .Default(false);
     registrar.Parameter("intermediate_data_medium", &TThis::IntermediateDataMediumName)
@@ -937,8 +940,19 @@ void TUserJobSpec::Register(TRegistrar registrar)
     registrar.Parameter("system_layer_path", &TThis::SystemLayerPath)
         .Default();
 
+    registrar.Parameter("docker_image", &TThis::DockerImage)
+        .Default();
+
     registrar.Parameter("default_base_layer_path", &TThis::DefaultBaseLayerPath)
         .Default();
+    registrar.Parameter("probing_base_layer_path", &TThis::ProbingBaseLayerPath)
+        .Default();
+    registrar.Parameter("max_failed_base_layer_probes", &TThis::MaxFailedBaseLayerProbes)
+        .Default(10);
+    registrar.Parameter("switch_base_layer_on_probe_success", &TThis::SwitchBaseLayerOnProbeSuccess)
+        .Default(true);
+    registrar.Parameter("alert_on_any_probing_failure", &TThis::AlertOnAnyProbingFailure)
+        .Default(false);
 
     registrar.Parameter("profilers", &TThis::Profilers)
         .Default();
@@ -1015,10 +1029,6 @@ void TUserJobSpec::Register(TRegistrar registrar)
             ValidateEnvironmentVariableName(variableName);
         }
 
-        for (auto& path : spec->FilePaths) {
-            path = path.Normalize();
-        }
-
         if (!spec->DiskSpaceLimit && spec->InodeLimit) {
             THROW_ERROR_EXCEPTION("Option \"inode_limit\" can be specified only with \"disk_space_limit\"");
         }
@@ -1091,10 +1101,6 @@ void TVanillaTaskSpec::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("restart_completed_jobs", &TThis::RestartCompletedJobs)
         .Default(false);
-
-    registrar.Postprocessor([] (TVanillaTaskSpec* spec) {
-        spec->OutputTablePaths = NYT::NYPath::Normalize(spec->OutputTablePaths);
-    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1177,10 +1183,6 @@ void TOperationWithInputSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("input_table_paths", &TThis::InputTablePaths)
         .NonEmpty();
-
-    registrar.Preprocessor([] (TOperationWithInputSpec* spec) {
-        spec->InputTablePaths = NYPath::Normalize(spec->InputTablePaths);
-    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1204,8 +1206,6 @@ void TMapOperationSpec::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Postprocessor([] (TMapOperationSpec* spec) {
-        spec->OutputTablePaths = NYT::NYPath::Normalize(spec->OutputTablePaths);
-
         spec->Mapper->InitEnableInputTableIndex(spec->InputTablePaths.size(), spec->JobIO);
         spec->Mapper->TaskTitle = "Mapper";
 
@@ -1226,10 +1226,6 @@ void TMergeOperationSpec::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("schema_inference_mode", &TThis::SchemaInferenceMode)
         .Default(ESchemaInferenceMode::Auto);
-
-    registrar.Postprocessor([] (TMergeOperationSpec* spec) {
-        spec->OutputTablePath = spec->OutputTablePath.Normalize();
-    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1241,10 +1237,6 @@ void TEraseOperationSpec::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("schema_inference_mode", &TThis::SchemaInferenceMode)
         .Default(ESchemaInferenceMode::Auto);
-
-    registrar.Postprocessor([&] (TEraseOperationSpec* spec) {
-        spec->TablePath = spec->TablePath.Normalize();
-    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1297,9 +1289,6 @@ void TReduceOperationSpec::Register(TRegistrar registrar)
         NTableClient::ValidateSortColumns(spec->JoinBy);
         NTableClient::ValidateSortColumns(spec->ReduceBy);
         NTableClient::ValidateSortColumns(spec->SortBy);
-
-        spec->InputTablePaths = NYT::NYPath::Normalize(spec->InputTablePaths);
-        spec->OutputTablePaths = NYT::NYPath::Normalize(spec->OutputTablePaths);
 
         bool hasPrimary = false;
         for (const auto& path : spec->InputTablePaths) {
@@ -1389,8 +1378,6 @@ void TSortOperationSpecBase::Register(TRegistrar registrar)
 
     registrar.Postprocessor([] (TSortOperationSpecBase* spec) {
         NTableClient::ValidateSortColumns(spec->SortBy);
-
-        spec->InputTablePaths = NYT::NYPath::Normalize(spec->InputTablePaths);
 
         // Validate pivot_keys.
         for (const auto& pivotKey : spec->PivotKeys) {
@@ -1483,8 +1470,6 @@ void TSortOperationSpec::Register(TRegistrar registrar)
     });
 
     registrar.Postprocessor([&] (TSortOperationSpec* spec) {
-        spec->OutputTablePath = spec->OutputTablePath.Normalize();
-
         if (spec->SortBy.empty()) {
             THROW_ERROR_EXCEPTION("\"sort_by\" option should be set in Sort operations");
         }
@@ -1641,9 +1626,6 @@ void TMapReduceOperationSpec::Register(TRegistrar registrar)
             }
         }
 
-        spec->InputTablePaths = NYT::NYPath::Normalize(spec->InputTablePaths);
-        spec->OutputTablePaths = NYT::NYPath::Normalize(spec->OutputTablePaths);
-
         if (!spec->HasNontrivialMapper() && spec->EnableTableIndexIfHasTrivialMapper) {
             spec->Reducer->EnableInputTableIndex = true;
             if (spec->HasNontrivialReduceCombiner()) {
@@ -1772,9 +1754,6 @@ void TRemoteCopyOperationSpec::Register(TRegistrar registrar)
         if (spec->InputTablePaths.size() > 1) {
             THROW_ERROR_EXCEPTION("Multiple tables in remote copy are not supported");
         }
-
-        spec->InputTablePaths = NYPath::Normalize(spec->InputTablePaths);
-        spec->OutputTablePath = spec->OutputTablePath.Normalize();
 
         if (spec->NetworkName) {
             if (spec->Networks) {
@@ -1992,6 +1971,9 @@ void TPoolConfig::Register(TRegistrar registrar)
         .Default({EFifoSortParameter::Weight, EFifoSortParameter::StartTime})
         .NonEmpty();
 
+    registrar.Parameter("fifo_pool_scheduling_order", &TThis::FifoPoolSchedulingOrder)
+        .Default();
+
     registrar.Parameter("forbid_immediate_operations", &TThis::ForbidImmediateOperations)
         .Default(false);
 
@@ -2035,6 +2017,9 @@ void TPoolConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("non_preemptible_resource_usage_threshold", &TThis::NonPreemptibleResourceUsageThreshold)
+        .Default();
+
+    registrar.Parameter("use_pool_satisfaction_for_scheduling", &TThis::UsePoolSatisfactionForScheduling)
         .Default();
 }
 
@@ -2134,6 +2119,8 @@ void TStrategyOperationSpec::Register(TRegistrar registrar)
     registrar.Parameter("max_unpreemptible_job_count", &TThis::MaxUnpreemptibleRunningJobCount)
         .Alias("max_unpreemptable_job_count")
         .Default();
+    registrar.Parameter("try_avoid_duplicating_jobs", &TThis::TryAvoidDuplicatingJobs)
+        .Default();
     registrar.Parameter("max_speculative_job_count_per_task", &TThis::MaxSpeculativeJobCountPerTask)
         .Default(10);
     registrar.Parameter("max_probing_job_count_per_task", &TThis::MaxProbingJobCountPerTask)
@@ -2160,6 +2147,8 @@ void TStrategyOperationSpec::Register(TRegistrar registrar)
     registrar.Parameter("testing", &TThis::TestingOperationOptions)
         .DefaultNew();
     registrar.Parameter("erase_trees_with_pool_limit_violations", &TThis::EraseTreesWithPoolLimitViolations)
+        .Default(false);
+    registrar.Parameter("apply_specified_resource_limits_to_demand", &TThis::ApplySpecifiedResourceLimitsToDemand)
         .Default(false);
 
     registrar.Postprocessor([] (TStrategyOperationSpec* spec) {

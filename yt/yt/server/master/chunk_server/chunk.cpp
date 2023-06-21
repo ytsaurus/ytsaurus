@@ -48,14 +48,24 @@ static const auto& Logger = ChunkServerLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 // COMPAT(shakurov)
-using TLegacyChunkExportDataList = std::array<TChunkExportData, 32>;
+using TLegacyChunkExportDataList32 = std::array<TChunkExportData, 32>;
 
 } // namespace NYT::NChunkServer
 
 // COMPAT(shakurov)
-Y_DECLARE_PODTYPE(NYT::NChunkServer::TLegacyChunkExportDataList);
+Y_DECLARE_PODTYPE(NYT::NChunkServer::TLegacyChunkExportDataList32);
 
 namespace NYT::NChunkServer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TChunkExportData::Persist(const NCellMaster::TPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, RefCounter);
+    Persist(context, ChunkRequisitionIndex);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -175,15 +185,9 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     } else {
         Save(context, false);
     }
-    ui8 exportCounter = CellIndexToExportData_ ? std::ssize(*CellIndexToExportData_) : 0;
-    Save(context, exportCounter);
-    if (exportCounter > 0) {
-        TLegacyChunkExportDataList legacyExportDataList{};
-        for (auto [cellIndex, data] : *CellIndexToExportData_) {
-            legacyExportDataList[cellIndex] = data;
-        }
-        TPodSerializer::Save(context, legacyExportDataList);
-    }
+
+    TUniquePtrSerializer<>::Save(context, CellIndexToExportData_);
+
     Save(context, EndorsementRequired_);
     Save(context, ConsistentReplicaPlacementHash_);
 }
@@ -240,22 +244,46 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
         MutableReplicasData()->Load(context);
     }
 
-    auto exportCounter = Load<ui8>(context);
-    if (exportCounter > 0) {
-        CellIndexToExportData_ = std::make_unique<TCellIndexToChunkExportData>();
+    // COMPAT(shakurov)
+    if (context.GetVersion() < EMasterReign::SimplerChunkExportDataSaveLoad) {
+        auto exportCounter = Load<ui8>(context);
+        if (exportCounter > 0) {
+            CellIndexToExportData_ = std::make_unique<TCellIndexToChunkExportData>();
 
-        TLegacyChunkExportDataList legacyExportDataList{};
-        TPodSerializer::Load(context, legacyExportDataList);
-        YT_VERIFY(std::any_of(
-            legacyExportDataList.begin(), legacyExportDataList.end(),
-            [] (auto data) { return data.RefCounter != 0; }));
-        for (auto cellIndex = 0; cellIndex < 32; ++cellIndex) {
-            auto data = legacyExportDataList[cellIndex];
-            if (data.RefCounter != 0) {
-                CellIndexToExportData_->emplace(cellIndex, data);
+            // 255 is a special marker that was never in trunk. It was only used
+            // in the 22.4 branch to facilitate migration from fixed-length
+            // array to variable-size map - while preserving snapshot
+            // compatibility and avoiding reign promotion.
+            if (exportCounter == 255) {
+                Load(context, *CellIndexToExportData_);
+                YT_VERIFY(std::any_of(
+                    CellIndexToExportData_->begin(), CellIndexToExportData_->end(),
+                    [] (auto pair) { return pair.second.RefCounter != 0; }));
+            } else {
+                TLegacyChunkExportDataList32 legacyExportDataList{};
+                TPodSerializer::Load(context, legacyExportDataList);
+                YT_VERIFY(std::any_of(
+                        legacyExportDataList.begin(), legacyExportDataList.end(),
+                        [] (auto data) { return data.RefCounter != 0; }));
+                for (auto cellIndex = 0; cellIndex < 32; ++cellIndex) {
+                    auto data = legacyExportDataList[cellIndex];
+                    if (data.RefCounter != 0) {
+                        CellIndexToExportData_->emplace(cellIndex, data);
+                    }
+                }
             }
-        }
+        } // Else leave CellIndexToExportData_ null.
+    } else {
+        TUniquePtrSerializer<>::Load(context, CellIndexToExportData_);
     }
+
+    YT_VERIFY(!CellIndexToExportData_ ||
+        std::any_of(
+            CellIndexToExportData_->begin(),
+            CellIndexToExportData_->end(),
+            [] (auto pair) {
+                return pair.second.RefCounter != 0;
+            }));
 
     Load(context, EndorsementRequired_);
 

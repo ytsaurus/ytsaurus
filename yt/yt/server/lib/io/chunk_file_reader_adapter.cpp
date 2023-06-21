@@ -18,21 +18,18 @@ public:
     { }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientChunkReadOptions& options,
-        const std::vector<int>& blockIndexes,
-        std::optional<i64> /*estimatedSize*/,
-        IInvokerPtr /*sessionInvoker*/) override
+        const TReadBlocksOptions& options,
+        const std::vector<int>& blockIndexes) override
     {
-        return Underlying_->ReadBlocks(options, blockIndexes);
+        return Underlying_->ReadBlocks(options.ClientOptions, blockIndexes);
     }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientChunkReadOptions& options,
+        const TReadBlocksOptions& options,
         int firstBlockIndex,
-        int blockCount,
-        std::optional<i64> /*estimatedSize*/) override
+        int blockCount) override
     {
-        return Underlying_->ReadBlocks(options, firstBlockIndex, blockCount);
+        return Underlying_->ReadBlocks(options.ClientOptions, firstBlockIndex, blockCount);
     }
 
     TFuture<TRefCountedChunkMetaPtr> GetMeta(

@@ -94,7 +94,7 @@ void SortJobsWithPreemptionInfo(std::vector<TJobWithPreemptionInfo>* jobInfos)
             }
 
             if (lhs.PreemptionStatus != EJobPreemptionStatus::Preemptible) {
-                auto hasCpuGap = [](const TJobWithPreemptionInfo& jobWithPreemptionInfo) {
+                auto hasCpuGap = [] (const TJobWithPreemptionInfo& jobWithPreemptionInfo) {
                     return jobWithPreemptionInfo.Job->ResourceUsage().GetCpu() <
                         jobWithPreemptionInfo.Job->ResourceLimits().GetCpu();
                 };
@@ -182,8 +182,8 @@ EOperationPreemptionPriority GetOperationPreemptionPriority(
     }
     if (isEligibleForPreemption) {
         return isEligibleForSsdPriorityPreemption
-            ? EOperationPreemptionPriority::SsdRegular
-            : EOperationPreemptionPriority::Regular;
+            ? EOperationPreemptionPriority::SsdNormal
+            : EOperationPreemptionPriority::Normal;
     }
 
     return EOperationPreemptionPriority::None;
@@ -221,6 +221,145 @@ bool IsRegularPreemptionAllowed(const TSchedulerElement* element)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSchedulableChildSet::TSchedulableChildSet(
+    const TSchedulerCompositeElement* owningElement,
+    TNonOwningElementList children,
+    TDynamicAttributesList* dynamicAttributesList,
+    bool useHeap)
+    : OwningElement_(owningElement)
+    , DynamicAttributesList_(dynamicAttributesList)
+    , UseFifoSchedulingOrder_(OwningElement_->ShouldUseFifoSchedulingOrder())
+    , UseHeap_(useHeap)
+    , Children_(std::move(children))
+{
+    InitializeChildrenOrder();
+}
+
+const TNonOwningElementList& TSchedulableChildSet::GetChildren() const
+{
+    return Children_;
+}
+
+TSchedulerElement* TSchedulableChildSet::GetBestActiveChild() const
+{
+    if (Children_.empty()) {
+        return nullptr;
+    }
+
+    auto* bestChild = Children_.front();
+    return DynamicAttributesList_->AttributesOf(bestChild).Active
+        ? bestChild
+        : nullptr;
+}
+
+void TSchedulableChildSet::OnChildAttributesUpdatedHeap(int childIndex)
+{
+    AdjustHeapItem(
+        Children_.begin(),
+        Children_.end(),
+        Children_.begin() + childIndex,
+        [&] (const TSchedulerElement* lhs, const TSchedulerElement* rhs) {
+            return Comparator(lhs, rhs);
+        },
+        [&] (size_t offset) {
+            DynamicAttributesList_->AttributesOf(Children_[offset]).SchedulableChildSetIndex = offset;
+        });
+}
+
+void TSchedulableChildSet::OnChildAttributesUpdatedSimple(int childIndex)
+{
+    if (childIndex == 0) {
+        MoveBestChildToFront();
+        return;
+    }
+
+    auto& frontChild = Children_.front();
+    auto& candidateChild = Children_[childIndex];
+    if (Comparator(frontChild, candidateChild)) {
+        std::swap(
+            DynamicAttributesList_->AttributesOf(frontChild).SchedulableChildSetIndex,
+            DynamicAttributesList_->AttributesOf(candidateChild).SchedulableChildSetIndex);
+        std::swap(frontChild, candidateChild);
+    }
+}
+
+void TSchedulableChildSet::OnChildAttributesUpdated(const TSchedulerElement* child)
+{
+    int childIndex = DynamicAttributesList_->AttributesOf(child).SchedulableChildSetIndex;
+
+    YT_VERIFY(childIndex != InvalidSchedulableChildSetIndex);
+    YT_VERIFY(childIndex < std::ssize(Children_));
+
+    if (UseHeap_) {
+        OnChildAttributesUpdatedHeap(childIndex);
+    } else {
+        OnChildAttributesUpdatedSimple(childIndex);
+    }
+}
+
+bool TSchedulableChildSet::UsesHeapInTest() const
+{
+    return UseHeap_;
+}
+
+bool TSchedulableChildSet::Comparator(const TSchedulerElement* lhs, const TSchedulerElement* rhs) const
+{
+    const auto& lhsAttributes = DynamicAttributesList_->AttributesOf(lhs);
+    const auto& rhsAttributes = DynamicAttributesList_->AttributesOf(rhs);
+
+    if (lhsAttributes.Active != rhsAttributes.Active) {
+        return rhsAttributes.Active < lhsAttributes.Active;
+    }
+
+    if (UseFifoSchedulingOrder_) {
+        return OwningElement_->HasHigherPriorityInFifoMode(lhs, rhs);
+    }
+
+    return lhsAttributes.SatisfactionRatio < rhsAttributes.SatisfactionRatio;
+}
+
+void TSchedulableChildSet::MoveBestChildToFront()
+{
+    if (Children_.empty()) {
+        return;
+    }
+
+    auto& frontChild = Children_.front();
+    auto& bestChild = *std::min_element(
+        Children_.begin(),
+        Children_.end(),
+        [&] (const TSchedulerElement* lhs, const TSchedulerElement* rhs) {
+            return Comparator(lhs, rhs);
+        });
+    std::swap(
+        DynamicAttributesList_->AttributesOf(frontChild).SchedulableChildSetIndex,
+        DynamicAttributesList_->AttributesOf(bestChild).SchedulableChildSetIndex);
+    std::swap(frontChild, bestChild);
+}
+
+void TSchedulableChildSet::InitializeChildrenOrder()
+{
+    for (int index = 0; index < std::ssize(Children_); ++index) {
+        DynamicAttributesList_->AttributesOf(Children_[index]).SchedulableChildSetIndex = index;
+    }
+
+    if (UseHeap_) {
+        MakeHeap(
+            Children_.begin(),
+            Children_.end(),
+            [&] (const TSchedulerElement* lhs, const TSchedulerElement* rhs) {
+                return Comparator(lhs, rhs);
+            },
+            [&] (size_t offset) {
+                DynamicAttributesList_->AttributesOf(Children_[offset]).SchedulableChildSetIndex = offset;
+            });
+    } else {
+        MoveBestChildToFront();
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -266,77 +405,6 @@ TDynamicAttributesListSnapshot::TDynamicAttributesListSnapshot(TDynamicAttribute
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChildHeap::TChildHeap(
-    const TSchedulerCompositeElement* owningElement,
-    TDynamicAttributesList* dynamicAttributesList)
-    : OwningElement_(owningElement)
-    , DynamicAttributesList_(dynamicAttributesList)
-    , Mode_(OwningElement_->GetMode())
-{
-    ChildHeap_.reserve(OwningElement_->SchedulableChildren().size());
-    for (const auto& child : OwningElement_->SchedulableChildren()) {
-        ChildHeap_.push_back(child.Get());
-    }
-    MakeHeap(
-        ChildHeap_.begin(),
-        ChildHeap_.end(),
-        [&] (const TSchedulerElement* lhs, const TSchedulerElement* rhs) {
-            return Comparator(lhs, rhs);
-        });
-
-    for (size_t index = 0; index < ChildHeap_.size(); ++index) {
-        DynamicAttributesList_->AttributesOf(ChildHeap_[index]).HeapIndex = index;
-    }
-}
-
-TSchedulerElement* TChildHeap::GetTop() const
-{
-    YT_VERIFY(!ChildHeap_.empty());
-    return ChildHeap_.front();
-}
-
-void TChildHeap::Update(const TSchedulerElement* child)
-{
-    int heapIndex = DynamicAttributesList_->AttributesOf(child).HeapIndex;
-    YT_VERIFY(heapIndex != InvalidChildHeapIndex);
-    AdjustHeapItem(
-        ChildHeap_.begin(),
-        ChildHeap_.end(),
-        ChildHeap_.begin() + heapIndex,
-        [&] (const TSchedulerElement* lhs, const TSchedulerElement* rhs) {
-            return Comparator(lhs, rhs);
-        },
-        [&] (size_t offset) {
-            DynamicAttributesList_->AttributesOf(ChildHeap_[offset]).HeapIndex = offset;
-        });
-}
-
-const std::vector<TSchedulerElement*>& TChildHeap::GetHeap() const
-{
-    return ChildHeap_;
-}
-
-bool TChildHeap::Comparator(const TSchedulerElement* lhs, const TSchedulerElement* rhs) const
-{
-    const auto& lhsAttributes = DynamicAttributesList_->AttributesOf(lhs);
-    const auto& rhsAttributes = DynamicAttributesList_->AttributesOf(rhs);
-
-    if (lhsAttributes.Active != rhsAttributes.Active) {
-        return rhsAttributes.Active < lhsAttributes.Active;
-    }
-
-    switch (Mode_) {
-        case ESchedulingMode::Fifo:
-            return OwningElement_->HasHigherPriorityInFifoMode(lhs, rhs);
-        case ESchedulingMode::FairShare:
-            return lhsAttributes.SatisfactionRatio < rhsAttributes.SatisfactionRatio;
-        default:
-            YT_ABORT();
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TDynamicAttributesList TDynamicAttributesManager::BuildDynamicAttributesListFromSnapshot(
     const TFairShareTreeSnapshotPtr& treeSnapshot,
     const TResourceUsageSnapshotPtr& resourceUsageSnapshot,
@@ -378,13 +446,27 @@ const TDynamicAttributes& TDynamicAttributesManager::AttributesOf(const TSchedul
 
 void TDynamicAttributesManager::InitializeAttributesAtCompositeElement(
     TSchedulerCompositeElement* element,
+    std::optional<TNonOwningElementList> consideredSchedulableChildren,
     bool useChildHeap)
 {
-    UpdateAttributesAtCompositeElement(element);
-
-    if (useChildHeap) {
-        EmplaceOrCrash(ChildHeapMap_, element->GetTreeIndex(), TChildHeap(element, &AttributesList_));
+    // COMPAT(eshcherbin)
+    if (useChildHeap && !consideredSchedulableChildren) {
+        consideredSchedulableChildren.emplace();
+        consideredSchedulableChildren->reserve(element->SchedulableChildren().size());
+        for (const auto& child : element->SchedulableChildren()) {
+            consideredSchedulableChildren->push_back(child.Get());
+        }
     }
+
+    if (consideredSchedulableChildren) {
+        AttributesOf(element).SchedulableChildSet.emplace(
+            element,
+            std::move(*consideredSchedulableChildren),
+            &AttributesList_,
+            useChildHeap);
+    }
+
+    UpdateAttributesAtCompositeElement(element);
 }
 
 void TDynamicAttributesManager::InitializeAttributesAtOperation(
@@ -437,20 +519,15 @@ void TDynamicAttributesManager::Clear()
 {
     for (auto& attributes : AttributesList_) {
         attributes.Active = false;
+        attributes.SchedulableChildSet.reset();
     }
 
-    ChildHeapMap_.clear();
     CompositeElementDeactivationCount_ = 0;
 }
 
 int TDynamicAttributesManager::GetCompositeElementDeactivationCount() const
 {
     return CompositeElementDeactivationCount_;
-}
-
-const TChildHeapMap& TDynamicAttributesManager::GetChildHeapMapInTest() const
-{
-    return ChildHeapMap_;
 }
 
 bool TDynamicAttributesManager::ShouldCheckLiveness() const
@@ -494,7 +571,9 @@ void TDynamicAttributesManager::UpdateAttributes(TSchedulerElement* element)
     }
 
     if (const auto* parent = element->GetParent()) {
-        UpdateChildInHeap(parent, element);
+        if (auto& childSet = AttributesOf(parent).SchedulableChildSet) {
+            childSet->OnChildAttributesUpdated(element);
+        }
     }
 }
 
@@ -514,19 +593,23 @@ void TDynamicAttributesManager::UpdateAttributesAtCompositeElement(TSchedulerCom
     }
 
     // Satisfaction ratio of a composite element is the minimum of its children's satisfaction ratios.
-    // NB(eshcherbin): We initialize with local satisfaction ratio in case all children have no pending jobs
-    // and thus are not in the |SchedulableChildren_| list.
-    attributes.SatisfactionRatio = attributes.LocalSatisfactionRatio;
 
     if (const auto* bestChild = GetBestActiveChild(element)) {
         const auto& bestChildAttributes = AttributesOf(bestChild);
         attributes.Active = true;
         attributes.BestLeafDescendant = bestChildAttributes.BestLeafDescendant;
-        attributes.SatisfactionRatio = std::min(bestChildAttributes.SatisfactionRatio, attributes.SatisfactionRatio);
+        attributes.SatisfactionRatio = bestChildAttributes.SatisfactionRatio;
+
+        if (element->GetEffectiveUsePoolSatisfactionForScheduling()) {
+            attributes.SatisfactionRatio = std::min(attributes.SatisfactionRatio, attributes.LocalSatisfactionRatio);
+        }
     } else {
         // Declare the element passive if all children are passive.
         attributes.Active = false;
         attributes.BestLeafDescendant = nullptr;
+        // NB(eshcherbin): We use pool's local satisfaction ratio as a fallback value for smoother diagnostics.
+        // This value will not influence scheduling decisions.
+        attributes.SatisfactionRatio = attributes.LocalSatisfactionRatio;
     }
 }
 
@@ -537,34 +620,18 @@ void TDynamicAttributesManager::UpdateAttributesAtOperation(TSchedulerOperationE
     attributes.BestLeafDescendant = element;
 }
 
-void TDynamicAttributesManager::UpdateChildInHeap(const TSchedulerCompositeElement* parent, const TSchedulerElement* child)
-{
-    if (AttributesOf(child).HeapIndex == InvalidChildHeapIndex) {
-        return;
-    }
-
-    GetOrCrash(ChildHeapMap_, parent->GetTreeIndex()).Update(child);
-}
-
 TSchedulerElement* TDynamicAttributesManager::GetBestActiveChild(TSchedulerCompositeElement* element) const
 {
-    const auto& childHeapIt = ChildHeapMap_.find(element->GetTreeIndex());
-    if (childHeapIt != ChildHeapMap_.end()) {
-        const auto& childHeap = childHeapIt->second;
-        auto* topChild = childHeap.GetTop();
-        return AttributesOf(topChild).Active
-            ? topChild
-            : nullptr;
+    if (const auto& childSet = AttributesOf(element).SchedulableChildSet) {
+        return childSet->GetBestActiveChild();
     }
 
-    switch (element->GetMode()) {
-        case ESchedulingMode::Fifo:
-            return GetBestActiveChildFifo(element);
-        case ESchedulingMode::FairShare:
-            return GetBestActiveChildFairShare(element);
-        default:
-            YT_ABORT();
+    // COMPAT(eshcherbin)
+    if (element->ShouldUseFifoSchedulingOrder()) {
+        return GetBestActiveChildFifo(element);
     }
+
+    return GetBestActiveChildFairShare(element);
 }
 
 TSchedulerElement* TDynamicAttributesManager::GetBestActiveChildFifo(TSchedulerCompositeElement* element) const
@@ -696,6 +763,7 @@ TJobResources TDynamicAttributesManager::FillResourceUsageAtOperation(const TSch
 
 TFairShareTreeSchedulingSnapshot::TFairShareTreeSchedulingSnapshot(
     TStaticAttributesList staticAttributesList,
+    TOperationElementsBySchedulingPriority schedulableOperationsPerPriority,
     THashSet<int> ssdPriorityPreemptionMedia,
     TCachedJobPreemptionStatuses cachedJobPreemptionStatuses,
     std::vector<TSchedulingTagFilter> knownSchedulingTagFilters,
@@ -703,6 +771,7 @@ TFairShareTreeSchedulingSnapshot::TFairShareTreeSchedulingSnapshot(
     TFairShareTreeJobSchedulerOperationStateMap operationIdToState,
     TFairShareTreeJobSchedulerSharedOperationStateMap operationIdToSharedState)
     : StaticAttributesList_(std::move(staticAttributesList))
+    , SchedulableOperationsPerPriority_(std::move(schedulableOperationsPerPriority))
     , SsdPriorityPreemptionMedia_(std::move(ssdPriorityPreemptionMedia))
     , CachedJobPreemptionStatuses_(std::move(cachedJobPreemptionStatuses))
     , KnownSchedulingTagFilters_(std::move(knownSchedulingTagFilters))
@@ -861,13 +930,18 @@ void TScheduleJobsContext::PrepareForScheduling()
         DynamicAttributesManager_.SetAttributesList(std::move(dynamicAttributesList));
     } else {
         DynamicAttributesManager_.Clear();
+        ConsideredSchedulableChildrenPerPool_.clear();
     }
 }
 
-void TScheduleJobsContext::PrescheduleJob(EOperationPreemptionPriority targetOperationPreemptionPriority)
+// TODO(eshcherbin): Rename to FilterSchedulableElements.
+void TScheduleJobsContext::PrescheduleJob(
+    const std::optional<TNonOwningOperationElementList>& consideredSchedulableOperations,
+    EOperationPreemptionPriority targetOperationPreemptionPriority)
 {
     TWallTimer prescheduleTimer;
 
+    CollectConsideredSchedulableChildrenPerPool(consideredSchedulableOperations);
     PrescheduleJobAtCompositeElement(TreeSnapshot_->RootElement().Get(), targetOperationPreemptionPriority);
 
     StageState_->PrescheduleDuration = prescheduleTimer.GetElapsedTime();
@@ -1036,9 +1110,9 @@ void TScheduleJobsContext::PreemptJobsAfterScheduling(
     // Bloating |EJobPreemptionReason| is unwise.
     auto preemptionReason = [&] {
         switch (targetOperationPreemptionPriority) {
-            case EOperationPreemptionPriority::Regular:
+            case EOperationPreemptionPriority::Normal:
                 return EJobPreemptionReason::Preemption;
-            case EOperationPreemptionPriority::SsdRegular:
+            case EOperationPreemptionPriority::SsdNormal:
                 return EJobPreemptionReason::SsdPreemption;
             case EOperationPreemptionPriority::Aggressive:
                 return EJobPreemptionReason::AggressivePreemption;
@@ -1329,9 +1403,9 @@ const TDynamicAttributes& TScheduleJobsContext::DynamicAttributesOf(const TSched
     return DynamicAttributesManager_.AttributesOf(element);
 }
 
-const TChildHeapMap& TScheduleJobsContext::GetChildHeapMapInTest() const
+void TScheduleJobsContext::DeactivateOperationInTest(TSchedulerOperationElement* element)
 {
-    return DynamicAttributesManager_.GetChildHeapMapInTest();
+    return DynamicAttributesManager_.DeactivateOperation(element);
 }
 
 const TStaticAttributes& TScheduleJobsContext::StaticAttributesOf(const TSchedulerElement* element) const
@@ -1384,6 +1458,44 @@ TJobResources TScheduleJobsContext::GetLocalUnconditionalUsageDiscount(const TSc
     return it != LocalUnconditionalUsageDiscountMap_.end() ? it->second : TJobResources{};
 }
 
+void TScheduleJobsContext::CollectConsideredSchedulableChildrenPerPool(
+    const std::optional<TNonOwningOperationElementList>& consideredSchedulableOperations)
+{
+    // NB: This means all schedulable operations are considered, so no need for extra work,
+    // because full lists of schedulable children have been precomputed during post update.
+    if (!consideredSchedulableOperations) {
+        return;
+    }
+
+    // NB: In case there are no considered operations.
+    EmplaceOrCrash(
+        ConsideredSchedulableChildrenPerPool_,
+        TreeSnapshot_->RootElement().Get(),
+        TNonOwningElementList{});
+    for (auto* operationElement : *consideredSchedulableOperations) {
+        TSchedulerElement* element = operationElement;
+        while (auto* parent = element->GetMutableParent()) {
+            auto [it, firstVisit] = ConsideredSchedulableChildrenPerPool_.try_emplace(parent);
+            auto& parentSchedulableChildren = it->second;
+            parentSchedulableChildren.push_back(element);
+
+            if (!firstVisit) {
+                break;
+            }
+
+            element = parent;
+        }
+    }
+}
+
+std::optional<TNonOwningElementList> TScheduleJobsContext::GetConsideredSchedulableChildrenForPool(const TSchedulerCompositeElement* element)
+{
+    auto it = ConsideredSchedulableChildrenPerPool_.find(element);
+    return it != ConsideredSchedulableChildrenPerPool_.end()
+        ? std::make_optional(std::move(it->second))
+        : std::nullopt;
+}
+
 void TScheduleJobsContext::PrescheduleJob(
     TSchedulerElement* element,
     EOperationPreemptionPriority targetOperationPreemptionPriority)
@@ -1420,17 +1532,28 @@ void TScheduleJobsContext::PrescheduleJobAtCompositeElement(
         return;
     }
 
-    for (const auto& child : element->SchedulableChildren()) {
-        PrescheduleJob(child.Get(), targetOperationPreemptionPriority);
+    auto consideredSchedulableChildren = GetConsideredSchedulableChildrenForPool(element);
+    if (consideredSchedulableChildren) {
+        for (auto* child : *consideredSchedulableChildren) {
+            PrescheduleJob(child, targetOperationPreemptionPriority);
+        }
+    } else {
+        // COMPAT(eshcherbin): Leave old code as it is for now to have a fallback option.
+        for (const auto& child : element->SchedulableChildren()) {
+            PrescheduleJob(child.Get(), targetOperationPreemptionPriority);
+        }
     }
 
     bool useChildHeap = false;
-    if (std::ssize(element->SchedulableChildren()) >= TreeSnapshot_->TreeConfig()->MinChildHeapSize) {
+    int schedulableChildrenCount = consideredSchedulableChildren
+        ? std::ssize(*consideredSchedulableChildren)
+        : std::ssize(element->SchedulableChildren());
+    if (schedulableChildrenCount >= TreeSnapshot_->TreeConfig()->MinChildHeapSize) {
         useChildHeap = true;
-        StageState_->TotalHeapElementCount += std::ssize(element->SchedulableChildren());
+        StageState_->TotalHeapElementCount += schedulableChildrenCount;
     }
 
-    DynamicAttributesManager_.InitializeAttributesAtCompositeElement(element, useChildHeap);
+    DynamicAttributesManager_.InitializeAttributesAtCompositeElement(element, std::move(consideredSchedulableChildren), useChildHeap);
 
     if (DynamicAttributesOf(element).Active) {
         ++StageState_->ActiveTreeSize;
@@ -1880,11 +2003,11 @@ bool TScheduleJobsContext::CheckForDeactivation(
         auto deactivationReason = [&] {
             YT_VERIFY(targetOperationPreemptionPriority != EOperationPreemptionPriority::None);
 
-            // TODO(eshcherbin): Somehow get rid of these deactivation reasons.
+            // TODO(eshcherbin): We can filter out all ineligible operations with the new preschedule.
             switch (targetOperationPreemptionPriority) {
-                case EOperationPreemptionPriority::Regular:
+                case EOperationPreemptionPriority::Normal:
                     return EDeactivationReason::IsNotEligibleForPreemptiveScheduling;
-                case EOperationPreemptionPriority::SsdRegular:
+                case EOperationPreemptionPriority::SsdNormal:
                     return EDeactivationReason::IsNotEligibleForSsdPreemptiveScheduling;
                 case EOperationPreemptionPriority::Aggressive:
                     return EDeactivationReason::IsNotEligibleForAggressivelyPreemptiveScheduling;
@@ -2423,14 +2546,45 @@ void TFairShareTreeJobScheduler::ScheduleJobs(
     context.SchedulingStatistics().SsdPriorityPreemptionEnabled = context.GetSsdPriorityPreemptionEnabled();
     context.SchedulingStatistics().SsdPriorityPreemptionMedia = context.SsdPriorityPreemptionMedia();
 
-    bool needPackingFallback;
+    bool hasBadPackingOperations = false;
+    auto runRegularSchedulingStage = [&] (
+        EJobSchedulingStage stageType,
+        const std::optional<TNonOwningOperationElementList>& consideredOperations = {},
+        const std::optional<TJobResources>& customMinSpareJobResources = {})
     {
-        context.StartStage(&SchedulingStages_[EJobSchedulingStage::NonPreemptive]);
-        ScheduleJobsWithoutPreemption(treeSnapshot, &context, now);
-        needPackingFallback = schedulingContext->StartedJobs().empty() && context.HasBadPackingOperations();
+        context.StartStage(&SchedulingStages_[stageType]);
+        auto finally = Finally([&] {
+            context.FinishStage();
+        });
+
+        ScheduleJobsWithoutPreemption(
+            treeSnapshot,
+            &context,
+            consideredOperations,
+            customMinSpareJobResources,
+            now);
+
+        hasBadPackingOperations |= context.HasBadPackingOperations();
         context.ReactivateBadPackingOperations();
+
         context.SchedulingStatistics().MaxNonPreemptiveSchedulingIndex = context.GetStageMaxSchedulingIndex();
-        context.FinishStage();
+    };
+
+    if (const auto& priorityConfig = config->PrioritizedRegularScheduling) {
+        const auto& schedulableOperationsPerPriority = treeSnapshot->SchedulingSnapshot()->SchedulableOperationsPerPriority();
+        runRegularSchedulingStage(
+            EJobSchedulingStage::RegularMediumPriority,
+            schedulableOperationsPerPriority[EOperationSchedulingPriority::Medium]);
+
+        auto customLowPriorityMinSpareJobResources = !context.SchedulingContext()->StartedJobs().empty()
+            ? std::make_optional(ToJobResources(priorityConfig->LowPriorityFallbackMinSpareJobResources, TJobResources{}))
+            : std::nullopt;
+        runRegularSchedulingStage(
+            EJobSchedulingStage::RegularLowPriority,
+            schedulableOperationsPerPriority[EOperationSchedulingPriority::Low],
+            customLowPriorityMinSpareJobResources);
+    } else {
+        runRegularSchedulingStage(EJobSchedulingStage::RegularMediumPriority);
     }
 
     auto nodeId = schedulingContext->GetNodeDescriptor().Id;
@@ -2479,8 +2633,9 @@ void TFairShareTreeJobScheduler::ScheduleJobs(
         YT_LOG_DEBUG("Skip preemptive scheduling");
     }
 
+    bool needPackingFallback = schedulingContext->StartedJobs().empty() && hasBadPackingOperations;
     if (needPackingFallback) {
-        context.StartStage(&SchedulingStages_[EJobSchedulingStage::PackingFallback]);
+        context.StartStage(&SchedulingStages_[EJobSchedulingStage::RegularPackingFallback]);
         ScheduleJobsPackingFallback(treeSnapshot, &context, now);
         context.FinishStage();
     }
@@ -2599,9 +2754,13 @@ void TFairShareTreeJobScheduler::DisableOperation(TSchedulerOperationElement* el
     element->ReleaseResources(markAsNonAlive);
 }
 
-void TFairShareTreeJobScheduler::RegisterJobsFromRevivedOperation(TSchedulerOperationElement* element, const std::vector<TJobPtr>& jobs) const
+void TFairShareTreeJobScheduler::RegisterJobsFromRevivedOperation(TSchedulerOperationElement* element, std::vector<TJobPtr> jobs) const
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
+
+    SortBy(jobs, [] (const TJobPtr& job) {
+        return job->GetStartTime();
+    });
 
     const auto& operationSharedState = GetOperationSharedState(element->GetOperationId());
     for (const auto& job : jobs) {
@@ -2879,6 +3038,8 @@ void TFairShareTreeJobScheduler::PostUpdate(
     ComputeDynamicAttributesAtUpdateRecursively(postUpdateContext->RootElement, &dynamicAttributesManager);
     BuildSchedulableIndices(&dynamicAttributesManager, postUpdateContext);
 
+    CollectSchedulableOperationsPerPriority(fairSharePostUpdateContext, postUpdateContext);
+
     CollectKnownSchedulingTagFilters(fairSharePostUpdateContext, postUpdateContext);
 
     UpdateSsdNodeSchedulingAttributes(fairSharePostUpdateContext, postUpdateContext);
@@ -2892,6 +3053,7 @@ TFairShareTreeSchedulingSnapshotPtr TFairShareTreeJobScheduler::CreateScheduling
 
     return New<TFairShareTreeSchedulingSnapshot>(
         std::move(postUpdateContext->StaticAttributesList),
+        std::move(postUpdateContext->SchedulableOperationsPerPriority),
         std::move(postUpdateContext->SsdPriorityPreemptionMedia),
         CachedJobPreemptionStatuses_,
         std::move(postUpdateContext->KnownSchedulingTagFilters),
@@ -3019,6 +3181,7 @@ EJobPreemptionStatus TFairShareTreeJobScheduler::GetJobPreemptionStatusInTest(co
     return operationSharedState->GetJobPreemptionStatus(jobId);
 }
 
+// TODO(eshcherbin): Refactor regular scheduling stages alike preemptive scheduling stages and initialize all of them here.
 void TFairShareTreeJobScheduler::InitSchedulingStages()
 {
     for (auto stage : TEnumTraits<EJobSchedulingStage>::GetDomainValues()) {
@@ -3063,25 +3226,25 @@ TPreemptiveScheduleJobsStageList TFairShareTreeJobScheduler::BuildPreemptiveSche
 
     if (context->GetSsdPriorityPreemptionEnabled()) {
         preemptiveStages.push_back(TPreemptiveScheduleJobsStage{
-            .Stage = &SchedulingStages_[EJobSchedulingStage::SsdAggressivelyPreemptive],
+            .Stage = &SchedulingStages_[EJobSchedulingStage::PreemptiveSsdAggressive],
             .TargetOperationPreemptionPriority = EOperationPreemptionPriority::SsdAggressive,
             .MinJobPreemptionLevel = EJobPreemptionLevel::SsdAggressivelyPreemptible,
         });
         preemptiveStages.push_back(TPreemptiveScheduleJobsStage{
-            .Stage = &SchedulingStages_[EJobSchedulingStage::SsdPreemptive],
-            .TargetOperationPreemptionPriority = EOperationPreemptionPriority::SsdRegular,
+            .Stage = &SchedulingStages_[EJobSchedulingStage::PreemptiveSsdNormal],
+            .TargetOperationPreemptionPriority = EOperationPreemptionPriority::SsdNormal,
             .MinJobPreemptionLevel = EJobPreemptionLevel::NonPreemptible,
         });
     }
 
     preemptiveStages.push_back(TPreemptiveScheduleJobsStage{
-        .Stage = &SchedulingStages_[EJobSchedulingStage::AggressivelyPreemptive],
+        .Stage = &SchedulingStages_[EJobSchedulingStage::PreemptiveAggressive],
         .TargetOperationPreemptionPriority = EOperationPreemptionPriority::Aggressive,
         .MinJobPreemptionLevel = EJobPreemptionLevel::AggressivelyPreemptible,
     });
     preemptiveStages.push_back(TPreemptiveScheduleJobsStage{
-        .Stage = &SchedulingStages_[EJobSchedulingStage::Preemptive],
-        .TargetOperationPreemptionPriority = EOperationPreemptionPriority::Regular,
+        .Stage = &SchedulingStages_[EJobSchedulingStage::PreemptiveNormal],
+        .TargetOperationPreemptionPriority = EOperationPreemptionPriority::Normal,
         .MinJobPreemptionLevel = EJobPreemptionLevel::Preemptible,
         .ForcePreemptionAttempt = true,
     });
@@ -3092,6 +3255,8 @@ TPreemptiveScheduleJobsStageList TFairShareTreeJobScheduler::BuildPreemptiveSche
 void TFairShareTreeJobScheduler::ScheduleJobsWithoutPreemption(
     const TFairShareTreeSnapshotPtr& treeSnapshot,
     TScheduleJobsContext* context,
+    const std::optional<TNonOwningOperationElementList>& consideredOperations,
+    const std::optional<TJobResources>& customMinSpareJobResources,
     TCpuInstant startTime)
 {
     YT_LOG_TRACE("Scheduling new jobs");
@@ -3099,9 +3264,11 @@ void TFairShareTreeJobScheduler::ScheduleJobsWithoutPreemption(
     DoScheduleJobsWithoutPreemption(
         treeSnapshot,
         context,
+        consideredOperations,
+        customMinSpareJobResources,
         startTime,
-        /* ignorePacking */ false,
-        /* oneJobOnly */ false);
+        /*ignorePacking*/ false,
+        /*oneJobOnly*/ false);
 }
 
 void TFairShareTreeJobScheduler::ScheduleJobsPackingFallback(
@@ -3115,14 +3282,18 @@ void TFairShareTreeJobScheduler::ScheduleJobsPackingFallback(
     DoScheduleJobsWithoutPreemption(
         treeSnapshot,
         context,
+        /*consideredOperations*/ {},
+        /*customMinSpareJobResources*/ {},
         startTime,
-        /* ignorePacking */ true,
-        /* oneJobOnly */ true);
+        /*ignorePacking*/ true,
+        /*oneJobOnly*/ true);
 }
 
 void TFairShareTreeJobScheduler::DoScheduleJobsWithoutPreemption(
     const TFairShareTreeSnapshotPtr& treeSnapshot,
     TScheduleJobsContext* context,
+    const std::optional<TNonOwningOperationElementList>& consideredOperations,
+    const std::optional<TJobResources>& customMinSpareJobResources,
     TCpuInstant startTime,
     bool ignorePacking,
     bool oneJobOnly)
@@ -3132,11 +3303,13 @@ void TFairShareTreeJobScheduler::DoScheduleJobsWithoutPreemption(
     {
         TCpuInstant schedulingDeadline = startTime + DurationToCpuDuration(controllerConfig->ScheduleJobsTimeout);
 
-        while (context->SchedulingContext()->CanStartMoreJobs() && context->SchedulingContext()->GetNow() < schedulingDeadline)
+        while (
+            context->SchedulingContext()->CanStartMoreJobs(customMinSpareJobResources) &&
+            context->SchedulingContext()->GetNow() < schedulingDeadline)
         {
             if (!context->GetStagePrescheduleExecuted()) {
                 context->PrepareForScheduling();
-                context->PrescheduleJob();
+                context->PrescheduleJob(consideredOperations);
             }
             auto scheduleJobResult = context->ScheduleJob(ignorePacking);
             if (scheduleJobResult.Scheduled) {
@@ -3204,7 +3377,9 @@ void TFairShareTreeJobScheduler::ScheduleJobsWithPreemption(
         while (context->SchedulingContext()->CanStartMoreJobs() && context->SchedulingContext()->GetNow() < schedulingDeadline)
         {
             if (!context->GetStagePrescheduleExecuted()) {
-                context->PrescheduleJob(targetOperationPreemptionPriority);
+                context->PrescheduleJob(
+                    /*consideredSchedulableOperations*/ std::nullopt,
+                    targetOperationPreemptionPriority);
             }
 
             auto scheduleJobResult = context->ScheduleJob(/*ignorePacking*/ true);
@@ -3320,6 +3495,37 @@ void TFairShareTreeJobScheduler::InitializeStaticAttributes(
     }
 }
 
+void TFairShareTreeJobScheduler::CollectSchedulableOperationsPerPriority(
+    TFairSharePostUpdateContext* fairSharePostUpdateContext,
+    TJobSchedulerPostUpdateContext* postUpdateContext) const
+{
+    const auto& priorityConfig = fairSharePostUpdateContext->TreeConfig->PrioritizedRegularScheduling;
+    if (!priorityConfig) {
+        return;
+    }
+
+    TNonOwningOperationElementList sortedOperationElements;
+    sortedOperationElements.reserve(postUpdateContext->RootElement->SchedulableElementCount());
+    for (const auto& [_, operationElement] : fairSharePostUpdateContext->EnabledOperationIdToElement) {
+        if (operationElement->IsSchedulable()) {
+            sortedOperationElements.push_back(operationElement);
+        }
+    }
+
+    SortBy(sortedOperationElements, [&] (const TSchedulerOperationElement* element) {
+        return postUpdateContext->StaticAttributesList.AttributesOf(element).SchedulingIndex;
+    });
+
+    auto& operationsPerPriority = postUpdateContext->SchedulableOperationsPerPriority;
+    for (auto* operationElement : sortedOperationElements) {
+        int highPriorityCount = std::ssize(operationsPerPriority[EOperationSchedulingPriority::Medium]);
+        auto priority = highPriorityCount < priorityConfig->MediumPriorityOperationCountLimit
+            ? EOperationSchedulingPriority::Medium
+            : EOperationSchedulingPriority::Low;
+        operationsPerPriority[priority].push_back(operationElement);
+    }
+}
+
 void TFairShareTreeJobScheduler::PublishFairShareAndUpdatePreemptionAttributes(
     TSchedulerElement* element,
     TJobSchedulerPostUpdateContext* postUpdateContext) const
@@ -3425,11 +3631,14 @@ void TFairShareTreeJobScheduler::ComputeDynamicAttributesAtUpdateRecursively(
         dynamicAttributesManager->InitializeAttributesAtOperation(static_cast<TSchedulerOperationElement*>(element));
     } else {
         auto* compositeElement = static_cast<TSchedulerCompositeElement*>(element);
+        TNonOwningElementList children;
+        children.reserve(compositeElement->SchedulableChildren().size());
         for (const auto& child : compositeElement->SchedulableChildren()) {
             ComputeDynamicAttributesAtUpdateRecursively(child.Get(), dynamicAttributesManager);
+            children.push_back(child.Get());
         }
 
-        dynamicAttributesManager->InitializeAttributesAtCompositeElement(compositeElement);
+        dynamicAttributesManager->InitializeAttributesAtCompositeElement(compositeElement, std::move(children));
     }
 }
 

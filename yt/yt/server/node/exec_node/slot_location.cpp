@@ -6,6 +6,7 @@
 #include "job_directory_manager.h"
 
 #include <yt/yt/server/lib/exec_node/config.h>
+#include <yt/yt/server/lib/exec_node/helpers.h>
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -24,6 +25,8 @@
 #include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/yt/library/program/program.h>
+
+#include <yt/yt/library/profiling/sensor.h>
 
 #include <yt/yt/client/misc/io_tags.h>
 
@@ -51,6 +54,7 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NIO;
 using namespace NDataNode;
+using namespace NProfiling;
 using namespace NRpc;
 using namespace NFS;
 
@@ -90,7 +94,12 @@ TSlotLocation::TSlotLocation(
         BIND(&TSlotLocation::UpdateSlotLocationStatistics, MakeWeak(this)),
         Bootstrap_->GetConfig()->ExecNode->SlotManager->SlotLocationStatisticsUpdatePeriod))
     , LocationPath_(GetRealPath(Config_->Path))
-{ }
+{
+    ExecNodeProfiler.WithPrefix("/job_directory/artifacts")
+        .WithTag("device_name", Config_->DeviceName)
+        .WithTag("disk_family", Config_->DiskFamily)
+        .AddProducer("", MakeCopyMetricBuffer_);
+}
 
 TFuture<void> TSlotLocation::Initialize()
 {
@@ -445,10 +454,20 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
                 destinationFile.GetName());
 
             TFile sourceFile(sourcePath, OpenExisting | RdOnly | Seq | CloseOnExec);
-            ChunkedCopy(
-                sourceFile,
-                destinationFile,
-                Bootstrap_->GetConfig()->ExecNode->SlotManager->FileCopyChunkSize);
+
+            auto copyFileStart = TInstant::Now().MicroSeconds();
+
+            if (Bootstrap_->GetConfig()->ExecNode->SlotManager->EnableReadWriteCopy) {
+                ReadWriteCopySync(
+                    sourceFile,
+                    destinationFile,
+                    Bootstrap_->GetConfig()->ExecNode->SlotManager->FileCopyChunkSize);
+            } else {
+                SendfileChunkedCopy(
+                    sourceFile,
+                    destinationFile,
+                    Bootstrap_->GetConfig()->ExecNode->SlotManager->FileCopyChunkSize);
+            }
 
             if (Bootstrap_->GetIOTracker()->IsEnabled()) {
                 TString fullArtifactPath = CombinePaths(GetSandboxPath(slotIndex, sandboxKind), artifactName);
@@ -474,6 +493,15 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
                             /*location*/ nullptr,
                             /*slotLocationTags*/ TSlotLocationIOTags{.SlotIndex = slotIndex}));
                 }
+            }
+
+            if (Bootstrap_->GetConfig()->ExecNode->EnableArtifactCopyTracking) {
+                auto length = sourceFile.GetLength();
+                auto delta = TInstant::Now().MicroSeconds() - copyFileStart;
+
+                MakeCopyMetricBuffer_->Update([=] (ISensorWriter* writer) {
+                    writer->AddGauge("/copy/rate", std::max(0.0, (1.0 * length / delta)));
+                });
             }
 
             YT_LOG_DEBUG(
@@ -675,32 +703,6 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
                     }
 
                     SlotsWithQuota_.erase(slotIndex);
-                }
-            }
-
-            if (Bootstrap_->GetConfig()->ExecNode->UseCommonRootFsQuota) {
-                // TODO(don-dron): Remove sandbox and tmp after updating to next release
-                std::vector<TString> oldDirectories = {
-                    NFS::CombinePaths(GetSlotPath(slotIndex), "sandbox"),
-                    NFS::CombinePaths(GetSlotPath(slotIndex), "tmp"),
-                    NFS::CombinePaths(GetSlotPath(slotIndex), GetRootFsUserDirectory())
-                };
-
-                for (const auto& path : oldDirectories) {
-                    if (Exists(path)) {
-                        YT_LOG_DEBUG("Removing job directories (Path: %v)", path);
-
-                        WaitFor(JobDirectoryManager_->CleanDirectories(path))
-                            .ThrowOnError();
-
-                        YT_LOG_DEBUG("Cleaning sandbox directory (Path: %v)", path);
-
-                        if (Bootstrap_->IsSimpleEnvironment()) {
-                            RemoveRecursive(path);
-                        } else {
-                            RunTool<TRemoveDirAsRootTool>(path);
-                        }
-                    }
                 }
             }
 
@@ -1176,8 +1178,6 @@ TRootDirectoryConfigPtr TSlotLocation::CreateDefaultRootDirectoryConfig(
 
         return directory;
     };
-
-    config->Directories.push_back(getDirectory(CombinePaths(GetSlotPath(slotIndex), GetRootFsUserDirectory()), uid, 0777));
 
     // Since we make slot user to be owner, but job proxy creates some files during job shell
     // initialization we leave write access for everybody. Presumably this will not ruin job isolation.

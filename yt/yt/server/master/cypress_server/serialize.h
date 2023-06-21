@@ -106,10 +106,14 @@ public:
     void RegisterSchema(TEntitySerializationKey key, NTableServer::TMasterTableSchema* schema);
     NTableServer::TMasterTableSchema* GetSchemaOrThrow(TEntitySerializationKey key);
 
+    bool IsOpaqueChild() const;
+    void SetOpaqueChild(bool opaqueChild);
+
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
     TCellLocalObjectLoadRegistry<NTableServer::TMasterTableSchema> SchemaRegistry_;
     TMemoryInput Stream_;
+    bool OpaqueChild_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

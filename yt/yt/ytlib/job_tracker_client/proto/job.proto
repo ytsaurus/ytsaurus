@@ -6,12 +6,6 @@ import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TPreemptedFor
-{
-    required NYT.NProto.TGuid operation_id = 1;
-    required NYT.NProto.TGuid job_id = 2;
-}
-
 // Describes a job to be run at a node.
 message TJobSpec
 {
@@ -32,36 +26,14 @@ message TJobResult
     extensions 100 to max;
 }
 
-// Describes release job flags.
-message TReleaseJobFlags
-{
-    required bool archive_job_spec = 1;
-    required bool archive_stderr = 2;
-    required bool archive_fail_context = 3;
-    required bool archive_profile = 4;
-};
-
-message TTimeStatistics
-{
-    optional int64 prepare_duration = 1;
-    optional int64 exec_duration = 2;
-    optional int64 artifacts_download_duration = 3;
-    optional int64 prepare_root_fs_duration = 4;
-    optional int64 gpu_check_duration = 5;
-};
-
 // Describes the current job status.
 message TJobStatus
 {
     required NYT.NProto.TGuid job_id = 1;
-    optional NYT.NProto.TGuid operation_id = 2;
     optional int32 job_type = 3;
     optional int32 state = 4;
     optional TJobResult result = 7;
     optional NNodeTrackerClient.NProto.TNodeResources resource_usage = 8;
-
-    optional TTimeStatistics time_statistics = 15;
-    optional int64 status_timestamp = 16;
 
     reserved 5, 6, 9, 13, 17, 18, 19;
 }

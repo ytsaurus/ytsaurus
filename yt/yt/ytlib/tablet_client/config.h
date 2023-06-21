@@ -49,6 +49,7 @@ public:
     std::optional<double> MaxBackingStoreMemoryRatio;
     // COMPAT(akozhikhov): YT-14187
     bool IncreaseUploadReplicationFactor;
+    std::optional<TString> BanMessage;
 
     REGISTER_YSON_STRUCT(TDynamicTabletCellOptions);
 

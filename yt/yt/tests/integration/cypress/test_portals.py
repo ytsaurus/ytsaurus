@@ -66,10 +66,20 @@ class TestPortals(YTEnvSetup):
             create("portal_entrance", "//tmp/p/q", attributes={"exit_cell_tag": 10})
 
     @authors("babenko")
-    def test_validate_cypress_node_host_cell_role(self):
+    def test_validate_cypress_node_host_cell_role1(self):
         set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["chunk_host"]}})
         with pytest.raises(YtError):
             create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
+
+    @authors("aleksandra-zh")
+    def test_validate_cypress_node_host_cell_role2(self):
+        set("//sys/@config/multicell_manager/remove_secondary_cell_default_roles", True)
+        set("//sys/@config/multicell_manager/cell_descriptors", {})
+        with pytest.raises(YtError):
+            create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
+
+        set("//sys/@config/multicell_manager/remove_secondary_cell_default_roles", False)
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
 
     @authors("babenko")
     def test_need_exit_cell_tag_on_create(self):
@@ -621,7 +631,7 @@ class TestPortals(YTEnvSetup):
         with pytest.raises(YtError):
             set("//tmp/p1&/@opaque", False)
 
-    @authors("shakurov")
+    @authors("shakurov", "h0pless")
     def test_cross_cell_move_opaque_with_user_attribute(self):
         create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 11})
 
@@ -629,7 +639,9 @@ class TestPortals(YTEnvSetup):
             "table",
             "//tmp/d1/d2/d3/t",
             recursive=True,
-            attributes={"external_cell_tag": 13},
+            attributes={
+                "external_cell_tag": 13,
+                "schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]},
         )
         set("//tmp/d1/d2/d3/t/@opaque", True)
         set("//tmp/d1/d2/d3/t/@some_user_attr", "some_value")
@@ -640,10 +652,13 @@ class TestPortals(YTEnvSetup):
         set("//tmp/d1/@opaque", True)
         set("//tmp/d1/@some_user_attr", "some_value")
 
+        assert get("//tmp/d1/d2/d3/t/@schema_mode") == "strong"
+
         move("//tmp/d1/d2", "//tmp/p1/d2")
 
         assert not exists("//tmp/d1/d2/d3/t")
         assert exists("//tmp/p1/d2/d3/t")
+        assert get("//tmp/p1/d2/d3/t/@schema_mode") == "strong"
 
         # XXX(babenko): cleanup is weird
         remove("//tmp/p1")

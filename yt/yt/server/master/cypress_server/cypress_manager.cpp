@@ -37,6 +37,9 @@
 #include <yt/yt/server/master/journal_server/journal_node.h>
 #include <yt/yt/server/master/chunk_server/chunk_list.h>
 
+// COMPAT(h0pless): Used for schema migration
+#include <yt/yt/server/master/chaos_server/chaos_replicated_table_node.h>
+
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -54,6 +57,7 @@
 #include <yt/yt/server/master/security_server/user.h>
 
 #include <yt/yt/server/master/table_server/master_table_schema.h>
+#include <yt/yt/server/master/table_server/table_manager.h>
 #include <yt/yt/server/master/table_server/table_node.h>
 
 #include <yt/yt/server/lib/hydra_common/hydra_context.h>
@@ -86,22 +90,24 @@ namespace NYT::NCypressServer {
 
 using namespace NBus;
 using namespace NCellMaster;
+using namespace NChunkServer;
 using namespace NCypressClient::NProto;
 using namespace NHydra;
-using namespace NObjectClient::NProto;
 using namespace NObjectClient;
+using namespace NObjectClient::NProto;
 using namespace NObjectServer;
 using namespace NRpc;
 using namespace NSecurityClient;
 using namespace NSecurityServer;
 using namespace NSequoiaClient;
 using namespace NSequoiaServer;
+using namespace NTableClient;
 using namespace NTableServer;
 using namespace NTransactionServer;
-using namespace NYTree;
-using namespace NYson;
+using namespace NTransactionSupervisor;
 using namespace NYPath;
-using namespace NChunkServer;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -148,11 +154,17 @@ public:
     {
         TTransactionalNodeFactoryBase::Commit();
 
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
         if (Transaction_) {
-            const auto& transactionManager = Bootstrap_->GetTransactionManager();
             for (auto* node : CreatedNodes_) {
                 transactionManager->StageNode(Transaction_, node);
             }
+        }
+
+        YT_VERIFY(CreatedOpaqueChildren_.empty() || Transaction_);
+
+        for (auto* child : CreatedOpaqueChildren_) {
+            transactionManager->StageNode(Transaction_, child);
         }
 
         const auto& portalManager = Bootstrap_->GetPortalManager();
@@ -175,6 +187,9 @@ public:
         for (const auto& clone : ClonedExternalNodes_) {
             NProto::TReqCloneForeignNode protoRequest;
             ToProto(protoRequest.mutable_source_node_id(), clone.SourceNodeId.ObjectId);
+            if (clone.SchemaIdHint) {
+                ToProto(protoRequest.mutable_schema_id_hint(), clone.SchemaIdHint);
+            }
             if (clone.SourceNodeId.TransactionId) {
                 ToProto(protoRequest.mutable_source_transaction_id(), clone.SourceNodeId.TransactionId);
             }
@@ -454,16 +469,24 @@ public:
             true);
 
         if (external) {
-            // Schemas are cell-local and require special care.
-            if (IsTableType(trunkNode->GetType()) &&
-                replicationExplicitAttributes->FindAndRemove<TMasterTableSchemaId>("schema_id"))
-            {
+            if (IsTableType(trunkNode->GetType())) {
                 auto* table = trunkNode->As<TTableNode>();
                 auto* schema = table->GetSchema();
-                // NB: this sometimes will lead to a synchronous serialization of
-                // schemas in automaton thread. This is unavoidable.
-                auto ysonSchema = schema->AsYsonSync();
-                replicationExplicitAttributes->SetYson("schema", std::move(ysonSchema));
+                auto schemaId = schema->GetId();
+                if (schema->IsExported(externalCellTag)) {
+                    replicationExplicitAttributes->Remove("schema");
+                } else {
+                    // NB: this sometimes will lead to a synchronous serialization of
+                    // schemas in automaton thread. This is unavoidable.
+                    // NB: every time a new schema is created we will first remove and then save a potentially heavy object here.
+                    // It shouldn't happen too often, and makes the code less fragile, this is why we decided to keep it this way.
+                    // It's done to keep a following invariant: external cell doesn't do any work related to schema modification.
+                    auto ysonSchema = schema->AsYsonSync();
+                    replicationExplicitAttributes->SetYson("schema", std::move(ysonSchema));
+                }
+                replicationExplicitAttributes->Set("schema_id", schemaId);
+                replicationExplicitAttributes->Set("schema_mode", table->GetSchemaMode());
+                schema->ExportRef(externalCellTag);
             }
 
             const auto& transactionManager = Bootstrap_->GetTransactionManager();
@@ -533,10 +556,17 @@ public:
         // which calls RegisterCreatedNode.
 
         if (clonedNode->IsExternal()) {
+            if (IsTableType(clonedNode->GetType())) {
+                auto* table = clonedNode->As<TTableNode>();
+                auto* schema = table->GetSchema();
+                schema->ExportRef(table->GetExternalCellTag());
+            }
+
             const auto& transactionManager = Bootstrap_->GetTransactionManager();
             auto externalCellTag = clonedNode->GetExternalCellTag();
             auto externalizedSourceTransactionId = transactionManager->ExternalizeTransaction(sourceNode->GetTransaction(), {externalCellTag});
             auto externalizedClonedTransactionId = transactionManager->ExternalizeTransaction(clonedNode->GetTransaction(), {externalCellTag});
+
             ClonedExternalNodes_.push_back(TClonedExternalNode{
                 .Mode = mode,
                 .SourceNodeId = TVersionedObjectId(sourceNode->GetId(), externalizedSourceTransactionId),
@@ -550,16 +580,39 @@ public:
         return clonedNode;
     }
 
-    TCypressNode* EndCopyNode(TEndCopyContext* context) override
+    TCypressNode* EndCopyNodeCore(
+        TCypressNode* trunkNode,
+        TEndCopyContext* context,
+        TNodeId sourceNodeId)
     {
-        // See BeginCopyCore.
-        using NYT::Load;
-        auto sourceNodeId = Load<TNodeId>(*context);
-
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* clonedTrunkNode = cypressManager->EndCopyNode(context, this, sourceNodeId);
+
+        TMasterTableSchemaId schemaId;
+        TTransactionId clonedNodeExternalizedTransactionId;
+        if (trunkNode->IsExternal()) {
+            auto externalCellTag = trunkNode->GetExternalCellTag();
+            const auto& transactionManager = Bootstrap_->GetTransactionManager();
+            clonedNodeExternalizedTransactionId = transactionManager->ExternalizeTransaction(Transaction_, {externalCellTag});
+
+            // NB: LockNode will create a branch, and branch expects that schema is already present on the external cell.
+            // TODO(h0pless): Consider refactoring this later by adding a new set of virtual methods to typehandler, responsible for multicell activity.
+            if (IsTableType(trunkNode->GetType())) {
+                auto* table = trunkNode->As<TTableNode>();
+
+                const auto& tableManager = Bootstrap_->GetTableManager();
+                tableManager->EnsureSchemaExported(
+                    table,
+                    externalCellTag,
+                    clonedNodeExternalizedTransactionId,
+                    Bootstrap_->GetMulticellManager());
+
+                auto* schema = table->GetSchema();
+                schemaId = schema->GetId();
+            }
+        }
+
         auto* clonedNode = cypressManager->LockNode(
-            clonedTrunkNode,
+            trunkNode,
             Transaction_,
             ELockMode::Exclusive,
             false,
@@ -581,19 +634,44 @@ public:
                     NTransactionClient::MakeExternalizedTransactionId(transactionId, sourceNodeNativeCellTag);
             }
 
-            const auto& transactionManager = Bootstrap_->GetTransactionManager();
             auto externalCellTag = clonedNode->GetExternalCellTag();
-            auto clonedNodeExternalizedTransactionId = transactionManager->ExternalizeTransaction(Transaction_, {externalCellTag});
             ClonedExternalNodes_.push_back(TClonedExternalNode{
                 .Mode = context->GetMode(),
                 .SourceNodeId = TVersionedObjectId(sourceNodeId, sourceNodeExternalizedTransactionId),
                 .ClonedNodeId = TVersionedObjectId(clonedNode->GetId(), clonedNodeExternalizedTransactionId),
                 .CloneAccountId = clonedNode->Account()->GetId(),
-                .ExternalCellTag = externalCellTag
+                .ExternalCellTag = externalCellTag,
+                .SchemaIdHint = schemaId
             });
         }
 
         return clonedNode;
+    }
+
+    TCypressNode* EndCopyNode(TEndCopyContext* context) override
+    {
+        // See BeginCopyCore.
+        using NYT::Load;
+        auto sourceNodeId = Load<TNodeId>(*context);
+
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        auto* clonedTrunkNode = cypressManager->EndCopyNode(context, this, sourceNodeId);
+
+        if (context->IsOpaqueChild()) {
+            if (!Transaction_) {
+                const auto& objectManager = Bootstrap_->GetObjectManager();
+                const auto& handler = objectManager->GetHandler(clonedTrunkNode);
+                handler->ZombifyObject(clonedTrunkNode);
+                handler->DestroyObject(clonedTrunkNode);
+
+                THROW_ERROR_EXCEPTION("Opaque child cannot be created without transaction");
+            }
+
+            RegisterCreatedOpaqueChild(clonedTrunkNode);
+            return clonedTrunkNode;
+        }
+
+        return EndCopyNodeCore(clonedTrunkNode, context, sourceNodeId);
     }
 
     TCypressNode* EndCopyNodeInplace(
@@ -607,12 +685,7 @@ public:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->EndCopyNodeInplace(trunkNode, context, this, sourceNodeId);
 
-        return cypressManager->LockNode(
-            trunkNode,
-            Transaction_,
-            ELockMode::Exclusive,
-            false,
-            true);
+        return EndCopyNodeCore(trunkNode, context, sourceNodeId);
     }
 
 private:
@@ -625,6 +698,7 @@ private:
     const TYPath UnresolvedPathSuffix_;
 
     std::vector<TCypressNode*> CreatedNodes_;
+    std::vector<TCypressNode*> CreatedOpaqueChildren_;
     std::vector<TObject*> StagedObjects_;
 
     struct TCreatedPortalEntrance
@@ -651,6 +725,7 @@ private:
         TAccountId CloneAccountId;
         TCellTag ExternalCellTag;
         NHydra::TRevision NativeContentRevision;
+        TMasterTableSchemaId SchemaIdHint;
     };
     std::vector<TClonedExternalNode> ClonedExternalNodes_;
 
@@ -674,6 +749,12 @@ private:
         CreatedNodes_.push_back(trunkNode);
     }
 
+    void RegisterCreatedOpaqueChild(TCypressNode* opaqueChild)
+    {
+        YT_ASSERT(opaqueChild->IsTrunk());
+        StageNode(opaqueChild);
+        CreatedOpaqueChildren_.push_back(opaqueChild);
+    }
 
     template <class T>
     T* StageNode(T* node)
@@ -826,6 +907,7 @@ private:
         }
     }
 
+    void DoZombifyObject(TCypressNode* node) noexcept override;
     void DoDestroyObject(TCypressNode* node) noexcept override;
     void DoRecreateObjectAsGhost(TCypressNode* node) noexcept override;
 };
@@ -1010,8 +1092,11 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraRemoveExpiredNodes, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraLockForeignNode, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraUnlockForeignNode, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraImportTableSchema, Unretained(this)));
         // COMPAT(shakurov)
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraFixNodeStatistics, Unretained(this)));
+        // COMPAT(h0pless): Remove this after schema migration is complete.
+        RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraSetTableSchemas, Unretained(this)));
     }
 
     void Initialize() override
@@ -1917,6 +2002,7 @@ public:
         }
 
         // Remove the node.
+        handler->Zombify(branchedNode);
         handler->Destroy(branchedNode);
         NodeMap_.Remove(branchedNodeId);
 
@@ -2153,7 +2239,7 @@ public:
             NTransactionSupervisor::TTransactionAbortOptions options{
                 .Force = true
             };
-            transactionManager->AbortTransaction(transaction, options);
+            transactionManager->AbortMasterTransaction(transaction, options);
         }
     }
 
@@ -2424,6 +2510,9 @@ private:
     // COMPAT(shakurov)
     bool NeedFixNodeStatistics_ = false;
 
+    // COMPAT(h0pless): Remove this after schema migration is complete.
+    bool NeedExportSchemas_ = false;
+
     using TRecursiveResourceUsageCache = TSyncExpiringCache<TVersionedNodeId, TFuture<TYsonString>>;
     using TRecursiveResourceUsageCachePtr = TIntrusivePtr<TRecursiveResourceUsageCache>;
     const TRecursiveResourceUsageCachePtr RecursiveResourceUsageCache_;
@@ -2479,6 +2568,7 @@ private:
         }
 
         NeedFixNodeStatistics_ = context.GetVersion() < EMasterReign::FixClonedTrunkNodeStatistics;
+        NeedExportSchemas_ = context.GetVersion() < EMasterReign::ExportMasterTableSchemas;
     }
 
     void Clear() override
@@ -2504,6 +2594,7 @@ private:
         RecursiveResourceUsageCache_->Clear();
 
         NeedFixNodeStatistics_ = false;
+        NeedExportSchemas_ = false;
     }
 
     void SetZeroState() override
@@ -2617,6 +2708,111 @@ private:
                         chunkOwner->SnapshotStatistics(),
                         chunkOwner->DeltaStatistics());
                     chunkOwner->FixStatistics();
+                }
+            }
+        }
+
+        // COMPAT(h0pless): Remove this after schema migration is complete.
+        if (NeedExportSchemas_) {
+            const auto& tableManager = Bootstrap_->GetTableManager();
+            tableManager->TransformForeignSchemaIdsToNative();
+
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            auto* emptySchema = Bootstrap_->GetTableManager()->GetEmptyMasterTableSchema();
+
+            auto maybeUpdateEmptySchema = [&] (ISchemafulNode* schemafulNode) {
+                auto* schema = schemafulNode->GetSchema();
+                if (!multicellManager->IsPrimaryMaster() && schema && *schema->AsTableSchema() == *emptySchema->AsTableSchema()) {
+                    tableManager->SetTableSchema(schemafulNode, emptySchema);
+                    return emptySchema;
+                }
+                return schema;
+            };
+
+            THashMap<TVersionedNodeId, TMasterTableSchema*> nodeIdToSchema;
+            THashMap<TCellTag, std::vector<TVersionedNodeId>> cellTagToNodeIds;
+            for (auto [nodeId, node] : NodeMap_) {
+                if (!IsObjectAlive(node) && node->IsTrunk()) {
+                    continue;
+                }
+                if (!node->IsNative()) {
+                    continue;
+                }
+
+                auto nodeType = node->GetType();
+                // Updating schemas on chaos replicated tables separately.
+                // Thankfully, chaos replicated tables are never externalized.
+                if (nodeType == EObjectType::ChaosReplicatedTable) {
+                    auto* table = node->As<NChaosServer::TChaosReplicatedTableNode>();
+                    auto* schema = table->GetSchema();
+                    maybeUpdateEmptySchema(table);
+
+                    if (!schema) {
+                        tableManager->SetTableSchema(table, emptySchema);
+                    }
+                    continue;
+                }
+
+                if (!IsTableType(node->GetType())) {
+                    continue;
+                }
+
+                auto* table = node->As<TTableNode>();
+                auto* schema = table->GetSchema();
+
+                // Possible on opaque tables.
+                if (!schema) {
+                    continue;
+                }
+
+                YT_VERIFY(IsObjectAlive(schema));
+                schema = maybeUpdateEmptySchema(table);
+
+                if (!node->IsExternal()) {
+                    continue;
+                }
+
+                EmplaceOrCrash(nodeIdToSchema, nodeId, schema);
+                cellTagToNodeIds[table->GetExternalCellTag()].push_back(nodeId);
+            }
+
+            auto sendRequestAndLog = [&] (TCellTag cellTag, NProto::TReqSetTableSchemas& req) {
+                YT_LOG_DEBUG("Sending SetTableSchemas request (DestinationCellTag: %v, RequestSize: %v",
+                    cellTag, req.subrequests_size());
+                multicellManager->PostToMaster(req, cellTag);
+                req.clear_subrequests();
+            };
+
+            const auto maxBatchSize = 10000;
+            NProto::TReqSetTableSchemas req;
+            for (auto [cellTag, nodeIds] : cellTagToNodeIds) {
+                YT_LOG_DEBUG("Started schema migration (DestinationCellTag: %v)", cellTag);
+
+                auto batchSize = 0;
+                auto previousId = NullObjectId;
+                std::sort(nodeIds.begin(), nodeIds.end());
+                for (auto nodeId : nodeIds) {
+                    if (batchSize >= maxBatchSize && previousId != nodeId.ObjectId) {
+                        sendRequestAndLog(cellTag, req);
+                        batchSize = 0;
+                    }
+
+                    auto* subrequest = req.add_subrequests();
+                    auto* schema = nodeIdToSchema.find(nodeId)->second;
+
+                    ToProto(subrequest->mutable_table_node_id(), nodeId.ObjectId);
+                    ToProto(subrequest->mutable_transaction_id(), nodeId.TransactionId);
+                    ToProto(subrequest->mutable_schema_id(), schema->GetId());
+                    if (!schema->IsExported(cellTag)) {
+                        ToProto(subrequest->mutable_schema(), schema->AsTableSchema());
+                    }
+
+                    previousId = nodeId.ObjectId;
+                    schema->ExportRef(cellTag);
+                    ++batchSize;
+                }
+                if (batchSize > 0) {
+                    sendRequestAndLog(cellTag, req);
                 }
             }
         }
@@ -2735,6 +2931,12 @@ private:
         return node;
     }
 
+    void ZombifyNode(TCypressNode* trunkNode)
+    {
+        const auto& handler = GetHandler(trunkNode);
+        handler->Zombify(trunkNode);
+    }
+
     void DestroyNode(TCypressNode* trunkNode)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -2754,10 +2956,9 @@ private:
                 lock->GetId(),
                 trunkNode->GetId());
             lock->SetTrunkNode(nullptr);
+
             auto* transaction = lock->GetTransaction();
-            YT_VERIFY(transaction->Locks().erase(lock) == 1);
-            lock->SetTransaction(nullptr);
-            objectManager->UnrefObject(lock);
+            transaction->DetachLock(lock, objectManager);
         }
 
         trunkNode->ResetLockingState();
@@ -2941,8 +3142,8 @@ private:
             return TError();
         }
 
-        // Check if any of parent transactions has taken a snapshot lock.
         if (transaction) {
+            // Check if any of parent transactions has taken a snapshot lock.
             auto* currentTransaction = transaction->GetParent();
             while (currentTransaction) {
                 if (lockingState.HasSnapshotLock(currentTransaction)) {
@@ -2953,6 +3154,24 @@ private:
                         GetNodePath(trunkNode, transaction),
                         ELockMode::Snapshot,
                         currentTransaction->GetId());
+                }
+                currentTransaction = currentTransaction->GetParent();
+            }
+
+            // Validate lock count.
+            const auto& config = GetDynamicConfig();
+            auto lockCountLimit = config->MaxLocksPerTransactionSubtree;
+            currentTransaction = transaction;
+            while (currentTransaction) {
+                auto recursiveLockCount = currentTransaction->GetRecursiveLockCount();
+                if (recursiveLockCount >= lockCountLimit) {
+                    return TError(
+                        NCypressClient::EErrorCode::TooManyLocksOnTransaction,
+                        "Cannot create %Qlv lock for node %v since transaction %v and its decendants already have %v locks associated with them",
+                        request.Mode,
+                        GetNodePath(trunkNode, transaction),
+                        currentTransaction->GetId(),
+                        recursiveLockCount);
                 }
                 currentTransaction = currentTransaction->GetParent();
             }
@@ -3333,7 +3552,6 @@ private:
         lock->SetImplicit(implicit);
         lock->SetState(ELockState::Pending);
         lock->SetTrunkNode(trunkNode);
-        lock->SetTransaction(transaction);
         lock->Request() = request;
 
         const auto* hydraContext = GetCurrentHydraContext();
@@ -3343,15 +3561,16 @@ private:
         lockingState->PendingLocks.push_back(lock);
         lock->SetLockListIterator(--lockingState->PendingLocks.end());
 
-        YT_VERIFY(transaction->Locks().insert(lock).second);
-        objectManager->RefObject(lock);
+        transaction->AttachLock(lock, objectManager);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Lock created (LockId: %v, Mode: %v, Key: %v, NodeId: %v, Implicit: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            "Lock created (LockId: %v, Mode: %v, Key: %v, NodeId: %v, Implicit: %v, TransactionRecursiveLockCount: %v)",
             id,
             request.Mode,
             request.Key,
             TVersionedNodeId(trunkNode->GetId(), transaction->GetId()),
-            implicit);
+            implicit,
+            transaction->GetRecursiveLockCount() + 1);
 
         return lock;
     }
@@ -3361,7 +3580,6 @@ private:
         auto* parentTransaction = transaction->GetParent();
 
         TCompactVector<TLock*, 16> locks(transaction->Locks().begin(), transaction->Locks().end());
-        transaction->Locks().clear();
         Sort(locks, TObjectIdComparer());
 
         TCompactVector<TCypressNode*, 16> lockedNodes(transaction->LockedNodes().begin(), transaction->LockedNodes().end());
@@ -3413,7 +3631,10 @@ private:
         YT_VERIFY(parentTransaction);
         auto* trunkNode = lock->GetTrunkNode();
 
-        lock->SetTransaction(parentTransaction);
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        parentTransaction->AttachLock(lock, objectManager);
+        transaction->DetachLock(lock, objectManager, /*resetLockTransaction*/ false);
+
         if (trunkNode && lock->GetState() == ELockState::Acquired) {
             auto* lockingState = trunkNode->MutableLockingState();
             switch (lock->Request().Mode) {
@@ -3446,7 +3667,6 @@ private:
             // NB: Node could be locked more than once.
             parentTransaction->LockedNodes().insert(trunkNode);
         }
-        YT_VERIFY(parentTransaction->Locks().insert(lock).second);
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Lock promoted (LockId: %v, TransactionId: %v -> %v)",
             lock->GetId(),
             transaction->GetId(),
@@ -3498,11 +3718,8 @@ private:
             }
             lock->SetTrunkNode(nullptr);
         }
-        lock->SetTransaction(nullptr);
-        transaction->Locks().erase(lock);
-
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->UnrefObject(lock);
+        transaction->DetachLock(lock, objectManager);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Lock released (LockId: %v, TransactionId: %v)",
             lock->GetId(),
@@ -3662,6 +3879,19 @@ private:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(originatingNode->GetTrunkNode());
 
+        if (originatingNode->IsExternal() && IsTableType(originatingNode->GetType())) {
+            auto* table = originatingNode->As<TTableNode>();
+            const auto& transactionManager = Bootstrap_->GetTransactionManager();
+            auto externalizedTransactionId = transactionManager->ExternalizeTransaction(transaction, {table->GetExternalCellTag()});
+
+            const auto& tableManager = Bootstrap_->GetTableManager();
+            tableManager->EnsureSchemaExported(
+                table,
+                table->GetExternalCellTag(),
+                externalizedTransactionId,
+                Bootstrap_->GetMulticellManager());
+        }
+
         return branchedNode;
     }
 
@@ -3677,8 +3907,9 @@ private:
 
         auto* trunkNode = branchedNode->GetTrunkNode();
         auto branchedNodeId = branchedNode->GetVersionedId();
+        bool isSnapshotBranch = branchedNode->GetLockMode() == ELockMode::Snapshot;
 
-        if (branchedNode->GetLockMode() != ELockMode::Snapshot) {
+        if (!isSnapshotBranch) {
             // Merge changes back.
             auto* originatingNode = branchedNode->GetOriginator();
             handler->Merge(originatingNode, branchedNode);
@@ -3693,6 +3924,7 @@ private:
             }
         } else {
             // Destroy the branched copy.
+            handler->Zombify(branchedNode);
             handler->Destroy(branchedNode);
 
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Node snapshot destroyed (NodeId: %v)", branchedNodeId);
@@ -3906,6 +4138,7 @@ private:
         auto mode = ENodeCloneMode(request->mode());
         auto accountId = FromProto<TAccountId>(request->account_id());
         auto nativeContentRevision = request->native_content_revision();
+        auto schemaId = FromProto<TMasterTableSchemaId>(request->schema_id_hint());
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* sourceTransaction = sourceTransactionId
@@ -3963,6 +4196,17 @@ private:
             factory.get(),
             clonedNodeId,
             mode);
+
+        // This is a dirty way of doing stuff, but pulling TableSchemaId all the way through DoCloneNode is even worse.
+        // TODO(h0pless): rethink & refactor.
+        if (schemaId) {
+            YT_VERIFY(IsTableType(clonedTrunkNode->GetType()));
+
+            const auto& tableManager = Bootstrap_->GetTableManager();
+            auto* table = clonedTrunkNode->As<TTableNode>();
+
+            tableManager->SetTableSchemaOrThrow(table, schemaId);
+        }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(clonedTrunkNode);
@@ -4120,6 +4364,92 @@ private:
         DoUnlockNode(trunkNode, transaction, explicitOnly);
     }
 
+    void HydraImportTableSchema(NProto::TReqExportTableSchema* request)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(multicellManager->IsSecondaryMaster());
+
+        auto schemaId = FromProto<TMasterTableSchemaId>(request->schema_id());
+        auto schema = FromProto<TTableSchemaPtr>(request->schema());
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto* transaction = transactionManager->FindTransaction(transactionId);
+        YT_VERIFY(IsObjectAlive(transaction));
+
+        YT_VERIFY(schema);
+        YT_VERIFY(schemaId);
+
+        const auto& tableManager = Bootstrap_->GetTableManager();
+        tableManager->CreateImportedMasterTableSchema(*schema, transaction, schemaId);
+    }
+
+    // COMPAT(h0pless): Remove this after schema migration is complete.
+    void HydraSetTableSchemas(NProto::TReqSetTableSchemas* request)
+    {
+        YT_LOG_DEBUG("Received HydraSetTableSchemas request (RequestSize: %v)",
+            request->subrequests_size());
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        const auto& tableManager = Bootstrap_->GetTableManager();
+        auto* emptySchema = tableManager->GetEmptyMasterTableSchema();
+
+        for (const auto& subrequest : request->subrequests()) {
+            auto nodeId = FromProto<TNodeId>(subrequest.table_node_id());
+            auto transactionId = FromProto<TTransactionId>(subrequest.transaction_id());
+            auto schemaId = FromProto<TMasterTableSchemaId>(subrequest.schema_id());
+
+            auto externalizingCellTag = CellTagFromId(nodeId);
+            auto effectiveTransactionId = transactionId;
+            if (externalizingCellTag != CellTagFromId(transactionId)) {
+                effectiveTransactionId = NTransactionClient::MakeExternalizedTransactionId(transactionId, externalizingCellTag);
+            }
+
+            auto* node = FindNode(TVersionedNodeId{nodeId, effectiveTransactionId});
+            YT_VERIFY(IsObjectAlive(node) || !node->IsTrunk());
+            YT_VERIFY(IsTableType(node->GetType()));
+            auto* table = node->As<TTableNode>();
+
+            auto* oldSchema = table->GetSchema();
+            if (subrequest.has_schema()) {
+                auto schema = FromProto<TTableSchema>(subrequest.schema());
+
+                // Just a sanity check.
+                if (*oldSchema->AsTableSchema() != schema) {
+                    YT_LOG_ALERT(
+                        "Schemas between native and external cells differ "
+                        "(NativeSchemaId: %v, ExternalSchemaId: %v, NativeSchema: %v, ExternalSchema: %v)",
+                        schemaId,
+                        oldSchema->GetId(),
+                        schema,
+                        oldSchema->AsTableSchema());
+                    YT_VERIFY(*oldSchema->AsTableSchema() == *emptySchema->AsTableSchema());
+                }
+
+                tableManager->CreateImportedMasterTableSchema(schema, table, schemaId);
+            } else {
+                auto* existingSchema = tableManager->FindMasterTableSchema(schemaId);
+                YT_VERIFY(IsObjectAlive(existingSchema));
+
+                // Just a sanity check.
+                if (*oldSchema->AsTableSchema() != *existingSchema->AsTableSchema()) {
+                    YT_LOG_ALERT(
+                        "Schemas between native and external cells differ "
+                        "(NativeSchemaId: %v, ExternalSchemaId: %v, NativeSchema: %v, ExternalSchema: %v)",
+                        schemaId,
+                        oldSchema->GetId(),
+                        *existingSchema->AsTableSchema(),
+                        oldSchema->AsTableSchema());
+                    YT_VERIFY(*oldSchema->AsTableSchema() == *emptySchema->AsTableSchema());
+                }
+
+                tableManager->SetTableSchema(table, existingSchema);
+            }
+        }
+    }
+
     TFuture<TYsonString> DoComputeRecursiveResourceUsage(TVersionedNodeId versionedNodeId)
     {
         auto trunkNodeId = versionedNodeId.ObjectId;
@@ -4177,6 +4507,11 @@ TNodeTypeHandler::TNodeTypeHandler(
     , Owner_(owner)
     , UnderlyingHandler_(underlyingHandler)
 { }
+
+void TNodeTypeHandler::DoZombifyObject(TCypressNode* node) noexcept
+{
+    Owner_->ZombifyNode(node);
+}
 
 void TNodeTypeHandler::DoDestroyObject(TCypressNode* node) noexcept
 {

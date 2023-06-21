@@ -182,16 +182,13 @@ public:
     }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientChunkReadOptions& options,
-        const std::vector<int>& blockIndexes,
-        std::optional<i64> estimatedSize,
-        IInvokerPtr sessionInvoker = {}) override;
+        const TReadBlocksOptions& options,
+        const std::vector<int>& blockIndexes) override;
 
     TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientChunkReadOptions& options,
+        const TReadBlocksOptions& options,
         int firstBlockIndex,
-        int blockCount,
-        std::optional<i64> estimatedSize) override;
+        int blockCount) override;
 
     TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TClientChunkReadOptions& options,
@@ -487,7 +484,7 @@ protected:
 
     TSessionBase(
         TReplicationReader* reader,
-        const TClientChunkReadOptions& options,
+        TClientChunkReadOptions options,
         IThroughputThrottlerPtr bandwidthThrottler,
         IThroughputThrottlerPtr rpsThrottler,
         IInvokerPtr sessionInvoker = {})
@@ -495,11 +492,11 @@ protected:
         , ReaderConfig_(reader->Config_)
         , ReaderOptions_(reader->Options_)
         , ChunkId_(reader->ChunkId_)
-        , SessionOptions_(options)
+        , SessionOptions_(std::move(options))
         , NodeStatusDirectory_(reader->NodeStatusDirectory_)
         , WorkloadDescriptor_(ReaderConfig_->EnableWorkloadFifoScheduling
-            ? options.WorkloadDescriptor.SetCurrentInstant()
-            : options.WorkloadDescriptor)
+            ? SessionOptions_.WorkloadDescriptor.SetCurrentInstant()
+            : SessionOptions_.WorkloadDescriptor)
         , SessionInvoker_(sessionInvoker ? std::move(sessionInvoker) : GetCompressionInvoker(WorkloadDescriptor_))
         , NodeDirectory_(reader->NodeDirectory_)
         , Networks_(reader->Networks_)
@@ -507,7 +504,7 @@ protected:
         , RpsThrottler_(std::move(rpsThrottler))
         , Logger(ChunkClientLogger.WithTag("SessionId: %v, ReadSessionId: %v, ChunkId: %v",
             TGuid::Create(),
-            options.ReadSessionId,
+            SessionOptions_.ReadSessionId,
             ChunkId_))
     {
         if (WorkloadDescriptor_.CompressionFairShareTag) {
@@ -1538,21 +1535,18 @@ class TReadBlockSetSession
 public:
     TReadBlockSetSession(
         TReplicationReader* reader,
-        const TClientChunkReadOptions& options,
+        const IChunkReader::TReadBlocksOptions& options,
         const std::vector<int>& blockIndexes,
-        std::optional<i64> estimatedSize,
         IThroughputThrottlerPtr bandwidthThrottler,
-        IThroughputThrottlerPtr rpsThrottler,
-        IInvokerPtr sessionInvoker)
+        IThroughputThrottlerPtr rpsThrottler)
         : TSessionBase(
             reader,
-            options,
+            options.ClientOptions,
             std::move(bandwidthThrottler),
             std::move(rpsThrottler),
-            std::move(sessionInvoker))
-        , Options_(options)
+            options.SessionInvoker)
         , BlockIndexes_(blockIndexes)
-        , EstimatedSize_(estimatedSize)
+        , EstimatedSize_(options.EstimatedSize)
     {
         YT_LOG_DEBUG("Will read block set (Blocks: %v)",
             blockIndexes);
@@ -1575,8 +1569,6 @@ public:
     }
 
 private:
-    TClientChunkReadOptions Options_;
-
     //! Block indexes to read during the session.
     const std::vector<int> BlockIndexes_;
     const std::optional<i64> EstimatedSize_;
@@ -1733,8 +1725,7 @@ private:
                         cachedBlocks.push_back(TBlockWithCookie(blockIndex, std::move(cookie)));
                     }
                 } else {
-                    auto block = blockCache->FindBlock(blockId, EBlockType::CompressedData);
-                    if (block.Block) {
+                    if (auto block = blockCache->FindBlock(blockId, EBlockType::CompressedData)) {
                         cachedBlocks.push_back(TBlockWithCookie(blockIndex, CreatePresetCachedBlockCookie(block)));
                     } else {
                         uncachedBlocks.push_back(TBlockWithCookie(blockIndex, /*cookie*/ nullptr));
@@ -1954,7 +1945,7 @@ private:
         auto response = GetRpcAttachedBlocks(rsp, /*validateChecksums*/ false);
 
         for (auto& block: response) {
-            block.Data = TrackMemory(Options_.MemoryReferenceTracker, std::move(block.Data));
+            block.Data = TrackMemory(SessionOptions_.MemoryReferenceTracker, std::move(block.Data));
         }
 
         for (int index = 0; index < std::ssize(response); ++index) {
@@ -1984,18 +1975,16 @@ private:
                 ? std::optional<TNodeDescriptor>(GetPeerDescriptor(respondedPeer.Address))
                 : std::optional<TNodeDescriptor>(std::nullopt);
 
-            auto& cookie = blocks[index].Cookie;
-            if (cookie) {
-                TCachedBlock cachedBlock(block);
-                cookie->SetBlock(cachedBlock);
+            if (auto& cookie = blocks[index].Cookie) {
+                cookie->SetBlock(block);
             } else if (reader->Config_->UseBlockCache) {
                 reader->BlockCache_->PutBlock(blockId, EBlockType::CompressedData, block);
             }
 
-            YT_VERIFY(Blocks_.emplace(blockIndex, block).second);
             bytesReceived += block.Size();
             TotalBytesReceived_ += block.Size();
             receivedBlockIndexes.push_back(blockIndex);
+            EmplaceOrCrash(Blocks_, blockIndex, std::move(block));
         }
 
         if (invalidBlockCount > 0) {
@@ -2071,29 +2060,30 @@ private:
 
     void FetchBlocksFromCache(const std::vector<TBlockWithCookie>& blocks)
     {
-        std::vector<TFuture<TCachedBlock>> cachedBlockFutures;
+        std::vector<TFuture<void>> cachedBlockFutures;
         cachedBlockFutures.reserve(blocks.size());
         for (const auto& block : blocks) {
             cachedBlockFutures.push_back(block.Cookie->GetBlockFuture());
         }
-        auto cachedBlocks = WaitForFast(AllSet(cachedBlockFutures))
+        WaitForFast(AllSet(cachedBlockFutures))
             .ValueOrThrow();
-        YT_VERIFY(cachedBlocks.size() == blocks.size());
 
+        std::vector<int> fetchedBlockIndexes;
         for (int index = 0; index < std::ssize(blocks); ++index) {
-            int blockIndex = blocks[index].BlockIndex;
-            const auto& blockOrError = cachedBlocks[index];
-            if (blockOrError.IsOK()) {
-                YT_LOG_DEBUG("Fetched block from block cache (BlockIndex: %v)",
-                    blockIndex);
-
-                const auto& block = blockOrError.Value().Block;
-                YT_VERIFY(Blocks_.emplace(blockIndex, block).second);
-                SessionOptions_.ChunkReaderStatistics->DataBytesReadFromCache.fetch_add(
-                    block.Size(),
-                    std::memory_order::relaxed);
+            if (!cachedBlockFutures[index].Get().IsOK()) {
+                continue;
             }
+
+            auto it = EmplaceOrCrash(Blocks_, blocks[index].BlockIndex, blocks[index].Cookie->GetBlock());
+            fetchedBlockIndexes.push_back(it->first);
+            SessionOptions_.ChunkReaderStatistics->DataBytesReadFromCache.fetch_add(
+                it->second.Size(),
+                std::memory_order::relaxed);
         }
+
+        YT_LOG_DEBUG("Fetched blocks from block cache (Count: %v, BlockIndexes: %v)",
+            fetchedBlockIndexes.size(),
+            fetchedBlockIndexes);
     }
 
     void OnSessionSucceeded()
@@ -2145,10 +2135,8 @@ private:
 };
 
 TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
-    const TClientChunkReadOptions& options,
-    const std::vector<int>& blockIndexes,
-    std::optional<i64> estimatedSize,
-    IInvokerPtr sessionInvoker)
+    const TReadBlocksOptions& options,
+    const std::vector<int>& blockIndexes)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -2160,10 +2148,8 @@ TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
         this,
         options,
         blockIndexes,
-        estimatedSize,
         BandwidthThrottler_,
-        RpsThrottler_,
-        sessionInvoker);
+        RpsThrottler_);
     return session->Run();
 }
 
@@ -2175,20 +2161,19 @@ class TReadBlockRangeSession
 public:
     TReadBlockRangeSession(
         TReplicationReader* reader,
-        const TClientChunkReadOptions& options,
+        const IChunkReader::TReadBlocksOptions& options,
         int firstBlockIndex,
         int blockCount,
-        const std::optional<i64> estimatedSize,
         IThroughputThrottlerPtr bandwidthThrottler,
         IThroughputThrottlerPtr rpsThrottler)
         : TSessionBase(
             reader,
-            options,
+            options.ClientOptions,
             std::move(bandwidthThrottler),
             std::move(rpsThrottler))
         , FirstBlockIndex_(firstBlockIndex)
         , BlockCount_(blockCount)
-        , EstimatedSize_(estimatedSize)
+        , EstimatedSize_(options.EstimatedSize)
     {
         YT_LOG_DEBUG("Will read block range (Blocks: %v-%v)",
             FirstBlockIndex_,
@@ -2207,13 +2192,10 @@ public:
     }
 
 private:
-    //! First block index to fetch.
     const int FirstBlockIndex_;
-
-    //! Number of blocks to fetch.
     const int BlockCount_;
 
-    std::optional<i64> EstimatedSize_;
+    const std::optional<i64> EstimatedSize_;
 
     //! Promise representing the session.
     const TPromise<std::vector<TBlock>> Promise_ = NewPromise<std::vector<TBlock>>();
@@ -2426,10 +2408,9 @@ private:
 };
 
 TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
-    const TClientChunkReadOptions& options,
+    const TReadBlocksOptions& options,
     int firstBlockIndex,
-    int blockCount,
-    std::optional<i64> estimatedSize)
+    int blockCount)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YT_VERIFY(blockCount >= 0);
@@ -2443,7 +2424,6 @@ TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
         options,
         firstBlockIndex,
         blockCount,
-        estimatedSize,
         BandwidthThrottler_,
         RpsThrottler_);
     return session->Run();
@@ -3092,10 +3072,8 @@ public:
     { }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientChunkReadOptions& options,
-        const std::vector<int>& blockIndexes,
-        std::optional<i64> estimatedSize,
-        IInvokerPtr sessionInvoker = {}) override
+        const TReadBlocksOptions& options,
+        const std::vector<int>& blockIndexes) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -3107,18 +3085,15 @@ public:
             UnderlyingReader_.Get(),
             options,
             blockIndexes,
-            estimatedSize,
             BandwidthThrottler_,
-            RpsThrottler_,
-            sessionInvoker);
+            RpsThrottler_);
         return session->Run();
     }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
-        const TClientChunkReadOptions& options,
+        const TReadBlocksOptions& options,
         int firstBlockIndex,
-        int blockCount,
-        std::optional<i64> estimatedSize) override
+        int blockCount) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YT_VERIFY(blockCount >= 0);
@@ -3132,7 +3107,6 @@ public:
             options,
             firstBlockIndex,
             blockCount,
-            estimatedSize,
             BandwidthThrottler_,
             RpsThrottler_);
         return session->Run();
