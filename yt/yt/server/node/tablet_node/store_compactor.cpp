@@ -1589,6 +1589,7 @@ private:
             doneGuard.Release();
 
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
+            actionRequest.set_create_hunk_chunks_during_prepare(true);
             actionRequest.set_update_reason(ToProto<int>(ETabletStoresUpdateReason::Partitioning));
             for (const auto& [writer, partitionIndex] : partitionWriters) {
                 AddStoresToAdd(&actionRequest, writer);
@@ -1727,6 +1728,7 @@ private:
             ++retainedTimestamp;
 
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
+            actionRequest.set_create_hunk_chunks_during_prepare(true);
             actionRequest.set_retained_timestamp(retainedTimestamp);
             actionRequest.set_update_reason(ToProto<int>(ETabletStoresUpdateReason::Compaction));
             AddStoresToRemove(&actionRequest, stores);
@@ -1974,6 +1976,7 @@ private:
             doneGuard.Release();
 
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
+            actionRequest.set_create_hunk_chunks_during_prepare(true);
             actionRequest.set_retained_timestamp(retainedTimestamp);
             actionRequest.set_update_reason(ToProto<int>(ETabletStoresUpdateReason::Compaction));
             AddStoresToAdd(&actionRequest, compactionResult.StoreWriter);

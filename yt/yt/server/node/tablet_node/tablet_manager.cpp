@@ -1681,6 +1681,8 @@ private:
             // COMPAT(aleksandra-zh)
             if (request->create_hunk_chunks_during_prepare()) {
                 hunkChunk->Lock(transaction->GetId(), EObjectLockMode::Exclusive);
+                // Probably we do not need these during prepare, but why not.
+                tablet->UpdateDanglingHunkChunks(hunkChunk);
             }
             structuredLogger->OnHunkChunkStateChanged(hunkChunk);
         }
@@ -1696,6 +1698,7 @@ private:
                 }
 
                 hunkChunk->Lock(transaction->GetId(), EObjectLockMode::Shared);
+                tablet->UpdateDanglingHunkChunks(hunkChunk);
 
                 YT_LOG_DEBUG_IF(
                     IsMutationLoggingEnabled(),
@@ -1717,6 +1720,7 @@ private:
                         // COMPAT(aleksandra-zh)
                         if (request->create_hunk_chunks_during_prepare()) {
                             hunkChunk->Lock(transaction->GetId(), EObjectLockMode::Shared);
+                            tablet->UpdateDanglingHunkChunks(hunkChunk);
                         }
                     }
                 }
@@ -1887,6 +1891,7 @@ private:
                     continue;
                 }
                 hunkChunk->Unlock(transaction->GetId(), EObjectLockMode::Shared);
+                tablet->UpdateDanglingHunkChunks(hunkChunk);
             }
         }
 
@@ -1906,6 +1911,7 @@ private:
                         // COMPAT(aleksandra-zh)
                         if (request->create_hunk_chunks_during_prepare()) {
                             hunkChunk->Unlock(transaction->GetId(), EObjectLockMode::Shared);
+                            tablet->UpdateDanglingHunkChunks(hunkChunk);
                         }
                     }
                 }
@@ -1930,6 +1936,7 @@ private:
             // COMPAT(aleksandra-zh)
             if (request->create_hunk_chunks_during_prepare()) {
                 hunkChunk->Unlock(transaction->GetId(), EObjectLockMode::Exclusive);
+                tablet->UpdateDanglingHunkChunks(hunkChunk);
             }
         }
 
@@ -2030,8 +2037,13 @@ private:
                     YT_LOG_ALERT("Hunk chunk is missing (%v, ChunkId: %v)",
                         tablet->GetLoggingTag(),
                         chunkId);
+                    continue;
                 }
+
                 hunkChunk->Unlock(transaction->GetId(), EObjectLockMode::Shared);
+                // This one is also useless.
+                tablet->UpdateDanglingHunkChunks(hunkChunk);
+
                 InsertOrCrash(addedHunkChunks, hunkChunk);
             } else {
                 auto hunkChunk = CreateHunkChunk(tablet, chunkId, &descriptor);
@@ -2085,6 +2097,7 @@ private:
             // COMPAT(aleksandra-zh)
             if (request->create_hunk_chunks_during_prepare()) {
                 hunkChunk->Unlock(transaction->GetId(), EObjectLockMode::Exclusive);
+                tablet->UpdateDanglingHunkChunks(hunkChunk);
             }
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Hunk chunk removed (%v, ChunkId: %v)",
                 tablet->GetLoggingTag(),
@@ -2126,6 +2139,7 @@ private:
                         // COMPAT(aleksandra-zh)
                         if (request->create_hunk_chunks_during_prepare()) {
                             hunkChunk->Unlock(transaction->GetId(), EObjectLockMode::Shared);
+                            tablet->UpdateDanglingHunkChunks(hunkChunk);
                         }
                     }
 

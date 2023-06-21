@@ -338,6 +338,7 @@ private:
             tablet->ThrottleTabletStoresUpdate(slot, Logger);
 
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
+            actionRequest.set_create_hunk_chunks_during_prepare(true);
             ToProto(actionRequest.mutable_tablet_id(), tabletId);
             actionRequest.set_mount_revision(tablet->GetMountRevision());
             for (const auto& store : stores) {
