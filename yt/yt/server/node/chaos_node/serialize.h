@@ -26,6 +26,7 @@ DEFINE_ENUM(EChaosReign,
     ((ChaosCellSuspension)          (300009)) // savrus
     ((RevokeFromSuspended)          (300010)) // savrus
     ((RemoveMigratedCards)          (300011)) // ponasenko-rs
+    ((ConfirmMigrations)            (300012)) // ponasenko-rs
 );
 
 ////////////////////////////////////////////////////////////////////////////////

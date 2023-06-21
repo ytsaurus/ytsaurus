@@ -123,9 +123,16 @@ void FormatValue(TStringBuilderBase* builder, const TReplicationCard& replicatio
         (replicationCard.GetCollocation() ? replicationCard.GetCollocation()->GetId() : TGuid()));
 }
 
+bool TReplicationCard::IsReadyToMigrate() const
+{
+    return GetState() == EReplicationCardState::Normal ||
+        (GetState() == EReplicationCardState::GeneratingTimestampForNewEra && Replicas_.empty() && Coordinators_.empty());
+}
+
 bool TReplicationCard::IsMigrated() const
 {
-    return GetState() == EReplicationCardState::Migrated;
+    return GetState() == EReplicationCardState::Migrated ||
+        GetState() == EReplicationCardState::AwaitingMigrationConfirmation;
 }
 
 bool TReplicationCard::IsCollocationMigrating() const

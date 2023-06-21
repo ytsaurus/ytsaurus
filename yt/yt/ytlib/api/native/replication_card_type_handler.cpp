@@ -78,6 +78,9 @@ private:
         req->set_table_path(attributes->Get<TYPath>("table_path", {}));
         req->set_table_cluster_name(attributes->Get<TString>("table_cluster_name", {}));
 
+        // NB(ponasenko-rs): For testing purposes only.
+        req->set_bypass_suspended(attributes->Get<bool>("bypass_suspended", false));
+
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
 

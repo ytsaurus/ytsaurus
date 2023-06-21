@@ -51,7 +51,7 @@ public:
         : Slot_(std::move(slot))
         , HydraManager_(std::move(hydraManager))
         , RemoverExecutor_(New<TPeriodicExecutor>(
-            Slot_->GetAutomatonInvoker(NChaosNode::EAutomatonThreadQueue::MigratedReplicationCardRemovers),
+            Slot_->GetAutomatonInvoker(NChaosNode::EAutomatonThreadQueue::MigrationDepartment),
             BIND(&TForeignMigratedReplicationCardRemover::PeriodicMigratedReplicationCardsRemoval, MakeWeak(this)),
             config->RemovePeriod))
         , ReplicationCardKeepAlivePeriod_(config->ReplicationCardKeepAlivePeriod)

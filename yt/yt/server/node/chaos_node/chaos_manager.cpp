@@ -69,6 +69,10 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static constexpr int MigrateLeftoversBatchSize = 128;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChaosManager
     : public IChaosManager
     , public TChaosAutomatonPart
@@ -105,6 +109,10 @@ public:
             Config_->ForeignMigratedReplicationCardRemover,
             slot,
             HydraManager_))
+        , LeftoversMigrationExecutor_(New<TPeriodicExecutor>(
+            slot->GetAutomatonInvoker(NChaosNode::EAutomatonThreadQueue::MigrationDepartment),
+            BIND(&TChaosManager::PeriodicMigrateLeftovers, MakeWeak(this)),
+            Config_->LeftoverMigrationPeriod))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
@@ -144,6 +152,7 @@ public:
         RegisterMethod(BIND(&TChaosManager::HydraMigrateReplicationCards, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraResumeChaosCell, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraChaosNodeMigrateReplicationCards, Unretained(this)));
+        RegisterMethod(BIND(&TChaosManager::HydraChaosNodeConfirmReplicationCardMigration, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraCreateReplicationCardCollocation, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraChaosNodeRemoveMigratedReplicationCards, Unretained(this)));
     }
@@ -384,6 +393,7 @@ private:
     const IReplicationCardObserverPtr ReplicationCardObserver_;
     const IMigratedReplicationCardRemoverPtr MigratedReplicationCardRemover_;
     const IForeignMigratedReplicationCardRemoverPtr ForeignMigratedReplicationCardRemover_;
+    const TPeriodicExecutorPtr LeftoversMigrationExecutor_;
 
     TEntityMap<TReplicationCard> ReplicationCardMap_;
     TEntityMap<TReplicationCardCollocation> CollocationMap_;
@@ -510,6 +520,7 @@ private:
 
         ChaosCellSynchronizer_->Start();
         CommencerExecutor_->Start();
+        LeftoversMigrationExecutor_->Start();
         ReplicationCardObserver_->Start();
         MigratedReplicationCardRemover_->Start();
         ForeignMigratedReplicationCardRemover_->Start();
@@ -524,6 +535,7 @@ private:
 
         ChaosCellSynchronizer_->Stop();
         YT_UNUSED_FUTURE(CommencerExecutor_->Stop());
+        YT_UNUSED_FUTURE(LeftoversMigrationExecutor_->Stop());
         ReplicationCardObserver_->Stop();
         MigratedReplicationCardRemover_->Stop();
         ForeignMigratedReplicationCardRemover_->Stop();
@@ -556,8 +568,7 @@ private:
 
     void ValidateReplicationCardCreation(NChaosClient::NProto::TReqCreateReplicationCard* request)
     {
-        if (Suspended_) {
-            // TODO(savrus): Migrate replication cards that pass validation here and instantiate after cell suspension cell.
+        if (Suspended_ && !FromProto<bool>(request->bypass_suspended())) {
             THROW_ERROR_EXCEPTION(NChaosClient::EErrorCode::ChaosCellSuspended, "Chaos cell %v is suspended",
                 Slot_->GetCellId());
         }
@@ -761,7 +772,7 @@ private:
             return;
         }
 
-        if (replicationCard->GetState() != EReplicationCardState::Migrated) {
+        if (!IsReplicationCardMigrated(replicationCard)) {
             YT_LOG_ALERT("Trying to remove emigrated replication card in unexpected state "
                 "(ReplicationCardId: %v, ReplicationCardState: %v)",
                 replicationCardId,
@@ -805,7 +816,7 @@ private:
 
             const auto* replicationCard = ReplicationCardMap_.Find(replicationCardId);
             if (!replicationCard || IsDomesticReplicationCard(replicationCardId) ||
-                !replicationCard->IsMigrated() || replicationCard->GetCurrentTimestamp() != migrationTimestamp)
+                !IsReplicationCardMigrated(replicationCard) || replicationCard->GetCurrentTimestamp() != migrationTimestamp)
             {
                 continue;
             }
@@ -1299,6 +1310,11 @@ private:
         auto replicationCardIds = FromProto<std::vector<TReplicationCardId>>(request->replication_card_ids());
         bool migrateAllReplicationCards = request->migrate_all_replication_cards();
         bool suspendChaosCell = request->suspend_chaos_cell();
+        bool requireSuspension = request->require_suspension();
+
+        if (requireSuspension && !Suspended_) {
+            THROW_ERROR_EXCEPTION("Request cannot be processed in non-suspended state");
+        }
 
         if (std::find(CoordinatorCellIds_.begin(), CoordinatorCellIds_.end(), migrateToCellId) == CoordinatorCellIds_.end()) {
             THROW_ERROR_EXCEPTION("Trying to migrate replication card to unknown cell %v",
@@ -1310,8 +1326,7 @@ private:
                 THROW_ERROR_EXCEPTION("Replication card ids and migrate all replication cards cannot be specified simultaneously");
             } else {
                 for (auto* replicationCard : GetValuesSortedByKey(ReplicationCardMap_)) {
-                    // TODO(savrus) We need to migrate replication cards that were skipped here.
-                    if (replicationCard->GetState() == EReplicationCardState::Normal) {
+                    if (replicationCard->IsReadyToMigrate()) {
                         replicationCardIds.push_back(replicationCard->GetId());
                     }
                 }
@@ -1321,7 +1336,7 @@ private:
         THashSet<TReplicationCardCollocation*> collocations;
         for (auto replicationCardId : replicationCardIds) {
             auto replicationCard = GetReplicationCardOrThrow(replicationCardId);
-            if (replicationCard->GetState() != EReplicationCardState::Normal) {
+            if (!replicationCard->IsReadyToMigrate()) {
                 THROW_ERROR_EXCEPTION("Trying to migrate replication card %v while it is in %v state",
                     replicationCardId,
                     replicationCard->GetState());
@@ -1454,7 +1469,44 @@ private:
 
             HandleReplicationCardStateTransition(replicationCard);
         }
+
+        if (!request->has_migration_token()) {
+            return;
+        }
+
+        std::vector<TReplicationCardId> replicationCardIds;
+        for (const auto& protoMigrationCard : request->migration_cards()) {
+            replicationCardIds.push_back(FromProto<TReplicationCardId>(protoMigrationCard.replication_card_id()));
+        }
+
+        auto migrationToken = FromProto<NObjectClient::TObjectId>(request->migration_token());
+
+        NChaosNode::NProto::TReqConfirmReplicationCardMigration rsp;
+        ToProto(rsp.mutable_replication_card_ids(), replicationCardIds);
+        ToProto(rsp.mutable_migration_token(), migrationToken);
+
+        const auto& hiveManager = Slot_->GetHiveManager();
+        auto* mailbox = hiveManager->GetOrCreateCellMailbox(emigratedFromCellId);
+        hiveManager->PostMessage(mailbox, rsp);
     }
+
+    void HydraChaosNodeConfirmReplicationCardMigration(NChaosNode::NProto::TReqConfirmReplicationCardMigration* request)
+    {
+        NObjectClient::TObjectId expectedMigrationToken = FromProto<NObjectClient::TObjectId>(request->migration_token());
+        for (const auto& protoReplicationCardId : request->replication_card_ids()) {
+            auto* replicationCard = ReplicationCardMap_.Find(FromProto<TReplicationCardId>(protoReplicationCardId));
+
+            if (!replicationCard ||
+                replicationCard->GetState() != EReplicationCardState::AwaitingMigrationConfirmation ||
+                replicationCard->GetMigrationToken() != expectedMigrationToken)
+            {
+                continue;
+            }
+
+            replicationCard->SetState(EReplicationCardState::Migrated);
+        }
+    }
+
 
     void MigrateReplicationCard(TReplicationCard* replicationCard)
     {
@@ -1462,20 +1514,21 @@ private:
         YT_VERIFY(replicationCard->Coordinators().empty());
         auto immigratedToCellId = replicationCard->Migration().ImmigratedToCellId;
 
+        auto replicationCardId = replicationCard->GetId();
         YT_LOG_DEBUG("Migrating replication card to different cell "
             "(ReplicationCardId: %v, ImmigratedToCellId: %v, Domestic: %v)",
-            replicationCard->GetId(),
+            replicationCardId,
             immigratedToCellId,
-            IsDomesticReplicationCard(replicationCard->GetId()));
+            IsDomesticReplicationCard(replicationCardId));
 
         NChaosNode::NProto::TReqMigrateReplicationCards req;
         ToProto(req.mutable_emigrated_from_cell_id(), Slot_->GetCellId());
         auto protoMigrationCard = req.add_migration_cards();
-        auto originCellId = IsDomesticReplicationCard(replicationCard->GetId())
+        auto originCellId = IsDomesticReplicationCard(replicationCardId)
             ? Slot_->GetCellId()
             : replicationCard->Migration().OriginCellId;
         ToProto(protoMigrationCard->mutable_origin_cell_id(), originCellId);
-        ToProto(protoMigrationCard->mutable_replication_card_id(), replicationCard->GetId());
+        ToProto(protoMigrationCard->mutable_replication_card_id(), replicationCardId);
         auto* protoReplicationCard = protoMigrationCard->mutable_replication_card();
 
         ToProto(protoReplicationCard->mutable_table_id(), replicationCard->GetTableId());
@@ -1501,12 +1554,22 @@ private:
             ToProto(protoEntry->mutable_info(), replicaInfo, fetchOptions);
         }
 
+        auto migrationToken = Slot_->GenerateId(EObjectType::Null);
+        ToProto(req.mutable_migration_token(), migrationToken);
+
         const auto& hiveManager = Slot_->GetHiveManager();
         auto* mailbox = hiveManager->GetOrCreateCellMailbox(immigratedToCellId);
         hiveManager->PostMessage(mailbox, req);
 
-        replicationCard->SetState(EReplicationCardState::Migrated);
+        // COMPAT(ponasenko-rs)
+        if (GetCurrentMutationContext()->Request().Reign < ToUnderlying(EChaosReign::ConfirmMigrations)) {
+            replicationCard->SetState(EReplicationCardState::Migrated);
+        } else {
+            replicationCard->SetState(EReplicationCardState::AwaitingMigrationConfirmation);
+        }
+
         replicationCard->Migration().ImmigrationTime = GetCurrentMutationContext()->GetTimestamp();
+        replicationCard->SetMigrationToken(migrationToken);
 
         if (auto* collocation = replicationCard->GetCollocation()) {
             UpdateReplicationCardCollocation(
@@ -1521,7 +1584,7 @@ private:
         return CellTagFromId(replicationCardId) == CellTagFromId(Slot_->GetCellId());
     }
 
-    bool IsReplicationCardMigrated(TReplicationCard* replicationCard)
+    bool IsReplicationCardMigrated(const TReplicationCard* replicationCard)
     {
         return replicationCard->IsMigrated();
     }
@@ -1534,6 +1597,47 @@ private:
         YT_LOG_DEBUG("Resuming chaos cell");
 
         Suspended_ = false;
+    }
+
+    void PeriodicMigrateLeftovers()
+    {
+        if (!Suspended_) {
+            return;
+        }
+
+        std::vector<TReplicationCardId> cardIdsToMigrate;
+        for (const auto& [id, replicationCard] : ReplicationCardMap_) {
+            if (replicationCard->IsReadyToMigrate()) {
+                cardIdsToMigrate.push_back(id);
+            }
+
+            if (std::ssize(cardIdsToMigrate) >= MigrateLeftoversBatchSize) {
+                break;
+            }
+        }
+
+        if (cardIdsToMigrate.empty()) {
+            return;
+        }
+
+        const auto& connection = Bootstrap_->GetConnection();
+        const auto& cellDirectory = connection->GetCellDirectory();
+
+        auto siblingCellTag = GetSiblingChaosCellTag(CellTagFromId(Slot_->GetCellId()));
+        auto descriptor = cellDirectory->FindDescriptorByCellTag(siblingCellTag);
+        if (!descriptor) {
+            THROW_ERROR_EXCEPTION("Unable to identify sibling cell to migrate replication cards into")
+                << TErrorAttribute("chaos_cell_id", Slot_->GetCellId())
+                << TErrorAttribute("sibling_cell_tag", siblingCellTag);
+        }
+
+        NChaosClient::NProto::TReqMigrateReplicationCards req;
+        ToProto(req.mutable_replication_card_ids(), cardIdsToMigrate);
+        ToProto(req.mutable_migrate_to_cell_id(), descriptor->CellId);
+        req.set_require_suspension(true);
+
+        YT_UNUSED_FUTURE(CreateMutation(HydraManager_, req)
+            ->CommitAndLog(Logger));
     }
 
     void PeriodicCurrentTimestampPropagation()
@@ -1593,7 +1697,7 @@ private:
     {
         switch (newState) {
             case EReplicationCardState::RevokingShortcutsForMigration:
-                YT_VERIFY(replicationCard->GetState() == EReplicationCardState::Normal);
+                YT_VERIFY(replicationCard->IsReadyToMigrate());
                 replicationCard->SetState(EReplicationCardState::RevokingShortcutsForMigration);
                 RevokeShortcuts(replicationCard);
                 HandleReplicationCardStateTransition(replicationCard);
@@ -2204,6 +2308,16 @@ private:
         ReplicatedTableDestroyed_.Fire(replicationCard->GetId());
     }
 
+    TEnumIndexedVector<EReplicationCardState, int> CountReplicationCardStates() const
+    {
+        TEnumIndexedVector<EReplicationCardState, int> counts;
+        for (const auto& [_, replicationCard] : ReplicationCardMap_) {
+            counts[replicationCard->GetState()]++;
+        }
+
+        return counts;
+    }
+
     TCompositeMapServicePtr CreateOrchidService()
     {
         return New<TCompositeMapService>()
@@ -2232,9 +2346,21 @@ private:
 
     void BuildInternalOrchid(IYsonConsumer* consumer) const
     {
+        // NB: Transactions account for both 2pc replication card creation and coordinator transactions.
+        const auto& transactionManager = Slot_->GetTransactionManager();
+
+        auto replicationCardStateCounts = CountReplicationCardStates();
         BuildYsonFluently(consumer)
             .BeginMap()
-                .Item("suspended").Value(Suspended_)
+                .Item("suspended").Value(Suspended_
+                    && replicationCardStateCounts[EReplicationCardState::Migrated] == ReplicationCardMap_.GetSize()
+                    && transactionManager->Transactions().empty())
+                .Item("replication_card_states").DoMapFor(
+                    TEnumTraits<EReplicationCardState>::GetDomainValues(),
+                    [&] (TFluentMap fluent, const auto& state) {
+                        fluent
+                            .Item(CamelCaseToUnderscoreCase(ToString(state))).Value(replicationCardStateCounts[state]);
+                    })
             .EndMap();
     }
 
@@ -2299,14 +2425,14 @@ private:
     {
         BuildYsonFluently(consumer)
             .DoMapFor(CollocationMap_, [] (TFluentMap fluent, const auto& pair) {
-                const auto [collcationId, collcation] = pair;
+                const auto [collocationId, collocation] = pair;
                 fluent
-                    .Item(ToString(collcationId))
+                    .Item(ToString(collocationId))
                         .BeginMap()
-                            .Item("state").Value(collcation->GetState())
-                            .Item("size").Value(collcation->GetSize())
+                            .Item("state").Value(collocation->GetState())
+                            .Item("size").Value(collocation->GetSize())
                             .Item("replication_card_ids")
-                                .DoListFor(collcation->ReplicationCards(), [] (TFluentList fluent, const auto* replicationCard) {
+                                .DoListFor(collocation->ReplicationCards(), [] (TFluentList fluent, const auto* replicationCard) {
                                     fluent
                                         .Item().Value(ToString(replicationCard->GetId()));
                                 })

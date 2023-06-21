@@ -4,6 +4,7 @@
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
+#include <yt/yt/server/lib/hydra_common/entity_map.h>
 #include <yt/yt/server/lib/transaction_supervisor/transaction_manager.h>
 
 #include <yt/yt/ytlib/chaos_client/coordinator_service_proxy.h>
@@ -33,6 +34,8 @@ struct ITransactionManager
 
     virtual std::unique_ptr<NHydra::TMutation> CreateRegisterTransactionActionsMutation(
         TCtxRegisterTransactionActionsPtr context) = 0;
+
+    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction);
 };
 
 DEFINE_REFCOUNTED_TYPE(ITransactionManager)

@@ -87,6 +87,13 @@ message TReqMigrateReplicationCards
 
     required NYT.NProto.TGuid emigrated_from_cell_id = 1;
     repeated TMigrationCard migration_cards = 2;
+    optional NYT.NProto.TGuid migration_token = 3;
+}
+
+message TReqConfirmReplicationCardMigration
+{
+    repeated NYT.NProto.TGuid replication_card_ids = 1;
+    required NYT.NProto.TGuid migration_token = 2;
 }
 
 message TReqRemoveReplicationCard

@@ -25,6 +25,7 @@ DEFINE_ENUM(EReplicationCardState,
     ((GeneratingTimestampForNewEra)  (2))
     ((RevokingShortcutsForMigration) (3))
     ((Migrated)                      (4))
+    ((AwaitingMigrationConfirmation) (5))
 );
 
 struct TCoordinatorInfo
@@ -67,6 +68,7 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(TMigration, Migration);
     DEFINE_BYVAL_RW_PROPERTY(EReplicationCardState, State);
+    DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TObjectId, MigrationToken);
 
     DEFINE_BYVAL_RW_PROPERTY(TReplicationCardCollocation*, Collocation);
 
@@ -79,6 +81,7 @@ public:
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
 
+    bool IsReadyToMigrate() const;
     bool IsMigrated() const;
     bool IsCollocationMigrating() const;
     void ValidateCollocationNotMigrating() const;

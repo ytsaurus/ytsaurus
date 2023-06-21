@@ -83,6 +83,7 @@ public:
     TDuration EraCommencingPeriod;
     TMigratedReplicationCardRemoverConfigPtr MigratedReplicationCardRemover;
     TForeignMigratedReplicationCardRemoverConfigPtr ForeignMigratedReplicationCardRemover;
+    TDuration LeftoverMigrationPeriod;
 
     REGISTER_YSON_STRUCT(TChaosManagerConfig);
 

@@ -512,14 +512,7 @@ private:
         transaction->SetSignature(transaction->GetSignature() + signature);
     }
 
-
-    TTransaction* FindTransaction(TTransactionId transactionId)
-    {
-        if (auto* transaction = TransactionMap_.Find(transactionId)) {
-            return transaction;
-        }
-        return nullptr;
-    }
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Transaction, TTransaction);
 
     TTransaction* GetTransactionOrThrow(TTransactionId transactionId)
     {
@@ -592,6 +585,8 @@ private:
         }
     }
 };
+
+DEFINE_ENTITY_MAP_ACCESSORS(TTransactionManager, Transaction, TTransaction, TransactionMap_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

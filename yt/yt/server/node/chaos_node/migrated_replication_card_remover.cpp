@@ -46,7 +46,7 @@ public:
         : Slot_(slot)
         , Bootstrap_(bootstrap)
         , RemoverExecutor_(New<TPeriodicExecutor>(
-            slot->GetAutomatonInvoker(NChaosNode::EAutomatonThreadQueue::MigratedReplicationCardRemovers),
+            slot->GetAutomatonInvoker(NChaosNode::EAutomatonThreadQueue::MigrationDepartment),
             BIND(&TMigratedReplicationCardRemover::PeriodicMigratedReplicationCardsRemoval, MakeWeak(this)),
             config->RemovePeriod))
     {

@@ -57,6 +57,8 @@ void TChaosManagerConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("foreign_migrated_replication_card_remover", &TThis::ForeignMigratedReplicationCardRemover)
         .DefaultNew();
+    registrar.Parameter("leftover_migration_period", &TThis::LeftoverMigrationPeriod)
+        .Default(TDuration::Seconds(30));
 }
 ////////////////////////////////////////////////////////////////////////////////
 

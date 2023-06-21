@@ -3340,6 +3340,7 @@ class TestChaosMetaCluster(ChaosTestBase):
                     "remove_period": 1000,
                     "replication_card_keep_alive_period": 0,
                 },
+                "leftover_migration_period": 5,
             },
         },
     }
@@ -3513,7 +3514,7 @@ class TestChaosMetaCluster(ChaosTestBase):
             else:
                 suspend_chaos_cells([cell_id])
                 suspended_path = "{0}/chaos_manager/internal/suspended".format(_get_orchid_path(cell_id, driver=driver))
-                assert get(suspended_path, driver=driver)
+                wait(lambda: get(suspended_path, driver=driver))
                 resume_chaos_cells([cell_id])
                 assert not get(suspended_path, driver=driver)
 
@@ -3554,6 +3555,70 @@ class TestChaosMetaCluster(ChaosTestBase):
         insert_rows("//tmp/t", values)
         assert lookup_rows("//tmp/t", [{"key": 1}]) == values
         wait(lambda: lookup_rows("//tmp/r1", [{"key": 1}], driver=drivers[2]) == values)
+
+    @authors("ponasenko-rs")
+    def test_leftovers_migration(self):
+        [alpha_cell, beta_cell] = self._create_dedicated_areas_and_cells()
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", alpha_cell)
+
+        _, _, remote_driver1, remote_driver2 = self._get_drivers()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
+            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/r1"}
+        ]
+        self._create_chaos_tables(alpha_cell, replicas)
+
+        def _get_orchid_path(cell_id, driver=None):
+            address = get("#{0}/@peers/0/address".format(cell_id), driver=driver)
+            return "//sys/cluster_nodes/{0}/orchid/chaos_cells/{1}".format(address, cell_id)
+
+        orchids_paths = {
+            cell_id: _get_orchid_path(cell_id, driver=driver)
+            for cell_id, driver in zip([alpha_cell, beta_cell], [remote_driver1, remote_driver2])
+        }
+
+        suspend_chaos_cells([alpha_cell])
+        suspended_path = f"{orchids_paths[alpha_cell]}/chaos_manager/internal/suspended"
+        wait(lambda: get(suspended_path, driver=remote_driver1))
+
+        with pytest.raises(YtError):
+            create_replication_card(chaos_cell_id=alpha_cell)
+        create_replication_card(chaos_cell_id=alpha_cell, attributes={'bypass_suspended': True})
+
+        wait(lambda: get(suspended_path, driver=remote_driver1))
+
+        migration_replication_cards_path = f"{orchids_paths[alpha_cell]}/chaos_manager/replication_cards"
+        assert all(
+            get(f"{migration_replication_cards_path}/{replication_card_id}", driver=remote_driver1)["state"] == "migrated"
+            for replication_card_id in get(migration_replication_cards_path, driver=remote_driver1)
+        )
+
+        migrated_replication_cards_path = f"{orchids_paths[beta_cell]}/chaos_manager/replication_cards"
+        assert all(
+            get(f"{migrated_replication_cards_path}/{replication_card_id}", driver=remote_driver2)["state"]
+            in
+            ('normal', 'generating_timestamp_for_new_era')
+            for replication_card_id in get(migrated_replication_cards_path, driver=remote_driver2)
+        )
+
+        # Test internal orchid.
+        beta_cell_states = get(f"{orchids_paths[beta_cell]}/chaos_manager/internal/replication_card_states", driver=remote_driver2)
+        assert beta_cell_states["normal"] == 1 and beta_cell_states["generating_timestamp_for_new_era"] == 1
+        assert get(f"{orchids_paths[alpha_cell]}/chaos_manager/internal/replication_card_states", driver=remote_driver1)["migrated"] == 2
+
+        resume_chaos_cells([alpha_cell])
+
+        suspend_chaos_cells([beta_cell])
+
+        suspended_path = f"{orchids_paths[beta_cell]}/chaos_manager/internal/suspended"
+        wait(lambda: get(suspended_path, driver=remote_driver2))
+        alpha_cell_states = get(f"{orchids_paths[alpha_cell]}/chaos_manager/internal/replication_card_states", driver=remote_driver1)
+        beta_cell_states = get(f"{orchids_paths[beta_cell]}/chaos_manager/internal/replication_card_states", driver=remote_driver2)
+        assert alpha_cell_states["normal"] == 1 and alpha_cell_states["generating_timestamp_for_new_era"] == 1
+        # NB: Foreign migrated replication cards could be removed.
+        assert beta_cell_states["migrated"] == sum(beta_cell_states.values()) and beta_cell_states["migrated"] <= 2
 
     @authors("savrus")
     def test_remove_migrated_replication_card(self):

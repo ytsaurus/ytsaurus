@@ -22,6 +22,8 @@ message TReqCreateReplicationCard
     optional string table_path = 3;
     optional string table_cluster_name = 4;
     optional bytes replicated_table_options = 5; // NTabletClient::TReplicatedTableOptions
+    // NB(ponasenko-rs): For testing purposes only.
+    optional bool bypass_suspended = 6;
 }
 
 message TRspCreateReplicationCard
@@ -140,7 +142,8 @@ message TReqMigrateReplicationCards
     required NYT.NProto.TGuid migrate_to_cell_id = 1;
     repeated NYT.NProto.TGuid replication_card_ids = 2;
     optional bool migrate_all_replication_cards = 3;
-    optional bool suspend_chaos_cell = 4; 
+    optional bool suspend_chaos_cell = 4;
+    optional bool require_suspension = 5 [default = false];
 }
 
 message TRspMigrateReplicationCards

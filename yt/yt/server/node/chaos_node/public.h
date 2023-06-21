@@ -44,7 +44,7 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (Mutation)
     (EraCommencer)
     (ReplicatedTableTracker)
-    (MigratedReplicationCardRemovers)
+    (MigrationDepartment)
 );
 
 using TReplicationCardId = NChaosClient::TReplicationCardId;
