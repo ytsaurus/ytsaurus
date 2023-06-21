@@ -4,13 +4,13 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/yt/library/profiling/sensor.h>
+#include <yt/yt/library/profiling/public.h>
 
 #include <yt/yt/library/tracing/jaeger/public.h>
 
 #include <yt/yt/core/rpc/service.h>
 
-#include <yt/yt/core/logging/log.h>
+#include <yt/yt/core/logging/public.h>
 
 namespace NYT::NRpcProxy {
 

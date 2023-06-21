@@ -17,6 +17,7 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/client/api/config.h>
+#include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/file_reader.h>
 #include <yt/yt/client/api/file_writer.h>
 #include <yt/yt/client/api/helpers.h>
@@ -28,11 +29,13 @@
 #include <yt/yt/client/api/table_writer.h>
 #include <yt/yt/client/api/transaction.h>
 
-#include <yt/yt/client/api/rpc_proxy/api_service_proxy.h>
 #include <yt/yt/client/api/rpc_proxy/helpers.h>
 #include <yt/yt/client/api/rpc_proxy/protocol_version.h>
-#include <yt/yt/client/api/rpc_proxy/wire_row_stream.h>
 #include <yt/yt/client/api/rpc_proxy/row_stream.h>
+#include <yt/yt/client/api/rpc_proxy/wire_row_stream.h>
+
+#include <yt/yt/client/arrow/arrow_row_stream_encoder.h>
+#include <yt/yt/client/arrow/arrow_row_stream_decoder.h>
 
 #include <yt/yt/client/chunk_client/config.h>
 
@@ -40,50 +43,35 @@
 
 #include <yt/yt/client/formats/config.h>
 
-#include <yt/yt/client/node_tracker_client/helpers.h>
-
-#include <yt/yt/client/tablet_client/table_mount_cache.h>
-
-#include <yt/yt/client/scheduler/operation_id_or_alias.h>
-
-#include <yt/yt/ytlib/security_client/public.h>
-
-#include <yt/yt/ytlib/transaction_client/clock_manager.h>
-#include <yt/yt/ytlib/transaction_client/helpers.h>
-
+#include <yt/yt/client/table_client/config.h>
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/name_table.h>
-#include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
+
+#include <yt/yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/yt/client/transaction_client/helpers.h>
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
+#include <yt/yt/client/scheduler/operation_id_or_alias.h>
+
 #include <yt/yt/client/ypath/rich.h>
 
-#include <yt/yt/client/arrow/arrow_row_stream_encoder.h>
-#include <yt/yt/client/arrow/arrow_row_stream_decoder.h>
+#include <yt/yt/ytlib/security_client/public.h>
+
+#include <yt/yt/ytlib/transaction_client/clock_manager.h>
 
 #include <yt/yt/library/tracing/jaeger/sampler.h>
 
-#include <yt/yt/library/auth_server/config.h>
-#include <yt/yt/library/auth_server/cookie_authenticator.h>
-#include <yt/yt/library/auth_server/token_authenticator.h>
 #include <yt/yt/library/auth_server/helpers.h>
-
-#include <yt/yt/core/concurrency/scheduler.h>
 
 #include <yt/yt/core/logging/fluent_log.h>
 
-#include <yt/yt/core/misc/cache_config.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/serialize.h>
-#include <yt/yt/core/misc/mpl.h>
 
 #include <yt/yt/core/rpc/service_detail.h>
 #include <yt/yt/core/rpc/stream.h>
-
-#include <yt/yt/core/misc/backoff_strategy.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
