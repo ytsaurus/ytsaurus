@@ -3984,7 +3984,7 @@ private:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
         std::vector<TChunkId> chunkIds;
-        for (auto& importData : *request->mutable_chunks()) {
+        for (const auto& importData : request->chunks()) {
             auto chunkId = FromProto<TChunkId>(importData.id());
             if (CellTagFromId(chunkId) == multicellManager->GetCellTag()) {
                 THROW_ERROR_EXCEPTION("Cannot import a native chunk %v", chunkId);
