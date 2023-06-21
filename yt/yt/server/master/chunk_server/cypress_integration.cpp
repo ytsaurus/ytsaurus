@@ -154,6 +154,8 @@ private:
                 return ToObjectIds(chunkReplicator->InconsistentlyPlacedChunks(), sizeLimit);
             case EObjectType::LocalUnexpectedOverreplicatedChunkMap:
                 return ToObjectIds(chunkReplicator->UnexpectedOverreplicatedChunks(), sizeLimit);
+            case EObjectType::LocalReplicaTemporarilyUnavailableChunkMap:
+                return ToObjectIds(chunkReplicator->TemporarilyUnavailableChunks(), sizeLimit);
             case EObjectType::ForeignChunkMap:
                 return ToObjectIds(chunkManager->ForeignChunks(), sizeLimit);
             case EObjectType::LocalOldestPartMissingChunkMap:
@@ -257,6 +259,10 @@ private:
                 return checkReplicatorStatus(EChunkStatus::UnexpectedOverreplicated, /*localMap*/ false);
             case EObjectType::LocalUnexpectedOverreplicatedChunkMap:
                 return checkReplicatorStatus(EChunkStatus::UnexpectedOverreplicated, /*localMap*/ true);
+            case EObjectType::ReplicaTemporarilyUnavailableChunkMap:
+                return checkReplicatorStatus(EChunkStatus::TemporarilyUnavailable, /*localMap*/ false);
+            case EObjectType::LocalReplicaTemporarilyUnavailableChunkMap:
+                return checkReplicatorStatus(EChunkStatus::TemporarilyUnavailable, /*localMap*/ true);
             case EObjectType::ForeignChunkMap:
                 return chunkManager->ForeignChunks().contains(chunk);
             case EObjectType::OldestPartMissingChunkMap:
@@ -298,6 +304,8 @@ private:
                 return chunkReplicator->InconsistentlyPlacedChunks().size();
             case EObjectType::LocalUnexpectedOverreplicatedChunkMap:
                 return chunkReplicator->UnexpectedOverreplicatedChunks().size();
+            case EObjectType::LocalReplicaTemporarilyUnavailableChunkMap:
+                return chunkReplicator->TemporarilyUnavailableChunks().size();
             case EObjectType::ForeignChunkMap:
                 return chunkManager->ForeignChunks().size();
             case EObjectType::LocalOldestPartMissingChunkMap:
@@ -449,6 +457,8 @@ private:
                 return "//sys/inconsistently_placed_chunks";
             case EObjectType::UnexpectedOverreplicatedChunkMap:
                 return "//sys/unexpected_overreplicated_chunks";
+            case EObjectType::ReplicaTemporarilyUnavailableChunkMap:
+                return "//sys/replica_temporarily_unavailable_chunks";
             case EObjectType::ForeignChunkMap:
                 return "//sys/foreign_chunks";
             case EObjectType::LocalLostChunkMap:
@@ -477,6 +487,8 @@ private:
                 return "//sys/local_inconsistently_placed_chunks";
             case EObjectType::LocalUnexpectedOverreplicatedChunkMap:
                 return "//sys/local_unexpected_overreplicated_chunks";
+            case EObjectType::LocalReplicaTemporarilyUnavailableChunkMap:
+                return "//sys/local_replica_temporarily_unavailable_chunks";
             default:
                 YT_ABORT();
         }
@@ -516,6 +528,8 @@ private:
                 return EObjectType::LocalInconsistentlyPlacedChunkMap;
             case EObjectType::UnexpectedOverreplicatedChunkMap:
                 return EObjectType::LocalUnexpectedOverreplicatedChunkMap;
+            case EObjectType::ReplicaTemporarilyUnavailableChunkMap:
+                return EObjectType::LocalReplicaTemporarilyUnavailableChunkMap;
             default:
                 YT_ABORT();
         }
@@ -537,6 +551,7 @@ private:
             case EObjectType::UnsafelyPlacedChunkMap:
             case EObjectType::InconsistentlyPlacedChunkMap:
             case EObjectType::UnexpectedOverreplicatedChunkMap:
+            case EObjectType::ReplicaTemporarilyUnavailableChunkMap:
             case EObjectType::ChunkMap:
             case EObjectType::ForeignChunkMap:
                 return true;
@@ -561,6 +576,7 @@ private:
             case EObjectType::UnsafelyPlacedChunkMap:
             case EObjectType::InconsistentlyPlacedChunkMap:
             case EObjectType::UnexpectedOverreplicatedChunkMap:
+            case EObjectType::ReplicaTemporarilyUnavailableChunkMap:
                 return true;
             default:
                 return false;

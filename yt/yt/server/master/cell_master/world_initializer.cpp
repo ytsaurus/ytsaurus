@@ -552,6 +552,11 @@ private:
                 EObjectType::UnexpectedOverreplicatedChunkMap);
 
             ScheduleCreateNode(
+                "//sys/replica_temporarily_unavailable_chunks",
+                transactionId,
+                EObjectType::ReplicaTemporarilyUnavailableChunkMap);
+
+            ScheduleCreateNode(
                 "//sys/foreign_chunks",
                 transactionId,
                 EObjectType::ForeignChunkMap);
@@ -620,6 +625,11 @@ private:
                 "//sys/local_unexpected_overreplicated_chunks",
                 transactionId,
                 EObjectType::LocalUnexpectedOverreplicatedChunkMap);
+
+            ScheduleCreateNode(
+                "//sys/local_replica_temporarily_unavailable_chunks",
+                transactionId,
+                EObjectType::LocalReplicaTemporarilyUnavailableChunkMap);
 
             ScheduleCreateNode(
                 "//sys/chunk_views",

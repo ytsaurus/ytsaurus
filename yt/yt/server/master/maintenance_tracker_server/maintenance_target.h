@@ -66,6 +66,7 @@ DEFINE_MAINTENANCE_FLAG_GETTER(IsDecommissioned, Decommission);
 DEFINE_MAINTENANCE_FLAG_GETTER(AreWriteSessionsDisabled, DisableWriteSessions);
 DEFINE_MAINTENANCE_FLAG_GETTER(AreSchedulerJobsDisabled, DisableSchedulerJobs);
 DEFINE_MAINTENANCE_FLAG_GETTER(AreTabletCellsDisabled, DisableTabletCells);
+DEFINE_MAINTENANCE_FLAG_GETTER(IsPendingRestart, PendingRestart);
 
 #undef DEFINE_MAINTENANCE_FLAG_GETTER
 

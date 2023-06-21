@@ -159,6 +159,7 @@ DEFINE_ENUM(EMasterReign,
     ((ColumnRenamingSeparateFlags)                                  (2403))  // orlovorlov
     ((MasterCellChunkStatisticsCollectorConfig)                     (2404))  // kvk1920
     ((QueueReplicatedTablesList)                                    (2405))  // cherepashka
+    ((PendingRestartMaintenanceFlag)                                (2406))  // danilalexeev
 );
 
 ////////////////////////////////////////////////////////////////////////////////

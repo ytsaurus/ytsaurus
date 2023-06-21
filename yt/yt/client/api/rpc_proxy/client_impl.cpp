@@ -1768,6 +1768,8 @@ NProto::EMaintenanceType ConvertMaintenanceTypeToProto(EMaintenanceType type)
             return NProto::EMaintenanceType::MT_DISABLE_WRITE_SESSIONS;
         case EMaintenanceType::DisableTabletCells:
             return NProto::EMaintenanceType::MT_DISABLE_TABLET_CELLS;
+        case EMaintenanceType::PendingRestart:
+            return NProto::EMaintenanceType::MT_PENDING_RESTART;
         default:
             THROW_ERROR_EXCEPTION("Invalid maintenance type %Qv", type);
     }
@@ -1840,6 +1842,7 @@ TFuture<TMaintenanceCounts> TClient::RemoveMaintenance(
             counts[EMaintenanceType::DisableSchedulerJobs] = rspValue->disable_scheduler_jobs();
             counts[EMaintenanceType::DisableWriteSessions] = rspValue->disable_write_sessions();
             counts[EMaintenanceType::DisableTabletCells] = rspValue->disable_tablet_cells();
+            counts[EMaintenanceType::PendingRestart] = rspValue->pending_restart();
         } else {
             for (auto type : TEnumTraits<EMaintenanceType>::GetDomainValues()) {
                 auto it = protoCounts.find(ConvertMaintenanceTypeToProto(type));

@@ -85,7 +85,8 @@ class TNode
         NMaintenanceTrackerServer::EMaintenanceType::Decommission,
         NMaintenanceTrackerServer::EMaintenanceType::DisableSchedulerJobs,
         NMaintenanceTrackerServer::EMaintenanceType::DisableWriteSessions,
-        NMaintenanceTrackerServer::EMaintenanceType::DisableTabletCells>
+        NMaintenanceTrackerServer::EMaintenanceType::DisableTabletCells,
+        NMaintenanceTrackerServer::EMaintenanceType::PendingRestart>
     , public TRefTracked<TNode>
 {
 public:
@@ -187,6 +188,7 @@ public:
 
     // Lease tracking.
     DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, LeaseTransaction);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, LastSeenLeaseTransactionTimeout);
 
     // Exec Node stuff.
     DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TExecNodeStatistics, ExecNodeStatistics);

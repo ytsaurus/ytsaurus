@@ -473,6 +473,7 @@ public:
         nodeTracker->SubscribeNodeDataCenterChanged(BIND_NO_PROPAGATE(&TChunkManager::OnNodeDataCenterChanged, MakeWeak(this)));
         nodeTracker->SubscribeNodeDecommissionChanged(BIND_NO_PROPAGATE(&TChunkManager::OnNodeDecommissionChanged, MakeWeak(this)));
         nodeTracker->SubscribeNodeDisableWriteSessionsChanged(BIND_NO_PROPAGATE(&TChunkManager::OnNodeDisableWriteSessionsChanged, MakeWeak(this)));
+        nodeTracker->SubscribeNodePendingRestartChanged(BIND_NO_PROPAGATE(&TChunkManager::OnNodePendingRestartChanged, MakeWeak(this)));
 
         nodeTracker->SubscribeDataCenterCreated(BIND_NO_PROPAGATE(&TChunkManager::OnDataCenterChanged, MakeWeak(this)));
         nodeTracker->SubscribeDataCenterRenamed(BIND_NO_PROPAGATE(&TChunkManager::OnDataCenterChanged, MakeWeak(this)));
@@ -2955,6 +2956,13 @@ private:
         OnMaybeNodeWriteTargetValidityChanged(
             node,
             EWriteTargetValidityChange::WriteSessionsDisabled);
+    }
+
+    void OnNodePendingRestartChanged(TNode* node)
+    {
+        if (node->ReportedDataNodeHeartbeat()) {
+            ScheduleNodeRefresh(node);
+        }
     }
 
     void DisposeNode(TNode* node) override

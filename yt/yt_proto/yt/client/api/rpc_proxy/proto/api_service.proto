@@ -252,6 +252,7 @@ enum EMaintenanceType
     MT_DISABLE_SCHEDULER_JOBS = 3;
     MT_DISABLE_WRITE_SESSIONS = 4;
     MT_DISABLE_TABLET_CELLS = 5;
+    MT_PENDING_RESTART = 6;
 }
 
 enum EMaintenanceComponent
@@ -999,6 +1000,8 @@ message TRspRemoveMaintenance
     // COMPAT(kvk1920)
     optional bool use_map_instead_of_fields = 6 [default = false];
     map<int32, int32> removed_maintenance_counts = 7; // Key: EMaintenanceType
+
+    optional int32 pending_restart = 8;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

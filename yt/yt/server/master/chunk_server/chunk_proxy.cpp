@@ -372,6 +372,7 @@ private:
                                 .Item("data_missing").Value(Any(status & EChunkStatus::DataMissing))
                                 .Item("parity_missing").Value(Any(status & EChunkStatus::ParityMissing))
                                 .Item("unsafely_placed").Value(Any(status & EChunkStatus::UnsafelyPlaced))
+                                .Item("temporarily_unavailable").Value(Any(status & EChunkStatus::TemporarilyUnavailable))
                             .EndMap();
                     });
 

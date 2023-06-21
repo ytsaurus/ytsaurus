@@ -358,6 +358,7 @@ private:
         response->set_disable_scheduler_jobs(removed[EMaintenanceType::DisableSchedulerJobs]);
         response->set_disable_write_sessions(removed[EMaintenanceType::DisableWriteSessions]);
         response->set_disable_tablet_cells(removed[EMaintenanceType::DisableTabletCells]);
+        response->set_pending_restart(removed[EMaintenanceType::PendingRestart]);
 
         response->set_use_map_instead_of_fields(true);
         for (auto type : TEnumTraits<EMaintenanceType>::GetDomainValues()) {

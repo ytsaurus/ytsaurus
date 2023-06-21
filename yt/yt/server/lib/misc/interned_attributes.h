@@ -242,6 +242,7 @@
     XX(IsBeingMerged, is_being_merged) \
     XX(Jobs, jobs) \
     XX(JobProxyVersion, job_proxy_build_version) \
+    XX(PendingRestart, pending_restart) \
     XX(KeepFinished, keep_finished) \
     XX(Key, key) \
     XX(KeyColumns, key_columns) \

@@ -4287,6 +4287,8 @@ private:
                 return EMaintenanceType::DisableTabletCells;
             case EProtoMaintenanceType::MT_DISABLE_SCHEDULER_JOBS:
                 return EMaintenanceType::DisableSchedulerJobs;
+            case EProtoMaintenanceType::MT_PENDING_RESTART:
+                return EMaintenanceType::PendingRestart;
             default:
                 THROW_ERROR_EXCEPTION("Invalid maintenance type: %Qv",
                     static_cast<int>(type));
@@ -4378,6 +4380,7 @@ private:
                 response.set_disable_scheduler_jobs(result[EMaintenanceType::DisableSchedulerJobs]);
                 response.set_disable_write_sessions(result[EMaintenanceType::DisableWriteSessions]);
                 response.set_disable_tablet_cells(result[EMaintenanceType::DisableTabletCells]);
+                response.set_pending_restart(result[EMaintenanceType::PendingRestart]);
 
                 response.set_use_map_instead_of_fields(true);
 
@@ -4388,6 +4391,7 @@ private:
                     MT_DISABLE_SCHEDULER_JOBS,
                     MT_DISABLE_WRITE_SESSIONS,
                     MT_DISABLE_TABLET_CELLS,
+                    MT_PENDING_RESTART
                 };
 
                 auto* map = response.mutable_removed_maintenance_counts();

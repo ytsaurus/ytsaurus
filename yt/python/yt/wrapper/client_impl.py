@@ -194,8 +194,8 @@ class YtClient(ClientState):
 
         :param component: component type. There are 4 component types: `cluster_node`, `http_proxy`, `rpc_proxy`, `host`.
         :param address: component address.
-        :param type: maintenance type. There are 5 maintenance types: ban, decommission, disable_scheduler_jobs,
-        disable_write_sessions, disable_tablet_cells.
+        :param type: maintenance type. There are 6 maintenance types: ban, decommission, disable_scheduler_jobs,
+        disable_write_sessions, disable_tablet_cells, pending_restart.
         :param comment: any string with length not larger than 512 characters.
         :return: unique (per component) maintenance id.
 
@@ -1720,8 +1720,8 @@ class YtClient(ClientState):
         :param id: single maintenance id. The same as `ids` but accepts single id instead of list.
         Cannot be used at the same time with `ids`.
         :param type: maintenance type. If set only maintenance requests with given type will be removed.
-        There are 5 maintenance types: ban, decommission, disable_scheduler_jobs, disable_write_sessions,
-        disable_tablet_cells.
+        There are 6 maintenance types: ban, decommission, disable_scheduler_jobs, disable_write_sessions,
+        disable_tablet_cell, pending_restart.
         :param user: only maintenance requests with this user will be removed.
         :param mine: only maintenance requests with authenticated user will be removed.
         Cannot be used with `user`.
@@ -2610,9 +2610,9 @@ class YtClient(ClientState):
         :param stream: stream or bytes generator.
         :param dict file_writer: spec of upload operation.
         :param bool is_stream_compressed: expect stream to contain compressed data.
-        This data can be passed directly to proxy without recompression. Be careful! This option
+        This data can be passed directly to proxy without recompression. Be careful! this option
         disables write retries.
-        :param bool force_create: if True - always create file with ignore_existing flag. Otherwise, file must be explicitly created before. Default: True.
+        :param bool force_create: unconditionally create file and ignores exsting file.
         :param bool compute_md5: compute md5 of file content.
 
         """

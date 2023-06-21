@@ -89,6 +89,9 @@ public:
     //! Fired when node "disable_tablet_cells" flag changes.
     DECLARE_INTERFACE_SIGNAL(void(TNode* node), NodeDisableTabletCellsChanged);
 
+    //! Fired when node "pending_restart" flag changes.
+    DECLARE_INTERFACE_SIGNAL(void(TNode* node), NodePendingRestartChanged);
+
     //! Fired when node tags change.
     DECLARE_INTERFACE_SIGNAL(void(TNode* node), NodeTagsChanged);
 

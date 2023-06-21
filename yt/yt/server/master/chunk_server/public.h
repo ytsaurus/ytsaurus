@@ -167,6 +167,7 @@ DEFINE_BIT_ENUM(EChunkStatus,
     ((ParityMissing)                   (0x0010))
     ((UnexpectedOverreplicated)        (0x0020))
     ((Safe)                            (0x0040))
+    ((TemporarilyUnavailable)          (0x0080))
     ((UnsafelyPlaced)                  (0x0100))
     ((DataDecommissioned)              (0x0200))
     ((ParityDecommissioned)            (0x0400))

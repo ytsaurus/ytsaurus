@@ -42,6 +42,7 @@ bool IsVersionedType(EObjectType type)
         type == EObjectType::UnsafelyPlacedChunkMap ||
         type == EObjectType::InconsistentlyPlacedChunkMap ||
         type == EObjectType::UnexpectedOverreplicatedChunkMap ||
+        type == EObjectType::ReplicaTemporarilyUnavailableChunkMap ||
         type == EObjectType::ForeignChunkMap ||
         type == EObjectType::LocalLostChunkMap ||
         type == EObjectType::LocalLostVitalChunkMap ||
@@ -56,6 +57,7 @@ bool IsVersionedType(EObjectType type)
         type == EObjectType::LocalUnsafelyPlacedChunkMap ||
         type == EObjectType::LocalInconsistentlyPlacedChunkMap ||
         type == EObjectType::LocalUnexpectedOverreplicatedChunkMap ||
+        type == EObjectType::LocalReplicaTemporarilyUnavailableChunkMap ||
         type == EObjectType::RackMap ||
         type == EObjectType::DataCenterMap ||
         type == EObjectType::HostMap ||

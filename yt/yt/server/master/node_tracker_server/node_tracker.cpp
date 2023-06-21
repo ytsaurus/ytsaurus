@@ -279,6 +279,7 @@ public:
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeDecommissionChanged);
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeDisableWriteSessionsChanged);
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeDisableTabletCellsChanged);
+    DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodePendingRestartChanged);
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeTagsChanged);
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node, TRack*), NodeRackChanged);
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node, TDataCenter*), NodeDataCenterChanged);
@@ -490,6 +491,9 @@ public:
             OnDisableWriteSessionsUpdated(node);
             break;
         case EMaintenanceType::DisableSchedulerJobs:
+            break;
+        case EMaintenanceType::PendingRestart:
+            OnNodePendingRestartUpdated(node);
             break;
         default:
             YT_LOG_ALERT("Invalid maintenance type (Type: %v)", type);
@@ -2366,6 +2370,61 @@ private:
                 node->GetDefaultAddress());
         }
         NodeDisableTabletCellsChanged_.Fire(node);
+    }
+
+    void OnNodePendingRestartUpdated(TNode* node)
+    {
+        auto setTransactionTimeoutOnPrimary = [&] (TTransaction* transaction, TDuration timeout) {
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            if (!multicellManager->IsPrimaryMaster()) {
+                return;
+            }
+
+            const auto& transactionManager = Bootstrap_->GetTransactionManager();
+            transactionManager->SetTransactionTimeout(transaction, timeout);
+
+            if (node->IsPendingRestart()) {
+                const auto& invoker = Bootstrap_->GetHydraFacade()->GetTransactionTrackerInvoker();
+                invoker->Invoke(BIND([=] {
+                    try {
+                        transactionManager->PingTransaction(
+                            transaction->GetId(),
+                            /* pingAncestors */ false);
+                    } catch (const std::exception& ex) {
+                        YT_LOG_WARNING(
+                            ex,
+                            "Failed to ping node lease transaction after "
+                            "extending its timeout for a pending restart");
+                    }
+                }));
+            }
+        };
+
+        if (auto transaction = node->GetLeaseTransaction()) {
+            if (auto timeout = transaction->GetTimeout()) {
+                YT_VERIFY(node->IsPendingRestart() ||
+                    node->GetLastSeenLeaseTransactionTimeout());
+
+                auto newTimeout = node->IsPendingRestart()
+                    ? GetDynamicConfig()->PendingRestartLeaseTimeout
+                    : *node->GetLastSeenLeaseTransactionTimeout();
+
+                node->SetLastSeenLeaseTransactionTimeout(timeout);
+
+                setTransactionTimeoutOnPrimary(transaction, newTimeout);
+            }
+        }
+
+        if (node->IsPendingRestart()) {
+            YT_LOG_INFO("Pending restart (NodeId: %v, Address: %v)",
+                node->GetId(),
+                node->GetDefaultAddress());
+        } else {
+            YT_LOG_INFO("No longer pending restart (NodeId: %v, Address: %v)",
+                node->GetId(),
+                node->GetDefaultAddress());
+        }
+        NodePendingRestartChanged_.Fire(node);
     }
 };
 

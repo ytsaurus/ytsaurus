@@ -77,6 +77,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TShardedChunkSet, UnderreplicatedChunks);
     DEFINE_BYREF_RO_PROPERTY(TShardedChunkSet, OverreplicatedChunks);
     DEFINE_BYREF_RO_PROPERTY(TShardedChunkSet, UnexpectedOverreplicatedChunks);
+    DEFINE_BYREF_RO_PROPERTY(TShardedChunkSet, TemporarilyUnavailableChunks);
     DEFINE_BYREF_RO_PROPERTY(TShardedChunkSet, QuorumMissingChunks);
     // Rack-wise unsafely placed chunks.
     DEFINE_BYREF_RO_PROPERTY(TShardedChunkSet, UnsafelyPlacedChunks);
@@ -136,6 +137,9 @@ private:
 
         //! Number of decommissioned replicas, per each replica index.
         std::array<int, ChunkReplicaIndexBound> DecommissionedReplicaCount{};
+
+        //! Number of replicas on pending restart nodes, per each replica index.
+        std::array<int, ChunkReplicaIndexBound> TemporarilyUnavailableReplicaCount{};
 
         //! Indexes of replicas whose replication is advised.
         TCompactVector<int, TypicalReplicaCount> ReplicationIndexes;
@@ -261,6 +265,7 @@ private:
         TReplicationPolicy replicationPolicy,
         int replicaCount,
         int decommissionedReplicaCount,
+        int temporarilyUnavailableReplicaCount,
         const TChunkLocationPtrWithReplicaIndexList& decommissionedReplicas,
         bool hasSealedReplica,
         bool totallySealed,
@@ -302,6 +307,10 @@ private:
         bool totallySealed);
 
     bool IsReplicaDecommissioned(TChunkLocation* replica);
+    bool IsReplicaOnPendingRestartNode(TChunkLocation* replica);
+
+    static constexpr double MaxSafeTemporarilyUnavailableReplicaFraction = 0.5;
+    static constexpr int MinSafeAvailableReplicaCount = 2;
 
     //! Same as corresponding #TChunk method but
     //!   - replication factors are capped by medium-specific bounds;

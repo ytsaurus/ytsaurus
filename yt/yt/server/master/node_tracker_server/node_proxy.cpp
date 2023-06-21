@@ -93,6 +93,9 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::DisableTabletCells)
             .SetWritable(true)
             .SetReplicated(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PendingRestart)
+            .SetWritable(true)
+            .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MaintenanceRequests)
             .SetWritable(false));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Rack)
@@ -192,6 +195,11 @@ private:
             case EInternedAttributeKey::DisableTabletCells:
                 BuildYsonFluently(consumer)
                     .Value(node->AreTabletCellsDisabled());
+                return true;
+
+            case EInternedAttributeKey::PendingRestart:
+                BuildYsonFluently(consumer)
+                    .Value(node->IsPendingRestart());
                 return true;
 
             case EInternedAttributeKey::MaintenanceRequests: {
@@ -675,6 +683,7 @@ private:
                 // COMPAT(kvk1920): In near future this attribute will not be writable.
                 SetMaintenanceFlag(key, ConvertTo<bool>(value));
                 return true;
+            case EInternedAttributeKey::PendingRestart: [[fallthrough]];
 
             case EInternedAttributeKey::Rack: {
                 auto rackName = ConvertTo<TString>(value);
@@ -799,6 +808,8 @@ private:
                     return EMaintenanceType::DisableTabletCells;
                 case EInternedAttributeKey::DisableWriteSessions:
                     return EMaintenanceType::DisableWriteSessions;
+                case EInternedAttributeKey::PendingRestart:
+                    return EMaintenanceType::PendingRestart;
                 default:
                     YT_ABORT();
             }

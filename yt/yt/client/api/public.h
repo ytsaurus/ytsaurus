@@ -191,6 +191,7 @@ DEFINE_ENUM(EMaintenanceType,
     ((DisableSchedulerJobs)     (3))
     ((DisableWriteSessions)     (4))
     ((DisableTabletCells)       (5))
+    ((PendingRestart)           (6))
 );
 
 DEFINE_ENUM(EMaintenanceComponent,

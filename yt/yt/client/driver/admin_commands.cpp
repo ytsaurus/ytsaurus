@@ -310,6 +310,8 @@ TStringBuf MaintenanceTypeToString(NApi::EMaintenanceType type)
             return "disable_write_sessions";
         case NApi::EMaintenanceType::DisableTabletCells:
             return "disable_tablet_cells";
+        case NApi::EMaintenanceType::PendingRestart:
+            return "pending_restart";
         default:
             YT_ABORT();
     }

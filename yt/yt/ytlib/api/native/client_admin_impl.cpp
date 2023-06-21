@@ -602,6 +602,7 @@ TMaintenanceCounts TClient::DoRemoveMaintenance(
         result[EMaintenanceType::DisableSchedulerJobs] = response->disable_scheduler_jobs();
         result[EMaintenanceType::DisableWriteSessions] = response->disable_write_sessions();
         result[EMaintenanceType::DisableTabletCells] = response->disable_tablet_cells();
+        result[EMaintenanceType::PendingRestart] = response->pending_restart();
     }
 
     return result;

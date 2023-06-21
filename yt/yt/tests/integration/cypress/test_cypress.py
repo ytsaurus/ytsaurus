@@ -1612,6 +1612,7 @@ class TestCypress(YTEnvSetup):
         assert get("//sys/underreplicated_chunks/@count") == 0
         assert get("//sys/overreplicated_chunks/@count") == 0
         assert get("//sys/unexpected_overreplicated_chunks/@count") == 0
+        assert get("//sys/replica_temporarily_unavailable_chunks/@count") == 0
 
     @authors("ignat")
     def test_list_attributes(self):

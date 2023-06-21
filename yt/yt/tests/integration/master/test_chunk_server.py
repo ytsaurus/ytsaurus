@@ -390,13 +390,149 @@ class TestChunkServer(YTEnvSetup):
         write_table("//tmp/t", {"a": "b"}, table_writer={"upload_replication_factor": 8})
 
         chunk_id = get_singular_chunk_id("//tmp/t")
-        wait(lambda: len(get("#%s/@stored_replicas" % chunk_id)) == 8)
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 8)
 
         set("//tmp/t/@replication_factor", 3)
         wait(lambda: chunk_id in get("//sys/unexpected_overreplicated_chunks"))
 
         gc_collect()
         wait(lambda: chunk_id not in get("//sys/unexpected_overreplicated_chunks"))
+
+    @authors("danilalexeev")
+    def test_pending_restart_request(self):
+        create("table", "//tmp/t", attributes={"replication_factor": 3})
+        write_table("//tmp/t", {"a": "b"}, table_writer={"upload_replication_factor": 3})
+
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 3)
+
+        node = get(f"#{chunk_id}/@stored_replicas")[0]
+        maintenance_id = add_maintenance("cluster_node", node, "pending_restart", "")
+
+        assert get(f"//sys/cluster_nodes/{node}/@pending_restart")
+        wait(lambda: chunk_id in get("//sys/replica_temporarily_unavailable_chunks"))
+
+        assert remove_maintenance("cluster_node", node, id=maintenance_id) == {
+            "pending_restart": 1
+        }
+
+        assert not get(f"//sys/cluster_nodes/{node}/@pending_restart")
+        wait(lambda: chunk_id not in get("//sys/unexpected_overreplicated_chunks"))
+
+    @authors("danilalexeev")
+    def test_pending_restart_no_replication(self):
+        create("table", "//tmp/t", attributes={"replication_factor": 3})
+        write_table("//tmp/t", {"a": "b"}, table_writer={"upload_replication_factor": 3})
+
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 3)
+
+        nodes = get(f"#{chunk_id}/@stored_replicas")
+        assert len(nodes) == 3
+
+        add_maintenance("cluster_node", nodes[0], "pending_restart", "")
+
+        wait(
+            lambda: get(f"//sys/cluster_nodes/{nodes[0]}/@pending_restart")
+            and self._nodes_have_chunk(nodes, chunk_id)
+            and len(get(f"#{chunk_id}/@stored_replicas")) == 3
+        )
+
+    @authors("danilalexeev")
+    def test_safe_available_replica_count(self):
+        create("table", "//tmp/t", attributes={"replication_factor": 3})
+        write_table("//tmp/t", {"a": "b"}, table_writer={"upload_replication_factor": 3})
+
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 3)
+
+        restart_nodes = get(f"#{chunk_id}/@stored_replicas")[:2]
+
+        for node in restart_nodes:
+            add_maintenance("cluster_node", node, "pending_restart", "")
+            assert get(f"//sys/cluster_nodes/{node}/@pending_restart")
+
+        # Unmaintained replica count is now 1, wait for replication
+        wait(
+            lambda: self._nodes_have_chunk(restart_nodes, chunk_id)
+            and len(get(f"#{chunk_id}/@stored_replicas")) == 4
+        )
+
+    @authors("danilalexeev")
+    def test_decommissioned_and_temporarily_unavailable_replicas(self):
+        create("table", "//tmp/t", attributes={"replication_factor": 3})
+        write_table("//tmp/t", {"a": "b"}, table_writer={"upload_replication_factor": 3})
+
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 3)
+
+        nodes = get(f"#{chunk_id}/@stored_replicas")
+
+        add_maintenance("cluster_node", nodes[0], "decommission", "")
+        add_maintenance("cluster_node", nodes[1], "pending_restart", "")
+
+        wait(
+            lambda: not self._nodes_have_chunk(nodes[:1], chunk_id)
+            and self._nodes_have_chunk(nodes[1:], chunk_id)
+            and len(get(f"#{chunk_id}/@stored_replicas")) == 3
+        )
+
+    @authors("danilalexeev")
+    def test_temporarily_unavailable_erasure_replicas(self):
+        create("table", "//tmp/t", attributes={"erasure_codec": "lrc_12_2_2"})
+        write_table("//tmp/t", {"a": "b"})
+
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 16)
+
+        nodes = get(f"#{chunk_id}/@stored_replicas")
+
+        for node in nodes[:2]:
+            add_maintenance("cluster_node", node, "pending_restart", "")
+        sleep(0.5)
+
+        assert len(get(f"#{chunk_id}/@stored_replicas")) == 16
+
+        add_maintenance("cluster_node", nodes[3], "pending_restart", "")
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 19)
+
+
+##################################################################
+
+
+class TestNodeLeaseTransactionTimeout(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 4
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "lease_transaction_timeout": 2000,
+            "lease_transaction_ping_period": 1000,
+        },
+    }
+
+    @authors("danilalexeev")
+    def test_pending_restart_lease_expired(self):
+        set("//sys/@config/node_tracker/pending_restart_lease_timeout", 6000)
+
+        create("table", "//tmp/t", attributes={"replication_factor": 3})
+        write_table("//tmp/t", {"a": "b"}, table_writer={"upload_replication_factor": 3})
+
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        wait(lambda: len(get("#%s/@stored_replicas" % chunk_id)) == 3)
+
+        node = get("#%s/@stored_replicas" % chunk_id)[0]
+        node_index = get("//sys/cluster_nodes/{}/@annotations/yt_env_index".format(node))
+
+        add_maintenance("cluster_node", node, "pending_restart", "")
+
+        self.Env.kill_service("node", indexes=[node_index])
+
+        sleep(4.0)
+        assert get("//sys/cluster_nodes/{}/@state".format(node)) == "online"
+
+        sleep(4.0)
+        assert get("//sys/cluster_nodes/{}/@state".format(node)) == "offline"
 
 
 ##################################################################

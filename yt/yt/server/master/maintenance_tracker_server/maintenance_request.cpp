@@ -16,6 +16,7 @@ constexpr TEnumIndexedVector<EMaintenanceType, TMaintenanceId> BuiltinMaintenanc
     /*DisableSchedulerJobs*/ TMaintenanceId(0, 0, 0, 3),
     /*DisableWriteSessions*/ TMaintenanceId(0, 0, 0, 4),
     /*DisableTabletCells*/ TMaintenanceId(0, 0, 0, 5),
+    /*PendingRestart*/ TMaintenanceId(0, 0, 0, 6),
 };
 
 TMaintenanceId GetBuiltinMaintenanceId(EMaintenanceType type)

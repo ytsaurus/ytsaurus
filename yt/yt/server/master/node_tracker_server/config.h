@@ -131,6 +131,8 @@ public:
 
     TDuration NodeDisposalTickPeriod;
 
+    TDuration PendingRestartLeaseTimeout;
+
     REGISTER_YSON_STRUCT(TDynamicNodeTrackerConfig);
 
     static void Register(TRegistrar registrar);
