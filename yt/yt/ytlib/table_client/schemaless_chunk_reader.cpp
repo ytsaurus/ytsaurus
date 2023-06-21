@@ -679,13 +679,8 @@ void THorizontalSchemalessRangeChunkReader::InitFirstBlock()
     BlockReader_.reset(new THorizontalBlockReader(
         CurrentBlock_.Get().ValueOrThrow().Data,
         blockMeta,
-<<<<<<< releases/yt/stable/23.1: Performance counters refactoring cosmetics
-        GetCompositeColumnFlags(ChunkMeta_->GetChunkSchema()),
-        GetHunkColumnFlags(ChunkMeta_->GetChunkFormat(), ChunkMeta_->GetChunkFeatures(), ChunkMeta_->GetChunkSchema()),
-=======
         GetCompositeColumnFlags(ChunkMeta_->ChunkSchema()),
-        GetHunkColumnFlags(ChunkMeta_->ChunkSchema()),
->>>>>>> cherry-pick: YT-18325: Get rid of WaitFor in lookups when reading meta and make some refactoring
+        GetHunkColumnFlags(ChunkMeta_->GetChunkFormat(), ChunkMeta_->GetChunkFeatures(), ChunkMeta_->ChunkSchema()),
         ChunkMeta_->HunkChunkMetasExt(),
         ChunkMeta_->HunkChunkRefsExt(),
         ChunkToReaderIdMapping_,
@@ -1100,13 +1095,8 @@ void THorizontalSchemalessLookupChunkReaderBase::InitFirstBlock()
     BlockReader_.reset(new THorizontalBlockReader(
         CurrentBlock_.Get().ValueOrThrow().Data,
         blockMeta,
-<<<<<<< releases/yt/stable/23.1: Performance counters refactoring cosmetics
-        GetCompositeColumnFlags(ChunkMeta_->GetChunkSchema()),
-        GetHunkColumnFlags(ChunkMeta_->GetChunkFormat(), ChunkMeta_->GetChunkFeatures(), ChunkMeta_->GetChunkSchema()),
-=======
         GetCompositeColumnFlags(ChunkMeta_->ChunkSchema()),
-        GetHunkColumnFlags(ChunkMeta_->ChunkSchema()),
->>>>>>> cherry-pick: YT-18325: Get rid of WaitFor in lookups when reading meta and make some refactoring
+        GetHunkColumnFlags(ChunkMeta_->GetChunkFormat(), ChunkMeta_->GetChunkFeatures(), ChunkMeta_->ChunkSchema()),
         ChunkMeta_->HunkChunkMetasExt(),
         ChunkMeta_->HunkChunkRefsExt(),
         ChunkToReaderIdMapping_,
