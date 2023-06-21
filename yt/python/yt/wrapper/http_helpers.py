@@ -55,6 +55,8 @@ RECEIVE_TOKEN_FROM_SSH_SESSION = \
 
 TVM_ONLY_HTTP_PROXY_PORT = 9026
 
+_FAILED_TO_RECEIVE_TOKEN_WARNED = False
+
 
 def format_logging_params(params):
     return ", ".join(["{}: {}".format(key, value) for key, value in iteritems(params)])
@@ -601,7 +603,10 @@ def _get_token_by_ssh_session(client):
     except Exception:
         token = None
     if not token:
-        logger.warning("Failed to receive token using current ssh session")
+        global _FAILED_TO_RECEIVE_TOKEN_WARNED
+        if not _FAILED_TO_RECEIVE_TOKEN_WARNED:
+            logger.warning("Failed to receive token using current ssh session")
+            _FAILED_TO_RECEIVE_TOKEN_WARNED = True
         token = None
 
     return token
