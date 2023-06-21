@@ -94,4 +94,15 @@ message TReqRemoveReplicationCard
     required NYT.NProto.TGuid replication_card_id = 1;
 }
 
+message TReqRemoveMigratedReplicationCards
+{
+    message TMigratedCard
+    {
+        required NYT.NProto.TGuid replication_card_id = 1;
+        required uint64 migration_timestamp = 2;
+    }
+
+    repeated TMigratedCard migrated_cards = 1;
+}
+
 ////////////////////////////////////////////////////////////////////////////////

@@ -35,6 +35,16 @@ void TMigratedReplicationCardRemoverConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TForeignMigratedReplicationCardRemoverConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("remove_period", &TThis::RemovePeriod)
+        .Default(TDuration::Minutes(15));
+    registrar.Parameter("replication_card_keep_alive_period", &TThis::ReplicationCardKeepAlivePeriod)
+        .Default(TDuration::Days(30));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TChaosManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("chaos_cell_synchronizer", &TThis::ChaosCellSynchronizer)
@@ -44,6 +54,8 @@ void TChaosManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("era_commencing_period", &TThis::EraCommencingPeriod)
         .Default(TDuration::Seconds(15));
     registrar.Parameter("migrated_replication_card_remover", &TThis::MigratedReplicationCardRemover)
+        .DefaultNew();
+    registrar.Parameter("foreign_migrated_replication_card_remover", &TThis::ForeignMigratedReplicationCardRemover)
         .DefaultNew();
 }
 ////////////////////////////////////////////////////////////////////////////////

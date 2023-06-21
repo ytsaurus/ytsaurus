@@ -32,6 +32,7 @@ DECLARE_REFCOUNTED_STRUCT(IChaosCellSynchronizer)
 DECLARE_REFCOUNTED_STRUCT(IShortcutSnapshotStore)
 DECLARE_REFCOUNTED_STRUCT(IReplicationCardObserver)
 DECLARE_REFCOUNTED_STRUCT(IMigratedReplicationCardRemover)
+DECLARE_REFCOUNTED_STRUCT(IForeignMigratedReplicationCardRemover)
 
 enum class EChaosSnapshotVersion;
 class TSaveContext;
@@ -43,7 +44,7 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (Mutation)
     (EraCommencer)
     (ReplicatedTableTracker)
-    (MigratedReplicationCardRemover)
+    (MigratedReplicationCardRemovers)
 );
 
 using TReplicationCardId = NChaosClient::TReplicationCardId;

@@ -236,6 +236,7 @@ class YTEnvSetup(object):
     DELTA_MASTER_CONFIG = {}
     DELTA_DYNAMIC_MASTER_CONFIG = {}
     DELTA_NODE_CONFIG = {}
+    DELTA_CHAOS_NODE_CONFIG = {}
     DELTA_SCHEDULER_CONFIG = {}
     DELTA_CONTROLLER_AGENT_CONFIG = {}
     _DEFAULT_DELTA_CONTROLLER_AGENT_CONFIG = {
@@ -715,6 +716,7 @@ class YTEnvSetup(object):
             cls.modify_node_config(configs["node"][index])
 
         for index, config in enumerate(configs["chaos_node"]):
+            config = update_inplace(config, cls.get_param("DELTA_CHAOS_NODE_CONFIG", cluster_index))
             configs["chaos_node"][index] = cls.update_timestamp_provider_config(cluster_index, config)
 
         for index, config in enumerate(configs["http_proxy"]):
