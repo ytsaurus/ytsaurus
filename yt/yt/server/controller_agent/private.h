@@ -39,6 +39,18 @@ DECLARE_REFCOUNTED_CLASS(TJobTracker)
 DECLARE_REFCOUNTED_CLASS(TJobTrackerOperationHandler)
 DECLARE_REFCOUNTED_CLASS(TJobTrackerConfig)
 
+struct TSettleJobRequest
+{
+    TOperationId OperationId;
+    TAllocationId AllocationId;
+};
+
+struct TJobStartInfo
+{
+    TJobId JobId;
+    TSharedRef JobSpecBlob;
+};
+
 struct TStartedJobInfo
 {
     TJobId JobId;

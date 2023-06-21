@@ -943,35 +943,39 @@ public:
             .Run();
     }
 
-    TFuture<std::vector<TErrorOr<TSharedRef>>> ExtractJobSpecs(const std::vector<TJobSpecRequest>& requests)
+    TFuture<std::vector<TErrorOr<TJobStartInfo>>> SettleJobs(const std::vector<TSettleJobRequest>& requests)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(Connected_);
 
-        std::vector<TFuture<TSharedRef>> asyncJobSpecs;
+        std::vector<TFuture<TJobStartInfo>> asyncJobInfos;
+        asyncJobInfos.reserve(std::size(requests));
         for (const auto& request : requests) {
-            YT_LOG_DEBUG("Extracting job spec (OperationId: %v, JobId: %v)",
+            YT_LOG_DEBUG(
+                "Settling job (OperationId: %v, AllocationId: %v)",
                 request.OperationId,
-                request.JobId);
+                request.AllocationId);
 
             auto operation = FindOperation(request.OperationId);
             if (!operation) {
-                asyncJobSpecs.push_back(MakeFuture<TSharedRef>(TError("No such operation %v",
+                asyncJobInfos.push_back(MakeFuture<TJobStartInfo>(TError(
+                    "No such operation %v",
                     request.OperationId)));
                 continue;
             }
 
             auto controller = operation->GetController();
-            auto asyncJobSpec = BIND(&IOperationController::ExtractJobSpec,
+            auto asyncJobInfo = BIND(
+                &IOperationController::SettleJob,
                 controller,
-                request.JobId)
+                request.AllocationId)
                 .AsyncVia(controller->GetCancelableInvoker(EOperationControllerQueue::GetJobSpec))
                 .Run();
 
-            asyncJobSpecs.push_back(asyncJobSpec);
+            asyncJobInfos.push_back(asyncJobInfo);
         }
 
-        return AllSet(asyncJobSpecs);
+        return AllSet(asyncJobInfos);
     }
 
     TFuture<TOperationInfo> BuildOperationInfo(TOperationId operationId)
@@ -2380,10 +2384,10 @@ TFuture<void> TControllerAgent::TerminateOperation(const TOperationPtr& operatio
     return Impl_->TerminateOperation(operation, controllerFinalState);
 }
 
-TFuture<std::vector<TErrorOr<TSharedRef>>> TControllerAgent::ExtractJobSpecs(
-    const std::vector<TJobSpecRequest>& requests)
+TFuture<std::vector<TErrorOr<TJobStartInfo>>> TControllerAgent::SettleJobs(
+    const std::vector<TSettleJobRequest>& requests)
 {
-    return Impl_->ExtractJobSpecs(requests);
+    return Impl_->SettleJobs(requests);
 }
 
 TFuture<TOperationInfo> TControllerAgent::BuildOperationInfo(TOperationId operationId)

@@ -26,14 +26,6 @@ namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////
 
-struct TJobSpecRequest
-{
-    TOperationId OperationId;
-    TJobId JobId;
-};
-
-////////////////////////////////////////////////////////////////////
-
 /*!
  *  \note Thread affinity: Control unless noted otherwise
  */
@@ -162,8 +154,8 @@ public:
     TFuture<void> CompleteOperation(const TOperationPtr& operation);
     TFuture<void> TerminateOperation(const TOperationPtr& operation, EControllerState controllerFinalState);
 
-    //! Extracts specs for given jobs; nulls indicate failures (e.g. missing jobs).
-    TFuture<std::vector<TErrorOr<TSharedRef>>> ExtractJobSpecs(const std::vector<TJobSpecRequest>& requests);
+    //! Extracts job ids and specs for given allocations; nulls indicate failures.
+    TFuture<std::vector<TErrorOr<TJobStartInfo>>> SettleJobs(const std::vector<TSettleJobRequest>& requests);
 
     TFuture<TOperationInfo> BuildOperationInfo(TOperationId operationId);
     TFuture<NYson::TYsonString> BuildJobInfo(TOperationId operationId, TJobId jobId);

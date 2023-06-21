@@ -8691,9 +8691,12 @@ TSharedRef TOperationControllerBase::SafeBuildJobSpecProto(const TJobletPtr& job
     return joblet->Task->BuildJobSpecProto(joblet, scheduleJobSpec);
 }
 
-TSharedRef TOperationControllerBase::ExtractJobSpec(TJobId jobId)
+TJobStartInfo TOperationControllerBase::SettleJob(TAllocationId allocationId)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::GetJobSpec));
+
+    // Job id is currently equal to allocation id.
+    TJobId jobId = allocationId;
 
     if (auto getJobSpecDelay = Spec_->TestingOperationOptions->GetJobSpecDelay) {
         Sleep(*getJobSpecDelay);
@@ -8705,34 +8708,37 @@ TSharedRef TOperationControllerBase::ExtractJobSpec(TJobId jobId)
 
     auto joblet = GetJobletOrThrow(jobId);
     if (!joblet->JobSpecProtoFuture) {
-        THROW_ERROR_EXCEPTION("Spec of job %v is missing", jobId);
+        THROW_ERROR_EXCEPTION("Job for allocation %v is missing", allocationId);
     }
 
-    auto result = WaitFor(joblet->JobSpecProtoFuture)
+    auto specBlob = WaitFor(joblet->JobSpecProtoFuture)
         .ValueOrThrow();
     joblet->JobSpecProtoFuture.Reset();
 
     auto operationState = State.load();
     if (operationState != EControllerState::Running) {
         YT_LOG_DEBUG(
-            "Stale job spec request, operation is already not running; send error instead of spec "
-            "(JobId: %v, OperationState: %v)",
-            jobId,
+            "Stale settle job request, operation is already not running; send error instead of spec "
+            "(AllocationId: %v, OperationState: %v)",
+            allocationId,
             operationState);
         THROW_ERROR_EXCEPTION("Operation is not running");
     }
 
     if (!FindJoblet(jobId)) {
         YT_LOG_DEBUG(
-            "Stale job spec request, job is already finished; send error instead of spec "
-            "(JobId: %v)",
-            jobId);
+            "Stale settle job request, job is already finished; send error instead of spec "
+            "(AllocationId: %v)",
+            allocationId);
         THROW_ERROR_EXCEPTION("Job is already finished");
     }
 
     OnJobStarted(joblet);
 
-    return result;
+    return TJobStartInfo{
+        .JobId = jobId,
+        .JobSpecBlob = std::move(specBlob),
+    };
 }
 
 TYsonString TOperationControllerBase::GetSuspiciousJobsYson() const

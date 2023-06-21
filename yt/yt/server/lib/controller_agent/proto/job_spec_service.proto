@@ -9,8 +9,8 @@ message TReqGetJobSpecs
 {
     message TJobSpecRequest
     {
-        required NYT.NProto.TGuid job_id = 1;
-        optional NYT.NProto.TGuid operation_id = 2;
+        required NYT.NProto.TGuid allocation_id = 1;
+        required NYT.NProto.TGuid operation_id = 2;
     }
 
     repeated TJobSpecRequest requests = 1;

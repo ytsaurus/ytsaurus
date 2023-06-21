@@ -57,54 +57,56 @@ private:
         auto controllerAgent = Bootstrap_->GetControllerAgent();
         controllerAgent->ValidateConnected();
 
-        std::vector<TJobSpecRequest> jobSpecRequests;
-        jobSpecRequests.reserve(request->requests_size());
+        std::vector<TSettleJobRequest> settleJobRequests;
+        settleJobRequests.reserve(request->requests_size());
         for (const auto& jobSpecRequest : request->requests()) {
-            jobSpecRequests.emplace_back(TJobSpecRequest{
-                FromProto<TOperationId>(jobSpecRequest.operation_id()),
-                FromProto<TJobId>(jobSpecRequest.job_id())
+            settleJobRequests.emplace_back(TSettleJobRequest{
+                .OperationId = FromProto<TOperationId>(jobSpecRequest.operation_id()),
+                .AllocationId = FromProto<TAllocationId>(jobSpecRequest.allocation_id())
             });
         }
 
-        context->SetRequestInfo("JobSpecRequests: %v",
-            MakeFormattableView(jobSpecRequests, [] (TStringBuilderBase* builder, const TJobSpecRequest& req) {
-                FormatValue(builder, req.JobId, TStringBuf());
+        context->SetRequestInfo("SettleJobRequests: %v",
+            MakeFormattableView(settleJobRequests, [] (TStringBuilderBase* builder, const TSettleJobRequest& req) {
+                FormatValue(builder, req.AllocationId, TStringBuf());
             }));
 
-        auto future = controllerAgent->ExtractJobSpecs(jobSpecRequests);
+        auto future = controllerAgent->SettleJobs(settleJobRequests);
 
         future.Subscribe(BIND(
             [
                 =,
                 this,
                 this_ = MakeStrong(this),
-                jobSpecRequests = std::move(jobSpecRequests)
-            ] (const TErrorOr<std::vector<TErrorOr<TSharedRef>>>& resultsOrError)
+                settleJobRequests = std::move(settleJobRequests)
+            ] (const TErrorOr<std::vector<TErrorOr<TJobStartInfo>>>& resultsOrError)
             {
                 const auto& results = resultsOrError.ValueOrThrow();
-                std::vector<TSharedRef> jobSpecs;
-                jobSpecs.reserve(jobSpecRequests.size());
-                for (size_t index = 0; index < jobSpecRequests.size(); ++index) {
-                    const auto& subrequest = jobSpecRequests[index];
+                std::vector<TSharedRef> jobSpecBlobs;
+                jobSpecBlobs.reserve(settleJobRequests.size());
+                for (int index = 0; index < std::ssize(settleJobRequests); ++index) {
+                    const auto& subrequest = settleJobRequests[index];
                     const auto& subresponse = results[index];
                     auto* protoSubresponse = response->add_responses();
-                    ToProto(protoSubresponse->mutable_job_id(), jobSpecRequests[index].JobId);
-                    if (subresponse.IsOK() && subresponse.Value()) {
-                        jobSpecs.push_back(std::move(subresponse.Value()));
+                    if (subresponse.IsOK() && subresponse.Value().JobSpecBlob) {
+                        jobSpecBlobs.push_back(std::move(subresponse.Value().JobSpecBlob));
+                        ToProto(protoSubresponse->mutable_job_id(), subresponse.Value().JobId);
                     } else {
-                        jobSpecs.emplace_back();
+                        jobSpecBlobs.emplace_back();
                         auto error = !subresponse.IsOK()
                             ? static_cast<TError>(subresponse)
                             : TError("Controller returned empty job spec (has controller crashed?)");
-                        YT_LOG_DEBUG(error, "Failed to extract job spec (OperationId: %v, JobId: %v)",
+                        YT_LOG_DEBUG(
+                            error,
+                            "Failed to extract job spec (OperationId: %v, AllocationId: %v)",
                             subrequest.OperationId,
-                            subrequest.JobId);
+                            subrequest.AllocationId);
 
                         ToProto(protoSubresponse->mutable_error(), error);
                     }
                 }
 
-                response->Attachments() = std::move(jobSpecs);
+                response->Attachments() = std::move(jobSpecBlobs);
                 context->Reply();
             }).Via(GetCurrentInvoker()));
     }

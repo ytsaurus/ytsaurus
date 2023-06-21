@@ -568,12 +568,12 @@ struct IOperationController
      */
     virtual NScheduler::TOperationJobMetrics PullJobMetricsDelta(bool force = false) = 0;
 
-    //! Extracts the job spec proto blob, which is being built at background.
+    //! Extracts the job id and spec proto blob, which is being built at background.
     //! After this call, the reference to this blob is released.
     /*!
      *  \note Invoker affinity: cancelable Controller invoker with EOperationControllerQueue::GetJobSpec index.
      */
-    virtual TSharedRef ExtractJobSpec(TJobId jobId) = 0;
+    virtual TJobStartInfo SettleJob(TAllocationId allocationId) = 0;
 
     //! Called during node heartbeat processing to process job info.
     /*!

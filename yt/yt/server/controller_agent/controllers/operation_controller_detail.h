@@ -298,7 +298,7 @@ public:
     NYson::TYsonString GetProgress() const override;
     NYson::TYsonString GetBriefProgress() const override;
 
-    TSharedRef ExtractJobSpec(TJobId jobId) override;
+    TJobStartInfo SettleJob(TAllocationId allocationId) override;
 
     NYson::TYsonString GetSuspiciousJobsYson() const override;
 

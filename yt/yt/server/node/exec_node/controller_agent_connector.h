@@ -39,10 +39,16 @@ public:
 
         void AddUnconfirmedJobIds(std::vector<TJobId> unconfirmedJobIds);
 
-        struct TJobStartInfo
+        struct TAllocationInfo
         {
             TAllocationId AllocationId;
             TOperationId OperationId;
+        };
+
+        struct TJobStartInfo
+        {
+            TJobId JobId;
+            NControllerAgent::NProto::TJobSpec JobSpec;
         };
 
         ~TControllerAgentConnector();
@@ -106,8 +112,8 @@ public:
             const TRspHeartbeatPtr& response,
             const TAgentHeartbeatContextPtr& context);
 
-        TFuture<std::vector<TErrorOr<NControllerAgent::NProto::TJobSpec>>>
-        RequestJobSpecs(const std::vector<TJobStartInfo>& jobStartInfos);
+        TFuture<std::vector<TErrorOr<TJobStartInfo>>>
+        SettleJobs(const std::vector<TAllocationInfo>& allocationInfos);
 
         void OnJobRegistered(const TJobPtr& job);
 
@@ -130,10 +136,10 @@ public:
 
     void OnRegisteredAgentSetReceived(THashSet<TControllerAgentDescriptor> controllerAgentDescriptors);
 
-    TFuture<std::vector<TErrorOr<NControllerAgent::NProto::TJobSpec>>>
-    RequestJobSpecs(
+    TFuture<std::vector<TErrorOr<TControllerAgentConnector::TJobStartInfo>>>
+    SettleJobs(
         const TControllerAgentDescriptor& agentDescriptor,
-        const std::vector<TControllerAgentConnector::TJobStartInfo>& jobStartInfos);
+        const std::vector<TControllerAgentConnector::TAllocationInfo>& allocationInfos);
 
     THashMap<TAllocationId, TOperationId> GetAllocationIdsWaitingForSpec() const;
 
@@ -146,7 +152,7 @@ private:
     IBootstrap* const Bootstrap_;
 
     TDuration TestHeartbeatDelay_{};
-    TDuration GetJobSpecTimeout_;
+    TDuration SettleJobsTimeout_;
 
     // COMPAT(pogorelov)
     bool SendWaitingJobs_ = false;

@@ -411,9 +411,9 @@ public:
         return Underlying_->BuildJobYson(jobId, outputStatistics);
     }
 
-    TSharedRef ExtractJobSpec(TJobId jobId) override
+    TJobStartInfo SettleJob(TAllocationId allocationId) override
     {
-        return Underlying_->ExtractJobSpec(jobId);
+        return Underlying_->SettleJob(allocationId);
     }
 
     TOperationJobMetrics PullJobMetricsDelta(bool force) override
