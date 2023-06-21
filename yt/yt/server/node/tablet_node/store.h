@@ -155,7 +155,7 @@ struct IChunkStore
     virtual TInstant GetCreationTime() const = 0;
 
     virtual void SetBackingStore(IDynamicStorePtr store) = 0;
-    virtual IDynamicStorePtr GetBackingStore() = 0;
+    virtual IDynamicStorePtr GetBackingStore() const = 0;
 
     virtual EStorePreloadState GetPreloadState() const = 0;
     virtual void SetPreloadState(EStorePreloadState state) = 0;
@@ -260,7 +260,7 @@ struct ISortedStore
     */
     virtual NTableClient::IVersionedReaderPtr CreateReader(
         const TTabletSnapshotPtr& tabletSnapshot,
-        const TSharedRange<TLegacyKey>& keys,
+        TSharedRange<TLegacyKey> keys,
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,

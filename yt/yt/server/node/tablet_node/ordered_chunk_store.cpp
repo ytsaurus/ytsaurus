@@ -248,9 +248,14 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
 
     auto backendReaders = GetBackendReaders(workloadCategory);
 
-    auto chunkMeta = GetCachedVersionedChunkMeta(
-        backendReaders.ChunkReader,
-        chunkReadOptions);
+    auto chunkMeta = FindCachedVersionedChunkMeta(/*prepareColumnarMeta*/ false);
+    if (!chunkMeta) {
+        chunkMeta = WaitForFast(GetCachedVersionedChunkMeta(
+            backendReaders.ChunkReader,
+            chunkReadOptions,
+            /*prepareColumnarMeta*/ false))
+            .ValueOrThrow();
+    }
 
     auto chunkState = New<TChunkState>(GetBlockCache());
     chunkState->TableSchema = readSchema;
@@ -288,9 +293,10 @@ void TOrderedChunkStore::Load(TLoadContext& context)
     TChunkStoreBase::Load(context);
 }
 
-TKeyComparer TOrderedChunkStore::GetKeyComparer() const
+const TKeyComparer& TOrderedChunkStore::GetKeyComparer() const
 {
-    return TKeyComparer();
+    static const TKeyComparer KeyComparer;
+    return KeyComparer;
 }
 
 ISchemafulUnversionedReaderPtr TOrderedChunkStore::TryCreateCacheBasedReader(

@@ -59,7 +59,7 @@ public:
 
     NTableClient::IVersionedReaderPtr CreateReader(
         const TTabletSnapshotPtr& tabletSnapshot,
-        const TSharedRange<TLegacyKey>& keys,
+        TSharedRange<TLegacyKey> keys,
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
@@ -75,6 +75,9 @@ public:
     void Load(TLoadContext& context) override;
 
 private:
+    class TSortedChunkStoreVersionedReader;
+    friend class TSortedChunkStoreVersionedReader;
+
     // Cached for fast retrieval from ChunkMeta_.
     TLegacyOwningKey MinKey_;
     TLegacyOwningKey UpperBoundKey_;
@@ -89,28 +92,30 @@ private:
     TTimestamp MaxClipTimestamp_ = NullTimestamp;
 
     TSharedRange<TLegacyKey> FilterKeysByReadRange(
-        const TSharedRange<TLegacyKey>& keys,
+        TSharedRange<TLegacyKey> keys,
         int* skippedBefore,
         int* skippedAfter) const;
 
     TSharedRange<NTableClient::TRowRange> FilterRowRangesByReadRange(
         const TSharedRange<NTableClient::TRowRange>& ranges) const;
 
-    NTableClient::IVersionedReaderPtr TryCreateCacheBasedReader(
-        const TSharedRange<TLegacyKey>& keys,
+    NTableClient::IVersionedReaderPtr CreateCacheBasedReader(
+        const NTableClient::TChunkStatePtr& chunkState,
+        TSharedRange<TLegacyKey> keys,
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-        bool enableNewScanReader);
-    NTableClient::IVersionedReaderPtr TryCreateCacheBasedReader(
+        bool enableNewScanReader) const;
+    NTableClient::IVersionedReaderPtr CreateCacheBasedReader(
+        const NTableClient::TChunkStatePtr& chunkState,
         TSharedRange<NTableClient::TRowRange> bounds,
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         const TSharedRange<NTableClient::TRowRange>& singletonClippingRange,
-        bool enableNewScanReader);
+        bool enableNewScanReader) const;
 
     NTableClient::IVersionedReaderPtr MaybeWrapWithTimestampResettingAdapter(
         NTableClient::IVersionedReaderPtr underlyingReader) const;
@@ -120,18 +125,16 @@ private:
         const NTableClient::TTableSchemaPtr& chunkSchema);
 
     NTableClient::TChunkStatePtr PrepareChunkState(
-        const NChunkClient::IChunkReaderPtr& chunkReader,
-        const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-        bool prepareColumnarMeta = false);
+        NTableClient::TCachedVersionedChunkMetaPtr meta);
 
     void ValidateBlockSize(
         const TTabletSnapshotPtr& tabletSnapshot,
-        const NTableClient::TChunkStatePtr& chunkState,
+        const NTableClient::TCachedVersionedChunkMetaPtr& chunkMeta,
         const TWorkloadDescriptor& workloadDescriptor);
 
-    NTableClient::TKeyComparer GetKeyComparer() const override;
+    const NTableClient::TKeyComparer& GetKeyComparer() const override;
 
-    ISortedStorePtr GetSortedBackingStore();
+    ISortedStorePtr GetSortedBackingStore() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSortedChunkStore)
@@ -142,7 +145,7 @@ DEFINE_REFCOUNTED_TYPE(TSortedChunkStore)
 //! and the number of skipped keys at the beginning and at the end.
 TSharedRange<TLegacyKey> FilterKeysByReadRange(
     const NTableClient::TRowRange& readRange,
-    const TSharedRange<TLegacyKey>& keys,
+    TSharedRange<TLegacyKey> keys,
     int* skippedBefore,
     int* skippedAfter);
 

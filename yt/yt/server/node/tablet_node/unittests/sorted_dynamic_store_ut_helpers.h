@@ -35,10 +35,9 @@ public:
         TTimestamp timestamp)
     {
         std::vector<TLegacyKey> lookupKeys(1, key.Get());
-        auto sharedLookupKeys = MakeSharedRange(std::move(lookupKeys), key);
         auto lookupReader = store->CreateReader(
             Tablet_->BuildSnapshot(nullptr),
-            sharedLookupKeys,
+            MakeSharedRange(std::move(lookupKeys), key),
             timestamp,
             timestamp == AllCommittedTimestamp,
             TColumnFilter(),

@@ -29,7 +29,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
     const TChunkStatePtr& state,
     const TCachedVersionedChunkMetaPtr& chunkMeta,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-    const TSharedRange<TLegacyKey>& keys,
+    TSharedRange<TLegacyKey> keys,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
     bool produceAllVersions);

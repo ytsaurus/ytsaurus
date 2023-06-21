@@ -127,7 +127,7 @@ public:
         if (metaFuture.IsSet()) {
             const auto& metaOrError = metaFuture.Get();
             return metaOrError.IsOK()
-                ? OnGotMeta(/*timer*/ std::nullopt, keys, metaOrError.Value())
+                ? OnGotMeta(/*timer*/ std::nullopt, std::move(keys), metaOrError.Value())
                 : MakeFuture<TSharedRef>(TError(metaOrError));
         }
 
@@ -135,7 +135,7 @@ public:
             &TOffloadedChunkReadSession::OnGotMeta,
             MakeStrong(this),
             std::move(metaWaitTimer),
-            std::move(keys))
+            Passed(std::move(keys)))
             .AsyncVia(Bootstrap_->GetStorageLookupInvoker()));
     }
 
@@ -148,10 +148,10 @@ private:
     IBootstrap* const Bootstrap_;
     const IChunkPtr Chunk_;
     const TChunkId ChunkId_;
-    const NTableClient::TColumnFilter ColumnFilter_;
+    const TColumnFilter ColumnFilter_;
     const NTransactionClient::TTimestamp Timestamp_;
     const bool ProduceAllVersions_;
-    const NTableClient::TTableSchemaPtr TableSchema_;
+    const TTableSchemaPtr TableSchema_;
     const NTransactionClient::TTimestamp OverrideTimestamp_;
     const bool EnableHashChunkIndex_;
     const bool UseDirectIO_;
@@ -163,7 +163,7 @@ private:
     NChunkClient::IChunkReaderPtr UnderlyingChunkReader_;
 
 
-    bool CheckKeyColumnCompatibility(const TSharedRange<NTableClient::TUnversionedRow>& keys)
+    bool CheckKeyColumnCompatibility(const TSharedRange<TUnversionedRow>& keys)
     {
         auto chunkMeta = WaitFor(Chunk_->ReadMeta(Options_))
             .ValueOrThrow();
@@ -206,7 +206,7 @@ private:
 
     TFuture<TSharedRef> OnGotMeta(
         std::optional<NProfiling::TWallTimer> timer,
-        const TSharedRange<NTableClient::TUnversionedRow>& keys,
+        TSharedRange<TUnversionedRow> keys,
         const TVersionedChunkMetaCacheEntryPtr& entry)
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetStorageLookupInvoker());
@@ -217,13 +217,13 @@ private:
                 std::memory_order::relaxed);
         }
 
-        const auto& chunkMeta = entry->Meta();
+        auto chunkMeta = entry->Meta();
 
         TChunkSpec chunkSpec;
         ToProto(chunkSpec.mutable_chunk_id(), ChunkId_);
 
         if (EnableHashChunkIndex_ && chunkMeta->HashTableChunkIndexMeta()) {
-            return LookupWithChunkIndex(chunkMeta, keys);
+            return LookupWithChunkIndex(std::move(chunkMeta), std::move(keys));
         }
 
         auto chunkState = New<TChunkState>(
@@ -238,32 +238,35 @@ private:
             /*chunkColumnMapping*/ nullptr);
 
         // TODO(akozhikhov): Cache this reader and chunk state with chunk column mapping.
+        int keyCount = keys.Size();
         return DoLookup(
-            keys.Size(),
+            keyCount,
             CreateVersionedChunkReader(
                 TChunkReaderConfig::GetDefault(),
                 UnderlyingChunkReader_,
                 chunkState,
-                chunkMeta,
+                std::move(chunkMeta),
                 Options_,
-                keys,
+                std::move(keys),
                 ColumnFilter_,
                 Timestamp_,
                 ProduceAllVersions_));
     }
 
     TFuture<TSharedRef> LookupWithChunkIndex(
-        const NTableClient::TCachedVersionedChunkMetaPtr& chunkMeta,
-        const TSharedRange<NTableClient::TUnversionedRow>& keys)
+        TCachedVersionedChunkMetaPtr chunkMeta,
+        TSharedRange<TUnversionedRow> keys)
     {
+        auto keyCount = keys.Size();
+
         YT_LOG_DEBUG("Creating local chunk index read session (KeyCount: %v)",
-            keys.Size());
+            keyCount);
 
         auto controller = CreateChunkIndexReadController(
             Chunk_->GetId(),
             ColumnFilter_,
-            chunkMeta,
-            keys,
+            std::move(chunkMeta),
+            std::move(keys),
             GetKeyComparer(),
             TableSchema_,
             Timestamp_,
@@ -288,7 +291,6 @@ private:
                 =,
                 this,
                 this_ = MakeStrong(this),
-                keyCount = keys.Size(),
                 controller = std::move(controller),
                 chunkFragmentReader = std::move(chunkFragmentReader)
             ] () mutable {
@@ -304,7 +306,7 @@ private:
         }
 
         return DoLookup(
-            keys.Size(),
+            keyCount,
             CreateIndexedVersionedChunkReader(
                 Options_,
                 std::move(controller),
@@ -336,10 +338,10 @@ IOffloadedChunkReadSessionPtr CreateOffloadedChunkReadSession(
     IChunkPtr chunk,
     NChunkClient::TReadSessionId readSessionId,
     TWorkloadDescriptor workloadDescriptor,
-    NTableClient::TColumnFilter columnFilter,
+    TColumnFilter columnFilter,
     TTimestamp timestamp,
     bool produceAllVersions,
-    NTableClient::TTableSchemaPtr tableSchema,
+    TTableSchemaPtr tableSchema,
     NCompression::ECodec codecId,
     TTimestamp overrideTimestamp,
     bool populateCache,

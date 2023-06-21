@@ -1863,7 +1863,7 @@ private:
             /*lookupHashTable*/ nullptr,
             /*keyComparer*/ TKeyComparer{},
             /*virtualValueDirectory*/ nullptr,
-            /*tableSchema*/ columnarMeta->GetChunkSchema());
+            /*tableSchema*/ columnarMeta->ChunkSchema());
 
         auto reader = CreateSchemalessRangeChunkReader(
             oldChunkState,
@@ -1906,7 +1906,7 @@ private:
         auto writer = CreateSchemalessChunkWriter(
             New<TChunkWriterConfig>(),
             chunkWriterOptions,
-            columnarMeta->GetChunkSchema(),
+            columnarMeta->ChunkSchema(),
             columnarMeta->ChunkNameTable(),
             confirmingWriter,
             /*dataSink*/ std::nullopt);

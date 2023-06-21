@@ -68,7 +68,7 @@ public:
         , KeyComparer_(ChunkState_->KeyComparer)
         , ChunkMeta_(chunkMeta)
         , CommonKeyPrefix_(ChunkMeta_->GetChunkKeyColumnCount())
-        , HasHunkColumns_(chunkMeta->GetChunkSchema()->HasHunkColumns())
+        , HasHunkColumns_(chunkMeta->ChunkSchema()->HasHunkColumns())
         , MemoryPool_(TCacheBasedVersionedChunkReaderPoolTag())
     { }
 
@@ -283,7 +283,7 @@ protected:
             block,
             meta,
             ChunkMeta_->Misc().block_format_version(),
-            ChunkMeta_->GetChunkSchema(),
+            ChunkMeta_->ChunkSchema(),
             ChunkState_->TableSchema->GetKeyColumnCount(),
             SchemaIdMapping_,
             KeyComparer_,
@@ -322,7 +322,7 @@ public:
         BlockReader_.emplace(
             block,
             meta,
-            GetCompositeColumnFlags(ChunkMeta_->GetChunkSchema()),
+            GetCompositeColumnFlags(ChunkMeta_->ChunkSchema()),
             ChunkToReaderIdMapping_,
             SortOrders_,
             ChunkMeta_->GetChunkKeyColumnCount(),
@@ -459,7 +459,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
     const TChunkStatePtr& chunkState,
     const TCachedVersionedChunkMetaPtr& chunkMeta,
     const TClientChunkReadOptions& chunkReadOptions,
-    const TSharedRange<TLegacyKey>& keys,
+    TSharedRange<TLegacyKey> keys,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
     bool produceAllVersions)
@@ -478,7 +478,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
             chunkState,
             chunkMeta,
             chunkReadOptions,
-            keys,
+            std::move(keys),
             columnFilter,
             timestamp,
             produceAllVersions);
@@ -500,7 +500,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
                 chunkId,
                 chunkState,
                 chunkMeta,
-                keys,
+                std::move(keys),
                 columnFilter,
                 chunkTimestamp,
                 produceAllVersions);
@@ -514,7 +514,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
                     chunkId,
                     chunkState,
                     chunkMeta,
-                    keys,
+                    std::move(keys),
                     columnFilter,
                     timestamp,
                     produceAllVersions);

@@ -214,7 +214,7 @@ public:
     TInstant GetCreationTime() const override;
 
     void SetBackingStore(IDynamicStorePtr store) override;
-    IDynamicStorePtr GetBackingStore() override;
+    IDynamicStorePtr GetBackingStore() const override;
 
     EStorePreloadState GetPreloadState() const override;
     void SetPreloadState(EStorePreloadState state) override;
@@ -288,14 +288,19 @@ protected:
 
     EMemoryCategory GetMemoryCategory() const override;
 
-    NTableClient::TChunkStatePtr FindPreloadedChunkState();
+    NTableClient::TChunkStatePtr FindPreloadedChunkState() const;
 
-    NTableClient::TCachedVersionedChunkMetaPtr GetCachedVersionedChunkMeta(
+    // Fast path.
+    NTableClient::TCachedVersionedChunkMetaPtr FindCachedVersionedChunkMeta(
+        bool prepareColumnarMeta);
+
+    // Slow path.
+    TFuture<NTableClient::TCachedVersionedChunkMetaPtr> GetCachedVersionedChunkMeta(
         const NChunkClient::IChunkReaderPtr& chunkReader,
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-        bool prepareColumnarMeta = false);
+        bool prepareColumnarMeta);
 
-    virtual NTableClient::TKeyComparer GetKeyComparer() const = 0;
+    virtual const NTableClient::TKeyComparer& GetKeyComparer() const = 0;
 
     TTabletStoreReaderConfigPtr GetReaderConfig();
 

@@ -244,9 +244,9 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTable(
                 uncompressedBlock.Data,
                 blockMeta,
                 chunkMeta->Misc().block_format_version(),
-                chunkMeta->GetChunkSchema(),
+                chunkMeta->ChunkSchema(),
                 tableSchema->GetKeyColumnCount(),
-                TChunkColumnMapping(tableSchema, chunkMeta->GetChunkSchema())
+                TChunkColumnMapping(tableSchema, chunkMeta->ChunkSchema())
                     .BuildVersionedSimpleSchemaIdMapping(TColumnFilter()),
                 keyComparer,
                 AllCommittedTimestamp,
@@ -271,8 +271,8 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTable(
                 THorizontalSchemalessVersionedBlockReader blockReader(
                     uncompressedBlock.Data,
                     blockMeta,
-                    GetCompositeColumnFlags(chunkMeta->GetChunkSchema()),
-                    TChunkColumnMapping(tableSchema, chunkMeta->GetChunkSchema())
+                    GetCompositeColumnFlags(chunkMeta->ChunkSchema()),
+                    TChunkColumnMapping(tableSchema, chunkMeta->ChunkSchema())
                         .BuildSchemalessHorizontalSchemaIdMapping(TColumnFilter()),
                     sortOrders,
                     chunkMeta->GetChunkKeyColumnCount(),

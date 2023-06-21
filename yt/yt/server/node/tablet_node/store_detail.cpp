@@ -950,7 +950,7 @@ void TChunkStoreBase::BuildOrchidYson(TFluentMap fluent)
         .Item("hunk_chunk_refs").Value(HunkChunkRefs_);
 }
 
-IDynamicStorePtr TChunkStoreBase::GetBackingStore()
+IDynamicStorePtr TChunkStoreBase::GetBackingStore() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1030,49 +1030,58 @@ void TChunkStoreBase::InvalidateCachedReaders(const TTableSettings& settings)
     BackendReadersHolder_->InvalidateCachedReadersAndTryResetConfig(settings.StoreReaderConfig);
 }
 
-TCachedVersionedChunkMetaPtr TChunkStoreBase::GetCachedVersionedChunkMeta(
+TCachedVersionedChunkMetaPtr TChunkStoreBase::FindCachedVersionedChunkMeta(
+    bool prepareColumnarMeta)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto guard = ReaderGuard(WeakCachedVersionedChunkMetaEntryLock_);
+    if (auto entry = WeakCachedVersionedChunkMetaEntry_.Lock()) {
+        const auto& meta = entry->Meta();
+        if (prepareColumnarMeta || !meta->IsColumnarMetaPrepared()) {
+            ChunkMetaManager_->Touch(entry);
+            return meta;
+        }
+    }
+
+    return nullptr;
+}
+
+TFuture<TCachedVersionedChunkMetaPtr> TChunkStoreBase::GetCachedVersionedChunkMeta(
     const IChunkReaderPtr& chunkReader,
     const TClientChunkReadOptions& chunkReadOptions,
     bool prepareColumnarMeta)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    // Fast lane.
-    {
-        auto guard = ReaderGuard(WeakCachedVersionedChunkMetaEntryLock_);
-        if (auto entry = WeakCachedVersionedChunkMetaEntry_.Lock()) {
-            const auto& meta = entry->Meta();
-            if (prepareColumnarMeta || !meta->IsColumnarMetaPrepared()) {
-                ChunkMetaManager_->Touch(entry);
-                return meta;
-            }
-        }
-    }
-
-    // Slow lane.
     NProfiling::TWallTimer metaWaitTimer;
 
-    auto entryFuture = ChunkMetaManager_->GetMeta(
+    return ChunkMetaManager_->GetMeta(
         chunkReader,
         Schema_,
         chunkReadOptions,
-        prepareColumnarMeta);
-    auto entry = WaitFor(entryFuture)
-        .ValueOrThrow();
+        prepareColumnarMeta)
+        .Apply(BIND([
+            =,
+            this,
+            this_ = MakeStrong(this),
+            chunkReaderStatistics = chunkReadOptions.ChunkReaderStatistics
+        ] (const TVersionedChunkMetaCacheEntryPtr& entry) {
+            chunkReaderStatistics->MetaWaitTime.fetch_add(
+                metaWaitTimer.GetElapsedValue(),
+                std::memory_order::relaxed);
 
-    chunkReadOptions.ChunkReaderStatistics->MetaWaitTime.fetch_add(
-        metaWaitTimer.GetElapsedValue(),
-        std::memory_order::relaxed);
+            {
+                auto guard = WriterGuard(WeakCachedVersionedChunkMetaEntryLock_);
+                auto oldEntry = std::move(WeakCachedVersionedChunkMetaEntry_);
+                WeakCachedVersionedChunkMetaEntry_ = entry;
+                // Prevent destroying oldEntry under spinlock.
+                guard.Release();
+            }
 
-    {
-        auto guard = WriterGuard(WeakCachedVersionedChunkMetaEntryLock_);
-        auto oldEntry = std::move(WeakCachedVersionedChunkMetaEntry_);
-        WeakCachedVersionedChunkMetaEntry_ = entry;
-        // Prevent destroying oldCachedWeakVersionedChunkMeta under spinlock.
-        guard.Release();
-    }
-
-    return entry->Meta();
+            return entry->Meta();
+        })
+        .AsyncVia(GetCurrentInvoker()));
 }
 
 const std::vector<THunkChunkRef>& TChunkStoreBase::HunkChunkRefs() const
@@ -1172,7 +1181,7 @@ void TChunkStoreBase::Preload(TInMemoryChunkDataPtr chunkData)
         Schema_,
         New<TChunkColumnMapping>(
             Schema_,
-            chunkData->ChunkMeta->GetChunkSchema()));
+            chunkData->ChunkMeta->ChunkSchema()));
 }
 
 TChunkId TChunkStoreBase::GetChunkId() const
@@ -1205,7 +1214,7 @@ IBlockCachePtr TChunkStoreBase::DoGetBlockCache()
     return PreloadedBlockCache_ ? PreloadedBlockCache_ : BlockCache_;
 }
 
-TChunkStatePtr TChunkStoreBase::FindPreloadedChunkState()
+TChunkStatePtr TChunkStoreBase::FindPreloadedChunkState() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

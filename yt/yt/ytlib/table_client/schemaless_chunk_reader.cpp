@@ -502,7 +502,7 @@ protected:
 
     int GetChunkKeyColumnCount() const
     {
-        return ChunkMeta_->GetChunkSchema()->GetKeyColumnCount();
+        return ChunkMeta_->ChunkSchema()->GetKeyColumnCount();
     }
 
     TFuture<void> InitBlockFetcher();
@@ -679,8 +679,13 @@ void THorizontalSchemalessRangeChunkReader::InitFirstBlock()
     BlockReader_.reset(new THorizontalBlockReader(
         CurrentBlock_.Get().ValueOrThrow().Data,
         blockMeta,
+<<<<<<< releases/yt/stable/23.1: Performance counters refactoring cosmetics
         GetCompositeColumnFlags(ChunkMeta_->GetChunkSchema()),
         GetHunkColumnFlags(ChunkMeta_->GetChunkFormat(), ChunkMeta_->GetChunkFeatures(), ChunkMeta_->GetChunkSchema()),
+=======
+        GetCompositeColumnFlags(ChunkMeta_->ChunkSchema()),
+        GetHunkColumnFlags(ChunkMeta_->ChunkSchema()),
+>>>>>>> cherry-pick: YT-18325: Get rid of WaitFor in lookups when reading meta and make some refactoring
         ChunkMeta_->HunkChunkMetasExt(),
         ChunkMeta_->HunkChunkRefsExt(),
         ChunkToReaderIdMapping_,
@@ -1095,8 +1100,13 @@ void THorizontalSchemalessLookupChunkReaderBase::InitFirstBlock()
     BlockReader_.reset(new THorizontalBlockReader(
         CurrentBlock_.Get().ValueOrThrow().Data,
         blockMeta,
+<<<<<<< releases/yt/stable/23.1: Performance counters refactoring cosmetics
         GetCompositeColumnFlags(ChunkMeta_->GetChunkSchema()),
         GetHunkColumnFlags(ChunkMeta_->GetChunkFormat(), ChunkMeta_->GetChunkFeatures(), ChunkMeta_->GetChunkSchema()),
+=======
+        GetCompositeColumnFlags(ChunkMeta_->ChunkSchema()),
+        GetHunkColumnFlags(ChunkMeta_->ChunkSchema()),
+>>>>>>> cherry-pick: YT-18325: Get rid of WaitFor in lookups when reading meta and make some refactoring
         ChunkMeta_->HunkChunkMetasExt(),
         ChunkMeta_->HunkChunkRefsExt(),
         ChunkToReaderIdMapping_,
@@ -1406,7 +1416,7 @@ public:
         const TKeyWideningOptions& keyWideningOptions,
         TRange<ESortOrder> sortOrders)
     {
-        const auto& chunkSchema = *ChunkMeta_->GetChunkSchema();
+        const auto& chunkSchema = *ChunkMeta_->ChunkSchema();
         const auto& columnMeta = ChunkMeta_->ColumnMeta();
 
         // Cannot read more key columns than stored in chunk, even if range keys are longer.
@@ -1919,7 +1929,7 @@ private:
                 columnCount);
             auto* rootColumn = &columnRange.Front();
             rootColumn->Id = column.ColumnId;
-            rootColumn->Type = ChunkMeta_->GetChunkSchema()->Columns()[column.ColumnMetaIndex].LogicalType();
+            rootColumn->Type = ChunkMeta_->ChunkSchema()->Columns()[column.ColumnMetaIndex].LogicalType();
             rootBatchColumns->push_back(rootColumn);
             reader->ReadColumnarBatch(columnRange, rowCount);
             currentBatchColumnIndex += columnCount;
@@ -2253,7 +2263,7 @@ struct TReaderParams
         YT_VERIFY(chunkMeta->GetChunkType() == EChunkType::Table);
         YT_VERIFY(chunkState->TableSchema);
 
-        const auto& columns = chunkMeta->GetChunkSchema()->Columns();
+        const auto& columns = chunkMeta->ChunkSchema()->Columns();
         for (int index = 0; index < std::ssize(columns); ++index) {
             auto id = chunkMeta->ChunkNameTable()->FindId(columns[index].StableName().Get());
             YT_VERIFY(id);
@@ -2271,7 +2281,7 @@ struct TReaderParams
             virtualRowIndex);
 
         TNameTablePtr chunkNameTable = options->DynamicTable
-            ? TNameTable::FromSchema(*chunkMeta->GetChunkSchema())
+            ? TNameTable::FromSchema(*chunkMeta->ChunkSchema())
             : chunkMeta->ChunkNameTable();
 
         try {
@@ -2288,7 +2298,7 @@ struct TReaderParams
         }
 
         auto chunkSortColumnNames = GetColumnNames(
-            chunkMeta->GetChunkSchema()->GetSortColumns(
+            chunkMeta->ChunkSchema()->GetSortColumns(
                 chunkState->TableSchema->GetNameMapping()));
 
         CommonKeyPrefix = GetCommonKeyPrefix(
@@ -2320,7 +2330,7 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
     int interruptDescriptorKeyLength)
 {
     YT_VERIFY(chunkState && chunkState->TableSchema);
-    auto chunkSortColumns = chunkMeta->GetChunkSchema()->GetSortColumns(
+    auto chunkSortColumns = chunkMeta->ChunkSchema()->GetSortColumns(
         chunkState->TableSchema->GetNameMapping());
     ValidateSortColumns(sortColumns, chunkSortColumns, options->DynamicTable);
 
@@ -2408,7 +2418,7 @@ ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
     const TChunkReaderMemoryManagerPtr& memoryManager)
 {
     YT_VERIFY(chunkState && chunkState->TableSchema);
-    auto chunkSortColumns = chunkMeta->GetChunkSchema()->GetSortColumns(
+    auto chunkSortColumns = chunkMeta->ChunkSchema()->GetSortColumns(
         chunkState->TableSchema->GetNameMapping());
     ValidateSortColumns(sortColumns, chunkSortColumns, options->DynamicTable);
 
@@ -2485,7 +2495,7 @@ ISchemalessChunkReaderPtr CreateSchemalessKeyRangesChunkReader(
     const TChunkReaderMemoryManagerPtr& memoryManager)
 {
     YT_VERIFY(chunkState && chunkState->TableSchema);
-    auto chunkSortColumns = chunkMeta->GetChunkSchema()->GetSortColumns(
+    auto chunkSortColumns = chunkMeta->ChunkSchema()->GetSortColumns(
         chunkState->TableSchema->GetNameMapping());
     ValidateSortColumns(sortColumns, chunkSortColumns, options->DynamicTable);
 
