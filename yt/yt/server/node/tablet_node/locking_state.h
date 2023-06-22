@@ -17,8 +17,8 @@ public:
 
     //! Attempts to lock object in given transaction with given lock mode.
     //! Throws on conflict error.
-    // NB: Object must be locked by transaction at most once even if
-    // lock mode is shared.
+    // NB: Multiple locks of the same kind from the same transaction are counted
+    // as one.
     void Lock(TTransactionId transactionId, EObjectLockMode lockMode);
 
     //! Attempts to release lock. Returns true if object was locked

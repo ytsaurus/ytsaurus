@@ -33,27 +33,29 @@ void TLockingState::Lock(TTransactionId transactionId, EObjectLockMode lockMode)
             concurrentTransactionId);
     };
 
+    auto locked = false;
     switch (lockMode) {
         case EObjectLockMode::Exclusive:
-            if (ExclusiveLockTransactionId_) {
+            if (ExclusiveLockTransactionId_ && ExclusiveLockTransactionId_ != transactionId) {
                 throwConflictError(ExclusiveLockTransactionId_);
             }
             if (!SharedLockTransactionIds_.empty()) {
                 throwConflictError(*SharedLockTransactionIds_.begin());
             }
+            locked = ExclusiveLockTransactionId_ != transactionId;
             ExclusiveLockTransactionId_ = transactionId;
             break;
         case EObjectLockMode::Shared:
             if (ExclusiveLockTransactionId_) {
                 throwConflictError(ExclusiveLockTransactionId_);
             }
-            InsertOrCrash(SharedLockTransactionIds_, transactionId);
+            locked = SharedLockTransactionIds_.insert(transactionId).second;
             break;
         default:
             YT_ABORT();
     };
 
-    YT_LOG_DEBUG(
+    YT_LOG_DEBUG_IF(locked,
         "Object is locked by transaction (ObjectId: %v, TransactionId: %v, LockMode: %v)",
         ObjectId_,
         transactionId,
