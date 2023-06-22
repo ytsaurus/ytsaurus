@@ -2620,7 +2620,14 @@ private:
                 operation->EraseTrees(erasedTreeIds);
 
                 if (operation->AreAllTreesErased()) {
+                    std::vector<TError> treeErrors;
+                    for (const auto& [treeId, error] : poolLimitViolations) {
+                        treeErrors.push_back(error
+                            << TErrorAttribute("tree_id", treeId));
+                    }
+
                     THROW_ERROR_EXCEPTION("All trees have been erased for operation")
+                        << treeErrors
                         << TErrorAttribute("operation_id", operation->GetId());
                 }
             } catch (const std::exception& ex) {
