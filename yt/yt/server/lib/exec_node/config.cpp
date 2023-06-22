@@ -626,6 +626,9 @@ void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_numa_node_scheduling", &TThis::EnableNumaNodeScheduling)
         .Default(false);
+
+    registrar.Parameter("enable_job_environment_resurrection", &TThis::EnableJobEnvironmentResurrection)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
