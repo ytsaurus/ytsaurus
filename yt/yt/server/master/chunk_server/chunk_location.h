@@ -37,7 +37,8 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TUnapprovedReplicaMap, UnapprovedReplicas);
 
     using TDestroyedReplicaSet = THashSet<NChunkClient::TChunkIdWithIndex>;
-    DEFINE_BYREF_RO_PROPERTY(TDestroyedReplicaSet, DestroyedReplicas);
+    using TDestroyedReplicaShardedSet = std::array<TDestroyedReplicaSet, ChunkShardCount>;
+    DEFINE_BYREF_RO_PROPERTY(TDestroyedReplicaShardedSet, DestroyedReplicas);
 
     //! Key:
     //!   Encodes chunk and one of its parts (for erasure chunks only, others use GenericChunkReplicaIndex).
@@ -83,10 +84,13 @@ public:
     bool RemoveDestroyedReplica(const NChunkClient::TChunkIdWithIndex& replica);
     void ClearDestroyedReplicas();
 
+    i64 DestroyedReplicasCount() const;
+    const TDestroyedReplicaSet& GetDestroyedReplicaSet(int shardId) const;
+
     class TDestroyedReplicasIterator;
-    void SetDestroyedReplicasIterator(const TDestroyedReplicasIterator& iterator);
+    void SetDestroyedReplicasIterator(const TDestroyedReplicasIterator& iterator, int shardId);
     void ResetDestroyedReplicasIterator();
-    TDestroyedReplicasIterator GetDestroyedReplicasIterator() const;
+    TDestroyedReplicasIterator GetDestroyedReplicasIterator(int shardId) const;
 
     void AddToChunkRemovalQueue(const NChunkClient::TChunkIdWithIndex& replica);
     void RemoveFromChunkRemovalQueue(const NChunkClient::TChunkIdWithIndex& replica);
@@ -104,7 +108,7 @@ protected:
 private:
     // TODO(kvk1920): TStrongObjectPtr<TDomesticMedium> EffectiveMedium.
     TReplicaSet::iterator RandomReplicaIter_;
-    TDestroyedReplicaSet::const_iterator DestroyedReplicasIterator_;
+    std::array<TDestroyedReplicaSet::const_iterator, ChunkShardCount> DestroyedReplicasIterators_;
 
     bool DoRemoveReplica(TChunkPtrWithReplicaIndex replica);
     bool DoAddReplica(TChunkPtrWithReplicaInfo replica);

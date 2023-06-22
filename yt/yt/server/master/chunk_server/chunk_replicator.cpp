@@ -361,6 +361,8 @@ TChunkReplicator::TChunkReplicator(
         SetRefreshEpoch(shardIndex, InvalidRefreshEpoch);
     }
 
+    LocationShards_.reserve(TypicalChunkLocationCount * ChunkShardCount);
+
     YT_VERIFY(GetShardCount() == ChunkShardCount);
 }
 
@@ -1859,24 +1861,21 @@ void TChunkReplicator::ScheduleRemovalJobs(IJobSchedulingContext* context)
         chunksBeingRemoved.insert(job->GetChunkIdWithIndexes());
     }
 
-    // TODO(gritukan): Use sharded destroyed replica sets here.
     if (GetActiveShardCount() > 0) {
-        struct TLocationInfo
-        {
-            TChunkLocation* Location;
-            TChunkLocation::TDestroyedReplicasIterator ReplicaIterator;
-            bool Active = true;
-        };
-        TCompactVector<TLocationInfo, TypicalChunkLocationCount> locations;
+        LocationShards_.clear();
         for (auto* location : node->ChunkLocations()) {
-            if (!location->DestroyedReplicas().empty()) {
-                locations.push_back({location, location->GetDestroyedReplicasIterator()});
+            for (auto shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
+                if (IsShardActive(shardIndex) &&
+                    !location->GetDestroyedReplicaSet(shardIndex).empty())
+                {
+                    LocationShards_.push_back({location, location->GetDestroyedReplicasIterator(shardIndex), shardIndex});
+                }
             }
         }
-        int activeLocationCount = std::ssize(locations);
+        int activeLocationCount = std::ssize(LocationShards_);
 
         while (activeLocationCount > 0 && hasSpareRemovalResources()) {
-            for (auto& [location, replicaIterator, active] : locations) {
+            for (auto& [location, replicaIterator, shardId, active] : LocationShards_) {
                 if (activeLocationCount <= 0 || !hasSpareRemovalResources()) {
                     break;
                 }
@@ -1897,11 +1896,8 @@ void TChunkReplicator::ScheduleRemovalJobs(IJobSchedulingContext* context)
                     continue;
                 }
 
-                if (!ShouldProcessChunk(replica.Id)) {
-                    location->SetDestroyedReplicasIterator(replicaIterator);
-                    ++misscheduledRemovalJobs;
-                } else if (TryScheduleRemovalJob(context, replica, location->IsImaginary() ? nullptr : location->AsReal())) {
-                    location->SetDestroyedReplicasIterator(replicaIterator);
+                if (TryScheduleRemovalJob(context, replica, location->IsImaginary() ? nullptr : location->AsReal())) {
+                    location->SetDestroyedReplicasIterator(replicaIterator, shardId);
                 } else {
                     ++misscheduledRemovalJobs;
                 }

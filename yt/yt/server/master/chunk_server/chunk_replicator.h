@@ -14,6 +14,8 @@
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 
+#include <yt/yt/server/master/chunk_server/chunk_location.h>
+
 #include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
 
 #include <yt/yt/core/concurrency/public.h>
@@ -224,6 +226,15 @@ private:
     bool RequisitionUpdateRunning_ = false;
 
     TInstant LastActiveShardSetUpdateTime_ = TInstant::Zero();
+
+    struct TLocationShardInfo
+    {
+        TChunkLocation* Location;
+        TChunkLocation::TDestroyedReplicasIterator ReplicaIterator;
+        int ShardId;
+        bool Active = true;
+    };
+    std::vector<TLocationShardInfo> LocationShards_;
 
     void ScheduleReplicationJobs(IJobSchedulingContext* context);
     void ScheduleRemovalJobs(IJobSchedulingContext* context);

@@ -2,6 +2,7 @@
 
 #include "chunk.h"
 #include "domestic_medium.h"
+#include "helpers.h"
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
 
@@ -159,41 +160,46 @@ void TChunkLocation::ApproveReplica(TChunkPtrWithReplicaInfo replica)
 
 void TChunkLocation::ClearDestroyedReplicas()
 {
-    DestroyedReplicas_.clear();
+    DestroyedReplicas_ = {};
     ResetDestroyedReplicasIterator();
 }
 
-bool TChunkLocation::AddDestroyedReplica(const NChunkClient::TChunkIdWithIndex& replica)
+bool TChunkLocation::AddDestroyedReplica(const TChunkIdWithIndex& replica)
 {
     RemoveFromChunkRemovalQueue(replica);
+    auto shardId = GetChunkShardIndex(replica.Id);
 
-    auto [it, inserted] = DestroyedReplicas_.insert(replica);
+    auto [it, inserted] = DestroyedReplicas_[shardId].insert(replica);
     if (!inserted) {
         return false;
     }
-    DestroyedReplicasIterator_ = it;
+    DestroyedReplicasIterators_[shardId] = it;
     return true;
 }
 
-bool TChunkLocation::RemoveDestroyedReplica(const NChunkClient::TChunkIdWithIndex& replica)
+bool TChunkLocation::RemoveDestroyedReplica(const TChunkIdWithIndex& replica)
 {
-    if (!DestroyedReplicas_.empty() && *DestroyedReplicasIterator_ == replica) {
-        if (DestroyedReplicas_.size() == 1) {
-            DestroyedReplicasIterator_ = DestroyedReplicas_.end();
+    auto shardId = GetChunkShardIndex(replica.Id);
+    auto& destroyedReplicas = DestroyedReplicas_[shardId];
+    auto& destroyedReplicasIterator = DestroyedReplicasIterators_[shardId];
+    if (!destroyedReplicas.empty() && *destroyedReplicasIterator == replica) {
+        if (destroyedReplicas.size() == 1) {
+            destroyedReplicasIterator = destroyedReplicas.end();
         } else {
-            auto it = GetDestroyedReplicasIterator();
+            auto it = GetDestroyedReplicasIterator(shardId);
             it.Advance();
-            SetDestroyedReplicasIterator(it);
+            SetDestroyedReplicasIterator(it, shardId);
         }
     }
-    return DestroyedReplicas_.erase(replica) > 0;
+    return destroyedReplicas.erase(replica) > 0;
 }
 
 void TChunkLocation::AddToChunkRemovalQueue(const TChunkIdWithIndex& replica)
 {
     YT_ASSERT(Node_->ReportedDataNodeHeartbeat());
 
-    if (DestroyedReplicas_.contains(replica)) {
+    auto shardId = GetChunkShardIndex(replica.Id);
+    if (DestroyedReplicas_[shardId].contains(replica)) {
         return;
     }
 
@@ -230,19 +236,35 @@ void TChunkLocation::Load(TLoadContext& context)
 {
     YT_VERIFY(context.GetVersion() >= EMasterReign::ChunkLocationInReplica);
 
+    // COMPAT(kvk1920)
     if (context.GetVersion() >= EMasterReign::ChunkLocationInReplica) {
         using NYT::Load;
         Load(context, Node_);
-        if (context.GetVersion() < EMasterReign::FixDestroyedReplicasPersistence) {
-            auto size = TSizeSerializer::Load(context);
-            for (size_t index = 0; index < size; ++index) {
-                auto chunkId = Load<TChunkId>(context);
-                auto replicaIndex = Load<i32>(context);
-                Load<i32>(context); // padding
-                EmplaceOrCrash(DestroyedReplicas_, chunkId, replicaIndex);
-            }
-        } else {
+
+        // COMPAT(danilalexeev)
+        if (context.GetVersion() >= EMasterReign::MakeDestroyedReplicasSetSharded) {
+            using NYT::Load;
             Load(context, DestroyedReplicas_);
+        } else {
+            TDestroyedReplicaSet preShardedDestroyedReplicaSet;
+
+            // COMPAT(babenko)
+            if (context.GetVersion() < EMasterReign::FixDestroyedReplicasPersistence) {
+                auto size = TSizeSerializer::Load(context);
+                for (size_t index = 0; index < size; ++index) {
+                    auto chunkId = Load<TChunkId>(context);
+                    auto replicaIndex = Load<i32>(context);
+                    Load<i32>(context); // padding
+                    EmplaceOrCrash(preShardedDestroyedReplicaSet, chunkId, replicaIndex);
+                }
+            } else {
+                Load(context, preShardedDestroyedReplicaSet);
+            }
+
+            for (auto replica : preShardedDestroyedReplicaSet) {
+                auto shardId = GetChunkShardIndex(replica.Id);
+                EmplaceOrCrash(DestroyedReplicas_[shardId], replica);
+            }
         }
         // NB: This code does not load the replicas per se; it just
         // reserves the appropriate hashtables. Once the snapshot is fully loaded,
@@ -251,22 +273,39 @@ void TChunkLocation::Load(TLoadContext& context)
         ReserveReplicas(TSizeSerializer::Load(context));
         Load(context, UnapprovedReplicas_);
     }
+
     ResetDestroyedReplicasIterator();
 }
 
-void TChunkLocation::SetDestroyedReplicasIterator(const TDestroyedReplicasIterator& iterator)
+i64 TChunkLocation::DestroyedReplicasCount() const {
+    i64 count = 0;
+    for (const auto& set : DestroyedReplicas_) {
+        count += std::ssize(set);
+    }
+    return count;
+}
+
+const TChunkLocation::TDestroyedReplicaSet& TChunkLocation::GetDestroyedReplicaSet(int shardId) const {
+    return DestroyedReplicas_[shardId];
+}
+
+void TChunkLocation::SetDestroyedReplicasIterator(const TDestroyedReplicasIterator& iterator, int shardId)
 {
-    DestroyedReplicasIterator_ = iterator.Current_;
+    DestroyedReplicasIterators_[shardId] = iterator.Current_;
 }
 
 void TChunkLocation::ResetDestroyedReplicasIterator()
 {
-    DestroyedReplicasIterator_ = DestroyedReplicas_.begin();
+    static_assert(std::extent_v<TDestroyedReplicaShardedSet> == std::extent_v<decltype(DestroyedReplicasIterators_)>,
+        "Sizes of DestroyedReplicas and DestroyedReplicasInterators are different");
+    for (auto i = 0; i < std::ssize(DestroyedReplicasIterators_); ++i) {
+        DestroyedReplicasIterators_[i] = DestroyedReplicas_[i].begin();
+    }
 }
 
-TChunkLocation::TDestroyedReplicasIterator TChunkLocation::GetDestroyedReplicasIterator() const
+TChunkLocation::TDestroyedReplicasIterator TChunkLocation::GetDestroyedReplicasIterator(int shardId) const
 {
-    return TDestroyedReplicasIterator(DestroyedReplicas_, DestroyedReplicasIterator_);
+    return TDestroyedReplicasIterator(DestroyedReplicas_[shardId], DestroyedReplicasIterators_[shardId]);
 }
 
 TChunkLocation::TDestroyedReplicasIterator::TDestroyedReplicasIterator(

@@ -2992,11 +2992,11 @@ private:
                     location->UnapprovedReplicas().size());
                 DisposeLocation(location);
             }
-            if (!location->DestroyedReplicas().empty()) {
+            if (auto count = location->DestroyedReplicasCount(); count != 0) {
                 YT_LOG_ALERT("Cleared location still has destroyed replicas (NodeId: %v, LocationMediumIndex: %v, DestroyedReplicasCount: %v)",
                     node->GetId(),
                     location->GetEffectiveMediumIndex(),
-                    location->DestroyedReplicas().size());
+                    count);
                 DisposeLocation(location);
             }
         }
@@ -3030,7 +3030,7 @@ private:
             }
         }
 
-        DestroyedReplicaCount_ -= std::ssize(location->DestroyedReplicas());
+        DestroyedReplicaCount_ -= location->DestroyedReplicasCount();
 
         location->ClearReplicas();
     }
@@ -4598,7 +4598,7 @@ private:
             EndorsementCount_ += ssize(node->ReplicaEndorsements());
 
             for (auto* location : node->ChunkLocations()) {
-                DestroyedReplicaCount_ += std::ssize(location->DestroyedReplicas());
+                DestroyedReplicaCount_ += location->DestroyedReplicasCount();
             }
         }
 

@@ -160,6 +160,7 @@ DEFINE_ENUM(EMasterReign,
     ((MasterCellChunkStatisticsCollectorConfig)                     (2404))  // kvk1920
     ((QueueReplicatedTablesList)                                    (2405))  // cherepashka
     ((PendingRestartMaintenanceFlag)                                (2406))  // danilalexeev
+    ((MakeDestroyedReplicasSetSharded)                              (2407))  // danilalexeev
 );
 
 ////////////////////////////////////////////////////////////////////////////////
