@@ -2943,7 +2943,17 @@ class TestSlotManagerResurrect(YTEnvSetup):
         write_table("//tmp/t_input", {"foo": "bar"})
 
         update_nodes_dynamic_config({
-            "enable_job_environment_resurrection": True,
+            "exec_agent": {
+                "slot_manager": {
+                    "job_environment": {
+                        "porto_executor": {
+                            "enable_test_porto_failures": True
+                        }
+                    },
+                    "enable_job_environment_resurrection": True,
+                    "abort_on_jobs_disabled": False
+                }
+            }
         })
 
         ##################################################################
@@ -3019,7 +3029,17 @@ class TestSlotManagerResurrect(YTEnvSetup):
         write_table("//tmp/t_input", {"foo": "bar"})
 
         update_nodes_dynamic_config({
-            "enable_job_environment_resurrection": True,
+            "exec_agent": {
+                "slot_manager": {
+                    "job_environment": {
+                        "porto_executor": {
+                            "enable_test_porto_failures": True
+                        }
+                    },
+                    "enable_job_environment_resurrection": True,
+                    "abort_on_jobs_disabled": False
+                }
+            }
         })
 
         ##################################################################
@@ -3054,7 +3074,8 @@ class TestSlotManagerResurrect(YTEnvSetup):
                             "enable_test_porto_failures": True
                         }
                     },
-                    "abort_on_jobs_disabled": False
+                    "abort_on_jobs_disabled": False,
+                    "enable_job_environment_resurrection": True,
                 }
             },
             "data_node": {
@@ -3097,7 +3118,8 @@ class TestSlotManagerResurrect(YTEnvSetup):
                             "enable_test_porto_failures": False
                         }
                     },
-                    "abort_on_jobs_disabled": False
+                    "abort_on_jobs_disabled": False,
+                    "enable_job_environment_resurrection": True,
                 }
             },
             "data_node": {

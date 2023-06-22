@@ -399,8 +399,6 @@ public:
     //! Porto executor config.
     NContainers::TPortoExecutorDynamicConfigPtr PortoExecutor;
 
-    bool EnableJobEnvironmentResurrection;
-
     bool EnableMemoryReferenceTracker;
 
     //! Network throttler limit is this smaller than NetworkBandwidth.

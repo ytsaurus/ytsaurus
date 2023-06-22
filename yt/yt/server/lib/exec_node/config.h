@@ -559,6 +559,8 @@ public:
 
     bool EnableNumaNodeScheduling;
 
+    bool EnableJobEnvironmentResurrection;
+
     REGISTER_YSON_STRUCT(TSlotManagerDynamicConfig);
 
     static void Register(TRegistrar registrar);

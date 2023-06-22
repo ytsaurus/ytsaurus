@@ -69,7 +69,10 @@ TSlotManager::TSlotManager(
 
 bool TSlotManager::IsJobEnvironmentResurrectionEnabled()
 {
-    return ClusterConfig_.Acquire()->EnableJobEnvironmentResurrection;
+    return ClusterConfig_.Acquire()
+        ->ExecNode
+        ->SlotManager
+        ->EnableJobEnvironmentResurrection;
 }
 
 TFuture<void> TSlotManager::Resurrect()

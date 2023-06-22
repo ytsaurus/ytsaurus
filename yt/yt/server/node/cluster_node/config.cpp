@@ -443,8 +443,6 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("porto_executor", &TThis::PortoExecutor)
         .DefaultNew();
-    registrar.Parameter("enable_job_environment_resurrection", &TThis::EnableJobEnvironmentResurrection)
-        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
