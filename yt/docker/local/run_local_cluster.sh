@@ -20,6 +20,7 @@ ui_skip_pull=false
 local_cypress_dir=''
 rpc_proxy_count=0
 rpc_proxy_port=8002
+enable_debug_logging=false
 
 
 network_name=yt_local_cluster_network
@@ -45,6 +46,7 @@ Usage: $script_name [-h|--help]
                     [--local-cypress-dir dir]
                     [--rpc-proxy-count count]
                     [--rpc-proxy-port port]
+                    [--enable-debug-logging true|false]
                     [--stop]
 
   --proxy-port: Sets the proxy port on docker host (default: $proxy_port)
@@ -59,6 +61,7 @@ Usage: $script_name [-h|--help]
   --local-cypress-dir: Sets the directory on the docker host to be mapped into local cypress dir inside yt local cluster container (default: $local_cypress_dir)
   --rpc-proxy-count: Sets the number of rpc proxies to start in yt local cluster (default: $rpc_proxy_count)
   --rpc-proxy-port: Sets ports for rpc proxies; number of values should be equal to rpc-proxy-count
+  --enable-debug-logging: Enable debug logging in backend container (default: $enable_debug_logging)
   --stop: Run 'docker stop ${ui_container_name} ${yt_container_name}' and exit
 EOF
     exit 0
@@ -116,6 +119,10 @@ while [[ $# -gt 0 ]]; do
         rpc_proxy_port="$2"
         shift 2
         ;;
+        --enable-debug-logging)
+        enable_debug_logging="$2"
+        shift 2
+        ;;
         -h|--help)
         print_usage
         shift
@@ -168,8 +175,13 @@ if [ -z "`docker network ls | grep $network_name`" ]; then
     docker network create $network_name
 fi
 
+params=""
+if [ ${enable_debug_logging} == "true" ]; then
+    params="--enable-debug-logging"
+fi
+
 set +e
-cluster_container=$(docker run -itd --network $network_name --name $yt_container_name -p ${proxy_port}:80 -p ${rpc_proxy_port}:${rpc_proxy_port} --rm $local_cypress_dir $yt_image --fqdn "${docker_hostname}" --proxy-config "{address_resolver={enable_ipv4=%true;enable_ipv6=%false;};coordinator={public_fqdn=\"${docker_hostname}:${proxy_port}\"}}" --rpc-proxy-count ${rpc_proxy_count} --rpc-proxy-port ${rpc_proxy_port})
+cluster_container=$(docker run -itd --network $network_name --name $yt_container_name -p ${proxy_port}:80 -p ${rpc_proxy_port}:${rpc_proxy_port} --rm $local_cypress_dir $yt_image --fqdn "${docker_hostname}" --proxy-config "{address_resolver={enable_ipv4=%true;enable_ipv6=%false;};coordinator={public_fqdn=\"${docker_hostname}:${proxy_port}\"}}" --rpc-proxy-count ${rpc_proxy_count} --rpc-proxy-port ${rpc_proxy_port} ${params})
 if [ "$?" != "0" ]; then
    die "Image $yt_image failed to run. Most likely that was because the port $proxy_port is already busy, \
 so you have to provide another port via --proxy-port option."
