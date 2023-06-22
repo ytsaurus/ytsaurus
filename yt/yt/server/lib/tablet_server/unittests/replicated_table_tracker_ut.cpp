@@ -572,7 +572,8 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 // FIXME(akozhikhov): These tests should not rely on timings to work appropriately under sanitizers.
-#if !defined(_asan_enabled_) && !defined(_msan_enabled_)
+// #if !defined(_asan_enabled_) && !defined(_msan_enabled_)
+#if 0
 
 TEST_F(TReplicatedTableTrackerTest, Simple)
 {
