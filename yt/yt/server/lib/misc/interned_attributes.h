@@ -146,8 +146,7 @@
     XX(DynamicOptions, dynamic_options) \
     XX(Eden, eden) \
     XX(EffectiveAcl, effective_acl) \
-    XX(EffectiveExpirationTime, effective_expiration_time) \
-    XX(EffectiveExpirationTimeout, effective_expiration_timeout) \
+    XX(EffectiveExpiration, effective_expiration) \
     XX(EffectiveMountConfig, effective_mount_config) \
     XX(EnableAggressiveStarvation, enable_aggressive_starvation) \
     XX(EnableByUserProfiling, enable_by_user_profiling) \
