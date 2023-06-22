@@ -780,6 +780,7 @@ void TSolomonExporter::DoHandleShard(
         options.ExportSummaryAsMax = Config_->ExportSummaryAsMax;
         options.ExportSummaryAsAvg = Config_->ExportSummaryAsAvg;
         options.MarkAggregates = Config_->MarkAggregates;
+        options.StripSensorsNamePrefix = Config_->StripSensorsNamePrefix;
         options.LingerWindowSize = Config_->LingerTimeout / gridStep;
 
         if (name) {

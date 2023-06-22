@@ -59,6 +59,8 @@ struct TSolomonExporterConfig
 
     bool MarkAggregates;
 
+    bool StripSensorsNamePrefix;
+
     bool EnableCoreProfilingCompatibility;
 
     bool EnableSelfProfiling;
