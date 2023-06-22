@@ -184,30 +184,34 @@ NHydra::TRevision TCypressNode::GetNativeContentRevision() const
     return NativeContentRevision_;
 }
 
-std::optional<TInstant> TCypressNode::TryGetEffectiveExpirationTime() const
+TCypressNode* TCypressNode::GetEffectiveExpirationTimeNode()
 {
-    std::optional<TInstant> effectiveExpirationTime;
+    TCypressNode* effectiveNode = nullptr;
     for (auto* node = this; node; node = node->GetParent()) {
         if (auto optionalExpirationTime = node->TryGetExpirationTime()) {
-            if (!effectiveExpirationTime || optionalExpirationTime < effectiveExpirationTime) {
-                effectiveExpirationTime = optionalExpirationTime;
+            if (!effectiveNode ||
+                optionalExpirationTime < effectiveNode->TryGetExpirationTime())
+            {
+                effectiveNode = node;
             }
         }
     }
-    return effectiveExpirationTime;
+    return effectiveNode;
 }
 
-std::optional<TDuration> TCypressNode::TryGetEffectiveExpirationTimeout() const
+TCypressNode* TCypressNode::GetEffectiveExpirationTimeoutNode()
 {
-    std::optional<TDuration> effectiveExpirationTimeout;
+    TCypressNode* effectiveNode = nullptr;
     for (auto* node = this; node; node = node->GetParent()) {
         if (auto optionalExpirationTimeout = node->TryGetExpirationTimeout()) {
-            if (!effectiveExpirationTimeout || optionalExpirationTimeout < effectiveExpirationTimeout) {
-                effectiveExpirationTimeout = optionalExpirationTimeout;
+            if (!effectiveNode ||
+                optionalExpirationTimeout < effectiveNode->TryGetExpirationTimeout())
+            {
+                effectiveNode = node;
             }
         }
     }
-    return effectiveExpirationTimeout;
+    return effectiveNode;
 }
 
 void TCypressNode::SetNativeContentRevision(NHydra::TRevision revision)

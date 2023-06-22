@@ -572,9 +572,7 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
         .SetPresent(node->TryGetExpirationTimeout().has_value())
         .SetWritable(true)
         .SetRemovable(true));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EffectiveExpirationTime)
-        .SetOpaque(true));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EffectiveExpirationTimeout)
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EffectiveExpiration)
         .SetOpaque(true));
     descriptors->push_back(EInternedAttributeKey::CreationTime);
     descriptors->push_back(EInternedAttributeKey::ModificationTime);
@@ -707,23 +705,34 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
             return true;
         }
 
-        case EInternedAttributeKey::EffectiveExpirationTime: {
-            auto effectiveExpirationTime = node->TryGetEffectiveExpirationTime();
-            if (!effectiveExpirationTime) {
-                break;
-            }
-            BuildYsonFluently(consumer)
-                .Value(*effectiveExpirationTime);
-            return true;
-        }
+        case EInternedAttributeKey::EffectiveExpiration: {
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
 
-        case EInternedAttributeKey::EffectiveExpirationTimeout: {
-            auto effectiveExpirationTimeout = node->TryGetEffectiveExpirationTimeout();
-            if (!effectiveExpirationTimeout) {
-                break;
+            auto fluent = BuildYsonFluently(consumer).BeginMap();
+
+            if (auto* effectiveNode = node->GetEffectiveExpirationTimeNode()) {
+                fluent.Item("time")
+                    .DoMap([&] (NYTree::TFluentMap fluent) {
+                        fluent
+                            .Item("value").Value(*effectiveNode->TryGetExpirationTime())
+                            .Item("path").Value(cypressManager->GetNodePath(effectiveNode, GetTransaction()));
+                    });
+            } else {
+                fluent.Item("time").Entity();
             }
-            BuildYsonFluently(consumer)
-                .Value(*effectiveExpirationTimeout);
+
+            if (auto* effectiveNode = node->GetEffectiveExpirationTimeoutNode()) {
+                fluent.Item("timeout")
+                    .DoMap([&] (NYTree::TFluentMap fluent) {
+                        fluent
+                            .Item("value").Value(*effectiveNode->TryGetExpirationTimeout())
+                            .Item("path").Value(cypressManager->GetNodePath(effectiveNode, GetTransaction()));
+                    });
+            } else {
+                fluent.Item("timeout").Entity();
+            }
+
+            fluent.EndMap();
             return true;
         }
 

@@ -2269,22 +2269,24 @@ class TestCypress(YTEnvSetup):
 
     @authors("danilalexeev")
     def test_effective_expiration_time_and_timeout(self):
+        assert get("//tmp/@effective_expiration") == {"time": yson.YsonEntity(), "timeout": yson.YsonEntity()}
+
         create("map_node", "//tmp/m1", attributes={"expiration_time": "2044-01-01"})
         create("table", "//tmp/m1/t1")
-        assert get("//tmp/m1/t1/@effective_expiration_time") == "2044-01-01T00:00:00.000000Z"
+        assert get("//tmp/m1/t1/@effective_expiration")["time"] == {"value": "2044-01-01T00:00:00.000000Z", "path": "//tmp/m1"}
 
         create("map_node", "//tmp/m2", attributes={"expiration_time": "2030-01-01"})
         create("map_node", "//tmp/m2/m2")
         create("table", "//tmp/m2/m2/t2", attributes={"expiration_time": "2044-01-01"})
-        assert get("//tmp/m2/m2/t2/@effective_expiration_time") == "2030-01-01T00:00:00.000000Z"
+        assert get("//tmp/m2/m2/t2/@effective_expiration")["time"] == {"value": "2030-01-01T00:00:00.000000Z", "path": "//tmp/m2"}
 
         create("map_node", "//tmp/m3", attributes={"expiration_timeout": 10000})
         create("table", "//tmp/m3/t3", attributes={"expiration_timeout": 20000})
-        assert get("//tmp/m3/t3/@effective_expiration_timeout") == 10000
+        assert get("//tmp/m3/t3/@effective_expiration")["timeout"] == {"value": 10000, "path": "//tmp/m3"}
 
         create("map_node", "//tmp/m4")
         create("table", "//tmp/m4/t4", attributes={"expiration_timeout": 20000})
-        assert get("//tmp/m4/t4/@effective_expiration_timeout") == 20000
+        assert get("//tmp/m4/t4/@effective_expiration")["timeout"] == {"value": 20000, "path": "//tmp/m4/t4"}
 
     @authors("babenko")
     @pytest.mark.parametrize("preserve", [False, True])
