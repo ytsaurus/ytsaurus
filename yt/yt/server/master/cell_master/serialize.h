@@ -152,6 +152,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixChunkCreationTimeHistogram)                                (2337))  // kvk1920
     ((HunksBackup)                                                  (2338))  // akozhikhov
     ((SysOperationsTransactionAction)                               (2339))  // kvk1920
+    ((ExportEmptyMasterTableSchemas)                                (2340))  // h0pless
     // 23.2 starts here.
     ((TabletServants)                                               (2400))  // ifsmirnov
     ((MediumBase)                                                   (2401))  // gritukan

@@ -2525,7 +2525,7 @@ private:
     bool NeedFixNodeStatistics_ = false;
 
     // COMPAT(h0pless): Remove this after schema migration is complete.
-    bool NeedExportSchemas_ = false;
+    ESchemaMigrationMode SchemaExportMode_ = ESchemaMigrationMode::None;
 
     using TRecursiveResourceUsageCache = TSyncExpiringCache<TVersionedNodeId, TFuture<TYsonString>>;
     using TRecursiveResourceUsageCachePtr = TIntrusivePtr<TRecursiveResourceUsageCache>;
@@ -2582,7 +2582,11 @@ private:
         }
 
         NeedFixNodeStatistics_ = context.GetVersion() < EMasterReign::FixClonedTrunkNodeStatistics;
-        NeedExportSchemas_ = context.GetVersion() < EMasterReign::ExportMasterTableSchemas;
+        if (context.GetVersion() < EMasterReign::ExportMasterTableSchemas) {
+            SchemaExportMode_ = ESchemaMigrationMode::AllSchemas;
+        } else if (context.GetVersion() < EMasterReign::ExportEmptyMasterTableSchemas) {
+            SchemaExportMode_ = ESchemaMigrationMode::EmptySchemaOnly;
+        }
     }
 
     void Clear() override
@@ -2608,7 +2612,7 @@ private:
         RecursiveResourceUsageCache_->Clear();
 
         NeedFixNodeStatistics_ = false;
-        NeedExportSchemas_ = false;
+        SchemaExportMode_ = ESchemaMigrationMode::None;
     }
 
     void SetZeroState() override
@@ -2726,10 +2730,22 @@ private:
             }
         }
 
-        // COMPAT(h0pless): Remove this after schema migration is complete.
-        if (NeedExportSchemas_) {
+        // This needs to be done for 2 reasons:
+        //   - Empty schema has artificial export counters to all cells, which need to be dealt with.
+        //   - Schema updates will use the same protocol as new migration, which also export refs it.
+        if (SchemaExportMode_ == ESchemaMigrationMode::EmptySchemaOnly) {
             const auto& tableManager = Bootstrap_->GetTableManager();
-            tableManager->TransformForeignSchemaIdsToNative();
+            auto* emptySchema = tableManager->GetEmptyMasterTableSchema();
+            emptySchema->ResetExportRefCounters();
+        }
+
+        // COMPAT(h0pless): Remove this after schema migration is complete.
+        if (SchemaExportMode_ != ESchemaMigrationMode::None) {
+            const auto& tableManager = Bootstrap_->GetTableManager();
+            if (SchemaExportMode_ == ESchemaMigrationMode::AllSchemas) {
+                // This has been done during the first export.
+                tableManager->TransformForeignSchemaIdsToNative();
+            }
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             auto* emptySchema = Bootstrap_->GetTableManager()->GetEmptyMasterTableSchema();
@@ -2759,7 +2775,9 @@ private:
                 if (nodeType == EObjectType::ChaosReplicatedTable) {
                     auto* table = node->As<NChaosServer::TChaosReplicatedTableNode>();
                     auto* schema = table->GetSchema();
-                    maybeUpdateEmptySchema(table);
+                    if (SchemaExportMode_ == ESchemaMigrationMode::EmptySchemaOnly) {
+                        maybeUpdateEmptySchema(table);
+                    }
 
                     if (!schema) {
                         tableManager->SetTableSchema(table, emptySchema);
@@ -2780,9 +2798,16 @@ private:
                 }
 
                 YT_VERIFY(IsObjectAlive(schema));
-                schema = maybeUpdateEmptySchema(table);
+                if (SchemaExportMode_ == ESchemaMigrationMode::EmptySchemaOnly) {
+                    schema = maybeUpdateEmptySchema(table);
+                }
 
                 if (!node->IsExternal()) {
+                    continue;
+                }
+
+                if (SchemaExportMode_ == ESchemaMigrationMode::EmptySchemaOnly &&
+                    *schema->AsTableSchema() != *emptySchema->AsTableSchema()) {
                     continue;
                 }
 
@@ -2813,6 +2838,8 @@ private:
 
                     auto* subrequest = req.add_subrequests();
                     auto* schema = nodeIdToSchema.find(nodeId)->second;
+
+                    YT_VERIFY(SchemaExportMode_ == ESchemaMigrationMode::AllSchemas || schema == emptySchema);
 
                     ToProto(subrequest->mutable_table_node_id(), nodeId.ObjectId);
                     ToProto(subrequest->mutable_transaction_id(), nodeId.TransactionId);

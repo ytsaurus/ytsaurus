@@ -252,6 +252,13 @@ void TMasterTableSchema::SetId(TMasterTableSchemaId id)
     Id_ = id;
 }
 
+void TMasterTableSchema::ResetExportRefCounters()
+{
+    YT_LOG_DEBUG("Resetting export ref counters for schema (SchemaId: %v)",
+        GetId());
+    CellTagToExportCount_.reset();
+}
+
 TMasterTableSchema::TNativeTableSchemaToObjectMapIterator TMasterTableSchema::GetNativeTableSchemaToObjectMapIterator() const
 {
     const auto* it = std::get_if<TNativeTableSchemaToObjectMapIterator>(&TableSchemaToObjectMapIterator_);
