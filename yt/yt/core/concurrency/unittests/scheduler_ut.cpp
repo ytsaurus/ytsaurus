@@ -7,6 +7,7 @@
 
 #include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/count_down_latch.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
@@ -1115,10 +1116,10 @@ TEST_W(TSchedulerTest, FutureUpdatedRaceInWaitFor_YT_18899)
                 .AsyncVia(serializedInvoker)
         );
 
-        std::atomic<bool> enteredWaitingAction{false};
+        TCountDownLatch latch{1};
 
         auto testResultFuture = BIND([&] {
-            enteredWaitingAction = true;
+            latch.CountDown();
             // N.B. `future` object will be modified after we enter `WaitFor` function.
             // We expect to get result of original future that will succeed.
             WaitFor(modifiedFuture)
@@ -1128,7 +1129,7 @@ TEST_W(TSchedulerTest, FutureUpdatedRaceInWaitFor_YT_18899)
             .Run();
 
         // Wait until serialized executor starts executing action.
-        while (!enteredWaitingAction) {}
+        latch.Wait();
 
         BIND([&] {
             // N.B. waiting action is inside WairFor now, because:
