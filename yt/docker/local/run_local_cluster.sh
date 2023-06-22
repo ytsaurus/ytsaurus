@@ -17,11 +17,12 @@ yt_version=stable
 ui_version=stable
 yt_skip_pull=false
 ui_skip_pull=false
+app_installation=''
 local_cypress_dir=''
 rpc_proxy_count=0
 rpc_proxy_port=8002
 enable_debug_logging=false
-
+yt_fqdn=''
 
 network_name=yt_local_cluster_network
 ui_network=$network_name
@@ -58,6 +59,7 @@ Usage: $script_name [-h|--help]
   --ui-proxy-internal: Sets the value for PROXY_INTERNAL environment variable (default: $ui_proxy_internal)
   --yt-skip-pull: Enforces to skip image-pulling step to use locally built version of image (default: $yt_skip_pull)
   --ui-skip-pull: Enforces to skip image-pulling step to use locally built version of image (default: $ui_skip_pull)
+  --ui-app-installation: Sets APP_INSTALLATION environment variable for yt.frontend docker container
   --local-cypress-dir: Sets the directory on the docker host to be mapped into local cypress dir inside yt local cluster container (default: $local_cypress_dir)
   --rpc-proxy-count: Sets the number of rpc proxies to start in yt local cluster (default: $rpc_proxy_count)
   --rpc-proxy-port: Sets ports for rpc proxies; number of values should be equal to rpc-proxy-count
@@ -107,6 +109,10 @@ while [[ $# -gt 0 ]]; do
         ui_skip_pull="$2"
         shift 2
         ;;
+        --ui-app-installation)
+        app_installation="$2"
+        shift 2
+        ;;
         --local-cypress-dir)
         local_cypress_dir="$2"
         shift 2
@@ -123,6 +129,10 @@ while [[ $# -gt 0 ]]; do
         enable_debug_logging="$2"
         shift 2
         ;;
+        --fqdn)
+        yt_fqdn="$2"
+        shift 2
+        ;;
         -h|--help)
         print_usage
         shift
@@ -131,7 +141,7 @@ while [[ $# -gt 0 ]]; do
         docker stop $ui_container_name $yt_container_name
         exit
         ;;
-        *)  # unknown option
+        *) # unknown option
         echo "Unknown argument $1"
         print_usage
         ;;
@@ -170,7 +180,7 @@ if [ "$ui_skip_pull" = "false" -o -z "$ui_skip_pull" ]; then
     docker pull $ui_image
 fi
 
-if [ -z "`docker network ls | grep $network_name`" ]; then
+if [ -z "$(docker network ls | grep $network_name)" ]; then
     echo "Creating network $network_name" >&2
     docker network create $network_name
 fi
@@ -181,15 +191,39 @@ if [ ${enable_debug_logging} == "true" ]; then
 fi
 
 set +e
-cluster_container=$(docker run -itd --network $network_name --name $yt_container_name -p ${proxy_port}:80 -p ${rpc_proxy_port}:${rpc_proxy_port} --rm $local_cypress_dir $yt_image --fqdn "${docker_hostname}" --proxy-config "{address_resolver={enable_ipv4=%true;enable_ipv6=%false;};coordinator={public_fqdn=\"${docker_hostname}:${proxy_port}\"}}" --rpc-proxy-count ${rpc_proxy_count} --rpc-proxy-port ${rpc_proxy_port} ${params})
+cluster_container=$(
+    docker run -itd \
+        --network $network_name \
+        --name $yt_container_name \
+        -p ${proxy_port}:80 \
+        -p ${rpc_proxy_port}:${rpc_proxy_port} \
+        --rm \
+        $local_cypress_dir \
+        $yt_image \
+        --fqdn "${yt_fqdn:-${docker_hostname}}" \
+        --proxy-config "{address_resolver={enable_ipv4=%true;enable_ipv6=%false;};coordinator={public_fqdn=\"${docker_hostname}:${proxy_port}\"}}" \
+        --rpc-proxy-count ${rpc_proxy_count} \
+        --rpc-proxy-port ${rpc_proxy_port} \
+        ${params} \
+)
+
 if [ "$?" != "0" ]; then
-   die "Image $yt_image failed to run. Most likely that was because the port $proxy_port is already busy, \
+    die "Image $yt_image failed to run. Most likely that was because the port $proxy_port is already busy, \
 so you have to provide another port via --proxy-port option."
 fi
 
-interface_env_0="-e UI_CORE_CDN=false -e DENY_DISPENSER_PROXY=1 -e DENY_YQL_PROXY=1 -e RUM_ENV=local"
-interface_env="-e PROXY=${docker_hostname}:${proxy_port} -e PROXY_INTERNAL=$ui_proxy_internal -e APP_ENV=local $interface_env_0"
-interface_container=$(docker run -itd --network $ui_network --name $ui_container_name -p ${interface_port}:80 ${interface_env} --rm $ui_image)
+interface_container=$(
+    docker run -itd \
+        --network $ui_network \
+        --name $ui_container_name \
+        -p ${interface_port}:80 \
+        -e PROXY=${docker_hostname}:${proxy_port} \
+        -e PROXY_INTERNAL=$ui_proxy_internal \
+        -e APP_ENV=local \
+        -e APP_INSTALLATION=${app_installation} \
+        --rm \
+       $ui_image \
+)
 if [ "$?" != "0" ]; then
     docker stop $cluster_container
     die "Image $ui_image failed to run. Most likely that was because the port $interface_port is \
