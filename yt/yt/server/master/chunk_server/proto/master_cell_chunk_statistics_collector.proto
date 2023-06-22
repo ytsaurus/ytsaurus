@@ -1,0 +1,19 @@
+package NYT.NChunkServer.NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRecalculateMasterCellChunkStatistics
+{ }
+
+message TReqUpdateMasterCellChunkStatistics
+{
+    message TCreationTimeHistogram
+    {
+        repeated int32 delta = 1;
+    }
+
+    optional TCreationTimeHistogram creation_time_histogram = 1;
+    required bool last_batch = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
