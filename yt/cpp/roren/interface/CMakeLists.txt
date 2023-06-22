@@ -6,6 +6,7 @@
 # original buildsystem will not be accepted.
 
 
+add_subdirectory(ut)
 get_built_tool_path(
   TOOL_enum_parser_bin
   TOOL_enum_parser_dependency
@@ -25,6 +26,7 @@ target_sources(cpp-roren-interface PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/attributes.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/co_group_by_key.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/combine.cpp
+  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/fn_attributes_ops.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/group_by_key.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/merge_par_dos.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/optimizer.cpp
@@ -37,6 +39,7 @@ target_sources(cpp-roren-interface PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/row_vtable.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/stateful_par_do.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/par_do_tree.cpp
+  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/fns.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/input.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/output.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/roren.cpp

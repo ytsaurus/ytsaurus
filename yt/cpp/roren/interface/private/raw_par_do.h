@@ -35,10 +35,11 @@ public:
 public:
     TRawParDo() = default;
 
-    TRawParDo(TIntrusivePtr<TFunction> func, const TRowVtable inputVtable, std::vector<TDynamicTypeTag> outputTags)
+    TRawParDo(TIntrusivePtr<TFunction> func, const TRowVtable inputVtable, std::vector<TDynamicTypeTag> outputTags, TFnAttributes fnAttributes)
         : Func_(std::move(func))
         , InputTag_("par-do-input", inputVtable)
         , OutputTags_(std::move(outputTags))
+        , FnAttributes_(std::move(fnAttributes))
     {
         if constexpr (std::is_same_v<TOutputRow, void>) {
             Y_VERIFY(OutputTags_.size() == 0);
@@ -89,6 +90,7 @@ public:
     {
         ::Save(&output, InputTag_);
         ::Save(&output, OutputTags_);
+        ::Save(&output, FnAttributes_);
 
         static_cast<const IFnBase*>(Func_.Get())->Save(&output);
     }
@@ -97,6 +99,8 @@ public:
     {
         ::Load(&input, InputTag_);
         ::Load(&input, OutputTags_);
+        ::Load(&input, FnAttributes_);
+
         static_cast<IFnBase*>(Func_.Get())->Load(&input);
     }
 
@@ -110,13 +114,17 @@ public:
         return OutputTags_;
     }
 
+    [[nodiscard]] const TFnAttributes& GetFnAttributes() const override
+    {
+        return FnAttributes_;
+    }
+
     [[nodiscard]] TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawParDoPtr {
             return MakeIntrusive<TRawParDo>();
         };
     }
-
 
 private:
     auto& GetOutput()
@@ -136,6 +144,7 @@ private:
     IRawOutputPtr SingleOutput_;
     TDynamicTypeTag InputTag_;
     std::vector<TDynamicTypeTag> OutputTags_;
+    TFnAttributes FnAttributes_;
 };
 
 class TLambda1RawParDo
@@ -158,10 +167,16 @@ public:
 
 public:
     TLambda1RawParDo() = default;
-    TLambda1RawParDo(TWrapperFunctionPtr wrapperFunction, EWrapperType wrapperType, void* function, const TRowVtable& rowVtable, std::vector<TDynamicTypeTag> tags);
+    TLambda1RawParDo(
+        TWrapperFunctionPtr wrapperFunction,
+         EWrapperType wrapperType,
+        void* function,
+        const TRowVtable& rowVtable,
+        std::vector<TDynamicTypeTag> tags,
+        TFnAttributes fnAttributes);
 
     template <typename TInput, typename TOutput>
-    static TIntrusivePtr<TLambda1RawParDo> MakeIntrusive(TRawFunction1<TInput, TOutput> function)
+    static TIntrusivePtr<TLambda1RawParDo> MakeIntrusive(TRawFunction1<TInput, TOutput> function, TFnAttributes fnAttributes)
     {
         std::vector<TDynamicTypeTag> tags;
         return ::MakeIntrusive<TLambda1RawParDo>(
@@ -169,33 +184,37 @@ public:
             EWrapperType::WrapperType1,
             reinterpret_cast<void*>(function),
             MakeRowVtable<TInput>(),
-            MakeTags<TOutput>()
+            MakeTags<TOutput>(),
+            std::move(fnAttributes)
         );
     }
 
     template <typename TInput, typename TOutput>
-    static TIntrusivePtr<TLambda1RawParDo> MakeIntrusive(TRawFunction2<TInput, TOutput> function)
+    static TIntrusivePtr<TLambda1RawParDo> MakeIntrusive(TRawFunction2<TInput, TOutput> function, TFnAttributes fnAttributes)
     {
         return ::MakeIntrusive<TLambda1RawParDo>(
             &RawWrapper2Func<TInput, TOutput>,
             EWrapperType::WrapperType2,
             reinterpret_cast<void*>(function),
             MakeRowVtable<TInput>(),
-            MakeTags<TOutput>()
+            MakeTags<TOutput>(),
+            std::move(fnAttributes)
         );
     }
 
     template <typename TInput>
     static TIntrusivePtr<TLambda1RawParDo> MakeIntrusive(
         TRawFunction2<TInput, TMultiRow> function,
-        std::vector<TDynamicTypeTag> tags)
+        std::vector<TDynamicTypeTag> tags,
+        TFnAttributes fnAttributes)
     {
         return ::MakeIntrusive<TLambda1RawParDo>(
             &RawWrapperMultiOutputFunc<TInput>,
             EWrapperType::MultiOutputWrapper,
             reinterpret_cast<void*>(function),
             MakeRowVtable<TInput>(),
-            std::move(tags)
+            std::move(tags),
+            std::move(fnAttributes)
         );
     }
 
@@ -209,6 +228,7 @@ public:
 
     [[nodiscard]] std::vector<TDynamicTypeTag> GetInputTags() const override;
     [[nodiscard]] std::vector<TDynamicTypeTag> GetOutputTags() const override;
+    [[nodiscard]] const TFnAttributes& GetFnAttributes() const override;
 
 private:
     template <typename TInputRow, typename TOutputRow>
@@ -280,19 +300,26 @@ private:
     std::optional<TMultiOutput> MultiOutput_;
     IRawOutputPtr SingleOutput_;
     TRawRowHolder RowHolder_;
+    TFnAttributes FnAttributes_;
 };
 
 template <typename TDoFn>
 IRawParDoPtr MakeRawParDo(TIntrusivePtr<TDoFn> doFn, const TRowVtable& inputVtable = MakeRowVtable<typename TDoFn::TInputRow>())
 {
-    return MakeIntrusive<TRawParDo<TDoFn>>(doFn, inputVtable, doFn->GetOutputTags());
+    return MakeIntrusive<TRawParDo<TDoFn>>(doFn, inputVtable, doFn->GetOutputTags(), doFn->GetDefaultAttributes());
+}
+
+template <typename TDoFn>
+IRawParDoPtr MakeRawParDo(TIntrusivePtr<TDoFn> doFn, const TRowVtable& inputVtable, TFnAttributes fnAttributes)
+{
+    return MakeIntrusive<TRawParDo<TDoFn>>(doFn, inputVtable, doFn->GetOutputTags(), std::move(fnAttributes));
 }
 
 template <typename TInput, typename TOutput, typename F>
-IRawParDoPtr MakeRawParDo(F&& doFn)
+IRawParDoPtr MakeRawParDo(F&& doFn, TFnAttributes fnAttributes = {})
     requires(std::is_convertible_v<F, TOutput(*)(const TInput&)>)
 {
-    return TLambda1RawParDo::MakeIntrusive<TInput, TOutput>(doFn);
+    return TLambda1RawParDo::MakeIntrusive<TInput, TOutput>(doFn, std::move(fnAttributes));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

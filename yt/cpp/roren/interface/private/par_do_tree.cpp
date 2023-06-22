@@ -1,5 +1,9 @@
 #include "par_do_tree.h"
 
+#include "fn_attributes_ops.h"
+
+#include "../fns.h"
+
 #include <yt/cpp/roren/interface/execution_context.h>
 
 #include <util/generic/iterator_range.h>
@@ -74,6 +78,7 @@ public:
         : ParDoNodes_(std::move(parDoNodes))
         , InputVtable_(pCollectionNodes[0].RowVtable)
         , OutputTags_(std::move(outputTags))
+        , FnAttributes_(MergeFnAttributes(ParDoNodes_))
     {
         for (const auto& node : pCollectionNodes) {
             PCollectionNodeOutputIndex_.push_back(node.GlobalOutputIndex);
@@ -96,6 +101,10 @@ public:
         return OriginalOutputTags_;
     }
 
+    const TFnAttributes& GetFnAttributes() const override
+    {
+        return FnAttributes_;
+    }
 
     void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& globalOutputs) override
     {
@@ -128,6 +137,7 @@ public:
         ::Save(&stream, PCollectionNodeOutputIndex_);
         ::Save(&stream, InputVtable_);
         ::Save(&stream, OutputTags_);
+        ::Save(&stream, FnAttributes_);
     }
 
     void LoadState(IInputStream& stream) override
@@ -136,6 +146,7 @@ public:
         ::Load(&stream, PCollectionNodeOutputIndex_);
         ::Load(&stream, InputVtable_);
         ::Load(&stream, OutputTags_);
+        ::Load(&stream, FnAttributes_);
         InitializeOutputTags();
     }
 
@@ -143,7 +154,7 @@ public:
     {
         std::map<TString, int> Names_;
         for (const auto& node : ParDoNodes_) {
-            if (const auto* name = NRoren::NPrivate::GetAttribute(*node.ParDo, NameTag)) {
+            if (const auto name = node.ParDo->GetFnAttributes().GetName()) {
                 Names_[*name] += 1;
             } else {
                 Names_[{}] += 1;
@@ -247,12 +258,23 @@ private:
         }
     }
 
+    static TFnAttributes MergeFnAttributes(const std::vector<TParDoNode>& parDoNodeList)
+    {
+        TFnAttributes result;
+        for (const auto& node : parDoNodeList) {
+            const auto& currentAttributes = node.ParDo->GetFnAttributes();
+            TFnAttributesOps::Merge(result, currentAttributes);
+        }
+        return result;
+    }
+
 private:
     // Serialized fields.
     std::vector<TParDoNode> ParDoNodes_;
     std::vector<int> PCollectionNodeOutputIndex_;
     TRowVtable InputVtable_;
     std::vector<TDynamicTypeTag> OutputTags_;
+    TFnAttributes FnAttributes_;
 
     // Non-serialized fields.
     std::vector<TDynamicTypeTag> OriginalOutputTags_;

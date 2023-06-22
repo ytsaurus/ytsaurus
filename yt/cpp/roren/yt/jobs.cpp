@@ -1,8 +1,5 @@
 #include "jobs.h"
 
-#include "yt_read.h"
-#include "yt_write.h"
-
 #include <yt/cpp/roren/interface/roren.h>
 
 #include <yt/cpp/mapreduce/interface/client.h>
@@ -103,8 +100,13 @@ public:
             for (const auto& output : outputs) {
                 output->Close();
             }
-        } catch (...) {
+        } catch (const std::exception& ex) {
             Cerr << "Error in ParDo" << Endl;
+            Cerr << ex.what() << Endl;
+            Cerr << TBackTrace::FromCurrentException().PrintToString() << Endl;
+            throw;
+        } catch (...) {
+            Cerr << "Unknown error in ParDo" << Endl;
             Cerr << TBackTrace::FromCurrentException().PrintToString() << Endl;
             throw;
         }

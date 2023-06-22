@@ -25,10 +25,11 @@ class TRawStatefulParDo
 public:
     TRawStatefulParDo() = default;
 
-    TRawStatefulParDo(TIntrusivePtr<TFunction> func, const TRowVtable inputVtable, std::vector<TDynamicTypeTag> outputTags)
+    TRawStatefulParDo(TIntrusivePtr<TFunction> func, const TRowVtable inputVtable, std::vector<TDynamicTypeTag> outputTags, TFnAttributes fnAttributes)
         : Func_(std::move(func))
         , InputTag_("stateful-do-fn-input", inputVtable)
         , OutputTags_(std::move(outputTags))
+        , FnAttributes_(std::move(fnAttributes))
     { }
 
     void Start(const IExecutionContextPtr& context, IRawStateStorePtr rawStateMap, const std::vector<IRawOutputPtr>& outputs) override
@@ -74,6 +75,7 @@ public:
     {
         ::Save(&output, InputTag_);
         ::Save(&output, OutputTags_);
+        ::Save(&output, FnAttributes_);
 
         static_cast<const IFnBase*>(Func_.Get())->Save(&output);
     }
@@ -82,6 +84,8 @@ public:
     {
         ::Load(&input, InputTag_);
         ::Load(&input, OutputTags_);
+        ::Load(&input, FnAttributes_);
+
         static_cast<IFnBase*>(Func_.Get())->Load(&input);
     }
 
@@ -93,6 +97,11 @@ public:
     [[nodiscard]] std::vector<TDynamicTypeTag> GetOutputTags() const override
     {
         return OutputTags_;
+    }
+
+    [[nodiscard]] const TFnAttributes& GetFnAttributes() const override
+    {
+        return FnAttributes_;
     }
 
     [[nodiscard]] TDefaultFactoryFunc GetDefaultFactory() const override
@@ -123,6 +132,7 @@ private:
     TIntrusivePtr<TFunction> Func_ = MakeIntrusive<TFunction>();
     TDynamicTypeTag InputTag_;
     std::vector<TDynamicTypeTag> OutputTags_;
+    TFnAttributes FnAttributes_;
 
     std::optional<TMultiOutput> MultiOutput_;
     IRawOutputPtr SingleOutput_;
@@ -130,10 +140,10 @@ private:
 };
 
 template <typename TFunction>
-IRawStatefulParDoPtr MakeRawStatefulParDo(TIntrusivePtr<TFunction> fn)
+IRawStatefulParDoPtr MakeRawStatefulParDo(TIntrusivePtr<TFunction> fn, TFnAttributes fnAttributes)
 {
     TRowVtable rowVtable = MakeRowVtable<typename TFunction::TInputRow>();
-    return ::MakeIntrusive<TRawStatefulParDo<TFunction>>(fn, rowVtable, fn->GetOutputTags());
+    return ::MakeIntrusive<TRawStatefulParDo<TFunction>>(fn, rowVtable, fn->GetOutputTags(), std::move(fnAttributes));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

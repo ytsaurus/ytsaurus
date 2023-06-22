@@ -5,6 +5,7 @@
 #include "input.h"
 #include "output.h"
 #include "row.h"
+#include "private/fwd.h"
 #include "private/concepts.h" // IWYU pragma: keep  (clangd bug, required for concepts)
 #include "private/raw_state_store.h"
 
@@ -50,15 +51,37 @@ private:
 // Do function
 //
 
-class TDoFnAttributes
+class TFnAttributes
 {
 public:
     /// @brief Name of a function. Used in debug and info purposes.
-    std::optional<TString> Name;
+    TFnAttributes& SetName(std::optional<TString> name) &;
+    TFnAttributes SetName(std::optional<TString> name) &&;
+    const std::optional<TString>& GetName() const;
+
+    ///
+    /// @brief Resource files are files that are required to run user function.
+    ///
+    /// Executors that run pipelines on remote machines upload these files
+    /// (they will be available in current working directory of the process).
+    ///
+    /// Executors that run pipelines on current machine ignore these files.
+    ///
+    /// Status by executors:
+    ///   - Local executor :: ignores.
+    ///   - YT executor :: uses.
+    ///   - BigRT executor :: ignores.
+    TFnAttributes& AddResourceFile(const TString& resourceFile)&;
+    TFnAttributes AddResourceFile(const TString& resourceFile)&&;
+
+private:
+    std::vector<TString> ResourceFileList_;
+    std::optional<TString> Name_;
+
+    friend NPrivate::TFnAttributesOps;
 
 public:
-    /// @brief Merge attributes. Non nullopt values from `other` object will overwrite values from this object.
-    void Merge(const TDoFnAttributes& other);
+    Y_SAVELOAD_DEFINE(Name_, ResourceFileList_);
 };
 
 template <CRow TInput_, typename TOutput_>
@@ -87,7 +110,7 @@ public:
     virtual void Finish(TOutput<TOutputRow>&)
     { }
 
-    virtual TDoFnAttributes GetDefaultAttributes() const
+    virtual TFnAttributes GetDefaultAttributes() const
     {
         return {};
     }
@@ -109,6 +132,11 @@ public:
     virtual void Do(const TInputRow& input, TOutput<TOutputRow>& output) = 0;
     virtual void Finish(TOutput<TOutputRow>&)
     { }
+
+    virtual TFnAttributes GetDefaultAttributes() const
+    {
+        return {};
+    }
 };
 
 template <CRow TInput_, typename TOutput_>
@@ -130,6 +158,11 @@ public:
     virtual void Do(std::span<const TInputRow> input, TOutput<TOutputRow>& output) = 0;
     virtual void Finish(TOutput<TOutputRow>&)
     { }
+
+    virtual TFnAttributes GetDefaultAttributes() const
+    {
+        return {};
+    }
 };
 
 template <typename F>
@@ -187,6 +220,11 @@ public:
 
     virtual void Finish(TOutput<TOutputRow>& /*output*/, TStateStore<typename TInputRow::TKey, TState>& /*stateMap*/)
     { }
+
+    virtual TFnAttributes GetDefaultAttributes() const
+    {
+        return {};
+    }
 };
 
 template <typename TInputRow_, typename TState_>

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "fwd.h"
+
 #include "private/row_vtable.h"
 
 #include <util/generic/string.h>
@@ -95,10 +97,6 @@ private:
     TString Description_ = "<undefined-tag>";
     NPrivate::TRowVtable RowVtable_;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-extern const TTypeTag<TString> NameTag;
 
 ////////////////////////////////////////////////////////////////////////////////
 

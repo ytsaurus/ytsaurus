@@ -131,6 +131,7 @@ public:
     virtual void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) = 0;
     virtual void Do(const void* rows, int count) = 0;
     virtual void Finish() = 0;
+    virtual const TFnAttributes& GetFnAttributes() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -146,6 +147,8 @@ public:
     }
 
     virtual TRowVtable GetStateVtable() const = 0;
+
+    virtual const TFnAttributes& GetFnAttributes() const = 0;
 
     virtual void Start(const IExecutionContextPtr& context, IRawStateStorePtr rawStateMap, const std::vector<IRawOutputPtr>& outptus) = 0;
     virtual void Do(const void* row, int count) = 0;

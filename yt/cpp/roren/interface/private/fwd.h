@@ -63,6 +63,8 @@ using IRawStateStorePtr = TIntrusivePtr<IRawStateStore>;
 class TRawPStateNode;
 using TRawPStateNodePtr = TIntrusivePtr<TRawPStateNode>;
 
+class TFnAttributesOps;
+
 #define THROW_NOT_IMPLEMENTED_YET() \
 do { \
     ythrow yexception() << "not supported yet " << __FUNCTION__; \

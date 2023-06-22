@@ -9,12 +9,15 @@ TLambda1RawParDo::TLambda1RawParDo(
     EWrapperType wrapperType,
     void* function,
     const TRowVtable& rowVtable,
-    std::vector<TDynamicTypeTag> tags)
+    std::vector<TDynamicTypeTag> tags,
+    TFnAttributes fnAttributes
+)
     : WrapperFunction_(wrapperFunction)
     , WrapperType_(wrapperType)
     , UnderlyingFunction_(function)
     , InputTag_("lambda-par-do-input", rowVtable)
     , OutputTags_(std::move(tags))
+    , FnAttributes_(std::move(fnAttributes))
 { }
 
 void TLambda1RawParDo::Start(const IExecutionContextPtr&, const std::vector<IRawOutputPtr>& outputs)
@@ -82,6 +85,11 @@ std::vector<TDynamicTypeTag> TLambda1RawParDo::GetOutputTags() const
     return OutputTags_;
 }
 
+const TFnAttributes& TLambda1RawParDo::GetFnAttributes() const
+{
+    return FnAttributes_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRawIdComputation
@@ -133,6 +141,12 @@ public:
     std::vector<TDynamicTypeTag> GetOutputTags() const override
     {
         return {{"id-output", RowVtable_}};
+    }
+
+    const TFnAttributes& GetFnAttributes() const override
+    {
+        static const TFnAttributes attributes;
+        return attributes;
     }
 
 private:

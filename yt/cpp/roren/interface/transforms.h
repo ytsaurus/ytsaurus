@@ -18,14 +18,15 @@
 #include "fns.h"
 #include "co_gbk_result.h"
 #include "type_tag.h"
-#include "private/fwd.h"
 #include "private/attributes.h"
 #include "private/combine.h"
+#include "private/flatten.h"
+#include "private/fn_attributes_ops.h"
+#include "private/fwd.h"
 #include "private/group_by_key.h"
 #include "private/raw_par_do.h"
 #include "private/raw_pipeline.h"
 #include "private/stateful_par_do.h"
-#include "private/flatten.h"
 
 #include <util/stream/input.h>
 #include <util/stream/output.h>
@@ -72,7 +73,7 @@ namespace NRoren {
 ///  @param attributes contains attributes of a function, they will be merged with
 /// attributes provided by `func' (values from `attributes' have higher precedence).
 template <typename F>
-auto ParDo(F func, const TDoFnAttributes& attributes = {});
+auto ParDo(F func, const TFnAttributes& attributes = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -187,13 +188,9 @@ class TParDoTransform
     static_assert(CRow<TOutput> || CMultiRow<TOutput>);
 
 public:
-    explicit TParDoTransform(NPrivate::IRawParDoPtr rawParDo, const TDoFnAttributes& attributes)
+    explicit TParDoTransform(NPrivate::IRawParDoPtr rawParDo)
         : RawParDo_(std::move(rawParDo))
-    {
-        if (attributes.Name) {
-            NRoren::NPrivate::SetAttribute(*RawParDo_, NameTag, *attributes.Name);
-        }
-    }
+    { }
 
     auto ApplyTo(const TPCollection<TInput>& pCollection) const
     {
@@ -229,29 +226,25 @@ private:
 };
 
 template <typename F>
-auto ParDo(F func, const TDoFnAttributes& attributes)
+auto ParDo(F func, const TFnAttributes& attributes)
 {
     using TDecayedF = std::decay_t<F>;
     if constexpr (NPrivate::CIntrusivePtr<TDecayedF>) {
         using TInputRow = typename TDecayedF::TValueType::TInputRow;
         using TOutputRow = typename TDecayedF::TValueType::TOutputRow;
 
-        if constexpr (std::is_same_v<TOutputRow, TMultiRow>) {
-            auto outputTags = func->GetOutputTags();
-            auto rawParDo = NPrivate::MakeRawParDo(func, NPrivate::MakeRowVtable<TInputRow>());
-            return TParDoTransform<TInputRow, TMultiRow>(rawParDo, attributes);
-        } else {
-            auto rawParDo = NPrivate::MakeRawParDo(func, NPrivate::MakeRowVtable<TInputRow>());
-            return TParDoTransform<TInputRow, TOutputRow>(rawParDo, attributes);
-        }
+        auto mergedAttributes = func->GetDefaultAttributes();
+        NPrivate::TFnAttributesOps::Merge(mergedAttributes, attributes);
 
+        NPrivate::IRawParDoPtr rawParDo = NPrivate::MakeRawParDo(func, NPrivate::MakeRowVtable<TInputRow>(), std::move(mergedAttributes));
+        return TParDoTransform<TInputRow, TOutputRow>(rawParDo);
     } else {
         using TInputRow = typename std::decay_t<TFunctionArg<TDecayedF, 0>>;
         if constexpr (std::is_invocable_v<TDecayedF, TInputRow>) {
             using TOutputRow = std::invoke_result_t<TDecayedF, TInputRow>;
             static_assert(std::is_convertible_v<F, TOutputRow(*)(const TInputRow&)>);
-            auto rawParDo = NPrivate::TLambda1RawParDo::MakeIntrusive<TInputRow, TOutputRow>(func);
-            return TParDoTransform<TInputRow, TOutputRow>(rawParDo, attributes);
+            auto rawParDo = NPrivate::TLambda1RawParDo::MakeIntrusive<TInputRow, TOutputRow>(func, attributes);
+            return TParDoTransform<TInputRow, TOutputRow>(rawParDo);
         } else {
             using TArg2 = typename std::decay_t<TFunctionArg<TDecayedF, 1>>;
             using TOutputRow = typename TArg2::TRowType;
@@ -261,8 +254,8 @@ auto ParDo(F func, const TDoFnAttributes& attributes)
             } else {
                 static_assert(std::is_convertible_v<F, void(*)(const TInputRow&, TOutput<TOutputRow>&)>, "Incorrect function signature, or lambda with variable capturing");
 
-                auto rawParDo = NPrivate::TLambda1RawParDo::MakeIntrusive<TInputRow, TOutputRow>(func);
-                return TParDoTransform<TInputRow, TOutputRow>(rawParDo, attributes);
+                auto rawParDo = NPrivate::TLambda1RawParDo::MakeIntrusive<TInputRow, TOutputRow>(func, attributes);
+                return TParDoTransform<TInputRow, TOutputRow>(rawParDo);
             }
         }
     }
@@ -313,7 +306,7 @@ private:
 };
 
 template <typename TFn, typename TKey, typename TState>
-auto StatefulParDo(TPState<TKey, TState> pState, TFn fn, const TDoFnAttributes& attributes = {})
+auto StatefulParDo(TPState<TKey, TState> pState, TFn fn, const TFnAttributes& attributes = {})
 {
     using TDecayedF = std::decay_t<TFn>;
     if constexpr (NPrivate::CIntrusivePtr<TDecayedF>) {
@@ -321,11 +314,8 @@ auto StatefulParDo(TPState<TKey, TState> pState, TFn fn, const TDoFnAttributes& 
 
         using TInput = typename TDecayedF::TValueType::TInputRow;
         using TOutput = typename TDecayedF::TValueType::TOutputRow;
-        auto rawFn = NPrivate::MakeRawStatefulParDo(fn);
+        auto rawFn = NPrivate::MakeRawStatefulParDo(fn, attributes);
         auto rawState = NPrivate::GetRawPStateNode(pState);
-        if (attributes.Name) {
-            NRoren::NPrivate::SetAttribute(*rawFn, NameTag, *attributes.Name);
-        }
         return TStatefulParDoTransform<TInput, TOutput, TState>{rawFn, rawState};
     } else {
         static_assert(TDependentFalse<TFn>, "not supported yet");

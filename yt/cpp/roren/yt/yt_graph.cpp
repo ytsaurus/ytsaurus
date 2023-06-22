@@ -1,8 +1,6 @@
 #include "yt_graph.h"
 
 #include "jobs.h"
-#include "yt_read.h"
-#include "yt_write.h"
 
 #include <yt/cpp/roren/interface/roren.h>
 #include <yt/cpp/roren/yt/proto/config.pb.h>
@@ -98,6 +96,12 @@ public:
                 path.Schema(*tableNode.Schema_);
             }
             spec.AddOutput(path);
+        }
+
+        const auto& resourceFileList = TFnAttributesOps::GetResourceFileList(RawParDo_->GetFnAttributes());
+
+        for (const auto& resourceFile : resourceFileList) {
+            spec.MapperSpec_.AddLocalFile(resourceFile);
         }
 
         auto mapper = CreateParDoMap(RawParDo_, JobInput_, JobOutputs_);
