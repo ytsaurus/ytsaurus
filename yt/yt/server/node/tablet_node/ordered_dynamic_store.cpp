@@ -225,13 +225,13 @@ private:
 
         auto maxUpperRowIndex = GetEndingRowIndex();
         if (UpperRowIndex_ <= maxUpperRowIndex) {
-            // Don't wait for barrier if enough rows are already visibile.
+            // Don't wait for barrier if enough rows are already visible.
             return;
         }
 
         auto barrierFuture = Store_->Tablet_->RuntimeData()->PreparedTransactionBarrier.GetBarrierFuture();
         if (auto optionalError = barrierFuture.TryGet(); optionalError && optionalError->IsOK()) {
-            // Don't wait for barrier if the future is alreay set (e.g. no transaction is in prepared state).
+            // Don't wait for barrier if the future is already set (e.g. no transaction is in prepared state).
             AdjustUpperRowIndex();
             return;
         }

@@ -98,7 +98,7 @@ private:
         int tabletIndex,
         i64 lowerRowIndex,
         i64 upperRowIndex,
-        NTransactionClient::TTimestamp timestmap,
+        NTransactionClient::TTimestamp timestamp,
         const std::optional<NTableClient::TColumnFilter>& columnFilter);
 };
 
