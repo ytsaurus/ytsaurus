@@ -168,7 +168,7 @@ TChunkScanner::TChunkScanner(
         std::move(objectManager),
         journal,
         ChunkServerLogger.WithTag("Kind: %v, Journal: %v",
-            Kind_,
+            kind,
             journal)),
     Kind_(kind)
 {
