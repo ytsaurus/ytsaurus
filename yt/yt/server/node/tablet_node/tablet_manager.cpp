@@ -1315,7 +1315,7 @@ private:
         if (!tablet) {
             return;
         }
-        auto transactionId = FromProto<TTabletId>(request->lock().transaction_id());
+        auto transactionId = FromProto<TTransactionId>(request->lock().transaction_id());
         auto lockTimestamp = static_cast<TTimestamp>(request->lock().timestamp());
 
         const auto& lockManager = tablet->GetLockManager();
