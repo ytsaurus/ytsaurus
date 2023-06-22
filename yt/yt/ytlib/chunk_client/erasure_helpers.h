@@ -164,7 +164,7 @@ DEFINE_REFCOUNTED_TYPE(TPartEncoder)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<NProto::TErasurePlacementExt> GetPlacementMeta(
+TFuture<TRefCountedChunkMetaPtr> GetPlacementMeta(
     const IChunkReaderPtr& reader,
     const TClientChunkReadOptions& options);
 
@@ -183,37 +183,6 @@ TDataBlocksPlacementInParts BuildDataBlocksPlacementInParts(
     const std::vector<int>& blockIndexes,
     const NProto::TErasurePlacementExt& placementExt,
     const TParityPartSplitInfo& paritySplitInfo);
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TErasureChunkReaderBase
-    : public IChunkReader
-{
-public:
-    TErasureChunkReaderBase(
-        TChunkId chunkId,
-        NErasure::ICodec* codec,
-        const std::vector<IChunkReaderAllowingRepairPtr>& readers);
-
-    TFuture<TRefCountedChunkMetaPtr> GetMeta(
-        const TClientChunkReadOptions& options,
-        std::optional<int> partitionTag,
-        const std::optional<std::vector<int>>& extensionTags) override;
-
-    TChunkId GetChunkId() const override;
-
-protected:
-    TFuture<void> PreparePlacementMeta(const TClientChunkReadOptions& options);
-    void OnGotPlacementMeta(const NProto::TErasurePlacementExt& placementExt);
-
-    const TChunkId ChunkId_;
-    NErasure::ICodec* const Codec_;
-    const std::vector<IChunkReaderAllowingRepairPtr> Readers_;
-
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, PlacementExtLock_);
-    TFuture<void> PlacementExtFuture_;
-    NProto::TErasurePlacementExt PlacementExt_;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

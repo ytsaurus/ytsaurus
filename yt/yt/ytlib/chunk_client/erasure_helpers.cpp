@@ -603,17 +603,14 @@ void TPartEncoder::Run()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<NProto::TErasurePlacementExt> GetPlacementMeta(
+TFuture<TRefCountedChunkMetaPtr> GetPlacementMeta(
     const IChunkReaderPtr& reader,
     const TClientChunkReadOptions& options)
 {
     return reader->GetMeta(
         options,
         /*partitionTag*/ std::nullopt,
-        std::vector<int>{ TProtoExtensionTag<NProto::TErasurePlacementExt>::Value })
-        .Apply(BIND([] (const TRefCountedChunkMetaPtr& meta) {
-            return GetProtoExtension<NProto::TErasurePlacementExt>(meta->extensions());
-        }));
+        std::vector<int>{ TProtoExtensionTag<NProto::TErasurePlacementExt>::Value });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -686,63 +683,6 @@ TDataBlocksPlacementInParts BuildDataBlocksPlacementInParts(
     }
 
     return result;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TErasureChunkReaderBase::TErasureChunkReaderBase(
-    TChunkId chunkId,
-    NErasure::ICodec* codec,
-    const std::vector<IChunkReaderAllowingRepairPtr>& readers)
-    : ChunkId_(chunkId)
-    , Codec_(codec)
-    , Readers_(readers)
-{ }
-
-TFuture<TRefCountedChunkMetaPtr> TErasureChunkReaderBase::GetMeta(
-    const TClientChunkReadOptions& options,
-    std::optional<int> partitionTag,
-    const std::optional<std::vector<int>>& extensionTags)
-{
-    YT_VERIFY(!partitionTag);
-    if (extensionTags) {
-        for (const auto& forbiddenTag : {TProtoExtensionTag<TBlocksExt>::Value}) {
-            auto it = std::find(extensionTags->begin(), extensionTags->end(), forbiddenTag);
-            YT_VERIFY(it == extensionTags->end());
-        }
-    }
-
-    const auto& reader = Readers_[RandomNumber(Readers_.size())];
-    return reader->GetMeta(options, partitionTag, extensionTags);
-}
-
-TChunkId TErasureChunkReaderBase::GetChunkId() const
-{
-    return ChunkId_;
-}
-
-TFuture<void> TErasureChunkReaderBase::PreparePlacementMeta(const TClientChunkReadOptions& options)
-{
-    if (PlacementExtFuture_) {
-        return PlacementExtFuture_;
-    }
-
-    {
-        auto guard = Guard(PlacementExtLock_);
-
-        if (!PlacementExtFuture_) {
-            PlacementExtFuture_ = GetPlacementMeta(this, options).Apply(
-                BIND(&TErasureChunkReaderBase::OnGotPlacementMeta, MakeStrong(this))
-                    .AsyncVia(TDispatcher::Get()->GetReaderInvoker()));
-        }
-
-        return PlacementExtFuture_;
-    }
-}
-
-void TErasureChunkReaderBase::OnGotPlacementMeta(const TErasurePlacementExt& placementExt)
-{
-    PlacementExt_ = placementExt;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

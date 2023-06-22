@@ -10,13 +10,19 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TRepairingErasureReaderTestingOptions
+{
+    NErasure::TPartIndexList ErasedIndices;
+};
+
 // This reader can adaptively exclude and include underlying part readers
 // depending on read timeouts and read efficiency.
 IChunkReaderPtr CreateAdaptiveRepairingErasureReader(
     TChunkId chunkId,
     NErasure::ICodec* codec,
     TErasureReaderConfigPtr config,
-    const std::vector<IChunkReaderAllowingRepairPtr>& partReaders,
+    std::vector<IChunkReaderAllowingRepairPtr> partReaders,
+    std::optional<TRepairingErasureReaderTestingOptions> testingOptions,
     const NLogging::TLogger& logger = {});
 
 ////////////////////////////////////////////////////////////////////////////////

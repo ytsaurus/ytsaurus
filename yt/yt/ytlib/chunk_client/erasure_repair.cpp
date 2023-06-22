@@ -1,6 +1,5 @@
 #include "erasure_repair.h"
 
-#include "chunk_meta_extensions.h"
 #include "chunk_reader.h"
 #include "chunk_writer.h"
 #include "config.h"
@@ -203,10 +202,11 @@ private:
         }
 
         // Get placement extension.
-        auto placementExt = WaitFor(GetPlacementMeta(
+        auto placementMeta = WaitFor(GetPlacementMeta(
             Readers_.front(),
             ReadBlocksOptions_.ClientOptions))
             .ValueOrThrow();
+        auto placementExt = GetProtoExtension<NProto::TErasurePlacementExt>(placementMeta->extensions());
         ProcessPlacementExt(placementExt);
 
         // Prepare erasure part readers.
@@ -299,6 +299,22 @@ private:
     }
 };
 
+TFuture<void> RepairErasedParts(
+    NErasure::ICodec* codec,
+    const NErasure::TPartIndexList& erasedIndices,
+    const std::vector<IChunkReaderAllowingRepairPtr>& readers,
+    const std::vector<IChunkWriterPtr>& writers,
+    const IChunkReader::TReadBlocksOptions& options)
+{
+    auto session = New<TRepairAllPartsSession>(
+        codec,
+        erasedIndices,
+        readers,
+        writers,
+        options);
+    return session->Run();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPartBlockSaver
@@ -381,24 +397,27 @@ public:
     TRepairingErasureReaderSession(
         TChunkId chunkId,
         ICodec* codec,
-        const TPartIndexList& erasedIndices,
-        const std::vector<IChunkReaderAllowingRepairPtr>& readers,
-        const TErasurePlacementExt& placementExt,
-        const std::vector<int>& blockIndexes,
-        const IChunkReader::TReadBlocksOptions& options,
-        const IInvokerPtr& readerInvoker,
-        const TLogger& logger)
+        TPartIndexList erasedIndices,
+        std::vector<IChunkReaderAllowingRepairPtr> readers,
+        TErasurePlacementExt placementExt,
+        std::vector<int> blockIndexes,
+        IChunkReader::TReadBlocksOptions options,
+        IInvokerPtr readerInvoker,
+        TLogger logger)
         : ChunkId_(chunkId)
         , Codec_(codec)
-        , ErasedIndices_(erasedIndices)
-        , Readers_(readers)
-        , PlacementExt_(placementExt)
-        , BlockIndexes_(blockIndexes)
-        , ReadBlocksOptions_(options)
-        , ReaderInvoker_(readerInvoker)
-        , Logger(logger)
+        , ErasedIndices_(std::move(erasedIndices))
+        , Readers_(std::move(readers))
+        , PlacementExt_(std::move(placementExt))
+        , BlockIndexes_(std::move(blockIndexes))
+        , ReadBlocksOptions_(std::move(options))
+        , ReaderInvoker_(std::move(readerInvoker))
+        , Logger(std::move(logger))
         , ParityPartSplitInfo_(PlacementExt_)
-        , DataBlocksPlacementInParts_(BuildDataBlocksPlacementInParts(BlockIndexes_, PlacementExt_, ParityPartSplitInfo_))
+        , DataBlocksPlacementInParts_(BuildDataBlocksPlacementInParts(
+            BlockIndexes_,
+            PlacementExt_,
+            ParityPartSplitInfo_))
     {
         auto repairIndices = *Codec_->GetRepairIndices(ErasedIndices_);
         YT_VERIFY(std::is_sorted(ErasedIndices_.begin(), ErasedIndices_.end()));
@@ -571,100 +590,28 @@ private:
     }
 };
 
-class TRepairReader
-    : public TErasureChunkReaderBase
-{
-public:
-    TRepairReader(
-        TChunkId chunkId,
-        ICodec* codec,
-        const TPartIndexList& erasedIndices,
-        const std::vector<IChunkReaderAllowingRepairPtr>& readers,
-        const TLogger& logger)
-        : TErasureChunkReaderBase(chunkId, codec, readers)
-        , ErasedIndices_(erasedIndices)
-        , ReaderInvoker_(CreateSerializedInvoker(TDispatcher::Get()->GetReaderInvoker()))
-        , Logger(logger)
-    { }
-
-    TFuture<std::vector<TBlock>> ReadBlocks(
-        const IChunkReader::TReadBlocksOptions& options,
-        const std::vector<int>& blockIndexes) override
-    {
-        // NB(psushin): do not use estimated size for throttling here, repair requires much more traffic than estimated.
-        // When reading erasure chunks we fallback to post-throttling.
-        return PreparePlacementMeta(options.ClientOptions).Apply(
-            BIND([=, this, this_ = MakeStrong(this)] {
-                auto session = New<TRepairingErasureReaderSession>(
-                    GetChunkId(),
-                    Codec_,
-                    ErasedIndices_,
-                    Readers_,
-                    PlacementExt_,
-                    blockIndexes,
-                    options,
-                    ReaderInvoker_,
-                    Logger);
-                return session->Run();
-            }).AsyncVia(ReaderInvoker_));
-    }
-
-    TFuture<std::vector<TBlock>> ReadBlocks(
-        const IChunkReader::TReadBlocksOptions& options,
-        int firstBlockIndex,
-        int blockCount) override
-    {
-        std::vector<int> blockIndices(blockCount);
-        std::iota(blockIndices.begin(), blockIndices.end(), firstBlockIndex);
-        return ReadBlocks(options, blockIndices);
-    }
-
-    TInstant GetLastFailureTime() const override
-    {
-        auto lastFailureTime = TInstant();
-        for (const auto& reader : Readers_) {
-            lastFailureTime = std::max(lastFailureTime, reader->GetLastFailureTime());
-        }
-        return lastFailureTime;
-    }
-
-private:
-    const TPartIndexList ErasedIndices_;
-    const IInvokerPtr ReaderInvoker_;
-    const TLogger Logger;
-};
-
-IChunkReaderPtr CreateRepairingErasureReader(
+TFuture<std::vector<TBlock>> ExecuteErasureRepairingSession(
     TChunkId chunkId,
-    ICodec* codec,
-    const TPartIndexList& erasedIndices,
-    const std::vector<IChunkReaderAllowingRepairPtr>& readers,
-    const NLogging::TLogger& logger)
+    NErasure::ICodec* codec,
+    NErasure::TPartIndexList erasedIndices,
+    std::vector<IChunkReaderAllowingRepairPtr> readers,
+    std::vector<int> blockIndexes,
+    IChunkReader::TReadBlocksOptions options,
+    IInvokerPtr readerInvoker,
+    NLogging::TLogger logger,
+    NChunkClient::NProto::TErasurePlacementExt placementExt)
 {
-    return New<TRepairReader>(
+    return New<TRepairingErasureReaderSession>(
         chunkId,
         codec,
-        erasedIndices,
-        readers,
-        logger);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TFuture<void> RepairErasedParts(
-    NErasure::ICodec* codec,
-    const NErasure::TPartIndexList& erasedIndices,
-    const std::vector<IChunkReaderAllowingRepairPtr>& readers,
-    const std::vector<IChunkWriterPtr>& writers,
-    const IChunkReader::TReadBlocksOptions& options)
-{
-    auto session = New<TRepairAllPartsSession>(
-        codec,
-        erasedIndices,
-        readers,
-        writers,
-        options);
-    return session->Run();
+        std::move(erasedIndices),
+        std::move(readers),
+        std::move(placementExt),
+        std::move(blockIndexes),
+        std::move(options),
+        std::move(readerInvoker),
+        std::move(logger))
+        ->Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -793,17 +740,15 @@ TFuture<void> AdaptiveRepairErasedParts(
     auto invoker = TDispatcher::Get()->GetReaderInvoker();
     auto observer = New<TRepairingReadersObserver>(codec, config, invoker, allReaders);
 
-    auto target = TAdaptiveErasureRepairingSession::TTarget {
-        .Erased = erasedIndices
-    };
-
     auto session = New<TAdaptiveErasureRepairingSession>(
         chunkId,
         codec,
         observer,
         allReaders,
         invoker,
-        target,
+        TAdaptiveErasureRepairingSession::TTarget{
+            .Erased = erasedIndices,
+        },
         logger,
         std::move(adaptivelyRepairedCounter));
 

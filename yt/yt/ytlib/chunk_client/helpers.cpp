@@ -726,7 +726,13 @@ IChunkReaderPtr CreateRemoteReader(
             readers.push_back(reader);
         }
 
-        return CreateAdaptiveRepairingErasureReader(chunkId, erasureCodec, std::move(config), readers, Logger);
+        return CreateAdaptiveRepairingErasureReader(
+            chunkId,
+            erasureCodec,
+            std::move(config),
+            std::move(readers),
+            /*testingOptions*/ std::nullopt,
+            Logger);
     } else {
         YT_LOG_DEBUG("Creating regular remote reader");
 
