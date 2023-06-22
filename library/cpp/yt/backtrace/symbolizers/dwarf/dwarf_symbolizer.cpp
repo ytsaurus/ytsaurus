@@ -33,6 +33,9 @@ void SymbolizeBacktrace(
         formatter.AppendString(info.FileName);
         formatter.AppendChar(':');
         formatter.AppendNumber(info.Line);
+        if (formatter.GetBytesRemaining() == 0) {
+            formatter.Revert(1);
+        }
         formatter.AppendString("\n");
         frameCallback(formatter.GetBuffer());
         // Call the callback exactly `frameCount` times,

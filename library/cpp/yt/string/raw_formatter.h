@@ -51,14 +51,20 @@ public:
         return End_ - Cursor_;
     }
 
-    //! Advances the internal cursor (assuming the data is already present).
-    void Advance(int offset)
+    //! Advances the internal cursor #count symbols forward (assuming the data is already present).
+    void Advance(int count)
     {
-        Cursor_ += offset;
+        Cursor_ += count;
 
         if (Cursor_ > End_) {
             Cursor_ = End_;
         }
+    }
+
+    //! Drops trailing #count symbols (assuming these are present).
+    void Revert(int count)
+    {
+        Cursor_ -= count;
     }
 
     //! Appends the string and updates the internal cursor.

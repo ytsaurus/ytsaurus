@@ -86,6 +86,9 @@ void DumpStackFrameInfo(TBaseFormatter* formatter, const void* pc)
         reinterpret_cast<const char*>(pc) - 1,
         formatter->GetCursor(),
         formatter->GetBytesRemaining()));
+    if (formatter->GetBytesRemaining() == 0) {
+        formatter->Revert(1);
+    }
     formatter->AppendString("\n");
 }
 
