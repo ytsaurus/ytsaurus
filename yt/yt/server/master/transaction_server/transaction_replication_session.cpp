@@ -158,18 +158,34 @@ TCellTagList TTransactionReplicationSessionBase::GetCellTagsToSyncWithBeforeInvo
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     auto transactionCoordinatorCells = multicellManager->GetRoleMasterCells(EMasterCellRole::TransactionCoordinator);
     YT_VERIFY(std::is_sorted(transactionCoordinatorCells.begin(), transactionCoordinatorCells.end()));
+    auto exTransactionCoordinatorCells = multicellManager->GetRoleMasterCells(EMasterCellRole::ExTransactionCoordinator);
+    YT_VERIFY(std::is_sorted(exTransactionCoordinatorCells.begin(), exTransactionCoordinatorCells.end()));
 
     TCellTagList result;
-    std::set_difference(
+    std::set_union(
         transactionCoordinatorCells.begin(),
         transactionCoordinatorCells.end(),
-        ReplicationRequestCellTags_.begin(),
-        ReplicationRequestCellTags_.end(),
+        exTransactionCoordinatorCells.begin(),
+        exTransactionCoordinatorCells.end(),
         std::back_inserter(result));
 
-    result.insert(result.end(), UnsyncedLocalTransactionCells_.begin(), UnsyncedLocalTransactionCells_.end());
+    TCellTagList buffer;
+    std::set_difference(
+        result.begin(),
+        result.end(),
+        ReplicationRequestCellTags_.begin(),
+        ReplicationRequestCellTags_.end(),
+        std::back_inserter(buffer));
 
-    SortUnique(result);
+    YT_VERIFY(std::is_sorted(UnsyncedLocalTransactionCells_.begin(), UnsyncedLocalTransactionCells_.end()));
+
+    result.clear();
+    std::set_union(
+        buffer.begin(),
+        buffer.end(),
+        UnsyncedLocalTransactionCells_.begin(),
+        UnsyncedLocalTransactionCells_.end(),
+        std::back_inserter(result));
 
     return result;
 }

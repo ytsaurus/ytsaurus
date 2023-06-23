@@ -802,6 +802,21 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
         # Must succeed.
         create("map_node", "//portals/p/d", tx=tx)
 
+    @authors("shakurov")
+    def test_ex_transaction_coordinator_cell_role(self):
+        tx = start_transaction()
+        tx_cell_tag = get(f"#{tx}/@native_cell_tag")
+
+        set(f"//sys/@config/multicell_manager/cell_descriptors/{tx_cell_tag}/roles",
+            ["ex_transaction_coordinator"])
+
+        create("table", "//tmp/qqq", tx=tx)
+        assert exists("//tmp/qqq", tx=tx)
+
+        commit_transaction(tx)
+
+        assert exists("//tmp/qqq")
+
 
 class TestMasterTransactionsRpcProxy(TestMasterTransactions):
     DRIVER_BACKEND = "rpc"
