@@ -1598,39 +1598,27 @@ TFuture<NNative::ITransactionPtr> TOperationControllerBase::StartTransaction(
     };
 
     TCellTagList replicateToCellTags;
-    if (Config->EnableEagerTransactionReplication) {
-        // NB: cannot use nullopt cell tag list here: yes, it *will* provoke
-        // eager replication on an old master, but won't do that on a new one.
-        const auto& connection = client->GetNativeConnection();
-        const auto& secondaryCellTags = connection->GetSecondaryMasterCellTags();
-        replicateToCellTags.push_back(connection->GetPrimaryMasterCellTag());
-        replicateToCellTags.insert(
-            replicateToCellTags.end(),
-            secondaryCellTags.begin(),
-            secondaryCellTags.end());
-    } else {
-        switch (type) {
-            // NB: these transactions are started when no basic attributes have been
-            // fetched yet and collecting cell tags is therefore useless.
-            case ETransactionType::Async:
-            case ETransactionType::Input:
-            case ETransactionType::Output:
-            case ETransactionType::Debug:
-                break;
+    switch (type) {
+        // NB: these transactions are started when no basic attributes have been
+        // fetched yet and collecting cell tags is therefore useless.
+        case ETransactionType::Async:
+        case ETransactionType::Input:
+        case ETransactionType::Output:
+        case ETransactionType::Debug:
+            break;
 
-            case ETransactionType::OutputCompletion:
-                replicateToCellTags = collectTableCellTags(OutputTables_);
-                break;
+        case ETransactionType::OutputCompletion:
+            replicateToCellTags = collectTableCellTags(OutputTables_);
+            break;
 
-            case ETransactionType::DebugCompletion:
-                replicateToCellTags = collectTableCellTags({StderrTable_, CoreTable_});
-                break;
+        case ETransactionType::DebugCompletion:
+            replicateToCellTags = collectTableCellTags({StderrTable_, CoreTable_});
+            break;
 
-            default:
-                YT_ABORT();
-        }
-        SortUnique(replicateToCellTags);
+        default:
+            YT_ABORT();
     }
+    SortUnique(replicateToCellTags);
 
     YT_LOG_INFO("Starting transaction (Type: %v, ParentId: %v, ReplicateToCellTags: %v)",
         type,

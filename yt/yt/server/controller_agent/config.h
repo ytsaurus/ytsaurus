@@ -1097,9 +1097,6 @@ public:
 
     bool EnableBypassArtifactCache;
 
-    // COMPAT(shakurov)
-    bool EnableEagerTransactionReplication;
-
     //! List of the tags assigned to controller agent.
     std::vector<TString> Tags;
 

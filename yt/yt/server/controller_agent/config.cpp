@@ -961,9 +961,6 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_bypass_artifact_cache", &TThis::EnableBypassArtifactCache)
         .Default(true);
 
-    registrar.Parameter("enable_eager_transaction_replication", &TThis::EnableEagerTransactionReplication)
-        .Default(true);
-
     // COMPAT(gritukan): This default is quite dangerous, change it when all controller agents will have fresh configs.
     registrar.Parameter("tags", &TThis::Tags)
         .Default(std::vector<TString>({"default"}));
