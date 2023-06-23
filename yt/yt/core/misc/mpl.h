@@ -64,4 +64,12 @@ concept DerivedFromSpecializationOf = requires(const TDerived& instance)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Inspired by https://stackoverflow.com/questions/51032671/idiomatic-way-to-write-concept-that-says-that-type-is-a-stdvector
+template<class, template<class...> class>
+inline constexpr bool IsSpecialization = false;
+template<template<class...> class T, class... Args>
+inline constexpr bool IsSpecialization<T<Args...>, T> = true;
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NMpl
