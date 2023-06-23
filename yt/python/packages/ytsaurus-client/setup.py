@@ -1,14 +1,17 @@
 PACKAGE_NAME = "ytsaurus-client"
-VERSION = "0.13.1"
+
+MAJOR_VERSION = "0.13"
 
 
 def main():
-    from yt_setup.helpers import recursive
+    from yt_setup.helpers import recursive, get_package_version
 
     from setuptools import setup
 
+    version = get_package_version(MAJOR_VERSION)
+
     with open("yt/wrapper/version.py", "w") as version_output:
-        version_output.write("VERSION='{0}'".format(VERSION))
+        version_output.write("VERSION='{0}'".format(version))
 
     entry_points = {
         "console_scripts": [
@@ -18,8 +21,8 @@ def main():
 
     setup(
         name=PACKAGE_NAME,
-        version=VERSION,
-        packages=["yt", "yt.wrapper", "yt.yson", "yt.ypath", "yt.skiff", "yt.clickhouse", "yt.cli", "yt.wrapper.schema"] + recursive("yt/packages"),
+        version=version,
+        packages=["yt", "yt.wrapper", "yt.yson", "yt.ypath", "yt.skiff", "yt.clickhouse", "yt.cli", "yt.type_info", "yt.wrapper.schema"] + recursive("yt/packages"),
         package_dir={"yt.packages.requests": "yt/packages/requests"},
         package_data={"yt.packages.requests": ["*.pem"]},
         entry_points=entry_points,

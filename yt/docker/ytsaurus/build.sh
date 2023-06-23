@@ -2,88 +2,52 @@
 
 script_name=$0
 
-ytserver_all_path=./ytserver-all
-chyt_controller_path=./chyt-controller
-clickhouse_trampoline_path=../../chyt/trampoline/clickhouse-trampoline.py
-ytserver_clickhouse_path=./ytserver-clickhouse
-ytserver_log_tailer_path=./ytserver-log-tailer
-init_operation_archive_path=../../python/yt/environment/init_operation_archive.py
-
-driver_bindings_package_path=./ytsaurus_native_driver-1.0.0-cp39-cp39-linux_x86_64.whl
-
-ytserver_all_credits_path=./ytserver-all.CREDITS.txt
-chyt_controller_credits_path=./chyt-controller.CREDITS.txt
-ytserver_clickhouse_credits_path=./ytserver-clickhouse.CREDITS.txt
-ytserver_log_tailer_credits_path=./ytserver-log-tailer.CREDITS.txt
+image_tag=""
+ytsaurus_source_path="."
+ytsaurus_build_path="."
+ytsaurus_yql_package_path="./yql_package"
+ytsaurus_spyt_release_path="./spyt_release"
+output_path="."
 
 print_usage() {
-    cat <<EOF
+    cat << EOF
 Usage: $script_name [-h|--help]
-                    [--ytserver-all ytserver_all_path]
-                    [--yt-local yt_local_path]
-
-  --ytserver-all: Path to ytserver-all binary (default: $ytserver_all_path)
-  --ytserver-all-credits: Path to CREDITS file for ytserver-all binary (default: $ytserver_all_credits_path)
-  --chyt-controller: Path to CHYT controller binary (default: $chyt_controller_path)
-  --chyt-controller-credits: Path to CREDITS file for CHYT controller binary (default: $chyt_controller_credits_path)
-  --clickhouse-trampoline: Path to clickhouse trampoline script (default: $clickhouse_trampoline_path)
-  --ytserver-clickhouse: Path to ytserver-clickhouse binary (default: $ytserver_clickhouse_path)
-  --ytserver-clickhouse-credits: Path to CREDITS file for ytserver-clickhouse binary (default: $ytserver_clickhouse_credits_path)
-  --ytserver-log-tailer: Path to ytserver-log-tailer binary (default: $ytserver_log_tailer_path)
-  --ytserver-log-tailer-credits: Path to CREDITS file for ytserver-log-tailer binary (default: $ytserver_log_tailer_credits_path)
-  --init-operation-archive: Path to init_operation_archive script (default: $init_operation_archive_path)
-  --driver-bindings-package: Path to built python driver_bindings package (default: $driver_bindings_package_path)
-
+                    [--ytsaurus-source-path /path/to/ytsaurus.repo (default: $ytsaurus_source_path)]
+                    [--ytsaurus-build-path /path/to/ytsaurus.build (default: $ytsaurus_build_path)]
+                    [--ytsaurus-yql-package-path /path/to/ytsaurus-yql-package (default: $ytsaurus_yql_package_path)]
+                    [--ytsaurus-spyt-release-path /path/to/ytsaurus-spyt-release (default: $ytsaurus_spyt_release_path)]
+                    [--output-path /path/to/output (default: $output_path)]
+                    [--image-tag some-tag (default: $image_tag)]
 EOF
-    exit 0
+    exit 1
 }
 
 # Parse options
 while [[ $# -gt 0 ]]; do
     key="$1"
     case $key in
-        --ytserver-all)
-        ytserver_all_path="$2"
+        --ytsaurus-source-path)
+        ytsaurus_source_path="$2"
         shift 2
         ;;
-        --ytserver-all-credits)
-        ytserver_all_credits_path="$2"
+        --ytsaurus-build-path)
+        ytsaurus_build_path="$2"
         shift 2
         ;;
-        --chyt-controller)
-        chyt_controller_path="$2"
+        --output-path)
+        output_path="$2"
         shift 2
         ;;
-        --chyt-controller-credits)
-        chyt_controller_credits_path="$2"
+        --ytsaurus-yql-package-path)
+        ytsaurus_yql_package_path="$2"
         shift 2
         ;;
-        --clickhouse-trampoline)
-        clickhouse_trampoline_path="$2"
+        --ytsaurus-spyt-release-path)
+        ytsaurus_spyt_release_path="$2"
         shift 2
         ;;
-        --ytserver-clickhouse)
-        ytserver_clickhouse_path="$2"
-        shift 2
-        ;;
-        --ytserver-clickhouse-credits)
-        ytserver_clickhouse_credits_path="$2"
-        shift 2
-        ;;
-        --ytserver-log-tailer)
-        ytserver_log_tailer_path="$2"
-        shift 2
-        ;;
-        --ytserver-log-tailer-credits)
-        ytserver_log_tailer_credits_path="$2"
-        shift 2
-        ;;
-        --init-operation-archive)
-        init_operation_archive_path="$2"
-        shift 2
-        ;;
-        --driver-bindings-package)
-        driver_bindings_package_path="$2"
+        --image-tag)
+        image_tag="$2"
         shift 2
         ;;
         -h|--help)
@@ -97,31 +61,30 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-mkdir data
-cp $ytserver_all_path data/ytserver-all
-cp $ytserver_all_credits_path data/ytserver-all.CREDITS
-cp $chyt_controller_path data/chyt-controller
-cp $chyt_controller_credits_path data/chyt-controller.CREDITS
-cp $clickhouse_trampoline_path data/clickhouse-trampoline
-cp $ytserver_clickhouse_path data/ytserver-clickhouse
-cp $ytserver_clickhouse_credits_path data/ytserver-clickhouse.CREDITS
-cp $ytserver_log_tailer_path data/ytserver-log-tailer
-cp $ytserver_log_tailer_credits_path data/ytserver-log-tailer.CREDITS
-cp $init_operation_archive_path data/init_operation_archive
-cp $driver_bindings_package_path data/ytsaurus_native_driver-1.0.0-cp39-cp39-linux_x86_64.whl
 
-docker build -t ytsaurus/ytsaurus:0.0.1 \
-    --build-arg YTSERVER_ALL_PATH=data/ytserver-all \
-    --build-arg YTSERVER_ALL_CREDITS_PATH=data/ytserver-all.CREDITS \
-    --build-arg CHYT_CONTROLLER_PATH=data/chyt-controller \
-    --build-arg CHYT_CONTROLLER_CREDITS_PATH=data/chyt-controller.CREDITS \
-    --build-arg CLICKHOUSE_TRAMPOLINE_PATH=data/clickhouse-trampoline \
-    --build-arg YTSERVER_CLICKHOUSE_PATH=data/ytserver-clickhouse \
-    --build-arg YTSERVER_CLICKHOUSE_CREDITS_PATH=data/ytserver-clickhouse.CREDITS \
-    --build-arg YTSERVER_LOG_TAILER_PATH=data/ytserver-log-tailer \
-    --build-arg YTSERVER_LOG_TAILER_CREDITS_PATH=data/ytserver-log-tailer.CREDITS \
-    --build-arg INIT_OPERATION_ARCHIVE_PATH=data/init_operation_archive \
-    --build-arg DRIVER_BINDINGS_PACKAGE_PATH=data/ytsaurus_native_driver-1.0.0-cp39-cp39-linux_x86_64.whl \
-    .
+ytserver_all="${ytsaurus_build_path}/yt/yt/server/all/ytserver-all"
+ytserver_clickhouse="${ytsaurus_build_path}/yt/chyt/server/bin/ytserver-clickhouse"
+ytserver_log_tailer="${ytsaurus_build_path}/yt/yt/server/log_tailer/bin/ytserver-log-tailer"
+chyt_controller="${ytsaurus_source_path}/yt/chyt/controller/cmd/chyt-controller/chyt-controller"
+init_operation_archive="${ytsaurus_source_path}/yt/python/yt/environment/init_operation_archive.py"
+clickhouse_trampoline="${ytsaurus_source_path}/yt/chyt/trampoline/clickhouse-trampoline.py"
+credits="${ytsaurus_source_path}/yt/docker/ytsaurus/credits"
+dockerfile="${ytsaurus_source_path}/yt/docker/ytsaurus/Dockerfile"
 
-rm -rf data
+cp ${ytserver_all} ${output_path}
+cp ${ytserver_clickhouse} ${output_path}
+cp ${ytserver_log_tailer} ${output_path}
+cp ${chyt_controller} ${output_path}
+cp ${init_operation_archive} ${output_path}
+cp ${clickhouse_trampoline} ${output_path}
+
+cp -r ${ytsaurus_build_path}/ytsaurus_python ${output_path}
+
+cp ${dockerfile} ${output_path}
+cp -r ${ytsaurus_yql_package_path} ${output_path}
+cp -r ${ytsaurus_spyt_release_path} ${output_path}
+cp -r ${credits} ${output_path}
+
+cd ${output_path}
+
+docker build -t ytsaurus/ytsaurus:${image_tag} .
