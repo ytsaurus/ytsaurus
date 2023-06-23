@@ -249,7 +249,9 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, ExecuteQuery)
     {
         const auto& user = context->GetAuthenticationIdentity().User;
-        auto queryId = TQueryId::Create();
+        auto queryId = request->has_query_id()
+            ? FromProto<TQueryId>(request->query_id())
+            : TQueryId::Create();
         ToProto(response->mutable_query_id(), queryId);
 
         context->SetRequestInfo("RPC request received (QueryId: %v, User: %v, Query: %v, RowCountLimit: %v)",

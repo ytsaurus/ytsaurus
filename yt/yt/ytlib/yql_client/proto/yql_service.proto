@@ -33,6 +33,7 @@ message TReqStartQuery
     optional TYqlRequest yql_request = 2;
     optional bool build_rowsets = 3;
     optional int64 row_count_limit = 4;
+    optional NYT.NProto.TGuid query_id = 5;
 }
 
 message TRspStartQuery

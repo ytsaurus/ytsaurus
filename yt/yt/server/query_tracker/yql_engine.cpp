@@ -73,6 +73,7 @@ public:
         auto req = proxy.StartQuery();
         auto* yqlRequest = req->mutable_yql_request();
         req->set_row_count_limit(Config_->RowCountLimit);
+        ToProto(req->mutable_query_id(), QueryId_);
         yqlRequest->set_query(Query_);
         req->set_build_rowsets(true);
         AsyncQueryResult_  = req->Invoke();

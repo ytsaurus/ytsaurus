@@ -1,6 +1,6 @@
 from yt_commands import (authors, create_access_control_object_namespace,
                          create_access_control_object, create, write_table,
-                         raises_yt_error, create_user, set, make_ace)
+                         raises_yt_error, create_user, set, make_ace, wait)
 
 from yt.test_helpers import assert_items_equal
 
@@ -218,3 +218,12 @@ class TestQueriesChyt(ClickHouseTestBase):
 
             with raises_yt_error("\"read\" permission for node //tmp/test_table is denied for \"u1\""):
                 query.track()
+
+    @authors("mpereskokova")
+    def test_query_ids(self, query_tracker):
+        with Clique(1, alias="*ch_alias") as clique:
+            settings = {"clique": "ch_alias", "cluster": "primary"}
+            query = start_query("chyt", "select 1", settings=settings)
+            query.track()
+
+            wait(lambda: any(query.id == log["query_id"] for log in clique.make_query("select query_id from system.query_log")))

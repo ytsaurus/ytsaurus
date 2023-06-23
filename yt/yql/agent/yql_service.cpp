@@ -37,7 +37,9 @@ private:
     {
         context->SetRequestInfo("Async: %v, BuildRowsets: %v, RowCountLimit: %v", request->async(), request->build_rowsets(), request->row_count_limit());
 
-        auto queryId = TQueryId::Create();
+        auto queryId = request->has_query_id()
+            ? FromProto<TQueryId>(request->query_id())
+            : TQueryId::Create();
         ToProto(response->mutable_query_id(), queryId);
 
         context->SetResponseInfo("QueryId: %v", queryId);

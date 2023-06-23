@@ -250,6 +250,7 @@ private:
 
         SetAuthenticationIdentity(req, TAuthenticationIdentity(User_));
         req->set_row_count_limit(Config_->RowCountLimit);
+        ToProto(req->mutable_query_id(), QueryId_);
         auto* chytRequest = req->mutable_chyt_request();
         chytRequest->set_query(Query_);
 

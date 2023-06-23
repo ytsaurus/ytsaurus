@@ -17,6 +17,7 @@ message TReqExecuteQuery
 {
     optional TChytRequest chyt_request = 1;
     optional int64 row_count_limit = 2;
+    optional NYT.NProto.TGuid query_id = 3;
 }
 
 message TRspExecuteQuery
