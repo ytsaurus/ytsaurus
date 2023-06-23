@@ -3308,7 +3308,7 @@ private:
     void AlertAndThrowOnInvalidLocationIndex(
         const auto& chunkInfo,
         const TNode* node,
-        unsigned int locationDirectorySize)
+        int locationDirectorySize)
     {
         // Heartbeats should no longer contain location uuids but if node was
         // registered before master server update it still can send  heartbeats
@@ -3324,7 +3324,7 @@ private:
         constexpr bool isRemoval = !FullHeartbeat &&
             std::is_same_v<std::decay_t<decltype(chunkInfo)>, TChunkRemoveInfo>;
 
-        if (static_cast<ui32>(chunkInfo.location_index()) >= locationDirectorySize) {
+        if (chunkInfo.location_index() >= locationDirectorySize) {
             YT_LOG_ALERT(
                 "Data node reported % heartbeat with invalid location index "
                 "(%vChunkId: %v, NodeAddress: %v, LocationIndex: %v)",

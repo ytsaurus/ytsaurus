@@ -37,7 +37,7 @@ message TReqRegisterNode
     optional bool suppress_unsupported_chunk_locations_alert = 14;
 
     // COMPAT(kvk1920)
-    optional bool location_directory_supported = 15 [default = false];
+    optional bool location_directory_supported = 15;
 
     reserved 2;
 }

@@ -10,10 +10,6 @@ namespace NYT::NDataNodeTrackerClient {
 
 class TChunkLocationDirectory
 {
-    using TChunkLocationList = TCompactVector<
-        NChunkClient::TChunkLocationUuid,
-        NChunkClient::TypicalChunkLocationCount>;
-
 public:
     TChunkLocationDirectory() = default;
     explicit TChunkLocationDirectory(int sizeHint);
@@ -23,6 +19,9 @@ public:
     bool IsValid() const &;
     bool IsValid() &&;
 
+    using TChunkLocationList = TCompactVector<
+        NChunkClient::TChunkLocationUuid,
+        NChunkClient::TypicalChunkLocationCount>;
     DEFINE_BYREF_RO_PROPERTY(TChunkLocationList, Uuids);
 
     friend void ToProto(
@@ -32,13 +31,6 @@ public:
         TChunkLocationDirectory* directory,
         const google::protobuf::RepeatedPtrField<NYT::NProto::TGuid>& protoDirectory);
 };
-
-void ToProto(
-    google::protobuf::RepeatedPtrField<NYT::NProto::TGuid>* protoDirectory,
-    const TChunkLocationDirectory& directory);
-void FromProto(
-    TChunkLocationDirectory* directory,
-    const google::protobuf::RepeatedPtrField<NYT::NProto::TGuid>& protoDirectory);
 
 ////////////////////////////////////////////////////////////////////////////////
 

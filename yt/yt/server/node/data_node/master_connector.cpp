@@ -181,7 +181,7 @@ public:
 
         auto addStoredChunkInfo = [&] (const IChunkPtr& chunk) {
             if (CellTagFromId(chunk->GetId()) == cellTag) {
-                *req->add_chunks() = BuildAddChunkInfo(chunk, locationDirectory);
+                *req->add_chunks() = BuildAddChunkInfo(chunk, &locationDirectory);
                 auto mediumIndex = chunk->GetLocation()->GetMediumDescriptor().Index;
                 ++chunkCounts[mediumIndex];
                 ++storedChunkCount;
@@ -233,14 +233,14 @@ public:
         delta->ReportedAdded.clear();
         for (const auto& chunk : delta->AddedSinceLastSuccess) {
             YT_VERIFY(delta->ReportedAdded.emplace(chunk, chunk->GetVersion()).second);
-            *req->add_added_chunks() = BuildAddChunkInfo(chunk, locationDirectory);
+            *req->add_added_chunks() = BuildAddChunkInfo(chunk, &locationDirectory);
             ++chunkEventCount;
         }
 
         delta->ReportedRemoved.clear();
         for (const auto& chunk : delta->RemovedSinceLastSuccess) {
             YT_VERIFY(delta->ReportedRemoved.insert(chunk).second);
-            *req->add_removed_chunks() = BuildRemoveChunkInfo(chunk, locationDirectory);
+            *req->add_removed_chunks() = BuildRemoveChunkInfo(chunk, &locationDirectory);
             ++chunkEventCount;
         }
 
@@ -253,11 +253,11 @@ public:
                 break;
             }
             YT_VERIFY(delta->ReportedChangedMedium.insert({chunk, oldMediumIndex}).second);
-            auto removeChunkInfo = BuildRemoveChunkInfo(chunk, locationDirectory, /*onMediumChange*/ true);
+            auto removeChunkInfo = BuildRemoveChunkInfo(chunk, &locationDirectory, /*onMediumChange*/ true);
             removeChunkInfo.set_medium_index(oldMediumIndex);
             *req->add_removed_chunks() = removeChunkInfo;
             ++chunkEventCount;
-            *req->add_added_chunks() = BuildAddChunkInfo(chunk, locationDirectory, /*onMediumChange*/ true);
+            *req->add_added_chunks() = BuildAddChunkInfo(chunk, &locationDirectory, /*onMediumChange*/ true);
             ++chunkEventCount;
         }
 
@@ -459,7 +459,8 @@ public:
     void SetLocationUuidsRequired(bool value) override
     {
         LocationUuidsRequired_ = value;
-        YT_LOG_INFO("Location uuids in data node heartbeats are %vabled", value ? "en" : "dis");
+        YT_LOG_INFO("Location uuids in data node heartbeats are %v",
+            value ? "enabled" : "disabled");
     }
 
 private:
@@ -965,7 +966,7 @@ private:
 
     TChunkAddInfo BuildAddChunkInfo(
         const IChunkPtr& chunk,
-        TChunkLocationDirectory& locationDirectory,
+        TChunkLocationDirectory* locationDirectory,
         bool onMediumChange = false)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -978,7 +979,7 @@ private:
         chunkAddInfo.set_sealed(chunk->GetInfo().sealed());
 
         auto locationUuid = chunk->GetLocation()->GetUuid();
-        chunkAddInfo.set_location_index(locationDirectory.GetOrCreateIndex(locationUuid));
+        chunkAddInfo.set_location_index(locationDirectory->GetOrCreateIndex(locationUuid));
         // COMPAT(kvk1920): Remove after 23.2.
         if (LocationUuidsRequired_) {
             ToProto(chunkAddInfo.mutable_location_uuid(), locationUuid);
@@ -991,7 +992,7 @@ private:
 
     TChunkRemoveInfo BuildRemoveChunkInfo(
         const IChunkPtr& chunk,
-        TChunkLocationDirectory& locationDirectory,
+        TChunkLocationDirectory* locationDirectory,
         bool onMediumChange = false)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -1002,7 +1003,7 @@ private:
         chunkRemoveInfo.set_medium_index(chunk->GetLocation()->GetMediumDescriptor().Index);
 
         auto locationUuid = chunk->GetLocation()->GetUuid();
-        chunkRemoveInfo.set_location_index(locationDirectory.GetOrCreateIndex(locationUuid));
+        chunkRemoveInfo.set_location_index(locationDirectory->GetOrCreateIndex(locationUuid));
         if (LocationUuidsRequired_) {
             ToProto(chunkRemoveInfo.mutable_location_uuid(), locationUuid);
         }

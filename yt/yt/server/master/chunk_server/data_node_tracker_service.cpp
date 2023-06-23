@@ -85,10 +85,10 @@ private:
         dataNodeTracker->ProcessIncrementalHeartbeat(context);
     }
 
-    void ValidateLocationDirectory(const auto& request)
+    template <class TReqHeartbeat>
+    void ValidateLocationDirectory(const TReqHeartbeat& request)
     {
         using namespace NDataNodeTrackerClient::NProto;
-        using TReqHeartbeat = std::decay_t<decltype(request)>;
         static_assert(
             std::is_same_v<TReqHeartbeat, TReqFullHeartbeat> ||
             std::is_same_v<TReqHeartbeat, TReqIncrementalHeartbeat>,
