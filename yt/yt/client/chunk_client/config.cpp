@@ -422,6 +422,11 @@ void TChunkFragmentReaderConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_direct_io", &TThis::UseDirectIO)
         .Default(false)
         .DontSerializeDefault();
+
+    registrar.Parameter("max_inflight_fragment_length", &TThis::MaxInflightFragmentLength)
+        .Default(16_MB);
+    registrar.Parameter("max_inflight_fragment_count", &TThis::MaxInflightFragmentCount)
+        .Default(8192);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

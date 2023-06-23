@@ -34,10 +34,6 @@ struct IChunkFragmentReader
         std::vector<TSharedRef> Fragments;
 
         // NB: These statistics are used within hunk decoder.
-
-        i64 DataWeight = 0;
-        int ChunkCount = 0;
-
         int BackendReadRequestCount = 0;
         int BackendHedgingReadRequestCount = 0;
         int BackendProbingRequestCount = 0;

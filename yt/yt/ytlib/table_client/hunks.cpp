@@ -704,11 +704,6 @@ public:
         return DroppedDataWeight_;
     }
 
-    std::atomic<int>& ChunkCount() override
-    {
-        return ChunkCount_;
-    }
-
     std::atomic<int>& InlineValueCount() override
     {
         return InlineValueCount_;
@@ -1278,16 +1273,17 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
         ] (IChunkFragmentReader::TReadFragmentsResponse&& response) {
             YT_VERIFY(response.Fragments.size() == requestedValues.size());
 
+            i64 dataWeight = 0;
             for (int index = 0; index < std::ssize(response.Fragments); ++index) {
                 const auto& fragment = response.Fragments[index];
+                dataWeight += fragment.Size();
                 auto payload = GetAndValidateHunkPayload(fragment, requests[index]);
                 setValuePayload(requestedValues[index], payload);
             }
 
             if (hunkChunkReaderStatistics) {
                 // NB: Chunk fragment reader does not update any hunk chunk reader statistics.
-                hunkChunkReaderStatistics->DataWeight() += response.DataWeight;
-                hunkChunkReaderStatistics->ChunkCount() += response.ChunkCount;
+                hunkChunkReaderStatistics->DataWeight() += dataWeight;
                 hunkChunkReaderStatistics->InlineValueCount() += inlineHunkValueCount;
                 hunkChunkReaderStatistics->RefValueCount() += std::ssize(requestedValues);
                 hunkChunkReaderStatistics->BackendReadRequestCount() += response.BackendReadRequestCount;

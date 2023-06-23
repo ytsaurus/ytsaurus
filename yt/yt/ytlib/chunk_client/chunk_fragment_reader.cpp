@@ -98,10 +98,12 @@ using TErrorOrProbeChunkSetResult = TDataNodeServiceProxy::TErrorOrRspProbeChunk
 
 struct TChunkFragmentReadState final
 {
-    int RetryIndex = -1;
     std::vector<IChunkFragmentReader::TChunkFragmentRequest> Requests;
     IChunkFragmentReader::TReadFragmentsResponse Response;
+    int ReadFragmentCount = 0;
+
     THashSet<TNodeId> BannedNodeIds;
+    int RetryIndex = 0;
 };
 
 using TChunkFragmentReadStatePtr = TIntrusivePtr<TChunkFragmentReadState>;
@@ -985,6 +987,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSimpleReadFragmentsSessionResult
+{
+    // NB: Simple read session will try to read a subset of all the fragments.
+    int RegisteredFragmentCount;
+
+    std::vector<TError> Errors;
+};
+
 class TChunkFragmentReader::TSimpleReadFragmentsSession
     : public TRefCounted
 {
@@ -1001,15 +1011,10 @@ public:
         , SessionInvoker_(CreateSerializedInvoker(Reader_->ReaderInvoker_))
     { }
 
-    TFuture<void> Run()
+    TFuture<TSimpleReadFragmentsSessionResult> Run()
     {
         DoRun();
         return Promise_;
-    }
-
-    std::vector<TError>& Errors()
-    {
-        return Errors_;
     }
 
 private:
@@ -1019,7 +1024,7 @@ private:
     const NLogging::TLogger Logger;
 
     const IInvokerPtr SessionInvoker_;
-    const TPromise<void> Promise_ = NewPromise<void>();
+    const TPromise<TSimpleReadFragmentsSessionResult> Promise_ = NewPromise<TSimpleReadFragmentsSessionResult>();
 
     NProfiling::TWallTimer Timer_;
 
@@ -1091,7 +1096,12 @@ private:
         State_->Response.BackendReadRequestCount += BackendReadRequestCount_;
         State_->Response.BackendHedgingReadRequestCount += BackendHedgingReadRequestCount_;
 
-        if (Promise_.TrySet()) {
+        TSimpleReadFragmentsSessionResult result{
+            .RegisteredFragmentCount = PendingFragmentCount_,
+            .Errors = std::move(Errors_),
+        };
+
+        if (Promise_.TrySet(std::move(result))) {
             YT_LOG_DEBUG("Chunk fragment read session completed "
                 "(RetryIndex: %v/%v, WallTime: %v, ReadRequestCount: %v, HedgingReadRequestCount: %v)",
                 State_->RetryIndex + 1,
@@ -1143,12 +1153,12 @@ private:
                 .BlockIndex = request.BlockIndex,
                 .FragmentIndex = index,
             });
-        }
 
-        // Fill some basic response statistics on the very first retry.
-        if (State_->RetryIndex == 0) {
-            State_->Response.ChunkCount = std::ssize(ChunkIdToChunkState_);
-            State_->Response.DataWeight = dataWeight;
+            if (dataWeight >= Reader_->Config_->MaxInflightFragmentLength ||
+                PendingFragmentCount_ >= Reader_->Config_->MaxInflightFragmentCount)
+            {
+                break;
+            }
         }
 
         // Fetch chunk infos from cache.
@@ -1709,6 +1719,7 @@ private:
 
             if (request.Length == 0) {
                 State_->Response.Fragments[index] = TSharedMutableRef::MakeEmpty();
+                ++State_->ReadFragmentCount;
             }
         }
     }
@@ -1719,7 +1730,7 @@ private:
             return;
         }
 
-        if (++State_->RetryIndex >= Reader_->Config_->RetryCountLimit) {
+        if (State_->RetryIndex >= Reader_->Config_->RetryCountLimit) {
             OnFatalError(TError("Chunk fragment reader has exceeded retry count limit")
                 << TErrorAttribute("retry_count_limit", Reader_->Config_->RetryCountLimit));
             return;
@@ -1739,38 +1750,67 @@ private:
 
         subsession->Run().Subscribe(
             // NB: Intentionally no Via.
-            BIND(&TRetryingReadFragmentsSession::OnSubsessionFinished, MakeStrong(this), subsession));
+            BIND(&TRetryingReadFragmentsSession::OnSubsessionFinished, MakeStrong(this)));
     }
 
-    void OnSubsessionFinished(const TIntrusivePtr<TSimpleReadFragmentsSession>& subsession, const TError& error)
+    void OnSubsessionFinished(
+        const TErrorOr<TSimpleReadFragmentsSessionResult>& resultOrError)
     {
-        if (!error.IsOK()) {
-            OnFatalError(error);
+        if (!resultOrError.IsOK()) {
+            OnFatalError(resultOrError);
             return;
         }
 
+        const auto& subsessionResult = resultOrError.Value();
+        YT_VERIFY(subsessionResult.RegisteredFragmentCount > 0);
+
         int totalFragmentCount = std::ssize(State_->Requests);
-        int readFragmentCount = 0;
+
+        int totalReadFragmentCount = 0;
         for (const auto& fragment : State_->Response.Fragments) {
             if (fragment) {
-                ++readFragmentCount;
+                ++totalReadFragmentCount;
             }
         }
 
-        if (readFragmentCount == totalFragmentCount) {
+        int newlyReadFragmentCount = totalReadFragmentCount - State_->ReadFragmentCount;
+        YT_VERIFY(newlyReadFragmentCount >= 0);
+        YT_VERIFY(newlyReadFragmentCount <= subsessionResult.RegisteredFragmentCount);
+
+        State_->ReadFragmentCount = totalReadFragmentCount;
+
+        if (State_->ReadFragmentCount == totalFragmentCount) {
             OnSuccess();
             return;
         }
 
-        for (auto& error : subsession->Errors()) {
-            Errors_.push_back(std::move(error));
+        std::move(
+            subsessionResult.Errors.begin(),
+            subsessionResult.Errors.end(),
+            std::back_inserter(Errors_));
+
+        // NB: We perform backoff only in case of coming across some failed reads.
+        if (subsessionResult.RegisteredFragmentCount == newlyReadFragmentCount) {
+            YT_LOG_DEBUG("All registered fragments were read; will continue immediately "
+                "(TotalFragmentCount: %v, TotalReadFragmentCount: %v, ReadFragmentCount: %v)",
+                totalFragmentCount,
+                State_->ReadFragmentCount,
+                newlyReadFragmentCount);
+
+            SessionInvoker_->Invoke(BIND(&TRetryingReadFragmentsSession::DoRun, MakeStrong(this)));
+            return;
         }
 
-        YT_LOG_DEBUG("Not all fragments were read; will backoff and retry "
-            "(TotalFragmentCount: %v, ReadFragmentCount: %v, RetryBackoffTime: %v)",
+        YT_LOG_DEBUG("Not all registered fragments were read; will backoff and retry "
+            "(TotalFragmentCount: %v, TotalReadFragmentCount: %v, "
+            "RegisteredFragmentCount: %v, ReadFragmentCount: %v, RetryBackoffTime: %v)",
             totalFragmentCount,
-            readFragmentCount,
+            State_->ReadFragmentCount,
+            subsessionResult.RegisteredFragmentCount,
+            newlyReadFragmentCount,
             Reader_->Config_->RetryBackoffTime);
+
+        ++State_->RetryIndex;
 
         TDelayedExecutor::Submit(
             BIND(&TRetryingReadFragmentsSession::DoRun, MakeStrong(this))

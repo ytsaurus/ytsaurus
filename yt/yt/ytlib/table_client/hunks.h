@@ -132,8 +132,6 @@ struct IHunkChunkReaderStatistics
     virtual std::atomic<i64>& DataWeight() = 0;
     virtual std::atomic<i64>& DroppedDataWeight() = 0;
 
-    virtual std::atomic<int>& ChunkCount() = 0;
-
     virtual std::atomic<int>& InlineValueCount() = 0;
     virtual std::atomic<int>& RefValueCount() = 0;
 

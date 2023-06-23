@@ -60,7 +60,9 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
                                   hunk_chunk_reader={
                                       "max_hunk_count_per_read": 2,
                                       "max_total_hunk_length_per_read": 60,
-                                      "fragment_read_hedging_delay": 1
+                                      "fragment_read_hedging_delay": 1,
+                                      "max_inflight_fragment_length": 60,
+                                      "max_inflight_fragment_count": 2,
                                   },
                                   hunk_chunk_writer={
                                       "desired_block_size": 50,
@@ -998,7 +1000,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         wait(lambda: columnar_inline_hunk_value_count.get_delta() == 10)
         wait(lambda: columnar_ref_hunk_value_count.get_delta() == 5)
 
-        wait(lambda: backend_read_request_count.get_delta() == 1)
+        # Multiple requests due to max_inflight_fragment_* constraints.
+        wait(lambda: backend_read_request_count.get_delta() > 2)
 
     @authors("akozhikhov")
     def test_hunks_profiling_select(self):

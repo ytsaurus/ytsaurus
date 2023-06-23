@@ -335,16 +335,18 @@ void TLsmCounters::DoProfileCompaction(
     counters->StoreChunks.OutDataWeight.Increment(writerStatistics.data_weight());
     counters->StoreChunks.OutStoreCount.Increment(writerStatistics.chunk_count());
 
-    if (hunkChunkReaderStatistics) {
-        counters->HunkChunks.InDataWeight.Increment(hunkChunkReaderStatistics->DataWeight());
-        counters->HunkChunks.InStoreCount.Increment(hunkChunkReaderStatistics->ChunkCount());
-    }
-    counters->HunkChunks.OutDataWeight.Increment(hunkChunkWriterStatistics.data_weight());
-    counters->HunkChunks.OutStoreCount.Increment(hunkChunkWriterStatistics.chunk_count());
+    int inHunkChunkCount = 0;
     for (auto hunkCompactionReason : TEnumTraits<EHunkCompactionReason>::GetDomainValues()) {
         counters->InHunkChunkCountByReason[hunkCompactionReason].Increment(
             hunkChunkCountByReason[hunkCompactionReason]);
+        inHunkChunkCount += hunkChunkCountByReason[hunkCompactionReason];
     }
+    if (hunkChunkReaderStatistics) {
+        counters->HunkChunks.InDataWeight.Increment(hunkChunkReaderStatistics->DataWeight());
+        counters->HunkChunks.InStoreCount.Increment(inHunkChunkCount);
+    }
+    counters->HunkChunks.OutDataWeight.Increment(hunkChunkWriterStatistics.data_weight());
+    counters->HunkChunks.OutStoreCount.Increment(hunkChunkWriterStatistics.chunk_count());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
