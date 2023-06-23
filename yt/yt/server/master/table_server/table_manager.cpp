@@ -139,12 +139,12 @@ public:
         objectManager->RegisterHandler(New<TMasterTableSchemaTypeHandler>(this));
         objectManager->RegisterHandler(CreateTableCollocationTypeHandler(Bootstrap_, &TableCollocationMap_));
 
+        // COMPAT(h0pless): Remove this after empty schema migration is complete.
         auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
-        EmptyMasterTableSchemaId_ = MakeWellKnownId(EObjectType::MasterTableSchema, primaryCellTag, 0xffffffffffffffff);
+        PrimaryCellEmptyMasterTableSchemaId_ = MakeWellKnownId(EObjectType::MasterTableSchema, primaryCellTag, 0xffffffffffffffff);
 
-        // COMPAT(h0pless): Remove this after schema migration is complete.
         auto cellTag = Bootstrap_->GetMulticellManager()->GetCellTag();
-        OldEmptyMasterTableSchemaId_ = MakeWellKnownId(EObjectType::MasterTableSchema, cellTag, 0xffffffffffffffff);
+        EmptyMasterTableSchemaId_ = MakeWellKnownId(EObjectType::MasterTableSchema, cellTag, 0xffffffffffffffff);
     }
 
     void Initialize() override
@@ -493,11 +493,6 @@ public:
             YT_LOG_ALERT("Table schema being destroyed is still charged to some accounts (SchemaId: %v, AccountCount: %v)",
                 schema->GetId(),
                 schema->ChargedMasterMemoryUsage().size());
-        }
-
-        // COMPAT(h0pless): Remove this after schema migration is complete.
-        if (schema->GetId() == OldEmptyMasterTableSchemaId_) {
-            return;
         }
 
         if (schema->IsNative()) {
@@ -1090,7 +1085,7 @@ public:
             auto schemaId = it->first;
             ++it;
 
-            if (CellTagFromId(schemaId) != cellTag && schemaId != EmptyMasterTableSchemaId_) {
+            if (CellTagFromId(schemaId) != cellTag) {
                 auto schemaPtr = MasterTableSchemaMap_.Release(schemaId);
 
                 auto newSchemaId = GenerateNativeSchemaIdFromForeign(schemaPtr->GetId(), cellTag);
@@ -1145,8 +1140,8 @@ private:
     TMasterTableSchema::TNativeTableSchemaToObjectMap NativeTableSchemaToObjectMap_;
     TMasterTableSchema::TImportedTableSchemaToObjectMap ImportedTableSchemaToObjectMap_;
 
-    // COMPAT(h0pless): Remove this after schema migration is complete.
-    TMasterTableSchemaId OldEmptyMasterTableSchemaId_;
+    // COMPAT(h0pless): Remove this after empty schema migration is complete.
+    TMasterTableSchemaId PrimaryCellEmptyMasterTableSchemaId_;
 
     TMasterTableSchemaId EmptyMasterTableSchemaId_;
     TMasterTableSchema* EmptyMasterTableSchema_ = nullptr;
@@ -1213,15 +1208,6 @@ private:
         }
 
         EmptyMasterTableSchema_ = DoCreateMasterTableSchema(EmptyTableSchema, EmptyMasterTableSchemaId_, /* isNative */ true);
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        EmptyMasterTableSchema_->ExportRef(multicellManager->GetPrimaryCellTag());
-        for (auto cellTag : multicellManager->GetSecondaryCellTags()) {
-            EmptyMasterTableSchema_->ExportRef(cellTag);
-        }
-
-        // Bring export counter on the current cell to 0.
-        EmptyMasterTableSchema_->UnexportRef(multicellManager->GetCellTag());
-
         YT_VERIFY(EmptyMasterTableSchema_->RefObject() == 1);
     }
 
@@ -1486,41 +1472,53 @@ private:
     {
         MasterTableSchemaMap_.LoadValues(context);
 
-        // COMPAT(h0pless)
-        if (context.GetVersion() < EMasterReign::ExportMasterTableSchemas) {
-            // Forcefully reseting old empty schema.
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            if (!multicellManager->IsPrimaryMaster()) {
-                const auto& objectManager = Bootstrap_->GetObjectManager();
-                auto* oldEmptyMasterTableSchema_ = GetMasterTableSchema(OldEmptyMasterTableSchemaId_);
-
-                objectManager->UnrefObject(oldEmptyMasterTableSchema_);
-                NativeTableSchemaToObjectMap_.erase(oldEmptyMasterTableSchema_->GetNativeTableSchemaToObjectMapIterator());
-                oldEmptyMasterTableSchema_->ResetNativeTableSchemaToObjectMapIterator();
-
-                EmptyMasterTableSchema_ = DoCreateMasterTableSchema(
-                    EmptyTableSchema,
-                    EmptyMasterTableSchemaId_,
-                    /* isNative */ true);
-                YT_VERIFY(EmptyMasterTableSchema_->RefObject() == 1);
-            } else {
-                EmptyMasterTableSchema_ = GetMasterTableSchema(EmptyMasterTableSchemaId_);
-            }
-
-            EmptyMasterTableSchema_->ExportRef(multicellManager->GetPrimaryCellTag());
-            for (auto cellTag : multicellManager->GetSecondaryCellTags()) {
-                EmptyMasterTableSchema_->ExportRef(cellTag);
-            }
-
-            // Bring export counter on the current cell to 0.
-            EmptyMasterTableSchema_->UnexportRef(multicellManager->GetCellTag());
-        }
-
         Load(context, StatisticsUpdateRequests_);
         TableCollocationMap_.LoadValues(context);
 
         Load(context, Queues_);
         Load(context, Consumers_);
+
+        auto schemaExportMode = ESchemaMigrationMode::None;
+        if (context.GetVersion() < EMasterReign::ExportMasterTableSchemas) {
+            schemaExportMode = ESchemaMigrationMode::AllSchemas;
+        } else if (context.GetVersion() < EMasterReign::ExportEmptyMasterTableSchemas) {
+            schemaExportMode = ESchemaMigrationMode::EmptySchemaOnly;
+        }
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        // COMPAT(h0pless): Remove this after schema cmigration is complete.
+        if (schemaExportMode == ESchemaMigrationMode::None) {
+            return;
+        }
+
+        if (schemaExportMode == ESchemaMigrationMode::AllSchemas || multicellManager->IsPrimaryMaster()) {
+            // Just load schemas as usual.
+            EmptyMasterTableSchema_ = GetMasterTableSchema(EmptyMasterTableSchemaId_);
+            YT_VERIFY(EmptyMasterTableSchema_->IsNative());
+        } else if (schemaExportMode == ESchemaMigrationMode::EmptySchemaOnly) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            auto* oldEmptyMasterTableSchema = GetMasterTableSchema(PrimaryCellEmptyMasterTableSchemaId_);
+
+            // Un-import old empty schema.
+            NativeTableSchemaToObjectMap_.erase(oldEmptyMasterTableSchema->GetNativeTableSchemaToObjectMapIterator());
+            oldEmptyMasterTableSchema->ResetNativeTableSchemaToObjectMapIterator();
+
+            // Re-import old empty schema.
+            oldEmptyMasterTableSchema->SetForeign();
+            auto it = RegisterImportedSchema(oldEmptyMasterTableSchema, *oldEmptyMasterTableSchema->AsTableSchema());
+            oldEmptyMasterTableSchema->SetImportedTableSchemaToObjectMapIterator(it);
+
+            // Allow it to die peacefully if need be.
+            objectManager->UnrefObject(oldEmptyMasterTableSchema);
+            oldEmptyMasterTableSchema->ResetExportRefCounters();
+
+            // Replace new empty schema with an even newer one.
+            EmptyMasterTableSchema_ = DoCreateMasterTableSchema(
+                EmptyTableSchema,
+                EmptyMasterTableSchemaId_,
+                /* isNative */ true);
+            YT_VERIFY(EmptyMasterTableSchema_->RefObject() == 1);
+        }
     }
 
     void OnBeforeSnapshotLoaded() override

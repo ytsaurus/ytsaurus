@@ -1386,7 +1386,6 @@ void TChunkOwnerNodeProxy::ReplicateEndUploadRequestToExternalCell(
 
     // NB: Journals and files have no schema, thus no need to replicate one.
     if (uploadContext.Schema) {
-        // NB: Empty schema is always exported to external cells.
         if (!uploadContext.Schema->IsExported(externalCellTag)) {
             ToProto(replicationRequest->mutable_table_schema(), uploadContext.Schema->AsTableSchema());
         }

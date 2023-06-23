@@ -1518,20 +1518,25 @@ class TestSchemaObjects(TestSchemaDeduplication):
 
     @authors("shakurov", "h0pless")
     def test_schema_map(self):
-        create("table", "//tmp/empty_schema_holder")
+        create("table", "//tmp/empty_schema_holder", attributes={"external_cell_tag": 11})
         empty_schema_0_id = get("//tmp/empty_schema_holder/@schema_id")
+        table_0_id = get("//tmp/empty_schema_holder/@id")
 
         create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 11})
-        create("table", "//tmp/p1/empty_schema_holder")
+        create("table", "//tmp/p1/empty_schema_holder", attributes={"external_cell_tag": 12})
         empty_schema_1_id = get("//tmp/p1/empty_schema_holder/@schema_id")
+        table_1_id = get("//tmp/p1/empty_schema_holder/@id")
 
         create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 12})
-        create("table", "//tmp/p2/empty_schema_holder")
+        create("table", "//tmp/p2/empty_schema_holder", attributes={"external": False})
         empty_schema_2_id = get("//tmp/p2/empty_schema_holder/@schema_id")
 
-        assert empty_schema_0_id == empty_schema_1_id
-        assert empty_schema_0_id == empty_schema_2_id
-        assert empty_schema_1_id == empty_schema_2_id
+        assert empty_schema_0_id != empty_schema_1_id
+        assert empty_schema_0_id != empty_schema_2_id
+        assert empty_schema_1_id != empty_schema_2_id
+
+        assert empty_schema_0_id == get("#{}/@schema_id".format(table_0_id), driver=get_driver(1))
+        assert empty_schema_1_id == get("#{}/@schema_id".format(table_1_id), driver=get_driver(2))
 
         create("table", "//tmp/schema_holder1", attributes={"schema": self._get_schema(True)})
         create("table", "//tmp/schema_holder2", attributes={"schema": self._get_schema(False)})
@@ -1541,9 +1546,11 @@ class TestSchemaObjects(TestSchemaDeduplication):
 
         expected_schemas = {
             empty_schema_0_id,
+            empty_schema_1_id,
+            empty_schema_2_id,
             schema1_id,
             schema2_id}
-        assert len(expected_schemas) == 3  # Validate there're no duplicates.
+        assert len(expected_schemas) == 5  # Validate there're no duplicates.
         actual_schemas = {schema_id for schema_id in ls("//sys/master_table_schemas")}
         for expected_schema_id in expected_schemas:
             assert expected_schema_id in actual_schemas
@@ -1553,6 +1560,8 @@ class TestSchemaObjects(TestSchemaDeduplication):
 
         expected_schemas = {
             empty_schema_0_id,
+            empty_schema_1_id,
+            empty_schema_2_id,
             schema1_id}
         actual_schemas = {schema_id for schema_id in ls("//sys/master_table_schemas")}
         for expected_schema_id in expected_schemas:
