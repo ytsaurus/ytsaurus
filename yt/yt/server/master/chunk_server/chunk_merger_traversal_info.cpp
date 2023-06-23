@@ -6,6 +6,18 @@ namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TChunkMergerViolatedCriteriaStatistics& TChunkMergerViolatedCriteriaStatistics::operator+=(
+    const TChunkMergerViolatedCriteriaStatistics& rhs)
+{
+    MaxChunkCountViolatedCriteria += rhs.MaxChunkCountViolatedCriteria;
+    MaxRowCountViolatedCriteria += rhs.MaxRowCountViolatedCriteria;
+    MaxDataWeightViolatedCriteria += rhs.MaxDataWeightViolatedCriteria;
+    MaxUncompressedDataSizeViolatedCriteria += rhs.MaxUncompressedDataSizeViolatedCriteria;
+    MaxCompressedDataSizeViolatedCriteria += rhs.MaxCompressedDataSizeViolatedCriteria;
+    MaxInputChunkDataWeightViolatedCriteria += rhs.MaxInputChunkDataWeightViolatedCriteria;
+    return *this;
+}
+
 void TChunkMergerTraversalInfo::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;

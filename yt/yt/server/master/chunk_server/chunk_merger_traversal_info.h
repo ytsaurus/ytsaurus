@@ -16,16 +16,7 @@ struct TChunkMergerViolatedCriteriaStatistics
     i64 MaxCompressedDataSizeViolatedCriteria = 0;
     i64 MaxInputChunkDataWeightViolatedCriteria = 0;
 
-    TChunkMergerViolatedCriteriaStatistics& operator+=(const TChunkMergerViolatedCriteriaStatistics& rhs)
-    {
-        MaxChunkCountViolatedCriteria += rhs.MaxChunkCountViolatedCriteria;
-        MaxRowCountViolatedCriteria += rhs.MaxRowCountViolatedCriteria;
-        MaxDataWeightViolatedCriteria += rhs.MaxDataWeightViolatedCriteria;
-        MaxUncompressedDataSizeViolatedCriteria += rhs.MaxUncompressedDataSizeViolatedCriteria;
-        MaxCompressedDataSizeViolatedCriteria += rhs.MaxCompressedDataSizeViolatedCriteria;
-        MaxInputChunkDataWeightViolatedCriteria += rhs.MaxInputChunkDataWeightViolatedCriteria;
-        return *this;
-    }
+    TChunkMergerViolatedCriteriaStatistics& operator+=(const TChunkMergerViolatedCriteriaStatistics& rhs);
 };
 
 struct TChunkMergerTraversalInfo
