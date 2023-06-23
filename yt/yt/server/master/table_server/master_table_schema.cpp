@@ -45,13 +45,7 @@ void TMasterTableSchema::Save(NCellMaster::TSaveContext& context) const
     using NYT::Save;
 
     Save(context, *TableSchema_);
-
-    if (CellTagToExportCount_) {
-        Save(context, true);
-        Save(context, *CellTagToExportCount_);
-    } else {
-        Save(context, false);
-    }
+    Save(context, CellTagToExportCount_);
 }
 
 void TMasterTableSchema::Load(NCellMaster::TLoadContext& context)
@@ -83,8 +77,12 @@ void TMasterTableSchema::Load(NCellMaster::TLoadContext& context)
             TableSchema_ = New<TTableSchema>(std::move(tableSchema));
         }
 
-        if (Load<bool>(context)) {
-            CellTagToExportCount_ = std::make_unique<TCellIndexToExportRefcount>(Load<TCellIndexToExportRefcount>(context));
+        if (context.GetVersion() < EMasterReign::RecomputeMasterTableSchemaRefCounters) {
+            if (Load<bool>(context)) {
+                CellTagToExportCount_ = Load<TCellTagToExportRefcount>(context);
+            }
+        } else {
+            Load(context, CellTagToExportCount_);
         }
     }
 }
@@ -158,11 +156,7 @@ void TMasterTableSchema::ExportRef(TCellTag cellTag)
 {
     YT_VERIFY(cellTag != NotReplicatedCellTagSentinel);
 
-    if (!CellTagToExportCount_) {
-        CellTagToExportCount_ = std::make_unique<TCellIndexToExportRefcount>();
-    }
-
-    auto [it, inserted] = CellTagToExportCount_->emplace(cellTag, 1);
+    auto [it, inserted] = CellTagToExportCount_.emplace(cellTag, 1);
     if (!inserted) {
         YT_VERIFY(it->second > 0);
         ++it->second;
@@ -180,7 +174,7 @@ void TMasterTableSchema::UnexportRef(TCellTag cellTag)
     YT_VERIFY(cellTag != NotReplicatedCellTagSentinel);
     YT_VERIFY(CellTagToExportCount_);
 
-    auto it = GetIteratorOrCrash(*CellTagToExportCount_, cellTag);
+    auto it = GetIteratorOrCrash(CellTagToExportCount_, cellTag);
     YT_VERIFY(it->second > 0);
 
     YT_LOG_DEBUG("Schema export counter decremented (SchemaId: %v, CellTag: %v, ExportCounter: %v)",
@@ -192,20 +186,13 @@ void TMasterTableSchema::UnexportRef(TCellTag cellTag)
         return;
     }
 
-    CellTagToExportCount_->erase(it);
-    if (CellTagToExportCount_->empty()) {
-        CellTagToExportCount_.reset();
-    }
+    CellTagToExportCount_.erase(it);
 }
 
 bool TMasterTableSchema::IsExported(TCellTag cellTag) const
 {
-    if (!CellTagToExportCount_) {
-        return false;
-    }
-
-    auto it = CellTagToExportCount_->find(cellTag);
-    if (it == CellTagToExportCount_->end()) {
+    auto it = CellTagToExportCount_.find(cellTag);
+    if (it == CellTagToExportCount_.end()) {
         return false;
     }
 
@@ -215,10 +202,10 @@ bool TMasterTableSchema::IsExported(TCellTag cellTag) const
 
 void TMasterTableSchema::AlertIfNonEmptyExportCount()
 {
-    if (CellTagToExportCount_) {
+    if (!CellTagToExportCount_.empty()) {
         YT_LOG_ALERT("Table schema being destroyed has non-empty export count (SchemaId: %v, ExportCount: %v)",
             GetId(),
-            CellTagToExportCount_->size());
+            CellTagToExportCount_.size());
     }
 }
 
@@ -256,7 +243,7 @@ void TMasterTableSchema::ResetExportRefCounters()
 {
     YT_LOG_DEBUG("Resetting export ref counters for schema (SchemaId: %v)",
         GetId());
-    CellTagToExportCount_.reset();
+    CellTagToExportCount_.clear();
 }
 
 TMasterTableSchema::TNativeTableSchemaToObjectMapIterator TMasterTableSchema::GetNativeTableSchemaToObjectMapIterator() const

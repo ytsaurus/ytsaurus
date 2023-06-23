@@ -155,6 +155,7 @@ DEFINE_ENUM(EMasterReign,
     ((ExportEmptyMasterTableSchemas)                                (2340))  // h0pless
     ((LimitParallelismOfCfr)                                        (2341))  // akozhikhov
     ((ExTransactionCoordinatorCellRole)                             (2342))  // shakurov
+    ((RecomputeMasterTableSchemaRefCounters)                        (2343))  // h0pless
     // 23.2 starts here.
     ((TabletServants)                                               (2400))  // ifsmirnov
     ((MediumBase)                                                   (2401))  // gritukan

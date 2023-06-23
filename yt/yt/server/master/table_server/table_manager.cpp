@@ -1,5 +1,6 @@
 #include "table_manager.h"
 #include "private.h"
+#include "config.h"
 #include "master_table_schema_proxy.h"
 #include "mount_config_attributes.h"
 #include "replicated_table_node.h"
@@ -52,6 +53,7 @@ using namespace NCypressClient;
 using namespace NCypressServer;
 using namespace NCypressServer::NProto;
 using namespace NHydra;
+using namespace NLogging;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NSecurityServer;
@@ -470,7 +472,7 @@ public:
             YT_VERIFY(schema->GetImportedTableSchemaToObjectMapIterator()->second == schema);
         }
 
-        YT_VERIFY(!schema->CellTagToExportCount_);
+        YT_VERIFY(schema->CellTagToExportCount().empty());
         YT_VERIFY(schema->IsNative() == isNative);
 
         YT_LOG_DEBUG("Schema created (Id: %v)", id);
@@ -1144,6 +1146,7 @@ private:
 
     // COMPAT(h0pless): Remove this after empty schema migration is complete.
     TMasterTableSchemaId PrimaryCellEmptyMasterTableSchemaId_;
+    bool NeedRecomputeMasterTableSchemaRefCounters_ = false;
 
     TMasterTableSchemaId EmptyMasterTableSchemaId_;
     TMasterTableSchema* EmptyMasterTableSchema_ = nullptr;
@@ -1456,7 +1459,10 @@ private:
         StatisticsUpdateRequests_.Clear();
         Queues_.clear();
         Consumers_.clear();
+
         NeedToAddReplicatedQueues_ = false;
+
+        NeedRecomputeMasterTableSchemaRefCounters_ = false;
     }
 
     void SetZeroState() override
@@ -1527,11 +1533,163 @@ private:
                 /* isNative */ true);
             YT_VERIFY(EmptyMasterTableSchema_->RefObject() == 1);
         }
+
+        if (context.GetVersion() < EMasterReign::RecomputeMasterTableSchemaRefCounters) {
+            NeedRecomputeMasterTableSchemaRefCounters_ = true;
+        }
     }
 
     void OnBeforeSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnBeforeSnapshotLoaded();
+    }
+
+    THashMap<TMasterTableSchema*, THashMap<TCellTag, int>> ComputeMasterTableSchemaExportRefCounters()
+    {
+        THashMap<TMasterTableSchema*, THashMap<TCellTag, int>> schemaToExportRefCounters;
+        for (auto [schemaId, schema] : MasterTableSchemaMap_) {
+            EmplaceOrCrash(schemaToExportRefCounters, schema, THashMap<TCellTag, int>());
+        }
+
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        for (auto [nodeId, node] : cypressManager->Nodes()) {
+            if (!IsObjectAlive(node) && node->IsTrunk()) {
+                continue;
+            }
+            if (!IsSchemafulType(node->GetType())) {
+                continue;
+            }
+            if (!node->IsExternal()) {
+                continue;
+            }
+
+            auto externalCellTag = node->GetExternalCellTag();
+            auto* schemafulNode = dynamic_cast<ISchemafulNode*>(node);
+            YT_VERIFY(schemafulNode);
+
+            auto* schema = schemafulNode->GetSchema();
+            auto [it, inserted] = schemaToExportRefCounters[schema].emplace(externalCellTag, 1);
+            if (!inserted) {
+                ++it->second;
+            }
+        }
+        return schemaToExportRefCounters;
+    }
+
+    THashMap<TMasterTableSchema*, i64> ComputeMasterTableSchemaRefCounters()
+    {
+        THashMap<TMasterTableSchema*, i64> schemaToRefCounter;
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        // Empty schema has 1 additional artificial refcounter.
+        for (auto [schemaId, schema] : MasterTableSchemaMap_) {
+            auto isEmpty = schemaId == EmptyMasterTableSchemaId_ ? 1 : 0;
+            EmplaceOrCrash(schemaToRefCounter, schema, isEmpty);
+        }
+
+        // Schemaful nodes hold strong refs.
+        for (auto [nodeId, node] : cypressManager->Nodes()) {
+            if (!IsSchemafulType(node->GetType())) {
+                continue;
+            }
+
+            // NB: Zombie nodes still hold ref.
+            auto* schemafulNode = dynamic_cast<ISchemafulNode*>(node);
+            YT_VERIFY(schemafulNode);
+
+            auto* schema = schemafulNode->GetSchema();
+            ++schemaToRefCounter[schema];
+        }
+
+        // Schema can be staged in a transaction.
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        for (auto [transactionId, transaction] : transactionManager->Transactions()) {
+            for (auto* object : transaction->StagedObjects()) {
+                if (object->GetType() == EObjectType::MasterTableSchema) {
+                    auto* schema = object->As<TMasterTableSchema>();
+                    ++schemaToRefCounter[schema];
+                }
+            }
+        }
+
+        return schemaToRefCounter;
+    }
+
+    void RecomputeMasterTableSchemaExportRefCounters(ELogLevel logLevel)
+    {
+        auto schemaToExportRefCounters = ComputeMasterTableSchemaExportRefCounters();
+        for (auto [schemaId, schema] : MasterTableSchemaMap_) {
+            auto expectedExportRefCounters = GetOrCrash(schemaToExportRefCounters, schema);
+            for (auto [cellTag, actualRefCounter] : schema->CellTagToExportCount()) {
+                auto it = expectedExportRefCounters.find(cellTag);
+
+                auto expectedRefCounter = it != expectedExportRefCounters.end()
+                    ? it->second
+                    : 0;
+
+                if (expectedRefCounter != actualRefCounter) {
+                    YT_LOG_EVENT(Logger, logLevel, "Table schema has invalid export ref counter; setting proper value "
+                        "(SchemaId: %v, CellTag: %v, ExpectedRefCounter: %v, ActualRefCounter: %v)",
+                        schemaId,
+                        cellTag,
+                        expectedRefCounter,
+                        actualRefCounter);
+
+                    if (actualRefCounter > expectedRefCounter) {
+                        for (int index = 0; index < actualRefCounter - expectedRefCounter; ++index) {
+                            schema->UnexportRef(cellTag);
+                        }
+                    } else {
+                        for (int index = 0; index < expectedRefCounter - actualRefCounter; ++index) {
+                            schema->ExportRef(cellTag);
+                        }
+                    }
+                }
+
+                expectedExportRefCounters.erase(it);
+            }
+
+            for (auto [cellTag, refCounter] : expectedExportRefCounters) {
+                YT_LOG_EVENT(Logger, logLevel, "Table schema has missing entries in export ref counter; setting proper value "
+                    "(SchemaId: %v, CellTag: %v, ExpectedRefCounter: %v)",
+                    schemaId,
+                    cellTag,
+                    refCounter);
+
+                for (i64 index = 0; index < refCounter; ++index) {
+                    schema->ExportRef(cellTag);
+                }
+            }
+        }
+    }
+
+    void RecomputeMasterTableSchemaRefCounters(ELogLevel logLevel)
+    {
+        auto schemaToRefCounter = ComputeMasterTableSchemaRefCounters();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        for (auto [schemaId, schema] : MasterTableSchemaMap_) {
+            auto expectedRefCounter = GetOrCrash(schemaToRefCounter, schema);
+            auto actualRefCounter = schema->GetObjectRefCounter();
+
+            if (expectedRefCounter != actualRefCounter) {
+                YT_LOG_EVENT(Logger, logLevel, "Table schema has invalid ref counter; setting proper value "
+                    "(SchemaId: %v, ExpectedRefCounter: %v, ActualRefCounter: %v)",
+                    schemaId,
+                    expectedRefCounter,
+                    actualRefCounter);
+
+                if (actualRefCounter > expectedRefCounter) {
+                    for (int index = 0; index < actualRefCounter - expectedRefCounter; ++index) {
+                        objectManager->UnrefObject(schema);
+                    }
+                } else {
+                    for (int index = 0; index < expectedRefCounter - actualRefCounter; ++index) {
+                        objectManager->RefObject(schema);
+                    }
+                }
+
+                YT_VERIFY(schema->GetObjectRefCounter() == expectedRefCounter);
+            }
+        }
     }
 
     void OnAfterSnapshotLoaded() override
@@ -1554,6 +1712,76 @@ private:
                     }
                 }
             }
+        }
+
+        // NB: Referencing accounts are transient,
+        // thus only ref counters and export ref counters need to be recalculated here.
+        if (NeedRecomputeMasterTableSchemaRefCounters_) {
+            auto logLevel = Bootstrap_->GetConfig()->TableManager->AlertOnMasterTableSchemaRefCounterMismatch
+                ? ELogLevel::Alert
+                : ELogLevel::Error;
+
+            RecomputeMasterTableSchemaExportRefCounters(logLevel);
+            RecomputeMasterTableSchemaRefCounters(logLevel);
+        }
+    }
+
+    void CheckInvariants() override
+    {
+        auto schemaToExportRefCounters = ComputeMasterTableSchemaExportRefCounters();
+        auto schemaToRefCounter = ComputeMasterTableSchemaRefCounters();
+        for (auto [schemaId, schema] : MasterTableSchemaMap_) {
+            // Check export ref counters.
+            auto expectedExportRefCounters = GetOrCrash(schemaToExportRefCounters, schema);
+            const auto& actualExportRefCounters = schema->CellTagToExportCount();
+            for (auto [cellTag, actualRefCounter] : actualExportRefCounters) {
+                auto it = expectedExportRefCounters.find(cellTag);
+
+                auto expectedRefCounter = it != expectedExportRefCounters.end()
+                    ? it->second
+                    : 0;
+
+                YT_LOG_FATAL_UNLESS(expectedRefCounter == actualRefCounter,
+                    "Table schema has unexpected export ref counter "
+                    "(SchemaId: %v, CellTag: %v, ExpectedRefCounter: %v, ActualRefCounter: %v)",
+                    schemaId,
+                    cellTag,
+                    expectedRefCounter,
+                    actualRefCounter);
+
+                expectedExportRefCounters.erase(it);
+            }
+
+            auto actualExportRefCountersSize = actualExportRefCounters.size();
+            YT_LOG_FATAL_UNLESS(expectedExportRefCounters.empty(),
+                "Table schema has missing entries in export ref counter map "
+                "(SchemaId: %v, ExpectedExportRefCounterMapSize: %v, ActualExportRefCounterMapSize: %v)",
+                schemaId,
+                expectedExportRefCounters.size() + actualExportRefCountersSize,
+                actualExportRefCountersSize);
+
+            // Check nativeness.
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            // Empty schema is always native. This will be changed in YT-19195.
+            auto expectedNativeness =
+                CellTagFromId(schemaId) == multicellManager->GetCellTag() ||
+                schema == EmptyMasterTableSchema_;
+            YT_LOG_FATAL_UNLESS(schema->IsNative() == expectedNativeness,
+                "Table schema has unexpected nativeness "
+                "(SchemaId: %v, ExpectedNativeness: %v, ActualNativeness: %v)",
+                schemaId,
+                expectedNativeness,
+                schema->IsNative());
+
+            // Check ref counters.
+            auto expectedRefCounter = GetOrCrash(schemaToRefCounter, schema);
+            auto actualRefCounter = schema->GetObjectRefCounter();
+            YT_LOG_FATAL_UNLESS(expectedRefCounter == actualRefCounter,
+                "Table schema has unexpected ref counter "
+                "(SchemaId: %v, ExpectedRefCounter: %v, ActualRefCounter: %v)",
+                schemaId,
+                expectedRefCounter,
+                actualRefCounter);
         }
     }
 
