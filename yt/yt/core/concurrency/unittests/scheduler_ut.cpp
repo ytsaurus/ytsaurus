@@ -7,7 +7,6 @@
 
 #include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/action_queue.h>
-#include <yt/yt/core/concurrency/count_down_latch.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
@@ -33,6 +32,8 @@
 #include <yt/yt/core/misc/finally.h>
 
 #include <yt/yt/core/ytree/helpers.h>
+
+#include <library/cpp/yt/threading/count_down_latch.h>
 
 #include <util/system/compiler.h>
 #include <util/system/thread.h>
@@ -1116,7 +1117,7 @@ TEST_W(TSchedulerTest, FutureUpdatedRaceInWaitFor_YT_18899)
                 .AsyncVia(serializedInvoker)
         );
 
-        TCountDownLatch latch{1};
+        NThreading::TCountDownLatch latch{1};
 
         auto testResultFuture = BIND([&] {
             latch.CountDown();
