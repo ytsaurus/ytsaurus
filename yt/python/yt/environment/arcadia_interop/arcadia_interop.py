@@ -114,6 +114,11 @@ exec sudo -En {} {} {} {} "$@"
             os.chmod(bin_path, 0o755)
 
 
+def configure_logging():
+    logging.getLogger("YtLocal").setLevel(logging.INFO)
+    logging.getLogger("yt.packages").setLevel(logging.INFO)
+
+
 def prepare_yt_binaries(destination,
                         binary_root=None, package_dir=None, copy_ytserver_all=False, ytserver_all_suffix=None,
                         need_suid=False, component_whitelist=None):

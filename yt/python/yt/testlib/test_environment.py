@@ -68,9 +68,8 @@ class YtTestEnvironment(object):
 
         has_http_proxy = config["backend"] not in ("native",)
 
-        logging.getLogger("YtLocal").setLevel(logging.INFO)
-        logging.getLogger("yt.packages.requests").setLevel(logging.INFO)
-        logging.getLogger("yt.packages.urllib3").setLevel(logging.INFO)
+        if yatest_common is not None:
+            arcadia_interop.configure_logging()
 
         run_id = uuid.uuid4().hex[:8]
         self.uniq_dir_name = os.path.join(self.test_name, "run_" + run_id)

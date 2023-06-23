@@ -87,6 +87,10 @@ def _wait_instance_to_become_ready(process, instance_id):
 def prepare_path():
     try:
         from yt.environment import arcadia_interop
+
+        if yatest_common is not None:
+            arcadia_interop.configure_logging()
+
         destination = os.path.join(get_tests_sandbox(), "build")
         if not os.path.exists(destination):
             os.makedirs(destination)
