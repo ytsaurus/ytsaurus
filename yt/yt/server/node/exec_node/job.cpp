@@ -1932,7 +1932,9 @@ void TJob::Cleanup()
 
 TFuture<void> TJob::GetCleanupFinishedEvent()
 {
-    return CleanupFinished_.ToFuture();
+    return CleanupFinished_
+        .ToFuture()
+        .ToUncancelable();
 }
 
 // Preparation.
