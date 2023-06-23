@@ -133,8 +133,7 @@ private:
             .SetPresent(isGood));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::AlertCount)
             .SetPresent(isGood));
-        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Flavors)
-            .SetPresent(isGood));
+        descriptors->push_back(EInternedAttributeKey::Flavors);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletSlots)
             .SetPresent(isGood));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Cellars)
@@ -439,9 +438,6 @@ private:
                 return true;
 
             case EInternedAttributeKey::Flavors:
-                if (!isGood) {
-                    break;
-                }
                 BuildYsonFluently(consumer)
                     .Value(node->Flavors());
                 return true;
