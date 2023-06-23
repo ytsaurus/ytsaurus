@@ -153,6 +153,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixChunkCreationTimeHistogram)                                (2338))  // kvk1920
     ((SysOperationsTransactionAction)                               (2339))  // kvk1920
     ((ExportEmptyMasterTableSchemas)                                (2340))  // h0pless
+    ((LimitParallelismOfCfr)                                        (2341))  // akozhikhov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

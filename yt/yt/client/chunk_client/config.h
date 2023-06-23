@@ -482,6 +482,12 @@ public:
     //! Will open and read with DirectIO (unless already opened w/o DirectIO or disabled via location config).
     bool UseDirectIO;
 
+    //! Upper bound on length of simultaneously requested fragments withing a reading session.
+    i64 MaxInflightFragmentLength;
+
+    //! Upper bound on count of simultaneously requested fragments withing a reading session.
+    i64 MaxInflightFragmentCount;
+
     REGISTER_YSON_STRUCT(TChunkFragmentReaderConfig);
 
     static void Register(TRegistrar registrar);
