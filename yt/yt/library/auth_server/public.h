@@ -29,6 +29,8 @@ DECLARE_REFCOUNTED_CLASS(TAuthenticationManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TOAuthCookieAuthenticatorConfig)
 DECLARE_REFCOUNTED_CLASS(TCachingOAuthCookieAuthenticatorConfig)
 DECLARE_REFCOUNTED_CLASS(TOAuthServiceConfig)
+DECLARE_REFCOUNTED_CLASS(TCypressUserManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TCachingCypressUserManagerConfig)
 
 DECLARE_REFCOUNTED_STRUCT(TCypressCookie)
 
@@ -38,6 +40,7 @@ DECLARE_REFCOUNTED_STRUCT(TCypressCookieManagerConfig)
 
 DECLARE_REFCOUNTED_STRUCT(ICypressCookieStore)
 DECLARE_REFCOUNTED_STRUCT(ICypressCookieManager)
+DECLARE_REFCOUNTED_STRUCT(ICypressUserManager)
 
 DECLARE_REFCOUNTED_STRUCT(IAuthenticationManager)
 

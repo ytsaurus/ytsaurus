@@ -176,6 +176,8 @@ class TOAuthCookieAuthenticatorConfig
     : public virtual NYTree::TYsonStruct
 {
 public:
+    TCachingCypressUserManagerConfigPtr CypressUserManagerConfig;
+
     REGISTER_YSON_STRUCT(TOAuthCookieAuthenticatorConfig);
 
     static void Register(TRegistrar registrar);
@@ -198,6 +200,7 @@ public:
 
     TString UserInfoEndpoint;
     TString UserInfoLoginField;
+    TString UserInfoSubjectField;
 
     REGISTER_YSON_STRUCT(TOAuthServiceConfig);
 
@@ -205,6 +208,34 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TOAuthServiceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCypressUserManagerConfig
+    : public virtual NYTree::TYsonStruct
+{
+public:
+    REGISTER_YSON_STRUCT(TCypressUserManagerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCypressUserManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCachingCypressUserManagerConfig
+    : public TCypressUserManagerConfig
+{
+public:
+    TAuthCacheConfigPtr Cache;
+
+    REGISTER_YSON_STRUCT(TCachingCypressUserManagerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCachingCypressUserManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

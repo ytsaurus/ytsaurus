@@ -83,25 +83,9 @@ private:
         auto httpHeaders = New<THeaders>();
         httpHeaders->Add("Authorization", "Bearer " + accessToken);
 
-        auto jsonResponseChecker = CreateJsonResponseChecker(BIND([this] (const IResponsePtr& rsp, const NYTree::INodePtr& json) -> TError {
-            if (rsp->GetStatusCode() != EStatusCode::OK) {
-                return TError("OAuth call returned HTTP status code %v", static_cast<int>(rsp->GetStatusCode()));
-            }
-
-            if (json->GetType() != ENodeType::Map) {
-                return TError("OAuth call has returned an improper result")
-                    << TErrorAttribute("expected_result_type", ENodeType::Map)
-                    << TErrorAttribute("actual_result_type", json->GetType());
-            }
-
-            auto loginNode = json->AsMap()->FindChild(Config_->UserInfoLoginField);
-            if (!loginNode || loginNode->GetType() != ENodeType::String) {
-                return TError("OAuth call did not return login")
-                    << TErrorAttribute("login_field", Config_->UserInfoLoginField);
-            }
-
-            return {};
-        }), MakeJsonFormatConfig());
+        auto jsonResponseChecker = CreateJsonResponseChecker(
+            BIND(&TOAuthService::DoCheckUserInfoResponse, MakeStrong(this)),
+            MakeJsonFormatConfig());
 
         const auto url = Format("%v://%v:%v/%v",
             Config_->Secure ? "https" : "http",
@@ -122,9 +106,44 @@ private:
             THROW_ERROR(error);
         }
 
-        return TOAuthUserInfoResult{
+        auto userInfo = TOAuthUserInfoResult{
             .Login = jsonResponseChecker->GetFormattedResponse()->AsMap()->FindChild(Config_->UserInfoLoginField)->AsString()->GetValue()
         };
+
+        if (!Config_->UserInfoSubjectField.empty()) {
+            userInfo.Subject = jsonResponseChecker->GetFormattedResponse()->AsMap()->FindChild(Config_->UserInfoSubjectField)->AsString()->GetValue();
+        }
+
+        return userInfo;
+    }
+
+    TError DoCheckUserInfoResponse(const IResponsePtr& rsp, const NYTree::INodePtr& json) const
+    {
+        if (rsp->GetStatusCode() != EStatusCode::OK) {
+            return TError("OAuth call returned HTTP status code %v", static_cast<int>(rsp->GetStatusCode()));
+        }
+
+        if (json->GetType() != ENodeType::Map) {
+            return TError("OAuth call has returned an improper result")
+                << TErrorAttribute("expected_result_type", ENodeType::Map)
+                << TErrorAttribute("actual_result_type", json->GetType());
+        }
+
+        auto loginNode = json->AsMap()->FindChild(Config_->UserInfoLoginField);
+        if (!loginNode || loginNode->GetType() != ENodeType::String) {
+            return TError("OAuth call did not return login")
+                << TErrorAttribute("login_field", Config_->UserInfoLoginField);
+        }
+
+        if (!Config_->UserInfoSubjectField.empty()) {
+            auto subjectNode = json->AsMap()->FindChild(Config_->UserInfoSubjectField);
+            if (!subjectNode || subjectNode->GetType() != ENodeType::String) {
+                return TError("OAuth call did not return subject")
+                    << TErrorAttribute("subject_field", Config_->UserInfoSubjectField);
+            }
+        }
+
+        return {};
     }
 };
 

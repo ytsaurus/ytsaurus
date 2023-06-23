@@ -102,8 +102,11 @@ void TBlackboxCookieAuthenticatorConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TOAuthCookieAuthenticatorConfig::Register(TRegistrar /*registrar*/)
-{ }
+void TOAuthCookieAuthenticatorConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("cypress_user_manager_config", &TThis::CypressUserManagerConfig)
+        .DefaultNew();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -125,6 +128,19 @@ void TOAuthServiceConfig::Register(TRegistrar registrar)
         .Default("user/info");
     registrar.Parameter("user_info_login_field", &TThis::UserInfoLoginField)
         .Default("nickname");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TCypressUserManagerConfig::Register(TRegistrar /*registrar*/)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TCachingCypressUserManagerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("cache", &TThis::Cache)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

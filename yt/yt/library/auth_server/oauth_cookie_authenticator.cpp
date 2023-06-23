@@ -2,7 +2,9 @@
 
 #include "config.h"
 #include "cookie_authenticator.h"
+#include "cypress_user_manager.h"
 #include "helpers.h"
+#include "library/cpp/yt/logging/logger.h"
 #include "oauth_service.h"
 #include "private.h"
 
@@ -26,9 +28,11 @@ class TOAuthCookieAuthenticator
 public:
     TOAuthCookieAuthenticator(
         TOAuthCookieAuthenticatorConfigPtr config,
-        IOAuthServicePtr oauthService)
+        IOAuthServicePtr oauthService,
+        ICypressUserManagerPtr userManager)
         : Config_(std::move(config))
         , OAuthService_(std::move(oauthService))
+        , UserManager_(std::move(userManager))
     { }
 
     const std::vector<TStringBuf>& GetCookieNames() const override
@@ -67,6 +71,7 @@ public:
 private:
     const TOAuthCookieAuthenticatorConfigPtr Config_;
     const IOAuthServicePtr OAuthService_;
+    const ICypressUserManagerPtr UserManager_;
 
 private:
     TFuture<TAuthenticationResult> OnGetUserInfo(
@@ -90,7 +95,14 @@ private:
 
     TErrorOr<TAuthenticationResult> OnGetUserInfoImpl(const TOAuthUserInfoResult& userInfo)
     {
-        // TODO: create user
+        auto result = WaitFor(UserManager_->CreateUser(userInfo.Login));
+        if (!result.IsOK()) {
+            auto error = TError("Failed to create user (Name: %v)", userInfo.Login)
+                << std::move(result);
+            YT_LOG_WARNING(error);
+            return error;
+        }
+
         return TAuthenticationResult{
             .Login = userInfo.Login,
             .Realm = "oauth:cookie"
@@ -102,9 +114,13 @@ private:
 
 ICookieAuthenticatorPtr CreateOAuthCookieAuthenticator(
     TOAuthCookieAuthenticatorConfigPtr config,
-    IOAuthServicePtr oauthService)
+    IOAuthServicePtr oauthService,
+    ICypressUserManagerPtr userManager)
 {
-    return New<TOAuthCookieAuthenticator>(std::move(config), std::move(oauthService));
+    return New<TOAuthCookieAuthenticator>(
+        std::move(config),
+        std::move(oauthService),
+        std::move(userManager));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

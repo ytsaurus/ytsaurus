@@ -13,7 +13,7 @@ namespace NYT::NAuth {
 
 struct TOAuthUserInfoResult
 {
-    TString Sub;
+    TString Subject;
     TString Login;
 };
 

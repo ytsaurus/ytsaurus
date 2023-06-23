@@ -8,7 +8,8 @@ namespace NYT::NAuth {
 
 ICookieAuthenticatorPtr CreateOAuthCookieAuthenticator(
     TOAuthCookieAuthenticatorConfigPtr config,
-    IOAuthServicePtr oauthService);
+    IOAuthServicePtr oauthService,
+    ICypressUserManagerPtr userManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 

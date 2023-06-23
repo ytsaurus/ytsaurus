@@ -1,16 +1,17 @@
 #include "authentication_manager.h"
 
-#include "blackbox_service.h"
 #include "blackbox_cookie_authenticator.h"
+#include "blackbox_service.h"
+#include "config.h"
 #include "cookie_authenticator.h"
 #include "cypress_cookie_manager.h"
 #include "cypress_token_authenticator.h"
+#include "cypress_user_manager.h"
+#include "oauth_cookie_authenticator.h"
+#include "oauth_service.h"
+#include "private.h"
 #include "ticket_authenticator.h"
 #include "token_authenticator.h"
-#include "config.h"
-#include "private.h"
-#include "oauth_service.h"
-#include "oauth_cookie_authenticator.h"
 
 #include <yt/yt/core/rpc/authenticator.h>
 
@@ -117,11 +118,19 @@ public:
         }
 
         if (config->OAuthCookieAuthenticator && oauthService) {
+            auto cypressUserManager = CreateCachingCypressUserManager(
+                config->OAuthCookieAuthenticator->CypressUserManagerConfig,
+                CreateCypressUserManager(
+                    config->OAuthCookieAuthenticator->CypressUserManagerConfig,
+                    client),
+                AuthProfiler.WithPrefix("/oauth_cookie_authenticator/cypress_user_manager/cache"));
+
             cookieAuthenticators.push_back(CreateCachingCookieAuthenticator(
                 config->OAuthCookieAuthenticator,
                 CreateOAuthCookieAuthenticator(
                     config->OAuthCookieAuthenticator,
-                    oauthService),
+                    oauthService,
+                    std::move(cypressUserManager)),
                 AuthProfiler.WithPrefix("/oauth_cookie_authenticator/cache")));
         }
 
