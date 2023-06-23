@@ -708,7 +708,8 @@ protected:
         }
     }
 
-    std::vector<char> GenerateIncompressibleData(i64 size) {
+    std::vector<char> GenerateIncompressibleData(i64 size)
+    {
         std::vector<char> data(size);
         for (int index = 0; index < size; index++) {
             data[index] = rand();
