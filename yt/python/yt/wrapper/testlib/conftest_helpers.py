@@ -11,10 +11,14 @@ from yt.wrapper.common import GB
 
 import yt.wrapper as yt
 
+try:
+    from yt.packages.six import PY3
+except ImportError:
+    from six import PY3
+
 import pytest
 
 import os
-import imp
 import sys
 from copy import deepcopy
 
@@ -280,12 +284,19 @@ def yt_env_with_rpc(request, test_environment_with_rpc):
 
 @pytest.fixture(scope="function")
 def test_dynamic_library(request, yt_env_with_increased_memory):
+    if PY3:
+        import types
+    else:
+        import imp
     libs_dir = os.path.abspath("yt_test_modules")
     dependant_lib_output = os.path.join(libs_dir, "yt_test_dynamic_library.so")
 
     # Adding this pseudo-module to sys.modules and ensuring it will be collected with
     # its dependency (libgetnumber.so)
-    module = imp.new_module("yt_test_dynamic_library")
+    if PY3:
+        module = types.ModuleType("yt_test_dynamic_library")
+    else:
+        module = imp.new_module("yt_test_dynamic_library")
     module.__file__ = dependant_lib_output
     sys.modules["yt_test_dynamic_library"] = module
 
