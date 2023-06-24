@@ -353,6 +353,7 @@ IUserSlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequ
         std::move(bestLocation),
         JobEnvironment_,
         RootVolumeManager_.Acquire(),
+        Bootstrap_,
         NodeTag_,
         slotType,
         cpuRequest.cpu(),

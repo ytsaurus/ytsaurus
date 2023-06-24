@@ -39,7 +39,7 @@ struct IUserSlot
     : public NClusterNode::ISlot
 {
     //! Kill all possibly running processes and clean sandboxes.
-    virtual void CleanProcesses() = 0;
+    virtual TFuture<void> CleanProcesses() = 0;
 
     virtual void CleanSandbox() = 0;
 
@@ -129,6 +129,7 @@ IUserSlotPtr CreateSlot(
     TSlotLocationPtr location,
     IJobEnvironmentPtr environment,
     IVolumeManagerPtr volumeManager,
+    NExecNode::IBootstrap* bootstrap,
     const TString& nodeTag,
     ESlotType slotType,
     double requestedCpu,

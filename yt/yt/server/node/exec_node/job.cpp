@@ -322,48 +322,47 @@ void TJob::Abort(TError error)
         "Job abort requested (Phase: %v, Timeout: %v)",
         JobPhase_,
         timeout);
-
-    auto doAbort = [&, error{std::move(error)}] {
-        SetJobPhase(EJobPhase::WaitingAbort);
-        Finalize(std::move(error));
-        TDelayedExecutor::Submit(
-            BIND(&TJob::OnJobAbortionTimeout, MakeStrong(this))
-                .Via(Invoker_),
-            timeout);
-    };
-
     switch (JobPhase_) {
         case EJobPhase::Created:
+            SetJobPhase(EJobPhase::WaitingAbort);
+            Finalize(std::move(error));
+            TDelayedExecutor::Submit(
+                BIND(&TJob::OnJobAbortionTimeout, MakeStrong(this))
+                    .Via(Invoker_),
+                timeout);
+            Cleanup();
+            return;
+
         case EJobPhase::DownloadingArtifacts:
         case EJobPhase::RunningGpuCheckCommand:
         case EJobPhase::RunningExtraGpuCheckCommand:
         case EJobPhase::Running:
-            doAbort();
-            ArtifactsFuture_.Cancel(TError("Job aborted"));
-
-            // Do the actual cleanup asynchronously.
-            BIND(&TJob::Cleanup, MakeStrong(this))
-                .Via(Bootstrap_->GetJobInvoker())
-                .Run();
-
-            break;
-
         case EJobPhase::PreparingNodeDirectory:
         case EJobPhase::PreparingSandboxDirectories:
         case EJobPhase::PreparingArtifacts:
         case EJobPhase::PreparingRootVolume:
         case EJobPhase::SpawningJobProxy:
         case EJobPhase::PreparingJob:
-            // Wait for the next event handler to complete the abortion.
-            doAbort();
-            GetUserSlot()->CancelPreparation();
-            break;
+            SetJobPhase(EJobPhase::WaitingAbort);
+            Finalize(std::move(error));
+            TDelayedExecutor::Submit(
+                BIND(&TJob::OnJobAbortionTimeout, MakeStrong(this))
+                    .Via(Invoker_),
+                timeout);
+            ArtifactsFuture_.Cancel(TError("Job aborted"));
+
+            if (auto slot = GetUserSlot()) {
+                slot->CancelPreparation();
+            }
+
+            StopJobProxy();
+            return;
 
         default:
             YT_LOG_DEBUG("Cannot abort job (JobState: %v, JobPhase: %v)",
                 JobState_,
                 JobPhase_);
-            break;
+            return;
     }
 }
 
@@ -1476,9 +1475,6 @@ bool TJob::HandleFinishingPhase()
         case EJobPhase::Finished:
             return true;
 
-        case EJobPhase::Created:
-            return false;
-
         default:
             return false;
     }
@@ -1511,6 +1507,7 @@ void TJob::OnNodeDirectoryPrepared(const TError& error)
             "Failed to prepare job node directory");
 
         SetJobPhase(EJobPhase::DownloadingArtifacts);
+
         auto artifactsFuture = DownloadArtifacts();
         artifactsFuture.Subscribe(
             BIND(&TJob::OnArtifactsDownloaded, MakeWeak(this))
@@ -1634,9 +1631,10 @@ void TJob::FinishPrepare(const TErrorOr<TJobWorkspaceBuildResult>& resultOrError
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    YT_VERIFY(resultOrError.IsOK());
-
     GuardedAction([&] {
+        // There may be a possible cancellation, but this is not happening now.
+        YT_VERIFY(resultOrError.IsOK());
+
         auto& holder = resultOrError.Value();
         TmpfsPaths_ = holder.TmpfsPaths;
         RootVolume_ = holder.RootVolume;
@@ -1837,6 +1835,8 @@ void TJob::GuardedAction(const TCallback& action)
         return;
     }
 
+    YT_LOG_DEBUG("Run guarded action (State: %v, Phase: %v)", JobState_, JobPhase_);
+
     try {
         TForbidContextSwitchGuard contextSwitchGuard;
         action();
@@ -1848,6 +1848,19 @@ void TJob::GuardedAction(const TCallback& action)
     }
 }
 
+TFuture<void> TJob::StopJobProxy()
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    if (auto slot = GetUserSlot()) {
+        YT_LOG_DEBUG("Cleaning processes (SlotIndex: %v)", slot->GetSlotIndex());
+
+        return slot->CleanProcesses();
+    }
+
+    return VoidFuture;
+}
+
 // Finalization.
 void TJob::Cleanup()
 {
@@ -1855,9 +1868,9 @@ void TJob::Cleanup()
 
     YT_VERIFY(IsFinished());
 
-    if (JobPhase_ == EJobPhase::Cleanup || JobPhase_ == EJobPhase::Finished) {
-        return;
-    }
+    YT_LOG_FATAL_IF(
+        JobPhase_ == EJobPhase::Cleanup || JobPhase_ == EJobPhase::Finished,
+        "Job cleanup should be called only once");
 
     YT_LOG_INFO("Cleaning up after scheduler job");
 
@@ -1871,8 +1884,8 @@ void TJob::Cleanup()
 
     if (auto slot = GetUserSlot()) {
         try {
-            YT_LOG_DEBUG("Cleaning processes (SlotIndex: %v)", slot->GetSlotIndex());
-            slot->CleanProcesses();
+            WaitFor(StopJobProxy())
+                .ThrowOnError();
         } catch (const std::exception& ex) {
             // Errors during cleanup phase do not affect job outcome.
             YT_LOG_ERROR(ex, "Failed to clean processes (SlotIndex: %v)", slot->GetSlotIndex());
@@ -2360,7 +2373,8 @@ TFuture<std::vector<NDataNode::IChunkPtr>> TJob::DownloadArtifacts()
         UpdateArtifactStatistics(artifactSize, fetchedFromCache);
     }
 
-    return AllSucceeded(asyncChunks);
+    return AllSucceeded(asyncChunks)
+        .ToImmediatelyCancelable();
 }
 
 TError TJob::BuildJobProxyError(const TError& spawnError)
