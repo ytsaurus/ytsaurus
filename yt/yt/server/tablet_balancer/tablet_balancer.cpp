@@ -153,7 +153,8 @@ private:
 
     void PickReshardPivotKeys(
         TReshardDescriptor* descriptor,
-        const NYPath::TYPath& tablePath,
+        const TTable* table,
+        const TBundleStatePtr& bundleState,
         std::optional<double> slicingAccuracy) const;
 };
 
@@ -729,7 +730,7 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
             continue;
         }
 
-        auto tableId = (*beginIt)->Table->Id;
+        auto table = (*beginIt)->Table;
         auto tableTablets = std::vector<TTabletPtr>(beginIt, endIt);
         beginIt = endIt;
 
@@ -742,19 +743,17 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
             .Run())
             .ValueOrThrow();
 
-        auto& profilingCounters = GetOrCrash(bundleState->ProfilingCounters(), tableId);
-        const auto& tablePath = GetOrCrash(bundleState->GetBundle()->Tables, tableId)->Path;
-
+        auto& profilingCounters = GetOrCrash(bundleState->ProfilingCounters(), table->Id);
         for (auto descriptor : descriptors) {
             YT_LOG_DEBUG("Reshard action created (TabletIds: %v, TabletCount: %v, DataSize: %v, TableId: %v)",
                 descriptor.Tablets,
                 descriptor.TabletCount,
                 descriptor.DataSize,
-                tableId);
+                table->Id);
 
             if (pickReshardPivotKeys) {
                 try {
-                    PickReshardPivotKeys(&descriptor, tablePath, slicingAccuracy);
+                    PickReshardPivotKeys(&descriptor, table, bundleState, slicingAccuracy);
                 } catch (const std::exception& ex) {
                     YT_LOG_ERROR(ex,
                         "Failed to pick pivot keys for reshard action "
@@ -762,7 +761,7 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
                         descriptor.Tablets,
                         descriptor.TabletCount,
                         descriptor.DataSize,
-                        tableId);
+                        table->Id);
                     PickPivotFailures.Increment(1);
                 }
             }
@@ -793,16 +792,24 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
 
 void TTabletBalancer::PickReshardPivotKeys(
     TReshardDescriptor* descriptor,
-    const NYPath::TYPath& tablePath,
+    const TTable* table,
+    const TBundleStatePtr& bundleState,
     std::optional<double> slicingAccuracy) const
 {
+    auto options = TReshardTableOptions{
+        .EnableSlicing = true,
+        .SlicingAccuracy = slicingAccuracy,
+    };
+
+    auto tablet = GetOrCrash(bundleState->Tablets(), descriptor->Tablets[0]);
+    options.FirstTabletIndex = tablet->Index;
+    options.LastTabletIndex = tablet->Index + std::ssize(descriptor->Tablets) - 1;
+
     descriptor->PivotKeys = PickPivotKeysWithSlicing(
         Bootstrap_->GetClient(),
-        tablePath,
+        table->Path,
         descriptor->TabletCount,
-        TReshardTableOptions{
-            .EnableSlicing = true,
-            .SlicingAccuracy = slicingAccuracy},
+        options,
         Logger);
 }
 
