@@ -1,5 +1,6 @@
 #include "slot.h"
 
+#include "bootstrap.h"
 #include "chunk_cache.h"
 #include "private.h"
 #include "job_environment.h"
@@ -43,6 +44,7 @@ public:
         TSlotLocationPtr location,
         IJobEnvironmentPtr environment,
         IVolumeManagerPtr volumeManager,
+        NExecNode::IBootstrap* bootstrap,
         const TString& nodeTag,
         ESlotType slotType,
         double requestedCpu,
@@ -51,6 +53,7 @@ public:
         : JobEnvironment_(std::move(environment))
         , Location_(std::move(location))
         , VolumeManager_(std::move(volumeManager))
+        , Bootstrap_(std::move(bootstrap))
         , SlotGuard_(slotManager->AcquireSlot(slotType, requestedCpu, numaNodeAffinity))
         , SlotIndex_(SlotGuard_->GetSlotIndex())
         , NodeTag_(nodeTag)
@@ -63,10 +66,16 @@ public:
         }
     }
 
-    void CleanProcesses() override
+    TFuture<void> CleanProcesses() override
     {
-        // First kill all processes that may hold open handles to slot directories.
-        JobEnvironment_->CleanProcesses(SlotIndex_, SlotGuard_->GetSlotType());
+        if (!CleanProcessesFuture_) {
+            // First kill all processes that may hold open handles to slot directories.
+            CleanProcessesFuture_ = BIND(&IJobEnvironment::CleanProcesses, JobEnvironment_)
+                .AsyncVia(Bootstrap_->GetJobInvoker())
+                .Run(SlotIndex_, SlotGuard_->GetSlotType());
+        }
+
+        return CleanProcessesFuture_;
     }
 
     void CleanSandbox() override
@@ -294,6 +303,8 @@ private:
     const TSlotLocationPtr Location_;
     const IVolumeManagerPtr VolumeManager_;
 
+    NExecNode::IBootstrap* const Bootstrap_;
+
     std::unique_ptr<TSlotManager::TSlotGuard> SlotGuard_;
     const int SlotIndex_;
 
@@ -307,6 +318,8 @@ private:
     const TString JobProxyUnixDomainSocketPath_;
 
     const std::optional<TNumaNodeInfo> NumaNodeAffinity_;
+
+    TFuture<void> CleanProcessesFuture_;
 
     template <class T>
     TFuture<T> RunPrepareAction(std::function<TFuture<T>()> action, bool uncancelable = false)
@@ -340,6 +353,7 @@ ISlotPtr CreateSlot(
     TSlotLocationPtr location,
     IJobEnvironmentPtr environment,
     IVolumeManagerPtr volumeManager,
+    NExecNode::IBootstrap* bootstrap,
     const TString& nodeTag,
     ESlotType slotType,
     double requestedCpu,
@@ -351,6 +365,7 @@ ISlotPtr CreateSlot(
         std::move(location),
         std::move(environment),
         std::move(volumeManager),
+        std::move(bootstrap),
         nodeTag,
         slotType,
         requestedCpu,
