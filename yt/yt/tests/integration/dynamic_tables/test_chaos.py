@@ -20,7 +20,7 @@ from yt_commands import (
     get_in_sync_replicas, generate_timestamp, MaxTimestamp, raises_yt_error,
     create_table_replica, sync_enable_table_replica, get_tablet_infos, ban_node,
     suspend_chaos_cells, resume_chaos_cells, merge, add_maintenance, remove_maintenance,
-    sync_freeze_table)
+    sync_freeze_table, lock)
 
 from yt_type_helpers import make_schema
 
@@ -1089,6 +1089,32 @@ class TestChaos(ChaosTestBase):
         assert attributes["replication_card_id"] == card_id
         assert attributes["replica_path"] == "//tmp/r0"
         assert attributes["cluster_name"] == "remote_0"
+
+    @authors("h0pless")
+    def test_chaos_table_lock(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
+        set("//sys/chaos_cell_bundles/chaos_bundle/@metadata_cell_id", cell_id)
+
+        schema = yson.YsonList([
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ])
+        create("chaos_replicated_table", "//tmp/crt", attributes={"chaos_cell_bundle": "chaos_bundle", "schema": schema})
+
+        def _validate_schema(schema):
+            actual_schema = get("//tmp/crt/@schema")
+            assert actual_schema.attributes["unique_keys"]
+            for column, actual_column in zip_longest(schema, actual_schema):
+                for name, value in column.items():
+                    assert actual_column[name] == value
+        _validate_schema(schema)
+
+        tx = start_transaction()
+        lock("//tmp/crt", mode="exclusive", tx=tx)
+        old_schema = get("//tmp/crt/@schema")
+        assert old_schema == get("//tmp/crt/@schema", tx=tx)
+        commit_transaction(tx)
+        assert old_schema == get("//tmp/crt/@schema")
 
     @authors("savrus")
     def test_chaos_table_alter(self):

@@ -166,11 +166,21 @@ private:
         hiveManager->PostMessage(mailbox, request);
     }
 
+    void DoMerge(TChaosReplicatedTableNode* originatingNode, TChaosReplicatedTableNode* branchedNode) override
+    {
+        const auto& tableManager = Bootstrap_->GetTableManager();
+        tableManager->SetTableSchema(originatingNode, branchedNode->GetSchema());
+        tableManager->ResetTableSchema(branchedNode);
+    }
+
     void DoDestroy(TChaosReplicatedTableNode* node) override
     {
         if (node->IsTrunk() && node->GetOwnsReplicationCard()) {
             PostReplicationCardRemovalRequest(node);
         }
+
+        const auto& tableManager = Bootstrap_->GetTableManager();
+        tableManager->ResetTableSchema(node);
 
         TCypressNodeTypeHandlerBase::DoDestroy(node);
     }
@@ -184,6 +194,9 @@ private:
 
         branchedNode->SetReplicationCardId(originatingNode->GetReplicationCardId());
         branchedNode->SetOwnsReplicationCard(originatingNode->GetOwnsReplicationCard());
+
+        const auto& tableManager = Bootstrap_->GetTableManager();
+        tableManager->SetTableSchema(branchedNode, originatingNode->GetSchema());
     }
 
     void DoClone(
@@ -201,6 +214,9 @@ private:
         clonedTrunkNode->SetReplicationCardId(sourceNode->GetReplicationCardId());
         // NB: Cannot share ownership.
         clonedTrunkNode->SetOwnsReplicationCard(false);
+
+        const auto& tableManager = Bootstrap_->GetTableManager();
+        tableManager->SetTableSchema(clonedTrunkNode, sourceNode->GetSchema());
     }
 
     void DoBeginCopy(
@@ -213,6 +229,7 @@ private:
         Save(*context, node->ChaosCellBundle());
         Save(*context, node->GetReplicationCardId());
         Save(*context, node->GetOwnsReplicationCard());
+        Save(*context, node->GetSchema());
     }
 
     void DoEndCopy(
@@ -230,6 +247,10 @@ private:
 
         trunkNode->SetReplicationCardId(Load<TReplicationCardId>(*context));
         trunkNode->SetOwnsReplicationCard(Load<bool>(*context));
+
+        const auto& tableManager = this->Bootstrap_->GetTableManager();
+        auto* schema = Load<TMasterTableSchema*>(*context);
+        tableManager->SetTableSchema(trunkNode, schema);
     }
 };
 

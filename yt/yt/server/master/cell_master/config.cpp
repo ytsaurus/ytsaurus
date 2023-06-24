@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/master/cypress_server/config.h>
 
+#include <yt/yt/server/master/table_server/config.h>
+
 #include <yt/yt/server/master/cell_server/config.h>
 
 #include <yt/yt/server/master/chaos_server/config.h>
@@ -229,6 +231,8 @@ void TCellMasterConfig::Register(TRegistrar registrar)
     registrar.Parameter("world_initializer", &TThis::WorldInitializer)
         .DefaultNew();
     registrar.Parameter("security_manager", &TThis::SecurityManager)
+        .DefaultNew();
+    registrar.Parameter("table_manager", &TThis::TableManager)
         .DefaultNew();
     registrar.Parameter("enable_provision_lock", &TThis::EnableProvisionLock)
         .Default(true);

@@ -542,6 +542,7 @@ target_sources(yt-server-master PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/sequoia_server/public.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/sequoia_server/sequoia_transaction_service.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/sequoia_server/sequoia_manager.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/cypress_integration.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/public.cpp

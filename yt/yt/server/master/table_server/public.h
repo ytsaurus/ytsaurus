@@ -31,6 +31,7 @@ class TReplicatedTableNodeTypeHandler;
 DECLARE_REFCOUNTED_STRUCT(ITableManager)
 
 DECLARE_REFCOUNTED_CLASS(TVirtualStaticTable)
+DECLARE_REFCOUNTED_CLASS(TTableManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletBalancerConfig)
 DECLARE_REFCOUNTED_CLASS(TPartitionConfig)
 DECLARE_REFCOUNTED_CLASS(TMountConfigAttributeDictionary)

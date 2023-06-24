@@ -36,10 +36,12 @@ public:
     using TNativeTableSchemaToObjectMapIterator = TNativeTableSchemaToObjectMap::iterator;
     using TImportedTableSchemaToObjectMapIterator = TImportedTableSchemaToObjectMap::iterator;
 
-    using TCellIndexToExportRefcount = THashMap<NObjectClient::TCellTag, int>;
+    using TCellTagToExportRefcount = THashMap<NObjectClient::TCellTag, int>;
 
     using TAccountToMasterMemoryUsage = TCompactFlatMap<NSecurityServer::TAccount*, i64, 2>;
     using TAccountToRefCounterMap = TCompactFlatMap<NSecurityServer::TAccount*, i64, 2>;
+
+    DEFINE_BYREF_RO_PROPERTY(TCellTagToExportRefcount, CellTagToExportCount);
 
     // These are transient and are used for master memory accounting only.
     DEFINE_BYREF_RO_PROPERTY(TAccountToMasterMemoryUsage, ChargedMasterMemoryUsage);
@@ -88,8 +90,6 @@ private:
     friend class TTableManager;
 
     using TBase = NObjectServer::TObject;
-
-    std::unique_ptr<TCellIndexToExportRefcount> CellTagToExportCount_;
 
     std::variant<TNativeTableSchemaToObjectMapIterator, TImportedTableSchemaToObjectMapIterator> TableSchemaToObjectMapIterator_;
     NTableClient::TTableSchemaPtr TableSchema_;

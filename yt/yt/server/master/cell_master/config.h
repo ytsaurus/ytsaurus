@@ -12,6 +12,8 @@
 
 #include <yt/yt/server/lib/misc/config.h>
 
+#include <yt/yt/server/master/table_server/public.h>
+
 #include <yt/yt/server/master/cell_server/public.h>
 
 #include <yt/yt/server/master/chaos_server/public.h>
@@ -243,6 +245,8 @@ public:
     TWorldInitializerConfigPtr WorldInitializer;
 
     NSecurityServer::TSecurityManagerConfigPtr SecurityManager;
+
+    NTableServer::TTableManagerConfigPtr TableManager;
 
     //! If |true| then |//sys/@provision_lock| is set during cluster initialization.
     bool EnableProvisionLock;

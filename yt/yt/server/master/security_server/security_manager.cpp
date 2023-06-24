@@ -940,10 +940,13 @@ public:
         YT_ASSERT(chargedMasterMemoryUsage == TDetailedMasterMemory());
         node->ChargedDetailedMasterMemoryUsage() = chargedMasterMemoryUsage;
 
-        if (IsTableType(node->GetType())) {
+        if (IsSchemafulType(node->GetType())) {
             // NB: this may also be a replicated table.
-            const auto* table = node->As<TTableNode>();
-            ResetMasterMemoryUsage(table->GetSchema(), account);
+            // This dynamic cast is a temporary solution. It will be removed after TSchemfulTypeHandler is introduced.
+            const auto* schemafulNode = dynamic_cast<ISchemafulNode*>(node);
+            YT_VERIFY(schemafulNode);
+
+            ResetMasterMemoryUsage(schemafulNode->GetSchema(), account);
         }
     }
 
@@ -966,10 +969,12 @@ public:
         YT_ASSERT(chargedMasterMemoryUsage == detailedMasterMemoryUsage);
         node->ChargedDetailedMasterMemoryUsage() = chargedMasterMemoryUsage;
 
-        if (accountChanged && IsTableType(node->GetType())) {
+        if (accountChanged && IsSchemafulType(node->GetType())) {
             // NB: this may also be a replicated table.
-            auto* table = node->As<TTableNode>();
-            UpdateMasterMemoryUsage(table->GetSchema(), account);
+            const auto* schemafulNode = dynamic_cast<ISchemafulNode*>(node);
+            YT_VERIFY(schemafulNode);
+
+            UpdateMasterMemoryUsage(schemafulNode->GetSchema(), account);
         }
     }
 
