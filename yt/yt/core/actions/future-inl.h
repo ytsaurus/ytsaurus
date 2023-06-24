@@ -52,6 +52,12 @@ inline NYT::TError MakeCanceledError(const NYT::TError& error)
         << error;
 }
 
+template <class T>
+TFuture<T> MakeWellKnownFuture(NYT::TErrorOr<T> value)
+{
+    return TFuture<T>(New<NYT::NDetail::TPromiseState<T>>(true, -1, -1, -1, std::move(value)));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T, TFutureCallbackCookie MinCookie, TFutureCallbackCookie MaxCookie>
@@ -924,12 +930,6 @@ template <class T>
 TFuture<T> MakeFuture(T value)
 {
     return TFuture<T>(New<NYT::NDetail::TPromiseState<T>>(false, 0, 1, 1, std::move(value)));
-}
-
-template <class T>
-TFuture<T> MakeWellKnownFuture(NYT::TErrorOr<T> value)
-{
-    return TFuture<T>(New<NYT::NDetail::TPromiseState<T>>(true, -1, -1, -1, std::move(value)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -60,6 +60,11 @@ void Ref(TFutureState<T>* state);
 template <class T>
 void Unref(TFutureState<T>* state);
 
+//! Constructs a well-known pre-set future like #VoidFuture.
+//! For such futures ref-counting is essentially disabled.
+template <class T>
+[[nodiscard]] TFuture<T> MakeWellKnownFuture(TErrorOr<T> value);
+
 } // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -79,11 +84,6 @@ template <class T>
 [[nodiscard]] TFuture<T> MakeFuture(TErrorOr<T> value);
 template <class T>
 [[nodiscard]] TFuture<T> MakeFuture(T value);
-
-//! Constructs a well-known pre-set future like #VoidFuture.
-//! For such futures ref-counting is essentially disabled.
-template <class T>
-[[nodiscard]] TFuture<T> MakeWellKnownFuture(TErrorOr<T> value);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Comparison and swap.
@@ -358,7 +358,7 @@ private:
     template <class U>
     friend TFuture<U> MakeFuture(TErrorOr<U> value);
     template <class U>
-    friend TFuture<U> MakeWellKnownFuture(TErrorOr<U> value);
+    friend TFuture<U> NDetail::MakeWellKnownFuture(TErrorOr<U> value);
     template <class U>
     friend TFuture<U> MakeFuture(U value);
     template <class U>
@@ -392,7 +392,7 @@ private:
     template <class U>
     friend TFuture<U> MakeFuture(TErrorOr<U> value);
     template <class U>
-    friend TFuture<U> MakeWellKnownFuture(TErrorOr<U> value);
+    friend TFuture<U> NDetail::MakeWellKnownFuture(TErrorOr<U> value);
     template <class U>
     // XXX(babenko): 'NYT::' is a workaround; cf. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=52625
     friend class NYT::TFutureBase;
