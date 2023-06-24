@@ -1762,10 +1762,7 @@ private:
 
             // Check nativeness.
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            // Empty schema is always native. This will be changed in YT-19195.
-            auto expectedNativeness =
-                CellTagFromId(schemaId) == multicellManager->GetCellTag() ||
-                schema == EmptyMasterTableSchema_;
+            auto expectedNativeness = CellTagFromId(schemaId) == multicellManager->GetCellTag();
             YT_LOG_FATAL_UNLESS(schema->IsNative() == expectedNativeness,
                 "Table schema has unexpected nativeness "
                 "(SchemaId: %v, ExpectedNativeness: %v, ActualNativeness: %v)",
