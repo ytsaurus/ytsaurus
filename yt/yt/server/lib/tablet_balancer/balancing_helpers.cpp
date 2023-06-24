@@ -83,6 +83,7 @@ TTabletSizeConfig GetTabletSizeConfig(
     if (tableConfig->DesiredTabletCount) {
         // DesiredTabletCount from table config.
         i64 desiredTabletCount = std::max(1, *tableConfig->DesiredTabletCount);
+        desiredTabletCount = std::min<i64>(desiredTabletCount, MaxTabletCount);
         desiredTabletSize = DivCeil(tableSize, desiredTabletCount);
         minTabletSize = static_cast<i64>(desiredTabletSize / 1.9);
         maxTabletSize = static_cast<i64>(desiredTabletSize * 1.9);
@@ -120,8 +121,9 @@ TTabletSizeConfig GetTabletSizeConfig(
 
     // Balancer would not create too many tablets unless desired_tablet_count is set.
     if (!tableConfig->DesiredTabletCount) {
-        i64 maxTabletCount = std::ssize(bundle->TabletCells) *
-            bundle->Config->TabletToCellRatio;
+        i64 maxTabletCount = std::min<i64>(
+            std::ssize(bundle->TabletCells) * bundle->Config->TabletToCellRatio,
+            MaxTabletCount);
         auto tabletSizeLimit = DivCeil(tableSize, maxTabletCount);
         if (desiredTabletSize < tabletSizeLimit) {
             desiredTabletSize = tabletSizeLimit;
