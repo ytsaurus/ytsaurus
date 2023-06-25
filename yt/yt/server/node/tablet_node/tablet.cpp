@@ -637,6 +637,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, TableId_);
     Save(context, MountRevision_);
     Save(context, TablePath_);
+    Save(context, MasterAvenueEndpointId_);
     Save(context, GetPersistentState());
     TNonNullableIntrusivePtrSerializer<>::Save(context, TableSchema_);
     Save(context, Atomicity_);
@@ -704,6 +705,10 @@ void TTablet::Load(TLoadContext& context)
     Load(context, TableId_);
     Load(context, MountRevision_);
     Load(context, TablePath_);
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= ETabletReign::Avenues) {
+        Load(context, MasterAvenueEndpointId_);
+    }
     Load(context, State_);
     TNonNullableIntrusivePtrSerializer<>::Load(context, TableSchema_);
     Load(context, Atomicity_);

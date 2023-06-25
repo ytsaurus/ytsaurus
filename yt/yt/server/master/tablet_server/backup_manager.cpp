@@ -220,7 +220,7 @@ public:
                     allocatedDynamicStoreId);
 
                 const auto& hiveManager = Bootstrap_->GetHiveManager();
-                auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+                auto* mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
                 hiveManager->PostMessage(mailbox, req);
 
             } else {
@@ -306,7 +306,7 @@ public:
                         cell->GetId());
 
                     const auto& hiveManager = Bootstrap_->GetHiveManager();
-                    auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+                    auto* mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
                     hiveManager->PostMessage(mailbox, req);
                 } else {
                     // Backup could start when the tablet was not mounted.

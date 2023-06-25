@@ -20,6 +20,8 @@ struct IAvenueDirectory
 
     //! Raised when the endpoint changes its location, either moving to a different
     //! cell or losing its cell altogether.
+    //!
+    //! Cell mailbox must be already created when the method is called.
     DECLARE_INTERFACE_SIGNAL(void(
         TAvenueEndpointId endpointId,
         TCellId newCellId),

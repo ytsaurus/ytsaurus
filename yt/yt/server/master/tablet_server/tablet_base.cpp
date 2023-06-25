@@ -12,10 +12,11 @@
 
 namespace NYT::NTabletServer {
 
+using namespace NCellMaster;
 using namespace NChunkClient;
 using namespace NChunkServer;
-using namespace NCellMaster;
 using namespace NCypressClient;
+using namespace NHiveServer;
 using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYson;
@@ -71,6 +72,7 @@ void TTabletBase::Save(TSaveContext& context) const
     Save(context, State_);
     Save(context, ExpectedState_);
     Save(context, TabletErrorCount_);
+    Save(context, NodeAvenueEndpointId_);
 }
 
 void TTabletBase::Load(TLoadContext& context)
@@ -122,6 +124,11 @@ void TTabletBase::Load(TLoadContext& context)
     // COMPAT(ifsmirnov)
     if (context.GetVersion() < EMasterReign::TabletServants) {
         Servant_.SetState(State_);
+    }
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::AvenuesInTabletManager) {
+        Load(context, NodeAvenueEndpointId_);
     }
 }
 
@@ -430,6 +437,27 @@ void TTabletBase::SetTabletErrorCount(int tabletErrorCount)
     }
 
     TabletErrorCount_ = tabletErrorCount;
+}
+
+void TTabletBase::SetNodeAvenueEndpointId(NHiveServer::TAvenueEndpointId endpointId)
+{
+    YT_VERIFY(NHydra::HasHydraContext());
+
+    NodeAvenueEndpointId_ = endpointId;
+}
+
+TEndpointId TTabletBase::GetNodeEndpointId() const
+{
+    YT_VERIFY(State_ != ETabletState::Unmounted);
+
+    return NodeAvenueEndpointId_
+        ? NodeAvenueEndpointId_
+        : Servant_.GetCell()->GetId();
+}
+
+bool TTabletBase::IsMountedWithAvenue() const
+{
+    return static_cast<bool>(NodeAvenueEndpointId_);
 }
 
 void TTabletBase::CheckInvariants(NCellMaster::TBootstrap* bootstrap) const

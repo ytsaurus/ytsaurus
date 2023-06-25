@@ -12,7 +12,12 @@ TCellId TSimpleAvenueDirectory::FindCellIdByEndpointId(TAvenueEndpointId endpoin
 
 void TSimpleAvenueDirectory::UpdateEndpoint(TAvenueEndpointId endpointId, TCellId cellId)
 {
-    Directory_[endpointId] = cellId;
+    if (cellId) {
+        Directory_[endpointId] = cellId;
+    } else {
+        Directory_.erase(cellId);
+    }
+
     EndpointUpdated_.Fire(endpointId, cellId);
 }
 

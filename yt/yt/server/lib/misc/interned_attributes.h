@@ -321,6 +321,7 @@
     XX(NativeContentRevision, native_content_revision) \
     XX(NestedTransactionIds, nested_transaction_ids) \
     XX(NodeAddress, node_address) \
+    XX(NodeEndpointId, node_endpoint_id) \
     XX(NodeId, node_id) \
     XX(Nodes, nodes) \
     XX(NodeTagFilter, node_tag_filter) \

@@ -14,10 +14,9 @@
 
 #include <yt/yt/server/lib/tablet_node/table_settings.h>
 
-#include <yt/yt/ytlib/chunk_client/public.h>
+#include <yt/yt/server/lib/hive/public.h>
 
-#include <yt/yt/client/table_client/schema.h>
-#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
 #include <yt/yt/ytlib/table_client/performance_counters.h>
 #include <yt/yt/ytlib/table_client/tablet_snapshot.h>
@@ -25,11 +24,12 @@
 #include <yt/yt/ytlib/tablet_client/public.h>
 #include <yt/yt/ytlib/tablet_client/backup.h>
 
-#include <yt/yt/library/query/base/public.h>
-
 #include <yt/yt/ytlib/chunk_client/public.h>
 
 #include <yt/yt/client/chaos_client/replication_card.h>
+
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/core/actions/public.h>
 
@@ -40,6 +40,8 @@
 #include <yt/yt/core/concurrency/async_barrier.h>
 
 #include <yt/yt/core/ytree/fluent.h>
+
+#include <yt/yt/library/query/base/public.h>
 
 #include <library/cpp/yt/small_containers/compact_set.h>
 
@@ -437,6 +439,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NHydra::TRevision, MountRevision);
     DEFINE_BYVAL_RO_PROPERTY(NObjectClient::TObjectId, TableId);
     DEFINE_BYVAL_RO_PROPERTY(NYPath::TYPath, TablePath);
+    DEFINE_BYVAL_RW_PROPERTY(NHiveServer::TAvenueEndpointId, MasterAvenueEndpointId);
 
     DEFINE_BYVAL_RO_PROPERTY(NObjectClient::TObjectId, SchemaId);
     DEFINE_BYVAL_RO_PROPERTY(NTableClient::TTableSchemaPtr, TableSchema);

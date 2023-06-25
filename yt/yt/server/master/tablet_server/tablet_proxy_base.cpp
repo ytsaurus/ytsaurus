@@ -98,6 +98,8 @@ void TTabletProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* d
         .SetPresent(tablet->GetAction()));
     descriptors->push_back(EInternedAttributeKey::ErrorCount);
     descriptors->push_back(EInternedAttributeKey::Servants);
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::NodeEndpointId)
+        .SetPresent(tablet->GetCell()));
 }
 
 bool TTabletProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
@@ -232,6 +234,14 @@ bool TTabletProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
                 .EndMap();
             return true;
         }
+
+        case EInternedAttributeKey::NodeEndpointId:
+            if (!tablet->GetCell()) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(tablet->GetNodeEndpointId());
+            return true;
 
         default:
             break;

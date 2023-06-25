@@ -10,6 +10,8 @@
 
 #include <yt/yt/server/master/transaction_server/public.h>
 
+#include <yt/yt/server/lib/hive/public.h>
+
 namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -116,6 +118,15 @@ public:
     int GetTabletErrorCount() const;
     void SetTabletErrorCount(int tabletErrorCount);
 
+    //! Most master-node communication goes through per-tablet avenues except
+    //! mount and unmount messages. Node endpoint id resolves to either per-tablet
+    //! avenue endpoint id (if avenues are already adopted) or falls back to cell id.
+    void SetNodeAvenueEndpointId(NHiveServer::TAvenueEndpointId enpointId);
+    NHiveServer::TEndpointId GetNodeEndpointId() const;
+
+    // COMPAT(ifsmirnov)
+    bool IsMountedWithAvenue() const;
+
     void CheckInvariants(NCellMaster::TBootstrap* bootstrap) const override;
 
 private:
@@ -125,6 +136,8 @@ private:
     ETabletState ExpectedState_ = ETabletState::Unmounted;
 
     int TabletErrorCount_ = 0;
+
+    NHiveServer::TAvenueEndpointId NodeAvenueEndpointId_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1351,6 +1351,11 @@ class YTEnvSetup(object):
                     path="//sys/@config/tablet_manager/enable_tablet_resource_validation",
                     input=True,
                 ),
+                yt_commands.make_batch_request(
+                    "set",
+                    path="//sys/@config/tablet_manager/use_avenues",
+                    input=True,
+                ),
             ],
             driver=driver,
         ):

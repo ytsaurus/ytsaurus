@@ -3,6 +3,8 @@
 #include "config.h"
 #include "public.h"
 
+#include <yt/yt/server/lib/hive/public.h>
+
 #include <yt/yt/ytlib/cellar_node_tracker_client/proto/heartbeat.pb.h>
 
 #include <yt/yt/ytlib/tablet_client/config.h>
@@ -33,6 +35,7 @@ struct ICellarOccupant
     virtual const NRpc::IResponseKeeperPtr& GetResponseKeeper() const = 0;
     virtual const NHydra::TCompositeAutomatonPtr& GetAutomaton() const = 0;
     virtual const NHiveServer::IHiveManagerPtr& GetHiveManager() const = 0;
+    virtual const NHiveServer::TSimpleAvenueDirectoryPtr& GetAvenueDirectory() const = 0;
     virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() const = 0;
     virtual const NTransactionSupervisor::ITransactionSupervisorPtr& GetTransactionSupervisor() const = 0;
     virtual NHiveServer::TMailbox* GetMasterMailbox() const = 0;

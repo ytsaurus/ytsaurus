@@ -8,6 +8,7 @@
 #include "transaction.h"
 #include "transaction_manager.h"
 
+#include <yt/yt/server/lib/hive/avenue_directory.h>
 #include <yt/yt/server/lib/hive/helpers.h>
 
 #include <yt/yt/server/lib/transaction_supervisor/helpers.h>
@@ -33,14 +34,15 @@ namespace NYT::NTabletNode {
 
 using namespace NChunkClient;
 using namespace NConcurrency;
-using namespace NJournalClient;
 using namespace NHiveServer;
 using namespace NHydra;
+using namespace NJournalClient;
+using namespace NObjectClient;
 using namespace NTabletNode::NProto;
 using namespace NTabletServer::NProto;
 using namespace NTransactionSupervisor;
-using namespace NYson;
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -285,6 +287,21 @@ private:
         TabletMap_.SaveValues(context);
     }
 
+    void OnAfterSnapshotLoaded() noexcept override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TTabletAutomatonPart::OnAfterSnapshotLoaded();
+
+        const auto& avenueDirectory = Slot_->GetAvenueDirectory();
+        for (auto [tabletId, tablet] : TabletMap_) {
+            if (auto masterEndpointId = tablet->GetMasterAvenueEndpointId()) {
+                auto masterCellId = Bootstrap_->GetCellId(CellTagFromId(tablet->GetId()));
+                avenueDirectory->UpdateEndpoint(masterEndpointId, masterCellId);
+            }
+        }
+    }
+
     void Clear() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -302,6 +319,7 @@ private:
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto mountRevision = request->mount_revision();
+        auto masterAvenueEndpointId = FromProto<TAvenueEndpointId>(request->master_avenue_endpoint_id());
 
         auto tabletHolder = std::make_unique<THunkTablet>(MakeStrong(this), tabletId);
         auto* tablet = TabletMap_.Insert(tabletId, std::move(tabletHolder));
@@ -319,12 +337,18 @@ private:
             tablet->AddStore(std::move(store));
         }
 
+        if (masterAvenueEndpointId) {
+            tablet->SetMasterAvenueEndpointId(masterAvenueEndpointId);
+            Slot_->RegisterTabletAvenue(tablet->GetId(), masterAvenueEndpointId);
+        }
+
         ScheduleScanTablet(tablet->GetId());
 
         YT_LOG_DEBUG(
-            "Hunk tablet mounted (TabletId: %v, MountRevision: %x)",
+            "Hunk tablet mounted (TabletId: %v, MountRevision: %x, MasterAvenueEndpointId: %v)",
             tabletId,
-            mountRevision);
+            mountRevision,
+            masterAvenueEndpointId);
 
         {
             TRspMountHunkTablet response;
@@ -724,6 +748,10 @@ private:
                 "Tablet became orphaned (TabletId: %v)",
                 tabletId);
             OrphanedTabletMap_.Insert(tabletId, std::move(tabletHolder));
+        }
+
+        if (auto masterEndpointId = tablet->GetMasterAvenueEndpointId()) {
+            Slot_->UnregisterTabletAvenue(masterEndpointId);
         }
 
         {

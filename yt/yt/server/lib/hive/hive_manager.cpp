@@ -202,6 +202,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        YT_VERIFY(HasHydraContext());
+
         if (RemovedCellIds_.erase(cellId) != 0 && !allowResurrection) {
             YT_LOG_ALERT("Mailbox has been resurrected (SelfCellId: %v, CellId: %v)",
                 SelfCellId_,
@@ -258,6 +260,8 @@ public:
     TCellMailbox* GetOrCreateCellMailbox(TCellId cellId) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        YT_VERIFY(HasHydraContext());
 
         auto* mailbox = CellMailboxMap_.Find(cellId);
         if (!mailbox) {
@@ -961,8 +965,16 @@ private:
 
         mailbox->SetConnected(true);
         YT_VERIFY(mailbox->SyncRequests().empty());
-        mailbox->SetFirstInFlightOutcomingMessageId(mailbox->GetFirstOutcomingMessageId());
-        YT_VERIFY(mailbox->GetInFlightOutcomingMessageCount() == 0);
+
+        auto doSetConnected = [] (TMailbox* mailbox) {
+            mailbox->SetFirstInFlightOutcomingMessageId(mailbox->GetFirstOutcomingMessageId());
+            YT_VERIFY(mailbox->GetInFlightOutcomingMessageCount() == 0);
+        };
+
+        doSetConnected(mailbox);
+        for (const auto& [avenueId, avenueMailbox] : mailbox->RegisteredAvenues()) {
+            doSetConnected(avenueMailbox);
+        }
 
         YT_LOG_INFO("Mailbox connected (SrcCellId: %v, DstCellId: %v)",
             SelfCellId_,
@@ -1004,14 +1016,19 @@ private:
 
         mailbox->SyncRequests().clear();
         mailbox->SetConnected(false);
-        mailbox->SetPostInProgress(false);
-        mailbox->SetFirstInFlightOutcomingMessageId(mailbox->GetFirstOutcomingMessageId());
-        mailbox->SetInFlightOutcomingMessageCount(0);
-        TDelayedExecutor::CancelAndClear(mailbox->IdlePostCookie());
 
-        for (auto [avenueEndpointId, avenueMailbox] : mailbox->ActiveAvenues()) {
-            avenueMailbox->SetPostInProgress(false);
+        auto doSetDisconnected = [] (TMailbox* mailbox) {
+            mailbox->SetPostInProgress(false);
+            mailbox->SetFirstInFlightOutcomingMessageId(mailbox->GetFirstOutcomingMessageId());
+            mailbox->SetInFlightOutcomingMessageCount(0);
+        };
+
+        doSetDisconnected(mailbox);
+        for (auto [avenueEndpointId, avenueMailbox] : mailbox->RegisteredAvenues()) {
+            doSetDisconnected(avenueMailbox);
         }
+
+        TDelayedExecutor::CancelAndClear(mailbox->IdlePostCookie());
 
         YT_LOG_INFO("Mailbox disconnected (SrcCellId: %v, DstCellId: %v)",
             SelfCellId_,
@@ -1406,6 +1423,10 @@ private:
         }
 
         if (mailbox->GetInFlightOutcomingMessageCount() > 0) {
+            return;
+        }
+
+        if (mailbox->GetPostInProgress()) {
             return;
         }
 
@@ -1916,7 +1937,13 @@ private:
 
     void UpdateAvenueCellConnection(TAvenueMailbox* avenueMailbox, TCellId cellId)
     {
-        UpdateAvenueCellConnection(avenueMailbox, FindCellMailbox(cellId));
+        TCellMailbox* cellMailbox = nullptr;
+
+        if (cellId) {
+            cellMailbox = GetCellMailbox(cellId);
+        }
+
+        UpdateAvenueCellConnection(avenueMailbox, cellMailbox);
     }
 
     void UpdateAvenueCellConnection(TAvenueMailbox* avenueMailbox, TCellMailbox* cellMailbox)

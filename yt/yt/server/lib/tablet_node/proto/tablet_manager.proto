@@ -94,6 +94,7 @@ message TReqMountTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
     required NYT.NProto.TGuid table_id = 9;
+    required NYT.NProto.TGuid master_avenue_endpoint_id = 30;
     required NYT.NTableClient.NProto.TTableSchemaExt schema = 2;
     optional NYT.NProto.TGuid schema_id = 26;
     repeated TAddStoreDescriptor stores = 4;
@@ -383,6 +384,7 @@ message TReqMountHunkTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
     required uint64 mount_revision = 2;
+    required NYT.NProto.TGuid master_avenue_endpoint_id = 7;
     required THunkStorageSettings hunk_storage_settings = 3;
     required NYT.NProto.TGuid storage_id = 4;
     required string storage_path = 5;

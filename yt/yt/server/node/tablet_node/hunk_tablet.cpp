@@ -30,6 +30,7 @@ void THunkTablet::Save(TSaveContext& context) const
 
     Save(context, State_);
     Save(context, MountRevision_);
+    Save(context, MasterAvenueEndpointId_);
     Save(context, *MountConfig_);
     Save(context, *StoreWriterConfig_);
     Save(context, *StoreWriterOptions_);
@@ -50,6 +51,10 @@ void THunkTablet::Load(TLoadContext& context)
 
     Load(context, State_);
     Load(context, MountRevision_);
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= ETabletReign::Avenues) {
+        Load(context, MasterAvenueEndpointId_);
+    }
     Load(context, *MountConfig_);
     Load(context, *StoreWriterConfig_);
     Load(context, *StoreWriterOptions_);

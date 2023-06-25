@@ -217,6 +217,9 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("add_perf_counters_to_tablets_attribute", &TThis::AddPerfCountersToTabletsAttribute)
         .Default(true);
 
+    registrar.Parameter("use_avenues", &TThis::UseAvenues)
+        .Default(false);
+
     registrar.Preprocessor([] (TThis* config) {
         config->StoreChunkReader->SuspiciousNodeGracePeriod = TDuration::Minutes(5);
         config->StoreChunkReader->BanPeersPermanently = false;

@@ -30,6 +30,8 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, MountRevision);
 
+    DEFINE_BYVAL_RW_PROPERTY(NHiveServer::TAvenueEndpointId, MasterAvenueEndpointId);
+
     DEFINE_BYREF_RW_PROPERTY(THunkStorageMountConfigPtr, MountConfig, New<THunkStorageMountConfig>());
     DEFINE_BYREF_RW_PROPERTY(THunkStoreWriterConfigPtr, StoreWriterConfig, New<THunkStoreWriterConfig>());
     DEFINE_BYREF_RW_PROPERTY(THunkStoreWriterOptionsPtr, StoreWriterOptions, New<THunkStoreWriterOptions>());

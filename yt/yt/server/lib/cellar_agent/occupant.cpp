@@ -28,6 +28,7 @@
 #include <yt/yt/server/lib/election/election_manager_thunk.h>
 #include <yt/yt/server/lib/election/alien_cell_peer_channel_factory.h>
 
+#include <yt/yt/server/lib/hive/avenue_directory.h>
 #include <yt/yt/server/lib/hive/hive_manager.h>
 #include <yt/yt/server/lib/hive/mailbox.h>
 
@@ -218,6 +219,11 @@ public:
     const IHiveManagerPtr& GetHiveManager() const override
     {
         return HiveManager_;
+    }
+
+    const TSimpleAvenueDirectoryPtr& GetAvenueDirectory() const override
+    {
+        return AvenueDirectory_;
     }
 
     const ITimestampProviderPtr& GetTimestampProvider() const override
@@ -495,10 +501,12 @@ public:
 
             ElectionManagerThunk_->SetUnderlying(ElectionManager_);
 
+            AvenueDirectory_ = New<TSimpleAvenueDirectory>();
+
             HiveManager_ = CreateHiveManager(
                 Config_->HiveManager,
                 connection->GetCellDirectory(),
-                /*avenueDirectory*/ nullptr,
+                AvenueDirectory_,
                 GetCellId(),
                 occupier->GetOccupierAutomatonInvoker(),
                 hydraManager,
@@ -700,6 +708,8 @@ private:
     IResponseKeeperPtr ResponseKeeper_;
 
     IHiveManagerPtr HiveManager_;
+
+    TSimpleAvenueDirectoryPtr AvenueDirectory_;
 
     ITimestampProviderPtr TimestampProvider_;
 

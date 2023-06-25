@@ -50,8 +50,10 @@
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
-#include <yt/yt/server/lib/hive/hive_manager.h>
+#include <yt/yt/server/lib/hive/avenue_directory.h>
 #include <yt/yt/server/lib/hive/helpers.h>
+#include <yt/yt/server/lib/hive/hive_manager.h>
+#include <yt/yt/server/lib/hive/mailbox.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
@@ -89,11 +91,7 @@
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
-#include <yt/yt/client/object_client/helpers.h>
-
 #include <yt/yt/ytlib/table_client/helpers.h>
-
-#include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/ytlib/tablet_client/backup.h>
 #include <yt/yt/ytlib/tablet_client/config.h>
@@ -102,6 +100,8 @@
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
+
+#include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/schema.h>
@@ -491,8 +491,7 @@ public:
 
             replicaInfo.SetState(ETableReplicaState::Disabled);
 
-            auto* cell = tablet->GetCell();
-            auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+            auto* mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
             TReqAddTableReplica req;
             ToProto(req.mutable_tablet_id(), tablet->GetId());
             PopulateTableReplicaDescriptor(req.mutable_replica(), replica, replicaInfo);
@@ -528,8 +527,7 @@ public:
                     continue;
                 }
 
-                auto* cell = tablet->GetCell();
-                auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+                auto* mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
                 TReqRemoveTableReplica req;
                 ToProto(req.mutable_tablet_id(), tablet->GetId());
                 ToProto(req.mutable_replica_id(), replica->GetId());
@@ -674,8 +672,7 @@ public:
             auto* tablet = tabletBase->As<TTablet>();
             auto* replicaInfo = tablet->GetReplicaInfo(replica);
 
-            auto* cell = tablet->GetCell();
-            auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+            auto* mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
             TReqAlterTableReplica req;
             ToProto(req.mutable_tablet_id(), tablet->GetId());
             ToProto(req.mutable_replica_id(), replica->GetId());
@@ -1604,7 +1601,7 @@ public:
                 CreateAndAttachDynamicStores(tablet, &req);
             }
 
-            auto* mailbox = hiveManager->GetMailbox(tablet->GetCell()->GetId());
+            auto* mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
             hiveManager->PostMessage(mailbox, req);
         }
 
@@ -1630,7 +1627,7 @@ public:
 
     TGuid GenerateTabletBalancerCorrelationId() const
     {
-        auto mutationContext = GetCurrentMutationContext();
+        auto* mutationContext = GetCurrentMutationContext();
         const auto& generator = mutationContext->RandomGenerator();
         ui64 lo = generator->Generate<ui64>();
         ui64 hi = generator->Generate<ui64>();
@@ -2250,8 +2247,7 @@ public:
             ++pendingTabletCount;
             YT_VERIFY(tablet->As<TTablet>()->UnconfirmedDynamicTableLocks().emplace(transaction->GetId()).second);
 
-            auto* cell = tablet->GetCell();
-            auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+            auto* mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
             TReqLockTablet req;
             ToProto(req.mutable_tablet_id(), tablet->GetId());
             ToProto(req.mutable_lock()->mutable_transaction_id(), transaction->GetId());
@@ -2672,6 +2668,7 @@ private:
                         .Item("opaque").Value(true)
                     .EndAttributes()
                     .Value(MountConfigKeysFromNodes_)
+                .Item("non_avenue_tablet_count").Value(NonAvenueTabletCount_)
             .EndMap();
     }
 
@@ -2689,10 +2686,16 @@ private:
     // Not a compat, actually.
     bool FillMountConfigKeys_ = false;
 
+    //! Hash parts of the avenue ids generated in current mutation.
+    THashSet<ui32> GeneratedAvenueIdHashes_;
+
     // COMPAT(ifsmirnov)
     bool RecomputeAggregateTabletStatistics_ = false;
     // COMPAT(ifsmirnov)
     bool RecomputeHunkResourceUsage_ = false;
+
+    // COMPAT(ifsmirnov)
+    int NonAvenueTabletCount_ = 0;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -3430,6 +3433,8 @@ private:
                 IsDynamicStoreReadEnabled(typedTable, GetDynamicConfig()));
         }
 
+        GeneratedAvenueIdHashes_.clear();
+
         const auto& objectManager = Bootstrap_->GetObjectManager();
         TTabletResources resourceUsageDelta;
         const auto& allTablets = table->Tablets();
@@ -3510,6 +3515,55 @@ private:
         UpdateResourceUsage(table, resourceUsageDelta);
     }
 
+    template <class TReq>
+    void MaybeSetTabletAvenueEndpointId(TTabletBase* tablet, TCellId cellId, TReq* mountReq)
+    {
+        // COMPAT(ifsmirnov): remove "Maybe" from method name when avenues are adopted.
+        if (!GetDynamicConfig()->UseAvenues) {
+            return;
+        }
+
+        ui32 hash = HashFromId(tablet->GetId());
+
+        // Try to keep as many lower bits as possible.
+        {
+            ui32 salt = 0;
+            ui32 upperBitMask = 0;
+            ui32 saltOffset = 32;
+
+            while (GeneratedAvenueIdHashes_.contains(hash)) {
+                if (salt == upperBitMask) {
+                    --saltOffset;
+                    upperBitMask ^= 1u << saltOffset;
+                }
+                ++salt;
+                hash = (hash & ~upperBitMask) ^ (salt << saltOffset);
+            }
+        }
+
+        GeneratedAvenueIdHashes_.insert(hash);
+
+        auto* mutationContext = GetCurrentMutationContext();
+
+        auto masterEndpointId = MakeRegularId(
+            EObjectType::AliceAvenueEndpoint,
+            CellTagFromId(tablet->GetId()),
+            mutationContext->GetVersion(),
+            hash);
+        auto nodeEndpointId = GetSiblingAvenueEndpointId(masterEndpointId);
+
+        mutationContext->CombineStateHash(masterEndpointId);
+
+        tablet->SetNodeAvenueEndpointId(nodeEndpointId);
+        ToProto(mountReq->mutable_master_avenue_endpoint_id(), masterEndpointId);
+
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+        hiveManager->RegisterAvenueEndpoint(masterEndpointId, /*cookie*/ {});
+
+        hiveManager->GetOrCreateCellMailbox(cellId);
+        Bootstrap_->GetAvenueDirectory()->UpdateEndpoint(nodeEndpointId, cellId);
+    }
+
     void DoMountTableTablet(
         TTablet* tablet,
         TTableNode* table,
@@ -3534,6 +3588,8 @@ private:
             ToProto(req.mutable_tablet_id(), tablet->GetId());
             req.set_mount_revision(tablet->Servant().GetMountRevision());
             ToProto(req.mutable_table_id(), table->GetId());
+
+            MaybeSetTabletAvenueEndpointId(tablet, cell->GetId(), &req);
 
             ToProto(req.mutable_schema_id(), table->GetSchema()->GetId());
             ToProto(req.mutable_schema(), *table->GetSchema()->AsTableSchema());
@@ -3633,7 +3689,8 @@ private:
             req.set_cumulative_data_weight(cumulativeDataWeight);
 
             YT_LOG_DEBUG("Mounting tablet (TableId: %v, TabletId: %v, CellId: %v, ChunkCount: %v, "
-                "Atomicity: %v, CommitOrdering: %v, Freeze: %v, UpstreamReplicaId: %v)",
+                "Atomicity: %v, CommitOrdering: %v, Freeze: %v, UpstreamReplicaId: %v, "
+                "NodeEndpointId: %v)",
                 table->GetId(),
                 tablet->GetId(),
                 cell->GetId(),
@@ -3641,7 +3698,12 @@ private:
                 table->GetAtomicity(),
                 table->GetCommitOrdering(),
                 freeze,
-                table->GetUpstreamReplicaId());
+                table->GetUpstreamReplicaId(),
+                tablet->GetNodeEndpointId());
+
+            if (!tablet->IsMountedWithAvenue()) {
+                ++NonAvenueTabletCount_;
+            }
 
             hiveManager->PostMessage(mailbox, req);
         }
@@ -3707,6 +3769,8 @@ private:
         ToProto(request.mutable_tablet_id(), tablet->GetId());
         request.set_mount_revision(tablet->Servant().GetMountRevision());
 
+        MaybeSetTabletAvenueEndpointId(tablet, cell->GetId(), &request);
+
         FillHunkStorageSettings(&request, serializedSettings);
 
         auto chunks = EnumerateChunksInChunkTree(tablet->GetChunkList());
@@ -3719,9 +3783,14 @@ private:
         hiveManager->PostMessage(mailbox, request);
 
         YT_LOG_DEBUG(
-            "Mounting hunk tablet (TabletId: %v, CellId: %v)",
+            "Mounting hunk tablet (TabletId: %v, CellId: %v, NodeEndpointId: %v)",
             tablet->GetId(),
-            cell->GetId());
+            cell->GetId(),
+            tablet->GetNodeEndpointId());
+
+        if (!tablet->IsMountedWithAvenue()) {
+            ++NonAvenueTabletCount_;
+        }
     }
 
     void DoFreezeTablet(TTabletBase* tablet)
@@ -3748,7 +3817,7 @@ private:
             TReqFreezeTablet request;
             ToProto(request.mutable_tablet_id(), tablet->GetId());
 
-            auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+            auto* mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
             hiveManager->PostMessage(mailbox, request);
         }
     }
@@ -3782,7 +3851,7 @@ private:
 
             ToProto(request.mutable_tablet_id(), tablet->GetId());
 
-            auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+            auto* mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
             hiveManager->PostMessage(mailbox, request);
         }
     }
@@ -3840,8 +3909,7 @@ private:
 
                 tablet->As<TTablet>()->UnconfirmedDynamicTableLocks().erase(transaction->GetId());
 
-                auto* cell = tablet->GetCell();
-                auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+                auto* mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
                 TReqUnlockTablet req;
                 ToProto(req.mutable_tablet_id(), tablet->GetId());
                 ToProto(req.mutable_transaction_id(), transaction->GetId());
@@ -3922,7 +3990,7 @@ private:
                 ToProto(request.mutable_tablet_id(), tablet->GetId());
                 FillTableSettings(&request, serializedTableSettings);
 
-                auto* mailbox = hiveManager->GetMailbox(cell->GetId());
+                auto* mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
                 hiveManager->PostMessage(mailbox, request);
             }
         }
@@ -4383,7 +4451,7 @@ private:
 
         if (RecomputeAggregateTabletStatistics_) {
             THashSet<TTabletOwnerBase*> resetTables;
-            for (const auto& [id, tablet] : Tablets()) {
+            for (auto [id, tablet] : Tablets()) {
                 if (auto* table = tablet->GetOwner()) {
                     if (resetTables.insert(table).second) {
                         table->ResetTabletStatistics();
@@ -4394,6 +4462,16 @@ private:
         }
 
         InitBuiltins();
+
+        const auto& avenueDirectory = Bootstrap_->GetAvenueDirectory();
+        for (auto [id, tablet] : Tablets()) {
+            if (tablet->IsMountedWithAvenue()) {
+                YT_VERIFY(tablet->Servant().GetCell());
+                avenueDirectory->UpdateEndpoint(
+                    tablet->GetNodeEndpointId(),
+                    tablet->Servant().GetCell()->GetId());
+            }
+        }
 
         if (FillMountConfigKeys_) {
             auto mountConfig = New<NTabletNode::TTableMountConfig>();
@@ -4406,6 +4484,13 @@ private:
                 if (IsTabletOwnerType(node->GetType())) {
                     node->As<TTabletOwnerBase>()->RecomputeTabletErrorCount();
                 }
+            }
+        }
+
+        NonAvenueTabletCount_ = 0;
+        for (auto [id, tablet] : Tablets()) {
+            if (tablet->GetState() != ETabletState::Unmounted && !tablet->IsMountedWithAvenue()) {
+                ++NonAvenueTabletCount_;
             }
         }
     }
@@ -4461,6 +4546,8 @@ private:
         SequoiaTabletCellBundle_ = nullptr;
 
         NeedRecomputeTabletErrorCount_ = false;
+
+        NonAvenueTabletCount_ = 0;
     }
 
     void SetZeroState() override
@@ -4894,18 +4981,34 @@ private:
 
     TTabletServant* GetServantForStateTransition(
         TTabletBase* tablet,
-        TCellId senderCellId,
+        TCellId senderId,
+        bool senderIsCell,
         TStringBuf changeType)
     {
-        auto* servant = tablet->FindServant(senderCellId);
-        if (!servant) {
+        if (tablet->GetState() == ETabletState::Unmounted) {
+            if (!tablet->GetWasForcefullyUnmounted()) {
+                YT_LOG_ALERT("%v notification received by an unmounted tablet, ignored "
+                    "(TabletId: %v, SenderId: %v)",
+                    tablet->GetId(),
+                    senderId);
+            }
+            return nullptr;
+        }
+
+        auto* servant = &tablet->Servant();
+
+        auto expectedSenderId = senderIsCell
+            ? GetObjectId(tablet->Servant().GetCell())
+            : tablet->GetNodeEndpointId();
+
+        if (senderId != expectedSenderId) {
             YT_LOG_ALERT(
-                "%v notification received from unexpected cell, ignored "
-                "(TabletId: %v, State: %v, SenderCellId: %v, TabletCellId: %v)",
+                "%v notification received from unexpected sender, ignored "
+                "(TabletId: %v, State: %v, SenderId: %v, TabletCellId: %v)",
                 changeType,
                 tablet->GetId(),
                 tablet->GetState(),
-                senderCellId,
+                senderId,
                 GetObjectId(tablet->Servant().GetCell()));
             return nullptr;
         }
@@ -4936,10 +5039,11 @@ private:
             return;
         }
 
-        auto senderCellId = GetHiveMutationSenderId();
+        auto senderId = GetHiveMutationSenderId();
         auto* servant = GetServantForStateTransition(
             tablet,
-            senderCellId,
+            senderId,
+            /*senderIsCell*/ true,
             "Mounted");
         if (!servant) {
             return;
@@ -4993,16 +5097,17 @@ private:
             return;
         }
 
-        auto senderCellId = GetHiveMutationSenderId();
+        auto senderId = GetHiveMutationSenderId();
         auto* servant = GetServantForStateTransition(
             tablet,
-            senderCellId,
+            senderId,
+            /*senderIsCell*/ true,
             "Unmounted");
         if (!servant) {
             return;
         }
 
-        if (!ValidateTabletServantUnmounted(tablet, servant, senderCellId)) {
+        if (!ValidateTabletServantUnmounted(tablet, servant, senderId)) {
             return;
         }
 
@@ -5048,10 +5153,11 @@ private:
             return;
         }
 
-        auto senderCellId = GetHiveMutationSenderId();
+        auto senderId = GetHiveMutationSenderId();
         auto* servant = GetServantForStateTransition(
             tablet,
-            senderCellId,
+            senderId,
+            /*senderIsCell*/ false,
             "Frozen");
         if (!servant) {
             return;
@@ -5096,10 +5202,11 @@ private:
             return;
         }
 
-        auto senderCellId = GetHiveMutationSenderId();
+        auto senderId = GetHiveMutationSenderId();
         auto* servant = GetServantForStateTransition(
             tablet,
-            senderCellId,
+            senderId,
+            /*senderIsCell*/ false,
             "Unfrozen");
         if (!servant) {
             return;
@@ -5352,17 +5459,17 @@ private:
     bool ValidateTabletServantUnmounted(
         const TTabletBase* tablet,
         const TTabletServant* servant,
-        TTabletCellId senderCellId) const
+        TTabletCellId senderId) const
     {
         auto state = servant->GetState();
         if (state != ETabletState::Unmounting) {
             if (!tablet->GetWasForcefullyUnmounted()) {
                 YT_LOG_ALERT(
                     "Unmounted notification received for a tablet in %Qlv state, ignored "
-                    "(TabletId: %v, SenderCellId: %v)",
+                    "(TabletId: %v, SenderId: %v)",
                     state,
                     tablet->GetId(),
-                    senderCellId);
+                    senderId);
             }
             return false;
         }
@@ -5414,6 +5521,18 @@ private:
 
         auto resourceUsageDelta = TTabletResources()
             .SetTabletStaticMemory(tablet->GetTabletStaticMemorySize());
+
+        if (tablet->IsMountedWithAvenue()) {
+            auto nodeEndpointId = tablet->GetNodeEndpointId();
+            auto masterEndpointId = GetSiblingAvenueEndpointId(nodeEndpointId);
+
+            tablet->SetNodeAvenueEndpointId({});
+
+            Bootstrap_->GetAvenueDirectory()->UpdateEndpoint(nodeEndpointId, /*cellId*/ {});
+            Bootstrap_->GetHiveManager()->UnregisterAvenueEndpoint(masterEndpointId);
+
+            --NonAvenueTabletCount_;
+        }
 
         tablet->SetInMemoryMode(EInMemoryMode::None);
         tablet->SetState(ETabletState::Unmounted);
@@ -5874,7 +5993,7 @@ private:
             tablet->As<TTablet>()->GetTable()->GetId());
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
-        auto* mailbox = hiveManager->GetMailbox(tablet->GetCell()->GetId());
+        auto* mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
         hiveManager->PostMessage(mailbox, rsp);
     }
 

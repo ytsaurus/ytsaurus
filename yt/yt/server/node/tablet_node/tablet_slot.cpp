@@ -24,8 +24,10 @@
 
 #include <yt/yt/server/lib/election/election_manager.h>
 
+#include <yt/yt/server/lib/hive/helpers.h>
 #include <yt/yt/server/lib/hive/hive_manager.h>
 #include <yt/yt/server/lib/hive/mailbox.h>
+#include <yt/yt/server/lib/hive/avenue_directory.h>
 
 #include <yt/yt/server/lib/hydra_common/remote_changelog_store.h>
 #include <yt/yt/server/lib/hydra_common/remote_snapshot_store.h>
@@ -229,9 +231,38 @@ public:
         return Occupant_->GetHiveManager();
     }
 
+    const TSimpleAvenueDirectoryPtr& GetAvenueDirectory() override
+    {
+        return Occupant_->GetAvenueDirectory();
+    }
+
     TMailbox* GetMasterMailbox() override
     {
         return Occupant_->GetMasterMailbox();
+    }
+
+    void RegisterTabletAvenue(
+        TTabletId tabletId,
+        TAvenueEndpointId masterEndpointId) override
+    {
+        auto nodeEndpointId = GetSiblingAvenueEndpointId(masterEndpointId);
+        auto masterCellId = Bootstrap_->GetCellId(CellTagFromId(tabletId));
+
+        const auto& hiveManager = GetHiveManager();
+        const auto& avenueDirectory = GetAvenueDirectory();
+
+        hiveManager->GetOrCreateCellMailbox(masterCellId);
+        avenueDirectory->UpdateEndpoint(masterEndpointId, masterCellId);
+
+        hiveManager->RegisterAvenueEndpoint(nodeEndpointId, /*cookie*/ {});
+    }
+
+    void UnregisterTabletAvenue(TAvenueEndpointId masterEndpointId) override
+    {
+        auto nodeEndpointId = GetSiblingAvenueEndpointId(masterEndpointId);
+
+        GetAvenueDirectory()->UpdateEndpoint(masterEndpointId, /*cellId*/ {});
+        GetHiveManager()->UnregisterAvenueEndpoint(nodeEndpointId);
     }
 
     void CommitTabletMutation(const ::google::protobuf::MessageLite& message) override

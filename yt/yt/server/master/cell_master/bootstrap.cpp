@@ -38,6 +38,7 @@
 #include <yt/yt/server/master/zookeeper_server/cypress_integration.h>
 #include <yt/yt/server/master/zookeeper_server/zookeeper_manager.h>
 
+#include <yt/yt/server/lib/hive/avenue_directory.h>
 #include <yt/yt/server/lib/hive/hive_manager.h>
 
 #include <yt/yt/server/lib/io/io_engine.h>
@@ -522,6 +523,11 @@ const ICellDirectoryPtr& TBootstrap::GetCellDirectory() const
     return CellDirectory_;
 }
 
+const TSimpleAvenueDirectoryPtr& TBootstrap::GetAvenueDirectory() const
+{
+    return AvenueDirectory_;
+}
+
 const IInvokerPtr& TBootstrap::GetControlInvoker() const
 {
     return ControlQueue_->GetInvoker();
@@ -787,6 +793,8 @@ void TBootstrap::DoInitialize()
         YT_VERIFY(CellDirectory_->ReconfigureCell(cellConfig));
     }
 
+    AvenueDirectory_ = New<TSimpleAvenueDirectory>();
+
     if (Config_->CoreDumper) {
         CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
     }
@@ -835,7 +843,7 @@ void TBootstrap::DoInitialize()
     HiveManager_ = CreateHiveManager(
         Config_->HiveManager,
         CellDirectory_,
-        /*avenueDirectory*/ nullptr,
+        AvenueDirectory_,
         CellId_,
         HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::HiveManager),
         HydraFacade_->GetHydraManager(),

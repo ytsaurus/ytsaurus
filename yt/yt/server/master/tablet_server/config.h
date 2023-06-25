@@ -296,6 +296,9 @@ public:
     // COMPAT(alexelexa)
     bool AddPerfCountersToTabletsAttribute;
 
+    // COMPAT(ifsmirnov)
+    bool UseAvenues;
+
     REGISTER_YSON_STRUCT(TDynamicTabletManagerConfig);
 
     static void Register(TRegistrar registrar);

@@ -145,6 +145,7 @@ public:
     const NSequoiaServer::ISequoiaManagerPtr& GetSequoiaManager() const;
     const NHiveServer::IHiveManagerPtr& GetHiveManager() const;
     const NHiveClient::ICellDirectoryPtr& GetCellDirectory() const;
+    const NHiveServer::TSimpleAvenueDirectoryPtr& GetAvenueDirectory() const;
     const IInvokerPtr& GetControlInvoker() const;
     const IInvokerPtr& GetSnapshotIOInvoker() const;
     const NNodeTrackerClient::INodeChannelFactoryPtr& GetNodeChannelFactory() const;
@@ -239,6 +240,7 @@ protected:
     NSequoiaServer::ISequoiaManagerPtr SequoiaManager_;
     NHiveServer::IHiveManagerPtr HiveManager_;
     NHiveClient::ICellDirectoryPtr CellDirectory_;
+    NHiveServer::TSimpleAvenueDirectoryPtr AvenueDirectory_;
     NHiveServer::ICellDirectorySynchronizerPtr CellDirectorySynchronizer_;
     NConcurrency::TActionQueuePtr ControlQueue_;
     NConcurrency::TActionQueuePtr SnapshotIOQueue_;

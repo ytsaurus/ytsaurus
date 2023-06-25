@@ -34,8 +34,10 @@
 
 #include <yt/yt/server/node/tablet_node/transaction_manager.h>
 
-#include <yt/yt/server/lib/hive/hive_manager.h>
+#include <yt/yt/server/lib/hive/avenue_directory.h>
 #include <yt/yt/server/lib/hive/helpers.h>
+#include <yt/yt/server/lib/hive/hive_manager.h>
+#include <yt/yt/server/lib/hive/mailbox.h>
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 #include <yt/yt/server/lib/hydra_common/mutation.h>
@@ -865,6 +867,8 @@ private:
 
         TTabletAutomatonPart::OnAfterSnapshotLoaded();
 
+        const auto& avenueDirectory = Slot_->GetAvenueDirectory();
+
         for (auto [tabletId, tablet] : TabletMap_) {
             InitializeTablet(tablet);
 
@@ -874,6 +878,11 @@ private:
             Bootstrap_->GetStructuredLogger()->OnHeartbeatRequest(
                 Slot_->GetTabletManager(),
                 /*initial*/ true);
+
+            if (auto masterEndpointId = tablet->GetMasterAvenueEndpointId()) {
+                auto masterCellId = Bootstrap_->GetCellId(CellTagFromId(tablet->GetId()));
+                avenueDirectory->UpdateEndpoint(masterEndpointId, masterCellId);
+            }
         }
     }
 
@@ -969,6 +978,7 @@ private:
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto mountRevision = request->mount_revision();
         auto tableId = FromProto<TObjectId>(request->table_id());
+        auto masterAvenueEndpointId = FromProto<TAvenueEndpointId>(request->master_avenue_endpoint_id());
         const auto& path = request->path();
         auto schemaId = FromProto<TObjectId>(request->schema_id());
         auto schema = FromProto<TTableSchemaPtr>(request->schema());
@@ -1041,9 +1051,15 @@ private:
 
         tablet->SetState(freeze ? ETabletState::Frozen : ETabletState::Mounted);
 
+        if (masterAvenueEndpointId) {
+            tablet->SetMasterAvenueEndpointId(masterAvenueEndpointId);
+            Slot_->RegisterTabletAvenue(tablet->GetId(), masterAvenueEndpointId);
+        }
+
         YT_LOG_INFO("Tablet mounted (%v, MountRevision: %x, Keys: %v .. %v, "
             "StoreCount: %v, HunkChunkCount: %v, PartitionCount: %v, TotalRowCount: %v, TrimmedRowCount: %v, Atomicity: %v, "
-            "CommitOrdering: %v, Frozen: %v, UpstreamReplicaId: %v, RetainedTimestamp: %v, SchemaId: %v)",
+            "CommitOrdering: %v, Frozen: %v, UpstreamReplicaId: %v, RetainedTimestamp: %v, SchemaId: %v, "
+            "MasterAvenueEndpointId: %v)",
             tablet->GetLoggingTag(),
             mountRevision,
             pivotKey,
@@ -1058,7 +1074,8 @@ private:
             freeze,
             upstreamReplicaId,
             retainedTimestamp,
-            schemaId);
+            schemaId,
+            masterAvenueEndpointId);
 
         for (const auto& descriptor : request->replicas()) {
             AddTableReplica(tablet, descriptor);
@@ -1087,7 +1104,7 @@ private:
             TRspMountTablet response;
             ToProto(response.mutable_tablet_id(), tabletId);
             response.set_frozen(freeze);
-            PostMasterMessage(tabletId, response);
+            PostMasterMessage(tablet, response, /*forceCellMailbox*/ true);
         }
 
         tablet->GetStructuredLogger()->OnFullHeartbeat();
@@ -1305,7 +1322,7 @@ private:
 
         TRspUnfreezeTablet response;
         ToProto(response.mutable_tablet_id(), tabletId);
-        PostMasterMessage(tabletId, response);
+        PostMasterMessage(tablet, response);
     }
 
     void HydraLockTablet(TReqLockTablet* request)
@@ -1349,7 +1366,7 @@ private:
         TRspLockTablet response;
         ToProto(response.mutable_tablet_id(), tabletId);
         ToProto(response.mutable_transaction_ids(), transactionIds);
-        PostMasterMessage(tabletId, response);
+        PostMasterMessage(tablet, response);
     }
 
     void HydraUnlockTablet(TReqUnlockTablet* request)
@@ -1497,9 +1514,14 @@ private:
                     ToProto(response.mutable_replication_progress(), *replicationProgress);
                 }
 
+                if (auto masterEndpointId = tablet->GetMasterAvenueEndpointId()) {
+                    Slot_->UnregisterTabletAvenue(masterEndpointId);
+                }
+
+                PostMasterMessage(tablet, response, /*forceCellMailbox*/ true);
+
                 TabletMap_.Remove(tabletId);
 
-                PostMasterMessage(tabletId, response);
                 break;
             }
 
@@ -1528,7 +1550,7 @@ private:
                 TRspFreezeTablet response;
                 ToProto(response.mutable_tablet_id(), tabletId);
                 *response.mutable_mount_hint() = tablet->GetMountHint();
-                PostMasterMessage(tabletId, response);
+                PostMasterMessage(tablet, response);
                 break;
             }
 
@@ -3151,7 +3173,7 @@ private:
         ToProto(req.mutable_tablet_id(), tablet->GetId());
         req.set_mount_revision(tablet->GetMountRevision());
         tablet->SetDynamicStoreIdRequested(true);
-        PostMasterMessage(tablet->GetId(), req);
+        PostMasterMessage(tablet, req);
     }
 
     void HydraOnDynamicStoreAllocated(TRspAllocateDynamicStore* request)
@@ -3368,7 +3390,10 @@ private:
         Slot_->CommitTabletMutation(request);
     }
 
-    void PostMasterMessage(TTabletId tabletId, const ::google::protobuf::MessageLite& message)
+    void PostMasterMessage(
+        TTablet* tablet,
+        const ::google::protobuf::MessageLite& message,
+        bool forceCellMailbox = false)
     {
         // Used in tests only. NB: synchronous sleep is required since we don't expect
         // context switches here.
@@ -3376,7 +3401,14 @@ private:
             Sleep(*sleepDuration);
         }
 
-        Slot_->PostMasterMessage(tabletId, message);
+        auto avenueEndpointId = tablet->GetMasterAvenueEndpointId();
+        if (avenueEndpointId && !forceCellMailbox) {
+            const auto& hiveManager = Slot_->GetHiveManager();
+            auto* mailbox = hiveManager->GetMailbox(avenueEndpointId);
+            hiveManager->PostMessage(mailbox, message);
+        } else {
+            Slot_->PostMasterMessage(tablet->GetId(), message);
+        }
     }
 
     void InitializeTablet(TTablet* tablet)
@@ -4149,7 +4181,7 @@ private:
             ToProto(response.mutable_tablet_id(), tablet->GetId());
             ToProto(response.mutable_replica_id(), replicaInfo->GetId());
             response.set_mount_revision(tablet->GetMountRevision());
-            PostMasterMessage(tablet->GetId(), response);
+            PostMasterMessage(tablet, response);
         }
     }
 
@@ -4176,7 +4208,7 @@ private:
             ToProto(response.mutable_tablet_id(), tablet->GetId());
             ToProto(response.mutable_replica_id(), replicaInfo->GetId());
             response.set_mount_revision(tablet->GetMountRevision());
-            PostMasterMessage(tablet->GetId(), response);
+            PostMasterMessage(tablet, response);
         }
     }
 
@@ -4187,7 +4219,7 @@ private:
         ToProto(request.mutable_replica_id(), replicaInfo.GetId());
         request.set_mount_revision(tablet->GetMountRevision());
         replicaInfo.PopulateStatistics(request.mutable_statistics());
-        PostMasterMessage(tablet->GetId(), request);
+        PostMasterMessage(tablet, request);
     }
 
 
@@ -4204,7 +4236,7 @@ private:
             ToProto(masterRequest.mutable_tablet_id(), tablet->GetId());
             masterRequest.set_mount_revision(tablet->GetMountRevision());
             masterRequest.set_trimmed_row_count(trimmedRowCount);
-            PostMasterMessage(tablet->GetId(), masterRequest);
+            PostMasterMessage(tablet, masterRequest);
         }
 
         YT_LOG_DEBUG("Rows trimmed (TabletId: %v, TrimmedRowCount: %v -> %v)",
