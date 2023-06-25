@@ -19,6 +19,9 @@ public:
     void Unlock(TTimestamp commitTimestamp, TTransactionId transactionId);
     TLockManagerEpoch GetEpoch() const;
 
+    // COMPAT(ifsmirnov): ETabletReign::FixBulkInsertAtomicityNone
+    bool HasTransaction(TTransactionId transactionId) const;
+
     std::vector<TTransactionId> ExtractUnconfirmedTransactionIds();
     bool HasUnconfirmedTransactions() const;
 

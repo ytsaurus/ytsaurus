@@ -62,6 +62,11 @@ public:
         }
     }
 
+    bool HasTransaction(TTransactionId transactionId) const
+    {
+        return Transactions_.contains(transactionId);
+    }
+
     std::vector<TTransactionId> ExtractUnconfirmedTransactionIds()
     {
         auto result = std::move(UnconfirmedTransactionIds_);
@@ -81,12 +86,6 @@ public:
 
     void Wait(TTimestamp timestamp, TLockManagerEpoch epoch)
     {
-        if (timestamp == AsyncLastCommittedTimestamp ||
-            timestamp == AllCommittedTimestamp)
-        {
-            return;
-        }
-
         if (epoch < GetEpoch()) {
             THROW_ERROR_EXCEPTION(
                 NTabletClient::EErrorCode::TabletSnapshotExpired,
@@ -219,6 +218,11 @@ bool TLockManager::HasUnconfirmedTransactions() const
 TLockManagerEpoch TLockManager::GetEpoch() const
 {
     return Impl_->GetEpoch();
+}
+
+bool TLockManager::HasTransaction(TTransactionId transactionId) const
+{
+    return Impl_->HasTransaction(transactionId);
 }
 
 void TLockManager::Wait(TTimestamp timestamp, TLockManagerEpoch epoch)

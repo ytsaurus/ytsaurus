@@ -286,6 +286,14 @@ void TTabletSnapshot::ValidateMountRevision(NHydra::TRevision mountRevision)
 
 void TTabletSnapshot::WaitOnLocks(TTimestamp timestamp) const
 {
+    if (timestamp == AllCommittedTimestamp) {
+        return;
+    }
+
+    if (Atomicity == EAtomicity::Full && timestamp == AsyncLastCommittedTimestamp) {
+        return;
+    }
+
     LockManager->Wait(timestamp, LockManagerEpoch);
 }
 

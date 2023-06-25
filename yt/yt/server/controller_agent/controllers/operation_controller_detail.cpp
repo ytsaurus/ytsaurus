@@ -2292,8 +2292,16 @@ void TOperationControllerBase::SafeCommit()
 
 void TOperationControllerBase::LockOutputDynamicTables()
 {
-    if (Spec_->Atomicity == EAtomicity::None) {
-        return;
+    if (auto explicitOption = Spec_->LockOutputDynamicTables) {
+        if (!*explicitOption) {
+            YT_LOG_DEBUG("Will not lock output dynamic tables since locking is disabled in spec");
+            return;
+        }
+    } else {
+        if (Spec_->Atomicity == EAtomicity::None && !Config->LockNonAtomicOutputDynamicTables) {
+            YT_LOG_DEBUG("Will not lock output tables with atomicity %Qlv", EAtomicity::None);
+            return;
+        }
     }
 
     if (OperationType == EOperationType::RemoteCopy) {

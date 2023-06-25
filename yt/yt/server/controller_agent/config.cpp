@@ -809,6 +809,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_columnar_statistics_default", &TThis::UseColumnarStatisticsDefault)
         .Default(false);
 
+    registrar.Parameter("lock_non_atomic_output_dynamic_tables", &TThis::LockNonAtomicOutputDynamicTables)
+        .Default(false);
+
     registrar.Parameter("heavy_job_spec_slice_count_threshold", &TThis::HeavyJobSpecSliceCountThreshold)
         .Default(1000)
         .GreaterThan(0);

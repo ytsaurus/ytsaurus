@@ -16,7 +16,7 @@ from yt_commands import (
 from yt_type_helpers import make_schema
 import yt_error_codes
 
-from yt.test_helpers import assert_items_equal
+from yt.test_helpers import assert_items_equal, are_items_equal
 from yt.common import YtError
 import yt.yson as yson
 
@@ -906,28 +906,41 @@ class TestBulkInsert(DynamicTablesBase):
         with pytest.raises(YtError):
             _run("none" if atomicity == "full" else "full")
 
-    @pytest.mark.xfail(run=False, reason="A bit of race here, fix is to be discussed")
-    def test_atomicity_none(self):
+    @pytest.mark.parametrize("lock", [True, False])
+    def test_atomicity_none(self, lock):
         sync_create_cells(1)
         create("table", "//tmp/t_input")
-        self._create_simple_dynamic_table("//tmp/t_output")
+        self._create_simple_dynamic_table("//tmp/t_output", enable_dynamic_store_read=False)
         set("//tmp/t_output/@atomicity", "none")
         sync_mount_table("//tmp/t_output")
 
-        rows = [{"key": 1, "value": "1"}]
-
+        rows = [{"key": i, "value": str(i)} for i in range(2)]
+        keys = [{"key": i} for i in range(2)]
         write_table("//tmp/t_input", rows)
 
         map(
             in_="//tmp/t_input",
             out="<append=%true>//tmp/t_output",
             command="cat",
-            spec={"atomicity": "none"},
+            spec={
+                "atomicity": "none",
+                "job_count": 2,
+                "lock_output_dynamic_tables": lock,
+            }
         )
+        assert get("//tmp/t_output/@chunk_count") == 2
 
-        assert_items_equal(select_rows("* from [//tmp/t_output]"), rows)
-        assert lookup_rows("//tmp/t_output", [{"key": 1}]) == rows
+        if lock:
+            assert_items_equal(select_rows("* from [//tmp/t_output]"), rows)
+        else:
+            wait(lambda: are_items_equal(select_rows("* from [//tmp/t_output]"), rows))
+        assert lookup_rows("//tmp/t_output", keys) == rows
         assert read_table("//tmp/t_output") == rows
+
+        versioned_result = lookup_rows("//tmp/t_output", keys, versioned=True)
+        timestamps = [row.attributes["write_timestamps"][0] for row in versioned_result]
+        if lock:
+            assert timestamps[0] == timestamps[1]
 
     @pytest.mark.parametrize("flush", [True, False])
     def test_overwrite(self, flush):
@@ -2047,19 +2060,24 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
         assert_items_equal(select_rows("* from [//tmp/t_output]"), expected)
         assert expected == read_table("//tmp/t_output")
 
-    def test_input_query_delete_where(self):
+    @pytest.mark.parametrize("atomicity", ["full", "none"])
+    def test_input_query_delete_where(self, atomicity):
         sync_create_cells(1)
-        self._create_simple_dynamic_table("//tmp/t")
+        self._create_simple_dynamic_table("//tmp/t", atomicity=atomicity)
         sync_mount_table("//tmp/t")
 
         rows = [{"key": i, "value": str(i)} for i in range(10)]
-        insert_rows("//tmp/t", rows)
+        insert_rows("//tmp/t", rows, atomicity=atomicity)
 
         merge(
             in_="//tmp/t",
             out="<schema_modification=unversioned_update;append=%true>//tmp/t",
             mode="ordered",
-            spec={"input_query": "1u as [$change_type], key where key % 2 = 0"})
+            spec={
+                "input_query": "1u as [$change_type], key where key % 2 = 0",
+                "atomicity": atomicity,
+                "lock_output_dynamic_tables": True,
+            })
 
         expected = [row for row in rows if row["key"] % 2 != 0]
         assert_items_equal(select_rows("* from [//tmp/t]"), expected)

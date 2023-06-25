@@ -482,15 +482,22 @@ public:
             transaction->ThrowInvalidState();
         }
 
+        // The timestamp from the holder is used by two parties:
+        //  - chunk view sets override timestamp when fetched;
+        //  - tablet manager sends this timestamp to the node when the tablet is unlocked.
+        // If all outputs are empty, there are no chunk views so we have to ref the
+        // holder so tablet manager has access to the timestamp.
+        // There is a corner case when all outputs are empty and no table is locked
+        // (the user may ignore atomicity and explicitly ask not to lock his tables,
+        // mostly non-atomic ones). However, in this case the tablet may be safely
+        // unlocked with null timestamp.
         bool temporaryRefTimestampHolder = false;
         if (!transaction->LockedDynamicTables().empty()) {
-            // Usually ref is held by chunk views in branched tables. However, if
-            // all tables are empty no natural ref exist, so we have to take it here.
             temporaryRefTimestampHolder = true;
             CreateOrRefTimestampHolder(transactionId);
-
-            SetTimestampHolderTimestamp(transactionId, options.CommitTimestamp);
         }
+
+        SetTimestampHolderTimestamp(transactionId, options.CommitTimestamp);
 
         TCompactVector<TTransaction*, 16> nestedTransactions(
             transaction->NestedTransactions().begin(),
