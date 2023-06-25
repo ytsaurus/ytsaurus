@@ -1,15 +1,9 @@
 PACKAGE_NAME = "ytsaurus-rpc-driver"
-
-MAJOR_VERSION = "1.0"
-
+VERSION = "1.0.0"
 
 def main():
     from setuptools import setup
     from setuptools.dist import Distribution
-
-    from yt_setup.helpers import get_package_version
-
-    version = get_package_version(MAJOR_VERSION)
 
     class BinaryDistribution(Distribution):
         def is_pure(self):
@@ -21,7 +15,7 @@ def main():
 
     setup(
         name=PACKAGE_NAME,
-        version=version,
+        version=VERSION,
         packages=["yt_driver_rpc_bindings"],
         package_data={
             "yt_driver_rpc_bindings": [

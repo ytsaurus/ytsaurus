@@ -8,7 +8,7 @@ import sys
 import tempfile
 from contextlib import contextmanager
 
-from .os_helpers import cd
+from .helpers import change_cwd
 
 
 def parse_arguments():
@@ -30,12 +30,12 @@ def parse_arguments():
 def work_dir(args):
     if not args.work_dir:
         with tempfile.TemporaryDirectory(prefix="yt-package-build-") as temp_dir:
-            with cd(temp_dir):
+            with change_cwd(temp_dir):
                 args.work_dir = temp_dir
                 yield
         return
 
-    with cd(args.work_dir):
+    with change_cwd(args.work_dir):
         yield
 
 

@@ -1,15 +1,12 @@
 PACKAGE_NAME = "ytsaurus-local"
-
-MAJOR_VERSION = "0.1"
+VERSION = "0.1.2-0"
 
 
 def main():
-    from yt_setup.helpers import prepare_files, get_package_version
+    from yt_setup.helpers import prepare_files
 
     from setuptools import setup
     from setuptools.command.test import test as TestCommand
-
-    version = get_package_version(MAJOR_VERSION)
 
     class PyTest(TestCommand):
         def finalize_options(self):
@@ -29,7 +26,7 @@ def main():
 
     setup(
         name=PACKAGE_NAME,
-        version=version,
+        version=VERSION,
         packages=["yt.local", "yt.environment", "yt.environment.api", "yt.test_helpers"],
         scripts=scripts,
 

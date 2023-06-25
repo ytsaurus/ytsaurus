@@ -1,8 +1,10 @@
 import os
 import sys
+import shutil
 import logging
 import importlib
 
+from contextlib import contextmanager
 from setuptools import find_packages
 
 try:
@@ -69,6 +71,27 @@ def prepare_files(files, add_major_version_suffix=False):
     return scripts, data_files
 
 
+def copy_tree(src, dst):
+    for path in os.listdir(src):
+        full_path = os.path.join(src, path)
+        if os.path.isfile(full_path):
+            logging.debug("Copy file: '{}' -> '{}'".format(full_path, dst))
+            shutil.copy(full_path, dst)
+        else:
+            logging.debug("Copy tree: '{}' -> '{}'".format(full_path, os.path.join(dst, path)))
+            shutil.copytree(full_path, os.path.join(dst, path))
+
+
+@contextmanager
+def change_cwd(dir):
+    current_dir = os.getcwd()
+    os.chdir(dir)
+    try:
+        yield
+    finally:
+        os.chdir(current_dir)
+
+
 def import_file(module_name, path):
     spec = importlib.util.spec_from_file_location(module_name, path)
     if spec is None:
@@ -109,18 +132,3 @@ def execute_command(cmd, env=None, check=True, capture_output=False):
             logging.error("Command stderr: {}".format(stderr))
         raise RuntimeError("Executing of command '{}' failed. Process exited with code {}".format(cmd, returncode))
     return returncode, stdout, stderr
-
-
-def get_package_version(major_version):
-    package_version = os.getenv("YTSAURUS_PACKAGE_VERSION", default="")
-    if package_version:
-        if not package_version.startswith(major_version):
-            raise Exception("Package version `{}` should have `{}` major version".format(package_version, major_version))
-    else:
-        package_version = major_version + "-dev"
-
-    commit_hash = os.getenv("YTSAURUS_COMMIT_HASH", default="")
-    if commit_hash:
-        package_version += "-{}".format(commit_hash)
-
-    return package_version

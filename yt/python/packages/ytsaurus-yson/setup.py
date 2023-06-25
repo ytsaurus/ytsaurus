@@ -1,15 +1,9 @@
 PACKAGE_NAME = "ytsaurus-yson"
-
-MAJOR_VERSION = "0.4"
-
+VERSION = "0.4.2"
 
 def main():
     from setuptools import setup
     from setuptools.dist import Distribution
-
-    from yt_setup.helpers import get_package_version
-
-    version = get_package_version(MAJOR_VERSION)
 
     class BinaryDistribution(Distribution):
         def is_pure(self):
@@ -21,7 +15,7 @@ def main():
 
     setup(
         name=PACKAGE_NAME,
-        version=version,
+        version=VERSION,
         packages=["yt_yson_bindings"],
         package_data={
             "yt_yson_bindings": [

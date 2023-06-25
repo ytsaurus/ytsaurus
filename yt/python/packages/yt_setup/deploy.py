@@ -8,8 +8,7 @@ import shutil
 import sys
 from copy import deepcopy
 
-from .os_helpers import cp_r, cp
-from .helpers import get_version, get_version_branch, import_file, execute_command
+from .helpers import get_version, get_version_branch, copy_tree, import_file, execute_command
 from .find_debian_package import find_debian_package, fetch_package_versions
 from .find_pypi_package import find_pypi_package
 
@@ -59,7 +58,7 @@ def build_debian(package):
 
 def build_pypi(package, python_binary):
     try:
-        cp(os.path.join(package, "setup.py"), ".")
+        shutil.copy(os.path.join(package, "setup.py"), ".")
         execute_command([python_binary, "setup.py", "bdist_wheel", "--universal"])
         return True
     except (RuntimeError, IOError):
@@ -233,11 +232,7 @@ def main(args=None):
 
     exit_code = 0
     for package in args.package:
-
-        package_dir = package
-        assert os.path.exists(package_dir)
-        for child in os.listdir(package_dir):
-            cp_r(os.path.join(package_dir, child), ".")
+        copy_tree(package, ".")
 
         if not build_package(package, args.package_type, args.python_binary, skip_pypi=args.deploy):
             if args.deploy:
