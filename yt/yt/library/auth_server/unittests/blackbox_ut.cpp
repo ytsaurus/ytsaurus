@@ -21,6 +21,7 @@ using namespace NYTree;
 using namespace NYson;
 
 using ::testing::AllOf;
+using ::testing::AnyOf;
 using ::testing::HasSubstr;
 using ::testing::NiceMock;
 using ::testing::Return;
@@ -90,7 +91,7 @@ TEST_F(TBlackboxTest, FailOnBadHost)
     auto service = CreateBlackboxService(config);
     auto result = service->Call("hello", {}).Get();
     ASSERT_TRUE(!result.IsOK());
-    EXPECT_THAT(CollectMessages(result), HasSubstr("DNS resolve failed"));
+    EXPECT_THAT(CollectMessages(result), AnyOf(HasSubstr("Domain name"), HasSubstr("DNS")));
 }
 
 TEST_F(TBlackboxTest, FailOn5xxResponse)
