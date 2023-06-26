@@ -164,7 +164,7 @@ bool TMergeJob::FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const
 TNodeResources TMergeJob::GetResourceUsage(const TChunkVector& inputChunks)
 {
     i64 dataSize = 0;
-    for (auto chunk : inputChunks) {
+    for (const auto& chunk : inputChunks) {
         dataSize += chunk->GetPartDiskSpace();
     }
 

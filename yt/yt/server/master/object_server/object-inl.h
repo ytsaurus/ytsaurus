@@ -384,17 +384,6 @@ inline void AssertObjectValidOrNull(TObject* object)
 } // namespace NDetail
 
 template <class T, class C>
-TObjectPtr<T, C>::TObjectPtr(const TObjectPtr& other) noexcept
-    : Ptr_(other.Ptr_)
-    , Context_(other.Context_)
-{
-    NDetail::AssertPersistentStateRead();
-    if (Ptr_) {
-        Context_.Ref(ToObject(Ptr_));
-    }
-}
-
-template <class T, class C>
 TObjectPtr<T, C>::TObjectPtr(TObjectPtr&& other) noexcept
     : Ptr_(other.Ptr_)
     , Context_(std::move(other.Context_))
@@ -439,15 +428,6 @@ TObjectPtr<T, C>::~TObjectPtr() noexcept
 }
 
 template <class T, class C>
-TObjectPtr<T, C>& TObjectPtr<T, C>::operator=(const TObjectPtr& other) noexcept
-{
-    if (this != &other) {
-        Assign(other.Ptr_);
-    }
-    return *this;
-}
-
-template <class T, class C>
 TObjectPtr<T, C>& TObjectPtr<T, C>::operator=(TObjectPtr&& other) noexcept
 {
     NDetail::AssertPersistentStateRead();
@@ -462,6 +442,14 @@ TObjectPtr<T, C>& TObjectPtr<T, C>::operator=(TObjectPtr&& other) noexcept
         Context_ = std::move(other.Context_);
     }
     return *this;
+}
+
+template <class T, class C>
+TObjectPtr<T, C> TObjectPtr<T, C>::Clone() const noexcept
+{
+    TObjectPtr<T, C> cloned;
+    cloned.Assign(Ptr_);
+    return cloned;
 }
 
 template <class T, class C>

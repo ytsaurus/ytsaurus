@@ -539,13 +539,28 @@ bool TCompositeNodeBase::TAttributes<Transient>::AreEmpty() const
 }
 
 template <bool Transient>
-TCompositeNodeBase::TPersistentAttributes TCompositeNodeBase::TAttributes<Transient>::ToPersistent() const requires Transient
+TCompositeNodeBase::TPersistentAttributes
+TCompositeNodeBase::TAttributes<Transient>::ToPersistent() const
+    requires Transient
 {
     TPersistentAttributes result;
 #define XX(camelCaseName, snakeCaseName) \
     if (camelCaseName.IsSet()) { \
         result.camelCaseName.Set(TVersionedBuiltinAttributeTraits<decltype(result.camelCaseName)::TValue>::FromRaw(camelCaseName.Unbox())); \
     }
+    FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
+#undef XX
+    return result;
+}
+
+template <bool Transient>
+TCompositeNodeBase::TAttributes<Transient>
+TCompositeNodeBase::TAttributes<Transient>::Clone() const
+    requires (!Transient)
+{
+    TCompositeNodeBase::TAttributes<Transient> result;
+#define XX(camelCaseName, snakeCaseName) \
+    result.camelCaseName = camelCaseName.Clone();
     FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
 #undef XX
     return result;
@@ -609,9 +624,9 @@ void TCompositeNodeBase::SetAttributes(const TPersistentAttributes* attributes)
     if (!attributes || attributes->AreEmpty()) {
         Attributes_.reset();
     } else if (Attributes_) {
-        *Attributes_ = *attributes;
+        *Attributes_ = attributes->Clone();
     } else {
-        Attributes_ = std::make_unique<TPersistentAttributes>(*attributes);
+        Attributes_ = std::make_unique<TPersistentAttributes>(attributes->Clone());
     }
 }
 
@@ -889,7 +904,10 @@ void TMapNodeChildren::Unref() noexcept
 
     dstChildren->KeyToChild_ = srcChildren->KeyToChild_;
     // NB: the order of refs here is non-deterministic but this should not be a problem.
-    dstChildren->ChildToKey_ = srcChildren->ChildToKey_;
+    dstChildren->ChildToKey_.reserve(srcChildren->ChildToKey_.size());
+    for (const auto& [child, key] : srcChildren->ChildToKey_) {
+        dstChildren->ChildToKey_.emplace(child.Clone(), key);
+    }
 
     dstChildren->RecomputeMasterMemoryUsage();
 

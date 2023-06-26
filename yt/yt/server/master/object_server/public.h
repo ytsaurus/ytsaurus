@@ -75,6 +75,18 @@ DECLARE_REFCOUNTED_CLASS(TMutationIdempotizerConfig)
 
 DECLARE_REFCOUNTED_CLASS(TMaxReadRequestComplexityLimitsConfig)
 
+// NB: Some types (e.g. `TObjectPtr`) definitely should not be uncontrollable
+// copied. For such types `Clone()` method can be used:
+// `auto foo = bar.Clone();` - uses move assignment operation.
+// `auto foo = bar;` - this just cannot be compiled.
+template <class T>
+concept Clonable  =
+    std::movable<T> &&
+    !std::copyable<T> &&
+    requires (const T& clonable) {
+        { clonable.Clone() } -> std::convertible_to<T>;
+    };
+
 class TObject;
 
 template <class T, class C>

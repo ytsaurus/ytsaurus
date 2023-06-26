@@ -1057,13 +1057,13 @@ protected:
             }
         }
 
-        PushStack(TStackEntry(
+        PushStack(
             chunkList,
             childIndex,
             rowIndex,
             std::nullopt,
             lowerLimit,
-            upperLimit));
+            upperLimit);
     }
 
     void PushFirstChildDynamicRoot(
@@ -1128,13 +1128,13 @@ protected:
             childIndex = std::max(childIndex, static_cast<int>(std::distance(chunkList->Children().begin(), it) - 1));
         }
 
-        PushStack(TStackEntry(
+        PushStack(
             chunkList,
             childIndex,
             rowIndex,
             std::nullopt,
             lowerLimit,
-            upperLimit));
+            upperLimit);
     }
 
     void PushFirstChildDynamic(
@@ -1203,22 +1203,22 @@ protected:
              chunkList->GetKind() == EChunkListKind::SortedDynamicTablet))
         {
             auto* hunkChunkList = RootHunkChunkList_->Children()[entryIndex]->AsChunkList();
-            PushStack(TStackEntry(
+            PushStack(
                 hunkChunkList,
                 chunkIndex,
                 rowIndex,
                 tabletIndex,
                 lowerLimit,
-                upperLimit));
+                upperLimit);
         }
 
-        PushStack(TStackEntry(
+        PushStack(
             chunkList,
             chunkIndex,
             rowIndex,
             tabletIndex,
             lowerLimit,
-            upperLimit));
+            upperLimit);
     }
 
     i64 GetFirstOverlayedRowIndex(const TChunk* chunk)
@@ -1381,11 +1381,12 @@ protected:
         return Stack_.empty();
     }
 
-    void PushStack(const TStackEntry& newEntry)
+    template <class... TArgs>
+    void PushStack(TArgs&&... args)
     {
         ++ChunkListCount_;
+        const auto& newEntry = Stack_.emplace_back(std::forward<TArgs>(args)...);
         YT_LOG_TRACE("Pushing new entry to stack (Entry: %v)", newEntry);
-        Stack_.push_back(newEntry);
     }
 
     TStackEntry& PeekStack()

@@ -69,6 +69,9 @@ using TRawVersionedBuiltinAttributeType = typename TVersionedBuiltinAttributeTra
 template <class T>
 class TVersionedBuiltinAttribute
 {
+    static_assert(std::copyable<T> || NObjectServer::Clonable<T>,
+        "TVersionedBuiltinAttribute requires T to be either copyable or clonable");
+
 public:
     void Persist(const NCellMaster::TPersistenceContext& context);
 
@@ -76,6 +79,13 @@ public:
     void Load(TEndCopyContext& context);
 
 public:
+    TVersionedBuiltinAttribute() noexcept = default;
+    TVersionedBuiltinAttribute(const TVersionedBuiltinAttribute&) = delete;
+    TVersionedBuiltinAttribute& operator=(const TVersionedBuiltinAttribute&) = delete;
+    TVersionedBuiltinAttribute(TVersionedBuiltinAttribute&&) noexcept = default;
+    TVersionedBuiltinAttribute& operator=(TVersionedBuiltinAttribute&&) noexcept = default;
+    TVersionedBuiltinAttribute Clone() const;
+
     using TValue = T;
 
     std::optional<TRawVersionedBuiltinAttributeType<T>> ToOptional() const;

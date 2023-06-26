@@ -297,6 +297,20 @@ void TVersionedBuiltinAttribute<T>::Merge(const TVersionedBuiltinAttribute& from
     } // NB: null attributes are ignored.
 }
 
+template <class T>
+TVersionedBuiltinAttribute<T> TVersionedBuiltinAttribute<T>::Clone() const
+{
+    TVersionedBuiltinAttribute<T> result;
+    if constexpr (std::copyable<T>) {
+        result.BoxedValue_ = BoxedValue_;
+    } else if constexpr (NObjectServer::Clonable<T>) {
+        result.BoxedValue_ = BoxedValue_ ? std::optional(BoxedValue_->Clone()) : std::nullopt;
+    } else {
+        static_assert("Unsupported type");
+    }
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressServer

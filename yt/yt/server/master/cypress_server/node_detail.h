@@ -698,6 +698,9 @@ private:
         bool AreEmpty() const;
 
         TAttributes<false> ToPersistent() const requires Transient;
+
+        // Clonable.
+        TAttributes Clone() const requires (!Transient);
     };
 
 public:

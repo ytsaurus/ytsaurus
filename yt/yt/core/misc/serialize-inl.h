@@ -1380,7 +1380,14 @@ struct TEnumIndexedVectorSerializer
     template <class E, class T, class C, E Min, E Max>
     static void Load(C& context, TEnumIndexedVector<E, T, Min, Max>& vector)
     {
-        std::fill(vector.begin(), vector.end(), T());
+        if constexpr (std::is_copy_assignable_v<T>) {
+            std::fill(vector.begin(), vector.end(), T());
+        } else {
+            // Use move assignment.
+            for (auto& item : vector) {
+                item = T();
+            }
+        }
 
         size_t size = TSizeSerializer::LoadSuspended(context);
 

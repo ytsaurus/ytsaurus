@@ -352,15 +352,25 @@ class TObjectPtr
 {
 public:
     TObjectPtr() noexcept = default;
-    TObjectPtr(const TObjectPtr& other) noexcept;
     TObjectPtr(TObjectPtr&& other) noexcept;
     explicit TObjectPtr(T* ptr) noexcept;
     TObjectPtr(T* ptr, TObjectPtrLoadTag) noexcept;
 
     ~TObjectPtr() noexcept;
 
-    TObjectPtr& operator=(const TObjectPtr& other) noexcept;
     TObjectPtr& operator=(TObjectPtr&& other) noexcept;
+
+    // There are at least 3 reasons to make `TObjectPtr` not copyable:
+    //  1. `auto foo = ...` - calls copy constructor, which increments possibly
+    //     persistent reference counter. It's not allowed outside of mutation.
+    //  2. `for (auto foo : ...)` - the same problem as previous one.
+    //  3. Migration from raw pointers to smart ones with copy constructor and
+    //     copy assignment operator is error-prone since `auto foo = ...` and
+    //     `for (auto foo : ...)` are valid for raw pointers. Without
+    //     compilation error here it can be detected only at runtime.
+    TObjectPtr Clone() const noexcept;
+    TObjectPtr(const TObjectPtr& other) = delete;
+    const TObjectPtr& operator=(const TObjectPtr& other) = delete;
 
     void Assign(T* ptr) noexcept;
     void Reset() noexcept;
