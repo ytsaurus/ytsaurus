@@ -59,6 +59,7 @@ private:
     struct TBundleProfilingCounters
     {
         NProfiling::TGauge RunningActions;
+        NProfiling::TCounter FailedActions;
     };
 
     const TDuration ExpirationTimeout_;
@@ -79,7 +80,7 @@ private:
 
     IAttributeDictionaryPtr MakeActionAttributes(const TActionDescriptor& descriptor);
     void MoveFinishedActionsFromRunningToFinished();
-    TBundleProfilingCounters& GetOrCreateProfilingCounters(const TString& bundleName);
+    const TBundleProfilingCounters& GetOrCreateProfilingCounters(const TString& bundleName);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -302,10 +303,16 @@ void TActionManager::MoveFinishedActionsFromRunningToFinished()
 
     for (auto& [bundleName, runningActions] : RunningActions_) {
         auto& finishedActions = FinishedActions_[bundleName];
+        int failedActionCount = 0;
 
         for (auto it = runningActions.begin(); it != runningActions.end(); ) {
-            if ((*it)->IsFinished()) {
-                finishedActions.push_back(*it);
+            const auto& action = *it;
+            if (action->IsFinished()) {
+                if (action->GetState() == ETabletActionState::Failed) {
+                    ++failedActionCount;
+                }
+
+                finishedActions.push_back(action);
                 if (std::ssize(finishedActions) > MaxQueueSize) {
                     finishedActions.pop_front();
                 }
@@ -319,13 +326,15 @@ void TActionManager::MoveFinishedActionsFromRunningToFinished()
             relevantBundles.emplace(bundleName);
         }
 
-        GetOrCreateProfilingCounters(bundleName).RunningActions.Update(runningActions.size());
+        const auto& profilingCounters = GetOrCreateProfilingCounters(bundleName);
+        profilingCounters.RunningActions.Update(runningActions.size());
+        profilingCounters.FailedActions.Increment(failedActionCount);
     }
 
     DropMissingKeys(RunningActions_, relevantBundles);
 }
 
-TActionManager::TBundleProfilingCounters& TActionManager::GetOrCreateProfilingCounters(const TString& bundleName)
+const TActionManager::TBundleProfilingCounters& TActionManager::GetOrCreateProfilingCounters(const TString& bundleName)
 {
     if (auto it = ProfilingCounters_.find(bundleName); it != ProfilingCounters_.end()) {
         return it->second;
@@ -333,7 +342,10 @@ TActionManager::TBundleProfilingCounters& TActionManager::GetOrCreateProfilingCo
     return EmplaceOrCrash(ProfilingCounters_, bundleName, TBundleProfilingCounters{
         .RunningActions = TabletBalancerProfiler
             .WithTag("tablet_cell_bundle", bundleName)
-            .Gauge("/action_manager/running_actions")
+            .Gauge("/action_manager/running_actions"),
+        .FailedActions = TabletBalancerProfiler
+            .WithTag("tablet_cell_bundle", bundleName)
+            .Counter("/action_manager/failed_actions")
     })->second;
 }
 
