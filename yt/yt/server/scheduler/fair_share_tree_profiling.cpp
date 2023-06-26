@@ -287,6 +287,7 @@ void TFairShareTreeProfileManager::ProfileElement(
     writer->AddGauge("/dominant_demand_share", MaxComponent(attributes.DemandShare));
     writer->AddGauge("/promised_dominant_fair_share", MaxComponent(attributes.PromisedFairShare));
     writer->AddGauge("/accumulated_volume_dominant_share", element->GetAccumulatedResourceRatioVolume());
+    writer->AddGauge("/weight", element->GetWeight());
     writer->AddGauge("/dominant_fair_share/strong_guarantee", MaxComponent(detailedFairShare.StrongGuarantee));
     writer->AddGauge("/dominant_fair_share/integral_guarantee", MaxComponent(detailedFairShare.IntegralGuarantee));
     writer->AddGauge("/dominant_fair_share/weight_proportional", MaxComponent(detailedFairShare.WeightProportional));
