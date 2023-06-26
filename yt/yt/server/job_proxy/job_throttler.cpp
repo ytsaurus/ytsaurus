@@ -158,6 +158,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    i64 GetAvailable() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
 private:
     const TJobThrottlerConfigPtr Config_;
     const IChannelPtr Channel_;

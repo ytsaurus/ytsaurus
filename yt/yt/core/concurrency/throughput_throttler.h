@@ -70,6 +70,12 @@ struct IThroughputThrottler
      *  \note Thread affinity: any
      */
     virtual TDuration GetEstimatedOverdraftDuration() const = 0;
+
+    //! Returns number of bytes in bucket, can be negative.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual i64 GetAvailable() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IThroughputThrottler)
@@ -92,6 +98,9 @@ struct IReconfigurableThroughputThrottler
 
     //! Returns a future that is set when throttler has become available.
     virtual TFuture<void> GetAvailableFuture() = 0;
+
+    //! Return current throttler config.
+    virtual TThroughputThrottlerConfigPtr GetConfig() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IReconfigurableThroughputThrottler)

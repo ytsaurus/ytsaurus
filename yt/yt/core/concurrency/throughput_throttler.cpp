@@ -196,6 +196,19 @@ public:
         return queueTotalCount / limit * TDuration::Seconds(1);
     }
 
+    TThroughputThrottlerConfigPtr GetConfig() const override
+    {
+        auto result = New<TThroughputThrottlerConfig>();
+        result->Limit = Limit_.load();
+        result->Period = Period_.load();
+        return result;
+    }
+
+    i64 GetAvailable() const override
+    {
+        return Available_.load();
+    }
+
 private:
     const TLogger Logger;
 
@@ -507,6 +520,11 @@ public:
         return TDuration::Zero();
     }
 
+    i64 GetAvailable() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
 private:
     NProfiling::TCounter ValueCounter_;
 };
@@ -606,6 +624,11 @@ public:
         return result;
     }
 
+    i64 GetAvailable() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
 private:
     const std::vector<IThroughputThrottlerPtr> Throttlers_;
 
@@ -679,6 +702,11 @@ public:
     TDuration GetEstimatedOverdraftDuration() const override
     {
         return Stealer_->GetEstimatedOverdraftDuration();
+    }
+
+    i64 GetAvailable() const override
+    {
+        YT_UNIMPLEMENTED();
     }
 
 private:
@@ -823,6 +851,15 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Underlying_->GetEstimatedOverdraftDuration();
+    }
+
+    i64 GetAvailable() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto guard = Guard(Lock_);
+
+        return Available_;
     }
 
 private:

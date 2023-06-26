@@ -457,6 +457,13 @@ public:
         return queueTotalAmount / limit * distributionPeriod;
     }
 
+    i64 GetAvailable() const override
+    {
+        auto available = Quota_.Value->load();
+        auto globalAvailable = IsLimited() ? 0 : SharedBucket_->Limit.Value->load();
+        return available + globalAvailable;
+    }
+
     struct TBucketState
     {
         i64 Usage; // Quota usage on current iteration.
@@ -541,7 +548,7 @@ public:
         Limited_ = limited;
     }
 
-    bool IsLimited()
+    bool IsLimited() const
     {
         return Limited_.load();
     }

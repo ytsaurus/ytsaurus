@@ -84,7 +84,7 @@ public:
         return usage;
     }
 
-    TThroughputThrottlerConfigPtr GetConfig()
+    TThroughputThrottlerConfigPtr GetConfig() const override
     {
         return ThrottlerConfig_.Acquire();
     }
@@ -191,6 +191,13 @@ public:
     void SetLeaderChannel(IChannelPtr leaderChannel)
     {
         LeaderChannel_.Store(leaderChannel);
+    }
+
+    i64 GetAvailable() const override
+    {
+        YT_VERIFY(Config_.Acquire()->Mode != EDistributedThrottlerMode::Precise);
+
+        return Underlying_->GetAvailable();
     }
 
 private:

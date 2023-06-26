@@ -18,6 +18,8 @@ public:
     //! Period for leaky bucket algorithm.
     TDuration Period;
 
+    std::optional<i64> GetMaxAvailable() const;
+
     static TThroughputThrottlerConfigPtr Create(std::optional<double> limit);
 
     bool operator==(const TThroughputThrottlerConfig& other);

@@ -280,6 +280,11 @@ public:
     {
         YT_UNIMPLEMENTED();
     }
+
+    i64 GetAvailable() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TMockThrottler)
