@@ -73,12 +73,21 @@ public:
             TChunkServiceProxy::GetDescriptor(),
             EAutomatonThreadQueue::ChunkService,
             ChunkServerLogger)
-        , ExecuteBatchRequestQueueProvider_(New<TPerUserRequestQueueProvider>(
-            CreateReconfigurationCallback(bootstrap),
+        , ReconfigurationCallback_(CreateReconfigurationCallback(bootstrap))
+        , CreateChunkRequestQueueProvider_(New<TPerUserRequestQueueProvider>(
+            ReconfigurationCallback_,
             ChunkServiceProfiler
                 .WithDefaultDisabled()
                 .WithSparse()
-                .WithTag("cell_tag", ToString(bootstrap->GetMulticellManager()->GetCellTag()))))
+                .WithTag("cell_tag", ToString(bootstrap->GetMulticellManager()->GetCellTag()))
+                .WithTag("method", "create_chunk")))
+        , ExecuteBatchRequestQueueProvider_(New<TPerUserRequestQueueProvider>(
+            ReconfigurationCallback_,
+            ChunkServiceProfiler
+                .WithDefaultDisabled()
+                .WithSparse()
+                .WithTag("cell_tag", ToString(bootstrap->GetMulticellManager()->GetCellTag()))
+                .WithTag("method", "execute_batch")))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LocateChunks)
             .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkLocator))
@@ -99,7 +108,10 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkOwningNodes)
             .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateChunk)
-            .SetHeavy(true));
+            .SetHeavy(true)
+            .SetQueueSizeLimit(10000)
+            .SetConcurrencyLimit(10000)
+            .SetRequestQueueProvider(CreateChunkRequestQueueProvider_));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ConfirmChunk)
             .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SealChunk)
@@ -129,6 +141,9 @@ public:
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
+    // COMPAT(danilalexeev) ExecuteBatch will be removed in the future.
+    TPerUserRequestQueueProvider::TReconfigurationCallback ReconfigurationCallback_;
+    TPerUserRequestQueueProviderPtr CreateChunkRequestQueueProvider_;
     TPerUserRequestQueueProviderPtr ExecuteBatchRequestQueueProvider_;
 
     static TPerUserRequestQueueProvider::TReconfigurationCallback CreateReconfigurationCallback(TBootstrap* bootstrap)
@@ -202,47 +217,53 @@ private:
 
         const auto& oldConfig = oldClusterConfig->ChunkService;
 
-        // Avoid unnecessary reconfiguration of request queues as it might create
-        // significant load on the automaton thread.
-        bool shouldReconfigureQueues = false;
+        auto configureRequestQueueProvider = [&] (const auto& queueProvider) {
+            // Avoid unnecessary reconfiguration of request queues as it might create
+            // significant load on the automaton thread.
+            bool shouldReconfigureQueues = false;
 
-        if (oldConfig == Bootstrap_->GetConfigManager()->GetConfig()->ChunkService) {
-            // Either an epoch change or irrelevant modification to the config.
+            if (oldConfig == Bootstrap_->GetConfigManager()->GetConfig()->ChunkService) {
+                // Either an epoch change or irrelevant modification to the config.
 
-            ExecuteBatchRequestQueueProvider_->UpdateDefaultConfigs({
-                config->DefaultPerUserRequestWeightThrottlerConfig,
-                config->DefaultPerUserRequestBytesThrottlerConfig});
-            // Crucial on epoch change for guaranteeing up-to-date configuration.
-            shouldReconfigureQueues = true;
-        } else {
-            if (oldConfig->DefaultPerUserRequestWeightThrottlerConfig != config->DefaultPerUserRequestWeightThrottlerConfig ||
-                oldConfig->DefaultPerUserRequestBytesThrottlerConfig != config->DefaultPerUserRequestBytesThrottlerConfig)
-            {
-                ExecuteBatchRequestQueueProvider_->UpdateDefaultConfigs({
+                queueProvider->UpdateDefaultConfigs({
                     config->DefaultPerUserRequestWeightThrottlerConfig,
                     config->DefaultPerUserRequestBytesThrottlerConfig});
+                // Crucial on epoch change for guaranteeing up-to-date configuration.
                 shouldReconfigureQueues = true;
+            } else {
+                if (oldConfig->DefaultPerUserRequestWeightThrottlerConfig != config->DefaultPerUserRequestWeightThrottlerConfig ||
+                    oldConfig->DefaultPerUserRequestBytesThrottlerConfig != config->DefaultPerUserRequestBytesThrottlerConfig)
+                {
+                    queueProvider->UpdateDefaultConfigs({
+                        config->DefaultPerUserRequestWeightThrottlerConfig,
+                        config->DefaultPerUserRequestBytesThrottlerConfig});
+                    shouldReconfigureQueues = true;
+                }
+
+                if (oldConfig->EnablePerUserRequestWeightThrottling != config->EnablePerUserRequestWeightThrottling ||
+                    oldConfig->EnablePerUserRequestBytesThrottling != config->EnablePerUserRequestBytesThrottling)
+                {
+                    queueProvider->UpdateThrottlingEnabledFlags(
+                        config->EnablePerUserRequestWeightThrottling,
+                        config->EnablePerUserRequestBytesThrottling);
+                    shouldReconfigureQueues = true;
+                }
             }
 
-            if (oldConfig->EnablePerUserRequestWeightThrottling != config->EnablePerUserRequestWeightThrottling ||
-                oldConfig->EnablePerUserRequestBytesThrottling != config->EnablePerUserRequestBytesThrottling)
-            {
-                ExecuteBatchRequestQueueProvider_->UpdateThrottlingEnabledFlags(
-                    config->EnablePerUserRequestWeightThrottling,
-                    config->EnablePerUserRequestBytesThrottling);
-                shouldReconfigureQueues = true;
+            if (shouldReconfigureQueues) {
+                queueProvider->ReconfigureAllUsers();
             }
-        }
+        };
 
-        if (shouldReconfigureQueues) {
-            ExecuteBatchRequestQueueProvider_->ReconfigureAllUsers();
-        }
+        configureRequestQueueProvider(CreateChunkRequestQueueProvider_);
+        configureRequestQueueProvider(ExecuteBatchRequestQueueProvider_);
     }
 
     void OnUserRequestThrottlerConfigChanged(TUser* user)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        CreateChunkRequestQueueProvider_->ReconfigureUser(user->GetName());
         ExecuteBatchRequestQueueProvider_->ReconfigureUser(user->GetName());
     }
 
