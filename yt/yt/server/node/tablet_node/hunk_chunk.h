@@ -29,6 +29,7 @@ public:
     // COMPAT(aleksandra-zh)
     DEFINE_BYVAL_RW_PROPERTY(int, PreparedStoreRefCount);
     DEFINE_BYVAL_RW_PROPERTY(EHunkChunkSweepState, SweepState, EHunkChunkSweepState::None);
+    DEFINE_BYVAL_RW_PROPERTY(bool, Committed);
 
 public:
     THunkChunk(
@@ -43,7 +44,8 @@ public:
     void Lock(TTransactionId transactionId, EObjectLockMode lockMode);
     void Unlock(TTransactionId transactionId, EObjectLockMode lockMode);
 
-    //! Returns |true| iff store ref count and prepared store ref count are both zero.
+    //! Returns |true| iff store ref count and prepared store ref count are both zero
+    //! and there are no locks.
     bool IsDangling() const;
 
 private:

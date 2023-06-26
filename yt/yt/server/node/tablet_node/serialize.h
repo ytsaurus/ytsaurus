@@ -35,6 +35,7 @@ DEFINE_ENUM(ETabletReign,
     ((FixHunkStorage)                     (100702)) // gritukan
     ((SendDynamicStoreInBackup)           (100703)) // ifsmirnov
     ((FixBulkInsertAtomicityNone)         (100704)) // ifsmirnov
+    ((JournalHunksCommitted)              (100705)) // aleksandra-zh
     // 23.2 starts here.
     ((Avenues)                            (100800)) // ifsmirnov
 );

@@ -40,6 +40,7 @@ void THunkChunk::Save(TSaveContext& context) const
     Save(context, ReferencedTotalHunkLength_);
     Save(context, StoreRefCount_);
     Save(context, PreparedStoreRefCount_);
+    Save(context, Committed_);
 }
 
 void THunkChunk::Load(TLoadContext& context)
@@ -51,6 +52,11 @@ void THunkChunk::Load(TLoadContext& context)
     Load(context, ReferencedTotalHunkLength_);
     Load(context, StoreRefCount_);
     Load(context, PreparedStoreRefCount_);
+    if (context.GetVersion() >= ETabletReign::JournalHunksCommitted) {
+        Load(context, Committed_);
+    } else {
+        Committed_ = true;
+    }
 }
 
 void THunkChunk::Lock(TTransactionId transactionId, EObjectLockMode lockMode)
