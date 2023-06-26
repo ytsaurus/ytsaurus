@@ -1287,7 +1287,7 @@ private:
         }
 
         MergeMode_ = CheckedEnumCast<NChunkClient::EChunkMergerMode>(chunkMergerWriterOptions.merge_mode());
-        YT_LOG_DEBUG("Merge job started (Mode: %v)", MergeMode_);
+        YT_LOG_INFO("Chunk merge job started (Mode: %v)", MergeMode_);
 
         PrepareInputChunkReadContexts();
         switch (MergeMode_) {
