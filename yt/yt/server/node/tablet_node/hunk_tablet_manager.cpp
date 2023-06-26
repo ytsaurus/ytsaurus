@@ -460,8 +460,10 @@ private:
         for (const auto& storeToAdd : request->stores_to_add()) {
             auto sessionId = FromProto<TSessionId>(storeToAdd.session_id());
             auto store = New<THunkStore>(sessionId.ChunkId, tablet);
+            auto now = GetCurrentMutationContext()->GetTimestamp();
+            store->SetCreationTime(now);
 
-            if (IsLeader()) {
+            if (IsLeader() && tablet->GetState() == ETabletState::Mounted) {
                 store->SetState(EHunkStoreState::Allocated);
 
                 auto writer = CreateJournalHunkChunkWriter(
@@ -471,9 +473,6 @@ private:
                     tablet->StoreWriterConfig(),
                     Logger);
                 store->SetWriter(std::move(writer));
-
-                auto now = GetCurrentMutationContext()->GetTimestamp();
-                store->SetCreationTime(now);
                 store->SetLastWriteTime(now);
             } else {
                 store->SetState(EHunkStoreState::Passive);

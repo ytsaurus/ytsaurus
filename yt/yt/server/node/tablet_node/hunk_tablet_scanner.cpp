@@ -91,8 +91,7 @@ private:
 
             try {
                 MaybeAllocateStores();
-                MaybeRotateActiveStoreForMountedTablet();
-                MaybeRotateActiveStoreForUnmountingTablet();
+                MaybeRotateActiveStore();
                 MaybeMarkStoresAsSealable();
                 MaybeRemoveStores();
             } catch (const std::exception& ex) {
@@ -129,7 +128,7 @@ private:
             DoAllocateStores(storesToAllocate);
         }
 
-        void MaybeRotateActiveStoreForMountedTablet()
+        void MaybeRotateActiveStore()
         {
             if (Tablet_->GetState() != ETabletState::Mounted) {
                 return;
@@ -195,21 +194,6 @@ private:
             if (!Tablet_->GetActiveStore() || Tablet_->GetActiveStore() == activeStore) {
                 Tablet_->RotateActiveStore();
             }
-        }
-
-        void MaybeRotateActiveStoreForUnmountingTablet()
-        {
-            if (Tablet_->GetState() != ETabletState::UnmountPending) {
-                return;
-            }
-
-            if (!Tablet_->GetActiveStore()) {
-                return;
-            }
-
-            YT_LOG_DEBUG("Rotating active store since tablet is unmounting");
-
-            Tablet_->RotateActiveStore();
         }
 
         void MaybeMarkStoresAsSealable()

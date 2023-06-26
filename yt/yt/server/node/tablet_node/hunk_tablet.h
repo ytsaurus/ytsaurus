@@ -38,7 +38,6 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(THunkStorePtr, ActiveStore);
     DEFINE_BYREF_RW_PROPERTY(THashSet<THunkStorePtr>, AllocatedStores);
-
     DEFINE_BYREF_RW_PROPERTY(THashSet<THunkStorePtr>, PassiveStores);
 
 public:
