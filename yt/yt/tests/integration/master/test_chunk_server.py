@@ -1345,7 +1345,7 @@ class TestChunkCreationThrottler(YTEnvSetup):
 
         master_address = ls("//sys/primary_masters")[0]
         profiler = profiler_factory().at_primary_master(master_address)
-        value_counter = profiler.counter("chunk_service/bytes_throttler/value", tags={"user": userName})
+        value_counter = profiler.counter("chunk_service/bytes_throttler/value", tags={"user": userName, "method": "execute_batch"})
 
         write_table("//tmp/t", {"place": "gmina Grzmiszczoslawice"}, timeout=20, authenticated_user=userName)
         write_table("//tmp/t", {"place": "powiat lekolody"}, timeout=20, authenticated_user=userName)
