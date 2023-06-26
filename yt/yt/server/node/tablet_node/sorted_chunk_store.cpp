@@ -837,8 +837,10 @@ private:
         TBackendReaders backendReaders,
         TCachedVersionedChunkMetaPtr chunkMeta)
     {
-        if (!MissingKeyMask_.empty() && std::count(MissingKeyMask_.begin(), MissingKeyMask_.end(), 0) == 0) {
-            int initialKeyCount = SkippedBefore_ + SkippedAfter_ + keys.Size();
+        if (!MissingKeyMask_.empty() &&
+            std::count(MissingKeyMask_.begin(), MissingKeyMask_.end(), 0) == 0)
+        {
+            int initialKeyCount = SkippedBefore_ + SkippedAfter_ + std::ssize(MissingKeyMask_);
             UnderlyingReader_ = CreateEmptyVersionedReader(initialKeyCount);
             UnderlyingReaderInitialized_.store(true);
             return;
