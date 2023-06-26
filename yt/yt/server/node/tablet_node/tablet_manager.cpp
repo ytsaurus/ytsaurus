@@ -1947,7 +1947,13 @@ private:
                         // COMPAT(aleksandra-zh)
                         if (request->create_hunk_chunks_during_prepare()) {
                             hunkChunk->Unlock(transaction->GetId(), EObjectLockMode::Shared);
-                            tablet->UpdateDanglingHunkChunks(hunkChunk);
+                            if (!hunkChunk->GetCommitted() && hunkChunk->IsDangling()) {
+                                // This hunk chunk was never attached in master, so just remove it here without 2pc.
+                                tablet->RemoveHunkChunk(hunkChunk);
+                                hunkChunk->SetState(EHunkChunkState::Removed);
+                            } else {
+                                tablet->UpdateDanglingHunkChunks(hunkChunk);
+                            }
                         }
                     }
                 }
@@ -2077,12 +2083,16 @@ private:
                 }
 
                 hunkChunk->Unlock(transaction->GetId(), EObjectLockMode::Shared);
+                hunkChunk->SetCommitted(true);
+
                 // This one is also useless.
                 tablet->UpdateDanglingHunkChunks(hunkChunk);
 
                 InsertOrCrash(addedHunkChunks, hunkChunk);
             } else {
                 auto hunkChunk = CreateHunkChunk(tablet, chunkId, &descriptor);
+                hunkChunk->SetCommitted(true);
+
                 hunkChunk->Initialize();
                 tablet->AddHunkChunk(hunkChunk);
 
