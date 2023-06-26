@@ -209,11 +209,13 @@ std::vector<TLegacyOwningKey> PickPivotKeysWithSlicing(
         }
 
         auto expectedTabletSize = DivCeil<i64>(limitedChunksDataWeight + unlimitedChunksDataWeight, tabletCount);
+        minSliceSize = std::max(expectedTabletSize * accuracy / ExpectedAverageOverlapping, 1.);
         YT_LOG_DEBUG("Replacing resharding with slicing expected tablet size"
-            " (LimitedChunksDataWeight: %v, UnlimitedChunksDataWeight: %v, ExpectedTabletSize: %v)",
+            " (LimitedChunksDataWeight: %v, UnlimitedChunksDataWeight: %v, ExpectedTabletSize: %v, MinSliceSize: %v)",
             limitedChunksDataWeight,
             unlimitedChunksDataWeight,
-            expectedTabletSize);
+            expectedTabletSize,
+            minSliceSize);
 
         reshardBuilder.SetExpectedTabletSize(expectedTabletSize);
     }
@@ -258,6 +260,11 @@ std::vector<TLegacyOwningKey> PickPivotKeysWithSlicing(
         auto sliceSize = DivCeil<i64>(size, sliceCount);
         sliceSize = std::max(minSliceSize, sliceSize);
 
+        YT_LOG_DEBUG_IF(enableVerboseLogging,
+            "Adding chunk to chunk slice fetcher (SliceSize: %v, Comparator: %v, DataSlice: %v)",
+            sliceSize,
+            comparator,
+            dataSlice);
         chunkSliceFetcher->AddDataSliceForSlicing(dataSlice, comparator, sliceSize, /*sliceByKeys*/ true);
     }
 
