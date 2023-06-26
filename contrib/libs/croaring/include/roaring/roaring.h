@@ -515,6 +515,20 @@ size_t roaring_bitmap_serialize(const roaring_bitmap_t *r, char *buf);
 roaring_bitmap_t *roaring_bitmap_deserialize(const void *buf);
 
 /**
+ * Use with `roaring_bitmap_serialize()`.
+ *
+ * (See `roaring_bitmap_portable_deserialize_safe()` if you want a format that's
+ * compatible with Java and Go implementations).
+ *
+ * This function is endian-sensitive. If you have a big-endian system (e.g., a mainframe IBM s390x),
+ * the data format is going to be big-endian and not compatible with little-endian systems.
+ * 
+ * The difference with `roaring_bitmap_deserialize()` is that this function checks that the input buffer
+ * is a valid bitmap.  If the buffer is too small, NULL is returned.
+ */
+roaring_bitmap_t *roaring_bitmap_deserialize_safe(const void *buf, size_t maxbytes);
+
+/**
  * How many bytes are required to serialize this bitmap (NOT compatible
  * with Java and Go versions)
  */
