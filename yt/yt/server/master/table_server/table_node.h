@@ -164,9 +164,9 @@ public:
 
     bool IsDynamic() const;
     bool IsQueue() const;
-    bool IsQueueObject() const;
+    bool IsTrackedQueueObject() const;
     bool IsConsumer() const;
-    bool IsConsumerObject() const;
+    bool IsTrackedConsumerObject() const;
     bool IsEmpty() const;
     bool IsLogicallyEmpty() const;
     bool IsUniqueKeys() const;

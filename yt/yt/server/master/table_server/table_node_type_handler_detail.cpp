@@ -251,11 +251,11 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
 
             tabletManager->MakeTableDynamic(node);
 
-            if (node->IsQueueObject()) {
+            if (node->IsTrackedQueueObject()) {
                 tableManager->RegisterQueue(node);
             }
 
-            if (node->IsConsumerObject()) {
+            if (node->IsTrackedConsumerObject()) {
                 tableManager->RegisterConsumer(node);
             }
 
@@ -319,11 +319,11 @@ void TTableNodeTypeHandlerBase<TImpl>::DoDestroy(TImpl* table)
     TBase::DoDestroy(table);
 
     const auto& tableManager = this->Bootstrap_->GetTableManager();
-    if (table->IsQueueObject()) {
+    if (table->IsTrackedQueueObject()) {
         tableManager->UnregisterQueue(table);
     }
 
-    if (table->IsConsumerObject()) {
+    if (table->IsTrackedConsumerObject()) {
         tableManager->UnregisterConsumer(table);
     }
 
@@ -364,7 +364,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoMerge(
 {
     const auto& tableManager = this->Bootstrap_->GetTableManager();
 
-    bool isQueueObjectBefore = originatingNode->IsQueueObject();
+    bool isQueueObjectBefore = originatingNode->IsTrackedQueueObject();
 
     if (originatingNode->IsExternal()) {
         auto* schema = originatingNode->GetSchema();
@@ -387,7 +387,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoMerge(
 
     TBase::DoMerge(originatingNode, branchedNode);
 
-    bool isQueueObjectAfter = originatingNode->IsQueueObject();
+    bool isQueueObjectAfter = originatingNode->IsTrackedQueueObject();
     if (isQueueObjectAfter != isQueueObjectBefore) {
         if (isQueueObjectAfter) {
             tableManager->RegisterQueue(originatingNode);
@@ -425,7 +425,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
             trunkSourceNode->GetCustomDynamicTableAttributes());
     }
 
-    if (clonedTrunkNode->IsQueueObject()) {
+    if (clonedTrunkNode->IsTrackedQueueObject()) {
         tableManager->RegisterQueue(clonedTrunkNode);
     }
 }
@@ -501,7 +501,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoEndCopy(
     }
 
     // TODO(achulkov2): Add corresponding test once copying dynamic tables is supported. Please ping me :)
-    if (node->IsQueueObject()) {
+    if (node->IsTrackedQueueObject()) {
         tableManager->RegisterQueue(node);
     }
 }

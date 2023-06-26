@@ -1707,7 +1707,7 @@ private:
             for (auto [nodeId, node] : Bootstrap_->GetCypressManager()->Nodes()) {
                 if (node->GetType() == NObjectClient::EObjectType::ReplicatedTable) {
                     auto* replicatedTableNode = node->As<TReplicatedTableNode>();
-                    if (replicatedTableNode->IsQueueObject()) {
+                    if (replicatedTableNode->IsTrackedQueueObject()) {
                         RegisterQueue(replicatedTableNode);
                     }
                 }

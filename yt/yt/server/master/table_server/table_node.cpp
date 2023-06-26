@@ -443,7 +443,7 @@ bool TTableNode::IsQueue() const
     return IsDynamic() && !IsSorted();
 }
 
-bool TTableNode::IsQueueObject() const
+bool TTableNode::IsTrackedQueueObject() const
 {
     return IsNative() && IsTrunk() && IsQueue();
 }
@@ -453,7 +453,7 @@ bool TTableNode::IsConsumer() const
     return GetTreatAsConsumer();
 }
 
-bool TTableNode::IsConsumerObject() const
+bool TTableNode::IsTrackedConsumerObject() const
 {
     return IsNative() && IsTrunk() && IsConsumer();
 }
@@ -799,8 +799,8 @@ void TTableNode::CheckInvariants(NCellMaster::TBootstrap* bootstrap) const
 
     if (IsObjectAlive(this)) {
         // NB: Const-cast due to const-correctness rabbit-hole, which led to TTableNode* being stored in the set.
-        YT_VERIFY(bootstrap->GetTableManager()->GetQueues().contains(const_cast<TTableNode*>(this)) == IsQueueObject());
-        YT_VERIFY(bootstrap->GetTableManager()->GetConsumers().contains(const_cast<TTableNode*>(this)) == IsConsumerObject());
+        YT_VERIFY(bootstrap->GetTableManager()->GetQueues().contains(const_cast<TTableNode*>(this)) == IsTrackedQueueObject());
+        YT_VERIFY(bootstrap->GetTableManager()->GetConsumers().contains(const_cast<TTableNode*>(this)) == IsTrackedConsumerObject());
     }
 }
 

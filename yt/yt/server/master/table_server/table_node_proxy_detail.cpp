@@ -1527,9 +1527,9 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             }
 
             auto* lockedTable = LockThisImpl();
-            auto isConsumerObjectBefore = lockedTable->IsConsumerObject();
+            auto isConsumerObjectBefore = lockedTable->IsTrackedConsumerObject();
             lockedTable->SetTreatAsConsumer(ConvertTo<bool>(value));
-            auto isConsumerObjectAfter = lockedTable->IsConsumerObject();
+            auto isConsumerObjectAfter = lockedTable->IsTrackedConsumerObject();
 
             if (isConsumerObjectAfter != isConsumerObjectBefore) {
                 if (isConsumerObjectAfter) {
@@ -1892,7 +1892,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         schema = table->GetSchema()->AsTableSchema();
     }
 
-    bool isQueueObjectBefore = table->IsQueueObject();
+    bool isQueueObjectBefore = table->IsTrackedQueueObject();
 
     // NB: Sorted dynamic tables contain unique keys, set this for user.
     if (dynamic && schemaReceived  && schema->IsSorted() && !schema->GetUniqueKeys()) {
@@ -2110,7 +2110,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         multicellManager->PostToMasters(replicationRequest, cellTag);
     }
 
-    bool isQueueObjectAfter = table->IsQueueObject();
+    bool isQueueObjectAfter = table->IsTrackedQueueObject();
     if (isQueueObjectAfter != isQueueObjectBefore) {
         if (isQueueObjectAfter) {
             tableManager->RegisterQueue(table);
