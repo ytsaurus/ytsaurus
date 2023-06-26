@@ -118,19 +118,19 @@ bool IsChunkLost(const TReplicasWithRevision& replicasWithRevision, NErasure::EC
         return true;
     }
 
-    auto availableReplicaCount = std::ssize(replicasWithRevision.Replicas);
-    auto* codec = NErasure::GetCodec(codecId);
-    auto safeReplicaCount = codec->GetTotalPartCount() - codec->GetGuaranteedRepairablePartCount();
-    if (availableReplicaCount >= safeReplicaCount) {
-        return false;
-    }
-
     NErasure::TPartIndexList partIndexes;
+    partIndexes.reserve(replicasWithRevision.Replicas.size());
     for (const auto& replica : replicasWithRevision.Replicas) {
         partIndexes.push_back(replica.ReplicaIndex);
     }
     SortUnique(partIndexes);
-    YT_VERIFY(std::ssize(partIndexes) == availableReplicaCount);
+
+    auto* codec = NErasure::GetCodec(codecId);
+    auto safeReplicaCount = codec->GetTotalPartCount() - codec->GetGuaranteedRepairablePartCount();
+    if (std::ssize(partIndexes) >= safeReplicaCount) {
+        return false;
+    }
+
     return !codec->CanRepair(partIndexes);
 }
 
