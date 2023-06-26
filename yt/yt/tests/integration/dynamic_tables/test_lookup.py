@@ -754,6 +754,12 @@ class TestLookup(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", rows)
         sync_flush_table("//tmp/t")
 
+        assert lookup_rows("//tmp/t", [{"key": 0}], verbose=False) == []
+        assert lookup_rows("//tmp/t", [{"key": 1}], verbose=False) == [{"key": 1, "value": "1"}]
+        assert lookup_rows("//tmp/t", [{"key": 5000}], verbose=False) == []
+        assert lookup_rows("//tmp/t", [{"key": 9997}], verbose=False) == [{"key": 9997, "value": "9997"}]
+        assert lookup_rows("//tmp/t", [{"key": 9998}], verbose=False) == []
+
         assert lookup_rows("//tmp/t", keys, verbose=False) == rows
 
 
