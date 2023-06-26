@@ -300,11 +300,11 @@ TMemoryUsageGuard& TMemoryUsageGuard::operator=(TMemoryUsageGuard&& other)
 
 void TMemoryUsageGuard::Release()
 {
-    Guard_.Release();
-
     if (MemoryUsageTrackerGuard_) {
         MemoryUsageTrackerGuard_->Release();
     }
+
+    Guard_.Release();
 
     if (auto memoryManager = MemoryManager_.Lock()) {
         memoryManager->TryUnregister();

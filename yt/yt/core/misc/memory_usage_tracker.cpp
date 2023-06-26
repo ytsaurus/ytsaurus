@@ -112,7 +112,10 @@ TErrorOr<TMemoryUsageTrackerGuard> TMemoryUsageTrackerGuard::TryAcquire(
 void TMemoryUsageTrackerGuard::Release()
 {
     if (Tracker_) {
-        Tracker_->Release(AcquiredSize_);
+        if (AcquiredSize_) {
+            Tracker_->Release(AcquiredSize_);
+        }
+
         ReleaseNoReclaim();
     }
 }
