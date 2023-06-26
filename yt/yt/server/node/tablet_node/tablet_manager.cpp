@@ -482,6 +482,10 @@ public:
         ToProto(request.mutable_tablet_id(), tablet->GetId());
         request.set_mount_revision(tablet->GetMountRevision());
         request.set_reason(static_cast<int>(reason));
+        // Out of band immediate rotation may happen when this mutation is scheduled but not applied.
+        // This rotation request will become obsolete and may lead to an empty active store
+        // being rotated.
+        ToProto(request.mutable_expected_active_store_id(), tablet->GetActiveStore()->GetId());
         Slot_->CommitTabletMutation(request);
     }
 
@@ -1542,6 +1546,13 @@ private:
     void HydraRotateStore(TReqRotateStore* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto mountRevision = request->mount_revision();
+        auto reason = static_cast<EStoreRotationReason>(request->reason());
+        TStoreId expectedActiveStoreId;
+        if (request->has_expected_active_store_id()) {
+            FromProto(&expectedActiveStoreId, request->expected_active_store_id());
+        }
+
         auto* tablet = FindTablet(tabletId);
         if (!tablet) {
             return;
@@ -1550,12 +1561,31 @@ private:
             return;
         }
 
-        auto mountRevision = request->mount_revision();
         if (mountRevision != tablet->GetMountRevision()) {
             return;
         }
 
         const auto& storeManager = tablet->GetStoreManager();
+
+        // COMPAT(ifsmirnov)
+        if (static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) >=
+            ETabletReign::SendDynamicStoreInBackup)
+        {
+            if (tablet->GetActiveStore() &&
+                expectedActiveStoreId &&
+                tablet->GetActiveStore()->GetId() != expectedActiveStoreId)
+            {
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                    "Active store id mismatch in rotation attempt "
+                    "(ExpectedActiveStoreId: %v, ActualActiveStoreId: %v, Reason: %v, %v)",
+                    expectedActiveStoreId,
+                    tablet->GetActiveStore()->GetId(),
+                    reason,
+                    tablet->GetLoggingTag());
+                storeManager->UnscheduleRotation();
+                return;
+            }
+        }
 
         if (tablet->GetSettings().MountConfig->EnableDynamicStoreRead && tablet->DynamicStoreIdPool().empty()) {
             if (!tablet->GetDynamicStoreIdRequested()) {
@@ -1567,7 +1597,6 @@ private:
             return;
         }
 
-        auto reason = static_cast<EStoreRotationReason>(request->reason());
         storeManager->Rotate(true, reason);
         UpdateTabletSnapshot(tablet);
 

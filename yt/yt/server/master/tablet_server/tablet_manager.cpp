@@ -2551,6 +2551,32 @@ public:
         }
     }
 
+    void AttachDynamicStoreToTablet(TTablet* tablet, TDynamicStore* dynamicStore)
+    {
+        auto* table = tablet->GetTable();
+
+        TabletChunkManager_->CopyChunkListsIfShared(table, tablet->GetIndex(), tablet->GetIndex());
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        chunkManager->AttachToChunkList(tablet->GetChunkList(), dynamicStore);
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Dynamic store attached to tablet (TabletId: %v, DynamicStoreId: %v)",
+            tablet->GetId(),
+            dynamicStore->GetId());
+
+        RecomputeTableSnapshotStatistics(table);
+
+        const auto& tableManager = Bootstrap_->GetTableManager();
+        tableManager->ScheduleStatisticsUpdate(
+            table,
+            /*updateDataStatistics*/ true,
+            /*updateTabletStatistics*/ false);
+
+        TTabletStatistics statisticsDelta;
+        statisticsDelta.ChunkCount = 1;
+        tablet->GetCell()->GossipStatistics().Local() += statisticsDelta;
+        tablet->GetTable()->AccountTabletStatisticsDelta(statisticsDelta);
+    }
+
     void UpdateExtraMountConfigKeys(std::vector<TString> keys)
     {
         for (auto&& key : keys) {
@@ -5397,32 +5423,6 @@ private:
         }
     }
 
-    void AttachDynamicStoreToTablet(TTablet* tablet, TDynamicStore* dynamicStore)
-    {
-        auto* table = tablet->GetTable();
-
-        TabletChunkManager_->CopyChunkListsIfShared(table, tablet->GetIndex(), tablet->GetIndex());
-
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        chunkManager->AttachToChunkList(tablet->GetChunkList(), dynamicStore);
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Dynamic store attached to tablet (TabletId: %v, DynamicStoreId: %v)",
-            tablet->GetId(),
-            dynamicStore->GetId());
-
-        RecomputeTableSnapshotStatistics(table);
-
-        const auto& tableManager = Bootstrap_->GetTableManager();
-        tableManager->ScheduleStatisticsUpdate(
-            table,
-            /*updateDataStatistics*/ true,
-            /*updateTabletStatistics*/ false);
-
-        TTabletStatistics statisticsDelta;
-        statisticsDelta.ChunkCount = 1;
-        tablet->GetCell()->GossipStatistics().Local() += statisticsDelta;
-        tablet->GetTable()->AccountTabletStatisticsDelta(statisticsDelta);
-    }
-
     template <class TRequest>
     void CreateAndAttachDynamicStores(TTablet* tablet, TRequest* request)
     {
@@ -6984,9 +6984,14 @@ void TTabletManager::OnHunkJournalChunkSealed(TChunk* chunk)
     Impl_->OnHunkJournalChunkSealed(chunk);
 }
 
-DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTabletBase, *Impl_)
-DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TableReplica, TTableReplica, *Impl_)
-DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TabletAction, TTabletAction, *Impl_)
+void TTabletManager::AttachDynamicStoreToTablet(TTablet* tablet, TDynamicStore* dynamicStore)
+{
+    Impl_->AttachDynamicStoreToTablet(tablet, dynamicStore);
+}
+
+DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTabletBase, *Impl_);
+DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TableReplica, TTableReplica, *Impl_);
+DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TabletAction, TTabletAction, *Impl_);
 
 DELEGATE_SIGNAL_WITH_ACCESSOR(TTabletManager, void(TReplicatedTableData), ReplicatedTableCreated, *Impl_);
 DELEGATE_SIGNAL_WITH_ACCESSOR(TTabletManager, void(TTableId), ReplicatedTableDestroyed, *Impl_);

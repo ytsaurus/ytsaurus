@@ -185,6 +185,8 @@ message TReqSetBackupCheckpoint
 
     optional uint32 clock_cluster_tag = 5;
     repeated NYT.NTabletClient.NProto.TTableReplicaBackupDescriptor replicas = 6;
+
+    optional NYT.NProto.TGuid dynamic_store_id = 7;
 }
 
 message TReqReleaseBackupCheckpoint
@@ -277,6 +279,7 @@ message TReqRotateStore
     required NYT.NProto.TGuid tablet_id = 1;
     required uint64 mount_revision = 2;
     optional int32 reason = 3; // EStoreRotationReason
+    optional NYT.NProto.TGuid expected_active_store_id = 4;
 }
 
 message TReqSplitPartition

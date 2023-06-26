@@ -522,7 +522,7 @@ void TSortedStoreManager::DiscardAllStores()
 {
     // TODO(ifsmirnov): should flush because someone might want to read from this
     // dynamic store having taken snapshot lock for the table.
-    Rotate(/*createNewStore*/ static_cast<bool>(GetActiveStore()), NLsm::EStoreRotationReason::None);
+    Rotate(/*createNewStore*/ static_cast<bool>(GetActiveStore()), NLsm::EStoreRotationReason::Discard);
 
     TStoreManagerBase::DiscardAllStores();
 

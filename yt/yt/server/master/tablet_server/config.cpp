@@ -194,6 +194,10 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_backups", &TThis::EnableBackups)
         .Default(false);
 
+    registrar.Parameter("send_dynamic_store_id_in_backup", &TThis::SendDynamicStoreIdInBackup)
+        .Default(false)
+        .DontSerializeDefault();
+
     registrar.Parameter("include_mount_config_attributes_in_user_attributes", &TThis::IncludeMountConfigAttributesInUserAttributes)
         .Default(true);
 

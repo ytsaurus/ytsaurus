@@ -386,6 +386,15 @@ private:
             : std::nullopt;
         auto replicaDescriptors = FromProto<std::vector<TTableReplicaBackupDescriptor>>(
             request->replicas());
+        TDynamicStoreId allocatedDynamicStoreId;
+        if (request->has_dynamic_store_id()) {
+            FromProto(&allocatedDynamicStoreId, request->dynamic_store_id());
+        }
+
+        // COMPAT(ifsmirnov)
+        if (static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) < ETabletReign::SendDynamicStoreInBackup) {
+            allocatedDynamicStoreId = {};
+        }
 
         const auto& tabletManager = Slot_->GetTabletManager();
         auto* tablet = tabletManager->FindTablet(tabletId);
@@ -399,16 +408,20 @@ private:
 
         tablet->SetBackupCheckpointTimestamp(timestamp);
         tablet->CheckedSetBackupStage(EBackupStage::None, EBackupStage::TimestampReceived);
+        if (allocatedDynamicStoreId) {
+            tablet->PushDynamicStoreIdToPool(allocatedDynamicStoreId);
+        }
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
             "Backup checkpoint set (TabletId: %v, CheckpointTimestamp: %v, BackupMode: %v, "
-            "BackupableReplicaIds: %v)",
+            "BackupableReplicaIds: %v, AllocatedDynamicStoreId: %v)",
             tabletId,
             timestamp,
             mode,
             MakeFormattableView(replicaDescriptors, [&] (auto* builder, const auto& descriptor) {
                 builder->AppendFormat("%v", descriptor.ReplicaId);
-            }));
+            }),
+            allocatedDynamicStoreId);
 
         if (tablet->IsReplicated()) {
             if (auto error = CheckReplicaStatuses(tablet, replicaDescriptors);

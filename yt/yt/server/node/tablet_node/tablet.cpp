@@ -2105,6 +2105,7 @@ int TTablet::GetEdenStoreCount() const
 
 void TTablet::PushDynamicStoreIdToPool(TDynamicStoreId storeId)
 {
+    YT_VERIFY(storeId);
     DynamicStoreIdPool_.push_back(storeId);
 }
 

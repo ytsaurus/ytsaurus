@@ -184,6 +184,8 @@ public:
 
     void OnHunkJournalChunkSealed(NChunkServer::TChunk* chunk);
 
+    void AttachDynamicStoreToTablet(TTablet* tablet, NChunkServer::TDynamicStore* dynamicStore);
+
     // Backup stuff. Used internally by TBackupManager.
     void WrapWithBackupChunkViews(TTablet* tablet, NTransactionClient::TTimestamp maxClipTimestamp);
     TError PromoteFlushedDynamicStores(TTablet* tablet);

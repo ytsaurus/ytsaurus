@@ -33,6 +33,7 @@ DEFINE_ENUM(ETabletReign,
     ((LockingState)                       (100700)) // gritukan
     ((JournalHunks)                       (100701)) // aleksandra-zh
     ((FixHunkStorage)                     (100702)) // gritukan
+    ((SendDynamicStoreInBackup)           (100703)) // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

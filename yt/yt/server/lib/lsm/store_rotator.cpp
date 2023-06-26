@@ -330,7 +330,7 @@ private:
             (period * passedPeriodCount) +
             RandomDuration(mountConfig->DynamicStoreFlushPeriodSplay);
 
-        if (passedPeriodCount > 0) {
+        if (passedPeriodCount > 1) {
             YT_LOG_DEBUG("More than one periodic rotation period passed between subsequent attempts "
                 "(%v, LastRotated: %v, RotationPeriod: %v, SkippedPeriodCount: %v)",
                 request->Tablet->GetLoggingTag(),

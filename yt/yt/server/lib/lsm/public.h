@@ -58,6 +58,7 @@ DEFINE_ENUM(EStoreRotationReason,
     (Periodic)
     (Overflow)
     (OutOfBand)
+    (Discard)
 );
 
 DEFINE_ENUM(EStoreCompactorActivityKind,
