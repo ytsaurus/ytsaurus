@@ -56,6 +56,7 @@ void SetupClusterConnectionDynamicConfigUpdate(
             YT_LOG_DEBUG(
                 "Skipping cluster directory update for unrelated cluster (UpdatedCluster: %Qv)",
                 clusterName);
+            return;
         }
 
         auto dynamicConfigNode = configNode;
