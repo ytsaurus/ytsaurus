@@ -385,24 +385,26 @@ TEST_F(TYPathTest, ParseRichYPath8)
 
 TEST_F(TYPathTest, ParseRichYPath9)
 {
-    auto path = NYPath::TRichYPath::Parse("@home");
-    EXPECT_EQ(path.GetPath(), "@home");
+    EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+        TRichYPath::Parse("@home"),
+        std::exception,
+        "does not start with a valid root-designator");
 }
 
 TEST_F(TYPathTest, ParseRichYPath10)
 {
-    auto path = TRichYPath::Parse(" \n <a=b>\n//home");
-    EXPECT_EQ(path.GetPath(), TString("\n//home"));
-    EXPECT_TRUE(
-        AreNodesEqual(
-            ConvertToNode(path.Attributes()),
-            ConvertToNode(TYsonString(TStringBuf("{a=b}")))));
+    EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+        TRichYPath::Parse(" \n <a=b>\n//home"),
+        std::exception,
+        "does not start with a valid root-designator");
 }
 
 TEST_F(TYPathTest, ParseRichYPath11)
 {
-    auto path = TRichYPath::Parse(" \n//home");
-    EXPECT_EQ(path.GetPath(), TString(" \n//home"));
+    EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+        TRichYPath::Parse(" \n//home"),
+        std::exception,
+        "does not start with a valid root-designator");
 }
 
 TEST_F(TYPathTest, IgnoreAmpersand1)
@@ -441,9 +443,9 @@ TEST_F(TYPathTest, Cluster)
     }
 
     {
-        auto path = TRichYPath::Parse("long-cluster-name://home/long-table-name");
+        auto path = TRichYPath::Parse("long-cluster-name_with_underscores://home/long-table-name");
         EXPECT_EQ("//home/long-table-name", path.GetPath());
-        EXPECT_EQ("long-cluster-name", path.GetCluster());
+        EXPECT_EQ("long-cluster-name_with_underscores", path.GetCluster());
     }
 
     {
@@ -465,14 +467,30 @@ TEST_F(TYPathTest, Cluster)
     }
 
     {
-        auto path = TRichYPath::Parse("bad+cluster!name://home/mytable");
-        EXPECT_EQ("bad+cluster!name://home/mytable", path.GetPath());
-        EXPECT_FALSE(path.GetCluster().has_value());
+        // NB: There doesn't seem to be a feasible way to check this without interpreting the actual tokens.
+        auto path = TRichYPath::Parse("replica://primary://tmp/queue");
+        EXPECT_EQ("//primary://tmp/queue", path.GetPath());
+        EXPECT_EQ("replica", path.GetCluster());
     }
+
+    EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+        TRichYPath::Parse("bad+cluster!name://home/mytable"),
+        std::exception,
+        "illegal symbol");
 
     EXPECT_THROW_MESSAGE_HAS_SUBSTR(TRichYPath::Parse("://home/mytable"),
         std::exception,
         "cannot be empty");
+
+    EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+        TRichYPath::Parse("localhost:1234://queue"),
+        std::exception,
+        "does not start with a valid root-designator");
+
+    EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+        TRichYPath::Parse("pythia:markov://queue"),
+        std::exception,
+        "does not start with a valid root-designator");
 }
 
 TEST_F(TYPathTest, NewReadRanges)
@@ -871,7 +889,6 @@ INSTANTIATE_TEST_SUITE_P(
         "<a=b>//home",
         "<a=b>//home/ignat{a,b}[1:2]",
         "//home[#1:#2,x:y]",
-        "@home",
         "<a=b;c=d>//home{a,b}[(x, y):(a, b),#1:#2]",
         "<ranges={lower_limit={chunk_index=10}}>//home/ignat/my_table{}",
         "<a=b; columns=[key1;key2;key3]>//tmp/[0, (3, abc, true), :12u]"

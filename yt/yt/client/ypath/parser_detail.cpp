@@ -95,8 +95,76 @@ TString ParseAttributes(const TString& str, const IAttributeDictionaryPtr& attri
     return TrimLeadingWhitespaces(str.substr(pathStartPosition));
 }
 
+bool IsValidClusterSymbol(char c)
+{
+    return IsAsciiAlnum(c) || c == '-' || c == '_';
+}
+
+bool IsRootDesignator(char c)
+{
+    return c == '/' || c == '#';
+}
+
+bool StartsWithRootDesignator(TStringBuf str)
+{
+    size_t nonSpaceIndex = str.find_first_not_of(' ');
+    if (nonSpaceIndex != TStringBuf::npos && !IsRootDesignator(str[nonSpaceIndex])) {
+        return false;
+    }
+
+    return true;
+}
+
 TString ParseCluster(TString str, const IAttributeDictionaryPtr& attributes)
 {
+    if (str.empty()) {
+        return str;
+    }
+
+    if (StartsWithRootDesignator(str)) {
+        return str;
+    }
+
+    auto clusterSeparatorIndex = str.find_first_of(':');
+    if (clusterSeparatorIndex == TString::npos) {
+        THROW_ERROR_EXCEPTION(
+            "Path %Qv does not start with a valid root-designator, cluster://path short-form assumed; "
+            "no \':\' separator symbol found to parse cluster",
+            str);
+    }
+
+    const auto clusterName = str.substr(0, clusterSeparatorIndex);
+
+    if (clusterName.empty()) {
+        THROW_ERROR_EXCEPTION(
+            "Path %Qv does not start with a valid root-designator, cluster://path short-form assumed; "
+            "cluster name cannot be empty",
+            str);
+    }
+
+    auto illegalSymbolIt = std::find_if_not(clusterName.begin(), clusterName.end(), &IsValidClusterSymbol);
+    if (illegalSymbolIt != clusterName.end()) {
+        THROW_ERROR_EXCEPTION(
+            "Path %Qv does not start with a valid root-designator, cluster://path short-form assumed; "
+            "cluster name contains illegal symbol %Qv",
+            str,
+            *illegalSymbolIt);
+    }
+
+    auto remainingString = str.substr(clusterSeparatorIndex + 1);
+
+    if (!StartsWithRootDesignator(remainingString)) {
+        THROW_ERROR_EXCEPTION(
+            "Path %Qv does not start with a valid root-designator, cluster://path short-form assumed; "
+            "path %Qv after cluster-separator does not start with a valid root-designator",
+            str,
+            remainingString);
+    }
+
+    attributes->Set("cluster", clusterName);
+    return remainingString;
+
+
     // NB. If the path had attributes, then the leading spaces must be removed in preceding ParseAttributes()
     // call. We can encounter the path with leading spaces here if it didn't have attributes and passed through
     // ParseAttributes() unchanged. In this case, the path is most likely incorrect, so it returns unchanged from
@@ -105,7 +173,7 @@ TString ParseCluster(TString str, const IAttributeDictionaryPtr& attributes)
     // will remain " cluster://path" after this function.
     size_t index = 0;
     size_t clusterStart = index;
-    while (index < str.size() && (IsAsciiAlnum(str[index]) || str[index] == '-')) {
+    while (index < str.size() && (IsAsciiAlnum(str[index]) || str[index] == '-' || str[index] == '_')) {
         ++index;
     }
     if (index >= str.size() || str[index] != ':') {

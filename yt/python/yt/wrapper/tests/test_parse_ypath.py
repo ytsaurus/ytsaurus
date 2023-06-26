@@ -62,13 +62,10 @@ TEST_PATHS = ["//tmp/table[#1:#2]",
               "//some/list/before:2[100u:200u]",
               "<append=true;custom=123>//home/vasya/t",
               "<append=true;filename=name.txt>//home/petya/ttt",
-              "test",
-              "<>><test",
               "/dir_\\\\_x",
               "//test/[\x01\x06abc, a]",
               "//table/[\x03\x00\x00\x00\x00\x00\x00\x03\x3F:test]",
               " <a=b> //home",
-              " \n <a=b>\n//home",
               "         <append=true;custom=123>     //home/vasya/t",
               "      //home",
               '//test/&[abc:"abc\x00"]',
@@ -76,8 +73,7 @@ TEST_PATHS = ["//tmp/table[#1:#2]",
               '//some/table{ab,ac}["abc,[]askjjh,,,,asdj  ade"]',
               '//some/table{"abc,[]askjjh,,,,asdj  ade"}',
               '<append=true;custom=123;test="test>">//some/table'
-              '{"abc,[]askjjh,,,,asdj  ade"}',
-              '1.1.1']
+              '{"abc,[]askjjh,,,,asdj  ade"}']
 
 FAILED_TEST_PATHS = ["<ds>><test",
                      "{}{}",
