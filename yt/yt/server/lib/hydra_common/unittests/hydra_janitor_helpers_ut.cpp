@@ -273,6 +273,51 @@ TEST(TJanitorSnapshotChangelogTest, Empty)
     ASSERT_EQ(0, ComputeJanitorThresholdId(snapshots, changelogs, config));
 }
 
+TEST(TJanitorSnapshotChangelogTest, ZerothChangelogIsSpecial)
+{
+    std::vector<THydraFileInfo> snapshots{
+        {2, 0},
+    };
+    std::vector<THydraFileInfo> changelogs{
+        {0, 0},
+        {1, 0},
+        {2, 0},
+    };
+    auto config = New<THydraJanitorConfig>();
+    ASSERT_EQ(0, ComputeJanitorThresholdId(snapshots, changelogs, config));
+}
+
+TEST(TJanitorSnapshotChangelogTest, ZerothChangelogIsSpecial2)
+{
+    std::vector<THydraFileInfo> snapshots{
+        {2, 0},
+    };
+    std::vector<THydraFileInfo> changelogs{
+        {0, 0},
+        {1, 0},
+        {2, 0},
+    };
+    auto config = New<THydraJanitorConfig>();
+    config->MaxChangelogCountToKeep = 2;
+    ASSERT_EQ(2, ComputeJanitorThresholdId(snapshots, changelogs, config));
+}
+
+TEST(TJanitorSnapshotChangelogTest, ZerothChangelogIsSpecial3)
+{
+    std::vector<THydraFileInfo> snapshots{
+        {2, 0},
+    };
+    std::vector<THydraFileInfo> changelogs{
+        {0, 0},
+        {1, 0},
+        {2, 0},
+    };
+    auto config = New<THydraJanitorConfig>();
+    config->MaxSnapshotCountToKeep = 0;
+    ASSERT_EQ(2, ComputeJanitorThresholdId(snapshots, changelogs, config));
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

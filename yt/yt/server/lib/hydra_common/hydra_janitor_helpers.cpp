@@ -29,7 +29,8 @@ int ComputeJanitorThresholdId(
     int thresholdIdBySize = 0;
     if (maxSizeToKeep) {
         i64 totalSize = 0;
-        for (auto it = files.rbegin(); it != files.rend(); ++it) {
+        auto it = files.rbegin();
+        for (; it != files.rend(); ++it) {
             const auto& file = *it;
             if (totalSize == 0 || totalSize + file.Size <= *maxSizeToKeep) {
                 totalSize += file.Size;
@@ -37,6 +38,9 @@ int ComputeJanitorThresholdId(
             } else {
                 break;
             }
+        }
+        if (it == files.rend()) {
+            thresholdIdBySize = 0;
         }
     }
 
@@ -69,6 +73,19 @@ int ComputeJanitorThresholdId(
             config->MaxChangelogCountToKeep,
             config->MaxChangelogSizeToKeep),
         maxSnapshotId);
+
+    // Zeroth changelog is vital for recovery.
+    // Do not delete it unless config dictates otherwise.
+    auto it = std::find_if(
+        changelogs.begin(),
+        changelogs.end(),
+        [] (const THydraFileInfo& file) {
+            return file.Id == 0;
+        });
+
+    if (it != changelogs.end() && changelogThresholdId == 0) {
+        minSnapshotId = 0;
+    }
 
     int thresholdId = std::max(
         std::max(snapshotThresholdId, changelogThresholdId),
