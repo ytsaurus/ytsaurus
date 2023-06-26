@@ -1,25 +1,16 @@
-FROM jupyter/minimal-notebook:1aac87eb7fa5
+FROM ubuntu:focal
 
 USER root
 
 WORKDIR /tmp
 
-ARG YTSERVER_ALL_PATH=ytserver-all
-ARG CHYT_CONTROLLER_PATH=chyt-controller
-ARG CLICKHOUSE_TRAMPOLINE_PATH=clickhouse-trampoline
-ARG YTSERVER_CLICKHOUSE_PATH=ytserver-clickhouse
-ARG YTSERVER_LOG_TAILER_PATH=ytserver-log-tailer
-ARG INIT_OPERATION_ARCHIVE_PATH=init_operation_archive
+ARG SPYT_VERSION=1.69.3
+ARG SPARK_VERSION=1.69.0
 
-ARG YTSERVER_ALL_CREDITS_PATH=ytserver-all.CREDITS
-ARG CHYT_CONTROLLER_CREDITS_PATH=chyt-controller.CREDITS
-ARG YTSERVER_CLICKHOUSE_CREDITS_PATH=ytserver-clickhouse.CREDITS
-ARG YTSERVER_LOG_TAILER_CREDITS_PATH=ytserver-log-tailer.CREDITS
+# Main binary.
+COPY ./ytserver-all /usr/bin/ytserver-all
 
-ARG DRIVER_BINDINGS_PACKAGE_PATH=ytsaurus_native_driver-1.0.0-cp39-cp39-linux_x86_64.whl
-
-COPY ${YTSERVER_ALL_PATH} /usr/bin/ytserver-all
-
+# If this list changes, also update yt_nightly/Dockerfile
 RUN ln /usr/bin/ytserver-all /usr/bin/ytserver-master && \
     ln /usr/bin/ytserver-all /usr/bin/ytserver-clock && \
     ln /usr/bin/ytserver-all /usr/bin/ytserver-discovery && \
@@ -33,35 +24,34 @@ RUN ln /usr/bin/ytserver-all /usr/bin/ytserver-master && \
     ln /usr/bin/ytserver-all /usr/bin/ytserver-controller-agent && \
     ln /usr/bin/ytserver-all /usr/bin/ytserver-query-tracker
 
+COPY ./init_operation_archive.py /usr/bin/init_operation_archive
+
 # CHYT bits and pieces.
-COPY ${CHYT_CONTROLLER_PATH} /usr/bin/chyt-controller
-COPY ${CLICKHOUSE_TRAMPOLINE_PATH} /usr/bin/clickhouse-trampoline
-COPY ${YTSERVER_CLICKHOUSE_PATH} /usr/bin/ytserver-clickhouse
-COPY ${YTSERVER_LOG_TAILER_PATH} /usr/bin/ytserver-log-tailer
+COPY ./chyt-controller /usr/bin/chyt-controller
+COPY ./clickhouse-trampoline.py /usr/bin/clickhouse-trampoline
+COPY ./ytserver-clickhouse /usr/bin/ytserver-clickhouse
+COPY ./ytserver-log-tailer /usr/bin/ytserver-log-tailer
 
-# Static binary built in arcadia.
-COPY ${INIT_OPERATION_ARCHIVE_PATH} /usr/bin/init_operation_archive
+# SPYT pieces.
+COPY ./spyt_release/home/spark/conf/releases/${SPARK_VERSION}/metrics.properties /usr/bin/metrics.properties
+COPY ./spyt_release/home/spark/conf/releases/${SPARK_VERSION}/solomon-agent.template.conf /usr/bin/solomon-agent.template.conf
+COPY ./spyt_release/home/spark/conf/releases/${SPARK_VERSION}/solomon-service-master.template.conf /usr/bin/solomon-service-master.template.conf
+COPY ./spyt_release/home/spark/conf/releases/${SPARK_VERSION}/solomon-service-worker.template.conf /usr/bin/solomon-service-worker.template.conf
+COPY ./spyt_release/home/spark/spark/releases/${SPARK_VERSION}/spark.tgz /usr/bin/spark.tgz
+COPY ./spyt_release/home/spark/spyt/releases/${SPYT_VERSION}/spark-yt-data-source.jar /usr/bin/spark-yt-data-source.jar
+COPY ./spyt_release/home/spark/spyt/releases/${SPYT_VERSION}/spyt.zip /usr/bin/spyt.zip
+COPY ./spyt_release/home/spark/bin/releases/${SPARK_VERSION}/spark-yt-launcher.jar /usr/bin/spark-yt-launcher.jar
 
-# SPYT files
-COPY spyt_release/home/spark/conf/releases/1.67.0/metrics.properties /usr/bin/metrics.properties
-COPY spyt_release/home/spark/conf/releases/1.67.0/solomon-agent.template.conf /usr/bin/solomon-agent.template.conf
-COPY spyt_release/home/spark/conf/releases/1.67.0/solomon-service-master.template.conf /usr/bin/solomon-service-master.template.conf
-COPY spyt_release/home/spark/conf/releases/1.67.0/solomon-service-worker.template.conf /usr/bin/solomon-service-worker.template.conf
+# CREDITS files with licenses for all binaries.
+COPY ./credits/ytserver-all.CREDITS /usr/bin/ytserver-all.CREDITS
+COPY ./credits/chyt-controller.CREDITS  /usr/bin/chyt-controller.CREDITS
+COPY ./credits/ytserver-clickhouse.CREDITS /usr/bin/ytserver-clickhouse.CREDITS
+COPY ./credits/ytserver-log-tailer.CREDITS  /usr/bin/ytserver-log-tailer.CREDITS
 
-COPY spyt_release/home/spark/spark/releases/3.2.2-fork-1.67.0/spark.tgz /usr/bin/spark.tgz
+RUN apt-get update && apt-get install -y software-properties-common
+RUN add-apt-repository ppa:deadsnakes/ppa
 
-COPY spyt_release/home/spark/spyt/releases/1.67.3/spark-yt-data-source.jar /usr/bin/spark-yt-data-source.jar
-COPY spyt_release/home/spark/spyt/releases/1.67.3/spyt.zip /usr/bin/spyt.zip
-
-COPY spyt_release/home/spark/bin/releases/1.67.0/spark-yt-launcher.jar /usr/bin/spark-yt-launcher.jar
-
-# CREDITS files with licenses for all binaries
-COPY ${YTSERVER_ALL_CREDITS_PATH} /usr/bin/ytserver-all.CREDITS
-COPY ${CHYT_CONTROLLER_CREDITS_PATH} /usr/bin/chyt-controller.CREDITS
-COPY ${YTSERVER_CLICKHOUSE_CREDITS_PATH} /usr/bin/ytserver-clickhouse.CREDITS
-COPY ${YTSERVER_LOG_TAILER_CREDITS_PATH} /usr/bin/ytserver-log-tailer.CREDITS
-
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
   curl \
   less \
   gdb \
@@ -71,39 +61,38 @@ RUN apt-get update && apt-get install -y \
   dnsutils \
   iputils-ping \
   lsb-release \
-  openjdk-11-jdk
+  openjdk-11-jdk \
+  python3.7 \
+  python3-pip \
+  python3.7-distutils
 
-# This is required for jobs, using yson format in python 3.
-RUN pip install -i https://pypi.org/simple/ \
-    ytsaurus-client \
-    ytsaurus-yson
+RUN python3.7 -m pip install \
+    ytsaurus-spyt==${SPYT_VERSION}
 
-# Default python to be used by python3 jobs, for compatibility with jupyter tutorial.
-RUN ln -s /opt/conda/bin/python3.7 /usr/bin/python3 -f
-
-RUN /opt/conda/bin/python3.7 -m pip install -i https://pypi.org/simple/ \
-    ytsaurus-client \
-    ytsaurus-local
-
-# Local built package with native driver bindings
-COPY ${DRIVER_BINDINGS_PACKAGE_PATH} ytsaurus_native_driver-1.0.0-py2.py3-none-any.whl
-RUN /opt/conda/bin/python3.7 -m pip install /tmp/ytsaurus_native_driver-1.0.0-py2.py3-none-any.whl \
-    --extra-index-url https://pypi.org/simple/
-RUN rm /tmp/ytsaurus_native_driver-1.0.0-py2.py3-none-any.whl
-
-# Add symlink for yt
-RUN ln -s /opt/conda/bin/yt /usr/bin/yt -f
+COPY ./ytsaurus_python /tmp/ytsaurus_python
+RUN for package in client yson local native_driver; \
+  do \
+    dist_dir="/tmp/ytsaurus_python/ytsaurus_${package}_dist"; \
+    wheel_path="${dist_dir}/$(ls ${dist_dir} | grep "^ytsaurus_$package.*whl$")"; \
+    echo "DIST_DIR: ${dist_dir}"; \
+    echo "WHEEL_PATH: ${wheel_path}"; \
+    python3.7 -m pip install ${wheel_path}; \
+  done
 
 RUN ln -s /usr/lib/jvm/java-11-openjdk-amd64 /opt/jdk11
 
+# Default python to be used by python3 jobs, for compatibility with jupyter tutorial.
+RUN ln -s /usr/bin/python3.7 /usr/bin/python3 -f
 # Force lsb_release to use python it was born to use.
 RUN sed -i 's/python3/python3.8/' /usr/bin/lsb_release
+
+RUN ln -s /usr/local/bin/yt /usr/bin/yt -f
 
 # TODO: add opportunity to get this files in opensource
 # Static binaries & shared libraries built in arcadia.
 # In order to obtain them, run the following command in yt/yql/package:
 #   ya package package.json --raw-package-path yql_package
 # And move the resulting directory to the context of docker build.
-COPY yql_package/ytserver-yql-agent /usr/bin/
-COPY yql_package/mrjob /usr/bin/
-COPY yql_package/lib*.so /usr/lib/yql/
+COPY ./yql_package/ytserver-yql-agent /usr/bin/
+COPY ./yql_package/mrjob /usr/bin/
+COPY ./yql_package/lib*.so /usr/lib/yql/

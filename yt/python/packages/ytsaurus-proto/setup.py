@@ -1,14 +1,18 @@
 PACKAGE_NAME = "yandex-yt-proto"
-VERSION = "1.0.0"
+
+MAJOR_VERSION = "1.0"
+
 
 def main():
-    from yt_setup.helpers import recursive
+    from yt_setup.helpers import recursive, get_package_version
 
     from setuptools import setup
 
+    version = get_package_version(MAJOR_VERSION)
+
     setup(
         name=PACKAGE_NAME,
-        version=VERSION,
+        version=version,
         packages=recursive("yt_proto"),
 
         author="YTsaurus",

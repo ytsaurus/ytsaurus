@@ -1,9 +1,15 @@
 PACKAGE_NAME = "ytsaurus-native-driver"
-VERSION = "1.0.0"
+
+MAJOR_VERSION = "1.0"
+
 
 def main():
     from setuptools import setup
     from setuptools.dist import Distribution
+
+    from yt_setup.helpers import get_package_version
+
+    version = get_package_version(MAJOR_VERSION)
 
     class BinaryDistribution(Distribution):
         def is_pure(self):
@@ -15,7 +21,7 @@ def main():
 
     setup(
         name=PACKAGE_NAME,
-        version=VERSION,
+        version=version,
         packages=["yt_driver_bindings"],
         package_data={
             "yt_driver_bindings": [

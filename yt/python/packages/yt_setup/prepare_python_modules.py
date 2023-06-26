@@ -2,10 +2,11 @@
 # -*- coding: utf-8 -*-
 
 import argparse
+import logging
 import glob
 import os
 
-from .prepare_source_tree_helpers import (
+from .os_helpers import (
     apply_multiple,
     cp_r,
     cp,
@@ -32,7 +33,7 @@ CONTRIB_PYTHON_PACKAGE_LIST = [
     "backports_abc",
     "singledispatch",
     ("tornado", "tornado/tornado-4"),
-    "tqdm",
+    ("tqdm", "tqdm/py2"),
     ("typing_extensions", "typing-extensions/py3"),
     ("idna", "idna/py2"),
     "six",
@@ -56,6 +57,10 @@ YT_PREFIX_BINARIES = [
 ]
 
 
+def cp_r_755(src, dst):
+    cp_r(src, dst, permissions=0o755)
+
+
 def fix_type_info_package(type_info_path):
     for root, dirs, files in os.walk(type_info_path):
         for file in files:
@@ -68,7 +73,7 @@ def fix_type_info_package(type_info_path):
                 fout.write(data)
 
 
-def prepare_python_source_tree(
+def prepare_python_modules(
         source_root,
         output_path,
         build_root,
@@ -90,7 +95,7 @@ def prepare_python_source_tree(
                 os.path.join(build_root, library_path, "lib{name}.so".format(name=name)),
                 os.path.join(output_path, "{}/{}.so".format(os.path.basename(module_path), name)))
 
-    cp_r(os.path.join(python_root, "yt"), output_path)
+    cp_r_755(os.path.join(python_root, "yt"), output_path)
 
     packages_dir = os.path.join(output_path, "yt", "packages")
 
@@ -116,7 +121,7 @@ def prepare_python_source_tree(
                 package_relative_path=package_relative_path,
                 package_name=package_name))
         for path in files_to_copy:
-            cp_r(path, packages_dir)
+            cp_r_755(path, packages_dir)
 
     if os.path.exists(os.path.join(source_root, "contrib/python")):
         for package_name in CONTRIB_PYTHON_PACKAGE_LIST:
@@ -148,10 +153,10 @@ def prepare_python_source_tree(
                     logger.warning("Package %s was not found at default contrib path and was taken from contrib/deprecated", package_name)
 
             for path in files_to_copy:
-                cp_r(path, packages_dir)
+                cp_r_755(path, packages_dir)
 
     # Replace certificate.
-    cp_r(os.path.join(source_root, "certs", "cacert.pem"), os.path.join(packages_dir, "requests"))
+    cp_r_755(os.path.join(source_root, "certs", "cacert.pem"), os.path.join(packages_dir, "requests"))
 
     replace(python_contrib_path("python-fusepy/fuse.py"), packages_dir)
 
@@ -190,7 +195,10 @@ def main():
     parser.add_argument("--prepare-bindings-libraries", action="store_true", default=False)
     args = parser.parse_args()
 
-    prepare_python_source_tree(
+    logger.addHandler(logging.StreamHandler())
+    logger.setLevel(logging.INFO)
+
+    prepare_python_modules(
         source_root=args.source_root,
         output_path=args.output_path,
         build_root=args.build_root,
