@@ -986,8 +986,12 @@ public:
     //! from TUserJobSpec.
     std::optional<TDuration> JobSpeculationTimeout;
 
-    //! Should match the atomicity of output dynamic tables. If present, output dynamic tables are not locked.
+    //! Should match the atomicity of output dynamic tables.
     NTransactionClient::EAtomicity Atomicity;
+
+    //! If explicitly set, overrides the default behaviour or locking output dynamic tables depending
+    //! on their atomicity.
+    std::optional<bool> LockOutputDynamicTables;
 
     TJobCpuMonitorConfigPtr JobCpuMonitor;
 

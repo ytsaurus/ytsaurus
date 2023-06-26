@@ -34,6 +34,7 @@ DEFINE_ENUM(ETabletReign,
     ((JournalHunks)                       (100701)) // aleksandra-zh
     ((FixHunkStorage)                     (100702)) // gritukan
     ((SendDynamicStoreInBackup)           (100703)) // ifsmirnov
+    ((FixBulkInsertAtomicityNone)         (100704)) // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

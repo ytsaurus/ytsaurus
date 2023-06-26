@@ -156,6 +156,7 @@ DEFINE_ENUM(EMasterReign,
     ((LimitParallelismOfCfr)                                        (2341))  // akozhikhov
     ((ExTransactionCoordinatorCellRole)                             (2342))  // shakurov
     ((RecomputeMasterTableSchemaRefCounters)                        (2343))  // h0pless
+    ((FixBulkInsertAtomicityNone)                                   (2344))  // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1313,7 +1313,7 @@ private:
         const auto& lockManager = tablet->GetLockManager();
         lockManager->Lock(lockTimestamp, transactionId, /*confirmed*/ false);
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet locked (TabletId: %v, TransactionId: %v)",
+        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet locked by bulk insert (TabletId: %v, TransactionId: %v)",
             tabletId,
             transactionId);
 
@@ -1334,7 +1334,7 @@ private:
             return;
         }
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet lock confirmed (TabletId: %v, TransactionIds: %v)",
+        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet bulk insert lock confirmed (TabletId: %v, TransactionIds: %v)",
             tabletId,
             transactionIds);
 
@@ -1398,21 +1398,28 @@ private:
 
         const auto& lockManager = tablet->GetLockManager();
 
-        if (tablet->GetAtomicity() == EAtomicity::Full) {
+        // COMPAT(ifsmirnov)
+        bool shouldUnlock;
+        if (GetCurrentMutationContext()->Request().Reign >=
+            static_cast<int>(ETabletReign::FixBulkInsertAtomicityNone))
+        {
+            shouldUnlock = tablet->GetLockManager()->HasTransaction(transactionId);
+        } else {
+            shouldUnlock = tablet->GetAtomicity() == EAtomicity::Full;
+        }
+
+        if (shouldUnlock) {
             auto nextEpoch = lockManager->GetEpoch() + 1;
             UpdateTabletSnapshot(tablet, nextEpoch);
 
-            // COMPAT(ifsmirnov)
-            auto commitTimestamp = request->has_commit_timestamp()
-                ? request->commit_timestamp()
-                : MinTimestamp;
+            auto commitTimestamp = request->commit_timestamp();
             lockManager->Unlock(commitTimestamp, transactionId);
         } else {
             UpdateTabletSnapshot(tablet);
         }
 
         YT_LOG_INFO_IF(IsMutationLoggingEnabled(),
-            "Tablet unlocked (%v, TransactionId: %v, AddedStoreIds: %v, LockManagerEpoch: %v)",
+            "Tablet unlocked by bulk insert (%v, TransactionId: %v, AddedStoreIds: %v, LockManagerEpoch: %v)",
             tablet->GetLoggingTag(),
             transactionId,
             addedStoreIds,
