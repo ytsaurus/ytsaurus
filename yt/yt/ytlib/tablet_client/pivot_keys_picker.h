@@ -15,7 +15,8 @@ std::vector<NTableClient::TLegacyOwningKey> PickPivotKeysWithSlicing(
     const NYPath::TYPath& path,
     int tabletCount,
     const NApi::TReshardTableOptions& options,
-    const NLogging::TLogger& Logger);
+    const NLogging::TLogger& Logger,
+    bool enableVerboseLogging = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 

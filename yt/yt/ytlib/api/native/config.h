@@ -302,9 +302,6 @@ public:
 
     NTransactionClient::TDynamicClockManagerConfigPtr ClockManager;
 
-    // TODO(alexelexa): remove.
-    bool EnableReshardWithSlicingVerboseLogging;
-
     int ReplicaFallbackRetryCount;
 
     REGISTER_YSON_STRUCT(TConnectionDynamicConfig);

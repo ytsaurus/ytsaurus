@@ -49,7 +49,8 @@ std::vector<TLegacyOwningKey> PickPivotKeysWithSlicing(
     const TYPath& path,
     int tabletCount,
     const TReshardTableOptions& options,
-    const TLogger& Logger)
+    const TLogger& Logger,
+    bool enableVerboseLogging)
 {
     const auto& connection = client->GetNativeConnection();
     const auto& tableMountCache = connection->GetTableMountCache();
@@ -133,7 +134,6 @@ std::vector<TLegacyOwningKey> PickPivotKeysWithSlicing(
 
     auto expectedTabletSize = DivCeil<i64>(chunksDataWeight, tabletCount);
     i64 minSliceSize = std::max(expectedTabletSize * accuracy / ExpectedAverageOverlapping, 1.);
-    bool enableVerboseLogging = connection->GetConfig()->EnableReshardWithSlicingVerboseLogging;
 
     YT_LOG_DEBUG("Initializing pivot keys builder for resharding with slicing"
         " (ChunksDataWeight: %v, ExpectedTabletSize: %v, MinSliceSize: %v, Accuracy: %v, EnableVerboseLogging: %v)",
