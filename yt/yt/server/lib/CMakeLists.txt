@@ -62,6 +62,8 @@ target_link_libraries(ytserver INTERFACE
   cpp-porto-proto
   yt-library-re2
   yt-library-auth
+  library-query-engine
+  library-query-row_comparer
   core-rpc-grpc
   yt-yt-ytlib
   yt-library-auth_server
