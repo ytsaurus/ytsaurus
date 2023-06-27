@@ -288,7 +288,8 @@ std::vector<TLegacyOwningKey> PickPivotKeysWithSlicing(
         THROW_ERROR_EXCEPTION("Could not reshard table %v to desired tablet count; consider reducing tablet count or specifying pivot keys manually",
             path)
             << TErrorAttribute("tablet_count", tabletCount)
-            << TErrorAttribute("max_block_size", maxBlockSize);
+            << TErrorAttribute("max_block_size", maxBlockSize)
+            << TErrorAttribute("expected_tablet_size", reshardBuilder.GetExpectedTabletSize());
     }
 
     return reshardBuilder.GetPivotKeys();
