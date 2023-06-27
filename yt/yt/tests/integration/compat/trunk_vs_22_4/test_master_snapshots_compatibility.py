@@ -38,8 +38,8 @@ class MasterSnapshotsCompatibilityBase(YTEnvSetup):
     }
 
     ARTIFACT_COMPONENTS = {
-        "22_4": ["master", "node", "exec", "tools"],
-        "trunk": ["scheduler", "controller-agent", "proxy", "http-proxy", "job-proxy"],
+        "22_4": ["master"],
+        "trunk": ["scheduler", "controller-agent", "proxy", "http-proxy", "job-proxy", "node", "exec", "tools"],
     }
 
     # COMPAT(gepardo): Remove this after 22.4.
@@ -192,8 +192,8 @@ class TestMasterSnapshotsCompatibility(MasterSnapshotsCompatibilityBase):
 
 class TestTabletCellsSnapshotsCompatibility(MasterSnapshotsCompatibilityBase):
     ARTIFACT_COMPONENTS = {
-        "22_4": ["master", "node", "tools", "exec"],
-        "trunk": ["scheduler", "controller-agent", "proxy", "http-proxy", "job-proxy"],
+        "22_4": ["master"],
+        "trunk": ["scheduler", "controller-agent", "proxy", "http-proxy", "job-proxy", "node", "tools", "exec"],
     }
 
     # COMPAT(gepardo): Remove this after 22.4.
