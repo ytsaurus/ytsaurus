@@ -359,6 +359,11 @@ public:
         return minNeededResourcesList;
     }
 
+    TJobResourcesWithQuotaList GetInitialMinNeededJobResources() const override
+    {
+        return GetMinNeededJobResources();
+    }
+
     EPreemptionMode PreemptionMode = EPreemptionMode::Normal;
 
     EPreemptionMode GetPreemptionMode() const override
@@ -469,7 +474,7 @@ public:
     void EraseTrees(const std::vector<TString>& /*treeIds*/) override
     { }
 
-    std::optional<TJobResources> GetInitialAggregatedMinNeededResources() const override
+    std::optional<TJobResources> GetAggregatedInitialMinNeededResources() const override
     {
         return std::nullopt;
     }

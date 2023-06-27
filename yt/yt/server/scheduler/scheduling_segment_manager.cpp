@@ -158,9 +158,13 @@ void TSchedulingSegmentManager::UpdateSchedulingSegments(TUpdateSchedulingSegmen
 }
 
 void TSchedulingSegmentManager::InitOrUpdateOperationSchedulingSegment(
+    TOperationId operationId,
     const TFairShareTreeJobSchedulerOperationStatePtr& operationState) const
 {
-    YT_VERIFY(operationState->InitialAggregatedMinNeededResources.has_value());
+    if (!operationState->AggregatedInitialMinNeededResources) {
+        // May happen if we're updating segments config, and there's an operation that hasn't materialized yet.
+        return;
+    }
 
     auto segment = [&] {
         if (auto specifiedSegment = operationState->Spec->SchedulingSegment) {
@@ -170,7 +174,7 @@ void TSchedulingSegmentManager::InitOrUpdateOperationSchedulingSegment(
         switch (Config_->Mode) {
             case ESegmentedSchedulingMode::LargeGpu: {
                 bool meetsGangCriterion = operationState->IsGang || !Config_->AllowOnlyGangOperationsInLargeSegment;
-                auto jobGpuDemand = operationState->InitialAggregatedMinNeededResources->GetGpu();
+                auto jobGpuDemand = operationState->AggregatedInitialMinNeededResources->GetGpu();
                 bool meetsJobGpuDemandCriterion = (jobGpuDemand == LargeGpuSegmentJobGpuDemand);
                 return meetsGangCriterion && meetsJobGpuDemandCriterion
                     ? ESchedulingSegment::LargeGpu
@@ -185,13 +189,14 @@ void TSchedulingSegmentManager::InitOrUpdateOperationSchedulingSegment(
         YT_LOG_DEBUG(
             "Setting new scheduling segment for operation ("
             "Segment: %v, Mode: %v, AllowOnlyGangOperationsInLargeSegment: %v, IsGang: %v, "
-            "InitialMinNeededResources: %v, SpecifiedSegment: %v)",
+            "InitialMinNeededResources: %v, SpecifiedSegment: %v, OperationId: %v)",
             segment,
             Config_->Mode,
             Config_->AllowOnlyGangOperationsInLargeSegment,
             operationState->IsGang,
-            operationState->InitialAggregatedMinNeededResources,
-            operationState->Spec->SchedulingSegment);
+            operationState->AggregatedInitialMinNeededResources,
+            operationState->Spec->SchedulingSegment,
+            operationId);
 
         operationState->SchedulingSegment = segment;
         operationState->SpecifiedSchedulingSegmentModules = operationState->Spec->SchedulingSegmentModules;

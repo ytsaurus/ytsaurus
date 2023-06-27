@@ -843,6 +843,8 @@ public:
         EAbortReason abortReason,
         TControllerEpoch jobEpoch);
 
+    TJobResources GetAggregatedInitialMinNeededResources() const;
+
     //! Resource tree methods.
     EResourceTreeIncreaseResult TryIncreaseHierarchicalResourceUsagePrecommit(
         const TJobResources& delta,
@@ -856,8 +858,6 @@ public:
     std::optional<TString> GetCustomProfilingTag() const;
 
     bool IsLimitingAncestorCheckEnabled() const;
-
-    std::optional<TJobResources> GetInitialAggregatedMinNeededResources() const;
 
 protected:
     //! Pre update methods.

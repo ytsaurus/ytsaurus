@@ -156,7 +156,7 @@ TOperation::TOperation(
     EOperationState state,
     const std::vector<TOperationEvent>& events,
     bool suspended,
-    const std::optional<TJobResources>& initialAggregatedMinNeededResources,
+    const std::optional<TJobResources>& aggregatedInitialMinNeededResources,
     int registrationIndex,
     const THashMap<EOperationAlertType, TOperationAlert>& alerts)
     : MutationId_(mutationId)
@@ -184,7 +184,7 @@ TOperation::TOperation(
     , State_(state)
     , RuntimeParameters_(std::move(runtimeParameters))
     , Alerts_(alerts.begin(), alerts.end())
-    , InitialAggregatedMinNeededResources_(initialAggregatedMinNeededResources)
+    , AggregatedInitialMinNeededResources_(aggregatedInitialMinNeededResources)
 {
     YT_VERIFY(SpecString_);
     Restart(TError()); // error is fake
@@ -382,15 +382,9 @@ void TOperation::SetRunningInStrategy()
     RunningInStrategy_= true;
 };
 
-std::optional<TJobResources> TOperation::GetInitialAggregatedMinNeededResources() const
+std::optional<TJobResources> TOperation::GetAggregatedInitialMinNeededResources() const
 {
-    return InitialAggregatedMinNeededResources_;
-}
-
-void TOperation::SetInitialAggregatedMinNeededResources(const std::optional<TJobResources>& resources)
-{
-    ShouldFlush_ = true;
-    InitialAggregatedMinNeededResources_ = resources;
+    return AggregatedInitialMinNeededResources_;
 }
 
 void TOperation::SetRuntimeParameters(TOperationRuntimeParametersPtr parameters)

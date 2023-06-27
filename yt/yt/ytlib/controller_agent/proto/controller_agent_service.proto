@@ -172,8 +172,7 @@ message TMaterializeOperationResult
     // Set to true if suspend_operation_after_materialization is set.
     required bool suspend = 1;
     required TCompositeNeededResources initial_composite_needed_resources = 2;
-    required NScheduler.NProto.TJobResources initial_aggregated_min_needed_resources = 3;
-    repeated NScheduler.NProto.TJobResourcesWithQuota initial_min_needed_job_resources = 4;
+    repeated NScheduler.NProto.TJobResourcesWithQuota initial_min_needed_resources = 3;
 }
 
 message TReqMaterializeOperation
@@ -210,7 +209,8 @@ message TReviveOperationResult
     required bool control_job_lifetime_at_scheduler = 7;
     repeated string revived_banned_tree_ids = 4;
     required TCompositeNeededResources composite_needed_resources = 5;
-    repeated NScheduler.NProto.TJobResourcesWithQuota min_needed_job_resources = 6;
+    repeated NScheduler.NProto.TJobResourcesWithQuota min_needed_resources = 6;
+    repeated NScheduler.NProto.TJobResourcesWithQuota initial_min_needed_resources = 9;
     required int32 controller_epoch = 8;
 }
 

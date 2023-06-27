@@ -87,7 +87,7 @@ void FromProto(TOperationInfo* operationInfo, const NProto::TOperationInfo& oper
     FromProto(&neededResources, operationInfoProto.composite_needed_resources());
     controllerData->SetNeededResources(std::move(neededResources));
 
-    controllerData->MinNeededJobResources() = FromProto<TJobResourcesWithQuotaList>(operationInfoProto.min_needed_job_resources());
+    controllerData->MinNeededResources() = FromProto<TJobResourcesWithQuotaList>(operationInfoProto.min_needed_resources());
     operationInfo->ControllerRuntimeData = std::move(controllerData);
 }
 

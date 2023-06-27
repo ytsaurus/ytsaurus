@@ -68,6 +68,23 @@ TJobResources TFairShareStrategyOperationController::GetAggregatedMinNeededJobRe
     for (const auto& jobResources : GetDetailedMinNeededJobResources()) {
         result = Min(result, jobResources.ToJobResources());
     }
+
+    return result;
+}
+
+TJobResources TFairShareStrategyOperationController::GetAggregatedInitialMinNeededJobResources() const
+{
+    auto initialMinNeededResources = Controller_->GetInitialMinNeededJobResources();
+    if (initialMinNeededResources.empty()) {
+        // A reasonable fallback, but this should really never happen.
+        return TJobResources();
+    }
+
+    auto result = initialMinNeededResources.front().ToJobResources();
+    for (const auto& jobResources : initialMinNeededResources) {
+        result = Min(result, jobResources.ToJobResources());
+    }
+
     return result;
 }
 

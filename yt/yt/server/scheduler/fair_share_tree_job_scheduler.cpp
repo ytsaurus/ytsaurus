@@ -2718,10 +2718,11 @@ void TFairShareTreeJobScheduler::OnOperationMaterialized(const TSchedulerOperati
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    const auto& operationState = GetOperationState(element->GetOperationId());
-    operationState->InitialAggregatedMinNeededResources = element->GetInitialAggregatedMinNeededResources();
+    auto operationId = element->GetOperationId();
+    const auto& operationState = GetOperationState(operationId);
+    operationState->AggregatedInitialMinNeededResources = element->GetAggregatedInitialMinNeededResources();
 
-    SchedulingSegmentManager_.InitOrUpdateOperationSchedulingSegment(operationState);
+    SchedulingSegmentManager_.InitOrUpdateOperationSchedulingSegment(operationId, operationState);
 }
 
 TError TFairShareTreeJobScheduler::CheckOperationSchedulingInSeveralTreesAllowed(const TSchedulerOperationElement* element) const
@@ -3079,8 +3080,8 @@ void TFairShareTreeJobScheduler::UpdateConfig(TFairShareStrategyTreeConfigPtr co
     SchedulingSegmentsManagementExecutor_->SetPeriod(Config_->SchedulingSegments->ManagePeriod);
     SchedulingSegmentManager_.UpdateConfig(Config_->SchedulingSegments);
     if (oldConfig->SchedulingSegments->Mode != Config_->SchedulingSegments->Mode) {
-        for (const auto& [_, operationState] : OperationIdToState_) {
-            SchedulingSegmentManager_.InitOrUpdateOperationSchedulingSegment(operationState);
+        for (const auto& [operationId, operationState] : OperationIdToState_) {
+            SchedulingSegmentManager_.InitOrUpdateOperationSchedulingSegment(operationId, operationState);
         }
     }
 
@@ -3140,6 +3141,9 @@ void TFairShareTreeJobScheduler::InitPersistentState(INodePtr persistentState)
     auto now = TInstant::Now();
     SchedulingSegmentsInitializationDeadline_ = now + Config_->SchedulingSegments->InitializationTimeout;
     SchedulingSegmentManager_.SetInitializationDeadline(SchedulingSegmentsInitializationDeadline_);
+
+    YT_LOG_DEBUG("Initialized tree job scheduler persistent state (SchedulingSegmentsInitializationDeadline: %v)",
+        SchedulingSegmentsInitializationDeadline_);
 }
 
 INodePtr TFairShareTreeJobScheduler::BuildPersistentState() const

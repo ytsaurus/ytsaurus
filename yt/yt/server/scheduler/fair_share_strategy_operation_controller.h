@@ -26,6 +26,7 @@ public:
     TCompositeNeededResources GetNeededResources() const;
     TJobResourcesWithQuotaList GetDetailedMinNeededJobResources() const;
     TJobResources GetAggregatedMinNeededJobResources() const;
+    TJobResources GetAggregatedInitialMinNeededJobResources() const;
 
     void UpdateMinNeededJobResources();
 

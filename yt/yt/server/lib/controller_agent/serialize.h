@@ -25,6 +25,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((InputStreamDescriptors)               (301200))
     ((DoNotPersistJobReleaseFlags)          (301201))
     ((JobStateInJoblet)                     (301202))
+    ((InitialMinNeededResources)            (301203))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

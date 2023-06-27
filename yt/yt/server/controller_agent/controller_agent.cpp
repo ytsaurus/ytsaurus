@@ -1627,7 +1627,7 @@ private:
             }
 
             ToProto(protoOperation->mutable_composite_needed_resources(), controller->GetNeededResources());
-            ToProto(protoOperation->mutable_min_needed_job_resources(), controller->GetMinNeededJobResources());
+            ToProto(protoOperation->mutable_min_needed_resources(), controller->GetMinNeededJobResources());
         }
 
         request->set_exec_nodes_requested(preparedRequest.ExecNodesRequested);

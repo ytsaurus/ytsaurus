@@ -47,7 +47,7 @@ public:
 
     void EraseTrees(const std::vector<TString>& treeIds) override;
 
-    std::optional<NScheduler::TJobResources> GetInitialAggregatedMinNeededResources() const override;
+    std::optional<NScheduler::TJobResources> GetAggregatedInitialMinNeededResources() const override;
 
     bool SetCompleting();
 

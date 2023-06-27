@@ -1070,6 +1070,8 @@ private:
 
     TAtomicObject<NScheduler::TJobResourcesWithQuotaList> CachedMinNeededJobResources;
 
+    NScheduler::TJobResourcesWithQuotaList InitialMinNeededResources_;
+
     class TCachedYsonCallback
     {
     public:

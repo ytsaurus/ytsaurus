@@ -94,7 +94,9 @@ public:
 
     void UpdateSchedulingSegments(TUpdateSchedulingSegmentsContext* context);
 
-    void InitOrUpdateOperationSchedulingSegment(const TFairShareTreeJobSchedulerOperationStatePtr& operationState) const;
+    void InitOrUpdateOperationSchedulingSegment(
+        TOperationId operationId,
+        const TFairShareTreeJobSchedulerOperationStatePtr& operationState) const;
 
     void UpdateConfig(TFairShareStrategySchedulingSegmentsConfigPtr config);
 

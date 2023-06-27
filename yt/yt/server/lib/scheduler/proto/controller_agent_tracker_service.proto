@@ -39,7 +39,7 @@ message TOperationInfo
     optional TOperationAlerts alerts = 3;
     optional bytes suspicious_jobs = 4;
     optional NYT.NControllerAgent.NProto.TCompositeNeededResources composite_needed_resources = 6;
-    repeated TJobResourcesWithQuota min_needed_job_resources = 7;
+    repeated TJobResourcesWithQuota min_needed_resources = 7;
 }
 
 message TAgentToSchedulerOperationEvent
