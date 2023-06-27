@@ -210,6 +210,7 @@ public:
 
     void UpdateMinNeededJobResources() override;
     TJobResourcesWithQuotaList GetMinNeededJobResources() const override;
+    TJobResourcesWithQuotaList GetInitialMinNeededJobResources() const override;
 
     TString GetLoggingProgress() const override;
 
@@ -234,6 +235,8 @@ private:
     TCompactVector<TJobBucket*, TEnumTraits<EJobType>::GetDomainSize()> ActiveBuckets_;
     TJobResourcesWithQuotaList CachedMinNeededJobResources;
     ///////////////////////
+
+    TJobResourcesWithQuotaList InitialMinNeededResources_;
 
     // Lock_ must be acquired.
     bool FindJobToSchedule(
@@ -325,6 +328,9 @@ TSimulatorOperationController::TSimulatorOperationController(
     for (const auto& [_, bucket] : JobBuckets_) {
         bucket->FinishInitialization();
     }
+
+    UpdateMinNeededJobResources();
+    InitialMinNeededResources_ = GetMinNeededJobResources();
 }
 
 // Lock_ must be acquired.
@@ -495,6 +501,11 @@ TJobResourcesWithQuotaList TSimulatorOperationController::GetMinNeededJobResourc
 {
     auto guard = Guard(Lock_);
     return CachedMinNeededJobResources;
+}
+
+TJobResourcesWithQuotaList TSimulatorOperationController::GetInitialMinNeededJobResources() const
+{
+    return InitialMinNeededResources_;
 }
 
 TString TSimulatorOperationController::GetLoggingProgress() const

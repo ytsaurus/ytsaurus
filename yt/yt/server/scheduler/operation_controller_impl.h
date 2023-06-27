@@ -71,6 +71,7 @@ public:
 
     TCompositeNeededResources GetNeededResources() const override;
     TJobResourcesWithQuotaList GetMinNeededJobResources() const override;
+    TJobResourcesWithQuotaList GetInitialMinNeededJobResources() const override;
     EPreemptionMode GetPreemptionMode() const override;
 
     std::pair<NApi::ITransactionPtr, TString> GetIntermediateMediumTransaction();
@@ -84,6 +85,7 @@ private:
     const NLogging::TLogger Logger;
 
     TControllerRuntimeDataPtr ControllerRuntimeData_;
+    TJobResourcesWithQuotaList InitialMinNeededResources_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
 

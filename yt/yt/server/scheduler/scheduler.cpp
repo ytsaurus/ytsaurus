@@ -1263,16 +1263,19 @@ public:
                     return;
                 }
 
-                std::optional<TOperationControllerMaterializeResult> maybeMaterializeResult;
-                if (asyncMaterializeResult) {
+                bool shouldSuspend = [&] {
+                    if (!asyncMaterializeResult) {
+                        return false;
+                    }
+
                     // Async materialize result is ready here as the combined future already has finished.
                     YT_VERIFY(asyncMaterializeResult.IsSet());
 
                     // asyncMaterializeResult contains no error, otherwise the |!error.IsOk()| check would trigger.
-                    maybeMaterializeResult = asyncMaterializeResult.Get().Value();
-                }
+                    return asyncMaterializeResult.Get().Value().Suspend;
+                }();
 
-                FinishOperationMaterialization(operation, maybeMaterializeResult, scheduleOperationInSingleTree);
+                FinishOperationMaterialization(operation, shouldSuspend, scheduleOperationInSingleTree);
             })
             .Via(operation->GetCancelableControlInvoker()));
     }
@@ -1280,26 +1283,12 @@ public:
 
     void FinishOperationMaterialization(
         const TOperationPtr& operation,
-        std::optional<TOperationControllerMaterializeResult> maybeMaterializeResult,
+        bool shouldSuspend,
         // This option must have the same value as at materialization start.
         bool scheduleOperationInSingleTree)
     {
-        bool shouldFlush = false;
-        bool shouldSuspend = false;
-        TCompositeNeededResources neededResources;
-        if (maybeMaterializeResult) {
-            // Operation was materialized from scratch.
-            shouldSuspend = maybeMaterializeResult->Suspend;
-            neededResources = maybeMaterializeResult->InitialNeededResources;
-            operation->SetInitialAggregatedMinNeededResources(maybeMaterializeResult->InitialAggregatedMinNeededResources);
-            shouldFlush = true;
-        } else {
-            // Operation was revived from snapshot.
-            // NB(eshcherbin): NeededResources was set during revive.
-            neededResources = operation->GetController()->GetNeededResources();
-        }
-
         if (scheduleOperationInSingleTree) {
+            auto neededResources = operation->GetController()->GetNeededResources();
             auto chosenTree = Strategy_->ChooseBestSingleTreeForOperation(operation->GetId(), neededResources.DefaultResources);
 
             std::vector<TString> treeIdsToUnregister;
@@ -1322,21 +1311,19 @@ public:
                     UnregisterOperationFromTree(operation, treeId);
                 }
 
-                shouldFlush = true;
+                // NB(eshcherbin): Persist info about erased trees and min needed resources to master. This flush is safe because nothing should
+                // happen to |operation| until its state is set to EOperationState::Running. The only possible exception would be the case when
+                // materialization fails and the operation is terminated, but we've already checked for any fail beforehand.
+                // Result is ignored since failure causes scheduler disconnection.
+                auto expectedState = operation->GetState();
+                Y_UNUSED(WaitFor(MasterConnector_->FlushOperationNode(operation)));
+                if (operation->GetState() != expectedState) {
+                    return;
+                }
             }
         }
 
-        if (shouldFlush) {
-            // NB(eshcherbin): Persist info about erased trees and min needed resources to master. This flush is safe because nothing should
-            // happen to |operation| until its state is set to EOperationState::Running. The only possible exception would be the case when
-            // materialization fails and the operation is terminated, but we've already checked for any fail beforehand.
-            // Result is ignored since failure causes scheduler disconnection.
-            auto expectedState = operation->GetState();
-            Y_UNUSED(WaitFor(MasterConnector_->FlushOperationNode(operation)));
-            if (operation->GetState() != expectedState) {
-                return;
-            }
-        }
+        MaybeDelay(operation->Spec()->TestingOperationOptions->DelayInsideMaterializeScheduler);
 
         {
             auto error = Strategy_->OnOperationMaterialized(operation->GetId());
@@ -1346,9 +1333,6 @@ public:
             }
         }
 
-        if (operation->Spec()->TestingOperationOptions->DelayAfterMaterialize) {
-            TDelayedExecutor::WaitForDuration(*operation->Spec()->TestingOperationOptions->DelayAfterMaterialize);
-        }
         operation->SetStateAndEnqueueEvent(EOperationState::Running);
         Strategy_->EnableOperation(operation.Get());
 

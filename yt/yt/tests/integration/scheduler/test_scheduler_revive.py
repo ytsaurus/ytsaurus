@@ -393,6 +393,27 @@ class TestSchedulerRestart(YTEnvSetup):
 
         op.track()
 
+    @authors("eshcherbin")
+    def test_restart_during_materialization_and_revive_from_snapshot(self):
+        update_scheduler_config("operations_update_period", 10000)
+        update_controller_agent_config("snapshot_period", 500)
+
+        op = run_test_vanilla(
+            "sleep 1",
+            job_count=2,
+            spec={
+                "testing": {"delay_inside_materialize_scheduler": {"duration": 10000, "type": "async"}},
+            },
+        )
+        op.wait_for_fresh_snapshot()
+
+        time.sleep(3.0)
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        op.wait_for_state("completed")
+
 
 class TestSchedulerRestartWithControlJobLifetimeAtScheduler(TestSchedulerRestart):
     DELTA_CONTROLLER_AGENT_CONFIG = {
@@ -726,7 +747,7 @@ class TestRaceBetweenShardAndStrategy(YTEnvSetup):
             with_breakpoint("BREAKPOINT"),
             job_count=2,
             spec={
-                "testing": {"delay_after_materialize": 1000},
+                "testing": {"delay_inside_materialize_scheduler": {"duration": 1000, "type": "async"}},
                 "resource_limits": {"user_slots": 1},
             },
         )

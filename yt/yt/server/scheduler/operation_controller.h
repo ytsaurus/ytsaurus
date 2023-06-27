@@ -16,7 +16,7 @@ class TControllerRuntimeData
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(TCompositeNeededResources, NeededResources);
-    DEFINE_BYREF_RW_PROPERTY(TJobResourcesWithQuotaList, MinNeededJobResources);
+    DEFINE_BYREF_RW_PROPERTY(TJobResourcesWithQuotaList, MinNeededResources);
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerRuntimeData)
@@ -58,6 +58,9 @@ struct IOperationControllerStrategyHost
     //! Returns the cached min needed resources estimate.
     virtual TJobResourcesWithQuotaList GetMinNeededJobResources() const = 0;
 
+    //! Returns initial min needed resources estimate (right after materialization).
+    virtual TJobResourcesWithQuotaList GetInitialMinNeededJobResources() const = 0;
+
     //! Returns the mode which says how to preempt jobs of this operation.
     virtual EPreemptionMode GetPreemptionMode() const = 0;
 };
@@ -96,8 +99,7 @@ struct TOperationControllerMaterializeResult
 {
     bool Suspend = false;
     TCompositeNeededResources InitialNeededResources;
-    TJobResources InitialAggregatedMinNeededResources;
-    TJobResourcesWithQuotaList InitialMinNeededJobResources;
+    TJobResourcesWithQuotaList InitialMinNeededResources;
 };
 
 void FromProto(TOperationControllerMaterializeResult* result, const NControllerAgent::NProto::TMaterializeOperationResult& resultProto);
@@ -112,7 +114,8 @@ struct TOperationControllerReviveResult
     bool ControlJobLifetimeAtScheduler;
     THashSet<TString> RevivedBannedTreeIds;
     TCompositeNeededResources NeededResources;
-    TJobResourcesWithQuotaList MinNeededJobResources;
+    TJobResourcesWithQuotaList MinNeededResources;
+    TJobResourcesWithQuotaList InitialMinNeededResources;
 };
 
 void FromProto(

@@ -37,10 +37,10 @@ TError CheckControllerRuntimeData(const TControllerRuntimeDataPtr& runtimeData)
         }
     }
 
-    for (const auto& jobResources : runtimeData->MinNeededJobResources()) {
+    for (const auto& jobResources : runtimeData->MinNeededResources()) {
         if (!Dominates(jobResources.ToJobResources(), TJobResources())) {
             return TError("Controller has reported negative min needed job resources element")
-                << TErrorAttribute("min_needed_job_resources", runtimeData->MinNeededJobResources());
+                << TErrorAttribute("min_needed_job_resources", runtimeData->MinNeededResources());
         }
     }
     return TError();
@@ -93,8 +93,7 @@ void FromProto(TOperationControllerMaterializeResult* result, const NControllerA
 {
     result->Suspend = resultProto.suspend();
     result->InitialNeededResources = FromProto<TCompositeNeededResources>(resultProto.initial_composite_needed_resources());
-    result->InitialAggregatedMinNeededResources = FromProto<TJobResources>(resultProto.initial_aggregated_min_needed_resources());
-    result->InitialMinNeededJobResources = FromProto<TJobResourcesWithQuotaList>(resultProto.initial_min_needed_job_resources());
+    result->InitialMinNeededResources = FromProto<TJobResourcesWithQuotaList>(resultProto.initial_min_needed_resources());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -131,7 +130,8 @@ void FromProto(
     result->ControlJobLifetimeAtScheduler = resultProto.control_job_lifetime_at_scheduler();
     result->RevivedBannedTreeIds = FromProto<THashSet<TString>>(resultProto.revived_banned_tree_ids());
     result->NeededResources = FromProto<TCompositeNeededResources>(resultProto.composite_needed_resources());
-    result->MinNeededJobResources = FromProto<TJobResourcesWithQuotaList>(resultProto.min_needed_job_resources());
+    result->MinNeededResources = FromProto<TJobResourcesWithQuotaList>(resultProto.min_needed_resources());
+    result->InitialMinNeededResources = FromProto<TJobResourcesWithQuotaList>(resultProto.initial_min_needed_resources());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

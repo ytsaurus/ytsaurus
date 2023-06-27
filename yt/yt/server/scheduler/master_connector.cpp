@@ -1108,6 +1108,7 @@ private:
                 "suspended",
                 "erased_trees",
                 "banned",
+                // COMPAT(eshcherbin)
                 "initial_aggregated_min_needed_resources",
                 "registration_index",
                 "alerts",
@@ -1921,13 +1922,6 @@ private:
                     ValidateYson(valueYson, GetYsonNestingLevelLimit());
                     reqHeavy->set_value(valueYson.ToString());
                 }
-            }
-
-            // Set initial aggregated min needed resources.
-            if (auto initialMinNeededResources = operation->GetInitialAggregatedMinNeededResources()) {
-                auto req = multisetReq->add_subrequests();
-                req->set_attribute("initial_aggregated_min_needed_resources");
-                req->set_value(ConvertToYsonStringNestingLimited(*initialMinNeededResources).ToString());
             }
 
             batchReq->AddRequest(multisetReq, "update_op_node");

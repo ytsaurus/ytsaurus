@@ -2059,6 +2059,16 @@ void TSchedulerOperationElement::AbortJob(
     Controller_->AbortJob(jobId, abortReason, jobEpoch);
 }
 
+TJobResources TSchedulerOperationElement::GetAggregatedInitialMinNeededResources() const
+{
+    // COMPAT(eshcherbin)
+    if (auto cypressMinNeededResources = OperationHost_->GetAggregatedInitialMinNeededResources()) {
+        return *cypressMinNeededResources;
+    }
+
+    return Controller_->GetAggregatedInitialMinNeededJobResources();
+}
+
 EResourceTreeIncreaseResult TSchedulerOperationElement::TryIncreaseHierarchicalResourceUsagePrecommit(
     const TJobResources& delta,
     TJobResources* availableResourceLimitsOutput)
@@ -2194,11 +2204,6 @@ void TSchedulerOperationElement::MarkPendingBy(TSchedulerCompositeElement* viola
 bool TSchedulerOperationElement::IsLimitingAncestorCheckEnabled() const
 {
     return Spec_->EnableLimitingAncestorCheck;
-}
-
-std::optional<TJobResources> TSchedulerOperationElement::GetInitialAggregatedMinNeededResources() const
-{
-    return OperationHost_->GetInitialAggregatedMinNeededResources();
 }
 
 void TSchedulerOperationElement::CollectResourceTreeOperationElements(std::vector<TResourceTreeElementPtr>* elements) const

@@ -225,7 +225,7 @@ void TTestingOperationOptions::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("delay_inside_operation_commit", &TThis::DelayInsideOperationCommit)
         .Default();
-    registrar.Parameter("delay_after_materialize", &TThis::DelayAfterMaterialize)
+    registrar.Parameter("delay_inside_materialize_scheduler", &TThis::DelayInsideMaterializeScheduler)
         .Default();
     registrar.Parameter("delay_inside_abort", &TThis::DelayInsideAbort)
         .Default();

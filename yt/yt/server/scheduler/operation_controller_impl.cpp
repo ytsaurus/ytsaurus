@@ -555,16 +555,21 @@ void TOperationControllerImpl::OnMaterializationFinished(const TErrorOr<TOperati
     YT_VERIFY(PendingMaterializeResult_);
 
     if (resultOrError.IsOK()) {
-        auto materializeResult = resultOrError.Value();
+        auto result = resultOrError.Value();
 
-        ControllerRuntimeData_->SetNeededResources(materializeResult.InitialNeededResources);
-        ControllerRuntimeData_->MinNeededJobResources() = materializeResult.InitialMinNeededJobResources;
+        ControllerRuntimeData_->SetNeededResources(result.InitialNeededResources);
+        ControllerRuntimeData_->MinNeededResources() = result.InitialMinNeededResources;
+        InitialMinNeededResources_ = result.InitialMinNeededResources;
 
         YT_LOG_DEBUG("Successful materialization result received ("
-            "Suspend: %v, InitialNeededResources: %v, InitialAggregatedMinNeededResources: %v)",
-            materializeResult.Suspend,
-            FormatResources(materializeResult.InitialNeededResources),
-            FormatResources(materializeResult.InitialAggregatedMinNeededResources));
+            "Suspend: %v, InitialNeededResources: %v, InitialMinNeededResources: %v)",
+            result.Suspend,
+            FormatResources(result.InitialNeededResources),
+            MakeFormattableView(
+                result.InitialMinNeededResources,
+                [&] (TStringBuilderBase* builder, const TJobResourcesWithQuota& resources) {
+                    builder->AppendFormat("%v", FormatResources(resources));
+                }));
     } else {
         YT_LOG_DEBUG(resultOrError, "Unsuccessful materialization result received");
         ProcessControllerAgentError(resultOrError);
@@ -580,18 +585,24 @@ void TOperationControllerImpl::OnRevivalFinished(const TErrorOr<TOperationContro
     if (resultOrError.IsOK()) {
         auto result = resultOrError.Value();
 
-        // NB(eshcherbin): ControllerRuntimeData is used to pass NeededResources to MaterializeOperation().
         ControllerRuntimeData_->SetNeededResources(result.NeededResources);
-        ControllerRuntimeData_->MinNeededJobResources() = result.MinNeededJobResources;
+        ControllerRuntimeData_->MinNeededResources() = result.MinNeededResources;
+        InitialMinNeededResources_ = result.InitialMinNeededResources;
 
         YT_LOG_DEBUG(
             "Successful revival result received "
-            "(RevivedFromSnapshot: %v, ControlJobLifetimeAtScheduler: %v, RevivedJobCount: %v, RevivedBannedTreeIds: %v, NeededResources: %v)",
+            "(RevivedFromSnapshot: %v, ControlJobLifetimeAtScheduler: %v, RevivedJobCount: %v, RevivedBannedTreeIds: %v, "
+            "NeededResources: %v, InitialMinNeededResources: %v)",
             result.RevivedFromSnapshot,
             result.ControlJobLifetimeAtScheduler,
             result.RevivedJobs.size(),
             result.RevivedBannedTreeIds,
-            FormatResources(result.NeededResources));
+            FormatResources(result.NeededResources),
+            MakeFormattableView(
+                result.InitialMinNeededResources,
+                [&] (TStringBuilderBase* builder, const TJobResourcesWithQuota& resources) {
+                    builder->AppendFormat("%v", FormatResources(resources));
+                }));
     } else {
         YT_LOG_DEBUG(resultOrError, "Unsuccessful revival result received");
         ProcessControllerAgentError(resultOrError);
@@ -724,7 +735,14 @@ TJobResourcesWithQuotaList TOperationControllerImpl::GetMinNeededJobResources() 
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    return ControllerRuntimeData_->MinNeededJobResources();
+    return ControllerRuntimeData_->MinNeededResources();
+}
+
+TJobResourcesWithQuotaList TOperationControllerImpl::GetInitialMinNeededJobResources() const
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    return InitialMinNeededResources_;
 }
 
 EPreemptionMode TOperationControllerImpl::GetPreemptionMode() const

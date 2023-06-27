@@ -150,7 +150,8 @@ struct IOperationStrategyHost
 
     virtual void EraseTrees(const std::vector<TString>& treeIds) = 0;
 
-    virtual std::optional<TJobResources> GetInitialAggregatedMinNeededResources() const = 0;
+    // COMPAT(eshcherbin)
+    virtual std::optional<TJobResources> GetAggregatedInitialMinNeededResources() const = 0;
 
 protected:
     friend class TFairShareStrategyOperationState;
@@ -356,8 +357,7 @@ public:
     TOperationRuntimeParametersPtr GetRuntimeParameters() const override;
     void SetRuntimeParameters(TOperationRuntimeParametersPtr parameters);
 
-    std::optional<TJobResources> GetInitialAggregatedMinNeededResources() const override;
-    void SetInitialAggregatedMinNeededResources(const std::optional<TJobResources>& resources);
+    std::optional<TJobResources> GetAggregatedInitialMinNeededResources() const override;
 
     NYson::TYsonString BuildAlertsString() const;
     bool HasAlert(EOperationAlertType alertType) const;
@@ -420,7 +420,8 @@ public:
         EOperationState state = EOperationState::None,
         const std::vector<TOperationEvent>& events = {},
         bool suspended = false,
-        const std::optional<TJobResources>& initialAggregatedMinNeededResources = {},
+        // COMPAT(eshcherbin)
+        const std::optional<TJobResources>& aggregatedInitialMinNeededResources = {},
         int registrationIndex = 0,
         const THashMap<EOperationAlertType, TOperationAlert>& alerts = {});
 
@@ -457,7 +458,7 @@ private:
     TWeakPtr<TControllerAgent> Agent_;
 
     //! Aggregated minimum needed resources at the start of the operation.
-    std::optional<TJobResources> InitialAggregatedMinNeededResources_;
+    std::optional<TJobResources> AggregatedInitialMinNeededResources_;
 };
 
 #undef DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH

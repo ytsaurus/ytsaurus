@@ -1251,10 +1251,11 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         return result;
     }
 
+    InitialMinNeededResources_ = GetMinNeededJobResources();
+
     result.Suspend = Spec_->SuspendOperationAfterMaterialization;
     result.InitialNeededResources = GetNeededResources();
-    result.InitialAggregatedMinNeededResources = GetAggregatedMinNeededJobResources();
-    result.InitialMinNeededJobResources = GetMinNeededJobResources();
+    result.InitialMinNeededResources = InitialMinNeededResources_;
 
     YT_LOG_INFO("Materialization finished");
 
@@ -1385,7 +1386,8 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
         });
     }
 
-    result.MinNeededJobResources = GetMinNeededJobResources();
+    result.MinNeededResources = GetMinNeededJobResources();
+    result.InitialMinNeededResources = InitialMinNeededResources_;
 
     // Monitoring tags are transient by design.
     // So after revive we do reset the corresponding alert.
@@ -9815,6 +9817,11 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     // COMPAT(galtsev)
     if (context.GetVersion() >= ESnapshotVersion::ProbingBaseLayer) {
         Persist(context, BaseLayers_);
+    }
+
+    // COMPAT(eshcherbin)
+    if (context.GetVersion() >= ESnapshotVersion::InitialMinNeededResources) {
+        Persist(context, InitialMinNeededResources_);
     }
 }
 

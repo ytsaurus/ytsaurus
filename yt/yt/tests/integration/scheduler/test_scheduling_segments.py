@@ -9,7 +9,7 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    authors, print_debug, wait, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint,
+    authors, wait, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint,
     ls, get, set, remove, exists, create_pool, create_pool_tree,
     create_data_center, create_rack, make_batch_request,
     execute_batch, get_batch_error,
@@ -53,7 +53,7 @@ def get_first_job_node(op):
 
 
 class TestSchedulingSegments(YTEnvSetup):
-    NUM_TEST_PARTITIONS = 6
+    NUM_TEST_PARTITIONS = 8
     NUM_MASTERS = 1
     NUM_NODES = 10
     NUM_SCHEDULERS = 1
@@ -119,7 +119,7 @@ class TestSchedulingSegments(YTEnvSetup):
         create_pool("large_gpu", attributes={"allow_regular_preemption": False})
         set("//sys/pool_trees/default/@config/scheduling_segments", {
             "mode": "large_gpu",
-            "initialization_timeout": 1000,
+            "initialization_timeout": 10000,
             "manage_period": 100,
             "unsatisfied_segments_rebalancing_timeout": 1000,
             "data_centers": [TestSchedulingSegments.DATA_CENTER],
@@ -673,12 +673,8 @@ class TestSchedulingSegments(YTEnvSetup):
         small_op.wait_for_fresh_snapshot()
         large_op.wait_for_fresh_snapshot()
 
-        wait(lambda: exists(small_op.get_path() + "/@initial_aggregated_min_needed_resources"))
-        wait(lambda: exists(large_op.get_path() + "/@initial_aggregated_min_needed_resources"))
-
         with Restarter(self.Env, service_to_restart):
-            print_debug(get(small_op.get_path() + "/@initial_aggregated_min_needed_resources"))
-            print_debug(get(large_op.get_path() + "/@initial_aggregated_min_needed_resources"))
+            pass
 
         small_op.ensure_running()
         large_op.ensure_running()
@@ -890,6 +886,21 @@ class TestSchedulingSegments(YTEnvSetup):
         time.sleep(5.0)
         wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.0))
 
+    # COMPAT(eshcherin)
+    @authors("eshcherbin")
+    def test_read_initial_min_needed_resources_from_cypress(self):
+        op = run_sleeping_vanilla(
+            spec={"pool": "large_gpu"},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/scheduling_segment", default=None) == "large_gpu")
+        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            set(op.get_path() + "/@initial_aggregated_min_needed_resources", {"gpu": 1})
+
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/scheduling_segment", default=None) == "default")
+
 ##################################################################
 
 
@@ -1028,7 +1039,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
         create_pool("large_gpu", attributes={"allow_regular_preemption": False})
         set("//sys/pool_trees/default/@config/scheduling_segments", {
             "mode": "large_gpu",
-            "initialization_timeout": 1000,
+            "initialization_timeout": 10000,
             "manage_period": 100,
             "unsatisfied_segments_rebalancing_timeout": 1000,
             "data_centers": BaseTestSchedulingSegmentsMultiModule.DATA_CENTERS,
@@ -1575,7 +1586,7 @@ class TestInfinibandClusterTagValidation(YTEnvSetup):
 
         set("//sys/pool_trees/default/@config/scheduling_segments", {
             "mode": "large_gpu",
-            "initialization_timeout": 1000,
+            "initialization_timeout": 10000,
             "manage_period": 100,
             "unsatisfied_segments_rebalancing_timeout": 1000,
             "infiniband_clusters": TestInfinibandClusterTagValidation.INFINIBAND_CLUSTERS,
@@ -1710,7 +1721,7 @@ class TestRunningJobStatistics(YTEnvSetup):
         create_pool("large_gpu", attributes={"allow_regular_preemption": False})
         set("//sys/pool_trees/default/@config/scheduling_segments", {
             "mode": "large_gpu",
-            "initialization_timeout": 1000,
+            "initialization_timeout": 10000,
             "manage_period": 100,
             "unsatisfied_segments_rebalancing_timeout": 1000,
             "data_centers": [TestRunningJobStatistics.DATA_CENTER],

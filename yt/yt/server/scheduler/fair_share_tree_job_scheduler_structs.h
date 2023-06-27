@@ -51,7 +51,7 @@ struct TFairShareTreeJobSchedulerOperationState final
     const bool IsGang;
 
     // Initialized after operation's materialization, but should not be modified after that.
-    std::optional<TJobResources> InitialAggregatedMinNeededResources;
+    std::optional<TJobResources> AggregatedInitialMinNeededResources;
 
     std::optional<ESchedulingSegment> SchedulingSegment;
     TSchedulingSegmentModule SchedulingSegmentModule;
