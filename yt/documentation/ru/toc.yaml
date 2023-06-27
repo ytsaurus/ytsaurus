@@ -353,12 +353,12 @@ items:
                 href: api/c/description.md
               - name: Protobuf-представление таблиц
                 href: api/c/protobuf.md
-              # - name: Лямбда-выражения
-              #   href: api/c/lambda.md
-              # - name: Примеры использования
-              #   href: api/c/examples.md
-              # - name: Справочник
-              #   href: api/c/reference.md
+              - name: Лямбда-выражения
+                href: api/c/lambda.md
+              - name: Примеры использования
+                href: api/c/examples.md
+              #- name: Справочник
+              #  href: api/c/reference.md
           - name: Go API
             href: api/go/reference.md
           - name: Java API
