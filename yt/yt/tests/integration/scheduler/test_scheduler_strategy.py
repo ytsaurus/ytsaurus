@@ -3238,6 +3238,79 @@ class TestIntegralGuarantees(YTEnvSetup):
 ##################################################################
 
 
+@authors("renadeen")
+class TestCrashDuringDistributingFreeVolumeAfterRemovingAllResourceFlow(YTEnvSetup):
+    # Scenario:
+    # 1. there are burst pool with running operation and relaxed pool which supplies free volume for the first
+    # 2. user removes resource flow from burst pool
+    # 3. burst pool's capacity become zero but old volume is still there
+    # 4. accumulated volume is being consumed by operation
+    # 5. due to bug burst pool declares that it can accept more volume
+    # 6. free volume distribution algorithm is not prepared for pool with zero resource flow and with non-zero acceptable volume and crashes
+
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    FAIR_SHARE_UPDATE_PERIOD = 500
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,  # Update pools configuration period
+            "fair_share_update_period": FAIR_SHARE_UPDATE_PERIOD
+        }
+    }
+
+    def test_crash_during_distributing_free_volume_after_removing_resource_flow(self):
+        set("//sys/pool_trees/default/@config", {
+            "should_distribute_free_volume_among_children": True,
+            "integral_guarantees": {"smooth_period": self.FAIR_SHARE_UPDATE_PERIOD}
+            })
+        create_pool("ancestor", attributes={
+            "integral_guarantees": {
+                "guarantee_type": "none",
+                "resource_flow": {"cpu": 1000},
+                "burst_guarantee_resources": {"cpu": 1000},
+            },
+        })
+        create_pool("overflow_pool", parent_name="ancestor", attributes={
+            "integral_guarantees": {
+                "guarantee_type": "relaxed",
+                "resource_flow": {"cpu": 1000.0},
+            },
+        })
+        time.sleep(1)  # Wait a bit to accumulate some volume in overflow_pool.
+        set("//sys/pools/ancestor/overflow_pool/@integral_guarantees/resource_flow/cpu", 0.01)
+
+        create_pool("problem_ancestor", parent_name="ancestor", attributes={
+            "integral_guarantees": {
+                "guarantee_type": "none",
+                "resource_flow": {"cpu": 1},
+                "burst_guarantee_resources": {"cpu": 1},
+            },
+        })
+        create_pool("problem_pool", parent_name="problem_ancestor", attributes={
+            "integral_guarantees": {
+                "guarantee_type": "burst",
+                "resource_flow": {"cpu": 1},
+                "burst_guarantee_resources": {"cpu": 1},
+            },
+        })
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool": "problem_pool"})
+
+        set("//sys/pools/ancestor/problem_ancestor/problem_pool/@integral_guarantees/resource_flow/cpu", 0)
+        set("//sys/pools/ancestor/problem_ancestor/@integral_guarantees/resource_flow/cpu", 0)
+
+        # Cannot use 0 since free volume from overflow_pool will always flow in.
+        wait(lambda: get(scheduler_orchid_pool_path("problem_pool") + "/accumulated_resource_volume/cpu") < 0.02)
+
+        release_breakpoint()
+        op.track()
+
+
+##################################################################
+
+
 class TestSatisfactionRatio(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1

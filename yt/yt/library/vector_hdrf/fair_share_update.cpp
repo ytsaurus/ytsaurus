@@ -920,17 +920,17 @@ void TCompositeElement::DistributeFreeVolume()
             std::vector<TChildAttributes> hungryChildren;
             auto weightSum = 0.0;
             for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
-                auto* child = GetChild(childIndex);
-                if (child->Attributes().AcceptableVolume.*resourceDataMember > 0) {
+                auto& childAttributes = GetChild(childIndex)->Attributes();
+                if (childAttributes.AcceptableVolume.*resourceDataMember > RatioComputationPrecision &&
+                    childAttributes.TotalResourceFlowRatio > RatioComputationPrecision)
+                {
                     // Resource flow is taken as weight.
-                    auto weight = child->Attributes().TotalResourceFlowRatio;
-                    // |AcceptableVolume| > 0 => |PoolCapacity| of self or children > 0 => |TotalResourceFlowRatio| > 0.
-                    YT_VERIFY(weight > RatioComputationPrecision);
+                    auto weight = childAttributes.TotalResourceFlowRatio;
                     hungryChildren.push_back(TChildAttributes{
                         .Index = childIndex,
                         .Weight = weight,
-                        .Attributes = &child->Attributes(),
-                        .AcceptableVolumeToWeightRatio = static_cast<double>(child->Attributes().AcceptableVolume.*resourceDataMember) / weight,
+                        .Attributes = &childAttributes,
+                        .AcceptableVolumeToWeightRatio = static_cast<double>(childAttributes.AcceptableVolume.*resourceDataMember) / weight,
                     });
                     weightSum += weight;
                 }
@@ -1006,20 +1006,20 @@ void TPool::UpdateAccumulatedResourceVolume(TFairShareUpdateContext* context)
     auto oldVolume = integralResourcesState.AccumulatedVolume;
     auto poolCapacity = TResourceVolume(context->TotalResourceLimits * attributes.ResourceFlowRatio, context->IntegralPoolCapacitySaturationPeriod);
 
+    auto zero = TResourceVolume();
     integralResourcesState.AccumulatedVolume +=
         TResourceVolume(context->TotalResourceLimits, periodSinceLastUpdate) * attributes.ResourceFlowRatio;
     integralResourcesState.AccumulatedVolume -=
         TResourceVolume(context->TotalResourceLimits, periodSinceLastUpdate) * integralResourcesState.LastShareRatio;
+    integralResourcesState.AccumulatedVolume = Max(integralResourcesState.AccumulatedVolume, zero);
 
-    auto lowerLimit = TResourceVolume();
     auto upperLimit = Max(oldVolume, poolCapacity);
 
     attributes.VolumeOverflow = Max(integralResourcesState.AccumulatedVolume - upperLimit, TResourceVolume());
     if (CanAcceptFreeVolume()) {
-        attributes.AcceptableVolume = Max(upperLimit - integralResourcesState.AccumulatedVolume, TResourceVolume());
+        attributes.AcceptableVolume = Max(poolCapacity - integralResourcesState.AccumulatedVolume, zero);
     }
 
-    integralResourcesState.AccumulatedVolume = Max(integralResourcesState.AccumulatedVolume, lowerLimit);
     integralResourcesState.AccumulatedVolume = Min(integralResourcesState.AccumulatedVolume, upperLimit);
 
     YT_LOG_DEBUG(
