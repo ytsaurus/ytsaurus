@@ -1353,7 +1353,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
             return result;
         }
 
-        AbortAllJoblets(EAbortReason::JobRevivalDisabled);
+        AbortAllJoblets(EAbortReason::JobRevivalDisabled, /*honestly*/ true);
     }
 
     ShouldUpdateProgressAttributesInCypress_ = true;
@@ -1402,7 +1402,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     return result;
 }
 
-void TOperationControllerBase::AbortAllJoblets(EAbortReason abortReason)
+void TOperationControllerBase::AbortAllJoblets(EAbortReason abortReason, bool honestly)
 {
     YT_LOG_DEBUG("Aborting all joblets (AbortReason: %v)", abortReason);
 
@@ -1420,7 +1420,9 @@ void TOperationControllerBase::AbortAllJoblets(EAbortReason abortReason)
 
         Host->GetJobProfiler()->ProfileAbortedJob(*joblet, jobSummary);
 
-        joblet->Task->OnJobAborted(joblet, jobSummary);
+        if (honestly) {
+            joblet->Task->OnJobAborted(joblet, jobSummary);
+        }
 
         Host->AbortJobOnNode(
             jobId,
@@ -5025,7 +5027,7 @@ void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush
         State = EControllerState::Failed;
 
         if (abortAllJoblets) {
-            AbortAllJoblets(EAbortReason::OperationFailed);
+            AbortAllJoblets(EAbortReason::OperationFailed, /*honestly*/ true);
         }
 
         for (const auto& task : Tasks) {
@@ -10668,7 +10670,9 @@ void TOperationControllerBase::RemoveRemainingJobsOnOperationFinished()
         }
     }();
 
-    AbortAllJoblets(jobAbortReason);
+    // NB(pogorelov): We should not abort jobs honestly when operation is failed because invariants may be violated.
+    // Also there is no meaning to abort jobs honestly when operation is finished.
+    AbortAllJoblets(jobAbortReason, /*honestly*/ false);
 
     auto headCookie = CompletedJobIdsReleaseQueue_.Checkpoint();
     YT_LOG_INFO(

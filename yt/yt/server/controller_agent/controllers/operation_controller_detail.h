@@ -1011,7 +1011,7 @@ protected:
 
     void FinishTaskInput(const TTaskPtr& task);
 
-    void AbortAllJoblets(EAbortReason abortReason);
+    void AbortAllJoblets(EAbortReason abortReason, bool honestly);
 
     void InitInputStreamDirectory();
     const NChunkPools::TInputStreamDirectory& GetInputStreamDirectory() const;
