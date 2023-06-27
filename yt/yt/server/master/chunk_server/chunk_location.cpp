@@ -277,7 +277,8 @@ void TChunkLocation::Load(TLoadContext& context)
     ResetDestroyedReplicasIterator();
 }
 
-i64 TChunkLocation::DestroyedReplicasCount() const {
+i64 TChunkLocation::GetDestroyedReplicasCount() const
+{
     i64 count = 0;
     for (const auto& set : DestroyedReplicas_) {
         count += std::ssize(set);
@@ -289,7 +290,7 @@ const TChunkLocation::TDestroyedReplicaSet& TChunkLocation::GetDestroyedReplicaS
     return DestroyedReplicas_[shardId];
 }
 
-void TChunkLocation::SetDestroyedReplicasIterator(const TDestroyedReplicasIterator& iterator, int shardId)
+void TChunkLocation::SetDestroyedReplicasIterator(TDestroyedReplicasIterator iterator, int shardId)
 {
     DestroyedReplicasIterators_[shardId] = iterator.Current_;
 }

@@ -109,8 +109,8 @@ public:
             .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateChunk)
             .SetHeavy(true)
-            .SetQueueSizeLimit(10000)
-            .SetConcurrencyLimit(10000)
+            .SetQueueSizeLimit(10'000)
+            .SetConcurrencyLimit(10'000)
             .SetRequestQueueProvider(CreateChunkRequestQueueProvider_));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ConfirmChunk)
             .SetHeavy(true));
@@ -124,8 +124,8 @@ public:
             .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ExecuteBatch)
             .SetHeavy(true)
-            .SetQueueSizeLimit(10000)
-            .SetConcurrencyLimit(10000)
+            .SetQueueSizeLimit(10'000)
+            .SetConcurrencyLimit(10'000)
             .SetRequestQueueProvider(ExecuteBatchRequestQueueProvider_));
 
         const auto& configManager = Bootstrap_->GetConfigManager();

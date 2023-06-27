@@ -1265,7 +1265,7 @@ TCellNodeStatistics TNode::ComputeCellStatistics() const
     TCellNodeStatistics result = TCellNodeStatistics();
     for (auto* location : ChunkLocations_) {
         result.ChunkReplicaCount[location->GetEffectiveMediumIndex()] += std::ssize(location->Replicas());
-        result.DestroyedChunkReplicaCount += location->DestroyedReplicasCount();
+        result.DestroyedChunkReplicaCount += location->GetDestroyedReplicasCount();
     }
     for (const auto& queue : ChunkPushReplicationQueues_) {
         result.ChunkPushReplicationQueuesSize += std::ssize(queue);
@@ -1338,7 +1338,7 @@ i64 TNode::ComputeTotalDestroyedReplicaCount() const
         0,
         std::plus<i64>{},
         [] (auto* location) {
-            return location->DestroyedReplicasCount();
+            return location->GetDestroyedReplicasCount();
         });
 }
 

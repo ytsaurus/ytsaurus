@@ -2992,7 +2992,7 @@ private:
                     location->UnapprovedReplicas().size());
                 DisposeLocation(location);
             }
-            if (auto count = location->DestroyedReplicasCount(); count != 0) {
+            if (auto count = location->GetDestroyedReplicasCount()) {
                 YT_LOG_ALERT("Cleared location still has destroyed replicas (NodeId: %v, LocationMediumIndex: %v, DestroyedReplicasCount: %v)",
                     node->GetId(),
                     location->GetEffectiveMediumIndex(),
@@ -3030,7 +3030,7 @@ private:
             }
         }
 
-        DestroyedReplicaCount_ -= location->DestroyedReplicasCount();
+        DestroyedReplicaCount_ -= location->GetDestroyedReplicasCount();
 
         location->ClearReplicas();
     }
@@ -4598,7 +4598,7 @@ private:
             EndorsementCount_ += ssize(node->ReplicaEndorsements());
 
             for (auto* location : node->ChunkLocations()) {
-                DestroyedReplicaCount_ += location->DestroyedReplicasCount();
+                DestroyedReplicaCount_ += location->GetDestroyedReplicasCount();
             }
         }
 

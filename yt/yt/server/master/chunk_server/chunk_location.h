@@ -84,11 +84,11 @@ public:
     bool RemoveDestroyedReplica(const NChunkClient::TChunkIdWithIndex& replica);
     void ClearDestroyedReplicas();
 
-    i64 DestroyedReplicasCount() const;
+    i64 GetDestroyedReplicasCount() const;
     const TDestroyedReplicaSet& GetDestroyedReplicaSet(int shardId) const;
 
     class TDestroyedReplicasIterator;
-    void SetDestroyedReplicasIterator(const TDestroyedReplicasIterator& iterator, int shardId);
+    void SetDestroyedReplicasIterator(TDestroyedReplicasIterator iterator, int shardId);
     void ResetDestroyedReplicasIterator();
     TDestroyedReplicasIterator GetDestroyedReplicasIterator(int shardId) const;
 
