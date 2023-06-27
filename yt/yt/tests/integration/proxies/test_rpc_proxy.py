@@ -317,6 +317,93 @@ class TestRpcProxyDiscovery(YTEnvSetup):
         assert len(proxies) == 0
 
 
+class TestRpcProxyDiscoveryRoleFromStaticConfig(YTEnvSetup):
+    ENABLE_HTTP_PROXY = True
+    ENABLE_RPC_PROXY = True
+
+    NUM_RPC_PROXIES = 2
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "role": "ab",
+    }
+
+    def setup_method(self, method):
+        super(TestRpcProxyDiscoveryRoleFromStaticConfig, self).setup_method(method)
+        driver_config = deepcopy(self.Env.configs["driver"])
+        driver_config["api_version"] = 4
+        self.driver = Driver(driver_config)
+
+    @authors("nadya73")
+    def test_role(self):
+        proxy = ls("//sys/rpc_proxies")[0]
+
+        role = get("//sys/rpc_proxies/" + proxy + "/@role")
+        assert role == "ab"
+
+    @authors("nadya73")
+    def test_discovery(self):
+        configured_proxy_addresses = sorted(self.Env.get_rpc_proxy_addresses())
+
+        proxies = discover_proxies(type_="rpc", driver=self.driver, **{"address_type": "internal_rpc"})
+        assert sorted(proxies) == []
+
+        proxies = discover_proxies(type_="rpc", driver=self.driver, **{"address_type": "internal_rpc", "role": "ab"})
+        assert sorted(proxies) == configured_proxy_addresses
+
+
+class TestRpcProxyDiscoveryBalancers(YTEnvSetup):
+    ENABLE_HTTP_PROXY = True
+    ENABLE_RPC_PROXY = True
+
+    NUM_RPC_PROXIES = 2
+
+    def setup_method(self, method):
+        super(TestRpcProxyDiscoveryBalancers, self).setup_method(method)
+        driver_config = deepcopy(self.Env.configs["driver"])
+        driver_config["api_version"] = 4
+        driver_config["proxy_discovery_cache"] = {
+            "expire_after_access_time": 0,
+        }
+        self.driver = Driver(driver_config)
+
+    @authors("nadya73")
+    def test_discovery(self):
+        configured_proxy_addresses = sorted(self.Env.get_rpc_proxy_addresses())
+        configured_monitoring_addresses = sorted(self.Env.get_rpc_proxy_monitoring_addresses())
+
+        balancer_first = 'default-balancer.com:9013'
+        balancer_second = 'default-balancer-2.com:9013'
+        set(
+            "//sys/rpc_proxies/@balancers",
+            {
+                'default': {
+                    'internal_rpc': {
+                        'default': [balancer_first, balancer_second]
+                    }
+                }
+            },
+        )
+
+        proxies = discover_proxies(type_="rpc", driver=self.driver, **{"address_type": "internal_rpc"})
+        assert proxies == [balancer_first, balancer_second]
+
+        proxies = discover_proxies(type_="rpc", driver=self.driver, **{"address_type": "internal_rpc", "ignore_balancers": True})
+        assert sorted(proxies) == configured_proxy_addresses
+
+        proxies = discover_proxies(type_="rpc", driver=self.driver, **{"address_type": "monitoring_http"})
+        assert sorted(proxies) == configured_monitoring_addresses
+
+    @authors("nadya73")
+    def test_invalid_address_type(self):
+        with pytest.raises(YtError):
+            discover_proxies(type_="rpc", driver=self.driver, address_type="invalid")
+
+    @authors("nadya73")
+    def test_invalid_network_name(self):
+        proxies = discover_proxies(type_="rpc", driver=self.driver, network_name="invalid")
+        assert len(proxies) == 0
+
+
 class TestRpcProxyDiscoveryViaHttp(YTEnvSetup):
     DRIVER_BACKEND = "rpc"
     ENABLE_HTTP_PROXY = True

@@ -115,6 +115,9 @@ public:
                 .OrchidRemoteAddresses = Bootstrap_->GetLocalAddresses(),
                 .CreateAliveChild = true,
                 .EnableImplicitInitialization = false,
+                .AttributesOnCreation = BuildAttributeDictionaryFluently()
+                    .Item(RoleAttributeName).Value(Bootstrap_->GetConfig()->Role)
+                    .Finish(),
                 .AttributesOnStart = BuildAttributeDictionaryFluently()
                     .Item(VersionAttributeName).Value(GetVersion())
                     .Item(StartTimeAttributeName).Value(TInstant::Now())

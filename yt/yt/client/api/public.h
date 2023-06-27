@@ -175,6 +175,7 @@ inline const TString AliveNodeName("alive");
 inline const TString BannedAttributeName("banned");
 inline const TString RoleAttributeName("role");
 inline const TString AddressesAttributeName("addresses");
+inline const TString BalancersAttributeName("balancers");
 inline const TString DefaultProxyRole("default");
 inline const TString JournalPayloadKey("payload");
 inline const TString HunkPayloadKey("payload");

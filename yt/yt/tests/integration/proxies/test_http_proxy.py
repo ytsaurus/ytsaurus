@@ -328,6 +328,29 @@ class TestHttpProxy(HttpProxyTestBase):
         wait(lambda: requests.get(self._get_proxy_address() + "/ping").ok)
 
 
+class TestHttpProxyRoleFromStaticConfig(HttpProxyTestBase):
+    DELTA_PROXY_CONFIG = {
+        "role": "ab"
+    }
+
+    @authors("nadya73")
+    def test_role(self):
+        proxy = ls("//sys/proxies")[0]
+        role = get("//sys/proxies/" + proxy + "/@role")
+        assert role == "ab"
+
+    @authors("nadya73")
+    def test_hosts(self):
+        proxy = ls("//sys/proxies")[0]
+
+        def get_yson(url):
+            return yson.loads(requests.get(url).content)
+
+        assert get_yson(self._get_proxy_address() + "/hosts") == []
+        assert get_yson(self._get_proxy_address() + "/hosts?role=data") == []
+        assert get_yson(self._get_proxy_address() + "/hosts?role=ab") == [proxy]
+
+
 class TestHttpProxyFraming(HttpProxyTestBase):
     SUSPENDING_TABLE = "//tmp/suspending_table"
     DELAY_BEFORE_COMMAND = 10 * 1000

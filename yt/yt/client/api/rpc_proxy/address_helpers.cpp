@@ -48,4 +48,25 @@ std::optional<TString> GetAddressOrNull(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::optional<std::vector<TString>> GetBalancersOrNull(
+    const TBalancersMap& balancers,
+    const TString& role,
+    EAddressType addressType,
+    const TString& network)
+{
+    auto roleBalancers = balancers.find(role);
+    if (roleBalancers != balancers.end()) {
+        auto roleTypeBalancers = roleBalancers->second.find(addressType);
+        if (roleTypeBalancers != roleBalancers->second.end()) {
+            auto it = roleTypeBalancers->second.find(network);
+            if (it != roleTypeBalancers->second.end()) {
+                return it->second;
+            }
+        }
+    }
+    return std::nullopt;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NApi::NRpcProxy

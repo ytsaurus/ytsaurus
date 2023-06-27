@@ -121,7 +121,7 @@ TCoordinator::TCoordinator(
     selfEntry->Endpoint = Config_->PublicFqdn
         ? *Config_->PublicFqdn
         : Format("%v:%v", NNet::GetLocalHostName(), config->Port);
-    selfEntry->Role = "data";
+    selfEntry->Role = config->Role;
     Self_ = New<TCoordinatorProxy>(std::move(selfEntry));
 
     {

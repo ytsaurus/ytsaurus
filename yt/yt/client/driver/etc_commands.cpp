@@ -380,6 +380,8 @@ TDiscoverProxiesCommand::TDiscoverProxiesCommand()
         .Default(NApi::NRpcProxy::DefaultAddressType);
     RegisterParameter("network_name", NetworkName)
         .Default(NApi::NRpcProxy::DefaultNetworkName);
+    RegisterParameter("ignore_balancers", IgnoreBalancers)
+        .Default(false);
 }
 
 void TDiscoverProxiesCommand::DoExecute(ICommandContextPtr context)
@@ -388,7 +390,8 @@ void TDiscoverProxiesCommand::DoExecute(ICommandContextPtr context)
         .Type = Type,
         .Role = Role,
         .AddressType = AddressType,
-        .NetworkName = NetworkName
+        .NetworkName = NetworkName,
+        .IgnoreBalancers = IgnoreBalancers
     };
 
     const auto& proxyDiscoveryCache = context->GetDriver()->GetProxyDiscoveryCache();

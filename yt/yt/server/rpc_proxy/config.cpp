@@ -102,6 +102,9 @@ void TProxyConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_tagged_dynamic_config", &TThis::UseTaggedDynamicConfig)
         .Default(false);
 
+    registrar.Parameter("role", &TThis::Role)
+        .Default(NApi::DefaultProxyRole);
+
     registrar.Preprocessor([] (TThis* config) {
         config->DynamicConfigManager->IgnoreConfigAbsence = true;
     });

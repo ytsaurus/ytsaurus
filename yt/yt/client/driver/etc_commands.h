@@ -198,6 +198,7 @@ private:
     TString Role;
     NApi::NRpcProxy::EAddressType AddressType;
     TString NetworkName;
+    bool IgnoreBalancers;
 
     void DoExecute(ICommandContextPtr context) override;
 };
