@@ -1833,6 +1833,10 @@ IIOEnginePtr CreateIOEngineUring(
 
 bool IsUringIOEngineSupported()
 {
+#ifdef YT_DISABLE_URING
+    return false;
+#endif
+
 #ifdef _linux_
 
     io_uring uring;
