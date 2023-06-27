@@ -20,7 +20,7 @@ TExtendedCallback<R(TArgs...)>::Via(IInvokerPtr invoker) const
 
     auto this_ = *this;
     return BIND_NO_PROPAGATE([=, invoker = std::move(invoker)] (TArgs... args) {
-        invoker->Invoke(BIND_NO_PROPAGATE(this_, std::forward<TArgs>(args)...));
+        invoker->Invoke(BIND_NO_PROPAGATE(this_, WrapToPassed(std::forward<TArgs>(args))...));
     });
 }
 

@@ -195,6 +195,18 @@ static auto ConstRef(const T& x)
     return NYT::NDetail::TConstRefWrapper<T>(x);
 }
 
+template <class U>
+static U& WrapToPassed(U& arg)
+{
+    return arg;
+}
+
+template <class U>
+static auto WrapToPassed(U&& arg)
+{
+    return Passed(std::move(arg));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NDetail {

@@ -1576,18 +1576,6 @@ struct TAsyncViaHelper<R(TArgs...)>
         NYT::NDetail::TPromiseSetter<TUnderlying, R(TArgs...)>::Do(promise, this_, std::forward<TArgs>(args)...);
     }
 
-    template <class U>
-    static U& WrapToPassed(U& arg)
-    {
-        return arg;
-    }
-
-    template <class U>
-    static auto WrapToPassed(U&& arg)
-    {
-        return Passed(std::move(arg));
-    }
-
     static TFuture<TUnderlying> Outer(
         const TSourceCallback& this_,
         const IInvokerPtr& invoker,
