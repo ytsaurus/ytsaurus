@@ -86,6 +86,9 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Schema)
             .SetWritable(true)
             .SetReplicated(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TreatAsQueueConsumer)
+            .SetWritable(true)
+            .SetPresent(impl->HasNonEmptySchema() && impl->IsSorted()));
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
@@ -118,6 +121,15 @@ private:
                     .Value(node->GetOwnsReplicationCard());
                 return true;
 
+            case EInternedAttributeKey::TreatAsQueueConsumer: {
+                if (!node->HasNonEmptySchema() || !node->IsSorted()) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(node->GetTreatAsConsumer());
+                return true;
+            }
+
             default:
                 break;
         }
@@ -146,6 +158,24 @@ private:
                 ValidateNoTransaction();
                 auto* lockedImpl = LockThisImpl();
                 lockedImpl->SetOwnsReplicationCard(ConvertTo<bool>(value));
+                return true;
+            }
+
+            case EInternedAttributeKey::TreatAsQueueConsumer: {
+                ValidateNoTransaction();
+                auto* lockedTableNode = LockThisImpl();
+                if (!lockedTableNode->HasNonEmptySchema() || !lockedTableNode->IsSorted()) {
+                    break;
+                }
+                bool isConsumerObjectBefore = lockedTableNode->IsTrackedConsumerObject();
+                lockedTableNode->SetTreatAsConsumer(ConvertTo<bool>(value));
+                bool isConsumerObjectAfter = lockedTableNode->IsTrackedConsumerObject();
+                const auto& chaosManager = Bootstrap_->GetChaosManager();
+                if (isConsumerObjectAfter && !isConsumerObjectBefore) {
+                    chaosManager->RegisterConsumer(lockedTableNode);
+                } else if (!isConsumerObjectAfter && isConsumerObjectBefore) {
+                    chaosManager->UnregisterConsumer(lockedTableNode);
+                }
                 return true;
             }
 
@@ -350,13 +380,32 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)
         }
     }
 
+    if (table->IsTrackedConsumerObject()) {
+        bool isValidConsumerSchema = !effectiveSchema->IsEmpty() && effectiveSchema->IsSorted();
+        if (!isValidConsumerSchema) {
+            THROW_ERROR_EXCEPTION(
+                "Chaos replicated table object cannot be both a queue and a consumer.\
+                To transform consumer into queue set `treat_as_queue_consumer` attribute into False first");
+        }
+    }
+
     YT_LOG_ACCESS(
         context,
         GetId(),
         GetPath(),
         Transaction_);
 
+    bool isQueueObjectBefore = table->IsTrackedQueueObject();
+
     tableManager->GetOrCreateNativeMasterTableSchema(*effectiveSchema, table);
+
+    bool isQueueObjectAfter = table->IsTrackedQueueObject();
+    const auto& chaosManager = Bootstrap_->GetChaosManager();
+    if (!isQueueObjectBefore && isQueueObjectAfter) {
+        chaosManager->RegisterQueue(table);
+    } else if (isQueueObjectBefore && !isQueueObjectAfter) {
+        chaosManager->UnregisterQueue(table);
+    }
 
     context->Reply();
 }

@@ -32,6 +32,14 @@ struct IChaosManager
     virtual TChaosCellBundle* GetChaosCellBundleByNameOrThrow(const TString& name, bool activeLifeStageOnly) const = 0;
 
     virtual void SetChaosCellBundle(TChaosReplicatedTableNode* node, TChaosCellBundle* cellBundle) = 0;
+
+    virtual const THashSet<TChaosReplicatedTableNode*>& GetQueues() const = 0;
+    virtual void RegisterQueue(TChaosReplicatedTableNode* node) =  0;
+    virtual void UnregisterQueue(TChaosReplicatedTableNode* node) = 0;
+
+    virtual const THashSet<TChaosReplicatedTableNode*>& GetConsumers() const = 0;
+    virtual void RegisterConsumer(TChaosReplicatedTableNode* node) = 0;
+    virtual void UnregisterConsumer(TChaosReplicatedTableNode* node) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChaosManager)

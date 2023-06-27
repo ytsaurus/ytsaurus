@@ -114,6 +114,13 @@ private:
                 tableManager->SetTableSchema(node, emptyTableSchema);
             }
 
+            if (node->IsTrackedConsumerObject()) {
+                chaosManager->RegisterConsumer(node);
+            }
+            if (node->IsTrackedQueueObject()) {
+                chaosManager->RegisterQueue(node);
+            }
+
             return nodeHolder;
         } catch (const std::exception&) {
             this->Destroy(node);
@@ -185,6 +192,19 @@ private:
         TCypressNodeTypeHandlerBase::DoDestroy(node);
     }
 
+    void DoZombify(TChaosReplicatedTableNode* node) override
+    {
+        const auto& chaosManager = Bootstrap_->GetChaosManager();
+        if (node->IsTrackedConsumerObject()) {
+            chaosManager->UnregisterConsumer(node);
+        }
+        if (node->IsTrackedQueueObject()) {
+            chaosManager->UnregisterQueue(node);
+        }
+
+        TCypressNodeTypeHandlerBase::DoZombify(node);
+    }
+
     void DoBranch(
         const TChaosReplicatedTableNode* originatingNode,
         TChaosReplicatedTableNode* branchedNode,
@@ -217,6 +237,9 @@ private:
 
         const auto& tableManager = Bootstrap_->GetTableManager();
         tableManager->SetTableSchema(clonedTrunkNode, sourceNode->GetSchema());
+        if (clonedTrunkNode->IsTrackedQueueObject()) {
+            chaosManager->RegisterQueue(clonedTrunkNode);
+        }
     }
 
     void DoBeginCopy(
@@ -251,6 +274,9 @@ private:
         const auto& tableManager = this->Bootstrap_->GetTableManager();
         auto* schema = Load<TMasterTableSchema*>(*context);
         tableManager->SetTableSchema(trunkNode, schema);
+        if (trunkNode->IsTrackedQueueObject()) {
+            chaosManager->RegisterQueue(trunkNode);
+        }
     }
 };
 

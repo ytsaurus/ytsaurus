@@ -288,6 +288,7 @@ public:
     bool IsSorted() const;
     bool IsUniqueKeys() const;
     bool HasRenamedColumns() const;
+    bool IsEmpty() const;
 
     std::vector<TStableName> GetKeyColumnStableNames() const;
     TKeyColumns GetKeyColumnNames() const;

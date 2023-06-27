@@ -1,3 +1,4 @@
+from yt_chaos_test_base import ChaosTestBase
 import builtins
 from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE, NODES_SERVICE
 from yt_commands import (
@@ -147,19 +148,28 @@ def check_replication_queue_list():
     create("replicated_table", "//tmp/rep_q2", attributes={"dynamic": True, "schema":
                                                            [{"name": "data", "type": "string", "sort_order": "ascending"},
                                                             {"name": "test", "type": "string"}]})
+    create("chaos_replicated_table",
+           "//tmp/chaos_rep_q1",
+           attributes={"chaos_cell_bundle": "chaos_bundle",
+                       "schema": [{"name": "data", "type": "string"}]})
     create("table", "//tmp/q1", attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
     assert builtins.set(get(revisions_path)["queues"].keys()) == {"//tmp/q1"}
     yield
 
-    assert builtins.set(get(revisions_path)["queues"].keys()) == {"//tmp/rep_q1", "//tmp/q1"}
+    assert builtins.set(get(revisions_path)["queues"].keys()) == {"//tmp/q1", "//tmp/rep_q1", "//tmp/chaos_rep_q1"}
 
 
-class TestMasterSnapshotsCompatibility(MasterSnapshotsCompatibilityBase):
+class TestMasterSnapshotsCompatibility(ChaosTestBase, MasterSnapshotsCompatibilityBase):
     TEST_MAINTENANCE_FLAGS = True
 
     @authors("gritukan", "kvk1920")
     @pytest.mark.timeout(150)
     def test(self):
+
+        # Preparation cell bundle for chaos table.
+        cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
+        set("//sys/chaos_cell_bundles/chaos_bundle/@metadata_cell_id", cell_id)
+
         CHECKER_LIST = [
             check_maintenance_flags,
             check_chunk_creation_time_histogram,

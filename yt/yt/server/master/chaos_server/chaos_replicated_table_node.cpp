@@ -2,6 +2,8 @@
 
 #include "chaos_cell_bundle.h"
 
+#include "chaos_manager.h"
+
 #include <yt/yt/server/master/cell_master/serialize.h>
 
 #include <yt/yt/server/master/table_server/master_table_schema.h>
@@ -67,6 +69,51 @@ void TChaosReplicatedTableNode::Load(TLoadContext& context)
     Load(context, Schema_);
 }
 
+void TChaosReplicatedTableNode::CheckInvariants(NCellMaster::TBootstrap* bootstrap) const
+{
+    NCypressServer::TCypressNode::CheckInvariants(bootstrap);
+
+    if (IsObjectAlive(this)) {
+        // NB: Const-cast due to const-correctness rabbit-hole, which led to TChaosReplicatedTableNode* being stored in the set.
+        YT_VERIFY(bootstrap->GetChaosManager()->GetQueues().contains(const_cast<TChaosReplicatedTableNode*>(this)) == IsTrackedQueueObject());
+        YT_VERIFY(bootstrap->GetChaosManager()->GetConsumers().contains(const_cast<TChaosReplicatedTableNode*>(this)) == IsTrackedConsumerObject());
+    }
+}
+
+bool TChaosReplicatedTableNode::IsSorted() const
+{
+    return HasNonEmptySchema() && GetSchema()->AsTableSchema()->IsSorted();
+}
+
+// Chaos Replicated Tables are always dynamic.
+bool TChaosReplicatedTableNode::IsQueue() const
+{
+    return HasNonEmptySchema() && !IsSorted();
+}
+
+// Chaos Replicated Tables are always native.
+bool TChaosReplicatedTableNode::IsTrackedQueueObject() const
+{
+    return IsNative() && IsTrunk() && IsQueue();
+}
+
+// Chaos Replicated Tables are always dynamic.
+bool TChaosReplicatedTableNode::IsConsumer() const
+{
+    return GetTreatAsConsumer();
+}
+
+// Chaos Replicated Tables are always native.
+bool TChaosReplicatedTableNode::IsTrackedConsumerObject() const
+{
+    return IsNative() && IsTrunk() && IsConsumer();
+}
+
+bool TChaosReplicatedTableNode::HasNonEmptySchema() const
+{
+    const auto& schema = GetSchema();
+    return schema && !schema->AsTableSchema()->IsEmpty();
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChaosServer

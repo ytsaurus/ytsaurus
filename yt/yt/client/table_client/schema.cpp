@@ -698,6 +698,11 @@ bool TTableSchema::HasRenamedColumns() const
     });
 }
 
+bool TTableSchema::IsEmpty() const
+{
+    return Columns().empty();
+}
+
 TKeyColumns TTableSchema::GetKeyColumnNames() const
 {
     TKeyColumns keyColumns;

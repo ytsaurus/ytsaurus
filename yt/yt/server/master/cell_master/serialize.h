@@ -167,6 +167,7 @@ DEFINE_ENUM(EMasterReign,
     ((PendingRestartMaintenanceFlag)                                (2406))  // danilalexeev
     ((MakeDestroyedReplicasSetSharded)                              (2407))  // danilalexeev
     ((AvenuesInTabletManager)                                       (2408))  // ifsmirnov
+    ((ChaosReplicatedQueuesAndConsumersList)                        (2409))  // cherepashka
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -47,6 +47,7 @@ using namespace NObjectClient;
 using namespace NChaosClient;
 using namespace NTableClient;
 using namespace NCypressClient;
+using namespace NObjectClient;
 
 using NYT::FromProto;
 
@@ -243,6 +244,76 @@ private:
     const IAlienCellSynchronizerPtr AlienCellSynchronizer_;
     THashSet<TString> EnabledMetadataClusters_;
 
+    //! Contains native trunk nodes for which IsQueue() is true.
+    THashSet<TChaosReplicatedTableNode*> Queues_;
+    //! Contains native trunk nodes for which IsConsumer() is true.
+    THashSet<TChaosReplicatedTableNode*> Consumers_;
+
+    // COMPAT(cherepashka, achulkov2)
+    bool NeedToAddChaosReplicatedQueues_ = false;
+
+    const THashSet<TChaosReplicatedTableNode*>& GetQueues() const override
+    {
+        Bootstrap_->VerifyPersistentStateRead();
+
+        return Queues_;
+    }
+
+    const THashSet<TChaosReplicatedTableNode*>& GetConsumers() const override
+    {
+        Bootstrap_->VerifyPersistentStateRead();
+
+        return Consumers_;
+    }
+
+    void RegisterQueue(TChaosReplicatedTableNode* node) override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(HasHydraContext());
+
+        if (!Queues_.insert(node).second) {
+            YT_LOG_ALERT("Attempting to register a queue twice (Node: %v, Path: %v)",
+                node->GetId(),
+                Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
+        }
+    }
+
+    void UnregisterQueue(TChaosReplicatedTableNode* node) override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(HasHydraContext());
+
+        if (!Queues_.erase(node)) {
+            YT_LOG_ALERT("Attempting to unregister an unknown queue (Node: %v, Path: %v)",
+                node->GetId(),
+                Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
+        }
+    }
+
+    void RegisterConsumer(TChaosReplicatedTableNode* node) override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(HasHydraContext());
+
+        if (!Consumers_.insert(node).second) {
+            YT_LOG_ALERT("Attempting to register a consumer twice (Node: %v, Path: %v)",
+                node->GetId(),
+                Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
+        }
+    }
+
+    void UnregisterConsumer(TChaosReplicatedTableNode* node) override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(HasHydraContext());
+
+        if (!Consumers_.erase(node)) {
+            YT_LOG_ALERT("Attempting to unregister an unknown consumer (Node: %v, Path: %v)",
+                node->GetId(),
+                Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
+        }
+    }
+
     bool IsMetadataCellInEnabledCluster(const TChaosCell* chaosCell) const
     {
         YT_VERIFY(chaosCell);
@@ -431,6 +502,9 @@ private:
     {
         Save(context, *AlienClusterRegistry_);
         Save(context, EnabledMetadataClusters_);
+
+        Save(context, Queues_);
+        Save(context, Consumers_);
     }
 
     void LoadKeys(NCellMaster::TLoadContext& context)
@@ -443,6 +517,30 @@ private:
         if (context.GetVersion() >= EMasterReign::UseMetadataCellIds) {
             Load(context, EnabledMetadataClusters_);
         }
+
+        // COMPAT(cherepashka, achulkov2)
+        if (context.GetVersion() >= EMasterReign::ChaosReplicatedQueuesAndConsumersList) {
+            Load(context, Queues_);
+            Load(context, Consumers_);
+        }
+        NeedToAddChaosReplicatedQueues_ = context.GetVersion() < EMasterReign::ChaosReplicatedQueuesAndConsumersList;
+    }
+
+    void OnAfterSnapshotLoaded() override
+    {
+        TMasterAutomatonPart::OnAfterSnapshotLoaded();
+
+        if (NeedToAddChaosReplicatedQueues_) {
+            for (auto [nodeId, node] : Bootstrap_->GetCypressManager()->Nodes()) {
+                if (node->GetType() == EObjectType::ChaosReplicatedTable) {
+                    auto* chaosReplicatedTableNode = node->As<TChaosReplicatedTableNode>();
+                    // There are no chaos consumers to be considered, since the builtin treat_as_queue_consumer attribute was added within the same reign.
+                    if (chaosReplicatedTableNode->IsTrackedQueueObject()) {
+                        RegisterQueue(chaosReplicatedTableNode);
+                    }
+                }
+            }
+        }
     }
 
     void Clear() override
@@ -452,6 +550,10 @@ private:
         TMasterAutomatonPart::Clear();
 
         AlienClusterRegistry_->Clear();
+
+        Queues_.clear();
+        Consumers_.clear();
+        NeedToAddChaosReplicatedQueues_ = false;
     }
 
 

@@ -16,6 +16,9 @@
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
 
+#include <yt/yt/server/master/chaos_server/chaos_manager.h>
+#include <yt/yt/server/master/chaos_server/chaos_replicated_table_node.h>
+
 #include <yt/yt/server/master/chunk_server/chunk_owner_base.h>
 
 #include <yt/yt/server/master/object_server/object_manager.h>
@@ -1032,12 +1035,14 @@ public:
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         const auto& cypressManager = Bootstrap_->GetCypressManager();
+        const auto& chaosManager = Bootstrap_->GetChaosManager();
 
         using ObjectRevisionMap = THashMap<TString, THashMap<TString, TRevision>>;
 
         ObjectRevisionMap objectRevisions;
-        auto addToObjectRevisions = [&] (const TString& key, const THashSet<TTableNode*>& nodes) {
-            objectRevisions[key] = {};
+        auto addToObjectRevisions = [&] <typename T>(const TString& key, const THashSet<T>& nodes) {
+            static_assert(std::is_same_v<T, TTableNode*> || std::is_same_v<T, NChaosServer::TChaosReplicatedTableNode*>,
+                "Templated type T has to be TTableNode* or TChaosReplicatedTableNode");
             for (auto* node : nodes) {
                 if (IsObjectAlive(node)) {
                     EPathRootType pathRootType;
@@ -1049,8 +1054,12 @@ public:
                 }
             }
         };
+        objectRevisions["queues"] = {};
+        objectRevisions["consumers"] = {};
         addToObjectRevisions("queues", GetQueues());
         addToObjectRevisions("consumers", GetConsumers());
+        addToObjectRevisions("queues", chaosManager->GetQueues());
+        addToObjectRevisions("consumers", chaosManager->GetConsumers());
 
         if (multicellManager->IsPrimaryMaster() && multicellManager->GetRoleMasterCellCount(EMasterCellRole::CypressNodeHost) > 1) {
             std::vector<TFuture<TYPathProxy::TRspGetPtr>> asyncResults;
