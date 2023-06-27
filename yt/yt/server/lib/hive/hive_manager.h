@@ -101,8 +101,8 @@ public:
      */
     virtual TFuture<void> SyncWith(TCellId cellId, bool enableBatching) = 0;
 
-    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(CellMailbox, TCellMailbox);
-    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(AvenueMailbox, TAvenueMailbox);
+    DECLARE_INTERFACE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(CellMailbox, CellMailboxes, TCellMailbox);
+    DECLARE_INTERFACE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(AvenueMailbox, AvenueMailboxes, TAvenueMailbox);
 };
 
 DEFINE_REFCOUNTED_TYPE(IHiveManager)

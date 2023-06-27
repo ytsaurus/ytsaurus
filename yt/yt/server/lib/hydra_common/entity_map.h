@@ -209,7 +209,7 @@ private:
 #define DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(entityName, entityType) \
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE_IMPL(entityName, entityName ## s, entityType)
 
-#define DECLARE_ENTITY_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS_OVERRIDE(entityName, entityNamePlural, entityType) \
+#define DECLARE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS_OVERRIDE(entityName, entityNamePlural, entityType) \
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE_IMPL(entityName, entityNamePlural, entityType)
 
 #define DEFINE_ENTITY_MAP_ACCESSORS_IMPL(declaringType, entityName, entityNamePlural, entityType, map) \

@@ -36,6 +36,7 @@
 #include <yt/yt/core/tracing/trace_context.h>
 
 #include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/virtual.h>
 
 #include <library/cpp/iterator/enumerate.h>
 
@@ -451,8 +452,8 @@ public:
         }
     }
 
-    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(CellMailbox, TCellMailbox);
-    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(AvenueMailbox, TAvenueMailbox);
+    DECLARE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS_OVERRIDE(CellMailbox, CellMailboxes, TCellMailbox);
+    DECLARE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS_OVERRIDE(AvenueMailbox, AvenueMailboxes, TAvenueMailbox);
 
 private:
     const TCellId SelfCellId_;
@@ -2157,41 +2158,137 @@ private:
         }
     }
 
+    int GetRemovedCellIdCount() const
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        return RemovedCellIds_.size();
+    }
 
     IYPathServicePtr CreateOrchidService()
     {
         auto invoker = HydraManager_->CreateGuardedAutomatonInvoker(AutomatonInvoker_);
-        auto producer = BIND(&THiveManager::BuildOrchidYson, MakeWeak(this));
-        return IYPathService::FromProducer(producer, TDuration::Seconds(1))
+        return New<TCompositeMapService>()
+            ->AddChild("cell_mailboxes", New<TMailboxOrchidService<TCellMailbox>>(
+                MakeWeak(this),
+                &THiveManager::CellMailboxes))
+            ->AddChild("avenue_mailboxes", New<TMailboxOrchidService<TAvenueMailbox>>(
+                MakeWeak(this),
+                &THiveManager::AvenueMailboxes))
+            ->AddChild("removed_cell_count", IYPathService::FromMethod(
+                &THiveManager::GetRemovedCellIdCount,
+                MakeWeak(this)))
             ->Via(invoker);
     }
 
-    void BuildOrchidYson(IYsonConsumer* consumer)
+    template <class TMailbox>
+    class TMailboxOrchidService
+        : public TVirtualMapBase
     {
-        // TODO(ifsmirnov): add avenue mailboxes to orchid.
-        BuildYsonFluently(consumer)
-            .BeginMap()
-                .Item("mailboxes").DoMapFor(CellMailboxMap_, [&] (TFluentMap fluent, const std::pair<TCellId, TCellMailbox*>& pair) {
-                    auto* mailbox = pair.second;
-                    fluent
-                        .Item(ToString(mailbox->GetCellId())).BeginMap()
-                            .Item("connected").Value(mailbox->GetConnected())
-                            .Item("acknowledge_in_progress").Value(mailbox->GetAcknowledgeInProgress())
-                            .Item("post_in_progress").Value(mailbox->GetPostInProgress())
-                            .Item("first_outcoming_message_id").Value(mailbox->GetFirstOutcomingMessageId())
-                            .Item("outcoming_message_count").Value(mailbox->OutcomingMessages().size())
-                            .Item("next_persistent_incoming_message_id").Value(mailbox->GetNextPersistentIncomingMessageId())
-                            .Item("next_transient_incoming_message_id").Value(mailbox->GetNextTransientIncomingMessageId())
-                            .Item("first_in_flight_outcoming_message_id").Value(mailbox->GetFirstInFlightOutcomingMessageId())
-                            .Item("in_flight_outcoming_message_count").Value(mailbox->GetInFlightOutcomingMessageCount())
-                        .EndMap();
-                })
-            .EndMap();
+    public:
+        using TMailboxMapAccessor =
+            const NHydra::TReadOnlyEntityMap<TMailbox>& (THiveManager::*)() const;
+
+        TMailboxOrchidService(
+            TWeakPtr<THiveManager> hiveManager,
+            TMailboxMapAccessor mailboxMapAccessor)
+            : Owner_(std::move(hiveManager))
+            , MailboxMapAccessor_(mailboxMapAccessor)
+        { }
+
+        std::vector<TString> GetKeys(i64 limit) const override
+        {
+            std::vector<TString> keys;
+
+            if (auto owner = Owner_.Lock()) {
+                const auto& mailboxes = ((owner.Get())->*MailboxMapAccessor_)();
+                keys.reserve(std::min(limit, std::ssize(mailboxes)));
+
+                for (auto [id, mailbox] : mailboxes) {
+                    if (std::ssize(keys) >= limit) {
+                        break;
+                    }
+                    keys.push_back(ToString(id));
+                }
+            }
+
+            return keys;
+        }
+
+        i64 GetSize() const override
+        {
+            if (auto owner = Owner_.Lock()) {
+                return std::ssize(((owner.Get())->*MailboxMapAccessor_)());
+            }
+            return 0;
+        }
+
+        IYPathServicePtr FindItemService(TStringBuf key) const override
+        {
+            if (auto owner = Owner_.Lock()) {
+                const auto& mailboxes = ((owner.Get())->*MailboxMapAccessor_)();
+                if (auto* mailbox = mailboxes.Find(TEndpointId::FromString(key))) {
+                    auto producer = BIND(&THiveManager::BuildMailboxOrchidYson, owner, mailbox);
+                    return ConvertToNode(producer);
+                }
+            }
+            return nullptr;
+        }
+
+    private:
+        const TWeakPtr<THiveManager> Owner_;
+        TMailboxMapAccessor MailboxMapAccessor_;
+    };
+
+    void BuildMailboxOrchidYson(const TMailbox* mailbox, IYsonConsumer* consumer) const
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        consumer->OnBeginMap();
+
+        BuildYsonMapFragmentFluently(consumer)
+            .Item("acknowledge_in_progress").Value(mailbox->GetAcknowledgeInProgress())
+            .Item("post_in_progress").Value(mailbox->GetPostInProgress())
+            .Item("first_outcoming_message_id").Value(mailbox->GetFirstOutcomingMessageId())
+            .Item("outcoming_message_count").Value(mailbox->OutcomingMessages().size())
+            .Item("next_persistent_incoming_message_id").Value(mailbox->GetNextPersistentIncomingMessageId())
+            .Item("next_transient_incoming_message_id").Value(mailbox->GetNextTransientIncomingMessageId())
+            .Item("first_in_flight_outcoming_message_id").Value(mailbox->GetFirstInFlightOutcomingMessageId())
+            .Item("in_flight_outcoming_message_count").Value(mailbox->GetInFlightOutcomingMessageCount());
+
+        if (mailbox->IsCell()) {
+            auto* cellMailbox = mailbox->AsCell();
+
+            BuildYsonMapFragmentFluently(consumer)
+                .Item("connected").Value(cellMailbox->GetConnected())
+                .Item("registered_avenue_ids").DoListFor(
+                    cellMailbox->RegisteredAvenues(),
+                    [] (auto fluent, const auto& pair) {
+                        fluent.Item().Value(pair.first);
+                    })
+                .Item("active_avenue_ids").DoListFor(
+                    cellMailbox->ActiveAvenues(),
+                    [] (auto fluent, const auto& pair) {
+                        fluent.Item().Value(pair.first);
+                    });
+        }
+
+        if (mailbox->IsAvenue()) {
+            auto* avenueMailbox = mailbox->AsAvenue();
+
+            auto* cellMailbox = avenueMailbox->GetCellMailbox();
+
+            BuildYsonMapFragmentFluently(consumer)
+                .Item("cell_id").Value(cellMailbox ? cellMailbox->GetCellId() : TCellId{});
+        }
+
+        consumer->OnEndMap();
     }
+
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(THiveManager, CellMailbox, TCellMailbox, CellMailboxMap_);
-DEFINE_ENTITY_MAP_ACCESSORS(THiveManager, AvenueMailbox, TAvenueMailbox, AvenueMailboxMap_);
+DEFINE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(THiveManager, CellMailbox, CellMailboxes, TCellMailbox, CellMailboxMap_);
+DEFINE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(THiveManager, AvenueMailbox, AvenueMailboxes, TAvenueMailbox, AvenueMailboxMap_);
 
 ////////////////////////////////////////////////////////////////////////////////
 
