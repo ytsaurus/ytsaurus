@@ -564,6 +564,7 @@ private:
     {
         MasterChunkSpecFetcher_ = New<TMasterChunkSpecFetcher>(
             Client_,
+            *QueryContext_->Settings->FetchChunksReadOptions,
             nullptr /* nodeDirectory */,
             Invoker_,
             Config_->MaxChunksPerFetch,

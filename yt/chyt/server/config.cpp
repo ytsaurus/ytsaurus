@@ -2,6 +2,8 @@
 
 #include "clickhouse_config.h"
 
+#include <yt/yt/client/api/client.h>
+
 #include <yt/yt/library/re2/re2.h>
 
 namespace NYT::NClickHouseServer {
@@ -204,6 +206,11 @@ void TQuerySettings::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("caching", &TThis::Caching)
+        .DefaultNew();
+
+    registrar.Parameter("cypress_read_options", &TThis::CypressReadOptions)
+        .DefaultNew();
+    registrar.Parameter("fetch_chunks_read_options", &TThis::FetchChunksReadOptions)
         .DefaultNew();
 
     registrar.Preprocessor([] (TThis* config) {

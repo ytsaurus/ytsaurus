@@ -68,7 +68,7 @@ TFuture<std::vector<TErrorOr<IAttributeDictionaryPtr>>> TObjectAttributeCache::D
         Invoker_,
         AttributeNames_,
         Logger,
-        Config_->MasterReadOptions);
+        *Config_->MasterReadOptions);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

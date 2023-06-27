@@ -1,8 +1,9 @@
 #include "chunk_spec_fetcher.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
-#include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/rpc_helpers.h>
 #include <yt/yt/ytlib/api/native/tablet_helpers.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
@@ -29,16 +30,16 @@ namespace NYT::NChunkClient {
 
 using namespace NApi;
 using namespace NApi::NNative;
-using namespace NNodeTrackerClient;
-using namespace NLogging;
-using namespace NYPath;
-using namespace NObjectClient;
 using namespace NChunkClient;
-using namespace NTableClient;
-using namespace NTabletClient;
 using namespace NConcurrency;
+using namespace NLogging;
+using namespace NNodeTrackerClient;
+using namespace NObjectClient;
 using namespace NQueryClient;
 using namespace NRpc;
+using namespace NTableClient;
+using namespace NTabletClient;
+using namespace NYPath;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -47,6 +48,7 @@ using NYT::ToProto;
 
 TMasterChunkSpecFetcher::TMasterChunkSpecFetcher(
     const NApi::NNative::IClientPtr& client,
+    const TMasterReadOptions& masterReadOptions,
     TNodeDirectoryPtr nodeDirectory,
     const IInvokerPtr& invoker,
     int maxChunksPerFetch,
@@ -55,6 +57,7 @@ TMasterChunkSpecFetcher::TMasterChunkSpecFetcher(
     const TLogger& logger,
     bool skipUnavailableChunks)
     : Client_(client)
+    , MasterReadOptions_(masterReadOptions)
     , NodeDirectory_(nodeDirectory)
     , Invoker_(invoker)
     , MaxChunksPerFetch_(maxChunksPerFetch)
@@ -105,6 +108,7 @@ void TMasterChunkSpecFetcher::Add(
             InitializeFetchRequest_(req.Get(), tableIndex);
             ToProto(req->mutable_ranges(), std::vector<NChunkClient::TReadRange>{adjustedRange});
             req->set_supported_chunk_features(ToUnderlying(GetSupportedChunkFeatures()));
+            SetCachingHeader(req, Client_->GetNativeConnection(), MasterReadOptions_);
 
             state.BatchReq->AddRequest(req, "fetch");
             ++state.ReqCount;
@@ -157,10 +161,12 @@ TMasterChunkSpecFetcher::TCellState& TMasterChunkSpecFetcher::GetCellState(TCell
         it = CellTagToState_.insert({cellTag, TCellState()}).first;
         auto proxy = CreateObjectServiceReadProxy(
             Client_,
-            EMasterChannelKind::Follower,
+            MasterReadOptions_.ReadFrom,
             cellTag);
         it->second.BatchReq = proxy.ExecuteBatchWithRetries(
             Client_->GetNativeConnection()->GetConfig()->ChunkFetchRetries);
+        // TODO(dakovalkov): doesn't work with BatchWtihRetries.
+        // SetBalancingHeader(it->second.BatchReq, Client_->GetNativeConnection(), MasterReadOptions_);
     }
     return it->second;
 }
@@ -196,6 +202,7 @@ void TMasterChunkSpecFetcher::DoFetch()
 
     if (!foreignChunkSpecs.empty()) {
         YT_LOG_INFO("Locating foreign chunks (ForeignChunkCount: %v)", foreignChunkSpecs.size());
+        // TODO(dakovalkov): Use MasterReadOptions.
         LocateChunks(Client_, MaxChunksPerLocateRequest_, foreignChunkSpecs, NodeDirectory_, Logger, SkipUnavailableChunks_);
         YT_LOG_INFO("Finished locating foreign chunks");
     }

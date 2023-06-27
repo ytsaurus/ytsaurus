@@ -21,6 +21,7 @@ using FilterByNameFunction = std::function<bool(const std::string &)>;
 public:
     TTableTraverser(
         NApi::NNative::IClientPtr client,
+        const NApi::TMasterReadOptions& masterReadOptions,
         std::vector<TString> roots,
         const FilterByNameFunction& filterByTableName);
 
@@ -28,6 +29,7 @@ public:
 
 private:
     NApi::NNative::IClientPtr Client_;
+    NApi::TMasterReadOptions MasterReadOptions_;
     std::vector<TString> Roots_;
     std::vector<std::string> Tables_;
     const FilterByNameFunction& FilterByTableName_;

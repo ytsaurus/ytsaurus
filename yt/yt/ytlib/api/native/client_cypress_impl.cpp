@@ -12,16 +12,16 @@
 #include <yt/yt/ytlib/chunk_client/chunk_meta_fetcher.h>
 #include <yt/yt/ytlib/chunk_client/chunk_spec_fetcher.h>
 #include <yt/yt/ytlib/chunk_client/chunk_teleporter.h>
-#include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/fetcher.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/throttler_manager.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/yt/ytlib/object_client/helpers.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
@@ -35,8 +35,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/check_schema_compatibility.h>
+#include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
@@ -47,18 +47,19 @@
 
 namespace NYT::NApi::NNative {
 
+using namespace NApi;
+using namespace NChunkClient;
 using namespace NConcurrency;
-using namespace NYPath;
-using namespace NYTree;
-using namespace NYson;
-using namespace NObjectClient;
 using namespace NCypressClient;
 using namespace NHiveClient;
+using namespace NObjectClient;
+using namespace NSecurityClient;
 using namespace NTableClient;
 using namespace NTabletClient;
-using namespace NSecurityClient;
 using namespace NTransactionClient;
-using namespace NChunkClient;
+using namespace NYPath;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1468,6 +1469,7 @@ private:
 
         auto chunkSpecFetcher = New<TMasterChunkSpecFetcher>(
             Client_,
+            TMasterReadOptions{},
             Client_->Connection_->GetNodeDirectory(),
             Client_->Connection_->GetInvoker(),
             Client_->Connection_->GetConfig()->MaxChunksPerFetch,

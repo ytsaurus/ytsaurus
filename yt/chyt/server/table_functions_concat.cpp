@@ -33,15 +33,16 @@
 
 namespace NYT::NClickHouseServer {
 
-using namespace DB;
-using namespace NYTree;
 using namespace NApi;
-using namespace NObjectClient;
-using namespace NCypressClient;
-using namespace NYson;
-using namespace NYPath;
-using namespace NTableClient;
 using namespace NConcurrency;
+using namespace NCypressClient;
+using namespace NObjectClient;
+using namespace NTableClient;
+using namespace NYPath;
+using namespace NYson;
+using namespace NYTree;
+
+using namespace DB;
 
 using NYT::ToProto;
 
@@ -239,6 +240,7 @@ private:
         YT_LOG_INFO("Listing directory (Path: %v)", directory);
 
         TListNodeOptions options;
+        static_cast<TMasterReadOptions&>(options) = *queryContext->Settings->CypressReadOptions;
         options.Attributes = {
             "path",
         };

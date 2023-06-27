@@ -116,11 +116,11 @@ TFuture<void> TPermissionCache::DoGet(const TPermissionKey& key, bool isPeriodic
 
     TObjectServiceProxy proxy(
         connection,
-        Config_->MasterReadOptions.ReadFrom,
+        Config_->MasterReadOptions->ReadFrom,
         PrimaryMasterCellTagSentinel,
         connection->GetStickyGroupSizeCache());
     auto batchReq = proxy.ExecuteBatch();
-    SetBalancingHeader(batchReq, connection, Config_->MasterReadOptions);
+    SetBalancingHeader(batchReq, connection, *Config_->MasterReadOptions);
     batchReq->SetUser(isPeriodicUpdate || Config_->AlwaysUseRefreshUser ? Config_->RefreshUser : key.User);
     batchReq->AddRequest(MakeRequest(connection, key));
 
@@ -157,10 +157,11 @@ TFuture<std::vector<TError>> TPermissionCache::DoGetMany(
 
     TObjectServiceProxy proxy(
         connection,
-        Config_->MasterReadOptions.ReadFrom,
+        Config_->MasterReadOptions->ReadFrom,
         PrimaryMasterCellTagSentinel,
         /*stickyGroupSizeCache*/ nullptr);
     auto batchReq = proxy.ExecuteBatch();
+    SetBalancingHeader(batchReq, connection, *Config_->MasterReadOptions);
     batchReq->SetUser(Config_->RefreshUser);
     for (const auto& key : keys) {
         key.AssertValidity();
@@ -216,7 +217,7 @@ NYTree::TYPathRequestPtr TPermissionCache::MakeRequest(
         typedReq->set_ignore_missing_subjects(true);
         req = std::move(typedReq);
     }
-    SetCachingHeader(req, connection, Config_->MasterReadOptions);
+    SetCachingHeader(req, connection, *Config_->MasterReadOptions);
     NCypressClient::SetSuppressAccessTracking(req, true);
     return req;
 }

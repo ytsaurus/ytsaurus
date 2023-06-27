@@ -161,9 +161,38 @@ struct TMasterReadOptions
     TDuration SuccessStalenessBound;
 };
 
-void Serialize(const TMasterReadOptions& options, NYson::IYsonConsumer* consumer);
-void Deserialize(TMasterReadOptions& options, NYTree::INodePtr node);
-void Deserialize(TMasterReadOptions& options, NYson::TYsonPullParserCursor* cursor);
+struct TSerializableMasterReadOptions
+    : public TMasterReadOptions
+    , public NYTree::TYsonStruct
+{
+    REGISTER_YSON_STRUCT(TSerializableMasterReadOptions);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.BaseClassParameter("read_from", &TThis::ReadFrom)
+            .Default(TMasterReadOptions{}.ReadFrom);
+
+        registrar.BaseClassParameter("disable_per_user_cache", &TThis::DisablePerUserCache)
+            .Default(TMasterReadOptions{}.DisablePerUserCache);
+
+        registrar.BaseClassParameter("expire_after_successful_update_time", &TThis::ExpireAfterSuccessfulUpdateTime)
+            .Default(TMasterReadOptions{}.ExpireAfterSuccessfulUpdateTime);
+
+        registrar.BaseClassParameter("expire_after_failed_update_time", &TThis::ExpireAfterFailedUpdateTime)
+            .Default(TMasterReadOptions{}.ExpireAfterFailedUpdateTime);
+
+        registrar.BaseClassParameter("cache_sticky_group_size", &TThis::CacheStickyGroupSize)
+            .Default(TMasterReadOptions{}.CacheStickyGroupSize);
+
+        registrar.BaseClassParameter("enable_client_cache_stickiness", &TThis::EnableClientCacheStickiness)
+            .Default(TMasterReadOptions{}.EnableClientCacheStickiness);
+
+        registrar.BaseClassParameter("success_staleness_bound", &TThis::SuccessStalenessBound)
+            .Default(TMasterReadOptions{}.SuccessStalenessBound);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TSerializableMasterReadOptions)
 
 struct TPrerequisiteRevisionConfig
     : public NYTree::TYsonStruct

@@ -9,7 +9,7 @@ namespace NYT::NObjectClient {
 void TObjectAttributeCacheConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("master_read_options", &TThis::MasterReadOptions)
-        .Default();
+        .DefaultNew();
 
     // COMPAT(dakovalkov)
     registrar.Parameter("read_from", &TThis::ReadFrom_)
@@ -23,16 +23,16 @@ void TObjectAttributeCacheConfig::Register(TRegistrar registrar)
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->ReadFrom_) {
-            config->MasterReadOptions.ReadFrom = *config->ReadFrom_;
+            config->MasterReadOptions->ReadFrom = *config->ReadFrom_;
         }
         if (config->MasterCacheExpireAfterSuccessfulUpdateTime_) {
-            config->MasterReadOptions.ExpireAfterSuccessfulUpdateTime = *config->MasterCacheExpireAfterSuccessfulUpdateTime_;
+            config->MasterReadOptions->ExpireAfterSuccessfulUpdateTime = *config->MasterCacheExpireAfterSuccessfulUpdateTime_;
         }
         if (config->MasterCacheExpireAfterFailedUpdateTime_) {
-            config->MasterReadOptions.ExpireAfterFailedUpdateTime = *config->MasterCacheExpireAfterFailedUpdateTime_;
+            config->MasterReadOptions->ExpireAfterFailedUpdateTime = *config->MasterCacheExpireAfterFailedUpdateTime_;
         }
         if (config->MasterCacheStickyGroupSize_) {
-            config->MasterReadOptions.CacheStickyGroupSize = *config->MasterCacheStickyGroupSize_;
+            config->MasterReadOptions->CacheStickyGroupSize = *config->MasterCacheStickyGroupSize_;
         }
     });
 }

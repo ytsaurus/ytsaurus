@@ -8,6 +8,7 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/rpc_helpers.h>
 #include <yt/yt/ytlib/api/native/transaction.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
@@ -229,7 +230,9 @@ const NApi::NNative::IClientPtr& TQueryContext::Client() const
 
     if (!clientPresent) {
         auto writerGuard = WriterGuard(ClientLock_);
-        Client_ = Host->CreateClient(User);
+        if (!Client_) {
+            Client_ = Host->CreateClient(User);
+        }
     }
 
     return Client_;
@@ -531,17 +534,26 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::FetchTableAttribut
     if (paths.empty()) {
         return {};
     }
-    auto proxy = CreateObjectServiceWriteProxy(Client());
+
+    auto client = Client();
+    auto connection = client->GetNativeConnection();
+    TMasterReadOptions masterReadOptions = *Settings->CypressReadOptions;
+
+    auto proxy = CreateObjectServiceReadProxy(client, masterReadOptions.ReadFrom);
     auto batchReq = proxy.ExecuteBatch();
+    SetBalancingHeader(batchReq, connection, masterReadOptions);
 
     for (int index = 0; index < std::ssize(paths); ++index) {
         const auto& path = paths[index];
         auto maybeNodeId = PathToNodeId.find(path);
         auto nodeIdOrPath = (maybeNodeId != PathToNodeId.end()) ? Format("#%v", maybeNodeId->second) : path;
+
         auto req = TYPathProxy::Get(Format("%v/@", nodeIdOrPath));
         req->Tag() = index;
         ToProto(req->mutable_attributes()->mutable_keys(), TableAttributesToFetch);
         SetTransactionId(req, transactionId);
+        SetCachingHeader(req, connection, masterReadOptions);
+
         batchReq->AddRequest(req);
     }
 

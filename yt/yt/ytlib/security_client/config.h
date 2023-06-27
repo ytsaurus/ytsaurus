@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/client/api/client.h>
+#include <yt/yt/client/api/public.h>
 
 #include <yt/yt/core/misc/cache_config.h>
 
@@ -14,7 +14,7 @@ class TPermissionCacheConfig
     : public TAsyncExpiringCacheConfig
 {
 public:
-    NApi::TMasterReadOptions MasterReadOptions;
+    NApi::TSerializableMasterReadOptionsPtr MasterReadOptions;
     TString RefreshUser;
     bool AlwaysUseRefreshUser;
 

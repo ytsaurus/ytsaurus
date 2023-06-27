@@ -155,31 +155,31 @@
 
 namespace NYT::NControllerAgent::NControllers {
 
-using namespace NChunkPools;
-using namespace NCypressClient;
-using namespace NTransactionClient;
-using namespace NFileClient;
+using namespace NApi;
 using namespace NChunkClient;
-using namespace NObjectClient;
-using namespace NYTree;
-using namespace NYson;
-using namespace NYPath;
+using namespace NChunkPools;
+using namespace NConcurrency;
+using namespace NCypressClient;
+using namespace NEventLog;
+using namespace NFileClient;
 using namespace NFormats;
 using namespace NJobTrackerClient;
+using namespace NLogging;
 using namespace NNodeTrackerClient;
-using namespace NConcurrency;
-using namespace NApi;
+using namespace NObjectClient;
+using namespace NProfiling;
+using namespace NQueryClient;
 using namespace NRpc;
+using namespace NScheduler;
 using namespace NSecurityClient;
 using namespace NTableClient;
-using namespace NQueryClient;
-using namespace NProfiling;
-using namespace NScheduler;
-using namespace NVectorHdrf;
-using namespace NEventLog;
-using namespace NLogging;
-using namespace NYTAlloc;
 using namespace NTabletClient;
+using namespace NTransactionClient;
+using namespace NVectorHdrf;
+using namespace NYPath;
+using namespace NYson;
+using namespace NYTAlloc;
+using namespace NYTree;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -189,14 +189,14 @@ using NJobTrackerClient::EJobState;
 using NNodeTrackerClient::TNodeId;
 using NProfiling::CpuInstantToInstant;
 using NProfiling::TCpuInstant;
+using NScheduler::NProto::TCoreInfo;
+using NScheduler::NProto::TSchedulerJobResultExt;
+using NScheduler::NProto::TSchedulerJobSpecExt;
+using NScheduler::TExecNodeDescriptor;
 using NTableClient::NProto::TBoundaryKeysExt;
 using NTableClient::NProto::THeavyColumnStatisticsExt;
 using NTableClient::TTableReaderOptions;
-using NScheduler::TExecNodeDescriptor;
-using NScheduler::NProto::TSchedulerJobResultExt;
-using NScheduler::NProto::TSchedulerJobSpecExt;
 using NTabletNode::DefaultMaxOverlappingStoreCount;
-using NScheduler::NProto::TCoreInfo;
 
 using std::placeholders::_1;
 
@@ -5496,6 +5496,7 @@ void TOperationControllerBase::FetchInputTables()
 
     auto chunkSpecFetcher = New<TMasterChunkSpecFetcher>(
         InputClient,
+        TMasterReadOptions{},
         InputNodeDirectory_,
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
         Config->MaxChunksPerFetch,
@@ -6473,6 +6474,7 @@ void TOperationControllerBase::FetchUserFiles()
 
     auto chunkSpecFetcher = New<TMasterChunkSpecFetcher>(
         InputClient,
+        TMasterReadOptions{},
         InputNodeDirectory_,
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
         Config->MaxChunksPerFetch,

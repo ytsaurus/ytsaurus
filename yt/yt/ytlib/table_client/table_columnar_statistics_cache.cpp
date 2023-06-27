@@ -21,13 +21,14 @@
 
 namespace NYT::NTableClient {
 
+using namespace NApi;
 using namespace NChunkClient;
-using namespace NYPath;
-using namespace NLogging;
-using namespace NHydra;
-using namespace NProfiling;
-using namespace NObjectClient;
 using namespace NCypressClient;
+using namespace NHydra;
+using namespace NLogging;
+using namespace NObjectClient;
+using namespace NProfiling;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -202,6 +203,7 @@ public:
     {
         auto chunkSpecFetcher = New<TMasterChunkSpecFetcher>(
             Client_,
+            TMasterReadOptions{},
             nullptr /* nodeDirectory */,
             Invoker_,
             Config_->MaxChunksPerFetch,

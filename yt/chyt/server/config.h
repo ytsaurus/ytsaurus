@@ -275,6 +275,9 @@ public:
 
     TCachingSettingsPtr Caching;
 
+    NApi::TSerializableMasterReadOptionsPtr CypressReadOptions;
+    NApi::TSerializableMasterReadOptionsPtr FetchChunksReadOptions;
+
     REGISTER_YSON_STRUCT(TQuerySettings);
 
     static void Register(TRegistrar registrar);

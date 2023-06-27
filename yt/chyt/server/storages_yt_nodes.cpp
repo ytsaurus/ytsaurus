@@ -47,13 +47,12 @@ std::vector<TErrorOr<INodePtr>> ListDirs(
     const std::vector<TString>& attributesToFetch,
     TQueryContext* queryContext)
 {
-    // TODO(dakovalkov): Take it from config?
-    NApi::TMasterReadOptions masterReadOptions;
-
     const auto& settings = queryContext->Settings->ListDir;
 
     const auto& client = queryContext->Client();
     const auto& connection = client->GetNativeConnection();
+    TMasterReadOptions masterReadOptions = *queryContext->Settings->CypressReadOptions;
+
     TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(masterReadOptions.ReadFrom));
     auto batchReq = proxy.ExecuteBatch();
     SetBalancingHeader(batchReq, connection, masterReadOptions);
@@ -68,6 +67,7 @@ std::vector<TErrorOr<INodePtr>> ListDirs(
         if (settings->MaxSize) {
             req->set_limit(settings->MaxSize);
         }
+
         batchReq->AddRequest(req);
     }
 
@@ -104,11 +104,10 @@ std::vector<TErrorOr<INodePtr>> GetNodeAttributes(
     const std::vector<TString>& attributesToFetch,
     TQueryContext* queryContext)
 {
-    // TODO(dakovalkov): Take it from config?
-    NApi::TMasterReadOptions masterReadOptions;
-
     const auto& client = queryContext->Client();
     const auto& connection = DynamicPointerCast<NApi::NNative::IConnection>(client->GetConnection());
+    TMasterReadOptions masterReadOptions = *queryContext->Settings->CypressReadOptions;
+
     TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(masterReadOptions.ReadFrom));
     auto batchReq = proxy.ExecuteBatch();
     SetBalancingHeader(batchReq, connection, masterReadOptions);
@@ -120,6 +119,7 @@ std::vector<TErrorOr<INodePtr>> GetNodeAttributes(
         ToProto(req->mutable_attributes()->mutable_keys(), attributesToFetch);
         req->Tag() = index;
         ++index;
+
         batchReq->AddRequest(req);
     }
 

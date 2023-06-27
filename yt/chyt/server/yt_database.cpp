@@ -28,10 +28,11 @@
 
 namespace NYT::NClickHouseServer {
 
-using namespace NYPath;
-using namespace NYTree;
-using namespace NYson;
+using namespace NApi;
 using namespace NConcurrency;
+using namespace NYPath;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -114,7 +115,11 @@ public:
 
         auto* queryContext = GetQueryContext(context);
 
-        TTableTraverser traverser(queryContext->Client(), queryContext->Host->GetConfig()->ShowTables->Roots,  filterByTableName);
+        TTableTraverser traverser(
+            queryContext->Client(),
+            *queryContext->Settings->CypressReadOptions,
+            queryContext->Host->GetConfig()->ShowTables->Roots,
+            filterByTableName);
 
         return std::make_unique<TTableIterator>(traverser.GetTables());
     }
@@ -197,7 +202,9 @@ public:
     {
         auto* queryContext = GetQueryContext(context);
         auto path = TRichYPath::Parse(TString(name));
-        NApi::TGetNodeOptions options;
+
+        TGetNodeOptions options;
+        static_cast<TMasterReadOptions&>(options) = *queryContext->Settings->CypressReadOptions;
         options.Attributes = {
             "compression_codec",
             "erasure_codec",

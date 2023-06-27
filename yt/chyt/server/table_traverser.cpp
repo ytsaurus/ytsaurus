@@ -2,6 +2,8 @@
 
 #include "clickhouse_service_proxy.h"
 
+#include <yt/yt/ytlib/api/native/rpc_helpers.h>
+
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/core/ytree/ypath_proxy.h>
@@ -10,25 +12,36 @@
 
 namespace NYT::NClickHouseServer {
 
-using namespace NApi::NNative;
+using namespace NApi;
 using namespace NConcurrency;
 using namespace NCypressClient;
+using namespace NObjectClient;
 using namespace NYPath;
-using namespace NYTree;
 using namespace NYson;
+using namespace NYTree;
 
 namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<NYTree::INodePtr> GetNodes(NObjectClient::TObjectServiceProxy proxy, const std::vector<TString>& paths)
+std::vector<NYTree::INodePtr> GetNodes(
+    const NNative::IClientPtr& client,
+    const TMasterReadOptions& masterReadOptions,
+    const std::vector<TString>& paths)
 {
     std::vector<TString> attributeKeys = {"type", "path", "opaque"};
 
+    auto connection = client->GetNativeConnection();
+
+    TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(masterReadOptions.ReadFrom));
     auto batchRequest = proxy.ExecuteBatch();
+    SetBalancingHeader(batchRequest, connection, masterReadOptions);
+
     for (const auto& path : paths) {
         auto request = TYPathProxy::Get(path);
         ToProto(request->mutable_attributes()->mutable_keys(), attributeKeys);
+        SetCachingHeader(request, connection, masterReadOptions);
+
         batchRequest->AddRequest(request, path);
     }
 
@@ -50,8 +63,13 @@ std::vector<NYTree::INodePtr> GetNodes(NObjectClient::TObjectServiceProxy proxy,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableTraverser::TTableTraverser(IClientPtr client, std::vector<TString> roots, const FilterByNameFunction& filterByTableName)
+TTableTraverser::TTableTraverser(
+    NNative::IClientPtr client,
+    const TMasterReadOptions& masterReadOptions,
+    std::vector<TString> roots,
+    const FilterByNameFunction& filterByTableName)
     : Client_(std::move(client))
+    , MasterReadOptions_(masterReadOptions)
     , Roots_(std::move(roots))
     , FilterByTableName_(filterByTableName)
 {
@@ -65,10 +83,7 @@ const std::vector<std::string>& TTableTraverser::GetTables() const
 
 void TTableTraverser::TraverseTablesFromRoots()
 {
-    auto channel = Client_->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Follower, NObjectClient::PrimaryMasterCellTagSentinel);
-    TClickHouseServiceProxy proxy(channel);
-
-    auto nodes = NDetail::GetNodes(NObjectClient::TObjectServiceProxy(channel), Roots_);
+    auto nodes = NDetail::GetNodes(Client_, MasterReadOptions_, Roots_);
 
     YT_VERIFY(nodes.size() == Roots_.size());
     for (size_t index = 0; index < Roots_.size(); ++index) {

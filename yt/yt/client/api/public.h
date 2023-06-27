@@ -154,6 +154,8 @@ DECLARE_REFCOUNTED_CLASS(TJournalWriterConfig)
 
 DECLARE_REFCOUNTED_CLASS(TJournalChunkWriterOptions)
 
+DECLARE_REFCOUNTED_STRUCT(TSerializableMasterReadOptions)
+
 DECLARE_REFCOUNTED_STRUCT(TPrerequisiteRevisionConfig)
 
 DECLARE_REFCOUNTED_STRUCT(TDetailedProfilingInfo)

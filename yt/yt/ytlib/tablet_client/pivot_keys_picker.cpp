@@ -7,8 +7,8 @@
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_spec_fetcher.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
-#include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
@@ -93,6 +93,7 @@ std::vector<TLegacyOwningKey> PickPivotKeysWithSlicing(
 
     auto chunkSpecFetcher = New<TMasterChunkSpecFetcher>(
         client,
+        TMasterReadOptions{},
         connection->GetNodeDirectory(),
         connection->GetInvoker(),
         connection->GetConfig()->MaxChunksPerFetch,

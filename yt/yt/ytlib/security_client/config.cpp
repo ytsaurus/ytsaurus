@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include <yt/yt/client/api/client.h>
+
 namespace NYT::NSecurityClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -7,9 +9,11 @@ namespace NYT::NSecurityClient {
 void TPermissionCacheConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("master_read_options", &TThis::MasterReadOptions)
-        .Default(NApi::TMasterReadOptions{
-            .ReadFrom = NApi::EMasterChannelKind::Cache,
-            .CacheStickyGroupSize = 1,
+        .DefaultCtor([] {
+            auto options = New<NApi::TSerializableMasterReadOptions>();
+            options->ReadFrom = NApi::EMasterChannelKind::Cache;
+            options->CacheStickyGroupSize = 1;
+            return options;
         });
     registrar.Parameter("refresh_user", &TThis::RefreshUser)
         // COMPAT(babenko): separate user
@@ -30,12 +34,12 @@ void TPermissionCacheConfig::Register(TRegistrar registrar)
     });
 
     registrar.Postprocessor([] (TThis* config) {
-        config->MasterReadOptions.ExpireAfterSuccessfulUpdateTime = config->ExpireAfterSuccessfulUpdateTime;
-        config->MasterReadOptions.ExpireAfterFailedUpdateTime = config->ExpireAfterFailedUpdateTime;
+        config->MasterReadOptions->ExpireAfterSuccessfulUpdateTime = config->ExpireAfterSuccessfulUpdateTime;
+        config->MasterReadOptions->ExpireAfterFailedUpdateTime = config->ExpireAfterFailedUpdateTime;
 
         // COMPAT(dakovalkov)
         if (config->ReadFrom_) {
-            config->MasterReadOptions.ReadFrom = *config->ReadFrom_;
+            config->MasterReadOptions->ReadFrom = *config->ReadFrom_;
         }
     });
 }

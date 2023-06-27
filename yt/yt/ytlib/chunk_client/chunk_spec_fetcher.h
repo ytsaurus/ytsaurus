@@ -8,6 +8,8 @@
 
 #include <yt/yt/ytlib/query_client/query_service_proxy.h>
 
+#include <yt/yt/client/api/client.h>
+
 #include <yt/yt/client/chunk_client/read_limit.h>
 
 #include <yt/yt/client/table_client/comparator.h>
@@ -31,6 +33,7 @@ public:
 public:
     TMasterChunkSpecFetcher(
         const NApi::NNative::IClientPtr& client,
+        const NApi::TMasterReadOptions& masterReadOptions,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         const IInvokerPtr& invoker,
         int maxChunksPerFetch,
@@ -55,6 +58,7 @@ public:
 
 private:
     NApi::NNative::IClientPtr Client_;
+    NApi::TMasterReadOptions MasterReadOptions_;
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
     IInvokerPtr Invoker_;
     int MaxChunksPerFetch_;
