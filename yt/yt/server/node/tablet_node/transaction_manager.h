@@ -29,6 +29,7 @@ struct ITransactionManagerHost
     virtual IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) = 0;
     virtual IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) = 0;
     virtual IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) = 0;
+    virtual const IMutationForwarderPtr& GetMutationForwarder() = 0;
     virtual const NTransactionSupervisor::ITransactionSupervisorPtr& GetTransactionSupervisor() = 0;
     virtual const TRuntimeTabletCellDataPtr& GetRuntimeData() = 0;
     virtual NTransactionClient::TTimestamp GetLatestTimestamp() = 0;

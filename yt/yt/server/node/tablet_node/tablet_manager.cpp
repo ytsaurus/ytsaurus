@@ -166,7 +166,8 @@ public:
             slot->GetCellId(),
             slot->GetSimpleHydraManager(),
             slot->GetAutomaton(),
-            slot->GetAutomatonInvoker())
+            slot->GetAutomatonInvoker(),
+            slot->GetMutationForwarder())
         , Slot_(slot)
         , Bootstrap_(bootstrap)
         , Config_(config)
@@ -212,7 +213,7 @@ public:
 
         RegisterMethod(BIND(&TImpl::HydraMountTablet, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUnmountTablet, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraRemountTablet, Unretained(this)));
+        RegisterForwardedMethod(BIND(&TImpl::HydraRemountTablet, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateTabletSettings, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraFreezeTablet, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUnfreezeTablet, Unretained(this)));
@@ -1198,6 +1199,12 @@ private:
         if (!tablet) {
             return;
         }
+
+        //TODO (ifsmirnov, YT-17317): temporary logic used to test IMutationForwarder.
+        YT_LOG_DEBUG("Remounting tablet and incrementing RemountCount (SenderId: %v, RemountCount: %v)",
+            GetHiveMutationSenderId(),
+            tablet->GetRemountCount());
+        tablet->SetRemountCount(tablet->GetRemountCount() + 1);
 
         auto rawSettings = DeserializeTableSettings(request, tabletId);
 
@@ -3729,6 +3736,7 @@ private:
                 })
                 .Item("backup_stage").Value(tablet->GetBackupStage())
                 .Item("backup_checkpoint_timestamp").Value(tablet->GetBackupCheckpointTimestamp())
+                .Item("remount_count").Value(tablet->GetRemountCount())
             .EndMap();
     }
 
@@ -4534,8 +4542,8 @@ TTabletManager::TTabletManager(
     ITabletSlotPtr slot,
     IBootstrap* bootstrap)
     : Impl_(New<TImpl>(
-        config,
-        slot,
+        std::move(config),
+        std::move(slot),
         bootstrap))
 { }
 

@@ -2,20 +2,22 @@
 
 #include "automaton.h"
 #include "bootstrap.h"
+#include "distributed_throttler_manager.h"
+#include "hint_manager.h"
 #include "hunk_tablet_manager.h"
 #include "master_connector.h"
+#include "mutation_forwarder.h"
+#include "mutation_forwarder_thunk.h"
 #include "private.h"
 #include "security_manager.h"
 #include "serialize.h"
 #include "slot_manager.h"
 #include "tablet.h"
-#include "tablet_manager.h"
 #include "tablet_cell_write_manager.h"
+#include "tablet_manager.h"
 #include "tablet_service.h"
-#include "transaction_manager.h"
 #include "tablet_snapshot_store.h"
-#include "hint_manager.h"
-#include "distributed_throttler_manager.h"
+#include "transaction_manager.h"
 
 #include <yt/yt/server/node/data_node/config.h>
 
@@ -173,6 +175,11 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return THood::GetGuardedAutomatonInvoker(queue);
+    }
+
+    const IMutationForwarderPtr& GetMutationForwarder() override
+    {
+        return MutationForwarder_;
     }
 
     TCellId GetCellId() override
@@ -395,12 +402,23 @@ public:
 
         InitGuardedInvokers(hydraManager);
 
+        auto mutationForwarderThunk = New<TMutationForwarderThunk>();
+        MutationForwarder_ = mutationForwarderThunk;
+
         // NB: Tablet Manager must register before Transaction Manager since the latter
         // will be writing and deleting rows during snapshot loading.
         TabletManager_ = New<TTabletManager>(
             Config_->TabletManager,
             this,
             Bootstrap_);
+
+        {
+            auto mutationForwarder = CreateMutationForwarder(
+                MakeWeak(TabletManager_),
+                GetHiveManager());
+            mutationForwarderThunk->SetUnderlying(mutationForwarder);
+            MutationForwarder_ = std::move(mutationForwarder);
+        }
 
         HunkTabletManager_ = CreateHunkTabletManager(
             Bootstrap_,
@@ -424,7 +442,8 @@ public:
             TabletManager_->GetTabletCellWriteManagerHost(),
             hydraManager,
             GetAutomaton(),
-            GetAutomatonInvoker());
+            GetAutomatonInvoker(),
+            GetMutationForwarder());
     }
 
     void Initialize() override
@@ -551,6 +570,8 @@ private:
     NLogging::TLogger Logger;
 
     const TRuntimeTabletCellDataPtr RuntimeData_ = New<TRuntimeTabletCellData>();
+
+    IMutationForwarderPtr MutationForwarder_;
 
     TTabletManagerPtr TabletManager_;
 

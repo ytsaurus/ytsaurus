@@ -9,11 +9,12 @@
 
 #include <yt/yt/server/node/tablet_node/automaton.h>
 #include <yt/yt/server/node/tablet_node/bootstrap.h>
+#include <yt/yt/server/node/tablet_node/mutation_forwarder.h>
+#include <yt/yt/server/node/tablet_node/serialize.h>
 #include <yt/yt/server/node/tablet_node/tablet.h>
 #include <yt/yt/server/node/tablet_node/tablet_slot.h>
 #include <yt/yt/server/node/tablet_node/transaction.h>
 #include <yt/yt/server/node/tablet_node/transaction_manager.h>
-#include <yt/yt/server/node/tablet_node/serialize.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
@@ -71,7 +72,12 @@ public:
         TransactionManager_ = CreateTransactionManager(New<TTransactionManagerConfig>(), /*transactionManagerHost*/ this, InvalidCellTag, CreateNullTransactionLeaseTracker());
         TransactionSupervisor_ = New<TSimpleTransactionSupervisor>(TransactionManager_, HydraManager_, Automaton_, AutomatonInvoker_);
         TabletManager_ = New<TSimpleTabletManager>(TransactionManager_, HydraManager_, Automaton_, AutomatonInvoker_);
-        TabletCellWriteManager_ = CreateTabletCellWriteManager(TabletManager_, HydraManager_, Automaton_, AutomatonInvoker_);
+        TabletCellWriteManager_ = CreateTabletCellWriteManager(
+            TabletManager_,
+            HydraManager_,
+            Automaton_,
+            AutomatonInvoker_,
+            CreateDummyMutationForwarder());
 
         TabletManager_->InitializeTablet(options);
         TabletCellWriteManager_->Initialize();
@@ -100,6 +106,12 @@ public:
     IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue /*queue*/ = EAutomatonThreadQueue::Default) override
     {
         return AutomatonInvoker_;
+    }
+
+    const IMutationForwarderPtr& GetMutationForwarder() override
+    {
+        static IMutationForwarderPtr dummyMutationForwarder = CreateDummyMutationForwarder();
+        return dummyMutationForwarder;
     }
 
     void Shutdown()

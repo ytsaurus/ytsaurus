@@ -99,7 +99,8 @@ public:
             host->GetCellId(),
             host->GetSimpleHydraManager(),
             host->GetAutomaton(),
-            host->GetAutomatonInvoker())
+            host->GetAutomatonInvoker(),
+            host->GetMutationForwarder())
         , Host_(host)
         , Config_(config)
         , LeaseTracker_(std::move(transactionLeaseTracker))

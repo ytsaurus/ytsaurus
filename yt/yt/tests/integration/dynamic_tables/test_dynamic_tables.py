@@ -2984,6 +2984,18 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert lookup_rows("//tmp/t", keys) == rows
         assert select_rows("* from [//tmp/t]") == rows
 
+    @authors("ifsmirnov")
+    def test_mutation_forwarding(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        if get("//tmp/t/@external"):
+            return
+        sync_mount_table("//tmp/t")
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        assert get(f"//sys/tablets/{tablet_id}/orchid/remount_count") == 0
+        remount_table("//tmp/t")
+        wait(lambda: get(f"//sys/tablets/{tablet_id}/orchid/remount_count") == 2)
+
 
 ##################################################################
 

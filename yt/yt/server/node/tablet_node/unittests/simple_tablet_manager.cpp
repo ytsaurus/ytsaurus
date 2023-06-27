@@ -33,7 +33,8 @@ TSimpleTabletManager::TSimpleTabletManager(
         NullCellId,
         std::move(hydraManager),
         std::move(automaton),
-        automatonInvoker)
+        automatonInvoker,
+        CreateDummyMutationForwarder())
     , AutomatonInvoker_(std::move(automatonInvoker))
     , TransactionManager_(std::move(transactionManager))
     , TabletMap_(TTabletMapTraits(this))

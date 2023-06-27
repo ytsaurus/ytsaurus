@@ -204,6 +204,8 @@ target_sources(yt-server-node PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/lookup.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/lsm_interop.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/master_connector.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/mutation_forwarder.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/mutation_forwarder_thunk.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/object_detail.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/ordered_chunk_store.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/ordered_dynamic_store.cpp

@@ -63,6 +63,8 @@ struct ITabletSlot
     virtual IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) = 0;
     virtual IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) = 0;
 
+    virtual const IMutationForwarderPtr& GetMutationForwarder() = 0;
+
     virtual const NHiveServer::IHiveManagerPtr& GetHiveManager() = 0;
     virtual const NHiveServer::TSimpleAvenueDirectoryPtr& GetAvenueDirectory() = 0;
     virtual NHiveServer::TMailbox* GetMasterMailbox() = 0;

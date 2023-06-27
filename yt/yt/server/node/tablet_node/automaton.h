@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "serialize.h"
+#include "mutation_forwarder.h"
 
 #include <yt/yt/server/lib/hydra_common/composite_automaton.h>
 
@@ -45,12 +46,31 @@ protected:
         TCellId cellId,
         NHydra::ISimpleHydraManagerPtr hydraManager,
         NHydra::TCompositeAutomatonPtr automaton,
-        IInvokerPtr automatonInvoker);
+        IInvokerPtr automatonInvoker,
+        IMutationForwarderPtr mutationForwarder);
 
     bool ValidateSnapshotVersion(int version) override;
     int GetCurrentSnapshotVersion() override;
+
+    //! Like |RegisterMethod|, but the mutation will be forwarded to a target servant
+    //! if the subject tablet is a source servant in a smooth movement process.
+    /*!
+     *  NB. TRequest must have tablet_id field.
+     */
+    template <class TRequest>
+    void RegisterForwardedMethod(TCallback<void(TRequest*)> callback);
+
+private:
+    const IMutationForwarderPtr MutationForwarder_;
+
+    template <class TRequest>
+    void ForwardedMethodImpl(TCallback<void(TRequest*)> callback, TRequest* request);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode
+
+#define AUTOMATON_INL_H_
+#include "automaton-inl.h"
+#undef AUTOMATON_INL_H_

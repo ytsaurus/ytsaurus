@@ -95,7 +95,8 @@ ITabletCellWriteManagerPtr CreateTabletCellWriteManager(
     ITabletCellWriteManagerHostPtr host,
     NHydra::ISimpleHydraManagerPtr hydraManager,
     NHydra::TCompositeAutomatonPtr automaton,
-    IInvokerPtr automatonInvoker);
+    IInvokerPtr automatonInvoker,
+    IMutationForwarderPtr mutationForwarder);
 
 ////////////////////////////////////////////////////////////////////////////////
 

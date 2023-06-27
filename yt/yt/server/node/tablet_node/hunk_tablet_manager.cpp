@@ -59,7 +59,8 @@ public:
             slot->GetCellId(),
             slot->GetSimpleHydraManager(),
             slot->GetAutomaton(),
-            slot->GetAutomatonInvoker())
+            slot->GetAutomatonInvoker(),
+            slot->GetMutationForwarder())
         , Bootstrap_(bootstrap)
         , Slot_(std::move(slot))
         , TabletMap_(TEntityMapTraits(this))

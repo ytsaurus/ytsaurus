@@ -537,6 +537,9 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(TRawTableSettings, RawSettings);
 
+    // TODO(ifsmirnov, YT-17317): temporary field used to test IMutationForwarder.
+    DEFINE_BYVAL_RW_PROPERTY(int, RemountCount);
+
 public:
     TTablet(
         TTabletId tabletId,

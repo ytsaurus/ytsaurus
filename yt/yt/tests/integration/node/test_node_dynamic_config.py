@@ -371,7 +371,7 @@ class TestNodeDynamicConfig(YTEnvSetup):
             assert not exists("//sys/cluster_nodes/dynamic_config_manager/applied_config")
             assert len(get("//sys/cluster_nodes/{0}/@alerts".format(node))) == 0
 
-    def _get_used_celler_slot_count(self, address):
+    def _get_used_cellar_slot_count(self, address):
         cellars = get("//sys/cluster_nodes/{}/@cellars".format(address))
         used_slot_count = 0
         for _, cellar in cellars.items():
@@ -381,7 +381,7 @@ class TestNodeDynamicConfig(YTEnvSetup):
         return used_slot_count
 
     def _check_tablet_node_rct(self, address):
-        used_slot_count = self._get_used_celler_slot_count(address)
+        used_slot_count = self._get_used_cellar_slot_count(address)
         wait_for_node_alive_object_counts(
             address,
             {

@@ -57,12 +57,14 @@ public:
         ITabletCellWriteManagerHostPtr host,
         ISimpleHydraManagerPtr hydraManager,
         TCompositeAutomatonPtr automaton,
-        IInvokerPtr automatonInvoker)
+        IInvokerPtr automatonInvoker,
+        IMutationForwarderPtr mutationForwarder)
         : TTabletAutomatonPart(
             host->GetCellId(),
             std::move(hydraManager),
             std::move(automaton),
-            std::move(automatonInvoker))
+            std::move(automatonInvoker),
+            std::move(mutationForwarder))
         , Host_(std::move(host))
         , ChangelogCodec_(GetCodec(Host_->GetConfig()->ChangelogCodec))
     {
@@ -1155,13 +1157,15 @@ ITabletCellWriteManagerPtr CreateTabletCellWriteManager(
     ITabletCellWriteManagerHostPtr host,
     ISimpleHydraManagerPtr hydraManager,
     TCompositeAutomatonPtr automaton,
-    IInvokerPtr automatonInvoker)
+    IInvokerPtr automatonInvoker,
+    IMutationForwarderPtr mutationForwarder)
 {
     return New<TTabletCellWriteManager>(
         std::move(host),
         std::move(hydraManager),
         std::move(automaton),
-        std::move(automatonInvoker));
+        std::move(automatonInvoker),
+        std::move(mutationForwarder));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

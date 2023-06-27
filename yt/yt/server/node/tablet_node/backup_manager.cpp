@@ -176,7 +176,8 @@ public:
             slot->GetCellId(),
             slot->GetSimpleHydraManager(),
             slot->GetAutomaton(),
-            slot->GetAutomatonInvoker())
+            slot->GetAutomatonInvoker(),
+            slot->GetMutationForwarder())
         , Slot_(std::move(slot))
         , Bootstrap_(bootstrap)
     {

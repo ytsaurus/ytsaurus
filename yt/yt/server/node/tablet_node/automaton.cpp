@@ -47,11 +47,13 @@ TTabletAutomatonPart::TTabletAutomatonPart(
     TCellId cellId,
     ISimpleHydraManagerPtr hydraManager,
     TCompositeAutomatonPtr automaton,
-    IInvokerPtr automatonInvoker)
+    IInvokerPtr automatonInvoker,
+    IMutationForwarderPtr mutationForwarder)
     : TCompositeAutomatonPart(
         std::move(hydraManager),
         std::move(automaton),
         std::move(automatonInvoker))
+    , MutationForwarder_(std::move(mutationForwarder))
 {
     Logger = TabletNodeLogger.WithTag("CellId: %v", cellId);
 }
