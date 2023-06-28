@@ -134,8 +134,10 @@ public:
         const ITabletSlotPtr& slot) override
     {
         TDynamicTabletCellOptionsPtr dynamicOptions;
+        TString bundleName;
         if (slot) {
             dynamicOptions = slot->GetDynamicOptions();
+            bundleName = slot->GetTabletCellBundleName();
         } else {
             const auto& occupant = Bootstrap_
                 ->GetCellarNodeBootstrap()
@@ -147,12 +149,13 @@ public:
             }
 
             dynamicOptions = occupant->GetDynamicOptions();
+            bundleName = occupant->GetCellBundleName();
         }
 
-        if (dynamicOptions->BanMessage.has_value()) {
+        if (dynamicOptions->BanMessage) {
             THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::BundleIsBanned,
-                "Bundle %Qv is banned: %v",
-                dynamicOptions->BanMessage.value())
+                "Bundle %Qv is banned", bundleName)
+                << TError(dynamicOptions->BanMessage.value())
                 << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
                 << TErrorAttribute("table_path", tabletSnapshot->TablePath);
         }
