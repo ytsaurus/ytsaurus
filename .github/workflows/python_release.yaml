@@ -101,7 +101,7 @@ jobs:
     if: ${{ needs.build.outputs.release_type == 'test' && needs.build.outputs.package_name == 'ytsaurus-client' }}
     runs-on: ${{ needs.start-vm.outputs.label }}
     steps:
-      - name Publish test pydoc
+      - name: Publish test pydoc
         uses: yc-actions/yc-obj-storage-upload@v1
         with:
           yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
