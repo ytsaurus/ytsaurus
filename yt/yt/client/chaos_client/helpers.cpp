@@ -57,7 +57,7 @@ TReplicationCardId MakeReplicationCardCollocationId(TObjectId randomId)
 
 TCellTag GetSiblingChaosCellTag(TCellTag cellTag)
 {
-    return cellTag ^ 1;
+    return TCellTag(cellTag.Underlying() ^ 1);
 }
 
 bool IsOrderedTabletReplicationProgress(const TReplicationProgress& progress)

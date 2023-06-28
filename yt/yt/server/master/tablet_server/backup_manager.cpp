@@ -206,7 +206,7 @@ public:
                 }
 
                 if (clockClusterTag) {
-                    req.set_clock_cluster_tag(*clockClusterTag);
+                    req.set_clock_cluster_tag(clockClusterTag->Underlying());
                 }
 
                 ToProto(req.mutable_replicas(), replicaBackupDescriptors);

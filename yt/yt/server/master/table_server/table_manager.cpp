@@ -1206,8 +1206,10 @@ private:
         auto type = TypeFromId(oldSchemaId);
         YT_VERIFY(type == EObjectType::MasterTableSchema);
         return TMasterTableSchemaId(
-            (oldSchemaId.Parts32[0] & 0xffff) | (imposterCellTag << 16),   // keep the original cell tag
-            (cellTag << 16) | static_cast<ui32>(type),                     // keep type and replace native cell tag
+            // keep the original cell tag
+            (oldSchemaId.Parts32[0] & 0xffff) | (static_cast<ui32>(imposterCellTag.Underlying()) << 16),
+            // keep type and replace native cell tag
+            (static_cast<ui32>(cellTag.Underlying()) << 16) | static_cast<ui32>(type),
             oldSchemaId.Parts32[2],
             oldSchemaId.Parts32[3]);
     }

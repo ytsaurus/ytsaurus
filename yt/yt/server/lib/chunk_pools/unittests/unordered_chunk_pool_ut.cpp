@@ -84,7 +84,7 @@ protected:
         i64 rowCount = 1000)
     {
         auto inputChunk = New<TInputChunk>();
-        inputChunk->SetChunkId(MakeRandomId(EObjectType::Chunk, /* cellTag */ 0x42));
+        inputChunk->SetChunkId(MakeRandomId(EObjectType::Chunk, TCellTag(0x42)));
         inputChunk->SetCompressedDataSize(size);
         inputChunk->SetTotalUncompressedDataSize(size);
         inputChunk->SetTotalDataWeight(size);

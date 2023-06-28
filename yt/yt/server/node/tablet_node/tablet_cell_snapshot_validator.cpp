@@ -34,7 +34,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto FakeTransactionId = MakeWellKnownId(EObjectType::Transaction, 1);
+static const auto FakeTransactionId = MakeWellKnownId(EObjectType::Transaction, TCellTag(1));
 static const TString FakeAccount = "fake-account";
 static const TString FakeBundle = "fake-bundle";
 

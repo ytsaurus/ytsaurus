@@ -114,7 +114,7 @@ public:
 
     IChannelPtr GetMasterChannelOrThrow(EMasterChannelKind kind, TCellId cellId)
     {
-        if (ReplaceCellTagInId(cellId, 0) != ReplaceCellTagInId(GetPrimaryMasterCellId(), 0)) {
+        if (ReplaceCellTagInId(cellId, TCellTag(0)) != ReplaceCellTagInId(GetPrimaryMasterCellId(), TCellTag(0))) {
             THROW_ERROR_EXCEPTION("Unknown master cell id %v",
                 cellId);
         }

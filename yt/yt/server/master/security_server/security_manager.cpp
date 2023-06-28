@@ -3821,7 +3821,7 @@ private:
         } else {
             YT_LOG_INFO("Sending account statistics gossip message to primary cell");
             NProto::TReqSetAccountStatistics request;
-            request.set_cell_tag(multicellManager->GetCellTag());
+            request.set_cell_tag(multicellManager->GetCellTag().Underlying());
             for (auto [accountId, account] : AccountMap_) {
                 if (!IsObjectAlive(account)) {
                     continue;
@@ -3847,7 +3847,7 @@ private:
 
     void SetAccountStatisticsAtPrimaryCell(NProto::TReqSetAccountStatistics* request)
     {
-        auto cellTag = request->cell_tag();
+        auto cellTag = TCellTag(request->cell_tag());
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         YT_VERIFY(multicellManager->IsPrimaryMaster());

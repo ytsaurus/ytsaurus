@@ -759,7 +759,7 @@ private:
             } else {
                 for (auto tag : *options.ReplicateToMasterCellTags) {
                     if (tag != CoordinatorMasterCellTag_) {
-                        req->add_replicate_to_cell_tags(tag);
+                        req->add_replicate_to_cell_tags(ToProto<int>(tag));
                     }
                 }
             }
@@ -913,7 +913,7 @@ private:
             req->set_coordinator_prepare_mode(ToProto<int>(options.CoordinatorPrepareMode));
             req->set_coordinator_commit_mode(ToProto<int>(options.CoordinatorCommitMode));
             req->set_max_allowed_commit_timestamp(options.MaxAllowedCommitTimestamp);
-            req->set_clock_cluster_tag(ClockClusterTag_);
+            req->set_clock_cluster_tag(ToProto<int>(ClockClusterTag_));
             ToProto(req->mutable_cell_ids_to_sync_with_before_prepare(), options.CellIdsToSyncWithBeforePrepare);
             SetOrGenerateMutationId(req, options.MutationId, options.Retry);
 

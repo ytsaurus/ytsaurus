@@ -4632,7 +4632,7 @@ private:
         YT_LOG_INFO("Sending tablet cell statistics gossip message");
 
         NProto::TReqSetTabletCellStatistics request;
-        request.set_cell_tag(multicellManager->GetCellTag());
+        request.set_cell_tag(ToProto<int>(multicellManager->GetCellTag()));
 
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         for (auto* cellBase : GetValuesSortedByKey(cellManager->Cells(ECellarType::Tablet))) {
@@ -4661,7 +4661,7 @@ private:
 
     void HydraSetTabletCellStatistics(NProto::TReqSetTabletCellStatistics* request)
     {
-        auto cellTag = request->cell_tag();
+        auto cellTag = FromProto<TCellTag>(request->cell_tag());
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         YT_VERIFY(multicellManager->IsPrimaryMaster() || cellTag == multicellManager->GetPrimaryCellTag());
@@ -6069,7 +6069,7 @@ private:
 
     void HydraSetTabletCellBundleResourceUsage(NProto::TReqSetTabletCellBundleResourceUsage* request)
     {
-        auto cellTag = request->cell_tag();
+        auto cellTag = FromProto<TCellTag>(request->cell_tag());
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         YT_VERIFY(multicellManager->IsPrimaryMaster() || cellTag == multicellManager->GetPrimaryCellTag());
 
@@ -6128,7 +6128,7 @@ private:
         YT_LOG_INFO("Sending tablet cell bundle resource usage gossip");
 
         NProto::TReqSetTabletCellBundleResourceUsage request;
-        request.set_cell_tag(multicellManager->GetCellTag());
+        request.set_cell_tag(ToProto<int>(multicellManager->GetCellTag()));
 
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         for (auto* bundleBase : cellManager->CellBundles(ECellarType::Tablet)) {

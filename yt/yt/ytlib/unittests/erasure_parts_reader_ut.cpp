@@ -212,7 +212,9 @@ void ExecTest(TTestCase testCase)
 
     EXPECT_EQ(encodedRows.size(), 6u);
 
-    const auto chunkId = NObjectClient::MakeRandomId(NObjectClient::EObjectType::ErasureJournalChunk, 0);
+    const auto chunkId = NObjectClient::MakeRandomId(
+        NObjectClient::EObjectType::ErasureJournalChunk,
+        NObjectClient::TCellTag(0));
     std::vector<NChunkClient::IChunkReaderPtr> chunkReadersList;
     for (int part = 0; part < std::ssize(encodedRows); ++part) {
         auto replicaId = NChunkClient::EncodeChunkId({chunkId, part});

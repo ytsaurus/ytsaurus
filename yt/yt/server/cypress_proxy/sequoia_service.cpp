@@ -183,7 +183,7 @@ DEFINE_YPATH_SERVICE_METHOD(TSequoiaService, Create)
         .ThrowOnError();
 
     ToProto(response->mutable_node_id(), childNodeId);
-    response->set_cell_tag(cellTag);
+    response->set_cell_tag(ToProto<int>(cellTag));
     context->Reply();
 }
 

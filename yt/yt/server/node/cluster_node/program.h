@@ -187,7 +187,9 @@ protected:
             config->DryRun->EnableDryRun = true;
             config->DryRun->TabletCellId = CellId_
                 ? TGuid::FromString(CellId_)
-                : NObjectClient::MakeWellKnownId(NObjectClient::EObjectType::TabletCell, 1);
+                : NObjectClient::MakeWellKnownId(
+                    NObjectClient::EObjectType::TabletCell,
+                    NObjectClient::TCellTag(1));
 
             const auto& cellarManager = config->CellarNode->CellarManager;
             for (auto& [type, cellarConfig] : cellarManager->Cellars) {

@@ -95,8 +95,8 @@ TTransactionId MakeExternalizedTransactionId(
 
     auto nativeCellTag = CellTagFromId(originalId);
     return TTransactionId(
-        (originalId.Parts32[0] &  0xffff) | (nativeCellTag << 16),          // keep the original cell tag
-        (externalizingCellTag << 16) | static_cast<ui32>(externalizedType), // replace type and native cell tag
+        (originalId.Parts32[0] &  0xffff) | (static_cast<ui32>(nativeCellTag.Underlying()) << 16), // keep the original cell tag
+        (static_cast<ui32>(externalizingCellTag.Underlying()) << 16) | static_cast<ui32>(externalizedType), // replace type and native cell tag
         originalId.Parts32[2],
         originalId.Parts32[3]);
 }

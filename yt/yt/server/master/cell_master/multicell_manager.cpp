@@ -695,7 +695,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsPrimaryMaster());
 
-        auto cellTag = request->cell_tag();
+        auto cellTag = FromProto<TCellTag>(request->cell_tag());
         if (!IsValidSecondaryCellTag(cellTag)) {
             YT_LOG_ALERT("Received registration request from an unknown secondary cell, ignored (CellTag: %v)",
                 cellTag);
@@ -732,14 +732,14 @@ private:
             {
                 // Inform others about the new secondary.
                 NProto::TReqRegisterSecondaryMasterAtSecondary request;
-                request.set_cell_tag(cellTag);
+                request.set_cell_tag(ToProto<int>(cellTag));
                 PostToMaster(request, registeredCellTag, true);
             }
 
             {
                 // Inform the new secondary about others.
                 NProto::TReqRegisterSecondaryMasterAtSecondary request;
-                request.set_cell_tag(registeredCellTag);
+                request.set_cell_tag(ToProto<int>(registeredCellTag));
                 PostToMaster(request, cellTag, true);
             }
         }
@@ -772,7 +772,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsSecondaryMaster());
 
-        auto cellTag = request->cell_tag();
+        auto cellTag = FromProto<TCellTag>(request->cell_tag());
         if (!IsValidSecondaryCellTag(cellTag)) {
             YT_LOG_ALERT("Received registration request for an unknown secondary cell, ignored (CellTag: %v)",
                 cellTag);
@@ -805,7 +805,7 @@ private:
         RegisterMasterEntry(GetPrimaryCellTag());
 
         NProto::TReqRegisterSecondaryMasterAtPrimary request;
-        request.set_cell_tag(GetCellTag());
+        request.set_cell_tag(ToProto<int>(GetCellTag()));
         PostToPrimaryMaster(request, true);
     }
 
@@ -814,7 +814,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         if (IsPrimaryMaster()) {
-            auto cellTag = request->cell_tag();
+            auto cellTag = FromProto<TCellTag>(request->cell_tag());
 
             if (cellTag == GetPrimaryCellTag()) {
                 YT_LOG_INFO("Persisted primary cell statistics (%v)",
@@ -851,7 +851,7 @@ private:
             request->statistics());
 
         for (const auto& cellStatistics : request->statistics()) {
-            auto cellTag = cellStatistics.cell_tag();
+            auto cellTag = FromProto<TCellTag>(cellStatistics.cell_tag());
             if (cellTag == GetCellTag()) {
                 // No point in overwriting local statistics - they're persisted
                 // periodically anyway.
@@ -1050,7 +1050,7 @@ private:
     NProto::TReqSetCellStatistics GetTransientLocalCellStatistics()
     {
         NProto::TReqSetCellStatistics result;
-        result.set_cell_tag(GetCellTag());
+        result.set_cell_tag(ToProto<int>(GetCellTag()));
         auto* cellStatistics = result.mutable_statistics();
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -1073,7 +1073,7 @@ private:
         YT_VERIFY(IsPrimaryMaster());
 
         NProto::TReqSetCellStatistics result;
-        result.set_cell_tag(GetCellTag());
+        result.set_cell_tag(ToProto<int>(GetCellTag()));
         *result.mutable_statistics() = ClusterCellStatisics_;
 
         return result;
@@ -1087,7 +1087,7 @@ private:
 
         auto addCellStatistics = [&] (TCellTag cellTag, const NProto::TCellStatistics& statistics) {
             auto* cellStatistics = result.add_statistics();
-            cellStatistics->set_cell_tag(cellTag);
+            cellStatistics->set_cell_tag(ToProto<int>(cellTag));
             *cellStatistics->mutable_statistics() = statistics;
         };
 

@@ -171,7 +171,7 @@ TEST_F(TJournalTest, Write)
     auto journalManager = ChunkStore_->Locations()[0]->GetJournalManager();
 
     for (bool multiplexed : {true, false}) {
-        auto journalId = MakeRandomId(NObjectClient::EObjectType::JournalChunk, /*cellTag*/ 1);
+        auto journalId = MakeRandomId(NObjectClient::EObjectType::JournalChunk, NObjectClient::TCellTag(1));
 
         auto changelog = journalManager->CreateChangelog(journalId, multiplexed, TWorkloadDescriptor{})
             .Get()

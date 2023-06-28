@@ -760,7 +760,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Create)
     auto proxy = Create(type, path, explicitAttributes.Get());
     const auto& objectId = proxy->GetId();
 
-    response->set_cell_tag(TBase::Bootstrap_->GetCellTag());
+    response->set_cell_tag(ToProto<int>(TBase::Bootstrap_->GetCellTag()));
     ToProto(response->mutable_node_id(), objectId);
     context->SetResponseInfo("ObjectId: %v",
         objectId);

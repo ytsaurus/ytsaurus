@@ -89,7 +89,7 @@ public:
                 NRpc::SetAuthenticationIdentity(req, identity);
                 ToProto(req->mutable_transaction_id(), transactionId);
                 req->set_prepare_timestamp(prepareTimestamp);
-                req->set_prepare_timestamp_cluster_tag(prepareTimestampClusterTag);
+                req->set_prepare_timestamp_cluster_tag(ToProto<int>(prepareTimestampClusterTag));
                 ToProto(req->mutable_cell_ids_to_sync_with(), cellIdsToSyncWith);
                 return req;
             });
@@ -111,7 +111,7 @@ public:
                 NRpc::SetAuthenticationIdentity(req, identity);
                 ToProto(req->mutable_transaction_id(), transactionId);
                 req->set_commit_timestamp(commitTimestamp);
-                req->set_commit_timestamp_cluster_tag(commitTimestampClusterTag);
+                req->set_commit_timestamp_cluster_tag(ToProto<int>(commitTimestampClusterTag));
                 return req;
             });
     }

@@ -20,6 +20,8 @@ using namespace NCypressClient;
 using namespace NHydra;
 using namespace NYTree;
 
+using NObjectServer::TCellTag;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = CellMasterLogger;
@@ -80,7 +82,7 @@ public:
 private:
     const TPeriodicExecutorPtr UpdateAlertsExecutor_;
 
-    THashMap<NObjectServer::TCellTag, std::vector<TError>> CellTagToAlerts_;
+    THashMap<TCellTag, std::vector<TError>> CellTagToAlerts_;
 
     std::vector<TAlertSource> AlertSources_;
 
@@ -93,7 +95,7 @@ private:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         YT_VERIFY(multicellManager->IsPrimaryMaster());
 
-        auto cellTag = request->cell_tag();
+        auto cellTag = FromProto<TCellTag>(request->cell_tag());
         auto alerts = FromProto<std::vector<TError>>(request->alerts());
 
         if (cellTag == multicellManager->GetCellTag()) {
@@ -176,7 +178,7 @@ private:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
         TReqSetCellAlerts request;
-        request.set_cell_tag(multicellManager->GetCellTag());
+        request.set_cell_tag(ToProto<int>(multicellManager->GetCellTag()));
         ToProto(request.mutable_alerts(), localAlerts);
 
         if (multicellManager->IsPrimaryMaster()) {

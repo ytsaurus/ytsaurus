@@ -2901,7 +2901,7 @@ void TChunkReplicator::OnRequisitionUpdate()
 
     TReqUpdateChunkRequisition request;
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    request.set_cell_tag(multicellManager->GetCellTag());
+    request.set_cell_tag(ToProto<int>(multicellManager->GetCellTag()));
 
     YT_LOG_DEBUG("Chunk requisition update iteration started");
 

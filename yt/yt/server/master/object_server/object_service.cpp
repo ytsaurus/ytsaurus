@@ -776,7 +776,7 @@ private:
 
         const auto& multicellExt = RpcContext_->RequestHeader().GetExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);
         for (auto cellTag : multicellExt.cell_tags_to_sync_with()) {
-            addCellTagToSyncWith(cellTag);
+            addCellTagToSyncWith(FromProto<TCellTag>(cellTag));
         }
 
         for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {
@@ -798,7 +798,7 @@ private:
             }
 
             for (auto cellTag : subrequest.MulticellSyncExt->cell_tags_to_sync_with()) {
-                addCellTagToSyncWith(cellTag);
+                addCellTagToSyncWith(FromProto<TCellTag>(cellTag));
             }
         }
 

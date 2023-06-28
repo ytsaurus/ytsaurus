@@ -710,7 +710,7 @@ private:
             auto coordinatorCommitMode = CheckedEnumCast<ETransactionCoordinatorCommitMode>(request->coordinator_commit_mode());
             auto coordinatorPrepareMode = CheckedEnumCast<ETransactionCoordinatorPrepareMode>(request->coordinator_prepare_mode());
             auto clockClusterTag = request->has_clock_cluster_tag()
-                ? request->clock_cluster_tag()
+                ? FromProto<TCellTag>(request->clock_cluster_tag())
                 : InvalidCellTag;
             auto maxAllowedCommitTimestamp = request->max_allowed_commit_timestamp();
             std::vector<TTransactionId> prerequisiteTransactionIds;
@@ -1115,7 +1115,7 @@ private:
         request.set_coordinator_commit_mode(ToProto<int>(commit->GetCoordinatorCommitMode()));
         request.set_coordinator_prepare_mode(ToProto<int>(commit->GetCoordinatorPrepareMode()));
         request.set_prepare_timestamp(prepareTimestamp);
-        request.set_prepare_timestamp_cluster_tag(SelfClockClusterTag_);
+        request.set_prepare_timestamp_cluster_tag(ToProto<int>(SelfClockClusterTag_));
         request.set_max_allowed_commit_timestamp(commit->GetMaxAllowedCommitTimestamp());
         WriteAuthenticationIdentityToProto(&request, commit->AuthenticationIdentity());
 

@@ -58,7 +58,7 @@ TFuture<void> TSimpleTransactionSupervisor::PrepareTransactionCommit(
             TTransactionPrepareOptions options{
                 .Persistent = persistent,
                 .PrepareTimestamp = prepareTimestamp,
-                .PrepareTimestampClusterTag = 0x42,
+                .PrepareTimestampClusterTag = TCellTag(0x42),
             };
             TransactionManager_->PrepareTransactionCommit(transactionId, options);
         })

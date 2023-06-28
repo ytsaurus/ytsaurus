@@ -85,7 +85,7 @@ TTimestamp EmbedCellTagIntoTimestamp(TTimestamp timestamp, NObjectClient::TCellT
 
     YT_VERIFY((timestamp & ((1ull << TimestampCounterWidth) - 1)) == 0);
 
-    return timestamp ^ (cellTag << (TimestampCounterWidth - 16));
+    return timestamp ^ (static_cast<ui32>(cellTag.Underlying()) << (TimestampCounterWidth - 16));
 }
 
 bool CanAdvanceTimestampWithEmbeddedCellTag(TTimestamp timestamp, int delta)

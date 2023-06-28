@@ -1074,7 +1074,7 @@ private:
 
         auto count = request->count();
         auto clockClusterTag = request->has_clock_cluster_tag()
-            ? request->clock_cluster_tag()
+            ? FromProto<TCellTag>(request->clock_cluster_tag())
             : InvalidCellTag;
 
         context->SetRequestInfo("Count: %v, ClockClusterTag: %v",
@@ -2029,7 +2029,7 @@ private:
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& path = request->path();
-        auto cellTag = request->cell_tag();
+        auto cellTag = FromProto<TCellTag>(request->cell_tag());
 
         TExternalizeNodeOptions options;
         SetTimeoutOptions(&options, context.Get());

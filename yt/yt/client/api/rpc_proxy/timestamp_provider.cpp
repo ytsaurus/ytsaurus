@@ -40,7 +40,7 @@ private:
         req->SetTimeout(RpcTimeout_);
         req->set_count(count);
         if (ClockClusterTag_ != InvalidCellTag) {
-            req->set_clock_cluster_tag(ClockClusterTag_);
+            req->set_clock_cluster_tag(ToProto<int>(ClockClusterTag_));
         }
 
         return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGenerateTimestampsPtr& rsp) {

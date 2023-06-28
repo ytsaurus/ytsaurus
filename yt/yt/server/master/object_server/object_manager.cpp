@@ -1550,7 +1550,7 @@ void TObjectManager::ConfirmObjectLifeStageToPrimaryMaster(TObject* object)
 
     NProto::TReqConfirmObjectLifeStage request;
     ToProto(request.mutable_object_id(), object->GetId());
-    request.set_cell_tag(multicellManager->GetCellTag());
+    request.set_cell_tag(ToProto<int>(multicellManager->GetCellTag()));
     multicellManager->PostToPrimaryMaster(request);
 }
 
@@ -1997,7 +1997,7 @@ void TObjectManager::DoDestroyObjects(NProto::TReqDestroyObjects* request) noexc
 
         if (object->IsForeign() && object->GetImportRefCounter() > 0) {
             auto& crossCellRequest = getCrossCellRequest(id);
-            crossCellRequest.set_cell_tag(multicellManager->GetCellTag());
+            crossCellRequest.set_cell_tag(ToProto<int>(multicellManager->GetCellTag()));
             auto* entry = crossCellRequest.add_entries();
             ToProto(entry->mutable_object_id(), id);
             entry->set_import_ref_counter(object->GetImportRefCounter());
@@ -2084,7 +2084,7 @@ void TObjectManager::HydraRemoveForeignObject(NProto::TReqRemoveForeignObject* r
 
 void TObjectManager::HydraUnrefExportedObjects(NProto::TReqUnrefExportedObjects* request) noexcept
 {
-    auto cellTag = request->cell_tag();
+    auto cellTag = FromProto<TCellTag>(request->cell_tag());
 
     for (const auto& entry : request->entries()) {
         auto objectId = FromProto<TObjectId>(entry.object_id());

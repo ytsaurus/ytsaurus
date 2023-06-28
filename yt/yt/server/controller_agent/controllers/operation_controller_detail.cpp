@@ -5684,7 +5684,7 @@ void TOperationControllerBase::LockInputTables()
         auto table = std::any_cast<TInputTablePtr>(rsp->Tag());
         table->ObjectId = FromProto<TObjectId>(rsp->node_id());
         table->Revision = rsp->revision();
-        table->ExternalCellTag = rsp->external_cell_tag();
+        table->ExternalCellTag = FromProto<TCellTag>(rsp->external_cell_tag());
         table->ExternalTransactionId = rsp->has_external_transaction_id()
             ? FromProto<TTransactionId>(rsp->external_transaction_id())
             : *table->TransactionId;

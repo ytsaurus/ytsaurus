@@ -1399,7 +1399,7 @@ private:
             incremental);
 
         NProto::TReqSetCellStatus request;
-        request.set_cell_tag(Bootstrap_->GetCellTag());
+        request.set_cell_tag(ToProto<int>(Bootstrap_->GetCellTag()));
 
         for (auto [cellId, cell] : CellMap_) {
             if (!IsObjectAlive(cell)) {
@@ -1438,7 +1438,7 @@ private:
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
-        auto cellTag = request->cell_tag();
+        auto cellTag = FromProto<TCellTag>(request->cell_tag());
         YT_VERIFY(multicellManager->IsPrimaryMaster() || cellTag == Bootstrap_->GetPrimaryCellTag());
 
         if (!multicellManager->IsRegisteredMasterCell(cellTag)) {

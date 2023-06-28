@@ -27,7 +27,7 @@ TEST(TObjectServiceCacheTest, TestStaleResponse)
         NProfiling::TProfiler());
 
     auto key = TObjectServiceCacheKey(
-        0, // cell tag
+        TCellTag(0),
         "root", // user
         NYPath::TYPath("//sys"), // path
         "ObjectService", // service
@@ -126,7 +126,7 @@ TEST(TObjectServiceCacheTest, TestStaleError)
         NProfiling::TProfiler());
 
     auto key = TObjectServiceCacheKey(
-        0, // cell tag
+        TCellTag(0),
         "root", // user
         NYPath::TYPath("//sys"), // path
         "ObjectService", // service

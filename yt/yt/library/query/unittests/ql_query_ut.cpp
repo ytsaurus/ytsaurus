@@ -403,7 +403,7 @@ TEST_F(TQueryPrepareTest, SelectColumns)
     {
         TDataSplit dataSplit;
 
-        SetObjectId(&dataSplit, MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+        SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xdeadbabe));
 
         auto schema = New<TTableSchema>(std::vector{
             TColumnSchema("h", EValueType::Int64)
@@ -458,7 +458,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     {
         TDataSplit dataSplit;
 
-        SetObjectId(&dataSplit, MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+        SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xdeadbabe));
 
         auto tableSchema = New<TTableSchema>(std::vector{
             TColumnSchema("hash", EValueType::Int64)
@@ -483,7 +483,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     {
         TDataSplit dataSplit;
 
-        SetObjectId(&dataSplit, MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+        SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xdeadbabe));
 
         auto schema = New<TTableSchema>(std::vector{
             TColumnSchema("ExportIDHash", EValueType::Int64)
@@ -510,7 +510,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     {
         TDataSplit dataSplit;
 
-        SetObjectId(&dataSplit, MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+        SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xdeadbabe));
 
         auto schema = New<TTableSchema>(std::vector{
             TColumnSchema("hash", EValueType::Int64)
@@ -532,7 +532,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     {
         TDataSplit dataSplit;
 
-        SetObjectId(&dataSplit, MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+        SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xdeadbabe));
 
         auto schema = New<TTableSchema>(std::vector{
             TColumnSchema("hash", EValueType::Int64)
@@ -620,7 +620,7 @@ TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
     {
         TDataSplit dataSplit;
 
-        SetObjectId(&dataSplit, MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+        SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xdeadbabe));
 
         auto schema = New<TTableSchema>(std::vector{
             TColumnSchema("kind", EValueType::String, ESortOrder::Ascending).SetRequired(true),
@@ -655,7 +655,7 @@ TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
     {
         TDataSplit dataSplit;
 
-        SetObjectId(&dataSplit, MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+        SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xdeadbabe));
 
         auto schema = New<TTableSchema>(std::vector{
             TColumnSchema("ride_date", EValueType::String, ESortOrder::Ascending).SetRequired(true),
@@ -723,7 +723,7 @@ TEST_F(TQueryPrepareTest, DisjointGroupBy)
     {
         TDataSplit dataSplit;
 
-        SetObjectId(&dataSplit, MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+        SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xdeadbabe));
 
         auto schema = New<TTableSchema>(std::vector{
             TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending),
@@ -740,7 +740,7 @@ TEST_F(TQueryPrepareTest, DisjointGroupBy)
     {
         TDataSplit dataSplit;
 
-        SetObjectId(&dataSplit, MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+        SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xdeadbabe));
 
         auto schema = New<TTableSchema>(std::vector{
             TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending),
@@ -796,7 +796,7 @@ TEST_F(TQueryPrepareTest, GroupByPrimaryKey)
     {
         TDataSplit dataSplit;
 
-        SetObjectId(&dataSplit, MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+        SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xdeadbabe));
 
         auto schema = New<TTableSchema>(std::vector{
             TColumnSchema("hash", EValueType::Int64)
@@ -840,7 +840,7 @@ TEST_F(TQueryPrepareTest, OrderByPrimaryKeyPrefix)
     {
         TDataSplit dataSplit;
 
-        SetObjectId(&dataSplit, MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+        SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xdeadbabe));
 
         auto schema = New<TTableSchema>(std::vector{
             TColumnSchema("hash", EValueType::Int64)
@@ -1097,7 +1097,7 @@ protected:
 
         auto prunedRanges = GetPrunedRanges(
             fragment->Query,
-            MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe),
+            MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xdeadbabe),
             MakeSharedRange(std::move(sources), buffer),
             rowBuffer,
             ColumnEvaluatorCache_,
@@ -4674,7 +4674,7 @@ TEST_F(TQueryEvaluateTest, TwoLeftJoinOneToMany)
     {
         TDataSplit dataSplit;
 
-        SetObjectId(&dataSplit, MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+        SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xdeadbabe));
 
         auto schema = New<TTableSchema>(std::vector{
             TColumnSchema("cid", EValueType::Int64)
@@ -4696,7 +4696,7 @@ TEST_F(TQueryEvaluateTest, TwoLeftJoinOneToMany)
     {
         TDataSplit dataSplit;
 
-        SetObjectId(&dataSplit, MakeId(EObjectType::Table, 0x42, 1, 0xdeadbabe));
+        SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 1, 0xdeadbabe));
 
         auto schema = New<TTableSchema>(std::vector{
             TColumnSchema("__hash__", EValueType::Int64)
@@ -4722,7 +4722,7 @@ TEST_F(TQueryEvaluateTest, TwoLeftJoinOneToMany)
     {
         TDataSplit dataSplit;
 
-        SetObjectId(&dataSplit, MakeId(EObjectType::Table, 0x42, 2, 0xdeadbabe));
+        SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 2, 0xdeadbabe));
 
         auto schema = New<TTableSchema>(std::vector{
             TColumnSchema("YTHash", EValueType::Int64)

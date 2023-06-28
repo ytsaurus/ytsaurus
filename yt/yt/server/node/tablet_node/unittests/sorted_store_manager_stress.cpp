@@ -989,7 +989,7 @@ void TSortedStoreManagerStressTest::RunTest()
             auto transaction = std::make_unique<TTransactionState>();
             transaction->Self = this;
 
-            auto transactionId = MakeId(EObjectType::Transaction, 0x10, createdTransactions, 0x42);
+            auto transactionId = MakeId(EObjectType::Transaction, TCellTag(0x10), createdTransactions, 0x42);
             transaction->Transaction = StartTransaction(NullTimestamp, transactionId);
             ++createdTransactions;
 

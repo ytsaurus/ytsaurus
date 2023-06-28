@@ -1223,7 +1223,7 @@ private:
                 auto* srcObject = std::any_cast<TUserObject*>(rsp->Tag());
 
                 srcObject->ObjectId = FromProto<TObjectId>(rsp->object_id());
-                srcObject->ExternalCellTag = rsp->external_cell_tag();
+                srcObject->ExternalCellTag = FromProto<TCellTag>(rsp->external_cell_tag());
                 srcObject->ExternalTransactionId = rsp->has_external_transaction_id()
                     ? FromProto<TTransactionId>(rsp->external_transaction_id())
                     : *srcObject->TransactionId;
@@ -1244,7 +1244,7 @@ private:
             auto* dstObject = std::any_cast<TUserObject*>(rsp->Tag());
 
             dstObject->ObjectId = FromProto<TObjectId>(rsp->object_id());
-            dstObject->ExternalCellTag = rsp->external_cell_tag();
+            dstObject->ExternalCellTag = FromProto<TCellTag>(rsp->external_cell_tag());
 
             YT_LOG_DEBUG("Destination object attributes received (Path: %v, ObjectId: %v, ExternalCellTag: %v)",
                 dstObject->GetPath(),

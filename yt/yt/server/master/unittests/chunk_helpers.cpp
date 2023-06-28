@@ -26,7 +26,7 @@ using NYT::FromProto;
 TGuid GenerateId(EObjectType type)
 {
     static i64 counter = 0;
-    return MakeId(type, 0, counter++, 0);
+    return MakeId(type, TCellTag(0), counter++, 0);
 }
 
 TChunk* TChunkGeneratorBase::CreateChunk(

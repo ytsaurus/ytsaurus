@@ -182,7 +182,7 @@ void GetUserObjectBasicAttributes(
         const auto& rsp = rspOrError.Value();
         auto* userObject = std::any_cast<TUserObject*>(rsp->Tag());
         userObject->ObjectId = FromProto<TObjectId>(rsp->object_id());
-        userObject->ExternalCellTag = rsp->external_cell_tag();
+        userObject->ExternalCellTag = FromProto<TCellTag>(rsp->external_cell_tag());
         userObject->Type = TypeFromId(userObject->ObjectId);
 
         // COMPAT(shakurov, gritukan): Remove check when masters will be fresh enough.

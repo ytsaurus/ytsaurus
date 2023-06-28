@@ -61,7 +61,7 @@ class TSimpleTabletSlot
 {
 public:
     static constexpr TCellId CellId = {0, 42};
-    static constexpr TCellTag CellTag = 42;
+    static constexpr auto CellTag = TCellTag(42);
 
     explicit TSimpleTabletSlot(TTabletOptions options)
     {

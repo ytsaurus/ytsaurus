@@ -17,7 +17,7 @@ inline EObjectType TypeFromId(TObjectId id)
 
 inline TCellTag CellTagFromId(TObjectId id)
 {
-    return id.Parts32[1] >> 16;
+    return TCellTag(id.Parts32[1] >> 16);
 }
 
 inline ui64 CounterFromId(TObjectId id)
@@ -66,7 +66,7 @@ inline TObjectId MakeId(
 {
     return TObjectId(
         hash,
-        (cellTag << 16) | static_cast<ui32>(type),
+        (static_cast<ui32>(cellTag.Underlying()) << 16) | static_cast<ui32>(type),
         counter & 0xffffffff,
         counter >> 32);
 }
@@ -101,7 +101,7 @@ inline TObjectId MakeRegularId(
 {
     return TObjectId(
         hash,
-        (cellTag << 16) | static_cast<ui32>(type),
+        (static_cast<ui32>(cellTag.Underlying()) << 16) | static_cast<ui32>(type),
         version.RecordId,
         version.SegmentId);
 }
@@ -130,7 +130,7 @@ inline TObjectId MakeWellKnownId(
         type,
         cellTag,
         counter,
-        static_cast<ui32>(cellTag * 901517) ^ 0x140a8383);
+        static_cast<ui32>(cellTag.Underlying() * 901517) ^ 0x140a8383);
 }
 
 inline TObjectId MakeSchemaObjectId(
@@ -156,7 +156,7 @@ inline TObjectId ReplaceCellTagInId(
 {
     auto result = id;
     result.Parts32[1] &= ~0xffff0000;
-    result.Parts32[1] |= static_cast<ui32>(cellTag) << 16;
+    result.Parts32[1] |= static_cast<ui32>(cellTag.Underlying()) << 16;
     return result;
 }
 

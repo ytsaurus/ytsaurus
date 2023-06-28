@@ -39,7 +39,7 @@ TTable::TTable(TRichYPath path, const IAttributeDictionaryPtr& attributes)
     Type = TypeFromId(ObjectId);
     Dynamic = attributes->Get<bool>("dynamic", false);
     ExternalCellTag = attributes->Get<bool>("external")
-        ? attributes->Get<ui64>("external_cell_tag")
+        ? attributes->Get<TCellTag>("external_cell_tag")
         : CellTagFromId(ObjectId);
     ChunkCount = attributes->Get<i64>("chunk_count", 0);
     Revision = attributes->Get<i64>("revision");

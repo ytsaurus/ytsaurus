@@ -2,6 +2,8 @@
 
 #include <yt/yt/core/misc/serialize.h>
 
+#include <yt/yt/core/misc/protobuf_helpers.h>
+
 #include <yt/yt_proto/yt/client/hive/proto/timestamp_map.pb.h>
 
 namespace NYT::NHiveClient {
@@ -40,7 +42,7 @@ void ToProto(NProto::TTimestampMap* protoMap, const TTimestampMap& map)
     protoMap->clear_cell_tags();
     protoMap->clear_timestamps();
     for (auto [cellTag, timestamp] : map.Timestamps) {
-        protoMap->add_cell_tags(cellTag);
+        protoMap->add_cell_tags(ToProto<int>(cellTag));
         protoMap->add_timestamps(timestamp);
     }
 }

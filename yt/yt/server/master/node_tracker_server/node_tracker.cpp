@@ -1194,7 +1194,7 @@ private:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         YT_VERIFY(multicellManager->IsPrimaryMaster());
 
-        auto cellTag = request->cell_tag();
+        auto cellTag = FromProto<TCellTag>(request->cell_tag());
         if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
             YT_LOG_ERROR("Received cell node descriptor gossip message from unknown cell (CellTag: %v)",
                 cellTag);
@@ -1805,7 +1805,7 @@ private:
         }
 
         TReqSetCellNodeDescriptors request;
-        request.set_cell_tag(multicellManager->GetCellTag());
+        request.set_cell_tag(ToProto<int>(multicellManager->GetCellTag()));
         for (auto [nodeId, node] : NodeMap_) {
             if (!IsObjectAlive(node)) {
                 continue;

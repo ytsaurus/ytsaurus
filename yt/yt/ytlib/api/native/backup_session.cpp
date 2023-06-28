@@ -339,7 +339,7 @@ void TClusterBackupSession::StartBackup()
 
         if (table.UpstreamReplicaId) {
             ToProto(req->mutable_upstream_replica_id(), table.UpstreamReplicaId);
-            req->set_clock_cluster_tag(table.ClockClusterTag);
+            req->set_clock_cluster_tag(ToProto<int>(table.ClockClusterTag));
         }
 
         ToProto(req->mutable_replicas(), table.BackupableReplicas);

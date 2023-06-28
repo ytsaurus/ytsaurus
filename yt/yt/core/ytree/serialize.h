@@ -148,7 +148,6 @@ void Serialize(
     NYson::IYsonConsumer* consumer,
     typename std::enable_if<std::is_convertible<T*, google::protobuf::Message*>::value, void>::type* = nullptr);
 
-
 template <class T, class TTag>
 void Serialize(const TStrongTypedef<T, TTag>& value, NYson::IYsonConsumer* consumer);
 

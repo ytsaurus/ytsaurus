@@ -162,7 +162,7 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
     GetBasicAttributes(&getBasicAttributesContext);
 
     ToProto(response->mutable_object_id(), GetId());
-    response->set_external_cell_tag(getBasicAttributesContext.ExternalCellTag);
+    response->set_external_cell_tag(ToProto<int>(getBasicAttributesContext.ExternalCellTag));
     if (getBasicAttributesContext.OmittedInaccessibleColumns) {
         ToProto(response->mutable_omitted_inaccessible_columns()->mutable_items(), *getBasicAttributesContext.OmittedInaccessibleColumns);
     }

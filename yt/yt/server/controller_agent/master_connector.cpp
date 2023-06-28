@@ -933,7 +933,7 @@ private:
             int rspIndex = 0;
             for (auto* tableInfo : tableInfos) {
                 const auto& rsp = rsps[rspIndex++].Value();
-                tableInfo->ExternalCellTag = rsp->cell_tag();
+                tableInfo->ExternalCellTag = FromProto<TCellTag>(rsp->cell_tag());
                 tableInfo->UploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
             }
         }

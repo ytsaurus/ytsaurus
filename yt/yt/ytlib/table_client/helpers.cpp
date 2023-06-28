@@ -802,7 +802,7 @@ IAttributeDictionaryPtr ResolveExternalTable(
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting basic attributes of table %v", path);
         const auto& rsp = rspOrError.Value();
         *tableId = FromProto<TTableId>(rsp->object_id());
-        *externalCellTag = rsp->external_cell_tag();
+        *externalCellTag = FromProto<TCellTag>(rsp->external_cell_tag());
     }
 
     if (!IsTabletOwnerType(TypeFromId(*tableId))) {

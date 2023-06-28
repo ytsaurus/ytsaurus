@@ -201,7 +201,7 @@ std::vector<TRequestId> TTransactionReplicationSessionBase::DoConstructReplicati
         auto channel = multicellManager->GetMasterChannelOrThrow(cellTag, EPeerKind::Leader);
         TTransactionServiceProxy proxy(std::move(channel));
         auto request = proxy.ReplicateTransactions();
-        request->set_destination_cell_tag(multicellManager->GetCellTag());
+        request->set_destination_cell_tag(ToProto<int>(multicellManager->GetCellTag()));
 
         result.push_back(request->GetRequestId());
 

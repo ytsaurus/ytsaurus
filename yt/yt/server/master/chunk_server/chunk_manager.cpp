@@ -3713,13 +3713,14 @@ private:
             auto it = crossCellRequestMap.find(cellTag);
             if (it == crossCellRequestMap.end()) {
                 it = crossCellRequestMap.emplace(cellTag, NProto::TReqUpdateChunkRequisition()).first;
-                it->second.set_cell_tag(multicellManager->GetCellTag());
+                it->second.set_cell_tag(ToProto<int>(multicellManager->GetCellTag()));
             }
             return it->second;
         };
 
-        auto local = request->cell_tag() == multicellManager->GetCellTag();
-        int cellIndex = local ? -1 : multicellManager->GetRegisteredMasterCellIndex(request->cell_tag());
+        auto requestCellTag = FromProto<TCellTag>(request->cell_tag());
+        auto local = requestCellTag == multicellManager->GetCellTag();
+        int cellIndex = local ? -1 : multicellManager->GetRegisteredMasterCellIndex(requestCellTag);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* requisitionRegistry = GetChunkRequisitionRegistry();
@@ -3952,7 +3953,7 @@ private:
                 THROW_ERROR_EXCEPTION("Cannot export a foreign chunk %v", chunkId);
             }
 
-            auto cellTag = exportData.destination_cell_tag();
+            auto cellTag = FromProto<TCellTag>(exportData.destination_cell_tag());
             if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
                 THROW_ERROR_EXCEPTION("Cell %v is not registered");
             }

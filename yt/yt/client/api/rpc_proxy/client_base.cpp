@@ -555,7 +555,7 @@ TFuture<void> TClientBase::ExternalizeNode(
     SetTimeoutOptions(*req, options);
 
     ToProto(req->mutable_path(), path);
-    req->set_cell_tag(cellTag);
+    req->set_cell_tag(ToProto<int>(cellTag));
     ToProto(req->mutable_transactional_options(), options);
 
     return req->Invoke().As<void>();

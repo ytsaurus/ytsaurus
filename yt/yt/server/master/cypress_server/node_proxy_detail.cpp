@@ -1416,7 +1416,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
     ToProto(response->mutable_lock_id(), lockId);
     ToProto(response->mutable_node_id(), TrunkNode_->GetId());
     ToProto(response->mutable_external_transaction_id(), externalTransactionId);
-    response->set_external_cell_tag(externalCellTag);
+    response->set_external_cell_tag(ToProto<int>(externalCellTag));
     response->set_revision(revision);
 
     context->SetResponseInfo("LockId: %v, ExternalCellTag: %v, ExternalTransactionId: %v, Revision: %x",
@@ -1503,9 +1503,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         }
 
         ToProto(response->mutable_node_id(), impl->GetId());
-        response->set_cell_tag(impl->GetExternalCellTag() == NotReplicatedCellTagSentinel
+        response->set_cell_tag(ToProto<int>(impl->GetExternalCellTag() == NotReplicatedCellTagSentinel
             ? Bootstrap_->GetMulticellManager()->GetCellTag()
-            : impl->GetExternalCellTag());
+            : impl->GetExternalCellTag()));
         context->SetResponseInfo("ExistingNodeId: %v",
             impl->GetId());
         context->Reply();
@@ -1607,7 +1607,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     }
 
     ToProto(response->mutable_node_id(), newNode->GetId());
-    response->set_cell_tag(newNodeCellTag);
+    response->set_cell_tag(ToProto<int>(newNodeCellTag));
 
     context->SetResponseInfo("NodeId: %v, CellTag: %v, Account: %v",
         newNodeId,

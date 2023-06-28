@@ -446,13 +446,13 @@ TEST(TFederatedClientTest, AttachTransaction)
 
     auto mockConnectionSas = New<TStrictMockConnection>();
     EXPECT_CALL(*mockConnectionSas, GetClusterTag())
-        .WillRepeatedly(Return(123));
+        .WillRepeatedly(Return(NObjectClient::TCellTag(123)));
     EXPECT_CALL(*mockClientSas, GetConnection())
         .WillOnce(Return(mockConnectionSas));
 
     auto mockConnectionVla = New<TStrictMockConnection>();
     EXPECT_CALL(*mockConnectionVla, GetClusterTag())
-        .WillRepeatedly(Return(456));
+        .WillRepeatedly(Return(NObjectClient::TCellTag(456)));
     EXPECT_CALL(*mockClientVla, GetConnection())
         .WillOnce(Return(mockConnectionVla));
 

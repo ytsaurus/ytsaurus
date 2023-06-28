@@ -131,7 +131,7 @@ bool TMergeJob::FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const
 
     auto* jobSpecExt = jobSpec->MutableExtension(TMergeChunksJobSpecExt::merge_chunks_job_spec_ext);
 
-    jobSpecExt->set_cell_tag(bootstrap->GetCellTag());
+    jobSpecExt->set_cell_tag(ToProto<int>(bootstrap->GetCellTag()));
 
     ToProto(jobSpecExt->mutable_output_chunk_id(), ChunkIdWithIndexes_.Id);
     jobSpecExt->set_medium_index(ChunkIdWithIndexes_.MediumIndex);

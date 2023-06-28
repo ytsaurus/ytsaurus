@@ -6,6 +6,8 @@
 
 #include <yt/yt/client/election/public.h>
 
+#include <library/cpp/yt/misc/strong_typedef.h>
+
 #include <library/cpp/yt/small_containers/compact_vector.h>
 
 #include <library/cpp/yt/string/string_builder.h>
@@ -55,22 +57,22 @@ using NElection::NullCellId;
 
 //! Identifies a particular cell of YT cluster.
 //! Must be globally unique to prevent object ids from colliding.
-using TCellTag = ui16;
+YT_DEFINE_STRONG_TYPEDEF(TCellTag, ui16)
 
 //! The minimum valid cell tag.
-constexpr TCellTag MinValidCellTag = 0x0000;
+constexpr auto MinValidCellTag = TCellTag(0x0000);
 
 //! The maximum valid cell tag.
-constexpr TCellTag MaxValidCellTag = 0xf000;
+constexpr auto MaxValidCellTag = TCellTag(0xf000);
 
 //! A sentinel cell tag indicating that the request does not need replication.
-constexpr TCellTag NotReplicatedCellTagSentinel = 0xf001;
+constexpr auto NotReplicatedCellTagSentinel = TCellTag(0xf001);
 
 //! A sentinel cell tag representing the primary master.
-constexpr TCellTag PrimaryMasterCellTagSentinel = 0xf003;
+constexpr auto PrimaryMasterCellTagSentinel = TCellTag(0xf003);
 
 //! A sentinel cell tag meaning nothing.
-constexpr TCellTag InvalidCellTag = 0xf004;
+constexpr auto InvalidCellTag = TCellTag(0xf004);
 
 //! A static limit for the number of secondary master cells.
 constexpr int MaxSecondaryMasterCells = 48;
