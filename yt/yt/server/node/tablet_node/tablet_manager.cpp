@@ -2264,7 +2264,6 @@ private:
             tablet->RemoveHunkChunk(hunkChunk);
             hunkChunk->SetState(EHunkChunkState::Removed);
             hunkChunk->Unlock(transaction->GetId(), EObjectLockMode::Exclusive);
-            tablet->UpdateDanglingHunkChunks(hunkChunk);
 
             YT_LOG_DEBUG("Hunk chunk removed (%v, ChunkId: %v)",
                 tablet->GetLoggingTag(),
