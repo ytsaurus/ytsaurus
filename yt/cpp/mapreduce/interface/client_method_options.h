@@ -1008,6 +1008,11 @@ struct TCreateClientOptions
     using TSelf = TCreateClientOptions;
     /// @endcond
 
+    /// @brief Impersonated user name.
+    ///
+    /// If authenticated user is allowed to impersonate other YT users (e.g. yql_agent), this field may be used to override user name.
+    FLUENT_FIELD_OPTION(TString, ImpersonationUser);
+
     /// @brief User token.
     ///
     /// @see NYT::TCreateClientOptions::TokenPath

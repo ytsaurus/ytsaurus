@@ -1317,6 +1317,8 @@ TClientPtr CreateClientImpl(
         context.ServiceTicketAuth = options.ServiceTicketAuth_;
     }
 
+    context.ImpersonationUser = options.ImpersonationUser_;
+
     if (context.Token) {
         TConfig::ValidateToken(context.Token);
     }

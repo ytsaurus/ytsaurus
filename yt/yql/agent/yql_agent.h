@@ -29,6 +29,7 @@ struct IYqlAgent
 
     virtual TFuture<std::pair<NYqlClient::NProto::TRspStartQuery, std::vector<TSharedRef>>> StartQuery(
         TQueryId queryId,
+        const TString& impersonationUser,
         const NYqlClient::NProto::TReqStartQuery& request) = 0;
 };
 

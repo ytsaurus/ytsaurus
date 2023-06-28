@@ -59,7 +59,7 @@ struct TBridgeQueryResult
 };
 
 using TFuncBridgeFreeQueryResult = void(TBridgeQueryResult* result);
-using TFuncBridgeRun = TBridgeQueryResult*(TBridgeYqlPlugin* plugin, const char* queryText);
+using TFuncBridgeRun = TBridgeQueryResult*(TBridgeYqlPlugin* plugin, const char* impersonationUser, const char* queryText);
 
 ////////////////////////////////////////////////////////////////////////////////
 

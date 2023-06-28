@@ -71,6 +71,7 @@ public:
 
         TYqlServiceProxy proxy(Connection_->GetYqlAgentChannelOrThrow(Settings_->Stage));
         auto req = proxy.StartQuery();
+        SetAuthenticationIdentity(req, TAuthenticationIdentity(User_));
         auto* yqlRequest = req->mutable_yql_request();
         req->set_row_count_limit(Config_->RowCountLimit);
         ToProto(req->mutable_query_id(), QueryId_);

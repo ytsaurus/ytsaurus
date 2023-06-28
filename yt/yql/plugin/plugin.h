@@ -44,7 +44,7 @@ struct TQueryResult
 //! is implemented by a dynamic library.
 struct IYqlPlugin
 {
-    virtual TQueryResult Run(TString queryText) noexcept = 0;
+    virtual TQueryResult Run(TString impersonationUser, TString queryText) noexcept = 0;
 
     virtual ~IYqlPlugin() = default;
 };

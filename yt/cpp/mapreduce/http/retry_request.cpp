@@ -57,6 +57,10 @@ TResponseInfo RequestWithoutRetry(
         header.SetToken(context.Token);
     }
 
+    if (context.ImpersonationUser) {
+        header.SetImpersonationUser(*context.ImpersonationUser);
+    }
+
     if (header.HasMutationId()) {
         header.RemoveParameter("retry");
         header.AddMutationId();
@@ -77,6 +81,10 @@ TResponseInfo RetryRequestWithPolicy(
         header.SetServiceTicket(context.ServiceTicketAuth->Ptr->IssueServiceTicket());
     } else {
         header.SetToken(context.Token);
+    }
+
+    if (context.ImpersonationUser) {
+        header.SetImpersonationUser(*context.ImpersonationUser);
     }
 
     bool useMutationId = header.HasMutationId();

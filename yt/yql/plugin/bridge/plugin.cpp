@@ -69,9 +69,9 @@ public:
         BridgePlugin_ = BridgeCreateYqlPlugin(&bridgeOptions);
     }
 
-    TQueryResult Run(TString queryText) noexcept override
+    TQueryResult Run(TString impersonationUser, TString queryText) noexcept override
     {
-        auto* bridgeQueryResult = BridgeRun(BridgePlugin_, queryText.data());
+        auto* bridgeQueryResult = BridgeRun(BridgePlugin_, impersonationUser.data(), queryText.data());
         auto toString = [] (const char* str, size_t strLength) -> std::optional<TString> {
             if (!str) {
                 return std::nullopt;

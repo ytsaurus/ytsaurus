@@ -37,6 +37,8 @@ private:
     {
         context->SetRequestInfo("Async: %v, BuildRowsets: %v, RowCountLimit: %v", request->async(), request->build_rowsets(), request->row_count_limit());
 
+        const auto& impersonationUser = context->GetAuthenticationIdentity().User;
+
         auto queryId = request->has_query_id()
             ? FromProto<TQueryId>(request->query_id())
             : TQueryId::Create();
@@ -44,7 +46,7 @@ private:
 
         context->SetResponseInfo("QueryId: %v", queryId);
 
-        auto responseFuture = YqlAgent_->StartQuery(queryId, *request);
+        auto responseFuture = YqlAgent_->StartQuery(queryId, impersonationUser, *request);
 
         if (request->async()) {
             // TODO(max42): there is no way to poll query result for now.

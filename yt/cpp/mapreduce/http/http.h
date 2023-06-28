@@ -57,6 +57,7 @@ public:
     bool HasMutationId() const;
 
     void SetToken(const TString& token);
+    void SetImpersonationUser(const TString& impersonationUser);
 
     void SetServiceTicket(const TString& ticket);
 
@@ -84,6 +85,7 @@ private:
     const bool IsApi;
 
     TNode::TMapType Parameters;
+    TString ImpersonationUser;
     TString Token;
     TString ServiceTicket;
     TNode Attributes;

@@ -210,6 +210,11 @@ void THttpHeader::SetToken(const TString& token)
     Token = token;
 }
 
+void THttpHeader::SetImpersonationUser(const TString& impersonationUser)
+{
+    ImpersonationUser = impersonationUser;
+}
+
 void THttpHeader::SetServiceTicket(const TString& ticket)
 {
     ServiceTicket = ticket;
@@ -292,6 +297,9 @@ NHttp::THeadersPtrWrapper THttpHeader::GetHeader(const TString& hostName, const 
     }
     if (!ServiceTicket.empty()) {
         headers->Add("X-Ya-Service-Ticket", ServiceTicket);
+    }
+    if (!ImpersonationUser.empty()) {
+        headers->Add("X-Yt-User-Name", ImpersonationUser);
     }
 
     if (Method == "PUT" || Method == "POST") {

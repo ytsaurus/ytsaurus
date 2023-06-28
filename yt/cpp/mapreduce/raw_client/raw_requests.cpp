@@ -777,7 +777,7 @@ TNode::TListType SkyShareTable(
     }
 
     header.MergeParameters(SerializeParamsForSkyShareTable(proxyName, context.Config->Prefix, tablePaths, options));
-    TClientContext skyApiHost({host, "", nullptr, NHttpClient::CreateDefaultHttpClient()});
+    TClientContext skyApiHost({ .ServerName = host, .HttpClient = NHttpClient::CreateDefaultHttpClient() });
     TResponseInfo response = {};
 
     // As documented at https://wiki.yandex-team.ru/yt/userdoc/blob_tables/#shag3.sozdajomrazdachu

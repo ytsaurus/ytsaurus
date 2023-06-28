@@ -15,6 +15,7 @@ struct TClientContext
 {
     TString ServerName;
     TString Token;
+    TMaybe<TString> ImpersonationUser;
     NAuth::IServiceTicketAuthPtrWrapperPtr ServiceTicketAuth;
     NHttpClient::IHttpClientPtr HttpClient;
     bool TvmOnly = false;

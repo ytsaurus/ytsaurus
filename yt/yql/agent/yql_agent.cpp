@@ -78,11 +78,11 @@ public:
         const TYqlAgentDynamicConfigPtr& /*newConfig*/) override
     { }
 
-    TFuture<std::pair<TRspStartQuery, std::vector<TSharedRef>>> StartQuery(TQueryId queryId, const TReqStartQuery& request) override
+    TFuture<std::pair<TRspStartQuery, std::vector<TSharedRef>>> StartQuery(TQueryId queryId, const TString& impersonationUser, const TReqStartQuery& request) override
     {
-        YT_LOG_INFO("Starting query (QueryId: %v)", queryId);
+        YT_LOG_INFO("Starting query (QueryId: %v, ImpersonationUser: %v)", queryId, impersonationUser);
 
-        return BIND(&TYqlAgent::DoStartQuery, MakeStrong(this), queryId, request)
+        return BIND(&TYqlAgent::DoStartQuery, MakeStrong(this), queryId, impersonationUser, request)
             .AsyncVia(ThreadPool_->GetInvoker())
             .Run();
     }
@@ -98,7 +98,7 @@ private:
 
     IThreadPoolPtr ThreadPool_;
 
-    std::pair<TRspStartQuery, std::vector<TSharedRef>> DoStartQuery(TQueryId queryId, const TReqStartQuery& request)
+    std::pair<TRspStartQuery, std::vector<TSharedRef>> DoStartQuery(TQueryId queryId, const TString& impersonationUser, const TReqStartQuery& request)
     {
         const auto& Logger = YqlAgentLogger.WithTag("QueryId: %v", queryId);
 
@@ -115,7 +115,7 @@ private:
                 query = "pragma RefSelect; pragma yt.UseNativeYtTypes; " + query;
             }
             // This is a long blocking call.
-            auto result = YqlPlugin_->Run(query);
+            auto result = YqlPlugin_->Run(impersonationUser, query);
             if (result.YsonError) {
                 auto error = ConvertTo<TError>(TYsonString(*result.YsonError));
                 THROW_ERROR error;
