@@ -296,14 +296,14 @@ class TestSchemaMigration(MasterSnapshotsCompatibilityBase):
         assert self.schema1_content == get("#{}/@schema".format(table_id), driver=get_driver(1), tx=self.tx)
 
         table_path = "//tmp/portal_to_11/empty_schema_holder_secondary1"
-        assert self.empty_schema_11_id != get("{}/@schema_id".format(table_path))
+        assert self.empty_schema_11_id == get("{}/@schema_id".format(table_path))
         assert self.empty_schema_content == get("{}/@schema".format(table_path))
 
         table_path = "//tmp/portal_to_11/empty_schema_holder_secondary2"
-        assert self.empty_schema_11_id != get("{}/@schema_id".format(table_path))
+        assert self.empty_schema_11_id == get("{}/@schema_id".format(table_path))
         assert self.empty_schema_content == get("{}/@schema".format(table_path))
         table_id = get("{}/@id".format(table_path))
-        assert self.empty_schema_11_id != get("#{}/@schema_id".format(table_id), driver=get_driver(2))
+        assert self.empty_schema_11_id == get("#{}/@schema_id".format(table_id), driver=get_driver(2))
         assert self.empty_schema_content == get("#{}/@schema".format(table_id), driver=get_driver(2))
 
         table_path = "//tmp/portal_to_11/schema1_holder_secondary1"
@@ -399,6 +399,9 @@ class TestSchemaMigration(MasterSnapshotsCompatibilityBase):
         self.empty_schema_11_id = get("//tmp/portal_to_11/empty_schema_holder_secondary1/@schema_id")
         self.schema1_11_id = get("//tmp/portal_to_11/schema1_holder_secondary1/@schema_id")
         self.schema3_11_id = get("//tmp/portal_to_11/schema3_holder_secondary/@schema_id")
+
+        assert self.empty_schema_primary_id != self.empty_schema_11_id
+        assert self.schema1_primary_id != self.schema1_11_id
 
         self.restart_with_update(MASTERS_SERVICE)
 
