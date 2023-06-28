@@ -289,11 +289,12 @@ def _create_table(client, table_info, table_path, shard_count=None):
 INITIAL_TABLE_INFOS = {
     "jobs": TableInfo(
         [
+            ("job_id_partition_hash", "uint64", "farm_hash(job_id_hi, job_id_lo) % {}".format(JOB_TABLE_PARTITION_COUNT)),
             ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
             ("operation_id_hi", "uint64"),
             ("operation_id_lo", "uint64"),
             ("job_id_hi", "uint64"),
-            ("job_id_lo", "uint64")
+            ("job_id_lo", "uint64"),
         ], [
             ("type", "string"),
             ("state", "string"),
@@ -311,6 +312,18 @@ INITIAL_TABLE_INFOS = {
             ("events", "any"),
             ("transient_state", "string"),
             ("update_time", "int64"),
+            ("core_infos", "any"),
+            ("job_competition_id", "string"),
+            ("has_competitors", "boolean"),
+            ("exec_attributes", "any"),
+            ("task_name", "string"),
+            ("statistics_lz4", "string"),
+            ("brief_statistics", "any"),
+            ("pool_tree", "string"),
+            ("monitoring_descriptor", "string"),
+            ("probing_job_competition_id", "string"),
+            ("has_probing_competitors", "boolean"),
+            ("job_cookie", "int64"),
         ],
         get_pivot_keys=get_job_table_pivots,
         attributes={
@@ -318,7 +331,7 @@ INITIAL_TABLE_INFOS = {
             "tablet_cell_bundle": SYS_BUNDLE_NAME,
             "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
         }),
-    "operation_ids": TableInfo(
+    "operation_ids" : TableInfo(
         [
             ("job_id_hash", "uint64", "farm_hash(job_id_hi, job_id_lo)"),
             ("job_id_hi", "uint64"),
@@ -390,7 +403,11 @@ INITIAL_TABLE_INFOS = {
             ("authenticated_user", "string"),
             ("operation_type", "string"),
             ("progress", "any"),
+            ("provided_spec", "any"),
             ("spec", "any"),
+            ("full_spec", "any"),
+            ("experiment_assignments", "any"),
+            ("experiment_assignment_names", "any"),
             ("brief_progress", "any"),
             ("brief_spec", "any"),
             ("start_time", "int64"),
@@ -401,8 +418,12 @@ INITIAL_TABLE_INFOS = {
             ("alerts", "any"),
             ("slot_index", "int64"),
             ("unrecognized_spec", "any"),
-            ("full_spec", "any"),
-            ("runtime_parameters", "any")
+            ("runtime_parameters", "any"),
+            ("slot_index_per_pool_tree", "any"),
+            ("annotations", "any"),
+            ("task_names", "any"),
+            ("controller_features", "any"),
+            ("alert_events", "any"),
         ],
         in_memory=True,
         get_pivot_keys=get_default_pivots,
@@ -423,6 +444,8 @@ INITIAL_TABLE_INFOS = {
             ("pool", "string"),
             ("pools", "any"),
             ("has_failed_jobs", "boolean"),
+            ("acl", "any"),
+            ("pool_tree_to_pool", "any"),
         ],
         in_memory=True,
         attributes={
@@ -443,9 +466,26 @@ INITIAL_TABLE_INFOS = {
             "tablet_cell_bundle": SYS_BUNDLE_NAME,
             "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
         }),
+    "job_profiles": TableInfo(
+        [
+            ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
+            ("operation_id_hi", "uint64"),
+            ("operation_id_lo", "uint64"),
+            ("job_id_hi", "uint64"),
+            ("job_id_lo", "uint64"),
+            ("part_index", "int64"),
+        ], [
+            ("profile_type", "string"),
+            ("profile_blob", "string"),
+            ("profiling_probability", "double"),
+        ],
+        attributes={
+            "atomicity": "none",
+            "tablet_cell_bundle": SYS_BUNDLE_NAME,
+        }),
 }
 
-INITIAL_VERSION = 26
+INITIAL_VERSION = 47
 
 
 def _initialize_archive(client, archive_path, version=INITIAL_VERSION, tablet_cell_bundle=None, shard_count=1, mount=False):
@@ -488,778 +528,6 @@ def _initialize_archive(client, archive_path, version=INITIAL_VERSION, tablet_ce
 TRANSFORMS = {}
 ACTIONS = {}
 
-
-TRANSFORMS[27] = [
-    Conversion(
-        "ordered_by_id",
-        table_info=TableInfo(
-            [
-                ("id_hash", "uint64", "farm_hash(id_hi, id_lo)"),
-                ("id_hi", "uint64"),
-                ("id_lo", "uint64"),
-            ], [
-                ("state", "string"),
-                ("authenticated_user", "string"),
-                ("operation_type", "string"),
-                ("progress", "any"),
-                ("spec", "any"),
-                ("brief_progress", "any"),
-                ("brief_spec", "any"),
-                ("start_time", "int64"),
-                ("finish_time", "int64"),
-                ("filter_factors", "string"),
-                ("result", "any"),
-                ("events", "any"),
-                ("alerts", "any"),
-                ("slot_index", "int64"),
-                ("unrecognized_spec", "any"),
-                ("full_spec", "any"),
-                ("runtime_parameters", "any"),
-                ("slot_index_per_pool_tree", "any"),
-            ],
-            in_memory=True))
-]
-
-TRANSFORMS[28] = [
-    Conversion(
-        "job_profiles",
-        table_info=TableInfo(
-            [
-                ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
-                ("operation_id_hi", "uint64"),
-                ("operation_id_lo", "uint64"),
-                ("job_id_hi", "uint64"),
-                ("job_id_lo", "uint64"),
-                ("part_index", "int64"),
-            ], [
-                ("profile_type", "string"),
-                ("profile_blob", "string")
-            ],
-            get_pivot_keys=get_default_pivots,
-            attributes={
-                "atomicity": "none",
-                "tablet_cell_bundle": SYS_BUNDLE_NAME,
-            }),
-        use_default_mapper=True)
-]
-
-TRANSFORMS[29] = [
-    Conversion(
-        "ordered_by_id",
-        table_info=TableInfo(
-            [
-                ("id_hash", "uint64", "farm_hash(id_hi, id_lo)"),
-                ("id_hi", "uint64"),
-                ("id_lo", "uint64"),
-            ], [
-                ("state", "string"),
-                ("authenticated_user", "string"),
-                ("operation_type", "string"),
-                ("progress", "any"),
-                ("spec", "any"),
-                ("brief_progress", "any"),
-                ("brief_spec", "any"),
-                ("start_time", "int64"),
-                ("finish_time", "int64"),
-                ("filter_factors", "string"),
-                ("result", "any"),
-                ("events", "any"),
-                ("alerts", "any"),
-                ("slot_index", "int64"),
-                ("unrecognized_spec", "any"),
-                ("full_spec", "any"),
-                ("runtime_parameters", "any"),
-                ("slot_index_per_pool_tree", "any"),
-                ("annotations", "any")
-            ],
-            in_memory=True))
-]
-
-TRANSFORMS[30] = [
-    Conversion(
-        "ordered_by_start_time",
-        table_info=TableInfo(
-            [
-                ("start_time", "int64"),
-                ("id_hi", "uint64"),
-                ("id_lo", "uint64"),
-            ], [
-                ("operation_type", "string"),
-                ("state", "string"),
-                ("authenticated_user", "string"),
-                ("filter_factors", "string"),
-                ("pool", "string"),
-                ("pools", "any"),
-                ("has_failed_jobs", "boolean"),
-                ("acl", "any"),
-            ],
-            in_memory=True)),
-]
-
-TRANSFORMS[31] = [
-    Conversion(
-        "jobs",
-        table_info=TableInfo(
-            [
-                ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
-                ("operation_id_hi", "uint64"),
-                ("operation_id_lo", "uint64"),
-                ("job_id_hi", "uint64"),
-                ("job_id_lo", "uint64")
-            ], [
-                ("type", "string"),
-                ("state", "string"),
-                ("start_time", "int64"),
-                ("finish_time", "int64"),
-                ("address", "string"),
-                ("error", "any"),
-                ("statistics", "any"),
-                ("stderr_size", "uint64"),
-                ("spec", "string"),
-                ("spec_version", "int64"),
-                ("has_spec", "boolean"),
-                ("has_fail_context", "boolean"),
-                ("fail_context_size", "uint64"),
-                ("events", "any"),
-                ("transient_state", "string"),
-                ("update_time", "int64"),
-                ("core_infos", "any"),
-            ],
-            attributes={"atomicity": "none"})),
-]
-
-TRANSFORMS[32] = [
-    Conversion(
-        "jobs",
-        table_info=TableInfo(
-            [
-                ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
-                ("operation_id_hi", "uint64"),
-                ("operation_id_lo", "uint64"),
-                ("job_id_hi", "uint64"),
-                ("job_id_lo", "uint64")
-            ], [
-                ("type", "string"),
-                ("state", "string"),
-                ("start_time", "int64"),
-                ("finish_time", "int64"),
-                ("address", "string"),
-                ("error", "any"),
-                ("statistics", "any"),
-                ("stderr_size", "uint64"),
-                ("spec", "string"),
-                ("spec_version", "int64"),
-                ("has_spec", "boolean"),
-                ("has_fail_context", "boolean"),
-                ("fail_context_size", "uint64"),
-                ("events", "any"),
-                ("transient_state", "string"),
-                ("update_time", "int64"),
-                ("core_infos", "any"),
-                ("job_competition_id", "string")
-            ],
-            attributes={"atomicity": "none"})),
-]
-
-TRANSFORMS[33] = [
-    Conversion(
-        "jobs",
-        table_info=TableInfo(
-            [
-                ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
-                ("operation_id_hi", "uint64"),
-                ("operation_id_lo", "uint64"),
-                ("job_id_hi", "uint64"),
-                ("job_id_lo", "uint64")
-            ], [
-                ("type", "string"),
-                ("state", "string"),
-                ("start_time", "int64"),
-                ("finish_time", "int64"),
-                ("address", "string"),
-                ("error", "any"),
-                ("statistics", "any"),
-                ("stderr_size", "uint64"),
-                ("spec", "string"),
-                ("spec_version", "int64"),
-                ("has_spec", "boolean"),
-                ("has_fail_context", "boolean"),
-                ("fail_context_size", "uint64"),
-                ("events", "any"),
-                ("transient_state", "string"),
-                ("update_time", "int64"),
-                ("core_infos", "any"),
-                ("job_competition_id", "string"),
-                ("has_competitors", "boolean")
-            ],
-            attributes={"atomicity": "none"})),
-]
-
-TRANSFORMS[34] = [
-    Conversion(
-        "jobs",
-        table_info=TableInfo(
-            [
-                ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
-                ("operation_id_hi", "uint64"),
-                ("operation_id_lo", "uint64"),
-                ("job_id_hi", "uint64"),
-                ("job_id_lo", "uint64")
-            ], [
-                ("type", "string"),
-                ("state", "string"),
-                ("start_time", "int64"),
-                ("finish_time", "int64"),
-                ("address", "string"),
-                ("error", "any"),
-                ("statistics", "any"),
-                ("stderr_size", "uint64"),
-                ("spec", "string"),
-                ("spec_version", "int64"),
-                ("has_spec", "boolean"),
-                ("has_fail_context", "boolean"),
-                ("fail_context_size", "uint64"),
-                ("events", "any"),
-                ("transient_state", "string"),
-                ("update_time", "int64"),
-                ("core_infos", "any"),
-                ("job_competition_id", "string"),
-                ("has_competitors", "boolean"),
-                ("exec_attributes", "any"),
-            ],
-            attributes={"atomicity": "none"})),
-]
-
-TRANSFORMS[35] = [
-    Conversion(
-        "ordered_by_id",
-        table_info=TableInfo(
-            [
-                ("id_hash", "uint64", "farm_hash(id_hi, id_lo)"),
-                ("id_hi", "uint64"),
-                ("id_lo", "uint64"),
-            ], [
-                ("state", "string"),
-                ("authenticated_user", "string"),
-                ("operation_type", "string"),
-                ("progress", "any"),
-                ("spec", "any"),
-                ("brief_progress", "any"),
-                ("brief_spec", "any"),
-                ("start_time", "int64"),
-                ("finish_time", "int64"),
-                ("filter_factors", "string"),
-                ("result", "any"),
-                ("events", "any"),
-                ("alerts", "any"),
-                ("slot_index", "int64"),
-                ("unrecognized_spec", "any"),
-                ("full_spec", "any"),
-                ("runtime_parameters", "any"),
-                ("slot_index_per_pool_tree", "any"),
-                ("annotations", "any"),
-                ("task_names", "any")
-            ],
-            in_memory=True)),
-    Conversion(
-        "jobs",
-        table_info=TableInfo(
-            [
-                ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
-                ("operation_id_hi", "uint64"),
-                ("operation_id_lo", "uint64"),
-                ("job_id_hi", "uint64"),
-                ("job_id_lo", "uint64")
-            ], [
-                ("type", "string"),
-                ("state", "string"),
-                ("start_time", "int64"),
-                ("finish_time", "int64"),
-                ("address", "string"),
-                ("error", "any"),
-                ("statistics", "any"),
-                ("stderr_size", "uint64"),
-                ("spec", "string"),
-                ("spec_version", "int64"),
-                ("has_spec", "boolean"),
-                ("has_fail_context", "boolean"),
-                ("fail_context_size", "uint64"),
-                ("events", "any"),
-                ("transient_state", "string"),
-                ("update_time", "int64"),
-                ("core_infos", "any"),
-                ("job_competition_id", "string"),
-                ("has_competitors", "boolean"),
-                ("exec_attributes", "any"),
-                ("task_name", "string"),
-            ],
-            attributes={"atomicity": "none"}))
-]
-
-TRANSFORMS[36] = [
-    Conversion(
-        "jobs",
-        table_info=TableInfo(
-            [
-                ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
-                ("operation_id_hi", "uint64"),
-                ("operation_id_lo", "uint64"),
-                ("job_id_hi", "uint64"),
-                ("job_id_lo", "uint64")
-            ], [
-                ("type", "string"),
-                ("state", "string"),
-                ("start_time", "int64"),
-                ("finish_time", "int64"),
-                ("address", "string"),
-                ("error", "any"),
-                ("statistics", "any"),
-                ("stderr_size", "uint64"),
-                ("spec", "string"),
-                ("spec_version", "int64"),
-                ("has_spec", "boolean"),
-                ("has_fail_context", "boolean"),
-                ("fail_context_size", "uint64"),
-                ("events", "any"),
-                ("transient_state", "string"),
-                ("update_time", "int64"),
-                ("core_infos", "any"),
-                ("job_competition_id", "string"),
-                ("has_competitors", "boolean"),
-                ("exec_attributes", "any"),
-                ("task_name", "string"),
-                ("statistics_lz4", "string"),
-                ("brief_statistics", "any"),
-            ],
-            attributes={"atomicity": "none"}))
-]
-
-TRANSFORMS[37] = [
-    Conversion(
-        "operation_ids",
-        table_info=TableInfo(
-            [
-                ("job_id_hash", "uint64", "farm_hash(job_id_hi, job_id_lo)"),
-                ("job_id_hi", "uint64"),
-                ("job_id_lo", "uint64")
-            ], [
-                ("operation_id_hi", "uint64"),
-                ("operation_id_lo", "uint64"),
-            ],
-            attributes={"atomicity": "none"})),
-    Conversion(
-        "jobs",
-        table_info=TableInfo(
-            [
-                ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
-                ("operation_id_hi", "uint64"),
-                ("operation_id_lo", "uint64"),
-                ("job_id_hi", "uint64"),
-                ("job_id_lo", "uint64")
-            ], [
-                ("type", "string"),
-                ("state", "string"),
-                ("start_time", "int64"),
-                ("finish_time", "int64"),
-                ("address", "string"),
-                ("error", "any"),
-                ("statistics", "any"),
-                ("stderr_size", "uint64"),
-                ("spec", "string"),
-                ("spec_version", "int64"),
-                ("has_spec", "boolean"),
-                ("has_fail_context", "boolean"),
-                ("fail_context_size", "uint64"),
-                ("events", "any"),
-                ("transient_state", "string"),
-                ("update_time", "int64"),
-                ("core_infos", "any"),
-                ("job_competition_id", "string"),
-                ("has_competitors", "boolean"),
-                ("exec_attributes", "any"),
-                ("task_name", "string"),
-                ("statistics_lz4", "string"),
-                ("brief_statistics", "any"),
-                ("pool_tree", "string"),
-            ],
-            attributes={"atomicity": "none"}))
-]
-
-
-TRANSFORMS[38] = [
-    Conversion(
-        "jobs",
-        table_info=TableInfo(
-            [
-                ("job_id_partition_hash", "uint64", "farm_hash(job_id_hi, job_id_lo) % {}".format(JOB_TABLE_PARTITION_COUNT)),
-                ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
-                ("operation_id_hi", "uint64"),
-                ("operation_id_lo", "uint64"),
-                ("job_id_hi", "uint64"),
-                ("job_id_lo", "uint64")
-            ], [
-                ("type", "string"),
-                ("state", "string"),
-                ("start_time", "int64"),
-                ("finish_time", "int64"),
-                ("address", "string"),
-                ("error", "any"),
-                ("statistics", "any"),
-                ("stderr_size", "uint64"),
-                ("spec", "string"),
-                ("spec_version", "int64"),
-                ("has_spec", "boolean"),
-                ("has_fail_context", "boolean"),
-                ("fail_context_size", "uint64"),
-                ("events", "any"),
-                ("transient_state", "string"),
-                ("update_time", "int64"),
-                ("core_infos", "any"),
-                ("job_competition_id", "string"),
-                ("has_competitors", "boolean"),
-                ("exec_attributes", "any"),
-                ("task_name", "string"),
-                ("statistics_lz4", "string"),
-                ("brief_statistics", "any"),
-                ("pool_tree", "string"),
-            ],
-            attributes={"atomicity": "none"})),
-    Conversion(
-        "operation_ids",
-        table_info=TableInfo(
-            [
-                ("job_id_hash", "uint64", "farm_hash(job_id_hi, job_id_lo)"),
-                ("job_id_hi", "uint64"),
-                ("job_id_lo", "uint64")
-            ], [
-                ("operation_id_hi", "uint64"),
-                ("operation_id_lo", "uint64"),
-            ],
-            attributes={
-                "atomicity": "none",
-                "tablet_cell_bundle": SYS_BUNDLE_NAME,
-                "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
-            })),
-]
-
-TRANSFORMS[39] = [
-    Conversion(
-        "jobs",
-        table_info=TableInfo(
-            [
-                ("job_id_partition_hash", "uint64", "farm_hash(job_id_hi, job_id_lo) % {}".format(JOB_TABLE_PARTITION_COUNT)),
-                ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
-                ("operation_id_hi", "uint64"),
-                ("operation_id_lo", "uint64"),
-                ("job_id_hi", "uint64"),
-                ("job_id_lo", "uint64")
-            ], [
-                ("type", "string"),
-                ("state", "string"),
-                ("start_time", "int64"),
-                ("finish_time", "int64"),
-                ("address", "string"),
-                ("error", "any"),
-                ("statistics", "any"),
-                ("stderr_size", "uint64"),
-                ("spec", "string"),
-                ("spec_version", "int64"),
-                ("has_spec", "boolean"),
-                ("has_fail_context", "boolean"),
-                ("fail_context_size", "uint64"),
-                ("events", "any"),
-                ("transient_state", "string"),
-                ("update_time", "int64"),
-                ("core_infos", "any"),
-                ("job_competition_id", "string"),
-                ("has_competitors", "boolean"),
-                ("exec_attributes", "any"),
-                ("task_name", "string"),
-                ("statistics_lz4", "string"),
-                ("brief_statistics", "any"),
-                ("pool_tree", "string"),
-                ("monitoring_descriptor", "string"),
-            ],
-            attributes={"atomicity": "none"})),
-]
-
-TRANSFORMS[40] = [
-    Conversion(
-        "ordered_by_id",
-        table_info=TableInfo(
-            [
-                ("id_hash", "uint64", "farm_hash(id_hi, id_lo)"),
-                ("id_hi", "uint64"),
-                ("id_lo", "uint64"),
-            ], [
-                ("state", "string"),
-                ("authenticated_user", "string"),
-                ("operation_type", "string"),
-                ("progress", "any"),
-                ("spec", "any"),
-                ("experiment_assignments", "any"),
-                ("experiment_assignment_names", "any"),
-                ("brief_progress", "any"),
-                ("brief_spec", "any"),
-                ("start_time", "int64"),
-                ("finish_time", "int64"),
-                ("filter_factors", "string"),
-                ("result", "any"),
-                ("events", "any"),
-                ("alerts", "any"),
-                ("slot_index", "int64"),
-                ("unrecognized_spec", "any"),
-                ("full_spec", "any"),
-                ("runtime_parameters", "any"),
-                ("slot_index_per_pool_tree", "any"),
-                ("annotations", "any"),
-                ("task_names", "any")
-            ],
-            in_memory=True)),
-]
-
-TRANSFORMS[41] = [
-    Conversion(
-        "job_profiles",
-        table_info=TableInfo(
-            [
-                ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
-                ("operation_id_hi", "uint64"),
-                ("operation_id_lo", "uint64"),
-                ("job_id_hi", "uint64"),
-                ("job_id_lo", "uint64"),
-                ("part_index", "int64"),
-            ], [
-                ("profile_type", "string"),
-                ("profile_blob", "string"),
-                ("profiling_probability", "double"),
-            ],
-            attributes={
-                "atomicity": "none",
-                "tablet_cell_bundle": SYS_BUNDLE_NAME,
-            }),
-        use_default_mapper=True)
-]
-
-TRANSFORMS[42] = [
-    Conversion(
-        "ordered_by_id",
-        table_info=TableInfo(
-            [
-                ("id_hash", "uint64", "farm_hash(id_hi, id_lo)"),
-                ("id_hi", "uint64"),
-                ("id_lo", "uint64"),
-            ], [
-                ("state", "string"),
-                ("authenticated_user", "string"),
-                ("operation_type", "string"),
-                ("progress", "any"),
-                ("spec", "any"),
-                ("experiment_assignments", "any"),
-                ("experiment_assignment_names", "any"),
-                ("brief_progress", "any"),
-                ("brief_spec", "any"),
-                ("start_time", "int64"),
-                ("finish_time", "int64"),
-                ("filter_factors", "string"),
-                ("result", "any"),
-                ("events", "any"),
-                ("alerts", "any"),
-                ("slot_index", "int64"),
-                ("unrecognized_spec", "any"),
-                ("full_spec", "any"),
-                ("runtime_parameters", "any"),
-                ("slot_index_per_pool_tree", "any"),
-                ("annotations", "any"),
-                ("task_names", "any"),
-                ("controller_features", "any"),
-            ],
-            in_memory=True)),
-]
-
-TRANSFORMS[43] = [
-    Conversion(
-        "ordered_by_id",
-        table_info=TableInfo(
-            [
-                ("id_hash", "uint64", "farm_hash(id_hi, id_lo)"),
-                ("id_hi", "uint64"),
-                ("id_lo", "uint64"),
-            ], [
-                ("state", "string"),
-                ("authenticated_user", "string"),
-                ("operation_type", "string"),
-                ("progress", "any"),
-                ("spec", "any"),
-                ("experiment_assignments", "any"),
-                ("experiment_assignment_names", "any"),
-                ("brief_progress", "any"),
-                ("brief_spec", "any"),
-                ("start_time", "int64"),
-                ("finish_time", "int64"),
-                ("filter_factors", "string"),
-                ("result", "any"),
-                ("events", "any"),
-                ("alerts", "any"),
-                ("slot_index", "int64"),
-                ("unrecognized_spec", "any"),
-                ("full_spec", "any"),
-                ("runtime_parameters", "any"),
-                ("slot_index_per_pool_tree", "any"),
-                ("annotations", "any"),
-                ("task_names", "any"),
-                ("controller_features", "any"),
-                ("alert_events", "any"),  # TODO(egor-gutrov): strict type
-            ],
-            in_memory=True)),
-]
-
-TRANSFORMS[44] = [
-    Conversion(
-        "ordered_by_start_time",
-        table_info=TableInfo(
-            [
-                ("start_time", "int64"),
-                ("id_hi", "uint64"),
-                ("id_lo", "uint64"),
-            ], [
-                ("operation_type", "string"),
-                ("state", "string"),
-                ("authenticated_user", "string"),
-                ("filter_factors", "string"),
-                ("pool", "string"),
-                ("pools", "any"),
-                ("has_failed_jobs", "boolean"),
-                ("acl", "any"),
-                ("pool_tree_to_pool", "any"),
-            ],
-            in_memory=True)),
-]
-
-TRANSFORMS[45] = [
-    Conversion(
-        "jobs",
-        table_info=TableInfo(
-            [
-                ("job_id_partition_hash", "uint64", "farm_hash(job_id_hi, job_id_lo) % {}".format(JOB_TABLE_PARTITION_COUNT)),
-                ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
-                ("operation_id_hi", "uint64"),
-                ("operation_id_lo", "uint64"),
-                ("job_id_hi", "uint64"),
-                ("job_id_lo", "uint64")
-            ], [
-                ("type", "string"),
-                ("state", "string"),
-                ("start_time", "int64"),
-                ("finish_time", "int64"),
-                ("address", "string"),
-                ("error", "any"),
-                ("statistics", "any"),
-                ("stderr_size", "uint64"),
-                ("spec", "string"),
-                ("spec_version", "int64"),
-                ("has_spec", "boolean"),
-                ("has_fail_context", "boolean"),
-                ("fail_context_size", "uint64"),
-                ("events", "any"),
-                ("transient_state", "string"),
-                ("update_time", "int64"),
-                ("core_infos", "any"),
-                ("job_competition_id", "string"),
-                ("has_competitors", "boolean"),
-                ("exec_attributes", "any"),
-                ("task_name", "string"),
-                ("statistics_lz4", "string"),
-                ("brief_statistics", "any"),
-                ("pool_tree", "string"),
-                ("monitoring_descriptor", "string"),
-                ("probing_job_competition_id", "string"),
-                ("has_probing_competitors", "boolean"),
-            ],
-            attributes={"atomicity": "none"})),
-]
-
-TRANSFORMS[46] = [
-    Conversion(
-        "ordered_by_id",
-        table_info=TableInfo(
-            [
-                ("id_hash", "uint64", "farm_hash(id_hi, id_lo)"),
-                ("id_hi", "uint64"),
-                ("id_lo", "uint64"),
-            ], [
-                ("state", "string"),
-                ("authenticated_user", "string"),
-                ("operation_type", "string"),
-                ("progress", "any"),
-                ("provided_spec", "any"),
-                ("spec", "any"),
-                ("full_spec", "any"),
-                ("experiment_assignments", "any"),
-                ("experiment_assignment_names", "any"),
-                ("brief_progress", "any"),
-                ("brief_spec", "any"),
-                ("start_time", "int64"),
-                ("finish_time", "int64"),
-                ("filter_factors", "string"),
-                ("result", "any"),
-                ("events", "any"),
-                ("alerts", "any"),
-                ("slot_index", "int64"),
-                ("unrecognized_spec", "any"),
-                ("runtime_parameters", "any"),
-                ("slot_index_per_pool_tree", "any"),
-                ("annotations", "any"),
-                ("task_names", "any"),
-                ("controller_features", "any"),
-                ("alert_events", "any"),
-            ],
-            in_memory=True)),
-]
-
-TRANSFORMS[47] = [
-    Conversion(
-        "jobs",
-        table_info=TableInfo(
-            [
-                ("job_id_partition_hash", "uint64", "farm_hash(job_id_hi, job_id_lo) % {}".format(JOB_TABLE_PARTITION_COUNT)),
-                ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
-                ("operation_id_hi", "uint64"),
-                ("operation_id_lo", "uint64"),
-                ("job_id_hi", "uint64"),
-                ("job_id_lo", "uint64")
-            ], [
-                ("type", "string"),
-                ("state", "string"),
-                ("start_time", "int64"),
-                ("finish_time", "int64"),
-                ("address", "string"),
-                ("error", "any"),
-                ("statistics", "any"),
-                ("stderr_size", "uint64"),
-                ("spec", "string"),
-                ("spec_version", "int64"),
-                ("has_spec", "boolean"),
-                ("has_fail_context", "boolean"),
-                ("fail_context_size", "uint64"),
-                ("events", "any"),
-                ("transient_state", "string"),
-                ("update_time", "int64"),
-                ("core_infos", "any"),
-                ("job_competition_id", "string"),
-                ("has_competitors", "boolean"),
-                ("exec_attributes", "any"),
-                ("task_name", "string"),
-                ("statistics_lz4", "string"),
-                ("brief_statistics", "any"),
-                ("pool_tree", "string"),
-                ("monitoring_descriptor", "string"),
-                ("probing_job_competition_id", "string"),
-                ("has_probing_competitors", "boolean"),
-                ("job_cookie", "int64"),
-            ],
-            attributes={"atomicity": "none"})),
-]
 
 TRANSFORMS[48] = [
     Conversion(
