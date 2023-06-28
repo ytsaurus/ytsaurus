@@ -68,7 +68,10 @@ def start(args):
         "enable_debug_logging": True,
     }
     for k, v in options.items():
-        yt_local_args[OPTION_NAME_MAPPING[k]] = v
+        if k in OPTION_NAME_MAPPING:
+            yt_local_args[OPTION_NAME_MAPPING[k]] = v
+        else:
+            yt_local_args[k] = v
     yt_instance = yt.local.start(**yt_local_args)
 
     recipe_info = {
@@ -82,6 +85,9 @@ def start(args):
     if yt_instance.yt_config.http_proxy_count > 0:
         set_env("YT_HTTP_PROXY_ADDRESS", yt_instance.get_http_proxy_address())
         set_env("YT_PROXY", yt_instance.get_http_proxy_address())
+
+        url_aliasing_config = {yt_instance.id: yt_instance.get_http_proxy_address()}
+        set_env("YT_PROXY_URL_ALIASING_CONFIG", yson.dumps(url_aliasing_config).decode("utf-8"))
 
     if driver_backend == "native":
         set_env("YT_DRIVER_CONFIG_PATH", yt_instance.config_paths["driver"])
