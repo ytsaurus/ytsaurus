@@ -43,7 +43,7 @@ public:
         // TODO(ifsmirnov, YT-17317): this is the dummy testing-only code. It will be replaced
         // by actual implementation when smooth tablet movement comes. Should work in
         // local yt and integration tests.
-        if (CellTagFromId(tabletId) != 1 && CellTagFromId(tabletId) != 0xa) {
+        if (CellTagFromId(tabletId) != TCellTag(1) && CellTagFromId(tabletId) != TCellTag(0xa)) {
             return;
         }
 
