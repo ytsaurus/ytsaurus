@@ -47,6 +47,7 @@ jobs:
     runs-on: ${{ needs.start-vm.outputs.label }}
     outputs:
       release_type: ${{ steps.tag.outputs.RELEASE_TYPE }}
+      package_name: ${{ steps.tag.outputs.PACKAGE_NAME }}
     steps:
       - name: Parse tag
         id: tag
@@ -97,7 +98,7 @@ jobs:
       - build
       - checkout
       - start-vm
-    if: ${{ needs.build.outputs.release_type == 'test' }}
+    if: ${{ needs.build.outputs.release_type == 'test' && needs.build.outputs.package_name == 'ytsaurus-client' }}
     runs-on: ${{ needs.start-vm.outputs.label }}
     steps:
       - name Publish test pydoc
