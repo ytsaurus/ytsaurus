@@ -2023,7 +2023,14 @@ private:
                     continue;
                 }
                 hunkChunk->Unlock(transaction->GetId(), EObjectLockMode::Shared);
-                tablet->UpdateDanglingHunkChunks(hunkChunk);
+
+                if (!hunkChunk->GetCommitted() && hunkChunk->IsDangling()) {
+                    YT_LOG_DEBUG("Removing dangling uncommitted hunk chunk (HunkChunkId: %v)",
+                        hunkChunk->GetId());
+                    // This hunk chunk was never attached in master, so just remove it here without 2pc.
+                    tablet->RemoveHunkChunk(hunkChunk);
+                    hunkChunk->SetState(EHunkChunkState::Removed);
+                }
             }
         }
 
@@ -2046,13 +2053,6 @@ private:
                             hunkChunk->Unlock(transaction->GetId(), EObjectLockMode::Shared);
                             tablet->UpdateDanglingHunkChunks(hunkChunk);
                             existingReferencedHunks.insert(chunkId);
-                        }
-
-                        // COMPAT(aleksandra-zh)
-                        if (request->create_hunk_chunks_during_prepare() && !hunkChunk->GetCommitted() && hunkChunk->IsDangling()) {
-                            // This hunk chunk was never attached in master, so just remove it here without 2pc.
-                            tablet->RemoveHunkChunk(hunkChunk);
-                            hunkChunk->SetState(EHunkChunkState::Removed);
                         }
                     }
                 }
