@@ -2013,15 +2013,16 @@ THashSet<TString> ScanForObsoleteCypressNodes(const TSchedulerInputState& input,
             continue;
         }
 
+        if (now - *annotations->DeallocatedAt < obsoleteThreshold) {
+            continue;
+        }
+
         if (IsOnline(instanceInfo)) {
             YT_LOG_WARNING("Skipping obsolete cypress node  in online state (InstanceName: %v)", instanceName);
             continue;
         }
 
-        if (now - *annotations->DeallocatedAt > obsoleteThreshold) {
-            YT_LOG_INFO("Found obsolete cypress node (InstanceName: %v)", instanceName);
-            result.insert(instanceName);
-        }
+        result.insert(instanceName);
     }
 
     return result;
