@@ -130,6 +130,22 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
             with_hunks=with_hunks,
             with_slicing=True)
 
+    @authors("alexelexa")
+    def test_by_bundle_erros(self):
+        instances = get("//sys/tablet_balancer/instances")
+
+        self._configure_bundle("default")
+        sync_create_cells(2)
+        self._create_sorted_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[], [1]])
+
+        set(
+            "//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups",
+            "string instead of map. Bazinga!"
+        )
+
+        wait(lambda: any(len(get(f"//sys/tablet_balancer/instances/{instance}/orchid/tablet_balancer/bundle_errors")) > 0 for instance in instances))
+
 
 class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTablesBase):
     @classmethod
