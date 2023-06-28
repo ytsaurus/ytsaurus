@@ -440,15 +440,17 @@ public:
             }
         }
 
+        THashSet<TChunkId> existingReferencedHunks;
         for (const auto& descriptor : request->stores_to_add()) {
             if (auto optionalHunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(
                 descriptor.chunk_meta().extensions()))
             {
                 for (const auto& ref : optionalHunkChunkRefsExt->refs()) {
                     auto chunkId = FromProto<TChunkId>(ref.chunk_id());
-                    if (!hunkChunkIdsToAdd.contains(chunkId)) {
+                    if (!hunkChunkIdsToAdd.contains(chunkId) && !existingReferencedHunks.contains(chunkId)) {
                         auto hunkChunk = tablet->GetHunkChunk(chunkId);
                         hunkChunk->Lock(transaction->GetId(), EObjectLockMode::Shared);
+                        existingReferencedHunks.insert(chunkId);
                     }
                 }
             }
@@ -1836,6 +1838,7 @@ private:
             }
         }
 
+        THashSet<TChunkId> existingReferencedHunks;
         for (const auto& descriptor : request->stores_to_add()) {
             if (auto optionalHunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(
                 descriptor.chunk_meta().extensions()))
@@ -1846,8 +1849,11 @@ private:
                         auto hunkChunk = tablet->GetHunkChunk(chunkId);
                         tablet->UpdatePreparedStoreRefCount(hunkChunk, +1);
 
-                        hunkChunk->Lock(transaction->GetId(), EObjectLockMode::Shared);
-                        tablet->UpdateDanglingHunkChunks(hunkChunk);
+                        if (!existingReferencedHunks.contains(chunkId)) {
+                            hunkChunk->Lock(transaction->GetId(), EObjectLockMode::Shared);
+                            tablet->UpdateDanglingHunkChunks(hunkChunk);
+                            existingReferencedHunks.insert(chunkId);
+                        }
                     }
                 }
             }
@@ -2021,6 +2027,7 @@ private:
             }
         }
 
+        THashSet<TChunkId> existingReferencedHunks;
         for (const auto& descriptor : request->stores_to_add()) {
             if (auto optionalHunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(
                 descriptor.chunk_meta().extensions()))
@@ -2035,8 +2042,11 @@ private:
 
                         tablet->UpdatePreparedStoreRefCount(hunkChunk, -1);
 
-                        hunkChunk->Unlock(transaction->GetId(), EObjectLockMode::Shared);
-                        tablet->UpdateDanglingHunkChunks(hunkChunk);
+                        if (!existingReferencedHunks.contains(chunkId)) {
+                            hunkChunk->Unlock(transaction->GetId(), EObjectLockMode::Shared);
+                            tablet->UpdateDanglingHunkChunks(hunkChunk);
+                            existingReferencedHunks.insert(chunkId);
+                        }
 
                         // COMPAT(aleksandra-zh)
                         if (request->create_hunk_chunks_during_prepare() && !hunkChunk->GetCommitted() && hunkChunk->IsDangling()) {
@@ -2237,6 +2247,7 @@ private:
         }
 
         std::vector<IStorePtr> addedStores;
+        THashSet<THunkChunkPtr> existingReferencedHunks;
         for (const auto& descriptor : request->stores_to_add()) {
             auto storeType = FromProto<EStoreType>(descriptor.store_type());
             auto storeId = FromProto<TChunkId>(descriptor.store_id());
@@ -2268,8 +2279,11 @@ private:
                     if (!addedHunkChunks.contains(hunkChunk)) {
                         tablet->UpdatePreparedStoreRefCount(hunkChunk, -1);
 
-                        hunkChunk->Unlock(transaction->GetId(), EObjectLockMode::Shared);
-                        tablet->UpdateDanglingHunkChunks(hunkChunk);
+                        if (!existingReferencedHunks.contains(hunkChunk)) {
+                            hunkChunk->Unlock(transaction->GetId(), EObjectLockMode::Shared);
+                            tablet->UpdateDanglingHunkChunks(hunkChunk);
+                            existingReferencedHunks.insert(hunkChunk);
+                        }
                     }
 
                     YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Hunk chunk referenced (%v, StoreId: %v, HunkChunkRef: %v, StoreRefCount: %v)",
