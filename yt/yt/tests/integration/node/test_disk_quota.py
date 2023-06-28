@@ -413,7 +413,9 @@ class TestDiskMediumsPorto(YTEnvSetup, DiskMediumTestConfiguration):
         assert len(nodes) == 1
 
         node = nodes[0]
-        set("//sys/cluster_nodes/{0}/@resource_limits_overrides/cpu".format(node), 0)
+        node_path = "//sys/cluster_nodes/{}".format(node)
+        set("{}/@resource_limits_overrides/cpu".format(node_path), 0)
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/resource_limits/cpu".format(node)) == 0.0)
 
         def start_op(index):
             output_table = "//tmp/out" + str(index)
@@ -442,7 +444,7 @@ class TestDiskMediumsPorto(YTEnvSetup, DiskMediumTestConfiguration):
             for type in ("running", "aborted", "failed"):
                 assert op.get_job_count(type) == 0
 
-        set("//sys/cluster_nodes/{0}/@resource_limits_overrides/cpu".format(node), 3.0)
+        set("{}/@resource_limits_overrides/cpu".format(node_path), 3.0)
 
         op1.track()
         op2.track()
