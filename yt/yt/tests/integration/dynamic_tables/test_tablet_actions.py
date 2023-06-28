@@ -236,7 +236,7 @@ class TestTabletActions(TabletActionsBase):
         assert len(get("#{0}/@tablet_ids".format(action))) == 2
         wait(lambda: not exists("#{0}".format(action)))
 
-    @authors("alexelex")
+    @authors("alexelexa")
     def test_action_autoremove_on_timeout(self):
         cells = sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
@@ -261,7 +261,7 @@ class TestTabletActions(TabletActionsBase):
         sleep(timeout + 1)
         assert not exists("#{0}".format(action))
 
-    @authors("alexelex")
+    @authors("alexelexa")
     def test_action_creation_fail(self):
         cells = sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
@@ -648,6 +648,38 @@ class TestTabletActions(TabletActionsBase):
         assert len(actions) == 1
         assert actions[0]["tablet_action_id"] == action
         assert actions[0]["state"] == "completed"
+
+    @authors("alexelexa")
+    def test_action_creation_fail_on_invalid_mount_settings(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": i, "value": "A" * 100} for i in range(1)])
+        sync_flush_table("//tmp/t")
+
+        set("//tmp/t/@enable_lookup_hash_table", "true")
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        def _create_action():
+            return create(
+                "tablet_action",
+                "",
+                attributes={
+                    "kind": "reshard",
+                    "keep_finished": True,
+                    "tablet_ids": [tablet_id],
+                    "pivot_keys": [[], [1]],
+                },
+            )
+
+        error_text = r"\"enable_lookup_hash_table\" can only be true if \"in_memory_mode\" is \"uncompressed\""
+        with pytest.raises(YtError, match=error_text):
+            _create_action()
+
+        remove("//tmp/t/@enable_lookup_hash_table")
+        action = _create_action()
+        wait(lambda: get(f"#{action}/@state") == "completed")
 
 
 ##################################################################

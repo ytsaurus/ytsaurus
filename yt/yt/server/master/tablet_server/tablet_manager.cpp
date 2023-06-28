@@ -734,6 +734,9 @@ public:
         }
 
         auto* table = tablets[0]->As<TTablet>()->GetTable();
+        if (!IsObjectAlive(table)) {
+            THROW_ERROR_EXCEPTION("Table is destroyed");
+        }
 
         // Validate that table is not in process of mount/unmount/etc.
         table->ValidateNoCurrentMountTransaction("Cannot create tablet action");
@@ -838,6 +841,13 @@ public:
             default:
                 YT_ABORT();
         }
+
+        auto tableSettings = GetTableSettings(
+            table,
+            Bootstrap_->GetObjectManager(),
+            Bootstrap_->GetChunkManager(),
+            GetDynamicConfig());
+        ValidateTableMountConfig(table, tableSettings.EffectiveMountConfig, GetDynamicConfig());
 
         auto* action = DoCreateTabletAction(
             hintId,
@@ -3280,11 +3290,28 @@ private:
                         YT_ABORT();
                 }
 
-                auto tableSettings = GetTableSettings(
-                    table->As<TTableNode>(),
-                    Bootstrap_->GetObjectManager(),
-                    Bootstrap_->GetChunkManager(),
-                    GetDynamicConfig());
+                TTableSettings tableSettings;
+                try {
+                    tableSettings = GetTableSettings(
+                        table->As<TTableNode>(),
+                        Bootstrap_->GetObjectManager(),
+                        Bootstrap_->GetChunkManager(),
+                        GetDynamicConfig());
+
+                    ValidateTableMountConfig(
+                        table->As<TTableNode>(),
+                        tableSettings.EffectiveMountConfig,
+                        GetDynamicConfig());
+                } catch (const std::exception& ex) {
+                    YT_LOG_ALERT(ex, "Tablet action failed to mount tablets because "
+                        "of table mount settings validation error (ActionId: %v, TableId: %v)",
+                        action->GetId(),
+                        table->GetId());
+
+                    THROW_ERROR_EXCEPTION("Failed to validate table mount settings")
+                        << TErrorAttribute("table_id", table->GetId())
+                        << ex;
+                }
                 auto serializedTableSettings = SerializeTableSettings(tableSettings);
 
                 std::vector<std::pair<TTabletBase*, TTabletCell*>> assignment;

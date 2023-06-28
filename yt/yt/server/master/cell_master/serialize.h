@@ -168,6 +168,7 @@ DEFINE_ENUM(EMasterReign,
     ((MakeDestroyedReplicasSetSharded)                              (2407))  // danilalexeev
     ((AvenuesInTabletManager)                                       (2408))  // ifsmirnov
     ((ChaosReplicatedQueuesAndConsumersList)                        (2409))  // cherepashka
+    ((ValidateTableSettingsInTabletActions)                         (2410))  // alexelexa
 );
 
 ////////////////////////////////////////////////////////////////////////////////
