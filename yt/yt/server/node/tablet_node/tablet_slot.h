@@ -71,7 +71,7 @@ struct ITabletSlot
 
     virtual const NTransactionSupervisor::ITransactionSupervisorPtr& GetTransactionSupervisor() = 0;
 
-    virtual const TTabletManagerPtr& GetTabletManager() = 0;
+    virtual TTabletManagerPtr GetTabletManager() = 0;
     virtual const ITabletCellWriteManagerPtr& GetTabletCellWriteManager() = 0;
 
     virtual const IHunkTabletManagerPtr& GetHunkTabletManager() = 0;

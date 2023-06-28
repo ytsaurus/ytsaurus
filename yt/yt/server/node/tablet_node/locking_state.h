@@ -33,6 +33,9 @@ public:
     //! Serializes locking information.
     void BuildOrchidYson(NYson::IYsonConsumer* consumer) const;
 
+    // COMPAT(aleksandra-zh)
+    int GetLockCount() const;
+
     //! Persistence.
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);

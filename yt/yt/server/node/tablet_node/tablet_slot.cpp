@@ -274,7 +274,7 @@ public:
         return Occupant_->GetTransactionSupervisor();
     }
 
-    const TTabletManagerPtr& GetTabletManager() override
+    TTabletManagerPtr GetTabletManager() override
     {
         return TabletManager_;
     }

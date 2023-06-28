@@ -4,11 +4,14 @@
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
+#include <yt/yt/server/lib/hydra_common/mutation_context.h>
+
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 
 namespace NYT::NTabletNode {
 
 using namespace NChunkClient;
+using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,6 +44,7 @@ void THunkChunk::Save(TSaveContext& context) const
     Save(context, StoreRefCount_);
     Save(context, PreparedStoreRefCount_);
     Save(context, Committed_);
+    Save(context, LockingState_);
 }
 
 void THunkChunk::Load(TLoadContext& context)
@@ -57,6 +61,9 @@ void THunkChunk::Load(TLoadContext& context)
     } else {
         Committed_ = true;
     }
+    if (context.GetVersion() >= ETabletReign::RestoreHunkLocks) {
+        Load(context, LockingState_);
+    }
 }
 
 void THunkChunk::Lock(TTransactionId transactionId, EObjectLockMode lockMode)
@@ -71,7 +78,16 @@ void THunkChunk::Unlock(TTransactionId transactionId, EObjectLockMode lockMode)
 
 bool THunkChunk::IsDangling() const
 {
-    return StoreRefCount_ == 0 && PreparedStoreRefCount_ == 0 && !LockingState_.IsLocked();
+    const auto* context = GetCurrentMutationContext();
+    auto reign = static_cast<ETabletReign>(context->Request().Reign);
+    return StoreRefCount_ == 0 &&
+        (PreparedStoreRefCount_ == 0 || reign >= ETabletReign::RestoreHunkLocks && PreparedStoreRefCount_ <= 0) &&
+        !LockingState_.IsLocked();
+}
+
+int THunkChunk::GetLockCount() const
+{
+    return LockingState_.GetLockCount();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
