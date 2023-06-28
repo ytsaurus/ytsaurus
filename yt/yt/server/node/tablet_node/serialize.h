@@ -36,6 +36,7 @@ DEFINE_ENUM(ETabletReign,
     ((SendDynamicStoreInBackup)           (100703)) // ifsmirnov
     ((FixBulkInsertAtomicityNone)         (100704)) // ifsmirnov
     ((JournalHunksCommitted)              (100705)) // aleksandra-zh
+    ((RestoreHunkLocks)                   (100706)) // aleksandra-zh
     // 23.2 starts here.
     ((Avenues)                            (100800)) // ifsmirnov
 );

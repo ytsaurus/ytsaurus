@@ -11,6 +11,9 @@
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
+// COMPAT(aleksandra-zh)
+#include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
+
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <yt/yt/ytlib/table_client/public.h>
@@ -74,6 +77,12 @@ public:
     void UpdateTabletSnapshot(TTablet* tablet, std::optional<TLockManagerEpoch> epoch = std::nullopt);
 
     bool AllocateDynamicStoreIfNeeded(TTablet* tablet);
+
+    // COMPAT(aleksandra-zh)
+    void RestoreHunkLocks(
+        TTransaction* transaction,
+        NTabletServer::NProto::TReqUpdateTabletStores* request);
+    void ValidateHunkLocks();
 
 private:
     class TImpl;

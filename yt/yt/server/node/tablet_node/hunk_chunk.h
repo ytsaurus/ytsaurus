@@ -36,6 +36,8 @@ public:
         NChunkClient::TChunkId id,
         const NTabletNode::NProto::TAddHunkChunkDescriptor* descriptor);
 
+    int GetLockCount() const;
+
     void Initialize();
 
     void Save(TSaveContext& context) const;

@@ -114,6 +114,11 @@ public:
         return dummyMutationForwarder;
     }
 
+    TTabletManagerPtr GetTabletManager() override
+    {
+        return nullptr;
+    }
+
     void Shutdown()
     {
         YT_VERIFY(HydraManager_->GetPendingMutationCount() == 0);

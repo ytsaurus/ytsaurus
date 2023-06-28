@@ -97,6 +97,15 @@ bool TLockingState::IsLocked() const
         !SharedLockTransactionIds_.empty();
 }
 
+int TLockingState::GetLockCount() const
+{
+    auto lockCount = std::ssize(SharedLockTransactionIds_);
+    if (ExclusiveLockTransactionId_) {
+        ++lockCount;
+    }
+    return lockCount;
+}
+
 void TLockingState::BuildOrchidYson(IYsonConsumer* consumer) const
 {
     BuildYsonFluently(consumer).BeginMap()

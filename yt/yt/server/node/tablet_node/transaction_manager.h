@@ -36,6 +36,8 @@ struct ITransactionManagerHost
     virtual NObjectClient::TCellTag GetNativeCellTag() = 0;
     virtual const NApi::NNative::IConnectionPtr& GetNativeConnection() = 0;
     virtual NHydra::TCellId GetCellId() = 0;
+    // COMPAT(aleksandra-zh)
+    virtual TTabletManagerPtr GetTabletManager() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITransactionManagerHost)

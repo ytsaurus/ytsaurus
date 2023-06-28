@@ -365,6 +365,99 @@ public:
         return results;
     }
 
+    // COMPAT(aleksandra-zh)
+    void ValidateHunkLocks()
+    {
+        YT_LOG_INFO("Validating hunk locks");
+        for (auto [tabletId, tablet] : TabletMap_) {
+            for (auto [id, hunkChunk] : tablet->HunkChunkMap()) {
+                auto lockCount = hunkChunk->GetLockCount();
+                auto preparedLockCount = hunkChunk->GetPreparedStoreRefCount();
+                if (lockCount != preparedLockCount) {
+                    YT_LOG_INFO("Hunk lock count differs (TabletId: %v, HunkChunkId: %v, LockingStateLockCount: %v, PreparedStoreRefCount: %v)",
+                        tabletId,
+                        id,
+                        lockCount,
+                        preparedLockCount);
+                }
+                if (preparedLockCount > lockCount) {
+                    YT_ABORT();
+                }
+            }
+        }
+    }
+
+    // COMPAT(aleksandra-zh)
+    void RestoreHunkLocks(
+        TTransaction* transaction,
+        TReqUpdateTabletStores* request)
+    {
+        try {
+            DoRestoreHunkLocks(transaction, request);
+        } catch (const std::exception& ex) {
+            auto tabletId = FromProto<TTabletId>(request->tablet_id());
+            YT_LOG_ALERT(
+                ex,
+                "Error restoring hunk locks (TabletId: %v, TransactionId: %v)",
+                tabletId,
+                transaction->GetId());
+            throw;
+        }
+    }
+
+    void DoRestoreHunkLocks(
+        TTransaction* transaction,
+        TReqUpdateTabletStores* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = GetTabletOrThrow(tabletId);
+
+        YT_LOG_INFO("Restoring hunk locks (TabletId: %v)", tabletId);
+
+        for (const auto& descriptor : request->hunk_chunks_to_remove()) {
+            auto chunkId = FromProto<TStoreId>(descriptor.chunk_id());
+            auto hunkChunk = tablet->FindHunkChunk(chunkId);
+            if (!hunkChunk) {
+                YT_LOG_ALERT("Trying to remove unexisting hunk chunk (TabletId: %v, HunkChunkId: %v)",
+                    tabletId,
+                    chunkId);
+                continue;
+            }
+            hunkChunk->Lock(transaction->GetId(), EObjectLockMode::Exclusive);
+        }
+
+        THashSet<TChunkId> hunkChunkIdsToAdd;
+        for (const auto& descriptor : request->hunk_chunks_to_add()) {
+            auto chunkId = FromProto<TStoreId>(descriptor.chunk_id());
+            InsertOrCrash(hunkChunkIdsToAdd, chunkId);
+        }
+
+        if (request->create_hunk_chunks_during_prepare()) {
+            for (auto chunkId : hunkChunkIdsToAdd) {
+                auto hunkChunk = tablet->FindHunkChunk(chunkId);
+                if (!hunkChunk) {
+                    continue;
+                }
+
+                hunkChunk->Lock(transaction->GetId(), EObjectLockMode::Shared);
+            }
+        }
+
+        for (const auto& descriptor : request->stores_to_add()) {
+            if (auto optionalHunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(
+                descriptor.chunk_meta().extensions()))
+            {
+                for (const auto& ref : optionalHunkChunkRefsExt->refs()) {
+                    auto chunkId = FromProto<TChunkId>(ref.chunk_id());
+                    if (!hunkChunkIdsToAdd.contains(chunkId)) {
+                        auto hunkChunk = tablet->GetHunkChunk(chunkId);
+                        hunkChunk->Lock(transaction->GetId(), EObjectLockMode::Shared);
+                    }
+                }
+            }
+        }
+    }
+
     void CountStoreMemoryStatistics(TMemoryStatistics* statistics, const IStorePtr& store) const
     {
         if (store->IsDynamic()) {
@@ -1751,12 +1844,11 @@ private:
             auto chunkId = FromProto<TStoreId>(descriptor.chunk_id());
             auto hunkChunk = tablet->GetHunkChunk(chunkId);
             hunkChunk->SetState(EHunkChunkState::RemovePrepared);
-            // COMPAT(aleksandra-zh)
-            if (request->create_hunk_chunks_during_prepare()) {
-                hunkChunk->Lock(transaction->GetId(), EObjectLockMode::Exclusive);
-                // Probably we do not need these during prepare, but why not.
-                tablet->UpdateDanglingHunkChunks(hunkChunk);
-            }
+
+            hunkChunk->Lock(transaction->GetId(), EObjectLockMode::Exclusive);
+            // Probably we do not need these during prepare, but why not.
+            tablet->UpdateDanglingHunkChunks(hunkChunk);
+
             structuredLogger->OnHunkChunkStateChanged(hunkChunk);
         }
 
@@ -1789,11 +1881,9 @@ private:
                     if (!hunkChunkIdsToAdd.contains(chunkId)) {
                         auto hunkChunk = tablet->GetHunkChunk(chunkId);
                         tablet->UpdatePreparedStoreRefCount(hunkChunk, +1);
-                        // COMPAT(aleksandra-zh)
-                        if (request->create_hunk_chunks_during_prepare()) {
-                            hunkChunk->Lock(transaction->GetId(), EObjectLockMode::Shared);
-                            tablet->UpdateDanglingHunkChunks(hunkChunk);
-                        }
+
+                        hunkChunk->Lock(transaction->GetId(), EObjectLockMode::Shared);
+                        tablet->UpdateDanglingHunkChunks(hunkChunk);
                     }
                 }
             }
@@ -1980,16 +2070,15 @@ private:
                         }
 
                         tablet->UpdatePreparedStoreRefCount(hunkChunk, -1);
+
+                        hunkChunk->Unlock(transaction->GetId(), EObjectLockMode::Shared);
+                        tablet->UpdateDanglingHunkChunks(hunkChunk);
+
                         // COMPAT(aleksandra-zh)
-                        if (request->create_hunk_chunks_during_prepare()) {
-                            hunkChunk->Unlock(transaction->GetId(), EObjectLockMode::Shared);
-                            if (!hunkChunk->GetCommitted() && hunkChunk->IsDangling()) {
-                                // This hunk chunk was never attached in master, so just remove it here without 2pc.
-                                tablet->RemoveHunkChunk(hunkChunk);
-                                hunkChunk->SetState(EHunkChunkState::Removed);
-                            } else {
-                                tablet->UpdateDanglingHunkChunks(hunkChunk);
-                            }
+                        if (request->create_hunk_chunks_during_prepare() && !hunkChunk->GetCommitted() && hunkChunk->IsDangling()) {
+                            // This hunk chunk was never attached in master, so just remove it here without 2pc.
+                            tablet->RemoveHunkChunk(hunkChunk);
+                            hunkChunk->SetState(EHunkChunkState::Removed);
                         }
                     }
                 }
@@ -2011,11 +2100,9 @@ private:
             }
 
             hunkChunk->SetState(EHunkChunkState::Active);
-            // COMPAT(aleksandra-zh)
-            if (request->create_hunk_chunks_during_prepare()) {
-                hunkChunk->Unlock(transaction->GetId(), EObjectLockMode::Exclusive);
-                tablet->UpdateDanglingHunkChunks(hunkChunk);
-            }
+
+            hunkChunk->Unlock(transaction->GetId(), EObjectLockMode::Exclusive);
+            tablet->UpdateDanglingHunkChunks(hunkChunk);
         }
 
         CheckIfTabletFullyFlushed(tablet);
@@ -2176,11 +2263,9 @@ private:
             auto hunkChunk = tablet->GetHunkChunk(chunkId);
             tablet->RemoveHunkChunk(hunkChunk);
             hunkChunk->SetState(EHunkChunkState::Removed);
-            // COMPAT(aleksandra-zh)
-            if (request->create_hunk_chunks_during_prepare()) {
-                hunkChunk->Unlock(transaction->GetId(), EObjectLockMode::Exclusive);
-                tablet->UpdateDanglingHunkChunks(hunkChunk);
-            }
+            hunkChunk->Unlock(transaction->GetId(), EObjectLockMode::Exclusive);
+            tablet->UpdateDanglingHunkChunks(hunkChunk);
+
             YT_LOG_DEBUG("Hunk chunk removed (%v, ChunkId: %v)",
                 tablet->GetLoggingTag(),
                 chunkId);
@@ -2218,11 +2303,8 @@ private:
                     if (!addedHunkChunks.contains(hunkChunk)) {
                         tablet->UpdatePreparedStoreRefCount(hunkChunk, -1);
 
-                        // COMPAT(aleksandra-zh)
-                        if (request->create_hunk_chunks_during_prepare()) {
-                            hunkChunk->Unlock(transaction->GetId(), EObjectLockMode::Shared);
-                            tablet->UpdateDanglingHunkChunks(hunkChunk);
-                        }
+                        hunkChunk->Unlock(transaction->GetId(), EObjectLockMode::Shared);
+                        tablet->UpdateDanglingHunkChunks(hunkChunk);
                     }
 
                     YT_LOG_DEBUG("Hunk chunk referenced (%v, StoreId: %v, HunkChunkRef: %v, StoreRefCount: %v)",
@@ -4603,6 +4685,18 @@ ETabletCellLifeStage TTabletManager::GetTabletCellLifeStage() const
 ITabletCellWriteManagerHostPtr TTabletManager::GetTabletCellWriteManagerHost()
 {
     return Impl_;
+}
+
+void TTabletManager::RestoreHunkLocks(
+    TTransaction* transaction,
+    TReqUpdateTabletStores* request)
+{
+    return Impl_->RestoreHunkLocks(transaction, request);
+}
+
+void TTabletManager::ValidateHunkLocks()
+{
+    return Impl_->ValidateHunkLocks();
 }
 
 std::vector<TTabletMemoryStatistics> TTabletManager::GetMemoryStatistics() const
