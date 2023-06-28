@@ -84,6 +84,12 @@ jobs:
           YTSAURUS_PACKAGE_VERSION=${{ steps.tag.outputs.RELEASE_VERSION }} bash ./yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --ytsaurus-package-name ${{ steps.tag.outputs.PACKAGE_NAME }}
           ytsaurus_python=$(realpath "../build/ytsaurus_python")
           mv "${ytsaurus_python}/$(echo ${{ steps.tag.outputs.PACKAGE_NAME }} | sed -E "s/-/_/g")_dist" dist
+          pip install sphinx
+          export DOCS_ROOT=`$(realpath "../build/pydoc")`
+          mkdir "$DOCS_ROOT"
+          cd "${ytsaurus_python}"
+          PYTHONPATH="${ytsaurus_python}" sphinx-apidoc -F -o "$DOCS_ROOT" yt yt/packages yt/test_helpers yt/testlib yt/tool yt/environment yt/local yt/entry
+          PYTHONPATH="${ytsaurus_python}" sphinx-build -b html "$DOCS_ROOT" "$DOCS_ROOT/_html"
 
   test_release:
     name: Run release TestPyPi
@@ -94,11 +100,12 @@ jobs:
     if: ${{ needs.build.outputs.release_type == 'test' }}
     runs-on: ${{ needs.start-vm.outputs.label }}
     steps:
-      - name: Publish package distributions to TestPyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+      - name Publish test pydoc
+        uses: yc-actions/yc-obj-storage-upload@v1
         with:
-            repository-url: https://test.pypi.org/legacy/
-            password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+          bucket: ${{ secrets.TEST_PYDOC_S3_BUCKET }}
+          root: $(realpath "../build/pydoc")/_html
 
   prod_release:
     name: Run release PyPi
@@ -133,22 +140,4 @@ jobs:
           label: ${{ needs.start-vm.outputs.label }}
           instance-id: ${{ needs.start-vm.outputs.instance-id }}
 
-  send-notifications:
-    name: Send notifications
-    needs:
-      - stop-vm
-    runs-on: trampoline
-    if: ${{ failure() }}
-    steps:
-      - name: Send telegram message
-        uses: appleboy/telegram-action@master
-        with:
-          to: ${{ secrets.TELEGRAM_CHAT_ID }}
-          token: ${{ secrets.TELEGRAM_TOKEN }}
-          disable_web_page_preview: true
-          format: markdown
-          message: |
-            Workflow *${{github.workflow}}* failed: ${{github.server_url}}/${{github.repository}}/actions/runs/${{github.run_id}}. Commit:
-            ```
-            ${{github.event.head_commit.message}}
-            ```
+
