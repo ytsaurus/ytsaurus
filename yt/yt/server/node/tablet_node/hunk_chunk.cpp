@@ -78,10 +78,8 @@ void THunkChunk::Unlock(TTransactionId transactionId, EObjectLockMode lockMode)
 
 bool THunkChunk::IsDangling() const
 {
-    const auto* context = GetCurrentMutationContext();
-    auto reign = static_cast<ETabletReign>(context->Request().Reign);
     return StoreRefCount_ == 0 &&
-        (PreparedStoreRefCount_ == 0 || reign >= ETabletReign::RestoreHunkLocks && PreparedStoreRefCount_ <= 0) &&
+        PreparedStoreRefCount_ <= 0 &&
         !LockingState_.IsLocked();
 }
 
