@@ -22,7 +22,10 @@ struct TClientConfig
 
     static void Register(TRegistrar registrar);
 };
+
 DEFINE_REFCOUNTED_TYPE(TClientConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! The options for hedging client.
 struct THedgingClientOptions
@@ -32,14 +35,16 @@ struct THedgingClientOptions
 
     struct TClientOptions
     {
-        TClientOptions(NApi::IClientPtr client,
-                      TString clusterName,
-                      TDuration initialPenalty,
-                      TCounterPtr counter = {});
+        TClientOptions(
+            NApi::IClientPtr client,
+            TString clusterName,
+            TDuration initialPenalty,
+            TCounterPtr counter = {});
 
-        TClientOptions(NApi::IClientPtr client,
-                       TDuration initialPenalty,
-                       TCounterPtr counter = {});
+        TClientOptions(
+            NApi::IClientPtr client,
+            TDuration initialPenalty,
+            TCounterPtr counter = {});
 
         NApi::IClientPtr Client;
         TString ClusterName;

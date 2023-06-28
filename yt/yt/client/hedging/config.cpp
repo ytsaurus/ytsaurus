@@ -51,14 +51,13 @@ void THedgingClientOptions::Register(TRegistrar registrar)
 
         config->Clients.reserve(config->Clients.size());
         for (const auto& client : config->ClientConfigs) {
-            THROW_ERROR_EXCEPTION_UNLESS(client->Connection->ClusterUrl, "ClusterUrl isn't set");
+            THROW_ERROR_EXCEPTION_UNLESS(client->Connection->ClusterUrl, "\"cluster_url\" must be set");
             auto clusterUrl = client->Connection->ClusterUrl.value();
             config->Clients.emplace_back(
                 CreateClient(client->Connection),
                 clusterUrl,
                 client->InitialPenalty,
-                New<TCounter>(counterTagSet.WithTag(NProfiling::TTag("yt_cluster", clusterUrl)))
-            );
+                New<TCounter>(counterTagSet.WithTag(NProfiling::TTag("yt_cluster", clusterUrl))));
         }
     });
 }
