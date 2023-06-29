@@ -1407,17 +1407,10 @@ private:
         DataCenterMap_.LoadKeys(context);
         HostMap_.LoadKeys(context);
 
-        // COMPAT(kvk1920)
-        if (context.GetVersion() < EMasterReign::ChunkLocationInReplica) {
-            for (auto& [nodeId, node] : NodeMap_) {
-                node->UseImaginaryChunkLocations() = true;
-            }
-        } else {
-            auto useImaginaryLocationsMap = Load<THashMap<TObjectId, bool>>(context);
-            for (auto [nodeId, useImaginaryLocations] : useImaginaryLocationsMap) {
-                auto* node = NodeMap_.Get(nodeId);
-                node->UseImaginaryChunkLocations() = useImaginaryLocations;
-            }
+        auto useImaginaryLocationsMap = Load<THashMap<TObjectId, bool>>(context);
+        for (auto [nodeId, useImaginaryLocations] : useImaginaryLocationsMap) {
+            auto* node = NodeMap_.Get(nodeId);
+            node->UseImaginaryChunkLocations() = useImaginaryLocations;
         }
     }
 

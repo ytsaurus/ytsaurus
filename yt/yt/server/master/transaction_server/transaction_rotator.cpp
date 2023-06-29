@@ -27,8 +27,6 @@ void TTransactionRotator::Clear()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    NeedInitializeTransactionPtr_ = false;
-
     PreviousTransaction_.Reset();
     Transaction_.Reset();
 }
@@ -37,28 +35,8 @@ void TTransactionRotator::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
 
-    // COMPAT(kvk1920)
-    if (context.GetVersion() < EMasterReign::TransactionRotator) {
-        Persist(context, CompatTransactionId_);
-        Persist(context, CompatPreviousTransactionId_);
-        NeedInitializeTransactionPtr_ = true;
-        return;
-    }
-
     Persist(context, Transaction_);
     Persist(context, PreviousTransaction_);
-}
-
-void TTransactionRotator::OnAfterSnapshotLoaded()
-{
-    if (!NeedInitializeTransactionPtr_) {
-        return;
-    }
-
-    const auto& transactionManager = Bootstrap_->GetTransactionManager();
-
-    Transaction_.Assign(transactionManager->FindTransaction(CompatTransactionId_));
-    PreviousTransaction_.Assign(transactionManager->FindTransaction(CompatPreviousTransactionId_));
 }
 
 void TTransactionRotator::Rotate()

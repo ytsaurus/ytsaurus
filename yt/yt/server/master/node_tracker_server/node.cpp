@@ -590,31 +590,27 @@ void TNode::Load(TLoadContext& context)
     Load(context, NodeTags_);
 
     Load(context, RealChunkLocations_);
-    // COMPAT(shakurov)
+
     // NB: unlike real chunk locations that are serialized as part of an
     // entity map, imaginary chunk locations aren't objects and need to be
     // serialized as part of their respective nodes.
-    // NB: imaginary locations are first created during a migration (when
-    // replicas are loaded, see below).
-    if (context.GetVersion() >= EMasterReign::NotSoImaginaryChunkLocations) {
-        auto imaginaryLocationCount = TSizeSerializer::Load(context);
-        ChunkLocations_.reserve(imaginaryLocationCount);
-        for (size_t i = 0; i < imaginaryLocationCount; ++i) {
-            auto mediumIndex = Load<int>(context);
-            auto [it, inserted] = ImaginaryChunkLocations_.emplace(mediumIndex, nullptr);
-            auto& location = it->second;
-            // NB: location may already be present as it's created on-demand when
-            // loading pointers to imaginary locations.
-            if (inserted) {
-                location = std::make_unique<TImaginaryChunkLocation>(mediumIndex, this);
-                if (UseImaginaryChunkLocations_) {
-                    ChunkLocations_.push_back(location.get());
-                }
+    auto imaginaryLocationCount = TSizeSerializer::Load(context);
+    ChunkLocations_.reserve(imaginaryLocationCount);
+    for (size_t i = 0; i < imaginaryLocationCount; ++i) {
+        auto mediumIndex = Load<int>(context);
+        auto [it, inserted] = ImaginaryChunkLocations_.emplace(mediumIndex, nullptr);
+        auto& location = it->second;
+        // NB: location may already be present as it's created on-demand when
+        // loading pointers to imaginary locations.
+        if (inserted) {
+            location = std::make_unique<TImaginaryChunkLocation>(mediumIndex, this);
+            if (UseImaginaryChunkLocations_) {
+                ChunkLocations_.push_back(location.get());
             }
-            YT_VERIFY(location);
-            Load(context, *location);
-            YT_VERIFY(location->GetNode() == this);
         }
+        YT_VERIFY(location);
+        Load(context, *location);
+        YT_VERIFY(location->GetNode() == this);
     }
 
     if (!UseImaginaryChunkLocations_) {
@@ -627,58 +623,17 @@ void TNode::Load(TLoadContext& context)
 
     Load(context, RegisterTime_);
     Load(context, LastSeenTime_);
-
     Load(context, ClusterNodeStatistics_);
     Load(context, DataNodeStatistics_);
     Load(context, ExecNodeStatistics_);
-
-    // COMPAT(galtsev)
-    if (context.GetVersion() >= EMasterReign::JobProxyBuildVersion) {
-        Load(context, JobProxyVersion_);
-    }
-
+    Load(context, JobProxyVersion_);
     Load(context, CellarNodeStatistics_);
-
     Load(context, Alerts_);
     Load(context, ResourceLimits_);
     Load(context, ResourceUsage_);
     Load(context, ResourceLimitsOverrides_);
-
     Load(context, Host_);
-
     Load(context, LeaseTransaction_);
-
-    // COMPAT(kvk1920)
-    if (context.GetVersion() < EMasterReign::ChunkLocationInReplica) {
-        auto destroyedReplicas = Load<THashSet<TChunkIdWithIndexes>>(context);
-        for (auto replica : destroyedReplicas) {
-            auto* location = GetOrCreateImaginaryChunkLocation(replica.MediumIndex, /*duringSnapshotLoading*/ true);
-            location->AddDestroyedReplica(replica);
-        }
-
-        // NB: This code does not load the replicas per se; it just
-        // reserves the appropriate hashtables. Once the snapshot is fully loaded,
-        // per-node replica sets get reconstructed from the inverse chunk-to-node mapping.
-        // Cf. TNode::Load.
-        while (true) {
-            auto replicaCount = TSizeSerializer::Load(context);
-            if (replicaCount == 0) {
-                break;
-            }
-            auto mediumIndex = Load<int>(context);
-            GetOrCreateImaginaryChunkLocation(mediumIndex, /*duringSnapshotLoading*/ true)->ReserveReplicas(replicaCount);
-        }
-
-        using TUnapprovedReplicas = THashMap<TCompatPtrWithIndexes<TChunk>, TInstant>;;
-        auto unapprovedReplicas = Load<TUnapprovedReplicas>(context);
-        for (auto [legacyReplica, instant] : unapprovedReplicas) {
-            TChunkPtrWithReplicaIndex replica(legacyReplica.GetPtr(), legacyReplica.GetReplicaIndex());
-            auto mediumIndex = legacyReplica.GetMediumIndex();
-            auto* location = GetOrCreateImaginaryChunkLocation(mediumIndex, /*duringSnapshotLoading*/ true);
-            location->AddUnapprovedReplica(replica, instant);
-        }
-    }
-
     Load(context, Cellars_);
     Load(context, Annotations_);
     Load(context, Version_);

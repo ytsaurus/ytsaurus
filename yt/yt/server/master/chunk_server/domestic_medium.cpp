@@ -62,10 +62,7 @@ void TDomesticMedium::Load(NCellMaster::TLoadContext& context)
         Load(context, Acd_);
     }
 
-    // COMPAT(kvk1920)
-    if (context.GetVersion() >= EMasterReign::DiskFamilyWhitelist) {
-        Load(context, DiskFamilyWhitelist_);
-    }
+    Load(context, DiskFamilyWhitelist_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -79,11 +79,6 @@ void TTabletBase::Load(TLoadContext& context)
 {
     TObject::Load(context);
 
-    // COMPAT(gritukan)
-    if (context.GetVersion() < EMasterReign::TabletBase) {
-        return;
-    }
-
     using NYT::Load;
     Load(context, Index_);
     Load(context, InMemoryMode_);

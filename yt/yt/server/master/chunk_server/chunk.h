@@ -372,9 +372,6 @@ public:
     //! and false otherwise.
     bool IsRefreshActual() const;
 
-    // COMPAT(kvk1920)
-    void TransformOldReplicas();
-
 private:
     //! -1 stands for std::nullopt for non-overlayed chunks.
     i64 FirstOverlayedRowIndex_ = -1;
@@ -424,20 +421,15 @@ private:
 
         virtual void Load(NCellMaster::TLoadContext& context) = 0;
         virtual void Save(NCellMaster::TSaveContext& context) const = 0;
-
-        // COMPAT(kvk1920)
-        virtual void TransformOldReplicas() = 0;
     };
 
     template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
     struct TReplicasData
         : public TReplicasDataBase
     {
-        // COMPAT(kvk1920)
-        using TCompatStoredReplicas = TCompactVector<TCompatPtrWithIndexes<TNode>, TypicalStoredReplicaCount>;
         using TStoredReplicas = TCompactVector<TChunkLocationPtrWithReplicaInfo, TypicalStoredReplicaCount>;
 
-        std::variant<TStoredReplicas, TCompatStoredReplicas> StoredReplicas;
+        TStoredReplicas StoredReplicas;
 
         std::array<TNodeId, LastSeenReplicaCount> LastSeenReplicas;
 
@@ -454,8 +446,6 @@ private:
 
         void Load(NCellMaster::TLoadContext& context) override;
         void Save(NCellMaster::TSaveContext& context) const override;
-
-        void TransformOldReplicas() override;
     };
 
     constexpr static int RegularChunkTypicalReplicaCount = 5;

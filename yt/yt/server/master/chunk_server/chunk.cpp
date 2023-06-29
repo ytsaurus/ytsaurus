@@ -214,13 +214,7 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     SetMovable(Load<bool>(context));
     SetOverlayed(Load<bool>(context));
     SetStripedErasure(Load<bool>(context));
-
-    // COMPAT(gritukan)
-    if (context.GetVersion() >= EMasterReign::HunkStorage) {
-        SetSealable(Load<bool>(context));
-    } else {
-        SetSealable(false);
-    }
+    SetSealable(Load<bool>(context));
 
     // COMPAT(gritukan)
     if (context.GetVersion() >= EMasterReign::HistoricallyNonVital) {
@@ -815,13 +809,6 @@ bool TChunk::HasConsistentReplicaPlacementHash() const
         !IsErasure(); // CRP with erasure is not supported.
 }
 
-void TChunk::TransformOldReplicas()
-{
-    if (ReplicasData_) {
-        ReplicasData_->TransformOldReplicas();
-    }
-}
-
 void TChunk::OnMiscExtUpdated(const TMiscExt& miscExt)
 {
     RowCount_ = miscExt.row_count();
@@ -850,28 +837,27 @@ void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::Ini
 template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
 TRange<TChunkLocationPtrWithReplicaInfo> TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::GetStoredReplicas() const
 {
-    return MakeRange(GetOrCrash<TStoredReplicas>(StoredReplicas));
+    return MakeRange(StoredReplicas);
 }
 
 template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
 TMutableRange<TChunkLocationPtrWithReplicaInfo> TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::MutableStoredReplicas()
 {
-    return MakeMutableRange(GetOrCrash<TStoredReplicas>(StoredReplicas));
+    return MakeMutableRange(StoredReplicas);
 }
 
 template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
 void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::AddStoredReplica(TChunkLocationPtrWithReplicaInfo replica)
 {
-    GetOrCrash<TStoredReplicas>(StoredReplicas).push_back(replica);
+    StoredReplicas.push_back(replica);
 }
 
 template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
 void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::RemoveStoredReplica(int replicaIndex)
 {
-    auto& storedReplicas = GetOrCrash<TStoredReplicas>(StoredReplicas);
-    std::swap(storedReplicas[replicaIndex], storedReplicas.back());
-    storedReplicas.pop_back();
-    storedReplicas.shrink_to_small();
+    std::swap(StoredReplicas[replicaIndex], StoredReplicas.back());
+    StoredReplicas.pop_back();
+    StoredReplicas.shrink_to_small();
 }
 
 template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
@@ -891,24 +877,14 @@ void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::Loa
 {
     using NYT::Load;
 
-    // COMPAT(kvk1920)
-    if (context.GetVersion() < EMasterReign::ChunkLocationInReplica) {
-        auto& storedReplicas = StoredReplicas.template emplace<TCompatStoredReplicas>();
-        Load(context, storedReplicas);
+    Load(context, StoredReplicas);
 
-        // Cached replicas are simply dropped.
-        Load<std::unique_ptr<THashSet<TCompatPtrWithIndexes<TNode>>>>(context);
-    } else {
-        auto& storedReplicas = StoredReplicas.template emplace<TStoredReplicas>();
-        Load(context, storedReplicas);
-
-        // COMPAT(kvk1920, gritukan)
-        if (context.GetVersion() < EMasterReign::RemoveCacheMedium) {
-            auto cachedReplicasPresented = Load<bool>(context);
-            if (cachedReplicasPresented) {
-                // Cached replicas are simply dropped.
-                Load<THashSet<TChunkLocationPtrWithReplicaInfo>>(context);
-            }
+    // COMPAT(kvk1920, gritukan)
+    if (context.GetVersion() < EMasterReign::RemoveCacheMedium) {
+        auto cachedReplicasPresented = Load<bool>(context);
+        if (cachedReplicasPresented) {
+            // Cached replicas are simply dropped.
+            Load<THashSet<TChunkLocationPtrWithReplicaInfo>>(context);
         }
     }
 
@@ -918,38 +894,13 @@ void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::Loa
 }
 
 template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
-void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::TransformOldReplicas()
-{
-    {
-        auto& compatStoredReplicas = GetOrCrash<TCompatStoredReplicas>(StoredReplicas);
-        TStoredReplicas storedReplicas;
-        storedReplicas.reserve(compatStoredReplicas.size());
-        std::transform(
-            compatStoredReplicas.begin(),
-            compatStoredReplicas.end(),
-            std::back_inserter(storedReplicas),
-            [] (const auto& compatReplica) {
-                auto* node = compatReplica.GetPtr();
-                auto mediumIndex = compatReplica.GetMediumIndex();
-                auto* location = node->GetOrCreateImaginaryChunkLocation(mediumIndex);
-                return TChunkLocationPtrWithReplicaInfo(
-                    location,
-                    compatReplica.GetReplicaIndex(),
-                    compatReplica.GetState());
-            });
-        StoredReplicas = std::move(storedReplicas);
-    }
-}
-
-template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
 void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::Save(TSaveContext& context) const
 {
     using NYT::Save;
 
     // NB: RemoveReplica calls do not commute and their order is not
     // deterministic (i.e. when unregistering a node we traverse certain hashtables).
-    // COMPAT(kvk1920)
-    TVectorSerializer<TDefaultSerializer, TSortedTag>::Save(context, GetOrCrash<TStoredReplicas>(StoredReplicas));
+    TVectorSerializer<TDefaultSerializer, TSortedTag>::Save(context, StoredReplicas);
     Save(context, LastSeenReplicas);
     Save(context, CurrentLastSeenReplicaIndex);
     Save(context, ApprovedReplicaCount);

@@ -1798,9 +1798,8 @@ private:
                 // Currently, transactions with late prepare are coordinated by master only
                 // and rolling update of abort semantics change is not possible.
                 auto reign = GetCurrentMutationContext()->Request().Reign;
-                // EMasterReign::FixLatePrepareTxAbort = 2124.
                 // ETabletReign::LockingState = 100700.
-                YT_VERIFY((reign >= 2124 && reign <= 3000) || (reign >= 100700 && reign < 103000));
+                YT_VERIFY(reign <= 3000 || (reign >= 100700 && reign < 103000));
 
                 auto error = TError(
                     NTransactionClient::EErrorCode::ParticipantFailedToPrepare,

@@ -42,11 +42,6 @@ void TTabletOwnerBase::TTabletOwnerAttributes::Load(TLoadContext& context)
 {
     using NYT::Load;
 
-    // COMPAT(gritukan)
-    if (context.GetVersion() < EMasterReign::TabletBase) {
-        return;
-    }
-
     Load(context, Tablets);
     Load(context, TabletCountByState);
     Load(context, TabletCountByExpectedState);
@@ -114,11 +109,6 @@ void TTabletOwnerBase::Load(TLoadContext& context)
     TChunkOwnerBase::Load(context);
 
     using NYT::Load;
-
-    // COMPAT(gritukan)
-    if (context.GetVersion() < EMasterReign::TabletBase) {
-        return;
-    }
 
     Load(context, TabletCellBundle_);
     TUniquePtrSerializer<>::Load(context, TabletOwnerAttributes_);

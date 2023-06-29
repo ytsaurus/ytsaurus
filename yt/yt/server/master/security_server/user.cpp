@@ -349,11 +349,8 @@ void TUser::Load(TLoadContext& context)
         Load(context, PasswordRevision_);
     }
     Load(context, *ObjectServiceRequestLimits_);
-    // COMPAT(h0pless)
-    if (context.GetVersion() >= EMasterReign::AddPerUserChunkThrottlers) {
-        TNullableIntrusivePtrSerializer<>::Load(context, ChunkServiceUserRequestWeightThrottlerConfig_);
-        TNullableIntrusivePtrSerializer<>::Load(context, ChunkServiceUserRequestBytesThrottlerConfig_);
-    }
+    TNullableIntrusivePtrSerializer<>::Load(context, ChunkServiceUserRequestWeightThrottlerConfig_);
+    TNullableIntrusivePtrSerializer<>::Load(context, ChunkServiceUserRequestBytesThrottlerConfig_);
 
     InitializeCounters();
 }

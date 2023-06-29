@@ -162,46 +162,12 @@ void TTablet::Load(TLoadContext& context)
     TTabletBase::Load(context);
 
     using NYT::Load;
-    // COMPAT(gritukan)
-    if (context.GetVersion() < EMasterReign::TabletBase) {
-        Load(context, Index_);
-        SetStateCompat(Load<ETabletState>(context));
-
-        // COMPAT(ifsmirnov)
-        auto mountRevision = Load<NHydra::TRevision>(context);
-        Servant_.SetMountRevision(mountRevision);
-
-        Load(context, StoresUpdatePreparedTransaction_);
-        SetOwnerCompat(Load<TTableNode*>(context));
-
-        // COMPAT(ifsmirnov)
-        auto* cell = Load<TTabletCell*>(context);
-        Servant_.SetCell(cell);
-
-        Load(context, Action_);
-    }
     Load(context, PivotKey_);
     Load(context, NodeStatistics_);
-    // COMPAT(gritukan)
-    if (context.GetVersion() < EMasterReign::TabletBase) {
-        Load(context, InMemoryMode_);
-    }
     Load(context, TrimmedRowCount_);
-    // COMPAT(gritukan)
-    if (context.GetVersion() < EMasterReign::TabletBase) {
-        Load(context, WasForcefullyUnmounted_);
-    }
     Load(context, Replicas_);
     Load(context, RetainedTimestamp_);
-    // COMPAT(gritukan)
-    if (context.GetVersion() < EMasterReign::TabletBase) {
-        SetTabletErrorCount(Load<int>(context));
-    }
     Load(context, ReplicationErrorCount_);
-    // COMPAT(gritukan)
-    if (context.GetVersion() < EMasterReign::TabletBase) {
-        SetExpectedStateCompat(Load<ETabletState>(context));
-    }
     Load(context, UnconfirmedDynamicTableLocks_);
     Load(context, EdenStoreIds_);
     Load(context, BackupState_);

@@ -115,15 +115,6 @@ void TTableNode::TDynamicTableAttributes::Load(
     Load(context, CommitOrdering);
     Load(context, UpstreamReplicaId);
     Load(context, LastCommitTimestamp);
-
-    // COMPAT(gritukan)
-    if (context.GetVersion() < EMasterReign::TabletBase) {
-        Load(context, tabletOwner->MutableTabletCountByState());
-        Load(context, tabletOwner->MutableTablets());
-        tabletOwner->SetInMemoryMode(Load<EInMemoryMode>(context));
-        tabletOwner->SetTabletErrorCount(Load<int>(context));
-    }
-
     Load(context, ForcedCompactionRevision);
     Load(context, ForcedStoreCompactionRevision);
     Load(context, ForcedHunkCompactionRevision);
@@ -132,30 +123,11 @@ void TTableNode::TDynamicTableAttributes::Load(
         Load(context, ForcedChunkViewCompactionRevision);
     }
     Load(context, Dynamic);
-
-    // COMPAT(gritukan)
-    if (context.GetVersion() < EMasterReign::TabletBase) {
-        tabletOwner->SetMountPath(Load<TString>(context));
-        tabletOwner->SetExternalTabletResourceUsage(Load<NTabletServer::TTabletResources>(context));
-        tabletOwner->SetExpectedTabletState(Load<ETabletState>(context));
-        tabletOwner->SetLastMountTransactionId(Load<TTransactionId>(context));
-        Load(context, tabletOwner->MutableTabletCountByExpectedState());
-        tabletOwner->SetActualTabletState(Load<ETabletState>(context));
-        tabletOwner->SetPrimaryLastMountTransactionId(Load<TTransactionId>(context));
-        tabletOwner->SetCurrentMountTransactionId(Load<TTransactionId>(context));
-    }
-
     Load(context, *TabletBalancerConfig);
     Load(context, DynamicTableLocks);
     Load(context, UnconfirmedDynamicTableLockCount);
     Load(context, EnableDynamicStoreRead);
     Load(context, MountedWithEnabledDynamicStoreRead);
-
-    // COMPAT(gritukan)
-    if (context.GetVersion() < EMasterReign::TabletBase) {
-        tabletOwner->LoadTabletStatisticsCompat(context);
-    }
-
     Load(context, ProfilingMode);
     Load(context, ProfilingTag);
     Load(context, EnableDetailedProfiling);
@@ -168,10 +140,8 @@ void TTableNode::TDynamicTableAttributes::Load(
     Load(context, BackupError);
     Load(context, ReplicaBackupDescriptors);
 
-    // COMPAT(achulkov2): Reign was moved from trunk to 22.3. This makes reigns [2200, 2201) effectively "old".
-    auto isNewReignWithOldQueueAgentStage = (context.GetVersion() >= EMasterReign::ZookeeperShards && context.GetVersion() < EMasterReign::QueueAgentStageWritabilityAndDefaults);
     // COMPAT(achulkov2): Set QueueAgentStage to std::nullopt for old reigns.
-    if (context.GetVersion() < EMasterReign::QueueAgentStageWritabilityAndDefaults_22_3 || isNewReignWithOldQueueAgentStage) {
+    if (context.GetVersion() == EMasterReign::ZookeeperShards) {
         TString oldQueueAgentStage;
         Load(context, oldQueueAgentStage);
         QueueAgentStage = {};
@@ -210,10 +180,7 @@ void TTableNode::TDynamicTableAttributes::Load(
         }
     }
 
-    // COMPAT(aleksandra-zh)
-    if (context.GetVersion() >= EMasterReign::LinkHunkStorageNode) {
-        Load(context, HunkStorageNode);
-    }
+    Load(context, HunkStorageNode);
 }
 
 #define FOR_EACH_COPYABLE_ATTRIBUTE(XX) \
@@ -402,12 +369,6 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
     Load(context, HunkErasureCodec_);
     Load(context, RetainedTimestamp_);
     Load(context, UnflushedTimestamp_);
-
-    // COMPAT(gritukan)
-    if (context.GetVersion() < EMasterReign::TabletBase) {
-        Load(context, TabletCellBundle_);
-    }
-
     Load(context, ReplicationCollocation_);
 
     // COMPAT(gritukan): Use TUniquePtrSerializer.

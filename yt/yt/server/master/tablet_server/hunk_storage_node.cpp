@@ -42,11 +42,7 @@ void THunkStorageNode::Load(TLoadContext& context)
 
     Load(context, ReadQuorum_);
     Load(context, WriteQuorum_);
-
-    // COMPAT(aleksandra-zh)
-    if (context.GetVersion() >= EMasterReign::LinkHunkStorageNode) {
-        Load(context, AssociatedNodeIds_);
-    }
+    Load(context, AssociatedNodeIds_);
 }
 
 void THunkStorageNode::ValidateRemount() const

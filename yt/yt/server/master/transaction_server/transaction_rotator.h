@@ -37,9 +37,6 @@ public:
     //! Returns current transaction.
     TTransaction* GetTransaction() const;
 
-    // COMPAT(kvk1920)
-    void OnAfterSnapshotLoaded();
-
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -52,11 +49,6 @@ private:
 
     TTransactionWeakPtr Transaction_;
     TTransactionWeakPtr PreviousTransaction_;
-
-    // COMPAT(kvk1920)
-    bool NeedInitializeTransactionPtr_ = false;
-    TTransactionId CompatTransactionId_ = NullTransactionId;
-    TTransactionId CompatPreviousTransactionId_ = NullTransactionId;
 
     static TTransactionId TransactionIdFromPtr(const TTransactionWeakPtr& ptr);
 };

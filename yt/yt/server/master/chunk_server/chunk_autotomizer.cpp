@@ -675,11 +675,6 @@ private:
         Load(context, TransactionRotator_);
     }
 
-    void OnAfterSnapshotLoaded() override
-    {
-        TransactionRotator_.OnAfterSnapshotLoaded();
-    }
-
     void Save(NCellMaster::TSaveContext& context) const
     {
         using ::NYT::Save;

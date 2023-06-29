@@ -2623,9 +2623,6 @@ private:
     // COMPAT(h0pless)
     bool NeedRecomputeChunkWeightStatisticsHistogram_ = false;
 
-    // COMPAT(kvk1920)
-    bool NeedTransformOldReplicas_ = false;
-
     TPeriodicExecutorPtr ProfilingExecutor_;
 
     TBufferedProducerPtr BufferedProducer_;
@@ -4522,27 +4519,11 @@ private:
         LoadHistogramValues(context, ChunkCompressedDataSizeHistogram_);
         LoadHistogramValues(context, ChunkUncompressedDataSizeHistogram_);
         LoadHistogramValues(context, ChunkDataWeightHistogram_);
-
-        // COMPAT(kvk1920)
-        NeedTransformOldReplicas_ = context.GetVersion() < EMasterReign::ChunkLocationInReplica;
     }
 
     void OnBeforeSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnBeforeSnapshotLoaded();
-    }
-
-    void MaybeTransformOldReplicas()
-    {
-        if (!NeedTransformOldReplicas_) {
-            return;
-        }
-
-        YT_LOG_INFO("Started transforming old replicas");
-        for (auto [chunkId, chunk] : ChunkMap_) {
-            chunk->TransformOldReplicas();
-        }
-        YT_LOG_INFO("Finished transforming old replicas");
     }
 
     void OnAfterSnapshotLoaded() override
@@ -4551,9 +4532,6 @@ private:
 
         // Populate nodes' chunk replica sets.
         // Compute chunk replica count.
-
-        // COMPAT(kvk1920)
-        MaybeTransformOldReplicas();
 
         YT_LOG_INFO("Started initializing chunks");
 

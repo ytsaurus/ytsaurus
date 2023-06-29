@@ -234,45 +234,27 @@ void TChunkLocation::Save(TSaveContext& context) const
 
 void TChunkLocation::Load(TLoadContext& context)
 {
-    YT_VERIFY(context.GetVersion() >= EMasterReign::ChunkLocationInReplica);
+    using NYT::Load;
+    Load(context, Node_);
 
-    // COMPAT(kvk1920)
-    if (context.GetVersion() >= EMasterReign::ChunkLocationInReplica) {
+    // COMPAT(danilalexeev)
+    if (context.GetVersion() >= EMasterReign::MakeDestroyedReplicasSetSharded) {
         using NYT::Load;
-        Load(context, Node_);
-
-        // COMPAT(danilalexeev)
-        if (context.GetVersion() >= EMasterReign::MakeDestroyedReplicasSetSharded) {
-            using NYT::Load;
-            Load(context, DestroyedReplicas_);
-        } else {
-            TDestroyedReplicaSet preShardedDestroyedReplicaSet;
-
-            // COMPAT(babenko)
-            if (context.GetVersion() < EMasterReign::FixDestroyedReplicasPersistence) {
-                auto size = TSizeSerializer::Load(context);
-                for (size_t index = 0; index < size; ++index) {
-                    auto chunkId = Load<TChunkId>(context);
-                    auto replicaIndex = Load<i32>(context);
-                    Load<i32>(context); // padding
-                    EmplaceOrCrash(preShardedDestroyedReplicaSet, chunkId, replicaIndex);
-                }
-            } else {
-                Load(context, preShardedDestroyedReplicaSet);
-            }
-
-            for (auto replica : preShardedDestroyedReplicaSet) {
-                auto shardId = GetChunkShardIndex(replica.Id);
-                EmplaceOrCrash(DestroyedReplicas_[shardId], replica);
-            }
+        Load(context, DestroyedReplicas_);
+    } else {
+        TDestroyedReplicaSet preShardedDestroyedReplicaSet;
+        Load(context, preShardedDestroyedReplicaSet);
+        for (auto replica : preShardedDestroyedReplicaSet) {
+            auto shardId = GetChunkShardIndex(replica.Id);
+            EmplaceOrCrash(DestroyedReplicas_[shardId], replica);
         }
-        // NB: This code does not load the replicas per se; it just
-        // reserves the appropriate hashtables. Once the snapshot is fully loaded,
-        // per-node replica sets get reconstructed from the inverse chunk-to-node mapping.
-        // See TChunkLocation::Save.
-        ReserveReplicas(TSizeSerializer::Load(context));
-        Load(context, UnapprovedReplicas_);
     }
+    // NB: This code does not load the replicas per se; it just
+    // reserves the appropriate hashtables. Once the snapshot is fully loaded,
+    // per-node replica sets get reconstructed from the inverse chunk-to-node mapping.
+    // See TChunkLocation::Save.
+    ReserveReplicas(TSizeSerializer::Load(context));
+    Load(context, UnapprovedReplicas_);
 
     ResetDestroyedReplicasIterator();
 }
@@ -420,20 +402,9 @@ void TRealChunkLocation::Save(TSaveContext& context) const
 void TRealChunkLocation::Load(NCellMaster::TLoadContext& context)
 {
     TObject::Load(context);
+    TChunkLocation::Load(context);
 
     using NYT::Load;
-
-    // COMPAT(kvk1920)
-    if (context.GetVersion() < EMasterReign::ChunkLocationInReplica) {
-        Load(context, Uuid_);
-        Load(context, Node_);
-        Load(context, State_);
-        Load(context, MediumOverride_);
-        Load(context, Statistics_);
-        return;
-    }
-
-    TChunkLocation::Load(context);
 
     Load(context, Uuid_);
     Load(context, State_);

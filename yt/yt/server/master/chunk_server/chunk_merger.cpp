@@ -1999,11 +1999,6 @@ void TChunkMerger::Load(NCellMaster::TLoadContext& context)
     Load(context, ConfigVersion_);
 }
 
-void TChunkMerger::OnAfterSnapshotLoaded()
-{
-    TransactionRotator_.OnAfterSnapshotLoaded();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer

@@ -95,10 +95,7 @@ void TTabletAction::Load(NCellMaster::TLoadContext& context)
     Load(context, Error_);
     Load(context, CorrelationId_);
     Load(context, ExpirationTime_);
-    // COMPAT(alexelex)
-    if (context.GetVersion() >= EMasterReign::TabletActionExpirationTimeout) {
-        Load(context, ExpirationTimeout_);
-    }
+    Load(context, ExpirationTimeout_);
     Load(context, TabletCellBundle_);
     Load(context, SavedTabletIds_);
 }
