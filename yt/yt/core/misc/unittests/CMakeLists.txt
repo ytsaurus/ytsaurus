@@ -61,6 +61,7 @@ target_sources(unittester-core-misc PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/checksum_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/codicil_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/concurrent_cache_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/default_map_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/dnf_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/digest_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/ema_counter_ut.cpp
