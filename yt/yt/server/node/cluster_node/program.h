@@ -2,9 +2,13 @@
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/private.h>
 
+#include <yt/yt/server/node/cellar_node/bootstrap.h>
+
 #include <yt/yt/server/node/tablet_node/serialize.h>
 
 #include <yt/yt/server/lib/misc/cluster_connection.h>
+
+#include <yt/yt/server/lib/hydra_common/dry_run/utils.h>
 
 #include <yt/yt/library/program/program.h>
 #include <yt/yt/library/program/program_config_mixin.h>
@@ -19,6 +23,7 @@
 
 #include <yt/yt/core/bus/tcp/dispatcher.h>
 
+#include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/ref_counted_tracker_profiler.h>
 
 #include <util/system/thread.h>
@@ -40,9 +45,32 @@ public:
         , TProgramConfigMixin(Opts_, false)
     {
         Opts_
-            .AddLongOption("validate-snapshot")
-            .StoreMappedResult(&ValidateSnapshot_, &CheckPathExistsArgMapper)
+            .AddLongOption("dump-snapshot", "dump tablet cell snapshot and exit")
+            .StoreMappedResult(&SnapshotPath_, &CheckPathExistsArgMapper)
             .RequiredArgument("SNAPSHOT");
+        Opts_
+            .AddLongOption("validate-snapshot", "load tablet cell snapshot in a dry run mode")
+            .StoreMappedResult(&SnapshotPath_, &CheckPathExistsArgMapper)
+            .RequiredArgument("SNAPSHOT");
+        Opts_
+            .AddLongOption("snapshot-meta", "YSON-serialized snapshot meta")
+            .StoreMappedResultT<TString>(&DryRunSnapshotMeta_, &CheckYsonArgMapper)
+            .RequiredArgument("YSON");
+        Opts_
+            .AddLongOption("cell-id", "tablet cell id")
+            .StoreResult(&CellId_)
+            .RequiredArgument("CELL ID");
+        Opts_
+            .AddLongOption("replay-changelogs", "replay one or more consecutive master changelogs\n"
+                           "Usually used in conjunction with 'validate-snapshot' option to apply changelogs over a specific snapshot")
+            .SplitHandler(&ChangelogFileNames_, ' ')
+            .RequiredArgument("CHANGELOG");
+        Opts_
+            .AddLongOption("build-snapshot", "save resulting state in a snapshot\n"
+                                             "Path to a directory can be specified here\n"
+                                             "By default snapshot will be saved in the working directory")
+            .StoreResult(&SnapshotBuildDirectory_)
+            .RequiredArgument("DIRECTORY");
         Opts_
             .AddLongOption(
                 "remote-cluster-proxy",
@@ -58,9 +86,16 @@ public:
     }
 
 protected:
-    void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) override
+    void DoRun(const NLastGetopt::TOptsParseResult& parseResult) override
     {
         TThread::SetCurrentThreadName("NodeMain");
+
+        auto dumpSnapshot = parseResult.Has("dump-snapshot");
+        auto validateSnapshot = parseResult.Has("validate-snapshot");
+        auto snapshotMeta = parseResult.Has("snapshot-meta");
+        auto cellId = parseResult.Has("cell-id");
+        auto replayChangelogs = parseResult.Has("replay-changelogs");
+        auto buildSnapshot = parseResult.Has("build-snapshot");
 
         ConfigureUids();
         ConfigureIgnoreSigpipe();
@@ -78,6 +113,25 @@ protected:
 
         if (HandleConfigOptions()) {
             return;
+        }
+
+        auto loadSnapshot = dumpSnapshot || validateSnapshot;
+        auto isDryRun = loadSnapshot || replayChangelogs || buildSnapshot;
+
+        if (replayChangelogs && !(cellId && snapshotMeta)) {
+            THROW_ERROR_EXCEPTION("Option 'replay-changelog' can only be used when options 'cell-id' and 'snapshot-meta' are present");
+        }
+
+        if (dumpSnapshot && validateSnapshot) {
+            THROW_ERROR_EXCEPTION("Options 'dump-snapshot' and 'validate-snapshot' are mutually exclusive");
+        }
+
+        if (dumpSnapshot && replayChangelogs) {
+            THROW_ERROR_EXCEPTION("Option 'replay-changelogs' can not be used with 'dump-snapshot'");
+        }
+
+        if (buildSnapshot && !replayChangelogs && !validateSnapshot) {
+            THROW_ERROR_EXCEPTION("Option 'build-snapshot' can only be used with 'validate-snapshot' or 'replay-changelog'");
         }
 
         TClusterNodeConfigPtr config;
@@ -116,10 +170,45 @@ protected:
             configNode = GetConfigNode();
         }
 
-        if (ValidateSnapshot_) {
+        if (isDryRun) {
             NBus::TTcpDispatcher::Get()->DisableNetworking();
 
-            config->Logging = NLogging::TLogManagerConfig::CreateQuiet();
+            config->Logging->ShutdownGraceTimeout = TDuration::Seconds(10);
+
+            auto localSnapshotStoreConfig = New<NHydra::TLocalSnapshotStoreConfig>();
+            localSnapshotStoreConfig->Path = buildSnapshot
+                ? NFS::GetRealPath(SnapshotBuildDirectory_)
+                : NFS::GetRealPath(".");
+            localSnapshotStoreConfig->UseHeaderlessWriter = true;
+
+            YT_VERIFY(localSnapshotStoreConfig->StoreType == NHydra::ESnapshotStoreType::Local);
+            config->TabletNode->Snapshots  = localSnapshotStoreConfig;
+
+            config->DryRun->EnableDryRun = true;
+            config->DryRun->TabletCellId = CellId_
+                ? TGuid::FromString(CellId_)
+                : NObjectClient::MakeWellKnownId(NObjectClient::EObjectType::TabletCell, 1);
+
+            const auto& cellarManager = config->CellarNode->CellarManager;
+            for (auto& [type, cellarConfig] : cellarManager->Cellars) {
+                cellarConfig->Occupant->EnableDryRun = true;
+                cellarConfig->Occupant->Snapshots = localSnapshotStoreConfig;
+            }
+        }
+
+        if (dumpSnapshot) {
+            config->Logging = NLogging::TLogManagerConfig::CreateSilent();
+        } else if (validateSnapshot) {
+            NHydra::ConfigureDryRunLogging(config);
+        }
+
+        if (replayChangelogs) {
+            auto changelogDirectory = NFS::GetDirectoryName(ChangelogFileNames_.front());
+            for (const auto& fileName : ChangelogFileNames_) {
+                THROW_ERROR_EXCEPTION_IF(
+                    changelogDirectory != NFS::GetDirectoryName(fileName),
+                    "Changelogs must be located in one directory");
+            }
         }
 
         ConfigureNativeSingletons(config);
@@ -141,19 +230,37 @@ protected:
             NConcurrency::TDelayedExecutor::WaitForDuration(TDuration::Seconds(10));
         }
 
-        if (ValidateSnapshot_) {
-            bootstrap->ValidateSnapshot(ValidateSnapshot_);
-
-            // XXX(babenko): ASAN complains about memory leak on graceful exit.
-            // Must try to resolve them later.
-            _exit(0);
-        } else {
+        if (!isDryRun) {
             bootstrap->Run();
+        } else {
+            const auto& cellarNodeBootstrap = bootstrap->GetCellarNodeBootstrap();
+            if (loadSnapshot) {
+                auto meta = DryRunSnapshotMeta_
+                    ? NYTree::ConvertTo<NHydra::NProto::TSnapshotMeta>(DryRunSnapshotMeta_)
+                    : NHydra::NProto::TSnapshotMeta{};
+
+                cellarNodeBootstrap->LoadSnapshotOrThrow(SnapshotPath_, meta, dumpSnapshot);
+            }
+            if (replayChangelogs) {
+                cellarNodeBootstrap->ReplayChangelogsOrThrow(std::move(ChangelogFileNames_));
+            }
+            if (buildSnapshot) {
+                cellarNodeBootstrap->BuildSnapshotOrThrow();
+            }
+            cellarNodeBootstrap->FinishDryRunOrThrow();
         }
+
+        // XXX(babenko): ASAN complains about memory leak on graceful exit.
+        // Must try to resolve them later.
+        _exit(0);
     }
 
 private:
-    TString ValidateSnapshot_;
+    TString SnapshotPath_;
+    std::vector<TString> ChangelogFileNames_;
+    TString CellId_;
+    TString SnapshotBuildDirectory_;
+    NYson::TYsonString DryRunSnapshotMeta_;
     TString RemoteClusterProxy_;
     bool SleepAfterInitialize_ = false;
 };

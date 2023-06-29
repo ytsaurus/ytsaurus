@@ -89,7 +89,6 @@
 
 #include <yt/yt/library/coredumper/coredumper.h>
 
-#include <yt/yt/server/lib/hydra_common/local_snapshot_store.h>
 #include <yt/yt/server/lib/hydra_common/snapshot.h>
 
 #include <yt/yt/server/lib/cellar_agent/bootstrap_proxy.h>
@@ -262,15 +261,6 @@ public:
             .ThrowOnError();
 
         Sleep(TDuration::Max());
-    }
-
-    void ValidateSnapshot(const TString& fileName) override
-    {
-        BIND(&TBootstrap::DoValidateSnapshot, this, fileName)
-            .AsyncVia(GetControlInvoker())
-            .Run()
-            .Get()
-            .ThrowOnError();
     }
 
     const IMasterConnectorPtr& GetMasterConnector() const override
@@ -1201,19 +1191,6 @@ private:
                     ConvertToYsonString(unrecognized, NYson::EYsonFormat::Text));
             }
         }
-    }
-
-    void DoValidateSnapshot(const TString& fileName)
-    {
-        auto snapshotIOQueue = New<TActionQueue>();
-        auto snapshotIOInvoker = snapshotIOQueue->GetInvoker();
-
-        auto reader = CreateUncompressedHeaderlessLocalSnapshotReader(
-            fileName,
-            /*meta*/ {},
-            snapshotIOInvoker);
-
-        ValidateTabletCellSnapshot(this, reader);
     }
 
     NConcurrency::IThroughputThrottlerPtr GetInThrottler(const TString& bucket) override

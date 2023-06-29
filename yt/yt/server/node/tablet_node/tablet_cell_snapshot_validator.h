@@ -2,15 +2,15 @@
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/yt/core/concurrency/public.h>
+#include <yt/yt/server/lib/cellar_agent/public.h>
 
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateTabletCellSnapshot(
+NCellarAgent::ICellarOccupantPtr CreateFakeOccupant(
     NClusterNode::IBootstrapBase* bootstrap,
-    const NHydra::ISnapshotReaderPtr& reader);
+    TGuid cellId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

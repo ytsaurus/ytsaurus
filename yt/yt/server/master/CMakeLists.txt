@@ -238,21 +238,22 @@ target_link_libraries(yt-server-master PUBLIC
   library-cpp-getopt
   yt-ytlib-distributed_throttler
   ytserver
-  server-lib-discovery_server
-  server-lib-hive
-  server-lib-hydra
-  server-lib-hydra2
   server-lib-cell_server
   server-lib-cellar_agent
   server-lib-chunk_server
+  server-lib-discovery_server
+  server-lib-hive
+  server-lib-hydra
+  lib-hydra_common-dry_run
+  server-lib-hydra2
   server-lib-incumbent_client
+  server-lib-node_tracker_server
+  server-lib-security_server
   server-lib-table_server
   server-lib-tablet_balancer
   server-lib-tablet_server
   server-lib-timestamp_server
   server-lib-transaction_supervisor
-  server-lib-node_tracker_server
-  server-lib-security_server
   server-lib-zookeeper_master
   cpp-yt-phdr_cache
   server-lib-scheduler

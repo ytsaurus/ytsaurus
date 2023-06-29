@@ -828,7 +828,7 @@ void TTabletNodeConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("snapshots", &TThis::Snapshots)
-        .DefaultNew();
+        .DefaultCtor([] { return New<NHydra::TRemoteSnapshotStoreConfig>(); });
     registrar.Parameter("changelogs", &TThis::Changelogs)
         .DefaultNew();
     registrar.Parameter("hydra_manager", &TThis::HydraManager)

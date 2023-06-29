@@ -358,9 +358,9 @@ void DoExportSnapshot(
 
 //////////////////////////////////////////////////////////////////////////
 
-void ExportSnapshot(TBootstrap* bootstrap, const TString& snapshotPath, const TString& exportConfig)
+void ExportSnapshot(TBootstrap* bootstrap, const TString& configPath)
 {
-    auto config = ConvertTo<TExportArgumentsConfigPtr>(TYsonString(exportConfig));
+    auto config = ConvertTo<TExportArgumentsConfigPtr>(TYsonString(configPath));
 
     auto searchedAttributes = config->Attributes.empty()
         ? PresetKeys
@@ -381,7 +381,6 @@ void ExportSnapshot(TBootstrap* bootstrap, const TString& snapshotPath, const TS
         }
     }
 
-    bootstrap->LoadSnapshotOrThrow(snapshotPath, false, false, TString());
     BIND(&DoExportSnapshot, bootstrap, config,searchedAttributes, searchedTypes)
         .AsyncVia(bootstrap->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default))
         .Run()

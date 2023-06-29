@@ -107,6 +107,12 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        auto startLeadingFuture = BIND(&TDryRunHydraManager::DryRunStartLeading, MakeStrong(this))
+            .AsyncVia(DecoratedAutomaton_->GetSystemInvoker())
+            .Run();
+        WaitFor(startLeadingFuture)
+            .ThrowOnError();
+
         if (!reader) {
             // Recover using changelogs only.
             YT_LOG_INFO("Not using snapshots for dry run recovery");
@@ -154,7 +160,7 @@ public:
             changelog->GetId(),
             changelog->GetRecordCount());
 
-        auto startLeadingFuture =  BIND(&TDryRunHydraManager::DryRunStartLeading, MakeStrong(this))
+        auto startLeadingFuture = BIND(&TDryRunHydraManager::DryRunStartLeading, MakeStrong(this))
             .AsyncVia(DecoratedAutomaton_->GetSystemInvoker())
             .Run();
         WaitFor(startLeadingFuture)
@@ -202,7 +208,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto startLeadingFuture =  BIND(&TDryRunHydraManager::DryRunStartLeading, MakeStrong(this))
+        auto startLeadingFuture = BIND(&TDryRunHydraManager::DryRunStartLeading, MakeStrong(this))
             .AsyncVia(DecoratedAutomaton_->GetSystemInvoker())
             .Run();
         WaitFor(startLeadingFuture)
@@ -276,7 +282,8 @@ public:
 
     TFuture<void> Reconfigure(TDynamicDistributedHydraManagerConfigPtr /*config*/) override
     {
-        YT_UNIMPLEMENTED();
+        // Just do nothing.
+        return VoidFuture;
     }
 
     DEFINE_SIGNAL_OVERRIDE(void(), StartLeading);
@@ -292,7 +299,7 @@ public:
     // Stuff from IHydraManager
     void Initialize() override
     {
-        YT_UNIMPLEMENTED();
+        // Just do nothing. Only tablet cells call Initialize().
     }
 
     TFuture<void> Finalize() override
@@ -393,6 +400,8 @@ private:
 
     bool StartedLeading_ = false;
 
+    // NB: This is needed to be called before any meaningful action.
+    // However, it can't be called during construction, because necessary callbacks won't be populated yet.
     void DryRunStartLeading()
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);

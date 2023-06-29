@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/actions/future.h>
 
+#include <yt/yt/core/actions/signal.h>
+
 #include <yt/yt/core/concurrency/async_stream.h>
 
 namespace NYT::NHydra {
@@ -39,6 +41,8 @@ struct ISnapshotWriter
      *  Can only be called after the writer is closed.
      */
     virtual TSnapshotParams GetParams() const = 0;
+
+    DECLARE_INTERFACE_SIGNAL(void(), Closed);
 };
 
 DEFINE_REFCOUNTED_TYPE(ISnapshotWriter)

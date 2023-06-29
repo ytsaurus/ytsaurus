@@ -16,6 +16,13 @@ namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ESnapshotStoreType,
+    (Local)
+    (Remote)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TFileChangelogConfig
     : public virtual NYTree::TYsonStruct
 {
@@ -85,8 +92,23 @@ DEFINE_REFCOUNTED_TYPE(TFileChangelogStoreConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLocalSnapshotStoreConfig
+class TSnapshotStoreConfigBase
     : public NYTree::TYsonStruct
+{
+public:
+    ESnapshotStoreType StoreType;
+
+    REGISTER_YSON_STRUCT(TSnapshotStoreConfigBase);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TSnapshotStoreConfigBase)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLocalSnapshotStoreConfig
+    : public TSnapshotStoreConfigBase
 {
 public:
     //! A path where snapshots are stored.
@@ -94,6 +116,9 @@ public:
 
     //! Codec used to write snapshots.
     NCompression::ECodec Codec;
+
+    //! Headerless writer is used to save local tablet cell snapshots.
+    bool UseHeaderlessWriter;
 
     REGISTER_YSON_STRUCT(TLocalSnapshotStoreConfig);
 
@@ -105,7 +130,7 @@ DEFINE_REFCOUNTED_TYPE(TLocalSnapshotStoreConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRemoteSnapshotStoreConfig
-    : public NYTree::TYsonStruct
+    : public TSnapshotStoreConfigBase
 {
 public:
     NApi::TFileReaderConfigPtr Reader;
@@ -477,6 +502,25 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TSerializationDumperConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class THydraDryRunConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    bool EnableHostNameValidation;
+
+    bool EnableDryRun;
+
+    TGuid TabletCellId;
+
+    REGISTER_YSON_STRUCT(THydraDryRunConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(THydraDryRunConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

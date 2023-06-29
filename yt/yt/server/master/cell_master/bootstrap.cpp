@@ -49,14 +49,14 @@
 #include <yt/yt/server/master/hive/cell_directory_synchronizer.h>
 
 #include <yt/yt/server/lib/hydra_common/changelog.h>
-#include <yt/yt/server/lib/hydra_common/dry_run_hydra_manager.h>
 #include <yt/yt/server/lib/hydra_common/file_changelog_dispatcher.h>
 #include <yt/yt/server/lib/hydra_common/file_changelog.h>
 #include <yt/yt/server/lib/hydra_common/local_changelog_store.h>
 #include <yt/yt/server/lib/hydra_common/local_snapshot_store.h>
 #include <yt/yt/server/lib/hydra_common/persistent_response_keeper.h>
 #include <yt/yt/server/lib/hydra_common/snapshot.h>
-#include <yt/yt/server/lib/hydra_common/validate_snapshot.h>
+#include <yt/yt/server/lib/hydra_common/dry_run/dry_run_hydra_manager.h>
+#include <yt/yt/server/lib/hydra_common/dry_run/public.h>
 
 #include <yt/yt/server/lib/hydra/local_snapshot_service.h>
 
@@ -249,6 +249,7 @@ using NTransactionServer::ITransactionManagerPtr;
 ////////////////////////////////////////////////////////////////////////////////
 
 static inline const NLogging::TLogger Logger("Bootstrap");
+static inline const NLogging::TLogger DryRunLogger("DryRun");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1198,13 +1199,13 @@ void TBootstrap::DoLoadSnapshot(
     bool enableTotalWriteCountReport,
     const TSerializationDumperConfigPtr& dumpConfig)
 {
-    auto snapshotId = InvalidSegmentId;
-    try {
-        snapshotId = FromString<int>(NFS::GetFileNameWithoutExtension(fileName));
-    } catch (const std::exception&) {
-        YT_LOG_INFO("Can't parse snapshot name as id, using id %v as substitute", snapshotId);
+    auto snapshotId = TryFromString<int>(NFS::GetFileNameWithoutExtension(fileName));
+    if (snapshotId.Empty()) {
+        snapshotId = InvalidSegmentId;
+        YT_LOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Can't parse snapshot name as id, using id %v as substitute",
+            snapshotId);
     }
-    auto snapshotReader = CreateLocalSnapshotReader(fileName, snapshotId, GetSnapshotIOInvoker());
+    auto snapshotReader = CreateLocalSnapshotReader(fileName, *snapshotId, GetSnapshotIOInvoker());
 
     const auto& hydraManager = HydraFacade_->GetHydraManager();
     auto dryRunHydraManager = StaticPointerCast<IDryRunHydraManager>(hydraManager);
@@ -1212,7 +1213,7 @@ void TBootstrap::DoLoadSnapshot(
     const auto& automaton = HydraFacade_->GetAutomaton();
     automaton->SetSnapshotValidationOptions({dump, enableTotalWriteCountReport, dumpConfig});
 
-    dryRunHydraManager->DryRunLoadSnapshot(std::move(snapshotReader), snapshotId);
+    dryRunHydraManager->DryRunLoadSnapshot(std::move(snapshotReader), *snapshotId);
 }
 
 void TBootstrap::DoReplayChangelogs(const std::vector<TString>& changelogFileNames)
@@ -1233,14 +1234,14 @@ void TBootstrap::DoReplayChangelogs(const std::vector<TString>& changelogFileNam
         /*profiler*/ {});
 
     for (auto changelogFileName : changelogFileNames) {
-        auto changelogId = InvalidSegmentId;
-        try {
-            changelogId = FromString<int>(NFS::GetFileNameWithoutExtension(changelogFileName));
-        } catch (const std::exception&) {
-            YT_LOG_INFO("Can't parse changelog name as id, using id %v as substitute", changelogId);
+        auto changelogId = TryFromString<int>(NFS::GetFileNameWithoutExtension(changelogFileName));
+        if (changelogId.Empty()) {
+            changelogId = InvalidSegmentId;
+            YT_LOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Can't parse changelog name as id, using id %v as substitute",
+                changelogId);
         }
 
-        auto changelog = WaitFor(dispatcher->OpenChangelog(changelogId, changelogFileName, changelogsConfig))
+        auto changelog = WaitFor(dispatcher->OpenChangelog(*changelogId, changelogFileName, changelogsConfig))
             .ValueOrThrow();
         dryRunHydraManager->DryRunReplayChangelog(changelog);
     }

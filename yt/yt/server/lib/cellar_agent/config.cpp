@@ -52,7 +52,7 @@ void TCellarManagerDynamicConfig::Register(TRegistrar registrar)
 void TCellarOccupantConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("snapshots", &TThis::Snapshots)
-        .DefaultNew();
+        .DefaultCtor([] { return New<NHydra::TRemoteSnapshotStoreConfig>(); });
     registrar.Parameter("changelogs", &TThis::Changelogs)
         .DefaultNew();
     registrar.Parameter("hydra_manager", &TThis::HydraManager)
@@ -67,6 +67,8 @@ void TCellarOccupantConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("use_new_hydra", &TThis::UseNewHydra)
         .Default(true);
+    registrar.Parameter("enable_dry_run", &TThis::EnableDryRun)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

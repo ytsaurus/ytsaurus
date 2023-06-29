@@ -6,6 +6,7 @@
 # original buildsystem will not be accepted.
 
 
+add_subdirectory(dry_run)
 add_subdirectory(mock)
 add_subdirectory(unittests)
 
@@ -55,6 +56,5 @@ target_sources(server-lib-hydra_common PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/serialize.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/snapshot_store_thunk.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/state_hash_checker.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/validate_snapshot.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/unbuffered_file_changelog.cpp
 )

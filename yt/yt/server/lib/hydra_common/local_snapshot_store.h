@@ -34,10 +34,6 @@ ISnapshotReaderPtr CreateLocalSnapshotReader(
     int snapshotId,
     IInvokerPtr ioInvoker);
 
-ISnapshotWriterPtr CreateUncompressedHeaderlessLocalSnapshotWriter(
-    TString fileName,
-    IInvokerPtr ioInvoker);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NHydra
