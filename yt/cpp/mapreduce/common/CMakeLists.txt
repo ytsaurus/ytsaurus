@@ -6,6 +6,7 @@
 # original buildsystem will not be accepted.
 
 
+add_subdirectory(ut)
 
 add_library(cpp-mapreduce-common)
 target_compile_options(cpp-mapreduce-common PRIVATE

@@ -8,9 +8,11 @@
 
 add_subdirectory(client)
 add_subdirectory(common)
+add_subdirectory(examples)
 add_subdirectory(http)
 add_subdirectory(interface)
 add_subdirectory(io)
 add_subdirectory(library)
 add_subdirectory(raw_client)
 add_subdirectory(skiff)
+add_subdirectory(util)

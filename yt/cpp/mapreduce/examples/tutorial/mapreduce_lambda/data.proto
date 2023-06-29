@@ -1,0 +1,13 @@
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TLoginRecord
+{
+    optional string Name = 1 [(NYT.column_name) = "name"];
+    optional string Login = 2 [(NYT.column_name) = "login"];
+}
+
+message TNameStatistics
+{
+    optional string Name = 1 [(NYT.column_name) = "name"];
+    optional uint64 Count = 2 [(NYT.column_name) = "count"];
+}

@@ -7,6 +7,7 @@
 
 
 add_subdirectory(base64)
+add_subdirectory(levenshtein_diff)
 add_subdirectory(quote)
 add_subdirectory(relaxed_escaper)
 add_subdirectory(scan)
