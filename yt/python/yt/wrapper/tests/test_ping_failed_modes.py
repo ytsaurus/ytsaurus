@@ -62,7 +62,7 @@ def reproduce_transaction_loss(
                                 pass
                             assert False, "Exception has not raised in time"
                     break
-                time.sleep(remaining_wait_time)
+                time.sleep(min(remaining_wait_time, 0.1))
             except BaseException as exception:
                 if first_exception is None:
                     first_exception = exception
