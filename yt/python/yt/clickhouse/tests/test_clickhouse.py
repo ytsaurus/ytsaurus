@@ -157,18 +157,15 @@ class TestClickhouseFromHost(ClickhouseTestBase):
         assert list(chyt.execute(u"select 'юникод' as s", "*f")) == [{"s": u"юникод"}]
 
     @authors("max42")
-    @pytest.mark.parametrize("bin_args", [("yt/python/yt/clickhouse/bin/py2/chyt", ""),
-                                          ("yt/python/yt/wrapper/bin/yt_make/yt", "clickhouse")])
-    def test_cli_simple(self, bin_args):
+    def test_cli_simple(self):
         yt.create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"},
                                                              {"name": "b", "type": "string"}]})
         yt.write_table("//tmp/t", [{"a": 1, "b": "foo"},
                                    {"a": 2, "b": "bar"}])
 
-        bin, args = bin_args
-        alias = "*e1" if bin.endswith("chyt") else "*e2"
+        alias = "*e1"
 
-        cmd = yatest.common.runtime.build_path(bin) + " " + args
+        cmd = yatest.common.runtime.build_path("yt/python/yt/wrapper/bin/yt_make/yt") + " " + "clickhouse"
         env = {
             "CMD": cmd,
             "YT_PROXY": yt.config.config["proxy"]["url"],
