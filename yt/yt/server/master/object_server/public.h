@@ -80,7 +80,7 @@ DECLARE_REFCOUNTED_CLASS(TMaxReadRequestComplexityLimitsConfig)
 // `auto foo = bar.Clone();` - uses move assignment operation.
 // `auto foo = bar;` - this just cannot be compiled.
 template <class T>
-concept Clonable  =
+concept CClonable =
     std::movable<T> &&
     !std::copyable<T> &&
     requires (const T& clonable) {

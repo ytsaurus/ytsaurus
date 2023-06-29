@@ -699,7 +699,7 @@ private:
 
         TAttributes<false> ToPersistent() const requires Transient;
 
-        // Clonable.
+        // CClonable.
         TAttributes Clone() const requires (!Transient);
     };
 

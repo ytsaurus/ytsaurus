@@ -69,7 +69,7 @@ using TRawVersionedBuiltinAttributeType = typename TVersionedBuiltinAttributeTra
 template <class T>
 class TVersionedBuiltinAttribute
 {
-    static_assert(std::copyable<T> || NObjectServer::Clonable<T>,
+    static_assert(std::copyable<T> || NObjectServer::CClonable<T>,
         "TVersionedBuiltinAttribute requires T to be either copyable or clonable");
 
 public:

@@ -303,7 +303,7 @@ TVersionedBuiltinAttribute<T> TVersionedBuiltinAttribute<T>::Clone() const
     TVersionedBuiltinAttribute<T> result;
     if constexpr (std::copyable<T>) {
         result.BoxedValue_ = BoxedValue_;
-    } else if constexpr (NObjectServer::Clonable<T>) {
+    } else if constexpr (NObjectServer::CClonable<T>) {
         result.BoxedValue_ = BoxedValue_ ? std::optional(BoxedValue_->Clone()) : std::nullopt;
     } else {
         static_assert("Unsupported type");
