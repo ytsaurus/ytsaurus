@@ -7,9 +7,11 @@ import tech.ytsaurus.spyt.serialization.IndexedDataType.StructFieldMeta
 import tech.ytsaurus.spyt.common.utils.TypeUtils.{isTuple, isVariant, isVariantOverTuple}
 import tech.ytsaurus.spyt.format.conf.YtTableSparkSettings.isNullTypeAllowed
 import YtLogicalType.getStructField
+import tech.ytsaurus.core.common.Decimal.textToBinary
 import tech.ytsaurus.spyt.serializers.YtLogicalTypeSerializer.{deserializeTypeV3, serializeType, serializeTypeV3}
 import tech.ytsaurus.core.tables.{ColumnSortOrder, TableSchema}
 import tech.ytsaurus.spyt.serialization.IndexedDataType
+import tech.ytsaurus.typeinfo.TiType
 import tech.ytsaurus.ysontree.{YTree, YTreeNode, YTreeTextSerializer}
 
 object SchemaConverter {
@@ -303,5 +305,21 @@ object SchemaConverter {
     } else {
       dataType
     }
+  }
+
+  def decimalToBinary(ytType: Option[TiType], decimalType: DecimalType, decimalValue: Decimal): Array[Byte] = {
+    val (precision, scale) = if (ytType.exists(_.isDecimal)) {
+      val decimalHint = ytType.get.asDecimal()
+      (decimalHint.getPrecision, decimalHint.getScale)
+    } else {
+      val dT = if (decimalType.precision > 35) applyYtLimitToSparkDecimal(decimalType) else decimalType
+      (dT.precision, dT.scale)
+    }
+    val result = decimalValue.changePrecision(precision, scale)
+    if (!result) {
+      throw new IllegalArgumentException("Decimal value couldn't fit in yt limitations (precision <= 35)")
+    }
+    val binary = textToBinary(decimalValue.toBigDecimal.bigDecimal.toPlainString, precision, scale)
+    binary
   }
 }

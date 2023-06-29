@@ -2,6 +2,7 @@ package tech.ytsaurus.spyt.serialization
 
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.UTF8String
+import tech.ytsaurus.core.common.Decimal.binaryToText
 import tech.ytsaurus.yson.{YsonError, YsonTags}
 
 import scala.annotation.tailrec
@@ -134,6 +135,8 @@ class YsonDecoder(bytes: Array[Byte], dataType: IndexedDataType) extends YsonBas
         dataType match {
           case IndexedDataType.ScalaStringType => new String(s)
           case IndexedDataType.AtomicType(BinaryType) => s
+          case IndexedDataType.AtomicType(d: DecimalType) =>
+            Decimal(BigDecimal(binaryToText(s, d.precision, d.scale)), d.precision, d.scale)
           case _ => UTF8String.fromBytes(s)
         }
       case YsonTags.BINARY_INT =>

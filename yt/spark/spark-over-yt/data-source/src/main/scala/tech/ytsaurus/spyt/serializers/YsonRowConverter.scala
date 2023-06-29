@@ -6,7 +6,7 @@ import org.apache.spark.sql.catalyst.expressions.{GenericRowWithSchema, UnsafeAr
 import org.apache.spark.sql.catalyst.util.MapData
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.UTF8String
-import SchemaConverter.Unordered
+import SchemaConverter.{Unordered, decimalToBinary}
 import tech.ytsaurus.spyt.serializers.YsonRowConverter.{isNull, serializeValue}
 import tech.ytsaurus.client.TableWriter
 import tech.ytsaurus.core.rows.YTreeSerializer
@@ -247,6 +247,13 @@ object YsonRowConverter {
         case BinaryType =>
           val bytes = value.asInstanceOf[Array[Byte]]
           consumer.onString(bytes, 0, bytes.length)
+        case d: DecimalType =>
+          if (!config.typeV3Format) {
+            throw new IllegalArgumentException("Writing decimal type without enabled type_v3 is not supported")
+          }
+          val decimalValue = value.asInstanceOf[Decimal]
+          val binary = decimalToBinary(ytType.ytType, d, decimalValue)
+          consumer.onString(binary, 0, binary.length)
         case array: ArrayType =>
           serializeArray(value, array, ytType, config, consumer)
         case t: StructType =>

@@ -279,6 +279,23 @@ class ComplexTypeV3Test extends AnyFlatSpec with Matchers with LocalSpark with T
     res.select("a").collect() should contain theSameElementsAs data.map(Row(_))
   }
 
+  it should "write array of decimals to yt" in {
+    import spark.implicits._
+    val data = Seq(Seq(BigDecimal("1.23")), Seq(BigDecimal("0.21"), BigDecimal("0")))
+    data
+      .toDF("a").coalesce(1)
+      .write.option(YtTableSparkSettings.WriteTypeV3.name, value = true).yt(tmpPath)
+
+    testEnabledAndDisabledArrow { reader =>
+      val res = reader.option(YtUtils.Options.PARSING_TYPE_V3, value = true).yt(tmpPath)
+      val resLists = res.as[Seq[java.math.BigDecimal]].collect().map(_.map(_.toPlainString))
+
+      resLists should contain theSameElementsAs Seq(
+        Seq("1.230000000000000"), Seq("0.210000000000000", "0.000000000000000")
+      )
+    }
+  }
+
   it should "write map to yt" in {
     import spark.implicits._
     val data = Seq(
@@ -292,6 +309,27 @@ class ComplexTypeV3Test extends AnyFlatSpec with Matchers with LocalSpark with T
 
     res.columns should contain theSameElementsAs Seq("a")
     res.collect() should contain theSameElementsAs data.map(Row(_))
+  }
+
+  it should "write array of maps to yt" in {
+    import spark.implicits._
+    val data = Seq(
+      Seq(Map("spark" -> BigDecimal("1.23"), "over" -> BigDecimal("1.21"))),
+      Seq(Map("yt" -> BigDecimal("0.123456")), Map("spyt" -> BigDecimal("0.7")))
+    )
+    data
+      .toDF("a").coalesce(1)
+      .write.option(YtTableSparkSettings.WriteTypeV3.name, value = true).yt(tmpPath)
+
+    testEnabledAndDisabledArrow { reader =>
+      val res = reader.option(YtUtils.Options.PARSING_TYPE_V3, value = true).yt(tmpPath)
+      val resLists = res.as[Seq[Map[String, java.math.BigDecimal]]].collect().map(_.map(_.mapValues(_.toPlainString)))
+
+      resLists should contain theSameElementsAs Seq(
+        Seq(Map("spark" -> "1.230000000000000", "over" -> "1.210000000000000")),
+        Seq(Map("yt" -> "0.123456000000000"), Map("spyt" -> "0.700000000000000"))
+      )
+    }
   }
 
   it should "write tagged from yt" in {

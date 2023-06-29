@@ -7,7 +7,7 @@ import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.yson.{UInt64Type, YsonType}
 import org.slf4j.LoggerFactory
-import SchemaConverter.{Unordered, applyYtLimitToSparkDecimal}
+import SchemaConverter.{Unordered, applyYtLimitToSparkDecimal, decimalToBinary}
 import tech.ytsaurus.spyt.wrapper.LogLazy
 import tech.ytsaurus.client.TableWriter
 import tech.ytsaurus.client.rows.{WireProtocolWriteable, WireRowSerializer}
@@ -91,20 +91,9 @@ class InternalRowSerializer(schema: StructType, schemaHint: Map[String, YtLogica
             if (!typeV3Format) {
               throw new IllegalArgumentException("Writing decimal type without enabled type_v3 is not supported")
             }
-            val (precision, scale) = if (ytFieldHint.exists(_.isDecimal)) {
-              val decimalHint = ytFieldHint.get.asDecimal()
-              (decimalHint.getPrecision, decimalHint.getScale)
-            } else {
-              val dT = if (d.precision > 35) applyYtLimitToSparkDecimal(d) else d
-              (dT.precision, dT.scale)
-            }
             val value = row.getDecimal(i, d.precision, d.scale)
-            val result = value.changePrecision(precision, scale)
-            if (!result) {
-              throw new IllegalArgumentException("Decimal value couldn't fit in yt limitations (precision <= 35)")
-            }
-            writeBytes(writeable, idMapping, aggregate, i,
-              textToBinary(value.toBigDecimal.bigDecimal.toPlainString, precision, scale))
+            val binary = decimalToBinary(ytFieldHint, d, value)
+            writeBytes(writeable, idMapping, aggregate, i, binary)
           case t@(ArrayType(_, _) | StructType(_) | MapType(_, _, _)) =>
             val skipNulls = sparkField.metadata.contains("skipNulls") && sparkField.metadata.getBoolean("skipNulls")
             writeBytes(writeable, idMapping, aggregate, i,
