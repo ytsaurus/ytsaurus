@@ -7919,20 +7919,20 @@ void TOperationControllerBase::RegisterCores(const TJobletPtr& joblet, const TJo
         chunkListId);
 }
 
-const ITransaction* TOperationControllerBase::GetTransactionForOutputTable(const TOutputTablePtr& table) const
+const ITransactionPtr TOperationControllerBase::GetTransactionForOutputTable(const TOutputTablePtr& table) const
 {
     if (table->OutputType == EOutputTableType::Output) {
         if (OutputCompletionTransaction) {
-            return OutputCompletionTransaction.Get();
+            return OutputCompletionTransaction;
         } else {
-            return OutputTransaction.Get();
+            return OutputTransaction;
         }
     } else {
         YT_VERIFY(table->OutputType == EOutputTableType::Stderr || table->OutputType == EOutputTableType::Core);
         if (DebugCompletionTransaction) {
-            return DebugCompletionTransaction.Get();
+            return DebugCompletionTransaction;
         } else {
-            return DebugTransaction.Get();
+            return DebugTransaction;
         }
     }
 }

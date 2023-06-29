@@ -913,7 +913,7 @@ protected:
         const NApi::NNative::IClientPtr& client,
         bool ping = false);
 
-    const NApi::ITransaction* GetTransactionForOutputTable(const TOutputTablePtr& table) const;
+    const NApi::ITransactionPtr GetTransactionForOutputTable(const TOutputTablePtr& table) const;
 
     void AttachToIntermediateLivePreview(NChunkClient::TChunkId chunkId) override;
 

@@ -16,7 +16,7 @@ message TReqSetAttributeOnTransactionCommit
 {
     required NYT.NProto.TGuid node_id = 1;
     required string attribute = 2;
-    required bytes value = 3;
+    required bytes value = 3; // YSON
 }
 
 ////////////////////////////////////////////////////////////////////////////////
