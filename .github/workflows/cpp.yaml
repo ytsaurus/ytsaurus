@@ -132,6 +132,14 @@ jobs:
           export HOME=/root
           bash yt/docker/yt_nightly/kube.sh --ytsaurus-source-path $(pwd)
 
+      - name: Install Node required for Testmo CLI
+        uses: actions/setup-node@v3
+        with:
+          node-version: 14
+      - name: Install Testmo CLI
+        shell: bash
+        run: npm install -g @testmo/testmo-cli
+
       - name: Unittests
         shell: bash
         run: |
@@ -153,6 +161,13 @@ jobs:
         shell: bash
         run: |
           yt/yt/scripts/run_python_tests.sh
+
+      - name: Testmo unittests upload
+        shell: bash
+        run: |
+          export TESTMO_TOKEN="${{ secrets.NEBIUS_TESTMO_TOKEN }}"
+          testmo automation:run:submit --instance https://nebius.testmo.net --project-id 4 --name "Run ${{ github.run_id }}" --source "unittests" --results "../build/junit-*.xml"
+
 
   stop-vm:
     name: Stop VM
