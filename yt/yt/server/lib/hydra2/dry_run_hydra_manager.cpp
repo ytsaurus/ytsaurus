@@ -213,7 +213,7 @@ public:
         auto nextSnapshotId = DecoratedAutomaton_->GetAutomatonVersion().SegmentId + 1;
         auto buildSnapshotFuture = BIND(&TDecoratedAutomaton::BuildSnapshot, DecoratedAutomaton_)
             .AsyncVia(DecoratedAutomaton_->GetSystemInvoker())
-            .Run(nextSnapshotId, sequenceNuber);
+            .Run(nextSnapshotId, sequenceNuber, /*readOnly*/ false);
         WaitFor(buildSnapshotFuture)
             .ThrowOnError();
     }

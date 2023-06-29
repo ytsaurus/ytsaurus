@@ -273,6 +273,7 @@ public:
         : Owner_(owner)
         , SequenceNumber_(Owner_->SequenceNumber_)
         , SnapshotId_(Owner_->SnapshotVersion_.SegmentId + 1)
+        , SnapshotReadOnly_(Owner_->SnapshotReadOnly_)
         , RandomSeed_(Owner_->RandomSeed_)
         , StateHash_(Owner_->StateHash_)
         , Timestamp_(Owner_->Timestamp_)
@@ -319,6 +320,7 @@ protected:
     const TDecoratedAutomatonPtr Owner_;
     const i64 SequenceNumber_;
     const int SnapshotId_;
+    const bool SnapshotReadOnly_;
     const ui64 RandomSeed_;
     const ui64 StateHash_;
     const TInstant Timestamp_;
@@ -369,9 +371,11 @@ private:
 
         const auto& params = SnapshotWriter_->GetParams();
 
-        TRemoteSnapshotParams remoteParams;
-        remoteParams.PeerId = EpochContext_->CellManager->GetSelfPeerId();
-        remoteParams.SnapshotId = SnapshotId_;
+        TRemoteSnapshotParams remoteParams{
+            .PeerId = EpochContext_->CellManager->GetSelfPeerId(),
+            .SnapshotId = SnapshotId_,
+            .SnapshotReadOnly = SnapshotReadOnly_,
+        };
         static_cast<TSnapshotParams&>(remoteParams) = params;
         return remoteParams;
     }
@@ -1014,7 +1018,7 @@ const TDecoratedAutomaton::TPendingMutation& TDecoratedAutomaton::LogFollowerMut
     return pendingMutation;
 }
 
-TFuture<TRemoteSnapshotParams> TDecoratedAutomaton::BuildSnapshot()
+TFuture<TRemoteSnapshotParams> TDecoratedAutomaton::BuildSnapshot(bool readOnly)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1027,6 +1031,7 @@ TFuture<TRemoteSnapshotParams> TDecoratedAutomaton::BuildSnapshot()
 
     UpdateSnapshotBuildDeadline();
     SnapshotVersion_ = loggedVersion;
+    SnapshotReadOnly_ = readOnly;
     SnapshotParamsPromise_ = NewPromise<TRemoteSnapshotParams>();
 
     MaybeStartSnapshotBuilder();
@@ -1498,6 +1503,7 @@ void TDecoratedAutomaton::StopEpoch()
         guard.Release();
     }
     SnapshotVersion_ = TVersion();
+    SnapshotReadOnly_ = false;
     LoggedVersion_ = TVersion();
     CommittedVersion_ = TVersion();
     CancelSnapshot(error);
@@ -1514,8 +1520,12 @@ void TDecoratedAutomaton::UpdateLastSuccessfulSnapshotInfo(const TErrorOr<TRemot
         return;
     }
 
-    auto snapshotId = snapshotInfoOrError.Value().SnapshotId;
-    LastSuccessfulSnapshotId_ = std::max(LastSuccessfulSnapshotId_.load(), snapshotId);
+    const auto& snapshotInfo = snapshotInfoOrError.Value();
+    auto snapshotId = snapshotInfo.SnapshotId;
+    if (snapshotId > LastSuccessfulSnapshotId_.load()) {
+        LastSuccessfulSnapshotId_ = snapshotId;
+        LastSuccessfulSnapshotReadOnly_ = snapshotInfo.SnapshotReadOnly;
+    }
 }
 
 void TDecoratedAutomaton::UpdateSnapshotBuildDeadline()
@@ -1578,6 +1588,13 @@ int TDecoratedAutomaton::GetLastSuccessfulSnapshotId() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return LastSuccessfulSnapshotId_.load();
+}
+
+bool TDecoratedAutomaton::GetLastSuccessfulSnapshotReadOnly() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return LastSuccessfulSnapshotReadOnly_;
 }
 
 TReign TDecoratedAutomaton::GetCurrentReign() const

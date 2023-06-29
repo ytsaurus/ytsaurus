@@ -425,6 +425,7 @@ public:
                     .Item("grace_delay_status").Value(GraceDelayStatus_.load())
                     .Item("building_snapshot").Value(DecoratedAutomaton_->IsBuildingSnapshotNow())
                     .Item("last_snapshot_id").Value(DecoratedAutomaton_->GetLastSuccessfulSnapshotId())
+                    .Item("last_snapshot_read_only").Value(DecoratedAutomaton_->GetLastSuccessfulSnapshotReadOnly())
                 .EndMap();
         });
     }
@@ -1229,7 +1230,7 @@ private:
                     if (Options_.WriteSnapshotsAtFollowers) {
                         SnapshotFuture_ = BIND(&TDecoratedAutomaton::BuildSnapshot, DecoratedAutomaton_)
                             .AsyncVia(epochContext->EpochUserAutomatonInvoker)
-                            .Run(SnapshotId_, snapshotSequenceNumber);
+                            .Run(SnapshotId_, snapshotSequenceNumber, readOnly);
                     } else {
                         SnapshotFuture_ = MakeFuture<TRemoteSnapshotParams>(TError("Followers cannot build snapshot"));
                     }
