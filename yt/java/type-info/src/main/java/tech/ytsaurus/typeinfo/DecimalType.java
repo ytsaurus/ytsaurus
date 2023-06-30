@@ -15,7 +15,7 @@ public class DecimalType extends TiType {
     public DecimalType(int precision, int scale) {
         super(TypeName.Decimal);
         if (precision <= 0 || precision > MAX_PRECISION) {
-            throw new RuntimeException(String.format("TODO: precision must be in range [0, %d]", MAX_PRECISION));
+            throw new RuntimeException(String.format("TODO: precision must be in range [1, %d]", MAX_PRECISION));
         }
 
         if (scale < 0 || scale > MAX_PRECISION) {

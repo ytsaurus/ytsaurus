@@ -294,7 +294,9 @@ class RetryingTableWriterBaseImpl<T> {
                         EntityTableSchemaCreator.create(
                                 req.getSerializationContext()
                                         .getObjectClass()
-                                        .orElseThrow(IllegalStateException::new))
+                                        .orElseThrow(IllegalStateException::new),
+                                null
+                        )
                 )
                 .build();
     }

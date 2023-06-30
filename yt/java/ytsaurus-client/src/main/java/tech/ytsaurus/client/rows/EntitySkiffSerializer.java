@@ -68,7 +68,7 @@ public class EntitySkiffSerializer<T> {
         }
         this.entityClass = entityClass;
         try {
-            this.entityTableSchema = EntityTableSchemaCreator.create(entityClass);
+            this.entityTableSchema = EntityTableSchemaCreator.create(entityClass, null);
             this.entityTiType = tableSchemaToStructTiType(entityTableSchema);
             this.skiffSchema = SchemaConverter.toSkiffSchema(entityTableSchema);
             this.format = Format.skiff(skiffSchema, 1);
@@ -85,22 +85,15 @@ public class EntitySkiffSerializer<T> {
         return Optional.ofNullable(format);
     }
 
+    public Optional<TableSchema> getEntityTableSchema() {
+        return Optional.ofNullable(entityTableSchema);
+    }
+
     public void setTableSchema(TableSchema tableSchema) {
-        if (entityTableSchema == null) {
-            this.entityTableSchema = tableSchema;
-            this.entityTiType = tableSchemaToStructTiType(tableSchema);
-            this.skiffSchema = SchemaConverter.toSkiffSchema(tableSchema);
-            this.format = Format.skiff(skiffSchema, 1);
-            return;
-        }
-        if (!tableSchema.equals(entityTableSchema)) {
-            throw new MismatchEntityAndTableSchemaException(
-                    String.format(
-                            "Entity schema does not match received table schema:\nEntity schema: %s\nTable schema: %s",
-                            entityTableSchema, tableSchema
-                    )
-            );
-        }
+        this.entityTableSchema = EntityTableSchemaCreator.create(entityClass, tableSchema);
+        this.entityTiType = tableSchemaToStructTiType(entityTableSchema);
+        this.skiffSchema = SchemaConverter.toSkiffSchema(entityTableSchema);
+        this.format = Format.skiff(skiffSchema, 1);
     }
 
     public byte[] serialize(T object) {
@@ -653,11 +646,5 @@ public class EntitySkiffSerializer<T> {
 
     private void throwNoSchemaException() {
         throw new IllegalStateException("Cannot create or get table schema");
-    }
-
-    public static class MismatchEntityAndTableSchemaException extends RuntimeException {
-        public MismatchEntityAndTableSchemaException(String message) {
-            super(message);
-        }
     }
 }

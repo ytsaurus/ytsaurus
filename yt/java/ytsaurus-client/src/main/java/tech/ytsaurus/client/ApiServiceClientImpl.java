@@ -1050,7 +1050,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
         return setTableSchemaInSerializer(req)
                 .thenCompose(transactionAndLockResult -> {
-                    var readReq = getReadReqByTransactionAndLockResult(req, transactionAndLockResult);
+                    var readReq = getConfiguredReadReq(req, transactionAndLockResult);
                     if (transactionAndLockResult != null) {
                         tableReader.setTransaction(transactionAndLockResult.getKey());
                     }
@@ -1090,7 +1090,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
         return setTableSchemaInSerializer(req)
                 .thenCompose(transactionAndLockResult -> {
-                    var readReq = getReadReqByTransactionAndLockResult(req, transactionAndLockResult);
+                    var readReq = getConfiguredReadReq(req, transactionAndLockResult);
                     if (transactionAndLockResult != null) {
                         tableReader.setTransaction(transactionAndLockResult.getKey());
                     }
@@ -1261,20 +1261,32 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
                 );
     }
 
-    private static <T> WriteTable<T> getWriteReqByTransactionAndLockResult(
-            WriteTable<T> req,
+    private static <T> ReadTable<T> getConfiguredReadReq(
+            ReadTable<T> req,
             Map.Entry<ApiServiceTransaction, LockNodeResult> transactionAndLockResult
     ) {
-        return transactionAndLockResult != null ?
+        var readReq = transactionAndLockResult != null ?
                 req.toBuilder()
                         .setTransactionalOptions(transactionAndLockResult.getKey().getTransactionalOptions())
                         .setPath(req.getYPath().withObjectRoot(transactionAndLockResult.getValue().nodeId))
                         .build() :
                 req;
+        if (readReq.getSerializationContext().getSkiffSerializer().isEmpty()) {
+            return readReq;
+        }
+        return readReq.toBuilder()
+                .setPath(
+                        readReq.getYPath().withColumns(
+                                readReq.getSerializationContext().getSkiffSerializer().get()
+                                        .getEntityTableSchema().orElseThrow(IllegalStateException::new)
+                                        .getColumnNames()
+                        )
+                )
+                .build();
     }
 
-    private static <T> ReadTable<T> getReadReqByTransactionAndLockResult(
-            ReadTable<T> req,
+    private static <T> WriteTable<T> getWriteReqByTransactionAndLockResult(
+            WriteTable<T> req,
             Map.Entry<ApiServiceTransaction, LockNodeResult> transactionAndLockResult
     ) {
         return transactionAndLockResult != null ?

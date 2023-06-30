@@ -35,7 +35,7 @@ public class SchemaOfEntityTest {
     @Test
     public void testCreateSchema() {
         var entitySchema = SchemaConverter.toSkiffSchema(
-                EntityTableSchemaCreator.create(Person.class)
+                EntityTableSchemaCreator.create(Person.class, null)
         );
 
         SkiffSchema expectedSchema = SkiffSchema.tuple(

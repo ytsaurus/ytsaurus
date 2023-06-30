@@ -14,6 +14,9 @@ import javax.annotation.Nullable;
 
 import tech.ytsaurus.core.tables.ColumnSchema;
 import tech.ytsaurus.core.tables.TableSchema;
+import tech.ytsaurus.typeinfo.DecimalType;
+import tech.ytsaurus.typeinfo.DictType;
+import tech.ytsaurus.typeinfo.ListType;
 import tech.ytsaurus.typeinfo.StructType;
 import tech.ytsaurus.typeinfo.TiType;
 
@@ -31,43 +34,59 @@ public class EntityTableSchemaCreator {
     private EntityTableSchemaCreator() {
     }
 
-    public static <T> TableSchema create(Class<T> annotatedClass) {
+    public static <T> TableSchema create(Class<T> annotatedClass, @Nullable TableSchema schema) {
         if (!anyOfAnnotationsPresent(annotatedClass, JavaPersistenceApi.entityAnnotations())) {
             throw new IllegalArgumentException("Class must be annotated with @Entity");
         }
 
         TableSchema.Builder tableSchemaBuilder = TableSchema.builder();
+        StructType tableSchemaAsStructType = schema != null ?
+                TiTypeUtil.tableSchemaToStructTiType(schema).asStruct() : null;
         for (Field field : getAllDeclaredFields(annotatedClass)) {
             if (isFieldTransient(field, JavaPersistenceApi.transientAnnotations())) {
                 continue;
             }
-            tableSchemaBuilder.add(getFieldColumnSchema(field));
+            tableSchemaBuilder.add(
+                    getFieldColumnSchema(field, tableSchemaAsStructType)
+            );
         }
 
         return tableSchemaBuilder.build();
     }
 
-    private static ColumnSchema getFieldColumnSchema(Field field) {
+    private static ColumnSchema getFieldColumnSchema(Field field, @Nullable StructType structTypeInSchema) {
+        String name = field.getName();
+        Annotation annotation = getAnnotationIfPresent(field, JavaPersistenceApi.columnAnnotations()).orElse(null);
+        if (JavaPersistenceApi.isColumnAnnotationPresent(annotation)) {
+            var columnName = JavaPersistenceApi.getColumnName(annotation);
+            name = columnName.isEmpty() ? name : columnName;
+        }
         return getClassColumnSchema(
                 field.getType(),
-                field.getName(),
-                getAnnotationIfPresent(field, JavaPersistenceApi.columnAnnotations()).orElse(null),
-                getTypeParametersOfField(field)
+                name,
+                getTypeParametersOfField(field),
+                annotation,
+                getStructMemberTiType(name, structTypeInSchema)
+                        .orElse(null)
         );
     }
 
     private static <T> ColumnSchema getClassColumnSchema(Class<T> clazz,
                                                          String name,
+                                                         List<Type> genericTypeParameters,
                                                          @Nullable Annotation annotation,
-                                                         List<Type> genericTypeParameters) {
+                                                         @Nullable TiType tiTypeInSchema) {
         boolean isNullable = true;
         if (JavaPersistenceApi.isColumnAnnotationPresent(annotation)) {
-            var columnName = JavaPersistenceApi.getColumnName(annotation);
-            name = columnName.isEmpty() ? name : columnName;
             isNullable = JavaPersistenceApi.isColumnNullable(annotation);
         }
 
-        TiType tiType = getClassTiType(clazz, annotation, genericTypeParameters);
+        TiType tiType = getClassTiType(
+                clazz,
+                annotation,
+                genericTypeParameters,
+                tiTypeInSchema
+        );
 
         if (isNullable && !clazz.isPrimitive()) {
             tiType = TiType.optional(tiType);
@@ -76,9 +95,30 @@ public class EntityTableSchemaCreator {
         return new ColumnSchema(name, tiType);
     }
 
+    private static Optional<TiType> getStructMemberTiType(String name, @Nullable StructType structType) {
+        return Optional.ofNullable(structType)
+                .flatMap(
+                        s -> s.getMembers().stream()
+                                .filter(member -> member.getName().equals(name))
+                                .map(StructType.Member::getType)
+                                .findAny()
+                ).map(
+                        tiType -> tiType.isOptional() ?
+                                tiType.asOptional().getItem() : tiType
+                ).map(
+                        tiType -> {
+                            if (tiType.isOptional()) {
+                                throw new RuntimeException("Table schema has column with optional<optional>");
+                            }
+                            return tiType;
+                        }
+                );
+    }
+
     private static <T> TiType getClassTiType(Class<T> clazz,
                                              @Nullable Annotation annotation,
-                                             List<Type> genericTypeParameters) {
+                                             List<Type> genericTypeParameters,
+                                             @Nullable TiType tiTypeInSchema) {
         Optional<TiType> tiTypeIfSimple = getTiTypeIfSimple(
                 clazz,
                 JavaPersistenceApi.isColumnAnnotationPresent(annotation) ?
@@ -86,69 +126,132 @@ public class EntityTableSchemaCreator {
                         ""
         );
         if (Collection.class.isAssignableFrom(clazz)) {
-            return getCollectionTiType(genericTypeParameters.get(0));
+            return getCollectionTiType(
+                    genericTypeParameters.get(0),
+                    Optional.ofNullable(tiTypeInSchema)
+                            .filter(TiType::isList)
+                            .map(TiType::asList)
+                            .map(ListType::getItem)
+                            .orElse(null)
+            );
         }
         if (Map.class.isAssignableFrom(clazz)) {
-            return getMapTiType(genericTypeParameters.get(0), genericTypeParameters.get(1));
+            return getMapTiType(
+                    genericTypeParameters.get(0),
+                    genericTypeParameters.get(1),
+                    Optional.ofNullable(tiTypeInSchema)
+                            .filter(TiType::isDict)
+                            .map(TiType::asDict)
+                            .map(DictType::getKey)
+                            .orElse(null),
+                    Optional.ofNullable(tiTypeInSchema)
+                            .filter(TiType::isDict)
+                            .map(TiType::asDict)
+                            .map(DictType::getValue)
+                            .orElse(null)
+            );
         }
         if (clazz.isArray()) {
-            return getArrayTiType(clazz);
+            return getArrayTiType(
+                    clazz,
+                    Optional.ofNullable(tiTypeInSchema)
+                            .filter(TiType::isList)
+                            .map(TiType::asList)
+                            .map(ListType::getItem)
+                            .orElse(null)
+            );
         }
         if (clazz.equals(BigDecimal.class)) {
-            return getDecimalTiType(annotation);
+            return getDecimalTiType(
+                    annotation,
+                    Optional.ofNullable(tiTypeInSchema)
+                            .filter(TiType::isDecimal)
+                            .map(TiType::asDecimal)
+                            .orElse(null)
+            );
         }
-        return tiTypeIfSimple.orElseGet(() -> getEntityTiType(clazz));
+        return tiTypeIfSimple.orElseGet(() -> getEntityTiType(
+                        clazz,
+                        Optional.ofNullable(tiTypeInSchema)
+                                .filter(TiType::isStruct)
+                                .map(TiType::asStruct)
+                                .orElse(null)
+                )
+        );
     }
 
-    private static <T> TiType getEntityTiType(Class<T> clazz) {
+    private static <T> TiType getEntityTiType(
+            Class<T> clazz,
+            @Nullable StructType structTypeInSchema
+    ) {
         ArrayList<StructType.Member> members = new ArrayList<>();
         for (Field field : getAllDeclaredFields(clazz)) {
             if (isFieldTransient(field, JavaPersistenceApi.transientAnnotations())) {
                 continue;
             }
-            members.add(getStructMember(field));
+            members.add(getStructMember(field, structTypeInSchema));
         }
 
         return TiType.struct(members);
     }
 
-    private static StructType.Member getStructMember(Field field) {
-        var columnSchema = getFieldColumnSchema(field);
+    private static StructType.Member getStructMember(
+            Field field,
+            @Nullable StructType structTypeInSchema
+    ) {
+        var columnSchema = getFieldColumnSchema(
+                field,
+                structTypeInSchema
+        );
         return new StructType.Member(columnSchema.getName(), columnSchema.getTypeV3());
     }
 
-    private static TiType getCollectionTiType(Type elementType) {
+    private static TiType getCollectionTiType(
+            Type elementType,
+            @Nullable TiType elementTiTypeInSchema
+    ) {
         var elementTypeDescr = getTypeDescription(elementType);
         return TiType.list(
                 getClassColumnSchema(
                         elementTypeDescr.getTypeClass(),
                         "",
+                        elementTypeDescr.getTypeParameters(),
                         null,
-                        elementTypeDescr.getTypeParameters())
-                        .getTypeV3()
+                        elementTiTypeInSchema
+                ).getTypeV3()
         );
     }
 
-    private static TiType getMapTiType(Type keyType, Type valueType) {
+    private static TiType getMapTiType(
+            Type keyType,
+            Type valueType,
+            @Nullable TiType keyTiTypeInSchema,
+            @Nullable TiType valueTiTypeInSchema
+    ) {
         var keyTypeDescr = getTypeDescription(keyType);
         var valueTypeDescr = getTypeDescription(valueType);
         return TiType.dict(
                 getClassColumnSchema(
                         keyTypeDescr.getTypeClass(),
                         "",
+                        keyTypeDescr.getTypeParameters(),
                         null,
-                        keyTypeDescr.getTypeParameters())
-                        .getTypeV3(),
+                        keyTiTypeInSchema
+                ).getTypeV3(),
                 getClassColumnSchema(
                         valueTypeDescr.getTypeClass(),
                         "",
+                        valueTypeDescr.getTypeParameters(),
                         null,
-                        valueTypeDescr.getTypeParameters())
-                        .getTypeV3()
+                        valueTiTypeInSchema
+                ).getTypeV3()
         );
     }
 
-    private static TiType getArrayTiType(Class<?> arrayClass) {
+    private static TiType getArrayTiType(
+            Class<?> arrayClass,
+            @Nullable TiType elementTiTypeInSchema
+    ) {
         if (!arrayClass.isArray()) {
             throw new IllegalArgumentException("Argument must be array");
         }
@@ -156,25 +259,46 @@ public class EntityTableSchemaCreator {
                 getClassColumnSchema(
                         arrayClass.getComponentType(),
                         "",
+                        List.of(),
                         null,
-                        List.of())
-                        .getTypeV3()
+                        elementTiTypeInSchema
+                ).getTypeV3()
         );
     }
 
-    private static TiType getDecimalTiType(@Nullable Annotation annotation) {
-        if (annotation == null ||
-                !anyMatchWithAnnotation(annotation, JavaPersistenceApi.columnAnnotations())) {
+    private static TiType getDecimalTiType(
+            @Nullable Annotation annotation,
+            @Nullable DecimalType decimalType
+    ) {
+        int precision = 0;
+        int scale = 0;
+        if (annotation != null &&
+                anyMatchWithAnnotation(annotation, JavaPersistenceApi.columnAnnotations())) {
+            precision = JavaPersistenceApi.getColumnPrecision(annotation);
+            scale = JavaPersistenceApi.getColumnScale(annotation);
+        }
+        if (decimalType != null) {
+            if (precision == 0 && scale == 0) {
+                // precision and scale are not specified in annotation or set to default values
+                precision = decimalType.getPrecision();
+                scale = decimalType.getScale();
+            } else if (precision != decimalType.getPrecision() || scale != decimalType.getScale()) {
+                throw new MismatchEntityAndTableSchemaDecimalException();
+            }
+        }
+        if (precision == 0 && scale == 0) {
+            // no table schema and
+            // precision and scale are not specified in annotation or set to default values
             throw new PrecisionAndScaleNotSpecifiedException();
         }
-        int precision = JavaPersistenceApi.getColumnPrecision(annotation);
-        if (precision == 0) {
-            throw new PrecisionAndScaleNotSpecifiedException();
-        }
-        int scale = JavaPersistenceApi.getColumnScale(annotation);
         return TiType.decimal(precision, scale);
     }
 
     public static class PrecisionAndScaleNotSpecifiedException extends RuntimeException {
+
+    }
+
+    public static class MismatchEntityAndTableSchemaDecimalException extends RuntimeException {
+
     }
 }

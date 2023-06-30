@@ -31,7 +31,7 @@ public class EntityTableEntryType<T> implements YTableEntryType<T> {
 
     public EntityTableEntryType(Class<T> entityClass, boolean trackIndices, boolean isInputType) {
         this.entityClass = entityClass;
-        this.tableSchema = EntityTableSchemaCreator.create(entityClass);
+        this.tableSchema = EntityTableSchemaCreator.create(entityClass, null);
         this.entitySchema = SchemaConverter.toSkiffSchema(tableSchema);
         if (trackIndices) {
             this.entitySchema.getChildren().add(
