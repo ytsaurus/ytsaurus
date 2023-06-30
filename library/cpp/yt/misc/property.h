@@ -1,5 +1,7 @@
 #pragma once
 
+#include <util/system/compiler.h>
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Declares a trivial public read-write property that is passed by reference.
