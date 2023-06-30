@@ -45,13 +45,13 @@ TControllerAgentConnectorPool::TControllerAgentConnector::TControllerAgentConnec
         ControllerAgentConnectorPool_->Bootstrap_->GetControlInvoker(),
         BIND_NO_PROPAGATE(&TControllerAgentConnector::SendHeartbeat, MakeWeak(this)),
         TPeriodicExecutorOptions{
-            .Period = ControllerAgentConnectorPool_->CurrentConfig_->HeartbeatPeriod,
-            .Splay = ControllerAgentConnectorPool_->CurrentConfig_->HeartbeatSplay
+            .Period = GetCurrentConfig()->HeartbeatPeriod,
+            .Splay = GetCurrentConfig()->HeartbeatSplay
         }))
     , StatisticsThrottler_(CreateReconfigurableThroughputThrottler(
-        ControllerAgentConnectorPool_->CurrentConfig_->StatisticsThrottler))
+        GetCurrentConfig()->StatisticsThrottler))
     , RunningJobStatisticsSendingBackoff_(
-        ControllerAgentConnectorPool_->CurrentConfig_->RunningJobStatisticsSendingBackoff)
+        GetCurrentConfig()->RunningJobStatisticsSendingBackoff)
 {
     YT_LOG_DEBUG("Controller agent connector created (AgentAddress: %v, IncarnationId: %v)",
         ControllerAgentDescriptor_.Address,
@@ -303,7 +303,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::OnConfigUpdated()
 {
     VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker());
 
-    const auto& currentConfig = *ControllerAgentConnectorPool_->CurrentConfig_;
+    const auto& currentConfig = *GetCurrentConfig();
 
     YT_LOG_DEBUG("Set new controller agent heartbeat period (NewPeriod: %v)", currentConfig.HeartbeatPeriod);
     HeartbeatExecutor_->SetPeriod(currentConfig.HeartbeatPeriod);
@@ -318,6 +318,12 @@ TControllerAgentConnectorPool::TControllerAgentConnector::~TControllerAgentConne
         ControllerAgentDescriptor_.IncarnationId);
 
     YT_UNUSED_FUTURE(HeartbeatExecutor_->Stop());
+}
+
+const TControllerAgentConnectorConfigPtr&
+TControllerAgentConnectorPool::TControllerAgentConnector::GetCurrentConfig() const noexcept
+{
+    return ControllerAgentConnectorPool_->CurrentConfig_;
 }
 
 void TControllerAgentConnectorPool::TControllerAgentConnector::DoSendHeartbeat()
@@ -359,11 +365,11 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::DoSendHeartbeat()
     if (!responseOrError.IsOK()) {
         HeartbeatInfo_.LastFailedHeartbeatTime = TInstant::Now();
         if (HeartbeatInfo_.FailedHeartbeatBackoffTime == TDuration::Zero()) {
-            HeartbeatInfo_.FailedHeartbeatBackoffTime = ControllerAgentConnectorPool_->CurrentConfig_->FailedHeartbeatBackoffStartTime;
+            HeartbeatInfo_.FailedHeartbeatBackoffTime = GetCurrentConfig()->FailedHeartbeatBackoffStartTime;
         } else {
             HeartbeatInfo_.FailedHeartbeatBackoffTime = std::min(
-                HeartbeatInfo_.FailedHeartbeatBackoffTime * ControllerAgentConnectorPool_->CurrentConfig_->FailedHeartbeatBackoffMultiplier,
-                ControllerAgentConnectorPool_->CurrentConfig_->FailedHeartbeatBackoffMaxTime);
+                HeartbeatInfo_.FailedHeartbeatBackoffTime * GetCurrentConfig()->FailedHeartbeatBackoffMultiplier,
+                GetCurrentConfig()->FailedHeartbeatBackoffMaxTime);
         }
         YT_LOG_ERROR(responseOrError, "Error reporting heartbeat to agent (AgentAddress: %v, BackoffTime: %v)",
             ControllerAgentDescriptor_.Address,
@@ -445,7 +451,8 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::DoPrepareHeartbea
     context->ControllerAgentConnector = MakeStrong(this);
     context->StatisticsThrottler = StatisticsThrottler_;
     context->RunningJobStatisticsSendingBackoff = RunningJobStatisticsSendingBackoff_;
-    context->LastTotalConfirmationTime = LastTotalConfirmationTime_;
+    context->NeedTotalConfirmation = IsTotalConfirmationNeeded();
+
     context->JobsToForcefullySend = EnqueuedFinishedJobs_;
     context->UnconfirmedJobIds = std::move(UnconfirmedJobIds_);
     context->SendWaitingJobs = ControllerAgentConnectorPool_->SendWaitingJobs_;
@@ -460,8 +467,6 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::DoProcessHeartbea
     const TAgentHeartbeatContextPtr& context)
 {
     VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker());
-
-    LastTotalConfirmationTime_ = context->LastTotalConfirmationTime;
 
     const auto& jobController = ControllerAgentConnectorPool_->Bootstrap_->GetJobController();
     jobController->ProcessAgentHeartbeatResponse(response, context);
@@ -509,6 +514,25 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::OnJobRegistration
     VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker());
 
     EraseOrCrash(AllocationIdsWaitingForSpec_, allocationId);
+}
+
+bool TControllerAgentConnectorPool::TControllerAgentConnector::IsTotalConfirmationNeeded()
+{
+    auto now = TInstant::Now();
+
+    if (now >= LastTotalConfirmationTime_ + TotalConfirmationPeriodMultiplicator_ * ControllerAgentConnectorPool_->TotalConfirmationPeriod_) {
+        LastTotalConfirmationTime_ = now;
+        TotalConfirmationPeriodMultiplicator_ = GenerateTotalConfirmationPeriodMultiplicator();
+
+        return true;
+    }
+
+    return false;
+}
+
+float TControllerAgentConnectorPool::TControllerAgentConnector::GenerateTotalConfirmationPeriodMultiplicator() noexcept
+{
+    return 0.9 + RandomNumber<float>() / 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -604,10 +628,12 @@ void TControllerAgentConnectorPool::OnDynamicConfigChanged(
                 TestHeartbeatDelay_ = newConfig->ControllerAgentConnector->TestHeartbeatDelay;
                 SendWaitingJobs_ = newConfig->ControllerAgentConnector->SendWaitingJobs;
                 UseJobTrackerServiceToSettleJobs_ = newConfig->ControllerAgentConnector->UseJobTrackerServiceToSettleJobs;
+                TotalConfirmationPeriod_ = newConfig->ControllerAgentConnector->TotalConfirmationPeriod;
             } else {
                 TestHeartbeatDelay_ = TDuration::Zero();
                 SendWaitingJobs_ = false;
                 UseJobTrackerServiceToSettleJobs_ = false;
+                TotalConfirmationPeriod_ = TDuration::Minutes(10);
             }
             CurrentConfig_ = newCurrentConfig ? newCurrentConfig : StaticConfig_;
 

@@ -486,7 +486,6 @@ def get_node_config():
         job_proxy_heartbeat_period = 200;
 
         job_controller = {
-            total_confirmation_period = 5000;
             cpu_per_tablet_slot = 0.0;
             unknown_operation_jobs_removal_delay = 5000;
         };
@@ -700,6 +699,7 @@ def get_dynamic_node_config():
             };
 
             controller_agent_connector = {
+                total_confirmation_period = 5000;
                 send_waiting_jobs = %true;
                 use_job_tracker_service_to_settle_jobs = %true;
             };

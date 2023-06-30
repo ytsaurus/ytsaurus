@@ -248,7 +248,6 @@
             "resource_limits" = {
                 "memory" = 26843545600;
             };
-            "total_confirmation_period" = 5000;
             "cpu_per_tablet_slot" = 0.;
             "port_count" = 10000;
         };

@@ -938,9 +938,8 @@ private:
 
         i64 finishedJobsStatisticsSize = 0;
 
-        bool totalConfirmation = NeedTotalConfirmation(context->LastTotalConfirmationTime);
         YT_LOG_DEBUG_IF(
-            totalConfirmation,
+            context->NeedTotalConfirmation,
             "Send all finished jobs due to total confirmation (ControllerAgentDescriptor: %v)",
             agentDescriptor);
 
@@ -994,7 +993,7 @@ private:
                 continue;
             }
 
-            bool forcefullySend = jobConfirmationRequested || totalConfirmation;
+            bool forcefullySend = jobConfirmationRequested || context->NeedTotalConfirmation;
 
             if (job->GetStored() && !forcefullySend) {
                 continue;
@@ -1915,14 +1914,6 @@ private:
         YT_LOG_INFO("Job removed (JobId: %v, Save: %v)", job->GetId(), shouldSave);
     }
 
-    TDuration GetTotalConfirmationPeriod() const
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        return GetDynamicConfig()->TotalConfirmationPeriod.value_or(
-            Config_->TotalConfirmationPeriod);
-    }
-
     TDuration GetMemoryOverdraftTimeout() const
     {
         VERIFY_THREAD_AFFINITY(JobThread);
@@ -2045,12 +2036,13 @@ private:
         }
     }
 
+    // COMPAT(pogorelov)
     bool NeedTotalConfirmation(TInstant& lastTotalConfirmationTime)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         if (const auto now = TInstant::Now();
-            lastTotalConfirmationTime + GetTotalConfirmationPeriod() < now)
+            lastTotalConfirmationTime + TDuration::Minutes(10) < now)
         {
             lastTotalConfirmationTime = now;
             return true;
@@ -2059,6 +2051,7 @@ private:
         return false;
     }
 
+    // COMPAT(pogorelov)
     bool NeedSchedulerTotalConfirmation() noexcept
     {
         return NeedTotalConfirmation(LastStoredJobsSendTime_);

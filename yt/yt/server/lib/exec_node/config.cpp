@@ -215,6 +215,8 @@ void TControllerAgentConnectorDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("use_job_tracker_service_to_settle_jobs", &TThis::UseJobTrackerServiceToSettleJobs)
         .Default(false);
+    registrar.Parameter("total_confirmation_period", &TThis::TotalConfirmationPeriod)
+        .Default(TDuration::Minutes(10));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

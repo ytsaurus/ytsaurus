@@ -83,7 +83,8 @@ public:
 
         TDuration RunningJobStatisticsSendingBackoff_;
 
-        TInstant LastTotalConfirmationTime_;
+        TInstant LastTotalConfirmationTime_ = TInstant::Now();
+        float TotalConfirmationPeriodMultiplicator_ = GenerateTotalConfirmationPeriodMultiplicator();
 
         THashSet<TJobPtr> EnqueuedFinishedJobs_;
         std::vector<TJobId> UnconfirmedJobIds_;
@@ -92,6 +93,8 @@ public:
         THashSet<TJobId> JobIdsToConfirm_;
 
         THashMap<TAllocationId, TOperationId> AllocationIdsWaitingForSpec_;
+
+        const TControllerAgentConnectorConfigPtr& GetCurrentConfig() const noexcept;
 
         void SendHeartbeat();
         void OnAgentIncarnationOutdated() noexcept;
@@ -121,6 +124,10 @@ public:
         void OnJobRegistered(const TJobPtr& job);
 
         void OnJobRegistrationFailed(TAllocationId allocationId);
+
+        bool IsTotalConfirmationNeeded();
+
+        static float GenerateTotalConfirmationPeriodMultiplicator() noexcept;
     };
 
     using TControllerAgentConnectorPtr = TIntrusivePtr<TControllerAgentConnector>;
@@ -154,8 +161,10 @@ private:
 
     IBootstrap* const Bootstrap_;
 
-    TDuration TestHeartbeatDelay_{};
+    TDuration TestHeartbeatDelay_;
     TDuration SettleJobsTimeout_;
+
+    TDuration TotalConfirmationPeriod_ = TDuration::Minutes(10);
 
     // COMPAT(pogorelov)
     bool SendWaitingJobs_ = false;
@@ -196,7 +205,7 @@ struct TAgentHeartbeatContext
     TControllerAgentConnectorPool::TControllerAgentConnectorPtr ControllerAgentConnector;
     NConcurrency::IThroughputThrottlerPtr StatisticsThrottler;
     TDuration RunningJobStatisticsSendingBackoff;
-    TInstant LastTotalConfirmationTime;
+    bool NeedTotalConfirmation;
 
     THashSet<TJobPtr> JobsToForcefullySend;
     std::vector<TJobId> UnconfirmedJobIds;
