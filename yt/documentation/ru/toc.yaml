@@ -202,7 +202,7 @@ items:
           href: user-guide/data-processing/porto/layer-paths.md
         - name: Переключение таблиц
           when: audience == "public"
-          href: user-guide/data-processing/table-switch.md
+          href: user-guide/data-processing/operations/table-switch.md
         - name: CHYT
           when: audience == "public"
           items:
