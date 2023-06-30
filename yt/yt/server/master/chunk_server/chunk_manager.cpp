@@ -3323,7 +3323,7 @@ private:
 
         if (chunkInfo.location_index() >= locationDirectorySize) {
             YT_LOG_ALERT(
-                "Data node reported % heartbeat with invalid location index "
+                "Data node reported %v heartbeat with invalid location index "
                 "(%vChunkId: %v, NodeAddress: %v, LocationIndex: %v)",
                 FullHeartbeat ? "full" : "incremental",
                 FullHeartbeat ? "" : (isRemoval ? "Removed" : "Added"),
