@@ -5,6 +5,7 @@ import "yt/ytlib/controller_agent/proto/job.proto";
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
 
 import "yt_proto/yt/core/misc/proto/guid.proto";
+import "yt_proto/yt/core/misc/proto/error.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,6 +65,33 @@ message TRspHeartbeat
     repeated TJobToInterrupt jobs_to_interrupt = 6;
     repeated TJobToFail jobs_to_fail = 7;
     repeated NYT.NProto.TGuid unknown_operation_ids = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqSettleJob
+{
+    required int32 node_id = 1;
+    required NNodeTrackerClient.NProto.TNodeDescriptor node_descriptor = 2;
+
+    required NYT.NProto.TGuid controller_agent_incarnation_id = 3;
+
+    required NYT.NProto.TGuid allocation_id = 4;
+    required NYT.NProto.TGuid operation_id = 5;
+}
+
+message TRspSettleJob
+{
+    message TBreifJobInfo
+    {
+        required NYT.NProto.TGuid job_id  = 1;
+    }
+
+    oneof job_info_or_error {
+        NYT.NProto.TError error = 1;
+        TBreifJobInfo job_info = 2;
+    }
+    // The actual spec is passed via attachments.
 }
 
 ////////////////////////////////////////////////////////////////////////////////

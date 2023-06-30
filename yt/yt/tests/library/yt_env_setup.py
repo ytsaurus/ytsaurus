@@ -246,6 +246,7 @@ class YTEnvSetup(object):
     DELTA_MASTER_CONFIG = {}
     DELTA_DYNAMIC_MASTER_CONFIG = {}
     DELTA_NODE_CONFIG = {}
+    DELTA_DYNAMIC_NODE_CONFIG = {}
     DELTA_CHAOS_NODE_CONFIG = {}
     DELTA_SCHEDULER_CONFIG = {}
     DELTA_CONTROLLER_AGENT_CONFIG = {}
@@ -671,11 +672,6 @@ class YTEnvSetup(object):
                 cls.modify_master_config(configs["master"][tag][index], tag, index)
         for index, config in enumerate(configs["scheduler"]):
             config = update_inplace(config, cls.get_param("DELTA_SCHEDULER_CONFIG", cluster_index))
-            # COMPAT(pogorelov)
-            if "scheduler" in cls.ARTIFACT_COMPONENTS.get("22_4", []):
-                config["scheduler"]["send_registered_agents_to_node"] = True
-            if "node" in cls.ARTIFACT_COMPONENTS.get("22_4", []):
-                config["scheduler"]["control_unknown_operation_jobs_lifetime"] = True
             configs["scheduler"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_scheduler_config(configs["scheduler"][index])
         for index, config in enumerate(configs["queue_agent"]):
@@ -701,11 +697,6 @@ class YTEnvSetup(object):
                 delta_config,
             )
 
-            old_components = cls.ARTIFACT_COMPONENTS.get("22_4", [])
-            if "scheduler" in old_components or "controller-agent" in old_components or "node" in old_components:
-                config["controller_agent"]["control_job_lifetime_at_scheduler"] = True
-                config["controller_agent"]["job_tracker"]["abort_vanished_jobs"] = False
-
             # COMPAT(kvk1920)
             if "master" in cls.ARTIFACT_COMPONENTS.get("22_4", []) + cls.ARTIFACT_COMPONENTS.get("23_1", []):
                 config["controller_agent"]["set_committed_attribute_via_transaction_action"] = False
@@ -718,12 +709,6 @@ class YTEnvSetup(object):
                 config = update_inplace(config, get_porto_delta_node_config())
             if cls.USE_CUSTOM_ROOTFS:
                 config = update_inplace(config, get_custom_rootfs_delta_node_config())
-
-            # COMPAT(pogorelov)
-            if "node" in cls.ARTIFACT_COMPONENTS.get("22_4", []):
-                config["exec_node"]["controller_agent_connector"]["running_job_sending_backoff"] = 0
-                config["exec_node"]["controller_agent_connector"]["use_new_job_tracker_service"] = True
-                config["exec_node"]["scheduler_connector"]["use_allocation_tracker_service"] = True
 
             config["exec_node"]["job_proxy_upload_debug_artifact_chunks"] = cls.UPLOAD_DEBUG_ARTIFACT_CHUNKS
 
@@ -830,7 +815,7 @@ class YTEnvSetup(object):
             yt_commands.clear_metadata_caches(driver=driver)
 
             if node_count > 0:
-                self._setup_nodes_dynamic_config(driver=driver)
+                self._setup_nodes_dynamic_config(driver=driver, cluster_index=cluster_index)
 
             if self.USE_DYNAMIC_TABLES:
                 self._setup_tablet_manager(driver=driver)
@@ -1305,12 +1290,16 @@ class YTEnvSetup(object):
 
         wait(check)
 
-    def _setup_nodes_dynamic_config(self, driver=None):
+    def _setup_nodes_dynamic_config(self, cluster_index, driver=None):
         config = get_dynamic_node_config()
 
+        config = update_inplace(
+            config, self.get_param("DELTA_DYNAMIC_NODE_CONFIG", cluster_index)
+        )
+
         # COMPAT(pogorelov)
-        if "controller-agent" in self.__class__.ARTIFACT_COMPONENTS.get("22_4", []):
-            config["%true"]["exec_node"]["controller_agent_connector"]["send_waiting_jobs"] = False
+        if "controller-agent" in self.__class__.ARTIFACT_COMPONENTS.get("23_1", []):
+            config["%true"]["exec_node"]["controller_agent_connector"]["use_job_tracker_service_to_settle_jobs"] = False
 
         yt_commands.set("//sys/cluster_nodes/@config", config, driver=driver)
 

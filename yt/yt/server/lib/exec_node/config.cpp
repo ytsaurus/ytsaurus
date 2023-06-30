@@ -213,6 +213,8 @@ void TControllerAgentConnectorDynamicConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("send_waiting_jobs", &TThis::SendWaitingJobs)
         .Default(false);
+    registrar.Parameter("use_job_tracker_service_to_settle_jobs", &TThis::UseJobTrackerServiceToSettleJobs)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

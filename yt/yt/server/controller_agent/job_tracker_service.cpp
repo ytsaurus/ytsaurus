@@ -37,6 +37,7 @@ public:
         , Bootstrap_(bootstrap)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(SettleJob));
     }
 
 private:
@@ -45,19 +46,34 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, Heartbeat)
     {
         auto incarnationId = FromProto<NScheduler::TIncarnationId>(request->controller_agent_incarnation_id());
+        auto nodeId = request->node_id();
+        auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
+        context->SetRequestInfo(
+            "NodeId: %v, NodeAddress: %v, JobCount: %v, KnownIncarnationId: %v",
+            nodeId,
+            descriptor.GetDefaultAddress(),
+            request->jobs_size(),
+            incarnationId);
 
-        {
-            auto nodeId = request->node_id();
-            auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
-            context->SetRequestInfo(
-                "NodeId: %v, NodeAddress: %v, JobCount: %v, KnownIncarnationId: %v",
-                nodeId,
-                descriptor.GetDefaultAddress(),
-                request->jobs_size(),
-                incarnationId);
+        Bootstrap_->GetControllerAgent()->GetJobTracker()->ProcessHeartbeat(context);
+    }
 
-            Bootstrap_->GetControllerAgent()->GetJobTracker()->ProcessHeartbeat(context);
-        }
+    DECLARE_RPC_SERVICE_METHOD(NProto, SettleJob)
+    {
+        auto incarnationId = FromProto<NScheduler::TIncarnationId>(request->controller_agent_incarnation_id());
+        auto nodeId = request->node_id();
+        auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
+        auto operationId = FromProto<TOperationId>(request->operation_id());
+        auto allocationId = FromProto<TAllocationId>(request->allocation_id());
+        context->SetRequestInfo(
+            "NodeId: %v, NodeAddress: %v, KnownIncarnationId: %v, OperationId: %v, AllocationId: %v",
+            nodeId,
+            descriptor.GetDefaultAddress(),
+            incarnationId,
+            operationId,
+            allocationId);
+
+        Bootstrap_->GetControllerAgent()->GetJobTracker()->SettleJob(context);
     }
 };
 

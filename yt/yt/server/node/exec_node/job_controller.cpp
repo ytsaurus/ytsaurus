@@ -529,7 +529,7 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
-    TFuture<std::vector<TErrorOr<TJobStartInfo>>>
+    std::vector<TFuture<TJobStartInfo>>
     SettleJobs(
         const TControllerAgentDescriptor& controllerAgentDescriptor,
         std::vector<TAllocationStartInfo> allocationStartInfoProtos)
@@ -558,7 +558,7 @@ private:
             allocationInfos);
     }
 
-    TFuture<void> SettleAndStartJobs(std::vector<TAllocationStartInfo> allocationStartInfoProtos)
+    void SettleAndStartJobs(std::vector<TAllocationStartInfo> allocationStartInfoProtos)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -595,24 +595,37 @@ private:
             }
         }
 
-        std::vector<TFuture<void>> asyncResults;
         for (auto& [agentDescriptor, startInfoProtos] : groupedStartInfoProtos) {
-
-            auto jobInfosFuture = SettleJobs(
+            auto jobInfoFutures = SettleJobs(
                 agentDescriptor,
                 startInfoProtos);
 
-            auto asyncResult = jobInfosFuture.ApplyUnique(
-                BIND(
-                    &TJobController::OnJobStartInfosReceived,
-                    MakeStrong(this),
-                    Passed(std::move(startInfoProtos)),
-                    agentDescriptor)
-                .AsyncVia(Bootstrap_->GetJobInvoker()));
-            asyncResults.push_back(asyncResult);
-        }
+            YT_VERIFY(std::size(startInfoProtos) == std::size(jobInfoFutures));
 
-        return AllSet(asyncResults).As<void>();
+
+            for (int index = 0; index < std::ssize(startInfoProtos); ++index) {
+                auto& startInfoProto = startInfoProtos[index];
+
+                // TODO(pogorelov): Is it needed now?
+                startInfoProto.mutable_resource_limits()->set_vcpu(
+                    static_cast<double>(NVectorHdrf::TCpuResource(
+                        startInfoProto.resource_limits().cpu() * JobResourceManager_->GetCpuToVCpuFactor())));
+
+                auto operationId = FromProto<TOperationId>(startInfoProto.operation_id());
+                auto allocationId = FromProto<TAllocationId>(startInfoProto.allocation_id());
+
+                auto& jobInfoFuture = jobInfoFutures[index];
+                jobInfoFuture.SubscribeUnique(
+                    BIND(
+                        &TJobController::OnJobStartInfoReceived,
+                        MakeStrong(this),
+                        allocationId,
+                        operationId,
+                        startInfoProto.resource_limits(),
+                        agentDescriptor)
+                    .Via(Bootstrap_->GetJobInvoker()));
+            }
+        }
     }
 
     NClusterNode::TJobResources BuildJobResources(
@@ -626,6 +639,7 @@ private:
 
         resources.DiskSpaceRequest = Bootstrap_->GetConfig()->ExecNode->MinRequiredDiskSpace;
         if (userJobSpec) {
+            // COMPAT(ignat)
             if (userJobSpec->has_disk_space_limit()) {
                 resources.DiskSpaceRequest = userJobSpec->disk_space_limit();
             }
@@ -661,66 +675,46 @@ private:
         return resourceAttributes;
     }
 
-    void OnJobStartInfosReceived(
-        std::vector<TAllocationStartInfo> startInfoProtos,
+    void OnJobStartInfoReceived(
+        const TAllocationId& allocationId,
+        const TOperationId& operationId,
+        const TNodeResources& resourceLimits,
         const TControllerAgentDescriptor& controllerAgentDescriptor,
-        TErrorOr<std::vector<TErrorOr<TJobStartInfo>>>&& jobInfosOrError)
+        TErrorOr<TJobStartInfo>&& jobInfoOrError)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        YT_LOG_FATAL_IF(
-            !jobInfosOrError.IsOK(),
-            jobInfosOrError,
-            "Failed to request settle jobs (AgentDescriptor: %v)",
-            controllerAgentDescriptor);
+        YT_LOG_DEBUG("Starting settled job (AllocationId: %v, OperationId: %v)", allocationId, operationId);
 
-        auto& jobInfoOrErrors = jobInfosOrError.Value();
-
-        YT_VERIFY(std::size(startInfoProtos) == std::size(jobInfoOrErrors));
-
-        for (int index = 0; index < std::ssize(startInfoProtos); ++index) {
-            auto& startInfoProto = startInfoProtos[index];
-
-            auto operationId = FromProto<TOperationId>(startInfoProto.operation_id());
-            auto allocationId = FromProto<TAllocationId>(startInfoProto.allocation_id());
-
-            auto& jobInfoOrError = jobInfoOrErrors[index];
-
-            if (!jobInfoOrError.IsOK()) {
-                YT_LOG_DEBUG(
-                    jobInfoOrError,
-                    "No job is available for allocation (OperationId: %v, AllocationId: %v)",
-                    operationId,
-                    allocationId);
-
-                JobRegistrationFailed_.Fire(
-                    allocationId,
-                    operationId,
-                    controllerAgentDescriptor,
-                    jobInfoOrError);
-
-                continue;
-            }
-
-            auto& jobInfo = jobInfoOrError.Value();
-
-            startInfoProto.mutable_resource_limits()->set_vcpu(
-                static_cast<double>(NVectorHdrf::TCpuResource(
-                    startInfoProto.resource_limits().cpu() * JobResourceManager_->GetCpuToVCpuFactor())));
-
-            auto jobSpecExt = &jobInfo.JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-
-            auto resources = BuildJobResources(startInfoProto.resource_limits(), jobSpecExt);
-            auto resourceAttributes = BuildJobResourceAttributes(jobSpecExt);
-
-            CreateJob(
-                jobInfo.JobId,
+        if (!jobInfoOrError.IsOK()) {
+            YT_LOG_DEBUG(
+                jobInfoOrError,
+                "No job is available for allocation (OperationId: %v, AllocationId: %v)",
                 operationId,
-                resources,
-                resourceAttributes,
-                std::move(jobInfo.JobSpec),
-                controllerAgentDescriptor);
+                allocationId);
+
+            JobRegistrationFailed_.Fire(
+                allocationId,
+                operationId,
+                controllerAgentDescriptor,
+                jobInfoOrError);
+
+            return;
         }
+
+        auto& jobInfo = jobInfoOrError.Value();
+        auto* jobSpecExt = &jobInfo.JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+
+        auto resources = BuildJobResources(resourceLimits, jobSpecExt);
+        auto resourceAttributes = BuildJobResourceAttributes(jobSpecExt);
+
+        CreateJob(
+            jobInfo.JobId,
+            operationId,
+            resources,
+            resourceAttributes,
+            std::move(jobInfo.JobSpec),
+            controllerAgentDescriptor);
     }
 
     void OnDynamicConfigChanged(
@@ -903,8 +897,8 @@ private:
 
         const auto& agentDescriptor = context->ControllerAgentConnector->GetDescriptor();
 
-        request->set_node_id(Bootstrap_->GetNodeId());
-        ToProto(request->mutable_node_descriptor(), Bootstrap_->GetLocalDescriptor());
+        SetNodeInfoToRequest(Bootstrap_->GetExecNodeBootstrap(), request);
+
         ToProto(request->mutable_controller_agent_incarnation_id(), agentDescriptor.IncarnationId);
 
         auto* execNodeBootstrap = Bootstrap_->GetExecNodeBootstrap();
@@ -1286,8 +1280,8 @@ private:
 
         YT_LOG_DEBUG("Preparing scheduler heartbeat request");
 
-        request->set_node_id(Bootstrap_->GetNodeId());
-        ToProto(request->mutable_node_descriptor(), Bootstrap_->GetLocalDescriptor());
+        SetNodeInfoToRequest(Bootstrap_->GetExecNodeBootstrap(), request);
+
         *request->mutable_resource_limits() = ToNodeResources(JobResourceManager_->GetResourceLimits());
         *request->mutable_resource_usage() = ToNodeResources(JobResourceManager_->GetResourceUsage(/*includeWaiting*/ true));
 
@@ -1641,11 +1635,7 @@ private:
             resourceLimits.set_cpu(static_cast<double>(NVectorHdrf::TCpuResource(resourceLimits.cpu() / LastHeartbeatCpuToVCpuFactor_)));
         }
 
-        auto error = WaitFor(SettleAndStartJobs(std::move(allocationStartInfos)));
-        YT_LOG_DEBUG_UNLESS(
-            error.IsOK(),
-            error,
-            "Failed to request some job specs");
+        SettleAndStartJobs(std::move(allocationStartInfos));
     }
 
     void StartWaitingJobs()

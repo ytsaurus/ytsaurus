@@ -1828,6 +1828,21 @@ done
 ##################################################################
 
 
+class TestSchedulerMapCommandsWithJobSpecService(TestSchedulerMapCommands):
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "controller_agent_connector": {
+                    "use_job_tracker_service_to_settle_jobs": True,
+                },
+            },
+        },
+    }
+
+
+##################################################################
+
+
 class TestSchedulerMapCommandsPorto(TestSchedulerMapCommands):
     USE_PORTO = True
 

@@ -112,8 +112,11 @@ public:
             const TRspHeartbeatPtr& response,
             const TAgentHeartbeatContextPtr& context);
 
-        TFuture<std::vector<TErrorOr<TJobStartInfo>>>
-        SettleJobs(const std::vector<TAllocationInfo>& allocationInfos);
+        std::vector<TFuture<TJobStartInfo>>
+        SettleJobsViaJobSpecService(const std::vector<TAllocationInfo>& allocationInfos);
+
+        std::vector<TFuture<TJobStartInfo>>
+        SettleJobsViaJobTrackerService(const std::vector<TAllocationInfo>& allocationInfos);
 
         void OnJobRegistered(const TJobPtr& job);
 
@@ -136,7 +139,7 @@ public:
 
     void OnRegisteredAgentSetReceived(THashSet<TControllerAgentDescriptor> controllerAgentDescriptors);
 
-    TFuture<std::vector<TErrorOr<TControllerAgentConnector::TJobStartInfo>>>
+    std::vector<TFuture<TControllerAgentConnector::TJobStartInfo>>
     SettleJobs(
         const TControllerAgentDescriptor& agentDescriptor,
         const std::vector<TControllerAgentConnector::TAllocationInfo>& allocationInfos);
@@ -156,6 +159,7 @@ private:
 
     // COMPAT(pogorelov)
     bool SendWaitingJobs_ = false;
+    bool UseJobTrackerServiceToSettleJobs_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 

@@ -34,6 +34,11 @@ public:
         NProto::TRspHeartbeat>;
     using TCtxHeartbeatPtr = TIntrusivePtr<TCtxHeartbeat>;
 
+    using TCtxSettleJob = NRpc::TTypedServiceContext<
+        NProto::TReqSettleJob,
+        NProto::TRspSettleJob>;
+    using TCtxSettleJobPtr = TIntrusivePtr<TCtxSettleJob>;
+
     TJobTracker(TBootstrap* bootstrap, TJobReporterPtr jobReporter);
 
     TFuture<void> Initialize();
@@ -41,6 +46,7 @@ public:
     void Cleanup();
 
     void ProcessHeartbeat(const TCtxHeartbeatPtr& context);
+    void SettleJob(const TCtxSettleJobPtr& context);
 
     TJobTrackerOperationHandlerPtr RegisterOperation(
         TOperationId operationId,

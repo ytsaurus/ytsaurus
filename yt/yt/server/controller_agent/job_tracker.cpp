@@ -495,6 +495,11 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
 
     SwitchTo(GetCancelableInvokerOrThrow());
 
+    THROW_ERROR_EXCEPTION_IF(
+        !IncarnationId_,
+        NControllerAgent::EErrorCode::AgentDisconnected,
+        "Controller agent disconnected");
+
     if (incarnationId != IncarnationId_) {
         THROW_ERROR_EXCEPTION(
             NControllerAgent::EErrorCode::IncarnationMismatch,
@@ -774,6 +779,102 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
             jobId);
         ToProto(response->add_jobs_to_confirm(), TJobToConfirm{jobId});
     }
+
+    context->Reply();
+}
+
+void TJobTracker::SettleJob(const TJobTracker::TCtxSettleJobPtr& context)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto* request = &context->Request();
+    auto* response = &context->Response();
+
+    auto incarnationId = FromProto<TIncarnationId>(request->controller_agent_incarnation_id());
+    auto nodeDescriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
+
+    TNodeId nodeId = request->node_id();
+    auto allocationId = FromProto<TAllocationId>(request->allocation_id());
+    auto operationId = FromProto<TOperationId>(request->operation_id());
+
+    THROW_ERROR_EXCEPTION_IF(
+        !incarnationId,
+        NControllerAgent::EErrorCode::AgentDisconnected,
+        "Controller agent disconnected");
+
+    auto Logger = NControllerAgent::Logger.WithTag(
+        "NodeId: %v, NodeAddress: %v, OperationId: %v, AllocationId: %v",
+        nodeId,
+        nodeDescriptor.GetDefaultAddress(),
+        operationId,
+        allocationId);
+
+    SwitchTo(GetCancelableInvokerOrThrow());
+
+    THROW_ERROR_EXCEPTION_IF(
+        !IncarnationId_,
+        NControllerAgent::EErrorCode::AgentDisconnected,
+        "Controller agent disconnected");
+
+    if (incarnationId != IncarnationId_) {
+        THROW_ERROR_EXCEPTION(
+            NControllerAgent::EErrorCode::IncarnationMismatch,
+            "Controller agent incarnation mismatch: expected %v, got %v)",
+            IncarnationId_,
+            incarnationId);
+    }
+
+    auto operationIt = RegisteredOperations_.find(operationId);
+    if (operationIt == std::end(RegisteredOperations_)) {
+        YT_LOG_DEBUG("Operation is not registered in job tracker, do not settle job");
+
+        THROW_ERROR_EXCEPTION("No such operation %v", operationId);
+    }
+
+    const auto& operationInfo = operationIt->second;
+
+    auto operationController = operationInfo.OperationController.Lock();
+    if (!operationController) {
+        YT_LOG_DEBUG("Operation controller is already reset, do not settle job");
+
+        THROW_ERROR_EXCEPTION("Operation %v controller is already reset", operationId);
+    }
+
+    if (!operationInfo.JobsReady) {
+        YT_LOG_DEBUG("Operation jobs are not ready yet, do not settle job");
+
+        THROW_ERROR_EXCEPTION("Operation %v jobs are not ready yet", operationId);
+    }
+
+    auto asyncJobInfo = BIND(
+        &IOperationController::SettleJob,
+        operationController,
+        allocationId)
+        .AsyncVia(operationController->GetCancelableInvoker(EOperationControllerQueue::GetJobSpec))
+        .Run();
+
+    auto jobInfoOrError = WaitFor(asyncJobInfo);
+
+    if (!jobInfoOrError.IsOK() || !jobInfoOrError.Value().JobSpecBlob) {
+        auto error = !jobInfoOrError.IsOK()
+            ? static_cast<TError>(jobInfoOrError)
+            : TError("Controller returned empty job spec (has controller crashed?)");
+        YT_LOG_DEBUG(
+            error,
+            "Failed to extract job spec (OperationId: %v, AllocationId: %v)",
+            operationId,
+            allocationId);
+
+        ToProto(response->mutable_error(), error);
+
+        context->Reply();
+
+        return;
+    }
+
+    auto& jobInfo = jobInfoOrError.Value();
+    ToProto(response->mutable_job_info()->mutable_job_id(), jobInfo.JobId);
+    response->Attachments().push_back(std::move(jobInfo.JobSpecBlob));
 
     context->Reply();
 }

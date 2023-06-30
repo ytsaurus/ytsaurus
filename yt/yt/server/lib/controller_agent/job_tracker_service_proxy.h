@@ -17,6 +17,8 @@ public:
     DEFINE_RPC_PROXY(TJobTrackerServiceProxy, JobTrackerService);
 
     DEFINE_RPC_PROXY_METHOD(NProto, Heartbeat);
+
+    DEFINE_RPC_PROXY_METHOD(NProto, SettleJob);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

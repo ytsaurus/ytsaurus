@@ -98,8 +98,8 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::AddUnconfirmedJob
     UnconfirmedJobIds_ = std::move(unconfirmedJobIds);
 }
 
-TFuture<std::vector<TErrorOr<TControllerAgentConnectorPool::TControllerAgentConnector::TJobStartInfo>>>
-TControllerAgentConnectorPool::TControllerAgentConnector::SettleJobs(
+std::vector<TFuture<TControllerAgentConnectorPool::TControllerAgentConnector::TJobStartInfo>>
+TControllerAgentConnectorPool::TControllerAgentConnector::SettleJobsViaJobSpecService(
     const std::vector<TAllocationInfo>& allocationInfos)
 {
     VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker());
@@ -130,39 +130,41 @@ TControllerAgentConnectorPool::TControllerAgentConnector::SettleJobs(
         ControllerAgentDescriptor_,
         std::size(allocationInfos));
 
-    return settleJobRequest->Invoke().ApplyUnique(BIND([
-        this,
-        this_ = MakeStrong(this),
-        allocationCount = std::ssize(allocationInfos),
-        allocationInfos
-    ] (TErrorOr<TIntrusivePtr<TTypedClientResponse<TRspGetJobSpecs>>>&& rspOrError) {
-        std::vector<TErrorOr<TJobStartInfo>> result(allocationCount);
+    auto settleJobsFuture = settleJobRequest->Invoke();
 
-        if (!rspOrError.IsOK()) {
-            YT_LOG_DEBUG(
-                rspOrError,
-                "Error settle jobs (ControllerAgentDescriptor: %v)",
-                ControllerAgentDescriptor_);
+    std::vector<TFuture<TJobStartInfo>> result(std::size(allocationInfos));
 
-            for (auto& specOrError : result) {
-                specOrError = rspOrError.Wrap();
+    for (int index = 0; index < std::ssize(allocationInfos); ++index) {
+        result[index] = settleJobsFuture.Apply(BIND([
+            this,
+            this_ = MakeStrong(this),
+            allocationIndex = index,
+            allocationCount = std::ssize(allocationInfos),
+            allocationInfo = allocationInfos[index]
+        ] (const TErrorOr<TIntrusivePtr<TTypedClientResponse<TRspGetJobSpecs>>>& rspOrError) -> TJobStartInfo {
+            if (!rspOrError.IsOK()) {
+                YT_LOG_DEBUG(
+                    rspOrError,
+                    "Failed to settle job (ControllerAgentDescriptor: %v, AllocationId: %v, OperationId: %v)",
+                    ControllerAgentDescriptor_,
+                    allocationInfo.AllocationId,
+                    allocationInfo.OperationId);
+
+                THROW_ERROR rspOrError;
             }
 
-            return result;
-        }
+            const auto& rsp = rspOrError.Value();
 
-        const auto& rsp = rspOrError.Value();
+            YT_LOG_DEBUG(
+                "Settle job response received (ControllerAgentDescriptor: %v, AllocationId: %v, OperationId: %v)",
+                ControllerAgentDescriptor_,
+                allocationInfo.AllocationId,
+                allocationInfo.OperationId);
 
-        YT_LOG_DEBUG(
-            "Settle jobs response received (ControllerAgentDescriptor: %v)",
-            ControllerAgentDescriptor_);
+            YT_VERIFY(rsp->responses_size() == allocationCount);
+            YT_VERIFY(std::ssize(rsp->Attachments()) == allocationCount);
 
-        YT_VERIFY(rsp->responses_size() == allocationCount);
-        YT_VERIFY(std::ssize(rsp->Attachments()) == allocationCount);
-
-        for (int index = 0; index < allocationCount; ++index) {
-            const auto& subresponse = rsp->mutable_responses(index);
-            const auto& allocationInfo = allocationInfos[index];
+            const auto& subresponse = rsp->mutable_responses(allocationIndex);
             if (auto error = FromProto<TError>(subresponse->error()); !error.IsOK()) {
                 YT_LOG_DEBUG(
                     error,
@@ -171,25 +173,130 @@ TControllerAgentConnectorPool::TControllerAgentConnector::SettleJobs(
                     allocationInfo.OperationId,
                     allocationInfo.AllocationId);
 
-                result[index] = std::move(error);
-
-                continue;
+                THROW_ERROR error;
             }
 
             auto jobId = FromProto<TJobId>(subresponse->job_id());
 
             TJobSpec spec;
-            DeserializeProtoWithEnvelope(&spec, rsp->Attachments()[index]);
+            DeserializeProtoWithEnvelope(&spec, rsp->Attachments()[allocationIndex]);
 
-            result[index] = TJobStartInfo{
+            auto result = TJobStartInfo{
                 .JobId = jobId,
                 .JobSpec = std::move(spec),
             };
-        }
 
-        return result;
-    })
-    .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+            return result;
+        })
+        .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+    }
+
+    return result;
+}
+
+std::vector<TFuture<TControllerAgentConnectorPool::TControllerAgentConnector::TJobStartInfo>>
+TControllerAgentConnectorPool::TControllerAgentConnector::SettleJobsViaJobTrackerService(
+    const std::vector<TAllocationInfo>& allocationInfos)
+{
+    VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker());
+
+    TJobTrackerServiceProxy jobTrackerServiceProxy(Channel_);
+
+    auto settleJobsTimeout = ControllerAgentConnectorPool_->SettleJobsTimeout_;
+
+    jobTrackerServiceProxy.SetDefaultTimeout(settleJobsTimeout);
+
+    std::vector<TFuture<TJobStartInfo>> result(std::size(allocationInfos));
+
+    for (int index = 0; index < std::ssize(allocationInfos); ++index) {
+        const auto& allocationInfo = allocationInfos[index];
+
+        YT_LOG_DEBUG(
+            "Add settle job spec request (AgentDescriptor: %v, AllocationId: %v, OperationId: %v)",
+            ControllerAgentDescriptor_,
+            allocationInfo.AllocationId,
+            allocationInfo.OperationId);
+
+        EmplaceOrCrash(
+            AllocationIdsWaitingForSpec_,
+            allocationInfo.AllocationId,
+            allocationInfo.OperationId);
+
+        auto settleJobRequest = jobTrackerServiceProxy.SettleJob();
+
+        SetNodeInfoToRequest(ControllerAgentConnectorPool_->Bootstrap_, settleJobRequest);
+
+        ToProto(settleJobRequest->mutable_controller_agent_incarnation_id(), ControllerAgentDescriptor_.IncarnationId);
+
+        ToProto(settleJobRequest->mutable_allocation_id(), allocationInfo.AllocationId);
+        ToProto(settleJobRequest->mutable_operation_id(), allocationInfo.OperationId);
+
+        result[index] = settleJobRequest->Invoke().Apply(BIND([
+                this,
+                this_ = MakeStrong(this),
+                allocationInfo
+            ] (const TErrorOr<TIntrusivePtr<TTypedClientResponse<TRspSettleJob>>>& rspOrError) -> TJobStartInfo {
+                if (!rspOrError.IsOK()) {
+                    YT_LOG_DEBUG(
+                        rspOrError,
+                        "Failed to settle job (ControllerAgentDescriptor: %v, AllocationId: %v, OperationId: %v)",
+                        ControllerAgentDescriptor_,
+                        allocationInfo.AllocationId,
+                        allocationInfo.OperationId);
+
+                    THROW_ERROR rspOrError;
+                }
+
+                const auto& rsp = rspOrError.Value();
+
+                YT_LOG_DEBUG(
+                    "Settle job response received (ControllerAgentDescriptor: %v, AllocationId: %v, OperationId: %v)",
+                    ControllerAgentDescriptor_,
+                    allocationInfo.AllocationId,
+                    allocationInfo.OperationId);
+
+                switch (rsp->job_info_or_error_case()) {
+                    case TRspSettleJob::JobInfoOrErrorCase::kError: {
+                        auto error = FromProto<TError>(rsp->error());
+
+                        YT_LOG_DEBUG(
+                            error,
+                            "No job is available for allocation (ControllerAgentDescriptor: %v, OperationId: %v, AllocationId: %v)",
+                            ControllerAgentDescriptor_,
+                            allocationInfo.OperationId,
+                            allocationInfo.AllocationId);
+
+                        YT_VERIFY(!error.IsOK());
+
+                        THROW_ERROR std::move(error);
+                    }
+                    case TRspSettleJob::JobInfoOrErrorCase::kJobInfo: {
+                        auto jobId = FromProto<TJobId>(rsp->job_info().job_id());
+
+                        YT_VERIFY(std::size(rsp->Attachments()) == 1);
+
+                        TJobSpec spec;
+                        DeserializeProtoWithEnvelope(&spec, rsp->Attachments()[0]);
+
+                        return TJobStartInfo{
+                            .JobId = jobId,
+                            .JobSpec = std::move(spec),
+                        };
+                    }
+
+                    default:
+                        YT_LOG_FATAL(
+                            "Unexpected value in job_info_or_error (ControllerAgentDescriptor: %v, OperationId: %v, AllocationId: %v, Value: %v",
+                            ControllerAgentDescriptor_,
+                            allocationInfo.OperationId,
+                            allocationInfo.AllocationId,
+                            static_cast<int>(rsp->job_info_or_error_case()));
+                }
+            })
+            .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+    }
+
+    return result;
 }
 
 void TControllerAgentConnectorPool::TControllerAgentConnector::OnConfigUpdated()
@@ -496,9 +603,11 @@ void TControllerAgentConnectorPool::OnDynamicConfigChanged(
             if (newConfig->ControllerAgentConnector) {
                 TestHeartbeatDelay_ = newConfig->ControllerAgentConnector->TestHeartbeatDelay;
                 SendWaitingJobs_ = newConfig->ControllerAgentConnector->SendWaitingJobs;
+                UseJobTrackerServiceToSettleJobs_ = newConfig->ControllerAgentConnector->UseJobTrackerServiceToSettleJobs;
             } else {
                 TestHeartbeatDelay_ = TDuration::Zero();
                 SendWaitingJobs_ = false;
+                UseJobTrackerServiceToSettleJobs_ = false;
             }
             CurrentConfig_ = newCurrentConfig ? newCurrentConfig : StaticConfig_;
 
@@ -548,7 +657,7 @@ void TControllerAgentConnectorPool::OnRegisteredAgentSetReceived(
     }
 }
 
-TFuture<std::vector<TErrorOr<TControllerAgentConnectorPool::TControllerAgentConnector::TJobStartInfo>>>
+std::vector<TFuture<TControllerAgentConnectorPool::TControllerAgentConnector::TJobStartInfo>>
 TControllerAgentConnectorPool::SettleJobs(
     const TControllerAgentDescriptor& agentDescriptor,
     const std::vector<TControllerAgentConnector::TAllocationInfo>& allocationInfos)
@@ -557,7 +666,11 @@ TControllerAgentConnectorPool::SettleJobs(
 
     auto controllerAgentConnector = GetControllerAgentConnector(agentDescriptor);
 
-    return controllerAgentConnector->SettleJobs(allocationInfos);
+    if (UseJobTrackerServiceToSettleJobs_) {
+        return controllerAgentConnector->SettleJobsViaJobTrackerService(allocationInfos);
+    } else {
+        return controllerAgentConnector->SettleJobsViaJobSpecService(allocationInfos);
+    }
 }
 
 THashMap<TAllocationId, TOperationId> TControllerAgentConnectorPool::GetAllocationIdsWaitingForSpec() const

@@ -701,6 +701,7 @@ def get_dynamic_node_config():
 
             controller_agent_connector = {
                 send_waiting_jobs = %true;
+                use_job_tracker_service_to_settle_jobs = %true;
             };
         };
     };
