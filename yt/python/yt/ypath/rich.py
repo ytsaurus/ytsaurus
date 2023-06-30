@@ -171,6 +171,56 @@ class RichYPath(object):
         tokenizer.parse_next()
         attributes["ranges"] = ranges
 
+    def is_root_designator(self, symbol):
+        return symbol in b"/#"
+
+    def starts_with_root_designator(self, path):
+        non_space_index = len(path) - len(path.lstrip(b' '))
+        if non_space_index != len(path) and not self.is_root_designator(path[non_space_index]):
+            return False
+        return True
+
+    def is_valid_cluster_symbol(self, symbol):
+        if PY3:
+            return symbol in b"_-" or chr(symbol).isalnum()
+        return symbol in b"_-" or symbol.isalnum()
+
+    def parse_cluster(self, path, attributes):
+        if len(path) == 0:
+            return path
+        if self.starts_with_root_designator(path):
+            return path
+        if b'://' not in path and b':#' not in path:
+            return path
+        if b':' not in path:
+            raise YPathError(
+                "Path {0} does not start with a valid root-designator, cluster://path short-form assumed; "
+                "no \':\' separator symbol found to parse cluster".format(path))
+
+        cluster_separator_index = path.index(b':')
+        cluster_name = path[0:cluster_separator_index]
+
+        if len(cluster_name) == 0:
+            raise YPathError("Path {0} does not start with a valid root-designator, cluster://path short-form assumed; "
+                             "cluster name cannot be empty".format(path))
+
+        is_valid_symbol = list(map(self.is_valid_cluster_symbol, cluster_name))
+
+        if not all(is_valid_symbol):
+            raise YPathError("Path {0} does not start with a valid root-designator, cluster://path short-form assumed; "
+                             "cluster name contains illegal symbol {1}".format(path, is_valid_symbol.index(False)))
+
+        remaining_string = path[cluster_separator_index + 1:]
+
+        if not self.starts_with_root_designator(remaining_string):
+            raise YPathError("Path {0} does not start with a valid root-designator, cluster://path short-form assumed; "
+                             "path {1} after cluster-separator does not start with a valid root-designator".format(path, remaining_string))
+
+        if PY3:
+            cluster_name = cluster_name.decode()
+        attributes["cluster"] = cluster_name
+        return remaining_string
+
     def parse(self, path):
         attributes = {}
         if PY3:
@@ -181,6 +231,7 @@ class RichYPath(object):
             path = bytes(path, "utf-8")
 
         str_without_attributes = self.parse_attributes(path, attributes)
+        str_without_attributes = self.parse_cluster(str_without_attributes, attributes)
 
         ypath_tokenizer = YPathTokenizer(str_without_attributes)
 

@@ -214,3 +214,66 @@ class TestParseYpath(object):
         for ypath, in _load_bad_paths():
             with pytest.raises((YtError, TypeError, YsonError, YPathError)):
                 YPath(ypath)
+
+    @authors("cherepashka")
+    def test_short_cluster(self):
+        def YsonStringWrapper(string):
+            return YsonString(string.encode())
+
+        for str_type in (str, YsonUnicode, YsonStringWrapper):
+            path = YPath(str_type("some://my/path"))
+            assert path.attributes["cluster"] == "some"
+            assert str(path) == "//my/path"
+
+            path = YPath(str_type("some://my/path/to/file.txt"))
+            assert path.attributes["cluster"] == "some"
+            assert str(path) == "//my/path/to/file.txt"
+
+            path = YPath(str_type("some://my/path/@attr"))
+            assert path.attributes["cluster"] == "some"
+            assert str(path) == "//my/path/@attr"
+
+            path = YPath(str_type("<> some://my/path"))
+            assert path.attributes["cluster"] == "some"
+            assert str(path) == "//my/path"
+
+            path = YPath(str_type("<attr=10>some://my/path"))
+            assert path.attributes["cluster"] == "some"
+            assert path.attributes["attr"] == 10
+            assert str(path) == "//my/path"
+
+            path = YPath(str_type("<cluster=first_cluster> second_cluster://my/path"))
+            assert path.attributes["cluster"] == "second_cluster"
+            assert str(path) == "//my/path"
+
+            path = YPath(str_type("mycluster:#my/path"))
+            assert path.attributes["cluster"] == "mycluster"
+            assert str(path) == "#my/path"
+
+            path = YPath(str_type("long-cluster-name_with_underscores://home/long-table-name"))
+            assert str(path) == "//home/long-table-name"
+            assert path.attributes["cluster"] == "long-cluster-name_with_underscores"
+
+            path = YPath(str_type("//path:with:colons/my:table"))
+            assert str(path) == "//path:with:colons/my:table"
+            assert "cluster" not in path.attributes.keys()
+
+            path = YPath(str_type("//path-with-dashes/my-table"))
+            assert str(path) == "//path-with-dashes/my-table"
+            assert "cluster" not in path.attributes.keys()
+
+            path = YPath("replica://primary://tmp/queue")
+            assert path.attributes["cluster"] == "replica"
+            assert str(path) == "//primary://tmp/queue"
+
+            with pytest.raises(YPathError, match=r'cluster name contains illegal symbol'):
+                path = YPath(str_type("bad+cluster!name://home/mytable"))
+
+            with pytest.raises(YPathError, match=r'cluster name cannot be empty'):
+                path = YPath(str_type("://home/mytable"))
+
+            with pytest.raises(YPathError, match=r'does not start with a valid root-designator'):
+                path = YPath(str_type("localhost:1234://queue"))
+
+            with pytest.raises(YtError, match=r'should be absolute or you should specify a prefix'):
+                path = YPath(str_type("mycluster:"))

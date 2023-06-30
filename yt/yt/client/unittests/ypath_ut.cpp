@@ -437,6 +437,12 @@ TEST_F(TYPathTest, Cluster)
     }
 
     {
+        auto path = TRichYPath::Parse("<cluster=first_cluster> second_cluster://home/mytable");
+        EXPECT_EQ("//home/mytable", path.GetPath());
+        EXPECT_EQ("second_cluster", path.GetCluster());
+    }
+
+    {
         auto path = TRichYPath::Parse(" <> mycluster://home/mytable");
         EXPECT_EQ("//home/mytable", path.GetPath());
         EXPECT_EQ("mycluster", path.GetCluster());
