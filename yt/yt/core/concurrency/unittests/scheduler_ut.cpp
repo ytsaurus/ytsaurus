@@ -1427,12 +1427,14 @@ TEST_P(TFairShareSchedulerTest, TwoLevelFairness)
     for (size_t id = 0; id < numWorkers; ++id) {
         auto invoker = threadPool->GetInvoker(Format("pool%v", id % numPools), Format("worker%v", id));
         auto worker = [&, id] () mutable {
-            auto poolId = id % numPools;
+            auto startInstant = GetCpuInstant();
 
+            auto poolId = id % numPools;
             auto initialShift = getShift(id);
+
+            Sleep(initialShift);
+
             {
-                auto startInstant = GetCpuInstant();
-                Sleep(initialShift);
                 auto guard = Guard(lock);
                 auto elapsedTime = CpuDurationToDuration(GetCpuInstant() - startInstant);
                 pools[poolId] += elapsedTime;
@@ -1442,7 +1444,8 @@ TEST_P(TFairShareSchedulerTest, TwoLevelFairness)
             Yield();
 
             while (progresses[id] < work + initialShift) {
-                NProfiling::TWallTimer timer;
+                auto startInstant = GetCpuInstant();
+
                 {
                     auto guard = Guard(lock);
 
@@ -1460,47 +1463,25 @@ TEST_P(TFairShareSchedulerTest, TwoLevelFairness)
                             }
                         }
 
-                        if (pools[poolId].MilliSeconds() != minPool.MilliSeconds()) {
-                            YT_LOG_ERROR("Pools time: [%v]",
-                                MakeFormattableView(
-                                    pools,
-                                    [&] (auto* builder, const auto& pool) {
-                                        builder->AppendFormat("%v", pool.MilliSeconds());
-                                    }));
-                        }
+                        YT_LOG_DEBUG("Pools time: %v", pools);
+                        YT_LOG_DEBUG("Progresses time: %v", progresses);
 
                         EXPECT_EQ(pools[poolId].MilliSeconds(), minPool.MilliSeconds());
 
-                        auto min = TDuration::Max();
+                        auto minProcess = TDuration::Max();
                         for (size_t index = poolId; index < numWorkers; index += numPools) {
-                            if (progresses[index] < min && progresses[index] < work + getShift(index)) {
-                                min = progresses[index];
+                            if (progresses[index] < minProcess && progresses[index] < work + getShift(index)) {
+                                minProcess = progresses[index];
                             }
                         }
 
-                        if (progresses[id].MilliSeconds() != min.MilliSeconds()) {
-                            YT_LOG_ERROR("Pools time: [%v]",
-                                MakeFormattableView(
-                                    pools,
-                                    [&] (auto* builder, const auto& pool) {
-                                        builder->AppendFormat("%v", pool.MilliSeconds());
-                                    }));
-
-                            YT_LOG_ERROR("Progresses time: [%v]",
-                                MakeFormattableView(
-                                    progresses,
-                                    [&] (auto* builder, const auto& progress) {
-                                        builder->AppendFormat("%v", progress.MilliSeconds());
-                                    }));
-                        }
-
-                        EXPECT_EQ(progresses[id].MilliSeconds(), min.MilliSeconds());
+                        EXPECT_EQ(progresses[id].MilliSeconds(), minProcess.MilliSeconds());
                     }
                 }
 
+                Sleep(SleepQuantum * (id + numWorkers) / numWorkers);
+
                 {
-                    auto startInstant = GetCpuInstant();
-                    Sleep(SleepQuantum * (id + numWorkers) / numWorkers);
                     auto guard = Guard(lock);
                     auto elapsedTime = CpuDurationToDuration(GetCpuInstant() - startInstant);
                     pools[poolId] += elapsedTime;
@@ -1560,10 +1541,13 @@ TEST_P(TFairShareSchedulerTest, Fairness)
     for (size_t id = 0; id < numWorkers; ++id) {
         auto invoker = threadPool->GetInvoker(Format("worker%v", id));
         auto worker = [&, id] () mutable {
+            auto startInstant = GetCpuInstant();
+
             auto initialShift = getShift(id);
+
+            Sleep(initialShift);
+
             {
-                auto startInstant = GetCpuInstant();
-                Sleep(initialShift);
                 auto guard = Guard(lock);
                 auto elapsedTime = CpuDurationToDuration(GetCpuInstant() - startInstant);
                 progresses[id] += elapsedTime;
@@ -1572,33 +1556,28 @@ TEST_P(TFairShareSchedulerTest, Fairness)
             Yield();
 
             while (progresses[id] < work + initialShift) {
+                auto startInstant = GetCpuInstant();
+
                 {
                     auto guard = Guard(lock);
 
                     if (numThreads == 1) {
-                        auto min = TDuration::Max();
+                        YT_LOG_DEBUG("Progresses time: %v", progresses);
+
+                        auto minProcess = TDuration::Max();
                         for (size_t id = 0; id < numWorkers; ++id) {
-                            if (progresses[id] < min && progresses[id] < work + getShift(id)) {
-                                min = progresses[id];
+                            if (progresses[id] < minProcess && progresses[id] < work + getShift(id)) {
+                                minProcess = progresses[id];
                             }
                         }
 
-                        if (progresses[id].MilliSeconds() != min.MilliSeconds()) {
-                            YT_LOG_ERROR("Progresses time: [%v]",
-                                MakeFormattableView(
-                                    progresses,
-                                    [&] (TStringBuilderBase* builder, const auto& progress) {
-                                        builder->AppendFormat("%v", progress.MilliSeconds());
-                                    }));
-                        }
-
-                        EXPECT_EQ(progresses[id].MilliSeconds(), min.MilliSeconds());
+                        EXPECT_EQ(progresses[id].MilliSeconds(), minProcess.MilliSeconds());
                     }
                 }
 
+                Sleep(SleepQuantum * (id + numWorkers) / numWorkers);
+
                 {
-                    auto startInstant = GetCpuInstant();
-                    Sleep(SleepQuantum * (id + numWorkers) / numWorkers);
                     auto guard = Guard(lock);
                     auto elapsedTime = CpuDurationToDuration(GetCpuInstant() - startInstant);
                     progresses[id] += elapsedTime;
