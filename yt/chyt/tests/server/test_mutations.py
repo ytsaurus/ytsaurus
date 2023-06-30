@@ -607,7 +607,9 @@ class TestMutations(ClickHouseTestBase):
             clique.make_query(join_query, settings=get_settings('none'))
             check_output_table(expected_rows, 1)
 
-            clique.make_query(join_query, settings=get_settings('complete'))
+            settings = get_settings('complete')
+            settings["chyt.execution.distribute_only_global_and_sorted_join"] = 0
+            clique.make_query(join_query, settings=settings)
             check_output_table(expected_rows, 2)
 
             # Order by.

@@ -126,6 +126,8 @@ public:
     EJoinPolicy JoinPolicy;
     ESelectPolicy SelectPolicy;
 
+    bool DistributeOnlyGlobalAndSortedJoin;
+
     //! Seed for choosing instances to distribute queries deterministically.
     size_t DistributionSeed;
 

@@ -271,7 +271,21 @@ TQueryAnalyzer::TQueryAnalyzer(
     , StorageContext_(storageContext)
     , QueryInfo_(queryInfo)
     , Logger(logger)
-{ }
+{
+    ParseQuery();
+
+    const auto& settings = StorageContext_->Settings;
+
+    bool needSortedPool = (TwoYTTableJoin_ && !CrossJoin_) || RightOrFullJoin_;
+    bool filterJoinedTableBySortedKey = settings->Execution->FilterJoinedSubqueryBySortKey && Join_ && !CrossJoin_;
+
+    if (needSortedPool || filterJoinedTableBySortedKey) {
+        InferSortedJoinKeyColumns(needSortedPool);
+    }
+    if (settings->Execution->OptimizeQueryProcessingStage) {
+        OptimizeQueryProcessingStage();
+    }
+}
 
 void TQueryAnalyzer::InferSortedJoinKeyColumns(bool needSortedPool)
 {
@@ -562,29 +576,19 @@ void TQueryAnalyzer::ParseQuery()
         CrossJoin_);
 }
 
-void TQueryAnalyzer::DoAnalyze()
-{
-    ParseQuery();
-
-    const auto& settings = StorageContext_->Settings;
-
-    bool needSortedPool = (TwoYTTableJoin_ && !CrossJoin_) || RightOrFullJoin_;
-    bool filterJoinedTableBySortedKey = settings->Execution->FilterJoinedSubqueryBySortKey && Join_ && !CrossJoin_;
-
-    if (needSortedPool || filterJoinedTableBySortedKey) {
-        InferSortedJoinKeyColumns(needSortedPool);
-    }
-    if (settings->Execution->OptimizeQueryProcessingStage) {
-        OptimizeQueryProcessingStage();
-    }
-}
-
-DB::QueryProcessingStage::Enum TQueryAnalyzer::GetOptimizedQueryProcessingStage()
+DB::QueryProcessingStage::Enum TQueryAnalyzer::GetOptimizedQueryProcessingStage() const
 {
     if (!OptimizedQueryProcessingStage_) {
         const auto& settings = StorageContext_->Settings;
-        YT_VERIFY(settings->Execution->OptimizeQueryProcessingStage);
-        DoAnalyze();
+        if (!settings->Execution->OptimizeQueryProcessingStage) {
+            THROW_ERROR_EXCEPTION(
+                "setting chyt.execution.optimize_query_processing_stage is not set "
+                "but we're trying to optimize stage; "
+                "this is a bug; please, file an issue in CHYT queue");
+        }
+        THROW_ERROR_EXCEPTION(
+            "Unexpected call to get optimized query processing stage; "
+            "this is a bug; please, file an issue in CHYT queue");
     }
     return *OptimizedQueryProcessingStage_;
 }
@@ -681,10 +685,8 @@ void TQueryAnalyzer::OptimizeQueryProcessingStage()
     OptimizedQueryProcessingStage_ = DB::QueryProcessingStage::Complete;
 }
 
-TQueryAnalysisResult TQueryAnalyzer::Analyze()
+TQueryAnalysisResult TQueryAnalyzer::Analyze() const
 {
-    DoAnalyze();
-
     const auto& settings = StorageContext_->Settings;
 
     TQueryAnalysisResult result;
@@ -995,6 +997,16 @@ void TQueryAnalyzer::ReplaceTableExpressions(std::vector<DB::ASTPtr> newTableExp
         YT_VERIFY(newTableExpressions[index]);
         ApplyModification(TableExpressionPtrs_[index], newTableExpressions[index]);
     }
+}
+
+bool TQueryAnalyzer::HasJoinWithTwoTables() const
+{
+    return TwoYTTableJoin_;
+}
+
+bool TQueryAnalyzer::HasGlobalJoin() const
+{
+    return GlobalJoin_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

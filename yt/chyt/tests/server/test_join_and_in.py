@@ -511,6 +511,7 @@ class TestJoinAndIn(ClickHouseTestBase):
                 "chyt.execution.filter_joined_subquery_by_sort_key": 0,
                 # This optimization is required to propagate where condition from subquery to table.
                 "enable_optimize_predicate_expression": 1,
+                "chyt.execution.distribute_only_global_and_sorted_join": 0,
             }
 
             query = 'select * from "//tmp/t1" as a join "//tmp/t2" as b using key order by key'
@@ -692,3 +693,30 @@ class TestJoinAndIn(ClickHouseTestBase):
 
             assert clique.make_query(query.format("right")) == expected_right
             assert clique.make_query(query.format("full")) == expected_full
+
+    @authors("gudqeit")
+    def test_join_and_missing_with_statement(self):
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "schema": [
+                    {"name": "a", "type": "int64", "sort_order": "ascending"},
+                ]
+            },
+        )
+        rows = [{"a": 2}]
+        write_table("//tmp/t", rows)
+
+        with Clique(1) as clique:
+            query = '''with b as (select * from "//tmp/t"),
+                       c as (select * from "//tmp/t")
+                       select * from "//tmp/t" as a
+                       left join b as b
+                       on a.a = b.a
+                       left join c as c
+                       on a.a = c.a'''
+            settings = {
+                "chyt.execution.distribute_only_global_and_sorted_join": 1,
+            }
+            assert clique.make_query(query, settings=settings) == [{"a.a": 2, "b.a": 2, "c.a": 2}]

@@ -49,9 +49,12 @@ public:
         int subqueryIndex,
         bool isLastSubquery);
 
-    DB::QueryProcessingStage::Enum GetOptimizedQueryProcessingStage();
+    DB::QueryProcessingStage::Enum GetOptimizedQueryProcessingStage() const;
 
-    TQueryAnalysisResult Analyze();
+    TQueryAnalysisResult Analyze() const;
+
+    bool HasJoinWithTwoTables() const;
+    bool HasGlobalJoin() const;
 
 private:
     const TStorageContext* StorageContext_;
@@ -83,7 +86,6 @@ private:
 
     std::vector<std::pair<DB::ASTPtr*, DB::ASTPtr>> Modifications_;
 
-    void DoAnalyze();
     void ParseQuery();
     // Infer longest possible key prefix used in ON/USING clauses.
     // Throws an error if sorted pool is required, but key prefix is empty.

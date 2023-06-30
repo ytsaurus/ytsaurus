@@ -941,8 +941,15 @@ public:
 
             if (!distributeJoin) {
                 // We will only do first query stage (reading columns).
-                // Join/Group by and so on will be mady by ClickHouse itself.
+                // Join/Group by and so on will be made by ClickHouse itself.
                 return DB::QueryProcessingStage::FetchColumns;
+            }
+
+            if (queryContext->Settings->Execution->DistributeOnlyGlobalAndSortedJoin) {
+                TQueryAnalyzer analyzer(context, storageContext, queryInfo, Logger);
+                if (!analyzer.HasJoinWithTwoTables() && !analyzer.HasGlobalJoin()) {
+                    return DB::QueryProcessingStage::FetchColumns;
+                }
             }
         }
 

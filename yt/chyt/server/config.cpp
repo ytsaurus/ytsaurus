@@ -95,6 +95,9 @@ void TExecutionSettings::Register(TRegistrar registrar)
     registrar.Parameter("select_policy", &TThis::SelectPolicy)
         .Default(ESelectPolicy::DistributeInitial);
 
+    registrar.Parameter("distribute_only_global_and_sorted_join", &TThis::DistributeOnlyGlobalAndSortedJoin)
+        .Default(true);
+
     registrar.Parameter("distribution_seed", &TThis::DistributionSeed)
         .Default(42);
 

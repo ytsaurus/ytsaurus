@@ -56,8 +56,8 @@ def get_distributed_query_count(expected_structure):
     return result
 
 
-def validate_query_statistics(clique, query, expected_structure):
-    initial_query_id = clique.make_query(query, full_response=True).headers["X-ClickHouse-Query-Id"]
+def validate_query_statistics(clique, query, settings=None, expected_structure=[]):
+    initial_query_id = clique.make_query(query, settings=settings, full_response=True).headers["X-ClickHouse-Query-Id"]
 
     def get_query_rows(table):
         return select_rows('* from [{}] where initial_query_id = "{}"'.format(table, initial_query_id))
@@ -263,7 +263,8 @@ class TestStatistisTables(ClickHouseTestBase):
             ])
 
             query = 'select a from "//tmp/t0" as a join (select * from "//tmp/t1") as b using a'
-            validate_query_statistics(clique, query, expected_structure=[
+            settings = {"chyt.execution.distribute_only_global_and_sorted_join": 0}
+            validate_query_statistics(clique, query, settings, expected_structure=[
                 ("^SELECT a FROM `//tmp/t0` AS a ALL INNER JOIN \\(SELECT \\* FROM `//tmp/t1`\\) AS b USING \\(a\\)$", [
                     ("^SELECT a FROM `//tmp/t1`$", []),
                 ]),

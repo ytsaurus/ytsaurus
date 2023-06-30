@@ -55,7 +55,7 @@ DEFAULTS = {
     "max_instance_count": 100,
 }
 
-QUERY_TYPES_WITH_OUTPUT = ("describe", "select", "show", "exists", "explain")
+QUERY_TYPES_WITH_OUTPUT = ("describe", "select", "show", "exists", "explain", "with")
 
 UserJobFailed = 1205
 QueryFailedError = 2200
