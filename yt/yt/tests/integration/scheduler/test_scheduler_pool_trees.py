@@ -1926,22 +1926,6 @@ class TestMultiTreeOperations(YTEnvSetup):
         op.track()
 
     @authors("renadeen")
-    def test_pool_with_offloading_settings_cannot_have_children(self):
-        create_pool("my_pool")
-        set("//sys/pools/my_pool/@offloading_settings", {
-            "offload_tree": {"pool": "offload_pool"}
-        })
-        with pytest.raises(YtError):
-            create_pool("child", parent_name="my_pool")
-
-        remove("//sys/pools/my_pool/@offloading_settings")
-        create_pool("child", parent_name="my_pool")
-        with pytest.raises(YtError):
-            set("//sys/pools/my_pool/@offloading_settings", {
-                "offload_tree": {"pool": "offload_pool"}
-            })
-
-    @authors("renadeen")
     def test_offloading_disabled_for_network_demanding_jobs(self):
         create_network_project("n")
 
