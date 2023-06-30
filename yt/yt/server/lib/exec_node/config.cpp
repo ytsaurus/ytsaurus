@@ -213,6 +213,8 @@ void TControllerAgentConnectorDynamicConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("send_waiting_jobs", &TThis::SendWaitingJobs)
         .Default(false);
+    registrar.Parameter("total_confirmation_period", &TThis::TotalConfirmationPeriod)
+        .Default(TDuration::Minutes(10));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

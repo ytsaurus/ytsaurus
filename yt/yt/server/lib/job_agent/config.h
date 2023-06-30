@@ -193,8 +193,6 @@ class TJobControllerDynamicConfig
 {
 public:
     std::optional<TDuration> GetJobSpecsTimeout;
-    std::optional<TDuration> TotalConfirmationPeriod;
-
     std::optional<TDuration> CpuOverdraftTimeout;
     std::optional<double> CpuToVCpuFactor;
     bool EnableCpuToVCpuFactor;
@@ -240,7 +238,6 @@ public:
     TResourceLimitsConfigPtr ResourceLimits;
     TDuration WaitingJobsTimeout;
     TDuration GetJobSpecsTimeout;
-    TDuration TotalConfirmationPeriod;
 
     TDuration CpuOverdraftTimeout;
     TDuration MemoryOverdraftTimeout;

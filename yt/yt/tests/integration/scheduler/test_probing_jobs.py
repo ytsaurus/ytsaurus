@@ -166,14 +166,6 @@ class TestProbingJobs(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "job_controller": {
-                "total_confirmation_period": 5000,
-            }
-        }
-    }
-
     @authors("renadeen")
     def test_simple_probing(self):
         create_custom_pool_tree_with_one_node("cloud_tree")

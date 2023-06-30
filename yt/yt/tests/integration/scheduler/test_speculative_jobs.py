@@ -39,14 +39,6 @@ class TestSpeculativeJobEngine(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "job_controller": {
-                "total_confirmation_period": 5000,
-            }
-        }
-    }
-
     @authors("renadeen")
     def test_both_jobs_ends_simultaneously(self):
         op = self.run_vanilla_with_one_regular_and_one_speculative_job()

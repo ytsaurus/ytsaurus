@@ -291,6 +291,7 @@ public:
     NConcurrency::TThroughputThrottlerConfigPtr StatisticsThrottler;
     std::optional<TDuration> RunningJobStatisticsSendingBackoff;
     bool SendWaitingJobs;
+    TDuration TotalConfirmationPeriod;
 
     REGISTER_YSON_STRUCT(TControllerAgentConnectorDynamicConfig);
 

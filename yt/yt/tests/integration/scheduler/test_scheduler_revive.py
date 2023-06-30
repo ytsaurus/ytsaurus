@@ -69,8 +69,6 @@ class TestSchedulerRandomMasterDisconnections(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = {"exec_agent": {"job_controller": {"total_confirmation_period": 5000}}}
-
     OP_COUNT = 8
 
     def _create_table(self, table):
@@ -214,8 +212,6 @@ class TestSchedulerRestart(YTEnvSetup):
             "snapshot_period": 3000,
         }
     }
-
-    DELTA_NODE_CONFIG = {"exec_agent": {"job_controller": {"total_confirmation_period": 5000}}}
 
     @authors("ignat")
     def test_live_preview(self):
@@ -1169,7 +1165,6 @@ class TestJobRevival(TestJobRevivalBase):
         "exec_agent": {
             "job_controller": {
                 "resource_limits": {"user_slots": 5, "cpu": 5},
-                "total_confirmation_period": 5000,
             }
         }
     }

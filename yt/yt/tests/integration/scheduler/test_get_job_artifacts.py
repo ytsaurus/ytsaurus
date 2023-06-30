@@ -83,10 +83,6 @@ class TestGetJobInput(YTEnvSetup):
                 "min_repeat_delay": 10,
                 "max_repeat_delay": 10,
             },
-            "job_controller": {
-                # Force total confirmation happen on every heartbeat
-                "total_confirmation_period": 0
-            },
         },
     }
 
