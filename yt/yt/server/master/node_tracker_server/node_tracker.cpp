@@ -1397,7 +1397,6 @@ private:
         RackMap_.SaveValues(context);
         DataCenterMap_.SaveValues(context);
         HostMap_.SaveValues(context);
-        Save(context, NodesWithFlavor_);
     }
 
     void LoadKeys(NCellMaster::TLoadContext& context)
