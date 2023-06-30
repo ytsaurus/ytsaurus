@@ -108,12 +108,6 @@ void TSchedulerPool::ValidateChildrenCompatibility()
         THROW_ERROR_EXCEPTION("Pool cannot have subpools since it is in FIFO mode")
             << TErrorAttribute("pool_name", GetName());
     }
-
-    if (!KeyToChild().empty() && !FullConfig_->OffloadingSettings.empty()) {
-        THROW_ERROR_EXCEPTION("Pool with non-empty offloading settings cannot have subpools")
-            << TErrorAttribute("pool_name", GetName())
-            << TErrorAttribute("offloading_settings", ConvertToYsonString(FullConfig_->OffloadingSettings, EYsonFormat::Text));
-    }
 }
 
 void TSchedulerPool::ValidateStrongGuarantees(const TFairShareStrategyTreeConfigPtr& poolTreeConfig) const
