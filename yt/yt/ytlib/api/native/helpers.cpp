@@ -47,14 +47,14 @@ void SetupClusterConnectionDynamicConfigUpdate(
     }
 
     YT_LOG_INFO(
-        "Setting up cluster connection dynamic config update (Policy: %Qlv, Cluster: %Qv)",
+        "Setting up cluster connection dynamic config update (Policy: %v, Cluster: %v)",
         policy,
         connection->GetClusterName());
 
     connection->GetClusterDirectory()->SubscribeOnClusterUpdated(BIND([=] (const TString& clusterName, const INodePtr& configNode) {
         if (clusterName != connection->GetClusterName()) {
             YT_LOG_DEBUG(
-                "Skipping cluster directory update for unrelated cluster (UpdatedCluster: %Qv)",
+                "Skipping cluster directory update for unrelated cluster (UpdatedCluster: %v)",
                 clusterName);
             return;
         }
@@ -62,13 +62,13 @@ void SetupClusterConnectionDynamicConfigUpdate(
         auto dynamicConfigNode = configNode;
 
         YT_LOG_DEBUG(
-            "Applying cluster connection update from cluster directory (DynamicConfig: %Qv)",
+            "Applying cluster connection update from cluster directory (DynamicConfig: %v)",
             ConvertToYsonString(dynamicConfigNode, EYsonFormat::Text).ToString());
 
         if (policy == EClusterConnectionDynamicConfigPolicy::FromClusterDirectoryWithStaticPatch) {
             dynamicConfigNode = PatchNode(dynamicConfigNode, staticClusterConnectionNode);
             YT_LOG_DEBUG(
-                "Patching cluster connection dynamic config with static config (DynamicConfig: %Qv)",
+                "Patching cluster connection dynamic config with static config (DynamicConfig: %v)",
                 ConvertToYsonString(dynamicConfigNode, EYsonFormat::Text).ToString());
         }
 

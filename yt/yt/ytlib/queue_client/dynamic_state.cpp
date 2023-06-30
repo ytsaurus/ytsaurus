@@ -86,7 +86,7 @@ TFuture<std::vector<TRow>> TTableBase<TRow>::Select(TStringBuf columns, TStringB
     TString query = Format("%v from [%v] where %v", columns, Path_, where);
 
     YT_LOG_DEBUG(
-        "Invoking select query (Query: %Qv)",
+        "Invoking select query (Query: %v)",
         query);
 
     return Client_->SelectRows(query)

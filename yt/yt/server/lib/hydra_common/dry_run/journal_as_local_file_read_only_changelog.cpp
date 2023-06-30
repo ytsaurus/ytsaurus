@@ -29,7 +29,7 @@ void TJournalAsLocalFileReadOnlyChangelog::Open(const TString& path)
             auto valueType = (*cursor)->GetType();
             if (valueType != EYsonItemType::StringValue) {
                 THROW_ERROR_EXCEPTION(
-                    "Unexpected value type: %Qv, expected: %Qv",
+                    "Unexpected value type: actual %Qlv, expected %Qlv",
                     valueType,
                     EYsonItemType::StringValue);
             }

@@ -1010,7 +1010,7 @@ public:
 
         if (!Consumers_.insert(node).second) {
             YT_LOG_ALERT(
-                "Attempting to register a consumer twice (Node: %v, Path: %Qv)",
+                "Attempting to register a consumer twice (Node: %v, Path: %v)",
                 node->GetId(),
                 Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
         }
@@ -1023,7 +1023,7 @@ public:
 
         if (!Consumers_.erase(node)) {
             YT_LOG_ALERT(
-                "Attempting to unregister an unknown consumer (Node: %v, Path: %Qv)",
+                "Attempting to unregister an unknown consumer (Node: %v, Path: %v)",
                 node->GetId(),
                 Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
         }

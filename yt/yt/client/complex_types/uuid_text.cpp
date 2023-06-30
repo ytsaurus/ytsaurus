@@ -26,7 +26,7 @@ void TextYqlUuidToBytes(TStringBuf uuid, char* ptr)
     // Opposite to TextYqlUuidFromBytes(). Check that function first.
     if (uuid.size() != UuidYqlTextSize) {
         THROW_ERROR_EXCEPTION(
-            "Invalid text yql UUID length: got %v, expected: %v",
+            "Invalid text YQL UUID length: got %v, expected: %v",
             uuid.size(),
             UuidYqlTextSize);
     }
@@ -39,7 +39,9 @@ void TextYqlUuidToBytes(TStringBuf uuid, char* ptr)
     };
     auto verifyDash = [] (const char* ptr) {
         if (*ptr != '-') {
-            THROW_ERROR_EXCEPTION("Unexpected character: %Qv, expected: %Qv", *ptr, '-');
+            THROW_ERROR_EXCEPTION("Unexpected character: actual %Qv, expected %Qv",
+                *ptr,
+                '-');
         }
     };
 

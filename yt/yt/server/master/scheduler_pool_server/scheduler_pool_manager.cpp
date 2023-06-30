@@ -278,7 +278,7 @@ public:
         YT_VERIFY(dstPool);
 
         YT_LOG_DEBUG(
-            "Transferring pool resources (SrcPool: %Qv, DstPool: %Qv, ResourceDelta: %v)",
+            "Transferring pool resources (SrcPool: %v, DstPool: %v, ResourceDelta: %v)",
             srcPool->GetName(),
             dstPool->GetName(),
             ConvertToYsonString(resourceDelta, EYsonFormat::Text));

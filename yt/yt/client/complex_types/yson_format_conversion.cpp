@@ -166,7 +166,7 @@ void CheckValueType(EValueType actualType, EValueType expectedType)
 {
     if (actualType != expectedType) {
         THROW_ERROR_EXCEPTION(
-            "Unexpected value type: %Qv, expected: %Qv",
+            "Unexpected value type: actual %Qlv, expected %Qlv",
             actualType,
             expectedType);
     }
@@ -176,7 +176,7 @@ void CheckYsonItemType(EYsonItemType actualType, EYsonItemType expectedType)
 {
     if (actualType != expectedType) {
         THROW_ERROR_EXCEPTION(
-            "Unexpected yson token: %Qv, expected: %Qv",
+            "Unexpected yson token: actual %Qlv, expected %Qlv",
             actualType,
             expectedType);
     }

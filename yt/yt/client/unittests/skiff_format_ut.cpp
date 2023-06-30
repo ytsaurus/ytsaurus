@@ -405,7 +405,7 @@ TNamedValue::TValue SkiffToTable(
     parser->Finish();
 
     if (rowCollector.Size() != 1) {
-        THROW_ERROR_EXCEPTION("Expected 1 row collected actual: %Qv",
+        THROW_ERROR_EXCEPTION("Expected 1 row collected, actual %v",
             rowCollector.Size());
     }
     auto value = rowCollector.GetRowValue(0, "value");

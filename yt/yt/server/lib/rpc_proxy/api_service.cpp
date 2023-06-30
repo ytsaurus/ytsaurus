@@ -3885,7 +3885,7 @@ private:
         }
 
         context->SetRequestInfo(
-            "QueuePath: %Qv, ConsumerPath: %Qv, Vital: %v, Partitions: %v",
+            "QueuePath: %v, ConsumerPath: %v, Vital: %v, Partitions: %v",
             queuePath,
             consumerPath,
             vital,
@@ -3913,7 +3913,7 @@ private:
         SetTimeoutOptions(&options, context.Get());
 
         context->SetRequestInfo(
-            "QueuePath: %Qv, ConsumerPath: %Qv",
+            "QueuePath: %v, ConsumerPath: %v",
             queuePath,
             consumerPath);
 
@@ -3943,8 +3943,8 @@ private:
         TListQueueConsumerRegistrationsOptions options;
         SetTimeoutOptions(&options, context.Get());
 
-        context->SetRequestInfo("QueuePath: %Qv", queuePath);
-        context->SetRequestInfo("ConsumerPath: %Qv", consumerPath);
+        context->SetRequestInfo("QueuePath: %v", queuePath);
+        context->SetRequestInfo("ConsumerPath: %v", consumerPath);
 
         ExecuteCall(
             context,
@@ -4266,7 +4266,7 @@ private:
             case EProtoMaintenanceComponent::MC_HOST:
                 return EMaintenanceComponent::Host;
             default:
-                THROW_ERROR_EXCEPTION("Invalid maintenance component: %Qv",
+                THROW_ERROR_EXCEPTION("Invalid maintenance component %v",
                     static_cast<int>(component));
         }
     }
@@ -4290,7 +4290,7 @@ private:
             case EProtoMaintenanceType::MT_PENDING_RESTART:
                 return EMaintenanceType::PendingRestart;
             default:
-                THROW_ERROR_EXCEPTION("Invalid maintenance type: %Qv",
+                THROW_ERROR_EXCEPTION("Invalid maintenance type %v",
                     static_cast<int>(type));
         }
     }

@@ -262,7 +262,7 @@ private:
                     .QueueAgentHost = responsibleQueueAgentHost,
                 });
                 YT_LOG_DEBUG(
-                    "Assigning object to queue agent (Object: %Qv, QueueAgentHost: %v -> %v)",
+                    "Assigning object to queue agent (Object: %v, QueueAgentHost: %v -> %v)",
                     object,
                     (currentMappingIt == currentMapping.end() ? std::nullopt : std::make_optional(currentMappingIt->second)),
                     responsibleQueueAgentHost);
@@ -276,7 +276,7 @@ private:
                     .Object = object,
                 });
                 YT_LOG_DEBUG(
-                    "Removing object from mapping (Object: %Qv, LastQueueAgentHost: %v)",
+                    "Removing object from mapping (Object: %v, LastQueueAgentHost: %v)",
                     object,
                     queueAgentHost);
             }
