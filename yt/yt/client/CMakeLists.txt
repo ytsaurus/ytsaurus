@@ -8,7 +8,9 @@
 
 add_subdirectory(arrow)
 add_subdirectory(driver)
+add_subdirectory(federated)
 add_subdirectory(formats)
+add_subdirectory(hedging)
 add_subdirectory(query_tracker_client)
 add_subdirectory(table_client)
 add_subdirectory(unittests)

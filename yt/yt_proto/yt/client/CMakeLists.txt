@@ -6,6 +6,7 @@
 # original buildsystem will not be accepted.
 
 
+add_subdirectory(hedging)
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
