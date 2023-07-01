@@ -177,7 +177,9 @@ object SpytRelease {
   private lazy val maybePushChanges: ReleaseStep = if (isTeamCity) identity[State](_) else pushChanges
 
   private lazy val setReleaseClusterVersion: ReleaseStep = {
-    setVersion(clusterVersions, Seq(spytClusterVersion -> getReleaseVersion), spytClusterVersionFile)
+    setVersion(clusterVersions,
+      Seq(spytClusterVersion -> customClusterVersion.map(Function.const).getOrElse(getReleaseVersion)),
+      spytClusterVersionFile)
   }
   private lazy val setNextClusterVersion: ReleaseStep = {
     maybeSetVersion(clusterVersions, Seq(spytClusterVersion -> getNextVersion), spytClusterVersionFile)
@@ -208,8 +210,8 @@ object SpytRelease {
   }
   private lazy val setReleaseClientVersion: ReleaseStep = {
     setVersion(clientVersions, Seq(
-      spytClientVersion -> getReleaseVersion,
-      spytClientPythonVersion -> getReleaseVersion
+      spytClientVersion -> customClusterVersion.map(Function.const).getOrElse(getReleaseVersion),
+      spytClientPythonVersion -> customClusterVersion.map(Function.const).getOrElse(getReleaseVersion)
     ), spytClientVersionFile)
   }
   private lazy val setNextClientVersion: ReleaseStep = {
@@ -242,8 +244,8 @@ object SpytRelease {
   private lazy val setSparkForkReleaseVersion: ReleaseStep = {
     setVersion(sparkVersions,
       Seq(
-        spytSparkVersion -> getReleaseVersion,
-        spytSparkPythonVersion -> getReleasePythonVersion
+        spytSparkVersion -> customSparkForkVersion.map(Function.const).getOrElse(getReleaseVersion),
+        spytSparkPythonVersion -> customSparkForkVersion.map(Function.const).getOrElse(getReleasePythonVersion)
       ), spytSparkVersionFile
     )
   }
