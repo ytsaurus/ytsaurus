@@ -1,6 +1,5 @@
 rootProject.name = "YT"
 
-include("yt:java:ytsaurus-client")
 include("yt:java:annotations")
 include("yt:java:skiff")
 include("yt:java:yson-tree")
@@ -9,6 +8,7 @@ include("yt:java:ytsaurus-client-core")
 include("yt:java:type-info")
 include("yt:yt_proto:yt:core")
 include("yt:yt_proto:yt:formats")
+include("yt:java:ytsaurus-client")
 include("yt:yt_proto:yt:client")
 include("yt:java:ytsaurus-client-examples:cypress-operations-example")
 include("yt:java:ytsaurus-client-examples:map-entity-example")
