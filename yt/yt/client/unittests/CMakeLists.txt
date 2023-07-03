@@ -108,7 +108,7 @@ target_sources(unittester-client PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/yson_helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/zookeeper_bus_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/zookeeper_protocol_ut.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/client/unittests/9b20515aaff5a82b794904402c9df2ef.cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/client/unittests/5e5361e0329be49ce689f46dafdeeab6.cpp
 )
 add_test(
   NAME
@@ -131,10 +131,10 @@ set_property(
   1
 )
 resources(unittester-client
-  ${CMAKE_BINARY_DIR}/yt/yt/client/unittests/9b20515aaff5a82b794904402c9df2ef.cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/client/unittests/5e5361e0329be49ce689f46dafdeeab6.cpp
   INPUTS
-  ${CMAKE_SOURCE_DIR}/library/cpp/type_info/test-data/good-types.txt
-  ${CMAKE_SOURCE_DIR}/library/cpp/type_info/test-data/bad-types.txt
+  ${CMAKE_SOURCE_DIR}/library/cpp/type_info/ut/test-data/good-types.txt
+  ${CMAKE_SOURCE_DIR}/library/cpp/type_info/ut/test-data/bad-types.txt
   KEYS
   /types/good
   /types/bad

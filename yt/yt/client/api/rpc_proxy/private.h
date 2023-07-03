@@ -27,8 +27,12 @@ inline const NLogging::TLogger RpcProxyClientLogger("RpcProxyClient");
 ////////////////////////////////////////////////////////////////////////////////
 
 THashMap<TString, TString> ParseProxyUrlAliasingRules(TString envConfig);
-void ApplyProxyUrlAliasingRules(TString& url);
-TString NormalizeHttpProxyUrl(TString url);
+void ApplyProxyUrlAliasingRules(
+    TString& url,
+    const std::optional<THashMap<TString, TString>>& proxyUrlAliasingRules = std::nullopt);
+TString NormalizeHttpProxyUrl(
+    TString url,
+    const std::optional<THashMap<TString, TString>>& proxyUrlAliasingRules = std::nullopt);
 
 ////////////////////////////////////////////////////////////////////////////////
 

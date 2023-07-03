@@ -19,7 +19,7 @@ def pytest_generate_tests(metafunc):
     if metafunc.cls is not TestCommon:
         return
 
-    TEST_DATA_PATH_PREFIX = "library/cpp/type_info/test-data"
+    TEST_DATA_PATH_PREFIX = "library/cpp/type_info/ut/test-data"
 
     if "test_good" in metafunc.function.__name__:
         tests = load_and_parse(TEST_DATA_PATH_PREFIX + "/good-types.txt")

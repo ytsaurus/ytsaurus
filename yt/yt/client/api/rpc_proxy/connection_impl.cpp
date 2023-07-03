@@ -55,20 +55,26 @@ THashMap<TString, TString> ParseProxyUrlAliasingRules(TString envConfig)
     return ConvertTo<THashMap<TString, TString>>(TYsonString(envConfig));
 }
 
-void ApplyProxyUrlAliasingRules(TString& url)
+void ApplyProxyUrlAliasingRules(TString& url, const std::optional<THashMap<TString, TString>>& proxyUrlAliasingRules)
 {
-    static const auto rules = ParseProxyUrlAliasingRules(GetEnv("YT_PROXY_URL_ALIASING_CONFIG"));
+    static const auto rulesFromEnv = ParseProxyUrlAliasingRules(GetEnv("YT_PROXY_URL_ALIASING_CONFIG"));
+
+    const THashMap<TString, TString>& rules =
+        proxyUrlAliasingRules
+        ? proxyUrlAliasingRules.value()
+        : rulesFromEnv;
+
     if (auto ruleIt = rules.find(url); ruleIt != rules.end()) {
         url = ruleIt->second;
     }
 }
 
-TString NormalizeHttpProxyUrl(TString url)
+TString NormalizeHttpProxyUrl(TString url, const std::optional<THashMap<TString, TString>>& proxyUrlAliasingRules)
 {
     const TStringBuf CanonicalPrefix = "http://";
     const TStringBuf CanonicalSuffix = ".yt.yandex.net";
 
-    ApplyProxyUrlAliasingRules(url);
+    ApplyProxyUrlAliasingRules(url, proxyUrlAliasingRules);
 
     if (url.find('.') == TString::npos &&
         url.find(':') == TString::npos &&
