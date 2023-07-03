@@ -248,11 +248,19 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
         input_filepath = yt.ypath_join(input_dir, target)
         output_filepath = yt.ypath_join(output_dir, target)
 
-        pool_info_names_types = {
-            "cluster": "string",
-            "pool_tree": "string",
-            "pool_path": "string",
-            "pool_info": "string",
+        target_schemas = {
+            "pools": {
+                "cluster": "utf8",
+                "pool_tree": "utf8",
+                "pool_path": "utf8",
+                "pool_info": "utf8",
+            },
+            "tags": {
+                "cluster": "utf8",
+                "pool_tree": "utf8",
+                "pool_path": "utf8",
+                "tags_json": "utf8",
+            },
         }
 
         create(
@@ -289,24 +297,23 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
                 ]),
                 stderr=fout)
 
-        pool_info_path = yt.ypath_join(output_dir, "pools", target)
-        assert exists(pool_info_path)
-        pool_info_schema = get(pool_info_path + "/@schema")
-        assert pool_info_names_types == {field["name"]: field["type"] for field in pool_info_schema}
+        for table_category in ("pools", "tags"):
+            link_target_path = yt.ypath_join(output_dir, table_category, target)
+            assert exists(link_target_path)
 
-        link_path = yt.ypath_join(output_dir, "tags", "latest")
-        link_target_path = yt.ypath_join(output_dir, "tags", target)
-        assert exists(link_path)
-        assert get(link_path + "&/@target_path") == link_target_path
+            link_target_schema = {field["name"]: field["type"] for field in get(link_target_path + "/@schema")}
+            assert link_target_schema == target_schemas[table_category]
 
-        if (expiration_timeout or -1) > 0:
-            assert get(output_filepath + "/@expiration_timeout") == expiration_timeout
-            assert get(link_target_path + "/@expiration_timeout") == expiration_timeout
-            assert get(pool_info_path + "/@expiration_timeout") == expiration_timeout
-        else:
-            assert not exists(output_filepath + "/@expiration_timeout")
-            assert not exists(link_target_path + "/@expiration_timeout")
-            assert not exists(pool_info_path + "/@expiration_timeout")
+            link_path = yt.ypath_join(output_dir, table_category, "latest")
+            assert exists(link_path)
+            assert get(link_path + "&/@target_path") == link_target_path
+
+            if (expiration_timeout or -1) > 0:
+                assert get(output_filepath + "/@expiration_timeout") == expiration_timeout
+                assert get(link_target_path + "/@expiration_timeout") == expiration_timeout
+            else:
+                assert not exists(output_filepath + "/@expiration_timeout")
+                assert not exists(link_target_path + "/@expiration_timeout")
 
     @pytest.mark.timeout(300)
     def test_link(self):

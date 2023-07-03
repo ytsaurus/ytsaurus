@@ -87,6 +87,13 @@ def extract_cumulative_gpu_utilization(job_statistics):
     return extract_statistic(job_statistics, "user_job/gpu/cumulative_utilization_gpu", default=0) / 1000.0
 
 
+class TableInfo:
+    def __init__(self, row_type=None, output_path=None, link_path=None):
+        self.row_type = row_type
+        self.output_path = output_path
+        self.link_path = link_path
+
+
 class YsonEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, yson.YsonEntity):
@@ -154,6 +161,14 @@ class TagsRow:
     pool_tree: str
     pool_path: str
     tags_json: str
+
+
+@yt_dataclass
+class PoolsRow:
+    cluster: str
+    pool_tree: str
+    pool_path: str
+    pool_info: str
 
 
 class AggregateTags(TypedJob):
@@ -512,6 +527,10 @@ def add_expiration_timeout_to_attributes(attributes, expiration_timeout):
 
 
 def do_process_scheduler_log_on_yt(client, input_table, output_table, expiration_timeout):
+    pools = TableInfo(row_type=PoolsRow)
+    tags = TableInfo(row_type=TagsRow)
+    table_info_per_category = {"pools": pools, "tags": tags}
+
     reduce_by = ["cluster", "pool_tree", "pool_path", "operation_id"]
     sort_by = reduce_by + ["timestamp"]
 
@@ -550,44 +569,29 @@ def do_process_scheduler_log_on_yt(client, input_table, output_table, expiration
     client.run_operation(spec)
 
     dir_name, table_name = yt.ypath_split(output_table)
-    pools_output_table = yt.ypath_join(dir_name, "pools", table_name)
-    client.remove(pools_output_table, force=True)
-    client.create(
-        "table",
-        pools_output_table,
-        recursive=True,
-        attributes=add_expiration_timeout_to_attributes(
-            {
-                "schema": [
-                    {"name": "cluster", "type": "string"},
-                    {"name": "pool_tree", "type": "string"},
-                    {"name": "pool_path", "type": "string"},
-                    {"name": "pool_info", "type": "string"},
-                ]
-            },
-            expiration_timeout
+
+    for table_category, table_info in table_info_per_category.items():
+        output_path = yt.ypath_join(dir_name, table_category, table_name)
+        table_info.output_path = output_path
+        table_info.link_path = yt.ypath_join(dir_name, table_category, "latest")
+        client.remove(output_path, force=True)
+        client.create(
+            "table",
+            output_path,
+            recursive=True,
+            attributes=add_expiration_timeout_to_attributes({
+                "schema": TableSchema.from_row_type(table_info.row_type),
+                "optimize_for": "scan",
+            }, expiration_timeout)
         )
-    )
 
     pool_paths_info = convert_pool_mapping_to_pool_paths_info(cluster_and_tree_to_pool_mapping)
     client.write_table(
-        pools_output_table,
+        pools.output_path,
         pool_paths_info,
         table_writer={"max_row_weight": 64 * 1024 * 1024},
     )
-
-    tags_output_table = yt.ypath_join(dir_name, "tags", table_name)
-    tags_latest_link = yt.ypath_join(dir_name, "tags", "latest")
-    client.remove(tags_output_table, force=True)
-    client.create(
-        "table",
-        tags_output_table,
-        recursive=True,
-        attributes=add_expiration_timeout_to_attributes({
-            "schema": TableSchema.from_row_type(TagsRow),
-            "optimize_for": "scan",
-        }, expiration_timeout)
-    )
+    client.link(pools.output_path, pools.link_path, force=True)
 
     with client.TempTable() as temp_table:
         collect_tags_on_yt(
@@ -597,11 +601,11 @@ def do_process_scheduler_log_on_yt(client, input_table, output_table, expiration
         )
 
         client.write_table(
-            tags_output_table,
+            tags.output_path,
             aggregate_tags_for_ancestor_pools(client.read_table_structured(temp_table, TempTagsRow)),
             table_writer={"max_row_weight": 64 * 1024 * 1024},
         )
-        client.link(tags_output_table, tags_latest_link, force=True)
+        client.link(tags.output_path, tags.link_path, force=True)
 
 
 def process_scheduler_log_on_yt(client, input_table, output_table, expiration_timeout):
