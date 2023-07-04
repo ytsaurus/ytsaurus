@@ -2394,7 +2394,7 @@ private:
             req->set_schema_mode(ToProto<int>(TableUploadOptions_.SchemaMode));
             req->set_optimize_for(ToProto<int>(TableUploadOptions_.OptimizeFor));
             if (TableUploadOptions_.ChunkFormat) {
-                req->set_optimize_for(ToProto<int>(*TableUploadOptions_.ChunkFormat));
+                req->set_chunk_format(ToProto<int>(*TableUploadOptions_.ChunkFormat));
             }
             req->set_compression_codec(ToProto<int>(TableUploadOptions_.CompressionCodec));
             req->set_erasure_codec(ToProto<int>(TableUploadOptions_.ErasureCodec));
