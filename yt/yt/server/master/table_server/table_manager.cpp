@@ -1503,6 +1503,10 @@ private:
 
         NeedToAddReplicatedQueues_ = context.GetVersion() < EMasterReign::QueueReplicatedTablesList;
 
+        if (context.GetVersion() < EMasterReign::RecomputeMasterTableSchemaRefCounters) {
+            NeedRecomputeMasterTableSchemaRefCounters_ = true;
+        }
+
         auto schemaExportMode = ESchemaMigrationMode::None;
         if (context.GetVersion() < EMasterReign::ExportMasterTableSchemas) {
             schemaExportMode = ESchemaMigrationMode::AllSchemas;
@@ -1543,10 +1547,6 @@ private:
                 EmptyMasterTableSchemaId_,
                 /* isNative */ true);
             YT_VERIFY(EmptyMasterTableSchema_->RefObject() == 1);
-        }
-
-        if (context.GetVersion() < EMasterReign::RecomputeMasterTableSchemaRefCounters) {
-            NeedRecomputeMasterTableSchemaRefCounters_ = true;
         }
     }
 
