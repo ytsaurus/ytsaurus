@@ -16,7 +16,7 @@ except ImportError:
 from yt.packages import PackagesImporter
 try:
     with PackagesImporter():  # noqa
-        from tornado.httpclient import HTTPClient, AsyncHTTPClient, HTTPRequest, HTTPError
+        from tornado.httpclient import HTTPClient, AsyncHTTPClient, HTTPRequest, HTTPError, HTTPResponse
         from tornado.httputil import HTTPHeaders
         from tornado.ioloop import IOLoop
         # It is necessary to prevent local imports during runtime.
@@ -159,7 +159,27 @@ class JobShell(object):
             req = self._prepare_request(operation, keys=keys, input_offset=input_offset, term=term,
                                         height=height, width=width, command=command)
             if self.interactive:
-                self.client.fetch(req, callback=callback)
+                if tornado.version_info[0] < 6:
+                    self.client.fetch(req, callback=callback)
+                else:
+                    def _tornado6_callback(f):
+                        try:
+                            res = f.result()
+                        except HTTPError as err:
+                            res = getattr(err, 'response', None)
+                            if not res:
+                                print("Unhandled tornado6 http exception: ", err)
+                        except Exception as ex:
+                            print("Unhandled tornado6 general exception: ", ex)
+                            res = None
+
+                        if res is None:
+                            res = HTTPResponse(HTTPRequest(""), None, error=True)
+
+                        callback(res)
+
+                    future = self.client.fetch(req)
+                    future.add_done_callback(_tornado6_callback)
             else:
                 try:
                     rsp = yson.loads(self.client.fetch(req).body, encoding=None)
