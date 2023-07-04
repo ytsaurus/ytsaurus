@@ -175,7 +175,7 @@ class TestQueueConsumerApiBase(ChaosTestBase):
         return {
             "local_replica_path": table_path,
             "replica_clusters": read_clusters,
-            "state_write_path": parse_ypath(f"<cluster={write_cluster}>{table_path}"),
+            "state_write_path": parse_ypath(f"{write_cluster}:{table_path}"),
             "state_read_path": parse_ypath(f'<clusters=[{";".join(read_clusters)}]>{table_path}'),
             "read_availability_clusters": builtins.set(),
             "write_availability_clusters": {write_cluster},
@@ -194,7 +194,7 @@ class TestQueueConsumerApiBase(ChaosTestBase):
         return {
             "local_replica_path": table_path,
             "replica_clusters": {cluster},
-            "state_write_path": parse_ypath(f"<cluster={cluster}>{table_path}"),
+            "state_write_path": parse_ypath(f"{cluster}:{table_path}"),
             "state_read_path": parse_ypath(f"<clusters=[{cluster}]>{table_path}"),
             "read_availability_clusters": {cluster},
             "write_availability_clusters": {cluster},
@@ -289,7 +289,7 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
 
     def form_path(self, object, cluster=''):
         if len(cluster) > 0:
-            return f'<cluster={cluster}>{object}'
+            return f'{cluster}:{object}'
         return object
     # The tests below are parametrized with a function that creates a registration table.
     # It returns a dict with the resulting configuration options:
@@ -477,7 +477,7 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
         ))
 
         wait(lambda: self.listed_registrations_are_equal(
-            list_queue_consumer_registrations(consumer_path="<cluster=primary>//tmp/c2"),
+            list_queue_consumer_registrations(consumer_path="primary://tmp/c2"),
             [
                 ("primary", "//tmp/q1", "primary", "//tmp/c2", False),
             ]
@@ -493,7 +493,7 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
         ))
 
         wait(lambda: self.listed_registrations_are_equal(
-            list_queue_consumer_registrations(queue_path="<cluster=remote_0>//tmp/q1"),
+            list_queue_consumer_registrations(queue_path="remote_0://tmp/q1"),
             []
         ))
 
@@ -585,7 +585,7 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
         attrs = {"dynamic": True, "schema": [{"name": "a", "type": "string"}]}
         create("table", "//tmp/q", attributes=attrs, driver=get_driver(cluster=queue_cluster))
         create("table", "//tmp/c", attributes=attrs, driver=get_driver(cluster=consumer_cluster))
-        register_queue_consumer(f"<cluster={queue_cluster}>//tmp/q", f"<cluster={consumer_cluster}>//tmp/c", vital=True,
+        register_queue_consumer(f"{queue_cluster}://tmp/q", f"{consumer_cluster}://tmp/c", vital=True,
                                 driver=get_driver(cluster=queue_cluster))
 
         wait(lambda: self._registrations_are(local_replica_path, replica_clusters, {

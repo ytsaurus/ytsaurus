@@ -17,7 +17,7 @@ CONSUMER_REGISTRATIONS = "//sys/queue_agents/consumer_registrations"
 
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestQueueCommands(object):
-    def setup(self):
+    def setup_method(self):
         self._sync_create_tablet_cell()
 
         if not yt.exists("//sys/queue_agents"):
@@ -51,8 +51,8 @@ class TestQueueCommands(object):
         ]
 
         expected_registration = {
-            "queue_path": parse_ypath("<cluster=primary>" + queue),
-            "consumer_path": parse_ypath("<cluster=primary>" + consumer),
+            "queue_path": parse_ypath("primary:" + queue),
+            "consumer_path": parse_ypath("primary:" + consumer),
             "vital": vital,
             "partitions": partitions,
         }
