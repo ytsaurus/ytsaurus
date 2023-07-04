@@ -269,7 +269,7 @@ public:
         }
     }
 
-    TChunkReplicaList GetReplicas(
+    TChunkReplicaWithMediumList GetReplicas(
         TChunkStoreBase* owner,
         TNodeId localNodeId) const override
     {
@@ -280,12 +280,7 @@ public:
 
         if (replicasOrError.IsOK()) {
             if (auto replicas = std::move(replicasOrError.Value())) {
-                TChunkReplicaList result;
-                result.reserve(replicas.Replicas.size());
-                for (auto replica : replicas.Replicas) {
-                    result.push_back(replica);
-                }
-                return result;
+                return replicas.Replicas;
             }
         }
 
@@ -297,9 +292,9 @@ public:
         auto guard = ReaderGuard(ReaderLock_);
 
         auto makeLocalReplicas = [&] {
-            TChunkReplicaList replicas;
-            replicas.emplace_back(localNodeId, GenericChunkReplicaIndex);
-            return replicas;
+            return TChunkReplicaWithMediumList{
+                TChunkReplicaWithMedium(localNodeId, GenericChunkReplicaIndex, GenericMediumIndex)
+            };
         };
 
         if (CachedReadersLocal_) {
@@ -1194,7 +1189,7 @@ TTimestamp TChunkStoreBase::GetOverrideTimestamp() const
     return OverrideTimestamp_;
 }
 
-TChunkReplicaList TChunkStoreBase::GetReplicas(NNodeTrackerClient::TNodeId localNodeId)
+TChunkReplicaWithMediumList TChunkStoreBase::GetReplicas(NNodeTrackerClient::TNodeId localNodeId)
 {
     return BackendReadersHolder_->GetReplicas(this, localNodeId);
 }

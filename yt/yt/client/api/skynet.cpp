@@ -1,6 +1,7 @@
 #include "skynet.h"
 
 #include <yt/yt/client/chunk_client/read_limit.h>
+#include <yt/yt/client/chunk_client/helpers.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -33,10 +34,9 @@ void Serialize(const TSkynetSharePartsLocations& skynetPartsLocations, IYsonCons
                             .DoIf(spec.has_upper_limit(), [&] (TFluentMap fluent) {
                                 fluent.Item("upper_limit").Value(FromProto<TLegacyReadLimit>(spec.upper_limit()));
                             })
-                            .Item("replicas").DoListFor(spec.replicas(),
-                                [] (TFluentList fluent, ui32 packedReplica) {
-                                    TChunkReplica replica;
-                                    FromProto(&replica, packedReplica);
+                            .Item("replicas").DoListFor(
+                                GetReplicasFromChunkSpec(spec),
+                                [] (TFluentList fluent, TChunkReplica replica) {
                                     fluent.Item().Value(replica.GetNodeId());
                                 })
                         .EndMap();

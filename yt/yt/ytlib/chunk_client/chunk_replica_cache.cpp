@@ -337,10 +337,11 @@ private:
                         chunkIds[index]));
                     continue;
                 }
-                auto replicas = TAllyReplicasInfo::FromChunkReplicas(
-                    FromProto<TChunkReplicaList>(subresponse.replicas()),
-                    rsp->revision());
-                promises[index].TrySet(std::move(replicas));
+                auto replicas = subresponse.replicas_size() == 0
+                    ? FromProto<TChunkReplicaList>(subresponse.legacy_replicas())
+                    : TChunkReplicaWithMedium::ToChunkReplicas(FromProto<TChunkReplicaWithMediumList>(subresponse.replicas()));
+                auto replicasInfo = TAllyReplicasInfo::FromChunkReplicas(replicas, rsp->revision());
+                promises[index].TrySet(std::move(replicasInfo));
             }
         } else {
             YT_LOG_WARNING(rspOrError, "Error locating chunks (CellTag: %v)",

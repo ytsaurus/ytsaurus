@@ -34,6 +34,7 @@ public:
     // TODO(babenko): this could also be a store id.
     DEFINE_BYVAL_RW_PROPERTY(TChunkId, ChunkId);
 
+    // TODO(babenko): store replicas with media.
     using TInputChunkReplicas = std::array<TChunkReplica, MaxInputChunkReplicaCount>;
     DEFINE_BYREF_RO_PROPERTY(TInputChunkReplicas, Replicas);
 
@@ -72,8 +73,10 @@ public:
     TInputChunkBase(TInputChunkBase&& other) = default;
     explicit TInputChunkBase(const NProto::TChunkSpec& chunkSpec);
 
-    TChunkReplicaList GetReplicaList() const;
-    void SetReplicaList(const TChunkReplicaList& replicas);
+    // TODO(babenko): this currently always returns GenericMediumIndex.
+    TChunkReplicaWithMediumList GetReplicaList() const;
+    // TODO(babenko): this currently just drops medium indices.
+    void SetReplicaList(const TChunkReplicaWithMediumList& replicas);
 
     bool IsDynamicStore() const;
     bool IsSortedDynamicStore() const;

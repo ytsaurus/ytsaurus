@@ -41,6 +41,8 @@
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 
+#include <yt/yt/client/chunk_client/helpers.h>
+
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/row_base.h>
@@ -77,10 +79,8 @@ using namespace NApi;
 using namespace NLogging;
 
 using NChunkClient::TDataSliceDescriptor;
-using NChunkClient::TReadLimit;
 using NChunkClient::TReadRange;
 using NChunkClient::NProto::TMiscExt;
-using NChunkClient::TChunkReaderStatistics;
 
 using NYT::FromProto;
 using NYT::TRange;
@@ -1113,7 +1113,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         const TChunkReaderMemoryManagerPtr& chunkReaderMemoryManager) -> IVersionedReaderPtr
     {
         auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
-        auto replicas = NYT::FromProto<TChunkReplicaList>(chunkSpec.replicas());
+        auto replicas = GetReplicasFromChunkSpec(chunkSpec);
 
         TLegacyReadLimit lowerLimit;
         TLegacyReadLimit upperLimit;

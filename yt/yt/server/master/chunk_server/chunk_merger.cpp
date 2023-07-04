@@ -143,7 +143,8 @@ bool TMergeJob::FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const
         auto* protoChunk = jobSpecExt->add_input_chunks();
         ToProto(protoChunk->mutable_id(), chunk->GetId());
 
-        const auto& replicas = chunk->StoredReplicas();
+        auto replicas = chunk->StoredReplicas();
+        ToProto(protoChunk->mutable_legacy_source_replicas(), replicas);
         ToProto(protoChunk->mutable_source_replicas(), replicas);
         builder.Add(replicas);
 

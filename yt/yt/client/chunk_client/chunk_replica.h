@@ -8,14 +8,6 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NProto {
-
-class TConfirmChunkReplicaInfo;
-
-} // namespace NProto
-
-////////////////////////////////////////////////////////////////////////////////
-
 void ToProto(ui64* value, TChunkReplicaWithMedium replica);
 void FromProto(TChunkReplicaWithMedium* replica, ui64 value);
 
@@ -38,11 +30,12 @@ public:
     int GetMediumIndex() const;
 
     TChunkReplica ToChunkReplica() const;
+    static TChunkReplicaList ToChunkReplicas(const TChunkReplicaWithMediumList& replicasWithMedia);
 
 private:
     /*!
      *  Bits:
-     *   0-23: node id
+     *   0-23: node id (24 bits)
      *  24-28: replica index (5 bits)
      *  29-37: medium index (7 bits)
      */
@@ -55,6 +48,10 @@ private:
     friend void ToProto(NProto::TConfirmChunkReplicaInfo* value, TChunkReplicaWithLocation replica);
     friend void FromProto(TChunkReplicaWithLocation* replica, NProto::TConfirmChunkReplicaInfo value);
 };
+
+// These protect from accidently serializing TChunkReplicaWithMedium as ui32.
+void ToProto(ui32* value, TChunkReplicaWithMedium replica) = delete;
+void FromProto(TChunkReplicaWithMedium* replica, ui32 value) = delete;
 
 void FormatValue(TStringBuilderBase* builder, TChunkReplicaWithMedium replica, TStringBuf spec);
 TString ToString(TChunkReplicaWithMedium replica);
@@ -106,7 +103,7 @@ public:
 private:
     /*!
      *  Bits:
-     *   0-23: node id
+     *   0-23: node id (24 bits)
      *  24-28: replica index (5 bits)
      */
     ui32 Value;
@@ -236,21 +233,14 @@ private:
 template <>
 struct THash<NYT::NChunkClient::TChunkIdWithIndex>
 {
-    inline size_t operator()(const NYT::NChunkClient::TChunkIdWithIndex& value) const
-    {
-        return THash<NYT::NChunkClient::TChunkId>()(value.Id) * 497 + value.ReplicaIndex;
-    }
+    size_t operator()(const NYT::NChunkClient::TChunkIdWithIndex& value) const;
 };
 
 //! A hasher for TChunkIdWithIndexes.
 template <>
 struct THash<NYT::NChunkClient::TChunkIdWithIndexes>
 {
-    inline size_t operator()(const NYT::NChunkClient::TChunkIdWithIndexes& value) const
-    {
-        return THash<NYT::NChunkClient::TChunkId>()(value.Id) * 497 +
-            value.ReplicaIndex + value.MediumIndex * 8;
-    }
+    size_t operator()(const NYT::NChunkClient::TChunkIdWithIndexes& value) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

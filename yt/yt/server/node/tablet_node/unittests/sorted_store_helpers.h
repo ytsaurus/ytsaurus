@@ -112,7 +112,7 @@ public:
         };
     }
 
-    NChunkClient::TChunkReplicaList GetReplicas(
+    NChunkClient::TChunkReplicaWithMediumList GetReplicas(
         TChunkStoreBase* /*owner*/,
         NNodeTrackerClient::TNodeId /*localNodeId*/) const override
     {

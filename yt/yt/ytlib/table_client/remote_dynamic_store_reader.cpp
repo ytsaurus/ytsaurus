@@ -54,6 +54,8 @@ using namespace NTabletClient;
 using NChunkClient::TLegacyReadLimit;
 
 using NYT::FromProto;
+using NYT::ToProto;
+
 using TIdMapping = TCompactVector<int, TypicalColumnCount>;
 
 template <class IReaderPtr>
@@ -309,11 +311,12 @@ protected:
         auto cellId = GetCellIdFromChunkSpec(ChunkSpec_);
 
         try {
-            if (ChunkSpec_.replicas_size() == 0) {
+            auto replicas = GetReplicasFromChunkSpec(ChunkSpec_);
+            if (replicas.empty()) {
                 THROW_ERROR_EXCEPTION("No replicas for a dynamic store");
             }
 
-            auto replica = FromProto<TChunkReplicaWithMedium>(ChunkSpec_.replicas(0));
+            auto replica = replicas.front();
 
             const auto* descriptor = NodeDirectory_->FindDescriptor(replica.GetNodeId());
             if (!descriptor) {
@@ -983,15 +986,18 @@ protected:
         auto& chunkSpec = *subresponse.mutable_chunk_spec();
         // Dynamic store is not flushed.
         if (IsDynamicStoreSpec(chunkSpec)) {
-            if (chunkSpec.replicas_size() == 0) {
+            auto replicas = GetReplicasFromChunkSpec(chunkSpec);
+            if (replicas.empty()) {
                 YT_LOG_DEBUG("Dynamic store located: store has no replicas");
                 return LocateDynamicStore();
             }
 
             YT_LOG_DEBUG("Dynamic store located: got new replicas");
+            ChunkSpec_.clear_legacy_replicas();
             ChunkSpec_.clear_replicas();
-            for (auto replica : chunkSpec.replicas()) {
-                ChunkSpec_.add_replicas(replica);
+            for (auto replica : replicas) {
+                ChunkSpec_.add_legacy_replicas(ToProto<ui32>(replica.ToChunkReplica()));
+                ChunkSpec_.add_replicas(ToProto<ui64>(replica));
             }
 
             PatchChunkSpecWithContinuationToken();

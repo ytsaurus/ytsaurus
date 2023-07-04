@@ -34,6 +34,7 @@
 #include <yt/yt/client/api/config.h>
 
 #include <yt/yt/client/chunk_client/data_statistics.h>
+#include <yt/yt/client/chunk_client/helpers.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
@@ -391,7 +392,7 @@ private:
         auto inputChunkId = FromProto<TChunkId>(inputChunkSpec.chunk_id());
         auto erasureCodecId = FromProto<NErasure::ECodec>(inputChunkSpec.erasure_codec());
         auto erasureCodec = NErasure::GetCodec(erasureCodecId);
-        auto inputReplicas = FromProto<TChunkReplicaList>(inputChunkSpec.replicas());
+        auto inputReplicas = GetReplicasFromChunkSpec(inputChunkSpec);
 
         auto repairChunk = RemoteCopyJobSpecExt_.repair_erasure_chunks();
 
@@ -638,13 +639,13 @@ private:
             erasedPartIndices,
             repairPartIndices);
 
-        TChunkReplicaList repairSeedReplicas;
+        TChunkReplicaWithMediumList repairSeedReplicas;
         repairSeedReplicas.reserve(repairPartIndices.size());
         for (auto repairPartIndex : repairPartIndices) {
-            auto replicas = (*partWriters)[repairPartIndex]->GetWrittenChunkReplicas();
-            YT_VERIFY(replicas.size() == 1);
-            auto replica = TChunkReplica(replicas.front().GetNodeId(), repairPartIndex);
-            repairSeedReplicas.push_back(replica);
+            auto writtenReplicas = (*partWriters)[repairPartIndex]->GetWrittenChunkReplicas();
+            YT_VERIFY(writtenReplicas.size() == 1);
+            auto writtenReplica = writtenReplicas.front();
+            repairSeedReplicas.emplace_back(writtenReplica.GetNodeId(), repairPartIndex, writtenReplica.GetMediumIndex());
         }
 
         TChunkReplicaWithMediumList erasedTargetReplicas;
@@ -716,7 +717,7 @@ private:
     void CopyRegularChunk(const TChunkSpec& inputChunkSpec, NChunkClient::TSessionId outputSessionId)
     {
         auto inputChunkId = FromProto<TChunkId>(inputChunkSpec.chunk_id());
-        auto inputReplicas = FromProto<TChunkReplicaList>(inputChunkSpec.replicas());
+        auto inputReplicas = GetReplicasFromChunkSpec(inputChunkSpec);
 
         TDeferredChunkMetaPtr chunkMeta;
 

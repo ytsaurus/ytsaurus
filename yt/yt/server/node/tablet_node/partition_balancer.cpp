@@ -647,6 +647,7 @@ private:
                 NChunkClient::NProto::TChunkSpec chunkSpec;
                 ToProto(chunkSpec.mutable_chunk_id(), chunkId);
                 ToProto(chunkSpec.mutable_replicas(), replicas.Replicas);
+                ToProto(chunkSpec.mutable_legacy_replicas(), TChunkReplicaWithMedium::ToChunkReplicas(replicas.Replicas));
                 *chunkSpec.mutable_chunk_meta() = store->GetChunkMeta();
                 ToProto(chunkSpec.mutable_lower_limit(), TLegacyReadLimit(partition->GetPivotKey()));
                 ToProto(chunkSpec.mutable_upper_limit(), TLegacyReadLimit(partition->GetNextPivotKey()));

@@ -411,7 +411,7 @@ TReincarnationJob::TReincarnationJob(
     TJobEpoch jobEpoch,
     TChunkIdWithIndexes newChunkIdWithIndexes,
     TNode* node,
-    TNodePtrWithReplicaIndexList sourceReplicas,
+    TNodePtrWithReplicaAndMediumIndexList sourceReplicas,
     TNodePtrWithReplicaAndMediumIndexList targetReplicas,
     int mediumIndex)
     : TJob(
@@ -425,14 +425,12 @@ TReincarnationJob::TReincarnationJob(
     , NewChunkId_(newChunkIdWithIndexes.Id)
     , SourceReplicas_(std::move(sourceReplicas))
     , TargetReplicas_(std::move(targetReplicas))
+    , MediumIndex_(mediumIndex)
     , ErasureCodec_(NErasure::ECodec::None)
     , CompressionCodec_(NCompression::ECodec::None)
     , EnableSkynetSharing_(false)
-    , MediumIndex_(mediumIndex)
 {
-    auto miscExt = oldChunk->ChunkMeta()->FindExtension<TMiscExt>();
-
-    if (miscExt) {
+    if (auto miscExt = oldChunk->ChunkMeta()->FindExtension<TMiscExt>()) {
         ErasureCodec_ = CheckedEnumCast<NErasure::ECodec>(miscExt->erasure_codec());
         CompressionCodec_ = CheckedEnumCast<NCompression::ECodec>(miscExt->compression_codec());
         EnableSkynetSharing_ = miscExt->shared_to_skynet();
@@ -464,10 +462,10 @@ bool TReincarnationJob::FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) co
     jobSpecExt->set_medium_index(MediumIndex_);
     jobSpecExt->set_enable_skynet_sharing(EnableSkynetSharing_);
     ToProto(jobSpecExt->mutable_source_replicas(), SourceReplicas_);
+    ToProto(jobSpecExt->mutable_legacy_source_replicas(), SourceReplicas_);
 
     return true;
 }
-
 
 TNodeResources TReincarnationJob::GetJobResourceUsage()
 {
@@ -888,10 +886,11 @@ private:
             return;
         }
 
-        TNodePtrWithReplicaIndexList sourceReplicas;
+        TNodePtrWithReplicaAndMediumIndexList sourceReplicas;
         sourceReplicas.reserve(oldChunk->StoredReplicas().size());
         for (auto replica : oldChunk->StoredReplicas()) {
-            sourceReplicas.emplace_back(replica.GetPtr()->GetNode(), replica.GetReplicaIndex());
+            const auto* location = replica.GetPtr();
+            sourceReplicas.emplace_back(location->GetNode(), replica.GetReplicaIndex(), location->GetEffectiveMediumIndex());
         }
 
         TNodePtrWithReplicaAndMediumIndexList targetReplicas;

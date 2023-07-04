@@ -59,7 +59,7 @@ std::vector<IChunkReaderPtr> CreatePartReaders(
     std::vector<IChunkReaderPtr> partReaders;
     for (int replicaIndex = 0; replicaIndex < ChunkReplicaIndexBound; ++replicaIndex) {
         auto partChunkId = EncodeChunkId(TChunkIdWithIndex(chunkId, replicaIndex));
-        TChunkReplicaList partReplicas;
+        TChunkReplicaWithMediumList partReplicas;
         for (auto replica : replicas) {
             if (replica.GetReplicaIndex() == replicaIndex) {
                 partReplicas.push_back(replica);
@@ -117,7 +117,7 @@ public:
         TChunkReaderHostPtr chunkReaderHost,
         TChunkId chunkId,
         NErasure::ICodec* codec,
-        const TChunkReplicaList& replicas)
+        const TChunkReplicaWithMediumList& replicas)
         : Config_(std::move(config))
         , ChunkReaderHost_(std::move(chunkReaderHost))
         , Client_(ChunkReaderHost_->Client)
@@ -169,7 +169,7 @@ public:
         const TClientChunkReadOptions Options_;
         const int FirstBlockIndex_;
         const int BlockCount_;
-        const TChunkReplicaList InitialReplicas_;
+        const TChunkReplicaWithMediumList InitialReplicas_;
 
         const NLogging::TLogger Logger;
         const TPromise<std::vector<TBlock>> Promise_ = NewPromise<std::vector<TBlock>>();
@@ -264,7 +264,7 @@ public:
             }
 
             if (error.FindMatching(NChunkClient::EErrorCode::NoSuchChunk)) {
-                Reader_->InitialReplicas_.Store(TChunkReplicaList{});
+                Reader_->InitialReplicas_.Store(TChunkReplicaWithMediumList{});
                 Reader_->Client_->GetNativeConnection()->GetChunkReplicaCache()->DiscardReplicas(
                     DecodeChunkId(Reader_->ChunkId_).Id,
                     ReplicasFuture_);
@@ -315,7 +315,7 @@ private:
 
     const NLogging::TLogger Logger;
 
-    TAtomicObject<TChunkReplicaList> InitialReplicas_;
+    TAtomicObject<TChunkReplicaWithMediumList> InitialReplicas_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TErasureChunkReader)
@@ -327,7 +327,7 @@ IChunkReaderPtr CreateChunkReader(
     TChunkReaderHostPtr chunkReaderHost,
     TChunkId chunkId,
     NErasure::ECodec codecId,
-    const TChunkReplicaList& replicas)
+    const TChunkReplicaWithMediumList& replicas)
 {
     if (codecId == NErasure::ECodec::None) {
         return CreateReplicationReader(

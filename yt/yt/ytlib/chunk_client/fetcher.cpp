@@ -120,7 +120,7 @@ private:
         YT_UNUSED_FUTURE(Scraper_->Stop());
     }
 
-    void OnChunkLocated(TChunkId chunkId, const TChunkReplicaList& replicas, bool missing)
+    void OnChunkLocated(TChunkId chunkId, const TChunkReplicaWithMediumList& replicas, bool missing)
     {
         ++ChunkLocatedCallCount_;
         if (ChunkLocatedCallCount_ >= Config_->MaxChunksPerRequest) {
@@ -153,17 +153,16 @@ private:
         auto& description = GetOrCrash(ChunkMap_, chunkId);
         YT_VERIFY(!description.ChunkSpecs.empty());
 
-        if (!description.IsWaiting)
+        if (!std::exchange(description.IsWaiting, false)) {
             return;
-
-        description.IsWaiting = false;
+        }
 
         YT_LOG_TRACE("Fetcher chunk is available (ChunkId: %v, Replicas: %v)",
             chunkId,
             replicas);
 
         // Update replicas in place for all input chunks with current chunkId.
-        for (auto& chunkSpec : description.ChunkSpecs) {
+        for (const auto& chunkSpec : description.ChunkSpecs) {
             chunkSpec->SetReplicaList(replicas);
         }
 

@@ -288,3 +288,14 @@ inline bool IsRegularChunkId(TChunkId id)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient
+
+inline size_t THash<NYT::NChunkClient::TChunkIdWithIndex>::operator()(const NYT::NChunkClient::TChunkIdWithIndex& value) const
+{
+    return THash<NYT::NChunkClient::TChunkId>()(value.Id) * 497 + value.ReplicaIndex;
+}
+
+inline size_t THash<NYT::NChunkClient::TChunkIdWithIndexes>::operator()(const NYT::NChunkClient::TChunkIdWithIndexes& value) const
+{
+    return THash<NYT::NChunkClient::TChunkId>()(value.Id) * 497 +
+        value.ReplicaIndex + value.MediumIndex * 8;
+}

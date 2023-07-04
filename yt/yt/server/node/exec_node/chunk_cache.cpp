@@ -46,6 +46,8 @@
 #include <yt/yt/client/formats/config.h>
 #include <yt/yt/client/formats/format.h>
 
+#include <yt/yt/client/chunk_client/helpers.h>
+
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/client/table_client/name_table.h>
@@ -961,7 +963,7 @@ private:
         VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
 
         const auto& chunkSpec = key.chunk_specs(0);
-        auto seedReplicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
+        auto seedReplicas = GetReplicasFromChunkSpec(chunkSpec);
 
         auto Logger = ExecNodeLogger.WithTag("ChunkId: %v, ReadSessionId: %v, Location: %v",
             chunkId,

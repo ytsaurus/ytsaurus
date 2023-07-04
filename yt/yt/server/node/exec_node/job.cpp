@@ -62,6 +62,8 @@
 
 #include <yt/yt/client/misc/io_tags.h>
 
+#include <yt/yt/client/chunk_client/helpers.h>
+
 #include <yt/yt/library/profiling/sensor.h>
 #include <yt/yt/library/profiling/producer.h>
 
@@ -1978,7 +1980,7 @@ void TJob::PrepareNodeDirectory()
             const TNodeDirectoryPtr& nodeDirectory)
         {
             for (const auto& chunkSpec : chunkSpecs) {
-                auto replicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
+                auto replicas = GetReplicasFromChunkSpec(chunkSpec);
                 for (auto replica : replicas) {
                     auto nodeId = replica.GetNodeId();
                     const auto* descriptor = nodeDirectory->FindDescriptor(nodeId);

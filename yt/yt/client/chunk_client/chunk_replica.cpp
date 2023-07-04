@@ -187,6 +187,18 @@ void TChunkReplicaAddressFormatter::operator()(TStringBuilderBase* builder, TChu
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TChunkReplicaList TChunkReplicaWithMedium::ToChunkReplicas(const TChunkReplicaWithMediumList& replicasWithMedia)
+{
+    TChunkReplicaList replicas;
+    replicas.reserve(replicasWithMedia.size());
+    for (auto replicaWithMedium : replicasWithMedia) {
+        replicas.push_back(replicaWithMedium.ToChunkReplica());
+    }
+    return replicas;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 EObjectType BaseErasurePartTypeFromPartId(TChunkId id)
