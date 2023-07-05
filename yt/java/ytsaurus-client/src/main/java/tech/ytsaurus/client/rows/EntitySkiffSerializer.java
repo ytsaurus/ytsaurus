@@ -9,6 +9,7 @@ import java.lang.reflect.Type;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -209,8 +210,10 @@ public class EntitySkiffSerializer<T> {
                 serializer.serializeDouble((double) object);
             } else if (tiType.isBool()) {
                 serializer.serializeBoolean((boolean) object);
+            } else if (tiType.isUtf8()) {
+                serializer.serializeUtf8((String) object);
             } else if (tiType.isString()) {
-                serializer.serializeString((String) object);
+                serializer.serializeBytes((byte[]) object);
             } else if (tiType.isYson()) {
                 serializer.serializeYson((YTreeNode) object);
             } else {
@@ -605,10 +608,12 @@ public class EntitySkiffSerializer<T> {
                 return castToType(parser.parseDouble());
             } else if (tiType.isBool()) {
                 return castToType(parser.parseBoolean());
+            } else if (tiType.isUtf8()) {
+                return castToType(deserializeUtf8(parser));
             } else if (tiType.isString()) {
-                return deserializeString(parser);
+                return castToType(deserializeBytes(parser));
             } else if (tiType.isYson()) {
-                return deserializeYson(parser);
+                return castToType(deserializeYson(parser));
             } else if (tiType.isNull()) {
                 return null;
             }
@@ -620,16 +625,21 @@ public class EntitySkiffSerializer<T> {
         throw new IllegalStateException();
     }
 
-    private <StringType> StringType deserializeString(SkiffParser parser) {
+    private String deserializeUtf8(SkiffParser parser) {
         BufferReference ref = parser.parseString32();
-        return castToType(new String(ref.getBuffer(), ref.getOffset(),
-                ref.getLength(), StandardCharsets.UTF_8));
+        return new String(ref.getBuffer(), ref.getOffset(),
+                ref.getLength(), StandardCharsets.UTF_8);
     }
 
-    private <YTreeNodeType> YTreeNodeType deserializeYson(SkiffParser parser) {
+    private byte[] deserializeBytes(SkiffParser parser) {
+        BufferReference ref = parser.parseString32();
+        return Arrays.copyOfRange(ref.getBuffer(), ref.getOffset(), ref.getOffset() + ref.getLength());
+    }
+
+    private YTreeNode deserializeYson(SkiffParser parser) {
         BufferReference ref = parser.parseYson32();
-        return castToType(YTreeBinarySerializer.deserialize(
-                new ByteArrayInputStream(ref.getBuffer(), ref.getOffset(), ref.getLength())));
+        return YTreeBinarySerializer.deserialize(
+                new ByteArrayInputStream(ref.getBuffer(), ref.getOffset(), ref.getLength()));
     }
 
     private TiType extractSchemeFromOptional(TiType tiType, SkiffParser parser) {

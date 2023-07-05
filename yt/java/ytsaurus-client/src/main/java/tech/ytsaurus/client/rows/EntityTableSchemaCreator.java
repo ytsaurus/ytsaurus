@@ -125,6 +125,9 @@ public class EntityTableSchemaCreator {
                         JavaPersistenceApi.getColumnDefinition(annotation) :
                         ""
         );
+        if (tiTypeIfSimple.isPresent()) {
+            return tiTypeIfSimple.get();
+        }
         if (Collection.class.isAssignableFrom(clazz)) {
             return getCollectionTiType(
                     genericTypeParameters.get(0),

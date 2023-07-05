@@ -24,7 +24,8 @@ class TiTypeUtil {
             Map.entry(Double.class, TiType.doubleType()),
             Map.entry(boolean.class, TiType.bool()),
             Map.entry(Boolean.class, TiType.bool()),
-            Map.entry(String.class, TiType.string())
+            Map.entry(String.class, TiType.utf8()),
+            Map.entry(byte[].class, TiType.string())
     );
 
     private static final Map<String, TiType> COLUMN_DEFINITION_TO_TI_TYPE_MAP = Map.ofEntries(
@@ -69,8 +70,8 @@ class TiTypeUtil {
                 tiType.isUint8() || tiType.isUint16() ||
                 tiType.isUint32() || tiType.isUint64() ||
                 tiType.isDouble() || tiType.isBool() ||
-                tiType.isString() || tiType.isYson() ||
-                tiType.isNull();
+                tiType.isUtf8() || tiType.isString() ||
+                tiType.isYson() || tiType.isNull();
     }
 
     static TiType tableSchemaToStructTiType(TableSchema tableSchema) {

@@ -28,6 +28,8 @@ class WireTypeUtil {
             return WireType.DOUBLE;
         } else if (tiType.isBool()) {
             return WireType.BOOLEAN;
+        } else if (tiType.isUtf8()) {
+            return WireType.STRING_32;
         } else if (tiType.isString()) {
             return WireType.STRING_32;
         } else if (tiType.isYson()) {
