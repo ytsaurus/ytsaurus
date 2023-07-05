@@ -55,6 +55,9 @@ void TDriverConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_internal_commands", &TThis::EnableInternalCommands)
         .Default(false);
 
+    registrar.Parameter("expect_structured_input_in_structured_batch_commands", &TThis::ExpectStructuredInputInStructuredBatchCommands)
+        .Default(true);
+
     registrar.Preprocessor([] (TThis* config) {
         config->ClientCache->Capacity = 1024_KB;
         config->ProxyDiscoveryCache->RefreshTime = TDuration::Seconds(15);

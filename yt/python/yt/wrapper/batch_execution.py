@@ -85,10 +85,18 @@ class BatchExecutor(object):
         task = {"command": command, "parameters": parameters}
 
         if input is not None:
-            format = create_format(parameters.get("input_format", "yson"))
-            if parameters.get("is_batch_input_raw", False):
-                task["input"] = input
+            if "input_format" in parameters:
+                # COMPAT(ignat): comaptibility with older versions of driver.
+                # We want to check for structrured input here, but we have no such information at this point.
+                if command not in ("get_in_sync_replicas",):
+                    task["input"] = create_format(parameters["input_format"]).loads_node(input)
+                    del parameters["input_format"]
+                else:
+                    task["input"] = input
             else:
+                # Expects yson string if input format is not specified.
+                # TODO(ignat): fix usages and remove this case.
+                format = create_format("yson")
                 task["input"] = format.loads_node(input)
 
         self._tasks.append(task)

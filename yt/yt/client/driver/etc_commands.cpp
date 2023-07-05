@@ -1,4 +1,5 @@
 #include "etc_commands.h"
+#include "config.h"
 #include "proxy_discovery_cache.h"
 
 #include <yt/yt/client/api/client.h>
@@ -272,20 +273,20 @@ public:
             driverRequest.Id = Context_->Request().Id;
             driverRequest.CommandName = Request_->Command;
             auto parameters = IAttributeDictionary::FromMap(Request_->Parameters);
-            if (Descriptor_.InputType == EDataType::Structured) {
+            if (Descriptor_.InputType == EDataType::Tabular || Descriptor_.InputType == EDataType::Structured) {
                 if (!Request_->Input) {
                     THROW_ERROR_EXCEPTION("Command %Qv requires input",
                         Descriptor_.CommandName);
                 }
-                Input_ = ConvertToYsonString(Request_->Input).ToString();
-                parameters->Set("input_format", TFormat(EFormatType::Yson));
-                driverRequest.InputStream = AsyncInput_;
-            } else if (Descriptor_.InputType == EDataType::Tabular) {
-                if (!Request_->Input) {
-                    THROW_ERROR_EXCEPTION("Command %Qv requires input",
-                        Descriptor_.CommandName);
+                // COMPAT(ignat): disable this option in proxy configuration and remove it.
+                if ((Context_->GetConfig()->ExpectStructuredInputInStructuredBatchCommands && Descriptor_.InputType == EDataType::Structured) ||
+                    !parameters->Contains("input_format"))
+                {
+                    Input_ = ConvertToYsonString(Request_->Input).ToString();
+                    parameters->Set("input_format", TFormat(EFormatType::Yson));
+                } else {
+                    Input_ = Request_->Input->AsString()->GetValue();
                 }
-                Input_ = Request_->Input->AsString()->GetValue();
                 driverRequest.InputStream = AsyncInput_;
             }
             if (Descriptor_.OutputType == EDataType::Structured) {
