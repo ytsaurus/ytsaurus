@@ -1164,7 +1164,7 @@ void CodegenFragmentBodies(
                 name.c_str(),
                 module->GetModule());
 
-            function->addFnAttr(llvm::Attribute::AttrKind::UWTable);
+            function->addFnAttr(BuildUnwindTableAttribute(module->GetModule()->getContext()));
             function->addFnAttr(llvm::Attribute::AttrKind::NoInline);
             function->addFnAttr(llvm::Attribute::OptimizeForSize);
 

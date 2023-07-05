@@ -846,6 +846,10 @@ struct TApplyCallback<std::integer_sequence<unsigned, Indexes...>>
 
 ////////////////////////////////////////////////////////////////////////////////
 
+llvm::Attribute BuildUnwindTableAttribute(llvm::LLVMContext& context);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TLlvmClosure
 {
     Value* ClosurePtr;
@@ -869,7 +873,7 @@ struct TClosureFunctionDefiner<TResult(TArgs...)>
             name,
             module->GetModule());
 
-        function->addFnAttr(llvm::Attribute::AttrKind::UWTable);
+        function->addFnAttr(BuildUnwindTableAttribute(module->GetModule()->getContext()));
         function->addFnAttr(llvm::Attribute::OptimizeForSize);
 
         auto args = function->arg_begin();
@@ -929,7 +933,7 @@ struct TFunctionDefiner<TResult(TArgs...)>
             name,
             module->GetModule());
 
-        function->addFnAttr(llvm::Attribute::AttrKind::UWTable);
+        function->addFnAttr(BuildUnwindTableAttribute(llvmContext));
         function->addFnAttr(llvm::Attribute::OptimizeForSize);
 
         auto args = function->arg_begin();

@@ -271,4 +271,13 @@ Value* MakePhi(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+llvm::Attribute BuildUnwindTableAttribute(llvm::LLVMContext& context)
+{
+    auto builder = llvm::AttrBuilder(context);
+    builder.addUWTableAttr(llvm::UWTableKind::Default);
+    return builder.getAttribute(llvm::Attribute::AttrKind::UWTable);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NQueryClient
