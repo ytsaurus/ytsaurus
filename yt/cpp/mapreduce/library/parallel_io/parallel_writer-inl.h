@@ -124,10 +124,19 @@ public:
         Transaction_->Lock(Path_.Path_, LM_SHARED);
 
         StartWritersFuture_ = ::NThreading::Async([this, threadCount = options.ThreadCount_]() mutable {
-            for (size_t i = 0; i < threadCount; ++i) {
-                WritersPool_.Push(Transaction_->CreateTableWriter<T>(Path_, Options_));
+            try {
+                for (size_t i = 0; i < threadCount; ++i) {
+                    WritersPool_.Push(Transaction_->CreateTableWriter<T>(Path_, Options_));
+                }
+                YT_LOG_DEBUG("All %v writers were created", threadCount);
+            } catch (std::exception& ex) {
+                WritersCreationWasFailed_ = true;
+                auto state = State_.exchange(EWriterState::Exception);
+                if (state == EWriterState::Ok) {
+                    Exception_ = std::current_exception();
+                    Stopped_ = true;
+                }
             }
-            YT_LOG_DEBUG("All %v writers was created", threadCount);
         }, *ThreadPool_);
     }
 
@@ -172,10 +181,16 @@ public:
 private:
     void WaitAndFinish()
     {
-        StartWritersFuture_.Wait();
+        StartWritersFuture_.GetValueSync();
+
+        if (WritersCreationWasFailed_) {
+          WritersPool_.Stop();
+        }
+
         ::NThreading::WaitAll(Futures_).GetValueSync();
 
         WritersPool_.Stop();
+
 
         while (auto writer = WritersPool_.Pop()) {
             try {
@@ -258,6 +273,7 @@ private:
 
     std::shared_ptr<IThreadPool> ThreadPool_;
     std::atomic<bool> Stopped_{false};
+    std::atomic<bool> WritersCreationWasFailed_{false};
     ::NThreading::TBlockingQueue<TTableWriterPtr<T>> WritersPool_;
     std::vector<::NThreading::TFuture<void>> Futures_;
     ::NThreading::TFuture<void> StartWritersFuture_;
