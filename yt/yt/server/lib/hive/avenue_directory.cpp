@@ -15,7 +15,7 @@ void TSimpleAvenueDirectory::UpdateEndpoint(TAvenueEndpointId endpointId, TCellI
     if (cellId) {
         Directory_[endpointId] = cellId;
     } else {
-        Directory_.erase(cellId);
+        Directory_.erase(endpointId);
     }
 
     EndpointUpdated_.Fire(endpointId, cellId);
