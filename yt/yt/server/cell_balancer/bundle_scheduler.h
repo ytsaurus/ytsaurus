@@ -27,6 +27,17 @@ struct TSpareProxiesInfo
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TInstanceRackInfo
+{
+    THashMap<TString, int> RackToBundleInstances;
+    THashMap<TString, int> RackToSpareInstances;
+
+    // Spare instances needed-for-minus one rack guarantee.
+    int RequiredSpareNodesCount = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TZoneDisruptedState
 {
     int OfflineNodeCount = 0;
@@ -74,6 +85,7 @@ struct TSchedulerInputState
     using TZoneToInstanceMap = THashMap<TString, std::vector<TString>>;
     TZoneToInstanceMap ZoneNodes;
     TZoneToInstanceMap ZoneProxies;
+    THashMap<TString, TInstanceRackInfo> ZoneToRacks;
 
     TBundlesDynamicConfig DynamicConfig;
 

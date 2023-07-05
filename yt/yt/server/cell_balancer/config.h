@@ -76,6 +76,8 @@ public:
     TDuration RemoveInstanceCypressNodeAfter;
     TDuration OfflineInstanceGracePeriod;
 
+    bool EnableNetworkLimits;
+
     REGISTER_YSON_STRUCT(TBundleControllerConfig);
 
     static void Register(TRegistrar registrar);

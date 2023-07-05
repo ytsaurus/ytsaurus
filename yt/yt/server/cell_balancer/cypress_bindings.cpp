@@ -245,6 +245,9 @@ void TZoneInfo::Register(TRegistrar registrar)
     RegisterAttribute(registrar, "disrupted_threshold_factor", &TThis::DisruptedThresholdFactor)
         .GreaterThan(0)
         .Default(1);
+
+    RegisterAttribute(registrar, "requires_minus_one_rack_guarantee", &TThis::RequiresMinusOneRackGuarantee)
+        .Default(true);
 }
 
 void TAllocationRequestSpec::Register(TRegistrar registrar)
@@ -436,6 +439,8 @@ void TTabletNodeInfo::Register(TRegistrar registrar)
     RegisterAttribute(registrar, "cms_maintenance_requests", &TThis::CmsMaintenanceRequests)
         .Default();
     RegisterAttribute(registrar, "last_seen_time", &TThis::LastSeenTime)
+        .Default();
+    RegisterAttribute(registrar, "rack", &TThis::Rack)
         .Default();
     RegisterAttribute(registrar, "statistics", &TThis::Statistics)
         .DefaultNew();

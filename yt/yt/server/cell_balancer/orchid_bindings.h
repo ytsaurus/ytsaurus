@@ -10,6 +10,7 @@ DECLARE_REFCOUNTED_STRUCT(TInstanceInfo)
 DECLARE_REFCOUNTED_STRUCT(TAlert)
 DECLARE_REFCOUNTED_STRUCT(TAllocatingInstanceInfo)
 DECLARE_REFCOUNTED_STRUCT(TBundleInfo)
+DECLARE_REFCOUNTED_STRUCT(TZoneRacksInfo)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,11 +96,31 @@ struct TBundleInfo
 
 DEFINE_REFCOUNTED_TYPE(TBundleInfo)
 
-////////////////////////////////////////////////////////////////////////////////
-
 using TBundlesInfo = THashMap<TString, TBundleInfoPtr>;
 
+////////////////////////////////////////////////////////////////////////////////
+
+struct TZoneRacksInfo
+    : public NYTree::TYsonStruct
+{
+    THashMap<TString, int> RackToBundleNodes;
+    THashMap<TString, int> RackToSpareNodes;
+    int RequiredSpareNodesCount;
+
+    REGISTER_YSON_STRUCT(TZoneRacksInfo);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TZoneRacksInfo)
+
+using TZonesRacksInfo = THashMap<TString, TZoneRacksInfoPtr>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TBundlesInfo GetBundlesInfo(const TSchedulerInputState& state, const TSchedulerMutations& mutations);
+
+TZonesRacksInfo GetZonesRacksInfo(const TSchedulerInputState& state);
 
 ////////////////////////////////////////////////////////////////////////////////
 
