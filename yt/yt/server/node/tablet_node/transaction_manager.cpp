@@ -1183,7 +1183,14 @@ private:
         auto cellTag = transaction->GetCellTag();
 
         if (auto lastTimestampIt = LastSerializedCommitTimestamps_.find(cellTag)) {
-            YT_VERIFY(commitTimestamp > lastTimestampIt->second);
+            if (commitTimestamp <= lastTimestampIt->second) {
+                YT_LOG_ALERT("The clock has gone back (CellTag: %v, LastSerializedCommitTimestamp: %v, CommitTimestamp: %v)",
+                    cellTag,
+                    lastTimestampIt->second,
+                    commitTimestamp);
+                return;
+            }
+
             lastTimestampIt->second = commitTimestamp;
         } else {
             YT_VERIFY(LastSerializedCommitTimestamps_.emplace(cellTag, commitTimestamp).second);
