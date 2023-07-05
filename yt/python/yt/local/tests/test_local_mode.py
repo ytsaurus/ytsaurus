@@ -22,6 +22,7 @@ import contextlib
 import time
 import string
 import random
+import sys
 
 logger = logging.getLogger("YtLocal")
 
@@ -599,6 +600,8 @@ class TestLocalMode(object):
 
         with local_yt(id=_get_id("one_node_configuration"), node_count=1) as environment:
             client = environment.create_client()
+            if yatest_common is None:
+                client.config["pickling"]["python_binary"] = sys.executable
             client.get("/")
 
             rows = [{"key": index} for index in range(row_count)]
