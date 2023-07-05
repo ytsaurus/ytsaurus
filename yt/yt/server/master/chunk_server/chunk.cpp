@@ -186,7 +186,7 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
         Save(context, false);
     }
 
-    TUniquePtrSerializer<>::Save(context, CellIndexToExportData_);
+    PerCellExportData_.Save(context);
 
     Save(context, EndorsementRequired_);
     Save(context, ConsistentReplicaPlacementHash_);
@@ -238,46 +238,7 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
         MutableReplicasData()->Load(context);
     }
 
-    // COMPAT(shakurov)
-    if (context.GetVersion() < EMasterReign::SimplerChunkExportDataSaveLoad) {
-        auto exportCounter = Load<ui8>(context);
-        if (exportCounter > 0) {
-            CellIndexToExportData_ = std::make_unique<TCellIndexToChunkExportData>();
-
-            // 255 is a special marker that was never in trunk. It was only used
-            // in the 22.4 branch to facilitate migration from fixed-length
-            // array to variable-size map - while preserving snapshot
-            // compatibility and avoiding reign promotion.
-            if (exportCounter == 255) {
-                Load(context, *CellIndexToExportData_);
-                YT_VERIFY(std::any_of(
-                    CellIndexToExportData_->begin(), CellIndexToExportData_->end(),
-                    [] (auto pair) { return pair.second.RefCounter != 0; }));
-            } else {
-                TLegacyChunkExportDataList32 legacyExportDataList{};
-                TPodSerializer::Load(context, legacyExportDataList);
-                YT_VERIFY(std::any_of(
-                        legacyExportDataList.begin(), legacyExportDataList.end(),
-                        [] (auto data) { return data.RefCounter != 0; }));
-                for (auto cellIndex = 0; cellIndex < 32; ++cellIndex) {
-                    auto data = legacyExportDataList[cellIndex];
-                    if (data.RefCounter != 0) {
-                        CellIndexToExportData_->emplace(cellIndex, data);
-                    }
-                }
-            }
-        } // Else leave CellIndexToExportData_ null.
-    } else {
-        TUniquePtrSerializer<>::Load(context, CellIndexToExportData_);
-    }
-
-    YT_VERIFY(!CellIndexToExportData_ ||
-        std::any_of(
-            CellIndexToExportData_->begin(),
-            CellIndexToExportData_->end(),
-            [] (auto pair) {
-                return pair.second.RefCounter != 0;
-            }));
+    PerCellExportData_.Load(context);
 
     Load(context, EndorsementRequired_);
 
@@ -633,26 +594,19 @@ int TChunk::GetMaxReplicasPerFailureDomain(
     }
 }
 
-TChunkExportData TChunk::GetExportData(int cellIndex) const
+TChunkExportData TChunk::GetExportData(TCellTag cellTag) const
 {
-    if (!IsExported()) {
-        return {};
-    }
-
-    auto it = CellIndexToExportData_->find(cellIndex);
-    return it == CellIndexToExportData_->end()
-        ? TChunkExportData{}
-        : it->second;
+    return IsExported() ? GetOrDefault(*PerCellExportData_, cellTag) : TChunkExportData{};
 }
 
-bool TChunk::IsExportedToCell(int cellIndex) const
+bool TChunk::IsExportedToCell(TCellTag cellTag) const
 {
     if (!IsExported()) {
         return false;
     }
 
-    auto it = CellIndexToExportData_->find(cellIndex);
-    if (it == CellIndexToExportData_->end()) {
+    auto it = PerCellExportData_->find(cellTag);
+    if (it == PerCellExportData_->end()) {
         return false;
     }
 
@@ -660,7 +614,7 @@ bool TChunk::IsExportedToCell(int cellIndex) const
         YT_LOG_ALERT("Chunk export data has zero reference counter "
             "(ChunkId: %v, CellIndex: %v)",
             GetId(),
-            cellIndex);
+            cellTag);
     }
 
     return true;
@@ -675,14 +629,14 @@ void TChunk::RefUsedRequisitions(TChunkRequisitionRegistry* registry) const
         return;
     }
 
-    for (auto [cellIndex, data] : *CellIndexToExportData_) {
+    for (auto [cellTag, data] : *PerCellExportData_) {
         if (data.RefCounter != 0) {
             registry->Ref(data.ChunkRequisitionIndex);
         } else {
             YT_LOG_ALERT("Chunk export data has zero reference counter "
-                "(ChunkId: %v, CellIndex: %v)",
+                "(ChunkId: %v, CellTag: %v)",
                 GetId(),
-                cellIndex);
+                cellTag);
         }
     }
 }
@@ -698,14 +652,14 @@ void TChunk::UnrefUsedRequisitions(
         return;
     }
 
-    for (auto [cellIndex, data] : *CellIndexToExportData_) {
+    for (auto [cellTag, data] : *PerCellExportData_) {
         if (data.RefCounter != 0) {
             registry->Unref(data.ChunkRequisitionIndex, objectManager);
         } else {
             YT_LOG_ALERT("Chunk export data has zero reference counter "
-                "(ChunkId: %v, CellIndex: %v)",
+                "(ChunkId: %v, CellTag: %v)",
                 GetId(),
-                cellIndex);
+                cellTag);
         }
     }
 }
@@ -719,27 +673,25 @@ inline TChunkRequisition TChunk::ComputeAggregatedRequisition(const TChunkRequis
         return result;
     }
 
-    for (auto [cellIndex, data] : *CellIndexToExportData_) {
+    for (auto [cellTag, data] : *PerCellExportData_) {
         if (data.RefCounter != 0) {
             result |= registry->GetRequisition(data.ChunkRequisitionIndex);
         } else {
             YT_LOG_ALERT("Chunk export data has zero reference counter "
-                "(ChunkId: %v, CellIndex: %v)",
+                "(ChunkId: %v, CellTag: %v)",
                 GetId(),
-                cellIndex);
+                cellTag);
         }
     }
 
     return result;
 }
 
-void TChunk::Export(int cellIndex, TChunkRequisitionRegistry* registry)
+void TChunk::Export(TCellTag cellTag, TChunkRequisitionRegistry* registry)
 {
-    if (!CellIndexToExportData_) {
-        CellIndexToExportData_ = std::make_unique<TCellIndexToChunkExportData>();
-    }
+    PerCellExportData_.MaybeInit();
 
-    auto [it, inserted] = CellIndexToExportData_->emplace(cellIndex, TChunkExportData{});
+    auto [it, inserted] = PerCellExportData_->emplace(cellTag, TChunkExportData{});
     auto& data = it->second;
     ++data.RefCounter;
     if (inserted) {
@@ -754,24 +706,20 @@ void TChunk::Export(int cellIndex, TChunkRequisitionRegistry* registry)
 }
 
 void TChunk::Unexport(
-    int cellIndex,
+    TCellTag cellTag,
     int importRefCounter,
     TChunkRequisitionRegistry* registry,
     const NObjectServer::IObjectManagerPtr& objectManager)
 {
     YT_VERIFY(IsExported());
 
-    auto it = CellIndexToExportData_->find(cellIndex);
-    YT_VERIFY(it != CellIndexToExportData_->end());
+    auto it = GetIteratorOrCrash(*PerCellExportData_, cellTag);
     auto& data = it->second;
     if ((data.RefCounter -= importRefCounter) == 0) {
         registry->Unref(data.ChunkRequisitionIndex, objectManager);
 
-        CellIndexToExportData_->erase(it);
-
-        if (CellIndexToExportData_->empty()) {
-            CellIndexToExportData_.reset();
-        }
+        PerCellExportData_->erase(it);
+        PerCellExportData_.MaybeShrink();
 
         UpdateAggregatedRequisitionIndex(registry, objectManager);
     }
@@ -809,6 +757,11 @@ bool TChunk::HasConsistentReplicaPlacementHash() const
         !IsErasure(); // CRP with erasure is not supported.
 }
 
+void TChunk::TransformOldExportData(const TCellTagList& registeredCellTags)
+{
+    PerCellExportData_.TransformCellIndicesToCellTags(registeredCellTags);
+}
+
 void TChunk::OnMiscExtUpdated(const TMiscExt& miscExt)
 {
     RowCount_ = miscExt.row_count();
@@ -824,6 +777,145 @@ void TChunk::OnMiscExtUpdated(const TMiscExt& miscExt)
     SystemBlockCount_ = miscExt.system_block_count();
     SetSealed(miscExt.sealed());
     SetStripedErasure(miscExt.striped_erasure());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TChunk::TPerCellExportData::~TPerCellExportData()
+{
+    if ((Ptr_ & LegacyExportDataMask) != 0) {
+        delete LegacyGet();
+    } else if (Ptr_ != 0) {
+        delete Get();
+    }
+}
+
+void TChunk::TPerCellExportData::Load(TLoadContext& context)
+{
+    using NYT::Load;
+
+    auto hasNonZeroExportCounter = [] (const auto& exportData) {
+        return std::any_of(
+            exportData.begin(),
+            exportData.end(),
+            [] (auto pair) { return pair.second.RefCounter != 0; });
+    };
+
+    if (context.GetVersion() < EMasterReign::GetRidOfCellIndex) {
+        std::unique_ptr<TLegacyCellIndexToChunkExportData> legacyExportData;
+        // COMPAT(shakurov)
+        if (context.GetVersion() < EMasterReign::SimplerChunkExportDataSaveLoad) {
+            auto exportCounter = Load<ui8>(context);
+            if (exportCounter > 0) {
+                legacyExportData = std::make_unique<TLegacyCellIndexToChunkExportData>();
+
+                // 255 is a special marker that was never in trunk. It was only used
+                // in the 22.4 branch to facilitate migration from fixed-length
+                // array to variable-size map - while preserving snapshot
+                // compatibility and avoiding reign promotion.
+                if (exportCounter == 255) {
+                    Load(context, *legacyExportData);
+                    YT_VERIFY(hasNonZeroExportCounter(*legacyExportData));
+                } else {
+                    TLegacyChunkExportDataList32 legacyExportDataList{};
+                    TPodSerializer::Load(context, legacyExportDataList);
+                    YT_VERIFY(std::any_of(
+                            legacyExportDataList.begin(), legacyExportDataList.end(),
+                            [] (auto data) { return data.RefCounter != 0; }));
+                    for (auto cellIndex = 0; cellIndex < 32; ++cellIndex) {
+                        auto data = legacyExportDataList[cellIndex];
+                        if (data.RefCounter != 0) {
+                            legacyExportData->emplace(cellIndex, data);
+                        }
+                    }
+                }
+            } // Else leave `legacyExportData` null.
+        } else {
+            TUniquePtrSerializer<>::Load(context, legacyExportData);
+        }
+
+        if (legacyExportData) {
+            YT_VERIFY(hasNonZeroExportCounter(*legacyExportData));
+            Ptr_ = reinterpret_cast<uintptr_t>(legacyExportData.release()) | LegacyExportDataMask;
+        } else {
+            Ptr_ = 0;
+        }
+    } else {
+        // NB: It will be just a unique_ptr in the future.
+        std::unique_ptr<TCellTagToChunkExportData> exportData;
+        TUniquePtrSerializer<>::Load(context, exportData);
+        YT_VERIFY(!exportData || hasNonZeroExportCounter(*exportData));
+        Ptr_ = reinterpret_cast<uintptr_t>(exportData.release());
+    }
+}
+
+void TChunk::TPerCellExportData::Save(TSaveContext& context) const
+{
+    std::unique_ptr<TCellTagToChunkExportData> uniquePtr(Get());
+    TUniquePtrSerializer<>::Save(context, uniquePtr);
+    uniquePtr.release();
+}
+
+TCellTagToChunkExportData* TChunk::TPerCellExportData::Get() const noexcept
+{
+    YT_ASSERT((Ptr_ & LegacyExportDataMask) == 0);
+    return reinterpret_cast<TCellTagToChunkExportData*>(Ptr_);
+}
+
+TLegacyCellIndexToChunkExportData* TChunk::TPerCellExportData::LegacyGet() const noexcept
+{
+    YT_ASSERT((Ptr_ & LegacyExportDataMask) != 0);
+    return reinterpret_cast<TLegacyCellIndexToChunkExportData*>(Ptr_ & ~LegacyExportDataMask);
+}
+
+TCellTagToChunkExportData& TChunk::TPerCellExportData::operator*() const noexcept
+{
+    return *Get();
+}
+
+TCellTagToChunkExportData* TChunk::TPerCellExportData::operator->() const noexcept
+{
+    return Get();
+}
+
+TChunk::TPerCellExportData::operator bool() const noexcept
+{
+    return Ptr_ != 0;
+}
+
+void TChunk::TPerCellExportData::MaybeInit()
+{
+    if (!Get()) {
+        Ptr_ = reinterpret_cast<uintptr_t>(new TCellTagToChunkExportData);
+    }
+}
+
+void TChunk::TPerCellExportData::MaybeShrink()
+{
+    auto* exportData = Get();
+    if (exportData && exportData->empty()) {
+        delete exportData;
+        Ptr_ = 0;
+    }
+}
+
+void TChunk::TPerCellExportData::TransformCellIndicesToCellTags(
+    const TCellTagList& registeredCellTags)
+{
+    if (Ptr_ == 0) {
+        return;
+    }
+
+    auto* oldExportData = LegacyGet();
+    auto newExportData = std::make_unique<TCellTagToChunkExportData>();
+    newExportData->reserve(oldExportData->size());
+    for (auto [cellIndex, exportData] : *oldExportData) {
+        YT_VERIFY(static_cast<size_t>(cellIndex) < registeredCellTags.size());
+        newExportData->emplace(registeredCellTags[cellIndex], exportData);
+    }
+
+    Ptr_ = reinterpret_cast<uintptr_t>(newExportData.release());
+    delete oldExportData;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

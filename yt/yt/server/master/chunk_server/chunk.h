@@ -43,9 +43,15 @@ struct TChunkExportData
 
 static_assert(sizeof(TChunkExportData) == 8, "sizeof(TChunkExportData) != 8");
 
-using TCellIndexToChunkExportData = TCompactFlatMap<int, TChunkExportData, TypicalChunkExportFactor>;
-static_assert(sizeof(TCellIndexToChunkExportData::value_type) == 12, "sizeof(TCellIndexToChunkExportData::value_type) != 12");
-static_assert(sizeof(TCellIndexToChunkExportData) == 56, "sizeof(TCellIndexToChunkExportData) != 56");
+using TLegacyCellIndexToChunkExportData = TCompactFlatMap<int, TChunkExportData, TypicalChunkExportFactor>;
+static_assert(sizeof(TLegacyCellIndexToChunkExportData::value_type) == 12,
+    "sizeof(TLegacyCellIndexToChunkExportData::value_type) != 12");
+static_assert(sizeof(TLegacyCellIndexToChunkExportData) == 56,
+    "sizeof(TLegacyCellIndexToChunkExportData) != 56");
+
+using TCellTagToChunkExportData = TCompactFlatMap<NObjectServer::TCellTag, TChunkExportData, TypicalChunkExportFactor>;
+static_assert(sizeof(TCellTagToChunkExportData::value_type) == 12, "sizeof(TCellTagToChunkExportData::value_type) != 12");
+static_assert(sizeof(TCellTagToChunkExportData) == 56, "sizeof(TCellTagToChunkExportData) != 56");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -228,11 +234,11 @@ public:
         TChunkRequisitionRegistry* registry,
         const NObjectServer::IObjectManagerPtr& objectManager);
 
-    //! Prerequisite: IsExportedToCell(cellIndex).
-    TChunkRequisitionIndex GetExternalRequisitionIndex(int cellIndex) const;
-    //! Prerequisite: IsExportedToCell(cellIndex).
+    //! Prerequisite: IsExportedToCell(cellTag).
+    TChunkRequisitionIndex GetExternalRequisitionIndex(NObjectServer::TCellTag cellTag) const;
+    //! Prerequisite: IsExportedToCell(cellTag).
     void SetExternalRequisitionIndex(
-        int cellIndex,
+        NObjectServer::TCellTag cellTag,
         TChunkRequisitionIndex requisitionIndex,
         TChunkRequisitionRegistry* registry,
         const NObjectServer::IObjectManagerPtr& objectManager);
@@ -332,25 +338,20 @@ public:
         std::optional<int> replicationFactorOverride,
         const TChunkRequisitionRegistry* registry) const;
 
-    //! Returns the export data w.r.t. to a cell with a given #index.
-    /*!
-     *  It's ok to call this even if !IsExportedToCell(cellIndex).
-     *
-     *  \see #IMulticellManager::GetRegisteredMasterCellIndex
-     */
-    TChunkExportData GetExportData(int cellIndex) const;
+    //! Returns the export data w.r.t. to a cell.
+    TChunkExportData GetExportData(NObjectServer::TCellTag cellTag) const;
 
-    //! Same as GetExportData(cellIndex).RefCounter != 0.
-    bool IsExportedToCell(int cellIndex) const;
+    //! Same as GetExportData(cellTag).RefCounter != 0.
+    bool IsExportedToCell(NObjectServer::TCellTag cellTag) const;
 
     bool IsExported() const;
 
     //! Increments export ref counter.
-    void Export(int cellIndex, TChunkRequisitionRegistry* registry);
+    void Export(NObjectServer::TCellTag cellTag, TChunkRequisitionRegistry* registry);
 
     //! Decrements export ref counter.
     void Unexport(
-        int cellIndex,
+        NObjectServer::TCellTag cellTag,
         int importRefCounter,
         TChunkRequisitionRegistry* registry,
         const NObjectServer::IObjectManagerPtr& objectManager);
@@ -372,12 +373,48 @@ public:
     //! and false otherwise.
     bool IsRefreshActual() const;
 
+    // COMPAT(kvk1920)
+    void TransformOldExportData(const NObjectServer::TCellTagList& registeredCellTags);
+
 private:
     //! -1 stands for std::nullopt for non-overlayed chunks.
     i64 FirstOverlayedRowIndex_ = -1;
 
-    //! Per-cell data, indexed by cell index; cf. IMulticellManager::GetRegisteredMasterCellIndex.
-    std::unique_ptr<TCellIndexToChunkExportData> CellIndexToExportData_;
+    // COMPAT(kvk1920)
+    class TPerCellExportData
+        : NNonCopyable::TNonCopyable
+    {
+    public:
+        ~TPerCellExportData();
+
+        void Load(NCellMaster::TLoadContext& context);
+        void Save(NCellMaster::TSaveContext& context) const;
+
+        explicit operator bool() const noexcept;
+
+        TCellTagToChunkExportData& operator*() const noexcept;
+        TCellTagToChunkExportData* operator->() const noexcept;
+        TCellTagToChunkExportData* Get() const noexcept;
+
+        void MaybeInit();
+        void MaybeShrink();
+
+        void TransformCellIndicesToCellTags(const NObjectServer::TCellTagList& registeredCellTags);
+
+    private:
+        // The lowest bit is used to distinguish cell indices and cell tags.
+        static_assert(sizeof(uintptr_t) == 8, "sizeof(uintptr_t) != 8");
+        static_assert(alignof(TLegacyCellIndexToChunkExportData) >= 2);
+        static_assert(alignof(TCellTagToChunkExportData) >= 2);
+        constexpr static uintptr_t LegacyExportDataMask = 1;
+
+        uintptr_t Ptr_ = 0;
+
+        TLegacyCellIndexToChunkExportData* LegacyGet() const noexcept;
+    };
+
+    //! Per-cell data.
+    TPerCellExportData PerCellExportData_;
 
     TChunkRequisitionIndex AggregatedRequisitionIndex_;
     TChunkRequisitionIndex LocalRequisitionIndex_;
@@ -484,6 +521,8 @@ private:
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TChunk)
+
+static_assert(sizeof(TChunk) == 288, "sizeof(TChunk) != 288");
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -202,25 +202,24 @@ inline void TChunk::SetLocalRequisitionIndex(
     UpdateAggregatedRequisitionIndex(registry, objectManager);
 }
 
-inline TChunkRequisitionIndex TChunk::GetExternalRequisitionIndex(int cellIndex) const
+inline TChunkRequisitionIndex TChunk::GetExternalRequisitionIndex(
+    NObjectServer::TCellTag cellTag) const
 {
     YT_VERIFY(IsExported());
-    auto it = CellIndexToExportData_->find(cellIndex);
-    YT_VERIFY(it != CellIndexToExportData_->end());
+    auto it = GetIteratorOrCrash(*PerCellExportData_, cellTag);
     const auto& data = it->second;
     YT_VERIFY(data.RefCounter != 0);
     return data.ChunkRequisitionIndex;
 }
 
 inline void TChunk::SetExternalRequisitionIndex(
-    int cellIndex,
+    NObjectServer::TCellTag cellTag,
     TChunkRequisitionIndex requisitionIndex,
     TChunkRequisitionRegistry* registry,
     const NObjectServer::IObjectManagerPtr& objectManager)
 {
     YT_VERIFY(IsExported());
-    auto it = CellIndexToExportData_->find(cellIndex);
-    YT_VERIFY(it != CellIndexToExportData_->end());
+    auto it = GetIteratorOrCrash(*PerCellExportData_, cellTag);
     auto& data = it->second;
     YT_VERIFY(data.RefCounter != 0);
     registry->Unref(data.ChunkRequisitionIndex, objectManager);
@@ -335,14 +334,14 @@ inline bool TChunk::IsDiskSizeFinal() const
 
 inline bool TChunk::IsExported() const
 {
-    YT_ASSERT(!CellIndexToExportData_ ||
-        !CellIndexToExportData_->empty() &&
+    YT_ASSERT(!PerCellExportData_ ||
+        !PerCellExportData_->empty() &&
         std::all_of(
-            CellIndexToExportData_->begin(),
-            CellIndexToExportData_->end(),
+            PerCellExportData_->begin(),
+            PerCellExportData_->end(),
             [] (auto pair) { return pair.second.RefCounter != 0; }));
 
-    return static_cast<bool>(CellIndexToExportData_);
+    return static_cast<bool>(PerCellExportData_);
 }
 
 inline void TChunk::OnRefresh()

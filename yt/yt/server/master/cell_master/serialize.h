@@ -129,6 +129,7 @@ DEFINE_ENUM(EMasterReign,
     ((AvenuesInTabletManager)                                       (2408))  // ifsmirnov
     ((ChaosReplicatedQueuesAndConsumersList)                        (2409))  // cherepashka
     ((ValidateTableSettingsInTabletActions)                         (2410))  // alexelexa
+    ((GetRidOfCellIndex)                                            (2411))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////

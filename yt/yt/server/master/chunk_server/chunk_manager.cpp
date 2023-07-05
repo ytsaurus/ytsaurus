@@ -1453,22 +1453,16 @@ public:
 
     void ExportChunk(TChunk* chunk, TCellTag destinationCellTag) override
     {
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        auto cellIndex = multicellManager->GetRegisteredMasterCellIndex(destinationCellTag);
-        chunk->Export(cellIndex, GetChunkRequisitionRegistry());
+        chunk->Export(destinationCellTag, GetChunkRequisitionRegistry());
     }
 
     void UnexportChunk(TChunk* chunk, TCellTag destinationCellTag, int importRefCounter) override
     {
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        auto cellIndex = multicellManager->GetRegisteredMasterCellIndex(destinationCellTag);
-
-        if (!chunk->IsExportedToCell(cellIndex)) {
+        if (!chunk->IsExportedToCell(destinationCellTag)) {
             YT_LOG_ALERT("Chunk is not exported and cannot be unexported "
-                "(ChunkId: %v, CellTag: %v, CellIndex: %v, ImportRefCounter: %v)",
+                "(ChunkId: %v, CellTag: %v, ImportRefCounter: %v)",
                 chunk->GetId(),
                 destinationCellTag,
-                cellIndex,
                 importRefCounter);
             return;
         }
@@ -1477,10 +1471,10 @@ public:
         auto* requisitionRegistry = GetChunkRequisitionRegistry();
 
         auto unexportChunk = [&] () {
-            chunk->Unexport(cellIndex, importRefCounter, requisitionRegistry, objectManager);
+            chunk->Unexport(destinationCellTag, importRefCounter, requisitionRegistry, objectManager);
         };
 
-        if (chunk->GetExternalRequisitionIndex(cellIndex) == EmptyChunkRequisitionIndex) {
+        if (chunk->GetExternalRequisitionIndex(destinationCellTag) == EmptyChunkRequisitionIndex) {
             // Unexporting will effectively do nothing from the replication and
             // accounting standpoints.
             unexportChunk();
@@ -2623,6 +2617,9 @@ private:
     // COMPAT(h0pless)
     bool NeedRecomputeChunkWeightStatisticsHistogram_ = false;
 
+    // COMPAT(kvk1920)
+    bool NeedTransformOldExportData_ = false;
+
     TPeriodicExecutorPtr ProfilingExecutor_;
 
     TBufferedProducerPtr BufferedProducer_;
@@ -3717,7 +3714,6 @@ private:
 
         auto requestCellTag = FromProto<TCellTag>(request->cell_tag());
         auto local = requestCellTag == multicellManager->GetCellTag();
-        int cellIndex = local ? -1 : multicellManager->GetRegisteredMasterCellIndex(requestCellTag);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* requisitionRegistry = GetChunkRequisitionRegistry();
@@ -3750,7 +3746,7 @@ private:
                 chunk->SetLocalRequisitionIndex(requisitionIndex, requisitionRegistry, objectManager);
             } else {
                 chunk->SetExternalRequisitionIndex(
-                    cellIndex,
+                    requestCellTag,
                     requisitionIndex,
                     requisitionRegistry,
                     objectManager);
@@ -3775,12 +3771,12 @@ private:
             auto* chunk = update.Chunk;
             auto newRequisitionIndex = update.TranslatedRequisitionIndex;
 
-            if (!local && !chunk->IsExportedToCell(cellIndex)) {
+            if (!local && !chunk->IsExportedToCell(requestCellTag)) {
                 // The chunk has already been unexported from that cell.
                 continue;
             }
 
-            auto curRequisitionIndex = local ? chunk->GetLocalRequisitionIndex() : chunk->GetExternalRequisitionIndex(cellIndex);
+            auto curRequisitionIndex = local ? chunk->GetLocalRequisitionIndex() : chunk->GetExternalRequisitionIndex(requestCellTag);
 
             if (newRequisitionIndex == curRequisitionIndex) {
                 continue;
@@ -4519,6 +4515,9 @@ private:
         LoadHistogramValues(context, ChunkCompressedDataSizeHistogram_);
         LoadHistogramValues(context, ChunkUncompressedDataSizeHistogram_);
         LoadHistogramValues(context, ChunkDataWeightHistogram_);
+
+        // COMPAT(kvk1920)
+        NeedTransformOldExportData_ = context.GetVersion() < EMasterReign::GetRidOfCellIndex;
     }
 
     void OnBeforeSnapshotLoaded() override
@@ -4526,9 +4525,27 @@ private:
         TMasterAutomatonPart::OnBeforeSnapshotLoaded();
     }
 
+    void MaybeTransformChunkExportData()
+    {
+        if (!NeedTransformOldExportData_) {
+            return;
+        }
+
+        const auto& registeredCellTags = Bootstrap_->GetMulticellManager()->GetRegisteredMasterCellTags();
+
+        YT_LOG_INFO("Started compat-transforming chunk export data");
+        for (auto [chunkId, chunk] : ChunkMap_) {
+            chunk->TransformOldExportData(registeredCellTags);
+        }
+        YT_LOG_INFO("Finished compat-transforming chunk export data");
+    }
+
     void OnAfterSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
+
+        // COMPAT(kvk1920)
+        MaybeTransformChunkExportData();
 
         // Populate nodes' chunk replica sets.
         // Compute chunk replica count.
