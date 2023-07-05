@@ -161,7 +161,7 @@ void TParallelFileReader::SupervisorJob() noexcept
     while (auto range = splitter.Next()) {
         TResourceGuard guard(RamLimiter_, range->Length());
         if (ReadJobException_.GetException()) {
-            return;
+            break;
         }
         ::NThreading::TFuture<::TBlob> future = ::NThreading::Async(
             [this, range = std::move(*range)]() -> TBlob {
