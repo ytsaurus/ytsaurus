@@ -22,7 +22,7 @@ jobs:
           yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           folder-id: b1gcvl619mdunf1cqqbv
-          image-id: fd8ref8pd2uefi7o6kh3
+          image-id: fd85p4aqjlpuf14r7044
           zone-id: 'ru-central1-b'
           subnet-id: e2lno1rkqo63l729dlo7
           cores: 16
@@ -67,12 +67,21 @@ jobs:
           mkdir -p ../build
           cd ../build
           rm -rf *
-          cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/clang.toolchain ../ytsaurus
+          cmake \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/clang.toolchain \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            ../ytsaurus
 
       - name: Build C++
         shell: bash
         run: |
           cd ../build
+          export CCACHE_BASEDIR="$(realpath ..)"
+          export CCACHE_REMOTE_ONLY=true
+          export CCACHE_REMOTE_STORAGE="http://10.129.0.22|layout=bazel"
           ninja yson_lib driver_lib driver_rpc_lib
 
       - name: Build package
@@ -81,6 +90,8 @@ jobs:
           echo "RELEASE_VERSION: ${{ steps.tag.outputs.RELEASE_VERSION }}"
           echo "PACKAGE_NAME: ${{ steps.tag.outputs.PACKAGE_NAME }}"
           echo "RELEASE_TYPE: ${{ steps.tag.outputs.RELEASE_TYPE }}"
+          python3.11 -m venv ../venv
+          source ../venv/bin/activate
           YTSAURUS_PACKAGE_VERSION=${{ steps.tag.outputs.RELEASE_VERSION }} bash ./yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --ytsaurus-package-name ${{ steps.tag.outputs.PACKAGE_NAME }}
           ytsaurus_python=$(realpath "../build/ytsaurus_python")
           mv "${ytsaurus_python}/$(echo ${{ steps.tag.outputs.PACKAGE_NAME }} | sed -E "s/-/_/g")_dist" dist

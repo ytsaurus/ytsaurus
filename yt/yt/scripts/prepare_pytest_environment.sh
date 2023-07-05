@@ -4,10 +4,6 @@ export PYTHON_ROOT="$(realpath ../python)"
 export VIRTUALENV_PATH="$(realpath ../venv)"
 export TESTS_SANDBOX="$(realpath ../tests_sandbox)"
 
-# COMPAT: remove when ticket YT-19287 will be resolved.
-pip3 install virtualenv
-
-virtualenv "$VIRTUALENV_PATH" -p python3
 source "$VIRTUALENV_PATH/bin/activate"
 
 mkdir "$PYTHON_ROOT"
