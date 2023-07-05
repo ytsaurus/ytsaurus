@@ -246,6 +246,9 @@ TString ToString(TChunkLocationPtrWithReplicaInfo value);
 
 //! Serializes node id, replica index, medium index.
 void ToProto(ui64* protoValue, TNodePtrWithReplicaAndMediumIndex value);
+// COMPAT(babenko)
+//! Serializes node id, replica index; omits medium index.
+void ToProto(ui32* protoValue, TNodePtrWithReplicaAndMediumIndex value);
 //! Serializes node id, replica index.
 void ToProto(ui32* protoValue, TNodePtrWithReplicaIndex value);
 //! Serializes node id, replica index, medium index.

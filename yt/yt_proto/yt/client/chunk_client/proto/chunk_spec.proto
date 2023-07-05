@@ -28,8 +28,14 @@ message TChunkSpec
     // Upper boundary, exclusive.
     optional TReadLimit upper_limit = 3;
 
-    // Initial seed addresses. The reader may ask the master for additional ones.
-    repeated fixed32 replicas = 4;
+    // COMPAT(babenko)
+    // Initial seed replicas. The reader may ask the master for additional ones.
+    // No medium indices.
+    repeated fixed32 legacy_replicas = 4;
+
+    // COMPAT(babenko)
+    // Initial seeds replicas. The reader may ask the master for additional ones.
+    repeated fixed64 replicas = 25;
 
     optional int32 table_index = 7 [default = 0];
 

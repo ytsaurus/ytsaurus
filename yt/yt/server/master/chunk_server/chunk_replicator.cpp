@@ -263,7 +263,7 @@ public:
         }
 
         auto* jobSpecExt = jobSpec->MutableExtension(TRepairChunkJobSpecExt::repair_chunk_job_spec_ext);
-        jobSpecExt->set_erasure_codec(static_cast<int>(Chunk_->GetErasureCodec()));
+        jobSpecExt->set_erasure_codec(ToProto<int>(Chunk_->GetErasureCodec()));
         ToProto(jobSpecExt->mutable_chunk_id(), Chunk_->GetId());
         jobSpecExt->set_decommission(Decommission_);
 
@@ -277,6 +277,7 @@ public:
         const auto& sourceReplicas = Chunk_->StoredReplicas();
         builder.Add(sourceReplicas);
         ToProto(jobSpecExt->mutable_source_replicas(), sourceReplicas);
+        ToProto(jobSpecExt->mutable_legacy_source_replicas(), sourceReplicas);
 
         jobSpecExt->set_striped_erasure_chunk(Chunk_->GetStripedErasure());
 

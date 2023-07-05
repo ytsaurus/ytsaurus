@@ -306,10 +306,11 @@ private:
             TChunkPtrWithReplicaIndex chunkWithReplicaIndex(
                 chunk,
                 chunkIdWithIndex.ReplicaIndex);
-            subresponse->set_erasure_codec(static_cast<int>(chunk->GetErasureCodec()));
+            subresponse->set_erasure_codec(ToProto<int>(chunk->GetErasureCodec()));
             auto replicas = chunkManager->LocateChunk(chunkWithReplicaIndex);
             for (auto replica : replicas) {
-                subresponse->add_replicas(ToProto<ui32>(replica));
+                subresponse->add_legacy_replicas(ToProto<ui32>(replica));
+                subresponse->add_replicas(ToProto<ui64>(replica));
                 nodeDirectoryBuilder.Add(replica.GetPtr());
             }
 
@@ -416,8 +417,9 @@ private:
                 ToProto(chunkSpec->mutable_chunk_id(), dynamicStore->GetId());
                 if (auto* node = tabletManager->FindTabletLeaderNode(tablet)) {
                     nodeDirectoryBuilder.Add(node);
-                    auto replica = TNodePtrWithReplicaIndex(node, GenericChunkReplicaIndex);
-                    chunkSpec->add_replicas(ToProto<ui32>(replica));
+                    auto replica = TNodePtrWithReplicaAndMediumIndex(node, GenericChunkReplicaIndex, GenericMediumIndex);
+                    chunkSpec->add_legacy_replicas(ToProto<ui32>(replica));
+                    chunkSpec->add_replicas(ToProto<ui64>(replica));
                 }
                 ToProto(chunkSpec->mutable_tablet_id(), tablet->GetId());
             }

@@ -36,6 +36,13 @@ void TNodeDirectoryBuilder::Add(const TChunkReplicaList& replicas)
     }
 }
 
+void TNodeDirectoryBuilder::Add(const TChunkReplicaWithMediumList& replicas)
+{
+    for (auto replica : replicas) {
+        Add(replica);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NNodeTrackerClient

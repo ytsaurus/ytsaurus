@@ -32,7 +32,7 @@ std::vector<IChunkReaderAllowingRepairPtr> CreateErasurePartReaders(
     TRemoteReaderOptionsPtr options,
     TChunkReaderHostPtr chunkReaderHost,
     TChunkId chunkId,
-    const TChunkReplicaList& seedReplicas,
+    const TChunkReplicaWithMediumList& seedReplicas,
     const NErasure::TPartIndexList& partIndexList,
     EUnavailablePartPolicy unavailablePartPolicy);
 
@@ -41,7 +41,7 @@ std::vector<IChunkReaderAllowingRepairPtr> CreateAllErasurePartReaders(
     TRemoteReaderOptionsPtr options,
     TChunkReaderHostPtr chunkReaderHost,
     TChunkId chunkId,
-    const TChunkReplicaList& seedReplicas,
+    const TChunkReplicaWithMediumList& seedReplicas,
     const NErasure::ICodec* codec,
     EUnavailablePartPolicy unavailablePartPolicy);
 

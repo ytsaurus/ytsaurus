@@ -169,7 +169,7 @@ struct IChunkStore
     virtual TBackendReaders GetBackendReaders(
         std::optional<EWorkloadCategory> workloadCategory) = 0;
     virtual void InvalidateCachedReaders(const TTableSettings& settings) = 0;
-    virtual NChunkClient::TChunkReplicaList GetReplicas(
+    virtual NChunkClient::TChunkReplicaWithMediumList GetReplicas(
         NNodeTrackerClient::TNodeId localNodeId) = 0;
 
     virtual NTabletClient::EInMemoryMode GetInMemoryMode() const = 0;

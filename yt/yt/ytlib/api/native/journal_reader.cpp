@@ -31,6 +31,7 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/chunk_client/read_limit.h>
+#include <yt/yt/client/chunk_client/helpers.h>
 
 #include <yt/yt/library/erasure/impl/codec.h>
 
@@ -208,7 +209,7 @@ private:
 
                 auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
                 auto codecId = FromProto<NErasure::ECodec>(chunkSpec.erasure_codec());
-                auto replicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
+                auto replicas = GetReplicasFromChunkSpec(chunkSpec);
 
                 CurrentChunkReader_ = NJournalClient::CreateChunkReader(
                     Config_,

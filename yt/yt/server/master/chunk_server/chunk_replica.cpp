@@ -82,6 +82,14 @@ void ToProto(ui64* protoValue, TNodePtrWithReplicaAndMediumIndex value)
     NChunkClient::ToProto(protoValue, replica);
 }
 
+void ToProto(ui32* protoValue, TNodePtrWithReplicaAndMediumIndex value)
+{
+    TChunkReplica replica(
+        value.GetPtr()->GetId(),
+        value.GetReplicaIndex());
+    NChunkClient::ToProto(protoValue, replica);
+}
+
 void ToProto(ui32* protoValue, TNodePtrWithReplicaIndex value)
 {
     TChunkReplica replica(value.GetPtr()->GetId(), value.GetReplicaIndex());

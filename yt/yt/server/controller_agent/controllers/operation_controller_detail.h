@@ -208,7 +208,7 @@ private: \
     IMPLEMENT_SAFE_METHOD(
         void,
         OnInputChunkLocated,
-        (NChunkClient::TChunkId chunkId, const NChunkClient::TChunkReplicaList& replicas, bool missing),
+        (NChunkClient::TChunkId chunkId, const NChunkClient::TChunkReplicaWithMediumList& replicas, bool missing),
         (chunkId, replicas, missing),
         false)
 
@@ -216,7 +216,7 @@ private: \
     IMPLEMENT_SAFE_METHOD(
         void,
         OnIntermediateChunkLocated,
-        (NChunkClient::TChunkId chunkId, const NChunkClient::TChunkReplicaList& replicas, bool missing),
+        (NChunkClient::TChunkId chunkId, const NChunkClient::TChunkReplicaWithMediumList& replicas, bool missing),
         (chunkId, replicas, missing),
         false)
 
@@ -815,7 +815,7 @@ protected:
 
     void OnIntermediateChunkAvailable(
         NChunkClient::TChunkId chunkId,
-        const NChunkClient::TChunkReplicaList& replicas);
+        const NChunkClient::TChunkReplicaWithMediumList& replicas);
 
     //! Return a pointer to `YsonSerializable` object that represents
     //! the fully typed operation spec which know more than a simple
@@ -851,7 +851,7 @@ protected:
 
     void OnInputChunkAvailable(
         NChunkClient::TChunkId chunkId,
-        const NChunkClient::TChunkReplicaList& replicas,
+        const NChunkClient::TChunkReplicaWithMediumList& replicas,
         TInputChunkDescriptor* descriptor);
 
     bool IsOutputLivePreviewSupported() const;

@@ -34,7 +34,7 @@ void AccountStripeInList(
         for (const auto& chunkSlice : dataSlice->ChunkSlices) {
             bool isLocal = false;
             for (auto replica : chunkSlice->GetInputChunk()->GetReplicaList()) {
-                if (static_cast<TNodeId>(replica.GetNodeId()) == nodeId) {
+                if (replica.GetNodeId() == nodeId) {
                     i64 locality = chunkSlice->GetLocality(replica.GetReplicaIndex());
                     if (locality > 0) {
                         list->LocalDataWeight += locality;

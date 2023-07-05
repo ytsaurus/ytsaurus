@@ -19,6 +19,8 @@ class TChunkMeta;
 class TBlocksExt;
 class TMiscExt;
 
+class TConfirmChunkReplicaInfo;
+
 class TDataStatistics;
 
 class TLegacyReadRange;

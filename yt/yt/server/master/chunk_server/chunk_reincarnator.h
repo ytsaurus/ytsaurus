@@ -21,7 +21,7 @@ public:
         TJobEpoch jobEpoch,
         NChunkClient::TChunkIdWithIndexes newChunkId,
         NNodeTrackerServer::TNode* node,
-        TNodePtrWithReplicaIndexList sourceReplicas,
+        TNodePtrWithReplicaAndMediumIndexList sourceReplicas,
         TNodePtrWithReplicaAndMediumIndexList targetReplicas,
         int mediumIndex);
 
@@ -30,12 +30,12 @@ public:
         NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
 
 private:
-    TNodePtrWithReplicaIndexList SourceReplicas_;
-    TNodePtrWithReplicaAndMediumIndexList TargetReplicas_;
+    const TNodePtrWithReplicaAndMediumIndexList SourceReplicas_;
+    const TNodePtrWithReplicaAndMediumIndexList TargetReplicas_;
+    const int MediumIndex_;
     NErasure::ECodec ErasureCodec_;
     NCompression::ECodec CompressionCodec_;
     bool EnableSkynetSharing_;
-    int MediumIndex_;
 
     static NNodeTrackerClient::NProto::TNodeResources GetJobResourceUsage();
 };

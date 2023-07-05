@@ -82,10 +82,15 @@ message TRepairChunkJobSpecExt
     // Unencoded chunk id.
     required NYT.NProto.TGuid chunk_id = 3;
 
+    // COMPAT(babenko)
     // Nodes where existing replicas reside.
     // Replica indexes indicate specific chunk parts.
     // No medium indexes are provided (hence fixed32).
-    repeated fixed32 source_replicas = 4;
+    repeated fixed32 legacy_source_replicas = 4;
+
+    // Nodes where existing replicas reside.
+    // Replica indexes indicate specific chunk parts.
+    repeated fixed64 source_replicas = 10;
 
     // Nodes where repaired replicas must be created.
     // Replica indexes indicate specific chunk parts to be repaired.
@@ -125,10 +130,15 @@ message TSealChunkJobSpecExt
     // Medium where the chunk replica resides.
     required int32 medium_index = 4;
 
+    // COMPAT(babenko)
     // Nodes where existing replicas reside.
     // Replica indexes are not used.
     // No medium indexes are provided (hence fixed32).
-    repeated fixed32 source_replicas = 5;
+    repeated fixed32 legacy_source_replicas = 5;
+
+    // Nodes where existing replicas reside.
+    // Replica indexes are not used.
+    repeated fixed64 source_replicas = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -137,10 +147,14 @@ message TMergeChunkInfo
 {
     required NYT.NProto.TGuid id = 1;
 
+    // COMPAT(babenko)
     // Nodes where existing replicas reside.
     // Replica indexes are not used.
     // No medium indexes are provided (hence fixed32).
-    repeated fixed32 source_replicas = 2;
+    repeated fixed32 legacy_source_replicas = 2;
+    // Nodes where existing replicas reside.
+    // Replica indexes are not used.
+    repeated fixed64 source_replicas = 5;
     optional int64 row_count = 3 [default = 0];
     optional int32 erasure_codec = 4 [default = 0]; // NErasure::ECodec
 }
@@ -241,7 +255,9 @@ message TReincarnateChunkJobSpecExt
     required int32 erasure_codec = 2;
     required int32 compression_codec = 3;
     required NYT.NProto.TGuid new_chunk_id = 4;
-    repeated fixed32 source_replicas = 5;
+    // COMPAT(babenko)
+    repeated fixed32 legacy_source_replicas = 5;
+    repeated fixed64 source_replicas = 10;
     repeated fixed64 target_replicas = 6;
     required int32 medium_index = 7;
     required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 8;

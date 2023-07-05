@@ -170,14 +170,15 @@ void BuildChunkSpec(
         ? std::numeric_limits<int>::max() // all replicas are feasible
         : NErasure::GetCodec(erasureCodecId)->GetDataPartCount();
 
-    TNodePtrWithReplicaIndexList replicas;
+    TNodePtrWithReplicaAndMediumIndexList replicas;
     replicas.reserve(chunk->StoredReplicas().size());
 
     auto addReplica = [&] (TChunkLocationPtrWithReplicaInfo replica)  {
         if (replica.GetReplicaIndex() >= firstInfeasibleReplicaIndex) {
             return false;
         }
-        replicas.emplace_back(replica.GetPtr()->GetNode(), replica.GetReplicaIndex());
+        const auto* location = replica.GetPtr();
+        replicas.emplace_back(location->GetNode(), replica.GetReplicaIndex(), location->GetEffectiveMediumIndex());
         nodeDirectoryBuilder->Add(replica);
         return true;
     };
@@ -186,6 +187,7 @@ void BuildChunkSpec(
         addReplica(replica);
     }
 
+    ToProto(chunkSpec->mutable_legacy_replicas(), replicas);
     ToProto(chunkSpec->mutable_replicas(), replicas);
     ToProto(chunkSpec->mutable_chunk_id(), chunk->GetId());
     chunkSpec->set_erasure_codec(ToProto<int>(erasureCodecId));
@@ -275,9 +277,9 @@ void BuildDynamicStoreSpec(
     // 2) we cannot determine it at master when there are multiple consecutive dynamic stores.
 
     if (auto* node = tabletManager->FindTabletLeaderNode(tablet)) {
-        auto replica = TNodePtrWithReplicaIndex(node, GenericChunkReplicaIndex);
         nodeDirectoryBuilder->Add(node);
-        chunkSpec->add_replicas(ToProto<ui32>(replica));
+        chunkSpec->add_legacy_replicas(ToProto<ui32>(TNodePtrWithReplicaIndex(node, GenericChunkReplicaIndex)));
+        chunkSpec->add_replicas(ToProto<ui64>(TNodePtrWithReplicaAndMediumIndex(node, GenericChunkReplicaIndex, GenericMediumIndex)));
     }
 
     if (!lowerLimit.IsTrivial()) {

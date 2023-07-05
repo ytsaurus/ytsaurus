@@ -35,7 +35,7 @@ TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
     , MaxClipTimestamp_(chunkSpec.max_clip_timestamp())
     , StripedErasure_(chunkSpec.striped_erasure())
 {
-    SetReplicaList(FromProto<TChunkReplicaList>(chunkSpec.replicas()));
+    SetReplicaList(GetReplicasFromChunkSpec(chunkSpec));
 
     const auto& chunkMeta = chunkSpec.chunk_meta();
     if (auto miscExt = FindProtoExtension<NProto::TMiscExt>(chunkMeta.extensions())) {
@@ -74,20 +74,20 @@ TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
     }
 }
 
-TChunkReplicaList TInputChunkBase::GetReplicaList() const
+TChunkReplicaWithMediumList TInputChunkBase::GetReplicaList() const
 {
-    TChunkReplicaList replicas;
+    TChunkReplicaWithMediumList replicas;
 
     replicas.reserve(MaxInputChunkReplicaCount);
     for (auto replica : Replicas_) {
         if (replica.GetNodeId() != InvalidNodeId) {
-            replicas.push_back(replica);
+            replicas.push_back(TChunkReplicaWithMedium(replica));
         }
     }
     return replicas;
 }
 
-void TInputChunkBase::SetReplicaList(const TChunkReplicaList& replicas)
+void TInputChunkBase::SetReplicaList(const TChunkReplicaWithMediumList& replicas)
 {
     Replicas_.fill(TChunkReplica());
     for (int index = 0; index < std::ssize(replicas); ++index) {
@@ -313,7 +313,9 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk)
 {
     SetObjectId(chunkSpec, inputChunk->GetChunkId());
 
-    ToProto(chunkSpec->mutable_replicas(), inputChunk->GetReplicaList());
+    auto replicas = inputChunk->GetReplicaList();
+    ToProto(chunkSpec->mutable_legacy_replicas(), TChunkReplicaWithMedium::ToChunkReplicas(replicas));
+    ToProto(chunkSpec->mutable_replicas(), replicas);
 
     if (inputChunk->TableIndex_ >= 0) {
         chunkSpec->set_table_index(inputChunk->TableIndex_);

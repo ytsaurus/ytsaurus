@@ -83,7 +83,6 @@ using namespace NTableClient;
 using NNodeTrackerClient::TNodeId;
 using NYT::ToProto;
 using NYT::FromProto;
-using ::ToString;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -144,7 +143,7 @@ public:
         TRemoteReaderOptionsPtr options,
         TChunkReaderHostPtr chunkReaderHost,
         TChunkId chunkId,
-        const TChunkReplicaList& seedReplicas)
+        const TChunkReplicaWithMediumList& seedReplicas)
         : Config_(std::move(config))
         , Options_(std::move(options))
         , Client_(chunkReaderHost->Client)
@@ -264,7 +263,7 @@ private:
     //! If AllowFetchingSeedsFromMaster is |true| InitialSeeds_ (if present) are used
     //! until 'DiscardSeeds' is called for the first time.
     //! If AllowFetchingSeedsFromMaster is |false| InitialSeeds_ must be given and cannot be discarded.
-    TChunkReplicaList InitialSeeds_;
+    TChunkReplicaWithMediumList InitialSeeds_;
 
     std::atomic<TInstant> LastFailureTime_ = TInstant();
     TCallback<TError(i64, TDuration)> SlownessChecker_;
@@ -3188,7 +3187,7 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
     TRemoteReaderOptionsPtr options,
     TChunkReaderHostPtr chunkReaderHost,
     TChunkId chunkId,
-    const TChunkReplicaList& seedReplicas)
+    const TChunkReplicaWithMediumList& seedReplicas)
 {
     return New<TReplicationReader>(
         std::move(config),

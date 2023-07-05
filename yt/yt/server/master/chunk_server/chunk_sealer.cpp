@@ -62,6 +62,7 @@ using namespace NObjectClient;
 using namespace NCellMaster;
 using namespace NProfiling;
 
+using NYT::ToProto;
 using NChunkClient::TSessionId; // Suppress ambiguity with NProto::TSessionId.
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -99,7 +100,7 @@ public:
 
         auto* jobSpecExt = jobSpec->MutableExtension(TSealChunkJobSpecExt::seal_chunk_job_spec_ext);
         ToProto(jobSpecExt->mutable_chunk_id(), EncodeChunkId(chunkId));
-        jobSpecExt->set_codec_id(::NYT::ToProto<int>(Chunk_->GetErasureCodec()));
+        jobSpecExt->set_codec_id(ToProto<int>(Chunk_->GetErasureCodec()));
         jobSpecExt->set_medium_index(chunkId.MediumIndex);
         jobSpecExt->set_row_count(Chunk_->GetPhysicalSealedRowCount());
 
@@ -107,10 +108,14 @@ public:
         const auto& replicas = Chunk_->StoredReplicas();
         builder.Add(replicas);
         for (auto replica : replicas) {
-            TNodePtrWithReplicaIndex nodeWithReplicaIndex(
-                replica.GetPtr()->GetNode(),
-                replica.GetReplicaIndex());
-            jobSpecExt->add_source_replicas(ToProto<ui32>(nodeWithReplicaIndex));
+            const auto* location = replica.GetPtr();
+            jobSpecExt->add_legacy_source_replicas(ToProto<ui32>(TNodePtrWithReplicaIndex(
+                location->GetNode(),
+                replica.GetReplicaIndex())));
+            jobSpecExt->add_source_replicas(ToProto<ui64>(TNodePtrWithReplicaAndMediumIndex(
+                location->GetNode(),
+                replica.GetReplicaIndex(),
+                location->GetEffectiveMediumIndex())));
         }
 
         return true;

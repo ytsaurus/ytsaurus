@@ -537,7 +537,11 @@ private:
     {
         TChunkSpec chunkSpec;
         ToProto(chunkSpec.mutable_chunk_id(), Writer_->GetChunkId());
-        ToProto(chunkSpec.mutable_replicas(), Writer_->GetWrittenChunkReplicas());
+        auto replicas = Writer_->GetWrittenChunkReplicas();
+        for (auto replica : replicas) {
+            chunkSpec.add_legacy_replicas(ToProto<ui32>(replica.ToChunkReplica()));
+        }
+        ToProto(chunkSpec.mutable_replicas(), replicas);
         chunkSpec.set_table_index(0);
 
         const auto& chunkMeta = *Writer_->GetChunkMeta();

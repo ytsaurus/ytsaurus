@@ -18,7 +18,7 @@ namespace NYT::NChunkClient {
 
 using TChunkLocatedHandler = TCallback<void(
     TChunkId chunkId,
-    const TChunkReplicaList& replicas,
+    const TChunkReplicaWithMediumList& replicas,
     bool missing)>;
 
 //! A chunk scraper for unavailable chunks.

@@ -20,6 +20,7 @@ public:
 
     void Add(NChunkClient::TChunkReplica replica);
     void Add(const NChunkClient::TChunkReplicaList& replicas);
+    void Add(const NChunkClient::TChunkReplicaWithMediumList& replicas);
 
 private:
     const TNodeDirectoryPtr Directory_;

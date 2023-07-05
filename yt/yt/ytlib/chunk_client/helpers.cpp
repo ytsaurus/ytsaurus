@@ -37,6 +37,7 @@
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 #include <yt/yt/client/chunk_client/data_statistics.h>
+#include <yt/yt/client/chunk_client/helpers.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -577,7 +578,7 @@ TChunkReplicaWithMediumList AllocateWriteTargets(
     const auto& nodeDirectory = client->GetNativeConnection()->GetNodeDirectory();
     nodeDirectory->MergeFrom(batchRsp->node_directory());
 
-    auto& rsp = batchRsp->subresponses(0);
+    const auto& rsp = batchRsp->subresponses(0);
     if (rsp.has_error()) {
         throwOnError(FromProto<TError>(rsp.error()));
     }
@@ -682,7 +683,7 @@ IChunkReaderPtr CreateRemoteReader(
     TChunkReaderHostPtr chunkReaderHost)
 {
     auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
-    auto replicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
+    auto replicas = GetReplicasFromChunkSpec(chunkSpec);
 
     auto Logger = ChunkClientLogger.WithTag("ChunkId: %v", chunkId);
 
@@ -691,11 +692,10 @@ IChunkReaderPtr CreateRemoteReader(
         YT_LOG_DEBUG("Creating erasure remote reader (Codec: %v)",
             erasureCodecId);
 
-        std::array<TNodeId, ::NErasure::MaxTotalPartCount> partIndexToNodeId;
-        std::fill(partIndexToNodeId.begin(), partIndexToNodeId.end(), InvalidNodeId);
+        std::array<TChunkReplicaWithMedium, ::NErasure::MaxTotalPartCount> partIndexToReplica;
+        std::fill(partIndexToReplica.begin(), partIndexToReplica.end(), TChunkReplicaWithMedium());
         for (auto replica : replicas) {
-            auto replicaIndex = replica.GetReplicaIndex();
-            partIndexToNodeId[replicaIndex] = replica.GetNodeId();
+            partIndexToReplica[replica.GetReplicaIndex()] = replica;
         }
 
         auto* erasureCodec = GetCodec(erasureCodecId);
@@ -710,10 +710,10 @@ IChunkReaderPtr CreateRemoteReader(
         readers.reserve(partCount);
 
         for (int index = 0; index < partCount; ++index) {
-            TChunkReplicaList partReplicas;
-            auto nodeId = partIndexToNodeId[index];
-            if (nodeId != InvalidNodeId) {
-                partReplicas.push_back(TChunkReplica(nodeId, index));
+            TChunkReplicaWithMediumList partReplicas;
+            auto replica = partIndexToReplica[index];
+            if (replica.GetNodeId() != InvalidNodeId) {
+                partReplicas.push_back(replica);
             }
 
             auto partChunkId = ErasurePartIdFromChunkId(chunkId, index);
@@ -820,10 +820,9 @@ void LocateChunks(
                             NChunkClient::EErrorCode::NoSuchChunk,
                             "No such chunk %v",
                             chunkId);
-                    } else {
-                        chunkSpecs[globalIndex]->mutable_replicas();
                     }
                 } else {
+                    chunkSpecs[globalIndex]->mutable_legacy_replicas()->Swap(subresponse->mutable_legacy_replicas());
                     chunkSpecs[globalIndex]->mutable_replicas()->Swap(subresponse->mutable_replicas());
                     chunkSpecs[globalIndex]->set_erasure_codec(subresponse->erasure_codec());
                 }
@@ -1020,6 +1019,20 @@ void TChunkWriterCounters::Increment(
 
 TAllyReplicasInfo TAllyReplicasInfo::FromChunkReplicas(
     const TChunkReplicaList& chunkReplicas,
+    NHydra::TRevision revision)
+{
+    TAllyReplicasInfo result;
+    result.Replicas.reserve(chunkReplicas.size());
+    for (auto replica : chunkReplicas) {
+        result.Replicas.emplace_back(replica);
+    }
+    result.Revision = revision;
+
+    return result;
+}
+
+TAllyReplicasInfo TAllyReplicasInfo::FromChunkReplicas(
+    const TChunkReplicaWithMediumList& chunkReplicas,
     NHydra::TRevision revision)
 {
     TAllyReplicasInfo result;

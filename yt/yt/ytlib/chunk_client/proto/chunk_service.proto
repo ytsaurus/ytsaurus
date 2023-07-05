@@ -25,7 +25,9 @@ message TRspLocateChunks
     message TSubresponse
     {
         optional bool missing = 1 [default = false];
-        repeated fixed32 replicas = 2;
+        // COMPAT(babenko)
+        repeated fixed32 legacy_replicas = 2;
+        repeated fixed64 replicas = 4;
         optional int32 erasure_codec = 3;
     }
 

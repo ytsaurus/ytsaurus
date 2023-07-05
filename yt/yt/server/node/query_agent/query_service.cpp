@@ -1091,7 +1091,9 @@ private:
         }
 
         auto localNodeId = Bootstrap_->GetNodeId();
-        ToProto(chunkSpec->mutable_replicas(), chunk->GetReplicas(localNodeId));
+        auto replicas = chunk->GetReplicas(localNodeId);
+        ToProto(chunkSpec->mutable_replicas(), replicas);
+        ToProto(chunkSpec->mutable_legacy_replicas(), TChunkReplicaWithMedium::ToChunkReplicas(replicas));
 
         chunkSpec->set_erasure_codec(miscExt.erasure_codec());
         chunkSpec->set_striped_erasure(miscExt.striped_erasure());
@@ -1127,8 +1129,9 @@ private:
         chunkSpec->set_data_weight_override(dynamicStore->GetUncompressedDataSize());
 
         auto localNodeId = Bootstrap_->GetNodeId();
-        TChunkReplica replica(localNodeId, GenericChunkReplicaIndex);
-        chunkSpec->add_replicas(ToProto<ui32>(replica));
+        TChunkReplicaWithMedium replica(localNodeId, GenericChunkReplicaIndex, GenericMediumIndex);
+        chunkSpec->add_legacy_replicas(ToProto<ui32>(replica.ToChunkReplica()));
+        chunkSpec->add_replicas(ToProto<ui64>(replica));
 
         if (!lowerLimit.IsTrivial()) {
             ToProto(chunkSpec->mutable_lower_limit(), lowerLimit);

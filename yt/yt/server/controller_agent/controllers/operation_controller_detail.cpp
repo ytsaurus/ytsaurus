@@ -95,9 +95,9 @@
 
 #include <yt/yt/client/security_client/acl.h>
 
-#include <yt/yt/client/chunk_client/public.h>
 #include <yt/yt/client/chunk_client/data_statistics.h>
 #include <yt/yt/client/chunk_client/read_limit.h>
+#include <yt/yt/client/chunk_client/helpers.h>
 
 #include <yt/yt/client/job_tracker_client/public.h>
 
@@ -3091,7 +3091,7 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
         // In case any id is not known, abort the job.
         const auto& globalNodeDirectory = Host->GetNodeDirectory();
         for (const auto& chunkSpec : schedulerJobResult.output_chunk_specs()) {
-            auto replicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
+            auto replicas = GetReplicasFromChunkSpec(chunkSpec);
             for (auto replica : replicas) {
                 auto nodeId = replica.GetNodeId();
                 if (InputNodeDirectory_->FindDescriptor(nodeId)) {
@@ -3812,7 +3812,10 @@ void TOperationControllerBase::OnChunkFailed(TChunkId chunkId)
     }
 }
 
-void TOperationControllerBase::SafeOnIntermediateChunkLocated(TChunkId chunkId, const TChunkReplicaList& replicas, bool missing)
+void TOperationControllerBase::SafeOnIntermediateChunkLocated(
+    TChunkId chunkId,
+    const TChunkReplicaWithMediumList& replicas,
+    bool missing)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
 
@@ -3829,7 +3832,10 @@ void TOperationControllerBase::SafeOnIntermediateChunkLocated(TChunkId chunkId, 
     }
 }
 
-void TOperationControllerBase::SafeOnInputChunkLocated(TChunkId chunkId, const TChunkReplicaList& replicas, bool missing)
+void TOperationControllerBase::SafeOnInputChunkLocated(
+    TChunkId chunkId,
+    const TChunkReplicaWithMediumList& replicas,
+    bool missing)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
 
@@ -3864,7 +3870,7 @@ void TOperationControllerBase::SafeOnInputChunkLocated(TChunkId chunkId, const T
 
 void TOperationControllerBase::OnInputChunkAvailable(
     TChunkId chunkId,
-    const TChunkReplicaList& replicas,
+    const TChunkReplicaWithMediumList& replicas,
     TInputChunkDescriptor* descriptor)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
@@ -4006,7 +4012,9 @@ bool TOperationControllerBase::OnIntermediateChunkUnavailable(TChunkId chunkId)
     return true;
 }
 
-void TOperationControllerBase::OnIntermediateChunkAvailable(TChunkId chunkId, const TChunkReplicaList& replicas)
+void TOperationControllerBase::OnIntermediateChunkAvailable(
+    TChunkId chunkId,
+    const TChunkReplicaWithMediumList& replicas)
 {
     auto& completedJob = GetOrCrash(ChunkOriginMap, chunkId);
 
@@ -4036,7 +4044,7 @@ void TOperationControllerBase::OnIntermediateChunkAvailable(TChunkId chunkId, co
             completedJob->Suspended = false;
             completedJob->DestinationPool->Resume(completedJob->InputCookie);
 
-            // TODO (psushin).
+            // TODO(psushin).
             // Unfortunately we don't know what task we are resuming, so
             // we update them all.
             UpdateAllTasks();

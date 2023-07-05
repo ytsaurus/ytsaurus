@@ -184,10 +184,18 @@ private:
             const auto& subresponse = rsp->subresponses(index);
             auto chunkId = FromProto<TChunkId>(subrequest);
             if (subresponse.missing()) {
-                OnChunkLocated_(chunkId, TChunkReplicaList(), true);
+                OnChunkLocated_(chunkId, TChunkReplicaWithMediumList(), /*missing*/ true);
+                continue;
+            }
+            if (subresponse.replicas_size() == 0) {
+                TChunkReplicaWithMediumList replicas;
+                for (auto replica : FromProto<TChunkReplicaList>(subresponse.legacy_replicas())) {
+                    replicas.emplace_back(replica);
+                }
+                OnChunkLocated_(chunkId, replicas, /*missing*/ false);
             } else {
-                auto replicas = FromProto<TChunkReplicaList>(subresponse.replicas());
-                OnChunkLocated_(chunkId, replicas, false);
+                auto replicas = FromProto<TChunkReplicaWithMediumList>(subresponse.replicas());
+                OnChunkLocated_(chunkId, replicas, /*missing*/ false);
             }
         }
     }

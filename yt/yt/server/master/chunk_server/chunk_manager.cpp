@@ -1810,21 +1810,21 @@ public:
         chunkTree->StagingAccount().Reset();
     }
 
-    TNodePtrWithReplicaIndexList LocateChunk(TChunkPtrWithReplicaIndex chunkWithReplicaIndex) override
+    TNodePtrWithReplicaAndMediumIndexList LocateChunk(TChunkPtrWithReplicaIndex chunkWithReplicaIndex) override
     {
         auto* chunk = chunkWithReplicaIndex.GetPtr();
         auto replicaIndex = chunkWithReplicaIndex.GetReplicaIndex();
 
         TouchChunk(chunk);
 
-        TNodePtrWithReplicaIndexList result;
+        TNodePtrWithReplicaAndMediumIndexList result;
         for (auto replica : chunk->StoredReplicas()) {
             if (replicaIndex != GenericChunkReplicaIndex && replica.GetReplicaIndex() != replicaIndex) {
                 continue;
             }
 
             auto* chunkLocation = replica.GetPtr();
-            result.emplace_back(chunkLocation->GetNode(), replica.GetReplicaIndex());
+            result.emplace_back(chunkLocation->GetNode(), replica.GetReplicaIndex(), chunkLocation->GetEffectiveMediumIndex());
         }
 
         return result;

@@ -3,6 +3,7 @@
 
 #include <yt/yt/client/chunk_client/read_limit.h>
 #include <yt/yt/client/chunk_client/chunk_replica.h>
+#include <yt/yt/client/chunk_client/helpers.h>
 
 #include <yt/yt/library/erasure/impl/codec.h>
 
@@ -10,7 +11,20 @@ namespace NYT::NChunkClient {
 
 using namespace NChunkClient::NProto;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
+
+bool IsUnavailable(
+    const TChunkReplicaWithMediumList& replicas,
+    NErasure::ECodec codecId,
+    EChunkAvailabilityPolicy policy)
+{
+    return IsUnavailable(
+        TChunkReplicaWithMedium::ToChunkReplicas(replicas),
+        codecId,
+        policy);
+}
 
 bool IsUnavailable(
     const TChunkReplicaList& replicas,
@@ -50,8 +64,8 @@ bool IsUnavailable(
     const NProto::TChunkSpec& chunkSpec,
     EChunkAvailabilityPolicy policy)
 {
-    auto codecId = NErasure::ECodec(chunkSpec.erasure_codec());
-    auto replicas = NYT::FromProto<TChunkReplicaList>(chunkSpec.replicas());
+    auto replicas = GetReplicasFromChunkSpec(chunkSpec);
+    auto codecId = FromProto<NErasure::ECodec>(chunkSpec.erasure_codec());
     return IsUnavailable(replicas, codecId, policy);
 }
 

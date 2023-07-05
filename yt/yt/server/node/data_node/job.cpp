@@ -632,7 +632,7 @@ public:
             bootstrap)
         , JobSpecExt_(JobSpec_.GetExtension(TRepairChunkJobSpecExt::repair_chunk_job_spec_ext))
         , ChunkId_(FixChunkId(FromProto<TChunkId>(JobSpecExt_.chunk_id())))
-        , SourceReplicas_(FromProto<TChunkReplicaList>(JobSpecExt_.source_replicas()))
+        , SourceReplicas_(ParseSourceReplicas(JobSpecExt_))
         , TargetReplicas_(FromProto<TChunkReplicaWithMediumList>(JobSpecExt_.target_replicas()))
         , Sensors_(std::move(sensors))
     {
@@ -642,10 +642,23 @@ public:
 private:
     const TRepairChunkJobSpecExt JobSpecExt_;
     const TChunkId ChunkId_;
-    const TChunkReplicaList SourceReplicas_;
+    const TChunkReplicaWithMediumList SourceReplicas_;
     const TChunkReplicaWithMediumList TargetReplicas_;
     const TMasterJobSensors Sensors_;
 
+    // COMPAT(babenko)
+    static TChunkReplicaWithMediumList ParseSourceReplicas(const TRepairChunkJobSpecExt& jobSpecExt)
+    {
+        if (jobSpecExt.source_replicas_size() == 0) {
+            TChunkReplicaWithMediumList result;
+            for (auto replica : FromProto<TChunkReplicaList>(jobSpecExt.legacy_source_replicas())) {
+                result.emplace_back(replica);
+            }
+            return result;
+        } else {
+            return FromProto<TChunkReplicaWithMediumList>(jobSpecExt.source_replicas());
+        }
+    }
 
     // COMPAT(babenko): pre-20.2 master servers may send encoded chunk id, which is inappropriate.
     static TChunkId FixChunkId(TChunkId chunkId)
@@ -659,7 +672,7 @@ private:
 
     IChunkReaderAllowingRepairPtr CreateReader(int partIndex)
     {
-        TChunkReplicaList partReplicas;
+        TChunkReplicaWithMediumList partReplicas;
         for (auto replica : SourceReplicas_) {
             if (replica.GetReplicaIndex() == partIndex) {
                 partReplicas.push_back(replica);
@@ -684,14 +697,12 @@ private:
             /*rpsThrottler*/ GetUnlimitedThrottler(),
             /*trafficMeter*/ nullptr);
 
-        auto reader = CreateReplicationReader(
+        return CreateReplicationReader(
             Config_->RepairReader,
             options,
             std::move(chunkReaderHost),
             partChunkId,
             partReplicas);
-
-        return reader;
     }
 
     IChunkWriterPtr CreateWriter(int partIndex)
@@ -934,13 +945,27 @@ private:
 
     const TChunkId ChunkId_;
 
+    // COMPAT(babenko)
+    static TChunkReplicaWithMediumList ParseSourceReplicas(const TSealChunkJobSpecExt& jobSpecExt)
+    {
+        if (jobSpecExt.source_replicas_size() == 0) {
+            TChunkReplicaWithMediumList result;
+            for (auto replica : FromProto<TChunkReplicaList>(jobSpecExt.legacy_source_replicas())) {
+                result.emplace_back(replica);
+            }
+            return result;
+        } else {
+            return FromProto<TChunkReplicaWithMediumList>(jobSpecExt.source_replicas());
+        }
+    }
+
     void DoRun() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto codecId = CheckedEnumCast<NErasure::ECodec>(JobSpecExt_.codec_id());
         int mediumIndex = JobSpecExt_.medium_index();
-        auto sourceReplicas = FromProto<TChunkReplicaList>(JobSpecExt_.source_replicas());
+        auto sourceReplicas = ParseSourceReplicas(JobSpecExt_);
         i64 sealRowCount = JobSpecExt_.row_count();
 
         NodeDirectory_->MergeFrom(JobSpecExt_.node_directory());
@@ -1348,11 +1373,10 @@ private:
         TMergeChunkInfo chunkInfo;
         ToProto(chunkInfo.mutable_id(), writer->GetChunkId());
 
-        TChunkReplicaList chunkReplicaList;
         for (auto replica : writer->GetWrittenChunkReplicas()) {
-            chunkReplicaList.push_back(replica.ToChunkReplica());
+            chunkInfo.add_legacy_source_replicas(ToProto<ui32>(replica.ToChunkReplica()));
+            chunkInfo.add_source_replicas(ToProto<ui64>(replica));
         }
-        ToProto(chunkInfo.mutable_source_replicas(), chunkReplicaList);
 
         chunkInfo.set_row_count(miscExt.row_count());
         chunkInfo.set_erasure_codec(miscExt.erasure_codec());
@@ -1532,14 +1556,14 @@ private:
             std::move(targetReplicas));
     }
 
-    static TChunkSpec GetChunkSpec(const NChunkClient::NProto::TMergeChunkInfo& chunk)
+    static TChunkSpec GetChunkSpec(const NChunkClient::NProto::TMergeChunkInfo& chunkInfo)
     {
         TChunkSpec chunkSpec;
-        chunkSpec.set_row_count_override(chunk.row_count());
-        chunkSpec.set_erasure_codec(chunk.erasure_codec()),
-        *chunkSpec.mutable_chunk_id() = chunk.id();
-        chunkSpec.mutable_replicas()->CopyFrom(chunk.source_replicas());
-
+        chunkSpec.set_row_count_override(chunkInfo.row_count());
+        chunkSpec.set_erasure_codec(chunkInfo.erasure_codec()),
+        *chunkSpec.mutable_chunk_id() = chunkInfo.id();
+        *chunkSpec.mutable_legacy_replicas() = chunkInfo.legacy_source_replicas();
+        *chunkSpec.mutable_replicas() = chunkInfo.source_replicas();
         return chunkSpec;
     }
 
@@ -1816,7 +1840,8 @@ private:
 
         TChunkSpec oldChunkSpec;
         ToProto(oldChunkSpec.mutable_chunk_id(), OldChunkId_);
-        oldChunkSpec.set_erasure_codec(ToProto<i32>(ErasureCodec_));
+        oldChunkSpec.set_erasure_codec(ToProto<int>(ErasureCodec_));
+        *oldChunkSpec.mutable_legacy_replicas() = JobSpecExt_.legacy_source_replicas();
         *oldChunkSpec.mutable_replicas() = JobSpecExt_.source_replicas();
 
         auto chunkReaderHost = New<TChunkReaderHost>(
@@ -1828,13 +1853,13 @@ private:
             Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::ReincarnationIn),
             /*rpsThrottler*/ GetUnlimitedThrottler(),
             /*trafficMeter*/ nullptr);
-        IChunkReaderPtr remoteReader = CreateRemoteReader(
+        auto remoteReader = CreateRemoteReader(
             oldChunkSpec,
             erasureReaderConfig,
             New<TRemoteReaderOptions>(),
             std::move(chunkReaderHost));
 
-        TClientChunkReadOptions readerOptions = {
+        TClientChunkReadOptions readerOptions{
             .WorkloadDescriptor = TWorkloadDescriptor(
                 EWorkloadCategory::SystemReincarnation,
                 /*band*/ 0,
@@ -1842,7 +1867,7 @@ private:
                 {Format("Reincarnate chunk %v", OldChunkId_)}),
         };
 
-        TDeferredChunkMetaPtr oldChunkMeta = New<TDeferredChunkMeta>();
+        auto oldChunkMeta = New<TDeferredChunkMeta>();
         {
             auto result = WaitFor(remoteReader->GetMeta(readerOptions));
             THROW_ERROR_EXCEPTION_IF_FAILED(result, "Reincarnation job failed");
@@ -2190,7 +2215,7 @@ private:
             return {};
         }
 
-        auto bodyChunkReplicas = FromProto<TChunkReplicaList>(JobSpecExt_.body_chunk_replicas());
+        auto bodyChunkReplicas = FromProto<TChunkReplicaWithMediumList>(JobSpecExt_.body_chunk_replicas());
 
         auto chunkReaderHost = New<TChunkReaderHost>(
             Bootstrap_->GetClient(),
