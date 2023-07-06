@@ -9,7 +9,7 @@ from spyt import utils as spark_utils
 
 
 def main():
-    parser = spark_utils.get_default_arg_parser(description="Spark over YT")
+    parser = spark_utils.get_default_arg_parser(description="Spark Manage")
     subparser = parser.add_subparsers(dest="command")
     info_parser = subparser.add_parser('info')
     set_workers_count_parser = subparser.add_parser('set_workers_count')

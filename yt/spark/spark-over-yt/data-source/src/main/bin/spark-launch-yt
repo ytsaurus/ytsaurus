@@ -15,7 +15,7 @@ from spyt import utils as spark_utils
 
 
 def main():
-    parser = spark_utils.get_default_arg_parser(description="Spark over YT")
+    parser = spark_utils.get_default_arg_parser(description="Spark Launch")
 
     parser.add_argument("--worker-cores", required=True, type=int)
     parser.add_argument("--worker-memory", required=True)

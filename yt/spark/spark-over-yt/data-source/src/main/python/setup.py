@@ -10,12 +10,17 @@ SCRIPTS_PATH = convert_path('deps/bin')
 scripts = [os.path.join(SCRIPTS_PATH, x) for x in os.listdir(SCRIPTS_PATH)
            if os.path.isfile(os.path.join(SCRIPTS_PATH, x))]
 
+with open("README.md") as f:
+    long_description = f.read()
+
 setuptools.setup(
     name='ytsaurus-spyt',
     version=__version__,
     author='YTsaurus',
     author_email='dev@ytsaurus.tech',
-    description='SPYT high-level client',
+    description='YTsaurus SPYT high-level client',
+    long_description=long_description,
+    keywords="yt ytsaurus python spyt",
     url='https://github.com/ytsaurus/ytsaurus/tree/main/yt/spark/spark-over-yt',
     packages=[
         'spyt',

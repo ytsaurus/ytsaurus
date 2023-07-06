@@ -188,7 +188,7 @@ try:
     setup(
         name='ytsaurus-pyspark',
         version=VERSION,
-        description='Apache Spark Python API, YT fork',
+        description='Apache Spark Python API, YTsaurus fork',
         long_description=long_description,
         long_description_content_type="text/markdown",
         author='Spark Developers',
