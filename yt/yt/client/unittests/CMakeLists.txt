@@ -7,3 +7,154 @@
 
 
 add_subdirectory(mock)
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
+)
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
+get_built_tool_path(
+  TOOL_rescompiler_bin
+  TOOL_rescompiler_dependency
+  tools/rescompiler/bin
+  rescompiler
+)
+
+add_executable(unittester-client)
+target_compile_options(unittester-client PRIVATE
+  -Wdeprecated-this-capture
+)
+target_link_libraries(unittester-client PUBLIC
+  contrib-libs-linux-headers
+  contrib-libs-cxxsupp
+  yutil
+  library-cpp-cpuid_check
+  cpp-testing-gtest
+  cpp-testing-gtest_main
+  yt-yt-build
+  yt-core-test_framework
+  yt-yt-core
+  yt-yt-client
+  yt-client-formats
+  client-unittests-mock
+  yt-library-named_value
+  yt_proto-yt-formats
+  library-cpp-resource
+  contrib-libs-protobuf
+)
+target_link_options(unittester-client PRIVATE
+  -ldl
+  -lrt
+  -Wl,--no-as-needed
+  -fPIC
+  -fPIC
+  -lpthread
+  -lrt
+  -ldl
+  -lutil
+)
+target_proto_messages(unittester-client PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/protobuf_format_ut.proto
+)
+target_sources(unittester-client PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/check_schema_compatibility_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/check_type_compatibility_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/chunk_replica_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/column_sort_schema_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/comparator_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/composite_compare_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/connection_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/dsv_parser_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/dsv_writer_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/farm_fingerprint_stability_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/key_bound_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/key_bound_compressor_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/key_helpers.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/key_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/logical_type_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/named_yson_token_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/uuid_text_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/time_text_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/node_directory_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/protobuf_format_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/query_builder_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/read_limit_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/replication_progress_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/row_helpers.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/row_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/schemaful_dsv_parser_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/schemaful_dsv_writer_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/schema_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/skiff_format_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/skiff_yson_converter_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/table_consumer_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/unordered_reader_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/unversioned_row_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/validate_logical_type_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/value_examples.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/web_json_writer_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/wire_protocol_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/yamred_dsv_parser_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/yamred_dsv_writer_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/yamr_parser_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/yamr_writer_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/ypath_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/yson_helpers.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/zookeeper_bus_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/zookeeper_protocol_ut.cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/client/unittests/5e5361e0329be49ce689f46dafdeeab6.cpp
+)
+add_test(
+  NAME
+  unittester-client
+  COMMAND
+  unittester-client
+)
+set_property(
+  TEST
+  unittester-client
+  PROPERTY
+  LABELS
+  MEDIUM
+)
+set_property(
+  TEST
+  unittester-client
+  PROPERTY
+  PROCESSORS
+  1
+)
+resources(unittester-client
+  ${CMAKE_BINARY_DIR}/yt/yt/client/unittests/5e5361e0329be49ce689f46dafdeeab6.cpp
+  INPUTS
+  ${CMAKE_SOURCE_DIR}/library/cpp/type_info/ut/test-data/good-types.txt
+  ${CMAKE_SOURCE_DIR}/library/cpp/type_info/ut/test-data/bad-types.txt
+  KEYS
+  /types/good
+  /types/bad
+)
+target_allocator(unittester-client
+  cpp-ytalloc-impl
+)
+target_proto_addincls(unittester-client
+  ./yt
+  ${CMAKE_SOURCE_DIR}/yt
+  ${CMAKE_BINARY_DIR}
+  ${CMAKE_SOURCE_DIR}
+  ${CMAKE_SOURCE_DIR}/yt
+  ${CMAKE_SOURCE_DIR}/yt
+  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${CMAKE_BINARY_DIR}
+  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+)
+target_proto_outs(unittester-client
+  --cpp_out=${CMAKE_BINARY_DIR}/yt
+  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/yt
+)
+vcs_info(unittester-client)
