@@ -326,7 +326,7 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
 
         {"user_job/cumulative_max_memory", "Maximum amount of memory used by the job multiplied by job length in seconds", "bytes * sec"},
         {"user_job/cumulative_memory_reserve", "Amount of memory guaranteed to the user job at the time of start multiplied by job length in seconds", "bytes * sec"},
-        {"user_job/cumulative_memory_mb_sec", "Integral of the memory used", "Mb*sec"},
+        {"user_job/cumulative_memory_mb_sec", "Integral of the memory used", "MB*sec"},
         {"user_job/tmpfs_size", "Current (or final) amount of tmpfs used by user job", "bytes"},
         {"user_job/max_tmpfs_size", "Maximum amount of tmpfs used by user job during execution", "bytes"},
         {"user_job/max_memory", "Maximum amount of memory used by the user job during execution, excluding tmpfs", "bytes"},
@@ -384,6 +384,7 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"user_job/gpu/cumulative_utilization_power", "Time integral of the effective power of GPU relative to the maximum power", "ratio * ms"},
         {"user_job/gpu/cumulative_load", "Time during which GPU load was non-zero", "ms"},
         {"user_job/gpu/cumulative_memory", "Integral of GPU memory usage", "ms * bytes"},
+        {"user_job/gpu/cumulative_memory_mb_sec", "Integral of GPU memory usage", "sec * MB"},
         {"user_job/gpu/cumulative_power", "Integral of GPU power usage", "ms * power"},
         {"user_job/gpu/cumulative_clocks_sm", "Integral of GPU frequency usage", "ms * frequency"},
         {"user_job/gpu/max_memory_used", "Maximum registered GPU memory usage", "bytes"},

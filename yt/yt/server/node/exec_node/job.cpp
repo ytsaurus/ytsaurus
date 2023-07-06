@@ -2583,6 +2583,7 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
     i64 totalCumulativeUtilizationGpu = 0;
     i64 totalCumulativeUtilizationMemory = 0;
     i64 totalCumulativeMemory = 0;
+    i64 totalCumulativeMemoryMBSec = 0;
     i64 totalCumulativeLoad = 0;
     i64 totalCumulativeUtilizationPower = 0;
     i64 totalCumulativePower = 0;
@@ -2613,6 +2614,7 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
         }
         slotStatistics.CumulativeUtilizationMemory += period.MilliSeconds() * gpuInfo.UtilizationMemoryRate;
         slotStatistics.CumulativeMemory += period.MilliSeconds() * gpuInfo.MemoryUsed;
+        slotStatistics.CumulativeMemoryMBSec += static_cast<i64>(period.SecondsFloat() * gpuInfo.MemoryUsed / 1_MB);
         slotStatistics.CumulativeUtilizationPower += period.MilliSeconds() * (gpuInfo.PowerDraw / gpuInfo.PowerLimit);
         slotStatistics.CumulativePower += period.MilliSeconds() * gpuInfo.PowerDraw;
         slotStatistics.CumulativeUtilizationClocksSm += period.MilliSeconds() *
@@ -2630,6 +2632,7 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
         totalCumulativeUtilizationGpu += slotStatistics.CumulativeUtilizationGpu;
         totalCumulativeUtilizationMemory += slotStatistics.CumulativeUtilizationMemory;
         totalCumulativeMemory += slotStatistics.CumulativeMemory;
+        totalCumulativeMemoryMBSec += slotStatistics.CumulativeMemoryMBSec;
         totalCumulativeLoad += slotStatistics.CumulativeLoad;
         totalCumulativeUtilizationPower += slotStatistics.CumulativeUtilizationPower;
         totalCumulativePower += slotStatistics.CumulativePower;
@@ -2644,6 +2647,7 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
     statistics->AddSample("/user_job/gpu/cumulative_utilization_memory", totalCumulativeUtilizationMemory);
     statistics->AddSample("/user_job/gpu/cumulative_utilization_power", totalCumulativeUtilizationPower);
     statistics->AddSample("/user_job/gpu/cumulative_memory", totalCumulativeMemory);
+    statistics->AddSample("/user_job/gpu/cumulative_memory_mb_sec", totalCumulativeMemoryMBSec);
     statistics->AddSample("/user_job/gpu/cumulative_power", totalCumulativePower);
     statistics->AddSample("/user_job/gpu/cumulative_load", totalCumulativeLoad);
     statistics->AddSample("/user_job/gpu/max_memory_used", totalMaxMemoryUsed);

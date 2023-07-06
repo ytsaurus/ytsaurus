@@ -38,6 +38,7 @@ struct TGpuStatistics
     i64 CumulativeUtilizationGpu = 0;
     i64 CumulativeUtilizationMemory = 0;
     i64 CumulativeMemory = 0;
+    i64 CumulativeMemoryMBSec = 0;
     i64 MaxMemoryUsed = 0;
     // Number of microseconds when GPU was busy.
     i64 CumulativeLoad = 0;
