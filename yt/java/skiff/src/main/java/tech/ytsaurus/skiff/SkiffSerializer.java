@@ -9,6 +9,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 
+import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.ysontree.YTreeBinarySerializer;
 import tech.ytsaurus.ysontree.YTreeNode;
 
@@ -122,6 +123,12 @@ public class SkiffSerializer implements AutoCloseable, Flushable {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    public void serializeGuid(GUID guid) {
+        serializeInt(16);
+        serializeLong(guid.getFirst());
+        serializeLong(guid.getSecond());
     }
 
     public void serializeYson(YTreeNode node) {

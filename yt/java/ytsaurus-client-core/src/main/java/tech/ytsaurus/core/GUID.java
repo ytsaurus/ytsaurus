@@ -108,13 +108,8 @@ public class GUID {
     }
 
     public static GUID valueOf(String s) {
-        Optional<GUID> guid = valueOfO(s);
-        // NB. JDK8 doesn't have isEmpty() :(
-        // noinspection SimplifyOptionalCallChains
-        if (!guid.isPresent()) {
-            throw new IllegalArgumentException(s);
-        }
-        return guid.get();
+        return valueOfO(s)
+                .orElseThrow(() -> new IllegalArgumentException(s));
     }
 
     public static Optional<GUID> valueOfO(String s) {

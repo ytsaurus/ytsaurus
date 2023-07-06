@@ -23,6 +23,7 @@ import java.util.Set;
 import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.request.Format;
+import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.common.Decimal;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.lang.NonNullApi;
@@ -214,6 +215,8 @@ public class EntitySkiffSerializer<T> {
                 serializer.serializeUtf8((String) object);
             } else if (tiType.isString()) {
                 serializer.serializeBytes((byte[]) object);
+            } else if (tiType.isUuid()) {
+                serializer.serializeGuid((GUID) object);
             } else if (tiType.isYson()) {
                 serializer.serializeYson((YTreeNode) object);
             } else {
@@ -612,6 +615,8 @@ public class EntitySkiffSerializer<T> {
                 return castToType(deserializeUtf8(parser));
             } else if (tiType.isString()) {
                 return castToType(deserializeBytes(parser));
+            } else if (tiType.isUuid()) {
+                return castToType(deserializeGuid(parser));
             } else if (tiType.isYson()) {
                 return castToType(deserializeYson(parser));
             } else if (tiType.isNull()) {
@@ -634,6 +639,13 @@ public class EntitySkiffSerializer<T> {
     private byte[] deserializeBytes(SkiffParser parser) {
         BufferReference ref = parser.parseString32();
         return Arrays.copyOfRange(ref.getBuffer(), ref.getOffset(), ref.getOffset() + ref.getLength());
+    }
+
+    private GUID deserializeGuid(SkiffParser parser) {
+        if (parser.parseInt32() != 16) {
+            throw new IllegalArgumentException("Length of UUID must be exactly 16 bytes");
+        }
+        return new GUID(parser.parseInt64(), parser.parseInt64());
     }
 
     private YTreeNode deserializeYson(SkiffParser parser) {

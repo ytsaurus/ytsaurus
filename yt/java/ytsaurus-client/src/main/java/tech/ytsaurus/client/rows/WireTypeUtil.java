@@ -32,6 +32,8 @@ class WireTypeUtil {
             return WireType.STRING_32;
         } else if (tiType.isString()) {
             return WireType.STRING_32;
+        } else if (tiType.isUuid()) {
+            return WireType.STRING_32;
         } else if (tiType.isYson()) {
             return WireType.YSON_32;
         } else if (tiType.isDecimal()) {

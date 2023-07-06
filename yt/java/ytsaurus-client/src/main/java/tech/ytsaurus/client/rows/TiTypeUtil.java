@@ -4,6 +4,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.typeinfo.StructType;
 import tech.ytsaurus.typeinfo.TiType;
@@ -25,7 +26,8 @@ class TiTypeUtil {
             Map.entry(boolean.class, TiType.bool()),
             Map.entry(Boolean.class, TiType.bool()),
             Map.entry(String.class, TiType.utf8()),
-            Map.entry(byte[].class, TiType.string())
+            Map.entry(byte[].class, TiType.string()),
+            Map.entry(GUID.class, TiType.uuid())
     );
 
     private static final Map<String, TiType> COLUMN_DEFINITION_TO_TI_TYPE_MAP = Map.ofEntries(
@@ -71,7 +73,8 @@ class TiTypeUtil {
                 tiType.isUint32() || tiType.isUint64() ||
                 tiType.isDouble() || tiType.isBool() ||
                 tiType.isUtf8() || tiType.isString() ||
-                tiType.isYson() || tiType.isNull();
+                tiType.isUuid() || tiType.isYson() ||
+                tiType.isNull();
     }
 
     static TiType tableSchemaToStructTiType(TableSchema tableSchema) {
