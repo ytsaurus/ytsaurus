@@ -6,9 +6,9 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(yt)
+add_subdirectory(library)
 add_subdirectory(contrib)
 add_subdirectory(util)
-add_subdirectory(library)
 add_subdirectory(tools)
+add_subdirectory(yt)
 add_subdirectory(certs)
