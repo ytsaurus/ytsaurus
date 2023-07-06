@@ -229,6 +229,10 @@ TMutableVersionedRow THorizontalBlockReader::GetVersionedRow(
     TChunkedMemoryPool* memoryPool,
     TTimestamp timestamp)
 {
+    YT_VERIFY(KeyWideningOptions_.InsertPosition == -1);
+    YT_VERIFY(KeyWideningOptions_.InsertedColumnIds.empty());
+    YT_VERIFY(ExtraColumnCount_ == 0);
+
     int valueCount = 0;
     auto currentPointer = CurrentPointer_;
     for (int i = 0; i < static_cast<int>(ValueCount_); ++i) {
@@ -255,6 +259,14 @@ TMutableVersionedRow THorizontalBlockReader::GetVersionedRow(
     for (int i = 0; i < static_cast<int>(ValueCount_); ++i) {
         TUnversionedValue value;
         CurrentPointer_ += ReadRowValue(CurrentPointer_, &value);
+
+        if (!HunkColumnFlags_.empty() && HunkColumnFlags_[value.Id]) {
+            GlobalizeHunkValueAndSetHunkFlag(
+                memoryPool,
+                HunkChunkRefsExt_,
+                HunkChunkMetasExt_,
+                &value);
+        }
 
         int id = ChunkToReaderIdMapping_[value.Id];
         if (id >= GetKeyColumnCount()) {
