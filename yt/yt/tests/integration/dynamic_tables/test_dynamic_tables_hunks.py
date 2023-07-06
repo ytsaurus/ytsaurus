@@ -5,10 +5,12 @@ from yt_helpers import profiler_factory
 from yt_commands import (
     authors, wait, create, exists, get, set, ls, set_banned_flag, insert_rows, remove, select_rows,
     lookup_rows, delete_rows, remount_table, build_snapshot,
-    alter_table, read_table, map, sync_reshard_table, sync_create_cells,
+    write_table, alter_table, read_table, map, sync_reshard_table, sync_create_cells,
     sync_mount_table, sync_unmount_table, sync_flush_table, sync_compact_table, gc_collect,
     start_transaction, commit_transaction, get_singular_chunk_id, write_file, read_hunks,
     write_journal)
+
+from yt_type_helpers import make_schema
 
 from yt_env_setup import (
     Restarter,
@@ -53,24 +55,32 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         schema[1]["max_inline_hunk_size"] = max_inline_hunk_size
         return schema
 
-    def _create_table(self, chunk_format="table_versioned_simple", max_inline_hunk_size=10, hunk_erasure_codec="none", schema=SCHEMA):
-        self._create_simple_table("//tmp/t",
-                                  schema=self._get_table_schema(schema, max_inline_hunk_size),
-                                  enable_dynamic_store_read=False,
-                                  hunk_chunk_reader={
-                                      "max_hunk_count_per_read": 2,
-                                      "max_total_hunk_length_per_read": 60,
-                                      "fragment_read_hedging_delay": 1,
-                                      "max_inflight_fragment_length": 60,
-                                      "max_inflight_fragment_count": 2,
-                                  },
-                                  hunk_chunk_writer={
-                                      "desired_block_size": 50,
-                                  },
-                                  max_hunk_compaction_garbage_ratio=0.5,
-                                  enable_lsm_verbose_logging=True,
-                                  chunk_format=chunk_format,
-                                  hunk_erasure_codec=hunk_erasure_codec)
+    def _create_table(self, chunk_format="table_versioned_simple", max_inline_hunk_size=10, hunk_erasure_codec="none", schema=SCHEMA, dynamic=True):
+        create_table_function = self._create_simple_table if dynamic else self._create_simple_static_table
+        schema = self._get_table_schema(schema, max_inline_hunk_size)
+        if not dynamic:
+            schema = make_schema(
+                schema,
+                unique_keys=True,
+            )
+
+        create_table_function("//tmp/t",
+                              schema=schema,
+                              enable_dynamic_store_read=False,
+                              hunk_chunk_reader={
+                                  "max_hunk_count_per_read": 2,
+                                  "max_total_hunk_length_per_read": 60,
+                                  "fragment_read_hedging_delay": 1,
+                                  "max_inflight_fragment_length": 60,
+                                  "max_inflight_fragment_count": 2,
+                              },
+                              hunk_chunk_writer={
+                                  "desired_block_size": 50,
+                              },
+                              max_hunk_compaction_garbage_ratio=0.5,
+                              enable_lsm_verbose_logging=True,
+                              chunk_format=chunk_format,
+                              hunk_erasure_codec=hunk_erasure_codec)
 
     @authors("babenko")
     @pytest.mark.parametrize("chunk_format", ["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim"])
@@ -1229,6 +1239,40 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
             with pytest.raises(YtError):
                 read_hunks([request], parse_header=False)
 
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("chunk_format", ["table_unversioned_schemaless_horizontal", "table_unversioned_columnar"])
+    @pytest.mark.parametrize("in_memory_mode", ["none", "compressed", "uncompressed"])
+    @pytest.mark.parametrize("versioned", [False, True])
+    @pytest.mark.parametrize("enable_lookup_hash_table", [False, True])
+    def test_unversioned_lookup_all_formats(self, chunk_format, in_memory_mode, versioned, enable_lookup_hash_table):
+        if enable_lookup_hash_table and in_memory_mode != "uncompressed":
+            return
+
+        self._create_table(chunk_format=chunk_format, max_inline_hunk_size=5, dynamic=False)
+
+        rows = [{"key": 0, "value": "0"}, {"key": 1, "value": "1111111111"}]
+        write_table("//tmp/t", rows)
+        alter_table("//tmp/t", dynamic=True)
+        set("//tmp/t/@in_memory_mode", in_memory_mode)
+        set("//tmp/t/@enable_lookup_hash_table", enable_lookup_hash_table)
+        set("//tmp/t/@optimize_for", "lookup")
+        set("//tmp/t/@chunk_format", "table_versioned_simple")
+
+        sync_create_cells(1)
+        sync_mount_table("//tmp/t")
+
+        read_rows = lookup_rows("//tmp/t", [{"key": 0}, {"key": 1}, {"key": 2}], versioned=versioned)
+        if not versioned:
+            assert read_rows == rows
+        else:
+            assert len(read_rows) == 2
+
+            def _check_row(actual, expected):
+                assert actual["key"] == expected["key"]
+                value = actual["value"]
+                assert len(value) == 1
+                assert str(value[0]) == expected["value"]
+            _check_row(read_rows[0], rows[0])
 
 ################################################################################
 

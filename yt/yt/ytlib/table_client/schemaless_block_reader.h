@@ -70,9 +70,11 @@ public:
     TLegacyKey GetLegacyKey() const;
     TKey GetKey() const;
     TMutableUnversionedRow GetRow(TChunkedMemoryPool* memoryPool);
-    TMutableVersionedRow GetVersionedRow(TChunkedMemoryPool* memoryPool, TTimestamp timestamp);
 
     i64 GetRowIndex() const;
+
+protected:
+    TMutableVersionedRow GetVersionedRow(TChunkedMemoryPool* memoryPool, TTimestamp timestamp);
 
 private:
     const TSharedRef Block_;
