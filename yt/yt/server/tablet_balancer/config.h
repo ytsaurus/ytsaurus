@@ -66,6 +66,8 @@ public:
     bool EnableReshardVerboseLogging;
     std::optional<double> ReshardSlicingAccuracy;
 
+    int MaxActionsPerGroup;
+
     REGISTER_YSON_STRUCT(TTabletBalancerDynamicConfig);
 
     static void Register(TRegistrar registrar);

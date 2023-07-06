@@ -3,7 +3,7 @@ from .test_tablet_actions import TabletBalancerBase
 
 from yt_commands import (
     authors, set, get, ls, update, wait, sync_mount_table, sync_reshard_table,
-    insert_rows, sync_create_cells, sync_flush_table, remove)
+    insert_rows, sync_create_cells, sync_flush_table, remove, sync_compact_table, wait_for_tablet_state)
 
 from yt.common import update_inplace
 
@@ -145,6 +145,57 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
         )
 
         wait(lambda: any(len(get(f"//sys/tablet_balancer/instances/{instance}/orchid/tablet_balancer/bundle_errors")) > 0 for instance in instances))
+
+
+class TestStandaloneTabletBalancerSlow(TestStandaloneTabletBalancer):
+    @classmethod
+    def modify_tablet_balancer_config(cls, config):
+        super(TestStandaloneTabletBalancerSlow, cls).modify_tablet_balancer_config(config)
+        update_inplace(config, {
+            "tablet_balancer": {
+                "period" : 5000,
+            },
+        })
+
+    @authors("alexelexa")
+    def test_action_hard_limit(self):
+        self._set_enable_tablet_balancer(False)
+        self._apply_dynamic_config_patch({
+            "max_actions_per_group": 1
+        })
+
+        self._configure_bundle("default")
+        sync_create_cells(2)
+
+        self._create_sorted_table("//tmp/t")
+
+        set("//tmp/t/@max_partition_data_size", 320)
+        set("//tmp/t/@desired_partition_data_size", 256)
+        set("//tmp/t/@min_partition_data_size", 240)
+        set("//tmp/t/@compression_codec", "none")
+        set("//tmp/t/@chunk_writer", {"block_size": 64})
+        set("//tmp/t/@enable_verbose_logging", True)
+
+        # Create four chunks expelled from eden
+        sync_reshard_table("//tmp/t", [[], [1], [2], [3]])
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": i, "value": "A" * 256} for i in range(4)])
+        sync_flush_table("//tmp/t")
+        sync_compact_table("//tmp/t")
+
+        wait_for_tablet_state("//tmp/t", "mounted")
+        set("//tmp/t/@tablet_balancer_config/min_tablet_size", 500)
+        set("//tmp/t/@tablet_balancer_config/max_tablet_size", 1000)
+        set("//tmp/t/@tablet_balancer_config/desired_tablet_size", 750)
+
+        self._set_enable_tablet_balancer(True)
+
+        wait(lambda: get("//tmp/t/@tablet_count") == 3)
+        tablets = get("//tmp/t/@tablets")
+        assert len(tablets) == 3
+        assert [[], [2], [3]] == [tablet["pivot_key"] for tablet in tablets]
+
+        wait(lambda: get("//tmp/t/@tablet_count") == 2)
 
 
 class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTablesBase):
@@ -334,6 +385,10 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
 
 
 class TestStandaloneTabletBalancerMulticell(TestStandaloneTabletBalancer):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+
+class TestStandaloneTabletBalancerSlowMulticell(TestStandaloneTabletBalancerSlow):
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
