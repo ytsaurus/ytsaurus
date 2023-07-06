@@ -7,7 +7,8 @@
 
 namespace NYT::NTest {
 
-class IDatasetIterator {
+class IDatasetIterator
+{
 public:
     virtual ~IDatasetIterator();
     virtual TRange<TNode> Values() const = 0;
@@ -17,7 +18,8 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class IDataset {
+class IDataset
+{
 public:
     virtual ~IDataset();
     virtual const TTable& table_schema() const = 0;
@@ -26,9 +28,20 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TStoredDataset
+{
+    TString Path;
+    i64 TotalRecords;
+    i64 TotalBytes;
+
+    const IDataset* Dataset;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::unique_ptr<IDataset> Map(const IDataset& source, const IMultiMapper& operation);
 
-void MaterializeIntoTable(IClientPtr client, const TString& tablePath, const IDataset& dataset);
-void VerifyTable(IClientPtr client,  const TString& tablePath, const IDataset& dataset);
+TStoredDataset MaterializeIntoTable(IClientPtr client, const TString& tablePath, const IDataset& dataset);
+TStoredDataset VerifyTable(IClientPtr client,  const TString& tablePath, const IDataset& dataset);
 
 }  // namespace NYT::NTest

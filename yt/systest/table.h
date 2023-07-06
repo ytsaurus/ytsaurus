@@ -8,6 +8,7 @@ namespace NYT::NTest {
 
 struct TDataColumn {
     TString Name;
+    NProto::EColumnType Type;
 };
 
 struct TTable {

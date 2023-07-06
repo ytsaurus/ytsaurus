@@ -43,7 +43,6 @@ message TSetSeedRowMapper {
 }
 
 message TGenerateRandomRowMapper {
-    required EColumnType column_type = 1;
     required TOperationOutputColumns columns = 2;
 }
 

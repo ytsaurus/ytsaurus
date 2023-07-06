@@ -13,6 +13,7 @@ enum EColumnType {
 
 message TDataColumn {
     optional string name = 1;
+    optional EColumnType type = 2;
 }
 
 message TTable {

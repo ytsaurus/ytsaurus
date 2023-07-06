@@ -40,9 +40,8 @@ void TSetSeedRowMapper::ToProto(NProto::TRowMapper* proto) const
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
-TGenerateRandomRowMapper::TGenerateRandomRowMapper(const TTable& input, NProto::EColumnType columnType, TDataColumn output)
+TGenerateRandomRowMapper::TGenerateRandomRowMapper(const TTable& input, TDataColumn output)
     : IRowMapper(input)
-    , ColumnType_(columnType)
     , OutputColumns_{output}
 {
 }
@@ -50,7 +49,6 @@ TGenerateRandomRowMapper::TGenerateRandomRowMapper(const TTable& input, NProto::
 TGenerateRandomRowMapper::TGenerateRandomRowMapper(const TTable& input, const NProto::TGenerateRandomRowMapper& proto)
     : IRowMapper(input)
 {
-    ColumnType_ = proto.column_type();
     if (proto.columns().columns_size() != 1) {
         THROW_ERROR_EXCEPTION("TGenerateRandomRowMapper proto is expected to specify one "
             "output column, got %v", proto.columns().columns_size());
@@ -81,7 +79,6 @@ std::vector<TNode> TGenerateRandomRowMapper::Run(TCallState* state, TRange<TNode
 void TGenerateRandomRowMapper::ToProto(NProto::TRowMapper* proto) const
 {
     auto* operationProto = proto->mutable_generate_random();
-    operationProto->set_column_type(ColumnType_);
     NTest::ToProto(operationProto->mutable_columns()->add_columns(), OutputColumns_[0]);
 }
 
@@ -90,7 +87,7 @@ TNode TGenerateRandomRowMapper::Generate(TCallState* state) const
     std::uniform_int_distribution<int8_t> distribution8;
     std::uniform_int_distribution<int16_t> distribution16;
     std::uniform_int_distribution<int64_t> distribution64;
-    switch (ColumnType_) {
+    switch (OutputColumns_[0].Type) {
         case NProto::EColumnType::ENone:
             THROW_ERROR_EXCEPTION("Column type must be set for generate random operation");
         case NProto::EColumnType::EInt8:

@@ -49,9 +49,7 @@ std::unique_ptr<IDatasetIterator> TBootstrapDataset::NewIterator() const
 TBootstrapDataset::TBootstrapDataset(int RowCount)
     : RowCount_(RowCount)
 {
-    TDataColumn column;
-    column.Name = "key";
-
+    TDataColumn column{"key", NProto::EColumnType::EInt64};
     BootstrapTable_.DataColumns.push_back(column);
 }
 

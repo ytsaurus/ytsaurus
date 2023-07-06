@@ -26,7 +26,7 @@ private:
 class TGenerateRandomRowMapper : public IRowMapper
 {
 public:
-    TGenerateRandomRowMapper(const TTable& input, NProto::EColumnType columnType, TDataColumn output);
+    TGenerateRandomRowMapper(const TTable& input, TDataColumn output);
     TGenerateRandomRowMapper(const TTable& input, const NProto::TGenerateRandomRowMapper& proto);
 
     virtual TRange<int> InputColumns() const override;
@@ -36,7 +36,6 @@ public:
     virtual std::vector<TNode> Run(TCallState* state, TRange<TNode> input) const override;
 
 private:
-    NProto::EColumnType ColumnType_;
     TDataColumn OutputColumns_[1];
 
     TNode Generate(TCallState* state) const;

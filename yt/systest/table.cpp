@@ -6,11 +6,13 @@ namespace NYT::NTest {
 void ToProto(NProto::TDataColumn* proto, const TDataColumn& column)
 {
     proto->set_name(column.Name);
+    proto->set_type(column.Type);
 }
 
 void FromProto(TDataColumn* column, const NProto::TDataColumn& proto)
 {
     column->Name = proto.name();
+    column->Type = proto.type();
 }
 
 void FromProto(TTable* table, const NProto::TTable& proto)

@@ -53,4 +53,4 @@ bash ${ytsaurus_source_path}/yt/docker/yt_nightly/wait.sh --name tester ${tester
 
 kubectl apply $nsflags -f ${ytsaurus_source_path}/yt/docker/yt_nightly/systest.yaml
 
-bash ${ytsaurus_source_path}/yt/docker/yt_nightly/wait.sh --name systest ${tester_flags}
+bash ${ytsaurus_source_path}/yt/docker/yt_nightly/wait.sh --name systest --wait-minutes 60 ${tester_flags}

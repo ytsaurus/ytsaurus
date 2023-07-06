@@ -27,6 +27,7 @@ target_link_libraries(yt-systest PUBLIC
 target_sources(yt-systest PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/systest/bootstrap_dataset.cpp
   ${CMAKE_SOURCE_DIR}/yt/systest/dataset.cpp
+  ${CMAKE_SOURCE_DIR}/yt/systest/dataset_operation.cpp
   ${CMAKE_SOURCE_DIR}/yt/systest/map_dataset.cpp
   ${CMAKE_SOURCE_DIR}/yt/systest/operation.cpp
   ${CMAKE_SOURCE_DIR}/yt/systest/operation/map.cpp
@@ -35,7 +36,10 @@ target_sources(yt-systest PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/systest/operation/util.cpp
   ${CMAKE_SOURCE_DIR}/yt/systest/reduce_dataset.cpp
   ${CMAKE_SOURCE_DIR}/yt/systest/run.cpp
+  ${CMAKE_SOURCE_DIR}/yt/systest/runner.cpp
   ${CMAKE_SOURCE_DIR}/yt/systest/table.cpp
+  ${CMAKE_SOURCE_DIR}/yt/systest/table_dataset.cpp
   ${CMAKE_SOURCE_DIR}/yt/systest/test_home.cpp
   ${CMAKE_SOURCE_DIR}/yt/systest/test_program.cpp
+  ${CMAKE_SOURCE_DIR}/yt/systest/util.cpp
 )
