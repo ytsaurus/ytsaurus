@@ -490,10 +490,10 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("fifo_pool_scheduling_order", &TThis::FifoPoolSchedulingOrder)
-        .Default(EFifoPoolSchedulingOrder::Fifo);
+        .Default(EFifoPoolSchedulingOrder::Satisfaction);
 
     registrar.Parameter("use_pool_satisfaction_for_scheduling", &TThis::UsePoolSatisfactionForScheduling)
-        .Default(true);
+        .Default(false);
 
     registrar.Parameter("per_pool_satisfaction_digest", &TThis::PerPoolSatisfactionDigest)
         .DefaultCtor(&GetDefaultPerPoolSatisfactionDigestConfig);
