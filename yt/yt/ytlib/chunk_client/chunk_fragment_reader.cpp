@@ -10,6 +10,7 @@
 #include "chunk_fragment_read_controller.h"
 
 #include <yt/yt/ytlib/chunk_client/proto/data_node_service.pb.h>
+#include <yt/yt/ytlib/chunk_client/medium_directory.h>
 
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 #include <yt/yt/ytlib/node_tracker_client/node_status_directory.h>
@@ -55,9 +56,6 @@ using NYT::ToProto;
 
 namespace {
 
-constexpr double SuspiciousNodePenalty = 1e20;
-constexpr double BannedNodePenalty = 2e20;
-
 using TPeerInfoCache = TSyncExpiringCache<TNodeId, TErrorOr<TPeerInfoPtr>>;
 using TPeerInfoCachePtr = TIntrusivePtr<TPeerInfoCache>;
 
@@ -72,7 +70,7 @@ struct TPeerProbingInfo
     struct TReplicaProbingInfo
     {
         NHydra::TRevision Revision;
-        TChunkIdWithIndex ChunkIdWithIndex;
+        TChunkIdWithIndexes ChunkIdWithIndexes;
     };
 
     TNodeId NodeId;
@@ -132,6 +130,16 @@ bool IsChunkLost(const TReplicasWithRevision& replicasWithRevision, NErasure::EC
     }
 
     return !codec->CanRepair(partIndexes);
+}
+
+TProbingPenalty PenalizeSuspciousNode(TProbingPenalty penalty)
+{
+    return {penalty.first, penalty.second + 1e10};
+}
+
+TProbingPenalty PenalizeBannedNode(TProbingPenalty penalty)
+{
+    return {penalty.first, penalty.second + 1e20};
 }
 
 }  // namespace
@@ -498,7 +506,7 @@ private:
                             peerInfo->Address,
                             suspicionMarkTime);
                         for (const auto& replicaProbingInfo : probingInfo.ReplicaProbingInfos) {
-                            TryDiscardChunkReplicas(replicaProbingInfo.ChunkIdWithIndex.Id);
+                            TryDiscardChunkReplicas(replicaProbingInfo.ChunkIdWithIndexes.Id);
                         }
                     }
                 }
@@ -541,14 +549,14 @@ private:
                 const auto& subresponse = probingRsp->subresponses(resultIndex);
 
                 const auto& replicaProbingInfo = probingInfo.ReplicaProbingInfos[resultIndex];
-                const auto& chunkIdWithIndex = replicaProbingInfo.ChunkIdWithIndex;
-                YT_VERIFY(chunkIdWithIndex.Id == ChunkIds_[chunkIndex]);
+                const auto& chunkIdWithIndexes = replicaProbingInfo.ChunkIdWithIndexes;
+                YT_VERIFY(chunkIdWithIndexes.Id == ChunkIds_[chunkIndex]);
 
-                TryUpdateChunkReplicas(chunkIdWithIndex.Id, subresponse);
+                TryUpdateChunkReplicas(chunkIdWithIndexes.Id, subresponse);
 
                 if (!subresponse.has_complete_chunk()) {
                     YT_LOG_WARNING("Chunk is missing from node (ChunkId: %v, Address: %v)",
-                        chunkIdWithIndex,
+                        chunkIdWithIndexes,
                         peerInfo->Address);
                     continue;
                 }
@@ -556,16 +564,16 @@ private:
                 if (subresponse.disk_throttling()) {
                     YT_LOG_DEBUG("Peer is disk-throttling (Address: %v, ChunkId: %v, DiskQueueSize: %v)",
                         peerInfo->Address,
-                        chunkIdWithIndex,
+                        chunkIdWithIndexes,
                         subresponse.disk_queue_size());
                 }
 
                 auto& replicasWithRevision = chunkProbingResults[chunkIndex].ReplicasWithRevision;
                 replicasWithRevision.Revision = ReplicaInfos_[chunkIndex].Revision;
                 replicasWithRevision.Replicas.push_back(TChunkReplicaInfo{
-                    .Penalty = ComputeProbingPenalty(probingRsp->net_queue_size(), subresponse.disk_queue_size()),
+                    .Penalty = ComputeProbingPenalty(probingRsp->net_queue_size(), subresponse.disk_queue_size(), chunkIdWithIndexes.MediumIndex),
                     .PeerInfo = peerInfo,
-                    .ReplicaIndex = chunkIdWithIndex.ReplicaIndex,
+                    .ReplicaIndex = chunkIdWithIndexes.ReplicaIndex,
                 });
             }
         }
@@ -624,7 +632,7 @@ private:
             const auto& allyReplicas = allyReplicasInfos[chunkIndex];
             for (auto chunkReplica : allyReplicas.Replicas) {
                 auto nodeId = chunkReplica.GetNodeId();
-                auto chunkIdWithIndex = TChunkIdWithIndex(chunkId, chunkReplica.GetReplicaIndex());
+                auto chunkIdWithIndexes = TChunkIdWithIndexes(chunkId, chunkReplica.GetReplicaIndex(), chunkReplica.GetMediumIndex());
                 auto [it, emplaced] = nodeIdToNodeIndex.try_emplace(nodeId);
                 if (emplaced) {
                     it->second = probingInfos.size();
@@ -636,7 +644,7 @@ private:
                 probingInfos[it->second].ChunkIndexes.push_back(chunkIndex);
                 probingInfos[it->second].ReplicaProbingInfos.push_back({
                     .Revision = allyReplicas.Revision,
-                    .ChunkIdWithIndex = chunkIdWithIndex,
+                    .ChunkIdWithIndexes = chunkIdWithIndexes,
                 });
             }
         }
@@ -674,7 +682,7 @@ private:
         req->SetResponseHeavy(true);
         SetRequestWorkloadDescriptor(req, Options_.WorkloadDescriptor);
         for (const auto& replicaProbingInfo : probingInfo.ReplicaProbingInfos) {
-            ToProto(req->add_chunk_ids(), EncodeChunkId(replicaProbingInfo.ChunkIdWithIndex));
+            ToProto(req->add_chunk_ids(), EncodeChunkId(replicaProbingInfo.ChunkIdWithIndexes));
             req->add_ally_replicas_revisions(replicaProbingInfo.Revision);
         }
         req->SetAcknowledgementTimeout(std::nullopt);
@@ -682,11 +690,18 @@ private:
         return req->Invoke();
     }
 
-    double ComputeProbingPenalty(i64 netQueueSize, i64 diskQueueSize) const
+    TProbingPenalty ComputeProbingPenalty(
+        i64 netQueueSize,
+        i64 diskQueueSize,
+        int mediumIndex) const
     {
-        return
+        const auto& mediumDirectory = Reader_->Client_->GetNativeConnection()->GetMediumDirectory();
+        const auto* mediumDescriptor = mediumDirectory->FindByIndex(mediumIndex);
+        return {
+            mediumDescriptor ? -mediumDescriptor->Priority : 0,
             Config_->NetQueueSizeFactor * netQueueSize +
-            Config_->DiskQueueSizeFactor * diskQueueSize;
+            Config_->DiskQueueSizeFactor * diskQueueSize,
+        };
     }
 
     void MaybeMarkNodeSuspicious(const TError& error, const TPeerProbingInfo& probingInfo)
@@ -1251,7 +1266,7 @@ private:
         // Provide same penalty for each node across all replicas.
         // Adjust replica penalties based on suspiciousness and bans.
         // Sort replicas and feed them to controllers.
-        THashMap<TNodeId, double> nodeIdToPenalty;
+        THashMap<TNodeId, TProbingPenalty> nodeIdToPenalty;
         for (auto& [chunkId, chunkState] : ChunkIdToChunkState_) {
             if (chunkState.ReplicasWithRevision.IsEmpty()) {
                 continue;
@@ -1265,9 +1280,9 @@ private:
                     EmplaceOrCrash(nodeIdToPenalty, nodeId, replica.Penalty);
                 }
                 if (NodeIdToSuspicionMarkTime_.contains(nodeId)) {
-                    replica.Penalty += SuspiciousNodePenalty;
+                    replica.Penalty = PenalizeSuspciousNode(replica.Penalty);
                 } else if (State_->BannedNodeIds.contains(nodeId)) {
-                    replica.Penalty += BannedNodePenalty;
+                    replica.Penalty = PenalizeBannedNode(replica.Penalty);
                 }
             }
 
