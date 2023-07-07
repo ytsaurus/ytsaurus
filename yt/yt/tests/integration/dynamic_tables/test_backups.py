@@ -437,8 +437,9 @@ class TestBackups(DynamicTablesBase):
         assert src_hunk_chunk_ids == dst_hunk_chunk_ids
 
     @authors("akozhikhov")
-    @pytest.mark.parametrize("remove_backup_first", [True, False])
-    def test_backup_hunks_restore_after_flush(self, remove_backup_first):
+    @pytest.mark.parametrize("remove_backup_first", [False, True])
+    @pytest.mark.parametrize("erasure", [False, True])
+    def test_backup_hunks_restore_after_flush(self, remove_backup_first, erasure):
         schema = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},
             {"name": "value", "type": "string", "max_inline_hunk_size": 1},
@@ -449,6 +450,9 @@ class TestBackups(DynamicTablesBase):
                                   schema=schema,
                                   dynamic_store_auto_flush_period=yson.YsonEntity(),
                                   enable_compaction_and_partitioning=False)
+        if erasure:
+            set("//tmp/t/@erasure_codec", "isa_reed_solomon_6_3")
+            set("//tmp/t/@hunk_erasure_codec", "isa_reed_solomon_6_3")
         sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", [{"key": 1, "value": "aa"}])
         sync_flush_table("//tmp/t")
