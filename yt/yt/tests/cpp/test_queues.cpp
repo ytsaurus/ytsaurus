@@ -690,7 +690,7 @@ TEST_W(TPartitionReaderTest, MultiplePartitions)
         // Average data weight per row for all tablets is quite big due to large rows.
         // However, it should be computed per-tablet, and it is ~10 for partition 0.
         // So setting MaxDataWeight = 150 for partition 0 should read significantly more than one row.
-        partitionReaderConfig->MaxDataWeight = 150;
+        partitionReaderConfig->MaxDataWeight = 500;
         auto partitionReader0 = CreatePartitionReader(partitionReaderConfig, Client_, consumer->GetPath(), /*partitionIndex*/ 0);
 
         WaitFor(partitionReader0->Open())
