@@ -218,14 +218,10 @@ public:
             BIND(&TUserJob::CheckThrashing, MakeWeak(this)),
             jobEnvironmentConfig->JobThrashingDetector->CheckPeriod);
 
-        if (JobEnvironmentType_ == EJobEnvironmentType::Porto) {
+        // User job usually runs by per-slot users: yt_slot_{N}.
+        // Which is not available for single-user, non-privileged or testing setup.
+        if (!Config_->DoNotSetUserId && JobEnvironmentType_ == EJobEnvironmentType::Porto) {
             UserId_ = jobEnvironmentConfig->StartUid + Config_->SlotIndex;
-        }
-
-        // TODO(gritukan): Why can't we set it even to 19500?
-        if (Config_->DoNotSetUserId) {
-            // TODO(gritukan): Make user id optional in exec.
-            UserId_ = 0;
         }
 
         if (!Config_->BusServer->UnixDomainSocketPath) {
