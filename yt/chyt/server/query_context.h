@@ -154,7 +154,16 @@ public:
     void InitializeQueryWriteTransaction();
     void CommitWriteTransaction();
 
+    //! Initialize query read transaction synchronously.
+    void InitializeQueryReadTransaction();
+    //! Force transaction initialization if it wasn't done.
     void EnsureQueryReadTransactionCreated();
+    //! Try to get node id from PathToNodeId, return path on failure.
+    //! Node id format is "#<node_id>".
+    NYPath::TYPath GetNodeIdOrPath(const NYPath::TYPath& path) const;
+
+    TFuture<THashMap<NYPath::TYPath, NCypressClient::TNodeId>> AcquireSnapshotLocks(
+        const THashSet<NYPath::TYPath>& paths);
 
 private:
     TInstant StartTime_;
@@ -193,8 +202,6 @@ private:
     TFuture<NApi::NNative::ITransactionPtr> ReadTransactionFuture_;
 
     void InitializeQueryReadTransactionFuture();
-    TFuture<THashMap<NYPath::TYPath, NCypressClient::TNodeId>> AcquireSnapshotLocks(
-        const THashSet<NYPath::TYPath>& paths);
 
     void InitializeDynamicTableReadTimestamp();
 
@@ -237,6 +244,9 @@ void InvalidateCache(
     TQueryContext* queryContext,
     std::vector<NYPath::TYPath> paths,
     std::optional<EInvalidateCacheMode> invalidateMode = std::nullopt);
+
+//! Acquire snapshot locks for tables, which are not locked yet.
+void AcquireSnapshotLocksSynchronously(TQueryContext* queryContext, const std::vector<NYPath::TYPath>& paths);
 
 ////////////////////////////////////////////////////////////////////////////////
 

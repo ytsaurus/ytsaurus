@@ -95,6 +95,8 @@ public:
 
     TDuration ChunkSpecFetcherSleepDuration;
     TDuration InputStreamFactorySleepDuration;
+    TDuration ConcatTablesRangeSleepDuration;
+    TDuration ListDirsSleepDuration;
 
     REGISTER_YSON_STRUCT(TTestingSettings);
 

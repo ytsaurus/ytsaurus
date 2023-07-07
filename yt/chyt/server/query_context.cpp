@@ -483,6 +483,12 @@ void TQueryContext::EnsureQueryReadTransactionCreated()
     YT_LOG_INFO("Read transaction is saved (ReadTransactionId: %v)", ReadTransactionId);
 }
 
+void TQueryContext::InitializeQueryReadTransaction()
+{
+    InitializeQueryReadTransactionFuture();
+    EnsureQueryReadTransactionCreated();
+}
+
 void TQueryContext::InitializeDynamicTableReadTimestamp()
 {
     if (DynamicTableReadTimestamp != AsyncLastCommittedTimestamp) {
@@ -505,6 +511,12 @@ TFuture<THashMap<TYPath, TNodeId>> TQueryContext::AcquireSnapshotLocks(const THa
         .Apply(BIND([paths, client = Client(), logger = Logger] (const NNative::ITransactionPtr& readTransaction) {
             return DoAcquireSnapshotLocks(paths, client, readTransaction->GetId(), logger);
         }));
+}
+
+TYPath TQueryContext::GetNodeIdOrPath(const TYPath& path) const
+{
+    auto maybeNodeId = PathToNodeId.find(path);
+    return (maybeNodeId != PathToNodeId.end()) ? Format("#%v", maybeNodeId->second) : path;
 }
 
 std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetTableAttributes(const std::vector<TYPath>& missingPaths)
@@ -545,9 +557,7 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::FetchTableAttribut
 
     for (int index = 0; index < std::ssize(paths); ++index) {
         const auto& path = paths[index];
-        auto maybeNodeId = PathToNodeId.find(path);
-        auto nodeIdOrPath = (maybeNodeId != PathToNodeId.end()) ? Format("#%v", maybeNodeId->second) : path;
-
+        auto nodeIdOrPath = GetNodeIdOrPath(path);
         auto req = TYPathProxy::Get(Format("%v/@", nodeIdOrPath));
         req->Tag() = index;
         ToProto(req->mutable_attributes()->mutable_keys(), TableAttributesToFetch);
@@ -678,6 +688,24 @@ void InvalidateCache(
     }
     auto timeout = queryContext->Settings->Caching->InvalidateRequestTimeout;
     queryContext->Host->InvalidateCachedObjectAttributesGlobally(paths, *invalidateMode, timeout);
+}
+
+void AcquireSnapshotLocksSynchronously(TQueryContext* queryContext, const std::vector<TYPath>& paths)
+{
+    THashSet<NYPath::TYPath> pathsToLock;
+    for (const auto& path : paths) {
+        if (!queryContext->PathToNodeId.contains(path)) {
+            pathsToLock.insert(path);
+        }
+    }
+
+    if (pathsToLock.empty()) {
+        return;
+    }
+
+    auto acquiredPathToNodeId = WaitFor(queryContext->AcquireSnapshotLocks(pathsToLock))
+        .ValueOrThrow();
+    queryContext->PathToNodeId.insert(acquiredPathToNodeId.begin(), acquiredPathToNodeId.end());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

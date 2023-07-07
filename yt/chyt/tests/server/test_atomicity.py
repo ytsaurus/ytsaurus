@@ -323,6 +323,94 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
                     clique.make_query(query, settings=settings)
 
             elif table_read_lock_mode in ["best_effort", "sync"]:
-                clique.make_query(query, settings=settings) == data
+                assert clique.make_query(query, settings=settings) == data
+
+            thread.join()
+
+    @authors("gudqeit")
+    @pytest.mark.parametrize("table_read_lock_mode", ["none", "sync"])
+    def test_concat_tables_range_function(self, table_read_lock_mode):
+        create("map_node", "//tmp/test_dir")
+        for table_index in range(1, 3):
+            create(
+                "table",
+                "//tmp/test_dir/table_" + str(table_index),
+                attributes={"schema": [{"name": "i", "type": "int64"}]},
+            )
+            write_table("//tmp/test_dir/table_" + str(table_index), [{"i": table_index}])
+
+        with Clique(1) as clique:
+            def add_table():
+                time.sleep(1)
+                extra_table = "//tmp/test_dir/table_3"
+                create(
+                    "table",
+                    extra_table,
+                    attributes={"schema": [{"name": "i", "type": "int64"}]},
+                )
+                write_table(extra_table, [{"i": 3}])
+
+            thread = threading.Thread(target=add_table)
+            thread.start()
+
+            settings = {
+                "chyt.execution.table_read_lock_mode": table_read_lock_mode,
+                "chyt.testing.concat_tables_range_sleep_duration": 1500,
+            }
+
+            query = "select * from concatYtTablesRange('//tmp/test_dir', 'table_1') order by i"
+
+            if table_read_lock_mode == "none":
+                assert clique.make_query(query, settings=settings) == [{"i": 1}, {"i": 2}, {"i": 3}]
+
+            elif table_read_lock_mode == "sync":
+                assert clique.make_query(query, settings=settings) == [{"i": 1}, {"i": 2}]
+
+            thread.join()
+
+    @authors("gudqeit")
+    @pytest.mark.parametrize("table_read_lock_mode", ["none", "sync"])
+    def test_yt_list_nodes(self, table_read_lock_mode):
+        create("map_node", "//tmp/test_dir")
+        for table_index in range(1, 3):
+            create(
+                "table",
+                "//tmp/test_dir/table_" + str(table_index),
+                attributes={"schema": [{"name": "i", "type": "int64"}]},
+            )
+
+        with Clique(1) as clique:
+            def edit_test_dir():
+                time.sleep(1)
+                create(
+                    "table",
+                    "//tmp/test_dir/table_3",
+                    attributes={"schema": [{"name": "i", "type": "int64"}]},
+                )
+                remove("//tmp/test_dir/table_2")
+
+            thread = threading.Thread(target=edit_test_dir)
+            thread.start()
+
+            settings = {
+                "chyt.execution.table_read_lock_mode": table_read_lock_mode,
+                "chyt.testing.list_dirs_sleep_duration": 1500,
+            }
+
+            query = "select $path from ytListNodes('//tmp/test_dir') order by $path"
+
+            if table_read_lock_mode == "none":
+                expected = [
+                    {"$path": "//tmp/test_dir/table_1"},
+                    {"$path": "//tmp/test_dir/table_3"},
+                ]
+                assert clique.make_query(query, settings=settings) == expected
+
+            elif table_read_lock_mode == "sync":
+                expected = [
+                    {"$path": "//tmp/test_dir/table_1"},
+                    {"$path": "//tmp/test_dir/table_2"},
+                ]
+                assert clique.make_query(query, settings=settings) == expected
 
             thread.join()

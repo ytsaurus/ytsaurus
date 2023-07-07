@@ -68,6 +68,10 @@ void TTestingSettings::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("input_stream_factory_sleep_duration", &TThis::InputStreamFactorySleepDuration)
         .Default();
+    registrar.Parameter("concat_tables_range_sleep_duration", &TThis::ConcatTablesRangeSleepDuration)
+        .Default();
+    registrar.Parameter("list_dirs_sleep_duration", &TThis::ListDirsSleepDuration)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

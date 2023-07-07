@@ -5,6 +5,7 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/rpc_helpers.h>
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/core/ytree/ypath_resolver.h>
@@ -25,6 +26,7 @@ using namespace NObjectClient;
 using namespace NYPath;
 using namespace NYson;
 using namespace NYTree;
+using namespace NCypressClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,6 +49,14 @@ std::vector<TErrorOr<INodePtr>> ListDirs(
     const std::vector<TString>& attributesToFetch,
     TQueryContext* queryContext)
 {
+    if (queryContext->Settings->Execution->TableReadLockMode == ETableReadLockMode::Sync) {
+        AcquireSnapshotLocksSynchronously(queryContext, dirPaths);
+    }
+
+    if (auto sleepDuration = queryContext->Settings->Testing->ListDirsSleepDuration) {
+        TDelayedExecutor::WaitForDuration(sleepDuration);
+    }
+
     const auto& settings = queryContext->Settings->ListDir;
 
     const auto& client = queryContext->Client();
@@ -59,7 +69,7 @@ std::vector<TErrorOr<INodePtr>> ListDirs(
 
     int index = 0;
     for (auto& path : dirPaths) {
-        auto req = TYPathProxy::List(path);
+        auto req = TYPathProxy::List(queryContext->GetNodeIdOrPath(path));
         SetCachingHeader(req, connection, masterReadOptions);
         ToProto(req->mutable_attributes()->mutable_keys(), attributesToFetch);
         req->Tag() = index;
@@ -67,6 +77,7 @@ std::vector<TErrorOr<INodePtr>> ListDirs(
         if (settings->MaxSize) {
             req->set_limit(settings->MaxSize);
         }
+        SetTransactionId(req, queryContext->ReadTransactionId);
 
         batchReq->AddRequest(req);
     }
@@ -104,6 +115,10 @@ std::vector<TErrorOr<INodePtr>> GetNodeAttributes(
     const std::vector<TString>& attributesToFetch,
     TQueryContext* queryContext)
 {
+    if (queryContext->Settings->Execution->TableReadLockMode == ETableReadLockMode::Sync) {
+        AcquireSnapshotLocksSynchronously(queryContext, paths);
+    }
+
     const auto& client = queryContext->Client();
     const auto& connection = DynamicPointerCast<NApi::NNative::IConnection>(client->GetConnection());
     TMasterReadOptions masterReadOptions = *queryContext->Settings->CypressReadOptions;
@@ -114,11 +129,12 @@ std::vector<TErrorOr<INodePtr>> GetNodeAttributes(
 
     int index = 0;
     for (auto& path : paths) {
-        auto req = TYPathProxy::Get(path + "/@");
+        auto req = TYPathProxy::Get(queryContext->GetNodeIdOrPath(path) + "/@");
         SetCachingHeader(req, connection, masterReadOptions);
         ToProto(req->mutable_attributes()->mutable_keys(), attributesToFetch);
         req->Tag() = index;
         ++index;
+        SetTransactionId(req, queryContext->ReadTransactionId);
 
         batchReq->AddRequest(req);
     }
@@ -283,6 +299,10 @@ public:
             }
         }
         uniqueAttributes.emplace("type");
+
+        if (queryContext->Settings->Execution->TableReadLockMode == ETableReadLockMode::Sync) {
+            queryContext->InitializeQueryReadTransaction();
+        }
 
         std::vector<TString> attributesToFetch = {uniqueAttributes.begin(), uniqueAttributes.end()};
 

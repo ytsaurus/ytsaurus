@@ -239,6 +239,16 @@ private:
 
         YT_LOG_INFO("Listing directory (Path: %v)", directory);
 
+        if (queryContext->Settings->Execution->TableReadLockMode == ETableReadLockMode::Sync) {
+            queryContext->InitializeQueryReadTransaction();
+            AcquireSnapshotLocksSynchronously(queryContext, {directory.GetPath()});
+        }
+
+        if (auto sleepDuration = queryContext->Settings->Testing->ConcatTablesRangeSleepDuration) {
+            TDelayedExecutor::WaitForDuration(sleepDuration);
+            YT_LOG_DEBUG("Concat tables range function slept (Duration: %v)", sleepDuration);
+        }
+
         TListNodeOptions options;
         static_cast<TMasterReadOptions&>(options) = *queryContext->Settings->CypressReadOptions;
         options.Attributes = {
@@ -246,8 +256,10 @@ private:
         };
         options.SuppressAccessTracking = true;
         options.SuppressExpirationTimeoutRenewal = true;
+        options.TransactionId = queryContext->ReadTransactionId;
 
-        auto items = WaitFor(queryContext->Client()->ListNode(directory.GetPath(), options))
+        auto nodeIdOrPath = queryContext->GetNodeIdOrPath(directory.GetPath());
+        auto items = WaitFor(queryContext->Client()->ListNode(nodeIdOrPath, options))
             .ValueOrThrow();
         auto itemList = ConvertTo<IListNodePtr>(items);
 
