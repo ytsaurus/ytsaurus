@@ -8,7 +8,7 @@ from yt_env_setup import (
 from yt_commands import (
     authors, print_debug, release_breakpoint, remove, wait, wait_breakpoint, with_breakpoint, create, ls, get,
     set, exists, update_op_parameters,
-    write_table, map, reduce, map_reduce, merge, erase, run_sleeping_vanilla, run_test_vanilla, get_operation, raises_yt_error)
+    write_table, map, reduce, map_reduce, merge, erase, vanilla, run_sleeping_vanilla, run_test_vanilla, get_operation, raises_yt_error)
 
 from yt.common import YtError, YtResponseError
 
@@ -581,6 +581,64 @@ class TestControllerAgentTags(YTEnvSetup):
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             pass
         wait(lambda: self._get_controller_agent(op) == bar_agent)
+
+
+##################################################################
+
+
+class TestOperationControllerResourcesCheck(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "available_exec_nodes_check_period": 100,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {"exec_node": {"job_controller": {"resource_limits": {"cpu": 2.0}}}}
+
+    @authors("omgronny")
+    def test_insufficient_resources_node_attributes(self):
+        op = vanilla(
+            spec={
+                "tasks": {
+                    "task_a": {
+                        "job_count": 10,
+                        "command": "sleep 1000",
+                        "cpu_limit": 5.0,
+                        "memory_limit": 1024,
+                    },
+                    "task_b": {
+                        "job_count": 10,
+                        "command": "sleep 1000",
+                        "cpu_limit": 2.0,
+                        "memory_limit": 1024 ** 4,
+                    },
+                }
+            },
+            track=False,
+        )
+
+        wait(lambda: op.get_state() == "failed")
+
+        insufficient_resources_result = get(op.get_path() + "/@result")["error"]["attributes"]["matching_but_insufficient_resources_node_count_per_task"]
+
+        assert insufficient_resources_result["task_a"]["cpu"] == 3
+        assert insufficient_resources_result["task_b"]["cpu"] == 0
+
+        assert insufficient_resources_result["task_a"]["memory"] == 0
+        assert insufficient_resources_result["task_b"]["memory"] == 3
+
+        assert insufficient_resources_result["task_a"]["network"] == 0
+        assert insufficient_resources_result["task_b"]["network"] == 0
+
+        assert insufficient_resources_result["task_a"]["disk_space"] == 0
+        assert insufficient_resources_result["task_b"]["disk_space"] == 0
+
+        assert insufficient_resources_result["task_a"]["user_slots"] == 0
+        assert insufficient_resources_result["task_b"]["user_slots"] == 0
 
 
 ##################################################################
