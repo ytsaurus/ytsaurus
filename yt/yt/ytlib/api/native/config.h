@@ -226,6 +226,8 @@ public:
     //! Is used if |EnablePartialResult| is set for a lookup request so it
     //! will not completely timeout because of slow subrequests.
     TDuration LookupRowsRequestTimeoutSlack;
+    std::optional<TDuration> LookupRowsInMemoryLoggingSuppressionTimeout;
+    std::optional<TDuration> LookupRowsExtMemoryLoggingSuppressionTimeout;
 
     int DefaultGetTabletErrorsLimit;
 

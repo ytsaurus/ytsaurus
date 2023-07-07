@@ -1158,9 +1158,17 @@ TRowset TClient::DoLookupRowsOnce(
             req->set_use_lookup_cache(*options.UseLookupCache);
         }
 
-        if (inMemoryMode != EInMemoryMode::None) {
+        if (inMemoryMode == EInMemoryMode::None) {
+            if (auto timeout = connectionConfig->LookupRowsExtMemoryLoggingSuppressionTimeout) {
+                req->Header().set_logging_suppression_timeout(ToProto<i64>(*timeout));
+            }
+        } else {
             req->Header().set_uncancelable(true);
+            if (auto timeout = connectionConfig->LookupRowsInMemoryLoggingSuppressionTimeout) {
+                req->Header().set_logging_suppression_timeout(ToProto<i64>(*timeout));
+            }
         }
+
         if (retentionConfig) {
             req->set_retention_config(*retentionConfig);
         }
