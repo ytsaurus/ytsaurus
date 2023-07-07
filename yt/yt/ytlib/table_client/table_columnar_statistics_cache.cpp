@@ -26,6 +26,7 @@ using namespace NChunkClient;
 using namespace NCypressClient;
 using namespace NHydra;
 using namespace NLogging;
+using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NProfiling;
 using namespace NYPath;
@@ -204,7 +205,7 @@ public:
         auto chunkSpecFetcher = New<TMasterChunkSpecFetcher>(
             Client_,
             TMasterReadOptions{},
-            nullptr /* nodeDirectory */,
+            New<TNodeDirectory>(),
             Invoker_,
             Config_->MaxChunksPerFetch,
             Config_->MaxChunksPerLocateRequest,

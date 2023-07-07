@@ -65,11 +65,7 @@ TMasterChunkSpecFetcher::TMasterChunkSpecFetcher(
     , InitializeFetchRequest_(initializeFetchRequest)
     , Logger(logger)
     , SkipUnavailableChunks_(skipUnavailableChunks)
-{
-    if (!NodeDirectory_) {
-        NodeDirectory_ = New<TNodeDirectory>();
-    }
-}
+{ }
 
 void TMasterChunkSpecFetcher::Add(
     TObjectId objectId,

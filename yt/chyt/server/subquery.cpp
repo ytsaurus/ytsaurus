@@ -129,7 +129,7 @@ public:
         , QueryContext_(StorageContext_->QueryContext)
         , Client_(QueryContext_->Client())
         , TransactionId_(transactionId)
-        , Invoker_(CreateSerializedInvoker(QueryContext_->Host->GetClickHouseFetcherInvoker()))
+        , Invoker_(QueryContext_->Host->GetClickHouseFetcherInvoker())
         , OperandSchemas_(queryAnalysisResult.TableSchemas)
         , KeyConditions_(queryAnalysisResult.KeyConditions)
         , RealColumnNames_(realColumnNames)
