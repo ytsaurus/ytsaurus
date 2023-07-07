@@ -4146,7 +4146,7 @@ void TOperationControllerBase::CheckAvailableExecNodes()
     bool foundMatching = false;
     bool foundMatchingNotBanned = false;
     int nonMatchingFilterNodeCount = 0;
-    int matchingButInsufficientResourcesNodeCount = 0;
+    THashMap<TString, THashMap<TString, i64>> matchingButInsufficientResourcesNodeCountPerTask;
     for (const auto& nodePair : GetExecNodeDescriptors()) {
         const auto& descriptor = nodePair.second;
 
@@ -4171,15 +4171,38 @@ void TOperationControllerBase::CheckAvailableExecNodes()
             hasNonTrivialTasks = true;
 
             const auto& neededResources = task->GetMinNeededResources();
-            if (Dominates(descriptor.ResourceLimits, neededResources.ToJobResources()) &&
-                CanSatisfyDiskQuotaRequest(descriptor.DiskResources, neededResources.GetDiskQuota(), /*considerUsage*/ false))
-            {
-                hasEnoughResources = true;
+            bool taskHasEnoughResources = true;
+            TEnumIndexedVector<EJobResourceType, bool> taskHasEnoughResourcesPerResource;
+
+            auto processJobResourceType = [&] (auto resourceLimit, auto resource, EJobResourceType type) {
+                if (resource > resourceLimit) {
+                    taskHasEnoughResources = false;
+                } else {
+                    taskHasEnoughResourcesPerResource[type] = true;
+                }
+            };
+
+            #define XX(name, Name) processJobResourceType( \
+                descriptor.ResourceLimits.Get##Name(), \
+                neededResources.ToJobResources().Get##Name(), \
+                EJobResourceType::Name);
+            ITERATE_JOB_RESOURCES(XX)
+            #undef XX
+
+            bool taskCanSatisfyDiskQuotaRequest = CanSatisfyDiskQuotaRequest(descriptor.DiskResources, neededResources.GetDiskQuota(), /*considerUsage*/ false);
+            hasEnoughResources |= taskHasEnoughResources && taskCanSatisfyDiskQuotaRequest;
+
+            if (hasEnoughResources) {
                 break;
             }
+
+            for (auto resourceType : TEnumTraits<EJobResourceType>::GetDomainValues()) {
+                matchingButInsufficientResourcesNodeCountPerTask[task->GetVertexDescriptor()][FormatEnum(resourceType)] +=
+                    !taskHasEnoughResourcesPerResource[resourceType];
+            }
+            matchingButInsufficientResourcesNodeCountPerTask[task->GetVertexDescriptor()]["disk_space"] += !taskCanSatisfyDiskQuotaRequest;
         }
         if (hasNonTrivialTasks && !hasEnoughResources) {
-            ++matchingButInsufficientResourcesNodeCount;
             continue;
         }
 
@@ -4204,7 +4227,7 @@ void TOperationControllerBase::CheckAvailableExecNodes()
             Spec_->SchedulingTagFilter.GetFormula(),
             GetKeys(PoolTreeControllerSettingsMap_))
             << TErrorAttribute("non_matching_filter_node_count", nonMatchingFilterNodeCount)
-            << TErrorAttribute("matching_but_insufficient_resources_node_count", matchingButInsufficientResourcesNodeCount));
+            << TErrorAttribute("matching_but_insufficient_resources_node_count_per_task", matchingButInsufficientResourcesNodeCountPerTask));
         return;
     }
 

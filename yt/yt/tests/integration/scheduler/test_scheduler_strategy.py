@@ -1366,7 +1366,6 @@ class TestSchedulerHangingOperations(YTEnvSetup):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "available_exec_nodes_check_period": 1000,
             "banned_exec_nodes_check_period": 100000000,
             "map_reduce_operation_options": {
                 "min_uncompressed_block_size": 1,
