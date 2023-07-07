@@ -270,7 +270,10 @@ public:
         , PassExecutor_(New<TPeriodicExecutor>(
             Invoker_,
             BIND(&TOrderedDynamicTableController::Pass, MakeWeak(this)),
-            dynamicConfig->PassPeriod))
+            TPeriodicExecutorOptions{
+                .Period = dynamicConfig->PassPeriod,
+                .Splay = dynamicConfig->PassPeriod,
+            }))
         , ProfileManager_(CreateQueueProfileManager(
             QueueAgentProfiler
                 .WithRequiredTag("queue_path", QueueRef_.Path)
@@ -399,7 +402,8 @@ private:
 
             ProfileManager_->Profile(previousQueueSnapshot, nextQueueSnapshot);
 
-            if (DynamicConfig_.Acquire()->EnableAutomaticTrimming) {
+            auto dynamicConfig = DynamicConfig_.Acquire();
+            if (dynamicConfig->EnableAutomaticTrimming && nextQueueSnapshot->PassIndex % dynamicConfig->TrimmingIterationFrequency == 0) {
                 Trim();
             }
         }

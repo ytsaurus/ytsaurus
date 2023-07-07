@@ -110,6 +110,9 @@ public:
 
     //! Flag for disabling automatic trimming entirely.
     bool EnableAutomaticTrimming;
+    //! A multiplier for controlling trimming frequency.
+    //! A trimming iteration will occur once in this many queue controller passes.
+    int TrimmingIterationFrequency;
 
     REGISTER_YSON_STRUCT(TQueueControllerDynamicConfig);
 

@@ -1331,6 +1331,18 @@ class TestAutomaticTrimming(TestQueueAgentBase):
             "queue_agent": {
                 "controller": {
                     "enable_automatic_trimming": True,
+                    "trimming_iteration_frequency": 1000000,
+                }
+            }
+        })
+
+        time.sleep(1)
+        self._wait_for_row_count("//tmp/q", 0, 4)
+
+        self._apply_dynamic_config_patch({
+            "queue_agent": {
+                "controller": {
+                    "trimming_iteration_frequency": 1,
                 }
             }
         })

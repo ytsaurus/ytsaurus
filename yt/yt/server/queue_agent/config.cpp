@@ -59,6 +59,9 @@ void TQueueControllerDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(1));
     registrar.Parameter("enable_automatic_trimming", &TThis::EnableAutomaticTrimming)
         .Default(false);
+    registrar.Parameter("trimming_iteration_frequency", &TThis::TrimmingIterationFrequency)
+        .Default(1)
+        .GreaterThan(0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
