@@ -70,9 +70,7 @@ public:
 
     void SetDefaults();
 
-    void Save(
-        NYson::IYsonConsumer* consumer,
-        bool stable = false) const;
+    void Save(NYson::IYsonConsumer* consumer) const;
 
     void Save(IOutputStream* output) const;
 

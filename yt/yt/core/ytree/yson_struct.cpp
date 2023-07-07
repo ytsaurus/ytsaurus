@@ -60,11 +60,10 @@ void TYsonStructBase::Load(IInputStream* input)
     NYT::TBinaryYsonStructSerializer::Load(context, *this);
 }
 
-void TYsonStructBase::Save(
-    IYsonConsumer* consumer,
-    bool stable) const
+void TYsonStructBase::Save(IYsonConsumer* consumer) const
 {
     consumer->OnBeginMap();
+
     for (const auto& [name, parameter] : Meta_->GetParameterSortedList()) {
         if (!parameter->CanOmitValue(this)) {
             consumer->OnKeyedItem(name);
@@ -74,14 +73,7 @@ void TYsonStructBase::Save(
 
     if (LocalUnrecognized_) {
         auto unrecognizedList = LocalUnrecognized_->GetChildren();
-        if (stable) {
-            std::sort(
-                unrecognizedList.begin(),
-                unrecognizedList.end(),
-                [] (const auto& x, const auto& y) {
-                    return x.first < y.first;
-                });
-        }
+        SortBy(unrecognizedList, [] (const auto& item) { return item.first; });
         for (const auto& [key, child] : unrecognizedList) {
             consumer->OnKeyedItem(key);
             Serialize(child, consumer);
