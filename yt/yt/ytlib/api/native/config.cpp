@@ -219,6 +219,10 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default(1000);
     registrar.Parameter("lookup_rows_request_timeout_slack", &TThis::LookupRowsRequestTimeoutSlack)
         .Default(TDuration::Zero());
+    registrar.Parameter("lookup_rows_in_memory_logging_suppression_timeout", &TThis::LookupRowsInMemoryLoggingSuppressionTimeout)
+        .Optional();
+    registrar.Parameter("lookup_rows_ext_memory_logging_suppression_timeout", &TThis::LookupRowsExtMemoryLoggingSuppressionTimeout)
+        .Optional();
 
     registrar.Parameter("default_get_tablet_errors_limit", &TThis::DefaultGetTabletErrorsLimit)
         .Default(5)
