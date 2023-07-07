@@ -1179,7 +1179,8 @@ public:
 
         for (auto* store : storesToAttach) {
             switch (store->GetType()) {
-                case EObjectType::Chunk: {
+                case EObjectType::Chunk:
+                case EObjectType::ErasureChunk: {
                     attachHunkChunks(store->AsChunk());
                     break;
                 }
@@ -1187,7 +1188,9 @@ public:
                 case EObjectType::ChunkView: {
                     auto* chunkView = store->AsChunkView();
                     auto* underlyingTree = chunkView->GetUnderlyingTree();
-                    YT_VERIFY(underlyingTree->GetType() == EObjectType::Chunk);
+                    YT_VERIFY(
+                        underlyingTree->GetType() == EObjectType::Chunk ||
+                        underlyingTree->GetType() == EObjectType::ErasureChunk);
                     attachHunkChunks(underlyingTree->AsChunk());
                     break;
                 }
