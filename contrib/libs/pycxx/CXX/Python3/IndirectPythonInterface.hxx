@@ -148,10 +148,12 @@ int &_Py_NoSiteFlag();
 int &_Py_TabcheckFlag();
 int &_Py_VerboseFlag();
 
-#  if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 7
+# if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION <= 11
+#   if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 7
 const char *__Py_PackageContext();
-#  else
+#   else
 char *__Py_PackageContext();
+#   endif
 #  endif
 # endif
 

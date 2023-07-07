@@ -1311,19 +1311,19 @@ namespace Py
             return PySequence_Length( ptr() );
         }
 
-        explicit SeqBase<T>()
+        explicit SeqBase()
         :Object( PyTuple_New( 0 ), true )
         {
             validate();
         }
 
-        explicit SeqBase<T>( PyObject *pyob, bool owned=false )
+        explicit SeqBase( PyObject *pyob, bool owned=false )
         : Object( pyob, owned )
         {
             validate();
         }
 
-        SeqBase<T>( const Object &ob )
+        SeqBase( const Object &ob )
         : Object( ob )
         {
             validate();
@@ -2616,20 +2616,20 @@ namespace Py
         T the_item;
 
     public:
-        mapref<T>( MapBase<T> &map, const std::string &k )
+        mapref( MapBase<T> &map, const std::string &k )
         : s( map ), the_item()
         {
             key = String( k );
             if( map.hasKey( key ) ) the_item = map.getItem( key );
         }
 
-        mapref<T>( MapBase<T> &map, const Object &k )
+        mapref( MapBase<T> &map, const Object &k )
         : s( map ), key( k ), the_item()
         {
             if( map.hasKey( key ) ) the_item = map.getItem( key );
         }
 
-        virtual ~mapref<T>()
+        virtual ~mapref()
         {}
 
         // MapBase<T> stuff
@@ -2789,7 +2789,7 @@ namespace Py
     class MapBase: public Object
     {
     protected:
-        explicit MapBase<T>()
+        explicit MapBase()
         {}
     public:
         // reference: proxy class for implementing []
@@ -2806,14 +2806,14 @@ namespace Py
         typedef std::pair< const T, mapref<T> > pointer;
 
         // Constructor
-        explicit MapBase<T>( PyObject *pyob, bool owned = false )
+        explicit MapBase( PyObject *pyob, bool owned = false )
         : Object( pyob, owned )
         {
             validate();
         }
 
         // TMM: 02Jul'01 - changed MapBase<T> to Object in next line
-        MapBase<T>( const Object &ob )
+        MapBase( const Object &ob )
         : Object( ob )
         {
             validate();

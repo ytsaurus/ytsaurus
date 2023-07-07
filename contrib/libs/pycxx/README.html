@@ -31,21 +31,21 @@ p.param {background-color: #eeeeee; border-top: lightskyblue solid 4}
 
 <h3>Windows Installation and Demo</h3>
 <ol>
-    <li>Fetch <a href="http://prdownloads.sourceforge.net/cxx/pycxx-7.1.7.tar.gz">
-    http://prdownloads.sourceforge.net/cxx/pycxx-7.1.7.tar.gz</a></li>
+    <li>Fetch <a href="http://prdownloads.sourceforge.net/cxx/pycxx-7.1.8.tar.gz">
+    http://prdownloads.sourceforge.net/cxx/pycxx-7.1.8.tar.gz</a></li>
     <li>Expand the archive into a directory of your choosing C:\ for example.</li>
 
     <li>Install the PyCXX files:
         <ol>
-        <li><pre>C:> cd \pycxx-7.1.7</pre></li>
-        <li><pre>C:\pycxx-7.1.7> python setup.py install</pre></li>
+        <li><pre>C:> cd \pycxx-7.1.8</pre></li>
+        <li><pre>C:\pycxx-7.1.8> python setup.py install</pre></li>
         </ol>
     </li>
     <li>Build and run the demo extensions:
         <ol>
-        <li><pre>C:> cd \pycxx-7.1.7</pre></li>
-        <li><pre>C:\pycxx-7.1.7> python setup_makefile.py win32 win32.mak </pre></li>
-        <li><pre>C:\pycxx-7.1.7> nmake -f win32.mak clean test</pre></li>
+        <li><pre>C:> cd \pycxx-7.1.8</pre></li>
+        <li><pre>C:\pycxx-7.1.8> python setup_makefile.py win32 win32.mak </pre></li>
+        <li><pre>C:\pycxx-7.1.8> nmake -f win32.mak clean test</pre></li>
         </ol>
     </li>
 </ol>
@@ -54,18 +54,18 @@ p.param {background-color: #eeeeee; border-top: lightskyblue solid 4}
 <h3>Unix Installation and Demo</h3>
 
 <ol>
-    <li>Fetch <a href="http://prdownloads.sourceforge.net/cxx/pycxx-7.1.7.tar.gz">
-    http://prdownloads.sourceforge.net/cxx/pycxx-7.1.7.tar.gz</a>
+    <li>Fetch <a href="http://prdownloads.sourceforge.net/cxx/pycxx-7.1.8.tar.gz">
+    http://prdownloads.sourceforge.net/cxx/pycxx-7.1.8.tar.gz</a>
     <li>Login as root. root access is typically needed on Unix systems to install the PyCXX files into the Python directories.
     <li>Expand the archive into a directory of your choosing ~\ for example.
     <li>Install the PyCXX files:
         <ol>
-        <li><pre># cd ~/pycxx-7.1.7</pre>
+        <li><pre># cd ~/pycxx-7.1.8</pre>
         <li><pre># python setup.py install</pre>
         </ol>
     <li>Build and run the demo extensions:
         <ol>
-        <li><pre># cd ~/pycxx-7.1.7</pre></li>
+        <li><pre># cd ~/pycxx-7.1.8</pre></li>
         <li><pre># python setup_makefile.py linux linux.mak</pre></li>
         <li><pre># make -f linux.mak clean test</pre></li>
         </ol>
@@ -74,9 +74,15 @@ p.param {background-color: #eeeeee; border-top: lightskyblue solid 4}
 
 <h2>Revision History</h2>
 
-<h3>Version: 7.1.7 (13-Feb-2022)</h3>
+<h3>Version: 7.1.8 (18-Jun-2023)</h3>
 
-<p>This Version 7.1.6 with README updates</p>
+<p>Add support for building against python 3.12 beta 1</p>
+
+<p>_Py_PackageContext is no longer accessible.</p>
+
+<h3>Version: 7.1.7 (15-Feb-2022)</h3>
+
+<p>This is Version 7.1.6 with README updates</p>
 
 <h3>Version: 7.1.6 (14-Feb-2022)</h3>
 

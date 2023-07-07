@@ -1,5 +1,7 @@
-Version: 7.1.7 (13-Feb-2022)
+Version: 7.1.8 (18-Jun-2023)
 
-Add support for building against python 3.11 alpha 4.
+Add support for building against python 3.12 beta
 
-This Version 7.1.6 with README updates
+_Py_PackageContext is no longer accessible.
+
+This is Version 7.1.7 with README updates
