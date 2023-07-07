@@ -63,15 +63,40 @@ public:
     void OnMyBeginList() override
     {
         if (State_ == EConsumerState::FollowingPath) {
-            ThrowListUnsupportedError();
+            Tokenizer_.Skip(NYPath::ETokenType::Slash);
+            CurrentListItemIndex_ = -1;
         }
     }
 
     void OnMyListItem() override
-    { }
+    {
+        if (State_ == EConsumerState::ConsumptionCompleted) {
+            return;
+        }
+
+        ++CurrentListItemIndex_;
+        switch (Tokenizer_.GetType()) {
+            case NYPath::ETokenType::Literal:
+                int indexInPath;
+                if (!TryFromString(Tokenizer_.GetToken(), indexInPath)) {
+                    CheckAndThrowResolveError();
+                }
+                if (indexInPath == CurrentListItemIndex_) {
+                    Tokenizer_.Advance();
+                    ForwardIfPathIsExhausted();
+                } else {
+                    SkipSubTree();
+                }
+            break;
+        default:
+            Tokenizer_.ThrowUnexpected();
+        }
+    }
 
     void OnMyEndList() override
-    { }
+    {
+        CheckAndThrowResolveError();
+    }
 
     void OnMyBeginMap() override
     {
@@ -92,7 +117,7 @@ public:
                     Tokenizer_.Advance();
                     ForwardIfPathIsExhausted();
                 } else {
-                    Forward(&NullConsumer_);
+                    SkipSubTree();
                 }
                 break;
             case NYPath::ETokenType::At:
@@ -131,7 +156,7 @@ public:
                     EYsonType::MapFragment);
             }
         } else {
-            Forward(&NullConsumer_, /*onFinished*/ {}, EYsonType::MapFragment);
+            SkipSubTree(EYsonType::MapFragment);
         }
     }
 
@@ -152,11 +177,7 @@ private:
     IYsonConsumer* UnderlyingConsumer_;
     TNullYsonConsumer NullConsumer_;
     EConsumerState State_ = EConsumerState::FollowingPath;
-
-    void ThrowListUnsupportedError()
-    {
-        THROW_ERROR_EXCEPTION("YPath designated consumer does not support list nodes");
-    }
+    int CurrentListItemIndex_ = -1;
 
     void ThrowResolveError()
     {
@@ -185,6 +206,11 @@ private:
         if (Tokenizer_.GetType() == NYPath::ETokenType::EndOfStream) {
             Forward(UnderlyingConsumer_, [&] { State_ = EConsumerState::ConsumptionCompleted; });
         }
+    }
+
+    void SkipSubTree(EYsonType type = EYsonType::Node)
+    {
+        Forward(&NullConsumer_, /*onFinished*/ nullptr, type);
     }
 };
 

@@ -159,6 +159,44 @@ TEST(TYPathDesignatedServiceTest, GetList)
     EXPECT_EQ(expected, YPathGet(service, "/key2"));
 }
 
+TEST(TYPathDesignatedServiceTest, NavigateThroughList)
+{
+    auto service = IYPathService::YPathDesignatedServiceFromProducer(BIND([] (IYsonConsumer* consumer) {
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("key1").BeginMap()
+                    .Item("subkey1").Value("ab")
+                .EndMap()
+                .Item("key2").BeginList()
+                    .Item().Value("abc")
+                    .Item().Value(43)
+                .EndList()
+            .EndMap();
+    }));
+
+    EXPECT_EQ(FluentString().Value("abc"), YPathGet(service, "/key2/0"));
+    EXPECT_EQ(FluentString().Value(43), YPathGet(service, "/key2/1"));
+}
+
+TEST(TYPathDesignatedServiceTest, NavigateThroughTwoLists)
+{
+    auto service = IYPathService::YPathDesignatedServiceFromProducer(BIND([] (IYsonConsumer* consumer) {
+        BuildYsonFluently(consumer)
+            .BeginList()
+                .Item().BeginList()
+                    .Item().Value(43)
+                    .Item().Value("abc")
+                .EndList()
+                .Item().BeginList()
+                    .Item().Value("def")
+                .EndList()
+            .EndList();
+    }));
+
+    EXPECT_EQ(FluentString().Value("abc"), YPathGet(service, "/0/1"));
+    EXPECT_EQ(FluentString().Value("def"), YPathGet(service, "/1/0"));
+}
+
 TEST(TYPathDesignatedServiceTest, GetAttributes)
 {
     auto service = IYPathService::YPathDesignatedServiceFromProducer(BIND([] (IYsonConsumer* consumer) {

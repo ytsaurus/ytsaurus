@@ -236,39 +236,6 @@ TEST_F(TYPathDesignatedYsonConsumerTest, MissingSubtreeError)
     }
 }
 
-TEST_F(TYPathDesignatedYsonConsumerTest, ListUnsupportedError)
-{
-    InSequence dummy;
-
-    {
-        auto buildTree = [] (IYsonConsumer* consumer) {
-            BuildYsonFluently(consumer)
-                .BeginMap()
-                    .Item("key1").BeginList()
-                    .EndList()
-                    .Item("key2").Value("value2")
-                .EndMap();
-        };
-        auto consumer = CreateYPathDesignatedConsumer("/key1/0", EMissingPathMode::Ignore, &Mock);
-        EXPECT_THROW(buildTree(consumer.get()), std::exception);
-    }
-
-    {
-        auto buildTree = [] (IYsonConsumer* consumer) {
-            BuildYsonFluently(consumer)
-                .BeginMap()
-                    .Item("key1").BeginList()
-                        .Item().Value(10)
-                        .Item().Value("abc")
-                    .EndList()
-                    .Item("key2").Value("value2")
-                .EndMap();
-        };
-        auto consumer = CreateYPathDesignatedConsumer("/key1/0", EMissingPathMode::Ignore, &Mock);
-        EXPECT_THROW(buildTree(consumer.get()), std::exception);
-    }
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace
