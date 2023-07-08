@@ -145,7 +145,7 @@ jobs:
         shell: bash
         run: |
           export HOME=/root
-          bash yt/docker/yt_nightly/kube.sh --ytsaurus-source-path $(pwd)
+          bash yt/systest/scripts/minikube.sh --image ytsaurus/ytsaurus-nightly:latest --ytsaurus-source-path $(pwd)
 
       - name: Unittests
         shell: bash

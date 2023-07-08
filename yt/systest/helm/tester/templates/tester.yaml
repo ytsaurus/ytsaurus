@@ -1,17 +1,15 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: systest
+  name: tester
 spec:
   restartPolicy: OnFailure
   containers:
   - name: ytentry
-    image: ytsaurus/ytsaurus-nightly:latest
+    image: {{ .Values.YtsaurusImagePath }}
     env:
     - name: YT_CONFIG_PATCHES
       value: '{proxy={enable_proxy_discovery=%false}}'
     - name: YT_TOKEN
       value: 'password'
-    - name: YT_PROXY
-      value: "$(HTTP_PROXIES_LB_SERVICE_HOST):$(HTTP_PROXIES_LB_SERVICE_PORT)"
-    command: ['systest']
+    command: ['yt', '--proxy', "$(HTTP_PROXIES_LB_SERVICE_HOST):$(HTTP_PROXIES_LB_SERVICE_PORT)", 'list', '/']

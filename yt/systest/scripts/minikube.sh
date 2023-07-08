@@ -4,20 +4,16 @@ set -e
 
 script_name=$0
 ytsaurus_source_path="."
-image_tag="dev"
+image=""
 
 print_usage() {
     cat << EOF
 Usage: $script_name [-h|--help]
                     [--ytsaurus-source-path /path/to/ytsaurus.repo]
-                    [--image-tag image_tag]
+                    [--image registry/path/to/image:tag]
 EOF
     exit 1
 }
-
-if [[ $# -eq 0 ]]; then
-    print_usage
-fi
 
 while [[ $# -gt 0 ]]; do
     key="$1"
@@ -26,11 +22,10 @@ while [[ $# -gt 0 ]]; do
         ytsaurus_source_path=$(realpath "$2")
         shift 2
         ;;
-        --image-tag)
-        image_tag="$2"
+        --image)
+        image="$2"
         shift 2
         ;;
-
         *)
         echo "Unknown argument $1"
         print_usage
@@ -38,15 +33,20 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+if [[ ${image} == "" ]]; then
+echo "  --image is required"
+print_usage
+fi
+
 minikube start --vm-driver=docker --force
 kubectl cluster-info
 helm pull oci://docker.io/ytsaurus/ytop-chart --version 0.1.6 --untar
 helm install ytsaurus ytop-chart/
 eval $(minikube docker-env)
 
-docker pull ytsaurus/ytsaurus:${image_tag}
+docker pull ${image}
 
-kubectl apply -f ${ytsaurus_source_path}/yt/docker/yt_nightly/cluster_v1_minikube_without_yql.yaml
-kubectl apply -f ${ytsaurus_source_path}/yt/docker/yt_nightly/tester.yaml
+helm install cluster --set YtsaurusImagePath=${image} ${ytsaurus_source_path}/yt/systest/helm/cluster
+helm install tester --set YtsaurusImagePath=${image} ${ytsaurus_source_path}/yt/systest/helm/tester
 
-bash ${ytsaurus_source_path}/yt/docker/yt_nightly/wait.sh --name tester
+bash ${ytsaurus_source_path}/yt/systest/scripts/wait.sh --name tester

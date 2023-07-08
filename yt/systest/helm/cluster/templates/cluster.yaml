@@ -3,7 +3,7 @@ kind: Ytsaurus
 metadata:
   name: minisaurus
 spec:
-  coreImage: ytsaurus/ytsaurus-nightly:latest
+  coreImage: {{ .Values.YtsaurusImagePath }}
   uiImage: ytsaurus/ui:stable
 
   cellTag: 1
