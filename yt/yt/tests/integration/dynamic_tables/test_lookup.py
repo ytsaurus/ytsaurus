@@ -762,6 +762,48 @@ class TestLookup(TestSortedDynamicTablesBase):
 
         assert lookup_rows("//tmp/t", keys, verbose=False) == rows
 
+    @authors("akozhikhov")
+    def test_key_filter_with_schema_alter(self):
+        schema1 = [
+            {"name": "key1", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ]
+        schema2 = [
+            {"name": "key1", "type": "int64", "sort_order": "ascending"},
+            {"name": "key2", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ]
+
+        sync_create_cells(1)
+
+        self._create_simple_table(
+            "//tmp/t",
+            schema=schema1,
+            chunk_writer={
+                "key_filter" : {
+                    "block_size": 100,
+                    "enable": True,
+                },
+            },
+            mount_config={
+                "enable_key_filter_for_lookup": True,
+            },
+        )
+
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key1": 0, "value": "0"}])
+        sync_flush_table("//tmp/t")
+
+        assert lookup_rows("//tmp/t", [{"key1": 0}]) == [{"key1": 0, "value": "0"}]
+
+        sync_unmount_table("//tmp/t")
+        alter_table("//tmp/t", schema=schema2)
+        sync_mount_table("//tmp/t")
+
+        assert lookup_rows("//tmp/t", [{"key1": 0, "key2": yson.YsonEntity()}]) == \
+            [{"key1": 0, "key2": yson.YsonEntity(), "value": "0"}]
+
 
 class TestAlternativeLookupMethods(TestSortedDynamicTablesBase):
     NUM_TEST_PARTITIONS = 2

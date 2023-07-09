@@ -1314,6 +1314,7 @@ TFuture<TSortedChunkStore::TKeyFilteringResult> TSortedChunkStore::PerformXorKey
         return MakeFuture<TKeyFilteringResult>(OnXorKeyFilterBlocksRead(
             codecId,
             std::move(blockInfos),
+            chunkKeyColumnCount,
             std::move(keys),
             /*requestedBlocks*/ {}));
     }
@@ -1328,6 +1329,7 @@ TFuture<TSortedChunkStore::TKeyFilteringResult> TSortedChunkStore::PerformXorKey
             MakeStrong(this),
             codecId,
             Passed(std::move(blockInfos)),
+            chunkKeyColumnCount,
             Passed(std::move(keys)))
         .AsyncVia(GetCurrentInvoker()));
 }
@@ -1335,6 +1337,7 @@ TFuture<TSortedChunkStore::TKeyFilteringResult> TSortedChunkStore::PerformXorKey
 TSortedChunkStore::TKeyFilteringResult TSortedChunkStore::OnXorKeyFilterBlocksRead(
     NCompression::ECodec codecId,
     std::vector<TXorFilterBlockInfo> blockInfos,
+    int chunkKeyColumnCount,
     TSharedRange<TLegacyKey> keys,
     std::vector<TBlock>&& requestedBlocks) const
 {
@@ -1360,7 +1363,7 @@ TSortedChunkStore::TKeyFilteringResult TSortedChunkStore::OnXorKeyFilterBlocksRe
         }
 
         for (auto key : blockInfo.Keys) {
-            if (Contains(xorFilter, key)) {
+            if (Contains(xorFilter, key, chunkKeyColumnCount)) {
                 filteredKeys.push_back(key);
                 filteringResult.MissingKeyMask.push_back(0);
             } else {
