@@ -672,27 +672,39 @@ void MultiJoinOpHelper(
     closure.ProcessJoinBatch();
 }
 
-const TPIValue* InsertGroupRow(
+// Saves the inserted row pointer into |groupedRow|.
+// Returns |true| if |row| represents the new group key.
+bool InsertGroupRow(
     TExecutionContext* context,
     TGroupByClosure* closure,
     TPIValue* row,
-    bool allAggregatesFirst)
+    bool allAggregatesFirst,
+    const TPIValue** groupedRow)
 {
     CHECK_STACK();
 
-    if (closure->LastKey && !closure->PrefixEqComparer(row, closure->LastKey)) {
+    const bool combinedWithOrderOp = closure->TopCollector != nullptr;
+
+    // Should not make midterm flushes in case of combined group and order operations.
+    if (closure->LastKey && !closure->PrefixEqComparer(row, closure->LastKey) && !combinedWithOrderOp) {
         closure->ProcessSegment();
     }
 
     // Any prefix but ordered scan.
     if (context->Ordered && static_cast<i64>(closure->GroupedRowCount) >= context->Offset + context->Limit) {
         if (allAggregatesFirst) {
-            return nullptr;
+            return false;
         }
 
         YT_VERIFY(static_cast<i64>(closure->GroupedRowCount) == context->Offset + context->Limit);
+
         auto found = closure->Lookup.find(row);
-        return found != closure->Lookup.end() ? *found : nullptr;
+        if (found != closure->Lookup.end()) {
+            *groupedRow = *found;
+            return false;
+        }
+
+        return false;
     }
 
     // FIXME: Incorrect in case of grouping by prefix.
@@ -705,7 +717,24 @@ const TPIValue* InsertGroupRow(
             throw TInterruptedIncompleteException();
         }
 
-        return *found;
+        *groupedRow = *found;
+        return false;
+    }
+
+    if (combinedWithOrderOp) {
+        auto found = closure->Lookup.find(row);
+        if (found != closure->Lookup.end()) {
+            *groupedRow = *found;
+            return false;
+        }
+
+        auto addedRow = closure->TopCollector->AddRow(row);
+        if (addedRow != nullptr) {
+            ++closure->GroupedRowCount;
+        }
+
+        *groupedRow = addedRow;
+        return addedRow != nullptr;
     }
 
     auto inserted = closure->Lookup.insert(row);
@@ -732,7 +761,8 @@ const TPIValue* InsertGroupRow(
         }
     }
 
-    return *inserted.first;
+    *groupedRow = *inserted.first;
+    return inserted.second;
 }
 
 void GroupOpHelper(
@@ -740,8 +770,9 @@ void GroupOpHelper(
     TComparerFunction* prefixEqComparer,
     THasherFunction* groupHasher,
     TComparerFunction* groupComparer,
-    int keySize,
-    int valuesCount,
+    int groupKeySize,
+    int groupStateSize,
+    int orderKeySize,
     bool checkNulls,
     void** collectRowsClosure,
     void (*collectRows)(
@@ -751,7 +782,8 @@ void GroupOpHelper(
     void** boundaryConsumeRowsClosure,
     TRowsConsumer boundaryConsumeRows,
     void** innerConsumeRowsClosure,
-    TRowsConsumer innerConsumeRows)
+    TRowsConsumer innerConsumeRows,
+    TComparerFunction* orderOpComparer)
 {
     auto finalLogger = Finally([&] () {
         YT_LOG_DEBUG("Finalizing group helper");
@@ -762,8 +794,11 @@ void GroupOpHelper(
         prefixEqComparer,
         groupHasher,
         groupComparer,
-        keySize,
-        valuesCount,
+        groupKeySize,
+        groupStateSize,
+        orderKeySize,
+        context->Offset + context->Limit,
+        orderOpComparer,
         checkNulls);
 
     TYielder yielder;
@@ -807,8 +842,8 @@ void GroupOpHelper(
 
     bool isBoundarySegment = true;
 
-    // When group key contains full primary key (used with joins) ProcessSegment will be called on each grouped
-    // row.
+    // ProcessSegment will be called on each grouped row
+    // when group key contains full primary key (used with joins).
     closure.ProcessSegment = [&] {
         auto& groupedRows = closure.GroupedRows;
         auto& lookup = closure.Lookup;
@@ -838,7 +873,22 @@ void GroupOpHelper(
 
     isBoundarySegment = true;
 
-    closure.ProcessSegment();
+    const bool combinedWithOrderOp = orderOpComparer != nullptr;
+    if (combinedWithOrderOp) {
+        auto rows = closure.TopCollector->GetRows();
+
+        auto begin = rows.data() + std::min(
+            context->Offset,
+            std::ssize(rows));
+
+        auto end = rows.data() + std::min(
+            context->Offset + context->Limit,
+            std::ssize(rows));
+
+        flushGroupedRows(true, begin, end);
+    } else {
+        closure.ProcessSegment();
+    }
 
     YT_VERIFY(closure.GroupedRows.empty());
 
@@ -864,7 +914,8 @@ void AllocatePermanentRow(
 {
     CHECK_STACK();
 
-    *row = expressionContext->AllocateUnversioned(valueCount).Begin();
+    auto allocated = expressionContext->AllocateUnversioned(valueCount);
+    *row = allocated.Begin();
 }
 
 void AddRowToCollector(TTopCollector* topCollector, TPIValue* row)

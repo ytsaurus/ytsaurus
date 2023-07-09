@@ -23,6 +23,7 @@ DEFINE_ENUM(EFoldingObjectType,
     (JoinOp)
     (FilterOp)
     (GroupOp)
+    (GroupOpWithOrderOp)
     (HavingOp)
     (OrderOp)
     (ProjectOp)
@@ -831,6 +832,56 @@ protected:
         TExpressionFragments* fragments);
 };
 
+bool ExpressionHasAggregates(const TConstExpressionPtr& expression, const TAggregateItemList& aggregateItems)
+{
+    if (expression->As<TLiteralExpression>()) {
+        return false;
+    } else if (auto referenceExpr = expression->As<TReferenceExpression>()) {
+        return std::any_of(
+            aggregateItems.begin(),
+            aggregateItems.end(),
+            [&] (auto& aggregateItem) {
+                return aggregateItem.Name == referenceExpr->ColumnName;
+            });
+    } else if (auto functionExpr = expression->As<TFunctionExpression>()) {
+        return std::any_of(
+            functionExpr->Arguments.begin(),
+            functionExpr->Arguments.end(),
+            [&] (auto& argument) {
+                return ExpressionHasAggregates(argument, aggregateItems);
+            });
+    } else if (auto unaryExpr = expression->As<TUnaryOpExpression>()) {
+        return ExpressionHasAggregates(unaryExpr->Operand, aggregateItems);
+    } else if (auto binaryExpr = expression->As<TBinaryOpExpression>()) {
+        return ExpressionHasAggregates(binaryExpr->Lhs, aggregateItems) ||
+            ExpressionHasAggregates(binaryExpr->Rhs, aggregateItems);
+    } else if (auto inExpr = expression->As<TInExpression>()) {
+        return std::any_of(
+            inExpr->Arguments.begin(),
+            inExpr->Arguments.end(),
+            [&] (auto& argument) {
+                return ExpressionHasAggregates(argument, aggregateItems);
+            });
+    } else if (auto betweenExpr = expression->As<TBetweenExpression>()) {
+        return std::any_of(
+            betweenExpr->Arguments.begin(),
+            betweenExpr->Arguments.end(),
+            [&] (auto& argument) {
+                return ExpressionHasAggregates(argument, aggregateItems);
+            });
+    } else if (auto transformExpr = expression->As<TTransformExpression>()) {
+        return ExpressionHasAggregates(transformExpr->DefaultExpression, aggregateItems) ||
+            std::any_of(
+                transformExpr->Arguments.begin(),
+                transformExpr->Arguments.end(),
+                [&] (auto& argument) {
+                    return ExpressionHasAggregates(argument, aggregateItems);
+                });
+    }
+
+    YT_ABORT();
+}
+
 void TQueryProfiler::Profile(
     TCodegenSource* codegenSource,
     const TConstBaseQueryPtr& query,
@@ -849,6 +900,8 @@ void TQueryProfiler::Profile(
     Fold(static_cast<int>(finalMode));
     Fold(static_cast<int>(EFoldingObjectType::MergeMode));
     Fold(static_cast<int>(mergeMode));
+
+    TCodegenOrderOpInfosPtr combineGroupOpAndOrderOp;
 
     if (auto groupClause = query->GroupClause.Get()) {
         Fold(static_cast<int>(EFoldingObjectType::GroupOp));
@@ -898,11 +951,58 @@ void TQueryProfiler::Profile(
         expressionFragments.DumpArgs(aggregateExprIds);
         expressionFragments.DumpArgs(groupExprIds);
 
-        // If group key contains primary key prefix, full grouped rowset is not keeped till the end but flushed
+        // If group key contains primary key prefix, full grouped rowset is not kept till the end but flushed
         // every time prefix changes (scan is ordered by primary key, bottom queries are always evaluated along
-        // each tablet). Grouped rows with inner primary key prefix are transfered to final slot (they are
-        // disjoint). Grouped rows with boundary primary key prefix (with respect to tablet) are transfered to
-        // intermediate slot and needs final grouping.
+        // each tablet). Grouped rows with inner primary key prefix are transferred to final slot (they are
+        // disjoint). Grouped rows with boundary primary key prefix (with respect to tablet) are transferred to
+        // intermediate slot and need final grouping.
+        // If the sorting key does not use any aggregate functions, then sorting will be combined with the grouping.
+        // Thus, grouping would maintain a priority queue of grouped rows.
+
+        bool addHaving = query->HavingClause && !IsTrue(query->HavingClause);
+        if (auto orderClause = query->OrderClause.Get()) {
+            auto orderOpHasAggregates = std::any_of(
+                orderClause->OrderItems.begin(),
+                orderClause->OrderItems.end(),
+                [&] (const TOrderItem& item) {
+                    return ExpressionHasAggregates(item.first, groupClause->AggregateItems);
+                });
+
+            if (!addHaving && !orderOpHasAggregates && groupClause->TotalsMode == ETotalsMode::None) {
+                Fold(static_cast<int>(EFoldingObjectType::GroupOpWithOrderOp));
+
+                auto afterGroupSchema = groupClause->GetTableSchema(query->IsFinal);
+
+                std::vector<size_t> orderExprIds;
+                std::vector<bool> isDesc;
+                std::vector<EValueType> orderColumnTypes;
+                TExpressionFragments orderExprFragments;
+                for (const auto& item : orderClause->OrderItems) {
+                    orderExprIds.push_back(
+                        TExpressionProfiler::Profile(item.first, afterGroupSchema, &orderExprFragments));
+                    Fold(item.second);
+                    isDesc.push_back(item.second);
+                    orderColumnTypes.push_back(item.first->GetWireType());
+                }
+
+                auto orderFragmentsInfos = orderExprFragments.ToFragmentInfos("orderExpression");
+                orderExprFragments.DumpArgs(orderExprIds);
+
+                auto schemaTypes = GetTypesFromSchema(*afterGroupSchema);
+                for (auto type : schemaTypes) {
+                    Fold(static_cast<ui8>(type));
+                }
+
+                MakeCodegenFragmentBodies(codegenSource, orderFragmentsInfos);
+
+                combineGroupOpAndOrderOp = New<TCodegenOrderOpInfos>(
+                    std::move(orderFragmentsInfos),
+                    std::move(orderExprIds),
+                    std::move(orderColumnTypes),
+                    std::move(schemaTypes),
+                    std::move(isDesc));
+            }
+        }
 
         size_t newFinalSlot;
         std::tie(intermediateSlot, newFinalSlot) = MakeCodegenGroupOp(
@@ -918,6 +1018,7 @@ void TQueryProfiler::Profile(
             allAggregatesFirst,
             mergeMode,
             groupClause->TotalsMode != ETotalsMode::None,
+            combineGroupOpAndOrderOp,
             groupClause->CommonPrefixWithPrimaryKey,
             ComparerManager_);
 
@@ -929,8 +1030,6 @@ void TQueryProfiler::Profile(
         TCodegenFragmentInfosPtr havingFragmentsInfos;
 
         size_t havingPredicateId;
-        bool addHaving = query->HavingClause && !IsTrue(query->HavingClause);
-
         if (addHaving) {
             TExpressionFragments havingExprFragments;
             havingPredicateId = TExpressionProfiler::Profile(query->HavingClause, schema, &havingExprFragments);
@@ -948,7 +1047,7 @@ void TQueryProfiler::Profile(
                 intermediateSlot,
                 newFinalSlot);
 
-             intermediateSlot = dummySlot;
+            intermediateSlot = dummySlot;
         } else if (mergeMode) {
             intermediateSlot = MakeCodegenMergeOp(
                 codegenSource,
@@ -1060,7 +1159,7 @@ void TQueryProfiler::Profile(
     intermediateSlot = MakeCodegenOnceOp(codegenSource, slotCount, intermediateSlot);
     finalSlot = MakeCodegenOnceOp(codegenSource, slotCount, finalSlot);
 
-    if (auto orderClause = query->OrderClause.Get()) {
+    if (auto orderClause = query->OrderClause.Get(); orderClause && !combineGroupOpAndOrderOp) {
         Fold(static_cast<int>(EFoldingObjectType::OrderOp));
 
         std::vector<size_t> orderExprIds;

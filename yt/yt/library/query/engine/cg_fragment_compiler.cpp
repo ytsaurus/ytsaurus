@@ -2704,6 +2704,7 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
     bool allAggregatesFirst,
     bool isMerge,
     bool checkNulls,
+    const TCodegenOrderOpInfosPtr& combineGroupOpAndOrderOp,
     size_t commonPrefixWithPrimaryKey,
     TComparerManagerPtr comparerManager)
 {
@@ -2714,6 +2715,14 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
 
     size_t boundaryConsumerSlot = (*slotCount)++;
     size_t innerConsumerSlot = (*slotCount)++;
+
+    size_t keySize = keyTypes.size();
+    size_t groupRowSize = keySize + stateTypes.size();
+    size_t compareKeysSize = 0;
+    if (combineGroupOpAndOrderOp) {
+        compareKeysSize = combineGroupOpAndOrderOp->ExprIds.size();
+    }
+    size_t rowSize = groupRowSize + compareKeysSize;
 
     *codegenSource = [
         =,
@@ -2733,17 +2742,27 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
         ) {
             Value* newValuesPtr = builder->CreateAlloca(TTypeBuilder<TPIValue*>::Get(builder->getContext()));
 
-            size_t keySize = keyTypes.size();
-            size_t groupRowSize = keySize + stateTypes.size();
-
             builder->CreateCall(
                 builder.Module->GetRoutine("AllocatePermanentRow"),
                 {
                     builder.GetExecutionContext(),
                     buffer,
-                    builder->getInt32(groupRowSize),
+                    builder->getInt32(rowSize),
                     newValuesPtr
                 });
+
+            if (combineGroupOpAndOrderOp) {
+                // The grouping state variables should be initialized before top collector captures them.
+
+                Value* newValues = builder->CreateLoad(
+                    TTypeBuilder<TValue*>::Get(builder->getContext()),
+                    newValuesPtr);
+
+                for (int index = 0; index < std::ssize(codegenAggregates); index++) {
+                    TCGValue::CreateNull(builder, stateTypes[index])
+                        .StoreToValues(builder, newValues, keySize + index);
+                }
+            }
 
             Type* closureType = TClosureTypeBuilder::Get(
                 builder->getContext(),
@@ -2781,20 +2800,52 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
                         .StoreToValues(builder, dstValues, index);
                 }
 
+                if (combineGroupOpAndOrderOp) {
+                    auto& orderExprIds = combineGroupOpAndOrderOp->ExprIds;
+                    auto& orderFragmentInfos = combineGroupOpAndOrderOp->FragmentInfos;
+
+                    auto innerBuilder = TCGExprContext::Make(
+                        builder,
+                        *orderFragmentInfos,
+                        dstValues,
+                        builder.Buffer,
+                        builder->ViaClosure(expressionClosurePtr));
+
+                    for (size_t index = 0; index < compareKeysSize; ++index) {
+                        auto columnIndex = groupRowSize + index;
+
+                        CodegenFragment(innerBuilder, orderExprIds[index])
+                            .StoreToValues(builder, dstValues, columnIndex);
+                    }
+                }
+
                 Value* groupByClosureRef = builder->ViaClosure(groupByClosure);
 
-                auto groupValues = builder->CreateCall(
+                Value* groupValuesRef = builder->CreateAlloca(
+                    TTypeBuilder<TValue*>::Get(builder->getContext()),
+                    nullptr,
+                    "groupValuesRef");
+                builder->CreateStore(builder->getInt64(0), groupValuesRef);
+
+                auto insertDone = builder->CreateCall(
                     builder.Module->GetRoutine("InsertGroupRow"),
                     {
                         builder.GetExecutionContext(),
                         groupByClosureRef,
                         newValuesRef,
-                        builder->getInt8(allAggregatesFirst)
-                    });
+                        builder->getInt8(allAggregatesFirst),
+                        groupValuesRef,
+                    },
+                    "insertDone");
 
                 auto inserted = builder->CreateICmpEQ(
-                    groupValues,
-                    newValuesRef);
+                    insertDone,
+                    builder->getInt8(true));
+
+                Value* groupValues = builder->CreateLoad(
+                    TTypeBuilder<TValue*>::Get(builder->getContext()),
+                    groupValuesRef,
+                    "groupValues");
 
                 CodegenIf<TCGContext>(builder, inserted, [&] (TCGContext& builder) {
                     for (int index = 0; index < std::ssize(codegenAggregates); index++) {
@@ -2802,14 +2853,16 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
                             .StoreToValues(builder, groupValues, keySize + index);
                     }
 
-                    builder->CreateCall(
-                        builder.Module->GetRoutine("AllocatePermanentRow"),
-                        {
-                            builder.GetExecutionContext(),
-                            bufferRef,
-                            builder->getInt32(groupRowSize),
-                            newValuesPtrRef
-                        });
+                    if (!combineGroupOpAndOrderOp) {
+                        builder->CreateCall(
+                            builder.Module->GetRoutine("AllocatePermanentRow"),
+                            {
+                                builder.GetExecutionContext(),
+                                bufferRef,
+                                builder->getInt32(rowSize),
+                                newValuesPtrRef
+                            });
+                    }
                 });
 
                 // Here *newRowPtrRef != groupRow.
@@ -2856,6 +2909,18 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
 
         auto innerConsume = MakeConsumer(builder, "ConsumeGroupedRows", innerConsumerSlot);
 
+        Value* comparator = nullptr;
+        if (combineGroupOpAndOrderOp) {
+            comparator = comparerManager->CodegenOrderByComparerFunction(
+                combineGroupOpAndOrderOp->OrderColumnTypes,
+                builder.Module,
+                groupRowSize,
+                combineGroupOpAndOrderOp->IsDesc);
+        } else {
+            comparator = llvm::ConstantPointerNull::get(
+                llvm::Type::getInt64PtrTy(builder->getContext()));
+        }
+
         builder->CreateCall(
             builder.Module->GetRoutine("GroupOpHelper"),
             {
@@ -2866,6 +2931,7 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
                 comparerManager->GetEqComparer(keyTypes, builder.Module, commonPrefixWithPrimaryKey, keyTypes.size()),
                 builder->getInt32(keyTypes.size()),
                 builder->getInt32(stateTypes.size()),
+                builder->getInt32(combineGroupOpAndOrderOp ? combineGroupOpAndOrderOp->OrderColumnTypes.size() : 0),
                 builder->getInt8(checkNulls),
 
                 collect.ClosurePtr,
@@ -2876,6 +2942,8 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
 
                 innerConsume.ClosurePtr,
                 innerConsume.Function,
+
+                comparator,
             });
 
     };

@@ -28,15 +28,17 @@ TTopCollector::TTopCollector(
     i64 limit,
     TComparerFunction* comparer,
     size_t rowSize,
-    IMemoryChunkProviderPtr memoryChunkProvider)
+    IMemoryChunkProviderPtr memoryChunkProvider,
+    TLookupRows* lookup)
     : Comparer_(comparer)
     , RowSize_(rowSize)
     , MemoryChunkProvider_(std::move(memoryChunkProvider))
+    , Lookup_(lookup)
 {
     Rows_.reserve(limit);
 }
 
-std::pair<const TPIValue*, int> TTopCollector::Capture(const TPIValue* row)
+TTopCollector::TRowAndBuffer TTopCollector::Capture(const TPIValue* row)
 {
     if (EmptyBufferIds_.empty()) {
         if (GarbageMemorySize_ > TotalMemorySize_ / 2) {
@@ -44,7 +46,7 @@ std::pair<const TPIValue*, int> TTopCollector::Capture(const TPIValue* row)
 
             std::vector<std::vector<size_t>> buffersToRows(Buffers_.size());
             for (size_t rowId = 0; rowId < Rows_.size(); ++rowId) {
-                buffersToRows[Rows_[rowId].second].push_back(rowId);
+                buffersToRows[Rows_[rowId].BufferIndex].push_back(rowId);
             }
 
             auto buffer = New<TRowBuffer>(TTopCollectorBufferTag(), MemoryChunkProvider_);
@@ -55,11 +57,17 @@ std::pair<const TPIValue*, int> TTopCollector::Capture(const TPIValue* row)
 
             for (size_t bufferId = 0; bufferId < buffersToRows.size(); ++bufferId) {
                 for (auto rowId : buffersToRows[bufferId]) {
-                    auto& row = Rows_[rowId].first;
+                    auto oldRow = Rows_[rowId].Row;
 
                     auto savedSize = buffer->GetSize();
-                    row = CapturePIValueRange(buffer.Get(), MakeRange(row, RowSize_)).Begin();
+                    auto newRow = CapturePIValueRange(buffer.Get(), MakeRange(oldRow, RowSize_)).Begin();
+                    Rows_[rowId].Row = newRow;
                     AllocatedMemorySize_ += buffer->GetSize() - savedSize;
+
+                    if (Lookup_) {
+                        Lookup_->erase(oldRow);
+                        Lookup_->insert(newRow);
+                    }
                 }
 
                 TotalMemorySize_ += buffer->GetCapacity();
@@ -95,7 +103,7 @@ std::pair<const TPIValue*, int> TTopCollector::Capture(const TPIValue* row)
         EmptyBufferIds_.pop_back();
     }
 
-    return std::make_pair(capturedRow, bufferId);
+    return {capturedRow, bufferId};
 }
 
 void TTopCollector::AccountGarbage(const TPIValue* row)
@@ -110,19 +118,42 @@ void TTopCollector::AccountGarbage(const TPIValue* row)
     }
 }
 
-void TTopCollector::AddRow(const TPIValue* row)
+const TPIValue* TTopCollector::AddRow(const TPIValue* row)
 {
     if (Rows_.size() < Rows_.capacity()) {
         auto capturedRow = Capture(row);
+
         Rows_.emplace_back(capturedRow);
         std::push_heap(Rows_.begin(), Rows_.end(), Comparer_);
-    } else if (!Rows_.empty() && !Comparer_(Rows_.front().first, row)) {
+        if (Lookup_) {
+            auto inserted = Lookup_->insert(capturedRow.Row);
+            YT_ASSERT(inserted.second);
+        }
+
+        return capturedRow.Row;
+    }
+
+    if (!Rows_.empty() && !Comparer_(Rows_.front().Row, row)) {
         auto capturedRow = Capture(row);
+
         std::pop_heap(Rows_.begin(), Rows_.end(), Comparer_);
-        AccountGarbage(Rows_.back().first);
+        auto popped = Rows_.back().Row;
+        AccountGarbage(popped);
+        if (Lookup_) {
+            Lookup_->erase(popped);
+        }
+
         Rows_.back() = capturedRow;
         std::push_heap(Rows_.begin(), Rows_.end(), Comparer_);
+        if (Lookup_) {
+            auto inserted = Lookup_->insert(capturedRow.Row);
+            YT_ASSERT(inserted.second);
+        }
+
+        return capturedRow.Row;
     }
+
+    return nullptr;
 }
 
 std::vector<const TPIValue*> TTopCollector::GetRows() const
@@ -161,19 +192,36 @@ TGroupByClosure::TGroupByClosure(
     THasherFunction* groupHasher,
     TComparerFunction* groupComparer,
     int keySize,
-    int valuesCount,
+    int groupStateSize,
+    int orderKeySize,
+    i64 orderLimit,
+    TComparerFunction* orderComparer,
     bool checkNulls)
-    : Buffer(New<TRowBuffer>(TPermanentBufferTag(), std::move(chunkProvider)))
+    : Buffer(New<TRowBuffer>(TPermanentBufferTag(), chunkProvider))
     , PrefixEqComparer(prefixEqComparer)
     , Lookup(
         InitialGroupOpHashtableCapacity,
         groupHasher,
         groupComparer)
     , KeySize(keySize)
-    , ValuesCount(valuesCount)
+    , GroupStateSize(groupStateSize)
+    , OrderKeySize(orderKeySize)
     , CheckNulls(checkNulls)
 {
-    Lookup.set_empty_key(nullptr);
+    if (orderComparer) {
+        TopCollector = std::make_unique<TTopCollector>(
+            orderLimit,
+            orderComparer,
+            KeySize + GroupStateSize + OrderKeySize,
+            chunkProvider,
+            &Lookup);
+    }
+
+    Lookup.set_empty_key(NDetail::TRowComparer::MakeSentinel(
+        NDetail::TRowComparer::ESentinelType::Empty));
+
+    Lookup.set_deleted_key(NDetail::TRowComparer::MakeSentinel(
+        NDetail::TRowComparer::ESentinelType::Deleted));
 }
 
 TWriteOpClosure::TWriteOpClosure(IMemoryChunkProviderPtr chunkProvider)
