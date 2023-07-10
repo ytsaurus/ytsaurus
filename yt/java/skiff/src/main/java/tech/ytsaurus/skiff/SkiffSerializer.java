@@ -8,6 +8,7 @@ import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.ysontree.YTreeBinarySerializer;
@@ -129,6 +130,10 @@ public class SkiffSerializer implements AutoCloseable, Flushable {
         serializeInt(16);
         serializeLong(guid.getFirst());
         serializeLong(guid.getSecond());
+    }
+
+    public void serializeTimestamp(Instant instant) {
+        serializeUint64(instant.toEpochMilli());
     }
 
     public void serializeYson(YTreeNode node) {

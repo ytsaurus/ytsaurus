@@ -8,6 +8,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Type;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -217,6 +218,8 @@ public class EntitySkiffSerializer<T> {
                 serializer.serializeBytes((byte[]) object);
             } else if (tiType.isUuid()) {
                 serializer.serializeGuid((GUID) object);
+            } else if (tiType.isTimestamp()) {
+                serializer.serializeTimestamp((Instant) object);
             } else if (tiType.isYson()) {
                 serializer.serializeYson((YTreeNode) object);
             } else {
@@ -617,6 +620,8 @@ public class EntitySkiffSerializer<T> {
                 return castToType(deserializeBytes(parser));
             } else if (tiType.isUuid()) {
                 return castToType(deserializeGuid(parser));
+            } else if (tiType.isTimestamp()) {
+                return castToType(deserializeTimestamp(parser));
             } else if (tiType.isYson()) {
                 return castToType(deserializeYson(parser));
             } else if (tiType.isNull()) {
@@ -646,6 +651,10 @@ public class EntitySkiffSerializer<T> {
             throw new IllegalArgumentException("Length of UUID must be exactly 16 bytes");
         }
         return new GUID(parser.parseInt64(), parser.parseInt64());
+    }
+
+    private Instant deserializeTimestamp(SkiffParser parser) {
+        return Instant.ofEpochMilli(parser.parseUint64());
     }
 
     private YTreeNode deserializeYson(SkiffParser parser) {
