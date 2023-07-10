@@ -138,7 +138,7 @@ private:
             return error;
         }
 
-         if (rspNode->GetType() != ENodeType::Map) {
+        if (rspNode->GetType() != ENodeType::Map) {
             return TError("OAuth response content has unexpected type")
                 << TErrorAttribute("expected_result_type", ENodeType::Map)
                 << TErrorAttribute("actual_result_type", rspNode->GetType());
