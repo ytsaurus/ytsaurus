@@ -157,6 +157,7 @@ DEFINE_ENUM(EMasterReign,
     ((ExTransactionCoordinatorCellRole)                             (2342))  // shakurov
     ((RecomputeMasterTableSchemaRefCounters)                        (2343))  // h0pless
     ((FixBulkInsertAtomicityNone)                                   (2344))  // ifsmirnov
+    ((DropNodesWithFlavorsVectorFromSnapshot)                       (2345))  // shakurov
 );
 
 ////////////////////////////////////////////////////////////////////////////////
