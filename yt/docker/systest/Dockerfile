@@ -34,4 +34,4 @@ RUN for package in client yson local native_driver; \
 COPY ./systest /usr/bin/systest
 COPY benchmark-0.0.1.tgz /tmp
 
-RUN tar -C /usr/bin xzvf benchmark-0.0.1.tgz
+RUN tar -C /usr/bin -xzf benchmark-0.0.1.tgz
