@@ -8,13 +8,14 @@ output_path="."
 benchmarks_path=""
 ytsaurus_source_path="."
 ytsaurus_build_path="."
+image_tag="latest"
 
 print_usage() {
     cat << EOF
 Usage: $script_name [-h|--help]
                     [--ytsaurus-source-path /path/to/ytsaurus.repo (default: $ytsaurus_source_path)]
                     [--ytsaurus-build-path /path/to/ytsaurus.build (default: $ytsaurus_build_path)]
-                    [--benchmarks_path-path /path/to/benchmarks_path.tgz]
+                    [--benchmarks-path /path/to/benchmarks.tgz]
                     [--output-path /path/to/output (default: $output_path)]
                     [--image-tag some-tag (default: $image_tag)]
 EOF
@@ -37,7 +38,7 @@ while [[ $# -gt 0 ]]; do
         output_path="$2"
         shift 2
         ;;
-        --benchmarks_path-path)
+        --benchmarks-path)
         benchmarks_path=$2
         shift 2
         ;;
