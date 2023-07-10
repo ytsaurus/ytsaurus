@@ -404,13 +404,27 @@ private:
 
             ProfileManager_->Profile(previousQueueSnapshot, nextQueueSnapshot);
 
-            auto dynamicConfig = DynamicConfig_.Acquire();
-            if (dynamicConfig->EnableAutomaticTrimming && nextQueueSnapshot->PassIndex % dynamicConfig->TrimmingIterationFrequency == 0) {
+            if (ShouldTrim(nextQueueSnapshot->PassIndex)) {
                 Trim();
             }
         }
 
         YT_LOG_INFO("Queue controller pass finished");
+    }
+
+    bool ShouldTrim(i64 passIndex) const
+    {
+        auto config = DynamicConfig_.Acquire();
+
+        if (!config->EnableAutomaticTrimming) {
+            return false;
+        }
+
+        auto trimmingPeriodValue = config->TrimmingPeriod.value_or(config->PassPeriod).GetValue();
+        auto passPeriodValue = config->PassPeriod.GetValue();
+        auto frequency = (trimmingPeriodValue + passPeriodValue - 1) / passPeriodValue;
+
+        return passIndex % frequency == 0;
     }
 
     //! Only EAutoTrimPolicy::VitalConsumers is supported right now.
