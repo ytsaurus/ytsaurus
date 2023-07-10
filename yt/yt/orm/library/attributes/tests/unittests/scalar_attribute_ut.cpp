@@ -379,6 +379,9 @@ TEST(SetAttribute, MapField)
     EXPECT_EQ(2u, message.string_to_int32_map().size());
     EXPECT_EQ(1, message.string_to_int32_map().at("a"));
     EXPECT_EQ(2, message.string_to_int32_map().at("b"));
+
+    EXPECT_NO_THROW(SetProtobufFieldByPath(message, "/string_to_int32_map", NYTree::BuildYsonNodeFluently().Entity()));
+    EXPECT_TRUE(message.string_to_int32_map().empty());
 }
 
 TEST(SetAttribute, RepeatedField)
@@ -395,6 +398,8 @@ TEST(SetAttribute, RepeatedField)
         EXPECT_NO_THROW(                                                                                  \
             SetProtobufFieldByPath(message, "/" #field, node));                                           \
         ASSERT_THAT(message.field(), testing::ElementsAreArray({value1, value2}));                        \
+        SetProtobufFieldByPath(message, "/" #field, NYTree::BuildYsonNodeFluently().Entity());            \
+        EXPECT_TRUE(message.field().empty());                                                             \
     } while (false)
 
     TESTCASE(repeated_uint32_field, 1u, 2u);

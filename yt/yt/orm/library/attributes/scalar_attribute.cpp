@@ -673,6 +673,9 @@ public:
             HandleMap(message, field, path);
         } else if (field->is_repeated()) {
             message->GetReflection()->ClearField(message, field);
+            if (Value_->GetType() == ENodeType::Entity) {
+                return;
+            }
             AppendValues(message, field, path, Value_->AsList()->GetChildren());
         } else {
             SetValue(message, field, path, Value_);
@@ -783,6 +786,10 @@ private:
         YT_VERIFY(field->is_map());
         const auto* reflection = message->GetReflection();
         reflection->ClearField(message, field);
+
+        if (Value_->GetType() == ENodeType::Entity) {
+            return;
+        }
         for (const auto& [key, value] : Value_->AsMap()->GetChildren()) {
             TString fullPath = Format("%v/%v", path, key);
             auto* item = reflection->AddMessage(message, field);
