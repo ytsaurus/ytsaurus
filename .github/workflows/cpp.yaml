@@ -134,7 +134,7 @@ jobs:
       - name: Docker systest
         shell: bash
         run: |
-          mkdir -p ../docker-ytsaurus-build
+          mkdir -p ../docker-systest-build
           bash ./yt/docker/systest/build.sh --ytsaurus-source-path $(pwd)  --ytsaurus-build-path ../build --benchmarks-path benchmark-0.0.1.tgz --output-path ../docker-systest-build --image-tag latest
           docker push ytsaurus/ytsaurus-systest:latest
 
@@ -189,26 +189,3 @@ jobs:
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           label: ${{ needs.start-vm.outputs.label }}
           instance-id: ${{ needs.start-vm.outputs.instance-id }}
-
-  send-notifications:
-    name: Send notifications
-    needs:
-      - stop-vm
-    runs-on: trampoline
-    if: ${{ failure() }}
-    steps:
-      - name: Send telegram message
-        uses: appleboy/telegram-action@master
-        with:
-          to: ${{ secrets.TELEGRAM_CHAT_ID }}
-          token: ${{ secrets.TELEGRAM_TOKEN }}
-          disable_web_page_preview: true
-          format: markdown
-          message: |
-            Workflow *${{github.workflow}}* failed: ${{github.server_url}}/${{github.repository}}/actions/runs/${{github.run_id}}.
-            Git ${{github.ref_type}}: *${{github.ref_name}}*.
-            Commit:
-            ```
-            ${{github.event.head_commit.message}}
-            ```
-
