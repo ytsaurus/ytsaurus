@@ -4,6 +4,7 @@
 #include "attributes.h"
 #include "serializable.h"
 #include "raw_data_flow.h"
+#include <yt/cpp/roren/library/timers/timers.h>
 
 #include <util/generic/ptr.h>
 
@@ -24,6 +25,7 @@ enum class ERawTransformType
     Write,
     ParDo,
     StatefulParDo,
+    StatefulTimerParDo,
     GroupByKey,
     CombinePerKey,
     CombineGlobally,
@@ -47,6 +49,7 @@ public:
     IRawWritePtr AsRawWrite();
     IRawParDoPtr AsRawParDo();
     IRawStatefulParDoPtr AsRawStatefulParDo();
+    IRawStatefulTimerParDoPtr AsRawStatefulTimerParDo();
     IRawGroupByKeyPtr AsRawGroupByKey();
     IRawCombinePtr AsRawCombine();
     IRawCoGroupByKeyPtr AsRawCoGroupByKey();
@@ -56,6 +59,7 @@ public:
     [[nodiscard]] const IRawWrite& AsRawWriteRef() const;
     [[nodiscard]] const IRawParDo& AsRawParDoRef() const;
     [[nodiscard]] const IRawStatefulParDo& AsRawStatefulParDoRef() const;
+    [[nodiscard]] const IRawStatefulTimerParDo& AsRawStatefulTimerParDoRef() const;
     [[nodiscard]] const IRawGroupByKey& AsRawGroupByKeyRef() const;
     [[nodiscard]] const IRawCombine& AsRawCombineRef() const;
     [[nodiscard]] const IRawCoGroupByKey& AsRawCoGroupByKeyRef() const;
@@ -153,6 +157,30 @@ public:
     virtual void Start(const IExecutionContextPtr& context, IRawStateStorePtr rawStateMap, const std::vector<IRawOutputPtr>& outptus) = 0;
     virtual void Do(const void* row, int count) = 0;
     virtual void Finish() = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class IRawStatefulTimerParDo
+    : public IRawTransform
+    , public ISerializable<IRawStatefulTimerParDo>
+{
+public:
+    [[nodiscard]] ERawTransformType GetType() const final
+    {
+        return ERawTransformType::StatefulTimerParDo;
+    }
+
+    virtual TRowVtable GetStateVtable() const = 0;
+
+    virtual const TFnAttributes& GetFnAttributes() const = 0;
+
+    virtual void Start(const IExecutionContextPtr& context, IRawStateStorePtr rawStateMap, const std::vector<IRawOutputPtr>& outptus) = 0;
+    virtual void Do(const void* row, int count) = 0;
+    virtual void OnTimer(const void* rawKey, const TTimer& timer) = 0;
+    virtual void Finish() = 0;
+
+    virtual const TString& GetFnId() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

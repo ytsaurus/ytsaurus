@@ -54,6 +54,9 @@ struct TRowVtable;
 class IRawStatefulParDo;
 using IRawStatefulParDoPtr = TIntrusivePtr<IRawStatefulParDo>;
 
+class IRawStatefulTimerParDo;
+using IRawStatefulTimerParDoPtr = TIntrusivePtr<IRawStatefulTimerParDo>;
+
 class IParDoTree;
 using IParDoTreePtr = TIntrusivePtr<IParDoTree>;
 

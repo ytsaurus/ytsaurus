@@ -27,6 +27,8 @@
 #include "private/raw_par_do.h"
 #include "private/raw_pipeline.h"
 #include "private/stateful_par_do.h"
+#include "private/stateful_timer_par_do.h"
+#include "private/flatten.h"
 
 #include <util/stream/input.h>
 #include <util/stream/output.h>
@@ -326,6 +328,67 @@ template <typename T, typename... Args>
 auto MakeStatefulParDo(TPState<typename T::TInputRow::TKey, typename T::TState> pState, Args... args)
 {
     return StatefulParDo(pState, MakeIntrusive<T>(args...));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+//
+// StatefulTimerParDo
+//
+
+template <typename TInput, typename TOutput, typename TState>
+class TStatefulTimerParDoTransform
+{
+public:
+    TStatefulTimerParDoTransform(NPrivate::IRawStatefulTimerParDoPtr fn, NPrivate::TRawPStateNodePtr pState)
+        : RawStatefulTimerParDo_(std::move(fn))
+        , RawPStateNode_(pState)
+    { }
+
+    auto ApplyTo(const TPCollection<TInput>& pCollection) const
+    {
+        const auto& rawPipeline = NPrivate::GetRawPipeline(pCollection);
+        auto* rawInputNode = NPrivate::GetRawDataNode(pCollection).Get();
+        auto transformNode = rawPipeline->AddTransform(RawStatefulTimerParDo_, {rawInputNode}, RawPStateNode_);
+        auto taggedSinkNodeList = transformNode->GetTaggedSinkNodeList();
+
+        if constexpr (CMultiRow<TOutput>) {
+            return NPrivate::MakeMultiPCollection(taggedSinkNodeList, rawPipeline);
+        } else if constexpr (std::is_same_v<TOutput, void>) {
+            return;
+        } else {
+            Y_VERIFY(taggedSinkNodeList.size() == 1);
+            auto rawNode = taggedSinkNodeList[0].second;
+            return NPrivate::MakePCollection<TOutput>(rawNode, rawPipeline);
+        }
+    }
+
+private:
+    const NPrivate::IRawStatefulTimerParDoPtr RawStatefulTimerParDo_;
+    const NPrivate::TRawPStateNodePtr RawPStateNode_;
+};
+
+template <typename TFn, typename TKey, typename TState>
+auto StatefulTimerParDo(TPState<TKey, TState> pState, TFn fn, const TFnAttributes& attributes = {})
+{
+    using TDecayedF = std::decay_t<TFn>;
+    if constexpr (NPrivate::CIntrusivePtr<TDecayedF>) {
+        static_assert(std::is_same_v<TState, typename TDecayedF::TValueType::TState>, "Type of PState doesn't match StatefulTimerDoFn");
+
+        using TInput = typename TDecayedF::TValueType::TInputRow;
+        using TOutput = typename TDecayedF::TValueType::TOutputRow;
+        auto rawFn = NPrivate::MakeRawStatefulTimerParDo(fn, attributes);
+        auto rawState = NPrivate::GetRawPStateNode(pState);
+        return TStatefulTimerParDoTransform<TInput, TOutput, TState>{rawFn, rawState};
+    } else {
+        static_assert(TDependentFalse<TFn>, "not supported yet");
+    }
+}
+
+template <typename T, typename... Args>
+auto MakeStatefulTimerParDo(TPState<typename T::TInputRow::TKey, typename T::TState> pState, Args... args)
+{
+    return StatefulTimerParDo(pState, MakeIntrusive<T>(args...));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

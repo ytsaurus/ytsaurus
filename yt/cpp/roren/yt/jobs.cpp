@@ -34,6 +34,19 @@ public:
         // TODO: profiler should write to statistics after job finish?
         return {};
     }
+
+    void SetTimer(const TTimer& timer, const TTimer::EMergePolicy policy) override
+    {
+        Y_UNUSED(timer);
+        Y_UNUSED(policy);
+        Y_FAIL("not implemented");
+    }
+
+    void DeleteTimer(const TTimer::TKey& key) override
+    {
+        Y_UNUSED(key);
+        Y_FAIL("not implemented");
+    }
 };
 
 IExecutionContextPtr CreateYtExecutionContext()

@@ -1,6 +1,8 @@
 #pragma once
 
 #include "fwd.h"
+#include <yt/cpp/roren/library/timers/timers.h>
+#include <yt/cpp/roren/interface/timers.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 
@@ -9,6 +11,8 @@
 namespace NRoren {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+class IRawTimerFn;
 
 class IExecutionContext
     : public TThrRefBase
@@ -19,6 +23,9 @@ public:
     virtual TString GetExecutorName() const = 0;
 
     virtual NYT::NProfiling::TProfiler GetProfiler() const = 0;
+
+    virtual void SetTimer(const TTimer& timer, const TTimer::EMergePolicy policy) = 0;
+    virtual void DeleteTimer(const TTimer::TKey& key) = 0;
 
     template <typename T>
     Y_FORCE_INLINE T* As()

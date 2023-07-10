@@ -6,7 +6,4 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(examples)
-add_subdirectory(interface)
-add_subdirectory(library)
-add_subdirectory(yt)
+add_subdirectory(timers)

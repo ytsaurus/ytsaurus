@@ -44,6 +44,11 @@ IRawStatefulParDoPtr IRawTransform::AsRawStatefulParDo()
     return CheckedCast<IRawStatefulParDo>(this);
 }
 
+IRawStatefulTimerParDoPtr IRawTransform::AsRawStatefulTimerParDo()
+{
+    return CheckedCast<IRawStatefulTimerParDo>(this);
+}
+
 IRawGroupByKeyPtr IRawTransform::AsRawGroupByKey()
 {
     return CheckedCast<IRawGroupByKey>(this);
@@ -82,6 +87,11 @@ const IRawParDo& IRawTransform::AsRawParDoRef() const
 const IRawStatefulParDo& IRawTransform::AsRawStatefulParDoRef() const
 {
     return *CheckedCast<IRawStatefulParDo>(this);
+}
+
+const IRawStatefulTimerParDo& IRawTransform::AsRawStatefulTimerParDoRef() const
+{
+    return *CheckedCast<IRawStatefulTimerParDo>(this);
 }
 
 const IRawGroupByKey& IRawTransform::AsRawGroupByKeyRef() const
