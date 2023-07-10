@@ -331,6 +331,10 @@ class TestQueueAgentBase(YTEnvSetup):
             "offset": offset,
         } for partition_index, offset in partition_index_to_offset.items()])
 
+    def _flush_table(self, path, first_tablet_index=None, last_tablet_index=None):
+        sync_freeze_table(path, first_tablet_index=first_tablet_index, last_tablet_index=last_tablet_index)
+        sync_unfreeze_table(path, first_tablet_index=first_tablet_index, last_tablet_index=last_tablet_index)
+
     @staticmethod
     def _wait_for_row_count(path, tablet_index, count):
         wait(lambda: len(select_rows(f"* from [{path}] where [$tablet_index] = {tablet_index}")) == count)
@@ -1104,6 +1108,142 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         self._wait_for_min_row_index("//tmp/q", 1, 6)
         # This shouldn't change, since it was already bigger than 3.
         self._wait_for_row_count("//tmp/q", 0, 7)
+
+    @authors("cherepashka")
+    def test_retained_lifetime_duration(self):
+        queue_agent_orchid = QueueAgentOrchid()
+        cypress_synchronizer_orchid = CypressSynchronizerOrchid()
+
+        self._create_queue("//tmp/q", partition_count=2)
+        self._create_registered_consumer("//tmp/c1", "//tmp/q", vital=True)
+        self._create_registered_consumer("//tmp/c2", "//tmp/q", vital=False)
+
+        set("//tmp/q/@auto_trim_config", {
+            "enable": True,
+            "retained_lifetime_duration": 3000})  # 3 seconds
+
+        self._wait_for_component_passes()
+
+        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}] * 5)
+        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+
+        self._advance_consumer("//tmp/c2", "//tmp/q", 0, 1)
+        time.sleep(3)
+        # Rows lived more than 3 seconds, but nothing should be trimmed since vital consumer c1 was not advanced.
+
+        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+        self._wait_for_row_count("//tmp/q", 0, 5)
+
+        set("//tmp/q/@auto_trim_config", {
+            "enable": True,
+            "retained_lifetime_duration": 5 * 3600 * 1000})  # 5 hours
+        self._wait_for_component_passes()
+
+        self._advance_consumer("//tmp/c1", "//tmp/q", 0, 3)
+        self._advance_consumer("//tmp/c2", "//tmp/q", 0, 5)
+        # Rows shouldn't be trimmed since they all lived less than 5 hours.
+
+        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+        self._wait_for_row_count("//tmp/q", 0, 5)
+
+        remove("//tmp/q/@auto_trim_config/retained_lifetime_duration")
+        cypress_synchronizer_orchid.wait_fresh_pass()
+        queue_agent_orchid.wait_fresh_pass()
+
+        # Now partition 0 should be trimmed up to offset 3 (c1).
+        self._wait_for_row_count("//tmp/q", 0, 2)
+        self._wait_for_min_row_index("//tmp/q", 0, 3)
+
+        set("//tmp/q/@auto_trim_config", {
+            "enable": True,
+            "retained_lifetime_duration": 3000})  # 3 seconds
+        self._wait_for_component_passes()
+
+        insert_rows("//tmp/q", [{"$tablet_index": 1, "data": "foo"}] * 3)
+        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+        self._flush_table("//tmp/q", first_tablet_index=1, last_tablet_index=1)
+        # Flush dynamic store with inserted rows into chunk.
+        time.sleep(3)
+
+        insert_rows("//tmp/q", [{"$tablet_index": 1, "data": "foo"}] * 5)
+        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+
+        self._advance_consumer("//tmp/c1", "//tmp/q", 1, 7)
+        # Now we have at least 2 stores in chunk.
+        # First store contains 3 rows with expired lifetime duration, so they should be trimmed.
+        # Second store contains 0 expired rows, so nothing from it should be trimmed.
+
+        self._wait_for_row_count("//tmp/q", 1, 5)
+        self._wait_for_min_row_index("//tmp/q", 1, 3)
+
+    @authors("cherepashka")
+    def test_retained_lifetime_duration_and_rows(self):
+        queue_agent_orchid = QueueAgentOrchid()
+        cypress_synchronizer_orchid = CypressSynchronizerOrchid()
+
+        self._create_queue("//tmp/q", partition_count=2)
+        self._create_registered_consumer("//tmp/c1", "//tmp/q", vital=True)
+        self._create_registered_consumer("//tmp/c2", "//tmp/q", vital=False)
+        set("//tmp/q/@auto_trim_config", {
+            "enable": True,
+            "retained_lifetime_duration": 3000,  # 3 seconds
+            "retained_rows": 6})
+        self._wait_for_component_passes()
+
+        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}] * 7)
+        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+        self._advance_consumer("//tmp/c1", "//tmp/q", 0, 3)
+        self._advance_consumer("//tmp/c2", "//tmp/q", 0, 5)
+        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+        time.sleep(3)
+
+        # In partition 0 rows lived more than 3 seconds, but we have to keep 6 rows since retained_rows was set.
+        self._wait_for_row_count("//tmp/q", 0, 6)
+        self._wait_for_min_row_index("//tmp/q", 0, 1)
+
+        remove("//tmp/q/@auto_trim_config/retained_rows")
+        cypress_synchronizer_orchid.wait_fresh_pass()
+        queue_agent_orchid.wait_fresh_pass()
+
+        # Now partition 0 should be trimmed up to offset 3 (c1).
+        self._wait_for_row_count("//tmp/q", 0, 4)
+        self._wait_for_min_row_index("//tmp/q", 0, 3)
+
+        set("//tmp/q/@auto_trim_config", {
+            "enable": True,
+            "retained_lifetime_duration": 5 * 3600 * 1000,  # 5 hours
+            "retained_rows": 6
+            })
+        self._wait_for_component_passes()
+
+        insert_rows("//tmp/q", [{"$tablet_index": 1, "data": "foo"}] * 8)
+        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+
+        self._advance_consumer("//tmp/c1", "//tmp/q", 1, 6)
+        self._advance_consumer("//tmp/c2", "//tmp/q", 1, 5)
+        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+
+        # We shouldn't trim rows in partition 1 since they all lived less than 5 hours.
+        self._wait_for_row_count("//tmp/q", 0, 4)
+        self._wait_for_row_count("//tmp/q", 1, 8)
+
+        remove("//tmp/q/@auto_trim_config/retained_lifetime_duration")
+        cypress_synchronizer_orchid.wait_fresh_pass()
+        queue_agent_orchid.wait_fresh_pass()
+
+        # Now we can trim, so that 6 rows are left in partition 1.
+        self._wait_for_row_count("//tmp/q", 0, 4)
+        self._wait_for_row_count("//tmp/q", 1, 6)
+        self._wait_for_min_row_index("//tmp/q", 1, 2)
+
+        remove("//tmp/q/@auto_trim_config/retained_rows")
+        cypress_synchronizer_orchid.wait_fresh_pass()
+        queue_agent_orchid.wait_fresh_pass()
+
+        # Now we should trim partition 1 up to offset 6 (c1).
+        self._wait_for_row_count("//tmp/q", 0, 4)
+        self._wait_for_row_count("//tmp/q", 1, 2)
+        self._wait_for_min_row_index("//tmp/q", 1, 6)
 
     @authors("achulkov2")
     def test_vitality_changes(self):
