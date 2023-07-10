@@ -655,6 +655,9 @@ void TTask::ScheduleJob(
     auto it = LostJobCookieMap.lower_bound(TCookieAndPool(joblet->OutputCookie, nullptr));
     bool restarted = it != LostJobCookieMap.end() && it->first.first == joblet->OutputCookie;
 
+    auto lostIntermediateChunk = LostIntermediateChunkCookieMap.lower_bound(TCookieAndPool(joblet->OutputCookie, nullptr));
+    bool lostIntermediateChunkIsKnown = lostIntermediateChunk != LostIntermediateChunkCookieMap.end() && it->first.first == joblet->OutputCookie;
+
     auto accountBuildingJobSpec = BIND(&ITaskHost::AccountBuildingJobSpecDelta, MakeWeak(TaskHost_));
     accountBuildingJobSpec.Run(+1, +sliceCount);
 
@@ -697,7 +700,7 @@ void TTask::ScheduleJob(
     YT_LOG_DEBUG(
         "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, OutputCookie: %v, SliceCount: %v (%v local), "
         "Approximate: %v, DataWeight: %v (%v local), RowCount: %v, PartitionTag: %v, Restarted: %v, EstimatedResourceUsage: %v, JobProxyMemoryReserveFactor: %v, "
-        "UserJobMemoryReserveFactor: %v, ResourceLimits: %v, CompetitionType: %v, JobSpeculationTimeout: %v, Media: %v)",
+        "UserJobMemoryReserveFactor: %v, ResourceLimits: %v, CompetitionType: %v, JobSpeculationTimeout: %v, Media: %v, RestartedForLostChunk: %v)",
         joblet->JobId,
         TaskHost_->GetOperationId(),
         joblet->JobType,
@@ -718,7 +721,8 @@ void TTask::ScheduleJob(
         FormatResources(neededResources),
         joblet->CompetitionType,
         joblet->JobSpeculationTimeout,
-        media);
+        media,
+        lostIntermediateChunkIsKnown ? lostIntermediateChunk->second : NullChunkId);
 
     SetStreamDescriptors(joblet);
 
@@ -1259,11 +1263,13 @@ void TTask::OnJobRunning(TJobletPtr joblet, const TRunningJobSummary& jobSummary
     }
 }
 
-void TTask::OnJobLost(TCompletedJobPtr completedJob)
+void TTask::OnJobLost(TCompletedJobPtr completedJob, TChunkId chunkId)
 {
+    auto cookieAndPoll = TCookieAndPool(completedJob->OutputCookie, completedJob->DestinationPool);
     YT_VERIFY(LostJobCookieMap.emplace(
-        TCookieAndPool(completedJob->OutputCookie, completedJob->DestinationPool),
+        cookieAndPoll,
         completedJob->InputCookie).second);
+    LostIntermediateChunkCookieMap.emplace(cookieAndPoll, chunkId);
     for (auto* jobManager : JobManagers_) {
         jobManager->OnJobLost(completedJob->OutputCookie);
     }

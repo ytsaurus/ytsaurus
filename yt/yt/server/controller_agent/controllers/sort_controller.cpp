@@ -929,9 +929,9 @@ protected:
             return result;
         }
 
-        void OnJobLost(TCompletedJobPtr completedJob) override
+        void OnJobLost(TCompletedJobPtr completedJob, TChunkId chunkId) override
         {
-            TTask::OnJobLost(completedJob);
+            TTask::OnJobLost(completedJob, chunkId);
 
             if (DataBalancer_) {
                 DataBalancer_->UpdateNodeDataWeight(completedJob->NodeDescriptor, -completedJob->DataWeight);
@@ -1252,9 +1252,9 @@ protected:
             return result;
         }
 
-        void OnJobLost(TCompletedJobPtr completedJob) override
+        void OnJobLost(TCompletedJobPtr completedJob, TChunkId chunkId) override
         {
-            TTask::OnJobLost(completedJob);
+            TTask::OnJobLost(completedJob, chunkId);
 
             Controller_->UpdateTask(this);
             if (!Controller_->SimpleSort) {
@@ -1430,7 +1430,7 @@ protected:
             TSortTaskBase::OnJobStarted(joblet);
         }
 
-        void OnJobLost(TCompletedJobPtr completedJob) override
+        void OnJobLost(TCompletedJobPtr completedJob, TChunkId chunkId) override
         {
             if (!Controller_->SimpleSort) {
                 auto partitionIndex = *completedJob->InputStripe->PartitionTag;
@@ -1441,7 +1441,7 @@ protected:
 
             Controller_->ResetTaskLocalityDelays();
 
-            TSortTaskBase::OnJobLost(completedJob);
+            TSortTaskBase::OnJobLost(completedJob, chunkId);
         }
 
         TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override

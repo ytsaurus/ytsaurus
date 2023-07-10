@@ -790,7 +790,7 @@ protected:
     virtual void OnChunksReleased(int chunkCount);
 
     //! Called when a job is unable to read a chunk.
-    void OnChunkFailed(NChunkClient::TChunkId chunkId);
+    void OnChunkFailed(NChunkClient::TChunkId chunkId, TJobId jobId);
 
     //! Gets the list of all intermediate chunks that are not lost.
     THashSet<NChunkClient::TChunkId> GetAliveIntermediateChunks() const;

@@ -3368,7 +3368,7 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
     ProcessJobFinishedResult(taskJobResult);
 
     for (auto chunkId : failedChunkIds) {
-        OnChunkFailed(chunkId);
+        OnChunkFailed(chunkId, jobId);
     }
 
     // This failure case has highest priority for users. Therefore check must be performed as early as possible.
@@ -3662,7 +3662,7 @@ const TLogger* TOperationControllerBase::GetEventLogger()
     return &ControllerEventLogger;
 }
 
-void TOperationControllerBase::OnChunkFailed(TChunkId chunkId)
+void TOperationControllerBase::OnChunkFailed(TChunkId chunkId, TJobId jobId)
 {
     if (chunkId == NullChunkId) {
         YT_LOG_WARNING("Incompatible unavailable chunk found; deprecated node version");
@@ -3676,14 +3676,14 @@ void TOperationControllerBase::OnChunkFailed(TChunkId chunkId)
 
     auto it = InputChunkMap.find(chunkId);
     if (it == InputChunkMap.end()) {
-        YT_LOG_DEBUG("Intermediate chunk has failed (ChunkId: %v)", chunkId);
+        YT_LOG_DEBUG("Intermediate chunk has failed (ChunkId: %v, JobId: %v)", chunkId, jobId);
         if (!OnIntermediateChunkUnavailable(chunkId)) {
             return;
         }
 
         IntermediateChunkScraper->Start();
     } else {
-        YT_LOG_DEBUG("Input chunk has failed (ChunkId: %v)", chunkId);
+        YT_LOG_DEBUG("Input chunk has failed (ChunkId: %v, JobId: %v)", chunkId, jobId);
         OnInputChunkUnavailable(chunkId, &it->second);
     }
 }
@@ -3868,12 +3868,15 @@ bool TOperationControllerBase::OnIntermediateChunkUnavailable(TChunkId chunkId)
     if (completedJob->Suspended)
         return false;
 
-    YT_LOG_DEBUG("Job is lost (Address: %v, JobId: %v, SourceTask: %v, OutputCookie: %v, InputCookie: %v, UnavailableIntermediateChunkCount: %v)",
+    YT_LOG_DEBUG("Job is lost (Address: %v, JobId: %v, SourceTask: %v, OutputCookie: %v, InputCookie: %v, "
+        "Restartable: %v, ChunkId: %v, UnavailableIntermediateChunkCount: %v)",
         completedJob->NodeDescriptor.Address,
         completedJob->JobId,
         completedJob->SourceTask->GetTitle(),
         completedJob->OutputCookie,
         completedJob->InputCookie,
+        completedJob->Restartable,
+        chunkId,
         UnavailableIntermediateChunkCount);
 
     completedJob->Suspended = true;
@@ -3881,7 +3884,7 @@ bool TOperationControllerBase::OnIntermediateChunkUnavailable(TChunkId chunkId)
 
     if (completedJob->Restartable) {
         completedJob->SourceTask->GetChunkPoolOutput()->Lost(completedJob->OutputCookie);
-        completedJob->SourceTask->OnJobLost(completedJob);
+        completedJob->SourceTask->OnJobLost(completedJob, chunkId);
         UpdateTask(completedJob->SourceTask);
     }
 

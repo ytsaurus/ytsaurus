@@ -164,7 +164,7 @@ public:
     virtual TJobFinishedResult OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary);
     virtual TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary);
     virtual void OnJobRunning(TJobletPtr joblet, const TRunningJobSummary& jobSummary);
-    virtual void OnJobLost(TCompletedJobPtr completedJob);
+    virtual void OnJobLost(TCompletedJobPtr completedJob, NChunkClient::TChunkId chunkId);
 
     virtual void OnStripeRegistrationFailed(
         TError error,
@@ -412,6 +412,7 @@ private:
 
     //! For each lost job currently being replayed and destination pool, maps output cookie to corresponding input cookie.
     std::map<TCookieAndPool, NChunkPools::IChunkPoolInput::TCookie> LostJobCookieMap;
+    std::map<TCookieAndPool, NChunkClient::TChunkId> LostIntermediateChunkCookieMap;
 
     TSpeculativeJobManager SpeculativeJobManager_;
     TProbingJobManager ProbingJobManager_;
