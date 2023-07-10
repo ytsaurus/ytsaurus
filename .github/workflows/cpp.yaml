@@ -135,7 +135,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p ../docker-ytsaurus-build
-          bash ./yt/docker/systest/build.sh --ytsaurus-build-path ../build --benchmarks-path benchmark-0.0.1.tgz --output-path ../docker-systest-build --image-tag latest
+          bash ./yt/docker/systest/build.sh --ytsaurus-source-path $(pwd)  --ytsaurus-build-path ../build --benchmarks-path benchmark-0.0.1.tgz --output-path ../docker-systest-build --image-tag latest
           docker push ytsaurus/ytsaurus-systest:latest
 
 #      - name: Kube

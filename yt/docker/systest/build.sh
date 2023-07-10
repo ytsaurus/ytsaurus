@@ -1,8 +1,12 @@
 #!/bin/bash
 
+set -e
+set -x
+
 script_name=$0
 output_path="."
-benchmarks=""
+benchmarks_path=""
+ytsaurus_source_path="."
 ytsaurus_build_path="."
 
 print_usage() {
@@ -10,7 +14,7 @@ print_usage() {
 Usage: $script_name [-h|--help]
                     [--ytsaurus-source-path /path/to/ytsaurus.repo (default: $ytsaurus_source_path)]
                     [--ytsaurus-build-path /path/to/ytsaurus.build (default: $ytsaurus_build_path)]
-                    [--benchmarks-path /path/to/benchmarks.tgz]
+                    [--benchmarks_path-path /path/to/benchmarks_path.tgz]
                     [--output-path /path/to/output (default: $output_path)]
                     [--image-tag some-tag (default: $image_tag)]
 EOF
@@ -21,6 +25,10 @@ EOF
 while [[ $# -gt 0 ]]; do
     key="$1"
     case $key in
+        --ytsaurus-source-path)
+        ytsaurus_source_path="$2"
+        shift 2
+        ;;
         --ytsaurus-build-path)
         ytsaurus_build_path="$2"
         shift 2
@@ -29,8 +37,8 @@ while [[ $# -gt 0 ]]; do
         output_path="$2"
         shift 2
         ;;
-        --benchmarks-path)
-        benchmarks=$2
+        --benchmarks_path-path)
+        benchmarks_path=$2
         shift 2
         ;;
         --image-tag)
@@ -55,6 +63,7 @@ dockerfile="${ytsaurus_source_path}/yt/docker/systest/Dockerfile"
 cp ${systest} ${output_path}
 cp ${dockerfile} ${output_path}
 cp -r ${ytsaurus_build_path}/ytsaurus_python ${output_path}
+cp ${benchmarks_path} ${output_path}
 
 cd ${output_path}
 
