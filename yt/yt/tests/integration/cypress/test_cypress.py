@@ -1422,6 +1422,12 @@ class TestCypress(YTEnvSetup):
             link("//tmp/r/l2", "//tmp/r/l2", force=True)
         with pytest.raises(YtError, match="Failed to create link: link is cyclic"):
             link("//tmp/r/l2/l2/l2", "//tmp/r/l2", force=True)
+        with pytest.raises(YtError, match="Failed to create link: link is cyclic"):
+            create("link", "//tmp/a/b/c/d", attributes={"target_path": "//tmp/a/b/c/d"})
+        with pytest.raises(YtError, match="Failed to create link: link is cyclic"):
+            create("link", "//tmp/a/b/c/d/e", attributes={"target_path": "//tmp/a/b/c/d/e"}, recursive=True)
+        with pytest.raises(YtError, match="Failed to create link: link is cyclic"):
+            create("link", "//tmp/a/b/c/d/e", attributes={"target_path": "//tmp/a/b/c/d/e"}, recursive=True, force=True)
 
     # Test for YTADMINREQ-29192 issue.
     @authors("h0pless")

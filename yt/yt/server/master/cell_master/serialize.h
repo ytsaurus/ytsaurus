@@ -158,6 +158,7 @@ DEFINE_ENUM(EMasterReign,
     ((RecomputeMasterTableSchemaRefCounters)                        (2343))  // h0pless
     ((FixBulkInsertAtomicityNone)                                   (2344))  // ifsmirnov
     ((DropNodesWithFlavorsVectorFromSnapshot)                       (2345))  // shakurov
+    ((FixSymlinkCyclicityCheck)                                     (2346))  // h0pless
 );
 
 ////////////////////////////////////////////////////////////////////////////////
