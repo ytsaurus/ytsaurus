@@ -36,6 +36,8 @@ class WireTypeUtil {
             return WireType.STRING_32;
         } else if (tiType.isYson()) {
             return WireType.YSON_32;
+        } else if (tiType.isTimestamp()) {
+            return WireType.UINT_64;
         } else if (tiType.isDecimal()) {
             int precision = tiType.asDecimal().getPrecision();
             if (precision <= 9) {

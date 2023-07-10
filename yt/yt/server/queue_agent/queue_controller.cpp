@@ -5,6 +5,7 @@
 #include "config.h"
 #include "helpers.h"
 #include "profile_manager.h"
+#include "yt/yt/client/api/internal_client.h"
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 #include <yt/yt/ytlib/hive/cell_directory.h>
@@ -14,6 +15,7 @@
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/yt/client/transaction_client/helpers.h>
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/client/queue_client/config.h>
 
@@ -488,6 +490,32 @@ private:
             return;
         }
 
+        auto client = ClientDirectory_->GetClientOrThrow(QueueRef_.Cluster);
+
+        const auto& lifetimeDuration = autoTrimConfig->RetainedLifetimeDuration;
+        std::vector<NApi::TGetOrderedTabletSafeTrimRowCountRequest> safeTrimRowCountRequests;
+        TTimestamp firstTimestampToRetainRows;
+        if (lifetimeDuration) {
+            safeTrimRowCountRequests.reserve(queueSnapshot->PartitionCount);
+            auto timestampProvider = client->GetTimestampProvider();
+            YT_VERIFY(timestampProvider);
+
+            auto latestTimestampOrError = WaitFor(timestampProvider->GenerateTimestamps());
+            if (!latestTimestampOrError.IsOK()) {
+                YT_LOG_DEBUG(
+                    latestTimestampOrError,
+                    "Failed to generate last timestamp for queue %v",
+                    QueueRef_);
+                // Skip trimming, because unable to generate timestamp.
+                return;
+            }
+            auto latestTimestamp = latestTimestampOrError.Value();
+            auto now = TimestampToInstant(latestTimestamp).first;
+            // InstantToTimestamp returns time span containing time instant passed to it, to guarantee trim of rows with MaxTimestamp < barrier time,
+            // we need to trim rows by left boundary of span, thus we will trim rows with MaxTimestamp < left boundary of span <= barrier time.
+            firstTimestampToRetainRows = InstantToTimestamp(now - *lifetimeDuration).first;
+        }
+
         // We will be collecting partitions for which no error is set in the queue snapshot, nor in any of the consumer snapshots.
         THashSet<int> partitionsToTrim;
         for (int partitionIndex = 0; partitionIndex < queueSnapshot->PartitionCount; ++partitionIndex) {
@@ -518,6 +546,15 @@ private:
 
             if (partitionError.IsOK()) {
                 partitionsToTrim.insert(partitionIndex);
+                if (lifetimeDuration) {
+                    safeTrimRowCountRequests.push_back(
+                        NApi::TGetOrderedTabletSafeTrimRowCountRequest{
+                            QueueRef_.Path,
+                            partitionIndex,
+                            firstTimestampToRetainRows
+                        }
+                    );
+                }
             } else {
                 YT_LOG_DEBUG(
                     partitionError,
@@ -527,6 +564,25 @@ private:
         }
 
         THashMap<int, i64> updatedTrimmedRowCounts;
+        std::vector<TErrorOr<i64>> safeTrimRowCountsOrErrors;
+        if (lifetimeDuration) {
+            // Get row indices for each partition's rows that live no more than firstTimestampToRetainRows.
+            auto internalClient = DynamicPointerCast<NApi::IInternalClient>(client);
+            safeTrimRowCountsOrErrors = WaitFor(internalClient->GetOrderedTabletSafeTrimRowCount(safeTrimRowCountRequests))
+                .ValueOrThrow();
+            // Update list for partitions to trim with collected indices.
+            for (int safeTrimRowCountsIndex = 0; safeTrimRowCountsIndex < std::ssize(safeTrimRowCountsOrErrors); ++safeTrimRowCountsIndex) {
+                const auto& safeTrimRowCountOrError = safeTrimRowCountsOrErrors[safeTrimRowCountsIndex];
+                int partitionIndex = safeTrimRowCountRequests[safeTrimRowCountsIndex].TabletIndex;
+                if (!safeTrimRowCountOrError.IsOK()) {
+                    YT_LOG_DEBUG(
+                        safeTrimRowCountOrError,
+                        "Error getting safe trim row count by timestamp, not trimming partition (PartitionIndex: %v)",
+                        partitionIndex);
+                    partitionsToTrim.erase(partitionIndex);
+                }
+            }
+        }
 
         for (const auto& [consumerRef, consumerSubSnapshot] : vitalConsumerSubSnapshots) {
             for (const auto& partitionIndex : partitionsToTrim) {
@@ -538,16 +594,29 @@ private:
                     partitionIndex,
                     partitionSnapshot->NextRowIndex,
                     consumerRef);
-                auto it = updatedTrimmedRowCounts.find(partitionIndex);
-                if (it != updatedTrimmedRowCounts.end()) {
-                    it->second = std::min(it->second, partitionSnapshot->NextRowIndex);
+                auto updatedTrimmedRowCountIt = updatedTrimmedRowCounts.find(partitionIndex);
+                if (updatedTrimmedRowCountIt != updatedTrimmedRowCounts.end()) {
+                    updatedTrimmedRowCountIt->second = std::min(updatedTrimmedRowCountIt->second, partitionSnapshot->NextRowIndex);
                 } else {
                     updatedTrimmedRowCounts[partitionIndex] = partitionSnapshot->NextRowIndex;
                 }
             }
         }
 
-        auto client = ClientDirectory_->GetClientOrThrow(QueueRef_.Cluster);
+        if (lifetimeDuration) {
+            for (int safeTrimRowCountsIndex = 0; safeTrimRowCountsIndex < std::ssize(safeTrimRowCountsOrErrors); ++safeTrimRowCountsIndex) {
+                const auto& safeTrimRowCountOrError = safeTrimRowCountsOrErrors[safeTrimRowCountsIndex];
+                int partitionIndex = safeTrimRowCountRequests[safeTrimRowCountsIndex].TabletIndex;
+                if (safeTrimRowCountOrError.IsOK()) {
+                    auto updatedTrimmedRowCountIt = updatedTrimmedRowCounts.find(partitionIndex);
+                    if (updatedTrimmedRowCountIt != updatedTrimmedRowCounts.end()) {
+                        // We only need trim partitions with vital consumers, if partition wasn't added on previous cycle,
+                        // then no vital consumer read from it.
+                        updatedTrimmedRowCountIt->second = std::min(updatedTrimmedRowCountIt->second, safeTrimRowCountOrError.Value());
+                    }
+                }
+            }
+        }
 
         std::vector<TFuture<void>> asyncTrims;
         asyncTrims.reserve(updatedTrimmedRowCounts.size());

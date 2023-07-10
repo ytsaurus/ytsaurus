@@ -1,5 +1,6 @@
 package tech.ytsaurus.client.rows;
 
+import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -27,7 +28,8 @@ class TiTypeUtil {
             Map.entry(Boolean.class, TiType.bool()),
             Map.entry(String.class, TiType.utf8()),
             Map.entry(byte[].class, TiType.string()),
-            Map.entry(GUID.class, TiType.uuid())
+            Map.entry(GUID.class, TiType.uuid()),
+            Map.entry(Instant.class, TiType.timestamp())
     );
 
     private static final Map<String, TiType> COLUMN_DEFINITION_TO_TI_TYPE_MAP = Map.ofEntries(
@@ -74,7 +76,7 @@ class TiTypeUtil {
                 tiType.isDouble() || tiType.isBool() ||
                 tiType.isUtf8() || tiType.isString() ||
                 tiType.isUuid() || tiType.isYson() ||
-                tiType.isNull();
+                tiType.isTimestamp() || tiType.isNull();
     }
 
     static TiType tableSchemaToStructTiType(TableSchema tableSchema) {

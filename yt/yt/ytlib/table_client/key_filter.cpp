@@ -20,9 +20,9 @@ const static auto& Logger = TableClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Contains(const TXorFilter& filter, TLegacyKey key)
+bool Contains(const TXorFilter& filter, TLegacyKey key, int chunkKeyColumnCount)
 {
-    return filter.Contains(GetFarmFingerprint(key.Elements()));
+    return filter.Contains(GetFarmFingerprint(key.FirstNElements(chunkKeyColumnCount)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

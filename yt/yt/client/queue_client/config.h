@@ -48,6 +48,9 @@ public:
     //! If set, this number of rows is guaranteed to be kept in each partition.
     std::optional<i64> RetainedRows;
 
+    //! If set, rows, that were created no more than this time ago, will be kept in each partition.
+    std::optional<TDuration> RetainedLifetimeDuration;
+
     REGISTER_YSON_STRUCT_LITE(TQueueAutoTrimConfig);
 
     static void Register(TRegistrar registrar);
