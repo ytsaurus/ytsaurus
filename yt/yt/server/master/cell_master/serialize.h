@@ -117,6 +117,7 @@ DEFINE_ENUM(EMasterReign,
     ((RecomputeMasterTableSchemaRefCounters)                        (2343))  // h0pless
     ((FixBulkInsertAtomicityNone)                                   (2344))  // ifsmirnov
     ((DropNodesWithFlavorsVectorFromSnapshot)                       (2345))  // shakurov
+    ((FixSymlinkCyclicityCheck)                                     (2346))  // h0pless
     // 23.2 starts here.
     ((TabletServants)                                               (2400))  // ifsmirnov
     ((MediumBase)                                                   (2401))  // gritukan
