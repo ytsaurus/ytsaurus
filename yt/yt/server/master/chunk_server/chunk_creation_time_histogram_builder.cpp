@@ -4,7 +4,6 @@
 
 #include "chunk.h"
 #include "chunk_manager.h"
-#include "chunk_scanner.h"
 #include "config.h"
 #include "master_cell_chunk_statistics_collector.h"
 
@@ -46,10 +45,15 @@ public:
 
     void PersistentClear() noexcept override
     {
-        NeedBuildHistogramFromSnapshot_ = true;
+        NeedBuildHistogramFromSnapshot_ = false;
 
-        Bounds_.clear();
-        Histogram_ = {};
+        Bounds_ = GetDynamicConfig()->CreationTimeHistogramBucketBounds;
+        // TODO(gritukan): Fix dynamic config manager and make sure that bounds are never empty.
+        if (Bounds_.empty()) {
+            Bounds_ = {TInstant::Zero()};
+        }
+
+        InitializeHistogram();
     }
 
     void OnChunkCreated(TChunk* chunk) noexcept override
@@ -151,26 +155,15 @@ public:
         using NYT::Load;
 
         Load(context, Bounds_);
-
-        bool validBounds = !Bounds_.empty();
-
-        if (!validBounds) {
-            // NB: It's a temporary measure. This issue only happens if we are
-            // trying to load snapshot which was written between new cluster
-            // start and `OnDynamicConfigChanged()`.
-            // See COMPAT in `OnAfterSnapshotLoaded()`.
-            YT_LOG_DEBUG("Chunk creation time histogram bounds is empty; using {0} as histogram bounds");
-            Bounds_ = {TInstant::Zero()};
-        }
+        // COMPAT(gritukan): EMasterReign::FixChunkCreationTimeHistograms
+        YT_VERIFY(!Bounds_.empty());
 
         InitializeHistogram();
 
-        if (validBounds) {
-            THistogramSnapshot snapshot;
-            Load(context, snapshot.Bounds);
-            Load(context, snapshot.Values);
-            Histogram_.LoadSnapshot(std::move(snapshot));
-        }
+        THistogramSnapshot snapshot;
+        Load(context, snapshot.Bounds);
+        Load(context, snapshot.Values);
+        Histogram_.LoadSnapshot(std::move(snapshot));
     }
 
     void OnAfterSnapshotLoaded() override
@@ -179,23 +172,8 @@ public:
             return;
         }
 
-        // COMPAT(kvk1920): Move all new cluster related code to `SetZeroState()`.
-
-        Bounds_ = GetDynamicConfig()->CreationTimeHistogramBucketBounds;
-        InitializeHistogram();
-
-        TGlobalChunkScanner chunkScanner(Bootstrap_->GetObjectManager(), /*journal*/ false);
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
-            chunkScanner.Start(chunkManager->GetGlobalBlobChunkScanDescriptor(shardIndex));
-        }
-
-        while (chunkScanner.HasUnscannedChunk()) {
-            auto* chunk = chunkScanner.DequeueChunk();
-            if (!chunk) {
-                continue;
-            }
-
+        for (auto [chunkId, chunk] : chunkManager->Chunks()) {
             Histogram_.Add(GetCreationTime(chunk).MillisecondsFloat());
         }
 
@@ -205,10 +183,8 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    // COMPAT(kvk1920)
-    // NB: This flag must be `true` by default because histogram must be
-    // initialized even on first cluster start without snapshot loading.
-    bool NeedBuildHistogramFromSnapshot_ = true;
+    // COMPAT(kvk1920): EMasterReign::MasterCellChunkStatisticsCollector
+    bool NeedBuildHistogramFromSnapshot_ = false;
 
     // Persistent.
     std::vector<TInstant> Bounds_;

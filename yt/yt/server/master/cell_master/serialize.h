@@ -118,6 +118,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixBulkInsertAtomicityNone)                                   (2344))  // ifsmirnov
     ((DropNodesWithFlavorsVectorFromSnapshot)                       (2345))  // shakurov
     ((FixSymlinkCyclicityCheck)                                     (2346))  // h0pless
+    ((FixChunkCreationTimeHistograms)                               (2347))  // gritukan
     // 23.2 starts here.
     ((TabletServants)                                               (2400))  // ifsmirnov
     ((MediumBase)                                                   (2401))  // gritukan
