@@ -538,7 +538,7 @@ TFuture<void> TBlobSession::DoPerformPutBlocks(
 
         slot.State = ESlotState::Received;
         slot.Block = block;
-        slot.ReceivedPromise.TrySet();
+        slot.ReceivedPromise.Set();
 
         if (enableCaching) {
             blockCache->PutBlock(blockId, EBlockType::CompressedData, block);
@@ -653,7 +653,7 @@ void TBlobSession::OnBlocksWritten(int beginBlockIndex, int endBlockIndex, const
         if (error.IsOK()) {
             YT_VERIFY(slot.State == ESlotState::Received);
             slot.State = ESlotState::Written;
-            slot.WrittenPromise.TrySet();
+            slot.WrittenPromise.Set(TError());
         }
     }
 }

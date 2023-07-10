@@ -1122,9 +1122,7 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
             error.FindMatching(NChunkPools::EErrorCode::MaxPrimaryDataWeightPerJobExceeded))
         {
             YT_LOG_ERROR(error);
-
-            result.OperationFailedError = error;
-            return result;
+            TaskHost_->OnOperationFailed(error);
         } else {
             throw;
         }

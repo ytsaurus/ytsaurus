@@ -1393,11 +1393,6 @@ class TFairShareSchedulerTest
     , public ::testing::WithParamInterface<std::tuple<int, int, int, TDuration>>
 { };
 
-bool ApproximatelyEqual(TDuration lhs, TDuration rhs, TDuration eps = TDuration::MilliSeconds(1))
-{
-    return (lhs < rhs ? rhs - lhs : lhs - rhs) < eps;
-}
-
 TEST_P(TFairShareSchedulerTest, TwoLevelFairness)
 {
     size_t numThreads = std::get<0>(GetParam());
@@ -1471,16 +1466,16 @@ TEST_P(TFairShareSchedulerTest, TwoLevelFairness)
                         YT_LOG_DEBUG("Pools time: %v", pools);
                         YT_LOG_DEBUG("Progresses time: %v", progresses);
 
-                        EXPECT_TRUE(ApproximatelyEqual(pools[poolId], minPool));
+                        EXPECT_EQ(pools[poolId].MilliSeconds(), minPool.MilliSeconds());
 
-                        auto minProgress = TDuration::Max();
+                        auto minProcess = TDuration::Max();
                         for (size_t index = poolId; index < numWorkers; index += numPools) {
-                            if (progresses[index] < minProgress && progresses[index] < work + getShift(index)) {
-                                minProgress = progresses[index];
+                            if (progresses[index] < minProcess && progresses[index] < work + getShift(index)) {
+                                minProcess = progresses[index];
                             }
                         }
 
-                        EXPECT_TRUE(ApproximatelyEqual(progresses[id], minProgress));
+                        EXPECT_EQ(progresses[id].MilliSeconds(), minProcess.MilliSeconds());
                     }
                 }
 
@@ -1569,14 +1564,14 @@ TEST_P(TFairShareSchedulerTest, Fairness)
                     if (numThreads == 1) {
                         YT_LOG_DEBUG("Progresses time: %v", progresses);
 
-                        auto minProgress = TDuration::Max();
+                        auto minProcess = TDuration::Max();
                         for (size_t id = 0; id < numWorkers; ++id) {
-                            if (progresses[id] < minProgress && progresses[id] < work + getShift(id)) {
-                                minProgress = progresses[id];
+                            if (progresses[id] < minProcess && progresses[id] < work + getShift(id)) {
+                                minProcess = progresses[id];
                             }
                         }
 
-                        EXPECT_TRUE(ApproximatelyEqual(progresses[id], minProgress));
+                        EXPECT_EQ(progresses[id].MilliSeconds(), minProcess.MilliSeconds());
                     }
                 }
 

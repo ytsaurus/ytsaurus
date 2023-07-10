@@ -160,7 +160,6 @@ private:
     TKeyFilteringResult OnXorKeyFilterBlocksRead(
         NCompression::ECodec codecId,
         std::vector<TXorFilterBlockInfo> blockInfos,
-        int chunkKeyColumnCount,
         TSharedRange<TLegacyKey> keys,
         std::vector<NChunkClient::TBlock>&& requestedBlocks) const;
 };
