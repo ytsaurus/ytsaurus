@@ -12,6 +12,10 @@ object ClusterConfig {
     (baseConfigDir / "sidecar-config").listFiles()
   }
 
+  def innerSidecarConfigs(baseConfigDir: File): Seq[File] = {
+    (baseConfigDir / "inner-sidecar-config").listFiles()
+  }
+
   def launchConfig(version: String, sidecarConfigs: Seq[File]): SparkLaunchConfig = {
     val clusterBasePath = versionPath(sparkYtClusterPath, version)
     val versionConfPath = versionPath(sparkYtConfPath, version)
