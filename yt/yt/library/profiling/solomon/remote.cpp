@@ -140,10 +140,12 @@ void TRemoteRegistry::Transfer(const NProto::TSensorDump& dump)
                 transferValue(&sensorSet->SummariesCube_, ESensorType::Summary, NYT::FromProto<TSummarySnapshot<double>>(projection.summary()));
             } else if (projection.has_timer()) {
                 transferValue(&sensorSet->TimersCube_, ESensorType::Timer, NYT::FromProto<TSummarySnapshot<TDuration>>(projection.timer()));
-            } else if (projection.has_histogram()) {
-                transferValue(&sensorSet->HistogramsCube_, ESensorType::Histogram, NYT::FromProto<THistogramSnapshot>(projection.histogram()));
+            } else if (projection.has_time_histogram()) {
+                transferValue(&sensorSet->TimeHistogramsCube_, ESensorType::TimeHistogram, NYT::FromProto<TTimeHistogramSnapshot>(projection.time_histogram()));
             } else if (projection.has_gauge_histogram()) {
-                transferValue(&sensorSet->HistogramsCube_, ESensorType::GaugeHistogram, NYT::FromProto<THistogramSnapshot>(projection.histogram()));
+                transferValue(&sensorSet->GaugeHistogramsCube_, ESensorType::GaugeHistogram, NYT::FromProto<TGaugeHistogramSnapshot>(projection.gauge_histogram()));
+             } else if (projection.has_rate_histogram()) {
+                transferValue(&sensorSet->RateHistogramsCube_, ESensorType::RateHistogram, NYT::FromProto<TRateHistogramSnapshot>(projection.rate_histogram()));
             } else {
                 // Ignore unknown types.
             }
@@ -180,11 +182,14 @@ void TRemoteRegistry::DoDetach(const THashMap<TString, TRemoteSensorSet>& sensor
             case ESensorType::Timer:
                 sensorSet.TimersCube_.Remove(tags);
                 break;
-            case ESensorType::Histogram:
-                sensorSet.HistogramsCube_.Remove(tags);
+            case ESensorType::TimeHistogram:
+                sensorSet.TimeHistogramsCube_.Remove(tags);
                 break;
             case ESensorType::GaugeHistogram:
-                sensorSet.HistogramsCube_.Remove(tags);
+                sensorSet.GaugeHistogramsCube_.Remove(tags);
+                break;
+            case ESensorType::RateHistogram:
+                sensorSet.RateHistogramsCube_.Remove(tags);
                 break;
             default:
                 YT_ABORT();

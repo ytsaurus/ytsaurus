@@ -148,7 +148,27 @@ public:
 private:
     friend class TProfiler;
 
-    IGaugeHistogramImplPtr Histogram_;
+    IHistogramImplPtr Histogram_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRateHistogram
+{
+public:
+    void Add(double value, int count = 1) noexcept;
+    void Remove(double value, int count = 1) noexcept;
+    void Reset() noexcept;
+
+    THistogramSnapshot GetSnapshot() const;
+    void LoadSnapshot(THistogramSnapshot snapshot);
+
+    explicit operator bool() const;
+
+private:
+    friend class TProfiler;
+
+    IHistogramImplPtr Histogram_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -166,9 +186,9 @@ struct TSensorOptions
     TDuration HistogramMin;
     TDuration HistogramMax;
 
-    std::vector<TDuration> HistogramBounds;
+    std::vector<TDuration> TimeHistogramBounds;
 
-    std::vector<double> GaugeHistogramBounds;
+    std::vector<double> HistogramBounds;
 
     bool IsCompatibleWith(const TSensorOptions& other) const;
 };
@@ -313,7 +333,7 @@ public:
      */
     TEventTimer Timer(const TString& name) const;
 
-    //! Histogram is used to measure distribution of event durations.
+    //! TimeHistogram is used to measure distribution of event durations.
     /*!
      *  Bins are distributed _almost_ exponentially with step of 2; the only difference is that 64
      *  is followed by 125, 64'000 is followed by 125'000 and so on for the sake of better human-readability
@@ -325,14 +345,22 @@ public:
      *  In terms of time this can be read as:
      *  1us, 2us, 4us, 8us, ..., 500us, 1ms, 2ms, ..., 500ms, 1s, ...
      */
-    TEventTimer Histogram(const TString& name, TDuration min, TDuration max) const;
+    TEventTimer TimeHistogram(const TString& name, TDuration min, TDuration max) const;
 
-    //! Histogram is used to measure distribution of event durations.
-    //! Allows to use custom bounds, bounds should be sorted (maximum 51 elements are allowed)
-    TEventTimer Histogram(const TString& name, std::vector<TDuration> bounds) const;
+    //! TimeHistogram is used to measure distribution of event durations.
+    /*!
+     *  Allows to use custom bounds, bounds should be sorted (maximum 51 elements are allowed).
+     */
+    TEventTimer TimeHistogram(const TString& name, std::vector<TDuration> bounds) const;
 
     //! GaugeHistogram is used to measure distribution of set of samples.
     TGaugeHistogram GaugeHistogram(const TString& name, std::vector<double> buckets) const;
+
+    //! RateHistogram is used to measure distribution of set of samples.
+    /*!
+     *  Bucket values at the next point will be calculated as a derivative.
+     */
+    TRateHistogram RateHistogram(const TString& name, std::vector<double> buckets) const;
 
     void AddFuncCounter(
         const TString& name,

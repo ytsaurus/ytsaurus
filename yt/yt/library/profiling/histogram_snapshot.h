@@ -21,12 +21,32 @@ struct THistogramSnapshot
     bool IsEmpty() const;
 };
 
+struct TTimeHistogramSnapshot
+    : public THistogramSnapshot
+{
+    TTimeHistogramSnapshot() = default;
+
+    TTimeHistogramSnapshot(const THistogramSnapshot& hist)
+        : THistogramSnapshot(hist)
+    { }
+};
+
 struct TGaugeHistogramSnapshot
     : public THistogramSnapshot
 {
     TGaugeHistogramSnapshot() = default;
 
     TGaugeHistogramSnapshot(const THistogramSnapshot& hist)
+        : THistogramSnapshot(hist)
+    { }
+};
+
+struct TRateHistogramSnapshot
+    : public THistogramSnapshot
+{
+    TRateHistogramSnapshot() = default;
+
+    TRateHistogramSnapshot(const THistogramSnapshot& hist)
         : THistogramSnapshot(hist)
     { }
 };

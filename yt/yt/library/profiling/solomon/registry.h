@@ -80,12 +80,17 @@ public:
         const TTagSet& tags,
         TSensorOptions options) override;
 
-    ITimerImplPtr RegisterTimerHistogram(
+    ITimerImplPtr RegisterTimeHistogram(
         const TString& name,
         const TTagSet& tags,
         TSensorOptions options) override;
 
-    IGaugeHistogramImplPtr RegisterGaugeHistogram(
+    IHistogramImplPtr RegisterGaugeHistogram(
+        const TString& name,
+        const TTagSet& tags,
+        TSensorOptions options) override;
+
+    IHistogramImplPtr RegisterRateHistogram(
         const TString& name,
         const TTagSet& tags,
         TSensorOptions options) override;

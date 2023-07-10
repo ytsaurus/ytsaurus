@@ -45,7 +45,7 @@ TEST(TSolomonExporter, MemoryLeak)
 TEST(TSolomonExporter, ReadJsonHistogram)
 {
     auto registry = New<TSolomonRegistry>();
-    auto hist = TProfiler{registry, "yt"}.Histogram("/foo", TDuration::MilliSeconds(1), TDuration::Seconds(1));
+    auto hist = TProfiler{registry, "yt"}.TimeHistogram("/foo", TDuration::MilliSeconds(1), TDuration::Seconds(1));
 
     auto config = New<TSolomonExporterConfig>();
     config->GridStep = TDuration::Seconds(1);
@@ -73,7 +73,7 @@ TEST(TSolomonExporter, ReadJsonHistogram)
 TEST(TSolomonExporter, ReadSpackHistogram)
 {
     auto registry = New<TSolomonRegistry>();
-    auto hist = TProfiler{registry, "yt"}.Histogram("/foo", TDuration::MilliSeconds(1), TDuration::Seconds(1));
+    auto hist = TProfiler{registry, "yt"}.TimeHistogram("/foo", TDuration::MilliSeconds(1), TDuration::Seconds(1));
 
     auto config = New<TSolomonExporterConfig>();
     config->GridStep = TDuration::Seconds(1);

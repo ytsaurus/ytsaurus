@@ -247,8 +247,8 @@ TEST(TSolomonRegistry, ExponentialHistogramProjections)
     impl->SetWindowSize(12);
     TProfiler profiler(impl, "/d");
 
-    auto c0 = profiler.WithTag("user", "u0").Histogram("/histogram", TDuration::Zero(), TDuration::MilliSeconds(20));
-    auto c1 = profiler.WithTag("user", "u1").Histogram("/histogram", TDuration::Zero(), TDuration::MilliSeconds(20));
+    auto c0 = profiler.WithTag("user", "u0").TimeHistogram("/histogram", TDuration::Zero(), TDuration::MilliSeconds(20));
+    auto c1 = profiler.WithTag("user", "u1").TimeHistogram("/histogram", TDuration::Zero(), TDuration::MilliSeconds(20));
 
     auto result = CollectSensors(impl).Histograms;
 
@@ -294,8 +294,8 @@ TEST(TSolomonRegistry, DifferentBuckets)
         TDuration::Zero(), TDuration::MilliSeconds(500), TDuration::MilliSeconds(1000)
     };
 
-    auto c0 = profiler.WithTag("user", "u0").Histogram("/histogram", firstBounds);
-    auto c1 = profiler.WithTag("user", "u1").Histogram("/histogram", secondBounds);
+    auto c0 = profiler.WithTag("user", "u0").TimeHistogram("/histogram", firstBounds);
+    auto c1 = profiler.WithTag("user", "u1").TimeHistogram("/histogram", secondBounds);
 
     auto result = CollectSensors(impl).Histograms;
 
@@ -313,8 +313,8 @@ TEST(TSolomonRegistry, CustomHistogramProjections)
     std::vector<TDuration> bounds{
         TDuration::Zero(), TDuration::MilliSeconds(5), TDuration::MilliSeconds(10), TDuration::MilliSeconds(15)
     };
-    auto c0 = profiler.WithTag("user", "u0").Histogram("/histogram", bounds);
-    auto c1 = profiler.WithTag("user", "u1").Histogram("/histogram", bounds);
+    auto c0 = profiler.WithTag("user", "u0").TimeHistogram("/histogram", bounds);
+    auto c1 = profiler.WithTag("user", "u1").TimeHistogram("/histogram", bounds);
 
     auto result = CollectSensors(impl).Histograms;
 
@@ -352,7 +352,7 @@ TEST(TSolomonRegistry, SparseHistogram)
     impl->SetWindowSize(12);
     TProfiler profiler(impl, "/d");
 
-    auto h0 = profiler.WithSparse().Histogram("/histogram", TDuration::Zero(), TDuration::MilliSeconds(20));
+    auto h0 = profiler.WithSparse().TimeHistogram("/histogram", TDuration::Zero(), TDuration::MilliSeconds(20));
 
     auto result = CollectSensors(impl).Histograms;
     ASSERT_TRUE(result.empty());
@@ -746,7 +746,7 @@ TEST(TSolomonRegistry, TestRemoteTransfer)
     auto t0 = r.Timer("/dt");
     t0.Record(TDuration::Seconds(1));
 
-    auto h0 = r.Histogram("/h", TDuration::Zero(), TDuration::MilliSeconds(20));
+    auto h0 = r.TimeHistogram("/h", TDuration::Zero(), TDuration::MilliSeconds(20));
     h0.Record(TDuration::MilliSeconds(1));
 
     remote->ProcessRegistrations();

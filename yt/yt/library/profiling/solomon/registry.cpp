@@ -162,7 +162,7 @@ ITimerImplPtr TSolomonRegistry::RegisterTimerSummary(
         });
 }
 
-ITimerImplPtr TSolomonRegistry::RegisterTimerHistogram(
+ITimerImplPtr TSolomonRegistry::RegisterTimeHistogram(
     const TString& name,
     const TTagSet& tags,
     TSensorOptions options)
@@ -170,12 +170,12 @@ ITimerImplPtr TSolomonRegistry::RegisterTimerHistogram(
     auto hist = New<THistogram>(options);
     DoRegister([this, name, tags, options, hist] () {
         auto set = FindSet(name, options);
-        set->AddHistogram(New<THistogramState>(hist, Tags_.Encode(tags), tags));
+        set->AddTimeHistogram(New<THistogramState>(hist, Tags_.Encode(tags), tags));
     });
     return hist;
 }
 
-IGaugeHistogramImplPtr TSolomonRegistry::RegisterGaugeHistogram(
+IHistogramImplPtr TSolomonRegistry::RegisterGaugeHistogram(
     const TString& name,
     const TTagSet& tags,
     TSensorOptions options)
@@ -184,6 +184,19 @@ IGaugeHistogramImplPtr TSolomonRegistry::RegisterGaugeHistogram(
     DoRegister([this, name, tags, options, hist] () {
         auto set = FindSet(name, options);
         set->AddGaugeHistogram(New<THistogramState>(hist, Tags_.Encode(tags), tags));
+    });
+    return hist;
+}
+
+IHistogramImplPtr TSolomonRegistry::RegisterRateHistogram(
+    const TString& name,
+    const TTagSet& tags,
+    TSensorOptions options)
+{
+    auto hist = New<THistogram>(options);
+    DoRegister([this, name, tags, options, hist] () {
+        auto set = FindSet(name, options);
+        set->AddRateHistogram(New<THistogramState>(hist, Tags_.Encode(tags), tags));
     });
     return hist;
 }

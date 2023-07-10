@@ -193,15 +193,68 @@ TGaugeHistogram::operator bool() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TRateHistogram::Add(double value, int count) noexcept
+{
+    if (!Histogram_) {
+        return;
+    }
+
+    Histogram_->Add(value, count);
+}
+
+void TRateHistogram::Remove(double value, int count) noexcept
+{
+    if (!Histogram_) {
+        return;
+    }
+
+    Histogram_->Remove(value, count);
+}
+
+void TRateHistogram::Reset() noexcept
+{
+    if (!Histogram_) {
+        return;
+    }
+
+    Histogram_->Reset();
+}
+
+THistogramSnapshot TRateHistogram::GetSnapshot() const
+{
+    if (!Histogram_) {
+        return {};
+    }
+
+    return Histogram_->GetSnapshot(false);
+}
+
+void TRateHistogram::LoadSnapshot(THistogramSnapshot snapshot)
+{
+    if (!Histogram_) {
+        return;
+    }
+
+    Histogram_->LoadSnapshot(snapshot);
+}
+
+TRateHistogram::operator bool() const
+{
+    return Histogram_.operator bool();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TString ToString(const TSensorOptions& options)
 {
     return Format(
-        "{sparse=%v;global=%v;hot=%v;histogram_min=%v;histogram_max=%v;histogram_bounds=%v}",
+        "{sparse=%v;global=%v;hot=%v;histogram_min=%v;histogram_max=%v;time_histogram_bounds=%v;histogram_bounds=%v}",
         options.Sparse,
         options.Global,
         options.Hot,
         options.HistogramMin,
         options.HistogramMax,
+        options.TimeHistogramBounds,
         options.HistogramBounds
     );
 }
@@ -507,7 +560,7 @@ TEventTimer TProfiler::Timer(const TString& name) const
     return timer;
 }
 
-TEventTimer TProfiler::Histogram(const TString& name, TDuration min, TDuration max) const
+TEventTimer TProfiler::TimeHistogram(const TString& name, TDuration min, TDuration max) const
 {
     if (!Impl_) {
         return {};
@@ -518,11 +571,11 @@ TEventTimer TProfiler::Histogram(const TString& name, TDuration min, TDuration m
     options.HistogramMax = max;
 
     TEventTimer timer;
-    timer.Timer_ = Impl_->RegisterTimerHistogram(Namespace_ + Prefix_ + name, Tags_, options);
+    timer.Timer_ = Impl_->RegisterTimeHistogram(Namespace_ + Prefix_ + name, Tags_, options);
     return timer;
 }
 
-TEventTimer TProfiler::Histogram(const TString& name, std::vector<TDuration> bounds) const
+TEventTimer TProfiler::TimeHistogram(const TString& name, std::vector<TDuration> bounds) const
 {
     if (!Impl_) {
         return {};
@@ -530,8 +583,8 @@ TEventTimer TProfiler::Histogram(const TString& name, std::vector<TDuration> bou
 
     TEventTimer timer;
     auto options = Options_;
-    options.HistogramBounds = std::move(bounds);
-    timer.Timer_ = Impl_->RegisterTimerHistogram(Namespace_ + Prefix_ + name, Tags_, options);
+    options.TimeHistogramBounds = std::move(bounds);
+    timer.Timer_ = Impl_->RegisterTimeHistogram(Namespace_ + Prefix_ + name, Tags_, options);
     return timer;
 }
 
@@ -543,8 +596,21 @@ TGaugeHistogram TProfiler::GaugeHistogram(const TString& name, std::vector<doubl
 
     TGaugeHistogram histogram;
     auto options = Options_;
-    options.GaugeHistogramBounds = std::move(buckets);
+    options.HistogramBounds = std::move(buckets);
     histogram.Histogram_ = Impl_->RegisterGaugeHistogram(Namespace_ + Prefix_ + name, Tags_, options);
+    return histogram;
+}
+
+TRateHistogram TProfiler::RateHistogram(const TString& name, std::vector<double> buckets) const
+{
+    if (!Impl_) {
+        return {};
+    }
+
+    TRateHistogram histogram;
+    auto options = Options_;
+    options.HistogramBounds = std::move(buckets);
+    histogram.Histogram_ = Impl_->RegisterRateHistogram(Namespace_ + Prefix_ + name, Tags_, options);
     return histogram;
 }
 

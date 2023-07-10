@@ -62,7 +62,7 @@ TLookupCounters::TLookupCounters(
     , WastedUnmergedDataWeight(profiler.Counter("/lookup/wasted_unmerged_data_weight"))
     , CpuTime(profiler.TimeCounter("/lookup/cpu_time"))
     , DecompressionCpuTime(profiler.TimeCounter("/lookup/decompression_cpu_time"))
-    , LookupDuration(profiler.Histogram(
+    , LookupDuration(profiler.TimeHistogram(
         "/lookup/duration",
         TDuration::MicroSeconds(1),
         TDuration::Seconds(10)))
@@ -87,7 +87,7 @@ TSelectReadCounters::TSelectReadCounters(const TProfiler& profiler)
     , UnmergedRowCount(profiler.Counter("/select/unmerged_row_count"))
     , UnmergedDataWeight(profiler.Counter("/select/unmerged_data_weight"))
     , DecompressionCpuTime(profiler.TimeCounter("/select/decompression_cpu_time"))
-    , SelectDuration(profiler.Histogram(
+    , SelectDuration(profiler.TimeHistogram(
         "/select/duration",
         TDuration::MicroSeconds(1),
         TDuration::Seconds(10)))

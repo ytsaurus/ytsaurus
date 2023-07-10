@@ -30,8 +30,9 @@ message TProjection {
     optional int64 duration = 4;
     optional TSummaryDouble summary = 5;
     optional TSummaryDuration timer = 6;
-    optional THistogramSnapshot histogram = 7;
+    optional THistogramSnapshot time_histogram = 7;
     optional THistogramSnapshot gauge_histogram = 9;
+    optional THistogramSnapshot rate_histogram = 10;
 };
 
 message TSummaryDouble {

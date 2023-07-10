@@ -149,13 +149,13 @@ static auto GenericBucketBounds()
 std::vector<double> GenerateGenericBucketBounds()
 {
     // BEWARE: Changing this variable will lead to master snapshots becoming invalid.
-    constexpr int MaxGaugeHistogramBinCount = 38;
+    constexpr int MaxHistogramBinCount = 38;
     std::vector<double> result;
 
     auto genericBounds = GenericBucketBounds();
-    result.reserve(MaxGaugeHistogramBinCount);
+    result.reserve(MaxHistogramBinCount);
 
-    for (int i = 0; i < std::ssize(genericBounds) && i < MaxGaugeHistogramBinCount; ++i) {
+    for (int i = 0; i < std::ssize(genericBounds) && i < MaxHistogramBinCount; ++i) {
         result.push_back(genericBounds[i]);
     }
 
@@ -164,13 +164,13 @@ std::vector<double> GenerateGenericBucketBounds()
 
 static std::vector<double> BucketBounds(const TSensorOptions& options)
 {
-    if (!options.GaugeHistogramBounds.empty()) {
-        return options.GaugeHistogramBounds;
+    if (!options.HistogramBounds.empty()) {
+        return options.HistogramBounds;
     }
 
     std::vector<double> bounds;
-    if (!options.HistogramBounds.empty()) {
-        for (auto b : options.HistogramBounds) {
+    if (!options.TimeHistogramBounds.empty()) {
+        for (auto b : options.TimeHistogramBounds) {
             bounds.push_back(b.SecondsFloat());
         }
         return bounds;

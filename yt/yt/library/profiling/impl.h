@@ -55,12 +55,17 @@ public:
         const TTagSet& tags,
         TSensorOptions options) = 0;
 
-    virtual ITimerImplPtr RegisterTimerHistogram(
+    virtual ITimerImplPtr RegisterTimeHistogram(
         const TString& name,
         const TTagSet& tags,
         TSensorOptions options) = 0;
 
-    virtual IGaugeHistogramImplPtr RegisterGaugeHistogram(
+    virtual IHistogramImplPtr RegisterGaugeHistogram(
+        const TString& name,
+        const TTagSet& tags,
+        TSensorOptions options) = 0;
+
+    virtual IHistogramImplPtr RegisterRateHistogram(
         const TString& name,
         const TTagSet& tags,
         TSensorOptions options) = 0;
@@ -157,7 +162,7 @@ DEFINE_REFCOUNTED_TYPE(ITimerImpl)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IGaugeHistogramImpl
+struct IHistogramImpl
     : public virtual TRefCounted
 {
     virtual void Add(double value, int count) = 0;
@@ -168,7 +173,7 @@ struct IGaugeHistogramImpl
     virtual void LoadSnapshot(THistogramSnapshot snapshot) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IGaugeHistogramImpl)
+DEFINE_REFCOUNTED_TYPE(IHistogramImpl)
 
 ////////////////////////////////////////////////////////////////////////////////
 
