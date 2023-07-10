@@ -176,7 +176,7 @@ class TOAuthCookieAuthenticatorConfig
     : public virtual NYTree::TYsonStruct
 {
 public:
-    TCachingCypressUserManagerConfigPtr CypressUserManagerConfig;
+    TCachingCypressUserManagerConfigPtr CypressUserManager;
 
     REGISTER_YSON_STRUCT(TOAuthCookieAuthenticatorConfig);
 
@@ -200,7 +200,8 @@ public:
 
     TString UserInfoEndpoint;
     TString UserInfoLoginField;
-    TString UserInfoSubjectField;
+    std::optional<TString> UserInfoSubjectField;
+    std::optional<TString> UserInfoErrorField;
 
     REGISTER_YSON_STRUCT(TOAuthServiceConfig);
 

@@ -7,7 +7,8 @@
 namespace NYT::NHttp {
 
 struct IResponseChecker
-    : public virtual TRefCounted {
+    : public virtual TRefCounted
+{
 public:
     virtual TError CheckError(const IResponsePtr& response) = 0;
     virtual NYTree::INodePtr GetFormattedResponse() const = 0;

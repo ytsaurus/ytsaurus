@@ -73,7 +73,6 @@ private:
     const IOAuthServicePtr OAuthService_;
     const ICypressUserManagerPtr UserManager_;
 
-private:
     TFuture<TAuthenticationResult> OnGetUserInfo(
         const TString& accessTokenMD5,
         const TOAuthUserInfoResult& userInfo)
@@ -86,7 +85,7 @@ private:
                 result.Value().Login,
                 result.Value().Realm);
         } else {
-            YT_LOG_DEBUG(result, "Authentication failed (AccessTokenMD5: %v)", accessTokenMD5);
+            YT_LOG_DEBUG(result, "Authentication via oauth failed (AccessTokenMD5: %v)", accessTokenMD5);
             result.MutableAttributes()->Set("access_token_md5", accessTokenMD5);
         }
 

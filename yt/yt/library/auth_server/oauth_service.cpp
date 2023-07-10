@@ -1,8 +1,10 @@
 #include "oauth_service.h"
 
 #include "config.h"
+#include "library/cpp/yt/logging/logger.h"
 #include "private.h"
 #include "helpers.h"
+#include "yt/yt/core/ytree/public.h"
 
 #include <yt/yt/core/http/client.h>
 #include <yt/yt/core/http/helpers.h>
@@ -70,7 +72,7 @@ private:
     static NJson::TJsonFormatConfigPtr MakeJsonFormatConfig()
     {
         auto config = New<NJson::TJsonFormatConfig>();
-        config->EncodeUtf8 = false; // Hipsters use real Utf8.
+        config->EncodeUtf8 = false; // Additional string conversion is not necessary in this case
         return config;
     }
 
@@ -106,39 +108,52 @@ private:
             THROW_ERROR(error);
         }
 
+        const auto& formattedResponose = jsonResponseChecker->GetFormattedResponse()->AsMap();
         auto userInfo = TOAuthUserInfoResult{
-            .Login = jsonResponseChecker->GetFormattedResponse()->AsMap()->FindChild(Config_->UserInfoLoginField)->AsString()->GetValue()
+            .Login = formattedResponose->GetChildValueOrThrow<TString>(Config_->UserInfoLoginField)
         };
 
-        if (!Config_->UserInfoSubjectField.empty()) {
-            userInfo.Subject = jsonResponseChecker->GetFormattedResponse()->AsMap()->FindChild(Config_->UserInfoSubjectField)->AsString()->GetValue();
+        if (Config_->UserInfoSubjectField) {
+            userInfo.Subject = formattedResponose->GetChildValueOrThrow<TString>(*Config_->UserInfoSubjectField);
         }
 
         return userInfo;
     }
 
-    TError DoCheckUserInfoResponse(const IResponsePtr& rsp, const NYTree::INodePtr& json) const
+    TError DoCheckUserInfoResponse(const IResponsePtr& rsp, const NYTree::INodePtr& rspNode) const
     {
         if (rsp->GetStatusCode() != EStatusCode::OK) {
-            return TError("OAuth call returned HTTP status code %v", static_cast<int>(rsp->GetStatusCode()));
+            auto error = TError("OAuth response has non-ok status code: %v", static_cast<int>(rsp->GetStatusCode()));
+
+            if (rspNode->GetType() == ENodeType::Map && Config_->UserInfoErrorField) {
+                auto errorNode = rspNode->AsMap()->FindChild(*Config_->UserInfoErrorField);
+                if (errorNode && errorNode->GetType() == ENodeType::String) {
+                    error = error << TError(errorNode->AsString()->GetValue());
+                }
+                YT_LOG_WARNING("OAuth response has non-ok status code, but no error message found (Status Code: %v, Error field: %v)",
+                    static_cast<int>(rsp->GetStatusCode()),
+                    *Config_->UserInfoErrorField);
+            }
+
+            return error;
         }
 
-        if (json->GetType() != ENodeType::Map) {
-            return TError("OAuth call has returned an improper result")
+         if (rspNode->GetType() != ENodeType::Map) {
+            return TError("OAuth response content has unexpected type")
                 << TErrorAttribute("expected_result_type", ENodeType::Map)
-                << TErrorAttribute("actual_result_type", json->GetType());
+                << TErrorAttribute("actual_result_type", rspNode->GetType());
         }
 
-        auto loginNode = json->AsMap()->FindChild(Config_->UserInfoLoginField);
+        auto loginNode = rspNode->AsMap()->FindChild(Config_->UserInfoLoginField);
         if (!loginNode || loginNode->GetType() != ENodeType::String) {
-            return TError("OAuth call did not return login")
+            return TError("OAuth response content has no login field")
                 << TErrorAttribute("login_field", Config_->UserInfoLoginField);
         }
 
-        if (!Config_->UserInfoSubjectField.empty()) {
-            auto subjectNode = json->AsMap()->FindChild(Config_->UserInfoSubjectField);
+        if (Config_->UserInfoSubjectField) {
+            auto subjectNode = rspNode->AsMap()->FindChild(*Config_->UserInfoSubjectField);
             if (!subjectNode || subjectNode->GetType() != ENodeType::String) {
-                return TError("OAuth call did not return subject")
+                return TError("OAuth response content has no subject field")
                     << TErrorAttribute("subject_field", Config_->UserInfoSubjectField);
             }
         }

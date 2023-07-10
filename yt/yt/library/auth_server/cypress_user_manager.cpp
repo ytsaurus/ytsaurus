@@ -3,9 +3,10 @@
 #include "auth_cache.h"
 #include "private.h"
 
+#include <yt/yt/client/api/client.h>
+
 #include <library/cpp/yt/logging/logger.h>
 
-#include <yt/yt/client/api/client.h>
 
 namespace NYT::NAuth {
 
@@ -33,9 +34,11 @@ public:
         YT_LOG_DEBUG("Creating user object (Name: %v)", name);
         NApi::TCreateObjectOptions options;
         options.IgnoreExisting = true;
+
         auto attributes = CreateEphemeralAttributes();
-            attributes->Set("name", name);
-            options.Attributes = std::move(attributes);
+        attributes->Set("name", name);
+        options.Attributes = std::move(attributes);
+
         return Client_->CreateObject(
             NObjectClient::EObjectType::User,
             options);
@@ -80,7 +83,6 @@ public:
 private:
     const ICypressUserManagerPtr CypressUserManager_;
 
-private:
     TFuture<NObjectClient::TObjectId> DoGet(
         const TString& name,
         void *const&) noexcept override

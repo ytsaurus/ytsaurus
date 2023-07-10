@@ -119,9 +119,9 @@ public:
 
         if (config->OAuthCookieAuthenticator && oauthService) {
             auto cypressUserManager = CreateCachingCypressUserManager(
-                config->OAuthCookieAuthenticator->CypressUserManagerConfig,
+                config->OAuthCookieAuthenticator->CypressUserManager,
                 CreateCypressUserManager(
-                    config->OAuthCookieAuthenticator->CypressUserManagerConfig,
+                    config->OAuthCookieAuthenticator->CypressUserManager,
                     client),
                 AuthProfiler.WithPrefix("/oauth_cookie_authenticator/cypress_user_manager/cache"));
 
