@@ -4,38 +4,12 @@
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
-#include <yt/yt/core/misc/cache_config.h>
-
-#include <yt/yt/core/dns/config.h>
-
-namespace NYT::NNet {
+namespace NYT::NDns {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDialerConfig
-    : public NYTree::TYsonStruct
-{
-public:
-    bool EnableNoDelay;
-    bool EnableAggressiveReconnect;
-
-    TDuration MinRto;
-    TDuration MaxRto;
-    double RtoScale;
-
-    REGISTER_YSON_STRUCT(TDialerConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TDialerConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Configuration for TAddressResolver singleton.
-class TAddressResolverConfig
-    : public TAsyncExpiringCacheConfig
-    , public NDns::TAresDnsResolverConfig
+class TAresDnsResolverConfig
+    : public virtual NYTree::TYsonStruct
 {
 public:
     bool EnableIPv4;
@@ -50,16 +24,22 @@ public:
     //! If set, localhost name will be forcefully set to the given value rather
     //! than retrieved via |NYT::NNet::UpdateLocalHostName|.
     std::optional<TString> LocalHostNameOverride;
+    int Retries;
+    TDuration RetryDelay;
+    TDuration ResolveTimeout;
+    TDuration MaxResolveTimeout;
+    std::optional<double> Jitter;
+    TDuration WarningTimeout;
     //! Used to check that bootstrap is being initialized from a correct container.
     std::optional<TString> ExpectedLocalHostName;
 
-    REGISTER_YSON_STRUCT(TAddressResolverConfig);
+    REGISTER_YSON_STRUCT(TAresDnsResolverConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TAddressResolverConfig)
+DEFINE_REFCOUNTED_TYPE(TAresDnsResolverConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNet
+} // namespace NYT::NDns

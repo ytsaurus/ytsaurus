@@ -938,12 +938,7 @@ public:
             /*logger*/ {},
             DnsProfiler.WithPrefix("/resolve_cache"))
     {
-        SetDnsResolver(CreateAresDnsResolver(
-            config->Retries,
-            config->ResolveTimeout,
-            config->MaxResolveTimeout,
-            config->WarningTimeout,
-            config->Jitter));
+        SetDnsResolver(CreateAresDnsResolver(config));
         Configure(std::move(config));
     }
 
