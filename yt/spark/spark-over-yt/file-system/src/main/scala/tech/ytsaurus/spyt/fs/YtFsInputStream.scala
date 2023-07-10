@@ -11,6 +11,8 @@ class YtFsInputStream(in: YtFileInputStream, statistics: FileSystem.Statistics) 
     if (getPos < pos) {
       readInt()
       seek(pos)
+    } else if (getPos > pos) {
+      throw new UnsupportedOperationException("Backward seek is not supported")
     }
   }
 
