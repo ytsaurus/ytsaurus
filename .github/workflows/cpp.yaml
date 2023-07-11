@@ -3,7 +3,7 @@ name: C++ CI
 on:
   push:
     branches:
-      - ci-kube
+      - main
       - stable/[0-9]+\.[0-9]+
 
 jobs:
@@ -119,13 +119,19 @@ jobs:
           if [[ $GITHUB_REF =~ main$ ]];
           then
             IMAGE_TAG=dev
-          else
+          elif [[ $GITHUB_REF =~ releases ]];
+          then
             IMAGE_TAG=dev-${GITHUB_REF#refs/*/stable/}
+          else
+            IMAGE_TAG=nopush
           fi
           bash ./yt/docker/ytsaurus/build.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --ytsaurus-spyt-release-path ../build/spyt_release --ytsaurus-yql-package-path ../build/yql_package --output-path ../docker-ytsaurus-build --image-tag ${IMAGE_TAG}
-          docker push ytsaurus/ytsaurus:${IMAGE_TAG}
-          docker tag ytsaurus/ytsaurus:${IMAGE_TAG} ytsaurus/ytsaurus-nightly:${IMAGE_TAG}-${GITHUB_SHA}
-          docker push ytsaurus/ytsaurus-nightly:${IMAGE_TAG}-${GITHUB_SHA}
+          if [[ $IMAGE_TAG != "nopush" ]];
+          then
+              docker push ytsaurus/ytsaurus:${IMAGE_TAG}
+              docker tag ytsaurus/ytsaurus:${IMAGE_TAG} ytsaurus/ytsaurus-nightly:${IMAGE_TAG}-${GITHUB_SHA}
+              docker push ytsaurus/ytsaurus-nightly:${IMAGE_TAG}-${GITHUB_SHA}
+          fi
           if [[ $IMAGE_TAG == 'dev' ]];
           then
             docker tag ytsaurus/ytsaurus-nightly:${IMAGE_TAG}-${GITHUB_SHA} ytsaurus/ytsaurus-nightly:latest
@@ -134,7 +140,10 @@ jobs:
 
           cd yt/docker/local
           bash ./build.sh --ytserver-all ../../../../build/yt/yt/server/all/ytserver-all --image-tag ${IMAGE_TAG}
-          docker push ytsaurus/local:${IMAGE_TAG}
+          if [[ $IMAGE_TAG != "nopush" ]];
+          then
+              docker push ytsaurus/local:${IMAGE_TAG}
+          fi
 
       - name: Docker systest
         shell: bash
