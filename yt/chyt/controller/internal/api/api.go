@@ -479,6 +479,50 @@ func (a *API) SetSpeclet(ctx context.Context, alias string, speclet map[string]a
 	return nil
 }
 
+func (a *API) SetOptions(ctx context.Context, alias string, options map[string]any) error {
+	if err := a.CheckExistence(ctx, alias, true /*shouldExist*/); err != nil {
+		return err
+	}
+	if err := a.CheckPermissionToOp(ctx, alias, yt.PermissionManage); err != nil {
+		return err
+	}
+
+	if pool, ok := options["pool"]; ok {
+		if err := a.validatePoolOption(ctx, pool); err != nil {
+			return err
+		}
+	}
+
+	var node struct {
+		Speclet  map[string]any `yson:"value"`
+		Revision yt.Revision    `yson:"revision"`
+	}
+	specletPath := a.cfg.AgentInfo.StrawberryRoot.JoinChild(alias, "speclet")
+	err := a.ytc.GetNode(ctx, specletPath.Attrs(), &node, &yt.GetNodeOptions{Attributes: []string{"revision", "value"}})
+	if err != nil {
+		return err
+	}
+
+	for key, value := range options {
+		node.Speclet[key] = value
+	}
+
+	return a.ytc.SetNode(
+		ctx,
+		specletPath,
+		node.Speclet,
+		&yt.SetNodeOptions{
+			PrerequisiteOptions: &yt.PrerequisiteOptions{
+				Revisions: []yt.PrerequisiteRevision{
+					{
+						Path:     specletPath,
+						Revision: node.Revision,
+					},
+				},
+			},
+		})
+}
+
 func (a *API) getAgentInfoForUntrackedStage() strawberry.AgentInfo {
 	agentInfo := a.cfg.AgentInfo
 	agentInfo.Stage = strawberry.UntrackedStage

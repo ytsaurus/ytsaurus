@@ -233,6 +233,7 @@ func HandleDescribe(w http.ResponseWriter, r *http.Request, clusters []string) {
 			RemoveOptionCmdDescriptor,
 			GetSpecletCmdDescriptor,
 			SetSpecletCmdDescriptor,
+			SetOptionsCmdDescriptor,
 			StartCmdDescriptor,
 			StopCmdDescriptor,
 		}})

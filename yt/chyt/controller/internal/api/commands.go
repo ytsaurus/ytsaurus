@@ -244,7 +244,7 @@ var SpecletParameter = CmdParameter{
 	Type:        TypeAny,
 	Required:    true,
 	Description: "speclet in yson format",
-	Validator:   validateSpeclet,
+	Validator:   validateSpecletOptions,
 }
 
 var SetSpecletCmdDescriptor = CmdDescriptor{
@@ -261,6 +261,34 @@ func (a HTTPAPI) HandleSetSpeclet(w http.ResponseWriter, r *http.Request) {
 	alias := params["alias"].(string)
 	speclet := params["speclet"].(map[string]any)
 	if err := a.api.SetSpeclet(r.Context(), alias, speclet); err != nil {
+		a.replyWithError(w, err)
+		return
+	}
+	a.replyOK(w, nil)
+}
+
+var OptionsParameter = CmdParameter{
+	Name:        "options",
+	Type:        TypeAny,
+	Required:    true,
+	Description: "speclet options in yson format",
+	Validator:   validateSpecletOptions,
+}
+
+var SetOptionsCmdDescriptor = CmdDescriptor{
+	Name:        "set_options",
+	Parameters:  []CmdParameter{AliasParameter, OptionsParameter},
+	Description: "set multiple speclet options",
+}
+
+func (a HTTPAPI) HandleSetOptions(w http.ResponseWriter, r *http.Request) {
+	params := a.parseAndValidateRequestParams(w, r, SetOptionsCmdDescriptor)
+	if params == nil {
+		return
+	}
+	alias := params["alias"].(string)
+	options := params["options"].(map[string]any)
+	if err := a.api.SetOptions(r.Context(), alias, options); err != nil {
 		a.replyWithError(w, err)
 		return
 	}
@@ -380,6 +408,7 @@ func RegisterHTTPAPI(cfg HTTPAPIConfig, l log.Logger) chi.Router {
 			r.Post("/"+RemoveOptionCmdDescriptor.Name, api.HandleRemoveOption)
 			r.Post("/"+GetSpecletCmdDescriptor.Name, api.HandleGetSpeclet)
 			r.Post("/"+SetSpecletCmdDescriptor.Name, api.HandleSetSpeclet)
+			r.Post("/"+SetOptionsCmdDescriptor.Name, api.HandleSetOptions)
 			r.Post("/"+StartCmdDescriptor.Name, api.HandleStart)
 			r.Post("/"+StopCmdDescriptor.Name, api.HandleStop)
 		})

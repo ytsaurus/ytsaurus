@@ -33,7 +33,7 @@ func unexpectedTypeError(typeName string) error {
 		yterrors.Attr("type", typeName))
 }
 
-func validateSpeclet(speclet any) error {
+func validateSpecletOptions(speclet any) error {
 	_, ok := speclet.(map[string]any)
 	if !ok {
 		typeName := reflect.TypeOf(speclet).String()
