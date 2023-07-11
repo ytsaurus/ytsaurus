@@ -21,7 +21,7 @@ jobs:
           yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           folder-id: b1gcvl619mdunf1cqqbv
-          image-id: fd8ddda1ka78hnn4iiel
+          image-id: fd85p4aqjlpuf14r7044
           zone-id: 'ru-central1-b'
           subnet-id: e2lno1rkqo63l729dlo7
           cores: 4

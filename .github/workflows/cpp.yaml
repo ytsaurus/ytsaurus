@@ -22,7 +22,7 @@ jobs:
           yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           folder-id: b1gcvl619mdunf1cqqbv
-          image-id: fd8ref8pd2uefi7o6kh3
+          image-id: fd85p4aqjlpuf14r7044
           zone-id: 'ru-central1-b'
           subnet-id: e2lno1rkqo63l729dlo7
           cores: 16
@@ -46,12 +46,17 @@ jobs:
       - checkout
     runs-on: ${{ needs.start-vm.outputs.label }}
     steps:
+      - name: Prepare python virtual environment
+        shell: bash
+        run: |
+          python3.11 -m venv ../venv
+
       - name: Build Go
         shell: bash
         run: |
           cd yt/chyt/controller/cmd/chyt-controller
           export HOME=${RUNNER_WORKSPACE}
-          /usr/local/go/bin/go build
+          /opt/go/bin/go build
 
       - name: Configure
         shell: bash
@@ -59,17 +64,27 @@ jobs:
           mkdir -p ../build
           cd ../build
           rm -rf *
-          cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/clang.toolchain ../ytsaurus
+          cmake \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/clang.toolchain \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            ../ytsaurus
 
       - name: Build
         shell: bash
         run: |
           cd ../build
+          export CCACHE_BASEDIR="$(realpath ..)"
+          export CCACHE_REMOTE_ONLY=true
+          export CCACHE_REMOTE_STORAGE="${{vars.CCACHE_REMOTE_STORAGE}}"
           ninja yson_lib driver_lib driver_rpc_lib ytserver-all ytserver-clickhouse ytserver-log-tailer
 
       - name: Build Python packages
         shell: bash
         run: |
+          source ../venv/bin/activate
           YTSAURUS_COMMIT_HASH=${GITHUB_SHA} bash ./yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build
 
       - name: Docker Hub login
