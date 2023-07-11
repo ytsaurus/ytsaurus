@@ -132,6 +132,7 @@ DEFINE_ENUM(EMasterReign,
     ((ChaosReplicatedQueuesAndConsumersList)                        (2409))  // cherepashka
     ((ValidateTableSettingsInTabletActions)                         (2410))  // alexelexa
     ((GetRidOfCellIndex)                                            (2411))  // kvk1920
+    ((DontForgetToCommitInSetNodeByYPath)                           (2412))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////
