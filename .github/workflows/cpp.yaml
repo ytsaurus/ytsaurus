@@ -3,7 +3,7 @@ name: C++ CI
 on:
   push:
     branches:
-      - main
+      - ci-kube
       - stable/[0-9]+\.[0-9]+
 
 jobs:
