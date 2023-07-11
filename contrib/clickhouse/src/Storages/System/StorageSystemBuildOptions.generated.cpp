@@ -55,7 +55,7 @@ const char * auto_config_build[]
     "USE_SQLITE", "",
     "USE_LIBPQXX", "",
     "USE_AZURE_BLOB_STORAGE", "",
-    "USE_AWS_S3", "",
+    "USE_AWS_S3", "1",
     "USE_CASSANDRA", "",
     "USE_YAML_CPP", "OFF",
     "USE_SENTRY", "OFF",

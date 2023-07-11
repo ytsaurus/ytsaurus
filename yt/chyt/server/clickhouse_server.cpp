@@ -45,6 +45,8 @@
 #include <Poco/Util/LayeredConfiguration.h>
 #include <Poco/Util/ServerApplication.h>
 
+#include <util/system/env.h>
+
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -280,6 +282,14 @@ private:
         YT_LOG_DEBUG("Setting chyt custom setting prefix");
 
         accessControl.setCustomSettingsPrefixes(std::vector<std::string>{"chyt_", "chyt."});
+
+        YT_LOG_DEBUG("Disabling the use of the Amazon EC2 instance metadata service");
+
+        // NB: ClickHouse uses patched version of aws-sdk-core library with custom EC2 metadata client.
+        // See https://github.com/ClickHouse/aws-sdk-cpp/blob/6e9460f1b0a9af2aa7fd712fdefcc22e2aca6f66/src/aws-cpp-sdk-core/source/internal/AWSHttpResourceClient.cpp#L400.
+        // Building CH with ordinary version of the aws library leads to nullptr dereference during EC2 metadata client usage (to get region, for example).
+        // We disable the use of the aws ec2 metadata service with this env variable to avoid patching aws library.
+        SetEnv("AWS_EC2_METADATA_DISABLED", "true");
 
         YT_LOG_INFO("Finished setting up context");
     }

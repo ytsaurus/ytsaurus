@@ -10,11 +10,11 @@
 #include <IO/WriteHelpers.h>
 #include <Interpreters/Context.h>
 
-#error #include <aws/s3/S3Client.h>
-#error #include <aws/s3/model/CreateMultipartUploadRequest.h>
-#error #include <aws/s3/model/CompleteMultipartUploadRequest.h>
-#error #include <aws/s3/model/PutObjectRequest.h>
-#error #include <aws/s3/model/UploadPartRequest.h>
+#include <aws/s3/S3Client.h>
+#include <aws/s3/model/CreateMultipartUploadRequest.h>
+#include <aws/s3/model/CompleteMultipartUploadRequest.h>
+#include <aws/s3/model/PutObjectRequest.h>
+#include <aws/s3/model/UploadPartRequest.h>
 
 #include <utility>
 

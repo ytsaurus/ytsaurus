@@ -43,11 +43,11 @@
 
 #include <DataTypes/DataTypeString.h>
 
-#error #include <aws/core/auth/AWSCredentials.h>
-#error #include <aws/s3/S3Client.h>
-#error #include <aws/s3/model/ListObjectsV2Request.h>
-#error #include <aws/s3/model/CopyObjectRequest.h>
-#error #include <aws/s3/model/DeleteObjectsRequest.h>
+#include <aws/core/auth/AWSCredentials.h>
+#include <aws/s3/S3Client.h>
+#include <aws/s3/model/ListObjectsV2Request.h>
+#include <aws/s3/model/CopyObjectRequest.h>
+#include <aws/s3/model/DeleteObjectsRequest.h>
 
 #include <Common/parseGlobs.h>
 #include <Common/quoteString.h>

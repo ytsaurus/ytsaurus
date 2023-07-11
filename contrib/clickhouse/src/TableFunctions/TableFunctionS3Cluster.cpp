@@ -12,8 +12,8 @@
 #include <Interpreters/Context.h>
 #include <Interpreters/ClientInfo.h>
 #include <TableFunctions/TableFunctionFactory.h>
-#error #include <TableFunctions/TableFunctionS3.h>
-#error #include <TableFunctions/TableFunctionS3Cluster.h>
+#include <TableFunctions/TableFunctionS3.h>
+#include <TableFunctions/TableFunctionS3Cluster.h>
 #include <Interpreters/parseColumnsListForTableFunction.h>
 #include <Access/Common/AccessFlags.h>
 #include <Parsers/ASTLiteral.h>

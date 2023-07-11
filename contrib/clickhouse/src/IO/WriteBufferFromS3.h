@@ -16,7 +16,7 @@
 #include <IO/WriteSettings.h>
 #include <Storages/StorageS3Settings.h>
 
-#error #include <aws/core/utils/memory/stl/AWSStringStream.h>
+#include <aws/core/utils/memory/stl/AWSStringStream.h>
 
 
 namespace Aws::S3

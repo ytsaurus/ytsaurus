@@ -9,25 +9,25 @@
 #    include <IO/WriteBufferFromString.h>
 #    include <Storages/StorageS3Settings.h>
 
-#    error #include <aws/core/Version.h>
-#    error #include <aws/core/auth/AWSCredentialsProvider.h>
-#    error #include <aws/core/auth/AWSCredentialsProviderChain.h>
-#    error #include <aws/core/auth/STSCredentialsProvider.h>
-#    error #include <aws/core/client/DefaultRetryStrategy.h>
-#    error #include <aws/core/client/SpecifiedRetryableErrorsRetryStrategy.h>
-#    error #include <aws/core/platform/Environment.h>
-#    error #include <aws/core/platform/OSVersionInfo.h>
-#    error #include <aws/core/utils/json/JsonSerializer.h>
-#    error #include <aws/core/utils/logging/LogMacros.h>
-#    error #include <aws/core/utils/logging/LogSystemInterface.h>
-#    error #include <aws/core/utils/HashingUtils.h>
-#    error #include <aws/core/utils/UUID.h>
-#    error #include <aws/core/http/HttpClientFactory.h>
-#    error #include <aws/s3/S3Client.h>
-#    error #include <aws/s3/model/HeadObjectRequest.h>
+#    include <aws/core/Version.h>
+#    include <aws/core/auth/AWSCredentialsProvider.h>
+#    include <aws/core/auth/AWSCredentialsProviderChain.h>
+#    include <aws/core/auth/STSCredentialsProvider.h>
+#    include <aws/core/client/DefaultRetryStrategy.h>
+#    include <aws/core/client/SpecifiedRetryableErrorsRetryStrategy.h>
+#    include <aws/core/platform/Environment.h>
+#    include <aws/core/platform/OSVersionInfo.h>
+#    include <aws/core/utils/json/JsonSerializer.h>
+#    include <aws/core/utils/logging/LogMacros.h>
+#    include <aws/core/utils/logging/LogSystemInterface.h>
+#    include <aws/core/utils/HashingUtils.h>
+#    include <aws/core/utils/UUID.h>
+#    include <aws/core/http/HttpClientFactory.h>
+#    include <aws/s3/S3Client.h>
+#    include <aws/s3/model/HeadObjectRequest.h>
 
-#    error #include <IO/S3/PocoHTTPClientFactory.h>
-#    error #include <IO/S3/PocoHTTPClient.h>
+#    include <IO/S3/PocoHTTPClientFactory.h>
+#    include <IO/S3/PocoHTTPClient.h>
 #    include <Poco/URI.h>
 #    include <re2/re2.h>
 #    include <boost/algorithm/string/case_conv.hpp>

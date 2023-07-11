@@ -6,9 +6,9 @@
 #include <IO/ReadBufferFromIStream.h>
 #include <IO/ReadBufferFromS3.h>
 
-#error #include <aws/s3/S3Client.h>
-#error #include <aws/s3/model/GetObjectRequest.h>
-#error #include <aws/s3/model/HeadObjectRequest.h>
+#include <aws/s3/S3Client.h>
+#include <aws/s3/model/GetObjectRequest.h>
+#include <aws/s3/model/HeadObjectRequest.h>
 
 #include <Common/Stopwatch.h>
 #include <Common/Throttler.h>

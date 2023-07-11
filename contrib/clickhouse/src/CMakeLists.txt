@@ -14,9 +14,13 @@ target_compile_options(contrib-clickhouse-src PUBLIC
   -DOS_LINUX
 )
 target_compile_options(contrib-clickhouse-src PRIVATE
+  -DAWS_SDK_VERSION_MAJOR=1
+  -DAWS_SDK_VERSION_MINOR=7
+  -DAWS_SDK_VERSION_PATCH=231
   -DBOOST_ASIO_HAS_STD_INVOKE_RESULT=1
   -DBOOST_ASIO_STANDALONE=1
   -DENABLE_MULTITARGET_CODE=1
+  -DENABLE_OPENSSL_ENCRYPTION
   -DHAS_RESERVED_IDENTIFIER
   -DHAS_SUGGEST_DESTRUCTOR_OVERRIDE
   -DHAS_SUGGEST_OVERRIDE
@@ -75,6 +79,8 @@ target_link_libraries(contrib-clickhouse-src PUBLIC
   clickhouse-src-Common
   clickhouse-src-Parsers
   libs-apache-avro
+  libs-aws-sdk-cpp-aws-cpp-sdk-core
+  libs-aws-sdk-cpp-aws-cpp-sdk-s3
   contrib-libs-cctz
   libs-cctz-tzdata
   contrib-libs-croaring
@@ -549,6 +555,12 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/MetadataFromDiskTransactionState.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/MetadataStorageFromDisk.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/MetadataStorageFromDiskTransactionOperations.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/S3/ProxyListConfiguration.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/S3/ProxyResolverConfiguration.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/S3/S3Capabilities.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/S3/S3ObjectStorage.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/S3/diskSettings.cpp
+  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/S3/registerDiskS3.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/StoredObject.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/Web/MetadataStorageFromStaticFilesWebServer.cpp
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Disks/ObjectStorages/Web/WebObjectStorage.cpp
@@ -1417,9 +1429,13 @@ target_compile_options(contrib-clickhouse-src.global PUBLIC
   -DOS_LINUX
 )
 target_compile_options(contrib-clickhouse-src.global PRIVATE
+  -DAWS_SDK_VERSION_MAJOR=1
+  -DAWS_SDK_VERSION_MINOR=7
+  -DAWS_SDK_VERSION_PATCH=231
   -DBOOST_ASIO_HAS_STD_INVOKE_RESULT=1
   -DBOOST_ASIO_STANDALONE=1
   -DENABLE_MULTITARGET_CODE=1
+  -DENABLE_OPENSSL_ENCRYPTION
   -DHAS_RESERVED_IDENTIFIER
   -DHAS_SUGGEST_DESTRUCTOR_OVERRIDE
   -DHAS_SUGGEST_OVERRIDE
@@ -1478,6 +1494,8 @@ target_link_libraries(contrib-clickhouse-src.global PUBLIC
   clickhouse-src-Common
   clickhouse-src-Parsers
   libs-apache-avro
+  libs-aws-sdk-cpp-aws-cpp-sdk-core
+  libs-aws-sdk-cpp-aws-cpp-sdk-s3
   contrib-libs-cctz
   libs-cctz-tzdata
   contrib-libs-croaring

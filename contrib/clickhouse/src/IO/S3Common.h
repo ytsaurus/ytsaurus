@@ -5,9 +5,9 @@
 #if USE_AWS_S3
 
 #include <base/types.h>
-#error #include <aws/core/Aws.h>
-#error #include <aws/core/client/ClientConfiguration.h>
-#error #include <IO/S3/PocoHTTPClient.h>
+#include <aws/core/Aws.h>
+#include <aws/core/client/ClientConfiguration.h>
+#include <IO/S3/PocoHTTPClient.h>
 #include <Poco/URI.h>
 
 namespace Aws::S3

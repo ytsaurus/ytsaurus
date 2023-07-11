@@ -33,9 +33,9 @@
 #include <Storages/getVirtualsForStorage.h>
 #include <Common/logger_useful.h>
 
-#error #include <aws/core/auth/AWSCredentials.h>
-#error #include <aws/s3/S3Client.h>
-#error #include <aws/s3/model/ListObjectsV2Request.h>
+#include <aws/core/auth/AWSCredentials.h>
+#include <aws/s3/S3Client.h>
+#include <aws/s3/model/ListObjectsV2Request.h>
 
 #include <ios>
 #include <memory>

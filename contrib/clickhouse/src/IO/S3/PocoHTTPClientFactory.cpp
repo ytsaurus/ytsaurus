@@ -2,13 +2,13 @@
 
 #if USE_AWS_S3
 
-#error #include "PocoHTTPClientFactory.h"
+#include "PocoHTTPClientFactory.h"
 
-#error #include <IO/S3/PocoHTTPClient.h>
-#error #include <aws/core/client/ClientConfiguration.h>
-#error #include <aws/core/http/HttpRequest.h>
-#error #include <aws/core/http/HttpResponse.h>
-#error #include <aws/core/http/standard/StandardHttpRequest.h>
+#include <IO/S3/PocoHTTPClient.h>
+#include <aws/core/client/ClientConfiguration.h>
+#include <aws/core/http/HttpRequest.h>
+#include <aws/core/http/HttpResponse.h>
+#include <aws/core/http/standard/StandardHttpRequest.h>
 
 namespace DB::S3
 {

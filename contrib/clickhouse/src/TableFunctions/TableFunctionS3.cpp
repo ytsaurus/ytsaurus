@@ -6,7 +6,7 @@
 #include <Interpreters/evaluateConstantExpression.h>
 #include <Interpreters/Context.h>
 #include <TableFunctions/TableFunctionFactory.h>
-#error #include <TableFunctions/TableFunctionS3.h>
+#include <TableFunctions/TableFunctionS3.h>
 #include <Interpreters/parseColumnsListForTableFunction.h>
 #include <Access/Common/AccessFlags.h>
 #include <Parsers/ASTLiteral.h>

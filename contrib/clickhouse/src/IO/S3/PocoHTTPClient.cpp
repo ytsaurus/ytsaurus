@@ -2,7 +2,7 @@
 
 #if USE_AWS_S3
 
-#error #include "PocoHTTPClient.h"
+#include "PocoHTTPClient.h"
 
 #include <utility>
 #include <algorithm>
@@ -14,11 +14,11 @@
 #include <IO/WriteBufferFromString.h>
 #include <IO/Operators.h>
 
-#error #include <aws/core/http/HttpRequest.h>
-#error #include <aws/core/http/HttpResponse.h>
-#error #include <aws/core/utils/xml/XmlSerializer.h>
-#error #include <aws/core/monitoring/HttpClientMetrics.h>
-#error #include <aws/core/utils/ratelimiter/RateLimiterInterface.h>
+#include <aws/core/http/HttpRequest.h>
+#include <aws/core/http/HttpResponse.h>
+#include <aws/core/utils/xml/XmlSerializer.h>
+#include <aws/core/monitoring/HttpClientMetrics.h>
+#include <aws/core/utils/ratelimiter/RateLimiterInterface.h>
 #include "Poco/StreamCopier.h"
 #include <Poco/Net/HTTPRequest.h>
 #include <Poco/Net/HTTPResponse.h>
@@ -227,9 +227,7 @@ void PocoHTTPClient::makeRequestInternal(
 
                 session->setProxy(
                     request_configuration.proxy_host,
-                    request_configuration.proxy_port,
-                    Aws::Http::SchemeMapper::ToString(request_configuration.proxy_scheme),
-                    use_tunnel
+                    request_configuration.proxy_port
                 );
             }
             else

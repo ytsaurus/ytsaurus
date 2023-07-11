@@ -14,7 +14,7 @@
 #include <IO/ReadBufferFromFileBase.h>
 #include <IO/WithFileName.h>
 
-#error #include <aws/s3/model/GetObjectResult.h>
+#include <aws/s3/model/GetObjectResult.h>
 
 namespace Aws::S3
 {

@@ -13,10 +13,14 @@ target_compile_options(clickhouse-src-Common PUBLIC
   -DOS_LINUX
 )
 target_compile_options(clickhouse-src-Common PRIVATE
+  -DAWS_SDK_VERSION_MAJOR=1
+  -DAWS_SDK_VERSION_MINOR=7
+  -DAWS_SDK_VERSION_PATCH=231
   -DBOOST_ASIO_HAS_STD_INVOKE_RESULT=1
   -DBOOST_ASIO_STANDALONE=1
   -DCARES_STATICLIB
   -DENABLE_MULTITARGET_CODE=1
+  -DENABLE_OPENSSL_ENCRYPTION
   -DHAS_RESERVED_IDENTIFIER
   -DLZ4_DISABLE_DEPRECATE_WARNINGS=1
   -DPOCO_ENABLE_CPP11
@@ -55,6 +59,8 @@ target_link_libraries(clickhouse-src-Common PUBLIC
   contrib-libs-cxxsupp
   clickhouse-base-base
   clickhouse-base-widechar_width
+  libs-aws-sdk-cpp-aws-cpp-sdk-core
+  libs-aws-sdk-cpp-aws-cpp-sdk-s3
   c-ares::c-ares
   contrib-libs-cctz
   libs-cctz-tzdata
