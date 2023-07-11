@@ -87,12 +87,12 @@ int main(int argc, char* argv[])
 
         auto sparseCounter = r.WithSparse().Counter("/sparse_count");
 
-        auto histogram = r.WithSparse().Histogram(
+        auto histogram = r.WithSparse().TimeHistogram(
             "/histogram",
             TDuration::MilliSeconds(1),
             TDuration::Seconds(1));
 
-        auto constHistogram = r.WithSparse().Histogram(
+        auto constHistogram = r.WithSparse().TimeHistogram(
             "/const_histogram",
             TDuration::MilliSeconds(1),
             TDuration::Seconds(1));

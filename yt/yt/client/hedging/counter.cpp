@@ -15,7 +15,7 @@ TCounter::TCounter(const NProfiling::TRegistry& registry)
     , ErrorRequestCount(registry.Counter("/requests_error"))
     , EffectivePenalty(registry.TimeGauge("/effective_penalty"))
     , ExternalPenalty(registry.TimeGauge("/external_penalty"))
-    , RequestDuration(registry.Histogram("/request_duration", TDuration::MilliSeconds(1), TDuration::MilliSeconds(70)))
+    , RequestDuration(registry.TimeHistogram("/request_duration", TDuration::MilliSeconds(1), TDuration::MilliSeconds(70)))
 {
 }
 

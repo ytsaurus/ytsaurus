@@ -1,0 +1,21 @@
+package NRoren.NPrivate;
+
+message TTimerKeyProto {
+    required bytes Key = 1;
+    required bytes TimerId = 2;
+    required bytes CallbackName = 3;
+};
+
+message TTimerValueProto {
+    required uint64 Timestamp = 1;
+    optional bytes UserData = 2;
+};
+
+message TTimerProto {
+    required TTimerKeyProto Key = 1;
+    required TTimerValueProto Value = 2;
+};
+
+message TTimersProto {
+    repeated TTimerProto Timers = 1;
+};

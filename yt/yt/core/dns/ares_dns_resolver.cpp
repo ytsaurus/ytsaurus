@@ -1,4 +1,6 @@
 #include "dns_resolver.h"
+
+#include "config.h"
 #include "private.h"
 
 #include <yt/yt/core/actions/future.h>
@@ -122,17 +124,8 @@ class TAresDnsResolver
     : public IDnsResolver
 {
 public:
-    TAresDnsResolver(
-        int retries,
-        TDuration resolveTimeout,
-        TDuration maxResolveTimeout,
-        TDuration warningTimeout,
-        std::optional<double> jitter)
-        : Retries_(retries)
-        , ResolveTimeout_(resolveTimeout)
-        , MaxResolveTimeout_(maxResolveTimeout)
-        , WarningTimeout_(warningTimeout)
-        , Jitter_(jitter)
+    explicit TAresDnsResolver(TAresDnsResolverConfigPtr config)
+        : Config_(std::move(config))
         , ResolverThread_(New<TResolverThread>(this))
     {
     #ifdef YT_DNS_RESOLVER_USE_EPOLL
@@ -155,25 +148,25 @@ public:
         int mask = 0;
         Options_.flags |= ARES_FLAG_STAYOPEN;
         mask |= ARES_OPT_FLAGS;
-        Options_.timeout = static_cast<int>(ResolveTimeout_.MilliSeconds());
+        Options_.timeout = static_cast<int>(Config_->ResolveTimeout.MilliSeconds());
         mask |= ARES_OPT_TIMEOUTMS;
 
         // ARES_OPT_MAXTIMEOUTMS and ARES_OPT_JITTER are options from
         // yandex privately patched (05-ttl, 07-timeouts) version of c-ares.
     #ifdef ARES_OPT_MAXTIMEOUTMS
-        Options_.maxtimeout = static_cast<int>(MaxResolveTimeout_.MilliSeconds());
+        Options_.maxtimeout = static_cast<int>(Config_->MaxResolveTimeout.MilliSeconds());
         mask |= ARES_OPT_MAXTIMEOUTMS;
     #endif
 
     #ifdef ARES_OPT_JITTER
-        if (Jitter_) {
-            Options_.jitter = llround(*Jitter_ * 1000.0);
+        if (Config_->Jitter) {
+            Options_.jitter = llround(*Config_->Jitter * 1000.0);
             Options_.jitter_rand_seed = TGuid::Create().Parts32[0];
             mask |= ARES_OPT_JITTER;
         }
     #endif
 
-        Options_.tries = Retries_;
+        Options_.tries = Config_->Retries;
         mask |= ARES_OPT_TRIES;
 
         Options_.sock_state_cb = &TAresDnsResolver::OnSocketStateChanged;
@@ -218,7 +211,7 @@ public:
                     requestId);
                 promise.TrySet(TError(NNet::EErrorCode::ResolveTimedOut, "Ares DNS resolve timed out"));
             }),
-            MaxResolveTimeout_);
+            Config_->MaxResolveTimeout);
 
         RequestCounter_.Increment();
 
@@ -252,11 +245,7 @@ public:
     }
 
 private:
-    const int Retries_;
-    const TDuration ResolveTimeout_;
-    const TDuration MaxResolveTimeout_;
-    const TDuration WarningTimeout_;
-    const std::optional<double> Jitter_;
+    const TAresDnsResolverConfigPtr Config_;
 
     const NProfiling::TProfiler Profiler_ = DnsProfiler.WithPrefix("/ares_resolver");
     const NProfiling::TCounter RequestCounter_ = Profiler_.Counter("/request_count");
@@ -489,7 +478,7 @@ private:
         auto elapsed = request->Timer.GetElapsedTime();
         RequestTimeGauge_.Update(elapsed);
 
-        if (elapsed > WarningTimeout_ || timeouts > 0) {
+        if (elapsed > Config_->WarningTimeout || timeouts > 0) {
             YT_LOG_WARNING("Ares DNS resolve took too long (RequestId: %v, HostName: %v, Timeouts: %v, Elapsed: %v)",
                 request->RequestId,
                 request->HostName,
@@ -525,19 +514,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IDnsResolverPtr CreateAresDnsResolver(
-    int retries,
-    TDuration resolveTimeout,
-    TDuration maxResolveTimeout,
-    TDuration warningTimeout,
-    std::optional<double> jitter)
+IDnsResolverPtr CreateAresDnsResolver(TAresDnsResolverConfigPtr config)
 {
-    return New<TAresDnsResolver>(
-        retries,
-        resolveTimeout,
-        maxResolveTimeout,
-        warningTimeout,
-        jitter);
+    return New<TAresDnsResolver>(std::move(config));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

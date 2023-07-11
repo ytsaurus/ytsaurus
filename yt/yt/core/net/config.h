@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/misc/cache_config.h>
 
+#include <yt/yt/core/dns/config.h>
+
 namespace NYT::NNet {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -33,6 +35,7 @@ DEFINE_REFCOUNTED_TYPE(TDialerConfig)
 //! Configuration for TAddressResolver singleton.
 class TAddressResolverConfig
     : public TAsyncExpiringCacheConfig
+    , public NDns::TAresDnsResolverConfig
 {
 public:
     bool EnableIPv4;
@@ -47,12 +50,6 @@ public:
     //! If set, localhost name will be forcefully set to the given value rather
     //! than retrieved via |NYT::NNet::UpdateLocalHostName|.
     std::optional<TString> LocalHostNameOverride;
-    int Retries;
-    TDuration RetryDelay;
-    TDuration ResolveTimeout;
-    TDuration MaxResolveTimeout;
-    double Jitter;
-    TDuration WarningTimeout;
     //! Used to check that bootstrap is being initialized from a correct container.
     std::optional<TString> ExpectedLocalHostName;
 

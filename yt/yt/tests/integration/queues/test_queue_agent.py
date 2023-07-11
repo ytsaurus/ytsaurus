@@ -262,10 +262,19 @@ class TestQueueAgentBase(YTEnvSetup):
 
         instances = ls(cls.root_path + "/instances")
 
+        cypress_config_base = {
+            "queue_agent": {
+                "controller": {
+                    "trimming_period": YsonEntity(),
+                }
+            }
+        }
+
         def config_updated_on_all_instances():
             for instance in instances:
                 effective_config = get(
                     "{}/instances/{}/orchid/dynamic_config_manager/effective_config".format(cls.root_path, instance))
+                effective_config = update(cypress_config_base, effective_config)
                 if update(effective_config, config) != effective_config:
                     return False
             return True
@@ -1471,7 +1480,7 @@ class TestAutomaticTrimming(TestQueueAgentBase):
             "queue_agent": {
                 "controller": {
                     "enable_automatic_trimming": True,
-                    "trimming_iteration_frequency": 1000000,
+                    "trimming_period": 999999,
                 }
             }
         })
@@ -1482,7 +1491,7 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         self._apply_dynamic_config_patch({
             "queue_agent": {
                 "controller": {
-                    "trimming_iteration_frequency": 1,
+                    "trimming_period": YsonEntity(),
                 }
             }
         })

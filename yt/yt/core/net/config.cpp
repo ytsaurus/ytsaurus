@@ -38,18 +38,6 @@ void TAddressResolverConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("resolve_hostname_into_fqdn", &TThis::ResolveHostNameIntoFqdn)
         .Default(true);
-    registrar.Parameter("retries", &TThis::Retries)
-        .Default(25);
-    registrar.Parameter("retry_delay", &TThis::RetryDelay)
-        .Default(TDuration::MilliSeconds(200));
-    registrar.Parameter("resolve_timeout", &TThis::ResolveTimeout)
-        .Default(TDuration::Seconds(1));
-    registrar.Parameter("max_resolve_timeout", &TThis::MaxResolveTimeout)
-        .Default(TDuration::Seconds(15));
-    registrar.Parameter("warning_timeout", &TThis::WarningTimeout)
-        .Default(TDuration::Seconds(3));
-    registrar.Parameter("jitter", &TThis::Jitter)
-        .Default(0.5);
     registrar.Parameter("expected_localhost_name", &TThis::ExpectedLocalHostName)
         .Default();
 

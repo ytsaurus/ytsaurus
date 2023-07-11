@@ -105,7 +105,7 @@ std::vector<double> GenerateGenericBucketBounds();
 
 class THistogram
     : public ISummaryImplBase<TDuration>
-    , public IGaugeHistogramImpl
+    , public IHistogramImpl
 {
 public:
     THistogram(const TSensorOptions& options);

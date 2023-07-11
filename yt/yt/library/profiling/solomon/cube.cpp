@@ -453,7 +453,7 @@ int TCube<T>::ReadSensors(
                     value.Last().SecondsFloat(),
                     static_cast<ui64>(value.Count()));
             });
-        } else if constexpr (std::is_same_v<T, THistogramSnapshot>) {
+        } else if constexpr (std::is_same_v<T, TTimeHistogramSnapshot>) {
             consumer->OnMetricBegin(NMonitoring::EMetricType::HIST);
 
             writeLabels(tagIds, nameLabel, true);
@@ -473,7 +473,7 @@ int TCube<T>::ReadSensors(
                         (*hist)[i] = {value.Bounds[i], bucketValue / options.RateDenominator};
                     }
 
-                    // add inf
+                    // Add inf.
                     (*hist)[n] = {Max<NMonitoring::TBucketBound>(), n < value.Values.size() ? (value.Values[n] / options.RateDenominator) : 0u};
                 } else {
                     auto rollup = Rollup(*window, indices.back());
@@ -483,7 +483,7 @@ int TCube<T>::ReadSensors(
                         (*hist)[i] = {rollup.Bounds[i], bucketValue};
                     }
 
-                    // add inf
+                    // Add inf.
                     (*hist)[n] = {Max<NMonitoring::TBucketBound>(), n < rollup.Values.size() ? (rollup.Values[n]) : 0u};
                 }
 
@@ -507,8 +507,35 @@ int TCube<T>::ReadSensors(
                     (*hist)[i] = {value.Bounds[i], bucketValue};
                 }
 
-                // add inf
+                // Add inf.
                 (*hist)[n] = {Max<NMonitoring::TBucketBound>(), n < value.Values.size() ? value.Values[n] : 0u};
+
+                sensorCount = n + 1;
+
+                consumer->OnHistogram(time, hist);
+            });
+
+            consumer->OnMetricEnd();
+        } else if constexpr (std::is_same_v<T, TRateHistogramSnapshot>) {
+            consumer->OnMetricBegin(NMonitoring::EMetricType::HIST);
+
+            writeLabels(tagIds, nameLabel, true);
+
+            rangeValues([&] (auto value, auto time, const auto& /*indices*/) {
+                size_t n = value.Bounds.size();
+                auto hist = NMonitoring::TExplicitHistogramSnapshot::New(n + 1);
+
+                if (options.RateDenominator < 0.1) {
+                    THROW_ERROR_EXCEPTION("Invalid rate denominator");
+                }
+
+                for (size_t i = 0; i < n; ++i) {
+                    int bucketValue = i < value.Values.size() ? value.Values[i] : 0u;
+                    (*hist)[i] = {value.Bounds[i], bucketValue / options.RateDenominator};
+                }
+
+                // Add inf.
+                (*hist)[n] = {Max<NMonitoring::TBucketBound>(), n < value.Values.size() ? (value.Values[n] / options.RateDenominator) : 0u};
 
                 sensorCount = n + 1;
 
@@ -587,7 +614,7 @@ int TCube<T>::ReadSensorValues(
                     .EndMap();
             }
             ++valuesRead;
-        } else if constexpr (std::is_same_v<T, THistogramSnapshot> || std::is_same_v<T, TGaugeHistogramSnapshot>) {
+        } else if constexpr (std::is_same_v<T, TTimeHistogramSnapshot> || std::is_same_v<T, TGaugeHistogramSnapshot> || std::is_same_v<T, TRateHistogramSnapshot>) {
             std::vector<std::pair<double, int>> hist;
             size_t n = value.Bounds.size();
             hist.reserve(n + 1);
@@ -669,10 +696,12 @@ void TCube<T>::DumpCube(NProto::TCube *cube) const
             ToProto(projection->mutable_summary(), window.Values[Index_]);
         } else if constexpr (std::is_same_v<T, TSummarySnapshot<TDuration>>) {
             ToProto(projection->mutable_timer(), window.Values[Index_]);
-        } else if constexpr (std::is_same_v<T, THistogramSnapshot>) {
-            ToProto(projection->mutable_histogram(), window.Values[Index_]);
+        } else if constexpr (std::is_same_v<T, TTimeHistogramSnapshot>) {
+            ToProto(projection->mutable_time_histogram(), window.Values[Index_]);
         } else if constexpr (std::is_same_v<T, TGaugeHistogramSnapshot>) {
             ToProto(projection->mutable_gauge_histogram(), window.Values[Index_]);
+        } else if constexpr (std::is_same_v<T, TRateHistogramSnapshot>) {
+            ToProto(projection->mutable_rate_histogram(), window.Values[Index_]);
         } else {
             THROW_ERROR_EXCEPTION("Unexpected cube type");
         }
@@ -686,8 +715,9 @@ template class TCube<i64>;
 template class TCube<TDuration>;
 template class TCube<TSummarySnapshot<double>>;
 template class TCube<TSummarySnapshot<TDuration>>;
-template class TCube<THistogramSnapshot>;
+template class TCube<TTimeHistogramSnapshot>;
 template class TCube<TGaugeHistogramSnapshot>;
+template class TCube<TRateHistogramSnapshot>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

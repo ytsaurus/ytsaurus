@@ -56,12 +56,12 @@ void TQueueAgentConfig::Register(TRegistrar registrar)
 void TQueueControllerDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("pass_period", &TThis::PassPeriod)
-        .Default(TDuration::Seconds(1));
+        .Default(TDuration::Seconds(1))
+        .GreaterThan(TDuration::Zero());
     registrar.Parameter("enable_automatic_trimming", &TThis::EnableAutomaticTrimming)
         .Default(false);
-    registrar.Parameter("trimming_iteration_frequency", &TThis::TrimmingIterationFrequency)
-        .Default(1)
-        .GreaterThan(0);
+    registrar.Parameter("trimming_period", &TThis::TrimmingPeriod)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

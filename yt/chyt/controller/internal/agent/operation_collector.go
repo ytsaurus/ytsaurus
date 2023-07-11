@@ -54,6 +54,10 @@ func CollectOperations(
 					}
 
 					opIDs := make([]string, len(runningOps))
+					for i, op := range runningOps {
+						opIDs[i] = op.ID.String()
+					}
+
 					l.Info("collected running operations",
 						log.Strings("operation_ids", opIDs),
 						log.Duration("elapsed_time", time.Since(startedAt)),

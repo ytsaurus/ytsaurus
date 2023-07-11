@@ -20,6 +20,7 @@ target_link_libraries(cpp-roren-interface PUBLIC
   yutil
   tools-enum_parser-enum_serialization_runtime
   cpp-yson-node
+  roren-library-timers
 )
 target_sources(cpp-roren-interface PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/attributes.cpp
@@ -37,6 +38,7 @@ target_sources(cpp-roren-interface PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/raw_pipeline.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/row_vtable.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/stateful_par_do.cpp
+  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/stateful_timer_par_do.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/par_do_tree.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/fns.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/input.cpp

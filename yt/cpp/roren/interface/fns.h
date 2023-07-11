@@ -5,9 +5,12 @@
 #include "input.h"
 #include "output.h"
 #include "row.h"
+#include "timers.h"
 #include "private/fwd.h"
 #include "private/concepts.h" // IWYU pragma: keep  (clangd bug, required for concepts)
 #include "private/raw_state_store.h"
+#include <yt/cpp/roren/library/timers/timers.h>
+#include "timers.h"
 
 #include <util/generic/function.h>
 
@@ -193,13 +196,15 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename TInputRow_, typename TOutputRow_, typename TState_>
+template <class TInputRow_, class TOutputRow_, class TState_>
 class IStatefulDoFn
     : public IFnBase
 {
 public:
     static_assert(NTraits::TIsTKV<TInputRow_>::value);
     using TInputRow = TInputRow_;
+    using TKey = typename TInputRow::TKey;
+    using TValue = typename TInputRow::TValue;
     using TOutputRow = TOutputRow_;
     using TState = TState_;
 
@@ -284,4 +289,50 @@ concept CCombineFnPtr = NPrivate::CIntrusivePtr<TFn> && requires (TFn t) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TInputRow_, class TOutputRow_, class TState_>
+class IStatefulTimerDoFn
+    : public IStatefulDoFn<TInputRow_, TOutputRow_, TState_>
+{
+    public:
+        using TInputRow = typename IStatefulDoFn<TInputRow_, TOutputRow_, TState_>::TInputRow;
+        using TKey = typename IStatefulDoFn<TInputRow_, TOutputRow_, TState_>::TKey;
+        using TValue = typename IStatefulDoFn<TInputRow_, TOutputRow_, TState_>::TValue;
+        using TOutputRow = typename IStatefulDoFn<TInputRow_, TOutputRow_, TState_>::TOutputRow;
+        using TState = typename IStatefulDoFn<TInputRow_, TOutputRow_, TState_>::TState;
+        using IFnBase::GetExecutionContext;
+
+        explicit IStatefulTimerDoFn(TString fnId)
+            : FnId_(std::move(fnId))
+        {
+        }
+
+        const TString& GetFnId() const noexcept
+        {
+            return FnId_;
+        };
+
+    protected:
+        void SetTimer(const TKey& key, const TTimer::TTimerId& timerId, TInstant deadline, const TTimer::EMergePolicy policy)
+        {
+            TTimer::TRawKey serializedKey;
+            TStringOutput keyStream(serializedKey);
+            TCoder<TKey> coder;
+            coder.Encode(&keyStream, key);
+            SetTimer(
+                TTimer{serializedKey, timerId, GetFnId(), static_cast<TTimer::TTimestamp>(deadline.TimeT()), {}},
+                policy
+            );
+        }
+
+        void SetTimer(const TTimer& timer, const TTimer::EMergePolicy policy)
+        {
+            GetExecutionContext()->SetTimer(timer, policy);
+        }
+
+        virtual void OnTimer(const TKey& key, TOutput<TOutputRow>& output, TState& state, const TTimerContext& timerContext) = 0;
+
+        TString FnId_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
 } // namespace NRoren

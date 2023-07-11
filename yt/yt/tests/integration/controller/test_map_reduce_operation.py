@@ -1,7 +1,7 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import NODES_SERVICE, Restarter, YTEnvSetup
 
 from yt_commands import (
-    authors, print_debug, wait, release_breakpoint, wait_breakpoint, with_breakpoint, events_on_fs, create,
+    authors, print_debug, wait, release_breakpoint, wait_breakpoint, with_breakpoint, events_on_fs, create, create_tmpdir,
     ls, get, sorted_dicts,
     set, remove, exists, create_user, make_ace, start_transaction, commit_transaction, write_file, read_table,
     write_table, map, reduce, map_reduce, sort, alter_table,
@@ -21,6 +21,7 @@ import pytest
 from collections import defaultdict
 from random import shuffle
 import datetime
+import os
 
 from flaky import flaky
 
@@ -753,7 +754,7 @@ print "x={0}\ty={1}".format(x, y)
             {"a_new": 43, "b": "43", "c_new": False},
         ]
 
-    def _ban_nodes_with_intermediate_chunks(self):
+    def _find_intermediate_chunks(self):
         # Figure out the intermediate chunk
         chunks = ls("//sys/chunks", attributes=["staging_transaction_id"])
         intermediate_chunk_ids = []
@@ -766,7 +767,10 @@ print "x={0}\ty={1}".format(x, y)
                 except YtError:
                     # Transaction may vanish
                     pass
+        return intermediate_chunk_ids
 
+    def _ban_nodes_with_intermediate_chunks(self):
+        intermediate_chunk_ids = self._find_intermediate_chunks()
         assert len(intermediate_chunk_ids) == 1
         intermediate_chunk_id = intermediate_chunk_ids[0]
 
@@ -3063,6 +3067,95 @@ done
             {"b": "b one"},
             {"b": "b two"},
         ]
+
+    def _remove_intermediate_chunks(self, ratio):
+        intermediate_chunk_ids = self._find_intermediate_chunks()
+        shuffle(intermediate_chunk_ids)
+
+        removed_chunk_count = 0
+        for chunk_id in intermediate_chunk_ids:
+            removed = False
+
+            for node in range(self.NUM_NODES):
+                chunk_store_path = self.Env.configs["node"][node]["data_node"]["store_locations"][0]["path"]
+                chunk_path = os.path.join(chunk_store_path, chunk_id[-2:], chunk_id)
+                try:
+                    os.remove(chunk_path)
+                    os.remove(chunk_path + ".meta")
+                    print_debug(f"removed chunk {chunk_id} from node {node} at {chunk_path}")
+                    removed = True
+                except FileNotFoundError:
+                    pass
+
+            if removed:
+                removed_chunk_count += 1
+
+            if removed_chunk_count >= ratio * len(intermediate_chunk_ids):
+                break
+
+        return removed_chunk_count
+
+    @authors("galtsev")
+    @pytest.mark.timeout(600)
+    def test_lost_chunks(self):
+        jobs_dir = create_tmpdir("jobs")
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [{"x": x, "y": 1} for x in range(30)])
+
+        job_io = {"table_writer": {"desired_chunk_size": 1}}
+
+        op = map_reduce(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            reduce_by="x",
+            sort_by="x",
+            spec={
+                "data_size_per_map_job": 1,
+                "data_size_per_sort_job": 1,
+                "data_size_per_partition_job": 1,
+                "data_size_per_sorted_merge_job": 1,
+                "data_size_per_reduce_job": 1,
+                "map_job_io": job_io,
+                "sort_job_io": job_io,
+                "reduce_job_io": job_io,
+                "try_avoid_duplicating_jobs": True,
+            },
+            mapper_command=f"""
+                date '+%Y-%m-%d %H:%M:%S,%N' | cut -c-26 >> {jobs_dir}/job.$YT_JOB_ID;
+                echo mapper >> {jobs_dir}/job.$YT_JOB_ID;
+                cat;
+                date '+%Y-%m-%d %H:%M:%S,%N' | cut -c-26 >> {jobs_dir}/job.$YT_JOB_ID
+            """,
+            reduce_combiner_command=f"""
+                date '+%Y-%m-%d %H:%M:%S,%N' | cut -c-26 >> {jobs_dir}/job.$YT_JOB_ID;
+                echo reduce_combiner >> {jobs_dir}/job.$YT_JOB_ID;
+                cat;
+                date '+%Y-%m-%d %H:%M:%S,%N' | cut -c-26 >> {jobs_dir}/job.$YT_JOB_ID
+            """,
+            reducer_command=with_breakpoint(f"""
+                BREAKPOINT;
+                date '+%Y-%m-%d %H:%M:%S,%N' | cut -c-26 >> {jobs_dir}/job.$YT_JOB_ID;
+                echo reducer >> {jobs_dir}/job.$YT_JOB_ID;
+                cat;
+                date '+%Y-%m-%d %H:%M:%S,%N' | cut -c-26 >> {jobs_dir}/job.$YT_JOB_ID
+            """),
+            track=False,
+        )
+
+        wait_breakpoint()
+
+        removed_chunk_count = self._remove_intermediate_chunks(0.5)
+        assert removed_chunk_count > 10
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+
+        release_breakpoint()
+        op.track()
+
+        assert get("//tmp/t_in/@row_count") == get("//tmp/t_out/@row_count")
 
 
 ##################################################################

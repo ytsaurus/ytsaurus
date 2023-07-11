@@ -2,6 +2,7 @@ package tech.ytsaurus.spyt.format
 
 import org.apache.spark.sql.Row
 import org.scalatest.{FlatSpec, Matchers}
+import tech.ytsaurus.spyt.YtReader
 import tech.ytsaurus.spyt.test.{LocalSpark, TestUtils, TmpDir}
 import tech.ytsaurus.spyt.wrapper.YtWrapper
 
@@ -30,6 +31,13 @@ class YtFilesTest extends FlatSpec with Matchers with LocalSpark with TmpDir wit
       YtWrapper.downloadFile(s"$tmpPath/$name", localPath)
     }
     spark.read.parquet(s"file://$tmpLocalDir").as[Int].collect() should contain theSameElementsAs Seq(1, 2, 3)
+  }
+
+  // Ignored while YtFsInputStream's backward `seek` method is not implemented
+  it should "read parquet files from yt" ignore {
+    Seq(1, 2, 3).toDF.write.parquet(s"yt:/$tmpPath")
+
+    spark.read.parquet(s"yt:/$tmpPath").as[Int].collect() should contain theSameElementsAs Seq(1, 2, 3)
   }
 
   it should "read csv" in {

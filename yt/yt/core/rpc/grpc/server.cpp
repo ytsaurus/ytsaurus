@@ -647,12 +647,14 @@ private:
             auto sessionIdString = CallMetadata_.Find(AuthSessionIdMetadataKey);
             auto sslSessionIdString = CallMetadata_.Find(AuthSslSessionIdMetadataKey);
             auto userTicketString = CallMetadata_.Find(AuthUserTicketMetadataKey);
+            auto serviceTicketString = CallMetadata_.Find(AuthServiceTicketMetadataKey);
 
             if (!tokenString &&
                 !legacyTokenString &&
                 !sessionIdString &&
                 !sslSessionIdString &&
-                !userTicketString)
+                !userTicketString &&
+                !serviceTicketString)
             {
                 return;
             }
@@ -673,6 +675,9 @@ private:
             }
             if (userTicketString) {
                 RpcCredentialsExt_->set_user_ticket(TString(userTicketString));
+            }
+            if (serviceTicketString) {
+                RpcCredentialsExt_->set_service_ticket(TString(serviceTicketString));
             }
         }
 

@@ -310,6 +310,9 @@ private:
                 if (credentialsExt.has_user_ticket()) {
                     InitialMetadataBuilder_.Add(AuthUserTicketMetadataKey, credentialsExt.user_ticket());
                 }
+                if (credentialsExt.has_service_ticket()) {
+                    InitialMetadataBuilder_.Add(AuthServiceTicketMetadataKey, credentialsExt.service_ticket());
+                }
             }
 
             if (const auto traceContext = NTracing::TryGetCurrentTraceContext()) {

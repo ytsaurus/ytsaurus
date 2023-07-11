@@ -80,13 +80,20 @@ lazy val `cluster` = (project in file("spark-cluster"))
       makeLinkToBuildDirectory(assemblyFile, rootDirectory, assemblyFile.getName)
       val versionValue = (ThisBuild / spytClusterVersion).value
       val baseConfigDir = (Compile / resourceDirectory).value
-      val sidecarConfigsFiles = spyt.ClusterConfig.sidecarConfigs(baseConfigDir)
-      val launchConfigYson = spyt.ClusterConfig.launchConfig(versionValue, sidecarConfigsFiles)
-      val globalConfigYsons = spyt.ClusterConfig.globalConfig(streams.value.log, versionValue, baseConfigDir)
+      val sidecarConfigsFiles = if (innerSidecarConfigEnabled) {
+        spyt.ClusterConfig.innerSidecarConfigs(baseConfigDir)
+      } else {
+        spyt.ClusterConfig.sidecarConfigs(baseConfigDir)
+      }
       copySidecarConfigsToBuildDirectory(rootDirectory, sidecarConfigsFiles)
-      dumpYsonToConfBuildDirectory(launchConfigYson, rootDirectory, "spark-launch-conf")
-      globalConfigYsons.foreach {
-        case (proxy, config) => dumpYsonToConfBuildDirectory(config, rootDirectory, s"global-$proxy")
+      val logger = streams.value.log
+      if (configGenerationEnabled) {
+        val launchConfigYson = spyt.ClusterConfig.launchConfig(versionValue, sidecarConfigsFiles)
+        dumpYsonToConfBuildDirectory(launchConfigYson, rootDirectory, "spark-launch-conf")
+        val globalConfigYsons = spyt.ClusterConfig.globalConfig(logger, versionValue, baseConfigDir)
+        globalConfigYsons.foreach {
+          case (proxy, config) => dumpYsonToConfBuildDirectory(config, rootDirectory, s"global-$proxy")
+        }
       }
     },
     publishYtArtifacts ++= {

@@ -141,7 +141,8 @@ private:
                     // This is the check that determines if the resolve loop is complete.
                     auto currentResolvedPath = resolvedPrefix + pathResolveResult.UnresolvedPathSuffix;
                     if (previousResolvedPath == currentResolvedPath) {
-                        return true;
+                        // One final check that yet non-existing path that is being created does not match the target path.
+                        return currentResolvedPath != forbiddenPrefix;
                     }
 
                     previousResolvedPath = currentResolvedPath;

@@ -8,4 +8,5 @@
 
 add_subdirectory(examples)
 add_subdirectory(interface)
+add_subdirectory(library)
 add_subdirectory(yt)

@@ -83,6 +83,9 @@ void TSolomonExporterConfig::Register(TRegistrar registrar)
     registrar.Parameter("mark_aggregates", &TThis::MarkAggregates)
         .Default(true);
 
+    registrar.Parameter("strip_sensors_name_prefix", &TThis::StripSensorsNamePrefix)
+        .Default(false);
+
     registrar.Parameter("enable_self_profiling", &TThis::EnableSelfProfiling)
         .Default(true);
 

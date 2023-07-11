@@ -3,7 +3,8 @@ name: C++ CI
 on:
   push:
     branches:
-      - ci-kube
+      - main
+      - stable/[0-9]+\.[0-9]+
 
 jobs:
   start-vm:
@@ -50,18 +51,12 @@ jobs:
         run: |
           python3.11 -m venv ../venv
 
-      - name: Download benchmarks
-        uses: robinraju/release-downloader@v1.8
-        with:
-          latest: true
-          fileName: "benchmark-0.0.1.tgz"
-
-#      - name: Build Go
-#        shell: bash
-#        run: |
-#          cd yt/chyt/controller/cmd/chyt-controller
-#          export HOME=${RUNNER_WORKSPACE}
-#          /opt/go/bin/go build
+      - name: Build Go
+        shell: bash
+        run: |
+          cd yt/chyt/controller/cmd/chyt-controller
+          export HOME=${RUNNER_WORKSPACE}
+          /opt/go/bin/go build
 
       - name: Configure
         shell: bash
@@ -97,39 +92,49 @@ jobs:
         run: |
           echo '${{ secrets.DOCKER_HUB_PASSWORD }}' | docker login --username ${{ secrets.DOCKER_HUB_LOGIN }} --password-stdin
 
-#      - name: Download SPYT
-#        uses: robinraju/release-downloader@v1.8
-#        with:
-#          latest: true
-#          fileName: "spyt-1.69.tar"
-#
-#      - name: Download YQL
-#        uses: robinraju/release-downloader@v1.8
-#        with:
-#          latest: true
-#          fileName: "yql-package.tar"
-#
-#      - name: Docker ytsaurus
-#        shell: bash
-#        run: |
-#          tar -xf spyt-1.69.tar -C ../build
-#          tar -xf yql-package.tar -C ../build
-#          mkdir -p ../docker-ytsaurus-build
-#          if [[ $GITHUB_REF =~ main$ ]];
-#          then
-#            IMAGE_TAG=dev
-#          else
-#            IMAGE_TAG=dev-${GITHUB_REF#refs/*/stable/}
-#          fi
-#          bash ./yt/docker/ytsaurus/build.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --ytsaurus-spyt-release-path ../build/spyt_release --ytsaurus-yql-package-path ../build/yql_package --output-path ../docker-ytsaurus-build --image-tag ${IMAGE_TAG}
-#          docker push ytsaurus/ytsaurus:${IMAGE_TAG}
-#          docker tag ytsaurus/ytsaurus:${IMAGE_TAG} ytsaurus/ytsaurus-nightly:${IMAGE_TAG}-${GITHUB_SHA}
-#          docker push ytsaurus/ytsaurus-nightly:${IMAGE_TAG}-${GITHUB_SHA}
-#          if [[ $IMAGE_TAG == 'dev' ]];
-#          then
-#            docker tag ytsaurus/ytsaurus-nightly:${IMAGE_TAG}-${GITHUB_SHA} ytsaurus/ytsaurus-nightly:latest
-#            docker push ytsaurus/ytsaurus-nightly:latest
-#          fi
+      - name: Download SPYT
+        uses: robinraju/release-downloader@v1.8
+        with:
+          latest: true
+          fileName: "spyt-1.69.tar"
+
+      - name: Download YQL
+        uses: robinraju/release-downloader@v1.8
+        with:
+          latest: true
+          fileName: "yql-package.tar"
+
+      - name: Download benchmarks
+        uses: robinraju/release-downloader@v1.8
+        with:
+          latest: true
+          fileName: "benchmark-0.0.1.tgz"
+
+      - name: Docker ytsaurus
+        shell: bash
+        run: |
+          tar -xf spyt-1.69.tar -C ../build
+          tar -xf yql-package.tar -C ../build
+          mkdir -p ../docker-ytsaurus-build
+          if [[ $GITHUB_REF =~ main$ ]];
+          then
+            IMAGE_TAG=dev
+          else
+            IMAGE_TAG=dev-${GITHUB_REF#refs/*/stable/}
+          fi
+          bash ./yt/docker/ytsaurus/build.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --ytsaurus-spyt-release-path ../build/spyt_release --ytsaurus-yql-package-path ../build/yql_package --output-path ../docker-ytsaurus-build --image-tag ${IMAGE_TAG}
+          docker push ytsaurus/ytsaurus:${IMAGE_TAG}
+          docker tag ytsaurus/ytsaurus:${IMAGE_TAG} ytsaurus/ytsaurus-nightly:${IMAGE_TAG}-${GITHUB_SHA}
+          docker push ytsaurus/ytsaurus-nightly:${IMAGE_TAG}-${GITHUB_SHA}
+          if [[ $IMAGE_TAG == 'dev' ]];
+          then
+            docker tag ytsaurus/ytsaurus-nightly:${IMAGE_TAG}-${GITHUB_SHA} ytsaurus/ytsaurus-nightly:latest
+            docker push ytsaurus/ytsaurus-nightly:latest
+          fi
+
+          cd yt/docker/local
+          bash ./build.sh --ytserver-all ../../../../build/yt/yt/server/all/ytserver-all --image-tag ${IMAGE_TAG}
+          docker push ytsaurus/local:${IMAGE_TAG}
 
       - name: Docker systest
         shell: bash
@@ -138,39 +143,39 @@ jobs:
           bash ./yt/docker/systest/build.sh --ytsaurus-source-path $(pwd)  --ytsaurus-build-path ../build --benchmarks-path benchmark-0.0.1.tgz --output-path ../docker-systest-build --image-tag latest
           docker push ytsaurus/ytsaurus-systest:latest
 
-#      - name: Kube
-#        shell: bash
-#        run: |
-#          export HOME=/root
-#          bash yt/systest/scripts/minikube.sh --image ytsaurus/ytsaurus-nightly:latest --ytsaurus-source-path $(pwd)
-#
-#      - name: Unittests
-#        shell: bash
-#        run: |
-#          cp ./yt/yt/scripts/run_unittests.sh ../build/
-#          cd ../build
-#          ./run_unittests.sh
-#
-#      - name: Prepare pytest environment
-#        shell: bash
-#        run: |
-#          yt/yt/scripts/prepare_pytest_environment.sh
-#
-#      - name: Integration tests
-#        shell: bash
-#        run: |
-#          yt/yt/scripts/run_integration_tests.sh
-#
-#      - name: Python tests
-#        shell: bash
-#        run: |
-#          yt/yt/scripts/run_python_tests.sh
-#
-#      - name: Testmo unittests upload
-#        shell: bash
-#        run: |
-#          export TESTMO_TOKEN="${{ secrets.NEBIUS_TESTMO_TOKEN }}"
-#          testmo automation:run:submit --instance https://nebius.testmo.net --project-id 4 --name "Run ${{ github.run_id }}" --source "unittests" --results "../build/junit-*.xml"
+      - name: Kube
+        shell: bash
+        run: |
+          export HOME=/root
+          bash yt/systest/scripts/minikube.sh --image ytsaurus/ytsaurus-nightly:latest --ytsaurus-source-path $(pwd)
+
+      - name: Unittests
+        shell: bash
+        run: |
+          cp ./yt/yt/scripts/run_unittests.sh ../build/
+          cd ../build
+          ./run_unittests.sh
+
+      - name: Prepare pytest environment
+        shell: bash
+        run: |
+          yt/yt/scripts/prepare_pytest_environment.sh
+
+      - name: Integration tests
+        shell: bash
+        run: |
+          yt/yt/scripts/run_integration_tests.sh
+
+      - name: Python tests
+        shell: bash
+        run: |
+          yt/yt/scripts/run_python_tests.sh
+
+      - name: Testmo unittests upload
+        shell: bash
+        run: |
+          export TESTMO_TOKEN="${{ secrets.NEBIUS_TESTMO_TOKEN }}"
+          testmo automation:run:submit --instance https://nebius.testmo.net --project-id 4 --name "Run ${{ github.run_id }}" --source "unittests" --results "../build/junit-*.xml"
 
 
   stop-vm:
@@ -189,3 +194,26 @@ jobs:
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           label: ${{ needs.start-vm.outputs.label }}
           instance-id: ${{ needs.start-vm.outputs.instance-id }}
+
+  send-notifications:
+    name: Send notifications
+    needs:
+      - stop-vm
+    runs-on: trampoline
+    if: ${{ failure() }}
+    steps:
+      - name: Send telegram message
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          disable_web_page_preview: true
+          format: markdown
+          message: |
+            Workflow *${{github.workflow}}* failed: ${{github.server_url}}/${{github.repository}}/actions/runs/${{github.run_id}}.
+            Git ${{github.ref_type}}: *${{github.ref_name}}*.
+            Commit:
+            ```
+            ${{github.event.head_commit.message}}
+            ```
+

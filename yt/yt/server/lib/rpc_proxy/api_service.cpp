@@ -346,11 +346,11 @@ class TDetailedProfilingCounters
 public:
     explicit TDetailedProfilingCounters(TProfiler profiler)
         : Profiler_(std::move(profiler))
-        , LookupDuration_(Profiler_.Histogram(
+        , LookupDuration_(Profiler_.TimeHistogram(
             "/lookup_duration",
             TDuration::MicroSeconds(1),
             TDuration::Seconds(10)))
-        , SelectDuration_(Profiler_.Histogram(
+        , SelectDuration_(Profiler_.TimeHistogram(
             "/select_duration",
             TDuration::MicroSeconds(1),
             TDuration::Seconds(10)))

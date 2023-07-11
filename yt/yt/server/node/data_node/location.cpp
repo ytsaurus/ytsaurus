@@ -107,7 +107,7 @@ TLocationPerformanceCounters::TLocationPerformanceCounters(const NProfiling::TPr
             // Try to save Solomon resources making separate counters only for UserInteractive workload.
             const auto& selectedProfiler = (category == EWorkloadCategory::UserInteractive) ? categoryProfiler : profiler;
             BlobBlockReadSize[category] = selectedProfiler.Summary("/blob_block_read_size");
-            BlobBlockReadTime[category] = selectedProfiler.Histogram(
+            BlobBlockReadTime[category] = selectedProfiler.TimeHistogram(
                 "/blob_block_read_time",
                 TDuration::MicroSeconds(1),
                 TDuration::Seconds(125));

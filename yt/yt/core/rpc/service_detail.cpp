@@ -198,16 +198,16 @@ TServiceBase::TMethodPerformanceCounters::TMethodPerformanceCounters(
 {
     if (histogramConfig && histogramConfig->CustomBounds) {
         const auto &customBounds = *histogramConfig->CustomBounds;
-        ExecutionTimeCounter = profiler.Histogram("/request_time_histogram/execution", customBounds);
-        RemoteWaitTimeCounter = profiler.Histogram("/request_time_histogram/remote_wait", customBounds);
-        LocalWaitTimeCounter = profiler.Histogram("/request_time_histogram/local_wait", customBounds);
-        TotalTimeCounter = profiler.Histogram("/request_time_histogram/total", customBounds);
+        ExecutionTimeCounter = profiler.TimeHistogram("/request_time_histogram/execution", customBounds);
+        RemoteWaitTimeCounter = profiler.TimeHistogram("/request_time_histogram/remote_wait", customBounds);
+        LocalWaitTimeCounter = profiler.TimeHistogram("/request_time_histogram/local_wait", customBounds);
+        TotalTimeCounter = profiler.TimeHistogram("/request_time_histogram/total", customBounds);
     } else if (histogramConfig && histogramConfig->ExponentialBounds) {
         const auto &exponentialBounds = *histogramConfig->ExponentialBounds;
-        ExecutionTimeCounter = profiler.Histogram("/request_time_histogram/execution", exponentialBounds->Min, exponentialBounds->Max);
-        RemoteWaitTimeCounter = profiler.Histogram("/request_time_histogram/remote_wait", exponentialBounds->Min, exponentialBounds->Max);
-        LocalWaitTimeCounter = profiler.Histogram("/request_time_histogram/local_wait", exponentialBounds->Min, exponentialBounds->Max);
-        TotalTimeCounter = profiler.Histogram("/request_time_histogram/total", exponentialBounds->Min, exponentialBounds->Max);
+        ExecutionTimeCounter = profiler.TimeHistogram("/request_time_histogram/execution", exponentialBounds->Min, exponentialBounds->Max);
+        RemoteWaitTimeCounter = profiler.TimeHistogram("/request_time_histogram/remote_wait", exponentialBounds->Min, exponentialBounds->Max);
+        LocalWaitTimeCounter = profiler.TimeHistogram("/request_time_histogram/local_wait", exponentialBounds->Min, exponentialBounds->Max);
+        TotalTimeCounter = profiler.TimeHistogram("/request_time_histogram/total", exponentialBounds->Min, exponentialBounds->Max);
     } else {
         ExecutionTimeCounter = profiler.Timer("/request_time/execution");
         RemoteWaitTimeCounter = profiler.Timer("/request_time/remote_wait");

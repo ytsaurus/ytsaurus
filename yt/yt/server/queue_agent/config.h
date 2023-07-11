@@ -110,9 +110,11 @@ public:
 
     //! Flag for disabling automatic trimming entirely.
     bool EnableAutomaticTrimming;
-    //! A multiplier for controlling trimming frequency.
-    //! A trimming iteration will occur once in this many queue controller passes.
-    int TrimmingIterationFrequency;
+    //! If set, trimming requests to individual partitions are performed with roughly this period.
+    //! Pass period is used by default.
+    //! NB: Internally this is implemented via a multiplier for trimming frequency. A trimming iteration will occur
+    //! once in `ceil(TrimmingPeriod / PassPeriod)` queue controller passes.
+    std::optional<TDuration> TrimmingPeriod;
 
     REGISTER_YSON_STRUCT(TQueueControllerDynamicConfig);
 

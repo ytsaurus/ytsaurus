@@ -190,6 +190,8 @@ object YtPublishPlugin extends AutoPlugin {
     }
 
     def limitTtlEnabled: Boolean = Option(System.getProperty("limitTtl")).forall(_.toBoolean)
+    def configGenerationEnabled: Boolean = Option(System.getProperty("configGeneration")).forall(_.toBoolean)
+    def innerSidecarConfigEnabled: Boolean = Option(System.getProperty("innerSidecarConfig")).exists(_.toBoolean)
 
     val publishYt = taskKey[Unit]("Publish to yt directory")
     val publishYtArtifacts = taskKey[Seq[YtPublishArtifact]]("Yt publish artifacts")

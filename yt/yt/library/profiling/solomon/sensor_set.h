@@ -171,8 +171,9 @@ DEFINE_ENUM(ESensorType,
     ((Gauge)          (3))
     ((Summary)        (4))
     ((Timer)          (5))
-    ((Histogram)      (6))
+    ((TimeHistogram)  (6))
     ((GaugeHistogram) (7))
+    ((RateHistogram)  (8))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -196,8 +197,9 @@ public:
     void AddSummary(TSummaryStatePtr summary);
     void AddTimerSummary(TTimerSummaryStatePtr timer);
     void AddTimeCounter(TTimeCounterStatePtr counter);
-    void AddHistogram(THistogramStatePtr counter);
-    void AddGaugeHistogram(THistogramStatePtr counter);
+    void AddTimeHistogram(THistogramStatePtr histogram);
+    void AddGaugeHistogram(THistogramStatePtr histogram);
+    void AddRateHistogram(THistogramStatePtr histogram);
 
     void RenameDynamicTag(const TDynamicTagPtr& dynamicTag, TTagId newTag);
 
@@ -247,11 +249,14 @@ private:
     THashSet<TTimerSummaryStatePtr> Timers_;
     TCube<TSummarySnapshot<TDuration>> TimersCube_;
 
-    THashSet<THistogramStatePtr> Histograms_;
-    TCube<THistogramSnapshot> HistogramsCube_;
+    THashSet<THistogramStatePtr> TimeHistograms_;
+    TCube<TTimeHistogramSnapshot> TimeHistogramsCube_;
 
     THashSet<THistogramStatePtr> GaugeHistograms_;
     TCube<TGaugeHistogramSnapshot> GaugeHistogramsCube_;
+
+    THashSet<THistogramStatePtr> RateHistograms_;
+    TCube<TRateHistogramSnapshot> RateHistogramsCube_;
 
     std::optional<ESensorType> Type_;
     TGauge CubeSize_;

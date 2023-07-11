@@ -647,6 +647,8 @@ void SetNodeByYPath(
             ThrowCannotHaveChildren(currentNode);
             YT_ABORT();
     }
+
+    factory->Commit();
 }
 
 bool RemoveNodeByYPath(

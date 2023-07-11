@@ -209,6 +209,7 @@ target_sources(yt-yt-core PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/net/public.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/net/socket.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/dns/ares_dns_resolver.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/dns/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/dns/dns_resolver.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/profiling/timing.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/authentication_identity.cpp

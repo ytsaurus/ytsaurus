@@ -117,6 +117,8 @@ DEFINE_ENUM(EMasterReign,
     ((RecomputeMasterTableSchemaRefCounters)                        (2343))  // h0pless
     ((FixBulkInsertAtomicityNone)                                   (2344))  // ifsmirnov
     ((DropNodesWithFlavorsVectorFromSnapshot)                       (2345))  // shakurov
+    ((FixSymlinkCyclicityCheck)                                     (2346))  // h0pless
+    ((FixChunkCreationTimeHistograms)                               (2347))  // gritukan
     // 23.2 starts here.
     ((TabletServants)                                               (2400))  // ifsmirnov
     ((MediumBase)                                                   (2401))  // gritukan
@@ -130,6 +132,7 @@ DEFINE_ENUM(EMasterReign,
     ((ChaosReplicatedQueuesAndConsumersList)                        (2409))  // cherepashka
     ((ValidateTableSettingsInTabletActions)                         (2410))  // alexelexa
     ((GetRidOfCellIndex)                                            (2411))  // kvk1920
+    ((DontForgetToCommitInSetNodeByYPath)                           (2412))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////
