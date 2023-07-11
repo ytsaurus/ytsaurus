@@ -99,7 +99,7 @@ The following parameters are supported for each user script (default values, if 
 - `copy_files` (false) — by default, user files go to the job's `sandbox` via a [symbolic link](../../../../user-guide/storage/links.md). If this option is enabled, they are copied to the `sandbox`. It can be useful in tandem with `tmpfs_path=.`.
 - `check_input_fully_consumed` (false) — this option allows you to run system-wide checks to make sure the job has not exited prematurely and read all the data written to its buffer.
 - `max_stderr_size` (5 MB) — limit on the size of stderr saved as a result of the job. Any data written to stderr in excess of this limit is ignored.
-- `custom_statistics_count_limit` (128) — limit on the amount of user statistics that can be written from the job.
+- `custom_statistics_count_limit` (128) — limit on the amount of user statistics that can be written from the job, upto 1024.
 - `job_time_limit` — time limit (in milliseconds) on a job. Jobs exceeding the limit are deemed failed.
 - `disk_request` — list of disks the job wants. By default, a job is assigned a local disk on the same cluster node where the job is run. Disk space usage is not limited, but the job can be interrupted if the disk space runs out. Each disk is characterized by the following parameters:
    - `disk_space` — limit on the total size of files in a job's `sandbox` on the disk.
