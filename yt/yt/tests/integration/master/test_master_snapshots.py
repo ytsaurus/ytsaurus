@@ -242,7 +242,8 @@ def check_dynamic_tables():
 
 
 def check_chaos_replicated_table():
-    create_chaos_cell_bundle(name="chaos_bundle", peer_cluster_names=["primary"])
+    if not exists("//sys/chaos_cell_bundles/chaos_bundle"):
+        create_chaos_cell_bundle(name="chaos_bundle", peer_cluster_names=["primary"])
     cell_id = generate_chaos_cell_id()
     sync_create_chaos_cell("chaos_bundle", cell_id, ["primary"])
     set("//sys/chaos_cell_bundles/chaos_bundle/@metadata_cell_id", cell_id)
@@ -532,6 +533,7 @@ MASTER_SNAPSHOT_CHECKER_LIST = [
     check_security_tags,
     check_master_memory,
     check_hierarchical_accounts,
+    check_tablet_balancer_config,
     check_duplicate_attributes,
     check_proxy_roles,
     check_attribute_tombstone_yt_14682,
@@ -553,9 +555,6 @@ MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST.remove(check_master_memory)
 # Chunk locations API has been changed, no way compat tests could work.
 MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST.remove(check_chunk_locations)
 
-# Chaos nodes are not working in 21.3 due to bugs in master (which is fixed in 22.1).
-MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST.remove(check_chaos_replicated_table)
-
 
 class TestMasterSnapshots(YTEnvSetup):
     NUM_MASTERS = 3
@@ -566,11 +565,14 @@ class TestMasterSnapshots(YTEnvSetup):
 
     @authors("ermolovd")
     def test(self):
+        if self.is_multicell():
+            MASTER_SNAPSHOT_CHECKER_LIST.append(check_transactions)
+
         checker_state_list = [iter(c()) for c in MASTER_SNAPSHOT_CHECKER_LIST]
         for s in checker_state_list:
             next(s)
 
-        build_snapshot(cell_id=None)
+        build_master_snapshots()
 
         with Restarter(self.Env, MASTERS_SERVICE):
             pass
@@ -591,44 +593,14 @@ class TestMasterSnapshots(YTEnvSetup):
         wait(lambda: check_sensor(b"yt/changelogs/free_space"))
         wait(lambda: check_sensor(b"yt/changelogs/available_space"))
 
+##################################################################
 
-class TestAllMastersSnapshots(YTEnvSetup):
-    NUM_MASTERS = 3
-    NUM_NODES = 5
-    NUM_MASTER_CACHES = 1
-    NUM_CHAOS_NODES = 1
-    USE_DYNAMIC_TABLES = True
+
+class TestMasterSnapshotsMulticell(TestMasterSnapshots):
     NUM_SECONDARY_MASTER_CELLS = 3
 
-    @authors("aleksandra-zh")
-    def test(self):
-        CHECKER_LIST = [
-            check_simple_node,
-            check_schema,
-            check_forked_schema,
-            check_dynamic_tables,
-            check_chaos_replicated_table,
-            check_security_tags,
-            check_master_memory,
-            check_hierarchical_accounts,
-            check_transactions,
-            check_tablet_balancer_config,
-            check_performance_counters_refactoring,
-            check_removed_account,  # keep this item last as it's sensitive to timings
-        ]
 
-        checker_state_list = [iter(c()) for c in CHECKER_LIST]
-        for s in checker_state_list:
-            next(s)
-
-        build_master_snapshots()
-
-        with Restarter(self.Env, MASTERS_SERVICE):
-            pass
-
-        for s in checker_state_list:
-            with pytest.raises(StopIteration):
-                next(s)
+##################################################################
 
 
 class TestMastersSnapshotsShardedTx(YTEnvSetup):
@@ -719,15 +691,3 @@ class TestMastersSnapshotsShardedTx(YTEnvSetup):
 
         with Restarter(self.Env, MASTERS_SERVICE):
             pass
-
-
-class TestMastersSnapshotsShardedTxOldHydra(TestMastersSnapshotsShardedTx):
-    DELTA_MASTER_CONFIG = {
-        "use_new_hydra": False
-    }
-
-
-class TestAllMastersSnapshotsOldHydra(TestAllMastersSnapshots):
-    DELTA_MASTER_CONFIG = {
-        "use_new_hydra": False
-    }
