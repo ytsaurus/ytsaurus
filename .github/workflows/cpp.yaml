@@ -78,7 +78,7 @@ jobs:
           cd ../build
           export CCACHE_BASEDIR="$(realpath ..)"
           export CCACHE_REMOTE_ONLY=true
-          export CCACHE_REMOTE_STORAGE="http://10.129.0.22|layout=bazel"
+          export CCACHE_REMOTE_STORAGE="${{ vars.CCACHE_REMOTE_STORAGE }}"
           ninja
 
       - name: Build Python packages
