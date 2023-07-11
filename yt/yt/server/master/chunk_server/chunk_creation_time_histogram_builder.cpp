@@ -156,7 +156,9 @@ public:
 
         Load(context, Bounds_);
         // COMPAT(gritukan): EMasterReign::FixChunkCreationTimeHistograms
-        YT_VERIFY(!Bounds_.empty());
+        if (Bounds_.empty()) {
+            Bounds_ = {TInstant::Zero()};
+        }
 
         InitializeHistogram();
 
@@ -233,11 +235,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 IMasterCellChunkStatisticsPieceCollectorPtr CreateChunkCreationTimeHistogramBuilder(
     TBootstrap* bootstrap)
 {
     return New<TChunkCreationTimeHistogramBuilder>(bootstrap);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer
