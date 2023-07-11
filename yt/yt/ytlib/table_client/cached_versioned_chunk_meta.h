@@ -93,7 +93,7 @@ private:
     TMemoryUsageTrackerGuard MemoryTrackerGuard_;
 
     TAtomicIntrusivePtr<NNewTableClient::TPreparedChunkMeta> PreparedMeta_;
-    size_t PreparedMetaSize_ = 0;
+    std::atomic<size_t> PreparedMetaSize_ = 0;
 
     DECLARE_NEW_FRIEND();
 

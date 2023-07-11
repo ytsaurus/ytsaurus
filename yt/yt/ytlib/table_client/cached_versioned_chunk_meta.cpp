@@ -113,7 +113,7 @@ i64 TCachedVersionedChunkMeta::GetMemoryUsage() const
     return TColumnarChunkMeta::GetMemoryUsage()
         + HunkChunkRefsExt().SpaceUsedLong()
         + HunkChunkMetasExt().SpaceUsedLong()
-        + PreparedMetaSize_;
+        + PreparedMetaSize_.load();
 }
 
 TIntrusivePtr<NNewTableClient::TPreparedChunkMeta> TCachedVersionedChunkMeta::GetPreparedChunkMeta(
@@ -130,6 +130,7 @@ TIntrusivePtr<NNewTableClient::TPreparedChunkMeta> TCachedVersionedChunkMeta::Ge
 
         void* rawCurrentMeta = currentMeta.Get();
         if (PreparedMeta_.CompareAndSwap(rawCurrentMeta, newPreparedMeta)) {
+            PreparedMetaSize_.store(newPreparedMeta->Size);
             if (MemoryTrackerGuard_) {
                 MemoryTrackerGuard_.IncrementSize(newPreparedMeta->Size);
                 if (currentMeta) {
