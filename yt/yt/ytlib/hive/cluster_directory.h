@@ -65,6 +65,7 @@ public:
 private:
     struct TCluster
     {
+        TString Name;
         NYTree::INodePtr NativeConnectionConfig;
         NApi::NNative::IConnectionPtr Connection;
     };

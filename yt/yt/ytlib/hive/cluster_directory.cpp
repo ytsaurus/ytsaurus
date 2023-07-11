@@ -105,9 +105,12 @@ void TClusterDirectory::UpdateCluster(const TString& name, INodePtr nativeConnec
 {
     auto addNewCluster = [&] (const TCluster& cluster) {
         auto clusterTag = GetClusterTag(cluster);
-        if (ClusterTagToCluster_.find(clusterTag) != ClusterTagToCluster_.end()) {
-            THROW_ERROR_EXCEPTION("Duplicate cluster tag %v", clusterTag);
+        if (ClusterTagToCluster_.contains(clusterTag)) {
+            THROW_ERROR_EXCEPTION("Duplicate cluster tag %v", clusterTag)
+                << TErrorAttribute("first_cluster_name", ClusterTagToCluster_[clusterTag].Name)
+                << TErrorAttribute("second_cluster_name", name);
         }
+
         ClusterTagToCluster_[clusterTag] = cluster;
         NameToCluster_[name] = cluster;
         if (auto tvmId = cluster.Connection->GetConfig()->TvmId) {
@@ -173,8 +176,11 @@ bool TClusterDirectory::HasTvmId(NAuth::TTvmId tvmId) const
 
 TClusterDirectory::TCluster TClusterDirectory::CreateCluster(const TString& name, INodePtr config) const
 {
-    TCluster cluster;
-    cluster.NativeConnectionConfig = config;
+    TCluster cluster{
+        .Name = name,
+        .NativeConnectionConfig = config,
+    };
+
     try {
         auto typedConfig = ConvertTo<NNative::TConnectionCompoundConfigPtr>(config);
         if (!typedConfig->Static->ClusterName) {
