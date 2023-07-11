@@ -266,6 +266,12 @@ class TestGetJob(_TestGetJobCommon):
             "operation_time_limit_check_period": 100,
             "snapshot_period": 500,
             "operations_update_period": 100,
+            "job_reporter": {
+                "enabled": True,
+                "reporting_period": 10,
+                "min_repeat_delay": 10,
+                "max_repeat_delay": 10,
+            },
         }
     }
 
@@ -459,15 +465,7 @@ class TestGetJob(_TestGetJobCommon):
 
     @authors("levysotsky")
     def test_get_job_is_stale(self):
-        create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
-        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
-        op = map(
-            track=False,
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            command=with_breakpoint("echo SOME-STDERR >&2; cat; BREAKPOINT"),
-        )
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
         (job_id,) = wait_breakpoint()
 
         with Restarter(self.Env, NODES_SERVICE):
