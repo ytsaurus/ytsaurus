@@ -6,6 +6,7 @@
 #include <yt/cpp/roren/interface/private/raw_transform.h>
 
 #include <yt/cpp/mapreduce/interface/common.h>
+#include <yt/cpp/mapreduce/interface/serialize.h>
 
 namespace NRoren::NPrivate {
 
