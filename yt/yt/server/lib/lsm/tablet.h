@@ -3,6 +3,7 @@
 #include "public.h"
 #include "store.h"
 #include "partition.h"
+#include "statistics.h"
 
 #include <yt/yt/core/misc/public.h>
 
@@ -30,6 +31,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, IsOverflowRotationNeeded);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TInstant>, LastPeriodicRotationTime);
     DEFINE_BYVAL_RW_PROPERTY(bool, IsOutOfBandRotationRequested);
+
+    DEFINE_BYREF_RW_PROPERTY(TTabletLsmStatistics, LsmStatistics);
 
     // Sorted.
     DEFINE_BYREF_RW_PROPERTY(std::vector<std::unique_ptr<TPartition>>, Partitions);

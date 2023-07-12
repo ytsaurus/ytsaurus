@@ -364,6 +364,14 @@ private:
             }
         }
 
+        for (auto reason : TEnumTraits<EStoreCompactionReason>::GetDomainValues()) {
+            if (reason == EStoreCompactionReason::None) {
+                continue;
+            }
+
+            partition->GetTablet()->LsmStatistics().PendingCompactionStoreCount[reason] += storeCountByReason[reason];
+        }
+
         EStoreCompactionReason finalistCompactionReason;
 
         if (mountConfig->PeriodicCompactionMode == EPeriodicCompactionMode::Partition &&
@@ -509,6 +517,11 @@ private:
                         TDefaultFormatter{}));
                 break;
             }
+        }
+
+        if (!finalists.empty()) {
+            partition->GetTablet()->LsmStatistics().PendingCompactionStoreCount[EStoreCompactionReason::Regular] +=
+                ssize(partition->Stores());
         }
 
         return {EStoreCompactionReason::Regular, finalists};

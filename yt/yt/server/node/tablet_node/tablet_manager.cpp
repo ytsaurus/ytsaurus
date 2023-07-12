@@ -3742,6 +3742,20 @@ private:
                 .Item("replication_era").Value(tablet->RuntimeData()->ReplicationEra.load())
                 .Item("replication_round").Value(tablet->ChaosData()->ReplicationRound.load())
                 .Item("write_mode").Value(tablet->RuntimeData()->WriteMode.load())
+                .Item("lsm_statistics")
+                    .BeginMap()
+                    .Item("pending_compaction_store_count").DoMapFor(
+                        TEnumTraits<NLsm::EStoreCompactionReason>::GetDomainValues(),
+                        [&] (auto fluent, auto reason) {
+                            auto value = tablet->LsmStatistics().PendingCompactionStoreCount[reason];
+                            if (reason != NLsm::EStoreCompactionReason::None &&
+                                reason != NLsm::EStoreCompactionReason::DiscardByTtl)
+                            {
+                                fluent
+                                    .Item(Format("%lv", reason)).Value(value);
+                            }
+                        })
+                    .EndMap()
                 .Do([tablet] (auto fluent) {
                     BuildTableSettingsOrchidYson(tablet->GetSettings(), fluent);
                 })

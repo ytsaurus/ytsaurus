@@ -149,6 +149,8 @@ private:
 
         YT_LOG_DEBUG("LSM interop scans slot (CellId: %v)", slot->GetCellId());
 
+        const auto& tabletManager = slot->GetTabletManager();
+
         std::vector<NLsm::TTabletPtr> lsmTablets;
 
         std::vector<TFuture<void>> asyncRequests;
@@ -156,7 +158,6 @@ private:
         {
             TForbidContextSwitchGuard guard;
 
-            const auto& tabletManager = slot->GetTabletManager();
             for (auto [tabletId, tablet] : tabletManager->Tablets()) {
                 lsmTablets.push_back(ScanTablet(slot, tablet));
             }
@@ -170,6 +171,13 @@ private:
         StoreCompactor_->ProcessLsmActionBatch(slot, actions);
         PartitionBalancer_->ProcessLsmActionBatch(slot, actions);
         StoreRotator_->ProcessLsmActionBatch(slot, actions);
+
+        for (const auto& lsmTablet : lsmTablets) {
+            auto* tablet = tabletManager->FindTablet(lsmTablet->GetId());
+            if (tablet) {
+                tablet->LsmStatistics() = lsmTablet->LsmStatistics();
+            }
+        }
     }
 
     void OnEndSlotScan()

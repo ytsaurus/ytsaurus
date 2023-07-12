@@ -12,6 +12,8 @@
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
+#include <yt/yt/server/lib/lsm/statistics.h>
+
 #include <yt/yt/server/lib/tablet_node/table_settings.h>
 
 #include <yt/yt/server/lib/hive/public.h>
@@ -536,6 +538,8 @@ public:
     DEFINE_BYREF_RW_PROPERTY(ITabletHedgingManagerRegistryPtr, HedgingManagerRegistry);
 
     DEFINE_BYREF_RW_PROPERTY(TRawTableSettings, RawSettings);
+
+    DEFINE_BYREF_RW_PROPERTY(NLsm::TTabletLsmStatistics, LsmStatistics);
 
     // TODO(ifsmirnov, YT-17317): temporary field used to test IMutationForwarder.
     DEFINE_BYVAL_RW_PROPERTY(int, RemountCount);

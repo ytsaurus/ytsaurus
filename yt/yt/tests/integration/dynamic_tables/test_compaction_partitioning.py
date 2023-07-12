@@ -598,6 +598,21 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         assert chunk_id in eden_stores
         assert len(partition_stores) == 0
 
+    @authors("ifsmirnov")
+    def test_lsm_statistics(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        set("//tmp/t/@max_dynamic_store_row_count", 1)
+        set("//tmp/t/@auto_compaction_period", 1)
+        set("//tmp/t/@backing_store_retention_time", 0)
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": 1, "value": "1"}])
+        wait(lambda: len(get("//tmp/t/@chunk_ids")) == 1)
+
+        tablet_id = get("//tmp/t/@tablets")[0]["tablet_id"]
+        wait(lambda: get(f"//sys/tablets/{tablet_id}/orchid/lsm_statistics/pending_compaction_store_count/periodic") == 1)
+
 ################################################################################
 
 
