@@ -2952,6 +2952,17 @@ void TFairShareTreeJobScheduler::OnResourceUsageSnapshotUpdate(
     treeSnapshot->SchedulingSnapshot()->UpdateDynamicAttributesListSnapshot(treeSnapshot, resourceUsageSnapshot);
 }
 
+void TFairShareTreeJobScheduler::ProfileOperation(
+    const TSchedulerOperationElement* element,
+    const TFairShareTreeSnapshotPtr& treeSnapshot,
+    ISensorWriter* writer) const
+{
+    VERIFY_INVOKER_AFFINITY(StrategyHost_->GetFairShareProfilingInvoker());
+
+    const auto& attributes = treeSnapshot->SchedulingSnapshot()->StaticAttributesList().AttributesOf(element);
+    writer->AddGauge("/scheduling_index", attributes.SchedulingIndex);
+}
+
 void TFairShareTreeJobScheduler::UpdateConfig(TFairShareStrategyTreeConfigPtr config)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);

@@ -713,6 +713,12 @@ public:
 
     void OnResourceUsageSnapshotUpdate(const TFairShareTreeSnapshotPtr& treeSnapshot, const TResourceUsageSnapshotPtr& resourceUsageSnapshot) const;
 
+    //! Tree profiling.
+    void ProfileOperation(
+        const TSchedulerOperationElement* element,
+        const TFairShareTreeSnapshotPtr& treeSnapshot,
+        NProfiling::ISensorWriter* writer) const;
+
     //! Miscellaneous.
     void UpdateConfig(TFairShareStrategyTreeConfigPtr config);
 

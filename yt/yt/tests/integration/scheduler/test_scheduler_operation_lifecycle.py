@@ -852,6 +852,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         user_slots_usage_sensor = profiler.gauge(metric_prefix + "resource_usage/user_slots")
         cpu_demand_sensor = profiler.gauge(metric_prefix + "resource_demand/cpu")
         user_slots_demand_sensor = profiler.gauge(metric_prefix + "resource_demand/user_slots")
+        scheduling_index_sensor = profiler.gauge(metric_prefix + "scheduling_index")
 
         tags1 = {"slot_index": "0"}
         tags2 = {"slot_index": "1"}
@@ -883,6 +884,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: user_slots_usage_sensor.get(tags=tags1) == 1)
         wait(lambda: cpu_demand_sensor.get(tags=tags1) == 1)
         wait(lambda: user_slots_demand_sensor.get(tags=tags1) == 1)
+        wait(lambda: scheduling_index_sensor.get(tags=tags1) == -1)
         # Some non-trivial lower bound on resource consumption.
         wait(lambda: accumulated_resource_usage_cpu_sensors["tags1"].get_delta() > 2.0)
         wait(lambda: accumulated_resource_usage_user_slots_sensors["tags1"].get_delta() > 2.0)
@@ -896,6 +898,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: user_slots_usage_sensor.get(tags=tags2) == 0)
         wait(lambda: cpu_demand_sensor.get(tags=tags2) == 1)
         wait(lambda: user_slots_demand_sensor.get(tags=tags2) == 1)
+        wait(lambda: scheduling_index_sensor.get(tags=tags2) == 0)
         wait(lambda: accumulated_resource_usage_cpu_sensors["tags2"].get_delta() == 0.0)
         wait(lambda: accumulated_resource_usage_user_slots_sensors["tags2"].get_delta() == 0.0)
 

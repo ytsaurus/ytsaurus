@@ -230,16 +230,16 @@ public:
         : Config_(std::move(config))
         , ConfigNode_(ConvertToNode(Config_))
         , ControllerConfig_(std::move(controllerConfig))
-        , ResourceTree_(New<TResourceTree>(Config_, feasibleInvokers))
-        , TreeProfiler_(New<TFairShareTreeProfileManager>(
-            treeId,
-            Config_->SparsifyFairShareProfiling,
-            strategyHost->GetFairShareProfilingInvoker()))
-        , Host_(host)
-        , StrategyHost_(strategyHost)
-        , FeasibleInvokers_(feasibleInvokers)
         , TreeId_(std::move(treeId))
         , Logger(StrategyLogger.WithTag("TreeId: %v", TreeId_))
+        , Host_(host)
+        , StrategyHost_(strategyHost)
+        , ResourceTree_(New<TResourceTree>(Config_, feasibleInvokers))
+        , TreeProfiler_(
+            SchedulerProfiler
+                .WithGlobal()
+                .WithProducerRemoveSupport()
+                .WithRequiredTag("tree", TreeId_))
         , TreeScheduler_(New<TFairShareTreeJobScheduler>(
             TreeId_,
             Logger,
@@ -247,11 +247,17 @@ public:
             Host_,
             StrategyHost_,
             Config_,
-            TreeProfiler_->GetProfiler()))
-        , FairSharePreUpdateTimer_(TreeProfiler_->GetProfiler().Timer("/fair_share_preupdate_time"))
-        , FairShareUpdateTimer_(TreeProfiler_->GetProfiler().Timer("/fair_share_update_time"))
-        , FairShareFluentLogTimer_(TreeProfiler_->GetProfiler().Timer("/fair_share_fluent_log_time"))
-        , FairShareTextLogTimer_(TreeProfiler_->GetProfiler().Timer("/fair_share_text_log_time"))
+            TreeProfiler_))
+        , TreeProfileManager_(New<TFairShareTreeProfileManager>(
+            TreeProfiler_,
+            Config_->SparsifyFairShareProfiling,
+            strategyHost->GetFairShareProfilingInvoker(),
+            TreeScheduler_))
+        , FeasibleInvokers_(feasibleInvokers)
+        , FairSharePreUpdateTimer_(TreeProfileManager_->GetProfiler().Timer("/fair_share_preupdate_time"))
+        , FairShareUpdateTimer_(TreeProfileManager_->GetProfiler().Timer("/fair_share_update_time"))
+        , FairShareFluentLogTimer_(TreeProfileManager_->GetProfiler().Timer("/fair_share_fluent_log_time"))
+        , FairShareTextLogTimer_(TreeProfileManager_->GetProfiler().Timer("/fair_share_text_log_time"))
         , AccumulatedPoolResourceUsageForMetering_(
             /*accumulateUsageForPools*/ true,
             /*accumulateUsageForOperations*/ false)
@@ -264,7 +270,7 @@ public:
     {
         RootElement_ = New<TSchedulerRootElement>(StrategyHost_, this, Config_, TreeId_, Logger);
 
-        TreeProfiler_->RegisterPool(RootElement_);
+        TreeProfileManager_->RegisterPool(RootElement_);
 
         YT_LOG_INFO("Fair share tree created");
     }
@@ -438,7 +444,7 @@ public:
         auto* pool = operationElement->GetMutableParent();
 
         // Profile finished operation.
-        TreeProfiler_->ProfileOperationUnregistration(pool, state->GetHost()->GetState());
+        TreeProfileManager_->ProfileOperationUnregistration(pool, state->GetHost()->GetState());
 
         TreeScheduler_->DisableOperation(operationElement.Get(), /*markAsNonAlive*/ true);
         operationElement->DetachParent();
@@ -1107,7 +1113,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return TreeProfiler_.Get();
+        return TreeProfileManager_.Get();
     }
 
     void SetResourceUsageSnapshot(TResourceUsageSnapshotPtr snapshot)
@@ -1130,22 +1136,23 @@ private:
 
     TFairShareStrategyOperationControllerConfigPtr ControllerConfig_;
 
-    TResourceTreePtr ResourceTree_;
-    TFairShareTreeProfileManagerPtr TreeProfiler_;
+    const TString TreeId_;
+    const NLogging::TLogger Logger;
 
     IFairShareTreeHost* const Host_;
     ISchedulerStrategyHost* const StrategyHost_;
 
+    TResourceTreePtr ResourceTree_;
+
+    const NProfiling::TProfiler TreeProfiler_;
+    TFairShareTreeJobSchedulerPtr TreeScheduler_;
+    TFairShareTreeProfileManagerPtr TreeProfileManager_;
+
     const std::vector<IInvokerPtr> FeasibleInvokers_;
+
 
     INodePtr LastPoolsNodeUpdate_;
     TError LastPoolsNodeUpdateError_;
-
-    const TString TreeId_;
-
-    const NLogging::TLogger Logger;
-
-    TFairShareTreeJobSchedulerPtr TreeScheduler_;
 
     TPoolElementMap Pools_;
 
@@ -1571,7 +1578,7 @@ private:
         YT_VERIFY(Pools_.emplace(pool->GetId(), pool).second);
         YT_VERIFY(PoolToMinUnusedSlotIndex_.emplace(pool->GetId(), 0).second);
 
-        TreeProfiler_->RegisterPool(pool);
+        TreeProfileManager_->RegisterPool(pool);
     }
 
     void RegisterPool(const TSchedulerPoolElementPtr& pool, const TSchedulerCompositeElementPtr& parent)
@@ -1612,7 +1619,7 @@ private:
         // Pool may be not presented in this map.
         PoolToSpareSlotIndices_.erase(pool->GetId());
 
-        TreeProfiler_->UnregisterPool(pool);
+        TreeProfileManager_->UnregisterPool(pool);
 
         // We cannot use pool after erase because Pools may contain last alive reference to it.
         auto extractedPool = std::move(Pools_[pool->GetId()]);
@@ -2323,7 +2330,7 @@ private:
 
         StrategyHost_->GetFairShareProfilingInvoker()->Invoke(BIND(
             &TFairShareTreeProfileManager::ApplyJobMetricsDelta,
-            TreeProfiler_,
+            TreeProfileManager_,
             treeSnapshot,
             Passed(std::move(jobMetricsPerOperation))));
     }
@@ -2364,7 +2371,7 @@ private:
 
         StrategyHost_->GetFairShareProfilingInvoker()->Invoke(BIND(
             &TFairShareTreeProfileManager::ApplyScheduledAndPreemptedResourcesDelta,
-            TreeProfiler_,
+            TreeProfileManager_,
             treeSnapshot,
             Passed(std::move(scheduledJobResources)),
             Passed(std::move(preemptedJobResources)),
@@ -2435,7 +2442,7 @@ private:
 
         YT_VERIFY(treeSnapshot);
 
-        TreeProfiler_->ProfileTree(
+        TreeProfileManager_->ProfileTree(
             treeSnapshot,
             AccumulatedOperationsResourceUsageForProfiling_.ExtractOperationResourceUsages());
     }
