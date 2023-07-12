@@ -31,7 +31,7 @@ void FormatValue(TStringBuilderBase* builder, TChunkPtrWithReplicaAndMediumIndex
 {
     FormatValue(builder, TChunkPtrWithReplicaIndex(value.GetPtr(), value.GetReplicaIndex()), spec);
     if (value.GetMediumIndex() == AllMediaIndex) {
-        builder->AppendString("@*");
+        builder->AppendString("@all");
     } else if (value.GetMediumIndex() != GenericMediumIndex) {
         builder->AppendFormat("@%v", value.GetMediumIndex());
     }
