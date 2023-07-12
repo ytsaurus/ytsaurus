@@ -136,7 +136,7 @@ void CreateTimerMigrateTable(const NYT::NApi::IClientPtr ytClient, const NYT::NY
     NYT::NConcurrency::WaitFor(future).ThrowOnError();
 }
 
-TVector<TTimer> YtSelectIndex(const NYT::NApi::IClientPtr ytClient, const NYT::NYPath::TYPath& timerIndexTable, const TTimer::TShardId shardId, const size_t limit)
+TVector<TTimer> YtSelectIndex(const NYT::NApi::IClientPtr ytClient, const NYT::NYPath::TYPath& timerIndexTable, const TTimer::TShardId shardId, const size_t offset, const size_t limit)
 {
     TVector<TTimer> result;
     TString columns;
@@ -146,7 +146,7 @@ TVector<TTimer> YtSelectIndex(const NYT::NApi::IClientPtr ytClient, const NYT::N
         }
         columns += column.Name();
     }
-    const TString query = columns + " from [" + timerIndexTable+ "] WHERE ShardId = " + ToString(shardId) + " ORDER BY Timestamp LIMIT " + ToString(limit);
+    const TString query = columns + " from [" + timerIndexTable+ "] WHERE ShardId = " + ToString(shardId) + " ORDER BY Timestamp OFFSET " + ToString(offset) + " LIMIT " + ToString(limit);
     auto select_result = NYT::NConcurrency::WaitFor(ytClient->SelectRows(query)).ValueOrThrow();
     const auto& rows = select_result.Rowset->GetRows();
     for (const auto& row : rows) {
@@ -157,7 +157,7 @@ TVector<TTimer> YtSelectIndex(const NYT::NApi::IClientPtr ytClient, const NYT::N
 
 TVector<TTimer> YtSelectMigrate(const NYT::NApi::IClientPtr ytClient, const NYT::NYPath::TYPath& migrateTable, const TTimer::TShardId shardId, const size_t limit)
 {
-    return YtSelectIndex(ytClient, migrateTable, shardId, limit);
+    return YtSelectIndex(ytClient, migrateTable, shardId, 0, limit);
 }
 
 TVector<TTimer> YtLookupTimers(const NYT::NApi::IClientBasePtr tx, const NYT::NYPath::TYPath& timerTable, const TVector<TTimer::TKey>& keys)

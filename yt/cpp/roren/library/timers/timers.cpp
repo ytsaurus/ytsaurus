@@ -61,7 +61,13 @@ bool TTimer::operator == (const TTimer& other) const noexcept
 bool TTimer::operator < (const TTimer& other) const noexcept
 {
     auto Tie = [](const TTimer& timer) noexcept -> auto {
-        return timer.GetValue().GetTimestamp();
+        // similar to g_TimerIndexSchema
+        return std::make_tuple(
+            timer.GetValue().GetTimestamp(),
+            timer.GetKey().GetKey(),
+            timer.GetKey().GetTimerId(),
+            timer.GetKey().GetCallbackName()
+        );
     };
     return Tie(*this) < Tie(other);
 }
@@ -131,7 +137,7 @@ void TTimers::Commit(const NYT::NApi::ITransactionPtr tx, const TTimers::TTimers
             oldTimer = std::cref(existsTimers.at(key));
         }
         const auto targetTimer = MergeTimers(oldTimer, newTimer, policy);
-        if (oldTimer && oldTimer == targetTimer) {
+        if (oldTimer && targetTimer == *oldTimer) {
             continue;
         }
         YtDeleteTimer(tx, key);
@@ -227,7 +233,7 @@ void TTimers::PopulateIndex()
 
 TVector<TTimer> TTimers::YtSelectIndex()
 {
-    return NPrivate::YtSelectIndex(YtClient_, YTimersIndexPath_, ShardId_, IndexSelectBatch_);
+    return NPrivate::YtSelectIndex(YtClient_, YTimersIndexPath_, ShardId_, TimerIndex_.size(), IndexLimit_ - TimerIndex_.size());
 }
 
 TVector<TTimer> TTimers::YtSelectMigrate()
