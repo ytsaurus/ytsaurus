@@ -2672,6 +2672,41 @@ class TestTables(YTEnvSetup):
             assert len(sample_rows("//tmp/t2", 1)) == 100
             assert len(sample_rows("//tmp/t2", 1, 25, 75)) == 50
 
+    @authors("akozhikhov")
+    def test_write_read_static_table_with_hunks(self):
+        create("table", "//tmp/t_in", attributes={"schema": [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "any"},
+        ]})
+
+        create("table", "//tmp/t_out", attributes={"schema": [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "any", "max_inline_hunk_size": 10},
+        ]})
+
+        rows = [{"key": 0, "value": "0"}, {"key": 1, "value": "1" * 20}]
+        write_table("//tmp/t_in", rows)
+
+        merge(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={
+                "force_transform": True,
+                "mode": "sorted",
+            }
+        )
+        assert read_table("//tmp/t_in") == rows
+
+        merge(
+            in_="//tmp/t_out",
+            out="//tmp/t_in",
+            spec={
+                "force_transform": True,
+                "mode": "sorted",
+            }
+        )
+        assert read_table("//tmp/t_in") == rows
+
 ##################################################################
 
 

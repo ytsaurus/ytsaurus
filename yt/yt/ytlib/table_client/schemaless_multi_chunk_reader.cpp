@@ -216,11 +216,12 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         chunkState->DataSource = dataSource;
 
                         YT_LOG_DEBUG("Create chunk reader (HintCount: %v, ChunkFormat: %v, Sorted: %v)",
-                                    hintKeyPrefixes ? std::ssize(hintKeyPrefixes->HintPrefixes) : -1,
-                                    chunkMeta->GetChunkFormat(), chunkMeta->Misc().sorted());
+                            hintKeyPrefixes ? std::ssize(hintKeyPrefixes->HintPrefixes) : -1,
+                            chunkMeta->GetChunkFormat(), chunkMeta->Misc().sorted());
 
                         if (!hintKeyPrefixes || !chunkMeta->Misc().sorted() ||
-                            chunkMeta->GetChunkFormat() != EChunkFormat::TableUnversionedSchemalessHorizontal) {
+                            chunkMeta->GetChunkFormat() != EChunkFormat::TableUnversionedSchemalessHorizontal)
+                        {
                             return CreateSchemalessRangeChunkReader(
                                 std::move(chunkState),
                                 std::move(chunkMeta),
@@ -279,8 +280,8 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                     }
 
                     return createChunkReaderFromSpecAsync(chunkSpec, nullptr).Apply(
-                        BIND([] (const ISchemalessChunkReaderPtr& reader) -> IReaderBasePtr {
-                            return reader;
+                        BIND([=] (const ISchemalessChunkReaderPtr& reader) -> IReaderBasePtr {
+                            return wrapReader(reader);
                         })
                     );
                 });
