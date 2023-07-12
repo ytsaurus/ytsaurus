@@ -12,7 +12,7 @@ cd "$SOURCE_ROOT/yt/yt/tests/integration"
 ```
 3. Install python libraries required for tests:
 ```
-pip install -r requirements.txt
+pip install -r "${SOURCE_ROOT}/yt/yt/scripts/pytest_requirements.txt"
 ```
 4. Prepare binary symlinks:
 ```
