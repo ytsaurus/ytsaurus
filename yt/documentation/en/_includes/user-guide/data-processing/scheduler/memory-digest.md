@@ -30,6 +30,6 @@ There are a number of values in the operation statistics that enable you to anal
 ### Digest settings
 
 The following options are available to the user in the operation specification:
-* `user_job_memory-digest_default_value`: Initial assumption for selecting the memory reserve (the default value is 0.5).
-* `user_job_memory-digest_lower_bound`: The limit below which the reserve must not fall (the default value is 0.05). We do not recommend changing the default value.
-* `memory_reserve_factor`: The alias for the `user_job_memory-digest_lower_bound` and `user_job_memory-digest_default_value` options concurrently. Using this option is not recommended.
+* `user_job_memory_digest_default_value`: Initial assumption for selecting the memory reserve (the default value is 0.5).
+* `user_job_memory_digest_lower_bound`: The limit below which the reserve must not fall (the default value is 0.05). We do not recommend changing the default value.
+* `memory_reserve_factor`: The alias for the `user_job_memory_digest_lower_bound` and `user_job_memory_digest_default_value` options concurrently. Using this option is not recommended.
