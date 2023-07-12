@@ -1066,6 +1066,63 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         (store_chunk_id, ) = self._get_store_chunk_ids("//tmp/t")
         assert len(get("#{}/@hunk_chunk_refs".format(store_chunk_id))) == 1
 
+    @authors("akozhikhov")
+    def test_no_small_hunk_compaction(self):
+        sync_create_cells(1)
+        self._create_table()
+        set("//tmp/t/@max_hunk_compaction_size", 5)
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": 0, "value": "0" * 20}])
+        sync_flush_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 1, "value": "1" * 20}])
+        sync_flush_table("//tmp/t")
+
+        store_chunk_ids = self._get_store_chunk_ids("//tmp/t")
+        assert len(store_chunk_ids) == 2
+        hunk_chunk_ids = self._get_hunk_chunk_ids("//tmp/t")
+        assert len(hunk_chunk_ids) == 2
+
+        set("//tmp/t/@forced_store_compaction_revision", 1)
+        remount_table("//tmp/t")
+
+        def _check():
+            new_store_chunk_ids = self._get_store_chunk_ids("//tmp/t")
+            if len(new_store_chunk_ids) != 1:
+                return False
+            return new_store_chunk_ids[0] not in store_chunk_ids
+
+        wait(lambda: _check())
+
+        assert hunk_chunk_ids == self._get_hunk_chunk_ids("//tmp/t")
+
+    @authors("akozhikhov")
+    def test_hunk_chunks_orchid(self):
+        sync_create_cells(1)
+        self._create_table()
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": 0, "value": "0" * 20}])
+        sync_flush_table("//tmp/t")
+
+        hunk_chunk_ids = self._get_hunk_chunk_ids("//tmp/t")
+        assert len(hunk_chunk_ids) == 1
+
+        tablet_info = get("//tmp/t/@tablets/0")
+        hunk_chunks_info = get("//sys/cluster_nodes/{}/orchid/tablet_cells/{}/tablets/{}/hunk_chunks/{}".format(
+            tablet_info["cell_leader_address"],
+            tablet_info["cell_id"],
+            tablet_info["tablet_id"],
+            hunk_chunk_ids[0],
+        ))
+
+        assert hunk_chunks_info["referenced_total_hunk_length"] == 20
+        assert hunk_chunks_info["total_hunk_length"] == 20
+        assert hunk_chunks_info["hunk_count"] == 1
+        assert hunk_chunks_info["referenced_hunk_count"] == 1
+        assert hunk_chunks_info["store_ref_count"] == 1
+        assert not hunk_chunks_info["dangling"]
+
     @authors("babenko")
     def test_hunk_erasure_codec_cannot_be_set_for_nontable(self):
         create("file", "//tmp/f")

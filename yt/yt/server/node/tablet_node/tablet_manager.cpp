@@ -1767,7 +1767,7 @@ private:
         THashSet<TChunkId> hunkChunkIdsToAdd;
         for (const auto& descriptor : request->hunk_chunks_to_add()) {
             auto chunkId = FromProto<TStoreId>(descriptor.chunk_id());
-            YT_VERIFY(hunkChunkIdsToAdd.insert(chunkId).second);
+            InsertOrCrash(hunkChunkIdsToAdd, chunkId);
         }
 
         if (request->create_hunk_chunks_during_prepare()) {
@@ -1856,10 +1856,12 @@ private:
 
         // COMPAT(aleksandra-zh)
         if (request->create_hunk_chunks_during_prepare()) {
-            for (auto chunkId : hunkChunkIdsToAdd) {
+            for (const auto& descriptor : request->hunk_chunks_to_add()) {
+                auto chunkId = FromProto<TStoreId>(descriptor.chunk_id());
+
                 auto hunkChunk = tablet->FindHunkChunk(chunkId);
                 if (!hunkChunk) {
-                    hunkChunk = CreateHunkChunk(tablet, chunkId);
+                    hunkChunk = CreateHunkChunk(tablet, chunkId, &descriptor);
                     hunkChunk->Initialize();
                     tablet->AddHunkChunk(hunkChunk);
                 }
