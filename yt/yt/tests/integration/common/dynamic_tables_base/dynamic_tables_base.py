@@ -148,5 +148,11 @@ class DynamicTablesBase(YTEnvSetup):
         return [chunk_id for chunk_id in chunk_ids if get("#{}/@chunk_type".format(chunk_id)) == "table"]
 
     def _get_hunk_chunk_ids(self, path):
-        chunk_ids = get(path + "/@chunk_ids")
-        return [chunk_id for chunk_id in chunk_ids if get("#{}/@chunk_type".format(chunk_id)) == "hunk"]
+        for _ in range(5):
+            try:
+                chunk_ids = get(path + "/@chunk_ids")
+                return [chunk_id for chunk_id in chunk_ids if get("#{}/@chunk_type".format(chunk_id)) == "hunk"]
+            except YtError as err:
+                if not err.is_resolve_error():
+                    raise
+        raise RuntimeError
