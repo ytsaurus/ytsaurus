@@ -218,6 +218,12 @@ class ChaosTestBase(DynamicTablesBase):
         enabled = kwargs.get("enabled", None)
         mode = kwargs.get("mode", None)
 
+        if enabled is not None:
+            state = "enabled" if enabled else "disabled"
+            wait(lambda: get(f"#{card_id}/@replicas/{replica_id}/state") == state)
+        if mode is not None:
+            wait(lambda: get(f"#{card_id}/@replicas/{replica_id}/mode") == mode)
+
         def _replica_checker(replica_info):
             if enabled is not None and replica_info["state"] != ("enabled" if enabled else "disabled"):
                 return False
@@ -240,12 +246,15 @@ class ChaosTestBase(DynamicTablesBase):
             return True
 
         wait(_check)
-        era = self._get_table_orchids(replica["replica_path"], driver=replica_driver)[0]["replication_card"]["era"]
 
-        # These request also includes coordinators to use same replication card cache key as insert_rows does.
-        wait(lambda: get("#{0}/@era".format(card_id)) == era)
         replication_card = get("#{0}/@".format(card_id))
-        assert replication_card["era"] == era
+        era = replication_card["era"]
+
+        def _era_in_sync():
+            orchids = self._get_table_orchids(replica["replica_path"], driver=replica_driver)
+            return all(orchid["replication_card"]["era"] == era for orchid in orchids)
+
+        wait(_era_in_sync)
 
         def _check_sync():
             for replica in replication_card["replicas"].values():
