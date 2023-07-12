@@ -456,4 +456,6 @@ items:
     href: faq/faq.md
   - name: Как сообщить о проблеме
     href: user-guide/problems/howtoreport.md
+  - name: Выступления на мероприятиях, публикации и семинары
+    href: other/video-posts.md
 
