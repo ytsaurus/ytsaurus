@@ -109,6 +109,7 @@ DEFINE_ENUM(EOperationAlertType,
     ((InvalidControllerRuntimeData)                (28))
     ((CustomStatisticsLimitExceeded)               (31))
     ((BaseLayerProbeFailed)                        (33))
+    ((MtnExperimentFailed)                         (34))
 );
 
 DEFINE_ENUM(EAgentToSchedulerOperationEventType,

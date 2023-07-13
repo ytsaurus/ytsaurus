@@ -76,6 +76,13 @@ std::vector<NYPath::TRichYPath> GetLayerPathsFromDockerImage(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NYTree::IAttributeDictionaryPtr GetNetworkProject(
+    NApi::NNative::IClientPtr client,
+    TString authenticatedUser,
+    TString networkProject);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NControllerAgent::NControllers
 
 #define HELPERS_INL_H

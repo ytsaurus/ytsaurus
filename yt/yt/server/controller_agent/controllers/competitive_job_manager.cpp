@@ -19,8 +19,8 @@ TCompetitiveJobManagerBase::TCompetitiveJobManagerBase(
     EJobCompetitionType competitionType,
     EAbortReason resultLost)
     : Host_(host)
-    , JobCounter_(New<TProgressCounter>())
     , Logger(logger.WithTag("CompetitionType: %v", competitionType))
+    , JobCounter_(New<TProgressCounter>())
     , MaxCompetitiveJobCount_(maxSecondaryJobCount)
     , CompetitionType_(competitionType)
     , ResultLost_(resultLost)

@@ -45,6 +45,8 @@ DECLARE_REFCOUNTED_STRUCT(TBriefJobStatistics)
 
 DECLARE_REFCOUNTED_STRUCT(TScheduleJobStatistics)
 
+DECLARE_REFCOUNTED_CLASS(TJobExperimentBase)
+
 class TAutoMergeDirector;
 struct TJobNodeDescriptor;
 

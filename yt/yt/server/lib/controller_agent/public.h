@@ -59,7 +59,7 @@ extern const TString JobProxyCpuUsagePath;
 DEFINE_ENUM(EJobCompetitionType,
     (Speculative)
     (Probing)
-    (LayerProbing)
+    (Experiment)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

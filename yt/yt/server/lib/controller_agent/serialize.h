@@ -26,6 +26,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((DoNotPersistJobReleaseFlags)          (301201))
     ((JobStateInJoblet)                     (301202))
     ((InitialMinNeededResources)            (301203))
+    ((JobExperiment)                        (301204))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

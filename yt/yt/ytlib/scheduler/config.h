@@ -834,6 +834,37 @@ DEFINE_REFCOUNTED_TYPE(TColumnarStatisticsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJobExperimentConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    //! The base layer used in the treatment jobs of the experiment.
+    std::optional<TString> BaseLayerPath;
+
+    //! The network project used in the treatment jobs of the experiment.
+    std::optional<TString> NetworkProject;
+
+    //! Do not run any more treatment jobs if the `MaxFailedTreatmentJobs` of them failed.
+    int MaxFailedTreatmentJobs;
+
+    //! Use the treatment configuration for all subsequent jobs
+    //! if the probing job completed successfully.
+    bool SwitchOnExperimentSuccess;
+
+    //! If true the alert is set even if some of non-probing jobs have failed too.
+    //! By default the alert is set only when all failed jobs are probing.
+    //! Thus, the level of false positives is reduced.
+    bool AlertOnAnyTreatmentFailure;
+
+    REGISTER_YSON_STRUCT(TJobExperimentConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobExperimentConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TOperationSpecBase
     : public TStrategyOperationSpec
 {
@@ -1041,6 +1072,12 @@ public:
     //! List of the enabled profilers.
     std::vector<TJobProfilerSpecPtr> Profilers;
 
+    //! Default base layer used if no other layers are requested.
+    std::optional<TString> DefaultBaseLayerPath;
+
+    //! The setup for the experimental jobs.
+    TJobExperimentConfigPtr JobExperiment;
+
     bool AdjustDynamicTableDataSlices;
 
     REGISTER_YSON_STRUCT(TOperationSpecBase);
@@ -1195,23 +1232,6 @@ public:
 
     //! The docker image to use in the operation.
     std::optional<TString> DockerImage;
-
-    //! Default base layer used if no other layers are requested.
-    std::optional<TString> DefaultBaseLayerPath;
-
-    //! The probing base layer used to check if the operation can use it.
-    std::optional<TString> ProbingBaseLayerPath;
-
-    //! Do not run any more base layer probes if the `MaxFailedBaseLayerProbes` of them failed.
-    int MaxFailedBaseLayerProbes;
-
-    //! Use the base layer `ProbingBaseLayerPath` for all subsequent jobs
-    //! if the probing job completed successfully.
-    bool SwitchBaseLayerOnProbeSuccess;
-
-    //! If true the alert is set even if some of non-probing jobs have failed too.
-    //! To reduce the false positive rate by default the alert is set only when all failed jobs are probing.
-    bool AlertOnAnyProbingFailure;
 
     //! If set, overrides |Profilers| from operation spec.
     std::optional<std::vector<TJobProfilerSpecPtr>> Profilers;
