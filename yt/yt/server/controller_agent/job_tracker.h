@@ -202,6 +202,25 @@ private:
     void ProfileHeartbeatRequest(const NProto::TReqHeartbeat* request);
     void AccountEnqueuedControllerEvent(int delta);
 
+    struct THeartbeatRequest
+    {
+        THashMap<TOperationId, std::vector<std::unique_ptr<TJobSummary>>> GroupedJobSummaries;
+        THashSet<TAllocationId> AllocationIdsRunningOnNode;
+        std::vector<TJobId> UnconfirmedJobIds;
+    };
+
+    struct THeartbeatProcessingContext
+    {
+        TCtxHeartbeatPtr Context;
+        NLogging::TLogger Logger;
+        TString NodeAddress;
+        TNodeId NodeId;
+        TIncarnationId IncarnationId;
+        THeartbeatRequest Request;
+    };
+    void DoProcessHeartbeat(
+        THeartbeatProcessingContext heartbeatProcessingContext);
+
     void DoRegisterOperation(
         TOperationId operationId,
         bool controlJobLifetimeAtControllerAgent,
