@@ -32,6 +32,7 @@ class TCoreInfo;
 class TSchedulerJobSpecExt;
 class TSchedulerJobResultExt;
 class TTableInputSpec;
+class TJobExperimentConfig;
 class TJobResources;
 class TJobResourcesWithQuota;
 class TOperationJobMetrics;
@@ -110,6 +111,7 @@ DECLARE_REFCOUNTED_CLASS(TJobProfilerSpec)
 DECLARE_REFCOUNTED_CLASS(TColumnarStatisticsConfig)
 DECLARE_REFCOUNTED_CLASS(TOperationSpecBase)
 DECLARE_REFCOUNTED_CLASS(TTaskOutputStreamConfig)
+DECLARE_REFCOUNTED_CLASS(TJobExperimentConfig)
 DECLARE_REFCOUNTED_CLASS(TUserJobSpec)
 DECLARE_REFCOUNTED_CLASS(TOptionalUserJobSpec)
 DECLARE_REFCOUNTED_CLASS(TMandatoryUserJobSpec)

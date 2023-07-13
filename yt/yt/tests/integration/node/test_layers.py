@@ -228,9 +228,7 @@ class TestLayers(YTEnvSetup):
             file="//tmp/static_cat",
             spec={
                 "max_failed_job_count": 1,
-                "mapper": {
-                    "default_base_layer_path": "//tmp/layer1",
-                },
+                "default_base_layer_path": "//tmp/layer1",
             },
         )
 
@@ -259,10 +257,13 @@ class TestProbingLayer(TestLayers):
     @staticmethod
     def get_spec(user_slots, **options):
         spec = {
+            "default_base_layer_path": "//tmp/layer2",
+            "job_experiment": {
+                "job_experiment_type": "base_layer",
+                "base_layer_path": "//tmp/layer1",
+                "alert_on_any_experiment_failure": True,
+            },
             "mapper": {
-                "default_base_layer_path": "//tmp/layer2",
-                "probing_base_layer_path": "//tmp/layer1",
-                "alert_on_any_probing_failure": True,
                 "format": "json",
             },
             "data_weight_per_job": 1,
@@ -297,9 +298,9 @@ class TestProbingLayer(TestLayers):
 
         command = (
             "if test -e $YT_ROOT_FS/test; then "
-            "    sed 's/LAYER/default/'; "
+            "    sed 's/LAYER/control/'; sleep 0.1; "
             "else "
-            "    sed 's/LAYER/probing/'; "
+            "    sed 's/LAYER/treatment/'; "
             "fi"
         )
 
@@ -310,7 +311,7 @@ class TestProbingLayer(TestLayers):
 
             counter = Counter([row["layer"] for row in read_table(self.OUTPUT_TABLE)])
 
-            if op.get_job_count("aborted") == 1 and counter["default"] >= 1 and counter["probing"] >= 3:
+            if counter["control"] >= 1 and counter["treatment"] >= 2:
                 break
 
         assert try_count < self.MAX_TRIES
@@ -324,11 +325,13 @@ class TestProbingLayer(TestLayers):
 
         command = (
             "if test -e $YT_ROOT_FS/test; then "
-            "    sed 's/LAYER/default/g'; "
+            "    sed 's/LAYER/control/g'; sleep 0.1; "
             "else "
-            "    sed 's/LAYER/probing/g'; exit 1; "
+            "    sed 's/LAYER/treatment/g'; exit 1; "
             "fi"
         )
+
+        alert_count = 0
 
         for try_count in range(self.MAX_TRIES + 1):
             op = self.run_map(command, job_count, user_slots=1)
@@ -336,23 +339,28 @@ class TestProbingLayer(TestLayers):
             assert op.get_job_count("failed") == 0
 
             counter = Counter([row["layer"] for row in read_table(self.OUTPUT_TABLE)])
-            assert counter["default"] == job_count
-            assert counter["probing"] == 0
+            assert counter["control"] == job_count
+            assert counter["treatment"] == 0
 
             assert op.get_job_count("aborted") == 2 or "base_layer_probe_failed" in op.get_alerts()
+
+            if "base_layer_probe_failed" in op.get_alerts():
+                alert_count += 1
 
             if op.get_job_count("aborted") >= 2:
                 break
 
         assert try_count < self.MAX_TRIES
 
+        assert alert_count >= 1
+
+    @authors("galtsev")
     @pytest.mark.parametrize("options", [
         {"fail_on_job_restart": True},
         {"mapper": {"layer_paths": ["//tmp/layer2"]}},
         {"max_speculative_job_count_per_task": 0},
         {"try_avoid_duplicating_jobs": True},
     ])
-    @authors("galtsev")
     def test_probing_layer_disabled(self, options):
         self.setup_files()
 
@@ -361,9 +369,9 @@ class TestProbingLayer(TestLayers):
 
         command = (
             "if test -e $YT_ROOT_FS/test; then "
-            "    sed 's/LAYER/default/g'; "
+            "    sed 's/LAYER/control/g'; "
             "else "
-            "    sed 's/LAYER/probing/g'; "
+            "    sed 's/LAYER/treatment/g'; "
             "fi"
         )
 
@@ -372,8 +380,8 @@ class TestProbingLayer(TestLayers):
         assert op.get_job_count("failed") == 0
 
         counter = Counter([row["layer"] for row in read_table(self.OUTPUT_TABLE)])
-        assert counter["default"] == job_count
-        assert counter["probing"] == 0
+        assert counter["control"] == job_count
+        assert counter["treatment"] == 0
 
         assert op.get_job_count("aborted") == 0
 
@@ -387,9 +395,9 @@ class TestProbingLayer(TestLayers):
 
         command = (
             "if test -e $YT_ROOT_FS/test; then "
-            "    sed 's/LAYER/default/'; "
+            "    sed 's/LAYER/control/'; "
             "else "
-            "    sed 's/LAYER/probing/'; "
+            "    sed 's/LAYER/treatment/'; "
             "fi"
         )
 
@@ -406,27 +414,27 @@ class TestProbingLayer(TestLayers):
 
     @authors("galtsev")
     @pytest.mark.timeout(600)
-    def test_alert(self):
+    def test_probing_layer_alert(self):
         self.setup_files()
 
         job_count = 10
         self.create_tables(job_count)
         alert_count = 0
 
-        for default_failure_rate in range(2, 6):
-            for probing_failure_rate in range(2, 6):
+        for control_failure_rate in range(2, 5):
+            for treatment_failure_rate in range(2, 5):
 
                 command = (
                     f"if test -e $YT_ROOT_FS/test; then "
-                    f"    if [ $(($RANDOM % {default_failure_rate})) -eq 0 ]; then "
+                    f"    if [ $(($RANDOM % {control_failure_rate})) -eq 0 ]; then "
                     f"        exit 1; "
                     f"    fi; "
-                    f"    sed 's/LAYER/default/g'; "
+                    f"    sed 's/LAYER/control/g'; "
                     f"else "
-                    f"    if [ $(($RANDOM % {probing_failure_rate})) -eq 0 ]; then "
+                    f"    if [ $(($RANDOM % {treatment_failure_rate})) -eq 0 ]; then "
                     f"        exit 1; "
                     f"    fi; "
-                    f"    sed 's/LAYER/probing/g'; "
+                    f"    sed 's/LAYER/treatment/g'; "
                     f"fi"
                 )
 
@@ -436,8 +444,8 @@ class TestProbingLayer(TestLayers):
 
                 if "base_layer_probe_failed" in op.get_alerts():
                     attributes = op.get_alerts()["base_layer_probe_failed"]["attributes"]
-                    assert attributes["failed_non_layer_probing_job_count"] == op.get_job_count("failed")
-                    assert attributes["succeeded_layer_probing_job_count"] > 0 or counter["probing"] == 0
+                    assert attributes["failed_control_job_count"] == op.get_job_count("failed")
+                    assert attributes["succeeded_treatment_job_count"] > 0 or counter["treatment"] == 0
                     alert_count += 1
 
         assert alert_count > 1

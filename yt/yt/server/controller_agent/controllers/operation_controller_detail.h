@@ -473,6 +473,8 @@ public:
     void UpdateIntermediateMediumUsage(i64 usage) override;
 
     const std::vector<TString>& GetOffloadingPoolTrees() override;
+    void InitializeJobExperiment();
+    TJobExperimentBasePtr GetJobExperiment() override;
 
 protected:
     const IOperationControllerHostPtr Host;
@@ -616,7 +618,9 @@ protected:
     int MonitoredUserJobCount_ = 0;
     int MonitoredUserJobAttemptCount_ = 0;
 
-    THashMap<TString, TUserFile> BaseLayers_;
+    std::optional<TUserFile> BaseLayer_;
+
+    TJobExperimentBasePtr JobExperiment_;
 
     virtual bool IsTransactionNeeded(ETransactionType type) const;
 

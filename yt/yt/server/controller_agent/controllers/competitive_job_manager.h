@@ -93,6 +93,8 @@ protected:
     ICompetitiveJobManagerHost* Host_;
 
 protected:
+    NLogging::TSerializableLogger Logger;
+
     void OnJobFinished(const TJobletPtr& joblet);
     void MarkCompetitionAsCompleted(const TJobletPtr& joblet);
     void BanCookie(NChunkPools::IChunkPoolOutput::TCookie cookie);
@@ -106,8 +108,6 @@ private:
     THashMap<NChunkPools::IChunkPoolOutput::TCookie, TCompetitionPtr> CookieToCompetition_;
     THashSet<NChunkPools::IChunkPoolOutput::TCookie> CompetitionCandidates_;
     THashSet<NChunkPools::IChunkPoolOutput::TCookie> BannedCookies_;
-
-    NLogging::TSerializableLogger Logger;
 
     i64 PendingDataWeight_ = 0;
     int MaxCompetitiveJobCount_ = -1;

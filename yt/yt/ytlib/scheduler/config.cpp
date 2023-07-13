@@ -739,6 +739,12 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("profilers", &TThis::Profilers)
         .Default();
 
+    registrar.Parameter("default_base_layer_path", &TThis::DefaultBaseLayerPath)
+        .Default();
+
+    registrar.Parameter("job_experiment", &TThis::JobExperiment)
+        .DefaultNew();
+
     registrar.Parameter("adjust_dynamic_table_data_slices", &TThis::AdjustDynamicTableDataSlices)
         .Default(false);
 
@@ -795,6 +801,34 @@ void TTaskOutputStreamConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("schema", &TThis::Schema)
         .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TJobExperimentConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("max_failed_treatment_jobs", &TThis::MaxFailedTreatmentJobs)
+        .Default(10);
+    registrar.Parameter("switch_on_experiment_success", &TThis::SwitchOnExperimentSuccess)
+        .Default(true);
+    registrar.Parameter("alert_on_any_treatment_failure", &TThis::AlertOnAnyTreatmentFailure)
+        .Default(false);
+
+    registrar.Parameter("base_layer_path", &TThis::BaseLayerPath)
+        .Default();
+
+    registrar.Parameter("network_project", &TThis::NetworkProject)
+        .Default();
+
+    registrar.Postprocessor([] (TJobExperimentConfig* config) {
+        if (config->BaseLayerPath && config->NetworkProject)
+        {
+            THROW_ERROR_EXCEPTION(
+                "Options \"base_layer_path\" and \"network_project\" cannot be specified simultaneously")
+                << TErrorAttribute("base_layer_path", config->BaseLayerPath)
+                << TErrorAttribute("network_project", config->NetworkProject);
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -945,17 +979,6 @@ void TUserJobSpec::Register(TRegistrar registrar)
 
     registrar.Parameter("docker_image", &TThis::DockerImage)
         .Default();
-
-    registrar.Parameter("default_base_layer_path", &TThis::DefaultBaseLayerPath)
-        .Default();
-    registrar.Parameter("probing_base_layer_path", &TThis::ProbingBaseLayerPath)
-        .Default();
-    registrar.Parameter("max_failed_base_layer_probes", &TThis::MaxFailedBaseLayerProbes)
-        .Default(10);
-    registrar.Parameter("switch_base_layer_on_probe_success", &TThis::SwitchBaseLayerOnProbeSuccess)
-        .Default(true);
-    registrar.Parameter("alert_on_any_probing_failure", &TThis::AlertOnAnyProbingFailure)
-        .Default(false);
 
     registrar.Parameter("profilers", &TThis::Profilers)
         .Default();

@@ -779,6 +779,10 @@ void TOperationControllerBase::InitializeStructures()
                 false));
         }
 
+        if (!userJobSpec->LayerPaths.empty()) {
+            Spec_->DefaultBaseLayerPath = std::nullopt;
+        }
+
         // Add layer files.
         auto layerPaths = GetLayerPaths(userJobSpec);
         for (const auto& path : layerPaths) {
@@ -789,19 +793,14 @@ void TOperationControllerBase::InitializeStructures()
                 : InputTransaction->GetId(),
                 true));
         }
+    }
 
-        if (userJobSpec->DefaultBaseLayerPath && userJobSpec->ProbingBaseLayerPath) {
-            auto path = TRichYPath(*userJobSpec->ProbingBaseLayerPath);
-            if (path.GetTransactionId()) {
-                THROW_ERROR_EXCEPTION("Transaction id is not supported for \"probing_base_layer_path\"");
-            }
-            if (!BaseLayers_.contains(*userJobSpec->ProbingBaseLayerPath)) {
-                BaseLayers_[*userJobSpec->ProbingBaseLayerPath] = TUserFile(
-                    path,
-                    InputTransaction->GetId(),
-                    true);
-            }
+    if (TLayerJobExperiment::IsEnabled(Spec_)) {
+        auto path = TRichYPath(*Spec_->JobExperiment->BaseLayerPath);
+        if (path.GetTransactionId()) {
+            THROW_ERROR_EXCEPTION("Transaction id is not supported for \"probing_base_layer_path\"");
         }
+        BaseLayer_ = TUserFile(path, InputTransaction->GetId(), true);
     }
 
     auto maxInputTableCount = std::min(Config->MaxInputTableCount, Options->MaxInputTableCount);
@@ -1181,6 +1180,8 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         InitializeHistograms();
 
         InitializeSecurityTags();
+
+        InitializeJobExperiment();
 
         YT_LOG_INFO("Tasks prepared (RowBufferCapacity: %v)", RowBuffer->GetCapacity());
 
@@ -2984,8 +2985,8 @@ void TOperationControllerBase::InitializeSecurityTags()
         }
     }
 
-    for (const auto& [_, layer] : BaseLayers_) {
-        addTags(layer.SecurityTags);
+    if (BaseLayer_) {
+        addTags(BaseLayer_->SecurityTags);
     }
 
     SortUnique(inferredSecurityTags);
@@ -3244,11 +3245,11 @@ void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jo
         return;
     }
 
-    if (joblet->CompetitionType == EJobCompetitionType::LayerProbing) {
+    if (joblet->CompetitionType == EJobCompetitionType::Experiment) {
         YT_LOG_DEBUG("Failed layer probing job is considered aborted "
             "(JobId: %v)",
             jobId);
-        auto abortedJobSummary = std::make_unique<TAbortedJobSummary>(*jobSummary, EAbortReason::LayerProbingFailed);
+        auto abortedJobSummary = std::make_unique<TAbortedJobSummary>(*jobSummary, EAbortReason::JobTreatmentFailed);
         OnJobAborted(std::move(abortedJobSummary));
         return;
     }
@@ -5388,6 +5389,30 @@ const std::vector<TString>& TOperationControllerBase::GetOffloadingPoolTrees()
     return *OffloadingPoolTrees_;
 }
 
+void TOperationControllerBase::InitializeJobExperiment()
+{
+    if (Spec_->JobExperiment) {
+        if (TLayerJobExperiment::IsEnabled(Spec_)) {
+            JobExperiment_ = New<TLayerJobExperiment>(
+                *Spec_->DefaultBaseLayerPath,
+                *BaseLayer_,
+                Config->EnableBypassArtifactCache,
+                Logger);
+        } else if (TMtnJobExperiment::IsEnabled(Spec_)) {
+            JobExperiment_ = New<TMtnJobExperiment>(
+                Host->GetClient(),
+                GetAuthenticatedUser(),
+                *Spec_->JobExperiment->NetworkProject,
+                Logger);
+        }
+    }
+}
+
+TJobExperimentBasePtr TOperationControllerBase::GetJobExperiment()
+{
+    return JobExperiment_;
+}
+
 void TOperationControllerBase::AbortJobByJobTracker(TJobId jobId, EAbortReason abortReason)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->JobEventsControllerQueue));
@@ -6782,11 +6807,11 @@ void TOperationControllerBase::FetchUserFiles()
         }
     }
 
-    for (auto& [_, layer] : BaseLayers_) {
+    if (BaseLayer_) {
         YT_LOG_INFO("Adding base layer for fetch (Path: %v)",
-            layer.Path);
+            BaseLayer_->Path);
 
-        addFileForFetching(layer);
+        addFileForFetching(*BaseLayer_);
     }
 
     YT_LOG_INFO("Fetching user files");
@@ -6944,8 +6969,8 @@ void TOperationControllerBase::ValidateUserFileSizes()
         }
     }
 
-    for (const auto& [_, layer] : BaseLayers_) {
-        validateFile(layer);
+    if (BaseLayer_) {
+        validateFile(*BaseLayer_);
     }
 }
 
@@ -6971,8 +6996,8 @@ void TOperationControllerBase::LockUserFiles()
         }
     }
 
-    for (auto& [_, layer] : BaseLayers_) {
-        lockFile(layer);
+    if (BaseLayer_) {
+        lockFile(*BaseLayer_);
     }
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
@@ -7008,12 +7033,8 @@ void TOperationControllerBase::GetUserFilesAttributes()
             });
     }
 
-    if (!BaseLayers_.empty()) {
-        std::vector<TUserObject*> layers;
-        layers.reserve(BaseLayers_.size());
-        for (auto& [_, layer]: BaseLayers_) {
-            layers.push_back(&layer);
-        }
+    if (BaseLayer_) {
+        std::vector<TUserObject*> layers(1, &*BaseLayer_);
 
         GetUserObjectBasicAttributes(
             Client,
@@ -7044,13 +7065,11 @@ void TOperationControllerBase::GetUserFilesAttributes()
         }
     }
 
-    for (auto& [path, layer] : BaseLayers_) {
-        if (layer.Type != EObjectType::File) {
-            THROW_ERROR_EXCEPTION("User layer %v has invalid type: expected %Qlv, actual %Qlv",
-                path,
-                EObjectType::File,
-                layer.Type);
-        }
+    if (BaseLayer_ && BaseLayer_->Type != EObjectType::File) {
+        THROW_ERROR_EXCEPTION("User layer %v has invalid type: expected %Qlv, actual %Qlv",
+            BaseLayer_->Path,
+            EObjectType::File,
+            BaseLayer_->Type);
     }
 
 
@@ -9451,27 +9470,11 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
     if (jobSpecConfig->NetworkProject) {
         const auto& client = Host->GetClient();
-        const auto networkProjectPath = "//sys/network_projects/" + ToYPathLiteral(*jobSpecConfig->NetworkProject);
-        auto checkPermissionRspOrError = WaitFor(client->CheckPermission(
-            AuthenticatedUser,
-            networkProjectPath,
-            EPermission::Use));
-        if (checkPermissionRspOrError.ValueOrThrow().Action == ESecurityAction::Deny) {
-            THROW_ERROR_EXCEPTION("User %Qv is not allowed to use network project %Qv",
-                AuthenticatedUser,
-                *jobSpecConfig->NetworkProject);
-        }
+        auto networkProjectAttributes = GetNetworkProject(client, AuthenticatedUser, *jobSpecConfig->NetworkProject);
+        jobSpec->set_network_project_id(networkProjectAttributes->Get<ui32>("project_id"));
 
-        TGetNodeOptions options {
-            .Attributes = std::vector<TString>{"project_id", "enable_nat64", "disable_network"}
-        };
-        auto networkProject = WaitFor(client->GetNode(networkProjectPath, options))
-            .ValueOrThrow();
-        auto networkProjectNode = ConvertToNode(networkProject);
-        jobSpec->set_network_project_id(networkProjectNode->Attributes().Get<ui32>("project_id"));
-
-        jobSpec->set_enable_nat64(networkProjectNode->Attributes().Get<bool>("enable_nat64", false));
-        jobSpec->set_disable_network(networkProjectNode->Attributes().Get<bool>("disable_network", false));
+        jobSpec->set_enable_nat64(networkProjectAttributes->Get<bool>("enable_nat64", false));
+        jobSpec->set_disable_network(networkProjectAttributes->Get<bool>("disable_network", false));
     }
 
     jobSpec->set_enable_porto(ToProto<int>(jobSpecConfig->EnablePorto.value_or(Config->DefaultEnablePorto)));
@@ -9583,31 +9586,7 @@ void TOperationControllerBase::InitUserJobSpec(
         monitoringConfig->set_job_descriptor(*joblet->UserJobMonitoringDescriptor);
     }
 
-    auto jobIsLayerProbing = joblet->CompetitionType == EJobCompetitionType::LayerProbing;
-    if (jobIsLayerProbing || joblet->Task->ShouldUseProbingLayer()) {
-        const auto& userJobSpec = joblet->Task->GetUserJobSpec();
-        YT_VERIFY(userJobSpec->DefaultBaseLayerPath);
-        YT_VERIFY(userJobSpec->ProbingBaseLayerPath);
-
-        YT_LOG_DEBUG("Switching the job to the probing layer (JobId: %v, JobIsLayerProbing: %v, Layer: %v)",
-            joblet->JobId,
-            jobIsLayerProbing,
-            userJobSpec->ProbingBaseLayerPath);
-
-        const auto& probingLayer = BaseLayers_.find(*userJobSpec->ProbingBaseLayerPath);
-
-        if (probingLayer != BaseLayers_.end()) {
-            for (auto& layerSpec : *jobSpec->mutable_layers()) {
-                if (layerSpec.data_source().path() == *userJobSpec->DefaultBaseLayerPath) {
-                    BuildFileSpec(
-                        &layerSpec,
-                        probingLayer->second,
-                        layerSpec.copy_file(),
-                        Config->EnableBypassArtifactCache);
-                }
-            }
-        }
-    }
+    joblet->Task->PatchUserJobSpec(jobSpec, joblet);
 }
 
 void TOperationControllerBase::AddStderrOutputSpecs(
@@ -10049,10 +10028,9 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
         Persist(context, FastIntermediateMediumLimit_);
     }
 
-    // COMPAT(galtsev)
-    if (context.GetVersion() >= ESnapshotVersion::ProbingBaseLayer) {
-        Persist(context, BaseLayers_);
-    }
+    YT_VERIFY(context.GetVersion() >= ESnapshotVersion::JobExperiment);
+    Persist(context, BaseLayer_);
+    Persist(context, JobExperiment_);
 
     // COMPAT(eshcherbin)
     if (context.GetVersion() >= ESnapshotVersion::InitialMinNeededResources) {
@@ -10458,8 +10436,8 @@ std::vector<TRichYPath> TOperationControllerBase::GetLayerPaths(
             *userJobSpec->DockerImage);
     }
     std::copy(userJobSpec->LayerPaths.begin(), userJobSpec->LayerPaths.end(), std::back_inserter(layerPaths));
-    if (layerPaths.empty() && userJobSpec->DefaultBaseLayerPath) {
-        layerPaths.insert(layerPaths.begin(), *userJobSpec->DefaultBaseLayerPath);
+    if (layerPaths.empty() && Spec_->DefaultBaseLayerPath) {
+        layerPaths.insert(layerPaths.begin(), *Spec_->DefaultBaseLayerPath);
     }
     if (Config->DefaultLayerPath && layerPaths.empty()) {
         // If no layers were specified, we insert the default one.

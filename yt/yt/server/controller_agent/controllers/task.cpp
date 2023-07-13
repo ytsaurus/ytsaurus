@@ -95,8 +95,9 @@ TTask::TTask(
         taskHost->GetSpec()->TryAvoidDuplicatingJobs ? 0 : taskHost->GetSpec()->MaxProbingJobCountPerTask,
         taskHost->GetSpec()->ProbingRatio,
         taskHost->GetSpec()->ProbingPoolTree)
-    , LayerProbingJobManager_(
+    , ExperimentJobManager_(
         this,
+        taskHost->GetSpec(),
         Logger)
 { }
 
@@ -127,7 +128,7 @@ void TTask::Initialize()
         }
     }
 
-    LayerProbingJobManager_.SetUserJobSpec(TaskHost_->GetSpec(), GetUserJobSpec());
+    ExperimentJobManager_.SetJobExperiment(TaskHost_->GetJobExperiment());
 }
 
 void TTask::Prepare()
@@ -196,7 +197,7 @@ TCompositePendingJobCount TTask::GetPendingJobCount() const
 
     result.DefaultCount = GetChunkPoolOutput()->GetJobCounter()->GetPending() +
         SpeculativeJobManager_.GetPendingJobCount() +
-        LayerProbingJobManager_.GetPendingJobCount();
+        ExperimentJobManager_.GetPendingJobCount();
 
     ProbingJobManager_.UpdatePendingJobCount(&result);
 
@@ -451,9 +452,9 @@ void TTask::SwitchIntermediateMedium()
     }
 }
 
-bool TTask::ShouldUseProbingLayer() const
+void TTask::PatchUserJobSpec(NScheduler::NProto::TUserJobSpec* jobSpec, TJobletPtr joblet) const
 {
-    return LayerProbingJobManager_.ShouldUseProbingLayer();
+    ExperimentJobManager_.PatchUserJobSpec(jobSpec, joblet);
 }
 
 void TTask::CheckCompleted()
@@ -530,9 +531,9 @@ void TTask::ScheduleJob(
     if (treeIsProbing) {
         joblet->CompetitionType = EJobCompetitionType::Probing;
         joblet->OutputCookie = ProbingJobManager_.PeekJobCandidate();
-    } else if (LayerProbingJobManager_.IsLayerProbeReady()) {
-        joblet->CompetitionType = EJobCompetitionType::LayerProbing;
-        joblet->OutputCookie = LayerProbingJobManager_.PeekJobCandidate();
+    } else if (ExperimentJobManager_.IsTreatmentReady()) {
+        joblet->CompetitionType = EJobCompetitionType::Experiment;
+        joblet->OutputCookie = ExperimentJobManager_.PeekJobCandidate();
     } else if (speculative) {
         joblet->CompetitionType = EJobCompetitionType::Speculative;
         joblet->OutputCookie = SpeculativeJobManager_.PeekJobCandidate();
@@ -937,9 +938,12 @@ void TTask::Persist(const TPersistenceContext& context)
 
     // COMPAT(galtsev)
     if (context.GetVersion() >= ESnapshotVersion::ProbingBaseLayer) {
-        Persist(context, LayerProbingJobManager_);
+        Persist(context, ExperimentJobManager_);
+        if (context.GetVersion() >= ESnapshotVersion::ProbingBaseLayer && TaskHost_->GetSpec()->JobExperiment) {
+            ExperimentJobManager_.SetJobExperiment(TaskHost_->GetJobExperiment());
+        }
     } else {
-        LayerProbingJobManager_ = TLayerProbingJobManager(this, Logger);
+        ExperimentJobManager_ = TExperimentJobManager(this, TaskHost_->GetSpec(), Logger);
     }
 
     Persist(context, StartTime_);
@@ -1287,27 +1291,7 @@ void TTask::OnTaskCompleted()
 {
     StopTiming();
 
-    auto userJobSpec = GetUserJobSpec();
-
-    if (LayerProbingJobManager_.GetFailedLayerProbingJobCount() > 0 &&
-        (userJobSpec->AlertOnAnyProbingFailure || LayerProbingJobManager_.GetFailedNonLayerProbingJobCount() == 0))
-    {
-        YT_VERIFY(userJobSpec && userJobSpec->ProbingBaseLayerPath);
-        auto error = TError(
-            "A job with a probing base layer has failed; "
-            "this probably means that your job requires a specific environment "
-            "that must be put into user delta layer, or into explicitly-specified base layer")
-            << TErrorAttribute("task_name", GetVertexDescriptor())
-            << TErrorAttribute("probing_base_layer_path", *userJobSpec->ProbingBaseLayerPath)
-            << TErrorAttribute("failed_layer_probing_job_count", LayerProbingJobManager_.GetFailedLayerProbingJobCount())
-            << TErrorAttribute("succeeded_layer_probing_job_count", LayerProbingJobManager_.GetSucceededLayerProbingJobCount())
-            << TErrorAttribute("failed_layer_probing_job", LayerProbingJobManager_.GetFailedLayerProbingJob())
-            << TErrorAttribute("failed_non_layer_probing_job_count", LayerProbingJobManager_.GetFailedNonLayerProbingJobCount());
-        if (LayerProbingJobManager_.GetFailedNonLayerProbingJob()) {
-            error = error << TErrorAttribute("failed_non_layer_probing_job", LayerProbingJobManager_.GetFailedNonLayerProbingJob());
-        }
-        TaskHost_->SetOperationAlert(EOperationAlertType::BaseLayerProbeFailed, error);
-    }
+    ExperimentJobManager_.GenerateAlertIfNeeded(TaskHost_, GetVertexDescriptor());
 
     YT_LOG_DEBUG("Task completed");
 }

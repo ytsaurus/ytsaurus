@@ -25,7 +25,7 @@ TControllerJobReport TControllerJobReport::HasCompetitors(bool hasCompetitors, E
         case EJobCompetitionType::Probing:
             HasProbingCompetitors_ = hasCompetitors;
             break;
-        case EJobCompetitionType::LayerProbing:
+        case EJobCompetitionType::Experiment:
             break;
         default:
             YT_ABORT();

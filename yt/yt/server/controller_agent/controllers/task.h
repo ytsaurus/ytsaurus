@@ -4,10 +4,10 @@
 
 #include "speculative_job_manager.h"
 #include "data_flow_graph.h"
+#include "experiment_job_manager.h"
 #include "extended_job_resources.h"
 #include "job_splitter.h"
 #include "helpers.h"
-#include "layer_probing_job_manager.h"
 #include "probing_job_manager.h"
 #include "aggregated_job_statistics.h"
 
@@ -248,8 +248,8 @@ public:
     //! Switches all future jobs in the task to the slow intermediate medium.
     void SwitchIntermediateMedium();
 
-    //! A layer probing job has succeeded and all future jobs in the task should use the probing base layer.
-    bool ShouldUseProbingLayer() const;
+    //! Modifies the job spec so the job will use the experimental setup if required.
+    void PatchUserJobSpec(NScheduler::NProto::TUserJobSpec* jobSpec, TJobletPtr joblet) const;
 
 protected:
     NLogging::TSerializableLogger Logger;
@@ -415,8 +415,8 @@ private:
 
     TSpeculativeJobManager SpeculativeJobManager_;
     TProbingJobManager ProbingJobManager_;
-    TLayerProbingJobManager LayerProbingJobManager_;
-    std::array<TCompetitiveJobManagerBase*, 3> JobManagers_ = {&SpeculativeJobManager_, &ProbingJobManager_, &LayerProbingJobManager_};
+    TExperimentJobManager ExperimentJobManager_;
+    std::array<TCompetitiveJobManagerBase*, 3> JobManagers_ = {&SpeculativeJobManager_, &ProbingJobManager_, &ExperimentJobManager_};
 
     //! Time of first job scheduling.
     std::optional<TInstant> StartTime_;
