@@ -210,6 +210,7 @@ public:
     bool EnableStructuredLogger;
 
     bool EnableCompactionAndPartitioning;
+    bool EnablePartitioning;
     bool EnableStoreRotation;
     bool EnableStoreFlush;
     bool EnableLsmVerboseLogging;

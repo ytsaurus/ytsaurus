@@ -258,6 +258,9 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_compaction_and_partitioning", &TThis::EnableCompactionAndPartitioning)
         .Default(true);
 
+    registrar.Parameter("enable_partitioning", &TThis::EnablePartitioning)
+        .Default(true);
+
     registrar.Parameter("enable_store_rotation", &TThis::EnableStoreRotation)
         .Default(true);
 

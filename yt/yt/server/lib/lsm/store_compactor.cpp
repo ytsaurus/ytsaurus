@@ -75,8 +75,10 @@ private:
             return batch;
         }
 
-        if (auto request = ScanEdenForPartitioning(tablet->Eden().get())) {
-            batch.Partitionings.push_back(std::move(*request));
+        if (config->EnablePartitioning) {
+            if (auto request = ScanEdenForPartitioning(tablet->Eden().get())) {
+                batch.Partitionings.push_back(std::move(*request));
+            }
         }
 
         bool allowForcedCompaction = true;
@@ -106,13 +108,13 @@ private:
         }
 
         auto* tablet = eden->GetTablet();
+        const auto& mountConfig = tablet->GetMountConfig();
 
         auto [reason, stores] = PickStoresForPartitioning(eden);
         if (stores.empty()) {
             return {};
         }
 
-        const auto& mountConfig = tablet->GetMountConfig();
         // We aim to improve OSC; partitioning unconditionally improves OSC (given at least two stores).
         // So we consider how constrained is the tablet, and how many stores we consider for partitioning.
         const int overlappingStoreLimit = GetOverlappingStoreLimit(mountConfig);
