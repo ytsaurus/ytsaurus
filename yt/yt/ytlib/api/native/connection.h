@@ -246,4 +246,11 @@ IConnectionPtr GetRemoteConnectionOrThrow(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Returns path to the source of the object, if objectPath points to symlink, then resolves path to original.
+TFuture<NYPath::TRichYPath> ResolvePhysicalPath(
+    const NYPath::TRichYPath& objectPath,
+    const IConnectionPtr& connection);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NApi::NNative

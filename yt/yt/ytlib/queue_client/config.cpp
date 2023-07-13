@@ -34,6 +34,8 @@ void TQueueConsumerRegistrationManagerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(60));
     registrar.Parameter("user", &TThis::User)
         .Default(RootUserName);
+    registrar.Parameter("resolve_symlinks", &TThis::ResolveSymlinks)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

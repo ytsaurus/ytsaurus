@@ -89,6 +89,13 @@ private:
 
     //! Returns the stored dynamic config.
     TQueueConsumerRegistrationManagerConfigPtr GetDynamicConfig() const;
+
+    //! Resolves physical path for object.
+    //! If throwOnFailure is false, errors during resolution are written to the log only and the path is returned unchanged.
+    NYPath::TRichYPath ResolveObjectPhysicalPath(
+        const NYPath::TRichYPath& queue,
+        const TString& objectRole,
+        bool throwOnFailure) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueueConsumerRegistrationManager)

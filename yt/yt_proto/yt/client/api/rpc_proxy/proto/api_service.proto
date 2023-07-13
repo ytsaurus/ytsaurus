@@ -1246,6 +1246,7 @@ message TRspGetTableMountInfo
     required bool dynamic = 4;
     required NYT.NProto.TGuid upstream_replica_id = 5;
     repeated TReplicaInfo replicas = 6;
+    optional string physical_path = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

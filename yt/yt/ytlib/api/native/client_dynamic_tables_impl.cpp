@@ -2318,13 +2318,17 @@ IQueueRowsetPtr TClient::DoPullConsumer(
     WaitFor(permissionCache->Get(permissionKey))
         .ThrowOnError();
 
-    auto registration = Connection_->GetQueueConsumerRegistrationManager()->GetRegistration(queuePath, consumerPath);
+    TRichYPath consumerPhysicalPath(consumerTableInfo->PhysicalPath, consumerPath.Attributes());
+    TRichYPath queuePhysicalPath = WaitFor(ResolvePhysicalPath(queuePath, Connection_))
+        .ValueOrThrow();
+
+    auto registration = Connection_->GetQueueConsumerRegistrationManager()->GetRegistration(queuePhysicalPath, consumerPhysicalPath);
     if (!registration) {
         THROW_ERROR_EXCEPTION(
             NYT::NSecurityClient::EErrorCode::AuthorizationError,
             "Consumer %Qv is not registered for queue %Qv",
-            consumerPath,
-            queuePath);
+            consumerPhysicalPath,
+            queuePhysicalPath);
     }
 
     auto queueClusterClient = MakeStrong(static_cast<IInternalClient*>(this));
@@ -2356,8 +2360,8 @@ void TClient::DoRegisterQueueConsumer(
     const TRegisterQueueConsumerOptions& options)
 {
     auto queueConnection = FindRemoteConnection(Connection_, queuePath.GetCluster());
-    const auto& tableMountCache = queueConnection->GetTableMountCache();
-    auto queueTableInfo = WaitFor(tableMountCache->GetTableInfo(queuePath.GetPath()))
+    const auto& queueTableMountCache = queueConnection->GetTableMountCache();
+    auto queueTableInfo = WaitFor(queueTableMountCache->GetTableInfo(queuePath.GetPath()))
         .ValueOrThrow();
 
     NSecurityClient::TPermissionKey permissionKey{
