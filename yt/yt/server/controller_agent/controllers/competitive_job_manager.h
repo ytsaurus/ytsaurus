@@ -119,7 +119,7 @@ private:
     virtual bool OnUnsuccessfulJobFinish(
         const TJobletPtr& joblet,
         const std::function<void(TProgressCounterGuard*)>& updateJobCounter,
-        const NJobTrackerClient::EJobState state) = 0;
+        NJobTrackerClient::EJobState state) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

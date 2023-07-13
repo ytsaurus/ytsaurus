@@ -43,9 +43,9 @@ public:
     bool IsLayerProbeReady() const;
 
     bool ShouldUseProbingLayer() const;
-    int FailedNonLayerProbingJobCount() const;
-    int FailedLayerProbingJobCount() const;
-    int SucceededLayerProbingJobCount() const;
+    int GetFailedNonLayerProbingJobCount() const;
+    int GetFailedLayerProbingJobCount() const;
+    int GetSucceededLayerProbingJobCount() const;
 
     NJobTrackerClient::TJobId GetFailedLayerProbingJob() const;
     NJobTrackerClient::TJobId GetFailedNonLayerProbingJob() const;
@@ -65,7 +65,7 @@ private:
     virtual bool OnUnsuccessfulJobFinish(
         const TJobletPtr& joblet,
         const std::function<void(TProgressCounterGuard*)>& updateJobCounter,
-        const NJobTrackerClient::EJobState state) override;
+        NJobTrackerClient::EJobState state) override;
 
     bool IsLayerProbeRequired() const;
 };
