@@ -37,7 +37,7 @@ CONTRIB_PYTHON_PACKAGE_LIST = [
     ("typing_extensions", "typing-extensions/py3"),
     ("idna", "idna/py2"),
     "six",
-    ("attr", "attrs"),
+    ("attrs", "attrs/py2"),
     "typing",
 ]
 
