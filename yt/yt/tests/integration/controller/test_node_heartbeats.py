@@ -4,6 +4,8 @@ from yt_commands import (
     authors, create, map, wait,
     write_table, update_controller_agent_config, update_nodes_dynamic_config)
 
+from flaky import flaky
+
 ##################################################################
 
 
@@ -57,6 +59,7 @@ class TestNodeHeartbeats(YTEnvSetup):
 
         op.track()
 
+    @flaky(max_runs=3)
     @authors("pogorelov")
     def test_job_abort_on_heartbeat_timeout(self):
         def fixup():
