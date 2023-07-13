@@ -20,10 +20,10 @@ jobs:
           mode: start
           yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-          folder-id: b1gcvl619mdunf1cqqbv
-          image-id: fd85p4aqjlpuf14r7044
-          zone-id: 'ru-central1-b'
-          subnet-id: e2lno1rkqo63l729dlo7
+          folder-id: ${{ vars.YC_FOLDER_ID }}
+          image-id: ${{ vars.YC_DEFAULT_IMAGE_ID }}
+          zone-id: ${{ vars.YC_ZONE_ID }}
+          subnet-id: ${{ vars.YC_SUBNET_ID }}
           cores: 4
           memory: 8GB
           core-fraction: 100
