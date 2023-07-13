@@ -61,6 +61,8 @@ TEST_W(TPeriodicTest, Simple)
         .ThrowOnError();
 }
 
+// TODO(achulkov2): Add simple out of band execution test.
+
 TEST_W(TPeriodicTest, ParallelStop)
 {
     std::atomic<int> count = {0};
