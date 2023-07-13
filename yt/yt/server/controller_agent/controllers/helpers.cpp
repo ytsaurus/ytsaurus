@@ -209,7 +209,7 @@ void TControllerFeatures::CalculateJobSatisticsAverage()
     }
 }
 
-void Serialize(const TControllerFeatures& features, NYson::IYsonConsumer* consumer)
+void Serialize(const TControllerFeatures& features, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer).BeginMap()
         .Item("tags").Value(features.Tags_)

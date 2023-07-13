@@ -791,7 +791,7 @@ void TOperationControllerBase::InitializeStructures()
         }
 
         if (userJobSpec->DefaultBaseLayerPath && userJobSpec->ProbingBaseLayerPath) {
-            auto path = NYPath::TRichYPath(*userJobSpec->ProbingBaseLayerPath);
+            auto path = TRichYPath(*userJobSpec->ProbingBaseLayerPath);
             if (path.GetTransactionId()) {
                 THROW_ERROR_EXCEPTION("Transaction id is not supported for \"probing_base_layer_path\"");
             }
@@ -10445,7 +10445,7 @@ void TOperationControllerBase::RegisterTestingSpeculativeJobIfNeeded(const TTask
     }
 }
 
-std::vector<NYPath::TRichYPath> TOperationControllerBase::GetLayerPaths(
+std::vector<TRichYPath> TOperationControllerBase::GetLayerPaths(
     const NYT::NScheduler::TUserJobSpecPtr& userJobSpec) const
 {
     if (!Config->TestingOptions->RootfsTestLayers.empty()) {
