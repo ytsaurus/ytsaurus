@@ -10,11 +10,6 @@ DECLARE_REFCOUNTED_CLASS(TAnyToYsonConverter)
 
 inline const NLogging::TLogger JobProxyClientLogger("JobProxyClient");
 
-TString GetDefaultJobsMetaContainerName();
-
-TString GetSlotMetaContainerName(int slotIndex);
-TString GetFullSlotMetaContainerName(const TString& jobsMetaName, int slotIndex);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NJobProxy

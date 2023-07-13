@@ -415,11 +415,7 @@ public:
 
         try {
             EnsureJobProxyFinished(slotIndex, true);
-
-            auto metaInstanceName = slotType == ESlotType::Common
-                ? MetaInstance_->GetName()
-                : MetaIdleInstance_->GetName();
-            auto slotContainer = GetFullSlotMetaContainerName(metaInstanceName, slotIndex);
+            auto slotContainer = GetFullSlotMetaContainerName(slotIndex, slotType);
 
             DestroyAllSubcontainers(slotContainer);
 
@@ -507,7 +503,10 @@ public:
     }
 
 private:
+    static constexpr TStringBuf JobsMetaContainerName = "jm";
     static constexpr TStringBuf JobsMetaContainerIdleSuffix = "_idle";
+    static constexpr TStringBuf JobProxyContainerPrefix = "/jp";
+    static constexpr TStringBuf SetupCommandContainerPrefix = "/sc";
 
     const TPortoJobEnvironmentConfigPtr Config_;
 
@@ -600,8 +599,8 @@ private:
 
         // If we are in the top-level container of current namespace, use names without prefix.
         auto metaInstanceName = baseContainer.empty()
-            ? GetDefaultJobsMetaContainerName()
-            : Format("%v/%v", baseContainer, GetDefaultJobsMetaContainerName());
+            ? TString(JobsMetaContainerName)
+            : Format("%v/%v", baseContainer, JobsMetaContainerName);
 
         auto metaIdleInstanceName = metaInstanceName + JobsMetaContainerIdleSuffix;
 
@@ -636,12 +635,10 @@ private:
 
         UpdateContainerCpuLimits();
 
-        auto createSlots = [this, slotCount] (const TString& name, ESlotType slotType) {
+        auto createSlots = [this, slotCount] (ESlotType slotType) {
             try {
                 for (int slotIndex = 0; slotIndex < slotCount; ++slotIndex) {
-                    auto slotContainer = GetFullSlotMetaContainerName(
-                        name,
-                        slotIndex);
+                    auto slotContainer = GetFullSlotMetaContainerName(slotIndex, slotType);
                     WaitFor(PortoExecutor_->CreateContainer(slotContainer))
                         .ThrowOnError();
 
@@ -672,8 +669,8 @@ private:
             }
         };
 
-        createSlots(MetaInstance_->GetName(), ESlotType::Common);
-        createSlots(MetaIdleInstance_->GetName(), ESlotType::Idle);
+        createSlots(ESlotType::Common);
+        createSlots(ESlotType::Idle);
 
         for (int slotIndex = 0; slotIndex < slotCount; ++slotIndex) {
             CleanProcesses(slotIndex, ESlotType::Common);
@@ -681,17 +678,30 @@ private:
         }
     }
 
-    IInstanceLauncherPtr CreateJobProxyInstanceLauncher(int slotIndex, ESlotType slotType, TJobId jobId)
+    TString GetFullSlotMetaContainerName(int slotIndex, ESlotType slotType)
     {
-        TString jobProxyContainerName = Config_->UseShortContainerNames
-            ? "/jp"
-            : Format("/jp-%x-%x", jobId.Parts32[3], jobId.Parts32[2]);
-
         auto instanceName = slotType == ESlotType::Common
             ? MetaInstance_->GetName()
             : MetaIdleInstance_->GetName();
+        return Format("%v/s_%03d", instanceName, slotIndex);
+    }
+
+    TString GetJobContainerName(TStringBuf prefix, TJobId jobId)
+    {
+        return Config_->UseShortContainerNames
+            ? TString(prefix)
+            : Format("%v-%x-%x", prefix, jobId.Parts32[3], jobId.Parts32[2]);
+    }
+
+    TString GetFullJobContainerName(int slotIndex, ESlotType slotType, TStringBuf prefix, TJobId jobId)
+    {
+        return GetFullSlotMetaContainerName(slotIndex, slotType) + GetJobContainerName(prefix, jobId);
+    }
+
+    IInstanceLauncherPtr CreateJobProxyInstanceLauncher(int slotIndex, ESlotType slotType, TJobId jobId)
+    {
         auto launcher = CreatePortoInstanceLauncher(
-            GetFullSlotMetaContainerName(instanceName, slotIndex) + jobProxyContainerName,
+            GetFullJobContainerName(slotIndex, slotType, JobProxyContainerPrefix, jobId),
             PortoExecutor_);
         launcher->SetEnablePorto(EEnablePorto::Full);
         launcher->SetIsolate(false);
@@ -700,13 +710,7 @@ private:
 
     void UpdateSlotCpuSet(int slotIndex, ESlotType slotType, TStringBuf cpuSet) override
     {
-        auto metaInstanceName = slotType == ESlotType::Common
-            ? MetaInstance_->GetName()
-            : MetaIdleInstance_->GetName();
-
-        auto slotContainer = GetFullSlotMetaContainerName(
-            metaInstanceName,
-            slotIndex);
+        auto slotContainer = GetFullSlotMetaContainerName(slotIndex, slotType);
 
         WaitFor(PortoExecutor_->SetContainerProperty(
             slotContainer,
@@ -793,16 +797,8 @@ private:
         const TString& user,
         int index)
     {
-        TString setupCommandContainerJobPart = Config_->UseShortContainerNames
-            ? "/sc"
-            : Format("/jp-%v-%v", IntToString<16>(jobId.Parts32[3]), IntToString<16>(jobId.Parts32[2]));
-        auto setupCommandContainerName = setupCommandContainerJobPart + "_" + ToString(index);
-
-        auto metaInstanceName = slotType == ESlotType::Common
-            ? MetaInstance_->GetName()
-            : MetaIdleInstance_->GetName();
         auto launcher = CreatePortoInstanceLauncher(
-            GetFullSlotMetaContainerName(metaInstanceName, slotIndex) + setupCommandContainerName,
+            GetFullJobContainerName(slotIndex, slotType, SetupCommandContainerPrefix, jobId) + "_" + ToString(index),
             PortoExecutor_);
         launcher->SetRoot(rootFS);
         launcher->SetUser(user);
