@@ -3723,6 +3723,18 @@ class TestCypressPortal(TestCypressMulticell):
         with pytest.raises(YtError, match="Failed to create link: link is cyclic"):
             link("//portals/p/r/l2", "//portals/p/r/l2", force=True)
 
+    @authors("h0pless")
+    def test_node_copy_rollback(self):
+        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
+        create("table", "//tmp/t", attributes={"external_cell_tag": 13})
+
+        # This will provoke a rollback.
+        set("//sys/@config/cypress_manager/max_locks_per_transaction_subtree", 0)
+        with pytest.raises(YtError, match="Cannot create \"exclusive\" lock for node"):
+            copy("//tmp/t", "//portals/p/t")
+
+        remove("//sys/@config/cypress_manager/max_locks_per_transaction_subtree")
+
     @authors("shakurov")
     def test_cross_shard_copy_inhertible_attributes(self):
         create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
