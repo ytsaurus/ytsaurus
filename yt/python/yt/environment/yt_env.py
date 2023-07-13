@@ -460,6 +460,7 @@ class YTInstance(object):
         try:
             self._configure_driver_logging()
             self._configure_yt_tracing()
+            self._configure_yp_service_discovery()
 
             if self.yt_config.http_proxy_count > 0:
                 self.start_http_proxy(sync=False)
@@ -868,6 +869,16 @@ class YTInstance(object):
                 "collector_channel_config": {"address": os.environ["JAEGER_COLLECTOR"]},
                 "enable_pid_tag": True,
             })
+
+    def _configure_yp_service_discovery(self):
+        try:
+            import yt_driver_bindings
+            yt_driver_bindings.configure_yp_service_discovery({"enable": False})
+        except ImportError:
+            pass
+
+        import yt.wrapper.native_driver as native_driver
+        native_driver.yp_service_discovery_configured = True
 
     def _write_environment_info_to_file(self):
         info = {}
