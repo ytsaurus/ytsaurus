@@ -75,6 +75,7 @@ public:
         TTimer Timer;
     };
 
+    void ReInit();
     void Commit(const NYT::NApi::ITransactionPtr tx, const TTimers::TTimersHashMap& updates);
     void OnCommit();
 

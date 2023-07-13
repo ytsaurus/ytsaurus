@@ -83,6 +83,16 @@ TTimers::TTimers(const NYT::NApi::IClientPtr ytClient, NYT::NYPath::TYPath ytPat
     CreateTimerTable(YtClient_, YTimersPath_);
     CreateTimerIndexTable(YtClient_, YTimersIndexPath_);
     CreateTimerMigrateTable(YtClient_, YTimersMigratePath_);
+
+    ReInit();
+}
+
+void TTimers::ReInit()
+{
+    Y_VERIFY(false == PopulateInProgress_);
+    TimerIndex_.clear();
+    TimerInFly_.clear();
+    DeletedTimers_.clear();
     PopulateIndex();
 }
 
