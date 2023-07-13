@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/hive/public.h>
 
+#include <yt/yt/client/chaos_client/public.h>
+
 #include <yt/yt/client/table_client/public.h>
 
 #include <yt/yt/client/hydra/public.h>
@@ -198,6 +200,114 @@ DEFINE_REFCOUNTED_TYPE(TConsumerRegistrationTable)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TReplicaInfo
+    : public NYTree::TYsonStruct
+{
+public:
+    TString ClusterName;
+    NYPath::TYPath ReplicaPath;
+    NTabletClient::ETableReplicaState State;
+    NTabletClient::ETableReplicaMode Mode;
+
+    REGISTER_YSON_STRUCT(TReplicaInfo);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TReplicaInfo)
+
+class TChaosReplicaInfo
+    : public TReplicaInfo
+{
+public:
+    NTabletClient::ETableReplicaContentType ContentType;
+
+    REGISTER_YSON_STRUCT(TChaosReplicaInfo);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TChaosReplicaInfo)
+
+class TReplicatedTableMeta
+    : public NYTree::TYsonStruct
+{
+public:
+    THashMap<NTabletClient::TTableReplicaId, TReplicaInfoPtr> Replicas;
+
+    REGISTER_YSON_STRUCT(TReplicatedTableMeta);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TReplicatedTableMeta)
+
+class TChaosReplicatedTableMeta
+    : public NYTree::TYsonStruct
+{
+public:
+    NChaosClient::TReplicationCardId ReplicationCardId;
+    THashMap<NChaosClient::TReplicaId, TChaosReplicaInfoPtr> Replicas;
+
+    REGISTER_YSON_STRUCT(TChaosReplicatedTableMeta);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TChaosReplicatedTableMeta)
+
+class TGenericReplicatedTableMeta
+    : public NYTree::TYsonStruct
+{
+public:
+    TReplicatedTableMetaPtr ReplicatedTableMeta;
+    TChaosReplicatedTableMetaPtr ChaosReplicatedTableMeta;
+
+    REGISTER_YSON_STRUCT(TGenericReplicatedTableMeta);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TGenericReplicatedTableMeta)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TReplicatedTableMappingTableRow
+{
+    TCrossClusterReference Ref;
+    std::optional<NHydra::TRevision> Revision;
+    std::optional<NObjectClient::EObjectType> ObjectType;
+    TGenericReplicatedTableMetaPtr Meta;
+
+    std::optional<TError> SynchronizationError;
+
+    static std::vector<TReplicatedTableMappingTableRow> ParseRowRange(
+        TRange<NTableClient::TUnversionedRow> rows,
+        const NTableClient::TNameTablePtr& nameTable);
+
+    static NApi::IUnversionedRowsetPtr InsertRowRange(TRange<TReplicatedTableMappingTableRow> rows);
+    static NApi::IUnversionedRowsetPtr DeleteRowRange(TRange<TReplicatedTableMappingTableRow> keys);
+
+    static TReplicatedTableMappingTableRow FromAttributeDictionary(
+        const TCrossClusterReference& object,
+        const NYTree::IAttributeDictionaryPtr& cypressAttributes);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TReplicatedTableMappingTable
+    : public TTableBase<TReplicatedTableMappingTableRow>
+{
+public:
+    // NB: The constructor takes the full path, instead of the root path.
+    // The registration table can be located on a remote cluster, which should be handled by passing the correct client.
+    TReplicatedTableMappingTable(NYPath::TYPath path, NApi::IClientPtr client);
+};
+
+DEFINE_REFCOUNTED_TYPE(TReplicatedTableMappingTable)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TDynamicState
     : public TRefCounted
 {
@@ -205,6 +315,9 @@ struct TDynamicState
     TConsumerTablePtr Consumers;
     TQueueAgentObjectMappingTablePtr QueueAgentObjectMapping;
     TConsumerRegistrationTablePtr Registrations;
+
+    //! Might be null for queue agents that are not supposed to fill this table.
+    TReplicatedTableMappingTablePtr ReplicatedTableMapping;
 
     TDynamicState(
         const TQueueAgentDynamicStateConfigPtr& config,

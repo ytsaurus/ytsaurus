@@ -14,6 +14,9 @@ namespace NYT::NQueueAgent {
 
 TErrorOr<EQueueFamily> DeduceQueueFamily(const NQueueClient::TQueueTableRow& row);
 
+bool IsReplicatedTableObjectType(NCypressClient::EObjectType type);
+bool IsReplicatedTableObjectType(const std::optional<NCypressClient::EObjectType>& type);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 NApi::NNative::IClientPtr AssertNativeClient(const NApi::IClientPtr& client);

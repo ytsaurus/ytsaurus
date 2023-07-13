@@ -22,10 +22,18 @@ constexpr TRowRevision NullRowRevision = 0;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TReplicaInfo)
+DECLARE_REFCOUNTED_CLASS(TChaosReplicaInfo)
+DECLARE_REFCOUNTED_CLASS(TReplicatedTableMeta)
+DECLARE_REFCOUNTED_CLASS(TChaosReplicatedTableMeta)
+DECLARE_REFCOUNTED_CLASS(TGenericReplicatedTableMeta)
+
+
 DECLARE_REFCOUNTED_CLASS(TQueueTable)
 DECLARE_REFCOUNTED_CLASS(TConsumerTable)
 DECLARE_REFCOUNTED_CLASS(TConsumerRegistrationTable)
 DECLARE_REFCOUNTED_CLASS(TQueueAgentObjectMappingTable)
+DECLARE_REFCOUNTED_CLASS(TReplicatedTableMappingTable)
 DECLARE_REFCOUNTED_STRUCT(TDynamicState)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,6 +45,7 @@ DECLARE_REFCOUNTED_CLASS(TQueueConsumerRegistrationManager)
 struct TQueueTableRow;
 struct TConsumerTableRow;
 struct TConsumerRegistrationTableRow;
+struct TReplicatedTableMappingTableRow;
 using TConsumerRowMap = THashMap<TCrossClusterReference, TConsumerTableRow>;
 
 ////////////////////////////////////////////////////////////////////////////////

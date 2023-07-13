@@ -37,6 +37,16 @@ TErrorOr<EQueueFamily> DeduceQueueFamily(const TQueueTableRow& row)
     return TError("Invalid queue object type %Qlv", row.ObjectType);
 }
 
+bool IsReplicatedTableObjectType(EObjectType type)
+{
+    return type == EObjectType::ReplicatedTable || type == EObjectType::ChaosReplicatedTable;
+}
+
+bool IsReplicatedTableObjectType(const std::optional<EObjectType>& type)
+{
+    return type && IsReplicatedTableObjectType(*type);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 NApi::NNative::IClientPtr AssertNativeClient(const NApi::IClientPtr& client)

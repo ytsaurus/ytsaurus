@@ -1,10 +1,11 @@
 from yt_env_setup import (YTEnvSetup, Restarter, QUEUE_AGENTS_SERVICE)
+from yt_chaos_test_base import ChaosTestBase
 
 from yt_commands import (authors, get, set, ls, wait, assert_yt_error, create, sync_mount_table, sync_create_cells,
                          insert_rows, delete_rows, remove, raises_yt_error, exists, start_transaction, select_rows,
                          sync_unmount_table, sync_reshard_table, trim_rows, print_debug, alter_table,
                          register_queue_consumer, unregister_queue_consumer, mount_table, wait_for_tablet_state,
-                         sync_freeze_table, sync_unfreeze_table)
+                         sync_freeze_table, sync_unfreeze_table, create_table_replica, alter_table_replica)
 
 from yt.common import YtError, update_inplace, update
 
@@ -17,6 +18,7 @@ import pytz
 import pytest
 
 from collections import defaultdict
+from operator import itemgetter
 
 from yt.yson import YsonUint64, YsonEntity
 
@@ -27,14 +29,6 @@ from yt.wrapper.ypath import escape_ypath_literal
 import yt.environment.init_queue_agent_state as init_queue_agent_state
 
 ##################################################################
-
-
-CONSUMER_TABLE_SCHEMA = [
-    {"name": "queue_cluster", "type": "string", "sort_order": "ascending", "required": True},
-    {"name": "queue_path", "type": "string", "sort_order": "ascending", "required": True},
-    {"name": "partition_index", "type": "uint64", "sort_order": "ascending", "required": True},
-    {"name": "offset", "type": "uint64", "required": True},
-]
 
 
 class OrchidBase:
@@ -205,6 +199,8 @@ class TestQueueAgentBase(YTEnvSetup):
             },
         },
         "cypress_synchronizer": {
+            # List of clusters for the watching policy.
+            "clusters": ["primary"],
             "pass_period": 100,
         },
     }
@@ -289,6 +285,7 @@ class TestQueueAgentBase(YTEnvSetup):
             queue_table_schema=queue_table_schema,
             consumer_table_schema=consumer_table_schema,
             create_registration_table=True,
+            create_replicated_table_mapping_table=True,
             **kwargs)
 
     def _drop_tables(self):
@@ -317,7 +314,7 @@ class TestQueueAgentBase(YTEnvSetup):
     def _create_consumer(self, path, mount=True, **kwargs):
         attributes = {
             "dynamic": True,
-            "schema": CONSUMER_TABLE_SCHEMA,
+            "schema": init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA,
             "treat_as_queue_consumer": True,
         }
         attributes.update(kwargs)
@@ -484,7 +481,6 @@ class TestQueueAgent(TestQueueAgentBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "cypress_synchronizer": {
             "policy": "watching",
-            "clusters": ["primary"],
         },
     }
 
@@ -710,7 +706,6 @@ class TestQueueController(TestQueueAgentBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "cypress_synchronizer": {
             "policy": "watching",
-            "clusters": ["primary"],
         },
     }
 
@@ -1002,7 +997,6 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         },
         "cypress_synchronizer": {
             "policy": "watching",
-            "clusters": ["primary"],
         },
     }
 
@@ -1580,7 +1574,6 @@ class TestMultipleAgents(TestQueueAgentBase):
             },
         },
         "cypress_synchronizer": {
-            "clusters": ["primary"],
             "policy": "watching",
             "pass_period": 75,
         },
@@ -1968,9 +1961,6 @@ class TestCypressSynchronizerBase(TestQueueAgentBase):
     def _get_consumer_name(self, name):
         return "//tmp/c-{}".format(name)
 
-    def _set_account_tablet_count_limit(self, account, value):
-        set("//sys/accounts/{0}/@resource_limits/tablet_count".format(account), value)
-
     LAST_REVISIONS = dict()
     QUEUE_REGISTRY = []
     CONSUMER_REGISTRY = []
@@ -2082,13 +2072,6 @@ class TestCypressSynchronizerBase(TestQueueAgentBase):
 
 
 class TestCypressSynchronizerCommon(TestCypressSynchronizerBase):
-    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
-        "cypress_synchronizer": {
-            # For the watching version.
-            "clusters": ["primary"],
-        },
-    }
-
     @authors("achulkov2")
     @pytest.mark.parametrize("policy", ["polling", "watching"])
     def test_alerts(self, policy):
@@ -2310,7 +2293,6 @@ class TestCypressSynchronizerWatching(TestCypressSynchronizerBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "cypress_synchronizer": {
             "policy": "watching",
-            "clusters": ["primary"],
         },
     }
 
@@ -2443,6 +2425,172 @@ class TestCypressSynchronizerWatching(TestCypressSynchronizerBase):
             self._assert_increased_revision(consumer)
 
         # TODO(max42): come up with some checks here.
+
+
+class TestReplicatedTableObjects(TestQueueAgentBase, ChaosTestBase):
+    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
+        "cypress_synchronizer": {
+            "policy": "watching",
+            "poll_replicated_objects": True,
+            "write_registration_table_mapping": True,
+        },
+        "queue_agent": {
+            "handle_replicated_objects": True,
+        }
+    }
+
+    QUEUE_SCHEMA = [{"name": "data", "type": "string"}]
+
+    @staticmethod
+    def _create_replicas(replicated_table, replicas):
+        replica_ids = []
+        for replica in replicas:
+            replica["mode"] = replica.get("mode", "async")
+            replica_id = create_table_replica(replicated_table, replica["cluster_name"], replica["replica_path"],
+                                              attributes={"mode": replica["mode"]})
+            if replica.get("enabled", False):
+                alter_table_replica(replica_id, enabled=True)
+
+            replica_ids.append(replica_id)
+        return replica_ids
+
+    @staticmethod
+    def _assert_internal_queues_are(expected_queues):
+        queues = builtins.set(map(itemgetter("path"), select_rows("[path] from [//sys/queue_agents/queues]")))
+        assert queues == builtins.set(expected_queues)
+
+    @staticmethod
+    def _assert_internal_consumers_are(expected_consumers):
+        consumers = builtins.set(map(itemgetter("path"), select_rows("[path] from [//sys/queue_agents/consumers]")))
+        assert consumers == builtins.set(expected_consumers)
+
+    @authors("achulkov2")
+    def test_basic(self):
+        replicated_queue = "//tmp/replicated_queue"
+        replicated_consumer = "//tmp/replicated_consumer"
+        chaos_replicated_queue = "//tmp/chaos_replicated_queue"
+        chaos_replicated_consumer = "//tmp/chaos_replicated_consumer"
+
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+
+        queue_agent_orchid = QueueAgentOrchid()
+        cypress_synchronizer_orchid = CypressSynchronizerOrchid()
+
+        # Create replicated queue.
+        create("replicated_table", replicated_queue, attributes={
+            "dynamic": True,
+            "schema": self.QUEUE_SCHEMA
+        })
+        replicated_queue_replicas = [
+            {"cluster_name": "primary", "replica_path": f"{replicated_queue}_replica_0"},
+            {"cluster_name": "primary", "replica_path": f"{replicated_queue}_replica_1"}
+        ]
+        replicated_queue_replica_ids = self._create_replicas(replicated_queue, replicated_queue_replicas)
+
+        # Create replicated consumer.
+        create("replicated_table", replicated_consumer, attributes={
+            "dynamic": True,
+            "schema": init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA,
+            "treat_as_queue_consumer": True
+        })
+        replicated_consumer_replicas = [
+            {"cluster_name": "primary", "replica_path": f"{replicated_consumer}_replica",
+             "mode": "sync", "state": "enabled"},
+        ]
+        replicated_consumer_replica_ids = self._create_replicas(replicated_consumer, replicated_consumer_replicas)
+
+        # Create chaos replicated queue.
+        create("chaos_replicated_table", chaos_replicated_queue, attributes={
+            "chaos_cell_bundle": "c",
+            "schema": self.QUEUE_SCHEMA,
+        })
+        queue_replication_card_id = get(f"{chaos_replicated_queue}/@replication_card_id")
+
+        # Create chaos replicated consumer.
+        create("chaos_replicated_table", chaos_replicated_consumer, attributes={
+            "chaos_cell_bundle": "c",
+            "schema": init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA,
+        })
+        consumer_replication_card_id = get(f"{chaos_replicated_consumer}/@replication_card_id")
+        consumer_data_replica_path = f"{chaos_replicated_consumer}_data"
+        consumer_queue_replica_path = f"{chaos_replicated_consumer}_queue"
+        chaos_replicated_consumer_replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True,
+             "replica_path": f"{consumer_data_replica_path}_0"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "async", "enabled": True,
+             "replica_path": f"{consumer_queue_replica_path}_0"},
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True,
+             "replica_path": f"{consumer_data_replica_path}_1"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True,
+             "replica_path": f"{consumer_queue_replica_path}_1"},
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True,
+             "replica_path": f"{consumer_data_replica_path}_2"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True,
+             "replica_path": f"{consumer_queue_replica_path}_2"},
+        ]
+        chaos_replicated_consumer_replica_ids = self._create_chaos_table_replicas(
+            chaos_replicated_consumer_replicas,
+            table_path=chaos_replicated_consumer)
+        self._create_replica_tables(chaos_replicated_consumer_replicas, chaos_replicated_consumer_replica_ids,
+                                    schema=init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA)
+        self._sync_replication_era(consumer_replication_card_id)
+
+        # Register queues and consumers for cypress synchronizer to see them.
+        register_queue_consumer(replicated_queue, replicated_consumer, vital=False)
+        register_queue_consumer(chaos_replicated_queue, chaos_replicated_consumer, vital=False)
+
+        self._wait_for_component_passes()
+
+        # TODO(achulkov2): Check these statuses once replicated queue controllers are implemented.
+        queue_agent_orchid.get_queue_orchid(f"primary:{replicated_queue}").get_status()
+        queue_agent_orchid.get_queue_orchid(f"primary:{chaos_replicated_queue}").get_status()
+
+        # TODO(achulkov2): Check these statuses once replicated consumer controllers are implemented.
+        queue_agent_orchid.get_consumer_orchid(f"primary:{replicated_consumer}").get_status()
+        queue_agent_orchid.get_consumer_orchid(f"primary:{chaos_replicated_consumer}").get_status()
+
+        self._assert_internal_queues_are({replicated_queue, chaos_replicated_queue})
+        self._assert_internal_consumers_are({replicated_consumer, chaos_replicated_consumer})
+
+        def transform_enabled_flag(replicas):
+            for replica in replicas:
+                enabled = replica.get("enabled", False)
+                if "enabled" in replica:
+                    del replica["enabled"]
+
+                replica["state"] = "enabled" if enabled else "disabled"
+
+        def build_rt_meta(replica_ids, replicas):
+            transform_enabled_flag(replicas)
+            return {"replicated_table_meta": {"replicas": dict(zip(replica_ids, replicas))}}
+
+        def build_crt_meta(replication_card_id, replica_ids, replicas):
+            transform_enabled_flag(replicas)
+            return {"chaos_replicated_table_meta": {
+                "replication_card_id": replication_card_id,
+                "replicas": dict(zip(replica_ids, replicas))
+            }}
+
+        replicated_table_mapping = list(select_rows("* from [//sys/queue_agents/replicated_table_mapping]"))
+        assert {r["path"]: r["meta"] for r in replicated_table_mapping} == {
+            replicated_queue: build_rt_meta(replicated_queue_replica_ids, replicated_queue_replicas),
+            replicated_consumer: build_rt_meta(replicated_consumer_replica_ids, replicated_consumer_replicas),
+            chaos_replicated_queue: build_crt_meta(queue_replication_card_id, [], []),
+            chaos_replicated_consumer: build_crt_meta(
+                consumer_replication_card_id,
+                chaos_replicated_consumer_replica_ids,
+                chaos_replicated_consumer_replicas),
+        }
+
+        unregister_queue_consumer(chaos_replicated_queue, chaos_replicated_consumer)
+        remove(chaos_replicated_consumer)
+        remove(chaos_replicated_queue)
+
+        cypress_synchronizer_orchid.wait_fresh_pass()
+
+        self._assert_internal_queues_are({replicated_queue})
+        self._assert_internal_consumers_are({replicated_consumer})
 
 
 class TestDynamicConfig(TestQueueAgentBase):

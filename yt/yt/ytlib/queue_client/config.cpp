@@ -14,6 +14,8 @@ void TQueueAgentDynamicStateConfig::Register(TRegistrar registrar)
         .Default("//sys/queue_agents");
     registrar.Parameter("consumer_registration_table_path", &TThis::ConsumerRegistrationTablePath)
         .Default("//sys/queue_agents/consumer_registrations");
+    registrar.Parameter("replicated_table_mapping_table_path", &TThis::ReplicatedTableMappingTablePath)
+        .Default("//sys/queue_agents/replicated_table_mapping");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -52,6 +52,8 @@ struct TObject
     //! The location (cluster, path) of the object in question.
     TCrossClusterReference Object;
     ECypressSyncObjectType Type;
+    //! Master object type.
+    std::optional<EObjectType> ObjectType;
     //! The revision of the corresponding Cypress node.
     std::optional<NHydra::TRevision> Revision;
     //! The internal revision of the corresponding dynamic state row.
@@ -64,13 +66,11 @@ class TCypressSynchronizerPassSession final
 {
 public:
     TCypressSynchronizerPassSession(
-        ECypressSynchronizerPolicy policy,
-        std::vector<TString> clusters,
+        TCypressSynchronizerDynamicConfigPtr dynamicConfigSnapshot,
         TDynamicStatePtr dynamicState,
         TClientDirectoryPtr clientDirectory,
-        NLogging::TLogger logger)
-        : Policy_(policy)
-        , Clusters_(std::move(clusters))
+        const NLogging::TLogger& logger)
+        : DynamicConfigSnapshot_(std::move(dynamicConfigSnapshot))
         , DynamicState_(std::move(dynamicState))
         , ClientDirectory_(std::move(clientDirectory))
         , Logger(logger)
@@ -78,9 +78,25 @@ public:
 
     std::vector<TError> Build()
     {
+        if (DynamicConfigSnapshot_->Policy == ECypressSynchronizerPolicy::Polling && (DynamicConfigSnapshot_->PollReplicatedObjects || DynamicConfigSnapshot_->WriteReplicatedTableMapping)) {
+            THROW_ERROR_EXCEPTION("Cypress synchronizer cannot work with replicated objects in polling mode");
+        }
+
+        if (DynamicConfigSnapshot_->WriteReplicatedTableMapping && !DynamicConfigSnapshot_->PollReplicatedObjects) {
+            THROW_ERROR_EXCEPTION("Cypress synchronizer cannot build replicated table mapping with replicated object polling disabled");
+        }
+
         FetchObjectMaps();
+        if (DynamicConfigSnapshot_->PollReplicatedObjects) {
+            YT_LOG_DEBUG("Polling replicated objects is enabled");
+            FetchObjectsFromRegistrationTable();
+        } else {
+            YT_LOG_DEBUG("Polling replicated objects is disabled");
+        }
+
         ListObjectChanges();
-        DeleteObjects();
+
+        DeleteRows();
         FetchAttributes();
         WriteRows();
 
@@ -88,35 +104,77 @@ public:
     }
 
 private:
-    const ECypressSynchronizerPolicy Policy_;
-    const std::vector<TString> Clusters_;
+    const TCypressSynchronizerDynamicConfigPtr DynamicConfigSnapshot_;
     const TDynamicStatePtr DynamicState_;
     const TClientDirectoryPtr ClientDirectory_;
     const NLogging::TLogger Logger;
 
     using TObjectMap = THashMap<TString, std::vector<TObject>>;
 
+    struct TObjectHashMap : public THashMap<TString, THashMap<TString, TObject>>
+    {
+        bool Contains(const TCrossClusterReference& objectRef) const
+        {
+            auto clusterToObjectsIt = find(objectRef.Cluster);
+            if (clusterToObjectsIt == end()) {
+                return false;
+            }
+
+            auto objectIt = clusterToObjectsIt->second.find(objectRef.Path);
+            return objectIt != clusterToObjectsIt->second.end();
+        }
+
+        void Insert(const TObject& object)
+        {
+            (*this)[object.Object.Cluster][object.Object.Path] = object;
+        }
+    };
+
     struct TObjectRowList
     {
+        //! Queue agent dynamic state modifications.
+        //! These tables are only used by this queue agent instance.
         std::vector<TQueueTableRow> QueueRows;
         std::vector<TConsumerTableRow> ConsumerRows;
 
+        //! Modifications for the general cross-cluster [chaos] replicated table -> replicas mapping table.
+        //! This table is used by proxies of all clusters.
+        std::vector<TReplicatedTableMappingTableRow> ReplicatedTableMappingRows;
+
         // NB: Must provide a strong exception-safety guarantee.
-        void AppendObject(const TObject& object, const IAttributeDictionaryPtr& attributes)
+        void AppendObject(const TObject& object, const IAttributeDictionaryPtr& attributes, const TString& chaosReplicatedTableQueueAgentStage)
         {
+            auto fillChaosReplicatedTableQueueAgentStage = [=] (auto& row) {
+                if (row.ObjectType && *row.ObjectType == EObjectType::ChaosReplicatedTable && !row.QueueAgentStage) {
+                    row.QueueAgentStage = chaosReplicatedTableQueueAgentStage;
+                }
+            };
+
             switch (object.Type) {
                 case ECypressSyncObjectType::Queue:
                     QueueRows.push_back(TQueueTableRow::FromAttributeDictionary(
                         object.Object,
                         NextRowRevision(object.RowRevision),
                         attributes));
+                    fillChaosReplicatedTableQueueAgentStage(QueueRows.back());
                     break;
                 case ECypressSyncObjectType::Consumer:
                     ConsumerRows.push_back(TConsumerTableRow::FromAttributeDictionary(
                         object.Object,
                         NextRowRevision(object.RowRevision),
                         attributes));
+                    fillChaosReplicatedTableQueueAgentStage(ConsumerRows.back());
                     break;
+            }
+        }
+
+        // NB: Must provide a strong exception-safety guarantee.
+        void AppendPotentiallyReplicatedObject(const TObject& object, const IAttributeDictionaryPtr& attributes) {
+            auto tableRow =
+                TReplicatedTableMappingTableRow::FromAttributeDictionary(object.Object, attributes);
+            const auto& type = tableRow.ObjectType;
+            if (IsReplicatedTableObjectType(type)) {
+                ReplicatedTableMappingRows.push_back(std::move(tableRow));
             }
         }
 
@@ -140,6 +198,14 @@ private:
             }
         }
 
+        void AppendReplicatedObjectWithError(const TObject& object, const TError& error)
+        {
+            ReplicatedTableMappingRows.push_back({
+                .Ref = object.Object,
+                .SynchronizationError = error,
+            });
+        }
+
         void AppendObjectKey(const TObject& object)
         {
             switch (object.Type) {
@@ -152,23 +218,29 @@ private:
             }
         }
 
+        void AppendReplicatedObjectKey(const TObject& object)
+        {
+            ReplicatedTableMappingRows.push_back({.Ref = object.Object});
+        }
+
         void MergeWith(const TObjectRowList& rhs)
         {
             QueueRows.insert(QueueRows.end(), rhs.QueueRows.begin(), rhs.QueueRows.end());
             ConsumerRows.insert(ConsumerRows.end(), rhs.ConsumerRows.begin(), rhs.ConsumerRows.end());
+            ReplicatedTableMappingRows.insert(ReplicatedTableMappingRows.end(), rhs.ReplicatedTableMappingRows.begin(), rhs.ReplicatedTableMappingRows.end());
         }
 
         bool Empty() const
         {
-            return QueueRows.empty() && ConsumerRows.empty();
+            return QueueRows.empty() && ConsumerRows.empty() && ReplicatedTableMappingRows.empty();
         }
     };
 
     // Session state.
 
     TObjectMap ClusterToDynamicStateObjects_;
+    TObjectHashMap ClusterToPolledObjects_;
     TObjectMap ClusterToModifiedObjects_;
-    std::vector<TObject> ObjectsToDelete_;
     TObjectRowList RowsWithErrors_;
     TObjectRowList RowsToDelete_;
     TObjectRowList RowsToWrite_;
@@ -177,7 +249,7 @@ private:
 
     void ListObjectChanges()
     {
-        switch (Policy_) {
+        switch (DynamicConfigSnapshot_->Policy) {
             case ECypressSynchronizerPolicy::Polling:
                 ListObjectChangesPolling();
                 break;
@@ -295,7 +367,7 @@ private:
         // First, we collect all queue agent objects from the corresponding master watchlist in each watched cluster.
 
         std::vector<TFuture<TYPathProxy::TRspGetPtr>> asyncResults;
-        for (const auto& cluster : Clusters_) {
+        for (const auto& cluster : DynamicConfigSnapshot_->Clusters) {
             auto proxy = CreateObjectServiceReadProxy(
                 GetNativeClientOrThrow(cluster),
                 EMasterChannelKind::Follower);
@@ -309,7 +381,7 @@ private:
         std::vector<TError> clusterRevisionFetchingAlerts;
         for (int index = 0; index < std::ssize(combinedResults); ++index) {
             const auto& rspOrError = combinedResults[index];
-            const auto& cluster = Clusters_[index];
+            const auto& cluster = DynamicConfigSnapshot_->Clusters[index];
 
             if (!rspOrError.IsOK()) {
                 clusterRevisionFetchingAlerts.push_back(rspOrError << TErrorAttribute("cluster", cluster));
@@ -330,15 +402,29 @@ private:
         }
     }
 
+    //! Infers which objects for a given cluster were modified and which should be deleted in this cypress synchronizer pass.
+    //! Modified:
+    //!    1) Objects present in watchlist and in current dynamic state, for which we detect a revision increase.
+    //!    2) Objects present in watchlist and not in the current dynamic state.
+    //!    3) Objects polled from registration table.
+    //! Deleted (from dynamic state):
+    //!    1) Objects present in the current dynamic state and not present in the watchlist AND in the set of polled objects.
+    //! Deleted (from registration table mapping):
+    //!    1) Objects present in the current dynamic state and not present in set of polled objects.
     void InferChangesFromClusterWatchlist(const TString& cluster, TCypressWatchlist cypressWatchlist)
     {
         // First, we collect all dynamic state objects for which the current Cypress revision
         // is larger than the stored revision.
 
+        // Objects that were considered to be modified based on the contents of the watchlist.
+        // Used for adding polling objects.
+        THashSet<TCrossClusterReference> modifiedObjects;
+
         if (auto clusterToObjectsIt = ClusterToDynamicStateObjects_.find(cluster); clusterToObjectsIt != ClusterToDynamicStateObjects_.end()) {
             for (const auto& object : clusterToObjectsIt->second) {
                 auto& relevantCypressWatchlist = cypressWatchlist.ObjectsByType(object.Type);
                 auto cypressObjectIt = relevantCypressWatchlist.find(object.Object.Path);
+                auto isPolledObject = ClusterToPolledObjects_.Contains(object.Object);
                 if (cypressObjectIt != relevantCypressWatchlist.end()) {
                     if (!object.Revision || cypressObjectIt->second > *object.Revision) {
                         YT_LOG_DEBUG(
@@ -347,13 +433,25 @@ private:
                             object.Revision,
                             cypressObjectIt->second);
                         ClusterToModifiedObjects_[cluster].push_back(object);
+                        modifiedObjects.insert(object.Object);
                     }
                     relevantCypressWatchlist.erase(cypressObjectIt);
-                } else {
+                } else if (!isPolledObject) {
+                    // NB: We do not delete non-replicated queues/consumers that are found in the polled objects list.
+                    // There is no way to distinguish deleted regular objects from non-watched replicated objects,
+                    // so we would just add them back if we were to delete them.
                     YT_LOG_DEBUG(
-                        "Object was not found in corresponding watchlist (Object: %v)",
+                        "Object was not found in corresponding watchlist, scheduled to be removed (Object: %v)",
                         object.Object);
-                    ObjectsToDelete_.push_back(object);
+                    RowsToDelete_.AppendObjectKey(object);
+
+                    // Deleted replicated objects should also be removed from the replicated table mapping table.
+                    if (IsReplicatedTableObjectType(object.ObjectType)) {
+                        YT_LOG_DEBUG(
+                            "Object scheduled to be removed from replicated table mapping table (Object: %v)",
+                            object.Object);
+                        RowsToDelete_.AppendReplicatedObjectKey(object);
+                    }
                 }
             }
         }
@@ -372,6 +470,21 @@ private:
                     .Type = type,
                     .Revision = revision,
                 });
+                modifiedObjects.insert(objectRef);
+            }
+        }
+
+        // Add objects polled from registration table that were not added to the modified object list in the loops above.
+        for (const auto& [objectPath, object] : ClusterToPolledObjects_[cluster]) {
+            // NB: This will add regular queues/consumers, which are actually deleted.
+            // There is no way to distinguish these objects from unwatched replicated objects.
+            // NB: This will add watched objects with unchanged master revisions.
+            // There is no way to distinguish these objects from watched replicated objects for which the master
+            // revision doesn't always change when we want it to change (e.g. when the replica set is updated).
+            // TODO(achulkov2): How long do we want to keep this behavior? Especially the latter.
+            if (!modifiedObjects.contains(object.Object)) {
+                YT_LOG_DEBUG("Discovered polled registration table object (Object: %v)", object.Object);
+                ClusterToModifiedObjects_[cluster].push_back(object);
             }
         }
     }
@@ -388,6 +501,7 @@ private:
             ClusterToDynamicStateObjects_[queue.Ref.Cluster].push_back({
                 queue.Ref,
                 ECypressSyncObjectType::Queue,
+                queue.ObjectType,
                 queue.Revision,
                 queue.RowRevision});
         }
@@ -395,8 +509,26 @@ private:
             ClusterToDynamicStateObjects_[consumer.Ref.Cluster].push_back({
                 consumer.Ref,
                 ECypressSyncObjectType::Consumer,
+                consumer.ObjectType,
                 consumer.Revision,
                 consumer.RowRevision});
+        }
+    }
+
+    void FetchObjectsFromRegistrationTable()
+    {
+        auto registrations = WaitFor(DynamicState_->Registrations->Select())
+            .ValueOrThrow();
+
+        for (const auto& registration : registrations) {
+            ClusterToPolledObjects_.Insert({
+                .Object = registration.Queue,
+                .Type = ECypressSyncObjectType::Queue,
+            });
+            ClusterToPolledObjects_.Insert({
+                .Object = registration.Consumer,
+                .Type = ECypressSyncObjectType::Consumer,
+            });
         }
     }
 
@@ -463,14 +595,39 @@ private:
                     object.Object,
                     ConvertToYsonString(attributes, EYsonFormat::Text));
 
+                // First, we try to interpret the attributes as one of two types: a queue, or a consumer.
+                // If successful, we prepare an updated row for the corresponding state table.
                 try {
-                    RowsToWrite_.AppendObject(object, attributes);
+                    RowsToWrite_.AppendObject(
+                        object,
+                        attributes,
+                        DynamicConfigSnapshot_->ChaosReplicatedTableQueueAgentStage);
                 } catch (const std::exception& ex) {
                     YT_LOG_DEBUG(
                         ex,
                         "Error converting attributes to object %v",
                         object.Object);
                     RowsWithErrors_.AppendObjectWithError(object, ex);
+                }
+
+                if (!DynamicConfigSnapshot_->WriteReplicatedTableMapping) {
+                    continue;
+                }
+
+                // Some objects might be replicated, so we need to export them to a separate state table.
+                // In the end, these objects appear in one of the regular state tables,
+                // as well as in the replicated table mapping table.
+                // These tables contain different kinds of information.
+                // NB: We only export synchronization errors for object that have a replicated table type, so there will
+                // be no entries for deleted objects, or objects for which the type attribute value is unavailable.
+                try {
+                    RowsToWrite_.AppendPotentiallyReplicatedObject(object, attributes);
+                } catch (const std::exception& ex) {
+                    YT_LOG_DEBUG(
+                        ex,
+                        "Error converting attributes to replicated object %v",
+                        object.Object);
+                    RowsWithErrors_.AppendReplicatedObjectWithError(object, ex);
                 }
             }
         }
@@ -489,11 +646,13 @@ private:
     {
         if (!RowsWithErrors_.Empty()) {
             YT_LOG_DEBUG(
-                "Some rows contain synchronization errors (QueueCount: %v, ConsumerCount: %v)",
+                "Some rows contain synchronization errors (QueueCount: %v, ConsumerCount: %v, ReplicatedTableMappingRowCount: %v)",
                 RowsWithErrors_.QueueRows.size(),
-                RowsWithErrors_.ConsumerRows.size());
+                RowsWithErrors_.ConsumerRows.size(),
+                RowsWithErrors_.ReplicatedTableMappingRows.size());
             RowsToWrite_.MergeWith(RowsWithErrors_);
         }
+
         YT_LOG_DEBUG(
             "Writing updated rows (QueueCount: %v, ConsumerCount: %v)",
             RowsToWrite_.QueueRows.size(),
@@ -502,32 +661,46 @@ private:
             DynamicState_->Consumers->Insert(RowsToWrite_.ConsumerRows),
             DynamicState_->Queues->Insert(RowsToWrite_.QueueRows)}))
             .ThrowOnError();
-    }
 
-    //! Delete objects from dynamic state.
-    void DeleteObjects()
-    {
-        for (const auto& object : ObjectsToDelete_) {
-            RowsToDelete_.AppendObjectKey(object);
+        if (!DynamicConfigSnapshot_->WriteReplicatedTableMapping) {
+            YT_LOG_DEBUG("Writing replicated table mapping is disabled, skipping table modification");
+            return;
         }
-        DeleteRows();
+
+        YT_LOG_DEBUG(
+            "Writing updated replicated table mapping table rows (Count: %v)",
+            RowsToWrite_.ReplicatedTableMappingRows.size());
+        WaitFor(DynamicState_->ReplicatedTableMapping->Insert(RowsToWrite_.ReplicatedTableMappingRows).AsVoid())
+            .ThrowOnError();
     }
 
     //! Delete key rows from dynamic state.
     void DeleteRows()
     {
-        if (RowsToDelete_.Empty()) {
-            return;
-        }
-
         YT_LOG_DEBUG(
             "Deleting rows (QueueCount: %v, ConsumerCount: %v)",
             RowsToDelete_.QueueRows.size(),
             RowsToDelete_.ConsumerRows.size());
-        WaitFor(AllSucceeded(std::vector{
-            DynamicState_->Queues->Delete(RowsToDelete_.QueueRows),
-            DynamicState_->Consumers->Delete(RowsToDelete_.ConsumerRows)}))
-            .ThrowOnError();
+        if (!RowsToDelete_.QueueRows.empty() || !RowsToDelete_.ConsumerRows.empty()) {
+            WaitFor(AllSucceeded(std::vector{
+                DynamicState_->Queues->Delete(RowsToDelete_.QueueRows),
+                DynamicState_->Consumers->Delete(RowsToDelete_.ConsumerRows)}))
+                .ThrowOnError();
+        }
+
+        if (!DynamicConfigSnapshot_->WriteReplicatedTableMapping) {
+            YT_LOG_DEBUG("Writing replicated table mapping is disabled, skipping table outdated row deletion");
+            return;
+        }
+
+        YT_LOG_DEBUG(
+            "Deleting replicated table mapping rows (Count: %v)",
+            RowsToDelete_.ReplicatedTableMappingRows.size());
+        if (!RowsToDelete_.ReplicatedTableMappingRows.empty()) {
+            WaitFor(DynamicState_->ReplicatedTableMapping->Delete(RowsToDelete_.ReplicatedTableMappingRows).AsVoid())
+                .ThrowOnError();
+        }
+
     }
 
     NNative::IClientPtr GetNativeClientOrThrow(const TString& cluster) const
@@ -599,11 +772,13 @@ public:
         PassInstant_ = TInstant::Now();
         ++PassIndex_;
 
+        auto dynamicConfigSnapshot = CloneYsonStruct(DynamicConfig_);
+
         YT_LOG_DEBUG("Pass started (PassIndex: %v)", PassIndex_);
         try {
             auto alerts = TCypressSynchronizerPassSession(
-                DynamicConfig_->Policy,
-                DynamicConfig_->Clusters,
+                // NB: We need to make a copy so that the config does not change during context-switches within the pass session.
+                dynamicConfigSnapshot,
                 DynamicState_,
                 ClientDirectory_,
                 Logger.WithTag("PassIndex: %v", PassIndex_))
