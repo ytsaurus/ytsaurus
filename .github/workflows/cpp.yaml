@@ -29,7 +29,7 @@ jobs:
           memory: 32GB
           core-fraction: 100
           disk-type: network-ssd-nonreplicated
-          disk-size: 93GB
+          disk-size: 279GB
 
   checkout:
     name: Checkout sources
@@ -72,6 +72,17 @@ jobs:
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             ../ytsaurus
 
+          mkdir -p ../build_debug
+          cd ../build_debug
+          rm -rf *
+          cmake \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/clang.toolchain \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            ../ytsaurus
+
       - name: Build
         shell: bash
         run: |
@@ -81,13 +92,16 @@ jobs:
           export CCACHE_REMOTE_STORAGE="${{ vars.CCACHE_REMOTE_STORAGE }}"
           ninja
 
+          cd ../build_debug
+          ninja ytserver-all
+
       - name: Build Python packages
         shell: bash
         run: |
           source ../venv/bin/activate
           YTSAURUS_COMMIT_HASH=${GITHUB_SHA} bash ./yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build
 
-      - name: Docker Hub login
+      - name: DockerHub login
         shell: bash
         run: |
           echo '${{ secrets.DOCKER_HUB_PASSWORD }}' | docker login --username ${{ secrets.DOCKER_HUB_LOGIN }} --password-stdin
@@ -110,12 +124,14 @@ jobs:
           latest: true
           fileName: "benchmark-0.0.1.tgz"
 
-      - name: Docker ytsaurus
+      - name: Build and push ytsaurus docker image
         shell: bash
         run: |
+          mkdir -p ../docker-ytsaurus-build
+
           tar -xf spyt-1.69.tar -C ../build
           tar -xf yql-package.tar -C ../build
-          mkdir -p ../docker-ytsaurus-build
+
           if [[ $GITHUB_REF =~ main$ ]];
           then
             IMAGE_TAG=dev
@@ -125,13 +141,24 @@ jobs:
           else
             IMAGE_TAG=nopush
           fi
+          IMAGE_TAG_DEBUG=${IMAGE_TAG}-debug
+
           bash ./yt/docker/ytsaurus/build.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --ytsaurus-spyt-release-path ../build/spyt_release --ytsaurus-yql-package-path ../build/yql_package --output-path ../docker-ytsaurus-build --image-tag ${IMAGE_TAG}
+
+          mv ../build_debug/yt/yt/server/all/ytserver-all ../build/yt/yt/server/all/ytserver-all
+          bash ./yt/docker/ytsaurus/build.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --ytsaurus-spyt-release-path ../build/spyt_release --ytsaurus-yql-package-path ../build/yql_package --output-path ../docker-ytsaurus-build --image-tag ${IMAGE_TAG_DEBUG}
+
           if [[ $IMAGE_TAG != "nopush" ]];
           then
               docker push ytsaurus/ytsaurus:${IMAGE_TAG}
               docker tag ytsaurus/ytsaurus:${IMAGE_TAG} ytsaurus/ytsaurus-nightly:${IMAGE_TAG}-${GITHUB_SHA}
               docker push ytsaurus/ytsaurus-nightly:${IMAGE_TAG}-${GITHUB_SHA}
+
+              docker push ytsaurus/ytsaurus:${IMAGE_TAG_DEBUG}
+              docker tag ytsaurus/ytsaurus:${IMAGE_TAG_DEBUG} ytsaurus/ytsaurus-nightly:${IMAGE_TAG_DEBUG}-${GITHUB_SHA}
+              docker push ytsaurus/ytsaurus-nightly:${IMAGE_TAG_DEBUG}-${GITHUB_SHA}
           fi
+
           if [[ $IMAGE_TAG == 'dev' ]];
           then
             docker tag ytsaurus/ytsaurus-nightly:${IMAGE_TAG}-${GITHUB_SHA} ytsaurus/ytsaurus-nightly:latest
@@ -140,9 +167,11 @@ jobs:
 
           cd yt/docker/local
           bash ./build.sh --ytserver-all ../../../../build/yt/yt/server/all/ytserver-all --image-tag ${IMAGE_TAG}
+          bash ./build.sh --ytserver-all ../../../../build/yt/yt/server/all/ytserver-all --image-tag ${IMAGE_TAG_DEBUG}
           if [[ $IMAGE_TAG != "nopush" ]];
           then
               docker push ytsaurus/local:${IMAGE_TAG}
+              docker push ytsaurus/local:${IMAGE_TAG_DEBUG}
           fi
 
       - name: Docker systest
