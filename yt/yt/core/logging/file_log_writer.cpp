@@ -39,6 +39,9 @@ public:
         : TStreamLogWriterBase(std::move(formatter), std::move(name))
         , Config_(std::move(config))
         , Host_(host)
+        , DirectoryName_(NFS::GetDirectoryName(Config_->FileName))
+        , FileNamePrefix_(NFS::GetFileName(Config_->FileName))
+        , LastRotationTimestamp_(TInstant::Now())
     {
         Open();
     }
@@ -51,19 +54,33 @@ public:
 
     const TString& GetFileName() const override
     {
-        return Config_->FileName;
+        return FileName_;
+    }
+
+    void MaybeRotate() override
+    {
+        const auto& rotationPolicy = Config_->RotationPolicy;
+        auto now = TInstant::Now();
+        if ((!rotationPolicy->RotationPeriod || LastRotationTimestamp_ + *rotationPolicy->RotationPeriod < now) &&
+            ((!rotationPolicy->MaxSegmentSize || File_->GetLength() < *rotationPolicy->MaxSegmentSize)))
+        {
+            return;
+        }
+
+        Close();
+        Rotate();
+        Open();
     }
 
     void CheckSpace(i64 minSpace) override
     {
         try {
-            auto directoryName = NFS::GetDirectoryName(Config_->FileName);
-            auto statistics = NFS::GetDiskSpaceStatistics(directoryName);
+            auto statistics = NFS::GetDiskSpaceStatistics(DirectoryName_);
             if (statistics.AvailableSpace < minSpace) {
                 if (!Disabled_.load(std::memory_order::acquire)) {
                     Disabled_ = true;
                     YT_LOG_ERROR("Log file disabled: not enough space available (FileName: %v, AvailableSpace: %v, MinSpace: %v)",
-                        directoryName,
+                        DirectoryName_,
                         statistics.AvailableSpace,
                         minSpace);
 
@@ -109,7 +126,12 @@ private:
     const TFileLogWriterConfigPtr Config_;
     ILogWriterHost* const Host_;
 
+    const TString DirectoryName_;
+    const TString FileNamePrefix_;
+    TString FileName_;
+
     std::atomic<bool> Disabled_ = false;
+    TInstant LastRotationTimestamp_;
 
     std::unique_ptr<TFile> File_;
     IStreamLogOutputPtr OutputStream_;
@@ -119,7 +141,8 @@ private:
     {
         Disabled_ = false;
         try {
-            NFS::MakeDirRecursive(NFS::GetDirectoryName(Config_->FileName));
+            LastRotationTimestamp_ = TInstant::Now();
+            NFS::MakeDirRecursive(DirectoryName_);
 
             TFlags<EOpenModeFlag> openMode;
             if (Config_->EnableCompression) {
@@ -128,7 +151,13 @@ private:
                 openMode = OpenAlways|ForAppend|WrOnly|Seq|CloseOnExec;
             }
 
-            File_.reset(new TFile(Config_->FileName, openMode));
+            // Generate filename.
+            FileName_ = Config_->FileName;
+            if (Config_->UseTimestampSuffix) {
+                FileName_ += "." + LastRotationTimestamp_.ToStringLocalUpToSeconds();
+            }
+
+            File_.reset(new TFile(FileName_, openMode));
 
             if (Config_->EnableCompression) {
                 switch (Config_->CompressionMethod) {
@@ -166,7 +195,7 @@ private:
         } catch (const std::exception& ex) {
             Disabled_ = true;
             YT_LOG_ERROR(ex, "Failed to open log file (FileName: %v)",
-                Config_->FileName);
+                FileName_);
 
             Close();
         } catch (...) {
@@ -188,9 +217,80 @@ private:
             }
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Failed to close log file; ignored (FileName: %v)",
-                Config_->FileName);
+                FileName_);
         } catch (...) {
             YT_ABORT();
+        }
+    }
+
+    void Rotate()
+    {
+        try {
+            auto fileNames = ListFiles();
+            auto count = GetFileCountToKeep(fileNames);
+            for (int index = count; index < ssize(fileNames); ++index) {
+                auto filePath = NFS::CombinePaths(DirectoryName_, fileNames[index]);
+                YT_LOG_DEBUG("Remove log segement (FilePath: %v)", filePath);
+                NFS::Remove(filePath);
+            }
+            fileNames.resize(count);
+
+            RenameFiles(fileNames);
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(ex, "Failed to rotate log files");
+        } catch (...) {
+            YT_ABORT();
+        }
+    }
+
+    std::vector<TString> ListFiles() const
+    {
+        auto files = NFS::EnumerateFiles(DirectoryName_);
+        std::erase_if(files, [&] (const TString& s) {
+            return !s.StartsWith(FileNamePrefix_);
+        });
+        if (Config_->UseTimestampSuffix) {
+            // Rotated files are suffixed with the date, decreasing with the age of file.
+            std::sort(files.begin(), files.end(), std::greater<TString>());
+        } else {
+            // Rotated files are suffixed with the number, increasing with the age of file.
+            std::sort(files.begin(), files.end());
+        }
+        return files;
+    }
+
+    int GetFileCountToKeep(const std::vector<TString>& fileNames) const
+    {
+        const auto& rotationPolicy = Config_->RotationPolicy;
+        int filesToKeep = 0;
+        i64 totalSize = 0;
+        for (const auto& fileName : fileNames) {
+            auto fileSize = NFS::GetPathStatistics(NFS::CombinePaths(DirectoryName_, fileName)).Size;
+            if (totalSize + fileSize > rotationPolicy->MaxTotalSizeToKeep ||
+                filesToKeep + 1 > rotationPolicy->MaxSegmentCountToKeep)
+            {
+                return filesToKeep;
+            }
+            ++filesToKeep;
+            totalSize += fileSize;
+        }
+        return fileNames.size();
+    }
+
+    void RenameFiles(const std::vector<TString>& fileNames)
+    {
+        if (Config_->UseTimestampSuffix) {
+            return;
+        }
+
+        int width = ToString(ssize(fileNames)).length();
+        TString formatString = "%v.%0" + ToString(width) + "d";
+        for (int index = ssize(fileNames); index > 0; --index) {
+            auto newFileName = Format(formatString, FileNamePrefix_, index);
+            auto oldPath = NFS::CombinePaths(DirectoryName_, fileNames[index - 1]);
+            auto newPath = NFS::CombinePaths(DirectoryName_, newFileName);
+            YT_LOG_DEBUG("Rename log segement (OldFilePath: %v, NewFilePath: %v)", oldPath, newPath);
+            NFS::Rename(oldPath, newPath);
         }
     }
 };

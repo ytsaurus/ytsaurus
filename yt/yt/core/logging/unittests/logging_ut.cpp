@@ -23,6 +23,7 @@
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/convert.h>
 
+#include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/range_formatters.h>
 
 #include <library/cpp/streams/zstd/zstd.h>
@@ -56,17 +57,10 @@ TString GenerateLogFileName()
     return GenerateRandomFileName("log");
 }
 
-class TLoggingTest
-    : public ::testing::Test
-    , public ILogWriterHost
+class TLoggingTestBase
 {
 protected:
     const int DateLength = ToString("2014-04-24 23:41:09,804000").length();
-
-    IInvokerPtr GetCompressionInvoker() override
-    {
-        return GetCurrentInvoker();
-    }
 
     IMapNodePtr DeserializeStructuredEvent(const TString& source, ELogFormat format)
     {
@@ -167,6 +161,20 @@ protected:
         auto configNode = ConvertToNode(TYsonString(configYson));
         auto config = ConvertTo<TLogManagerConfigPtr>(configNode);
         TLogManager::Get()->Configure(config, /*sync*/ true);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLoggingTest
+    : public ::testing::Test
+    , public TLoggingTestBase
+    , public ILogWriterHost
+{
+protected:
+    IInvokerPtr GetCompressionInvoker() override
+    {
+        return GetCurrentInvoker();
     }
 
     void DoTestCompression(ECompressionMethod method, int compressionLevel)
@@ -667,6 +675,96 @@ TEST_F(TLoggingTest, StructuredValidationWithSamplingRate)
     EXPECT_LT(counter, iterations);
     EXPECT_GT(counter, 0);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TBuiltinRotationTest
+    : public ::testing::TestWithParam<bool>
+    , public TLoggingTestBase
+{
+protected:
+    std::vector<TString> ListLogFiles(const TString& fileNamePrefix, bool reverse = false)
+    {
+        auto files = NFS::EnumerateFiles("./");
+        std::erase_if(files, [&] (const TString& fileName) {
+            return !fileName.StartsWith(fileNamePrefix);
+        });
+        if (reverse) {
+            std::sort(files.begin(), files.end(), std::greater<TString>());
+        } else {
+            std::sort(files.begin(), files.end());
+        }
+        return files;
+    }
+
+};
+
+TEST_P(TBuiltinRotationTest, All)
+{
+    bool useTimestampSuffix = GetParam();
+    auto logFileNamePrefix = GenerateLogFileName();
+
+    // To ensure that renumeration of rotated files works.
+    const int RotationDepth = useTimestampSuffix ? 2 : 12;
+
+    Configure(Format(R"({
+        rotation_check_period = 1000;
+        flush_period = 100;
+        rules = [
+            {
+                "min_level" = "info";
+                "writers" = [ "info" ];
+            };
+        ];
+        "writers" = {
+            "info" = {
+                "file_name" = "%v";
+                "use_timestamp_suffix" = %v;
+                "type" = "file";
+                "rotation_policy" = {
+                    "max_segment_count_to_keep" = %v;
+                    "max_segment_size" = 10;
+                };
+            };
+        };
+    })", logFileNamePrefix, ConvertToYsonString(useTimestampSuffix).AsStringBuf(), RotationDepth));
+
+    std::vector<TString> messages;
+    for (int index = 0; index < RotationDepth + 3; ++index) {
+        auto message = Format("Message%v", index);
+        messages.push_back(message);
+
+        // Wait until the message hits the file.
+        WaitForPredicate([&] {
+            YT_LOG_INFO(message);
+            auto files = ListLogFiles(logFileNamePrefix, useTimestampSuffix);
+            if (files.empty()) {
+                return false;
+            }
+            return CheckPlainTextLogFileContains(files[0], message);
+        });
+
+        // Wait until the file is rotated.
+        WaitForPredicate([&] {
+            auto files = ListLogFiles(logFileNamePrefix, useTimestampSuffix);
+            EXPECT_FALSE(files.empty());
+            auto lines = ReadPlainTextEvents(files[0]);
+            return lines.empty();
+        });
+    }
+
+    auto files = ListLogFiles(logFileNamePrefix, useTimestampSuffix);
+    EXPECT_EQ(RotationDepth + 1, ssize(files));
+    // Current file is empty, previous file must contain the last logged message.
+    for (int index = 1; index < ssize(files); ++index) {
+        EXPECT_TRUE(CheckPlainTextLogFileContains(files[index], messages[messages.size() - index]));
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(ValueParametrized, TBuiltinRotationTest,
+::testing::Values(
+    true,
+    false));
 
 ////////////////////////////////////////////////////////////////////////////////
 

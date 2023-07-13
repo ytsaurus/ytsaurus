@@ -27,6 +27,7 @@ struct IFileLogWriter
 {
     virtual const TString& GetFileName() const = 0;
     virtual void CheckSpace(i64 minSpace) = 0;
+    virtual void MaybeRotate() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IFileLogWriter)

@@ -12,6 +12,28 @@ namespace NYT::NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TRotationPolicyConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    //! Upper limit on the total size of rotated log files.
+    i64 MaxTotalSizeToKeep;
+    //! Upper limit on the number of rotated log files.
+    i64 MaxSegmentCountToKeep;
+    //! Limit on the size of current log file, which triggers rotation.
+    std::optional<i64> MaxSegmentSize;
+    //! Period of regular log file rotation.
+    std::optional<TDuration> RotationPeriod;
+
+    REGISTER_YSON_STRUCT(TRotationPolicyConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TRotationPolicyConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TFileLogWriterConfig
     : public NYTree::TYsonStruct
 {
@@ -19,9 +41,12 @@ public:
     static constexpr const TStringBuf Type = "file";
 
     TString FileName;
+    bool UseTimestampSuffix;
     bool EnableCompression;
     ECompressionMethod CompressionMethod;
     int CompressionLevel;
+
+    TRotationPolicyConfigPtr RotationPolicy;
 
     REGISTER_YSON_STRUCT(TFileLogWriterConfig);
 
@@ -117,6 +142,7 @@ public:
     std::optional<TDuration> FlushPeriod;
     std::optional<TDuration> WatchPeriod;
     std::optional<TDuration> CheckSpacePeriod;
+    TDuration RotationCheckPeriod;
 
     i64 MinDiskSpace;
 
