@@ -459,6 +459,7 @@ class TestDiskMediumsPorto(YTEnvSetup, DiskMediumTestConfiguration):
 
         node = nodes[0]
         set("//sys/cluster_nodes/{0}/@resource_limits_overrides/cpu".format(node), 0)
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/resource_limits/cpu".format(node)) == 0.0)
 
         def start_op(index, medium_type, disk_space_gb):
             output_table = "//tmp/out" + str(index)
@@ -568,6 +569,7 @@ class TestDiskMediumRenamePorto(YTEnvSetup, DiskMediumTestConfiguration):
 
         node = nodes[0]
         set("//sys/cluster_nodes/{0}/@resource_limits_overrides/cpu".format(node), 0)
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/resource_limits/cpu".format(node)) == 0.0)
 
         def start_op(index, medium_type, track):
             output_table = "//tmp/out" + str(index)
