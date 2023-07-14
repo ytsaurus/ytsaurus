@@ -146,13 +146,13 @@ void TestSplitTablet(
         return TRowRange(makeRow(a), makeRow(b));
     };
 
-    std::vector<TMyPartition> partitons;
-    auto& partiton = partitons.emplace_back();
-    partiton.PivotKey = makeRow(0);
-    partiton.NextPivotKey = makeRow(110);
+    std::vector<TMyPartition> partitions;
+    auto& partition = partitions.emplace_back();
+    partition.PivotKey = makeRow(0);
+    partition.NextPivotKey = makeRow(110);
 
     for (auto value : sampleValues) {
-        partiton.SampleKeys.push_back(makeRow(value)); // Sample key can be equal to PivotKey
+        partition.SampleKeys.push_back(makeRow(value)); // Sample key can be equal to PivotKey
     }
 
     std::vector<TRowRange> ranges;
@@ -163,7 +163,7 @@ void TestSplitTablet(
     NLogging::TLogger logger;
 
     auto result = SplitTablet(
-        MakeRange(partitons),
+        MakeRange(partitions),
         MakeSharedRange(ranges),
         rowBuffer,
         maxSubsplitsPerTablet,
@@ -178,7 +178,7 @@ void TestSplitTablet(
     if (!CheckRangesAreEquivalent(MakeRange(ranges), MakeRange(mergedRanges))) {
         Cerr << Format("Source: %v, Samples: %v, MaxSubsplits: %v",
             MakeFormattableView(ranges, TRangeFormatter()),
-            partiton.SampleKeys,
+            partition.SampleKeys,
             maxSubsplitsPerTablet) << Endl;
         Cerr << Format("Merged: %v", MakeFormattableView(mergedRanges, TRangeFormatter())) << Endl;
 
@@ -186,7 +186,7 @@ void TestSplitTablet(
             Cerr << Format("Group: %v", MakeFormattableView(group, TRangeFormatter())) << Endl;
         }
 
-        GTEST_FAIL() << "Expected ranges are eqivalent";
+        GTEST_FAIL() << "Expected ranges are equivalent";
     }
 }
 
@@ -341,7 +341,7 @@ TEST(TestHelpers, TestSplitTablet)
                     })) << Endl;
             }
 
-            GTEST_FAIL() << "Expected ranges are eqivalent";
+            GTEST_FAIL() << "Expected ranges are equivalent";
         }
     }
 }
@@ -416,7 +416,7 @@ TEST(TestHelpers, SplitByPivots)
             Cerr << Format("Ranges: %v", MakeFormattableView(ranges, TPairFormatter())) << Endl;
             Cerr << Format("Merged: %v", MakeFormattableView(mergedRanges, TPairFormatter())) << Endl;
 
-            GTEST_FAIL() << "Expected ranges are eqivalent";
+            GTEST_FAIL() << "Expected ranges are equivalent";
         }
     }
 }
@@ -431,25 +431,25 @@ namespace NYT::NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <>
-TRow GetPivotKey(const TMyTablet& shard)
+[[maybe_unused]] TRow GetPivotKey(const TMyTablet& shard)
 {
     return shard.PivotKey;
 }
 
 template <>
-TRow GetPivotKey(const TMyPartition& shard)
+[[maybe_unused]] TRow GetPivotKey(const TMyPartition& shard)
 {
     return shard.PivotKey;
 }
 
 template <>
-TRow GetNextPivotKey(const TMyPartition& shard)
+[[maybe_unused]] TRow GetNextPivotKey(const TMyPartition& shard)
 {
     return shard.NextPivotKey;
 }
 
 template <>
-TRange<TRow> GetSampleKeys(const TMyPartition& shard)
+[[maybe_unused]] TRange<TRow> GetSampleKeys(const TMyPartition& shard)
 {
     return shard.SampleKeys;
 }

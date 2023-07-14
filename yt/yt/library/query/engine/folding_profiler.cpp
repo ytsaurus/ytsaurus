@@ -1265,18 +1265,18 @@ void TQueryProfiler::Profile(
     MakeCodegenWriteOp(codegenSource, resultSlot, resultRowSize);
 }
 
-std::vector<int> GetPIConvertableColumnIndices(const TTableSchemaPtr& schema)
+std::vector<int> GetPIConvertibleColumnIndices(const TTableSchemaPtr& schema)
 {
-    std::vector<int> convertableColumnIndices;
+    std::vector<int> convertibleColumnIndices;
     auto columns = schema->Columns();
 
     for (int index = 0; index < std::ssize(columns); ++index) {
         if (IsStringLikeType(columns[index].GetWireType())) {
-            convertableColumnIndices.push_back(index);
+            convertibleColumnIndices.push_back(index);
         }
     }
 
-    return convertableColumnIndices;
+    return convertibleColumnIndices;
 }
 
 void TQueryProfiler::Profile(
@@ -1293,7 +1293,7 @@ void TQueryProfiler::Profile(
     size_t currentSlot = MakeCodegenScanOp(
         codegenSource,
         slotCount,
-        GetPIConvertableColumnIndices(query->GetReadSchema()));
+        GetPIConvertibleColumnIndices(query->GetReadSchema()));
 
     auto whereClause = query->WhereClause;
 
@@ -1511,7 +1511,7 @@ void TQueryProfiler::Profile(
     size_t currentSlot = MakeCodegenScanOp(
         codegenSource,
         slotCount,
-        GetPIConvertableColumnIndices(query->GetReadSchema()));
+        GetPIConvertibleColumnIndices(query->GetReadSchema()));
 
     size_t finalSlot;
     size_t intermediateSlot;

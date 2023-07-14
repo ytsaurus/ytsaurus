@@ -1353,12 +1353,12 @@ public:
 
     // TODO: Move ProvideAggregateColumn and GetAggregateColumnPtr to TBuilderCtxBase and provide callback
     //  OnExpression.
-    // Or split into two functions. GetAggregate and SetAggregete.
+    // Or split into two functions. GetAggregate and SetAggregate.
     std::pair<TTypeSet, std::function<TBaseColumn(EValueType)>> ProvideAggregateColumn(
         const TString& name,
         const TAggregateTypeInferrer* aggregateFunction,
         const NAst::TExpression* argument,
-        const TString& subexprName)
+        const TString& subexpressionName)
     {
         YT_VERIFY(AfterGroupBy);
 
@@ -1381,7 +1381,7 @@ public:
                 name,
                 genericAssignments,
                 untypedOperand.FeasibleTypes)
-                << TErrorAttribute("source", subexprName);
+                << TErrorAttribute("source", subexpressionName);
         }
 
         if (resultType) {
@@ -1415,11 +1415,11 @@ public:
             AggregateItems->emplace_back(
                 typedOperand,
                 name,
-                subexprName,
+                subexpressionName,
                 effectiveStateType,
                 type);
 
-            return TBaseColumn(subexprName, MakeLogicalType(GetLogicalType(type), false));
+            return TBaseColumn(subexpressionName, MakeLogicalType(GetLogicalType(type), false));
         });
     }
 
@@ -1427,7 +1427,7 @@ public:
         const TString& functionName,
         const TAggregateTypeInferrer* aggregateFunction,
         const NAst::TExpression* arguments,
-        const TString& subexprName)
+        const TString& subexpressionName)
     {
         if (!AfterGroupBy) {
             THROW_ERROR_EXCEPTION("Misuse of aggregate function %Qv", functionName);
@@ -1437,16 +1437,16 @@ public:
             functionName,
             aggregateFunction,
             arguments,
-            subexprName);
+            subexpressionName);
 
         TExpressionGenerator generator = [=, this] (EValueType type) {
-            auto found = AggregateLookup.find(std::make_pair(subexprName, type));
+            auto found = AggregateLookup.find(std::make_pair(subexpressionName, type));
             if (found != AggregateLookup.end()) {
                 TBaseColumn columnInfo = found->second;
                 return New<TReferenceExpression>(columnInfo.LogicalType, columnInfo.Name);
             } else {
                 TBaseColumn columnInfo = typer.second(type);
-                YT_VERIFY(AggregateLookup.emplace(std::make_pair(subexprName, type), columnInfo).second);
+                YT_VERIFY(AggregateLookup.emplace(std::make_pair(subexpressionName, type), columnInfo).second);
                 return New<TReferenceExpression>(columnInfo.LogicalType, columnInfo.Name);
             }
         };
@@ -1626,7 +1626,7 @@ TUntypedExpression TBuilderCtx::OnFunction(const NAst::TFunctionExpression* func
     const auto& descriptor = Functions->GetFunction(functionName);
 
     if (const auto* aggregateFunction = descriptor->As<TAggregateTypeInferrer>()) {
-        auto subexprName = InferColumnName(*functionExpr);
+        auto subexpressionName = InferColumnName(*functionExpr);
 
         try {
             if (functionExpr->Arguments.size() != 1) {
@@ -1639,7 +1639,7 @@ TUntypedExpression TBuilderCtx::OnFunction(const NAst::TFunctionExpression* func
                 functionName,
                 aggregateFunction,
                 functionExpr->Arguments.front(),
-                subexprName);
+                subexpressionName);
 
             return aggregateColumn;
         } catch (const std::exception& ex) {

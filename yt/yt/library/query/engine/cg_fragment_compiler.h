@@ -167,7 +167,7 @@ size_t MakeCodegenOnceOp(
 size_t MakeCodegenScanOp(
     TCodegenSource* codegenSource,
     size_t* slotCount,
-    const std::vector<int>& convertableColumnIndices);
+    const std::vector<int>& convertibleColumnIndices);
 
 std::tuple<size_t, size_t, size_t> MakeCodegenSplitterOp(
     TCodegenSource* codegenSource,

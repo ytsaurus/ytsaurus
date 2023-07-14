@@ -50,11 +50,11 @@ Value* CodegenForEachRow(
     Value* rows,
     Value* size,
     const TCodegenConsumer& codegenConsumer,
-    const std::vector<int>& convertableColumnIndices = {})
+    const std::vector<int>& convertibleColumnIndices = {})
 {
     auto* loopBB = builder->CreateBBHere("loop");
     auto* condBB = builder->CreateBBHere("cond");
-    auto* endloopBB = builder->CreateBBHere("endloop");
+    auto* endLoopBB = builder->CreateBBHere("endLoop");
 
     // index = 0
     Type* indexType = builder->getInt64Ty();
@@ -68,7 +68,7 @@ Value* CodegenForEachRow(
     // if (index != size) ...
     Value* index = builder->CreateLoad(indexType, indexPtr, "index");
     Value* condition = builder->CreateICmpNE(index, size);
-    builder->CreateCondBr(condition, loopBB, endloopBB);
+    builder->CreateCondBr(condition, loopBB, endLoopBB);
 
     builder->SetInsertPoint(loopBB);
 
@@ -80,12 +80,12 @@ Value* CodegenForEachRow(
     Value* row = builder->CreateLoad(rowType, rowPointer, "row");
 
     // convert row to PI
-    for (auto convertableColumnIndex : convertableColumnIndices) {
-        // value = row[convertableColumnIndex]
+    for (auto convertibleColumnIndex : convertibleColumnIndices) {
+        // value = row[convertibleColumnIndex]
         Value* valueToConvert = builder->CreateConstInBoundsGEP1_32(
             TValueTypeBuilder::Get(builder->getContext()),
             row,
-            convertableColumnIndex,
+            convertibleColumnIndex,
             "unversionedValueToConvert");
 
         // convert value.Data to PI
@@ -114,9 +114,9 @@ Value* CodegenForEachRow(
 
     // index = index + 1
     builder->CreateStore(builder->CreateAdd(index, builder->getInt64(1)), indexPtr);
-    builder->CreateCondBr(finished, endloopBB, condBB);
+    builder->CreateCondBr(finished, endLoopBB, condBB);
 
-    builder->SetInsertPoint(endloopBB);
+    builder->SetInsertPoint(endLoopBB);
 
     return MakePhi(builder, loopBB, condBB, builder->getTrue(), builder->getFalse(),"finishedPhi");
 }
@@ -557,10 +557,10 @@ struct TComparerManager
     : public TRefCounted
 {
     Function* Hasher;
-    TValueTypeLabels HashLables;
+    TValueTypeLabels HashLabels;
 
     Function* UniversalComparer;
-    TValueTypeLabels UniversalLables;
+    TValueTypeLabels UniversalLabels;
 
     THashMap<llvm::FoldingSetNodeID, llvm::GlobalVariable*> Labels;
 
@@ -589,7 +589,7 @@ struct TComparerManager
                 Value* startIndex,
                 Value* finishIndex
             ) {
-                UniversalLables = CodegenLessComparerBody(
+                UniversalLabels = CodegenLessComparerBody(
                     builder,
                     labelsArray,
                     lhsValues,
@@ -742,7 +742,7 @@ Function* TComparerManager::GetHasher(
                 Value* startIndex,
                 Value* finishIndex
             ) {
-                HashLables = CodegenHasherBody(
+                HashLabels = CodegenHasherBody(
                     builder,
                     labelsArray,
                     values,
@@ -763,7 +763,7 @@ Function* TComparerManager::GetHasher(
                     Hasher,
                     {
                         builder->CreatePointerCast(
-                            GetLabelsArray(builder, types, HashLables),
+                            GetLabelsArray(builder, types, HashLabels),
                             TTypeBuilder<char**>::Get(builder->getContext())),
                         row,
                         builder->getInt64(start),
@@ -819,7 +819,7 @@ Function* TComparerManager::GetEqComparer(
                     UniversalComparer,
                     {
                         builder->CreatePointerCast(
-                            GetLabelsArray(builder, types, UniversalLables),
+                            GetLabelsArray(builder, types, UniversalLabels),
                             TTypeBuilder<char**>::Get(builder->getContext())),
                         lhsRow,
                         rhsRow,
@@ -879,7 +879,7 @@ Function* TComparerManager::GetLessComparer(
                     UniversalComparer,
                     {
                         builder->CreatePointerCast(
-                            GetLabelsArray(builder, types, UniversalLables),
+                            GetLabelsArray(builder, types, UniversalLabels),
                             TTypeBuilder<char**>::Get(builder->getContext())),
                         lhsRow,
                         rhsRow,
@@ -939,7 +939,7 @@ Function* TComparerManager::GetTernaryComparer(
                     UniversalComparer,
                     {
                         builder->CreatePointerCast(
-                            GetLabelsArray(builder, types, UniversalLables),
+                            GetLabelsArray(builder, types, UniversalLabels),
                             TTypeBuilder<char**>::Get(builder->getContext())),
                         lhsRow,
                         rhsRow,
@@ -1004,7 +1004,7 @@ Function* TComparerManager::CodegenOrderByComparerFunction(
             UniversalComparer,
             {
                 builder->CreatePointerCast(
-                    GetLabelsArray(builder, types, UniversalLables),
+                    GetLabelsArray(builder, types, UniversalLabels),
                     TTypeBuilder<char**>::Get(builder->getContext())),
                 lhsValues,
                 rhsValues,
@@ -2035,12 +2035,12 @@ TLlvmClosure MakeConsumerWithPIConversion(
     TCGOperatorContext& builder,
     llvm::Twine name,
     size_t consumerSlot,
-    const std::vector<int>& convertableColumnIndices)
+    const std::vector<int>& convertibleColumnIndices)
 {
 
     return MakeClosure<bool(TExpressionContext*, TValue**, i64)>(builder, name, [
             consumerSlot,
-            convertableColumnIndices = std::move(convertableColumnIndices)
+            convertibleColumnIndices = std::move(convertibleColumnIndices)
         ] (
             TCGOperatorContext& builder,
             Value* buffer,
@@ -2053,7 +2053,7 @@ TLlvmClosure MakeConsumerWithPIConversion(
                 rows,
                 size,
                 builder[consumerSlot],
-                convertableColumnIndices);
+                convertibleColumnIndices);
 
             Value* casted = innerBuilder->CreateIntCast(
                 more,
@@ -2067,14 +2067,14 @@ TLlvmClosure MakeConsumerWithPIConversion(
 size_t MakeCodegenScanOp(
     TCodegenSource* codegenSource,
     size_t* slotCount,
-    const std::vector<int>& convertableColumnIndices)
+    const std::vector<int>& convertibleColumnIndices)
 {
     size_t consumerSlot = (*slotCount)++;
 
     *codegenSource = [
         consumerSlot,
         codegenSource = std::move(*codegenSource),
-        convertableColumnIndices
+        convertibleColumnIndices
     ] (TCGOperatorContext& builder) {
         codegenSource(builder);
 
@@ -2082,7 +2082,7 @@ size_t MakeCodegenScanOp(
             builder,
             "ScanOpInner",
             consumerSlot,
-            convertableColumnIndices);
+            convertibleColumnIndices);
 
         builder->CreateCall(
             builder.Module->GetRoutine("ScanOpHelper"),

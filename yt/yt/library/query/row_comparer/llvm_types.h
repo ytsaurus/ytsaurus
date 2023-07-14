@@ -32,7 +32,7 @@ public:
 
     static_assert(
         std::is_standard_layout<NYT::NTabletClient::TDynamicString>::value,
-        "TDynamicString must be of standart layout type");
+        "TDynamicString must be of standard layout type");
     static_assert(
         sizeof(NYT::NTabletClient::TDynamicString) <= 8,
         "TDynamicString must be of type {i32, i8}");

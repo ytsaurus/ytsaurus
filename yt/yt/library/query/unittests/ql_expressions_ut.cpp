@@ -1425,11 +1425,11 @@ TEST_F(TArithmeticExpressionTest, Test)
     THashMap<llvm::FoldingSetNodeID, TCGExpressionCallback> compiledQueriesCache;
     auto getCallback = [&] (TConstExpressionPtr expr, TTableSchemaPtr schema, TCGVariables* variables) {
         llvm::FoldingSetNodeID id;
-        auto comipleExpressionCallback = Profile(expr, schema, &id, variables);
+        auto compileExpressionCallback = Profile(expr, schema, &id, variables);
 
         auto [it, inserted] = compiledQueriesCache.emplace(id, TCGExpressionCallback{});
         if (inserted) {
-            it->second = comipleExpressionCallback();
+            it->second = compileExpressionCallback();
         }
         return it->second;
     };
