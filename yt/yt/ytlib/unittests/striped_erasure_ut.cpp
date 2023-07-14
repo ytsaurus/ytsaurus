@@ -126,5 +126,136 @@ TEST(TStripedErasureTest, SegmentsSimple)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+YT_DEFINE_ERROR_ENUM(
+    ((InterceptingMemoryWriterFailure) (123))
+);
+
+DECLARE_REFCOUNTED_CLASS(TInterceptingMemoryWriter)
+
+class TInterceptingMemoryWriter
+    : public TMemoryWriter
+{
+public:
+    explicit TInterceptingMemoryWriter(bool shouldIntercept)
+        : ShouldIntercept_(shouldIntercept)
+    { }
+
+    bool WriteBlock(
+        const TWorkloadDescriptor& workloadDescriptor,
+        const TBlock& block) override
+    {
+        if (!ShouldIntercept_) {
+            return TMemoryWriter::WriteBlock(workloadDescriptor, block);
+        }
+
+        WriteRequested_.Set();
+
+        return false;
+    }
+
+    TFuture<void> GetReadyEvent() override
+    {
+        if (!ShouldIntercept_) {
+            return TMemoryWriter::GetReadyEvent();
+        }
+
+        return ReadyEvent_;
+    }
+
+    TFuture<void> GetWriteRequestedFuture()
+    {
+        return WriteRequested_;
+    }
+
+    void StopInterceptingAndFail()
+    {
+        if (!ShouldIntercept_) {
+            return;
+        }
+
+        YT_VERIFY(!ReadyEvent_.IsSet());
+
+        ReadyEvent_.Set(TError(
+            EErrorCode::InterceptingMemoryWriterFailure,
+            "Intercepting writer error"));
+    }
+
+private:
+    const bool ShouldIntercept_;
+
+    const TPromise<void> WriteRequested_ = NewPromise<void>();
+
+    const TPromise<void> ReadyEvent_ = NewPromise<void>();
+};
+
+DEFINE_REFCOUNTED_TYPE(TInterceptingMemoryWriter)
+
+TEST(TStripedErasureTest, FailureWhileClosing)
+{
+    auto* codec = NErasure::GetCodec(NErasure::ECodec::ReedSolomon_3_3);
+    auto totalPartCount = codec->GetTotalPartCount();
+
+    std::vector<IChunkWriterPtr> writers;
+    std::vector<TInterceptingMemoryWriterPtr> memoryWriters;
+    writers.reserve(totalPartCount);
+    memoryWriters.reserve(totalPartCount);
+    for (int index = 0; index < totalPartCount; ++index) {
+        memoryWriters.push_back(New<TInterceptingMemoryWriter>(
+            /*shouldIntercept*/ index == 0));
+        writers.push_back(memoryWriters.back());
+    }
+
+    auto interceptingWriter = memoryWriters[0];
+
+    auto config = New<TErasureWriterConfig>();
+    config->WriterGroupSize = 1;
+    config->WriterWindowSize = 1;
+
+    auto writer = CreateStripedErasureWriter(
+        config,
+        codec->GetId(),
+        TSessionId(),
+        TWorkloadDescriptor(),
+        writers);
+
+    WaitFor(writer->Open())
+        .ThrowOnError();
+
+    TSharedRef block = TSharedRef::FromString("abcd");
+    EXPECT_FALSE(writer->WriteBlock(TWorkloadDescriptor(), TBlock(block)));
+    // First ready event will always be successful regardless of intercepting writer malfunction.
+    WaitFor(writer->GetReadyEvent())
+        .ThrowOnError();
+
+    // Longer string is used because the writer's window size accounting is imprecise.
+    block = TSharedRef::FromString("efghefghefghefghefgh");
+    EXPECT_FALSE(writer->WriteBlock(TWorkloadDescriptor(), TBlock(block)));
+    auto readyEvent = writer->GetReadyEvent();
+    // This ready event is supposed to be blocked on intercepting writer's ready event.
+    EXPECT_FALSE(readyEvent.IsSet());
+
+    // For testing purposes it is important that erasure writer uses serialized invoker
+    // so this action will be executed after the second flush.
+    auto deferredMeta = New<TDeferredChunkMeta>();
+    SetProtoExtension(deferredMeta->mutable_extensions(), NProto::TMiscExt());
+    auto closeFuture = writer->Close(TWorkloadDescriptor(), deferredMeta);
+    EXPECT_FALSE(closeFuture.IsSet());
+
+    // Best effort to ensure that these actions above were actually invoked.
+    Sleep(TDuration::Seconds(10));
+
+    EXPECT_FALSE(readyEvent.IsSet());
+    interceptingWriter->StopInterceptingAndFail();
+    auto readyEventResult = WaitFor(readyEvent);
+    EXPECT_FALSE(readyEventResult.IsOK());
+    EXPECT_TRUE(readyEventResult.FindMatching(EErrorCode::InterceptingMemoryWriterFailure));
+
+    auto closeResult = WaitFor(closeFuture);
+    EXPECT_FALSE(closeResult.IsOK());
+    EXPECT_TRUE(closeResult.FindMatching(EErrorCode::InterceptingMemoryWriterFailure));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT::NChunkClient
