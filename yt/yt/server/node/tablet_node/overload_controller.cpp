@@ -179,6 +179,8 @@ TOverloadController::TOverloadController(TOverloadControllerConfigPtr config)
     , Profiler(TabletNodeProfiler.WithPrefix("/overload_controller"))
 {
     State_.Config = std::move(config);
+    UpdateStateSnapshot(State_, TGuard(SpinLock_));
+
     Periodic_->Start();
 }
 
