@@ -222,6 +222,9 @@ private:
 
             return true;
         }
+
+        void RegisterWaitTimeObserver(TWaitTimeObserver /*waitTimeObserver*/) override
+        { }
     };
 
     TIntrusivePtr<TEngineState> State_;
