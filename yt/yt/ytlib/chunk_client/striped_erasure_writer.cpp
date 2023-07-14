@@ -509,6 +509,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        FlushPromise_.Set(error);
+
         auto guard = Guard(ReadyEventLock_);
 
         if (ReadyEvent_.IsSet()) {
