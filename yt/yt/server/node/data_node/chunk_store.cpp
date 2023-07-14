@@ -354,7 +354,13 @@ void TChunkStore::DoRegisterExistingChunk(const IChunkPtr& chunk)
 
     {
         auto lockedChunkGuard = chunk->GetLocation()->TryLockChunk(chunk->GetId());
-        YT_VERIFY(lockedChunkGuard);
+
+        YT_LOG_FATAL_IF(
+            !lockedChunkGuard,
+            "Location lock chunk failed (LocationId: %v, ChunkId: %v)",
+            chunk->GetLocation()->GetId(),
+            chunk->GetId());
+
         lockedChunkGuard.Release();
     }
 

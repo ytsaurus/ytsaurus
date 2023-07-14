@@ -1295,7 +1295,11 @@ void TChunkLocation::PopulateAlerts(std::vector<TError>* alerts)
 TFuture<void> TChunkLocation::SynchronizeActions()
 {
     VERIFY_INVOKER_AFFINITY(GetAuxPoolInvoker());
-    YT_VERIFY(GetState() == ELocationState::Disabling);
+
+    auto state = GetState();
+    YT_LOG_FATAL_IF(
+        state != ELocationState::Disabling,
+        "Synchronization of actions should be called when state is equal to ELocationState::Disabling");
 
     std::vector<TFuture<void>> futures;
     {
@@ -1315,7 +1319,11 @@ TFuture<void> TChunkLocation::SynchronizeActions()
 void TChunkLocation::CreateDisableLockFile(const TError& reason)
 {
     VERIFY_INVOKER_AFFINITY(GetAuxPoolInvoker());
-    YT_VERIFY(GetState() == ELocationState::Disabling);
+
+    auto state = GetState();
+    YT_LOG_FATAL_IF(
+        state != ELocationState::Disabling,
+        "Disable lock file should be created when state is equal to ELocationState::Disabling");
 
     // Save the reason in a file and exit.
     // Location will be disabled during the scan in the restart process.
@@ -1344,7 +1352,6 @@ void TChunkLocation::CreateDisableLockFile(const TError& reason)
 void TChunkLocation::ResetLocationStatistic()
 {
     VERIFY_INVOKER_AFFINITY(GetAuxPoolInvoker());
-    YT_VERIFY(GetState() == ELocationState::Disabling);
 
     AvailableSpace_.store(0);
     UsedSpace_.store(0);
@@ -1824,7 +1831,11 @@ void TStoreLocation::MoveChunkFilesToTrash(TChunkId chunkId)
 void TStoreLocation::RemoveLocationChunks()
 {
     VERIFY_INVOKER_AFFINITY(GetAuxPoolInvoker());
-    YT_VERIFY(GetState() == ELocationState::Disabling);
+
+    auto state = GetState();
+    YT_LOG_FATAL_IF(
+        state != ELocationState::Disabling,
+        "Remove location chunks should be called when state is equal to ELocationState::Disabling");
 
     auto locationChunks = ChunkStore_->GetLocationChunks(MakeStrong(this));
 
