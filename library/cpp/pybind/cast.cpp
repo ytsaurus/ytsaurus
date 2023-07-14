@@ -83,6 +83,7 @@ namespace NPyBind {
     PyObject* BuildPyObject(const TWtringBuf& val) {
         if (!val.IsInited())
             Py_RETURN_NONE;
+#if PY_VERSION_HEX < 0x03030000
         TPyObjectPtr result(PyUnicode_FromUnicode(nullptr, val.size()), true);
         Py_UNICODE* buf = PyUnicode_AS_UNICODE(result.Get());
         if (buf == nullptr)
@@ -90,6 +91,12 @@ namespace NPyBind {
         for (size_t i = 0; i < val.size(); ++i) {
             buf[i] = static_cast<Py_UNICODE>(val[i]);
         }
+#else
+        PyObject* unicodeValue = PyUnicode_FromKindAndData(PyUnicode_2BYTE_KIND, val.data(), val.size());
+        if (unicodeValue == nullptr)
+            Py_RETURN_NONE;
+        TPyObjectPtr result(unicodeValue, true);
+#endif
         return result.RefGet();
     }
 
