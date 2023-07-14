@@ -77,6 +77,23 @@ private:
     NProfiling::TGauge HeartbeatEnqueuedControllerEvents_;
     std::atomic<i64> EnqueuedControllerEventCount_ = 0;
     NProfiling::TCounter HeartbeatCount_;
+    NProfiling::TCounter ReceivedJobCount_;
+    NProfiling::TCounter ReceivedUnknownOperationCount_;
+    NProfiling::TCounter ReceivedRunningJobCount_;
+    NProfiling::TCounter ReceivedStaleRunningJobCount_;
+    NProfiling::TCounter ReceivedFinishedJobCount_;
+    NProfiling::TCounter ReceivedDuplicatedFinishedJobCount_;
+    NProfiling::TCounter ReceivedUnknownJobCount_;
+    NProfiling::TCounter UnconfirmedJobCount_;
+    NProfiling::TCounter ConfirmedJobCount_;
+    NProfiling::TCounter VanishedJobAbortCount_;
+    NProfiling::TCounter JobAbortRequestCount_;
+    NProfiling::TCounter JobReleaseRequestCount_;
+    NProfiling::TCounter JobInterruptionRequestCount_;
+    NProfiling::TCounter JobFailureRequestCount_;
+    NProfiling::TCounter NodeRegistrationCount_;
+    NProfiling::TCounter NodeUnregistrationCount_;
+    NProfiling::TCounter WrongIncarnationRequestCount_;
 
     NConcurrency::TActionQueuePtr JobTrackerQueue_;
 
@@ -158,42 +175,6 @@ private:
 
     NYTree::IYPathServicePtr OrchidService_;
 
-    bool IsJobRunning(const TJobInfo& jobInfo) const;
-
-    bool HandleJobInfo(
-        TJobInfo& jobInfo,
-        TCtxHeartbeat::TTypedResponse* response,
-        TJobId jobId,
-        EJobStage newJobStage,
-        const NLogging::TLogger& Logger);
-
-    void HandleRunningJobInfo(
-        TJobInfo& jobInfo,
-        TCtxHeartbeat::TTypedResponse* response,
-        const TRunningJobStatus& jobStatus,
-        TJobId jobId,
-        EJobStage newJobStage,
-        const NLogging::TLogger& Logger);
-    void HandleFinishedJobInfo(
-        TJobInfo& jobInfo,
-        TCtxHeartbeat::TTypedResponse* response,
-        const TFinishedJobStatus& jobStatus,
-        TJobId jobId,
-        EJobStage newJobStage,
-        const NLogging::TLogger& Logger);
-
-    void ProcessInterruptionRequest(
-        TJobTracker::TCtxHeartbeat::TTypedResponse* response,
-        const TInterruptionRequestOptions& requestOptions,
-        TJobId jobId,
-        const NLogging::TLogger& Logger);
-
-    void ProcessFailureRequest(
-        TJobTracker::TCtxHeartbeat::TTypedResponse* response,
-        const TFailureRequestOptions& requestOptions,
-        TJobId jobId,
-        const NLogging::TLogger& Logger);
-
     IInvokerPtr GetInvoker() const;
     IInvokerPtr TryGetCancelableInvoker() const;
     IInvokerPtr GetCancelableInvoker() const;
@@ -207,6 +188,23 @@ private:
 
     void ProfileHeartbeatRequest(const NProto::TReqHeartbeat* request);
     void AccountEnqueuedControllerEvent(int delta);
+    struct THeartbeatProperties
+    {
+        int UnknownOperationCount;
+        int RunningJobCount;
+        int StaleRunningJobCount;
+        int FinishedJobCount;
+        int DuplicatedFinishedJobCount;
+        int UnknownJobCount;
+        int UnconfirmedJobCount;
+        int ConfirmedJobCount;
+        int VanishedJobAbortCount;
+        int JobAbortRequestCount;
+        int JobReleaseRequestCount;
+        int JobInterruptionRequestCount;
+        int JobFailureRequestCount;
+    };
+    void ProfileHeartbeatProperties(const THeartbeatProperties& heartbeatProperties);
 
     struct THeartbeatRequest
     {
@@ -224,8 +222,49 @@ private:
         TIncarnationId IncarnationId;
         THeartbeatRequest Request;
     };
-    void DoProcessHeartbeat(
+    THeartbeatProperties DoProcessHeartbeat(
         THeartbeatProcessingContext heartbeatProcessingContext);
+
+    bool IsJobRunning(const TJobInfo& jobInfo) const;
+
+    bool HandleJobInfo(
+        TJobInfo& jobInfo,
+        TCtxHeartbeat::TTypedResponse* response,
+        TJobId jobId,
+        EJobStage newJobStage,
+        const NLogging::TLogger& Logger,
+        THeartbeatProperties& heartbeatProperties);
+
+    void HandleRunningJobInfo(
+        TJobInfo& jobInfo,
+        TCtxHeartbeat::TTypedResponse* response,
+        const TRunningJobStatus& jobStatus,
+        TJobId jobId,
+        EJobStage newJobStage,
+        const NLogging::TLogger& Logger,
+        THeartbeatProperties& heartbeatProperties);
+    void HandleFinishedJobInfo(
+        TJobInfo& jobInfo,
+        TCtxHeartbeat::TTypedResponse* response,
+        const TFinishedJobStatus& jobStatus,
+        TJobId jobId,
+        EJobStage newJobStage,
+        const NLogging::TLogger& Logger,
+        THeartbeatProperties& heartbeatProperties);
+
+    void ProcessInterruptionRequest(
+        TJobTracker::TCtxHeartbeat::TTypedResponse* response,
+        const TInterruptionRequestOptions& requestOptions,
+        TJobId jobId,
+        const NLogging::TLogger& Logger,
+        THeartbeatProperties& heartbeatProperties);
+
+    void ProcessFailureRequest(
+        TJobTracker::TCtxHeartbeat::TTypedResponse* response,
+        const TFailureRequestOptions& requestOptions,
+        TJobId jobId,
+        const NLogging::TLogger& Logger,
+        THeartbeatProperties& heartbeatProperties);
 
     void DoRegisterOperation(
         TOperationId operationId,
