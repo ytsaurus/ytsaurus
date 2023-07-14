@@ -74,6 +74,9 @@ struct TBucket
         return false;
     }
 
+    void RegisterWaitTimeObserver(TWaitTimeObserver /*waitTimeObserver*/) override
+    { }
+
     ~TBucket();
 
     const size_t PoolId;
@@ -146,6 +149,8 @@ class TTwoLevelFairShareQueue
     : public TRefCounted
 {
 public:
+    using TWaitTimeObserver = ITwoLevelFairShareThreadPool::TWaitTimeObserver;
+
     TTwoLevelFairShareQueue(
         TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
         const TString& threadNamePrefix,
@@ -288,9 +293,12 @@ public:
         auto currentInstant = GetCpuInstant();
 
         TBucketPtr bucket;
+        TWaitTimeObserver waitTimeObserver;
+
         {
             auto guard = Guard(SpinLock_);
             bucket = GetStarvingBucket(action);
+            waitTimeObserver = WaitTimeObserver_;
 
             if (!bucket) {
                 return TClosure();
@@ -303,6 +311,10 @@ public:
 
             action->StartedAt = currentInstant;
             bucket->WaitTime = action->StartedAt - action->EnqueuedAt;
+        }
+
+        if (waitTimeObserver) {
+            waitTimeObserver(CpuDurationToDuration(action->StartedAt - action->EnqueuedAt));
         }
 
         YT_ASSERT(action && !action->Finished);
@@ -376,6 +388,12 @@ public:
         }
     }
 
+    void RegisterWaitTimeObserver(TWaitTimeObserver waitTimeObserver)
+    {
+        auto guard = Guard(SpinLock_);
+        WaitTimeObserver_ = waitTimeObserver;
+    }
+
 private:
     struct TThreadState
     {
@@ -440,6 +458,8 @@ private:
 
     std::atomic<int> ThreadCount_ = 0;
     std::array<TThreadState, TThreadPoolBase::MaxThreadCount> ThreadStates_;
+
+    ITwoLevelFairShareThreadPool::TWaitTimeObserver WaitTimeObserver_;
 
 
     size_t GetLowestEmptyPoolId()
@@ -659,6 +679,11 @@ public:
     void Shutdown() override
     {
         TThreadPoolBase::Shutdown();
+    }
+
+    void RegisterWaitTimeObserver(TWaitTimeObserver waitTimeObserver) override
+    {
+        Queue_->RegisterWaitTimeObserver(std::move(waitTimeObserver));
     }
 
 private:

@@ -32,6 +32,10 @@ struct IInvoker
     //! Returns true if invoker is serialized, i.e. never executes
     //! two callbacks concurrently.
     virtual bool IsSerialized() const = 0;
+
+    using TWaitTimeObserver = std::function<void(TDuration)>;
+    virtual void RegisterWaitTimeObserver(TWaitTimeObserver waitTimeObserver) = 0;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(IInvoker)

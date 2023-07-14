@@ -757,6 +757,60 @@ DEFINE_REFCOUNTED_TYPE(TBackupManagerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TServiceMethod
+    : public NYTree::TYsonStruct
+{
+public:
+    TString Service;
+    TString Method;
+
+    REGISTER_YSON_STRUCT(TServiceMethod);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TServiceMethod)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TOverloadTrackerConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TDuration MeanWaitTimeThreshold;
+    std::vector<TServiceMethodPtr> MethodsToThrottle;
+
+    REGISTER_YSON_STRUCT(TOverloadTrackerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TOverloadTrackerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TOverloadControllerConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    bool Enabled;
+    THashMap<TString, TOverloadTrackerConfigPtr> Trackers;
+    TDuration LoadAdjustingPeriod;
+    int MaxWindow;
+    bool DoNotReplyOnHeavyOverload;
+
+    TDuration HeavilyOverloadedThrottleTime;
+    TDuration OverloadedThrottleTime;
+
+    REGISTER_YSON_STRUCT(TOverloadControllerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TOverloadControllerConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTabletNodeDynamicConfig
     : public NYTree::TYsonStruct
 {
@@ -792,6 +846,8 @@ public:
     TMasterConnectorDynamicConfigPtr MasterConnector;
     TSecurityManagerDynamicConfigPtr SecurityManager;
     TBackupManagerDynamicConfigPtr BackupManager;
+
+    TOverloadControllerConfigPtr OverloadController;
 
     REGISTER_YSON_STRUCT(TTabletNodeDynamicConfig);
 

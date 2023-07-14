@@ -23,6 +23,7 @@
 #include <yt/yt/server/node/tablet_node/tablet_snapshot_store.h>
 #include <yt/yt/server/node/tablet_node/tablet_manager.h>
 #include <yt/yt/server/node/tablet_node/transaction_manager.h>
+#include <yt/yt/server/node/tablet_node/overload_controlling_service_base.h>
 
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
 
@@ -298,13 +299,14 @@ TTrackedMemoryChunkProvider::~TTrackedMemoryChunkProvider()
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueryService
-    : public TServiceBase
+    : public TOverloadControllingServiceBase<TServiceBase>
 {
 public:
     TQueryService(
         TQueryAgentConfigPtr config,
         NTabletNode::IBootstrap* bootstrap)
-        : TServiceBase(
+        : TOverloadControllingServiceBase(
+            bootstrap,
             bootstrap->GetQueryPoolInvoker(
                 DefaultQLExecutionPoolName,
                 DefaultQLExecutionTag),

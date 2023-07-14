@@ -37,6 +37,11 @@ bool TInvokerWrapper::IsSerialized() const
     return UnderlyingInvoker_->IsSerialized();
 }
 
+void TInvokerWrapper::RegisterWaitTimeObserver(TWaitTimeObserver waitTimeObserver)
+{
+    return UnderlyingInvoker_->RegisterWaitTimeObserver(waitTimeObserver);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

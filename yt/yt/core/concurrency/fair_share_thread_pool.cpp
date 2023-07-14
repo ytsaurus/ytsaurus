@@ -71,6 +71,9 @@ public:
         return false;
     }
 
+    void RegisterWaitTimeObserver(TWaitTimeObserver /*waitTimeObserver*/) override
+    { }
+
     ~TBucket();
 
     TFairShareThreadPoolTag Tag;

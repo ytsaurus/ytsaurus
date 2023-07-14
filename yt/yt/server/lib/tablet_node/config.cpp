@@ -754,6 +754,53 @@ void TBackupManagerDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TServiceMethod::Register(TRegistrar registrar)
+{
+    registrar.Parameter("service", &TThis::Service)
+        .Default();
+    registrar.Parameter("method", &TThis::Method)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TOverloadTrackerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("mean_wait_time_threshold", &TThis::MeanWaitTimeThreshold)
+        .Default(TDuration::MilliSeconds(20));
+
+    registrar.Parameter("methods_to_throttle", &TThis::MethodsToThrottle)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TOverloadControllerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enabled", &TThis::Enabled)
+        .Default();
+
+    registrar.Parameter("trackers", &TThis::Trackers)
+        .Default();
+
+    registrar.Parameter("load_adjusting_period", &TThis::LoadAdjustingPeriod)
+        .Default(TDuration::MilliSeconds(100));
+
+    registrar.Parameter("max_window", &TThis::MaxWindow)
+        .Default(1024);
+
+    registrar.Parameter("do_not_reply_on_heavy_overload", &TThis::DoNotReplyOnHeavyOverload)
+        .Default(true);
+
+    registrar.Parameter("heavily_overloaded_throttle_time", &TThis::HeavilyOverloadedThrottleTime)
+        .Default(TDuration::MilliSeconds(10));
+
+    registrar.Parameter("overloaded_throttle_time", &TThis::OverloadedThrottleTime)
+        .Default(TDuration::MilliSeconds(1));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("slots", &TThis::Slots)
@@ -804,6 +851,9 @@ void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("backup_manager", &TThis::BackupManager)
+        .DefaultNew();
+
+    registrar.Parameter("overload_controller", &TThis::OverloadController)
         .DefaultNew();
 }
 

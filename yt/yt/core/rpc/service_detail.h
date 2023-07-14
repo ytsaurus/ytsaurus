@@ -807,6 +807,12 @@ protected:
         const TServiceCommonConfigPtr& configDefaults,
         const TServiceConfigPtr& config);
 
+protected:
+    void ReplyError(
+        TError error,
+        const NProto::TRequestHeader& header,
+        const NYT::NBus::IBusPtr& replyBus);
+
 private:
     friend class TRequestQueue;
 
@@ -905,11 +911,6 @@ private:
 
     void OnRequestTimeout(TRequestId requestId, bool aborted);
     void OnReplyBusTerminated(const NYT::NBus::IBusPtr& bus, const TError& error);
-
-    void ReplyError(
-        TError error,
-        const NProto::TRequestHeader& header,
-        const NYT::NBus::IBusPtr& replyBus);
 
     void OnRequestAuthenticated(
         const NProfiling::TWallTimer& timer,

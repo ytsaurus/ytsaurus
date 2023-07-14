@@ -257,6 +257,9 @@ DECLARE_REFCOUNTED_CLASS(TBackupManagerDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(THunkStorageMountConfig)
 DECLARE_REFCOUNTED_CLASS(THunkStoreWriterConfig)
 DECLARE_REFCOUNTED_CLASS(THunkStoreWriterOptions)
+DECLARE_REFCOUNTED_CLASS(TServiceMethod)
+DECLARE_REFCOUNTED_CLASS(TOverloadTrackerConfig)
+DECLARE_REFCOUNTED_CLASS(TOverloadControllerConfig)
 
 using TTabletStoreWriterConfig = NTableClient::TTableWriterConfig;
 using TTabletStoreWriterConfigPtr = NTableClient::TTableWriterConfigPtr;
