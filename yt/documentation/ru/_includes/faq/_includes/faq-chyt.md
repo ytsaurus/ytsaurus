@@ -14,7 +14,7 @@
 
 #### **Q: Получаю ошибку «Subquery exceeds data weight limit: XXX > YYY». Что это значит?**
 
-<!-- **A:** смотрите опцию `max_data_weight_per_subquery` в документации по [конфигурации](../../../user-guide/data-processing/chyt/reference/configuration.md#yt) клики. -->
+**A:** смотрите опцию `max_data_weight_per_subquery` в документации по [конфигурации](../../../user-guide/data-processing/chyt/reference/configuration.md#yt) клики.
 
 ------
 
@@ -33,13 +33,16 @@
 toDate(reinterpretAsInt64(reverse(unhex(substring(hex(payment_dt), 1, 8)))))
 ```
 
+{% if audience == internal %}
+https://yql.yandex-team.ru/Operations/XVZ8JglcTpHZhVoH3iFVAeixaazEBY0NtJKv0zUIQmY=
+{% else %}{% endif %}
 ------
 
 #### **Q: Как переложить таблицу на SSD?**
 
-**A:** Для начала необходимо убедиться, что в вашем аккаунте в {{product-name}} квота в медиуме **ssd_blobs**. Для этого можно на странице аккаунтов переключить тип медиума на **ssd_blobs** и ввести название своего аккаунта. Если квоты в медиуме **ssd_blobs** нет, то ее можно запросить через специальную форму.
+**A:** Для начала необходимо убедиться, что в вашем аккаунте в {{product-name}} квота в медиуме **ssd_blobs**. Для этого можно на {% if audience == public %}странице аккаунтов{% else %}[странице аккаунтов](https://yt.yandex-team.ru/hahn/accounts/general?medium=ssd_blobs){% endif %} переключить тип медиума на **ssd_blobs** и ввести название своего аккаунта. Если квоты в медиуме **ssd_blobs** нет, то ее можно запросить через специальную форму.
 
-После получения квоты на медиуме **ssd_blobs** необходимо изменить значение атрибута `primary_medium`, данные будут в фоне переложены на соответствующий медиум. Подробнее можно прочитать в разделе про [хранение](../../../faq/faq.md).
+После получения квоты на медиуме **ssd_blobs** необходимо изменить значение атрибута `primary_medium`, данные будут в фоне переложены на соответствующий медиум. Подробнее можно прочитать в разделе про [хранение](../../../faq/faq.md#storage).
 
 Для статических таблиц можно форсировать перекладывание с помощью операции [Merge](../../../user-guide/data-processing/operations/merge.md):
 

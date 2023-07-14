@@ -1,4 +1,15 @@
 
+{% if audience == internal %}
+
+#### **Q: Как получить вычислительную или дисковую квоту в {{product-name}}?**
+
+**A:** Для получения новой квоты или расширения одной из текущих необходимо заполнить форму. Ссылки на формы для различных случаев приведены в разделе [Запрос и получение ресурсов](../../user-guide/storage/quota-request.md).
+
+------
+
+{% endif %}
+
+
 #### **Q: Как добавить колонку в таблицу {{product-name}}?**
 
 **A:** Необходимо получить текущую схему таблицы:
@@ -37,7 +48,7 @@ yt vanilla --tasks '{master = {job_count = 1; command = "python --version >&2"}}
 Python 2.7.3
 ```
 
-Версия python может отличаться на разных узлах кластера. Надежнее всего использовать свой porto слой для запуска джобов.
+Версия python может отличаться на разных узлах кластера. Надёжнее всего использовать свой [Porto слой](../../../user-guide/data-processing/porto/layer-paths.md) для запуска джобов.
 
 ------
 #### **Q: Каковы накладные расходы при чтении небольших диапазонов в таблицах и при чтении небольших таблиц?**
@@ -77,7 +88,7 @@ Python 2.7.3
 #### **Q: Операция упала с ошибкой «Account "intermediate" is over disk space (или chunk) limit», в чем дело?**
 
 **A:** На кластере закончилось место для хранения промежуточных данных операций (аккаунт `intermediate`), либо чанков в этом аккаунте стало слишком много.
-Если вы не указывали `intermediate_data_account` (смотрите раздел [Настройки операций](../../../user-guide/data-processing/operations/operations-options.md), [Sort](../../../user-guide/data-processing/operations/sort.md), [MapReduce](../../../user-guide/data-processing/operations/mapreduce.md), это значит, что вы делите данный аккаунт со всеми. Чтобы избежать этой проблемы, укажите `intermediate_data_account`.
+Если вы не указывали `intermediate_data_account` (смотрите раздел [Настройки операций](../../../user-guide/data-processing/operations/operations-options.md), [Sort](../../../user-guide/data-processing/operations/sort.md), [MapReduce](../../../user-guide/data-processing/operations/mapreduce.md)). Это значит, что вы делите данный аккаунт со всеми. Чтобы избежать этой проблемы, укажите `intermediate_data_account`.
 
 ------
 #### **Q: Является ли чтение таблицы (или файла) в {{product-name}} консистентной операцией? Что будет, если читать таблицу и одновременно с этим её удалить?**
@@ -91,20 +102,20 @@ Python 2.7.3
 
 ------
 
-{% if audience == public %}
+<!--{% if audience == public %}-->
 
-#### **Q: Что делать, если запрос python обёртки падает с "gaierror(-2, 'Name or service not known')"?**
+#### **Q: Что делать, если запрос Python обёртки падает с "gaierror(-2, 'Name or service not known')"?**
 
 **A:** Если возникла ошибка вида:
 `has failed with error <class 'yt.packages.requests.exceptions.ConnectionError'>, message: '('Connection aborted.', gaierror(-2, 'Name or service not known'))'`,
 Ошибка «Name or service not known» - это ошибка DNS, сообщающая о том, что запрошенная DNS запись не была найдена.
-В контексте {{product-name}} и надежно работающего DNS, это означает, что, скорее всего, ваш сервис пытается разрезолвить A запись для какого-то из хостов {{product-name}}, но {{product-name}} является ipv6 only сервисом, потому ничего не получится. Ваш сервис должен корректно работать с ipv6 сетью. Кроме того, возможно выставлена переменная окружения YT_FORCE_IPV4, которая переключает yt.wrapper в ipv4 only режим. Ее нужно убрать.
+В контексте {{product-name}} и надежно работающего DNS, это означает, что, скорее всего, ваш сервис пытается разрезолвить A запись для какого-то из хостов {{product-name}}, но {{product-name}} является ipv6 only сервисом, потому ничего не получится. Ваш сервис должен корректно работать с ipv6 сетью. Кроме того, возможно выставлена переменная окружения `YT_FORCE_IPV4`, которая переключает yt.wrapper в ipv4 only режим. Ее нужно убрать.
 Чтобы посмотреть переменные окружения {{product-name}}, нужно выполнить в терминале:
 `env | grep YT_`
-Для того, чтобы убрать переменную YT_FORCE_IPV4 из окружения:
+Для того, чтобы убрать переменную `YT_FORCE_IPV4` из окружения:
 `unset YT_FORCE_IPV4`
 
-{% endif %}
+<!--{% endif %}-->
 
 ------
 #### **Q: Что делать, если возникает ошибка «Account "..." is over disk space limit (node count limit, etc)»?**
@@ -117,9 +128,12 @@ Python 2.7.3
 **A:** Короткий ответ: `yt find / --name "*" --account <account_name>`
 
 Более подробный ответ:
-1. Посмотрите в корзину (`//tmp/trash/by-account/<account_name>`). Для этого стоит перейти по указанному пути в разделе Navigation в веб-интерфейсе;
+1. Посмотрите в корзину (`//tmp/trash/by-account/<account_name>`). Для этого стоит перейти по указанному пути в разделе **Navigation** в веб-интерфейсе;
 2. Поищите с помощью `yt find` таблицы под вашим аккаунтом в `//tmp` и связных с вами проектных директориях. Обратите внимание, что `yt find` не заходит в директории, в которые у вас нет доступа;
 3. Обратитесь к администратору системы.
+{% if audience == internal %}
+4. Данные могут быть удалены из Кипариса, но использоваться выполняющимися операциями. Такие операции можно поискать с помощью скрипта [find_top_operations](https://a.yandex-team.ru/arc/trunk/arcadia/yt/yt/scripts/find_top_operations), например так: `./find_top_operations --proxy hahn --in-account dev`
+{% endif %}
 
 ------
 #### **Q: Как изменить аккаунт таблицы?**
@@ -127,7 +141,7 @@ Python 2.7.3
 **A:** `yt set //path/to/table/@account my-account`
 
 ------
-#### **Q: Как узнать, сколько ресурсов занимает директория, включая все содержащиеся в ней таблицы, файлы и т.д.?**
+#### **Q: Как узнать, сколько ресурсов занимает директория, включая все содержащиеся в ней таблицы, файлы и т. д.?**
 
 **A:** `yt get //path/to/dir/@recursive_resource_usage` или выбрать **Show all resources** в разделе **Navigation** в веб-интерфейсе.
 
@@ -224,3 +238,30 @@ yt merge --src '_path/to/src/table[#100:#500]' --dst _path/to/dst/table --mode o
 Для ограничения нагрузки было введено искусственное ограничение: операции RemoteCopy должны запускаться в пуле с лимитом на `user_slots` не более `2000`.
 Если в пуле планируется запускать только RemoteCopy, то достаточно выставить это ограничение для пула
 `yt set //sys/pools/..../your_pool/@resource_limits '{user_slots=2000}'`.
+{% if audience == internal %}
+Более подробно: https://ignat.at.yandex-team.ru/326/
+
+------
+#### **Q: Не создался пользователь на кластере для робота. Токен при этом получить смогли.**
+
+**A:** Для того, чтобы роботный пользователь появился на кластере необходимо запросить через [IDM](https://idm.yandex-team.ru/) доступ роботу в одну из групп в соответствующей системе [IDM](https://idm.yandex-team.ru/systems#sort-by=name,f-system-status=active). Подробнее про токены можно прочесть в разделе [Как попробовать](../../quickstart.md#how-to-get-oauth-token).
+
+------
+#### **Q: Можно ли выдать доступ через {{product-name}} ACL на ABC-сервис?**
+
+**A:** В {{product-name}} ACL указываются либо пользователи {{product-name}}, либо группы {{product-name}}. Тем самым, задача сводится к тому, чтобы узнать, есть ли в {{product-name}} группа, отвечающая заданному ABC-сервису, и как она называется. Проще всего дать ответ, если где-либо в IDM на данный сервис выдана хотя бы одна роль в {{product-name}}, например на чтение или запись в каталог. В таком случае следует пойти в {{product-name}} UI на вкладку ACL каталога и найти там соответствующую строчку. В ней имя группы будет иметь вид `idm-group:N`, где N -- некоторое число (внутренний идентификатор IDM). Именно эту строчку и нужно указывать во всех ACL, где требуется выдать доступ на ABC-сервис. Если же на сервис покуда не выдано ни одной роли в {{product-name}}, то можно проделать следующий обходной маневр: выдать такую роль на любой каталог, затем проанализировать его ACL (как указано выше), а затем отозвать роль. Вознишкая при этом {{product-name}}-группа с именем `idm-group:N` пожизненно будет синхронизироваться с IDM и ABC.
+
+------
+#### **Q: При запуске операции из python wrapper от роботного пользователя получаю ошибку "permission for node //tmp/yt_wrapper/file_storage is not allowed by any matching ACE"**
+
+**A:** У робота нет доступа к `/tmp`, необходимо запросить для робота роль **group member yandex**  через [IDM](https://idm.yandex-team.ru/). Подробнее можно узнать в разделе [Аутентификация](../../user-guide/storage/auth.md#getting_token_for_robot).
+
+
+#### **Q: Как узнать, валиден ли токен, от какого он пользователя и принимает ли его конкретный кластер?**
+
+**A:** К примеру, если вы получили ошибку аутентификации:
+`Your authentication token was rejected by the server (X-{{product-name}}-Request-ID: 6e101e7733a31832). Please refer to http:_hahn.yt.yandex.net/auth/ for obtaining a valid token if it will not fix error: please kindly submit a request to https:_st.yandex-team.ru/createTicket?queue=YTADMINREQ`,
+следует отправить POST запрос с токеном в вызов /auth:
+`curl -H 'Authorization: OAuth ${TOKEN}' http://hahn.yt.yandex.net/auth/whoami`
+
+{% endif %}
