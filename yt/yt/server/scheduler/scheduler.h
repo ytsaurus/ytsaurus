@@ -169,7 +169,7 @@ public:
         const TString& jobShellName,
         const std::vector<TString>& jobShellOwners);
 
-    TFuture<TOperationId> FindOperationIdByJobId(TJobId jobId, bool considerFinished) const;
+    TFuture<TOperationId> FindOperationIdByJobId(TJobId jobId) const;
 
     const NRpc::IResponseKeeperPtr& GetOperationServiceResponseKeeper() const;
 

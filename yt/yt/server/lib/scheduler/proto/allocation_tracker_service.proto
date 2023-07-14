@@ -1,9 +1,6 @@
 package NYT.NScheduler.NProto.NNode;
 
-import "yt/server/lib/scheduler/proto/allocation.proto";
-
-import "yt/ytlib/controller_agent/proto/job.proto";
-
+import "yt/ytlib/scheduler/proto/allocation.proto";
 import "yt/ytlib/scheduler/proto/job.proto";
 
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
@@ -38,6 +35,8 @@ message TReqHeartbeat
     repeated TAllocationStatus allocations = 5;
 
     required NNodeTrackerClient.NProto.TDiskResources disk_resources = 6;
+
+    // TODO(pogorelov): Replace it with profiling metrics.
     optional int32 job_reporter_write_failures_count = 7;
     optional bool job_reporter_queue_is_too_large = 8;
 
@@ -45,11 +44,7 @@ message TReqHeartbeat
 
     repeated TSpecFetchFailedAllocationInfo spec_fetch_failed_allocations = 12;
 
-    // COMPAT(pogorelov)
-    repeated NYT.NProto.TGuid unconfirmed_allocations = 9;
-
-    // COMPAT(pogorelov)
-    required int64 confirmed_job_count = 10;
+    reserved 9, 10;
 }
 
 message TAllocationStartInfo
@@ -75,7 +70,7 @@ message TAllocationToInterrupt
     required int64 timeout = 2;
     optional string preemption_reason = 3;
     optional int32 interruption_reason = 4; // NScheduler::EInterruptReason
-    optional NYT.NControllerAgent.NProto.TPreemptedFor preempted_for = 5;
+    optional NYT.NScheduler.NProto.TPreemptedFor preempted_for = 5;
 }
 
 message TOperationInfo
@@ -86,12 +81,6 @@ message TOperationInfo
     optional TControllerAgentDescriptor controller_agent_descriptor = 3;
 }
 
-message TJobToConfirm
-{
-    required TControllerAgentDescriptor controller_agent_descriptor = 1;
-    required NYT.NProto.TGuid job_id = 2;
-}
-
 message TRspHeartbeat
 {
     repeated TAllocationStartInfo allocations_to_start = 1;
@@ -100,18 +89,13 @@ message TRspHeartbeat
     optional bool scheduling_skipped = 4;
     optional int32 operation_archive_version = 5;
 
-    // COMPAT(pogorelov)
-    repeated NYT.NControllerAgent.NProto.TJobToRemove jobs_to_remove = 6;
-    repeated NYT.NProto.TGuid jobs_to_store = 7;
-    repeated TJobToConfirm jobs_to_confirm = 9;
-
-    repeated NYT.NProto.TGuid jobs_to_fail = 8;
-
     repeated TOperationInfo operation_infos = 10;
 
     repeated TControllerAgentDescriptor registered_controller_agents = 11;
 
     optional TJobResources min_spare_resources = 12;
+
+    reserved 6, 7, 8;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

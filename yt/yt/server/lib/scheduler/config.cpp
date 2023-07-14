@@ -967,9 +967,6 @@ void TSchedulerConfig::Register(TRegistrar registrar)
     registrar.Parameter("operations_update_period", &TThis::OperationsUpdatePeriod)
         .Default(TDuration::Seconds(3));
 
-    registrar.Parameter("finished_job_storing_timeout", &TThis::FinishedJobStoringTimeout)
-        .Default(TDuration::Minutes(30));
-
     registrar.Parameter("finished_operation_job_storing_timeout", &TThis::FinishedOperationJobStoringTimeout)
         .Default(TDuration::Seconds(10));
 
@@ -1082,9 +1079,6 @@ void TSchedulerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("min_required_archive_version", &TThis::MinRequiredArchiveVersion)
         .Default(48);
-
-    registrar.Parameter("control_unknown_operation_jobs_lifetime", &TThis::ControlUnknownOperationJobsLifetime)
-        .Default(true);
 
     registrar.Preprocessor([&] (TSchedulerConfig* config) {
         config->EventLog->MaxRowWeight = 128_MB;

@@ -625,7 +625,6 @@ public:
 
         struct TNodeShardJobUpdates
         {
-            std::vector<const NProto::TAgentToSchedulerJobEvent*> JobEvents;
             std::vector<const NProto::TAgentToSchedulerRunningJobStatistics*> RunningJobStatisticsUpdates;
         };
 
@@ -633,16 +632,6 @@ public:
             agent,
             [agent, nodeManager, request, response, context, config{Config_}] () {
                 std::vector<TNodeShardJobUpdates> groupedJobUpdates(nodeManager->GetNodeShardCount());
-
-                agent->GetJobEventsInbox()->HandleIncoming(
-                    request->mutable_agent_to_scheduler_job_events(),
-                    [&] (auto* protoEvent) {
-                        auto jobId = FromProto<TJobId>(protoEvent->job_id());
-                        auto shardId = nodeManager->GetNodeShardId(NodeIdFromJobId(jobId));
-                        groupedJobUpdates[shardId].JobEvents.push_back(protoEvent);
-                    });
-                agent->GetJobEventsInbox()->ReportStatus(
-                    response->mutable_agent_to_scheduler_job_events());
 
                 agent->GetRunningJobStatisticsUpdatesInbox()->HandleIncoming(
                     request->mutable_agent_to_scheduler_running_job_statistics_updates(),
@@ -837,47 +826,6 @@ public:
                             protoUpdates = std::move(groupedJobUpdates[shardId]),
                             Logger = SchedulerLogger
                         ] {
-                            for (const auto* protoEvent : protoUpdates.JobEvents) {
-                                auto eventType = CheckedEnumCast<EAgentToSchedulerJobEventType>(protoEvent->event_type());
-                                auto jobId = FromProto<TJobId>(protoEvent->job_id());
-                                auto controllerEpoch = protoEvent->controller_epoch();
-                                auto error = FromProto<TError>(protoEvent->error());
-                                auto interruptReason = CheckedEnumCast<EInterruptReason>(protoEvent->interrupt_reason());
-
-                                auto expectedControllerEpoch = nodeShard->GetJobControllerEpoch(jobId);
-
-                                // NB(gritukan, ignat): If job is released, either it is stored into operation snapshot
-                                // or operation is completed. In both cases controller epoch actually is not important.
-                                bool shouldValidateEpoch = eventType != EAgentToSchedulerJobEventType::Released;
-
-                                if (shouldValidateEpoch && (controllerEpoch != expectedControllerEpoch)) {
-                                    YT_LOG_DEBUG("Received job event with unexpected controller epoch; ignored "
-                                                "(JobId: %v, EventType: %v, ControllerEpoch: %v, ExpectedControllerEpoch: %v)",
-                                        jobId,
-                                        eventType,
-                                        controllerEpoch,
-                                        expectedControllerEpoch);
-                                    continue;
-                                }
-
-                                switch (eventType) {
-                                    case EAgentToSchedulerJobEventType::Interrupted:
-                                        nodeShard->InterruptJob(jobId, interruptReason);
-                                        break;
-                                    case EAgentToSchedulerJobEventType::Aborted:
-                                        nodeShard->AbortJob(jobId, error);
-                                        break;
-                                    case EAgentToSchedulerJobEventType::Failed:
-                                        nodeShard->FailJob(jobId);
-                                        break;
-                                    case EAgentToSchedulerJobEventType::Released:
-                                        nodeShard->ReleaseJob(jobId, FromProto<TReleaseJobFlags>(protoEvent->release_job_flags()));
-                                        break;
-                                    default:
-                                        YT_ABORT();
-                                }
-                            }
-
                             std::vector<TNodeShard::TRunningJobStatisticsUpdate> runningJobStatisticsUpdates;
                             runningJobStatisticsUpdates.reserve(std::size(protoUpdates.RunningJobStatisticsUpdates));
                             for (const auto* protoStatisticsUpdate : protoUpdates.RunningJobStatisticsUpdates) {
@@ -903,7 +851,6 @@ public:
 
         context->Reply();
     }
-
 
     void ProcessAgentScheduleJobHeartbeat(const TCtxAgentScheduleJobHeartbeatPtr& context)
     {

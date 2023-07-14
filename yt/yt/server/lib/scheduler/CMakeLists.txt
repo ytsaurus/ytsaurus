@@ -30,18 +30,6 @@ get_built_tool_path(
   contrib/tools/protoc/plugins/cpp_styleguide
   cpp_styleguide
 )
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
 
 add_library(server-lib-scheduler)
 target_compile_options(server-lib-scheduler PRIVATE
@@ -61,7 +49,6 @@ target_link_libraries(server-lib-scheduler PUBLIC
   contrib-libs-protobuf
 )
 target_proto_messages(server-lib-scheduler PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/scheduler/proto/allocation.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/scheduler/proto/allocation_tracker_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.proto
 )

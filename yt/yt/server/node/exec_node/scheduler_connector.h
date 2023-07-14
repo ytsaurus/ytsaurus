@@ -24,7 +24,6 @@ struct TSchedulerHeartbeatContext
     : public TRefCounted
 {
     THashSet<TJobPtr> JobsToForcefullySend;
-    THashSet<TJobId> UnconfirmedJobIds;
 
     THashMap<TAllocationId, TSpecFetchFailedAllocationInfo> SpecFetchFailedAllocations;
 };
@@ -50,7 +49,6 @@ public:
     void SetMinSpareResources(const NScheduler::TJobResources& minSpareResources);
 
     void EnqueueFinishedJobs(std::vector<TJobPtr> jobs);
-    void AddUnconfirmedJobIds(const std::vector<TJobId>& unconfirmedJobIds);
 
     void RemoveSpecFetchFailedAllocations(THashMap<TAllocationId, TSpecFetchFailedAllocationInfo> allocations);
 
@@ -89,7 +87,6 @@ private:
     NProfiling::TEventTimer TimeBetweenFullyProcessedHeartbeatsCounter_;
 
     THashSet<TJobPtr> JobsToForcefullySend_;
-    THashSet<TJobId> UnconfirmedJobIds_;
 
     THashMap<TAllocationId, TSpecFetchFailedAllocationInfo> SpecFetchFailedAllocations_;
 

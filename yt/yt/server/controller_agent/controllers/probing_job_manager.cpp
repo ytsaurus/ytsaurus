@@ -81,7 +81,7 @@ bool TProbingJobManager::OnUnsuccessfulJobFinish(
         if (competition->Status == ECompetitionStatus::TwoCompetitiveJobs) {
             returnCookieToChunkPool = false;
             if (!joblet->CompetitionType) {
-                Host_->AbortJobViaScheduler(competition->GetCompetitorFor(joblet->JobId), EAbortReason::ProbingToUnsuccessfulJob);
+                Host_->AsyncAbortJob(competition->GetCompetitorFor(joblet->JobId), EAbortReason::ProbingToUnsuccessfulJob);
             }
         } else if (competition->Status == ECompetitionStatus::HasCompletedJob) {
             returnCookieToChunkPool = false;

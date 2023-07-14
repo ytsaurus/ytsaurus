@@ -80,8 +80,6 @@ void ToProto(NProto::TPrepareOperationResult* resultProto, const TOperationContr
     if (result.Attributes) {
         resultProto->set_attributes(result.Attributes.ToString());
     }
-
-    resultProto->set_control_job_lifetime_at_scheduler(result.ControlJobLifetimeAtScheduler);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -110,7 +108,6 @@ void ToProto(NProto::TReviveOperationResult* resultProto, const TOperationContro
         jobProto->set_node_id(job.NodeId);
         jobProto->set_node_address(job.NodeAddress);
     }
-    resultProto->set_control_job_lifetime_at_scheduler(result.ControlJobLifetimeAtScheduler);
     ToProto(resultProto->mutable_revived_banned_tree_ids(), result.RevivedBannedTreeIds);
     ToProto(resultProto->mutable_composite_needed_resources(), result.NeededResources);
     ToProto(resultProto->mutable_min_needed_resources(), result.MinNeededResources);

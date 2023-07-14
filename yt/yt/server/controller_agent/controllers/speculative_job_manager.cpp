@@ -48,8 +48,8 @@ void TSpeculativeJobManager::OnJobCompleted(const TJobletPtr& joblet)
         auto abortReason = joblet->CompetitionType == EJobCompetitionType::Speculative
             ? EAbortReason::SpeculativeRunWon
             : EAbortReason::SpeculativeRunLost;
-        for (const auto& competitiveJobId : competition->Competitors) {
-            Host_->AbortJobViaScheduler(competitiveJobId, abortReason);
+        for (auto competitor : competition->Competitors) {
+            Host_->AsyncAbortJob(competitor, abortReason);
         }
     }
 }

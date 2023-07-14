@@ -606,23 +606,17 @@ public:
         {
             // TODO(pogorelov): Refactor operation creation.
 
-            // COMPAT(pogorelov): Remove it when job tracker becomes stable.
-            auto config = Config_;
-
-            bool controlJobLifetimeAtControllerAgent = !config->ControlJobLifetimeAtScheduler;
-
             auto host = New<TOperationControllerHost>(
                 operation.Get(),
                 CancelableControlInvoker_,
                 Bootstrap_->GetControlInvoker(),
                 OperationEventsOutbox_,
-                JobEventsOutbox_,
                 RunningJobStatisticsUpdatesOutbox_,
                 Bootstrap_);
             operation->SetHost(host);
 
             try {
-                auto controller = CreateControllerForOperation(std::move(config), operation.Get());
+                auto controller = CreateControllerForOperation(Config_, operation.Get());
                 operation->SetController(controller);
             } catch (...) {
                 MemoryTagQueue_->ReclaimTag(operation->GetMemoryTag());
@@ -631,7 +625,6 @@ public:
 
             auto jobTrackerOperationHandler = JobTracker_->RegisterOperation(
                 operationId,
-                controlJobLifetimeAtControllerAgent,
                 MakeWeak(operation->GetController()));
 
             host->SetJobTrackerOperationHandler(std::move(jobTrackerOperationHandler));
@@ -1171,7 +1164,6 @@ private:
     TInstant LastSuspiciousJobsSendTime_;
 
     TAgentToSchedulerOperationEventOutboxPtr OperationEventsOutbox_;
-    TAgentToSchedulerJobEventOutboxPtr JobEventsOutbox_;
     TAgentToSchedulerScheduleJobResponseOutboxPtr ScheduleJobResponsesOutbox_;
     TAgentToSchedulerRunningJobStatisticsOutboxPtr RunningJobStatisticsUpdatesOutbox_;
 
@@ -1345,11 +1337,6 @@ private:
                 IncarnationId_),
             ControllerAgentProfiler.WithTag("queue", "operation_events"),
             CancelableControlInvoker_);
-        JobEventsOutbox_ = New<TMessageQueueOutbox<TAgentToSchedulerJobEvent>>(
-            ControllerAgentLogger.WithTag("Kind: AgentToSchedulerJobs, IncarnationId: %v",
-               IncarnationId_),
-            ControllerAgentProfiler.WithTag("queue", "job_events"),
-            Bootstrap_->GetControlInvoker());
         ScheduleJobResponsesOutbox_ = New<TMessageQueueOutbox<TAgentToSchedulerScheduleJobResponse>>(
             ControllerAgentLogger.WithTag("Kind: AgentToSchedulerScheduleJobResponses, IncarnationId: %v",
                 IncarnationId_),
@@ -1455,7 +1442,6 @@ private:
 
         MemoryWatchdog_.Reset();
         OperationEventsOutbox_.Reset();
-        JobEventsOutbox_.Reset();
         ScheduleJobResponsesOutbox_.Reset();
         RunningJobStatisticsUpdatesOutbox_.Reset();
 
@@ -1562,23 +1548,6 @@ private:
                 }
             });
 
-        JobEventsOutbox_->BuildOutcoming(
-            request->mutable_agent_to_scheduler_job_events(),
-            [] (auto* protoEvent, const auto& event) {
-                protoEvent->set_event_type(static_cast<int>(event.EventType));
-                ToProto(protoEvent->mutable_job_id(), event.JobId);
-                protoEvent->set_controller_epoch(event.ControllerEpoch);
-                if (event.InterruptReason) {
-                    protoEvent->set_interrupt_reason(static_cast<int>(*event.InterruptReason));
-                }
-                if (!event.Error.IsOK()) {
-                    ToProto(protoEvent->mutable_error(), event.Error);
-                }
-                if (event.ReleaseFlags) {
-                    ToProto(protoEvent->mutable_release_job_flags(), *event.ReleaseFlags);
-                }
-            });
-
         RunningJobStatisticsUpdatesOutbox_->BuildOutcoming(
             request->mutable_agent_to_scheduler_running_job_statistics_updates(),
             [] (auto* protoStatistics, const auto& statistics) {
@@ -1673,13 +1642,12 @@ private:
         auto preparedRequest = PrepareHeartbeatRequest();
 
         YT_LOG_DEBUG("Sending heartbeat (ExecNodesRequested: %v, OperationsSent: %v, OperationAlertsSent: %v, SuspiciousJobsSent: %v, "
-            "OperationEventCount: %v, JobEventCount: %v, ScheduleJobResponseCount: %v)",
+            "OperationEventCount: %v, JobEventCount: %v)",
             preparedRequest.ExecNodesRequested,
             preparedRequest.OperationsSent,
             preparedRequest.OperationAlertsSent,
             preparedRequest.SuspiciousJobsSent,
-            preparedRequest.RpcRequest->agent_to_scheduler_operation_events().items_size(),
-            preparedRequest.RpcRequest->agent_to_scheduler_job_events().items_size());
+            preparedRequest.RpcRequest->agent_to_scheduler_operation_events().items_size());
 
         auto rspOrError = WaitFor(preparedRequest.RpcRequest->Invoke());
         if (!rspOrError.IsOK()) {
@@ -1697,7 +1665,6 @@ private:
         const auto& rsp = rspOrError.Value();
 
         OperationEventsOutbox_->HandleStatus(rsp->agent_to_scheduler_operation_events());
-        JobEventsOutbox_->HandleStatus(rsp->agent_to_scheduler_job_events());
         RunningJobStatisticsUpdatesOutbox_->HandleStatus(rsp->agent_to_scheduler_running_job_statistics_updates());
 
         HandleJobEvents(rsp);

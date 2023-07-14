@@ -78,7 +78,7 @@ private:
         auto jobNodeDescriptor = WaitFor(scheduler->GetJobNode(jobId))
             .ValueOrThrow();
 
-        auto operationId = WaitFor(scheduler->FindOperationIdByJobId(jobId, /*considerFinished*/ true))
+        auto operationId = WaitFor(scheduler->FindOperationIdByJobId(jobId))
             .ValueOrThrow();
         if (!operationId) {
             THROW_ERROR_EXCEPTION(
@@ -143,7 +143,7 @@ private:
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
 
-        auto operationId = WaitFor(scheduler->FindOperationIdByJobId(jobId, /*considerFinished*/ true))
+        auto operationId = WaitFor(scheduler->FindOperationIdByJobId(jobId))
             .ValueOrThrow();
         if (!operationId) {
             THROW_ERROR_EXCEPTION(
@@ -177,7 +177,7 @@ private:
             if (!shellName) {
                 shellName = "default";
             }
-            
+
             TJobShellPtr jobShell;
             for (const auto& shell : shells) {
                 if (shell->Name == shellName) {

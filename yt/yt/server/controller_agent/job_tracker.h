@@ -50,7 +50,6 @@ public:
 
     TJobTrackerOperationHandlerPtr RegisterOperation(
         TOperationId operationId,
-        bool controlJobLifetimeAtControllerAgent,
         TWeakPtr<IOperationController> operationController);
 
     void UnregisterOperation(TOperationId operationId);
@@ -108,7 +107,6 @@ private:
 
     struct TOperationInfo
     {
-        const bool ControlJobLifetimeAtControllerAgent;
         bool JobsReady = false;
         const TWeakPtr<IOperationController> OperationController;
         THashSet<TJobId> TrackedJobIds;
@@ -268,7 +266,6 @@ private:
 
     void DoRegisterOperation(
         TOperationId operationId,
-        bool controlJobLifetimeAtControllerAgent,
         TWeakPtr<IOperationController> operationController);
     void DoUnregisterOperation(TOperationId operationId);
 
@@ -356,8 +353,7 @@ public:
     TJobTrackerOperationHandler(
         TJobTracker* jobTracker,
         IInvokerPtr cancelableInvoker,
-        TOperationId operationId,
-        bool controlJobLifetimeAtControllerAgent);
+        TOperationId operationId);
 
     void RegisterJob(TStartedJobInfo jobInfo);
 
@@ -381,7 +377,6 @@ private:
     const IInvokerPtr CancelableInvoker_;
 
     const TOperationId OperationId_;
-    const bool ControlJobLifetimeAtControllerAgent_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobTrackerOperationHandler)

@@ -708,8 +708,6 @@ public:
 
     int LoggingJobSampleSize;
 
-    bool AbortVanishedJobs;
-
     TDuration DurationBeforeJobConsideredVanished;
 
     REGISTER_YSON_STRUCT(TJobTrackerConfig);
@@ -1147,10 +1145,6 @@ public:
     TDuration RunningJobTimeStatisticsUpdatesSendPeriod;
 
     bool ReleaseFailedJobOnException;
-
-    bool ControlJobLifetimeAtScheduler;
-
-    bool InterruptJobsViaScheduler;
 
     TJobTrackerConfigPtr JobTracker;
 

@@ -211,8 +211,6 @@ void TControllerAgentConnectorDynamicConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("running_job_statistics_sending_backoff", &TThis::RunningJobStatisticsSendingBackoff)
         .Default();
-    registrar.Parameter("send_waiting_jobs", &TThis::SendWaitingJobs)
-        .Default(false);
     registrar.Parameter("use_job_tracker_service_to_settle_jobs", &TThis::UseJobTrackerServiceToSettleJobs)
         .Default(false);
     registrar.Parameter("total_confirmation_period", &TThis::TotalConfirmationPeriod)

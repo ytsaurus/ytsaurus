@@ -1012,11 +1012,6 @@ private:
 
             switch (job->GetState()) {
                 case EJobState::Waiting:
-                    // COMPAT(pogorelov)
-                    if (context->SendWaitingJobs) {
-                        runningJobs.push_back(job);
-                    }
-                    break;
                 case EJobState::Running:
                     runningJobs.push_back(job);
                     break;
@@ -1305,15 +1300,11 @@ private:
             // We also drop all scheduler jobs from |JobMap_|.
             Y_UNUSED(RemoveSchedulerJobs());
 
-            request->set_confirmed_job_count(0);
-
             return;
         }
 
         const bool totalConfirmation = NeedSchedulerTotalConfirmation();
         YT_LOG_INFO_IF(totalConfirmation, "Including all stored jobs in heartbeat");
-
-        int confirmedJobCount = 0;
 
         const bool requestOperationInfosForJobs =
             TInstant::Now() > LastOperationInfosRequestTime_ +
@@ -1341,7 +1332,6 @@ private:
                     job->GetOperationId(),
                     job->GetStored(),
                     job->GetState());
-                ++confirmedJobCount;
             }
 
             auto* allocationStatus = request->add_allocations();
@@ -1388,16 +1378,12 @@ private:
             ToProto(allocationStatus->mutable_result()->mutable_error(), job->GetJobError());
         }
 
-        request->set_confirmed_job_count(confirmedJobCount);
-
         for (const auto& [allocationId, info] : context->SpecFetchFailedAllocations) {
             auto* jobStatus = request->add_allocations();
             ToProto(jobStatus->mutable_allocation_id(), allocationId);
 
             ToProto(jobStatus->mutable_operation_id(), info.OperationId);
             jobStatus->set_state(static_cast<int>(JobStateToAllocationState(EJobState::Aborted)));
-
-            jobStatus->mutable_time_statistics();
 
             TAllocationResult jobResult;
             auto error = TError("Failed to get job spec")
@@ -1412,10 +1398,6 @@ private:
             ToProto(specFetchFailedAllocationInfoProto->mutable_allocation_id(), allocationId);
             ToProto(specFetchFailedAllocationInfoProto->mutable_operation_id(), info.OperationId);
             ToProto(specFetchFailedAllocationInfoProto->mutable_error(), info.Error);
-        }
-
-        if (!std::empty(context->UnconfirmedJobIds)) {
-            ToProto(request->mutable_unconfirmed_allocations(), context->UnconfirmedJobIds);
         }
 
         if (requestOperationInfosForJobs) {
@@ -1454,21 +1436,6 @@ private:
 
             const auto& controllerAgentConnectorPool = Bootstrap_->GetExecNodeBootstrap()->GetControllerAgentConnectorPool();
             controllerAgentConnectorPool->OnRegisteredAgentSetReceived(std::move(receivedRegisteredAgents));
-        }
-
-        // COMPAT(pogorelov)
-        for (const auto& protoJobToRemove : response->jobs_to_remove()) {
-            auto jobToRemove = FromProto<TJobToRelease>(protoJobToRemove);
-            auto jobId = jobToRemove.JobId;
-
-            if (auto job = FindJob(jobId)) {
-                YT_LOG_DEBUG("Scheduler requested to remove job (JobId: %v, ReleaseFlags: %v)", jobId, jobToRemove.ReleaseFlags);
-                RemoveJob(job, jobToRemove.ReleaseFlags);
-            } else {
-                YT_LOG_WARNING(
-                    "Scheduler requested to remove a non-existent job (JobId: %v)",
-                    jobId);
-            }
         }
 
         for (const auto& protoAllocationToAbort : response->allocations_to_abort()) {
@@ -1521,75 +1488,6 @@ private:
                     jobId);
             }
         }
-
-        for (const auto& protoJobId : response->jobs_to_fail()) {
-            auto jobId = FromProto<TJobId>(protoJobId);
-
-            YT_VERIFY(TypeFromId(jobId) == EObjectType::SchedulerJob);
-
-            if (auto job = FindJob(jobId)) {
-                YT_LOG_DEBUG(
-                    "Scheduler requested to fail job (JobId: %v)",
-                    jobId);
-
-                job->Fail();
-            } else {
-                YT_LOG_WARNING(
-                    "Scheduler requested to fail a non-existent job (JobId: %v)",
-                    jobId);
-            }
-        }
-
-        // COMPAT(pogorelov)
-        for (const auto& protoJobId : response->jobs_to_store()) {
-            auto jobId = FromProto<TJobId>(protoJobId);
-
-            YT_VERIFY(TypeFromId(jobId) == EObjectType::SchedulerJob);
-
-            if (auto job = FindJob(jobId)) {
-                YT_LOG_DEBUG(
-                    "Storing job by scheduler request (JobId: %v)",
-                    jobId);
-                YT_VERIFY(job->IsFinished());
-                job->SetStored();
-            } else {
-                YT_LOG_WARNING(
-                    "Scheduler requested to store a non-existent job (JobId: %v)",
-                    jobId);
-            }
-        }
-
-        // COMPAT(pogorelov)
-        std::vector<TJobId> jobIdsToConfirm;
-        jobIdsToConfirm.reserve(response->jobs_to_confirm_size());
-        for (auto& jobInfo : *response->mutable_jobs_to_confirm()) {
-            auto jobId = FromProto<TJobId>(jobInfo.job_id());
-
-            YT_VERIFY(TypeFromId(jobId) == EObjectType::SchedulerJob);
-
-            YT_LOG_DEBUG(
-                "Scheduler requested to confirm job (JobId: %v)",
-                jobId);
-
-            auto agentInfoOrError = TryParseControllerAgentDescriptor(
-                jobInfo.controller_agent_descriptor(),
-                Bootstrap_->GetLocalNetworks());
-            if (!agentInfoOrError.IsOK()) {
-                YT_LOG_WARNING(
-                    agentInfoOrError,
-                    "Skip job to confirm since no suitable controller agent address exists (JobId: %v)",
-                    jobId);
-                continue;
-            }
-
-            if (auto job = FindJob(jobId)) {
-                job->UpdateControllerAgentDescriptor(std::move(agentInfoOrError.Value()));
-            }
-
-            jobIdsToConfirm.push_back(jobId);
-        }
-
-        ConfirmJobs(jobIdsToConfirm);
 
         for (const auto& protoOperationInfo : response->operation_infos()) {
             auto operationId = FromProto<TOperationId>(protoOperationInfo.operation_id());
@@ -2243,15 +2141,11 @@ private:
         }
     }
 
-    void ConfirmJobs(const std::vector<TJobId>& jobIds, TControllerAgentConnectorPtr initiator = {})
+    void ConfirmJobs(const std::vector<TJobId>& jobIds, TControllerAgentConnectorPtr initiator)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        std::vector<TJobPtr> confirmedJobs;
         std::vector<TJobId> unconfirmedJobIds;
-
-        confirmedJobs.reserve(std::size(jobIds));
-
         for (auto jobId : jobIds) {
             YT_LOG_DEBUG("Requested to confirm job (JobId: %v)", jobId);
 
@@ -2265,8 +2159,6 @@ private:
                         jobId,
                         job->GetControllerAgentDescriptor());
                 }
-
-                confirmedJobs.push_back(std::move(job));
             } else {
                 YT_LOG_DEBUG("Job unconfirmed (JobId: %v)", jobId);
 
@@ -2274,13 +2166,7 @@ private:
             }
         }
 
-        const auto& schedulerConnector = Bootstrap_->GetExecNodeBootstrap()->GetSchedulerConnector();
-        schedulerConnector->AddUnconfirmedJobIds(unconfirmedJobIds);
-        schedulerConnector->EnqueueFinishedJobs(std::move(confirmedJobs));
-
-        if (initiator) {
-            initiator->AddUnconfirmedJobIds(std::move(unconfirmedJobIds));
-        }
+        initiator->AddUnconfirmedJobIds(std::move(unconfirmedJobIds));
 
         Bootstrap_->GetExecNodeBootstrap()->GetControllerAgentConnectorPool()->SendOutOfBandHeartbeatsIfNeeded();
     }

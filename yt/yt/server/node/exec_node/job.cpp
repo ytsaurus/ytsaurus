@@ -3023,6 +3023,8 @@ void FillStatus(NControllerAgent::NProto::TJobStatus* status, const TJobPtr& job
     status->set_interruption_reason(ToProto<int>(job->GetInterruptionReason()));
     status->set_progress(job->GetProgress());
     *status->mutable_total_input_data_statistics() = job->GetTotalInputDataStatistics();
+    ToProto(status->mutable_time_statistics(), job->GetTimeStatistics());
+
     ToProto(status->mutable_output_data_statistics(), job->GetOutputDataStatistics());
 
     if (auto stderrSize = job->GetStderrSize(); stderrSize > 0) {
@@ -3039,7 +3041,6 @@ void FillJobStatus(TStatus* status, const TJobPtr& job)
     FillStatus(status, job);
 
     ToProto(status->mutable_operation_id(), job->GetOperationId());
-    ToProto(status->mutable_time_statistics(), job->GetTimeStatistics());
 
     status->set_status_timestamp(ToProto<ui64>(TInstant::Now()));
 }

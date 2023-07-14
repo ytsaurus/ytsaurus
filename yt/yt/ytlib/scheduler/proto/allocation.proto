@@ -1,7 +1,5 @@
 package NYT.NScheduler.NProto;
 
-import "yt/ytlib/controller_agent/proto/job.proto";
-
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
 
 import "yt_proto/yt/core/misc/proto/error.proto";
@@ -14,6 +12,12 @@ message TAllocationResult
     required NYT.NProto.TError error = 1;
 }
 
+message TPreemptedFor
+{
+    required NYT.NProto.TGuid operation_id = 1;
+    required NYT.NProto.TGuid allocation_id = 2;
+}
+
 //! Describes the current allocation status.
 message TAllocationStatus
 {
@@ -24,8 +28,6 @@ message TAllocationStatus
     optional TAllocationResult result = 4;
     optional NNodeTrackerClient.NProto.TNodeResources resource_usage = 5;
 
-    // COMPAT(pogorelov)
-    optional NYT.NControllerAgent.NProto.TTimeStatistics time_statistics = 6;
     optional int64 status_timestamp = 7;
 }
 

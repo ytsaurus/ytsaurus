@@ -455,7 +455,6 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::DoPrepareHeartbea
 
     context->JobsToForcefullySend = EnqueuedFinishedJobs_;
     context->UnconfirmedJobIds = std::move(UnconfirmedJobIds_);
-    context->SendWaitingJobs = ControllerAgentConnectorPool_->SendWaitingJobs_;
     context->AllocationIdsWaitingForSpec = AllocationIdsWaitingForSpec_;
 
     const auto& jobController = ControllerAgentConnectorPool_->Bootstrap_->GetJobController();
@@ -626,12 +625,10 @@ void TControllerAgentConnectorPool::OnDynamicConfigChanged(
         {
             if (newConfig->ControllerAgentConnector) {
                 TestHeartbeatDelay_ = newConfig->ControllerAgentConnector->TestHeartbeatDelay;
-                SendWaitingJobs_ = newConfig->ControllerAgentConnector->SendWaitingJobs;
                 UseJobTrackerServiceToSettleJobs_ = newConfig->ControllerAgentConnector->UseJobTrackerServiceToSettleJobs;
                 TotalConfirmationPeriod_ = newConfig->ControllerAgentConnector->TotalConfirmationPeriod;
             } else {
                 TestHeartbeatDelay_ = TDuration::Zero();
-                SendWaitingJobs_ = false;
                 UseJobTrackerServiceToSettleJobs_ = false;
                 TotalConfirmationPeriod_ = TDuration::Minutes(10);
             }

@@ -2090,14 +2090,14 @@ void TTask::LogTentativeTreeStatistics() const
     return TentativeTreeEligibility_.LogTentativeTreeStatistics();
 }
 
-void TTask::AbortJobViaScheduler(TJobId jobId, EAbortReason reason)
+void TTask::AsyncAbortJob(TJobId jobId, EAbortReason reason)
 {
-    GetTaskHost()->AbortJobViaScheduler(jobId, reason);
+    GetTaskHost()->AsyncAbortJob(jobId, reason);
 }
 
-void TTask::AbortJobByController(TJobId jobId, EAbortReason reason)
+void TTask::AbortJob(TJobId jobId, EAbortReason reason)
 {
-    GetTaskHost()->AbortJobByController(jobId, reason);
+    GetTaskHost()->AbortJob(jobId, reason);
 }
 
 void TTask::OnSecondaryJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitionType)

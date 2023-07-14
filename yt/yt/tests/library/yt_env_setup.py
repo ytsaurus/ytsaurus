@@ -672,6 +672,11 @@ class YTEnvSetup(object):
                 cls.modify_master_config(configs["master"][tag][index], tag, index)
         for index, config in enumerate(configs["scheduler"]):
             config = update_inplace(config, cls.get_param("DELTA_SCHEDULER_CONFIG", cluster_index))
+
+            # COMPAT(pogorelov)
+            if "scheduler" in cls.ARTIFACT_COMPONENTS.get("23_1", []):
+                config["scheduler"]["control_unknown_operation_jobs_lifetime"] = False
+
             configs["scheduler"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_scheduler_config(configs["scheduler"][index])
         for index, config in enumerate(configs["queue_agent"]):
@@ -696,6 +701,11 @@ class YTEnvSetup(object):
                 update_inplace(config, YTEnvSetup._DEFAULT_DELTA_CONTROLLER_AGENT_CONFIG),
                 delta_config,
             )
+
+            # COMPAT(pogorelov)
+            if "controller-agent" in cls.ARTIFACT_COMPONENTS.get("23_1", []):
+                config["controller_agent"]["control_job_lifetime_at_scheduler"] = False
+                config["controller_agent"]["job_tracker"]["abort_vanished_jobs"] = True
 
             # COMPAT(kvk1920)
             if "master" in cls.ARTIFACT_COMPONENTS.get("22_4", []) + cls.ARTIFACT_COMPONENTS.get("23_1", []):

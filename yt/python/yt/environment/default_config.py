@@ -216,7 +216,6 @@ def get_scheduler_config():
             enable_response_keeper = %true;
         };
         crash_on_job_heartbeat_processing_exception = %true;
-        control_unknown_operation_jobs_lifetime = %false;
     };
 }
 """)
@@ -373,11 +372,8 @@ def get_controller_agent_config():
 
         running_job_time_statistics_updates_send_period = 10;
 
-        control_job_lifetime_at_scheduler = %false;
-
         job_tracker = {
             logging_job_sample_size = 1000;
-            abort_vanished_jobs = %true;
             duration_before_job_considered_vanished = 1000;
         };
 

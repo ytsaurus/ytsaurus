@@ -472,8 +472,8 @@ private:
 
     void OnSecondaryJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitionType) override;
 
-    void AbortJobViaScheduler(TJobId jobId, NScheduler::EAbortReason abortReason) override;
-    void AbortJobByController(TJobId jobId, NScheduler::EAbortReason abortReason) override;
+    void AsyncAbortJob(TJobId jobId, NScheduler::EAbortReason abortReason) override;
+    void AbortJob(TJobId jobId, NScheduler::EAbortReason abortReason) override;
 
     double GetJobProxyMemoryReserveFactor() const;
 

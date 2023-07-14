@@ -153,15 +153,6 @@ void TSchedulerConnector::EnqueueFinishedJobs(std::vector<TJobPtr> jobs)
     }
 }
 
-void TSchedulerConnector::AddUnconfirmedJobIds(const std::vector<TJobId>& unconfirmedJobIds)
-{
-    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
-
-    for (auto jobId : unconfirmedJobIds) {
-        UnconfirmedJobIds_.emplace(jobId);
-    }
-}
-
 void TSchedulerConnector::RemoveSpecFetchFailedAllocations(THashMap<TAllocationId, TSpecFetchFailedAllocationInfo> allocations)
 {
     VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
@@ -352,7 +343,6 @@ void TSchedulerConnector::DoPrepareHeartbeatRequest(
     VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
 
     context->JobsToForcefullySend = std::move(JobsToForcefullySend_);
-    context->UnconfirmedJobIds = std::move(UnconfirmedJobIds_);
     context->SpecFetchFailedAllocations = SpecFetchFailedAllocations_;
 
     const auto& jobController = Bootstrap_->GetJobController();

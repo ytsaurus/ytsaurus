@@ -1,5 +1,7 @@
 package NYT.NControllerAgent.NProto;
 
+import "yt/ytlib/scheduler/proto/allocation.proto";
+
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
 
 import "yt_proto/yt/client/chunk_client/proto/data_statistics.proto";
@@ -50,12 +52,6 @@ message TTimeStatistics
     optional int64 gpu_check_duration = 5;
 }
 
-message TPreemptedFor
-{
-    required NYT.NProto.TGuid operation_id = 1;
-    required NYT.NProto.TGuid job_id = 2;
-}
-
 // Describes the current job status.
 message TJobStatus
 {
@@ -75,7 +71,7 @@ message TJobStatus
     optional int64 stderr_size = 13;
 
     optional int32 interruption_reason = 18;
-    optional TPreemptedFor preempted_for = 19;
+    optional NYT.NScheduler.NProto.TPreemptedFor preempted_for = 19;
 
     required TTimeStatistics time_statistics = 15;
     optional int64 status_timestamp = 16;

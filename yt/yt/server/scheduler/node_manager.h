@@ -63,8 +63,7 @@ public:
     void StartOperationRevival(TOperationId operationId, TControllerEpoch newControllerEpoch);
     TFuture<void> FinishOperationRevival(
         TOperationId operationId,
-        std::vector<TJobPtr> jobs,
-        bool controlJobLifetimeAtScheduler);
+        std::vector<TJobPtr> jobs);
     TFuture<void> ResetOperationRevival(const TOperationPtr& operation);
     void UnregisterOperation(TOperationId operationId);
 
@@ -87,7 +86,7 @@ public:
 
     void BuildNodesYson(NYTree::TFluentMap fluent);
 
-    TFuture<TOperationId> FindOperationIdByJobId(TJobId job, bool considerFinished);
+    TFuture<TOperationId> FindOperationIdByJobId(TJobId job);
 
     TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) const;
     TJobResources GetResourceUsage(const TSchedulingTagFilter& filter) const;

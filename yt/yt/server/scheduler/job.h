@@ -81,9 +81,6 @@ public:
     //! Stage job was scheduled at.
     DEFINE_BYVAL_RO_PROPERTY(std::optional<EJobSchedulingStage>, SchedulingStage);
 
-    //! Job fail was requested by scheduler.
-    DEFINE_BYVAL_RW_PROPERTY(bool, FailRequested, false);
-
     //! String describing preemption reason.
     DEFINE_BYVAL_RW_PROPERTY(TString, PreemptionReason);
 
@@ -101,9 +98,6 @@ public:
 
     //! Deadline for running job.
     DEFINE_BYVAL_RW_PROPERTY(NProfiling::TCpuInstant, RunningJobUpdateDeadline, 0);
-
-    //! True for revived job that was not confirmed by a heartbeat from the corresponding node yet.
-    DEFINE_BYVAL_RW_PROPERTY(bool, WaitingForConfirmation, false);
 
     //! Time that will be wasted if allocation is preempted.
     DEFINE_BYVAL_RW_PROPERTY(TDuration, PreemptibleProgressTime);

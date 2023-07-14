@@ -189,14 +189,12 @@ TOperationControllerHost::TOperationControllerHost(
     IInvokerPtr cancelableControlInvoker,
     IInvokerPtr uncancelableControlInvoker,
     TAgentToSchedulerOperationEventOutboxPtr operationEventsOutbox,
-    TAgentToSchedulerJobEventOutboxPtr jobEventsOutbox,
     TAgentToSchedulerRunningJobStatisticsOutboxPtr runningJobStatisticsUpdatesOutbox,
     TBootstrap* bootstrap)
     : OperationId_(operation->GetId())
     , CancelableControlInvoker_(std::move(cancelableControlInvoker))
     , UncancelableControlInvoker_(std::move(uncancelableControlInvoker))
     , OperationEventsOutbox_(std::move(operationEventsOutbox))
-    , JobEventsOutbox_(std::move(jobEventsOutbox))
     , RunningJobStatisticsUpdatesOutbox_(std::move(runningJobStatisticsUpdatesOutbox))
     , Bootstrap_(bootstrap)
     , IncarnationId_(Bootstrap_->GetControllerAgent()->GetIncarnationId())
@@ -213,55 +211,18 @@ void TOperationControllerHost::Disconnect(const TError& error)
     Bootstrap_->GetControlInvoker()->Invoke(BIND(&TControllerAgent::Disconnect, Bootstrap_->GetControllerAgent(), error));
 }
 
-void TOperationControllerHost::InterruptJob(TJobId jobId, EInterruptReason reason, TDuration timeout, bool viaScheduler)
+void TOperationControllerHost::InterruptJob(TJobId jobId, EInterruptReason reason, TDuration timeout)
 {
-    if (viaScheduler) {
-        JobEventsOutbox_->Enqueue(TAgentToSchedulerJobEvent{
-            .EventType = EAgentToSchedulerJobEventType::Interrupted,
-            .JobId = jobId,
-            .ControllerEpoch = ControllerEpoch_,
-            .Error = {},
-            .InterruptReason = reason,
-            .ReleaseFlags = {},
-        });
-    } else {
-        JobTrackerOperationHandler_->RequestJobInterruption(jobId, reason, timeout);
-    }
+    JobTrackerOperationHandler_->RequestJobInterruption(jobId, reason, timeout);
 
     YT_LOG_DEBUG("Job interrupt request enqueued (OperationId: %v, JobId: %v)",
         OperationId_,
         jobId);
 }
 
-void TOperationControllerHost::AbortJob(TJobId jobId, const TError& error)
+void TOperationControllerHost::FailJob(TJobId jobId)
 {
-    JobEventsOutbox_->Enqueue(TAgentToSchedulerJobEvent{
-        .EventType = EAgentToSchedulerJobEventType::Aborted,
-        .JobId = jobId,
-        .ControllerEpoch = ControllerEpoch_,
-        .Error = error,
-        .InterruptReason = {},
-        .ReleaseFlags = {},
-    });
-    YT_LOG_DEBUG("Job abort request enqueued (OperationId: %v, JobId: %v)",
-        OperationId_,
-        jobId);
-}
-
-void TOperationControllerHost::FailJob(TJobId jobId, bool viaScheduler)
-{
-    if (viaScheduler) {
-        JobEventsOutbox_->Enqueue(TAgentToSchedulerJobEvent{
-            .EventType = EAgentToSchedulerJobEventType::Failed,
-            .JobId = jobId,
-            .ControllerEpoch = ControllerEpoch_,
-            .Error = {},
-            .InterruptReason = {},
-            .ReleaseFlags = {},
-        });
-    } else {
-        JobTrackerOperationHandler_->RequestJobFailure(jobId);
-    }
+    JobTrackerOperationHandler_->RequestJobFailure(jobId);
 
     YT_LOG_DEBUG("Job failure request enqueued (OperationId: %v, JobId: %v)",
         OperationId_,
@@ -298,21 +259,6 @@ void TOperationControllerHost::ReleaseJobs(std::vector<TJobToRelease> jobsToRele
         return;
     }
 
-    std::vector<TAgentToSchedulerJobEvent> events;
-    events.reserve(jobsToRelease.size());
-    for (const auto& jobToRelease : jobsToRelease) {
-        events.emplace_back(TAgentToSchedulerJobEvent{
-            .EventType = EAgentToSchedulerJobEventType::Released,
-            .JobId = jobToRelease.JobId,
-            .ControllerEpoch = ControllerEpoch_,
-            .Error = {},
-            .InterruptReason = {},
-            .ReleaseFlags = jobToRelease.ReleaseFlags,
-        });
-    }
-    // COMPAT(pogorelov)
-    JobEventsOutbox_->Enqueue(std::move(events));
-
     JobTrackerOperationHandler_->ReleaseJobs(std::move(jobsToRelease));
 
     YT_LOG_DEBUG("Jobs release request enqueued (OperationId: %v, JobCount: %v)",
@@ -320,7 +266,7 @@ void TOperationControllerHost::ReleaseJobs(std::vector<TJobToRelease> jobsToRele
         jobsToRelease.size());
 }
 
-void TOperationControllerHost::AbortJobOnNode(
+void TOperationControllerHost::AbortJob(
     TJobId jobId,
     NScheduler::EAbortReason abortReason)
 {

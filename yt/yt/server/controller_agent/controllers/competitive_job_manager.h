@@ -25,8 +25,8 @@ class ICompetitiveJobManagerHost
 {
 public:
     virtual void OnSecondaryJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitionType) = 0;
-    virtual void AbortJobViaScheduler(TJobId jobId, NScheduler::EAbortReason abortReason) = 0;
-    virtual void AbortJobByController(TJobId jobId, NScheduler::EAbortReason abortReason) = 0;
+    virtual void AsyncAbortJob(TJobId jobId, NScheduler::EAbortReason abortReason) = 0;
+    virtual void AbortJob(TJobId jobId, NScheduler::EAbortReason abortReason) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -77,7 +77,7 @@ protected:
         : public TRefCounted
     {
         ECompetitionStatus Status = ECompetitionStatus::SingleJobOnly;
-        std::vector<TJobId> Competitors;
+        TCompactVector<TJobId, 2> Competitors;
         TJobId JobCompetitionId;
         i64 PendingDataWeight = 0;
         TProgressCounterGuard ProgressCounterGuard;

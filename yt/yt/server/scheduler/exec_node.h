@@ -31,13 +31,6 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRecentlyFinishedJobInfo
-{
-    TOperationId OperationId;
-    NProfiling::TCpuInstant EvictionDeadline;
-    std::optional<NControllerAgent::TReleaseJobFlags> ReleaseFlags;
-};
-
 //! Scheduler-side representation of an execution node.
 /*!
  *  Thread affinity: ControlThread (unless noted otherwise)
@@ -100,16 +93,6 @@ public:
     //! heartbeat so jobs abortion has to be postponed until the heartbeat processing
     //! is complete.
     DEFINE_BYVAL_RW_PROPERTY(std::optional<EAbortReason>, PendingJobsAbortionReason);
-
-    //! Jobs at this node that are waiting for confirmation.
-    DEFINE_BYREF_RW_PROPERTY(THashSet<TJobId>, UnconfirmedJobIds);
-
-    //! Ids of jobs that have been finished recently and are yet to be saved to the snapshot.
-    //! We remember them in order to not remove them as unknown jobs.
-    //! We store an eviction deadline for every job id to make sure
-    //! that no job is stored infinitely.
-    using TRecentlyFinishedJobIdToInfo = THashMap<TJobId, TRecentlyFinishedJobInfo>;
-    DEFINE_BYREF_RW_PROPERTY(TRecentlyFinishedJobIdToInfo, RecentlyFinishedJobs);
 
     DEFINE_BYVAL_RO_PROPERTY(double, IOWeight);
 

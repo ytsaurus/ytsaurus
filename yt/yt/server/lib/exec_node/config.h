@@ -290,7 +290,7 @@ public:
     TDuration TestHeartbeatDelay;
     NConcurrency::TThroughputThrottlerConfigPtr StatisticsThrottler;
     std::optional<TDuration> RunningJobStatisticsSendingBackoff;
-    bool SendWaitingJobs;
+
     TDuration TotalConfirmationPeriod;
 
     bool UseJobTrackerServiceToSettleJobs;

@@ -6,7 +6,6 @@ import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
 import "yt_proto/yt/core/tracing/proto/tracing_ext.proto";
 import "yt/ytlib/scheduler/proto/job.proto";
 import "yt/ytlib/controller_agent/proto/controller_agent_service.proto";
-import "yt/ytlib/controller_agent/proto/job.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,22 +70,6 @@ message TAgentToSchedulerOperationEvent
 
     // for CommitFinished
     optional NYT.NControllerAgent.NProto.TCommitOperationResult commit_result = 10;
-}
-
-message TAgentToSchedulerJobEvent
-{
-    required NYT.NProto.TGuid job_id = 1;
-    required int32 event_type = 2; // EAgentToSchedulerJobEventType
-    required int32 controller_epoch = 10 [default = -1];
-
-    // for Aborted
-    optional NYT.NProto.TError error = 3;
-
-    // for Interrupted
-    optional int32 interrupt_reason = 4; // EInterruptReason
-
-    // for Release
-    optional NYT.NControllerAgent.NProto.TReleaseJobFlags release_job_flags = 9;
 }
 
 message TAgentToSchedulerRunningJobStatistics
@@ -184,12 +167,6 @@ message TReqHeartbeat
         repeated TAgentToSchedulerOperationEvent items = 2;
     }
 
-    message TAgentToSchedulerJobEventsOutbox
-    {
-        required int64 first_item_id = 1;
-        repeated TAgentToSchedulerJobEvent items = 2;
-    }
-
     message TAgentToSchedulerRunningJobStatisticsUpdatesOutbox
     {
         required int64 first_item_id = 1;
@@ -203,7 +180,6 @@ message TReqHeartbeat
     required bool exec_nodes_requested = 4;
 
     required TAgentToSchedulerOperationEventsOutbox agent_to_scheduler_operation_events = 7;
-    required TAgentToSchedulerJobEventsOutbox agent_to_scheduler_job_events = 8;
     required TAgentToSchedulerRunningJobStatisticsUpdatesOutbox agent_to_scheduler_running_job_statistics_updates = 15;
 
     required TEventQueueInbox scheduler_to_agent_aborted_job_events = 10;
@@ -236,7 +212,6 @@ message TRspHeartbeat
     optional TExecNodeDescriptorList exec_nodes = 1;
 
     required TEventQueueInbox agent_to_scheduler_operation_events = 2;
-    required TEventQueueInbox agent_to_scheduler_job_events = 3;
     required TEventQueueInbox agent_to_scheduler_running_job_statistics_updates = 11;
 
     required TSchedulerToAgentAbortedJobEventsOutbox scheduler_to_agent_aborted_job_events = 4;

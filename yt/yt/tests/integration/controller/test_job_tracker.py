@@ -9,10 +9,10 @@ from yt_env_setup import (
 from yt_commands import (
     authors, run_sleeping_vanilla, get, ls, wait,
     ban_node, unban_node, exists,
-    run_test_vanilla, with_breakpoint, map,
+    run_test_vanilla, with_breakpoint,
     wait_breakpoint, release_breakpoint,
     update_controller_agent_config, update_nodes_dynamic_config,
-    update_scheduler_config, create_test_tables
+    update_scheduler_config,
 )
 from yt_helpers import read_structured_log, write_log_barrier, JobCountProfiler
 
@@ -115,7 +115,6 @@ class TestJobTracker(YTEnvSetup):
         wait(lambda: len(self._get_operation_info(op)["jobs"]) != 0)
 
         operation_info = self._get_operation_info(op)
-        assert operation_info["job_lifetime_controlled_by_job_tracker"]
         assert len(operation_info["jobs"]) == 1
 
         job_id = operation_info["jobs"][0]
@@ -371,44 +370,6 @@ class TestJobTracker(YTEnvSetup):
         release_breakpoint()
 
         op.track()
-
-    @authors("pogorelov")
-    def test_abort_finished_operation_job(self):
-        update_controller_agent_config("job_tracker/node_disconnection_timeout", 100000)
-
-        create_test_tables()
-        op = map(
-            command=with_breakpoint("BREAKPOINT"),
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            spec={"testing": {"testing_speculative_launch_mode": "always"}},
-            track=False,
-        )
-
-        wait_breakpoint(job_count=2)
-
-        controller_agent_address = self._get_controller_agent(op)
-
-        jobs = self._get_operation_info(op)["jobs"]
-        assert len(jobs) == 2
-
-        (first_job, second_job) = jobs
-
-        update_nodes_dynamic_config({
-            "exec_node": {
-                "controller_agent_connector": {
-                    "heartbeat_period": 100000,
-                },
-            },
-        })
-
-        release_breakpoint(job_id=first_job)
-
-        op.track()
-
-        wait(lambda: get(
-            self._get_job_tracker_orchid_path(controller_agent_address) + "/jobs/{}".format(
-                second_job))["stage"] == "aborting")
 
     @authors("pogorelov")
     def test_abort_vanished_job(self):

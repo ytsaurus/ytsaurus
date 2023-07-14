@@ -106,9 +106,8 @@ public:
     void StartOperationRevival(TOperationId operationId, TControllerEpoch newControllerEpoch);
     void FinishOperationRevival(
         TOperationId operationId,
-        const std::vector<TJobPtr>& jobs,
-        bool controlJobLifetimeAtScheduler);
-    void ResetOperationRevival(TOperationId operationId, bool controlJobLifetimeAtScheduler);
+        const std::vector<TJobPtr>& jobs);
+    void ResetOperationRevival(TOperationId operationId);
     void UnregisterOperation(TOperationId operationId);
 
     void ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context);
@@ -134,13 +133,11 @@ public:
 
     void AbortJob(TJobId jobId, const TError& error);
     void AbortJobs(const std::vector<TJobId>& jobIds, const TError& error);
-    void InterruptJob(TJobId jobId, EInterruptReason reason);
-    void FailJob(TJobId jobId);
-    void ReleaseJob(TJobId jobId, NControllerAgent::TReleaseJobFlags releaseFlags);
+
 
     void BuildNodesYson(NYTree::TFluentMap fluent);
 
-    TOperationId FindOperationIdByJobId(TJobId job, bool considerFinished);
+    TOperationId FindOperationIdByJobId(TJobId job);
 
     TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) const;
     TJobResources GetResourceUsage(const TSchedulingTagFilter& filter) const;
@@ -286,7 +283,6 @@ private:
 
         THashMap<TJobId, TJobPtr> Jobs;
         THashSet<TJobId> JobsToSubmitToStrategy;
-        THashSet<TJobId> RecentlyFinishedJobIds;
         //! Used only to avoid multiple log messages per job about 'operation is not ready'.
         THashSet<TJobId> OperationUnreadyLoggedJobIds;
         IOperationControllerPtr Controller;
@@ -296,11 +292,8 @@ private:
         //! Flag showing that we already know about all jobs of this operation
         //! and it is OK to abort unknown jobs that claim to be a part of this operation.
         bool JobsReady = false;
-        //! Prevents leaking #AbortUnconfirmedJobs between different incarnations of the same operation.
         TShardEpoch ShardEpoch;
         TControllerEpoch ControllerEpoch;
-
-        bool ControlJobLifetimeAtScheduler;
     };
 
     THashMap<TOperationId, TOperationState> IdToOperationState_;
@@ -333,11 +326,6 @@ private:
     void AbortAllJobsAtNode(const TExecNodePtr& node, EAbortReason reason);
     void DoAbortAllJobsAtNode(const TExecNodePtr& node, EAbortReason reason);
 
-    void AbortUnconfirmedJobs(
-        TOperationId operationId,
-        TShardEpoch shardEpoch,
-        const std::vector<TJobPtr>& jobs);
-
     void ProcessHeartbeatJobs(
         const TExecNodePtr& node,
         TScheduler::TCtxNodeHeartbeat::TTypedRequest* request,
@@ -348,7 +336,6 @@ private:
     template <class TRspHeartbeat, class TStatus>
     TJobPtr ProcessJobHeartbeat(
         const TExecNodePtr& node,
-        const THashSet<TJobId>& recentlyFinishedJobIdsToRemove,
         TRspHeartbeat* response,
         TStatus* jobStatus);
 
@@ -374,7 +361,11 @@ private:
         const TCtxNodeHeartbeatPtr& rpcContext);
 
     void OnJobFinished(const TJobPtr& job);
-    void OnJobAborted(const TJobPtr& job, const TError& error, std::optional<EAbortReason> abortReason = std::nullopt);
+    void OnJobAborted(
+        const TJobPtr& job,
+        const TError& error,
+        std::optional<EAbortReason> abortReason = std::nullopt,
+        bool sendEventToAgent = true);
     template <class TJobStatus>
     void OnJobRunning(const TJobPtr& job, TJobStatus* status);
     void DoAbandonJob(const TJobPtr& job);
@@ -385,14 +376,6 @@ private:
 
     void RegisterJob(const TJobPtr& job);
     void UnregisterJob(const TJobPtr& job, bool enableLogging = true);
-
-    void SetJobWaitingForConfirmation(const TJobPtr& job);
-    void ResetJobWaitingForConfirmation(const TJobPtr& job);
-
-    void AddRecentlyFinishedJob(const TJobPtr& job);
-    void RemoveRecentlyFinishedJob(TJobId jobId);
-
-    void SetOperationJobsReleaseDeadline(TOperationState* operationState);
 
     template <class TRspHeartbeat>
     void ProcessPreemptedJob(TRspHeartbeat* response, const TJobPtr& job, TDuration interruptTimeout);

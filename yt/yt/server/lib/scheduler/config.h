@@ -944,8 +944,6 @@ public:
 
     int MinRequiredArchiveVersion;
 
-    bool ControlUnknownOperationJobsLifetime;
-
     REGISTER_YSON_STRUCT(TSchedulerConfig);
 
     static void Register(TRegistrar registrar);

@@ -1112,7 +1112,7 @@ public:
 
     TFuture<void> AbandonJob(TJobId jobId, const TString& user)
     {
-        auto operationId = WaitFor(FindOperationIdByJobId(jobId, /*considerFinished*/ false))
+        auto operationId = WaitFor(FindOperationIdByJobId(jobId))
             .ValueOrThrow();
         if (!operationId) {
             THROW_ERROR_EXCEPTION(
@@ -1716,9 +1716,9 @@ public:
         }
     }
 
-    TFuture<TOperationId> FindOperationIdByJobId(TJobId jobId, bool considerFinished) const
+    TFuture<TOperationId> FindOperationIdByJobId(TJobId jobId) const
     {
-        return NodeManager_->FindOperationIdByJobId(jobId, considerFinished);
+        return NodeManager_->FindOperationIdByJobId(jobId);
     }
 
     const IResponseKeeperPtr& GetOperationServiceResponseKeeper() const
@@ -2746,7 +2746,6 @@ private:
                     .ValueOrThrow();
 
                 operation->ControllerAttributes().PrepareAttributes = std::move(result.Attributes);
-                operation->ControlJobLifetimeAtScheduler() = result.ControlJobLifetimeAtScheduler;
             }
 
             ValidateOperationState(operation, EOperationState::Preparing);
@@ -2817,7 +2816,6 @@ private:
                 operation->ControllerAttributes().PrepareAttributes = result.Attributes;
                 operation->SetRevivedFromSnapshot(result.RevivedFromSnapshot);
                 operation->RevivedJobs() = std::move(result.RevivedJobs);
-                operation->ControlJobLifetimeAtScheduler() = result.ControlJobLifetimeAtScheduler;
                 for (const auto& bannedTreeId : result.RevivedBannedTreeIds) {
                     // If operation is already erased from the tree, UnregisterOperationFromTree() will produce unnecessary log messages.
                     // However, I believe that this way the code is simpler and more concise.
@@ -2869,8 +2867,7 @@ private:
         // Second, register jobs at the node manager.
         return NodeManager_->FinishOperationRevival(
             operation->GetId(),
-            std::move(jobs),
-            operation->ControlJobLifetimeAtScheduler());
+            std::move(jobs));
     }
 
     void BuildOperationOrchid(const TOperationPtr& operation, IYsonConsumer* consumer)
@@ -4291,7 +4288,7 @@ private:
     private:
         void BuildControllerJobYson(TJobId jobId, IYsonConsumer* consumer) const
         {
-            auto operationId = WaitFor(Scheduler_->FindOperationIdByJobId(jobId, /*considerFinished*/ true))
+            auto operationId = WaitFor(Scheduler_->FindOperationIdByJobId(jobId))
                 .ValueOrThrow();
 
             if (!operationId) {
@@ -4567,9 +4564,9 @@ TFuture<void> TScheduler::ValidateJobShellAccess(
     return Impl_->ValidateJobShellAccess(user, jobShellName, jobShellOwners);
 }
 
-TFuture<TOperationId> TScheduler::FindOperationIdByJobId(TJobId jobId, bool considerFinished) const
+TFuture<TOperationId> TScheduler::FindOperationIdByJobId(TJobId jobId) const
 {
-    return Impl_->FindOperationIdByJobId(jobId, considerFinished);
+    return Impl_->FindOperationIdByJobId(jobId);
 }
 
 const IResponseKeeperPtr& TScheduler::GetOperationServiceResponseKeeper() const

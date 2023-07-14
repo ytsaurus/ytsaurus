@@ -137,7 +137,6 @@ public:
     void SetIncarnationTransaction(NApi::ITransactionPtr transaction);
 
     TMessageQueueInbox* GetOperationEventsInbox();
-    TMessageQueueInbox* GetJobEventsInbox();
     TMessageQueueInbox* GetRunningJobStatisticsUpdatesInbox();
     TMessageQueueInbox* GetScheduleJobResponsesInbox();
 
@@ -170,7 +169,6 @@ private:
     NApi::ITransactionPtr IncarnationTransaction_;
 
     std::unique_ptr<TMessageQueueInbox> OperationEventsInbox_;
-    std::unique_ptr<TMessageQueueInbox> JobEventsInbox_;
     std::unique_ptr<TMessageQueueInbox> RunningJobStatisticsUpdatesInbox_;
     std::unique_ptr<TMessageQueueInbox> ScheduleJobResponsesInbox_;
 

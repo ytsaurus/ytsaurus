@@ -591,10 +591,9 @@ void TOperationControllerImpl::OnRevivalFinished(const TErrorOr<TOperationContro
 
         YT_LOG_DEBUG(
             "Successful revival result received "
-            "(RevivedFromSnapshot: %v, ControlJobLifetimeAtScheduler: %v, RevivedJobCount: %v, RevivedBannedTreeIds: %v, "
+            "(RevivedFromSnapshot: %v, RevivedJobCount: %v, RevivedBannedTreeIds: %v, "
             "NeededResources: %v, InitialMinNeededResources: %v)",
             result.RevivedFromSnapshot,
-            result.ControlJobLifetimeAtScheduler,
             result.RevivedJobs.size(),
             result.RevivedBannedTreeIds,
             FormatResources(result.NeededResources),

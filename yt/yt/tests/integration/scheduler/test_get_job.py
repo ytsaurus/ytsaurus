@@ -4,7 +4,6 @@ from yt_helpers import profiler_factory
 
 from yt_commands import (
     authors, wait, retry, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint, create,
-    update_controller_agent_config,
     create_pool, insert_rows,
     lookup_rows, delete_rows, write_table, map, vanilla, run_test_vanilla, abort_job, get_job, sync_create_cells, raises_yt_error)
 
@@ -19,7 +18,6 @@ from flaky import flaky
 import pytest
 import builtins
 import datetime
-import time
 from copy import deepcopy
 
 JOB_ARCHIVE_TABLE = "//sys/operations_archive/jobs"
@@ -387,22 +385,6 @@ class TestGetJob(_TestGetJobCommon):
             wait(lambda: _get_controller_state_from_archive(op.id, job_id) == "aborted")
         else:
             wait(lambda: _get_controller_state_from_archive(op.id, job_id) == "completed")
-
-    @authors("omgronny")
-    def test_abort_unknown_jobs_in_archive(self):
-        update_controller_agent_config("snapshot_period", 1000 * 1000)
-        time.sleep(1.0)
-
-        op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
-
-        (job_id,) = wait_breakpoint()
-
-        wait(lambda: _get_controller_state_from_archive(op.id, job_id) == "running")
-
-        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
-            pass
-
-        wait(lambda: _get_controller_state_from_archive(op.id, job_id) == "aborted")
 
     @authors("omgronny")
     def test_abort_vanished_jobs_in_archive(self):

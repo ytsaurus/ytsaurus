@@ -125,13 +125,6 @@ DEFINE_ENUM(EAgentToSchedulerOperationEventType,
     ((CommitFinished)           (9))
 );
 
-DEFINE_ENUM(EAgentToSchedulerJobEventType,
-    ((Interrupted) (0))
-    ((Aborted)     (1))
-    ((Failed)      (2))
-    ((Released)    (3))
-);
-
 DEFINE_ENUM(ESchedulerToAgentOperationEventType,
     ((UpdateMinNeededJobResources)(0))
 );

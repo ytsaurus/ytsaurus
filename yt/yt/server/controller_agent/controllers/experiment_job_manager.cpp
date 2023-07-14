@@ -223,7 +223,7 @@ bool TExperimentJobManager::OnUnsuccessfulJobFinish(
             returnCookieToChunkPool = false;
             if (!joblet->CompetitionType) {
                 auto competitor = competition->GetCompetitorFor(joblet->JobId);
-                Host_->AbortJobViaScheduler(competitor, EAbortReason::JobTreatmentToUnsuccessfulJob);
+                Host_->AsyncAbortJob(competitor, EAbortReason::JobTreatmentToUnsuccessfulJob);
                 LostJobs_.insert(competitor);
             }
         } else if (competition->Status == ECompetitionStatus::HasCompletedJob) {

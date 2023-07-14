@@ -79,18 +79,6 @@ struct TAgentToSchedulerOperationEvent
     std::optional<TOperationControllerCommitResult> CommitResult;
 };
 
-// TODO(eshcherbin): Add static CreateXXXEvent methods as in TAgentToSchedulerOperationEvent.
-struct TAgentToSchedulerJobEvent
-{
-    NScheduler::EAgentToSchedulerJobEventType EventType;
-    TJobId JobId;
-    NScheduler::TControllerEpoch ControllerEpoch;
-    TError Error;
-    std::optional<EInterruptReason> InterruptReason;
-    std::optional<TReleaseJobFlags> ReleaseFlags;
-};
-
-using TAgentToSchedulerJobEventOutboxPtr = TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerJobEvent>>;
 using TAgentToSchedulerOperationEventOutboxPtr = TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerOperationEvent>>;
 using TAgentToSchedulerRunningJobStatisticsOutboxPtr = TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerRunningJobStatistics>>;
 
@@ -105,7 +93,6 @@ public:
         IInvokerPtr cancelableControlInvoker,
         IInvokerPtr uncancelableControlInvoker,
         TAgentToSchedulerOperationEventOutboxPtr operationEventsOutbox,
-        TAgentToSchedulerJobEventOutboxPtr jobEventsOutbox,
         TAgentToSchedulerRunningJobStatisticsOutboxPtr runningJobStatisticsUpdatesOutbox,
         TBootstrap* bootstrap);
 
@@ -113,15 +100,14 @@ public:
 
     void Disconnect(const TError& error) override;
 
-    void InterruptJob(TJobId jobId, EInterruptReason reason, TDuration timeout, bool viaScheduler) override;
-    void AbortJob(TJobId jobId, const TError& error) override;
-    void FailJob(TJobId jobId, bool viaScheduler) override;
+    void InterruptJob(TJobId jobId, EInterruptReason reason, TDuration timeout) override;
+    void FailJob(TJobId jobId) override;
     void UpdateRunningJobsStatistics(std::vector<TAgentToSchedulerRunningJobStatistics> runningJobStatisticsUpdates) override;
 
     void RegisterJob(TStartedJobInfo jobInfo) override;
     void ReviveJobs(std::vector<TStartedJobInfo> jobs) override;
     void ReleaseJobs(std::vector<TJobToRelease> jobs) override;
-    void AbortJobOnNode(
+    void AbortJob(
         TJobId jobId,
         NScheduler::EAbortReason abortReason) override;
 
@@ -189,7 +175,6 @@ private:
     const IInvokerPtr UncancelableControlInvoker_;
     TJobTrackerOperationHandlerPtr JobTrackerOperationHandler_;
     const TAgentToSchedulerOperationEventOutboxPtr OperationEventsOutbox_;
-    const TAgentToSchedulerJobEventOutboxPtr JobEventsOutbox_;
     const TAgentToSchedulerRunningJobStatisticsOutboxPtr RunningJobStatisticsUpdatesOutbox_;
     TBootstrap* const Bootstrap_;
     const TIncarnationId IncarnationId_;

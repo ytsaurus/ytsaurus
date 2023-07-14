@@ -512,8 +512,6 @@ void TJobTrackerConfig::Register(TRegistrar registrar)
     registrar.Parameter("logging_job_sample_size", &TThis::LoggingJobSampleSize)
         .Default(3)
         .GreaterThanOrEqual(0);
-    registrar.Parameter("abort_vanished_jobs", &TThis::AbortVanishedJobs)
-        .Default(false);
     registrar.Parameter("duration_before_job_considered_vanished", &TThis::DurationBeforeJobConsideredVanished)
         .Default(TDuration::Seconds(5));
 }
@@ -1010,12 +1008,6 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("running_job_time_statistics_updates_send_period", &TThis::RunningJobTimeStatisticsUpdatesSendPeriod)
         .Default(TDuration::Seconds(2));
-
-    registrar.Parameter("control_job_lifetime_at_scheduler", &TThis::ControlJobLifetimeAtScheduler)
-        .Default(true);
-
-    registrar.Parameter("interrupt_jobs_via_scheduler", &TThis::InterruptJobsViaScheduler)
-        .Default(false);
 
     registrar.Parameter("job_tracker", &TThis::JobTracker)
         .DefaultNew();

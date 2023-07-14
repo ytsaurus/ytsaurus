@@ -167,7 +167,6 @@ private:
     TDuration TotalConfirmationPeriod_ = TDuration::Minutes(10);
 
     // COMPAT(pogorelov)
-    bool SendWaitingJobs_ = false;
     bool UseJobTrackerServiceToSettleJobs_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
@@ -209,9 +208,6 @@ struct TAgentHeartbeatContext
 
     THashSet<TJobPtr> JobsToForcefullySend;
     std::vector<TJobId> UnconfirmedJobIds;
-
-    // COMPAT(pogorelov)
-    bool SendWaitingJobs;
 
     THashMap<TAllocationId, TOperationId> AllocationIdsWaitingForSpec;
 };

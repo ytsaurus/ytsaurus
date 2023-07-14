@@ -424,8 +424,8 @@ public:
 
     void RegisterOutputTables(const std::vector<NYPath::TRichYPath>& outputTablePaths) override;
 
-    void AbortJobViaScheduler(TJobId jobId, EAbortReason abortReason) override;
-    void AbortJobByController(TJobId jobId, EAbortReason abortReason) override;
+    void AsyncAbortJob(TJobId jobId, EAbortReason abortReason) override;
+    void AbortJob(TJobId jobId, EAbortReason abortReason) override;
     void AbortJobByJobTracker(TJobId jobId, EAbortReason abortReason) final;
 
     bool CanInterruptJobs() const override;
@@ -482,8 +482,6 @@ protected:
 
     // Intentionally transient.
     NScheduler::TControllerEpoch ControllerEpoch;
-
-    const bool ControlJobLifetimeAtScheduler;
 
     // Usually these clients are all the same (and connected to the current cluster).
     // But `remote copy' operation connects InputClient to remote cluster.
@@ -1475,11 +1473,10 @@ private:
 
     void RemoveRemainingJobsOnOperationFinished();
 
-    void DoAbortJobByController(
+    void DoAbortJob(
         TJobId jobId,
         EAbortReason abortReason,
-        TError error,
-        bool requestNodeTrackerJobAbortion);
+        bool requestJobTrackerJobAbortion);
 
     void OnOperationReady() const;
 

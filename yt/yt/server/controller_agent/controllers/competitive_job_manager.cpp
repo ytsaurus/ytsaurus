@@ -107,7 +107,7 @@ void TCompetitiveJobManagerBase::OnJobScheduled(const TJobletPtr& joblet)
     } else {
         auto [it, inserted] = CookieToCompetition_.emplace(joblet->OutputCookie, New<TCompetition>());
         YT_VERIFY(inserted);
-        auto competition = it->second;
+        const auto& competition = it->second;
         competition->JobCompetitionId = joblet->JobId;
         competition->Competitors.push_back(joblet->JobId);
         competition->ProgressCounterGuard = TProgressCounterGuard(JobCounter_);
@@ -139,7 +139,8 @@ void TCompetitiveJobManagerBase::OnJobLost(IChunkPoolOutput::TCookie cookie)
             cookie,
             ResultLost_);
         YT_VERIFY(it->second->Competitors.size() == 1);
-        Host_->AbortJobByController(it->second->Competitors[0], ResultLost_);
+        // We should abort job synchronously to prevent occurrence of two original job.
+        Host_->AbortJob(it->second->Competitors[0], ResultLost_);
     }
 }
 
@@ -162,12 +163,11 @@ void TCompetitiveJobManagerBase::OnJobFinished(const TJobletPtr& joblet)
         competition->Status = ECompetitionStatus::SingleJobOnly;
     }
 
-    if (CompetitionCandidates_.contains(joblet->OutputCookie)) {
+    if (CompetitionCandidates_.erase(joblet->OutputCookie)) {
         YT_LOG_DEBUG("Canceling competititve job request early since original job finished (JobId: %v, Cookie: %v)",
             joblet->JobId,
             joblet->OutputCookie);
         PendingDataWeight_ -= pendingDataWeight;
-        EraseOrCrash(CompetitionCandidates_, joblet->OutputCookie);
         competition->ProgressCounterGuard.SetCategory(EProgressCategory::None);
     }
 }
@@ -192,10 +192,9 @@ void TCompetitiveJobManagerBase::BanCookie(IChunkPoolOutput::TCookie cookie)
     YT_LOG_DEBUG("Competitive manager is banning cookie (Cookie: %v)", cookie);
     BannedCookies_.insert(cookie);
 
-    if (auto it = CompetitionCandidates_.find(cookie); it != CompetitionCandidates_.end()) {
+    if (CompetitionCandidates_.erase(cookie)) {
         auto competition = GetOrCrash(CookieToCompetition_, cookie);
         PendingDataWeight_ -= competition->PendingDataWeight;
-        CompetitionCandidates_.erase(it);
         competition->ProgressCounterGuard.SetCategory(EProgressCategory::None);
     }
 }

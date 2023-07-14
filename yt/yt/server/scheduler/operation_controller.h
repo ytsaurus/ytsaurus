@@ -88,7 +88,6 @@ void FromProto(
 struct TOperationControllerPrepareResult
 {
     NYson::TYsonString Attributes;
-    bool ControlJobLifetimeAtScheduler;
 };
 
 void FromProto(TOperationControllerPrepareResult* result, const NControllerAgent::NProto::TPrepareOperationResult& resultProto);
@@ -111,7 +110,6 @@ struct TOperationControllerReviveResult
 {
     bool RevivedFromSnapshot = false;
     std::vector<TJobPtr> RevivedJobs;
-    bool ControlJobLifetimeAtScheduler;
     THashSet<TString> RevivedBannedTreeIds;
     TCompositeNeededResources NeededResources;
     TJobResourcesWithQuotaList MinNeededResources;
