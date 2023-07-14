@@ -11,18 +11,18 @@ ARG SPARK_VERSION=1.69.0
 COPY ./ytserver-all /usr/bin/ytserver-all
 
 # If this list changes, also update yt_nightly/Dockerfile
-RUN ln /usr/bin/ytserver-all /usr/bin/ytserver-master && \
-    ln /usr/bin/ytserver-all /usr/bin/ytserver-clock && \
-    ln /usr/bin/ytserver-all /usr/bin/ytserver-discovery && \
-    ln /usr/bin/ytserver-all /usr/bin/ytserver-node && \
-    ln /usr/bin/ytserver-all /usr/bin/ytserver-job-proxy && \
-    ln /usr/bin/ytserver-all /usr/bin/ytserver-exec && \
-    ln /usr/bin/ytserver-all /usr/bin/ytserver-proxy && \
-    ln /usr/bin/ytserver-all /usr/bin/ytserver-http-proxy && \
-    ln /usr/bin/ytserver-all /usr/bin/ytserver-tools && \
-    ln /usr/bin/ytserver-all /usr/bin/ytserver-scheduler && \
-    ln /usr/bin/ytserver-all /usr/bin/ytserver-controller-agent && \
-    ln /usr/bin/ytserver-all /usr/bin/ytserver-query-tracker
+RUN ln -s /usr/bin/ytserver-all /usr/bin/ytserver-master && \
+    ln -s /usr/bin/ytserver-all /usr/bin/ytserver-clock && \
+    ln -s /usr/bin/ytserver-all /usr/bin/ytserver-discovery && \
+    ln -s /usr/bin/ytserver-all /usr/bin/ytserver-node && \
+    ln -s /usr/bin/ytserver-all /usr/bin/ytserver-job-proxy && \
+    ln -s /usr/bin/ytserver-all /usr/bin/ytserver-exec && \
+    ln -s /usr/bin/ytserver-all /usr/bin/ytserver-proxy && \
+    ln -s /usr/bin/ytserver-all /usr/bin/ytserver-http-proxy && \
+    ln -s /usr/bin/ytserver-all /usr/bin/ytserver-tools && \
+    ln -s /usr/bin/ytserver-all /usr/bin/ytserver-scheduler && \
+    ln -s /usr/bin/ytserver-all /usr/bin/ytserver-controller-agent && \
+    ln -s /usr/bin/ytserver-all /usr/bin/ytserver-query-tracker
 
 COPY ./init_operation_archive.py /usr/bin/init_operation_archive
 
