@@ -1158,7 +1158,7 @@ void CodegenFragmentBodies(
                 },
                 true);
 
-            Function* function =  Function::Create(
+            Function* function = Function::Create(
                 functionType,
                 Function::ExternalLinkage,
                 name.c_str(),
@@ -1472,7 +1472,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                     evalData = builder->CreateICmpSGT(cmpResult, builder->getInt32(0));
                     break;
                 case EBinaryOp::LessOrEqual:
-                    evalData =  builder->CreateICmpSLE(cmpResult, builder->getInt32(0));
+                    evalData = builder->CreateICmpSLE(cmpResult, builder->getInt32(0));
                     break;
                 case EBinaryOp::GreaterOrEqual:
                     evalData = builder->CreateICmpSGE(cmpResult, builder->getInt32(0));
@@ -1613,7 +1613,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                                 evalData = CodegenLexicographicalCompare(builder, rhsData, rhsLength, lhsData, lhsLength);
                                 break;
                             case EBinaryOp::LessOrEqual:
-                                evalData =  builder->CreateNot(
+                                evalData = builder->CreateNot(
                                     CodegenLexicographicalCompare(builder, rhsData, rhsLength, lhsData, lhsLength));
                                 break;
                             case EBinaryOp::GreaterOrEqual:

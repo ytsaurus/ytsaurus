@@ -349,7 +349,7 @@ void GetRangesFromTrieWithinRangeImpl(
         states.pop_front();
         const auto& trie = state.Trie;
         auto prefix = std::move(state.Prefix);
-        auto refineLower =  state.RefineLower;
+        auto refineLower = state.RefineLower;
         auto refineUpper = state.RefineUpper;
 
         size_t offset = prefix.size();

@@ -922,7 +922,7 @@ struct TFunctionDefiner<TResult(TArgs...)>
     static Function* Do(const TCGModulePtr& module, TBody&& body, llvm::Twine name)
     {
         auto& llvmContext = module->GetModule()->getContext();
-        Function* function =  Function::Create(
+        Function* function = Function::Create(
             FunctionType::get(
                 TTypeBuilder<TResult>::Get(llvmContext),
                 {

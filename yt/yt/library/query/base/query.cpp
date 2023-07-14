@@ -167,81 +167,83 @@ bool Compare(
     const TTableSchema& rhsSchema,
     size_t maxIndex)
 {
-#define CHECK(condition) \
-    if (!(condition)) { \
-        return false; \
-    }
+#define CHECK(condition)    \
+    do {                    \
+        if (!(condition)) { \
+            return false;   \
+        }                   \
+    } while (false)
 
-    CHECK(*lhs->LogicalType == *rhs->LogicalType)
+    CHECK(*lhs->LogicalType == *rhs->LogicalType);
 
     if (auto literalLhs = lhs->As<TLiteralExpression>()) {
         auto literalRhs = rhs->As<TLiteralExpression>();
-        CHECK(literalRhs)
-        CHECK(literalLhs->Value == literalRhs->Value)
+        CHECK(literalRhs);
+        CHECK(literalLhs->Value == literalRhs->Value);
     } else if (auto referenceLhs = lhs->As<TReferenceExpression>()) {
         auto referenceRhs = rhs->As<TReferenceExpression>();
-        CHECK(referenceRhs)
+        CHECK(referenceRhs);
         auto lhsIndex = lhsSchema.GetColumnIndexOrThrow(referenceLhs->ColumnName);
         auto rhsIndex = rhsSchema.GetColumnIndexOrThrow(referenceRhs->ColumnName);
-        CHECK(lhsIndex == rhsIndex)
-        CHECK(static_cast<size_t>(lhsIndex) < maxIndex)
+        CHECK(lhsIndex == rhsIndex);
+        CHECK(static_cast<size_t>(lhsIndex) < maxIndex);
     } else if (auto functionLhs = lhs->As<TFunctionExpression>()) {
         auto functionRhs = rhs->As<TFunctionExpression>();
-        CHECK(functionRhs)
-        CHECK(functionLhs->FunctionName == functionRhs->FunctionName)
-        CHECK(functionLhs->Arguments.size() == functionRhs->Arguments.size())
+        CHECK(functionRhs);
+        CHECK(functionLhs->FunctionName == functionRhs->FunctionName);
+        CHECK(functionLhs->Arguments.size() == functionRhs->Arguments.size());
 
         for (size_t index = 0; index < functionLhs->Arguments.size(); ++index) {
-            CHECK(Compare(functionLhs->Arguments[index], lhsSchema, functionRhs->Arguments[index], rhsSchema, maxIndex))
+            CHECK(Compare(functionLhs->Arguments[index], lhsSchema, functionRhs->Arguments[index], rhsSchema, maxIndex));
         }
     } else if (auto unaryLhs = lhs->As<TUnaryOpExpression>()) {
         auto unaryRhs = rhs->As<TUnaryOpExpression>();
-        CHECK(unaryRhs)
-        CHECK(unaryLhs->Opcode == unaryRhs->Opcode)
-        CHECK(Compare(unaryLhs->Operand, lhsSchema, unaryRhs->Operand, rhsSchema, maxIndex))
+        CHECK(unaryRhs);
+        CHECK(unaryLhs->Opcode == unaryRhs->Opcode);
+        CHECK(Compare(unaryLhs->Operand, lhsSchema, unaryRhs->Operand, rhsSchema, maxIndex));
     } else if (auto binaryLhs = lhs->As<TBinaryOpExpression>()) {
         auto binaryRhs = rhs->As<TBinaryOpExpression>();
-        CHECK(binaryRhs)
-        CHECK(binaryLhs->Opcode == binaryRhs->Opcode)
-        CHECK(Compare(binaryLhs->Lhs, lhsSchema, binaryRhs->Lhs, rhsSchema, maxIndex))
-        CHECK(Compare(binaryLhs->Rhs, lhsSchema, binaryRhs->Rhs, rhsSchema, maxIndex))
+        CHECK(binaryRhs);
+        CHECK(binaryLhs->Opcode == binaryRhs->Opcode);
+        CHECK(Compare(binaryLhs->Lhs, lhsSchema, binaryRhs->Lhs, rhsSchema, maxIndex));
+        CHECK(Compare(binaryLhs->Rhs, lhsSchema, binaryRhs->Rhs, rhsSchema, maxIndex));
     } else if (auto inLhs = lhs->As<TInExpression>()) {
         auto inRhs = rhs->As<TInExpression>();
-        CHECK(inRhs)
-        CHECK(inLhs->Arguments.size() == inRhs->Arguments.size())
+        CHECK(inRhs);
+        CHECK(inLhs->Arguments.size() == inRhs->Arguments.size());
         for (size_t index = 0; index < inLhs->Arguments.size(); ++index) {
-            CHECK(Compare(inLhs->Arguments[index], lhsSchema, inRhs->Arguments[index], rhsSchema, maxIndex))
+            CHECK(Compare(inLhs->Arguments[index], lhsSchema, inRhs->Arguments[index], rhsSchema, maxIndex));
         }
 
-        CHECK(inLhs->Values.Size() == inRhs->Values.Size())
+        CHECK(inLhs->Values.Size() == inRhs->Values.Size());
         for (size_t index = 0; index < inLhs->Values.Size(); ++index) {
-            CHECK(inLhs->Values[index] == inRhs->Values[index])
+            CHECK(inLhs->Values[index] == inRhs->Values[index]);
         }
     } else if (auto betweenLhs = lhs->As<TBetweenExpression>()) {
         auto betweenRhs = rhs->As<TBetweenExpression>();
-        CHECK(betweenRhs)
-        CHECK(betweenLhs->Arguments.size() == betweenRhs->Arguments.size())
+        CHECK(betweenRhs);
+        CHECK(betweenLhs->Arguments.size() == betweenRhs->Arguments.size());
         for (size_t index = 0; index < betweenLhs->Arguments.size(); ++index) {
-            CHECK(Compare(betweenLhs->Arguments[index], lhsSchema, betweenRhs->Arguments[index], rhsSchema, maxIndex))
+            CHECK(Compare(betweenLhs->Arguments[index], lhsSchema, betweenRhs->Arguments[index], rhsSchema, maxIndex));
         }
 
-        CHECK(betweenLhs->Ranges.Size() == betweenRhs->Ranges.Size())
+        CHECK(betweenLhs->Ranges.Size() == betweenRhs->Ranges.Size());
         for (size_t index = 0; index < betweenLhs->Ranges.Size(); ++index) {
-            CHECK(betweenLhs->Ranges[index] == betweenRhs->Ranges[index])
+            CHECK(betweenLhs->Ranges[index] == betweenRhs->Ranges[index]);
         }
     } else if (auto transformLhs = lhs->As<TTransformExpression>()) {
         auto transformRhs = rhs->As<TTransformExpression>();
-        CHECK(transformRhs)
-        CHECK(transformLhs->Arguments.size() == transformRhs->Arguments.size())
+        CHECK(transformRhs);
+        CHECK(transformLhs->Arguments.size() == transformRhs->Arguments.size());
         for (size_t index = 0; index < transformLhs->Arguments.size(); ++index) {
-            CHECK(Compare(transformLhs->Arguments[index], lhsSchema, transformRhs->Arguments[index], rhsSchema, maxIndex))
+            CHECK(Compare(transformLhs->Arguments[index], lhsSchema, transformRhs->Arguments[index], rhsSchema, maxIndex));
         }
 
-        CHECK(transformLhs->Values.Size() == transformRhs->Values.Size())
+        CHECK(transformLhs->Values.Size() == transformRhs->Values.Size());
         for (size_t index = 0; index < transformLhs->Values.Size(); ++index) {
-            CHECK(transformLhs->Values[index] == transformRhs->Values[index])
+            CHECK(transformLhs->Values[index] == transformRhs->Values[index]);
         }
-        CHECK(Compare(transformRhs->DefaultExpression, lhsSchema, transformRhs->DefaultExpression, rhsSchema, maxIndex))
+        CHECK(Compare(transformLhs->DefaultExpression, lhsSchema, transformRhs->DefaultExpression, rhsSchema, maxIndex));
     } else {
         YT_ABORT();
     }

@@ -2084,7 +2084,7 @@ TUntypedExpression TBuilderCtx::OnTransformOp(
         return CompareRows(lhs, rhs, argCount) < 0;
     });
 
-    auto capturedRows =  MakeSharedRange(std::move(rows), std::move(rowBuffer));
+    auto capturedRows = MakeSharedRange(std::move(rows), std::move(rowBuffer));
     auto result = New<TTransformExpression>(
         resultType,
         std::move(typedArguments),
