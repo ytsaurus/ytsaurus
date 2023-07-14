@@ -30,6 +30,11 @@ Y_WEAK const char* GetBranch()
     return "@YT_VERSION_BRANCH@";
 }
 
+Y_WEAK const char* GetVersionType()
+{
+    return "@YT_VERSION_TYPE@";
+}
+
 Y_WEAK const char* GetVersion()
 {
     static auto version = CreateYTVersion(@YT_VERSION_MAJOR@, @YT_VERSION_MINOR@, @YT_VERSION_PATCH@, "@YT_VERSION_BRANCH@");

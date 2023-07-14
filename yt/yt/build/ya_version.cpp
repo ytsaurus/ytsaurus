@@ -42,7 +42,7 @@ TString TruncateCommitHash(TString commit)
 
 void OutputCreateBranchCommitVersion(TStringBuf branch, TStringStream& out)
 {
-    out << branch << "-ya";
+    out << branch << "-" << GetVersionType();
 
 #if !defined(NDEBUG)
     out << "debug";

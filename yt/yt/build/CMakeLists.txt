@@ -66,6 +66,10 @@ set(
   YT_VERSION_PATCH
   0
 )
+set(
+  YT_VERSION_TYPE
+  os
+)
 
 add_library(yt-yt-build)
 target_compile_options(yt-yt-build PRIVATE
