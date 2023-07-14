@@ -2,11 +2,11 @@
 
 #include "private.h"
 
+#include <yt/yt/core/concurrency/async_rw_lock.h>
+
 #include <yt/yt/core/crypto/public.h>
 
 #include <library/cpp/yt/memory/ref.h>
-#include <library/cpp/yt/threading/event_count.h>
-#include <library/cpp/yt/threading/rw_spin_lock.h>
 
 #include <library/cpp/yt/small_containers/compact_vector.h>
 
@@ -66,20 +66,27 @@ using TGrpcAuthContextPtr = TGrpcObjectPtr<grpc_auth_context, grpc_auth_context_
 
 //! Completion queue must be accessed under read lock
 //! in order to prohibit creating new requests after shutting completion queue down.
-class TGuardedGrpcCompletionQueue
+class TGuardedGrpcCompletionQueuePtr
 {
 public:
-    explicit TGuardedGrpcCompletionQueue(TGrpcCompletionQueuePtr completionQueuePtr);
+    explicit TGuardedGrpcCompletionQueuePtr(TGrpcCompletionQueuePtr completionQueuePtr);
 
+    template <class TOperationTraits>
     class TLockGuard
+        : public TNonCopyable
     {
     public:
-        explicit TLockGuard(TGuardedGrpcCompletionQueue* guardedCompletionQueue)
+        explicit TLockGuard(TGuardedGrpcCompletionQueuePtr& guardedCompletionQueue)
             : GuardedCompletionQueue_(guardedCompletionQueue)
-        { }
+        {
+            Guard_ = WaitFor(NConcurrency::TAsyncReaderWriterLockGuard<TOperationTraits>::Acquire(&GuardedCompletionQueue_.Lock_))
+                .ValueOrThrow();
+        }
 
-        TLockGuard(TLockGuard&& guard) = default;
-        TLockGuard& operator=(TLockGuard&& guard) = default;
+        TLockGuard(TLockGuard&& guard)
+            : GuardedCompletionQueue_(guard.GuardedCompletionQueue_)
+            , Guard_(std::move(guard.Guard_))
+        { }
 
         ~TLockGuard()
         {
@@ -88,21 +95,22 @@ public:
 
         grpc_completion_queue* Unwrap()
         {
-            return GuardedCompletionQueue_->UnwrapUnsafe();
+            return GuardedCompletionQueue_.UnwrapUnsafe();
         }
 
         void Unlock()
         {
-            if (GuardedCompletionQueue_) {
-                GuardedCompletionQueue_->Release();
+            if (Guard_) {
+                Guard_.Reset();
             }
         }
 
     private:
-        TGuardedGrpcCompletionQueue* GuardedCompletionQueue_;
+        TGuardedGrpcCompletionQueuePtr& GuardedCompletionQueue_;
+        TIntrusivePtr<NConcurrency::TAsyncReaderWriterLockGuard<TOperationTraits>> Guard_;
     };
 
-    std::optional<TLockGuard> TryLock();
+    std::optional<TLockGuard<NConcurrency::TAsyncLockReaderTraits>> TryLock();
 
     void Shutdown();
 
@@ -123,13 +131,9 @@ private:
         Shutdown = 2
     };
 
-    TGrpcCompletionQueuePtr CompletionQueue_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
-    EState State_ = EState::Opened;
-    std::atomic<int> LocksCount_ = {0};
-    NThreading::TEvent ReleaseDone_;
-
-    void Release();
+    TGrpcCompletionQueuePtr CompletionQueuePtr_;
+    NConcurrency::TAsyncReaderWriterLock Lock_;
+    EState State_{EState::Opened};
 };
 
 ////////////////////////////////////////////////////////////////////////////////
