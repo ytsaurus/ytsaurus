@@ -60,6 +60,9 @@ jobs:
       - name: Run tests
         run: ./gradlew test
 
+      - name: Run integration tests
+        run: ./gradlew testIntegration
+
       - name: Get latest Java SDK tag
         uses: oprypin/find-latest-tag@v1
         id: latest_tag

@@ -37,6 +37,40 @@ dependencies{
     testImplementation("junit:junit:4.13")
     testImplementation("org.apache.logging.log4j:log4j-core:2.13.1")
     testImplementation("org.apache.logging.log4j:log4j-slf4j-impl:2.13.1")
+    testImplementation("javax.persistence:persistence-api:1.0")
+    testImplementation("com.google.protobuf:protobuf-java:3.21.12")
+    testImplementation("junit:junit:4.13")
+    testImplementation("org.apache.logging.log4j:log4j-core:2.13.1")
+    testImplementation("org.apache.logging.log4j:log4j-slf4j-impl:2.13.1")
+    testImplementation("org.testcontainers:testcontainers:1.17.0")
+}
+
+tasks.test {
+    testLogging {
+        showStandardStreams = true
+        events("passed", "skipped", "failed")
+    }
+}
+
+sourceSets.create("testIntegration") {
+    java.srcDir("src/test-integration/java")
+    resources.srcDir("src/test-integration/resources")
+    compileClasspath += sourceSets["main"].output + configurations["testRuntimeClasspath"]
+    runtimeClasspath += output + compileClasspath + sourceSets["test"].runtimeClasspath
+}
+
+tasks {
+    task<Test>("testIntegration") {
+        description = "Runs the integration tests"
+        group = "verification"
+        testClassesDirs = sourceSets["testIntegration"].output.classesDirs
+        classpath = sourceSets["testIntegration"].runtimeClasspath
+        testLogging {
+            showStandardStreams = true
+            events("passed", "skipped", "failed")
+        }
+        useJUnit()
+    }.mustRunAfter("test")
 }
 
 version = project.properties["version"]

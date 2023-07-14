@@ -24,6 +24,14 @@ dependencies{
     testImplementation("org.apache.logging.log4j:log4j-slf4j-impl:2.13.1")
 }
 
+tasks.test {
+    testLogging {
+        showStandardStreams = true
+        events("passed", "skipped", "failed")
+    }
+}
+
+
 version = project.properties["version"]
 
 publishing {

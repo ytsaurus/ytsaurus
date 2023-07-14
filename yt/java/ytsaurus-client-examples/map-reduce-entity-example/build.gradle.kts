@@ -2,7 +2,6 @@ plugins {
     `application`
 }
 
-
 repositories {
     mavenCentral()
 }
@@ -23,4 +22,12 @@ dependencies{
     implementation("com.google.protobuf:protobuf-java:3.21.12")
     implementation("org.apache.logging.log4j:log4j-slf4j-impl:2.13.1")
 }
+
+tasks.test {
+    testLogging {
+        showStandardStreams = true
+        events("passed", "skipped", "failed")
+    }
+}
+
 
