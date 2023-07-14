@@ -236,7 +236,7 @@ The values are specified in parentheses by default.
    - `always` — each node turns into a map with `\$value` and `\$attributes`.
    - `never` — attributes are ignored.
    - `on_demand` — only nodes with non-empty attributes are converted to a map with `\$value` and `\$attributes`.
-- **encode_utf8** (`true`) — enable UTF-8 character interpretation in bytes with corresponding numbers. For more information, see the section. todo
+- **encode_utf8** (`true`) — enable UTF-8 character interpretation in bytes with corresponding numbers.
 - **string_length_limit** — limit on the length of the string in bytes. If the limit is exceeded, the string is trimmed and the result is written as `{$incomplete: true, $value:...}`.
 - **stringify** (`false`) — enable conversion of all scalar types to strings.
 - **stringify_nan_and_infinity** (`false`) — enable conversion of `Nan` and `Infinity` to strings. You can't use this together with `support_infinity`.
@@ -263,7 +263,6 @@ JSON represents bytes numbered 0–32 (namely \u00XX) in a non-compact way. When
 A format that is widely used for storing logs and working with them. DSV and TSKV are two names of the same format.
 This format only supports flat records with an arbitrary column set and string values. Records are separated by the line break character `\n`.
 Fields in a record are separated by the tab character `\t`.
-For more information, see the DSV todo section.
 
 Example record: `time=10\tday=monday\n`.
 
@@ -381,4 +380,4 @@ The values are specified in parentheses by default.
 - **enable_type_conversion** (`false`) — enable all of the above options. In most cases, this option will suffice.
 
 ## PROTOBUF { #PROTOBUF }
-For more information, see the Protobuf TODO section.
+For more information, see the [Protobuf](../../../api/c/protobuf.md) section.
