@@ -1404,7 +1404,7 @@ void TTask::AddSequentialInputSpec(
         AddChunksToInputSpec(
             directoryBuilder.get(),
             inputSpec,
-            GetChunkMapping()->GetMappedStripe(stripe),
+            stripe,
             comparator);
     }
     UpdateInputSpecTotals(jobSpec, joblet);
@@ -1427,7 +1427,7 @@ void TTask::AddParallelInputSpec(
         AddChunksToInputSpec(
             directoryBuilder.get(),
             inputSpec,
-            GetChunkMapping()->GetMappedStripe(stripe),
+            stripe,
             comparator);
     }
     UpdateInputSpecTotals(jobSpec, joblet);
@@ -1440,6 +1440,8 @@ void TTask::AddChunksToInputSpec(
     TComparator comparator)
 {
     VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
+
+    stripe = GetChunkMapping()->GetMappedStripe(stripe);
 
     for (const auto& dataSlice : stripe->DataSlices) {
         YT_VERIFY(!dataSlice->IsLegacy);
