@@ -29,6 +29,9 @@ struct ITwoLevelFairShareThreadPool
         const TFairShareThreadPoolTag& tag) = 0;
 
     virtual void Shutdown() = 0;
+
+    using TWaitTimeObserver = std::function<void(TDuration)>;
+    virtual void RegisterWaitTimeObserver(TWaitTimeObserver waitTimeObserver) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITwoLevelFairShareThreadPool)

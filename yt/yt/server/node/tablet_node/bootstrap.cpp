@@ -20,6 +20,7 @@
 #include "table_config_manager.h"
 #include "tablet_cell_service.h"
 #include "tablet_snapshot_store.h"
+#include "overload_controller.h"
 
 #include <yt/yt/server/node/cellar_node/bootstrap.h>
 #include <yt/yt/server/node/cellar_node/dynamic_bundle_config_manager.h>
@@ -39,13 +40,18 @@
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 
+#include <yt/yt/core/bus/tcp/dispatcher.h>
+
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/ypath_service.h>
 
 #include <yt/yt/core/concurrency/two_level_fair_share_thread_pool.h>
 #include <yt/yt/core/concurrency/new_fair_share_thread_pool.h>
+#include <yt/yt/core/concurrency/poller.h>
 
 #include <yt/yt/core/misc/async_expiring_cache.h>
+
+#include <yt/yt/core/rpc/dispatcher.h>
 
 namespace NYT::NTabletNode {
 
@@ -64,6 +70,11 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = TabletNodeLogger;
+
+static const TString BusXferThreadPoolName = "BusXfer";
+static const TString CompressionThreadPoolName = "Compression";
+static const TString LookupThreadPoolName = "TabletLookup";
+static const TString QueryThreadPoolName = "Query";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -186,7 +197,7 @@ public:
 
         QueryThreadPool_ = CreateNewTwoLevelFairShareThreadPool(
             GetConfig()->QueryAgent->QueryThreadPoolSize,
-            "Query",
+            QueryThreadPoolName,
             New<TPoolWeightCache>(
                 GetConfig()->QueryAgent->PoolWeightCache,
                 GetClient(),
@@ -197,7 +208,7 @@ public:
             "Replicator");
         TabletLookupThreadPool_ = CreateThreadPool(
             GetConfig()->QueryAgent->LookupThreadPoolSize,
-            "TabletLookup");
+            LookupThreadPoolName);
         TabletFetchThreadPool_ = CreateThreadPool(
             GetConfig()->QueryAgent->FetchThreadPoolSize,
             "TabletFetch");
@@ -284,6 +295,17 @@ public:
         GetRpcServer()->RegisterService(CreateTabletCellService(this));
 
         SlotManager_->Initialize();
+
+        InitializeOverloadController();
+    }
+
+    void InitializeOverloadController()
+    {
+        OverloadController_ = New<TOverloadController>(New<TOverloadControllerConfig>());
+        OverloadController_->TrackInvoker(BusXferThreadPoolName, NBus::TTcpDispatcher::Get()->GetXferPoller()->GetInvoker());
+        OverloadController_->TrackInvoker(CompressionThreadPoolName, NRpc::TDispatcher::Get()->GetCompressionPoolInvoker());
+        OverloadController_->TrackInvoker(LookupThreadPoolName, TabletLookupThreadPool_->GetInvoker());
+        OverloadController_->TrackFSHThreadPool(QueryThreadPoolName, QueryThreadPool_);
     }
 
     void Run() override
@@ -523,6 +545,7 @@ private:
     IPartitionBalancerPtr PartitionBalancer_;
     IBackingStoreCleanerPtr BackingStoreCleaner_;
     ILsmInteropPtr LsmInterop_;
+    TOverloadControllerPtr OverloadController_;
 
     void OnDynamicConfigChanged(
         const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
@@ -545,6 +568,8 @@ private:
 
         auto bundleConfig = GetBundleDynamicConfigManager()->GetConfig();
         ReconfigureQueryAgent(bundleConfig, newConfig);
+
+        OverloadController_->Reconfigure(newConfig->TabletNode->OverloadController);
     }
 
     void OnBundleDynamicConfigChanged(
@@ -577,6 +602,11 @@ private:
             TabletLookupThreadPool_->Configure(
                 bundleConfig->CpuLimits->LookupThreadPoolSize.value_or(fallbackLookupThreadCount));
         }
+    }
+
+    const TOverloadControllerPtr& GetOverloadController() const override
+    {
+        return OverloadController_;
     }
 };
 

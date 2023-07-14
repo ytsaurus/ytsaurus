@@ -82,6 +82,9 @@ public:
         return InvalidThreadId;
     }
 
+    void RegisterWaitTimeObserver(TWaitTimeObserver /*waitTimeObserver*/) override
+    { }
+
 private:
     struct TFiberState
     {
@@ -123,6 +126,9 @@ public:
     {
         return InvalidThreadId;
     }
+
+    void RegisterWaitTimeObserver(TWaitTimeObserver /*waitTimeObserver*/) override
+    { }
 };
 
 IInvokerPtr GetNullInvoker()

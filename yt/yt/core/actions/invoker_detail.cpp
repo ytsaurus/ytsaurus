@@ -43,6 +43,11 @@ bool TInvokerWrapper::IsSerialized() const
     return UnderlyingInvoker_->IsSerialized();
 }
 
+void TInvokerWrapper::RegisterWaitTimeObserver(TWaitTimeObserver waitTimeObserver)
+{
+    return UnderlyingInvoker_->RegisterWaitTimeObserver(waitTimeObserver);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TInvokerProfileWrapper::TInvokerProfileWrapper(NProfiling::IRegistryImplPtr registry, const TString& invokerFamily, const NProfiling::TTagSet& tagSet)

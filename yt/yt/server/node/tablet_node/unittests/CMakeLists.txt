@@ -54,6 +54,7 @@ target_sources(unittester-tablet-node PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/lookup_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/ordered_dynamic_store_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/ordered_store_manager_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/overload_controller_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/simple_tablet_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/simple_transaction_supervisor.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/sorted_chunk_store_ut.cpp

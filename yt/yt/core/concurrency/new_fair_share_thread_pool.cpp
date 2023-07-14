@@ -354,6 +354,9 @@ public:
         return invoker.Get() == this;
     }
 
+    void RegisterWaitTimeObserver(TWaitTimeObserver /*waitTimeObserver*/) override
+    { }
+
 private:
     const TTwoLevelFairShareQueuePtr Parent_;
 };
@@ -373,6 +376,8 @@ class TTwoLevelFairShareQueue
     , protected TNotifyManager
 {
 public:
+    using TWaitTimeObserver = ITwoLevelFairShareThreadPool::TWaitTimeObserver;
+
     TTwoLevelFairShareQueue(
         TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
         const TString& threadNamePrefix,
@@ -529,6 +534,15 @@ public:
         InvokeQueue_.DequeueAll();
     }
 
+    void RegisterWaitTimeObserver(TWaitTimeObserver waitTimeObserver)
+    {
+        WaitTimeObserver_ = waitTimeObserver;
+        auto alreadyInitialized = IsWaitTimeObserverSet_.exchange(true);
+
+        // Multiple observers are forbidden.
+        YT_VERIFY(!alreadyInitialized);
+    }
+
 private:
     struct TThreadState
     {
@@ -576,6 +590,9 @@ private:
 
     std::atomic<int> ThreadCount_ = 0;
     std::atomic<int> ActiveThreads_ = 0;
+
+    std::atomic<bool> IsWaitTimeObserverSet_;
+    TWaitTimeObserver WaitTimeObserver_;
 
     TExecutionPool* GetOrRegisterPool(TString poolName)
     {
@@ -946,6 +963,7 @@ private:
             if (action.BucketHolder) {
                 auto waitTime = CpuDurationToDuration(action.StartedAt - action.EnqueuedAt);
                 action.BucketHolder->Pool->WaitTimeCounter.Record(waitTime);
+                ReportWaitTime(waitTime);
             }
         });
 
@@ -985,6 +1003,13 @@ private:
         NotifyAfterFetch(endInstant, newMinEnqueuedAt);
 
         return std::move(threadState.Action.Callback);
+    }
+
+    void ReportWaitTime(TDuration waitTime)
+    {
+        if (IsWaitTimeObserverSet_.load()) {
+            WaitTimeObserver_(waitTime);
+        }
     }
 };
 
@@ -1106,6 +1131,11 @@ public:
     int GetThreadCount() override
     {
         return TThreadPoolBase::GetThreadCount();
+    }
+
+    void RegisterWaitTimeObserver(TWaitTimeObserver waitTimeObserver) override
+    {
+        Queue_->RegisterWaitTimeObserver(waitTimeObserver);
     }
 
 private:

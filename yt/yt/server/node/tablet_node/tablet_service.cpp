@@ -13,6 +13,7 @@
 #include "transaction.h"
 #include "transaction_manager.h"
 #include "tablet_snapshot_store.h"
+#include "overload_controlling_service_base.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -64,13 +65,14 @@ using NYT::ToProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletService
-    : public THydraServiceBase
+    : public TOverloadControllingServiceBase<THydraServiceBase>
 {
 public:
     TTabletService(
         ITabletSlotPtr slot,
         IBootstrap* bootstrap)
-        : THydraServiceBase(
+        : TOverloadControllingServiceBase(
+            bootstrap,
             slot->GetHydraManager(),
             slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Write),
             TTabletServiceProxy::GetDescriptor(),

@@ -267,6 +267,13 @@ public:
         }
     }
 
+    void RegisterWaitTimeObserver(TWaitTimeObserver waitTimeObserver) override
+    {
+        if (auto queue = Queue_.Lock()) {
+            queue->RegisterWaitTimeObserver(waitTimeObserver);
+        }
+    }
+
 private:
     const TWeakPtr<TInvokerQueue<TQueueImpl>> Queue_;
     const int ProfilingTag_;
@@ -480,6 +487,10 @@ TClosure TInvokerQueue<TQueueImpl>::BeginExecute(TEnqueuedAction* action, typena
 
     auto waitTime = CpuDurationToDuration(action->StartedAt - action->EnqueuedAt);
 
+    if (IsWaitTimeObserverSet_.load()) {
+        WaitTimeObserver_(waitTime);
+    }
+
     auto updateCounters = [&] (const TCountersPtr& counters) {
         if (counters) {
             counters->DequeuedCounter.Increment();
@@ -560,6 +571,16 @@ IInvoker* TInvokerQueue<TQueueImpl>::GetProfilingTagSettingInvoker(int profiling
         YT_ASSERT(0 <= profilingTag && profilingTag < std::ssize(Counters_));
         return ProfilingTagSettingInvokers_[profilingTag].Get();
     }
+}
+
+template <class TQueueImpl>
+void TInvokerQueue<TQueueImpl>::RegisterWaitTimeObserver(TWaitTimeObserver waitTimeObserver)
+{
+    WaitTimeObserver_ = waitTimeObserver;
+    auto alreadyInitialized = IsWaitTimeObserverSet_.exchange(true);
+
+    // Multiple observers are forbidden.
+    YT_VERIFY(!alreadyInitialized);
 }
 
 template <class TQueueImpl>

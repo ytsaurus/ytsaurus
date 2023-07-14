@@ -183,6 +183,10 @@ DECLARE_REFCOUNTED_STRUCT(IDistributedThrottlerManager)
 
 DECLARE_REFCOUNTED_STRUCT(IBackendChunkReadersHolder)
 
+DECLARE_REFCOUNTED_CLASS(TOverloadController)
+DECLARE_REFCOUNTED_CLASS(TMeanWaitTimeTracker)
+DECLARE_REFCOUNTED_CLASS(TCongestionController)
+
 struct TSortedDynamicRowHeader;
 class TSortedDynamicRow;
 
