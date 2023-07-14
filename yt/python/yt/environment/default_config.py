@@ -53,6 +53,11 @@ def get_master_config():
         minimize_commit_latency = %true;
     };
 
+    world_initializer = {
+        init_retry_period = 100;
+        update_period = 5000;
+    };
+
     expose_testing_facilities = %true
 }
 """)
