@@ -31,7 +31,7 @@ public:
         return true;
     }
 
-    NThreading::TThreadId GetThreadId() const override
+    NConcurrency::TThreadId GetThreadId() const override
     {
         return {};
     }
