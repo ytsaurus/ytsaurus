@@ -650,7 +650,7 @@ private:
     void OnOperationCompleted(bool interrupted) override
     {
         if (!interrupted) {
-            auto isNontrivialInput = InputHasReadLimits() || InputHasVersionedTables();
+            auto isNontrivialInput = InputHasReadLimits() || InputHasVersionedTables() || InputHasDynamicStores();
             if (!isNontrivialInput && IsRowCountPreserved() && Spec_->ForceTransform) {
                 YT_LOG_ERROR_IF(TotalEstimatedInputRowCount != OrderedTask_->GetTotalOutputRowCount(),
                     "Input/output row count mismatch in ordered merge operation (TotalEstimatedInputRowCount: %v, TotalOutputRowCount: %v)",

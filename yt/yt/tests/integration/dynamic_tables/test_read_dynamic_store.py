@@ -875,6 +875,16 @@ class TestReadOrderedDynamicTables(TestOrderedDynamicTablesBase):
             values.sort()
         assert expected == actual
 
+    # YT-19452
+    @pytest.mark.parametrize("mode", ["unordered", "ordered"])
+    def test_no_row_count_mismatch(self, mode):
+        sync_create_cells(1)
+        self._prepare_simple_table("//tmp/t")
+        create("table", "//tmp/d")
+
+        merge(in_="//tmp/t", out="//tmp/d", mode=mode, spec={"force_transform": True})
+        assert get("//tmp/d/@row_count") == 10
+
 
 ##################################################################
 
