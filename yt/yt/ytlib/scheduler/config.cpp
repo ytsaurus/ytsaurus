@@ -526,7 +526,7 @@ void TOperationSpecBase::Register(TRegistrar registrar)
 
     registrar.Parameter("intermediate_data_account", &TThis::IntermediateDataAccount)
         .NonEmpty()
-        .Default("intermediate");
+        .Default(IntermediateAccountName);
     registrar.Parameter("intermediate_compression_codec", &TThis::IntermediateCompressionCodec)
         .Default(NCompression::ECodec::Lz4);
     registrar.Parameter("intermediate_data_replication_factor", &TThis::IntermediateDataReplicationFactor)
