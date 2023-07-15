@@ -84,6 +84,18 @@ void TBundleInfo::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TZoneRacksInfo::Register(TRegistrar registrar)
+{
+    registrar.Parameter("rack_to_bundle_nodes", &TThis::RackToBundleNodes)
+        .Default();
+    registrar.Parameter("rack_to_spare_nodes", &TThis::RackToSpareNodes)
+        .Default();
+    registrar.Parameter("required_spare_nodes_count", &TThis::RequiredSpareNodesCount)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <typename TBundleToInstancies, typename TCollection>
 void PopulateInstancies(
     const TString& bundleName,
@@ -231,6 +243,21 @@ TBundlesInfo GetBundlesInfo(const TSchedulerInputState& state, const TSchedulerM
     }
 
     return result;
+}
+
+TZonesRacksInfo GetZonesRacksInfo(const TSchedulerInputState& state)
+{
+    TZonesRacksInfo zoneRacks;
+
+    for (const auto& [zoneName, racks] : state.ZoneToRacks) {
+        auto& orchidRack = zoneRacks[zoneName];
+        orchidRack = New<TZoneRacksInfo>();
+        orchidRack->RackToBundleNodes = racks.RackToBundleInstances;
+        orchidRack->RackToSpareNodes = racks.RackToSpareInstances;
+        orchidRack->RequiredSpareNodesCount = racks.RequiredSpareNodesCount;
+    }
+
+    return zoneRacks;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

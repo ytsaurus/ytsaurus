@@ -77,7 +77,10 @@ void TBundleControllerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Days(7));
 
     registrar.Parameter("offline_instance_grace_period", &TThis::OfflineInstanceGracePeriod)
-        .Default(TDuration::Minutes(20));
+        .Default(TDuration::Minutes(40));
+
+    registrar.Parameter("enable_network_limits", &TThis::EnableNetworkLimits)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

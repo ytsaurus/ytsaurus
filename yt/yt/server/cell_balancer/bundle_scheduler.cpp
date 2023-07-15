@@ -724,6 +724,8 @@ TString GetBundleNameFor(const TString& /*name*/, const TInstanceInfoPtr& info)
     return info->Annotations->AllocatedForBundle;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 template <typename TCollection>
 TSchedulerInputState::TBundleToInstanceMapping MapBundlesToInstancies(const TCollection& collection)
 {
@@ -738,6 +740,8 @@ TSchedulerInputState::TBundleToInstanceMapping MapBundlesToInstancies(const TCol
 
     return result;
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <typename TCollection>
 TSchedulerInputState::TZoneToInstanceMap MapZonesToInstancies(
@@ -770,6 +774,76 @@ TSchedulerInputState::TZoneToInstanceMap MapZonesToInstancies(
 
     return result;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+THashMap<TString, TInstanceRackInfo> MapZonesToRacks(
+    const TSchedulerInputState& input,
+    TSchedulerMutations* mutations)
+{
+    THashMap<TString, TInstanceRackInfo> zoneToRacks;
+
+    for (const auto& [zoneName, zoneNodes] : input.ZoneNodes) {
+        auto zoneInfo = GetOrCrash(input.Zones, zoneName);
+        auto zoneBundleName = GetSpareBundleName(zoneInfo);
+        auto& zoneRacks = zoneToRacks[zoneName];
+
+        for (const auto& tabletNode : zoneNodes) {
+            const auto& nodeInfo = GetOrCrash(input.TabletNodes, tabletNode);
+            if (nodeInfo->State != InstanceStateOnline) {
+                continue;
+            }
+
+            if (nodeInfo->Annotations->AllocatedForBundle == zoneBundleName) {
+                ++zoneRacks.RackToSpareInstances[nodeInfo->Rack];
+            } else {
+                ++zoneRacks.RackToBundleInstances[nodeInfo->Rack];
+            }
+        }
+    }
+
+    for (auto& [_, zoneRacks] : zoneToRacks) {
+        for (const auto& [rackName, bundleNodes] : zoneRacks.RackToBundleInstances) {
+            int spareNodesCount = 0;
+
+            const auto& spareRacks = zoneRacks.RackToSpareInstances;
+            if (auto it = spareRacks.find(rackName); it != spareRacks.end()) {
+                spareNodesCount = it->second;
+            }
+
+            zoneRacks.RequiredSpareNodesCount = std::max(
+                zoneRacks.RequiredSpareNodesCount,
+                bundleNodes + spareNodesCount);
+        }
+    }
+
+    for (auto& [zone, zoneInfo] : input.Zones) {
+        auto it = zoneToRacks.find(zone);
+        if (it == zoneToRacks.end()) {
+            continue;
+        }
+
+        if (zoneInfo->RequiresMinusOneRackGuarantee && zoneInfo->SpareTargetConfig->TabletNodeCount < it->second.RequiredSpareNodesCount) {
+            mutations->AlertsToFire.push_back(TAlert{
+                .Id = "minus_one_rack_guarantee_violation",
+                .Description = Format("Zone %v with has target spare nodes: %v "
+                    ", where required count is at least %v.",
+                    zone,
+                    zoneInfo->SpareTargetConfig->TabletNodeCount,
+                    it->second.RequiredSpareNodesCount),
+            });
+
+            YT_LOG_WARNING("Zone spare nodes violate minus one rack guarantee (Zone: %v, ZoneSpareNodes: %v, RequiredSpareNodes: %v)",
+                zone,
+                zoneInfo->SpareTargetConfig->TabletNodeCount,
+                it->second.RequiredSpareNodesCount);
+        }
+    }
+
+    return zoneToRacks;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 THashMap<TString, TString> MapPodIdToInstanceName(const TSchedulerInputState& input)
 {
@@ -2201,6 +2275,48 @@ void InitializeNodeTagFilters(TSchedulerInputState& input, TSchedulerMutations* 
     }
 }
 
+
+void TrimNetworkInfo(TSchedulerInputState* input)
+{
+    if (input->Config->EnableNetworkLimits) {
+        return;
+    }
+
+    // Networking is disabled. We have to trim all networking info.
+
+    for (auto& [_, bundleInfo] : input->Bundles) {
+        if (!bundleInfo->EnableBundleController || !bundleInfo->TargetConfig) {
+            continue;
+        }
+
+        const auto& targetConfig = bundleInfo->TargetConfig;
+        targetConfig->TabletNodeResourceGuarantee->Net.reset();
+        targetConfig->RpcProxyResourceGuarantee->Net.reset();
+    }
+
+    for (const auto& [_, nodeInfo] : input->TabletNodes) {
+        if (nodeInfo->Annotations && nodeInfo->Annotations->Resource) {
+            nodeInfo->Annotations->Resource->Net.reset();
+        }
+    }
+
+    for (const auto& [_, proxyInfo] : input->RpcProxies) {
+        if (proxyInfo->Annotations && proxyInfo->Annotations->Resource) {
+            proxyInfo->Annotations->Resource->Net.reset();
+        }
+    }
+
+    for (auto& [_, zoneInfo] : input->Zones) {
+        if (!zoneInfo->SpareTargetConfig) {
+            continue;
+        }
+
+        const auto& spareTargetConfig = zoneInfo->SpareTargetConfig;
+        spareTargetConfig->TabletNodeResourceGuarantee->Net.reset();
+        spareTargetConfig->RpcProxyResourceGuarantee->Net.reset();
+    }
+}
+
 void InitializeBundleTargetConfig(TSchedulerInputState& input, TSchedulerMutations* mutations)
 {
     for (auto& [bundleName, bundleInfo] : input.Bundles) {
@@ -2249,6 +2365,9 @@ void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations
     input.BundleProxies = MapBundlesToInstancies(input.RpcProxies);
     input.PodIdToInstanceName = MapPodIdToInstanceName(input);
 
+    input.ZoneToRacks = MapZonesToRacks(input, mutations);
+
+    TrimNetworkInfo(&input);
     InitializeNodeTagFilters(input, mutations);
     InitializeBundleTargetConfig(input, mutations);
 

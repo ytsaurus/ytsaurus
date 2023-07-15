@@ -330,6 +330,8 @@ struct TZoneInfo
     TString SpareBundleName;
     double DisruptedThresholdFactor;
 
+    bool RequiresMinusOneRackGuarantee;
+
     REGISTER_YSON_STRUCT(TZoneInfo);
 
     static void Register(TRegistrar registrar);
@@ -648,6 +650,7 @@ struct TTabletNodeInfo
     THashMap<TString, TCmsMaintenanceRequestPtr> CmsMaintenanceRequests;
     TInstant LastSeenTime;
     TTabletNodeStatisticsPtr Statistics;
+    TString Rack;
 
     REGISTER_YSON_STRUCT(TTabletNodeInfo);
 

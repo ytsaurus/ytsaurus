@@ -91,6 +91,7 @@ TSchedulerInputState GenerateSimpleInputContext(int nodeCount, int writeThreadCo
     TSchedulerInputState input;
     input.Config = New<TBundleControllerConfig>();
     input.Config->Cluster = "sen-tst";
+    input.Config->EnableNetworkLimits = true;
 
     {
         auto zoneInfo = New<TZoneInfo>();
@@ -98,6 +99,7 @@ TSchedulerInputState GenerateSimpleInputContext(int nodeCount, int writeThreadCo
         zoneInfo->YPCluster = "pre-pre";
         zoneInfo->TabletNodeNannyService = "nanny-bunny-tablet-nodes";
         zoneInfo->RpcProxyNannyService = "nanny-bunny-rpc-proxies";
+        zoneInfo->RequiresMinusOneRackGuarantee = false;
     }
 
     SetBundleInfo(input, "bigd", nodeCount, writeThreadCount, proxyCount);
@@ -2790,6 +2792,32 @@ TEST(TBundleSchedulerTest, ReAllocateOutdatedNetworkLimits)
     EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     VerifyNodeAllocationRequests(mutations, 2);
+}
+
+TEST(TBundleSchedulerTest, DoNotReAllocateOutdatedNetworkLimitsIfDisabled)
+{
+    auto input = GenerateSimpleInputContext(5);
+    input.Config->ReallocateInstanceBudget = 2;
+    input.Config->EnableNetworkLimits = false;
+    GenerateNodesForBundle(input, "bigd", 5, false, 5, 2);
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
+
+    for (auto& [_, nodeInfo] : input.TabletNodes) {
+        nodeInfo->Annotations->Resource->Net = nodeInfo->Annotations->Resource->Net.value_or(1024) / 2;
+    }
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
 }
 
 TEST(TBundleSchedulerTest, ReAllocateOutdatedProxies)

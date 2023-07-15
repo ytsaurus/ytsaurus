@@ -100,6 +100,7 @@ struct TZoneSensors final
 
     TGauge FreeSpareNodeCount;
     TGauge FreeSpareProxyCount;
+    TGauge RequiredSpareNodesCount;
 };
 
 using TZoneSensorsPtr = TIntrusivePtr<TZoneSensors>;
@@ -208,7 +209,10 @@ private:
 
     mutable THashMap<TString, TBundleSensorsPtr> BundleSensors_;
     mutable THashMap<TString, TZoneSensorsPtr> ZoneSensors_;
+
     mutable Orchid::TBundlesInfo OrchidBundlesInfo_;
+    mutable Orchid::TZonesRacksInfo OrchidRacksInfo_;
+
     mutable THashMap<TString, TBundleAlertCounters> BundleAlerts_;
 
 
@@ -232,6 +236,15 @@ private:
             YT_LOG_ERROR(ex, "Scanning bundles failed");
             FailedScanBundleCounter_.Increment();
         }
+    }
+
+    void ClearState() const
+    {
+        OrchidBundlesInfo_.clear();
+        OrchidRacksInfo_.clear();
+        BundleAlerts_.clear();
+        ZoneSensors_.clear();
+        BundleSensors_.clear();
     }
 
     void LinkOrchidService() const
@@ -326,6 +339,7 @@ private:
 
         // Update input state for serving orchid requests.
         OrchidBundlesInfo_ = Orchid::GetBundlesInfo(inputState, mutations);
+        OrchidRacksInfo_ = Orchid::GetZonesRacksInfo(inputState);
     }
 
     inline static const TString  AttributeBundleControllerAnnotations = "bundle_controller_annotations";
@@ -633,6 +647,11 @@ private:
             auto sensor = GetZoneSensors(zoneName);
             sensor->FreeSpareProxyCount.Update(std::ssize(spareInfo.FreeProxies));
         }
+
+        for (const auto& [zoneName, rackInfo] : input.ZoneToRacks) {
+            auto zoneSensor = GetZoneSensors(zoneName);
+            zoneSensor->RequiredSpareNodesCount.Update(rackInfo.RequiredSpareNodesCount);
+        }
     }
 
     void RegisterAlert(const TAlert& alert) const
@@ -711,6 +730,7 @@ private:
 
         sensors->FreeSpareNodeCount = zoneProfiler.Gauge("/free_spare_node_count");
         sensors->FreeSpareProxyCount = zoneProfiler.Gauge("/free_spare_proxy_count");
+        sensors->RequiredSpareNodesCount = zoneProfiler.Gauge("/required_spare_nodes_count");
 
         ZoneSensors_[zoneName] = sensors;
         return sensors;
@@ -1086,6 +1106,7 @@ private:
                 .Item("config").Value(Config_)
                 .Item("state").BeginMap()
                     .Item("bundles").Value(OrchidBundlesInfo_)
+                    .Item("racks").Value(OrchidRacksInfo_)
                 .EndMap()
             .EndMap();
     }
