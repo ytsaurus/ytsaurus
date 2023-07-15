@@ -1,31 +1,24 @@
 #pragma once
 
-#include "public.h"
 #include "token.h"
+#include "lexer_detail.h"
 
 namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStatelessYsonLexerImplBase;
-
 class TStatelessLexer
 {
 public:
-    TStatelessLexer();
-
-    ~TStatelessLexer();
-
-    size_t GetToken(TStringBuf data, TToken* token);
+    size_t ParseToken(TStringBuf data, TToken* token);
 
 private:
-    std::unique_ptr<TStatelessYsonLexerImplBase> Impl;
-
+    NDetail::TLexer<TStringReader, false> Lexer_{TStringReader()};
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t GetToken(TStringBuf data, TToken* token);
+size_t ParseToken(TStringBuf data, TToken* token);
 
 ////////////////////////////////////////////////////////////////////////////////
 

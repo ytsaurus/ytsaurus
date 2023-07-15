@@ -1449,7 +1449,7 @@ DEFINE_YPATH_GET_ANY
         } \
         NYson::TToken token; \
         auto anyString = anyValue->AsStringBuf(); \
-        NYson::GetToken(anyString, &token); \
+        NYson::ParseToken(anyString, &token); \
         if (token.GetType() == NYson::ETokenType::TYPE) { \
             STATEMENT_OK \
         } else { \
@@ -1468,7 +1468,7 @@ DEFINE_YPATH_GET_ANY
         } \
         NYson::TToken token; \
         auto anyString = anyValue->AsStringBuf(); \
-        NYson::GetToken(anyString, &token); \
+        NYson::ParseToken(anyString, &token); \
         if (token.GetType() == NYson::ETokenType::Int64) { \
             MakePositionIndependent ## TYPE ## Value(result, token.GetInt64Value()); \
         } else if (token.GetType() == NYson::ETokenType::Uint64) { \
@@ -1506,8 +1506,8 @@ int CompareAny(char* lhsData, i32 lhsLength, char* rhsData, i32 rhsLength)
 
     NYson::TToken lhsToken;
     NYson::TToken rhsToken;
-    lexer.GetToken(lhsInput, &lhsToken);
-    lexer.GetToken(rhsInput, &rhsToken);
+    lexer.ParseToken(lhsInput, &lhsToken);
+    lexer.ParseToken(rhsInput, &rhsToken);
 
     if (lhsToken.GetType() != rhsToken.GetType()) {
         ThrowCannotCompareTypes(lhsToken.GetType(), rhsToken.GetType());
@@ -1591,7 +1591,7 @@ int CompareAny##TOKEN_TYPE(char* lhsData, i32 lhsLength, TYPE rhsValue) \
     TStringBuf lhsInput(lhsData, lhsLength); \
     NYson::TStatelessLexer lexer; \
     NYson::TToken lhsToken; \
-    lexer.GetToken(lhsInput, &lhsToken); \
+    lexer.ParseToken(lhsInput, &lhsToken); \
     if (lhsToken.GetType() != NYson::ETokenType::TOKEN_TYPE) { \
         ThrowCannotCompareTypes(lhsToken.GetType(), NYson::ETokenType::TOKEN_TYPE); \
     } \
@@ -1615,7 +1615,7 @@ int CompareAnyString(char* lhsData, i32 lhsLength, char* rhsData, i32 rhsLength)
     TStringBuf lhsInput(lhsData, lhsLength);
     NYson::TStatelessLexer lexer;
     NYson::TToken lhsToken;
-    lexer.GetToken(lhsInput, &lhsToken);
+    lexer.ParseToken(lhsInput, &lhsToken);
     if (lhsToken.GetType() != NYson::ETokenType::String) {
         ThrowCannotCompareTypes(lhsToken.GetType(), NYson::ETokenType::String);
     }
@@ -1857,7 +1857,7 @@ extern "C" void NumericToString(
         } \
         NYson::TToken token; \
         auto valueString = piValue.GetPIValue()->AsStringBuf(); \
-        NYson::GetToken(valueString, &token); \
+        NYson::ParseToken(valueString, &token); \
         if (token.GetType() == NYson::ETokenType::Int64) { \
             MakePositionIndependent ## TYPE ## Value(piResult.GetPIValue(), token.GetInt64Value()); \
         } else if (token.GetType() == NYson::ETokenType::Uint64) { \

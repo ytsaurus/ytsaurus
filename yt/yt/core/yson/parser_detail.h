@@ -23,9 +23,11 @@ class TParser
 {
 private:
     typedef TLexerBase<TReaderWithContext<TBlockStream, MaxContextSize>, EnableLinePositionInfo> TBase;
-    TConsumer* Consumer;
-    int NestingLevel = 0;
-    int NestingLevelLimit;
+
+    TConsumer* const Consumer_;
+    const int NestingLevelLimit_;
+
+    int NestingLevel_ = 0;
     bool Stopped_ = false;
 
 public:
@@ -35,8 +37,8 @@ public:
         i64 memoryLimit,
         int nestingLevelLimit)
         : TBase(blockStream, memoryLimit)
-        , Consumer(consumer)
-        , NestingLevelLimit(nestingLevelLimit)
+        , Consumer_(consumer)
+        , NestingLevelLimit_(nestingLevelLimit)
     { }
 
     void DoParse(EYsonType parsingMode)
@@ -100,7 +102,7 @@ private:
     void ParseAttributes()
     {
         TBase::CheckpointContext();
-        Consumer->OnBeginAttributes();
+        Consumer_->OnBeginAttributes();
 
         if (Stopped_) {
             return;
@@ -114,13 +116,13 @@ private:
 
         TBase::CheckpointContext();
         TBase::SkipCharToken(EndAttributesSymbol);
-        Consumer->OnEndAttributes();
+        Consumer_->OnEndAttributes();
     }
 
     void ParseMap()
     {
         TBase::CheckpointContext();
-        Consumer->OnBeginMap();
+        Consumer_->OnBeginMap();
 
         if (Stopped_) {
             return;
@@ -134,13 +136,13 @@ private:
 
         TBase::CheckpointContext();
         TBase::SkipCharToken(EndMapSymbol);
-        Consumer->OnEndMap();
+        Consumer_->OnEndMap();
     }
 
     void ParseList()
     {
         TBase::CheckpointContext();
-        Consumer->OnBeginList();
+        Consumer_->OnBeginList();
 
         if (Stopped_) {
             return;
@@ -154,7 +156,7 @@ private:
 
         TBase::CheckpointContext();
         TBase::SkipCharToken(EndListSymbol);
-        Consumer->OnEndList();
+        Consumer_->OnEndList();
     }
 
     template <bool AllowFinish>
@@ -166,16 +168,16 @@ private:
     template <bool AllowFinish>
     void ParseNode(char ch)
     {
-        if (NestingLevel >= NestingLevelLimit) {
-            auto nestingLevelLimit = NestingLevelLimit;
+        if (NestingLevel_ >= NestingLevelLimit_) {
+            auto nestingLevelLimit = NestingLevelLimit_;
             THROW_ERROR_EXCEPTION("Depth limit exceeded while parsing YSON")
                 << TErrorAttribute("limit", nestingLevelLimit);
         }
 
-        ++NestingLevel;
+        ++NestingLevel_;
 
         auto guard = Finally([this] {
-            --NestingLevel;
+            --NestingLevel_;
         });
 
         TBase::CheckpointContext();
@@ -205,46 +207,46 @@ private:
             case '"': {
                 TBase::Advance(1);
                 TStringBuf value = TBase::ReadQuotedString();
-                Consumer->OnStringScalar(value);
+                Consumer_->OnStringScalar(value);
                 break;
             }
             case StringMarker: {
                 TBase::Advance(1);
                 TStringBuf value = TBase::ReadBinaryString();
-                Consumer->OnStringScalar(value);
+                Consumer_->OnStringScalar(value);
                 break;
             }
             case Int64Marker:{
                 TBase::Advance(1);
                 i64 value = TBase::ReadBinaryInt64();
-                Consumer->OnInt64Scalar(value);
+                Consumer_->OnInt64Scalar(value);
                 break;
             }
             case Uint64Marker:{
                 TBase::Advance(1);
                 ui64 value = TBase::ReadBinaryUint64();
-                Consumer->OnUint64Scalar(value);
+                Consumer_->OnUint64Scalar(value);
                 break;
             }
             case DoubleMarker: {
                 TBase::Advance(1);
                 double value = TBase::ReadBinaryDouble();
-                Consumer->OnDoubleScalar(value);
+                Consumer_->OnDoubleScalar(value);
                 break;
             }
             case FalseMarker: {
                 TBase::Advance(1);
-                Consumer->OnBooleanScalar(false);
+                Consumer_->OnBooleanScalar(false);
                 break;
             }
             case TrueMarker: {
                 TBase::Advance(1);
-                Consumer->OnBooleanScalar(true);
+                Consumer_->OnBooleanScalar(true);
                 break;
             }
             case EntitySymbol:
                 TBase::Advance(1);
-                Consumer->OnEntity();
+                Consumer_->OnEntity();
                 break;
 
             default: {
@@ -252,14 +254,14 @@ private:
                     ReadNumeric<AllowFinish>();
                 } else if (isalpha(ch) || ch == '_') {
                     TStringBuf value = TBase::template ReadUnquotedString<AllowFinish>();
-                    Consumer->OnStringScalar(value);
+                    Consumer_->OnStringScalar(value);
                 } else if (ch == '%') {
                     TBase::Advance(1);
                     ch = TBase::template GetChar<AllowFinish>();
                     if (ch == 't' || ch == 'f') {
-                        Consumer->OnBooleanScalar(TBase::template ReadBoolean<AllowFinish>());
+                        Consumer_->OnBooleanScalar(TBase::template ReadBoolean<AllowFinish>());
                     } else {
-                        Consumer->OnDoubleScalar(TBase::template ReadNanOrInf<AllowFinish>());
+                        Consumer_->OnDoubleScalar(TBase::template ReadNanOrInf<AllowFinish>());
                     }
                 } else if (ch == EndSymbol) {
                     THROW_ERROR_EXCEPTION("Unexpected end of stream while parsing node")
@@ -285,19 +287,19 @@ private:
             case '"': {
                 TBase::Advance(1);
                 TStringBuf value = TBase::ReadQuotedString();
-                Consumer->OnKeyedItem(value);
+                Consumer_->OnKeyedItem(value);
                 break;
             }
             case StringMarker: {
                 TBase::Advance(1);
                 TStringBuf value = TBase::ReadBinaryString();
-                Consumer->OnKeyedItem(value);
+                Consumer_->OnKeyedItem(value);
                 break;
             }
             default: {
                 if (isalpha(ch) || ch == '_') {
                     TStringBuf value = TBase::ReadUnquotedString();
-                    Consumer->OnKeyedItem(value);
+                    Consumer_->OnKeyedItem(value);
                 } else {
                     THROW_ERROR_EXCEPTION("Unexpected %Qv while parsing key",
                         ch)
@@ -360,7 +362,7 @@ private:
         char ch = TBase::template SkipSpaceAndGetChar<AllowFinish>();
         while (ch != endSymbol) {
             TBase::CheckpointContext();
-            Consumer->OnListItem();
+            Consumer_->OnListItem();
 
             if (Stopped_) {
                 return;
@@ -408,7 +410,7 @@ private:
                     << *this
                     << ex;
             }
-            Consumer->OnDoubleScalar(value);
+            Consumer_->OnDoubleScalar(value);
         } else if (numericResult == ENumericResult::Int64) {
             i64 value;
             try {
@@ -419,7 +421,7 @@ private:
                     << *this
                     << ex;
             }
-            Consumer->OnInt64Scalar(value);
+            Consumer_->OnInt64Scalar(value);
         } else if (numericResult == ENumericResult::Uint64) {
             ui64 value;
             try {
@@ -430,7 +432,7 @@ private:
                     << *this
                     << ex;
             }
-            Consumer->OnUint64Scalar(value);
+            Consumer_->OnUint64Scalar(value);
         }
     }
 };

@@ -20,11 +20,11 @@ public:
     size_t GetPosition() const;
 
 private:
-    TStringBuf Input;
-    TToken Token;
-    TStatelessLexer Lexer;
-    size_t Parsed;
-    size_t Position;
+    TStringBuf Input_;
+    TToken Token_;
+    TStatelessLexer Lexer_;
+    size_t Parsed_ = 0;
+    size_t Position_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

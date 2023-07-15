@@ -3,14 +3,10 @@
 #include "detail.h"
 #include "token.h"
 
-namespace NYT::NYson {
+namespace NYT::NYson::NDetail {
 
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NDetail {
 /*! \internal */
 ////////////////////////////////////////////////////////////////////////////////
-
 // EReadStartCase tree representation:
 // Root                                =     xb
 //     BinaryStringOrOtherSpecialToken =    x0b
@@ -141,11 +137,15 @@ private:
 #undef BS
 #undef BI
 #undef BD
+#undef BF
+#undef BT
+#undef BU
 #undef SP
 #undef DM
 #undef ST
 #undef PL
 #undef QU
+#undef PC
 #undef TT
         return lookupTable[static_cast<ui8>(ch)];
     }
@@ -157,7 +157,7 @@ public:
         : TBase(blockStream, memoryLimit)
     { }
 
-    void GetToken(TToken* token)
+    void ParseToken(TToken* token)
     {
         char ch = TBase::SkipSpaceAndGetChar();
         auto state = GetStartState(ch);
@@ -267,39 +267,8 @@ public:
         }
     }
 };
+
 ////////////////////////////////////////////////////////////////////////////////
 /*! \endinternal */
-} // namespace NDetail
 
-class TStatelessYsonLexerImplBase
-{
-public:
-    virtual size_t GetToken(TStringBuf data, TToken* token) = 0;
-
-    virtual ~TStatelessYsonLexerImplBase() = default;
-};
-
-template <bool EnableLinePositionInfo>
-class TStatelesYsonLexerImpl
-    : public TStatelessYsonLexerImplBase
-{
-private:
-    typedef NDetail::TLexer<TStringReader, EnableLinePositionInfo> TLexer;
-    TLexer Lexer;
-
-public:
-    TStatelesYsonLexerImpl()
-        : Lexer(TStringReader())
-    { }
-
-    size_t GetToken(TStringBuf data, TToken* token) override
-    {
-        Lexer.SetBuffer(data.begin(), data.end());
-        Lexer.GetToken(token);
-        return Lexer.Current() - data.begin();
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYT::NYson
+} // namespace NYT::NYson::NDetail

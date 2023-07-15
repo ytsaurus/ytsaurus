@@ -5,26 +5,19 @@ namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStatelessLexer::TStatelessLexer()
-    : Impl(std::make_unique<TStatelesYsonLexerImpl<false>>())
-{ }
-
-TStatelessLexer::~TStatelessLexer()
-{ }
-
-size_t TStatelessLexer::GetToken(TStringBuf data, TToken* token)
+size_t TStatelessLexer::ParseToken(TStringBuf data, TToken* token)
 {
-    return Impl->GetToken(data, token);
+    Lexer_.SetBuffer(data.begin(), data.end());
+    Lexer_.ParseToken(token);
+    return Lexer_.Current() - data.begin();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t GetToken(TStringBuf data, TToken* token)
+size_t ParseToken(TStringBuf data, TToken* token)
 {
-    NDetail::TLexer<TStringReader, false> Lexer = NDetail::TLexer<TStringReader, false>(TStringReader());
-    Lexer.SetBuffer(data.begin(), data.end());
-    Lexer.GetToken(token);
-    return Lexer.Current() - data.begin();
+    TStatelessLexer lexer;
+    return lexer.ParseToken(data, token);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

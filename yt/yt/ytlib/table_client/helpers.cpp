@@ -152,7 +152,7 @@ void PipeReaderToWriter(
 TUnversionedValue MakeUnversionedValue(TStringBuf ysonString, int id, TStatelessLexer& lexer)
 {
     TToken token;
-    lexer.GetToken(ysonString, &token);
+    lexer.ParseToken(ysonString, &token);
     YT_VERIFY(!token.IsEmpty());
 
     switch (token.GetType()) {
