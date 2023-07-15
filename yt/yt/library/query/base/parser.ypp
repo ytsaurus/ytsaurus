@@ -123,7 +123,8 @@
 %token OpLess 60 "`<`"
 %token OpLessOrEqual "`<=`"
 %token OpEqual 61 "`=`"
-%token OpNotEqual "`!=`"
+%token OpNotEqualCStyle "`!=`"
+%token OpNotEqualSql92 "`<>`"
 %token OpGreater 62 "`>`"
 %token OpGreaterOrEqual "`>=`"
 
@@ -428,6 +429,11 @@ equal-op-expr
         }
     | relational-op-expr
         { $$ = $1; }
+;
+
+OpNotEqual
+    : OpNotEqualCStyle
+    | OpNotEqualSql92
 ;
 
 relational-op-expr

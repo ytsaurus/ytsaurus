@@ -902,6 +902,15 @@ INSTANTIATE_TEST_SUITE_P(
                     Make<TReferenceExpression>("b"))),
             "c > b != a < b"),
         std::tuple<TConstExpressionPtr, const char*>(
+            Make<TBinaryOpExpression>(EBinaryOp::NotEqual,
+                Make<TBinaryOpExpression>(EBinaryOp::Greater,
+                    Make<TReferenceExpression>("c"),
+                    Make<TReferenceExpression>("b")),
+                Make<TBinaryOpExpression>(EBinaryOp::Less,
+                    Make<TReferenceExpression>("a"),
+                    Make<TReferenceExpression>("b"))),
+            "c > b <> a < b"),
+        std::tuple<TConstExpressionPtr, const char*>(
             Make<TBinaryOpExpression>(EBinaryOp::Or,
                 Make<TBinaryOpExpression>(EBinaryOp::NotEqual,
                     Make<TBinaryOpExpression>(EBinaryOp::Less,
@@ -1170,8 +1179,10 @@ INSTANTIATE_TEST_SUITE_P(
 
         TArithmeticTestParam(EValueType::Int64, "#", "=", "#", MakeBoolean(true)),
         TArithmeticTestParam(EValueType::Int64, "#", "!=", "#", MakeBoolean(false)),
+        TArithmeticTestParam(EValueType::Int64, "#", "<>", "#", MakeBoolean(false)),
         TArithmeticTestParam(EValueType::Int64, "1", "=", "#", MakeBoolean(false)),
         TArithmeticTestParam(EValueType::Int64, "1", "!=", "#", MakeBoolean(true)),
+        TArithmeticTestParam(EValueType::Int64, "1", "<>", "#", MakeBoolean(true)),
 
         TArithmeticTestParam(EValueType::Int64, "1", "+", "#", MakeNull())
 ));
@@ -1670,12 +1681,14 @@ INSTANTIATE_TEST_SUITE_P(
     TCompareWithNullTest,
     ::testing::Values(
         TCompareWithNullTestParam("k=1", "l != k", MakeBoolean(true)),
+        TCompareWithNullTestParam("k=1", "l <> k", MakeBoolean(true)),
         TCompareWithNullTestParam("k=1", "l = k", MakeBoolean(false)),
         TCompareWithNullTestParam("k=1", "l < k", MakeBoolean(true)),
         TCompareWithNullTestParam("k=1", "l > k", MakeBoolean(false)),
         TCompareWithNullTestParam("k=1", "k <= l", MakeBoolean(false)),
         TCompareWithNullTestParam("k=1", "k >= l", MakeBoolean(true)),
         TCompareWithNullTestParam("k=1", "l != m", MakeBoolean(false)),
+        TCompareWithNullTestParam("k=1", "l <> m", MakeBoolean(false)),
         TCompareWithNullTestParam("k=1", "l = m", MakeBoolean(true)),
         TCompareWithNullTestParam("k=1", "l < m", MakeBoolean(false)),
         TCompareWithNullTestParam("k=1", "l > m", MakeBoolean(false)),
