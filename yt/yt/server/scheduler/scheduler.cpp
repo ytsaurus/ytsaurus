@@ -2891,7 +2891,7 @@ private:
     {
         // TODO(renadeen): remove when YPathDesignatedServiceFromProducer proves worthy.
         auto operationAttributesOrchidService = Config_->EnableOptimizedOperationOrchid
-            ? IYPathService::YPathDesignatedServiceFromProducer(BIND(&TImpl::BuildOperationOrchid, MakeStrong(this), operation))
+            ? IYPathService::FromProducerLazy(BIND(&TImpl::BuildOperationOrchid, MakeStrong(this), operation))
                 ->Via(GetControlInvoker(EControlQueue::DynamicOrchid))
             : IYPathService::FromProducer(BIND(&TImpl::BuildOperationOrchid, MakeStrong(this), operation))
                 ->Via(GetControlInvoker(EControlQueue::DynamicOrchid));

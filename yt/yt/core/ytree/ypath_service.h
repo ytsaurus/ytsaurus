@@ -96,9 +96,9 @@ struct IYPathService
     //! Creates a YPathDesignated service from a YSON producer.
     /*!
      *  Optimized version of previous service.
-     *  Tries to avoid constructing an ephemeral tree using TYPathDesignatedYsonConsumer.
+     *  Tries to avoid constructing an ephemeral tree using lazy YPath service.
      */
-    static IYPathServicePtr YPathDesignatedServiceFromProducer(
+    static IYPathServicePtr FromProducerLazy(
         NYson::TYsonProducer producer);
 
     //! Creates a YPath service from an extended YSON producer.

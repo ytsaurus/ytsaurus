@@ -485,7 +485,7 @@ private:
     }
 };
 
-IYPathServicePtr IYPathService::YPathDesignatedServiceFromProducer(TYsonProducer producer)
+IYPathServicePtr IYPathService::FromProducerLazy(TYsonProducer producer)
 {
     return New<TLazyYPathServiceFromProducer>(std::move(producer));
 }

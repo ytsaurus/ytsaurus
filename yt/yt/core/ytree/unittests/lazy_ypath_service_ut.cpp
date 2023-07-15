@@ -48,9 +48,9 @@ auto FluentString()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TYPathDesignatedServiceTest, TestGetSelf)
+TEST(TLazyYPathServiceTest, TestGetSelf)
 {
-    auto service = IYPathService::YPathDesignatedServiceFromProducer(BIND([] (IYsonConsumer* consumer) {
+    auto service = IYPathService::FromProducerLazy(BIND([] (IYsonConsumer* consumer) {
             BuildYsonFluently(consumer)
                 .BeginMap()
                     .Item("key1").Value(42)
@@ -60,9 +60,9 @@ TEST(TYPathDesignatedServiceTest, TestGetSelf)
     EXPECT_EQ(FluentString().BeginMap().Item("key1").Value(42).EndMap(), YPathGet(service, ""));
 }
 
-TEST(TYPathDesignatedServiceTest, SimpleTypes)
+TEST(TLazyYPathServiceTest, SimpleTypes)
 {
-    auto service = IYPathService::YPathDesignatedServiceFromProducer(BIND([] (IYsonConsumer* consumer) {
+    auto service = IYPathService::FromProducerLazy(BIND([] (IYsonConsumer* consumer) {
             BuildYsonFluently(consumer)
                 .BeginMap()
                     .Item("key1").Value(42)
@@ -82,9 +82,9 @@ TEST(TYPathDesignatedServiceTest, SimpleTypes)
     EXPECT_EQ(FluentString().Entity(), YPathGet(service, "/key6"));
 }
 
-TEST(TYPathDesignatedServiceTest, QueryNestedKeySimple)
+TEST(TLazyYPathServiceTest, QueryNestedKeySimple)
 {
-    auto service = IYPathService::YPathDesignatedServiceFromProducer(BIND([] (IYsonConsumer* consumer) {
+    auto service = IYPathService::FromProducerLazy(BIND([] (IYsonConsumer* consumer) {
             BuildYsonFluently(consumer)
                 .BeginMap()
                     .Item("key1").Value(42)
@@ -99,9 +99,9 @@ TEST(TYPathDesignatedServiceTest, QueryNestedKeySimple)
     EXPECT_EQ(FluentString().Value(43), YPathGet(service, "/key2/subkey2"));
 }
 
-TEST(TYPathDesignatedServiceTest, QueryNestedComplex)
+TEST(TLazyYPathServiceTest, QueryNestedComplex)
 {
-    auto service = IYPathService::YPathDesignatedServiceFromProducer(BIND([] (IYsonConsumer* consumer) {
+    auto service = IYPathService::FromProducerLazy(BIND([] (IYsonConsumer* consumer) {
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("key1").BeginMap()
@@ -129,9 +129,9 @@ TEST(TYPathDesignatedServiceTest, QueryNestedComplex)
     EXPECT_EQ(expected, YPathGet(service, "/key2"));
 }
 
-TEST(TYPathDesignatedServiceTest, GetList)
+TEST(TLazyYPathServiceTest, GetList)
 {
-    auto service = IYPathService::YPathDesignatedServiceFromProducer(BIND([] (IYsonConsumer* consumer) {
+    auto service = IYPathService::FromProducerLazy(BIND([] (IYsonConsumer* consumer) {
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("key1").BeginMap()
@@ -159,9 +159,9 @@ TEST(TYPathDesignatedServiceTest, GetList)
     EXPECT_EQ(expected, YPathGet(service, "/key2"));
 }
 
-TEST(TYPathDesignatedServiceTest, NavigateThroughList)
+TEST(TLazyYPathServiceTest, NavigateThroughList)
 {
-    auto service = IYPathService::YPathDesignatedServiceFromProducer(BIND([] (IYsonConsumer* consumer) {
+    auto service = IYPathService::FromProducerLazy(BIND([] (IYsonConsumer* consumer) {
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("key1").BeginMap()
@@ -178,9 +178,9 @@ TEST(TYPathDesignatedServiceTest, NavigateThroughList)
     EXPECT_EQ(FluentString().Value(43), YPathGet(service, "/key2/1"));
 }
 
-TEST(TYPathDesignatedServiceTest, NavigateThroughTwoLists)
+TEST(TLazyYPathServiceTest, NavigateThroughTwoLists)
 {
-    auto service = IYPathService::YPathDesignatedServiceFromProducer(BIND([] (IYsonConsumer* consumer) {
+    auto service = IYPathService::FromProducerLazy(BIND([] (IYsonConsumer* consumer) {
         BuildYsonFluently(consumer)
             .BeginList()
                 .Item().BeginList()
@@ -197,9 +197,9 @@ TEST(TYPathDesignatedServiceTest, NavigateThroughTwoLists)
     EXPECT_EQ(FluentString().Value("def"), YPathGet(service, "/1/0"));
 }
 
-TEST(TYPathDesignatedServiceTest, GetAttributes)
+TEST(TLazyYPathServiceTest, GetAttributes)
 {
-    auto service = IYPathService::YPathDesignatedServiceFromProducer(BIND([] (IYsonConsumer* consumer) {
+    auto service = IYPathService::FromProducerLazy(BIND([] (IYsonConsumer* consumer) {
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("key1")
@@ -232,9 +232,9 @@ TEST(TYPathDesignatedServiceTest, GetAttributes)
     EXPECT_EQ(FluentString().BeginMap().Item("subkey1").Value("x").EndMap(), YPathGet(service, "/key1/@attr2"));
 }
 
-TEST(TYPathDesignatedServiceTest, InexistentPaths)
+TEST(TLazyYPathServiceTest, InexistentPaths)
 {
-    auto service = IYPathService::YPathDesignatedServiceFromProducer(BIND([] (IYsonConsumer* consumer) {
+    auto service = IYPathService::FromProducerLazy(BIND([] (IYsonConsumer* consumer) {
             BuildYsonFluently(consumer)
                 .BeginMap()
                     .Item("key1").Value(42)
@@ -251,9 +251,9 @@ TEST(TYPathDesignatedServiceTest, InexistentPaths)
     EXPECT_THROW_WITH_SUBSTRING(YPathGet(service, "/key2/@attr"), "Path \"key2/\" has no attributes");
 }
 
-TEST(TYPathDesignatedServiceTest, ExistsVerb)
+TEST(TLazyYPathServiceTest, ExistsVerb)
 {
-    auto service = IYPathService::YPathDesignatedServiceFromProducer(BIND([] (IYsonConsumer* consumer) {
+    auto service = IYPathService::FromProducerLazy(BIND([] (IYsonConsumer* consumer) {
             BuildYsonFluently(consumer)
                 .BeginMap()
                     .Item("key1").Value(42)
@@ -279,9 +279,9 @@ TEST(TYPathDesignatedServiceTest, ExistsVerb)
     EXPECT_FALSE(YPathExists(service, "/key2/@nonExistentAttr"));
 }
 
-TEST(TYPathDesignatedServiceTest, ListVerb)
+TEST(TLazyYPathServiceTest, ListVerb)
 {
-    auto service = IYPathService::YPathDesignatedServiceFromProducer(BIND([] (IYsonConsumer* consumer) {
+    auto service = IYPathService::FromProducerLazy(BIND([] (IYsonConsumer* consumer) {
             BuildYsonFluently(consumer)
                 .BeginMap()
                     .Item("key1").Value(42)
@@ -300,9 +300,9 @@ TEST(TYPathDesignatedServiceTest, ListVerb)
     EXPECT_EQ((std::vector<TString> {"subkey1", "subkey2"}), YPathList(service, "/key2"));
 }
 
-TEST(TYPathDesignatedServiceTest, RootAttributes)
+TEST(TLazyYPathServiceTest, RootAttributes)
 {
-    auto service = IYPathService::YPathDesignatedServiceFromProducer(BIND([] (IYsonConsumer* consumer) {
+    auto service = IYPathService::FromProducerLazy(BIND([] (IYsonConsumer* consumer) {
             BuildYsonFluently(consumer)
                 .BeginAttributes()
                     .Item("attr1").Value(12)

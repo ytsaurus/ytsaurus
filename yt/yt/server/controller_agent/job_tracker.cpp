@@ -183,7 +183,7 @@ public:
                 .EndMap();
         }));
 
-        return IYPathService::YPathDesignatedServiceFromProducer(std::move(producer));
+        return IYPathService::FromProducerLazy(std::move(producer));
     }
 
 private:
@@ -393,7 +393,7 @@ public:
                 .EndMap();
         }));
 
-        return IYPathService::YPathDesignatedServiceFromProducer(std::move(producer));
+        return IYPathService::FromProducerLazy(std::move(producer));
     }
 
 private:
