@@ -1912,6 +1912,14 @@ INSTANTIATE_TEST_SUITE_P(
             MakeString("привет, как дела?")),
         std::tuple<const char*, const char*, TUnversionedValue>(
             "",
+            "length('abc')",
+            MakeInt64(3)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "",
+            "length('abcdefg')",
+            MakeInt64(7)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "",
             "concat('', '')",
             MakeString("")),
         std::tuple<const char*, const char*, TUnversionedValue>(

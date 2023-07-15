@@ -27,6 +27,13 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         ECallingConvention::Simple);
 
     builder->RegisterFunction(
+        "length",
+        std::vector<TType>{EValueType::String},
+        EValueType::Int64,
+        "length",
+        ECallingConvention::Simple);
+
+    builder->RegisterFunction(
         "concat",
         std::vector<TType>{EValueType::String, EValueType::String},
         EValueType::String,
