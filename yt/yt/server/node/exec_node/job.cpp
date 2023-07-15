@@ -1662,15 +1662,14 @@ void TJob::OnExtraGpuCheckCommandFinished(const TError& error)
 
     ValidateJobPhase(EJobPhase::RunningExtraGpuCheckCommand);
 
-    YT_VERIFY(Error_ && !Error_->IsOK());
+    YT_LOG_FATAL_IF(
+        !Error_ || Error_->IsOK(),
+        "Job error is not set during running extra gpu check (Error: %v)",
+        Error_);
 
     auto initialError = std::move(*Error_);
 
     if (!error.IsOK()) {
-        YT_LOG_FATAL_IF(
-            !Error_ || Error_->IsOK(),
-            "Job error is not set (Error: %v)", Error_);
-
         // Reset Error_ to set it with checkError
         Error_ = {};
         JobResultExtension_.reset();
