@@ -103,9 +103,9 @@ TSlotLocation::TSlotLocation(
 
 TFuture<void> TSlotLocation::Initialize()
 {
-    ChangeState(ELocationState::Enabled);
-
     return BIND([=, this, this_ = MakeStrong(this)] {
+        ChangeState(ELocationState::Enabled, ELocationState::Enabling);
+
         try {
             DoInitialize();
         } catch (const std::exception& ex) {
@@ -114,12 +114,12 @@ TFuture<void> TSlotLocation::Initialize()
             Disable(error);
             return;
         }
+
         HealthChecker_->SubscribeFailed(BIND(&TSlotLocation::Disable, MakeWeak(this))
             .Via(HeavyInvoker_));
         HealthChecker_->Start();
 
         Bootstrap_->SubscribePopulateAlerts(BIND(&TSlotLocation::PopulateAlerts, MakeWeak(this)));
-
     })
     .AsyncVia(SerializedHeavyInvoker_)
     .Run();
@@ -150,7 +150,9 @@ void TSlotLocation::DoInitialize()
 
 void TSlotLocation::DoRepair(bool force)
 {
-    if (GetState() == ELocationState::Enabled && !force) {
+    auto changeStateResult = ChangeState(NDataNode::ELocationState::Enabling, ELocationState::Disabled);
+
+    if (!changeStateResult && !force) {
         YT_LOG_DEBUG("Skipping location repair as it is already enabled (Location: %v)", Id_);
         return;
     }
@@ -176,15 +178,16 @@ void TSlotLocation::DoRepair(bool force)
         Alert_.Store(TError{});
 
         DoInitialize();
+        ChangeState(ELocationState::Enabled);
+
+        YT_LOG_DEBUG("Location repaired (Location: %v)", Id_);
     } catch (const std::exception& ex) {
+        ChangeState(ELocationState::Disabled);
+
         auto error = TError("Failed to repair slot location %v", Config_->Path)
             << ex;
         THROW_ERROR error;
     }
-
-    ChangeState(ELocationState::Enabled);
-
-    YT_LOG_DEBUG("Location repaired (Location: %v)", Id_);
 }
 
 IJobDirectoryManagerPtr TSlotLocation::GetJobDirectoryManager()
@@ -902,12 +905,12 @@ void TSlotLocation::ValidateEnabled() const
 
 void TSlotLocation::Disable(const TError& error)
 {
-    WaitFor(BIND([=, this, this_ = MakeStrong(this)] {
-        // TODO(don-dron): Research and fix unconditional Disabled.
-        if (State_.exchange(ELocationState::Disabled) != ELocationState::Enabled) {
-            return;
-        }
+    // TODO(don-dron): Research and fix unconditional Disabled.
+    if (!ChangeState(ELocationState::Disabling, ELocationState::Enabled)) {
+        return;
+    }
 
+    BIND([=, this, this_ = MakeStrong(this)] {
         Error_.Store(error);
 
         auto alert = TError(
@@ -927,10 +930,11 @@ void TSlotLocation::Disable(const TError& error)
         if (dynamicConfig->AbortOnLocationDisabled) {
             TProgram::Abort(EProgramExitCode::ProgramError);
         }
+
+        YT_VERIFY(ChangeState(ELocationState::Disabled, ELocationState::Disabling));
     })
     .AsyncVia(SerializedHeavyInvoker_)
-    .Run())
-    .ThrowOnError();
+    .Run();
 }
 
 void TSlotLocation::InvokeUpdateDiskResources()
