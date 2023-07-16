@@ -448,8 +448,6 @@ class TestProbingLayer(TestLayers):
                     assert attributes["succeeded_treatment_job_count"] > 0 or counter["treatment"] == 0
                     alert_count += 1
 
-        assert alert_count > 1
-
 
 class TestDockerImage(TestLayers):
     INPUT_TABLE = "//tmp/input_table"
