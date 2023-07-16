@@ -93,7 +93,7 @@ public:
                 /*hintKeys*/ std::nullopt,
                 std::move(nameTable),
                 ChunkReadOptions_,
-                ReaderInterruptionOptions::InterruptibleWithEmptyKey(),
+                TReaderInterruptionOptions::InterruptibleWithEmptyKey(),
                 columnFilter,
                 partitionTag,
                 MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));

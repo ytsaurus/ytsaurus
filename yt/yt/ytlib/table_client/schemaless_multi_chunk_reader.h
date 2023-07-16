@@ -46,14 +46,14 @@ DEFINE_REFCOUNTED_TYPE(ISchemalessMultiChunkReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct ReaderInterruptionOptions
+struct TReaderInterruptionOptions
 {
     bool IsInterruptible;
     int InterruptDescriptorKeyLength;
 
-    static ReaderInterruptionOptions InterruptibleWithEmptyKey();
-    static ReaderInterruptionOptions InterruptibleWithKeyLength(int descriptorKeyLength);
-    static ReaderInterruptionOptions NonInterruptible();
+    static TReaderInterruptionOptions InterruptibleWithEmptyKey();
+    static TReaderInterruptionOptions InterruptibleWithKeyLength(int descriptorKeyLength);
+    static TReaderInterruptionOptions NonInterruptible();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -74,7 +74,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     std::optional<THintKeyPrefixes> hintKeyPrefixes,
     TNameTablePtr nameTable,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-    ReaderInterruptionOptions interruptionOptions,
+    TReaderInterruptionOptions interruptionOptions,
     const TColumnFilter& columnFilter = {},
     std::optional<int> partitionTag = std::nullopt,
     NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager = nullptr);
@@ -90,7 +90,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     std::optional<THintKeyPrefixes> hintKeysUnused,
     TNameTablePtr nameTable,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-    ReaderInterruptionOptions interruptionOptions,
+    TReaderInterruptionOptions interruptionOptions,
     const TColumnFilter& columnFilter = {},
     std::optional<int> partitionTag = std::nullopt,
     NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager = nullptr);

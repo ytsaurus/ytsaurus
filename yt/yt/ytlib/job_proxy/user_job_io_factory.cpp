@@ -184,7 +184,7 @@ ISchemalessMultiChunkReaderPtr CreateRegularReader(
         /*hintKeyPrefixes*/ std::nullopt,
         std::move(nameTable),
         chunkReadOptions,
-        ReaderInterruptionOptions::InterruptibleWithEmptyKey(),
+        TReaderInterruptionOptions::InterruptibleWithEmptyKey(),
         columnFilter,
         /*partitionTag*/ std::nullopt,
         multiReaderMemoryManager->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
@@ -428,7 +428,7 @@ public:
                     /*hintKeyPrefixes*/ std::nullopt,
                     nameTable,
                     ChunkReadOptions_,
-                    ReaderInterruptionOptions::InterruptibleWithKeyLength(std::ssize(sortColumns)),
+                    TReaderInterruptionOptions::InterruptibleWithKeyLength(std::ssize(sortColumns)),
                     columnFilter,
                     /*partitionTag*/ std::nullopt,
                     memoryManager);
@@ -460,7 +460,7 @@ public:
                 /*hintKeyPrefixes*/ std::nullopt,
                 nameTable,
                 ChunkReadOptions_,
-                ReaderInterruptionOptions::InterruptibleWithKeyLength(std::ssize(sortColumns)),
+                TReaderInterruptionOptions::InterruptibleWithKeyLength(std::ssize(sortColumns)),
                 columnFilter,
                 /*partitionTag*/ std::nullopt,
                 memoryManager);
@@ -484,7 +484,7 @@ public:
                 hintKeyPrefixes,
                 nameTable,
                 ChunkReadOptions_,
-                ReaderInterruptionOptions::NonInterruptible(),
+                TReaderInterruptionOptions::NonInterruptible(),
                 columnFilter,
                 /*partitionTag*/ std::nullopt,
                 MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));

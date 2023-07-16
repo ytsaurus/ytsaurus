@@ -1368,7 +1368,7 @@ private:
             /*hintKeys*/ std::nullopt,
             nameTable,
             chunkReadOptions,
-            ReaderInterruptionOptions::InterruptibleWithEmptyKey(),
+            TReaderInterruptionOptions::InterruptibleWithEmptyKey(),
             /*columnFilter*/ {},
             /*partitionTag*/ std::nullopt);
 

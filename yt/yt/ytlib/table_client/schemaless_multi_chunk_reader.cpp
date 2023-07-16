@@ -332,20 +332,20 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ReaderInterruptionOptions ReaderInterruptionOptions::InterruptibleWithEmptyKey()
+TReaderInterruptionOptions TReaderInterruptionOptions::InterruptibleWithEmptyKey()
 {
-    return ReaderInterruptionOptions{true, 0};
+    return TReaderInterruptionOptions{true, 0};
 }
 
-ReaderInterruptionOptions ReaderInterruptionOptions::InterruptibleWithKeyLength(
+TReaderInterruptionOptions TReaderInterruptionOptions::InterruptibleWithKeyLength(
     int descriptorKeyLength)
 {
     return {true, descriptorKeyLength};
 }
 
-ReaderInterruptionOptions ReaderInterruptionOptions::NonInterruptible()
+TReaderInterruptionOptions TReaderInterruptionOptions::NonInterruptible()
 {
-    return ReaderInterruptionOptions{false, -1};
+    return TReaderInterruptionOptions{false, -1};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -579,7 +579,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     std::optional<THintKeyPrefixes> hintKeyPrefixes,
     TNameTablePtr nameTable,
     const TClientChunkReadOptions& chunkReadOptions,
-    ReaderInterruptionOptions interruptionOptions,
+    TReaderInterruptionOptions interruptionOptions,
     const TColumnFilter& columnFilter,
     std::optional<int> partitionTag,
     NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
@@ -627,7 +627,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     std::optional<THintKeyPrefixes> hintKeyPrefixes,
     TNameTablePtr nameTable,
     const TClientChunkReadOptions& chunkReadOptions,
-    ReaderInterruptionOptions interruptionOptions,
+    TReaderInterruptionOptions interruptionOptions,
     const TColumnFilter& columnFilter,
     std::optional<int> partitionTag,
     NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
@@ -1334,7 +1334,7 @@ ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
                 std::nullopt,
                 nameTable,
                 chunkReadOptions,
-                ReaderInterruptionOptions::InterruptibleWithEmptyKey(),
+                TReaderInterruptionOptions::InterruptibleWithEmptyKey(),
                 columnFilter,
                 /*partitionTag*/ std::nullopt,
                 /*multiReaderMemoryManager*/ nullptr);
