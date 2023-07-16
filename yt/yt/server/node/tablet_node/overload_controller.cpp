@@ -329,7 +329,8 @@ void TOverloadController::UpdateStateSnapshot(const TState& state, TSpinLockGuar
     auto snapshot = New<TState>(state);
     guard.Release();
 
-    StateSnapshot_.Exchange(snapshot);
+    StateSnapshot_.Store(std::move(snapshot));
+    ReclaimHazardPointers();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
