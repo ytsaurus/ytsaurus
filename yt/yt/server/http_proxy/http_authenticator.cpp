@@ -88,9 +88,10 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
     const IRequestPtr& request,
     bool disableCsrfTokenCheck)
 {
+    constexpr TStringBuf UserNameHeader = "X-YT-User-Name";
     if (!Config_->RequireAuthentication) {
         TString user = "root";
-        if (auto userNameHeader = request->GetHeaders()->Find("X-YT-Testing-User-Name")) {
+        if (auto userNameHeader = request->GetHeaders()->Find(UserNameHeader)) {
             user = *userNameHeader;
         }
         static const auto UserTicket = TString();
@@ -114,6 +115,7 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
     NTracing::TChildTraceContextGuard authSpan("HttpProxy.Auth");
 
     constexpr TStringBuf AuthorizationHeaderName = "Authorization";
+    const THashSet<TStringBuf> UserImpersonationWhitelist{"yql_agent"};
     if (auto authorizationHeader = request->GetHeaders()->Find(AuthorizationHeaderName)) {
         static const TStringBuf Prefix = "OAuth ";
         if (!authorizationHeader->StartsWith(Prefix)) {
@@ -139,8 +141,23 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
                 return TError(rsp);
             }
 
+            auto authenticationResult = rsp.Value();
+
+            if (auto userHeader = request->GetHeaders()->Find(UserNameHeader)) {
+                if (UserImpersonationWhitelist.contains(authenticationResult.Login)) {
+                    authenticationResult.Login = *userHeader;
+                    authenticationResult.Realm += ":impersonation";
+                } else {
+                    return TError(
+                        NRpc::EErrorCode::InvalidCredentials,
+                        "Client has provided %v header but authenticated user %v is not in impersonation whitelist",
+                        UserNameHeader,
+                        authenticationResult.Login);
+                }
+            }
+
             auto tokenHash = GetCryptoHash(credentials.Token);
-            return TAuthenticationResultAndToken{rsp.Value(), tokenHash};
+            return TAuthenticationResultAndToken{authenticationResult, tokenHash};
         }
     }
 

@@ -6,13 +6,14 @@ from yt_helpers import profiler_factory, read_structured_log, write_log_barrier
 
 from yt_commands import (
     authors, wait, create, ls, get, set, remove, create_user,
-    create_proxy_role, make_ace,
+    create_proxy_role, issue_token, make_ace,
     with_breakpoint, wait_breakpoint, map,
     read_table, write_table, Operation)
 
 from yt.common import YtResponseError
 import yt.packages.requests as requests
 import yt.yson as yson
+import yt_error_codes
 
 import pytest
 
@@ -266,7 +267,7 @@ class TestHttpProxy(HttpProxyTestBase):
     def test_access_checker(self):
         def check_access(proxy_address, user):
             url = "{}/api/v3/get?path=//sys/@config".format(proxy_address)
-            rsp = requests.get(url, headers={"X-YT-Testing-User-Name": user})
+            rsp = requests.get(url, headers={"X-YT-User-Name": user})
             assert rsp.status_code == 200 or rsp.status_code == 403
             return rsp.status_code == 200
 
@@ -349,6 +350,58 @@ class TestHttpProxyRoleFromStaticConfig(HttpProxyTestBase):
         assert get_yson(self._get_proxy_address() + "/hosts") == []
         assert get_yson(self._get_proxy_address() + "/hosts?role=data") == []
         assert get_yson(self._get_proxy_address() + "/hosts?role=ab") == [proxy]
+
+
+class TestHttpProxyAuth(HttpProxyTestBase):
+    @classmethod
+    def setup_class(cls):
+        cls.DELTA_PROXY_CONFIG["auth"] = {
+            "enable_authentication": True,
+        }
+        super(TestHttpProxyAuth, cls).setup_class()
+
+    @authors("mpereskokova")
+    def test_access_on_behalf_of_the_user(self):
+        proxy_address = self._get_proxy_address()
+
+        def create_user_with_token(user):
+            create_user(user)
+            token, _ = issue_token(user)
+            return token
+
+        def check_access(proxy_address, path="/", status_code=200, error_code=None, user=None, token=None):
+            url = "{}/api/v4/get?path={}".format(proxy_address, path)
+            headers = {}
+            if user:
+                headers["X-YT-User-Name"] = user
+            if token:
+                headers["Authorization"] = "OAuth " + token
+            rsp = requests.get(url, headers=headers)
+
+            if error_code is not None :
+                assert json.loads(rsp.content)["code"] == error_code
+
+            assert rsp.status_code in [200, 400, 401]
+            return rsp.status_code == status_code
+
+        yql_agent_token = create_user_with_token("yql_agent")
+        test_user_token = create_user_with_token("test_user")
+
+        wait(lambda: check_access(proxy_address, status_code=200, token=yql_agent_token))
+        wait(lambda: check_access(proxy_address, status_code=200, token=yql_agent_token, user="test_user"))
+        wait(lambda: check_access(proxy_address, status_code=401, token=test_user_token, user="yql_agent"))
+
+        node = "//tmp/dir"
+        create(
+            "map_node",
+            node,
+            attributes={"acl": [
+                {"action": "deny", "subjects": ["yql_agent"], "permissions": ["read"]},
+                {"action": "allow", "subjects": ["test_user"], "permissions": ["read"]},
+            ]},
+        )
+        wait(lambda: check_access(proxy_address, path=node, status_code=400, error_code=yt_error_codes.AuthorizationErrorCode, token=yql_agent_token))
+        wait(lambda: check_access(proxy_address, path=node, status_code=200, token=yql_agent_token, user="test_user"))
 
 
 class TestHttpProxyFraming(HttpProxyTestBase):
@@ -642,7 +695,7 @@ class TestHttpProxyFormatConfig(HttpProxyTestBase, _TestProxyFormatConfigBase):
             "X-YT-Header-Format": self._write_format("yson", header_format, tabular=False),
             "X-YT-Output-Format": self._write_format(header_format, output_format, tabular=False),
             "X-YT-Input-Format": self._write_format(header_format, input_format, tabular=False),
-            "X-YT-Testing-User-Name": user,
+            "X-YT-User-Name": user,
         }
         rsp = requests.request(
             http_method,
