@@ -26,6 +26,8 @@ target_link_libraries(yt-server-query_tracker PUBLIC
   server-lib-cypress_election
   server-lib-cypress_registrar
   server-lib-misc
+  library-query-engine
+  library-query-row_comparer
   yt-ytlib-query_tracker_client
 )
 target_sources(yt-server-query_tracker PRIVATE
