@@ -206,20 +206,22 @@ TFuture<void> TSlotManager::InitializeEnvironment()
         return MakeFuture(error);
     }
 
-    Locations_.clear();
-
-    int locationIndex = 0;
-    for (const auto& locationConfig : Config_->Locations) {
+    {
         auto guard = WriterGuard(LocationsLock_);
-        Locations_.push_back(New<TSlotLocation>(
-            std::move(locationConfig),
-            Bootstrap_,
-            Format("slot%v", locationIndex),
-            JobEnvironment_->CreateJobDirectoryManager(locationConfig->Path, locationIndex),
-            Config_->EnableTmpfs,
-            SlotCount_,
-            BIND_NO_PROPAGATE(&IJobEnvironment::GetUserId, JobEnvironment_)));
-        ++locationIndex;
+        Locations_.clear();
+
+        int locationIndex = 0;
+        for (const auto& locationConfig : Config_->Locations) {
+            Locations_.push_back(New<TSlotLocation>(
+                std::move(locationConfig),
+                Bootstrap_,
+                Format("slot%v", locationIndex),
+                JobEnvironment_->CreateJobDirectoryManager(locationConfig->Path, locationIndex),
+                Config_->EnableTmpfs,
+                SlotCount_,
+                BIND_NO_PROPAGATE(&IJobEnvironment::GetUserId, JobEnvironment_)));
+            ++locationIndex;
+        }
     }
 
     for (const auto& numaNode : Config_->NumaNodes) {
@@ -767,6 +769,8 @@ void TSlotManager::BuildOrchidYson(TFluentMap fluent) const
 void TSlotManager::InitMedia(const NChunkClient::TMediumDirectoryPtr& mediumDirectory)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
+    auto guard = ReaderGuard(LocationsLock_);
 
     for (const auto& location : Locations_) {
         auto oldDescriptor = location->GetMediumDescriptor();
