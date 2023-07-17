@@ -485,6 +485,7 @@ private:
                     "Data node reported %v heartbeat with invalid location directory: "
                     "location does not have owning node "
                     "(NodeAddress: %v, LocationUuid: %v)",
+                    fullHeartbeat ? "full" : "incremental",
                     node->GetDefaultAddress(),
                     uuid);
                 THROW_ERROR_EXCEPTION(
