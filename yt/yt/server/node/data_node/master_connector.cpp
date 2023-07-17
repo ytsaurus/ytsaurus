@@ -180,7 +180,7 @@ public:
         int storedChunkCount = 0;
 
         auto addStoredChunkInfo = [&] (const IChunkPtr& chunk) {
-            if (CellTagFromId(chunk->GetId()) == cellTag) {
+            if (chunk->GetLocation()->ShouldPublish() && CellTagFromId(chunk->GetId()) == cellTag) {
                 *req->add_chunks() = BuildAddChunkInfo(chunk, &locationDirectory);
                 auto mediumIndex = chunk->GetLocation()->GetMediumDescriptor().Index;
                 ++chunkCounts[mediumIndex];
@@ -232,6 +232,10 @@ public:
         int chunkEventCount = 0;
         delta->ReportedAdded.clear();
         for (const auto& chunk : delta->AddedSinceLastSuccess) {
+            if (!chunk->GetLocation()->ShouldPublish()) {
+                continue;
+            }
+
             YT_VERIFY(delta->ReportedAdded.emplace(chunk, chunk->GetVersion()).second);
             *req->add_added_chunks() = BuildAddChunkInfo(chunk, &locationDirectory);
             ++chunkEventCount;
@@ -239,6 +243,10 @@ public:
 
         delta->ReportedRemoved.clear();
         for (const auto& chunk : delta->RemovedSinceLastSuccess) {
+            if (!chunk->GetLocation()->ShouldPublish()) {
+                continue;
+            }
+
             YT_VERIFY(delta->ReportedRemoved.insert(chunk).second);
             *req->add_removed_chunks() = BuildRemoveChunkInfo(chunk, &locationDirectory);
             ++chunkEventCount;
@@ -252,6 +260,11 @@ public:
                     mediumChangedBacklogCount);
                 break;
             }
+
+            if (!chunk->GetLocation()->ShouldPublish()) {
+                continue;
+            }
+
             YT_VERIFY(delta->ReportedChangedMedium.insert({chunk, oldMediumIndex}).second);
             auto removeChunkInfo = BuildRemoveChunkInfo(chunk, &locationDirectory, /*onMediumChange*/ true);
             removeChunkInfo.set_medium_index(oldMediumIndex);

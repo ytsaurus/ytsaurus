@@ -522,7 +522,6 @@ bool TChunkLocation::ShouldPublish() const
 
     return state == ELocationState::Enabled ||
         (ChunkStore_->ShouldPublishDisabledLocations() &&
-            state != ELocationState::Crashed &&
             GetUuid() != InvalidChunkLocationUuid &&
             GetUuid() != EmptyChunkLocationUuid);
 }
