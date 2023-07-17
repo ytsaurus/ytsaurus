@@ -41,7 +41,8 @@ def _get_compression_ratio(table, codec, client, spec):
                           client=client)
 
         run_merge(input, tmp, mode="ordered", spec=spec, client=client)
-        return get(tmp + "/@compression_ratio", client=client)
+        ratio = get(tmp + "/@compression_ratio", client=client)
+        return None if ratio < 0.00001 else ratio
 
 
 def _check_codec(table, codec_name, codec_value, client):
@@ -97,7 +98,8 @@ def transform(source_table, destination_table=None, erasure_codec=None, compress
         if optimize_for is not None:
             set(dst + "/@optimize_for", optimize_for, client=client)
 
-        if get(src + "/@row_count", client=client) == 0:
+        src_attributes = get(src, attributes=["row_count", "dynamic", "chunk_row_count"], client=client).attributes
+        if src_attributes.get("row_count") == 0 or src_attributes.get("dynamic") and src_attributes.get("chunk_row_count") == 0:
             logger.debug("Table %s is empty", src)
             return False
 
@@ -108,9 +110,9 @@ def transform(source_table, destination_table=None, erasure_codec=None, compress
             logger.info("Table %s already has proper codecs", dst)
             return False
 
-        if compression_codec is not None:
-            ratio = _get_compression_ratio(src, compression_codec, spec=spec, client=client)
-        else:
+        ratio = _get_compression_ratio(src, compression_codec, spec=spec, client=client) if compression_codec is not None else None
+
+        if ratio is None:
             ratio = get(src + "/@compression_ratio", client=client)
 
         data_size_per_job = max(
