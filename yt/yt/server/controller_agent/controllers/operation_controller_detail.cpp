@@ -1172,13 +1172,13 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
 
         CollectTotals();
 
-        InitializeJobExperiment();
-
         CustomMaterialize();
 
         InitializeHistograms();
 
         InitializeSecurityTags();
+
+        InitializeJobExperiment();
 
         YT_LOG_INFO("Tasks prepared (RowBufferCapacity: %v)", RowBuffer->GetCapacity());
 
