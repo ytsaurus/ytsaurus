@@ -74,7 +74,7 @@ public:
         return grpcLock;
     }
 
-    TGuardedGrpcCompletionQueuePtr* PickRandomGuardedCompletionQueue()
+    TGuardedGrpcCompletionQueue* PickRandomGuardedCompletionQueue()
     {
         EnsureConfigured();
         return Threads_[RandomNumber<size_t>() % Threads_.size()]->GetGuardedCompletionQueue();
@@ -96,14 +96,14 @@ private:
             Start();
         }
 
-        TGuardedGrpcCompletionQueuePtr* GetGuardedCompletionQueue()
+        TGuardedGrpcCompletionQueue* GetGuardedCompletionQueue()
         {
             return &GuardedCompletionQueue_;
         }
 
     private:
         TGrpcLibraryLockPtr LibraryLock_;
-        TGuardedGrpcCompletionQueuePtr GuardedCompletionQueue_;
+        TGuardedGrpcCompletionQueue GuardedCompletionQueue_;
 
         void StopPrologue() override
         {
@@ -220,7 +220,7 @@ TGrpcLibraryLockPtr TDispatcher::GetLibraryLock()
     return Impl_->GetLibraryLock();
 }
 
-TGuardedGrpcCompletionQueuePtr* TDispatcher::PickRandomGuardedCompletionQueue()
+TGuardedGrpcCompletionQueue* TDispatcher::PickRandomGuardedCompletionQueue()
 {
     return Impl_->PickRandomGuardedCompletionQueue();
 }

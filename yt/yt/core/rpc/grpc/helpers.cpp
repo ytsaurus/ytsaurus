@@ -527,39 +527,55 @@ std::optional<TString> ParseIssuerFromX509(TStringBuf x509String)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TGuardedGrpcCompletionQueuePtr::TGuardedGrpcCompletionQueuePtr(TGrpcCompletionQueuePtr completionQueuePtr)
-    : CompletionQueuePtr_(std::move(completionQueuePtr))
+TGuardedGrpcCompletionQueue::TGuardedGrpcCompletionQueue(TGrpcCompletionQueuePtr completionQueue)
+    : CompletionQueue_(std::move(completionQueue))
 { }
 
-std::optional<TGuardedGrpcCompletionQueuePtr::TLockGuard<NConcurrency::TAsyncLockReaderTraits>> TGuardedGrpcCompletionQueuePtr::TryLock()
+std::optional<TGuardedGrpcCompletionQueue::TLockGuard> TGuardedGrpcCompletionQueue::TryLock()
 {
-    auto guard = TLockGuard<NConcurrency::TAsyncLockReaderTraits>(*this);
+    auto guard = ReaderGuard(SpinLock_);
     if (State_ != EState::Opened) {
         return std::nullopt;
     }
-    return std::optional{std::move(guard)};
+    LocksCount_.fetch_add(1, std::memory_order::acquire);
+    return std::optional<TGuardedGrpcCompletionQueue::TLockGuard>(this);
 }
 
-void TGuardedGrpcCompletionQueuePtr::Shutdown()
+void TGuardedGrpcCompletionQueue::Shutdown()
 {
-    auto guard = TLockGuard<NConcurrency::TAsyncLockWriterTraits>(*this);
-    if (State_ == EState::Shutdown) {
-        return;
+    {
+        auto guard = WriterGuard(SpinLock_);
+        if (State_ == EState::Shutdown) {
+            return;
+        }
+        State_ = EState::Shutdown;
+        if (LocksCount_ != 0) {
+            guard.Release();
+            ReleaseDone_.Wait();
+        }
     }
-    State_ = EState::Shutdown;
-    grpc_completion_queue_shutdown(CompletionQueuePtr_.Unwrap());
+    grpc_completion_queue_shutdown(CompletionQueue_.Unwrap());
 }
 
-void TGuardedGrpcCompletionQueuePtr::Reset()
+void TGuardedGrpcCompletionQueue::Reset()
 {
-    auto guard = TLockGuard<NConcurrency::TAsyncLockWriterTraits>(*this);
+    auto guard = WriterGuard(SpinLock_);
     YT_VERIFY(State_ == EState::Shutdown);
-    CompletionQueuePtr_.Reset();
+    CompletionQueue_.Reset();
 }
 
-grpc_completion_queue* TGuardedGrpcCompletionQueuePtr::UnwrapUnsafe()
+grpc_completion_queue* TGuardedGrpcCompletionQueue::UnwrapUnsafe()
 {
-    return CompletionQueuePtr_.Unwrap();
+    return CompletionQueue_.Unwrap();
+}
+
+void TGuardedGrpcCompletionQueue::Release()
+{
+    auto guard = ReaderGuard(SpinLock_);
+    if (LocksCount_.fetch_sub(1, std::memory_order::release) == 0 && State_ == EState::Shutdown) {
+        guard.Release();
+        ReleaseDone_.NotifyOne();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

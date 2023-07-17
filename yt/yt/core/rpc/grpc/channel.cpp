@@ -440,7 +440,7 @@ private:
 
         // Completion queue must be accessed under read lock
         // in order to prohibit creating new requests after shutting completion queue down.
-        TGuardedGrpcCompletionQueuePtr* GuardedCompletionQueue_;
+        TGuardedGrpcCompletionQueue* GuardedCompletionQueue_;
         const NLogging::TLogger& Logger;
 
         NYT::NTracing::TTraceContextHandler TraceContext_;
