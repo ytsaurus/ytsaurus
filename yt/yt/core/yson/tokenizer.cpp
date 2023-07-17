@@ -5,23 +5,21 @@ namespace NYT::NYson {
 ////////////////////////////////////////////////////////////////////////////////
 
 TTokenizer::TTokenizer(TStringBuf input)
-    : Input(input)
-    , Parsed(0)
-    , Position(0)
+    : Input_(input)
 { }
 
 bool TTokenizer::ParseNext()
 {
-    Input = Input.Tail(Parsed);
-    Token.Reset();
-    Parsed = Lexer.GetToken(Input, &Token);
-    Position += Parsed;
+    Input_ = Input_.Tail(Parsed_);
+    Token_.Reset();
+    Parsed_ = Lexer_.ParseToken(Input_, &Token_);
+    Position_ += Parsed_;
     return !CurrentToken().IsEmpty();
 }
 
 const TToken& TTokenizer::CurrentToken() const
 {
-    return Token;
+    return Token_;
 }
 
 ETokenType TTokenizer::GetCurrentType() const
@@ -31,17 +29,17 @@ ETokenType TTokenizer::GetCurrentType() const
 
 TStringBuf TTokenizer::GetCurrentSuffix() const
 {
-    return Input.Tail(Parsed);
+    return Input_.Tail(Parsed_);
 }
 
 TStringBuf TTokenizer::CurrentInput() const
 {
-    return Input;
+    return Input_;
 }
 
 size_t TTokenizer::GetPosition() const
 {
-    return Position;
+    return Position_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

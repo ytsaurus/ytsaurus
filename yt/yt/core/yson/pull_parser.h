@@ -87,7 +87,7 @@ public:
     Y_FORCE_INLINE const char* End() const;
     Y_FORCE_INLINE void Advance(size_t bytes);
     Y_FORCE_INLINE bool IsFinished() const;
-    ui64 GetTotalReadSize() const;
+    size_t GetTotalReadSize() const;
 
     void StartRecording(IOutputStream* out);
     void CancelRecording();
@@ -139,7 +139,7 @@ public:
     Y_FORCE_INLINE size_t GetNestingLevel() const;
     Y_FORCE_INLINE bool IsOnValueBoundary(size_t nestingLevel) const;
 
-    ui64 GetTotalReadSize() const;
+    size_t GetTotalReadSize() const;
 
     // Return error attributes about yson context that is being parsed.
     std::vector<TErrorAttribute> GetErrorAttributes() const;

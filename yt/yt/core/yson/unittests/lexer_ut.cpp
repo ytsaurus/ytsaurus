@@ -28,13 +28,13 @@ public:
     void TestConsume(TStringBuf input)
     {
         TToken token;
-        Lexer->GetToken(input, &token);
+        Lexer->ParseToken(input, &token);
     }
 
     TToken GetToken(TStringBuf input)
     {
         TToken token;
-        Lexer->GetToken(input, &token);
+        Lexer->ParseToken(input, &token);
         return token;
     }
 

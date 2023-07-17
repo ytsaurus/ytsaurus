@@ -14,7 +14,7 @@ TZeroCopyInputStreamReader::TZeroCopyInputStreamReader(IZeroCopyInput* reader)
     : Reader_(reader)
 { }
 
-ui64 TZeroCopyInputStreamReader::GetTotalReadSize() const
+size_t TZeroCopyInputStreamReader::GetTotalReadSize() const
 {
     return TotalReadBlocksSize_ + (Current_ - Begin_);
 }
@@ -424,7 +424,7 @@ TYsonPullParser::TYsonPullParser(IZeroCopyInput* input, EYsonType ysonType, int 
     , YsonType_(ysonType)
 { }
 
-ui64 TYsonPullParser::GetTotalReadSize() const
+size_t TYsonPullParser::GetTotalReadSize() const
 {
     return Lexer_.GetTotalReadSize();
 }

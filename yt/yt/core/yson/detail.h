@@ -538,8 +538,9 @@ class TLexerBase
 private:
     typedef TCodedStream<TCharStream<TBlockStream, TPositionInfo<EnableLinePositionInfo>>> TBaseStream;
 
+    const i64 MemoryLimit_;
+
     std::vector<char> Buffer_;
-    const size_t MemoryLimit_;
 
     void Insert(const char* begin, const char* end)
     {
@@ -555,25 +556,25 @@ private:
 
     void ReserveAndCheckMemoryLimit(size_t size)
     {
-        const auto minReserveSize = Buffer_.size() + size;
+        auto minReserveSize = Buffer_.size() + size;
 
         // NB. some implementations of std::vector reserve exactly requested size.
         // We explicitly set exponential growth here so PushBack that uses this function
         // keep amortized complexity of O(1).
         auto reserveSize = Max(Buffer_.capacity() * 2, minReserveSize);
-        if (MemoryLimit_) {
-            if (minReserveSize > MemoryLimit_) {
-                THROW_ERROR_EXCEPTION(
-                    "Memory limit exceeded while parsing YSON stream: allocated %v, limit %v",
-                    minReserveSize,
-                    MemoryLimit_);
-            }
-            // MemoryLimit_ >= minReserveSize  ==>  reserveSize >= minReserveSize
-            reserveSize = Min(reserveSize, MemoryLimit_);
+        if (minReserveSize > static_cast<size_t>(MemoryLimit_)) {
+            THROW_ERROR_EXCEPTION(
+                "Memory limit exceeded while parsing YSON stream: allocated %v, limit %v",
+                minReserveSize,
+                MemoryLimit_);
         }
+
+        // MemoryLimit_ >= minReserveSize  ==>  reserveSize >= minReserveSize
+        reserveSize = Min(reserveSize, static_cast<size_t>(MemoryLimit_));
         if (minReserveSize <= Buffer_.capacity()) {
             return;
         }
+
         YT_ASSERT(reserveSize >= minReserveSize);
         Buffer_.reserve(reserveSize);
     }
