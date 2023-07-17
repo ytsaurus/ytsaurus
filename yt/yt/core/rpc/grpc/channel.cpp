@@ -47,19 +47,20 @@ public:
         return AttemptTracer_.GetError();
     }
 
+    void RecordAnnotation(y_absl::string_view /*annotation*/) override
+    { }
+
 private:
     class TAttemptTracer
         : public CallAttemptTracer
     {
     public:
         TAttemptTracer()
-            : Error_(GRPC_ERROR_NONE)
+            : Error_(y_absl::OkStatus())
         { }
 
         ~TAttemptTracer() override
-        {
-            GRPC_ERROR_UNREF(Error_.get());
-        }
+        { }
 
         void RecordSendInitialMetadata(
             grpc_metadata_batch* /*send_initial_metadata*/) override
@@ -92,21 +93,23 @@ private:
         {
             auto current = Error_.get();
             Error_.set(cancelError);
-            GRPC_ERROR_UNREF(current);
         }
 
         void RecordEnd(const gpr_timespec& /*latency*/) override
+        { }
+
+        void RecordAnnotation(y_absl::string_view /*annotation*/) override
         { }
 
         TError GetError()
         {
             auto error = Error_.get();
             intptr_t statusCode;
-            if (!grpc_error_get_int(error, GRPC_ERROR_INT_GRPC_STATUS, &statusCode)) {
+            if (!grpc_error_get_int(error, grpc_core::StatusIntProperty::kRpcStatus, &statusCode)) {
                 statusCode = GRPC_STATUS_UNKNOWN;
             }
             TString statusDetail;
-            if (!grpc_error_get_str(error, GRPC_ERROR_STR_DESCRIPTION, &statusDetail)) {
+            if (!grpc_error_get_str(error, grpc_core::StatusStrProperty::kDescription, &statusDetail)) {
                 statusDetail = "Unknown error";
             }
 
