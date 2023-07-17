@@ -30,6 +30,7 @@
 #include <cmath>
 
 namespace NYT::NClickHouseServer {
+namespace {
 
 using namespace NDecimal;
 using namespace NLogging;
@@ -38,7 +39,7 @@ using namespace NTableClient;
 using namespace NYson;
 using namespace NYTree;
 
-static TLogger Logger("Test");
+TLogger Logger("Test");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,18 +50,6 @@ DB::ColumnPtr MakeColumn(DB::DataTypePtr dataType, std::vector<DB::Field> fields
         column->insert(std::move(field));
     }
     return column;
-}
-
-TUnversionedValue MakeUnversionedValue(TStringBuf yson)
-{
-    // Workaround for use-after-free in MakeUnversionedValue for string values.
-    // Works only if there is no escaping in string literal.
-    if (yson.starts_with('"') && yson.ends_with('"') && yson.size() >= 2) {
-        return MakeUnversionedStringValue(yson.substr(1, yson.size() - 2));
-    } else {
-        TStatelessLexer lexer;
-        return NTableClient::MakeUnversionedValue(yson, /* id */ 0, lexer);
-    }
 }
 
 std::vector<TStringBuf> ToStringBufs(std::vector<TString>& ysonStrings)
@@ -92,9 +81,8 @@ public:
     {
         EXPECT_EQ(*expectedLogicalType, *Converter_->GetLogicalType());
         std::vector<TUnversionedValue> expectedValues;
-        TStatelessLexer lexer;
         for (const auto& yson : expectedValueYsons) {
-            expectedValues.emplace_back(MakeUnversionedValue(yson));
+            expectedValues.push_back(MakeUnversionedValue(yson));
         }
         auto actualValueRange = Converter_->ConvertColumnToUnversionedValues(column);
         std::vector<TUnversionedValue> actualValues(actualValueRange.begin(), actualValueRange.end());
@@ -120,8 +108,7 @@ public:
         }
         ASSERT_EQ(expectedNodes.size(), actualNodes.size());
         int index = 0;
-        for (const auto& [expectedNode, actualNode] : Zip(expectedNodes, actualNodes))
-        {
+        for (const auto& [expectedNode, actualNode] : Zip(expectedNodes, actualNodes)) {
             EXPECT_TRUE(AreNodesEqual(expectedNode, actualNode))
                 << "Yson strings define different nodes at index " << index << ":" << std::endl
                 << "  expected: " << ConvertToYsonString(expectedNode, EYsonFormat::Text).AsStringBuf() << std::endl
@@ -133,6 +120,14 @@ public:
 protected:
     TCompositeSettingsPtr Settings_;
     std::optional<TCHYTConverter> Converter_;
+
+private:
+    const TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
+
+    TUnversionedValue MakeUnversionedValue(TStringBuf yson)
+    {
+        return TryDecodeUnversionedAnyValue(MakeUnversionedAnyValue(yson), RowBuffer_);
+    }
 };
 
 TEST_F(TTestCHYTConversion, TestInt16)
@@ -464,4 +459,5 @@ TEST_F(TTestCHYTConversion, TestNamedTupleInt8Double)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NYT::NClickHouseServer

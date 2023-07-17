@@ -204,9 +204,6 @@ private:
         YT_VERIFY(tableReadSpec.DataSourceDirectory->DataSources().size() == 1);
         const auto& dataSource = tableReadSpec.DataSourceDirectory->DataSources().front();
         TableSchema_ = dataSource.Schema();
-        if (TableSchema_->HasHunkColumns()) {
-            THROW_ERROR_EXCEPTION("Cannot read table with hunk columns");
-        }
         OmittedInaccessibleColumns_ = dataSource.OmittedInaccessibleColumns();
         Reader_ = CreateAppropriateSchemalessMultiChunkReader(
             tableReaderOptions,

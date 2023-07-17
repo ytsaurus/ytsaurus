@@ -1385,49 +1385,33 @@ TYsonString UnversionedValueToYson(TUnversionedValue unversionedValue, bool enab
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToAny(
-    TRowBuffer* rowBuffer,
-    TUnversionedValue* result,
-    TUnversionedValue* value,
-    EYsonFormat format)
+TUnversionedValue EncodeUnversionedAnyValue(TUnversionedValue value, TRowBuffer* rowBuffer)
 {
-    TStringStream stream;
-    NYson::TYsonWriter writer(&stream, format);
+    YT_ASSERT(None(value.Flags));
 
-    switch (value->Type) {
+    TStringStream stream;
+    NYson::TYsonWriter writer(&stream);
+
+    switch (value.Type) {
         case EValueType::Null:
-            *result = MakeUnversionedNullValue();
-            return;
         case EValueType::Any:
-        case EValueType::Composite: {
-            if (format == EYsonFormat::Binary) {
-                *result = *value;
-                return;
-            } else {
-                writer.OnRaw(value->AsStringBuf());
-            }
+        case EValueType::Composite:
+            return value;
+        case EValueType::String:
+            writer.OnStringScalar(value.AsStringBuf());
             break;
-        }
-        case EValueType::String: {
-            writer.OnStringScalar(value->AsStringBuf());
+        case EValueType::Int64:
+            writer.OnInt64Scalar(value.Data.Int64);
             break;
-        }
-        case EValueType::Int64: {
-            writer.OnInt64Scalar(value->Data.Int64);
+        case EValueType::Uint64:
+            writer.OnUint64Scalar(value.Data.Uint64);
             break;
-        }
-        case EValueType::Uint64: {
-            writer.OnUint64Scalar(value->Data.Uint64);
+        case EValueType::Double:
+            writer.OnDoubleScalar(value.Data.Double);
             break;
-        }
-        case EValueType::Double: {
-            writer.OnDoubleScalar(value->Data.Double);
+        case EValueType::Boolean:
+            writer.OnBooleanScalar(value.Data.Boolean);
             break;
-        }
-        case EValueType::Boolean: {
-            writer.OnBooleanScalar(value->Data.Boolean);
-            break;
-        }
         case EValueType::Min:
         case EValueType::Max:
         case EValueType::TheBottom:
@@ -1436,8 +1420,52 @@ void ToAny(
 
     writer.Flush();
 
-    *result = rowBuffer->CaptureValue(
-        MakeUnversionedAnyValue(TStringBuf(stream.Data(), stream.Size())));
+    return rowBuffer->CaptureValue(MakeUnversionedAnyValue(TStringBuf(stream.Data(), stream.Size())));
+}
+
+TUnversionedValue TryDecodeUnversionedAnyValue(
+    TUnversionedValue value,
+    const TRowBufferPtr& rowBuffer)
+{
+    YT_VERIFY(value.Type == EValueType::Any);
+    YT_VERIFY(None(value.Flags & EValueFlags::Hunk));
+
+    TStatelessLexer lexer; // this will not allocate on happy path
+    TToken token;
+    lexer.ParseToken(value.AsStringBuf(), &token);
+    YT_VERIFY(!token.IsEmpty());
+
+    switch (token.GetType()) {
+        case ETokenType::Int64:
+            return MakeUnversionedInt64Value(token.GetInt64Value(), value.Id, value.Flags);
+
+        case ETokenType::Uint64:
+            return MakeUnversionedUint64Value(token.GetUint64Value(), value.Id, value.Flags);
+
+        case ETokenType::String: {
+            auto decodedValue = MakeUnversionedStringValue(token.GetStringValue(), value.Id, value.Flags);
+            if (!token.IsBinaryString()) {
+                if (!rowBuffer) {
+                    THROW_ERROR_EXCEPTION("Cannot decode non-binary YSON string in \"any\"-typed column %v",
+                        value.Id);
+                }
+                decodedValue = rowBuffer->CaptureValue(decodedValue);
+            }
+            return decodedValue;
+        }
+
+        case ETokenType::Double:
+            return MakeUnversionedDoubleValue(token.GetDoubleValue(), value.Id, value.Flags);
+
+        case ETokenType::Boolean:
+            return MakeUnversionedBooleanValue(token.GetBooleanValue(), value.Id, value.Flags);
+
+        case ETokenType::Hash:
+            return MakeUnversionedSentinelValue(EValueType::Null, value.Id, value.Flags);
+
+        default:
+            return value;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

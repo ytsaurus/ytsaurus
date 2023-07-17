@@ -163,12 +163,11 @@ int CompareRows(const TPIValue* lhsBegin, const TPIValue* lhsEnd, const TPIValue
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToAny(TRowBuffer* rowBuffer, TPIValue* result, TPIValue* value, NYson::EYsonFormat format)
+void ToAny(TPIValue* result, TPIValue* value, TRowBuffer* rowBuffer)
 {
     auto unversionedResult = BorrowFromPI(result);
     auto unversionedValue = BorrowFromPI(value);
-
-    ToAny(rowBuffer, unversionedResult.GetValue(), unversionedValue.GetValue(), format);
+    *unversionedResult.GetValue() = EncodeUnversionedAnyValue(*unversionedValue.GetValue(), rowBuffer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

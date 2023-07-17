@@ -9,8 +9,6 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/yt/core/yson/lexer.h>
-
 namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -111,8 +109,6 @@ private:
 
     TCompactVector<char, DefaultKeyBufferCapacity> KeyBuffer_;
     TMutableUnversionedRow Key_;
-
-    NYson::TStatelessLexer Lexer_;
 
     TUnversionedValue TransformAnyValue(TUnversionedValue value);
     int GetChunkKeyColumnCount() const;

@@ -332,7 +332,13 @@ NYson::TYsonString UnversionedValueToYson(TUnversionedValue unversionedValue, bo
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToAny(TRowBuffer* context, TUnversionedValue* result, TUnversionedValue* value, NYson::EYsonFormat format = NYson::EYsonFormat::Binary);
+TUnversionedValue EncodeUnversionedAnyValue(
+    TUnversionedValue value,
+    TRowBuffer* rowBuffer);
+
+TUnversionedValue TryDecodeUnversionedAnyValue(
+    TUnversionedValue value,
+    const TRowBufferPtr& rowBuffer = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

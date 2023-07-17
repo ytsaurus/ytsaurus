@@ -132,7 +132,7 @@ int CompareRowValues(const TPIValue& lhs, const TPIValue& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToAny(TRowBuffer* context, TPIValue* result, TPIValue* value, NYson::EYsonFormat format = NYson::EYsonFormat::Binary);
+void ToAny(TPIValue* result, TPIValue* value, TRowBuffer* rowBuffer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

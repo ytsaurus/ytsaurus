@@ -1634,7 +1634,9 @@ void ToAny(TExpressionContext* context, TValue* result, TValue* value)
 {
     auto piResult = BorrowFromNonPI(result);
     auto piValue = BorrowFromNonPI(value);
-    ToAny(context, piResult.GetPIValue(), piValue.GetPIValue());
+    // TODO(babenko): for some reason, flags are garbage here.
+    value->Flags = {};
+    ToAny(piResult.GetPIValue(), piValue.GetPIValue(), context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

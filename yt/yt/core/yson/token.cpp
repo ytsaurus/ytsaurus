@@ -61,18 +61,10 @@ const TToken TToken::EndOfStream;
 
 TToken::TToken()
     : Type_(ETokenType::EndOfStream)
-    , Int64Value_(0)
-    , Uint64Value_(0)
-    , DoubleValue_(0.0)
-    , BooleanValue_(false)
 { }
 
 TToken::TToken(ETokenType type)
     : Type_(type)
-    , Int64Value_(0)
-    , Uint64Value_(0)
-    , DoubleValue_(0.0)
-    , BooleanValue_(false)
 {
     switch (type) {
         case ETokenType::String:
@@ -86,42 +78,29 @@ TToken::TToken(ETokenType type)
     }
 }
 
-TToken::TToken(TStringBuf stringValue)
+TToken::TToken(TStringBuf stringValue, bool binaryString)
     : Type_(ETokenType::String)
     , StringValue_(stringValue)
-    , Int64Value_(0)
-    , Uint64Value_(0)
-    , DoubleValue_(0.0)
-    , BooleanValue_(false)
+    , BinaryString_(binaryString)
 { }
 
 TToken::TToken(i64 int64Value)
     : Type_(ETokenType::Int64)
     , Int64Value_(int64Value)
-    , Uint64Value_(0)
-    , DoubleValue_(0.0)
 { }
 
 TToken::TToken(ui64 uint64Value)
     : Type_(ETokenType::Uint64)
-    , Int64Value_(0)
     , Uint64Value_(uint64Value)
-    , DoubleValue_(0.0)
-    , BooleanValue_(false)
 { }
 
 TToken::TToken(double doubleValue)
     : Type_(ETokenType::Double)
-    , Int64Value_(0)
-    , Uint64Value_(0)
     , DoubleValue_(doubleValue)
-    , BooleanValue_(false)
 { }
 
 TToken::TToken(bool booleanValue)
     : Type_(ETokenType::Boolean)
-    , Int64Value_(0)
-    , DoubleValue_(0.0)
     , BooleanValue_(booleanValue)
 { }
 
@@ -134,6 +113,12 @@ TStringBuf TToken::GetStringValue() const
 {
     ExpectType(ETokenType::String);
     return StringValue_;
+}
+
+bool TToken::IsBinaryString() const
+{
+    ExpectType(ETokenType::String);
+    return BinaryString_;
 }
 
 i64 TToken::GetInt64Value() const
