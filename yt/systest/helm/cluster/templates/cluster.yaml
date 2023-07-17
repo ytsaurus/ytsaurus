@@ -110,6 +110,10 @@ spec:
     instanceGroup:
       instanceCount: 1
 
+  yqlAgents:
+    instanceGroup:
+      instanceCount: 1
+
   ui:
     serviceType: NodePort
     instanceCount: 1
