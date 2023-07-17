@@ -58,6 +58,7 @@ void TLambda1RawParDo::LoadState(IInputStream& input)
 {
     ui64 functionWrapper, underlyingFunction;
     ::Load(&input, functionWrapper);
+    ::Load(&input, FnAttributes_);
     ::Load(&input, WrapperType_);
     ::Load(&input, underlyingFunction);
     ::Load(&input, InputTag_);
@@ -69,6 +70,7 @@ void TLambda1RawParDo::LoadState(IInputStream& input)
 void TLambda1RawParDo::SaveState(IOutputStream& output) const
 {
     ::Save(&output, reinterpret_cast<ui64>(WrapperFunction_));
+    ::Save(&output, FnAttributes_);
     ::Save(&output, WrapperType_);
     ::Save(&output, reinterpret_cast<ui64>(UnderlyingFunction_));
     ::Save(&output, InputTag_);
