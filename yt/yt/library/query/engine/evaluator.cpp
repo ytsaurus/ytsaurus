@@ -198,6 +198,7 @@ private:
                 try {
                     cookie.EndInsert(compileWithLogging());
                 } catch (const std::exception& ex) {
+                    YT_LOG_DEBUG(ex, "Failed to compile a query fragment");
                     cookie.Cancel(TError(ex).Wrap("Failed to compile a query fragment"));
                 }
             }
