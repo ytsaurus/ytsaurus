@@ -1,13 +1,5 @@
 #include "counters.h"
 
-#if defined(_linux_) && !defined(_musl_)
-#include <linux/perf_event.h>
-#include <linux/hw_breakpoint.h>
-
-#include <sys/ioctl.h>
-#include <sys/syscall.h>
-#endif
-
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/singleton.h>
@@ -18,9 +10,15 @@
 
 #include <library/cpp/yt/system/handle_eintr.h>
 
+#include <linux/perf_event.h>
+
+#include <sys/syscall.h>
+
 namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace {
 
 struct TPerfEventDescription final
 {
@@ -28,12 +26,12 @@ struct TPerfEventDescription final
     int EventConfig;
 };
 
-constexpr TPerfEventDescription SoftwareEvent(const int perfName) noexcept
+constexpr TPerfEventDescription SoftwareEvent(int perfName) noexcept
 {
     return {PERF_TYPE_SOFTWARE, perfName};
 }
 
-constexpr TPerfEventDescription HardwareEvent(const int perfName) noexcept
+constexpr TPerfEventDescription HardwareEvent(int perfName) noexcept
 {
     return {PERF_TYPE_HARDWARE, perfName};
 }
@@ -51,15 +49,15 @@ enum class ECacheActionType
 };
 
 TPerfEventDescription CacheEvent(
-    const int perfName,
-    const ECacheActionType eventType,
-    const ECacheEventType eventResultType) noexcept
+    int perfName,
+    ECacheActionType eventType,
+    ECacheEventType eventResultType) noexcept
 {
     constexpr auto kEventNameShift = 0;
     constexpr auto kCacheActionTypeShift = 8;
     constexpr auto kEventTypeShift = 16;
 
-    const int cacheActionTypeForConfig = [&] {
+    int cacheActionTypeForConfig = [&] {
         switch (eventType) {
         case ECacheActionType::Load:
             return PERF_COUNT_HW_CACHE_OP_READ;
@@ -70,7 +68,7 @@ TPerfEventDescription CacheEvent(
         }
     }();
 
-    const int eventTypeForConfig = [&] {
+    int eventTypeForConfig = [&] {
         switch (eventResultType) {
         case ECacheEventType::Access:
             return PERF_COUNT_HW_CACHE_RESULT_ACCESS;
@@ -81,7 +79,7 @@ TPerfEventDescription CacheEvent(
         }
     }();
 
-    const int eventConfig = (perfName << kEventNameShift) |
+    int eventConfig = (perfName << kEventNameShift) |
         (cacheActionTypeForConfig << kCacheActionTypeShift) |
         (eventTypeForConfig << kEventTypeShift);
 
@@ -91,70 +89,70 @@ TPerfEventDescription CacheEvent(
 TPerfEventDescription GetDescription(EPerfEventType type)
 {
     switch (type) {
-    case EPerfEventType::CpuCycles:
-        return HardwareEvent(PERF_COUNT_HW_CPU_CYCLES);
-    case EPerfEventType::Instructions:
-        return HardwareEvent(PERF_COUNT_HW_INSTRUCTIONS);
-    case EPerfEventType::CacheReferences:
-        return HardwareEvent(PERF_COUNT_HW_CACHE_REFERENCES);
-    case EPerfEventType::CacheMisses:
-        return HardwareEvent(PERF_COUNT_HW_CACHE_MISSES);
-    case EPerfEventType::BranchInstructions:
-        return HardwareEvent(PERF_COUNT_HW_BRANCH_INSTRUCTIONS);
-    case EPerfEventType::BranchMisses:
-        return HardwareEvent(PERF_COUNT_HW_BRANCH_MISSES);
-    case EPerfEventType::BusCycles:
-        return HardwareEvent(PERF_COUNT_HW_BUS_CYCLES);
-    case EPerfEventType::StalledCyclesFrontend:
-        return HardwareEvent(PERF_COUNT_HW_STALLED_CYCLES_FRONTEND);
-    case EPerfEventType::StalledCyclesBackend:
-        return HardwareEvent(PERF_COUNT_HW_STALLED_CYCLES_BACKEND);
-    case EPerfEventType::RefCpuCycles:
-        return HardwareEvent(PERF_COUNT_HW_REF_CPU_CYCLES);
+        case EPerfEventType::CpuCycles:
+            return HardwareEvent(PERF_COUNT_HW_CPU_CYCLES);
+        case EPerfEventType::Instructions:
+            return HardwareEvent(PERF_COUNT_HW_INSTRUCTIONS);
+        case EPerfEventType::CacheReferences:
+            return HardwareEvent(PERF_COUNT_HW_CACHE_REFERENCES);
+        case EPerfEventType::CacheMisses:
+            return HardwareEvent(PERF_COUNT_HW_CACHE_MISSES);
+        case EPerfEventType::BranchInstructions:
+            return HardwareEvent(PERF_COUNT_HW_BRANCH_INSTRUCTIONS);
+        case EPerfEventType::BranchMisses:
+            return HardwareEvent(PERF_COUNT_HW_BRANCH_MISSES);
+        case EPerfEventType::BusCycles:
+            return HardwareEvent(PERF_COUNT_HW_BUS_CYCLES);
+        case EPerfEventType::StalledCyclesFrontend:
+            return HardwareEvent(PERF_COUNT_HW_STALLED_CYCLES_FRONTEND);
+        case EPerfEventType::StalledCyclesBackend:
+            return HardwareEvent(PERF_COUNT_HW_STALLED_CYCLES_BACKEND);
+        case EPerfEventType::RefCpuCycles:
+            return HardwareEvent(PERF_COUNT_HW_REF_CPU_CYCLES);
 
 
-    case EPerfEventType::PageFaults:
-        return SoftwareEvent(PERF_COUNT_SW_PAGE_FAULTS);
-    case EPerfEventType::MinorPageFaults:
-        return SoftwareEvent(PERF_COUNT_SW_PAGE_FAULTS_MIN);
-    case EPerfEventType::MajorPageFaults:
-        return SoftwareEvent(PERF_COUNT_SW_PAGE_FAULTS_MAJ);
+        case EPerfEventType::PageFaults:
+            return SoftwareEvent(PERF_COUNT_SW_PAGE_FAULTS);
+        case EPerfEventType::MinorPageFaults:
+            return SoftwareEvent(PERF_COUNT_SW_PAGE_FAULTS_MIN);
+        case EPerfEventType::MajorPageFaults:
+            return SoftwareEvent(PERF_COUNT_SW_PAGE_FAULTS_MAJ);
 
         // `cpu-clock` is a bit broken according to this: https://stackoverflow.com/a/56967896
-    case EPerfEventType::CpuClock:
-        return SoftwareEvent(PERF_COUNT_SW_CPU_CLOCK);
-    case EPerfEventType::TaskClock:
-        return SoftwareEvent(PERF_COUNT_SW_TASK_CLOCK);
-    case EPerfEventType::ContextSwitches:
-        return SoftwareEvent(PERF_COUNT_SW_CONTEXT_SWITCHES);
-    case EPerfEventType::CpuMigrations:
-        return SoftwareEvent(PERF_COUNT_SW_CPU_MIGRATIONS);
-    case EPerfEventType::AlignmentFaults:
-        return SoftwareEvent(PERF_COUNT_SW_ALIGNMENT_FAULTS);
-    case EPerfEventType::EmulationFaults:
-        return SoftwareEvent(PERF_COUNT_SW_EMULATION_FAULTS);
-    case EPerfEventType::DataTlbReferences:
-        return CacheEvent(PERF_COUNT_HW_CACHE_DTLB, ECacheActionType::Load, ECacheEventType::Access);
-    case EPerfEventType::DataTlbMisses:
-        return CacheEvent(PERF_COUNT_HW_CACHE_DTLB, ECacheActionType::Load, ECacheEventType::Miss);
-    case EPerfEventType::DataStoreTlbReferences:
-        return CacheEvent(PERF_COUNT_HW_CACHE_DTLB, ECacheActionType::Store, ECacheEventType::Access);
-    case EPerfEventType::DataStoreTlbMisses:
-        return CacheEvent(PERF_COUNT_HW_CACHE_DTLB, ECacheActionType::Store, ECacheEventType::Miss);
+        case EPerfEventType::CpuClock:
+            return SoftwareEvent(PERF_COUNT_SW_CPU_CLOCK);
+        case EPerfEventType::TaskClock:
+            return SoftwareEvent(PERF_COUNT_SW_TASK_CLOCK);
+        case EPerfEventType::ContextSwitches:
+            return SoftwareEvent(PERF_COUNT_SW_CONTEXT_SWITCHES);
+        case EPerfEventType::CpuMigrations:
+            return SoftwareEvent(PERF_COUNT_SW_CPU_MIGRATIONS);
+        case EPerfEventType::AlignmentFaults:
+            return SoftwareEvent(PERF_COUNT_SW_ALIGNMENT_FAULTS);
+        case EPerfEventType::EmulationFaults:
+            return SoftwareEvent(PERF_COUNT_SW_EMULATION_FAULTS);
+        case EPerfEventType::DataTlbReferences:
+            return CacheEvent(PERF_COUNT_HW_CACHE_DTLB, ECacheActionType::Load, ECacheEventType::Access);
+        case EPerfEventType::DataTlbMisses:
+            return CacheEvent(PERF_COUNT_HW_CACHE_DTLB, ECacheActionType::Load, ECacheEventType::Miss);
+        case EPerfEventType::DataStoreTlbReferences:
+            return CacheEvent(PERF_COUNT_HW_CACHE_DTLB, ECacheActionType::Store, ECacheEventType::Access);
+        case EPerfEventType::DataStoreTlbMisses:
+            return CacheEvent(PERF_COUNT_HW_CACHE_DTLB, ECacheActionType::Store, ECacheEventType::Miss);
 
         // Apparently it doesn't make sense to treat these values as relative:
         // https://stackoverflow.com/questions/49933319/how-to-interpret-perf-itlb-loads-itlb-load-misses
-    case EPerfEventType::InstructionTlbReferences:
-        return CacheEvent(PERF_COUNT_HW_CACHE_ITLB, ECacheActionType::Load, ECacheEventType::Access);
-    case EPerfEventType::InstructionTlbMisses:
-        return CacheEvent(PERF_COUNT_HW_CACHE_ITLB, ECacheActionType::Load, ECacheEventType::Miss);
-    case EPerfEventType::LocalMemoryReferences:
-        return CacheEvent(PERF_COUNT_HW_CACHE_NODE, ECacheActionType::Load, ECacheEventType::Access);
-    case EPerfEventType::LocalMemoryMisses:
-        return CacheEvent(PERF_COUNT_HW_CACHE_NODE, ECacheActionType::Load, ECacheEventType::Miss);
+        case EPerfEventType::InstructionTlbReferences:
+            return CacheEvent(PERF_COUNT_HW_CACHE_ITLB, ECacheActionType::Load, ECacheEventType::Access);
+        case EPerfEventType::InstructionTlbMisses:
+            return CacheEvent(PERF_COUNT_HW_CACHE_ITLB, ECacheActionType::Load, ECacheEventType::Miss);
+        case EPerfEventType::LocalMemoryReferences:
+            return CacheEvent(PERF_COUNT_HW_CACHE_NODE, ECacheActionType::Load, ECacheEventType::Access);
+        case EPerfEventType::LocalMemoryMisses:
+            return CacheEvent(PERF_COUNT_HW_CACHE_NODE, ECacheActionType::Load, ECacheEventType::Miss);
 
-    default:
-        YT_ABORT();
+        default:
+            YT_ABORT();
     }
 }
 
@@ -177,7 +175,7 @@ int OpenPerfEvent(int tid, int eventType, int eventConfig)
     return fd;
 }
 
-ui64 FetchPerfCounter(const int fd)
+ui64 FetchPerfCounter(int fd)
 {
     ui64 num{};
     if (HandleEintr(read, fd, &num, sizeof(num)) != sizeof(num)) {
@@ -187,14 +185,7 @@ ui64 FetchPerfCounter(const int fd)
     return num;
 }
 
-void SetPerfEventEnableMode(const bool enable, const int fd)
-{
-    const auto ioctlArg = enable ? PERF_EVENT_IOC_ENABLE : PERF_EVENT_IOC_DISABLE;
-    if (ioctl(fd, ioctlArg, 0) == -1) {
-        THROW_ERROR_EXCEPTION("Failed to %s perf event counter", enable ? "enable" : "disable")
-            << TError::FromSystem();
-    }
-}
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -239,8 +230,7 @@ void EnablePerfCounters()
             TProfiler{category}.AddFuncCounter(name, owner, [counter=owner->Counters.back().get()] () {
                 return counter->Read();
             });
-        } catch (const std::exception& ex) {
-            // ...
+        } catch (const std::exception&) {
         }
     };
 
