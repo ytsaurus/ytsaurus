@@ -89,6 +89,7 @@ TTimers::TTimers(const NYT::NApi::IClientPtr ytClient, NYT::NYPath::TYPath ytPat
 
 void TTimers::ReInit()
 {
+    const auto guard = RAIILock();
     Y_VERIFY(false == PopulateInProgress_);
     TimerIndex_.clear();
     TimerInFly_.clear();
@@ -225,18 +226,23 @@ void TTimers::PopulateIndex()
         return;
     }
 
-    DeletedTimers_.clear();
-    auto topTimers = YtSelectIndex();
-    for (auto& timer : topTimers) {
-        if (DeletedTimers_.contains(timer)) {
-            continue;
+    try {
+        DeletedTimers_.clear();
+        auto topTimers = YtSelectIndex();
+        for (auto& timer : topTimers) {
+            if (DeletedTimers_.contains(timer)) {
+                continue;
+            }
+            const TTimer::TShardId trueShardId = GetShardId_(timer.GetKey().GetKey());
+            if (ShardId_ != trueShardId) {
+                Migrate(timer, trueShardId);
+            } else {
+                TimerIndex_.insert(timer);
+            }
         }
-        const TTimer::TShardId trueShardId = GetShardId_(timer.GetKey().GetKey());
-        if (ShardId_ != trueShardId) {
-            Migrate(timer, trueShardId);
-        } else {
-            TimerIndex_.insert(timer);
-        }
+    } catch (...) {
+        PopulateInProgress_.store(false);
+        throw;
     }
     PopulateInProgress_.store(false);
 }
