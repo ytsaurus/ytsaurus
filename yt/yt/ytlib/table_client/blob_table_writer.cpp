@@ -7,24 +7,19 @@
 
 #include <yt/yt/ytlib/table_client/config.h>
 
-#include <yt/yt/core/yson/lexer.h>
-
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/helpers.h>
 
 namespace NYT::NTableClient {
 
 using namespace NYson;
 using namespace NConcurrency;
-
-using NConcurrency::WaitFor;
-using NCypressClient::TTransactionId;
-using NChunkClient::TChunkListId;
-using NChunkClient::TTrafficMeterPtr;
-using NLogging::TLogger;
+using namespace NCypressClient;
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,7 +39,6 @@ TBlobTableWriter::TBlobTableWriter(
         transactionId,
         chunkListId))
 {
-
     YT_LOG_INFO("Creating blob writer");
 
     Buffer_.Reserve(PartSize_);
@@ -56,12 +50,11 @@ TBlobTableWriter::TBlobTableWriter(
         BlobIdColumnIds_.emplace_back(nameTable->GetIdOrThrow(column.Name()));
     }
 
-    TStatelessLexer lexer;
     TUnversionedOwningRowBuilder builder;
 
     YT_VERIFY(blobIdColumnValues.size() == blobTableSchema.BlobIdColumns.size());
     for (size_t i = 0; i < BlobIdColumnIds_.size(); ++i) {
-        builder.AddValue(MakeUnversionedValue(blobIdColumnValues[i].AsStringBuf(), BlobIdColumnIds_[i], lexer));
+        builder.AddValue(TryDecodeUnversionedAnyValue(MakeUnversionedAnyValue(blobIdColumnValues[i].AsStringBuf(), BlobIdColumnIds_[i])));
     }
     BlobIdColumnValues_ = builder.FinishRow();
 

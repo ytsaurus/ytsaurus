@@ -2,14 +2,12 @@
 
 #include "column_reader_detail.h"
 
-#include <yt/yt/ytlib/table_client/helpers.h>
-#include <yt/yt/core/yson/lexer.h>
+#include <yt/yt/client/table_client/helpers.h>
 
 namespace NYT::NTableChunkFormat {
 
 using namespace NTableClient;
 using namespace NProto;
-using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,10 +55,7 @@ public:
                 ptr += ReadRowValue(ptr, &value);
 
                 if (value.Type == EValueType::Any) {
-                    value = MakeUnversionedValue(
-                        value.AsStringBuf(),
-                        value.Id,
-                        Lexer_);
+                    value = TryDecodeUnversionedAnyValue(value);
                 }
 
                 auto id = ChunkToReaderIdMapping_[value.Id];
@@ -100,8 +95,6 @@ private:
     const char* Data_;
 
     i64 SegmentRowIndex_ = 0;
-
-    TStatelessLexer Lexer_;
 
     i64 GetSegmentRowIndex(i64 rowIndex) const
     {

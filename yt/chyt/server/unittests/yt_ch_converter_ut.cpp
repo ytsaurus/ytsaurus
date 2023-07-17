@@ -39,6 +39,7 @@
 #include <Core/Field.h>
 
 namespace NYT::NClickHouseServer {
+namespace {
 
 using namespace NDecimal;
 using namespace NLogging;
@@ -47,14 +48,14 @@ using namespace NTableClient;
 using namespace NYson;
 using namespace NYTree;
 
-static TLogger Logger("Test");
+TLogger Logger("Test");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void AppendVector(std::vector<TString>& lhs, std::vector<TString>& rhs)
 {
     lhs.insert(lhs.end(), rhs.begin(), rhs.end());
-};
+}
 
 void ValidateTypeEquality(const DB::DataTypePtr& actualType, const DB::DataTypePtr& expectedType)
 {
@@ -69,7 +70,7 @@ void ValidateTypeEquality(const DB::DataTypePtr& actualType, const DB::DataTypeP
 //! Empty string stands for ConsumeNulls(1) call.
 using TYsonStringBufs = std::vector<TYsonStringBuf>;
 using TUnversionedValues = std::vector<TUnversionedValue>;
-using TYtColumn = IUnversionedColumnarRowBatch::TColumn*;
+using TYTColumn = IUnversionedColumnarRowBatch::TColumn*;
 
 void DoConsume(TYTCHConverter& converter, TYsonStringBufs ysons)
 {
@@ -87,7 +88,7 @@ void DoConsume(TYTCHConverter& converter, TUnversionedValues values)
     converter.ConsumeUnversionedValues(values);
 }
 
-void DoConsume(TYTCHConverter& converter, TYtColumn ytColumn)
+void DoConsume(TYTCHConverter& converter, TYTColumn ytColumn)
 {
     converter.ConsumeYtColumn(*ytColumn);
 }
@@ -153,7 +154,6 @@ TYsonStringBufs ToYsonStringBufs(std::vector<TString>& ysonStrings)
             result.emplace_back(ysonString);
         }
     }
-
     return result;
 }
 
@@ -161,12 +161,11 @@ std::pair<TUnversionedValues, std::any> YsonStringBufsToVariadicUnversionedValue
 {
     auto rowBuffer = New<TRowBuffer>();
     TUnversionedValues result;
-    TStatelessLexer lexer;
     for (const auto& yson : ysons) {
         if (yson) {
-            result.emplace_back(MakeUnversionedValue(yson.AsStringBuf(), /* id */ 0, lexer));
+            result.push_back(TryDecodeUnversionedAnyValue(MakeUnversionedAnyValue(yson.AsStringBuf()), rowBuffer));
         } else {
-            result.emplace_back(MakeUnversionedNullValue());
+            result.push_back(MakeUnversionedNullValue());
         }
         result.back() = rowBuffer->CaptureValue(result.back());
     }
@@ -187,7 +186,7 @@ std::pair<TUnversionedValues, std::any> YsonStringBufsToAnyUnversionedValues(TYs
     return {result, rowBuffer};
 }
 
-std::pair<TYtColumn, std::any> UnversionedValuesToYtColumn(TUnversionedValues values, TColumnSchema columnSchema)
+std::pair<TYTColumn, std::any> UnversionedValuesToYtColumn(TUnversionedValues values, TColumnSchema columnSchema)
 {
     TDataBlockWriter blockWriter;
     auto writer = CreateUnversionedColumnWriter(
@@ -1303,4 +1302,5 @@ TEST(TTestKeyConversion, TestNulls)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NYT::NClickHouseServer

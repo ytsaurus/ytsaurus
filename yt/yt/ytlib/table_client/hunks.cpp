@@ -21,6 +21,7 @@
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/versioned_reader.h>
 #include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/helpers.h>
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 
@@ -1225,6 +1226,9 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
     auto setValuePayload = [] (TUnversionedValue* value, TRef payload) {
         SetValueRef(value, payload);
         value->Flags &= ~EValueFlags::Hunk;
+        if (value->Type == EValueType::Any) {
+            *value = TryDecodeUnversionedAnyValue(*value);
+        }
     };
 
     int inlineHunkValueCount = 0;

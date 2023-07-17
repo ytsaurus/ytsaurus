@@ -148,39 +148,6 @@ void PipeReaderToWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// NB: not using TYsonString here to avoid copying.
-TUnversionedValue MakeUnversionedValue(TStringBuf ysonString, int id, TStatelessLexer& lexer)
-{
-    TToken token;
-    lexer.ParseToken(ysonString, &token);
-    YT_VERIFY(!token.IsEmpty());
-
-    switch (token.GetType()) {
-        case ETokenType::Int64:
-            return MakeUnversionedInt64Value(token.GetInt64Value(), id);
-
-        case ETokenType::Uint64:
-            return MakeUnversionedUint64Value(token.GetUint64Value(), id);
-
-        case ETokenType::String:
-            return MakeUnversionedStringValue(token.GetStringValue(), id);
-
-        case ETokenType::Double:
-            return MakeUnversionedDoubleValue(token.GetDoubleValue(), id);
-
-        case ETokenType::Boolean:
-            return MakeUnversionedBooleanValue(token.GetBooleanValue(), id);
-
-        case ETokenType::Hash:
-            return MakeUnversionedSentinelValue(EValueType::Null, id);
-
-        default:
-            return MakeUnversionedAnyValue(ysonString, id);
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void ValidateKeyColumnCount(
     int tableKeyColumnCount,
     int chunkKeyColumnCount,

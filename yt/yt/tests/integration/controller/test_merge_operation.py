@@ -2250,6 +2250,34 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         ]
         assert expected == read_table("//tmp/table0")
 
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_mr_any_value_with_hunks(self, optimize_for):
+        # TODO(babenko): remove this once 23.1 binaries are updated.
+        if self.__class__.__name__ == "TestMergeCommandsCompatNewCA":
+            pytest.skip("Compat test is currently disabled")
+
+        create("table", "//tmp/t", attributes={
+            "optimize_for": optimize_for,
+            "schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "any", "max_inline_hunk_size": 10},
+            ],
+        })
+
+        rows = [{"key": 0, "value": "0"}, {"key": 1, "value": [{}, {}]}, {"key": 2, "value": "z" * 100}]
+        write_table("//tmp/t", rows)
+
+        merge(
+            in_="//tmp/t",
+            out="//tmp/t",
+            spec={
+                "force_transform": True,
+                "mode": "sorted",
+            }
+        )
+
+        assert read_table("//tmp/t") == rows
 
 ##################################################################
 

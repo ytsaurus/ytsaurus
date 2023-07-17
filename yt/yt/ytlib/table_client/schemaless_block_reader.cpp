@@ -6,6 +6,7 @@
 #include <yt/yt/client/table_client/key_bound.h>
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/helpers.h>
 
 #include <yt/yt/core/misc/algorithm_helpers.h>
 
@@ -150,17 +151,21 @@ TKey THorizontalBlockReader::GetKey() const
 
 TUnversionedValue THorizontalBlockReader::TransformAnyValue(TUnversionedValue value)
 {
-    if (value.Type == EValueType::Any) {
-        auto data = value.AsStringBuf();
-        // Try to unpack any value.
-        if (value.Id < CompositeColumnFlags_.size() && CompositeColumnFlags_[value.Id]) {
-            value.Type = EValueType::Composite;
-        } else {
-            value = MakeUnversionedValue(data, value.Id, Lexer_);
-        }
+    if (value.Type != EValueType::Any) {
+        return value;
     }
 
-    return value;
+    if (value.Id < CompositeColumnFlags_.size() && CompositeColumnFlags_[value.Id]) {
+        value.Type = EValueType::Composite;
+        return value;
+    }
+
+    if (value.Id < HunkColumnFlags_.size() && HunkColumnFlags_[value.Id]) {
+        // Leave this any value to hunk decoding reader.
+        return value;
+    }
+
+    return TryDecodeUnversionedAnyValue(value);
 }
 
 int THorizontalBlockReader::GetChunkKeyColumnCount() const
@@ -179,7 +184,7 @@ TMutableUnversionedRow THorizontalBlockReader::GetRow(TChunkedMemoryPool* memory
     auto row = TMutableUnversionedRow::Allocate(memoryPool, totalValueCount);
     int valueCount = 0;
 
-    auto pushRegularValue = [&]() {
+    auto pushRegularValue = [&] {
         TUnversionedValue value;
         CurrentPointer_ += ReadRowValue(CurrentPointer_, &value);
 
@@ -191,7 +196,7 @@ TMutableUnversionedRow THorizontalBlockReader::GetRow(TChunkedMemoryPool* memory
                 &value);
         }
 
-        const auto remappedId = ChunkToReaderIdMapping_[value.Id];
+        auto remappedId = ChunkToReaderIdMapping_[value.Id];
         if (remappedId >= 0) {
             value = TransformAnyValue(value);
             value.Id = remappedId;

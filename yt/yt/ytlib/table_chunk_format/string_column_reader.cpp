@@ -2,13 +2,11 @@
 
 #include "column_reader_detail.h"
 #include "private.h"
-#include "helpers.h"
 
 #include <yt/yt/ytlib/table_client/helpers.h>
 
 #include <yt/yt/client/table_client/schema.h>
-
-#include <yt/yt/core/yson/lexer.h>
+#include <yt/yt/client/table_client/helpers.h>
 
 #include <yt/yt/core/misc/bitmap.h>
 #include <yt/yt/core/misc/bit_packed_unsigned_vector.h>
@@ -29,7 +27,6 @@ class TStringValueExtractorBase
 protected:
     const NProto::TStringSegmentMeta& StringMeta_;
 
-    mutable TStatelessLexer Lexer_;
     using TOffsetsReader = TBitPackedUnsignedVectorReader<ui32, Scan>;
     TOffsetsReader OffsetReader_;
     TRef StringData_;
@@ -56,11 +53,11 @@ protected:
         } else if constexpr (ValueType == EValueType::Composite) {
             *value = MakeUnversionedCompositeValue(string, id, flags);
         } else if constexpr (ValueType == EValueType::Any) {
+            *value = MakeUnversionedAnyValue(string, id, flags);
             if constexpr (UnpackValue) {
-                YT_ASSERT(flags == EValueFlags::None);
-                *value = MakeUnversionedValue(string, id, Lexer_);
-            } else {
-                *value = MakeUnversionedAnyValue(string, id, flags);
+                if (None(flags & EValueFlags::Hunk)) {
+                    *value = TryDecodeUnversionedAnyValue(*value);
+                }
             }
         } else {
             // Effectively static_assert(false);
@@ -82,7 +79,7 @@ public:
     {
         auto dictionaryIndex = IndexReader_[valueIndex];
         if (dictionaryIndex == 0) {
-            *value = MakeUnversionedSentinelValue(EValueType::Null, id, flags);
+            *value = MakeUnversionedSentinelValue(EValueType::Null, id, flags & ~EValueFlags::Hunk);
         } else {
             SetStringValue(value, dictionaryIndex - 1, id, flags);
         }
@@ -128,7 +125,7 @@ public:
     void ExtractValue(TUnversionedValue* value, i64 valueIndex, int id, EValueFlags flags) const
     {
         if (NullBitmap_[valueIndex]) {
-            *value = MakeUnversionedSentinelValue(EValueType::Null, id, flags);
+            *value = MakeUnversionedSentinelValue(EValueType::Null, id, flags & ~EValueFlags::Hunk);
         } else {
             SetStringValue(value, valueIndex, id, flags);
         }

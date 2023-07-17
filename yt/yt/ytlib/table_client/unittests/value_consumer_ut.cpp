@@ -3,7 +3,9 @@
 #include "yt/yt/client/unittests/mock/table_value_consumer.h"
 
 #include <yt/yt/ytlib/table_client/helpers.h>
+
 #include <yt/yt/client/table_client/value_consumer.h>
+#include <yt/yt/client/table_client/helpers.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -62,80 +64,83 @@ TEST_P(TValueConsumerTypeConversionTest, TestBehaviour)
         schema,
         typeConversionConfig);
 
-    // For convenience, we will specify values in yson. To use MakeUnversionedValue, we need a stateless lexer.
-    TStatelessLexer lexer;
+    // For convenience, we will specify values in YSON.
+    auto rowBuffer = New<TRowBuffer>();
+    auto makeValue = [=] (TStringBuf yson, int id) {
+        return TryDecodeUnversionedAnyValue(MakeUnversionedAnyValue(yson, id), rowBuffer);
+    };
 
     // Helper functions for testing the behaviour of a value consumer type conversion.
     // Both |source| and |result| are yson-encoded unversioned values.
     // ExpectConversion(column, source, condition, result) <=>
     //     <=> check that if |condition| is held, |source| transforms to
     //         |result| in column |column|, otherwise |source| remains as is.
-    auto ExpectConversion = [&mock, &lexer] (TString column, TString source, bool condition, TString result = "") {
+    auto expectConversion = [&] (TString column, TString source, bool condition, TString result = "") {
         int id = mock.GetNameTable()->GetId(column);
         if (condition) {
-            EXPECT_CALL(mock, OnMyValue(SameAs(MakeUnversionedValue(result, id, lexer))));
+            EXPECT_CALL(mock, OnMyValue(SameAs(makeValue(result, id))));
         } else {
-            EXPECT_CALL(mock, OnMyValue(SameAs(MakeUnversionedValue(source, id, lexer))));
+            EXPECT_CALL(mock, OnMyValue(SameAs(makeValue(source, id))));
         }
-        mock.OnValue(MakeUnversionedValue(source, id, lexer));
+        mock.OnValue(makeValue(source, id));
     };
 
-    auto ExpectError = [&mock, &lexer] (TString column, TString source, bool condition) {
+    auto expectError = [&] (TString column, TString source, bool condition) {
         int id = mock.GetNameTable()->GetId(column);
         if (condition) {
-            EXPECT_THROW(mock.OnValue(MakeUnversionedValue(source, id, lexer)), std::exception);
+            EXPECT_THROW(mock.OnValue(makeValue(source, id)), std::exception);
         } else {
-            EXPECT_CALL(mock, OnMyValue(SameAs(MakeUnversionedValue(source, id, lexer))));
-            mock.OnValue(MakeUnversionedValue(source, id, lexer));
+            EXPECT_CALL(mock, OnMyValue(SameAs(makeValue(source, id))));
+            mock.OnValue(makeValue(source, id));
         }
     };
 
-    static const bool Never = false;
+    constexpr bool Never = false;
 
     // Arbitrary type can be used in Any column without conversion under any circumstances.
     for (TString value : {"42", "18u", "abc", "%true", "3.14", "#", "{}"}) {
-        ExpectConversion("any", value, Never);
+        expectConversion("any", value, Never);
     }
 
-    ExpectConversion("int64", "42u", typeConversionConfig->EnableIntegralTypeConversion, "42");
-    ExpectError("int64", "9223372036854775808u", typeConversionConfig->EnableIntegralTypeConversion); // 2^63 leads to an integer overflow.
-    ExpectConversion("int64", "\"-42\"", typeConversionConfig->EnableStringToAllConversion, "-42");
-    ExpectError("int64", "abc", typeConversionConfig->EnableStringToAllConversion);
+    expectConversion("int64", "42u", typeConversionConfig->EnableIntegralTypeConversion, "42");
+    expectError("int64", "9223372036854775808u", typeConversionConfig->EnableIntegralTypeConversion); // 2^63 leads to an integer overflow.
+    expectConversion("int64", "\"-42\"", typeConversionConfig->EnableStringToAllConversion, "-42");
+    expectError("int64", "abc", typeConversionConfig->EnableStringToAllConversion);
     for (TString value : {"42", "%true", "3.14", "#", "{}"}) {
-        ExpectConversion("int64", value, Never);
+        expectConversion("int64", value, Never);
     }
 
-    ExpectConversion("uint64", "42", typeConversionConfig->EnableIntegralTypeConversion, "42u");
-    ExpectError("uint64", "-42", typeConversionConfig->EnableIntegralTypeConversion);
-    ExpectConversion("uint64", "\"234\"", typeConversionConfig->EnableStringToAllConversion, "234u");
-    ExpectConversion("uint64", "\"234u\"", typeConversionConfig->EnableStringToAllConversion, "234u");
-    ExpectError("uint64", "abc", typeConversionConfig->EnableStringToAllConversion);
+    expectConversion("uint64", "42", typeConversionConfig->EnableIntegralTypeConversion, "42u");
+    expectError("uint64", "-42", typeConversionConfig->EnableIntegralTypeConversion);
+    expectConversion("uint64", "\"234\"", typeConversionConfig->EnableStringToAllConversion, "234u");
+    expectConversion("uint64", "\"234u\"", typeConversionConfig->EnableStringToAllConversion, "234u");
+    expectError("uint64", "abc", typeConversionConfig->EnableStringToAllConversion);
     for (TString value : {"42u", "%true", "3.14", "#", "{}"}) {
-        ExpectConversion("uint64", value, Never);
+        expectConversion("uint64", value, Never);
     }
 
-    ExpectConversion("string", "42u", typeConversionConfig->EnableAllToStringConversion, "\"42\"");
-    ExpectConversion("string", "42", typeConversionConfig->EnableAllToStringConversion, "\"42\"");
-    ExpectConversion("string", "3.14", typeConversionConfig->EnableAllToStringConversion, "\"3.14\"");
-    ExpectConversion("string", "%true", typeConversionConfig->EnableAllToStringConversion, "\"true\"");
-    ExpectConversion("string", "%false", typeConversionConfig->EnableAllToStringConversion, "\"false\"");
+    expectConversion("string", "42u", typeConversionConfig->EnableAllToStringConversion, "\"42\"");
+    expectConversion("string", "42", typeConversionConfig->EnableAllToStringConversion, "\"42\"");
+    expectConversion("string", "3.14", typeConversionConfig->EnableAllToStringConversion, "\"3.14\"");
+    expectConversion("string", "%true", typeConversionConfig->EnableAllToStringConversion, "\"true\"");
+    expectConversion("string", "%false", typeConversionConfig->EnableAllToStringConversion, "\"false\"");
     for (TString value : {"abc", "#", "{}"}) {
-        ExpectConversion("string", value, Never);
+        expectConversion("string", value, Never);
     }
 
-    ExpectConversion("boolean", "true", typeConversionConfig->EnableStringToAllConversion, "%true");
-    ExpectConversion("boolean", "false", typeConversionConfig->EnableStringToAllConversion, "%false");
-    ExpectError("boolean", "abc", typeConversionConfig->EnableStringToAllConversion);
+    expectConversion("boolean", "true", typeConversionConfig->EnableStringToAllConversion, "%true");
+    expectConversion("boolean", "false", typeConversionConfig->EnableStringToAllConversion, "%false");
+    expectError("boolean", "abc", typeConversionConfig->EnableStringToAllConversion);
     for (TString value : {"42", "18u", "%true", "3.14", "#", "{}"}) {
-        ExpectConversion("boolean", value, Never);
+        expectConversion("boolean", value, Never);
     }
 
-    ExpectConversion("double", "-42", typeConversionConfig->EnableIntegralToDoubleConversion, "-42.0");
-    ExpectConversion("double", "42u", typeConversionConfig->EnableIntegralToDoubleConversion, "42.0");
-    ExpectConversion("double", "\"1.23\"", typeConversionConfig->EnableStringToAllConversion, "1.23");
-    ExpectError("double", "abc", typeConversionConfig->EnableStringToAllConversion);
+    expectConversion("double", "-42", typeConversionConfig->EnableIntegralToDoubleConversion, "-42.0");
+    expectConversion("double", "42u", typeConversionConfig->EnableIntegralToDoubleConversion, "42.0");
+    expectConversion("double", "\"1.23\"", typeConversionConfig->EnableStringToAllConversion, "1.23");
+    expectError("double", "abc", typeConversionConfig->EnableStringToAllConversion);
     for (TString value : {"3.14", "%true", "#", "{}"}) {
-        ExpectConversion("double", value, Never);
+        expectConversion("double", value, Never);
     }
 }
 

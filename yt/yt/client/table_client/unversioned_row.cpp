@@ -41,7 +41,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TString SerializedNullRow("");
+const TString SerializedNullRow;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1574,6 +1574,18 @@ std::pair<TSharedRange<TUnversionedRow>, i64> CaptureRows(
 
 void Serialize(const TUnversionedValue& value, IYsonConsumer* consumer, bool anyAsRaw)
 {
+    if (Any(value.Flags)) {
+        consumer->OnBeginAttributes();
+        if (Any(value.Flags & EValueFlags::Aggregate)) {
+            consumer->OnKeyedItem("aggregate");
+            consumer->OnBooleanScalar(true);
+        }
+        if (Any(value.Flags & EValueFlags::Hunk)) {
+            consumer->OnKeyedItem("hunk");
+            consumer->OnBooleanScalar(true);
+        }
+        consumer->OnEndAttributes();
+    }
     auto type = value.Type;
     switch (type) {
         case EValueType::Int64:

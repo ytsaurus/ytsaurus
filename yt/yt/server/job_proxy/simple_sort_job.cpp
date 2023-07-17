@@ -27,8 +27,6 @@ using namespace NObjectClient;
 using namespace NYTree;
 using namespace NYson;
 
-using NChunkClient::TDataSliceDescriptor;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSimpleSortJob

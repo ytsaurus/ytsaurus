@@ -2107,6 +2107,30 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert read_table("//tmp/t_out") == [{"x": x} for x in range(N)]
         assert get("//tmp/t_out/@chunk_count") == 1
 
+    @authors("babenko")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    @pytest.mark.parametrize("schemaful", [False, True])
+    def test_simple_sort_any_values(self, optimize_for, schemaful):
+        N = 100
+        p = [x for x in range(N)]
+        random.shuffle(p)
+        attributes = {
+            "optimize_for": optimize_for,
+        }
+        if schemaful:
+            attributes["schema"] = [{"name": "x", "type": "any"}]
+        create("table", "//tmp/t_in", attributes=attributes)
+        write_table("//tmp/t_in", [{"x": x} for x in p])
+        create("table", "//tmp/t_out")
+
+        sort(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            sort_by="x",
+        )
+
+        assert read_table("//tmp/t_out") == [{"x": x} for x in range(N)]
+
     @authors("gritukan")
     @pytest.mark.timeout(300)
     def test_hierarchical_partitions(self):

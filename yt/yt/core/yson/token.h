@@ -53,7 +53,7 @@ public:
 
     TToken();
     TToken(ETokenType type); // for special types
-    explicit TToken(TStringBuf stringValue); // for string values
+    TToken(TStringBuf stringValue, bool binaryString); // for string values
     explicit TToken(i64 int64Value); // for int64 values
     explicit TToken(ui64 int64Value); // for uint64 values
     explicit TToken(double doubleValue); // for double values
@@ -63,6 +63,7 @@ public:
 
     bool IsEmpty() const;
     TStringBuf GetStringValue() const;
+    bool IsBinaryString() const;
     i64 GetInt64Value() const;
     ui64 GetUint64Value() const;
     double GetDoubleValue() const;
@@ -76,10 +77,11 @@ public:
 
 private:
     TStringBuf StringValue_;
-    i64 Int64Value_;
-    ui64 Uint64Value_;
-    double DoubleValue_;
-    bool BooleanValue_;
+    bool BinaryString_ = false;
+    i64 Int64Value_ = 0;
+    ui64 Uint64Value_ = 0;
+    double DoubleValue_ = 0;
+    bool BooleanValue_ = false;
 };
 
 TString ToString(const TToken& token);

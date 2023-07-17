@@ -211,10 +211,11 @@ private:
 
     void SetValue(NTableClient::TUnversionedValue* value, i64 rowIndex) const
     {
-        ValueExtractor_.ExtractValue(value, rowIndex, ColumnId_, NTableClient::EValueFlags::None);
-        if (HunkColumnFlag_ && value->Type != NTableClient::EValueType::Null) {
-            value->Flags |= NTableClient::EValueFlags::Hunk;
+        auto flags = NTableClient::EValueFlags::None;
+        if (HunkColumnFlag_) {
+            flags |= NTableClient::EValueFlags::Hunk;
         }
+        ValueExtractor_.ExtractValue(value, rowIndex, ColumnId_, flags);
     }
 
     template<class TRow>
@@ -398,10 +399,11 @@ private:
 
     void SetValue(NTableClient::TUnversionedValue* value, i64 valueIndex) const
     {
-        ValueExtractor_.ExtractValue(value, valueIndex, ColumnId_, NTableClient::EValueFlags::None);
-        if (value->Type != NTableClient::EValueType::Null && HunkColumnFlag_) {
-            value->Flags |= NTableClient::EValueFlags::Hunk;
+        auto flags = NTableClient::EValueFlags::None;
+        if (HunkColumnFlag_) {
+            flags |= NTableClient::EValueFlags::Hunk;
         }
+        ValueExtractor_.ExtractValue(value, valueIndex, ColumnId_, flags);
     }
 
     template <class TRow>
@@ -762,10 +764,10 @@ protected:
         if (ValueExtractor_.GetAggregate(valueIndex)) {
             flags |= NTableClient::EValueFlags::Aggregate;
         }
-        ValueExtractor_.ExtractValue(value, valueIndex, ColumnId_, flags);
-        if (HunkColumnFlag_ && value->Type != NTableClient::EValueType::Null) {
-            value->Flags |= NTableClient::EValueFlags::Hunk;
+        if (HunkColumnFlag_) {
+            flags |= NTableClient::EValueFlags::Hunk;
         }
+        ValueExtractor_.ExtractValue(value, valueIndex, ColumnId_, flags);
     }
 };
 

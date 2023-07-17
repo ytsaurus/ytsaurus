@@ -27,6 +27,8 @@ using TCheckedInDebugYsonTokenWriter = TUncheckedYsonTokenWriter;
 using TCheckedInDebugYsonTokenWriter = TCheckedYsonTokenWriter;
 #endif
 
+class TStatelessLexer;
+
 class TTokenizer;
 
 class TProtobufMessageType;

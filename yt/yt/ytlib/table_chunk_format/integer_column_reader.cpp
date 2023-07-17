@@ -59,6 +59,7 @@ public:
 
     void ExtractValue(TUnversionedValue* value, i64 valueIndex, int id, EValueFlags flags) const
     {
+        YT_ASSERT(None(flags & EValueFlags::Hunk));
         if (NullBitmap_[valueIndex]) {
             *value = MakeUnversionedSentinelValue(EValueType::Null, id, flags);
         } else {
@@ -95,6 +96,7 @@ public:
 
     void ExtractValue(TUnversionedValue* value, i64 valueIndex, int id, EValueFlags flags) const
     {
+        YT_ASSERT(None(flags & EValueFlags::Hunk));
         auto dictionaryId = IndexReader_[valueIndex];
         if (dictionaryId == 0) {
             *value = MakeUnversionedSentinelValue(EValueType::Null, id, flags);

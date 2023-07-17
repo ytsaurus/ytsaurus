@@ -1540,7 +1540,9 @@ int CompareAnyString(char* lhsData, i32 lhsLength, char* rhsData, i32 rhsLength)
 
 void ToAny(TExpressionContext* context, TUnversionedValue* result, TUnversionedValue* value)
 {
-    NTableClient::ToAny(context, result, value);
+    // TODO(babenko): for some reason, flags are garbage here.
+    value->Flags = {};
+    *result = NTableClient::EncodeUnversionedAnyValue(*value, context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

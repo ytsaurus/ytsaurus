@@ -172,8 +172,8 @@ public:
             if (stateBits & 1 << 1) { // Other = xxx11b
                 if (state == EReadStartCase::Quote) {
                     TBase::Advance(1);
-                    TStringBuf value = TBase::ReadQuotedString();
-                    *token = TToken(value);
+                    auto value = TBase::ReadQuotedString();
+                    *token = TToken(value, /*binaryString*/ false);
                 } else if (state == EReadStartCase::DigitOrMinus) {
                     ReadNumeric<true>(token);
                 } else if (state == EReadStartCase::Plus) {
@@ -187,8 +187,8 @@ public:
                         ReadNumeric<true>(token);
                     }
                 } else if (state == EReadStartCase::String) {
-                    TStringBuf value = TBase::template ReadUnquotedString<true>();
-                    *token = TToken(value);
+                    auto value = TBase::template ReadUnquotedString<true>();
+                    *token = TToken(value, /*binaryString*/ false);
                 } else if (state == EReadStartCase::Percent) {
                     TBase::Advance(1);
                     char ch = TBase::template GetChar<true>();
@@ -228,8 +228,8 @@ public:
                 *token = TToken(ETokenType(stateBits >> 2));
             } else { // BinaryString = 00b
                 YT_ASSERT((stateBits & 3) == static_cast<unsigned>(EReadStartCase::BinaryString));
-                TStringBuf value = TBase::ReadBinaryString();
-                *token = TToken(value);
+                auto value = TBase::ReadBinaryString();
+                *token = TToken(value, /*binaryString*/ true);
             }
         }
     }
@@ -238,7 +238,7 @@ public:
     void ReadNumeric(TToken* token)
     {
         TStringBuf valueBuffer;
-        ENumericResult numericResult = TBase::template ReadNumeric<AllowFinish>(&valueBuffer);
+        auto numericResult = TBase::template ReadNumeric<AllowFinish>(&valueBuffer);
 
         if (numericResult == ENumericResult::Double) {
             try {

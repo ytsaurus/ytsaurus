@@ -27,9 +27,6 @@
 
 #include <yt/yt/ytlib/scheduler/public.h>
 
-#include <yt/yt/core/yson/lexer.h>
-#include <yt/yt/core/yson/public.h>
-
 
 namespace NYT::NTableClient {
 
@@ -44,14 +41,6 @@ void PipeReaderToWriter(
     const ISchemalessChunkReaderPtr& reader,
     const IUnversionedRowsetWriterPtr& writer,
     const TPipeReaderToWriterOptions& options);
-
-////////////////////////////////////////////////////////////////////////////////
-
-// NB: not using TYsonString here to avoid copying.
-TUnversionedValue MakeUnversionedValue(
-    TStringBuf ysonString,
-    int id,
-    NYson::TStatelessLexer& lexer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

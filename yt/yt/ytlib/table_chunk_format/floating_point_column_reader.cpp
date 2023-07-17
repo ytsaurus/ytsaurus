@@ -21,6 +21,7 @@ class TFloatingPointValueExtractorBase
 public:
     void ExtractValue(TUnversionedValue* value, i64 valueIndex, int id, EValueFlags flags) const
     {
+        YT_ASSERT(None(flags & EValueFlags::Hunk));
         if (NullBitmap_[valueIndex]) {
             *value = MakeUnversionedSentinelValue(EValueType::Null, id, flags);
         } else {
