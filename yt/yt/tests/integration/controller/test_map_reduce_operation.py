@@ -3126,20 +3126,26 @@ done
             mapper_command=f"""
                 date '+%Y-%m-%d %H:%M:%S,%N' | cut -c-26 >> {jobs_dir}/job.$YT_JOB_ID;
                 echo mapper >> {jobs_dir}/job.$YT_JOB_ID;
-                cat;
+                cat >> {jobs_dir}/job.data.$YT_JOB_ID;
+                cat {jobs_dir}/job.data.$YT_JOB_ID;
+                cat {jobs_dir}/job.data.$YT_JOB_ID;
                 date '+%Y-%m-%d %H:%M:%S,%N' | cut -c-26 >> {jobs_dir}/job.$YT_JOB_ID
             """,
             reduce_combiner_command=f"""
                 date '+%Y-%m-%d %H:%M:%S,%N' | cut -c-26 >> {jobs_dir}/job.$YT_JOB_ID;
                 echo reduce_combiner >> {jobs_dir}/job.$YT_JOB_ID;
-                cat;
+                cat >> {jobs_dir}/job.data.$YT_JOB_ID;
+                cat {jobs_dir}/job.data.$YT_JOB_ID;
+                cat {jobs_dir}/job.data.$YT_JOB_ID;
                 date '+%Y-%m-%d %H:%M:%S,%N' | cut -c-26 >> {jobs_dir}/job.$YT_JOB_ID
             """,
             reducer_command=with_breakpoint(f"""
                 BREAKPOINT;
                 date '+%Y-%m-%d %H:%M:%S,%N' | cut -c-26 >> {jobs_dir}/job.$YT_JOB_ID;
                 echo reducer >> {jobs_dir}/job.$YT_JOB_ID;
-                cat;
+                cat >> {jobs_dir}/job.data.$YT_JOB_ID;
+                cat {jobs_dir}/job.data.$YT_JOB_ID;
+                cat {jobs_dir}/job.data.$YT_JOB_ID;
                 date '+%Y-%m-%d %H:%M:%S,%N' | cut -c-26 >> {jobs_dir}/job.$YT_JOB_ID
             """),
             track=False,
@@ -3155,7 +3161,7 @@ done
         release_breakpoint()
         op.track()
 
-        assert get("//tmp/t_in/@row_count") == get("//tmp/t_out/@row_count")
+        assert 8 * get("//tmp/t_in/@row_count") == get("//tmp/t_out/@row_count")
 
 
 ##################################################################
