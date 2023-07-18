@@ -809,6 +809,50 @@ func (r *RemoveMemberRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
 	r.MutatingOptions = convertMutatingOptions(opts)
 }
 
+type AddMaintenanceRequest struct {
+	*rpc_proxy.TReqAddMaintenance
+}
+
+func NewAddMaintenanceRequest(r *rpc_proxy.TReqAddMaintenance) *AddMaintenanceRequest {
+	return &AddMaintenanceRequest{TReqAddMaintenance: r}
+}
+
+func (r AddMaintenanceRequest) Log() []log.Field {
+	return []log.Field{
+		log.Any("component", r.GetComponent()),
+		log.String("address", r.GetAddress()),
+		log.Any("type", r.GetType()),
+		log.String("comment", r.GetComment()),
+	}
+}
+
+func (r AddMaintenanceRequest) Path() (string, bool) {
+	return "", false
+}
+
+type RemoveMaintenanceRequest struct {
+	*rpc_proxy.TReqRemoveMaintenance
+}
+
+func NewRemoveMaintenanceRequest(r *rpc_proxy.TReqRemoveMaintenance) *RemoveMaintenanceRequest {
+	return &RemoveMaintenanceRequest{TReqRemoveMaintenance: r}
+}
+
+func (r RemoveMaintenanceRequest) Log() []log.Field {
+	return []log.Field{
+		log.Any("component", r.GetComponent()),
+		log.String("address", r.GetAddress()),
+		log.Any("ids", r.GetIds()),
+		log.Any("type", r.GetType()),
+		log.String("user", r.GetUser()),
+		log.Bool("mine", r.GetMine()),
+	}
+}
+
+func (r RemoveMaintenanceRequest) Path() (string, bool) {
+	return "", false
+}
+
 var _ MutatingRequest = (*TransferAccountResourcesRequest)(nil)
 
 type TransferAccountResourcesRequest struct {

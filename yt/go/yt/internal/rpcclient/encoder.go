@@ -1166,6 +1166,90 @@ func (e *Encoder) RemoveMember(
 	return
 }
 
+func (e *Encoder) AddMaintenance(
+	ctx context.Context,
+	component yt.MaintenanceComponent,
+	address string,
+	maintenanceType yt.MaintenanceType,
+	comment string,
+	opts *yt.AddMaintenanceOptions,
+) (response *yt.AddMaintenanceResponse, err error) {
+	rpcMaintenanceComponent, err := convertMaintenanceComponent(component)
+	if err != nil {
+		return
+	}
+
+	rpcMaintenanceType, err := convertMaintenanceType(maintenanceType)
+	if err != nil {
+		return
+	}
+
+	req := &rpc_proxy.TReqAddMaintenance{
+		Component: rpcMaintenanceComponent,
+		Address:   &address,
+		Type:      rpcMaintenanceType,
+		Comment:   &comment,
+	}
+
+	call := e.newCall(MethodAddMaintenance, NewAddMaintenanceRequest(req), nil)
+
+	var rsp rpc_proxy.TRspAddMaintenance
+	err = e.Invoke(ctx, call, &rsp)
+	if err != nil {
+		return
+	}
+
+	id := yt.MaintenanceID(makeGUID(rsp.Id))
+	response = &yt.AddMaintenanceResponse{ID: id}
+
+	return
+}
+
+func (e *Encoder) RemoveMaintenance(
+	ctx context.Context,
+	component yt.MaintenanceComponent,
+	address string,
+	opts *yt.RemoveMaintenanceOptions,
+) (rm *yt.RemoveMaintenanceResponse, err error) {
+	if opts == nil {
+		opts = &yt.RemoveMaintenanceOptions{}
+	}
+	if err = opts.ValidateFields(); err != nil {
+		return
+	}
+
+	rpcMaintenanceComponent, err := convertMaintenanceComponent(component)
+	if err != nil {
+		return
+	}
+
+	var rpcMaintenanceType *rpc_proxy.EMaintenanceType
+	if opts.Type != nil {
+		rpcMaintenanceType, err = convertMaintenanceType(*opts.Type)
+		if err != nil {
+			return
+		}
+	}
+
+	req := &rpc_proxy.TReqRemoveMaintenance{
+		Component: rpcMaintenanceComponent,
+		Address:   &address,
+		Ids:       convertMaintenanceIDs(opts.IDs),
+		Type:      rpcMaintenanceType,
+		User:      opts.User,
+		Mine:      opts.Mine,
+	}
+
+	call := e.newCall(MethodRemoveMaintenance, NewRemoveMaintenanceRequest(req), nil)
+
+	var rsp rpc_proxy.TRspRemoveMaintenance
+	if err = e.Invoke(ctx, call, &rsp); err != nil {
+		return
+	}
+
+	return makeRemoveMaintenanceResponse(&rsp)
+}
+
 func (e *Encoder) TransferAccountResources(
 	ctx context.Context,
 	srcAccount string,

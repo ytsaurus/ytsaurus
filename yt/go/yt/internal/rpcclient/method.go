@@ -34,6 +34,8 @@ const (
 	MethodCommitTransaction         Method = "CommitTransaction"
 	MethodAddMember                 Method = "AddMember"
 	MethodRemoveMember              Method = "RemoveMember"
+	MethodAddMaintenance            Method = "AddMaintenance"
+	MethodRemoveMaintenance         Method = "RemoveMaintenance"
 	MethodTransferAccountResources  Method = "TransferAccountResources"
 	MethodTransferPoolResources     Method = "TransferPoolResources"
 	MethodStartOperation            Method = "StartOperation"

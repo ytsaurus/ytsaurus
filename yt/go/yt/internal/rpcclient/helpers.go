@@ -71,6 +71,19 @@ func convertGUIDs(guids []guid.GUID) []*misc.TGuid {
 	return ret
 }
 
+func convertMaintenanceID(id yt.MaintenanceID) *misc.TGuid {
+	guid := guid.GUID(id)
+	return convertGUID(guid)
+}
+
+func convertMaintenanceIDs(ids []yt.MaintenanceID) []*misc.TGuid {
+	ret := make([]*misc.TGuid, 0, len(ids))
+	for _, id := range ids {
+		ret = append(ret, convertMaintenanceID(id))
+	}
+	return ret
+}
+
 func makeGUID(g *misc.TGuid) guid.GUID {
 	return guid.FromHalves(g.GetFirst(), g.GetSecond())
 }
@@ -281,6 +294,62 @@ func convertCheckPermissionColumns(columns []string) *rpc_proxy.TReqCheckPermiss
 	return &rpc_proxy.TReqCheckPermission_TColumns{
 		Items: columns,
 	}
+}
+
+func convertMaintenanceComponent(c yt.MaintenanceComponent) (*rpc_proxy.EMaintenanceComponent, error) {
+	var ret rpc_proxy.EMaintenanceComponent
+
+	switch c {
+	case yt.MaintenanceComponentClusterNode:
+		ret = rpc_proxy.EMaintenanceComponent_MC_CLUSTER_NODE
+	case yt.MaintenanceComponentHost:
+		ret = rpc_proxy.EMaintenanceComponent_MC_HOST
+	case yt.MaintenanceComponentHTTPProxy:
+		ret = rpc_proxy.EMaintenanceComponent_MC_HTTP_PROXY
+	case yt.MaintenanceComponentRPCProxy:
+		ret = rpc_proxy.EMaintenanceComponent_MC_RPC_PROXY
+	default:
+		return nil, xerrors.Errorf("unexpected maintenance component %q", c)
+	}
+
+	return &ret, nil
+}
+
+func convertMaintenanceType(t yt.MaintenanceType) (*rpc_proxy.EMaintenanceType, error) {
+	var ret rpc_proxy.EMaintenanceType
+
+	switch t {
+	case yt.MaintenanceTypeBan:
+		ret = rpc_proxy.EMaintenanceType_MT_BAN
+	case yt.MaintenanceTypeDecommission:
+		ret = rpc_proxy.EMaintenanceType_MT_DECOMMISSION
+	case yt.MaintenanceTypeDisableSchedulerJobs:
+		ret = rpc_proxy.EMaintenanceType_MT_DISABLE_SCHEDULER_JOBS
+	case yt.MaintenanceTypeDisableTabletCells:
+		ret = rpc_proxy.EMaintenanceType_MT_DISABLE_TABLET_CELLS
+	case yt.MaintenanceTypeDisableWriteSessions:
+		ret = rpc_proxy.EMaintenanceType_MT_DISABLE_WRITE_SESSIONS
+	default:
+		return nil, xerrors.Errorf("unexpected maintenance type %q", t)
+	}
+
+	return &ret, nil
+}
+
+func makeRemoveMaintenanceResponse(r *rpc_proxy.TRspRemoveMaintenance) (*yt.RemoveMaintenanceResponse, error) {
+	if r == nil {
+		return nil, xerrors.Errorf("unable to convert nil remove maintenance result")
+	}
+
+	ret := &yt.RemoveMaintenanceResponse{
+		BanCounts:                  int(r.GetBan()),
+		DecommisionCounts:          int(r.GetDecommission()),
+		DisableSchedulerJobsCounts: int(r.GetDisableSchedulerJobs()),
+		DisableWriteSessionsCounts: int(r.GetDisableWriteSessions()),
+		DisableTabletCellsCounts:   int(r.GetDisableTabletCells()),
+	}
+
+	return ret, nil
 }
 
 func makeSecurityActionType(typ rpc_proxy.ESecurityAction) (yt.SecurityAction, error) {

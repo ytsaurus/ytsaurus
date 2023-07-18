@@ -36,6 +36,7 @@ import (
 	"context"
 	"io"
 
+	"go.ytsaurus.tech/library/go/core/xerrors"
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/schema"
 	"go.ytsaurus.tech/yt/go/ypath"
@@ -780,6 +781,33 @@ type RemoveMemberOptions struct {
 	*PrerequisiteOptions
 }
 
+type AddMaintenanceOptions struct {
+}
+
+type RemoveMaintenanceOptions struct {
+	Mine *bool            `http:"mine,omitnil"`
+	All  *bool            `http:"all,omitnil"`
+	User *string          `http:"user,omitnil"`
+	IDs  []MaintenanceID  `http:"ids,omitnil"`
+	Type *MaintenanceType `http:"type,omitnil"`
+}
+
+func (opts *RemoveMaintenanceOptions) ValidateFields() error {
+	if opts.IDs == nil && opts.Mine == nil && opts.User == nil && opts.All == nil && opts.Type == nil {
+		return xerrors.New("one of the options must be specified")
+	}
+	if opts.IDs != nil && len(opts.IDs) == 0 {
+		return xerrors.New("\"ids\" must not be empty if specified")
+	}
+	if opts.User != nil && opts.Mine != nil {
+		return xerrors.New("cannot specify both \"user\" and \"mine\"")
+	}
+	if opts.All != nil && (opts.Mine != nil || opts.User != nil || opts.Type != nil || opts.IDs != nil) {
+		return xerrors.New("\"all\" cannot be used with other options")
+	}
+	return nil
+}
+
 type CheckPermissionOptions struct {
 	*TransactionOptions
 	*PrerequisiteOptions
@@ -820,6 +848,18 @@ type BuildMasterSnapshotsResponse = []BuildMasterSnapshot
 
 type BuildSnapshotResponse struct {
 	SnapshotID int `yson:"snapshot_id"`
+}
+
+type AddMaintenanceResponse struct {
+	ID MaintenanceID `yson:"id"`
+}
+
+type RemoveMaintenanceResponse struct {
+	BanCounts                  int `yson:"ban"`
+	DecommisionCounts          int `yson:"decommision"`
+	DisableSchedulerJobsCounts int `yson:"disable_scheduler_jobs"`
+	DisableWriteSessionsCounts int `yson:"disable_write_sessions"`
+	DisableTabletCellsCounts   int `yson:"disable_tablet_cells"`
 }
 
 type DisableChunkLocationsResponse struct {
@@ -864,6 +904,26 @@ type AdminClient interface {
 		member string,
 		options *RemoveMemberOptions,
 	) (err error)
+
+	// http:verb:"add_maintenance"
+	// http:params:"component","address","type","comment"
+	AddMaintenance(
+		ctx context.Context,
+		component MaintenanceComponent,
+		address string,
+		maintenanceType MaintenanceType,
+		comment string,
+		options *AddMaintenanceOptions,
+	) (result *AddMaintenanceResponse, err error)
+
+	// http:verb:"remove_maintenance"
+	// http:params:"component","address"
+	RemoveMaintenance(
+		ctx context.Context,
+		component MaintenanceComponent,
+		address string,
+		options *RemoveMaintenanceOptions,
+	) (result *RemoveMaintenanceResponse, err error)
 
 	// http:verb:"transfer_account_resources"
 	// http:params:"source_account","destination_account","resource_delta"

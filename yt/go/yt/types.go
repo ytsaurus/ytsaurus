@@ -296,3 +296,39 @@ var (
 	AtomicityNone Atomicity = "none"
 	AtomicityFull Atomicity = "full"
 )
+
+type MaintenanceType string
+
+const (
+	MaintenanceTypeBan                  MaintenanceType = "ban"
+	MaintenanceTypeDecommission         MaintenanceType = "decommission"
+	MaintenanceTypeDisableSchedulerJobs MaintenanceType = "disable_scheduler_jobs"
+	MaintenanceTypeDisableWriteSessions MaintenanceType = "disable_write_sessions"
+	MaintenanceTypeDisableTabletCells   MaintenanceType = "disable_tablet_cells"
+)
+
+type MaintenanceComponent string
+
+const (
+	MaintenanceComponentClusterNode = "cluster_node"
+	MaintenanceComponentHTTPProxy   = "http_proxy"
+	MaintenanceComponentRPCProxy    = "rpc_proxy"
+	MaintenanceComponentHost        = "host"
+)
+
+type MaintenanceID guid.GUID
+
+func (id MaintenanceID) String() string {
+	return guid.GUID(id).String()
+}
+
+func (id MaintenanceID) MarshalYSON(w *yson.Writer) error {
+	return guid.GUID(id).MarshalYSON(w)
+}
+
+func (id *MaintenanceID) UnmarshalYSON(data []byte) (err error) {
+	var g guid.GUID
+	err = g.UnmarshalYSON(data)
+	*id = MaintenanceID(g)
+	return
+}

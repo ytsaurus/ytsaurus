@@ -266,6 +266,38 @@ func (e *Encoder) BuildSnapshot(
 	return
 }
 
+func (e *Encoder) AddMaintenance(
+	ctx context.Context,
+	component yt.MaintenanceComponent,
+	address string,
+	maintenanceType yt.MaintenanceType,
+	comment string,
+	options *yt.AddMaintenanceOptions,
+) (response *yt.AddMaintenanceResponse, err error) {
+	call := e.newCall(NewAddMaintenanceParams(component, address, maintenanceType, comment, options))
+	err = e.do(ctx, call, func(res *CallResult) error {
+		return res.decode(&response)
+	})
+	return
+}
+
+func (e *Encoder) RemoveMaintenance(
+	ctx context.Context,
+	component yt.MaintenanceComponent,
+	address string,
+	options *yt.RemoveMaintenanceOptions,
+) (response *yt.RemoveMaintenanceResponse, err error) {
+	params := NewRemoveMaintenanceParams(component, address, options)
+	if err = params.options.ValidateFields(); err != nil {
+		return
+	}
+	call := e.newCall(params)
+	err = e.do(ctx, call, func(res *CallResult) error {
+		return res.decode(&response)
+	})
+	return
+}
+
 func (e *Encoder) TransferPoolResources(
 	ctx context.Context,
 	srcPool string,

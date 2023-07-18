@@ -648,6 +648,38 @@ func writeRemoveMemberOptions(w *yson.Writer, o *yt.RemoveMemberOptions) {
 	writePrerequisiteOptions(w, o.PrerequisiteOptions)
 }
 
+func writeAddMaintenanceOptions(w *yson.Writer, o *yt.AddMaintenanceOptions) {
+	if o == nil {
+		return
+	}
+}
+
+func writeRemoveMaintenanceOptions(w *yson.Writer, o *yt.RemoveMaintenanceOptions) {
+	if o == nil {
+		return
+	}
+	if o.Mine != nil {
+		w.MapKeyString("mine")
+		w.Any(o.Mine)
+	}
+	if o.All != nil {
+		w.MapKeyString("all")
+		w.Any(o.All)
+	}
+	if o.User != nil {
+		w.MapKeyString("user")
+		w.Any(o.User)
+	}
+	if o.IDs != nil {
+		w.MapKeyString("ids")
+		w.Any(o.IDs)
+	}
+	if o.Type != nil {
+		w.MapKeyString("type")
+		w.Any(o.Type)
+	}
+}
+
 func writeCheckPermissionOptions(w *yson.Writer, o *yt.CheckPermissionOptions) {
 	if o == nil {
 		return
@@ -2620,6 +2652,106 @@ func (p *RemoveMemberParams) MutatingOptions() **yt.MutatingOptions {
 
 func (p *RemoveMemberParams) PrerequisiteOptions() **yt.PrerequisiteOptions {
 	return &p.options.PrerequisiteOptions
+}
+
+type AddMaintenanceParams struct {
+	verb            Verb
+	component       yt.MaintenanceComponent
+	address         string
+	maintenanceType yt.MaintenanceType
+	comment         string
+	options         *yt.AddMaintenanceOptions
+}
+
+func NewAddMaintenanceParams(
+	component yt.MaintenanceComponent,
+	address string,
+	maintenanceType yt.MaintenanceType,
+	comment string,
+	options *yt.AddMaintenanceOptions,
+) *AddMaintenanceParams {
+	if options == nil {
+		options = &yt.AddMaintenanceOptions{}
+	}
+	return &AddMaintenanceParams{
+		Verb("add_maintenance"),
+		component,
+		address,
+		maintenanceType,
+		comment,
+		options,
+	}
+}
+
+func (p *AddMaintenanceParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *AddMaintenanceParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *AddMaintenanceParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("component", p.component),
+		log.Any("address", p.address),
+		log.Any("maintenanceType", p.maintenanceType),
+		log.Any("comment", p.comment),
+	}
+}
+
+func (p *AddMaintenanceParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("component")
+	w.Any(p.component)
+	w.MapKeyString("address")
+	w.Any(p.address)
+	w.MapKeyString("type")
+	w.Any(p.maintenanceType)
+	w.MapKeyString("comment")
+	w.Any(p.comment)
+	writeAddMaintenanceOptions(w, p.options)
+}
+
+type RemoveMaintenanceParams struct {
+	verb      Verb
+	component yt.MaintenanceComponent
+	address   string
+	options   *yt.RemoveMaintenanceOptions
+}
+
+func NewRemoveMaintenanceParams(
+	component yt.MaintenanceComponent,
+	address string,
+	options *yt.RemoveMaintenanceOptions,
+) *RemoveMaintenanceParams {
+	if options == nil {
+		options = &yt.RemoveMaintenanceOptions{}
+	}
+	return &RemoveMaintenanceParams{
+		Verb("remove_maintenance"),
+		component,
+		address,
+		options,
+	}
+}
+
+func (p *RemoveMaintenanceParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *RemoveMaintenanceParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *RemoveMaintenanceParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("component", p.component),
+		log.Any("address", p.address),
+	}
+}
+
+func (p *RemoveMaintenanceParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("component")
+	w.Any(p.component)
+	w.MapKeyString("address")
+	w.Any(p.address)
+	writeRemoveMaintenanceOptions(w, p.options)
 }
 
 type TransferAccountResourcesParams struct {
