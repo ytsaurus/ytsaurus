@@ -1297,6 +1297,12 @@ TUnversionedValue CastNumericValue(TUnversionedValue value, EValueType type)
 
 bool IsExceptionCase(EBinaryOp op, EValueType castedType, TUnversionedValue lhs, TUnversionedValue rhs)
 {
+    if (op == EBinaryOp::Concatenate) {
+        return castedType != EValueType::String ||
+            lhs.Type != EValueType::String ||
+            rhs.Type != EValueType::String;
+    }
+
     // Cast is not revertible.
     if (CastNumericValue(CastNumericValue(lhs, castedType), lhs.Type) != lhs) {
         return true;
@@ -1899,6 +1905,8 @@ TEST_P(TEvaluateExpressionTest, Basic)
         TColumnSchema("i2", EValueType::Int64),
         TColumnSchema("u1", EValueType::Uint64),
         TColumnSchema("u2", EValueType::Uint64),
+        TColumnSchema("s1", EValueType::String),
+        TColumnSchema("s2", EValueType::String),
         TColumnSchema("any", EValueType::Any)
     });
 
@@ -1947,6 +1955,34 @@ INSTANTIATE_TEST_SUITE_P(
             "",
             "concat('abc', 'def')",
             MakeString("abcdef")),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "",
+            "'' || ''",
+            MakeString("")),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "",
+            "'abc' || 'def'",
+            MakeString("abcdef")),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "s1=abc",
+            "s1 || 'def'",
+            MakeString("abcdef")),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "s1=abc;s2=def",
+            "s1 || s2",
+            MakeString("abcdef")),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "s1=abc;s2=def",
+            "s1 || ' ' || s1 || s2",
+            MakeString("abc abcdef")),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "",
+            "# || #",
+            MakeNull()),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "s1=abc",
+            "s1 || #",
+            MakeNull()),
         std::tuple<const char*, const char*, TUnversionedValue>(
             "i1=33;i2=22",
             "i1 + i2",
@@ -2269,6 +2305,46 @@ TEST_F(TExpressionErrorTest, ListContainsAny)
             EvaluateExpression(expr, "", schema, &result, buffer);
         }(),
         HasSubstr("Wrong type for argument"));
+}
+
+TEST_F(TExpressionErrorTest, ConcatenateOperator)
+{
+    auto schema = New<TTableSchema>(std::vector{
+        TColumnSchema("i1", EValueType::Int64),
+        TColumnSchema("i2", EValueType::Int64),
+        TColumnSchema("s1", EValueType::String),
+    });
+
+    auto buffer = New<TRowBuffer>();
+    TUnversionedValue result{};
+
+    EXPECT_THROW_THAT(
+        [&] {
+            auto expr = PrepareExpression("1 || 2", *schema);
+            EvaluateExpression(expr, "", schema, &result, buffer);
+        }(),
+        HasSubstr("Type mismatch in expression"));
+
+    EXPECT_THROW_THAT(
+        [&] {
+            auto expr = PrepareExpression("i1 || i2", *schema);
+            EvaluateExpression(expr, "i1=1;i2=2", schema, &result, buffer);
+        }(),
+        HasSubstr("Type mismatch in expression"));
+
+    EXPECT_THROW_THAT(
+        [&] {
+            auto expr = PrepareExpression("s1 || 2", *schema);
+            EvaluateExpression(expr, "s1=abc", schema, &result, buffer);
+        }(),
+        HasSubstr("Type mismatch in expression"));
+
+    EXPECT_THROW_THAT(
+        [&] {
+            auto expr = PrepareExpression("s1 || i2", *schema);
+            EvaluateExpression(expr, "s1=abc;i2=2", schema, &result, buffer);
+        }(),
+        HasSubstr("Type mismatch in expression"));
 }
 
 class TExpressionStrConvTest

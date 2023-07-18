@@ -65,6 +65,8 @@ DEFINE_ENUM(EBinaryOp,
     (LessOrEqual)
     (Greater)
     (GreaterOrEqual)
+    // String operations.
+    (Concatenate)
 );
 
 DEFINE_ENUM(ETotalsMode,
@@ -99,6 +101,9 @@ bool IsLogicalBinaryOp(EBinaryOp opcode);
 
 //! Classifies binary opcode according to classification above.
 bool IsRelationalBinaryOp(EBinaryOp opcode);
+
+//! Classifies binary opcode according to classification above.
+bool IsStringBinaryOp(EBinaryOp opcode);
 
 //! Cast numeric values.
 TValue CastValueWithCheck(TValue value, EValueType targetType);

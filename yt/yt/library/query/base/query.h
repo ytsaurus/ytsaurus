@@ -891,6 +891,7 @@ struct TAbstractExpressionPrinter
 
         case EBinaryOp::Plus:
         case EBinaryOp::Minus:
+        case EBinaryOp::Concatenate:
             return 1;
 
         case EBinaryOp::LeftShift:
@@ -916,6 +917,9 @@ struct TAbstractExpressionPrinter
 
         case EBinaryOp::Or:
             return 7;
+
+        default:
+            YT_ABORT();
         }
     }
 

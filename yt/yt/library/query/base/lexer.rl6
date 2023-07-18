@@ -170,6 +170,7 @@ typedef TParser::token_type TToken;
         '<>' => { type = TToken::OpNotEqualSql92; fbreak; };
         '<<' => { type = TToken::OpLeftShift; fbreak; };
         '>>' => { type = TToken::OpRightShift; fbreak; };
+        '||' => { type = TToken::OpConcatenate; fbreak; };
 
         # Single-character tokens.
         [()*,<=>+-/%.|&~#] => {

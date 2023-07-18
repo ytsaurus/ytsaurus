@@ -478,6 +478,8 @@ std::optional<TUnversionedValue> FoldConstants(
                         break;
                 }
                 break;
+            case EBinaryOp::Concatenate:
+                break;
             case EBinaryOp::Multiply:
                 CHECK_TYPE();
                 switch (lhs.Type) {
@@ -943,6 +945,14 @@ TEnumIndexedVector<EBinaryOp, TOperatorTyper> BuildBinaryOperatorTypers()
                 EValueType::String,
                 EValueType::Any}),
             EValueType::Boolean
+        };
+    }
+
+    for (auto op : {EBinaryOp::Concatenate})
+    {
+        result[op] = {
+            TTypeSet({ EValueType::String, }),
+            EValueType::String
         };
     }
 

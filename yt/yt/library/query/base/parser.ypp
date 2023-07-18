@@ -118,6 +118,7 @@
 %token OpMinus 45 "`-`"
 %token Dot 46 "`.`"
 %token OpDivide 47 "`/`"
+%token OpConcatenate 48 "`||`"
 
 
 %token OpLess 60 "`<`"
@@ -525,6 +526,8 @@ additive-op
         { $$ = EBinaryOp::Plus; }
     | OpMinus
         { $$ = EBinaryOp::Minus; }
+    | OpConcatenate
+        { $$ = EBinaryOp::Concatenate; }
 ;
 
 multiplicative-op-expr

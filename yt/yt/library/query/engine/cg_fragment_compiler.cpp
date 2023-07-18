@@ -1833,6 +1833,83 @@ TCodegenExpression MakeCodegenArithmeticBinaryOpExpr(
     };
 }
 
+TCodegenExpression MakeCodegenStringBinaryOpExpr(
+    EBinaryOp opcode,
+    size_t lhsId,
+    size_t rhsId,
+    EValueType type,
+    TString name)
+{
+    YT_VERIFY(type == EValueType::String);
+    YT_VERIFY(opcode == EBinaryOp::Concatenate);
+
+    return [
+        =,
+        name = std::move(name)
+    ] (TCGExprContext& builder) {
+        auto nameTwine = Twine(name.c_str());
+
+        auto lhsValue = CodegenFragment(builder, lhsId);
+        auto rhsValue = CodegenFragment(builder, rhsId);
+
+        YT_VERIFY(lhsValue.GetStaticType() == EValueType::String);
+        YT_VERIFY(rhsValue.GetStaticType() == EValueType::String);
+
+        Value* anyNull =
+            builder.ExpressionFragments.Items[lhsId].Nullable ||
+            builder.ExpressionFragments.Items[rhsId].Nullable
+            ? builder->CreateOr(lhsValue.GetIsNull(builder), rhsValue.GetIsNull(builder))
+            : builder->getFalse();
+
+        return CodegenIf<TCGExprContext, TCGValue>(
+            builder,
+            anyNull,
+            [&] (TCGExprContext& builder) {
+                return TCGValue::CreateNull(builder, type);
+            },
+            [&] (TCGExprContext& builder) {
+                Value* lhsData = lhsValue.GetTypedData(builder);
+                Value* rhsData = rhsValue.GetTypedData(builder);
+
+                Value* lhsLength = lhsValue.GetLength();
+                Value* rhsLength = rhsValue.GetLength();
+                Value* totalLength = builder->CreateAdd(lhsLength, rhsLength);
+
+                Value* concatenation = builder->CreateCall(
+                    builder.Module->GetRoutine("AllocateBytes"),
+                    {
+                        builder.Buffer,
+                        builder->CreateIntCast(totalLength, builder->getInt64Ty(), false),
+                    });
+
+                builder->CreateMemCpy(
+                    concatenation,
+                    llvm::Align(1),
+                    lhsData,
+                    llvm::Align(1),
+                    lhsLength);
+
+                builder->CreateMemCpy(
+                    builder->CreateInBoundsGEP(
+                        TTypeBuilder<char>::Get(builder->getContext()),
+                        concatenation,
+                        lhsLength),
+                    llvm::Align(1),
+                    rhsData,
+                    llvm::Align(1),
+                    rhsLength);
+
+                return TCGValue::Create(
+                    builder,
+                    anyNull,
+                    totalLength,
+                    concatenation,
+                    type);
+            },
+            nameTwine);
+    };
+}
+
 TCodegenExpression MakeCodegenBinaryOpExpr(
     EBinaryOp opcode,
     size_t lhsId,
@@ -1854,13 +1931,22 @@ TCodegenExpression MakeCodegenBinaryOpExpr(
             rhsId,
             type,
             std::move(name));
-    } else {
+    } else if (IsArithmeticalBinaryOp(opcode) || IsIntegralBinaryOp(opcode)) {
         return MakeCodegenArithmeticBinaryOpExpr(
             opcode,
             lhsId,
             rhsId,
             type,
             std::move(name));
+    } else if (IsStringBinaryOp(opcode)) {
+        return MakeCodegenStringBinaryOpExpr(
+            opcode,
+            lhsId,
+            rhsId,
+            type,
+            std::move(name));
+    } else {
+        YT_ABORT();
     }
 }
 

@@ -35,6 +35,7 @@ const char* GetBinaryOpcodeLexeme(EBinaryOp opcode)
         case EBinaryOp::LessOrEqual:    return "<=";
         case EBinaryOp::Greater:        return ">";
         case EBinaryOp::GreaterOrEqual: return ">=";
+        case EBinaryOp::Concatenate:    return "||";
         default:                        YT_ABORT();
     }
 }
@@ -110,6 +111,16 @@ bool IsRelationalBinaryOp(EBinaryOp opcode)
         case EBinaryOp::LessOrEqual:
         case EBinaryOp::Greater:
         case EBinaryOp::GreaterOrEqual:
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool IsStringBinaryOp(EBinaryOp opcode)
+{
+    switch (opcode) {
+        case EBinaryOp::Concatenate:
             return true;
         default:
             return false;
