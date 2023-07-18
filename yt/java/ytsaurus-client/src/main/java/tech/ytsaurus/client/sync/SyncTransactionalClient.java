@@ -75,6 +75,11 @@ public interface SyncTransactionalClient {
 
     SyncOperation reduce(ReduceOperation req);
 
+    /**
+     * Run map-reduce operation. Wait for its completion.
+     * @param req mapreduce operation spec.
+     * @return operation object.
+     */
     SyncOperation mapReduce(MapReduceOperation req);
 
     SyncOperation merge(MergeOperation req);
