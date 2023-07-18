@@ -206,6 +206,84 @@ func (c *Controller) UpdateState() (changed bool, err error) {
 	return c.updateClusterConnection(context.Background())
 }
 
+func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroupDescriptor {
+	speclet := parsedSpeclet.(Speclet)
+
+	return []strawberry.OptionGroupDescriptor{
+		{
+			Title: "Main CHYT options",
+			Options: []strawberry.OptionDescriptor{
+				{
+					Name:         "instance_count",
+					Type:         strawberry.TypeUInt64,
+					CurrentValue: speclet.InstanceCount,
+					DefaultValue: defaultInstanceCount,
+					Description:  "Clique instance count.",
+				},
+				{
+					Name:         "instance_cpu",
+					Type:         strawberry.TypeUInt64,
+					CurrentValue: speclet.InstanceCPU,
+					DefaultValue: defaultInstanceCPU,
+					Description:  "Number of CPU cores per instance.",
+				},
+				{
+					Name:         "instance_total_memory",
+					Type:         strawberry.TypeUInt64,
+					CurrentValue: speclet.InstanceTotalMemory,
+					DefaultValue: (&InstanceMemory{}).totalMemory(),
+					Description:  "Amount of RAM per instance in bytes.",
+				},
+				{
+					Name:         "query_settings",
+					Type:         strawberry.TypeYson,
+					CurrentValue: speclet.QuerySettings,
+					Description:  "Map with default query settings.",
+				},
+			},
+		},
+		{
+			Title:  "Other CHYT options",
+			Hidden: true,
+			Options: []strawberry.OptionDescriptor{
+				{
+					Name:         "chyt_version",
+					Type:         strawberry.TypeString,
+					CurrentValue: speclet.CHYTVersion,
+				},
+				{
+					Name:         "enable_geodata",
+					Type:         strawberry.TypeBool,
+					CurrentValue: speclet.EnableGeoData,
+					DefaultValue: DefaultEnableGeoData,
+					Description:  "If true, system dictionaries for geo-functions are set up automatically.",
+				},
+				{
+					Name:         "geodata_path",
+					Type:         strawberry.TypeString,
+					CurrentValue: speclet.GeoDataPath,
+					DefaultValue: DefaultGeoDataPath,
+				},
+				{
+					Name:         "clickhouse_config",
+					Type:         strawberry.TypeYson,
+					CurrentValue: speclet.ClickHouseConfig,
+				},
+				{
+					Name:         "yt_config",
+					Type:         strawberry.TypeYson,
+					CurrentValue: speclet.YTConfig,
+				},
+				{
+					Name:         "instance_memory",
+					Type:         strawberry.TypeYson,
+					CurrentValue: speclet.InstanceMemory,
+				},
+			},
+		},
+	}
+}
+
 func parseConfig(rawConfig yson.RawValue) Config {
 	var controllerConfig Config
 	if rawConfig != nil {

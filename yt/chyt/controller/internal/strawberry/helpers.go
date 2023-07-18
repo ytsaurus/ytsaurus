@@ -9,6 +9,7 @@ import (
 
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/ypath"
+	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yterrors"
 	"golang.org/x/xerrors"
@@ -92,4 +93,13 @@ func ExecuteTemplate(templateString string, data any) string {
 		panic(err)
 	}
 	return b.String()
+}
+
+func ParseSpeclet(specletYson yson.RawValue) (Speclet, error) {
+	var speclet Speclet
+	err := yson.Unmarshal(specletYson, &speclet)
+	if err != nil {
+		return speclet, yterrors.Err("failed to parse strawberry speclet", err)
+	}
+	return speclet, nil
 }

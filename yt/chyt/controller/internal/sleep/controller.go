@@ -67,6 +67,23 @@ func (c *Controller) UpdateState() (changed bool, err error) {
 	return false, nil
 }
 
+func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroupDescriptor {
+	speclet := parsedSpeclet.(Speclet)
+
+	return []strawberry.OptionGroupDescriptor{
+		{
+			Title: "Sleep options",
+			Options: []strawberry.OptionDescriptor{
+				{
+					Name:         "test_option",
+					Type:         strawberry.TypeUInt64,
+					CurrentValue: speclet.TestOption,
+				},
+			},
+		},
+	}
+}
+
 func NewController(l log.Logger, ytc yt.Client, root ypath.Path, cluster string, config yson.RawValue) strawberry.Controller {
 	return &Controller{
 		ytc:                 ytc,

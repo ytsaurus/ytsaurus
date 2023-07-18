@@ -365,6 +365,28 @@ func (a HTTPAPI) HandleStop(w http.ResponseWriter, r *http.Request) {
 	a.replyOK(w, nil)
 }
 
+var DescribeOptionsCmdDescriptor = CmdDescriptor{
+	Name:       "describe_options",
+	Parameters: []CmdParameter{AliasParameter.AsExplicit()},
+}
+
+func (a HTTPAPI) HandleDescribeOptions(w http.ResponseWriter, r *http.Request) {
+	params := a.parseAndValidateRequestParams(w, r, DescribeOptionsCmdDescriptor)
+	if params == nil {
+		return
+	}
+
+	alias := params["alias"].(string)
+
+	options, err := a.api.DescribeOptions(r.Context(), alias)
+	if err != nil {
+		a.replyWithError(w, err)
+		return
+	}
+
+	a.replyOK(w, options)
+}
+
 func RegisterHTTPAPI(cfg HTTPAPIConfig, l log.Logger) chi.Router {
 	var clusters []string
 	for _, clusterInfo := range cfg.ClusterInfos {
@@ -411,6 +433,7 @@ func RegisterHTTPAPI(cfg HTTPAPIConfig, l log.Logger) chi.Router {
 			r.Post("/"+SetOptionsCmdDescriptor.Name, api.HandleSetOptions)
 			r.Post("/"+StartCmdDescriptor.Name, api.HandleStart)
 			r.Post("/"+StopCmdDescriptor.Name, api.HandleStop)
+			r.Post("/"+DescribeOptionsCmdDescriptor.Name, api.HandleDescribeOptions)
 		})
 	}
 	return r

@@ -27,6 +27,43 @@ type AgentInfo struct {
 	ClusterURL            string
 }
 
+func DescribeOptions(a AgentInfo, speclet Speclet) []OptionGroupDescriptor {
+	return []OptionGroupDescriptor{
+		{
+			Title: "Basic options",
+			Options: []OptionDescriptor{
+				{
+					Name:         "pool",
+					Type:         TypeString,
+					CurrentValue: speclet.Pool,
+					Description:  "Name of the compute pool to start a corresponding YT operation in.",
+				},
+				{
+					Name:         "network_project",
+					Type:         TypeString,
+					CurrentValue: speclet.NetworkProject,
+					DefaultValue: a.DefaultNetworkProject,
+				},
+				{
+					Name:         "preemption_mode",
+					Type:         TypeString,
+					CurrentValue: speclet.PreemptionMode,
+					DefaultValue: "normal",
+					Choises:      []any{"normal", "graceful"},
+					Description:  "Preemption mode for a corresponding YT operation.",
+				},
+				{
+					Name:         "restart_on_speclet_change",
+					Type:         TypeBool,
+					CurrentValue: speclet.RestartOnSpecletChange,
+					DefaultValue: DefaultRestartOnSpecletChange,
+					Description:  "If true, automatically restart a corresponding YT operation on every speclet change.",
+				},
+			},
+		},
+	}
+}
+
 type OpletOptions struct {
 	AgentInfo
 	Alias        string

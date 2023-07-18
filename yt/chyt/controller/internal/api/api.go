@@ -586,3 +586,36 @@ func (a *API) Stop(ctx context.Context, alias string) error {
 	}
 	return oplet.Pass(ctx)
 }
+
+func (a *API) DescribeOptions(ctx context.Context, alias string) ([]strawberry.OptionGroupDescriptor, error) {
+	if err := a.CheckExistence(ctx, alias, true /*shouldExist*/); err != nil {
+		return nil, err
+	}
+	if err := a.CheckPermissionToOp(ctx, alias, yt.PermissionRead); err != nil {
+		return nil, err
+	}
+
+	var specletYson yson.RawValue
+	err := a.ytc.GetNode(
+		ctx,
+		a.cfg.AgentInfo.StrawberryRoot.JoinChild(alias, "speclet"),
+		&specletYson,
+		nil)
+	if err != nil {
+		return nil, err
+	}
+
+	strawberrySpeclet, err := strawberry.ParseSpeclet(specletYson)
+	if err != nil {
+		return nil, err
+	}
+	strawberryOptions := strawberry.DescribeOptions(a.cfg.AgentInfo, strawberrySpeclet)
+
+	ctlSpeclet, err := a.ctl.ParseSpeclet(specletYson)
+	if err != nil {
+		return nil, err
+	}
+	ctlOptions := a.ctl.DescribeOptions(ctlSpeclet)
+
+	return append(strawberryOptions, ctlOptions...), nil
+}

@@ -236,6 +236,8 @@ func HandleDescribe(w http.ResponseWriter, r *http.Request, clusters []string) {
 			SetOptionsCmdDescriptor,
 			StartCmdDescriptor,
 			StopCmdDescriptor,
+			// DescribeOptions is done only for UI, it shouldn't be visible in CLI.
+			// DescribeOptionsCmdDescriptor,
 		}})
 	if err != nil {
 		panic(err)
