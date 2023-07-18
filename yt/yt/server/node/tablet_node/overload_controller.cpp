@@ -31,8 +31,8 @@ class TMeanWaitTimeTracker
     : public TRefCounted
 {
 public:
-    explicit TMeanWaitTimeTracker(const TString& name)
-        : Name_(name)
+    explicit TMeanWaitTimeTracker(TString name)
+        : Name_(std::move(name))
         , Counter_(New<TPerCpuDurationSummary>())
     { }
 
@@ -50,7 +50,7 @@ public:
             meanValue = summary.Sum() / summary.Count();
         }
 
-        YT_LOG_DEBUG("Reporting mean wait time for invoker"
+        YT_LOG_DEBUG("Reporting mean wait time for invoker "
             "(Invoker: %v, TotalWaitTime: %v, TotalCount: %v, MeanValue: %v)",
             Name_,
             summary.Sum(),
@@ -60,7 +60,7 @@ public:
         return meanValue;
     }
 
-    TString GetName() const
+    const TString& GetName() const
     {
         return Name_;
     }
@@ -96,8 +96,7 @@ public:
     TOverloadedStatus GetOverloadedStatus()
     {
         auto window = Window_.load(std::memory_order::relaxed);
-        bool skip = static_cast<int>(RandomNumber<ui32>(MaxWindow_)) + 1 >
-            Window_.load(std::memory_order::relaxed);
+        bool skip = static_cast<int>(RandomNumber<ui32>(MaxWindow_)) + 1 > window;
 
         bool heavilyOverloaded = window == 0;
         bool doNotReply = DoNotReplOnHeavyOverload_ && heavilyOverloaded;
@@ -125,7 +124,7 @@ public:
             SlowStartThreshold_ = window / 2;
             Window_.store(0, std::memory_order::relaxed);
 
-            YT_LOG_WARNING("System is Overloaded (SlowStartThreshold: %v, CurrentWindow: %v)",
+            YT_LOG_WARNING("System is overloaded (SlowStartThreshold: %v, Window: %v)",
                 SlowStartThreshold_,
                 window);
             return;
@@ -179,7 +178,7 @@ TOverloadController::TOverloadController(TOverloadControllerConfigPtr config)
     , Profiler(TabletNodeProfiler.WithPrefix("/overload_controller"))
 {
     State_.Config = std::move(config);
-    UpdateStateSnapshot(State_, TGuard(SpinLock_));
+    UpdateStateSnapshot(State_, Guard(SpinLock_));
 
     Periodic_->Start();
 }
@@ -205,7 +204,7 @@ void TOverloadController::AddTracker(const TString& name, const TExecutorPtr& in
 
     auto profiler = Profiler.WithTag("tracker", name);
 
-    TGuard guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
     State_.Trackers.push_back(tracker);
     auto& sensors = State_.TrackerSensors[name];
     sensors.Overloaded = profiler.GaugeSummary("/overloaded");
@@ -254,7 +253,7 @@ void TOverloadController::Reconfigure(TOverloadControllerConfigPtr config)
 {
     Periodic_->SetPeriod(config->LoadAdjustingPeriod);
 
-    TGuard guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
     State_.CongestionControllers = CreateCongestionControllers(config, Profiler);
     State_.Config = std::move(config);
 
@@ -306,7 +305,7 @@ void TOverloadController::DoAdjust(const THazardPtr<TState>& state)
     for (const auto& [method, overloaded] : methodOverloaded) {
         auto it = state->CongestionControllers.find(method);
         if (it == state->CongestionControllers.end()) {
-            YT_LOG_WARNING("Cannot find congestion controller for a method (Service: %v, Method: %v)",
+            YT_LOG_WARNING("Cannot find congestion controller for method (Service: %v, Method: %v)",
                 method.first,
                 method.second);
 

@@ -176,6 +176,8 @@ YT_DEFINE_ERROR_ENUM(
     ((UnsupportedServerFeature)     (114))
     ((PeerBanned)                   (115)) // The server is explicitly banned and thus must be dropped.
     ((NoSuchRealm)                  (117))
+    ((Overloaded)                   (118)) // The server is currently overloaded and unable to handle additional requests.
+                                           // The client should try to reduce their request rate until the server has had a chance to recover.
 );
 
 DEFINE_ENUM(EMessageFormat,
