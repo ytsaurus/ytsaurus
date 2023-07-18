@@ -161,16 +161,19 @@ private:
     {
         YT_VERIFY(!error.IsOK());
 
-        auto guard = Guard(Lock_);
+        {
+            auto guard = Guard(Lock_);
 
-        if (!Error_.IsOK()) {
-            return;
+            if (!Error_.IsOK()) {
+                return;
+            }
+
+            Pending_ = false;
+            Error_ = error
+                << TErrorAttribute("listener", Name_);
+            Acceptor_->Unarm(ServerSocket_, this);
         }
 
-        Pending_ = false;
-        Error_ = error
-            << TErrorAttribute("listener", Name_);
-        Acceptor_->Unarm(ServerSocket_, this);
         YT_UNUSED_FUTURE(Acceptor_->Unregister(this));
     }
 

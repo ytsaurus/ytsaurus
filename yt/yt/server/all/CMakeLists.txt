@@ -36,6 +36,7 @@ target_link_libraries(ytserver-all PUBLIC
   yt-server-rpc_proxy
   yt-server-scheduler
   yt-server-tablet_balancer
+  yt-server-tcp_proxy
   yt-server-timestamp_provider
   yt-server-tools
   yt-library-oom
