@@ -119,6 +119,7 @@ DEFINE_ENUM(EMasterReign,
     ((DropNodesWithFlavorsVectorFromSnapshot)                       (2345))  // shakurov
     ((FixSymlinkCyclicityCheck)                                     (2346))  // h0pless
     ((FixChunkCreationTimeHistograms)                               (2347))  // gritukan
+    ((IncludeOnlyOldStyleMountConfigAttributesInList)               (2348))  // ifsmirnov
     // 23.2 starts here.
     ((TabletServants)                                               (2400))  // ifsmirnov
     ((MediumBase)                                                   (2401))  // gritukan
