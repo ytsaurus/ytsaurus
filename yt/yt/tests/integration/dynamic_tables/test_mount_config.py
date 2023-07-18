@@ -294,6 +294,16 @@ class TestMountConfig(DynamicTablesBase):
         set("//sys/@config/tablet_manager/table_config_experiments/foo/sorted", False)
         wait(lambda: _get_orchid("/config/min_compaction_store_count") == 3)
 
+    @authors("ifsmirnov")
+    def test_common_key_in_attributes_and_mount_config(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        set("//tmp/t/@foobar", "bazqux")
+        set("//tmp/t/@mount_config/foobar", "paxlux")
+        sync_mount_table("//tmp/t")
+        assert get("//tmp/t/@user_attribute_keys") == ["foobar"]
+        assert get("//tmp/t/@user_attributes") == {"foobar": "bazqux"}
+
 
 ##################################################################
 

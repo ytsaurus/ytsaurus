@@ -160,6 +160,7 @@ DEFINE_ENUM(EMasterReign,
     ((DropNodesWithFlavorsVectorFromSnapshot)                       (2345))  // shakurov
     ((FixSymlinkCyclicityCheck)                                     (2346))  // h0pless
     ((FixChunkCreationTimeHistograms)                               (2347))  // gritukan
+    ((IncludeOnlyOldStyleMountConfigAttributesInList)               (2348))  // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

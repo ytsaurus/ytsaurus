@@ -23,15 +23,19 @@ using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const static auto& Logger = TableServerLogger;
+static const auto& Logger = TableServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NDetail {
 
+// Enumerates the attributes which were present in mount config by the moment
+// this code was written. Used for compatibility only.
 bool IsOldStyleMountConfigAttribute(TStringBuf key)
 {
-    const static THashSet<TStringBuf> Keys{
+    // NB: Do not change this list even if fields are added or removed
+    // to the mount config.
+    static constexpr std::array Keys = {
         "min_data_ttl",
         "max_data_ttl",
         "min_data_versions",
@@ -115,7 +119,11 @@ bool IsOldStyleMountConfigAttribute(TStringBuf key)
         "enable_replication_progress_advance_to_barrier",
     };
 
-    return Keys.contains(key);
+    static_assert(Keys.size() == 81, "This list should not be modified");
+
+    static const THashSet<TStringBuf> KeySet(Keys.begin(), Keys.end());
+
+    return KeySet.contains(key);
 }
 
 } // namespace NDetail
@@ -146,7 +154,9 @@ std::vector<TString> TMountConfigAttributeDictionary::ListKeys() const
 
     auto result = BaseAttributes_->ListKeys();
     for (const auto& [key, value] : storage->Attributes()) {
-        result.push_back(key);
+        if (NDetail::IsOldStyleMountConfigAttribute(key)) {
+            result.push_back(key);
+        }
     }
     return result;
 }
@@ -164,7 +174,9 @@ auto TMountConfigAttributeDictionary::ListPairs() const -> std::vector<TKeyValue
 
     auto result = BaseAttributes_->ListPairs();
     for (const auto& [key, value] : storage->Attributes()) {
-        result.emplace_back(key, value);
+        if (NDetail::IsOldStyleMountConfigAttribute(key)) {
+            result.emplace_back(key, value);
+        }
     }
     return result;
 }
