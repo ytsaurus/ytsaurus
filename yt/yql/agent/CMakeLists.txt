@@ -25,6 +25,8 @@ target_link_libraries(yt-yql-agent PUBLIC
   server-lib-cypress_election
   server-lib-misc
   yt-yql-plugin
+  library-query-engine
+  library-query-row_comparer
   yql-plugin-bridge
 )
 target_sources(yt-yql-agent PRIVATE
