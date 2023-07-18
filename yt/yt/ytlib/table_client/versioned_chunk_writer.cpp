@@ -246,7 +246,7 @@ protected:
     struct TVersionedChunkWriterBaseTag { };
     TSamplingRowMerger SamplingRowMerger_;
 
-    NProto::TColumnarStatisticsExt ColumnarStatisticsExt_;
+    TColumnarStatistics ColumnarStatistics_;
 
     IVersionedRowDigestBuilderPtr RowDigestBuilder_;
     IKeyFilterBuilderPtr KeyFilterBuilder_;
@@ -276,7 +276,7 @@ protected:
         SetProtoExtension(meta->mutable_extensions(), ToProto<TTableSchemaExt>(Schema_));
         SetProtoExtension(meta->mutable_extensions(), BlockMetaExt_);
         SetProtoExtension(meta->mutable_extensions(), SamplesExt_);
-        SetProtoExtension(meta->mutable_extensions(), ColumnarStatisticsExt_);
+        SetProtoExtension(meta->mutable_extensions(), ToProto<TColumnarStatisticsExt>(ColumnarStatistics_));
         SetProtoExtension(meta->mutable_extensions(), SystemBlockMetaExt_);
         if (RowDigestBuilder_) {
             TVersionedRowDigestExt rowDigestExt;
@@ -532,6 +532,8 @@ private:
             WriteRow(rows[index], rows[index - 1].Keys());
             FinishBlockIfLarge(rows[index]);
         }
+
+        ColumnarStatistics_.Update(rows);
     }
 
     static void ValidateRow(
@@ -563,8 +565,6 @@ private:
 
         ++RowCount_;
         DataWeight_ += rowWeight;
-
-        UpdateColumnarStatistics(ColumnarStatisticsExt_, row);
 
         BlockWriter_->WriteRow(row);
     }
@@ -766,8 +766,6 @@ private:
                     ValidateRow(row, rowWeight, rows[rowIndex - 1].Keys());
                 }
 
-                UpdateColumnarStatistics(ColumnarStatisticsExt_, row);
-
                 weight += rowWeight;
             }
 
@@ -784,6 +782,8 @@ private:
 
             TryFlushBlock(rows[rowIndex - 1]);
         }
+
+        ColumnarStatistics_.Update(rows);
 
         for (auto row : rows) {
             EmitSampleRandomly(row);

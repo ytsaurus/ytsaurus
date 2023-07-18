@@ -2,6 +2,7 @@
 
 #include <yt/yt/client/chunk_client/read_limit.h>
 
+#include <yt/yt/client/table_client/columnar_statistics.h>
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/versioned_reader.h>
 
@@ -253,6 +254,22 @@ std::vector<TUnversionedRow> CreateFilteredRangedRows(
     }
 
     return rows;
+}
+
+void PrintTo(const TColumnarStatistics& statistics, std::ostream* os)
+{
+    *os << "ColumnDataWeights: "
+        << ::testing::PrintToString(statistics.ColumnDataWeights) << "\n"
+        << "TimestampTotalWeight: "
+        << ::testing::PrintToString(statistics.TimestampTotalWeight) << "\n"
+        << "LegacyChunkDataWeight: "
+        << ::testing::PrintToString(statistics.LegacyChunkDataWeight) << "\n"
+        << "ColumnMinValue: "
+        << ::testing::PrintToString(statistics.ColumnMinValues) << "\n"
+        << "ColumnMaxValues: "
+        << ::testing::PrintToString(statistics.ColumnMaxValues) << "\n"
+        << "ColumnNonNullValueCounts: "
+        << ::testing::PrintToString(statistics.ColumnNonNullValueCounts);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

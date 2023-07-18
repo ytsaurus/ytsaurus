@@ -153,9 +153,8 @@ public:
         , FinishGuard_(TraceContext_)
         , RandomGenerator_(RandomNumber<ui64>())
         , SamplingThreshold_(static_cast<ui64>(MaxFloor<ui64>() * Config_->SampleRate))
+        , ColumnarStatistics_(TColumnarStatistics::MakeEmpty(ChunkNameTable_->GetSize()))
     {
-        ColumnarStatisticsExt_.mutable_data_weights()->Resize(ChunkNameTable_->GetSize(), 0);
-
         if (dataSink) {
             PackBaggageForChunkWriter(
                 TraceContext_,
@@ -314,6 +313,8 @@ protected:
         if (IsSorted()) {
             CaptureBoundaryKeys(rows);
         }
+
+        ColumnarStatistics_.Update(rows);
     }
 
     virtual void PrepareChunkMeta()
@@ -370,7 +371,7 @@ protected:
         }
         SetProtoExtension(meta->mutable_extensions(), SamplesExt_);
 
-        SetProtoExtension(meta->mutable_extensions(), ColumnarStatisticsExt_);
+        SetProtoExtension(meta->mutable_extensions(), ToProto<TColumnarStatisticsExt>(ColumnarStatistics_));
 
         if (IsSorted()) {
             ToProto(BoundaryKeysExt_.mutable_max(), LastKey_);
@@ -379,11 +380,8 @@ protected:
 
         if (Options_->MaxHeavyColumns > 0) {
             auto columnCount = GetNameTable()->GetSize();
-            if (columnCount > ColumnarStatisticsExt_.data_weights_size()) {
-                ColumnarStatisticsExt_.mutable_data_weights()->Resize(columnCount, 0);
-            }
             auto heavyColumnStatisticsExt = GetHeavyColumnStatisticsExt(
-                ColumnarStatisticsExt_,
+                ColumnarStatistics_,
                 [&] (int columnIndex) {
                     return TStableName(TString{GetNameTable()->GetName(columnIndex)});
                 },
@@ -424,8 +422,6 @@ protected:
         DataWeight_ += weight;
         DataWeightSinceLastBlockFlush_ += weight;
 
-        UpdateColumnarStatistics(ColumnarStatisticsExt_, row);
-
         return weight;
     }
 
@@ -441,7 +437,7 @@ private:
     NProto::TSamplesExt SamplesExt_;
     i64 SamplesExtSize_ = 0;
 
-    NProto::TColumnarStatisticsExt ColumnarStatisticsExt_;
+    TColumnarStatistics ColumnarStatistics_;
 
     void FillCommonMeta(TChunkMeta* meta) const
     {

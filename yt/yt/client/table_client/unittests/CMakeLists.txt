@@ -37,6 +37,7 @@ target_link_options(unittester-client-table-client PRIVATE
   -lutil
 )
 target_sources(unittester-client-table-client PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/table_client/unittests/columnar_statistics_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/table_client/unittests/columnar_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/table_client/unittests/serialization_ut.cpp
 )

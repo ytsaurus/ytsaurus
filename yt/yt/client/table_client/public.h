@@ -285,6 +285,8 @@ class TColumnSchema;
 struct TColumnSortSchema;
 using TSortColumns = std::vector<TColumnSortSchema>;
 
+struct TColumnarStatistics;
+
 class TTableSchema;
 using TTableSchemaPtr = TIntrusivePtr<TTableSchema>;
 

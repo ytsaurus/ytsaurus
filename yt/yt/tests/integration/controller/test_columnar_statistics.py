@@ -16,6 +16,8 @@ from yt_helpers import skip_if_renaming_disabled
 
 from yt.common import YtError
 
+from yt.yson.yson_types import YsonEntity
+
 import pytest
 
 
@@ -56,7 +58,7 @@ class _TestColumnarStatisticsBase(YTEnvSetup):
     }
 
     @staticmethod
-    def _expect_statistics(
+    def _expect_data_weight_statistics(
         lower_row_index,
         upper_row_index,
         columns,
@@ -128,6 +130,30 @@ class _TestColumnarStatisticsBase(YTEnvSetup):
             },
         )
 
+    @staticmethod
+    def _expect_columnar_statistics(
+        table,
+        columns,
+        lower_row_index=None,
+        upper_row_index=None,
+        **expected_statistics
+    ):
+        columns = ",".join(columns)
+        lower_row_index = "#" + str(lower_row_index) if lower_row_index is not None else ""
+        upper_row_index = "#" + str(upper_row_index) if upper_row_index is not None else ""
+        path = f'["{table}{{{columns}}}[{lower_row_index}:{upper_row_index}]";]'
+        statistics = get_table_columnar_statistics(path)[0]
+        LIST_OF_COLUMNAR_STATISTICS_NAMES = [
+            "column_min_values",
+            "column_max_values",
+            "column_non_null_value_counts",
+            "column_data_weights",
+        ]
+        for statistics_name in LIST_OF_COLUMNAR_STATISTICS_NAMES:
+            if expected_statistics.get(statistics_name) is not None:
+                assert statistics.get(statistics_name) == expected_statistics.get(statistics_name), \
+                    "Error when checking {}, table path is {}".format(statistics_name, path)
+
 
 class TestColumnarStatistics(_TestColumnarStatisticsBase):
     @authors("max42")
@@ -138,12 +164,12 @@ class TestColumnarStatistics(_TestColumnarStatisticsBase):
         write_table("<append=%true>//tmp/t", [{"b": None, "c": 0}, {"a": "x" * 1000}])
         with pytest.raises(YtError):
             get_table_columnar_statistics('["//tmp/t";]')
-        self._expect_statistics(2, 2, "a,b,c", [0, 0, 0])
-        self._expect_statistics(0, 6, "a,b,c", [1300, 8, 17])
-        self._expect_statistics(0, 6, "a,c,x", [1300, 17, 0])
-        self._expect_statistics(1, 5, "a,b,c", [1300, 8, 17])
-        self._expect_statistics(2, 5, "a", [1200])
-        self._expect_statistics(1, 4, "", [])
+        self._expect_data_weight_statistics(2, 2, "a,b,c", [0, 0, 0])
+        self._expect_data_weight_statistics(0, 6, "a,b,c", [1300, 8, 17])
+        self._expect_data_weight_statistics(0, 6, "a,c,x", [1300, 17, 0])
+        self._expect_data_weight_statistics(1, 5, "a,b,c", [1300, 8, 17])
+        self._expect_data_weight_statistics(2, 5, "a", [1200])
+        self._expect_data_weight_statistics(1, 4, "", [])
 
     @authors("gritukan")
     def test_get_table_approximate_statistics(self):
@@ -158,7 +184,7 @@ class TestColumnarStatistics(_TestColumnarStatisticsBase):
                 )
 
         make_table([255, 12, 45, 1, 0])
-        self._expect_statistics(
+        self._expect_data_weight_statistics(
             0,
             1,
             "x0,x1,x2,x3,x4,zzz",
@@ -172,7 +198,7 @@ class TestColumnarStatistics(_TestColumnarStatisticsBase):
             out="//tmp/t2",
             spec={"cluster_connection": self.__class__.Env.configs["driver"]},
         )
-        self._expect_statistics(
+        self._expect_data_weight_statistics(
             0,
             1,
             "x0,x1,x2,x3,x4,zzz",
@@ -182,24 +208,24 @@ class TestColumnarStatistics(_TestColumnarStatisticsBase):
         )
 
         make_table([510, 12, 13, 1, 0])
-        self._expect_statistics(0, 1, "x0,x1,x2,x3,x4", [510, 12, 14, 2, 0], fetcher_mode="from_master")
+        self._expect_data_weight_statistics(0, 1, "x0,x1,x2,x3,x4", [510, 12, 14, 2, 0], fetcher_mode="from_master")
 
         make_table([256, 12, 13, 1, 0])
-        self._expect_statistics(0, 1, "x0,x1,x2,x3,x4", [256, 12, 14, 2, 0], fetcher_mode="from_master")
+        self._expect_data_weight_statistics(0, 1, "x0,x1,x2,x3,x4", [256, 12, 14, 2, 0], fetcher_mode="from_master")
 
         make_table([1])
-        self._expect_statistics(0, 1, "", [], fetcher_mode="from_master")
+        self._expect_data_weight_statistics(0, 1, "", [], fetcher_mode="from_master")
 
         make_table([])
-        self._expect_statistics(0, 1, "x", [0], fetcher_mode="from_master")
+        self._expect_data_weight_statistics(0, 1, "x", [0], fetcher_mode="from_master")
 
         set("//sys/@config/chunk_manager/max_heavy_columns", 1)
         make_table([255, 42])
-        self._expect_statistics(0, 1, "x0,x1,zzz", [255, 255, 255], fetcher_mode="from_master")
+        self._expect_data_weight_statistics(0, 1, "x0,x1,zzz", [255, 255, 255], fetcher_mode="from_master")
 
         set("//sys/@config/chunk_manager/max_heavy_columns", 0)
         make_table([256, 42])
-        self._expect_statistics(
+        self._expect_data_weight_statistics(
             0,
             1,
             "x0,x1,zzz",
@@ -207,7 +233,7 @@ class TestColumnarStatistics(_TestColumnarStatisticsBase):
             fetcher_mode="from_master",
             expected_legacy_data_weight=299,
         )
-        self._expect_statistics(0, 1, "x0,x1,zzz", [256, 42, 0], fetcher_mode="fallback")
+        self._expect_data_weight_statistics(0, 1, "x0,x1,zzz", [256, 42, 0], fetcher_mode="fallback")
 
     @authors("dakovalkov")
     def test_get_table_columnar_statistics_multi(self):
@@ -359,27 +385,27 @@ class TestColumnarStatistics(_TestColumnarStatisticsBase):
         insert_rows("//tmp/t", rows)
         sync_flush_table("//tmp/t")
 
-        self._expect_statistics(None, None, "key,value", [80, 10080], expected_timestamp_weight=(8 * 10))
+        self._expect_data_weight_statistics(None, None, "key,value", [80, 10080], expected_timestamp_weight=(8 * 10))
 
         rows = [{"key": i, "value": str(i // 2) * 1000} for i in range(10)]
         insert_rows("//tmp/t", rows)
         sync_flush_table("//tmp/t")
 
-        self._expect_statistics(None, None, "key,value", [160, 20160], expected_timestamp_weight=(8 * 20))
+        self._expect_data_weight_statistics(None, None, "key,value", [160, 20160], expected_timestamp_weight=(8 * 20))
 
         sync_compact_table("//tmp/t")
 
-        self._expect_statistics(None, None, "key,value", [80, 20160], expected_timestamp_weight=(8 * 20))
+        self._expect_data_weight_statistics(None, None, "key,value", [80, 20160], expected_timestamp_weight=(8 * 20))
 
         rows = [{"key": i} for i in range(10)]
         delete_rows("//tmp/t", rows)
         sync_flush_table("//tmp/t")
 
-        self._expect_statistics(None, None, "key,value", [160, 20160], expected_timestamp_weight=(8 * 30))
+        self._expect_data_weight_statistics(None, None, "key,value", [160, 20160], expected_timestamp_weight=(8 * 30))
 
         sync_compact_table("//tmp/t")
 
-        self._expect_statistics(None, None, "key,value", [80, 20160], expected_timestamp_weight=(8 * 30))
+        self._expect_data_weight_statistics(None, None, "key,value", [80, 20160], expected_timestamp_weight=(8 * 30))
 
     @authors("prime")
     def test_max_node_per_fetch(self):
@@ -392,8 +418,109 @@ class TestColumnarStatistics(_TestColumnarStatisticsBase):
         statistics1 = get_table_columnar_statistics('["//tmp/t{a}";]', max_chunks_per_node_fetch=1)
         assert statistics0 == statistics1
 
+    @authors("denvid")
+    def test_value_statistics(self):
+        MAX_STRING_VALUE_LENGTH = 100
+        table_path = "//tmp/t"
+        create("table", table_path)
+        write_table("<append=%true>" + table_path, [{"a": "x" * (MAX_STRING_VALUE_LENGTH + 1), "b": 12, 'x': ['A', {'B': 'b', 'C': 'c'}]}])
+        write_table("<append=%true>" + table_path, [{"c": True, "x": 1}])
+        write_table("<append=%true>" + table_path, [{"a": "t" * MAX_STRING_VALUE_LENGTH, "b": 23, "c": False}])
+        write_table("<append=%true>" + table_path, [{"a": "u", "b": -10, "c": False, "d": 5}])
+        write_table("<append=%true>" + table_path, [{"d": False}])
+
+        VALUE_MIN = YsonEntity()
+        VALUE_MIN.attributes = {"type": "min"}
+        VALUE_MAX = YsonEntity()
+        VALUE_MAX.attributes = {"type": "max"}
+        VALUE_NULL = YsonEntity()
+
+        self._expect_columnar_statistics(
+            table_path, ["a", "b", "c", "d", "x"],
+            column_min_values={"a": "t" * MAX_STRING_VALUE_LENGTH, "b": -10, "c": False, "d": 5, "x": VALUE_MIN},
+            column_max_values={"a": "x" * (MAX_STRING_VALUE_LENGTH - 1) + "y", "b": 23, "c": True, "d": False, "x": VALUE_MAX},
+            column_non_null_value_counts={"a": 3, "b": 3, "c": 3, "d": 2, "x": 2}
+        )
+
+        self._expect_columnar_statistics(
+            table_path, ["a", "b", "d", "x"], 1, 4,
+            column_min_values={"a": "t" * MAX_STRING_VALUE_LENGTH, "b": -10, "d": 5, "x": 1},
+            column_max_values={"a": "u", "b": 23, "d": 5, "x": 1},
+            column_non_null_value_counts={"a": 2, "b": 2, "d": 1, "x": 1}
+        )
+
+        self._expect_columnar_statistics(
+            table_path, ["a", "b"], 3, 3,
+            column_min_values={"a": None, "b": None},
+            column_max_values={"a": None, "b": None},
+            column_non_null_value_counts={"a": 0, "b": 0}
+        )
+
+        self._expect_columnar_statistics(
+            table_path, ["a", "b", "c"], upper_row_index=1,
+            column_min_values={"a": "x" * MAX_STRING_VALUE_LENGTH, "b": 12, "c": VALUE_NULL},
+            column_max_values={"a": "x" * (MAX_STRING_VALUE_LENGTH - 1) + "y", "b": 12, "c": VALUE_NULL},
+            column_non_null_value_counts={"a": 1, "b": 1, "c": 0}
+        )
+
+    @authors("denvid")
+    def test_dynamic_table_value_statistics(self):
+        schema = [
+            {
+                "name": "a",
+                "type": "int64",
+                "sort_order": "ascending",
+                "required": True,
+            },
+            {
+                "name": "b",
+                "type": "string",
+            }
+        ]
+        table_path = "//tmp/t"
+        VALUE_NULL = YsonEntity()
+
+        # Setting ttl so that overwriting will be perfromed immediately after compaction.
+        create("table", table_path, attributes={"schema": schema, "dynamic": True, "min_data_ttl": 0, "max_data_ttl": 0})
+        sync_create_cells(1)
+        sync_mount_table(table_path)
+
+        insert_rows(table_path, [{"a": 5, "b": "sol"},
+                                 {"a": 3, "b": "mi"}])
+        insert_rows(table_path, [{"a": 4, "b": "fa"}])
+        insert_rows(table_path, [{"a": 100, "b": "re"}])
+        sync_compact_table(table_path)
+
+        self._expect_columnar_statistics(
+            table_path, ["a", "b", "c"],
+            column_min_values={"a": 3, "b": "fa", "c": VALUE_NULL},
+            column_max_values={"a": 100, "b": "sol", "c": VALUE_NULL},
+            column_non_null_value_counts={"a": 4, "b": 4, "c": 0}
+        )
+
+        # Add more rows.
+        insert_rows(table_path, [{"a": 1, "b": "v"}])
+        insert_rows(table_path, [{"a": 101, "b": "do"}])
+        sync_compact_table(table_path)
+
+        self._expect_columnar_statistics(
+            table_path, ["a", "b"],
+            column_min_values={"a": 1, "b": "do"},
+            column_max_values={"a": 101, "b": "v"},
+            column_non_null_value_counts={"a": 6, "b": 6}
+        )
+
+        # Overwrite some value.
+        insert_rows(table_path, [{"a": 101, "b": "lya"}])
+        sync_compact_table(table_path)
+
+        self._expect_columnar_statistics(
+            table_path, ["a", "b"],
+            column_min_values={"a": 1, "b": "fa"},
+        )
 
 ##################################################################
+
 
 class TestColumnarStatisticsOperations(_TestColumnarStatisticsBase):
     @authors("max42")
@@ -406,7 +533,7 @@ class TestColumnarStatisticsOperations(_TestColumnarStatisticsBase):
                 [{"a": "x" * 90, "b": "y" * 10} for j in range(100)],
             )
         assert get("//tmp/t/@data_weight") == 101 * 10 ** 3
-        self._expect_statistics(0, 1000, "a,b", [90 * 10 ** 3, 10 * 10 ** 3])
+        self._expect_data_weight_statistics(0, 1000, "a,b", [90 * 10 ** 3, 10 * 10 ** 3])
         op = map(
             in_="//tmp/t{b}",
             out="//tmp/d",
@@ -436,7 +563,7 @@ class TestColumnarStatisticsOperations(_TestColumnarStatisticsBase):
                 [{"a": "x" * 90, "b": "y" * 10} for j in range(100)],
             )
         assert get("//tmp/t/@data_weight") == 101 * 10 ** 3
-        self._expect_statistics(0, 1000, "a,b", [90 * 10 ** 3, 10 * 10 ** 3])
+        self._expect_data_weight_statistics(0, 1000, "a,b", [90 * 10 ** 3, 10 * 10 ** 3])
         op = merge(in_="//tmp/t{b}", out="//tmp/d", spec={"data_weight_per_job": 1000})
         op.track()
         assert 9 <= get("//tmp/d/@chunk_count") <= 11
@@ -458,7 +585,7 @@ class TestColumnarStatisticsOperations(_TestColumnarStatisticsBase):
         create("table", "//tmp/d")
         wait(lambda: get("//tmp/t/@chunk_count") == 12)
         assert get("//tmp/t/@data_weight") == (8 + (80 + 8) + 8) * 10 ** 3
-        self._expect_statistics(
+        self._expect_data_weight_statistics(
             None,
             None,
             "key,value",
@@ -629,10 +756,10 @@ class TestColumnarStatisticsOperationsEarlyFinish(TestColumnarStatisticsOperatio
     }
 
     @classmethod
-    def _expect_statistics(cls, *args, **kwargs):
+    def _expect_data_weight_statistics(cls, *args, **kwargs):
         if "enable_early_finish" not in kwargs:
             kwargs["enable_early_finish"] = True
-        super(TestColumnarStatisticsOperationsEarlyFinish, cls)._expect_statistics(*args, **kwargs)
+        super(TestColumnarStatisticsOperationsEarlyFinish, cls)._expect_data_weight_statistics(*args, **kwargs)
 
 
 ##################################################################
@@ -673,9 +800,9 @@ class TestColumnarStatisticsCommandEarlyFinish(_TestColumnarStatisticsBase):
         write_table("<append=%true>//tmp/t", [{"b": None, "c": 0}, {"a": "x" * 1000}])
 
         with pytest.raises(YtError):
-            self._expect_statistics(None, None, "a,b,c", [1900, 56, 65], enable_early_finish=False)
+            self._expect_data_weight_statistics(None, None, "a,b,c", [1900, 56, 65], enable_early_finish=False)
 
-        self._expect_statistics(None, None, "a,b,c", [1900, 56, 65], enable_early_finish=True)
+        self._expect_data_weight_statistics(None, None, "a,b,c", [1900, 56, 65], enable_early_finish=True)
 
 
 ##################################################################
@@ -720,26 +847,26 @@ class TestColumnarStatisticsRenamedColumns(_TestColumnarStatisticsBase):
         write_table("<append=%true>//tmp/t", [{"a_new": "x" * 200}, {"c_new": 6.5}])
         write_table("<append=%true>//tmp/t", [{"b": None, "c_new": 0.0}, {"a_new": "x" * 1000}])
 
-        self._expect_statistics(2, 2, "a,b,c", [0, 0, 0])  # Note the wrong names.
-        self._expect_statistics(2, 2, "a_new,b,c_new", [0, 0, 0])
-        self._expect_statistics(0, 6, "a,b,c", [0, 8, 0])  # Note the wrong names.
-        self._expect_statistics(0, 6, "a_new,b,c_new", [1300, 8, 24])
-        self._expect_statistics(0, 6, "a_new,c_new,x", [1300, 24, 0])
-        self._expect_statistics(1, 5, "a,b,c", [0, 8, 0])  # Note the wrong names.
-        self._expect_statistics(1, 5, "a_new,b,c_new", [1300, 8, 24])
-        self._expect_statistics(2, 5, "a_new", [1200])
-        self._expect_statistics(1, 4, "", [])
+        self._expect_data_weight_statistics(2, 2, "a,b,c", [0, 0, 0])  # Note the wrong names.
+        self._expect_data_weight_statistics(2, 2, "a_new,b,c_new", [0, 0, 0])
+        self._expect_data_weight_statistics(0, 6, "a,b,c", [0, 8, 0])  # Note the wrong names.
+        self._expect_data_weight_statistics(0, 6, "a_new,b,c_new", [1300, 8, 24])
+        self._expect_data_weight_statistics(0, 6, "a_new,c_new,x", [1300, 24, 0])
+        self._expect_data_weight_statistics(1, 5, "a,b,c", [0, 8, 0])  # Note the wrong names.
+        self._expect_data_weight_statistics(1, 5, "a_new,b,c_new", [1300, 8, 24])
+        self._expect_data_weight_statistics(2, 5, "a_new", [1200])
+        self._expect_data_weight_statistics(1, 4, "", [])
 
         alter_table("//tmp/t", schema=schema1)
 
         write_table("<append=%true>//tmp/t", [{"b": None, "c": 0.0}, {"a": "x" * 1000}])
 
-        self._expect_statistics(2, 2, "a,b,c", [0, 0, 0])
-        self._expect_statistics(0, 6, "a,b,c", [1300, 8, 24])
-        self._expect_statistics(0, 6, "a,c,x", [1300, 24, 0])
-        self._expect_statistics(1, 5, "a,b,c", [1300, 8, 24])
-        self._expect_statistics(2, 5, "a", [1200])
-        self._expect_statistics(1, 4, "", [])
+        self._expect_data_weight_statistics(2, 2, "a,b,c", [0, 0, 0])
+        self._expect_data_weight_statistics(0, 6, "a,b,c", [1300, 8, 24])
+        self._expect_data_weight_statistics(0, 6, "a,c,x", [1300, 24, 0])
+        self._expect_data_weight_statistics(1, 5, "a,b,c", [1300, 8, 24])
+        self._expect_data_weight_statistics(2, 5, "a", [1200])
+        self._expect_data_weight_statistics(1, 4, "", [])
 
     @authors("levysotsky")
     def test_map_thin_column(self):
@@ -766,7 +893,7 @@ class TestColumnarStatisticsRenamedColumns(_TestColumnarStatisticsBase):
         for a_name, b_name, schema in [("a", "b", schema1), ("a_new", "b_new", schema2)]:
             alter_table("//tmp/t", schema=schema)
             assert get("//tmp/t/@data_weight") == 101 * 10 ** 3
-            self._expect_statistics(
+            self._expect_data_weight_statistics(
                 0, 1000,
                 "{},{}".format(a_name, b_name),
                 [90 * 10 ** 3, 10 * 10 ** 3],
@@ -809,7 +936,7 @@ class TestColumnarStatisticsUseControllerAgentDefault(_TestColumnarStatisticsBas
                 [{"a": "x" * 50, "b": "y" * 50} for j in range(10)],
             )
         assert get("//tmp/t/@data_weight") == 101 * 10 ** 2
-        self._expect_statistics(0, 100, "a,b", [50 * 10 ** 2, 50 * 10 ** 2])
+        self._expect_data_weight_statistics(0, 100, "a,b", [50 * 10 ** 2, 50 * 10 ** 2])
 
         op = map(
             in_="//tmp/t{a}",

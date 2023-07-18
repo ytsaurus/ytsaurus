@@ -37,6 +37,8 @@
 #include <yt/yt/ytlib/table_client/samples_fetcher.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
 
+#include <yt/yt/client/api/rpc_proxy/helpers.h>
+
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/schema.h>
@@ -2110,18 +2112,24 @@ private:
                 nameTable = TNameTable::FromSchemaStable(FromProto<TTableSchema>(schemaExt));
             }
 
-            subresponse->mutable_data_weights()->Reserve(columnStableNames.size());
-            for (const auto& columnName: columnStableNames) {
+            TColumnarStatistics columnarStatistics;
+            FromProto(&columnarStatistics, columnarStatisticsExt);
+            ToProto(subresponse->mutable_columnar_statistics(),
+                columnarStatistics.SelectByColumnNames(nameTable, columnStableNames));
+
+            // COMPAT(denvid): legacy response fields. Remove once all clusters are 23.2+.
+
+            subresponse->mutable_column_data_weights()->Reserve(columnStableNames.size());
+            for (const auto& columnName : columnStableNames) {
                 auto id = nameTable->FindId(columnName.Get());
-                if (id && *id < columnarStatisticsExt.data_weights().size()) {
-                    subresponse->add_data_weights(columnarStatisticsExt.data_weights(*id));
+                if (id && *id < columnarStatisticsExt.column_data_weights().size()) {
+                    subresponse->add_column_data_weights(columnarStatisticsExt.column_data_weights(*id));
                 } else {
-                    subresponse->add_data_weights(0);
+                    subresponse->add_column_data_weights(0);
                 }
             }
-
-            if (columnarStatisticsExt.has_timestamp_weight()) {
-                subresponse->set_timestamp_total_weight(columnarStatisticsExt.timestamp_weight());
+            if (columnarStatisticsExt.has_timestamp_total_weight()) {
+                subresponse->set_timestamp_total_weight(columnarStatisticsExt.timestamp_total_weight());
             }
 
             YT_LOG_DEBUG("Columnar statistics extracted from chunk meta (ChunkId: %v)", chunkId);

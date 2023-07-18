@@ -5,9 +5,8 @@
 
 #include <yt/yt/client/table_client/columnar.h>
 #include <yt/yt/client/table_client/config.h>
-#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/public.h>
 #include <yt/yt/client/table_client/row_batch.h>
-#include <yt/yt/client/table_client/versioned_row.h>
 
 #include <iostream>
 
@@ -224,6 +223,8 @@ std::vector<TUnversionedRow> CreateFilteredRangedRows(
     NChunkClient::TLegacyReadRange readRange,
     TChunkedMemoryPool* pool,
     int keyColumnCount);
+
+void PrintTo(const TColumnarStatistics& statistics, std::ostream* os);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -358,7 +358,7 @@ void ValidateColumnFilter(const TColumnFilter& columnFilter, int schemaColumnCou
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TValue>
-TValue MakeSentinelValue(EValueType type, int id = 0, EValueFlags flags = EValueFlags::None)
+constexpr TValue MakeSentinelValue(EValueType type, int id = 0, EValueFlags flags = EValueFlags::None)
 {
     TValue result{};
     result.Id = id;
@@ -368,7 +368,7 @@ TValue MakeSentinelValue(EValueType type, int id = 0, EValueFlags flags = EValue
 }
 
 template <class TValue>
-TValue MakeNullValue(int id = 0, EValueFlags flags = EValueFlags::None)
+constexpr TValue MakeNullValue(int id = 0, EValueFlags flags = EValueFlags::None)
 {
     TValue result{};
     result.Id = id;
@@ -378,7 +378,7 @@ TValue MakeNullValue(int id = 0, EValueFlags flags = EValueFlags::None)
 }
 
 template <class TValue>
-TValue MakeInt64Value(i64 value, int id = 0, EValueFlags flags = EValueFlags::None)
+constexpr TValue MakeInt64Value(i64 value, int id = 0, EValueFlags flags = EValueFlags::None)
 {
     TValue result{};
     result.Id = id;
@@ -389,7 +389,7 @@ TValue MakeInt64Value(i64 value, int id = 0, EValueFlags flags = EValueFlags::No
 }
 
 template <class TValue>
-TValue MakeUint64Value(ui64 value, int id = 0, EValueFlags flags = EValueFlags::None)
+constexpr TValue MakeUint64Value(ui64 value, int id = 0, EValueFlags flags = EValueFlags::None)
 {
     TValue result{};
     result.Id = id;
@@ -400,7 +400,7 @@ TValue MakeUint64Value(ui64 value, int id = 0, EValueFlags flags = EValueFlags::
 }
 
 template <class TValue>
-TValue MakeDoubleValue(double value, int id = 0, EValueFlags flags = EValueFlags::None)
+constexpr TValue MakeDoubleValue(double value, int id = 0, EValueFlags flags = EValueFlags::None)
 {
     TValue result{};
     result.Id = id;
@@ -411,7 +411,7 @@ TValue MakeDoubleValue(double value, int id = 0, EValueFlags flags = EValueFlags
 }
 
 template <class TValue>
-TValue MakeBooleanValue(bool value, int id = 0, EValueFlags flags = EValueFlags::None)
+constexpr TValue MakeBooleanValue(bool value, int id = 0, EValueFlags flags = EValueFlags::None)
 {
     TValue result{};
     result.Id = id;
@@ -422,7 +422,7 @@ TValue MakeBooleanValue(bool value, int id = 0, EValueFlags flags = EValueFlags:
 }
 
 template <class TValue>
-TValue MakeStringLikeValue(EValueType valueType, TStringBuf value, int id = 0, EValueFlags flags = EValueFlags::None)
+constexpr TValue MakeStringLikeValue(EValueType valueType, TStringBuf value, int id = 0, EValueFlags flags = EValueFlags::None)
 {
     TValue result{};
     result.Id = id;
@@ -434,19 +434,19 @@ TValue MakeStringLikeValue(EValueType valueType, TStringBuf value, int id = 0, E
 }
 
 template <class TValue>
-TValue MakeStringValue(TStringBuf value, int id = 0, EValueFlags flags = EValueFlags::None)
+constexpr TValue MakeStringValue(TStringBuf value, int id = 0, EValueFlags flags = EValueFlags::None)
 {
     return MakeStringLikeValue<TValue>(EValueType::String, value, id, flags);
 }
 
 template <class TValue>
-TValue MakeAnyValue(TStringBuf value, int id = 0, EValueFlags flags = EValueFlags::None)
+constexpr TValue MakeAnyValue(TStringBuf value, int id = 0, EValueFlags flags = EValueFlags::None)
 {
     return MakeStringLikeValue<TValue>(EValueType::Any, value, id, flags);
 }
 
 template <class TValue>
-TValue MakeCompositeValue(TStringBuf value, int id = 0, EValueFlags flags = EValueFlags::None)
+constexpr TValue MakeCompositeValue(TStringBuf value, int id = 0, EValueFlags flags = EValueFlags::None)
 {
     return MakeStringLikeValue<TValue>(EValueType::Composite, value, id, flags);
 }

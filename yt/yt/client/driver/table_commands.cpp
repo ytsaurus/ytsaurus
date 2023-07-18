@@ -356,26 +356,43 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
 
     YT_VERIFY(allStatistics.size() == Paths.size());
     for (int index = 0; index < std::ssize(allStatistics); ++index) {
-        YT_VERIFY(Paths[index].GetColumns()->size() == allStatistics[index].ColumnDataWeights.size());
+        YT_VERIFY(std::ssize(*Paths[index].GetColumns()) == allStatistics[index].Size());
     }
 
     ProduceOutput(context, [&] (IYsonConsumer* consumer) {
         BuildYsonFluently(consumer)
             .DoList([&] (TFluentList fluent) {
                 for (int index = 0; index < std::ssize(Paths); ++index) {
-                    const auto& columns = Paths[index].GetColumns();
+                    auto columns = *Paths[index].GetColumns();
                     const auto& statistics = allStatistics[index];
                     fluent
                         .Item()
                         .BeginMap()
                             .Item("column_data_weights").DoMap([&] (TFluentMap fluent) {
-                                for (int index = 0; index < std::ssize(*columns); ++index) {
-                                    fluent
-                                        .Item((*columns)[index]).Value(statistics.ColumnDataWeights[index]);
+                                for (int index = 0; index < statistics.Size(); ++index) {
+                                    fluent.Item(columns[index]).Value(statistics.ColumnDataWeights[index]);
                                 }
                             })
                             .OptionalItem("timestamp_total_weight", statistics.TimestampTotalWeight)
                             .Item("legacy_chunks_data_weight").Value(statistics.LegacyChunkDataWeight)
+                            .DoIf(statistics.HasValueStatistics(), [&] (TFluentMap fluent) {
+                                fluent
+                                    .Item("column_min_values").DoMap([&] (TFluentMap fluent) {
+                                        for (int index = 0; index < statistics.Size(); ++index) {
+                                            fluent.Item(columns[index]).Value(statistics.ColumnMinValues[index]);
+                                        }
+                                    })
+                                    .Item("column_max_values").DoMap([&] (TFluentMap fluent) {
+                                        for (int index = 0; index < statistics.Size(); ++index) {
+                                            fluent.Item(columns[index]).Value(statistics.ColumnMaxValues[index]);
+                                        }
+                                    })
+                                    .Item("column_non_null_value_counts").DoMap([&] (TFluentMap fluent) {
+                                        for (int index = 0; index < statistics.Size(); ++index) {
+                                            fluent.Item(columns[index]).Value(statistics.ColumnNonNullValueCounts[index]);
+                                        }
+                                    });
+                            })
                         .EndMap();
                 }
             });

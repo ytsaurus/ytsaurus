@@ -544,7 +544,7 @@ class TestHttpProxyFraming(HttpProxyTestBase):
         with pytest.raises(YtResponseError):
             self._execute_command("GET", "read_table", params, extra_headers=headers)
 
-    @authors("levysotsky")
+    @authors("levysotsky", "denvid")
     def test_get_table_columnar_statistics(self):
         create("table", self.SUSPENDING_TABLE)
         write_table(self.SUSPENDING_TABLE, [{"column_1": 1, "column_2": "foo"}])
@@ -554,7 +554,10 @@ class TestHttpProxyFraming(HttpProxyTestBase):
         response = self._execute_command("GET", "get_table_columnar_statistics", params)
         statistics = yson.loads(response)
         assert len(statistics) == 1
-        assert "column_data_weights" in statistics[0]
+        assert statistics[0].get("column_data_weights") == {"column_1": 8}
+        assert statistics[0].get("column_min_values") == {"column_1": 1}
+        assert statistics[0].get("column_max_values") == {"column_1": 1}
+        assert statistics[0].get("column_non_null_value_counts") == {"column_1": 1}
 
         remove(self.SUSPENDING_TABLE)
         with pytest.raises(YtResponseError):

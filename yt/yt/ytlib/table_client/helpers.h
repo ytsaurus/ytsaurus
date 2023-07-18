@@ -104,12 +104,6 @@ std::tuple<std::vector<NChunkClient::TInputChunkPtr>, TTableSchemaPtr, bool> Col
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Helpers for updating columnar statistics with versioned and unversioned rows.
-void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, TUnversionedRow row);
-void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, TVersionedRow row);
-
-////////////////////////////////////////////////////////////////////////////////
-
 void CheckUnavailableChunks(
     EUnavailableChunkStrategy strategy,
     NChunkClient::EChunkAvailabilityPolicy policy,
@@ -169,7 +163,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 NProto::THeavyColumnStatisticsExt GetHeavyColumnStatisticsExt(
-    const NProto::TColumnarStatisticsExt& columnarStatisticsExt,
+    const TColumnarStatistics& columnarStatistics,
     const std::function<TStableName(int index)>& getStableNameByIndex,
     int columnCount,
     int maxHeavyColumns);
@@ -210,6 +204,16 @@ NYTree::IAttributeDictionaryPtr ResolveExternalTable(
     TTableId* tableId,
     NObjectClient::TCellTag* externalCellTag,
     const std::vector<TString>& extraAttributeKeys = {});
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(
+    NProto::TColumnarStatisticsExt* protoStatisticsExt,
+    const TColumnarStatistics& statistics);
+
+void FromProto(
+    TColumnarStatistics* statistics,
+    const NProto::TColumnarStatisticsExt& protoStatisticsExt);
 
 ////////////////////////////////////////////////////////////////////////////////
 

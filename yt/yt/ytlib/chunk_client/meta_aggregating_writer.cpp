@@ -178,7 +178,7 @@ private:
     std::optional<TKeyColumnsExt> KeyColumnsExt_;
 
     std::optional<TSamplesExt> SamplesExt_;
-    std::optional<TColumnarStatisticsExt> ColumnarStatisticsExt_;
+    std::optional<TColumnarStatistics> ColumnarStatistics_;
 
     template <typename T>
     static bool ExtensionEquals(const std::optional<T>& lhs, const std::optional<T>& rhs);
@@ -277,26 +277,21 @@ void TMetaAggregatingWriter::AbsorbMeta(const TDeferredChunkMetaPtr& meta, TChun
                 "Cannot absorb meta of a chunk %v without columnar statistics",
                 chunkId);
         }
-        if (!ColumnarStatisticsExt_) {
+        auto chunkColumnarStatistics = NYT::FromProto<TColumnarStatistics>(*columnarStatisticsExt);
+        if (!ColumnarStatistics_) {
             // First meta.
-            ColumnarStatisticsExt_ = columnarStatisticsExt;
+            ColumnarStatistics_ = std::move(chunkColumnarStatistics);
         } else {
-            const auto& anotherDataWeights = columnarStatisticsExt->data_weights();
-            if (anotherDataWeights.size() != ColumnarStatisticsExt_->data_weights_size()) {
+            if (ColumnarStatistics_->Size() != chunkColumnarStatistics.Size()) {
                 THROW_ERROR_EXCEPTION(
                     EErrorCode::IncompatibleChunkMetas,
-                    "Data weights sizes in columnar statistics differ in chunks %v and %v",
+                    "Sizes of columnar statistics differ in chunks %v and %v",
                     FirstChunkId_,
                     chunkId)
-                    << TErrorAttribute("previous", ColumnarStatisticsExt_->data_weights_size())
-                    << TErrorAttribute("current", anotherDataWeights.size());
+                    << TErrorAttribute("previous", ColumnarStatistics_->Size())
+                    << TErrorAttribute("current", chunkColumnarStatistics.Size());
             }
-            for (int i = 0; i < std::ssize(anotherDataWeights); ++i) {
-                auto dataWeight = ColumnarStatisticsExt_->data_weights(i) + anotherDataWeights[i];
-                ColumnarStatisticsExt_->set_data_weights(i, dataWeight);
-            }
-            auto timestampWeight = ColumnarStatisticsExt_->timestamp_weight() + columnarStatisticsExt->timestamp_weight();
-            ColumnarStatisticsExt_->set_timestamp_weight(timestampWeight);
+            *ColumnarStatistics_ += chunkColumnarStatistics;
         }
     }
 
@@ -499,12 +494,12 @@ void TMetaAggregatingWriter::FinalizeMeta()
     if (SamplesExt_) {
         SetProtoExtension(ChunkMeta_->mutable_extensions(), *SamplesExt_);
     }
-    if (ColumnarStatisticsExt_) {
-        SetProtoExtension(ChunkMeta_->mutable_extensions(), *ColumnarStatisticsExt_);
+    if (ColumnarStatistics_) {
+        SetProtoExtension(ChunkMeta_->mutable_extensions(), ToProto<TColumnarStatisticsExt>(*ColumnarStatistics_));
     }
-    if (Options_->MaxHeavyColumns > 0 && ColumnarStatisticsExt_) {
+    if (Options_->MaxHeavyColumns > 0 && ColumnarStatistics_) {
         auto heavyColumnStatisticsExt = GetHeavyColumnStatisticsExt(
-            *ColumnarStatisticsExt_,
+            *ColumnarStatistics_,
             [&] (int columnIndex) {
                 return TStableName(TString{NameTableExt_.names(columnIndex)});
             },

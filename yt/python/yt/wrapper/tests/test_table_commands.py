@@ -518,14 +518,17 @@ class TestTableCommands(object):
         assert result[0]["x"] == "abacaba"
         assert result[1]["z"] == 2
 
-    @authors("se4min")
+    @authors("se4min", "denvid")
     def test_get_table_columnar_statistics(self):
         table = TEST_DIR + "/test_table"
         yt.write_table(table, [{"x": "abacaba", "y": 1}, {"x": 2}])
 
-        res = yt.get_table_columnar_statistics(paths=[table + "{x}"])
+        res = yt.get_table_columnar_statistics(paths=[table + "{x,y}"])
         assert res
-        assert res[0].get("column_data_weights", {}).get("x", 0) > 0
+        assert res[0].get("column_data_weights", {}) == {"x": 15, "y": 8}
+        assert res[0].get("column_min_values", {}) == {"x": 2, "y": 1}
+        assert res[0].get("column_max_values", {}) == {"x": "abacaba", "y": 1}
+        assert res[0].get("column_non_null_value_counts", {}) == {"x": 2, "y": 1}
 
     @authors("ignat")
     def test_unaligned_write(self):

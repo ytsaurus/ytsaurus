@@ -1433,6 +1433,13 @@ void ToProto(TProtoStringType* protoRow, TUnversionedValueRange range)
     *protoRow = SerializeToString(range);
 }
 
+void ToProto(TProtoStringType* protoRow, const TRange<TUnversionedOwningValue>& values)
+{
+    std::vector<TUnversionedValue> notOwningValues(values.size());
+    std::copy(values.begin(), values.end(), notOwningValues.begin());
+    ToProto(protoRow, notOwningValues);
+}
+
 void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow, std::optional<int> nullPaddingWidth)
 {
     *row = DeserializeFromString(TString{protoRow}, nullPaddingWidth);
@@ -1462,6 +1469,14 @@ void FromProto(TUnversionedRow* row, const TProtoStringType& protoRow, const TRo
         current += ReadRowValue(current, value);
         rowBuffer->CaptureValue(value);
     }
+}
+
+void FromProto(std::vector<TUnversionedOwningValue>* values, const TProtoStringType& protoRow)
+{
+    TUnversionedOwningRow row;
+    FromProto(&row, protoRow);
+    values->resize(row.GetCount());
+    std::copy(row.Begin(), row.End(), values->begin());
 }
 
 void ToBytes(TString* bytes, const TUnversionedOwningRow& row)

@@ -13,6 +13,7 @@
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/yt/ytlib/table_client/chunk_state.h>
 #include <yt/yt/ytlib/table_client/config.h>
+#include <yt/yt/ytlib/table_client/helpers.h>
 #include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
 
@@ -175,12 +176,24 @@ protected:
             columnFilter,
             readRange);
     }
+
+    void CheckColumnarStatistics()
+    {
+        TColumnarStatistics expectedStatistics;
+        expectedStatistics.Update(Rows_);
+
+        TColumnarStatistics writenStatistics;
+        FromProto(&writenStatistics, GetProtoExtension<NProto::TColumnarStatisticsExt>(MemoryWriter_->GetChunkMeta()->Getextensions()));
+
+        EXPECT_EQ(writenStatistics, expectedStatistics);
+    }
 };
 
 TEST_P(TMetaAggregatingWriterTest, TestReadAll)
 {
     auto reader = CreateReader(/*columnFilter*/ {}, /*readRange*/ {});
     CheckSchemalessResult(Rows_, reader, Schema_->GetKeyColumnCount());
+    CheckColumnarStatistics();
 }
 
 TEST_P(TMetaAggregatingWriterTest, TestRange)
@@ -202,6 +215,7 @@ TEST_P(TMetaAggregatingWriterTest, TestRange)
     auto upperReadLimit = ReadLimitFromLegacyReadLimit(readRange.UpperLimit(), /*isUpper*/ true, keyColumnCount);
     auto reader = CreateReader(columnFilter, TReadRange(lowerReadLimit, upperReadLimit));
     CheckSchemalessResult(expected, reader, keyColumnCount);
+    CheckColumnarStatistics();
 }
 
 INSTANTIATE_TEST_SUITE_P(Test,

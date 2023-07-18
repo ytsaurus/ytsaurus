@@ -383,38 +383,6 @@ std::tuple<std::vector<NChunkClient::TInputChunkPtr>, TTableSchemaPtr, bool> Col
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-template <typename TValue>
-void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, TRange<TValue> values)
-{
-    for (const auto& value : values) {
-        auto id = value.Id;
-        if (id >= columnarStatisticsExt.data_weights().size()) {
-            columnarStatisticsExt.mutable_data_weights()->Resize(id + 1, 0);
-        }
-        columnarStatisticsExt.set_data_weights(id, columnarStatisticsExt.data_weights(id) + GetDataWeight(value));
-    }
-}
-
-} // namespace
-
-void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, TUnversionedRow row)
-{
-    UpdateColumnarStatistics(columnarStatisticsExt, MakeRange(row.Begin(), row.End()));
-}
-
-void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatisticsExt, TVersionedRow row)
-{
-    UpdateColumnarStatistics(columnarStatisticsExt, row.Keys());
-    UpdateColumnarStatistics(columnarStatisticsExt, row.Values());
-    columnarStatisticsExt.set_timestamp_weight(
-        columnarStatisticsExt.timestamp_weight() +
-        (row.GetWriteTimestampCount() + row.GetDeleteTimestampCount()) * sizeof(TTimestamp));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void CheckUnavailableChunks(
     EUnavailableChunkStrategy strategy,
     EChunkAvailabilityPolicy policy,
@@ -597,12 +565,12 @@ void TReaderVirtualValues::FillColumns(
 ////////////////////////////////////////////////////////////////////////////////
 
 NProto::THeavyColumnStatisticsExt GetHeavyColumnStatisticsExt(
-    const NProto::TColumnarStatisticsExt& columnarStatisticsExt,
+    const TColumnarStatistics& columnarStatistics,
     const std::function<TStableName(int index)>& getStableNameByIndex,
     int columnCount,
     int maxHeavyColumns)
 {
-    YT_VERIFY(columnCount == columnarStatisticsExt.data_weights_size());
+    YT_VERIFY(columnCount == columnarStatistics.Size());
 
     // Column weights here are measured in units, which are equal to 1/255 of the weight
     // of heaviest column.
@@ -622,7 +590,7 @@ NProto::THeavyColumnStatisticsExt GetHeavyColumnStatisticsExt(
     i64 maxColumnDataWeight = 0;
 
     for (int columnIndex = 0; columnIndex < columnCount; ++columnIndex) {
-        auto dataWeight = columnarStatisticsExt.data_weights(columnIndex);
+        auto dataWeight = columnarStatistics.ColumnDataWeights[columnIndex];
         maxColumnDataWeight = std::max<i64>(maxColumnDataWeight, dataWeight);
         columnStatistics.push_back(TColumnStatistics{
             .DataWeight = dataWeight,
@@ -787,6 +755,42 @@ IAttributeDictionaryPtr ResolveExternalTable(
     }
 
     return extraAttributes;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(
+    NProto::TColumnarStatisticsExt* protoStatisticsExt,
+    const TColumnarStatistics& statistics)
+{
+    protoStatisticsExt->Clear();
+
+    ToProto(protoStatisticsExt->mutable_column_data_weights(), statistics.ColumnDataWeights);
+    if (statistics.TimestampTotalWeight) {
+        protoStatisticsExt->set_timestamp_total_weight(*statistics.TimestampTotalWeight);
+    }
+    YT_VERIFY(statistics.LegacyChunkDataWeight == 0);
+
+    ToProto(protoStatisticsExt->mutable_column_min_values(), statistics.ColumnMinValues);
+    ToProto(protoStatisticsExt->mutable_column_max_values(), statistics.ColumnMaxValues);
+    ToProto(protoStatisticsExt->mutable_column_non_null_value_counts(), statistics.ColumnNonNullValueCounts);
+}
+
+void FromProto(
+    TColumnarStatistics* statistics,
+    const NProto::TColumnarStatisticsExt& protoStatisticsExt)
+{
+    FromProto(&statistics->ColumnDataWeights, protoStatisticsExt.column_data_weights());
+    if (protoStatisticsExt.has_timestamp_total_weight()) {
+        statistics->TimestampTotalWeight = protoStatisticsExt.timestamp_total_weight();
+    } else {
+        statistics->TimestampTotalWeight.reset();
+    }
+    statistics->LegacyChunkDataWeight = 0;
+
+    FromProto(&statistics->ColumnMinValues, protoStatisticsExt.column_min_values());
+    FromProto(&statistics->ColumnMaxValues, protoStatisticsExt.column_max_values());
+    FromProto(&statistics->ColumnNonNullValueCounts, protoStatisticsExt.column_non_null_value_counts());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

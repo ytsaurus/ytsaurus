@@ -34,7 +34,7 @@ class TUnversionedOwningValue
 public:
     TUnversionedOwningValue() = default;
 
-    TUnversionedOwningValue(TUnversionedOwningValue&& other)
+    TUnversionedOwningValue(TUnversionedOwningValue&& other) noexcept
     {
         std::swap(Value_, other.Value_);
     }
@@ -59,23 +59,9 @@ public:
         return Value_;
     }
 
-    TUnversionedOwningValue& operator = (TUnversionedOwningValue&& other)
+    TUnversionedOwningValue& operator=(TUnversionedOwningValue other) noexcept
     {
         std::swap(Value_, other.Value_);
-        return *this;
-    }
-
-    TUnversionedOwningValue& operator = (const TUnversionedOwningValue& other)
-    {
-        Clear();
-        Assign(other.Value_);
-        return *this;
-    }
-
-    TUnversionedOwningValue& operator = (const TUnversionedValue& other)
-    {
-        Clear();
-        Assign(other);
         return *this;
     }
 
@@ -109,6 +95,12 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+//! Debug printer for Gtest unittests.
+inline void PrintTo(const TUnversionedOwningValue& value, std::ostream* os)
+{
+    PrintTo(static_cast<TUnversionedValue>(value), os);
+}
 
 inline TUnversionedValue MakeUnversionedSentinelValue(EValueType type, int id = 0, EValueFlags flags = EValueFlags::None)
 {
@@ -528,9 +520,11 @@ TString SerializeToString(TUnversionedValueRange range);
 void ToProto(TProtoStringType* protoRow, TUnversionedRow row);
 void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row);
 void ToProto(TProtoStringType* protoRow, TUnversionedValueRange range);
+void ToProto(TProtoStringType* protoRow, const TRange<TUnversionedOwningValue>& values);
 
 void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow, std::optional<int> nullPaddingWidth = {});
 void FromProto(TUnversionedRow* row, const TProtoStringType& protoRow, const TRowBufferPtr& rowBuffer);
+void FromProto(std::vector<TUnversionedOwningValue>* values, const TProtoStringType& protoRow);
 
 void ToBytes(TString* bytes, const TUnversionedOwningRow& row);
 

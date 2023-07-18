@@ -239,9 +239,19 @@ message TColumnMetaExt
 
 message TColumnarStatisticsExt
 {
-    repeated int64 data_weights = 1;
+    repeated int64 column_data_weights = 1;
     // Total weight of all write and delete timestamps.
-    optional int64 timestamp_weight = 2;
+    optional int64 timestamp_total_weight = 2;
+
+    // This field is reserved for consistency with TColumnarStatistics message. It has never been used.
+    reserved 3;
+
+    // Per-column approximate minimum values. For more information check comments in NYT::NTableClient::TColumnarStatistics.
+    optional bytes column_min_values = 4;
+    // Per-column approximate maximum values. For more information check comments in NYT::NTableClient::TColumnarStatistics.
+    optional bytes column_max_values = 5;
+    // Number of non-null values in each column.
+    repeated int64 column_non_null_value_counts = 6;
 }
 
 message TColumnRenameDescriptor

@@ -1170,6 +1170,10 @@ void ToProto(
         protoStatistics->set_timestamp_total_weight(*statistics.TimestampTotalWeight);
     }
     protoStatistics->set_legacy_chunk_data_weight(statistics.LegacyChunkDataWeight);
+
+    NYT::NTableClient::ToProto(protoStatistics->mutable_column_min_values(), statistics.ColumnMinValues);
+    NYT::NTableClient::ToProto(protoStatistics->mutable_column_max_values(), statistics.ColumnMaxValues);
+    NYT::ToProto(protoStatistics->mutable_column_non_null_value_counts(), statistics.ColumnNonNullValueCounts);
 }
 
 void FromProto(
@@ -1183,6 +1187,10 @@ void FromProto(
         statistics->TimestampTotalWeight.reset();
     }
     statistics->LegacyChunkDataWeight = protoStatistics.legacy_chunk_data_weight();
+
+    NYT::NTableClient::FromProto(&statistics->ColumnMinValues, protoStatistics.column_min_values());
+    NYT::NTableClient::FromProto(&statistics->ColumnMaxValues, protoStatistics.column_max_values());
+    NYT::FromProto(&statistics->ColumnNonNullValueCounts, protoStatistics.column_non_null_value_counts());
 }
 
 void ToProto(

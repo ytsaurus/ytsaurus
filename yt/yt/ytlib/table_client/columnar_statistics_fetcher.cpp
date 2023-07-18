@@ -5,6 +5,8 @@
 
 #include <yt/yt/ytlib/table_client/helpers.h>
 
+#include <yt/yt/client/api/rpc_proxy/helpers.h>
+
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/client/table_client/name_table.h>
@@ -109,16 +111,20 @@ void TColumnarStatisticsFetcher::OnResponse(
             auto error = NYT::FromProto<TError>(subresponse.error());
             if (error.FindMatching(NChunkClient::EErrorCode::MissingExtension)) {
                 // This is an old chunk. Process it somehow.
-                statistics = TColumnarStatistics::MakeEmpty(GetColumnStableNames(chunkIndex).size());
-                statistics.LegacyChunkDataWeight = Chunks_[chunkIndex]->GetDataWeight();
+                statistics = TColumnarStatistics::MakeLegacy(GetColumnStableNames(chunkIndex).size(), Chunks_[chunkIndex]->GetDataWeight());
             } else {
                 OnChunkFailed(nodeId, chunkIndex, error);
             }
         } else {
-            statistics.ColumnDataWeights = NYT::FromProto<std::vector<i64>>(subresponse.data_weights());
-            YT_VERIFY(statistics.ColumnDataWeights.size() == GetColumnStableNames(chunkIndex).size());
-            if (subresponse.has_timestamp_total_weight()) {
-                statistics.TimestampTotalWeight = subresponse.timestamp_total_weight();
+            if (subresponse.has_columnar_statistics()) {
+                FromProto(&statistics, subresponse.columnar_statistics());
+            } else {
+                // COMPAT(denvid): Delete this with deleting deprecated fields from TRspGetColumnarStatistics.TSubresponse.
+                statistics.ColumnDataWeights = NYT::FromProto<std::vector<i64>>(subresponse.column_data_weights());
+                YT_VERIFY(statistics.ColumnDataWeights.size() == GetColumnStableNames(chunkIndex).size());
+                if (subresponse.has_timestamp_total_weight()) {
+                    statistics.TimestampTotalWeight = subresponse.timestamp_total_weight();
+                }
             }
         }
         if (Options_.StoreChunkStatistics) {
@@ -234,8 +240,7 @@ void TColumnarStatisticsFetcher::AddChunk(TInputChunkPtr chunk, std::vector<TSta
                 columnarStatistics = GetColumnarStatistics(*heavyColumnStatistics, columnStableNames);
             } else {
                 YT_VERIFY(Options_.Mode == EColumnarStatisticsFetcherMode::FromMaster);
-                columnarStatistics = TColumnarStatistics::MakeEmpty(columnStableNames.size());
-                columnarStatistics.LegacyChunkDataWeight = chunk->GetDataWeight();
+                columnarStatistics = TColumnarStatistics::MakeLegacy(columnStableNames.size(), chunk->GetDataWeight());
             }
             Chunks_.emplace_back(chunk);
             if (Options_.StoreChunkStatistics) {

@@ -12,6 +12,7 @@ import "yt/ytlib/chunk_client/proto/chunk_slice.proto";
 import "yt/ytlib/chunk_client/proto/session_id.proto";
 import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 import "yt_proto/yt/client/table_chunk_format/proto/wire_protocol.proto";
+import "yt_proto/yt/client/api/rpc_proxy/proto/api_service.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -540,8 +541,12 @@ message TRspGetColumnarStatistics
     message TSubresponse
     {
         optional NYT.NProto.TError error = 1;
-        repeated int64 data_weights = 2;
+
+        // COMPAT(denvid): These fields are deprecated and should be removed once all clusters are 23.2+.
+        repeated int64 column_data_weights = 2;
         optional int64 timestamp_total_weight = 3;
+
+        optional NYT.NApi.NRpcProxy.NProto.TColumnarStatistics columnar_statistics = 4;
     }
 
     repeated TSubresponse subresponses = 1;

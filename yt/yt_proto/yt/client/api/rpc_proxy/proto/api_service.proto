@@ -1773,6 +1773,13 @@ message TColumnarStatistics
     repeated int64 column_data_weights = 1;
     optional int64 timestamp_total_weight = 2;
     optional int64 legacy_chunk_data_weight = 3 [default = 0];
+
+    // Per-column approximate minimum values. For more information check comments in NYT::NTableClient::TColumnarStatistics.
+    optional bytes column_min_values = 4;
+    // Per-column approximate maximum values. For more information check comments in NYT::NTableClient::TColumnarStatistics.
+    optional bytes column_max_values = 5;
+    // Number of non-null values in each column.
+    repeated int64 column_non_null_value_counts = 6;
 }
 
 message TRspGetColumnarStatistics
