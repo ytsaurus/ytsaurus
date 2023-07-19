@@ -376,7 +376,7 @@ void TLeaderCommitter::FlushMutations()
             followerState.InFlightMutationCount > config->MaxInFlightMutationCount ||
             followerState.InFlightMutationDataSize > config->MaxInFlightMutationDataSize))
         {
-            YT_LOG_DEBUG("Skipping sending mutations to follower since in-flight limits are violated (FollowerId: %v,"
+            YT_LOG_DEBUG("Skipping sending mutations to follower since in-flight limits are violated (FollowerId: %v, "
                 "InFlightRequestCount: %v, InFlightMutationCount: %v, InFlightMutationDataSize: %v)",
                 followerId,
                 followerState.InFlightRequestCount,
