@@ -191,6 +191,13 @@ TFuture<void> TChunkStore::InitializeLocation(const TStoreLocationPtr& location)
 {
     return location->RegisterAction(BIND([=, this, this_ = MakeStrong(this)] () {
             auto descriptors = location->Scan();
+
+            location->InitializeIds();
+
+            if (location->GetState() == ELocationState::Crashed) {
+                return;
+            }
+
             for (const auto& descriptor : descriptors) {
                 auto chunk = CreateFromDescriptor(location, descriptor);
                 DoRegisterExistingChunk(chunk);
