@@ -240,6 +240,9 @@ public:
      */
     std::vector<TChunkDescriptor> Scan();
 
+    //! Create cell id and uuid files if they don't exist.
+    void InitializeIds();
+
     //! Prepares the location to accept new writes.
     /*!
      *  Must be called when all locations are scanned and all existing chunks are registered.

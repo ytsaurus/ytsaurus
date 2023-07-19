@@ -502,6 +502,13 @@ private:
         VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
 
         auto descriptors = location->Scan();
+
+        location->InitializeIds();
+
+        if (location->GetState() == ELocationState::Crashed) {
+            return;
+        }
+
         for (const auto& descriptor : descriptors) {
             RegisterChunk(location, descriptor);
         }

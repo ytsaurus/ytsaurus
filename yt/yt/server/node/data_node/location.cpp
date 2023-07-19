@@ -493,16 +493,18 @@ std::vector<TChunkDescriptor> TChunkLocation::Scan()
     }
 }
 
-void TChunkLocation::Start()
+void TChunkLocation::InitializeIds()
 {
     try {
         InitializeCellId();
         InitializeUuid();
     } catch (const std::exception& ex) {
         Crash(TError("Location initialize failed") << ex);
-        return;
     }
+}
 
+void TChunkLocation::Start()
+{
     if (!IsEnabled()) {
         return;
     }
