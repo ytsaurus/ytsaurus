@@ -3309,10 +3309,18 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
         return;
     }
 
-    YT_LOG_DEBUG(
-        "Job aborted (JobId: %v, AbortReason: %v)",
-        jobId,
-        abortReason);
+    if (abortReason == EAbortReason::FailedChunks) {
+        YT_LOG_DEBUG(
+            "Job aborted (JobId: %v, AbortReason: %v, SampleFailedChunkIds: %v)",
+            jobId,
+            abortReason,
+            MakeShrunkFormattableView(UnavailableInputChunkIds, TDefaultFormatter(), SampleChunkIdCount));
+    } else {
+        YT_LOG_DEBUG(
+            "Job aborted (JobId: %v, AbortReason: %v)",
+            jobId,
+            abortReason);
+    }
 
     auto joblet = GetJoblet(jobId);
 
@@ -3845,6 +3853,13 @@ void TOperationControllerBase::OnInputChunkUnavailable(TChunkId chunkId, TInputC
 bool TOperationControllerBase::OnIntermediateChunkUnavailable(TChunkId chunkId)
 {
     auto& completedJob = GetOrCrash(ChunkOriginMap, chunkId);
+
+    YT_LOG_DEBUG(
+        "Intermediate chunk is lost (ChunkId: %v, JobId: %v, Restartable: %v, Suspend: %v)",
+        chunkId,
+        completedJob->JobId,
+        completedJob->Restartable,
+        completedJob->Suspended);
 
     // If completedJob->Restartable == false, that means that source pool/task don't support lost jobs
     // and we have to use scraper to find new replicas of intermediate chunks.
