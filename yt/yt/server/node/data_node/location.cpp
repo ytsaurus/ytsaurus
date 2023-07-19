@@ -515,16 +515,12 @@ void TChunkLocation::Start()
     }
 }
 
-bool TChunkLocation::ShouldPublish() const
+bool TChunkLocation::CanPublish() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto state = GetState();
-
-    return state == ELocationState::Enabled ||
-        (ChunkStore_->ShouldPublishDisabledLocations() &&
-            GetUuid() != InvalidChunkLocationUuid &&
-            GetUuid() != EmptyChunkLocationUuid);
+    return GetUuid() != InvalidChunkLocationUuid &&
+        GetUuid() != EmptyChunkLocationUuid;
 }
 
 bool TChunkLocation::StartDestroy()

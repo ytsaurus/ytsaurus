@@ -547,7 +547,7 @@ private:
                 ->GetChunkStore()
                 ->Locations();
             for (const auto& location : storeLocations) {
-                if (location->ShouldPublish()) {
+                if (location->CanPublish()) {
                     ToProto(req->add_chunk_location_uuids(), location->GetUuid());
                 }
             }

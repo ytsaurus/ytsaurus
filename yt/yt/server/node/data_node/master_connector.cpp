@@ -180,7 +180,7 @@ public:
         int storedChunkCount = 0;
 
         auto addStoredChunkInfo = [&] (const IChunkPtr& chunk) {
-            if (chunk->GetLocation()->ShouldPublish() && CellTagFromId(chunk->GetId()) == cellTag) {
+            if (chunk->GetLocation()->CanPublish() && CellTagFromId(chunk->GetId()) == cellTag) {
                 *req->add_chunks() = BuildAddChunkInfo(chunk, locationDirectory);
                 auto mediumIndex = chunk->GetLocation()->GetMediumDescriptor().Index;
                 ++chunkCounts[mediumIndex];
@@ -232,7 +232,7 @@ public:
         int chunkEventCount = 0;
         delta->ReportedAdded.clear();
         for (const auto& chunk : delta->AddedSinceLastSuccess) {
-            if (!chunk->GetLocation()->ShouldPublish()) {
+            if (!chunk->GetLocation()->CanPublish()) {
                 continue;
             }
 
@@ -243,7 +243,7 @@ public:
 
         delta->ReportedRemoved.clear();
         for (const auto& chunk : delta->RemovedSinceLastSuccess) {
-            if (!chunk->GetLocation()->ShouldPublish()) {
+            if (!chunk->GetLocation()->CanPublish()) {
                 continue;
             }
 
@@ -261,7 +261,7 @@ public:
                 break;
             }
 
-            if (!chunk->GetLocation()->ShouldPublish()) {
+            if (!chunk->GetLocation()->CanPublish()) {
                 continue;
             }
 
@@ -899,7 +899,8 @@ private:
         bool full = !chunkStore->Locations().empty();
 
         for (const auto& location : chunkStore->Locations()) {
-            if (!location->ShouldPublish()) {
+            if (!(location->CanPublish() &&
+                (location->IsEnabled() || chunkStore->ShouldPublishDisabledLocations()))) {
                 continue;
             }
 

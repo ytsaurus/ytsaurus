@@ -248,7 +248,7 @@ public:
     void Start();
 
     //! Does the node need to tell the master about this location.
-    bool ShouldPublish() const;
+    bool CanPublish() const;
 
     //! Try changing location status to disabled. For this location disk must be active and test can run without I/O errors.
     bool OnDiskRepaired();
