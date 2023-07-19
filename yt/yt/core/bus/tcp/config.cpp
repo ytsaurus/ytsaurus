@@ -109,6 +109,20 @@ void TBusConfig::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("generate_checksums", &TThis::GenerateChecksums)
         .Default(true);
+    registrar.Parameter("encryption_mode", &TThis::EncryptionMode)
+        .Default(EEncryptionMode::Optional);
+    registrar.Parameter("verification_mode", &TThis::VerificationMode)
+        .Default(EVerificationMode::None);
+    registrar.Parameter("ca_file", &TThis::CAFile)
+        .Default();
+    registrar.Parameter("cert_chain_file", &TThis::CertificateChainFile)
+        .Default();
+    registrar.Parameter("private_key_file", &TThis::PrivateKeyFile)
+        .Default();
+    registrar.Parameter("cipher_list", &TThis::CipherList)
+        .Default();
+    registrar.Parameter("use_key_pair_from_ssl_context", &TThis::UseKeyPairFromSslContext)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

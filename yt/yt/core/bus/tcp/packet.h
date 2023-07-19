@@ -9,6 +9,7 @@ namespace NYT::NBus {
 DEFINE_ENUM_WITH_UNDERLYING_TYPE(EPacketType, i16,
     ((Message)(0))
     ((Ack)    (1))
+    ((SslAck) (2))
 );
 
 DEFINE_BIT_ENUM_WITH_UNDERLYING_TYPE(EPacketFlags, ui16,

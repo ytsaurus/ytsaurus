@@ -39,7 +39,7 @@ class TTcpDispatcher
 public:
     static TTcpDispatcher* Get();
 
-    const TBusNetworkCountersPtr& GetCounters(const TString& networkName);
+    const TBusNetworkCountersPtr& GetCounters(const TString& networkName, bool encrypted);
 
     //! Returns the poller used by TCP transport.
     NConcurrency::IPollerPtr GetXferPoller();

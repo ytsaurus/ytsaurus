@@ -81,6 +81,12 @@ public:
         return Connection_->IsEndpointLocal();
     }
 
+    bool IsEncrypted() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        return Connection_->IsEncrypted();
+    }
+
     TBusNetworkStatistics GetNetworkStatistics() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();

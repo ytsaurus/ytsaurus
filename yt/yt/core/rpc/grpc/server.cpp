@@ -267,6 +267,11 @@ private:
             return false;
         }
 
+        bool IsEncrypted() const override
+        {
+            return false;
+        }
+
         TFuture<void> GetReadyFuture() const override
         {
             return VoidFuture;

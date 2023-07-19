@@ -37,7 +37,20 @@ DEFINE_ENUM(EMultiplexingBand,
 );
 
 YT_DEFINE_ERROR_ENUM(
-    ((TransportError)               (100))
+    ((TransportError)       (100))
+    ((SslError)             (119))
+);
+
+DEFINE_ENUM(EEncryptionMode,
+    ((Disabled)     (0))
+    ((Optional)     (1))
+    ((Required)     (2))
+);
+
+DEFINE_ENUM(EVerificationMode,
+    ((None)     (0))    // Do no certificate or host name verifications.
+    ((Ca)       (1))    // Verifies peer's certificate with the CA.
+    ((Full)     (2))    // Verifies peer's certificate with the CA as well as peer's host name against the certificate.
 );
 
 extern const TString DefaultNetworkName;

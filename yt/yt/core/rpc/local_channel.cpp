@@ -180,6 +180,11 @@ private:
             return true;
         }
 
+        bool IsEncrypted() const override
+        {
+            return false;
+        }
+
         const NNet::TNetworkAddress& GetEndpointNetworkAddress() const override
         {
             return NNet::NullNetworkAddress;

@@ -176,9 +176,11 @@ protected:
     {
         const auto& dispatcher = TTcpDispatcher::TImpl::Get();
         int result = 0;
-        const auto& counters = dispatcher->GetCounters(clientNetwork);
-        for (auto band : TEnumTraits<EMultiplexingBand>::GetDomainValues()) {
-            result += counters->PerBandCounters[band].ServerConnections.load(std::memory_order::relaxed);
+        for (auto encrypted : { false, true }) {
+            const auto& counters = dispatcher->GetCounters(clientNetwork, encrypted);
+            for (auto band : TEnumTraits<EMultiplexingBand>::GetDomainValues()) {
+                result += counters->PerBandCounters[band].ServerConnections.load(std::memory_order::relaxed);
+            }
         }
         return result;
     }

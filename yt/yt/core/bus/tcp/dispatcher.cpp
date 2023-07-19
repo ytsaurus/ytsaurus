@@ -23,9 +23,9 @@ void TTcpDispatcher::Configure(const TTcpDispatcherConfigPtr& config)
     Impl_->Configure(config);
 }
 
-const TBusNetworkCountersPtr& TTcpDispatcher::GetCounters(const TString& networkName)
+const TBusNetworkCountersPtr& TTcpDispatcher::GetCounters(const TString& networkName, bool encrypted)
 {
-    return Impl_->GetCounters(networkName);
+    return Impl_->GetCounters(networkName, encrypted);
 }
 
 NConcurrency::IPollerPtr TTcpDispatcher::GetXferPoller()

@@ -87,6 +87,16 @@ public:
     bool VerifyChecksums;
     bool GenerateChecksums;
 
+    // Ssl options.
+    EEncryptionMode EncryptionMode;
+    EVerificationMode VerificationMode;
+    std::optional<TString> CAFile;
+    std::optional<TString> CertificateChainFile;
+    std::optional<TString> PrivateKeyFile;
+    std::optional<TString> CipherList;
+    // For testing purposes.
+    bool UseKeyPairFromSslContext;
+
     REGISTER_YSON_STRUCT(TBusConfig);
 
     static void Register(TRegistrar registrar);

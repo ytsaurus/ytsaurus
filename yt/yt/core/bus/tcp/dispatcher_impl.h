@@ -33,7 +33,7 @@ class TTcpDispatcher::TImpl
 public:
     static const TIntrusivePtr<TImpl>& Get();
 
-    const TBusNetworkCountersPtr& GetCounters(const TString& networkName);
+    const TBusNetworkCountersPtr& GetCounters(const TString& networkName, bool encrypted);
 
     void DisableNetworking();
     bool IsNetworkingDisabled();
@@ -83,7 +83,7 @@ private:
         const TBusNetworkCountersPtr Counters = New<TBusNetworkCounters>();
     };
 
-    NConcurrency::TSyncMap<TString, TNetworkStatistics> NetworkStatistics_;
+    NConcurrency::TSyncMap<TString, std::array<TNetworkStatistics, 2>> NetworkStatistics_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, PeriodicExecutorsLock_);
     NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;

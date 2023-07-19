@@ -178,6 +178,7 @@ YT_DEFINE_ERROR_ENUM(
     ((NoSuchRealm)                  (117))
     ((Overloaded)                   (118)) // The server is currently overloaded and unable to handle additional requests.
                                            // The client should try to reduce their request rate until the server has had a chance to recover.
+    ((SslError)                     (static_cast<int>(NBus::EErrorCode::SslError)))
 );
 
 DEFINE_ENUM(EMessageFormat,

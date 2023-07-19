@@ -64,13 +64,13 @@ const TIntrusivePtr<TTcpDispatcher::TImpl>& TTcpDispatcher::TImpl::Get()
     return TTcpDispatcher::Get()->Impl_;
 }
 
-const TBusNetworkCountersPtr& TTcpDispatcher::TImpl::GetCounters(const TString& networkName)
+const TBusNetworkCountersPtr& TTcpDispatcher::TImpl::GetCounters(const TString& networkName, bool encrypted)
 {
     auto [statistics, ok] = NetworkStatistics_.FindOrInsert(networkName, [] {
-        return TNetworkStatistics{};
+        return std::array<TNetworkStatistics, 2>{};
     });
 
-    return statistics->Counters;
+    return (*statistics)[encrypted].Counters;
 }
 
 IPollerPtr TTcpDispatcher::TImpl::GetOrCreatePoller(
@@ -215,16 +215,22 @@ void TTcpDispatcher::TImpl::StartPeriodicExecutors()
 void TTcpDispatcher::TImpl::CollectSensors(ISensorWriter* writer)
 {
     NetworkStatistics_.IterateReadOnly([&] (const auto& name, const auto& statistics) {
-        const auto& counters = statistics.Counters;
         TWithTagGuard networkTagGuard(writer, "network", name);
-        for (auto band : TEnumTraits<EMultiplexingBand>::GetDomainValues()) {
-            TWithTagGuard bandTagGuard(writer, "band", FormatEnum(band));
-            #define XX(camelCaseField, snakeCaseField) writer->AddCounter("/" #snakeCaseField, counters->PerBandCounters[band].camelCaseField.load(std::memory_order::relaxed));
-            ITERATE_BUS_NETWORK_STATISTICS_COUNTER_FIELDS(XX)
-            #undef XX
-            #define XX(camelCaseField, snakeCaseField) writer->AddGauge("/" #snakeCaseField, counters->PerBandCounters[band].camelCaseField.load(std::memory_order::relaxed));
-            ITERATE_BUS_NETWORK_STATISTICS_GAUGE_FIELDS(XX)
-            #undef XX
+
+        for (auto encrypted : { false, true }) {
+            TWithTagGuard encryptedTagGuard(writer, "encrypted", ToString(encrypted));
+
+            const auto& counters = statistics[encrypted].Counters;
+
+            for (auto band : TEnumTraits<EMultiplexingBand>::GetDomainValues()) {
+                TWithTagGuard bandTagGuard(writer, "band", FormatEnum(band));
+                #define XX(camelCaseField, snakeCaseField) writer->AddCounter("/" #snakeCaseField, counters->PerBandCounters[band].camelCaseField.load(std::memory_order::relaxed));
+                ITERATE_BUS_NETWORK_STATISTICS_COUNTER_FIELDS(XX)
+                #undef XX
+                #define XX(camelCaseField, snakeCaseField) writer->AddGauge("/" #snakeCaseField, counters->PerBandCounters[band].camelCaseField.load(std::memory_order::relaxed));
+                ITERATE_BUS_NETWORK_STATISTICS_GAUGE_FIELDS(XX)
+                #undef XX
+            }
         }
     });
 
@@ -268,6 +274,7 @@ void TTcpDispatcher::TImpl::BuildOrchid(IYsonConsumer* consumer)
                 fluent
                     .Item(ToString(connection->GetId())).BeginMap()
                         .Item("address").Value(connection->GetEndpointAddress())
+                        .Item("encrypted").Value(connection->IsEncrypted())
                         .Item("statistics").BeginMap()
                             .Item("in_bytes").Value(statistics.InBytes)
                             .Item("in_packets").Value(statistics.InPackets)

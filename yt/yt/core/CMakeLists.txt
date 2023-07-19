@@ -6,6 +6,7 @@
 # original buildsystem will not be accepted.
 
 
+find_package(OpenSSL REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(c-ares REQUIRED)
 add_subdirectory(actions)
@@ -45,6 +46,8 @@ target_link_libraries(yt-yt-core PUBLIC
   contrib-libs-farmhash
   contrib-libs-yajl
   contrib-libs-lz4
+  OpenSSL::OpenSSL
+  cpp-openssl-init
   cpp-threading-thread_local
   cpp-streams-brotli
   cpp-yt-assert
@@ -88,6 +91,7 @@ target_sources(yt-yt-core PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/bus/tcp/packet.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/bus/tcp/client.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/bus/tcp/server.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/bus/tcp/ssl_context.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/compression/brotli.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/compression/bzip2.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/compression/codec.cpp
@@ -337,6 +341,8 @@ target_link_libraries(yt-yt-core.global PUBLIC
   contrib-libs-farmhash
   contrib-libs-yajl
   contrib-libs-lz4
+  OpenSSL::OpenSSL
+  cpp-openssl-init
   cpp-threading-thread_local
   cpp-streams-brotli
   cpp-yt-assert
