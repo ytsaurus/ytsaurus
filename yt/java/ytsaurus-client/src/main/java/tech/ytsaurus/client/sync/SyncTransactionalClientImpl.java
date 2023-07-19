@@ -116,37 +116,51 @@ abstract class SyncTransactionalClientImpl implements SyncTransactionalClient {
 
     @Override
     public SyncOperation map(MapOperation req) {
-        return new SyncOperationImpl(client.map(req).join());
+        return getIfSuccessOrElseThrow(
+                new SyncOperationImpl(client.map(req).join())
+        );
     }
 
     @Override
     public SyncOperation reduce(ReduceOperation req) {
-        return new SyncOperationImpl(client.reduce(req).join());
+        return getIfSuccessOrElseThrow(
+                new SyncOperationImpl(client.reduce(req).join())
+        );
     }
 
     @Override
     public SyncOperation mapReduce(MapReduceOperation req) {
-        return new SyncOperationImpl(client.mapReduce(req).join());
+        return getIfSuccessOrElseThrow(
+                new SyncOperationImpl(client.mapReduce(req).join())
+        );
     }
 
     @Override
     public SyncOperation merge(MergeOperation req) {
-        return new SyncOperationImpl(client.merge(req).join());
+        return getIfSuccessOrElseThrow(
+                new SyncOperationImpl(client.merge(req).join())
+        );
     }
 
     @Override
     public SyncOperation sort(SortOperation req) {
-        return new SyncOperationImpl(client.sort(req).join());
+        return getIfSuccessOrElseThrow(
+                new SyncOperationImpl(client.sort(req).join())
+        );
     }
 
     @Override
     public SyncOperation vanilla(VanillaOperation req) {
-        return new SyncOperationImpl(client.vanilla(req).join());
+        return getIfSuccessOrElseThrow(
+                new SyncOperationImpl(client.vanilla(req).join())
+        );
     }
 
     @Override
     public SyncOperation remoteCopy(RemoteCopyOperation req) {
-        return new SyncOperationImpl(client.remoteCopy(req).join());
+        return getIfSuccessOrElseThrow(
+                new SyncOperationImpl(client.remoteCopy(req).join())
+        );
     }
 
     @Override
@@ -264,5 +278,10 @@ abstract class SyncTransactionalClientImpl implements SyncTransactionalClient {
     @Override
     public String toString() {
         return client.toString();
+    }
+
+    private SyncOperation getIfSuccessOrElseThrow(SyncOperation operation) {
+        operation.watchAndThrowIfNotSuccess();
+        return operation;
     }
 }
