@@ -605,7 +605,9 @@ void TJobTracker::SettleJob(const TJobTracker::TCtxSettleJobPtr& context)
         .AsyncVia(operationController->GetCancelableInvoker(EOperationControllerQueue::GetJobSpec))
         .Run();
 
-    auto jobInfoOrError = WaitFor(asyncJobInfo);
+    auto jobInfoOrError = WaitFor(
+        asyncJobInfo,
+        NRpc::TDispatcher::Get()->GetHeavyInvoker());
 
     if (!jobInfoOrError.IsOK() || !jobInfoOrError.Value().JobSpecBlob) {
         auto error = !jobInfoOrError.IsOK()
@@ -613,9 +615,7 @@ void TJobTracker::SettleJob(const TJobTracker::TCtxSettleJobPtr& context)
             : TError("Controller returned empty job spec (has controller crashed?)");
         YT_LOG_DEBUG(
             error,
-            "Failed to extract job spec (OperationId: %v, AllocationId: %v)",
-            operationId,
-            allocationId);
+            "Failed to extract job spec");
 
         ToProto(response->mutable_error(), error);
 
@@ -691,7 +691,7 @@ void TJobTracker::ProfileHeartbeatRequest(const NProto::TReqHeartbeat* request)
     i64 totalJobStatisticsSize = 0;
     i64 totalJobDataStatisticsSize = 0;
     i64 totalJobResultSize = 0;
-    for (auto& job : request->jobs()) {
+    for (const auto& job : request->jobs()) {
         if (job.has_statistics()) {
             totalJobStatisticsSize += std::size(job.statistics());
         }
