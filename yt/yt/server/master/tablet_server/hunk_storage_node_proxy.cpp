@@ -8,13 +8,18 @@
 
 #include <yt/yt/server/master/chunk_server/helpers.h>
 
+#include <yt/yt/server/master/object_server/object_manager.h>
+
 #include <yt/yt/server/lib/misc/interned_attributes.h>
+
+#include <util/generic/xrange.h>
 
 namespace NYT::NTabletServer {
 
 using namespace NCellMaster;
 using namespace NCypressServer;
 using namespace NObjectServer;
+using namespace NObjectClient;
 using namespace NTransactionServer;
 using namespace NYson;
 using namespace NYTree;
@@ -144,14 +149,19 @@ private:
                 const auto& nodeIdsSet = node->AssociatedNodeIds();
                 std::vector nodeIds(nodeIdsSet.begin(), nodeIdsSet.end());
                 return objectManager->ResolveObjectIdsToPaths(nodeIds)
-                    .Apply(BIND([] (const std::vector<TErrorOr<IObjectManager::TVersionedObjectPath>>& pathOrErrors) {
+                    .Apply(BIND([nodeIds = std::move(nodeIds)] (const std::vector<TErrorOr<IObjectManager::TVersionedObjectPath>>& pathOrErrors) {
+                        YT_VERIFY(nodeIds.size() == pathOrErrors.size());
                         return BuildYsonStringFluently()
-                            .DoListFor(pathOrErrors, [] (TFluentList fluent, const TErrorOr<IObjectManager::TVersionedObjectPath>& pathOrError) {
-                                auto code = pathOrError.GetCode();
-                                if (code == NYTree::EErrorCode::ResolveError || code == NTransactionClient::EErrorCode::NoSuchTransaction) {
-                                    return;
-                                }
-                                const auto& path = pathOrError.ValueOrThrow();
+                            .DoListFor(xrange(std::ssize(nodeIds)), [&] (TFluentList fluent, int index) {
+                                const auto& nodeId = nodeIds[index];
+                                const auto& pathOrError = pathOrErrors[index];
+                                auto path = [&] {
+                                    auto code = pathOrError.GetCode();
+                                    if (code == NYTree::EErrorCode::ResolveError || code == NTransactionClient::EErrorCode::NoSuchTransaction) {
+                                        return IObjectManager::TVersionedObjectPath{.Path = FromObjectId(nodeId.ObjectId), .TransactionId = nodeId.TransactionId};
+                                    }
+                                    return pathOrError.ValueOrThrow();
+                                }();
                                 fluent
                                     .Item()
                                     .Do([&] (auto fluent) {

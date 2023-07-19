@@ -52,6 +52,10 @@ class TestHunkStorage(YTEnvSetup):
         attributes["schema"] = ordered_schema
         create("table", name, attributes=attributes)
 
+    def _remove_hunk_storage(self, path):
+        wait(lambda: get(f"{path}/@associated_nodes") == [])
+        remove(path)
+
     @authors("gritukan")
     def test_create_remove(self):
         self._create_hunk_storage("//tmp/h")
@@ -291,9 +295,7 @@ class TestHunkStorage(YTEnvSetup):
             remove("//tmp/h")
 
         remove("//tmp/t")
-
-        wait(lambda: get("//tmp/h/@associated_nodes") == [])
-        remove("//tmp/h")
+        self._remove_hunk_storage("//tmp/h")
 
     @authors("aleksandra-zh")
     def test_create_table_with_hunk_storage_node(self):
@@ -310,8 +312,7 @@ class TestHunkStorage(YTEnvSetup):
         assert get("//tmp/h/@associated_nodes") == ["//tmp/t"]
 
         remove("//tmp/t")
-        wait(lambda: get("//tmp/h/@associated_nodes") == [])
-        remove("//tmp/h")
+        self._remove_hunk_storage("//tmp/h")
 
     @authors("aleksandra-zh")
     def test_remove_table_hunk_storage_node(self):
@@ -322,9 +323,7 @@ class TestHunkStorage(YTEnvSetup):
         assert get("//tmp/h/@associated_nodes") == ["//tmp/t"]
 
         remove("//tmp/t/@hunk_storage_node")
-
-        wait(lambda: get("//tmp/h/@associated_nodes") == [])
-        remove("//tmp/h")
+        self._remove_hunk_storage("//tmp/h")
 
     @authors("aleksandra-zh")
     def test_hunk_storage_node_node_type(self):
@@ -359,9 +358,7 @@ class TestHunkStorage(YTEnvSetup):
 
         remove("//tmp/t1")
         remove("//tmp/t2")
-
-        wait(lambda: get("//tmp/h/@associated_nodes") == [])
-        remove("//tmp/h")
+        self._remove_hunk_storage("//tmp/h")
 
     @authors("aleksandra-zh")
     def test_linked_hunk_storage_node_tx1(self):
@@ -376,9 +373,7 @@ class TestHunkStorage(YTEnvSetup):
         assert get("//tmp/h/@associated_nodes") == ["//tmp/t1"]
 
         remove("//tmp/t1")
-
-        wait(lambda: get("//tmp/h/@associated_nodes") == [])
-        remove("//tmp/h")
+        self._remove_hunk_storage("//tmp/h")
 
     @authors("aleksandra-zh")
     def test_linked_hunk_storage_node_tx2(self):
@@ -390,9 +385,8 @@ class TestHunkStorage(YTEnvSetup):
 
         assert get("//tmp/h/@associated_nodes") == [yson.to_yson_type("//tmp/t1", attributes={"transaction_id": tx})]
         abort_transaction(tx)
-        assert get("//tmp/h/@associated_nodes") == []
 
-        remove("//tmp/h")
+        self._remove_hunk_storage("//tmp/h")
 
     @authors("aleksandra-zh")
     def test_linked_hunk_storage_node_tx3(self):
@@ -412,9 +406,7 @@ class TestHunkStorage(YTEnvSetup):
         assert get("//tmp/h/@associated_nodes") == ["//tmp/t1"]
 
         remove("//tmp/t1")
-
-        wait(lambda: get("//tmp/h/@associated_nodes") == [])
-        remove("//tmp/h")
+        self._remove_hunk_storage("//tmp/h")
 
     @authors("aleksandra-zh")
     def test_copy_linked_hunk_storage_node_tx(self):
@@ -442,9 +434,7 @@ class TestHunkStorage(YTEnvSetup):
 
         remove("//tmp/t1")
         remove("//tmp/t2")
-
-        wait(lambda: get("//tmp/h/@associated_nodes") == [])
-        remove("//tmp/h")
+        self._remove_hunk_storage("//tmp/h")
 
 
 class TestHunkStorageMulticell(TestHunkStorage):
