@@ -2256,6 +2256,8 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         # TODO(babenko): remove this once 23.1 binaries are updated.
         if self.__class__.__name__ == "TestMergeCommandsCompatNewCA":
             pytest.skip("Compat test is currently disabled")
+        if self.__class__.__name__ == "TestMergeCommandsCompatNewNodes":
+            pytest.skip("Compat test is currently disabled")
 
         create("table", "//tmp/t", attributes={
             "optimize_for": optimize_for,
