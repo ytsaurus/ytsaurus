@@ -297,6 +297,62 @@ public:
 
 };
 
+class TCoalesceCodegen
+    : public IFunctionCodegen
+{
+public:
+    TCodegenExpression Profile(
+        TCGVariables* /*variables*/,
+        std::vector<size_t> argIds,
+        std::unique_ptr<bool[]> /*literalArgs*/,
+        std::vector<EValueType> /*argumentTypes*/,
+        EValueType type,
+        const TString& /*name*/,
+        llvm::FoldingSetNodeID* /*id*/) const override
+    {
+        return [
+            =,
+            argIds = std::move(argIds)
+        ] (TCGExprContext& builder) -> TCGValue {
+            return CoalesceRecursive(
+                builder,
+                argIds.begin(),
+                argIds.end(),
+                type);
+        };
+    }
+
+private:
+    static TCGValue CoalesceRecursive(
+        TCGExprContext& builder,
+        std::vector<size_t>::const_iterator begin,
+        std::vector<size_t>::const_iterator end,
+        EValueType type)
+    {
+        if (begin == end) {
+            return TCGValue::CreateNull(builder, type);
+        }
+
+        auto argument = CodegenFragment(builder, *begin);
+
+        if (!builder.ExpressionFragments.Items[*begin].Nullable) {
+            return argument;
+        }
+
+        Value* argIsNull = argument.GetIsNull(builder);
+        return CodegenIf<TCGExprContext, TCGValue>(
+            builder,
+            argIsNull,
+            [&] (TCGExprContext& builder) {
+                return CoalesceRecursive(builder, std::next(begin), end, type);
+            },
+            [&] (TCGExprContext& /*builder*/) {
+                return argument;
+            }
+        );
+    }
+};
+
 class TUserCastCodegen
     : public IFunctionCodegen
 {
@@ -779,6 +835,7 @@ TConstFunctionProfilerMapPtr CreateBuiltinFunctionProfilers()
     result->emplace("boolean", New<NBuiltins::TUserCastCodegen>());
     result->emplace("string", New<NBuiltins::TUserCastCodegen>());
     result->emplace("if_null", New<NBuiltins::TIfNullCodegen>());
+    result->emplace("coalesce", New<NBuiltins::TCoalesceCodegen>());
 
     TProfilerFunctionRegistryBuilder builder{result.Get(), nullptr};
     RegisterBuiltinFunctions(&builder);

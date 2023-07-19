@@ -2082,7 +2082,19 @@ INSTANTIATE_TEST_SUITE_P(
         std::tuple<const char*, const char*, TUnversionedValue>(
             "any=[%false; \"y\"; 4u]",
             "list_contains(any, 4u)",
-            MakeBoolean(true))
+            MakeBoolean(true)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "u1=123u;u2=345u",
+            "coalesce(u2, u1)",
+            MakeUint64(345)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=234;i2=123",
+            "coalesce(#, #, #, i1, i2)",
+            MakeInt64(234)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i2=100",
+            "coalesce(i1, i2)",
+            MakeInt64(100))
 ));
 
 INSTANTIATE_TEST_SUITE_P(

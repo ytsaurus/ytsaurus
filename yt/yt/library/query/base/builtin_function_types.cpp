@@ -156,6 +156,21 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
         std::vector<TType>{0, 0},
         0));
 
+    std::unordered_map<TTypeArgument, TUnionType> coalesceConstraints;
+    coalesceConstraints[typeArg] = {
+        EValueType::Int64,
+        EValueType::Uint64,
+        EValueType::Double,
+        EValueType::Boolean,
+        EValueType::String,
+        EValueType::Composite,
+        EValueType::Any};
+    result->emplace("coalesce", New<TFunctionTypeInferrer>(
+        coalesceConstraints,
+        std::vector<TType>{},
+        typeArg,
+        typeArg));
+
     auto sumConstraints = std::unordered_map<TTypeArgument, TUnionType>();
     sumConstraints[typeArg] = std::vector<EValueType>{
         EValueType::Int64,
