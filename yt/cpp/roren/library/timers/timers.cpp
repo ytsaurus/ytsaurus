@@ -240,6 +240,7 @@ void TTimers::PopulateIndex()
                 TimerIndex_.insert(timer);
             }
         }
+        Cleanup();
     } catch (...) {
         PopulateInProgress_.store(false);
         throw;
@@ -249,7 +250,9 @@ void TTimers::PopulateIndex()
 
 TVector<TTimer> TTimers::YtSelectIndex()
 {
-    return NPrivate::YtSelectIndex(YtClient_, YTimersIndexPath_, ShardId_, TimerIndex_.size(), IndexLimit_ - TimerIndex_.size());
+    const size_t offset = TimerIndex_.size();
+    const size_t limit = IndexLimit_ - TimerIndex_.size();
+    return NPrivate::YtSelectIndex(YtClient_, YTimersIndexPath_, ShardId_, offset, limit);
 }
 
 TVector<TTimer> TTimers::YtSelectMigrate()

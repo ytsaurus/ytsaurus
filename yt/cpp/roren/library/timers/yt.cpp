@@ -146,7 +146,7 @@ TVector<TTimer> YtSelectIndex(const NYT::NApi::IClientPtr ytClient, const NYT::N
         }
         columns += column.Name();
     }
-    const TString query = columns + " from [" + timerIndexTable+ "] WHERE ShardId = " + ToString(shardId) + " ORDER BY Timestamp OFFSET " + ToString(offset) + " LIMIT " + ToString(limit);
+    const TString query = columns + " from [" + timerIndexTable+ "] WHERE ShardId = " + ToString(shardId) + " OFFSET " + ToString(offset) + " LIMIT " + ToString(limit);
     auto select_result = NYT::NConcurrency::WaitFor(ytClient->SelectRows(query)).ValueOrThrow();
     const auto& rows = select_result.Rowset->GetRows();
     for (const auto& row : rows) {
