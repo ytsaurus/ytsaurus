@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - stable/[0-9]+\.[0-9]+
+      - test/docker-java-local
 
 jobs:
   start-vm:
@@ -132,9 +133,9 @@ jobs:
           tar -xf spyt-1.69.tar -C ../build
           tar -xf yql-package.tar -C ../build
 
-          if [[ $GITHUB_REF =~ main$ ]];
+          if [[ $GITHUB_REF =~ test/docker-java-local ]];
           then
-            IMAGE_TAG=dev
+            IMAGE_TAG=test-java
           elif [[ $GITHUB_REF =~ releases ]];
           then
             IMAGE_TAG=dev-${GITHUB_REF#refs/*/stable/}
