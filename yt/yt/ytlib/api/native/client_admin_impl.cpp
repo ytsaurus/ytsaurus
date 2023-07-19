@@ -74,7 +74,9 @@ using NApi::ValidateMaintenanceComment;
 
 int TClient::DoBuildSnapshot(const TBuildSnapshotOptions& options)
 {
-    ValidateSuperuserPermissions();
+    ValidatePermissionsWithACN(
+        EAccessControlObject::BuildSnapshot,
+        EPermission::Use);
 
     auto cellId = options.CellId ? options.CellId : Connection_->GetPrimaryMasterCellId();
     auto channel = GetHydraAdminChannelOrThrow(cellId);
@@ -93,7 +95,9 @@ int TClient::DoBuildSnapshot(const TBuildSnapshotOptions& options)
 
 TCellIdToSnapshotIdMap TClient::DoBuildMasterSnapshots(const TBuildMasterSnapshotsOptions& options)
 {
-    ValidateSuperuserPermissions();
+    ValidatePermissionsWithACN(
+        EAccessControlObject::BuildMasterSnapshot,
+        EPermission::Use);
 
     using TResponseFuture = TFuture<TIntrusivePtr<TTypedClientResponse<NHydra::NProto::TRspForceBuildSnapshot>>>;
     struct TSnapshotRequest
@@ -170,7 +174,9 @@ void TClient::DoSwitchLeader(
     const TString& newLeaderAddress,
     const TSwitchLeaderOptions& options)
 {
-    ValidateSuperuserPermissions();
+    ValidatePermissionsWithACN(
+        EAccessControlObject::SwitchLeader,
+        EPermission::Use);
 
     if (TypeFromId(cellId) != EObjectType::MasterCell) {
         THROW_ERROR_EXCEPTION("%v is not a valid cell id",

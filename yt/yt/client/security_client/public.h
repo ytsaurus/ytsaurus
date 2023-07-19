@@ -86,6 +86,9 @@ DEFINE_ENUM(EAccessControlObject,
     (DisableChunkLocations)
     (DestroyChunkLocations)
     (ResurrectChunkLocations)
+    (BuildSnapshot)
+    (BuildMasterSnapshot)
+    (SwitchLeader)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
