@@ -171,7 +171,7 @@ public:
     void DrainProducer();
     void DrainConsumer();
 
-    TClosure BeginExecute(TEnqueuedAction* action, typename TQueueImpl::TConsumerToken* token = nullptr);
+    bool BeginExecute(TEnqueuedAction* action, typename TQueueImpl::TConsumerToken* token = nullptr);
     void EndExecute(TEnqueuedAction* action);
 
     typename TQueueImpl::TConsumerToken MakeConsumerToken();

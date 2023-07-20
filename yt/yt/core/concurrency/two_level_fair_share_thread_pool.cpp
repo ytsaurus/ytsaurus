@@ -283,7 +283,7 @@ public:
         }
     }
 
-    TClosure BeginExecute(TEnqueuedAction* action, int index)
+    bool BeginExecute(TEnqueuedAction* action, int index)
     {
         auto& threadState = ThreadStates_[index];
 
@@ -301,7 +301,7 @@ public:
             waitTimeObserver = WaitTimeObserver_;
 
             if (!bucket) {
-                return TClosure();
+                return false;
             }
 
             ++bucket->CurrentExecutions;
@@ -326,7 +326,7 @@ public:
             pool->WaitTimeCounter.Record(CpuDurationToDuration(bucket->WaitTime));
         }
 
-        return std::move(action->Callback);
+        return true;
     }
 
     void EndExecute(TEnqueuedAction* action, int index)
@@ -617,16 +617,16 @@ protected:
     const TTwoLevelFairShareQueuePtr Queue_;
     const int Index_;
 
-    TEnqueuedAction CurrentAction;
+    TEnqueuedAction CurrentAction_;
 
     TClosure BeginExecute() override
     {
-        return Queue_->BeginExecute(&CurrentAction, Index_);
+        return BeginExecuteImpl(Queue_->BeginExecute(&CurrentAction_, Index_), &CurrentAction_);
     }
 
     void EndExecute() override
     {
-        Queue_->EndExecute(&CurrentAction, Index_);
+        Queue_->EndExecute(&CurrentAction_, Index_);
     }
 };
 

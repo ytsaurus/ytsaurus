@@ -6,8 +6,6 @@ namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TSchedulerThreadBase)
-
 class TSchedulerThreadBase
     : public TFiberSchedulerThread
 {
@@ -15,7 +13,6 @@ public:
     ~TSchedulerThreadBase();
 
     void Stop(bool graceful);
-
     void Stop();
 
 protected:
@@ -52,6 +49,14 @@ protected:
 
     virtual TClosure BeginExecute() = 0;
     virtual void EndExecute() = 0;
+
+    TClosure BeginExecuteImpl(bool dequeued, TEnqueuedAction* action);
+
+private:
+    TCpuInstant LastMaintenanceInstant_ = 0;
+
+    void MaybeRunMaintenance(TCpuInstant now);
+    void RunMaintenance();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

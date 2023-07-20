@@ -33,7 +33,8 @@ public:
         , TNotifyManager(callbackEventCount, counterTagSet, pollingPeriod)
     { }
 
-    TClosure OnExecute(TEnqueuedAction* action, bool fetchNext, std::function<bool()> isStopping)
+    template <class TIsStoppingPredicate>
+    bool OnExecute(TEnqueuedAction* action, bool fetchNext, TIsStoppingPredicate isStopping)
     {
         while (true) {
             int activeThreadDelta = !action->Finished ? -1 : 0;
@@ -42,15 +43,12 @@ public:
             auto cookie = GetEventCount()->PrepareWait();
             auto minEnqueuedAt = ResetMinEnqueuedAt();
 
-            TClosure callback;
-            if (fetchNext) {
-                callback = TMpmcInvokerQueue::BeginExecute(action);
-
-                if (callback) {
-                    YT_ASSERT(action->EnqueuedAt > 0);
-                    minEnqueuedAt = action->EnqueuedAt;
-                    activeThreadDelta += 1;
-                }
+            bool result = false;
+            if (fetchNext && TMpmcInvokerQueue::BeginExecute(action)) {
+                YT_ASSERT(action->EnqueuedAt > 0);
+                minEnqueuedAt = action->EnqueuedAt;
+                activeThreadDelta += 1;
+                result = true;
             }
 
             YT_VERIFY(activeThreadDelta <= 1 && activeThreadDelta >= -1);
@@ -59,11 +57,11 @@ public:
                 YT_VERIFY(activeThreads >= 0 && activeThreads <= TThreadPoolBase::MaxThreadCount);
             }
 
-            if (callback || isStopping()) {
+            if (result || isStopping()) {
                 CancelWait();
 
                 NotifyAfterFetch(GetCpuInstant(), minEnqueuedAt);
-                return callback;
+                return result;
             }
 
             Wait(cookie, isStopping);
@@ -111,15 +109,17 @@ public:
 
 protected:
     const TIntrusivePtr<TInvokerQueueAdapter> Queue_;
+
     TEnqueuedAction CurrentAction_;
 
     TClosure OnExecute() override
     {
         bool fetchNext = !TSchedulerThread::IsStopping() || TSchedulerThread::GracefulStop_;
 
-        return Queue_->OnExecute(&CurrentAction_, fetchNext, [&] {
+        bool dequeued = Queue_->OnExecute(&CurrentAction_, fetchNext, [&] {
             return TSchedulerThread::IsStopping();
         });
+        return BeginExecuteImpl(dequeued, &CurrentAction_);
     }
 
     TClosure BeginExecute() override

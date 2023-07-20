@@ -26,7 +26,7 @@ TSingleQueueSchedulerThread<TQueueImpl>::TSingleQueueSchedulerThread(
 template <class TQueueImpl>
 TClosure TSingleQueueSchedulerThread<TQueueImpl>::BeginExecute()
 {
-    return Queue_->BeginExecute(&CurrentAction_, &Token_);
+    return BeginExecuteImpl(Queue_->BeginExecute(&CurrentAction_, &Token_), &CurrentAction_);
 }
 
 template <class TQueueImpl>
@@ -122,7 +122,10 @@ TClosure TSuspendableSingleQueueSchedulerThread<TQueueImpl>::BeginExecute()
         resumeEvent->Wait();
     }
 
-    return Queue_->BeginExecute(&CurrentAction_, &Token_);
+    if (!Queue_->BeginExecute(&CurrentAction_, &Token_)) {
+        return {};
+    }
+    return std::move(CurrentAction_.Callback);
 }
 
 template <class TQueueImpl>

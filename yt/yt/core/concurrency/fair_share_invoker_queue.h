@@ -47,13 +47,13 @@ public:
 
     bool IsRunning() const;
 
-    TClosure BeginExecute(TEnqueuedAction* action);
+    bool BeginExecute(TEnqueuedAction* action);
     void EndExecute(TEnqueuedAction* action);
 
     void Reconfigure(std::vector<double> weights);
 
 private:
-    constexpr static i64 UnitWeight = 1000;
+    constexpr static i64 UnitWeight = 1'000;
 
     struct TBucket
     {

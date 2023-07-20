@@ -1,9 +1,10 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/core/misc/public.h>
 #include <yt/yt/core/misc/hazard_ptr.h>
 #include <yt/yt/core/misc/atomic_ptr.h>
 #include <yt/yt/core/misc/error.h>
+
+#include <yt/yt/core/concurrency/delayed_executor.h>
 
 #include <library/cpp/yt/threading/event_count.h>
 
@@ -53,8 +54,8 @@ public:
 
 private:
     IOutputStream* const Output_;
-    size_t AllocatedCount_ = 0;
-    size_t DeallocatedCount_ = 0;
+    int AllocatedCount_ = 0;
+    int DeallocatedCount_ = 0;
 };
 
 class TSampleObject final
@@ -81,14 +82,21 @@ public:
 
 private:
     IOutputStream* const Output_;
-
 };
 
-TEST(THazardPtrTest, RefCountedPtrBehavior)
+class THazardPtrTest
+    : public ::testing::Test
 {
-    // Ensure that delete list is empty.
-    ReclaimHazardPointers();
+protected:
+    void SetUp() override
+    {
+        // Ensure that delete list is empty.
+        ReclaimHazardPointers();
+    }
+};
 
+TEST_F(THazardPtrTest, RefCountedPtrBehavior)
+{
     TStringStream output;
     TTestAllocator allocator(&output);
 
@@ -112,11 +120,8 @@ TEST(THazardPtrTest, RefCountedPtrBehavior)
     EXPECT_STREQ("AC!!!DF", output.Str().c_str());
 }
 
-TEST(THazardPtrTest, DelayedDeallocation)
+TEST_F(THazardPtrTest, DelayedDeallocation)
 {
-    // Ensure that delete list is empty.
-    ReclaimHazardPointers();
-
     TStringStream output;
     TTestAllocator allocator(&output);
 
@@ -144,11 +149,8 @@ TEST(THazardPtrTest, DelayedDeallocation)
     EXPECT_STREQ("AC!DF", output.Str().c_str());
 }
 
-TEST(THazardPtrTest, DelayedDeallocationWithMultipleHPs)
+TEST_F(THazardPtrTest, DelayedDeallocationWithMultipleHPs)
 {
-    // Ensure that delete list is empty.
-    ReclaimHazardPointers();
-
     TStringStream output;
     TTestAllocator allocator(&output);
 
@@ -184,11 +186,8 @@ TEST(THazardPtrTest, DelayedDeallocationWithMultipleHPs)
     EXPECT_STREQ("AC!DF", output.Str().c_str());
 }
 
-TEST(THazardPtrTest, CombinedLogic)
+TEST_F(THazardPtrTest, CombinedLogic)
 {
-    // Ensure that delete list is empty.
-    ReclaimHazardPointers();
-
     TStringStream output;
     TTestAllocator allocator(&output);
 
@@ -236,6 +235,23 @@ TEST(THazardPtrTest, CombinedLogic)
     }
 }
 
+TEST_W(THazardPtrTest, ThreadMaintenance)
+{
+    TStringStream output;
+    TTestAllocator allocator(&output);
+
+    {
+        auto ptr = New<TSampleObject>(&allocator, &output);
+        ptr->DoSomething();
+    }
+
+    EXPECT_STREQ("AC!D", output.Str().c_str());
+
+    NConcurrency::TDelayedExecutor::WaitForDuration(TDuration::Seconds(3));
+
+    EXPECT_STREQ("AC!DF", output.Str().c_str());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSamplePolymorphicObject
@@ -263,14 +279,10 @@ public:
 
 private:
     IOutputStream* const Output_;
-
 };
 
-TEST(THazardPtrTest, DelayedDeallocationPolymorphic)
+TEST_F(THazardPtrTest, DelayedDeallocationPolymorphic)
 {
-    // Ensure that delete list is empty.
-    ReclaimHazardPointers();
-
     TStringStream output;
     TTestAllocator allocator(&output);
 
@@ -299,11 +311,8 @@ NThreading::TEvent Started;
 NThreading::TEvent Finish;
 
 #ifndef _win_
-TEST(THazardPtrTest, SupportFork)
+TEST_F(THazardPtrTest, SupportFork)
 {
-    // Ensure that delete list is empty.
-    ReclaimHazardPointers();
-
     TStringStream output;
     TTestAllocator allocator(&output);
 

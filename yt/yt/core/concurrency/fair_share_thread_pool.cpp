@@ -239,7 +239,7 @@ public:
         }
     }
 
-    TClosure BeginExecute(TEnqueuedAction* action, int index)
+    bool BeginExecute(TEnqueuedAction* action, int index)
     {
         auto& threadState = ThreadStates_[index];
 
@@ -255,7 +255,7 @@ public:
             bucket = GetStarvingBucket(action, tscp);
 
             if (!bucket) {
-                return TClosure();
+                return false;
             }
 
             ++bucket->CurrentExecutions;
@@ -270,7 +270,7 @@ public:
         YT_ASSERT(action && !action->Finished);
 
         WaitTimeCounter_.Record(CpuDurationToDuration(bucket->WaitTime));
-        return std::move(action->Callback);
+        return true;
     }
 
     void EndExecute(TEnqueuedAction* action, int index)
@@ -481,16 +481,16 @@ protected:
     const TFairShareQueuePtr Queue_;
     const int Index_;
 
-    TEnqueuedAction CurrentAction;
+    TEnqueuedAction CurrentAction_;
 
     TClosure BeginExecute() override
     {
-        return Queue_->BeginExecute(&CurrentAction, Index_);
+        return BeginExecuteImpl(Queue_->BeginExecute(&CurrentAction_, Index_), &CurrentAction_);
     }
 
     void EndExecute() override
     {
-        Queue_->EndExecute(&CurrentAction, Index_);
+        Queue_->EndExecute(&CurrentAction_, Index_);
     }
 };
 

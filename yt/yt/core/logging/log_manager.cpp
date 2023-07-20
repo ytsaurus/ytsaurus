@@ -718,30 +718,22 @@ private:
     private:
         TImpl* const Owner_;
 
+        TEnqueuedAction CurrentAction_;
+
         TClosure BeginExecute() override
         {
-            return Owner_->BeginExecute();
+            VERIFY_THREAD_AFFINITY(Owner_->LoggingThread);
+
+            return BeginExecuteImpl(Owner_->EventQueue_->BeginExecute(&CurrentAction_), &CurrentAction_);
         }
 
         void EndExecute() override
         {
-            Owner_->EndExecute();
+            VERIFY_THREAD_AFFINITY(Owner_->LoggingThread);
+
+            Owner_->EventQueue_->EndExecute(&CurrentAction_);
         }
     };
-
-    TClosure BeginExecute()
-    {
-        VERIFY_THREAD_AFFINITY(LoggingThread);
-
-        return EventQueue_->BeginExecute(&CurrentAction_);
-    }
-
-    void EndExecute()
-    {
-        VERIFY_THREAD_AFFINITY(LoggingThread);
-
-        EventQueue_->EndExecute(&CurrentAction_);
-    }
 
     void EnsureStarted()
     {
@@ -1377,8 +1369,6 @@ private:
         /*priority*/ 200);
 
     DECLARE_THREAD_AFFINITY_SLOT(LoggingThread);
-
-    TEnqueuedAction CurrentAction_;
 
     // Configuration.
     NThreading::TForkAwareSpinLock SpinLock_;

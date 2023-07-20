@@ -84,7 +84,7 @@ bool TFairShareInvokerQueue::IsRunning() const
     return true;
 }
 
-TClosure TFairShareInvokerQueue::BeginExecute(TEnqueuedAction* action)
+bool TFairShareInvokerQueue::BeginExecute(TEnqueuedAction* action)
 {
     YT_VERIFY(!CurrentBucket_);
 
@@ -101,7 +101,7 @@ TClosure TFairShareInvokerQueue::BeginExecute(TEnqueuedAction* action)
     // Check if any callback is ready at all.
     CurrentBucket_ = GetStarvingBucket();
     if (!CurrentBucket_) {
-        return TClosure();
+        return false;
     }
 
     // Reduce excesses (with truncation).

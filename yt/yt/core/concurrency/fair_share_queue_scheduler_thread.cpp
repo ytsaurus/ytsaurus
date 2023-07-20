@@ -20,7 +20,7 @@ TFairShareQueueSchedulerThread::TFairShareQueueSchedulerThread(
 
 TClosure TFairShareQueueSchedulerThread::BeginExecute()
 {
-    return Queue_->BeginExecute(&CurrentAction_);
+    return BeginExecuteImpl(Queue_->BeginExecute(&CurrentAction_), &CurrentAction_);
 }
 
 void TFairShareQueueSchedulerThread::EndExecute()

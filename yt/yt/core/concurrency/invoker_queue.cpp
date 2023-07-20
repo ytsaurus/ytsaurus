@@ -473,12 +473,12 @@ void TInvokerQueue<TQueueImpl>::DrainConsumer()
 }
 
 template <class TQueueImpl>
-TClosure TInvokerQueue<TQueueImpl>::BeginExecute(TEnqueuedAction* action, typename TQueueImpl::TConsumerToken* token)
+bool TInvokerQueue<TQueueImpl>::BeginExecute(TEnqueuedAction* action, typename TQueueImpl::TConsumerToken* token)
 {
     YT_ASSERT(action && action->Finished);
 
     if (!QueueImpl_.TryDequeue(action, token)) {
-        return {};
+        return false;
     }
 
     auto cpuInstant = GetCpuInstant();
@@ -508,7 +508,7 @@ TClosure TInvokerQueue<TQueueImpl>::BeginExecute(TEnqueuedAction* action, typena
 
     SetCurrentInvoker(GetProfilingTagSettingInvoker(action->ProfilingTag));
 
-    return std::move(action->Callback);
+    return true;
 }
 
 template <class TQueueImpl>

@@ -1,5 +1,9 @@
 #include "scheduler_thread.h"
+
 #include "private.h"
+#include "invoker_queue.h"
+
+#include <yt/yt/core/misc/hazard_ptr.h>
 
 namespace NYT::NConcurrency {
 
@@ -82,9 +86,37 @@ TClosure TSchedulerThread::OnExecute()
             return callback;
         }
 
-        CallbackEventCount_->Wait(cookie);
+        constexpr auto WaitTimeout = TDuration::Seconds(1);
+        if (!CallbackEventCount_->Wait(cookie, WaitTimeout)) {
+            MaybeRunMaintenance(GetCpuInstant());
+        }
+
         EndExecute();
     }
+}
+
+TClosure TSchedulerThread::BeginExecuteImpl(bool dequeued, TEnqueuedAction* action)
+{
+    if (!dequeued) {
+        return {};
+    }
+    MaybeRunMaintenance(action->StartedAt);
+    return std::move(action->Callback);
+}
+
+void TSchedulerThread::MaybeRunMaintenance(TCpuInstant now)
+{
+    // 1B clock cycles between maintenance iterations.
+    constexpr i64 MaintenancePeriod = 1'000'000'000;
+    if (now > LastMaintenanceInstant_ + MaintenancePeriod) {
+        RunMaintenance();
+        LastMaintenanceInstant_ = now;
+    }
+}
+
+void TSchedulerThread::RunMaintenance()
+{
+    ReclaimHazardPointers(/*flush*/ false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
