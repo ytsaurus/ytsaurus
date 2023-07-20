@@ -128,6 +128,15 @@ object ReleaseUtils {
     IO.writeLines(file, Seq(versionStr))
   }
 
+  def setVersionForced(spytVersions: Seq[(SettingKey[String], String)],
+                       fileSetting: SettingKey[File]): ReleaseStep = { st: State =>
+    st.log.info(s"Setting ${spytVersions.map { case (k, v) => s"${k.key} to $v" }.mkString(", ")}")
+
+    val file = st.extract.get(fileSetting)
+    writeVersion(spytVersions, file)
+
+    reapply(spytVersions.map { case (k, v) => ThisBuild / k := v }, st)
+  }
 
   def setVersion(versions: SettingKey[Versions],
                  spytVersions: Seq[(SettingKey[String], Versions => String)],
@@ -136,12 +145,7 @@ object ReleaseUtils {
       .getOrElse(sys.error("No versions are set! Was this release part executed before inquireVersions?"))
     val selected = spytVersions.map(v => v._1 -> v._2.apply(vs))
 
-    st.log.info(s"Setting ${selected.map { case (k, v) => s"${k.key} to $v" }.mkString(", ")}")
-
-    val file = st.extract.get(fileSetting)
-    writeVersion(selected, file)
-
-    reapply(selected.map { case (k, v) => ThisBuild / k := v }, st)
+    setVersionForced(selected, fileSetting)(st)
   }
 
   def maybeSetVersion(versions: SettingKey[Versions],

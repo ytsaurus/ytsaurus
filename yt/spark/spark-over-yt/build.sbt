@@ -39,7 +39,7 @@ lazy val `spark-fork` = (project in file("spark-fork"))
     tarArchivePath := Some(target.value / s"spark.tgz"),
     tarSparkArchiveBuild := {
       val tarFile = tarArchiveBuild.value // Forces build
-      makeLinkToBuildDirectory(tarFile,  baseDirectory.value.getParentFile, tarFile.getName)
+      makeLinkToBuildDirectory(tarFile, baseDirectory.value.getParentFile, tarFile.getName)
     }
   )
   .settings(
@@ -329,13 +329,19 @@ lazy val root = (project in file("."))
     }.value,
     spytMvnInstallSparkFork := (`spark-fork` / sparkMvnInstall).value,
     spytMvnDeploySparkFork := (`spark-fork` / sparkMvnDeploy).value,
-    spytPublishLibraries := Def.sequential(
-      `data-source` / publish,
-      `spark-submit` / publish,
-      `submit-client` / publish,
-      `file-system` / publish,
-      `yt-wrapper` / publish
-    ).value
+    spytPublishLibraries := {
+      if (publishRepoEnabled) {
+        Def.sequential(
+          `data-source` / publish,
+          `spark-submit` / publish,
+          `submit-client` / publish,
+          `file-system` / publish,
+          `yt-wrapper` / publish
+        ).value
+      } else {
+        streams.value.log.info("Publishing spyt libraries to maven is skipped because of disabled publishRepo")
+      }
+    }
   )
 
 
