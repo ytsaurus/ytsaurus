@@ -6,6 +6,7 @@
 #include "helpers.h"
 #include "oauth_service.h"
 #include "private.h"
+#include "token_authenticator.h"
 
 #include <yt/yt/core/crypto/crypto.h>
 
@@ -22,11 +23,11 @@ static const auto& Logger = AuthLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOAuthCookieAuthenticator
-    : public ICookieAuthenticator {
+class TOAuthTokenAuthenticator
+    : public ITokenAuthenticator {
 public:
-    TOAuthCookieAuthenticator(
-        TOAuthCookieAuthenticatorConfigPtr config,
+    TOAuthTokenAuthenticator(
+        TOAuthTokenAuthenticatorConfigPtr config,
         IOAuthServicePtr oauthService,
         ICypressUserManagerPtr userManager)
         : Config_(std::move(config))
@@ -34,59 +35,44 @@ public:
         , UserManager_(std::move(userManager))
     { }
 
-    const std::vector<TStringBuf>& GetCookieNames() const override
-    {
-        static const std::vector<TStringBuf> cookieNames{
-            OAuthAccessTokenCookieName
-        };
-        return cookieNames;
-    }
-
-    bool CanAuthenticate(const TCookieCredentials& credentials) const override
-    {
-        return credentials.Cookies.contains(OAuthAccessTokenCookieName);
-    }
-
     TFuture<TAuthenticationResult> Authenticate(
-        const TCookieCredentials& credentials) override
+        const TTokenCredentials& credentials) override
     {
-        const auto& cookies = credentials.Cookies;
-        auto accessToken = GetOrCrash(cookies, OAuthAccessTokenCookieName);
-        auto accessTokenMD5 = GetMD5HexDigestUpperCase(accessToken);
+        const auto& token = credentials.Token;
+        auto tokenHash = GetCryptoHash(token);
         auto userIP = FormatUserIP(credentials.UserIP);
 
         YT_LOG_DEBUG(
-            "Authenticating user via oauth cookie (AccessTokenMD5: %v, UserIP: %v)",
-            accessTokenMD5,
+            "Authenticating user with token via oauth (TokenHash: %v, UserIP: %v)",
+            tokenHash,
             userIP);
 
-        return OAuthService_->GetUserInfo(accessToken)
+        return OAuthService_->GetUserInfo(token)
             .Apply(BIND(
-                &TOAuthCookieAuthenticator::OnGetUserInfo,
+                &TOAuthTokenAuthenticator::OnGetUserInfo,
                 MakeStrong(this),
-                std::move(accessTokenMD5)));
+                std::move(tokenHash)));
     }
 
 private:
-    const TOAuthCookieAuthenticatorConfigPtr Config_;
+    const TOAuthTokenAuthenticatorConfigPtr Config_;
     const IOAuthServicePtr OAuthService_;
     const ICypressUserManagerPtr UserManager_;
 
     TFuture<TAuthenticationResult> OnGetUserInfo(
-        const TString& accessTokenMD5,
+        const TString& tokenHash,
         const TOAuthUserInfoResult& userInfo)
     {
         auto result = OnGetUserInfoImpl(userInfo);
         if (result.IsOK()) {
             YT_LOG_DEBUG(
-                "Authentication via oauth successful (AccessTokenMD5: %v, Login: %v, Realm: %v)",
-                accessTokenMD5,
+                "Authentication via oauth successful (TokenHash: %v, Login: %v, Realm: %v)",
+                tokenHash,
                 result.Value().Login,
                 result.Value().Realm);
         } else {
-            // TError(NSecurityClient::EErrorCode::AuthenticationError, "Authentication failed")
-            YT_LOG_DEBUG(result, "Authentication via oauth failed (AccessTokenMD5: %v)", accessTokenMD5);
-            result.MutableAttributes()->Set("access_token_md5", accessTokenMD5);
+            YT_LOG_DEBUG(result, "Authentication via oauth failed (TokenHash: %v)", tokenHash);
+            result.MutableAttributes()->Set("token_hash", tokenHash);
         }
 
         return MakeFuture(std::move(result));
@@ -104,19 +90,19 @@ private:
 
         return TAuthenticationResult{
             .Login = userInfo.Login,
-            .Realm = "oauth:cookie"
+            .Realm = "oauth:token"
         };
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ICookieAuthenticatorPtr CreateOAuthCookieAuthenticator(
-    TOAuthCookieAuthenticatorConfigPtr config,
+ITokenAuthenticatorPtr CreateOAuthTokenAuthenticator(
+    TOAuthTokenAuthenticatorConfigPtr config,
     IOAuthServicePtr oauthService,
     ICypressUserManagerPtr userManager)
 {
-    return New<TOAuthCookieAuthenticator>(
+    return New<TOAuthTokenAuthenticator>(
         std::move(config),
         std::move(oauthService),
         std::move(userManager));

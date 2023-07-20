@@ -75,7 +75,7 @@ void TRetrialbeClientConfig::Register(TRegistrar registrar)
     registrar.Parameter("backoff_timeout", &TThis::BackoffTimeout)
         .Default(TDuration::Seconds(1));
     registrar.Parameter("max_attempt_count", &TThis::MaxAttemptCount)
-        .Default(5);
+        .Default(3);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

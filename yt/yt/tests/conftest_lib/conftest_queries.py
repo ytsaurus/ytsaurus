@@ -1,10 +1,10 @@
 from yt_commands import (
     create, create_user, remove_user, remove, add_member, sync_create_cells, sync_remove_tablet_cells, ls,
     set, get_connection_config, wait, get)
+from yt.environment import ExternalComponent
+from mock_server import MockServer
 
 import pytest
-
-from yt.environment import ExternalComponent
 
 
 pytest_plugins = [
@@ -63,3 +63,12 @@ def query_tracker(request, query_tracker_environment):
     count = getattr(cls, "NUM_QUERY_TRACKERS", 1)
     with QueryTracker(cls.Env, count) as query_tracker:
         yield query_tracker
+
+@pytest.fixture
+def mock_server(request):
+    server = MockServer(port=request.node.cls.mock_server_port)
+    try:
+        server.up()
+        yield server
+    finally:
+        server.down()

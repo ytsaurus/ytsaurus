@@ -1,7 +1,6 @@
 #include "oauth_service.h"
 
 #include "config.h"
-#include "library/cpp/yt/logging/logger.h"
 #include "private.h"
 #include "helpers.h"
 #include "yt/yt/core/ytree/public.h"
@@ -83,7 +82,7 @@ private:
         
         auto callId = TGuid::Create();
         auto httpHeaders = New<THeaders>();
-        httpHeaders->Add("Authorization", "Bearer " + accessToken);
+        httpHeaders->Add("Authorization", Format("%v %v", Config_->AuthorizationHeaderPrefix, accessToken));
 
         auto jsonResponseChecker = CreateJsonResponseChecker(
             BIND(&TOAuthService::DoCheckUserInfoResponse, MakeStrong(this)),
@@ -101,7 +100,7 @@ private:
         OAuthCallTime_.Record(timer.GetElapsedTime());
         if (!result.IsOK()) {
             OAuthCallErrors_.Increment();
-            auto error = TError("OAuth call failed")
+            auto error = TError(NRpc::EErrorCode::InvalidCredentials, "OAuth call failed")
                 << result
                 << TErrorAttribute("call_id", callId);
             YT_LOG_WARNING(error);

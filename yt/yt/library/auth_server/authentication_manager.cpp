@@ -8,6 +8,7 @@
 #include "cypress_token_authenticator.h"
 #include "cypress_user_manager.h"
 #include "oauth_cookie_authenticator.h"
+#include "oauth_token_authenticator.h"
 #include "oauth_service.h"
 #include "private.h"
 #include "ticket_authenticator.h"
@@ -71,6 +72,15 @@ public:
             cookieAuthenticators.push_back(CypressCookieManager_->GetCookieAuthenticator());
         }
 
+        if (config->CypressUserManager) {
+            CypressUserManager_ = CreateCachingCypressUserManager(
+                config->CypressUserManager,
+                CreateCypressUserManager(
+                    config->CypressUserManager,
+                    client),
+                AuthProfiler.WithPrefix("/cypress_user_manager/cache"));
+        }
+
         if (config->BlackboxTokenAuthenticator && blackboxService) {
             // COMPAT(gritukan): Set proper values in proxy configs and remove this code.
             if (!TvmService_) {
@@ -85,6 +95,16 @@ public:
                         blackboxService,
                         AuthProfiler.WithPrefix("/blackbox_token_authenticator/remote")),
                     AuthProfiler.WithPrefix("/blackbox_token_authenticator/cache")));
+        }
+
+        if (config->OAuthTokenAuthenticator && oauthService && CypressUserManager_) {
+            tokenAuthenticators.push_back(
+                CreateCachingTokenAuthenticator(config->OAuthTokenAuthenticator,
+                    CreateOAuthTokenAuthenticator(
+                        config->OAuthTokenAuthenticator,
+                        oauthService,
+                        CypressUserManager_),
+                    AuthProfiler.WithPrefix("/oauth_token_authenticator/cache")));
         }
 
         if (config->CypressTokenAuthenticator && client) {
@@ -117,20 +137,13 @@ public:
                 AuthProfiler.WithPrefix("/blackbox_cookie_authenticator/cache")));
         }
 
-        if (config->OAuthCookieAuthenticator && oauthService) {
-            auto cypressUserManager = CreateCachingCypressUserManager(
-                config->OAuthCookieAuthenticator->CypressUserManager,
-                CreateCypressUserManager(
-                    config->OAuthCookieAuthenticator->CypressUserManager,
-                    client),
-                AuthProfiler.WithPrefix("/oauth_cookie_authenticator/cypress_user_manager/cache"));
-
+        if (config->OAuthCookieAuthenticator && oauthService && CypressUserManager_) {
             cookieAuthenticators.push_back(CreateCachingCookieAuthenticator(
                 config->OAuthCookieAuthenticator,
                 CreateOAuthCookieAuthenticator(
                     config->OAuthCookieAuthenticator,
                     oauthService,
-                    std::move(cypressUserManager)),
+                    CypressUserManager_),
                 AuthProfiler.WithPrefix("/oauth_cookie_authenticator/cache")));
         }
 
@@ -207,6 +220,11 @@ public:
         return CypressCookieManager_;
     }
 
+    const ICypressUserManagerPtr& GetCypressUserManager() const override
+    {
+        return CypressUserManager_;
+    }
+
 private:
     ITvmServicePtr TvmService_;
     NRpc::IAuthenticatorPtr RpcAuthenticator_;
@@ -215,6 +233,7 @@ private:
     ITicketAuthenticatorPtr TicketAuthenticator_;
 
     ICypressCookieManagerPtr CypressCookieManager_;
+    ICypressUserManagerPtr CypressUserManager_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

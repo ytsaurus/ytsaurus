@@ -247,7 +247,9 @@ private:
             request->SetHeaders(headers);
         }
 
-        auto requestPath = Format("%v?%v", urlRef.Path, urlRef.RawQuery);
+        auto requestPath = urlRef.RawQuery.empty()
+            ? TString(urlRef.Path)
+            : Format("%v?%v", urlRef.Path, urlRef.RawQuery);
         request->WriteRequest(method, requestPath);
 
         return {std::move(request), std::move(response)};
