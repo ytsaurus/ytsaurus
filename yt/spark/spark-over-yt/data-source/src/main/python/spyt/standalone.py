@@ -461,6 +461,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     environment["SPARK_YT_SOLOMON_ENABLED"] = str(enablers.enable_solomon_agent)
     environment["SOLOMON_PUSH_PORT"] = "27099"
     environment["SPARK_YT_IPV6_PREFERENCE_ENABLED"] = str(enablers.enable_preference_ipv6)
+    environment["SPARK_YT_TCP_PROXY_ENABLED"] = str(enablers.enable_tcp_proxy)
 
     ytserver_proxy_path = config.get("ytserver_proxy_path")
 

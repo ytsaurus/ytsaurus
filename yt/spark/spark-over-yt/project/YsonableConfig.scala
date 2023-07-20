@@ -95,7 +95,8 @@ case class SpytEnablers(enable_byop: Boolean = true,
                         enable_arrow: Boolean = true,
                         enable_mtn: Boolean = true,
                         enable_solomon_agent: Boolean = true,
-                        enable_preference_ipv6: Boolean = true) extends YsonableConfig
+                        enable_preference_ipv6: Boolean = true,
+                        enable_tcp_proxy: Boolean = true) extends YsonableConfig
 
 object SparkLaunchConfig {
   val defaultLayers = Seq(

@@ -52,7 +52,11 @@ object ClusterConfig {
     val versionConfPath = versionPath(sparkYtConfPath, version)
     val isTtlLimited = isSnapshot && limitTtlEnabled
 
-    val sidecarConfigsFiles = sidecarConfigs(baseConfigDir)
+    val sidecarConfigsFiles = if (innerSidecarConfigEnabled) {
+      spyt.ClusterConfig.innerSidecarConfigs(baseConfigDir)
+    } else {
+      spyt.ClusterConfig.sidecarConfigs(baseConfigDir)
+    }
     val launchConfigYson = launchConfig(version, sidecarConfigsFiles)
     val globalConfigYsons = globalConfig(log, version, baseConfigDir)
 

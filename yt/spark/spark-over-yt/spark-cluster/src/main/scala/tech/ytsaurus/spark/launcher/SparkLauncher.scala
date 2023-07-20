@@ -65,15 +65,17 @@ trait SparkLauncher {
     }
   }
 
-  def startMaster: MasterService = {
+  def startMaster(reverseProxyUrl: Option[String]): MasterService = {
     log.info("Start Spark master")
     val config = SparkDaemonConfig.fromProperties("master", "512M")
     prepareSparkConf()
+    reverseProxyUrl.foreach(url => log.info(f"Reverse proxy url is $url"))
+    val reverseProxyUrlProp = reverseProxyUrl.map(url => f"-Dspark.ui.reverseProxyUrl=$url")
     val thread = runSparkThread(
       masterClass,
       config.memory,
       namedArgs = Map("host" -> ytHostnameOrIpAddress),
-      systemProperties = commonJavaOpts
+      systemProperties = commonJavaOpts ++ reverseProxyUrlProp.toSeq
     )
     val address = readAddressOrDie("master", config.startTimeout, thread)
     MasterService("Master", address, thread)

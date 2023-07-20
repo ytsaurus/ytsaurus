@@ -2,6 +2,7 @@ package tech.ytsaurus.spark.launcher
 
 import com.twitter.scalding.Args
 import org.slf4j.LoggerFactory
+import tech.ytsaurus.spark.launcher.TcpProxyService.updateTcpAddress
 import tech.ytsaurus.spyt.wrapper.Utils.parseDuration
 import tech.ytsaurus.spyt.wrapper.client.YtClientConfiguration
 import tech.ytsaurus.spyt.wrapper.discovery.DiscoveryService
@@ -18,11 +19,19 @@ object HistoryServerLauncher extends App with VanillaLauncher with SparkLauncher
 
   prepareProfiler()
 
-  withDiscovery(ytConfig, discoveryPath) { case (discoveryService, _) =>
+  withDiscovery(ytConfig, discoveryPath) { case (discoveryService, yt) =>
     val masterAddress = waitForMaster(waitMasterTimeout, discoveryService)
+    val tcpRouter = TcpProxyService.register("SHS")(yt)
 
     withService(startHistoryServer(logPath, memory, discoveryService)) { historyServer =>
-      discoveryService.registerSHS(historyServer.address)
+      val historyServerAddress =
+        tcpRouter.map(_.getExternalAddress("SHS")).getOrElse(historyServer.address)
+
+      discoveryService.registerSHS(historyServerAddress)
+      tcpRouter.foreach { router =>
+        updateTcpAddress(historyServer.address.toString, router.getPort("SHS"))(yt)
+        log.info("Tcp proxy port addresses updated")
+      }
 
       def isAlive: Boolean = {
         val isMasterAlive = DiscoveryService.isAlive(masterAddress.hostAndPort, 3)

@@ -3,8 +3,9 @@ package tech.ytsaurus.spark.launcher
 import com.codahale.metrics.MetricRegistry
 import com.twitter.scalding.Args
 import org.slf4j.LoggerFactory
+import tech.ytsaurus.spark.launcher.TcpProxyService.updateTcpAddress
 import tech.ytsaurus.spyt.wrapper.client.YtClientConfiguration
-import tech.ytsaurus.spyt.wrapper.discovery.SparkConfYsonable
+import tech.ytsaurus.spyt.wrapper.discovery.{Address, SparkConfYsonable}
 import tech.ytsaurus.spark.launcher.rest.MasterWrapperLauncher
 import tech.ytsaurus.spark.metrics.AdditionalMetrics
 
@@ -26,7 +27,9 @@ object MasterLauncher extends App
   AdditionalMetrics.register(additionalMetrics, "master")
 
   withDiscovery(ytConfig, discoveryPath) { case (discoveryService, yt) =>
-    withService(startMaster) { master =>
+    val tcpRouter = TcpProxyService.register("HOST", "WEBUI", "REST", "WRAPPER")(yt)
+    val reverseProxyUrl = tcpRouter.map(x => "http://" + x.getExternalAddress("WEBUI").toString)
+    withService(startMaster(reverseProxyUrl)) { master =>
       withService(startMasterWrapper(args, master)) { masterWrapper =>
         withOptionalService(startSolomonAgent(args, "master", master.masterAddress.webUiHostAndPort.port)) {
           solomonAgent =>
@@ -34,15 +37,31 @@ object MasterLauncher extends App
             master.waitAndThrowIfNotAlive(5 minutes)
             masterWrapper.waitAndThrowIfNotAlive(5 minutes)
 
+            val masterAddress = tcpRouter.map { router =>
+              Address(
+                router.getExternalAddress("HOST"),
+                router.getExternalAddress("WEBUI"),
+                router.getExternalAddress("REST")
+              )
+            }.getOrElse(master.masterAddress)
+            val masterWrapperAddress =
+              tcpRouter.map(_.getExternalAddress("WRAPPER")).getOrElse(masterWrapper.address)
             log.info("Register master")
             discoveryService.registerMaster(
               operationId,
-              master.masterAddress,
+              masterAddress,
               clusterVersion,
-              masterWrapper.address,
+              masterWrapperAddress,
               SparkConfYsonable(sparkSystemProperties)
             )
             log.info("Master registered")
+            tcpRouter.foreach { router =>
+              updateTcpAddress(master.masterAddress.hostAndPort.toString, router.getPort("HOST"))(yt)
+              updateTcpAddress(master.masterAddress.webUiHostAndPort.toString, router.getPort("WEBUI"))(yt)
+              updateTcpAddress(master.masterAddress.restHostAndPort.toString, router.getPort("REST"))(yt)
+              updateTcpAddress(masterWrapper.address.toString, router.getPort("WRAPPER"))(yt)
+              log.info("Tcp proxy port addresses updated")
+            }
 
             autoscalerConf foreach { conf =>
               AutoScaler.start(AutoScaler.build(conf, discoveryService, yt), conf, additionalMetrics)
