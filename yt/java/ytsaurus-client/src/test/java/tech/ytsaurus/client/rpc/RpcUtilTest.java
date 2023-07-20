@@ -10,8 +10,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
-import static tech.ytsaurus.FutureUtils.getError;
-import static tech.ytsaurus.FutureUtils.waitFuture;
+import static tech.ytsaurus.testlib.FutureUtils.getError;
+import static tech.ytsaurus.testlib.FutureUtils.waitFuture;
 
 public class RpcUtilTest {
     @Test

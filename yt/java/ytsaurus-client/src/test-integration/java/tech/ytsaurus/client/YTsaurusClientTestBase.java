@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.concurrent.CompletionException;
 
 import org.junit.After;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.rules.TestName;
 import org.testcontainers.containers.FixedHostPortGenericContainer;
@@ -26,6 +25,7 @@ import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.tables.TableSchema;
+import tech.ytsaurus.testlib.LocalYTsaurus;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
 public class YTsaurusClientTestBase {
@@ -49,12 +49,11 @@ public class YTsaurusClientTestBase {
         }
     }
 
-    @ClassRule
-    public static GenericContainer<?> localYTsaurus;
+    protected static GenericContainer<?> localYTsaurus;
 
     static {
         if (!System.getenv().containsKey("YT_PROXY")) {
-            localYTsaurus = new FixedHostPortGenericContainer<>("ytsaurus/local:stable")
+            localYTsaurus = new FixedHostPortGenericContainer<>("ytsaurus/local:dev")
                     .withFixedExposedPort(10110, 80) // http
                     .withFixedExposedPort(10111, 10111) // rpc_proxy
                     .withNetwork(Network.newNetwork())
@@ -63,10 +62,12 @@ public class YTsaurusClientTestBase {
                             "--rpc-proxy-count", "1",
                             "--rpc-proxy-port", "10111",
                             "--enable-debug-logging"
-                    ).withCopyFileToContainer(
+                    )
+                    .withCopyFileToContainer(
                             MountableFile.forClasspathResource("/proxy_config.yson"),
                             "/tmp/proxy_config.yson"
                     ).waitingFor(Wait.forLogMessage(".*Local YT started.*", 1));
+            localYTsaurus.start();
         }
     }
 
@@ -81,16 +82,17 @@ public class YTsaurusClientTestBase {
     }
 
     public final YTsaurusFixture createYtFixture(RpcOptions rpcOptions) {
-        var address = localYTsaurus != null ?
-                localYTsaurus.getHost() + ":" + localYTsaurus.getMappedPort(80)
-                : LocalYTsaurus.getAddress();
+        var address = getYTsaurusAddress();
+
+        String javaHome = localYTsaurus == null ?
+                System.getProperty("java.home") : "/opt/jdk11";
 
         var yt = YTsaurusClient.builder()
                 .setCluster(address)
                 .setConfig(
                         YTsaurusClientConfig.builder()
                                 .setRpcOptions(rpcOptions)
-                                .setJavaBinary(System.getProperty("java.home") + "/bin/java")
+                                .setJavaBinary(javaHome + "/bin/java")
                                 .setJobSpecPatch(null)
                                 .setSpecPatch(null)
                                 .setOperationPingPeriod(Duration.ofMillis(500))
@@ -105,7 +107,7 @@ public class YTsaurusClientTestBase {
                 .build();
 
         var methodName = name.getMethodName().replaceAll("[\\[\\]]", "-");
-        var testDirectory = YPath.simple("//tmp/ytclient-test/" + runId + "-" + methodName);
+        var testDirectory = YPath.simple("//tmp/ytsaurus-client-test/" + runId + "-" + methodName);
 
         yt.createNode(
                 CreateNode.builder()
@@ -119,6 +121,12 @@ public class YTsaurusClientTestBase {
         YTsaurusFixture result = new YTsaurusFixture(HostPort.parse(address), yt, testDirectory);
         ytFixtures.add(result);
         return result;
+    }
+
+    protected static String getYTsaurusAddress() {
+        return localYTsaurus != null ?
+                localYTsaurus.getHost() + ":" + localYTsaurus.getMappedPort(80)
+                : LocalYTsaurus.getAddress();
     }
 
     protected void writeTable(YTsaurusClient yt, YPath path, TableSchema tableSchema, List<YTreeMapNode> data) {

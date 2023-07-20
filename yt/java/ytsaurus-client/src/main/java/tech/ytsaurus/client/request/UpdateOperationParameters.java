@@ -104,7 +104,7 @@ public class UpdateOperationParameters
         return builder;
     }
 
-    YTreeMapNode toTreeParametersOnly() {
+    public YTreeMapNode toTreeParametersOnly() {
         return toTreeParametersOnly(YTree.mapBuilder()).buildMap();
     }
 

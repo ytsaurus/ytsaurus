@@ -15,9 +15,9 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import static tech.ytsaurus.FutureUtils.getError;
-import static tech.ytsaurus.FutureUtils.waitFuture;
-import static tech.ytsaurus.FutureUtils.waitOkResult;
+import static tech.ytsaurus.testlib.FutureUtils.getError;
+import static tech.ytsaurus.testlib.FutureUtils.waitFuture;
+import static tech.ytsaurus.testlib.FutureUtils.waitOkResult;
 
 class CustomException extends Exception {
     CustomException(String message) {

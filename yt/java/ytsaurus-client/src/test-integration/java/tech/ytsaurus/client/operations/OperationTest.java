@@ -1,0 +1,113 @@
+package tech.ytsaurus.client.operations;
+
+import java.util.List;
+
+import javax.persistence.Column;
+import javax.persistence.Entity;
+
+import org.junit.Assert;
+import org.junit.Test;
+import tech.ytsaurus.client.YTsaurusClientTestBase;
+import tech.ytsaurus.client.request.MapOperation;
+import tech.ytsaurus.core.common.YTsaurusError;
+import tech.ytsaurus.core.cypress.YPath;
+import tech.ytsaurus.core.operations.OperationContext;
+import tech.ytsaurus.core.operations.Yield;
+import tech.ytsaurus.core.tables.ColumnValueType;
+import tech.ytsaurus.core.tables.TableSchema;
+import tech.ytsaurus.ysontree.YTree;
+
+import static org.apache.logging.log4j.core.util.Throwables.getRootCause;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
+
+public class OperationTest extends YTsaurusClientTestBase {
+    public static class SimpleMapperEntity implements Mapper<InputType, OutputType> {
+        @Override
+        public void map(InputType entry, Yield<OutputType> yield, Statistics statistics,
+                        OperationContext context) {
+            String name = entry.name;
+            Integer count = entry.count;
+
+            OutputType outputType = new OutputType();
+            outputType.name = name;
+            outputType.newCount = count * count;
+
+            yield.yield(outputType);
+        }
+    }
+
+    @Test
+    public void testWatchAndThrowIfNotSuccess() {
+        var ytFixture = createYtFixture();
+        var yt = ytFixture.getYt();
+        var inputTable = ytFixture.getTestDirectory().child("input-table");
+        var outputTable = ytFixture.getTestDirectory().child("output-table");
+
+        var tableSchema = createTableSchema();
+
+        writeTable(yt, inputTable, tableSchema, List.of(
+                YTree.builder().beginMap()
+                        .key("name").value("a")
+                        .key("count").value(1)
+                        .buildMap(),
+                YTree.builder().beginMap()
+                        .key("name").value("b")
+                        .key("count").value(2)
+                        .buildMap(),
+                YTree.builder().beginMap()
+                        .key("name").value("c")
+                        .key("count").value(3)
+                        .buildMap()
+        ));
+
+        Operation firstOperation = yt.startMap(MapOperation.builder()
+                .setSpec(MapSpec.builder()
+                        .setMapperSpec(new MapperSpec(new SimpleMapperEntity()))
+                        .setInputTables(inputTable)
+                        .setOutputTables(outputTable)
+                        .build())
+                .build()).join();
+
+        firstOperation.watchAndThrowIfNotSuccess().join();
+
+        Assert.assertEquals(OperationStatus.COMPLETED, firstOperation.getStatus().join());
+
+        Operation secondOperation = yt.startMap(MapOperation.builder()
+                .setSpec(MapSpec.builder()
+                        .setMapperSpec(new MapperSpec(new SimpleMapperEntity()))
+                        .setInputTables(YPath.simple("//tmp/this/path/does/not/exist"))
+                        .setOutputTables(outputTable)
+                        .build())
+                .build()).join();
+
+        Exception exception = assertThrows(Exception.class,
+                () -> secondOperation.watchAndThrowIfNotSuccess().join()
+        );
+        assertEquals(
+                YTsaurusError.class,
+                getRootCause(exception).getClass()
+        );
+    }
+
+    private TableSchema createTableSchema() {
+        TableSchema.Builder builder = new TableSchema.Builder();
+        builder.setUniqueKeys(false);
+        builder.addValue("name", ColumnValueType.STRING);
+        builder.addValue("count", ColumnValueType.INT64);
+        return builder.build().toWrite();
+    }
+
+    @Entity
+    private static class InputType {
+        String name;
+        int count;
+    }
+
+    @Entity
+    private static class OutputType {
+        String name;
+        @Column(name = "new_count")
+        int newCount;
+    }
+}

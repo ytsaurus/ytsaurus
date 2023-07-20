@@ -134,7 +134,8 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
                 builder.auth,
                 rpcClientFactory,
                 builder.builder.config.getRpcOptions(),
-                builder.builder.heavyExecutor);
+                builder.builder.heavyExecutor
+        );
     }
 
     /**

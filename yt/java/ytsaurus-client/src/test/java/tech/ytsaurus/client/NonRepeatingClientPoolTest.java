@@ -8,7 +8,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import static junit.framework.TestCase.assertTrue;
-import static tech.ytsaurus.FutureUtils.waitOkResult;
+import static tech.ytsaurus.testlib.FutureUtils.waitOkResult;
 
 public class NonRepeatingClientPoolTest extends ClientPoolTestBase {
     @Test

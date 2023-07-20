@@ -1,33 +1,33 @@
-package tech.ytsaurus.client;
+package tech.ytsaurus.testlib;
 
 import tech.ytsaurus.lang.NonNullApi;
 
 /**
- * Class helps to create YT clients to local YT instance.
+ * Class helps to create YTsaurus clients to local YTsaurus instance.
  */
 @NonNullApi
-class LocalYTsaurus {
+public class LocalYTsaurus {
     private static volatile Address address;
 
     private LocalYTsaurus() {
     }
 
     /**
-     * Get full address of local YT instance from YT_PROXY environment variable.
+     * Get full address of local YTsaurus instance from YT_PROXY environment variable.
      */
-    static String getAddress() {
+    public static String getAddress() {
         return getAddressInstance().host + ":" + getAddressInstance().port;
     }
 
     /**
-     * Get host part of local YT instance address.
+     * Get host part of local YTsaurus instance address.
      */
     static String getHost() {
         return getAddressInstance().host;
     }
 
     /**
-     * Get port part of local YT instance address.
+     * Get port part of local YTsaurus instance address.
      */
     static int getPort() {
         return getAddressInstance().port;
@@ -55,7 +55,7 @@ class LocalYTsaurus {
             final String ytProxy = System.getenv("YT_PROXY");
             if (ytProxy == null) {
                 throw new RuntimeException(
-                        "Cannot get address of local YT instance: environment variable $YT_PROXY is not set."
+                        "Cannot get address of local YTsaurus instance: environment variable $YT_PROXY is not set."
                 );
             }
             String[] parts = ytProxy.split(":");
@@ -84,7 +84,8 @@ class LocalYTsaurus {
                     // We cannot stop you if you really want, but you have to understand that YOU MIGHT BREAK
                     // EVERYTHING.
                     throw new RuntimeException(
-                            "Looks like you are trying to use production YT instance in your tests: " + ytProxy + "\n" +
+                            "Looks like you are trying to use production YTsaurus instance in your tests: "
+                                    + ytProxy + "\n" +
                                     "Please investigate source code and fill confirmation if you really want to do so."
                     );
                 }

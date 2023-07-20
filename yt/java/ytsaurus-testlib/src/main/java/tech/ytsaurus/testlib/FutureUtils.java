@@ -1,4 +1,4 @@
-package tech.ytsaurus;
+package tech.ytsaurus.testlib;
 
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -14,7 +14,7 @@ public class FutureUtils {
     public static void waitFuture(CompletableFuture<?> future, long timeoutMs) {
         try {
             future.get(timeoutMs, TimeUnit.MILLISECONDS);
-        } catch (ExecutionException var4) {
+        } catch (ExecutionException ignored) {
         } catch (TimeoutException | InterruptedException var5) {
             throw new RuntimeException(var5);
         }
@@ -36,8 +36,8 @@ public class FutureUtils {
             try {
                 future.getNow(null);
                 throw new RuntimeException("Future is not completed exceptionally.");
-            } catch (CompletionException | CancellationException var2) {
-                return var2;
+            } catch (CompletionException | CancellationException e) {
+                return e;
             }
         }
     }

@@ -26,7 +26,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import static tech.ytsaurus.FutureUtils.getError;
+import static tech.ytsaurus.testlib.FutureUtils.getError;
 
 public class FailoverRpcExecutorTest {
     ScheduledExecutorService executorService = new ScheduledThreadPoolExecutor(4);

@@ -1,0 +1,28 @@
+package tech.ytsaurus.testlib;
+
+option java_multiple_files = true;
+option java_package = "tech.ytsaurus.testlib.proto";
+
+message MapInputProtoType
+{
+    optional string name = 1;
+}
+
+message MapOutputProtoType
+{
+    optional string name = 1;
+    required int32 name_length = 2;
+}
+
+message ReduceOutputProtoType
+{
+    optional string name = 1;
+    required int32 sum_name_length = 2;
+}
+
+message ProtoRow
+{
+    optional string key = 1;
+    optional string value = 2;
+    required int64 long_value = 3;
+}
