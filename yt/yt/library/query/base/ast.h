@@ -62,15 +62,15 @@ using TLiteralValueRangeList = std::vector<std::pair<TLiteralValueTuple, TLitera
 
 struct TReference
 {
+    TString ColumnName;
+    std::optional<TString> TableName;
+
     TReference() = default;
 
     TReference(const TString& columnName, const std::optional<TString>& tableName = std::nullopt)
         : ColumnName(columnName)
         , TableName(tableName)
     { }
-
-    TString ColumnName;
-    std::optional<TString> TableName;
 
     operator size_t() const;
 };
@@ -82,6 +82,8 @@ bool operator != (const TReference& lhs, const TReference& rhs);
 
 struct TExpression
 {
+    TSourceLocation SourceLocation;
+
     explicit TExpression(const TSourceLocation& sourceLocation)
         : SourceLocation(sourceLocation)
     { }
@@ -100,13 +102,8 @@ struct TExpression
 
     TStringBuf GetSource(TStringBuf source) const;
 
-    TSourceLocation SourceLocation;
-
-    virtual ~TExpression()
-    { }
+    virtual ~TExpression() = default;
 };
-
-//using TExpressionPtr = TExpression*;
 
 template <class T, class... TArgs>
 TExpressionList MakeExpression(TObjectsHolder* holder, TArgs&& ... args)
@@ -122,14 +119,14 @@ bool operator != (const TExpression& lhs, const TExpression& rhs);
 struct TLiteralExpression
     : public TExpression
 {
+    TLiteralValue Value;
+
     TLiteralExpression(
         const TSourceLocation& sourceLocation,
         TLiteralValue value)
         : TExpression(sourceLocation)
         , Value(std::move(value))
     { }
-
-    TLiteralValue Value;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -137,6 +134,8 @@ struct TLiteralExpression
 struct TReferenceExpression
     : public TExpression
 {
+    TReference Reference;
+
     TReferenceExpression(
         const TSourceLocation& sourceLocation,
         const TString& columnName)
@@ -158,8 +157,6 @@ struct TReferenceExpression
         : TExpression(sourceLocation)
         , Reference(reference)
     { }
-
-    TReference Reference;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -167,6 +164,9 @@ struct TReferenceExpression
 struct TAliasExpression
     : public TExpression
 {
+    TExpressionPtr Expression;
+    TString Name;
+
     TAliasExpression(
         const TSourceLocation& sourceLocation,
         const TExpressionPtr& expression,
@@ -175,9 +175,6 @@ struct TAliasExpression
         , Expression(expression)
         , Name(TString(name))
     { }
-
-    TExpressionPtr Expression;
-    TString Name;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -185,6 +182,9 @@ struct TAliasExpression
 struct TFunctionExpression
     : public TExpression
 {
+    TString FunctionName;
+    TExpressionList Arguments;
+
     TFunctionExpression(
         const TSourceLocation& sourceLocation,
         TStringBuf functionName,
@@ -193,9 +193,6 @@ struct TFunctionExpression
         , FunctionName(functionName)
         , Arguments(std::move(arguments))
     { }
-
-    TString FunctionName;
-    TExpressionList Arguments;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -203,6 +200,9 @@ struct TFunctionExpression
 struct TUnaryOpExpression
     : public TExpression
 {
+    EUnaryOp Opcode;
+    TExpressionList Operand;
+
     TUnaryOpExpression(
         const TSourceLocation& sourceLocation,
         EUnaryOp opcode,
@@ -211,9 +211,6 @@ struct TUnaryOpExpression
         , Opcode(opcode)
         , Operand(std::move(operand))
     { }
-
-    EUnaryOp Opcode;
-    TExpressionList Operand;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -221,6 +218,10 @@ struct TUnaryOpExpression
 struct TBinaryOpExpression
     : public TExpression
 {
+    EBinaryOp Opcode;
+    TExpressionList Lhs;
+    TExpressionList Rhs;
+
     TBinaryOpExpression(
         const TSourceLocation& sourceLocation,
         EBinaryOp opcode,
@@ -231,10 +232,6 @@ struct TBinaryOpExpression
         , Lhs(std::move(lhs))
         , Rhs(std::move(rhs))
     { }
-
-    EBinaryOp Opcode;
-    TExpressionList Lhs;
-    TExpressionList Rhs;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -242,6 +239,9 @@ struct TBinaryOpExpression
 struct TInExpression
     : public TExpression
 {
+    TExpressionList Expr;
+    TLiteralValueTupleList Values;
+
     TInExpression(
         const TSourceLocation& sourceLocation,
         TExpressionList expression,
@@ -250,9 +250,6 @@ struct TInExpression
         , Expr(std::move(expression))
         , Values(std::move(values))
     { }
-
-    TExpressionList Expr;
-    TLiteralValueTupleList Values;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -260,6 +257,9 @@ struct TInExpression
 struct TBetweenExpression
     : public TExpression
 {
+    TExpressionList Expr;
+    TLiteralValueRangeList Values;
+
     TBetweenExpression(
         const TSourceLocation& sourceLocation,
         TExpressionList expression,
@@ -268,9 +268,6 @@ struct TBetweenExpression
         , Expr(std::move(expression))
         , Values(values)
     { }
-
-    TExpressionList Expr;
-    TLiteralValueRangeList Values;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -278,6 +275,11 @@ struct TBetweenExpression
 struct TTransformExpression
     : public TExpression
 {
+    TExpressionList Expr;
+    TLiteralValueTupleList From;
+    TLiteralValueTupleList To;
+    TNullableExpressionList DefaultExpr;
+
     TTransformExpression(
         const TSourceLocation& sourceLocation,
         TExpressionList expression,
@@ -290,16 +292,14 @@ struct TTransformExpression
         , To(to)
         , DefaultExpr(std::move(defaultExpr))
     { }
-
-    TExpressionList Expr;
-    TLiteralValueTupleList From;
-    TLiteralValueTupleList To;
-    TNullableExpressionList DefaultExpr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 struct TTableDescriptor
 {
+    NYPath::TYPath Path;
+    std::optional<TString> Alias;
+
     TTableDescriptor() = default;
 
     explicit TTableDescriptor(
@@ -308,9 +308,6 @@ struct TTableDescriptor
         : Path(path)
         , Alias(alias)
     { }
-
-    NYPath::TYPath Path;
-    std::optional<TString> Alias;
 };
 
 bool operator == (const TTableDescriptor& lhs, const TTableDescriptor& rhs);
@@ -320,6 +317,15 @@ bool operator != (const TTableDescriptor& lhs, const TTableDescriptor& rhs);
 
 struct TJoin
 {
+    bool IsLeft;
+    TTableDescriptor Table;
+    TIdentifierList Fields;
+
+    TExpressionList Lhs;
+    TExpressionList Rhs;
+
+    TNullableExpressionList Predicate;
+
     TJoin(
         bool isLeft,
         const TTableDescriptor& table,
@@ -343,15 +349,6 @@ struct TJoin
         , Rhs(rhs)
         , Predicate(predicate)
     { }
-
-    bool IsLeft;
-    TTableDescriptor Table;
-    TIdentifierList Fields;
-
-    TExpressionList Lhs;
-    TExpressionList Rhs;
-
-    TNullableExpressionList Predicate;
 };
 
 bool operator == (const TJoin& lhs, const TJoin& rhs);
@@ -386,6 +383,9 @@ using TAliasMap = THashMap<TString, TExpressionPtr>;
 struct TAstHead
     : public TObjectsHolder
 {
+    std::variant<TQuery, TExpressionPtr> Ast;
+    TAliasMap AliasMap;
+
     static TAstHead MakeQuery()
     {
         TAstHead result;
@@ -399,10 +399,6 @@ struct TAstHead
         result.Ast.emplace<TExpressionPtr>();
         return result;
     }
-
-    std::variant<TQuery, TExpressionPtr> Ast;
-    TAliasMap AliasMap;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
