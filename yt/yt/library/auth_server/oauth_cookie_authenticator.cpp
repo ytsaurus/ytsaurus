@@ -23,7 +23,8 @@ static const auto& Logger = AuthLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOAuthCookieAuthenticator
-    : public ICookieAuthenticator {
+    : public ICookieAuthenticator
+{
 public:
     TOAuthCookieAuthenticator(
         TOAuthCookieAuthenticatorConfigPtr config,
@@ -84,7 +85,6 @@ private:
                 result.Value().Login,
                 result.Value().Realm);
         } else {
-            // TError(NSecurityClient::EErrorCode::AuthenticationError, "Authentication failed")
             YT_LOG_DEBUG(result, "Authentication via oauth failed (AccessTokenMD5: %v)", accessTokenMD5);
             result.MutableAttributes()->Set("access_token_md5", accessTokenMD5);
         }

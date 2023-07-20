@@ -24,7 +24,8 @@ static const auto& Logger = AuthLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOAuthTokenAuthenticator
-    : public ITokenAuthenticator {
+    : public ITokenAuthenticator
+{
 public:
     TOAuthTokenAuthenticator(
         TOAuthTokenAuthenticatorConfigPtr config,
