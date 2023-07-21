@@ -7,6 +7,7 @@
 
 
 add_subdirectory(blocking_queue)
+add_subdirectory(bounded_queue)
 add_subdirectory(cron)
 add_subdirectory(equeue)
 add_subdirectory(future)
