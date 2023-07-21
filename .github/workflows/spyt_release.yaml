@@ -55,6 +55,7 @@ jobs:
         with:
           java-version: '11'
           distribution: 'temurin'
+          cache: 'sbt'
           server-id: ossrh
           server-username: ${{ secrets.OSSRH_USERNAME }}
           server-password: OSSRH_TOKEN
