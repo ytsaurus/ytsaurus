@@ -62,15 +62,15 @@ jobs:
           gpg-passphrase: ${{ secrets.GPG_PASSWORD }}
       - name: Set up SBT
         run: |
-          curl -fsL "https://github.com/sbt/sbt/releases/download/v$SBT_VERSION/sbt-$SBT_VERSION.tgz" | tar xfz - -C /usr/share && \
+          curl -fsL "https://github.com/sbt/sbt/releases/download/v1.5.4/sbt-1.5.4.tgz" | tar xfz - -C /usr/share && \
             chown -R root:root /usr/share/sbt && \
             chmod -R 755 /usr/share/sbt && \
             ln -s /usr/share/sbt/bin/sbt /usr/local/bin/sbt
 
       - name: Set up scala
         run: |
-          curl -fsL https://downloads.typesafe.com/scala/$SCALA_VERSION/scala-$SCALA_VERSION.tgz | tar xfz - -C /usr/share && \
-            mv /usr/share/scala-$SCALA_VERSION /usr/share/scala && \
+          curl -fsL https://downloads.typesafe.com/scala/2.12.14/scala-2.12.14.tgz | tar xfz - -C /usr/share && \
+            mv /usr/share/scala-1.5.4 /usr/share/scala && \
             chown -R root:root /usr/share/scala && \
             chmod -R 755 /usr/share/scala && \
             ln -s /usr/share/scala/bin/* /usr/local/bin && \
