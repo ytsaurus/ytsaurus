@@ -112,7 +112,7 @@ jobs:
             -DcustomSparkForkVersion=${{ steps.prepare_env.outputs.release_major_version }} \
             spytPublishSparkForkRelease
 
-      - name: Generate config
+      - name: Generate cluster configuration
         run: python3 tools/release/publisher/config_generator.py build_output
 
       - name: DockerHub login
