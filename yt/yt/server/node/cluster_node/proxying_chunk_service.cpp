@@ -49,7 +49,8 @@ public:
     TProxyingChunkService(
         TCellId cellId,
         TProxyingChunkServiceConfigPtr serviceConfig,
-        TMasterConnectionConfigPtr connectionConfig,
+        TMasterConnectionConfigPtr masterConnectionConfig,
+        NApi::NNative::TConnectionDynamicConfigPtr connectionConfig,
         IChannelFactoryPtr channelFactory,
         IAuthenticatorPtr authenticator)
         : TServiceBase(
@@ -59,13 +60,15 @@ public:
             cellId,
             std::move(authenticator))
         , ServiceConfig_(std::move(serviceConfig))
-        , ConnectionConfig_(std::move(connectionConfig))
+        , ConnectionConfig_(std::move(masterConnectionConfig))
         , LeaderChannel_(CreateMasterChannel(channelFactory, ConnectionConfig_, EPeerKind::Leader))
         , FollowerChannel_(CreateMasterChannel(channelFactory, ConnectionConfig_, EPeerKind::Follower))
         , CostThrottler_(CreateReconfigurableThroughputThrottler(ServiceConfig_->CostThrottler))
         , LocateChunksHandler_(New<TLocateChunksHandler>(this))
         , LocateDynamicStoresHandler_(New<TLocateDynamicStoresHandler>(this))
-        , AllocateWriteTargetsHandler_(New<TAllocateWriteTargetsHandler>(this))
+        , AllocateWriteTargetsHandler_(New<TAllocateWriteTargetsHandler>(
+            this,
+            /*useFollowers*/ connectionConfig->UseFollowersForWriteTargetsAllocation))
         , ExecuteBatchHandler_(New<TExecuteBatchHandler>(this))
         , CreateChunkHandler_(New<TCreateChunkHandler>(this))
         , ConfirmChunkHandler_(New<TConfirmChunkHandler>(this))
@@ -270,20 +273,25 @@ private:
         : public THandlerBase<TReqAllocateWriteTargets, TRspAllocateWriteTargets>
     {
     public:
-        explicit TAllocateWriteTargetsHandler(TProxyingChunkService* owner)
+        TAllocateWriteTargetsHandler(TProxyingChunkService* owner, bool useFollowers)
             : THandlerBase(owner)
+            , UseFollowers_(useFollowers)
         { }
 
     protected:
         TChunkServiceProxy::TReqAllocateWriteTargetsPtr CreateRequest() override
         {
-            return LeaderProxy_.AllocateWriteTargets();
+            auto proxy = UseFollowers_ ? LeaderProxy_ : FollowerProxy_;
+            return proxy.AllocateWriteTargets();
         }
 
         int GetCost(const TRequestPtr& request) const override
         {
             return request->subrequests_size();
         }
+
+    private:
+        const bool UseFollowers_;
     };
 
     const TIntrusivePtr<TAllocateWriteTargetsHandler> AllocateWriteTargetsHandler_;

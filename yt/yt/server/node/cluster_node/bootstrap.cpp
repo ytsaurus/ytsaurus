@@ -856,6 +856,7 @@ private:
                 config->CellId,
                 Config_->ProxyingChunkService,
                 config,
+                Config_->ClusterConnection->Dynamic,
                 Connection_->GetChannelFactory(),
                 NativeAuthenticator_));
         };

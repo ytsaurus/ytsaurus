@@ -15,7 +15,8 @@ namespace NYT::NClusterNode {
 NRpc::IServicePtr CreateProxyingChunkService(
     NElection::TCellId cellId,
     TProxyingChunkServiceConfigPtr serviceConfig,
-    NApi::NNative::TMasterConnectionConfigPtr connectionConfig,
+    NApi::NNative::TMasterConnectionConfigPtr masterConnectionConfig,
+    NApi::NNative::TConnectionDynamicConfigPtr connectionConfig,
     NRpc::IChannelFactoryPtr channelFactory,
     NRpc::IAuthenticatorPtr authenticator);
 
