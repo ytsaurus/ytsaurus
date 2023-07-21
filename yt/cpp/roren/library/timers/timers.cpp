@@ -12,7 +12,7 @@ namespace NRoren::NPrivate
 {
 size_t TTimer::TKeyHasher::operator () (const TKey& key) const
 {
-    return MultiHash(key.GetKey(), key.GetTimerId(), key.GetCallbackName());
+    return MultiHash(key.GetKey(), key.GetTimerId(), key.GetCallbackId());
 }
 
 size_t TTimer::TValueHasher::operator () (const TValue& value) const
@@ -28,7 +28,7 @@ size_t TTimer::THasher::operator () (const TTimer& timer) const
 bool TTimer::TKeyEqual::operator () (const TTimer::TKey& a, const TTimer::TKey& b)
 {
     auto Tie = [] (const TTimer::TKey& key) -> auto {
-        return std::tie(key.GetKey(), key.GetTimerId(), key.GetCallbackName());
+        return std::tie(key.GetKey(), key.GetTimerId(), key.GetCallbackId());
     };
     return Tie(a) == Tie(b);
 }
@@ -38,11 +38,11 @@ TTimer::TTimer(TTimerProto timerProto)
 {
 }
 
-TTimer::TTimer(const TRawKey& rawKey, const TTimerId& timerId, const TCallbackName& callbackName, const TTimestamp& timestamp, const TUserData& userData)
+TTimer::TTimer(const TRawKey& rawKey, const TTimerId& timerId, const TCallbackId& callbackId, const TTimestamp& timestamp, const TUserData& userData)
 {
     MutableKey()->SetKey(rawKey);
     MutableKey()->SetTimerId(timerId);
-    MutableKey()->SetCallbackName(callbackName);
+    MutableKey()->SetCallbackId(callbackId);
     MutableValue()->SetTimestamp(timestamp);
     if (userData) {
         MutableValue()->SetUserData(userData.value());
@@ -53,7 +53,7 @@ bool TTimer::operator == (const TTimer& other) const noexcept
 {
     return GetKey().GetKey() == other.GetKey().GetKey()
         && GetKey().GetTimerId() == other.GetKey().GetTimerId()
-        && GetKey().GetCallbackName() == other.GetKey().GetCallbackName()
+        && GetKey().GetCallbackId() == other.GetKey().GetCallbackId()
         && GetValue().GetTimestamp() == other.GetValue().GetTimestamp()
         && GetValue().GetUserData() == other.GetValue().GetUserData();
 }
@@ -66,7 +66,7 @@ bool TTimer::operator < (const TTimer& other) const noexcept
             timer.GetValue().GetTimestamp(),
             timer.GetKey().GetKey(),
             timer.GetKey().GetTimerId(),
-            timer.GetKey().GetCallbackName()
+            timer.GetKey().GetCallbackId()
         );
     };
     return Tie(*this) < Tie(other);

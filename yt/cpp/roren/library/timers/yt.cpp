@@ -12,7 +12,7 @@ static NYT::NTableClient::TTableSchemaPtr MakeTimerSchema()
         std::vector<NYT::NTableClient::TColumnSchema>({
             NYT::NTableClient::TColumnSchema("Key", NYT::NTableClient::ESimpleLogicalValueType::String, NYT::NTableClient::ESortOrder::Ascending).SetRequired(true),
             NYT::NTableClient::TColumnSchema("TimerId", NYT::NTableClient::ESimpleLogicalValueType::String, NYT::NTableClient::ESortOrder::Ascending).SetRequired(true),
-            NYT::NTableClient::TColumnSchema("CallbackName", NYT::NTableClient::ESimpleLogicalValueType::String, NYT::NTableClient::ESortOrder::Ascending).SetRequired(true),
+            NYT::NTableClient::TColumnSchema("CallbackId", NYT::NTableClient::ESimpleLogicalValueType::String, NYT::NTableClient::ESortOrder::Ascending).SetRequired(true),
             NYT::NTableClient::TColumnSchema("Timestamp", NYT::NTableClient::ESimpleLogicalValueType::Uint64).SetRequired(true),
             NYT::NTableClient::TColumnSchema("UserData", NYT::NTableClient::ESimpleLogicalValueType::String).SetRequired(false),
         }),
@@ -30,7 +30,7 @@ static NYT::NTableClient::TTableSchemaPtr MakeTimerIndexSchema()
             NYT::NTableClient::TColumnSchema("Timestamp", NYT::NTableClient::ESimpleLogicalValueType::Uint64, NYT::NTableClient::ESortOrder::Ascending).SetRequired(true),
             NYT::NTableClient::TColumnSchema("Key", NYT::NTableClient::ESimpleLogicalValueType::String, NYT::NTableClient::ESortOrder::Ascending).SetRequired(true),
             NYT::NTableClient::TColumnSchema("TimerId", NYT::NTableClient::ESimpleLogicalValueType::String, NYT::NTableClient::ESortOrder::Ascending).SetRequired(true),
-            NYT::NTableClient::TColumnSchema("CallbackName", NYT::NTableClient::ESimpleLogicalValueType::String, NYT::NTableClient::ESortOrder::Ascending).SetRequired(true),
+            NYT::NTableClient::TColumnSchema("CallbackId", NYT::NTableClient::ESimpleLogicalValueType::String, NYT::NTableClient::ESortOrder::Ascending).SetRequired(true),
             NYT::NTableClient::TColumnSchema("UserData", NYT::NTableClient::ESimpleLogicalValueType::String).SetRequired(false),
             NYT::NTableClient::TColumnSchema("dummy", NYT::NTableClient::ESimpleLogicalValueType::Int8).SetRequired(true),
         }),
@@ -52,16 +52,16 @@ static TTimer TimerFromRow(const NYT::NTableClient::TUnversionedRow& row, const 
 {
     const auto keyIndex = schema->GetColumnIndexOrThrow("Key");
     const auto timerIdIndex = schema->GetColumnIndexOrThrow("TimerId");
-    const auto callbackNameIndex = schema->GetColumnIndexOrThrow("CallbackName");
+    const auto callbackIdIndex = schema->GetColumnIndexOrThrow("CallbackId");
     const auto timestampIndex = schema->GetColumnIndexOrThrow("Timestamp");
     const auto userDataIndex = schema->GetColumnIndexOrThrow("UserData");
 
     TTimer::TRawKey key{row[keyIndex].Data.String, row[keyIndex].Length};
     TTimer::TTimerId timerId{row[timerIdIndex].Data.String, row[timerIdIndex].Length};
-    TTimer::TCallbackName callbackName{row[callbackNameIndex].Data.String, row[callbackNameIndex].Length};
+    TTimer::TCallbackId callbackId{row[callbackIdIndex].Data.String, row[callbackIdIndex].Length};
     TTimer::TTimestamp timestamp = row[timestampIndex].Data.Uint64;
     TTimer::TUserData userData = TString{row[userDataIndex].Data.String, row[userDataIndex].Length};
-    return TTimer(key, timerId, callbackName, timestamp, userData);
+    return TTimer(key, timerId, callbackId, timestamp, userData);
 }
 
 #if 0
@@ -164,7 +164,7 @@ TVector<TTimer> YtLookupTimers(const NYT::NApi::IClientBasePtr tx, const NYT::NY
 {
     NYT::NTableClient::TUnversionedRowsBuilder lookup_builder;
     for (const auto& key : keys) {
-        lookup_builder.AddRow(key.GetKey(), key.GetTimerId(), key.GetCallbackName());
+        lookup_builder.AddRow(key.GetKey(), key.GetTimerId(), key.GetCallbackId());
     }
     NYT::NApi::IUnversionedRowsetPtr rowSet = NYT::NConcurrency::WaitFor(tx->LookupRows(timerTable, g_TimerLookupNameTable, lookup_builder.Build())).ValueOrThrow();
     TVector<TTimer> result;
@@ -182,28 +182,28 @@ void YtInsertMigrate(const NYT::NApi::ITransactionPtr tx, const NYT::NYPath::TYP
 void YtInsertTimer(const NYT::NApi::ITransactionPtr tx, const NYT::NYPath::TYPath& timerTable, const TTimer& timer)
 {
     NYT::NTableClient::TUnversionedRowsBuilder insert_builder;
-    insert_builder.AddRow(timer.GetKey().GetKey(), timer.GetKey().GetTimerId(), timer.GetKey().GetCallbackName(), timer.GetValue().GetTimestamp(), timer.GetValue().GetUserData());
+    insert_builder.AddRow(timer.GetKey().GetKey(), timer.GetKey().GetTimerId(), timer.GetKey().GetCallbackId(), timer.GetValue().GetTimestamp(), timer.GetValue().GetUserData());
     tx->WriteRows(timerTable, g_TimerInsertNameTable, insert_builder.Build());
 }
 
 void YtDeleteTimer(const NYT::NApi::ITransactionPtr tx, const NYT::NYPath::TYPath& timerTable, const TTimer::TKey& key)
 {
     NYT::NTableClient::TUnversionedRowsBuilder delete_builder;
-    delete_builder.AddRow(key.GetKey(), key.GetTimerId(), key.GetCallbackName());
+    delete_builder.AddRow(key.GetKey(), key.GetTimerId(), key.GetCallbackId());
     tx->DeleteRows(timerTable, g_TimerLookupNameTable, delete_builder.Build());
 }
 
 void YtInsertIndex(const NYT::NApi::ITransactionPtr tx, const NYT::NYPath::TYPath& timerIndexTable, const TTimer& timer, const TTimer::TShardId shardId)
 {
     NYT::NTableClient::TUnversionedRowsBuilder insert_builder;
-    insert_builder.AddRow(shardId, timer.GetValue().GetTimestamp(), timer.GetKey().GetKey(), timer.GetKey().GetTimerId(), timer.GetKey().GetCallbackName(), nullptr, 0);
+    insert_builder.AddRow(shardId, timer.GetValue().GetTimestamp(), timer.GetKey().GetKey(), timer.GetKey().GetTimerId(), timer.GetKey().GetCallbackId(), nullptr, 0);
     tx->WriteRows(timerIndexTable, g_TimerIndexInsertNameTable, insert_builder.Build());
 }
 
 void YtDeleteIndex(const NYT::NApi::ITransactionPtr tx, const NYT::NYPath::TYPath& timerIndexTable, const TTimer& timer, const TTimer::TShardId shardId)
 {
     NYT::NTableClient::TUnversionedRowsBuilder delete_builder;
-    delete_builder.AddRow(shardId, timer.GetValue().GetTimestamp(), timer.GetKey().GetKey(), timer.GetKey().GetTimerId(), timer.GetKey().GetCallbackName());
+    delete_builder.AddRow(shardId, timer.GetValue().GetTimestamp(), timer.GetKey().GetKey(), timer.GetKey().GetTimerId(), timer.GetKey().GetCallbackId());
     tx->DeleteRows(timerIndexTable, g_TimerIndexLookupNameTable, delete_builder.Build());
 }
 

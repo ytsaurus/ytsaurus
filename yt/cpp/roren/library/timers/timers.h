@@ -22,7 +22,7 @@ public:
         using TShardId = uint64_t;
         using TRawKey = TString;
         using TTimerId = TString;
-        using TCallbackName = TString;
+        using TCallbackId = TString;
         using TTimestamp = uint64_t;
         using TUserData = std::optional<TString>;
 
@@ -39,7 +39,7 @@ public:
         TTimer(TTimerProto timerProto);
         TTimer(TTimer&&) = default;
         TTimer(const TTimer&) = default;
-        TTimer(const TRawKey& rawKey, const TTimerId& timerId, const TCallbackName& callbackName, const TTimestamp& timestamp, const TUserData& userData);
+        TTimer(const TRawKey& rawKey, const TTimerId& timerId, const TCallbackId& callbackId, const TTimestamp& timestamp, const TUserData& userData);
         TTimer& operator = (TTimer&&) = default;
 
         bool operator == (const TTimer& other) const noexcept;
