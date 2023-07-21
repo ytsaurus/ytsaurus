@@ -1,4 +1,4 @@
-name: Release spyt
+name: Release SPYT
 
 on:
   push:
