@@ -209,9 +209,9 @@ jobs:
     name: Stop VM
     needs:
       - start-vm
-      - build
-      - test_release
-      - prod_release
+      - prepare_env
+      - spark_fork_release
+      - cluster_release
     runs-on: trampoline
     if: ${{ always() }}
     steps:
