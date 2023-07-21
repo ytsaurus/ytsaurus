@@ -783,6 +783,25 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         )
         assert read_table("//tmp/t_out") == rows
 
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("chunk_format", ["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim"])
+    def test_lookup_any_value_with_hunks(self, chunk_format):
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "any", "max_inline_chunk_size": 10},
+        ]
+
+        sync_create_cells(1)
+        self._create_table(chunk_format=chunk_format, schema=schema)
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 0, "value": "0"}, {"key": 1, "value": [{}, {}]}, {"key": 2, "value": "0" * 20}]
+
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        assert lookup_rows("//tmp/t", [{"key": 0}, {"key": 1}, {"key": 2}]) == rows
+
     @authors("gritukan")
     @pytest.mark.parametrize("chunk_format", ["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim"])
     @pytest.mark.parametrize("hunk_type", ["inline", "chunk"])
