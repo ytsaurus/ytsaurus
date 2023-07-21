@@ -73,9 +73,7 @@ jobs:
             mv /usr/share/scala-2.12.14 /usr/share/scala && \
             chown -R root:root /usr/share/scala && \
             chmod -R 755 /usr/share/scala && \
-            ln -s /usr/share/scala/bin/* /usr/local/bin && \
-            echo "println(util.Properties.versionMsg)" > test.scala && \
-            scala -nocompdaemon test.scala && rm test.scala
+            ln -s /usr/share/scala/bin/* /usr/local/bin
 
       - name: Parse tag
         id: tag
