@@ -50,31 +50,6 @@ jobs:
       release_version: ${{ steps.tag.outputs.RELEASE_VERSION }}
       release_major_version: ${{ steps.tag.outputs.RELEASE_MAJOR_VERSION }}
     steps:
-      - name: Set up JDK 11
-        uses: actions/setup-java@v3
-        with:
-          java-version: '11'
-          distribution: 'temurin'
-          server-id: ossrh
-          server-username: ${{ secrets.OSSRH_USERNAME }}
-          server-password: OSSRH_TOKEN
-          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
-          gpg-passphrase: ${{ secrets.GPG_PASSWORD }}
-      - name: Set up SBT
-        run: |
-          curl -fsL "https://github.com/sbt/sbt/releases/download/v1.5.4/sbt-1.5.4.tgz" | tar xfz - -C /usr/share && \
-            chown -R root:root /usr/share/sbt && \
-            chmod -R 755 /usr/share/sbt && \
-            ln -s /usr/share/sbt/bin/sbt /usr/local/bin/sbt
-
-      - name: Set up scala
-        run: |
-          curl -fsL https://downloads.typesafe.com/scala/2.12.14/scala-2.12.14.tgz | tar xfz - -C /usr/share && \
-            mv /usr/share/scala-2.12.14 /usr/share/scala && \
-            chown -R root:root /usr/share/scala && \
-            chmod -R 755 /usr/share/scala && \
-            ln -s /usr/share/scala/bin/* /usr/local/bin
-
       - name: Parse tag
         id: tag
         run: |
@@ -97,14 +72,6 @@ jobs:
 #        env:
 #          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
 #          PASSPHRASE: ${{ secrets.GPG_PASSWORD }}
-
-      - name: Write credentials
-        run: |
-          mkdir -p ~/.sbt
-          echo "realm=Sonatype Nexus Repository Manager" > ~/.sbt/.ossrh_credentials
-          echo "host=s01.oss.sonatype.org" >> ~/.sbt/.ossrh_credentials
-          echo "user=${{ secrets.OSSRH_USERNAME }}" >> ~/.sbt/.ossrh_credentials
-          echo "password=0" >> ~/.sbt/.ossrh_credentials
 #          mkdir -p ~/.m2
 #          echo "<settings>" > ~/.m2/settings.xml
 #          echo "<servers><server><id>ossrh</id><username>${{ secrets.OSSRH_USERNAME }}</username><password>0</password></server></servers>" >> ~/.m2/settings.xml
@@ -185,6 +152,39 @@ jobs:
     if: ${{ needs.prepare_env.outputs.release_type == 'cluster' }}
     runs-on: ${{ needs.start-vm.outputs.label }}
     steps:
+      - name: Set up JDK 11
+        uses: actions/setup-java@v3
+        with:
+          java-version: '11'
+          distribution: 'temurin'
+          server-id: ossrh
+          server-username: ${{ secrets.OSSRH_USERNAME }}
+          server-password: OSSRH_TOKEN
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg-passphrase: ${{ secrets.GPG_PASSWORD }}
+      - name: Set up SBT
+        run: |
+          curl -fsL "https://github.com/sbt/sbt/releases/download/v1.5.4/sbt-1.5.4.tgz" | tar xfz - -C /usr/share && \
+            chown -R root:root /usr/share/sbt && \
+            chmod -R 755 /usr/share/sbt && \
+            ln -s /usr/share/sbt/bin/sbt /usr/local/bin/sbt
+
+      - name: Set up scala
+        run: |
+          curl -fsL https://downloads.typesafe.com/scala/2.12.14/scala-2.12.14.tgz | tar xfz - -C /usr/share && \
+            mv /usr/share/scala-2.12.14 /usr/share/scala && \
+            chown -R root:root /usr/share/scala && \
+            chmod -R 755 /usr/share/scala && \
+            ln -s /usr/share/scala/bin/* /usr/local/bin
+
+      - name: Write credentials
+        run: |
+          mkdir -p ~/.sbt
+          echo "realm=Sonatype Nexus Repository Manager" > ~/.sbt/.ossrh_credentials
+          echo "host=s01.oss.sonatype.org" >> ~/.sbt/.ossrh_credentials
+          echo "user=${{ secrets.OSSRH_USERNAME }}" >> ~/.sbt/.ossrh_credentials
+          echo "password=0" >> ~/.sbt/.ossrh_credentials
+
       - name: Change directory
         run: cd yt/spark/spark-over-yt
 
