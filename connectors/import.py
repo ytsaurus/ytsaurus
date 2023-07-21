@@ -115,7 +115,7 @@ def validate_args(args, input_path, output_path):
     elif fmt == "jdbc" or fmt == "jdbc_sql":
         if not args.jdbc_server:
             error_exit("--jdbc_server must provide host:port for JDBC server")
-    elif fmt == "text" or fmt == "orc" or fmt == "parquet":
+    elif fmt == "text" or fmt == "orc" or fmt == "parquet" or fmt == "local_parquet":
         pass
     else:
         error_exit("Unsupported input format {}".format(fmt))
@@ -145,6 +145,9 @@ def read_input(args, spark, input_path):
         return spark.read.orc(path)
     elif fmt == "parquet":
         return spark.read.parquet(path)
+    elif fmt == "local_parquet":
+        import pandas as pd
+        return spark.createDataFrame(pd.read_parquet(path, engine='pyarrow'))
 
 def write_output(data, output_path):
     mode, out = split_by(output_path, ':')
