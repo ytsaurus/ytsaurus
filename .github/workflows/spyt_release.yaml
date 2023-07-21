@@ -185,11 +185,9 @@ jobs:
           echo "user=${{ secrets.OSSRH_USERNAME }}" >> ~/.sbt/.ossrh_credentials
           echo "password=0" >> ~/.sbt/.ossrh_credentials
 
-      - name: Change directory
-        run: cd yt/spark/spark-over-yt
-
       - name: Run sbt build
         run: |
+          cd yt/spark/spark-over-yt
           sbt \
             -DpublishRepo=False \
             -DinnerSidecarConfig=False \
@@ -200,7 +198,9 @@ jobs:
             spytPublishClusterRelease
 
       - name: Generate config
-        run: python3 tools/release/publisher/config_generator.py build_output
+        run: |
+          cd yt/spark/spark-over-yt
+          python3 tools/release/publisher/config_generator.py build_output
 
       - name: DockerHub login
         shell: bash
@@ -209,6 +209,7 @@ jobs:
 
       - name: Build and push docker image
         run: |
+          cd yt/spark/spark-over-yt
           cd tools/release/spyt_image
           bash ./build.sh \
             --spark-version ${{ steps.prepare_env.outputs.release_major_version }} \
@@ -219,7 +220,7 @@ jobs:
       - name: Prepare ytsaurus-spyt package publish
         run: |
           rm -f dist
-          mv "build_output/ytsaurus-spyt" dist
+          mv "cd yt/spark/spark-over-yt/build_output/ytsaurus-spyt" dist
 
       - name: Publish package distributions to TestPyPI
         uses: pypa/gh-action-pypi-publish@release/v1
