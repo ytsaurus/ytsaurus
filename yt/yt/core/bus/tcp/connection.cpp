@@ -200,6 +200,8 @@ void TTcpConnection::Close()
 
 void TTcpConnection::Start()
 {
+    YT_LOG_DEBUG("Starting TCP connection (SupportsHandshakes: %v)", SupportsHandshakes_);
+
     // Offline in PendingControl_ prevents retrying events until end of Open().
     YT_VERIFY(Any(static_cast<EPollControl>(PendingControl_.load()) & EPollControl::Offline));
 
@@ -543,6 +545,9 @@ bool TTcpConnection::AbortIfNetworkingDisabled()
     if (!TTcpDispatcher::Get()->IsNetworkingDisabled()) {
         return false;
     }
+
+    YT_LOG_DEBUG("Aborting connection since networking is disabled");
+
     Abort(TError(NBus::EErrorCode::TransportError, "Networking is disabled"));
     return true;
 }
@@ -591,6 +596,8 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& address)
 
 void TTcpConnection::OnDialerFinished(const TErrorOr<SOCKET>& socketOrError)
 {
+    YT_LOG_DEBUG("Dialer finished");
+
     DialerSession_.Reset();
 
     if (!socketOrError.IsOK()) {
@@ -1006,6 +1013,7 @@ ssize_t TTcpConnection::DoReadSocket(char* buffer, size_t size)
         case ESslState::Established: {
             auto result = SSL_read(Ssl_.get(), buffer, size);
             if (PendingSslHandshake_ && result > 0) {
+                YT_LOG_DEBUG("TLS/SSL session has been established by SSL_read()");
                 PendingSslHandshake_ = false;
                 ReadyPromise_.TrySet();
             }
@@ -1166,6 +1174,8 @@ bool TTcpConnection::OnMessagePacketReceived()
 
 bool TTcpConnection::OnHandshakePacketReceived()
 {
+    YT_LOG_DEBUG("Handshake received");
+
     auto optionalHandshake = TryParseHandshakeMessage(Decoder_->GrabMessage());
     if (!optionalHandshake) {
         return false;
@@ -1198,8 +1208,6 @@ bool TTcpConnection::OnHandshakePacketReceived()
 
     if (EncryptionMode_ == EEncryptionMode::Required || otherEncryptionMode == EEncryptionMode::Required) {
         if (EncryptionMode_ == EEncryptionMode::Disabled || otherEncryptionMode == EEncryptionMode::Disabled) {
-            YT_LOG_DEBUG("TLS/SSL client/server encryption mode compatibility error, mode %v other_mode %v", EncryptionMode_, otherEncryptionMode);
-
             Abort(TError(NBus::EErrorCode::SslError, "TLS/SSL client/server encryption mode compatibility error")
                 << TErrorAttribute("mode", EncryptionMode_)
                 << TErrorAttribute("other_mode", otherEncryptionMode));
@@ -1298,6 +1306,7 @@ ssize_t TTcpConnection::DoWriteFragments(const std::vector<struct iovec>& vec)
             YT_ASSERT(vec.size() == 1);
             auto result = SSL_write(Ssl_.get(), vec[0].iov_base, vec[0].iov_len);
             if (PendingSslHandshake_ && result > 0) {
+                YT_LOG_DEBUG("TLS/SSL session has been established by SSL_write()");
                 PendingSslHandshake_ = false;
                 ReadyPromise_.TrySet();
             }
@@ -1793,7 +1802,9 @@ bool TTcpConnection::CheckSslReadError(ssize_t result)
             [[fallthrough]];
         default:
             UpdateBusCounter(&TBusNetworkBandCounters::ReadErrors, 1);
-            Abort(TError(NBus::EErrorCode::SslError, "TLS/SSL read error: %v", GetLastSslErrorString()));
+            Abort(TError(NBus::EErrorCode::SslError, "TLS/SSL read error")
+                << TErrorAttribute("ssl_error", GetLastSslErrorString())
+                << TErrorAttribute("sys_error", TError::FromSystem(LastSystemError())));
             break;
     }
 
@@ -1819,7 +1830,9 @@ bool TTcpConnection::CheckSslWriteError(ssize_t result)
             [[fallthrough]];
         default:
             UpdateBusCounter(&TBusNetworkBandCounters::WriteErrors, 1);
-            Abort(TError(NBus::EErrorCode::SslError, "TLS/SSL write error: %v", GetLastSslErrorString()));
+            Abort(TError(NBus::EErrorCode::SslError, "TLS/SSL write error")
+                << TErrorAttribute("ssl_error", GetLastSslErrorString())
+                << TErrorAttribute("sys_error", TError::FromSystem(LastSystemError())));
             break;
     }
 
@@ -1851,7 +1864,7 @@ bool TTcpConnection::DoSslHandshake()
     auto result = SSL_do_handshake(Ssl_.get());
     switch (SSL_get_error(Ssl_.get(), result)) {
         case SSL_ERROR_NONE:
-            // TLS/SSL session has been established.
+            YT_LOG_DEBUG("TLS/SSL session has been established by SSL_do_handshake()");
             MaxFragmentsPerWrite = 1;
             SslState_ = ESslState::Established;
             ReadyPromise_.TrySet();
@@ -1875,7 +1888,9 @@ bool TTcpConnection::DoSslHandshake()
             break;
     }
 
-    Abort(TError(NBus::EErrorCode::SslError, "Failed to establish TLS/SSL session: %v", GetLastSslErrorString()));
+    Abort(TError(NBus::EErrorCode::SslError, "Failed to establish TLS/SSL session")
+        << TErrorAttribute("ssl_error", GetLastSslErrorString())
+        << TErrorAttribute("sys_error", TError::FromSystem(LastSystemError())));
     return false;
 }
 
@@ -1900,6 +1915,8 @@ void TTcpConnection::TryEnqueueSslAck()
         EPacketFlags::None,
         0,
         SslAckPacketId);
+
+    YT_LOG_DEBUG("SslAck enqueued");
 }
 
 void TTcpConnection::TryEstablishSslSession()
@@ -1908,13 +1925,17 @@ void TTcpConnection::TryEstablishSslSession()
         return;
     }
 
+    YT_LOG_DEBUG("Starting to establish TLS/SSL session");
+
     Ssl_.reset(SSL_new(TSslContext::Get()->GetSslCtx()));
     if (!Ssl_) {
-        return Abort(TError(NBus::EErrorCode::SslError, "Failed to create a new SSL structure: %v", GetLastSslErrorString()));
+        Abort(TError(NBus::EErrorCode::SslError, "Failed to create a new SSL structure: %v", GetLastSslErrorString()));
+        return;
     }
 
     if (SSL_set_fd(Ssl_.get(), Socket_) != 1) {
-        return Abort(TError(NBus::EErrorCode::SslError, "Failed to bind socket to SSL handle: %v", GetLastSslErrorString()));
+        Abort(TError(NBus::EErrorCode::SslError, "Failed to bind socket to SSL handle: %v", GetLastSslErrorString()));
+        return;
     }
 
     if (ConnectionType_ == EConnectionType::Server) {
@@ -1922,23 +1943,28 @@ void TTcpConnection::TryEstablishSslSession()
 
         if (!Config_->UseKeyPairFromSslContext) {
             if (!Config_->CertificateChainFile) {
-                return Abort(TError(NBus::EErrorCode::SslError, "The certificate chain file is not set"));
+                Abort(TError(NBus::EErrorCode::SslError, "The certificate chain file is not set in bus config"));
+                return;
             }
 
             if (SSL_use_certificate_chain_file(Ssl_.get(), Config_->CertificateChainFile->data()) != 1) {
-                return Abort(TError(NBus::EErrorCode::SslError, "Failed to load certificate chain: %v", GetLastSslErrorString()));
+                Abort(TError(NBus::EErrorCode::SslError, "Failed to load certificate chain: %v", GetLastSslErrorString()));
+                return;
             }
 
             if (!Config_->PrivateKeyFile) {
-                return Abort(TError(NBus::EErrorCode::SslError, "The private key file is not set"));
+                Abort(TError(NBus::EErrorCode::SslError, "The private key file is not set in bus config"));
+                return;
             }
 
             if (SSL_use_RSAPrivateKey_file(Ssl_.get(), Config_->PrivateKeyFile->data(), SSL_FILETYPE_PEM) != 1) {
-                return Abort(TError(NBus::EErrorCode::SslError, "Failed to load private key: %v", GetLastSslErrorString()));
+                Abort(TError(NBus::EErrorCode::SslError, "Failed to load private key: %v", GetLastSslErrorString()));
+                return;
             }
 
             if (SSL_check_private_key(Ssl_.get()) != 1) {
-                return Abort(TError(NBus::EErrorCode::SslError, "Failed to check the consistency of a private key with the corresponding certificate: %v", GetLastSslErrorString()));
+                Abort(TError(NBus::EErrorCode::SslError, "Failed to check the consistency of a private key with the corresponding certificate: %v", GetLastSslErrorString()));
+                return;
             }
         }
     } else {
@@ -1949,12 +1975,14 @@ void TTcpConnection::TryEstablishSslSession()
         case EVerificationMode::Full:
             // Set the hostname for the peer certificate verification.
             if (SSL_set1_host(Ssl_.get(), EndpointHostName_.data()) != 1) {
-                return Abort(TError(NBus::EErrorCode::SslError, "Failed to set hostname %v for the peer certificate verification", EndpointHostName_));
+                Abort(TError(NBus::EErrorCode::SslError, "Failed to set hostname %v for the peer certificate verification", EndpointHostName_));
+                return;
             }
             [[fallthrough]];
         case EVerificationMode::Ca:
             if (!Config_->CAFile) {
-                return Abort(TError(NBus::EErrorCode::SslError, "The CA file is not set"));
+                Abort(TError(NBus::EErrorCode::SslError, "The CA file is not set in bus config"));
+                return;
             }
             TSslContext::Get()->LoadCAFileIfNotLoaded(*Config_->CAFile);
 
@@ -1979,6 +2007,8 @@ void TTcpConnection::TryEstablishSslSession()
 
 bool TTcpConnection::OnSslAckPacketReceived()
 {
+    YT_LOG_DEBUG("SslAck received");
+
     SslAckReceived_ = true;
 
     if (ConnectionType_ == EConnectionType::Server) {
@@ -1993,6 +2023,8 @@ bool TTcpConnection::OnSslAckPacketReceived()
 
 void TTcpConnection::OnSslAckPacketSent()
 {
+    YT_LOG_DEBUG("SslAck sent");
+
     SslAckSent_ = true;
 
     TryEstablishSslSession();
