@@ -4,6 +4,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/app"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/chyt"
+	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
 )
 
 var oneShotRunCmd = &cobra.Command{
@@ -36,6 +37,7 @@ func doOneShotRun() error {
 		LogToStderr: flagLogToStderr,
 	}
 	specletYson := readConfig(flagSpecletPath)
-	runner := app.NewOneShotRunner(&config, &options, chyt.NewController)
+	// TODO(max42): extend for generic controllers.
+	runner := app.NewOneShotRunner(&config, &options, strawberry.ControllerFactory{Factory: chyt.NewController, Config: config.Controller})
 	return runner.Run(flagCliqueAlias, specletYson)
 }

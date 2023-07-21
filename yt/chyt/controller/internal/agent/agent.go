@@ -195,7 +195,16 @@ func (a *Agent) pass() {
 
 	a.processOplets()
 	for _, oplet := range a.aliasToOp {
-		if oplet.DoesNotExist() || oplet.Broken() || oplet.Inappropriate() {
+		if oplet.DoesNotExist() {
+			a.l.Info("unregistering oplet: it does not exist", log.String("alias", oplet.Alias()))
+			a.unregisterOplet(oplet)
+		}
+		if oplet.Broken() {
+			a.l.Info("unregistering oplet: it is broken", log.String("alias", oplet.Alias()))
+			a.unregisterOplet(oplet)
+		}
+		if oplet.Inappropriate() {
+			a.l.Info("unregistering oplet: it is inappropriate", log.String("alias", oplet.Alias()))
 			a.unregisterOplet(oplet)
 		}
 	}

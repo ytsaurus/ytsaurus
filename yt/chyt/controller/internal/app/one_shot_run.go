@@ -48,7 +48,7 @@ func NewOneShotRunner(config *OneShotRunnerConfig, options *Options, cf strawber
 		panic(err)
 	}
 
-	runner.c = cf(withName(runner.l, "c"), runner.ytc, config.StrawberryRoot, config.Proxy, config.Controller)
+	runner.c = cf.Factory(withName(runner.l, "c"), runner.ytc, config.StrawberryRoot, config.Proxy, config.Controller)
 
 	return
 }

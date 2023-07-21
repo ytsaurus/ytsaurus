@@ -14,77 +14,16 @@ import (
 	"go.ytsaurus.tech/yt/chyt/controller/internal/monitoring"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
 	"go.ytsaurus.tech/yt/go/ypath"
-	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yt/ythttp"
 	"go.ytsaurus.tech/yt/go/ytlock"
 )
 
-// Config is taken from yson config file. It contains both strawberry-specific options
-// and controller-specific options; at this point they are opaque and passed as raw YSON.
-type Config struct {
-	// Token of the user for coordination, operation and state management.
-	// If not present, it is taken from STRAWBERRY_TOKEN env var.
-	Token string `yson:"token"`
-
-	// CoordinationProxy defines coordination cluster if it is needed; e.g. locke.
-	CoordinationProxy *string `yson:"coordination_proxy"`
-
-	// CoordinationPath is the path for a lock at the coordination cluster.
-	CoordinationPath ypath.Path `yson:"coordination_path"`
-
-	// LocationProxies defines operating clusters; e.g. hume or localhost:4243.
-	LocationProxies []string `yson:"location_proxies"`
-
-	// Strawberry contains strawberry-specific configuration.
-	Strawberry *agent.Config `yson:"strawberry"`
-
-	// Controller contains opaque controller config.
-	Controller yson.RawValue `yson:"controller"`
-
-	HTTPAPIEndpoint        *string `yson:"http_api_endpoint"`
-	HTTPMonitoringEndpoint *string `yson:"http_monitoring_endpoint"`
-
-	// HealthStatusExpirationPeriod defines when agent health status becomes outdated.
-	HealthStatusExpirationPeriod *time.Duration `yson:"health_status_expiration_period"`
-
-	BaseACL []yt.ACE `yson:"base_acl"`
-
-	DisableAPIAuth bool `yson:"disable_api_auth"`
-}
-
-const (
-	DefaultHealthStatusExpirationPeriod = time.Duration(time.Minute)
-	DefaultHTTPAPIEndpoint              = ":80"
-	DefaultHTTPMonitoringEndpoint       = ":2223"
-)
-
-func (c *Config) HealthStatusExpirationPeriodOrDefault() time.Duration {
-	if c.HealthStatusExpirationPeriod != nil {
-		return *c.HealthStatusExpirationPeriod
-	}
-	return DefaultHealthStatusExpirationPeriod
-}
-
-func (c *Config) HTTPAPIEndpointOrDefault() string {
-	if c.HTTPAPIEndpoint != nil {
-		return *c.HTTPAPIEndpoint
-	}
-	return DefaultHTTPAPIEndpoint
-}
-
-func (c *Config) HTTPMonitoringEndpointOrDefault() string {
-	if c.HTTPMonitoringEndpoint != nil {
-		return *c.HTTPMonitoringEndpoint
-	}
-	return DefaultHTTPMonitoringEndpoint
-}
-
 // Location defines an operating cluster.
 type Location struct {
-	l   *logzap.Logger
-	a   *agent.Agent
-	c   strawberry.Controller
+	l *logzap.Logger
+	// as contains mapping from controller family to a corresponding agent.
+	as  map[string]*agent.Agent
 	ytc yt.Client
 }
 
@@ -129,7 +68,7 @@ func (app App) acquireLock() (lost <-chan struct{}, err error) {
 	}
 }
 
-func New(config *Config, options *Options, cf strawberry.ControllerFactory) (app App) {
+func New(config *Config, options *Options, cfs map[string]strawberry.ControllerFactory) (app App) {
 	l := newLogger("app", options.LogToStderr)
 	app.l = l
 
@@ -170,35 +109,48 @@ func New(config *Config, options *Options, cf strawberry.ControllerFactory) (app
 			l.Fatal("error creating YT client", log.Error(err), log.String("proxy", proxy))
 		}
 
-		loc.c = cf(withName(loc.l, "c"), loc.ytc, config.Strawberry.Root, proxy, config.Controller)
-		loc.a = agent.NewAgent(proxy, loc.ytc, withName(loc.l, "a"), loc.c, config.Strawberry)
-		healthers[proxy] = loc.a
+		loc.as = map[string]*agent.Agent{}
+		for family, cf := range cfs {
+			l := withName(loc.l, family)
+			l.Debug("instantiating controller for location", log.String("location", proxy), log.String("family", family))
+			c := cf.Factory(withName(l, "c"), loc.ytc, config.Strawberry.Root, proxy, cf.Config)
+			a := agent.NewAgent(proxy, loc.ytc, withName(l, "a"), c, &config.Strawberry)
+			loc.as[family] = a
+		}
+
+		// TODO(max42): extend for generic controllers.
+		healthers[proxy] = loc.as["chyt"]
 
 		app.locations = append(app.locations, loc)
-		agentInfos = append(agentInfos, loc.a.GetAgentInfo())
+		agentInfos = append(agentInfos, loc.as["chyt"].GetAgentInfo())
 		l.Debug("location ready")
 	}
 
-	var apiConfig = api.HTTPAPIConfig{
-		BaseAPIConfig: api.APIConfig{
-			ControllerFactory: cf,
-			ControllerConfig:  config.Controller,
-			BaseACL:           config.BaseACL,
-			RobotUsername:     config.Strawberry.RobotUsername,
-		},
-		ClusterInfos: agentInfos,
-		Token:        config.Token,
-		Endpoint:     config.HTTPAPIEndpointOrDefault(),
-		DisableAuth:  config.DisableAPIAuth,
+	if config.HTTPAPIEndpoint != nil {
+		var apiConfig = api.HTTPAPIConfig{
+			BaseAPIConfig: api.APIConfig{
+				// TODO(max42): extend for generic factories.
+				ControllerFactory: cfs["chyt"],
+				ControllerConfig:  config.Controller,
+				BaseACL:           config.BaseACL,
+				RobotUsername:     config.Strawberry.RobotUsername,
+			},
+			ClusterInfos: agentInfos,
+			Token:        config.Token,
+			Endpoint:     config.HTTPAPIEndpointOrDefault(),
+			DisableAuth:  config.DisableAPIAuth,
+		}
+		app.HTTPAPIServer = api.NewServer(apiConfig, l)
 	}
-	app.HTTPAPIServer = api.NewServer(apiConfig, l)
 
-	var monitoringConfig = monitoring.HTTPMonitoringConfig{
-		Clusters:                     config.LocationProxies,
-		Endpoint:                     config.HTTPMonitoringEndpointOrDefault(),
-		HealthStatusExpirationPeriod: config.HealthStatusExpirationPeriodOrDefault(),
+	if config.HTTPMonitoringEndpoint != nil {
+		var monitoringConfig = monitoring.HTTPMonitoringConfig{
+			Clusters:                     config.LocationProxies,
+			Endpoint:                     config.HTTPMonitoringEndpointOrDefault(),
+			HealthStatusExpirationPeriod: config.HealthStatusExpirationPeriodOrDefault(),
+		}
+		app.HTTPMonitoringServer = monitoring.NewServer(monitoringConfig, l, &app, healthers)
 	}
-	app.HTTPMonitoringServer = monitoring.NewServer(monitoringConfig, l, &app, healthers)
 
 	app.isLeader = atomic.NewBool(false)
 
@@ -209,8 +161,12 @@ func New(config *Config, options *Options, cf strawberry.ControllerFactory) (app
 
 // Run starts the infinite loop consisting of lock acquisition and agent operation.
 func (app *App) Run() {
-	go app.HTTPAPIServer.Run()
-	go app.HTTPMonitoringServer.Run()
+	if app.HTTPAPIServer != nil {
+		go app.HTTPAPIServer.Run()
+	}
+	if app.HTTPMonitoringServer != nil {
+		go app.HTTPMonitoringServer.Run()
+	}
 	for {
 		app.l.Debug("trying to acquire lock")
 		lost, err := app.acquireLock()
@@ -223,7 +179,9 @@ func (app *App) Run() {
 		app.isLeader.Store(true)
 
 		for _, loc := range app.locations {
-			loc.a.Start()
+			for _, a := range loc.as {
+				a.Start()
+			}
 		}
 
 		<-lost
@@ -231,7 +189,9 @@ func (app *App) Run() {
 		app.isLeader.Store(false)
 
 		for _, loc := range app.locations {
-			loc.a.Stop()
+			for _, a := range loc.as {
+				a.Stop()
+			}
 		}
 	}
 }

@@ -5,8 +5,9 @@ import (
 
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/yt/go/ypath"
-	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
+
+	"go.ytsaurus.tech/yt/go/yson"
 )
 
 // Controller encapsulates particular application business logic, in particular:
@@ -30,7 +31,7 @@ type Controller interface {
 	// Returns true if the state has been changed and all oplets should be restarted.
 	UpdateState() (changed bool, err error)
 
-	// DescribeOptions returns human readable descriptors for controller-related speclet options.
+	// DescribeOptions returns human-readable descriptors for controller-related speclet options.
 	// Some options can be missing in the result if they are not intended to be visible through user interfaces.
 	//
 	// Given speclet should have suitable type for the specific controller.
@@ -38,4 +39,7 @@ type Controller interface {
 	DescribeOptions(speclet any) []OptionGroupDescriptor
 }
 
-type ControllerFactory = func(l log.Logger, ytc yt.Client, root ypath.Path, cluster string, config yson.RawValue) Controller
+type ControllerFactory struct {
+	Factory func(l log.Logger, ytc yt.Client, root ypath.Path, cluster string, config yson.RawValue) Controller
+	Config  yson.RawValue
+}

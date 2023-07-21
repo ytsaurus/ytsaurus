@@ -4,6 +4,8 @@ import (
 	"github.com/spf13/cobra"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/app"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/chyt"
+	"go.ytsaurus.tech/yt/chyt/controller/internal/jupyt"
+	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
 )
 
 var runCmd = &cobra.Command{
@@ -27,7 +29,32 @@ func doRun() error {
 	options := app.Options{
 		LogToStderr: flagLogToStderr,
 	}
-	a := app.New(&config, &options, chyt.NewController)
+
+	cfs := map[string]strawberry.ControllerFactory{}
+
+	// CHYT controller is always present.
+
+	chytConfig, ok := config.Controllers["chyt"]
+	if !ok {
+		chytConfig = config.Controller
+	}
+	chytFactory := strawberry.ControllerFactory{
+		Factory: chyt.NewController,
+		Config:  chytConfig,
+	}
+	cfs["chyt"] = chytFactory
+
+	// JUPYT controller is optional.
+
+	if jupytConfig, ok := config.Controllers["jupyt"]; ok {
+		jupytFactory := strawberry.ControllerFactory{
+			Factory: jupyt.NewController,
+			Config:  jupytConfig,
+		}
+		cfs["jupyt"] = jupytFactory
+	}
+
+	a := app.New(&config, &options, cfs)
 	a.Run()
 	panic("unreachable")
 }

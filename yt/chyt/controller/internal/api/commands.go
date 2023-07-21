@@ -412,7 +412,7 @@ func RegisterHTTPAPI(cfg HTTPAPIConfig, l log.Logger) chi.Router {
 		apiCfg := cfg.BaseAPIConfig
 		apiCfg.AgentInfo = clusterInfo
 
-		ctl := apiCfg.ControllerFactory(l, ytc, clusterInfo.StrawberryRoot, clusterInfo.Proxy, apiCfg.ControllerConfig)
+		ctl := apiCfg.ControllerFactory.Factory(l, ytc, clusterInfo.StrawberryRoot, clusterInfo.Proxy, apiCfg.ControllerConfig)
 
 		api := NewHTTPAPI(ytc, apiCfg, ctl, l, cfg.DisableAuth)
 
