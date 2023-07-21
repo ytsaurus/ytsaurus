@@ -1226,9 +1226,6 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
     auto setValuePayload = [] (TUnversionedValue* value, TRef payload) {
         SetValueRef(value, payload);
         value->Flags &= ~EValueFlags::Hunk;
-        if (value->Type == EValueType::Any) {
-            *value = TryDecodeUnversionedAnyValue(*value);
-        }
     };
 
     int inlineHunkValueCount = 0;
