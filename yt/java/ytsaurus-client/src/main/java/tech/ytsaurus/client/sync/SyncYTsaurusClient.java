@@ -19,6 +19,10 @@ public class SyncYTsaurusClient
         this.client = client;
     }
 
+    public static SyncYTsaurusClient wrap(YTsaurusClient client) {
+        return new SyncYTsaurusClient(client);
+    }
+
     public List<YTsaurusCluster> getClusters() {
         return client.getClusters();
     }
