@@ -55,6 +55,11 @@ jobs:
         with:
           java-version: '11'
           distribution: 'temurin'
+          server-id: ossrh
+          server-username: ${{ secrets.OSSRH_USERNAME }}
+          server-password: OSSRH_TOKEN
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg-passphrase: ${{ secrets.GPG_PASSWORD }}
 
       - name: Parse tag
         id: tag
@@ -70,14 +75,14 @@ jobs:
           echo "RELEASE_VERSION=$RELEASE_VERSION" >> $GITHUB_OUTPUT
           echo "RELEASE_MAJOR_VERSION=$(echo $RELEASE_VERSION | sed 's/\.[0-9]*$/.0/')" >> $GITHUB_OUTPUT
 
-      - name: Prepare GPG Agent
-        run: apt install gpg-agent
-
-      - name: Import GPG Key
-        uses: crazy-max/ghaction-import-gpg@v1
-        env:
-          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
-          PASSPHRASE: ${{ secrets.GPG_PASSWORD }}
+#      - name: Prepare GPG Agent
+#        run: apt install gpg-agent
+#
+#      - name: Import GPG Key
+#        uses: crazy-max/ghaction-import-gpg@v1
+#        env:
+#          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+#          PASSPHRASE: ${{ secrets.GPG_PASSWORD }}
 
       - name: Write credentials
         run: |
@@ -86,11 +91,11 @@ jobs:
           echo "host=s01.oss.sonatype.org" >> ~/.sbt/.ossrh_credentials
           echo "user=${{ secrets.OSSRH_USERNAME }}" >> ~/.sbt/.ossrh_credentials
           echo "password=0" >> ~/.sbt/.ossrh_credentials
-          mkdir -p ~/.m2
-          echo "<settings>" > ~/.m2/settings.xml
-          echo "<servers><server><id>ossrh</id><username>${{ secrets.OSSRH_USERNAME }}</username><password>0</password></server></servers>" >> ~/.m2/settings.xml
-          echo "<profiles><profile><id>ossrh</id><activation><activeByDefault>true</activeByDefault></activation><properties><gpg.executable>gpg</gpg.executable><gpg.passphrase>${{ secrets.GPG_PASSWORD }}</gpg.passphrase></properties></profile></profiles>" >> ~/.m2/settings.xml
-          echo "</settings>" >> ~/.m2/settings.xml
+#          mkdir -p ~/.m2
+#          echo "<settings>" > ~/.m2/settings.xml
+#          echo "<servers><server><id>ossrh</id><username>${{ secrets.OSSRH_USERNAME }}</username><password>0</password></server></servers>" >> ~/.m2/settings.xml
+#          echo "<profiles><profile><id>ossrh</id><activation><activeByDefault>true</activeByDefault></activation><properties><gpg.executable>gpg</gpg.executable><gpg.passphrase>${{ secrets.GPG_PASSWORD }}</gpg.passphrase></properties></profile></profiles>" >> ~/.m2/settings.xml
+#          echo "</settings>" >> ~/.m2/settings.xml
 
   spark_fork_release:
     name: Run Spark fork release
