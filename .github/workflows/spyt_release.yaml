@@ -55,6 +55,7 @@ jobs:
         with:
           java-version: '11'
           distribution: 'temurin'
+
       - name: Parse tag
         id: tag
         run: |
@@ -68,6 +69,25 @@ jobs:
           RELEASE_VERSION=$(echo ${GITHUB_REF#refs/*/spyt*/})
           echo "RELEASE_VERSION=$RELEASE_VERSION" >> $GITHUB_OUTPUT
           echo "RELEASE_MAJOR_VERSION=$(echo $RELEASE_VERSION | sed 's/\.[0-9]*$/.0/')" >> $GITHUB_OUTPUT
+
+      - name: Import GPG Key
+        uses: crazy-max/ghaction-import-gpg@v1
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          PASSPHRASE: ${{ secrets.GPG_PASSWORD }}
+
+      - name: Write credentials
+        run: |
+          mkdir -p ~/.sbt
+          echo "realm=Sonatype Nexus Repository Manager" > ~/.sbt/.ossrh_credentials
+          echo "host=s01.oss.sonatype.org" >> ~/.sbt/.ossrh_credentials
+          echo "user=${{ secrets.OSSRH_USERNAME }}" >> ~/.sbt/.ossrh_credentials
+          echo "password=0" >> ~/.sbt/.ossrh_credentials
+          mkdir -p ~/.m2
+          echo "<settings>" > ~/.m2/settings.xml
+          echo "<servers><server><id>ossrh</id><username>${{ secrets.OSSRH_USERNAME }}</username><password>0</password></server></servers>" >> ~/.m2/settings.xml
+          echo "<profiles><profile><id>ossrh</id><activation><activeByDefault>true</activeByDefault></activation><properties><gpg.executable>gpg</gpg.executable><gpg.passphrase>${{ secrets.GPG_PASSWORD }}</gpg.passphrase></properties></profile></profiles>" >> ~/.m2/settings.xml
+          echo "</settings>" >> ~/.m2/settings.xml
 
   spark_fork_release:
     name: Run Spark fork release
@@ -172,6 +192,18 @@ jobs:
             --spark-version ${{ steps.prepare_env.outputs.release_major_version }} \
             --spyt-version ${{ steps.prepare_env.outputs.release_version }}
           docker push ytsaurus/spyt:${{ steps.prepare_env.outputs.release_version }}
+          cd ../../..
+
+      - name: Prepare ytsaurus-spyt package publish
+        run: |
+          rm -f dist
+          mv "build_output/ytsaurus-spyt" dist
+
+      - name: Publish package distributions to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
 
   stop-vm:
     name: Stop VM
@@ -192,24 +224,24 @@ jobs:
           label: ${{ needs.start-vm.outputs.label }}
           instance-id: ${{ needs.start-vm.outputs.instance-id }}
 
-  send-notifications:
-    name: Send notifications
-    needs:
-      - stop-vm
-    runs-on: trampoline
-    if: ${{ failure() }}
-    steps:
-      - name: Send telegram message
-        uses: appleboy/telegram-action@master
-        with:
-          to: ${{ secrets.TELEGRAM_CHAT_ID }}
-          token: ${{ secrets.TELEGRAM_TOKEN }}
-          disable_web_page_preview: true
-          format: markdown
-          message: |
-            Workflow *${{github.workflow}}* failed: ${{github.server_url}}/${{github.repository}}/actions/runs/${{github.run_id}}.
-            Git ${{github.ref_type}}: *${{github.ref_name}}*.
-            Commit:
-            ```
-            ${{github.event.head_commit.message}}
-            ```
+#  send-notifications:
+#    name: Send notifications
+#    needs:
+#      - stop-vm
+#    runs-on: trampoline
+#    if: ${{ failure() }}
+#    steps:
+#      - name: Send telegram message
+#        uses: appleboy/telegram-action@master
+#        with:
+#          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+#          token: ${{ secrets.TELEGRAM_TOKEN }}
+#          disable_web_page_preview: true
+#          format: markdown
+#          message: |
+#            Workflow *${{github.workflow}}* failed: ${{github.server_url}}/${{github.repository}}/actions/runs/${{github.run_id}}.
+#            Git ${{github.ref_type}}: *${{github.ref_name}}*.
+#            Commit:
+#            ```
+#            ${{github.event.head_commit.message}}
+#            ```
