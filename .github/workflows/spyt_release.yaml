@@ -70,7 +70,7 @@ jobs:
       - name: Set up scala
         run: |
           curl -fsL https://downloads.typesafe.com/scala/2.12.14/scala-2.12.14.tgz | tar xfz - -C /usr/share && \
-            mv /usr/share/scala-1.5.4 /usr/share/scala && \
+            mv /usr/share/scala-2.12.14 /usr/share/scala && \
             chown -R root:root /usr/share/scala && \
             chmod -R 755 /usr/share/scala && \
             ln -s /usr/share/scala/bin/* /usr/local/bin && \
