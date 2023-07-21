@@ -122,8 +122,10 @@ void TOAuthServiceConfig::Register(TRegistrar registrar)
         .Default("user/info");
     registrar.Parameter("user_info_login_field", &TThis::UserInfoLoginField)
         .Default("nickname");
-    registrar.Parameter("user_info_subject_field", &TThis::UserInfoSubjectField);
-    registrar.Parameter("user_info_error_field", &TThis::UserInfoErrorField);
+    registrar.Parameter("user_info_subject_field", &TThis::UserInfoSubjectField)
+        .Optional();
+    registrar.Parameter("user_info_error_field", &TThis::UserInfoErrorField)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
