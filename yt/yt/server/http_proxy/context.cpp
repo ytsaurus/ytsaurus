@@ -180,7 +180,17 @@ bool TContext::TryParseUser()
     if (!authResult.IsOK()) {
         YT_LOG_DEBUG(authResult, "Authentication error");
 
-        if (DriverRequest_.CommandName == "discover_proxies") {
+        // These are the commands that do not require user authentication.
+        // "discover_proxies" is safe for everyone to use.
+        // "set_user_password" and "issue_token" use internal (password-based)
+        // authentication so they can be executed even without a valid token.
+        static const THashSet<TString> UnsafeCommands{
+            "discover_proxies",
+            "set_user_password",
+            "issue_token",
+        };
+
+        if (UnsafeCommands.contains(DriverRequest_.CommandName)) {
             DriverRequest_.AuthenticatedUser = NSecurityClient::RootUserName;
             return true;
         }
