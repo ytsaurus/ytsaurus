@@ -50,9 +50,8 @@ class TestJobExperiment(YTEnvSetup):
     def get_spec(user_slots, **options):
         spec = {
             "job_experiment": {
-                "job_experiment_type": "mtn",
                 "network_project": TestJobExperiment.NETWORK_PROJECT,
-                "alert_on_any_experiment_failure": True,
+                "alert_on_any_treatment_failure": True,
             },
             "mapper": {
                 "format": "json",

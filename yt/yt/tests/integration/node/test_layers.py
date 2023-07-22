@@ -258,9 +258,8 @@ class TestProbingLayer(TestLayers):
         spec = {
             "default_base_layer_path": "//tmp/layer2",
             "job_experiment": {
-                "job_experiment_type": "base_layer",
                 "base_layer_path": "//tmp/layer1",
-                "alert_on_any_experiment_failure": True,
+                "alert_on_any_treatment_failure": True,
             },
             "mapper": {
                 "format": "json",
