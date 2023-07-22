@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 from yt_commands import (
     authors, wait, create, ls, get, set, remove, link, exists,
     write_file, write_table, get_job, abort_job,
-    raises_yt_error, read_table, run_test_vanilla, map, wait_for_nodes, update_nodes_dynamic_config)
+    raises_yt_error, read_table, run_test_vanilla, map, sort, wait_for_nodes, update_nodes_dynamic_config)
 
 from yt.common import YtError
 import yt.yson as yson
@@ -289,6 +289,19 @@ class TestProbingLayer(TestLayers):
 
         return op
 
+    @staticmethod
+    def run_sort(user_slots, **options):
+        op = sort(
+            in_=TestProbingLayer.INPUT_TABLE,
+            out=TestProbingLayer.OUTPUT_TABLE,
+            sort_by="k",
+            spec=TestProbingLayer.get_spec(user_slots, **options),
+        )
+
+        assert get(f"{TestProbingLayer.INPUT_TABLE}/@row_count") == get(f"{TestProbingLayer.OUTPUT_TABLE}/@row_count")
+
+        return op
+
     @authors("galtsev")
     def test_probing_layer_success(self):
         self.setup_files()
@@ -447,6 +460,15 @@ class TestProbingLayer(TestLayers):
                     assert attributes["failed_control_job_count"] == op.get_job_count("failed")
                     assert attributes["succeeded_treatment_job_count"] > 0 or counter["treatment"] == 0
                     alert_count += 1
+
+    @authors("galtsev")
+    def test_probing_layer_crash(self):
+        self.setup_files()
+
+        job_count = 10
+        self.create_tables(job_count)
+
+        self.run_sort(user_slots=job_count)
 
 
 class TestDockerImage(TestLayers):
