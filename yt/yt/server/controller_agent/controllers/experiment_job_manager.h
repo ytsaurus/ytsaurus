@@ -56,7 +56,9 @@ public:
         bool enableBypassArtifactCache,
         const NLogging::TLogger& logger);
 
-    static bool IsEnabled(TOperationSpecBasePtr operationSpec);
+    static bool IsEnabled(
+        TOperationSpecBasePtr operationSpec,
+        std::vector<NScheduler::TUserJobSpecPtr> userJobSpecs);
 
     void PatchUserJobSpec(NScheduler::NProto::TUserJobSpec* jobSpec, TJobletPtr joblet) const override;
 
@@ -90,7 +92,9 @@ public:
         TString networkProject,
         NLogging::TLogger logger);
 
-    static bool IsEnabled(TOperationSpecBasePtr operationSpec);
+    static bool IsEnabled(
+        TOperationSpecBasePtr operationSpec,
+        std::vector<NScheduler::TUserJobSpecPtr> userJobSpecs);
 
     void PatchUserJobSpec(NScheduler::NProto::TUserJobSpec* jobSpec, TJobletPtr joblet) const override;
 
