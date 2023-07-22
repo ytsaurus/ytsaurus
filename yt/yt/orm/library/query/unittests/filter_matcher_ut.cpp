@@ -1,5 +1,7 @@
 #include <yt/yt/orm/library/query/filter_matcher.h>
 
+#include <yt/yt/client/table_client/row_base.h>
+
 #include <yt/yt/core/actions/bind.h>
 #include <yt/yt/core/actions/invoker.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
@@ -258,6 +260,50 @@ TEST(FilterMatcher, FarmHash)
     auto matcher = CreateFilterMatcher("farm_hash(string([/labels/zone])) % 1 = 0", {"/labels"});
     EXPECT_TRUE(matcher->Match(TYsonStringBuf("{zone=\"some_zone\"}")).ValueOrThrow());
     EXPECT_TRUE(matcher->Match(TYsonStringBuf("{not_zone_label=1}")).ValueOrThrow());
+}
+
+TEST(FilterMatcher, TypedAttributePaths)
+{
+    auto matcher = CreateFilterMatcher(
+        "([/labels/shard_id] = \"53\" AND NOT [/meta/id] IN (\"pod_1\", "
+        "\"pod_2\", \"pod_3\", \"pod_4\", \"pod_5\", \"pod_6\")) AND "
+        "[/meta/pod_set_id] = \"my_pod_set\"",
+        /*typedAttributePaths*/ {
+            TTypedAttributePath{
+                .Path = "/meta/pod_set_id",
+                .Type = NTableClient::EValueType::String,
+            },
+            TTypedAttributePath{
+                .Path = "/meta/id",
+                .Type = NTableClient::EValueType::String,
+            },
+            TTypedAttributePath{
+                .Path = "/labels",
+                .Type = NTableClient::EValueType::Any,
+            },
+        });
+
+    auto buildAndMatch = [&] (const auto& podSetId, const auto& podId, const auto& shardId) {
+        return matcher->Match({
+            BuildYsonStringFluently().Value(podSetId),
+            BuildYsonStringFluently().Value(podId),
+            BuildYsonStringFluently().BeginMap()
+                .Item("shard_id").Value(shardId)
+            .EndMap(),
+        }).ValueOrThrow();
+    };
+
+    EXPECT_TRUE(buildAndMatch("my_pod_set", "pod_123", "53"));
+    EXPECT_TRUE(buildAndMatch("my_pod_set", "avdsd", "53"));
+    EXPECT_FALSE(buildAndMatch("my_pod_set", "pod_123", "52"));
+    EXPECT_FALSE(buildAndMatch("my_pod_set", "pod_1", "53"));
+    EXPECT_FALSE(buildAndMatch("my_pod_set", "pod_2", "53"));
+    EXPECT_FALSE(buildAndMatch("my_pod_set", "pod_5", "53"));
+    EXPECT_FALSE(buildAndMatch("other_pod_set", "pod_123", "53"));
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        buildAndMatch("my_pod_set", "pod_123", 53),
+        "Cannot compare values of types");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

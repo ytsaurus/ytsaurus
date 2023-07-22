@@ -39,7 +39,7 @@ class TFilterMatcher
 public:
     TFilterMatcher(
         const TString& filterQuery,
-        std::vector<TString> attributePaths)
+        std::vector<TTypedAttributePath> attributePaths)
         : Evaluator_(CreateExpressionEvaluator(
             std::move(filterQuery),
             std::move(attributePaths)))
@@ -104,11 +104,29 @@ private:
 
 IFilterMatcherPtr CreateFilterMatcher(
     TString filterQuery,
-    std::vector<TString> attributePaths)
+    std::vector<TTypedAttributePath> typedAttributePaths)
 {
     return New<TFilterMatcher>(
         std::move(filterQuery),
-        std::move(attributePaths));
+        std::move(typedAttributePaths));
+}
+
+IFilterMatcherPtr CreateFilterMatcher(
+    TString filterQuery,
+    std::vector<TString> attributePaths)
+{
+    std::vector<TTypedAttributePath> typedAttributePaths;
+    typedAttributePaths.reserve(attributePaths.size());
+
+    for (auto& path : attributePaths) {
+        typedAttributePaths.push_back(TTypedAttributePath{
+            .Path = std::move(path),
+            .Type = EValueType::Any,
+        });
+    }
+    return New<TFilterMatcher>(
+        std::move(filterQuery),
+        std::move(typedAttributePaths));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

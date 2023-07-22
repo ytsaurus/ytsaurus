@@ -10,6 +10,7 @@
 
 #include <yt/yt/core/ypath/tokenizer.h>
 #include <yt/yt/core/yson/string.h>
+#include <yt/yt/core/ytree/convert.h>
 
 #include <yt/yt/library/query/base/query_preparer.h>
 
@@ -29,6 +30,63 @@ namespace {
 
 inline const NLogging::TLogger Logger("ExpressionEvaluator");
 
+////////////////////////////////////////////////////////////////////////////////
+
+void ValidateAttributeType(EValueType valueType)
+{
+    switch (valueType) {
+        case EValueType::Int64:
+        case EValueType::Uint64:
+        case EValueType::Double:
+        case EValueType::Boolean:
+        case EValueType::String:
+        case EValueType::Any:
+            return;
+        case EValueType::Min:
+        case EValueType::TheBottom:
+        case EValueType::Null:
+        case EValueType::Composite:
+        case EValueType::Max:
+            THROW_ERROR_EXCEPTION("Attribute type %Qlv is not supported", valueType);
+        default:
+            YT_ABORT();
+    }
+}
+
+TUnversionedValue MakeUnversionedValue(
+    EValueType valueType,
+    const TYsonStringBuf& value,
+    TObjectsHolder* objectsHolder)
+{
+    switch (valueType) {
+        case EValueType::Int64: {
+            return MakeUnversionedInt64Value(NYson::ConvertFromYsonString<i64>(value));
+        }
+        case EValueType::Uint64: {
+            return MakeUnversionedUint64Value(NYson::ConvertFromYsonString<ui64>(value));
+        }
+        case EValueType::Double: {
+            return MakeUnversionedDoubleValue(NYson::ConvertFromYsonString<double>(value));
+        }
+        case EValueType::Boolean: {
+            return MakeUnversionedBooleanValue(NYson::ConvertFromYsonString<bool>(value));
+        }
+        case EValueType::String: {
+            // Currently, it's impossible to create a non-owning string view from TYsonString.
+            // Since TUnversionedValue itself is non-owning, an external holder is needed.
+            auto* regularString = objectsHolder->New<TString>();
+            *regularString = NYson::ConvertFromYsonString<TString>(value);
+            return MakeUnversionedStringValue(*regularString);
+        }
+        case EValueType::Any: {
+            return MakeUnversionedAnyValue(value.AsStringBuf());
+        }
+        default:
+            // Attribute type validation should have been performed earlier.
+            YT_ABORT();
+    }
+}
+
 } // anonymous namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,9 +99,9 @@ class TExpressionEvaluator
 public:
     TExpressionEvaluator(
         TString query,
-        std::vector<TString> attributePaths)
+        std::vector<TTypedAttributePath> typedAttributePaths)
         : Query_(std::move(query))
-        , AttributePaths_(std::move(attributePaths))
+        , TypedAttributePaths_(std::move(typedAttributePaths))
     {
         ValidateAttributePaths();
 
@@ -58,16 +116,22 @@ public:
             if (!rowBuffer) {
                 rowBuffer = New<TRowBuffer>(TRowBufferTag());
             }
-            if (attributeYsons.size() != AttributePaths_.size()) {
+            if (attributeYsons.size() != TypedAttributePaths_.size()) {
                 THROW_ERROR_EXCEPTION("Invalid number of attributes: expected %v, but got %v",
-                    AttributePaths_.size(),
+                    TypedAttributePaths_.size(),
                     attributeYsons.size());
             }
+
+            TObjectsHolder temporaryObjectsHolder;
             std::vector<TUnversionedValue> inputValues;
             inputValues.reserve(attributeYsons.size());
-            for (auto attributeYson : attributeYsons) {
-                inputValues.push_back(MakeUnversionedAnyValue(attributeYson.AsStringBuf()));
+            for (size_t index = 0; index < TypedAttributePaths_.size(); ++index) {
+                inputValues.push_back(MakeUnversionedValue(
+                    TypedAttributePaths_[index].Type,
+                    attributeYsons[index],
+                    &temporaryObjectsHolder));
             }
+
             return EvaluateQuery(
                 *EvaluationContext_,
                 MakeRange(inputValues.data(), inputValues.size()),
@@ -94,7 +158,7 @@ public:
 
 private:
     const TString Query_;
-    const std::vector<TString> AttributePaths_;
+    const std::vector<TTypedAttributePath> TypedAttributePaths_;
 
     std::unique_ptr<TQueryEvaluationContext> EvaluationContext_;
     NYT::TObjectsHolder ObjectsHolder_;
@@ -104,21 +168,25 @@ private:
 
     void ValidateAttributePaths()
     {
-        if (AttributePaths_.empty()) {
+        if (TypedAttributePaths_.empty()) {
             THROW_ERROR_EXCEPTION("At least one attribute path must be provided");
         }
 
-        for (const auto& path : AttributePaths_) {
-            NAttributes::ValidateAttributePath(path);
+        for (const auto& typedPath : TypedAttributePaths_) {
+            ValidateAttributeType(typedPath.Type);
+            NAttributes::ValidateAttributePath(typedPath.Path);
         }
 
-        for (size_t i = 0; i < AttributePaths_.size(); ++i) {
-            for (size_t j = 0; j < AttributePaths_.size(); ++j) {
-                if (i != j && NYPath::HasPrefix(AttributePaths_[i], AttributePaths_[j])) {
+        for (size_t i = 0; i < TypedAttributePaths_.size(); ++i) {
+            for (size_t j = 0; j < TypedAttributePaths_.size(); ++j) {
+                if (i == j) {
+                    continue;
+                }
+                if (NYPath::HasPrefix(TypedAttributePaths_[i].Path, TypedAttributePaths_[j].Path)) {
                     THROW_ERROR_EXCEPTION(
                         "Attribute paths must be independent, but %Qv is a prefix of %Qv",
-                        AttributePaths_[i],
-                        AttributePaths_[j]);
+                        TypedAttributePaths_[i].Path,
+                        TypedAttributePaths_[j].Path);
                 }
             }
         }
@@ -139,10 +207,10 @@ private:
             GetFakeTableColumnName(attributePath));
     }
 
-    NYPath::TYPath GetMatchingAttributePath(const TYPath& queryAttributePath)
+    TTypedAttributePath GetMatchingAttributePath(const TYPath& queryAttributePath)
     {
-        for (const auto& dataAttributePath : AttributePaths_) {
-            if (NYPath::HasPrefix(queryAttributePath, dataAttributePath)) {
+        for (const auto& dataAttributePath : TypedAttributePaths_) {
+            if (NYPath::HasPrefix(queryAttributePath, dataAttributePath.Path)) {
                 return dataAttributePath;
             }
         }
@@ -154,17 +222,26 @@ private:
         const TYPath& queryAttributePath)
     {
         try {
-            auto dataAttributePath = GetMatchingAttributePath(queryAttributePath);
+            auto typedDataAttributePath = GetMatchingAttributePath(queryAttributePath);
+            const auto& dataAttributePath = typedDataAttributePath.Path;
             auto queryAttributePathSuffix = queryAttributePath.substr(dataAttributePath.size());
 
-            return ObjectsHolder_.New<TFunctionExpression>(
-                NYT::NQueryClient::NullSourceLocation,
-                "try_get_any",
-                TExpressionList{
-                    CreateFakeTableColumnReference(dataAttributePath),
-                    ObjectsHolder_.New<TLiteralExpression>(
-                        NYT::NQueryClient::NullSourceLocation,
-                        std::move(queryAttributePathSuffix))});
+            if (typedDataAttributePath.Type == EValueType::Any) {
+                return ObjectsHolder_.New<TFunctionExpression>(
+                    NYT::NQueryClient::NullSourceLocation,
+                    "try_get_any",
+                    TExpressionList{
+                        CreateFakeTableColumnReference(dataAttributePath),
+                        ObjectsHolder_.New<TLiteralExpression>(
+                            NYT::NQueryClient::NullSourceLocation,
+                            std::move(queryAttributePathSuffix))});
+            }
+            if (!queryAttributePathSuffix.Empty()) {
+                THROW_ERROR_EXCEPTION(
+                    "Attribute path of type %Qlv does not support nested attributes",
+                    typedDataAttributePath.Type);
+            }
+            return CreateFakeTableColumnReference(dataAttributePath);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error creating query selector for attribute path %Qv",
                 queryAttributePath)
@@ -194,10 +271,10 @@ private:
     TTableSchemaPtr CreateFakeTableSchema()
     {
         std::vector<TColumnSchema> columns;
-        for (const auto& path : AttributePaths_) {
+        for (const auto& typedPath : TypedAttributePaths_) {
             columns.emplace_back(
-                GetFakeTableColumnName(path),
-                EValueType::Any);
+                GetFakeTableColumnName(typedPath.Path),
+                typedPath.Type);
         }
         return New<TTableSchema>(std::move(columns));
     }
@@ -217,11 +294,29 @@ private:
 
 IExpressionEvaluatorPtr CreateExpressionEvaluator(
     TString query,
-    std::vector<TString> attributePaths)
+    std::vector<TTypedAttributePath> typedAttributePaths)
 {
     return New<TExpressionEvaluator>(
         std::move(query),
-        std::move(attributePaths));
+        std::move(typedAttributePaths));
+}
+
+IExpressionEvaluatorPtr CreateExpressionEvaluator(
+    TString query,
+    std::vector<TString> attributePaths)
+{
+    std::vector<TTypedAttributePath> typedAttributePaths;
+    typedAttributePaths.reserve(attributePaths.size());
+
+    for (auto& path : attributePaths) {
+        typedAttributePaths.push_back(TTypedAttributePath{
+            .Path = std::move(path),
+            .Type = EValueType::Any,
+        });
+    }
+    return New<TExpressionEvaluator>(
+        std::move(query),
+        std::move(typedAttributePaths));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

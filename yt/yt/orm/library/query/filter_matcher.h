@@ -39,6 +39,11 @@ DEFINE_REFCOUNTED_TYPE(IFilterMatcher)
 //! Thread-safe; exception-safe.
 IFilterMatcherPtr CreateFilterMatcher(
     TString filterQuery,
+    std::vector<TTypedAttributePath> typedAttributePaths);
+
+//! Shortcut for paths of type Any.
+IFilterMatcherPtr CreateFilterMatcher(
+    TString filterQuery,
     std::vector<TString> attributePaths = {""});
 
 ////////////////////////////////////////////////////////////////////////////////

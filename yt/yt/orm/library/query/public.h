@@ -1,8 +1,18 @@
 #pragma once
 
+#include <yt/yt/client/table_client/public.h>
+
 #include <yt/yt/core/misc/public.h>
 
 namespace NYT::NOrm::NQuery {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTypedAttributePath
+{
+    TString Path;
+    NTableClient::EValueType Type;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
