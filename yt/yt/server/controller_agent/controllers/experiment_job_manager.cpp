@@ -35,11 +35,17 @@ TLayerJobExperiment::TLayerJobExperiment(
     , EnableBypassArtifactCache_(enableBypassArtifactCache)
 { }
 
-bool TLayerJobExperiment::IsEnabled(TOperationSpecBasePtr operationSpec)
+bool TLayerJobExperiment::IsEnabled(
+    TOperationSpecBasePtr operationSpec,
+    std::vector<TUserJobSpecPtr> userJobSpecs)
 {
     return TJobExperimentBase::IsEnabled(operationSpec) &&
         operationSpec->DefaultBaseLayerPath &&
-        operationSpec->JobExperiment->BaseLayerPath;
+        operationSpec->JobExperiment->BaseLayerPath &&
+        std::all_of(
+            userJobSpecs.begin(),
+            userJobSpecs.end(),
+            [](TUserJobSpecPtr userJobSpec) { return userJobSpec->LayerPaths.empty(); });
 }
 
 void TLayerJobExperiment::PatchUserJobSpec(NScheduler::NProto::TUserJobSpec* jobSpec, TJobletPtr joblet) const
@@ -102,10 +108,16 @@ TMtnJobExperiment::TMtnJobExperiment(
     DisableNetwork_ = networkProjectAttributes->Get<bool>("disable_network", false);
 }
 
-bool TMtnJobExperiment::IsEnabled(TOperationSpecBasePtr operationSpec)
+bool TMtnJobExperiment::IsEnabled(
+    TOperationSpecBasePtr operationSpec,
+    std::vector<TUserJobSpecPtr> userJobSpecs)
 {
     return TJobExperimentBase::IsEnabled(operationSpec) &&
-        operationSpec->JobExperiment->NetworkProject;
+        operationSpec->JobExperiment->NetworkProject &&
+        std::all_of(
+            userJobSpecs.begin(),
+            userJobSpecs.end(),
+            [](TUserJobSpecPtr userJobSpec) { return !userJobSpec->NetworkProject; });
 }
 
 void TMtnJobExperiment::PatchUserJobSpec(NScheduler::NProto::TUserJobSpec* jobSpec, TJobletPtr joblet) const

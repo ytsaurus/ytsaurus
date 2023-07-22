@@ -4,9 +4,15 @@ from yt_commands import (
     authors, create, create_network_project, create_user,
     get, make_ace, map, print_debug, read_table, set, write_table)
 
+from yt.common import update
+
 import pytest
 
 from collections import Counter
+
+
+USER_NETWORK_PROJECT = "user_network_project"
+USER_NETWORK_PROJECT_ID = 333
 
 
 class TestJobExperiment(YTEnvSetup):
@@ -23,13 +29,19 @@ class TestJobExperiment(YTEnvSetup):
     MAX_TRIES = 3
 
     @staticmethod
+    def create_network_project(network_project, network_project_id):
+        create_network_project(network_project)
+        set(f"//sys/network_projects/{network_project}/@project_id", network_project_id)
+        set(f"//sys/network_projects/{network_project}/@acl", [make_ace("allow", TestJobExperiment.USER, "use")])
+
+    @staticmethod
     def setup(job_count):
         create("table", TestJobExperiment.INPUT_TABLE)
         create("table", TestJobExperiment.OUTPUT_TABLE)
         create_user(TestJobExperiment.USER)
-        create_network_project(TestJobExperiment.NETWORK_PROJECT)
-        set(f"//sys/network_projects/{TestJobExperiment.NETWORK_PROJECT}/@project_id", TestJobExperiment.NETWORK_PROJECT_ID)
-        set(f"//sys/network_projects/{TestJobExperiment.NETWORK_PROJECT}/@acl", [make_ace("allow", TestJobExperiment.USER, "use")])
+
+        TestJobExperiment.create_network_project(TestJobExperiment.NETWORK_PROJECT, TestJobExperiment.NETWORK_PROJECT_ID)
+        TestJobExperiment.create_network_project(USER_NETWORK_PROJECT, USER_NETWORK_PROJECT_ID)
 
         for key in range(job_count):
             write_table(f"<append=%true>{TestJobExperiment.INPUT_TABLE}", [{"k": key, "network_project": "NETWORK_PROJECT"}])
@@ -52,9 +64,7 @@ class TestJobExperiment(YTEnvSetup):
             "max_failed_job_count": 0,
         }
 
-        spec.update(options)
-
-        return spec
+        return update(spec, options)
 
     @staticmethod
     def run_map(command, job_count, user_slots, **options):
@@ -148,6 +158,7 @@ class TestJobExperiment(YTEnvSetup):
         {"fail_on_job_restart": True},
         {"max_speculative_job_count_per_task": 0},
         {"try_avoid_duplicating_jobs": True},
+        {"mapper": {"network_project": USER_NETWORK_PROJECT}},
     ])
     @pytest.mark.timeout(300)
     def test_job_experiment_disabled(self, options):

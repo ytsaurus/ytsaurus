@@ -792,7 +792,7 @@ void TOperationControllerBase::InitializeStructures()
         }
     }
 
-    if (TLayerJobExperiment::IsEnabled(Spec_) && HasUserJobFiles()) {
+    if (TLayerJobExperiment::IsEnabled(Spec_, GetUserJobSpecs()) && HasUserJobFiles()) {
         auto path = TRichYPath(*Spec_->JobExperiment->BaseLayerPath);
         if (path.GetTransactionId()) {
             THROW_ERROR_EXCEPTION("Transaction id is not supported for \"probing_base_layer_path\"");
@@ -5287,13 +5287,13 @@ const std::vector<TString>& TOperationControllerBase::GetOffloadingPoolTrees()
 void TOperationControllerBase::InitializeJobExperiment()
 {
     if (Spec_->JobExperiment) {
-        if (TLayerJobExperiment::IsEnabled(Spec_) && BaseLayer_) {
+        if (TLayerJobExperiment::IsEnabled(Spec_, GetUserJobSpecs()) && BaseLayer_) {
             JobExperiment_ = New<TLayerJobExperiment>(
                 *Spec_->DefaultBaseLayerPath,
                 *BaseLayer_,
                 Config->EnableBypassArtifactCache,
                 Logger);
-        } else if (TMtnJobExperiment::IsEnabled(Spec_)) {
+        } else if (TMtnJobExperiment::IsEnabled(Spec_, GetUserJobSpecs())) {
             JobExperiment_ = New<TMtnJobExperiment>(
                 Host->GetClient(),
                 GetAuthenticatedUser(),
