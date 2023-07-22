@@ -24,6 +24,7 @@
 
 #include <yt/yt/core/misc/ring_queue.h>
 #include <yt/yt/core/misc/atomic_object.h>
+#include <yt/yt/core/misc/atomic_ptr.h>
 
 #include <yt/yt/core/rpc/public.h>
 
@@ -74,6 +75,8 @@ using TPendingMutationPtr = TIntrusivePtr<TPendingMutation>;
 struct TEpochContext
     : public TRefCounted
 {
+    static constexpr bool EnableHazard = true;
+
     NElection::TCellManagerPtr CellManager;
     NHydra::IChangelogStorePtr ChangelogStore;
     TReachableState ReachableState;
@@ -275,7 +278,7 @@ private:
     std::atomic<int> UserLock_ = 0;
     std::atomic<int> SystemLock_ = 0;
 
-    TAtomicIntrusivePtr<TEpochContext> EpochContext_;
+    TAtomicPtr<TEpochContext, /*EnableAcquireHazard*/ true> EpochContext_;
 
     NHydra::IChangelogPtr Changelog_;
 

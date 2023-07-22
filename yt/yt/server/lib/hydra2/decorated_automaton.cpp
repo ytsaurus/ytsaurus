@@ -1129,8 +1129,7 @@ TEpochId TDecoratedAutomaton::GetEpochId() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    // TODO(babenko): optimize
-    return EpochContext_.Acquire()->EpochId;
+    return EpochContext_.AcquireHazard()->EpochId;
 }
 
 ui64 TDecoratedAutomaton::GetStateHash() const
