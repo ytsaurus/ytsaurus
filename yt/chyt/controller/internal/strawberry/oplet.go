@@ -18,6 +18,7 @@ type AgentInfo struct {
 	Hostname           string
 	Stage              string
 	Proxy              string
+	Family             string
 	OperationNamespace string
 	// RobotUsername is needed for a temporary workaround to add the robot to the operation acl.
 	//

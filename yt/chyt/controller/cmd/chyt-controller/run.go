@@ -39,8 +39,8 @@ func doRun() error {
 		chytConfig = config.Controller
 	}
 	chytFactory := strawberry.ControllerFactory{
-		Factory: chyt.NewController,
-		Config:  chytConfig,
+		Ctor:   chyt.NewController,
+		Config: chytConfig,
 	}
 	cfs["chyt"] = chytFactory
 
@@ -48,8 +48,8 @@ func doRun() error {
 
 	if jupytConfig, ok := config.Controllers["jupyt"]; ok {
 		jupytFactory := strawberry.ControllerFactory{
-			Factory: jupyt.NewController,
-			Config:  jupytConfig,
+			Ctor:   jupyt.NewController,
+			Config: jupytConfig,
 		}
 		cfs["jupyt"] = jupytFactory
 	}

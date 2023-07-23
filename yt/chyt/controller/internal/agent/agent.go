@@ -26,6 +26,8 @@ type Agent struct {
 
 	hostname string
 	proxy    string
+	family   string
+	root     ypath.Path
 
 	// nodeCh receives events of form "particular node in root has changed revision"
 	nodeCh <-chan []ypath.Path
@@ -54,6 +56,8 @@ func NewAgent(proxy string, ytc yt.Client, l log.Logger, controller strawberry.C
 		controller:       controller,
 		config:           config,
 		hostname:         hostname,
+		family:           controller.Family(),
+		root:             controller.Root(),
 		proxy:            proxy,
 		backgroundStopCh: make(chan struct{}),
 		healthState:      NewHealthState(),
@@ -282,10 +286,11 @@ func (a *Agent) GetAgentInfo() strawberry.AgentInfo {
 	}
 
 	return strawberry.AgentInfo{
-		StrawberryRoot:        a.config.Root,
+		StrawberryRoot:        a.root,
 		Hostname:              a.hostname,
 		Stage:                 a.config.Stage,
 		Proxy:                 a.proxy,
+		Family:                a.family,
 		OperationNamespace:    a.OperationNamespace(),
 		RobotUsername:         a.config.RobotUsername,
 		DefaultNetworkProject: a.config.DefaultNetworkProject,
@@ -337,7 +342,7 @@ func (a *Agent) Start() {
 
 	a.aliasToOp = make(map[string]*strawberry.Oplet)
 
-	a.nodeCh = TrackChildren(a.ctx, a.config.Root, time.Millisecond*1000, a.ytc, a.l)
+	a.nodeCh = TrackChildren(a.ctx, a.root, time.Millisecond*1000, a.ytc, a.l)
 
 	a.runningOpsCh = CollectOperations(
 		a.ctx,
@@ -347,7 +352,7 @@ func (a *Agent) Start() {
 		a.l)
 
 	var initialAliases []string
-	err := a.ytc.ListNode(a.ctx, a.config.Root, &initialAliases, nil)
+	err := a.ytc.ListNode(a.ctx, a.root, &initialAliases, nil)
 	if err != nil {
 		panic(err)
 	}

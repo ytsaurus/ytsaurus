@@ -79,6 +79,10 @@ func (c *Controller) Family() string {
 	return "jupyt"
 }
 
+func (c *Controller) Root() ypath.Path {
+	return c.root
+}
+
 func (c *Controller) ParseSpeclet(specletYson yson.RawValue) (any, error) {
 	var speclet Speclet
 	err := yson.Unmarshal(specletYson, &speclet)

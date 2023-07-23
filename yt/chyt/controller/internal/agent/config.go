@@ -1,9 +1,9 @@
 package agent
 
 import (
+	"go.ytsaurus.tech/yt/go/ypath"
 	"time"
 
-	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
 )
 

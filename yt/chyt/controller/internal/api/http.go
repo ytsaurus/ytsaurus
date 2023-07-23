@@ -110,6 +110,7 @@ type CmdDescriptor struct {
 	Name        string         `yson:"name"`
 	Parameters  []CmdParameter `yson:"parameters"`
 	Description string         `yson:"description,omitempty"`
+	Handler     func(api HTTPAPI, w http.ResponseWriter, r *http.Request, params map[string]any)
 }
 
 func (a HTTPAPI) parseAndValidateRequestParams(w http.ResponseWriter, r *http.Request, cmd CmdDescriptor) map[string]any {

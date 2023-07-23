@@ -1,6 +1,8 @@
 package api
 
 import (
+	"github.com/go-chi/hostrouter"
+	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -25,14 +27,10 @@ var ListCmdDescriptor = CmdDescriptor{
 	Name:        "list",
 	Parameters:  []CmdParameter{},
 	Description: "list all strawberry operations on the cluster",
+	Handler:     HTTPAPI.HandleList,
 }
 
-func (a HTTPAPI) HandleList(w http.ResponseWriter, r *http.Request) {
-	params := a.parseAndValidateRequestParams(w, r, ListCmdDescriptor)
-	if params == nil {
-		return
-	}
-
+func (a HTTPAPI) HandleList(w http.ResponseWriter, r *http.Request, params map[string]any) {
 	aliases, err := a.api.List(r.Context())
 	if err != nil {
 		a.replyWithError(w, err)
@@ -46,14 +44,10 @@ var CreateCmdDescriptor = CmdDescriptor{
 	Name:        "create",
 	Parameters:  []CmdParameter{AliasParameter.AsExplicit()},
 	Description: "create a new strawberry operation",
+	Handler:     HTTPAPI.HandleCreate,
 }
 
-func (a HTTPAPI) HandleCreate(w http.ResponseWriter, r *http.Request) {
-	params := a.parseAndValidateRequestParams(w, r, CreateCmdDescriptor)
-	if params == nil {
-		return
-	}
-
+func (a HTTPAPI) HandleCreate(w http.ResponseWriter, r *http.Request, params map[string]any) {
 	alias := params["alias"].(string)
 
 	err := a.api.Create(r.Context(), alias)
@@ -69,14 +63,10 @@ var RemoveCmdDescriptor = CmdDescriptor{
 	Name:        "remove",
 	Parameters:  []CmdParameter{AliasParameter.AsExplicit()},
 	Description: "remove the strawberry operation",
+	Handler:     HTTPAPI.HandleRemove,
 }
 
-func (a HTTPAPI) HandleRemove(w http.ResponseWriter, r *http.Request) {
-	params := a.parseAndValidateRequestParams(w, r, RemoveCmdDescriptor)
-	if params == nil {
-		return
-	}
-
+func (a HTTPAPI) HandleRemove(w http.ResponseWriter, r *http.Request, params map[string]any) {
 	alias := params["alias"].(string)
 
 	err := a.api.Remove(r.Context(), alias)
@@ -92,14 +82,10 @@ var ExistsCmdDescriptor = CmdDescriptor{
 	Name:        "exists",
 	Parameters:  []CmdParameter{AliasParameter.AsExplicit()},
 	Description: "check the strawberry operation existence",
+	Handler:     HTTPAPI.HandleExists,
 }
 
-func (a HTTPAPI) HandleExists(w http.ResponseWriter, r *http.Request) {
-	params := a.parseAndValidateRequestParams(w, r, ExistsCmdDescriptor)
-	if params == nil {
-		return
-	}
-
+func (a HTTPAPI) HandleExists(w http.ResponseWriter, r *http.Request, params map[string]any) {
 	alias := params["alias"].(string)
 
 	ok, err := a.api.Exists(r.Context(), alias)
@@ -115,14 +101,10 @@ var StatusCmdDescriptor = CmdDescriptor{
 	Name:        "status",
 	Parameters:  []CmdParameter{AliasParameter.AsExplicit()},
 	Description: "show strawberry operation status",
+	Handler:     HTTPAPI.HandleStatus,
 }
 
-func (a HTTPAPI) HandleStatus(w http.ResponseWriter, r *http.Request) {
-	params := a.parseAndValidateRequestParams(w, r, StatusCmdDescriptor)
-	if params == nil {
-		return
-	}
-
+func (a HTTPAPI) HandleStatus(w http.ResponseWriter, r *http.Request, params map[string]any) {
 	alias := params["alias"].(string)
 
 	status, err := a.api.Status(r.Context(), alias)
@@ -153,13 +135,10 @@ var GetOptionCmdDescriptor = CmdDescriptor{
 	Name:        "get_option",
 	Parameters:  []CmdParameter{AliasParameter, KeyParameter},
 	Description: "get speclet option",
+	Handler:     HTTPAPI.HandleGetOption,
 }
 
-func (a HTTPAPI) HandleGetOption(w http.ResponseWriter, r *http.Request) {
-	params := a.parseAndValidateRequestParams(w, r, GetOptionCmdDescriptor)
-	if params == nil {
-		return
-	}
+func (a HTTPAPI) HandleGetOption(w http.ResponseWriter, r *http.Request, params map[string]any) {
 	alias := params["alias"].(string)
 	key := params["key"].(string)
 	value, err := a.api.GetOption(r.Context(), alias, key)
@@ -174,14 +153,10 @@ var SetOptionCmdDescriptor = CmdDescriptor{
 	Name:        "set_option",
 	Parameters:  []CmdParameter{AliasParameter, KeyParameter, ValueParameter},
 	Description: "set speclet option",
+	Handler:     HTTPAPI.HandleSetOption,
 }
 
-func (a HTTPAPI) HandleSetOption(w http.ResponseWriter, r *http.Request) {
-	params := a.parseAndValidateRequestParams(w, r, SetOptionCmdDescriptor)
-	if params == nil {
-		return
-	}
-
+func (a HTTPAPI) HandleSetOption(w http.ResponseWriter, r *http.Request, params map[string]any) {
 	alias := params["alias"].(string)
 	key := params["key"].(string)
 	value := params["value"]
@@ -199,14 +174,10 @@ var RemoveOptionCmdDescriptor = CmdDescriptor{
 	Name:        "remove_option",
 	Parameters:  []CmdParameter{AliasParameter, KeyParameter},
 	Description: "remove speclet option",
+	Handler:     HTTPAPI.HandleRemoveOption,
 }
 
-func (a HTTPAPI) HandleRemoveOption(w http.ResponseWriter, r *http.Request) {
-	params := a.parseAndValidateRequestParams(w, r, RemoveOptionCmdDescriptor)
-	if params == nil {
-		return
-	}
-
+func (a HTTPAPI) HandleRemoveOption(w http.ResponseWriter, r *http.Request, params map[string]any) {
 	alias := params["alias"].(string)
 	key := params["key"].(string)
 
@@ -223,13 +194,10 @@ var GetSpecletCmdDescriptor = CmdDescriptor{
 	Name:        "get_speclet",
 	Parameters:  []CmdParameter{AliasParameter},
 	Description: "get strawberry operation speclet",
+	Handler:     HTTPAPI.HandleGetSpeclet,
 }
 
-func (a HTTPAPI) HandleGetSpeclet(w http.ResponseWriter, r *http.Request) {
-	params := a.parseAndValidateRequestParams(w, r, GetSpecletCmdDescriptor)
-	if params == nil {
-		return
-	}
+func (a HTTPAPI) HandleGetSpeclet(w http.ResponseWriter, r *http.Request, params map[string]any) {
 	alias := params["alias"].(string)
 	speclet, err := a.api.GetSpeclet(r.Context(), alias)
 	if err != nil {
@@ -251,13 +219,10 @@ var SetSpecletCmdDescriptor = CmdDescriptor{
 	Name:        "set_speclet",
 	Parameters:  []CmdParameter{AliasParameter, SpecletParameter},
 	Description: "set strawberry operation speclet",
+	Handler:     HTTPAPI.HandleSetSpeclet,
 }
 
-func (a HTTPAPI) HandleSetSpeclet(w http.ResponseWriter, r *http.Request) {
-	params := a.parseAndValidateRequestParams(w, r, SetSpecletCmdDescriptor)
-	if params == nil {
-		return
-	}
+func (a HTTPAPI) HandleSetSpeclet(w http.ResponseWriter, r *http.Request, params map[string]any) {
 	alias := params["alias"].(string)
 	speclet := params["speclet"].(map[string]any)
 	if err := a.api.SetSpeclet(r.Context(), alias, speclet); err != nil {
@@ -279,13 +244,10 @@ var SetOptionsCmdDescriptor = CmdDescriptor{
 	Name:        "set_options",
 	Parameters:  []CmdParameter{AliasParameter, OptionsParameter},
 	Description: "set multiple speclet options",
+	Handler:     HTTPAPI.HandleSetOption,
 }
 
-func (a HTTPAPI) HandleSetOptions(w http.ResponseWriter, r *http.Request) {
-	params := a.parseAndValidateRequestParams(w, r, SetOptionsCmdDescriptor)
-	if params == nil {
-		return
-	}
+func (a HTTPAPI) HandleSetOptions(w http.ResponseWriter, r *http.Request, params map[string]any) {
 	alias := params["alias"].(string)
 	options := params["options"].(map[string]any)
 	if err := a.api.SetOptions(r.Context(), alias, options); err != nil {
@@ -308,9 +270,10 @@ var StartCmdDescriptor = CmdDescriptor{
 	Name:        "start",
 	Parameters:  []CmdParameter{AliasParameter.AsExplicit(), UntrackedParameter},
 	Description: "start strawberry operation",
+	Handler:     HTTPAPI.HandleStart,
 }
 
-func (a HTTPAPI) HandleStart(w http.ResponseWriter, r *http.Request) {
+func (a HTTPAPI) HandleStart(w http.ResponseWriter, r *http.Request, params map[string]any) {
 	userToken, err := auth.GetTokenFromHeader(r)
 	if err != nil && !a.disableAuth {
 		a.replyWithError(w, err)
@@ -323,10 +286,6 @@ func (a HTTPAPI) HandleStart(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		a.replyWithError(w, err)
-		return
-	}
-	params := a.parseAndValidateRequestParams(w, r, StartCmdDescriptor)
-	if params == nil {
 		return
 	}
 	alias := params["alias"].(string)
@@ -350,13 +309,10 @@ var StopCmdDescriptor = CmdDescriptor{
 	Name:        "stop",
 	Parameters:  []CmdParameter{AliasParameter.AsExplicit()},
 	Description: "stop strawberry operation",
+	Handler:     HTTPAPI.HandleStop,
 }
 
-func (a HTTPAPI) HandleStop(w http.ResponseWriter, r *http.Request) {
-	params := a.parseAndValidateRequestParams(w, r, StopCmdDescriptor)
-	if params == nil {
-		return
-	}
+func (a HTTPAPI) HandleStop(w http.ResponseWriter, r *http.Request, params map[string]any) {
 	alias := params["alias"].(string)
 	if err := a.api.Stop(r.Context(), alias); err != nil {
 		a.replyWithError(w, err)
@@ -368,14 +324,10 @@ func (a HTTPAPI) HandleStop(w http.ResponseWriter, r *http.Request) {
 var DescribeOptionsCmdDescriptor = CmdDescriptor{
 	Name:       "describe_options",
 	Parameters: []CmdParameter{AliasParameter.AsExplicit()},
+	Handler:    HTTPAPI.HandleDescribeOptions,
 }
 
-func (a HTTPAPI) HandleDescribeOptions(w http.ResponseWriter, r *http.Request) {
-	params := a.parseAndValidateRequestParams(w, r, DescribeOptionsCmdDescriptor)
-	if params == nil {
-		return
-	}
-
+func (a HTTPAPI) HandleDescribeOptions(w http.ResponseWriter, r *http.Request, params map[string]any) {
 	alias := params["alias"].(string)
 
 	options, err := a.api.DescribeOptions(r.Context(), alias)
@@ -387,7 +339,7 @@ func (a HTTPAPI) HandleDescribeOptions(w http.ResponseWriter, r *http.Request) {
 	a.replyOK(w, options)
 }
 
-func RegisterHTTPAPI(cfg HTTPAPIConfig, l log.Logger) chi.Router {
+func ControllerRouter(cfg HTTPAPIConfig, family string, cf strawberry.ControllerFactory, l log.Logger) chi.Router {
 	var clusters []string
 	for _, clusterInfo := range cfg.ClusterInfos {
 		clusters = append(clusters, clusterInfo.Proxy)
@@ -400,6 +352,9 @@ func RegisterHTTPAPI(cfg HTTPAPIConfig, l log.Logger) chi.Router {
 	})
 
 	for _, clusterInfo := range cfg.ClusterInfos {
+		if clusterInfo.Family != family {
+			continue
+		}
 		ytc, err := ythttp.NewClient(&yt.Config{
 			Token:  cfg.Token,
 			Proxy:  clusterInfo.Proxy,
@@ -412,7 +367,7 @@ func RegisterHTTPAPI(cfg HTTPAPIConfig, l log.Logger) chi.Router {
 		apiCfg := cfg.BaseAPIConfig
 		apiCfg.AgentInfo = clusterInfo
 
-		ctl := apiCfg.ControllerFactory.Factory(l, ytc, clusterInfo.StrawberryRoot, clusterInfo.Proxy, apiCfg.ControllerConfig)
+		ctl := cf.Ctor(l, ytc, clusterInfo.StrawberryRoot, clusterInfo.Proxy, cf.Config)
 
 		api := NewHTTPAPI(ytc, apiCfg, ctl, l, cfg.DisableAuth)
 
@@ -420,26 +375,47 @@ func RegisterHTTPAPI(cfg HTTPAPIConfig, l log.Logger) chi.Router {
 			// TODO(dakovalkov): Enable CORS when cookie authentication is supported.
 			// r.Use(ythttputil.CORS())
 			r.Use(auth.Auth(clusterInfo.Proxy, cfg.DisableAuth, l.Structured()))
-			r.Post("/"+ListCmdDescriptor.Name, api.HandleList)
-			r.Post("/"+CreateCmdDescriptor.Name, api.HandleCreate)
-			r.Post("/"+RemoveCmdDescriptor.Name, api.HandleRemove)
-			r.Post("/"+ExistsCmdDescriptor.Name, api.HandleExists)
-			r.Post("/"+StatusCmdDescriptor.Name, api.HandleStatus)
-			r.Post("/"+GetOptionCmdDescriptor.Name, api.HandleGetOption)
-			r.Post("/"+SetOptionCmdDescriptor.Name, api.HandleSetOption)
-			r.Post("/"+RemoveOptionCmdDescriptor.Name, api.HandleRemoveOption)
-			r.Post("/"+GetSpecletCmdDescriptor.Name, api.HandleGetSpeclet)
-			r.Post("/"+SetSpecletCmdDescriptor.Name, api.HandleSetSpeclet)
-			r.Post("/"+SetOptionsCmdDescriptor.Name, api.HandleSetOptions)
-			r.Post("/"+StartCmdDescriptor.Name, api.HandleStart)
-			r.Post("/"+StopCmdDescriptor.Name, api.HandleStop)
-			r.Post("/"+DescribeOptionsCmdDescriptor.Name, api.HandleDescribeOptions)
+			for _, descriptor := range []CmdDescriptor{
+				ListCmdDescriptor,
+				CreateCmdDescriptor,
+				RemoveCmdDescriptor,
+				ExistsCmdDescriptor,
+				StatusCmdDescriptor,
+				GetOptionCmdDescriptor,
+				SetOptionCmdDescriptor,
+				RemoveOptionCmdDescriptor,
+				GetSpecletCmdDescriptor,
+				SetSpecletCmdDescriptor,
+				SetOptionCmdDescriptor,
+				StartCmdDescriptor,
+				StopCmdDescriptor,
+				DescribeOptionsCmdDescriptor,
+			} {
+				// NB: variable is not copied into closure by default.
+				descriptorCopy := descriptor
+				r.Post("/"+descriptor.Name, func(w http.ResponseWriter, r *http.Request) {
+					api.l.Info("command started", log.String("cmd", descriptorCopy.Name))
+					params := api.parseAndValidateRequestParams(w, r, descriptorCopy)
+					if params == nil {
+						return
+					}
+					descriptorCopy.Handler(api, w, r, params)
+					api.l.Info("command finished", log.String("cmd", descriptorCopy.Name))
+				})
+			}
 		})
 	}
 	return r
 }
 
 func NewServer(c HTTPAPIConfig, l log.Logger) *httpserver.HTTPServer {
-	handler := RegisterHTTPAPI(c, l)
-	return httpserver.New(c.Endpoint, handler)
+	hr := hostrouter.New()
+	routers := map[string]chi.Router{}
+	for family, cf := range c.BaseAPIConfig.ControllerFactories {
+		routers[family] = ControllerRouter(c, family, cf, log.With(l, log.String("family", family)))
+	}
+	for host, family := range c.BaseAPIConfig.ControllerMappingsOrDefault() {
+		hr.Map(host, routers[family])
+	}
+	return httpserver.New(c.Endpoint, hr)
 }

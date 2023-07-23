@@ -35,8 +35,9 @@ type Config struct {
 	// Controller is a legacy way for defining CHYT controller config.
 	Controller yson.RawValue `yson:"controller"`
 
-	HTTPAPIEndpoint        *string `yson:"http_api_endpoint"`
-	HTTPMonitoringEndpoint *string `yson:"http_monitoring_endpoint"`
+	HTTPAPIEndpoint        *string           `yson:"http_api_endpoint"`
+	HTTPMonitoringEndpoint *string           `yson:"http_monitoring_endpoint"`
+	HTTPControllerMappings map[string]string `yson:"http_controller_mappings"`
 
 	// HealthStatusExpirationPeriod defines when agent health status becomes outdated.
 	HealthStatusExpirationPeriod *time.Duration `yson:"health_status_expiration_period"`

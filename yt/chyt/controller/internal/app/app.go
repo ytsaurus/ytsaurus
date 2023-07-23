@@ -113,7 +113,7 @@ func New(config *Config, options *Options, cfs map[string]strawberry.ControllerF
 		for family, cf := range cfs {
 			l := withName(loc.l, family)
 			l.Debug("instantiating controller for location", log.String("location", proxy), log.String("family", family))
-			c := cf.Factory(withName(l, "c"), loc.ytc, config.Strawberry.Root, proxy, cf.Config)
+			c := cf.Ctor(withName(l, "c"), loc.ytc, config.Strawberry.Root.Child(family), proxy, cf.Config)
 			a := agent.NewAgent(proxy, loc.ytc, withName(l, "a"), c, &config.Strawberry)
 			loc.as[family] = a
 		}
@@ -122,18 +122,21 @@ func New(config *Config, options *Options, cfs map[string]strawberry.ControllerF
 		healthers[proxy] = loc.as["chyt"]
 
 		app.locations = append(app.locations, loc)
-		agentInfos = append(agentInfos, loc.as["chyt"].GetAgentInfo())
+		for _, a := range loc.as {
+			agentInfos = append(agentInfos, a.GetAgentInfo())
+		}
+
 		l.Debug("location ready")
 	}
 
 	if config.HTTPAPIEndpoint != nil {
+		l.Info("initializing HTTP API")
 		var apiConfig = api.HTTPAPIConfig{
 			BaseAPIConfig: api.APIConfig{
-				// TODO(max42): extend for generic factories.
-				ControllerFactory: cfs["chyt"],
-				ControllerConfig:  config.Controller,
-				BaseACL:           config.BaseACL,
-				RobotUsername:     config.Strawberry.RobotUsername,
+				ControllerFactories: cfs,
+				ControllerMappings:  config.HTTPControllerMappings,
+				BaseACL:             config.BaseACL,
+				RobotUsername:       config.Strawberry.RobotUsername,
 			},
 			ClusterInfos: agentInfos,
 			Token:        config.Token,

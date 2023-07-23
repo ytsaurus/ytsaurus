@@ -25,6 +25,9 @@ type Controller interface {
 	// filtering using YT list_operations API.
 	Family() string
 
+	// Root returns path to the cypress directory containing strawberry nodes.
+	Root() ypath.Path
+
 	ParseSpeclet(specletYson yson.RawValue) (parsedSpeclet any, err error)
 
 	// UpdateState updates the controller's state.
@@ -40,6 +43,6 @@ type Controller interface {
 }
 
 type ControllerFactory struct {
-	Factory func(l log.Logger, ytc yt.Client, root ypath.Path, cluster string, config yson.RawValue) Controller
-	Config  yson.RawValue
+	Ctor   func(l log.Logger, ytc yt.Client, root ypath.Path, cluster string, config yson.RawValue) Controller
+	Config yson.RawValue
 }
