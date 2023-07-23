@@ -18,7 +18,7 @@ target_link_libraries(yt-yql-agent PUBLIC
   yutil
   cpp-yt-phdr_cache
   library-cpp-getopt
-  yt-logging-arcadia_bridge
+  logging-backends-arcadia
   yt-library-dynamic_config
   yt-yt-ytlib
   server-lib-admin

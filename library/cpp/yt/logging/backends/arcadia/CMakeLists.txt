@@ -6,22 +6,19 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(backends)
-add_subdirectory(plain_text_formatter)
 
-add_library(cpp-yt-logging)
-target_compile_options(cpp-yt-logging PRIVATE
+add_library(logging-backends-arcadia)
+target_compile_options(logging-backends-arcadia PRIVATE
   -Wdeprecated-this-capture
 )
-target_link_libraries(cpp-yt-logging PUBLIC
+target_link_libraries(logging-backends-arcadia PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   cpp-yt-assert
-  cpp-yt-memory
-  cpp-yt-misc
-  cpp-yt-yson_string
+  cpp-yt-logging
+  library-cpp-logger
 )
-target_sources(cpp-yt-logging PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/yt/logging/logger.cpp
+target_sources(logging-backends-arcadia PRIVATE
+  ${CMAKE_SOURCE_DIR}/library/cpp/yt/logging/backends/arcadia/backend.cpp
 )

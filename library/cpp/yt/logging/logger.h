@@ -109,10 +109,10 @@ struct ILogManager
     virtual ~ILogManager() = default;
 
     virtual void RegisterStaticAnchor(
-        TLoggingAnchor* position,
+        TLoggingAnchor* anchor,
         ::TSourceLocation sourceLocation,
         TStringBuf anchorMessage) = 0;
-    virtual void UpdateAnchor(TLoggingAnchor* position) = 0;
+    virtual void UpdateAnchor(TLoggingAnchor* anchor) = 0;
 
     virtual void Enqueue(TLogEvent&& event) = 0;
 

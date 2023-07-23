@@ -1,6 +1,7 @@
 #include "formatter.h"
+
 #include "private.h"
-#include "log.h"
+// #include "log.h"
 
 #include <yt/yt/build/build.h>
 
@@ -8,7 +9,7 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/yt/core/yson/writer.h>
+// #include <yt/yt/core/yson/writer.h>
 
 #include <util/stream/length.h>
 
@@ -88,108 +89,41 @@ TLogEvent GetSkippedLogStructuredEvent(i64 count, TStringBuf skippedBy)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCachingDateFormatter::Format(TBaseFormatter* buffer, TInstant dateTime, bool printMicroseconds)
-{
-    auto currentSecond = dateTime.Seconds();
-    if (CachedSecond_ != currentSecond) {
-        Cached_.Reset();
-        FormatDateTime(&Cached_, dateTime);
-        CachedSecond_ = currentSecond;
-    }
-
-    buffer->AppendString(Cached_.GetBuffer());
-    buffer->AppendChar(',');
-    if (printMicroseconds) {
-        FormatMicroseconds(buffer, dateTime);
-    } else {
-        FormatMilliseconds(buffer, dateTime);
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TPlainTextLogFormatter::TPlainTextLogFormatter(
     bool enableSystemMessages,
     bool enableSourceLocation)
-    : Buffer_(std::make_unique<TRawFormatter<MessageBufferSize>>())
-    , CachingDateFormatter_(std::make_unique<TCachingDateFormatter>())
-    , EnableSystemMessages_(enableSystemMessages && Logger)
-    , EnableSourceLocation_(enableSourceLocation)
+    : EnableSystemMessages_(enableSystemMessages && Logger)
+    , EventFormatter_(enableSourceLocation)
 { }
 
-i64 TPlainTextLogFormatter::WriteFormatted(IOutputStream* outputStream, const TLogEvent& event) const
+i64 TPlainTextLogFormatter::WriteFormatted(IOutputStream* outputStream, const TLogEvent& event)
 {
     if (!outputStream) {
         return 0;
     }
 
-    auto* buffer = Buffer_.get();
-    buffer->Reset();
+    Buffer_.Reset();
 
-    CachingDateFormatter_->Format(buffer, CpuInstantToInstant(event.Instant), true);
+    EventFormatter_.Format(&Buffer_, event);
 
-    buffer->AppendChar('\t');
+    outputStream->Write(Buffer_.GetData(), Buffer_.GetBytesWritten());
 
-    FormatLevel(buffer, event.Level);
-
-    buffer->AppendChar('\t');
-
-    buffer->AppendString(event.Category->Name);
-
-    buffer->AppendChar('\t');
-
-    FormatMessage(buffer, event.MessageRef.ToStringBuf());
-
-    buffer->AppendChar('\t');
-
-    if (event.ThreadName.Length > 0) {
-        buffer->AppendString(TStringBuf(event.ThreadName.Buffer.data(), event.ThreadName.Length));
-    } else if (event.ThreadId != NThreading::InvalidThreadId) {
-        buffer->AppendNumber(event.ThreadId, 16);
-    }
-
-    buffer->AppendChar('\t');
-
-    if (event.FiberId != NConcurrency::InvalidFiberId) {
-        buffer->AppendNumber(event.FiberId, 16);
-    }
-
-    buffer->AppendChar('\t');
-
-    if (event.TraceId != NTracing::InvalidTraceId) {
-        buffer->AppendGuid(event.TraceId);
-    }
-
-    if (EnableSourceLocation_) {
-        buffer->AppendChar('\t');
-        if (event.SourceFile) {
-            auto sourceFile = event.SourceFile;
-            buffer->AppendString(sourceFile.RNextTok(LOCSLASH_C));
-            buffer->AppendChar(':');
-            buffer->AppendNumber(event.SourceLine);
-        }
-    }
-
-    buffer->AppendChar('\n');
-
-    outputStream->Write(buffer->GetData(), buffer->GetBytesWritten());
-
-    return buffer->GetBytesWritten();
+    return Buffer_.GetBytesWritten();
 }
 
-void TPlainTextLogFormatter::WriteLogReopenSeparator(IOutputStream* outputStream) const
+void TPlainTextLogFormatter::WriteLogReopenSeparator(IOutputStream* outputStream)
 {
     *outputStream << Endl;
 }
 
-void TPlainTextLogFormatter::WriteLogStartEvent(IOutputStream* outputStream) const
+void TPlainTextLogFormatter::WriteLogStartEvent(IOutputStream* outputStream)
 {
     if (EnableSystemMessages_) {
         WriteFormatted(outputStream, GetStartLogEvent());
     }
 }
 
-void TPlainTextLogFormatter::WriteLogSkippedEvent(IOutputStream* outputStream, i64 count, TStringBuf skippedBy) const
+void TPlainTextLogFormatter::WriteLogSkippedEvent(IOutputStream* outputStream, i64 count, TStringBuf skippedBy)
 {
     if (EnableSystemMessages_) {
         WriteFormatted(outputStream, GetSkippedLogEvent(count, skippedBy));
@@ -204,7 +138,6 @@ TStructuredLogFormatter::TStructuredLogFormatter(
     bool enableSystemMessages,
     NJson::TJsonFormatConfigPtr jsonFormat)
     : Format_(format)
-    , CachingDateFormatter_(std::make_unique<TCachingDateFormatter>())
     , CommonFields_(std::move(commonFields))
     , EnableSystemMessages_(enableSystemMessages)
     , JsonFormat_(!jsonFormat && (Format_ == ELogFormat::Json)
@@ -212,7 +145,7 @@ TStructuredLogFormatter::TStructuredLogFormatter(
         : std::move(jsonFormat))
 { }
 
-i64 TStructuredLogFormatter::WriteFormatted(IOutputStream* stream, const TLogEvent& event) const
+i64 TStructuredLogFormatter::WriteFormatted(IOutputStream* stream, const TLogEvent& event)
 {
     if (!stream) {
         return 0;
@@ -234,7 +167,7 @@ i64 TStructuredLogFormatter::WriteFormatted(IOutputStream* stream, const TLogEve
     }
 
     TRawFormatter<DateTimeBufferSize> dateTimeBuffer;
-    CachingDateFormatter_->Format(&dateTimeBuffer, CpuInstantToInstant(event.Instant));
+    CachingDateFormatter_.Format(&dateTimeBuffer, CpuInstantToInstant(event.Instant));
 
     BuildYsonFluently(consumer.get())
         .BeginMap()
@@ -263,17 +196,17 @@ i64 TStructuredLogFormatter::WriteFormatted(IOutputStream* stream, const TLogEve
     return countingStream.Counter();
 }
 
-void TStructuredLogFormatter::WriteLogReopenSeparator(IOutputStream* /*outputStream*/) const
+void TStructuredLogFormatter::WriteLogReopenSeparator(IOutputStream* /*outputStream*/)
 { }
 
-void TStructuredLogFormatter::WriteLogStartEvent(IOutputStream* outputStream) const
+void TStructuredLogFormatter::WriteLogStartEvent(IOutputStream* outputStream)
 {
     if (EnableSystemMessages_) {
         WriteFormatted(outputStream, GetStartLogStructuredEvent());
     }
 }
 
-void TStructuredLogFormatter::WriteLogSkippedEvent(IOutputStream* outputStream, i64 count, TStringBuf skippedBy) const
+void TStructuredLogFormatter::WriteLogSkippedEvent(IOutputStream* outputStream, i64 count, TStringBuf skippedBy)
 {
     if (EnableSystemMessages_) {
         WriteFormatted(outputStream, GetSkippedLogStructuredEvent(count, skippedBy));

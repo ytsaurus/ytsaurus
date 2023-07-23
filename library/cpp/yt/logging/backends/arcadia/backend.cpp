@@ -7,7 +7,7 @@
 
 #include <library/cpp/yt/logging/logger.h>
 
-namespace NYT::NLogging::NBridge {
+namespace NYT::NLogging {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -76,11 +76,11 @@ private:
 
 } // namespace
 
-THolder<TLogBackend> CreateLogBackend(const TLogger& logger)
+THolder<TLogBackend> CreateArcadiaLogBackend(const TLogger& logger)
 {
     return MakeHolder<TLogBackendBridge>(logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NLogging::NBridge
+} // namespace NYT::NLogging

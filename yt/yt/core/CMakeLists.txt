@@ -53,6 +53,7 @@ target_link_libraries(yt-yt-core PUBLIC
   cpp-yt-assert
   cpp-yt-containers
   cpp-yt-logging
+  yt-logging-plain_text_formatter
   cpp-yt-misc
   cpp-yt-memory
   cpp-yt-string
@@ -148,7 +149,6 @@ target_sources(yt-yt-core PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/logging/fluent_log.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/logging/log_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/logging/logger_owner.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/logging/pattern.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/logging/serializable_logger.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/logging/stream_output.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/logging/log_writer_detail.cpp
@@ -348,6 +348,7 @@ target_link_libraries(yt-yt-core.global PUBLIC
   cpp-yt-assert
   cpp-yt-containers
   cpp-yt-logging
+  yt-logging-plain_text_formatter
   cpp-yt-misc
   cpp-yt-memory
   cpp-yt-string

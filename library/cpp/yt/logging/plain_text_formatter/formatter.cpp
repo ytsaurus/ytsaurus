@@ -1,4 +1,8 @@
-#include "pattern.h"
+#include "formatter.h"
+
+#include <library/cpp/yt/cpu_clock/clock.h>
+
+#include <library/cpp/yt/misc/port.h>
 
 #ifdef YT_USE_SSE42
     #include <emmintrin.h>
@@ -6,6 +10,8 @@
 #endif
 
 namespace NYT::NLogging {
+
+constexpr int MessageBufferWatermarkSize = 256;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -110,13 +116,14 @@ void FormatMessage(TBaseFormatter* out, TStringBuf message)
     };
 
     while (current < message.end()) {
+        if (out->GetBytesRemaining() < MessageBufferWatermarkSize) {
+            out->AppendString(TStringBuf("...<message truncated>"));
+            break;
+        }
 #ifdef YT_USE_SSE42
         // Use SSE for optimization.
         if (current + 16 > message.end()) {
             appendChar();
-        } else if (out->GetBytesRemaining() < MessageBufferWatermarkSize) {
-            out->AppendString(TStringBuf("...<message truncated>"));
-            break;
         } else {
             const void* inPtr = &(*current);
             void* outPtr = out->GetCursor();
@@ -137,6 +144,81 @@ void FormatMessage(TBaseFormatter* out, TStringBuf message)
         appendChar();
 #endif
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TCachingDateFormatter::Format(TBaseFormatter* buffer, TInstant dateTime, bool printMicroseconds)
+{
+    auto currentSecond = dateTime.Seconds();
+    if (CachedSecond_ != currentSecond) {
+        Cached_.Reset();
+        FormatDateTime(&Cached_, dateTime);
+        CachedSecond_ = currentSecond;
+    }
+
+    buffer->AppendString(Cached_.GetBuffer());
+    buffer->AppendChar(',');
+    if (printMicroseconds) {
+        FormatMicroseconds(buffer, dateTime);
+    } else {
+        FormatMilliseconds(buffer, dateTime);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TPlainTextEventFormatter::TPlainTextEventFormatter(bool enableSourceLocation)
+    : EnableSourceLocation_(enableSourceLocation)
+{ }
+
+void TPlainTextEventFormatter::Format(TBaseFormatter* buffer, const TLogEvent& event)
+{
+    CachingDateFormatter_.Format(buffer, CpuInstantToInstant(event.Instant), true);
+
+    buffer->AppendChar('\t');
+
+    FormatLevel(buffer, event.Level);
+
+    buffer->AppendChar('\t');
+
+    buffer->AppendString(event.Category->Name);
+
+    buffer->AppendChar('\t');
+
+    FormatMessage(buffer, event.MessageRef.ToStringBuf());
+
+    buffer->AppendChar('\t');
+
+    if (event.ThreadName.Length > 0) {
+        buffer->AppendString(TStringBuf(event.ThreadName.Buffer.data(), event.ThreadName.Length));
+    } else if (event.ThreadId != TThreadId()) {
+        buffer->AppendNumber(event.ThreadId, 16);
+    }
+
+    buffer->AppendChar('\t');
+
+    if (event.FiberId != TFiberId()) {
+        buffer->AppendNumber(event.FiberId, 16);
+    }
+
+    buffer->AppendChar('\t');
+
+    if (event.TraceId != TTraceId()) {
+        buffer->AppendGuid(event.TraceId);
+    }
+
+    if (EnableSourceLocation_) {
+        buffer->AppendChar('\t');
+        if (event.SourceFile) {
+            auto sourceFile = event.SourceFile;
+            buffer->AppendString(sourceFile.RNextTok(LOCSLASH_C));
+            buffer->AppendChar(':');
+            buffer->AppendNumber(event.SourceLine);
+        }
+    }
+
+    buffer->AppendChar('\n');
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -3,7 +3,7 @@
 #include "config.h"
 #include "interop.h"
 
-#include <library/cpp/yt/logging/arcadia_bridge/backend.h>
+#include <library/cpp/yt/logging/backends/arcadia/backend.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 
@@ -56,7 +56,7 @@ public:
             .Clusters = Config_->Clusters,
             .DefaultCluster = Config_->DefaultCluster,
             .YTToken = Config_->YTToken,
-            .LogBackend = NYT::NLogging::NBridge::CreateLogBackend(TLogger("YqlPlugin")),
+            .LogBackend = NYT::NLogging::CreateArcadiaLogBackend(TLogger("YqlPlugin")),
             .YqlPluginSharedLibrary = Config_->YqlPluginSharedLibrary,
         };
         YqlPlugin_ = NYqlPlugin::CreateYqlPlugin(options);

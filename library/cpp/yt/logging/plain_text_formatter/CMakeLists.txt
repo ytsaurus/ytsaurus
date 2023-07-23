@@ -7,18 +7,19 @@
 
 
 
-add_library(yt-logging-arcadia_bridge)
-target_compile_options(yt-logging-arcadia_bridge PRIVATE
+add_library(yt-logging-plain_text_formatter)
+target_compile_options(yt-logging-plain_text_formatter PRIVATE
   -Wdeprecated-this-capture
 )
-target_link_libraries(yt-logging-arcadia_bridge PUBLIC
+target_link_libraries(yt-logging-plain_text_formatter PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  cpp-yt-assert
+  cpp-yt-cpu_clock
   cpp-yt-logging
-  library-cpp-logger
+  cpp-yt-string
+  cpp-yt-misc
 )
-target_sources(yt-logging-arcadia_bridge PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/yt/logging/arcadia_bridge/backend.cpp
+target_sources(yt-logging-plain_text_formatter PRIVATE
+  ${CMAKE_SOURCE_DIR}/library/cpp/yt/logging/plain_text_formatter/formatter.cpp
 )

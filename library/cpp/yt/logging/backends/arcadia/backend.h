@@ -6,13 +6,13 @@
 
 class TLogBackend;
 
-namespace NYT::NLogging::NBridge {
+namespace NYT::NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Create TLogBackend which redirects log messages to |logger|.
-THolder<TLogBackend> CreateLogBackend(const TLogger& logger);
+THolder<TLogBackend> CreateArcadiaLogBackend(const TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NLogging::NBridge
+} // namespace NYT::NLogging
