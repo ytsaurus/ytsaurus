@@ -65,7 +65,7 @@ class TestDownloadCoreDump(object):
                        "-ex", "set logging file " + gdb_output,
                        "-ex", "set logging overwrite on",
                        "-ex", "set logging on",
-                       "-ex", "print t",
+                       "-ex", "print my_variable",
                        "-ex", "quit",
                        cpp_bin_core_crash,
                        core_output_file]
