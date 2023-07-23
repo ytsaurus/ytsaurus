@@ -254,7 +254,6 @@ class _TestProxyFormatConfigBase(metaclass=ABCMeta):
             }
             self._run_operation("vanilla", spec, user)
             actual_content = file_from_spec.read()
-            print(actual_content)
             assert actual_content == expected_content
 
     @authors("levysotsky")

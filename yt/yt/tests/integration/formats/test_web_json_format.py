@@ -458,8 +458,6 @@ class TestWebJsonFormat(YTEnvSetup):
 
         expected_output = get_expected_output(dynamic=True)
         expected_output["rows"].sort(key=lambda c: c["string32_column"]["$value"])
-        print(output)
-        print(expected_output)
         assert output == expected_output
 
         sync_unmount_table(TABLE_PATH)
