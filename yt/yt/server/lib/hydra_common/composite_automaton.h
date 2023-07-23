@@ -134,8 +134,8 @@ public:
 
     void SetSnapshotValidationOptions(const TSnapshotValidationOptions& options) override;
 
-    TFuture<void> SaveSnapshot(NConcurrency::IAsyncOutputStreamPtr writer) override;
-    void LoadSnapshot(NConcurrency::IAsyncZeroCopyInputStreamPtr reader) override;
+    TFuture<void> SaveSnapshot(const TSnapshotSaveContext& context) override;
+    void LoadSnapshot(const TSnapshotLoadContext& context) override;
     void PrepareState() override;
 
     void ApplyMutation(TMutationContext* context) override;
@@ -165,7 +165,8 @@ protected:
     void RegisterPart(TCompositeAutomatonPartPtr part);
 
     virtual std::unique_ptr<TSaveContext> CreateSaveContext(
-        ICheckpointableOutputStream* output) = 0;
+        ICheckpointableOutputStream* output,
+        NLogging::TLogger logger) = 0;
     virtual std::unique_ptr<TLoadContext> CreateLoadContext(
         ICheckpointableInputStream* input) = 0;
 
@@ -246,11 +247,11 @@ private:
 
 private:
     void DoSaveSnapshot(
-        NConcurrency::IAsyncOutputStreamPtr writer,
+        const TSnapshotSaveContext& context,
         NConcurrency::EWaitForStrategy strategy,
         const std::function<void(TSaveContext&)>& callback);
     void DoLoadSnapshot(
-        NConcurrency::IAsyncZeroCopyInputStreamPtr reader,
+        const TSnapshotLoadContext& context,
         const std::function<void(TLoadContext&)>& callback);
 
     void WritePartHeader(

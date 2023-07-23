@@ -13,6 +13,8 @@
 
 #include <library/cpp/yt/memory/ref.h>
 
+#include <library/cpp/yt/logging/logger.h>
+
 namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -23,6 +25,7 @@ class TSaveContext
 public:
     explicit TSaveContext(
         ICheckpointableOutputStream* output,
+        NLogging::TLogger logger = {},
         int version = 0,
         NConcurrency::IThreadPoolPtr backgroundThreadPool = nullptr);
 
@@ -30,12 +33,15 @@ public:
         IZeroCopyOutput* output,
         const TSaveContext* parentContext);
 
+    const NLogging::TLogger& GetLogger() const;
+
     void MakeCheckpoint();
 
     IInvokerPtr GetBackgroundInvoker() const;
     int GetBackgroundParallelism() const;
 
 private:
+    const NLogging::TLogger Logger_;
     ICheckpointableOutputStream* const CheckpointableOutput_ = nullptr;
     const NConcurrency::IThreadPoolPtr BackgroundThreadPool_;
 };

@@ -6,9 +6,26 @@
 
 #include <yt/yt/core/concurrency/public.h>
 
+#include <library/cpp/yt/logging/logger.h>
+
 namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+struct TSnapshotSaveContext
+{
+    //! Writer where snapshot content must be written to.
+    NConcurrency::IAsyncOutputStreamPtr Writer;
+
+    //! Logger to use during snapshot construction.
+    NLogging::TLogger Logger;
+};
+
+struct TSnapshotLoadContext
+{
+    //! Reader used for reading snapshot content.
+    NConcurrency::IAsyncZeroCopyInputStreamPtr Reader;
+};
 
 //! An abstract automaton replicated via Hydra.
 struct IAutomaton
@@ -16,13 +33,13 @@ struct IAutomaton
 {
     //! Performs the synchronous phase of snapshot serialization and initiates
     //! the asynchronous phase. Returns an async flag indicating completion of the latter.
-    virtual TFuture<void> SaveSnapshot(NConcurrency::IAsyncOutputStreamPtr writer) = 0;
+    virtual TFuture<void> SaveSnapshot(const TSnapshotSaveContext& context) = 0;
 
     //! Synchronously loads a snapshot.
     //! It is guaranteed that the instance is cleared (via #Clear) prior to this call.
-    virtual void LoadSnapshot(NConcurrency::IAsyncZeroCopyInputStreamPtr reader) = 0;
+    virtual void LoadSnapshot(const TSnapshotLoadContext& context) = 0;
 
-    //! Synchronously prepares an automaton state for further mutation processing
+    //! Synchronously prepares the automaton state for further mutation processing
     //! in a deterministic way.
     //! During automaton preparation hydra context is set while mutation context is not.
     virtual void PrepareState() = 0;

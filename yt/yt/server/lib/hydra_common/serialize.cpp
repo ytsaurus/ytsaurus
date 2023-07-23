@@ -18,9 +18,11 @@ using namespace NConcurrency;
 
 TSaveContext::TSaveContext(
     ICheckpointableOutputStream* output,
+    NLogging::TLogger logger,
     int version,
     IThreadPoolPtr backgroundThreadPool)
     : TEntityStreamSaveContext(output, version)
+    , Logger_(std::move(logger))
     , CheckpointableOutput_(output)
     , BackgroundThreadPool_(std::move(backgroundThreadPool))
 { }
@@ -31,7 +33,13 @@ TSaveContext::TSaveContext(
     : TEntityStreamSaveContext(
         output,
         parentContext->GetVersion())
+    , Logger_(parentContext->GetLogger())
 { }
+
+const NLogging::TLogger& TSaveContext::GetLogger() const
+{
+    return Logger_;
+}
 
 void TSaveContext::MakeCheckpoint()
 {

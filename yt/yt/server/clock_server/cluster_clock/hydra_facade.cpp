@@ -151,7 +151,10 @@ public:
 
         Automaton_->SetSerializationDumpEnabled(dump);
         Automaton_->Clear();
-        Automaton_->LoadSnapshot(reader);
+        TSnapshotLoadContext context{
+            .Reader = reader,
+        };
+        Automaton_->LoadSnapshot(context);
     }
 
 

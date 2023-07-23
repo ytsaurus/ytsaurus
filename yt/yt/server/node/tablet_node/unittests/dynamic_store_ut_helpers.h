@@ -330,7 +330,7 @@ public:
 
         TStringOutput output(buffer);
         auto checkpointableOutput = CreateBufferedCheckpointableOutputStream(&output);
-        TSaveContext saveContext(checkpointableOutput.get());
+        TSaveContext saveContext(checkpointableOutput.get(), NLogging::TLogger());
         store->Save(saveContext);
         saveContext.Finish();
 
@@ -344,7 +344,7 @@ public:
 
         TStringOutput output(buffer);
         auto checkpointableOutput = CreateBufferedCheckpointableOutputStream(&output);
-        TSaveContext saveContext(checkpointableOutput.get());
+        TSaveContext saveContext(checkpointableOutput.get(), NLogging::TLogger());
         snapshot.second.Run(saveContext);
         saveContext.Finish();
 

@@ -41,9 +41,11 @@ EFinalRecoveryAction GetActionToRecoverFromReign(TReign reign)
 
 TSaveContext::TSaveContext(
     ICheckpointableOutputStream* output,
+    NLogging::TLogger logger,
     NConcurrency::IThreadPoolPtr backgroundThreadPool)
     : NHydra::TSaveContext(
         output,
+        std::move(logger),
         GetCurrentReign(),
         std::move(backgroundThreadPool))
 { }

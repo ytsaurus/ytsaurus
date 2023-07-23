@@ -18,9 +18,10 @@ using namespace NClusterNode;
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<NHydra::TSaveContext> TTabletAutomaton::CreateSaveContext(
-    ICheckpointableOutputStream* output)
+    ICheckpointableOutputStream* output,
+    NLogging::TLogger logger)
 {
-    return std::make_unique<TSaveContext>(output);
+    return std::make_unique<TSaveContext>(output, std::move(logger));
 }
 
 std::unique_ptr<NHydra::TLoadContext> TTabletAutomaton::CreateLoadContext(

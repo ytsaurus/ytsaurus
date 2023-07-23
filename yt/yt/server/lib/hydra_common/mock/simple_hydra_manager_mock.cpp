@@ -130,7 +130,10 @@ TSimpleHydraManagerMock::TSnapshot TSimpleHydraManagerMock::DoSaveSnapshot()
     TFuture<void> future;
     {
         TForbidContextSwitchGuard guard;
-        future = Automaton_->SaveSnapshot(writer);
+        TSnapshotSaveContext context{
+            .Writer = writer,
+        };
+        future = Automaton_->SaveSnapshot(context);
     }
     WaitFor(future)
         .ThrowOnError();
@@ -153,7 +156,10 @@ void TSimpleHydraManagerMock::DoLoadSnapshot(const TSnapshot& snapshot)
     auto asyncInput = CreateAsyncAdapter(&input);
     auto reader = CreateZeroCopyAdapter(asyncInput);
 
-    Automaton_->LoadSnapshot(reader);
+    TSnapshotLoadContext loadContext{
+        .Reader = reader,
+    };
+    Automaton_->LoadSnapshot(loadContext);
 
     AppliedSequenceNumber_ = snapshot.SequenceNumber;
 
@@ -167,11 +173,11 @@ void TSimpleHydraManagerMock::DoLoadSnapshot(const TSnapshot& snapshot)
         mutationRequest.Handler = TCallback<void(TMutationContext*)>();
     }
 
-    THydraContext context(
+    THydraContext hydraContext(
         TVersion(),
         /*timestamp*/ TInstant::Zero(),
         /*randomSeed*/ 0);
-    THydraContextGuard guard(&context);
+    THydraContextGuard guard(&hydraContext);
 
     Automaton_->PrepareState();
 }

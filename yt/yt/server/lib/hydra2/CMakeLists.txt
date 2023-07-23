@@ -36,6 +36,7 @@ target_link_libraries(server-lib-hydra2 PUBLIC
   server-lib-election
   server-lib-hydra_common
   server-lib-io
+  logging-backends-stream
   contrib-libs-protobuf
 )
 target_proto_messages(server-lib-hydra2 PRIVATE

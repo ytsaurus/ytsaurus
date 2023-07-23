@@ -40,6 +40,9 @@ DECLARE_REFCOUNTED_STRUCT(ILegacySnapshotStore)
 struct ICheckpointableInputStream;
 struct ICheckpointableOutputStream;
 
+struct TSnapshotSaveContext;
+struct TSnapshotLoadContext;
+
 struct TSnapshotParams;
 struct TRemoteSnapshotParams;
 DECLARE_REFCOUNTED_STRUCT(ISnapshotReader)

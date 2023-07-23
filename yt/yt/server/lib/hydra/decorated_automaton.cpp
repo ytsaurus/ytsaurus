@@ -793,7 +793,10 @@ TFuture<void> TDecoratedAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
     // Context switches are not allowed during sync phase.
     TForbidContextSwitchGuard contextSwitchGuard;
 
-    return Automaton_->SaveSnapshot(writer);
+    TSnapshotSaveContext context{
+        .Writer = writer,
+    };
+    return Automaton_->SaveSnapshot(context);
 }
 
 void TDecoratedAutomaton::LoadSnapshot(
@@ -824,7 +827,10 @@ void TDecoratedAutomaton::LoadSnapshot(
         StateHash_ = 0;
         Timestamp_ = {};
         {
-            Automaton_->LoadSnapshot(reader);
+            TSnapshotLoadContext context{
+                .Reader = reader,
+            };
+            Automaton_->LoadSnapshot(context);
 
             // Snapshot preparation is a "mutation" that is executed before first mutation
             // in changelog.

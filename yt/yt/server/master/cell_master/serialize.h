@@ -144,8 +144,8 @@ class TSaveContext
 public:
     TSaveContext(
         NHydra::ICheckpointableOutputStream* output,
+        NLogging::TLogger logger,
         NConcurrency::IThreadPoolPtr backgroundThreadPool);
-
     TSaveContext(
         IZeroCopyOutput* output,
         const TSaveContext* parentContext);

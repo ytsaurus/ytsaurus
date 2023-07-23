@@ -26,7 +26,9 @@ class TSaveContext
     : public NHydra::TSaveContext
 {
 public:
-    explicit TSaveContext(NHydra::ICheckpointableOutputStream* output);
+    TSaveContext(
+        NHydra::ICheckpointableOutputStream* output,
+        NLogging::TLogger logger);
 
     EClockReign GetVersion() const;
 };

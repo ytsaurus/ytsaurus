@@ -185,7 +185,7 @@ protected:
 
         TStringOutput output(buffer);
         auto checkpointableOutput = CreateBufferedCheckpointableOutputStream(&output);
-        TSaveContext saveContext(checkpointableOutput.get());
+        TSaveContext saveContext(checkpointableOutput.get(), NLogging::TLogger());
         Tablet_->Save(saveContext);
         saveContext.Finish();
 
@@ -198,7 +198,7 @@ protected:
 
         TStringOutput output(buffer);
         auto checkpointableOutput = CreateBufferedCheckpointableOutputStream(&output);
-        TSaveContext saveContext(checkpointableOutput.get());
+        TSaveContext saveContext(checkpointableOutput.get(), NLogging::TLogger());
         snapshot.second(saveContext);
         saveContext.Finish();
 

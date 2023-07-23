@@ -39,6 +39,8 @@
 
 #include <yt/yt/core/tracing/trace_context.h>
 
+#include <library/cpp/yt/logging/backends/stream/stream_log_manager.h>
+
 #include <util/random/random.h>
 
 #include <util/system/file.h>
@@ -59,6 +61,7 @@ using namespace NRpc;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const i64 SnapshotTransferBlockSize = 1_MB;
+static const i64 LogTransferBlockSize = 1_KB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -382,24 +385,62 @@ public:
     { }
 
 private:
-    IAsyncInputStreamPtr InputStream_;
-    std::unique_ptr<TFile> OutputFile_;
+    class TCommunicationChannel
+    {
+    public:
+        TCommunicationChannel(
+            const NLogging::TLogger& Logger,
+            const TString& kind)
+        {
+            Pipe_ = TPipeFactory().Create();
+            YT_LOG_INFO("Communication channel created (Kind: %v, Pipe: %v)",
+                kind,
+                Pipe_);
 
-    TFuture<void> AsyncTransferResult_;
+            InputStream_ = Pipe_.CreateAsyncReader();
+            OutputFile_ = std::make_unique<TFile>(FHANDLE(Pipe_.ReleaseWriteFD()));
+        }
+
+        const TPipe& GetPipe() const
+        {
+            return Pipe_;
+        }
+
+        const IAsyncInputStreamPtr& GetInputStream() const
+        {
+            return InputStream_;
+        }
+
+        TFile* GetOutputFile() const
+        {
+            return OutputFile_.get();
+        }
+
+    private:
+        TPipe Pipe_;
+        IAsyncInputStreamPtr InputStream_;
+        std::unique_ptr<TFile> OutputFile_;
+    };
+
+    std::unique_ptr<TCommunicationChannel> SnapshotChannel_;
+    std::unique_ptr<TCommunicationChannel> LogChannel_;
+
+
+    TFuture<void> SnapshotTransferFuture_;
+    TFuture<void> LogTransferFuture_;
 
 
     TFuture<void> DoRun() override
     {
         VERIFY_THREAD_AFFINITY(Owner_->AutomatonThread);
 
-        auto pipe = TPipeFactory().Create();
-        YT_LOG_INFO("Snapshot transfer pipe opened (Pipe: %v)",
-            pipe);
+        SnapshotChannel_ = std::make_unique<TCommunicationChannel>(Logger, "Snapshot");
+        LogChannel_ = std::make_unique<TCommunicationChannel>(Logger, "Log");
 
-        InputStream_ = pipe.CreateAsyncReader();
-        OutputFile_ = std::make_unique<TFile>(FHANDLE(pipe.ReleaseWriteFD()));
-
-        AsyncTransferResult_ = BIND(&TForkSnapshotBuilder::TransferLoop, MakeStrong(this))
+        SnapshotTransferFuture_ = BIND(&TForkSnapshotBuilder::SnapshotTransferLoop, MakeStrong(this))
+            .AsyncVia(GetWatchdogInvoker())
+            .Run();
+        LogTransferFuture_ = BIND(&TForkSnapshotBuilder::LogTransferLoop, MakeStrong(this))
             .AsyncVia(GetWatchdogInvoker())
             .Run();
 
@@ -421,20 +462,44 @@ private:
     void RunChild() override
     {
         CloseAllDescriptors({
-            2, // stderr
-            int(OutputFile_->GetHandle())
+            STDERR_FILENO,
+            static_cast<int>(SnapshotChannel_->GetOutputFile()->GetHandle()),
+            static_cast<int>(LogChannel_->GetOutputFile()->GetHandle()),
         });
-        TUnbufferedFileOutput output(*OutputFile_);
-        auto writer = CreateAsyncAdapter(&output);
-        Owner_->SaveSnapshot(writer)
+
+        TUnbufferedFileOutput snapshotOutput(*SnapshotChannel_->GetOutputFile());
+        auto writer = CreateAsyncAdapter(&snapshotOutput);
+
+        TUnbufferedFileOutput logOutput(*LogChannel_->GetOutputFile());
+        auto streamLogManager = NLogging::CreateStreamLogManager(&logOutput);
+        auto logger = NLogging::TLogger(streamLogManager.get(), Logger.GetCategory()->Name);
+
+        TSnapshotSaveContext context{
+            .Writer = std::move(writer),
+            .Logger = std::move(logger),
+        };
+
+        const auto& Logger = context.Logger;
+        YT_LOG_INFO("Child process forked");
+
+        Owner_->SaveSnapshot(context)
             .Get()
             .ThrowOnError();
-        OutputFile_->Close();
+
+        YT_LOG_INFO("Child process is exiting");
+
+        CloseChannelOutputs();
     }
 
     void RunParent() override
     {
-        OutputFile_->Close();
+        CloseChannelOutputs();
+    }
+
+    void CloseChannelOutputs()
+    {
+        SnapshotChannel_->GetOutputFile()->Close();
+        LogChannel_->GetOutputFile()->Close();
     }
 
     void Cleanup() override
@@ -442,14 +507,14 @@ private:
         ReleaseLock();
     }
 
-    void TransferLoop()
+    void SnapshotTransferLoop()
     {
         YT_LOG_INFO("Snapshot transfer loop started");
 
         WaitFor(SnapshotWriter_->Open())
             .ThrowOnError();
 
-        auto zeroCopyReader = CreateZeroCopyAdapter(InputStream_, SnapshotTransferBlockSize);
+        auto zeroCopyReader = CreateZeroCopyAdapter(SnapshotChannel_->GetInputStream(), SnapshotTransferBlockSize);
         auto zeroCopyWriter = CreateZeroCopyAdapter(SnapshotWriter_);
 
         TFuture<void> lastWriteResult;
@@ -459,8 +524,9 @@ private:
             auto block = WaitFor(zeroCopyReader->Read())
                 .ValueOrThrow();
 
-            if (!block)
+            if (!block) {
                 break;
+            }
 
             size += block.Size();
             lastWriteResult = zeroCopyWriter->Write(block);
@@ -475,12 +541,57 @@ private:
             size);
     }
 
+    void LogTransferLoop()
+    {
+        YT_LOG_INFO("Log transfer loop started");
+
+        auto zeroCopyReader = CreateZeroCopyAdapter(LogChannel_->GetInputStream(), LogTransferBlockSize);
+
+        TString message;
+
+        while (true) {
+            auto block = WaitFor(zeroCopyReader->Read())
+                .ValueOrThrow();
+
+            if (!block) {
+                break;
+            }
+
+            message += ToString(block);
+
+            while (true) {
+                auto newlineIndex = message.find('\n');
+                if (newlineIndex == TString::npos) {
+                    break;
+                }
+                LogMessageFromChild(TStringBuf(message.begin(), newlineIndex));
+                message = message.substr(newlineIndex + 1);
+            }
+        }
+
+        LogMessageFromChild(message);
+
+        YT_LOG_INFO("Log transfer loop completed");
+    }
+
+    void LogMessageFromChild(TStringBuf message)
+    {
+        if (!message.empty()) {
+            YT_LOG_INFO("Message from child: %v", message);
+        }
+    }
+
     void OnFinished()
     {
         YT_LOG_INFO("Waiting for transfer loop to finish");
-        WaitFor(AsyncTransferResult_)
+        WaitFor(SnapshotTransferFuture_)
             .ThrowOnError();
         YT_LOG_INFO("Transfer loop finished");
+
+        YT_LOG_INFO("Waiting for log loop to finish");
+        WaitFor(LogTransferFuture_)
+            .ThrowOnError();
+        YT_LOG_INFO("Transfer log finished");
 
         YT_LOG_INFO("Waiting for snapshot writer to close");
         WaitFor(SnapshotWriter_->Close())
@@ -610,8 +721,8 @@ public:
 private:
     TIntrusivePtr<TSwitchableSnapshotWriter> SwitchableSnapshotWriter_;
 
-    TFuture<void> AsyncOpenWriterResult_;
-    TFuture<void> AsyncSaveSnapshotResult_;
+    TFuture<void> OpenWriterFuture_;
+    TFuture<void> SaveSnapshotFuture_;
 
 
     TFuture<void> DoRun() override
@@ -620,11 +731,15 @@ private:
 
         SwitchableSnapshotWriter_ = New<TSwitchableSnapshotWriter>(Logger);
 
-        AsyncOpenWriterResult_ = SnapshotWriter_->Open();
+        OpenWriterFuture_ = SnapshotWriter_->Open();
 
         YT_LOG_INFO("Snapshot sync phase started");
 
-        AsyncSaveSnapshotResult_ = Owner_->SaveSnapshot(SwitchableSnapshotWriter_);
+        TSnapshotSaveContext context{
+            .Writer = SwitchableSnapshotWriter_,
+            .Logger = Logger,
+        };
+        SaveSnapshotFuture_ = Owner_->SaveSnapshot(context);
 
         YT_LOG_INFO("Snapshot sync phase completed");
 
@@ -639,14 +754,14 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        WaitFor(AsyncOpenWriterResult_)
+        WaitFor(OpenWriterFuture_)
             .ThrowOnError();
 
         YT_LOG_INFO("Switching to async snapshot writer");
 
         SwitchableSnapshotWriter_->ResumeAsAsync(SnapshotWriter_);
 
-        WaitFor(AsyncSaveSnapshotResult_)
+        WaitFor(SaveSnapshotFuture_)
             .ThrowOnError();
 
         YT_LOG_INFO("Snapshot async phase completed (SyncSize: %v, AsyncSize: %v)",
@@ -790,7 +905,7 @@ IInvokerPtr TDecoratedAutomaton::GetSystemInvoker()
     return SystemInvoker_;
 }
 
-TFuture<void> TDecoratedAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
+TFuture<void> TDecoratedAutomaton::SaveSnapshot(const TSnapshotSaveContext& context)
 {
     // No affinity annotation here since this could have been called
     // from a forked process.
@@ -798,7 +913,19 @@ TFuture<void> TDecoratedAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
     // Context switches are not allowed during sync phase.
     TForbidContextSwitchGuard contextSwitchGuard;
 
-    return Automaton_->SaveSnapshot(writer);
+    const auto& Logger = context.Logger;
+    YT_LOG_INFO("Stared saving snapshot");
+
+    return
+        Automaton_->SaveSnapshot(context).Apply(
+            BIND([Logger = Logger] (const TError& error) {
+                if (error.IsOK()) {
+                    YT_LOG_INFO("Snapshot saved successfully");
+                } else {
+                    YT_LOG_ERROR(error, "Error saving snapshot");
+                    THROW_ERROR(error);
+                }
+            }));
 }
 
 void TDecoratedAutomaton::LoadSnapshot(
@@ -824,7 +951,10 @@ void TDecoratedAutomaton::LoadSnapshot(
     ClearState();
 
     try {
-        Automaton_->LoadSnapshot(reader);
+        TSnapshotLoadContext context{
+            .Reader = reader,
+        };
+        Automaton_->LoadSnapshot(context);
 
         // Snapshot preparation is a "mutation" that is executed before first mutation
         // in changelog.

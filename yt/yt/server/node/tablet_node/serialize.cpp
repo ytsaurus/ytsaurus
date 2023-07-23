@@ -54,8 +54,13 @@ NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(TReign reign)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSaveContext::TSaveContext(ICheckpointableOutputStream* output)
-    : NHydra::TSaveContext(output, GetCurrentReign())
+TSaveContext::TSaveContext(
+    ICheckpointableOutputStream* output,
+    NLogging::TLogger logger)
+    : NHydra::TSaveContext(
+        output,
+        std::move(logger),
+        GetCurrentReign())
 { }
 
 ETabletReign TSaveContext::GetVersion() const

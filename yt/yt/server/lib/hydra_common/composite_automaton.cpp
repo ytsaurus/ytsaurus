@@ -1,4 +1,6 @@
 #include "composite_automaton.h"
+
+#include "automaton.h"
 #include "private.h"
 #include "config.h"
 #include "hydra_manager.h"
@@ -299,10 +301,10 @@ void TCompositeAutomaton::RegisterMethod(
     EmplaceOrCrash(MethodNameToDescriptor_, type, descriptor);
 }
 
-TFuture<void> TCompositeAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
+TFuture<void> TCompositeAutomaton::SaveSnapshot(const TSnapshotSaveContext& context)
 {
     DoSaveSnapshot(
-        writer,
+        context,
         // NB: Do not yield in sync part.
         EWaitForStrategy::Get,
         [&] (TSaveContext& context) {
@@ -322,9 +324,16 @@ TFuture<void> TCompositeAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
                         lhs.Priority == rhs.Priority && lhs.Name < rhs.Name;
                 });
 
+            const auto& Logger = context.GetLogger();
             for (const auto& descriptor : syncSavers) {
+                YT_LOG_INFO("Started saving sync automaton part (Name: %v, Version: %v)",
+                    descriptor.Name,
+                    descriptor.SnapshotVersion);
                 WritePartHeader(context, descriptor);
                 descriptor.Callback(context);
+                YT_LOG_INFO("Finished saving sync automaton part (Name: %v, Version: %v)",
+                    descriptor.Name,
+                    descriptor.SnapshotVersion);
             }
         });
 
@@ -355,13 +364,21 @@ TFuture<void> TCompositeAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
     return
         BIND([=, this, this_ = MakeStrong(this), parts_ = GetParts()] () {
             DoSaveSnapshot(
-                writer,
+                context,
                 // NB: Can yield in async part.
                 EWaitForStrategy::WaitFor,
                 [&] (TSaveContext& context) {
+                    const auto& Logger = context.GetLogger();
                     for (int index = 0; index < std::ssize(asyncSavers); ++index) {
-                        WritePartHeader(context, asyncSavers[index]);
+                        const auto& descriptor = asyncSavers[index];
+                        YT_LOG_INFO("Started saving async automaton part (Name: %v, Version: %v)",
+                            descriptor.Name,
+                            descriptor.SnapshotVersion);
+                        WritePartHeader(context, descriptor);
                         asyncCallbacks[index](context);
+                        YT_LOG_INFO("Finished saving async automaton part (Name: %v, Version: %v)",
+                            descriptor.Name,
+                            descriptor.SnapshotVersion);
                     }
                 });
         })
@@ -369,10 +386,10 @@ TFuture<void> TCompositeAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
         .Run();
 }
 
-void TCompositeAutomaton::LoadSnapshot(IAsyncZeroCopyInputStreamPtr reader)
+void TCompositeAutomaton::LoadSnapshot(const TSnapshotLoadContext& context)
 {
     DoLoadSnapshot(
-        reader,
+        context,
         [&] (TLoadContext& context) {
             using NYT::Load;
 
@@ -521,37 +538,38 @@ void TCompositeAutomaton::SetZeroState()
 }
 
 void TCompositeAutomaton::DoSaveSnapshot(
-    NConcurrency::IAsyncOutputStreamPtr writer,
+    const TSnapshotSaveContext& context,
     EWaitForStrategy strategy,
     const std::function<void(TSaveContext&)>& callback)
 {
-    auto syncWriter = CreateBufferedCheckpointableSyncAdapter(writer, strategy, SnapshotSaveBufferSize);
-    auto context = CreateSaveContext(syncWriter.get());
-    callback(*context);
-    context->Finish();
+    auto syncWriter = CreateBufferedCheckpointableSyncAdapter(
+        context.Writer,
+        strategy,
+        SnapshotSaveBufferSize);
+    auto persistencContext = CreateSaveContext(
+        syncWriter.get(),
+        context.Logger);
+    callback(*persistencContext);
+    persistencContext->Finish();
 }
 
 void TCompositeAutomaton::DoLoadSnapshot(
-    IAsyncZeroCopyInputStreamPtr reader,
+    const TSnapshotLoadContext& context,
     const std::function<void(TLoadContext&)>& callback)
 {
-    auto prefetchingReader = CreatePrefetchingAdapter(reader, SnapshotPrefetchWindowSize);
+    auto prefetchingReader = CreatePrefetchingAdapter(context.Reader, SnapshotPrefetchWindowSize);
     auto copyingReader = CreateCopyingAdapter(prefetchingReader);
     auto syncReader = CreateSyncAdapter(copyingReader, EWaitForStrategy::Get);
     TBufferedInput bufferedInput(syncReader.get(), SnapshotLoadBufferSize);
     auto checkpointableInput = CreateCheckpointableInputStream(&bufferedInput);
-    auto context = CreateLoadContext(checkpointableInput.get());
+    auto persistenceContext = CreateLoadContext(checkpointableInput.get());
     TCrashOnDeserializationErrorGuard guard;
-    callback(*context);
+    callback(*persistenceContext);
 }
 
 void TCompositeAutomaton::WritePartHeader(TSaveContext& context, const TSaverDescriptorBase& descriptor)
 {
     auto version = descriptor.SnapshotVersion;
-    YT_LOG_INFO("Saving automaton part (Name: %v, Version: %v)",
-        descriptor.Name,
-        version);
-
     context.MakeCheckpoint();
 
     Save(context, descriptor.Name);

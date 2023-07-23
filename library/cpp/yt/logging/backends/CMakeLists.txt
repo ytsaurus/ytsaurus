@@ -7,3 +7,4 @@
 
 
 add_subdirectory(arcadia)
+add_subdirectory(stream)

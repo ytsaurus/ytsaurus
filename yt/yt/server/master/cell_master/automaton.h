@@ -35,7 +35,8 @@ private:
     void SetZeroState() override;
 
     std::unique_ptr<NHydra::TSaveContext> CreateSaveContext(
-        NHydra::ICheckpointableOutputStream* output) override;
+        NHydra::ICheckpointableOutputStream* output,
+        NLogging::TLogger logger) override;
     std::unique_ptr<NHydra::TLoadContext> CreateLoadContext(
         NHydra::ICheckpointableInputStream* input) override;
 

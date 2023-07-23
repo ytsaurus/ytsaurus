@@ -326,7 +326,7 @@ private:
     void StartEpoch(TEpochContextPtr epochContext);
     void StopEpoch();
 
-    TFuture<void> SaveSnapshot(NConcurrency::IAsyncOutputStreamPtr writer);
+    TFuture<void> SaveSnapshot(const NHydra::TSnapshotSaveContext& context);
     void MaybeStartSnapshotBuilder();
 
     bool IsRecovery() const;
