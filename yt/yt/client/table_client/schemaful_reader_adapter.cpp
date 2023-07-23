@@ -58,7 +58,7 @@ public:
         try {
             for (auto schemalessRow : CurrentBatch_->MaterializeRows()) {
                 if (!schemalessRow) {
-                    schemafulRows.push_back(TUnversionedRow());
+                    schemafulRows.emplace_back();
                     continue;
                 }
 
@@ -66,6 +66,9 @@ public:
 
                 for (int valueIndex = 0; valueIndex < std::ssize(ReaderSchema_->Columns()); ++valueIndex) {
                     const auto& value = schemafulRow[valueIndex];
+                    if (Any(value.Flags & EValueFlags::Hunk)) {
+                        continue;
+                    }
                     ValidateDataValue(value);
                     // The underlying schemaless reader may unpack typed scalar values even
                     // if the schema has "any" type. For schemaful reader, this is not an expected behavior
@@ -80,6 +83,7 @@ public:
                         ValidateValueType(value, *ReaderSchema_, valueIndex, /*typeAnyAcceptsAllValues*/ false, IgnoreRequired_);
                     }
                 }
+
                 schemafulRows.push_back(schemafulRow);
             }
         } catch (const std::exception& ex) {

@@ -1126,12 +1126,23 @@ void ValidateStaticValue(const TUnversionedValue& value)
 
 void ValidateDataValue(const TUnversionedValue& value)
 {
+    if (auto remainingFlags = value.Flags & ~EValueFlags::Aggregate; Any(remainingFlags)) {
+        THROW_ERROR_EXCEPTION(
+            "Value %v has unsupported flag(s) %Qlv",
+            value,
+            remainingFlags);
+    }
     ValidateDataValueType(value.Type);
     ValidateDynamicValue(value, /*isKey*/ false);
 }
 
 void ValidateKeyValue(const TUnversionedValue& value)
 {
+    if (value.Flags != EValueFlags::None) {
+        THROW_ERROR_EXCEPTION("Key value %v has unsupported flag(s) %Qlv",
+            value,
+            value.Flags);
+    }
     ValidateKeyValueType(value.Type);
     ValidateDynamicValue(value, /*isKey*/ true);
 }
