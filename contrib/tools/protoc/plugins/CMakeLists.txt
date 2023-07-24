@@ -7,3 +7,4 @@
 
 
 add_subdirectory(cpp_styleguide)
+add_subdirectory(grpc_cpp)
