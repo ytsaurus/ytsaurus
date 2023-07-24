@@ -97,16 +97,6 @@ public:
                     AuthProfiler.WithPrefix("/blackbox_token_authenticator/cache")));
         }
 
-        if (config->OAuthTokenAuthenticator && oauthService && CypressUserManager_) {
-            tokenAuthenticators.push_back(
-                CreateCachingTokenAuthenticator(config->OAuthTokenAuthenticator,
-                    CreateOAuthTokenAuthenticator(
-                        config->OAuthTokenAuthenticator,
-                        oauthService,
-                        CypressUserManager_),
-                    AuthProfiler.WithPrefix("/oauth_token_authenticator/cache")));
-        }
-
         if (config->CypressTokenAuthenticator && client) {
             tokenAuthenticators.push_back(
                 CreateCachingTokenAuthenticator(
@@ -121,6 +111,16 @@ public:
                     config->CypressTokenAuthenticator,
                     CreateCypressTokenAuthenticator(client),
                     AuthProfiler.WithPrefix("/cypress_token_authenticator/cache")));
+        }
+
+        if (config->OAuthTokenAuthenticator && oauthService && CypressUserManager_) {
+            tokenAuthenticators.push_back(
+                CreateCachingTokenAuthenticator(config->OAuthTokenAuthenticator,
+                    CreateOAuthTokenAuthenticator(
+                        config->OAuthTokenAuthenticator,
+                        oauthService,
+                        CypressUserManager_),
+                    AuthProfiler.WithPrefix("/oauth_token_authenticator/cache")));
         }
 
         if (config->BlackboxCookieAuthenticator && blackboxService) {
