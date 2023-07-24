@@ -815,9 +815,11 @@ void TJobExperimentConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("base_layer_path", &TThis::BaseLayerPath)
+        .NonEmpty()
         .Default();
 
     registrar.Parameter("network_project", &TThis::NetworkProject)
+        .NonEmpty()
         .Default();
 
     registrar.Postprocessor([] (TJobExperimentConfig* config) {
