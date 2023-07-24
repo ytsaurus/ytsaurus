@@ -16,12 +16,12 @@ struct IExpressionEvaluator
     : public TRefCounted
 {
     virtual TErrorOr<NQueryClient::TValue> Evaluate(
-        const std::vector<NYson::TYsonStringBuf>& attributeYsons,
+        const std::vector<TNonOwningAttributePayload>& attributePayloads,
         NTableClient::TRowBufferPtr rowBuffer = nullptr) = 0;
 
     //! Shortcut for the input vector of size 1.
     virtual TErrorOr<NQueryClient::TValue> Evaluate(
-        const NYson::TYsonStringBuf& attributeYson,
+        const TNonOwningAttributePayload& attributePayload,
         NTableClient::TRowBufferPtr rowBuffer = nullptr) = 0;
 
     virtual const TString& GetQuery() const = 0;

@@ -23,12 +23,12 @@ struct IFilterMatcher
     : public TRefCounted
 {
     virtual TErrorOr<bool> Match(
-        const std::vector<NYson::TYsonStringBuf>& attributeYsons,
+        const std::vector<TNonOwningAttributePayload>& attributePayloads,
         NTableClient::TRowBufferPtr rowBuffer = nullptr) = 0;
 
     //! Shortcut for the input vector of size 1.
     virtual TErrorOr<bool> Match(
-        const NYson::TYsonStringBuf& attributeYson,
+        const TNonOwningAttributePayload& attributePayload,
         NTableClient::TRowBufferPtr rowBuffer = nullptr) = 0;
 };
 

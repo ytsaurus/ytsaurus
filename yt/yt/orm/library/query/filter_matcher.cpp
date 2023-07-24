@@ -19,8 +19,6 @@ namespace NYT::NOrm::NQuery {
 using namespace NTableClient;
 using namespace NYPath;
 
-using NYson::TYsonStringBuf;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -38,7 +36,7 @@ class TFilterMatcher
 {
 public:
     TFilterMatcher(
-        const TString& filterQuery,
+        TString filterQuery,
         std::vector<TTypedAttributePath> attributePaths)
         : Evaluator_(CreateExpressionEvaluator(
             std::move(filterQuery),
@@ -46,24 +44,27 @@ public:
     { }
 
     TErrorOr<bool> Match(
-        const std::vector<TYsonStringBuf>& attributeYsons,
+        const std::vector<TNonOwningAttributePayload>& attributePayloads,
         TRowBufferPtr rowBuffer) override
     {
-        try {
-            auto resultValue = Evaluator_->Evaluate(attributeYsons, std::move(rowBuffer)).ValueOrThrow();
-            return resultValue.Type == EValueType::Boolean && resultValue.Data.Boolean;
-        } catch (const std::exception& ex) {
+        auto resultOrError = Evaluator_->Evaluate(attributePayloads, std::move(rowBuffer));
+        if (!resultOrError.IsOK()) {
             return TError("Error matching the filter")
                 << TErrorAttribute("query", Evaluator_->GetQuery())
-                << ex;
+                << TError(resultOrError);
         }
+
+        const auto& resultValue = resultOrError.Value();
+        return resultValue.Type == EValueType::Boolean && resultValue.Data.Boolean;
     }
 
     TErrorOr<bool> Match(
-        const TYsonStringBuf& attributeYson,
+        const TNonOwningAttributePayload& attributePayload,
         TRowBufferPtr rowBuffer) override
     {
-        return Match(std::vector<TYsonStringBuf>{attributeYson}, std::move(rowBuffer));
+        return Match(
+            std::vector<TNonOwningAttributePayload>{attributePayload},
+            std::move(rowBuffer));
     }
 
 private:
@@ -81,14 +82,14 @@ public:
     { }
 
     TErrorOr<bool> Match(
-        const std::vector<NYson::TYsonStringBuf>& /*attributeYsons*/,
+        const std::vector<TNonOwningAttributePayload>& /*attributePayloads*/,
         TRowBufferPtr /*rowBuffer*/) override
     {
         return Constant_;
     }
 
     TErrorOr<bool> Match(
-        const TYsonStringBuf& /*attributesYson*/,
+        const TNonOwningAttributePayload& /*attributePayload*/,
         TRowBufferPtr /*rowBuffer*/) override
     {
         return Constant_;

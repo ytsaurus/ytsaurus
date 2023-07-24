@@ -14,6 +14,8 @@
 
 #include <yt/yt/library/query/base/query_preparer.h>
 
+#include <library/cpp/yt/misc/variant.h>
+
 #include <util/string/cast.h>
 
 namespace NYT::NOrm::NQuery {
@@ -55,31 +57,47 @@ void ValidateAttributeType(EValueType valueType)
 
 TUnversionedValue MakeUnversionedValue(
     EValueType valueType,
-    const TYsonStringBuf& value,
+    const TNonOwningAttributePayload& payload,
     TObjectsHolder* objectsHolder)
 {
+    if (valueType == EValueType::String) {
+        return Visit(
+            payload,
+            [&] (const TYsonStringBuf& ysonPayload) {
+                // Currently, it's impossible to create a non-owning string view from TYsonString.
+                // Since TUnversionedValue itself is non-owning, an external holder is needed.
+                auto* regularString = objectsHolder->New<TString>();
+                *regularString = NYson::ConvertFromYsonString<TString>(ysonPayload);
+                return MakeUnversionedStringValue(*regularString);
+            },
+            [&] (const TStringBuf& stringPayload) {
+                return MakeUnversionedStringValue(stringPayload);
+            });
+    }
+
+    const auto& ysonPayload = std::invoke([&] () -> const TYsonStringBuf& {
+        if (const auto* ysonPayloadPtr = std::get_if<TYsonStringBuf>(&payload)) {
+            return *ysonPayloadPtr;
+        }
+        THROW_ERROR_EXCEPTION("Values of type %Qlv can be parsed from yson payload only",
+            valueType);
+    });
+
     switch (valueType) {
         case EValueType::Int64: {
-            return MakeUnversionedInt64Value(NYson::ConvertFromYsonString<i64>(value));
+            return MakeUnversionedInt64Value(NYson::ConvertFromYsonString<i64>(ysonPayload));
         }
         case EValueType::Uint64: {
-            return MakeUnversionedUint64Value(NYson::ConvertFromYsonString<ui64>(value));
+            return MakeUnversionedUint64Value(NYson::ConvertFromYsonString<ui64>(ysonPayload));
         }
         case EValueType::Double: {
-            return MakeUnversionedDoubleValue(NYson::ConvertFromYsonString<double>(value));
+            return MakeUnversionedDoubleValue(NYson::ConvertFromYsonString<double>(ysonPayload));
         }
         case EValueType::Boolean: {
-            return MakeUnversionedBooleanValue(NYson::ConvertFromYsonString<bool>(value));
-        }
-        case EValueType::String: {
-            // Currently, it's impossible to create a non-owning string view from TYsonString.
-            // Since TUnversionedValue itself is non-owning, an external holder is needed.
-            auto* regularString = objectsHolder->New<TString>();
-            *regularString = NYson::ConvertFromYsonString<TString>(value);
-            return MakeUnversionedStringValue(*regularString);
+            return MakeUnversionedBooleanValue(NYson::ConvertFromYsonString<bool>(ysonPayload));
         }
         case EValueType::Any: {
-            return MakeUnversionedAnyValue(value.AsStringBuf());
+            return MakeUnversionedAnyValue(ysonPayload.AsStringBuf());
         }
         default:
             // Attribute type validation should have been performed earlier.
@@ -109,26 +127,26 @@ public:
     }
 
     TErrorOr<NQueryClient::TValue> Evaluate(
-        const std::vector<TYsonStringBuf>& attributeYsons,
+        const std::vector<TNonOwningAttributePayload>& attributePayloads,
         TRowBufferPtr rowBuffer) override
     {
         try {
             if (!rowBuffer) {
                 rowBuffer = New<TRowBuffer>(TRowBufferTag());
             }
-            if (attributeYsons.size() != TypedAttributePaths_.size()) {
+            if (attributePayloads.size() != TypedAttributePaths_.size()) {
                 THROW_ERROR_EXCEPTION("Invalid number of attributes: expected %v, but got %v",
                     TypedAttributePaths_.size(),
-                    attributeYsons.size());
+                    attributePayloads.size());
             }
 
             TObjectsHolder temporaryObjectsHolder;
             std::vector<TUnversionedValue> inputValues;
-            inputValues.reserve(attributeYsons.size());
+            inputValues.reserve(attributePayloads.size());
             for (size_t index = 0; index < TypedAttributePaths_.size(); ++index) {
                 inputValues.push_back(MakeUnversionedValue(
                     TypedAttributePaths_[index].Type,
-                    attributeYsons[index],
+                    attributePayloads[index],
                     &temporaryObjectsHolder));
             }
 
@@ -145,10 +163,12 @@ public:
     }
 
     TErrorOr<NQueryClient::TValue> Evaluate(
-        const TYsonStringBuf& attributeYson,
+        const TNonOwningAttributePayload& attributePayload,
         TRowBufferPtr rowBuffer) override
     {
-        return Evaluate(std::vector<TYsonStringBuf>{attributeYson}, std::move(rowBuffer));
+        return Evaluate(
+            std::vector<TNonOwningAttributePayload>{attributePayload},
+            std::move(rowBuffer));
     }
 
     const TString& GetQuery() const override
