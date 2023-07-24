@@ -82,7 +82,7 @@ TTask::TTask(
     , TaskHost_(taskHost.Get())
     , OutputStreamDescriptors_(std::move(outputStreamDescriptors))
     , InputStreamDescriptors_(std::move(inputStreamDescriptors))
-    , InputChunkMapping_(New<TInputChunkMapping>(EChunkMappingMode::Sorted))
+    , InputChunkMapping_(New<TInputChunkMapping>(EChunkMappingMode::Sorted, Logger))
     , CachedPendingJobCount_{}
     , CachedTotalJobCount_(0)
     , SpeculativeJobManager_(

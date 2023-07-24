@@ -10,6 +10,7 @@
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
 
+#include <yt/yt/core/logging/log.h>
 #include <yt/yt/core/misc/blob_output.h>
 
 #include <random>
@@ -40,10 +41,12 @@ protected:
     //! Such comparator is enough for all keys in this test suite.
     const TComparator Comparator_ = TComparator(std::vector<ESortOrder>(2, ESortOrder::Ascending));
 
+    NLogging::TLogger Logger = NLogging::TLogger("InputChunkMapping");
+
     void InitChunkMapping(EChunkMappingMode mode)
     {
         Mode_ = mode;
-        ChunkMapping_ = New<TInputChunkMapping>(mode);
+        ChunkMapping_ = New<TInputChunkMapping>(mode, Logger);
     }
 
     // In this test we will only deal with integral rows as

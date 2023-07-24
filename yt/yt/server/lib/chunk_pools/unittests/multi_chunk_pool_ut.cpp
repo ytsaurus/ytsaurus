@@ -15,6 +15,8 @@
 
 #include <yt/yt/ytlib/chunk_pools/chunk_stripe_key.h>
 
+#include <yt/yt/core/logging/log.h>
+
 #include <random>
 
 namespace NYT::NChunkPools {
@@ -124,7 +126,8 @@ TEST_F(TMultiChunkPoolInputTest, TestResume)
 
 TEST_F(TMultiChunkPoolInputTest, TestReset)
 {
-    auto mapping = New<TInputChunkMapping>(EChunkMappingMode::Sorted);
+    NLogging::TLogger logger("InputChunkMapping");
+    auto mapping = New<TInputChunkMapping>(EChunkMappingMode::Sorted, logger);
 
     InSequence sequence;
     EXPECT_CALL(*Mocks_[0], Add(Stripes_[0]))
