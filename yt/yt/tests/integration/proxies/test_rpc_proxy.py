@@ -14,7 +14,7 @@ from yt_commands import (
     set_account_disk_space_limit, create_dynamic_table, execute_command, Operation, raises_yt_error,
     discover_proxies)
 
-from yt_helpers import write_log_barrier, read_structured_log
+from yt_helpers import write_log_barrier, read_structured_log, read_structured_log_single_entry
 
 from yt_type_helpers import make_schema
 
@@ -137,6 +137,7 @@ class TestRpcProxy(YTEnvSetup):
 class TestRpcProxyStructuredLogging(YTEnvSetup):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
+    USE_DYNAMIC_TABLES = True
 
     NUM_RPC_PROXIES = 1
 
@@ -232,13 +233,23 @@ class TestRpcProxyStructuredLogging(YTEnvSetup):
 
         b1 = self._write_log_barrier()
 
+        set("//sys/rpc_proxies/@config", {
+            "api": {
+                "structured_logging_query_truncation_size": 1024 * 1024 * 128,
+            },
+        })
+        time.sleep(0.5)
+
         with raises_yt_error(yt_error_codes.ResolveErrorCode):
             select_rows(query)
 
         b2 = self._write_log_barrier()
 
         set("//sys/rpc_proxies/@config", {
-            "api": {"structured_logging_max_request_byte_size": 1024},
+            "api": {
+                "structured_logging_query_truncation_size": 1024 * 1024 * 128,
+                "structured_logging_max_request_byte_size": 1024,
+            },
         })
         time.sleep(0.5)
 
@@ -255,6 +266,39 @@ class TestRpcProxyStructuredLogging(YTEnvSetup):
 
         assert get_select_entry(from_barrier=b1, to_barrier=b2)["request"]["query"] == query
         assert get_select_entry(from_barrier=b2, to_barrier=b3)["request"] == yson.YsonEntity()
+
+    @authors("ermolovd")
+    def test_query_truncation(self):
+        query = "* from [//path/to/some/table]"
+        b0 = self._write_log_barrier()
+
+        with raises_yt_error(yt_error_codes.ResolveErrorCode):
+            select_rows(query)
+
+        b1 = self._write_log_barrier()
+
+        try:
+            set("//sys/rpc_proxies/@config", {
+                "api": {"structured_logging_query_truncation_size": 10},
+            })
+            time.sleep(0.5)
+
+            with raises_yt_error(yt_error_codes.ResolveErrorCode):
+                select_rows(query)
+        finally:
+            set("//sys/rpc_proxies/@config", {})
+
+        b2 = self._write_log_barrier()
+
+        def read_entry(method, from_barrier, to_barrier):
+            return read_structured_log_single_entry(
+                self.rpc_proxy_log_file,
+                lambda e: e.get("method", None) == method,
+                from_barrier=from_barrier,
+                to_barrier=to_barrier)
+
+        assert read_entry("SelectRows", from_barrier=b0, to_barrier=b1)["request"]["query"] == query
+        assert read_entry("SelectRows", from_barrier=b1, to_barrier=b2)["request"]["query"] == query[:10]
 
 
 class TestRpcProxyDiscovery(YTEnvSetup):

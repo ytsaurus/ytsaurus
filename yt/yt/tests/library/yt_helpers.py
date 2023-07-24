@@ -12,6 +12,7 @@ from dateutil import parser
 from dateutil.tz import tzlocal
 import pytest
 import json
+import inspect
 
 MAX_DECIMAL_PRECISION = 35
 
@@ -213,3 +214,11 @@ def read_structured_log(path, from_barrier=None, to_barrier=None, format=None, c
 
     assert to_barrier is None, "End barrier not found"
     return lines
+
+
+def read_structured_log_single_entry(path, row_filter, from_barrier=None, to_barrier=None):
+    lines = read_structured_log(path, from_barrier=from_barrier, to_barrier=to_barrier, row_filter=row_filter)
+    if len(lines) != 1:
+        source = inspect.getsource(row_filter)
+        raise RuntimeError(f"Found {len(lines)} lines satisfying filter: {source}")
+    return lines[0]
