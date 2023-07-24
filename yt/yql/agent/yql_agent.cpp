@@ -50,10 +50,19 @@ public:
         , AgentId_(std::move(agentId))
         , ThreadPool_(CreateThreadPool(Config_->YqlThreadCount, "Yql"))
     {
+        THashMap<TString, TString> clusters;
+        for (const auto& cluster : ClusterDirectory_->GetClusterNames()) {
+            clusters[cluster] = cluster;
+        }
+
+        for (const auto& [cluster, address] : Config_->Clusters) {
+            clusters[cluster] = address;
+        }
+
         NYqlPlugin::TYqlPluginOptions options{
             .MRJobBinary = Config_->MRJobBinary,
             .UdfDirectory = Config_->UdfDirectory,
-            .Clusters = Config_->Clusters,
+            .Clusters = clusters,
             .DefaultCluster = Config_->DefaultCluster,
             .YTToken = Config_->YTToken,
             .LogBackend = NYT::NLogging::CreateArcadiaLogBackend(TLogger("YqlPlugin")),
