@@ -98,6 +98,7 @@ target_link_libraries(clickhouse-src-Common PUBLIC
   contrib-restricted-fast_float
   contrib-restricted-magic_enum
   library-cpp-re2_st
+  cpp-sanitizer-include
 )
 target_sources(clickhouse-src-Common PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Common/ActionLock.cpp

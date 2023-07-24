@@ -134,6 +134,7 @@ target_link_libraries(contrib-clickhouse-src PUBLIC
   clickhouse_h3_compat
   consistent-hashing
   library-cpp-re2_st
+  cpp-sanitizer-include
 )
 target_sources(contrib-clickhouse-src PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Access/AccessBackup.cpp
@@ -1549,6 +1550,7 @@ target_link_libraries(contrib-clickhouse-src.global PUBLIC
   clickhouse_h3_compat
   consistent-hashing
   library-cpp-re2_st
+  cpp-sanitizer-include
 )
 target_sources(contrib-clickhouse-src.global PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/src/Functions/CRC.cpp

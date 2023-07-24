@@ -40,6 +40,7 @@ target_link_libraries(clickhouse-base-base PUBLIC
   libs-poco-Util
   contrib-restricted-cityhash-1.0.2
   restricted-patched-replxx
+  cpp-sanitizer-include
 )
 target_sources(clickhouse-base-base PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/clickhouse/base/base/JSON.cpp
