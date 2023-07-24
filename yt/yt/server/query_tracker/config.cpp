@@ -20,8 +20,11 @@ void TEngineConfigBase::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TYqlEngineConfig::Register(TRegistrar /*registrar*/)
-{ }
+void TYqlEngineConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("stage", &TThis::Stage)
+        .Default("production");
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

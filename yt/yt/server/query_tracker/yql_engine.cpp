@@ -33,14 +33,14 @@ class TYqlSettings
     : public TYsonStruct
 {
 public:
-    TString Stage;
+    std::optional<TString> Stage;
 
     REGISTER_YSON_STRUCT(TYqlSettings);
 
     static void Register(TRegistrar registrar)
     {
         registrar.Parameter("stage", &TThis::Stage)
-            .Default("production");
+            .Optional();
     }
 };
 
@@ -56,20 +56,22 @@ public:
     TYqlQueryHandler(
         const NApi::IClientPtr& stateClient,
         const NYPath::TYPath& stateRoot,
-        const TEngineConfigBasePtr& config,
+        const TYqlEngineConfigPtr& config,
         const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery,
         const NApi::NNative::IConnectionPtr& connection)
         : TQueryHandlerBase(stateClient, stateRoot, config, activeQuery)
         , Query_(activeQuery.Query)
+        , Config_(config)
         , Connection_(connection)
         , Settings_(ConvertTo<TYqlSettingsPtr>(SettingsNode_))
     { }
 
     void Start() override
     {
-        YT_LOG_DEBUG("Starting YQL query (Stage: %v)", Settings_->Stage);
+        auto stage = Settings_->Stage.value_or(Config_->Stage);
+        YT_LOG_DEBUG("Starting YQL query (Stage: %v)", stage);
 
-        TYqlServiceProxy proxy(Connection_->GetYqlAgentChannelOrThrow(Settings_->Stage));
+        TYqlServiceProxy proxy(Connection_->GetYqlAgentChannelOrThrow(stage));
         auto req = proxy.StartQuery();
         SetAuthenticationIdentity(req, TAuthenticationIdentity(User_));
         auto* yqlRequest = req->mutable_yql_request();
@@ -95,6 +97,7 @@ public:
 
 private:
     TString Query_;
+    TYqlEngineConfigPtr Config_;
     NApi::NNative::IConnectionPtr Connection_;
     TYqlSettingsPtr Settings_;
 
@@ -154,13 +157,13 @@ public:
 
     void OnDynamicConfigChanged(const TEngineConfigBasePtr& config) override
     {
-        Config_ = config;
+        Config_ = DynamicPointerCast<TYqlEngineConfig>(config);
     }
 
 private:
     const IClientPtr StateClient_;
     const TYPath StateRoot_;
-    TEngineConfigBasePtr Config_;
+    TYqlEngineConfigPtr Config_;
     TClusterDirectoryPtr ClusterDirectory_;
 };
 

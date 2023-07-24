@@ -38,6 +38,8 @@ class TYqlEngineConfig
     : public TEngineConfigBase
 {
 public:
+    TString Stage;
+
     REGISTER_YSON_STRUCT(TYqlEngineConfig);
 
     static void Register(TRegistrar registrar);
