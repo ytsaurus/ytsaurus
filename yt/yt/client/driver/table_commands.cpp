@@ -393,6 +393,8 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
                                         }
                                     });
                             })
+                            .OptionalItem("chunk_row_count", statistics.ChunkRowCount)
+                            .OptionalItem("legacy_chunk_row_count", statistics.LegacyChunkRowCount)
                         .EndMap();
                 }
             });

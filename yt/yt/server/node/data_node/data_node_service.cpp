@@ -2113,7 +2113,9 @@ private:
             }
 
             TColumnarStatistics columnarStatistics;
-            FromProto(&columnarStatistics, columnarStatisticsExt);
+            i64 chunkRowCount = GetProtoExtension<TMiscExt>(meta.extensions()).row_count();
+
+            FromProto(&columnarStatistics, columnarStatisticsExt, chunkRowCount);
             ToProto(subresponse->mutable_columnar_statistics(),
                 columnarStatistics.SelectByColumnNames(nameTable, columnStableNames));
 

@@ -154,6 +154,17 @@ TColumnarStatistics& TColumnarStatistics::operator+=(const TColumnarStatistics& 
     }
     LegacyChunkDataWeight += other.LegacyChunkDataWeight;
 
+    if (ChunkRowCount.has_value() && other.ChunkRowCount.has_value()) {
+        ChunkRowCount = *ChunkRowCount + *other.ChunkRowCount;
+    } else {
+        ChunkRowCount.reset();
+    }
+    if (LegacyChunkRowCount.has_value() && other.LegacyChunkRowCount.has_value()) {
+        LegacyChunkRowCount = *LegacyChunkRowCount + *other.LegacyChunkRowCount;
+    } else {
+        LegacyChunkRowCount.reset();
+    }
+
     if (!other.HasValueStatistics()) {
         ClearValueStatistics();
     } else if (HasValueStatistics()) {
@@ -184,10 +195,11 @@ TColumnarStatistics TColumnarStatistics::MakeEmpty(int columnCount, bool hasValu
     return result;
 }
 
-TColumnarStatistics TColumnarStatistics::MakeLegacy(int columnCount, i64 legacyChunkDataWeight)
+TColumnarStatistics TColumnarStatistics::MakeLegacy(int columnCount, i64 legacyChunkDataWeight, i64 legacyChunkRowCount)
 {
     TColumnarStatistics result = MakeEmpty(columnCount, /*hasValueStatistics*/ false);
     result.LegacyChunkDataWeight = legacyChunkDataWeight;
+    result.LegacyChunkRowCount = legacyChunkRowCount;
     return result;
 }
 
@@ -251,6 +263,10 @@ void TColumnarStatistics::Resize(int columnCount, bool keepValueStatistics)
 void TColumnarStatistics::Update(TRange<TUnversionedRow> rows)
 {
     UpdateColumnarStatistics(*this, rows);
+
+    if (ChunkRowCount) {
+        ChunkRowCount = *ChunkRowCount + rows.Size();
+    }
 }
 
 void TColumnarStatistics::Update(TRange<TVersionedRow> rows)
@@ -273,6 +289,10 @@ void TColumnarStatistics::Update(TRange<TVersionedRow> rows)
         TimestampTotalWeight = TimestampTotalWeight.value_or(0) +
             (row.GetWriteTimestampCount() + row.GetDeleteTimestampCount()) * sizeof(TTimestamp);
     }
+
+    if (ChunkRowCount) {
+        ChunkRowCount = *ChunkRowCount + rows.Size();
+    }
 }
 
 TColumnarStatistics TColumnarStatistics::SelectByColumnNames(const TNameTablePtr& nameTable, const std::vector<TStableName>& columnStableNames) const
@@ -293,6 +313,9 @@ TColumnarStatistics TColumnarStatistics::SelectByColumnNames(const TNameTablePtr
     }
     result.TimestampTotalWeight = TimestampTotalWeight;
     result.LegacyChunkDataWeight = LegacyChunkDataWeight;
+
+    result.ChunkRowCount = ChunkRowCount;
+    result.LegacyChunkRowCount = LegacyChunkRowCount;
 
     return result;
 }

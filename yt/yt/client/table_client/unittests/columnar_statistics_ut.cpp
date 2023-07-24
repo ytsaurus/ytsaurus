@@ -57,36 +57,31 @@ TEST(TUpdateColumnarStatisticsTest, EmptyStruct)
             MakeUnversionedDoubleValue(1e70),
         },
         .ColumnNonNullValueCounts = {2, 3, 3},
+        .ChunkRowCount = 3,
+        .LegacyChunkRowCount = 0,
     };
     EXPECT_EQ(statistics, expected);
 }
 
 TEST(TUpdateColumnarStatisticsTest, InitializedStruct)
 {
-    TColumnarStatistics statistics;
-    statistics.ColumnMinValues = {
-        MakeUnversionedUint64Value(5),
-        MakeUnversionedStringValue("gaga"),
-        MakeUnversionedInt64Value(-77777),
-        MakeUnversionedSentinelValue(EValueType::Min),
-    };
-    statistics.ColumnMaxValues = {
-        MakeUnversionedUint64Value(500),
-        MakeUnversionedStringValue("gugu"),
-        MakeUnversionedInt64Value(10),
-        MakeUnversionedSentinelValue(EValueType::Max),
-    };
-    statistics.ColumnNonNullValueCounts = {
-        5,
-        10,
-        50,
-        3
-    };
-    statistics.ColumnDataWeights = {
-        40,
-        80,
-        400,
-        128,
+    TColumnarStatistics statistics{
+        .ColumnDataWeights = {40, 80, 400, 128},
+        .ColumnMinValues = {
+            MakeUnversionedUint64Value(5),
+            MakeUnversionedStringValue("gaga"),
+            MakeUnversionedInt64Value(-77777),
+            MakeUnversionedSentinelValue(EValueType::Min),
+        },
+        .ColumnMaxValues = {
+            MakeUnversionedUint64Value(500),
+            MakeUnversionedStringValue("gugu"),
+            MakeUnversionedInt64Value(10),
+            MakeUnversionedSentinelValue(EValueType::Max),
+        },
+        .ColumnNonNullValueCounts = {5, 10, 50, 3},
+        .ChunkRowCount = 50,
+        .LegacyChunkRowCount = 3,
     };
 
     auto rowBuffer = New<TRowBuffer>();
@@ -122,6 +117,8 @@ TEST(TUpdateColumnarStatisticsTest, InitializedStruct)
             MakeUnversionedSentinelValue(EValueType::Max),
         },
         .ColumnNonNullValueCounts = {7, 12, 52, 5},
+        .ChunkRowCount = 52,
+        .LegacyChunkRowCount = 3,
     };
     EXPECT_EQ(statistics, expected);
 }
@@ -153,6 +150,8 @@ TEST(TUpdateColumnarStatisticsTest, DefaultStruct)
             MakeUnversionedDoubleValue(1e70),
         },
         .ColumnNonNullValueCounts = {1, 1, 1},
+        .ChunkRowCount = 1,
+        .LegacyChunkRowCount = 0,
     };
     EXPECT_EQ(statistics, expected);
 }
@@ -184,6 +183,8 @@ TEST(TUpdateColumnarStatisticsTest, StructSizeLessThanRowSize)
             MakeUnversionedDoubleValue(1e70),
         },
         .ColumnNonNullValueCounts = {1, 1, 1},
+        .ChunkRowCount = 1,
+        .LegacyChunkRowCount = 0,
     };
     EXPECT_EQ(statistics, expected);
 }
@@ -207,6 +208,8 @@ TEST(TUpdateColumnarStatisticsTest, NoValueStatistics)
         .ColumnMinValues = {},
         .ColumnMaxValues = {},
         .ColumnNonNullValueCounts = {},
+        .ChunkRowCount = 1,
+        .LegacyChunkRowCount = 0,
     };
     EXPECT_EQ(statistics, expected);
 }
@@ -222,7 +225,7 @@ TEST(TUpdateColumnarStatisticsTest, LegacyStruct)
         },
     });
 
-    TColumnarStatistics statistics = TColumnarStatistics::MakeLegacy(3, 82);
+    TColumnarStatistics statistics = TColumnarStatistics::MakeLegacy(3, 82, 2);
     statistics.Update(rows);
 
     TColumnarStatistics expected{
@@ -231,6 +234,8 @@ TEST(TUpdateColumnarStatisticsTest, LegacyStruct)
         .ColumnMinValues = {},
         .ColumnMaxValues = {},
         .ColumnNonNullValueCounts = {},
+        .ChunkRowCount = 1,
+        .LegacyChunkRowCount = 2,
     };
     EXPECT_EQ(statistics, expected);
 }
@@ -270,6 +275,8 @@ TEST(TUpdateColumnarStatisticsTest, NullColumn)
     statistics.Update(rows);
 
     TColumnarStatistics expected = TColumnarStatistics::MakeEmpty(1);
+    expected.ChunkRowCount = 3;
+    expected.LegacyChunkRowCount = 0;
     EXPECT_EQ(statistics, expected);
 }
 
@@ -290,6 +297,8 @@ TEST(TUpdateColumnarStatisticsTest, DifferentTypesInOneColumn)
         .ColumnMinValues = {MakeUnversionedInt64Value(1000)},
         .ColumnMaxValues = {MakeUnversionedStringValue("chyt")},
         .ColumnNonNullValueCounts = {3},
+        .ChunkRowCount = 3,
+        .LegacyChunkRowCount = 0,
     };
     EXPECT_EQ(statistics, expected);
 }
@@ -328,6 +337,8 @@ TEST(TUpdateColumnarStatisticsTest, VersionedRow)
             MakeUnversionedInt64Value(143)
         },
         .ColumnNonNullValueCounts = {2, 3, 2},
+        .ChunkRowCount = 2,
+        .LegacyChunkRowCount = 0,
     };
     EXPECT_EQ(statistics, expected);
 }
@@ -350,6 +361,8 @@ TEST(TMergeColumnarStatisticsTest, EmptyAndNonEmpty)
             MakeUnversionedSentinelValue(EValueType::Max),
         },
         .ColumnNonNullValueCounts = {5, 10, 50, 3},
+        .ChunkRowCount = 50,
+        .LegacyChunkRowCount = 5,
     };
     lhs += rhs;
     EXPECT_EQ(lhs, rhs);
@@ -372,6 +385,8 @@ TEST(TMergeColumnarStatisticsTest, NonEmptyAndEmpty)
             MakeUnversionedSentinelValue(EValueType::Max),
         },
         .ColumnNonNullValueCounts = {5, 10, 50, 3},
+        .ChunkRowCount = 50,
+        .LegacyChunkRowCount = 5,
     };
     TColumnarStatistics rhs = TColumnarStatistics::MakeEmpty(4);
     TColumnarStatistics oldLhs = lhs;
@@ -402,6 +417,8 @@ TEST(TMergeColumnarStatisticsTest, DifferentTypes)
             MakeUnversionedNullValue(),
         },
         .ColumnNonNullValueCounts = {8, 5, 10, 8, 3, 9, 0},
+        .ChunkRowCount = 10,
+        .LegacyChunkRowCount = 2,
     };
 
     TColumnarStatistics rhs{
@@ -425,6 +442,8 @@ TEST(TMergeColumnarStatisticsTest, DifferentTypes)
             MakeUnversionedNullValue(),
         },
         .ColumnNonNullValueCounts = {12, 7, 10, 10, 2, 8, 0},
+        .ChunkRowCount = 12,
+        .LegacyChunkRowCount = 3,
     };
 
     lhs += rhs;
@@ -450,6 +469,8 @@ TEST(TMergeColumnarStatisticsTest, DifferentTypes)
             MakeUnversionedNullValue(),
         },
         .ColumnNonNullValueCounts = {20, 12, 20, 18, 5, 17, 0},
+        .ChunkRowCount = 22,
+        .LegacyChunkRowCount = 5,
     };
     EXPECT_EQ(lhs, expected);
 }
@@ -461,6 +482,7 @@ TEST(TMergeColumnarStatisticsTest, DifferentTypesInOneColumn)
         .ColumnMinValues = {MakeUnversionedInt64Value(10)},
         .ColumnMaxValues = {MakeUnversionedBooleanValue(false)},
         .ColumnNonNullValueCounts = {20},
+        .ChunkRowCount = 20,
     };
 
     TColumnarStatistics rhs{
@@ -468,6 +490,7 @@ TEST(TMergeColumnarStatisticsTest, DifferentTypesInOneColumn)
         .ColumnMinValues = {MakeUnversionedDoubleValue(1.9)},
         .ColumnMaxValues = {MakeUnversionedStringValue("pick")},
         .ColumnNonNullValueCounts = {13},
+        .ChunkRowCount = 13,
     };
 
     lhs += rhs;
@@ -477,6 +500,8 @@ TEST(TMergeColumnarStatisticsTest, DifferentTypesInOneColumn)
         .ColumnMinValues = {MakeUnversionedInt64Value(10)},
         .ColumnMaxValues = {MakeUnversionedStringValue("pick")},
         .ColumnNonNullValueCounts = {33},
+        .ChunkRowCount = 33,
+        .LegacyChunkRowCount = 0,
     };
     EXPECT_EQ(lhs, expected);
 }
@@ -488,6 +513,7 @@ TEST(TMergeColumnarStatisticsTest, NoValueStatistics)
         .ColumnMinValues = {MakeUnversionedInt64Value(10)},
         .ColumnMaxValues = {MakeUnversionedInt64Value(22)},
         .ColumnNonNullValueCounts = {8},
+        .ChunkRowCount = 8,
     };
 
     TColumnarStatistics rhs = TColumnarStatistics::MakeEmpty(1, /*hasValueStatistics*/ false);
@@ -499,6 +525,8 @@ TEST(TMergeColumnarStatisticsTest, NoValueStatistics)
         .ColumnMinValues = {},
         .ColumnMaxValues = {},
         .ColumnNonNullValueCounts = {},
+        .ChunkRowCount = 8,
+        .LegacyChunkRowCount = 0,
     };
     EXPECT_EQ(lhs, expected);
 }
@@ -510,9 +538,10 @@ TEST(TMergeColumnarStatisticsTest, LegacyStruct)
         .ColumnMinValues = {MakeUnversionedInt64Value(10)},
         .ColumnMaxValues = {MakeUnversionedInt64Value(22)},
         .ColumnNonNullValueCounts = {8},
+        .ChunkRowCount = 8,
     };
 
-    TColumnarStatistics rhs = TColumnarStatistics::MakeLegacy(1, 178);
+    TColumnarStatistics rhs = TColumnarStatistics::MakeLegacy(1, 178, 3);
 
     lhs += rhs;
 
@@ -522,6 +551,8 @@ TEST(TMergeColumnarStatisticsTest, LegacyStruct)
         .ColumnMinValues = {},
         .ColumnMaxValues = {},
         .ColumnNonNullValueCounts = {},
+        .ChunkRowCount = 8,
+        .LegacyChunkRowCount = 3,
     };
     EXPECT_EQ(lhs, expected);
 }
@@ -549,6 +580,8 @@ TEST(TColumnarStatisticsColumnSelectionTest, ColumnSelect)
             MakeUnversionedNullValue(),
         },
         .ColumnNonNullValueCounts = {8, 5, 10, 8, 3, 9, 0},
+        .ChunkRowCount = 10,
+        .LegacyChunkRowCount = 2,
     };
     TNameTablePtr nameTable = TNameTable::FromKeyColumns({"buzz", "off", "taken", "sec", "list", "size", "friend"});
     std::vector<TStableName> stableNames = {
@@ -581,6 +614,8 @@ TEST(TColumnarStatisticsColumnSelectionTest, ColumnSelect)
             MakeUnversionedNullValue(),
         },
         .ColumnNonNullValueCounts = {0, 10, 8, 0, 3, 0},
+        .ChunkRowCount = 10,
+        .LegacyChunkRowCount = 2,
     };
     EXPECT_EQ(selectedStatistics, expected);
 }

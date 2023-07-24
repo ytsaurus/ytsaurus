@@ -1174,6 +1174,13 @@ void ToProto(
     NYT::NTableClient::ToProto(protoStatistics->mutable_column_min_values(), statistics.ColumnMinValues);
     NYT::NTableClient::ToProto(protoStatistics->mutable_column_max_values(), statistics.ColumnMaxValues);
     NYT::ToProto(protoStatistics->mutable_column_non_null_value_counts(), statistics.ColumnNonNullValueCounts);
+
+    if (statistics.ChunkRowCount) {
+        protoStatistics->set_chunk_row_count(*statistics.ChunkRowCount);
+    }
+    if (statistics.LegacyChunkRowCount) {
+        protoStatistics->set_legacy_chunk_row_count(*statistics.LegacyChunkRowCount);
+    }
 }
 
 void FromProto(
@@ -1191,6 +1198,17 @@ void FromProto(
     NYT::NTableClient::FromProto(&statistics->ColumnMinValues, protoStatistics.column_min_values());
     NYT::NTableClient::FromProto(&statistics->ColumnMaxValues, protoStatistics.column_max_values());
     NYT::FromProto(&statistics->ColumnNonNullValueCounts, protoStatistics.column_non_null_value_counts());
+
+    if (protoStatistics.has_chunk_row_count()) {
+        statistics->ChunkRowCount = protoStatistics.chunk_row_count();
+    } else {
+        statistics->ChunkRowCount.reset();
+    }
+    if (protoStatistics.has_legacy_chunk_row_count()) {
+        statistics->LegacyChunkRowCount = protoStatistics.legacy_chunk_row_count();
+    } else {
+        statistics->LegacyChunkRowCount.reset();
+    }
 }
 
 void ToProto(

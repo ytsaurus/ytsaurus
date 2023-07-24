@@ -148,6 +148,8 @@ class _TestColumnarStatisticsBase(YTEnvSetup):
             "column_max_values",
             "column_non_null_value_counts",
             "column_data_weights",
+            "chunk_row_count",
+            "legacy_chunk_row_count",
         ]
         for statistics_name in LIST_OF_COLUMNAR_STATISTICS_NAMES:
             if expected_statistics.get(statistics_name) is not None:
@@ -439,28 +441,36 @@ class TestColumnarStatistics(_TestColumnarStatisticsBase):
             table_path, ["a", "b", "c", "d", "x"],
             column_min_values={"a": "t" * MAX_STRING_VALUE_LENGTH, "b": -10, "c": False, "d": 5, "x": VALUE_MIN},
             column_max_values={"a": "x" * (MAX_STRING_VALUE_LENGTH - 1) + "y", "b": 23, "c": True, "d": False, "x": VALUE_MAX},
-            column_non_null_value_counts={"a": 3, "b": 3, "c": 3, "d": 2, "x": 2}
+            column_non_null_value_counts={"a": 3, "b": 3, "c": 3, "d": 2, "x": 2},
+            chunk_row_count=5,
+            legacy_chunk_row_count=0
         )
 
         self._expect_columnar_statistics(
             table_path, ["a", "b", "d", "x"], 1, 4,
             column_min_values={"a": "t" * MAX_STRING_VALUE_LENGTH, "b": -10, "d": 5, "x": 1},
             column_max_values={"a": "u", "b": 23, "d": 5, "x": 1},
-            column_non_null_value_counts={"a": 2, "b": 2, "d": 1, "x": 1}
+            column_non_null_value_counts={"a": 2, "b": 2, "d": 1, "x": 1},
+            chunk_row_count=3,
+            legacy_chunk_row_count=0
         )
 
         self._expect_columnar_statistics(
             table_path, ["a", "b"], 3, 3,
             column_min_values={"a": None, "b": None},
             column_max_values={"a": None, "b": None},
-            column_non_null_value_counts={"a": 0, "b": 0}
+            column_non_null_value_counts={"a": 0, "b": 0},
+            chunk_row_count=0,
+            legacy_chunk_row_count=0
         )
 
         self._expect_columnar_statistics(
             table_path, ["a", "b", "c"], upper_row_index=1,
             column_min_values={"a": "x" * MAX_STRING_VALUE_LENGTH, "b": 12, "c": VALUE_NULL},
             column_max_values={"a": "x" * (MAX_STRING_VALUE_LENGTH - 1) + "y", "b": 12, "c": VALUE_NULL},
-            column_non_null_value_counts={"a": 1, "b": 1, "c": 0}
+            column_non_null_value_counts={"a": 1, "b": 1, "c": 0},
+            chunk_row_count=1,
+            legacy_chunk_row_count=0
         )
 
     @authors("denvid")
@@ -495,7 +505,9 @@ class TestColumnarStatistics(_TestColumnarStatisticsBase):
             table_path, ["a", "b", "c"],
             column_min_values={"a": 3, "b": "fa", "c": VALUE_NULL},
             column_max_values={"a": 100, "b": "sol", "c": VALUE_NULL},
-            column_non_null_value_counts={"a": 4, "b": 4, "c": 0}
+            column_non_null_value_counts={"a": 4, "b": 4, "c": 0},
+            chunk_row_count=4,
+            legacy_chunk_row_count=0
         )
 
         # Add more rows.
@@ -507,7 +519,9 @@ class TestColumnarStatistics(_TestColumnarStatisticsBase):
             table_path, ["a", "b"],
             column_min_values={"a": 1, "b": "do"},
             column_max_values={"a": 101, "b": "v"},
-            column_non_null_value_counts={"a": 6, "b": 6}
+            column_non_null_value_counts={"a": 6, "b": 6},
+            chunk_row_count=6,
+            legacy_chunk_row_count=0
         )
 
         # Overwrite some value.
@@ -517,6 +531,8 @@ class TestColumnarStatistics(_TestColumnarStatisticsBase):
         self._expect_columnar_statistics(
             table_path, ["a", "b"],
             column_min_values={"a": 1, "b": "fa"},
+            chunk_row_count=6,
+            legacy_chunk_row_count=0
         )
 
 ##################################################################

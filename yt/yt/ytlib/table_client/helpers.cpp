@@ -435,7 +435,8 @@ ui32 GetHeavyColumnStatisticsHash(ui32 salt, const TStableName& stableName)
 
 TColumnarStatistics GetColumnarStatistics(
     const NProto::THeavyColumnStatisticsExt& statistics,
-    const std::vector<TStableName>& columnNames)
+    const std::vector<TStableName>& columnNames,
+    i64 chunkRowCount)
 {
     YT_VERIFY(statistics.version() == 1);
 
@@ -462,6 +463,7 @@ TColumnarStatistics GetColumnarStatistics(
             columnarStatistics.ColumnDataWeights.push_back(it->second);
         }
     }
+    columnarStatistics.ChunkRowCount = chunkRowCount;
 
     return columnarStatistics;
 }
@@ -774,11 +776,17 @@ void ToProto(
     ToProto(protoStatisticsExt->mutable_column_min_values(), statistics.ColumnMinValues);
     ToProto(protoStatisticsExt->mutable_column_max_values(), statistics.ColumnMaxValues);
     ToProto(protoStatisticsExt->mutable_column_non_null_value_counts(), statistics.ColumnNonNullValueCounts);
+
+    if (statistics.ChunkRowCount) {
+        protoStatisticsExt->set_chunk_row_count(*statistics.ChunkRowCount);
+    }
+    YT_VERIFY(statistics.LegacyChunkRowCount == 0);
 }
 
 void FromProto(
     TColumnarStatistics* statistics,
-    const NProto::TColumnarStatisticsExt& protoStatisticsExt)
+    const NProto::TColumnarStatisticsExt& protoStatisticsExt,
+    i64 chunkRowCount)
 {
     FromProto(&statistics->ColumnDataWeights, protoStatisticsExt.column_data_weights());
     if (protoStatisticsExt.has_timestamp_total_weight()) {
@@ -791,6 +799,14 @@ void FromProto(
     FromProto(&statistics->ColumnMinValues, protoStatisticsExt.column_min_values());
     FromProto(&statistics->ColumnMaxValues, protoStatisticsExt.column_max_values());
     FromProto(&statistics->ColumnNonNullValueCounts, protoStatisticsExt.column_non_null_value_counts());
+
+    if (protoStatisticsExt.has_chunk_row_count()) {
+        YT_VERIFY(protoStatisticsExt.chunk_row_count() == chunkRowCount);
+        statistics->ChunkRowCount = protoStatisticsExt.chunk_row_count();
+    } else {
+        statistics->ChunkRowCount = chunkRowCount;
+    }
+    statistics->LegacyChunkRowCount = 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

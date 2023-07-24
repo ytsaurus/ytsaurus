@@ -111,13 +111,16 @@ void TColumnarStatisticsFetcher::OnResponse(
             auto error = NYT::FromProto<TError>(subresponse.error());
             if (error.FindMatching(NChunkClient::EErrorCode::MissingExtension)) {
                 // This is an old chunk. Process it somehow.
-                statistics = TColumnarStatistics::MakeLegacy(GetColumnStableNames(chunkIndex).size(), Chunks_[chunkIndex]->GetDataWeight());
+                statistics = TColumnarStatistics::MakeLegacy(
+                    GetColumnStableNames(chunkIndex).size(),
+                    Chunks_[chunkIndex]->GetDataWeight(),
+                    Chunks_[chunkIndex]->GetTotalRowCount());
             } else {
                 OnChunkFailed(nodeId, chunkIndex, error);
             }
         } else {
             if (subresponse.has_columnar_statistics()) {
-                FromProto(&statistics, subresponse.columnar_statistics());
+                FromProto(&statistics, subresponse.columnar_statistics(), Chunks_[chunkIndex]->GetTotalRowCount());
             } else {
                 // COMPAT(denvid): Delete this with deleting deprecated fields from TRspGetColumnarStatistics.TSubresponse.
                 statistics.ColumnDataWeights = NYT::FromProto<std::vector<i64>>(subresponse.column_data_weights());
@@ -125,6 +128,7 @@ void TColumnarStatisticsFetcher::OnResponse(
                 if (subresponse.has_timestamp_total_weight()) {
                     statistics.TimestampTotalWeight = subresponse.timestamp_total_weight();
                 }
+                statistics.ChunkRowCount = Chunks_[chunkIndex]->GetTotalRowCount();
             }
         }
         if (Options_.StoreChunkStatistics) {
@@ -237,10 +241,10 @@ void TColumnarStatisticsFetcher::AddChunk(TInputChunkPtr chunk, std::vector<TSta
         if (heavyColumnStatistics || Options_.Mode == EColumnarStatisticsFetcherMode::FromMaster) {
             TColumnarStatistics columnarStatistics;
             if (heavyColumnStatistics) {
-                columnarStatistics = GetColumnarStatistics(*heavyColumnStatistics, columnStableNames);
+                columnarStatistics = GetColumnarStatistics(*heavyColumnStatistics, columnStableNames, chunk->GetTotalRowCount());
             } else {
                 YT_VERIFY(Options_.Mode == EColumnarStatisticsFetcherMode::FromMaster);
-                columnarStatistics = TColumnarStatistics::MakeLegacy(columnStableNames.size(), chunk->GetDataWeight());
+                columnarStatistics = TColumnarStatistics::MakeLegacy(columnStableNames.size(), chunk->GetDataWeight(), chunk->GetTotalRowCount());
             }
             Chunks_.emplace_back(chunk);
             if (Options_.StoreChunkStatistics) {

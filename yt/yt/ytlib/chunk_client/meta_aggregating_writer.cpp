@@ -277,7 +277,8 @@ void TMetaAggregatingWriter::AbsorbMeta(const TDeferredChunkMetaPtr& meta, TChun
                 "Cannot absorb meta of a chunk %v without columnar statistics",
                 chunkId);
         }
-        auto chunkColumnarStatistics = NYT::FromProto<TColumnarStatistics>(*columnarStatisticsExt);
+        i64 chunkRowCount = GetProtoExtension<NProto::TMiscExt>(meta->extensions()).row_count();
+        auto chunkColumnarStatistics = NYT::FromProto<TColumnarStatistics>(*columnarStatisticsExt, chunkRowCount);
         if (!ColumnarStatistics_) {
             // First meta.
             ColumnarStatistics_ = std::move(chunkColumnarStatistics);

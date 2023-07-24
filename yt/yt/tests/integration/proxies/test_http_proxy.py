@@ -558,6 +558,8 @@ class TestHttpProxyFraming(HttpProxyTestBase):
         assert statistics[0].get("column_min_values") == {"column_1": 1}
         assert statistics[0].get("column_max_values") == {"column_1": 1}
         assert statistics[0].get("column_non_null_value_counts") == {"column_1": 1}
+        assert statistics[0].get("chunk_row_count") == 1
+        assert statistics[0].get("legacy_chunk_row_count") == 0
 
         remove(self.SUSPENDING_TABLE)
         with pytest.raises(YtResponseError):

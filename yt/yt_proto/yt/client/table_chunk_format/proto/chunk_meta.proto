@@ -252,6 +252,11 @@ message TColumnarStatisticsExt
     optional bytes column_max_values = 5;
     // Number of non-null values in each column.
     repeated int64 column_non_null_value_counts = 6;
+
+    // Total number of rows in a chunk.
+    optional int64 chunk_row_count = 7;
+    // This field is reserved for consistency with TColumnarStatistics message. It has never been used.
+    reserved 8;
 }
 
 message TColumnRenameDescriptor

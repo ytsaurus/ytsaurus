@@ -269,7 +269,11 @@ void PrintTo(const TColumnarStatistics& statistics, std::ostream* os)
         << "ColumnMaxValues: "
         << ::testing::PrintToString(statistics.ColumnMaxValues) << "\n"
         << "ColumnNonNullValueCounts: "
-        << ::testing::PrintToString(statistics.ColumnNonNullValueCounts);
+        << ::testing::PrintToString(statistics.ColumnNonNullValueCounts) << "\n"
+        << "ChunkRowCount: "
+        << ::testing::PrintToString(statistics.ChunkRowCount) << "\n"
+        << "LegacyChunkRowCount: "
+        << ::testing::PrintToString(statistics.LegacyChunkRowCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

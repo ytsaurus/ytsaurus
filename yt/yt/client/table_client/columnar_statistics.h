@@ -58,11 +58,18 @@ struct TColumnarStatistics
     //! Can be missing for data produced before the introduction of value statistics.
     std::vector<i64> ColumnNonNullValueCounts;
 
+    //! Total number of rows in all chunks whose meta contains columnar statistics.
+    //! Can be missing only if the cluster version is 23.1 or older.
+    std::optional<i64> ChunkRowCount = 0;
+    //! Total number of rows in legacy chunks whose meta misses columnar statistics.
+    //! Can be missing only if the cluster version is 23.1 or older.
+    std::optional<i64> LegacyChunkRowCount = 0;
+
     TColumnarStatistics& operator+=(const TColumnarStatistics& other);
     bool operator==(const TColumnarStatistics& other) const = default;
 
     static TColumnarStatistics MakeEmpty(int columnCount, bool hasValueStatistics = true);
-    static TColumnarStatistics MakeLegacy(int columnCount, i64 legacyChunkDataWeight);
+    static TColumnarStatistics MakeLegacy(int columnCount, i64 legacyChunkDataWeight, i64 legacyChunkRowCount);
 
     TLightweightColumnarStatistics MakeLightweightStatistics() const;
 

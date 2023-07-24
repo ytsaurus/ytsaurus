@@ -115,7 +115,8 @@ ui32 GetHeavyColumnStatisticsHash(ui32 salt, const TStableName& stableName);
 
 TColumnarStatistics GetColumnarStatistics(
     const NProto::THeavyColumnStatisticsExt& statistics,
-    const std::vector<TStableName>& columnNames);
+    const std::vector<TStableName>& columnNames,
+    i64 chunkRowCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -211,9 +212,12 @@ void ToProto(
     NProto::TColumnarStatisticsExt* protoStatisticsExt,
     const TColumnarStatistics& statistics);
 
+//! `chunkRowCount` is used to initialize `TColumnarStatistics::ChunkRowCount` from old proto messages
+//! that do not contain it explicitly. For new ones equality of these values is validated.
 void FromProto(
     TColumnarStatistics* statistics,
-    const NProto::TColumnarStatisticsExt& protoStatisticsExt);
+    const NProto::TColumnarStatisticsExt& protoStatisticsExt,
+    i64 chunkRowCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 

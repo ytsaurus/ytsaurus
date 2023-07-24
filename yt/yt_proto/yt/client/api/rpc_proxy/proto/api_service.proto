@@ -1780,6 +1780,11 @@ message TColumnarStatistics
     optional bytes column_max_values = 5;
     // Number of non-null values in each column.
     repeated int64 column_non_null_value_counts = 6;
+
+    // Total number of rows in all chunks whose meta contains columnar statistics.
+    optional int64 chunk_row_count = 7;
+    // Total number of rows in legacy chunks whose meta misses columnar statistics.
+    optional int64 legacy_chunk_row_count = 8;
 }
 
 message TRspGetColumnarStatistics

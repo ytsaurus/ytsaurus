@@ -529,6 +529,8 @@ class TestTableCommands(object):
         assert res[0].get("column_min_values", {}) == {"x": 2, "y": 1}
         assert res[0].get("column_max_values", {}) == {"x": "abacaba", "y": 1}
         assert res[0].get("column_non_null_value_counts", {}) == {"x": 2, "y": 1}
+        assert res[0].get("chunk_row_count", 0) == 2
+        assert res[0].get("legacy_chunk_row_count") == 0
 
     @authors("ignat")
     def test_unaligned_write(self):
