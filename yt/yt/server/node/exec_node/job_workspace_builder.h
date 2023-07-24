@@ -47,7 +47,6 @@ struct TJobWorkspaceBuildSettings
     std::vector<NJobAgent::TShellCommandConfigPtr> SetupCommands;
 
     bool NeedGpuCheck;
-    bool TestExtraGpuCheckCommandFailure;
     std::optional<TString> GpuCheckBinaryPath;
     std::optional<std::vector<TString>> GpuCheckBinaryArgs;
     EGpuCheckType GpuCheckType;

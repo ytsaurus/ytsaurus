@@ -470,7 +470,8 @@ private:
                 .GpuCheckBinaryArgs = *Settings_.GpuCheckBinaryArgs,
                 .GpuCheckType = Settings_.GpuCheckType,
                 .CurrentStartIndex = ResultHolder_.SetupCommandCount,
-                .TestExtraGpuCheckCommandFailure = Settings_.TestExtraGpuCheckCommandFailure,
+                // It is preliminary (not extra) GPU check.
+                .TestExtraGpuCheckCommandFailure = false,
                 .GpuDevices = Settings_.GpuDevices
             };
 
@@ -492,7 +493,7 @@ private:
                 .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& result) {
                     ValidateJobPhase(EJobPhase::RunningGpuCheckCommand);
                     if (!result.IsOK()) {
-                        auto checkError = TError(EErrorCode::GpuCheckCommandFailed, "Preliminary GPU check command failed")
+                        auto checkError = TError(EErrorCode::GpuCheckCommandFailed, "GPU check command failed")
                             << result;
                         THROW_ERROR checkError;
                     }

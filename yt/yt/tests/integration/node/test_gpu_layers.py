@@ -6,7 +6,8 @@ from yt_commands import (
     write_file, read_table, write_table,
     map, vanilla, update_nodes_dynamic_config,
     sync_create_cells, get_job, create_pool,
-    run_test_vanilla)
+    run_test_vanilla,
+    with_breakpoint, wait_breakpoint, release_breakpoint)
 
 import yt.environment.init_operation_archive as init_operation_archive
 
@@ -1210,9 +1211,9 @@ class TestExtraGpuCheckFailure(YTEnvSetup, GpuCheckBase):
         op = map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="echo AAA >&2",
+            command=with_breakpoint("BREAKPOINT; exit 146"),
             spec={
-                "max_failed_job_count": 1,
+                "max_failed_job_count": 2,
                 "fail_on_job_restart": True,
                 "mapper": {
                     "job_count": 1,
@@ -1225,11 +1226,18 @@ class TestExtraGpuCheckFailure(YTEnvSetup, GpuCheckBase):
             track=False,
         )
 
+        wait_breakpoint(job_count=1)
+        assert op.get_state() == "running"
+
+        release_breakpoint()
         wait(lambda: op.get_state() == "failed", timeout=INCREASED_TIMEOUT)
+
+        # In case of this error the job considered as aborted.
+        assert op.get_job_count("aborted", from_orchid=False) == 1
 
         alerts_path = "//sys/cluster_nodes/{}/@alerts".format(node)
         wait(lambda: get(alerts_path))
 
         alerts = get(alerts_path)
         assert len(alerts) == 1
-        assert "GPU check command failed" in str(alerts[0])
+        assert "Testing extra GPU check command failed" in str(alerts[0])

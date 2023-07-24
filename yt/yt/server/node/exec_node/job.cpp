@@ -1595,7 +1595,6 @@ void TJob::RunWithWorkspaceBuilder()
         .SetupCommands = GetSetupCommands(),
 
         .NeedGpuCheck = NeedsGpuCheck(),
-        .TestExtraGpuCheckCommandFailure = Config_->JobController->GpuManager->TestExtraGpuCheckCommandFailure,
         .GpuCheckBinaryPath = UserJobSpec_
             ? std::make_optional(UserJobSpec_->gpu_check_binary_path())
             : std::nullopt,
