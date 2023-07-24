@@ -529,7 +529,7 @@ def add_expiration_timeout_to_attributes(attributes, expiration_timeout):
 def do_process_scheduler_log_on_yt(client, input_table, output_table, expiration_timeout):
     pools = TableInfo(row_type=PoolsRow)
     tags = TableInfo(row_type=TagsRow)
-    table_info_per_category = {"pools": pools, "tags": tags}
+    table_info_per_category = {"pools_tables": pools, "tags": tags}
 
     reduce_by = ["cluster", "pool_tree", "pool_path", "operation_id"]
     sort_by = reduce_by + ["timestamp"]

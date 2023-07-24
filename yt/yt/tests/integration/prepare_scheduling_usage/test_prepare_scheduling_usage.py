@@ -249,7 +249,7 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
         output_filepath = yt.ypath_join(output_dir, target)
 
         target_schemas = {
-            "pools": {
+            "pools_tables": {
                 "cluster": "utf8",
                 "pool_tree": "utf8",
                 "pool_path": "utf8",
@@ -297,7 +297,7 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
                 ]),
                 stderr=fout)
 
-        for table_category in ("pools", "tags"):
+        for table_category in ("pools_tables", "tags"):
             link_target_path = yt.ypath_join(output_dir, table_category, target)
             assert exists(link_target_path)
 
