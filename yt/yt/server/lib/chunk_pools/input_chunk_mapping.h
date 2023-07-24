@@ -4,6 +4,8 @@
 
 #include "chunk_pool.h"
 
+#include <yt/yt/core/logging/log.h>
+
 namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,7 +36,7 @@ public:
     //! Used for persistence only.
     TInputChunkMapping() = default;
 
-    explicit TInputChunkMapping(EChunkMappingMode mode);
+    explicit TInputChunkMapping(EChunkMappingMode mode, NLogging::TLogger logger);
 
     //! Modify given stripe, replacing all the input chunks with their current
     //! substitutes.
@@ -66,6 +68,7 @@ private:
     EChunkMappingMode Mode_;
     THashMap<NChunkClient::TInputChunkPtr, TCompactVector<NChunkClient::TInputChunkPtr, 1>> Substitutes_;
     THashMap<NChunkPools::IChunkPoolInput::TCookie, NChunkPools::TChunkStripePtr> OriginalStripes_;
+    NLogging::TLogger Logger;
 
     NChunkPools::TChunkStripePtr GetMappedStripeGuarded(const NChunkPools::TChunkStripePtr& stripe) const;
 

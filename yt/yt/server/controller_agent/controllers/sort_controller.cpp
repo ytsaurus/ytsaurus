@@ -1608,9 +1608,9 @@ protected:
             MultiChunkPool_->GetJobCounter()->AddParent(Controller_->SortedMergeJobCounter);
 
             if (enableKeyGuarantee) {
-                InputChunkMapping_ = New<TInputChunkMapping>(EChunkMappingMode::Sorted);
+                InputChunkMapping_ = New<TInputChunkMapping>(EChunkMappingMode::Sorted, Logger);
             } else {
-                InputChunkMapping_ = New<TInputChunkMapping>(EChunkMappingMode::SortedWithoutKeyGuarantree);
+                InputChunkMapping_ = New<TInputChunkMapping>(EChunkMappingMode::SortedWithoutKeyGuarantree, Logger);
             }
         }
 
@@ -2368,7 +2368,7 @@ protected:
             auto shuffleMultiChunkPoolInput = CreateMultiChunkPoolInput(std::move(shuffleChunkPoolInputs));
             ShuffleMultiChunkPoolInputs.push_back(std::move(shuffleMultiChunkPoolInput));
 
-            ShuffleMultiInputChunkMappings.push_back(New<TInputChunkMapping>(EChunkMappingMode::Unordered));
+            ShuffleMultiInputChunkMappings.push_back(New<TInputChunkMapping>(EChunkMappingMode::Unordered, Logger));
         }
     }
 

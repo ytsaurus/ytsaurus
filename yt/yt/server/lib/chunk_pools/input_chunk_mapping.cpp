@@ -19,12 +19,14 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TInputChunkMappingPtr IdentityChunkMapping = New<TInputChunkMapping>(EChunkMappingMode::Unordered);
+NLogging::TLogger Logger("IdentityChunkMapping");
+TInputChunkMappingPtr IdentityChunkMapping = New<TInputChunkMapping>(EChunkMappingMode::Unordered, Logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TInputChunkMapping::TInputChunkMapping(EChunkMappingMode mode)
+TInputChunkMapping::TInputChunkMapping(EChunkMappingMode mode, NLogging::TLogger logger)
     : Mode_(mode)
+    , Logger(logger)
 { }
 
 TChunkStripePtr TInputChunkMapping::GetMappedStripe(const TChunkStripePtr& stripe) const
@@ -40,8 +42,11 @@ TChunkStripePtr TInputChunkMapping::GetMappedStripeGuarded(const TChunkStripePtr
     YT_VERIFY(stripe);
 
     if (Substitutes_.empty()) {
+        YT_LOG_DEBUG("Input chunk mapping has not modified the stripe");
         return stripe;
     }
+
+    int chunksMapped = 0;
 
     auto mappedStripe = New<TChunkStripe>();
     for (const auto& dataSlice : stripe->DataSlices) {
@@ -62,6 +67,12 @@ TChunkStripePtr TInputChunkMapping::GetMappedStripeGuarded(const TChunkStripePtr
                     if (dataSlice->HasLimits()) {
                         YT_VERIFY(substitutes.size() == 1);
                         auto substituteChunk = substitutes.front();
+                        YT_LOG_DEBUG(
+                            "Input chunk mapping has mapped a chunk "
+                            "(From: %v, To: %v, Legacy: True, Single: True)",
+                            chunk->GetChunkId(),
+                            substituteChunk->GetChunkId());
+                        ++chunksMapped;
                         auto chunkSlice = CreateInputChunkSlice(substituteChunk);
                         chunkSlice->LegacyLowerLimit() = dataSlice->ChunkSlices[0]->LegacyLowerLimit();
                         chunkSlice->LegacyUpperLimit() = dataSlice->ChunkSlices[0]->LegacyUpperLimit();
@@ -73,6 +84,12 @@ TChunkStripePtr TInputChunkMapping::GetMappedStripeGuarded(const TChunkStripePtr
                         mappedStripe->DataSlices.back()->SetInputStreamIndex(dataSlice->GetInputStreamIndex());
                     } else {
                         for (const auto& substituteChunk : substitutes) {
+                            YT_LOG_DEBUG(
+                                "Input chunk mapping has mapped a chunk "
+                                "(From: %v, To: %v, Legacy: True, Single: False)",
+                                chunk->GetChunkId(),
+                                substituteChunk->GetChunkId());
+                            ++chunksMapped;
                             mappedStripe->DataSlices.emplace_back(New<TLegacyDataSlice>(
                                 dataSlice->Type,
                                 TLegacyDataSlice::TChunkSliceList{CreateInputChunkSlice(substituteChunk)} ));
@@ -83,6 +100,12 @@ TChunkStripePtr TInputChunkMapping::GetMappedStripeGuarded(const TChunkStripePtr
                     if (dataSlice->HasLimits()) {
                         YT_VERIFY(substitutes.size() == 1);
                         auto substituteChunk = substitutes.front();
+                        YT_LOG_DEBUG(
+                            "Input chunk mapping has mapped a chunk "
+                            "(From: %v, To: %v, Legacy: False, Single: True)",
+                            chunk->GetChunkId(),
+                            substituteChunk->GetChunkId());
+                        ++chunksMapped;
 
                         auto mappedDataSlice = CreateInputDataSlice(dataSlice);
                         mappedDataSlice->ChunkSlices[0]->SetInputChunk(substituteChunk);
@@ -90,6 +113,12 @@ TChunkStripePtr TInputChunkMapping::GetMappedStripeGuarded(const TChunkStripePtr
                         mappedStripe->DataSlices.emplace_back(std::move(mappedDataSlice));
                     } else {
                         for (const auto& substituteChunk : substitutes) {
+                            YT_LOG_DEBUG(
+                                "Input chunk mapping has mapped a chunk "
+                                "(From: %v, To: %v, Legacy: False, Single: False)",
+                                chunk->GetChunkId(),
+                                substituteChunk->GetChunkId());
+                            ++chunksMapped;
                             auto mappedDataSlice = CreateInputDataSlice(dataSlice);
                             mappedDataSlice->ChunkSlices[0]->SetInputChunk(substituteChunk);
                             mappedDataSlice->CopyPayloadFrom(*dataSlice);
@@ -107,6 +136,8 @@ TChunkStripePtr TInputChunkMapping::GetMappedStripeGuarded(const TChunkStripePtr
         }
     }
 
+    YT_LOG_DEBUG("Input chunk mapping has modified the stripe (ChunksMapped: %v)", chunksMapped);
+
     return mappedStripe;
 }
 
@@ -115,6 +146,8 @@ void TInputChunkMapping::OnStripeRegenerated(
     const NChunkPools::TChunkStripePtr& newStripe)
 {
     auto guard = WriterGuard(SpinLock_);
+
+    YT_LOG_DEBUG("Input chunk mapping has regenerated the stripe (Cookie: %v)", cookie);
 
     YT_VERIFY(cookie != IChunkPoolInput::NullCookie);
     const auto& oldStripe = OriginalStripes_[cookie];
@@ -156,6 +189,11 @@ void TInputChunkMapping::OnStripeRegenerated(
 
         for (int newIndex = begin; newIndex < end; ++newIndex) {
             const auto& newChunk = newStripe->DataSlices[newIndex]->GetSingleUnversionedChunk();
+            YT_LOG_DEBUG(
+                "Input chunk mapping has added a substitute (Cookie: %v, From: %v, To: %v)",
+                cookie,
+                oldChunk->GetChunkId(),
+                newChunk->GetChunkId());
             substitutes.emplace_back(newChunk);
         }
     }
@@ -206,6 +244,7 @@ void TInputChunkMapping::OnChunkDisappeared(const TInputChunkPtr& chunk)
 {
     auto guard = WriterGuard(SpinLock_);
 
+    YT_LOG_DEBUG("Input chunk mapping has registered a chunk disappearence (Chunk: %v)", chunk->GetChunkId());
     Substitutes_[chunk].clear();
 }
 
@@ -213,6 +252,7 @@ void TInputChunkMapping::Reset(IChunkPoolInput::TCookie resetCookie, const TChun
 {
     auto guard = WriterGuard(SpinLock_);
 
+    YT_LOG_DEBUG("Input chunk mapping has been reset (Cookie: %v)", resetCookie);
     for (auto& [cookie, stripe] : OriginalStripes_) {
         if (cookie == resetCookie) {
             stripe = resetStripe;
@@ -228,6 +268,7 @@ void TInputChunkMapping::Add(IChunkPoolInput::TCookie cookie, const TChunkStripe
 {
     auto guard = WriterGuard(SpinLock_);
 
+    YT_LOG_DEBUG("Input chunk mapping has added a cookie (Cookie: %v)", cookie);
     YT_VERIFY(OriginalStripes_.emplace(cookie, stripe).second);
 }
 
