@@ -948,8 +948,7 @@ TEnumIndexedVector<EBinaryOp, TOperatorTyper> BuildBinaryOperatorTypers()
         };
     }
 
-    for (auto op : {EBinaryOp::Concatenate})
-    {
+    for (auto op : {EBinaryOp::Concatenate}) {
         result[op] = {
             TTypeSet({ EValueType::String, }),
             EValueType::String
