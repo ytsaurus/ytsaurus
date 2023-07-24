@@ -1874,9 +1874,9 @@ bool TStoreLocation::ScheduleDisable(const TError& reason)
                 .Run())
                 .ThrowOnError();
 
-            CreateDisableLockFile(reason);
             RemoveLocationChunks();
             ResetLocationStatistic();
+            CreateDisableLockFile(reason);
         } catch (const std::exception& ex) {
             YT_LOG_ALERT(ex, "Location disabling error");
         }
