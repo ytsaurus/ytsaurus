@@ -177,6 +177,9 @@ jobs:
             chmod -R 755 /usr/share/scala && \
             ln -s /usr/share/scala/bin/* /usr/local/bin
 
+      - name: Set up python
+        run: python3.11 -m pip install --ignore-installed setuptools<60.0.0
+
       - name: Write credentials
         run: |
           mkdir -p ~/.sbt

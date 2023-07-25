@@ -12,7 +12,7 @@ import java.io.File
 import scala.Function.const
 
 object SpytRelease {
-  lazy val clientReleaseProcess: Seq[ReleaseStep] = testProcess ++ Seq(
+  lazy val clientReleaseProcess: Seq[ReleaseStep] = Seq(
     ReleaseStep(releaseStepTask(prepareBuildDirectory)),
     clientReleaseVersions,
     setReleaseClientVersion,
@@ -30,7 +30,7 @@ object SpytRelease {
     logClientVersion
   )
 
-  lazy val clusterReleaseProcess: Seq[ReleaseStep] = testProcess ++ Seq(
+  lazy val clusterReleaseProcess: Seq[ReleaseStep] = Seq(
     ReleaseStep(releaseStepTask(prepareBuildDirectory)),
     minorReleaseVersions,
     setReleaseClusterVersion,
@@ -51,7 +51,7 @@ object SpytRelease {
     logClientVersion
   )
 
-  lazy val sparkForkReleaseProcess: Seq[ReleaseStep] = testProcess ++ Seq(
+  lazy val sparkForkReleaseProcess: Seq[ReleaseStep] = Seq(
     ReleaseStep(releaseStepTask(prepareBuildDirectory)),
     minorReleaseVersions,
     setReleaseClusterVersion,
