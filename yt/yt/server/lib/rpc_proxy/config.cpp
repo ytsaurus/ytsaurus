@@ -69,6 +69,8 @@ void TApiServiceDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("structured_logging_max_request_byte_size", &TThis::StructuredLoggingMaxRequestByteSize)
         .Default(10_KB);
+    registrar.Parameter("structured_logging_query_truncation_size", &TThis::StructuredLoggingQueryTruncationSize)
+        .Default(256);
     registrar.Parameter("formats", &TThis::Formats)
         .Default();
 

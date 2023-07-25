@@ -86,6 +86,10 @@ public:
     //! If request byte size exceeds this value, it will be logged as # in main topic.
     i64 StructuredLoggingMaxRequestByteSize;
 
+    //! Maximum size of the query in SelectRows request.
+    //! Queries exeeding this limit will be truncated.
+    i64 StructuredLoggingQueryTruncationSize;
+
     THashMap<NFormats::EFormatType, TFormatConfigPtr> Formats;
 
     REGISTER_YSON_STRUCT(TApiServiceDynamicConfig);

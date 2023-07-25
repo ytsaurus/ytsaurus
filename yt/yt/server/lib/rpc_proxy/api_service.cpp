@@ -879,8 +879,20 @@ private:
             TProtobufParserOptions parserOptions{
                 .SkipUnknownFields = true,
             };
-            if (static_cast<i64>(context->Request().ByteSizeLong()) <= config->StructuredLoggingMaxRequestByteSize) {
-                WriteProtobufMessage(&requestYsonWriter, context->Request(), parserOptions);
+
+            const TRequestMessage* request = &context->Request();
+            TRequestMessage copy;
+
+            if constexpr (std::is_same_v<TRequestMessage, NApi::NRpcProxy::NProto::TReqSelectRows>) {
+                if (std::ssize(request->query()) > config->StructuredLoggingQueryTruncationSize) {
+                    copy = *request;
+                    copy.mutable_query()->resize(config->StructuredLoggingQueryTruncationSize);
+                    request = &copy;
+                }
+            }
+
+            if (static_cast<i64>(request->ByteSizeLong()) <= config->StructuredLoggingMaxRequestByteSize) {
+                WriteProtobufMessage(&requestYsonWriter, *request, parserOptions);
             } else {
                 requestYsonWriter.OnEntity();
             }
