@@ -62,7 +62,7 @@ public:
             .ClusterCount = static_cast<int>(bridgeClusters.size()),
             .Clusters = bridgeClusters.data(),
             .DefaultCluster = defaultCluster,
-            .YTToken = options.YTToken.data(),
+            .YTTokenPath = options.YTTokenPath.data(),
             .LogBackend = &options.LogBackend,
         };
 

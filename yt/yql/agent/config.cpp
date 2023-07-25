@@ -24,7 +24,7 @@ void TYqlPluginConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("default_cluster", &TThis::DefaultCluster)
         .Default();
-    registrar.Parameter("yt_token", &TThis::YTToken)
+    registrar.Parameter("yt_token_path", &TThis::YTTokenPath)
         .Default();
     registrar.Parameter("yql_plugin_shared_library", &TThis::YqlPluginSharedLibrary)
         .Default();

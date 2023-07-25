@@ -23,7 +23,7 @@ struct TBridgeYqlPluginOptions
     TBridgeCluster* Clusters;
     const char* DefaultCluster;
 
-    const char* YTToken;
+    const char* YTTokenPath;
 
     // TODO(max42): passing C++ objects across shared libraries is incredibly
     // fragile. This is a temporary mean until we come up with something more

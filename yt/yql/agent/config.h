@@ -27,7 +27,7 @@ public:
     THashMap<TString, TString> Clusters;
     std::optional<TString> DefaultCluster;
 
-    TString YTToken;
+    TString YTTokenPath;
 
     //! Path to libyqlplugin.so. Ignored when built with -DYQL_NATIVE=yes.
     std::optional<TString> YqlPluginSharedLibrary;

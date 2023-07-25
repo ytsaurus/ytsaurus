@@ -20,7 +20,7 @@ public:
     THashMap<TString, TString> Clusters;
     std::optional<TString> DefaultCluster;
 
-    TString YTToken;
+    TString YTTokenPath;
 
     THolder<TLogBackend> LogBackend;
 

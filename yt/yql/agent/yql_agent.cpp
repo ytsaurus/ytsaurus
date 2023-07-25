@@ -64,7 +64,7 @@ public:
             .UdfDirectory = Config_->UdfDirectory,
             .Clusters = clusters,
             .DefaultCluster = Config_->DefaultCluster,
-            .YTToken = Config_->YTToken,
+            .YTTokenPath = Config_->YTTokenPath,
             .LogBackend = NYT::NLogging::CreateArcadiaLogBackend(TLogger("YqlPlugin")),
             .YqlPluginSharedLibrary = Config_->YqlPluginSharedLibrary,
         };
