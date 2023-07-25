@@ -179,7 +179,7 @@ jobs:
 
       - name: Set up python
         run: |
-          apt install python3-pip
+          apt install -y python3-pip
           python3 -m pip install pip
           python3 -m pip install twine "setuptools<60.0.0"
 
