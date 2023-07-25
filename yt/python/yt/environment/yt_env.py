@@ -261,7 +261,13 @@ class YTInstance(object):
         else:
             self.watcher_config["disable_logrotate"] = True
 
-        self._default_client_config = {"enable_token": False}
+        self._default_client_config = {
+            "enable_token": False,
+            "is_local_mode": True,
+            "pickling": {
+                "enable_local_files_usage_in_job": True,
+            }
+        }
 
         self._open_port_iterator = _get_ports_generator(yt_config)
         self._prepare_builtin_environment(self._open_port_iterator, modify_configs_func)
