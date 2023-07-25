@@ -50,11 +50,16 @@ public:
         , AgentId_(std::move(agentId))
         , ThreadPool_(CreateThreadPool(Config_->YqlThreadCount, "Yql"))
     {
+        static const TYsonString EmptyMap = TYsonString(TString("{}"));
+
+        auto operationAttributes = Config_->OperationAttributes
+            ? ConvertToYsonString(Config_->OperationAttributes)
+            : EmptyMap;
+
         THashMap<TString, TString> clusters;
         for (const auto& cluster : ClusterDirectory_->GetClusterNames()) {
             clusters[cluster] = cluster;
         }
-
         for (const auto& [cluster, address] : Config_->Clusters) {
             clusters[cluster] = address;
         }
@@ -64,6 +69,7 @@ public:
             .UdfDirectory = Config_->UdfDirectory,
             .Clusters = clusters,
             .DefaultCluster = Config_->DefaultCluster,
+            .OperationAttributes = operationAttributes,
             .YTTokenPath = Config_->YTTokenPath,
             .LogBackend = NYT::NLogging::CreateArcadiaLogBackend(TLogger("YqlPlugin")),
             .YqlPluginSharedLibrary = Config_->YqlPluginSharedLibrary,
@@ -109,6 +115,8 @@ private:
 
     std::pair<TRspStartQuery, std::vector<TSharedRef>> DoStartQuery(TQueryId queryId, const TString& impersonationUser, const TReqStartQuery& request)
     {
+        static const TYsonString EmptyMap = TYsonString(TString("{}"));
+
         const auto& Logger = YqlAgentLogger.WithTag("QueryId: %v", queryId);
 
         const auto& yqlRequest = request.yql_request();
@@ -123,8 +131,9 @@ private:
             if (request.build_rowsets()) {
                 query = "pragma RefSelect; pragma yt.UseNativeYtTypes; " + query;
             }
+            auto settings = yqlRequest.has_settings() ? TYsonString(yqlRequest.settings()) : EmptyMap;
             // This is a long blocking call.
-            auto result = YqlPlugin_->Run(impersonationUser, query);
+            auto result = YqlPlugin_->Run(impersonationUser, query, settings);
             if (result.YsonError) {
                 auto error = ConvertTo<TError>(TYsonString(*result.YsonError));
                 THROW_ERROR error;

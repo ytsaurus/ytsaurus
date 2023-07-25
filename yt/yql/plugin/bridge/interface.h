@@ -23,6 +23,8 @@ struct TBridgeYqlPluginOptions
     TBridgeCluster* Clusters;
     const char* DefaultCluster;
 
+    const char* OperationAttributes;
+
     const char* YTTokenPath;
 
     // TODO(max42): passing C++ objects across shared libraries is incredibly
@@ -59,7 +61,7 @@ struct TBridgeQueryResult
 };
 
 using TFuncBridgeFreeQueryResult = void(TBridgeQueryResult* result);
-using TFuncBridgeRun = TBridgeQueryResult*(TBridgeYqlPlugin* plugin, const char* impersonationUser, const char* queryText);
+using TFuncBridgeRun = TBridgeQueryResult*(TBridgeYqlPlugin* plugin, const char* impersonationUser, const char* queryText, const char* settings);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -2,11 +2,16 @@
 
 #include <util/generic/hash.h>
 #include <util/generic/string.h>
+
 #include <library/cpp/logger/log.h>
+
+#include <library/cpp/yt/yson_string/string.h>
 
 #include <optional>
 
 namespace NYT::NYqlPlugin {
+
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,6 +24,8 @@ public:
     //! Mapping cluster name -> proxy address.
     THashMap<TString, TString> Clusters;
     std::optional<TString> DefaultCluster;
+
+    TYsonString OperationAttributes;
 
     TString YTTokenPath;
 
@@ -44,7 +51,7 @@ struct TQueryResult
 //! is implemented by a dynamic library.
 struct IYqlPlugin
 {
-    virtual TQueryResult Run(TString impersonationUser, TString queryText) noexcept = 0;
+    virtual TQueryResult Run(TString impersonationUser, TString queryText, TYsonString settings) noexcept = 0;
 
     virtual ~IYqlPlugin() = default;
 };

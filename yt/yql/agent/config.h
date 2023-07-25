@@ -27,6 +27,8 @@ public:
     THashMap<TString, TString> Clusters;
     std::optional<TString> DefaultCluster;
 
+    NYTree::INodePtr OperationAttributes;
+
     TString YTTokenPath;
 
     //! Path to libyqlplugin.so. Ignored when built with -DYQL_NATIVE=yes.

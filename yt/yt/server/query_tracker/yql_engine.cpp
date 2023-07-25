@@ -78,6 +78,7 @@ public:
         req->set_row_count_limit(Config_->RowCountLimit);
         ToProto(req->mutable_query_id(), QueryId_);
         yqlRequest->set_query(Query_);
+        yqlRequest->set_settings(ConvertToYsonString(SettingsNode_).ToString());
         req->set_build_rowsets(true);
         AsyncQueryResult_  = req->Invoke();
         AsyncQueryResult_.Subscribe(BIND(&TYqlQueryHandler::OnYqlResponse, MakeWeak(this)).Via(GetCurrentInvoker()));

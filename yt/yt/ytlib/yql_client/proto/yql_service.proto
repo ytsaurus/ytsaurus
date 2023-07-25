@@ -14,6 +14,7 @@ message TYqlRequest
     optional bytes attributes = 4; // YSON
     optional bytes parameters = 5; // YSON
     optional int64 mode = 6 [default = 2]; // EExecuteMode
+    optional bytes settings = 7; // YSON
 }
 
 // A counterpart to NYql::NEmbedded::IOperation and to NYqlClient::TYqlResponse.
