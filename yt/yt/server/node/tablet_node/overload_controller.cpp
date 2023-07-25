@@ -207,8 +207,8 @@ void TOverloadController::AddTracker(const TString& name, const TExecutorPtr& in
     auto guard = Guard(SpinLock_);
     State_.Trackers.push_back(tracker);
     auto& sensors = State_.TrackerSensors[name];
-    sensors.Overloaded = profiler.GaugeSummary("/overloaded");
-    sensors.MeanWaitTime = profiler.TimeGaugeSummary("/mean_wait_time");
+    sensors.Overloaded = profiler.Summary("/overloaded");
+    sensors.MeanWaitTime = profiler.Timer("/mean_wait_time");
 
     UpdateStateSnapshot(State_, std::move(guard));
 }
@@ -289,8 +289,8 @@ void TOverloadController::DoAdjust(const THazardPtr<TState>& state)
         bool trackerOverloaded = movingMeanValue > it->second->MeanWaitTimeThreshold;
 
         if (auto it = state->TrackerSensors.find(tracker->GetName()); it != state->TrackerSensors.end()) {
-            it->second.Overloaded.Update(static_cast<int>(trackerOverloaded));
-            it->second.MeanWaitTime.Update(movingMeanValue);
+            it->second.Overloaded.Record(static_cast<int>(trackerOverloaded));
+            it->second.MeanWaitTime.Record(movingMeanValue);
         }
 
         if (!trackerOverloaded) {

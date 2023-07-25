@@ -27,8 +27,8 @@ class TOverloadController
 public:
     struct TTrackerSensors
     {
-        NProfiling::TGauge Overloaded;
-        NProfiling::TTimeGauge MeanWaitTime;
+        NProfiling::TSummary Overloaded;
+        NProfiling::TEventTimer MeanWaitTime;
     };
 
     using TMethodIndex = std::pair<TString, TString>;

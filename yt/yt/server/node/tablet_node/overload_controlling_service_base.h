@@ -24,7 +24,7 @@ protected:
         NBus::IBusPtr replyBus) override;
 
 private:
-    const NTabletNode::IBootstrap* Bootstrap_;
+    NTabletNode::IBootstrap* const Bootstrap_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
