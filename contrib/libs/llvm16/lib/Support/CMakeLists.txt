@@ -22,6 +22,7 @@ target_link_libraries(llvm16-lib-Support PUBLIC
   contrib-libs-llvm16
   llvm16-lib-Demangle
   ZLIB::ZLIB
+  cpp-sanitizer-include
 )
 target_sources(llvm16-lib-Support PRIVATE
   ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Support/ABIBreak.cpp
