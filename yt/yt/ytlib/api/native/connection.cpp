@@ -1206,7 +1206,7 @@ TFuture<TRichYPath> ResolvePhysicalPath(const TRichYPath& objectPath, const ICon
     YT_VERIFY(objectConnection);
     auto objectTableMountCache = objectConnection->GetTableMountCache();
     return objectTableMountCache->GetTableInfo(objectPath.GetPath())
-        .Apply(BIND([=] (const TTableMountInfoPtr& tableInfo) -> TRichYPath {
+        .Apply(BIND([=] (const TTableMountInfoPtr& tableInfo) {
             return TRichYPath(tableInfo->PhysicalPath, objectPath.Attributes());
         }));
 }

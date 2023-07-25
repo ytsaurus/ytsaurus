@@ -49,6 +49,7 @@ public:
     bool IsTrackedConsumerObject() const;
     bool IsSorted() const;
     bool HasNonEmptySchema() const;
+
 private:
     NTableServer::TMasterTableSchema* Schema_ = nullptr;
 };

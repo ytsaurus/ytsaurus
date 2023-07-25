@@ -385,7 +385,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)
         if (!isValidConsumerSchema) {
             THROW_ERROR_EXCEPTION(
                 "Chaos replicated table object cannot be both a queue and a consumer.\
-                To transform consumer into queue set `treat_as_queue_consumer` attribute into False first");
+                To transform consumer into queue set \"treat_as_queue_consumer\" attribute into False first");
         }
     }
 
