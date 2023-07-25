@@ -162,12 +162,12 @@ jobs:
           server-password: OSSRH_TOKEN
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg-passphrase: ${{ secrets.GPG_PASSWORD }}
-#      - name: Set up SBT
-#        run: |
-#          curl -fsL "https://github.com/sbt/sbt/releases/download/v1.5.4/sbt-1.5.4.tgz" | tar xfz - -C /usr/share && \
-#            chown -R root:root /usr/share/sbt && \
-#            chmod -R 755 /usr/share/sbt && \
-#            ln -s /usr/share/sbt/bin/sbt /usr/local/bin/sbt
+      - name: Set up SBT
+        run: |
+          curl -fsL "https://github.com/sbt/sbt/releases/download/v1.5.4/sbt-1.5.4.tgz" | tar xfz - -C /usr/share && \
+            chown -R root:root /usr/share/sbt && \
+            chmod -R 755 /usr/share/sbt && \
+            ln -s /usr/share/sbt/bin/sbt /usr/local/bin/sbt
 
       - name: Set up scala
         run: |
