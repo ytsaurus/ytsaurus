@@ -199,10 +199,10 @@ bool TCacheLocation::ScheduleDisable(const TError& reason)
         WaitFor(BIND([=, this, this_ = MakeStrong(this)] () {
             WaitFor(SynchronizeActions())
                 .ThrowOnError();
-            CreateDisableLockFile(reason);
             WaitFor(RemoveChunks())
                 .ThrowOnError();
             ResetLocationStatistic();
+            CreateDisableLockFile(reason);
         })
             .AsyncVia(GetAuxPoolInvoker())
             .Run())
