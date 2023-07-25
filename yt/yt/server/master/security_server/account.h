@@ -96,9 +96,9 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TAccountStatistics, ClusterStatistics);
     DEFINE_BYREF_RW_PROPERTY(TClusterResourceLimits, ClusterResourceLimits);
     DEFINE_BYVAL_RW_PROPERTY(bool, AllowChildrenLimitOvercommit);
-    DEFINE_BYVAL_RW_PROPERTY(int, ChunkMergerNodeTraversalConcurrency, 0);
+    DEFINE_BYVAL_RW_PROPERTY(int, ChunkMergerNodeTraversalConcurrency, 1);
     DEFINE_BYREF_RW_PROPERTY(TChunkMergerCriteria, ChunkMergerCriteria);
-    DEFINE_BYVAL_RW_PROPERTY(bool, AllowUsingChunkMerger, false);
+    DEFINE_BYVAL_RW_PROPERTY(bool, AllowUsingChunkMerger, true);
 
     //! Transient property.
     DEFINE_BYREF_RW_PROPERTY(TDetailedMasterMemory, DetailedMasterMemoryUsage);
@@ -191,7 +191,7 @@ public:
     void DecrementChunkMergerNodeTraversals();
 
 private:
-    int MergeJobRateLimit_ = 0;
+    int MergeJobRateLimit_ = 1;
 
     //! Indicates the number of nodes currently being processed by the chunk
     //! merger that belong to this account.
