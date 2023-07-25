@@ -178,7 +178,10 @@ jobs:
             ln -s /usr/share/scala/bin/* /usr/local/bin
 
       - name: Set up python
-        run: python3.11 -m pip install --ignore-installed "setuptools<60.0.0"
+        run: |
+          apt install python3-pip
+          python3 -m pip install pip
+          python3 -m pip install twine "setuptools<60.0.0"
 
       - name: Write credentials
         run: |
