@@ -1647,6 +1647,11 @@ TGuid TSchedulerPoolElement::GetObjectId() const
     return ObjectId_;
 }
 
+const TOffloadingSettings& TSchedulerPoolElement::GetOffloadingSettings() const
+{
+    return Config_->OffloadingSettings;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulerOperationElementFixedState::TSchedulerOperationElementFixedState(
@@ -2524,6 +2529,11 @@ double TSchedulerRootElement::GetSpecifiedResourceFlowRatio() const
 TGuid TSchedulerRootElement::GetObjectId() const
 {
     return {};
+}
+
+const TOffloadingSettings& TSchedulerRootElement::GetOffloadingSettings() const
+{
+    return EmptyOffloadingSettings;
 }
 ////////////////////////////////////////////////////////////////////////////////
 

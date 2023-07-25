@@ -696,14 +696,22 @@ public:
         return TPoolName(poolName, std::nullopt);
     }
 
-    TOffloadingSettings GetOffloadingSettingsFor(const TString& poolName) const override
+    const TOffloadingSettings& GetOffloadingSettingsFor(const TString& poolName) const override
     {
-        const auto& pool = FindPool(poolName);
+        const TSchedulerCompositeElement* pool = FindPool(poolName).Get();
         if (!pool) {
-            return {};
+            return EmptyOffloadingSettings;
         }
 
-        return pool->GetConfig()->OffloadingSettings;
+        while (!pool->IsRoot()) {
+            const auto& offloadingSettings = pool->GetOffloadingSettings();
+            if (!offloadingSettings.empty()) {
+                return offloadingSettings;
+            }
+            pool = pool->GetParent();
+        }
+
+        return EmptyOffloadingSettings;
     }
 
     TPoolsUpdateResult UpdatePools(const INodePtr& poolsNode, bool forceUpdate) override
