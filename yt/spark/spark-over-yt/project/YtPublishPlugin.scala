@@ -195,7 +195,6 @@ object YtPublishPlugin extends AutoPlugin {
 
     val publishYt = taskKey[Unit]("Publish to yt directory")
     val publishYtArtifacts = taskKey[Seq[YtPublishArtifact]]("Yt publish artifacts")
-    val publishYtCredentials = settingKey[YTsaurusClientAuth]("Yt publish credentials")
   }
 
   import autoImport._
@@ -271,15 +270,14 @@ object YtPublishPlugin extends AutoPlugin {
   }
 
   override def projectSettings: Seq[Def.Setting[_]] = Seq(
-    publishYtCredentials := YTsaurusClientAuth.builder()
-      .setUser(sys.env.getOrElse("YT_USER", sys.env("USER")))
-      .setToken(sys.env.getOrElse("YT_TOKEN", readDefaultToken))
-      .build(),
     publishYtArtifacts := Nil,
     publishYt := {
       val log = streams.value.log
 
-      val creds = publishYtCredentials.value
+      val creds = YTsaurusClientAuth.builder()
+        .setUser(sys.env.getOrElse("YT_USER", sys.env("USER")))
+        .setToken(sys.env.getOrElse("YT_TOKEN", readDefaultToken))
+        .build()
       val artifacts = publishYtArtifacts.value
       val (dirs, files, links) = artifacts
         .foldLeft((Seq.empty[YtPublishArtifact], Seq.empty[YtPublishArtifact], Seq.empty[YtPublishArtifact])) {
