@@ -1,11 +1,11 @@
 
 #include <yt/systest/map_dataset.h>
 #include <yt/systest/operation.h>
+#include <yt/systest/util.h>
 
 namespace NYT::NTest {
 
-class TMapDatasetIterator
-    : public IDatasetIterator
+class TMapDatasetIterator : public IDatasetIterator
 {
 public:
     TMapDatasetIterator(const IMultiMapper& operation, std::unique_ptr<IDatasetIterator> innerIterator);
@@ -23,6 +23,8 @@ private:
     int RowsIndex_;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 TMapDatasetIterator::TMapDatasetIterator(const IMultiMapper& operation, std::unique_ptr<IDatasetIterator> innerIterator)
     : Operation_(operation)
     , Inner_(std::move(innerIterator))
@@ -35,7 +37,12 @@ void TMapDatasetIterator::FetchInner()
 {
     while (!Inner_->Done() && RowsIndex_ == std::ssize(Rows_)) {
         TCallState state;
-        Rows_ = Operation_.Run(&state, Inner_->Values());
+        std::vector<TNode> input;
+        input.reserve(Operation_.InputColumns().size());
+        for (int index : Operation_.InputColumns()) {
+            input.push_back(Inner_->Values()[index]);
+        }
+        Rows_ = Operation_.Run(&state, ExtractInputValues(Inner_->Values(), Operation_.InputColumns()));
         Inner_->Next();
         RowsIndex_ = 0;
     }
@@ -57,7 +64,9 @@ void TMapDatasetIterator::Next()
     FetchInner();
 }
 
-MapDataset::MapDataset(const IDataset& inner, const IMultiMapper& operation)
+////////////////////////////////////////////////////////////////////////////////
+
+TMapDataset::TMapDataset(const IDataset& inner, const IMultiMapper& operation)
     : Inner_(inner)
     , Operation_(operation)
     , Table_{std::vector<TDataColumn>{Operation_.OutputColumns().begin(), Operation_.OutputColumns().end()}}
@@ -69,12 +78,12 @@ MapDataset::MapDataset(const IDataset& inner, const IMultiMapper& operation)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TTable& MapDataset::table_schema() const
+const TTable& TMapDataset::table_schema() const
 {
     return Table_;
 }
 
-std::unique_ptr<IDatasetIterator> MapDataset::NewIterator() const
+std::unique_ptr<IDatasetIterator> TMapDataset::NewIterator() const
 {
     return make_unique<TMapDatasetIterator>(Operation_, Inner_.NewIterator());
 }

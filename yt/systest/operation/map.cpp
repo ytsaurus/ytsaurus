@@ -4,15 +4,17 @@
 
 namespace NYT::NTest {
 
-TSetSeedRowMapper::TSetSeedRowMapper(const TTable& input, int columnIndex)
+TSetSeedRowMapper::TSetSeedRowMapper(const TTable& input, int columnIndex, int thisSeed)
     : IRowMapper(input)
     , InputColumnIndex{columnIndex}
+    , ThisSeed_(thisSeed)
 {
 }
 
 TSetSeedRowMapper::TSetSeedRowMapper(const TTable& input, const NProto::TSetSeedRowMapper& proto)
     : IRowMapper(input)
     , InputColumnIndex{proto.input_column_index()}
+    , ThisSeed_(proto.this_seed())
 {
 }
 
@@ -28,7 +30,7 @@ TRange<TDataColumn> TSetSeedRowMapper::OutputColumns() const
 
 std::vector<TNode> TSetSeedRowMapper::Run(TCallState* state, TRange<TNode> input) const
 {
-    state->RandomEngine = std::mt19937(input[0].AsInt64());
+    state->RandomEngine = std::mt19937(ThisSeed_ + input[0].AsInt64());
     return {};
 }
 
@@ -36,6 +38,7 @@ void TSetSeedRowMapper::ToProto(NProto::TRowMapper* proto) const
 {
     auto* operationProto = proto->mutable_set_seed();
     operationProto->set_input_column_index(InputColumnIndex[0]);
+    operationProto->set_this_seed(ThisSeed_);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -87,6 +90,7 @@ TNode TGenerateRandomRowMapper::Generate(TCallState* state) const
     std::uniform_int_distribution<int8_t> distribution8;
     std::uniform_int_distribution<int16_t> distribution16;
     std::uniform_int_distribution<int64_t> distribution64;
+    std::uniform_real_distribution<double> distributionDouble(-1e9, 1e9);
     switch (OutputColumns_[0].Type) {
         case NProto::EColumnType::ENone:
             THROW_ERROR_EXCEPTION("Column type must be set for generate random operation");
@@ -96,6 +100,9 @@ TNode TGenerateRandomRowMapper::Generate(TCallState* state) const
             return distribution16(*state->RandomEngine);
         case NProto::EColumnType::EInt64: {
             return distribution64(*state->RandomEngine);
+        }
+        case NProto::EColumnType::EDouble: {
+            return distributionDouble(*state->RandomEngine);
         }
         case NProto::EColumnType::ELatinString100: {
             TString result;

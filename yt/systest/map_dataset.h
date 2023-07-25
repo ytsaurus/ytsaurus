@@ -6,10 +6,10 @@ namespace NYT::NTest {
 
 class IMultiRowOperation;
 
-class MapDataset : public IDataset
+class TMapDataset : public IDataset
 {
 public:
-    MapDataset(const IDataset& inner, const IMultiMapper& operation);
+    TMapDataset(const IDataset& inner, const IMultiMapper& operation);
 
     virtual const TTable& table_schema() const;
     virtual std::unique_ptr<IDatasetIterator> NewIterator() const;

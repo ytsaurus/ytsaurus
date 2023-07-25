@@ -1,14 +1,34 @@
 
+#include <library/cpp/yt/logging/logger.h>
 #include <yt/systest/reduce_dataset.h>
+#include <yt/systest/util.h>
 
 namespace NYT::NTest {
 
 using namespace NNodeCmp;
 
+static std::vector<int> computeIndices(
+    const std::vector<TString>& columns,
+    const std::vector<TDataColumn>& tableColumns,
+    const std::vector<int>& order)
+{
+    std::vector<int> result;
+    for (const TString& columnName : columns) {
+        auto position = std::lower_bound(order.begin(), order.end(), nullptr, [&](int pos, nullptr_t) {
+            return tableColumns[pos].Name < columnName;
+        });
+        if (position == order.end() || tableColumns[*position].Name != columnName) {
+            THROW_ERROR_EXCEPTION("Unknown column %v", columnName);
+        }
+        result.push_back(*position);
+    }
+    return result;
+}
+
 class TReduceDatasetIterator : public IDatasetIterator
 {
 public:
-    TReduceDatasetIterator(const TReduceDataset* dataset);
+    explicit TReduceDatasetIterator(const TReduceDataset* dataset);
 
     TRange<TNode> Values() const override;
     bool Done() const override;
@@ -18,8 +38,7 @@ private:
     void ReduceRange();
 
     const TReduceDataset* Dataset_;
-    int Lo_, Hi_;
-
+    std::unique_ptr<IDatasetIterator> Inner_;
     std::vector<std::vector<TNode>> Result_;
     int ResultIndex_;
 };
@@ -27,40 +46,61 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TReduceDatasetIterator::TReduceDatasetIterator(const TReduceDataset* dataset)
-    : Dataset_(dataset)
-    , Lo_(0)
-    , Hi_(0)
+    : Dataset_(dataset),
+      Inner_(dataset->Inner_.NewIterator())
 {
     ReduceRange();
 }
 
 void TReduceDatasetIterator::ReduceRange()
 {
-    while (Hi_ == Lo_ &&
-        Lo_ < std::ssize(Dataset_->DataEntryIndex_) &&
-        ResultIndex_ == std::ssize(Result_)) {
-        while (Hi_ < std::ssize(Dataset_->DataEntryIndex_) &&
-            Dataset_->SortColumnsComparator(Dataset_->DataEntryIndex_[Lo_], Dataset_->DataEntryIndex_[Hi_])) {
-            ++Hi_;
+    Result_.clear();
+    ResultIndex_ = 0;
+    while (Result_.empty() && !Inner_->Done()) {
+        std::vector<std::vector<TNode>> innerRange;
+        while (innerRange.empty() && !Inner_->Done()) {
+            innerRange.push_back(std::vector<TNode>(Inner_->Values().begin(), Inner_->Values().end()));
+            Inner_->Next();
+            while (!Inner_->Done() && Dataset_->ReduceByEqual(innerRange.back(), Inner_->Values())) {
+                innerRange.push_back(std::vector<TNode>(Inner_->Values().begin(), Inner_->Values().end()));
+                Inner_->Next();
+            }
         }
 
-        TCallState callState;
+        if (!innerRange.empty()) {
+            TCallState callState;
 
-        std::vector<TRange<TNode>> argument;
-        for (int i = Lo_; i < Hi_; i++) {
-            argument.push_back(Dataset_->Data_[Dataset_->DataEntryIndex_[i]].Values);
+            std::vector<TNode> prefix;
+            for (int index : Dataset_->ReduceByIndices_) {
+                prefix.push_back(innerRange[0][index]);
+            }
+
+            std::vector<std::vector<TNode>> values;
+            std::vector<TRange<TNode>> argument;
+            for (const auto& entry : innerRange) {
+                values.push_back(ExtractInputValues(entry, Dataset_->Operation_.Reducer->InputColumns()));
+            }
+            for (const auto& value : values) {
+                argument.push_back(value);
+            }
+
+            auto result = Dataset_->Operation_.Reducer->Run(&callState, argument);
+
+            Result_.clear();
+            Result_.reserve(result.size());
+            for (auto& entry : result) {
+                std::vector<TNode> item(prefix);
+                std::copy(entry.begin(), entry.end(), std::back_inserter(item));
+                Result_.push_back(item);
+            }
+            ResultIndex_ = 0;
         }
-
-        Lo_ = Hi_;
-
-        Result_ = Dataset_->Operation_.Reducer->Run(&callState, argument);
-        ResultIndex_ = 0;
     }
 }
 
 bool TReduceDatasetIterator::Done() const
 {
-    return Lo_ == std::ssize(Dataset_->DataEntryIndex_) && ResultIndex_ == std::ssize(Result_);
+    return Result_.empty() && Inner_->Done();
 }
 
 TRange<TNode> TReduceDatasetIterator::Values() const
@@ -71,7 +111,7 @@ TRange<TNode> TReduceDatasetIterator::Values() const
 void TReduceDatasetIterator::Next()
 {
     ++ResultIndex_;
-    while (ResultIndex_ == std::ssize(Result_) && !Done()) {
+    if (ResultIndex_ == std::ssize(Result_)) {
         ReduceRange();
     }
 }
@@ -81,9 +121,13 @@ void TReduceDatasetIterator::Next()
 TReduceDataset::TReduceDataset(const IDataset& inner, const TReduceOperation& operation)
     : Inner_(inner)
     , Operation_(operation)
-    , Table_{std::vector<TDataColumn>{
-        Operation_.Reducer->OutputColumns().begin(), Operation_.Reducer->OutputColumns().end()}}
 {
+    ComputeColumnIndices();
+    for (int index : ReduceByIndices_) {
+        Table_.DataColumns.push_back(Inner_.table_schema().DataColumns[index]);
+    }
+    std::copy(Operation_.Reducer->OutputColumns().begin(), Operation_.Reducer->OutputColumns().end(),
+        std::back_inserter(Table_.DataColumns));
 }
 
 const TTable& TReduceDataset::table_schema() const
@@ -91,24 +135,18 @@ const TTable& TReduceDataset::table_schema() const
     return Table_;
 }
 
-int TReduceDataset::SortColumnsComparator(int lhs, int rhs) const
+bool TReduceDataset::ReduceByEqual(const std::vector<TNode>& lhs, TRange<TNode> rhs) const
 {
-    const auto& dataLhs = Data_[lhs];
-    const auto& dataRhs = Data_[rhs];
-    for (int i = 0; i < std::ssize(SortColumnIndices_); ++i) {
-        int index = SortColumnIndices_[i];
-        if (dataLhs.Values[index] != dataRhs.Values[index]) {
-            if (dataLhs.Values[index] < dataRhs.Values[index]) {
-                return -1;
-            } else {
-                return 1;
-            }
+    for (int i = 0; i < std::ssize(ReduceByIndices_); ++i) {
+        int index = ReduceByIndices_[i];
+        if (lhs[index] != rhs[index]) {
+            return false;
         }
     }
-    return 0;
+    return true;
 }
 
-void TReduceDataset::ComputeSortColumnIndices()
+void TReduceDataset::ComputeColumnIndices()
 {
     std::vector<int> order;
     const auto& columns = Inner_.table_schema().DataColumns;
@@ -119,37 +157,18 @@ void TReduceDataset::ComputeSortColumnIndices()
         return columns[lhs].Name < columns[rhs].Name;
     });
 
-    for (const TString& columnName : Operation_.SortBy) {
-        auto position = std::lower_bound(order.begin(), order.end(), nullptr, [&](int pos, nullptr_t) {
-            return columns[pos].Name < columnName;
-        });
-        if (position == order.end() || columns[*position].Name != columnName) {
-            break;
+    ReduceByIndices_ = computeIndices(Operation_.ReduceBy, columns, order);
+
+    for (int index : ReduceByIndices_) {
+        if (index >= Inner_.table_schema().SortColumns) {
+            THROW_ERROR_EXCEPTION("Table must be sorted by a reduce column");
         }
-        SortColumnIndices_.push_back(*position);
     }
-}
-
-void TReduceDataset::ConsumeAndSortInner()
-{
-    for (auto iterator = Inner_.NewIterator(); !iterator->Done(); iterator->Next()) {
-        Data_.push_back(DataEntry{
-                std::vector<TNode>(iterator->Values().begin(), iterator->Values().end())});
-    }
-
-    DataEntryIndex_.reserve(Data_.size());
-    for (int i = 0; i < std::ssize(DataEntryIndex_); ++i) {
-        DataEntryIndex_.push_back(i);
-    }
-
-    std::sort(DataEntryIndex_.begin(), DataEntryIndex_.end(), [this](int lhs, int rhs) {
-        return SortColumnsComparator(lhs, rhs) < 0;
-    });
 }
 
 std::unique_ptr<IDatasetIterator> TReduceDataset::NewIterator() const
 {
-    return nullptr;
+    return std::make_unique<TReduceDatasetIterator>(this);
 }
 
 }  // namespace NYT::NTest

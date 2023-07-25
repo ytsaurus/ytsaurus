@@ -18,12 +18,32 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class ISortedDatasetIterator
+{
+public:
+
+    virtual TRange<std::vector<TNode>> ClusterValues() const = 0;
+    virtual bool Done() const = 0;
+    virtual void Next() = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class IDataset
 {
 public:
     virtual ~IDataset();
     virtual const TTable& table_schema() const = 0;
     virtual std::unique_ptr<IDatasetIterator> NewIterator() const = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class ISortedDataset
+{
+public:
+    virtual ~ISortedDataset();
+    virtual const TTable& table_schema();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

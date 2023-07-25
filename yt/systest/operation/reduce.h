@@ -55,6 +55,10 @@ public:
 
     virtual std::vector<std::vector<TNode>> Run(TCallState* state, TRange<TRange<TNode>> input) const override;
     virtual void ToProto(NProto::TReducer* proto) const override;
+
+private:
+    int InputColumnIndex_[1];
+    TDataColumn OutputColumns_[1];
 };
 
 ////////////////////////////////////////////////////////////////////////////////

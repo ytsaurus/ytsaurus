@@ -64,4 +64,13 @@ size_t ComputeNodeByteSize(const TNode& node)
     return byteCountStream.GetCount();
 }
 
+std::vector<TNode> ExtractInputValues(TRange<TNode> values, TRange<int> input)
+{
+    std::vector<TNode> result;
+    for (int position : input) {
+        result.push_back(values[position]);
+    }
+    return result;
+}
+
 }  // namespace NYT::NTest

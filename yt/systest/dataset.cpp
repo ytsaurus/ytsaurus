@@ -17,7 +17,7 @@ IDataset::~IDataset()
 
 std::unique_ptr<IDataset> Map(const IDataset& source, const IMultiMapper& operation)
 {
-    return std::make_unique<MapDataset>(source, operation);
+    return std::make_unique<TMapDataset>(source, operation);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

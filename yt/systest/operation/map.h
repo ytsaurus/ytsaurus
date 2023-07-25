@@ -8,7 +8,7 @@ namespace NYT::NTest {
 class TSetSeedRowMapper : public IRowMapper
 {
 public:
-    TSetSeedRowMapper(const TTable& input, int columnIndex);
+    TSetSeedRowMapper(const TTable& input, int columnIndex, int thisSeed = 0);
     TSetSeedRowMapper(const TTable& input, const NProto::TSetSeedRowMapper& proto);
 
     virtual TRange<int> InputColumns() const override;
@@ -19,6 +19,7 @@ public:
 
 private:
     const int InputColumnIndex[1];
+    int ThisSeed_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

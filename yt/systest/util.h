@@ -15,4 +15,6 @@ std::vector<TNode> ArrangeValuesToIndex(
 
 size_t ComputeNodeByteSize(const TNode& node);
 
+std::vector<TNode> ExtractInputValues(TRange<TNode> values, TRange<int> input);
+
 }  // namespace NYT::NTest

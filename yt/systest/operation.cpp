@@ -58,6 +58,29 @@ std::unique_ptr<IMultiMapper> CreateFromProto(
     return nullptr;
 }
 
+std::unique_ptr<IReducer> CreateFromProto(
+    const TTable& input,
+    const NProto::TReducer& operationProto)
+{
+    switch (operationProto.operation_case()) {
+        case NProto::TReducer::kMapper: {
+            return nullptr;
+        }
+        case NProto::TReducer::kSequence: {
+            return nullptr;
+        }
+        case NProto::TReducer::kSum: {
+            return std::make_unique<TSumReducer>(input, operationProto.sum());
+        }
+        case NProto::TReducer::kConcatenateColumns: {
+            return nullptr;
+        }
+        case NProto::TReducer::OPERATION_NOT_SET:
+            break;
+    }
+    return nullptr;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(NProto::TOperationInputColumns* proto, TRange<int> inputColumns)
@@ -116,10 +139,9 @@ IMultiMapper::IMultiMapper(const TTable& inputTable)
 {
 }
 
-void FromProto(TMapOperation* operation, const NProto::TTable& tableProto, const NProto::TMultiMapper& operationProto)
+IReducer::IReducer(const TTable& inputTable)
+    : IOperation(inputTable)
 {
-    FromProto(&operation->table, tableProto);
-    operation->Mapper = CreateFromProto(operation->table, operationProto);
 }
 
 }  // namespace NYT::NTest

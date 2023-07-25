@@ -32,6 +32,8 @@ private:
 
     std::vector<std::unique_ptr<IDataset>> DatasetPtrs_;
     std::vector<std::unique_ptr<IOperation>> OperationPtrs_;
+
+    void SortAndReduce(int index, const TDatasetInfo& info);
 };
 
 }  // namespace NYT::NTest

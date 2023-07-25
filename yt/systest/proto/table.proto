@@ -9,6 +9,7 @@ enum EColumnType {
     EInt64 = 3;
     ELatinString100 = 4;
     EBytes64K = 6;
+    EDouble = 7;
 }
 
 message TDataColumn {

@@ -1,6 +1,11 @@
 
+#include <library/cpp/yt/logging/logger.h>
+
 #include <yt/systest/dataset.h>
 #include <yt/systest/dataset_operation.h>
+#include <yt/systest/sort_dataset.h>
+#include <yt/systest/reduce_dataset.h>
+#include <yt/systest/operation/reduce.h>
 #include <yt/systest/run.h>
 
 #include <yt/systest/runner.h>
@@ -28,7 +33,7 @@ void Runner::Run()
     for (int i = 0; i < NumOperations_; i++) {
         const auto& currentInfo = Infos_.back();
 
-        auto operation = CreateRandomMap(RandomEngine, currentInfo.Stored);
+        auto operation = CreateRandomMap(RandomEngine, RandomEngine(), currentInfo.Stored);
         auto dataset = Map(*currentInfo.ShallowDataset, *operation);
         auto path = TestHome_->CreateRandomTablePath();
 
@@ -45,7 +50,58 @@ void Runner::Run()
         OperationPtrs_.push_back(std::move(operation));
         DatasetPtrs_.push_back(std::move(dataset));
         DatasetPtrs_.push_back(std::move(shallowDataset));
-   }
+    }
+
+    for (int i = 0; i < NumOperations_; i++) {
+        if (Infos_[i].Stored.TotalBytes > (100 << 20)) {
+            SortAndReduce(i, Infos_[i]);
+        }
+    }
+}
+
+void Runner::SortAndReduce(int index, const TDatasetInfo& info)
+{
+    auto sortedPath = TestHome_->CreateRandomTablePath();
+    std::vector<TString> columns;
+    switch (index % 3) {
+        case 0:
+            columns = {"X2", "X5"};
+            index = 4;
+            break;
+        case 1:
+            columns = {"X2", "X0"};
+            index = 4;
+            break;
+        case 2:
+            columns = {"X0"};
+            index = 3;
+            break;
+    }
+
+    auto sortedDataset = std::make_unique<TSortDataset>(*info.ShallowDataset, TSortOperation{columns});
+
+    NYT::NLogging::TLogger Logger("test");
+    YT_LOG_INFO("Performing sort (InputTable: %v, OutputTable: %v)", info.Stored.Path, sortedPath);
+
+    RunSort(Client_, info.Stored.Path, sortedPath,
+        TSortColumns(TVector<TString>(columns.begin(), columns.end())));
+
+    auto reducer = std::make_unique<TSumReducer>(sortedDataset->table_schema(), index, TDataColumn{"S", NProto::EColumnType::EInt64});
+
+    TReduceOperation reduceOperation{
+        std::move(reducer),
+        columns
+    };
+
+    auto reducePath = TestHome_->CreateRandomTablePath();
+
+    YT_LOG_INFO("Performing reduce (InputTable: %v, OutputTable: %v)", sortedPath, reducePath);
+
+    RunReduce(Client_, *TestHome_, sortedPath, reducePath, sortedDataset->table_schema(), reduceOperation);
+
+    auto reduceDataset = std::make_unique<TReduceDataset>(*sortedDataset, reduceOperation);
+
+    VerifyTable(Client_, reducePath, *reduceDataset);
 }
 
 }  // namespace NYT::NTest

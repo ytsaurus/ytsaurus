@@ -15,23 +15,15 @@ public:
 private:
     friend class TReduceDatasetIterator;
 
-    struct DataEntry {
-        std::vector<TNode> Values;
-    };
-
-    std::vector<DataEntry> Data_;
-
-    std::vector<int> SortColumnIndices_;
+    std::vector<int> ReduceByIndices_;
     std::vector<int> DataEntryIndex_;
 
-    void ComputeSortColumnIndices();
-    void ConsumeAndSortInner();
-
-    int SortColumnsComparator(int lhs, int rhs) const;
+    void ComputeColumnIndices();
+    bool ReduceByEqual(const std::vector<TNode>& lhs, TRange<TNode> rhs) const;
 
     const IDataset& Inner_;
     const TReduceOperation& Operation_;
-    const TTable Table_;
+    TTable Table_;
 };
 
 }  // namespace NYT::NTest

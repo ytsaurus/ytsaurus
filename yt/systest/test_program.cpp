@@ -5,6 +5,8 @@
 
 #include <yt/systest/bootstrap_dataset.h>
 #include <yt/systest/dataset_operation.h>
+#include <yt/systest/map_dataset.h>
+#include <yt/systest/reduce_dataset.h>
 
 #include <yt/systest/operation.h>
 #include <yt/systest/operation/map.h>
@@ -13,6 +15,7 @@
 
 #include <yt/systest/run.h>
 #include <yt/systest/runner.h>
+#include <yt/systest/sort_dataset.h>
 #include <yt/systest/table_dataset.h>
 #include <yt/systest/test_home.h>
 #include <yt/systest/test_program.h>
@@ -33,7 +36,7 @@ void RunTestProgram(int argc, char* argv[]) {
     int NumOperations = 16;
     int Seed = 42;
     int opt;
-    while ((opt = getopt(argc, argv, "bh:")) != -1) {
+    while ((opt = getopt(argc, argv, "bhn:")) != -1) {
         switch (opt) {
             case 'b':
                 NumBootstrapRecords = atoi(optarg);
@@ -43,6 +46,9 @@ void RunTestProgram(int argc, char* argv[]) {
                 break;
             case 's':
                 Seed = atoi(optarg);
+                break;
+            case 'n':
+                NumOperations = atoi(optarg);
                 break;
             default:
                 printf("Usage: yttester [-b <num bootstrap records>]\n");
@@ -60,13 +66,12 @@ void RunTestProgram(int argc, char* argv[]) {
     YT_LOG_INFO("Initialized test home (Directory: %v)", testHome.Dir());
 
     std::unique_ptr<IDataset> bootstrapDataset = std::make_unique<TBootstrapDataset>(NumBootstrapRecords);
-    auto bootstrapPath = testHome.CreateRandomTablePath();
-    auto tablePath = testHome.CreateRandomTablePath();
-    auto secondTablePath = testHome.CreateRandomTablePath();
 
+    auto bootstrapPath = testHome.CreateRandomTablePath();
     YT_LOG_INFO("Will write bootstrap table (Path: %v)", bootstrapPath);
 
     auto bootstrapInfo = MaterializeIntoTable(client, bootstrapPath, *bootstrapDataset);
+
     Runner runner(client, NumOperations, Seed, &testHome, bootstrapInfo);
     runner.Run();
 }

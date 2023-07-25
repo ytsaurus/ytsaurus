@@ -8,6 +8,7 @@
 
 add_subdirectory(proto)
 add_subdirectory(tester)
+add_subdirectory(unittests)
 
 add_library(yt-systest)
 target_compile_options(yt-systest PRIVATE
@@ -37,6 +38,7 @@ target_sources(yt-systest PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/systest/reduce_dataset.cpp
   ${CMAKE_SOURCE_DIR}/yt/systest/run.cpp
   ${CMAKE_SOURCE_DIR}/yt/systest/runner.cpp
+  ${CMAKE_SOURCE_DIR}/yt/systest/sort_dataset.cpp
   ${CMAKE_SOURCE_DIR}/yt/systest/table.cpp
   ${CMAKE_SOURCE_DIR}/yt/systest/table_dataset.cpp
   ${CMAKE_SOURCE_DIR}/yt/systest/test_home.cpp

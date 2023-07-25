@@ -68,19 +68,16 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TMapOperation
+struct TSortOperation
 {
-    TTable table;
-    std::unique_ptr<IMultiMapper> Mapper;
+    std::vector<TString> SortBy;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TReduceOperation
 {
-    TTable table;
     std::unique_ptr<IReducer> Reducer;
-    std::vector<TString> SortBy;
     std::vector<TString> ReduceBy;
 };
 
@@ -97,7 +94,5 @@ std::unique_ptr<IMultiMapper> CreateFromProto(
 std::unique_ptr<IReducer> CreateFromProto(
     const TTable& input,
     const NProto::TReducer& operationProto);
-
-void FromProto(TMapOperation* operation, const NProto::TTable& tableProto, const NProto::TMultiMapper& operationProto);
 
 }  // namespace NYT::NTest

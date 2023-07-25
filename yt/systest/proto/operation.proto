@@ -40,6 +40,7 @@ message TReducer {
 
 message TSetSeedRowMapper {
     required int32 input_column_index = 1;
+    required int32 this_seed = 2;
 }
 
 message TGenerateRandomRowMapper {

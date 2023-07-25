@@ -3,7 +3,13 @@ package NYT.NTest.NProto;
 import "yt/systest/proto/table.proto";
 import "yt/systest/proto/operation.proto";
 
-message TMapper {
+message TMapRunSpec {
     required TTable table = 1;
     required TMultiMapper operation = 2;
 }
+
+message TReduceRunSpec {
+    required TTable table = 1;
+    repeated string reduce_by = 3;
+    required TReducer operation = 4;
+};

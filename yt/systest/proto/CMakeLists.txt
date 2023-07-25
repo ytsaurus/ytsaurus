@@ -52,8 +52,8 @@ target_link_libraries(yt-systest-proto PUBLIC
   contrib-libs-protobuf
 )
 target_proto_messages(yt-systest-proto PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/systest/proto/mapper.proto
   ${CMAKE_SOURCE_DIR}/yt/systest/proto/operation.proto
+  ${CMAKE_SOURCE_DIR}/yt/systest/proto/run_spec.proto
   ${CMAKE_SOURCE_DIR}/yt/systest/proto/table.proto
 )
 target_proto_addincls(yt-systest-proto

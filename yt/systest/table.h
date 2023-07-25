@@ -13,6 +13,7 @@ struct TDataColumn {
 
 struct TTable {
     std::vector<TDataColumn> DataColumns;
+    int SortColumns = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,6 +23,5 @@ void FromProto(TDataColumn* column, const NProto::TDataColumn& proto);
 
 void ToProto(NProto::TTable* proto, const TTable& table);
 void FromProto(TTable* table, const NProto::TTable& proto);
-
 
 }  // namespace NYT::NTest

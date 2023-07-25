@@ -2,7 +2,6 @@
 #include <yt/yt/core/misc/error.h>
 
 #include <yt/cpp/mapreduce/interface/client.h>
-#include <yt/systest/proto/mapper.pb.h>
 #include <yt/systest/test_home.h>
 
 namespace NYT::NTest {

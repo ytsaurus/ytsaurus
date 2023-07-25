@@ -8,10 +8,10 @@
 
 namespace NYT::NTest {
 
-std::unique_ptr<IMultiMapper> GenerateRandomColumn(const TTable& table)
+std::unique_ptr<IMultiMapper> GenerateRandomColumn(const TTable& table, int seed)
 {
     std::vector<std::unique_ptr<IRowMapper>> singleOperations;
-    singleOperations.push_back(std::make_unique<TSetSeedRowMapper>(table, 0));
+    singleOperations.push_back(std::make_unique<TSetSeedRowMapper>(table, 0, seed));
 
     return std::make_unique<TCombineMultiMapper>(
         table,
@@ -27,7 +27,7 @@ std::unique_ptr<IMultiMapper> GenerateRandomColumn(const TTable& table)
     );
 }
 
-std::unique_ptr<IMultiMapper> GenerateMultipleColumns(const TTable& table, int RowMultipler)
+std::unique_ptr<IMultiMapper> GenerateMultipleColumns(const TTable& table, int RowMultipler, int seed)
 {
     std::vector<std::unique_ptr<IRowMapper>> randomColumns;
 
@@ -36,7 +36,18 @@ std::unique_ptr<IMultiMapper> GenerateMultipleColumns(const TTable& table, int R
                 TDataColumn{"X0", NProto::EColumnType::EInt8}));
 
     for (int i = 1; i < 10; i++) {
-        auto type = i % 2 == 0 ? NProto::EColumnType::EInt64 : NProto::EColumnType::ELatinString100;
+        NProto::EColumnType type;
+        switch (i % 3) {
+            case 0:
+                type = NProto::EColumnType::EInt64;
+                break;
+            case 1:
+                type = NProto::EColumnType::ELatinString100;
+                break;
+            case 2:
+                type = NProto::EColumnType::EInt16;
+                break;
+        }
 
         TString columnName = "X" + std::to_string(i);
 
@@ -46,7 +57,7 @@ std::unique_ptr<IMultiMapper> GenerateMultipleColumns(const TTable& table, int R
     }
 
     std::vector<std::unique_ptr<IRowMapper>> singleOperations;
-    singleOperations.push_back(std::make_unique<TSetSeedRowMapper>(table, 0));
+    singleOperations.push_back(std::make_unique<TSetSeedRowMapper>(table, 0, seed));
 
     return std::make_unique<TCombineMultiMapper>(
         table,
@@ -65,14 +76,14 @@ std::unique_ptr<IMultiMapper> FilterByInt8(const TTable& table, int8_t value)
 }
 
 std::unique_ptr<IMultiMapper> CreateRandomMap(
-    std::mt19937& randomEngine, const TStoredDataset& info)
+    std::mt19937& randomEngine, int seed, const TStoredDataset& info)
 {
     const TTable& table = info.Dataset->table_schema();
     NYT::NLogging::TLogger Logger("test");
     if (info.TotalBytes < 20000) {
         YT_LOG_INFO("Generate Random Column (InputBytes: %v, InputRecords: %v)",
             info.TotalBytes, info.TotalRecords);
-        return GenerateRandomColumn(table);
+        return GenerateRandomColumn(table, seed);
     } else if (info.TotalBytes > (100 << 20) &&
             table.DataColumns[0].Type == NProto::EColumnType::EInt8) {
         std::uniform_int_distribution<int8_t> dist;
@@ -84,7 +95,7 @@ std::unique_ptr<IMultiMapper> CreateRandomMap(
         const int RowMultipler = 4;
         YT_LOG_INFO("Generate Multiple Columns (InputBytes: %v, InputRecords: %v, RowMultipler: %v)",
             info.TotalBytes, info.TotalRecords, RowMultipler);
-        return GenerateMultipleColumns(table, RowMultipler);
+        return GenerateMultipleColumns(table, RowMultipler, seed);
     }
 }
 
