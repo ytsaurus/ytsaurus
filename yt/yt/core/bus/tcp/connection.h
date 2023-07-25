@@ -205,6 +205,7 @@ private:
     const TPromise<void> ReadyPromise_ = NewPromise<void>();
 
     TString NetworkName_;
+    // Endpoint host name is used for peer's certificate verification.
     TString EndpointHostName_;
 
     TBusNetworkCounters BusCounters_;

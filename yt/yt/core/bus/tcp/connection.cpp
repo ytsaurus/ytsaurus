@@ -442,7 +442,12 @@ void TTcpConnection::ResolveAddress()
         }
 
         NetworkName_ = LocalNetworkName;
-        EndpointHostName_ = FQDNHostName();
+        try {
+            EndpointHostName_ = FQDNHostName();
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(ex, "Failed to resolve local host name");
+            EndpointHostName_ = "localhost";
+        }
 
         // NB(gritukan): Unix domain socket path cannot be longer than 108 symbols, so let's try to shorten it.
         OnAddressResolved(
