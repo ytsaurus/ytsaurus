@@ -37,6 +37,7 @@ public class YTsaurusClientConfig {
     private final String version;
     private final Duration operationPingPeriod;
     private final boolean tvmOnly;
+    private final boolean ignoreBalancers;
 
     YTsaurusClientConfig(Builder builder) {
         if (builder.rpcOptions == null) {
@@ -58,6 +59,7 @@ public class YTsaurusClientConfig {
         this.jobSpecPatch = builder.jobSpecPatch;
         this.operationPingPeriod = builder.operationPingPeriod;
         this.tvmOnly = builder.tvmOnly;
+        this.ignoreBalancers = builder.ignoreBalancers;
     }
 
     public static Builder builder() {
@@ -76,7 +78,8 @@ public class YTsaurusClientConfig {
                 .setJavaOptions(javaOptions)
                 .setVersion(version)
                 .setOperationPingPeriod(operationPingPeriod)
-                .setTvmOnly(tvmOnly);
+                .setTvmOnly(tvmOnly)
+                .setIgnoreBalancers(ignoreBalancers);
     }
 
     public RpcOptions getRpcOptions() {
@@ -121,6 +124,10 @@ public class YTsaurusClientConfig {
 
     public boolean getTvmOnly() {
         return tvmOnly;
+    }
+
+    public boolean getIgnoreBalancers() {
+        return ignoreBalancers;
     }
 
     private static int getJavaMajorVersion() {
@@ -175,6 +182,7 @@ public class YTsaurusClientConfig {
         private YTreeNode specPatch;
 
         private boolean tvmOnly = false;
+        private boolean ignoreBalancers = false;
 
         public Builder setRpcOptions(RpcOptions rpcOptions) {
             this.rpcOptions = rpcOptions;
@@ -248,6 +256,15 @@ public class YTsaurusClientConfig {
 
         public Builder setTvmOnly(boolean tvmOnly) {
             this.tvmOnly = tvmOnly;
+            return this;
+        }
+
+        /**
+         * If true, rpc proxy balancer addresses will be ignored and only rpc proxy addresses will be discovered.
+         * @return this
+         */
+        public Builder setIgnoreBalancers(boolean ignoreBalancers) {
+            this.ignoreBalancers = ignoreBalancers;
             return this;
         }
 

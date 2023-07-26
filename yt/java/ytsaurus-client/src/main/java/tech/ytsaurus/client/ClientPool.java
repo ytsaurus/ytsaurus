@@ -286,6 +286,7 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
                 Objects.requireNonNull(httpBuilder.balancerAddress),
                 httpBuilder.role,
                 httpBuilder.tvmOnly,
+                httpBuilder.ignoreBalancers,
                 httpBuilder.token
         );
 
@@ -400,6 +401,7 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
         @Nullable
         String role;
         boolean tvmOnly = false;
+        boolean ignoreBalancers = false;
         @Nullable
         String token;
         @Nullable
@@ -451,6 +453,12 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
 
         T setTvmOnly(boolean tvmOnly) {
             this.tvmOnly = tvmOnly;
+            //noinspection unchecked
+            return (T) this;
+        }
+
+        T setIgnoreBalancers(boolean ignoreBalancers) {
+            this.ignoreBalancers = ignoreBalancers;
             //noinspection unchecked
             return (T) this;
         }
@@ -818,15 +826,17 @@ class HttpProxyGetter implements ProxyGetter {
     @Nullable
     String role;
     boolean tvmOnly;
+    boolean ignoreBalancers;
     @Nullable
     String token;
 
     HttpProxyGetter(HttpClient httpClient, String balancerHost, @Nullable String role,
-                    boolean tvmOnly, @Nullable String token) {
+                    boolean tvmOnly, boolean ignoreBalancers, @Nullable String token) {
         this.httpClient = httpClient;
         this.balancerHost = balancerHost;
         this.role = role;
         this.tvmOnly = tvmOnly;
+        this.ignoreBalancers = ignoreBalancers;
         this.token = token;
     }
 
@@ -838,6 +848,9 @@ class HttpProxyGetter implements ProxyGetter {
         }
         if (tvmOnly) {
             discoverProxiesUrl += "&address_type=tvm_only_internal_rpc";
+        }
+        if (ignoreBalancers) {
+            discoverProxiesUrl += "&ignore_balancers=true";
         }
         HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(URI.create(discoverProxiesUrl))
                 .setHeader("X-YT-Header-Format", YTreeTextSerializer.serialize(YtFormat.YSON_TEXT))

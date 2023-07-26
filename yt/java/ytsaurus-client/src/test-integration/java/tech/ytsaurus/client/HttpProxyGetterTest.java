@@ -50,6 +50,7 @@ public class HttpProxyGetterTest extends YTsaurusClientTestBase {
                 getYTsaurusAddress(),
                 null,
                 false,
+                false,
                 null
         );
         final var hostPortComparator = Comparator

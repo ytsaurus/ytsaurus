@@ -131,6 +131,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
                 builder.builder.preferredClusterName,
                 builder.builder.proxyRole,
                 builder.builder.config.getTvmOnly(),
+                builder.builder.config.getIgnoreBalancers(),
                 builder.auth,
                 rpcClientFactory,
                 builder.builder.config.getRpcOptions(),
@@ -269,6 +270,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
                 @Nullable String localDataCenterName,
                 @Nullable String proxyRole,
                 boolean tvmOnly,
+                boolean ignoreBalancers,
                 YTsaurusClientAuth auth,
                 RpcClientFactory rpcClientFactory,
                 RpcOptions options,
@@ -296,6 +298,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
                                     .setBalancerAddress(curCluster.balancerFqdn, curCluster.httpPort)
                                     .setRole(proxyRole)
                                     .setTvmOnly(tvmOnly)
+                                    .setIgnoreBalancers(ignoreBalancers)
                                     .setToken(auth.getToken().orElse(null))
                                     .setOptions(options)
                                     .setClientFactory(rpcClientFactory)
