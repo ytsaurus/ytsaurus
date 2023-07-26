@@ -206,11 +206,6 @@ jobs:
             -DcustomSparkForkVersion=${{ needs.prepare_env.outputs.release_major_version }} \
             spytPublishClusterRelease
 
-      - name: Generate config
-        run: |
-          cd yt/spark/spark-over-yt
-          python3 tools/release/publisher/config_generator.py build_output
-
       - name: DockerHub login
         shell: bash
         run: |
@@ -221,9 +216,9 @@ jobs:
           cd yt/spark/spark-over-yt
           cd tools/release/spyt_image
           bash ./build.sh \
-            --spark-version ${{ steps.prepare_env.outputs.release_major_version }} \
-            --spyt-version ${{ steps.prepare_env.outputs.release_version }}
-          docker push ytsaurus/spyt:${{ steps.prepare_env.outputs.release_version }}
+            --spark-version ${{ needs.prepare_env.outputs.release_major_version }} \
+            --spyt-version ${{ needs.prepare_env.outputs.release_version }}
+          docker push ytsaurus/spyt:${{ needs.prepare_env.outputs.release_version }}
           cd ../../..
 
       - name: Prepare ytsaurus-spyt package publish

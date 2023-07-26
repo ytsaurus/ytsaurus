@@ -55,15 +55,11 @@ def main(sources_path: str, downloader_builder: ClientBuilder):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="SPYT publisher")
     parser.add_argument("sources", type=str, help="Path to SPYT sources")
-    # parser.add_argument("proxy", type=str, help="YTsaurus cluster")
     parser.add_argument("--root", default="//home/spark", type=str, help="Root spyt path on YTsaurus cluster")
-    # parser.add_argument('--ytsaurus-token', type=str, help='Token for YTsaurus client')
     args = parser.parse_args()
 
     downloader_builder = ClientBuilder(
-        # proxy=args.proxy,
         root_path=args.root,
-        # ytsaurus_token=args.ytsaurus_token
     )
 
     main(sources_path=args.sources, downloader_builder=downloader_builder)

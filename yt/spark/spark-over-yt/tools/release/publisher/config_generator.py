@@ -1,6 +1,7 @@
 import argparse
 import copy
 import json
+import os
 from os import listdir
 from os.path import join
 from typing import Dict, Any
@@ -117,9 +118,10 @@ def prepare_launch_config(conf_local_dir: str, client: Client, versions: Version
     return launch_config
 
 
-def prepare_global_config(versions: Versions, client: Client, os_release: bool) -> Dict[str, Any]:
+def prepare_global_config(versions: Versions, os_release: bool) -> Dict[str, Any]:
     global_config = copy.deepcopy(GLOBAL_CONFIG)
-    global_config['spark_conf'] = get_spark_conf(client.proxy)
+    proxy = os.environ.get("YT_PROXY", "os")
+    global_config['spark_conf'] = get_spark_conf(proxy)
     global_config['latest_spark_cluster_version'] = versions.cluster_version.get_scala_version()
     if not os_release:
         python_cluster_paths = {
@@ -151,7 +153,7 @@ def make_configs(sources_path: str, client_builder: ClientBuilder, versions: Ver
 
     if not versions.cluster_version.is_snapshot:
         logger.debug("Global config file creation")
-        global_config = prepare_global_config(versions, client, os_release)
+        global_config = prepare_global_config(versions, os_release)
         logger.info(f"Global config: {global_config}")
         write_config(global_config, join(conf_local_dir, 'global'))
 
@@ -175,7 +177,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     client_builder = ClientBuilder(
-        root_path=args.root
+        root_path=args.root,
     )
 
     main(sources_path=args.sources, client_builder=client_builder, os_release=args.os_release)
