@@ -156,6 +156,8 @@ DEFINE_REFCOUNTED_TYPE(TOffloadingPoolSettingsConfig)
 
 using TOffloadingSettings = THashMap<TString, TOffloadingPoolSettingsConfigPtr>;
 
+static const inline TOffloadingSettings EmptyOffloadingSettings = {};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulableConfig

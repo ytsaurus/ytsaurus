@@ -1926,6 +1926,27 @@ class TestMultiTreeOperations(YTEnvSetup):
         op.track()
 
     @authors("renadeen")
+    def test_offloading_of_operations_in_nested_pools(self):
+        create_pool("primary_pool", pool_tree="default", attributes={
+            "offloading_settings": {
+                "offload_tree": {"pool": "offload_pool"}
+            }})
+        create_pool("child_pool", pool_tree="default", parent_name="primary_pool")
+
+        create_custom_pool_tree_with_one_node("offload_tree")
+        create_pool("offload_pool", pool_tree="offload_tree")
+
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool": "child_pool"}, job_count=3)
+        wait(lambda: op.get_job_count("running") == 3)
+
+        op_offload_tree_path = scheduler_orchid_operation_path(op.id, "offload_tree")
+        wait(lambda: exists(op_offload_tree_path + "/pool"))
+        wait(lambda: get(op_offload_tree_path + "/pool", "offload_pool"))
+
+        release_breakpoint()
+        op.track()
+
+    @authors("renadeen")
     def test_offloading_disabled_for_network_demanding_jobs(self):
         create_network_project("n")
 

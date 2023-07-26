@@ -490,6 +490,8 @@ public:
     //! Other methods.
     virtual THashSet<TString> GetAllowedProfilingTags() const = 0;
 
+    virtual const TOffloadingSettings& GetOffloadingSettings() const = 0;
+
 protected:
     using TChildMap = THashMap<TSchedulerElementPtr, int>;
     using TChildList = std::vector<TSchedulerElementPtr>;
@@ -653,6 +655,8 @@ public:
     THashSet<TString> GetAllowedProfilingTags() const override;
 
     TGuid GetObjectId() const override;
+
+    const TOffloadingSettings& GetOffloadingSettings() const override;
 
 protected:
     //! Pre fair share update methods.
@@ -980,6 +984,8 @@ public:
     void BuildResourceDistributionInfo(NYTree::TFluentMap fluent) const;
 
     TGuid GetObjectId() const override;
+
+    const TOffloadingSettings& GetOffloadingSettings() const override;
 
 protected:
     //! Post update methods.
