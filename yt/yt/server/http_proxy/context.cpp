@@ -650,17 +650,17 @@ void TContext::SetupOutputStream()
         // NB: This lambda should not capture |this| (by strong reference) to avoid cyclic references.
         auto sendKeepAliveFrame = [Logger=Logger] (const TFramingAsyncOutputStreamPtr& stream) {
             // All errors are ignored.
-            YT_LOG_DEBUG("Sending keep_alive frame");
+            YT_LOG_DEBUG("Sending keep-alive frame");
             auto error = WaitFor(stream->WriteKeepAliveFrame());
             if (!error.IsOK()) {
-                YT_LOG_ERROR("Error sending keep_alive frame", error);
+                YT_LOG_ERROR("Error sending keep-alive frame", error);
                 return;
             }
             Y_UNUSED(WaitFor(stream->Flush()));
         };
 
         if (auto keepAlivePeriod = GetFramingConfig()->KeepAlivePeriod; keepAlivePeriod) {
-            YT_LOG_DEBUG("Creating periodic executor to send keep_alive frames (KeepAlivePeriod: %v)",
+            YT_LOG_DEBUG("Creating periodic executor to send keep-alive frames (KeepAlivePeriod: %v)",
                 *keepAlivePeriod);
             SendKeepAliveExecutor_ = New<TPeriodicExecutor>(
                 invoker,
@@ -676,8 +676,6 @@ void TContext::SetupOutputParameters()
     OutputParametersConsumer_->OnBeginMap();
     DriverRequest_.ResponseParametersConsumer = OutputParametersConsumer_.get();
     DriverRequest_.ResponseParametersFinishedCallback = [this, weakThis = MakeWeak(this)] {
-        YT_LOG_DEBUG("ResponseParametersFinishedCallback started");
-
         auto strongThis = weakThis.Lock();
         if (!strongThis) {
             return;
@@ -688,12 +686,11 @@ void TContext::SetupOutputParameters()
         OnOutputParameters();
 
         if (SendKeepAliveExecutor_) {
-            YT_LOG_DEBUG("Starting periodic executor to send keep_alive frames");
+            YT_LOG_DEBUG("Starting periodic executor to send keep-alive frames");
             SendKeepAliveExecutor_->Start();
         }
 
         ProcessDelayBeforeCommandTestingOption();
-        YT_LOG_DEBUG("ResponseParametersFinishedCallback finished");
     };
 }
 
@@ -884,7 +881,7 @@ void TContext::LogAndProfile()
 void TContext::Finalize()
 {
     if (SendKeepAliveExecutor_) {
-        YT_LOG_DEBUG("Stopping periodic executor that sends keep_alive frames");
+        YT_LOG_DEBUG("Stopping periodic executor that sends keep-alive frames");
         Y_UNUSED(WaitFor(SendKeepAliveExecutor_->Stop()));
     }
 
