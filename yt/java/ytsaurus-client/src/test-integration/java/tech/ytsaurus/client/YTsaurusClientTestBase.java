@@ -26,6 +26,7 @@ import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.testlib.LocalYTsaurus;
+import tech.ytsaurus.testlib.LoggingUtils;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
 public class YTsaurusClientTestBase {
@@ -52,6 +53,10 @@ public class YTsaurusClientTestBase {
     protected static GenericContainer<?> localYTsaurus;
 
     static {
+        LoggingUtils.loadJULConfig(
+                YTsaurusClientTestBase.class.getResourceAsStream("/logging.properties")
+        );
+
         if (!System.getenv().containsKey("YT_PROXY")) {
             localYTsaurus = new FixedHostPortGenericContainer<>("ytsaurus/local:dev")
                     .withFixedExposedPort(10110, 80) // http
