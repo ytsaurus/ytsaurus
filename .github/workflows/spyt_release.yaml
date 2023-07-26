@@ -60,9 +60,12 @@ jobs:
           then
               echo "RELEASE_TYPE=cluster" >> $GITHUB_OUTPUT
           fi
-          RELEASE_VERSION=$(echo ${GITHUB_REF#refs/*/spyt*/})
+          RELEASE_VERSION=$(echo ${GITHUB_REF#refs/*/*/})
+          RELEASE_MAJOR_VERSION=$(echo $RELEASE_VERSION | sed 's/\.[0-9]*$/.0/')
           echo "RELEASE_VERSION=$RELEASE_VERSION" >> $GITHUB_OUTPUT
-          echo "RELEASE_MAJOR_VERSION=$(echo $RELEASE_VERSION | sed 's/\.[0-9]*$/.0/')" >> $GITHUB_OUTPUT
+          echo "RELEASE_MAJOR_VERSION=$RELEASE_MAJOR_VERSION" >> $GITHUB_OUTPUT
+          echo "RELEASE_VERSION=$RELEASE_VERSION"
+          echo "RELEASE_MAJOR_VERSION=$RELEASE_MAJOR_VERSION"
 
 #      - name: Prepare GPG Agent
 #        run: apt install gpg-agent
