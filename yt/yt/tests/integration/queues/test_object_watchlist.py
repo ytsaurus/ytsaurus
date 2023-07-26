@@ -238,11 +238,11 @@ class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
 
         # Impossible to alter chaos consumer to queue via changing schema.
         with raises_yt_error("Chaos replicated table object cannot be both a queue and a consumer.\
-                To transform consumer into queue set `treat_as_queue_consumer` attribute into False first"):
+                To transform consumer into queue set \"treat_as_queue_consumer\" attribute into False first"):
             alter_table("//tmp/chaos_rep_c1", schema=[{"name": "data", "type": "string"}])
         # Impossible to alter chaos consumer with empty schema.
         with raises_yt_error("Chaos replicated table object cannot be both a queue and a consumer.\
-                To transform consumer into queue set `treat_as_queue_consumer` attribute into False first"):
+                To transform consumer into queue set \"treat_as_queue_consumer\" attribute into False first"):
             alter_table("//tmp/chaos_rep_c1", schema=[])
         QueueAgentHelpers.assert_registered_queues_are()
         QueueAgentHelpers.assert_registered_consumers_are("//tmp/chaos_rep_c1")
