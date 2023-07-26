@@ -5,7 +5,7 @@ from yt.wrapper import YtClient, config, ypath_join
 
 from yt.environment.init_cluster import get_default_resource_limits
 
-from yt.python.yt.migrationlib import TableInfo, Conversion, Migration
+from yt.migrationlib import TableInfo, Conversion, Migration
 
 import argparse
 import logging

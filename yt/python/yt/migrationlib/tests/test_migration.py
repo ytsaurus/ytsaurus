@@ -1,6 +1,6 @@
 from yt.test_helpers import assert_items_equal
 
-from yt.python.yt.migrationlib import TableInfo, Conversion, Migration
+from yt.migrationlib import TableInfo, Conversion, Migration
 
 from yt_commands import (authors, get, insert_rows,
                          read_table, create_tablet_cell_bundle, sync_create_cells)
