@@ -350,7 +350,7 @@ private:
         }
 
         if (Closing_) {
-            FlushPromise_.Set();
+            FlushPromise_.TrySet();
         }
     }
 
@@ -509,7 +509,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        FlushPromise_.Set(error);
+        FlushPromise_.TrySet(error);
 
         auto guard = Guard(ReadyEventLock_);
 
