@@ -17,7 +17,7 @@ target_compile_options(driver_lib PRIVATE
 )
 target_link_libraries(driver_lib PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   Python3::Module
   python-driver-native
@@ -36,6 +36,6 @@ target_link_options(driver_lib PRIVATE
   -lutil
 )
 use_export_script(driver_lib
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/driver/native_shared/driver3.exports
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/python/driver/native_shared/driver3.exports
 )
 vcs_info(driver_lib)

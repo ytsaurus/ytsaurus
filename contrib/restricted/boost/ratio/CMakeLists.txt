@@ -9,11 +9,11 @@
 
 add_library(restricted-boost-ratio INTERFACE)
 target_include_directories(restricted-boost-ratio INTERFACE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/ratio/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/ratio/include
 )
 target_link_libraries(restricted-boost-ratio INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   restricted-boost-config
   restricted-boost-core
   restricted-boost-integer

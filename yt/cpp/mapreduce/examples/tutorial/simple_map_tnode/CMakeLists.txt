@@ -13,7 +13,7 @@ target_compile_options(simple_map_tnode PRIVATE
 )
 target_link_libraries(simple_map_tnode PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-mapreduce-interface
@@ -31,7 +31,7 @@ target_link_options(simple_map_tnode PRIVATE
   -lutil
 )
 target_sources(simple_map_tnode PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/simple_map_tnode/main.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/examples/tutorial/simple_map_tnode/main.cpp
 )
 target_allocator(simple_map_tnode
   cpp-malloc-tcmalloc

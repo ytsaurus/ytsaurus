@@ -11,14 +11,14 @@ add_subdirectory(unittests)
 add_library(yt-client-federated)
 target_link_libraries(yt-client-federated PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-yt-string
   yt-yt-core
   yt-yt-client
 )
 target_sources(yt-client-federated PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/federated/client.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/federated/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/federated/connection.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/client/federated/client.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/client/federated/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/client/federated/connection.cpp
 )

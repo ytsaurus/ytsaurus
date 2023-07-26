@@ -11,7 +11,7 @@ add_subdirectory(unittests)
 add_library(yt-library-error_skeleton INTERFACE)
 target_link_libraries(yt-library-error_skeleton INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
   contrib-libs-re2
@@ -23,11 +23,11 @@ target_compile_options(yt-library-error_skeleton.global PRIVATE
 )
 target_link_libraries(yt-library-error_skeleton.global PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
   contrib-libs-re2
 )
 target_sources(yt-library-error_skeleton.global PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/error_skeleton/skeleton.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/error_skeleton/skeleton.cpp
 )

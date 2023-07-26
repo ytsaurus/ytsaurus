@@ -10,6 +10,6 @@
 add_library(contrib-libs-pdqsort INTERFACE)
 target_link_libraries(contrib-libs-pdqsort INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
 )

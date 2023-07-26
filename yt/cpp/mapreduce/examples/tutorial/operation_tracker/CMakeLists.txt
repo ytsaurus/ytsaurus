@@ -13,7 +13,7 @@ target_compile_options(operation_tracker PRIVATE
 )
 target_link_libraries(operation_tracker PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-mapreduce-client
@@ -31,7 +31,7 @@ target_link_options(operation_tracker PRIVATE
   -lutil
 )
 target_sources(operation_tracker PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/operation_tracker/main.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/examples/tutorial/operation_tracker/main.cpp
 )
 target_allocator(operation_tracker
   cpp-malloc-tcmalloc

@@ -10,9 +10,9 @@
 add_library(cpp-threading-blocking_queue)
 target_link_libraries(cpp-threading-blocking_queue PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
 )
 target_sources(cpp-threading-blocking_queue PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/threading/blocking_queue/blocking_queue.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/threading/blocking_queue/blocking_queue.cpp
 )

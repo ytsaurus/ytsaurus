@@ -22,23 +22,23 @@ get_built_tool_path(
 add_library(roren-yt-proto)
 target_link_libraries(roren-yt-proto PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   contrib-libs-protobuf
 )
 target_proto_messages(roren-yt-proto PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/proto/config.proto
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/roren/yt/proto/config.proto
 )
 target_proto_addincls(roren-yt-proto
   ./
-  ${CMAKE_SOURCE_DIR}/
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${CMAKE_SOURCE_DIR}/ytsaurus/
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
 )
 target_proto_outs(roren-yt-proto
-  --cpp_out=${CMAKE_BINARY_DIR}/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
+  --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/
+  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/
 )

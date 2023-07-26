@@ -12,16 +12,16 @@ target_compile_options(Target-X86-TargetInfo PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(Target-X86-TargetInfo PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86/TargetInfo
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Target/X86
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Target/X86/TargetInfo
 )
 target_link_libraries(Target-X86-TargetInfo PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   contrib-libs-llvm16
   llvm16-lib-MC
   llvm16-lib-Support
 )
 target_sources(Target-X86-TargetInfo PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86/TargetInfo/X86TargetInfo.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Target/X86/TargetInfo/X86TargetInfo.cpp
 )

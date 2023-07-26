@@ -10,10 +10,10 @@
 add_library(cpp-threading-cron)
 target_link_libraries(cpp-threading-cron PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-deprecated-atomic
 )
 target_sources(cpp-threading-cron PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/threading/cron/cron.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/threading/cron/cron.cpp
 )

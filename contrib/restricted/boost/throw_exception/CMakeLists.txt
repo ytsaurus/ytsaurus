@@ -9,11 +9,11 @@
 
 add_library(restricted-boost-throw_exception INTERFACE)
 target_include_directories(restricted-boost-throw_exception INTERFACE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/throw_exception/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/throw_exception/include
 )
 target_link_libraries(restricted-boost-throw_exception INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   restricted-boost-assert
   restricted-boost-config
 )

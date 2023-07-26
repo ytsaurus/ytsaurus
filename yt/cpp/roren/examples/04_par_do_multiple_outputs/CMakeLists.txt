@@ -10,7 +10,7 @@
 add_executable(04_par_do_multiple_outputs)
 target_link_libraries(04_par_do_multiple_outputs PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-roren-interface
@@ -28,7 +28,7 @@ target_link_options(04_par_do_multiple_outputs PRIVATE
   -lutil
 )
 target_sources(04_par_do_multiple_outputs PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/examples/04_par_do_multiple_outputs/main.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/roren/examples/04_par_do_multiple_outputs/main.cpp
 )
 target_allocator(04_par_do_multiple_outputs
   cpp-malloc-tcmalloc

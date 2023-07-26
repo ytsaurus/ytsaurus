@@ -13,7 +13,7 @@ target_compile_options(dummy-logger PRIVATE
 )
 target_link_libraries(dummy-logger PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
 )
@@ -28,7 +28,7 @@ target_link_options(dummy-logger PRIVATE
   -ldl
 )
 target_sources(dummy-logger PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/chyt/tests/dummy_logger/main.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/chyt/tests/dummy_logger/main.cpp
 )
 target_allocator(dummy-logger
   cpp-ytalloc-impl

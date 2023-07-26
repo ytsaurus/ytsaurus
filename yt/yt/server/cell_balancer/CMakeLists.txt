@@ -13,11 +13,11 @@ target_compile_options(yt-server-cell_balancer PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(yt-server-cell_balancer PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt
 )
 target_link_libraries(yt-server-cell_balancer PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-getopt
   cpp-yt-phdr_cache
@@ -28,17 +28,17 @@ target_link_libraries(yt-server-cell_balancer PUBLIC
   yt-server-node
 )
 target_sources(yt-server-cell_balancer PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/cell_balancer/bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/cell_balancer/bundle_controller.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/cell_balancer/bundle_scheduler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/cell_balancer/cell_tracker.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/cell_balancer/cell_tracker_impl.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/cell_balancer/cluster_state_provider.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/cell_balancer/cypress_bindings.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/cell_balancer/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/cell_balancer/master_connector.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/cell_balancer/node_tag_filters_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/cell_balancer/orchid_bindings.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/cell_balancer/program.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/cell_balancer/proxy_roles_manager.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/cell_balancer/bootstrap.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/cell_balancer/bundle_controller.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/cell_balancer/bundle_scheduler.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/cell_balancer/cell_tracker.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/cell_balancer/cell_tracker_impl.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/cell_balancer/cluster_state_provider.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/cell_balancer/cypress_bindings.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/cell_balancer/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/cell_balancer/master_connector.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/cell_balancer/node_tag_filters_manager.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/cell_balancer/orchid_bindings.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/cell_balancer/program.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/cell_balancer/proxy_roles_manager.cpp
 )

@@ -13,7 +13,7 @@ target_compile_options(unittester-ytlib-tablet-client PRIVATE
 )
 target_link_libraries(unittester-ytlib-tablet-client PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-testing-gtest
@@ -35,7 +35,7 @@ target_link_options(unittester-ytlib-tablet-client PRIVATE
   -lutil
 )
 target_sources(unittester-ytlib-tablet-client PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/tablet_client/unittests/build_reshard_pivots_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/ytlib/tablet_client/unittests/build_reshard_pivots_ut.cpp
 )
 add_test(
   NAME

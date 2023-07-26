@@ -46,27 +46,27 @@ get_built_tool_path(
 add_library(yt-systest-proto)
 target_link_libraries(yt-systest-proto PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt_proto-yt-client
   contrib-libs-protobuf
 )
 target_proto_messages(yt-systest-proto PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/systest/proto/mapper.proto
-  ${CMAKE_SOURCE_DIR}/yt/systest/proto/operation.proto
-  ${CMAKE_SOURCE_DIR}/yt/systest/proto/table.proto
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/systest/proto/mapper.proto
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/systest/proto/operation.proto
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/systest/proto/table.proto
 )
 target_proto_addincls(yt-systest-proto
   ./
-  ${CMAKE_SOURCE_DIR}/
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${CMAKE_SOURCE_DIR}/ytsaurus/
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
 )
 target_proto_outs(yt-systest-proto
-  --cpp_out=${CMAKE_BINARY_DIR}/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
+  --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/
+  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/
 )

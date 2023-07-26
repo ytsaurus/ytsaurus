@@ -22,23 +22,23 @@ get_built_tool_path(
 add_library(cpp-porto-proto)
 target_link_libraries(cpp-porto-proto PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   contrib-libs-protobuf
 )
 target_proto_messages(cpp-porto-proto PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/porto/proto/rpc.proto
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/porto/proto/rpc.proto
 )
 target_proto_addincls(cpp-porto-proto
   ./
-  ${CMAKE_SOURCE_DIR}/
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${CMAKE_SOURCE_DIR}/ytsaurus/
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
 )
 target_proto_outs(cpp-porto-proto
-  --cpp_out=${CMAKE_BINARY_DIR}/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
+  --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/
+  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/
 )

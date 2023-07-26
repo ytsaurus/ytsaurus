@@ -18,27 +18,27 @@ target_compile_options(libs-poco-Redis PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(libs-poco-Redis PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Redis/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/Redis/include
 )
 target_include_directories(libs-poco-Redis PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Foundation/include
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Net/include
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Redis/src
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/Foundation/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/Net/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/Redis/src
 )
 target_link_libraries(libs-poco-Redis PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   libs-poco-Foundation
   libs-poco-Net
 )
 target_sources(libs-poco-Redis PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Redis/src/Array.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Redis/src/AsyncReader.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Redis/src/Client.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Redis/src/Command.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Redis/src/Error.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Redis/src/Exception.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Redis/src/RedisEventArgs.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Redis/src/RedisStream.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Redis/src/Type.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/Redis/src/Array.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/Redis/src/AsyncReader.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/Redis/src/Client.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/Redis/src/Command.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/Redis/src/Error.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/Redis/src/Exception.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/Redis/src/RedisEventArgs.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/Redis/src/RedisStream.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/Redis/src/Type.cpp
 )

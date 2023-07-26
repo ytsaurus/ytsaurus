@@ -10,10 +10,10 @@
 add_library(streams-lz-snappy)
 target_link_libraries(streams-lz-snappy PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   contrib-libs-snappy
 )
 target_sources(streams-lz-snappy PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/streams/lz/snappy/snappy.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/streams/lz/snappy/snappy.cpp
 )

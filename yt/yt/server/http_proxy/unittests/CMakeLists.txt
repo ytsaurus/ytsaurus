@@ -12,11 +12,11 @@ target_compile_options(unittester-http-proxy PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(unittester-http-proxy PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/sparsehash/src
 )
 target_link_libraries(unittester-http-proxy PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-testing-gtest
@@ -35,8 +35,8 @@ target_link_options(unittester-http-proxy PRIVATE
   -lutil
 )
 target_sources(unittester-http-proxy PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/unittests/helpers_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/http_proxy/unittests/http_proxy_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/http_proxy/unittests/helpers_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/http_proxy/unittests/http_proxy_ut.cpp
 )
 add_test(
   NAME

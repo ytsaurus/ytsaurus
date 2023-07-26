@@ -13,10 +13,10 @@ target_compile_options(yt-library-random PRIVATE
 )
 target_link_libraries(yt-library-random PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
 )
 target_sources(yt-library-random PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/random/bernoulli_sampler.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/random/bernoulli_sampler.cpp
 )

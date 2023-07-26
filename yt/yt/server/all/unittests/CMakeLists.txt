@@ -19,7 +19,7 @@ target_compile_options(unittester-all PRIVATE
 )
 target_link_libraries(unittester-all PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-testing-gtest
@@ -53,8 +53,8 @@ target_link_options(unittester-all PRIVATE
   -lutil
 )
 target_sources(unittester-all PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/all/unittests/config_ut.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/server/all/unittests/8a8382a18083988df754644fce9e5fe3.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/all/unittests/config_ut.cpp
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/server/all/unittests/8a8382a18083988df754644fce9e5fe3.cpp
 )
 add_test(
   NAME
@@ -77,19 +77,19 @@ set_property(
   1
 )
 resources(unittester-all
-  ${CMAKE_BINARY_DIR}/yt/yt/server/all/unittests/8a8382a18083988df754644fce9e5fe3.cpp
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/server/all/unittests/8a8382a18083988df754644fce9e5fe3.cpp
   INPUTS
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/all/unittests/data/controller-agent.yson
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/all/unittests/data/http-proxy.yson
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/all/unittests/data/map_reduce_spec.yson
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/all/unittests/data/map_spec.yson
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/all/unittests/data/master.yson
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/all/unittests/data/node.yson
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/all/unittests/data/reduce_spec.yson
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/all/unittests/data/rpc-proxy.yson
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/all/unittests/data/scheduler.yson
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/all/unittests/data/sort_spec.yson
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/all/unittests/data/vanilla_spec.yson
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/all/unittests/data/controller-agent.yson
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/all/unittests/data/http-proxy.yson
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/all/unittests/data/map_reduce_spec.yson
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/all/unittests/data/map_spec.yson
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/all/unittests/data/master.yson
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/all/unittests/data/node.yson
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/all/unittests/data/reduce_spec.yson
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/all/unittests/data/rpc-proxy.yson
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/all/unittests/data/scheduler.yson
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/all/unittests/data/sort_spec.yson
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/all/unittests/data/vanilla_spec.yson
   KEYS
   /configs/controller-agent.yson
   /configs/http-proxy.yson

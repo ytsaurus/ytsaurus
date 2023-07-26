@@ -12,9 +12,9 @@ target_compile_options(restricted-boost-config INTERFACE
   -DBOOST_ALL_NO_LIB
 )
 target_include_directories(restricted-boost-config INTERFACE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/config/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/config/include
 )
 target_link_libraries(restricted-boost-config INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
 )

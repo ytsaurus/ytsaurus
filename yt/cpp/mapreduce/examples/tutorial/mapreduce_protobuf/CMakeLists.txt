@@ -25,7 +25,7 @@ target_compile_options(mapreduce_protobuf PRIVATE
 )
 target_link_libraries(mapreduce_protobuf PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-mapreduce-client
@@ -43,10 +43,10 @@ target_link_options(mapreduce_protobuf PRIVATE
   -lutil
 )
 target_proto_messages(mapreduce_protobuf PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/mapreduce_protobuf/data.proto
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/examples/tutorial/mapreduce_protobuf/data.proto
 )
 target_sources(mapreduce_protobuf PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/mapreduce_protobuf/main.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/examples/tutorial/mapreduce_protobuf/main.cpp
 )
 target_allocator(mapreduce_protobuf
   cpp-malloc-tcmalloc
@@ -54,16 +54,16 @@ target_allocator(mapreduce_protobuf
 )
 target_proto_addincls(mapreduce_protobuf
   ./
-  ${CMAKE_SOURCE_DIR}/
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${CMAKE_SOURCE_DIR}/ytsaurus/
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
 )
 target_proto_outs(mapreduce_protobuf
-  --cpp_out=${CMAKE_BINARY_DIR}/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
+  --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/
+  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/
 )
 vcs_info(mapreduce_protobuf)

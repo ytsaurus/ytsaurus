@@ -13,9 +13,9 @@ target_compile_options(cpp-yt-assert PRIVATE
 )
 target_link_libraries(cpp-yt-assert PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
 )
 target_sources(cpp-yt-assert PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/yt/assert/assert.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/yt/assert/assert.cpp
 )

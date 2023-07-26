@@ -14,7 +14,7 @@ target_compile_options(yt-server-scheduler PRIVATE
 )
 target_link_libraries(yt-server-scheduler PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-getopt
   ytserver
@@ -25,45 +25,45 @@ target_link_libraries(yt-server-scheduler PUBLIC
   cpp-yt-phdr_cache
 )
 target_sources(yt-server-scheduler PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/allocation_tracker_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/controller_agent.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/controller_agent_tracker.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/controller_agent_tracker_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/exec_node.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_strategy.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_tree.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_tree_element.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_tree_job_scheduler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_tree_job_scheduler_operation_shared_state.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_tree_job_scheduler_structs.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_tree_profiling.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_tree_snapshot.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/fair_share_strategy_operation_controller.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/fields_filter.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/job.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/job_prober_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/job_resources_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/master_connector.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/node_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/node_shard.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/operation.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/operation_alert_event.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/operations_cleaner.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/operation_controller.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/operation_controller_impl.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/packing.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/packing_detail.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/persistent_fair_share_tree_job_scheduler_state.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/persistent_scheduler_state.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/pools_config_parser.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/resource_tree.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/resource_tree_element.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/scheduler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/scheduler_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/scheduling_context.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/scheduling_context_detail.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/scheduling_segment_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/scheduler/serialize.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/allocation_tracker_service.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/bootstrap.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/controller_agent.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/controller_agent_tracker.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/controller_agent_tracker_service.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/exec_node.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/fair_share_strategy.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/fair_share_tree.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/fair_share_tree_element.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/fair_share_tree_job_scheduler.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/fair_share_tree_job_scheduler_operation_shared_state.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/fair_share_tree_job_scheduler_structs.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/fair_share_tree_profiling.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/fair_share_tree_snapshot.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/fair_share_strategy_operation_controller.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/fields_filter.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/helpers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/job.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/job_prober_service.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/job_resources_helpers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/master_connector.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/node_manager.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/node_shard.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/operation.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/operation_alert_event.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/operations_cleaner.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/operation_controller.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/operation_controller_impl.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/packing.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/packing_detail.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/persistent_fair_share_tree_job_scheduler_state.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/persistent_scheduler_state.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/pools_config_parser.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/resource_tree.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/resource_tree_element.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/scheduler.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/scheduler_service.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/scheduling_context.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/scheduling_context_detail.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/scheduling_segment_manager.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/scheduler/serialize.cpp
 )

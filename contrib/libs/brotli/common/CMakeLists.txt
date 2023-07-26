@@ -13,13 +13,13 @@ target_compile_options(libs-brotli-common PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(libs-brotli-common PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/brotli/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/brotli/include
 )
 target_link_libraries(libs-brotli-common PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
 )
 target_sources(libs-brotli-common PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/brotli/common/dictionary.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/brotli/common/transform.c
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/brotli/common/dictionary.c
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/brotli/common/transform.c
 )

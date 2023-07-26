@@ -10,10 +10,10 @@
 add_library(cpp-threading-hot_swap)
 target_link_libraries(cpp-threading-hot_swap PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-deprecated-atomic
 )
 target_sources(cpp-threading-hot_swap PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/threading/hot_swap/hot_swap.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/threading/hot_swap/hot_swap.cpp
 )

@@ -9,11 +9,11 @@
 
 add_executable(convert_operations_to_binary_format)
 target_include_directories(convert_operations_to_binary_format PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/scheduler_simulator
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/tools/scheduler_simulator
 )
 target_link_libraries(convert_operations_to_binary_format PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   yt-tools-scheduler_simulator
@@ -30,7 +30,7 @@ target_link_options(convert_operations_to_binary_format PRIVATE
   -lutil
 )
 target_sources(convert_operations_to_binary_format PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/bin/converter/convert.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/tools/scheduler_simulator/bin/converter/convert.cpp
 )
 target_allocator(convert_operations_to_binary_format
   cpp-ytalloc-impl

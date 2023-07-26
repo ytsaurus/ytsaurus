@@ -13,10 +13,10 @@ target_compile_options(lib-hydra_common-mock PRIVATE
 )
 target_link_libraries(lib-hydra_common-mock PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   server-lib-hydra
 )
 target_sources(lib-hydra_common-mock PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/mock/simple_hydra_manager_mock.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra_common/mock/simple_hydra_manager_mock.cpp
 )

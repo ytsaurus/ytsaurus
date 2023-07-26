@@ -52,7 +52,7 @@ add_subdirectory(zookeeper_proxy)
 add_library(ytserver INTERFACE)
 target_link_libraries(ytserver INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   OpenSSL::OpenSSL
   contrib-libs-sparsehash

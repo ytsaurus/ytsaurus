@@ -11,12 +11,12 @@ add_subdirectory(proto)
 add_library(library-cpp-porto)
 target_link_libraries(library-cpp-porto PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-porto-proto
   contrib-libs-protobuf
 )
 target_sources(library-cpp-porto PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/porto/libporto.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/porto/metrics.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/porto/libporto.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/porto/metrics.cpp
 )

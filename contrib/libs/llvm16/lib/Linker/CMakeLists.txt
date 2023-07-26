@@ -12,11 +12,11 @@ target_compile_options(llvm16-lib-Linker PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(llvm16-lib-Linker PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Linker
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Linker
 )
 target_link_libraries(llvm16-lib-Linker PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   contrib-libs-llvm16
   libs-llvm16-include
   llvm16-lib-IR
@@ -26,6 +26,6 @@ target_link_libraries(llvm16-lib-Linker PUBLIC
   lib-Transforms-Utils
 )
 target_sources(llvm16-lib-Linker PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Linker/IRMover.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Linker/LinkModules.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Linker/IRMover.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Linker/LinkModules.cpp
 )

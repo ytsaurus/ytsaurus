@@ -10,7 +10,7 @@
 add_executable(unittester-server-lib-tablet_server)
 target_link_libraries(unittester-server-lib-tablet_server PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-testing-gtest
@@ -33,7 +33,7 @@ target_link_options(unittester-server-lib-tablet_server PRIVATE
   -lutil
 )
 target_sources(unittester-server-lib-tablet_server PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_server/unittests/replicated_table_tracker_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/tablet_server/unittests/replicated_table_tracker_ut.cpp
 )
 add_test(
   NAME

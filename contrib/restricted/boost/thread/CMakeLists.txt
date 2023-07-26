@@ -18,11 +18,11 @@ target_compile_options(restricted-boost-thread PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(restricted-boost-thread PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/thread/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/thread/include
 )
 target_link_libraries(restricted-boost-thread PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   restricted-boost-algorithm
   restricted-boost-assert
   restricted-boost-atomic
@@ -54,7 +54,7 @@ target_link_libraries(restricted-boost-thread PUBLIC
   restricted-boost-winapi
 )
 target_sources(restricted-boost-thread PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/thread/src/future.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/thread/src/pthread/once.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/thread/src/pthread/thread.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/thread/src/future.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/thread/src/pthread/once.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/thread/src/pthread/thread.cpp
 )

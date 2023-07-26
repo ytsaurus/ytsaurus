@@ -13,7 +13,7 @@ target_compile_options(library-ytprof-http PRIVATE
 )
 target_link_libraries(library-ytprof-http PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cgiparam
   yt-core-http
@@ -21,5 +21,5 @@ target_link_libraries(library-ytprof-http PUBLIC
   yt-library-process
 )
 target_sources(library-ytprof-http PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/ytprof/http/handler.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/ytprof/http/handler.cpp
 )

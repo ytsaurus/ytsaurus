@@ -13,7 +13,7 @@ target_compile_options(unittester-job-proxy PRIVATE
 )
 target_link_libraries(unittester-job-proxy PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-testing-gtest
@@ -32,7 +32,7 @@ target_link_options(unittester-job-proxy PRIVATE
   -lutil
 )
 target_sources(unittester-job-proxy PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/unittests/asan_warning_filter_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/job_proxy/unittests/asan_warning_filter_ut.cpp
 )
 add_test(
   NAME

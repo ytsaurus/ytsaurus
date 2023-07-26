@@ -10,7 +10,7 @@
 add_library(blockcodecs-codecs-lz4 INTERFACE)
 target_link_libraries(blockcodecs-codecs-lz4 INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   contrib-libs-lz4
   cpp-blockcodecs-core
@@ -19,11 +19,11 @@ target_link_libraries(blockcodecs-codecs-lz4 INTERFACE
 add_global_library_for(blockcodecs-codecs-lz4.global blockcodecs-codecs-lz4)
 target_link_libraries(blockcodecs-codecs-lz4.global PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   contrib-libs-lz4
   cpp-blockcodecs-core
 )
 target_sources(blockcodecs-codecs-lz4.global PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/blockcodecs/codecs/lz4/lz4.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/blockcodecs/codecs/lz4/lz4.cpp
 )

@@ -15,19 +15,19 @@ target_compile_options(yt-tools-scheduler_simulator PRIVATE
 )
 target_link_libraries(yt-tools-scheduler_simulator PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-server-scheduler
 )
 target_sources(yt-tools-scheduler_simulator PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/operation_description.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/operation.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/operation_controller.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/private.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/scheduler_strategy_host.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/shared_data.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/node_shard.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/node_worker.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/control_thread.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/event_log.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/tools/scheduler_simulator/operation_description.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/tools/scheduler_simulator/operation.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/tools/scheduler_simulator/operation_controller.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/tools/scheduler_simulator/private.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/tools/scheduler_simulator/scheduler_strategy_host.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/tools/scheduler_simulator/shared_data.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/tools/scheduler_simulator/node_shard.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/tools/scheduler_simulator/node_worker.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/tools/scheduler_simulator/control_thread.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/tools/scheduler_simulator/event_log.cpp
 )

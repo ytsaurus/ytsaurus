@@ -13,7 +13,7 @@ target_compile_options(unittester-core-profiling PRIVATE
 )
 target_link_libraries(unittester-core-profiling PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-testing-gtest
@@ -33,8 +33,8 @@ target_link_options(unittester-core-profiling PRIVATE
   -lutil
 )
 target_sources(unittester-core-profiling PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/profiling/unittests/timer_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/profiling/unittests/timing_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/profiling/unittests/timer_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/profiling/unittests/timing_ut.cpp
 )
 add_test(
   NAME

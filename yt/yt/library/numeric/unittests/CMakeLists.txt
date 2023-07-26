@@ -12,11 +12,11 @@ target_compile_options(unittester-library-numeric PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(unittester-library-numeric PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/numeric
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/numeric
 )
 target_link_libraries(unittester-library-numeric PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-testing-gtest
@@ -34,10 +34,10 @@ target_link_options(unittester-library-numeric PRIVATE
   -ldl
 )
 target_sources(unittester-library-numeric PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/numeric/unittests/binary_search_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/numeric/unittests/double_array_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/numeric/unittests/piecewise_linear_function_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/numeric/unittests/util_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/numeric/unittests/binary_search_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/numeric/unittests/double_array_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/numeric/unittests/piecewise_linear_function_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/numeric/unittests/util_ut.cpp
 )
 add_test(
   NAME

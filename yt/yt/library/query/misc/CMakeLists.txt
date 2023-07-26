@@ -12,15 +12,15 @@ target_compile_options(library-query-misc PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(library-query-misc PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt
 )
 target_link_libraries(library-query-misc PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-yt-assert
 )
 target_sources(library-query-misc PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/misc/objects_holder.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/misc/function_context.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/query/misc/objects_holder.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/query/misc/function_context.cpp
 )

@@ -14,11 +14,11 @@ target_compile_options(yt-library-decimal PRIVATE
 )
 target_link_libraries(yt-library-decimal PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
   library-cpp-int128
 )
 target_sources(yt-library-decimal PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/decimal/decimal.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/decimal/decimal.cpp
 )

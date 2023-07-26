@@ -111,13 +111,7 @@
 #  define FMT_CONSTEXPR_DECL
 #endif
 
-#if ((__cplusplus >= 202002L) &&                              \
-     (!defined(_GLIBCXX_RELEASE) || _GLIBCXX_RELEASE > 9)) || \
-    (__cplusplus >= 201709L && FMT_GCC_VERSION >= 1002)
-#  define FMT_CONSTEXPR20 constexpr
-#else
 #  define FMT_CONSTEXPR20
-#endif
 
 // Check if constexpr std::char_traits<>::compare,length is supported.
 #if defined(__GLIBCXX__)

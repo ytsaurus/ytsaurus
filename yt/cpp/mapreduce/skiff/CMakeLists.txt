@@ -10,7 +10,7 @@
 add_library(cpp-mapreduce-skiff INTERFACE)
 target_link_libraries(cpp-mapreduce-skiff INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-skiff
 )

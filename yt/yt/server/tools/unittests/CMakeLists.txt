@@ -10,7 +10,7 @@
 add_executable(unittester-tools)
 target_link_libraries(unittester-tools PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-testing-gtest
@@ -29,7 +29,7 @@ target_link_options(unittester-tools PRIVATE
   -lutil
 )
 target_sources(unittester-tools PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tools/unittests/tools_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/tools/unittests/tools_ut.cpp
 )
 add_test(
   NAME

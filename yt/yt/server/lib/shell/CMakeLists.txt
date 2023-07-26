@@ -13,15 +13,15 @@ target_compile_options(server-lib-shell PRIVATE
 )
 target_link_libraries(server-lib-shell PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-ytlib
   yt-library-containers
   yt-library-process
 )
 target_sources(server-lib-shell PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/shell/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/shell/private.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/shell/shell.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/shell/shell_manager.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/shell/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/shell/private.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/shell/shell.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/shell/shell_manager.cpp
 )

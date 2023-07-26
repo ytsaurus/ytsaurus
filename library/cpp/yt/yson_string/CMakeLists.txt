@@ -13,7 +13,7 @@ target_compile_options(cpp-yt-yson_string PRIVATE
 )
 target_link_libraries(cpp-yt-yson_string PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-yt-assert
   cpp-yt-coding
@@ -23,6 +23,6 @@ target_link_libraries(cpp-yt-yson_string PUBLIC
   cpp-yt-misc
 )
 target_sources(cpp-yt-yson_string PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/yt/yson_string/convert.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/yt/yson_string/string.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/yt/yson_string/convert.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/yt/yson_string/string.cpp
 )

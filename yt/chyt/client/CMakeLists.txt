@@ -11,7 +11,7 @@ add_subdirectory(protos)
 add_library(yt-chyt-client INTERFACE)
 target_link_libraries(yt-chyt-client INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   chyt-client-protos
 )

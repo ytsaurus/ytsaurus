@@ -14,7 +14,7 @@ target_compile_options(ytserver-all PRIVATE
 )
 target_link_libraries(ytserver-all PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   library-query-engine
@@ -54,7 +54,7 @@ target_link_options(ytserver-all PRIVATE
   -lutil
 )
 target_sources(ytserver-all PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/all/main.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/all/main.cpp
 )
 target_allocator(ytserver-all
   cpp-malloc-tcmalloc

@@ -13,11 +13,11 @@ target_compile_options(server-lib-cypress_registrar PRIVATE
 )
 target_link_libraries(server-lib-cypress_registrar PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-ytlib
 )
 target_sources(server-lib-cypress_registrar PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/cypress_registrar/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/cypress_registrar/cypress_registrar.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/cypress_registrar/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/cypress_registrar/cypress_registrar.cpp
 )

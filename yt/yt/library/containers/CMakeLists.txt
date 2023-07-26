@@ -15,19 +15,19 @@ target_compile_options(yt-library-containers PRIVATE
 )
 target_link_libraries(yt-library-containers PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-porto-proto
   yt-yt-core
   library-cpp-porto
 )
 target_sources(yt-library-containers PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/cgroup.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/instance.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/instance_limits_tracker.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/process.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/porto_executor.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/porto_resource_tracker.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/porto_health_checker.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/containers/cgroup.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/containers/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/containers/instance.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/containers/instance_limits_tracker.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/containers/process.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/containers/porto_executor.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/containers/porto_resource_tracker.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/containers/porto_health_checker.cpp
 )

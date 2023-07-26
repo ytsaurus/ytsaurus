@@ -13,10 +13,10 @@ target_compile_options(server-lib-node_tracker_server PRIVATE
 )
 target_link_libraries(server-lib-node_tracker_server PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
 )
 target_sources(server-lib-node_tracker_server PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/node_tracker_server/name_helpers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/node_tracker_server/name_helpers.cpp
 )

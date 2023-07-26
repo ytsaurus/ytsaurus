@@ -16,11 +16,11 @@ target_compile_options(python-driver-lib PRIVATE
   -Wno-register
 )
 target_include_directories(python-driver-lib PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/pycxx
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/pycxx
 )
 target_link_libraries(python-driver-lib PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
   core-service_discovery-yp
@@ -31,8 +31,8 @@ target_link_libraries(python-driver-lib PUBLIC
   Python3::Module
 )
 target_sources(python-driver-lib PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/driver/lib/descriptor.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/driver/lib/driver.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/driver/lib/error.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/driver/lib/response.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/python/driver/lib/descriptor.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/python/driver/lib/driver.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/python/driver/lib/error.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/python/driver/lib/response.cpp
 )

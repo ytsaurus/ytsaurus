@@ -13,7 +13,7 @@ target_compile_options(job_statistics PRIVATE
 )
 target_link_libraries(job_statistics PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-mapreduce-client
@@ -30,7 +30,7 @@ target_link_options(job_statistics PRIVATE
   -lutil
 )
 target_sources(job_statistics PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/job_statistics/main.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/examples/tutorial/job_statistics/main.cpp
 )
 target_allocator(job_statistics
   cpp-malloc-tcmalloc

@@ -9,11 +9,11 @@
 
 add_library(restricted-boost-convert INTERFACE)
 target_include_directories(restricted-boost-convert INTERFACE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/convert/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/convert/include
 )
 target_link_libraries(restricted-boost-convert INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   restricted-boost-config
   restricted-boost-core
   restricted-boost-function_types

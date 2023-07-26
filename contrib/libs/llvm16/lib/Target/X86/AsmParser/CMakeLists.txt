@@ -12,13 +12,13 @@ target_compile_options(Target-X86-AsmParser PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(Target-X86-AsmParser PRIVATE
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86/AsmParser
+  ${CMAKE_BINARY_DIR}/ytsaurus/contrib/libs/llvm16/lib/Target/X86
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Target/X86
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Target/X86/AsmParser
 )
 target_link_libraries(Target-X86-AsmParser PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   contrib-libs-llvm16
   libs-llvm16-include
   llvm16-lib-MC
@@ -28,5 +28,5 @@ target_link_libraries(Target-X86-AsmParser PUBLIC
   Target-X86-TargetInfo
 )
 target_sources(Target-X86-AsmParser PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86/AsmParser/X86AsmParser.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Target/X86/AsmParser/X86AsmParser.cpp
 )

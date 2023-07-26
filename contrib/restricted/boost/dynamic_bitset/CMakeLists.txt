@@ -9,11 +9,11 @@
 
 add_library(restricted-boost-dynamic_bitset INTERFACE)
 target_include_directories(restricted-boost-dynamic_bitset INTERFACE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/dynamic_bitset/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/dynamic_bitset/include
 )
 target_link_libraries(restricted-boost-dynamic_bitset INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   restricted-boost-assert
   restricted-boost-config
   restricted-boost-container_hash

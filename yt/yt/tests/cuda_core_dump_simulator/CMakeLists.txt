@@ -13,7 +13,7 @@ target_compile_options(cuda_core_dump_simulator PRIVATE
 )
 target_link_libraries(cuda_core_dump_simulator PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
 )
@@ -28,7 +28,7 @@ target_link_options(cuda_core_dump_simulator PRIVATE
   -ldl
 )
 target_sources(cuda_core_dump_simulator PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tests/cuda_core_dump_simulator/main.c
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/tests/cuda_core_dump_simulator/main.c
 )
 target_allocator(cuda_core_dump_simulator
   cpp-malloc-tcmalloc

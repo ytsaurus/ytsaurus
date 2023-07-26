@@ -13,10 +13,10 @@ target_compile_options(yt-client-query_tracker_client PRIVATE
 )
 target_link_libraries(yt-client-query_tracker_client PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
 )
 target_sources(yt-client-query_tracker_client PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/query_tracker_client/public.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/client/query_tracker_client/public.cpp
 )

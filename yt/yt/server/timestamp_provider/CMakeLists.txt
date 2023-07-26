@@ -12,11 +12,11 @@ target_compile_options(yt-server-timestamp_provider PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(yt-server-timestamp_provider PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt
 )
 target_link_libraries(yt-server-timestamp_provider PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-getopt
   yt-yt-ytlib
@@ -25,7 +25,7 @@ target_link_libraries(yt-server-timestamp_provider PUBLIC
   server-lib-transaction_server
 )
 target_sources(yt-server-timestamp_provider PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/timestamp_provider/bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/timestamp_provider/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/timestamp_provider/program.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/timestamp_provider/bootstrap.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/timestamp_provider/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/timestamp_provider/program.cpp
 )

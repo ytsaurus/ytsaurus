@@ -14,15 +14,15 @@ target_compile_options(yt-library-process PRIVATE
 )
 target_link_libraries(yt-library-process PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
   contrib-libs-re2
 )
 target_sources(yt-library-process PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/process/io_dispatcher.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/process/pipe.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/process/process.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/process/pty.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/process/subprocess.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/process/io_dispatcher.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/process/pipe.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/process/process.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/process/pty.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/process/subprocess.cpp
 )

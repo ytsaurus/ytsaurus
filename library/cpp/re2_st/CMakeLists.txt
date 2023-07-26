@@ -9,11 +9,11 @@
 
 add_library(library-cpp-re2_st INTERFACE)
 target_include_directories(library-cpp-re2_st INTERFACE
-  ${CMAKE_SOURCE_DIR}/library/cpp/re2_st/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/re2_st/include
 )
 target_link_libraries(library-cpp-re2_st INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   contrib-libs-re2
 )

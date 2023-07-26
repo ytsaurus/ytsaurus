@@ -13,7 +13,7 @@ target_compile_options(yt-yt-library-undumpable-unittests PRIVATE
 )
 target_link_libraries(yt-yt-library-undumpable-unittests PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-testing-gtest
@@ -31,7 +31,7 @@ target_link_options(yt-yt-library-undumpable-unittests PRIVATE
   -ldl
 )
 target_sources(yt-yt-library-undumpable-unittests PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/undumpable/unittests/undumpable_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/undumpable/unittests/undumpable_ut.cpp
 )
 add_test(
   NAME

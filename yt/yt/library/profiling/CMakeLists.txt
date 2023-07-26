@@ -19,7 +19,7 @@ target_compile_options(yt-library-profiling PRIVATE
 )
 target_link_libraries(yt-library-profiling PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-yt-assert
   cpp-yt-cpu_clock
@@ -28,10 +28,10 @@ target_link_libraries(yt-library-profiling PUBLIC
   cpp-yt-memory
 )
 target_sources(yt-library-profiling PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/sensor.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/producer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/impl.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/tag.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/testing.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/histogram_snapshot.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/profiling/sensor.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/profiling/producer.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/profiling/impl.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/profiling/tag.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/profiling/testing.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/profiling/histogram_snapshot.cpp
 )

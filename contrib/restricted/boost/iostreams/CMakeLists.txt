@@ -14,15 +14,15 @@ target_compile_options(restricted-boost-iostreams PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(restricted-boost-iostreams PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/iostreams/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/iostreams/include
 )
 target_include_directories(restricted-boost-iostreams PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/libbz2
-  ${CMAKE_SOURCE_DIR}/contrib/libs/zstd/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/libbz2
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/zstd/include
 )
 target_link_libraries(restricted-boost-iostreams PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   contrib-libs-libbz2
   contrib-libs-lzma
   ZLIB::ZLIB
@@ -47,11 +47,11 @@ target_link_libraries(restricted-boost-iostreams PUBLIC
   restricted-boost-utility
 )
 target_sources(restricted-boost-iostreams PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/iostreams/src/bzip2.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/iostreams/src/file_descriptor.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/iostreams/src/gzip.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/iostreams/src/lzma.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/iostreams/src/mapped_file.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/iostreams/src/zlib.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/iostreams/src/zstd.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/iostreams/src/bzip2.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/iostreams/src/file_descriptor.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/iostreams/src/gzip.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/iostreams/src/lzma.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/iostreams/src/mapped_file.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/iostreams/src/zlib.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/iostreams/src/zstd.cpp
 )

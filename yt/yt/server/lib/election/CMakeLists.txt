@@ -14,15 +14,15 @@ target_compile_options(server-lib-election PRIVATE
 )
 target_link_libraries(server-lib-election PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-ytlib
 )
 target_sources(server-lib-election PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/election/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/election/distributed_election_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/election/election_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/election/election_manager_thunk.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/election/alien_cell_peer_channel_factory.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/election/public.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/election/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/election/distributed_election_manager.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/election/election_manager.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/election/election_manager_thunk.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/election/alien_cell_peer_channel_factory.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/election/public.cpp
 )

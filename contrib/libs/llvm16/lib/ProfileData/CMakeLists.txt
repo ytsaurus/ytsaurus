@@ -12,11 +12,11 @@ target_compile_options(llvm16-lib-ProfileData PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(llvm16-lib-ProfileData PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ProfileData
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/ProfileData
 )
 target_link_libraries(llvm16-lib-ProfileData PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   contrib-libs-llvm16
   libs-llvm16-include
   lib-DebugInfo-DWARF
@@ -28,15 +28,15 @@ target_link_libraries(llvm16-lib-ProfileData PUBLIC
   llvm16-lib-TargetParser
 )
 target_sources(llvm16-lib-ProfileData PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ProfileData/GCOV.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ProfileData/InstrProf.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ProfileData/InstrProfCorrelator.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ProfileData/InstrProfReader.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ProfileData/InstrProfWriter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ProfileData/MemProf.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ProfileData/ProfileSummaryBuilder.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ProfileData/RawMemProfReader.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ProfileData/SampleProf.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ProfileData/SampleProfReader.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ProfileData/SampleProfWriter.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/ProfileData/GCOV.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/ProfileData/InstrProf.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/ProfileData/InstrProfCorrelator.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/ProfileData/InstrProfReader.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/ProfileData/InstrProfWriter.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/ProfileData/MemProf.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/ProfileData/ProfileSummaryBuilder.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/ProfileData/RawMemProfReader.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/ProfileData/SampleProf.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/ProfileData/SampleProfReader.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/ProfileData/SampleProfWriter.cpp
 )

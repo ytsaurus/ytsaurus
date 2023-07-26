@@ -12,11 +12,11 @@ target_compile_options(lib-ExecutionEngine-MCJIT PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(lib-ExecutionEngine-MCJIT PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/MCJIT
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/ExecutionEngine/MCJIT
 )
 target_link_libraries(lib-ExecutionEngine-MCJIT PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   contrib-libs-llvm16
   libs-llvm16-include
   llvm16-lib-ExecutionEngine
@@ -27,5 +27,5 @@ target_link_libraries(lib-ExecutionEngine-MCJIT PUBLIC
   llvm16-lib-Target
 )
 target_sources(lib-ExecutionEngine-MCJIT PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/MCJIT/MCJIT.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/ExecutionEngine/MCJIT/MCJIT.cpp
 )

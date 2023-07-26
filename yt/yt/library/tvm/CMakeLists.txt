@@ -14,10 +14,10 @@ target_compile_options(yt-library-tvm PRIVATE
 )
 target_link_libraries(yt-library-tvm PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-yt-memory
 )
 target_sources(yt-library-tvm PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/tvm/tvm_base.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/tvm/tvm_base.cpp
 )

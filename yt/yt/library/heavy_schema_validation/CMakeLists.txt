@@ -13,11 +13,11 @@ target_compile_options(yt-library-heavy_schema_validation PRIVATE
 )
 target_link_libraries(yt-library-heavy_schema_validation PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-client
   library-query-engine_api
 )
 target_sources(yt-library-heavy_schema_validation PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/heavy_schema_validation/schema_validation.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/heavy_schema_validation/schema_validation.cpp
 )

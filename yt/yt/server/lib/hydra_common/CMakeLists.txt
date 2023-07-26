@@ -15,11 +15,11 @@ target_compile_options(server-lib-hydra_common PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(server-lib-hydra_common PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt
 )
 target_link_libraries(server-lib-hydra_common PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-library-process
   yt-yt-ytlib
@@ -29,32 +29,32 @@ target_link_libraries(server-lib-hydra_common PUBLIC
   streams-lz-snappy
 )
 target_sources(server-lib-hydra_common PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/file_changelog_index.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/checkpointable_stream.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/changelog_store_factory_thunk.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/changelog_store_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/changelog.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/composite_automaton.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/file_changelog_dispatcher.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/file_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/hydra_context.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/hydra_janitor_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/hydra_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/hydra_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/lazy_changelog.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/local_changelog_store.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/local_hydra_janitor.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/local_snapshot_store.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/mutation.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/private.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/mutation_context.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/persistent_response_keeper.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/public.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/remote_changelog_store.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/remote_snapshot_store.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/serialize.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/snapshot_store_thunk.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/state_hash_checker.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/unbuffered_file_changelog.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra_common/file_changelog_index.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra_common/checkpointable_stream.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra_common/changelog_store_factory_thunk.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra_common/changelog_store_helpers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra_common/changelog.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra_common/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra_common/composite_automaton.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra_common/file_changelog_dispatcher.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra_common/file_helpers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra_common/hydra_context.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra_common/hydra_janitor_helpers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra_common/hydra_manager.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra_common/hydra_service.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra_common/lazy_changelog.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra_common/local_changelog_store.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra_common/local_hydra_janitor.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra_common/local_snapshot_store.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra_common/mutation.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra_common/private.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra_common/mutation_context.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra_common/persistent_response_keeper.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra_common/public.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra_common/remote_changelog_store.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra_common/remote_snapshot_store.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra_common/serialize.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra_common/snapshot_store_thunk.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra_common/state_hash_checker.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra_common/unbuffered_file_changelog.cpp
 )

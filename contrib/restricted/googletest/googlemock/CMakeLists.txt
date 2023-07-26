@@ -12,18 +12,18 @@ target_compile_options(restricted-googletest-googlemock PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(restricted-googletest-googlemock PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/googletest/googlemock/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/googletest/googlemock/include
 )
 target_include_directories(restricted-googletest-googlemock PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/googletest/googlemock
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/googletest/googletest
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/googletest/googletest/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/googletest/googlemock
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/googletest/googletest
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/googletest/googletest/include
 )
 target_link_libraries(restricted-googletest-googlemock PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   restricted-googletest-googletest
 )
 target_sources(restricted-googletest-googlemock PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/googletest/googlemock/src/gmock-all.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/googletest/googlemock/src/gmock-all.cc
 )

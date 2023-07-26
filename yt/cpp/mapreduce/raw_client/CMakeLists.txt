@@ -14,7 +14,7 @@ target_compile_options(cpp-mapreduce-raw_client PRIVATE
 )
 target_link_libraries(cpp-mapreduce-raw_client PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-mapreduce-common
   cpp-mapreduce-http
@@ -23,7 +23,7 @@ target_link_libraries(cpp-mapreduce-raw_client PUBLIC
   cpp-yson-node
 )
 target_sources(cpp-mapreduce-raw_client PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/raw_client/raw_batch_request.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/raw_client/raw_requests.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/raw_client/rpc_parameters_serialization.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/raw_client/raw_batch_request.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/raw_client/raw_requests.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/raw_client/rpc_parameters_serialization.cpp
 )

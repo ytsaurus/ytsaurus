@@ -13,7 +13,7 @@ target_compile_options(cpp_styleguide PRIVATE
 )
 target_link_libraries(cpp_styleguide PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   contrib-libs-protoc
@@ -29,7 +29,7 @@ target_link_options(cpp_styleguide PRIVATE
   -ldl
 )
 target_sources(cpp_styleguide PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/tools/protoc/plugins/cpp_styleguide/cpp_styleguide.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/tools/protoc/plugins/cpp_styleguide/cpp_styleguide.cpp
 )
 target_allocator(cpp_styleguide
   cpp-malloc-tcmalloc

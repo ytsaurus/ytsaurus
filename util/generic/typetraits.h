@@ -4,9 +4,10 @@
 
 #include <util/system/defaults.h>
 
+#include <util/generic/stlfwd.h>
+
 #include <iterator>
 #include <type_traits>
-#include <stlfwd>
 
 #if _LIBCPP_STD_VER >= 17
 template <bool B>

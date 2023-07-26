@@ -13,11 +13,11 @@ target_compile_options(lib-hydra_common-dry_run PRIVATE
 )
 target_link_libraries(lib-hydra_common-dry_run PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-ytlib
 )
 target_sources(lib-hydra_common-dry_run PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/dry_run/journal_as_local_file_read_only_changelog.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/dry_run/utils.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra_common/dry_run/journal_as_local_file_read_only_changelog.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra_common/dry_run/utils.cpp
 )

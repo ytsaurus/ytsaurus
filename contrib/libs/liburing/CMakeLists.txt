@@ -13,14 +13,14 @@ target_compile_options(contrib-libs-liburing PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(contrib-libs-liburing PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/liburing/src/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/liburing/src/include
 )
 target_link_libraries(contrib-libs-liburing PUBLIC
   contrib-libs-linux-headers
 )
 target_sources(contrib-libs-liburing PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/liburing/src/queue.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/liburing/src/register.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/liburing/src/setup.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/liburing/src/syscall.c
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/liburing/src/queue.c
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/liburing/src/register.c
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/liburing/src/setup.c
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/liburing/src/syscall.c
 )

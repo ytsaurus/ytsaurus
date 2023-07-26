@@ -14,17 +14,17 @@ target_compile_options(yt-server-tools PRIVATE
 )
 target_link_libraries(yt-server-tools PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-library-process
   yt-library-program
   yt-yt-core
 )
 target_sources(yt-server-tools PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tools/program.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tools/proc.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tools/registry.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tools/seccomp.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tools/signaler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tools/tools.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/tools/program.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/tools/proc.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/tools/registry.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/tools/seccomp.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/tools/signaler.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/tools/tools.cpp
 )

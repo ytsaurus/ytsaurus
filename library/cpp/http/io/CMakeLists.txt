@@ -10,7 +10,7 @@
 add_library(cpp-http-io)
 target_link_libraries(cpp-http-io PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-blockcodecs
   cpp-streams-brotli
@@ -18,8 +18,8 @@ target_link_libraries(cpp-http-io PUBLIC
   cpp-streams-lzma
 )
 target_sources(cpp-http-io PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/http/io/chunk.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/http/io/compression.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/http/io/headers.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/http/io/stream.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/http/io/chunk.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/http/io/compression.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/http/io/headers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/http/io/stream.cpp
 )

@@ -22,23 +22,23 @@ get_built_tool_path(
 add_library(cpp-xdelta3-proto)
 target_link_libraries(cpp-xdelta3-proto PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   contrib-libs-protobuf
 )
 target_proto_messages(cpp-xdelta3-proto PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/xdelta3/proto/state_header.proto
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/xdelta3/proto/state_header.proto
 )
 target_proto_addincls(cpp-xdelta3-proto
   ./
-  ${CMAKE_SOURCE_DIR}/
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${CMAKE_SOURCE_DIR}/ytsaurus/
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
 )
 target_proto_outs(cpp-xdelta3-proto
-  --cpp_out=${CMAKE_BINARY_DIR}/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
+  --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/
+  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/
 )

@@ -12,25 +12,25 @@ target_compile_options(llvm16-lib-TableGen PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(llvm16-lib-TableGen PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/TableGen
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/TableGen
 )
 target_link_libraries(llvm16-lib-TableGen PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   contrib-libs-llvm16
   llvm16-lib-Support
 )
 target_sources(llvm16-lib-TableGen PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/TableGen/DetailedRecordsBackend.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/TableGen/Error.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/TableGen/JSONBackend.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/TableGen/Main.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/TableGen/Parser.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/TableGen/Record.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/TableGen/SetTheory.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/TableGen/StringMatcher.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/TableGen/TGLexer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/TableGen/TGParser.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/TableGen/TableGenBackend.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/TableGen/TableGenBackendSkeleton.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/TableGen/DetailedRecordsBackend.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/TableGen/Error.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/TableGen/JSONBackend.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/TableGen/Main.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/TableGen/Parser.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/TableGen/Record.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/TableGen/SetTheory.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/TableGen/StringMatcher.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/TableGen/TGLexer.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/TableGen/TGParser.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/TableGen/TableGenBackend.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/TableGen/TableGenBackendSkeleton.cpp
 )

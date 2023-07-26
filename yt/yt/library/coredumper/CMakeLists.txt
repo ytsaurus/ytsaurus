@@ -13,12 +13,12 @@ target_compile_options(yt-library-coredumper PRIVATE
 )
 target_link_libraries(yt-library-coredumper PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
   yt-library-sparse_coredump
 )
 target_sources(yt-library-coredumper PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/coredumper/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/coredumper/coredumper.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/coredumper/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/coredumper/coredumper.cpp
 )

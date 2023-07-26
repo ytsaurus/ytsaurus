@@ -11,9 +11,9 @@ add_subdirectory(bridge)
 add_library(yt-yql-plugin)
 target_link_libraries(yt-yql-plugin PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
 )
 target_sources(yt-yql-plugin PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yql/plugin/plugin.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yql/plugin/plugin.cpp
 )

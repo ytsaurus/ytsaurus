@@ -14,7 +14,7 @@ target_compile_options(yt-client-hedging PRIVATE
 )
 target_link_libraries(yt-client-hedging PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
   yt-yt-client
@@ -23,13 +23,13 @@ target_link_libraries(yt-client-hedging PUBLIC
   library-cpp-iterator
 )
 target_sources(yt-client-hedging PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/hedging/cache.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/hedging/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/hedging/counter.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/hedging/hedging.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/hedging/hedging_executor.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/hedging/logger.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/hedging/options.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/hedging/penalty_provider.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/hedging/rpc.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/client/hedging/cache.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/client/hedging/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/client/hedging/counter.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/client/hedging/hedging.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/client/hedging/hedging_executor.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/client/hedging/logger.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/client/hedging/options.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/client/hedging/penalty_provider.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/client/hedging/rpc.cpp
 )

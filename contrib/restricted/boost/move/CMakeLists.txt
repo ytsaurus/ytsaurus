@@ -9,10 +9,10 @@
 
 add_library(restricted-boost-move INTERFACE)
 target_include_directories(restricted-boost-move INTERFACE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/move/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/move/include
 )
 target_link_libraries(restricted-boost-move INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   restricted-boost-config
 )

@@ -13,13 +13,13 @@ target_compile_options(server-node-cellar_node PRIVATE
 )
 target_link_libraries(server-node-cellar_node PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-ytlib
 )
 target_sources(server-node-cellar_node PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/cellar_node/bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/cellar_node/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/cellar_node/dynamic_bundle_config_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/cellar_node/master_connector.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/node/cellar_node/bootstrap.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/node/cellar_node/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/node/cellar_node/dynamic_bundle_config_manager.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/node/cellar_node/master_connector.cpp
 )

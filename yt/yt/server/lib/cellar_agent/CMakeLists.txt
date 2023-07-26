@@ -12,21 +12,21 @@ target_compile_options(server-lib-cellar_agent PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(server-lib-cellar_agent PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt
 )
 target_link_libraries(server-lib-cellar_agent PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-ytlib
   server-lib-hive
   server-lib-transaction_supervisor
 )
 target_sources(server-lib-cellar_agent PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/cellar_agent/cellar.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/cellar_agent/cellar_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/cellar_agent/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/cellar_agent/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/cellar_agent/master_connector_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/cellar_agent/occupant.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/cellar_agent/cellar.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/cellar_agent/cellar_manager.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/cellar_agent/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/cellar_agent/helpers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/cellar_agent/master_connector_helpers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/cellar_agent/occupant.cpp
 )

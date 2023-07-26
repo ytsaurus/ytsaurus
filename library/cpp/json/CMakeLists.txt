@@ -13,7 +13,7 @@ add_subdirectory(writer)
 add_library(library-cpp-json)
 target_link_libraries(library-cpp-json PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   contrib-libs-rapidjson
   cpp-json-common
@@ -22,8 +22,8 @@ target_link_libraries(library-cpp-json PUBLIC
   cpp-string_utils-relaxed_escaper
 )
 target_sources(library-cpp-json PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/json/json_writer.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/json/json_reader.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/json/json_prettifier.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/json/rapidjson_helpers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/json/json_writer.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/json/json_reader.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/json/json_prettifier.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/json/rapidjson_helpers.cpp
 )

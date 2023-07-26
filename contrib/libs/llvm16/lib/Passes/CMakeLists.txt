@@ -12,11 +12,11 @@ target_compile_options(llvm16-lib-Passes PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(llvm16-lib-Passes PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Passes
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Passes
 )
 target_link_libraries(llvm16-lib-Passes PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   contrib-libs-llvm16
   libs-llvm16-include
   llvm16-lib-Analysis
@@ -36,10 +36,10 @@ target_link_libraries(llvm16-lib-Passes PUBLIC
   lib-Transforms-Vectorize
 )
 target_sources(llvm16-lib-Passes PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Passes/OptimizationLevel.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Passes/PassBuilder.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Passes/PassBuilderBindings.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Passes/PassBuilderPipelines.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Passes/PassPlugin.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Passes/StandardInstrumentations.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Passes/OptimizationLevel.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Passes/PassBuilder.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Passes/PassBuilderBindings.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Passes/PassBuilderPipelines.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Passes/PassPlugin.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Passes/StandardInstrumentations.cpp
 )

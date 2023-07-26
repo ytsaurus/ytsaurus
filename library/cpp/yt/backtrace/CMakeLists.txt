@@ -15,11 +15,11 @@ target_compile_options(cpp-yt-backtrace PRIVATE
 )
 target_link_libraries(cpp-yt-backtrace PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-yt-string
 )
 target_sources(cpp-yt-backtrace PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/yt/backtrace/backtrace.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/yt/backtrace/symbolizers/dynload/dynload_symbolizer.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/yt/backtrace/backtrace.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/yt/backtrace/symbolizers/dynload/dynload_symbolizer.cpp
 )

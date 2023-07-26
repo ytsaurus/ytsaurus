@@ -14,7 +14,7 @@ target_compile_options(ytserver-clickhouse PRIVATE
 )
 target_link_libraries(ytserver-clickhouse PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   yt-library-re2
@@ -33,7 +33,7 @@ target_link_options(ytserver-clickhouse PRIVATE
   -lutil
 )
 target_sources(ytserver-clickhouse PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/chyt/server/bin/main.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/chyt/server/bin/main.cpp
 )
 target_allocator(ytserver-clickhouse
   cpp-malloc-tcmalloc

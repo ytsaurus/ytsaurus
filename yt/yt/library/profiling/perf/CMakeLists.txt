@@ -13,11 +13,11 @@ target_compile_options(library-profiling-perf PRIVATE
 )
 target_link_libraries(library-profiling-perf PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-library-profiling
   yt-yt-core
 )
 target_sources(library-profiling-perf PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/perf/counters.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/profiling/perf/counters.cpp
 )

@@ -24,11 +24,11 @@ target_compile_options(server-lib-transaction_supervisor PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(server-lib-transaction_supervisor PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt
 )
 target_link_libraries(server-lib-transaction_supervisor PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
   server-lib-election
@@ -37,30 +37,30 @@ target_link_libraries(server-lib-transaction_supervisor PUBLIC
   contrib-libs-protobuf
 )
 target_proto_messages(server-lib-transaction_supervisor PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/proto/transaction_supervisor.proto
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/transaction_supervisor/proto/transaction_supervisor.proto
 )
 target_sources(server-lib-transaction_supervisor PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/abort.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/commit.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/transaction_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/transaction_manager_detail.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/transaction_lease_tracker.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/transaction_participant_provider.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/transaction_supervisor.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/transaction_supervisor/abort.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/transaction_supervisor/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/transaction_supervisor/commit.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/transaction_supervisor/transaction_manager.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/transaction_supervisor/transaction_manager_detail.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/transaction_supervisor/transaction_lease_tracker.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/transaction_supervisor/transaction_participant_provider.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/transaction_supervisor/transaction_supervisor.cpp
 )
 target_proto_addincls(server-lib-transaction_supervisor
   ./yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
 )
 target_proto_outs(server-lib-transaction_supervisor
-  --cpp_out=${CMAKE_BINARY_DIR}/yt
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/yt
+  --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/yt
+  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/yt
 )

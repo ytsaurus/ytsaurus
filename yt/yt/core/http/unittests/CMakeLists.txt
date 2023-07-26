@@ -13,7 +13,7 @@ target_compile_options(unittester-core-http PRIVATE
 )
 target_link_libraries(unittester-core-http PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-testing-gtest
@@ -37,7 +37,7 @@ target_link_options(unittester-core-http PRIVATE
   -lutil
 )
 target_sources(unittester-core-http PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/http/unittests/http_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/http/unittests/http_ut.cpp
 )
 add_test(
   NAME

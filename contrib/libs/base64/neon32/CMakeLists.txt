@@ -10,15 +10,15 @@
 add_library(libs-base64-neon32)
 target_link_libraries(libs-base64-neon32 PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
 )
 target_sources(libs-base64-neon32 PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/base64/neon32/codec_neon32.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/base64/neon32/lib.c
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/base64/neon32/codec_neon32.c
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/base64/neon32/lib.c
 )
 set_property(
   SOURCE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/base64/neon32/codec_neon32.c
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/base64/neon32/codec_neon32.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS
@@ -26,7 +26,7 @@ set_property(
 )
 set_property(
   SOURCE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/base64/neon32/lib.c
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/base64/neon32/lib.c
   APPEND
   PROPERTY
   COMPILE_OPTIONS

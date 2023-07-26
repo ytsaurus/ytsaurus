@@ -9,9 +9,9 @@
 
 add_library(restricted-boost-predef INTERFACE)
 target_include_directories(restricted-boost-predef INTERFACE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/predef/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/predef/include
 )
 target_link_libraries(restricted-boost-predef INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
 )

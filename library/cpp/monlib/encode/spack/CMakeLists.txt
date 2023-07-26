@@ -11,7 +11,7 @@ find_package(ZLIB REQUIRED)
 add_library(monlib-encode-spack)
 target_link_libraries(monlib-encode-spack PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   monlib-encode-buffered
   cpp-monlib-exception
@@ -21,8 +21,8 @@ target_link_libraries(monlib-encode-spack PUBLIC
   contrib-libs-zstd
 )
 target_sources(monlib-encode-spack PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/monlib/encode/spack/spack_v1_decoder.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/monlib/encode/spack/spack_v1_encoder.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/monlib/encode/spack/varint.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/monlib/encode/spack/compression.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/monlib/encode/spack/spack_v1_decoder.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/monlib/encode/spack/spack_v1_encoder.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/monlib/encode/spack/varint.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/monlib/encode/spack/compression.cpp
 )

@@ -13,7 +13,7 @@ target_compile_options(yt-sudo-fixup PRIVATE
 )
 target_link_libraries(yt-sudo-fixup PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
 )
 target_link_options(yt-sudo-fixup PRIVATE
   -ldl
@@ -24,7 +24,7 @@ target_link_options(yt-sudo-fixup PRIVATE
   -lpthread
 )
 target_sources(yt-sudo-fixup PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/yt_sudo_fixup/main.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/tools/yt_sudo_fixup/main.cpp
 )
 target_allocator(yt-sudo-fixup
   cpp-malloc-tcmalloc

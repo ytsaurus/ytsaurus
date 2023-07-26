@@ -13,7 +13,7 @@ target_compile_options(systest PRIVATE
 )
 target_link_libraries(systest PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   yt-systest
@@ -31,7 +31,7 @@ target_link_options(systest PRIVATE
   -lutil
 )
 target_sources(systest PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/systest/tester/main.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/systest/tester/main.cpp
 )
 target_allocator(systest
   cpp-malloc-tcmalloc

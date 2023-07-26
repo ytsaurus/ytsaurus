@@ -13,11 +13,11 @@ target_compile_options(core-http-mock PRIVATE
 )
 target_link_libraries(core-http-mock PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-testing-gtest
   yt-core-http
 )
 target_sources(core-http-mock PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/http/mock/http.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/http/mock/http.cpp
 )

@@ -13,12 +13,12 @@ target_compile_options(library-backtrace_introspector-http PRIVATE
 )
 target_link_libraries(library-backtrace_introspector-http PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
   yt-core-http
   yt-library-backtrace_introspector
 )
 target_sources(library-backtrace_introspector-http PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/backtrace_introspector/http/handler.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/backtrace_introspector/http/handler.cpp
 )

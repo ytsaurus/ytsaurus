@@ -25,7 +25,7 @@ target_compile_options(yt-library-quantile_digest PRIVATE
 )
 target_link_libraries(yt-library-quantile_digest PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-yt-memory
   library-cpp-tdigest
@@ -33,23 +33,23 @@ target_link_libraries(yt-library-quantile_digest PUBLIC
   contrib-libs-protobuf
 )
 target_proto_messages(yt-library-quantile_digest PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/quantile_digest/proto/quantile_digest.proto
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/quantile_digest/proto/quantile_digest.proto
 )
 target_sources(yt-library-quantile_digest PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/quantile_digest/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/quantile_digest/quantile_digest.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/quantile_digest/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/quantile_digest/quantile_digest.cpp
 )
 target_proto_addincls(yt-library-quantile_digest
   ./
-  ${CMAKE_SOURCE_DIR}/
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${CMAKE_SOURCE_DIR}/ytsaurus/
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
 )
 target_proto_outs(yt-library-quantile_digest
-  --cpp_out=${CMAKE_BINARY_DIR}/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
+  --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/
+  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/
 )

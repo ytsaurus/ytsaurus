@@ -13,11 +13,11 @@ target_compile_options(tvm-service-mock PRIVATE
 )
 target_link_libraries(tvm-service-mock PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-testing-gtest
   library-tvm-service
 )
 target_sources(tvm-service-mock PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/tvm/service/mock/mock_tvm_service.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/tvm/service/mock/mock_tvm_service.cpp
 )

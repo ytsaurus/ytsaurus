@@ -14,7 +14,7 @@ target_compile_options(crc64_reference_test PRIVATE
 )
 target_link_libraries(crc64_reference_test PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   isa-l_crc_yt_patch
 )
 target_link_options(crc64_reference_test PRIVATE
@@ -26,7 +26,7 @@ target_link_options(crc64_reference_test PRIVATE
   -lpthread
 )
 target_sources(crc64_reference_test PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/isa_crc64/unittests/crc64_reference_test/crc64_reference_test.c
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/misc/isa_crc64/unittests/crc64_reference_test/crc64_reference_test.c
 )
 target_allocator(crc64_reference_test
   cpp-malloc-tcmalloc

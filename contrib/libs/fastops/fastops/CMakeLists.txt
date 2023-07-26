@@ -14,11 +14,11 @@ add_subdirectory(plain)
 add_library(libs-fastops-fastops)
 target_link_libraries(libs-fastops-fastops PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   fastops-fastops-avx
   fastops-fastops-avx2
   fastops-fastops-plain
 )
 target_sources(libs-fastops-fastops PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/fastops/fastops/fastops.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/fastops/fastops/fastops.cpp
 )

@@ -12,11 +12,11 @@ target_compile_options(lib-CodeGen-SelectionDAG PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(lib-CodeGen-SelectionDAG PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/SelectionDAG
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/CodeGen/SelectionDAG
 )
 target_link_libraries(lib-CodeGen-SelectionDAG PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   contrib-libs-llvm16
   libs-llvm16-include
   llvm16-lib-Analysis
@@ -29,29 +29,29 @@ target_link_libraries(lib-CodeGen-SelectionDAG PUBLIC
   lib-Transforms-Utils
 )
 target_sources(lib-CodeGen-SelectionDAG PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/DAGCombiner.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/FastISel.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/FunctionLoweringInfo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/InstrEmitter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/LegalizeDAG.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/LegalizeFloatTypes.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/LegalizeIntegerTypes.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/LegalizeTypes.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/LegalizeTypesGeneric.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/LegalizeVectorOps.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/LegalizeVectorTypes.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/ResourcePriorityQueue.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/ScheduleDAGFast.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/ScheduleDAGRRList.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/ScheduleDAGSDNodes.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/ScheduleDAGVLIW.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/SelectionDAG.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/SelectionDAGAddressAnalysis.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/SelectionDAGBuilder.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/SelectionDAGDumper.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/SelectionDAGISel.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/SelectionDAGPrinter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/SelectionDAGTargetInfo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/StatepointLowering.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/TargetLowering.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/DAGCombiner.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/FastISel.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/FunctionLoweringInfo.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/InstrEmitter.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/LegalizeDAG.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/LegalizeFloatTypes.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/LegalizeIntegerTypes.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/LegalizeTypes.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/LegalizeTypesGeneric.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/LegalizeVectorOps.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/LegalizeVectorTypes.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/ResourcePriorityQueue.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/ScheduleDAGFast.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/ScheduleDAGRRList.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/ScheduleDAGSDNodes.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/ScheduleDAGVLIW.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/SelectionDAG.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/SelectionDAGAddressAnalysis.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/SelectionDAGBuilder.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/SelectionDAGDumper.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/SelectionDAGISel.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/SelectionDAGPrinter.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/SelectionDAGTargetInfo.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/StatepointLowering.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/TargetLowering.cpp
 )

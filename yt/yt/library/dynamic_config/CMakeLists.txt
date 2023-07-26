@@ -13,10 +13,10 @@ target_compile_options(yt-library-dynamic_config PRIVATE
 )
 target_link_libraries(yt-library-dynamic_config PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-client
 )
 target_sources(yt-library-dynamic_config PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/dynamic_config/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/dynamic_config/config.cpp
 )

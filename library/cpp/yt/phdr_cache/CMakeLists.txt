@@ -13,10 +13,10 @@ target_compile_options(cpp-yt-phdr_cache PRIVATE
 )
 target_link_libraries(cpp-yt-phdr_cache PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-yt-assert
 )
 target_sources(cpp-yt-phdr_cache PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/yt/phdr_cache/phdr_cache.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/yt/phdr_cache/phdr_cache.cpp
 )

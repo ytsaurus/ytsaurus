@@ -11,12 +11,12 @@ add_subdirectory(proto)
 add_library(roren-library-timers)
 target_link_libraries(roren-library-timers PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-client
   library-timers-proto
 )
 target_sources(roren-library-timers PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/library/timers/timers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/library/timers/yt.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/roren/library/timers/timers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/roren/library/timers/yt.cpp
 )

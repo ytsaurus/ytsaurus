@@ -12,11 +12,11 @@ target_compile_options(lib-Transforms-InstCombine PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(lib-Transforms-InstCombine PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/InstCombine
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Transforms/InstCombine
 )
 target_link_libraries(lib-Transforms-InstCombine PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   contrib-libs-llvm16
   libs-llvm16-include
   llvm16-lib-Analysis
@@ -25,19 +25,19 @@ target_link_libraries(lib-Transforms-InstCombine PUBLIC
   lib-Transforms-Utils
 )
 target_sources(lib-Transforms-InstCombine PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/InstCombine/InstCombineAddSub.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/InstCombine/InstCombineAndOrXor.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/InstCombine/InstCombineAtomicRMW.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/InstCombine/InstCombineCalls.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/InstCombine/InstCombineCasts.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/InstCombine/InstCombineCompares.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/InstCombine/InstCombineLoadStoreAlloca.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/InstCombine/InstCombineMulDivRem.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/InstCombine/InstCombineNegator.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/InstCombine/InstCombinePHI.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/InstCombine/InstCombineSelect.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/InstCombine/InstCombineShifts.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/InstCombine/InstCombineSimplifyDemanded.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/InstCombine/InstCombineVectorOps.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/InstCombine/InstructionCombining.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Transforms/InstCombine/InstCombineAddSub.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Transforms/InstCombine/InstCombineAndOrXor.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Transforms/InstCombine/InstCombineAtomicRMW.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Transforms/InstCombine/InstCombineCalls.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Transforms/InstCombine/InstCombineCasts.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Transforms/InstCombine/InstCombineCompares.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Transforms/InstCombine/InstCombineLoadStoreAlloca.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Transforms/InstCombine/InstCombineMulDivRem.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Transforms/InstCombine/InstCombineNegator.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Transforms/InstCombine/InstCombinePHI.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Transforms/InstCombine/InstCombineSelect.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Transforms/InstCombine/InstCombineShifts.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Transforms/InstCombine/InstCombineSimplifyDemanded.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Transforms/InstCombine/InstCombineVectorOps.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Transforms/InstCombine/InstructionCombining.cpp
 )

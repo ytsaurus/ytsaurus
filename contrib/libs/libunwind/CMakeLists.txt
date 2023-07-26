@@ -18,18 +18,18 @@ target_compile_options(contrib-libs-libunwind PRIVATE
   -funwind-tables
 )
 target_include_directories(contrib-libs-libunwind PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/libunwind/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/libunwind/include
 )
 target_link_libraries(contrib-libs-libunwind PUBLIC
   contrib-libs-linux-headers
 )
 target_sources(contrib-libs-libunwind PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/libunwind/src/Unwind-EHABI.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/libunwind/src/Unwind-seh.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/libunwind/src/Unwind-sjlj.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/libunwind/src/UnwindLevel1-gcc-ext.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/libunwind/src/UnwindLevel1.c
-  ${CMAKE_SOURCE_DIR}/contrib/libs/libunwind/src/UnwindRegistersRestore.S
-  ${CMAKE_SOURCE_DIR}/contrib/libs/libunwind/src/UnwindRegistersSave.S
-  ${CMAKE_SOURCE_DIR}/contrib/libs/libunwind/src/libunwind.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/libunwind/src/Unwind-EHABI.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/libunwind/src/Unwind-seh.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/libunwind/src/Unwind-sjlj.c
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/libunwind/src/UnwindLevel1-gcc-ext.c
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/libunwind/src/UnwindLevel1.c
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/libunwind/src/UnwindRegistersRestore.S
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/libunwind/src/UnwindRegistersSave.S
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/libunwind/src/libunwind.cpp
 )

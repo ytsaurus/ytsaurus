@@ -13,12 +13,12 @@ target_compile_options(yt-server-exec PRIVATE
 )
 target_link_libraries(yt-server-exec PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   server-lib-user_job
   yt-library-program
   yt-yt-core
 )
 target_sources(yt-server-exec PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/exec/user_job_synchronizer.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/exec/user_job_synchronizer.cpp
 )

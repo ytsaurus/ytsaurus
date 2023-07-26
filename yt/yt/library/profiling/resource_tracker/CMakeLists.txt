@@ -13,11 +13,11 @@ target_compile_options(library-profiling-resource_tracker PRIVATE
 )
 target_link_libraries(library-profiling-resource_tracker PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-library-profiling
   yt_proto-yt-core
 )
 target_sources(library-profiling-resource_tracker PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/resource_tracker/resource_tracker.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/profiling/resource_tracker/resource_tracker.cpp
 )

@@ -13,10 +13,10 @@ target_compile_options(discovery_server-unittests-mock PRIVATE
 )
 target_link_libraries(discovery_server-unittests-mock PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-ytlib
 )
 target_sources(discovery_server-unittests-mock PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/discovery_server/unittests/mock/connection.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/discovery_server/unittests/mock/connection.cpp
 )

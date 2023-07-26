@@ -10,15 +10,15 @@
 add_library(cpp-xdelta3-state)
 target_link_libraries(cpp-xdelta3-state PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-xdelta3-proto
   cpp-xdelta3-xdelta_codec
 )
 target_sources(cpp-xdelta3-state PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/xdelta3/state/create_proto.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/xdelta3/state/data_ptr.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/xdelta3/state/hash.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/xdelta3/state/state.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/xdelta3/state/merge.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/xdelta3/state/create_proto.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/xdelta3/state/data_ptr.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/xdelta3/state/hash.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/xdelta3/state/state.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/xdelta3/state/merge.cpp
 )

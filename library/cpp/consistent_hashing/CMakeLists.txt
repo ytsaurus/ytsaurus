@@ -10,10 +10,10 @@
 add_library(consistent-hashing)
 target_link_libraries(consistent-hashing PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-pop_count
 )
 target_sources(consistent-hashing PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/consistent_hashing/consistent_hashing.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/consistent_hashing/consistent_hashing.cpp
 )

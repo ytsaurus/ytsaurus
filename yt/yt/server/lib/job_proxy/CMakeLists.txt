@@ -13,12 +13,12 @@ target_compile_options(server-lib-job_proxy PRIVATE
 )
 target_link_libraries(server-lib-job_proxy PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
   library-dns_over_rpc-client
   server-lib-misc
 )
 target_sources(server-lib-job_proxy PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/job_proxy/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/job_proxy/config.cpp
 )

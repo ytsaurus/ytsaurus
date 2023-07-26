@@ -14,7 +14,7 @@ target_compile_options(yt-library-clickhouse_discovery PRIVATE
 )
 target_link_libraries(yt-library-clickhouse_discovery PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
   yt-yt-client
@@ -22,9 +22,9 @@ target_link_libraries(yt-library-clickhouse_discovery PUBLIC
   cpp-yt-threading
 )
 target_sources(yt-library-clickhouse_discovery PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/clickhouse_discovery/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/clickhouse_discovery/discovery_base.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/clickhouse_discovery/discovery_v1.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/clickhouse_discovery/discovery_v2.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/clickhouse_discovery/helpers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/clickhouse_discovery/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/clickhouse_discovery/discovery_base.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/clickhouse_discovery/discovery_v1.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/clickhouse_discovery/discovery_v2.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/clickhouse_discovery/helpers.cpp
 )

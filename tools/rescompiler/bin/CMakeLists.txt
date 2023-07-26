@@ -10,7 +10,7 @@
 add_executable(rescompiler)
 target_link_libraries(rescompiler PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   library-cpp-resource
@@ -26,7 +26,7 @@ target_link_options(rescompiler PRIVATE
   -ldl
 )
 target_sources(rescompiler PRIVATE
-  ${CMAKE_SOURCE_DIR}/tools/rescompiler/main.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/tools/rescompiler/main.cpp
 )
 target_allocator(rescompiler
   cpp-malloc-tcmalloc

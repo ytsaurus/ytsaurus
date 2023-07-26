@@ -13,7 +13,7 @@ target_compile_options(server-lib-rpc_proxy PRIVATE
 )
 target_link_libraries(server-lib-rpc_proxy PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-ytlib
   yt-library-auth_server
@@ -25,11 +25,11 @@ target_link_libraries(server-lib-rpc_proxy PUBLIC
   yt-yt-core
 )
 target_sources(server-lib-rpc_proxy PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/access_checker.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/api_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/format_row_stream.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/proxy_coordinator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/rpc_proxy/security_manager.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/rpc_proxy/access_checker.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/rpc_proxy/api_service.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/rpc_proxy/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/rpc_proxy/format_row_stream.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/rpc_proxy/helpers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/rpc_proxy/proxy_coordinator.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/rpc_proxy/security_manager.cpp
 )

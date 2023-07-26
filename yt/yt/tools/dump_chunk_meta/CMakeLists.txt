@@ -13,7 +13,7 @@ target_compile_options(dump-chunk-meta PRIVATE
 )
 target_link_libraries(dump-chunk-meta PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   server-lib-io
@@ -34,7 +34,7 @@ target_link_options(dump-chunk-meta PRIVATE
   -lutil
 )
 target_sources(dump-chunk-meta PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/dump_chunk_meta/main.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/tools/dump_chunk_meta/main.cpp
 )
 target_allocator(dump-chunk-meta
   cpp-malloc-tcmalloc

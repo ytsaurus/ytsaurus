@@ -14,7 +14,7 @@ target_compile_options(server-lib-misc PRIVATE
 )
 target_link_libraries(server-lib-misc PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-ytlib
   yt-library-process
@@ -22,19 +22,19 @@ target_link_libraries(server-lib-misc PUBLIC
   library-cpp-porto
 )
 target_sources(server-lib-misc PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/misc/address_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/misc/archive_reporter.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/misc/cluster_connection.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/misc/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/misc/disk_health_checker.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/misc/fork_executor.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/misc/format_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/misc/job_table_schema.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/misc/private.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/misc/profiling_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/misc/reboot_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/misc/job_reporter.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/misc/job_report.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/misc/address_helpers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/misc/archive_reporter.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/misc/cluster_connection.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/misc/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/misc/disk_health_checker.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/misc/fork_executor.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/misc/format_manager.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/misc/job_table_schema.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/misc/private.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/misc/profiling_helpers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/misc/reboot_manager.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/misc/job_reporter.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/misc/job_report.cpp
 )
 
 add_global_library_for(server-lib-misc.global server-lib-misc)
@@ -43,7 +43,7 @@ target_compile_options(server-lib-misc.global PRIVATE
 )
 target_link_libraries(server-lib-misc.global PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-ytlib
   yt-library-process
@@ -51,5 +51,5 @@ target_link_libraries(server-lib-misc.global PUBLIC
   library-cpp-porto
 )
 target_sources(server-lib-misc.global PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/misc/public.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/misc/public.cpp
 )

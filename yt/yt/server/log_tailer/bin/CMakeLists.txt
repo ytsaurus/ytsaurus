@@ -13,7 +13,7 @@ target_compile_options(ytserver-log-tailer PRIVATE
 )
 target_link_libraries(ytserver-log-tailer PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   yt-server-log_tailer
@@ -30,7 +30,7 @@ target_link_options(ytserver-log-tailer PRIVATE
   -lutil
 )
 target_sources(ytserver-log-tailer PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/log_tailer/bin/main.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/log_tailer/bin/main.cpp
 )
 target_allocator(ytserver-log-tailer
   cpp-malloc-tcmalloc

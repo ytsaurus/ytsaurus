@@ -44,7 +44,7 @@ message(VERBOSE "CMAKE_C_FLAGS = \"${CMAKE_C_FLAGS}\"")
 message(VERBOSE "CMAKE_CXX_FLAGS = \"${CMAKE_CXX_FLAGS}\"")
 
 if (NOT CMAKE_CROSSCOMPILING)
-  set(TOOLS_ROOT ${CMAKE_BINARY_DIR})
+  set(TOOLS_ROOT ${CMAKE_BINARY_DIR}/ytsaurus)
 elseif(NOT TOOLS_ROOT)
   message(FATAL_ERROR "TOOLS_ROOT is required for crosscompilation")
 endif()

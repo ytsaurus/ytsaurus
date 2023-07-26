@@ -9,11 +9,11 @@
 
 add_library(restricted-boost-multiprecision INTERFACE)
 target_include_directories(restricted-boost-multiprecision INTERFACE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/multiprecision/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/multiprecision/include
 )
 target_link_libraries(restricted-boost-multiprecision INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   restricted-boost-assert
   restricted-boost-config
   restricted-boost-core

@@ -18,39 +18,39 @@ target_compile_options(libs-poco-MongoDB PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(libs-poco-MongoDB PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/MongoDB/include
 )
 target_include_directories(libs-poco-MongoDB PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Foundation/include
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/Net/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/Foundation/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/MongoDB/src
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/Net/include
 )
 target_link_libraries(libs-poco-MongoDB PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   libs-poco-Foundation
   libs-poco-Net
 )
 target_sources(libs-poco-MongoDB PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/Array.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/Binary.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/Connection.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/Cursor.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/Database.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/DeleteRequest.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/Document.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/Element.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/GetMoreRequest.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/InsertRequest.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/JavaScriptCode.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/KillCursorsRequest.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/Message.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/MessageHeader.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/ObjectId.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/QueryRequest.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/RegularExpression.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/ReplicaSet.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/RequestMessage.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/ResponseMessage.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/UpdateRequest.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/MongoDB/src/Array.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/MongoDB/src/Binary.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/MongoDB/src/Connection.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/MongoDB/src/Cursor.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/MongoDB/src/Database.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/MongoDB/src/DeleteRequest.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/MongoDB/src/Document.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/MongoDB/src/Element.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/MongoDB/src/GetMoreRequest.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/MongoDB/src/InsertRequest.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/MongoDB/src/JavaScriptCode.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/MongoDB/src/KillCursorsRequest.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/MongoDB/src/Message.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/MongoDB/src/MessageHeader.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/MongoDB/src/ObjectId.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/MongoDB/src/QueryRequest.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/MongoDB/src/RegularExpression.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/MongoDB/src/ReplicaSet.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/MongoDB/src/RequestMessage.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/MongoDB/src/ResponseMessage.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/poco/MongoDB/src/UpdateRequest.cpp
 )

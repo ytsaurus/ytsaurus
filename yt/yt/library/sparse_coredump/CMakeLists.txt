@@ -14,10 +14,10 @@ target_compile_options(yt-library-sparse_coredump PRIVATE
 )
 target_link_libraries(yt-library-sparse_coredump PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
 )
 target_sources(yt-library-sparse_coredump PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/sparse_coredump/sparse_coredump.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/sparse_coredump/sparse_coredump.cpp
 )

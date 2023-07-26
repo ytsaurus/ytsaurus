@@ -9,12 +9,12 @@
 
 add_library(fastops-fastops-core)
 target_include_directories(fastops-fastops-core PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/libs/fastops
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/fastops
 )
 target_link_libraries(fastops-fastops-core PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
 )
 target_sources(fastops-fastops-core PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/fastops/fastops/core/avx_id.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/fastops/fastops/core/avx_id.cpp
 )

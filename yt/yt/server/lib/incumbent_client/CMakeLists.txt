@@ -24,30 +24,30 @@ target_compile_options(server-lib-incumbent_client PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(server-lib-incumbent_client PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt
 )
 target_link_libraries(server-lib-incumbent_client PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
   contrib-libs-protobuf
 )
 target_proto_messages(server-lib-incumbent_client PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/incumbent_client/proto/incumbent_service.proto
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/incumbent_client/proto/incumbent_service.proto
 )
 target_proto_addincls(server-lib-incumbent_client
   ./yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
 )
 target_proto_outs(server-lib-incumbent_client
-  --cpp_out=${CMAKE_BINARY_DIR}/yt
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/yt
+  --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/yt
+  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/yt
 )

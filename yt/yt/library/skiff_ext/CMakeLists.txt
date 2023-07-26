@@ -13,12 +13,12 @@ target_compile_options(yt-library-skiff_ext PRIVATE
 )
 target_link_libraries(yt-library-skiff_ext PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
   library-cpp-skiff
 )
 target_sources(yt-library-skiff_ext PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/skiff_ext/serialize.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/skiff_ext/schema_match.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/skiff_ext/serialize.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/skiff_ext/schema_match.cpp
 )

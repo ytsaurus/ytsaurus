@@ -13,11 +13,11 @@ target_compile_options(rpc-unittests-mock PRIVATE
 )
 target_link_libraries(rpc-unittests-mock PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
   cpp-testing-gtest
 )
 target_sources(rpc-unittests-mock PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/unittests/mock/service.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/rpc/unittests/mock/service.cpp
 )

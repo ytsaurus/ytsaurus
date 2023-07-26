@@ -24,35 +24,35 @@ target_compile_options(yt-ytlib-distributed_throttler PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(yt-ytlib-distributed_throttler PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt
 )
 target_link_libraries(yt-ytlib-distributed_throttler PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
   yt-ytlib-discovery_client
   contrib-libs-protobuf
 )
 target_proto_messages(yt-ytlib-distributed_throttler PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/distributed_throttler/proto/distributed_throttler.proto
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/ytlib/distributed_throttler/proto/distributed_throttler.proto
 )
 target_sources(yt-ytlib-distributed_throttler PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/distributed_throttler/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/distributed_throttler/distributed_throttler.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/ytlib/distributed_throttler/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/ytlib/distributed_throttler/distributed_throttler.cpp
 )
 target_proto_addincls(yt-ytlib-distributed_throttler
   ./yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
 )
 target_proto_outs(yt-ytlib-distributed_throttler
-  --cpp_out=${CMAKE_BINARY_DIR}/yt
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/yt
+  --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/yt
+  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/yt
 )

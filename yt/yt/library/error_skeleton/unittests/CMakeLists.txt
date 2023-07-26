@@ -13,7 +13,7 @@ target_compile_options(unittester-library-error-skeleton PRIVATE
 )
 target_link_libraries(unittester-library-error-skeleton PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-testing-gtest
@@ -33,7 +33,7 @@ target_link_options(unittester-library-error-skeleton PRIVATE
   -lutil
 )
 target_sources(unittester-library-error-skeleton PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/error_skeleton/unittests/skeleton_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/error_skeleton/unittests/skeleton_ut.cpp
 )
 add_test(
   NAME

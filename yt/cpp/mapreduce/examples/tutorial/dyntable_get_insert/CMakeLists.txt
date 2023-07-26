@@ -13,7 +13,7 @@ target_compile_options(dyntable_get_insert PRIVATE
 )
 target_link_libraries(dyntable_get_insert PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-mapreduce-client
@@ -31,7 +31,7 @@ target_link_options(dyntable_get_insert PRIVATE
   -lutil
 )
 target_sources(dyntable_get_insert PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/dyntable_get_insert/main.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/examples/tutorial/dyntable_get_insert/main.cpp
 )
 target_allocator(dyntable_get_insert
   cpp-malloc-tcmalloc

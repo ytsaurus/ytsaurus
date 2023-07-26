@@ -13,11 +13,11 @@ target_compile_options(server-lib-nbd PRIVATE
 )
 target_link_libraries(server-lib-nbd PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
 )
 target_sources(server-lib-nbd PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/nbd/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/nbd/server.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/nbd/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/nbd/server.cpp
 )

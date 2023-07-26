@@ -10,7 +10,7 @@
 add_executable(02_group_by_key)
 target_link_libraries(02_group_by_key PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-roren-interface
@@ -28,7 +28,7 @@ target_link_options(02_group_by_key PRIVATE
   -lutil
 )
 target_sources(02_group_by_key PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/examples/02_group_by_key/main.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/roren/examples/02_group_by_key/main.cpp
 )
 target_allocator(02_group_by_key
   cpp-malloc-tcmalloc

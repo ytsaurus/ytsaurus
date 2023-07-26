@@ -12,13 +12,13 @@ target_compile_options(Target-X86-MCTargetDesc PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(Target-X86-MCTargetDesc PRIVATE
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc
+  ${CMAKE_BINARY_DIR}/ytsaurus/contrib/libs/llvm16/lib/Target/X86
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Target/X86
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc
 )
 target_link_libraries(Target-X86-MCTargetDesc PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   contrib-libs-llvm16
   libs-llvm16-include
   llvm16-lib-BinaryFormat
@@ -29,20 +29,20 @@ target_link_libraries(Target-X86-MCTargetDesc PUBLIC
   llvm16-lib-TargetParser
 )
 target_sources(Target-X86-MCTargetDesc PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc/X86ATTInstPrinter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc/X86AsmBackend.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc/X86ELFObjectWriter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc/X86InstComments.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc/X86InstPrinterCommon.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc/X86InstrRelaxTables.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc/X86IntelInstPrinter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc/X86MCAsmInfo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc/X86MCCodeEmitter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc/X86MCTargetDesc.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc/X86MachObjectWriter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc/X86MnemonicTables.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc/X86ShuffleDecode.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc/X86WinCOFFObjectWriter.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc/X86WinCOFFStreamer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc/X86WinCOFFTargetStreamer.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc/X86ATTInstPrinter.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc/X86AsmBackend.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc/X86ELFObjectWriter.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc/X86InstComments.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc/X86InstPrinterCommon.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc/X86InstrRelaxTables.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc/X86IntelInstPrinter.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc/X86MCAsmInfo.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc/X86MCCodeEmitter.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc/X86MCTargetDesc.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc/X86MachObjectWriter.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc/X86MnemonicTables.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc/X86ShuffleDecode.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc/X86WinCOFFObjectWriter.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc/X86WinCOFFStreamer.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Target/X86/MCTargetDesc/X86WinCOFFTargetStreamer.cpp
 )

@@ -13,7 +13,7 @@ target_compile_options(cpp-yt-string PRIVATE
 )
 target_link_libraries(cpp-yt-string PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-yt-assert
   cpp-yt-exception
@@ -21,8 +21,8 @@ target_link_libraries(cpp-yt-string PUBLIC
   cpp-yt-small_containers
 )
 target_sources(cpp-yt-string PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/yt/string/enum.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/yt/string/guid.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/yt/string/string.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/yt/string/format.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/yt/string/enum.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/yt/string/guid.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/yt/string/string.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/yt/string/format.cpp
 )

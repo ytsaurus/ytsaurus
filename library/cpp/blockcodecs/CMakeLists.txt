@@ -12,7 +12,7 @@ add_subdirectory(core)
 add_library(library-cpp-blockcodecs)
 target_link_libraries(library-cpp-blockcodecs PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-blockcodecs-core
   blockcodecs-codecs-brotli
@@ -26,6 +26,6 @@ target_link_libraries(library-cpp-blockcodecs PUBLIC
   blockcodecs-codecs-zstd
 )
 target_sources(library-cpp-blockcodecs PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/blockcodecs/codecs.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/blockcodecs/stream.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/blockcodecs/codecs.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/blockcodecs/stream.cpp
 )

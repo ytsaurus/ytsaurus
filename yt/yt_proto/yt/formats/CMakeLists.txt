@@ -34,24 +34,24 @@ get_built_tool_path(
 add_library(yt_proto-yt-formats)
 target_link_libraries(yt_proto-yt-formats PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   contrib-libs-protobuf
 )
 target_proto_messages(yt_proto-yt-formats PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt_proto/yt/formats/extension.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt_proto/yt/formats/yamr.proto
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt_proto/yt/formats/extension.proto
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt_proto/yt/formats/yamr.proto
 )
 target_proto_addincls(yt_proto-yt-formats
   ./
-  ${CMAKE_SOURCE_DIR}/
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${CMAKE_SOURCE_DIR}/ytsaurus/
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
 )
 target_proto_outs(yt_proto-yt-formats
-  --cpp_out=${CMAKE_BINARY_DIR}/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
+  --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/
+  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/
 )

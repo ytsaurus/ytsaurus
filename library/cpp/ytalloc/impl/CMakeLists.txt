@@ -10,7 +10,7 @@
 add_library(cpp-ytalloc-impl)
 target_link_libraries(cpp-ytalloc-impl PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-malloc-api
   cpp-yt-containers
@@ -18,5 +18,5 @@ target_link_libraries(cpp-ytalloc-impl PUBLIC
   cpp-yt-threading
 )
 target_sources(cpp-ytalloc-impl PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/ytalloc/impl/bridge.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/ytalloc/impl/bridge.cpp
 )

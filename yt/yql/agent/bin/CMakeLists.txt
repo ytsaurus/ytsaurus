@@ -13,7 +13,7 @@ target_compile_options(ytserver-yql-agent PRIVATE
 )
 target_link_libraries(ytserver-yql-agent PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   yt-yql-agent
@@ -30,7 +30,7 @@ target_link_options(ytserver-yql-agent PRIVATE
   -lutil
 )
 target_sources(ytserver-yql-agent PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yql/agent/bin/main.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yql/agent/bin/main.cpp
 )
 target_allocator(ytserver-yql-agent
   cpp-malloc-tcmalloc

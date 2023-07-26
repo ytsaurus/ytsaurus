@@ -13,7 +13,7 @@ target_compile_options(unittester-hydra PRIVATE
 )
 target_link_libraries(unittester-hydra PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-testing-gtest
@@ -32,11 +32,11 @@ target_link_options(unittester-hydra PRIVATE
   -lutil
 )
 target_sources(unittester-hydra PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/unittests/checkpointable_stream_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/unittests/file_changelog_index_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/unittests/hydra_janitor_helpers_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/unittests/changelog_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra_common/unittests/unbuffered_file_changelog_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra_common/unittests/checkpointable_stream_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra_common/unittests/file_changelog_index_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra_common/unittests/hydra_janitor_helpers_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra_common/unittests/changelog_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra_common/unittests/unbuffered_file_changelog_ut.cpp
 )
 add_test(
   NAME

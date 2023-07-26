@@ -13,10 +13,10 @@ target_compile_options(mapreduce-library-table_schema PRIVATE
 )
 target_link_libraries(mapreduce-library-table_schema PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-mapreduce-interface
 )
 target_sources(mapreduce-library-table_schema PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/library/table_schema/protobuf.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/library/table_schema/protobuf.cpp
 )

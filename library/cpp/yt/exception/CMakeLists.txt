@@ -13,9 +13,9 @@ target_compile_options(cpp-yt-exception PRIVATE
 )
 target_link_libraries(cpp-yt-exception PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
 )
 target_sources(cpp-yt-exception PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/yt/exception/exception.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/yt/exception/exception.cpp
 )

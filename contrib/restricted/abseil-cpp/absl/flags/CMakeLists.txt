@@ -12,11 +12,11 @@ target_compile_options(abseil-cpp-absl-flags PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(abseil-cpp-absl-flags PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp
 )
 target_link_libraries(abseil-cpp-absl-flags PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   abseil-cpp-absl-base
   abseil-cpp-absl-container
   abseil-cpp-absl-debugging
@@ -30,16 +30,16 @@ target_link_libraries(abseil-cpp-absl-flags PUBLIC
   abseil-cpp-absl-types
 )
 target_sources(abseil-cpp-absl-flags PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/flags/commandlineflag.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/flags/flag.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/flags/internal/commandlineflag.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/flags/internal/flag.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/flags/internal/private_handle_accessor.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/flags/internal/program_name.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/flags/internal/usage.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/flags/marshalling.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/flags/parse.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/flags/reflection.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/flags/usage.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/flags/usage_config.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp/absl/flags/commandlineflag.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp/absl/flags/flag.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp/absl/flags/internal/commandlineflag.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp/absl/flags/internal/flag.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp/absl/flags/internal/private_handle_accessor.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp/absl/flags/internal/program_name.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp/absl/flags/internal/usage.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp/absl/flags/marshalling.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp/absl/flags/parse.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp/absl/flags/reflection.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp/absl/flags/usage.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp/absl/flags/usage_config.cc
 )

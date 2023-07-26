@@ -10,7 +10,7 @@
 add_library(library-ytprof-memory_tag_compat INTERFACE)
 target_link_libraries(library-ytprof-memory_tag_compat INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-library-ytprof
 )
@@ -21,10 +21,10 @@ target_compile_options(library-ytprof-memory_tag_compat.global PRIVATE
 )
 target_link_libraries(library-ytprof-memory_tag_compat.global PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-library-ytprof
 )
 target_sources(library-ytprof-memory_tag_compat.global PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/ytprof/memory_tag_compat/compat.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/ytprof/memory_tag_compat/compat.cpp
 )

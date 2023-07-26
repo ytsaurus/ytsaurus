@@ -13,12 +13,12 @@ target_compile_options(server-lib-cypress_election PRIVATE
 )
 target_link_libraries(server-lib-cypress_election PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
   yt-yt-client
 )
 target_sources(server-lib-cypress_election PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/cypress_election/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/cypress_election/election_manager.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/cypress_election/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/cypress_election/election_manager.cpp
 )

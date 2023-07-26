@@ -14,9 +14,9 @@ target_compile_options(cpp-lfalloc-yt PRIVATE
 )
 target_link_libraries(cpp-lfalloc-yt PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   cpp-malloc-api
 )
 target_sources(cpp-lfalloc-yt PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/lfalloc/lf_allocX64.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/lfalloc/lf_allocX64.cpp
 )

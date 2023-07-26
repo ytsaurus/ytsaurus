@@ -13,9 +13,9 @@ target_compile_options(cpp-yt-malloc PRIVATE
 )
 target_link_libraries(cpp-yt-malloc PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
 )
 target_sources(cpp-yt-malloc PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/yt/malloc/malloc.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/yt/malloc/malloc.cpp
 )

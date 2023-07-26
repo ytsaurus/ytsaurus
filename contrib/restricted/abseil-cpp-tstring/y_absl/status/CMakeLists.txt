@@ -12,11 +12,11 @@ target_compile_options(abseil-cpp-tstring-y_absl-status PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(abseil-cpp-tstring-y_absl-status PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp-tstring
 )
 target_link_libraries(abseil-cpp-tstring-y_absl-status PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   abseil-cpp-tstring-y_absl-base
   abseil-cpp-tstring-y_absl-debugging
@@ -28,6 +28,6 @@ target_link_libraries(abseil-cpp-tstring-y_absl-status PUBLIC
   abseil-cpp-tstring-y_absl-types
 )
 target_sources(abseil-cpp-tstring-y_absl-status PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/status/status.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/status/status_payload_printer.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp-tstring/y_absl/status/status.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp-tstring/y_absl/status/status_payload_printer.cc
 )

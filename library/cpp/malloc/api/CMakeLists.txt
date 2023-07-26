@@ -10,8 +10,8 @@
 add_library(cpp-malloc-api)
 target_link_libraries(cpp-malloc-api PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
 )
 target_sources(cpp-malloc-api PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/malloc/api/malloc.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/malloc/api/malloc.cpp
 )

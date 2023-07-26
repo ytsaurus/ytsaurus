@@ -14,18 +14,18 @@ target_compile_options(server-lib-tablet_balancer PRIVATE
 )
 target_link_libraries(server-lib-tablet_balancer PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-ytlib
   yt-yt-core
   orm-library-query
 )
 target_sources(server-lib-tablet_balancer PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/balancing_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/parameterized_balancing_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/table.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/tablet.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/tablet_cell.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/tablet_cell_bundle.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/tablet_balancer/balancing_helpers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/tablet_balancer/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/tablet_balancer/parameterized_balancing_helpers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/tablet_balancer/table.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/tablet_balancer/tablet.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/tablet_balancer/tablet_cell.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/tablet_balancer/tablet_cell_bundle.cpp
 )

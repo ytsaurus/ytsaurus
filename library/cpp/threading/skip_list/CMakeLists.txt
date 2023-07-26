@@ -10,10 +10,10 @@
 add_library(cpp-threading-skip_list)
 target_link_libraries(cpp-threading-skip_list PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-deprecated-atomic
 )
 target_sources(cpp-threading-skip_list PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/threading/skip_list/skiplist.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/threading/skip_list/skiplist.cpp
 )

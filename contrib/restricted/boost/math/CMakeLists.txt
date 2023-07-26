@@ -9,11 +9,11 @@
 
 add_library(restricted-boost-math INTERFACE)
 target_include_directories(restricted-boost-math INTERFACE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/math/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/math/include
 )
 target_link_libraries(restricted-boost-math INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   restricted-boost-assert
   restricted-boost-concept_check
   restricted-boost-config

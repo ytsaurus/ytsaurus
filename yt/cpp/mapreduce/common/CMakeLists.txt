@@ -14,7 +14,7 @@ target_compile_options(cpp-mapreduce-common PRIVATE
 )
 target_link_libraries(cpp-mapreduce-common PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-json
   library-cpp-svnversion
@@ -26,8 +26,8 @@ target_link_libraries(cpp-mapreduce-common PUBLIC
   mapreduce-interface-logging
 )
 target_sources(cpp-mapreduce-common PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/common/debug_metrics.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/common/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/common/retry_lib.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/common/wait_proxy.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/common/debug_metrics.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/common/helpers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/common/retry_lib.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/common/wait_proxy.cpp
 )

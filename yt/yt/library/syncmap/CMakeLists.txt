@@ -11,6 +11,6 @@ add_subdirectory(unittests)
 add_library(yt-library-syncmap INTERFACE)
 target_link_libraries(yt-library-syncmap INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
 )

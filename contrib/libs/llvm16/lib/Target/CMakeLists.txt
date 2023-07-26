@@ -13,11 +13,11 @@ target_compile_options(llvm16-lib-Target PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(llvm16-lib-Target PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Target
 )
 target_link_libraries(llvm16-lib-Target PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   contrib-libs-llvm16
   libs-llvm16-include
   llvm16-lib-Analysis
@@ -27,9 +27,9 @@ target_link_libraries(llvm16-lib-Target PUBLIC
   llvm16-lib-TargetParser
 )
 target_sources(llvm16-lib-Target PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/Target.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/TargetIntrinsicInfo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/TargetLoweringObjectFile.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/TargetMachine.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/TargetMachineC.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Target/Target.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Target/TargetIntrinsicInfo.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Target/TargetLoweringObjectFile.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Target/TargetMachine.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Target/TargetMachineC.cpp
 )

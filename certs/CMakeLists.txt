@@ -16,7 +16,7 @@ get_built_tool_path(
 add_library(certs INTERFACE)
 target_link_libraries(certs INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-resource
 )
@@ -24,17 +24,17 @@ target_link_libraries(certs INTERFACE
 add_global_library_for(certs.global certs)
 target_link_libraries(certs.global PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-resource
 )
 target_sources(certs.global PRIVATE
-  ${CMAKE_BINARY_DIR}/certs/b03c08f91a00a60ac9d7daef45f3075a.cpp
+  ${CMAKE_BINARY_DIR}/ytsaurus/certs/b03c08f91a00a60ac9d7daef45f3075a.cpp
 )
 resources(certs.global
-  ${CMAKE_BINARY_DIR}/certs/b03c08f91a00a60ac9d7daef45f3075a.cpp
+  ${CMAKE_BINARY_DIR}/ytsaurus/certs/b03c08f91a00a60ac9d7daef45f3075a.cpp
   INPUTS
-  ${CMAKE_SOURCE_DIR}/certs/cacert.pem
+  ${CMAKE_SOURCE_DIR}/ytsaurus/certs/cacert.pem
   KEYS
   /builtin/cacert
 )

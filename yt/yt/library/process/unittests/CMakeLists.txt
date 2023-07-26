@@ -13,7 +13,7 @@ target_compile_options(unittester-library-process PRIVATE
 )
 target_link_libraries(unittester-library-process PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-testing-gtest
@@ -35,9 +35,9 @@ target_link_options(unittester-library-process PRIVATE
   -lutil
 )
 target_sources(unittester-library-process PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/process/unittests/pipes_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/process/unittests/process_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/process/unittests/subprocess_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/process/unittests/pipes_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/process/unittests/process_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/process/unittests/subprocess_ut.cpp
 )
 add_test(
   NAME

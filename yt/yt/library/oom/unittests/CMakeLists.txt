@@ -13,7 +13,7 @@ target_compile_options(yt-yt-library-oom-unittests PRIVATE
 )
 target_link_libraries(yt-yt-library-oom-unittests PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-testing-gtest
@@ -32,7 +32,7 @@ target_link_options(yt-yt-library-oom-unittests PRIVATE
   -lutil
 )
 target_sources(yt-yt-library-oom-unittests PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/oom/unittests/oom_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/oom/unittests/oom_ut.cpp
 )
 add_test(
   NAME

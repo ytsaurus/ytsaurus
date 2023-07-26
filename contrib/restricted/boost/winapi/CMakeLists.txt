@@ -9,11 +9,11 @@
 
 add_library(restricted-boost-winapi INTERFACE)
 target_include_directories(restricted-boost-winapi INTERFACE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/winapi/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/winapi/include
 )
 target_link_libraries(restricted-boost-winapi INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   restricted-boost-config
   restricted-boost-predef
 )

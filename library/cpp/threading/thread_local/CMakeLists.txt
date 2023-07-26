@@ -16,17 +16,17 @@ get_built_tool_path(
 add_library(cpp-threading-thread_local)
 target_link_libraries(cpp-threading-thread_local PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-threading-hot_swap
   cpp-threading-skip_list
   tools-enum_parser-enum_serialization_runtime
 )
 target_sources(cpp-threading-thread_local PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/threading/thread_local/thread_local.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/threading/thread_local/thread_local.cpp
 )
 generate_enum_serilization(cpp-threading-thread_local
-  ${CMAKE_SOURCE_DIR}/library/cpp/threading/thread_local/thread_local.h
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/threading/thread_local/thread_local.h
   INCLUDE_HEADERS
   library/cpp/threading/thread_local/thread_local.h
 )

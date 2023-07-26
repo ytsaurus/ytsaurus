@@ -13,7 +13,7 @@ target_compile_options(unpack-local-changelog PRIVATE
 )
 target_link_libraries(unpack-local-changelog PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   yt-yt-core
@@ -33,7 +33,7 @@ target_link_options(unpack-local-changelog PRIVATE
   -lutil
 )
 target_sources(unpack-local-changelog PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/unpack_local_changelog/main.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/tools/unpack_local_changelog/main.cpp
 )
 target_allocator(unpack-local-changelog
   cpp-malloc-tcmalloc

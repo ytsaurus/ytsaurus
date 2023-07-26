@@ -13,7 +13,7 @@ target_compile_options(unittester-server-lib-misc PRIVATE
 )
 target_link_libraries(unittester-server-lib-misc PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-testing-gtest
@@ -32,8 +32,8 @@ target_link_options(unittester-server-lib-misc PRIVATE
   -lutil
 )
 target_sources(unittester-server-lib-misc PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/misc/unittests/max_min_balancer_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/misc/unittests/release_queue_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/misc/unittests/max_min_balancer_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/misc/unittests/release_queue_ut.cpp
 )
 add_test(
   NAME

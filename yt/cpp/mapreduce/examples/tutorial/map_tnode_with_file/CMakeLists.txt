@@ -13,7 +13,7 @@ target_compile_options(map_tnode_with_file PRIVATE
 )
 target_link_libraries(map_tnode_with_file PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-mapreduce-client
@@ -30,7 +30,7 @@ target_link_options(map_tnode_with_file PRIVATE
   -lutil
 )
 target_sources(map_tnode_with_file PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/map_tnode_with_file/main.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/examples/tutorial/map_tnode_with_file/main.cpp
 )
 target_allocator(map_tnode_with_file
   cpp-malloc-tcmalloc

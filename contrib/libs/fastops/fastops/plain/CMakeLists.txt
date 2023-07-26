@@ -10,9 +10,9 @@
 add_library(fastops-fastops-plain)
 target_link_libraries(fastops-fastops-plain PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   contrib-libs-fmath
 )
 target_sources(fastops-fastops-plain PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/fastops/fastops/plain/ops_plain.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/fastops/fastops/plain/ops_plain.cpp
 )

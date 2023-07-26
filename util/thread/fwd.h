@@ -1,6 +1,6 @@
 #pragma once
 
-#include <stlfwd>
+#include <util/generic/stlfwd.h>
 
 struct TDefaultLFCounter;
 

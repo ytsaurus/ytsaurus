@@ -13,7 +13,7 @@ target_compile_options(unittester-containers PRIVATE
 )
 target_link_libraries(unittester-containers PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-testing-gtest
@@ -34,9 +34,9 @@ target_link_options(unittester-containers PRIVATE
   -lutil
 )
 target_sources(unittester-containers PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/unittests/containers_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/unittests/process_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/unittests/porto_resource_tracker_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/containers/unittests/containers_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/containers/unittests/process_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/containers/unittests/porto_resource_tracker_ut.cpp
 )
 add_test(
   NAME

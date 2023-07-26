@@ -12,14 +12,14 @@ target_compile_options(library-query-engine_api PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(library-query-engine_api PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt
 )
 target_include_directories(library-query-engine_api PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/sparsehash/src
 )
 target_link_libraries(library-query-engine_api PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
   library-query-misc
@@ -30,14 +30,14 @@ target_link_libraries(library-query-engine_api PUBLIC
   contrib-libs-sparsehash
 )
 target_sources(library-query-engine_api PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/append_function_implementation.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/column_evaluator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/coordinator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/evaluation_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/evaluator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/builtin_function_profiler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/range_inferrer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/position_independent_value.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/position_independent_value_transfer.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/query/engine_api/append_function_implementation.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/query/engine_api/column_evaluator.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/query/engine_api/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/query/engine_api/coordinator.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/query/engine_api/evaluation_helpers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/query/engine_api/evaluator.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/query/engine_api/builtin_function_profiler.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/query/engine_api/range_inferrer.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/query/engine_api/position_independent_value.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/query/engine_api/position_independent_value_transfer.cpp
 )

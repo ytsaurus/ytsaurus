@@ -13,11 +13,11 @@ target_compile_options(yt-library-re2 PRIVATE
 )
 target_link_libraries(yt-library-re2 PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
   contrib-libs-re2
 )
 target_sources(yt-library-re2 PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/re2/re2.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/re2/re2.cpp
 )

@@ -14,7 +14,7 @@ target_compile_options(cpp-mapreduce-http PRIVATE
 )
 target_link_libraries(cpp-mapreduce-http PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-deprecated-atomic
   cpp-http-io
@@ -28,12 +28,12 @@ target_link_libraries(cpp-mapreduce-http PUBLIC
   yt-core-https
 )
 target_sources(cpp-mapreduce-http PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/http/abortable_http_response.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/http/context.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/http/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/http/host_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/http/http.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/http/http_client.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/http/requests.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/http/retry_request.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/http/abortable_http_response.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/http/context.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/http/helpers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/http/host_manager.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/http/http.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/http/http_client.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/http/requests.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/http/retry_request.cpp
 )

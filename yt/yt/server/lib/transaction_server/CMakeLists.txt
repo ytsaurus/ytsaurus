@@ -13,11 +13,11 @@ target_compile_options(server-lib-transaction_server PRIVATE
 )
 target_link_libraries(server-lib-transaction_server PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-ytlib
 )
 target_sources(server-lib-transaction_server PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/transaction_server/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/transaction_server/timestamp_proxy_service.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/transaction_server/helpers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/transaction_server/timestamp_proxy_service.cpp
 )

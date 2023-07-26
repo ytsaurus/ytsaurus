@@ -13,17 +13,17 @@ target_compile_options(server-lib-lsm PRIVATE
 )
 target_link_libraries(server-lib-lsm PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-client
   server-lib-tablet_node
 )
 target_sources(server-lib-lsm PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/lsm/lsm_backend.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/lsm/partition_balancer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/lsm/partition.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/lsm/store_compactor.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/lsm/store_rotator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/lsm/tablet.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/lsm/store.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/lsm/lsm_backend.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/lsm/partition_balancer.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/lsm/partition.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/lsm/store_compactor.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/lsm/store_rotator.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/lsm/tablet.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/lsm/store.cpp
 )

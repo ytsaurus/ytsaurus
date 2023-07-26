@@ -25,7 +25,7 @@ target_compile_options(multiple_input_multiple_output_reduce_protobuf PRIVATE
 )
 target_link_libraries(multiple_input_multiple_output_reduce_protobuf PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-mapreduce-client
@@ -43,10 +43,10 @@ target_link_options(multiple_input_multiple_output_reduce_protobuf PRIVATE
   -lutil
 )
 target_proto_messages(multiple_input_multiple_output_reduce_protobuf PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/multiple_input_multiple_output_reduce_protobuf/data.proto
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/examples/tutorial/multiple_input_multiple_output_reduce_protobuf/data.proto
 )
 target_sources(multiple_input_multiple_output_reduce_protobuf PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/multiple_input_multiple_output_reduce_protobuf/main.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/examples/tutorial/multiple_input_multiple_output_reduce_protobuf/main.cpp
 )
 target_allocator(multiple_input_multiple_output_reduce_protobuf
   cpp-malloc-tcmalloc
@@ -54,16 +54,16 @@ target_allocator(multiple_input_multiple_output_reduce_protobuf
 )
 target_proto_addincls(multiple_input_multiple_output_reduce_protobuf
   ./
-  ${CMAKE_SOURCE_DIR}/
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${CMAKE_SOURCE_DIR}/ytsaurus/
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
 )
 target_proto_outs(multiple_input_multiple_output_reduce_protobuf
-  --cpp_out=${CMAKE_BINARY_DIR}/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
+  --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/
+  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/
 )
 vcs_info(multiple_input_multiple_output_reduce_protobuf)

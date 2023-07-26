@@ -10,7 +10,7 @@
 add_library(library-query-row_comparer INTERFACE)
 target_link_libraries(library-query-row_comparer INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-client
   yt-yt-core
@@ -23,12 +23,12 @@ target_compile_options(library-query-row_comparer.global PRIVATE
 )
 target_link_libraries(library-query-row_comparer.global PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-client
   yt-yt-core
   yt-library-codegen
 )
 target_sources(library-query-row_comparer.global PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/row_comparer/row_comparer_generator.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/query/row_comparer/row_comparer_generator.cpp
 )

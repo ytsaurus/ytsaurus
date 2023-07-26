@@ -13,7 +13,7 @@ target_compile_options(yt-yt-library-s3-unittests PRIVATE
 )
 target_link_libraries(yt-yt-library-s3-unittests PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-testing-gtest
@@ -33,8 +33,8 @@ target_link_options(yt-yt-library-s3-unittests PRIVATE
   -lutil
 )
 target_sources(yt-yt-library-s3-unittests PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/s3/unittests/crypto_helpers_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/s3/unittests/http_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/s3/unittests/crypto_helpers_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/s3/unittests/http_ut.cpp
 )
 add_test(
   NAME

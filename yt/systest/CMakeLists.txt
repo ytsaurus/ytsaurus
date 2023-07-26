@@ -15,7 +15,7 @@ target_compile_options(yt-systest PRIVATE
 )
 target_link_libraries(yt-systest PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-mapreduce-client
   cpp-mapreduce-interface
@@ -25,21 +25,21 @@ target_link_libraries(yt-systest PUBLIC
   yt_proto-yt-client
 )
 target_sources(yt-systest PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/systest/bootstrap_dataset.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/dataset.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/dataset_operation.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/map_dataset.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/operation.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/operation/map.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/operation/multi_map.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/operation/reduce.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/operation/util.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/reduce_dataset.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/run.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/runner.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/table.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/table_dataset.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/test_home.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/test_program.cpp
-  ${CMAKE_SOURCE_DIR}/yt/systest/util.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/systest/bootstrap_dataset.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/systest/dataset.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/systest/dataset_operation.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/systest/map_dataset.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/systest/operation.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/systest/operation/map.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/systest/operation/multi_map.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/systest/operation/reduce.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/systest/operation/util.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/systest/reduce_dataset.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/systest/run.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/systest/runner.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/systest/table.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/systest/table_dataset.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/systest/test_home.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/systest/test_program.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/systest/util.cpp
 )

@@ -13,9 +13,9 @@ target_compile_options(cpp-yt-stockpile PRIVATE
 )
 target_link_libraries(cpp-yt-stockpile PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
 )
 target_sources(cpp-yt-stockpile PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/yt/stockpile/stockpile_linux.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/yt/stockpile/stockpile_linux.cpp
 )

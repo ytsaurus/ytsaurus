@@ -11,7 +11,7 @@ add_subdirectory(small)
 add_library(library-cpp-getopt INTERFACE)
 target_link_libraries(library-cpp-getopt INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-getopt-small
   library-cpp-svnversion
@@ -21,12 +21,12 @@ target_link_libraries(library-cpp-getopt INTERFACE
 add_global_library_for(library-cpp-getopt.global library-cpp-getopt)
 target_link_libraries(library-cpp-getopt.global PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-getopt-small
   library-cpp-svnversion
   library-cpp-build_info
 )
 target_sources(library-cpp-getopt.global PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/getopt/print.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/getopt/print.cpp
 )

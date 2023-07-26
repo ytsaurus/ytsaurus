@@ -14,11 +14,11 @@ target_compile_options(restricted-boost-regex PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(restricted-boost-regex PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/regex/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/regex/include
 )
 target_link_libraries(restricted-boost-regex PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   contrib-libs-icu
   restricted-boost-assert
   restricted-boost-concept_check
@@ -34,9 +34,9 @@ target_link_libraries(restricted-boost-regex PUBLIC
   restricted-boost-type_traits
 )
 target_sources(restricted-boost-regex PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/regex/src/posix_api.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/regex/src/regex.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/regex/src/regex_debug.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/regex/src/static_mutex.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/regex/src/wide_posix_api.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/regex/src/posix_api.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/regex/src/regex.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/regex/src/regex_debug.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/regex/src/static_mutex.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/regex/src/wide_posix_api.cpp
 )

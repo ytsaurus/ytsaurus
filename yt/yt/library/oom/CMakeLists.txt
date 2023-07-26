@@ -14,12 +14,12 @@ target_compile_options(yt-library-oom PRIVATE
 )
 target_link_libraries(yt-library-oom PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
   yt-library-ytprof
   cpp-yt-logging
 )
 target_sources(yt-library-oom PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/oom/oom.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/oom/oom.cpp
 )

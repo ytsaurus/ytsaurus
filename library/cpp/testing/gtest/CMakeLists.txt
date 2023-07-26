@@ -10,7 +10,7 @@
 add_library(cpp-testing-gtest)
 target_link_libraries(cpp-testing-gtest PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   restricted-googletest-googlemock
   restricted-googletest-googletest
@@ -20,7 +20,7 @@ target_link_libraries(cpp-testing-gtest PUBLIC
   cpp-testing-hook
 )
 target_sources(cpp-testing-gtest PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/testing/gtest/gtest.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/testing/gtest/main.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/testing/gtest/matchers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/testing/gtest/gtest.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/testing/gtest/main.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/testing/gtest/matchers.cpp
 )

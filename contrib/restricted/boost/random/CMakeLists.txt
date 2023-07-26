@@ -12,11 +12,11 @@ target_compile_options(restricted-boost-random PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(restricted-boost-random PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/random/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/random/include
 )
 target_link_libraries(restricted-boost-random PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   restricted-boost-array
   restricted-boost-assert
   restricted-boost-config
@@ -32,5 +32,5 @@ target_link_libraries(restricted-boost-random PUBLIC
   restricted-boost-utility
 )
 target_sources(restricted-boost-random PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/random/src/random_device.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/random/src/random_device.cpp
 )

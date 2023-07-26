@@ -13,10 +13,10 @@ target_compile_options(yt-library-named_value PRIVATE
 )
 target_link_libraries(yt-library-named_value PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-client
 )
 target_sources(yt-library-named_value PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/named_value/named_value.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/named_value/named_value.cpp
 )

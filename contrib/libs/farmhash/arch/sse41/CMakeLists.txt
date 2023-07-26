@@ -14,9 +14,9 @@ target_compile_options(farmhash-arch-sse41 PRIVATE
 )
 target_link_libraries(farmhash-arch-sse41 PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
 )
 target_sources(farmhash-arch-sse41 PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/farmhash/farmhashnt.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/farmhash/farmhashnt.cc
 )

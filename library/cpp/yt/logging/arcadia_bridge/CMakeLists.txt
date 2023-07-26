@@ -13,12 +13,12 @@ target_compile_options(yt-logging-arcadia_bridge PRIVATE
 )
 target_link_libraries(yt-logging-arcadia_bridge PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-yt-assert
   cpp-yt-logging
   library-cpp-logger
 )
 target_sources(yt-logging-arcadia_bridge PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/yt/logging/arcadia_bridge/backend.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/yt/logging/arcadia_bridge/backend.cpp
 )

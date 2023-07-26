@@ -24,14 +24,14 @@ target_compile_options(core-rpc-grpc PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(core-rpc-grpc PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt
 )
 target_include_directories(core-rpc-grpc PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/grpc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/grpc
 )
 target_link_libraries(core-rpc-grpc PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
   yt-core-crypto
@@ -39,28 +39,28 @@ target_link_libraries(core-rpc-grpc PUBLIC
   contrib-libs-protobuf
 )
 target_proto_messages(core-rpc-grpc PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/grpc/proto/grpc.proto
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/rpc/grpc/proto/grpc.proto
 )
 target_sources(core-rpc-grpc PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/grpc/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/grpc/public.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/grpc/dispatcher.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/grpc/server.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/grpc/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/grpc/channel.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/rpc/grpc/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/rpc/grpc/public.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/rpc/grpc/dispatcher.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/rpc/grpc/server.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/rpc/grpc/helpers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/rpc/grpc/channel.cpp
 )
 target_proto_addincls(core-rpc-grpc
   ./yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
 )
 target_proto_outs(core-rpc-grpc
-  --cpp_out=${CMAKE_BINARY_DIR}/yt
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/yt
+  --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/yt
+  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/yt
 )

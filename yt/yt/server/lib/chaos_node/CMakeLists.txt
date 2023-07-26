@@ -13,10 +13,10 @@ target_compile_options(server-lib-chaos_node PRIVATE
 )
 target_link_libraries(server-lib-chaos_node PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt_proto-yt-client
 )
 target_sources(server-lib-chaos_node PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chaos_node/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/chaos_node/config.cpp
 )

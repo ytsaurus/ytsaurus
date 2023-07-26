@@ -11,7 +11,7 @@ find_package(Python3 REQUIRED COMPONENTS Development)
 add_library(python-driver-rpc INTERFACE)
 target_link_libraries(python-driver-rpc INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   python-driver-lib
   Python3::Module
@@ -26,11 +26,11 @@ target_compile_options(python-driver-rpc.global PRIVATE
 )
 target_link_libraries(python-driver-rpc.global PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   python-driver-lib
   Python3::Module
 )
 target_sources(python-driver-rpc.global PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/driver/rpc/driver_rpc.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/python/driver/rpc/driver_rpc.cpp
 )

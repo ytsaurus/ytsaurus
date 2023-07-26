@@ -13,7 +13,7 @@ target_compile_options(pass_table_as_file PRIVATE
 )
 target_link_libraries(pass_table_as_file PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-mapreduce-client
@@ -30,7 +30,7 @@ target_link_options(pass_table_as_file PRIVATE
   -lutil
 )
 target_sources(pass_table_as_file PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/pass_table_as_file/main.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/examples/tutorial/pass_table_as_file/main.cpp
 )
 target_allocator(pass_table_as_file
   cpp-malloc-tcmalloc

@@ -45,11 +45,11 @@ get_built_tool_path(
 
 add_executable(yt-cpp-mapreduce-interface-ut)
 target_include_directories(yt-cpp-mapreduce-interface-ut PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface
 )
 target_link_libraries(yt-cpp-mapreduce-interface-ut PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-testing-unittest_main
@@ -69,21 +69,21 @@ target_link_options(yt-cpp-mapreduce-interface-ut PRIVATE
   -ldl
 )
 target_proto_messages(yt-cpp-mapreduce-interface-ut PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/proto3_ut.proto
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/protobuf_table_schema_ut.proto
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/protobuf_file_options_ut.proto
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/proto3_ut.proto
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/protobuf_table_schema_ut.proto
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/protobuf_file_options_ut.proto
 )
 target_sources(yt-cpp-mapreduce-interface-ut PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/common_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/config_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/error_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/format_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/job_counters_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/job_statistics_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/operation_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/protobuf_table_schema_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/protobuf_file_options_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/serialize_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/common_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/config_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/error_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/format_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/job_counters_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/job_statistics_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/operation_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/protobuf_table_schema_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/protobuf_file_options_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/serialize_ut.cpp
 )
 set_property(
   TARGET
@@ -124,15 +124,15 @@ target_allocator(yt-cpp-mapreduce-interface-ut
 )
 target_proto_addincls(yt-cpp-mapreduce-interface-ut
   ./
-  ${CMAKE_SOURCE_DIR}/
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${CMAKE_SOURCE_DIR}/ytsaurus/
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
 )
 target_proto_outs(yt-cpp-mapreduce-interface-ut
-  --cpp_out=${CMAKE_BINARY_DIR}/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
+  --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/
+  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/
 )
 vcs_info(yt-cpp-mapreduce-interface-ut)

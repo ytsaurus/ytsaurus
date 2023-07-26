@@ -9,11 +9,11 @@
 
 add_library(restricted-boost-heap INTERFACE)
 target_include_directories(restricted-boost-heap INTERFACE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/heap/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/heap/include
 )
 target_link_libraries(restricted-boost-heap INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   restricted-boost-array
   restricted-boost-assert
   restricted-boost-bind

@@ -13,9 +13,9 @@ target_compile_options(cpp-yt-system PRIVATE
 )
 target_link_libraries(cpp-yt-system PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
 )
 target_sources(cpp-yt-system PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/yt/system/thread_id.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/yt/system/thread_id.cpp
 )

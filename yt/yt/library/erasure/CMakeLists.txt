@@ -14,10 +14,10 @@ target_compile_options(yt-library-erasure PRIVATE
 )
 target_link_libraries(yt-library-erasure PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
 )
 target_sources(yt-library-erasure PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/erasure/public.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/erasure/public.cpp
 )

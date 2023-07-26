@@ -37,7 +37,7 @@ target_compile_options(rpc-unittests-lib PRIVATE
 )
 target_link_libraries(rpc-unittests-lib PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
   core-rpc-grpc
@@ -45,25 +45,25 @@ target_link_libraries(rpc-unittests-lib PUBLIC
   contrib-libs-protobuf
 )
 target_proto_messages(rpc-unittests-lib PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/unittests/lib/my_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/unittests/lib/no_baggage_service.proto
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/rpc/unittests/lib/my_service.proto
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/rpc/unittests/lib/no_baggage_service.proto
 )
 target_sources(rpc-unittests-lib PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/unittests/lib/common.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/unittests/lib/my_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/unittests/lib/no_baggage_service.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/rpc/unittests/lib/common.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/rpc/unittests/lib/my_service.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/rpc/unittests/lib/no_baggage_service.cpp
 )
 target_proto_addincls(rpc-unittests-lib
   ./
-  ${CMAKE_SOURCE_DIR}/
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${CMAKE_SOURCE_DIR}/ytsaurus/
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
 )
 target_proto_outs(rpc-unittests-lib
-  --cpp_out=${CMAKE_BINARY_DIR}/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
+  --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/
+  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/
 )

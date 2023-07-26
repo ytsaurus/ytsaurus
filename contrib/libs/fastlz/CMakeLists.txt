@@ -13,8 +13,8 @@ target_compile_options(contrib-libs-fastlz PRIVATE
 )
 target_link_libraries(contrib-libs-fastlz PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
 )
 target_sources(contrib-libs-fastlz PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/fastlz/fastlz.c
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/fastlz/fastlz.c
 )

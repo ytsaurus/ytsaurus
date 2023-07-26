@@ -13,7 +13,7 @@ target_compile_options(bin PRIVATE
 )
 target_link_libraries(bin PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   rpc-unittests-lib
@@ -30,7 +30,7 @@ target_link_options(bin PRIVATE
   -lutil
 )
 target_sources(bin PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/unittests/bin/main.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/rpc/unittests/bin/main.cpp
 )
 target_allocator(bin
   cpp-malloc-tcmalloc

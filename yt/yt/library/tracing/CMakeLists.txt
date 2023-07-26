@@ -16,14 +16,14 @@ target_compile_options(yt-library-tracing PRIVATE
 )
 target_link_libraries(yt-library-tracing PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-build
   yt_proto-yt-core
 )
 target_sources(yt-library-tracing PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/tracing/public.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/tracing/tracer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/tracing/async_queue_trace.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/tracing/batch_trace.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/tracing/public.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/tracing/tracer.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/tracing/async_queue_trace.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/tracing/batch_trace.cpp
 )

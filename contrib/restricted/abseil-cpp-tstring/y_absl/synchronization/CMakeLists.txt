@@ -12,11 +12,11 @@ target_compile_options(abseil-cpp-tstring-y_absl-synchronization PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(abseil-cpp-tstring-y_absl-synchronization PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp-tstring
 )
 target_link_libraries(abseil-cpp-tstring-y_absl-synchronization PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   abseil-cpp-tstring-y_absl-base
   abseil-cpp-tstring-y_absl-debugging
@@ -25,12 +25,12 @@ target_link_libraries(abseil-cpp-tstring-y_absl-synchronization PUBLIC
   abseil-cpp-tstring-y_absl-time
 )
 target_sources(abseil-cpp-tstring-y_absl-synchronization PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/synchronization/barrier.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/synchronization/blocking_counter.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/synchronization/internal/create_thread_identity.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/synchronization/internal/graphcycles.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/synchronization/internal/per_thread_sem.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/synchronization/internal/waiter.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/synchronization/mutex.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/synchronization/notification.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp-tstring/y_absl/synchronization/barrier.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp-tstring/y_absl/synchronization/blocking_counter.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp-tstring/y_absl/synchronization/internal/create_thread_identity.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp-tstring/y_absl/synchronization/internal/graphcycles.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp-tstring/y_absl/synchronization/internal/per_thread_sem.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp-tstring/y_absl/synchronization/internal/waiter.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp-tstring/y_absl/synchronization/mutex.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp-tstring/y_absl/synchronization/notification.cc
 )

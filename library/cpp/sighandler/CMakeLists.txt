@@ -10,10 +10,10 @@
 add_library(library-cpp-sighandler)
 target_link_libraries(library-cpp-sighandler PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-deprecated-atomic
 )
 target_sources(library-cpp-sighandler PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/sighandler/async_signals_handler.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/sighandler/async_signals_handler.cpp
 )

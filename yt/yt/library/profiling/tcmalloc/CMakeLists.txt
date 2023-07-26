@@ -13,11 +13,11 @@ target_compile_options(library-profiling-tcmalloc PRIVATE
 )
 target_link_libraries(library-profiling-tcmalloc PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-library-profiling
   libs-tcmalloc-malloc_extension
 )
 target_sources(library-profiling-tcmalloc PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/tcmalloc/profiler.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/profiling/tcmalloc/profiler.cpp
 )

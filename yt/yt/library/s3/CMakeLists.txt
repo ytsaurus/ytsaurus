@@ -14,7 +14,7 @@ target_compile_options(yt-library-s3 PRIVATE
 )
 target_link_libraries(yt-library-s3 PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
   yt-core-crypto
@@ -22,8 +22,8 @@ target_link_libraries(yt-library-s3 PUBLIC
   cpp-xml-document
 )
 target_sources(yt-library-s3 PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/s3/client.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/s3/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/s3/crypto_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/s3/http.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/s3/client.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/s3/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/s3/crypto_helpers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/s3/http.cpp
 )

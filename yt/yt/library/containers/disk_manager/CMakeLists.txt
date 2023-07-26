@@ -13,13 +13,13 @@ target_compile_options(library-containers-disk_manager PRIVATE
 )
 target_link_libraries(library-containers-disk_manager PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
 )
 target_sources(library-containers-disk_manager PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/disk_manager/active_disk_checker.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/disk_manager/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/disk_manager/disk_info_provider.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/disk_manager/disk_manager_proxy.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/containers/disk_manager/active_disk_checker.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/containers/disk_manager/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/containers/disk_manager/disk_info_provider.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/containers/disk_manager/disk_manager_proxy.cpp
 )

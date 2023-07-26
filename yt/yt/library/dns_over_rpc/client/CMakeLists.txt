@@ -25,30 +25,30 @@ target_compile_options(library-dns_over_rpc-client PRIVATE
 )
 target_link_libraries(library-dns_over_rpc-client PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
   contrib-libs-protobuf
 )
 target_proto_messages(library-dns_over_rpc-client PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/dns_over_rpc/client/proto/dns_over_rpc_service.proto
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/dns_over_rpc/client/proto/dns_over_rpc_service.proto
 )
 target_sources(library-dns_over_rpc-client PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/dns_over_rpc/client/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/dns_over_rpc/client/dns_over_rpc_resolver.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/dns_over_rpc/client/helpers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/dns_over_rpc/client/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/dns_over_rpc/client/dns_over_rpc_resolver.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/dns_over_rpc/client/helpers.cpp
 )
 target_proto_addincls(library-dns_over_rpc-client
   ./
-  ${CMAKE_SOURCE_DIR}/
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${CMAKE_SOURCE_DIR}/ytsaurus/
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
 )
 target_proto_outs(library-dns_over_rpc-client
-  --cpp_out=${CMAKE_BINARY_DIR}/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
+  --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/
+  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/
 )

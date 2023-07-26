@@ -9,11 +9,11 @@
 
 add_library(restricted-boost-container_hash INTERFACE)
 target_include_directories(restricted-boost-container_hash INTERFACE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/container_hash/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/container_hash/include
 )
 target_link_libraries(restricted-boost-container_hash INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   restricted-boost-config
   restricted-boost-describe
   restricted-boost-mp11

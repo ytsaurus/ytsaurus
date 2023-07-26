@@ -12,11 +12,11 @@ target_compile_options(yt-server-tcp_proxy PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(yt-server-tcp_proxy PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt
 )
 target_link_libraries(yt-server-tcp_proxy PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   server-lib-cypress_registrar
   server-lib-misc
@@ -26,10 +26,10 @@ target_link_libraries(yt-server-tcp_proxy PUBLIC
   cpp-yt-phdr_cache
 )
 target_sources(yt-server-tcp_proxy PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tcp_proxy/bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tcp_proxy/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tcp_proxy/connection.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tcp_proxy/dynamic_config_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tcp_proxy/program.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/tcp_proxy/router.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/tcp_proxy/bootstrap.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/tcp_proxy/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/tcp_proxy/connection.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/tcp_proxy/dynamic_config_manager.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/tcp_proxy/program.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/tcp_proxy/router.cpp
 )

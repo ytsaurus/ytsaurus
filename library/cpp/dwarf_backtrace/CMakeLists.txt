@@ -10,10 +10,10 @@
 add_library(library-cpp-dwarf_backtrace)
 target_link_libraries(library-cpp-dwarf_backtrace PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   contrib-libs-backtrace
 )
 target_sources(library-cpp-dwarf_backtrace PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/dwarf_backtrace/backtrace.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/dwarf_backtrace/backtrace.cpp
 )

@@ -9,11 +9,11 @@
 
 add_executable(yt-cpp-mapreduce-interface-logging-ut)
 target_include_directories(yt-cpp-mapreduce-interface-logging-ut PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/logging
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/logging
 )
 target_link_libraries(yt-cpp-mapreduce-interface-logging-ut PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-testing-unittest_main
@@ -30,7 +30,7 @@ target_link_options(yt-cpp-mapreduce-interface-logging-ut PRIVATE
   -ldl
 )
 target_sources(yt-cpp-mapreduce-interface-logging-ut PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/logging/log_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/logging/log_ut.cpp
 )
 set_property(
   TARGET

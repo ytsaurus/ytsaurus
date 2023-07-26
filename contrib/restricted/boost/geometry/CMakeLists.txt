@@ -9,11 +9,11 @@
 
 add_library(restricted-boost-geometry INTERFACE)
 target_include_directories(restricted-boost-geometry INTERFACE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/geometry/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/geometry/include
 )
 target_link_libraries(restricted-boost-geometry INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   restricted-boost-algorithm
   restricted-boost-any
   restricted-boost-array

@@ -12,20 +12,20 @@ target_compile_options(lib-MC-MCDisassembler PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(lib-MC-MCDisassembler PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCDisassembler
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/MC/MCDisassembler
 )
 target_link_libraries(lib-MC-MCDisassembler PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   contrib-libs-llvm16
   llvm16-lib-MC
   llvm16-lib-Support
   llvm16-lib-TargetParser
 )
 target_sources(lib-MC-MCDisassembler PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCDisassembler/Disassembler.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCDisassembler/MCDisassembler.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCDisassembler/MCExternalSymbolizer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCDisassembler/MCRelocationInfo.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCDisassembler/MCSymbolizer.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/MC/MCDisassembler/Disassembler.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/MC/MCDisassembler/MCDisassembler.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/MC/MCDisassembler/MCExternalSymbolizer.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/MC/MCDisassembler/MCRelocationInfo.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/MC/MCDisassembler/MCSymbolizer.cpp
 )

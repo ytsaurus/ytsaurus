@@ -12,21 +12,21 @@ target_compile_options(abseil-cpp-absl-debugging PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(abseil-cpp-absl-debugging PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp
 )
 target_link_libraries(abseil-cpp-absl-debugging PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   abseil-cpp-absl-base
 )
 target_sources(abseil-cpp-absl-debugging PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/debugging/failure_signal_handler.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/debugging/internal/address_is_readable.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/debugging/internal/demangle.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/debugging/internal/elf_mem_image.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/debugging/internal/examine_stack.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/debugging/internal/vdso_support.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/debugging/leak_check.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/debugging/stacktrace.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/debugging/symbolize.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp/absl/debugging/failure_signal_handler.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp/absl/debugging/internal/address_is_readable.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp/absl/debugging/internal/demangle.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp/absl/debugging/internal/elf_mem_image.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp/absl/debugging/internal/examine_stack.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp/absl/debugging/internal/vdso_support.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp/absl/debugging/leak_check.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp/absl/debugging/stacktrace.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp/absl/debugging/symbolize.cc
 )

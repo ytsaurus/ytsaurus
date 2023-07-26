@@ -10,11 +10,11 @@
 add_library(cpp-xdelta3-xdelta_codec)
 target_link_libraries(cpp-xdelta3-xdelta_codec PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   contrib-libs-xdelta3
 )
 target_sources(cpp-xdelta3-xdelta_codec PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/xdelta3/xdelta_codec/codec.c
-  ${CMAKE_SOURCE_DIR}/library/cpp/xdelta3/xdelta_codec/merge_patches.c
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/xdelta3/xdelta_codec/codec.c
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/xdelta3/xdelta_codec/merge_patches.c
 )

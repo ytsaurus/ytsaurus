@@ -14,13 +14,13 @@ target_compile_options(library-erasure-impl PRIVATE
 )
 target_link_libraries(library-erasure-impl PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-library-erasure
   library-cpp-erasure
 )
 target_sources(library-erasure-impl PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/erasure/impl/codec.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/erasure/impl/codec_detail.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/erasure/impl/codec_opensource.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/erasure/impl/codec.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/erasure/impl/codec_detail.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/erasure/impl/codec_opensource.cpp
 )

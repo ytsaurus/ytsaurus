@@ -10,10 +10,10 @@
 add_library(streams-lz-lz4)
 target_link_libraries(streams-lz-lz4 PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   contrib-libs-lz4
 )
 target_sources(streams-lz-lz4 PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/streams/lz/lz4/lz4.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/streams/lz/lz4/lz4.cpp
 )

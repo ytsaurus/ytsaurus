@@ -2,7 +2,7 @@
 
 #include <util/system/defaults.h>
 
-#include <stlfwd>
+#include <util/generic/stlfwd.h>
 
 template <typename TCharType, typename TTraits = std::char_traits<TCharType>>
 class TBasicString;

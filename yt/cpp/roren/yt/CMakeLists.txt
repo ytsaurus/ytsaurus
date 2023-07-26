@@ -11,15 +11,15 @@ add_subdirectory(proto)
 add_library(cpp-roren-yt)
 target_link_libraries(cpp-roren-yt PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-roren-interface
   roren-yt-proto
   cpp-mapreduce-client
 )
 target_sources(cpp-roren-yt PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/jobs.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/yt.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/yt_io_private.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/yt/yt_graph.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/roren/yt/jobs.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/roren/yt/yt.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/roren/yt/yt_io_private.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/roren/yt/yt_graph.cpp
 )

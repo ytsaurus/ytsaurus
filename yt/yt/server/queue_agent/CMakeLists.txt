@@ -13,7 +13,7 @@ target_compile_options(yt-server-queue_agent PRIVATE
 )
 target_link_libraries(yt-server-queue_agent PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-yt-phdr_cache
   library-cpp-getopt
@@ -25,17 +25,17 @@ target_link_libraries(yt-server-queue_agent PUBLIC
   server-lib-misc
 )
 target_sources(yt-server-queue_agent PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/alert_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/consumer_controller.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/cypress_synchronizer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/dynamic_config_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/performance_counters.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/profile_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/queue_agent.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/queue_agent_sharding_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/queue_controller.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/snapshot_representation.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/queue_agent/alert_manager.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/queue_agent/bootstrap.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/queue_agent/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/queue_agent/consumer_controller.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/queue_agent/cypress_synchronizer.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/queue_agent/dynamic_config_manager.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/queue_agent/helpers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/queue_agent/performance_counters.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/queue_agent/profile_manager.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/queue_agent/queue_agent.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/queue_agent/queue_agent_sharding_manager.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/queue_agent/queue_controller.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/queue_agent/snapshot_representation.cpp
 )

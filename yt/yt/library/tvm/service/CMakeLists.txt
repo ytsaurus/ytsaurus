@@ -14,14 +14,14 @@ target_compile_options(library-tvm-service PRIVATE
 )
 target_link_libraries(library-tvm-service PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-yt-memory
   cpp-yt-logging
   yt-yt-core
 )
 target_sources(library-tvm-service PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/tvm/service/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/tvm/service/tvm_service_common.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/tvm/service/tvm_service_dummy.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/tvm/service/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/tvm/service/tvm_service_common.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/tvm/service/tvm_service_dummy.cpp
 )

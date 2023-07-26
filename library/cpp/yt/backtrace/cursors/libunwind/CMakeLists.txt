@@ -13,10 +13,10 @@ target_compile_options(backtrace-cursors-libunwind PRIVATE
 )
 target_link_libraries(backtrace-cursors-libunwind PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   contrib-libs-libunwind
 )
 target_sources(backtrace-cursors-libunwind PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/yt/backtrace/cursors/libunwind/libunwind_cursor.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/yt/backtrace/cursors/libunwind/libunwind_cursor.cpp
 )

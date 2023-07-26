@@ -34,45 +34,45 @@ get_built_tool_path(
 add_library(client-arrow-fbs)
 target_link_libraries(client-arrow-fbs PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   contrib-libs-flatbuffers
 )
 target_sources(client-arrow-fbs PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/client/arrow/fbs/Message.fbs.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/client/arrow/fbs/Schema.fbs.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/client/arrow/fbs/Tensor.fbs.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/client/arrow/fbs/SparseTensor.fbs.cpp
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/client/arrow/fbs/Message.fbs.cpp
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/client/arrow/fbs/Schema.fbs.cpp
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/client/arrow/fbs/Tensor.fbs.cpp
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/client/arrow/fbs/SparseTensor.fbs.cpp
 )
 target_fbs_source(client-arrow-fbs
   PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/arrow/fbs/Message.fbs
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/client/arrow/fbs/Message.fbs
   -I
-  ${CMAKE_BINARY_DIR}
+  ${CMAKE_BINARY_DIR}/ytsaurus
   -I
-  ${CMAKE_SOURCE_DIR}
+  ${CMAKE_SOURCE_DIR}/ytsaurus
 )
 target_fbs_source(client-arrow-fbs
   PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/arrow/fbs/Schema.fbs
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/client/arrow/fbs/Schema.fbs
   -I
-  ${CMAKE_BINARY_DIR}
+  ${CMAKE_BINARY_DIR}/ytsaurus
   -I
-  ${CMAKE_SOURCE_DIR}
+  ${CMAKE_SOURCE_DIR}/ytsaurus
 )
 target_fbs_source(client-arrow-fbs
   PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/arrow/fbs/Tensor.fbs
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/client/arrow/fbs/Tensor.fbs
   -I
-  ${CMAKE_BINARY_DIR}
+  ${CMAKE_BINARY_DIR}/ytsaurus
   -I
-  ${CMAKE_SOURCE_DIR}
+  ${CMAKE_SOURCE_DIR}/ytsaurus
 )
 target_fbs_source(client-arrow-fbs
   PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/arrow/fbs/SparseTensor.fbs
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/client/arrow/fbs/SparseTensor.fbs
   -I
-  ${CMAKE_BINARY_DIR}
+  ${CMAKE_BINARY_DIR}/ytsaurus
   -I
-  ${CMAKE_SOURCE_DIR}
+  ${CMAKE_SOURCE_DIR}/ytsaurus
 )

@@ -13,7 +13,7 @@ target_compile_options(table_read_write_tnode PRIVATE
 )
 target_link_libraries(table_read_write_tnode PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-mapreduce-client
@@ -30,7 +30,7 @@ target_link_options(table_read_write_tnode PRIVATE
   -lutil
 )
 target_sources(table_read_write_tnode PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/table_read_write_tnode/main.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/examples/tutorial/table_read_write_tnode/main.cpp
 )
 target_allocator(table_read_write_tnode
   cpp-malloc-tcmalloc

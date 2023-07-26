@@ -13,7 +13,7 @@ target_compile_options(yt-library-monitoring PRIVATE
 )
 target_link_libraries(yt-library-monitoring PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
   yt-yt-build
@@ -25,6 +25,6 @@ target_link_libraries(yt-library-monitoring PUBLIC
   library-backtrace_introspector-http
 )
 target_sources(yt-library-monitoring PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/monitoring/http_integration.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/monitoring/monitoring_manager.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/monitoring/http_integration.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/monitoring/monitoring_manager.cpp
 )

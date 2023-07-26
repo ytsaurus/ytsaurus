@@ -29,7 +29,7 @@ target_compile_options(yt-library-ytprof PRIVATE
 )
 target_link_libraries(yt-library-ytprof PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-yt-memory
   cpp-yt-threading
@@ -44,29 +44,29 @@ target_link_libraries(yt-library-ytprof PUBLIC
   contrib-libs-protobuf
 )
 target_proto_messages(yt-library-ytprof PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/ytprof/profile.proto
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/ytprof/profile.proto
 )
 target_sources(yt-library-ytprof PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/ytprof/signal_safe_profiler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/ytprof/cpu_profiler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/ytprof/heap_profiler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/ytprof/spinlock_profiler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/ytprof/profile.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/ytprof/build_info.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/ytprof/external_pprof.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/ytprof/symbolize.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/ytprof/signal_safe_profiler.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/ytprof/cpu_profiler.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/ytprof/heap_profiler.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/ytprof/spinlock_profiler.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/ytprof/profile.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/ytprof/build_info.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/ytprof/external_pprof.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/ytprof/symbolize.cpp
 )
 target_proto_addincls(yt-library-ytprof
   ./
-  ${CMAKE_SOURCE_DIR}/
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${CMAKE_SOURCE_DIR}/ytsaurus/
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
 )
 target_proto_outs(yt-library-ytprof
-  --cpp_out=${CMAKE_BINARY_DIR}/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
+  --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/
+  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/
 )

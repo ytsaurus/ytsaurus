@@ -14,7 +14,7 @@ target_compile_options(yt-server-rpc_proxy PRIVATE
 )
 target_link_libraries(yt-server-rpc_proxy PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   ytserver
   server-lib-chunk_pools
@@ -29,9 +29,9 @@ target_link_libraries(yt-server-rpc_proxy PUBLIC
   library-cpp-getopt
 )
 target_sources(yt-server-rpc_proxy PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/rpc_proxy/access_checker.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/rpc_proxy/bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/rpc_proxy/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/rpc_proxy/discovery_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/rpc_proxy/dynamic_config_manager.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/rpc_proxy/access_checker.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/rpc_proxy/bootstrap.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/rpc_proxy/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/rpc_proxy/discovery_service.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/rpc_proxy/dynamic_config_manager.cpp
 )

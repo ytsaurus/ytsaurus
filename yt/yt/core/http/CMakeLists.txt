@@ -15,18 +15,18 @@ target_compile_options(yt-core-http PRIVATE
 )
 target_link_libraries(yt-core-http PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
   contrib-restricted-http-parser
 )
 target_sources(yt-core-http PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/http/client.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/http/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/http/connection_pool.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/http/connection_reuse_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/http/http.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/http/server.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/http/stream.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/http/helpers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/http/client.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/http/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/http/connection_pool.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/http/connection_reuse_helpers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/http/http.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/http/server.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/http/stream.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/http/helpers.cpp
 )

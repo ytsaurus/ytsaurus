@@ -13,12 +13,12 @@ target_compile_options(lib-chunk_pools-mock PRIVATE
 )
 target_link_libraries(lib-chunk_pools-mock PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-core-test_framework
   server-lib-chunk_pools
 )
 target_sources(lib-chunk_pools-mock PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/mock/chunk_pool.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_pools/mock/chunk_slice_fetcher.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/chunk_pools/mock/chunk_pool.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/chunk_pools/mock/chunk_slice_fetcher.cpp
 )

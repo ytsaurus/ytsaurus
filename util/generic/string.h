@@ -3,10 +3,11 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstring>
-#include <stlfwd>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+
+#include <util/generic/stlfwd.h>
 
 #include <util/system/compiler.h>
 #include <util/system/yassert.h>

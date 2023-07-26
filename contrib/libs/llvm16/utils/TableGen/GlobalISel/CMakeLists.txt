@@ -12,22 +12,22 @@ target_compile_options(utils-TableGen-GlobalISel PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(utils-TableGen-GlobalISel PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/utils/TableGen/GlobalISel
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/utils/TableGen/GlobalISel
 )
 target_link_libraries(utils-TableGen-GlobalISel PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   contrib-libs-llvm16
   llvm16-lib-Support
   llvm16-lib-TableGen
 )
 target_sources(utils-TableGen-GlobalISel PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/utils/TableGen/GlobalISel/CodeExpander.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/utils/TableGen/GlobalISel/GIMatchDag.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/utils/TableGen/GlobalISel/GIMatchDagEdge.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/utils/TableGen/GlobalISel/GIMatchDagInstr.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/utils/TableGen/GlobalISel/GIMatchDagOperands.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/utils/TableGen/GlobalISel/GIMatchDagPredicate.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/utils/TableGen/GlobalISel/GIMatchDagPredicateDependencyEdge.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/utils/TableGen/GlobalISel/GIMatchTree.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/utils/TableGen/GlobalISel/CodeExpander.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/utils/TableGen/GlobalISel/GIMatchDag.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/utils/TableGen/GlobalISel/GIMatchDagEdge.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/utils/TableGen/GlobalISel/GIMatchDagInstr.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/utils/TableGen/GlobalISel/GIMatchDagOperands.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/utils/TableGen/GlobalISel/GIMatchDagPredicate.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/utils/TableGen/GlobalISel/GIMatchDagPredicateDependencyEdge.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/utils/TableGen/GlobalISel/GIMatchTree.cpp
 )

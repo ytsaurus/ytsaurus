@@ -9,11 +9,11 @@
 
 add_executable(scheduler_simulator)
 target_include_directories(scheduler_simulator PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/scheduler_simulator
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/tools/scheduler_simulator
 )
 target_link_libraries(scheduler_simulator PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   yt-tools-scheduler_simulator
@@ -32,7 +32,7 @@ target_link_options(scheduler_simulator PRIVATE
   -lutil
 )
 target_sources(scheduler_simulator PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/bin/simulator/main.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/tools/scheduler_simulator/bin/simulator/main.cpp
 )
 target_allocator(scheduler_simulator
   cpp-ytalloc-impl

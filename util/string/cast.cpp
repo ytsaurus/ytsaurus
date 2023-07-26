@@ -6,7 +6,7 @@
 
 #include <cmath>
 #include <cstdio>
-#include <filesystem>
+#include <experimental/filesystem>
 #include <string>
 
 #include <util/string/type.h>
@@ -466,8 +466,8 @@ std::string FromStringImpl<std::string>(const char* data, size_t len) {
 #ifndef USE_STL_SYSTEM
 // FIXME thegeorg@: remove #ifndef upon raising minimal macOS version to 10.15 in https://st.yandex-team.ru/DTCC-836
 template <>
-std::filesystem::path FromStringImpl<std::filesystem::path>(const char* data, size_t len) {
-    return std::filesystem::path(std::string(data, len));
+std::experimental::filesystem::path FromStringImpl<std::experimental::filesystem::path>(const char* data, size_t len) {
+    return std::experimental::filesystem::path(std::string(data, len));
 }
 #endif
 

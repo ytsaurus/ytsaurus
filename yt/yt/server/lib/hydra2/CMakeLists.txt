@@ -24,11 +24,11 @@ target_compile_options(server-lib-hydra2 PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(server-lib-hydra2 PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt
 )
 target_link_libraries(server-lib-hydra2 PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-library-process
   yt-yt-ytlib
@@ -39,34 +39,34 @@ target_link_libraries(server-lib-hydra2 PUBLIC
   contrib-libs-protobuf
 )
 target_proto_messages(server-lib-hydra2 PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra2/proto/hydra_service.proto
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra2/proto/hydra_service.proto
 )
 target_sources(server-lib-hydra2 PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra2/changelog_discovery.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra2/changelog_download.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra2/changelog_acquisition.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra2/decorated_automaton.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra2/distributed_hydra_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra2/dry_run_hydra_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra2/lease_tracker.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra2/mutation_committer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra2/private.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra2/recovery.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra2/snapshot_discovery.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra2/snapshot_download.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra2/changelog_discovery.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra2/changelog_download.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra2/changelog_acquisition.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra2/decorated_automaton.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra2/distributed_hydra_manager.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra2/dry_run_hydra_manager.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra2/lease_tracker.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra2/mutation_committer.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra2/private.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra2/recovery.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra2/snapshot_discovery.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hydra2/snapshot_download.cpp
 )
 target_proto_addincls(server-lib-hydra2
   ./yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
 )
 target_proto_outs(server-lib-hydra2
-  --cpp_out=${CMAKE_BINARY_DIR}/yt
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/yt
+  --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/yt
+  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/yt
 )

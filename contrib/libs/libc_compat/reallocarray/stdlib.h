@@ -15,10 +15,12 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif
+
+void* reallocarray(void*, size_t, size_t) throw();
+
+} // extern "C"
+#else
 
 void* reallocarray(void*, size_t, size_t);
 
-#ifdef __cplusplus
-} // extern "C"
 #endif

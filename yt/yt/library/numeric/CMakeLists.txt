@@ -15,10 +15,10 @@ target_compile_options(yt-library-numeric PRIVATE
 )
 target_link_libraries(yt-library-numeric PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-yt-small_containers
 )
 target_sources(yt-library-numeric PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/numeric/piecewise_linear_function.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/numeric/piecewise_linear_function.cpp
 )

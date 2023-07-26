@@ -13,15 +13,15 @@ target_compile_options(orm-library-attributes PRIVATE
 )
 target_link_libraries(orm-library-attributes PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
   yt-yt-client
   yt-yt-ytlib
 )
 target_sources(orm-library-attributes PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/orm/library/attributes/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/orm/library/attributes/merge_attributes.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/orm/library/attributes/scalar_attribute.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/orm/library/attributes/ytree.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/orm/library/attributes/helpers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/orm/library/attributes/merge_attributes.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/orm/library/attributes/scalar_attribute.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/orm/library/attributes/ytree.cpp
 )

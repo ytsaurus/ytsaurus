@@ -19,9 +19,9 @@ target_compile_options(fastops-fastops-avx PRIVATE
 )
 target_link_libraries(fastops-fastops-avx PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   fastops-fastops-core
 )
 target_sources(fastops-fastops-avx PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/fastops/fastops/avx/ops_avx.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/fastops/fastops/avx/ops_avx.cpp
 )

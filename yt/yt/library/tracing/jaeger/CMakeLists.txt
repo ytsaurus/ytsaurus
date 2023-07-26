@@ -25,31 +25,31 @@ target_compile_options(library-tracing-jaeger PRIVATE
 )
 target_link_libraries(library-tracing-jaeger PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-library-tracing
   core-rpc-grpc
   contrib-libs-protobuf
 )
 target_proto_messages(library-tracing-jaeger PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/tracing/jaeger/model.proto
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/tracing/jaeger/model.proto
 )
 target_sources(library-tracing-jaeger PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/tracing/jaeger/sampler.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/tracing/jaeger/sampler.cpp
 )
 target_proto_addincls(library-tracing-jaeger
   ./
-  ${CMAKE_SOURCE_DIR}/
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${CMAKE_SOURCE_DIR}/ytsaurus/
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
 )
 target_proto_outs(library-tracing-jaeger
-  --cpp_out=${CMAKE_BINARY_DIR}/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
+  --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/
+  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/
 )
 
 add_global_library_for(library-tracing-jaeger.global library-tracing-jaeger)
@@ -58,12 +58,12 @@ target_compile_options(library-tracing-jaeger.global PRIVATE
 )
 target_link_libraries(library-tracing-jaeger.global PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-library-tracing
   core-rpc-grpc
   contrib-libs-protobuf
 )
 target_sources(library-tracing-jaeger.global PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/tracing/jaeger/tracer.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/tracing/jaeger/tracer.cpp
 )

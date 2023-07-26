@@ -24,34 +24,34 @@ target_compile_options(server-lib-timestamp_server PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(server-lib-timestamp_server PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt
 )
 target_link_libraries(server-lib-timestamp_server PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-ytlib
   contrib-libs-protobuf
 )
 target_proto_messages(server-lib-timestamp_server PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/timestamp_server/proto/timestamp_manager.proto
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/timestamp_server/proto/timestamp_manager.proto
 )
 target_sources(server-lib-timestamp_server PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/timestamp_server/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/timestamp_server/timestamp_manager.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/timestamp_server/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/timestamp_server/timestamp_manager.cpp
 )
 target_proto_addincls(server-lib-timestamp_server
   ./yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
 )
 target_proto_outs(server-lib-timestamp_server
-  --cpp_out=${CMAKE_BINARY_DIR}/yt
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/yt
+  --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/yt
+  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/yt
 )

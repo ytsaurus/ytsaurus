@@ -10,6 +10,6 @@
 add_library(contrib-libs-wyhash INTERFACE)
 target_link_libraries(contrib-libs-wyhash INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
 )

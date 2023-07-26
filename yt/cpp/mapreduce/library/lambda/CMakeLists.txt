@@ -13,13 +13,13 @@ target_compile_options(mapreduce-library-lambda PRIVATE
 )
 target_link_libraries(mapreduce-library-lambda PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-mapreduce-interface
   mapreduce-library-table_schema
 )
 target_sources(mapreduce-library-lambda PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/library/lambda/yt_lambda.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/library/lambda/field_copier.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/library/lambda/wrappers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/library/lambda/yt_lambda.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/library/lambda/field_copier.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/library/lambda/wrappers.cpp
 )

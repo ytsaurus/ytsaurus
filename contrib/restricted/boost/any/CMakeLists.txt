@@ -9,11 +9,11 @@
 
 add_library(restricted-boost-any INTERFACE)
 target_include_directories(restricted-boost-any INTERFACE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/any/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/any/include
 )
 target_link_libraries(restricted-boost-any INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   restricted-boost-config
   restricted-boost-core
   restricted-boost-static_assert

@@ -12,24 +12,24 @@ target_compile_options(llvm16-lib-TextAPI PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(llvm16-lib-TextAPI PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/TextAPI
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/TextAPI
 )
 target_link_libraries(llvm16-lib-TextAPI PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   contrib-libs-llvm16
   llvm16-lib-BinaryFormat
   llvm16-lib-Support
   llvm16-lib-TargetParser
 )
 target_sources(llvm16-lib-TextAPI PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/TextAPI/Architecture.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/TextAPI/ArchitectureSet.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/TextAPI/InterfaceFile.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/TextAPI/PackedVersion.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/TextAPI/Platform.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/TextAPI/Symbol.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/TextAPI/Target.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/TextAPI/TextStub.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/TextAPI/TextStubCommon.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/TextAPI/Architecture.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/TextAPI/ArchitectureSet.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/TextAPI/InterfaceFile.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/TextAPI/PackedVersion.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/TextAPI/Platform.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/TextAPI/Symbol.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/TextAPI/Target.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/TextAPI/TextStub.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/TextAPI/TextStubCommon.cpp
 )

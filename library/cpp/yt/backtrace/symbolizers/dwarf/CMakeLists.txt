@@ -10,7 +10,7 @@
 add_library(backtrace-symbolizers-dwarf INTERFACE)
 target_link_libraries(backtrace-symbolizers-dwarf INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-dwarf_backtrace
   cpp-yt-backtrace
@@ -19,11 +19,11 @@ target_link_libraries(backtrace-symbolizers-dwarf INTERFACE
 add_global_library_for(backtrace-symbolizers-dwarf.global backtrace-symbolizers-dwarf)
 target_link_libraries(backtrace-symbolizers-dwarf.global PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-dwarf_backtrace
   cpp-yt-backtrace
 )
 target_sources(backtrace-symbolizers-dwarf.global PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/yt/backtrace/symbolizers/dwarf/dwarf_symbolizer.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/yt/backtrace/symbolizers/dwarf/dwarf_symbolizer.cpp
 )

@@ -10,7 +10,7 @@
 add_library(clickhouse_h3_compat INTERFACE)
 target_link_libraries(clickhouse_h3_compat INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   contrib-libs-h3
 )

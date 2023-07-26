@@ -10,6 +10,6 @@
 add_library(contrib-libs-miniselect INTERFACE)
 target_link_libraries(contrib-libs-miniselect INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
 )

@@ -13,11 +13,11 @@ target_compile_options(backtrace-cursors-interop PRIVATE
 )
 target_link_libraries(backtrace-cursors-interop PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   backtrace-cursors-frame_pointer
   contrib-libs-libunwind
 )
 target_sources(backtrace-cursors-interop PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/yt/backtrace/cursors/interop/interop.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/yt/backtrace/cursors/interop/interop.cpp
 )

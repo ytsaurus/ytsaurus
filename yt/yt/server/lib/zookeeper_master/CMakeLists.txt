@@ -12,17 +12,17 @@ target_compile_options(server-lib-zookeeper_master PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(server-lib-zookeeper_master PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt
 )
 target_link_libraries(server-lib-zookeeper_master PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
   server-lib-hydra_common
 )
 target_sources(server-lib-zookeeper_master PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/zookeeper_master/bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/zookeeper_master/zookeeper_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/zookeeper_master/zookeeper_shard.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/zookeeper_master/bootstrap.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/zookeeper_master/zookeeper_manager.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/zookeeper_master/zookeeper_shard.cpp
 )

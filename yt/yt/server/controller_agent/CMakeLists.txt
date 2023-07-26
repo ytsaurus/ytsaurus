@@ -15,7 +15,7 @@ target_compile_options(yt-server-controller_agent PRIVATE
 )
 target_link_libraries(yt-server-controller_agent PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-yt-phdr_cache
   ytserver
@@ -26,29 +26,29 @@ target_link_libraries(yt-server-controller_agent PUBLIC
   library-cpp-getopt
 )
 target_sources(yt-server-controller_agent PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/chunk_list_pool.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/tentative_tree_eligibility.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controller_agent.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controller_agent_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/counter_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/master_connector.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/intermediate_chunk_scraper.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/job_spec_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/job_size_constraints.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/job_monitoring_index_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/job_prober_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/job_profiler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/job_tracker.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/job_tracker_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/operation.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/operation_controller.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/operation_controller_host.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/snapshot_builder.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/snapshot_downloader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/memory_tag_queue.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/memory_watchdog.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/virtual.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/controller_agent/bootstrap.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/controller_agent/chunk_list_pool.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/controller_agent/tentative_tree_eligibility.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/controller_agent/controller_agent.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/controller_agent/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/controller_agent/controller_agent_service.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/controller_agent/counter_manager.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/controller_agent/master_connector.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/controller_agent/helpers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/controller_agent/intermediate_chunk_scraper.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/controller_agent/job_spec_service.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/controller_agent/job_size_constraints.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/controller_agent/job_monitoring_index_manager.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/controller_agent/job_prober_service.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/controller_agent/job_profiler.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/controller_agent/job_tracker.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/controller_agent/job_tracker_service.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/controller_agent/operation.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/controller_agent/operation_controller.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/controller_agent/operation_controller_host.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/controller_agent/snapshot_builder.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/controller_agent/snapshot_downloader.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/controller_agent/memory_tag_queue.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/controller_agent/memory_watchdog.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/controller_agent/virtual.cpp
 )

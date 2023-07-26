@@ -25,7 +25,7 @@ target_compile_options(library-profiling-solomon PRIVATE
 )
 target_link_libraries(library-profiling-solomon PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-library-profiling
   yt-yt-core
@@ -39,31 +39,31 @@ target_link_libraries(library-profiling-solomon PUBLIC
   contrib-libs-protobuf
 )
 target_proto_messages(library-profiling-solomon PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/solomon/sensor_dump.proto
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/profiling/solomon/sensor_dump.proto
 )
 target_sources(library-profiling-solomon PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/solomon/cube.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/solomon/exporter.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/solomon/percpu.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/solomon/producer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/solomon/registry.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/solomon/remote.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/solomon/sensor.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/solomon/sensor_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/solomon/sensor_set.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/solomon/tag_registry.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/profiling/solomon/cube.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/profiling/solomon/exporter.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/profiling/solomon/percpu.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/profiling/solomon/producer.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/profiling/solomon/registry.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/profiling/solomon/remote.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/profiling/solomon/sensor.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/profiling/solomon/sensor_service.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/profiling/solomon/sensor_set.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/profiling/solomon/tag_registry.cpp
 )
 target_proto_addincls(library-profiling-solomon
   ./
-  ${CMAKE_SOURCE_DIR}/
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${CMAKE_SOURCE_DIR}/ytsaurus/
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
 )
 target_proto_outs(library-profiling-solomon
-  --cpp_out=${CMAKE_BINARY_DIR}/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
+  --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/
+  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/
 )

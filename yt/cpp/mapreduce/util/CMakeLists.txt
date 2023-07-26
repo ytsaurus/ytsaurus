@@ -20,20 +20,20 @@ target_compile_options(cpp-mapreduce-util PRIVATE
 )
 target_link_libraries(cpp-mapreduce-util PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   tools-enum_parser-enum_serialization_runtime
   cpp-mapreduce-common
   cpp-mapreduce-interface
 )
 target_sources(cpp-mapreduce-util PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/util/batch.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/util/temp_table.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/util/ypath_join.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/util/wait_for_tablets_state.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/util/batch.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/util/temp_table.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/util/ypath_join.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/util/wait_for_tablets_state.cpp
 )
 generate_enum_serilization(cpp-mapreduce-util
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/util/wait_for_tablets_state.h
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/util/wait_for_tablets_state.h
   INCLUDE_HEADERS
   yt/cpp/mapreduce/util/wait_for_tablets_state.h
 )

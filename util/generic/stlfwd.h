@@ -1,15 +1,19 @@
 #pragma once
 
-#include <__config>
 #include <cstddef>
 #include <iosfwd>
 
-#if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#pragma GCC system_header
-#endif
+#include <vector>
+#include <set>
+#include <map>
+#include <list>
+#include <tuple>
+#include <deque>
+#include <memory>
+#include <functional>
 
-_LIBCPP_BEGIN_NAMESPACE_STD
-
+/*
+namespace std {
     template <class F, class S>
     struct pair;
 
@@ -43,21 +47,17 @@ _LIBCPP_BEGIN_NAMESPACE_STD
     constexpr void get(...) = delete;
 
     template <class>
-    class _LIBCPP_TEMPLATE_VIS function;
+    class function;
 
     template <class _Tp>
-    struct _LIBCPP_TEMPLATE_VIS default_delete;
+    struct default_delete;
 
-    template <class _Tp, class Deleter = default_delete<_Tp>>
-    class _LIBCPP_TEMPLATE_VIS unique_ptr;
+    template <class _Tp, class Deleter>
+    class unique_ptr;
 
     template <class T>
-    class _LIBCPP_TEMPLATE_VIS shared_ptr;
-
-    /* basic_string is already forward-declared in <iosfwd> */
+    class shared_ptr;
 
     template<class T, class Traits>
     class basic_string_view;
-
-_LIBCPP_END_NAMESPACE_STD
-
+    }*/

@@ -34,7 +34,7 @@ target_compile_options(restricted-aws-aws-c-event-stream PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(restricted-aws-aws-c-event-stream PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/aws/aws-c-event-stream/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/aws/aws-c-event-stream/include
 )
 target_link_libraries(restricted-aws-aws-c-event-stream PUBLIC
   contrib-libs-linux-headers
@@ -43,9 +43,9 @@ target_link_libraries(restricted-aws-aws-c-event-stream PUBLIC
   restricted-aws-aws-checksums
 )
 target_sources(restricted-aws-aws-c-event-stream PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/aws/aws-c-event-stream/source/event_stream.c
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/aws/aws-c-event-stream/source/event_stream_channel_handler.c
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/aws/aws-c-event-stream/source/event_stream_rpc.c
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/aws/aws-c-event-stream/source/event_stream_rpc_client.c
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/aws/aws-c-event-stream/source/event_stream_rpc_server.c
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/aws/aws-c-event-stream/source/event_stream.c
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/aws/aws-c-event-stream/source/event_stream_channel_handler.c
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/aws/aws-c-event-stream/source/event_stream_rpc.c
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/aws/aws-c-event-stream/source/event_stream_rpc_client.c
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/aws/aws-c-event-stream/source/event_stream_rpc_server.c
 )

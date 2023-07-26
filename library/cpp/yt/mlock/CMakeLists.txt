@@ -13,9 +13,9 @@ target_compile_options(cpp-yt-mlock PRIVATE
 )
 target_link_libraries(cpp-yt-mlock PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
 )
 target_sources(cpp-yt-mlock PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/yt/mlock/mlock_linux.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/yt/mlock/mlock_linux.cpp
 )

@@ -12,11 +12,11 @@ target_compile_options(restricted-boost-exception PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(restricted-boost-exception PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/exception/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/exception/include
 )
 target_link_libraries(restricted-boost-exception PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   restricted-boost-assert
   restricted-boost-config
   restricted-boost-core
@@ -26,5 +26,5 @@ target_link_libraries(restricted-boost-exception PUBLIC
   restricted-boost-type_traits
 )
 target_sources(restricted-boost-exception PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/exception/src/clone_current_exception_non_intrusive.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/exception/src/clone_current_exception_non_intrusive.cpp
 )

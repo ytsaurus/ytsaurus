@@ -12,11 +12,11 @@ add_subdirectory(utils)
 
 add_library(contrib-libs-llvm16 INTERFACE)
 target_include_directories(contrib-libs-llvm16 INTERFACE
-  ${CMAKE_BINARY_DIR}/contrib/libs/llvm16/include
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/include
+  ${CMAKE_BINARY_DIR}/ytsaurus/contrib/libs/llvm16/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/include
 )
 target_link_libraries(contrib-libs-llvm16 INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
 )

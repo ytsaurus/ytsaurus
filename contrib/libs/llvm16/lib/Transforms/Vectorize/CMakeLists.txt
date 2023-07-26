@@ -12,11 +12,11 @@ target_compile_options(lib-Transforms-Vectorize PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(lib-Transforms-Vectorize PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Vectorize
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Transforms/Vectorize
 )
 target_link_libraries(lib-Transforms-Vectorize PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   contrib-libs-llvm16
   libs-llvm16-include
   llvm16-lib-Analysis
@@ -25,16 +25,16 @@ target_link_libraries(lib-Transforms-Vectorize PUBLIC
   lib-Transforms-Utils
 )
 target_sources(lib-Transforms-Vectorize PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Vectorize/LoadStoreVectorizer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Vectorize/LoopVectorizationLegality.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Vectorize/LoopVectorize.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Vectorize/SLPVectorizer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Vectorize/VPlan.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Vectorize/VPlanHCFGBuilder.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Vectorize/VPlanRecipes.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Vectorize/VPlanSLP.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Vectorize/VPlanTransforms.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Vectorize/VPlanVerifier.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Vectorize/VectorCombine.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Vectorize/Vectorize.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Transforms/Vectorize/LoadStoreVectorizer.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Transforms/Vectorize/LoopVectorizationLegality.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Transforms/Vectorize/LoopVectorize.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Transforms/Vectorize/SLPVectorizer.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Transforms/Vectorize/VPlan.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Transforms/Vectorize/VPlanHCFGBuilder.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Transforms/Vectorize/VPlanRecipes.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Transforms/Vectorize/VPlanSLP.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Transforms/Vectorize/VPlanTransforms.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Transforms/Vectorize/VPlanVerifier.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Transforms/Vectorize/VectorCombine.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Transforms/Vectorize/Vectorize.cpp
 )

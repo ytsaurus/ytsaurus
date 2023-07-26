@@ -14,7 +14,7 @@ target_compile_options(yt-yql-agent PRIVATE
 )
 target_link_libraries(yt-yql-agent PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-yt-phdr_cache
   library-cpp-getopt
@@ -30,10 +30,10 @@ target_link_libraries(yt-yql-agent PUBLIC
   yql-plugin-bridge
 )
 target_sources(yt-yql-agent PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yql/agent/bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yql/agent/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yql/agent/dynamic_config_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yql/agent/yql_agent.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yql/agent/yql_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yql/agent/interop.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yql/agent/bootstrap.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yql/agent/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yql/agent/dynamic_config_manager.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yql/agent/yql_agent.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yql/agent/yql_service.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yql/agent/interop.cpp
 )

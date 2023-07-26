@@ -26,28 +26,28 @@ target_compile_options(server-lib-chunk_server PRIVATE
 )
 target_link_libraries(server-lib-chunk_server PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-ytlib
   contrib-libs-protobuf
 )
 target_proto_messages(server-lib-chunk_server PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_server/proto/job.proto
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/chunk_server/proto/job.proto
 )
 target_sources(server-lib-chunk_server PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/chunk_server/immutable_chunk_meta.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/chunk_server/immutable_chunk_meta.cpp
 )
 target_proto_addincls(server-lib-chunk_server
   ./
-  ${CMAKE_SOURCE_DIR}/
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${CMAKE_SOURCE_DIR}/ytsaurus/
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
 )
 target_proto_outs(server-lib-chunk_server
-  --cpp_out=${CMAKE_BINARY_DIR}/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
+  --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/
+  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/
 )

@@ -9,11 +9,11 @@
 
 add_library(restricted-boost-parameter INTERFACE)
 target_include_directories(restricted-boost-parameter INTERFACE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/parameter/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/parameter/include
 )
 target_link_libraries(restricted-boost-parameter INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   restricted-boost-config
   restricted-boost-core
   restricted-boost-function

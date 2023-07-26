@@ -15,14 +15,14 @@ target_compile_options(yt-core-crypto PRIVATE
 )
 target_link_libraries(yt-core-crypto PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
   OpenSSL::OpenSSL
   cpp-openssl-io
 )
 target_sources(yt-core-crypto PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/crypto/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/crypto/crypto.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/crypto/tls.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/crypto/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/crypto/crypto.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/crypto/tls.cpp
 )

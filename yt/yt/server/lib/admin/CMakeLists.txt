@@ -13,11 +13,11 @@ target_compile_options(server-lib-admin PRIVATE
 )
 target_link_libraries(server-lib-admin PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-ytlib
   yt-library-coredumper
 )
 target_sources(server-lib-admin PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/admin/admin_service.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/admin/admin_service.cpp
 )

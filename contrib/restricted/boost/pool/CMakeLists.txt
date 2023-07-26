@@ -9,11 +9,11 @@
 
 add_library(restricted-boost-pool INTERFACE)
 target_include_directories(restricted-boost-pool INTERFACE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/pool/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/pool/include
 )
 target_link_libraries(restricted-boost-pool INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   restricted-boost-assert
   restricted-boost-config
   restricted-boost-integer

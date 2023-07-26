@@ -15,7 +15,7 @@ target_compile_options(yt-library-backtrace_introspector PRIVATE
 )
 target_link_libraries(yt-library-backtrace_introspector PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
   backtrace-cursors-interop
@@ -24,6 +24,6 @@ target_link_libraries(yt-library-backtrace_introspector PUBLIC
   cpp-yt-misc
 )
 target_sources(yt-library-backtrace_introspector PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/backtrace_introspector/introspect.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/backtrace_introspector/introspect_linux.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/backtrace_introspector/introspect.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/backtrace_introspector/introspect_linux.cpp
 )

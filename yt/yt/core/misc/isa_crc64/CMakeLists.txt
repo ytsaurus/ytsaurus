@@ -14,19 +14,19 @@ target_compile_options(isa-l_crc_yt_patch PRIVATE
 )
 target_link_libraries(isa-l_crc_yt_patch PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
 )
 target_sources(isa-l_crc_yt_patch PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/isa_crc64/crc64_yt_norm_refs.c
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/isa_crc64/checksum.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/misc/isa_crc64/crc64_yt_norm_refs.c
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/misc/isa_crc64/checksum.cpp
 )
 target_yasm_source(isa-l_crc_yt_patch
   PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/isa_crc64/crc64_yt_norm_by8.asm
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/misc/isa_crc64/crc64_yt_norm_by8.asm
   -I
-  ${CMAKE_BINARY_DIR}
+  ${CMAKE_BINARY_DIR}/ytsaurus
   -I
-  ${CMAKE_SOURCE_DIR}
+  ${CMAKE_SOURCE_DIR}/ytsaurus
   -I
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/isa_crc64/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/misc/isa_crc64/include
 )

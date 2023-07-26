@@ -13,15 +13,15 @@ target_compile_options(mapreduce-library-parallel_io PRIVATE
 )
 target_link_libraries(mapreduce-library-parallel_io PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-mapreduce-interface
   cpp-yt-memory
 )
 target_sources(mapreduce-library-parallel_io PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/library/parallel_io/parallel_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/library/parallel_io/parallel_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/library/parallel_io/parallel_file_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/library/parallel_io/parallel_file_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/library/parallel_io/resource_limiter.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/library/parallel_io/parallel_reader.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/library/parallel_io/parallel_writer.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/library/parallel_io/parallel_file_reader.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/library/parallel_io/parallel_file_writer.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/library/parallel_io/resource_limiter.cpp
 )

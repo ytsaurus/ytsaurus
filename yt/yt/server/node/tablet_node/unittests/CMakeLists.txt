@@ -25,7 +25,7 @@ target_compile_options(unittester-tablet-node PRIVATE
 )
 target_link_libraries(unittester-tablet-node PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-testing-gtest
@@ -48,22 +48,22 @@ target_link_options(unittester-tablet-node PRIVATE
   -lutil
 )
 target_proto_messages(unittester-tablet-node PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/proto/simple_transaction_supervisor.proto
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/node/tablet_node/unittests/proto/simple_transaction_supervisor.proto
 )
 target_sources(unittester-tablet-node PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/lookup_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/ordered_dynamic_store_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/ordered_store_manager_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/overload_controller_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/simple_tablet_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/simple_transaction_supervisor.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/sorted_chunk_store_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/sorted_dynamic_store_pt.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/sorted_dynamic_store_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/sorted_store_manager_stress.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/sorted_store_manager_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/tablet_cell_write_manager_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/tablet_context_mock.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/node/tablet_node/unittests/lookup_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/node/tablet_node/unittests/ordered_dynamic_store_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/node/tablet_node/unittests/ordered_store_manager_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/node/tablet_node/unittests/overload_controller_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/node/tablet_node/unittests/simple_tablet_manager.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/node/tablet_node/unittests/simple_transaction_supervisor.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/node/tablet_node/unittests/sorted_chunk_store_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/node/tablet_node/unittests/sorted_dynamic_store_pt.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/node/tablet_node/unittests/sorted_dynamic_store_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/node/tablet_node/unittests/sorted_store_manager_stress.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/node/tablet_node/unittests/sorted_store_manager_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/node/tablet_node/unittests/tablet_cell_write_manager_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/node/tablet_node/unittests/tablet_context_mock.cpp
 )
 add_test(
   NAME
@@ -91,16 +91,16 @@ target_allocator(unittester-tablet-node
 )
 target_proto_addincls(unittester-tablet-node
   ./
-  ${CMAKE_SOURCE_DIR}/
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${CMAKE_SOURCE_DIR}/ytsaurus/
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
 )
 target_proto_outs(unittester-tablet-node
-  --cpp_out=${CMAKE_BINARY_DIR}/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
+  --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/
+  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/
 )
 vcs_info(unittester-tablet-node)

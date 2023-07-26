@@ -9,11 +9,11 @@
 
 add_library(restricted-boost-rational INTERFACE)
 target_include_directories(restricted-boost-rational INTERFACE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/rational/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/rational/include
 )
 target_link_libraries(restricted-boost-rational INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   restricted-boost-assert
   restricted-boost-config
   restricted-boost-core

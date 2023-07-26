@@ -13,11 +13,11 @@ target_compile_options(core-net-mock PRIVATE
 )
 target_link_libraries(core-net-mock PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-testing-gtest
   yt-yt-core
 )
 target_sources(core-net-mock PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/net/mock/dialer.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/net/mock/dialer.cpp
 )

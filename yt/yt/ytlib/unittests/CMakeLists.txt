@@ -12,11 +12,11 @@ target_compile_options(unittester-ytlib PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(unittester-ytlib PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/sparsehash/src
 )
 target_link_libraries(unittester-ytlib PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-testing-gtest
@@ -42,24 +42,24 @@ target_link_options(unittester-ytlib PRIVATE
   -lutil
 )
 target_sources(unittester-ytlib PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/unittests/chunk_client_fetcher_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/unittests/chunk_fragment_read_controller_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/unittests/chunk_meta_cache_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/unittests/chunk_slice_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/unittests/encoding_writer_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/unittests/striped_erasure_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/unittests/erasure_parts_reader_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/unittests/job_resources_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/unittests/memory_usage_tracker_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/unittests/multi_reader_manager/multi_reader_manager_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/unittests/object_service_cache_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/unittests/parallel_reader_memory_manager_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/unittests/partitioner_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/unittests/row_merger_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/unittests/serialize_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/unittests/sorted_merging_reader_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/unittests/tablet_request_batcher_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/unittests/transaction_helpers_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/ytlib/unittests/chunk_client_fetcher_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/ytlib/unittests/chunk_fragment_read_controller_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/ytlib/unittests/chunk_meta_cache_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/ytlib/unittests/chunk_slice_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/ytlib/unittests/encoding_writer_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/ytlib/unittests/striped_erasure_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/ytlib/unittests/erasure_parts_reader_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/ytlib/unittests/job_resources_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/ytlib/unittests/memory_usage_tracker_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/ytlib/unittests/multi_reader_manager/multi_reader_manager_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/ytlib/unittests/object_service_cache_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/ytlib/unittests/parallel_reader_memory_manager_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/ytlib/unittests/partitioner_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/ytlib/unittests/row_merger_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/ytlib/unittests/serialize_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/ytlib/unittests/sorted_merging_reader_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/ytlib/unittests/tablet_request_batcher_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/ytlib/unittests/transaction_helpers_ut.cpp
 )
 add_test(
   NAME

@@ -13,10 +13,10 @@ target_compile_options(library-ytprof-api PRIVATE
 )
 target_link_libraries(library-ytprof-api PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-yt-memory
 )
 target_sources(library-ytprof-api PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/ytprof/api/api.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/ytprof/api/api.cpp
 )

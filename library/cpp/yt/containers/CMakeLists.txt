@@ -10,7 +10,7 @@
 add_library(cpp-yt-containers INTERFACE)
 target_link_libraries(cpp-yt-containers INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-yt-assert
 )

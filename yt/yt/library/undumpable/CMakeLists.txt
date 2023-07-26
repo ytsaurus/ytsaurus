@@ -14,7 +14,7 @@ target_compile_options(yt-library-undumpable PRIVATE
 )
 target_link_libraries(yt-library-undumpable PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-yt-assert
   cpp-yt-threading
@@ -22,6 +22,6 @@ target_link_libraries(yt-library-undumpable PUBLIC
   yt-library-profiling
 )
 target_sources(yt-library-undumpable PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/undumpable/undumpable.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/undumpable/ref.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/undumpable/undumpable.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/undumpable/ref.cpp
 )

@@ -13,7 +13,7 @@ target_compile_options(ytserver-cypress-proxy PRIVATE
 )
 target_link_libraries(ytserver-cypress-proxy PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   yt-server-cypress_proxy
@@ -30,7 +30,7 @@ target_link_options(ytserver-cypress-proxy PRIVATE
   -lutil
 )
 target_sources(ytserver-cypress-proxy PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/cypress_proxy/bin/main.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/cypress_proxy/bin/main.cpp
 )
 target_allocator(ytserver-cypress-proxy
   cpp-malloc-tcmalloc

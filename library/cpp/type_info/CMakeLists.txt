@@ -17,24 +17,24 @@ get_built_tool_path(
 add_library(library-cpp-type_info)
 target_link_libraries(library-cpp-type_info PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   tools-enum_parser-enum_serialization_runtime
   yson_pull
 )
 target_sources(library-cpp-type_info PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/type_info/type_info.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/type_info/builder.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/type_info/error.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/type_info/type.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/type_info/type_complexity.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/type_info/type_equivalence.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/type_info/type_factory.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/type_info/type_io.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/type_info/type_list.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/type_info/type_info.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/type_info/builder.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/type_info/error.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/type_info/type.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/type_info/type_complexity.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/type_info/type_equivalence.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/type_info/type_factory.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/type_info/type_io.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/type_info/type_list.cpp
 )
 generate_enum_serilization(library-cpp-type_info
-  ${CMAKE_SOURCE_DIR}/library/cpp/type_info/type_list.h
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/type_info/type_list.h
   INCLUDE_HEADERS
   library/cpp/type_info/type_list.h
 )

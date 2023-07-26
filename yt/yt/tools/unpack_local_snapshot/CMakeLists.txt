@@ -13,7 +13,7 @@ target_compile_options(unpack-local-snapshot PRIVATE
 )
 target_link_libraries(unpack-local-snapshot PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   yt-yt-core
@@ -33,7 +33,7 @@ target_link_options(unpack-local-snapshot PRIVATE
   -lutil
 )
 target_sources(unpack-local-snapshot PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/unpack_local_snapshot/main.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/tools/unpack_local_snapshot/main.cpp
 )
 target_allocator(unpack-local-snapshot
   cpp-malloc-tcmalloc

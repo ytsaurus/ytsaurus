@@ -12,11 +12,11 @@ target_compile_options(abseil-cpp-absl-synchronization PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(abseil-cpp-absl-synchronization PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp
 )
 target_link_libraries(abseil-cpp-absl-synchronization PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   abseil-cpp-absl-base
   abseil-cpp-absl-debugging
   abseil-cpp-absl-numeric
@@ -24,12 +24,12 @@ target_link_libraries(abseil-cpp-absl-synchronization PUBLIC
   abseil-cpp-absl-time
 )
 target_sources(abseil-cpp-absl-synchronization PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/synchronization/barrier.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/synchronization/blocking_counter.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/synchronization/internal/create_thread_identity.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/synchronization/internal/graphcycles.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/synchronization/internal/per_thread_sem.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/synchronization/internal/waiter.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/synchronization/mutex.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp/absl/synchronization/notification.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp/absl/synchronization/barrier.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp/absl/synchronization/blocking_counter.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp/absl/synchronization/internal/create_thread_identity.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp/absl/synchronization/internal/graphcycles.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp/absl/synchronization/internal/per_thread_sem.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp/absl/synchronization/internal/waiter.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp/absl/synchronization/mutex.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp/absl/synchronization/notification.cc
 )

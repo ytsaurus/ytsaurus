@@ -11,7 +11,7 @@ find_package(Python3 REQUIRED COMPONENTS Development)
 add_library(python-driver-native INTERFACE)
 target_link_libraries(python-driver-native INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-query-engine
   python-driver-lib
@@ -29,7 +29,7 @@ target_compile_options(python-driver-native.global PRIVATE
 )
 target_link_libraries(python-driver-native.global PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-query-engine
   python-driver-lib
@@ -38,5 +38,5 @@ target_link_libraries(python-driver-native.global PUBLIC
   Python3::Module
 )
 target_sources(python-driver-native.global PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/driver/native/driver.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/python/driver/native/driver.cpp
 )

@@ -24,11 +24,11 @@ target_compile_options(server-lib-tablet_node PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(server-lib-tablet_node PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt
 )
 target_link_libraries(server-lib-tablet_node PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-library-dynamic_config
   yt-yt-ytlib
@@ -38,24 +38,24 @@ target_link_libraries(server-lib-tablet_node PUBLIC
   contrib-libs-protobuf
 )
 target_proto_messages(server-lib-tablet_node PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_node/proto/tablet_manager.proto
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/tablet_node/proto/tablet_manager.proto
 )
 target_sources(server-lib-tablet_node PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_node/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_node/table_settings.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/tablet_node/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/tablet_node/table_settings.cpp
 )
 target_proto_addincls(server-lib-tablet_node
   ./yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
 )
 target_proto_outs(server-lib-tablet_node
-  --cpp_out=${CMAKE_BINARY_DIR}/yt
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/yt
+  --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/yt
+  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/yt
 )

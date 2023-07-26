@@ -10,7 +10,7 @@
 add_library(client-unittests-mock INTERFACE)
 target_link_libraries(client-unittests-mock INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-testing-gtest_extensions
   yt-yt-build

@@ -14,7 +14,7 @@ target_compile_options(server-lib-logging PRIVATE
 )
 target_link_libraries(server-lib-logging PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-yt-threading
   yt-yt-client
@@ -22,6 +22,6 @@ target_link_libraries(server-lib-logging PUBLIC
   yt-library-program
 )
 target_sources(server-lib-logging PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/logging/category_registry.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/logging/program_describe_structured_logs_mixin.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/logging/category_registry.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/logging/program_describe_structured_logs_mixin.cpp
 )

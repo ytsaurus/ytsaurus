@@ -12,11 +12,11 @@ target_compile_options(server-lib-job_agent PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(server-lib-job_agent PUBLIC
-  ${CMAKE_BINARY_DIR}/yt
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt
 )
 target_link_libraries(server-lib-job_agent PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-protobuf-interop
   yt-yt-ytlib
@@ -24,9 +24,9 @@ target_link_libraries(server-lib-job_agent PUBLIC
   server-lib-misc
 )
 target_sources(server-lib-job_agent PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/job_agent/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/job_agent/estimate_size_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/job_agent/gpu_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/job_agent/gpu_info_provider.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/job_agent/structs.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/job_agent/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/job_agent/estimate_size_helpers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/job_agent/gpu_helpers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/job_agent/gpu_info_provider.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/job_agent/structs.cpp
 )

@@ -9,11 +9,11 @@
 
 add_library(restricted-boost-date_time INTERFACE)
 target_include_directories(restricted-boost-date_time INTERFACE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/date_time/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/date_time/include
 )
 target_link_libraries(restricted-boost-date_time INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   restricted-boost-algorithm
   restricted-boost-assert
   restricted-boost-config

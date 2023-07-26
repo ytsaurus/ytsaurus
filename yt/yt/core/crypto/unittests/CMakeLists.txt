@@ -13,7 +13,7 @@ target_compile_options(unittester-core-crypto PRIVATE
 )
 target_link_libraries(unittester-core-crypto PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-testing-gtest
@@ -35,8 +35,8 @@ target_link_options(unittester-core-crypto PRIVATE
   -lutil
 )
 target_sources(unittester-core-crypto PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/crypto/unittests/crypto_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/crypto/unittests/tls_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/crypto/unittests/crypto_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/crypto/unittests/tls_ut.cpp
 )
 add_test(
   NAME

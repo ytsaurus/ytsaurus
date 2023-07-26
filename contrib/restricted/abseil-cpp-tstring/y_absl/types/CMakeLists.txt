@@ -12,17 +12,17 @@ target_compile_options(abseil-cpp-tstring-y_absl-types PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(abseil-cpp-tstring-y_absl-types PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp-tstring
 )
 target_link_libraries(abseil-cpp-tstring-y_absl-types PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   abseil-cpp-tstring-y_absl-base
   abseil-cpp-tstring-y_absl-memory
 )
 target_sources(abseil-cpp-tstring-y_absl-types PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/types/bad_any_cast.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/types/bad_optional_access.cc
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/types/bad_variant_access.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp-tstring/y_absl/types/bad_any_cast.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp-tstring/y_absl/types/bad_optional_access.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/abseil-cpp-tstring/y_absl/types/bad_variant_access.cc
 )

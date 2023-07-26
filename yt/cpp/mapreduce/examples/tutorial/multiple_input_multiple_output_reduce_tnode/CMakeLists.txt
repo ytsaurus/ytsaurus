@@ -13,7 +13,7 @@ target_compile_options(multiple_input_multiple_output_reduce_tnode PRIVATE
 )
 target_link_libraries(multiple_input_multiple_output_reduce_tnode PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-mapreduce-client
@@ -30,7 +30,7 @@ target_link_options(multiple_input_multiple_output_reduce_tnode PRIVATE
   -lutil
 )
 target_sources(multiple_input_multiple_output_reduce_tnode PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/multiple_input_multiple_output_reduce_tnode/main.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/examples/tutorial/multiple_input_multiple_output_reduce_tnode/main.cpp
 )
 target_allocator(multiple_input_multiple_output_reduce_tnode
   cpp-malloc-tcmalloc

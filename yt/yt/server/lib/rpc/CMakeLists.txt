@@ -13,10 +13,10 @@ target_compile_options(server-lib-rpc PRIVATE
 )
 target_link_libraries(server-lib-rpc PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   ytserver
 )
 target_sources(server-lib-rpc PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/rpc/per_workload_category_request_queue_provider.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/rpc/per_workload_category_request_queue_provider.cpp
 )

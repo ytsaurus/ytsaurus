@@ -13,7 +13,7 @@ target_compile_options(unittester-core-rpc-shutdown PRIVATE
 )
 target_link_libraries(unittester-core-rpc-shutdown PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-testing-gtest
@@ -36,7 +36,7 @@ target_link_options(unittester-core-rpc-shutdown PRIVATE
   -lutil
 )
 target_sources(unittester-core-rpc-shutdown PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/unittests/rpc_shutdown_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/rpc/unittests/rpc_shutdown_ut.cpp
 )
 add_test(
   NAME

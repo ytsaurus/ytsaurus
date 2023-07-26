@@ -18,12 +18,12 @@ target_compile_options(clickhouse-base-widechar_width PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(clickhouse-base-widechar_width PUBLIC
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/base/widechar_width
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/clickhouse/base/widechar_width
 )
 target_link_libraries(clickhouse-base-widechar_width PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
 )
 target_sources(clickhouse-base-widechar_width PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/clickhouse/base/widechar_width/widechar_width.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/clickhouse/base/widechar_width/widechar_width.cpp
 )

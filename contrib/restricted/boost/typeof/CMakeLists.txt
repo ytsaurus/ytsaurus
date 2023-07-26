@@ -9,11 +9,11 @@
 
 add_library(restricted-boost-typeof INTERFACE)
 target_include_directories(restricted-boost-typeof INTERFACE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/typeof/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/typeof/include
 )
 target_link_libraries(restricted-boost-typeof INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   restricted-boost-config
   restricted-boost-preprocessor
   restricted-boost-type_traits

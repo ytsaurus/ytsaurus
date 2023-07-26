@@ -13,7 +13,7 @@ target_compile_options(yt-core-test_framework PRIVATE
 )
 target_link_libraries(yt-core-test_framework PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-testing-gtest
   cpp-testing-hook
@@ -23,8 +23,8 @@ target_link_libraries(yt-core-test_framework PUBLIC
   library-profiling-solomon
 )
 target_sources(yt-core-test_framework PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/test_framework/fixed_growth_string_output.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/test_framework/mock_http.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/test_framework/fixed_growth_string_output.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/test_framework/mock_http.cpp
 )
 
 add_global_library_for(yt-core-test_framework.global yt-core-test_framework)
@@ -33,7 +33,7 @@ target_compile_options(yt-core-test_framework.global PRIVATE
 )
 target_link_libraries(yt-core-test_framework.global PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-testing-gtest
   cpp-testing-hook
@@ -43,5 +43,5 @@ target_link_libraries(yt-core-test_framework.global PUBLIC
   library-profiling-solomon
 )
 target_sources(yt-core-test_framework.global PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/test_framework/framework.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/test_framework/framework.cpp
 )

@@ -13,7 +13,7 @@ target_compile_options(tracing-example PRIVATE
 )
 target_link_libraries(tracing-example PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   library-tracing-jaeger
@@ -30,7 +30,7 @@ target_link_options(tracing-example PRIVATE
   -lutil
 )
 target_sources(tracing-example PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/tracing/example/main.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/tracing/example/main.cpp
 )
 target_allocator(tracing-example
   cpp-malloc-tcmalloc

@@ -14,17 +14,17 @@ target_compile_options(yt-library-vector_hdrf PRIVATE
 )
 target_link_libraries(yt-library-vector_hdrf PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-library-numeric
   library-numeric-serialize
   yt-yt-core
 )
 target_sources(yt-library-vector_hdrf PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/vector_hdrf/job_resources.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/vector_hdrf/piecewise_linear_function_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/vector_hdrf/resource_vector.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/vector_hdrf/resource_volume.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/vector_hdrf/resource_helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/vector_hdrf/fair_share_update.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/vector_hdrf/job_resources.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/vector_hdrf/piecewise_linear_function_helpers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/vector_hdrf/resource_vector.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/vector_hdrf/resource_volume.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/vector_hdrf/resource_helpers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/vector_hdrf/fair_share_update.cpp
 )

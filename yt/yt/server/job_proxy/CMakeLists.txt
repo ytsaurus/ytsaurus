@@ -14,7 +14,7 @@ target_compile_options(yt-server-job_proxy PRIVATE
 )
 target_link_libraries(yt-server-job_proxy PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-getopt
   cpp-yt-phdr_cache
@@ -28,27 +28,27 @@ target_link_libraries(yt-server-job_proxy PUBLIC
   yt-library-sparse_coredump
 )
 target_sources(yt-server-job_proxy PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/asan_warning_filter.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/core_watcher.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/cpu_monitor.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/environment.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/job_throttler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/job_detail.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/job_prober_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/job_profiler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/job_proxy.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/memory_tracker.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/merge_job.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/partition_job.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/partition_sort_job.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/public.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/remote_copy_job.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/shallow_merge_job.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/simple_sort_job.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/sorted_merge_job.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/stderr_writer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/tmpfs_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/user_job.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/user_job_synchronizer_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/user_job_write_controller.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/job_proxy/asan_warning_filter.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/job_proxy/core_watcher.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/job_proxy/cpu_monitor.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/job_proxy/environment.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/job_proxy/job_throttler.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/job_proxy/job_detail.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/job_proxy/job_prober_service.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/job_proxy/job_profiler.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/job_proxy/job_proxy.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/job_proxy/memory_tracker.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/job_proxy/merge_job.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/job_proxy/partition_job.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/job_proxy/partition_sort_job.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/job_proxy/public.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/job_proxy/remote_copy_job.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/job_proxy/shallow_merge_job.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/job_proxy/simple_sort_job.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/job_proxy/sorted_merge_job.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/job_proxy/stderr_writer.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/job_proxy/tmpfs_manager.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/job_proxy/user_job.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/job_proxy/user_job_synchronizer_service.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/job_proxy/user_job_write_controller.cpp
 )

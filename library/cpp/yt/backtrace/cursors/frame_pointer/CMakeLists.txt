@@ -13,9 +13,9 @@ target_compile_options(backtrace-cursors-frame_pointer PRIVATE
 )
 target_link_libraries(backtrace-cursors-frame_pointer PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
 )
 target_sources(backtrace-cursors-frame_pointer PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/yt/backtrace/cursors/frame_pointer/frame_pointer_cursor.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/yt/backtrace/cursors/frame_pointer/frame_pointer_cursor.cpp
 )

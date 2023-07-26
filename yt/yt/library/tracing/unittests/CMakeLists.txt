@@ -13,7 +13,7 @@ target_compile_options(yt-yt-library-tracing-unittests PRIVATE
 )
 target_link_libraries(yt-yt-library-tracing-unittests PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-testing-gtest
@@ -32,7 +32,7 @@ target_link_options(yt-yt-library-tracing-unittests PRIVATE
   -lutil
 )
 target_sources(yt-yt-library-tracing-unittests PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/tracing/unittests/sampler_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/tracing/unittests/sampler_ut.cpp
 )
 add_test(
   NAME

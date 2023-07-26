@@ -13,7 +13,7 @@ target_compile_options(protoc PRIVATE
 )
 target_link_libraries(protoc PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   contrib-libs-protoc
@@ -29,7 +29,7 @@ target_link_options(protoc PRIVATE
   -ldl
 )
 target_sources(protoc PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protoc/src/google/protobuf/compiler/main.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protoc/src/google/protobuf/compiler/main.cc
 )
 target_allocator(protoc
   cpp-malloc-tcmalloc

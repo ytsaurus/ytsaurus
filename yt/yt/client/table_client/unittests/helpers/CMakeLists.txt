@@ -13,11 +13,11 @@ target_compile_options(table_client-unittests-helpers PRIVATE
 )
 target_link_libraries(table_client-unittests-helpers PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-client
   yt-core-test_framework
 )
 target_sources(table_client-unittests-helpers PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/table_client/unittests/helpers/helpers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/client/table_client/unittests/helpers/helpers.cpp
 )

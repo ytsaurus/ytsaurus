@@ -31,7 +31,7 @@ target_compile_options(unittester-core-ytree PRIVATE
 )
 target_link_libraries(unittester-core-ytree PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-testing-gtest
@@ -53,20 +53,20 @@ target_link_options(unittester-core-ytree PRIVATE
   -lutil
 )
 target_proto_messages(unittester-core-ytree PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/proto/test.proto
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/ytree/unittests/proto/test.proto
 )
 target_sources(unittester-core-ytree PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/attributes_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/attribute_filter_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/resolver_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/serialize_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/service_combiner_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/tree_builder_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/lazy_ypath_service_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/yson_serializable_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/yson_struct_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/ytree_fluent_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/ytree_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/ytree/unittests/attributes_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/ytree/unittests/attribute_filter_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/ytree/unittests/resolver_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/ytree/unittests/serialize_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/ytree/unittests/service_combiner_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/ytree/unittests/tree_builder_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/ytree/unittests/lazy_ypath_service_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/ytree/unittests/yson_serializable_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/ytree/unittests/yson_struct_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/ytree/unittests/ytree_fluent_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/ytree/unittests/ytree_ut.cpp
 )
 add_test(
   NAME
@@ -89,7 +89,7 @@ set_property(
   4
 )
 generate_enum_serilization(unittester-core-ytree
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/ytree/unittests/serialize_ut.h
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/ytree/unittests/serialize_ut.h
   INCLUDE_HEADERS
   yt/yt/core/ytree/unittests/serialize_ut.h
 )
@@ -98,17 +98,17 @@ target_allocator(unittester-core-ytree
 )
 target_proto_addincls(unittester-core-ytree
   ./yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
+  ${CMAKE_BINARY_DIR}/ytsaurus
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
 )
 target_proto_outs(unittester-core-ytree
-  --cpp_out=${CMAKE_BINARY_DIR}/yt
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/yt
+  --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/yt
+  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/yt
 )
 vcs_info(unittester-core-ytree)

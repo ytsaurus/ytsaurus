@@ -16,18 +16,18 @@ get_built_tool_path(
 add_library(library-cpp-skiff)
 target_link_libraries(library-cpp-skiff PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   tools-enum_parser-enum_serialization_runtime
 )
 target_sources(library-cpp-skiff PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/skiff/skiff.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/skiff/skiff_schema.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/skiff/skiff_validator.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/skiff/zerocopy_output_writer.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/skiff/skiff.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/skiff/skiff_schema.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/skiff/skiff_validator.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/skiff/zerocopy_output_writer.cpp
 )
 generate_enum_serilization(library-cpp-skiff
-  ${CMAKE_SOURCE_DIR}/library/cpp/skiff/public.h
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/skiff/public.h
   INCLUDE_HEADERS
   library/cpp/skiff/public.h
 )

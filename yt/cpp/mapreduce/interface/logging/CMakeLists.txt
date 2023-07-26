@@ -20,17 +20,17 @@ target_compile_options(mapreduce-interface-logging PRIVATE
 )
 target_link_libraries(mapreduce-interface-logging PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-yt-logging
   tools-enum_parser-enum_serialization_runtime
 )
 target_sources(mapreduce-interface-logging PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/logging/logger.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/logging/yt_log.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/logging/logger.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/logging/yt_log.cpp
 )
 generate_enum_serilization(mapreduce-interface-logging
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/logging/logger.h
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/logging/logger.h
   INCLUDE_HEADERS
   yt/cpp/mapreduce/interface/logging/logger.h
 )

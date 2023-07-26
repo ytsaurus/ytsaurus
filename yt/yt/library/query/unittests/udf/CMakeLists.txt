@@ -34,7 +34,7 @@ get_built_tool_path(
 add_library(query-unittests-udf INTERFACE)
 target_link_libraries(query-unittests-udf INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-resource
 )
@@ -44,30 +44,30 @@ target_compile_options(query-unittests-udf.global PRIVATE
   -Wdeprecated-this-capture
 )
 target_include_directories(query-unittests-udf.global PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt
 )
 target_link_libraries(query-unittests-udf.global PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-resource
 )
 target_sources(query-unittests-udf.global PRIVATE
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/2062ac0d56b10bdeaa23560378a409a3.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/bac0e4f65ff99b8fb74dd4fd574cfc92.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/9ee5169557a669d524c6d6d45b5b6de8.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/553b3a2404ace59eb76ee28e72b94162.cpp
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/2062ac0d56b10bdeaa23560378a409a3.cpp
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/bac0e4f65ff99b8fb74dd4fd574cfc92.cpp
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/9ee5169557a669d524c6d6d45b5b6de8.cpp
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/553b3a2404ace59eb76ee28e72b94162.cpp
 )
 add_custom_command(
   OUTPUT
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/malloc_udf_optimized.bc
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/malloc_udf_optimized.bc
   DEPENDS
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/malloc_udf_merged.bc
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/malloc_udf_merged.bc
   COMMAND
   ${LLVMOPT}
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/malloc_udf_merged.bc
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/malloc_udf_merged.bc
   -o
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/malloc_udf_optimized.bc
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/malloc_udf_optimized.bc
   -O2
   -globalopt
   -globaldce
@@ -76,25 +76,25 @@ add_custom_command(
 )
 add_custom_command(
   OUTPUT
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/malloc_udf_merged.bc
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/malloc_udf_merged.bc
   DEPENDS
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/malloc_udf.c.bc
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/malloc_udf.c.bc
   COMMAND
   ${LLVMLINK}
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/malloc_udf.c.bc
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/malloc_udf.c.bc
   -o
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/malloc_udf_merged.bc
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/malloc_udf_merged.bc
 )
 add_custom_command(
   OUTPUT
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_optimized.bc
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/test_udfs_optimized.bc
   DEPENDS
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_merged.bc
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/test_udfs_merged.bc
   COMMAND
   ${LLVMOPT}
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_merged.bc
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/test_udfs_merged.bc
   -o
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_optimized.bc
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/test_udfs_optimized.bc
   -O2
   -globalopt
   -globaldce
@@ -103,25 +103,25 @@ add_custom_command(
 )
 add_custom_command(
   OUTPUT
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_merged.bc
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/test_udfs_merged.bc
   DEPENDS
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs.c.bc
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/test_udfs.c.bc
   COMMAND
   ${LLVMLINK}
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs.c.bc
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/test_udfs.c.bc
   -o
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_merged.bc
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/test_udfs_merged.bc
 )
 add_custom_command(
   OUTPUT
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc_optimized.bc
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/test_udfs_fc_optimized.bc
   DEPENDS
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc_merged.bc
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/test_udfs_fc_merged.bc
   COMMAND
   ${LLVMOPT}
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc_merged.bc
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/test_udfs_fc_merged.bc
   -o
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc_optimized.bc
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/test_udfs_fc_optimized.bc
   -O2
   -globalopt
   -globaldce
@@ -130,25 +130,25 @@ add_custom_command(
 )
 add_custom_command(
   OUTPUT
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc_merged.bc
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/test_udfs_fc_merged.bc
   DEPENDS
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc.cpp.bc
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/test_udfs_fc.cpp.bc
   COMMAND
   ${LLVMLINK}
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc.cpp.bc
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/test_udfs_fc.cpp.bc
   -o
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc_merged.bc
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/test_udfs_fc_merged.bc
 )
 add_custom_command(
   OUTPUT
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/xor_aggregate_optimized.bc
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/xor_aggregate_optimized.bc
   DEPENDS
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/xor_aggregate_merged.bc
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/xor_aggregate_merged.bc
   COMMAND
   ${LLVMOPT}
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/xor_aggregate_merged.bc
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/xor_aggregate_merged.bc
   -o
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/xor_aggregate_optimized.bc
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/xor_aggregate_optimized.bc
   -O2
   -globalopt
   -globaldce
@@ -157,68 +157,68 @@ add_custom_command(
 )
 add_custom_command(
   OUTPUT
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/xor_aggregate_merged.bc
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/xor_aggregate_merged.bc
   DEPENDS
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/xor_aggregate.c.bc
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/xor_aggregate.c.bc
   COMMAND
   ${LLVMLINK}
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/xor_aggregate.c.bc
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/xor_aggregate.c.bc
   -o
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/xor_aggregate_merged.bc
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/xor_aggregate_merged.bc
 )
 llvm_compile_c(query-unittests-udf.global
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/udf/malloc_udf.c
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/malloc_udf.c.bc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/malloc_udf.c
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/malloc_udf.c.bc
   ${CLANGC}
   -Wno-unknown-warning-option
   -emit-llvm
 )
 llvm_compile_c(query-unittests-udf.global
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/udf/test_udfs.c
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs.c.bc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/test_udfs.c
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/test_udfs.c.bc
   ${CLANGC}
   -Wno-unknown-warning-option
   -emit-llvm
 )
 llvm_compile_c(query-unittests-udf.global
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/udf/xor_aggregate.c
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/xor_aggregate.c.bc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/xor_aggregate.c
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/xor_aggregate.c.bc
   ${CLANGC}
   -Wno-unknown-warning-option
   -emit-llvm
 )
 llvm_compile_cxx(query-unittests-udf.global
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc.cpp
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc.cpp.bc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/test_udfs_fc.cpp
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/test_udfs_fc.cpp.bc
   ${CLANGPLUSPLUS}
   -Wno-unknown-warning-option
   -emit-llvm
 )
 resources(query-unittests-udf.global
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/2062ac0d56b10bdeaa23560378a409a3.cpp
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/2062ac0d56b10bdeaa23560378a409a3.cpp
   INPUTS
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/malloc_udf_optimized.bc
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/malloc_udf_optimized.bc
   KEYS
   /llvm_bc/malloc_udf
 )
 resources(query-unittests-udf.global
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/bac0e4f65ff99b8fb74dd4fd574cfc92.cpp
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/bac0e4f65ff99b8fb74dd4fd574cfc92.cpp
   INPUTS
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_optimized.bc
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/test_udfs_optimized.bc
   KEYS
   /llvm_bc/test_udfs
 )
 resources(query-unittests-udf.global
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/9ee5169557a669d524c6d6d45b5b6de8.cpp
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/9ee5169557a669d524c6d6d45b5b6de8.cpp
   INPUTS
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc_optimized.bc
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/test_udfs_fc_optimized.bc
   KEYS
   /llvm_bc/test_udfs_fc
 )
 resources(query-unittests-udf.global
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/553b3a2404ace59eb76ee28e72b94162.cpp
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/553b3a2404ace59eb76ee28e72b94162.cpp
   INPUTS
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/xor_aggregate_optimized.bc
+  ${CMAKE_BINARY_DIR}/ytsaurus/yt/yt/library/query/unittests/udf/xor_aggregate_optimized.bc
   KEYS
   /llvm_bc/xor_aggregate
 )

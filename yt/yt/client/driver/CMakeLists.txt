@@ -13,28 +13,28 @@ target_compile_options(yt-client-driver PRIVATE
 )
 target_link_libraries(yt-client-driver PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-client
   yt-client-formats
 )
 target_sources(yt-client-driver PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/admin_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/authentication_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/chaos_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/command.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/cypress_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/driver.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/etc_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/file_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/journal_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/proxy_discovery_cache.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/query_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/queue_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/scheduler_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/table_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/transaction_commands.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/internal_commands.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/client/driver/admin_commands.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/client/driver/authentication_commands.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/client/driver/chaos_commands.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/client/driver/command.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/client/driver/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/client/driver/cypress_commands.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/client/driver/driver.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/client/driver/etc_commands.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/client/driver/file_commands.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/client/driver/helpers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/client/driver/journal_commands.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/client/driver/proxy_discovery_cache.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/client/driver/query_commands.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/client/driver/queue_commands.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/client/driver/scheduler_commands.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/client/driver/table_commands.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/client/driver/transaction_commands.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/client/driver/internal_commands.cpp
 )

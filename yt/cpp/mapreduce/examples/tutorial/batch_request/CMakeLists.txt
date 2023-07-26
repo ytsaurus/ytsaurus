@@ -13,7 +13,7 @@ target_compile_options(batch_request PRIVATE
 )
 target_link_libraries(batch_request PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-mapreduce-client
@@ -30,7 +30,7 @@ target_link_options(batch_request PRIVATE
   -lutil
 )
 target_sources(batch_request PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/batch_request/main.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/examples/tutorial/batch_request/main.cpp
 )
 target_allocator(batch_request
   cpp-malloc-tcmalloc

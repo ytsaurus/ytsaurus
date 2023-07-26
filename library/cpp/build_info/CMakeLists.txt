@@ -22,37 +22,37 @@ set(
 
 add_library(library-cpp-build_info)
 target_include_directories(library-cpp-build_info PUBLIC
-  ${CMAKE_BINARY_DIR}/library/cpp/build_info
+  ${CMAKE_BINARY_DIR}/ytsaurus/library/cpp/build_info
 )
 target_link_libraries(library-cpp-build_info PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-string_utils-base64
 )
 target_sources(library-cpp-build_info PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/build_info/build_info_static.cpp
-  ${CMAKE_BINARY_DIR}/library/cpp/build_info/buildinfo_data.h
-  ${CMAKE_BINARY_DIR}/library/cpp/build_info/sandbox.cpp
-  ${CMAKE_BINARY_DIR}/library/cpp/build_info/build_info.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/build_info/build_info_static.cpp
+  ${CMAKE_BINARY_DIR}/ytsaurus/library/cpp/build_info/buildinfo_data.h
+  ${CMAKE_BINARY_DIR}/ytsaurus/library/cpp/build_info/sandbox.cpp
+  ${CMAKE_BINARY_DIR}/ytsaurus/library/cpp/build_info/build_info.cpp
 )
 add_custom_command(
   OUTPUT
-  ${CMAKE_BINARY_DIR}/library/cpp/build_info/buildinfo_data.h
+  ${CMAKE_BINARY_DIR}/ytsaurus/library/cpp/build_info/buildinfo_data.h
   DEPENDS
-  ${CMAKE_SOURCE_DIR}/build/scripts/build_info_gen.py
+  ${CMAKE_SOURCE_DIR}/ytsaurus/build/scripts/build_info_gen.py
   COMMAND
   Python3::Interpreter
-  ${CMAKE_SOURCE_DIR}/build/scripts/build_info_gen.py
-  ${CMAKE_BINARY_DIR}/library/cpp/build_info/buildinfo_data.h
+  ${CMAKE_SOURCE_DIR}/ytsaurus/build/scripts/build_info_gen.py
+  ${CMAKE_BINARY_DIR}/ytsaurus/library/cpp/build_info/buildinfo_data.h
   \"${CMAKE_CXX_COMPILER}\"
   \"${CMAKE_CXX_FLAGS}\"
 )
 configure_file(
-  ${CMAKE_SOURCE_DIR}/library/cpp/build_info/sandbox.cpp.in
-  ${CMAKE_BINARY_DIR}/library/cpp/build_info/sandbox.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/build_info/sandbox.cpp.in
+  ${CMAKE_BINARY_DIR}/ytsaurus/library/cpp/build_info/sandbox.cpp
 )
 configure_file(
-  ${CMAKE_SOURCE_DIR}/library/cpp/build_info/build_info.cpp.in
-  ${CMAKE_BINARY_DIR}/library/cpp/build_info/build_info.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/build_info/build_info.cpp.in
+  ${CMAKE_BINARY_DIR}/ytsaurus/library/cpp/build_info/build_info.cpp
 )

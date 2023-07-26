@@ -13,10 +13,10 @@ target_compile_options(cpp-yt-cpu_clock PRIVATE
 )
 target_link_libraries(cpp-yt-cpu_clock PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-yt-assert
 )
 target_sources(cpp-yt-cpu_clock PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/yt/cpu_clock/clock.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/yt/cpu_clock/clock.cpp
 )

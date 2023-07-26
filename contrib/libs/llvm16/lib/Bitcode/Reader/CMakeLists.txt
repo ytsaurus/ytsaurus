@@ -12,11 +12,11 @@ target_compile_options(lib-Bitcode-Reader PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 target_include_directories(lib-Bitcode-Reader PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Bitcode/Reader
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Bitcode/Reader
 )
 target_link_libraries(lib-Bitcode-Reader PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   contrib-libs-llvm16
   libs-llvm16-include
   lib-Bitstream-Reader
@@ -25,9 +25,9 @@ target_link_libraries(lib-Bitcode-Reader PUBLIC
   llvm16-lib-TargetParser
 )
 target_sources(lib-Bitcode-Reader PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Bitcode/Reader/BitReader.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Bitcode/Reader/BitcodeAnalyzer.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Bitcode/Reader/BitcodeReader.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Bitcode/Reader/MetadataLoader.cpp
-  ${CMAKE_SOURCE_DIR}/contrib/libs/llvm16/lib/Bitcode/Reader/ValueList.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Bitcode/Reader/BitReader.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Bitcode/Reader/BitcodeAnalyzer.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Bitcode/Reader/BitcodeReader.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Bitcode/Reader/MetadataLoader.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/llvm16/lib/Bitcode/Reader/ValueList.cpp
 )

@@ -14,10 +14,10 @@ target_compile_options(farmhash-arch-sse42 PRIVATE
 )
 target_link_libraries(farmhash-arch-sse42 PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
 )
 target_sources(farmhash-arch-sse42 PRIVATE
-  ${CMAKE_SOURCE_DIR}/contrib/libs/farmhash/farmhashsa.cc
-  ${CMAKE_SOURCE_DIR}/contrib/libs/farmhash/farmhashte.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/farmhash/farmhashsa.cc
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/farmhash/farmhashte.cc
 )

@@ -69,7 +69,7 @@ target_compile_options(cpp-mapreduce-interface PRIVATE
 )
 target_link_libraries(cpp-mapreduce-interface PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   contrib-libs-protobuf
   library-cpp-type_info
@@ -81,65 +81,65 @@ target_link_libraries(cpp-mapreduce-interface PUBLIC
   tools-enum_parser-enum_serialization_runtime
 )
 target_sources(cpp-mapreduce-interface PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/batch_request.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/client.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/client_method_options.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/common.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/cypress.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/errors.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/format.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/job_counters.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/job_statistics.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/io.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/operation.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/protobuf_format.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/serialize.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/skiff_row.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/tvm.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/batch_request.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/client.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/client_method_options.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/common.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/cypress.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/errors.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/format.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/job_counters.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/job_statistics.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/io.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/operation.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/protobuf_format.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/serialize.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/skiff_row.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/tvm.cpp
 )
 generate_enum_serilization(cpp-mapreduce-interface
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/client_method_options.h
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/client_method_options.h
   INCLUDE_HEADERS
   yt/cpp/mapreduce/interface/client_method_options.h
 )
 generate_enum_serilization(cpp-mapreduce-interface
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/client.h
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/client.h
   INCLUDE_HEADERS
   yt/cpp/mapreduce/interface/client.h
 )
 generate_enum_serilization(cpp-mapreduce-interface
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/common.h
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/common.h
   INCLUDE_HEADERS
   yt/cpp/mapreduce/interface/common.h
 )
 generate_enum_serilization(cpp-mapreduce-interface
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/config.h
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/config.h
   INCLUDE_HEADERS
   yt/cpp/mapreduce/interface/config.h
 )
 generate_enum_serilization(cpp-mapreduce-interface
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/cypress.h
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/cypress.h
   INCLUDE_HEADERS
   yt/cpp/mapreduce/interface/cypress.h
 )
 generate_enum_serilization(cpp-mapreduce-interface
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/job_counters.h
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/job_counters.h
   INCLUDE_HEADERS
   yt/cpp/mapreduce/interface/job_counters.h
 )
 generate_enum_serilization(cpp-mapreduce-interface
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/job_statistics.h
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/job_statistics.h
   INCLUDE_HEADERS
   yt/cpp/mapreduce/interface/job_statistics.h
 )
 generate_enum_serilization(cpp-mapreduce-interface
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/operation.h
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/operation.h
   INCLUDE_HEADERS
   yt/cpp/mapreduce/interface/operation.h
 )
 generate_enum_serilization(cpp-mapreduce-interface
-  ${CMAKE_SOURCE_DIR}/yt/cpp/mapreduce/interface/protobuf_format.h
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/interface/protobuf_format.h
   INCLUDE_HEADERS
   yt/cpp/mapreduce/interface/protobuf_format.h
 )

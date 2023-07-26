@@ -13,7 +13,7 @@ target_compile_options(profiling-example PRIVATE
 )
 target_link_libraries(profiling-example PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   library-profiling-solomon
@@ -32,7 +32,7 @@ target_link_options(profiling-example PRIVATE
   -lutil
 )
 target_sources(profiling-example PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/example/main.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/profiling/example/main.cpp
 )
 target_allocator(profiling-example
   cpp-malloc-tcmalloc

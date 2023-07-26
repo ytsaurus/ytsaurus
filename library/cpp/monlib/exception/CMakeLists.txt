@@ -10,9 +10,9 @@
 add_library(cpp-monlib-exception)
 target_link_libraries(cpp-monlib-exception PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
 )
 target_sources(cpp-monlib-exception PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/monlib/exception/exception.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/monlib/exception/exception.cpp
 )

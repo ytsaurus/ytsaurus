@@ -13,7 +13,7 @@ target_compile_options(cpp-integration-test-hydra PRIVATE
 )
 target_link_libraries(cpp-integration-test-hydra PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-testing-gtest
@@ -36,7 +36,7 @@ target_link_options(cpp-integration-test-hydra PRIVATE
   -lutil
 )
 target_sources(cpp-integration-test-hydra PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tests/cpp/test_hydra/test_remote_changelog_store.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/tests/cpp/test_hydra/test_remote_changelog_store.cpp
 )
 add_test(
   NAME

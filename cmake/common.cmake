@@ -21,7 +21,7 @@ endfunction()
 
 
 function(target_ragel_lexers TgtName Key Src)
-  SET(RAGEL_BIN ${CMAKE_BINARY_DIR}/bin/ragel${CMAKE_EXECUTABLE_SUFFIX})
+  SET(RAGEL_BIN ${CMAKE_BINARY_DIR}/ytsaurus/bin/ragel${CMAKE_EXECUTABLE_SUFFIX})
   get_filename_component(OutPath ${Src} NAME_WLE)
   get_filename_component(SrcDirPath ${Src} DIRECTORY)
   get_filename_component(OutputExt ${OutPath} EXT)
@@ -30,34 +30,34 @@ function(target_ragel_lexers TgtName Key Src)
   endif()
   add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${OutPath}
-    COMMAND Python3::Interpreter ${CMAKE_SOURCE_DIR}/build/scripts/run_tool.py -- ${RAGEL_BIN} ${RAGEL_FLAGS} ${ARGN} -o ${CMAKE_CURRENT_BINARY_DIR}/${OutPath} ${Src}
-    DEPENDS ${CMAKE_SOURCE_DIR}/build/scripts/run_tool.py ${Src}
+    COMMAND Python3::Interpreter ${CMAKE_SOURCE_DIR}/ytsaurus/build/scripts/run_tool.py -- ${RAGEL_BIN} ${RAGEL_FLAGS} ${ARGN} -o ${CMAKE_CURRENT_BINARY_DIR}/${OutPath} ${Src}
+    DEPENDS ${CMAKE_SOURCE_DIR}/ytsaurus/build/scripts/run_tool.py ${Src}
     WORKING_DIRECTORY ${SrcDirPath}
   )
   target_sources(${TgtName} ${Key} ${CMAKE_CURRENT_BINARY_DIR}/${OutPath})
 endfunction()
 
 function(target_yasm_source TgtName Key Src)
-  SET(YASM_BIN ${CMAKE_BINARY_DIR}/bin/yasm${CMAKE_EXECUTABLE_SUFFIX})
+  SET(YASM_BIN ${CMAKE_BINARY_DIR}/ytsaurus/bin/yasm${CMAKE_EXECUTABLE_SUFFIX})
   get_filename_component(OutPath ${Src} NAME_WLE)
   string(APPEND OutPath .o)
   add_custom_command(
       OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${OutPath}
-      COMMAND Python3::Interpreter ${CMAKE_SOURCE_DIR}/build/scripts/run_tool.py -- ${YASM_BIN} ${YASM_FLAGS} ${ARGN} -o ${CMAKE_CURRENT_BINARY_DIR}/${OutPath} ${Src}
-    DEPENDS ${CMAKE_SOURCE_DIR}/build/scripts/run_tool.py ${Src}
+      COMMAND Python3::Interpreter ${CMAKE_SOURCE_DIR}/ytsaurus/build/scripts/run_tool.py -- ${YASM_BIN} ${YASM_FLAGS} ${ARGN} -o ${CMAKE_CURRENT_BINARY_DIR}/${OutPath} ${Src}
+    DEPENDS ${CMAKE_SOURCE_DIR}/ytsaurus/build/scripts/run_tool.py ${Src}
   )
   target_sources(${TgtName} ${Key} ${CMAKE_CURRENT_BINARY_DIR}/${OutPath})
 endfunction()
 
 function(target_joined_source TgtName Out)
   foreach(InSrc ${ARGN})
-    file(RELATIVE_PATH IncludePath ${CMAKE_SOURCE_DIR} ${InSrc})
+    file(RELATIVE_PATH IncludePath ${CMAKE_SOURCE_DIR}/ytsaurus ${InSrc})
     list(APPEND IncludesList ${IncludePath})
   endforeach()
   add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${Out}
-    COMMAND Python3::Interpreter ${CMAKE_SOURCE_DIR}/build/scripts/gen_join_srcs.py ${CMAKE_CURRENT_BINARY_DIR}/${Out} ${IncludesList}
-    DEPENDS ${CMAKE_SOURCE_DIR}/build/scripts/gen_join_srcs.py ${ARGN}
+    COMMAND Python3::Interpreter ${CMAKE_SOURCE_DIR}/ytsaurus/build/scripts/gen_join_srcs.py ${CMAKE_CURRENT_BINARY_DIR}/${Out} ${IncludesList}
+    DEPENDS ${CMAKE_SOURCE_DIR}/ytsaurus/build/scripts/gen_join_srcs.py ${ARGN}
   )
   target_sources(${TgtName} PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/${Out})
 endfunction()
@@ -74,11 +74,11 @@ function(target_sources_custom TgtName CompileOutSuffix)
   )
 
   foreach(Src ${TARGET_SOURCES_CUSTOM_SRCS})
-    file(RELATIVE_PATH SrcRealPath ${CMAKE_SOURCE_DIR} ${Src})
+    file(RELATIVE_PATH SrcRealPath ${CMAKE_SOURCE_DIR}/ytsaurus ${Src})
     get_filename_component(SrcDir ${SrcRealPath} DIRECTORY)
     get_filename_component(SrcName ${SrcRealPath} NAME_WLE)
     get_filename_component(SrcExt ${SrcRealPath} LAST_EXT)
-    set(SrcCopy "${CMAKE_BINARY_DIR}/${SrcDir}/${SrcName}${CompileOutSuffix}${SrcExt}")
+    set(SrcCopy "${CMAKE_BINARY_DIR}/ytsaurus/${SrcDir}/${SrcName}${CompileOutSuffix}${SrcExt}")
     add_custom_command(
       OUTPUT ${SrcCopy}
       COMMAND ${CMAKE_COMMAND} -E copy ${Src} ${SrcCopy}
@@ -90,7 +90,7 @@ function(target_sources_custom TgtName CompileOutSuffix)
       ${SrcCopy}
       APPEND PROPERTY COMPILE_OPTIONS
       ${TARGET_SOURCES_CUSTOM_CUSTOM_FLAGS}
-      -I${CMAKE_SOURCE_DIR}/${SrcDir}
+      -I${CMAKE_SOURCE_DIR}/ytsaurus/${SrcDir}
     )
   endforeach()
 
@@ -162,14 +162,14 @@ endfunction()
 function(vcs_info Tgt)
   add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/vcs_info.json
-    COMMAND Python3::Interpreter ${CMAKE_SOURCE_DIR}/build/scripts/generate_vcs_info.py ${CMAKE_CURRENT_BINARY_DIR}/vcs_info.json ${CMAKE_SOURCE_DIR}
-    DEPENDS ${CMAKE_SOURCE_DIR}/build/scripts/generate_vcs_info.py
+    COMMAND Python3::Interpreter ${CMAKE_SOURCE_DIR}/ytsaurus/build/scripts/generate_vcs_info.py ${CMAKE_CURRENT_BINARY_DIR}/vcs_info.json ${CMAKE_SOURCE_DIR}/ytsaurus
+    DEPENDS ${CMAKE_SOURCE_DIR}/ytsaurus/build/scripts/generate_vcs_info.py
   )
 
   add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/__vcs_version__.c
-    COMMAND Python3::Interpreter ${CMAKE_SOURCE_DIR}/build/scripts/vcs_info.py ${CMAKE_CURRENT_BINARY_DIR}/vcs_info.json ${CMAKE_CURRENT_BINARY_DIR}/__vcs_version__.c ${CMAKE_SOURCE_DIR}/build/scripts/c_templates/svn_interface.c
-    DEPENDS ${CMAKE_SOURCE_DIR}/build/scripts/vcs_info.py ${CMAKE_SOURCE_DIR}/build/scripts/c_templates/svn_interface.c ${CMAKE_CURRENT_BINARY_DIR}/vcs_info.json
+    COMMAND Python3::Interpreter ${CMAKE_SOURCE_DIR}/ytsaurus/build/scripts/vcs_info.py ${CMAKE_CURRENT_BINARY_DIR}/vcs_info.json ${CMAKE_CURRENT_BINARY_DIR}/__vcs_version__.c ${CMAKE_SOURCE_DIR}/ytsaurus/build/scripts/c_templates/svn_interface.c
+    DEPENDS ${CMAKE_SOURCE_DIR}/ytsaurus/build/scripts/vcs_info.py ${CMAKE_SOURCE_DIR}/ytsaurus/build/scripts/c_templates/svn_interface.c ${CMAKE_CURRENT_BINARY_DIR}/vcs_info.json
   )
   target_sources(${Tgt} PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/__vcs_version__.c)
 endfunction()
@@ -215,7 +215,7 @@ function(use_export_script Target ExportFile)
     set(EXPORT_SCRIPT_FLAVOR msvc)
   elseif(APPLE)
     execute_process(
-      COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/build/scripts/export_script_gen.py ${ExportFile} - --format darwin
+      COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/ytsaurus/build/scripts/export_script_gen.py ${ExportFile} - --format darwin
       RESULT_VARIABLE _SCRIPT_RES
       OUTPUT_VARIABLE _SCRIPT_FLAGS
       ERROR_VARIABLE _SCRIPT_STDERR
@@ -235,8 +235,8 @@ function(use_export_script Target ExportFile)
   add_custom_command(
     OUTPUT ${OutPath}
     COMMAND
-      Python3::Interpreter ${CMAKE_SOURCE_DIR}/build/scripts/export_script_gen.py ${ExportFile} ${OutPath} --format ${EXPORT_SCRIPT_FLAVOR}
-    DEPENDS ${ExportFile} ${CMAKE_SOURCE_DIR}/build/scripts/export_script_gen.py
+      Python3::Interpreter ${CMAKE_SOURCE_DIR}/ytsaurus/build/scripts/export_script_gen.py ${ExportFile} ${OutPath} --format ${EXPORT_SCRIPT_FLAVOR}
+    DEPENDS ${ExportFile} ${CMAKE_SOURCE_DIR}/ytsaurus/build/scripts/export_script_gen.py
   )
   target_sources(${Target} PRIVATE ${OutPath})
   set_property(SOURCE ${OutPath} PROPERTY
@@ -266,7 +266,7 @@ function(add_yunittest)
   math(EXPR LastIdx "${SPLIT_FACTOR} - 1")
   foreach(Idx RANGE ${LastIdx})
     add_test(NAME ${YUNITTEST_ARGS_NAME}_${Idx}
-      COMMAND Python3::Interpreter ${CMAKE_SOURCE_DIR}/build/scripts/split_unittest.py --split-factor ${SPLIT_FACTOR} --shard ${Idx}
+      COMMAND Python3::Interpreter ${CMAKE_SOURCE_DIR}/ytsaurus/build/scripts/split_unittest.py --split-factor ${SPLIT_FACTOR} --shard ${Idx}
        $<TARGET_FILE:${YUNITTEST_ARGS_TEST_TARGET}> ${YUNITTEST_ARGS_TEST_ARG})
   endforeach()
 endfunction()

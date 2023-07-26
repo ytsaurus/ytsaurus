@@ -13,11 +13,11 @@ target_compile_options(library-dns_over_rpc-server PRIVATE
 )
 target_link_libraries(library-dns_over_rpc-server PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
   library-dns_over_rpc-client
 )
 target_sources(library-dns_over_rpc-server PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/dns_over_rpc/server/dns_over_rpc_service.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/dns_over_rpc/server/dns_over_rpc_service.cpp
 )

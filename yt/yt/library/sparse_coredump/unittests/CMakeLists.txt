@@ -13,7 +13,7 @@ target_compile_options(unittester-core-dump PRIVATE
 )
 target_link_libraries(unittester-core-dump PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-testing-gtest
@@ -32,7 +32,7 @@ target_link_options(unittester-core-dump PRIVATE
   -lutil
 )
 target_sources(unittester-core-dump PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/sparse_coredump/unittests/core_dump_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/sparse_coredump/unittests/core_dump_ut.cpp
 )
 add_test(
   NAME

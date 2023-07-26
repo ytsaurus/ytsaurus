@@ -14,7 +14,7 @@ target_compile_options(yt-library-auth_server PRIVATE
 )
 target_link_libraries(yt-library-auth_server PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-client
   yt-core-https
@@ -24,23 +24,23 @@ target_link_libraries(yt-library-auth_server PUBLIC
   cpp-string_utils-url
 )
 target_sources(yt-library-auth_server PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/authentication_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/batching_secret_vault_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/blackbox_cookie_authenticator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/caching_secret_vault_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/cookie_authenticator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/blackbox_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/default_secret_vault_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/dummy_secret_vault_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/cypress_cookie.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/cypress_cookie_authenticator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/cypress_cookie_login.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/cypress_cookie_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/cypress_cookie_store.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/cypress_token_authenticator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/secret_vault_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/ticket_authenticator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/auth_server/token_authenticator.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/auth_server/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/auth_server/authentication_manager.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/auth_server/batching_secret_vault_service.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/auth_server/blackbox_cookie_authenticator.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/auth_server/caching_secret_vault_service.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/auth_server/cookie_authenticator.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/auth_server/blackbox_service.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/auth_server/default_secret_vault_service.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/auth_server/dummy_secret_vault_service.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/auth_server/helpers.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/auth_server/cypress_cookie.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/auth_server/cypress_cookie_authenticator.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/auth_server/cypress_cookie_login.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/auth_server/cypress_cookie_manager.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/auth_server/cypress_cookie_store.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/auth_server/cypress_token_authenticator.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/auth_server/secret_vault_service.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/auth_server/ticket_authenticator.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/auth_server/token_authenticator.cpp
 )

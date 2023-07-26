@@ -9,11 +9,11 @@
 
 add_library(restricted-boost-lexical_cast INTERFACE)
 target_include_directories(restricted-boost-lexical_cast INTERFACE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/lexical_cast/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/lexical_cast/include
 )
 target_link_libraries(restricted-boost-lexical_cast INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   restricted-boost-array
   restricted-boost-assert
   restricted-boost-config

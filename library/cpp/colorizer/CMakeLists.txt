@@ -10,10 +10,10 @@
 add_library(library-cpp-colorizer)
 target_link_libraries(library-cpp-colorizer PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
 )
 target_sources(library-cpp-colorizer PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/colorizer/colors.cpp
-  ${CMAKE_SOURCE_DIR}/library/cpp/colorizer/output.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/colorizer/colors.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/colorizer/output.cpp
 )

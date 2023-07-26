@@ -11,11 +11,11 @@ add_subdirectory(impl_common)
 
 add_library(restricted-boost-context INTERFACE)
 target_include_directories(restricted-boost-context INTERFACE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/context/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/context/include
 )
 target_link_libraries(restricted-boost-context INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   boost-context-fcontext_impl
 )

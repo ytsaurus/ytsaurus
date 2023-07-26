@@ -14,7 +14,7 @@ target_compile_options(yt-server-log_tailer PRIVATE
 )
 target_link_libraries(yt-server-log_tailer PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-query-engine
   yt-yt-core
@@ -23,9 +23,9 @@ target_link_libraries(yt-server-log_tailer PUBLIC
   cpp-getopt-small
 )
 target_sources(yt-server-log_tailer PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/log_tailer/bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/log_tailer/log_reader.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/log_tailer/log_rotator.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/log_tailer/log_tailer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/log_tailer/log_writer_liveness_checker.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/log_tailer/bootstrap.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/log_tailer/log_reader.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/log_tailer/log_rotator.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/log_tailer/log_tailer.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/log_tailer/log_writer_liveness_checker.cpp
 )

@@ -17,7 +17,7 @@ target_compile_options(yson_lib PRIVATE
 )
 target_link_libraries(yson_lib PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   Python3::Module
   yt-yt-core
@@ -38,6 +38,6 @@ target_link_options(yson_lib PRIVATE
   -lutil
 )
 use_export_script(yson_lib
-  ${CMAKE_SOURCE_DIR}/yt/yt/python/yson_shared/yson3.exports
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/python/yson_shared/yson3.exports
 )
 vcs_info(yson_lib)

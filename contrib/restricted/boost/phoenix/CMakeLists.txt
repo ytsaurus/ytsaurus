@@ -9,11 +9,11 @@
 
 add_library(restricted-boost-phoenix INTERFACE)
 target_include_directories(restricted-boost-phoenix INTERFACE
-  ${CMAKE_SOURCE_DIR}/contrib/restricted/boost/phoenix/include
+  ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/restricted/boost/phoenix/include
 )
 target_link_libraries(restricted-boost-phoenix INTERFACE
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   restricted-boost-assert
   restricted-boost-bind
   restricted-boost-config

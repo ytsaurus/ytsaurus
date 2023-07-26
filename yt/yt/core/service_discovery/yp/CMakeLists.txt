@@ -13,12 +13,12 @@ target_compile_options(core-service_discovery-yp PRIVATE
 )
 target_link_libraries(core-service_discovery-yp PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
   core-rpc-grpc
 )
 target_sources(core-service_discovery-yp PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/service_discovery/yp/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/service_discovery/yp/service_discovery_dummy.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/service_discovery/yp/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/service_discovery/yp/service_discovery_dummy.cpp
 )

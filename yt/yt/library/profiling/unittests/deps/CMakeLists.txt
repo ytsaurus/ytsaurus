@@ -13,7 +13,7 @@ target_compile_options(deps PRIVATE
 )
 target_link_libraries(deps PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   yt-library-profiling
@@ -29,7 +29,7 @@ target_link_options(deps PRIVATE
   -ldl
 )
 target_sources(deps PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/unittests/deps/main.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/profiling/unittests/deps/main.cpp
 )
 target_allocator(deps
   cpp-malloc-tcmalloc

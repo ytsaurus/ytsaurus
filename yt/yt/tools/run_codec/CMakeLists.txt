@@ -10,7 +10,7 @@
 add_executable(run_codec)
 target_link_libraries(run_codec PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   yt-yt-core
@@ -27,7 +27,7 @@ target_link_options(run_codec PRIVATE
   -lutil
 )
 target_sources(run_codec PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tools/run_codec/main.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/tools/run_codec/main.cpp
 )
 target_allocator(run_codec
   cpp-lfalloc-yt

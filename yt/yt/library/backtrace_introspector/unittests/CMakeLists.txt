@@ -10,7 +10,7 @@
 add_executable(yt-yt-library-backtrace_introspector-unittests)
 target_link_libraries(yt-yt-library-backtrace_introspector-unittests PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-testing-gtest
@@ -30,7 +30,7 @@ target_link_options(yt-yt-library-backtrace_introspector-unittests PRIVATE
   -lutil
 )
 target_sources(yt-yt-library-backtrace_introspector-unittests PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/backtrace_introspector/unittests/introspect_ut.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/backtrace_introspector/unittests/introspect_ut.cpp
 )
 add_test(
   NAME

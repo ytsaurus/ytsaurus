@@ -14,7 +14,7 @@ target_compile_options(yt-server-cypress_proxy PRIVATE
 )
 target_link_libraries(yt-server-cypress_proxy PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-yt-phdr_cache
   library-cpp-getopt
@@ -25,11 +25,11 @@ target_link_libraries(yt-server-cypress_proxy PUBLIC
   server-lib-cypress_registrar
 )
 target_sources(yt-server-cypress_proxy PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/cypress_proxy/bootstrap.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/cypress_proxy/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/cypress_proxy/dynamic_config_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/cypress_proxy/object_service.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/cypress_proxy/path_resolver.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/cypress_proxy/program.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/cypress_proxy/sequoia_service.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/cypress_proxy/bootstrap.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/cypress_proxy/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/cypress_proxy/dynamic_config_manager.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/cypress_proxy/object_service.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/cypress_proxy/path_resolver.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/cypress_proxy/program.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/cypress_proxy/sequoia_service.cpp
 )

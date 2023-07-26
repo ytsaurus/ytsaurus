@@ -14,7 +14,7 @@ target_compile_options(cpp-yt-logging PRIVATE
 )
 target_link_libraries(cpp-yt-logging PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   cpp-yt-assert
   cpp-yt-memory
@@ -22,5 +22,5 @@ target_link_libraries(cpp-yt-logging PUBLIC
   cpp-yt-yson_string
 )
 target_sources(cpp-yt-logging PRIVATE
-  ${CMAKE_SOURCE_DIR}/library/cpp/yt/logging/logger.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/yt/logging/logger.cpp
 )

@@ -11,10 +11,10 @@ add_subdirectory(unittests)
 add_library(yt-library-xor_filter)
 target_link_libraries(yt-library-xor_filter PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
 )
 target_sources(yt-library-xor_filter PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/xor_filter/xor_filter.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/xor_filter/xor_filter.cpp
 )

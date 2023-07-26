@@ -13,11 +13,11 @@ target_compile_options(library-query-row_comparer_api PRIVATE
 )
 target_link_libraries(library-query-row_comparer_api PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
   yt-yt-client
 )
 target_sources(library-query-row_comparer_api PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/row_comparer_api/row_comparer_generator.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/query/row_comparer_api/row_comparer_generator.cpp
 )

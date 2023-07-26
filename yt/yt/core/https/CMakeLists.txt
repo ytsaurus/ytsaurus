@@ -13,7 +13,7 @@ target_compile_options(yt-core-https PRIVATE
 )
 target_link_libraries(yt-core-https PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-core
   yt-core-http
@@ -21,7 +21,7 @@ target_link_libraries(yt-core-https PUBLIC
   cpp-http-io
 )
 target_sources(yt-core-https PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/https/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/https/client.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/https/server.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/https/config.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/https/client.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/https/server.cpp
 )

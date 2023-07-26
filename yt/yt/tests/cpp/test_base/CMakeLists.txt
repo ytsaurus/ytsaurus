@@ -13,7 +13,7 @@ target_compile_options(tests-cpp-test_base PRIVATE
 )
 target_link_libraries(tests-cpp-test_base PUBLIC
   contrib-libs-linux-headers
-  contrib-libs-cxxsupp
+  #contrib-libs-cxxsupp
   yutil
   yt-yt-client
   yt-yt-core
@@ -21,5 +21,5 @@ target_link_libraries(tests-cpp-test_base PUBLIC
   yt-core-test_framework
 )
 target_sources(tests-cpp-test_base PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/tests/cpp/test_base/api_test_base.cpp
+  ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/tests/cpp/test_base/api_test_base.cpp
 )
