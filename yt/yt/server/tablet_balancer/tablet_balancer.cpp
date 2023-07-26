@@ -606,8 +606,9 @@ void TTabletBalancer::BalanceViaMoveInMemory(const TBundleStatePtr& bundleState)
                 descriptor.TabletCellId);
 
             auto tablet = GetOrCrash(bundleState->Tablets(), descriptor.TabletId);
-            auto& profilingCounters = GetOrCrash(bundleState->ProfilingCounters(), tablet->Table->Id);
-            profilingCounters.InMemoryMoves.Increment(1);
+            bundleState->GetProfilingCounters(
+                tablet->Table,
+                LegacyInMemoryGroupName).InMemoryMoves.Increment(1);
         }
     }
 
@@ -653,8 +654,9 @@ void TTabletBalancer::BalanceViaMoveOrdinary(const TBundleStatePtr& bundleState)
                 descriptor.TabletCellId);
 
             auto tablet = GetOrCrash(bundleState->Tablets(), descriptor.TabletId);
-            auto& profilingCounters = GetOrCrash(bundleState->ProfilingCounters(), tablet->Table->Id);
-            profilingCounters.OrdinaryMoves.Increment(1);
+            bundleState->GetProfilingCounters(
+                tablet->Table,
+                LegacyGroupName).OrdinaryMoves.Increment(1);
         }
     }
 
@@ -713,8 +715,9 @@ void TTabletBalancer::BalanceViaMoveParameterized(const TBundleStatePtr& bundleS
                 descriptor.TabletCellId);
 
             auto tablet = GetOrCrash(bundleState->Tablets(), descriptor.TabletId);
-            auto& profilingCounters = GetOrCrash(bundleState->ProfilingCounters(), tablet->Table->Id);
-            profilingCounters.ParameterizedMoves.Increment(1);
+            bundleState->GetProfilingCounters(
+                tablet->Table,
+                LegacyGroupName).ParameterizedMoves.Increment(1);
 
             ApplyMoveTabletAction(tablet, descriptor.TabletCellId);
         }
@@ -833,9 +836,8 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
             .Run())
             .ValueOrThrow();
 
-        auto& profilingCounters = GetOrCrash(bundleState->ProfilingCounters(), table->Id);
+        const auto& profilingCounters = bundleState->GetProfilingCounters(table, groupName);
         for (auto descriptor : descriptors) {
-
             if (pickReshardPivotKeys) {
                 try {
                     PickReshardPivotKeys(&descriptor, table, bundleState, slicingAccuracy, enableVerboseLogging);

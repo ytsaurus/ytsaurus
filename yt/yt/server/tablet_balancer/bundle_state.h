@@ -19,6 +19,7 @@ namespace NYT::NTabletBalancer {
 
 struct TTableProfilingCounters
 {
+    TString GroupName;
     NProfiling::TCounter InMemoryMoves;
     NProfiling::TCounter OrdinaryMoves;
     NProfiling::TCounter TabletMerges;
@@ -71,6 +72,10 @@ public:
 
     TFuture<void> UpdateState(bool fetchTabletCellsFromSecondaryMasters);
     TFuture<void> FetchStatistics();
+
+    const TTableProfilingCounters& GetProfilingCounters(
+        const TTable* table,
+        const TString& groupName);
 
 private:
     struct TTabletCellInfo
@@ -129,7 +134,10 @@ private:
 
     bool IsTableBalancingAllowed(const TTableSettings& table) const;
 
-    void InitializeProfilingCounters(const TTablePtr& table);
+    TTableProfilingCounters InitializeProfilingCounters(
+        const TTable* table,
+        const TString& groupName) const;
+
     static void SetTableStatistics(
         const TTablePtr& table,
         const std::vector<TTabletStatisticsResponse>& tablets);
