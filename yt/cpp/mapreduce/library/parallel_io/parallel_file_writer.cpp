@@ -1,5 +1,7 @@
 #include "parallel_file_writer.h"
 
+#include <yt/cpp/mapreduce/common/helpers.h>
+
 #include <yt/cpp/mapreduce/interface/config.h>
 
 #include <library/cpp/iterator/functools.h>
@@ -9,6 +11,8 @@
 #include <library/cpp/threading/future/async.h>
 
 #include <util/generic/guid.h>
+
+#include <util/string/builder.h>
 
 #include <util/system/fstat.h>
 #include <util/system/info.h>
@@ -138,7 +142,7 @@ private:
     ITransactionPtr Transaction_;
     TRichYPath Path_;
     TParallelFileWriterOptions Options_;
-    ::TIntrusivePtr<TResourceLimiter> RamLimiter_;
+    IResourceLimiterPtr RamLimiter_;
     TMutex MutexForException_;
     std::exception_ptr Exception_ = nullptr;
     std::atomic<bool> HasException_ = false;
@@ -168,7 +172,7 @@ TParallelFileWriter::TParallelFileWriter(
     static constexpr size_t DefaultRamLimit = 2ull * 1ull << 30ull;  // 2 GiB
 
     if (RamLimiter_ == nullptr) {
-        RamLimiter_ = MakeIntrusive<TResourceLimiter>(DefaultRamLimit);
+        RamLimiter_ = MakeIntrusive<TResourceLimiter>(DefaultRamLimit, ::TStringBuilder() << "TParallelFileWriter[" << NodeToYsonString(PathToNode(Path_)) << "]");
     }
 
     // Otherwise we will deadlock on trying to assign job.

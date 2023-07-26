@@ -15,6 +15,8 @@
 
 #include <yt/cpp/mapreduce/interface/logging/yt_log.h>
 
+#include <yt/cpp/mapreduce/common/helpers.h>
+
 #include <library/cpp/threading/blocking_queue/blocking_queue.h>
 #include <library/cpp/threading/future/future.h>
 #include <library/cpp/threading/future/async.h>
@@ -98,7 +100,7 @@ public:
         , RamLimiter_(options.RamLimiter_)
     {
         if (options.TaskCount_ > 0) {
-            TaskCountLimiter_ = MakeIntrusive<TResourceLimiter>(options.TaskCount_);
+            TaskCountLimiter_ = MakeIntrusive<TResourceLimiter>(options.TaskCount_, ::TStringBuilder() << "TParallelUnorderedTableWriterBase[" << NodeToYsonString(PathToNode(Path_)) << "]_TaskCounter");
         }
 
         if (!Path_.Append_.GetOrElse(false)) {
@@ -281,8 +283,8 @@ private:
     const TTableWriterOptions Options_;
     std::exception_ptr Exception_ = nullptr;
 
-    ::TIntrusivePtr<TResourceLimiter> TaskCountLimiter_;
-    ::TIntrusivePtr<TResourceLimiter> RamLimiter_;
+    IResourceLimiterPtr TaskCountLimiter_;
+    IResourceLimiterPtr RamLimiter_;
 
     std::atomic<EWriterState> State_ = EWriterState::Ok;
 };

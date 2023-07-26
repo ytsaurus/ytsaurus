@@ -23,7 +23,7 @@ struct TParallelTableWriterOptions
     FLUENT_FIELD_DEFAULT(size_t, TaskCount, 1000);
 
     // Allows to limit RAM usage of received rows.
-    FLUENT_FIELD(::TIntrusivePtr<TResourceLimiter>, RamLimiter);
+    FLUENT_FIELD(IResourceLimiterPtr, RamLimiter);
 
     // @ref NYT::TTableWriterOptions
     FLUENT_FIELD_DEFAULT(TTableWriterOptions, TableWriterOptions, TTableWriterOptions());

@@ -21,7 +21,7 @@ struct TParallelFileWriterOptions
 
     FLUENT_FIELD_DEFAULT(size_t, MaxBlobSize, (128ull * 1ull << 20ull)); // 128 MiB
 
-    FLUENT_FIELD(::TIntrusivePtr<TResourceLimiter>, RamLimiter);
+    FLUENT_FIELD(IResourceLimiterPtr, RamLimiter);
 
     /// @brief Directory for temporary files. By default: directory of the output file.
     FLUENT_FIELD_OPTION(TYPath, TmpDirectory);

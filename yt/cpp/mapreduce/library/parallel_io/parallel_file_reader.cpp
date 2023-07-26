@@ -1,5 +1,7 @@
 #include "parallel_file_reader.h"
 
+#include <yt/cpp/mapreduce/common/helpers.h>
+
 #include <yt/cpp/mapreduce/interface/config.h>
 
 #include <yt/yt/core/actions/future.h>
@@ -8,9 +10,12 @@
 #include <library/cpp/threading/blocking_queue/blocking_queue.h>
 #include <library/cpp/threading/future/async.h>
 
+#include <util/string/builder.h>
+
 #include <util/system/mutex.h>
 #include <util/system/thread.h>
 #include <util/system/filemap.h>
+
 #include <util/thread/pool.h>
 
 namespace NYT {
@@ -108,7 +113,7 @@ private:
     std::atomic<bool> Initialized_ = false;
 
     ITransactionPtr Transaction_;
-    ::TIntrusivePtr<TResourceLimiter> RamLimiter_;
+    IResourceLimiterPtr RamLimiter_;
 
     /// Optional because FileSize/LockedPath_ is known after @ref LazyInit()
     /// @note If length is set in options then FileSize == Length
@@ -132,7 +137,7 @@ TParallelFileReader::TParallelFileReader(
     constexpr size_t DefaultRamLimit = 2_GB;
 
     if (Options_.RamLimiter_ == nullptr){
-        RamLimiter_ = MakeIntrusive<TResourceLimiter>(DefaultRamLimit);
+        RamLimiter_ = MakeIntrusive<TResourceLimiter>(DefaultRamLimit, ::TStringBuilder() << "TParallelFileReader[" << NodeToYsonString(PathToNode(Path_)) << "]");
     }
     // Otherwise we will deadlock on trying to assign job.
     Y_ENSURE(Options_.BatchSize_ <= RamLimiter_->GetLimit());

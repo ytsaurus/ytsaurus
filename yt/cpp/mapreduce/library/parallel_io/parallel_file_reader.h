@@ -24,7 +24,7 @@ struct TParallelFileReaderOptions
 
     /// @brief Limits RAM usage of working treads
     /// @note RamLimiter doesn't manage returned data
-    FLUENT_FIELD(::TIntrusivePtr<TResourceLimiter>, RamLimiter);
+    FLUENT_FIELD(IResourceLimiterPtr, RamLimiter);
 
     /// @brief Options for each single-threaded reader.
     FLUENT_FIELD_OPTION(TFileReaderOptions, ReaderOptions);
