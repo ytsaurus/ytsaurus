@@ -1608,7 +1608,27 @@ TEST_F(TFutureTest, AbandonCancel)
     producer.join();
 }
 
-////////////////////////////////////////////////////////////////////////////////
+TEST_F(TFutureTest, AbandonBeforeGet)
+{
+    auto promise = NewPromise<void>();
+    auto future = promise.ToFuture();
+    promise.Reset();
+    EXPECT_EQ(future.Get().GetCode(), EErrorCode::Canceled);
+}
+
+TEST_F(TFutureTest, AbandonDuringGet)
+{
+    auto promise = NewPromise<void>();
+    auto future = promise.ToFuture();
+    std::thread thread([&] {
+        Sleep(TDuration::MilliSeconds(100));
+        promise.Reset();
+    });
+    EXPECT_EQ(future.Get().GetCode(), EErrorCode::Canceled);
+    thread.join();
+}
+
+///////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 } // namespace NYT

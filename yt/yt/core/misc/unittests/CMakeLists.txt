@@ -54,7 +54,6 @@ target_sources(unittester-core-misc PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/atomic_ptr_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/async_expiring_cache_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/async_slru_cache_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/bind_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/bit_packed_integer_vector_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/boolean_formula_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/callback_ut.cpp
@@ -73,7 +72,6 @@ target_sources(unittester-core-misc PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/finally_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/format_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/fs_ut.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/future_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/guid_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/hash_filter_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/unittests/hazard_ptr_ut.cpp

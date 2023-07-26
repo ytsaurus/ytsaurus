@@ -230,16 +230,20 @@ void TFutureState<void>::OnLastPromiseRefLost()
     }
 
     // Another fast path: no subscribers.
-    {
+    if ([&] {
         auto guard = Guard(SpinLock_);
-        if (!HasHandlers_ && !Canceled_) {
-            YT_ASSERT(!AbandonedUnset_);
-            AbandonedUnset_ = true;
-            // Cannot access this after UnrefFuture; in particular, cannot touch SpinLock_ in guard's dtor.
-            guard.Release();
-            UnrefFuture();
-            return;
+        if (ReadyEvent_ || HasHandlers_ || Canceled_) {
+            return false;
         }
+        YT_ASSERT(!AbandonedUnset_);
+        AbandonedUnset_ = true;
+        // Cannot access this after UnrefFuture; in particular, cannot touch SpinLock_ in guard's dtor.
+        guard.Release();
+        UnrefFuture();
+        return true;
+    }())
+    {
+        return;
     }
 
     // Slow path: notify the subscribers in a dedicated thread.
