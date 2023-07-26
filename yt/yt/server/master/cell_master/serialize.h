@@ -134,6 +134,7 @@ DEFINE_ENUM(EMasterReign,
     ((ValidateTableSettingsInTabletActions)                         (2410))  // alexelexa
     ((GetRidOfCellIndex)                                            (2411))  // kvk1920
     ((DontForgetToCommitInSetNodeByYPath)                           (2412))  // kvk1920
+    ((ResetErrorCountOfUnmountedTablets)                            (2413))  // alexelexa
 );
 
 ////////////////////////////////////////////////////////////////////////////////

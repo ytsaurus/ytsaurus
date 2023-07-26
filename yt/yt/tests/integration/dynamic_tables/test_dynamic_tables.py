@@ -1769,6 +1769,10 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         sync_unmount_table("//tmp/t")
         set("//tmp/t/@enable_compaction_and_partitioning", False)
+
+        assert get("//tmp/t/@tablet_error_count") == 0
+        assert get("//tmp/t/@tablets/0/error_count") == 0
+
         sync_reshard_table("//tmp/t", [[], [1]])
         sync_mount_table("//tmp/t")
 
