@@ -1,0 +1,13 @@
+{
+    "download_link": "https://proxy.sandbox.yandex-team.ru/2111052765", 
+    "file_name": "yt_bench_scan.yson", 
+    "md5": "b07debb99aacc0f893ca3aa8f1559dc2", 
+    "resource_id": 2111052765, 
+    "resource_link": "https://sandbox.yandex-team.ru/resource/2111052765/view", 
+    "skynet_id": "rbtorrent:6c6464184944dc4ad638aecbb37ff867ba241e0f", 
+    "storage": "SANDBOX", 
+    "task": {
+        "id": 948398661, 
+        "url": "https://sandbox.yandex-team.ru/api/v1.0/task/948398661"
+    }
+}

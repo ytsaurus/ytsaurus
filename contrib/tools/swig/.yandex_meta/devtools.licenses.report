@@ -1,0 +1,413 @@
+# File format ($ symbol means the beginning of a line):
+#
+# $ # this message
+# $ # =======================
+# $     # comments (all commentaries should starts with some number of spaces and # symbol)
+# $ IGNORE_FILES {file1.ext1} {file2.ext2} - (optional) ignore listed files when generating license macro and credits
+# $ RENAME {original license id} TO {new license id} # user comments - (optional) use {new license id} instead {original license id} in ya.make files
+# $ # user comments
+# $
+# ${action} {license id} {license text hash}
+# $BELONGS ./ya/make/file/relative/path/1/ya.make ./ya/make/2/ya.make
+# ${all_file_action} filename
+# $ # user commentaries (many lines)
+# $ generated description - files with this license, license text... (some number of lines that starts with some number of spaces, do not modify)
+# ${action} {license spdx} {license text hash}
+# $BELONGS ./ya/make/file/relative/path/3/ya.make
+# ${all_file_action} filename
+# $    #    user commentaries
+# $ generated description
+# $ ...
+#
+# You can modify action, all_file_action and add commentaries
+# Available actions:
+# keep - keep license in contrib and use in credits
+# skip - skip license
+# remove - remove all files with this license
+# rename - save license text/links into licenses texts file, but not store SPDX into LINCENSE macro. You should store correct license id into devtools.license.spdx.txt file
+#
+# {all file action} records will be generated when license text contains filename that exists on filesystem (in contrib directory)
+# We suppose that that files can contain some license info
+# Available all file actions:
+# FILE_IGNORE - ignore file (do nothing)
+# FILE_INCLUDE - include all file data into licenses text file
+# =======================
+
+KEEP     BSD-2-Clause         1151bceb83458fb461be0a08cb27e20a
+BELONGS ya.make
+    Note: matched license text is too long. Read it in the source files.
+    Scancode info:
+        Original SPDX id: BSD-2-Clause
+        Score           : 34.10
+        Match type      : TEXT
+        Links           : http://opensource.org/licenses/bsd-license.php, http://www.opensource.org/licenses/BSD-2-Clause, https://spdx.org/licenses/BSD-2-Clause
+    Files with this license:
+        LICENSE-UNIVERSITIES [59:64]
+
+KEEP     GPL-3.0-or-later AND LicenseRef-scancode-other-copyleft 2335049e5dfd8317b55228951f1f2977
+BELONGS ya.make
+FILE_INCLUDE COPYRIGHT found in files: Source/CParse/cparse.h at line 5, Source/CParse/cscanner.c at line 5, Source/CParse/parser.y at line 5, Source/CParse/templ.c at line 5, Source/CParse/util.c at line 5, Source/DOH/base.c at line 5, Source/DOH/doh.h at line 5, Source/DOH/dohint.h at line 5, Source/DOH/file.c at line 5, Source/DOH/fio.c at line 5, Source/DOH/hash.c at line 5, Source/DOH/list.c at line 5, Source/DOH/memory.c at line 5, Source/DOH/string.c at line 5, Source/DOH/void.c at line 5, Source/Modules/allegrocl.cxx at line 5, Source/Modules/allocate.cxx at line 5, Source/Modules/browser.cxx at line 5, Source/Modules/cffi.cxx at line 5, Source/Modules/chicken.cxx at line 5, Source/Modules/clisp.cxx at line 5, Source/Modules/contract.cxx at line 5, Source/Modules/csharp.cxx at line 5, Source/Modules/directors.cxx at line 5, Source/Modules/emit.cxx at line 5, Source/Modules/guile.cxx at line 5, Source/Modules/interface.cxx at line 5, Source/Modules/java.cxx at line 5, Source/Modules/lang.cxx at line 5, Source/Modules/lua.cxx at line 5, Source/Modules/main.cxx at line 5, Source/Modules/modula3.cxx at line 5, Source/Modules/mzscheme.cxx at line 5, Source/Modules/nested.cxx at line 5, Source/Modules/ocaml.cxx at line 5, Source/Modules/overload.cxx at line 5, Source/Modules/perl5.cxx at line 5, Source/Modules/php.cxx at line 5, Source/Modules/pike.cxx at line 5, Source/Modules/ruby.cxx at line 5, Source/Modules/s-exp.cxx at line 5, Source/Modules/swigmain.cxx at line 5, Source/Modules/swigmod.h at line 5, Source/Modules/tcl8.cxx at line 5, Source/Modules/typepass.cxx at line 5, Source/Modules/uffi.cxx at line 5, Source/Modules/utils.cxx at line 5, Source/Modules/xml.cxx at line 5, Source/Preprocessor/cpp.c at line 5, Source/Preprocessor/expr.c at line 5, Source/Preprocessor/preprocessor.h at line 5, Source/Swig/cwrap.c at line 5, Source/Swig/deprecate.c at line 5, Source/Swig/error.c at line 5, Source/Swig/extend.c at line 5, Source/Swig/fragment.c at line 5, Source/Swig/getopt.c at line 5, Source/Swig/include.c at line 5, Source/Swig/misc.c at line 5, Source/Swig/naming.c at line 5, Source/Swig/parms.c at line 5, Source/Swig/scanner.c at line 5, Source/Swig/stype.c at line 5, Source/Swig/swig.h at line 5, Source/Swig/swigfile.h at line 5, Source/Swig/swigopt.h at line 5, Source/Swig/swigparm.h at line 5, Source/Swig/swigscan.h at line 5, Source/Swig/swigtree.h at line 5, Source/Swig/swigwrap.h at line 5, Source/Swig/symbol.c at line 5, Source/Swig/tree.c at line 5, Source/Swig/typemap.c at line 5, Source/Swig/typeobj.c at line 5, Source/Swig/typesys.c at line 5, Source/Swig/wrapfunc.c at line 5
+FILE_INCLUDE LICENSE found in files: Source/CParse/cparse.h at line 5, Source/CParse/cscanner.c at line 5, Source/CParse/parser.y at line 5, Source/CParse/templ.c at line 5, Source/CParse/util.c at line 5, Source/DOH/base.c at line 5, Source/DOH/doh.h at line 5, Source/DOH/dohint.h at line 5, Source/DOH/file.c at line 5, Source/DOH/fio.c at line 5, Source/DOH/hash.c at line 5, Source/DOH/list.c at line 5, Source/DOH/memory.c at line 5, Source/DOH/string.c at line 5, Source/DOH/void.c at line 5, Source/Modules/allegrocl.cxx at line 5, Source/Modules/allocate.cxx at line 5, Source/Modules/browser.cxx at line 5, Source/Modules/cffi.cxx at line 5, Source/Modules/chicken.cxx at line 5, Source/Modules/clisp.cxx at line 5, Source/Modules/contract.cxx at line 5, Source/Modules/csharp.cxx at line 5, Source/Modules/directors.cxx at line 5, Source/Modules/emit.cxx at line 5, Source/Modules/guile.cxx at line 5, Source/Modules/interface.cxx at line 5, Source/Modules/java.cxx at line 5, Source/Modules/lang.cxx at line 5, Source/Modules/lua.cxx at line 5, Source/Modules/main.cxx at line 5, Source/Modules/modula3.cxx at line 5, Source/Modules/mzscheme.cxx at line 5, Source/Modules/nested.cxx at line 5, Source/Modules/ocaml.cxx at line 5, Source/Modules/overload.cxx at line 5, Source/Modules/perl5.cxx at line 5, Source/Modules/php.cxx at line 5, Source/Modules/pike.cxx at line 5, Source/Modules/ruby.cxx at line 5, Source/Modules/s-exp.cxx at line 5, Source/Modules/swigmain.cxx at line 5, Source/Modules/swigmod.h at line 5, Source/Modules/tcl8.cxx at line 5, Source/Modules/typepass.cxx at line 5, Source/Modules/uffi.cxx at line 5, Source/Modules/utils.cxx at line 5, Source/Modules/xml.cxx at line 5, Source/Preprocessor/cpp.c at line 5, Source/Preprocessor/expr.c at line 5, Source/Preprocessor/preprocessor.h at line 5, Source/Swig/cwrap.c at line 5, Source/Swig/deprecate.c at line 5, Source/Swig/error.c at line 5, Source/Swig/extend.c at line 5, Source/Swig/fragment.c at line 5, Source/Swig/getopt.c at line 5, Source/Swig/include.c at line 5, Source/Swig/misc.c at line 5, Source/Swig/naming.c at line 5, Source/Swig/parms.c at line 5, Source/Swig/scanner.c at line 5, Source/Swig/stype.c at line 5, Source/Swig/swig.h at line 5, Source/Swig/swigfile.h at line 5, Source/Swig/swigopt.h at line 5, Source/Swig/swigparm.h at line 5, Source/Swig/swigscan.h at line 5, Source/Swig/swigtree.h at line 5, Source/Swig/swigwrap.h at line 5, Source/Swig/symbol.c at line 5, Source/Swig/tree.c at line 5, Source/Swig/typemap.c at line 5, Source/Swig/typeobj.c at line 5, Source/Swig/typesys.c at line 5, Source/Swig/wrapfunc.c at line 5
+    Note: matched license text is too long. Read it in the source files.
+    Scancode info:
+        Original SPDX id: GPL-3.0-or-later
+        Score           : 100.00
+        Match type      : NOTICE
+        Links           : http://www.gnu.org/licenses/gpl-3.0-standalone.html, https://spdx.org/licenses/GPL-3.0-or-later
+    Files with this license:
+        Source/CParse/cparse.h [2:7]
+        Source/CParse/cscanner.c [2:7]
+        Source/CParse/parser.y [2:7]
+        Source/CParse/templ.c [2:7]
+        Source/CParse/util.c [2:7]
+        Source/DOH/base.c [2:7]
+        Source/DOH/doh.h [2:7]
+        Source/DOH/dohint.h [2:7]
+        Source/DOH/file.c [2:7]
+        Source/DOH/fio.c [2:7]
+        Source/DOH/hash.c [2:7]
+        Source/DOH/list.c [2:7]
+        Source/DOH/memory.c [2:7]
+        Source/DOH/string.c [2:7]
+        Source/DOH/void.c [2:7]
+        Source/Modules/allegrocl.cxx [2:7]
+        Source/Modules/allocate.cxx [2:7]
+        Source/Modules/browser.cxx [2:7]
+        Source/Modules/cffi.cxx [2:7]
+        Source/Modules/chicken.cxx [2:7]
+        Source/Modules/clisp.cxx [2:7]
+        Source/Modules/contract.cxx [2:7]
+        Source/Modules/csharp.cxx [2:7]
+        Source/Modules/directors.cxx [2:7]
+        Source/Modules/emit.cxx [2:7]
+        Source/Modules/guile.cxx [2:7]
+        Source/Modules/interface.cxx [2:7]
+        Source/Modules/java.cxx [2:7]
+        Source/Modules/lang.cxx [2:7]
+        Source/Modules/lua.cxx [2:7]
+        Source/Modules/main.cxx [2:7]
+        Source/Modules/modula3.cxx [2:7]
+        Source/Modules/mzscheme.cxx [2:7]
+        Source/Modules/nested.cxx [2:7]
+        Source/Modules/ocaml.cxx [2:7]
+        Source/Modules/overload.cxx [2:7]
+        Source/Modules/perl5.cxx [2:7]
+        Source/Modules/php.cxx [2:7]
+        Source/Modules/pike.cxx [2:7]
+        Source/Modules/ruby.cxx [2:7]
+        Source/Modules/s-exp.cxx [2:7]
+        Source/Modules/swigmain.cxx [2:7]
+        Source/Modules/swigmod.h [2:7]
+        Source/Modules/tcl8.cxx [2:7]
+        Source/Modules/typepass.cxx [2:7]
+        Source/Modules/uffi.cxx [2:7]
+        Source/Modules/utils.cxx [2:7]
+        Source/Modules/xml.cxx [2:7]
+        Source/Preprocessor/cpp.c [2:7]
+        Source/Preprocessor/expr.c [2:7]
+        Source/Preprocessor/preprocessor.h [2:7]
+        Source/Swig/cwrap.c [2:7]
+        Source/Swig/deprecate.c [2:7]
+        Source/Swig/error.c [2:7]
+        Source/Swig/extend.c [2:7]
+        Source/Swig/fragment.c [2:7]
+        Source/Swig/getopt.c [2:7]
+        Source/Swig/include.c [2:7]
+        Source/Swig/misc.c [2:7]
+        Source/Swig/naming.c [2:7]
+        Source/Swig/parms.c [2:7]
+        Source/Swig/scanner.c [2:7]
+        Source/Swig/stype.c [2:7]
+        Source/Swig/swig.h [2:7]
+        Source/Swig/swigfile.h [2:7]
+        Source/Swig/swigopt.h [2:7]
+        Source/Swig/swigparm.h [2:7]
+        Source/Swig/swigscan.h [2:7]
+        Source/Swig/swigtree.h [2:7]
+        Source/Swig/swigwrap.h [2:7]
+        Source/Swig/symbol.c [2:7]
+        Source/Swig/tree.c [2:7]
+        Source/Swig/typemap.c [2:7]
+        Source/Swig/typeobj.c [2:7]
+        Source/Swig/typesys.c [2:7]
+        Source/Swig/wrapfunc.c [2:7]
+    Scancode info:
+        Original SPDX id: LicenseRef-scancode-other-copyleft
+        Score           : 100.00
+        Match type      : NOTICE
+        Links           : https://github.com/nexB/scancode-toolkit/tree/develop/src/licensedcode/data/licenses/other-copyleft.LICENSE
+    Files with this license:
+        Source/CParse/cparse.h [2:7]
+        Source/CParse/cscanner.c [2:7]
+        Source/CParse/parser.y [2:7]
+        Source/CParse/templ.c [2:7]
+        Source/CParse/util.c [2:7]
+        Source/DOH/base.c [2:7]
+        Source/DOH/doh.h [2:7]
+        Source/DOH/dohint.h [2:7]
+        Source/DOH/file.c [2:7]
+        Source/DOH/fio.c [2:7]
+        Source/DOH/hash.c [2:7]
+        Source/DOH/list.c [2:7]
+        Source/DOH/memory.c [2:7]
+        Source/DOH/string.c [2:7]
+        Source/DOH/void.c [2:7]
+        Source/Modules/allegrocl.cxx [2:7]
+        Source/Modules/allocate.cxx [2:7]
+        Source/Modules/browser.cxx [2:7]
+        Source/Modules/cffi.cxx [2:7]
+        Source/Modules/chicken.cxx [2:7]
+        Source/Modules/clisp.cxx [2:7]
+        Source/Modules/contract.cxx [2:7]
+        Source/Modules/csharp.cxx [2:7]
+        Source/Modules/directors.cxx [2:7]
+        Source/Modules/emit.cxx [2:7]
+        Source/Modules/guile.cxx [2:7]
+        Source/Modules/interface.cxx [2:7]
+        Source/Modules/java.cxx [2:7]
+        Source/Modules/lang.cxx [2:7]
+        Source/Modules/lua.cxx [2:7]
+        Source/Modules/main.cxx [2:7]
+        Source/Modules/modula3.cxx [2:7]
+        Source/Modules/mzscheme.cxx [2:7]
+        Source/Modules/nested.cxx [2:7]
+        Source/Modules/ocaml.cxx [2:7]
+        Source/Modules/overload.cxx [2:7]
+        Source/Modules/perl5.cxx [2:7]
+        Source/Modules/php.cxx [2:7]
+        Source/Modules/pike.cxx [2:7]
+        Source/Modules/ruby.cxx [2:7]
+        Source/Modules/s-exp.cxx [2:7]
+        Source/Modules/swigmain.cxx [2:7]
+        Source/Modules/swigmod.h [2:7]
+        Source/Modules/tcl8.cxx [2:7]
+        Source/Modules/typepass.cxx [2:7]
+        Source/Modules/uffi.cxx [2:7]
+        Source/Modules/utils.cxx [2:7]
+        Source/Modules/xml.cxx [2:7]
+        Source/Preprocessor/cpp.c [2:7]
+        Source/Preprocessor/expr.c [2:7]
+        Source/Preprocessor/preprocessor.h [2:7]
+        Source/Swig/cwrap.c [2:7]
+        Source/Swig/deprecate.c [2:7]
+        Source/Swig/error.c [2:7]
+        Source/Swig/extend.c [2:7]
+        Source/Swig/fragment.c [2:7]
+        Source/Swig/getopt.c [2:7]
+        Source/Swig/include.c [2:7]
+        Source/Swig/misc.c [2:7]
+        Source/Swig/naming.c [2:7]
+        Source/Swig/parms.c [2:7]
+        Source/Swig/scanner.c [2:7]
+        Source/Swig/stype.c [2:7]
+        Source/Swig/swig.h [2:7]
+        Source/Swig/swigfile.h [2:7]
+        Source/Swig/swigopt.h [2:7]
+        Source/Swig/swigparm.h [2:7]
+        Source/Swig/swigscan.h [2:7]
+        Source/Swig/swigtree.h [2:7]
+        Source/Swig/swigwrap.h [2:7]
+        Source/Swig/symbol.c [2:7]
+        Source/Swig/tree.c [2:7]
+        Source/Swig/typemap.c [2:7]
+        Source/Swig/typeobj.c [2:7]
+        Source/Swig/typesys.c [2:7]
+        Source/Swig/wrapfunc.c [2:7]
+
+KEEP     GPL-3.0-or-later AND LicenseRef-scancode-swig 380e881711ad2fc506e27d809e127654
+BELONGS ya.make
+FILE_INCLUDE COPYRIGHT found in files: LICENSE at line 21
+FILE_INCLUDE LICENSE-GPL found in files: LICENSE at line 4
+FILE_INCLUDE LICENSE-UNIVERSITIES found in files: LICENSE at line 8
+    Note: matched license text is too long. Read it in the source files.
+    Scancode info:
+        Original SPDX id: GPL-3.0-or-later
+        Score           : 100.00
+        Match type      : NOTICE
+        Links           : http://www.gnu.org/licenses/gpl-3.0-standalone.html, https://spdx.org/licenses/GPL-3.0-or-later
+    Files with this license:
+        LICENSE [1:22]
+    Scancode info:
+        Original SPDX id: LicenseRef-scancode-swig
+        Score           : 100.00
+        Match type      : NOTICE
+        Links           : http://www.swig.org/, http://www.swig.org/Release/LICENSE, https://github.com/nexB/scancode-toolkit/tree/develop/src/licensedcode/data/licenses/swig.LICENSE
+    Files with this license:
+        LICENSE [1:22]
+
+KEEP     GPL-3.0-only         4fe869ee987a340198fb0d54c55c47f1
+BELONGS ya.make
+FILE_INCLUDE COPYRIGHT found in files: LICENSE-GPL at line 592, LICENSE-GPL at line 603
+FILE_INCLUDE LICENSE found in files: LICENSE-GPL at line 1
+    Note: matched license text is too long. Read it in the source files.
+    Scancode info:
+        Original SPDX id: GPL-3.0-only
+        Score           : 100.00
+        Match type      : TEXT
+        Links           : http://www.gnu.org/licenses/gpl-3.0-standalone.html, http://www.gnu.org/licenses/gpl-3.0.html, https://spdx.org/licenses/GPL-3.0-only
+    Files with this license:
+        LICENSE-GPL [1:674]
+
+KEEP     LicenseRef-scancode-unknown-license-reference 52b632a2d4173f4cfd82da224a599868
+BELONGS ya.make
+FILE_INCLUDE LICENSE found in files: RELEASENOTES at line 231
+    License text:
+        - License changes, see LICENSE file and http://www.swig.org/legal.html.
+    Scancode info:
+        Original SPDX id: LicenseRef-scancode-unknown-license-reference
+        Score           : 100.00
+        Match type      : REFERENCE
+        Links           : https://github.com/nexB/scancode-toolkit/tree/develop/src/licensedcode/data/licenses/unknown-license-reference.LICENSE
+    Files with this license:
+        RELEASENOTES [231:231]
+
+KEEP     LicenseRef-scancode-unknown-license-reference 5a48a9cf4e4e31266e197ee475b8f2b6
+BELONGS ya.make
+    License text:
+         * The loading code was adapted from the Derelict project and is used with
+         * permission from Michael Parker, the original author.
+    Scancode info:
+        Original SPDX id: LicenseRef-scancode-unknown-license-reference
+        Score           : 100.00
+        Match type      : NOTICE
+        Links           : https://github.com/nexB/scancode-toolkit/tree/develop/src/licensedcode/data/licenses/unknown-license-reference.LICENSE
+    Files with this license:
+        Lib/d/wrapperloader.swg [7:8]
+
+KEEP     GPL-3.0-or-later AND LicenseRef-scancode-other-copyleft 63e2d3a55d4ee4044cab0e4bd7464334
+BELONGS ya.make
+FILE_INCLUDE COPYRIGHT found in files: Source/Doxygen/doxycommands.h at line 5, Source/Doxygen/doxyentity.cxx at line 5, Source/Doxygen/doxyentity.h at line 5, Source/Doxygen/doxyparser.cxx at line 5, Source/Doxygen/doxyparser.h at line 5, Source/Doxygen/doxytranslator.cxx at line 5, Source/Doxygen/doxytranslator.h at line 5, Source/Doxygen/javadoc.cxx at line 5, Source/Doxygen/javadoc.h at line 5, Source/Doxygen/pydoc.cxx at line 5, Source/Doxygen/pydoc.h at line 5, Source/Include/swigwarn.h at line 5, Source/Modules/d.cxx at line 5, Source/Modules/javascript.cxx at line 5, Source/Modules/octave.cxx at line 5, Source/Modules/python.cxx at line 5, Source/Modules/r.cxx at line 6, Source/Modules/scilab.cxx at line 5
+FILE_INCLUDE LICENSE found in files: Source/Doxygen/doxycommands.h at line 5, Source/Doxygen/doxyentity.cxx at line 5, Source/Doxygen/doxyentity.h at line 5, Source/Doxygen/doxyparser.cxx at line 5, Source/Doxygen/doxyparser.h at line 5, Source/Doxygen/doxytranslator.cxx at line 5, Source/Doxygen/doxytranslator.h at line 5, Source/Doxygen/javadoc.cxx at line 5, Source/Doxygen/javadoc.h at line 5, Source/Doxygen/pydoc.cxx at line 5, Source/Doxygen/pydoc.h at line 5, Source/Include/swigwarn.h at line 5, Source/Modules/d.cxx at line 5, Source/Modules/javascript.cxx at line 5, Source/Modules/octave.cxx at line 5, Source/Modules/python.cxx at line 5, Source/Modules/r.cxx at line 6, Source/Modules/scilab.cxx at line 5
+    Note: matched license text is too long. Read it in the source files.
+    Scancode info:
+        Original SPDX id: GPL-3.0-or-later
+        Score           : 100.00
+        Match type      : NOTICE
+        Links           : http://www.gnu.org/licenses/gpl-3.0-standalone.html, https://spdx.org/licenses/GPL-3.0-or-later
+    Files with this license:
+        Source/Doxygen/doxycommands.h [2:7]
+        Source/Doxygen/doxyentity.cxx [2:7]
+        Source/Doxygen/doxyentity.h [2:7]
+        Source/Doxygen/doxyparser.cxx [2:7]
+        Source/Doxygen/doxyparser.h [2:7]
+        Source/Doxygen/doxytranslator.cxx [2:7]
+        Source/Doxygen/doxytranslator.h [2:7]
+        Source/Doxygen/javadoc.cxx [2:7]
+        Source/Doxygen/javadoc.h [2:7]
+        Source/Doxygen/pydoc.cxx [2:7]
+        Source/Doxygen/pydoc.h [2:7]
+        Source/Include/swigwarn.h [2:7]
+        Source/Modules/d.cxx [2:7]
+        Source/Modules/javascript.cxx [2:7]
+        Source/Modules/octave.cxx [2:7]
+        Source/Modules/python.cxx [2:7]
+        Source/Modules/r.cxx [3:8]
+        Source/Modules/scilab.cxx [2:7]
+    Scancode info:
+        Original SPDX id: LicenseRef-scancode-other-copyleft
+        Score           : 100.00
+        Match type      : NOTICE
+        Links           : https://github.com/nexB/scancode-toolkit/tree/develop/src/licensedcode/data/licenses/other-copyleft.LICENSE
+    Files with this license:
+        Source/Doxygen/doxycommands.h [2:7]
+        Source/Doxygen/doxyentity.cxx [2:7]
+        Source/Doxygen/doxyentity.h [2:7]
+        Source/Doxygen/doxyparser.cxx [2:7]
+        Source/Doxygen/doxyparser.h [2:7]
+        Source/Doxygen/doxytranslator.cxx [2:7]
+        Source/Doxygen/doxytranslator.h [2:7]
+        Source/Doxygen/javadoc.cxx [2:7]
+        Source/Doxygen/javadoc.h [2:7]
+        Source/Doxygen/pydoc.cxx [2:7]
+        Source/Doxygen/pydoc.h [2:7]
+        Source/Include/swigwarn.h [2:7]
+        Source/Modules/d.cxx [2:7]
+        Source/Modules/javascript.cxx [2:7]
+        Source/Modules/octave.cxx [2:7]
+        Source/Modules/python.cxx [2:7]
+        Source/Modules/r.cxx [3:8]
+        Source/Modules/scilab.cxx [2:7]
+
+KEEP     GPL-3.0-or-later AND Bison-exception-2.2 705ef661452b55b1550628d44060da41
+BELONGS ya.make
+    Note: matched license text is too long. Read it in the source files.
+    Scancode info:
+        Original SPDX id: GPL-3.0-or-later
+        Score           : 91.60
+        Match type      : NOTICE
+        Links           : http://www.gnu.org/licenses/gpl-3.0-standalone.html, https://spdx.org/licenses/GPL-3.0-or-later
+    Files with this license:
+        Source/CParse/parser.c [1:32]
+    Scancode info:
+        Original SPDX id: Bison-exception-2.2
+        Score           : 91.60
+        Match type      : NOTICE
+        Links           : https://spdx.org/licenses/Bison-exception-2.2
+    Files with this license:
+        Source/CParse/parser.c [1:32]
+
+KEEP     GPL-3.0-or-later AND Bison-exception-2.2 c77482e4a9af37fd1ed4ec8eb32e2c2c
+BELONGS ya.make
+    Note: matched license text is too long. Read it in the source files.
+    Scancode info:
+        Original SPDX id: GPL-3.0-or-later
+        Score           : 91.60
+        Match type      : NOTICE
+        Links           : http://www.gnu.org/licenses/gpl-3.0-standalone.html, https://spdx.org/licenses/GPL-3.0-or-later
+    Files with this license:
+        Source/CParse/parser.h [1:32]
+    Scancode info:
+        Original SPDX id: Bison-exception-2.2
+        Score           : 91.60
+        Match type      : NOTICE
+        Links           : https://spdx.org/licenses/Bison-exception-2.2
+    Files with this license:
+        Source/CParse/parser.h [1:32]
+
+KEEP     LicenseRef-scancode-unknown-license-reference e62a227ee995927992859c382a1fe9b3
+BELONGS ya.make
+    License text:
+        SWIG is distributed under the following terms:
+    Scancode info:
+        Original SPDX id: LicenseRef-scancode-unknown-license-reference
+        Score           : 11.00
+        Match type      : INTRO
+        Links           : https://github.com/nexB/scancode-toolkit/tree/develop/src/licensedcode/data/licenses/unknown-license-reference.LICENSE
+    Files with this license:
+        LICENSE-UNIVERSITIES [1:1]
+
+KEEP     BSD-Source-Code      e8fff8d859e22a2009986f527716e571
+BELONGS ya.make
+    Note: matched license text is too long. Read it in the source files.
+    Scancode info:
+        Original SPDX id: BSD-Source-Code
+        Score           : 59.89
+        Match type      : TEXT
+        Links           : https://github.com/infusion/PHP/blob/master/TSRM/LICENSE, https://spdx.org/licenses/BSD-Source-Code
+    Files with this license:
+        LICENSE-UNIVERSITIES [80:94]
+
+KEEP     GPL-3.0-only         ee37fd73778ed8023cd47a4a4ce30cc4
+BELONGS ya.make
+    License text:
+                    License code changes: SWIG Source is GPL-v3 and library code license is now clearer
+    Scancode info:
+        Original SPDX id: GPL-3.0-only
+        Score           : 100.00
+        Match type      : REFERENCE
+        Links           : http://www.gnu.org/licenses/gpl-3.0-standalone.html, http://www.gnu.org/licenses/gpl-3.0.html, https://spdx.org/licenses/GPL-3.0-only
+    Files with this license:
+        CHANGES [5641:5641]
+
+KEEP     LicenseRef-scancode-unknown-license-reference f9369110d4dc1822fa87791dfa7fef55
+BELONGS ya.make
+    License text:
+        Permission is hereby granted, without written agreement and without
+    Scancode info:
+        Original SPDX id: LicenseRef-scancode-unknown-license-reference
+        Score           : 22.00
+        Match type      : INTRO
+        Links           : https://github.com/nexB/scancode-toolkit/tree/develop/src/licensedcode/data/licenses/unknown-license-reference.LICENSE
+    Files with this license:
+        LICENSE-UNIVERSITIES [9:9]
+        LICENSE-UNIVERSITIES [73:73]

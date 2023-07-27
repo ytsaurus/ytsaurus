@@ -1,0 +1,46 @@
+service: chyt
+title: ClickHouse over YT
+
+ci:
+  release-title-source: flow
+  secret: sec-01ezwk99a9d1symtp2eg6a93hh
+  runtime:
+    sandbox-owner: YT_ROBOT
+
+  autocheck:
+    strong: true
+    large-autostart:
+      - target: yt/chyt/tests/server
+
+  triggers:
+    - on: commit
+      flow: deploy-flow
+
+  flows:
+    deploy-flow:
+      title: Build, Deploy, Update Cliques, Publish
+      jobs:
+        build:
+          title: Build
+          task: projects/chyt/upload_ytserver_clickhouse
+          input:
+            checkout_arcadia_from_url: "arcadia-arc:/#${context.branch}"
+            targets: yt/chyt/server/bin
+            arts: yt/chyt/server/bin/ytserver-clickhouse
+            result_single_file: true
+            result_rt: YT_CLICKHOUSE
+            result_rd: CHYT ytserver-clickhouse executable
+            result_ttl: inf
+            yt_proxy_list:
+              - hume
+              - freud
+              - hahn
+              - arnold
+              - vanga
+            yt_destination_path: //sys/bin/ytserver-clickhouse
+            yt_token: sec-01ezwk99a9d1symtp2eg6a93hh
+            extra_tags:
+              - sb
+          requirements:
+            sandbox:
+              client_tags: LINUX

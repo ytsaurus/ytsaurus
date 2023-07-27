@@ -1731,10 +1731,10 @@ private:
         i64 weight,
         const TKeySetWriterPtr& keySetWriter)
     {
-        ssize_t size = 0;
+        i64 size = 0;
         bool incomplete = false;
         for (auto& value : values) {
-            ssize_t valueSize = GetByteSize(value);
+            i64 valueSize = EstimateRowValueSize(value);
             if (incomplete || size >= maxSampleSize) {
                 incomplete = true;
                 value = MakeUnversionedSentinelValue(EValueType::Null);

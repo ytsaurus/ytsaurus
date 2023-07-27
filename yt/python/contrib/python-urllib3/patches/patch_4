@@ -1,0 +1,43 @@
+commit db9f95328fb89b999a956f3e005f7b054b49e7e6
+Author: Ignat Kolesnichenko <ignat@yandex-team.ru>
+Date:   Mon Sep 12 22:12:10 2022 +0300
+
+    YP-376: pass ca_cert_data in ConnectionPool
+
+diff --git a/src/urllib3/connectionpool.py b/src/urllib3/connectionpool.py
+index 15bffcb2..988a7da6 100644
+--- a/src/urllib3/connectionpool.py
++++ b/src/urllib3/connectionpool.py
+@@ -901,7 +901,7 @@ class HTTPSConnectionPool(HTTPConnectionPool):
+     If ``assert_hostname`` is False, no verification is done.
+ 
+     The ``key_file``, ``cert_file``, ``cert_reqs``, ``ca_certs``,
+-    ``ca_cert_dir``, ``ssl_version``, ``key_password`` are only used if :mod:`ssl`
++    ``ca_cert_dir``, ``ca_cert_data``, ``ssl_version``, ``key_password`` are only used if :mod:`ssl`
+     is available and are fed into :meth:`urllib3.util.ssl_wrap_socket` to upgrade
+     the connection socket into an SSL socket.
+     """
+@@ -930,6 +930,7 @@ class HTTPSConnectionPool(HTTPConnectionPool):
+         assert_hostname=None,
+         assert_fingerprint=None,
+         ca_cert_dir=None,
++        ca_cert_data=None,
+         **conn_kw
+     ):
+ 
+@@ -954,6 +955,7 @@ class HTTPSConnectionPool(HTTPConnectionPool):
+         self.key_password = key_password
+         self.ca_certs = ca_certs
+         self.ca_cert_dir = ca_cert_dir
++        self.ca_cert_data = ca_cert_data
+         self.ssl_version = ssl_version
+         self.assert_hostname = assert_hostname
+         self.assert_fingerprint = assert_fingerprint
+@@ -972,6 +974,7 @@ class HTTPSConnectionPool(HTTPConnectionPool):
+                 cert_reqs=self.cert_reqs,
+                 ca_certs=self.ca_certs,
+                 ca_cert_dir=self.ca_cert_dir,
++                ca_cert_data=self.ca_cert_data,
+                 assert_hostname=self.assert_hostname,
+                 assert_fingerprint=self.assert_fingerprint,
+             )

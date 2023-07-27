@@ -1,0 +1,6 @@
+service: yt
+title: Java YTsaurusClient
+ci:
+  autocheck:
+    fast-targets:
+    - yt/java/ytsaurus-client-core

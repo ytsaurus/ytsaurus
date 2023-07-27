@@ -1,0 +1,29 @@
+service: yt
+title: "Valhalla 3: autopack prepare_scheduing_usage"
+
+
+ci:
+  release-title-source: flow
+  secret: sec-01enjp9kbaykjntv4x4fegp6m2
+
+  runtime:
+    sandbox-owner: YT
+
+  triggers:
+    - on: commit
+      flow: auto-pack-nirvana-operations
+
+  flows:
+    auto-pack-nirvana-operations:
+      title: Release VH3 operations
+      jobs:
+        run-nirvana-auto-release:
+          title: run-nirvana-auto-release
+          task: projects/nirvana/check_operation_release
+          input:
+            nirvana_token:
+              uuid: "${context.secret_uid}"
+              key: "nirvana-token"
+            nirvana_quota:
+              quota_name: 'nirvana_arc_ci'
+

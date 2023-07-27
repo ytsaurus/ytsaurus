@@ -1,0 +1,53 @@
+commit 96ccfa550cedca68799678e1d5720e6c9fb65114
+Author: Ignat Kolesnichenko <ignat@yandex-team.ru>
+Date:   Mon Sep 12 10:21:58 2022 +0300
+
+    YT-4838: Pass socket address family to create_connection
+
+diff --git a/src/urllib3/connection.py b/src/urllib3/connection.py
+index 7bf395bd..186c18f0 100644
+--- a/src/urllib3/connection.py
++++ b/src/urllib3/connection.py
+@@ -123,6 +123,8 @@ class HTTPConnection(_HTTPConnection, object):
+         #: provided, we use the default options.
+         self.socket_options = kw.pop("socket_options", self.default_socket_options)
+ 
++        self.socket_af = kw.pop("socket_af", None)
++
+         # Proxy options provided by the user.
+         self.proxy = kw.pop("proxy", None)
+         self.proxy_config = kw.pop("proxy_config", None)
+@@ -170,6 +172,9 @@ class HTTPConnection(_HTTPConnection, object):
+         if self.socket_options:
+             extra_kw["socket_options"] = self.socket_options
+ 
++        if self.socket_af:
++            extra_kw["socket_af"] = self.socket_af
++
+         try:
+             conn = connection.create_connection(
+                 (self._dns_host, self.port), self.timeout, **extra_kw
+diff --git a/src/urllib3/util/connection.py b/src/urllib3/util/connection.py
+index 6af1138f..c707fdc4 100644
+--- a/src/urllib3/util/connection.py
++++ b/src/urllib3/util/connection.py
+@@ -39,6 +39,7 @@ def create_connection(
+     timeout=socket._GLOBAL_DEFAULT_TIMEOUT,
+     source_address=None,
+     socket_options=None,
++    socket_af=None,
+ ):
+     """Connect to *address* and return the socket object.
+ 
+@@ -60,7 +61,10 @@ def create_connection(
+     # Using the value from allowed_gai_family() in the context of getaddrinfo lets
+     # us select whether to work with IPv4 DNS records, IPv6 records, or both.
+     # The original create_connection function always returns all records.
+-    family = allowed_gai_family()
++    if socket_af is None:
++        family = allowed_gai_family()
++    else:
++        family = socket_af
+ 
+     try:
+         host.encode("idna")

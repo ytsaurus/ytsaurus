@@ -1,0 +1,77 @@
+# File format ($ symbol means the beginning of a line):
+#
+# $ # this message
+# $ # =======================
+# $     # comments (all commentaries should starts with some number of spaces and # symbol)
+# ${action} {license id} {license text hash}
+# $BELONGS ./ya/make/file/relative/path/1/ya.make ./ya/make/2/ya.make
+# ${all_file_action} filename
+# $ # user commentaries (many lines)
+# $ generated description - files with this license, license text... (some number of lines that starts with some number of spaces, do not modify)
+# ${action} {license spdx} {license text hash}
+# $BELONGS ./ya/make/file/relative/path/3/ya.make
+# ${all_file_action} filename
+# $    #    user commentaries
+# $ generated description
+# $ ...
+#
+# You can modify action, all_file_action and add commentaries
+# Available actions:
+# keep - keep license in contrib and use in credits
+# skip - skip license
+# remove - remove all files with this license
+# rename - save license text/links into licenses texts file, but not store SPDX into LINCENSE macro. You should store correct license id into devtools.license.spdx.txt file
+#
+# {all file action} records will be generated when license text contains filename that exists on filesystem (in contrib directory)
+# We suppose that that files can contain some license info
+# Available all file actions:
+# FILE_IGNORE - ignore file (do nothing)
+# FILE_INCLUDE - include all file data into licenses text file
+# =======================
+
+KEEP     COPYRIGHT_SERVICE_LABEL 92a426a1dadc0d954826b9cacb71c77e
+BELONGS ya.make
+    License text:
+        Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008,
+        2009, 2010, 2011, 2012, 2013, 2014, 2015
+        <josh.macdonald@gmail.com>
+    Scancode info:
+        Original SPDX id: COPYRIGHT_SERVICE_LABEL
+        Score           : 100.00
+        Match type      : COPYRIGHT
+    Files with this license:
+        README.md [2:4]
+
+KEEP     COPYRIGHT_SERVICE_LABEL ca1fd9da25e06b287fc780570e5dce89
+BELONGS ya.make
+    Note: matched license text is too long. Read it in the source files.
+    Scancode info:
+        Original SPDX id: COPYRIGHT_SERVICE_LABEL
+        Score           : 100.00
+        Match type      : COPYRIGHT
+    Files with this license:
+        xdelta3-main.h [347:350]
+
+KEEP     COPYRIGHT_SERVICE_LABEL da920337730f250ea9d2b917d1a2e4bb
+BELONGS ya.make
+    License text:
+           Copyright 2016 Joshua MacDonald
+    Scancode info:
+        Original SPDX id: COPYRIGHT_SERVICE_LABEL
+        Score           : 100.00
+        Match type      : COPYRIGHT
+    Files with this license:
+        xdelta3-blkcache.h [2:2]
+        xdelta3-cfgs.h [2:2]
+        xdelta3-decode.h [2:2]
+        xdelta3-djw.h [2:2]
+        xdelta3-fgk.h [2:2]
+        xdelta3-hash.h [2:2]
+        xdelta3-internal.h [2:2]
+        xdelta3-list.h [2:2]
+        xdelta3-main.h [2:2]
+        xdelta3-merge.h [2:2]
+        xdelta3-second.h [2:2]
+        xdelta3-test.h [2:2]
+        xdelta3.c [2:2]
+        xdelta3.h [2:2]

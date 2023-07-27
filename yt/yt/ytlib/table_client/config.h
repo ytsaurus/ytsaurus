@@ -112,20 +112,4 @@ DEFINE_REFCOUNTED_TYPE(THunkChunkPayloadWriterConfig)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TBatchHunkReaderConfig
-    : public virtual NYTree::TYsonStruct
-{
-public:
-    int MaxHunkCountPerRead;
-    i64 MaxTotalHunkLengthPerRead;
-
-    REGISTER_YSON_STRUCT(TBatchHunkReaderConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TBatchHunkReaderConfig)
-
-///////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NTableClient

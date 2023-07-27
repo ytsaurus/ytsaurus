@@ -1,0 +1,102 @@
+commit 3a01b894ec4abde61ff4b619142e8198bb87dbca
+Author: Ignat Kolesnichenko <ignat@yandex-team.ru>
+Date:   Mon Sep 12 11:29:29 2022 +0300
+
+    Support setting timeout on socket and use non-trivial timeout for getting connection from pool
+
+diff --git a/requests/adapters.py b/requests/adapters.py
+index 885849fb..b4b259fe 100644
+--- a/requests/adapters.py
++++ b/requests/adapters.py
+@@ -109,11 +109,11 @@ class HTTPAdapter(BaseAdapter):
+       >>> s.mount('http://', a)
+     """
+     __attrs__ = ['max_retries', 'config', '_pool_connections', '_pool_maxsize',
+-                 '_pool_block']
++                 '_pool_block', '_pool_timeout']
+ 
+     def __init__(self, pool_connections=DEFAULT_POOLSIZE,
+                  pool_maxsize=DEFAULT_POOLSIZE, max_retries=DEFAULT_RETRIES,
+-                 pool_block=DEFAULT_POOLBLOCK):
++                 pool_block=DEFAULT_POOLBLOCK, pool_timeout=DEFAULT_POOL_TIMEOUT):
+         if max_retries == DEFAULT_RETRIES:
+             self.max_retries = Retry(0, read=False)
+         else:
+@@ -126,8 +126,9 @@ class HTTPAdapter(BaseAdapter):
+         self._pool_connections = pool_connections
+         self._pool_maxsize = pool_maxsize
+         self._pool_block = pool_block
++        self._pool_timeout = pool_timeout
+ 
+-        self.init_poolmanager(pool_connections, pool_maxsize, block=pool_block)
++        self.init_poolmanager(pool_connections, pool_maxsize, block=pool_block, timeout=pool_timeout)
+ 
+     def __getstate__(self):
+         return {attr: getattr(self, attr, None) for attr in self.__attrs__}
+@@ -142,7 +143,12 @@ class HTTPAdapter(BaseAdapter):
+             setattr(self, attr, value)
+ 
+         self.init_poolmanager(self._pool_connections, self._pool_maxsize,
+-                              block=self._pool_block)
++                              block=self._pool_block, timeout=self._pool_timeout)
++
++    def set_timeout(self, timeout):
++        if self._pool_timeout != timeout:
++            self._pool_timeout = timeout
++            self.poolmanager.connection_pool_kw["timeout"] = timeout.read_timeout
+ 
+     def init_poolmanager(self, connections, maxsize, block=DEFAULT_POOLBLOCK, **pool_kwargs):
+         """Initializes a urllib3 PoolManager.
+@@ -409,22 +415,11 @@ class HTTPAdapter(BaseAdapter):
+         :rtype: requests.Response
+         """
+ 
+-        try:
+-            conn = self.get_connection(request.url, proxies)
+-        except LocationValueError as e:
+-            raise InvalidURL(e, request=request)
+-
+-        self.cert_verify(conn, request.url, verify, cert)
+-        url = self.request_url(request, proxies)
+-        self.add_headers(request, stream=stream, timeout=timeout, verify=verify, cert=cert, proxies=proxies)
+-
+-        chunked = not (request.body is None or 'Content-Length' in request.headers)
+-
+         if isinstance(timeout, tuple):
+             try:
+                 connect, read = timeout
+                 timeout = TimeoutSauce(connect=connect, read=read)
+-            except ValueError as e:
++            except ValueError:
+                 # this may raise a string formatting error.
+                 err = ("Invalid timeout {}. Pass a (connect, read) "
+                        "timeout tuple, or a single float to set "
+@@ -435,6 +430,19 @@ class HTTPAdapter(BaseAdapter):
+         else:
+             timeout = TimeoutSauce(connect=timeout, read=timeout)
+ 
++        self.set_timeout(timeout)
++
++        try:
++            conn = self.get_connection(request.url, proxies)
++        except LocationValueError as e:
++            raise InvalidURL(e, request=request)
++
++        self.cert_verify(conn, request.url, verify, cert)
++        url = self.request_url(request, proxies)
++        self.add_headers(request, stream=stream, timeout=timeout, verify=verify, cert=cert, proxies=proxies)
++
++        chunked = not (request.body is None or 'Content-Length' in request.headers)
++
+         try:
+             if not chunked:
+                 resp = conn.urlopen(
+@@ -455,7 +463,7 @@ class HTTPAdapter(BaseAdapter):
+                 if hasattr(conn, 'proxy_pool'):
+                     conn = conn.proxy_pool
+ 
+-                low_conn = conn._get_conn(timeout=DEFAULT_POOL_TIMEOUT)
++                low_conn = conn._get_conn(timeout=timeout.connect_timeout)
+ 
+                 try:
+                     skip_host = 'Host' in request.headers

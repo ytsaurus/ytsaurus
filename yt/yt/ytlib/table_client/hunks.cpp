@@ -5,6 +5,7 @@
 #include "config.h"
 #include "private.h"
 #include "schemaless_chunk_reader.h"
+#include "schemaless_multi_chunk_reader.h"
 #include "versioned_chunk_writer.h"
 
 #include <yt/yt/ytlib/chunk_client/block.h>
@@ -428,6 +429,20 @@ THunkValue ReadHunkValue(TRef input)
     }
 }
 
+bool TryDecodeInlineHunkValue(TUnversionedValue* value)
+{
+    auto hunkValue = ReadHunkValue(GetValueRef(*value));
+    const auto* inlineHunkValue = std::get_if<TInlineHunkValue>(&hunkValue);
+    if (!inlineHunkValue) {
+        return false;
+    }
+    SetValueRef(value, inlineHunkValue->Payload);
+    value->Flags &= ~EValueFlags::Hunk;
+    return true;
+}
+
+namespace {
+
 void DoGlobalizeHunkValue(
     TChunkedMemoryPool* pool,
     const NTableClient::NProto::THunkChunkRefsExt& hunkChunkRefsExt,
@@ -455,10 +470,11 @@ void DoGlobalizeHunkValue(
             .Length = localRefHunkValue->Length,
         };
         auto globalRefPayload = WriteHunkValue(pool, globalRefHunkValue);
-        value->Data.String = globalRefPayload.Begin();
-        value->Length = globalRefPayload.Size();
+        SetValueRef(value, globalRefPayload);
     }
 }
+
+} // namespace
 
 void GlobalizeHunkValues(
     TChunkedMemoryPool* pool,
@@ -934,35 +950,41 @@ public:
                     continue;
                 }
 
-                auto handleInlineHunkValue = [&] (const TInlineHunkValue& inlineHunkValue) {
-                    auto payloadLength = static_cast<i64>(inlineHunkValue.Payload.Size());
-                    if (payloadLength < *maxInlineHunkSize) {
+                auto handleInlineHunkValue =
+                    [&](const TInlineHunkValue &inlineHunkValue) {
+                      auto payloadLength =
+                          static_cast<i64>(inlineHunkValue.Payload.Size());
+                      if (payloadLength < *maxInlineHunkSize) {
                         // Leave as is.
                         if (columnarStatisticsThunk) {
-                            columnarStatisticsThunk->UpdateStatistics(value.Id, inlineHunkValue);
+                          columnarStatisticsThunk->UpdateStatistics(
+                              value.Id, inlineHunkValue);
                         }
                         return;
-                    }
+                      }
 
-                    HunkCount_ += 1;
-                    TotalHunkLength_ += payloadLength;
+                      HunkCount_ += 1;
+                      TotalHunkLength_ += payloadLength;
 
-                    auto [blockIndex, blockOffset, hunkWriterReady] = HunkChunkPayloadWriter_->WriteHunk(inlineHunkValue.Payload);
-                    ready &= hunkWriterReady;
+                      auto [blockIndex, blockOffset, hunkWriterReady] =
+                          HunkChunkPayloadWriter_->WriteHunk(
+                              inlineHunkValue.Payload);
+                      ready &= hunkWriterReady;
 
-                    TLocalRefHunkValue localRefHunkValue{
-                        .ChunkIndex = GetHunkChunkPayloadWriterChunkIndex(),
-                        .BlockIndex = blockIndex,
-                        .BlockOffset = blockOffset,
-                        .Length = payloadLength,
-                    };
-                    if (columnarStatisticsThunk) {
+                      TLocalRefHunkValue localRefHunkValue{
+                          .ChunkIndex = GetHunkChunkPayloadWriterChunkIndex(),
+                          .BlockIndex = blockIndex,
+                          .BlockOffset = blockOffset,
+                          .Length = payloadLength,
+                      };
+                      if (columnarStatisticsThunk) {
                         columnarStatisticsThunk->UpdateStatistics(value.Id, localRefHunkValue);
-                    }
-                    auto localizedPayload = WriteHunkValue(pool, localRefHunkValue);
-                    SetValueRef(&value, localizedPayload);
-                    value.Flags |= EValueFlags::Hunk;
-                };
+                      }
+                      auto localizedPayload =
+                          WriteHunkValue(pool, localRefHunkValue);
+                      SetValueRef(&value, localizedPayload);
+                      value.Flags |= EValueFlags::Hunk;
+                    };
 
                 auto valueRef = GetValueRef(value);
                 if (Any(value.Flags & EValueFlags::Hunk)) {
@@ -1512,15 +1534,15 @@ protected:
         }
         auto endRowIndex = CurrentEncodedRowIndex_;
 
+        if (values.empty()) {
+            return MakeBatch(MakeSharedRange(std::move(DecodableRows_), MakeStrong(this)));
+        }
+
         YT_LOG_DEBUG("Fetching hunks in row slice (StartRowIndex: %v, EndRowIndex: %v, HunkCount: %v, TotalHunkLength: %v)",
             startRowIndex,
             endRowIndex,
             hunkCount,
             totalHunkLength);
-
-        if (values.empty()) {
-            return MakeBatch(MakeSharedRange(std::move(DecodableRows_), MakeStrong(this)));
-        }
 
         ReadyEvent_ =
             DecodeHunks(
@@ -1745,11 +1767,12 @@ ISchemalessUnversionedReaderPtr CreateHunkDecodingSchemalessReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class IReader>
 class THunkDecodingSchemalessChunkReader
-    : public THunkDecodingSchemalessUnversionedReaderBase<ISchemalessChunkReader>
+    : public THunkDecodingSchemalessUnversionedReaderBase<IReader>
 {
 public:
-    using THunkDecodingSchemalessUnversionedReaderBase<ISchemalessChunkReader>::
+    using THunkDecodingSchemalessUnversionedReaderBase<IReader>::
         THunkDecodingSchemalessUnversionedReaderBase;
 
     //! ITimingReader implementation.
@@ -1773,10 +1796,10 @@ public:
         };
 
         // Fetched but not decodable rows.
-        addRows(EncodedRows_.begin() + CurrentEncodedRowIndex_, EncodedRows_.end());
+        addRows(this->EncodedRows_.begin() + this->CurrentEncodedRowIndex_, this->EncodedRows_.end());
 
         // Decodable rows.
-        addRows(DecodableRows_.begin(), DecodableRows_.end());
+        addRows(this->DecodableRows_.begin(), this->DecodableRows_.end());
 
         // Unread rows.
         addRows(unreadRows.begin(), unreadRows.end());
@@ -1803,7 +1826,58 @@ ISchemalessChunkReaderPtr CreateHunkDecodingSchemalessChunkReader(
         return underlying;
     }
 
-    return New<THunkDecodingSchemalessChunkReader>(
+    return New<THunkDecodingSchemalessChunkReader<ISchemalessChunkReader>>(
+        std::move(config),
+        std::move(underlying),
+        std::move(chunkFragmentReader),
+        std::move(options));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class IReader>
+class THunkDecodingSchemalessMultiChunkReader
+    : public THunkDecodingSchemalessChunkReader<IReader>
+{
+public:
+    using THunkDecodingSchemalessChunkReader<IReader>::
+        THunkDecodingSchemalessChunkReader;
+
+    i64 GetSessionRowIndex() const override
+    {
+        return this->Underlying_->GetSessionRowIndex();
+    }
+
+    i64 GetTotalRowCount() const override
+    {
+        return this->Underlying_->GetTotalRowCount();
+    }
+
+    virtual void Interrupt() override
+    {
+        this->Underlying_->Interrupt();
+    }
+
+    void SkipCurrentReader() override
+    {
+        this->Underlying_->SkipCurrentReader();
+    }
+};
+
+ISchemalessMultiChunkReaderPtr CreateHunkDecodingSchemalessMultiChunkReader(
+    TBatchHunkReaderConfigPtr config,
+    ISchemalessMultiChunkReaderPtr underlying,
+    IChunkFragmentReaderPtr chunkFragmentReader,
+    TTableSchemaPtr schema,
+    TClientChunkReadOptions options)
+{
+    YT_VERIFY(!options.HunkChunkReaderStatistics);
+
+    if (!schema || !schema->HasHunkColumns()) {
+        return underlying;
+    }
+
+    return New<THunkDecodingSchemalessMultiChunkReader<ISchemalessMultiChunkReader>>(
         std::move(config),
         std::move(underlying),
         std::move(chunkFragmentReader),
@@ -2117,8 +2191,7 @@ void ReplaceHunks(
             .Length = payloadSize
         };
         auto globalRefPayload = WriteHunkValue(pool, globalRefHunkValue);
-        value.Data.String = globalRefPayload.Begin();
-        value.Length = globalRefPayload.Size();
+        SetValueRef(&value, globalRefPayload);
         value.Flags |= EValueFlags::Hunk;
 
         ++descriptorIndex;

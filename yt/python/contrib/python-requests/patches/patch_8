@@ -1,0 +1,209 @@
+commit 2cc9e8c7473a61cfdd8f3dd2ad6cb3c56197c007
+Author: Ignat Kolesnichenko <ignat@yandex-team.ru>
+Date:   Mon Sep 12 11:39:39 2022 +0300
+
+    Use urllib3, certifi and idna from yt.packages
+
+diff --git a/requests/__init__.py b/requests/__init__.py
+index 53a5b42a..6ed6d42c 100644
+--- a/requests/__init__.py
++++ b/requests/__init__.py
+@@ -40,7 +40,10 @@ is at <https://requests.readthedocs.io>.
+ :license: Apache 2.0, see LICENSE for more details.
+ """
+ 
+-import urllib3
++try:
++    import yt.packages.urllib3 as urllib3
++except ImportError:
++    import urllib3
+ import warnings
+ from .exceptions import RequestsDependencyWarning
+ 
+diff --git a/requests/adapters.py b/requests/adapters.py
+index b4b259fe..e46059af 100644
+--- a/requests/adapters.py
++++ b/requests/adapters.py
+@@ -11,23 +11,42 @@ and maintain connections.
+ import os.path
+ import socket
+ 
+-from urllib3.poolmanager import PoolManager, proxy_from_url
+-from urllib3.response import HTTPResponse
+-from urllib3.util import parse_url
+-from urllib3.util import Timeout as TimeoutSauce
+-from urllib3.util.retry import Retry
+-from urllib3.exceptions import ClosedPoolError
+-from urllib3.exceptions import ConnectTimeoutError
+-from urllib3.exceptions import HTTPError as _HTTPError
+-from urllib3.exceptions import InvalidHeader as _InvalidHeader
+-from urllib3.exceptions import MaxRetryError
+-from urllib3.exceptions import NewConnectionError
+-from urllib3.exceptions import ProxyError as _ProxyError
+-from urllib3.exceptions import ProtocolError
+-from urllib3.exceptions import ReadTimeoutError
+-from urllib3.exceptions import SSLError as _SSLError
+-from urllib3.exceptions import ResponseError
+-from urllib3.exceptions import LocationValueError
++try:
++    from yt.packages.urllib3.poolmanager import PoolManager, proxy_from_url
++    from yt.packages.urllib3.response import HTTPResponse
++    from yt.packages.urllib3.util import parse_url
++    from yt.packages.urllib3.util import Timeout as TimeoutSauce
++    from yt.packages.urllib3.util.retry import Retry
++    from yt.packages.urllib3.exceptions import ClosedPoolError
++    from yt.packages.urllib3.exceptions import ConnectTimeoutError
++    from yt.packages.urllib3.exceptions import HTTPError as _HTTPError
++    from yt.packages.urllib3.exceptions import InvalidHeader as _InvalidHeader
++    from yt.packages.urllib3.exceptions import MaxRetryError
++    from yt.packages.urllib3.exceptions import NewConnectionError
++    from yt.packages.urllib3.exceptions import ProxyError as _ProxyError
++    from yt.packages.urllib3.exceptions import ProtocolError
++    from yt.packages.urllib3.exceptions import ReadTimeoutError
++    from yt.packages.urllib3.exceptions import SSLError as _SSLError
++    from yt.packages.urllib3.exceptions import ResponseError
++    from yt.packages.urllib3.exceptions import LocationValueError
++except ImportError:
++    from urllib3.poolmanager import PoolManager, proxy_from_url
++    from urllib3.response import HTTPResponse
++    from urllib3.util import parse_url
++    from urllib3.util import Timeout as TimeoutSauce
++    from urllib3.util.retry import Retry
++    from urllib3.exceptions import ClosedPoolError
++    from urllib3.exceptions import ConnectTimeoutError
++    from urllib3.exceptions import HTTPError as _HTTPError
++    from urllib3.exceptions import InvalidHeader as _InvalidHeader
++    from urllib3.exceptions import MaxRetryError
++    from urllib3.exceptions import NewConnectionError
++    from urllib3.exceptions import ProxyError as _ProxyError
++    from urllib3.exceptions import ProtocolError
++    from urllib3.exceptions import ReadTimeoutError
++    from urllib3.exceptions import SSLError as _SSLError
++    from urllib3.exceptions import ResponseError
++    from urllib3.exceptions import LocationValueError
+ 
+ from .models import Response
+ from .compat import urlparse, basestring
+diff --git a/requests/certs.py b/requests/certs.py
+old mode 100644
+new mode 100755
+index d1a378d7..93f496dc
+--- a/requests/certs.py
++++ b/requests/certs.py
+@@ -12,7 +12,11 @@ If you are packaging Requests, e.g., for a Linux distribution or a managed
+ environment, you can change the definition of where() to return a separately
+ packaged CA bundle.
+ """
+-from certifi import where
++
++try:
++    from yt.packages.certifi import where
++except ImportError:
++    from certifi import where
+ 
+ if __name__ == '__main__':
+     print(where())
+diff --git a/requests/exceptions.py b/requests/exceptions.py
+index 79697635..3507f22b 100644
+--- a/requests/exceptions.py
++++ b/requests/exceptions.py
+@@ -6,7 +6,10 @@ requests.exceptions
+ 
+ This module contains the set of Requests' exceptions.
+ """
+-from urllib3.exceptions import HTTPError as BaseHTTPError
++try:
++    from yt.packages.urllib3.exceptions import HTTPError as BaseHTTPError
++except ImportError:
++    from urllib3.exceptions import HTTPError as BaseHTTPError
+ 
+ from .compat import JSONDecodeError as CompatJSONDecodeError
+ 
+diff --git a/requests/help.py b/requests/help.py
+index 4cd6389f..33be0f5c 100644
+--- a/requests/help.py
++++ b/requests/help.py
+@@ -6,8 +6,14 @@ import platform
+ import sys
+ import ssl
+ 
+-import idna
+-import urllib3
++try:
++    import yt.packages.idna as idna
++except ImportError:
++    import idna
++try:
++    import yt.packages.urllib3 as urllib3
++except ImportError:
++    import urllib3
+ 
+ from . import __version__ as requests_version
+ 
+@@ -22,6 +28,8 @@ except ImportError:
+     chardet = None
+ 
+ try:
++    from yt.packages.urllib3.contrib import pyopenssl
++except ImportError:
+     from urllib3.contrib import pyopenssl
+ except ImportError:
+     pyopenssl = None
+diff --git a/requests/models.py b/requests/models.py
+index 061ef1ac..9a0aff99 100644
+--- a/requests/models.py
++++ b/requests/models.py
+@@ -17,11 +17,18 @@ import encodings.idna
+ 
+ from socket import timeout as SocketTimeout
+ 
+-from urllib3.fields import RequestField
+-from urllib3.filepost import encode_multipart_formdata
+-from urllib3.util import parse_url
+-from urllib3.exceptions import (
+-    DecodeError, ReadTimeoutError, ProtocolError, LocationParseError)
++try:
++    from yt.packages.urllib3.fields import RequestField
++    from yt.packages.urllib3.filepost import encode_multipart_formdata
++    from yt.packages.urllib3.util import parse_url
++    from yt.packages.urllib3.exceptions import (
++        DecodeError, ReadTimeoutError, ProtocolError, LocationParseError)
++except ImportError:
++    from urllib3.fields import RequestField
++    from urllib3.filepost import encode_multipart_formdata
++    from urllib3.util import parse_url
++    from urllib3.exceptions import (
++        DecodeError, ReadTimeoutError, ProtocolError, LocationParseError)
+ 
+ from io import UnsupportedOperation
+ from .hooks import default_hooks
+@@ -355,7 +362,10 @@ class PreparedRequest(RequestEncodingMixin, RequestHooksMixin):
+ 
+     @staticmethod
+     def _get_idna_encoded_host(host):
+-        import idna
++        try:
++            import yt.packages.idna as idna
++        except ImportError:
++            import idna
+ 
+         try:
+             host = idna.encode(host, uts46=True).decode('utf-8')
+diff --git a/requests/utils.py b/requests/utils.py
+index 153776c7..9681a799 100644
+--- a/requests/utils.py
++++ b/requests/utils.py
+@@ -20,8 +20,11 @@ import tempfile
+ import warnings
+ import zipfile
+ from collections import OrderedDict
+-from urllib3.util import make_headers
+-from urllib3.util import parse_url
++
++try:
++    from yt.packages.urllib3.util import make_headers, parse_url
++except ImportError:
++    from urllib3.util import make_headers, parse_url
+ 
+ from .__version__ import __version__
+ from . import certs

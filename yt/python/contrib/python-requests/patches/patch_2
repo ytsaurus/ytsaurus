@@ -1,0 +1,20 @@
+commit 4b333f6f92512eb3f116aa401f4550dc1bcca629
+Author: Ignat Kolesnichenko <ignat@yandex-team.ru>
+Date:   Sun Oct 25 00:46:00 2015 +0300
+
+    Support trailers
+
+diff --git a/requests/models.py b/requests/models.py
+index dfbea854..91cca4a1 100644
+--- a/requests/models.py
++++ b/requests/models.py
+@@ -971,3 +971,9 @@ class Response(object):
+         release_conn = getattr(self.raw, 'release_conn', None)
+         if release_conn is not None:
+             release_conn()
++
++    def trailers(self):
++        trailers = self.raw.trailers()
++        if trailers is not None:
++            return CaseInsensitiveDict(trailers)
++        return trailers

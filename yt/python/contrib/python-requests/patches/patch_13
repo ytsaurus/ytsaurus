@@ -1,0 +1,75 @@
+commit fc70c8b36a7a5b2ebc750d9f1042001040f7e4d3
+Author: Ignat Kolesnichenko <ignat@yandex-team.ru>
+Date:   Fri Sep 23 09:32:12 2022 +0300
+
+    Use cacert.pem from requests package itself
+
+diff --git a/requests/adapters.py b/requests/adapters.py
+index 6c78cc0f..cbd7015d 100644
+--- a/requests/adapters.py
++++ b/requests/adapters.py
+@@ -247,16 +247,19 @@ class HTTPAdapter(BaseAdapter):
+                 cert_loc = verify
+
+             if not cert_loc:
+-                cert_loc = extract_zipped_paths(DEFAULT_CA_BUNDLE_PATH)
++                if isinstance(DEFAULT_CA_BUNDLE_PATH, bytes):
++                    cert_loc = DEFAULT_CA_BUNDLE_PATH
++                else:
++                    cert_loc = extract_zipped_paths(DEFAULT_CA_BUNDLE_PATH)
+
+             if cert_loc:
+-                conn.cert_reqs = 'CERT_REQUIRED'
++                conn.cert_reqs = "CERT_REQUIRED"
+             else:
+                 raise IOError("Missing TLS CA certificate bundle")
+
+-            if cert_loc.startswith(b'-----BEGIN CERTIFICATE-----'):
+-                import ssl
+-                conn.ca_cert_data = ssl.PEM_cert_to_DER_cert(cert_loc.decode('ascii'))
++            if isinstance(cert_loc, bytes) and b"-----BEGIN CERTIFICATE-----" in cert_loc:
++                cert_loc_lines = [line for line in cert_loc.split(b"\n") if not line.startswith(b"#")]
++                conn.ca_cert_data = (b"\n".join(cert_loc_lines)).decode("ascii")
+             else:
+                 if not os.path.exists(cert_loc):
+                     raise IOError("Could not find a suitable TLS CA certificate bundle, "
+diff --git a/requests/certs.py b/requests/certs.py
+index 93f496dc..2ded8af3 100755
+--- a/requests/certs.py
++++ b/requests/certs.py
+@@ -13,10 +13,18 @@ environment, you can change the definition of where() to return a separately
+ packaged CA bundle.
+ """
+
+-try:
+-    from yt.packages.certifi import where
+-except ImportError:
+-    from certifi import where
++import os
++import sys
++
++def where():
++    is_arcadia_python = hasattr(sys, "extra_modules")
++
++    if is_arcadia_python:
++        import library.python.resource
++        return library.python.resource.find("/certs/cacert.pem")
++    else:
++        return os.path.join(os.path.dirname(__file__), "cacert.pem")
++
+
+ if __name__ == '__main__':
+     print(where())
+diff --git a/ya.make b/ya.make
+index 4eb50f98..fe7a1007 100644
+--- a/ya.make
++++ b/ya.make
+@@ -25,4 +25,8 @@ PY_SRCS(
+     requests/packages.py
+ )
+
++RESOURCE(
++    ../../../../certs/cacert.pem /certs/cacert.pem
++)
++
+ END()

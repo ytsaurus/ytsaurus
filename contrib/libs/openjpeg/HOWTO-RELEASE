@@ -1,0 +1,21 @@
+Check-list OpenJPEG Release
+
+* update MAJOR, MINOR, BUILD, SOVERSION in CMakeLists.txt
+* update MAJOR, MINOR, BUILD in appveyor.yml
+* update CHANGELOG with
+`github_changelog_generator --token TOKEN_HERE --exclude-labels gcode_fixed,OpjVersion-1.x --release-url "https://github.com/uclouvain/openjpeg/releases/%s" --since-tag v2.3.1 --future-release v2.4.0 --output append2changelog.md --user uclouvain --project openjpeg --exclude-tags version.1.0` . TOKEN_HERE is created at https://github.com/settings/tokens
+* update NEWS.md
+* git tag -a v2.4.0 -m "OpenJPEG v2.4.0 release"
+* git push origin --tags
+* add post to OpenJPEG website in gh-pages branch in _posts/ subdirectory. See commit https://github.com/uclouvain/openjpeg/commit/6563d704f5fb896209dd862ccfc6b97eb9183c5c
+* change binversion of openjpeg website in _config.yml in gh-pages branch
+* update release description if needed
+* update openjpeg.json with latest release
+* update OPJ_LATEST_VERSION in abi-check.sh, uncomment and update OPJ_PREVIOUS_VERSION in abi-check.sh, and push
+* comment back OPJ_PREVIOUS_VERSION and push
+* build doc and update Doxygen on website
+* manual build on Windows:
+    - cmake ..  -G "Visual Studio 15 2017" -A x64 -DCMAKE_CONFIGURATION_TYPES=Release -DBUILD_THIRDPARTY=ON -D CPACK_GENERATOR:STRING=ZIP -D CPACK_PACKAGE_FILE_NAME:STRING=openjpeg-v2.4.0-windows-x64
+    - cmake --build . --target package --config Release
+* send email to ML opj, comp.compression, iiif
+* tweet

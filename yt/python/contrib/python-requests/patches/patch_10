@@ -1,0 +1,53 @@
+commit 2d6ad010ea8bcb1fab7769c27d3709b82fe31552
+Author: Ignat Kolesnichenko <ignat@yandex-team.ru>
+Date:   Mon Sep 12 11:45:31 2022 +0300
+
+    YP-3016: do not try to use standard OpenSSL library in yt-specific version of urllib3
+
+diff --git a/requests/__init__.py b/requests/__init__.py
+index 05176b5c..f400021e 100644
+--- a/requests/__init__.py
++++ b/requests/__init__.py
+@@ -106,25 +106,26 @@ except (AssertionError, ValueError):
+                   "version!".format(urllib3.__version__, chardet_version, charset_normalizer_version),
+                   RequestsDependencyWarning)
+ 
++# TODO(ignat): pyOpenSSL does not properly work with YpClient.
+ # Attempt to enable urllib3's fallback for SNI support
+ # if the standard library doesn't support SNI or the
+ # 'ssl' library isn't available.
+-try:
+-    try:
+-        import ssl
+-    except ImportError:
+-        ssl = None
+-
+-    if not getattr(ssl, "HAS_SNI", False):
+-        from urllib3.contrib import pyopenssl
+-        pyopenssl.inject_into_urllib3()
+-
+-        # NB: most of users have old cryptography and do not want to starve from this warning.
+-        # Check cryptography version
+-        # from cryptography import __version__ as cryptography_version
+-        # _check_cryptography(cryptography_version)
+-except ImportError:
+-    pass
++# try:
++#     try:
++#         import ssl
++#     except ImportError:
++#         ssl = None
++# 
++#     if not getattr(ssl, "HAS_SNI", False):
++#         from urllib3.contrib import pyopenssl
++#         pyopenssl.inject_into_urllib3()
++# 
++#         # NB: most of users have old cryptography and do not want to starve from this warning.
++#         # Check cryptography version
++#         # from cryptography import __version__ as cryptography_version
++#         # _check_cryptography(cryptography_version)
++# except ImportError:
++#     pass
+ 
+ # urllib3's DependencyWarnings should be silenced.
+ from urllib3.exceptions import DependencyWarning

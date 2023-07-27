@@ -69,7 +69,7 @@ public:
 
         YT_VERIFY(!dataSourceDirectory->DataSources().empty());
 
-        ReaderFactory_ = [=, this] (TNameTablePtr /*nameTable*/, const TColumnFilter& /*columnFilter*/) {
+        ReaderFactory_ = [=, this, this_ = MakeStrong(this)] (TNameTablePtr /*nameTable*/, const TColumnFilter& /*columnFilter*/) {
             std::vector<ISchemalessMultiChunkReaderPtr> readers;
             for (const auto& inputSpec : SchedulerJobSpecExt_.input_table_specs()) {
                 auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);

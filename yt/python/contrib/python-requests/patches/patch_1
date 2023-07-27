@@ -1,0 +1,19 @@
+commit 1c9757e30b8d800bbdaee51a63a6fa561aace139
+Author: Ignat Kolesnichenko <ignat@yandex-team.ru>
+Date:   Sat Oct 24 23:46:09 2015 +0300
+
+    Use json from yt
+
+diff --git a/requests/compat.py b/requests/compat.py
+index 029ae62a..bcb7dcf7 100644
+--- a/requests/compat.py
++++ b/requests/compat.py
+@@ -30,6 +30,8 @@ is_py3 = (_ver[0] == 3)
+ 
+ has_simplejson = False
+ try:
++    import yt.json_wrapper as json
++except ImportError:
+     import simplejson as json
+     has_simplejson = True
+ except ImportError:

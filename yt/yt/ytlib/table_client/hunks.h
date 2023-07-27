@@ -325,6 +325,8 @@ TRef WriteHunkValue(char* ptr, const TInlineHunkValue& value);
 
 THunkValue ReadHunkValue(TRef input);
 
+bool TryDecodeInlineHunkValue(TUnversionedValue* value);
+
 void GlobalizeHunkValues(
     TChunkedMemoryPool* pool,
     const TCachedVersionedChunkMetaPtr& chunkMeta,
@@ -389,6 +391,12 @@ ISchemalessUnversionedReaderPtr CreateHunkDecodingSchemalessReader(
 ISchemalessChunkReaderPtr CreateHunkDecodingSchemalessChunkReader(
     TBatchHunkReaderConfigPtr config,
     ISchemalessChunkReaderPtr underlying,
+    NChunkClient::IChunkFragmentReaderPtr chunkFragmentReader,
+    TTableSchemaPtr schema,
+    NChunkClient::TClientChunkReadOptions options);
+ISchemalessMultiChunkReaderPtr CreateHunkDecodingSchemalessMultiChunkReader(
+    TBatchHunkReaderConfigPtr config,
+    ISchemalessMultiChunkReaderPtr underlying,
     NChunkClient::IChunkFragmentReaderPtr chunkFragmentReader,
     TTableSchemaPtr schema,
     NChunkClient::TClientChunkReadOptions options);

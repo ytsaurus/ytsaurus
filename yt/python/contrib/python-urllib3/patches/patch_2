@@ -1,0 +1,25 @@
+commit 2b743bf52ba18e15c87a791f2c0f32d5dfcd5fbb
+Author: Ignat Kolesnichenko <ignat@yandex-team.ru>
+Date:   Mon Sep 12 10:32:19 2022 +0300
+
+    Allow zero socket timeout
+
+diff --git a/src/urllib3/util/timeout.py b/src/urllib3/util/timeout.py
+index ff69593b..857868ff 100644
+--- a/src/urllib3/util/timeout.py
++++ b/src/urllib3/util/timeout.py
+@@ -147,11 +147,12 @@ class Timeout(object):
+             )
+ 
+         try:
+-            if value <= 0:
++            # NB: We intentionally allow to specify zero socket timeout for tests.
++            if value < 0:
+                 raise ValueError(
+                     "Attempted to set %s timeout to %s, but the "
+                     "timeout cannot be set to a value less "
+-                    "than or equal to 0." % (name, value)
++                    "than 0." % (name, value)
+                 )
+         except TypeError:
+             # Python 3

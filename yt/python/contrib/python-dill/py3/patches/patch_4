@@ -1,0 +1,37 @@
+commit 6372ef7c1d4ea5b2f377867078b28bc8b511d837
+Author: Ignat Kolesnichenko <ignat@yandex-team.ru>
+Date:   Sat Mar 14 13:43:52 2020 +0300
+
+    py23 compatibility fix
+
+diff --git a/dill/_dill.py b/dill/_dill.py
+index 3f3cb02..531641f 100644
+--- a/dill/_dill.py
++++ b/dill/_dill.py
+@@ -731,6 +731,26 @@ _reverse_typemap.update({
+     'PyBufferedWriterType': PyBufferedWriterType,
+     'PyTextWrapperType': PyTextWrapperType,
+ }
++# FIXME
++# We pickle python object using Python 2
++# and then unpicke using Python 3.
++# Someday somewhere `dill` was imported
++# and it extended standard `pickle` module with its own types.
++# After that `pickle.dumps` started using dill types instead of standard types
++# it broke down unpickling in Python 3
++# because these types are not registred in PY3 version of dill library
++# https://docs.python.org/2/library/types.html
++# https://docs.python.org/3/library/types.html
++_incedental_reverse_typemap.update({
++    "TupleType": tuple,
++    "DictType": dict,
++    "ListType": list,
++    "SetType": set,
++    "ObjectType": object,
++    "UnicodeType": str,
++    "IntType": int
++})
++
+ 
+ _incedental_reverse_typemap.update({
+     "DictKeysType": type({}.keys()),

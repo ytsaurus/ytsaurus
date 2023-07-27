@@ -1,0 +1,40 @@
+commit a0d7138afc87520953d985b7f647accdc78800d1
+Author: Ignat Kolesnichenko <ignat@yandex-team.ru>
+Date:   Mon Sep 12 11:52:42 2022 +0300
+
+    Add ya.make
+
+diff --git a/ya.make b/ya.make
+new file mode 100644
+index 00000000..4eb50f98
+--- /dev/null
++++ b/ya.make
+@@ -0,0 +1,28 @@
++OWNER(g:yt g:yt-python)
++
++PY23_LIBRARY()
++
++PY_SRCS(
++    NAMESPACE yt.packages
++
++    requests/certs.py
++    requests/cookies.py
++    requests/status_codes.py
++    requests/auth.py
++    requests/help.py
++    requests/adapters.py
++    requests/compat.py
++    requests/models.py
++    requests/api.py
++    requests/exceptions.py
++    requests/__init__.py
++    requests/_internal_utils.py
++    requests/sessions.py
++    requests/__version__.py
++    requests/structures.py
++    requests/utils.py
++    requests/hooks.py
++    requests/packages.py
++)
++
++END()

@@ -109,7 +109,7 @@ void TSimpleVersionedBlockWriter::WriteRow(TVersionedRow row)
     int keyOffset = KeyStream_.GetSize();
     for (const auto* it = row.BeginKeys(); it != row.EndKeys(); ++it) {
         const auto& value = *it;
-        YT_ASSERT(value.Type == EValueType::Null || value.Type == Schema_->Columns()[value.Id].GetWireType());
+        YT_VERIFY(value.Type == EValueType::Null || value.Type == Schema_->Columns()[value.Id].GetWireType());
         WriteValue(KeyStream_, KeyNullFlags_, nullAggregateFlags, value);
     }
 
@@ -138,8 +138,8 @@ void TSimpleVersionedBlockWriter::WriteRow(TVersionedRow row)
     ui32 valueCount = 0;
     while (static_cast<int>(valueCount) < row.GetValueCount()) {
         const auto& value = row.BeginValues()[valueCount];
-        YT_ASSERT(value.Type == EValueType::Null || value.Type == Schema_->Columns()[value.Id].GetWireType());
-        YT_ASSERT(lastId <= value.Id);
+        YT_VERIFY(value.Type == EValueType::Null || value.Type == Schema_->Columns()[value.Id].GetWireType());
+        YT_VERIFY(lastId <= value.Id);
         if (lastId < value.Id) {
             WritePod(KeyStream_, valueCount);
             ++lastId;
@@ -428,7 +428,7 @@ void TIndexedVersionedBlockWriter::ResetKeyData()
     stringDataSize = 0;
     for (const auto* it = RowData_.Row.BeginKeys(); it != RowData_.Row.EndKeys(); ++it) {
         const auto& value = *it;
-        YT_ASSERT(value.Type == EValueType::Null || value.Type == Schema_->Columns()[value.Id].GetWireType());
+        YT_VERIFY(value.Type == EValueType::Null || value.Type == Schema_->Columns()[value.Id].GetWireType());
 
         if (IsStringLikeType(value.Type)) {
             YT_VERIFY(!IsInlineHunkValue(value));
@@ -469,8 +469,8 @@ void TIndexedVersionedBlockWriter::ResetValueData()
     for (int valueIndex = 0; valueIndex < row.GetValueCount(); ++valueIndex) {
         const auto& value = row.BeginValues()[valueIndex];
 
-        YT_ASSERT(value.Type == EValueType::Null || value.Type == Schema_->Columns()[value.Id].GetWireType());
-        YT_ASSERT(currentId <= value.Id);
+        YT_VERIFY(value.Type == EValueType::Null || value.Type == Schema_->Columns()[value.Id].GetWireType());
+        YT_VERIFY(currentId <= value.Id);
 
         while (currentId < value.Id) {
             fillValueRange(valueIndex);

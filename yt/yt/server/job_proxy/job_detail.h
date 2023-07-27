@@ -15,7 +15,7 @@
 
 #include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
-#include <yt/yt/client/table_client/schemaful_reader_adapter.h>
+#include <yt/yt/ytlib/table_client/schemaful_reader_adapter.h>
 
 namespace NYT::NJobProxy {
 

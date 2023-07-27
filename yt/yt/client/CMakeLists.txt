@@ -148,7 +148,6 @@ target_sources(yt-yt-client PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/client/table_client/value_consumer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/table_client/table_consumer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/table_client/schemaless_row_reorderer.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/table_client/schemaful_reader_adapter.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/table_client/unordered_schemaful_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/table_client/validate_logical_type.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/table_client/composite_compare.cpp

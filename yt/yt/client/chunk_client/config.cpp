@@ -76,6 +76,22 @@ void TEncodingWriterConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TRemoteReaderConfigBase::Register(TRegistrar registrar)
+{
+    registrar.Parameter("disk_queue_size_factor", &TThis::DiskQueueSizeFactor)
+        .Default(1.0);
+    registrar.Parameter("net_queue_size_factor", &TThis::NetQueueSizeFactor)
+        .Default(0.5);
+
+    registrar.Parameter("suspicious_node_grace_period", &TThis::SuspiciousNodeGracePeriod)
+        .Default();
+
+    registrar.Parameter("use_direct_io", &TThis::UseDirectIO)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TReplicationReaderConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("block_rpc_timeout", &TThis::BlockRpcTimeout)
@@ -126,10 +142,6 @@ void TReplicationReaderConfig::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("max_ban_count", &TThis::MaxBanCount)
         .Default(5);
-    registrar.Parameter("disk_queue_size_factor", &TThis::DiskQueueSizeFactor)
-        .Default(1.0);
-    registrar.Parameter("net_queue_size_factor", &TThis::NetQueueSizeFactor)
-        .Default(0.5);
     registrar.Parameter("enable_workload_fifo_scheduling", &TThis::EnableWorkloadFifoScheduling)
         .Default(true);
     registrar.Parameter("retry_timeout", &TThis::RetryTimeout)
@@ -146,8 +158,6 @@ void TReplicationReaderConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("use_block_cache", &TThis::UseBlockCache)
         .Default(true);
-    registrar.Parameter("suspicious_node_grace_period", &TThis::SuspiciousNodeGracePeriod)
-        .Default();
     registrar.Parameter("prolonged_discard_seeds_delay", &TThis::ProlongedDiscardSeedsDelay)
         .Default(TDuration::Minutes(1));
     registrar.Parameter("enable_chunk_meta_cache", &TThis::EnableChunkMetaCache)
@@ -158,8 +168,6 @@ void TReplicationReaderConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("chunk_meta_cache_failure_probability", &TThis::ChunkMetaCacheFailureProbability)
         .Default();
-    registrar.Parameter("use_direct_io", &TThis::UseDirectIO)
-        .Default(false);
 
     registrar.Postprocessor([] (TThis* config) {
         // Seems unreasonable to make backoff greater than half of total session timeout.
@@ -392,11 +400,6 @@ void TChunkFragmentReaderConfig::Register(TRegistrar registrar)
         .GreaterThan(TDuration::Zero())
         .Default(TDuration::Seconds(10));
 
-    registrar.Parameter("net_queue_size_factor", &TThis::NetQueueSizeFactor)
-        .Default(0.5);
-    registrar.Parameter("disk_queue_size_factor", &TThis::DiskQueueSizeFactor)
-        .Default(1.0);
-
     registrar.Parameter("probe_chunk_set_rpc_timeout", &TThis::ProbeChunkSetRpcTimeout)
         .Default(TDuration::Seconds(5));
     registrar.Parameter("get_chunk_fragment_set_rpc_timeout", &TThis::GetChunkFragmentSetRpcTimeout)
@@ -415,13 +418,6 @@ void TChunkFragmentReaderConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("chunk_info_cache_expiration_timeout", &TThis::ChunkInfoCacheExpirationTimeout)
         .Default(TDuration::Seconds(30));
-
-    registrar.Parameter("suspicious_node_grace_period", &TThis::SuspiciousNodeGracePeriod)
-        .Default(TDuration::Minutes(5));
-
-    registrar.Parameter("use_direct_io", &TThis::UseDirectIO)
-        .Default(false)
-        .DontSerializeDefault();
 
     registrar.Parameter("max_inflight_fragment_length", &TThis::MaxInflightFragmentLength)
         .Default(16_MB);

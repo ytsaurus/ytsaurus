@@ -114,7 +114,7 @@ ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
     const TTableReaderOptionsPtr& options,
     const TTableReaderConfigPtr& config,
     NChunkClient::TChunkReaderHostPtr chunkReaderHost,
-    TTableReadSpec& tableReadSpec,
+    const TTableReadSpec& tableReadSpec,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     bool unordered,
     const TNameTablePtr& nameTable,

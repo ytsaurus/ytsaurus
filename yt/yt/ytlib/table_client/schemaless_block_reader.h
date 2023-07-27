@@ -110,7 +110,8 @@ private:
     TCompactVector<char, DefaultKeyBufferCapacity> KeyBuffer_;
     TMutableUnversionedRow Key_;
 
-    TUnversionedValue TransformAnyValue(TUnversionedValue value);
+    bool IsHunkValue(TUnversionedValue value);
+    TUnversionedValue DecodeAnyValue(TUnversionedValue value);
     int GetChunkKeyColumnCount() const;
     int GetKeyColumnCount() const;
 };

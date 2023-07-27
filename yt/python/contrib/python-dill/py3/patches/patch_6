@@ -1,0 +1,21 @@
+commit 84596a5a1e4ec3535cc48ee6b26713fed5163902
+Author: Ignat Kolesnichenko <ignat@yandex-team.ru>
+Date:   Thu Aug 25 19:05:34 2022 +0300
+
+    Do not extend by dill automatically
+
+diff --git a/dill/__init__.py b/dill/__init__.py
+old mode 100644
+new mode 100755
+index e47f482..5124bc4
+--- a/dill/__init__.py
++++ b/dill/__init__.py
+@@ -372,7 +372,7 @@ def extend(use_dill=True):
+     else: _revert_extension()
+     return
+ 
+-extend()
++extend(use_dill=False)
+ 
+ 
+ def license():

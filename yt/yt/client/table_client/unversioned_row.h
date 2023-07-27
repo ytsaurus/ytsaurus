@@ -214,7 +214,7 @@ inline size_t GetDataWeight(const TUnversionedValue& value)
     }
 }
 
-size_t GetByteSize(const TUnversionedValue& value);
+size_t EstimateRowValueSize(const TUnversionedValue& value, bool isInlineHunkValue = false);
 size_t WriteRowValue(char* output, const TUnversionedValue& value, bool isInlineHunkValue = false);
 size_t ReadRowValue(const char* input, TUnversionedValue* value);
 

@@ -196,9 +196,27 @@ DEFINE_REFCOUNTED_TYPE(TKeyFilterWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TBatchHunkReaderConfig
+    : public virtual NYTree::TYsonStruct
+{
+public:
+    int MaxHunkCountPerRead;
+    i64 MaxTotalHunkLengthPerRead;
+
+    REGISTER_YSON_STRUCT(TBatchHunkReaderConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TBatchHunkReaderConfig)
+
+///////////////////////////////////////////////////////////////////////////////
+
 class TTableReaderConfig
     : public virtual NChunkClient::TMultiChunkReaderConfig
     , public virtual TChunkReaderConfig
+    , public TBatchHunkReaderConfig
+    , public NChunkClient::TChunkFragmentReaderConfig
 {
 public:
     bool SuppressAccessTracking;

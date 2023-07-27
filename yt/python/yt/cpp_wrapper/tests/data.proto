@@ -1,0 +1,47 @@
+import "yt/yt_proto/yt/formats/extension.proto";
+
+message TLoginRecord
+{
+    optional string Name = 1 [(NYT.column_name) = "name"];
+    optional string Login = 2 [(NYT.column_name) = "login"];
+}
+
+message TNameUidRecord
+{
+    optional string Name = 1 [(NYT.column_name) = "name"];
+    optional int64 Uid = 2 [(NYT.column_name) = "uid"];
+}
+
+message TEmailRecord
+{
+    optional string Name = 1 [(NYT.column_name) = "name"];
+    optional string Email = 2 [(NYT.column_name) = "email"];
+}
+
+message TUserRecord {
+    optional int64 Uid = 1    [(NYT.column_name) = "uid"];
+    optional string Name = 2  [(NYT.column_name) = "name"];
+    optional string Login = 3 [(NYT.column_name) = "login"];
+}
+
+message TIsRobotRecord {
+    optional int64 Uid = 1    [(NYT.column_name) = "uid"];
+    optional bool IsRobot = 2 [(NYT.column_name) = "is_robot"];
+}
+
+message THumanRecord {
+    optional string Name = 1  [(NYT.column_name) = "name"];
+    optional string Email = 2 [(NYT.column_name) = "email"];
+    optional string Login = 3 [(NYT.column_name) = "login"];
+}
+
+message TRobotRecord {
+    optional int64 Uid = 1    [(NYT.column_name) = "uid"];
+    optional string Login = 2 [(NYT.column_name) = "login"];
+}
+
+message TNameCountRecord
+{
+    optional string Name = 1 [(NYT.column_name) = "name"];
+    optional int64 Count = 2 [(NYT.column_name) = "count"];
+}

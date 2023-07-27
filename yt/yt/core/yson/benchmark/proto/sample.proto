@@ -1,0 +1,27 @@
+package NYT.NYson.NProto;
+
+import "yt_proto/yt/core/misc/proto/protobuf_helpers.proto";
+import "yt_proto/yt/core/yson/proto/protobuf_interop.proto";
+
+enum EColor
+{
+    C_GREEN = -1 [(NYT.NYson.NProto.enum_value_name) = "green"];
+    C_RED = 2 [(NYT.NYson.NProto.enum_value_name) = "red"];
+    C_BLUE = 3 [(NYT.NYson.NProto.enum_value_name) = "blue"];
+}
+
+message TNestedMessage1
+{
+    optional uint32 field = 1;
+}
+
+message TNestedMessage2
+{
+    optional EColor color = 1;
+    optional TNestedMessage1 nested = 2;
+}
+
+message TMessage
+{
+    optional TNestedMessage2 nested = 2;
+}

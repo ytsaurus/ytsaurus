@@ -1,0 +1,123 @@
+commit 6bdd876bb5abe91ed0ae9bfd9da206eda86eaa3c
+Author: Andrey Saitgalin <asaitgalin@yandex-team.ru>
+Date:   Thu Oct 20 18:44:48 2016 +0300
+
+    Use yt.packages import prefix
+
+diff --git a/dill/_objects.py b/dill/_objects.py
+old mode 100644
+new mode 100755
+diff --git a/dill/_shims.py b/dill/_shims.py
+index 6bda513..33957f8 100644
+--- a/dill/_shims.py
++++ b/dill/_shims.py
+@@ -51,7 +51,7 @@ https://github.com/uqfoundation/dill/pull/443
+ 
+ import inspect, sys
+ 
+-_dill = sys.modules['dill._dill']
++_dill = sys.modules['yt.packages.dill._dill']
+ 
+ 
+ class Reduce(object):
+diff --git a/dill/detect.py b/dill/detect.py
+index 4157520..ae73520 100644
+--- a/dill/detect.py
++++ b/dill/detect.py
+@@ -280,7 +280,7 @@ def baditems(obj, exact=False, safe=False): #XXX: obj=globals() ?
+ 
+ def badobjects(obj, depth=0, exact=False, safe=False):
+     """get objects that fail to pickle"""
+-    from dill import pickles
++    from yt.packages.dill import pickles
+     if not depth:
+         if pickles(obj,exact,safe): return None
+         return obj
+@@ -289,7 +289,7 @@ def badobjects(obj, depth=0, exact=False, safe=False):
+ 
+ def badtypes(obj, depth=0, exact=False, safe=False):
+     """get types for objects that fail to pickle"""
+-    from dill import pickles
++    from yt.packages.dill import pickles
+     if not depth:
+         if pickles(obj,exact,safe): return None
+         return type(obj)
+@@ -298,7 +298,7 @@ def badtypes(obj, depth=0, exact=False, safe=False):
+ 
+ def errors(obj, depth=0, exact=False, safe=False):
+     """get errors for objects that fail to pickle"""
+-    from dill import pickles, copy
++    from yt.packages.dill import pickles, copy
+     if not depth:
+         try:
+             pik = copy(obj)
+diff --git a/dill/objtypes.py b/dill/objtypes.py
+index 37fbbc4..eb84265 100644
+--- a/dill/objtypes.py
++++ b/dill/objtypes.py
+@@ -13,10 +13,10 @@ to load more objects and types, use dill.load_types()
+ """
+ 
+ # non-local import of dill.objects
+-from dill import objects
++from yt.packages.dill import objects
+ for _type in objects.keys():
+     exec("%s = type(objects['%s'])" % (_type,_type))
+-    
++
+ del objects
+ try:
+     del _type
+diff --git a/dill/source.py b/dill/source.py
+index 47064a1..3fc5315 100644
+--- a/dill/source.py
++++ b/dill/source.py
+@@ -571,7 +571,7 @@ def dumpsource(object, alias='', new=False, enclose=True):
+     create the object inside a function enclosure (thus minimizing
+     any global namespace pollution).
+     """
+-    from dill import dumps
++    from yt.packages.dill import dumps
+     pik = repr(dumps(object))
+     code = 'import dill\n'
+     if enclose:
+diff --git a/dill/temp.py b/dill/temp.py
+index 251a8e3..aa93237 100644
+--- a/dill/temp.py
++++ b/dill/temp.py
+@@ -130,7 +130,7 @@ def load(file, **kwds):
+     >>> dill.temp.load(dumpfile)
+     [1, 2, 3, 4, 5]
+     """
+-    import dill as pickle
++    import yt.packages.dill as pickle
+     mode = kwds.pop('mode', 'rb')
+     name = getattr(file, 'name', file) # name=file.name or name=file (if str)
+     return pickle.load(open(name, mode=mode, **kwds))
+@@ -159,7 +159,7 @@ Optional kwds:
+ 
+ NOTE: Keep the return value for as long as you want your file to exist !
+     """
+-    import dill as pickle
++    import yt.packages.dill as pickle
+     import tempfile
+     file = tempfile.NamedTemporaryFile(**kwds)
+     pickle.dump(object, file)
+@@ -175,7 +175,7 @@ def loadIO(buffer, **kwds):
+     >>> dill.temp.loadIO(dumpfile)
+     [1, 2, 3, 4, 5]
+     """
+-    import dill as pickle
++    import yt.packages.dill as pickle
+     if PY3:
+         from io import BytesIO as StringIO
+     else:
+@@ -192,7 +192,7 @@ Loads with "dill.temp.loadIO".  Returns the buffer object.
+     >>> dill.temp.loadIO(dumpfile)
+     [1, 2, 3, 4, 5]
+     """
+-    import dill as pickle
++    import yt.packages.dill as pickle
+     if PY3:
+         from io import BytesIO as StringIO
+     else:

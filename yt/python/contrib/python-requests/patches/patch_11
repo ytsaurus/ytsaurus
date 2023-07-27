@@ -1,0 +1,47 @@
+commit 7be9001026a7b210c67a61d70f603242d1e0921b
+Author: Ignat Kolesnichenko <ignat@yandex-team.ru>
+Date:   Mon Sep 12 22:21:07 2022 +0300
+
+    YP-376: correctly process ca_cert_data
+
+diff --git a/requests/adapters.py b/requests/adapters.py
+index e46059af..6c78cc0f 100644
+--- a/requests/adapters.py
++++ b/requests/adapters.py
+@@ -249,20 +249,28 @@ class HTTPAdapter(BaseAdapter):
+             if not cert_loc:
+                 cert_loc = extract_zipped_paths(DEFAULT_CA_BUNDLE_PATH)
+ 
+-            if not cert_loc or not os.path.exists(cert_loc):
+-                raise IOError("Could not find a suitable TLS CA certificate bundle, "
+-                              "invalid path: {}".format(cert_loc))
+-
+-            conn.cert_reqs = 'CERT_REQUIRED'
++            if cert_loc:
++                conn.cert_reqs = 'CERT_REQUIRED'
++            else:
++                raise IOError("Missing TLS CA certificate bundle")
+ 
+-            if not os.path.isdir(cert_loc):
+-                conn.ca_certs = cert_loc
++            if cert_loc.startswith(b'-----BEGIN CERTIFICATE-----'):
++                import ssl
++                conn.ca_cert_data = ssl.PEM_cert_to_DER_cert(cert_loc.decode('ascii'))
+             else:
+-                conn.ca_cert_dir = cert_loc
++                if not os.path.exists(cert_loc):
++                    raise IOError("Could not find a suitable TLS CA certificate bundle, "
++                                  "invalid path: {}".format(cert_loc))
++
++                if not os.path.isdir(cert_loc):
++                    conn.ca_certs = cert_loc
++                else:
++                    conn.ca_cert_dir = cert_loc
+         else:
+             conn.cert_reqs = 'CERT_NONE'
+             conn.ca_certs = None
+             conn.ca_cert_dir = None
++            conn.ca_cert_data = None
+ 
+         if cert:
+             if not isinstance(cert, basestring):

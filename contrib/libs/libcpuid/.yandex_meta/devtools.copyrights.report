@@ -1,0 +1,94 @@
+# File format ($ symbol means the beginning of a line):
+#
+# $ # this message
+# $ # =======================
+# $     # comments (all commentaries should starts with some number of spaces and # symbol)
+# ${action} {license id} {license text hash}
+# $BELONGS ./ya/make/file/relative/path/1/ya.make ./ya/make/2/ya.make
+# ${all_file_action} filename
+# $ # user commentaries (many lines)
+# $ generated description - files with this license, license text... (some number of lines that starts with some number of spaces, do not modify)
+# ${action} {license spdx} {license text hash}
+# $BELONGS ./ya/make/file/relative/path/3/ya.make
+# ${all_file_action} filename
+# $    #    user commentaries
+# $ generated description
+# $ ...
+#
+# You can modify action, all_file_action and add commentaries
+# Available actions:
+# keep - keep license in contrib and use in credits
+# skip - skip license
+# remove - remove all files with this license
+# rename - save license text/links into licenses texts file, but not store SPDX into LINCENSE macro. You should store correct license id into devtools.license.spdx.txt file
+#
+# {all file action} records will be generated when license text contains filename that exists on filesystem (in contrib directory)
+# We suppose that that files can contain some license info
+# Available all file actions:
+# FILE_IGNORE - ignore file (do nothing)
+# FILE_INCLUDE - include all file data into licenses text file
+# =======================
+
+KEEP     COPYRIGHT_SERVICE_LABEL 14c952e6e2f1bb692f155cd1fcb0cea9
+BELONGS ya.make
+    License text:
+         * Copyright 2016  Veselin Georgiev,
+         * anrieffNOSPAM @ mgail_DOT.com (convert to gmail)
+    Scancode info:
+        Original SPDX id: COPYRIGHT_SERVICE_LABEL
+        Score           : 100.00
+        Match type      : COPYRIGHT
+    Files with this license:
+        libcpuid/amd_code_t.h [2:3]
+        libcpuid/intel_code_t.h [2:3]
+        libcpuid/libcpuid_internal.h [2:3]
+
+KEEP     COPYRIGHT_SERVICE_LABEL 5e75d3f3708a231effba5ece6d0de1f1
+BELONGS ya.make
+    License text:
+         * Copyright 2009  Veselin Georgiev,
+         * anrieffNOSPAM @ mgail_DOT.com (convert to gmail)
+    Scancode info:
+        Original SPDX id: COPYRIGHT_SERVICE_LABEL
+        Score           : 100.00
+        Match type      : COPYRIGHT
+    Files with this license:
+        libcpuid/rdmsr.c [2:3]
+
+KEEP     COPYRIGHT_SERVICE_LABEL 8420ca040618e0c6d9345b14567ba388
+BELONGS ya.make
+    License text:
+         * Copyright 2010  Veselin Georgiev,
+         * anrieffNOSPAM @ mgail_DOT.com (convert to gmail)
+    Scancode info:
+        Original SPDX id: COPYRIGHT_SERVICE_LABEL
+        Score           : 100.00
+        Match type      : COPYRIGHT
+    Files with this license:
+        libcpuid/rdtsc.h [2:3]
+
+KEEP     COPYRIGHT_SERVICE_LABEL 8ca13448d2b26b5841c079ec316f7bd4
+BELONGS cpuid_tool/ya.make ya.make
+    License text:
+        Copyright 2008  Veselin Georgiev,
+        anrieffNOSPAM @ mgail_DOT.com (convert to gmail)
+    Scancode info:
+        Original SPDX id: COPYRIGHT_SERVICE_LABEL
+        Score           : 100.00
+        Match type      : COPYRIGHT
+    Files with this license:
+        COPYING [1:2]
+        cpuid_tool/cpuid_tool.c [2:3]
+        libcpuid/asm-bits.c [2:3]
+        libcpuid/asm-bits.h [2:3]
+        libcpuid/cpuid_main.c [2:3]
+        libcpuid/libcpuid.h [2:3]
+        libcpuid/libcpuid_constants.h [2:3]
+        libcpuid/libcpuid_types.h [2:3]
+        libcpuid/libcpuid_util.c [2:3]
+        libcpuid/libcpuid_util.h [2:3]
+        libcpuid/rdtsc.c [2:3]
+        libcpuid/recog_amd.c [2:3]
+        libcpuid/recog_amd.h [2:3]
+        libcpuid/recog_intel.c [2:3]
+        libcpuid/recog_intel.h [2:3]

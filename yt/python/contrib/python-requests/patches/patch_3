@@ -1,0 +1,77 @@
+commit 235d818feb689705cf2088d1bb658de978b5b54b
+Author: Ignat Kolesnichenko <ignat@yandex-team.ru>
+Date:   Thu Jun 9 17:58:15 2016 +0300
+
+    YT-4936: Pass auth method to request after redirect
+
+diff --git a/requests/models.py b/requests/models.py
+index 91cca4a1..2c912a33 100644
+--- a/requests/models.py
++++ b/requests/models.py
+@@ -8,7 +8,7 @@ This module contains the primary objects that power Requests.
+ """
+ 
+ import datetime
+-import sys
++from copy import deepcopy
+ 
+ # Import encoding now, to avoid implicit import later.
+ # Implicit import within threads may cause LookupError when standard library is in a ZIP,
+@@ -339,6 +339,8 @@ class PreparedRequest(RequestEncodingMixin, RequestHooksMixin):
+         p.body = self.body
+         p.hooks = self.hooks
+         p._body_position = self._body_position
++        if hasattr(self, "auth_method"):
++            p.auth_method = deepcopy(self.auth_method)
+         return p
+ 
+     def prepare_method(self, method):
+@@ -563,6 +565,8 @@ class PreparedRequest(RequestEncodingMixin, RequestHooksMixin):
+             # Recompute Content-Length
+             self.prepare_content_length(self.body)
+ 
++        self.auth_method = auth
++
+     def prepare_cookies(self, cookies):
+         """Prepares the given HTTP cookie data.
+ 
+diff --git a/requests/sessions.py b/requests/sessions.py
+index 3f59cab9..6e793f77 100644
+--- a/requests/sessions.py
++++ b/requests/sessions.py
+@@ -213,7 +213,7 @@ class SessionRedirectMixin(object):
+ 
+             # Rebuild auth and proxy information.
+             proxies = self.rebuild_proxies(prepared_request, proxies)
+-            self.rebuild_auth(prepared_request, resp)
++            self.rebuild_auth(prepared_request, resp, req.auth_method)
+ 
+             # A failed tell() sets `_body_position` to `object()`. This non-None
+             # value ensures `rewindable` will be True, allowing us to raise an
+@@ -251,7 +251,7 @@ class SessionRedirectMixin(object):
+                 url = self.get_redirect_target(resp)
+                 yield resp
+ 
+-    def rebuild_auth(self, prepared_request, response):
++    def rebuild_auth(self, prepared_request, response, auth):
+         """When being redirected we may want to strip authentication from the
+         request to avoid leaking credentials. This method intelligently removes
+         and reapplies authentication where possible to avoid credential loss.
+@@ -264,10 +264,13 @@ class SessionRedirectMixin(object):
+             # authentication headers.
+             del headers['Authorization']
+ 
+-        # .netrc might have more auth for us on our new host.
+-        new_auth = get_netrc_auth(url) if self.trust_env else None
+-        if new_auth is not None:
+-            prepared_request.prepare_auth(new_auth)
++        if auth:
++            prepared_request.prepare_auth(auth)
++        else:
++            # .netrc might have more auth for us on our new host.
++            new_auth = get_netrc_auth(url) if self.trust_env else None
++            if new_auth is not None:
++                prepared_request.prepare_auth(new_auth)
+ 
+     def rebuild_proxies(self, prepared_request, proxies):
+         """This method re-evaluates the proxy configuration by considering the

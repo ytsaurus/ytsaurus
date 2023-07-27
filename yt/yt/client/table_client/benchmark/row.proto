@@ -1,0 +1,69 @@
+package NYT.NTableClientBenchmark;
+
+message TCanonizedUrlRowProto
+{
+    message TShardDocIds
+    {
+        message TShardPair
+        {
+            optional bytes Shard = 1;
+            optional uint64 DocId = 2;
+        }
+
+        repeated TShardPair Entries = 1;
+    }
+    
+    optional bytes Host = 1;
+    optional bytes Path = 2;
+    optional bytes Region = 3;
+    optional bytes OriginalUrl = 4;
+    optional bytes BeautyUrl = 5;
+    optional bytes MainContentUrl = 6;
+    optional TShardDocIds ShardDocIds = 7;
+}
+
+message TIntermediateSemidupsDataProto
+{
+    message TSemidupsData
+    {
+        optional bytes DocId = 1;
+        optional uint64 MainDocId = 2;
+        optional uint32 Distance = 3;
+        optional bytes Reason = 4;
+        optional uint32 IsNotMain = 5;
+        optional bool HasNoContentDups = 6;
+    }
+    
+    message TUrlData
+    {
+        optional bytes Url = 1;
+        optional bytes DocId = 2;
+        optional bool HasNoContentDups = 3;
+        optional uint64 ContentHash = 4;
+        optional uint64 Simhash = 5;
+        optional uint32 TitleHash = 6;
+        optional uint32 DocLength = 7;
+        optional uint32 Language = 8;
+        optional bytes Host = 9;
+        optional uint64 DocId8 = 10;
+        optional bytes Region = 11;
+        optional bytes MainMirror = 12;
+    }
+    
+    optional bytes DocId = 1;
+    optional uint32 TableIndex = 2;
+    optional TSemidupsData SemidupsData = 3;
+    optional TUrlData UrlData = 4;
+}
+
+message TUrlDataRowProto
+{
+    optional bytes Host = 1;
+    optional bytes Path = 2;
+    optional bytes Region = 3;
+    optional uint64 LastAccess = 4;
+    optional uint64 ExportTime = 5;
+    optional uint64 TextCRC = 6;
+    optional uint64 HttpModTime = 7;
+}
+

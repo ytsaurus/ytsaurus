@@ -149,7 +149,14 @@ TKey THorizontalBlockReader::GetKey() const
     return TKey::FromRowUnchecked(Key_, GetKeyColumnCount());
 }
 
-TUnversionedValue THorizontalBlockReader::TransformAnyValue(TUnversionedValue value)
+bool THorizontalBlockReader::IsHunkValue(TUnversionedValue value)
+{
+    return IsStringLikeType(value.Type) &&
+        !HunkColumnFlags_.empty() &&
+        HunkColumnFlags_[value.Id];
+}
+
+TUnversionedValue THorizontalBlockReader::DecodeAnyValue(TUnversionedValue value)
 {
     if (value.Type != EValueType::Any) {
         return value;
@@ -188,7 +195,7 @@ TMutableUnversionedRow THorizontalBlockReader::GetRow(TChunkedMemoryPool* memory
         TUnversionedValue value;
         CurrentPointer_ += ReadRowValue(CurrentPointer_, &value);
 
-        if (!HunkColumnFlags_.empty() && HunkColumnFlags_[value.Id]) {
+        if (IsHunkValue(value)) {
             GlobalizeHunkValueAndSetHunkFlag(
                 memoryPool,
                 HunkChunkRefsExt_,
@@ -198,7 +205,7 @@ TMutableUnversionedRow THorizontalBlockReader::GetRow(TChunkedMemoryPool* memory
 
         auto remappedId = ChunkToReaderIdMapping_[value.Id];
         if (remappedId >= 0) {
-            value = TransformAnyValue(value);
+            value = DecodeAnyValue(value);
             value.Id = remappedId;
             row[valueCount] = value;
             ++valueCount;
@@ -265,7 +272,7 @@ TMutableVersionedRow THorizontalBlockReader::GetVersionedRow(
         TUnversionedValue value;
         CurrentPointer_ += ReadRowValue(CurrentPointer_, &value);
 
-        if (!HunkColumnFlags_.empty() && HunkColumnFlags_[value.Id]) {
+        if (IsHunkValue(value)) {
             GlobalizeHunkValueAndSetHunkFlag(
                 memoryPool,
                 HunkChunkRefsExt_,
@@ -275,7 +282,7 @@ TMutableVersionedRow THorizontalBlockReader::GetVersionedRow(
 
         int id = ChunkToReaderIdMapping_[value.Id];
         if (id >= GetKeyColumnCount()) {
-            value = TransformAnyValue(value);
+            value = DecodeAnyValue(value);
             value.Id = id;
             *currentValue = MakeVersionedValue(value, timestamp);
             ++currentValue;

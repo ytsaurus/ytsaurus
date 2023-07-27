@@ -1,0 +1,53 @@
+commit ed4b9613886b8d4f504ac66a9e627c89ed1c5a0d
+Author: Ignat Kolesnichenko <ignat@yandex-team.ru>
+Date:   Mon Sep 12 10:57:47 2022 +0300
+
+    YT-9310: Better processing errors in case of chunk-transfer requests
+
+diff --git a/requests/adapters.py b/requests/adapters.py
+index fe22ff45..1c543cf6 100644
+--- a/requests/adapters.py
++++ b/requests/adapters.py
+@@ -491,6 +491,27 @@ class HTTPAdapter(BaseAdapter):
+                         preload_content=False,
+                         decode_content=False
+                     )
++                except socket.error as sockerr:
++                    error = ConnectionError(sockerr)
++                    if isinstance(sockerr, socket.timeout):
++                        raise error
++
++                    try:
++                        r = low_conn.getresponse()
++                        resp = HTTPResponse.from_httplib(
++                            r,
++                            pool=conn,
++                            connection=low_conn,
++                            preload_content=False,
++                            decode_content=False
++                        )
++                        error.response = self.build_response(request, resp)
++                        # Intentionally read body from connection.
++                        error.response.content
++                    except:  # noqa
++                        pass
++                    finally:
++                        low_conn.close()
++
++                    raise error
+                 except:
+                     # If we hit any problems here, clean up the connection.
+                     # Then, reraise so that we can handle the actual exception.
+diff --git a/requests/models.py b/requests/models.py
+index 2c912a33..957a7ddd 100644
+--- a/requests/models.py
++++ b/requests/models.py
+@@ -15,6 +15,8 @@ from copy import deepcopy
+ # such as in Embedded Python. See https://github.com/psf/requests/issues/3578.
+ import encodings.idna
+ 
++from socket import timeout as SocketTimeout
++
+ from urllib3.fields import RequestField
+ from urllib3.filepost import encode_multipart_formdata
+ from urllib3.util import parse_url

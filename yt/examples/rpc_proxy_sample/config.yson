@@ -1,0 +1,9 @@
+{
+    connection = {
+        cluster_url = "hume.yt.yandex.net";
+        proxy_list_update_period = 5000;
+    };
+
+    yp_service_discovery = {
+    };
+}

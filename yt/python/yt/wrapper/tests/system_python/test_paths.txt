@@ -1,0 +1,2 @@
+test_operations_pickling.py
+test_tmpfs.py

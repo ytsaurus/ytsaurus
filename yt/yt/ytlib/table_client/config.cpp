@@ -49,16 +49,4 @@ void THunkChunkPayloadWriterConfig::Register(TRegistrar registrar)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-void TBatchHunkReaderConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("max_hunk_count_per_read", &TThis::MaxHunkCountPerRead)
-        .GreaterThan(0)
-        .Default(10'000);
-    registrar.Parameter("max_total_hunk_length_per_read", &TThis::MaxTotalHunkLengthPerRead)
-        .GreaterThan(0)
-        .Default(16_MB);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NTableClient

@@ -106,8 +106,30 @@ DEFINE_REFCOUNTED_TYPE(TEncodingWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicationReaderConfig
+class TRemoteReaderConfigBase
     : public virtual NYTree::TYsonStruct
+{
+public:
+    //! Factors to calculate peer load as linear combination of disk queue and net queue.
+    double NetQueueSizeFactor;
+    double DiskQueueSizeFactor;
+
+    //! Will locate new replicas from master
+    //! if node was suspicious for at least the period (unless null).
+    std::optional<TDuration> SuspiciousNodeGracePeriod;
+
+    //! Will open and read with DirectIO (unless already opened w/o DirectIO or disabled via location config).
+    bool UseDirectIO;
+
+    REGISTER_YSON_STRUCT(TRemoteReaderConfigBase);
+
+    static void Register(TRegistrar registrar);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TReplicationReaderConfig
+    : public virtual TRemoteReaderConfigBase
 {
 public:
     //! Timeout for a block request.
@@ -179,10 +201,6 @@ public:
     //! If peer ban counter exceeds #MaxBanCount, peer is banned forever.
     int MaxBanCount;
 
-    //! Factors to calculate peer load as linear combination of disk queue and net queue.
-    double NetQueueSizeFactor;
-    double DiskQueueSizeFactor;
-
     //! If |true|, then workload descriptors are annotated with the read session start time
     //! and are thus scheduled in FIFO order.
     bool EnableWorkloadFifoScheduling;
@@ -206,10 +224,6 @@ public:
     //! If |true| replication reader will try to fetch blocks from local block cache.
     bool UseBlockCache;
 
-    //! Will locate new replicas from master
-    //! if node was suspicious for at least the period (unless null).
-    std::optional<TDuration> SuspiciousNodeGracePeriod;
-
     //! Is used to increase interval between Locates
     //! that are called for discarding seeds that are suspicious.
     TDuration ProlongedDiscardSeedsDelay;
@@ -228,10 +242,6 @@ public:
     //! For testing purposes.
     //! Unless null, reader will simulate failure of accessing chunk meta cache with such probability.
     std::optional<double> ChunkMetaCacheFailureProbability;
-
-    //! Will open and read with DirectIO (unless already opened w/o DirectIO or disabled via location config).
-    // NB: Right now is used only with data node lookup + chunk index.
-    bool UseDirectIO;
 
     REGISTER_YSON_STRUCT(TReplicationReaderConfig);
 
@@ -440,7 +450,7 @@ DEFINE_REFCOUNTED_TYPE(TEncodingWriterOptions)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkFragmentReaderConfig
-    : public virtual NYTree::TYsonStruct
+    : public virtual TRemoteReaderConfigBase
 {
 public:
     //! Expiration timeout of corresponding sync expiring cache.
@@ -451,10 +461,6 @@ public:
 
     //! Delay between background cache updates.
     TDuration PeriodicUpdateDelay;
-
-    //! Factors to calculate peer load as linear combination of disk queue and net queue.
-    double NetQueueSizeFactor;
-    double DiskQueueSizeFactor;
 
     //! RPC timeouts of ProbeChunkSet and GetChunkFragmentSet.
     TDuration ProbeChunkSetRpcTimeout;
@@ -474,13 +480,6 @@ public:
     //! Chunk that was not accessed for the time by user
     //! will stop being accessed within periodic updates and then will be evicted via expiring cache logic.
     TDuration ChunkInfoCacheExpirationTimeout;
-
-    //! Will locate new replicas from master
-    //! if node was suspicious for at least the period (unless null).
-    std::optional<TDuration> SuspiciousNodeGracePeriod;
-
-    //! Will open and read with DirectIO (unless already opened w/o DirectIO or disabled via location config).
-    bool UseDirectIO;
 
     //! Upper bound on length of simultaneously requested fragments withing a reading session.
     i64 MaxInflightFragmentLength;

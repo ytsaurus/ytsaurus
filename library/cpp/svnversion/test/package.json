@@ -1,0 +1,27 @@
+{
+    "meta": {
+        "name": "test",
+        "maintainer": "<voloz@yandex-team.ru>",
+        "description": "package",
+        "version": "{revision}.{branch}",
+    },
+    "build": {
+        "targets": [
+            "library/cpp/svnversion/test"
+        ]
+    },
+    "data": [
+        {
+            "source": {
+                "files": [
+                    "test"
+                ],
+                "path": "library/cpp/svnversion/test",
+                "type": "BUILD_OUTPUT"
+            },
+            "destination": {
+                "path": "/package_dir/"
+            }
+        }
+    ]
+}

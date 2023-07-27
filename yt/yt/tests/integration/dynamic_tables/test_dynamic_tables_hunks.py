@@ -42,6 +42,18 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         {"name": "value", "type": "string"},
     ]
 
+    ROWS_WITH_VARIOUS_ANY_VALUES = [
+        {"key": 0, "value": "0"},
+        {"key": 1, "value": 123},
+        {"key": 2, "value": 3.14},
+        {"key": 3, "value": True},
+        {"key": 4, "value": [{}, {}]},
+        {"key": 5, "value": "0" * 20},
+        {"key": 6, "value": yson.YsonEntity()}
+    ]
+
+    KEYS_OF_ROWS_WITH_VARIOUS_ANY_VALUES = [{"key": x["key"]} for x in ROWS_WITH_VARIOUS_ANY_VALUES]
+
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "tablet_manager": {
             "enable_hunks": True
@@ -788,28 +800,53 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
     def test_lookup_any_value_with_hunks(self, chunk_format):
         schema = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},
-            {"name": "value", "type": "any", "max_inline_chunk_size": 10},
+            {"name": "value", "type": "any", "max_inline_hunk_size": 10},
         ]
 
         sync_create_cells(1)
         self._create_table(chunk_format=chunk_format, schema=schema)
         sync_mount_table("//tmp/t")
 
-        rows = [{"key": 0, "value": "0"}, {"key": 1, "value": [{}, {}]}, {"key": 2, "value": "0" * 20}]
-
-        insert_rows("//tmp/t", rows)
+        insert_rows("//tmp/t", self.ROWS_WITH_VARIOUS_ANY_VALUES)
         sync_flush_table("//tmp/t")
 
-        assert lookup_rows("//tmp/t", [{"key": 0}, {"key": 1}, {"key": 2}]) == rows
+        assert lookup_rows("//tmp/t", self.KEYS_OF_ROWS_WITH_VARIOUS_ANY_VALUES) == self.ROWS_WITH_VARIOUS_ANY_VALUES
+
+    @authors("babenko")
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_any_value_with_hunks_from_static(self, optimize_for):
+        schema = make_schema(
+            [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "any", "max_inline_hunk_size": 10},
+            ],
+            unique_keys=True,
+        )
+
+        create("table", "//tmp/t", attributes={
+            "schema": schema,
+            "optimize_for": optimize_for,
+        })
+
+        write_table("//tmp/t", self.ROWS_WITH_VARIOUS_ANY_VALUES)
+        assert read_table("//tmp/t") == self.ROWS_WITH_VARIOUS_ANY_VALUES
+
+        alter_table("//tmp/t", dynamic=True)
+
+        sync_create_cells(1)
+        sync_mount_table("//tmp/t")
+
+        assert lookup_rows("//tmp/t", self.KEYS_OF_ROWS_WITH_VARIOUS_ANY_VALUES) == self.ROWS_WITH_VARIOUS_ANY_VALUES
+        assert read_table("//tmp/t") == self.ROWS_WITH_VARIOUS_ANY_VALUES
 
     @authors("gritukan")
     @pytest.mark.parametrize("chunk_format", ["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim"])
     @pytest.mark.parametrize("hunk_type", ["inline", "chunk"])
     @pytest.mark.parametrize("hunk_erasure_codec", ["none", "isa_reed_solomon_6_3"])
-    def test_hunks_in_operation_any_column(self, chunk_format, hunk_type, hunk_erasure_codec):
+    def test_hunks_in_operation_any_value(self, chunk_format, hunk_type, hunk_erasure_codec):
         schema = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},
-            {"name": "value", "type": "any", "max_inline_chunk_size": 10},
+            {"name": "value", "type": "any", "max_inline_hunk_size": 10},
         ]
 
         sync_create_cells(1)

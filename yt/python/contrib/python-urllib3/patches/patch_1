@@ -1,0 +1,76 @@
+commit 9b774f23ace1f970d8bf8245d38a419680205841
+Author: Ignat Kolesnichenko <ignat@yandex-team.ru>
+Date:   Wed Nov 14 19:35:31 2018 +0300
+
+    Support trailers
+
+diff --git a/src/urllib3/response.py b/src/urllib3/response.py
+index fdb50ddb..17885797 100644
+--- a/src/urllib3/response.py
++++ b/src/urllib3/response.py
+@@ -34,6 +34,8 @@ from .util.response import is_fp_closed, is_response_to_head
+ 
+ log = logging.getLogger(__name__)
+ 
++class IncorrectTrailer(HTTPException):
++    pass
+ 
+ class DeflateDecoder(object):
+     def __init__(self):
+@@ -262,6 +264,8 @@ class HTTPResponse(io.IOBase):
+         if preload_content and not self._body:
+             self._body = self.read(decode_content=decode_content)
+ 
++        self._trailers = None
++
+     def get_redirect_location(self):
+         """
+         Should we redirect and where to?
+@@ -613,6 +617,9 @@ class HTTPResponse(io.IOBase):
+         )
+         return resp
+ 
++    def trailers(self):
++        return self._trailers
++
+     # Backwards-compatibility methods for http.client.HTTPResponse
+     def getheaders(self):
+         return self.headers
+@@ -739,6 +746,8 @@ class HTTPResponse(io.IOBase):
+             If True, will attempt to decode the body based on the
+             'content-encoding' header.
+         """
++        self._trailers = {}
++
+         self._init_decoder()
+         # FIXME: Rewrite this method and make it a class with a better structured logic.
+         if not self.chunked:
+@@ -782,7 +791,7 @@ class HTTPResponse(io.IOBase):
+                 if decoded:  # Platform-specific: Jython.
+                     yield decoded
+ 
+-            # Chunk content ends with \r\n: discard it.
++            # Read and discard trailer up to the CRLF terminator.
+             while True:
+                 line = self._fp.fp.readline()
+                 if not line:
+@@ -791,6 +800,19 @@ class HTTPResponse(io.IOBase):
+                 if line == b"\r\n":
+                     break
+ 
++                delimiter_pos = line.find(b":")
++                if delimiter_pos == -1:
++                    raise IncorrectTrailer(line)
++
++                if six.PY3:
++                    try:
++                        line = line.decode("iso-8859-1")
++                    except UnicodeDecodeError:
++                        raise IncorrectTrailer(line)
++
++                key = line[:delimiter_pos].lower()
++                self._trailers[key] = line[len(key) + 1:].strip()
++
+             # We read everything; close the "file".
+             if self._original_response:
+                 self._original_response.close()

@@ -1,0 +1,19 @@
+commit c6f5e58d2dec2e7ea9bf28e64b5d6ea3526697a5
+Author: Andrey Saitgalin <asaitgalin@yandex-team.ru>
+Date:   Thu Oct 20 19:52:38 2016 +0300
+
+    Added AttributeError to except block
+
+diff --git a/dill/_objects.py b/dill/_objects.py
+index 8b1cb65..451d832 100755
+--- a/dill/_objects.py
++++ b/dill/_objects.py
+@@ -388,7 +388,7 @@ try: # numpy #FIXME: slow... 0.05 to 0.1 sec to import numpy
+     a['NumpyUfuncType'] = _numpy_ufunc
+     a['NumpyArrayType'] = _numpy_array
+     a['NumpyInt32Type'] = _numpy_int32
+-except ImportError:
++except (AttributeError, ImportError):
+     pass
+ try: # python 2.6
+     # numeric and mathematical types (CH 9)

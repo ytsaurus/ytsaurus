@@ -4,6 +4,7 @@
 #include "private.h"
 #include "schemaful_chunk_reader.h"
 #include "schemaless_multi_chunk_reader.h"
+#include "schemaful_reader_adapter.h"
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
@@ -19,7 +20,6 @@
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/name_table.h>
-#include <yt/yt/client/table_client/schemaful_reader_adapter.h>
 
 #include <yt/yt/ytlib/table_client/columnar_chunk_meta.h>
 

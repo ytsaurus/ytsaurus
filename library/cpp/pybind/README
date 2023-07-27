@@ -1,0 +1,3 @@
+http://wiki.yandex-team.ru/Development/Poisk/arcadia/library/pybind
+
+See library/yson/node/pybind for additional BuildPyObject/FromPyObject bindings for NYT::TNode objects.

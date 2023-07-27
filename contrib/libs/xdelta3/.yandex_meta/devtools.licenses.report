@@ -1,0 +1,117 @@
+# File format ($ symbol means the beginning of a line):
+#
+# $ # this message
+# $ # =======================
+# $     # comments (all commentaries should starts with some number of spaces and # symbol)
+# ${action} {license spdx} {license text hash}
+# $BELONGS ./ya/make/file/relative/path/1/ya.make ./ya/make/2/ya.make
+# ${all_file_action} filename
+# $ # user commentaries (many lines)
+# $ generated description - files with this license, license text... (some number of lines that starts with some number of spaces, do not modify)
+# ${action} {license spdx} {license text hash}
+# $BELONGS ./ya/make/file/relative/path/3/ya.make
+# ${all_file_action} filename
+# $    #    user commentaries
+# $ generated description
+# $ ...
+#
+# You can modify action, all_file_action and add commentaries
+# Available actions:
+# keep - keep license in contrib and use in credits
+# skip - skip license
+# remove - remove all files with this license
+# rename - save license text/links into licenses texts file, but not store SPDX into LINCENSE macro. You should store correct license id into devtools.license.spdx.txt file
+#
+# {all file action} records will be generated when license text contains filename that exists on filesystem (in contrib directory)
+# We suppose that that files can contain some license info
+# Available all file actions:
+# FILE_IGNORE - ignore file (do nothing)
+# FILE_INCLUDE - include all file data into licenses text file
+# =======================
+
+KEEP     Apache-2.0           01dd9cacac9a10bbb82102e539a62ba5
+BELONGS ya.make
+FILE_INCLUDE LICENSE found in files: README.md at line 37
+    License text:
+        and Cygwin builds.  Xdelta3 is covered under the terms of the APL, see
+        LICENSE.
+    Scancode info:
+        Original SPDX id: LicenseRef-scancode-unknown-license-reference
+        Score           : 100.00
+        Match type      : REFERENCE
+        Links           : https://github.com/nexB/scancode-toolkit/tree/develop/src/licensedcode/data/licenses/unknown-license-reference.LICENSE
+    Files with this license:
+        README.md [36:37]
+
+KEEP     Apache-2.0           05dfa11f83bdb7b20f0e5bf0e3aa1528
+BELONGS ya.make
+    License text:
+          XPR(NTR "See \"LICENSE\" for details.\n");
+    Scancode info:
+        Original SPDX id: LicenseRef-scancode-unknown-license-reference
+        Score           : 100.00
+        Match type      : REFERENCE
+        Links           : https://github.com/nexB/scancode-toolkit/tree/develop/src/licensedcode/data/licenses/unknown-license-reference.LICENSE
+    Files with this license:
+        xdelta3-main.h [351:351]
+
+KEEP     Apache-2.0           6cd4512b6b86fbfe83a8fe368c9228bd
+BELONGS ya.make
+    License text:
+          XPR(NTR "Licensed under the Apache License, Version 2.0\n");
+          XPR(NTR "See \"LICENSE\" for details.\n");
+    Scancode info:
+        Original SPDX id: Apache-2.0
+        Score           : 83.33
+        Match type      : NOTICE
+        Links           : http://www.apache.org/licenses/, http://www.apache.org/licenses/LICENSE-2.0, https://spdx.org/licenses/Apache-2.0
+    Files with this license:
+        xdelta3-main.h [350:351]
+
+KEEP     Apache-2.0           8b65f81e510b869cefadd5542a807c3c
+BELONGS ya.make
+    Note: matched license text is too long. Read it in the source files.
+    Scancode info:
+        Original SPDX id: Apache-2.0
+        Score           : 100.00
+        Match type      : NOTICE
+        Links           : http://www.apache.org/licenses/, http://www.apache.org/licenses/LICENSE-2.0, https://spdx.org/licenses/Apache-2.0
+    Files with this license:
+        xdelta3-blkcache.h [4:14]
+        xdelta3-cfgs.h [4:14]
+        xdelta3-decode.h [4:14]
+        xdelta3-djw.h [4:14]
+        xdelta3-fgk.h [4:14]
+        xdelta3-hash.h [4:14]
+        xdelta3-internal.h [4:14]
+        xdelta3-list.h [4:14]
+        xdelta3-main.h [4:14]
+        xdelta3-merge.h [4:14]
+        xdelta3-second.h [4:14]
+        xdelta3-test.h [4:14]
+        xdelta3.c [4:14]
+        xdelta3.h [4:14]
+
+KEEP     Apache-2.0           ebb4bb353d4631414c295f2fb7c879c5
+BELONGS ya.make
+    Note: matched license text is too long. Read it in the source files.
+    Scancode info:
+        Original SPDX id: Apache-2.0
+        Score           : 100.00
+        Match type      : TEXT
+        Links           : http://www.apache.org/licenses/, http://www.apache.org/licenses/LICENSE-2.0, https://spdx.org/licenses/Apache-2.0
+    Files with this license:
+        LICENSE [1:176]
+
+SKIP     LicenseRef-scancode-warranty-disclaimer fa116bbbc6bedb38cf2f08a3959866cf
+BELONGS ya.make
+# Warranty disclaimer
+    License text:
+          XPR(NTR "Xdelta comes with ABSOLUTELY NO WARRANTY.\n");
+    Scancode info:
+        Original SPDX id: LicenseRef-scancode-warranty-disclaimer
+        Score           : 90.00
+        Match type      : TEXT
+        Links           : https://github.com/nexB/scancode-toolkit/tree/develop/src/licensedcode/data/licenses/warranty-disclaimer.LICENSE
+    Files with this license:
+        xdelta3-main.h [349:349]

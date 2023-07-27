@@ -1,0 +1,31 @@
+commit 712fa0298ffb361fa064dcb7731ff933645e5c88
+Author: Ignat Kolesnichenko <ignat@yandex-team.ru>
+Date:   Fri Aug 26 08:55:54 2022 +0300
+
+    Fix detecting builtin modules
+
+diff --git a/dill/_dill.py b/dill/_dill.py
+index 531641f..a60c2ea 100644
+--- a/dill/_dill.py
++++ b/dill/_dill.py
+@@ -1747,6 +1747,10 @@ def save_weakproxy(pickler, obj):
+     return
+ 
+ def _is_builtin_module(module):
++    try:
++        import __res
++    except ImportError:
++        __res = None
+     if not hasattr(module, "__file__"): return True
+     # If a module file name starts with prefix, it should be a builtin
+     # module, so should always be pickled as a reference.
+@@ -1754,7 +1758,8 @@ def _is_builtin_module(module):
+     return any(os.path.realpath(module.__file__).startswith(os.path.realpath(getattr(sys, name)))
+                for name in names if hasattr(sys, name)) or \
+             module.__file__.endswith(EXTENSION_SUFFIXES) or \
+-            'site-packages' in module.__file__
++            'site-packages' in module.__file__ or \
++            (__res is not None and isinstance(module.__spec__.loader, __res.ResourceImporter))
+ 
+ @register(ModuleType)
+ def save_module(pickler, obj):

@@ -1,0 +1,13 @@
+{
+    "download_link": "https://proxy.sandbox.yandex-team.ru/2111053233", 
+    "file_name": "skiff_bench.yson", 
+    "md5": "9b7478dd61b72b4071ba984e8d46380a", 
+    "resource_id": 2111053233, 
+    "resource_link": "https://sandbox.yandex-team.ru/resource/2111053233/view", 
+    "skynet_id": "rbtorrent:c46cbbf9aeffc0f2324ddfa9f779d348aab3c05a", 
+    "storage": "SANDBOX", 
+    "task": {
+        "id": 948398908, 
+        "url": "https://sandbox.yandex-team.ru/api/v1.0/task/948398908"
+    }
+}

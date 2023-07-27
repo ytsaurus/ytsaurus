@@ -1,0 +1,11 @@
+--- a/dill/session.py	(index)
++++ b/dill/session.py	(working tree)
+@@ -19,7 +19,7 @@ import re
+ import sys
+ import warnings
+ 
+-from dill import _dill, Pickler, Unpickler
++from . import _dill, Pickler, Unpickler
+ from ._dill import (
+     BuiltinMethodType, FunctionType, MethodType, ModuleType, TypeType,
+     _import_module, _is_builtin_module, _is_imported_module, _main_module,

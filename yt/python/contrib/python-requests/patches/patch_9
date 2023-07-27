@@ -1,0 +1,23 @@
+commit 04d35060dfc7f8bf892ee12e8382425f474909f2
+Author: Ignat Kolesnichenko <ignat@yandex-team.ru>
+Date:   Mon Sep 12 11:41:46 2022 +0300
+
+    YTADMINREQ-15394: Disable cryptography warning
+
+diff --git a/requests/__init__.py b/requests/__init__.py
+index 6ed6d42c..05176b5c 100644
+--- a/requests/__init__.py
++++ b/requests/__init__.py
+@@ -119,9 +119,10 @@ try:
+         from urllib3.contrib import pyopenssl
+         pyopenssl.inject_into_urllib3()
+ 
++        # NB: most of users have old cryptography and do not want to starve from this warning.
+         # Check cryptography version
+-        from cryptography import __version__ as cryptography_version
+-        _check_cryptography(cryptography_version)
++        # from cryptography import __version__ as cryptography_version
++        # _check_cryptography(cryptography_version)
+ except ImportError:
+     pass
+ 

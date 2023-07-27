@@ -1,0 +1,96 @@
+# File format ($ symbol means the beginning of a line):
+#
+# $ # this message
+# $ # =======================
+# $     # comments (all commentaries should starts with some number of spaces and # symbol)
+# ${action} {license spdx} {license text hash}
+# $BELONGS ./ya/make/file/relative/path/1/ya.make ./ya/make/2/ya.make
+# ${all_file_action} filename
+# $ # user commentaries (many lines)
+# $ generated description - files with this license, license text... (some number of lines that starts with some number of spaces, do not modify)
+# ${action} {license spdx} {license text hash}
+# $BELONGS ./ya/make/file/relative/path/3/ya.make
+# ${all_file_action} filename
+# $    #    user commentaries
+# $ generated description
+# $ ...
+#
+# You can modify action, all_file_action and add commentaries
+# Available actions:
+# keep - keep license in contrib and use in credits
+# skip - skip license
+# remove - remove all files with this license
+# rename - save license text/links into licenses texts file, but not store SPDX into LINCENSE macro. You should store correct license id into devtools.license.spdx.txt file
+#
+# {all file action} records will be generated when license text contains filename that exists on filesystem (in contrib directory)
+# We suppose that that files can contain some license info
+# Available all file actions:
+# FILE_IGNORE - ignore file (do nothing)
+# FILE_INCLUDE - include all file data into licenses text file
+# =======================
+
+KEEP     BSD-3-Clause AND BSD-3-Clause 97ffc4dc85012c87669872d753b28795
+BELONGS ya.make
+FILE_INCLUDE COPYRIGHT found in files: Src/Python3/cxx_extensions.cxx at line 23
+    Note: matched license text is too long. Read it in the source files.
+    Scancode info:
+        Original SPDX id: BSD-3-Clause
+        Score           : 94.37
+        Match type      : TEXT
+        Links           : http://www.opensource.org/licenses/BSD-3-Clause, https://spdx.org/licenses/BSD-3-Clause
+    Files with this license:
+        CXX/Config.hxx [11:34]
+        CXX/CxxDebug.hxx [11:34]
+        CXX/Exception.hxx [11:34]
+        CXX/Extensions.hxx [11:34]
+        CXX/Objects.hxx [11:34]
+        CXX/Python2/Config.hxx [11:34]
+        CXX/Python2/Exception.hxx [11:34]
+        CXX/Python2/ExtensionModule.hxx [11:34]
+        CXX/Python2/ExtensionOldType.hxx [11:34]
+        CXX/Python2/ExtensionType.hxx [11:34]
+        CXX/Python2/ExtensionTypeBase.hxx [11:34]
+        CXX/Python2/Extensions.hxx [11:34]
+        CXX/Python2/IndirectPythonInterface.hxx [11:34]
+        CXX/Python2/Objects.hxx [11:34]
+        CXX/Python2/PythonType.hxx [11:34]
+        CXX/Python3/Config.hxx [11:34]
+        CXX/Python3/Exception.hxx [11:34]
+        CXX/Python3/ExtensionModule.hxx [11:34]
+        CXX/Python3/ExtensionOldType.hxx [11:34]
+        CXX/Python3/ExtensionType.hxx [11:34]
+        CXX/Python3/ExtensionTypeBase.hxx [11:34]
+        CXX/Python3/Extensions.hxx [11:34]
+        CXX/Python3/IndirectPythonInterface.hxx [11:34]
+        CXX/Python3/Objects.hxx [11:34]
+        CXX/Python3/PythonType.hxx [11:34]
+        CXX/Version.hxx [11:34]
+        CXX/WrapPython.h [11:34]
+        Src/IndirectPythonInterface.cxx [11:34]
+        Src/Python2/cxx_extensions.cxx [11:34]
+        Src/Python2/cxxextensions.c [11:34]
+        Src/Python2/cxxsupport.cxx [11:34]
+        Src/Python3/cxxextensions.c [11:34]
+        Src/Python3/cxxsupport.cxx [11:34]
+        Src/cxx_extensions.cxx [11:34]
+        Src/cxxextensions.c [11:34]
+        Src/cxxsupport.cxx [11:34]
+    Scancode info:
+        Original SPDX id: BSD-3-Clause
+        Score           : 94.81
+        Match type      : TEXT
+        Links           : http://www.opensource.org/licenses/BSD-3-Clause, https://spdx.org/licenses/BSD-3-Clause
+    Files with this license:
+        Src/Python3/cxx_extensions.cxx [11:34]
+
+KEEP     BSD-3-Clause         d10d7e1a591dad837f2d76f9b2b8da73
+BELONGS ya.make
+FILE_INCLUDE COPYRIGHT found in files: COPYRIGHT at line 23
+    Note: matched license text is too long. Read it in the source files.
+    Scancode info:
+        Original SPDX id: BSD-3-Clause
+        Score           : 94.81
+        Match type      : TEXT
+        Links           : http://www.opensource.org/licenses/BSD-3-Clause, https://spdx.org/licenses/BSD-3-Clause
+    Files with this license:
+        COPYRIGHT [11:33]

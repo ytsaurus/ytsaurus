@@ -1,0 +1,19 @@
+commit a74a8a2ef7e3bf6be00b005862c2250aeeb2f2ab
+Author: Ignat Kolesnichenko <ignat@yandex-team.ru>
+Date:   Mon Sep 12 10:58:35 2022 +0300
+
+    Allow long type for chunk_size in iter_content
+
+diff --git a/requests/models.py b/requests/models.py
+index b7dc45b9..061ef1ac 100644
+--- a/requests/models.py
++++ b/requests/models.py
+@@ -790,7 +790,7 @@ class Response(object):
+ 
+         if self._content_consumed and isinstance(self._content, bool):
+             raise StreamConsumedError()
+-        elif chunk_size is not None and not isinstance(chunk_size, int):
++        elif chunk_size is not None and not isinstance(chunk_size, int) and not isinstance(chunk_size, long):
+             raise TypeError("chunk_size must be an int, it is instead a %s." % type(chunk_size))
+         # simulate reading small chunks of the content
+         reused_chunks = iter_slices(self._content, chunk_size)

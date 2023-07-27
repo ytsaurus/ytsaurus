@@ -77,7 +77,7 @@ public:
             partitionTag = SchedulerJobSpecExt_.partition_tag();
         }
 
-        ReaderFactory_ = [=, this] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
+        ReaderFactory_ = [=, this, this_ = MakeStrong(this)] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
             const auto& tableReaderConfig = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader;
 
             auto factory = PartitionJobSpecExt_.use_sequential_reader()
