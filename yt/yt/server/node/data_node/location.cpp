@@ -1865,6 +1865,13 @@ bool TStoreLocation::ScheduleDisable(const TError& reason)
         << reason;
     LocationDisabledAlert_.Store(error);
 
+    auto dynamicConfig = DynamicConfigManager_->GetConfig()->DataNode;
+
+    if (dynamicConfig->AbortOnLocationDisabled) {
+        // Program abort.
+        CreateDisableLockFile(reason);
+    }
+
     BIND([=, this, this_ = MakeStrong(this)] () {
         try {
             ChunkStoreHost_->CancelLocationSessions(MakeStrong(static_cast<TChunkLocation*>(this)));
