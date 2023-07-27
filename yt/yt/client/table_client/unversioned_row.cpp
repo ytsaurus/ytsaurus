@@ -45,36 +45,38 @@ const TString SerializedNullRow;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t GetByteSize(const TUnversionedValue& value)
+size_t EstimateRowValueSize(const TUnversionedValue& value, bool isInlineHunkValue)
 {
-    int result = MaxVarUint32Size * 2; // id and type
+    size_t result = MaxVarUint32Size * 2; // id and type
 
     switch (value.Type) {
         case EValueType::Null:
         case EValueType::Min:
         case EValueType::Max:
         case EValueType::TheBottom:
-            return result;
+            break;
 
         case EValueType::Int64:
         case EValueType::Uint64:
             result += MaxVarInt64Size;
-            return result;
+            break;
 
         case EValueType::Double:
             result += sizeof(double);
-            return result;
-
+            break;
 
         case EValueType::Boolean:
             result += 1;
-            return result;
+            break;
 
         case EValueType::String:
         case EValueType::Any:
         case EValueType::Composite:
+            if (isInlineHunkValue) {
+                result += 1; // hunk value tag
+            }
             result += MaxVarUint32Size + value.Length;
-            return result;
+            break;
     }
 
     return result;
@@ -836,7 +838,7 @@ TString SerializeToString(TUnversionedValueRange range)
 {
     int size = 2 * MaxVarUint32Size; // header size
     for (const auto& value : range) {
-        size += GetByteSize(value);
+        size += EstimateRowValueSize(value);
     }
 
     TString buffer;
@@ -1126,12 +1128,22 @@ void ValidateStaticValue(const TUnversionedValue& value)
 
 void ValidateDataValue(const TUnversionedValue& value)
 {
+    if (auto remainingFlags = value.Flags & ~EValueFlags::Aggregate; Any(remainingFlags)) {
+        THROW_ERROR_EXCEPTION(
+            "Value has unsupported flag(s) %Qlv",
+            remainingFlags);
+    }
     ValidateDataValueType(value.Type);
     ValidateDynamicValue(value, /*isKey*/ false);
 }
 
 void ValidateKeyValue(const TUnversionedValue& value)
 {
+    if (value.Flags != EValueFlags::None) {
+        THROW_ERROR_EXCEPTION(
+            "Key value has unsupported flag(s) %Qlv",
+            value.Flags);
+    }
     ValidateKeyValueType(value.Type);
     ValidateDynamicValue(value, /*isKey*/ true);
 }

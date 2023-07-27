@@ -1,5 +1,6 @@
 #include "schemaful_reader_adapter.h"
-#include "schemaless_row_reorderer.h"
+
+#include "hunks.h"
 
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>
@@ -7,6 +8,7 @@
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/schemaless_row_reorderer.h>
 
 #include <yt/yt/core/misc/blob_output.h>
 
@@ -58,28 +60,44 @@ public:
         try {
             for (auto schemalessRow : CurrentBatch_->MaterializeRows()) {
                 if (!schemalessRow) {
-                    schemafulRows.push_back(TUnversionedRow());
+                    schemafulRows.emplace_back();
                     continue;
                 }
 
                 auto schemafulRow = RowReorderer_.ReorderKey(schemalessRow);
 
                 for (int valueIndex = 0; valueIndex < std::ssize(ReaderSchema_->Columns()); ++valueIndex) {
-                    const auto& value = schemafulRow[valueIndex];
+                    auto value = schemafulRow[valueIndex];
+                    if (value.Type == EValueType::Null) {
+                        YT_VERIFY(None(value.Flags & EValueFlags::Hunk));
+                        continue;
+                    }
+                    auto expectedType = ReaderSchema_->Columns()[valueIndex].GetWireType();
+                    if (Any(value.Flags & EValueFlags::Hunk)) {
+                        if (!TryDecodeInlineHunkValue(&value)) {
+                            if (value.Type != expectedType) {
+                                THROW_ERROR_EXCEPTION(
+                                    "Cannot convert schemaless row to a schemaful one since it contains a non-inline hunk value #%v of wrong type: "
+                                    "expected %Qlv, actual %Qlv",
+                                    value.Id,
+                                    expectedType,
+                                    value.Type);
+                            }
+                            continue;
+                        }
+                    }
                     ValidateDataValue(value);
-                    // The underlying schemaless reader may unpack typed scalar values even
-                    // if the schema has "any" type. For schemaful reader, this is not an expected behavior
+                    // The underlying schemaless reader may produce typed scalar values even if the schema has "any" type.
+                    // For schemaful reader, this is not an expected behavior
                     // so we have to convert such values back into YSON.
                     // Cf. YT-5396
-                    if (ReaderSchema_->Columns()[valueIndex].GetWireType() == EValueType::Any &&
-                        value.Type != EValueType::Any &&
-                        value.Type != EValueType::Null)
-                    {
+                    if (expectedType == EValueType::Any && value.Type != EValueType::Any) {
                         schemafulRow[valueIndex] = MakeAnyFromScalar(value);
                     } else {
                         ValidateValueType(value, *ReaderSchema_, valueIndex, /*typeAnyAcceptsAllValues*/ false, IgnoreRequired_);
                     }
                 }
+
                 schemafulRows.push_back(schemafulRow);
             }
         } catch (const std::exception& ex) {

@@ -53,6 +53,7 @@
 #include <yt/yt/ytlib/table_client/helpers.h>
 #include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
+#include <yt/yt/ytlib/table_client/schemaful_reader_adapter.h>
 
 #include <yt/yt/ytlib/transaction_client/public.h>
 
@@ -62,7 +63,6 @@
 
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/unversioned_writer.h>
-#include <yt/yt/client/table_client/schemaful_reader_adapter.h>
 #include <yt/yt/client/table_client/table_consumer.h>
 
 #include <yt/yt/ytlib/scheduler/proto/job.pb.h>

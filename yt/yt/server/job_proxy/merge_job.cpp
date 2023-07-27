@@ -78,12 +78,11 @@ public:
 
         NameTable_ = TNameTable::FromKeyColumns(keyColumns);
 
-        auto readerFactory = UseParallelReader_
-            ? CreateSchemalessParallelMultiReader
-            : CreateSchemalessSequentialMultiReader;
-
-        ReaderFactory_ = [=, this] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
+        ReaderFactory_ = [=, this, this_ = MakeStrong(this)] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
             const auto& tableReaderConfig = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader;
+            auto readerFactory = UseParallelReader_
+                ? CreateSchemalessParallelMultiReader
+                : CreateSchemalessSequentialMultiReader;
             return readerFactory(
                 tableReaderConfig,
                 readerOptions,

@@ -1288,6 +1288,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/schema_inferer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/schemaful_chunk_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/schemaful_concatenating_reader.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/schemaful_reader_adapter.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/schemaless_block_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/schemaless_block_writer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/schemaless_buffered_table_writer.cpp

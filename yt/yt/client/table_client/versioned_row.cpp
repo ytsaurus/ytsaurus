@@ -16,7 +16,7 @@ using namespace NTransactionClient;
 
 size_t GetByteSize(const TVersionedValue& value)
 {
-    return GetByteSize(static_cast<TUnversionedValue>(value)) + MaxVarInt64Size;
+    return EstimateRowValueSize(static_cast<TUnversionedValue>(value)) + MaxVarInt64Size;
 }
 
 size_t GetDataWeight(const TVersionedValue& value)

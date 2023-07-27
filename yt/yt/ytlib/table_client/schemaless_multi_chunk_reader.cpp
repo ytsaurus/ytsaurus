@@ -87,6 +87,10 @@ using NYT::TRange;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = TableClientLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -143,16 +147,11 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
     IMultiReaderMemoryManagerPtr multiReaderMemoryManager,
     int interruptDescriptorKeyLength)
 {
-    // TODO(gritukan): Pass chunk fragment reader config and batch hunk reader config from controller.
-    auto chunkFragmentReaderConfig = New<TChunkFragmentReaderConfig>();
-    chunkFragmentReaderConfig->Postprocess();
     auto chunkFragmentReader = CreateChunkFragmentReader(
-        std::move(chunkFragmentReaderConfig),
+        config,
         chunkReaderHost->Client,
         CreateTrivialNodeStatusDirectory(),
         /*profiler*/ {});
-
-    const auto& Logger = TableClientLogger;
 
     std::vector<IReaderFactoryPtr> factories;
     for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
@@ -160,7 +159,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
 
         auto wrapReader = [=] (ISchemalessChunkReaderPtr chunkReader) {
             return CreateHunkDecodingSchemalessChunkReader(
-                New<TBatchHunkReaderConfig>(),
+                config,
                 std::move(chunkReader),
                 chunkFragmentReader,
                 dataSource.Schema(),
@@ -1288,7 +1287,7 @@ ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
     const TTableReaderOptionsPtr& options,
     const TTableReaderConfigPtr& config,
     TChunkReaderHostPtr chunkReaderHost,
-    TTableReadSpec& tableReadSpec,
+    const TTableReadSpec& tableReadSpec,
     const TClientChunkReadOptions& chunkReadOptions,
     bool unordered,
     const TNameTablePtr& nameTable,
@@ -1305,22 +1304,36 @@ ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
     switch (dataSourceDirectory->GetCommonTypeOrThrow()) {
         case EDataSourceType::VersionedTable: {
             YT_VERIFY(dataSliceDescriptors.size() == 1);
-            auto& dataSliceDescriptor = dataSliceDescriptors.front();
+            const auto& dataSliceDescriptor = dataSliceDescriptors.front();
 
             auto adjustedColumnFilter = columnFilter.IsUniversal()
                 ? CreateColumnFilter(dataSource.Columns(), nameTable)
                 : columnFilter;
 
-            return CreateSchemalessMergingMultiChunkReader(
+            auto reader = CreateSchemalessMergingMultiChunkReader(
                 config,
                 options,
-                std::move(chunkReaderHost),
+                chunkReaderHost,
                 dataSourceDirectory,
-                std::move(dataSliceDescriptor),
+                dataSliceDescriptor,
                 nameTable,
                 chunkReadOptions,
                 adjustedColumnFilter);
+
+            auto chunkFragmentReader = CreateChunkFragmentReader(
+                config,
+                chunkReaderHost->Client,
+                CreateTrivialNodeStatusDirectory(),
+                /*profiler*/ {});
+
+            return CreateHunkDecodingSchemalessMultiChunkReader(
+                config,
+                std::move(reader),
+                std::move(chunkFragmentReader),
+                dataSource.Schema(),
+                chunkReadOptions);
         }
+
         case EDataSourceType::UnversionedTable: {
             auto factory = unordered
                 ? CreateSchemalessParallelMultiReader
@@ -1331,7 +1344,7 @@ ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
                 chunkReaderHost,
                 dataSourceDirectory,
                 std::move(dataSliceDescriptors),
-                std::nullopt,
+                /*hintKeyPrefixes*/ std::nullopt,
                 nameTable,
                 chunkReadOptions,
                 TReaderInterruptionOptions::InterruptibleWithEmptyKey(),

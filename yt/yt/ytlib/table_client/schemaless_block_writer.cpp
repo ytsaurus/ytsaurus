@@ -45,12 +45,12 @@ void THorizontalBlockWriter::WriteRow(TUnversionedRow row)
 
     WritePod(Offsets_, static_cast<ui32>(Data_.GetSize()));
 
-    int size = MaxVarUint32Size;
-    for (auto it = row.Begin(); it != row.End(); ++it) {
-        size += GetByteSize(*it);
+    int estimatedSize = MaxVarUint32Size; // value count
+    for (auto value : row) {
+        estimatedSize += EstimateRowValueSize(value, IsInlineHunkValue(value));
     }
 
-    char* begin = Data_.Preallocate(size);
+    char* begin = Data_.Preallocate(estimatedSize);
     char* current = begin;
 
     current += WriteVarUint32(current, static_cast<ui32>(row.GetCount()));
@@ -58,11 +58,12 @@ void THorizontalBlockWriter::WriteRow(TUnversionedRow row)
         if (value.Type == EValueType::Composite) {
             value.Type = EValueType::Any;
         }
-        auto isInlineHunkValue = IsInlineHunkValue(value);
-        current += WriteRowValue(current, value, isInlineHunkValue);
+        current += WriteRowValue(current, value, IsInlineHunkValue(value));
     }
 
-    Data_.Advance(current - begin);
+    auto writtenSize = current - begin;
+    YT_VERIFY(writtenSize <= estimatedSize);
+    Data_.Advance(writtenSize);
 }
 
 TBlock THorizontalBlockWriter::FlushBlock()

@@ -110,7 +110,7 @@ private:
         size_t totalSize = 0;
         for (auto row : rows) {
             for (int index = SchemaColumnCount_; index < static_cast<int>(row.GetCount()); ++index) {
-                totalSize += GetByteSize(row[index]);
+                totalSize += EstimateRowValueSize(row[index]);
             }
         }
 

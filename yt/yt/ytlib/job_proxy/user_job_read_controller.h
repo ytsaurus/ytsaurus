@@ -7,12 +7,11 @@
 #include <yt/yt/ytlib/chunk_client/public.h>
 
 #include <yt/yt/ytlib/table_client/timing_statistics.h>
+#include <yt/yt/ytlib/table_client/schemaful_reader_adapter.h>
 
 #include <yt/yt/client/formats/public.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
-
-#include <yt/yt/client/table_client/schemaful_reader_adapter.h>
 
 #include <yt/yt/core/actions/future.h>
 
