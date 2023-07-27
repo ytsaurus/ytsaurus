@@ -15,7 +15,10 @@ import pytest
 
 
 class TestAdminCommandsACL(YTEnvSetup):
-    NUM_MASTERS = 2
+    NUM_MASTERS = 3
+    ENABLE_SECONDARY_CELLS_CLEANUP = True
+
+    ACO_NAMESPACE = "admin_commands"
 
     def setup_class(cls):
         super(TestAdminCommandsACL, cls).setup_class()
@@ -34,7 +37,7 @@ class TestAdminCommandsACL(YTEnvSetup):
             return result
         return wrapper_func
 
-    def _create_and_update_aco(self, command: str, user: str, action="allow", permissions="use", namespace="admin_commands"):
+    def _create_and_update_aco(self, command: str, user: str, action="allow", permissions="use", namespace=ACO_NAMESPACE):
         try:
             create_access_control_object_namespace(namespace)
         except YtResponseError as e:
@@ -75,3 +78,46 @@ class TestAdminCommandsACL(YTEnvSetup):
         except Exception as e:
             print(str(e), file=sys.stderr)
             assert False, f"Should accept role {command}"
+
+    def _acl_teardown_cleanup(self, user, command="switch_leader"):
+        """
+        For testing ACO teardown cleanup.
+        """
+
+        try:
+            create_access_control_object_namespace(self.ACO_NAMESPACE)
+        except YtResponseError as e:
+            assert f'Access control object namespace "{self.ACO_NAMESPACE}" already exists' in str(e)
+
+        try:
+            create_access_control_object(command, self.ACO_NAMESPACE)
+        except YtResponseError as e:
+            assert f'Access control object "{self.ACO_NAMESPACE}"/"{command}" already exists' in str(e)
+
+        principal_acl = get(f"//sys/access_control_object_namespaces/{self.ACO_NAMESPACE}/{command}/@principal_acl")
+        assert not principal_acl, f"principal_acl: {str(principal_acl)}"
+
+        action = "allow"
+        permissions = "use"
+
+        create_user(user)
+
+        set(f"//sys/access_control_object_namespaces/{self.ACO_NAMESPACE}/{command}/@principal_acl/end",
+            make_ace(action, user, permissions))
+
+        principal_acl = get(f"//sys/access_control_object_namespaces/{self.ACO_NAMESPACE}/{command}/@principal_acl")
+        assert principal_acl, f"principal_acl: {str(principal_acl)}"
+
+    @authors("ni-stoiko")
+    def test_acl_teardown_cleanup1(self):
+        """
+        First test for ACO teardown cleanup.
+        """
+        self._acl_teardown_cleanup("u1")
+
+    @authors("ni-stoiko")
+    def test_acl_teardown_cleanup2(self):
+        """
+        Second test for ACO teardown cleanup.
+        """
+        self._acl_teardown_cleanup("u2")

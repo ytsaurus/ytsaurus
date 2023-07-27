@@ -74,7 +74,7 @@ using NApi::ValidateMaintenanceComment;
 
 int TClient::DoBuildSnapshot(const TBuildSnapshotOptions& options)
 {
-    ValidatePermissionsWithACN(
+    ValidatePermissionsWithAcn(
         EAccessControlObject::BuildSnapshot,
         EPermission::Use);
 
@@ -95,7 +95,7 @@ int TClient::DoBuildSnapshot(const TBuildSnapshotOptions& options)
 
 TCellIdToSnapshotIdMap TClient::DoBuildMasterSnapshots(const TBuildMasterSnapshotsOptions& options)
 {
-    ValidatePermissionsWithACN(
+    ValidatePermissionsWithAcn(
         EAccessControlObject::BuildMasterSnapshot,
         EPermission::Use);
 
@@ -174,7 +174,7 @@ void TClient::DoSwitchLeader(
     const TString& newLeaderAddress,
     const TSwitchLeaderOptions& options)
 {
-    ValidatePermissionsWithACN(
+    ValidatePermissionsWithAcn(
         EAccessControlObject::SwitchLeader,
         EPermission::Use);
 
@@ -619,7 +619,7 @@ TDisableChunkLocationsResult TClient::DoDisableChunkLocations(
     const std::vector<TGuid>& locationUuids,
     const TDisableChunkLocationsOptions& options)
 {
-    ValidatePermissionsWithACN(
+    ValidatePermissionsWithAcn(
         EAccessControlObject::DisableChunkLocations,
         EPermission::Use);
 
@@ -641,7 +641,7 @@ TDestroyChunkLocationsResult TClient::DoDestroyChunkLocations(
     const std::vector<TGuid>& locationUuids,
     const TDestroyChunkLocationsOptions& options)
 {
-    ValidatePermissionsWithACN(
+    ValidatePermissionsWithAcn(
         EAccessControlObject::DestroyChunkLocations,
         EPermission::Use);
 
@@ -663,7 +663,7 @@ TResurrectChunkLocationsResult TClient::DoResurrectChunkLocations(
     const std::vector<TGuid>& locationUuids,
     const TResurrectChunkLocationsOptions& options)
 {
-    ValidatePermissionsWithACN(
+    ValidatePermissionsWithAcn(
         EAccessControlObject::ResurrectChunkLocations,
         EPermission::Use);
 

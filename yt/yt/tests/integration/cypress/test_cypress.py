@@ -4247,7 +4247,7 @@ class TestAccessControlObjects(YTEnvSetup):
         create_access_control_object("tom", "cats")
         assert sorted(ls("//sys/access_control_object_namespaces/cats")) == ["garfield", "tom"]
 
-    @authors("shakurov")
+    @authors("shakurov", "ni-stoiko")
     def test_access_control_object_removal(self):
         create_access_control_object_namespace("cats")
         create_access_control_object_namespace("dogs")
@@ -4266,10 +4266,11 @@ class TestAccessControlObjects(YTEnvSetup):
         assert ls("//sys/access_control_object_namespaces/cats") == []
 
         remove("//sys/access_control_object_namespaces/cats")
-        assert ls("//sys/access_control_object_namespaces") == ["dogs"]
+        assert "cats" not in ls("//sys/access_control_object_namespaces")
+        assert "dogs" in ls("//sys/access_control_object_namespaces")
 
         remove("//sys/access_control_object_namespaces/dogs", force=True)
-        assert ls("//sys/access_control_object_namespaces") == []
+        assert "dogs" not in ls("//sys/access_control_object_namespaces")
 
     @authors("shakurov")
     def test_access_control_object_permissions(self):

@@ -837,7 +837,7 @@ private:
     NApi::IClientPtr CreateRootClient();
 
     void ValidateSuperuserPermissions();
-    void ValidatePermissionsWithACN(
+    void ValidatePermissionsWithAcn(
         NSecurityClient::EAccessControlObject accessControlObject,
         NYTree::EPermission permission);
 

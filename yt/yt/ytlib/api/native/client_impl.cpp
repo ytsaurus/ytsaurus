@@ -591,7 +591,7 @@ void TClient::ValidateSuperuserPermissions()
     }
 }
 
-void TClient::ValidatePermissionsWithACN(
+void TClient::ValidatePermissionsWithAcn(
     NSecurityClient::EAccessControlObject accessControlObjectName,
     EPermission permission)
 {
