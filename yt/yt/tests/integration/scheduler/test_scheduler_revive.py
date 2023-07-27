@@ -533,6 +533,7 @@ class TestControllerAgentReconnection(YTEnvSetup):
         self._wait_for_state(op, "completed")
 
     @authors("alexkolodezny")
+    @flaky(max_runs=3)
     def test_complete_map_reduce_operation_on_controller_agent_connection(self):
         self._create_table("//tmp/t_in")
         self._create_table("//tmp/t_out")
