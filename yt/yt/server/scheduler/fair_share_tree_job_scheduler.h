@@ -439,10 +439,11 @@ private:
 
     std::vector<bool> CanSchedule_;
 
-    // Populated only for pools.
+    //! Populated only for pools.
     TJobResourcesMap LocalUnconditionalUsageDiscountMap_;
 
-    THashMap<const TSchedulerCompositeElement*, TNonOwningElementList> ConsideredSchedulableChildrenPerPool_;
+    // Indexed with tree index like static/dynamic attributes list.
+    std::vector<std::optional<TNonOwningElementList>> ConsideredSchedulableChildrenPerPool_;
 
     TNonOwningOperationElementList BadPackingOperations_;
 
@@ -458,7 +459,7 @@ private:
 
     void CollectConsideredSchedulableChildrenPerPool(
         const std::optional<TNonOwningOperationElementList>& consideredSchedulableOperations);
-    std::optional<TNonOwningElementList> GetConsideredSchedulableChildrenForPool(const TSchedulerCompositeElement* element);
+    std::optional<TNonOwningElementList>& GetConsideredSchedulableChildrenForPool(const TSchedulerCompositeElement* element);
 
     void PrescheduleJob(TSchedulerElement* element, EOperationPreemptionPriority targetOperationPreemptionPriority);
     void PrescheduleJobAtCompositeElement(TSchedulerCompositeElement* element, EOperationPreemptionPriority targetOperationPreemptionPriority);
