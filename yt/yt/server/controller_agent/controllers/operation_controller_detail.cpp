@@ -2059,6 +2059,13 @@ void TOperationControllerBase::StartOutputCompletionTransaction()
 
 void TOperationControllerBase::CommitOutputCompletionTransaction()
 {
+    auto outputCompletionTransactionId = OutputCompletionTransaction
+        ? OutputCompletionTransaction->GetId()
+        : NullTransactionId;
+
+    YT_LOG_INFO("Committing output completion transaction and setting committed attribute (TransactionId: %v)",
+        outputCompletionTransactionId);
+
     auto useTransactionAction = GetConfig()->SetCommittedAttributeViaTransactionAction;
 
     if (useTransactionAction && OutputCompletionTransaction) {
@@ -2094,7 +2101,7 @@ void TOperationControllerBase::CommitOutputCompletionTransaction()
 
         auto path = GetOperationPath(OperationId) + "/@" + CommittedAttribute;
         auto req = TYPathProxy::Set(path);
-        SetTransactionId(req, OutputCompletionTransaction ? OutputCompletionTransaction->GetId() : NullTransactionId);
+        SetTransactionId(req, outputCompletionTransactionId);
         req->set_value(ConvertToYsonStringNestingLimited(true).ToString());
         WaitFor(proxy.Execute(req))
             .ThrowOnError();
@@ -2109,6 +2116,9 @@ void TOperationControllerBase::CommitOutputCompletionTransaction()
     }
 
     CommitFinished = true;
+
+    YT_LOG_INFO("Output completion transaction committed and committed attribute set (TransactionId: %v)",
+        outputCompletionTransactionId);
 }
 
 void TOperationControllerBase::StartDebugCompletionTransaction()
@@ -2141,11 +2151,19 @@ void TOperationControllerBase::CommitDebugCompletionTransaction()
         return;
     }
 
+    auto debugCompletionTransactionId = DebugCompletionTransaction->GetId();
+
+    YT_LOG_INFO("Committing debug completion transaction (TransactionId: %v)",
+        debugCompletionTransactionId);
+
     TTransactionCommitOptions options;
     options.PrerequisiteTransactionIds.push_back(Host->GetIncarnationId());
     WaitFor(DebugCompletionTransaction->Commit(options))
         .ThrowOnError();
     DebugCompletionTransaction.Reset();
+
+    YT_LOG_INFO("Debug completion transaction committed (TransactionId: %v)",
+        debugCompletionTransactionId);
 }
 
 void TOperationControllerBase::SleepInCommitStage(EDelayInsideOperationCommitStage desiredStage)
@@ -2834,6 +2852,8 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
             checkError(GetCumulativeError(batchRsp));
         }
     }
+
+    YT_LOG_INFO("Upload to output tables finished");
 }
 
 void TOperationControllerBase::SafeOnJobStarted(const TJobletPtr& joblet)
