@@ -204,7 +204,7 @@ public:
 
         // NB: This only makes sense for persistently prepared transactions since only these participate in 2PC
         // and may cause issues with committed rows not being visible.
-        InsertTransactionToBarrier(transaction, persistentWriteState);
+        InsertPreparedTransactionToBarrier(transaction, persistentWriteState);
 
         if (IsReplicatorWrite(transaction) &&
             Tablet_->GetBackupCheckpointTimestamp() &&
@@ -481,7 +481,7 @@ public:
         for (const auto& [transactionId, writeState] : TransactionIdToPersistentWriteState_) {
             if (writeState->RowsPrepared) {
                 auto* transaction = transactionManager->GetPersistentTransaction(transactionId);
-                InsertTransactionToBarrier(transaction, writeState);
+                InsertPreparedTransactionToBarrier(transaction, writeState);
             }
         }
     }
@@ -489,6 +489,10 @@ public:
     void StopEpoch() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        for (const auto& [transactionId, writeState] : TransactionIdToPersistentWriteState_) {
+            writeState->PreparedBarrierCookie = InvalidAsyncBarrierCookie;
+        }
 
         const auto& runtimeData = Tablet_->RuntimeData();
         runtimeData->PreparedTransactionBarrier.Clear(TError("Epoch stopped"));
@@ -702,9 +706,14 @@ private:
             FindTransactionPersistentWriteState(transactionId);
     }
 
-    void InsertTransactionToBarrier(TTransaction* transaction, const TTransactionPersistentWriteStatePtr& writeState)
+    void InsertPreparedTransactionToBarrier(TTransaction* transaction, const TTransactionPersistentWriteStatePtr& writeState)
     {
         if (!Tablet_->IsPhysicallyOrdered()) {
+            return;
+        }
+
+        // Transaction is already inserted into the barrier.
+        if (writeState->PreparedBarrierCookie != InvalidAsyncBarrierCookie) {
             return;
         }
 
@@ -713,7 +722,7 @@ private:
 
         const auto& runtimeData = Tablet_->RuntimeData();
         auto cookie = runtimeData->PreparedTransactionBarrier.Insert();
-        YT_VERIFY(std::exchange(writeState->PreparedBarrierCookie, cookie) == InvalidAsyncBarrierCookie);
+        writeState->PreparedBarrierCookie = cookie;
     }
 
     void RemovePreparedTransactionFromBarrier(TTransaction* transaction)
