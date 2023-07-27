@@ -2937,7 +2937,10 @@ class TestSlotManagerResurrect(YTEnvSetup):
         config["exec_agent"]["slot_manager"]["locations"][0]["path"] = cls.default_disk_path
 
     @authors("don-dron")
-    def DISABLED_test_simple_job_env_resurrect(self):
+    def test_simple_job_env_resurrect(self):
+        nodes = ls("//sys/cluster_nodes")
+        locations = get("//sys/cluster_nodes/{0}/orchid/config/exec_agent/slot_manager/locations".format(nodes[0]))
+
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
         write_table("//tmp/t_input", {"foo": "bar"})
@@ -3019,8 +3022,16 @@ class TestSlotManagerResurrect(YTEnvSetup):
 
         wait(lambda: get(op.get_path() + "/@state") == "completed")
 
+        for location in locations:
+            path = "{}/disabled".format(location["path"])
+            if os.path.exists(path):
+                os.remove(path)
+
     @authors("don-dron")
     def test_job_env_resurrect_with_volume_and_container_leak(self):
+        nodes = ls("//sys/cluster_nodes")
+        locations = get("//sys/cluster_nodes/{0}/orchid/config/exec_agent/slot_manager/locations".format(nodes[0]))
+
         self.setup_files()
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -3130,9 +3141,16 @@ class TestSlotManagerResurrect(YTEnvSetup):
 
         wait(lambda: get(op.get_path() + "/@state") == "completed")
 
+        for location in locations:
+            path = "{}/disabled".format(location["path"])
+            if os.path.exists(path):
+                os.remove(path)
+
     @authors("don-dron")
     def test_porto_fail_then_proxy_has_been_spawning(self):
         nodes = ls("//sys/cluster_nodes")
+        locations = get("//sys/cluster_nodes/{0}/orchid/config/exec_agent/slot_manager/locations".format(nodes[0]))
+
         update_nodes_dynamic_config({
             "exec_agent": {
                 "slot_manager": {
@@ -3267,3 +3285,8 @@ class TestSlotManagerResurrect(YTEnvSetup):
                 "api_timeout": 5000
             }
         })
+
+        for location in locations:
+            path = "{}/disabled".format(location["path"])
+            if os.path.exists(path):
+                os.remove(path)
