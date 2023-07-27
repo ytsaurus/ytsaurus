@@ -1,10 +1,16 @@
 #include "serialize.h"
 
+#include "private.h"
+
 #include <util/generic/cast.h>
 
 namespace NYT::NClusterClock {
 
 using namespace NHydra;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = ClusterClockLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,7 +32,11 @@ bool ValidateSnapshotReign(TReign reign)
 EFinalRecoveryAction GetActionToRecoverFromReign(TReign reign)
 {
     // In Clock we do it the hard way.
-    YT_VERIFY(reign == GetCurrentReign());
+    YT_LOG_FATAL_UNLESS(reign == GetCurrentReign(),
+        "Attempted to recover clock from invalid reign "
+        "(RecoverReign: %v, CurrentReign: %v)",
+        reign,
+        GetCurrentReign());
 
     return EFinalRecoveryAction::None;
 }

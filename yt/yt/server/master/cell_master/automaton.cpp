@@ -1,4 +1,5 @@
 #include "automaton.h"
+
 #include "bootstrap.h"
 #include "hydra_facade.h"
 #include "serialize.h"

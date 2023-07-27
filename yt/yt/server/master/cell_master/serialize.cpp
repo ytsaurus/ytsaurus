@@ -1,5 +1,7 @@
 #include "serialize.h"
 
+#include "private.h"
+
 #include <yt/yt/server/master/object_server/object_manager.h>
 
 #include <yt/yt/server/master/security_server/security_manager.h>
@@ -11,6 +13,10 @@ namespace NYT::NCellMaster {
 using namespace NHydra;
 using namespace NObjectServer;
 using namespace NSecurityServer;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = CellMasterLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,7 +38,11 @@ bool ValidateSnapshotReign(TReign reign)
 EFinalRecoveryAction GetActionToRecoverFromReign(TReign reign)
 {
     // In Master we do it the hard way.
-    YT_VERIFY(reign == GetCurrentReign());
+    YT_LOG_FATAL_UNLESS(reign == GetCurrentReign(),
+        "Attempted to recover master from invalid reign "
+        "(RecoverReign: %v, CurrentReign: %v)",
+        reign,
+        GetCurrentReign());
 
     return EFinalRecoveryAction::None;
 }
