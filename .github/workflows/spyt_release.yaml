@@ -123,6 +123,13 @@ jobs:
           python3 -m pip install twine "setuptools<60.0.0"
           python3 -m pip install ytsaurus-client==0.13.5
 
+      - name: Set up gpg
+        run: |
+          echo "use-agent" >> ~/.gnupg/gpg.conf
+          echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
+          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
+          echo RELOADAGENT | gpg-connect-agent
+
       - name: Write credentials
         run: |
           mkdir -p ~/.sbt
