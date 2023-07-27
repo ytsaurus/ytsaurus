@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import yt.wrapper as yt
-from yql.api.v1.client import YqlClient
 from flask import Flask, json, request, Response, g, Blueprint
 from wtforms import Form, StringField, IntegerField, validators
 from gunicorn.app.base import BaseApplication
@@ -451,6 +450,8 @@ def make_app():
 
     @app.before_request
     def before_request():
+        from yql.api.v1.client import YqlClient
+
         g.yql_client = YqlClient(db=cluster_name, token_path=os.path.expanduser("~/.yql/token"))
 
         g.client = yt.YtClient(
