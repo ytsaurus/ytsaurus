@@ -23,6 +23,18 @@ const static auto& Logger = NTabletNode::TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+struct TStoreWithReason
+{
+    TStore* Store;
+    EStoreCompactionReason Reason = EStoreCompactionReason::None;
+};
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TStoreCompactor
     : public ILsmBackend
 {
@@ -108,7 +120,7 @@ private:
         }
 
         auto* tablet = eden->GetTablet();
-        const auto& mountConfig = tablet->GetMountConfig();
+        const auto mountConfig = tablet->GetMountConfig();
 
         auto [reason, stores] = PickStoresForPartitioning(eden);
         if (stores.empty()) {
@@ -140,7 +152,7 @@ private:
 
         auto* tablet = partition->GetTablet();
 
-        const auto& mountConfig = tablet->GetMountConfig();
+        const auto mountConfig = tablet->GetMountConfig();
         if (!mountConfig->EnableDiscardingExpiredPartitions || mountConfig->MinDataVersions != 0) {
             return {};
         }
@@ -222,7 +234,7 @@ private:
             .Stores = stores,
             .Reason = reason,
         };
-        const auto& mountConfig = tablet->GetMountConfig();
+        const auto mountConfig = tablet->GetMountConfig();
         // We aim to improve OSC; compaction improves OSC _only_ if the partition contributes towards OSC.
         // So we consider how constrained is the partition, and how many stores we consider for compaction.
         const int overlappingStoreLimit = GetOverlappingStoreLimit(mountConfig);
@@ -257,7 +269,7 @@ private:
         std::vector<TStoreId> finalists;
 
         const auto* tablet = eden->GetTablet();
-        const auto& mountConfig = tablet->GetMountConfig();
+        const auto mountConfig = tablet->GetMountConfig();
 
         std::vector<TStore*> candidates;
 
@@ -328,7 +340,7 @@ private:
         std::vector<TStoreId> finalists;
 
         const auto* tablet = partition->GetTablet();
-        const auto& mountConfig = tablet->GetMountConfig();
+        const auto mountConfig = tablet->GetMountConfig();
 
         auto Logger = NLsm::Logger.WithTag("%v, PartitionId: %v, Eden: %v",
             tablet->GetLoggingTag(),
@@ -338,7 +350,7 @@ private:
         YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
             "Picking stores for compaction");
 
-        std::vector<TStore*> candidates;
+        std::vector<TStoreWithReason> candidates;
 
         TEnumIndexedVector<EStoreCompactionReason, int> storeCountByReason;
 
@@ -352,17 +364,20 @@ private:
                 continue;
             }
 
-            auto candidate = store.get();
-            candidates.push_back(candidate);
+            candidates.push_back({.Store = store.get()});
+            auto& candidate = candidates.back();
 
-            auto compactionReason = GetStoreCompactionReason(candidate);
-            if (compactionReason != EStoreCompactionReason::None) {
-                ++storeCountByReason[compactionReason];
+            auto compactionReason = GetStoreCompactionReason(candidate.Store);
+            if (compactionReason == EStoreCompactionReason::None) {
+                auto digestReason = GetStoreCompactionReasonFromDigest(candidate.Store);
+                if (!(partition->IsEden() && digestReason == EStoreCompactionReason::TooManyTimestamps)) {
+                    compactionReason = digestReason;
+                }
             }
 
-            auto digestReason = GetStoreCompactionReasonFromDigest(candidate);
-            if (digestReason != EStoreCompactionReason::None) {
-                ++storeCountByReason[digestReason];
+            if (compactionReason != EStoreCompactionReason::None) {
+                ++storeCountByReason[compactionReason];
+                candidate.Reason = compactionReason;
             }
         }
 
@@ -376,6 +391,14 @@ private:
 
         EStoreCompactionReason finalistCompactionReason;
 
+        YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging &&
+                (storeCountByReason[EStoreCompactionReason::TooManyTimestamps] > 0 ||
+                 storeCountByReason[EStoreCompactionReason::TtlCleanupExpected] > 0),
+            "Row digest provides stores for compaction (TooManyTimestampsCount: %v, "
+            "TtlCleanupExpectedCount: %v)",
+            storeCountByReason[EStoreCompactionReason::TooManyTimestamps],
+            storeCountByReason[EStoreCompactionReason::TtlCleanupExpected]);
+
         if (mountConfig->PeriodicCompactionMode == EPeriodicCompactionMode::Partition &&
             storeCountByReason[EStoreCompactionReason::Periodic] > 0)
         {
@@ -385,40 +408,30 @@ private:
             std::sort(
                 candidates.begin(),
                 candidates.end(),
-                [] (auto* lhs, auto* rhs) {
-                    return lhs->GetCreationTime() < rhs->GetCreationTime();
+                [] (const TStoreWithReason& lhs, const TStoreWithReason& rhs) {
+                    return lhs.Store->GetCreationTime() < rhs.Store->GetCreationTime();
                 });
 
-            for (auto* candidate : candidates) {
-                finalists.push_back(candidate->GetId());
+            for (auto [store, reason] : candidates) {
+                finalists.push_back(store->GetId());
                 if (std::ssize(finalists) >= mountConfig->MaxCompactionStoreCount) {
                     break;
                 }
             }
-        } else if (!partition->IsEden() &&
-            (storeCountByReason[EStoreCompactionReason::TooManyTimestamps] > 0 ||
-                storeCountByReason[EStoreCompactionReason::TtlCleanupExpected] > 0))
-        {
+        } else if (storeCountByReason[EStoreCompactionReason::TooManyTimestamps] > 0) {
             // Check if compaction of certain stores will likely prune some timestamps.
-
-            YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-                "Row digest provides stores for compaction (TooManyTimestampsCount: %v, "
-                "TtlCleanupExpectedCount: %v)",
-                storeCountByReason[EStoreCompactionReason::TooManyTimestamps],
-                storeCountByReason[EStoreCompactionReason::TtlCleanupExpected]);
 
             // We sort stores by min timestamp to avoid sabotage by major timestamp.
             std::sort(
                 candidates.begin(),
                 candidates.end(),
-                [] (auto* lhs, auto* rhs) {
-                    return lhs->GetMinTimestamp() < rhs->GetMinTimestamp();
+                [] (const TStoreWithReason& lhs, const TStoreWithReason& rhs) {
+                    return lhs.Store->GetMinTimestamp() < rhs.Store->GetMinTimestamp();
                 });
 
             int lastNecessaryStoreIndex = -1;
             for (int index = 0; index < std::min<int>(ssize(candidates), mountConfig->MaxCompactionStoreCount); ++index) {
-                auto* store = candidates[index];
-                auto reason = GetStoreCompactionReasonFromDigest(store);
+                const auto reason = candidates[index].Reason;
                 if (reason != EStoreCompactionReason::None) {
                     finalistCompactionReason = reason;
                     lastNecessaryStoreIndex = index;
@@ -427,28 +440,27 @@ private:
 
             if (lastNecessaryStoreIndex != -1) {
                 for (int index = 0; index <= lastNecessaryStoreIndex; ++index) {
-                    finalists.push_back(candidates[index]->GetId());
+                    finalists.push_back(candidates[index].Store->GetId());
                 }
             }
 
             YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-                "Finalist stores for compaction picked by row digest advice (StoreCount: %v)",
-                ssize(finalists));
+                "Finalist stores for compaction picked by row digest advice (StoreCount: %v, Reason: %v)",
+                ssize(finalists),
+                EStoreCompactionReason::TooManyTimestamps);
         } else if (*std::max_element(storeCountByReason.begin(), storeCountByReason.end()) > 0) {
-            for (auto* candidate : candidates) {
-                auto compactionReason = GetStoreCompactionReason(candidate);
-
-                if (compactionReason == EStoreCompactionReason::Forced && !allowForcedCompaction) {
+            for (auto [store, reason] : candidates) {
+                if (reason == EStoreCompactionReason::Forced && !allowForcedCompaction) {
                     continue;
                 }
 
-                if (compactionReason != EStoreCompactionReason::None) {
-                    finalistCompactionReason = compactionReason;
-                    finalists.push_back(candidate->GetId());
+                if (reason != EStoreCompactionReason::None) {
+                    finalistCompactionReason = reason;
+                    finalists.push_back(store->GetId());
                     YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
                         "Finalist store picked out of order (StoreId: %v, CompactionReason: %v)",
-                        candidate->GetId(),
-                        compactionReason);
+                        store->GetId(),
+                        reason);
                 }
 
                 if (std::ssize(finalists) >= mountConfig->MaxCompactionStoreCount) {
@@ -468,8 +480,8 @@ private:
         std::sort(
             candidates.begin(),
             candidates.end(),
-            [] (const TStore* lhs, const TStore* rhs) {
-                return lhs->GetCompressedDataSize() < rhs->GetCompressedDataSize();
+            [] (const TStoreWithReason& lhs, const TStoreWithReason& rhs) {
+                return lhs.Store->GetCompressedDataSize() < rhs.Store->GetCompressedDataSize();
             });
 
         int overlappingStoreCount;
@@ -494,7 +506,7 @@ private:
                 if (storeCount > mountConfig->MaxCompactionStoreCount) {
                    break;
                 }
-                i64 dataSize = candidates[j]->GetCompressedDataSize();
+                i64 dataSize = candidates[j].Store->GetCompressedDataSize();
                 if (!criticalPartition &&
                     dataSize > mountConfig->CompactionDataSizeBase &&
                     dataSizeSum > 0 && dataSize > dataSizeSum * mountConfig->CompactionDataSizeRatio) {
@@ -508,7 +520,7 @@ private:
             if (storeCount >= mountConfig->MinCompactionStoreCount) {
                 finalists.reserve(storeCount);
                 while (i < j) {
-                    finalists.push_back(candidates[i]->GetId());
+                    finalists.push_back(candidates[i].Store->GetId());
                     ++i;
                 }
                 YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
@@ -541,7 +553,7 @@ private:
 
     static bool IsStoreCompactionForced(const TStore* store)
     {
-        const auto& mountConfig = store->GetTablet()->GetMountConfig();
+        const auto mountConfig = store->GetTablet()->GetMountConfig();
         auto forcedCompactionRevision = std::max(
             mountConfig->ForcedCompactionRevision,
             mountConfig->ForcedStoreCompactionRevision);
@@ -557,7 +569,7 @@ private:
 
     bool IsStorePeriodicCompactionNeeded(const TStore* store) const
     {
-        const auto& mountConfig = store->GetTablet()->GetMountConfig();
+        const auto mountConfig = store->GetTablet()->GetMountConfig();
         if (!mountConfig->AutoCompactionPeriod) {
             return false;
         }
@@ -594,7 +606,7 @@ private:
 
         const auto& digest = *store->RowDigest();
 
-        const auto& mountConfig = store->GetTablet()->GetMountConfig();
+        const auto mountConfig = store->GetTablet()->GetMountConfig();
         i64 maxRetentionTime = (CurrentTime_ - mountConfig->MaxDataTtl).Seconds();
         i64 minRetentionTime = (CurrentTime_ - mountConfig->MinDataTtl).Seconds();
 
