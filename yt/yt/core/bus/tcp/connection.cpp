@@ -127,9 +127,11 @@ TTcpConnection::TTcpConnection(
     , UnixDomainSocketPath_(unixDomainSocketPath)
     , Handler_(std::move(handler))
     , Poller_(std::move(poller))
-    , Logger(BusLogger.WithTag("ConnectionId: %v, RemoteAddress: %v",
+    , Logger(BusLogger.WithTag("ConnectionId: %v, ConnectionType: %v, RemoteAddress: %v, EncryptionMode: %v",
         Id_,
-        EndpointDescription_))
+        ConnectionType_,
+        EndpointDescription_,
+        Config_->EncryptionMode))
     , LoggingTag_(Format("ConnectionId: %v", Id_))
     , GenerateChecksums_(Config_->GenerateChecksums)
     , Socket_(socket)
@@ -411,7 +413,7 @@ void TTcpConnection::Open()
 {
     State_ = EState::Open;
 
-    YT_LOG_DEBUG("Connection established (LocalPort: %v)", GetSocketPort());
+    YT_LOG_DEBUG("TCP connection has been established (LocalPort: %v)", GetSocketPort());
 
     if (LastIncompleteWriteTime_ != std::numeric_limits<NProfiling::TCpuInstant>::max()) {
         // Rewind stall detection if already armed by pending send
@@ -1018,7 +1020,7 @@ ssize_t TTcpConnection::DoReadSocket(char* buffer, size_t size)
         case ESslState::Established: {
             auto result = SSL_read(Ssl_.get(), buffer, size);
             if (PendingSslHandshake_ && result > 0) {
-                YT_LOG_DEBUG("TLS/SSL session has been established by SSL_read()");
+                YT_LOG_DEBUG("TLS/SSL connection has been established by SSL_read (VerificationMode: %v)", VerificationMode_);
                 PendingSslHandshake_ = false;
                 ReadyPromise_.TrySet();
             }
@@ -1191,9 +1193,10 @@ bool TTcpConnection::OnHandshakePacketReceived()
         ? std::make_optional(FromProto<EMultiplexingBand>(handshake.multiplexing_band()))
         : std::nullopt;
 
-    YT_LOG_DEBUG("Handshake received (ForeignConnectionId: %v, MultiplexingBand: %v)",
+    YT_LOG_DEBUG("Handshake received (ForeignConnectionId: %v, MultiplexingBand: %v, ForeignEncryptionMode: %v)",
         FromProto<TConnectionId>(handshake.foreign_connection_id()),
-        optionalMultiplexingBand);
+        optionalMultiplexingBand,
+        static_cast<EEncryptionMode>(handshake.encryption_mode()));
 
     if (ConnectionType_ == EConnectionType::Server && optionalMultiplexingBand) {
         auto guard = Guard(Lock_);
@@ -1311,7 +1314,7 @@ ssize_t TTcpConnection::DoWriteFragments(const std::vector<struct iovec>& vec)
             YT_ASSERT(vec.size() == 1);
             auto result = SSL_write(Ssl_.get(), vec[0].iov_base, vec[0].iov_len);
             if (PendingSslHandshake_ && result > 0) {
-                YT_LOG_DEBUG("TLS/SSL session has been established by SSL_write()");
+                YT_LOG_DEBUG("TLS/SSL connection has been established by SSL_write (VerificationMode: %v)", VerificationMode_);
                 PendingSslHandshake_ = false;
                 ReadyPromise_.TrySet();
             }
@@ -1869,7 +1872,7 @@ bool TTcpConnection::DoSslHandshake()
     auto result = SSL_do_handshake(Ssl_.get());
     switch (SSL_get_error(Ssl_.get(), result)) {
         case SSL_ERROR_NONE:
-            YT_LOG_DEBUG("TLS/SSL session has been established by SSL_do_handshake()");
+            YT_LOG_DEBUG("TLS/SSL connection has been established by SSL_do_handshake (VerificationMode %v)", VerificationMode_);
             MaxFragmentsPerWrite = 1;
             SslState_ = ESslState::Established;
             ReadyPromise_.TrySet();
@@ -1930,7 +1933,7 @@ void TTcpConnection::TryEstablishSslSession()
         return;
     }
 
-    YT_LOG_DEBUG("Starting to establish TLS/SSL session");
+    YT_LOG_DEBUG("Starting TLS/SSL connection (VerificationMode: %v)", VerificationMode_);
 
     Ssl_.reset(SSL_new(TSslContext::Get()->GetSslCtx()));
     if (!Ssl_) {
@@ -2005,6 +2008,7 @@ void TTcpConnection::TryEstablishSslSession()
     // Check that connection hasn't been aborted in DoSslHandshake().
     if (State_ == EState::Open) {
         UpdateConnectionCount(-1);
+        FlushBusStatistics();
         NetworkCounters_.Exchange(TTcpDispatcher::TImpl::Get()->GetCounters(NetworkName_, IsEncrypted()));
         UpdateConnectionCount(1);
     }
