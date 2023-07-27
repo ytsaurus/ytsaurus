@@ -92,9 +92,48 @@ jobs:
     steps:
       - name: Change directory
         run: cd yt/spark/spark-over-yt
+      - name: Set up JDK 11
+        uses: actions/setup-java@v3
+        with:
+          java-version: '11'
+          distribution: 'temurin'
+          server-id: ossrh
+          server-username: ${{ secrets.OSSRH_USERNAME }}
+          server-password: OSSRH_TOKEN
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg-passphrase: ${{ secrets.GPG_PASSWORD }}
+      - name: Set up SBT
+        run: |
+          curl -fsL "https://github.com/sbt/sbt/releases/download/v1.5.4/sbt-1.5.4.tgz" | tar xfz - -C /usr/share && \
+            chown -R root:root /usr/share/sbt && \
+            chmod -R 755 /usr/share/sbt && \
+            ln -s /usr/share/sbt/bin/sbt /usr/local/bin/sbt
+
+      - name: Set up scala
+        run: |
+          curl -fsL https://downloads.typesafe.com/scala/2.12.14/scala-2.12.14.tgz | tar xfz - -C /usr/share && \
+            mv /usr/share/scala-2.12.14 /usr/share/scala && \
+            chown -R root:root /usr/share/scala && \
+            chmod -R 755 /usr/share/scala && \
+            ln -s /usr/share/scala/bin/* /usr/local/bin
+
+      - name: Set up python
+        run: |
+          ln -sf /usr/bin/python3.11 /usr/bin/python3
+          python3 -m pip install twine "setuptools<60.0.0"
+          python3 -m pip install ytsaurus-client==0.13.5
+
+      - name: Write credentials
+        run: |
+          mkdir -p ~/.sbt
+          echo "realm=Sonatype Nexus Repository Manager" > ~/.sbt/.ossrh_credentials
+          echo "host=s01.oss.sonatype.org" >> ~/.sbt/.ossrh_credentials
+          echo "user=${{ secrets.OSSRH_USERNAME }}" >> ~/.sbt/.ossrh_credentials
+          echo "password=0" >> ~/.sbt/.ossrh_credentials
 
       - name: Run sbt build
         run: |
+          cd yt/spark/spark-over-yt
           sbt \
             -DpublishRepo=False \
             -DinnerSidecarConfig=False \
@@ -104,9 +143,6 @@ jobs:
             -DcustomSparkForkVersion=${{ needs.prepare_env.outputs.release_major_version }} \
             spytPublishSparkForkRelease
 
-      - name: Generate cluster configuration
-        run: python3 tools/release/publisher/config_generator.py build_output
-
       - name: DockerHub login
         shell: bash
         run: |
@@ -114,6 +150,7 @@ jobs:
 
       - name: Build and push docker image
         run: |
+          cd yt/spark/spark-over-yt
           cd tools/release/spark_image
           bash ./build.sh --spark-version ${{ steps.prepare_env.outputs.release_major_version }}
           docker push ytsaurus/spark:${{ steps.prepare_env.outputs.release_major_version }}
@@ -138,7 +175,7 @@ jobs:
       - name: Prepare ytsaurus-spyt package publish
         run: |
           rm -f dist
-          mv "build_output/ytsaurus-spyt" dist
+          mv "cd yt/spark/spark-over-yt/build_output/ytsaurus-spyt" dist
 
       - name: Publish package distributions to TestPyPI
         uses: pypa/gh-action-pypi-publish@release/v1
