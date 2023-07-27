@@ -16,7 +16,7 @@ NRpc::IServicePtr CreateProxyingChunkService(
     NElection::TCellId cellId,
     TProxyingChunkServiceConfigPtr serviceConfig,
     NApi::NNative::TMasterConnectionConfigPtr masterConnectionConfig,
-    NApi::NNative::TConnectionDynamicConfigPtr connectionConfig,
+    NApi::NNative::TConnectionDynamicConfigPtr nativeConnectionConfig,
     NRpc::IChannelFactoryPtr channelFactory,
     NRpc::IAuthenticatorPtr authenticator);
 

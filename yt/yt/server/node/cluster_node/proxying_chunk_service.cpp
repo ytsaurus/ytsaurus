@@ -50,7 +50,7 @@ public:
         TCellId cellId,
         TProxyingChunkServiceConfigPtr serviceConfig,
         TMasterConnectionConfigPtr masterConnectionConfig,
-        NApi::NNative::TConnectionDynamicConfigPtr connectionConfig,
+        NApi::NNative::TConnectionDynamicConfigPtr nativeConnectionConfig,
         IChannelFactoryPtr channelFactory,
         IAuthenticatorPtr authenticator)
         : TServiceBase(
@@ -68,7 +68,7 @@ public:
         , LocateDynamicStoresHandler_(New<TLocateDynamicStoresHandler>(this))
         , AllocateWriteTargetsHandler_(New<TAllocateWriteTargetsHandler>(
             this,
-            /*useFollowers*/ connectionConfig->UseFollowersForWriteTargetsAllocation))
+            /*useFollowers*/ nativeConnectionConfig->UseFollowersForWriteTargetsAllocation))
         , ExecuteBatchHandler_(New<TExecuteBatchHandler>(this))
         , CreateChunkHandler_(New<TCreateChunkHandler>(this))
         , ConfirmChunkHandler_(New<TConfirmChunkHandler>(this))
@@ -281,7 +281,7 @@ private:
     protected:
         TChunkServiceProxy::TReqAllocateWriteTargetsPtr CreateRequest() override
         {
-            auto proxy = UseFollowers_ ? LeaderProxy_ : FollowerProxy_;
+            auto proxy = UseFollowers_ ? FollowerProxy_ : LeaderProxy_;
             return proxy.AllocateWriteTargets();
         }
 
@@ -487,6 +487,8 @@ private:
         AttachChunkTreesHandler_->HandleRequest(context);
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 IServicePtr CreateProxyingChunkService(
     TCellId cellId,
