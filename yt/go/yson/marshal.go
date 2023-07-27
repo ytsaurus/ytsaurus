@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"sort"
 	"time"
 )
 
@@ -95,7 +96,7 @@ func (e *Encoder) Encode(value any) (err error) {
 //
 // Map values are encoded as YSON maps. The map's key type must either be a
 // string, implement encoding.TextMarshaler, or implement encoding.BinaryMarshaler.
-// The map keys are used as YSON map keys by applying the following rules:
+// The map keys are sorted and used as YSON map keys by applying the following rules:
 //   - keys of any string type are used directly
 //   - encoding.TextMarshalers are marshaled
 //   - encoding.BinaryMarshalers are marshaled
@@ -266,11 +267,17 @@ func encodeAny(w *Writer, value any, opts *EncoderOptions) (err error) {
 		w.RawNode([]byte(vv))
 
 	case map[string]any:
-		w.BeginMap()
-		for k, item := range vv {
-			w.MapKeyString(k)
+		sv := make([]kv, 0, len(vv))
+		for k, v := range vv {
+			sv = append(sv, kv{k: k, v: v})
+		}
+		sort.Slice(sv, func(i, j int) bool { return sv[i].k < sv[j].k })
 
-			if err = encodeAny(w, item, opts); err != nil {
+		w.BeginMap()
+		for _, item := range sv {
+			w.MapKeyString(item.k)
+
+			if err = encodeAny(w, item.v, opts); err != nil {
 				return err
 			}
 		}
@@ -321,6 +328,11 @@ func encodeAny(w *Writer, value any, opts *EncoderOptions) (err error) {
 	}
 
 	return w.Err()
+}
+
+type kv struct {
+	k string
+	v any
 }
 
 func encodeReflect(w *Writer, value reflect.Value, opts *EncoderOptions) error {
@@ -386,13 +398,22 @@ func encodeReflectMap(w *Writer, value reflect.Value, attrs bool, opts *EncoderO
 		w.BeginAttrs()
 	}
 
-	mr := value.MapRange()
-	for mr.Next() {
-		if err := encodeMapKey(w, mr.Key()); err != nil {
-			return err
+	// Extract and sort the keys.
+	sv := make([]reflectWithString, value.Len())
+	mi := value.MapRange()
+	for i := 0; mi.Next(); i++ {
+		sv[i].k = mi.Key()
+		sv[i].v = mi.Value()
+		if err := sv[i].resolve(); err != nil {
+			return fmt.Errorf("yson: encoding error for type %q: %q", value.Type().String(), err.Error())
 		}
+	}
+	sort.Slice(sv, func(i, j int) bool { return bytes.Compare(sv[i].kb, sv[j].kb) < 0 })
 
-		if err = encodeAny(w, mr.Value().Interface(), opts); err != nil {
+	for _, kv := range sv {
+		w.MapKeyBytes(kv.kb)
+
+		if err = encodeAny(w, kv.v.Interface(), opts); err != nil {
 			return err
 		}
 	}
@@ -430,28 +451,34 @@ func encodeReflectYPAPIMap(w *Writer, value reflect.Value, opts *EncoderOptions)
 	return w.Err()
 }
 
-func encodeMapKey(w *Writer, v reflect.Value) error {
-	if v.Kind() == reflect.String {
-		w.MapKeyString(v.String())
+type reflectWithString struct {
+	k  reflect.Value
+	v  reflect.Value
+	kb []byte
+}
+
+func (w *reflectWithString) resolve() error {
+	if w.k.Kind() == reflect.String {
+		w.kb = []byte(w.k.String())
 		return nil
 	}
 
-	if tm, ok := v.Interface().(encoding.TextMarshaler); ok {
+	if tm, ok := w.k.Interface().(encoding.TextMarshaler); ok {
+		if w.k.Kind() == reflect.Pointer && w.k.IsNil() {
+			return nil
+		}
 		buf, err := tm.MarshalText()
-		if err != nil {
-			return err
-		}
-		w.MapKeyBytes(buf)
-		return nil
+		w.kb = buf
+		return err
 	}
 
-	if bm, ok := v.Interface().(encoding.BinaryMarshaler); ok {
-		buf, err := bm.MarshalBinary()
-		if err != nil {
-			return err
+	if bm, ok := w.k.Interface().(encoding.BinaryMarshaler); ok {
+		if w.k.Kind() == reflect.Pointer && w.k.IsNil() {
+			return nil
 		}
-		w.MapKeyBytes(buf)
-		return nil
+		buf, err := bm.MarshalBinary()
+		w.kb = buf
+		return err
 	}
 
 	panic("yson: unsupported map key type")

@@ -173,6 +173,26 @@ func TestDecodeValueWithGenericAttrs(t *testing.T) {
 	require.Equal(t, int64(11), v.Value)
 }
 
+func TestMarshalGenericAttrsAreSorted(t *testing.T) {
+	b, err := Marshal(valueWithGenericAttrs{
+		Attrs: map[string]any{
+			"x": 1,
+			"y": 2,
+			"a": 3,
+			"z": 4,
+		},
+		Value: 29,
+	})
+
+	if err != nil {
+		t.Fatalf("Failed to Marshal generic attrs: %v", err)
+	}
+	const want = `<a=3;x=1;y=2;z=4;>29`
+	if string(b) != want {
+		t.Errorf("Marshal map with generic attrs: got %#q, want %#q", b, want)
+	}
+}
+
 func TestYPAPIMap(t *testing.T) {
 	type Progress struct {
 		PodsTotal int              `yson:"pods_total"`

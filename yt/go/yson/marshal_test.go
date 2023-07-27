@@ -2,11 +2,11 @@ package yson
 
 import (
 	"bytes"
+	"errors"
 	"math"
 	"reflect"
 	"testing"
 
-	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -133,33 +133,37 @@ func TestMarshalMaps(t *testing.T) {
 	testRoundtrip(t, s)
 }
 
-type textMarshaler uuid.UUID
-
-func (m textMarshaler) MarshalText() (text []byte, err error) {
-	return uuid.UUID(m).MarshalText()
+type textMarshaler struct {
+	A, B string
 }
 
-func (m *textMarshaler) UnmarshalText(text []byte) error {
-	var i uuid.UUID
-	if err := i.UnmarshalText(text); err != nil {
-		return err
+func (m textMarshaler) MarshalText() ([]byte, error) {
+	return []byte(m.A + ":" + m.B), nil
+}
+
+func (m *textMarshaler) UnmarshalText(b []byte) error {
+	pos := bytes.IndexByte(b, ':')
+	if pos == -1 {
+		return errors.New("missing separator")
 	}
-	*m = textMarshaler(i)
+	m.A, m.B = string(b[:pos]), string(b[pos+1:])
 	return nil
 }
 
-type binaryMarshaler uuid.UUID
-
-func (m binaryMarshaler) MarshalBinary() (data []byte, err error) {
-	return uuid.UUID(m).MarshalBinary()
+type binaryMarshaler struct {
+	A, B string
 }
 
-func (m *binaryMarshaler) UnmarshalBinary(data []byte) error {
-	var i uuid.UUID
-	if err := i.UnmarshalBinary(data); err != nil {
-		return err
+func (m binaryMarshaler) MarshalBinary() ([]byte, error) {
+	return []byte(m.A + ":" + m.B), nil
+}
+
+func (m *binaryMarshaler) UnmarshalBinary(b []byte) error {
+	pos := bytes.IndexByte(b, ':')
+	if pos == -1 {
+		return errors.New("missing separator")
 	}
-	*m = binaryMarshaler(i)
+	m.A, m.B = string(b[:pos]), string(b[pos+1:])
 	return nil
 }
 
@@ -169,19 +173,15 @@ func TestMarshalMapKeys(t *testing.T) {
 	type MyString string
 	testRoundtrip(t, map[MyString]MyString{"1": "2"})
 
-	newTextMarshaler := func() textMarshaler {
-		v, err := uuid.NewV4()
-		require.NoError(t, err)
-		return textMarshaler(v)
-	}
-	testRoundtrip(t, map[textMarshaler]textMarshaler{newTextMarshaler(): newTextMarshaler()})
+	testRoundtrip(t, map[textMarshaler]textMarshaler{
+		{"x", "y"}: {"a", "b"},
+		{"p", "q"}: {"r", "s"},
+	})
 
-	newBinaryMarshaler := func() binaryMarshaler {
-		v, err := uuid.NewV4()
-		require.NoError(t, err)
-		return binaryMarshaler(v)
-	}
-	testRoundtrip(t, map[binaryMarshaler]binaryMarshaler{newBinaryMarshaler(): newBinaryMarshaler()})
+	testRoundtrip(t, map[binaryMarshaler]binaryMarshaler{
+		{"x", "y"}: {"a", "b"},
+		{"p", "q"}: {"r", "s"},
+	})
 }
 
 type customMarshal struct{}
@@ -240,4 +240,52 @@ func TestMarshalWideStruct(t *testing.T) {
 	}
 
 	testRoundtrip(t, wide)
+}
+
+func TestMarshalMapKeysAreSorted(t *testing.T) {
+	b, err := Marshal(map[string]int{
+		"x": 1,
+		"y": 2,
+		"a": 3,
+		"z": 4,
+	})
+	if err != nil {
+		t.Fatalf("Failed to Marshal string map: %v", err)
+	}
+	const want = `{a=3;x=1;y=2;z=4;}`
+	if string(b) != want {
+		t.Errorf("Marshal map with string keys: got %#q, want %#q", b, want)
+	}
+}
+
+func TestTextMarshalerMapKeysAreSorted(t *testing.T) {
+	b, err := Marshal(map[textMarshaler]int{
+		{"x", "y"}: 1,
+		{"y", "x"}: 2,
+		{"a", "z"}: 3,
+		{"z", "a"}: 4,
+	})
+	if err != nil {
+		t.Fatalf("Failed to Marshal text.Marshaler: %v", err)
+	}
+	const want = `{"a:z"=3;"x:y"=1;"y:x"=2;"z:a"=4;}`
+	if string(b) != want {
+		t.Errorf("Marshal map with text.Marshaler keys: got %#q, want %#q", b, want)
+	}
+}
+
+func TestBinaryMarshalerMapKeysAreSorted(t *testing.T) {
+	b, err := Marshal(map[binaryMarshaler]int{
+		{"x", "y"}: 1,
+		{"y", "x"}: 2,
+		{"a", "z"}: 3,
+		{"z", "a"}: 4,
+	})
+	if err != nil {
+		t.Fatalf("Failed to Marshal binary.Marshaler: %v", err)
+	}
+	const want = `{"a:z"=3;"x:y"=1;"y:x"=2;"z:a"=4;}`
+	if string(b) != want {
+		t.Errorf("Marshal map with binary.Marshaler keys: got %#q, want %#q", b, want)
+	}
 }
