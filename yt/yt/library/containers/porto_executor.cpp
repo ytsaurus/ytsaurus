@@ -112,9 +112,22 @@ TString FormatEnablePorto(EEnablePorto value)
 class TPortoExecutor
     : public IPortoExecutor
 {
+private:
+
+    template<class T, class... TArgs1, class... TArgs2>
+    auto EnqueuePortoApiAction(
+        T(TPortoExecutor::*Method)(TArgs1...),
+        const TString& command,
+        TArgs2&&... args) {
+        YT_LOG_DEBUG("Enqueue porti api action (Command: %v)", command);
+        return BIND(Method, MakeStrong(this), std::forward<TArgs2>(args)...)
+            .AsyncVia(Queue_->GetInvoker())
+            .Run();
+    };
+
 public:
     TPortoExecutor(
-        TPortoExecutorConfigPtr config,
+        TPortoExecutorDynamicConfigPtr config,
         const TString& threadNameSuffix,
         const NProfiling::TProfiler& profiler)
         : Config_(std::move(config))
@@ -133,146 +146,6 @@ public:
         PollExecutor_->Start();
     }
 
-    void OnDynamicConfigChanged(const TPortoExecutorDynamicConfigPtr& newConfig) override
-    {
-        DynamicConfig_.Store(newConfig);
-    }
-
-    TFuture<void> CreateContainer(const TString& container) override
-    {
-        return BIND(&TPortoExecutor::DoCreateContainer, MakeStrong(this), container)
-            .AsyncVia(Queue_->GetInvoker())
-            .Run();
-    }
-
-    TFuture<void> CreateContainer(const TRunnableContainerSpec& containerSpec, bool start) override
-    {
-        return BIND(&TPortoExecutor::DoCreateContainerFromSpec, MakeStrong(this), containerSpec, start)
-            .AsyncVia(Queue_->GetInvoker())
-            .Run();
-    }
-
-    TFuture<std::optional<TString>> GetContainerProperty(
-        const TString& container,
-        const TString& property) override
-    {
-        return BIND([=, this, this_ = MakeStrong(this)] () -> std::optional<TString> {
-            auto response = DoGetContainerProperties({container}, {property});
-            auto parsedResponse = ParseSinglePortoGetResponse(container, response);
-            auto it = parsedResponse.find(property);
-            if (it == parsedResponse.end()) {
-                return std::nullopt;
-            } else {
-                return it->second.ValueOrThrow();
-            }
-        })
-        .AsyncVia(Queue_->GetInvoker())
-        .Run();
-    }
-
-    TFuture<THashMap<TString, TErrorOr<TString>>> GetContainerProperties(
-        const TString& container,
-        const std::vector<TString>& properties) override
-    {
-        return BIND([=, this, this_ = MakeStrong(this)] {
-            auto response = DoGetContainerProperties({container}, properties);
-            return ParseSinglePortoGetResponse(container, response);
-        })
-        .AsyncVia(Queue_->GetInvoker())
-        .Run();
-    }
-
-    TFuture<THashMap<TString, THashMap<TString, TErrorOr<TString>>>> GetContainerProperties(
-        const std::vector<TString>& containers,
-        const std::vector<TString>& properties) override
-    {
-        return BIND([=, this, this_ = MakeStrong(this)] {
-            auto response = DoGetContainerProperties(containers, properties);
-            return ParseMultiplePortoGetResponse(response);
-        })
-        .AsyncVia(Queue_->GetInvoker())
-        .Run();
-    }
-
-    TFuture<THashMap<TString, i64>> GetContainerMetrics(
-        const std::vector<TString>& containers,
-        const TString& metric) override
-    {
-        return BIND([=, this, this_ = MakeStrong(this)] {
-            return DoGetContainerMetrics(containers, metric);
-        })
-        .AsyncVia(Queue_->GetInvoker())
-        .Run();
-    }
-
-    TFuture<void> SetContainerProperty(
-        const TString& container,
-        const TString& property,
-        const TString& value) override
-    {
-        return BIND(&TPortoExecutor::DoSetContainerProperty, MakeStrong(this), container, property, value)
-            .AsyncVia(Queue_->GetInvoker())
-            .Run();
-    }
-
-    TFuture<void> DestroyContainer(const TString& container) override
-    {
-        return BIND(&TPortoExecutor::DoDestroyContainer, MakeStrong(this), container)
-            .AsyncVia(Queue_->GetInvoker())
-            .Run();
-    }
-
-    TFuture<void> StopContainer(const TString& container) override
-    {
-        return BIND(&TPortoExecutor::DoStopContainer, MakeStrong(this), container)
-            .AsyncVia(Queue_->GetInvoker())
-            .Run();
-    }
-
-    TFuture<void> StartContainer(const TString& container) override
-    {
-        return BIND(&TPortoExecutor::DoStartContainer, MakeStrong(this), container)
-            .AsyncVia(Queue_->GetInvoker())
-            .Run();
-    }
-
-    TFuture<TString> ConvertPath(const TString& path, const TString& container) override
-    {
-        return BIND(&TPortoExecutor::DoConvertPath, MakeStrong(this), path, container)
-            .AsyncVia(Queue_->GetInvoker())
-            .Run();
-    }
-
-    TFuture<void> KillContainer(const TString& container, int signal) override
-    {
-        return BIND(&TPortoExecutor::DoKillContainer, MakeStrong(this), container, signal)
-            .AsyncVia(Queue_->GetInvoker())
-            .Run();
-    }
-
-    TFuture<std::vector<TString>> ListSubcontainers(
-        const TString& rootContainer,
-        bool includeRoot) override
-    {
-        return BIND(&TPortoExecutor::DoListSubcontainers, MakeStrong(this), rootContainer, includeRoot)
-            .AsyncVia(Queue_->GetInvoker())
-            .Run();
-    }
-
-    TFuture<int> PollContainer(const TString& container) override
-    {
-        return BIND(&TPortoExecutor::DoPollContainer, MakeStrong(this), container)
-            .AsyncVia(Queue_->GetInvoker())
-            .Run();
-    }
-
-    TFuture<int> WaitContainer(const TString& container) override
-    {
-        return BIND(&TPortoExecutor::DoWaitContainer, MakeStrong(this), container)
-            .AsyncVia(Queue_->GetInvoker())
-            .Run();
-    }
-
     void SubscribeFailed(const TCallback<void (const TError&)>& callback) override
     {
         Failed_.Subscribe(callback);
@@ -283,59 +156,220 @@ public:
         Failed_.Unsubscribe(callback);
     }
 
+    void OnDynamicConfigChanged(const TPortoExecutorDynamicConfigPtr& newConfig) override
+    {
+        DynamicConfig_.Store(newConfig);
+    }
+
+    TFuture<void> CreateContainer(const TString& container) override
+    {
+        return EnqueuePortoApiAction(
+            &TPortoExecutor::DoCreateContainer,
+            "CreateContainer",
+            container);
+    }
+
+    TFuture<void> CreateContainer(const TRunnableContainerSpec& containerSpec, bool start) override
+    {
+        return EnqueuePortoApiAction(
+            &TPortoExecutor::DoCreateContainerFromSpec,
+            "CreateContainerFromSpec",
+            containerSpec,
+            start);
+    }
+
+    TFuture<std::optional<TString>> GetContainerProperty(
+        const TString& container,
+        const TString& property) override
+    {
+        return EnqueuePortoApiAction(
+            &TPortoExecutor::DoGetContainerProperty,
+            "GetContainerProperty",
+            container,
+            property);
+    }
+
+    TFuture<THashMap<TString, TErrorOr<TString>>> GetContainerProperties(
+        const TString& container,
+        const std::vector<TString>& properties) override
+    {
+        return EnqueuePortoApiAction(
+            &TPortoExecutor::DoGetContainerProperties,
+            "GetContainerProperty",
+            container,
+            properties);
+    }
+
+    TFuture<THashMap<TString, THashMap<TString, TErrorOr<TString>>>> GetContainerProperties(
+        const std::vector<TString>& containers,
+        const std::vector<TString>& properties) override
+    {
+        return EnqueuePortoApiAction(
+            &TPortoExecutor::DoGetContainerMultipleProperties,
+            "GetContainerProperty",
+            containers,
+            properties);
+    }
+
+    TFuture<THashMap<TString, i64>> GetContainerMetrics(
+        const std::vector<TString>& containers,
+        const TString& metric) override
+    {
+        return EnqueuePortoApiAction(
+            &TPortoExecutor::DoGetContainerMetrics,
+            "GetContainerMetrics",
+            containers,
+            metric);
+    }
+
+    TFuture<void> SetContainerProperty(
+        const TString& container,
+        const TString& property,
+        const TString& value) override
+    {
+        return EnqueuePortoApiAction(
+            &TPortoExecutor::DoSetContainerProperty,
+            "SetContainerProperty",
+            container,
+            property,
+            value);
+    }
+
+    TFuture<void> DestroyContainer(const TString& container) override
+    {
+        return EnqueuePortoApiAction(
+            &TPortoExecutor::DoDestroyContainer,
+            "DestroyContainer",
+            container);
+    }
+
+    TFuture<void> StopContainer(const TString& container) override
+    {
+        return EnqueuePortoApiAction(
+            &TPortoExecutor::DoStopContainer,
+            "StopContainer",
+            container);
+    }
+
+    TFuture<void> StartContainer(const TString& container) override
+    {
+        return EnqueuePortoApiAction(
+            &TPortoExecutor::DoStartContainer,
+            "StartContainer",
+            container);
+    }
+
+    TFuture<TString> ConvertPath(const TString& path, const TString& container) override
+    {
+        return EnqueuePortoApiAction(
+            &TPortoExecutor::DoConvertPath,
+            "ConvertPath",
+            path,
+            container);
+    }
+
+    TFuture<void> KillContainer(const TString& container, int signal) override
+    {
+        return EnqueuePortoApiAction(
+            &TPortoExecutor::DoKillContainer,
+            "KillContainer",
+            container,
+            signal);
+    }
+
+    TFuture<std::vector<TString>> ListSubcontainers(
+        const TString& rootContainer,
+        bool includeRoot) override
+    {
+        return EnqueuePortoApiAction(
+            &TPortoExecutor::DoListSubcontainers,
+            "ListSubcontainers",
+            rootContainer,
+            includeRoot);
+    }
+
+    TFuture<int> PollContainer(const TString& container) override
+    {
+        return EnqueuePortoApiAction(
+            &TPortoExecutor::DoPollContainer,
+            "PollContainer",
+            container);
+    }
+
+    TFuture<int> WaitContainer(const TString& container) override
+    {
+        return EnqueuePortoApiAction(
+            &TPortoExecutor::DoWaitContainer,
+            "WaitContainer",
+            container);
+    }
+
     TFuture<TString> CreateVolume(
         const TString& path,
         const THashMap<TString, TString>& properties) override
     {
-        return BIND(&TPortoExecutor::DoCreateVolume, MakeStrong(this), path, properties)
-            .AsyncVia(Queue_->GetInvoker())
-            .Run();
+        return EnqueuePortoApiAction(
+            &TPortoExecutor::DoCreateVolume,
+            "CreateVolume",
+            path,
+            properties);
     }
 
     TFuture<void> LinkVolume(
         const TString& path,
         const TString& name) override
     {
-        return BIND(&TPortoExecutor::DoLinkVolume, MakeStrong(this), path, name)
-            .AsyncVia(Queue_->GetInvoker())
-            .Run();
+        return EnqueuePortoApiAction(
+            &TPortoExecutor::DoLinkVolume,
+            "LinkVolume",
+            path,
+            name);
     }
 
     TFuture<void> UnlinkVolume(
         const TString& path,
         const TString& name) override
     {
-        return BIND(&TPortoExecutor::DoUnlinkVolume, MakeStrong(this), path, name)
-            .AsyncVia(Queue_->GetInvoker())
-            .Run();
+        return EnqueuePortoApiAction(
+            &TPortoExecutor::DoUnlinkVolume,
+            "UnlinkVolume",
+            path,
+            name);
     }
 
     TFuture<std::vector<TString>> ListVolumePaths() override
     {
-        return BIND(&TPortoExecutor::DoListVolumePaths, MakeStrong(this))
-            .AsyncVia(Queue_->GetInvoker())
-            .Run();
+        return EnqueuePortoApiAction(
+            &TPortoExecutor::DoListVolumePaths,
+            "ListVolumePaths");
     }
 
     TFuture<void> ImportLayer(const TString& archivePath, const TString& layerId, const TString& place) override
     {
-        return BIND(&TPortoExecutor::DoImportLayer, MakeStrong(this), archivePath, layerId, place)
-            .AsyncVia(Queue_->GetInvoker())
-            .Run();
+        return EnqueuePortoApiAction(
+            &TPortoExecutor::DoImportLayer,
+            "ImportLayer",
+            archivePath,
+            layerId,
+            place);
     }
 
     TFuture<void> RemoveLayer(const TString& layerId, const TString& place, bool async) override
     {
-        return BIND(&TPortoExecutor::DoRemoveLayer, MakeStrong(this), layerId, place, async)
-            .AsyncVia(Queue_->GetInvoker())
-            .Run();
+        return EnqueuePortoApiAction(
+            &TPortoExecutor::DoRemoveLayer,
+            "RemoveLayer",
+            layerId,
+            place,
+            async);
     }
 
     TFuture<std::vector<TString>> ListLayers(const TString& place) override
     {
-        return BIND(&TPortoExecutor::DoListLayers, MakeStrong(this), place)
-            .AsyncVia(Queue_->GetInvoker())
-            .Run();
+        return EnqueuePortoApiAction(
+            &TPortoExecutor::DoListLayers,
+            "ListLayers",
+            place);
     }
 
     IInvokerPtr GetInvoker() const override
@@ -344,7 +378,7 @@ public:
     }
 
 private:
-    const TPortoExecutorConfigPtr Config_;
+    const TPortoExecutorDynamicConfigPtr Config_;
     const TActionQueuePtr Queue_;
     const NProfiling::TProfiler Profiler_;
     const std::unique_ptr<Porto::TPortoApi> Api_ = std::make_unique<Porto::TPortoApi>();
@@ -378,15 +412,19 @@ private:
     bool IsTestPortoFailureEnabled() const
     {
         auto config = DynamicConfig_.Acquire();
-        auto flag = config->EnableTestPortoFailures;
-        return flag.value_or(Config_->EnableTestPortoFailures);
+        return config->EnableTestPortoFailures;
+    }
+
+    bool IsTestPortoNotRespondingEnabled() const
+    {
+        auto config = DynamicConfig_.Acquire();
+        return config->EnableTestPortoNotResponding;
     }
 
     EPortoErrorCode GetFailedStubError() const
     {
         auto config = DynamicConfig_.Acquire();
-        auto code = config->StubErrorCode;
-        return code.value_or(Config_->StubErrorCode);
+        return config->StubErrorCode;
     }
 
     static TError CreatePortoError(EPortoErrorCode errorCode, const TString& message)
@@ -394,6 +432,36 @@ private:
         return TError(errorCode, "Porto API error")
             << TErrorAttribute("original_porto_error_code", static_cast<int>(errorCode) - PortoErrorCodeBase)
             << TErrorAttribute("porto_error_message", message);
+    }
+
+    THashMap<TString, TErrorOr<TString>> DoGetContainerProperties(
+        const TString& container,
+        const std::vector<TString>& properties)
+    {
+        auto response = DoRequestContainerProperties({container}, properties);
+        return ParseSinglePortoGetResponse(container, response);
+    }
+
+    THashMap<TString, THashMap<TString, TErrorOr<TString>>> DoGetContainerMultipleProperties(
+        const std::vector<TString>& containers,
+        const std::vector<TString>& properties)
+    {
+        auto response = DoRequestContainerProperties(containers, properties);
+        return ParseMultiplePortoGetResponse(response);
+    }
+
+    std::optional<TString> DoGetContainerProperty(
+        const TString& container,
+        const TString& property)
+    {
+        auto response = DoRequestContainerProperties({container}, {property});
+        auto parsedResponse = ParseSinglePortoGetResponse(container, response);
+        auto it = parsedResponse.find(property);
+        if (it == parsedResponse.end()) {
+            return std::nullopt;
+        } else {
+            return it->second.ValueOrThrow();
+        }
     }
 
     void DoCreateContainer(const TString& container)
@@ -691,7 +759,7 @@ private:
         return it->second.ToFuture();
     }
 
-    Porto::TGetResponse DoGetContainerProperties(
+    Porto::TGetResponse DoRequestContainerProperties(
         const std::vector<TString>& containers,
         const std::vector<TString>& vars)
     {
@@ -735,7 +803,7 @@ private:
                 return;
             }
 
-            auto getResponse = DoGetContainerProperties(Containers_, ContainerRequestVars_);
+            auto getResponse = DoRequestContainerProperties(Containers_, ContainerRequestVars_);
 
             if (getResponse.list().empty()) {
                 return;
@@ -848,11 +916,21 @@ private:
         const TString& command,
         bool idempotent)
     {
-        if (IsTestPortoFailureEnabled()) {
-            THROW_ERROR CreatePortoError(GetFailedStubError(), "Porto stub error");
+        YT_LOG_DEBUG("Porto API call started (Command: %v)", command);
+
+        if (IsTestPortoNotRespondingEnabled()) {
+            YT_LOG_DEBUG("Testing porto timeout (Command: %v)", command);
+
+            auto config = DynamicConfig_.Acquire();
+            TDelayedExecutor::WaitForDuration(config->ApiTimeout);
+
+            THROW_ERROR CreatePortoError(GetFailedStubError(), "Porto timeout");
         }
 
-        YT_LOG_DEBUG("Porto API call started (Command: %v)", command);
+        if (IsTestPortoFailureEnabled()) {
+            YT_LOG_DEBUG("Testing porto failure (Command: %v)", command);
+            THROW_ERROR CreatePortoError(GetFailedStubError(), "Porto stub error");
+        }
 
         auto* entry = GetCommandEntry(command);
         auto startTime = NProfiling::GetInstant();
@@ -961,7 +1039,7 @@ const std::vector<TString> TPortoExecutor::ContainerRequestVars_ = {
 ////////////////////////////////////////////////////////////////////////////////
 
 IPortoExecutorPtr CreatePortoExecutor(
-    TPortoExecutorConfigPtr config,
+    TPortoExecutorDynamicConfigPtr config,
     const TString& threadNameSuffix,
     const NProfiling::TProfiler& profiler)
 {
@@ -976,7 +1054,7 @@ IPortoExecutorPtr CreatePortoExecutor(
 #else
 
 IPortoExecutorPtr CreatePortoExecutor(
-    TPortoExecutorConfigPtr /* config */,
+    TPortoExecutorDynamicConfigPtr /* config */,
     const TString& /* threadNameSuffix */,
     const NProfiling::TProfiler& /* profiler */)
 {

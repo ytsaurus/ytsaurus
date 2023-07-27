@@ -102,23 +102,39 @@ public:
         TOperationId operationId) override
     {
         return RunPrepareAction<void>([&] {
-                {
-                    auto error = WaitFor(Location_->MakeConfig(SlotIndex_, ConvertToNode(config)));
-                    THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to create job proxy config");
-                }
+            if (auto delay = config->JobTestingOptions->DelayBeforeRunJobProxy) {
+                YT_LOG_DEBUG("Testing delay before run job proxy");
+                TDelayedExecutor::WaitForDuration(*delay);
+            }
 
-                return JobEnvironment_->RunJobProxy(
-                    SlotGuard_->GetSlotType(),
-                    SlotIndex_,
-                    Location_->GetSlotPath(SlotIndex_),
-                    jobId,
-                    operationId,
-                    config->StderrPath,
-                    NumaNodeAffinity_);
-            },
-            // Job proxy preparation is uncancelable, otherwise we might try to kill
-            // a never-started job proxy process.
-            true);
+            YT_LOG_DEBUG("Start making job proxy config (JobId: %v)", jobId);
+
+            {
+                auto error = WaitFor(Location_->MakeConfig(SlotIndex_, ConvertToNode(config)));
+                THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to create job proxy config");
+            }
+
+            YT_LOG_DEBUG("Finish making job proxy config (JobId: %v)", jobId);
+
+            auto result = JobEnvironment_->RunJobProxy(
+                SlotGuard_->GetSlotType(),
+                SlotIndex_,
+                Location_->GetSlotPath(SlotIndex_),
+                jobId,
+                operationId,
+                config->StderrPath,
+                NumaNodeAffinity_);
+
+            if (auto delay = config->JobTestingOptions->DelayAfterRunJobProxy) {
+                YT_LOG_DEBUG("Testing delay after run job proxy");
+                TDelayedExecutor::WaitForDuration(*delay);
+            }
+
+            return result;
+        },
+        // Job proxy preparation is uncancelable, otherwise we might try to kill
+        // a never-started job proxy process.
+        true);
     }
 
     TFuture<void> MakeLink(

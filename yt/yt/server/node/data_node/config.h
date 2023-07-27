@@ -359,7 +359,7 @@ class TVolumeManagerConfig
     : public NYTree::TYsonStruct
 {
 public:
-    NContainers::TPortoExecutorConfigPtr PortoExecutor;
+    NContainers::TPortoExecutorDynamicConfigPtr PortoExecutor;
     std::vector<TLayerLocationConfigPtr> LayerLocations;
     bool EnableLayersCache;
     double CacheCapacityFraction;

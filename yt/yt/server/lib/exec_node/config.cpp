@@ -669,6 +669,9 @@ void TExecNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("controller_agent_connector", &TThis::ControllerAgentConnector)
         .Default();
 
+    registrar.Parameter("job_proxy_preparation_timeout", &TThis::JobProxyPreparationTimeout)
+        .Default(TDuration::Minutes(3));
+
     registrar.Parameter("job_abortion_timeout", &TThis::JobAbortionTimeout)
         .Default();
     registrar.Parameter("slot_release_timeout", &TThis::SlotReleaseTimeout)

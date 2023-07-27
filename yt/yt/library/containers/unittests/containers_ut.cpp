@@ -34,7 +34,7 @@ static TString GetUniqueName()
 
 IPortoExecutorPtr CreatePortoExecutor()
 {
-    return CreatePortoExecutor(New<TPortoExecutorConfig>(), "default");
+    return CreatePortoExecutor(New<TPortoExecutorDynamicConfig>(), "default");
 }
 
 TEST_F(TContainersTest, ListSubcontainers)

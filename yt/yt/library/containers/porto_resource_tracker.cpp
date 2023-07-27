@@ -686,7 +686,7 @@ TPortoResourceProfilerPtr CreatePortoProfilerWithTags(
 void EnablePortoResourceTracker(const TPodSpecConfigPtr& podSpec)
 {
     try {
-        auto executor = CreatePortoExecutor(New<TPortoExecutorConfig>(), "porto-tracker");
+        auto executor = CreatePortoExecutor(New<TPortoExecutorDynamicConfig>(), "porto-tracker");
 
         executor->SubscribeFailed(BIND([=] (const TError& error) {
             YT_LOG_ERROR(error, "Fatal error during Porto polling");

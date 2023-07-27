@@ -310,9 +310,6 @@ void TClusterNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("out_throttlers", &TThis::OutThrottlers)
         .Default();
 
-    registrar.Parameter("porto_executor", &TThis::PortoExecutor)
-        .DefaultNew();
-
     registrar.Postprocessor([] (TThis* config) {
         NNodeTrackerClient::ValidateNodeTags(config->Tags);
 

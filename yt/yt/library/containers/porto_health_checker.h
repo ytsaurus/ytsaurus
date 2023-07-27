@@ -23,7 +23,7 @@ class TPortoHealthChecker
 {
 public:
     TPortoHealthChecker(
-        TPortoExecutorConfigPtr config,
+        TPortoExecutorDynamicConfigPtr config,
         IInvokerPtr invoker,
         NLogging::TLogger logger);
 
@@ -36,7 +36,7 @@ public:
     DEFINE_SIGNAL(void(const TError&), Failed);
 
 private:
-    const TPortoExecutorConfigPtr Config_;
+    const TPortoExecutorDynamicConfigPtr Config_;
     const NLogging::TLogger Logger;
     const IInvokerPtr CheckInvoker_;
     const IPortoExecutorPtr Executor_;
