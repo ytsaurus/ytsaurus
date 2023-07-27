@@ -337,9 +337,6 @@ public:
 
     NConcurrency::TFairThrottlerConfigPtr OutThrottler;
 
-    //! Porto executor config.
-    NContainers::TPortoExecutorConfigPtr PortoExecutor;
-
     //! Bucket configuration for in network throttlers.
     THashMap<TString, NConcurrency::TFairThrottlerBucketConfigPtr> InThrottlers;
 

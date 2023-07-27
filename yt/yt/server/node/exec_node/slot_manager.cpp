@@ -58,7 +58,7 @@ TSlotManager::TSlotManager(
     , SlotCount_(Bootstrap_->GetConfig()->ExecNode->JobController->ResourceLimits->UserSlots)
     , NodeTag_(Format("yt-node-%v-%v", Bootstrap_->GetConfig()->RpcPort, GetCurrentProcessId()))
     , PortoHealthChecker_(New<TPortoHealthChecker>(
-        bootstrap->GetConfig()->PortoExecutor,
+        New<TPortoExecutorDynamicConfig>(),
         Bootstrap_->GetControlInvoker(),
         Logger))
 {
@@ -251,18 +251,21 @@ void TSlotManager::OnDynamicConfigChanged(
     PortoHealthChecker_->OnDynamicConfigChanged(newNodeConfig->PortoExecutor);
     ClusterConfig_.Store(newNodeConfig);
 
-    WaitFor(BIND([=, this, this_ = MakeStrong(this)] () {
-        JobEnvironment_->UpdateIdleCpuFraction(GetIdleCpuFraction());
+    BIND([=, this, this_ = MakeStrong(this)] () {
+        try {
+            JobEnvironment_->UpdateIdleCpuFraction(GetIdleCpuFraction());
 
-        if (oldNodeConfig->ExecNode->SlotManager->EnableNumaNodeScheduling &&
-            !newNodeConfig->ExecNode->SlotManager->EnableNumaNodeScheduling)
-        {
-            JobEnvironment_->ClearSlotCpuSets(SlotCount_);
+            if (oldNodeConfig->ExecNode->SlotManager->EnableNumaNodeScheduling &&
+                !newNodeConfig->ExecNode->SlotManager->EnableNumaNodeScheduling)
+            {
+                JobEnvironment_->ClearSlotCpuSets(SlotCount_);
+            }
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(TError(ex));
         }
     })
         .AsyncVia(Bootstrap_->GetJobInvoker())
-        .Run())
-        .ThrowOnError();
+        .Run();
 }
 
 void TSlotManager::UpdateAliveLocations()
@@ -448,7 +451,6 @@ bool TSlotManager::CanResurrect() const
     bool disabled = !IsEnabled();
 
     return disabled &&
-        !Alerts_[ESlotManagerAlertType::GenericPersistentError].IsOK() &&
         !HasNonFatalAlerts();
 }
 

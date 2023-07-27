@@ -38,7 +38,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPortoExecutorConfig
+class TPortoExecutorDynamicConfig
     : public NYTree::TYsonStruct
 {
 public:
@@ -48,24 +48,9 @@ public:
     TDuration ApiDiskTimeout;
     bool EnableNetworkIsolation;
     bool EnableTestPortoFailures;
+    bool EnableTestPortoNotResponding;
 
     EPortoErrorCode StubErrorCode;
-
-    REGISTER_YSON_STRUCT(TPortoExecutorConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TPortoExecutorConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TPortoExecutorDynamicConfig
-    : public NYTree::TYsonStruct
-{
-public:
-    std::optional<bool> EnableTestPortoFailures;
-    std::optional<EPortoErrorCode> StubErrorCode;
 
     REGISTER_YSON_STRUCT(TPortoExecutorDynamicConfig);
 

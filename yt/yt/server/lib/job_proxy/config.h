@@ -10,6 +10,10 @@
 
 #include <yt/yt/ytlib/api/native/config.h>
 
+#include <yt/yt/ytlib/job_proxy/public.h>
+
+#include <yt/yt/ytlib/job_proxy/config.h>
+
 #include <yt/yt/library/tracing/jaeger/tracer.h>
 
 #include <yt/yt/client/file_client/config.h>
@@ -233,6 +237,8 @@ public:
     std::optional<int> StatisticsOutputTableCountLimit;
 
     NDns::TDnsOverRpcResolverConfigPtr DnsOverRpcResolver;
+
+    NJobProxy::TJobTestingOptionsPtr JobTestingOptions;
 
     REGISTER_YSON_STRUCT(TJobProxyConfig);
 

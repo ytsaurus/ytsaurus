@@ -1525,6 +1525,7 @@ void TJob::OnNodeDirectoryPrepared(const TError& error)
     VERIFY_THREAD_AFFINITY(JobThread);
 
     if (auto delay = JobTestingOptions_->DelayAfterNodeDirectoryPrepared) {
+        YT_LOG_DEBUG("Testing delay after node directory prepared");
         TDelayedExecutor::WaitForDuration(*delay);
     }
 
@@ -1658,6 +1659,11 @@ void TJob::FinishPrepare(const TErrorOr<TJobWorkspaceBuildResult>& resultOrError
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
+    if (auto delay = JobTestingOptions_->DelayBeforeSpawningJobProxy) {
+        YT_LOG_DEBUG("Testing delay before spawning job proxy");
+        TDelayedExecutor::WaitForDuration(*delay);
+    }
+
     GuardedAction([&] {
         // There may be a possible cancellation, but this is not happening now.
         YT_VERIFY(resultOrError.IsOK());
@@ -1744,20 +1750,24 @@ void TJob::RunJobProxy()
             &TJob::OnJobProxyPreparationTimeout,
             MakeWeak(this))
         .Via(Invoker_),
-        Config_->JobProxyPreparationTimeout);
+        DynamicConfig_->JobProxyPreparationTimeout
+            ? DynamicConfig_->JobProxyPreparationTimeout.value()
+            : Config_->JobProxyPreparationTimeout);
 }
 
 void TJob::OnJobProxyPreparationTimeout()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    GuardedAction([&] {
-        if (JobPhase_ == EJobPhase::PreparingJob) {
-            THROW_ERROR_EXCEPTION(
-                EErrorCode::JobProxyPreparationTimeout,
-                "Failed to prepare job proxy within timeout, aborting job");
-        }
-    });
+    YT_LOG_INFO("Job proxy preparation timeout");
+
+    YT_VERIFY(JobPhase_ >= NJobTrackerClient::EJobPhase::SpawningJobProxy);
+
+    if (JobPhase_ < NJobTrackerClient::EJobPhase::Running) {
+        Abort(TError(
+            EErrorCode::JobProxyPreparationTimeout,
+            "Failed to prepare job proxy within timeout, aborting job"));
+    }
 }
 
 void TJob::OnJobPreparationTimeout(TDuration prepareTimeLimit, bool fatal)
@@ -1792,13 +1802,15 @@ void TJob::OnJobProxyFinished(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    YT_LOG_INFO("Job proxy finished");
+    YT_LOG_INFO(error, "Job proxy finished");
 
     ResetJobProbe();
 
     if (HandleFinishingPhase()) {
         return;
     }
+
+    YT_VERIFY(Slot_->GetRefCount() == 1);
 
     const auto& currentError = Error_
         ? *Error_
@@ -1852,11 +1864,11 @@ void TJob::GuardedAction(const TCallback& action)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
+    YT_LOG_DEBUG("Run guarded action (State: %v, Phase: %v)", JobState_, JobPhase_);
+
     if (HandleFinishingPhase()) {
         return;
     }
-
-    YT_LOG_DEBUG("Run guarded action (State: %v, Phase: %v)", JobState_, JobPhase_);
 
     try {
         TForbidContextSwitchGuard contextSwitchGuard;
@@ -1893,13 +1905,16 @@ void TJob::Cleanup()
         JobPhase_ == EJobPhase::Cleanup || JobPhase_ == EJobPhase::Finished,
         "Job cleanup should be called only once");
 
+    YT_VERIFY(!Slot_ || Slot_->GetRefCount() == 1);
+
+    if (auto delay = JobTestingOptions_->DelayInCleanup) {
+        YT_LOG_DEBUG("Testing delay in cleanup");
+        TDelayedExecutor::WaitForDuration(*delay);
+    }
+
     YT_LOG_INFO("Cleaning up after scheduler job");
 
     TDelayedExecutor::Cancel(InterruptionTimeoutCookie_);
-
-    if (auto delay = JobTestingOptions_->DelayInCleanup) {
-        TDelayedExecutor::WaitForDuration(*delay);
-    }
 
     SetJobPhase(EJobPhase::Cleanup);
 
@@ -2086,6 +2101,7 @@ TJobProxyConfigPtr TJob::CreateConfig()
         ? Config_->SMapsMemoryTrackerCachePeriod
         : Config_->MemoryTrackerCachePeriod;
 
+    proxyConfig->JobTestingOptions = JobTestingOptions_;
     proxyConfig->SlotIndex = Slot_->GetSlotIndex();
 
     if (RootVolume_) {

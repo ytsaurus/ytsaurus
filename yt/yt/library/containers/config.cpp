@@ -39,7 +39,7 @@ void TCGroupConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TPortoExecutorConfig::Register(TRegistrar registrar)
+void TPortoExecutorDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("retries_timeout", &TThis::RetriesTimeout)
         .Default(TDuration::Seconds(10));
@@ -55,16 +55,8 @@ void TPortoExecutorConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("stub_error_code", &TThis::StubErrorCode)
         .Default(EPortoErrorCode::SocketError);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TPortoExecutorDynamicConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("enable_test_porto_failures", &TThis::EnableTestPortoFailures)
-        .Default();
-    registrar.Parameter("stub_error_code", &TThis::StubErrorCode)
-        .Default();
+    registrar.Parameter("enable_test_porto_not_responding", &TThis::EnableTestPortoNotResponding)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

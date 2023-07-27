@@ -105,7 +105,7 @@ class TPortoJobEnvironmentConfig
     : public TJobEnvironmentConfig
 {
 public:
-    NContainers::TPortoExecutorConfigPtr PortoExecutor;
+    NContainers::TPortoExecutorDynamicConfigPtr PortoExecutor;
 
     TDuration BlockIOWatchdogPeriod;
 
@@ -608,6 +608,8 @@ public:
 
     std::optional<TDuration> JobAbortionTimeout;
     TDuration SlotReleaseTimeout;
+
+    std::optional<TDuration> JobProxyPreparationTimeout;
 
     bool AbortOnJobsDisabled;
 

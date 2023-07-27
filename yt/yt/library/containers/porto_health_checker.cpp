@@ -20,7 +20,7 @@ using namespace NProfiling;
 ////////////////////////////////////////////////////////////////////////////////
 
 TPortoHealthChecker::TPortoHealthChecker(
-    TPortoExecutorConfigPtr config,
+    TPortoExecutorDynamicConfigPtr config,
     IInvokerPtr invoker,
     TLogger logger)
     : Config_(std::move(config))
@@ -44,9 +44,10 @@ void TPortoHealthChecker::Start()
 
 void TPortoHealthChecker::OnDynamicConfigChanged(const TPortoExecutorDynamicConfigPtr& newConfig)
 {
-    YT_LOG_DEBUG("Porto health checker dynamic config changed (EnableTestPortoFailures: %v, StubErrorCode: %v)",
-        newConfig->EnableTestPortoFailures.value_or(Config_->EnableTestPortoFailures),
-        newConfig->StubErrorCode.value_or(Config_->StubErrorCode));
+    YT_LOG_DEBUG(
+        "Porto health checker dynamic config changed (EnableTestPortoFailures: %v, StubErrorCode: %v)",
+        Config_->EnableTestPortoFailures,
+        Config_->StubErrorCode);
 
     Executor_->OnDynamicConfigChanged(newConfig);
 }

@@ -12,6 +12,9 @@ class TJobTestingOptions
 public:
     std::optional<TDuration> DelayAfterNodeDirectoryPrepared;
     std::optional<TDuration> DelayInCleanup;
+    std::optional<TDuration> DelayBeforeRunJobProxy;
+    std::optional<TDuration> DelayBeforeSpawningJobProxy;
+    std::optional<TDuration> DelayAfterRunJobProxy;
     bool FailBeforeJobStart;
     bool ThrowInShallowMerge;
 

@@ -2,6 +2,7 @@
 
 #include "bootstrap.h"
 #include "job_directory_manager.h"
+#include "slot_manager.h"
 #include "private.h"
 #include "yt/yt/core/concurrency/delayed_executor.h"
 
@@ -264,8 +265,15 @@ protected:
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         const auto& dynamicConfig = dynamicConfigManager->GetConfig()->ExecNode;
+
         if (dynamicConfig->AbortOnJobsDisabled) {
             TProgram::Abort(EProgramExitCode::ProgramError);
+        }
+
+        if (dynamicConfig->SlotManager->EnableJobEnvironmentResurrection) {
+            BIND(&TSlotManager::Disable, Bootstrap_->GetSlotManager())
+                .AsyncVia(Bootstrap_->GetJobInvoker())
+                .Run(error);
         }
     }
 
@@ -307,6 +315,8 @@ public:
     {
         ValidateEnabled();
 
+        YT_LOG_DEBUG("Start cleaning processes (SlotIndex: %v)", slotIndex);
+
         try {
             EnsureJobProxyFinished(slotIndex, true);
         } catch (const std::exception& ex) {
@@ -317,6 +327,8 @@ public:
             Disable(error);
             THROW_ERROR error;
         }
+
+        YT_LOG_DEBUG("Finish cleaning processes (SlotIndex: %v)", slotIndex);
     }
 
     int GetUserId(int /*slotIndex*/) const override
@@ -408,11 +420,34 @@ public:
             "env_destroy",
             ExecNodeProfiler.WithPrefix("/job_environment/porto_destroy")))
         , ContainerDestroyFailureCounter(ExecNodeProfiler.WithPrefix("/job_environment").Counter("/container_destroy_failures"))
-    {  }
+    {
+        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+        dynamicConfigManager->SubscribeConfigChanged(BIND(&TPortoJobEnvironment::OnDynamicConfigChanged, MakeWeak(this)));
+    }
+
+    void OnDynamicConfigChanged(
+        const TClusterNodeDynamicConfigPtr& /*oldNodeConfig*/,
+        const TClusterNodeDynamicConfigPtr& newNodeConfig)
+    {
+        YT_LOG_DEBUG(
+            "Porto executor dynamic config changed (EnableTestPortoFailures: %v, StubErrorCode: %v)",
+            newNodeConfig->PortoExecutor->EnableTestPortoFailures,
+            newNodeConfig->PortoExecutor->StubErrorCode);
+
+        if (auto executor = PortoExecutor_) {
+            executor->OnDynamicConfigChanged(newNodeConfig->PortoExecutor);
+        }
+
+        if (auto executor = DestroyPortoExecutor_) {
+            executor->OnDynamicConfigChanged(newNodeConfig->PortoExecutor);
+        }
+    }
 
     void CleanProcesses(int slotIndex, ESlotType slotType) override
     {
         ValidateEnabled();
+
+        YT_LOG_DEBUG("Start cleaning processes (SlotIndex: %v)", slotIndex);
 
         try {
             EnsureJobProxyFinished(slotIndex, true);
@@ -422,7 +457,17 @@ public:
                 : MetaIdleInstance_->GetName();
             auto slotContainer = GetFullSlotMetaContainerName(metaInstanceName, slotIndex);
 
+            YT_LOG_DEBUG(
+                "Destory job subcontainers for slot (SlotContainer: %v, SlotIndex: %v)",
+                slotContainer,
+                slotIndex);
+
             DestroyAllSubcontainers(slotContainer);
+
+            YT_LOG_DEBUG(
+                "Reset CPU limit and guarantee (SlotContainer: %v, SlotIndex: %v)",
+                slotContainer,
+                slotIndex);
 
             // Reset CPU guarantee.
             WaitFor(PortoExecutor_->SetContainerProperty(
@@ -438,6 +483,11 @@ public:
                 "0"))
                 .ThrowOnError();
 
+            YT_LOG_DEBUG(
+                "Drop reference to a job proxy process (SlotContainer: %v, SlotIndex: %v)",
+                slotContainer,
+                slotIndex);
+
             // Drop reference to a process if there were any.
             JobProxyProcesses_.erase(slotIndex);
         } catch (const std::exception& ex) {
@@ -445,6 +495,7 @@ public:
                 << TErrorAttribute("slot_index", slotIndex)
                 << TErrorAttribute("slot_type", slotType)
                 << ex;
+
             Disable(error);
             THROW_ERROR error;
         }
@@ -473,7 +524,8 @@ public:
         return BIND([this_ = MakeStrong(this), slotIndex, slotType, jobId, commands, rootFS, user, devices, startIndex] {
             for (int index = 0; index < std::ssize(commands); ++index) {
                 const auto& command = commands[index];
-                YT_LOG_DEBUG("Running setup command (JobId: %v, Path: %v, Args: %v)",
+                YT_LOG_DEBUG(
+                    "Running setup command (JobId: %v, Path: %v, Args: %v)",
                     jobId,
                     command->Path,
                     command->Args);
@@ -530,14 +582,14 @@ private:
 
     void DestroyAllSubcontainers(const TString& rootContainer)
     {
-        YT_LOG_DEBUG("Started destroying subcontainers (RootContainer: %v)",
-                rootContainer);
+        YT_LOG_DEBUG(
+            "Started destroying subcontainers (RootContainer: %v)",
+            rootContainer);
 
         // Retry destruction until success.
         bool destroyed = false;
         while (!destroyed) {
-            YT_LOG_DEBUG("Start containter destruction attempt (RootContainer: %v)",
-                rootContainer);
+            YT_LOG_DEBUG("Start containter destruction attempt (RootContainer: %v)", rootContainer);
 
             auto containers = WaitFor(DestroyPortoExecutor_->ListSubcontainers(rootContainer, false))
                 .ValueOrThrow();
@@ -571,8 +623,7 @@ private:
             }
         }
 
-        YT_LOG_DEBUG("Finished destroying subcontainers (RootContainer: %v)",
-            rootContainer);
+        YT_LOG_DEBUG("Finished destroying subcontainers (RootContainer: %v)", rootContainer);
     }
 
     void DoInit(int slotCount, double cpuLimit, double idleCpuFraction) override
@@ -709,16 +760,25 @@ private:
             metaInstanceName,
             slotIndex);
 
+        YT_LOG_DEBUG(
+            "Start slot cpu_set updating (SlotType: %v, SlotIndex: %v, CpuSet: %v, SlotContainer: %v)",
+            slotType,
+            slotIndex,
+            cpuSet,
+            slotContainer);
+
         WaitFor(PortoExecutor_->SetContainerProperty(
             slotContainer,
             "cpu_set",
             TString{cpuSet}))
         .ThrowOnError();
 
-        YT_LOG_INFO("Slot cpu set was updated (SlotType: %v, SlotIndex: %v, CpuSet: %v)",
+        YT_LOG_DEBUG(
+            "Slot cpu set was updated (SlotType: %v, SlotIndex: %v, CpuSet: %v, SlotContainer: %v)",
             slotType,
             slotIndex,
-            cpuSet);
+            cpuSet,
+            slotContainer);
     }
 
     TProcessBasePtr CreateJobProxyProcess(int slotIndex, ESlotType slotType, TJobId jobId) override

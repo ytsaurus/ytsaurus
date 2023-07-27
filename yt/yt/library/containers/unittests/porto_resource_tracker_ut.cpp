@@ -37,7 +37,8 @@ public:
         if (GetEnv("SKIP_PORTO_TESTS") != "") {
             GTEST_SKIP();
         }
-        Executor = CreatePortoExecutor(New<TPortoExecutorConfig>(), "default");
+
+        Executor = CreatePortoExecutor(New<TPortoExecutorDynamicConfig>(), "default");
     }
 };
 

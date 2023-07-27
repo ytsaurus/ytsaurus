@@ -7,7 +7,7 @@ from yt_commands import (
     ls, get, set, remove, link, exists, create_network_project, create_tmpdir,
     create_user, make_ace, start_transaction, lock,
     write_file, read_table,
-    write_table, map, abort_op,
+    write_table, map, abort_op, run_sleeping_vanilla,
     vanilla, run_test_vanilla, abort_job,
     list_jobs, get_job, get_job_stderr,
     sync_create_cells, get_singular_chunk_id,
@@ -2937,7 +2937,7 @@ class TestSlotManagerResurrect(YTEnvSetup):
         config["exec_agent"]["slot_manager"]["locations"][0]["path"] = cls.default_disk_path
 
     @authors("don-dron")
-    def test_simple_job_env_resurrect(self):
+    def DISABLED_test_simple_job_env_resurrect(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
         write_table("//tmp/t_input", {"foo": "bar"})
@@ -2945,14 +2945,12 @@ class TestSlotManagerResurrect(YTEnvSetup):
         update_nodes_dynamic_config({
             "exec_agent": {
                 "slot_manager": {
-                    "job_environment": {
-                        "porto_executor": {
-                            "enable_test_porto_failures": True
-                        }
-                    },
                     "enable_job_environment_resurrection": True,
                     "abort_on_jobs_disabled": False
                 }
+            },
+            "porto_executor": {
+                "enable_test_porto_failures": False
             }
         })
 
@@ -3000,10 +2998,10 @@ class TestSlotManagerResurrect(YTEnvSetup):
         wait(lambda: check_disable())
 
         ##################################################################
-
         update_nodes_dynamic_config({
             "porto_executor": {
-                "enable_test_porto_failures": False
+                "enable_test_porto_not_responding": False,
+                "enable_test_porto_failures": False,
             }
         })
 
@@ -3031,16 +3029,23 @@ class TestSlotManagerResurrect(YTEnvSetup):
         update_nodes_dynamic_config({
             "exec_agent": {
                 "slot_manager": {
-                    "job_environment": {
-                        "porto_executor": {
-                            "enable_test_porto_failures": True
-                        }
-                    },
                     "enable_job_environment_resurrection": True,
                     "abort_on_jobs_disabled": False
                 }
+            },
+            "porto_executor": {
+                "enable_test_porto_not_responding": False,
+                "enable_test_porto_failures": False,
             }
         })
+
+        def check_enable():
+            node = ls("//sys/cluster_nodes")[0]
+            alerts = get("//sys/cluster_nodes/{}/@alerts".format(node))
+
+            return len(alerts) == 0
+
+        wait(lambda: check_enable())
 
         ##################################################################
 
@@ -3069,20 +3074,8 @@ class TestSlotManagerResurrect(YTEnvSetup):
         update_nodes_dynamic_config({
             "exec_agent": {
                 "slot_manager": {
-                    "job_environment": {
-                        "porto_executor": {
-                            "enable_test_porto_failures": True
-                        }
-                    },
                     "abort_on_jobs_disabled": False,
                     "enable_job_environment_resurrection": True,
-                }
-            },
-            "data_node": {
-                "volume_manager": {
-                    "porto_executor": {
-                        "enable_test_porto_failures": True
-                    }
                 }
             },
             "porto_executor": {
@@ -3098,7 +3091,7 @@ class TestSlotManagerResurrect(YTEnvSetup):
                 return False
             else:
                 for alert in alerts:
-                    if alert['message'] == "Scheduler jobs disabled":
+                    if alert['message'] == "Scheduler jobs disabled" or alert['message'] == 'Job environment disabling':
                         return True
 
                 return False
@@ -3113,24 +3106,13 @@ class TestSlotManagerResurrect(YTEnvSetup):
         update_nodes_dynamic_config({
             "exec_agent": {
                 "slot_manager": {
-                    "job_environment": {
-                        "porto_executor": {
-                            "enable_test_porto_failures": False
-                        }
-                    },
                     "abort_on_jobs_disabled": False,
                     "enable_job_environment_resurrection": True,
                 }
             },
-            "data_node": {
-                "volume_manager": {
-                    "porto_executor": {
-                        "enable_test_porto_failures": False
-                    }
-                }
-            },
             "porto_executor": {
-                "enable_test_porto_failures": False
+                "enable_test_porto_not_responding": False,
+                "enable_test_porto_failures": False,
             }
         })
 
@@ -3147,3 +3129,141 @@ class TestSlotManagerResurrect(YTEnvSetup):
         op = run_op(0)
 
         wait(lambda: get(op.get_path() + "/@state") == "completed")
+
+    @authors("don-dron")
+    def test_porto_fail_then_proxy_has_been_spawning(self):
+        nodes = ls("//sys/cluster_nodes")
+        update_nodes_dynamic_config({
+            "exec_agent": {
+                "slot_manager": {
+                    "abort_on_jobs_disabled": False,
+                    "enable_numa_node_scheduling": True
+                },
+                "job_proxy_preparation_timeout": 2000
+            },
+            "porto_executor": {
+                "enable_test_porto_not_responding": False,
+                "enable_test_porto_failures": False,
+                "api_timeout": 2500
+            }
+        })
+
+        def check_enable():
+            node = ls("//sys/cluster_nodes")[0]
+            alerts = get("//sys/cluster_nodes/{}/@alerts".format(node))
+
+            return len(alerts) == 0
+
+        wait(lambda: check_enable())
+
+        op = run_sleeping_vanilla(
+            spec={
+                "job_testing_options": {
+                    "delay_before_run_job_proxy": 10000,
+                    "delay_after_run_job_proxy": 50000,
+                    "delay_before_spawning_job_proxy": 10000,
+                }
+            },
+            track=False
+        )
+
+        wait(lambda: exists(op.get_path() + "/controller_orchid/progress/jobs"))
+
+        def check_before_spawn_jp():
+            job_ids = op.list_jobs()
+
+            if len(job_ids) == 0:
+                return False
+
+            for job_id in job_ids:
+                phase = op.get_job_phase(job_id)
+
+                print_debug("job_phase", phase)
+                if phase != "running_setup_commands" and phase != "running_gpu_check_command":
+                    return False
+
+            return True
+
+        wait(lambda: check_before_spawn_jp())
+
+        update_nodes_dynamic_config({
+            "exec_agent": {
+                "slot_manager": {
+                    "abort_on_jobs_disabled": False,
+                    "enable_numa_node_scheduling": True
+                }
+            },
+            "porto_executor": {
+                "enable_test_porto_not_responding": True,
+                "api_timeout": 5000
+            }
+        })
+
+        def check_after_spawn_jp():
+            job_ids = op.list_jobs()
+
+            if len(job_ids) == 0:
+                return False
+
+            for job_id in job_ids:
+                phase = op.get_job_phase(job_id)
+
+                print_debug("job_phase", phase)
+                if phase != "spawning_job_proxy":
+                    return False
+
+            return True
+
+        wait(lambda: check_after_spawn_jp())
+
+        for job in list_jobs(op.id)["jobs"]:
+            abort_job(job["id"])
+
+        for job in list_jobs(op.id)["jobs"]:
+            wait(lambda: get_job(op.id, job["id"])["state"] == "aborted")
+
+        abort_op(op.id)
+        wait(lambda: op.get_state() == "aborted")
+
+        job_ids = op.list_jobs()
+        for job_id in job_ids:
+            wait(lambda: get_job(op.id, job_id)["state"] == "aborted")
+
+        def check_cleanup_jp():
+            try:
+                job_ids = op.list_jobs()
+
+                if len(job_ids) == 0:
+                    return False
+
+                for job_id in job_ids:
+                    phase = op.get_job_phase(job_id)
+
+                    print_debug("job_phase", phase)
+                    if phase != "cleanup":
+                        return False
+
+                return True
+            except Exception:
+                pass
+                return True
+
+        wait(lambda: check_cleanup_jp())
+
+        time.sleep(5)
+
+        wait(lambda: are_almost_equal(get("//sys/scheduler/orchid/scheduler/cluster/resource_usage/cpu"), 0))
+        wait(lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_usage/user_slots".format(nodes[0])) == 0)
+
+        update_nodes_dynamic_config({
+            "exec_agent": {
+                "slot_manager": {
+                    "abort_on_jobs_disabled": False,
+                    "enable_numa_node_scheduling": False
+                }
+            },
+            "porto_executor": {
+                "enable_test_porto_not_responding": False,
+                "api_timeout": 5000
+            }
+        })

@@ -197,6 +197,9 @@ void TJobProxyConfig::Register(TRegistrar registrar)
     registrar.Parameter("dns_over_rpc_resolver", &TThis::DnsOverRpcResolver)
         .Default();
 
+    registrar.Parameter("job_testing_options", &TThis::JobTestingOptions)
+        .Default();
+
     registrar.Preprocessor([] (TThis* config) {
         config->SolomonExporter->EnableSelfProfiling = false;
         config->SolomonExporter->WindowSize = 1;
