@@ -91,9 +91,6 @@ struct __yhashtable_iterator {
     bool operator==(const iterator& it) const {
         return cur == it.cur;
     }
-    bool operator!=(const iterator& it) const {
-        return cur != it.cur;
-    }
     bool IsEnd() const {
         return !cur;
     }
@@ -137,9 +134,6 @@ struct __yhashtable_const_iterator {
     const_iterator operator++(int);
     bool operator==(const const_iterator& it) const {
         return cur == it.cur;
-    }
-    bool operator!=(const const_iterator& it) const {
-        return cur != it.cur;
     }
     bool IsEnd() const {
         return !cur;
