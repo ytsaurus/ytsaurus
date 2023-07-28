@@ -928,9 +928,14 @@ void TScheduleJobsContext::PrepareForScheduling()
                 /*resourceUsageSnapshot*/ nullptr,
                 SchedulingContext_->GetNow());
         DynamicAttributesManager_.SetAttributesList(std::move(dynamicAttributesList));
+
+        ConsideredSchedulableChildrenPerPool_.resize(TreeSnapshot_->RootElement()->SchedulableElementCount());
     } else {
         DynamicAttributesManager_.Clear();
-        ConsideredSchedulableChildrenPerPool_.clear();
+
+        for (auto& consideredChildren : ConsideredSchedulableChildrenPerPool_) {
+            consideredChildren.reset();
+        }
     }
 }
 
@@ -1468,16 +1473,27 @@ void TScheduleJobsContext::CollectConsideredSchedulableChildrenPerPool(
     }
 
     // NB: In case there are no considered operations.
-    EmplaceOrCrash(
-        ConsideredSchedulableChildrenPerPool_,
-        TreeSnapshot_->RootElement().Get(),
-        TNonOwningElementList{});
+    {
+        auto& rootConsideredChildren = GetConsideredSchedulableChildrenForPool(TreeSnapshot_->RootElement().Get());
+        rootConsideredChildren.emplace();
+        rootConsideredChildren->reserve(TreeSnapshot_->RootElement()->SchedulableChildren().size());
+    }
+
     for (auto* operationElement : *consideredSchedulableOperations) {
         TSchedulerElement* element = operationElement;
         while (auto* parent = element->GetMutableParent()) {
-            auto [it, firstVisit] = ConsideredSchedulableChildrenPerPool_.try_emplace(parent);
-            auto& parentSchedulableChildren = it->second;
-            parentSchedulableChildren.push_back(element);
+            auto& parentConsideredChildren = GetConsideredSchedulableChildrenForPool(parent);
+
+            bool firstVisit = false;
+            if (!parentConsideredChildren) {
+                parentConsideredChildren.emplace();
+                // For fewer reallocations.
+                parentConsideredChildren->reserve(parent->SchedulableChildren().size());
+
+                firstVisit = true;
+            }
+
+            parentConsideredChildren->push_back(element);
 
             if (!firstVisit) {
                 break;
@@ -1488,12 +1504,11 @@ void TScheduleJobsContext::CollectConsideredSchedulableChildrenPerPool(
     }
 }
 
-std::optional<TNonOwningElementList> TScheduleJobsContext::GetConsideredSchedulableChildrenForPool(const TSchedulerCompositeElement* element)
+std::optional<TNonOwningElementList>& TScheduleJobsContext::GetConsideredSchedulableChildrenForPool(const TSchedulerCompositeElement* element)
 {
-    auto it = ConsideredSchedulableChildrenPerPool_.find(element);
-    return it != ConsideredSchedulableChildrenPerPool_.end()
-        ? std::make_optional(std::move(it->second))
-        : std::nullopt;
+    int index = element->GetTreeIndex();
+    YT_ASSERT(index != UnassignedTreeIndex && index < std::ssize(ConsideredSchedulableChildrenPerPool_));
+    return ConsideredSchedulableChildrenPerPool_[index];
 }
 
 void TScheduleJobsContext::PrescheduleJob(
@@ -1532,7 +1547,7 @@ void TScheduleJobsContext::PrescheduleJobAtCompositeElement(
         return;
     }
 
-    auto consideredSchedulableChildren = GetConsideredSchedulableChildrenForPool(element);
+    auto consideredSchedulableChildren = std::move(GetConsideredSchedulableChildrenForPool(element));
     if (consideredSchedulableChildren) {
         for (auto* child : *consideredSchedulableChildren) {
             PrescheduleJob(child, targetOperationPreemptionPriority);
