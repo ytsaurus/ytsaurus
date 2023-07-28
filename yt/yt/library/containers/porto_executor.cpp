@@ -304,6 +304,7 @@ public:
             container);
     }
 
+    // This method allocates porto "resources", so it should be uncancellable.
     TFuture<TString> CreateVolume(
         const TString& path,
         const THashMap<TString, TString>& properties) override
@@ -312,9 +313,11 @@ public:
             &TPortoExecutor::DoCreateVolume,
             "CreateVolume",
             path,
-            properties);
+            properties)
+            .ToUncancelable();
     }
 
+    // This method allocates porto "resources", so it should be uncancellable.
     TFuture<void> LinkVolume(
         const TString& path,
         const TString& name) override
@@ -323,9 +326,11 @@ public:
             &TPortoExecutor::DoLinkVolume,
             "LinkVolume",
             path,
-            name);
+            name)
+            .ToUncancelable();
     }
 
+    // This method allocates porto "resources", so it should be uncancellable.
     TFuture<void> UnlinkVolume(
         const TString& path,
         const TString& name) override
@@ -334,7 +339,8 @@ public:
             &TPortoExecutor::DoUnlinkVolume,
             "UnlinkVolume",
             path,
-            name);
+            name)
+            .ToUncancelable();
     }
 
     TFuture<std::vector<TString>> ListVolumePaths() override
@@ -344,6 +350,7 @@ public:
             "ListVolumePaths");
     }
 
+    // This method allocates porto "resources", so it should be uncancellable.
     TFuture<void> ImportLayer(const TString& archivePath, const TString& layerId, const TString& place) override
     {
         return EnqueuePortoApiAction(
@@ -351,9 +358,11 @@ public:
             "ImportLayer",
             archivePath,
             layerId,
-            place);
+            place)
+            .ToUncancelable();
     }
 
+    // This method allocates porto "resources", so it should be uncancellable.
     TFuture<void> RemoveLayer(const TString& layerId, const TString& place, bool async) override
     {
         return EnqueuePortoApiAction(
@@ -361,7 +370,8 @@ public:
             "RemoveLayer",
             layerId,
             place,
-            async);
+            async)
+            .ToUncancelable();
     }
 
     TFuture<std::vector<TString>> ListLayers(const TString& place) override
