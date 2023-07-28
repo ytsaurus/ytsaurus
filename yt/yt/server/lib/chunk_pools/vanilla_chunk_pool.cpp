@@ -54,11 +54,8 @@ public:
 
     void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override
     {
-        YT_VERIFY(
-            jobSummary.InterruptReason == EInterruptReason::None ||
-            jobSummary.InterruptReason == EInterruptReason::Preemption ||
-            jobSummary.InterruptReason == EInterruptReason::Unknown ||
-            jobSummary.InterruptReason == EInterruptReason::UserRequest);
+        YT_VERIFY(jobSummary.InterruptReason != EInterruptReason::JobSplit);
+
         JobManager_->Completed(cookie, jobSummary.InterruptReason);
         if (jobSummary.InterruptReason != EInterruptReason::None || RestartCompletedJobs_) {
             // NB: it is important to lose this job instead of alloacting new job since we want
