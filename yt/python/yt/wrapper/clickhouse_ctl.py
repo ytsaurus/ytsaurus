@@ -83,7 +83,7 @@ def make_request(command_name, params, address, cluster_proxy, unparsed=False):
     logger.debug("Response received (%s)", format_logging_params(logging_params))
 
     if response.status_code == 403:
-        raise YtError("Auhtorization failed; check that your yt token is valid", attributes={
+        raise YtError("Authorization failed; check that your yt token is valid", attributes={
             "response_body": response.content})
 
     if response.status_code not in [200, 400]:
