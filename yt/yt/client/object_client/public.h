@@ -60,7 +60,7 @@ using NElection::NullCellId;
 YT_DEFINE_STRONG_TYPEDEF(TCellTag, ui16)
 
 //! The minimum valid cell tag.
-constexpr auto MinValidCellTag = TCellTag(0x0000);
+constexpr auto MinValidCellTag = TCellTag(0x0001);
 
 //! The maximum valid cell tag.
 constexpr auto MaxValidCellTag = TCellTag(0xf000);

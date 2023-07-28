@@ -25,7 +25,7 @@ class LocalYtConfig(object):
     cluster_name = attr.ib(None)
 
     """High level master configuration"""
-    primary_cell_tag = attr.ib(0)
+    primary_cell_tag = attr.ib(1)
 
     """High level node settings"""
     jobs_resource_limits = attr.ib(factory=lambda: {

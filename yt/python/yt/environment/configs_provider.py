@@ -294,8 +294,6 @@ def _build_master_configs(yt_config,
         ports.append(cell_ports)
 
         connection_config = {
-            # COMPAT(babenko): drop this once 22.1 compat tests are no more
-            "enable_master_cache_discovery": False,
             "addresses": cell_addresses,
             "cell_id": cell_ids[cell_index]
         }

@@ -994,11 +994,11 @@ class TestExternalize(object):
         ]})
 
         TABLE_PAYLOAD = [{"key": "value"}]
-        yt.create("table", "//tmp/m/t", attributes={"external": True, "external_cell_tag": 2, "account": "a", "attr": "t"})
+        yt.create("table", "//tmp/m/t", attributes={"external": True, "external_cell_tag": 3, "account": "a", "attr": "t"})
         yt.write_table("//tmp/m/t", TABLE_PAYLOAD)
 
         FILE_PAYLOAD = b"PAYLOAD"
-        yt.create("file", "//tmp/m/f", attributes={"external": True, "external_cell_tag": 2, "account": "b", "attr": "f"})
+        yt.create("file", "//tmp/m/f", attributes={"external": True, "external_cell_tag": 3, "account": "b", "attr": "f"})
         yt.write_file("//tmp/m/f", FILE_PAYLOAD)
 
         yt.create("document", "//tmp/m/d", attributes={"value": {"hello": "world"}})
@@ -1006,7 +1006,7 @@ class TestExternalize(object):
 
         yt.create("map_node", "//tmp/m/m", attributes={"account": "a", "compression_codec": "brotli_8"})
 
-        yt.create("table", "//tmp/m/et", attributes={"external_cell_tag": 2, "expiration_time": "2100-01-01T00:00:00.000000Z"})
+        yt.create("table", "//tmp/m/et", attributes={"external_cell_tag": 3, "expiration_time": "2100-01-01T00:00:00.000000Z"})
 
         yt.create("map_node", "//tmp/m/acl1", attributes={"inherit_acl": True,  "acl": [
             {
@@ -1028,7 +1028,7 @@ class TestExternalize(object):
         acl1 = yt.get("//tmp/m/acl1/@acl")
         acl2 = yt.get("//tmp/m/acl2/@acl")
 
-        yt.externalize("//tmp/m", 1)
+        yt.externalize("//tmp/m", 2)
 
         assert yt.get("//tmp/m/@inherit_acl")
         assert yt.get("//tmp/m/@effective_acl") == effective_acl_m

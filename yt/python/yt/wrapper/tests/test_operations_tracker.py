@@ -67,7 +67,7 @@ class TestOperationsTracker(object):
         id = "run_" + uuid.uuid4().hex[:8]
         instance = None
         try:
-            instance = start(path=dir, id=id, node_count=3, enable_debug_logging=True, fqdn="localhost", cell_tag=1)
+            instance = start(path=dir, id=id, node_count=3, enable_debug_logging=True, fqdn="localhost", cell_tag=2)
             clientA = yt
             clientB = instance.create_client()
             clientB.config["tabular_data_format"] = yt.format.JsonFormat()
@@ -198,7 +198,7 @@ class TestOperationsTracker(object):
         old_level = logger.LOGGER.level
         logger.LOGGER.setLevel(logging.INFO)
         try:
-            instance = start(path=dir, id=id, node_count=3, enable_debug_logging=True, fqdn="localhost", cell_tag=2)
+            instance = start(path=dir, id=id, node_count=3, enable_debug_logging=True, fqdn="localhost", cell_tag=3)
             clientA = None
             clientB = instance.create_client()
             clientB.config["tabular_data_format"] = yt.format.JsonFormat()
@@ -344,7 +344,7 @@ class TestOperationsTracker(object):
         old_level = logger.LOGGER.level
         logger.LOGGER.setLevel(logging.INFO)
         try:
-            instance = start(path=dir, id=id, node_count=3, enable_debug_logging=True, fqdn="localhost", cell_tag=2)
+            instance = start(path=dir, id=id, node_count=3, enable_debug_logging=True, fqdn="localhost", cell_tag=3)
             clientA = None
             clientB = instance.create_client()
             clientB.config["tabular_data_format"] = yt.format.JsonFormat()

@@ -216,7 +216,7 @@ def add_start_subparser(subparsers):
     parser.add_argument("--timeout", type=int,
                         help="time in seconds after which local YT will be stopped automatically "
                              "(applies only to sync mode)")
-    parser.add_argument("--cell-tag", type=int, default=0,
+    parser.add_argument("--cell-tag", type=int, default=1,
                         help="cluster cell tag")
 
     parser.add_argument("--ytserver-all-path",

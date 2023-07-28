@@ -158,7 +158,7 @@
             ];
             "enable_master_cache_discovery" = %false;
             "soft_backoff_time" = 100;
-            "cell_id" = "478008c4-ffffffff-259-ffffffff";
+            "cell_id" = "478008c4-ffffffff-a0259-ffffffff";
             "retry_attempts" = 100;
             "rpc_timeout" = 25000;
             "retry_backoff_time" = 100;

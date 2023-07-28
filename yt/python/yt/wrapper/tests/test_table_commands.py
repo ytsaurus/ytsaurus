@@ -476,7 +476,7 @@ class TestTableCommands(object):
                 rpc_proxy_count=1 if (yt.config["backend"] == "rpc") else 0,
                 fqdn="localhost",
                 enable_debug_logging=True,
-                cell_tag=1)
+                cell_tag=2)
             client = instance.create_client()
             client.config["driver_config"] = instance.configs["rpc_driver"] if yt.config["backend"] == "rpc" else instance.configs["driver"]
             client.config["backend"] = yt.config["backend"]
