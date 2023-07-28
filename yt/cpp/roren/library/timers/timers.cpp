@@ -177,6 +177,7 @@ void TTimers::OnCommit()
 
 TVector<TTimer> TTimers::GetReadyTimers(size_t limit)
 {
+    const auto guard = RAIILock();
     TVector<TTimer> result;
     for (const auto& timer : TimerIndex_) {
         if (0 == limit) {
@@ -194,6 +195,7 @@ TVector<TTimer> TTimers::GetReadyTimers(size_t limit)
 
 bool TTimers::IsValidForExecute(const TTimer& timer, const bool isTimerChanged)
 {
+    const auto guard = RAIILock();
     return TimerInFly_.contains(timer) && !isTimerChanged;
 }
 
@@ -229,6 +231,13 @@ void TTimers::PopulateIndex()
     try {
         DeletedTimers_.clear();
         auto topTimers = YtSelectIndex();
+        if (topTimers.empty()) {
+            const TDuration delay = TDuration::Seconds(1);
+            NYT::NConcurrency::TDelayedExecutor::MakeDelayed(delay).Apply(BIND([this]() {
+                PopulateInProgress_.store(false);
+            }));
+            return;
+        }
         for (auto& timer : topTimers) {
             if (DeletedTimers_.contains(timer)) {
                 continue;
