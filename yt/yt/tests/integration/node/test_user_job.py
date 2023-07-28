@@ -1061,7 +1061,7 @@ class TestArtifactCacheBypass(YTEnvSetup):
 
         wait(lambda: assert_statistics(
             op,
-            "exec_node.artifacts.cache_bypassed_artifacts_size",
+            "exec_agent.artifacts.cache_bypassed_artifacts_size",
             lambda bypassed_size: bypassed_size == 18))
 
         wait(lambda: sum(counter.get_delta() for counter in counters) == 18)
