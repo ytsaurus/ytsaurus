@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/api"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
-	"go.ytsaurus.tech/yt/chyt/controller/internal/tests/helpers"
+	"go.ytsaurus.tech/yt/chyt/controller/test/helpers"
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
