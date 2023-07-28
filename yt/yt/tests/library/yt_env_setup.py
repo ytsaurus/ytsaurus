@@ -1066,6 +1066,37 @@ class YTEnvSetup(object):
         for response in yt_commands.execute_batch(requests, driver=driver):
             assert not yt_commands.get_batch_error(response)
 
+        locations_paths = [
+            ["data_node", "cache_locations"],
+            ["data_node", "volume_manager", "layer_locations"],
+            ["data_node", "store_locations"],
+            ["exec_agent", "slot_manager", "locations"],
+            ["exec_node", "slot_manager", "locations"],
+        ]
+
+        disabled_pathes = []
+        for node_config in self.Env.configs["node"]:
+
+            for location_paths in locations_paths:
+                locations = self._get_from_json_by_key_list(node_config, location_paths)
+                if locations:
+                    for location in locations:
+                        path = location["path"]
+                        for root, dirs, files in os.walk(path):
+                            if "disabled" in files:
+                                yt.logger.error(f"Location {path} should not contains disabled after testing")
+                                disabled_pathes.append(path)
+        assert not disabled_pathes, 'Locations should not be disabled (should not contains "disabled" file) after testing: \n' + "\n".join(disabled_pathes)
+
+    def _get_from_json_by_key_list(self, dictionary, key_list):
+        node = dictionary
+        try:
+            for key in key_list:
+                node = node[key]
+            return node
+        except KeyError:
+            return None
+
     def _remove_objects(self, enable_secondary_cells_cleanup, driver=None):
         def list_multiple_action(list_kwargs):
             responses = yt_commands.execute_batch(
