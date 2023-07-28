@@ -62,8 +62,8 @@ struct TTestTablet
                     .Item("uncompressed_data_size").Value(UncompressedDataSize);
         });
 
-        tablet->Cell = cells[CellIndex].Get();
-        EmplaceOrCrash(tablet->Cell->Tablets, tabletId, tablet);
+        tablet->Cell = cells[CellIndex];
+        EmplaceOrCrash(cells[CellIndex]->Tablets, tabletId, tablet);
 
         return tablet;
     }
@@ -467,6 +467,7 @@ TEST_P(TTestReassignOrdinaryTablets, Simple)
     auto table = bundle.Bundle->Tables[bundle.TableIds[0]];
 
     const auto& anyTablet = table->Tablets[0];
+    const auto& anyTabletCell = anyTablet->Cell.Lock();
     THashMap<TTabletCellId, THashSet<TTabletId>> cellToTablets;
     for (const auto& cell : bundle.Cells) {
         EmplaceOrCrash(cellToTablets, cell->Id, THashSet<TTabletId>{});
@@ -475,8 +476,9 @@ TEST_P(TTestReassignOrdinaryTablets, Simple)
     for (const auto& tablet : table->Tablets) {
         EXPECT_EQ(tablet->Statistics.MemorySize, anyTablet->Statistics.MemorySize);
         EXPECT_EQ(tablet->Statistics.UncompressedDataSize, anyTablet->Statistics.UncompressedDataSize);
-        EXPECT_EQ(tablet->Cell, anyTablet->Cell);
-        InsertOrCrash(cellToTablets[tablet->Cell->Id], tablet->Id);
+        auto cell = tablet->Cell.Lock();
+        EXPECT_EQ(cell, anyTabletCell);
+        InsertOrCrash(cellToTablets[cell->Id], tablet->Id);
     }
 
     auto expectedCellToTablets = cellToTablets;
@@ -484,7 +486,7 @@ TEST_P(TTestReassignOrdinaryTablets, Simple)
         const auto& tablet = GetOrCrash(bundle.Tablets, descriptor.TabletId);
 
         InsertOrCrash(cellToTablets[descriptor.TabletCellId], descriptor.TabletId);
-        EraseOrCrash(cellToTablets[tablet->Cell->Id], descriptor.TabletId);
+        EraseOrCrash(cellToTablets[tablet->Cell.Lock()->Id], descriptor.TabletId);
     }
 
     for (const auto& descriptor : expected) {
@@ -492,7 +494,7 @@ TEST_P(TTestReassignOrdinaryTablets, Simple)
         const auto& tablet = table->Tablets[descriptor->TabletIndex];
 
         InsertOrCrash(expectedCellToTablets[cell->Id], tablet->Id);
-        EraseOrCrash(expectedCellToTablets[tablet->Cell->Id], tablet->Id);
+        EraseOrCrash(expectedCellToTablets[tablet->Cell.Lock()->Id], tablet->Id);
     }
 
     for (const auto& [cellId, tablets] : cellToTablets) {
@@ -651,11 +653,12 @@ TEST_P(TTestReassignInMemoryTabletsUniform, Simple)
     for (const auto& descriptor : descriptors) {
         auto tablet = FindTabletInBundle(bundle.Bundle, descriptor.TabletId);
         EXPECT_TRUE(tablet != nullptr);
-        EXPECT_TRUE(tablet->Cell != nullptr);
-        EXPECT_TRUE(tablet->Cell->Id != descriptor.TabletCellId);
+        auto cell = tablet->Cell.Lock();
+        EXPECT_TRUE(cell != nullptr);
+        EXPECT_TRUE(cell->Id != descriptor.TabletCellId);
         EXPECT_TRUE(tablet->Table->InMemoryMode != EInMemoryMode::None);
         auto tabletSize = GetTabletBalancingSize(tablet.Get());
-        cellSizes[tablet->Cell->Id] -= tabletSize;
+        cellSizes[cell->Id] -= tabletSize;
         cellSizes[descriptor.TabletCellId] += tabletSize;
     }
 
@@ -720,11 +723,12 @@ TEST_P(TTestReassignOrdinaryTabletsUniform, Simple)
     for (const auto& descriptor : descriptors) {
         auto tablet = FindTabletInBundle(bundle.Bundle, descriptor.TabletId);
         EXPECT_TRUE(tablet != nullptr);
-        EXPECT_TRUE(tablet->Cell != nullptr);
-        EXPECT_TRUE(tablet->Cell->Id != descriptor.TabletCellId);
+        auto cell = tablet->Cell.Lock();
+        EXPECT_TRUE(cell != nullptr);
+        EXPECT_TRUE(cell->Id != descriptor.TabletCellId);
         EXPECT_TRUE(tablet->Table->InMemoryMode == EInMemoryMode::None);
         auto tabletSize = GetTabletBalancingSize(tablet.Get());
-        cellSizes[tablet->Cell->Id] -= tabletSize;
+        cellSizes[cell->Id] -= tabletSize;
         cellSizes[descriptor.TabletCellId] += tabletSize;
     }
 
@@ -805,8 +809,9 @@ TEST_P(TTestReassignTabletsParameterized, SimpleViaMemorySize)
     for (const auto& descriptor : descriptors) {
         auto tablet = FindTabletInBundle(bundle.Bundle, descriptor.TabletId);
         EXPECT_TRUE(tablet != nullptr);
-        EXPECT_TRUE(tablet->Cell != nullptr);
-        EXPECT_TRUE(tablet->Cell->Id != descriptor.TabletCellId);
+        auto cell = tablet->Cell.Lock();
+        EXPECT_TRUE(cell != nullptr);
+        EXPECT_TRUE(cell->Id != descriptor.TabletCellId);
 
         tabletToCell[descriptor.TabletId] = descriptor.TabletCellId;
     }
@@ -1054,8 +1059,9 @@ TEST_P(TTestReassignTabletsParameterizedByNodes, SimpleManyNodesWithInMemoryTabl
     for (const auto& descriptor : descriptors) {
         auto tablet = FindTabletInBundle(bundle.Bundle, descriptor.TabletId);
         EXPECT_TRUE(tablet != nullptr);
-        EXPECT_TRUE(tablet->Cell != nullptr);
-        EXPECT_TRUE(tablet->Cell->Id != descriptor.TabletCellId);
+        auto cell = tablet->Cell.Lock();
+        EXPECT_TRUE(cell != nullptr);
+        EXPECT_TRUE(cell->Id != descriptor.TabletCellId);
 
         tabletToCell[descriptor.TabletId] = descriptor.TabletCellId;
     }

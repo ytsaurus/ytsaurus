@@ -8,6 +8,7 @@
 #include "public.h"
 #include "tablet_action.h"
 #include "tablet_balancer.h"
+#include "table_registry.h"
 
 #include <yt/yt/server/lib/cypress_election/election_manager.h>
 
@@ -125,6 +126,7 @@ private:
     THashSet<TGlobalGroupTag> GroupsToMoveOnNextIteration_;
     IThreadPoolPtr WorkerPool_;
     IActionManagerPtr ActionManager_;
+    TTableRegistryPtr TableRegistry_;
 
     TAtomicIntrusivePtr<TTabletBalancerDynamicConfig> DynamicConfig_;
 
@@ -195,6 +197,7 @@ TTabletBalancer::TTabletBalancer(
         Config_->TabletActionPollingPeriod,
         Bootstrap_->GetClient(),
         Bootstrap_))
+    , TableRegistry_(New<TTableRegistry>())
     , DynamicConfig_(TAtomicIntrusivePtr(New<TTabletBalancerDynamicConfig>()))
     , ParameterizedBalancingScheduler_(
         Config_->ParameterizedTimeoutOnStart,
@@ -470,6 +473,7 @@ std::vector<TString> TTabletBalancer::UpdateBundleList()
             name,
             New<TBundleState>(
                 name,
+                TableRegistry_,
                 Bootstrap_->GetClient(),
                 WorkerPool_->GetInvoker()));
         it->second->UpdateBundleAttributes(&bundle->Attributes());

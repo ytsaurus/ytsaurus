@@ -1,6 +1,7 @@
 #include "bundle_state.h"
 #include "helpers.h"
 #include "private.h"
+#include "table_registry.h"
 
 #include <yt/yt/server/lib/tablet_balancer/config.h>
 #include <yt/yt/server/lib/tablet_balancer/table.h>
@@ -121,6 +122,7 @@ const std::vector<TString> TBundleState::DefaultPerformanceCountersKeys_{
 
 TBundleState::TBundleState(
     TString name,
+    TTableRegistryPtr tableRegistry,
     NApi::NNative::IClientPtr client,
     IInvokerPtr invoker)
     : Bundle_(New<TTabletCellBundle>(name))
@@ -128,6 +130,7 @@ TBundleState::TBundleState(
     , Profiler_(TabletBalancerProfiler.WithTag("tablet_cell_bundle", name))
     , Client_(client)
     , Invoker_(invoker)
+    , TableRegistry_(std::move(tableRegistry))
     , Counters_(New<TBundleProfilingCounters>(Profiler_))
 { }
 
@@ -214,6 +217,7 @@ void TBundleState::DoUpdateState(bool fetchTabletCellsFromSecondaryMasters)
     YT_LOG_DEBUG("Finished fetching basic table attributes (NewTableCount: %v)", tableInfos.size());
 
     for (auto& [tableId, tableInfo] : tableInfos) {
+        TableRegistry_->AddTable(tableInfo);
         auto it = EmplaceOrCrash(Bundle_->Tables, tableId, std::move(tableInfo));
 
         const auto& tablets = GetOrCrash(newTableIdToTablets, tableId);
@@ -283,7 +287,10 @@ void TBundleState::DoFetchStatistics()
     for (const auto& [id, info] : tableSettings) {
         EmplaceOrCrash(tableIds, id);
     }
-    DropMissingKeys(Bundle_->Tables, tableIds);
+    auto droppedTables = DropMissingKeys(Bundle_->Tables, tableIds);
+    for (auto table : droppedTables) {
+        TableRegistry_->RemoveTable(table);
+    }
 
     THashSet<TTableId> tableIdsToFetch;
     for (auto& [tableId, tableSettings] : tableSettings) {
@@ -318,6 +325,7 @@ void TBundleState::DoFetchStatistics()
         YT_VERIFY(cell->Tablets.empty());
     }
 
+    THashSet<TTableId> tablesFromAnotherBundle;
     for (auto& [tableId, statistics] : tableIdToStatistics) {
         auto& table = GetOrCrash(Bundle_->Tables, tableId);
         SetTableStatistics(table, statistics);
@@ -341,14 +349,12 @@ void TBundleState::DoFetchStatistics()
 
                 auto cellIt = Bundle_->TabletCells.find(tabletResponse.CellId);
                 if (cellIt == Bundle_->TabletCells.end()) {
-                    THROW_ERROR_EXCEPTION(
-                        "Tablet %v of table %v belongs to an unknown cell %v",
-                        tabletResponse.TabletId,
-                        table->Id,
-                        tabletResponse.CellId);
+                    tablesFromAnotherBundle.insert(table->Id);
+                    continue;
                 }
+
                 EmplaceOrCrash(cellIt->second->Tablets, tablet->Id, tablet);
-                tablet->Cell = cellIt->second.Get();
+                tablet->Cell = cellIt->second;
             } else {
                 YT_VERIFY(tabletResponse.State == ETabletState::Unmounted);
                 tablet->Cell = nullptr;
@@ -369,6 +375,17 @@ void TBundleState::DoFetchStatistics()
 
     for (auto tableId : missingTables) {
         EraseOrCrash(Bundle_->Tables, tableId);
+        TableRegistry_->RemoveTable(tableId);
+    }
+
+    for (auto tableId : tablesFromAnotherBundle) {
+        auto it = GetIteratorOrCrash(Bundle_->Tables, tableId);
+        YT_LOG_DEBUG("Table from another bundle was found (TableId: %v, TablePath: %v)",
+            tableId,
+            it->second->Path);
+
+        Bundle_->Tables.erase(it);
+        TableRegistry_->RemoveTable(tableId);
     }
 
     THashSet<TTabletId> tabletIds;

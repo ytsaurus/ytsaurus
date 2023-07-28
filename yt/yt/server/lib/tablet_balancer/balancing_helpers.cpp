@@ -507,7 +507,7 @@ void ReassignOrdinaryTabletsOfTable(
 
     THashMap<const TTabletCell*, std::vector<TTabletPtr>> cellToTablets;
     for (const auto& tablet : tablets) {
-        cellToTablets[tablet->Cell].push_back(tablet);
+        cellToTablets[tablet->Cell.Lock().Get()].push_back(tablet);
     }
 
     std::vector<std::pair<int, const TTabletCell*>> cells;
@@ -711,7 +711,7 @@ std::vector<TMoveDescriptor> ReassignOrdinaryTablets(
                 continue;
             }
 
-            if (!tablet->Cell) {
+            if (tablet->Cell == nullptr) {
                 // Unmounted tablet.
                 continue;
             }
@@ -743,7 +743,8 @@ std::vector<TMoveDescriptor> ReassignOrdinaryTablets(
 
     std::vector<TMoveDescriptor> descriptors;
     for (const auto& [tablet, cellId] : tabletToTargetCell) {
-        if (!tablet->Cell || tablet->Cell->Id != cellId) {
+        auto cell = tablet->Cell.Lock();
+        if (!cell || cell->Id != cellId) {
             descriptors.emplace_back(TMoveDescriptor{
                 .TabletId = tablet->Id,
                 .TabletCellId = cellId
@@ -775,15 +776,15 @@ std::vector<TMoveDescriptor> ReassignTabletsParameterized(
 
 void ApplyMoveTabletAction(const TTabletPtr& tablet, const TTabletCellId& cellId)
 {
-    YT_VERIFY(tablet->Cell);
+    auto sourceCell = tablet->Cell.Lock();
+    YT_VERIFY(sourceCell);
 
     auto bundle = tablet->Table->Bundle;
     YT_VERIFY(bundle);
 
     auto cell = GetOrCrash(bundle->TabletCells, cellId);
-    auto sourceCell = tablet->Cell;
 
-    tablet->Cell = cell.Get();
+    tablet->Cell = cell;
     EmplaceOrCrash(cell->Tablets, tablet->Id, tablet);
     EraseOrCrash(sourceCell->Tablets, tablet->Id);
 

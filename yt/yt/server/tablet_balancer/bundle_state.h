@@ -62,6 +62,7 @@ public:
 public:
     TBundleState(
         TString name,
+        TTableRegistryPtr tableRegistry,
         NApi::NNative::IClientPtr client,
         IInvokerPtr invoker);
 
@@ -108,6 +109,7 @@ private:
 
     const NApi::NNative::IClientPtr Client_;
     const IInvokerPtr Invoker_;
+    const TTableRegistryPtr TableRegistry_;
 
     std::vector<TTabletCellId> CellIds_;
     TBundleProfilingCountersPtr Counters_;

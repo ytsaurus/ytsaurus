@@ -140,15 +140,18 @@ void MergeFrom(TTarget* target, const TSource& source)
 }
 
 template <class TMap, class TKeySet>
-void DropMissingKeys(TMap&& map, const TKeySet& set)
+TKeySet DropMissingKeys(TMap&& map, const TKeySet& set)
 {
+    TKeySet dropped;
     for (auto it = map.begin(); it != map.end(); ) {
         if (!set.contains(it->first)) {
+            dropped.insert(it->first);
             map.erase(it++);
         } else {
             ++it;
         }
     }
+    return dropped;
 }
 
 template <class TMap, class TKey>

@@ -737,7 +737,7 @@ std::vector<TMoveDescriptor> TParameterizedReassignSolver::BuildActionDescriptor
 
     std::vector<TMoveDescriptor> descriptors;
     for (auto& tablet : Tablets_) {
-        auto sourceCellId = tablet.Tablet->Cell->Id;
+        auto sourceCellId = tablet.Tablet->Cell.Lock()->Id;
         auto destinationCellId = tablet.Cell->Cell->Id;
         if (sourceCellId != destinationCellId) {
             descriptors.emplace_back(TMoveDescriptor{

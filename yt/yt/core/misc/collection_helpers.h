@@ -39,7 +39,7 @@ template <class TSource, class TTarget>
 void MergeFrom(TTarget* target, const TSource& source);
 
 template <class TMap, class TKeySet>
-void DropMissingKeys(TMap&& map, const TKeySet& set);
+TKeySet DropMissingKeys(TMap&& map, const TKeySet& set);
 
 /*!
  * This function is supposed to replace a frequent pattern
