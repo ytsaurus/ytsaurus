@@ -1190,7 +1190,7 @@ void TJob::GuardedInterrupt(
         YT_LOG_DEBUG("Job is not interruptible and will be aborted");
 
         auto error = TError(NJobProxy::EErrorCode::InterruptionUnsupported, "Uninterruptible job aborted")
-            << TError(NExecNode::EErrorCode::AbortByScheduler, "Job aborted by scheduler");
+            << TErrorAttribute("interruption_reason", InterruptionReason_);
 
         if (interruptionReason == EInterruptReason::Preemption) {
             error = TError("Job preempted") << error;
@@ -1204,7 +1204,8 @@ void TJob::GuardedInterrupt(
     }
 
     if (JobPhase_ < EJobPhase::Running) {
-        TError error(NJobProxy::EErrorCode::JobNotPrepared, "Interrupting job that has not started yet");
+        auto error = TError(NJobProxy::EErrorCode::JobNotPrepared, "Interrupting job that has not started yet")
+            << TErrorAttribute("interruption_reason", InterruptionReason_);
 
         if (interruptionReason == EInterruptReason::Preemption) {
             error = TError("Job preempted") << error;
