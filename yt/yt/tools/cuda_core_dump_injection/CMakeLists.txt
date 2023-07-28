@@ -7,7 +7,7 @@
 
 
 
-add_library(cuda_core_dump_injection SHARED)
+add_shared_library(cuda_core_dump_injection)
 target_link_libraries(cuda_core_dump_injection PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp

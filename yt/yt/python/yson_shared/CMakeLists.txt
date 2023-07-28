@@ -8,7 +8,7 @@
 
 find_package(Python3 REQUIRED COMPONENTS Development)
 
-add_library(yson_lib SHARED)
+add_shared_library(yson_lib)
 target_compile_options(yson_lib PRIVATE
   -DPYCXX_PYTHON_2TO3
   -DPYCXX_6_2_COMPATIBILITY
