@@ -112,43 +112,26 @@ public:
     { }
 
 protected:
-    Value* GetElement(int index, Type* type)
+    Value* GetElement(int index, int indexInStruct, Type* type, Type* holderType)
     {
         return LoadElement(
-            GetElementPtr(index),
+            GetElementPtr(index, indexInStruct, holderType),
             type);
     }
 
-    Value* GetElement(int index, int indexInStruct, Type* type)
+    Value* GetElementPtr(int index, int indexInStruct, Type* holderType)
     {
-        return LoadElement(
-            GetElementPtr(index, indexInStruct),
-            type);
-    }
-
-    Value* GetElement(int index)
-    {
-        return Builder_.CreateLoad(GetElementPtr(index));
-    }
-
-    Value* GetElement(int index, int indexInStruct)
-    {
-        return Builder_.CreateLoad(GetElementPtr(index, indexInStruct));
-    }
-
-    Value* GetElementPtr(int index)
-    {
-        return Builder_.CreateConstGEP1_32(KeyPtr_, index);
-    }
-
-    Value* GetElementPtr(int index, int indexInStruct)
-    {
-        return Builder_.CreateConstGEP2_32(nullptr, KeyPtr_, index, indexInStruct);
+        return Builder_.CreateConstGEP2_32(
+            holderType,
+            KeyPtr_,
+            index,
+            indexInStruct);
     }
 
     Value* LoadElement(Value* ptr, Type* type)
     {
         return Builder_.CreateLoad(
+            type,
             Builder_.CreateBitCast(
                 ptr,
                 PointerType::getUnqual(type)));
@@ -192,13 +175,14 @@ public:
         return GetElement(
             index,
             TTypeBuilder<TDynamicValueData>::Fields::Any,
-            GetDynamicValueDataType(type));
+            GetDynamicValueDataType(type),
+            TTypeBuilder<TDynamicValueData>::Get(Builder_.Context_));
     }
 
     Value* GetStringData(int index) override
     {
         return Builder_.CreateConstGEP2_32(
-            nullptr,
+            TTypeBuilder<TDynamicString>::Get(Builder_.Context_),
             GetStringPtr(index),
             0,
             TTypeBuilder<TDynamicString>::Fields::Data);
@@ -207,8 +191,9 @@ public:
     Value* GetStringLength(int index) override
     {
         return Builder_.CreateLoad(
+            TTypeBuilder<TDynamicString>::TLength::Get(Builder_.Context_),
             Builder_.CreateConstGEP2_32(
-                nullptr,
+                TTypeBuilder<TDynamicString>::Get(Builder_.Context_),
                 GetStringPtr(index),
                 0,
                 TTypeBuilder<TDynamicString>::Fields::Length));
@@ -220,7 +205,8 @@ private:
         return GetElement(
             index,
             TTypeBuilder<TDynamicValueData>::Fields::String,
-            GetDynamicValueDataType(EValueType::String));
+            GetDynamicValueDataType(EValueType::String),
+            TTypeBuilder<TDynamicValueData>::Get(Builder_.Context_));
     }
 
     Type* GetDynamicValueDataType(EValueType type)
@@ -263,7 +249,9 @@ public:
     {
         return GetElement(
             index,
-            TTypeBuilder<TUnversionedValue>::Fields::Type);
+            TTypeBuilder<TUnversionedValue>::Fields::Type,
+            TTypeBuilder<TUnversionedValue>::TType::Get(Builder_.Context_),
+            TTypeBuilder<TUnversionedValue>::Get(Builder_.Context_));
     }
 
     Value* GetData(int index, EValueType type) override
@@ -280,7 +268,9 @@ public:
     {
         return GetElement(
             index,
-            TTypeBuilder<TUnversionedValue>::Fields::Length);
+            TTypeBuilder<TUnversionedValue>::Fields::Length,
+            TTypeBuilder<TUnversionedValue>::TLength::Get(Builder_.Context_),
+            TTypeBuilder<TUnversionedValue>::Get(Builder_.Context_));
     }
 
 private:
@@ -289,7 +279,8 @@ private:
         return LoadElement(
             GetElementPtr(
                 index,
-                TTypeBuilder<TUnversionedValue>::Fields::Data),
+                TTypeBuilder<TUnversionedValue>::Fields::Data,
+                TTypeBuilder<TUnversionedValue>::Get(Builder_.Context_)),
             type);
     }
 

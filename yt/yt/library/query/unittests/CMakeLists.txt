@@ -19,7 +19,8 @@ target_link_libraries(unittester-query PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  cpp-ytalloc-impl
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
   library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main

@@ -15,18 +15,19 @@ target_link_libraries(yt-library-codegen PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  llvm12-lib-IR
-  llvm12-lib-AsmParser
-  llvm12-lib-CodeGen
-  llvm12-lib-ExecutionEngine
+  llvm16-lib-IR
+  llvm16-lib-AsmParser
+  llvm16-lib-CodeGen
+  llvm16-lib-ExecutionEngine
   lib-ExecutionEngine-MCJIT
-  llvm12-lib-IRReader
-  llvm12-lib-Linker
+  llvm16-lib-IRReader
+  llvm16-lib-Linker
   lib-Transforms-IPO
-  llvm12-lib-Support
-  llvm12-lib-Target
+  llvm16-lib-Support
+  llvm16-lib-Target
   lib-Target-X86
   Target-X86-AsmParser
+  llvm16-lib-Passes
   yt-yt-core
 )
 target_sources(yt-library-codegen PRIVATE

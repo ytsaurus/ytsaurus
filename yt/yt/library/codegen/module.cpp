@@ -11,6 +11,8 @@
 #error "LLVM 3.7 or 3.9 or 4.0 is required."
 #endif
 
+#include <llvm/Analysis/CGSCCPassManager.h>
+#include <llvm/Analysis/LoopAnalysisManager.h>
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
 #include <llvm/ExecutionEngine/MCJIT.h>
 #include <llvm/ExecutionEngine/SectionMemoryManager.h>
@@ -19,8 +21,10 @@
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
+#include <llvm/IR/PassManager.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/Object/ObjectFile.h>
+#include <llvm/Passes/PassBuilder.h>
 #include <llvm/Support/Host.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/CodeGen/Passes.h>
@@ -31,6 +35,7 @@
 
 #define PRINT_PASSES_TIME
 #ifdef PRINT_PASSES_TIME
+#include <llvm/Pass.h>
 #include <llvm/Support/Timer.h>
 #include <llvm/Transforms/Scalar.h>
 #endif
@@ -144,10 +149,11 @@ public:
         // whereas LLVM modules contains darwin15.0.0.
         // So we rebuild triple to match with Clang object files.
         auto triple = llvm::Triple(hostTriple);
-        unsigned maj, min, rev;
-        triple.getMacOSXVersion(maj, min, rev);
-        auto osName = llvm::Twine(Format("macosx%v.%v.%v", maj, min, rev));
-        auto fixedTriple = llvm::Triple(triple.getArchName(), triple.getVendorName(), osName);
+        llvm::VersionTuple version;
+        triple.getMacOSXVersion(version);
+        auto formattedOsName = Format("macosx%v.%v.%v", version.getMajor(), *version.getMinor(), *version.getSubminor());
+        auto osNameAsTwine = llvm::Twine(std::string_view(formattedOsName));
+        auto fixedTriple = llvm::Triple(triple.getArchName(), triple.getVendorName(), osNameAsTwine);
         hostTriple = llvm::Triple::normalize(fixedTriple.getTriple());
 #endif
 
@@ -158,10 +164,6 @@ public:
 
         llvm::TargetOptions targetOptions;
         targetOptions.EnableFastISel = true;
-        // YT-16394: Variable is not initialized inside LLVM and we get random offset outside allocated memory.
-        // Value -1 denotes that offset is not set and default value should be used.
-        // Default value is &tcbhead_t::stack_guard.
-        targetOptions.StackProtectorGuardOffset = -1;
 
         // Create engine.
         std::string what;
@@ -173,6 +175,7 @@ public:
             .setMCPU(hostCpu)
             .setErrorStr(&what)
             .setTargetOptions(targetOptions);
+
         Engine_.reset(builder.create());
 
         if (!Engine_) {
@@ -264,11 +267,103 @@ private:
         Compiled_ = true;
     }
 
+    // See YT-8035 for details why we are clearing COMDAT.
+    void ClearComdatSection() const
+    {
+        for (auto& it : Module_->functions()) {
+            it.setComdat(nullptr);
+        }
+
+        for (auto& it : Module_->globals()) {
+            it.setComdat(nullptr);
+        }
+
+        for (auto& it : Module_->ifuncs()) {
+            it.setComdat(nullptr);
+        }
+
+        Module_->getComdatSymbolTable().clear();
+    }
+
+    void RunInternalizePass() const
+    {
+        auto modulePassManager = llvm::legacy::PassManager();
+
+        modulePassManager.add(llvm::createInternalizePass([&] (const llvm::GlobalValue& gv) -> bool {
+            auto name = TString(gv.getName().str());
+            return ExportedSymbols_.count(name) > 0;
+        }));
+
+        modulePassManager.add(llvm::createGlobalDCEPass());
+        modulePassManager.run(*Module_);
+    }
+
+    void OptimizeAndAddMSanViaNewPassManager() const
+    {
+        llvm::LoopAnalysisManager loopAnalysisManager;
+        llvm::FunctionAnalysisManager functionalAnalysisManager;
+        llvm::CGSCCAnalysisManager cgsccAnalysisManager;
+        llvm::ModuleAnalysisManager moduleAnalysisManager;
+
+        llvm::PassBuilder passBuilder;
+
+        passBuilder.registerModuleAnalyses(moduleAnalysisManager);
+        passBuilder.registerCGSCCAnalyses(cgsccAnalysisManager);
+        passBuilder.registerFunctionAnalyses(functionalAnalysisManager);
+        passBuilder.registerLoopAnalyses(loopAnalysisManager);
+        passBuilder.crossRegisterProxies(
+            loopAnalysisManager,
+            functionalAnalysisManager,
+            cgsccAnalysisManager,
+            moduleAnalysisManager);
+
+        llvm::ModulePassManager modulePassManager = passBuilder.buildO0DefaultPipeline(
+            llvm::OptimizationLevel::O0);
+
+        modulePassManager.addPass(
+            llvm::MemorySanitizerPass(llvm::MemorySanitizerOptions()));
+
+        modulePassManager.run(*Module_, moduleAnalysisManager);
+    }
+
+    void OptimizeViaLegacyPassManager() const
+    {
+        llvm::PassManagerBuilder passManagerBuilder;
+        passManagerBuilder.OptLevel = 0;
+        passManagerBuilder.SizeLevel = 0;
+        passManagerBuilder.SLPVectorize = true;
+        passManagerBuilder.LoopVectorize = true;
+        passManagerBuilder.Inliner = llvm::createFunctionInliningPass();
+
+        auto functionPassManager = llvm::legacy::FunctionPassManager(Module_);
+
+        passManagerBuilder.populateFunctionPassManager(functionPassManager);
+
+        functionPassManager.doInitialization();
+        for (auto it = Module_->begin(), jt = Module_->end(); it != jt; ++it) {
+            if (!it->isDeclaration()) {
+                functionPassManager.run(*it);
+            }
+        }
+        functionPassManager.doFinalization();
+
+        auto modulePassManager = llvm::legacy::PassManager();
+
+        passManagerBuilder.populateModulePassManager(modulePassManager);
+        modulePassManager.run(*Module_);
+    }
+
+    void OptimizeIR() const
+    {
+        if constexpr (NSan::MSanIsOn()) {
+            OptimizeAndAddMSanViaNewPassManager();
+        } else {
+            OptimizeViaLegacyPassManager();
+        }
+    }
+
     void Compile()
     {
-        using PassManager = llvm::legacy::PassManager;
-        using FunctionPassManager = llvm::legacy::FunctionPassManager;
-
 #ifdef PRINT_PASSES_TIME
         if (IsPassesTimeDumpEnabled()) {
             llvm::TimePassesIsEnabled = true;
@@ -277,12 +372,7 @@ private:
 
         YT_LOG_DEBUG("Started compiling module");
 
-        // See YT-8035 for details why we are clearing COMDAT.
-        for (auto it = Module_->begin(), jt = Module_->end(); it != jt; ++it) {
-            it->setComdat(nullptr);
-        }
-
-        Module_->getComdatSymbolTable().clear();
+        ClearComdatSection();
 
         if (IsIRDumpEnabled()) {
             llvm::errs() << "\n******** Before Optimization ***********************************\n";
@@ -297,54 +387,12 @@ private:
         YT_LOG_DEBUG("Verifying IR");
         YT_VERIFY(!llvm::verifyModule(*Module_, &llvm::errs()));
 
-        std::unique_ptr<PassManager> modulePassManager;
-        std::unique_ptr<FunctionPassManager> functionPassManager;
-
-        // Run DCE pass to strip unused code.
-        YT_LOG_DEBUG("Pruning dead code (ExportedSymbols: %v)", ExportedSymbols_);
-
-        modulePassManager = std::make_unique<PassManager>();
-#if !LLVM_VERSION_GE(3, 9)
-        std::vector<const char*> exportedNames;
-        for (const auto& exportedSymbol : ExportedSymbols_) {
-            exportedNames.emplace_back(exportedSymbol.c_str());
-        }
-        modulePassManager->add(llvm::createInternalizePass(exportedNames));
-#else
-        modulePassManager->add(llvm::createInternalizePass([&] (const llvm::GlobalValue& gv) -> bool {
-            auto name = TString(gv.getName().str());
-            return ExportedSymbols_.count(name) > 0;
-        }));
-#endif
-        modulePassManager->add(llvm::createGlobalDCEPass());
-        modulePassManager->run(*Module_);
+        RunInternalizePass();
 
         // Now, setup optimization pipeline and run actual optimizations.
         YT_LOG_DEBUG("Optimizing IR");
 
-        llvm::PassManagerBuilder passManagerBuilder;
-        passManagerBuilder.OptLevel = 0;
-        passManagerBuilder.SizeLevel = 0;
-        passManagerBuilder.Inliner = llvm::createFunctionInliningPass();
-
-        functionPassManager = std::make_unique<FunctionPassManager>(Module_);
-        if (NSan::MSanIsOn()) {
-            functionPassManager->add(llvm::createMemorySanitizerLegacyPassPass());
-        }
-        passManagerBuilder.populateFunctionPassManager(*functionPassManager);
-
-        functionPassManager->doInitialization();
-        for (auto it = Module_->begin(), jt = Module_->end(); it != jt; ++it) {
-            if (!it->isDeclaration()) {
-                functionPassManager->run(*it);
-            }
-        }
-        functionPassManager->doFinalization();
-
-        modulePassManager = std::make_unique<PassManager>();
-        passManagerBuilder.populateModulePassManager(*modulePassManager);
-
-        modulePassManager->run(*Module_);
+        OptimizeIR();
 
         if (IsIRDumpEnabled()) {
             llvm::errs() << "\n******** After Optimization ************************************\n";
@@ -359,11 +407,14 @@ private:
         YT_LOG_DEBUG("Finalizing module");
 
         Engine_->finalizeObject();
+
 #ifdef PRINT_PASSES_TIME
         if (IsPassesTimeDumpEnabled()) {
             llvm::TimerGroup::printAll(llvm::errs());
+            llvm::TimerGroup::clearAll();
         }
 #endif
+
         YT_LOG_DEBUG("Finished compiling module");
         // TODO(sandello): Clean module here.
     }

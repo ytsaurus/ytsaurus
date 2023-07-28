@@ -160,7 +160,7 @@ template <>
 struct TTypeBuilder<TRow>
 {
 public:
-    typedef TTypeBuilder<TRowHeader*> THeader;
+    using THeader = TTypeBuilder<TRowHeader*>;
 
     enum Fields
     {
@@ -178,7 +178,7 @@ template <>
 struct TTypeBuilder<TMutableRow>
 {
 public:
-    typedef TTypeBuilder<TRowHeader*> THeader;
+    using THeader = TTypeBuilder<TRowHeader*>;
 
     enum Fields
     {
@@ -196,6 +196,9 @@ template <>
 struct TTypeBuilder<TExpressionClosure>
 {
 public:
+    using TOpaqueValues = TTypeBuilder<void* const*>;
+    using TBuffer = TTypeBuilder<TExpressionContext*>;
+
     enum Fields
     {
         FragmentResults,

@@ -190,14 +190,16 @@ TCGValue TSimpleCallingConvention::MakeCodegenFunctionCall(
 
     std::function<TCGValue(std::vector<Value*>)> callUdf;
     if (IsStringLikeType(type)) {
+        auto resultPtrType = GetABIType(builder->getContext(), EValueType::String);
         auto resultPtr = builder->CreateAlloca(
-            GetABIType(builder->getContext(), EValueType::String),
+            resultPtrType,
             nullptr,
             "resultPtr");
         llvmArgs.push_back(resultPtr);
 
+        auto resultLengthType = TValueTypeBuilder::TLength::Get(builder->getContext());
         auto resultLength = builder->CreateAlloca(
-            TValueTypeBuilder::TLength::Get(builder->getContext()),
+            resultLengthType,
             nullptr,
             "resultLength");
         llvmArgs.push_back(resultLength);
@@ -205,14 +207,16 @@ TCGValue TSimpleCallingConvention::MakeCodegenFunctionCall(
         callUdf = [
             &,
             resultLength,
-            resultPtr
+            resultLengthType,
+            resultPtr,
+            resultPtrType
         ] (std::vector<Value*> argValues) {
             codegenBody(builder, argValues);
             return TCGValue::Create(
                 builder,
                 builder->getFalse(),
-                builder->CreateLoad(resultLength),
-                builder->CreateLoad(resultPtr),
+                builder->CreateLoad(resultLengthType, resultLength),
+                builder->CreateLoad(resultPtrType, resultPtr),
                 type,
                 Twine(name.c_str()));
         };
@@ -355,6 +359,7 @@ TCGValue TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
 
         for (int varargIndex = 0; arg != codegenArguments.end(); arg++, varargIndex++) {
             auto valuePtr = builder->CreateConstGEP1_32(
+                TValueTypeBuilder::Get(builder->getContext()),
                 varargPtr,
                 varargIndex);
 

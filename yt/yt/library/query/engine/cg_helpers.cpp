@@ -36,6 +36,9 @@ Type* GetLLVMType(llvm::LLVMContext& context, NYT::NTableClient::EValueType stat
 Value* TCGExprContext::GetFragmentResult(size_t index) const
 {
     return Builder_->CreateInBoundsGEP(
+        TClosureTypeBuilder::Get(
+            Builder_->getContext(),
+            ExpressionFragments.Functions.size()),
         ExpressionClosurePtr,
         {
             Builder_->getInt32(0),
@@ -48,6 +51,9 @@ Value* TCGExprContext::GetFragmentResult(size_t index) const
 Value* TCGExprContext::GetFragmentFlag(size_t index) const
 {
     return Builder_->CreateInBoundsGEP(
+        TClosureTypeBuilder::Get(
+            Builder_->getContext(),
+            ExpressionFragments.Functions.size()),
         ExpressionClosurePtr,
         {
             Builder_->getInt32(0),
@@ -65,21 +71,31 @@ TCGExprContext TCGExprContext::Make(
     Value* literals,
     Value* rowValues)
 {
-    Value* opaqueValues = builder->CreateLoad(builder->CreateStructGEP(
-        nullptr,
+    Value* opaqueValuesPtr = builder->CreateStructGEP(
+        TClosureTypeBuilder::Get(builder->getContext(), fragmentInfos.Functions.size()),
         expressionClosurePtr,
-        TClosureTypeBuilder::Fields::OpaqueValues),
+        TClosureTypeBuilder::Fields::OpaqueValues);
+
+    Value* opaqueValues = builder->CreateLoad(
+        TClosureTypeBuilder::TOpaqueValues::Get(builder->getContext()),
+        opaqueValuesPtr,
         "opaqueValues");
+
+    Value* bufferPtr = builder->CreateStructGEP(
+        TClosureTypeBuilder::Get(builder->getContext(), fragmentInfos.Functions.size()),
+        expressionClosurePtr,
+        TClosureTypeBuilder::Fields::Buffer);
+
+    Value* buffer = builder->CreateLoad(
+        TClosureTypeBuilder::TBuffer::Get(builder->getContext()),
+        bufferPtr,
+        "buffer");
 
     return TCGExprContext(
         TCGOpaqueValuesContext(builder, literals, opaqueValues),
         TCGExprData(
             fragmentInfos,
-            builder->CreateLoad(builder->CreateStructGEP(
-                nullptr,
-                expressionClosurePtr,
-                TClosureTypeBuilder::Fields::Buffer),
-                "buffer"),
+            buffer,
             rowValues,
             expressionClosurePtr
         ));
@@ -102,7 +118,7 @@ TCGExprContext TCGExprContext::Make(
     builder->CreateStore(
         builder.GetOpaqueValues(),
         builder->CreateConstInBoundsGEP2_32(
-            nullptr,
+            TClosureTypeBuilder::Get(builder->getContext(), fragmentInfos.Functions.size()),
             expressionClosurePtr,
             0,
             TClosureTypeBuilder::Fields::OpaqueValues));
@@ -110,7 +126,7 @@ TCGExprContext TCGExprContext::Make(
     builder->CreateStore(
         buffer,
         builder->CreateConstInBoundsGEP2_32(
-            nullptr,
+            TClosureTypeBuilder::Get(builder->getContext(), fragmentInfos.Functions.size()),
             expressionClosurePtr,
             0,
             TClosureTypeBuilder::Fields::Buffer));
@@ -118,7 +134,7 @@ TCGExprContext TCGExprContext::Make(
     builder->CreateMemSet(
         builder->CreatePointerCast(
             builder->CreateConstInBoundsGEP2_32(
-                nullptr,
+                TClosureTypeBuilder::Get(builder->getContext(), fragmentInfos.Functions.size()),
                 expressionClosurePtr,
                 0,
                 TClosureTypeBuilder::Fields::FragmentResults),
@@ -251,6 +267,15 @@ Value* MakePhi(
     phiValue->addIncoming(thenValue, thenBB);
     phiValue->addIncoming(elseValue, elseBB);
     return phiValue;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+llvm::Attribute BuildUnwindTableAttribute(llvm::LLVMContext& context)
+{
+    auto builder = llvm::AttrBuilder(context);
+    builder.addUWTableAttr(llvm::UWTableKind::Default);
+    return builder.getAttribute(llvm::Attribute::AttrKind::UWTable);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
