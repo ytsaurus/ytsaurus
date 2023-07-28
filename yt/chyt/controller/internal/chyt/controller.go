@@ -195,6 +195,9 @@ func (c *Controller) Family() string {
 
 func (c *Controller) ParseSpeclet(specletYson yson.RawValue) (any, error) {
 	var speclet Speclet
+	if specletYson == nil {
+		return speclet, nil
+	}
 	err := yson.Unmarshal(specletYson, &speclet)
 	if err != nil {
 		return nil, yterrors.Err("failed to parse speclet", err)
@@ -282,6 +285,18 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 			},
 		},
 	}
+}
+
+func (c *Controller) GetOpBriefAttributes(parsedSpeclet any) (map[string]any, error) {
+	speclet := parsedSpeclet.(Speclet)
+	if err := c.populateResources(&speclet); err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"instance_count": speclet.InstanceCount,
+		"total_cpu":      speclet.CliqueCPU,
+		"total_memory":   speclet.CliqueMemory,
+	}, nil
 }
 
 func parseConfig(rawConfig yson.RawValue) Config {

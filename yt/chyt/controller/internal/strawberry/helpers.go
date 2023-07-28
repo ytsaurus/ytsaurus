@@ -97,6 +97,9 @@ func ExecuteTemplate(templateString string, data any) string {
 
 func ParseSpeclet(specletYson yson.RawValue) (Speclet, error) {
 	var speclet Speclet
+	if specletYson == nil {
+		return speclet, nil
+	}
 	err := yson.Unmarshal(specletYson, &speclet)
 	if err != nil {
 		return speclet, yterrors.Err("failed to parse strawberry speclet", err)

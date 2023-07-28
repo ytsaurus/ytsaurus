@@ -18,8 +18,15 @@ type RequestParams struct {
 	// Params contains request parameters which are set by the user.
 	// E.g. in CLI "--xxx yyy" should set an "xxx" parameter with the value "yyy".
 	Params map[string]any `yson:"params"`
-	// Unparsed indicates that all params with action "store" are provided as strings and should be parsed to proper types.
-	// It can be useful in CLI, where all arguments are strings and params' types are unknown.
+
+	// Unparsed indicates that:
+	//
+	// 1. All params with a "store" action are provided as YSON strings or an array of YSON strings
+	//    and should be parsed to proper types,
+	// 2. Params with a "store_true" action can be provided as true/false,
+	// 3. A null value for a param is equivalent to a missing param.
+	//
+	// It can be useful in CLI, where all params' types are unknown.
 	Unparsed bool `yson:"unparsed"`
 }
 
@@ -76,20 +83,30 @@ const (
 	TypeString ParamType = "string"
 	TypeAny    ParamType = "any"
 
-	DefaultAction   string = "store"
-	StoreAction     string = "store"
-	StoreTrueAction string = "store_true"
+	ActionStore     string = "store"
+	ActionStoreTrue string = "store_true"
+
+	DefaultAction string = ActionStore
 )
 
 type CmdParameter struct {
-	Name        string          `yson:"name"`
-	Aliases     []string        `yson:"aliases,omitempty"`
-	Type        ParamType       `yson:"type"`
-	Required    bool            `yson:"required"`
-	Action      string          `yson:"action,omitempty"`
-	Description string          `yson:"description,omitempty"`
-	EnvVariable string          `yson:"env_variable,omitempty"`
-	Validator   func(any) error `yson:"-"`
+	Name        string                 `yson:"name"`
+	Aliases     []string               `yson:"aliases,omitempty"`
+	Type        ParamType              `yson:"type"`
+	Required    bool                   `yson:"required"`
+	Action      string                 `yson:"action,omitempty"`
+	Description string                 `yson:"description,omitempty"`
+	EnvVariable string                 `yson:"env_variable,omitempty"`
+	Validator   func(any) error        `yson:"-"`
+	Transformer func(any) (any, error) `yson:"-"`
+
+	// Element* fields describe an element of the parameter if the parameter is of an array type.
+	// They are used in CLI to specify an array by repetition of an element option.
+
+	ElementName        string    `yson:"element_name,omitempty"`
+	ElementType        ParamType `yson:"element_type,omitempty"`
+	ElementAliases     []string  `yson:"element_aliases,omitempty"`
+	ElementDescription string    `yson:"element_description,omitempty"`
 }
 
 func (c *CmdParameter) ActionOrDefault() string {
@@ -128,6 +145,15 @@ func (a HTTPAPI) parseAndValidateRequestParams(w http.ResponseWriter, r *http.Re
 
 	params := request.Params
 
+	// Remove nil unparsed params.
+	if request.Unparsed {
+		for key, value := range params {
+			if value == nil {
+				delete(params, key)
+			}
+		}
+	}
+
 	// Check that all required parameters are present.
 	for _, param := range cmd.Parameters {
 		if _, ok := params[param.Name]; param.Required && !ok {
@@ -151,23 +177,44 @@ func (a HTTPAPI) parseAndValidateRequestParams(w http.ResponseWriter, r *http.Re
 	// Cast params to proper type.
 	if request.Unparsed {
 		for _, param := range cmd.Parameters {
-			if value, ok := params[param.Name]; param.ActionOrDefault() == StoreAction && ok {
-				unparsedValue, ok := value.(string)
-				if !ok {
+			if value, ok := params[param.Name]; param.ActionOrDefault() == ActionStore && ok {
+				if unparsedValue, ok := value.(string); ok {
+					// Try to parse anything except the TypeString as a yson-string.
+					if param.Type != TypeString {
+						var parsedValue any
+						err := yson.Unmarshal([]byte(unparsedValue), &parsedValue)
+						if err != nil {
+							a.replyWithError(w, err)
+							return nil
+						}
+						params[param.Name] = parsedValue
+					}
+
+				} else if array, ok := value.([]any); ok {
+					for i, element := range array {
+						unparsedElement, ok := element.(string)
+						if !ok {
+							a.replyWithError(w, yterrors.Err("unparsed parameter element has unexpected type",
+								yterrors.Attr("param_name", param.ElementName),
+								yterrors.Attr("param_type", reflect.TypeOf(element).String())))
+							return nil
+						}
+						if param.ElementType != TypeString {
+							var parsedElement any
+							err := yson.Unmarshal([]byte(unparsedElement), &parsedElement)
+							if err != nil {
+								a.replyWithError(w, err)
+								return nil
+							}
+							array[i] = parsedElement
+						}
+					}
+
+				} else {
 					a.replyWithError(w, yterrors.Err("unparsed parameter has unexpected type",
 						yterrors.Attr("param_name", param.Name),
 						yterrors.Attr("param_type", reflect.TypeOf(value).String())))
 					return nil
-				}
-				// Try to parse anything except the TypeString as a yson-string.
-				if param.Type != TypeString {
-					var parsedValue any
-					err := yson.Unmarshal([]byte(unparsedValue), &parsedValue)
-					if err != nil {
-						a.replyWithError(w, err)
-						return nil
-					}
-					params[param.Name] = parsedValue
 				}
 			}
 		}
@@ -208,6 +255,18 @@ func (a HTTPAPI) parseAndValidateRequestParams(w http.ResponseWriter, r *http.Re
 						yterrors.Attr("param_value", value)))
 					return nil
 				}
+			}
+
+			if param.Transformer != nil {
+				transformedValue, err := param.Transformer(value)
+				if err != nil {
+					a.replyWithError(w, yterrors.Err(fmt.Sprintf("failed to transform parameter %v", param.Name),
+						err,
+						yterrors.Attr("param_name", param.Name),
+						yterrors.Attr("param_value", value)))
+					return nil
+				}
+				params[param.Name] = transformedValue
 			}
 		}
 	}

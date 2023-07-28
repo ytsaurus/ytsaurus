@@ -21,9 +21,20 @@ var AliasParameter = CmdParameter{
 	Validator:   validateAlias,
 }
 
+var AttributesParameter = CmdParameter{
+	Name:        "attributes",
+	Type:        TypeAny,
+	Description: "strawberry operation attributes to add into response in yson list format",
+	Transformer: transformAttributes,
+
+	ElementName:        "attribute",
+	ElementType:        TypeString,
+	ElementDescription: "strawberry operation attribute to add into response",
+}
+
 var ListCmdDescriptor = CmdDescriptor{
 	Name:        "list",
-	Parameters:  []CmdParameter{},
+	Parameters:  []CmdParameter{AttributesParameter},
 	Description: "list all strawberry operations on the cluster",
 }
 
@@ -33,7 +44,11 @@ func (a HTTPAPI) HandleList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	aliases, err := a.api.List(r.Context())
+	var attributes []string
+	if value, ok := params["attributes"]; ok {
+		attributes = value.([]string)
+	}
+	aliases, err := a.api.List(r.Context(), attributes)
 	if err != nil {
 		a.replyWithError(w, err)
 		return
@@ -297,11 +312,11 @@ func (a HTTPAPI) HandleSetOptions(w http.ResponseWriter, r *http.Request) {
 
 var UntrackedParameter = CmdParameter{
 	Name:   "untracked",
-	Action: StoreTrueAction,
+	Action: ActionStoreTrue,
 	Description: "start operation via user credentials; " +
 		"operation will not be tracked by the controller; " +
 		"highly unrecommended for production operations",
-	Validator: validateUntracked,
+	Validator: validateBool,
 }
 
 var StartCmdDescriptor = CmdDescriptor{
@@ -331,8 +346,8 @@ func (a HTTPAPI) HandleStart(w http.ResponseWriter, r *http.Request) {
 	}
 	alias := params["alias"].(string)
 	untracked := false
-	if params["untracked"] != nil {
-		untracked = params["untracked"].(bool)
+	if value, ok := params["untracked"]; ok {
+		untracked = value.(bool)
 	}
 	if err := a.api.Start(r.Context(), alias, untracked, userClient); err != nil {
 		a.replyWithError(w, err)

@@ -35,7 +35,14 @@ type Controller interface {
 	//
 	// Given speclet should have suitable type for the specific controller.
 	// Otherwise, DescribeOptions may panic.
-	DescribeOptions(speclet any) []OptionGroupDescriptor
+	DescribeOptions(parsedSpeclet any) []OptionGroupDescriptor
+
+	// GetOpBriefAttributes returns map with controller-related speclet options,
+	// which can be requested from API.
+	//
+	// Given speclet should have suitable type for the specific controller.
+	// Otherwise, GetOpBriefAttributes may panic.
+	GetOpBriefAttributes(parsedSpeclet any) (map[string]any, error)
 }
 
 type ControllerFactory = func(l log.Logger, ytc yt.Client, root ypath.Path, cluster string, config yson.RawValue) Controller

@@ -47,6 +47,9 @@ func (c Controller) Family() string {
 
 func (c Controller) ParseSpeclet(specletYson yson.RawValue) (any, error) {
 	var speclet Speclet
+	if specletYson == nil {
+		return speclet, nil
+	}
 	err := yson.Unmarshal(specletYson, &speclet)
 	if err != nil {
 		return nil, yterrors.Err("failed to parse sleep speclet", err)
@@ -82,6 +85,13 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 			},
 		},
 	}
+}
+
+func (c *Controller) GetOpBriefAttributes(parsedSpeclet any) (map[string]any, error) {
+	speclet := parsedSpeclet.(Speclet)
+	return map[string]any{
+		"test_option": speclet.TestOption,
+	}, nil
 }
 
 func NewController(l log.Logger, ytc yt.Client, root ypath.Path, cluster string, config yson.RawValue) strawberry.Controller {

@@ -298,6 +298,7 @@ func (oplet *Oplet) CheckOperationLiveness(ctx context.Context) error {
 		log.String("operation_state", string(ytOp.State)))
 
 	oplet.persistentState.YTOpState = ytOp.State
+	oplet.persistentState.YTOpStartTime = ytOp.StartTime
 
 	return nil
 }
@@ -718,6 +719,7 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 
 	oplet.persistentState.YTOpID = opID
 	oplet.persistentState.YTOpState = yt.StateInitializing
+	oplet.persistentState.YTOpStartTime = yson.Time{}
 
 	oplet.persistentState.YTOpSpeclet = oplet.specletYson
 	oplet.persistentState.YTOpSpecletRevision = oplet.persistentState.SpecletRevision

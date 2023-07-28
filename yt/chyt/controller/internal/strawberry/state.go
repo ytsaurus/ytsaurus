@@ -11,8 +11,9 @@ import (
 // It is written to the cypress when changed and is read from the cypress when the cypress revision is changed.
 // The persistence of the state is needed for fault tolerance.
 type PersistentState struct {
-	YTOpID    yt.OperationID    `yson:"yt_operation_id"`
-	YTOpState yt.OperationState `yson:"yt_operation_state"`
+	YTOpID        yt.OperationID    `yson:"yt_operation_id"`
+	YTOpState     yt.OperationState `yson:"yt_operation_state"`
+	YTOpStartTime yson.Time         `yson:"yt_op_start_time,omitempty"`
 
 	IncarnationIndex int `yson:"incarnation_index"`
 
@@ -54,4 +55,38 @@ type InfoState struct {
 		Address string `yson:"address"`
 		// TODO(max42): build Revision, etc.
 	} `yson:"controller"`
+}
+
+type OperationState string
+
+const (
+	StateActive   OperationState = "active"
+	StateInactive OperationState = "inactive"
+	StateBroken   OperationState = "broken"
+)
+
+func GetOpState(speclet Speclet, infoState InfoState) OperationState {
+	if infoState.Error != nil {
+		return StateBroken
+	}
+	if speclet.ActiveOrDefault() {
+		return StateActive
+	}
+	return StateInactive
+}
+
+// GetOpBriefAttributes returns map with strawberry attributes, which can be requested from API.
+func GetOpBriefAttributes(
+	persistentState PersistentState,
+	infoState InfoState,
+) (map[string]any, error) {
+	speclet, err := ParseSpeclet(persistentState.YTOpSpeclet)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"creator":    persistentState.Creator,
+		"start_time": persistentState.YTOpStartTime,
+		"state":      GetOpState(speclet, infoState),
+	}, nil
 }

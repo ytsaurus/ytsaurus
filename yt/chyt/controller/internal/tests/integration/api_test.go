@@ -373,6 +373,24 @@ func TestHTTPAPIList(t *testing.T) {
 	err := yson.Unmarshal(r.Body, &result)
 	require.NoError(t, err)
 	require.Contains(t, result["result"], alias)
+
+	r = c.MakePostRequest("list", api.RequestParams{
+		Params: map[string]any{
+			"attributes": []string{"creator", "test_option"},
+		},
+	})
+
+	var resultWithAttrs map[string][]yson.ValueWithAttrs
+
+	err = yson.Unmarshal(r.Body, &resultWithAttrs)
+	require.NoError(t, err)
+	require.Contains(t, resultWithAttrs["result"], yson.ValueWithAttrs{
+		Value: alias,
+		Attrs: map[string]any{
+			"creator":     "root",
+			"test_option": nil,
+		},
+	})
 }
 
 func TestHTTPAPIStatus(t *testing.T) {

@@ -51,9 +51,25 @@ func validateBool(value any) error {
 	return nil
 }
 
-func validateUntracked(untracked any) error {
-	if untracked == nil {
-		return nil
+func transformAttributes(value any) (any, error) {
+	if value == nil {
+		return []string(nil), nil
 	}
-	return validateBool(untracked)
+
+	array, ok := value.([]any)
+	if !ok {
+		typeName := reflect.TypeOf(value).String()
+		return nil, unexpectedTypeError(typeName)
+	}
+
+	transformedAttributes := []string{}
+	for _, element := range array {
+		if _, ok = element.(string); !ok {
+			typeName := reflect.TypeOf(value).String()
+			return nil, unexpectedTypeError(typeName)
+		}
+		transformedAttributes = append(transformedAttributes, element.(string))
+	}
+
+	return transformedAttributes, nil
 }

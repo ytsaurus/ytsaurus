@@ -2345,11 +2345,30 @@ def add_clickhouse_ctl_parser(add_parser):
                     else:
                         description = description_ext
 
+                element_name = param.get("element_name")
+                element_description = param.get("element_description")
+                element_aliases = [("-" if len(a) == 1 else "--") + a.replace("_", "-") for a in param.get("element_aliases", [])]
+
                 if as_positional_argument:
                     add_argument(
                         subparser,
                         name,
                         description=description)
+                elif element_name:
+                    group = subparser.add_mutually_exclusive_group()
+                    add_argument(
+                        group,
+                        "--" + name.replace("_", "-"),
+                        action=param.get("action"),
+                        description=description,
+                        aliases=aliases)
+                    add_argument(
+                        group,
+                        "--" + element_name.replace("_", "-"),
+                        action="append",
+                        aliases=element_aliases,
+                        dest=name,
+                        description=element_description)
                 else:
                     add_argument(
                         subparser,

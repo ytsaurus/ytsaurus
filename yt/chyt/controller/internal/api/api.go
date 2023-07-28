@@ -404,10 +404,83 @@ func (a *API) RemoveOption(ctx context.Context, alias, key string) error {
 		&yt.RemoveNodeOptions{Recursive: true, Force: true})
 }
 
-func (a *API) List(ctx context.Context) ([]string, error) {
-	var aliases []string
-	err := a.ytc.ListNode(ctx, a.cfg.AgentInfo.StrawberryRoot, &aliases, nil)
-	return aliases, err
+type AliasWithAttrs struct {
+	Alias string         `yson:",value"`
+	Attrs map[string]any `yson:",attrs"`
+}
+
+func (a *API) List(ctx context.Context, attributes []string) ([]AliasWithAttrs, error) {
+	var attributesToList []string
+	if len(attributes) != 0 {
+		attributesToList = []string{
+			"strawberry_persistent_state",
+			"strawberry_info_state",
+		}
+	}
+
+	var ops []struct {
+		Alias           string                     `yson:",value"`
+		InfoState       strawberry.InfoState       `yson:"strawberry_info_state,attr"`
+		PersistentState strawberry.PersistentState `yson:"strawberry_persistent_state,attr"`
+	}
+	err := a.ytc.ListNode(
+		ctx,
+		a.cfg.AgentInfo.StrawberryRoot,
+		&ops,
+		&yt.ListNodeOptions{Attributes: attributesToList})
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]AliasWithAttrs, len(ops))
+	for i, op := range ops {
+		var resultAttrs map[string]any
+
+		if len(attributes) != 0 {
+			strawberryAttrs, err := strawberry.GetOpBriefAttributes(
+				op.PersistentState,
+				op.InfoState)
+			if err != nil {
+				return nil, err
+			}
+
+			speclet, err := a.ctl.ParseSpeclet(op.PersistentState.YTOpSpeclet)
+			if err != nil {
+				return nil, err
+			}
+			ctlAttrs, err := a.ctl.GetOpBriefAttributes(speclet)
+			if err != nil {
+				return nil, err
+			}
+
+			// Sanity check.
+			for attr := range strawberryAttrs {
+				if _, ok := ctlAttrs[attr]; ok {
+					return nil, fmt.Errorf("this is a bug, attribute %v is duplicated", attr)
+				}
+			}
+
+			resultAttrs = make(map[string]any)
+			for _, attr := range attributes {
+				if value, ok := strawberryAttrs[attr]; ok {
+					resultAttrs[attr] = value
+				} else if value, ok := ctlAttrs[attr]; ok {
+					resultAttrs[attr] = value
+				} else {
+					return nil, yterrors.Err(
+						fmt.Sprintf("unknown attribute %v", attr),
+						yterrors.Attr("attribute", attr))
+				}
+			}
+		}
+
+		result[i] = AliasWithAttrs{
+			Alias: op.Alias,
+			Attrs: resultAttrs,
+		}
+	}
+
+	return result, nil
 }
 
 func (a *API) GetSpeclet(ctx context.Context, alias string) (speclet yson.RawValue, err error) {
