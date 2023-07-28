@@ -8,7 +8,7 @@
 
 
 add_library(contrib-restricted-magic_enum INTERFACE)
-target_include_directories(contrib-restricted-magic_enum INTERFACE
+target_include_directories(contrib-restricted-magic_enum SYSTEM INTERFACE
   ${CMAKE_SOURCE_DIR}/contrib/restricted/magic_enum/include
 )
 target_link_libraries(contrib-restricted-magic_enum INTERFACE
