@@ -68,25 +68,23 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/malloc_udf_merged.bc
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/malloc_udf_optimized.bc
-  -O2
-  -globalopt
-  -globaldce
+  -p 'default<O2>,globalopt,globaldce'
+)
+add_custom_command(
+  OUTPUT
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/malloc_udf_merged.bc
+  DEPENDS
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/malloc_udf.c.bc
+  COMMAND
+  ${LLVMLINK}
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/malloc_udf.c.bc
+  -o
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/malloc_udf_merged.bc
   -internalize
   -internalize-public-api-list=malloc_udf
 )
 add_custom_command(
   OUTPUT
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/malloc_udf_merged.bc
-  DEPENDS
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/malloc_udf.c.bc
-  COMMAND
-  ${LLVMLINK}
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/malloc_udf.c.bc
-  -o
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/malloc_udf_merged.bc
-)
-add_custom_command(
-  OUTPUT
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_optimized.bc
   DEPENDS
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_merged.bc
@@ -95,25 +93,23 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_merged.bc
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_optimized.bc
-  -O2
-  -globalopt
-  -globaldce
+  -p 'default<O2>,globalopt,globaldce'
+)
+add_custom_command(
+  OUTPUT
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_merged.bc
+  DEPENDS
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs.c.bc
+  COMMAND
+  ${LLVMLINK}
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs.c.bc
+  -o
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_merged.bc
   -internalize
   -internalize-public-api-list=seventyfive#strtol_udf#exp_udf#tolower_udf#is_null_udf#string_equals_42_udf#abs_udf#sum_udf#throw_if_negative_udf#avg_udaf_init#avg_udaf_update#avg_udaf_merge#avg_udaf_finalize
 )
 add_custom_command(
   OUTPUT
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_merged.bc
-  DEPENDS
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs.c.bc
-  COMMAND
-  ${LLVMLINK}
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs.c.bc
-  -o
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_merged.bc
-)
-add_custom_command(
-  OUTPUT
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc_optimized.bc
   DEPENDS
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc_merged.bc
@@ -122,25 +118,23 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc_merged.bc
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc_optimized.bc
-  -O2
-  -globalopt
-  -globaldce
+  -p 'default<O2>,globalopt,globaldce'
+)
+add_custom_command(
+  OUTPUT
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc_merged.bc
+  DEPENDS
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc.cpp.bc
+  COMMAND
+  ${LLVMLINK}
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc.cpp.bc
+  -o
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc_merged.bc
   -internalize
   -internalize-public-api-list=udf_with_function_context
 )
 add_custom_command(
   OUTPUT
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc_merged.bc
-  DEPENDS
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc.cpp.bc
-  COMMAND
-  ${LLVMLINK}
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc.cpp.bc
-  -o
-  ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc_merged.bc
-)
-add_custom_command(
-  OUTPUT
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/xor_aggregate_optimized.bc
   DEPENDS
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/xor_aggregate_merged.bc
@@ -149,11 +143,7 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/xor_aggregate_merged.bc
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/xor_aggregate_optimized.bc
-  -O2
-  -globalopt
-  -globaldce
-  -internalize
-  -internalize-public-api-list=xor_aggregate_init#xor_aggregate_update#xor_aggregate_merge#xor_aggregate_finalize
+  -p 'default<O2>,globalopt,globaldce'
 )
 add_custom_command(
   OUTPUT
@@ -165,6 +155,8 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/xor_aggregate.c.bc
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/unittests/udf/xor_aggregate_merged.bc
+  -internalize
+  -internalize-public-api-list=xor_aggregate_init#xor_aggregate_update#xor_aggregate_merge#xor_aggregate_finalize
 )
 llvm_compile_c(query-unittests-udf.global
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/unittests/udf/malloc_udf.c
