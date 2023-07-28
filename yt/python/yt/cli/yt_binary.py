@@ -1938,7 +1938,7 @@ def add_list_jobs_parser(add_parser):
     parser.add_argument("--job-competition-id", help="filter jobs by job competition id")
     parser.add_argument("--sort-field",
                         choices=("type", "state", "start_time", "finish_time",
-                                 "address", "durartion", "progress", "id"),
+                                 "address", "duration", "progress", "id"),
                         help="field to sort jobs by")
     parser.add_argument("--sort-order", help='sort order. Can be either "ascending" or "descending"')
     parser.add_argument("--limit", type=int, help="output limit")
