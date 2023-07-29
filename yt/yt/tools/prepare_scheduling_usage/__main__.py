@@ -87,19 +87,19 @@ def extract_cumulative_gpu_utilization(job_statistics):
     return extract_statistic(job_statistics, "user_job/gpu/cumulative_utilization_gpu", default=0) / 1000.0
 
 
-class TableInfo:
-    def __init__(self, row_type=None, output_path=None, link_path=None):
-        self.row_type = row_type
-        self.output_path = output_path
-        self.link_path = link_path
-
-
 class YsonEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, yson.YsonEntity):
             return None
         # Let the base class default method raise the TypeError
         return json.JSONEncoder.default(self, obj)
+
+
+class TableInfo:
+    def __init__(self, row_type=None, output_path=None, link_path=None):
+        self.row_type = row_type
+        self.output_path = output_path
+        self.link_path = link_path
 
 
 def get_item(other_columns, key, default_value=None):
@@ -296,7 +296,7 @@ def convert_pool_mapping_to_pool_paths_info(cluster_and_tree_to_pool_mapping):
                     "cluster": cluster,
                     "pool_tree": pool_tree,
                     "pool_path": build_pool_path(pool_info["ancestor_pools"]),
-                    "pool_info": pool_info
+                    "pool_info": json.dumps(pool_info, cls=YsonEncoder)
                 }
             )
     return result
