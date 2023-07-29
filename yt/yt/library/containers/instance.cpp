@@ -780,8 +780,8 @@ IInstancePtr GetRootPortoInstance(IPortoExecutorPtr executor)
 
 double GetSelfPortoInstanceVCpuFactor()
 {
-    auto configPtr = New<TPortoExecutorDynamicConfig>();
-    auto executorPtr = CreatePortoExecutor(configPtr, "");
+    auto config = New<TPortoExecutorDynamicConfig>();
+    auto executorPtr = CreatePortoExecutor(config, "");
     auto currentContainer = GetSelfPortoInstance(executorPtr);
     double cpuLimit = currentContainer->GetResourceLimits().CpuLimit;
     if (cpuLimit <= 0) {

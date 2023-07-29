@@ -304,7 +304,7 @@ void TJob::Start() noexcept
         return;
     }
 
-    YT_LOG_INFO("Starting job");
+    YT_LOG_INFO("Start job");
 
     SetJobState(EJobState::Running);
 
@@ -391,7 +391,7 @@ void TJob::PrepareArtifact(
     VERIFY_THREAD_AFFINITY(JobThread);
 
     GuardedAction([&] {
-        YT_LOG_DEBUG("Preparing job artifact (ArtifactName: %v, PipePath: %v)",
+        YT_LOG_DEBUG("Prepare job artifact (ArtifactName: %v, PipePath: %v)",
             artifactName,
             pipePath);
 
@@ -421,7 +421,7 @@ void TJob::PrepareArtifact(
         traceContext->PackBaggage(std::move(baggage));
 
         if (artifact.BypassArtifactCache) {
-            YT_LOG_INFO("Downloading artifact with cache bypass (FileName: %v, Executable: %v, SandboxKind: %v, CompressedDataSize: %v)",
+            YT_LOG_INFO("Download artifact with cache bypass (FileName: %v, Executable: %v, SandboxKind: %v, CompressedDataSize: %v)",
                 artifact.Name,
                 artifact.Executable,
                 artifact.SandboxKind,
@@ -441,7 +441,7 @@ void TJob::PrepareArtifact(
         } else if (artifact.CopyFile) {
             YT_VERIFY(artifact.Chunk);
 
-            YT_LOG_INFO("Copying artifact (FileName: %v, Executable: %v, SandboxKind: %v, CompressedDataSize: %v)",
+            YT_LOG_INFO("Copy artifact (FileName: %v, Executable: %v, SandboxKind: %v, CompressedDataSize: %v)",
                 artifact.Name,
                 artifact.Executable,
                 artifact.SandboxKind,
@@ -566,15 +566,15 @@ void TJob::Finalize(
     }
 
     // NB: we should disable slot here to give scheduler information about job failure.
-    if (currentError.FindMatching(EErrorCode::GpuCheckCommandFailed) &&
-        !currentError.FindMatching(EErrorCode::GpuCheckCommandIncorrect))
+    if (currentError.FindMatching(NExecNode::EErrorCode::GpuCheckCommandFailed) &&
+        !currentError.FindMatching(NExecNode::EErrorCode::GpuCheckCommandIncorrect))
     {
         Bootstrap_->GetSlotManager()->OnGpuCheckCommandFailed(currentError);
     }
 
     YT_LOG_INFO(
         currentError,
-        "Setting final job state (JobState: %v, ResourceUsage: %v)",
+        "Set final job state (JobState: %v, ResourceUsage: %v)",
         GetState(),
         FormatResources(GetResourceUsage()));
 
@@ -649,7 +649,7 @@ void TJob::UpdateControllerAgentDescriptor(TControllerAgentDescriptor agentDescr
     }
 
     YT_LOG_DEBUG(
-        "Updating controller agent (ControllerAgentAddress: %v -> %v, ControllerAgentIncarnationId: %v)",
+        "Update controller agent (ControllerAgentAddress: %v -> %v, ControllerAgentIncarnationId: %v)",
         ControllerAgentDescriptor_.Address,
         agentDescriptor.Address,
         agentDescriptor.IncarnationId);
@@ -1250,7 +1250,7 @@ void TJob::GuardedFail()
     VERIFY_THREAD_AFFINITY(JobThread);
 
     if (JobPhase_ != EJobPhase::Running) {
-        Abort(TError(NJobProxy::EErrorCode::JobNotRunning, "Failing job that is not running"));
+        Abort(TError(NJobProxy::EErrorCode::JobNotRunning, "Fail job that is not running"));
 
         return;
     }
@@ -1311,7 +1311,7 @@ void TJob::Interrupt(
     const std::optional<TString>& preemptionReason,
     const std::optional<NScheduler::TPreemptedFor>& preemptedFor)
 {
-    YT_LOG_INFO("Interrupting job (InterruptionReason: %v, PreemptionReason: %v, PreemptedFor: %v, Timeout: %v)",
+    YT_LOG_INFO("Interrupt job (InterruptionReason: %v, PreemptionReason: %v, PreemptedFor: %v, Timeout: %v)",
         interruptionReason,
         preemptionReason,
         preemptedFor,
@@ -1326,7 +1326,7 @@ void TJob::Interrupt(
 
 void TJob::Fail()
 {
-    YT_LOG_INFO("Failing job");
+    YT_LOG_INFO("Fail job");
 
     try {
         GuardedFail();
@@ -1442,7 +1442,7 @@ void TJob::DoSetResult(
 
     YT_VERIFY(!error.IsOK() || jobResultExtension);
 
-    YT_LOG_DEBUG("Setting job result (Error: %v)", error);
+    YT_LOG_DEBUG("Set job result (Error: %v)", error);
 
     if (Config_->TestJobErrorTruncation) {
         if (!error.IsOK()) {
@@ -1500,7 +1500,7 @@ void TJob::OnNodeDirectoryPrepared(const TError& error)
     VERIFY_THREAD_AFFINITY(JobThread);
 
     if (auto delay = JobTestingOptions_->DelayAfterNodeDirectoryPrepared) {
-        YT_LOG_DEBUG("Testing delay after node directory prepared");
+        YT_LOG_DEBUG("Simulate delay after node directory prepared");
         TDelayedExecutor::WaitForDuration(*delay);
     }
 
@@ -1635,7 +1635,7 @@ void TJob::FinishPrepare(const TErrorOr<TJobWorkspaceBuildResult>& resultOrError
     VERIFY_THREAD_AFFINITY(JobThread);
 
     if (auto delay = JobTestingOptions_->DelayBeforeSpawningJobProxy) {
-        YT_LOG_DEBUG("Testing delay before spawning job proxy");
+        YT_LOG_DEBUG("Simulate delay before spawning job proxy");
         TDelayedExecutor::WaitForDuration(*delay);
     }
 
@@ -1680,7 +1680,7 @@ void TJob::OnExtraGpuCheckCommandFinished(const TError& error)
         Error_ = {};
         JobResultExtension_.reset();
 
-        auto checkError = TError(EErrorCode::GpuCheckCommandFailed, "Extra GPU check command failed")
+        auto checkError = TError(NExecNode::EErrorCode::GpuCheckCommandFailed, "Extra GPU check command failed")
             << error
             << initialError;
 
@@ -1740,7 +1740,7 @@ void TJob::OnJobProxyPreparationTimeout()
 
     if (JobPhase_ < NJobTrackerClient::EJobPhase::Running) {
         Abort(TError(
-            EErrorCode::JobProxyPreparationTimeout,
+            NExecNode::EErrorCode::JobProxyPreparationTimeout,
             "Failed to prepare job proxy within timeout, aborting job"));
     }
 }
@@ -1751,7 +1751,7 @@ void TJob::OnJobPreparationTimeout(TDuration prepareTimeLimit, bool fatal)
 
     if (JobPhase_ < EJobPhase::Running) {
         auto error = TError(
-            fatal ? EErrorCode::FatalJobPreparationTimeout : EErrorCode::JobPreparationTimeout,
+            fatal ? NExecNode::EErrorCode::FatalJobPreparationTimeout : NExecNode::EErrorCode::JobPreparationTimeout,
             "Failed to prepare job within timeout")
             << TErrorAttribute("prepare_time_limit", prepareTimeLimit)
             << TErrorAttribute("job_start_time", StartTime_)
@@ -1829,7 +1829,7 @@ void TJob::OnJobProxyFinished(const TError& error)
                 .Via(Invoker_));
     } else {
         if (!error.IsOK()) {
-            Finalize(TError(EErrorCode::JobProxyFailed, "Job proxy failed")
+            Finalize(TError(NExecNode::EErrorCode::JobProxyFailed, "Job proxy failed")
                 << BuildJobProxyError(error));
         } else {
             YT_VERIFY(IsFinished());
@@ -1844,7 +1844,10 @@ void TJob::GuardedAction(const TCallback& action)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    YT_LOG_DEBUG("Run guarded action (State: %v, Phase: %v)", JobState_, JobPhase_);
+    YT_LOG_DEBUG(
+        "Run guarded action (State: %v, Phase: %v)",
+        JobState_,
+        JobPhase_);
 
     if (HandleFinishingPhase()) {
         return;
@@ -1866,7 +1869,7 @@ TFuture<void> TJob::StopJobProxy()
     VERIFY_THREAD_AFFINITY(JobThread);
 
     if (auto slot = GetUserSlot()) {
-        YT_LOG_DEBUG("Cleaning processes (SlotIndex: %v)", slot->GetSlotIndex());
+        YT_LOG_DEBUG("Clean processes (SlotIndex: %v)", slot->GetSlotIndex());
 
         return slot->CleanProcesses();
     }
@@ -1888,11 +1891,11 @@ void TJob::Cleanup()
     YT_VERIFY(!UserSlot_ || UserSlot_->GetRefCount() == 1);
 
     if (auto delay = JobTestingOptions_->DelayInCleanup) {
-        YT_LOG_DEBUG("Testing delay in cleanup");
+        YT_LOG_DEBUG("Simulate delay in cleanup");
         TDelayedExecutor::WaitForDuration(*delay);
     }
 
-    YT_LOG_INFO("Cleaning up after scheduler job");
+    YT_LOG_INFO("Clean up after scheduler job");
 
     TDelayedExecutor::Cancel(InterruptionTimeoutCookie_);
 
@@ -1938,7 +1941,7 @@ void TJob::Cleanup()
     if (auto slot = GetUserSlot()) {
         if (ShouldCleanSandboxes()) {
             try {
-                YT_LOG_DEBUG("Cleaning sandbox (SlotIndex: %v)", slot->GetSlotIndex());
+                YT_LOG_DEBUG("Clean sandbox (SlotIndex: %v)", slot->GetSlotIndex());
                 slot->CleanSandbox();
             } catch (const std::exception& ex) {
                 // Errors during cleanup phase do not affect job outcome.
@@ -1978,7 +1981,7 @@ void TJob::PrepareNodeDirectory()
         return;
     }
 
-    YT_LOG_INFO("Started preparing node directory");
+    YT_LOG_INFO("Start preparing node directory");
 
     const auto& nodeDirectory = Bootstrap_->GetNodeDirectory();
 
@@ -2042,7 +2045,7 @@ void TJob::PrepareNodeDirectory()
 
     nodeDirectory->DumpTo(schedulerJobSpecExt->mutable_input_node_directory());
 
-    YT_LOG_INFO("Finished preparing node directory");
+    YT_LOG_INFO("Finish preparing node directory");
 }
 
 TJobProxyConfigPtr TJob::CreateConfig()
@@ -2089,7 +2092,7 @@ TJobProxyConfigPtr TJob::CreateConfig()
                     YT_VERIFY(artifact.Chunk);
 
                     YT_LOG_INFO(
-                        "Making bind for artifact (FileName: %v, Executable: "
+                        "Make bind for artifact (FileName: %v, Executable: "
                         "%v, SandboxKind: %v, CompressedDataSize: %v)",
                         artifact.Name,
                         artifact.Executable,
@@ -2214,7 +2217,7 @@ TJobProxyConfigPtr TJob::CreateConfig()
         proxyConfig->JobThrottler->BandwidthPrefetch->Enable = false;
         proxyConfig->JobThrottler->RpsPrefetch->Enable = false;
     }
-    YT_LOG_DEBUG("Initializing prefetching job throttler (DynamicConfigEnable: %v, JobSpecEnable: %v, PrefetchEnable: %v)",
+    YT_LOG_DEBUG("Initialize prefetching job throttler (DynamicConfigEnable: %v, JobSpecEnable: %v, PrefetchEnable: %v)",
         DynamicConfig_->JobThrottler->BandwidthPrefetch->Enable,
         SchedulerJobSpecExt_->enable_prefetching_job_throttler(),
         proxyConfig->JobThrottler->BandwidthPrefetch->Enable);
@@ -2289,7 +2292,7 @@ void TJob::InitializeArtifacts()
 
         if (needGpuLayers && UserJobSpec_->enable_gpu_layers()) {
             if (UserJobSpec_->layers().empty()) {
-                THROW_ERROR_EXCEPTION(EErrorCode::GpuJobWithoutLayers,
+                THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::GpuJobWithoutLayers,
                     "No layers specified for GPU job; at least a base layer is required to use GPU");
             }
 
@@ -2363,7 +2366,7 @@ TFuture<std::vector<NDataNode::IChunkPtr>> TJob::DownloadArtifacts()
             continue;
         }
 
-        YT_LOG_INFO("Downloading user file (FileName: %v, SandboxKind: %v, CompressedDataSize: %v)",
+        YT_LOG_INFO("Download user file (FileName: %v, SandboxKind: %v, CompressedDataSize: %v)",
             artifact.Name,
             artifact.SandboxKind,
             artifact.Key.GetCompressedDataSize());
@@ -2373,7 +2376,7 @@ TFuture<std::vector<NDataNode::IChunkPtr>> TJob::DownloadArtifacts()
         auto asyncChunk = chunkCache->DownloadArtifact(artifact.Key, downloadOptions, &fetchedFromCache)
             .Apply(BIND([=, fileName = artifact.Name, this, this_ = MakeStrong(this)] (const TErrorOr<IChunkPtr>& chunkOrError) {
                 THROW_ERROR_EXCEPTION_IF_FAILED(chunkOrError,
-                    EErrorCode::ArtifactDownloadFailed,
+                    NExecNode::EErrorCode::ArtifactDownloadFailed,
                     "Failed to prepare user file %Qv",
                     fileName);
 
@@ -2401,7 +2404,9 @@ TError TJob::BuildJobProxyError(const TError& spawnError)
         return TError();
     }
 
-    auto jobProxyError = TError(EErrorCode::JobProxyFailed, "Job proxy failed")
+    auto jobProxyError = TError(
+        NExecNode::EErrorCode::JobProxyFailed,
+        "Job proxy failed")
         << spawnError;
 
     if (spawnError.GetCode() == EProcessErrorCode::NonZeroExitCode) {
@@ -2437,7 +2442,7 @@ std::optional<EAbortReason> TJob::GetAbortReason()
     }
 
     // This is most probably user error, still we don't want to make it fatal.
-    if (resultError.FindMatching(EErrorCode::LayerUnpackingFailed)) {
+    if (resultError.FindMatching(NExecNode::EErrorCode::LayerUnpackingFailed)) {
         return std::nullopt;
     }
 
@@ -2558,11 +2563,11 @@ bool TJob::IsFatalError(const TError& error)
         error.FindMatching(NTableClient::EErrorCode::InvalidColumnFilter) ||
         error.FindMatching(NTableClient::EErrorCode::InvalidColumnRenaming) ||
         error.FindMatching(NTableClient::EErrorCode::FormatCannotRepresentRow) ||
-        error.FindMatching(EErrorCode::SetupCommandFailed) ||
-        error.FindMatching(EErrorCode::GpuJobWithoutLayers) ||
-        error.FindMatching(EErrorCode::GpuCheckCommandIncorrect) ||
-        error.FindMatching(EErrorCode::TmpfsOverflow) ||
-        error.FindMatching(EErrorCode::FatalJobPreparationTimeout) ||
+        error.FindMatching(NExecNode::EErrorCode::SetupCommandFailed) ||
+        error.FindMatching(NExecNode::EErrorCode::GpuJobWithoutLayers) ||
+        error.FindMatching(NExecNode::EErrorCode::GpuCheckCommandIncorrect) ||
+        error.FindMatching(NExecNode::EErrorCode::TmpfsOverflow) ||
+        error.FindMatching(NExecNode::EErrorCode::FatalJobPreparationTimeout) ||
         error.FindMatching(NFormats::EErrorCode::InvalidFormat);
 }
 

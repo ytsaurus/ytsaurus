@@ -125,7 +125,7 @@ public:
 
             AddArguments(process, slotIndex);
 
-            YT_LOG_INFO("Spawning job proxy (SlotType: %v, SlotIndex: %v, JobId: %v, OperationId: %v, WorkingDirectory: %v, StderrPath: %v)",
+            YT_LOG_INFO("Spawn job proxy (SlotType: %v, SlotIndex: %v, JobId: %v, OperationId: %v, WorkingDirectory: %v, StderrPath: %v)",
                 slotType,
                 slotIndex,
                 jobId,
@@ -314,7 +314,7 @@ public:
     {
         ValidateEnabled();
 
-        YT_LOG_DEBUG("Start cleaning processes (SlotIndex: %v)", slotIndex);
+        YT_LOG_DEBUG("Start clean processes (SlotIndex: %v)", slotIndex);
 
         try {
             EnsureJobProxyFinished(slotIndex, true);
@@ -327,7 +327,7 @@ public:
             THROW_ERROR error;
         }
 
-        YT_LOG_DEBUG("Finish cleaning processes (SlotIndex: %v)", slotIndex);
+        YT_LOG_DEBUG("Finish clean processes (SlotIndex: %v)", slotIndex);
     }
 
     int GetUserId(int /*slotIndex*/) const override
@@ -428,11 +428,6 @@ public:
         const TClusterNodeDynamicConfigPtr& /*oldNodeConfig*/,
         const TClusterNodeDynamicConfigPtr& newNodeConfig)
     {
-        YT_LOG_DEBUG(
-            "Porto executor dynamic config changed (EnableTestPortoFailures: %v, StubErrorCode: %v)",
-            newNodeConfig->PortoExecutor->EnableTestPortoFailures,
-            newNodeConfig->PortoExecutor->StubErrorCode);
-
         if (auto executor = PortoExecutor_) {
             executor->OnDynamicConfigChanged(newNodeConfig->PortoExecutor);
         }
@@ -446,14 +441,14 @@ public:
     {
         ValidateEnabled();
 
-        YT_LOG_DEBUG("Start cleaning processes (SlotIndex: %v)", slotIndex);
+        YT_LOG_DEBUG("Start clean processes (SlotIndex: %v)", slotIndex);
 
         try {
             EnsureJobProxyFinished(slotIndex, true);
             auto slotContainer = GetFullSlotMetaContainerName(slotIndex, slotType);
 
             YT_LOG_DEBUG(
-                "Destory job subcontainers for slot (SlotContainer: %v, SlotIndex: %v)",
+                "Destroy job subcontainers for slot (SlotContainer: %v, SlotIndex: %v)",
                 slotContainer,
                 slotIndex);
 
@@ -520,7 +515,7 @@ public:
             for (int index = 0; index < std::ssize(commands); ++index) {
                 const auto& command = commands[index];
                 YT_LOG_DEBUG(
-                    "Running setup command (JobId: %v, Path: %v, Args: %v)",
+                    "Run setup command (JobId: %v, Path: %v, Args: %v)",
                     jobId,
                     command->Path,
                     command->Args);
@@ -581,7 +576,7 @@ private:
     void DestroyAllSubcontainers(const TString& rootContainer)
     {
         YT_LOG_DEBUG(
-            "Started destroying subcontainers (RootContainer: %v)",
+            "Start destroy subcontainers (RootContainer: %v)",
             rootContainer);
 
         // Retry destruction until success.
@@ -594,7 +589,7 @@ private:
 
             std::vector<TFuture<void>> futures;
             for (const auto& container : containers) {
-                YT_LOG_DEBUG("Destroying subcontainer (Container: %v)", container);
+                YT_LOG_DEBUG("Destroy subcontainer (Container: %v)", container);
                 futures.push_back(DestroyPortoExecutor_->DestroyContainer(container));
             }
 
@@ -621,7 +616,7 @@ private:
             }
         }
 
-        YT_LOG_DEBUG("Finished destroying subcontainers (RootContainer: %v)", rootContainer);
+        YT_LOG_DEBUG("Finish destroy subcontainers (RootContainer: %v)", rootContainer);
     }
 
     void DoInit(int slotCount, double cpuLimit, double idleCpuFraction) override
@@ -764,7 +759,7 @@ private:
         auto slotContainer = GetFullSlotMetaContainerName(slotIndex, slotType);
 
         YT_LOG_DEBUG(
-            "Start slot cpu_set updating (SlotType: %v, SlotIndex: %v, CpuSet: %v, SlotContainer: %v)",
+            "Start update slot cpu_set (SlotType: %v, SlotIndex: %v, CpuSet: %v, SlotContainer: %v)",
             slotType,
             slotIndex,
             cpuSet,
@@ -777,7 +772,7 @@ private:
         .ThrowOnError();
 
         YT_LOG_DEBUG(
-            "Slot cpu set was updated (SlotType: %v, SlotIndex: %v, CpuSet: %v, SlotContainer: %v)",
+            "Finish update slot cpu_set (SlotType: %v, SlotIndex: %v, CpuSet: %v, SlotContainer: %v)",
             slotType,
             slotIndex,
             cpuSet,

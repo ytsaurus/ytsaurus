@@ -112,19 +112,6 @@ TString FormatEnablePorto(EEnablePorto value)
 class TPortoExecutor
     : public IPortoExecutor
 {
-private:
-
-    template<class T, class... TArgs1, class... TArgs2>
-    auto EnqueuePortoApiAction(
-        T(TPortoExecutor::*Method)(TArgs1...),
-        const TString& command,
-        TArgs2&&... args) {
-        YT_LOG_DEBUG("Enqueue porti api action (Command: %v)", command);
-        return BIND(Method, MakeStrong(this), std::forward<TArgs2>(args)...)
-            .AsyncVia(Queue_->GetInvoker())
-            .Run();
-    };
-
 public:
     TPortoExecutor(
         TPortoExecutorDynamicConfigPtr config,
@@ -161,9 +148,23 @@ public:
         DynamicConfig_.Store(newConfig);
     }
 
+private:
+    template <class T, class... TArgs1, class... TArgs2>
+    auto ExecutePortoApiAction(
+        T(TPortoExecutor::*Method)(TArgs1...),
+        const TString& command,
+        TArgs2&&... args)
+    {
+        YT_LOG_DEBUG("Enqueue Porto API action (Command: %v)", command);
+        return BIND(Method, MakeStrong(this), std::forward<TArgs2>(args)...)
+            .AsyncVia(Queue_->GetInvoker())
+            .Run();
+    };
+
+public:
     TFuture<void> CreateContainer(const TString& container) override
     {
-        return EnqueuePortoApiAction(
+        return ExecutePortoApiAction(
             &TPortoExecutor::DoCreateContainer,
             "CreateContainer",
             container);
@@ -171,7 +172,7 @@ public:
 
     TFuture<void> CreateContainer(const TRunnableContainerSpec& containerSpec, bool start) override
     {
-        return EnqueuePortoApiAction(
+        return ExecutePortoApiAction(
             &TPortoExecutor::DoCreateContainerFromSpec,
             "CreateContainerFromSpec",
             containerSpec,
@@ -182,7 +183,7 @@ public:
         const TString& container,
         const TString& property) override
     {
-        return EnqueuePortoApiAction(
+        return ExecutePortoApiAction(
             &TPortoExecutor::DoGetContainerProperty,
             "GetContainerProperty",
             container,
@@ -193,7 +194,7 @@ public:
         const TString& container,
         const std::vector<TString>& properties) override
     {
-        return EnqueuePortoApiAction(
+        return ExecutePortoApiAction(
             &TPortoExecutor::DoGetContainerProperties,
             "GetContainerProperty",
             container,
@@ -204,7 +205,7 @@ public:
         const std::vector<TString>& containers,
         const std::vector<TString>& properties) override
     {
-        return EnqueuePortoApiAction(
+        return ExecutePortoApiAction(
             &TPortoExecutor::DoGetContainerMultipleProperties,
             "GetContainerProperty",
             containers,
@@ -215,7 +216,7 @@ public:
         const std::vector<TString>& containers,
         const TString& metric) override
     {
-        return EnqueuePortoApiAction(
+        return ExecutePortoApiAction(
             &TPortoExecutor::DoGetContainerMetrics,
             "GetContainerMetrics",
             containers,
@@ -227,7 +228,7 @@ public:
         const TString& property,
         const TString& value) override
     {
-        return EnqueuePortoApiAction(
+        return ExecutePortoApiAction(
             &TPortoExecutor::DoSetContainerProperty,
             "SetContainerProperty",
             container,
@@ -237,7 +238,7 @@ public:
 
     TFuture<void> DestroyContainer(const TString& container) override
     {
-        return EnqueuePortoApiAction(
+        return ExecutePortoApiAction(
             &TPortoExecutor::DoDestroyContainer,
             "DestroyContainer",
             container);
@@ -245,7 +246,7 @@ public:
 
     TFuture<void> StopContainer(const TString& container) override
     {
-        return EnqueuePortoApiAction(
+        return ExecutePortoApiAction(
             &TPortoExecutor::DoStopContainer,
             "StopContainer",
             container);
@@ -253,7 +254,7 @@ public:
 
     TFuture<void> StartContainer(const TString& container) override
     {
-        return EnqueuePortoApiAction(
+        return ExecutePortoApiAction(
             &TPortoExecutor::DoStartContainer,
             "StartContainer",
             container);
@@ -261,7 +262,7 @@ public:
 
     TFuture<TString> ConvertPath(const TString& path, const TString& container) override
     {
-        return EnqueuePortoApiAction(
+        return ExecutePortoApiAction(
             &TPortoExecutor::DoConvertPath,
             "ConvertPath",
             path,
@@ -270,7 +271,7 @@ public:
 
     TFuture<void> KillContainer(const TString& container, int signal) override
     {
-        return EnqueuePortoApiAction(
+        return ExecutePortoApiAction(
             &TPortoExecutor::DoKillContainer,
             "KillContainer",
             container,
@@ -281,7 +282,7 @@ public:
         const TString& rootContainer,
         bool includeRoot) override
     {
-        return EnqueuePortoApiAction(
+        return ExecutePortoApiAction(
             &TPortoExecutor::DoListSubcontainers,
             "ListSubcontainers",
             rootContainer,
@@ -290,7 +291,7 @@ public:
 
     TFuture<int> PollContainer(const TString& container) override
     {
-        return EnqueuePortoApiAction(
+        return ExecutePortoApiAction(
             &TPortoExecutor::DoPollContainer,
             "PollContainer",
             container);
@@ -298,7 +299,7 @@ public:
 
     TFuture<int> WaitContainer(const TString& container) override
     {
-        return EnqueuePortoApiAction(
+        return ExecutePortoApiAction(
             &TPortoExecutor::DoWaitContainer,
             "WaitContainer",
             container);
@@ -309,7 +310,7 @@ public:
         const TString& path,
         const THashMap<TString, TString>& properties) override
     {
-        return EnqueuePortoApiAction(
+        return ExecutePortoApiAction(
             &TPortoExecutor::DoCreateVolume,
             "CreateVolume",
             path,
@@ -322,7 +323,7 @@ public:
         const TString& path,
         const TString& name) override
     {
-        return EnqueuePortoApiAction(
+        return ExecutePortoApiAction(
             &TPortoExecutor::DoLinkVolume,
             "LinkVolume",
             path,
@@ -335,7 +336,7 @@ public:
         const TString& path,
         const TString& name) override
     {
-        return EnqueuePortoApiAction(
+        return ExecutePortoApiAction(
             &TPortoExecutor::DoUnlinkVolume,
             "UnlinkVolume",
             path,
@@ -345,7 +346,7 @@ public:
 
     TFuture<std::vector<TString>> ListVolumePaths() override
     {
-        return EnqueuePortoApiAction(
+        return ExecutePortoApiAction(
             &TPortoExecutor::DoListVolumePaths,
             "ListVolumePaths");
     }
@@ -353,7 +354,7 @@ public:
     // This method allocates porto "resources", so it should be uncancellable.
     TFuture<void> ImportLayer(const TString& archivePath, const TString& layerId, const TString& place) override
     {
-        return EnqueuePortoApiAction(
+        return ExecutePortoApiAction(
             &TPortoExecutor::DoImportLayer,
             "ImportLayer",
             archivePath,
@@ -365,7 +366,7 @@ public:
     // This method deallocates porto "resources", so it should be uncancellable.
     TFuture<void> RemoveLayer(const TString& layerId, const TString& place, bool async) override
     {
-        return EnqueuePortoApiAction(
+        return ExecutePortoApiAction(
             &TPortoExecutor::DoRemoveLayer,
             "RemoveLayer",
             layerId,
@@ -376,7 +377,7 @@ public:
 
     TFuture<std::vector<TString>> ListLayers(const TString& place) override
     {
-        return EnqueuePortoApiAction(
+        return ExecutePortoApiAction(
             &TPortoExecutor::DoListLayers,
             "ListLayers",
             place);
@@ -425,7 +426,7 @@ private:
         return config->EnableTestPortoFailures;
     }
 
-    bool IsTestPortoNotRespondingEnabled() const
+    bool IsTestPortoTimeout() const
     {
         auto config = DynamicConfig_.Acquire();
         return config->EnableTestPortoNotResponding;
@@ -928,7 +929,7 @@ private:
     {
         YT_LOG_DEBUG("Porto API call started (Command: %v)", command);
 
-        if (IsTestPortoNotRespondingEnabled()) {
+        if (IsTestPortoTimeout()) {
             YT_LOG_DEBUG("Testing porto timeout (Command: %v)", command);
 
             auto config = DynamicConfig_.Acquire();

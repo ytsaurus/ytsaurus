@@ -11,7 +11,6 @@
 #include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/ytlib/job_proxy/public.h>
-
 #include <yt/yt/ytlib/job_proxy/config.h>
 
 #include <yt/yt/library/tracing/jaeger/tracer.h>
