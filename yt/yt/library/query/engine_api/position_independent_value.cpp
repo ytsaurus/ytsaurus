@@ -167,7 +167,9 @@ void ToAny(TPIValue* result, TPIValue* value, TRowBuffer* rowBuffer)
 {
     auto unversionedResult = BorrowFromPI(result);
     auto unversionedValue = BorrowFromPI(value);
-    *unversionedResult.GetValue() = EncodeUnversionedAnyValue(*unversionedValue.GetValue(), rowBuffer);
+    *unversionedResult.GetValue() = EncodeUnversionedAnyValue(
+        *unversionedValue.GetValue(),
+        rowBuffer->GetPool());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

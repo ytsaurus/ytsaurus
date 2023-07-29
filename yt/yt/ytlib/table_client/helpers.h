@@ -27,7 +27,6 @@
 
 #include <yt/yt/ytlib/scheduler/public.h>
 
-
 namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -218,6 +217,14 @@ void FromProto(
     TColumnarStatistics* statistics,
     const NProto::TColumnarStatisticsExt& protoStatisticsExt,
     i64 chunkRowCount);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void EnsureAnyValueEncoded(
+    TUnversionedValue* value,
+    const TTableSchema& schema,
+    TChunkedMemoryPool* memoryPool,
+    bool ignoreRequired);
 
 ////////////////////////////////////////////////////////////////////////////////
 

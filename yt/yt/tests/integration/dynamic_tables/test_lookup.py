@@ -9,7 +9,7 @@ from yt_commands import (
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table, sync_reshard_table,
     sync_flush_table, sync_compact_table, update_nodes_dynamic_config, set_banned_flag,
     get_cell_leader_address, get_tablet_leader_address, WaitFailed, raises_yt_error,
-    ban_node, wait_for_cells, build_snapshot)
+    ban_node, wait_for_cells, build_snapshot, sort, merge)
 
 from yt_type_helpers import make_schema
 
@@ -33,6 +33,7 @@ import time
 
 class TestLookup(TestSortedDynamicTablesBase):
     NUM_TEST_PARTITIONS = 2
+    NUM_SCHEDULERS = 1
 
     @authors("savrus")
     def test_lookup_repeated_keys(self):
@@ -803,6 +804,67 @@ class TestLookup(TestSortedDynamicTablesBase):
 
         assert lookup_rows("//tmp/t", [{"key1": 0, "key2": yson.YsonEntity()}]) == \
             [{"key1": 0, "key2": yson.YsonEntity(), "value": "0"}]
+
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("optimize_for, chunk_format", [
+        ("lookup", "table_versioned_slim"),
+        ("lookup", "table_versioned_simple"),
+        ("scan", "table_versioned_columnar"),
+    ])
+    def test_any_values_madness(self, optimize_for, chunk_format):
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "any"},
+            {"name": "value2", "type": "any"},
+        ]
+
+        rows = [{"key": 0, "value": "zero", "value2": "start"}, {"key": 1, "value": [{}, {}], "value2": "finish"}]
+
+        create("table", "//tmp/in")
+        write_table("//tmp/in", rows)
+
+        schema = make_schema(
+            schema,
+            unique_keys=True,
+        )
+        self._create_simple_static_table(
+            "//tmp/t",
+            schema=schema,
+        )
+
+        merge(in_="//tmp/in", out="//tmp/t", mode="ordered")
+
+        alter_table("//tmp/t", dynamic=True)
+        set("//tmp/t/@optimize_for", optimize_for)
+        set("//tmp/t/@chunk_format", chunk_format)
+        set("//tmp/t/@in_memory_mode", "compressed")
+
+        sync_create_cells(1)
+        sync_mount_table("//tmp/t")
+
+        assert lookup_rows("//tmp/t", [{"key": 0}, {"key": 1}]) == rows
+
+        insert_rows("//tmp/t", [{"key": 1, "value": [{}, {}, {}], "value2": "start_finish"}], aggregate=True)
+        rows[1] = {"key": 1, "value": [{}, {}, {}], "value2": "start_finish"}
+
+        sync_compact_table("//tmp/t")
+
+        create("table", "//tmp/out")
+        merge(in_="//tmp/t", out="//tmp/out", mode="ordered")
+
+        assert get("//tmp/t/@chunk_ids") != get("//tmp/out/@chunk_ids")
+        assert read_table("//tmp/out") == rows
+
+        sort(
+            in_="//tmp/t",
+            out="//tmp/out",
+            sort_by=["key"],
+            spec={
+                "partition_count": 2,
+            },
+        )
+
+        assert read_table("//tmp/out") == rows
 
 
 class TestAlternativeLookupMethods(TestSortedDynamicTablesBase):

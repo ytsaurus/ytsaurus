@@ -329,6 +329,7 @@ public:
             ChunkToReaderIdMapping_,
             SortOrders_,
             ChunkMeta_->GetChunkKeyColumnCount(),
+            ChunkState_->TableSchema,
             Timestamp_);
         return &BlockReader_.value();
     }

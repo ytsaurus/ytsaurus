@@ -2,12 +2,15 @@
 #include "private.h"
 #include "versioned_block_writer.h"
 #include "schemaless_block_reader.h"
+#include "hunks.h"
+#include "helpers.h"
 
 #include <yt/yt/ytlib/table_chunk_format/reader_helpers.h>
 
 #include <yt/yt/ytlib/transaction_client/public.h>
 
 #include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/helpers.h>
 
 #include <yt/yt/library/numeric/algorithm_helpers.h>
 
@@ -662,6 +665,7 @@ THorizontalSchemalessVersionedBlockReader::THorizontalSchemalessVersionedBlockRe
     const std::vector<int>& chunkToReaderIdMapping,
     TRange<ESortOrder> sortOrders,
     int commonKeyPrefix,
+    TTableSchemaPtr readerSchema,
     TTimestamp timestamp)
     : THorizontalBlockReader(
         block,
@@ -674,6 +678,7 @@ THorizontalSchemalessVersionedBlockReader::THorizontalSchemalessVersionedBlockRe
         sortOrders,
         commonKeyPrefix,
         /*keyWideningOptions*/ {})
+    , ReaderSchema_(std::move(readerSchema))
     , Timestamp_(timestamp)
 { }
 
@@ -684,7 +689,17 @@ TLegacyKey THorizontalSchemalessVersionedBlockReader::GetKey() const
 
 TMutableVersionedRow THorizontalSchemalessVersionedBlockReader::GetRow(TChunkedMemoryPool* memoryPool)
 {
-    return THorizontalBlockReader::GetVersionedRow(memoryPool, Timestamp_);
+    auto row = THorizontalBlockReader::GetVersionedRow(memoryPool, Timestamp_);
+
+    for (auto& value : row.Values()) {
+        EnsureAnyValueEncoded(
+            &value,
+            *ReaderSchema_,
+            memoryPool,
+            /*ignoreRequired*/ true);
+    }
+
+    return row;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

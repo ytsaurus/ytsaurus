@@ -263,41 +263,6 @@ void TBuildingValueConsumer::OnBeginRow()
     // Do nothing.
 }
 
-TUnversionedValue TBuildingValueConsumer::MakeAnyFromScalar(const TUnversionedValue& value)
-{
-    NYson::TBufferedBinaryYsonWriter writer(&ValueBuffer_);
-    switch (value.Type) {
-        case EValueType::Int64:
-            writer.OnInt64Scalar(value.Data.Int64);
-            break;
-        case EValueType::Uint64:
-            writer.OnUint64Scalar(value.Data.Uint64);
-            break;
-        case EValueType::Double:
-            writer.OnDoubleScalar(value.Data.Double);
-            break;
-        case EValueType::Boolean:
-            writer.OnBooleanScalar(value.Data.Boolean);
-            break;
-        case EValueType::String:
-            writer.OnStringScalar(value.AsStringBuf());
-            break;
-        case EValueType::Null:
-            writer.OnEntity();
-            break;
-        default:
-            ThrowUnexpectedValueType(value.Type);
-    }
-    writer.Flush();
-
-    return MakeUnversionedAnyValue(
-        TStringBuf(
-            ValueBuffer_.Begin(),
-            ValueBuffer_.Begin() + ValueBuffer_.Size()),
-        value.Id,
-        value.Flags);
-}
-
 void TBuildingValueConsumer::OnMyValue(const TUnversionedValue& value)
 {
     if (value.Id >= Schema_->GetColumnCount()) {
@@ -313,11 +278,11 @@ void TBuildingValueConsumer::OnMyValue(const TUnversionedValue& value)
         (valueCopy.Type != EValueType::Null || ConvertNullToEntity_))
     {
         if (valueCopy.Type == EValueType::Null && LogNullToEntity_) {
-            YT_LOG_DEBUG("Detected conversion null to yson entity");
+            YT_LOG_DEBUG("Detected conversion of null to YSON entity");
             LogNullToEntity_ = false;
         }
-        Builder_.AddValue(MakeAnyFromScalar(valueCopy));
-        ValueBuffer_.Clear();
+        Builder_.AddValue(EncodeUnversionedAnyValue(valueCopy, &MemoryPool_));
+        MemoryPool_.Clear();
     } else {
         Builder_.AddValue(valueCopy);
     }
