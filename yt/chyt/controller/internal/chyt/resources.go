@@ -42,7 +42,7 @@ const (
 type InstanceMemory struct {
 	ClickHouse     *uint64 `yson:"clickhouse"`
 	ChunkMetaCache *uint64 `yson:"chunk_meta_cache"`
-	// NOTE(daokvalkov): compressed and uncompressed block caches mises "block" in yson-name
+	// NOTE(dakovalkov): compressed and uncompressed block caches misses "block" in yson-name
 	// for compatibility reasons.
 	// TODO(dakovalkov): rename it and migrate existing configs.
 	CompressedBlockCache   *uint64 `yson:"compressed_cache"`

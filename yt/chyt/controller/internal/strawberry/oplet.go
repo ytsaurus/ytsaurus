@@ -374,7 +374,7 @@ func (oplet *Oplet) needsRestart() (needsRestart bool, reason string) {
 	}
 	if oplet.strawberrySpeclet.MinSpecletRevision > oplet.persistentState.YTOpSpecletRevision {
 		if oplet.strawberrySpeclet.MinSpecletRevision > oplet.persistentState.SpecletRevision {
-			oplet.l.Warn("min speclet revision is greater than last seen speclet revisoin; "+
+			oplet.l.Warn("min speclet revision is greater than last seen speclet revision; "+
 				"it can lead to infinite operation restart",
 				log.UInt64("min_speclet_revision", uint64(oplet.strawberrySpeclet.MinSpecletRevision)),
 				log.UInt64("last_seen_speclet_revision", uint64(oplet.persistentState.SpecletRevision)))
@@ -696,7 +696,7 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 
 	opID, err := oplet.userClient.StartOperation(ctx, yt.OperationVanilla, spec, nil)
 
-	// TODO(dakovalkov): Add GetOperationByAlias in go yt api and aliminate this.
+	// TODO(dakovalkov): Add GetOperationByAlias in go yt api and eliminate this.
 	if yterrors.ContainsMessageRE(err, aliasAlreadyUsedRE) {
 		oplet.l.Debug("alias is already used, aborting previous operation")
 		// Try to abort already existing operation with that alias.
@@ -796,7 +796,7 @@ func (oplet *Oplet) flushPersistentState(ctx context.Context) error {
 	if err != nil {
 		if yterrors.ContainsMessageRE(err, prerequisiteCheckFailedRE) {
 			oplet.l.Info("prerequisite check failed during flushing persistent state", log.Error(err))
-			// If the state revision is outdated, we can not flush the state because we can accidently
+			// If the state revision is outdated, we can not flush the state because we can accidentally
 			// override changed cypress state. In that case we assume that cypress state is correct
 			// and reload it on the next pass.
 			oplet.pendingUpdateFromCypressNode = true
