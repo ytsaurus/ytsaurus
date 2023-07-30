@@ -1165,18 +1165,17 @@ void TChunkStoreBase::Preload(TInMemoryChunkDataPtr chunkData)
         ChunkId_,
         BlockCache_);
 
-    ChunkState_ = New<TChunkState>(
-        PreloadedBlockCache_,
-        TChunkSpec(),
-        chunkData->ChunkMeta,
-        OverrideTimestamp_,
-        chunkData->LookupHashTable,
-        GetKeyComparer(),
-        /*virtualValueDirectory*/ nullptr,
-        Schema_,
-        New<TChunkColumnMapping>(
+    ChunkState_ = New<TChunkState>(TChunkState{
+        .BlockCache = PreloadedBlockCache_,
+        .ChunkMeta = chunkData->ChunkMeta,
+        .OverrideTimestamp = OverrideTimestamp_,
+        .LookupHashTable = chunkData->LookupHashTable,
+        .KeyComparer = GetKeyComparer(),
+        .TableSchema = Schema_,
+        .ChunkColumnMapping =  New<TChunkColumnMapping>(
             Schema_,
-            chunkData->ChunkMeta->ChunkSchema()));
+            chunkData->ChunkMeta->ChunkSchema()),
+    });
 }
 
 TChunkId TChunkStoreBase::GetChunkId() const

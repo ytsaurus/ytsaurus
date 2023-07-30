@@ -118,9 +118,10 @@ private:
         InputChunkMeta_ = WaitFor(ChunkReader_->GetMeta(/*chunkReadOptions*/ {}))
             .ValueOrThrow();
 
-        InputChunkState_ = New<TChunkState>();
-        InputChunkState_->BlockCache = GetNullBlockCache();
-        InputChunkState_->TableSchema = FromProto<TTableSchemaPtr>(GetProtoExtension<NTableClient::NProto::TTableSchemaExt>(InputChunkMeta_->extensions()));
+        InputChunkState_ = New<TChunkState>(TChunkState{
+            .BlockCache = GetNullBlockCache(),
+            .TableSchema = FromProto<TTableSchemaPtr>(GetProtoExtension<NTableClient::NProto::TTableSchemaExt>(InputChunkMeta_->extensions())),
+        });
 
         Cout << "Input statistics" << Endl;
         DumpStatistics(InputChunkMeta_);

@@ -12,26 +12,14 @@ namespace NYT::NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Extracted chunk state to avoid unnecessary reference counting.
-struct TChunkState
-    : public TRefCounted
+struct TChunkState final
 {
-    TChunkState(
-        NChunkClient::IBlockCachePtr blockCache = nullptr,
-        NChunkClient::NProto::TChunkSpec chunkSpec = {},
-        TCachedVersionedChunkMetaPtr chunkMeta = nullptr,
-        NTransactionClient::TTimestamp overrideTimestamp = NTransactionClient::NullTimestamp,
-        TChunkLookupHashTablePtr lookupHashTable = nullptr,
-        TKeyComparer keyComparer = {},
-        TVirtualValueDirectoryPtr virtualValueDirectory = nullptr,
-        TTableSchemaPtr tableSchema = nullptr,
-        TChunkColumnMappingPtr chunkColumnMapping = nullptr);
-
     NChunkClient::IBlockCachePtr BlockCache;
     NChunkClient::NProto::TChunkSpec ChunkSpec;
     // TODO(lukyan): Remove CachedVersionedChunkMeta because it is specific to versioned readers.
     // Not used in many other readers.
     TCachedVersionedChunkMetaPtr ChunkMeta;
-    NTransactionClient::TTimestamp OverrideTimestamp;
+    NTransactionClient::TTimestamp OverrideTimestamp = NTransactionClient::NullTimestamp;
     TChunkLookupHashTablePtr LookupHashTable;
     TKeyComparer KeyComparer;
     TVirtualValueDirectoryPtr VirtualValueDirectory;

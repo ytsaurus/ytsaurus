@@ -126,10 +126,11 @@ protected:
             inputChunks.push_back({
                 .ChunkSpec = chunkSpec,
                 .ChunkMeta = memoryWriter->GetChunkMeta(),
-                .ChunkState = New<TChunkState>(
-                    GetNullBlockCache(),
-                    chunkSpec),
-                .MemoryWriter=memoryWriter
+                .ChunkState = New<TChunkState>(TChunkState{
+                    .BlockCache = GetNullBlockCache(),
+                    .ChunkSpec = chunkSpec,
+                }),
+                .MemoryWriter = memoryWriter,
             });
         }
 
@@ -156,8 +157,12 @@ protected:
     {
         TChunkSpec chunkSpec;
         ToProto(chunkSpec.mutable_chunk_id(), NullChunkId);
-        auto chunkState = New<TChunkState>(GetNullBlockCache(), chunkSpec);
-        chunkState->TableSchema = Schema_;
+
+        auto chunkState = New<TChunkState>(TChunkState{
+            .BlockCache = GetNullBlockCache(),
+            .ChunkSpec = chunkSpec,
+            .TableSchema = Schema_,
+        });
 
         auto memoryReader = CreateMemoryReader(
             MemoryWriter_->GetChunkMeta(),

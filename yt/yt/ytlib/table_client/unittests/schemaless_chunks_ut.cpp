@@ -248,10 +248,11 @@ protected:
         auto schema = std::get<1>(GetParam());
         auto columnFilter = std::get<2>(GetParam());
 
-        auto chunkState = New<TChunkState>(
-            GetNullBlockCache(),
-            ChunkSpec_);
-        chunkState->TableSchema = New<TTableSchema>(std::get<1>(GetParam()));
+        auto chunkState = New<TChunkState>(TChunkState{
+            .BlockCache = GetNullBlockCache(),
+            .ChunkSpec = ChunkSpec_,
+            .TableSchema = New<TTableSchema>(std::get<1>(GetParam())),
+        });
 
         return CreateSchemalessRangeChunkReader(
             std::move(chunkState),
@@ -421,10 +422,11 @@ protected:
 
         ChunkMeta_ = New<TColumnarChunkMeta>(*memoryWriter->GetChunkMeta());
 
-        ChunkState_ = New<TChunkState>(
-            GetNullBlockCache(),
-            ChunkSpec_);
-        ChunkState_->TableSchema = Schema_;
+        ChunkState_ = New<TChunkState>(TChunkState{
+            .BlockCache = GetNullBlockCache(),
+            .ChunkSpec = ChunkSpec_,
+            .TableSchema = Schema_,
+        });
     }
 
     virtual ISchemalessUnversionedReaderPtr CreateReader(const TColumnFilter& columnFilter)
@@ -771,10 +773,11 @@ protected:
         auto options = New<TChunkReaderOptions>();
         options->DynamicTable = true;
 
-        auto chunkState = New<TChunkState>(
-            GetNullBlockCache(),
-            ChunkSpec_);
-        chunkState->TableSchema = Schema_;
+        auto chunkState = New<TChunkState>(TChunkState{
+            .BlockCache = GetNullBlockCache(),
+            .ChunkSpec = ChunkSpec_,
+            .TableSchema = Schema_,
+        });
 
         return CreateSchemalessLookupChunkReader(
             std::move(chunkState),
@@ -798,10 +801,11 @@ protected:
         auto options = New<TChunkReaderOptions>();
         options->DynamicTable = true;
 
-        auto chunkState = New<TChunkState>(
-            GetNullBlockCache(),
-            ChunkSpec_);
-        chunkState->TableSchema = Schema_;
+        auto chunkState = New<TChunkState>(TChunkState{
+            .BlockCache = GetNullBlockCache(),
+            .ChunkSpec = ChunkSpec_,
+            .TableSchema = Schema_,
+        });
 
         return CreateSchemalessKeyRangesChunkReader(
             std::move(chunkState),
@@ -826,10 +830,11 @@ protected:
 
         auto meta = FetchMeta();
 
-        auto chunkState = New<TChunkState>(
-            GetNullBlockCache(),
-            ChunkSpec_);
-        chunkState->TableSchema = Schema_;
+        auto chunkState = New<TChunkState>(TChunkState{
+            .BlockCache = GetNullBlockCache(),
+            .ChunkSpec = ChunkSpec_,
+            .TableSchema = Schema_,
+        });
 
         return CreateSchemalessRangeChunkReader(
             std::move(chunkState),

@@ -1196,18 +1196,15 @@ TChunkStatePtr TSortedChunkStore::PrepareChunkState(TCachedVersionedChunkMetaPtr
 
     auto chunkColumnMapping = GetChunkColumnMapping(Schema_, meta->ChunkSchema());
 
-    auto chunkState = New<TChunkState>(
-        BlockCache_,
-        std::move(chunkSpec),
-        std::move(meta),
-        OverrideTimestamp_,
-        /*lookupHashTable*/ nullptr,
-        GetKeyComparer(),
-        /*virtualValueDirectory*/ nullptr,
-        Schema_,
-        std::move(chunkColumnMapping));
-
-    return chunkState;
+    return New<TChunkState>(TChunkState{
+        .BlockCache = BlockCache_,
+        .ChunkSpec = std::move(chunkSpec),
+        .ChunkMeta = std::move(meta),
+        .OverrideTimestamp = OverrideTimestamp_,
+        .KeyComparer = GetKeyComparer(),
+        .TableSchema = Schema_,
+        .ChunkColumnMapping = std::move(chunkColumnMapping),
+    });
 }
 
 void TSortedChunkStore::ValidateBlockSize(

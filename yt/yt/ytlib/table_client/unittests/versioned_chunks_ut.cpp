@@ -419,15 +419,11 @@ protected:
 
             auto sharedKeys = MakeSharedRange(std::move(keys), std::move(owningKeys));
 
-            auto chunkState = New<TChunkState>(
-                GetNullBlockCache(),
-                TChunkSpec(),
-                /*chunkMeta*/ nullptr,
-                /*overrideTimestamp*/ NullTimestamp,
-                /*lookupHashTable*/ nullptr,
-                KeyComparer,
-                /*virtualValueDirectory*/ nullptr,
-                Schema);
+            auto chunkState = New<TChunkState>(TChunkState{
+                .BlockCache = GetNullBlockCache(),
+                .KeyComparer = KeyComparer,
+                .TableSchema = Schema,
+            });
 
             YT_VERIFY(!testOptions.UseNewReader || !testOptions.UseIndexedReaderForLookup);
 
@@ -811,9 +807,11 @@ protected:
             .Get()
             .ValueOrThrow();
 
-        auto chunkState = New<TChunkState>(GetNullBlockCache());
-        chunkState->TableSchema = readSchema;
-        chunkState->ChunkColumnMapping = New<TChunkColumnMapping>(readSchema, chunkMeta->ChunkSchema());
+        auto chunkState = New<TChunkState>(TChunkState{
+            .BlockCache = GetNullBlockCache(),
+            .TableSchema = readSchema,
+            .ChunkColumnMapping = New<TChunkColumnMapping>(readSchema, chunkMeta->ChunkSchema()),
+        });
 
         YT_VERIFY(!GetTestOptions().UseIndexedReaderForLookup);
 
@@ -915,10 +913,12 @@ protected:
             .Get()
             .ValueOrThrow();
 
-        auto chunkState = New<TChunkState>(GetNullBlockCache());
-        chunkState->TableSchema = readSchema;
-        chunkState->ChunkColumnMapping = New<TChunkColumnMapping>(readSchema, chunkMeta->ChunkSchema());
-        chunkState->LookupHashTable = lookupHashTable;
+        auto chunkState = New<TChunkState>(TChunkState{
+            .BlockCache = GetNullBlockCache(),
+            .LookupHashTable = lookupHashTable,
+            .TableSchema = readSchema,
+            .ChunkColumnMapping = New<TChunkColumnMapping>(readSchema, chunkMeta->ChunkSchema()),
+        });
 
         YT_VERIFY(!GetTestOptions().UseNewReader || !GetTestOptions().UseIndexedReaderForLookup);
 

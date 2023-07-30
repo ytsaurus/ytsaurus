@@ -2079,8 +2079,10 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
         TChunkSpec chunkSpec;
         ToProto(chunkSpec.mutable_chunk_id(), StoreId_);
 
-        auto chunkState = New<TChunkState>(GetNullBlockCache());
-        chunkState->TableSchema = Schema_;
+        auto chunkState = New<TChunkState>(TChunkState{
+            .BlockCache = GetNullBlockCache(),
+            .TableSchema = Schema_,
+        });
 
         auto tableReaderConfig = New<TTabletStoreReaderConfig>();
 

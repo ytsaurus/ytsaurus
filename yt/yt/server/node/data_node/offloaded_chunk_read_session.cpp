@@ -226,16 +226,14 @@ private:
             return LookupWithChunkIndex(std::move(chunkMeta), std::move(keys));
         }
 
-        auto chunkState = New<TChunkState>(
-            Bootstrap_->GetBlockCache(),
-            std::move(chunkSpec),
-            chunkMeta,
-            OverrideTimestamp_,
-            /*lookupHashTable*/ nullptr,
-            GetKeyComparer(),
-            /*virtualValueDirectory*/ nullptr,
-            TableSchema_,
-            /*chunkColumnMapping*/ nullptr);
+        auto chunkState = New<TChunkState>(TChunkState{
+            .BlockCache = Bootstrap_->GetBlockCache(),
+            .ChunkSpec = std::move(chunkSpec),
+            .ChunkMeta = chunkMeta,
+            .OverrideTimestamp = OverrideTimestamp_,
+            .KeyComparer = GetKeyComparer(),
+            .TableSchema = TableSchema_,
+        });
 
         // TODO(akozhikhov): Cache this reader and chunk state with chunk column mapping.
         int keyCount = keys.Size();

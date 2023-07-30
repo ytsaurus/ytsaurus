@@ -207,8 +207,10 @@ private:
             Bootstrap_->GetBlockCache(),
             Bootstrap_->GetChunkMetaManager()->GetBlockMetaCache());
 
-        auto chunkState = New<TChunkState>(Bootstrap_->GetBlockCache());
-        chunkState->TableSchema = New<TTableSchema>();
+        auto chunkState = New<TChunkState>(TChunkState{
+            .BlockCache = Bootstrap_->GetBlockCache(),
+            .TableSchema = New<TTableSchema>(),
+        });
 
         auto schemalessReader = CreateSchemalessRangeChunkReader(
             chunkState,

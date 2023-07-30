@@ -258,8 +258,10 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
             .ValueOrThrow();
     }
 
-    auto chunkState = New<TChunkState>(GetBlockCache());
-    chunkState->TableSchema = readSchema;
+    auto chunkState = New<TChunkState>(TChunkState{
+        .BlockCache = GetBlockCache(),
+        .TableSchema = readSchema,
+    });
 
     auto underlyingReader = CreateSchemafulChunkReader(
         chunkState,

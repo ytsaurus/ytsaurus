@@ -1368,15 +1368,11 @@ private:
         void OpenReader()
         {
             const auto& context = Contexts_[CurrentChunkIndex_];
-            auto chunkState = New<TChunkState>(
-                Bootstrap_->GetBlockCache(),
-                GetChunkSpec(context.MergeChunkInfo),
-                /*chunkMeta*/ nullptr,
-                /*chunkTimestamp*/ NullTimestamp,
-                /*lookupHashTable*/ nullptr,
-                /*keyComparer*/ TKeyComparer{},
-                /*virtualValueDirectory*/ nullptr,
-                /*tableSchema*/ Schema_);
+            auto chunkState = New<TChunkState>(TChunkState{
+                .BlockCache = Bootstrap_->GetBlockCache(),
+                .ChunkSpec = GetChunkSpec(context.MergeChunkInfo),
+                .TableSchema = Schema_,
+            });
 
             ChunkReader_ = CreateSchemalessRangeChunkReader(
                 std::move(chunkState),
@@ -2022,15 +2018,11 @@ private:
 
         auto columnarMeta = New<TColumnarChunkMeta>(*oldChunkMeta);
 
-        auto oldChunkState = New<TChunkState>(
-            Bootstrap_->GetBlockCache(),
-            oldChunkSpec,
-            /*chunkMeta*/ nullptr,
-            /*overrideTimestamp*/  NullTimestamp,
-            /*lookupHashTable*/ nullptr,
-            /*keyComparer*/ TKeyComparer{},
-            /*virtualValueDirectory*/ nullptr,
-            /*tableSchema*/ columnarMeta->ChunkSchema());
+        auto oldChunkState = New<TChunkState>(TChunkState{
+            .BlockCache = Bootstrap_->GetBlockCache(),
+            .ChunkSpec = oldChunkSpec,
+            .TableSchema = columnarMeta->ChunkSchema(),
+        });
 
         auto reader = CreateSchemalessRangeChunkReader(
             oldChunkState,

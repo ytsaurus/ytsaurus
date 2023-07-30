@@ -1264,7 +1264,6 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/chunk_slice.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/chunk_slice_fetcher.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/chunk_slice_size_fetcher.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/chunk_state.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/columnar_chunk_reader_base.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/columnar_chunk_meta.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/columnar_statistics_fetcher.cpp

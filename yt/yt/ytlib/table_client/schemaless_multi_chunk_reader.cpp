@@ -203,16 +203,13 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             FromProto(&readRange.UpperLimit(), chunkSpec.upper_limit(), /* isUpper */ true, keyColumnCount);
                         }
 
-                        auto chunkState = New<TChunkState>(
-                            chunkReaderHost->BlockCache,
-                            chunkSpec,
-                            nullptr,
-                            NullTimestamp,
-                            /*lookupHashTable*/ nullptr,
-                            TKeyComparer{},
-                            dataSource.GetVirtualValueDirectory(),
-                            dataSource.Schema());
-                        chunkState->DataSource = dataSource;
+                        auto chunkState = New<TChunkState>(TChunkState{
+                            .BlockCache = chunkReaderHost->BlockCache,
+                            .ChunkSpec = chunkSpec,
+                            .VirtualValueDirectory = dataSource.GetVirtualValueDirectory(),
+                            .TableSchema = dataSource.Schema(),
+                            .DataSource = dataSource,
+                        });
 
                         YT_LOG_DEBUG("Create chunk reader (HintCount: %v, ChunkFormat: %v, Sorted: %v)",
                             hintKeyPrefixes ? std::ssize(hintKeyPrefixes->HintPrefixes) : -1,
@@ -1156,16 +1153,14 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         auto versionedChunkMeta = WaitFor(asyncVersionedChunkMeta)
             .ValueOrThrow();
 
-        auto chunkState = New<TChunkState>(
-            chunkReaderHost->BlockCache,
-            chunkSpec,
-            versionedChunkMeta,
-            chunkSpec.has_override_timestamp() ? chunkSpec.override_timestamp() : NullTimestamp,
-            /*lookupHashTable*/ nullptr,
-            /*keyComparer*/ TKeyComparer{},
-            /*virtualValueDirectory*/ nullptr,
-            versionedReadSchema);
-        chunkState->DataSource = dataSource;
+        auto chunkState = New<TChunkState>(TChunkState{
+            .BlockCache = chunkReaderHost->BlockCache,
+            .ChunkSpec = chunkSpec,
+            .ChunkMeta = versionedChunkMeta,
+            .OverrideTimestamp = chunkSpec.has_override_timestamp() ? chunkSpec.override_timestamp() : NullTimestamp,
+            .TableSchema = versionedReadSchema,
+            .DataSource = dataSource,
+        });
 
         auto effectiveTimestamp = timestamp;
         if (chunkSpec.has_max_clip_timestamp()) {
