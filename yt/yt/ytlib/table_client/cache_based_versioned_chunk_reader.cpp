@@ -582,14 +582,14 @@ private:
     TLegacyKey UpperBound_;
 
     TSharedRange<TRowRange> Ranges_;
-    size_t RangeIndex_ = 0;
+    int RangeIndex_ = 0;
 
     TSharedRange<TRowRange> ClippingRange_;
 
     // Returns false if finished.
     bool UpdateLimits()
     {
-        if (RangeIndex_ >= Ranges_.Size()) {
+        if (RangeIndex_ >= std::ssize(Ranges_)) {
             return false;
         }
 
@@ -602,7 +602,7 @@ private:
             }
         }
 
-        if (RangeIndex_ == Ranges_.Size() - 1 && ClippingRange_) {
+        if (RangeIndex_ == std::ssize(Ranges_) - 1 && ClippingRange_) {
             if (auto clippingUpperBound = ClippingRange_.Front().second) {
                 UpperBound_ = std::min(UpperBound_, clippingUpperBound);
             }

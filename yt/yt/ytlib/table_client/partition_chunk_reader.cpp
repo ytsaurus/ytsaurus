@@ -36,7 +36,6 @@ using namespace NYTree;
 using namespace NTracing;
 
 using NChunkClient::TDataSliceDescriptor;
-using NChunkClient::TChunkReaderStatistics;
 
 using NYT::FromProto;
 

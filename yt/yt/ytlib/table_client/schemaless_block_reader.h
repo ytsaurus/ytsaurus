@@ -43,7 +43,6 @@ public:
      *  It maps chunk ids to reader ids.
      *  Column is omitted if reader id < 0.
      */
-
     THorizontalBlockReader(
         const TSharedRef& block,
         const NProto::TDataBlockMeta& meta,

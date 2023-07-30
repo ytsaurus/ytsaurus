@@ -221,15 +221,7 @@ class TVersionedIntegerColumnReader
     : public TVersionedColumnReaderBase
 {
 public:
-    TVersionedIntegerColumnReader(
-        const TColumnMeta& columnMeta,
-        int columnId,
-        const TColumnSchema& columnSchema)
-        : TVersionedColumnReaderBase(
-            columnMeta,
-            columnId,
-            columnSchema)
-    { }
+    using TVersionedColumnReaderBase::TVersionedColumnReaderBase;
 
 private:
     std::unique_ptr<IVersionedSegmentReader> CreateSegmentReader(int segmentIndex) override
@@ -296,7 +288,9 @@ class TDirectDenseUnversionedIntegerValueExtractor
     : public TDirectIntegerValueExtractorBase<ValueType, Scan>
 {
 public:
-    TDirectDenseUnversionedIntegerValueExtractor(TRef data, const TSegmentMeta& meta)
+    TDirectDenseUnversionedIntegerValueExtractor(
+        TRef data,
+        const TSegmentMeta& meta)
         : TDirectIntegerValueExtractorBase<ValueType, Scan>(meta)
     {
         const char* ptr = data.Begin();
@@ -345,7 +339,9 @@ class TDictionaryDenseUnversionedIntegerValueExtractor
     : public TDictionaryIntegerValueExtractorBase<ValueType, Scan>
 {
 public:
-    TDictionaryDenseUnversionedIntegerValueExtractor(TRef data, const TSegmentMeta& meta)
+    TDictionaryDenseUnversionedIntegerValueExtractor(
+        TRef data,
+        const TSegmentMeta& meta)
         : TDictionaryIntegerValueExtractorBase<ValueType, Scan>(meta)
     {
         const char* ptr = data.Begin();
@@ -398,7 +394,9 @@ class TDirectRleUnversionedIntegerValueExtractor
     , public TRleValueExtractorBase<Scan>
 {
 public:
-    TDirectRleUnversionedIntegerValueExtractor(TRef data, const TSegmentMeta& meta)
+    TDirectRleUnversionedIntegerValueExtractor(
+        TRef data,
+        const TSegmentMeta& meta)
         : TDirectIntegerValueExtractorBase<ValueType, Scan>(meta)
     {
         const char* ptr = data.Begin();
@@ -458,7 +456,9 @@ class TDictionaryRleUnversionedIntegerValueExtractor
     , public TRleValueExtractorBase<Scan>
 {
 public:
-    TDictionaryRleUnversionedIntegerValueExtractor(TRef data, const TSegmentMeta& meta)
+    TDictionaryRleUnversionedIntegerValueExtractor(
+        TRef data,
+        const TSegmentMeta& meta)
         : TDictionaryIntegerValueExtractorBase<ValueType, Scan>(meta)
     {
         const char* ptr = data.Begin();

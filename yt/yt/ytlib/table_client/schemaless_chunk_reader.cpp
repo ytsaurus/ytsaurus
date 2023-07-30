@@ -255,7 +255,7 @@ public:
         int rowIndexId,
         TReaderVirtualValues virtualValues,
         const TClientChunkReadOptions& chunkReadOptions,
-        std::optional<i64> virtualRowIndex = std::nullopt)
+        std::optional<i64> virtualRowIndex = {})
         : ChunkSpec_(chunkSpec)
         , Config_(std::move(config))
         , NameTable_(nameTable)
@@ -1464,7 +1464,7 @@ public:
                 columnMeta->columns(columnIndex),
                 valueIndex,
                 columnId,
-                /* sortOrder */ std::nullopt);
+                /*sortOrder*/ std::nullopt);
             RowColumnReaders_.push_back(columnReader.get());
             Columns_.emplace_back(std::move(columnReader), columnIndex, columnId);
             ++valueIndex;
@@ -1507,7 +1507,7 @@ protected:
     std::vector<IUnversionedColumnReader*> KeyColumnReaders_;
     ISchemalessColumnReader* SchemalessReader_ = nullptr;
 
-    TChunkedMemoryPool Pool_;
+    TChunkedMemoryPool MemoryPool_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2217,15 +2217,15 @@ private:
         row.SetCount(RowColumnReaders_.size());
 
         // Read values.
-        auto range = TMutableRange<TMutableUnversionedRow>(&row, 1);
+        auto rowRange = TMutableRange<TMutableUnversionedRow>(&row, 1);
 
         for (const auto& columnReader : RowColumnReaders_) {
             columnReader->SkipToRowIndex(rowIndex);
-            columnReader->ReadValues(range);
+            columnReader->ReadValues(rowRange);
         }
 
         if (SchemalessReader_) {
-            SchemalessReader_->ReadValues(range);
+            SchemalessReader_->ReadValues(rowRange);
         }
 
         return row;

@@ -56,7 +56,10 @@ class TDirectDenseVersionedFloatingPointValueExtractor
     , public TFloatingPointValueExtractorBase<T>
 {
 public:
-    TDirectDenseVersionedFloatingPointValueExtractor(TRef data, const NProto::TSegmentMeta& meta, bool aggregate)
+    TDirectDenseVersionedFloatingPointValueExtractor(
+        TRef data,
+        const NProto::TSegmentMeta& meta,
+        bool aggregate)
         : TDenseVersionedValueExtractorBase(meta, aggregate)
     {
         const char* ptr = data.Begin();
@@ -74,7 +77,10 @@ class TDirectSparseVersionedFloatingPointValueExtractor
     , public TFloatingPointValueExtractorBase<T>
 {
 public:
-    TDirectSparseVersionedFloatingPointValueExtractor(TRef data, const NProto::TSegmentMeta& /*meta*/, bool aggregate)
+    TDirectSparseVersionedFloatingPointValueExtractor(
+        TRef data,
+        const NProto::TSegmentMeta& /*meta*/,
+        bool aggregate)
         : TSparseVersionedValueExtractorBase(aggregate)
     {
         const char* ptr = data.Begin();
@@ -91,15 +97,7 @@ class TVersionedFloatingPointColumnReader
     : public TVersionedColumnReaderBase
 {
 public:
-    TVersionedFloatingPointColumnReader(
-        const TColumnMeta& columnMeta,
-        int columnId,
-        const TColumnSchema& columnSchema)
-        : TVersionedColumnReaderBase(
-            columnMeta,
-            columnId,
-            columnSchema)
-    { }
+    using TVersionedColumnReaderBase::TVersionedColumnReaderBase;
 
 private:
     std::unique_ptr<IVersionedSegmentReader> CreateSegmentReader(int segmentIndex) override
@@ -139,7 +137,9 @@ class TUnversionedFloatingPointValueExtractor
     : public TFloatingPointValueExtractorBase<T>
 {
 public:
-    TUnversionedFloatingPointValueExtractor(TRef data, const TSegmentMeta& /*meta*/)
+    TUnversionedFloatingPointValueExtractor(
+        TRef data,
+        const TSegmentMeta& /*meta*/)
     {
         const char* ptr = data.Begin();
         ptr = this->InitValueReader(data.Begin());
@@ -183,21 +183,9 @@ class TUnversionedFloatingPointColumnReader
     : public TUnversionedColumnReaderBase
 {
 public:
-    TUnversionedFloatingPointColumnReader(
-        const TColumnMeta& columnMeta,
-        int columnIndex,
-        int columnId,
-        std::optional<ESortOrder> sortOrder,
-        const TColumnSchema& columnSchema)
-        : TUnversionedColumnReaderBase(
-            columnMeta,
-            columnIndex,
-            columnId,
-            sortOrder,
-            columnSchema)
-    {
-        static_assert(std::is_floating_point_v<T>);
-    }
+    static_assert(std::is_floating_point_v<T>);
+
+    using TUnversionedColumnReaderBase::TUnversionedColumnReaderBase;
 
     std::pair<i64, i64> GetEqualRange(
         const TUnversionedValue& value,

@@ -97,15 +97,7 @@ class TVersionedBooleanColumnReader
     : public TVersionedColumnReaderBase
 {
 public:
-    TVersionedBooleanColumnReader(
-        const TColumnMeta& columnMeta,
-        int columnId,
-        const TColumnSchema& columnSchema)
-        : TVersionedColumnReaderBase(
-            columnMeta,
-            columnId,
-            columnSchema)
-    { }
+    using TVersionedColumnReaderBase::TVersionedColumnReaderBase;
 
 private:
     std::unique_ptr<IVersionedSegmentReader> CreateSegmentReader(int segmentIndex) override
@@ -143,7 +135,9 @@ class TUnversionedBooleanValueExtractor
     : public TBooleanValueExtractorBase
 {
 public:
-    TUnversionedBooleanValueExtractor(TRef data, const TSegmentMeta& /*meta*/)
+    TUnversionedBooleanValueExtractor(
+        TRef data,
+        const TSegmentMeta& /*meta*/)
     {
         const char* ptr = data.Begin();
         ptr = InitValueReader(ptr);

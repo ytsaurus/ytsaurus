@@ -128,50 +128,50 @@ class TVersionedBlocksTestOneRowBase
 protected:
     TVersionedBlocksTestOneRowBase()
         : TMockBlockFormatAdapter(UseSchemaWithGroups ? SchemaWithGroups : SimpleSchema)
-        , Schema(UseSchemaWithGroups ? SchemaWithGroups : SimpleSchema)
+        , Schema_(UseSchemaWithGroups ? SchemaWithGroups : SimpleSchema)
     { }
 
-    const TTableSchemaPtr Schema;
+    const TTableSchemaPtr Schema_;
 
-    TKeyComparer KeyComparer;
+    TKeyComparer KeyComparer_;
 
-    TSharedRef Data;
-    NProto::TDataBlockMeta Meta;
+    TSharedRef Data_;
+    NProto::TDataBlockMeta Meta_;
 
-    TChunkedMemoryPool MemoryPool;
+    TChunkedMemoryPool MemoryPool_;
 
-    TMutableVersionedRow Row;
+    TMutableVersionedRow Row_;
 
 
     void SetUp() override
     {
         auto blockWriter = TMockBlockFormatAdapter::CreateBlockWriter();
 
-        Row = TMutableVersionedRow::Allocate(&MemoryPool, 3, 5, 3, 1);
-        Row.Keys()[0] = MakeUnversionedStringValue("a", 0);
-        Row.Keys()[1] = MakeUnversionedInt64Value(1, 1);
-        Row.Keys()[2] = MakeUnversionedDoubleValue(1.5, 2);
+        Row_ = TMutableVersionedRow::Allocate(&MemoryPool_, 3, 5, 3, 1);
+        Row_.Keys()[0] = MakeUnversionedStringValue("a", 0);
+        Row_.Keys()[1] = MakeUnversionedInt64Value(1, 1);
+        Row_.Keys()[2] = MakeUnversionedDoubleValue(1.5, 2);
 
         // v1
-        Row.Values()[0] = MakeVersionedInt64Value(8, 11, 3);
-        Row.Values()[1] = MakeVersionedInt64Value(7, 3, 3);
+        Row_.Values()[0] = MakeVersionedInt64Value(8, 11, 3);
+        Row_.Values()[1] = MakeVersionedInt64Value(7, 3, 3);
         // v2
-        Row.Values()[2] = MakeVersionedBooleanValue(true, 5, 4);
-        Row.Values()[3] = MakeVersionedBooleanValue(false, 3, 4);
+        Row_.Values()[2] = MakeVersionedBooleanValue(true, 5, 4);
+        Row_.Values()[3] = MakeVersionedBooleanValue(false, 3, 4);
         // v3
-        Row.Values()[4] = MakeVersionedSentinelValue(EValueType::Null, 5, 5);
+        Row_.Values()[4] = MakeVersionedSentinelValue(EValueType::Null, 5, 5);
 
-        Row.WriteTimestamps()[2] = 3;
-        Row.WriteTimestamps()[1] = 5;
-        Row.WriteTimestamps()[0] = 11;
+        Row_.WriteTimestamps()[2] = 3;
+        Row_.WriteTimestamps()[1] = 5;
+        Row_.WriteTimestamps()[0] = 11;
 
-        Row.DeleteTimestamps()[0] = 9;
+        Row_.DeleteTimestamps()[0] = 9;
 
-        blockWriter->WriteRow(Row);
+        blockWriter->WriteRow(Row_);
 
         auto block = blockWriter->FlushBlock();
-        Data = MergeRefsToRef<TDefaultBlobTag>(block.Data);
-        Meta = block.Meta;
+        Data_ = MergeRefsToRef<TDefaultBlobTag>(block.Data);
+        Meta_ = block.Meta;
     }
 
     virtual void DoCheck(
@@ -182,13 +182,13 @@ protected:
         bool produceAllVersions)
     {
         typename TMockBlockFormatAdapter::TBlockReader reader(
-            Data,
-            Meta,
+            Data_,
+            Meta_,
             /*blockFormatVersion*/ 1,
-            Schema,
+            Schema_,
             keyColumnCount,
             schemaIdMapping,
-            KeyComparer,
+            KeyComparer_,
             timestamp,
             produceAllVersions);
         reader.SkipToRowIndex(0);
@@ -196,7 +196,7 @@ protected:
         int i = 0;
         do {
             EXPECT_LT(i, std::ssize(rows));
-            auto row = reader.GetRow(&MemoryPool);
+            auto row = reader.GetRow(&MemoryPool_);
             ExpectSchemafulRowsEqual(rows[i++], row);
         } while (reader.NextRow());
         EXPECT_EQ(i, std::ssize(rows));
@@ -234,7 +234,7 @@ public:
         NProto::TSystemBlockMetaExt systemBlockMeta;
         auto chunkIndex = chunkIndexBuilder->BuildIndex(rows.back().Keys(), &systemBlockMeta)[0];
 
-        TIndexedVersionedBlockFormatDetail blockFormatDetail(this->Schema);
+        TIndexedVersionedBlockFormatDetail blockFormatDetail(this->Schema_);
         auto hashTableChunkIndexBlockMeta = systemBlockMeta
             .system_blocks(0)
             .GetExtension(NProto::THashTableChunkIndexSystemBlockMeta::hash_table_chunk_index_system_block_meta_ext);
@@ -291,29 +291,29 @@ public:
 
         EXPECT_EQ(0, chunkIndexEntry.BlockIndex);
         EXPECT_EQ(0, chunkIndexEntry.BlockOffset);
-        EXPECT_LE(chunkIndexEntry.Length, std::ssize(this->Data));
+        EXPECT_LE(chunkIndexEntry.Length, std::ssize(this->Data_));
 
         auto actualRow = TIndexedVersionedRowReader(
             keyColumnCount,
             schemaIdMapping,
             timestamp,
             produceAllVersions,
-            this->Schema,
+            this->Schema_,
             /*groupIndexesToRead*/ std::vector<int>{})
             .ProcessAndGetRow(
-                {this->Data.Slice(0, chunkIndexEntry.Length)},
+                {this->Data_.Slice(0, chunkIndexEntry.Length)},
                 chunkIndexEntry.GroupOffsets.data(),
                 chunkIndexEntry.GroupIndexes.data(),
-                &this->MemoryPool);
+                &this->MemoryPool_);
         ExpectSchemafulRowsEqual(rows[0], actualRow);
 
         if (blockFormatDetail.GetGroupCount() > 1) {
             auto groupIndexesToRead = blockFormatDetail.GetGroupIndexesToRead(schemaIdMapping);
 
             TCompactVector<TSharedRef, IndexedRowTypicalGroupCount> rowData;
-            rowData.push_back(this->Data.Slice(0, chunkIndexEntry.GroupOffsets[0]));
+            rowData.push_back(this->Data_.Slice(0, chunkIndexEntry.GroupOffsets[0]));
             for (auto groupIndex : groupIndexesToRead) {
-                rowData.push_back(this->Data.Slice(
+                rowData.push_back(this->Data_.Slice(
                     chunkIndexEntry.GroupOffsets[groupIndex],
                     groupIndex + 1 == std::ssize(chunkIndexEntry.GroupOffsets)
                     ? chunkIndexEntry.Length - sizeof(TChecksum)
@@ -325,13 +325,13 @@ public:
                 schemaIdMapping,
                 timestamp,
                 produceAllVersions,
-                this->Schema,
+                this->Schema_,
                 groupIndexesToRead)
                 .ProcessAndGetRow(
                     rowData,
                     chunkIndexEntry.GroupOffsets.data(),
                     chunkIndexEntry.GroupIndexes.data(),
-                    &this->MemoryPool);
+                    &this->MemoryPool_);
             ExpectSchemafulRowsEqual(rows[0], actualRow);
         }
     }
@@ -367,7 +367,7 @@ TYPED_TEST_SUITE(TVersionedBlocksTestOneRow, TVersionedBlockTestOneRowImpls);
 
 TYPED_TEST(TVersionedBlocksTestOneRow, ReadByTimestamp1)
 {
-    auto row = TMutableVersionedRow::Allocate(&this->MemoryPool, 5, 3, 1, 0);
+    auto row = TMutableVersionedRow::Allocate(&this->MemoryPool_, 5, 3, 1, 0);
     row.Keys()[0] = MakeUnversionedStringValue("a", 0);
     row.Keys()[1] = MakeUnversionedInt64Value(1, 1);
     row.Keys()[2] = MakeUnversionedDoubleValue(1.5, 2);
@@ -386,7 +386,7 @@ TYPED_TEST(TVersionedBlocksTestOneRow, ReadByTimestamp1)
 
     this->DoCheck(
         rows,
-        this->Schema->GetKeyColumnCount() + 2, // Two padding key columns.
+        this->Schema_->GetKeyColumnCount() + 2, // Two padding key columns.
         schemaIdMapping,
         /*timestamp*/ 7,
         /*produceAllVersions*/ false);
@@ -394,7 +394,7 @@ TYPED_TEST(TVersionedBlocksTestOneRow, ReadByTimestamp1)
 
 TYPED_TEST(TVersionedBlocksTestOneRow, ReadByTimestamp2)
 {
-    auto row = TMutableVersionedRow::Allocate(&this->MemoryPool, 3, 0, 0, 1);
+    auto row = TMutableVersionedRow::Allocate(&this->MemoryPool_, 3, 0, 0, 1);
     row.Keys()[0] = MakeUnversionedStringValue("a", 0);
     row.Keys()[1] = MakeUnversionedInt64Value(1, 1);
     row.Keys()[2] = MakeUnversionedDoubleValue(1.5, 2);
@@ -407,7 +407,7 @@ TYPED_TEST(TVersionedBlocksTestOneRow, ReadByTimestamp2)
 
     this->DoCheck(
         rows,
-        this->Schema->GetKeyColumnCount(),
+        this->Schema_->GetKeyColumnCount(),
         schemaIdMapping,
         /*timestamp*/ 9,
         /*produceAllVersions*/ false);
@@ -415,7 +415,7 @@ TYPED_TEST(TVersionedBlocksTestOneRow, ReadByTimestamp2)
 
 TYPED_TEST(TVersionedBlocksTestOneRow, ReadLastCommitted)
 {
-    auto row = TMutableVersionedRow::Allocate(&this->MemoryPool, 3, 0, 1, 1);
+    auto row = TMutableVersionedRow::Allocate(&this->MemoryPool_, 3, 0, 1, 1);
     row.Keys()[0] = MakeUnversionedStringValue("a", 0);
     row.Keys()[1] = MakeUnversionedInt64Value(1, 1);
     row.Keys()[2] = MakeUnversionedDoubleValue(1.5, 2);
@@ -429,7 +429,7 @@ TYPED_TEST(TVersionedBlocksTestOneRow, ReadLastCommitted)
 
     this->DoCheck(
         rows,
-        this->Schema->GetKeyColumnCount(),
+        this->Schema_->GetKeyColumnCount(),
         schemaIdMapping,
         SyncLastCommittedTimestamp,
         /*produceAllVersions*/ false);
@@ -437,7 +437,7 @@ TYPED_TEST(TVersionedBlocksTestOneRow, ReadLastCommitted)
 
 TYPED_TEST(TVersionedBlocksTestOneRow, ReadAllCommitted)
 {
-    auto row = TMutableVersionedRow::Allocate(&this->MemoryPool, 3, 1, 3, 1);
+    auto row = TMutableVersionedRow::Allocate(&this->MemoryPool_, 3, 1, 3, 1);
     row.Keys()[0] = MakeUnversionedStringValue("a", 0);
     row.Keys()[1] = MakeUnversionedInt64Value(1, 1);
     row.Keys()[2] = MakeUnversionedDoubleValue(1.5, 2);
@@ -459,7 +459,7 @@ TYPED_TEST(TVersionedBlocksTestOneRow, ReadAllCommitted)
 
     this->DoCheck(
         rows,
-        this->Schema->GetKeyColumnCount(),
+        this->Schema_->GetKeyColumnCount(),
         schemaIdMapping,
         AllCommittedTimestamp,
         /*produceAllVersions*/ true);
@@ -488,15 +488,15 @@ TYPED_TEST_SUITE(TIndexedVersionedBlocksTestOneRow, TIndexedVersionedBlockTestOn
 
 TYPED_TEST(TIndexedVersionedBlocksTestOneRow, IndexedBlockIsSectorAligned)
 {
-    EXPECT_LT(0, std::ssize(this->Data));
-    EXPECT_EQ(0, AlignUpSpace<i64>(this->Data.Size(), THashTableChunkIndexFormatDetail::SectorSize));
+    EXPECT_LT(0, std::ssize(this->Data_));
+    EXPECT_EQ(0, AlignUpSpace<i64>(this->Data_.Size(), THashTableChunkIndexFormatDetail::SectorSize));
 }
 
 TYPED_TEST(TIndexedVersionedBlocksTestOneRow, HashTableChunkIndexMeta)
 {
     const auto& chunkIndexBuilder = this->GetChunkIndexBuilder();
     NProto::TSystemBlockMetaExt systemBlockMeta;
-    auto chunkIndex = chunkIndexBuilder->BuildIndex(this->Row.Keys(), &systemBlockMeta);
+    auto chunkIndex = chunkIndexBuilder->BuildIndex(this->Row_.Keys(), &systemBlockMeta);
 
     EXPECT_EQ(1, systemBlockMeta.system_blocks_size());
 
@@ -509,7 +509,7 @@ TYPED_TEST(TIndexedVersionedBlocksTestOneRow, HashTableChunkIndexMeta)
         0,
         TComparator({ESortOrder::Ascending, ESortOrder::Ascending, ESortOrder::Ascending}).CompareKeys(
             TKey::FromRow(lastKey),
-            TKey(this->Row.Keys())));
+            TKey(this->Row_.Keys())));
 
     EXPECT_EQ(1, std::ssize(chunkIndex));
     EXPECT_LT(0, std::ssize(chunkIndex[0]));

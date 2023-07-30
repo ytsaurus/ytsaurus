@@ -39,7 +39,8 @@ bool TPartitionChunkReader::Read(
         std::copy(key.Begin(), key.End(), valueInserter);
         rowDescriptorInserter = TRowDescriptor{
             BlockReader_,
-            static_cast<i32>(BlockReader_->GetRowIndex())};
+            static_cast<i32>(BlockReader_->GetRowIndex())
+        };
 
         if (!BlockReader_->NextRow()) {
             BlockEnded_ = true;

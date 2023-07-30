@@ -14,8 +14,8 @@ TTimestampSegmentReader::TTimestampSegmentReader(
     const char* data,
     TTimestamp timestamp)
     : Meta_(meta)
-      , TimestampMeta_(Meta_.GetExtension(TTimestampSegmentMeta::timestamp_segment_meta))
-      , Timestamp_(timestamp)
+    , TimestampMeta_(Meta_.GetExtension(TTimestampSegmentMeta::timestamp_segment_meta))
+    , Timestamp_(timestamp)
 {
     SegmentStartRowIndex_ = Meta_.chunk_row_count() - Meta_.row_count();
 

@@ -41,7 +41,11 @@ protected:
             ZigZagDecode32(OffsetReader_[offsetIndex]);
     }
 
-    void SetStringValue(TUnversionedValue* value, i64 offsetIndex, int id, EValueFlags flags) const
+    void SetStringValue(
+        TUnversionedValue* value,
+        i64 offsetIndex,
+        int id,
+        EValueFlags flags) const
     {
         ui32 padding = offsetIndex == 0 ? 0 : GetOffset(offsetIndex - 1);
         const char* begin = StringData_.Begin() + padding;
@@ -75,7 +79,11 @@ class TDictionaryStringValueExtractorBase
 public:
     using TStringValueExtractorBase<ValueType, Scan, UnpackValue>::TStringValueExtractorBase;
 
-    void ExtractValue(TUnversionedValue* value, i64 valueIndex, int id, EValueFlags flags) const
+    void ExtractValue(
+        TUnversionedValue* value,
+        i64 valueIndex,
+        int id,
+        EValueFlags flags) const
     {
         auto dictionaryIndex = IndexReader_[valueIndex];
         if (dictionaryIndex == 0) {
@@ -122,7 +130,11 @@ class TDirectStringValueExtractorBase
 public:
     using TStringValueExtractorBase<ValueType, Scan, UnpackValue>::TStringValueExtractorBase;
 
-    void ExtractValue(TUnversionedValue* value, i64 valueIndex, int id, EValueFlags flags) const
+    void ExtractValue(
+        TUnversionedValue* value,
+        i64 valueIndex,
+        int id,
+        EValueFlags flags) const
     {
         if (NullBitmap_[valueIndex]) {
             *value = MakeUnversionedSentinelValue(EValueType::Null, id, flags & ~EValueFlags::Hunk);
@@ -165,7 +177,10 @@ class TDirectDenseVersionedStringValueExtractor
     , public TDirectStringValueExtractorBase<ValueType, true, false>
 {
 public:
-    TDirectDenseVersionedStringValueExtractor(TRef data, const TSegmentMeta& meta, bool aggregate)
+    TDirectDenseVersionedStringValueExtractor(
+        TRef data,
+        const TSegmentMeta& meta,
+        bool aggregate)
         : TDenseVersionedValueExtractorBase(meta, aggregate)
         , TDirectStringValueExtractorBase<ValueType, true, false>(meta)
     {
@@ -187,7 +202,10 @@ class TDictionaryDenseVersionedStringValueExtractor
     , public TDictionaryStringValueExtractorBase<ValueType, true, false>
 {
 public:
-    TDictionaryDenseVersionedStringValueExtractor(TRef data, const TSegmentMeta& meta, bool aggregate)
+    TDictionaryDenseVersionedStringValueExtractor(
+        TRef data,
+        const TSegmentMeta& meta,
+        bool aggregate)
         : TDenseVersionedValueExtractorBase(meta, aggregate)
         , TDictionaryStringValueExtractorBase<ValueType, true, false>(meta)
     {
@@ -206,7 +224,10 @@ class TDirectSparseVersionedStringValueExtractor
     , public TDirectStringValueExtractorBase<ValueType, true, false>
 {
 public:
-    TDirectSparseVersionedStringValueExtractor(TRef data, const TSegmentMeta& meta, bool aggregate)
+    TDirectSparseVersionedStringValueExtractor(
+        TRef data,
+        const TSegmentMeta& meta,
+        bool aggregate)
         : TSparseVersionedValueExtractorBase(aggregate)
         , TDirectStringValueExtractorBase<ValueType, true, false>(meta)
     {
@@ -225,7 +246,10 @@ class TDictionarySparseVersionedStringValueExtractor
     , public TDictionaryStringValueExtractorBase<ValueType, true, false>
 {
 public:
-    TDictionarySparseVersionedStringValueExtractor(TRef data, const TSegmentMeta& meta, bool aggregate)
+    TDictionarySparseVersionedStringValueExtractor(
+        TRef data,
+        const TSegmentMeta& meta,
+        bool aggregate)
         : TSparseVersionedValueExtractorBase(aggregate)
         , TDictionaryStringValueExtractorBase<ValueType, true, false>(meta)
     {
@@ -244,7 +268,9 @@ class TDirectRleStringUnversionedValueExtractor
     , public TDirectStringValueExtractorBase<ValueType, Scan, true>
 {
 public:
-    TDirectRleStringUnversionedValueExtractor(TRef data, const TSegmentMeta& meta)
+    TDirectRleStringUnversionedValueExtractor(
+        TRef data,
+        const TSegmentMeta& meta)
         : TDirectStringValueExtractorBase<ValueType, Scan, true>(meta)
     {
         const char* ptr = data.Begin();
@@ -308,7 +334,9 @@ class TDictionaryRleStringUnversionedValueExtractor
     , public TDictionaryStringValueExtractorBase<ValueType, Scan, true>
 {
 public:
-    TDictionaryRleStringUnversionedValueExtractor(TRef data, const TSegmentMeta& meta)
+    TDictionaryRleStringUnversionedValueExtractor(
+        TRef data,
+        const TSegmentMeta& meta)
         : TDictionaryStringValueExtractorBase<ValueType, Scan, true>(meta)
     {
         const char* ptr = data.Begin();
@@ -373,7 +401,9 @@ class TDictionaryDenseStringUnversionedValueExtractor
     : public TDictionaryStringValueExtractorBase<ValueType, Scan, true>
 {
 public:
-    TDictionaryDenseStringUnversionedValueExtractor(TRef data, const TSegmentMeta& meta)
+    TDictionaryDenseStringUnversionedValueExtractor(
+        TRef data,
+        const TSegmentMeta& meta)
         : TBase(meta)
     {
         const char* ptr = data.Begin();
@@ -427,7 +457,9 @@ class TDirectDenseStringUnversionedValueExtractor
     : public TDirectStringValueExtractorBase<ValueType, Scan, true>
 {
 public:
-    TDirectDenseStringUnversionedValueExtractor(TRef data, const TSegmentMeta& meta)
+    TDirectDenseStringUnversionedValueExtractor(
+        TRef data,
+        const TSegmentMeta& meta)
         : TBase(meta)
     {
         const char* ptr = data.Begin();
@@ -477,15 +509,7 @@ class TVersionedStringColumnReader
     : public TVersionedColumnReaderBase
 {
 public:
-    TVersionedStringColumnReader(
-        const TColumnMeta& columnMeta,
-        int columnId,
-        const TColumnSchema& columnSchema)
-        : TVersionedColumnReaderBase(
-            columnMeta,
-            columnId,
-            columnSchema)
-    { }
+    using TVersionedColumnReaderBase::TVersionedColumnReaderBase;
 
 private:
     std::unique_ptr<IVersionedSegmentReader> CreateSegmentReader(int segmentIndex) override

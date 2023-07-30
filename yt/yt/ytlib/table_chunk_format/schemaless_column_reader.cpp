@@ -164,7 +164,9 @@ std::unique_ptr<ISchemalessColumnReader> CreateSchemalessColumnReader(
     const TColumnMeta& meta,
     const std::vector<int>& chunkToReaderIdMapping)
 {
-    return std::make_unique<TSchemalessColumnReader>(meta, chunkToReaderIdMapping);
+    return std::make_unique<TSchemalessColumnReader>(
+        meta,
+        chunkToReaderIdMapping);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

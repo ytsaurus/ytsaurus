@@ -231,7 +231,7 @@ public:
 
         MemoryPool_.Clear();
 
-        if (RangeIndex_ >= Ranges_.Size()) {
+        if (RangeIndex_ >= std::ssize(Ranges_)) {
             return nullptr;
         }
 
@@ -261,7 +261,7 @@ public:
             if (CheckKeyLimit_ &&
                 CompareKeys(BlockReader_->GetKey(), GetCurrentRangeUpperKey(), KeyComparer_) >= 0)
             {
-                if (++RangeIndex_ < Ranges_.Size()) {
+                if (++RangeIndex_ < std::ssize(Ranges_)) {
                     if (!BlockReader_->SkipToKey(GetCurrentRangeLowerKey())) {
                         BlockEnded_ = true;
                         break;
@@ -307,9 +307,9 @@ private:
     using TBlockReaderAdapter<TBlockReader>::BlockReader_;
 
     std::vector<size_t> BlockIndexes_;
-    size_t NextBlockIndex_ = 0;
+    int NextBlockIndex_ = 0;
     TSharedRange<TRowRange> Ranges_;
-    size_t RangeIndex_ = 0;
+    int RangeIndex_ = 0;
     TSharedRange<TRowRange> ClippingRange_;
 
 

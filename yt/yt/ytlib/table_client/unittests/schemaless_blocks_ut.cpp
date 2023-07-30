@@ -25,17 +25,17 @@ protected:
     {
         std::vector<TUnversionedRow> actual;
         do {
-            auto row = reader.GetRow(&MemoryPool);
+            auto row = reader.GetRow(&MemoryPool_);
             actual.push_back(row);
         } while (reader.NextRow());
         CheckSchemafulResult(actual, rows);
     }
 
 protected:
-    TSharedRef Data;
-    NProto::TDataBlockMeta Meta;
+    TSharedRef Data_;
+    NProto::TDataBlockMeta Meta_;
 
-    TChunkedMemoryPool MemoryPool;
+    TChunkedMemoryPool MemoryPool_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -48,7 +48,7 @@ protected:
     {
         THorizontalBlockWriter blockWriter(New<TTableSchema>());
 
-        auto row = TMutableUnversionedRow::Allocate(&MemoryPool, 5);
+        auto row = TMutableUnversionedRow::Allocate(&MemoryPool_, 5);
         row[0] = MakeUnversionedStringValue("a", 0);
         row[1] = MakeUnversionedInt64Value(1, 3);
         row[2] = MakeUnversionedDoubleValue(1.5, 2);
@@ -60,8 +60,8 @@ protected:
         auto block = blockWriter.FlushBlock();
         auto* codec = GetCodec(ECodec::None);
 
-        Data = codec->Compress(block.Data);
-        Meta = block.Meta;
+        Data_ = codec->Compress(block.Data);
+        Meta_ = block.Meta;
     }
 
     template <EValueType WriterType, EValueType ReaderType>
@@ -71,7 +71,7 @@ protected:
             0,
         };
 
-        auto row = TMutableUnversionedRow::Allocate(&MemoryPool, 1);
+        auto row = TMutableUnversionedRow::Allocate(&MemoryPool_, 1);
         row[0] = MakeUnversionedStringLikeValue(WriterType, "[]", 0);
 
         THorizontalBlockWriter blockWriter(New<TTableSchema>());
@@ -79,11 +79,11 @@ protected:
         auto block = blockWriter.FlushBlock();
 
         auto* codec = GetCodec(ECodec::None);
-        Data = codec->Compress(block.Data);
-        Meta = block.Meta;
+        Data_ = codec->Compress(block.Data);
+        Meta_ = block.Meta;
 
 
-        auto expectedRow = TMutableUnversionedRow::Allocate(&MemoryPool, 1);
+        auto expectedRow = TMutableUnversionedRow::Allocate(&MemoryPool_, 1);
         expectedRow[0] = MakeUnversionedStringLikeValue(ReaderType, "[]", 0);
 
         std::vector<bool> compositeColumnFlags;
@@ -92,8 +92,8 @@ protected:
         }
 
         THorizontalBlockReader blockReader(
-            Data,
-            Meta,
+            Data_,
+            Meta_,
             compositeColumnFlags,
             /*hunkColumnFlags*/ std::vector<bool>{},
             /*hunkChunkMetasExt*/ {},
@@ -101,7 +101,8 @@ protected:
             idMapping,
             /*sortOrders*/ {},
             /*commonKeyPrefix*/ 0,
-            /*keyWideningOptions*/ {});
+            /*keyWideningOptions*/ {},
+            /*extraColumnCount*/ 0);
 
         CheckResult(blockReader, std::vector<TUnversionedRow>{expectedRow});
     }
@@ -128,9 +129,10 @@ TEST_F(TSchemalessBlocksTestOneRow, ReadColumnFilter)
         -1,
         -1,
         -1,
-        1};
+        1
+    };
 
-    auto row = TMutableUnversionedRow::Allocate(&MemoryPool, 2);
+    auto row = TMutableUnversionedRow::Allocate(&MemoryPool_, 2);
     row[0] = MakeUnversionedDoubleValue(1.5, 0);
     row[1] = MakeUnversionedInt64Value(7, 1);
 
@@ -138,8 +140,8 @@ TEST_F(TSchemalessBlocksTestOneRow, ReadColumnFilter)
     rows.push_back(row);
 
     THorizontalBlockReader blockReader(
-        Data,
-        Meta,
+        Data_,
+        Meta_,
         /*compositeColumnFlags*/ std::vector<bool>{},
         /*hunkColumnFlags*/ std::vector<bool>{},
         /*hunkChunkMetasExt*/ {},
@@ -167,8 +169,8 @@ TEST_F(TSchemalessBlocksTestOneRow, SkipToKey)
 
     std::vector<ESortOrder> sortOrders(2, ESortOrder::Ascending);
     THorizontalBlockReader blockReader(
-        Data,
-        Meta,
+        Data_,
+        Meta_,
         std::vector<bool>{},
         /*hunkColumnFlags*/ std::vector<bool>{},
         /*hunkChunkMetasExt*/ {},
@@ -216,15 +218,15 @@ protected:
         auto block = blockWriter.FlushBlock();
         auto* codec = GetCodec(ECodec::None);
 
-        Data = codec->Compress(block.Data);
-        Meta = block.Meta;
+        Data_ = codec->Compress(block.Data);
+        Meta_ = block.Meta;
     }
 
     std::vector<TUnversionedRow> MakeRows(int beginIndex, int endIndex)
     {
         std::vector<TUnversionedRow> result;
         for (int i = beginIndex; i < endIndex ; ++i) {
-            auto row = TMutableUnversionedRow::Allocate(&MemoryPool, 2);
+            auto row = TMutableUnversionedRow::Allocate(&MemoryPool_, 2);
             row[0] = MakeUnversionedInt64Value(i, 0);
             row[1] = MakeUnversionedStringValue("big data", 1);
             result.push_back(row);
@@ -240,8 +242,8 @@ TEST_F(TSchemalessBlocksTestManyRows, SkipToKey)
 
     std::vector<ESortOrder> sortOrders(2, ESortOrder::Ascending);
     THorizontalBlockReader blockReader(
-        Data,
-        Meta,
+        Data_,
+        Meta_,
         std::vector<bool>{},
         /*hunkColumnFlags*/ std::vector<bool>{},
         /*hunkChunkMetasExt*/ {},
@@ -265,8 +267,8 @@ TEST_F(TSchemalessBlocksTestManyRows, SkipToWiderKey)
 
     std::vector<ESortOrder> sortOrders(2, ESortOrder::Ascending);
     THorizontalBlockReader blockReader(
-        Data,
-        Meta,
+        Data_,
+        Meta_,
         std::vector<bool>{},
         /*hunkColumnFlags*/ std::vector<bool>{},
         /*hunkChunkMetasExt*/ {},

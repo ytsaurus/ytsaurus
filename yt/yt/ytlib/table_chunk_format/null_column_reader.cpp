@@ -19,7 +19,9 @@ using namespace NTableClient;
 class TNullValueExtractor
 {
 public:
-    TNullValueExtractor(TRef /*data*/, const TSegmentMeta& /*meta*/)
+    TNullValueExtractor(
+        TRef /*data*/,
+        const TSegmentMeta& /*meta*/)
     { }
 
     void ExtractValue(TUnversionedValue* value, i64 /*valueIndex*/, int id, EValueFlags flags) const
@@ -209,7 +211,12 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedNullColumnReader(
     std::optional<ESortOrder> sortOrder,
     const NTableClient::TColumnSchema& columnSchema)
 {
-    return std::make_unique<TUnversionedNullColumnReader>(columnMeta, columnIndex, columnId, sortOrder, columnSchema);
+    return std::make_unique<TUnversionedNullColumnReader>(
+        columnMeta,
+        columnIndex,
+        columnId,
+        sortOrder,
+        columnSchema);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -219,7 +226,10 @@ std::unique_ptr<IUnversionedColumnReader> CreateBlocklessUnversionedNullColumnRe
     int columnId,
     std::optional<ESortOrder> sortOrder)
 {
-    return std::make_unique<TBlocklessUnversionedNullColumnReader>(columnIndex, columnId, sortOrder);
+    return std::make_unique<TBlocklessUnversionedNullColumnReader>(
+        columnIndex,
+        columnId,
+        sortOrder);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

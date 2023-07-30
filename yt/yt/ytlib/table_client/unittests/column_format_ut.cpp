@@ -35,13 +35,16 @@ std::pair<TSharedRef, TColumnMeta> TSingleColumnWriter::WriteSingleSegmentBlock(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSingleColumnReader::TSingleColumnReader(TReaderCreatorFunc readerCreator)
-     : ReaderCreatorFunc_(readerCreator)
+TSingleColumnReader::TSingleColumnReader(TReaderFactory readerCreator)
+     : Factory_(readerCreator)
 { }
 
-std::vector<TUnversionedOwningRow> TSingleColumnReader::ReadBlock(const TSharedRef& data, const TColumnMeta& meta, ui16 columnId)
+std::vector<TUnversionedOwningRow> TSingleColumnReader::ReadBlock(
+    const TSharedRef& data,
+    const TColumnMeta& meta,
+    ui16 columnId)
 {
-    auto reader = ReaderCreatorFunc_(meta, 0, columnId, std::nullopt, TColumnSchema());
+    auto reader = Factory_(meta, 0, columnId, std::nullopt, TColumnSchema());
     reader->SetCurrentBlock(data, 0);
     i64 totalRowCount = 0;
     for (const auto& segment : meta.segments()) {
@@ -59,8 +62,8 @@ std::vector<TUnversionedOwningRow> TSingleColumnReader::ReadBlock(const TSharedR
 
     std::vector<TUnversionedOwningRow> rows;
     rows.reserve(mutableRows.size());
-    for (const auto& r : mutableRows) {
-        rows.emplace_back(r);
+    for (auto row : mutableRows) {
+        rows.emplace_back(row);
     }
     return rows;
 }

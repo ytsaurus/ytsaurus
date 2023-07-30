@@ -400,8 +400,9 @@ private:
             auto rowDescriptorInserter = std::back_inserter(RowDescriptorBuffer_);
 
             auto result = UnderlyingReader_->Read(keyInserter, rowDescriptorInserter, &rowCount);
-            if (!result)
+            if (!result) {
                 break;
+            }
 
             if (rowCount == 0) {
                 WaitFor(UnderlyingReader_->GetReadyEvent())

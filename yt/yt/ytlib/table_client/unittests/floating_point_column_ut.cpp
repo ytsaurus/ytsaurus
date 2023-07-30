@@ -115,11 +115,17 @@ protected:
 
     std::unique_ptr<IVersionedColumnReader> DoCreateColumnReader() override
     {
+        auto doCreate = [&] (auto factory) {
+            return factory(
+                ColumnMeta_,
+                ColumnId,
+                ColumnSchema_);
+        };
         switch (GetParam()) {
             case ESimpleLogicalValueType::Float:
-                return CreateVersionedFloatingPointColumnReader<float>(ColumnMeta_, ColumnId, ColumnSchema_);
+                return doCreate(CreateVersionedFloatingPointColumnReader<float>);
             case ESimpleLogicalValueType::Double:
-                return CreateVersionedFloatingPointColumnReader<double>(ColumnMeta_, ColumnId, ColumnSchema_);
+                return doCreate(CreateVersionedFloatingPointColumnReader<double>);
             default:
                 YT_ABORT();
         }
@@ -127,11 +133,18 @@ protected:
 
     std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override
     {
+        auto doCreate = [&] (auto factory) {
+            return factory(
+                ColumnId,
+                ColumnSchema_,
+                blockWriter,
+                DefaultMaxSegmentValueCount);
+        };
         switch (GetParam()) {
             case ESimpleLogicalValueType::Float:
-                return CreateVersionedFloatingPointColumnWriter<float>(ColumnId, ColumnSchema_, blockWriter);
+                return doCreate(CreateVersionedFloatingPointColumnWriter<float>);
             case ESimpleLogicalValueType::Double:
-                return CreateVersionedFloatingPointColumnWriter<double>(ColumnId, ColumnSchema_, blockWriter);
+                return doCreate(CreateVersionedFloatingPointColumnWriter<double>);
             default:
                 YT_ABORT();
         }
@@ -201,11 +214,19 @@ protected:
 
     std::unique_ptr<IUnversionedColumnReader> DoCreateColumnReader() override
     {
+        auto doCreate = [&] (auto factory) {
+            return factory(
+                ColumnMeta_,
+                ColumnIndex,
+                ColumnId,
+                ESortOrder::Ascending,
+                TColumnSchema());
+        };
         switch (GetParam()) {
             case ESimpleLogicalValueType::Float:
-                return CreateUnversionedFloatingPointColumnReader<float>(ColumnMeta_, ColumnIndex, ColumnId, ESortOrder::Ascending, TColumnSchema());
+                return doCreate(CreateUnversionedFloatingPointColumnReader<float>);
             case ESimpleLogicalValueType::Double:
-                return CreateUnversionedFloatingPointColumnReader<double>(ColumnMeta_, ColumnIndex, ColumnId, ESortOrder::Ascending, TColumnSchema());
+                return doCreate(CreateUnversionedFloatingPointColumnReader<double>);
             default:
                 YT_ABORT();
         }
@@ -213,11 +234,17 @@ protected:
 
     std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) override
     {
+        auto doCreate = [&] (auto factory) {
+            return factory(
+                ColumnIndex,
+                blockWriter,
+                DefaultMaxSegmentValueCount);
+        };
         switch (GetParam()) {
             case ESimpleLogicalValueType::Float:
-                return CreateUnversionedFloatingPointColumnWriter<float>(ColumnIndex, blockWriter);
+                return doCreate(CreateUnversionedFloatingPointColumnWriter<float>);
             case ESimpleLogicalValueType::Double:
-                return CreateUnversionedFloatingPointColumnWriter<double>(ColumnIndex, blockWriter);
+                return doCreate(CreateUnversionedFloatingPointColumnWriter<double>);
             default:
                 YT_ABORT();
         }

@@ -41,13 +41,13 @@ private:
 class TSingleColumnReader
 {
 public:
-    using TReaderCreatorFunc = std::function<std::unique_ptr<NTableChunkFormat::IUnversionedColumnReader>(
+    using TReaderFactory = std::function<std::unique_ptr<NTableChunkFormat::IUnversionedColumnReader>(
         const NTableChunkFormat::NProto::TColumnMeta&,
         int,
         int,
         std::optional<ESortOrder>,
         const NTableClient::TColumnSchema& columnSchema)>;
-    explicit TSingleColumnReader(TReaderCreatorFunc readerCreator);
+    explicit TSingleColumnReader(TReaderFactory factory);
 
     std::vector<TUnversionedOwningRow> ReadBlock(
         const TSharedRef& data,
@@ -55,7 +55,7 @@ public:
         ui16 columnId);
 
 private:
-    TReaderCreatorFunc ReaderCreatorFunc_;
+    const TReaderFactory Factory_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

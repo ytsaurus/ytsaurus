@@ -531,14 +531,13 @@ protected:
     template <class TSegmentReader>
     std::unique_ptr<IUnversionedSegmentReader> DoCreateSegmentReader(const NProto::TSegmentMeta& meta)
     {
-        IUnversionedSegmentReader* reader = new TSegmentReader(
+        return std::unique_ptr<IUnversionedSegmentReader>(new TSegmentReader(
             TRef(Block_.Begin() + meta.offset(), meta.size()),
             meta,
             ColumnIndex_,
             ColumnId_,
             SortOrder_,
-            ColumnSchema_);
-        return std::unique_ptr<IUnversionedSegmentReader>(reader);
+            ColumnSchema_));
     }
 
     template <class TRow>
@@ -778,17 +777,7 @@ class TDenseVersionedSegmentReader
     : public TVersionedSegmentReaderBase<TValueExtractor>
 {
 public:
-    TDenseVersionedSegmentReader(
-        TRef data,
-        const NProto::TSegmentMeta& meta,
-        int columnId,
-        const NTableClient::TColumnSchema& columnSchema)
-        : TVersionedSegmentReaderBase<TValueExtractor>(
-            data,
-            meta,
-            columnId,
-            columnSchema)
-    { }
+    using TVersionedSegmentReaderBase<TValueExtractor>::TVersionedSegmentReaderBase;
 
     void SkipToRowIndex(i64 rowIndex) override
     {
@@ -874,17 +863,7 @@ class TSparseVersionedSegmentReader
     : public TVersionedSegmentReaderBase<TValueExtractor>
 {
 public:
-    TSparseVersionedSegmentReader(
-        TRef data,
-        const NProto::TSegmentMeta& meta,
-        int columnId,
-        const NTableClient::TColumnSchema& columnSchema)
-        : TVersionedSegmentReaderBase<TValueExtractor>(
-            data,
-            meta,
-            columnId,
-            columnSchema)
-    { }
+    using TVersionedSegmentReaderBase<TValueExtractor>::TVersionedSegmentReaderBase;
 
     void SkipToRowIndex(i64 rowIndex) override
     {

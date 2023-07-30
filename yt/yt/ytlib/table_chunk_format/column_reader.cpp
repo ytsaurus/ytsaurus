@@ -22,34 +22,39 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedColumnReader(
     int columnId,
     std::optional<ESortOrder> sortOrder)
 {
+    auto doCreate = [&] (auto factory) {
+        return factory(meta, columnIndex, columnId, sortOrder, schema);
+    };
+
     switch (schema.GetWireType()) {
         case EValueType::Int64:
-            return CreateUnversionedInt64ColumnReader(meta, columnIndex, columnId, sortOrder, schema);
+            return doCreate(CreateUnversionedInt64ColumnReader);
 
         case EValueType::Uint64:
-            return CreateUnversionedUint64ColumnReader(meta, columnIndex, columnId, sortOrder, schema);
+            return doCreate(CreateUnversionedUint64ColumnReader);
 
         case EValueType::Double:
             switch (auto simplifiedLogicalType = schema.CastToV1Type()) {
                 case ESimpleLogicalValueType::Float:
-                    return CreateUnversionedFloatingPointColumnReader<float>(meta, columnIndex, columnId, sortOrder, schema);
+                    return doCreate(CreateUnversionedFloatingPointColumnReader<float>);
                 default:
                     YT_VERIFY(simplifiedLogicalType == ESimpleLogicalValueType::Double);
-                    return CreateUnversionedFloatingPointColumnReader<double>(meta, columnIndex, columnId, sortOrder, schema);
+                    return doCreate(CreateUnversionedFloatingPointColumnReader<double>);
             }
         case EValueType::String:
-            return CreateUnversionedStringColumnReader(meta, columnIndex, columnId, sortOrder, schema);
+            return doCreate(CreateUnversionedStringColumnReader);
 
         case EValueType::Boolean:
-            return CreateUnversionedBooleanColumnReader(meta, columnIndex, columnId, sortOrder, schema);
+            return doCreate(CreateUnversionedBooleanColumnReader);
 
         case EValueType::Any:
-            return CreateUnversionedAnyColumnReader(meta, columnIndex, columnId, sortOrder, schema);
+            return doCreate(CreateUnversionedAnyColumnReader);
+
         case EValueType::Composite:
-            return CreateUnversionedCompositeColumnReader(meta, columnIndex, columnId, sortOrder, schema);
+            return doCreate(CreateUnversionedCompositeColumnReader);
 
         case EValueType::Null:
-            return CreateUnversionedNullColumnReader(meta, columnIndex, columnId, sortOrder, schema);
+            return doCreate(CreateUnversionedNullColumnReader);
 
         default:
             ThrowUnexpectedValueType(schema.GetWireType());
@@ -59,64 +64,44 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedColumnReader(
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IVersionedColumnReader> CreateVersionedColumnReader(
-    const TColumnSchema& columnSchema,
+    const TColumnSchema& schema,
     const TColumnMeta& meta,
     int columnId)
 {
-    auto simplifiedLogicalType = columnSchema.CastToV1Type();
-    switch (columnSchema.GetWireType()) {
+    auto doCreate = [&] (auto factory) {
+        return factory(meta, columnId, schema);
+    };
+
+    auto simplifiedLogicalType = schema.CastToV1Type();
+    switch (schema.GetWireType()) {
         case EValueType::Int64:
-            return CreateVersionedInt64ColumnReader(
-                meta,
-                columnId,
-                columnSchema);
+            return doCreate(CreateVersionedInt64ColumnReader);
 
         case EValueType::Uint64:
-            return CreateVersionedUint64ColumnReader(
-                meta,
-                columnId,
-                columnSchema);
+            return doCreate(CreateVersionedUint64ColumnReader);
 
         case EValueType::Double:
             switch (simplifiedLogicalType) {
                 case ESimpleLogicalValueType::Float:
-                    return CreateVersionedFloatingPointColumnReader<float>(
-                        meta,
-                        columnId,
-                        columnSchema);
+                    return doCreate(CreateVersionedFloatingPointColumnReader<float>);
                 default:
-                    return CreateVersionedFloatingPointColumnReader<double>(
-                        meta,
-                        columnId,
-                        columnSchema);
+                    return doCreate(CreateVersionedFloatingPointColumnReader<double>);
             }
 
         case EValueType::Boolean:
-            return CreateVersionedBooleanColumnReader(
-                meta,
-                columnId,
-                columnSchema);
+            return doCreate(CreateVersionedBooleanColumnReader);
 
         case EValueType::String:
-            return CreateVersionedStringColumnReader(
-                meta,
-                columnId,
-                columnSchema);
+            return doCreate(CreateVersionedStringColumnReader);
 
         case EValueType::Any:
-            return CreateVersionedAnyColumnReader(
-                meta,
-                columnId,
-                columnSchema);
+            return doCreate(CreateVersionedAnyColumnReader);
 
         case EValueType::Composite:
-            return CreateVersionedCompositeColumnReader(
-                meta,
-                columnId,
-                columnSchema);
+            return doCreate(CreateVersionedCompositeColumnReader);
 
         default:
-            ThrowUnexpectedValueType(columnSchema.GetWireType());
+            ThrowUnexpectedValueType(schema.GetWireType());
     }
 }
 
