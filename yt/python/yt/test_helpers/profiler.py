@@ -233,8 +233,8 @@ class ProfilerFactory(object):
         path = "{}/{}/orchid/sensors".format(masters_path_prefix, master_address)
         return Profiler(self.yt_client, path, **kwargs)
 
-    def at_proxy(self, proxy, **kwargs):
-        return Profiler(self.yt_client, "//sys/proxies/{0}/orchid/sensors".format(proxy), **kwargs)
+    def at_http_proxy(self, proxy, **kwargs):
+        return Profiler(self.yt_client, "//sys/http_proxies/{0}/orchid/sensors".format(proxy), **kwargs)
 
     def at_rpc_proxy(self, proxy, *args, **kwargs):
         return Profiler(self.yt_client, "//sys/rpc_proxies/{0}/orchid/sensors".format(proxy), *args, **kwargs)

@@ -15,9 +15,9 @@ class TestClusterConnectionDynamicConfig(YTEnvSetup):
         # Unfortunately current implementation relies on //sys/clusters rather than on //sys/@cluster_connection.
         set("//sys/clusters/primary/default_list_operations_timeout", 424242)
 
-        http_proxy = ls("//sys/proxies")[0]
+        http_proxy = ls("//sys/http_proxies")[0]
         wait(lambda:
-             get(f"//sys/proxies/{http_proxy}/orchid/cluster_connection"
+             get(f"//sys/http_proxies/{http_proxy}/orchid/cluster_connection"
                  f"/dynamic_config/default_list_operations_timeout") == 424242)
 
         # For now, node is not configured to automatically update cluster connection.

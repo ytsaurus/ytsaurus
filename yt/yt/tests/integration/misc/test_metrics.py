@@ -92,7 +92,7 @@ class TestPortoMetrics(MetricsTestBase):
 
     @authors("don-dron")
     def test_porto_metrics(self):
-        proxies = ls("//sys/proxies")
+        proxies = ls("//sys/http_proxies")
         proxy = proxies[0]
 
         def get_yson(url):
@@ -102,7 +102,7 @@ class TestPortoMetrics(MetricsTestBase):
         assert get_yson(self._get_proxy_address() + "/hosts?role=data") == [proxy]
         assert get_yson(self._get_proxy_address() + "/hosts?role=control") == []
 
-        set("//sys/proxies/" + proxy + "/@role", "control")
+        set("//sys/http_proxies/" + proxy + "/@role", "control")
 
         def check_role_updated():
             return get_yson(self._get_proxy_address() + "/hosts") == [] and \
@@ -174,7 +174,7 @@ class TestPortoMetrics(MetricsTestBase):
         ]
 
         def check_node_sensors(node, container_category, node_sensors):
-            node_profiler = profiler_factory().at_proxy(node)
+            node_profiler = profiler_factory().at_http_proxy(node)
             for sensor_name in node_sensors:
                 sensor = node_profiler.gauge(name=sensor_name, fixed_tags={"container_category": container_category})
                 value = sensor.get()

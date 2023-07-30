@@ -36,7 +36,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
     }
 
     def _get_proxy_metric(self, metric_name):
-        return profiler_factory().at_proxy(self.Env.get_http_proxy_address()).counter(metric_name)
+        return profiler_factory().at_http_proxy(self.Env.get_http_proxy_address()).counter(metric_name)
 
     @authors("evgenstf")
     def test_instance_choice(self):
@@ -396,7 +396,7 @@ class TestClickHouseProxyStructuredLog(ClickHouseTestBase):
     def setup_method(self, method):
         super(TestClickHouseProxyStructuredLog, self).setup_method(method)
 
-        proxy_orchid = "//sys/proxies/" + ls("//sys/proxies")[0] + "/orchid"
+        proxy_orchid = "//sys/http_proxies/" + ls("//sys/http_proxies")[0] + "/orchid"
         self.proxy_address = get(proxy_orchid + "/@remote_addresses/default")
 
         self.proxy_log_file = self.path_to_run + "/logs/http-proxy-0.chyt.yson.log"

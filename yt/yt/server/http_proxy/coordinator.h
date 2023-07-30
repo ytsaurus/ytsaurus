@@ -75,7 +75,7 @@ class TCoordinator
 {
 public:
     TCoordinator(
-        const TProxyConfigPtr& config,
+        TProxyConfigPtr config,
         TBootstrap* bootstrap);
 
     void Start();
@@ -186,7 +186,7 @@ public:
     TDiscoverVersionsHandler(
         NApi::NNative::IConnectionPtr connection,
         NApi::IClientPtr client,
-        const TCoordinatorConfigPtr config);
+        TCoordinatorConfigPtr config);
 
 protected:
     const NApi::NNative::IConnectionPtr Connection_;

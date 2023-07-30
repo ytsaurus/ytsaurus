@@ -117,7 +117,7 @@ def test_environment_with_framing(request):
     environment = init_environment_for_test_session(request, request.param, delta_proxy_config=delta_proxy_config)
 
     # Setup framing keep-alive period through dynamic config.
-    yt.set("//sys/proxies/@config", {"framing": {"keep_alive_period": keep_alive_period}})
+    yt.set("//sys/http_proxies/@config", {"framing": {"keep_alive_period": keep_alive_period}})
     monitoring_port = environment.env.configs["http_proxy"][0]["monitoring_port"]
     config_url = "http://localhost:{}/orchid/dynamic_config_manager/effective_config".format(monitoring_port)
     wait(lambda: requests.get(config_url).json()["framing"]["keep_alive_period"] == keep_alive_period)

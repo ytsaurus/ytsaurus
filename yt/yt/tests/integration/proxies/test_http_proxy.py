@@ -90,8 +90,8 @@ class HttpProxyTestBase(YTEnvSetup):
 
 class TestHttpProxy(HttpProxyTestBase):
     def teardown_method(self, method):
-        for proxy in ls("//sys/proxies"):
-            set("//sys/proxies/{}/@role".format(proxy), "data")
+        for proxy in ls("//sys/http_proxies"):
+            set("//sys/http_proxies/{}/@role".format(proxy), "data")
         super(TestHttpProxy, self).teardown_method(method)
 
     @authors("prime")
@@ -112,7 +112,7 @@ class TestHttpProxy(HttpProxyTestBase):
 
     @authors("levysotsky")
     def test_hosts(self):
-        proxy = ls("//sys/proxies")[0]
+        proxy = ls("//sys/http_proxies")[0]
 
         def get_yson(url):
             return yson.loads(requests.get(url).content)
@@ -126,12 +126,12 @@ class TestHttpProxy(HttpProxyTestBase):
             requests.get(url)
             return counter.get_delta() > 0
 
-        profiler = profiler_factory().at_proxy(proxy, fixed_tags={"http_code": "404"})
+        profiler = profiler_factory().at_http_proxy(proxy, fixed_tags={"http_code": "404"})
         data_http_code_counter = profiler.counter("http_proxy/http_code_count", tags={"proxy_role": "data"})
 
         wait(lambda: make_failing_request_and_check_counter(data_http_code_counter))
 
-        set("//sys/proxies/" + proxy + "/@role", "control")
+        set("//sys/http_proxies/" + proxy + "/@role", "control")
 
         def check_role_updated():
             return get_yson(self._get_proxy_address() + "/hosts") == [] and \
@@ -174,7 +174,7 @@ class TestHttpProxy(HttpProxyTestBase):
 
         assert counts["primary_master"] == 1
         assert counts["secondary_master"] == 2
-        assert counts["node"] == 5
+        assert counts["cluster_node"] == 5
         assert counts["scheduler"] == 1
         assert counts["controller_agent"] == 1
         assert counts["http_proxy"] == 1
@@ -192,7 +192,7 @@ class TestHttpProxy(HttpProxyTestBase):
         monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
         config_url = "http://localhost:{}/orchid/dynamic_config_manager/effective_config".format(monitoring_port)
 
-        set("//sys/proxies/@config", {"tracing": {"user_sample_rate": {"prime": 1.0}}})
+        set("//sys/http_proxies/@config", {"tracing": {"user_sample_rate": {"prime": 1.0}}})
 
         def config_updated():
             config = requests.get(config_url).json()
@@ -213,13 +213,13 @@ class TestHttpProxy(HttpProxyTestBase):
 
     @authors("greatkorn")
     def test_kill_nodes(self):
-        create("map_node", "//sys/proxies/test_http_proxy")
+        create("map_node", "//sys/http_proxies/test_http_proxy")
         set(
-            "//sys/proxies/test_http_proxy/@liveness",
+            "//sys/http_proxies/test_http_proxy/@liveness",
             {"updated_at": "2010-06-24T11:23:30.156098Z"},
         )
-        set("//sys/proxies/test_http_proxy/@start_time", "2009-06-19T16:39:02.171721Z")
-        set("//sys/proxies/test_http_proxy/@version", "19.5.30948-master-ya~c9facaeaca")
+        set("//sys/http_proxies/test_http_proxy/@start_time", "2009-06-19T16:39:02.171721Z")
+        set("//sys/http_proxies/test_http_proxy/@version", "19.5.30948-master-ya~c9facaeaca")
         create("map_node", "//sys/rpc_proxies/test_rpc_proxy")
         set(
             "//sys/rpc_proxies/test_rpc_proxy/@start_time",
@@ -238,7 +238,7 @@ class TestHttpProxy(HttpProxyTestBase):
             if proxy["address"] in ("test_http_proxy", "test_rpc_proxy"):
                 assert proxy.get("state") == "offline"
 
-        remove("//sys/proxies/test_http_proxy")
+        remove("//sys/http_proxies/test_http_proxy")
         remove("//sys/rpc_proxies/test_rpc_proxy")
 
     @authors("greatkorn")
@@ -280,15 +280,15 @@ class TestHttpProxy(HttpProxyTestBase):
         set("//sys/http_proxy_roles/r1/@acl", [make_ace("deny", "u", "use")])
         set("//sys/http_proxy_roles/r2/@acl", [make_ace("allow", "u", "use")])
 
-        proxy = ls("//sys/proxies")[0]
+        proxy = ls("//sys/http_proxies")[0]
         proxy_address = self._get_proxy_address()
 
         # "u" is not allowed to use proxies with role "r1".
-        set("//sys/proxies/" + proxy + "/@role", "r1")
+        set("//sys/http_proxies/" + proxy + "/@role", "r1")
         wait(lambda: not check_access(proxy_address, "u"))
 
         # "u" is allowed to use proxies with role "r2".
-        set("//sys/proxies/" + proxy + "/@role", "r2")
+        set("//sys/http_proxies/" + proxy + "/@role", "r2")
         wait(lambda: check_access(proxy_address, "u"))
 
         # Now "u" is not allowed to use proxies with role "r2".
@@ -297,28 +297,28 @@ class TestHttpProxy(HttpProxyTestBase):
 
         # There is no node for proxy role "r3". By default we allow access to
         # proxies with unknown role.
-        set("//sys/proxies/" + proxy + "/@role", "r3")
+        set("//sys/http_proxies/" + proxy + "/@role", "r3")
         wait(lambda: check_access(proxy_address, "u"))
 
         # Set proxy role back to "r2". User "u" still can't use it.
-        set("//sys/proxies/" + proxy + "/@role", "r2")
+        set("//sys/http_proxies/" + proxy + "/@role", "r2")
         wait(lambda: not check_access(proxy_address, "u"))
 
         # Disable access checker via dynamic config. Now "u" can use proxy.
-        set("//sys/proxies/@config", {"access_checker": {"enabled": False}})
+        set("//sys/http_proxies/@config", {"access_checker": {"enabled": False}})
         wait(lambda: check_access(proxy_address, "u"))
 
         # Enable access checker via dynamic config. And "u" is banned again.
-        set("//sys/proxies/@config", {"access_checker": {"enabled": True}})
+        set("//sys/http_proxies/@config", {"access_checker": {"enabled": True}})
         wait(lambda: not check_access(proxy_address, "u"))
 
     @authors("alexkolodezny")
     def test_banned_proxy(self):
-        proxy = ls("//sys/proxies")[0]
-        set("//sys/proxies/" + proxy + "/@banned", True)
+        proxy = ls("//sys/http_proxies")[0]
+        set("//sys/http_proxies/" + proxy + "/@banned", True)
         wait(lambda: not requests.get(self._get_proxy_address() + "/ping").ok)
 
-        set("//sys/proxies/" + proxy + "/@banned", False)
+        set("//sys/http_proxies/" + proxy + "/@banned", False)
         wait(lambda: requests.get(self._get_proxy_address() + "/ping").ok)
 
     @authors("alexkolodezny")
@@ -336,13 +336,13 @@ class TestHttpProxyRoleFromStaticConfig(HttpProxyTestBase):
 
     @authors("nadya73")
     def test_role(self):
-        proxy = ls("//sys/proxies")[0]
-        role = get("//sys/proxies/" + proxy + "/@role")
+        proxy = ls("//sys/http_proxies")[0]
+        role = get("//sys/http_proxies/" + proxy + "/@role")
         assert role == "ab"
 
     @authors("nadya73")
     def test_hosts(self):
-        proxy = ls("//sys/proxies")[0]
+        proxy = ls("//sys/http_proxies")[0]
 
         def get_yson(url):
             return yson.loads(requests.get(url).content)
@@ -470,7 +470,7 @@ class TestHttpProxyFraming(HttpProxyTestBase):
         monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
         config_url = "http://localhost:{}/orchid/dynamic_config_manager/effective_config".format(monitoring_port)
         set(
-            "//sys/proxies/@config",
+            "//sys/http_proxies/@config",
             {"framing": {"keep_alive_period": self.KEEP_ALIVE_PERIOD}},
         )
         wait(lambda: requests.get(config_url).json()["framing"]["keep_alive_period"] == self.KEEP_ALIVE_PERIOD)
@@ -680,7 +680,7 @@ class TestHttpProxyFormatConfig(HttpProxyTestBase, _TestProxyFormatConfigBase):
         super(TestHttpProxyFormatConfig, self).setup_method(method)
         monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
         config_url = "http://localhost:{}/orchid/dynamic_config_manager/effective_config".format(monitoring_port)
-        set("//sys/proxies/@config", {"formats": self.FORMAT_CONFIG})
+        set("//sys/http_proxies/@config", {"formats": self.FORMAT_CONFIG})
 
         def config_updated():
             config = requests.get(config_url).json()

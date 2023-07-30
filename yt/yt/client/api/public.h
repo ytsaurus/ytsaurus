@@ -172,6 +172,7 @@ DECLARE_REFCOUNTED_STRUCT(TBackupManifest)
 ////////////////////////////////////////////////////////////////////////////////
 
 inline const TString ClusterNamePath("//sys/@cluster_name");
+inline const TString HttpProxiesPath("//sys/http_proxies");
 inline const TString RpcProxiesPath("//sys/rpc_proxies");
 inline const TString GrpcProxiesPath("//sys/grpc_proxies");
 inline const TString AliveNodeName("alive");

@@ -213,7 +213,7 @@ void TProxyConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("dynamic_config_path", &TThis::DynamicConfigPath)
-        .Default("//sys/proxies/@config");
+        .Default("//sys/http_proxies/@config");
     registrar.Parameter("use_tagged_dynamic_config", &TThis::UseTaggedDynamicConfig)
         .Default(false);
 

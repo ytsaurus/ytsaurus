@@ -350,7 +350,7 @@ class TestTableCommands(object):
     def _set_banned(self, value):
         # NB: we cannot unban proxy using proxy, so we must use client for that.
         client = yt.YtClient(config={"backend": "native", "driver_config": yt.config["driver_config"]})
-        proxy = "//sys/proxies/" + client.list("//sys/proxies")[0]
+        proxy = "//sys/http_proxies/" + client.list("//sys/http_proxies")[0]
         client.set(proxy + "/@banned", value)
 
         def check():

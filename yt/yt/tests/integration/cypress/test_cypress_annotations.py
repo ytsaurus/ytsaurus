@@ -64,8 +64,8 @@ class TestCypressAnnotations(YTEnvSetup):
         ca = ls("//sys/controller_agents/instances")[0]
         assert "controller_agent" == get("//sys/controller_agents/instances/{0}/@annotations/whoami".format(ca))
 
-        p = ls("//sys/proxies")[0]
-        assert "proxy" == get("//sys/proxies/{}/@annotations/whoami".format(p))
+        p = ls("//sys/http_proxies")[0]
+        assert "proxy" == get("//sys/http_proxies/{}/@annotations/whoami".format(p))
 
         rp = ls("//sys/rpc_proxies")[0]
         assert "rpc_proxy" == get("//sys/rpc_proxies/{}/@annotations/whoami".format(rp))

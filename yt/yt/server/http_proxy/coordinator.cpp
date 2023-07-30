@@ -43,8 +43,6 @@ namespace NYT::NHttpProxy {
 
 static const auto& Logger = HttpProxyLogger;
 
-static const TString SysProxies = "//sys/proxies";
-
 using namespace NApi;
 using namespace NConcurrency;
 using namespace NTracing;
@@ -106,7 +104,7 @@ TCoordinatorProxy::TCoordinatorProxy(const TProxyEntryPtr& proxyEntry)
 ////////////////////////////////////////////////////////////////////////////////
 
 TCoordinator::TCoordinator(
-    const TProxyConfigPtr& config,
+    TProxyConfigPtr config,
     TBootstrap* bootstrap)
     : Config_(config->Coordinator)
     , Sampler_(New<TSampler>())
@@ -126,7 +124,7 @@ TCoordinator::TCoordinator(
 
     {
         TCypressRegistrarOptions options;
-        options.RootPath = SysProxies + "/" + ToYPathLiteral(Self_->Entry->Endpoint);
+        options.RootPath = NApi::HttpProxiesPath + "/" + ToYPathLiteral(Self_->Entry->Endpoint);
         options.OrchidRemoteAddresses = GetLocalAddresses(
             {{"default", Self_->Entry->GetHost()}},
             Bootstrap_->GetConfig()->RpcPort);
@@ -276,7 +274,7 @@ std::vector<TCoordinatorProxyPtr> TCoordinator::ListCypressProxies()
     options.ReadFrom = EMasterChannelKind::Cache;
     options.Attributes = {"role", "banned", "liveness", BanMessageAttributeName};
 
-    auto proxiesYson = WaitFor(Client_->ListNode(SysProxies, options))
+    auto proxiesYson = WaitFor(Client_->ListNode(NApi::HttpProxiesPath, options))
         .ValueOrThrow();
     auto proxiesList = ConvertTo<IListNodePtr>(proxiesYson);
     std::vector<TCoordinatorProxyPtr> proxies;
@@ -298,7 +296,7 @@ void TCoordinator::UpdateState()
 {
     VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
-    auto selfPath = SysProxies + "/" + ToYPathLiteral(Self_->Entry->Endpoint);
+    auto selfPath = NApi::HttpProxiesPath + "/" + ToYPathLiteral(Self_->Entry->Endpoint);
 
     auto proxyEntry = CloneYsonStruct(Self_->Entry);
     proxyEntry->Liveness = GetSelfLiveness();
@@ -546,10 +544,10 @@ void TPingHandler::HandleRequest(
 TDiscoverVersionsHandler::TDiscoverVersionsHandler(
     NApi::NNative::IConnectionPtr connection,
     NApi::IClientPtr client,
-    const TCoordinatorConfigPtr config)
+    TCoordinatorConfigPtr config)
     : Connection_(std::move(connection))
     , Client_(std::move(client))
-    , Config_(config)
+    , Config_(std::move(config))
 { }
 
 std::vector<TInstance> TDiscoverVersionsHandler::ListComponent(
@@ -557,7 +555,7 @@ std::vector<TInstance> TDiscoverVersionsHandler::ListComponent(
     const TString& type)
 {
     TListNodeOptions options;
-    if (type == "node") {
+    if (type == "cluster_node") {
         options.Attributes = {
             "register_time",
             "version",
@@ -582,13 +580,13 @@ std::vector<TInstance> TDiscoverVersionsHandler::ListComponent(
         auto version = node->Attributes().Find<TString>("version");
         auto banned = node->Attributes().Find<bool>("banned");
         auto nodeState = node->Attributes().Find<TString>("state");
-        auto startTime = node->Attributes().Find<TString>(type == "node" ? "register_time" : "start_time");
+        auto startTime = node->Attributes().Find<TString>(type == "cluster_node" ? "register_time" : "start_time");
 
         TInstance instance;
         instance.Type = type;
         instance.Address = node->GetValue<TString>();
 
-        if (type == "node") {
+        if (type == "cluster_node") {
             if (nodeState) {
                 instance.State = *nodeState;
             }
@@ -755,7 +753,7 @@ std::vector<TInstance> TDiscoverVersionsHandler::ListJobProxies()
 {
     std::vector<TInstance> instances;
     std::vector<TString> fallbackInstances;
-    for (auto& instance : ListComponent("exec_nodes", "node")) {
+    for (auto& instance : ListComponent("exec_nodes", "cluster_node")) {
         if (instance.Banned) {
             continue;
         }
@@ -840,9 +838,9 @@ void TDiscoverVersionsHandlerV2::HandleRequest(
     add(GetAttributes("//sys/secondary_masters", GetInstances("//sys/secondary_masters", true), "secondary_master"));
     add(GetAttributes("//sys/scheduler/instances", GetInstances("//sys/scheduler/instances"), "scheduler"));
     add(GetAttributes("//sys/controller_agents/instances", GetInstances("//sys/controller_agents/instances"), "controller_agent"));
-    add(ListComponent("cluster_nodes", "node"));
+    add(ListComponent("cluster_nodes", "cluster_node"));
     add(ListJobProxies());
-    add(ListProxies("proxies", "http_proxy"));
+    add(ListProxies("http_proxies", "http_proxy"));
     add(ListProxies("rpc_proxies", "rpc_proxy"));
 
     THashMap<TString, THashMap<TString, TVersionCounter>> summary;

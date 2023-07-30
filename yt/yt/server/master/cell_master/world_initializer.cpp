@@ -339,7 +339,7 @@ private:
             }
 
             ScheduleCreateNode(
-                "//sys/proxies",
+                NApi::HttpProxiesPath,
                 transactionId,
                 EObjectType::MapNode,
                 BuildYsonStringFluently()
@@ -348,7 +348,16 @@ private:
                     .EndMap());
 
             ScheduleCreateNode(
-                "//sys/rpc_proxies",
+                NApi::RpcProxiesPath,
+                transactionId,
+                EObjectType::MapNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                    .EndMap());
+
+            ScheduleCreateNode(
+                NApi::GrpcProxiesPath,
                 transactionId,
                 EObjectType::MapNode,
                 BuildYsonStringFluently()
