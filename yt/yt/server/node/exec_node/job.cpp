@@ -1764,7 +1764,7 @@ void TJob::OnJobProxyPreparationTimeout()
 
     YT_VERIFY(JobPhase_ >= NJobTrackerClient::EJobPhase::SpawningJobProxy);
 
-    if (JobPhase_ < NJobTrackerClient::EJobPhase::Running) {
+    if (JobPhase_ == NJobTrackerClient::EJobPhase::PreparingJob) {
         Abort(TError(
             EErrorCode::JobProxyPreparationTimeout,
             "Failed to prepare job proxy within timeout, aborting job"));
