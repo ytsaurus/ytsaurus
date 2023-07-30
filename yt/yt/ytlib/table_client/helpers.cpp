@@ -4,6 +4,7 @@
 #include "schemaless_chunk_writer.h"
 #include "schemaless_multi_chunk_reader.h"
 #include "table_ypath_proxy.h"
+#include "hunks.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -35,6 +36,7 @@
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/unversioned_writer.h>
+#include <yt/yt/client/table_client/helpers.h>
 
 #include <yt/yt/core/concurrency/async_stream.h>
 #include <yt/yt/core/concurrency/periodic_yielder.h>
@@ -787,6 +789,49 @@ IAttributeDictionaryPtr ResolveExternalTable(
     }
 
     return extraAttributes;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void EnsureAnyValueEncoded(
+    TUnversionedValue* value,
+    const TTableSchema& schema,
+    TChunkedMemoryPool* memoryPool,
+    bool ignoreRequired)
+{
+    auto id = value->Id;
+    auto expectedType = schema.Columns()[id].GetWireType();
+    auto actualType = value->Type;
+
+    if (actualType == EValueType::Null) {
+        YT_VERIFY(None(value->Flags & EValueFlags::Hunk));
+        return;
+    }
+
+    if (Any(value->Flags & EValueFlags::Hunk)) {
+        if (!TryDecodeInlineHunkValue(value)) {
+            if (actualType != expectedType) {
+                THROW_ERROR_EXCEPTION(
+                    "Non-inline hunk value #%v is of wrong type: expected %Qlv, actual %Qlv",
+                    id,
+                    expectedType,
+                    actualType);
+            }
+            return;
+        }
+    }
+
+    ValidateDataValue(*value);
+
+    // The underlying schemaless reader may produce typed scalar values even if the schema has "any" type.
+    // For schemaful reader, this is not an expected behavior
+    // so we have to convert such values back into YSON.
+    // Cf. YT-5396
+    if (expectedType == EValueType::Any && actualType != EValueType::Any) {
+        *value = EncodeUnversionedAnyValue(*value, memoryPool);
+    } else {
+        ValidateValueType(*value, schema, id, /*typeAnyAcceptsAllValues*/ false, ignoreRequired);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

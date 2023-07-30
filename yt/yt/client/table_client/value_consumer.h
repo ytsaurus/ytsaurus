@@ -103,8 +103,6 @@ private:
     void OnMyValue(const TUnversionedValue& value) override;
     void OnEndRow() override;
 
-    TUnversionedValue MakeAnyFromScalar(const TUnversionedValue& value);
-
 private:
     const NLogging::TLogger Logger;
     const TNameTablePtr NameTable_;
@@ -113,7 +111,7 @@ private:
     TUnversionedOwningRowBuilder Builder_;
     std::vector<TUnversionedOwningRow> Rows_;
     std::vector<bool> WrittenFlags_;
-    TBlobOutput ValueBuffer_;
+    TChunkedMemoryPool MemoryPool_;
 
     bool Aggregate_ = false;
     bool TreatMissingAsNull_ = false;

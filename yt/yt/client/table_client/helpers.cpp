@@ -13,6 +13,8 @@
 #include <yt/yt/core/yson/protobuf_interop.h>
 #include <yt/yt/core/yson/token_writer.h>
 
+#include <library/cpp/yt/coding/varint.h>
+
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 
 namespace NYT::NTableClient {
@@ -1358,42 +1360,72 @@ TYsonString UnversionedValueToYson(TUnversionedValue unversionedValue, bool enab
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUnversionedValue EncodeUnversionedAnyValue(TUnversionedValue value, TRowBuffer* rowBuffer)
+TUnversionedValue EncodeUnversionedAnyValue(
+    TUnversionedValue value,
+    TChunkedMemoryPool* memoryPool)
 {
     YT_ASSERT(None(value.Flags));
-
-    TStringStream stream;
-    NYson::TYsonWriter writer(&stream);
-
     switch (value.Type) {
-        case EValueType::Null:
         case EValueType::Any:
         case EValueType::Composite:
             return value;
-        case EValueType::String:
-            writer.OnStringScalar(value.AsStringBuf());
-            break;
-        case EValueType::Int64:
-            writer.OnInt64Scalar(value.Data.Int64);
-            break;
-        case EValueType::Uint64:
-            writer.OnUint64Scalar(value.Data.Uint64);
-            break;
-        case EValueType::Double:
-            writer.OnDoubleScalar(value.Data.Double);
-            break;
-        case EValueType::Boolean:
-            writer.OnBooleanScalar(value.Data.Boolean);
-            break;
-        case EValueType::Min:
-        case EValueType::Max:
-        case EValueType::TheBottom:
+
+        case EValueType::Null: {
+            auto size = 1;
+            char* begin = memoryPool->AllocateUnaligned(size);
+            char* current = begin;
+            *current++ = '#';
+            return MakeUnversionedAnyValue(TStringBuf(begin, current), value.Id, value.Flags);
+        }
+
+        case EValueType::String: {
+            auto size = 1 + MaxVarInt32Size + value.Length;
+            char* begin = memoryPool->AllocateUnaligned(size);
+            char* current = begin;
+            *current++ = NYson::NDetail::StringMarker;
+            current += WriteVarInt32(current, value.Length);
+            WriteRef(current, TRef(value.Data.String, value.Length));
+            return MakeUnversionedAnyValue(TStringBuf(begin, current), value.Id, value.Flags);
+        }
+
+        case EValueType::Int64: {
+            auto size = 1 + MaxVarInt64Size;
+            char* begin = memoryPool->AllocateUnaligned(size);
+            char* current = begin;
+            *current++ = NYson::NDetail::Int64Marker;
+            current += WriteVarInt64(current, value.Data.Int64);
+            return MakeUnversionedAnyValue(TStringBuf(begin, current), value.Id, value.Flags);
+        }
+
+        case EValueType::Uint64: {
+            auto size = 1 + MaxVarUint64Size;
+            char* begin = memoryPool->AllocateUnaligned(size);
+            char* current = begin;
+            *current++ = NYson::NDetail::Uint64Marker;
+            current += WriteVarUint64(current, value.Data.Uint64);
+            return MakeUnversionedAnyValue(TStringBuf(begin, current), value.Id, value.Flags);
+        }
+
+        case EValueType::Double: {
+            auto size = 1 + sizeof(double);
+            char* begin = memoryPool->AllocateUnaligned(size);
+            char* current = begin;
+            *current++ = NYson::NDetail::DoubleMarker;
+            WritePod(current, value.Data.Double);
+            return MakeUnversionedAnyValue(TStringBuf(begin, current), value.Id, value.Flags);
+        }
+
+        case EValueType::Boolean: {
+            auto size = 1;
+            char* begin = memoryPool->AllocateUnaligned(size);
+            char* current = begin;
+            *current++ = value.Data.Boolean ? NYson::NDetail::TrueMarker : NYson::NDetail::FalseMarker;
+            return MakeUnversionedAnyValue(TStringBuf(begin, current), value.Id, value.Flags);
+        }
+
+        default:
             YT_ABORT();
     }
-
-    writer.Flush();
-
-    return rowBuffer->CaptureValue(MakeUnversionedAnyValue(TStringBuf(stream.Data(), stream.Size())));
 }
 
 TUnversionedValue TryDecodeUnversionedAnyValue(

@@ -365,12 +365,14 @@ public:
         const std::vector<int>& chunkToReaderIdMapping,
         TRange<ESortOrder> sortOrders,
         int commonKeyPrefix,
+        TTableSchemaPtr readerSchema,
         TTimestamp timestamp);
 
     TLegacyKey GetKey() const;
     TMutableVersionedRow GetRow(TChunkedMemoryPool* memoryPool);
 
 private:
+    const TTableSchemaPtr ReaderSchema_;
     const TTimestamp Timestamp_;
 };
 

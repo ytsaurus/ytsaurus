@@ -10,6 +10,8 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
 void ValidateSchema(const TTableSchema& chunkSchema, const TTableSchema& readerSchema)
 {
     auto throwIncompatibleKeyColumns = [&] () {
@@ -71,9 +73,11 @@ void ValidateSchema(const TTableSchema& chunkSchema, const TTableSchema& readerS
     }
 }
 
-DEFINE_REFCOUNTED_TYPE(TChunkColumnMapping);
+} // namespace
 
-TChunkColumnMapping::TChunkColumnMapping(const TTableSchemaPtr& tableSchema, const TTableSchemaPtr& chunkSchema)
+TChunkColumnMapping::TChunkColumnMapping(
+    const TTableSchemaPtr& tableSchema,
+    const TTableSchemaPtr& chunkSchema)
     : TableKeyColumnCount_(tableSchema->GetKeyColumnCount())
     , ChunkKeyColumnCount_(chunkSchema->GetKeyColumnCount())
     , ChunkColumnCount_(chunkSchema->GetColumnCount())

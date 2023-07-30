@@ -79,9 +79,9 @@ private:
     const NProto::TDataBlockMeta Meta_;
 
     // Maps chunk name table ids to client name table ids.
-    std::vector<int> ChunkToReaderIdMapping_;
-    std::vector<bool> CompositeColumnFlags_;
-    std::vector<bool> HunkColumnFlags_;
+    const std::vector<int> ChunkToReaderIdMapping_;
+    const std::vector<bool> CompositeColumnFlags_;
+    const std::vector<bool> HunkColumnFlags_;
 
     const NTableClient::NProto::THunkChunkMetasExt& HunkChunkMetasExt_;
     const NTableClient::NProto::THunkChunkRefsExt& HunkChunkRefsExt_;

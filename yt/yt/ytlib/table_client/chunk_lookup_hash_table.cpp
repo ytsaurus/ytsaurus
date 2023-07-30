@@ -279,6 +279,7 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTable(
                         .BuildSchemalessHorizontalSchemaIdMapping(TColumnFilter()),
                     sortOrders,
                     chunkMeta->GetChunkKeyColumnCount(),
+                    tableSchema,
                     chunkMeta->Misc().min_timestamp());
                 fillHashTableFromReader(blockReader);
                 break;

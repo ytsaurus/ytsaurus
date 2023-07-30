@@ -27,7 +27,6 @@
 
 #include <yt/yt/ytlib/scheduler/public.h>
 
-
 namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -210,6 +209,14 @@ NYTree::IAttributeDictionaryPtr ResolveExternalTable(
     TTableId* tableId,
     NObjectClient::TCellTag* externalCellTag,
     const std::vector<TString>& extraAttributeKeys = {});
+
+////////////////////////////////////////////////////////////////////////////////
+
+void EnsureAnyValueEncoded(
+    TUnversionedValue* value,
+    const TTableSchema& schema,
+    TChunkedMemoryPool* memoryPool,
+    bool ignoreRequired);
 
 ////////////////////////////////////////////////////////////////////////////////
 

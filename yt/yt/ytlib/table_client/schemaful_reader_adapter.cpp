@@ -1,6 +1,7 @@
 #include "schemaful_reader_adapter.h"
 
 #include "hunks.h"
+#include "helpers.h"
 
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>
@@ -67,35 +68,11 @@ public:
                 auto schemafulRow = RowReorderer_.ReorderKey(schemalessRow);
 
                 for (int valueIndex = 0; valueIndex < std::ssize(ReaderSchema_->Columns()); ++valueIndex) {
-                    auto value = schemafulRow[valueIndex];
-                    if (value.Type == EValueType::Null) {
-                        YT_VERIFY(None(value.Flags & EValueFlags::Hunk));
-                        continue;
-                    }
-                    auto expectedType = ReaderSchema_->Columns()[valueIndex].GetWireType();
-                    if (Any(value.Flags & EValueFlags::Hunk)) {
-                        if (!TryDecodeInlineHunkValue(&value)) {
-                            if (value.Type != expectedType) {
-                                THROW_ERROR_EXCEPTION(
-                                    "Cannot convert schemaless row to a schemaful one since it contains a non-inline hunk value #%v of wrong type: "
-                                    "expected %Qlv, actual %Qlv",
-                                    value.Id,
-                                    expectedType,
-                                    value.Type);
-                            }
-                            continue;
-                        }
-                    }
-                    ValidateDataValue(value);
-                    // The underlying schemaless reader may produce typed scalar values even if the schema has "any" type.
-                    // For schemaful reader, this is not an expected behavior
-                    // so we have to convert such values back into YSON.
-                    // Cf. YT-5396
-                    if (expectedType == EValueType::Any && value.Type != EValueType::Any) {
-                        schemafulRow[valueIndex] = MakeAnyFromScalar(value);
-                    } else {
-                        ValidateValueType(value, *ReaderSchema_, valueIndex, /*typeAnyAcceptsAllValues*/ false, IgnoreRequired_);
-                    }
+                    EnsureAnyValueEncoded(
+                        &schemafulRow[valueIndex],
+                        *ReaderSchema_,
+                        RowBuffer_->GetPool(),
+                        IgnoreRequired_);
                 }
 
                 schemafulRows.push_back(schemafulRow);
@@ -150,47 +127,6 @@ private:
     TBlobOutput ValueBuffer_;
 
     const TPromise<void> ErrorPromise_ = NewPromise<void>();
-
-
-    TUnversionedValue MakeAnyFromScalar(const TUnversionedValue& value)
-    {
-        ValueBuffer_.Clear();
-        TBufferedBinaryYsonWriter writer(&ValueBuffer_);
-        switch (value.Type) {
-            case EValueType::Int64:
-                writer.OnInt64Scalar(value.Data.Int64);
-                break;
-            case EValueType::Uint64:
-                writer.OnUint64Scalar(value.Data.Uint64);
-                break;
-            case EValueType::Double:
-                writer.OnDoubleScalar(value.Data.Double);
-                break;
-            case EValueType::Boolean:
-                writer.OnBooleanScalar(value.Data.Boolean);
-                break;
-            case EValueType::String:
-                writer.OnStringScalar(value.AsStringBuf());
-                break;
-            case EValueType::Null:
-                writer.OnEntity();
-                break;
-            case EValueType::Composite:
-                writer.OnRaw(value.AsStringBuf());
-                break;
-
-            case EValueType::Min:
-            case EValueType::Max:
-            case EValueType::TheBottom:
-            default:
-                YT_ABORT();
-        }
-        writer.Flush();
-        auto ysonSize = ValueBuffer_.Size();
-        auto* ysonBuffer = RowBuffer_->GetPool()->AllocateUnaligned(ysonSize);
-        ::memcpy(ysonBuffer, ValueBuffer_.Begin(), ysonSize);
-        return MakeUnversionedAnyValue(TStringBuf(ysonBuffer, ysonSize), value.Id);
-    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchemafulReaderAdapter)

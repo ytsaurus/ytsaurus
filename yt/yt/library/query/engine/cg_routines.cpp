@@ -1542,7 +1542,7 @@ void ToAny(TExpressionContext* context, TUnversionedValue* result, TUnversionedV
 {
     // TODO(babenko): for some reason, flags are garbage here.
     value->Flags = {};
-    *result = NTableClient::EncodeUnversionedAnyValue(*value, context);
+    *result = NTableClient::EncodeUnversionedAnyValue(*value, context->GetPool());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

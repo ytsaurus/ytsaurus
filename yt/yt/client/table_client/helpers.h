@@ -333,7 +333,7 @@ NYson::TYsonString UnversionedValueToYson(TUnversionedValue unversionedValue, bo
 
 TUnversionedValue EncodeUnversionedAnyValue(
     TUnversionedValue value,
-    TRowBuffer* rowBuffer);
+    TChunkedMemoryPool* memoryPool);
 
 TUnversionedValue TryDecodeUnversionedAnyValue(
     TUnversionedValue value,
