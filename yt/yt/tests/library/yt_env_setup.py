@@ -1066,7 +1066,7 @@ class YTEnvSetup(object):
         for response in yt_commands.execute_batch(requests, driver=driver):
             assert not yt_commands.get_batch_error(response)
 
-        locations_paths = [
+        location_key_lists = [
             ["data_node", "cache_locations"],
             ["data_node", "volume_manager", "layer_locations"],
             ["data_node", "store_locations"],
@@ -1074,21 +1074,20 @@ class YTEnvSetup(object):
             ["exec_node", "slot_manager", "locations"],
         ]
 
-        disabled_pathes = []
+        disabled_paths = []
         for node_config in self.Env.configs["node"]:
-
-            for location_paths in locations_paths:
-                locations = self._get_from_json_by_key_list(node_config, location_paths)
+            for location_key_list in location_key_lists:
+                locations = self._walk_dictionary(node_config, location_key_list)
                 if locations:
                     for location in locations:
                         path = location["path"]
                         for root, dirs, files in os.walk(path):
                             if "disabled" in files:
-                                yt.logger.error(f"Location {path} should not contains disabled after testing")
-                                disabled_pathes.append(path)
-        assert not disabled_pathes, 'Locations should not be disabled (should not contains "disabled" file) after testing: \n' + "\n".join(disabled_pathes)
+                                yt.logger.error(f"Location {path} is disabled after test execution")
+                                disabled_paths.append(path)
+        assert not disabled_paths, 'Found disabled locations after test execution:\n' + "\n".join(disabled_paths)
 
-    def _get_from_json_by_key_list(self, dictionary, key_list):
+    def _walk_dictionary(self, dictionary, key_list):
         node = dictionary
         try:
             for key in key_list:
