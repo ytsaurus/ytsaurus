@@ -3875,7 +3875,7 @@ bool TOperationControllerBase::OnIntermediateChunkUnavailable(TChunkId chunkId)
     auto& completedJob = GetOrCrash(ChunkOriginMap, chunkId);
 
     YT_LOG_DEBUG(
-        "Intermediate chunk is lost (ChunkId: %v, JobId: %v, Restartable: %v, Suspend: %v)",
+        "Intermediate chunk is lost (ChunkId: %v, JobId: %v, Restartable: %v, Suspended: %v)",
         chunkId,
         completedJob->JobId,
         completedJob->Restartable,
