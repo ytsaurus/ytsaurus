@@ -85,7 +85,7 @@ bool IntrospectFilterForDefinedReference(
  *
  *  Throws for an invalid #filterQuery.
  */
-THashSet<TString> ExtractFilterAttributeReferences(const TString& filterQuery);
+void ExtractFilterAttributeReferences(const TString& filterQuery, std::function<void(TString)> inserter);
 
 ////////////////////////////////////////////////////////////////////////////////
 

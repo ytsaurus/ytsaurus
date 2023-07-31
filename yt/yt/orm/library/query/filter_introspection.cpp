@@ -162,15 +162,16 @@ private:
 class TQueryVisitorForAttributeReferences
 {
 public:
-    explicit TQueryVisitorForAttributeReferences(THashSet<TString>* references)
-        : References_(references)
+    explicit TQueryVisitorForAttributeReferences(std::function<void(TString)> inserter)
+        : Inserter_(std::move(inserter))
     { }
 
     void Visit(TExpressionPtr expr)
     {
         if (auto* typedExpr = expr->As<TLiteralExpression>()) {
         } else if (auto* typedExpr = expr->As<TReferenceExpression>()) {
-            References_->insert(typedExpr->Reference.ColumnName);
+            YT_VERIFY(!typedExpr->Reference.TableName);
+            Inserter_(typedExpr->Reference.ColumnName);
         } else if (auto* typedExpr = expr->As<TAliasExpression>()) {
             Visit(typedExpr->Expression);
         } else if (auto* typedExpr = expr->As<TFunctionExpression>()) {
@@ -195,7 +196,7 @@ public:
     }
 
 private:
-    THashSet<TString>* const References_;
+    std::function<void(TString)> Inserter_;
 
     void Visit(const TExpressionList& exprList)
     {
@@ -239,17 +240,15 @@ bool IntrospectFilterForDefinedReference(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashSet<TString> ExtractFilterAttributeReferences(const TString& filterQuery)
+void ExtractFilterAttributeReferences(const TString& filterQuery, std::function<void(TString)> inserter)
 {
     if (!filterQuery) {
-        return {};
+        return;
     }
     auto parsedQuery = ParseSource(filterQuery, NQueryClient::EParseMode::Expression);
     auto* queryExpression = std::get<TExpressionPtr>(parsedQuery->AstHead.Ast);
 
-    THashSet<TString> result;
-    TQueryVisitorForAttributeReferences(&result).Visit(queryExpression);
-    return result;
+    TQueryVisitorForAttributeReferences(std::move(inserter)).Visit(queryExpression);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

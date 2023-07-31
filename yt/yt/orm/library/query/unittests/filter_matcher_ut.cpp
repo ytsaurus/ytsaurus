@@ -43,17 +43,24 @@ TEST(FilterMatcher, InvalidAttributePath)
     Y_UNUSED(matcher);
 }
 
+TEST(FilterMatcher, InvalidQuery)
+{
+    EXPECT_THROW(CreateFilterMatcher("a/b"), TErrorException);
+    EXPECT_THROW(CreateFilterMatcher("[/a] = AND"), TErrorException);
+    EXPECT_THROW(CreateFilterMatcher("[/a] = 123 AND"), TErrorException);
+}
+
 TEST(FilterMatcher, BrokenAttributes)
 {
     auto matcher = CreateFilterMatcher("[/labels/b] = 1", {"/labels"});
-    EXPECT_FALSE(matcher->Match(TYsonStringBuf("{;")).IsOK());
+    EXPECT_THROW(matcher->Match(TYsonStringBuf("{;")).ValueOrThrow(), TErrorException);
     EXPECT_TRUE(matcher->Match(TYsonStringBuf("{b=1}")).ValueOrThrow());
 }
 
 TEST(FilterMatcher, IncompatiblyTypes)
 {
     auto matcher = CreateFilterMatcher("[/labels/b] = 1", {"/labels"});
-    EXPECT_FALSE(matcher->Match(TYsonStringBuf("{b=\"abca\"}")).IsOK());
+    EXPECT_THROW(matcher->Match(TYsonStringBuf("{b=\"abca\"}")).ValueOrThrow(), TErrorException);
     EXPECT_TRUE(matcher->Match(TYsonStringBuf("{b=1}")).ValueOrThrow());
 }
 
@@ -304,6 +311,38 @@ TEST(FilterMatcher, TypedAttributePaths)
     EXPECT_THROW_WITH_SUBSTRING(
         buildAndMatch("my_pod_set", "pod_123", 53),
         "Cannot compare values of types");
+}
+
+TEST(FilterMatcher, FullAttributePaths)
+{
+    {
+        auto matcher = CreateFilterMatcher("[/meta/id] = 15 AND [/labels/a] = \"1\"", {"/meta/id", "/labels/a"});
+        EXPECT_TRUE(matcher->Match({TYsonStringBuf("15"), TYsonStringBuf("\"1\"")}).ValueOrThrow());
+    }
+    {
+        auto matcher = CreateFilterMatcher("[/meta/id] = 15 AND [/labels/a] = \"1\"");
+        EXPECT_TRUE(matcher->Match(TYsonStringBuf("{meta={id=15}; labels={a=\"1\"}}")).ValueOrThrow());
+    }
+    {
+        auto matcher = CreateFilterMatcher("[/meta/id] = 15 AND [/labels/a] = \"1\"");
+        EXPECT_TRUE(matcher->Match(
+            BuildYsonStringFluently()
+                .BeginMap()
+                    .Item("meta").Value(
+                        BuildYsonStringFluently()
+                            .BeginMap()
+                                .Item("id").Value(15)
+                            .EndMap()
+                    )
+                    .Item("labels").Value(
+                        BuildYsonStringFluently()
+                            .BeginMap()
+                                .Item("a").Value("1")
+                            .EndMap()
+                    )
+                .EndMap()
+        ).ValueOrThrow());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
