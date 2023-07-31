@@ -55,18 +55,24 @@ def reproduce_transaction_loss(
                 remaining_wait_time = wait_end - get_time()
                 if remaining_wait_time <= 0:
                     if expects_exception:
+                        exception_raised_in_time = True
                         if first_exception is None:
                             try:
+                                # Give some additional time for this case.
                                 time.sleep(10.0)
-                            except BaseException:
-                                pass
-                            assert False, "Exception has not raised in time"
+                            except BaseException as exception:
+                                first_exception = exception
+                            else:
+                                exception_raised_in_time = False
                     break
                 time.sleep(min(remaining_wait_time, 0.1))
             except BaseException as exception:
                 if first_exception is None:
                     first_exception = exception
                     first_sleep_duration = get_time() - wait_begin
+
+        if expects_exception:
+            assert exception_raised_in_time, "Exception has not raised in time"
 
         try:
             tx_context_manager.__exit__(*sys.exc_info())
