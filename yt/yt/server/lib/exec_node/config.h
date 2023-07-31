@@ -450,6 +450,7 @@ public:
     NLogging::TLogManagerConfigPtr JobProxyLogging;
     NTracing::TJaegerTracerConfigPtr JobProxyJaeger;
     std::optional<TString> JobProxyStderrPath;
+    std::optional<TString> ExecutorStderrPath;
 
     TDuration SupervisorRpcTimeout;
     TDuration JobProberRpcTimeout;

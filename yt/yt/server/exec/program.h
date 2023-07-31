@@ -192,7 +192,7 @@ private:
 
     void OpenExecutorStderr()
     {
-        ExecutorStderr_ = TFile{"../logs/executor_stderr", EOpenModeFlag::WrOnly | EOpenModeFlag::ForAppend | EOpenModeFlag::OpenAlways};
+        ExecutorStderr_ = TFile{GetConfig()->StderrPath, EOpenModeFlag::WrOnly | EOpenModeFlag::ForAppend | EOpenModeFlag::OpenAlways};
     }
 
     mutable TFile ExecutorStderr_;

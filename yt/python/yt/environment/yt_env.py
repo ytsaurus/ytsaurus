@@ -44,6 +44,7 @@ import time
 import signal
 import socket
 import shutil
+import stat
 import sys
 import traceback
 from collections import defaultdict, namedtuple, OrderedDict
@@ -228,6 +229,8 @@ class YTInstance(object):
 
         makedirp(self.path)
         makedirp(self.logs_path)
+        # This is important to collect ytserver-exec stderrs.
+        os.chmod(self.logs_path, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
         makedirp(self.configs_path)
         makedirp(self.runtime_data_path)
 

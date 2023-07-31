@@ -297,6 +297,7 @@ private:
         JobProxyConfigTemplate_->Logging = GetConfig()->ExecNode->JobProxyLogging;
         JobProxyConfigTemplate_->Jaeger = GetConfig()->ExecNode->JobProxyJaeger;
         JobProxyConfigTemplate_->StderrPath = GetConfig()->ExecNode->JobProxyStderrPath;
+        JobProxyConfigTemplate_->ExecutorStderrPath = GetConfig()->ExecNode->ExecutorStderrPath;
         JobProxyConfigTemplate_->TestRootFS = GetConfig()->ExecNode->TestRootFS;
         JobProxyConfigTemplate_->AlwaysAbortOnMemoryReserveOverdraft = GetConfig()->ExecNode->AlwaysAbortOnMemoryReserveOverdraft;
 

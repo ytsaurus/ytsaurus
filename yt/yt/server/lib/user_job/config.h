@@ -50,6 +50,8 @@ public:
     //! Whether to adjust resource limits to allow core dumps.
     bool EnableCoreDump = false;
 
+    TString StderrPath;
+
     //! Config of the connection between user job executor and job proxy.
     NUserJob::TUserJobSynchronizerConnectionConfigPtr UserJobSynchronizerConnectionConfig;
 

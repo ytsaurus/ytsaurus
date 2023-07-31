@@ -167,8 +167,10 @@ public:
     std::optional<TString> RootPath;
     bool MakeRootFSWritable;
 
-    //! Path to write stderr (for testing purposes).
+    //! Path to write job proxy stderr (for testing purposes).
     std::optional<TString> StderrPath;
+    //! Path to write executor stderr (for testing purposes).
+    std::optional<TString> ExecutorStderrPath;
 
     NBus::TBusClientConfigPtr SupervisorConnection;
     TDuration SupervisorRpcTimeout;

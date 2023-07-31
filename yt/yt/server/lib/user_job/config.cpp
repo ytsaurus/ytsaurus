@@ -29,6 +29,9 @@ void TUserJobExecutorConfig::Register(TRegistrar registrar)
     registrar.Parameter("uid", &TThis::Uid)
         .Default(-1);
 
+    registrar.Parameter("stderr_path", &TThis::StderrPath)
+        .Default("../logs/executor_stderr");
+
     registrar.Parameter("enable_core_dump", &TThis::EnableCoreDump)
         .Default(false);
 

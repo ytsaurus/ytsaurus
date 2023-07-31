@@ -510,6 +510,9 @@ void TExecNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("job_proxy_stderr_path", &TThis::JobProxyStderrPath)
         .Default();
 
+    registrar.Parameter("executor_stderr_path", &TThis::ExecutorStderrPath)
+        .Default();
+
     registrar.Parameter("supervisor_rpc_timeout", &TThis::SupervisorRpcTimeout)
         .Default(TDuration::Seconds(30));
     registrar.Parameter("job_prober_rpc_timeout", &TThis::JobProberRpcTimeout)

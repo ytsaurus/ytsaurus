@@ -2143,6 +2143,10 @@ TJobProxyConfigPtr TJob::CreateConfig()
         tryReplaceSlotIndex(*proxyConfig->StderrPath);
     }
 
+    if (proxyConfig->ExecutorStderrPath) {
+        tryReplaceSlotIndex(*proxyConfig->ExecutorStderrPath);
+    }
+
     for (const auto& gpuSlot : GpuSlots_) {
         auto slot = StaticPointerCast<TGpuSlot>(gpuSlot);
         proxyConfig->GpuDevices.push_back(slot->GetDeviceName());

@@ -1249,6 +1249,7 @@ class TestUserJobIsolation(YTEnvSetup):
         op = run_test_vanilla(
             with_breakpoint("ip -o a 1>&2; BREAKPOINT"),
             task_patch={"network_project": "n"},
+            spec={"max_failed_job_count": 1}
         )
 
         # ip6tnl0 is some kind of technical interface used by porto.

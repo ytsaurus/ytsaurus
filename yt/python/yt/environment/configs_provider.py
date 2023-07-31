@@ -847,6 +847,11 @@ def _build_node_configs(node_dirs,
             "exec_node/job_proxy_stderr_path",
             os.path.join(logs_dir, "job_proxy-{0}-stderr-slot-%slot_index%".format(index)),
         )
+        set_at(
+            config,
+            "exec_node/executor_stderr_path",
+            os.path.join(logs_dir, "ytserver_exec-{0}-stderr-slot-%slot_index%".format(index))
+        )
 
         set_at(config, "tablet_node/hydra_manager", _get_hydra_manager_config(), merge=True)
         set_at(config, "tablet_node/hydra_manager/restart_backoff_time", 100)

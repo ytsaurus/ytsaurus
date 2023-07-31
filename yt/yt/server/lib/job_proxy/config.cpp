@@ -99,6 +99,9 @@ void TJobProxyConfig::Register(TRegistrar registrar)
     registrar.Parameter("stderr_path", &TThis::StderrPath)
         .Default();
 
+    registrar.Parameter("executor_stderr_path", &TThis::ExecutorStderrPath)
+        .Default();
+
     registrar.Parameter("make_rootfs_writable", &TThis::MakeRootFSWritable)
         .Default(false);
 

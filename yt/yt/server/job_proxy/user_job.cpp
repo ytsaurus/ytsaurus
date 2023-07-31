@@ -1411,6 +1411,11 @@ private:
 #endif
         }
 
+        const auto& executorStderrPath = Host_->GetConfig()->ExecutorStderrPath;
+        if (executorStderrPath) {
+            executorConfig->StderrPath = *executorStderrPath;
+        }
+
         if (UserId_) {
             executorConfig->Uid = *UserId_;
         }
