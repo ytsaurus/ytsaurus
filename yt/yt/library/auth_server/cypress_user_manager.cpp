@@ -64,7 +64,7 @@ ICypressUserManagerPtr CreateCypressUserManager(
 
 class TCachingCypressUserManager
     : public ICypressUserManager
-    , public TAuthCache<TString, NObjectClient::TObjectId, void*>
+    , public TAuthCache<TString, NObjectClient::TObjectId, std::nullptr_t>
 {
 public:
     TCachingCypressUserManager(
@@ -85,7 +85,7 @@ private:
 
     TFuture<NObjectClient::TObjectId> DoGet(
         const TString& name,
-        void* const& /*context*/) noexcept override
+        const std::nullptr_t& /*context*/) noexcept override
     {
         return CypressUserManager_->CreateUser(name);
     }
