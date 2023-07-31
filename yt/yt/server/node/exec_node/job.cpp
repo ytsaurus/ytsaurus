@@ -1217,7 +1217,8 @@ void TJob::GuardedInterrupt(
         YT_LOG_DEBUG("Job is not interruptible and will be aborted");
 
         auto error = TError(NJobProxy::EErrorCode::InterruptionUnsupported, "Uninterruptible job aborted")
-            << TErrorAttribute("interruption_reason", InterruptionReason_);
+            << TErrorAttribute("interruption_reason", InterruptionReason_)
+            << TErrorAttribute("abort_reason", EAbortReason::InterruptionUnsupported);
 
         if (interruptionReason == EInterruptReason::Preemption) {
             error = TError("Job preempted") << error;
@@ -2510,6 +2511,10 @@ std::optional<EAbortReason> TJob::GetAbortReason()
 
     if (resultError.FindMatching(NJobProxy::EErrorCode::InterruptionTimeout)) {
         return EAbortReason::InterruptionTimeout;
+    }
+
+    if (resultError.FindMatching(NJobProxy::EErrorCode::InterruptionUnsupported)) {
+        return EAbortReason::InterruptionUnsupported;
     }
 
     if (resultError.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) ||
