@@ -160,7 +160,7 @@ class YtMasterCommunicationError(YtResponseError):
 
 
 class YtChunkUnavailable(YtResponseError):
-    """Chunk unavalable error
+    """Chunk unavailable error
        It is used in read retries"""
     pass
 

@@ -878,7 +878,7 @@ class YtClient(ClientState):
         :param str job_id: job id.
         :param bool omit_node_directory: whether node directory should be removed from job spec.
         :param bool omit_input_table_specs: whether input table specs should be removed from job spec.
-        :param bool omit_output_table_specc: whether output table specs should be removed from job spec.
+        :param bool omit_output_table_specs: whether output table specs should be removed from job spec.
 
         """
         return client_api.get_job_spec(
@@ -1940,7 +1940,7 @@ class YtClient(ClientState):
         """
         Runs join-reduce operation.
 
-        .. note:: You should specity at least two input table and all except one     should have set foreign attribute. You should also specify join_by columns.
+        .. note:: You should specify at least two input table and all except one     should have set foreign attribute. You should also specify join_by columns.
 
         .. seealso::  :ref:`operation_parameters` and :func:`run_map_reduce <.run_map_reduce>`.
 
@@ -2358,7 +2358,7 @@ class YtClient(ClientState):
         :type engine: str
         :param query: text of a query
         :type query: str
-        :param settings: a ditionary of settings
+        :param settings: a dictionary of settings
         :type settings: dict or None
         :param stage: query tracker stage, defaults to "production"
         :type stage: str
@@ -2612,7 +2612,7 @@ class YtClient(ClientState):
         :param bool is_stream_compressed: expect stream to contain compressed data.
         This data can be passed directly to proxy without recompression. Be careful! this option
         disables write retries.
-        :param bool force_create: unconditionally create file and ignores exsting file.
+        :param bool force_create: unconditionally create file and ignores existing file.
         :param bool compute_md5: compute md5 of file content.
 
         """

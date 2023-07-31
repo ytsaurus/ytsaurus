@@ -671,7 +671,7 @@ class Operation(object):
         return get_jobs_with_error_or_stderr(self.id, only_failed_jobs=only_failed_jobs, client=self.client)
 
     def get_error(self, state=None):
-        """Returns YtOperationFailed error if operation has failed, otherwies returns None."""
+        """Returns YtOperationFailed error if operation has failed, otherwise returns None."""
         if state is None:
             state = self.get_state()
 

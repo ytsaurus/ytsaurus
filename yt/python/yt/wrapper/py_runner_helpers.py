@@ -23,7 +23,7 @@ class YtStandardStreamAccessError(YtError):
 
 class StreamWrapper(object):
     # NB: close and flush are added to allowed attributes
-    # since multiprocessing uncoditionally calls sys.stdout.close and sys.stdout.flush.
+    # since multiprocessing unconditionally calls sys.stdout.close and sys.stdout.flush.
     ALLOWED_ATTRIBUTES = {"fileno", "isatty", "tell", "encoding", "name", "mode", "close", "flush"}
 
     def __init__(self, original_stream):

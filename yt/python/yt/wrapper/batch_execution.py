@@ -86,8 +86,8 @@ class BatchExecutor(object):
 
         if input is not None:
             if "input_format" in parameters:
-                # COMPAT(ignat): comaptibility with older versions of driver.
-                # We want to check for structrured input here, but we have no such information at this point.
+                # COMPAT(ignat): compatibility with older versions of driver.
+                # We want to check for structured input here, but we have no such information at this point.
                 if command not in ("get_in_sync_replicas",):
                     task["input"] = create_format(parameters["input_format"]).loads_node(input)
                     del parameters["input_format"]

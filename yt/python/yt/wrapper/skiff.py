@@ -11,7 +11,7 @@ import yt.skiff
 
 def check_skiff_bindings():
     if not yt.skiff.AVAILABLE:
-        raise YtError('Skiff bingings are not available. '
+        raise YtError('Skiff bindings are not available. '
                       'Try to use other format or install bindings. '
                       'Bindings are shipped as additional package and '
                       'can be installed ' + YSON_PACKAGE_INSTALLATION_TEXT)

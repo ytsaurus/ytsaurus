@@ -352,7 +352,7 @@ def run_join_reduce(binary, source_table, destination_table,
                     client=None):
     """Runs join-reduce operation.
 
-    .. note:: You should specity at least two input table and all except one \
+    .. note:: You should specify at least two input table and all except one \
     should have set foreign attribute. You should also specify join_by columns.
 
     .. seealso::  :ref:`operation_parameters` and :func:`run_map_reduce <.run_map_reduce>`.

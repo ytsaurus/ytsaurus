@@ -148,7 +148,7 @@ def get_job_spec(job_id,
     :param str job_id: job id.
     :param bool omit_node_directory: whether node directory should be removed from job spec.
     :param bool omit_input_table_specs: whether input table specs should be removed from job spec.
-    :param bool omit_output_table_specc: whether output table specs should be removed from job spec.
+    :param bool omit_output_table_specs: whether output table specs should be removed from job spec.
     """
     params = {"job_id": job_id}
     set_param(params, "omit_node_directory", omit_node_directory)

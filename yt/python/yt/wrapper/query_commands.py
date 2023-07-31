@@ -14,7 +14,7 @@ def start_query(engine, query, settings=None, stage=None, client=None):
     :type engine: str
     :param query: text of a query
     :type query: str
-    :param settings: a ditionary of settings
+    :param settings: a dictionary of settings
     :type settings: dict or None
     :param stage: query tracker stage, defaults to "production"
     :type stage: str
