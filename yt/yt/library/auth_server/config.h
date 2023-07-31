@@ -160,7 +160,7 @@ public:
     { }
 };
 
-DEFINE_REFCOUNTED_TYPE(TOAuthTokenAuthenticatorConfig) 
+DEFINE_REFCOUNTED_TYPE(TOAuthTokenAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -210,7 +210,7 @@ public:
     { }
 };
 
-DEFINE_REFCOUNTED_TYPE(TOAuthCookieAuthenticatorConfig) 
+DEFINE_REFCOUNTED_TYPE(TOAuthCookieAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -2,7 +2,7 @@ from yt_commands import (
     create, create_user, remove_user, remove, add_member, sync_create_cells, sync_remove_tablet_cells, ls,
     set, get_connection_config, wait, get)
 from yt.environment import ExternalComponent
-from mock_server import MockServer
+from yt_mock_server import MockServer
 
 import pytest
 

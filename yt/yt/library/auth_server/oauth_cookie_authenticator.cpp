@@ -96,7 +96,8 @@ private:
     {
         auto result = WaitFor(UserManager_->CreateUser(userInfo.Login));
         if (!result.IsOK()) {
-            auto error = TError("Failed to create user (Name: %v)", userInfo.Login)
+            auto error = TError("Failed to create user")
+                << TErrorAttribute("name", userInfo.Login)
                 << std::move(result);
             YT_LOG_WARNING(error);
             return error;
@@ -104,7 +105,7 @@ private:
 
         return TAuthenticationResult{
             .Login = userInfo.Login,
-            .Realm = "oauth:cookie"
+            .Realm = TString(OAuthCookieRealm)
         };
     }
 };

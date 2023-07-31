@@ -3,6 +3,7 @@ from yt.wrapper import YtClient
 from yt_commands import authors, create_user
 from yt.common import YtError
 from yt.environment.helpers import OpenPortIterator
+from conftest_lib.conftest_queries import mock_server  # noqa
 
 import pytest
 import requests
@@ -50,25 +51,27 @@ class TestOAuthBase(YTEnvSetup):
     def _get_proxy_address(self):
         return "http://" + self.Env.get_proxy_address()
 
-    def _make_request(self, token=None, cookie=None):
+    def _make_request(self, token=None, cookie=None, user=None):
         headers = {}
+        if not user:
+            user = "u"
         if token:
-            headers["Authorization"] = "OAuth " + token
+            headers["Authorization"] = f"OAuth {token}:{user}"
         elif cookie:
-            headers["Cookie"] = "access_token=" + cookie
+            headers["Cookie"] = f"access_token={cookie}:{user}"
 
         rsp = requests.get(
             self._get_proxy_address() + "/auth/whoami",
             headers=headers)
         return rsp
 
-    def _check_allow(self, token=None, cookie=None):
-        rsp = self._make_request(token, cookie)
+    def _check_allow(self, token=None, cookie=None, user=None):
+        rsp = self._make_request(token, cookie, user)
         rsp.raise_for_status()
         return rsp
 
-    def _check_deny(self, token=None, cookie=None):
-        rsp = self._make_request(token, cookie)
+    def _check_deny(self, token=None, cookie=None, user=None):
+        rsp = self._make_request(token, cookie, user)
         return rsp.status_code == 401
 
 
@@ -77,10 +80,20 @@ class TestOAuth(TestOAuthBase):
     def setup_route(self, mock_server):
         @mock_server.handler("/user_info")
         def user_info_handler(request, **kwargs):
-            token = request.headers.get("authorization")
-            if token != "Bearer good_token":
+            auth_header = request.headers.get("authorization")
+            if auth_header is None:
+                return mock_server.make_response(json={"error": "no authorization header provided"}, status=403)
+
+            if ":" in auth_header:
+                bearer_token, user = auth_header.split(":", 1)
+            else:
+                bearer_token = auth_header
+                user = "u"
+
+            if bearer_token != "Bearer good_token":
                 return mock_server.make_response(json={"error": "invalid token"}, status=403)
-            return mock_server.make_response(json={"login": "u", "sub": "42"})
+
+            return mock_server.make_response(json={"login": user, "sub": "42"})
 
     @authors("kaikash")
     def test_http_proxy_invalid_token(self):
@@ -105,3 +118,9 @@ class TestOAuth(TestOAuthBase):
         assert data["login"] == "u"
         assert data["realm"] == "oauth:cookie"
 
+    @authors("kaikash")
+    def test_http_user_create(self):
+        rsp = self._check_allow(token="good_token", user="new_user")
+        data = rsp.json()
+        assert data["login"] == "new_user"
+        assert data["realm"] == "oauth:token"

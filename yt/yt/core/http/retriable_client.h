@@ -6,6 +6,8 @@
 
 namespace NYT::NHttp {
 
+////////////////////////////////////////////////////////////////////////////////
+
 struct IResponseChecker
     : public virtual TRefCounted
 {
@@ -15,6 +17,8 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(IResponseChecker)
+
+////////////////////////////////////////////////////////////////////////////////
 
 using TJsonErrorChecker = TCallback<TError(const IResponsePtr&, const NYTree::INodePtr&)>;
 

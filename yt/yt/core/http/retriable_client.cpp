@@ -24,8 +24,7 @@ class TJsonResponseChecker
 public:
     TJsonResponseChecker(
         TJsonErrorChecker errorChecker,
-        NJson::TJsonFormatConfigPtr jsonFormatConfig
-    )
+        NJson::TJsonFormatConfigPtr jsonFormatConfig)
         : JsonFormatConfig_(std::move(jsonFormatConfig))
         , ErrorChecker_(std::move(errorChecker))
     { }
@@ -44,7 +43,7 @@ public:
                 << ex;
         }
 
-        if (Json_ == nullptr) {
+        if (!Json_) {
             return TError("Got empty result");
         }
 
@@ -165,7 +164,10 @@ private:
         const auto deadline = TInstant::Now() + Config_->RequestTimeout;
         const auto sanitizedUrl = SanitizeUrl(url);
 
-        YT_LOG_DEBUG("Making request (Url: %v, Deadline: %v, Max attempts: %v)", sanitizedUrl, deadline, Config_->MaxAttemptCount);
+        YT_LOG_DEBUG("Making request (Url: %v, Deadline: %v, MaxAttemptCount: %v)",
+            sanitizedUrl,
+            deadline,
+            Config_->MaxAttemptCount);
         std::vector<TError> accumulatedErrors;
 
         int attempt = 0;
@@ -188,13 +190,13 @@ private:
             }
 
             auto& rsp = rspOrError.Value();
-            const auto responseCheck = responseChecker->CheckError(rsp);
-            if (responseCheck.IsOK()) {
+            const auto checkError = responseChecker->CheckError(rsp);
+            if (checkError.IsOK()) {
                 return rsp;
             }
 
             auto error = TError("Error checking response")
-                << responseCheck
+                << checkError
                 << TErrorAttribute("attempt", attempt);
             YT_LOG_WARNING(
                 error,
@@ -213,8 +215,8 @@ private:
         THROW_ERROR_EXCEPTION("HTTP request failed")
             << std::move(accumulatedErrors)
             << TErrorAttribute("url", sanitizedUrl)
-            << TErrorAttribute("attempts", attempt)
-            << TErrorAttribute("max_attempts", Config_->MaxAttemptCount);
+            << TErrorAttribute("attempt_count", attempt)
+            << TErrorAttribute("max_attempt_count", Config_->MaxAttemptCount);
     }
 
 };

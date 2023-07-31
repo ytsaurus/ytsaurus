@@ -95,7 +95,6 @@ public:
     TDuration BackoffTimeout;
     int MaxAttemptCount;
 
-
     REGISTER_YSON_STRUCT(TRetrialbeClientConfig);
 
     static void Register(TRegistrar registrar);

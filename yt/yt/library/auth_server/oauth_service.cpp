@@ -3,7 +3,6 @@
 #include "config.h"
 #include "private.h"
 #include "helpers.h"
-#include "yt/yt/core/ytree/public.h"
 
 #include <yt/yt/core/http/client.h>
 #include <yt/yt/core/http/helpers.h>
@@ -12,6 +11,7 @@
 #include <yt/yt/core/http/retriable_client.h>
 #include <yt/yt/core/https/client.h>
 #include <yt/yt/core/https/config.h>
+#include <yt/yt/core/ytree/convert.h>
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/poller.h>
@@ -24,6 +24,7 @@ namespace NYT::NAuth {
 using namespace NConcurrency;
 using namespace NHttp;
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,19 +68,18 @@ private:
     NProfiling::TCounter OAuthCallErrors_;
     NProfiling::TEventTimer OAuthCallTime_;
 
-private:
     static NJson::TJsonFormatConfigPtr MakeJsonFormatConfig()
     {
         auto config = New<NJson::TJsonFormatConfig>();
-        config->EncodeUtf8 = false; // Additional string conversion is not necessary in this case
+        // Additional string conversion is not necessary in this case
+        config->EncodeUtf8 = false;
         return config;
     }
 
     TOAuthUserInfoResult DoGetUserInfo(const TString& accessToken)
     {
         OAuthCalls_.Increment();
-        NProfiling::TWallTimer timer;
-        
+
         auto callId = TGuid::Create();
         auto httpHeaders = New<THeaders>();
         httpHeaders->Add("Authorization", Format("%v %v", Config_->AuthorizationHeaderPrefix, accessToken));
@@ -93,11 +93,16 @@ private:
             Config_->Host,
             Config_->Port,
             Config_->UserInfoEndpoint);
-        
+
         YT_LOG_DEBUG("Calling OAuth get user info (Url: %v, CallId: %v)", NHttp::SanitizeUrl(url), callId);
 
-        auto result = WaitFor(HttpClient_->Get(jsonResponseChecker, url, httpHeaders));
-        OAuthCallTime_.Record(timer.GetElapsedTime());
+        auto result = [&] {
+            NProfiling::TWallTimer timer;
+            auto result = WaitFor(HttpClient_->Get(jsonResponseChecker, url, httpHeaders));
+            OAuthCallTime_.Record(timer.GetElapsedTime());
+            return result;
+        }();
+
         if (!result.IsOK()) {
             OAuthCallErrors_.Increment();
             auto error = TError(NRpc::EErrorCode::InvalidCredentials, "OAuth call failed")
@@ -126,33 +131,30 @@ private:
 
             if (rspNode->GetType() == ENodeType::Map && Config_->UserInfoErrorField) {
                 auto errorNode = rspNode->AsMap()->FindChild(*Config_->UserInfoErrorField);
-                if (errorNode && errorNode->GetType() == ENodeType::String) {
-                    error = error << TError(errorNode->AsString()->GetValue());
-                }
-                YT_LOG_WARNING("OAuth response has non-ok status code, but no error message found (Status Code: %v, Error field: %v)",
-                    static_cast<int>(rsp->GetStatusCode()),
-                    *Config_->UserInfoErrorField);
+                error = error
+                    << TErrorAttribute("error_field_message", ConvertToYsonString(errorNode))
+                    << TErrorAttribute("error_field", *Config_->UserInfoErrorField);
             }
 
             return error;
         }
 
         if (rspNode->GetType() != ENodeType::Map) {
-            return TError("OAuth response content has unexpected type")
+            return TError("OAuth response content has unexpected node type")
                 << TErrorAttribute("expected_result_type", ENodeType::Map)
                 << TErrorAttribute("actual_result_type", rspNode->GetType());
         }
 
         auto loginNode = rspNode->AsMap()->FindChild(Config_->UserInfoLoginField);
         if (!loginNode || loginNode->GetType() != ENodeType::String) {
-            return TError("OAuth response content has no login field")
+            return TError("OAuth response content has no login field or login node type is unexpected")
                 << TErrorAttribute("login_field", Config_->UserInfoLoginField);
         }
 
         if (Config_->UserInfoSubjectField) {
             auto subjectNode = rspNode->AsMap()->FindChild(*Config_->UserInfoSubjectField);
             if (!subjectNode || subjectNode->GetType() != ENodeType::String) {
-                return TError("OAuth response content has no subject field")
+                return TError("OAuth response content has no subject field or subject node type is unexpected")
                     << TErrorAttribute("subject_field", Config_->UserInfoSubjectField);
             }
         }

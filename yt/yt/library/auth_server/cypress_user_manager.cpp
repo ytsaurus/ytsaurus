@@ -85,7 +85,7 @@ private:
 
     TFuture<NObjectClient::TObjectId> DoGet(
         const TString& name,
-        void *const&) noexcept override
+        void* const& /*context*/) noexcept override
     {
         return CypressUserManager_->CreateUser(name);
     }
