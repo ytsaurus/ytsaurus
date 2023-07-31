@@ -664,6 +664,7 @@ type OperationStatus struct {
 	BriefSpec         map[string]any             `yson:"brief_spec"`
 	FullSpec          yson.RawValue              `yson:"full_spec"`
 	StartTime         yson.Time                  `yson:"start_time"`
+	FinishTime        yson.Time                  `yson:"finish_time"`
 	Suspend           bool                       `yson:"suspend"`
 	AuthenticatedUser string                     `yson:"authenticated_user"`
 	RuntimeParameters OperationRuntimeParameters `yson:"runtime_parameters"`
