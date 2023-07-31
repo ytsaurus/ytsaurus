@@ -273,14 +273,6 @@ void TTableNode::EndUpload(const TEndUploadContext& context)
     SchemaMode_ = context.SchemaMode;
     YT_VERIFY(context.Schema);
 
-    auto* schema = GetSchema();
-    if (IsExternal() && schema != context.Schema) {
-        auto externalCellTag = GetExternalCellTag();
-
-        context.Schema->ExportRef(externalCellTag);
-        schema->UnexportRef(externalCellTag);
-    }
-
     const auto& tableManager = context.Bootstrap->GetTableManager();
     tableManager->SetTableSchema(this, context.Schema);
 
@@ -316,6 +308,16 @@ bool TTableNode::IsUniqueKeys() const
 TAccount* TTableNode::GetAccount() const
 {
     return TCypressNode::Account().Get();
+}
+
+TCellTag TTableNode::GetExternalCellTag() const
+{
+    return TCypressNode::GetExternalCellTag();
+}
+
+bool TTableNode::IsExternal() const
+{
+    return TCypressNode::IsExternal();
 }
 
 bool TTableNode::IsReplicated() const

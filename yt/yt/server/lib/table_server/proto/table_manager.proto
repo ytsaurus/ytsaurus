@@ -3,6 +3,8 @@ package NYT.NTableServer.NProto;
 import "yt_proto/yt/core/misc/proto/guid.proto";
 import "yt_proto/yt/client/chunk_client/proto/data_statistics.proto";
 
+import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
+
 import "yt/server/lib/tablet_server/proto/tablet_manager.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -39,4 +41,25 @@ message TReqNotifyContentRevisionCasFailed
     }
 
     repeated TEntry entries = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqImportMasterTableSchema
+{
+    required NYT.NProto.TGuid schema_id = 1;
+    required NYT.NTableClient.NProto.TTableSchemaExt schema = 2;
+}
+
+message TReqUnimportMasterTableSchema
+{
+    required NYT.NProto.TGuid schema_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// COMPAT(h0pless): AddChunkSchemas
+message TReqTakeArtificialRef
+{
+    repeated NYT.NProto.TGuid schema_ids = 1;
 }

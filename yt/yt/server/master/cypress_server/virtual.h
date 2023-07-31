@@ -34,7 +34,8 @@ protected:
 
     TVirtualMulticellMapBase(
         NCellMaster::TBootstrap* bootstrap,
-        NYTree::INodePtr owningNode);
+        NYTree::INodePtr owningNode,
+        bool ignoreForeignObjects = false);
 
     virtual TFuture<std::vector<NObjectClient::TObjectId>> GetKeys(i64 sizeLimit = std::numeric_limits<i64>::max()) const = 0;
     virtual TFuture<i64> GetSize() const = 0;
@@ -64,6 +65,8 @@ protected:
     virtual TFuture<std::vector<std::pair<NObjectClient::TCellTag, i64>>> FetchSizes();
 
 private:
+    bool IgnoreForeignObjects_ = false;
+
     NYTree::TSystemBuiltinAttributeKeysCache BuiltinAttributeKeysCache_;
 
     struct TFetchItem

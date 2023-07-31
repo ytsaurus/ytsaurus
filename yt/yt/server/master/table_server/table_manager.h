@@ -56,23 +56,32 @@ public:
         const NTableClient::TTableSchema& tableSchema,
         const NObjectClient::TCellTag cellTag) const = 0;
 
-    //! Creates an imported schema with the specified id. If id is null - generates a new id.
+    //! Creates an imported schema with the specified id.
     /*!
-     *  #schemaHolder will have its schema set to the resulting schema.
-     *  The schema itself will be referenced by the table.
+     *  An artificial ref is taken to ensure that native cell controls object's lifetime.
      *
      *  NB: This is the means of schema deduplication.
      */
     virtual TMasterTableSchema* CreateImportedMasterTableSchema(
         const NTableClient::TTableSchema& tableSchema,
-        ISchemafulNode* schemaHolder,
         TMasterTableSchemaId hintId) = 0;
 
-    //! Same as above but associates resulting schema with a transaction instead
-    //! of a table.
-    virtual TMasterTableSchema* CreateImportedMasterTableSchema(
+    //! Creates a foreign schema with the specified id.
+    /*!
+     *  Unlike the method above, it does not take a ref.
+     *  Schema lifetime is controlled by the transaction schema is attached to.
+     *
+     *  NB: This is the means of schema deduplication.
+     */
+    virtual TMasterTableSchema* CreateImportedTemporaryMasterTableSchema(
         const NTableClient::TTableSchema& tableSchema,
         NTransactionServer::TTransaction* schemaHolder,
+        TMasterTableSchemaId hintId) = 0;
+
+    // COMPAT(h0pless): RefactorSchemaExport
+    virtual TMasterTableSchema* CreateImportedMasterTableSchema(
+        const NTableClient::TTableSchema& tableSchema,
+        ISchemafulNode* schemaHolder,
         TMasterTableSchemaId hintId) = 0;
 
     //! Looks up a schema or creates one if no such schema exists.
@@ -107,6 +116,23 @@ public:
     virtual void SetTableSchemaOrCrash(ISchemafulNode* table, TMasterTableSchemaId schemaId) = 0;
     virtual void ResetTableSchema(ISchemafulNode* table) = 0;
 
+    //! Increases export ref counter of a schema.
+    /*!
+     *  Iff schema is not yet exported to #dstCellTag sends it.
+    */
+    virtual void ExportMasterTableSchema(
+        TMasterTableSchema* schema,
+        NObjectClient::TCellTag dstCellTag) = 0;
+
+    //! Decreases export ref counter of a schema.
+    /*!
+     *  Iff it becomes 0 sends a mutation that destroys schema on cell #dstCellTag.
+    */
+    virtual void UnexportMasterTableSchema(
+        TMasterTableSchema* schema,
+        NObjectClient::TCellTag dstCellTag,
+        int decreaseBy = 1) = 0;
+
     virtual void ValidateTableSchemaCorrespondence(
         NCypressClient::TVersionedNodeId nodeId,
         const NTableClient::TTableSchemaPtr& tableSchema,
@@ -118,14 +144,6 @@ public:
         bool dynamic,
         bool chaos,
         NCypressClient::TVersionedNodeId nodeId) = 0;
-
-    //! Schema export counter to cell tag is incremented by 1.
-    //! Schema is also sent to the external cell iff it was not exported there before.
-    virtual void EnsureSchemaExported(
-        const ISchemafulNode* node,
-        NObjectClient::TCellTag externalCellTag,
-        NTransactionServer::TTransactionId externalizedTransactionId,
-        const NCellMaster::IMulticellManagerPtr& multicellManager) = 0;
 
     //! Table collocation management.
     virtual TTableCollocation* CreateTableCollocation(
@@ -151,6 +169,10 @@ public:
 
     // COMPAT(h0pless): Remove this after schema migration is complete.
     virtual void TransformForeignSchemaIdsToNative() = 0;
+
+    // COMPAT(h0pless): RecomputeMasterTableSchemaRefCounters
+    virtual void RecomputeMasterTableSchemaExportRefCounters(NLogging::ELogLevel logLevel) = 0;
+    virtual void RecomputeMasterTableSchemaRefCounters(NLogging::ELogLevel logLevel) = 0;
 
     DECLARE_INTERFACE_SIGNAL(void(NTabletServer::TTableCollocationData), ReplicationCollocationUpdated);
     DECLARE_INTERFACE_SIGNAL(void(NTableClient::TTableCollocationId), ReplicationCollocationDestroyed);

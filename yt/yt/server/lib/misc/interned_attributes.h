@@ -181,6 +181,7 @@
     XX(ExpirationTimeout, expiration_timeout) \
     XX(ExportedObjectCount, exported_object_count) \
     XX(ExportedObjects, exported_objects) \
+    XX(ExportRefCounter, export_ref_counter) \
     XX(Exports, exports) \
     XX(External, external) \
     XX(ExternalizedToCellTags, externalized_to_cell_tags) \

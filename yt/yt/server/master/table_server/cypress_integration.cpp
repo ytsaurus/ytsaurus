@@ -58,7 +58,10 @@ INodeTypeHandlerPtr CreateMasterTableSchemaMapTypeHandler(TBootstrap* bootstrap)
         bootstrap,
         EObjectType::MasterTableSchemaMap,
         BIND_NO_PROPAGATE([=] (INodePtr owningNode) -> IYPathServicePtr {
-            return New<TVirtualMasterTableSchemaMap>(bootstrap, std::move(owningNode));
+            return New<TVirtualMasterTableSchemaMap>(
+                bootstrap,
+                std::move(owningNode),
+                /* ignoreForeignObjects */ true);
         }),
         EVirtualNodeOptions::RedirectSelf);
 }

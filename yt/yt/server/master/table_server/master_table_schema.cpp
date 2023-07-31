@@ -152,43 +152,6 @@ bool TMasterTableSchema::UnrefBy(TAccount* account)
     }
 }
 
-void TMasterTableSchema::ExportRef(TCellTag cellTag)
-{
-    YT_VERIFY(cellTag != NotReplicatedCellTagSentinel);
-
-    auto [it, inserted] = CellTagToExportCount_.emplace(cellTag, 1);
-    if (!inserted) {
-        YT_VERIFY(it->second > 0);
-        ++it->second;
-    }
-
-    YT_LOG_DEBUG("Schema export counter incremented (SchemaId: %v, CellTag: %v, ExportCounter: %v)",
-        GetId(),
-        cellTag,
-        it->second);
-}
-
-// NB: UnexportRef should be only called on native cells.
-void TMasterTableSchema::UnexportRef(TCellTag cellTag)
-{
-    YT_VERIFY(cellTag != NotReplicatedCellTagSentinel);
-    YT_VERIFY(CellTagToExportCount_);
-
-    auto it = GetIteratorOrCrash(CellTagToExportCount_, cellTag);
-    YT_VERIFY(it->second > 0);
-
-    YT_LOG_DEBUG("Schema export counter decremented (SchemaId: %v, CellTag: %v, ExportCounter: %v)",
-        GetId(),
-        cellTag,
-        it->second - 1);
-
-    if (--it->second != 0) {
-        return;
-    }
-
-    CellTagToExportCount_.erase(it);
-}
-
 bool TMasterTableSchema::IsExported(TCellTag cellTag) const
 {
     auto it = CellTagToExportCount_.find(cellTag);
@@ -280,6 +243,46 @@ void TMasterTableSchema::ResetImportedTableSchemaToObjectMapIterator()
 {
     TableSchemaToObjectMapIterator_ = {};
     // NB: Retain TableSchema_ for possible future snapshot serialization.
+}
+
+void TMasterTableSchema::ExportRef(TCellTag cellTag)
+{
+    YT_VERIFY(cellTag != NotReplicatedCellTagSentinel);
+
+    auto [it, inserted] = CellTagToExportCount_.emplace(cellTag, 1);
+    if (!inserted) {
+        YT_VERIFY(it->second > 0);
+        ++it->second;
+    }
+
+    YT_LOG_DEBUG("Schema export counter incremented (SchemaId: %v, CellTag: %v, ExportCounter: %v)",
+        GetId(),
+        cellTag,
+        it->second);
+}
+
+// NB: UnexportRef should be only called on native cells.
+void TMasterTableSchema::UnexportRef(TCellTag cellTag, int decreaseBy)
+{
+    YT_VERIFY(cellTag != NotReplicatedCellTagSentinel);
+    YT_VERIFY(CellTagToExportCount_);
+
+    auto it = GetIteratorOrCrash(CellTagToExportCount_, cellTag);
+    YT_VERIFY(it->second >= decreaseBy);
+
+    it->second -= decreaseBy;
+
+    YT_LOG_DEBUG("Schema export counter decremented (SchemaId: %v, CellTag: %v, ExportCounter: %v, DecreaseBy: %v)",
+        GetId(),
+        cellTag,
+        it->second,
+        decreaseBy);
+
+    if (it->second != 0) {
+        return;
+    }
+
+    CellTagToExportCount_.erase(it);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -184,6 +184,10 @@ public:
     void SetSchema(TMasterTableSchema* schema) override;
     NSecurityServer::TAccount* GetAccount() const override;
 
+    // COMPAT(h0pless): This is a temporary workaround until schemaful node typehandler is introduced.
+    NObjectClient::TCellTag GetExternalCellTag() const override;
+    bool IsExternal() const override;
+
     void ValidateNotBackup(TStringBuf message) const;
 
     void AddDynamicTableLock(

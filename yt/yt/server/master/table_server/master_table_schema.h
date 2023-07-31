@@ -68,12 +68,6 @@ public:
     //! refcounter has come down to zero).
     [[nodiscard]] bool UnrefBy(NSecurityServer::TAccount* account);
 
-    //! Increments export ref counter.
-    void ExportRef(NObjectClient::TCellTag cellTag);
-
-    //! Decrements export ref counter.
-    void UnexportRef(NObjectClient::TCellTag cellTag);
-
     bool IsExported(NObjectClient::TCellTag cellTag) const;
 
     void AlertIfNonEmptyExportCount();
@@ -105,6 +99,12 @@ private:
 
     void ResetNativeTableSchemaToObjectMapIterator();
     void ResetImportedTableSchemaToObjectMapIterator();
+
+    //! Increments export ref counter.
+    void ExportRef(NObjectClient::TCellTag cellTag);
+
+    //! Decrements export ref counter.
+    void UnexportRef(NObjectClient::TCellTag cellTag, int decreaseBy = 1);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

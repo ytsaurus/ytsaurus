@@ -1697,6 +1697,27 @@ class TestSchemaObjects(TestSchemaDeduplication):
         with pytest.raises(YtError):
             remove("#{}/@value".format(schema_id))
 
+    @authors("h0pless")
+    def test_schema_export_ref_counters(self):
+        schema = self._get_schema(True)
+        create("table", "//tmp/table_non_external", attributes={"external": False, "schema": schema})
+        schema_id = get("//tmp/table_non_external/@schema_id")
+        assert get("#{}/@export_ref_counter".format(schema_id)) == {}
+
+        create("table", "//tmp/table_11", attributes={"external_cell_tag": 11, "schema": schema})
+        assert get("#{}/@export_ref_counter".format(schema_id)) == {"11": 1}
+
+        create("table", "//tmp/table_12_1", attributes={"external_cell_tag": 12, "schema": schema})
+        assert get("#{}/@export_ref_counter".format(schema_id)) == {"11": 1, "12": 1}
+
+        create("table", "//tmp/table_12_2", attributes={"external_cell_tag": 12, "schema": schema})
+        assert get("#{}/@export_ref_counter".format(schema_id)) == {"11": 1, "12": 2}
+
+        remove("//tmp/table_11")
+        remove("//tmp/table_12_1")
+        remove("//tmp/table_12_2")
+        wait(lambda: get("#{}/@export_ref_counter".format(schema_id)) == {})
+
 
 class TestSchemaValidation(YTEnvSetup):
     @authors("ermolovd")

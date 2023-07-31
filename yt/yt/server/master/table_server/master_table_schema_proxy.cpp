@@ -33,6 +33,7 @@ private:
     {
         TBase::ListSystemAttributes(descriptors);
 
+        descriptors->push_back(EInternedAttributeKey::ExportRefCounter);
         descriptors->push_back(EInternedAttributeKey::MemoryUsage);
         descriptors->push_back(EInternedAttributeKey::ReferencingAccounts);
         descriptors->push_back(EInternedAttributeKey::Value);
@@ -43,6 +44,17 @@ private:
         const auto* schema = GetThisImpl();
 
         switch (key) {
+            case EInternedAttributeKey::ExportRefCounter:
+                BuildYsonFluently(consumer)
+                    .DoMapFor(schema->CellTagToExportCount(), [&] (TFluentMap fluent, const auto& pair) {
+                        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+                        auto [cellTag, refCounter] = pair;
+                        fluent
+                            .Item(multicellManager->GetMasterCellName(pair.first))
+                            .Value(refCounter);
+                    });
+                return true;
+
             case EInternedAttributeKey::MemoryUsage:
                 BuildYsonFluently(consumer)
                     .Value(schema->AsTableSchema()->GetMemoryUsage());

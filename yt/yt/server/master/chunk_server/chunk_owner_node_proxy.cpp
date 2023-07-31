@@ -1385,11 +1385,8 @@ void TChunkOwnerNodeProxy::ReplicateEndUploadRequestToExternalCell(
 
     // NB: Journals and files have no schema, thus no need to replicate one.
     if (uploadContext.Schema) {
-        if (!uploadContext.Schema->IsExported(externalCellTag)) {
-            ToProto(replicationRequest->mutable_table_schema(), uploadContext.Schema->AsTableSchema());
-        }
-
         auto tableSchemaId = uploadContext.Schema->GetId();
+        // Schema was exported during EndUpload call, it's safe to send id only.
         ToProto(replicationRequest->mutable_table_schema_id(), tableSchemaId);
     }
 
@@ -1859,7 +1856,15 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
                 return tableManager->GetOrCreateNativeMasterTableSchema(*tableSchema, Transaction_);
             }
 
-            return tableManager->CreateImportedMasterTableSchema(*tableSchema, Transaction_, tableSchemaId);
+            // COMPAT(h0pless): This branch will be used by chunk schemas. When they get introduced this alert will be removed.
+            YT_LOG_ALERT("Created imported schema on an external cell outside of a designated mutation "
+                "(TableSchemaId: %v, TransactionId: %v)",
+                tableSchemaId,
+                Transaction_->GetId());
+            return tableManager->CreateImportedTemporaryMasterTableSchema(
+                *tableSchema,
+                Transaction_,
+                tableSchemaId);
         }
 
         return tableManager->GetMasterTableSchema(tableSchemaId);
@@ -1874,11 +1879,11 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
         uploadContext.Schema = getOrCreateCorrespondingTableSchema();
     }
 
+    node->EndUpload(uploadContext);
+
     if (node->IsExternal()) {
         ReplicateEndUploadRequestToExternalCell(node, request, uploadContext);
     }
-
-    node->EndUpload(uploadContext);
 
     SetModified(EModificationType::Content);
 
