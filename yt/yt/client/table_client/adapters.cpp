@@ -157,6 +157,32 @@ void PipeReaderToWriter(
         .ThrowOnError();
 }
 
+void PipeReaderToWriterByBatches(
+    const ITableReaderPtr& reader,
+    const NFormats::ISchemalessFormatWriterPtr& writer,
+    const TRowBatchReadOptions& options)
+{
+    TPeriodicYielder yielder(TDuration::Seconds(1));
+
+    while (auto batch = reader->Read(options)) {
+        yielder.TryYield();
+
+        if (batch->IsEmpty()) {
+            WaitFor(reader->GetReadyEvent())
+                .ThrowOnError();
+            continue;
+        }
+
+        if (!writer->WriteBatch(batch)) {
+            WaitFor(writer->GetReadyEvent())
+                .ThrowOnError();
+        }
+    }
+
+    WaitFor(writer->Close())
+        .ThrowOnError();
+}
+
 void PipeInputToOutput(
     IInputStream* input,
     IOutputStream* output,

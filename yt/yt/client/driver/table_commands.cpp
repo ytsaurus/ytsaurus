@@ -134,9 +134,10 @@ void TReadTableCommand::DoExecute(ICommandContextPtr context)
             reader->GetOmittedInaccessibleColumns());
     });
 
-    TPipeReaderToWriterOptions options;
-    options.BufferRowCount = context->GetConfig()->ReadBufferRowCount;
-    PipeReaderToWriter(
+    TRowBatchReadOptions options{
+        .MaxRowsPerRead = context->GetConfig()->ReadBufferRowCount
+    };
+    PipeReaderToWriterByBatches(
         reader,
         writer,
         options);

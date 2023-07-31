@@ -63,10 +63,8 @@ public:
         }
         NameTableSize_ += descriptor.name_table_entries_size();
 
-        auto rows = batch->MaterializeRows();
-
         Data_.clear();
-        Writer_->Write(rows);
+        Writer_->WriteBatch(batch);
         WaitFor(Writer_->Flush())
             .ThrowOnError();
 

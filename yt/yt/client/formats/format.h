@@ -3,7 +3,6 @@
 #include "public.h"
 
 #include <yt/yt/client/table_client/public.h>
-
 #include <yt/yt/client/table_client/unversioned_writer.h>
 
 #include <yt/yt/core/concurrency/public.h>
@@ -50,6 +49,8 @@ struct ISchemalessFormatWriter
     virtual i64 GetWrittenSize() const = 0;
 
     [[nodiscard]] virtual TFuture<void> Flush() = 0;
+
+    virtual bool WriteBatch(NTableClient::IUnversionedRowBatchPtr rowBatch);
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchemalessFormatWriter)

@@ -19,7 +19,7 @@
 #include "yson_parser.h"
 
 #include <yt/yt/client/table_client/name_table.h>
-
+#include <yt/yt/client/table_client/row_batch.h>
 #include <yt/yt/client/table_client/table_consumer.h>
 
 #include <yt/yt/library/skiff_ext/schema_match.h>
@@ -306,6 +306,13 @@ IVersionedWriterPtr CreateVersionedWriterForFormat(
         default:
             THROW_ERROR_EXCEPTION("Unsupported output format %Qlv", format.GetType());
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool ISchemalessFormatWriter::WriteBatch(NTableClient::IUnversionedRowBatchPtr rowBatch)
+{
+    return Write(rowBatch->MaterializeRows());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

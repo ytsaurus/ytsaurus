@@ -5,6 +5,8 @@
 
 #include <yt/yt/client/api/table_reader.h>
 
+#include <yt/yt/client/formats/format.h>
+
 #include <yt/yt/core/concurrency/async_stream.h>
 
 namespace NYT::NTableClient {
@@ -33,6 +35,11 @@ void PipeReaderToWriter(
     const NApi::ITableReaderPtr& reader,
     const IUnversionedRowsetWriterPtr& writer,
     const TPipeReaderToWriterOptions& options);
+
+void PipeReaderToWriterByBatches(
+    const NApi::ITableReaderPtr& reader,
+    const NFormats::ISchemalessFormatWriterPtr& writer,
+    const TRowBatchReadOptions& options);
 
 void PipeInputToOutput(
     IInputStream* input,
