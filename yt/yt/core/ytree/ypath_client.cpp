@@ -67,14 +67,14 @@ TRealmId TYPathRequest::GetRealmId() const
     return NullRealmId;
 }
 
-const TString& TYPathRequest::GetMethod() const
+TString TYPathRequest::GetMethod() const
 {
-    return Header_.method();
+    return TString(Header_.method());
 }
 
-const TString& TYPathRequest::GetService() const
+TString TYPathRequest::GetService() const
 {
-    return Header_.service();
+    return TString(Header_.service());
 }
 
 void TYPathRequest::DeclareClientFeature(int featureId)
@@ -238,16 +238,16 @@ bool TYPathResponse::TryDeserializeBody(TRef /*data*/, std::optional<NCompressio
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TYPath& GetRequestTargetYPath(const NRpc::NProto::TRequestHeader& header)
+TYPath GetRequestTargetYPath(const NRpc::NProto::TRequestHeader& header)
 {
     const auto& ypathExt = header.GetExtension(NProto::TYPathHeaderExt::ypath_header_ext);
-    return ypathExt.target_path();
+    return TString(ypathExt.target_path());
 }
 
-const TYPath& GetOriginalRequestTargetYPath(const NRpc::NProto::TRequestHeader& header)
+TYPath GetOriginalRequestTargetYPath(const NRpc::NProto::TRequestHeader& header)
 {
     const auto& ypathExt = header.GetExtension(NProto::TYPathHeaderExt::ypath_header_ext);
-    return ypathExt.has_original_target_path() ? ypathExt.original_target_path() : ypathExt.target_path();
+    return ypathExt.has_original_target_path() ? TString(ypathExt.original_target_path()) : TString(ypathExt.target_path());
 }
 
 void SetRequestTargetYPath(NRpc::NProto::TRequestHeader* header, TYPath path)
@@ -395,7 +395,7 @@ TString SyncYPathGetKey(const IYPathServicePtr& service, const TYPath& path)
     auto future = ExecuteVerb(service, request);
     auto optionalResult = future.TryGetUnique();
     YT_VERIFY(optionalResult);
-    return optionalResult->ValueOrThrow()->value();
+    return TString(optionalResult->ValueOrThrow()->value());
 }
 
 TYsonString SyncYPathGet(

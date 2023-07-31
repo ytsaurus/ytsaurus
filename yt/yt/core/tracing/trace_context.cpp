@@ -636,7 +636,7 @@ TTraceContextPtr TTraceContext::NewChildFromRpc(
         traceContext->SetBaggage(TYsonString(ext.baggage()));
     }
     if (ext.has_target_endpoint()) {
-        traceContext->SetTargetEndpoint(ext.target_endpoint());
+        traceContext->SetTargetEndpoint(TString(ext.target_endpoint()));
     }
     return traceContext;
 }

@@ -1032,7 +1032,7 @@ void FromProto(TError* error, const NYT::NProto::TError& protoError)
     }
 
     error->SetCode(TErrorCode(protoError.code()));
-    error->SetMessage(protoError.message());
+    error->SetMessage(TString(protoError.message()));
     if (protoError.has_attributes()) {
         error->Impl_->SetAttributes(FromProto(protoError.attributes()));
     } else {

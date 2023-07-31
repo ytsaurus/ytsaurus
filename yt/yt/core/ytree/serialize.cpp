@@ -316,7 +316,7 @@ void DeserializeProtobufMessage(
     const INodePtr& node,
     const NYson::TProtobufWriterOptions& options)
 {
-    TString wireBytes;
+    std::string wireBytes;
     StringOutputStream outputStream(&wireBytes);
     auto protobufWriter = CreateProtobufWriter(&outputStream, type, options);
     VisitTree(node, protobufWriter.get(), true);

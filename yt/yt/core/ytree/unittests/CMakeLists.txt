@@ -12,24 +12,18 @@ get_built_tool_path(
   tools/enum_parser/enum_parser
   enum_parser
 )
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
 
 add_executable(unittester-core-ytree)
 target_compile_options(unittester-core-ytree PRIVATE
   -Wdeprecated-this-capture
 )
+include(FindProtobuf)
+find_package(Protobuf REQUIRED)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${Protobuf_INCLUDE_DIRS})
+message(boroda "${Protobuf_INCLUDE_DIRS}")
 target_link_libraries(unittester-core-ytree PUBLIC
+${Protobuf_LIBRARIES}
   contrib-libs-linux-headers
   #contrib-libs-cxxsupp
   yutil
@@ -39,7 +33,6 @@ target_link_libraries(unittester-core-ytree PUBLIC
   tools-enum_parser-enum_serialization_runtime
   yt-yt-core
   yt-core-test_framework
-  contrib-libs-protobuf
 )
 target_link_options(unittester-core-ytree PRIVATE
   -ldl
@@ -109,6 +102,5 @@ target_proto_addincls(unittester-core-ytree
 )
 target_proto_outs(unittester-core-ytree
   --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/yt
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/yt
 )
 vcs_info(unittester-core-ytree)

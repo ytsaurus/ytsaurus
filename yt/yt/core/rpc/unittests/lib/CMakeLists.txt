@@ -6,43 +6,24 @@
 # original buildsystem will not be accepted.
 
 
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
 
 add_library(rpc-unittests-lib)
 target_compile_options(rpc-unittests-lib PRIVATE
   -Wdeprecated-this-capture
 )
+include(FindProtobuf)
+find_package(Protobuf REQUIRED)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${Protobuf_INCLUDE_DIRS})
+message(boroda "${Protobuf_INCLUDE_DIRS}")
 target_link_libraries(rpc-unittests-lib PUBLIC
+${Protobuf_LIBRARIES}
   contrib-libs-linux-headers
   #contrib-libs-cxxsupp
   yutil
   yt-yt-core
   core-rpc-grpc
   cpp-testing-gtest
-  contrib-libs-protobuf
 )
 target_proto_messages(rpc-unittests-lib PRIVATE
   ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/core/rpc/unittests/lib/my_service.proto
@@ -65,5 +46,4 @@ target_proto_addincls(rpc-unittests-lib
 )
 target_proto_outs(rpc-unittests-lib
   --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/
 )

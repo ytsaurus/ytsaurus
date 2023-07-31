@@ -11,11 +11,16 @@ add_library(cpp-mapreduce-io)
 target_compile_options(cpp-mapreduce-io PRIVATE
   -Wdeprecated-this-capture
 )
+include(FindProtobuf)
+find_package(Protobuf REQUIRED)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${Protobuf_INCLUDE_DIRS})
+message(boroda "${Protobuf_INCLUDE_DIRS}")
 target_link_libraries(cpp-mapreduce-io PUBLIC
+${Protobuf_LIBRARIES}
   contrib-libs-linux-headers
   #contrib-libs-cxxsupp
   yutil
-  contrib-libs-protobuf
   library-cpp-yson
   cpp-mapreduce-common
   cpp-mapreduce-interface

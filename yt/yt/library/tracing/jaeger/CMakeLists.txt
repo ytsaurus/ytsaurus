@@ -6,30 +6,23 @@
 # original buildsystem will not be accepted.
 
 
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
 
 add_library(library-tracing-jaeger)
 target_compile_options(library-tracing-jaeger PRIVATE
   -Wdeprecated-this-capture
 )
+include(FindProtobuf)
+find_package(Protobuf REQUIRED)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${Protobuf_INCLUDE_DIRS})
+message(boroda "${Protobuf_INCLUDE_DIRS}")
 target_link_libraries(library-tracing-jaeger PUBLIC
+${Protobuf_LIBRARIES}
   contrib-libs-linux-headers
   #contrib-libs-cxxsupp
   yutil
   yt-library-tracing
   core-rpc-grpc
-  contrib-libs-protobuf
 )
 target_proto_messages(library-tracing-jaeger PRIVATE
   ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/tracing/jaeger/model.proto
@@ -49,20 +42,24 @@ target_proto_addincls(library-tracing-jaeger
 )
 target_proto_outs(library-tracing-jaeger
   --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/
 )
 
 add_global_library_for(library-tracing-jaeger.global library-tracing-jaeger)
 target_compile_options(library-tracing-jaeger.global PRIVATE
   -Wdeprecated-this-capture
 )
+include(FindProtobuf)
+find_package(Protobuf REQUIRED)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${Protobuf_INCLUDE_DIRS})
+message(boroda "${Protobuf_INCLUDE_DIRS}")
 target_link_libraries(library-tracing-jaeger.global PUBLIC
+${Protobuf_LIBRARIES}
   contrib-libs-linux-headers
   #contrib-libs-cxxsupp
   yutil
   yt-library-tracing
   core-rpc-grpc
-  contrib-libs-protobuf
 )
 target_sources(library-tracing-jaeger.global PRIVATE
   ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/tracing/jaeger/tracer.cpp

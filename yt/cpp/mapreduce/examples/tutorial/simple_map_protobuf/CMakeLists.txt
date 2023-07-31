@@ -6,32 +6,25 @@
 # original buildsystem will not be accepted.
 
 
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
 
-add_executable(simple_map_protobuf)
-target_compile_options(simple_map_protobuf PRIVATE
+add_executable(simple_map_protobuf2)
+target_compile_options(simple_map_protobuf2 PRIVATE
   -Wdeprecated-this-capture
 )
-target_link_libraries(simple_map_protobuf PUBLIC
+include(FindProtobuf)
+find_package(Protobuf REQUIRED)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${Protobuf_INCLUDE_DIRS})
+message(boroda "${Protobuf_INCLUDE_DIRS}")
+target_link_libraries(simple_map_protobuf2 PUBLIC
+${Protobuf_LIBRARIES}
   contrib-libs-linux-headers
   #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   cpp-mapreduce-client
-  contrib-libs-protobuf
 )
-target_link_options(simple_map_protobuf PRIVATE
+target_link_options(simple_map_protobuf2 PRIVATE
   -ldl
   -lrt
   -Wl,--no-as-needed
@@ -42,17 +35,17 @@ target_link_options(simple_map_protobuf PRIVATE
   -ldl
   -lutil
 )
-target_proto_messages(simple_map_protobuf PRIVATE
+target_proto_messages(simple_map_protobuf2 PRIVATE
   ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/examples/tutorial/simple_map_protobuf/data.proto
 )
-target_sources(simple_map_protobuf PRIVATE
+target_sources(simple_map_protobuf2 PRIVATE
   ${CMAKE_SOURCE_DIR}/ytsaurus/yt/cpp/mapreduce/examples/tutorial/simple_map_protobuf/main.cpp
 )
-target_allocator(simple_map_protobuf
+target_allocator(simple_map_protobuf2
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
-target_proto_addincls(simple_map_protobuf
+target_proto_addincls(simple_map_protobuf2
   ./
   ${CMAKE_SOURCE_DIR}/ytsaurus/
   ${CMAKE_BINARY_DIR}/ytsaurus
@@ -62,8 +55,7 @@ target_proto_addincls(simple_map_protobuf
   ${CMAKE_BINARY_DIR}/ytsaurus
   ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/protobuf/src
 )
-target_proto_outs(simple_map_protobuf
+target_proto_outs(simple_map_protobuf2
   --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/
 )
-vcs_info(simple_map_protobuf)
+vcs_info(simple_map_protobuf2)

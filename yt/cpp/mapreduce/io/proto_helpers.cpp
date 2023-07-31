@@ -7,7 +7,6 @@
 
 #include <google/protobuf/descriptor.h>
 #include <google/protobuf/descriptor.pb.h>
-#include <google/protobuf/messagext.h>
 #include <google/protobuf/io/coded_stream.h>
 
 #include <util/stream/str.h>
@@ -21,7 +20,7 @@ using ::google::protobuf::Descriptor;
 using ::google::protobuf::DescriptorPool;
 
 using ::google::protobuf::io::CodedInputStream;
-using ::google::protobuf::io::TCopyingInputStreamAdaptor;
+using ::google::protobuf::io::CopyingInputStreamAdaptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,11 +83,62 @@ void ValidateProtoDescriptor(
     }
 }
 
+namespace {
+
+class TErrorState {
+public:
+    TErrorState()
+        : HasError_(false)
+    {
+    }
+    bool HasError() const {
+        return HasError_;
+    }
+    void SetError() {
+        HasError_ = true;
+    }
+private:
+    bool HasError_;
+};
+
+class TInputStreamProxy: public google::protobuf::io::CopyingInputStream, public TErrorState {
+    public:
+        inline TInputStreamProxy(IInputStream* slave)
+            : mSlave(slave)
+        {
+        }
+
+        virtual int Read(void* buffer, int size) override
+	{
+		    try {
+			return (int)mSlave->Read(buffer, (size_t)size);
+		    } catch (const yexception& e) {
+			GOOGLE_LOG(ERROR) << e.what();
+		    } catch (...) {
+			GOOGLE_LOG(ERROR) << "unknown exception caught";
+		    }
+		    TErrorState::SetError();
+		    return -1;
+	}
+
+    private:
+        IInputStream* mSlave;
+};
+
+class TCopyingInputStreamAdaptor: public TInputStreamProxy, public CopyingInputStreamAdaptor {
+public:
+    TCopyingInputStreamAdaptor(IInputStream* inputStream)
+        : TInputStreamProxy(inputStream)
+        , CopyingInputStreamAdaptor(this)
+    { }
+};
+
+}
 void ParseFromArcadiaStream(IInputStream* stream, Message& row, ui32 length)
 {
     TLengthLimitedInput input(stream, length);
     TCopyingInputStreamAdaptor adaptor(&input);
-    CodedInputStream codedStream(&adaptor);
+    google::protobuf::io::CodedInputStream codedStream(&adaptor);
     codedStream.SetTotalBytesLimit(length + 1);
     bool parsedOk = row.ParseFromCodedStream(&codedStream);
     Y_ENSURE(parsedOk, "Failed to parse protobuf message");

@@ -6,31 +6,24 @@
 # original buildsystem will not be accepted.
 
 
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
 
 add_executable(simple_map_lambda)
 target_compile_options(simple_map_lambda PRIVATE
   -Wdeprecated-this-capture
 )
+include(FindProtobuf)
+find_package(Protobuf REQUIRED)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${Protobuf_INCLUDE_DIRS})
+message(boroda "${Protobuf_INCLUDE_DIRS}")
 target_link_libraries(simple_map_lambda PUBLIC
+${Protobuf_LIBRARIES}
   contrib-libs-linux-headers
   #contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
   mapreduce-library-lambda
   cpp-mapreduce-client
-  contrib-libs-protobuf
 )
 target_link_options(simple_map_lambda PRIVATE
   -ldl
@@ -65,6 +58,5 @@ target_proto_addincls(simple_map_lambda
 )
 target_proto_outs(simple_map_lambda
   --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/
 )
 vcs_info(simple_map_lambda)

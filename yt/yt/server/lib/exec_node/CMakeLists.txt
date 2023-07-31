@@ -6,24 +6,18 @@
 # original buildsystem will not be accepted.
 
 
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
 
 add_library(server-lib-exec_node)
 target_compile_options(server-lib-exec_node PRIVATE
   -Wdeprecated-this-capture
 )
+include(FindProtobuf)
+find_package(Protobuf REQUIRED)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${Protobuf_INCLUDE_DIRS})
+message(boroda "${Protobuf_INCLUDE_DIRS}")
 target_link_libraries(server-lib-exec_node PUBLIC
+${Protobuf_LIBRARIES}
   contrib-libs-linux-headers
   #contrib-libs-cxxsupp
   yutil
@@ -32,7 +26,6 @@ target_link_libraries(server-lib-exec_node PUBLIC
   server-lib-job_proxy
   yt-library-containers
   server-lib-misc
-  contrib-libs-protobuf
 )
 target_proto_messages(server-lib-exec_node PRIVATE
   ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/exec_node/proto/supervisor_service.proto
@@ -55,5 +48,4 @@ target_proto_addincls(server-lib-exec_node
 )
 target_proto_outs(server-lib-exec_node
   --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/
 )

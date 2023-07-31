@@ -55,8 +55,8 @@ struct IClientRequest
 
     virtual TRequestId GetRequestId() const = 0;
     virtual TRealmId GetRealmId() const = 0;
-    virtual const TString& GetService() const = 0;
-    virtual const TString& GetMethod() const = 0;
+    virtual TString GetService() const = 0;
+    virtual TString GetMethod() const = 0;
 
     virtual void DeclareClientFeature(int featureId) = 0;
     virtual void RequireServerFeature(int featureId) = 0;
@@ -163,8 +163,8 @@ public:
 
     TRequestId GetRequestId() const override;
     TRealmId GetRealmId() const override;
-    const TString& GetService() const override;
-    const TString& GetMethod() const override;
+    TString GetService() const override;
+    TString GetMethod() const override;
 
     using NRpc::IClientRequest::DeclareClientFeature;
     using NRpc::IClientRequest::RequireServerFeature;

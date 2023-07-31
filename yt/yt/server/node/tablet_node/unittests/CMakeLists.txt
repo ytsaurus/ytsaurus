@@ -6,24 +6,18 @@
 # original buildsystem will not be accepted.
 
 
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
 
 add_executable(unittester-tablet-node)
 target_compile_options(unittester-tablet-node PRIVATE
   -Wdeprecated-this-capture
 )
+include(FindProtobuf)
+find_package(Protobuf REQUIRED)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${Protobuf_INCLUDE_DIRS})
+message(boroda "${Protobuf_INCLUDE_DIRS}")
 target_link_libraries(unittester-tablet-node PUBLIC
+${Protobuf_LIBRARIES}
   contrib-libs-linux-headers
   #contrib-libs-cxxsupp
   yutil
@@ -34,7 +28,6 @@ target_link_libraries(unittester-tablet-node PUBLIC
   yt-server-node
   yt-server-tools
   lib-hydra_common-mock
-  contrib-libs-protobuf
 )
 target_link_options(unittester-tablet-node PRIVATE
   -ldl
@@ -101,6 +94,5 @@ target_proto_addincls(unittester-tablet-node
 )
 target_proto_outs(unittester-tablet-node
   --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/
 )
 vcs_info(unittester-tablet-node)

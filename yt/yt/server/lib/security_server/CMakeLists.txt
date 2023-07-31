@@ -6,18 +6,6 @@
 # original buildsystem will not be accepted.
 
 
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
 
 add_library(server-lib-security_server)
 target_compile_options(server-lib-security_server PRIVATE
@@ -26,12 +14,17 @@ target_compile_options(server-lib-security_server PRIVATE
 target_include_directories(server-lib-security_server PUBLIC
   ${CMAKE_BINARY_DIR}/ytsaurus/yt
 )
+include(FindProtobuf)
+find_package(Protobuf REQUIRED)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${Protobuf_INCLUDE_DIRS})
+message(boroda "${Protobuf_INCLUDE_DIRS}")
 target_link_libraries(server-lib-security_server PUBLIC
+${Protobuf_LIBRARIES}
   contrib-libs-linux-headers
   #contrib-libs-cxxsupp
   yutil
   yt-yt-client
-  contrib-libs-protobuf
 )
 target_proto_messages(server-lib-security_server PRIVATE
   ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/security_server/proto/security_manager.proto
@@ -49,5 +42,4 @@ target_proto_addincls(server-lib-security_server
 )
 target_proto_outs(server-lib-security_server
   --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/yt
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/yt
 )

@@ -199,14 +199,14 @@ TRealmId TClientRequest::GetRealmId() const
     return FromProto<TRealmId>(Header_.realm_id());
 }
 
-const TString& TClientRequest::GetService() const
+TString TClientRequest::GetService() const
 {
-    return Header_.service();
+    return TString(Header_.service());
 }
 
-const TString& TClientRequest::GetMethod() const
+TString TClientRequest::GetMethod() const
 {
-    return Header_.method();
+    return TString(Header_.method());
 }
 
 void TClientRequest::DeclareClientFeature(int featureId)

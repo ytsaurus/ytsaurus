@@ -66,7 +66,7 @@ public:
         static const auto Realm = TString("noop");
         static const auto UserTicket = TString();
         TAuthenticationResult result{
-            context.Header->has_user() ? context.Header->user() : RootUserName,
+            context.Header->has_user() ? TString(context.Header->user()) : RootUserName,
             Realm,
             UserTicket
         };

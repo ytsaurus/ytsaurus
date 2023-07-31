@@ -6,18 +6,6 @@
 # original buildsystem will not be accepted.
 
 
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
 
 add_library(yt-ytlib-distributed_throttler)
 target_compile_options(yt-ytlib-distributed_throttler PRIVATE
@@ -26,13 +14,18 @@ target_compile_options(yt-ytlib-distributed_throttler PRIVATE
 target_include_directories(yt-ytlib-distributed_throttler PUBLIC
   ${CMAKE_BINARY_DIR}/ytsaurus/yt
 )
+include(FindProtobuf)
+find_package(Protobuf REQUIRED)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${Protobuf_INCLUDE_DIRS})
+message(boroda "${Protobuf_INCLUDE_DIRS}")
 target_link_libraries(yt-ytlib-distributed_throttler PUBLIC
+${Protobuf_LIBRARIES}
   contrib-libs-linux-headers
   #contrib-libs-cxxsupp
   yutil
   yt-yt-core
   yt-ytlib-discovery_client
-  contrib-libs-protobuf
 )
 target_proto_messages(yt-ytlib-distributed_throttler PRIVATE
   ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/ytlib/distributed_throttler/proto/distributed_throttler.proto
@@ -54,5 +47,4 @@ target_proto_addincls(yt-ytlib-distributed_throttler
 )
 target_proto_outs(yt-ytlib-distributed_throttler
   --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/yt
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/yt
 )

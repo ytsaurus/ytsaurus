@@ -72,14 +72,14 @@ public:
     TSharedRef ConvertFrom(const TSharedRef& message, const NYson::TProtobufMessageType* messageType, const TYsonString& /*formatOptionsYson*/) override
     {
         auto ysonBuffer = PopEnvelope(message);
-        TString protoBuffer;
+	std::string protoBuffer;
         {
             google::protobuf::io::StringOutputStream output(&protoBuffer);
             auto converter = CreateProtobufWriter(&output, messageType);
             // NB: formatOptionsYson is ignored, since YSON parser has no user-defined options.
             ParseYsonStringBuffer(TStringBuf(ysonBuffer.Begin(), ysonBuffer.End()), EYsonType::Node, converter.get());
         }
-        return PushEnvelope(TSharedRef::FromString(protoBuffer));
+        return PushEnvelope(TSharedRef::FromString(TString(protoBuffer)));
     }
 
     TSharedRef ConvertTo(const TSharedRef& message, const NYson::TProtobufMessageType* messageType, const TYsonString& /*formatOptionsYson*/) override
@@ -109,7 +109,7 @@ public:
     TSharedRef ConvertFrom(const TSharedRef& message, const NYson::TProtobufMessageType* messageType, const TYsonString& formatOptionsYson) override
     {
         auto jsonBuffer = PopEnvelope(message);
-        TString protoBuffer;
+	std::string protoBuffer;
         {
             google::protobuf::io::StringOutputStream output(&protoBuffer);
             auto converter = CreateProtobufWriter(&output, messageType);
@@ -120,7 +120,7 @@ public:
             }
             ParseJson(&input, converter.get(), formatConfig);
         }
-        return PushEnvelope(TSharedRef::FromString(protoBuffer));
+        return PushEnvelope(TSharedRef::FromString(TString(protoBuffer)));
     }
 
     TSharedRef ConvertTo(const TSharedRef& message, const NYson::TProtobufMessageType* messageType, const TYsonString& formatOptionsYson) override

@@ -6,30 +6,6 @@
 # original buildsystem will not be accepted.
 
 
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
 
 add_library(server-lib-controller_agent)
 target_compile_options(server-lib-controller_agent PRIVATE
@@ -38,14 +14,19 @@ target_compile_options(server-lib-controller_agent PRIVATE
 target_include_directories(server-lib-controller_agent PUBLIC
   ${CMAKE_BINARY_DIR}/ytsaurus/yt
 )
+include(FindProtobuf)
+find_package(Protobuf REQUIRED)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${Protobuf_INCLUDE_DIRS})
+message(boroda "${Protobuf_INCLUDE_DIRS}")
 target_link_libraries(server-lib-controller_agent PUBLIC
+${Protobuf_LIBRARIES}
   contrib-libs-linux-headers
   #contrib-libs-cxxsupp
   yutil
   yt-yt-ytlib
   server-lib-scheduler
   server-lib-job_agent
-  contrib-libs-protobuf
 )
 target_proto_messages(server-lib-controller_agent PRIVATE
   ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/controller_agent/proto/job_tracker_service.proto
@@ -75,5 +56,4 @@ target_proto_addincls(server-lib-controller_agent
 )
 target_proto_outs(server-lib-controller_agent
   --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/yt
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/yt
 )

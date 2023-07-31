@@ -6,18 +6,6 @@
 # original buildsystem will not be accepted.
 
 
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
 
 add_library(server-lib-hive)
 target_compile_options(server-lib-hive PRIVATE
@@ -26,14 +14,19 @@ target_compile_options(server-lib-hive PRIVATE
 target_include_directories(server-lib-hive PUBLIC
   ${CMAKE_BINARY_DIR}/ytsaurus/yt
 )
+include(FindProtobuf)
+find_package(Protobuf REQUIRED)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${Protobuf_INCLUDE_DIRS})
+message(boroda "${Protobuf_INCLUDE_DIRS}")
 target_link_libraries(server-lib-hive PUBLIC
+${Protobuf_LIBRARIES}
   contrib-libs-linux-headers
   #contrib-libs-cxxsupp
   yutil
   yt-yt-core
   server-lib-election
   server-lib-hydra
-  contrib-libs-protobuf
 )
 target_proto_messages(server-lib-hive PRIVATE
   ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/hive/proto/hive_manager.proto
@@ -59,5 +52,4 @@ target_proto_addincls(server-lib-hive
 )
 target_proto_outs(server-lib-hive
   --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/yt
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/yt
 )

@@ -361,14 +361,14 @@ TMutationId TServiceContextBase::GetMutationId() const
     return FromProto<TMutationId>(RequestHeader_->mutation_id());
 }
 
-const TString& TServiceContextBase::GetService() const
+TString TServiceContextBase::GetService() const
 {
-    return RequestHeader_->service();
+    return TString(RequestHeader_->service());
 }
 
-const TString& TServiceContextBase::GetMethod() const
+TString TServiceContextBase::GetMethod() const
 {
-    return RequestHeader_->method();
+    return TString(RequestHeader_->method());
 }
 
 TRealmId TServiceContextBase::GetRealmId() const
@@ -553,12 +553,12 @@ TMutationId TServiceContextWrapper::GetMutationId() const
     return UnderlyingContext_->GetMutationId();
 }
 
-const TString& TServiceContextWrapper::GetService() const
+TString TServiceContextWrapper::GetService() const
 {
     return UnderlyingContext_->GetService();
 }
 
-const TString& TServiceContextWrapper::GetMethod() const
+TString TServiceContextWrapper::GetMethod() const
 {
     return UnderlyingContext_->GetMethod();
 }

@@ -15,16 +15,16 @@ using ::google::protobuf::Descriptor;
 using ::google::protobuf::FieldDescriptor;
 using ::google::protobuf::EnumValueDescriptor;
 
-const TString& GetFieldColumnName(const FieldDescriptor* fieldDesc) {
+TString GetFieldColumnName(const FieldDescriptor* fieldDesc) {
     const auto& columnName = fieldDesc->options().GetExtension(column_name);
     if (!columnName.empty()) {
-        return columnName;
+        return TString(columnName);
     }
     const auto& keyColumnName = fieldDesc->options().GetExtension(key_column_name);
     if (!keyColumnName.empty()) {
-        return keyColumnName;
+        return TString(keyColumnName);
     }
-    return fieldDesc->name();
+    return TString(fieldDesc->name());
 }
 
 void ReadMessageFromNode(const TNode& node, Message* row)

@@ -10,54 +10,6 @@ add_subdirectory(cellar_node)
 add_subdirectory(chaos_node)
 add_subdirectory(data_node)
 add_subdirectory(tablet_node)
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
 
 add_library(yt-server-node)
 target_compile_options(yt-server-node PRIVATE
@@ -69,7 +21,13 @@ target_include_directories(yt-server-node PUBLIC
 target_include_directories(yt-server-node PRIVATE
   ${CMAKE_SOURCE_DIR}/ytsaurus/contrib/libs/sparsehash/src
 )
+include(FindProtobuf)
+find_package(Protobuf REQUIRED)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${Protobuf_INCLUDE_DIRS})
+message(boroda "${Protobuf_INCLUDE_DIRS}")
 target_link_libraries(yt-server-node PUBLIC
+${Protobuf_LIBRARIES}
   contrib-libs-linux-headers
   #contrib-libs-cxxsupp
   yutil
@@ -99,7 +57,6 @@ target_link_libraries(yt-server-node PUBLIC
   library-cpp-getopt
   cpp-yt-phdr_cache
   libs-tcmalloc-malloc_extension
-  contrib-libs-protobuf
 )
 target_proto_messages(yt-server-node PRIVATE
   ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/node/data_node/artifact.proto
@@ -266,5 +223,4 @@ target_proto_addincls(yt-server-node
 )
 target_proto_outs(yt-server-node
   --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/yt
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/yt
 )

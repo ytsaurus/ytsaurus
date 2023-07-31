@@ -531,16 +531,17 @@ TProtobufOneofOptions GetOneofOptions(
     auto variantFieldName = oneofDescriptor->options().GetExtension(variant_field_name);
     switch (options.Mode) {
         case EProtobufOneofMode::SeparateFields:
-            if (variantFieldName) {
+            if (!variantFieldName.empty()) {
                 ythrow TApiUsageError() << "\"variant_field_name\" requires (NYT.oneof_flags) = VARIANT";
             }
             break;
         case EProtobufOneofMode::Variant:
-            if (variantFieldName) {
-                options.VariantFieldName = variantFieldName;
-            } else {
+            if (variantFieldName.empty()) {
+            
                 options.VariantFieldName = oneofDescriptor->name();
-            }
+            } else {
+		    options.VariantFieldName = variantFieldName;
+	    }
             break;
     }
     return options;
@@ -600,13 +601,13 @@ TString GetColumnName(const ::google::protobuf::FieldDescriptor& field)
     const auto& options = field.options();
     const auto columnName = options.GetExtension(column_name);
     if (!columnName.empty()) {
-        return columnName;
+        return TString(columnName);
     }
     const auto keyColumnName = options.GetExtension(key_column_name);
     if (!keyColumnName.empty()) {
-        return keyColumnName;
+        return TString(keyColumnName);
     }
-    return field.name();
+    return TString(field.name());
 }
 
 TNode MakeProtoFormatMessageFieldsConfig(
@@ -680,7 +681,7 @@ TNode MakeProtoFormatFieldConfig(
     if (fieldDescriptor->type() == FieldDescriptor::TYPE_ENUM) {
         auto* enumeration = fieldDescriptor->enum_type();
         (*enumerations)[enumeration->full_name()] = MakeEnumerationConfig(enumeration);
-        fieldConfig["enumeration_name"] = enumeration->full_name();
+        fieldConfig["enumeration_name"] = TString(enumeration->full_name());
     }
 
     if (fieldOptions.SerializationMode != EProtobufSerializationMode::Yt) {
@@ -841,10 +842,10 @@ public:
         THashSet<TString> messageTypeNames;
         THashSet<TString> enumTypeNames;
         for (const auto* descriptor : AllDescriptors_) {
-            messageTypeNames.insert(descriptor->full_name());
+            messageTypeNames.insert(TString(descriptor->full_name()));
         }
         for (const auto* enumDescriptor : EnumDescriptors_) {
-            enumTypeNames.insert(enumDescriptor->full_name());
+            enumTypeNames.insert(TString(enumDescriptor->full_name()));
         }
         FileDescriptorSet fileDescriptorSetProto;
         for (const auto* file : fileTopoOrder) {
@@ -954,7 +955,7 @@ private:
         const THashSet<TString>& messageTypeNames,
         const THashSet<TString>& enumTypeNames)
     {
-        const auto prefix = fileProto->package().Empty()
+        const auto prefix = fileProto->package().empty()
             ? ""
             : fileProto->package() + '.';
 
@@ -970,7 +971,7 @@ private:
 
         StripUnknownOptions(fileProto->mutable_options());
         for (auto& messageProto : *fileProto->mutable_message_type()) {
-            Strip(prefix, &messageProto, messageTypeNames, enumTypeNames);
+            Strip(TString(prefix), &messageProto, messageTypeNames, enumTypeNames);
         }
         for (auto& enumProto : *fileProto->mutable_enum_type()) {
             StripUnknownOptions(enumProto.mutable_options());
@@ -992,10 +993,10 @@ TNode MakeProtoFormatConfigWithDescriptors(const TVector<const Descriptor*>& des
     auto typeNames = TNode::CreateList();
     for (const auto* descriptor : descriptors) {
         builder.AddDescriptor(descriptor);
-        typeNames.Add(descriptor->full_name());
+        typeNames.Add(TString(descriptor->full_name()));
     }
 
-    auto fileDescriptorSetText = builder.Build().ShortDebugString();
+    auto fileDescriptorSetText = TString(builder.Build().ShortDebugString());
     TNode config("protobuf");
     config.Attributes()
         ("file_descriptor_set_text", std::move(fileDescriptorSetText))

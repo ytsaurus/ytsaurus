@@ -22,6 +22,8 @@
 #include "strbuf.h"
 #include "string_hash.h"
 
+#define TSTRING_IS_STD_STRING
+
 #if defined(address_sanitizer_enabled) || defined(thread_sanitizer_enabled)
     #include "hide_ptr.h"
 #endif

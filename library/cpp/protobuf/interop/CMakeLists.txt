@@ -8,11 +8,16 @@
 
 
 add_library(cpp-protobuf-interop)
+include(FindProtobuf)
+find_package(Protobuf REQUIRED)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${Protobuf_INCLUDE_DIRS})
+message(boroda "${Protobuf_INCLUDE_DIRS}")
 target_link_libraries(cpp-protobuf-interop PUBLIC
+${Protobuf_LIBRARIES}
   contrib-libs-linux-headers
   #contrib-libs-cxxsupp
   yutil
-  contrib-libs-protobuf
 )
 target_sources(cpp-protobuf-interop PRIVATE
   ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/protobuf/interop/cast.cpp

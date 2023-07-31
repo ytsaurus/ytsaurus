@@ -94,10 +94,10 @@ struct IServiceContext
     virtual TMutationId GetMutationId() const = 0;
 
     //! Returns request service name.
-    virtual const TString& GetService() const = 0;
+    virtual TString GetService() const = 0;
 
     //! Returns request method name.
-    virtual const TString& GetMethod() const = 0;
+    virtual TString GetMethod() const = 0;
 
     //! Returns request realm id.
     virtual TRealmId GetRealmId() const = 0;

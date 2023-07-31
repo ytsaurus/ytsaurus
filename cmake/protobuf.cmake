@@ -22,8 +22,8 @@ function(target_proto_outs Tgt)
 endfunction()
 
 function(target_proto_messages Tgt Scope)
-  get_built_tool_path(protoc_bin protoc_dependency contrib/tools/protoc/bin protoc)
-  get_built_tool_path(cpp_styleguide_bin cpp_styleguide_dependency contrib/tools/protoc/plugins/cpp_styleguide cpp_styleguide)
+	#get_built_tool_path(protoc_bin protoc_dependency contrib/tools/protoc/bin protoc)
+	#get_built_tool_path(cpp_styleguide_bin cpp_styleguide_dependency contrib/tools/protoc/plugins/cpp_styleguide cpp_styleguide)
 
   get_property(ProtocExtraOutsSuf TARGET ${Tgt} PROPERTY PROTOC_EXTRA_OUTS)
   foreach(proto ${ARGN})
@@ -42,18 +42,22 @@ function(target_proto_messages Tgt Scope)
           ${OutputDir}/${OutputBase}.pb.cc
           ${OutputDir}/${OutputBase}.pb.h
           ${ProtocExtraOuts}
-        COMMAND ${protoc_bin}
+        COMMAND protoc
           ${COMMON_PROTOC_FLAGS}
           "-I$<JOIN:$<TARGET_GENEX_EVAL:${Tgt},$<TARGET_PROPERTY:${Tgt},PROTO_ADDINCL>>,;-I>"
           "$<JOIN:$<TARGET_GENEX_EVAL:${Tgt},$<TARGET_PROPERTY:${Tgt},PROTO_OUTS>>,;>"
-          --plugin=protoc-gen-cpp_styleguide=${cpp_styleguide_bin}
+	  #--plugin=protoc-gen-cpp_styleguide=${cpp_styleguide_bin}
           "$<JOIN:$<TARGET_GENEX_EVAL:${Tgt},$<TARGET_PROPERTY:${Tgt},PROTOC_OPTS>>,;>"
           ${protoRel}
+	COMMAND sed
+	  -i
+	  "s/ final / /g"
+	  ${OutputDir}/${OutputBase}.pb.h
         DEPENDS
           ${proto}
           $<TARGET_PROPERTY:${Tgt},PROTOC_DEPS>
-          ${protoc_dependency}
-          ${cpp_styleguide_dependency}
+	  #${protoc_dependency}
+	  #${cpp_styleguide_dependency}
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/ytsaurus
         COMMAND_EXPAND_LISTS
     )

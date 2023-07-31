@@ -20,14 +20,25 @@ Y_FORCE_INLINE void FromProto(TGuid* guid, const NYT::NProto::TGuid& protoGuid)
     guid->Parts64[1] = protoGuid.second();
 }
 
-Y_FORCE_INLINE void ToProto(TProtoStringType* protoGuid, TGuid guid)
+Y_FORCE_INLINE void ToProto(TString* protoGuid, TGuid guid)
 {
     *protoGuid = guid ? ToString(guid) : TString();
 }
 
-Y_FORCE_INLINE void FromProto(TGuid* guid, const TProtoStringType& protoGuid)
+Y_FORCE_INLINE void FromProto(TGuid* guid, const TString& protoGuid)
 {
     *guid = protoGuid ? TGuid::FromString(protoGuid) : TGuid();
+}
+
+Y_FORCE_INLINE void ToProto(std::string* protoGuid, TGuid guid)
+{
+	auto s = ToString(guid);
+    *protoGuid = guid ? std::string(s.data(), s.size()) : std::string();
+}
+
+Y_FORCE_INLINE void FromProto(TGuid* guid, const std::string& protoGuid)
+{
+    *guid = (!protoGuid.empty()) ? TGuid::FromString(TString(protoGuid)) : TGuid();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

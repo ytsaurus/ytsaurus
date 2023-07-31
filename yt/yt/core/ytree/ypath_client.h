@@ -28,8 +28,8 @@ public:
 public:
     NRpc::TRequestId GetRequestId() const override;
     NRpc::TRealmId GetRealmId() const override;
-    const TString& GetMethod() const override;
-    const TString& GetService() const override;
+    TString GetMethod() const override;
+    TString GetService() const override;
 
     using NRpc::IClientRequest::DeclareClientFeature;
     using NRpc::IClientRequest::RequireServerFeature;
@@ -188,8 +188,8 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TYPath& GetRequestTargetYPath(const NRpc::NProto::TRequestHeader& header);
-const TYPath& GetOriginalRequestTargetYPath(const NRpc::NProto::TRequestHeader& header);
+TYPath GetRequestTargetYPath(const NRpc::NProto::TRequestHeader& header);
+TYPath GetOriginalRequestTargetYPath(const NRpc::NProto::TRequestHeader& header);
 void SetRequestTargetYPath(NRpc::NProto::TRequestHeader* header, TYPath path);
 
 bool IsRequestMutating(const NRpc::NProto::TRequestHeader& header);

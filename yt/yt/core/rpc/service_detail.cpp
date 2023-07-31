@@ -1486,7 +1486,7 @@ void TServiceBase::HandleRequest(
         return;
     }
 
-    auto* runtimeInfo = FindMethodInfo(method);
+    auto* runtimeInfo = FindMethodInfo(TString(method));
     if (!runtimeInfo) {
         replyError(TError(
             NRpc::EErrorCode::NoSuchMethod,

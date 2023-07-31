@@ -827,7 +827,7 @@ bool TCachedYPathService::DoInvoke(const IYPathServiceContextPtr& context)
 
                 TCacheKey key(
                     GetRequestTargetYPath(context->GetRequestHeader()),
-                    context->GetRequestHeader().method(),
+                    TString(context->GetRequestHeader().method()),
                     context->GetRequestMessage()[1]);
 
                 if (auto cachedResponse = cacheSnapshot->LookupResponse(key)) {

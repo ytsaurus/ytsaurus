@@ -7,29 +7,22 @@
 
 
 add_subdirectory(unittests)
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
 
 add_library(server-lib-chunk_server)
 target_compile_options(server-lib-chunk_server PRIVATE
   -Wdeprecated-this-capture
 )
+include(FindProtobuf)
+find_package(Protobuf REQUIRED)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${Protobuf_INCLUDE_DIRS})
+message(boroda "${Protobuf_INCLUDE_DIRS}")
 target_link_libraries(server-lib-chunk_server PUBLIC
+${Protobuf_LIBRARIES}
   contrib-libs-linux-headers
   #contrib-libs-cxxsupp
   yutil
   yt-yt-ytlib
-  contrib-libs-protobuf
 )
 target_proto_messages(server-lib-chunk_server PRIVATE
   ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/lib/chunk_server/proto/job.proto
@@ -49,5 +42,4 @@ target_proto_addincls(server-lib-chunk_server
 )
 target_proto_outs(server-lib-chunk_server
   --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/
 )

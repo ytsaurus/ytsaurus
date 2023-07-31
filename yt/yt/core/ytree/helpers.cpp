@@ -238,7 +238,7 @@ IAttributeDictionaryPtr FromProto(const NProto::TAttributeDictionary& protoAttri
     for (const auto& protoAttribute : protoAttributes.attributes()) {
         const auto& key = protoAttribute.key();
         const auto& value = protoAttribute.value();
-        attributes->SetYson(key, TYsonString(value));
+        attributes->SetYson(TString(key), TYsonString(value));
     }
     return attributes;
 }

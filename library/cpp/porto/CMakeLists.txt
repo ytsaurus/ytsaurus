@@ -9,12 +9,17 @@
 add_subdirectory(proto)
 
 add_library(library-cpp-porto)
+include(FindProtobuf)
+find_package(Protobuf REQUIRED)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${Protobuf_INCLUDE_DIRS})
+message(boroda "${Protobuf_INCLUDE_DIRS}")
 target_link_libraries(library-cpp-porto PUBLIC
+${Protobuf_LIBRARIES}
   contrib-libs-linux-headers
   #contrib-libs-cxxsupp
   yutil
   cpp-porto-proto
-  contrib-libs-protobuf
 )
 target_sources(library-cpp-porto PRIVATE
   ${CMAKE_SOURCE_DIR}/ytsaurus/library/cpp/porto/libporto.cpp

@@ -126,7 +126,7 @@ private:
             return;
         }
 
-        TServiceId serviceId(serviceName, realmId);
+        TServiceId serviceId(TString(serviceName), realmId);
         IServicePtr service;
         try {
             service = GetServiceOrThrow(serviceId);
@@ -159,7 +159,7 @@ private:
         const auto& methodName = header.method();
         auto realmId = FromProto<TRealmId>(header.realm_id());
 
-        TServiceId serviceId(serviceName, realmId);
+        TServiceId serviceId(TString(serviceName), realmId);
         auto service = FindService(serviceId);
         if (!service) {
             YT_LOG_DEBUG("Service is not registered (Service: %v, RealmId: %v, RequestId: %v)",
@@ -194,7 +194,7 @@ private:
         const auto& serviceName = header.service();
         auto realmId = FromProto<TRealmId>(header.realm_id());
 
-        TServiceId serviceId(serviceName, realmId);
+        TServiceId serviceId(TString(serviceName), realmId);
         auto service = FindService(serviceId);
         if (!service) {
             YT_LOG_DEBUG("Service is not registered (Service: %v, RealmId: %v, RequestId: %v)",
@@ -255,7 +255,7 @@ private:
         const auto& serviceName = header.service();
         auto realmId = FromProto<TRealmId>(header.realm_id());
 
-        TServiceId serviceId(serviceName, realmId);
+        TServiceId serviceId(TString(serviceName), realmId);
         auto service = FindService(serviceId);
         if (!service) {
             YT_LOG_DEBUG("Service is not registered (Service: %v, RealmId: %v, RequestId: %v)",

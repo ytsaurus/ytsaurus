@@ -7,4 +7,4 @@
 
 
 add_subdirectory(flatc)
-add_subdirectory(protoc)
+#add_subdirectory(protoc)

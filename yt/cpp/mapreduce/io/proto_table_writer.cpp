@@ -37,10 +37,10 @@ TNode MakeNodeFromMessage(const Message& row)
             continue;
         }
 
-        TString columnName = fieldDesc->options().GetExtension(column_name);
+        TString columnName = TString(fieldDesc->options().GetExtension(column_name));
         if (columnName.empty()) {
-            const auto& keyColumnName = fieldDesc->options().GetExtension(key_column_name);
-            columnName = keyColumnName.empty() ? fieldDesc->name() : keyColumnName;
+            const auto& keyColumnName = TString(fieldDesc->options().GetExtension(key_column_name));
+            columnName = keyColumnName.empty() ? TString(fieldDesc->name()) : keyColumnName;
         }
 
         builder.OnKeyedItem(columnName);
@@ -153,8 +153,54 @@ void TLenvalProtoTableWriter::FinishTable(size_t tableIndex)
     Output_->GetStream(tableIndex)->Finish();
 }
 
+namespace {
+
+class TErrorState {
+public:
+    TErrorState()
+        : HasError_(false)
+    {
+    }
+    bool HasError() const {
+        return HasError_;
+    }
+    void SetError() {
+        HasError_ = true;
+    }
+private:
+    bool HasError_;
+};
+
+class TOutputStreamProxy: public google::protobuf::io::CopyingOutputStream, public TErrorState {
+    public:
+        inline TOutputStreamProxy(IOutputStream* slave)
+            : mSlave(slave)
+        {
+        }
+
+        bool Write(const void* buffer, int size) override
+	{
+		    try {
+			mSlave->Write(buffer, (size_t)size);
+			return true;
+		    } catch (const yexception& e) {
+			GOOGLE_LOG(ERROR) << e.what();
+		    } catch (...) {
+			GOOGLE_LOG(ERROR) << "unknown exception caught";
+		    }
+		    TErrorState::SetError();
+		    return false;
+	}
+
+    private:
+        IOutputStream* mSlave;
+};
+
+} // namespace
+
 void TLenvalProtoTableWriter::AddRow(const Message& row, size_t tableIndex)
 {
+    Y_UNUSED(row, tableIndex);
     ValidateProtoDescriptor(row, tableIndex, Descriptors_, false);
 
     Y_VERIFY(row.GetReflection()->GetUnknownFields(row).empty(),
@@ -164,7 +210,17 @@ void TLenvalProtoTableWriter::AddRow(const Message& row, size_t tableIndex)
     auto* stream = Output_->GetStream(tableIndex);
     i32 size = row.ByteSize();
     stream->Write(&size, sizeof(size));
-    bool serializedOk = row.SerializeToArcadiaStream(stream);
+    bool serializedOk = false;
+    {
+		  bool res = false;
+		  TOutputStreamProxy proxy(stream);
+		  {
+			  google::protobuf::io::CopyingOutputStreamAdaptor stream2(&proxy);
+		    res = row.SerializeToZeroCopyStream(&stream2);
+		  }
+		  serializedOk = res && !proxy.HasError();
+    }
+    //bool serializedOk = row.SerializeToArcadiaStream(stream);
     Y_ENSURE(serializedOk, "Failed to serialize protobuf message");
     Output_->OnRowFinished(tableIndex);
 }

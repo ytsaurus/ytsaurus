@@ -383,7 +383,7 @@ void FromProto(TExtensionSet* extensionSet, const NYT::NProto::TExtensionSet& pr
         if (IProtobufExtensionRegistry::Get()->FindDescriptorByTag(protoExtension.tag())) {
             TExtension extension{
                 .Tag = protoExtension.tag(),
-                .Data = protoExtension.data()
+                .Data = TString(protoExtension.data()),
             };
             extensionSet->Extensions.push_back(std::move(extension));
         }
@@ -431,11 +431,13 @@ void Deserialize(TExtensionSet& extensionSet, NYTree::INodePtr node)
         auto& extension = extensionSet.Extensions.emplace_back();
         extension.Tag = extensionDescriptor->Tag;
 
-        StringOutputStream stream(&extension.Data);
+	std::string s;
+        StringOutputStream stream(&s);
         auto writer = CreateProtobufWriter(
             &stream,
             ReflectProtobufMessageType(extensionDescriptor->MessageDescriptor));
-        VisitTree(value, writer.get(), /*stable=*/false);
+        extension.Data = TString(s);
+	VisitTree(value, writer.get(), /*stable=*/false);
     }
 }
 
@@ -456,9 +458,9 @@ TString DumpProto(::google::protobuf::Message& message)
 {
     ::google::protobuf::TextFormat::Printer printer;
     printer.SetSingleLineMode(true);
-    TString result;
+    std::string result;
     YT_VERIFY(printer.PrintToString(message, &result));
-    return result;
+    return TString(result);
 }
 
 } // namespace

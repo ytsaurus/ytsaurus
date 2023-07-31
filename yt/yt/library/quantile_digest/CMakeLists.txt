@@ -6,31 +6,24 @@
 # original buildsystem will not be accepted.
 
 
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
 
 add_library(yt-library-quantile_digest)
 target_compile_options(yt-library-quantile_digest PRIVATE
   -Wdeprecated-this-capture
 )
+include(FindProtobuf)
+find_package(Protobuf REQUIRED)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${Protobuf_INCLUDE_DIRS})
+message(boroda "${Protobuf_INCLUDE_DIRS}")
 target_link_libraries(yt-library-quantile_digest PUBLIC
+${Protobuf_LIBRARIES}
   contrib-libs-linux-headers
   #contrib-libs-cxxsupp
   yutil
   cpp-yt-memory
   library-cpp-tdigest
   yt-yt-core
-  contrib-libs-protobuf
 )
 target_proto_messages(yt-library-quantile_digest PRIVATE
   ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/library/quantile_digest/proto/quantile_digest.proto
@@ -51,5 +44,4 @@ target_proto_addincls(yt-library-quantile_digest
 )
 target_proto_outs(yt-library-quantile_digest
   --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/
 )

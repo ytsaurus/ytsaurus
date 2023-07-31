@@ -12,6 +12,16 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+	inline void ToProto(std::string* serialized, TString original)
+	{
+		*serialized = std::string(original.data(), original.size());
+	}
+
+	inline void FromProto(TString* original, std::string serialized)
+	{
+		*original = TString(serialized);
+	}
+
 #define DEFINE_TRIVIAL_PROTO_CONVERSIONS(type)                   \
     inline void ToProto(type* serialized, type original)         \
     {                                                            \
@@ -23,7 +33,6 @@ namespace NYT {
         *original = serialized;                                  \
     }
 
-DEFINE_TRIVIAL_PROTO_CONVERSIONS(TString)
 DEFINE_TRIVIAL_PROTO_CONVERSIONS(i8)
 DEFINE_TRIVIAL_PROTO_CONVERSIONS(ui8)
 DEFINE_TRIVIAL_PROTO_CONVERSIONS(i16)
@@ -130,7 +139,7 @@ T GetProtoExtension(const NProto::TExtensionSet& extensions)
     for (const auto& extension : extensions.extensions()) {
         if (extension.tag() == tag) {
             const auto& data = extension.data();
-            DeserializeProto(&result, TRef::FromString(data));
+            DeserializeProto(&result, TRef::FromString(TString(data)));
             found = true;
             break;
         }
@@ -160,7 +169,7 @@ std::optional<T> FindProtoExtension(const NProto::TExtensionSet& extensions)
         if (extension.tag() == tag) {
             const auto& data = extension.data();
             result.emplace();
-            DeserializeProto(&*result, TRef::FromString(data));
+            DeserializeProto(&*result, TRef::FromString(TString(data)));
             break;
         }
     }

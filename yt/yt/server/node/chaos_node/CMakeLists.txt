@@ -6,31 +6,24 @@
 # original buildsystem will not be accepted.
 
 
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
 
 add_library(server-node-chaos_node)
 target_compile_options(server-node-chaos_node PRIVATE
   -Wdeprecated-this-capture
 )
+include(FindProtobuf)
+find_package(Protobuf REQUIRED)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+include_directories(${Protobuf_INCLUDE_DIRS})
+message(boroda "${Protobuf_INCLUDE_DIRS}")
 target_link_libraries(server-node-chaos_node PUBLIC
+${Protobuf_LIBRARIES}
   contrib-libs-linux-headers
   #contrib-libs-cxxsupp
   yutil
   server-lib-hive
   server-lib-chaos_node
   server-lib-transaction_supervisor
-  contrib-libs-protobuf
 )
 target_proto_messages(server-node-chaos_node PRIVATE
   ${CMAKE_SOURCE_DIR}/ytsaurus/yt/yt/server/node/chaos_node/chaos_manager.proto
@@ -70,5 +63,4 @@ target_proto_addincls(server-node-chaos_node
 )
 target_proto_outs(server-node-chaos_node
   --cpp_out=${CMAKE_BINARY_DIR}/ytsaurus/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/ytsaurus/
 )
