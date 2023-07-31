@@ -313,6 +313,7 @@ void TJob::Start()
         YT_LOG_INFO("Slot acquired (SlotIndex: %v)", Slot_->GetSlotIndex());
 
         SetJobPhase(EJobPhase::PreparingNodeDirectory);
+
         // This is a heavy part of preparation, offload it to compression invoker.
         BIND(&TJob::PrepareNodeDirectory, MakeWeak(this))
             .AsyncVia(NRpc::TDispatcher::Get()->GetCompressionPoolInvoker())
@@ -2067,7 +2068,14 @@ void TJob::PrepareNodeDirectory()
         TDelayedExecutor::WaitForDuration(Config_->NodeDirectoryPrepareBackoffTime);
     }
 
-    nodeDirectory->DumpTo(schedulerJobSpecExt->mutable_input_node_directory());
+    try {
+        WaitFor(BIND(&TNodeDirectory::DumpTo, nodeDirectory)
+            .AsyncVia(Invoker_)
+            .Run(schedulerJobSpecExt->mutable_input_node_directory()))
+            .ThrowOnError();
+    } catch (const std::exception& ex) {
+        YT_LOG_FATAL(ex, "Preparing node directory failed");
+    }
 
     YT_LOG_INFO("Finished preparing node directory");
 }
