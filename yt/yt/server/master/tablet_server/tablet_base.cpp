@@ -148,11 +148,6 @@ void TTabletBase::SetState(ETabletState state)
     State_ = state;
 }
 
-void TTabletBase::SetStateCompat(ETabletState state)
-{
-    State_ = state;
-}
-
 ETabletState TTabletBase::GetExpectedState() const
 {
     return ExpectedState_;
@@ -166,11 +161,6 @@ void TTabletBase::SetExpectedState(ETabletState state)
         --owner->MutableTabletCountByExpectedState()[ExpectedState_];
         ++owner->MutableTabletCountByExpectedState()[state];
     }
-    ExpectedState_ = state;
-}
-
-void TTabletBase::SetExpectedStateCompat(ETabletState state)
-{
     ExpectedState_ = state;
 }
 
@@ -198,12 +188,6 @@ void TTabletBase::SetOwner(TTabletOwnerBase* owner)
 
         owner->SetTabletErrorCount(owner->GetTabletErrorCount() + GetTabletErrorCount());
     }
-    Owner_ = owner;
-}
-
-// COMPAT(gritukan)
-void TTabletBase::SetOwnerCompat(TTabletOwnerBase* owner)
-{
     Owner_ = owner;
 }
 

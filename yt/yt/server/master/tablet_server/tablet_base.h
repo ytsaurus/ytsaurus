@@ -63,18 +63,12 @@ public:
 
     ETabletState GetState() const;
     void SetState(ETabletState state);
-    // COMPAT(gritukan)
-    void SetStateCompat(ETabletState state);
 
     ETabletState GetExpectedState() const;
     void SetExpectedState(ETabletState state);
-    // COMPAT(gritukan)
-    void SetExpectedStateCompat(ETabletState state);
 
     TTabletOwnerBase* GetOwner() const;
     virtual void SetOwner(TTabletOwnerBase* owner);
-    // COMPAT(gritukan)
-    void SetOwnerCompat(TTabletOwnerBase* owner);
 
     virtual void CopyFrom(const TTabletBase& other);
 
