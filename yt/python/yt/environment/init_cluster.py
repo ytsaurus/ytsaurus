@@ -127,9 +127,7 @@ def create_account(client, attributes):
 
 def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None, configure_pool_trees=True, is_multicell=False):
     client = get_value(client, yt)
-    users = ["odin", "cron", "cron_merge", "cron_compression", "cron_operations", "cron_tmp",
-             "nightly_tester", "robot-yt-mon", "transfer_manager", "fennel", "robot-yt-idm",
-             "robot-yt-hermes"]
+    users = ["robot-yt-mon", "robot-yt-idm", "robot-yt-hermes"]
     groups = ["devs", "admins", "admin_snapshots"]
     if idm:
         groups.append("yandex")
@@ -140,15 +138,10 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
     for group in groups:
         create("group", group, client)
 
-    for cron_user in ("cron", "cron_merge", "cron_compression", "cron_operations", "cron_tmp"):
-        add_member(cron_user, "superusers", client)
-        client.set("//sys/users/" + cron_user + "/@request_queue_size_limit", 500)
-
     client.create("map_node", "//sys/cron", ignore_existing=True)
 
     add_member("devs", "admins", client)
     add_member("robot-yt-mon", "admin_snapshots", client)
-
     add_member("robot-yt-idm", "superusers", client)
 
     for dir in ["//sys", "//tmp", "//sys/tokens"]:
@@ -167,7 +160,6 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
     add_acl("//sys/tokens", {"action": "allow", "subjects": ["admins"], "permissions": ["read", "write", "remove"]},
             client)
     add_acl("//sys/tablet_cells", {"action": "allow", "subjects": ["admins"], "permissions": ["read", "write", "remove", "administer"]}, client)
-    add_acl("//sys/tablet_cells", {"action": "allow", "subjects": ["odin"], "permissions": ["read"]}, client)
     client.set("//sys/tokens/@inherit_acl", "false")
     client.set("//sys/tablet_cells/@inherit_acl", "false")
 
@@ -231,12 +223,6 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
                    ])
 
     client.create("map_node", "//sys/admin/odin", ignore_existing=True)
-
-    client.set("//sys/admin/odin/@acl",
-               [
-                   {"action": "allow", "subjects": ["odin"], "permissions": ["write", "remove", "read"]}
-               ])
-
     client.create("map_node", "//sys/admin/lock/autorestart/nodes/disabled", recursive=True, ignore_existing=True)
 
     for medium in ["default", "ssd_journals"]:
@@ -364,9 +350,6 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
         client.set("//sys/pool_trees/@default_tree", "physical")
         client.link("//sys/pool_trees/physical", "//sys/pools", force=True)
         client.set("//sys/pool_trees/physical/@config/default_parent_pool", "research")
-        add_acl("//sys/pool_trees/physical/transfer_manager",
-                {"subjects": ["transfer_manager"], "permissions": ["write", "remove"], "action": "allow"},
-                client)
 
 
 def _initialize_world(client, environment, yt_config):
