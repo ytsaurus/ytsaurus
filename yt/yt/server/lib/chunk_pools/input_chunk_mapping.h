@@ -36,7 +36,7 @@ public:
     //! Used for persistence only.
     TInputChunkMapping() = default;
 
-    explicit TInputChunkMapping(EChunkMappingMode mode, NLogging::TLogger logger);
+    TInputChunkMapping(EChunkMappingMode mode, NLogging::TLogger logger);
 
     //! Modify given stripe, replacing all the input chunks with their current
     //! substitutes.
