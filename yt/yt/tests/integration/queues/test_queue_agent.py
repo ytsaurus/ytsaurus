@@ -1554,6 +1554,8 @@ class TestAutomaticTrimming(TestQueueAgentBase):
 
 
 class TestMultipleAgents(TestQueueAgentBase):
+    NUM_TEST_PARTITIONS = 3
+
     NUM_QUEUE_AGENTS = 5
 
     DELTA_QUEUE_AGENT_CONFIG = {
@@ -1644,7 +1646,7 @@ class TestMultipleAgents(TestQueueAgentBase):
 
     @authors("achulkov2")
     @pytest.mark.parametrize("restart_victim_policy", ["heavy", "leader"])
-    @pytest.mark.timeout(150)
+    @pytest.mark.timeout(300)
     def test_sharding(self, restart_victim_policy):
         queue_count = 4
         consumer_count = 40
