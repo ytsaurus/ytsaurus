@@ -31,11 +31,13 @@ class TJobExperimentBase
     , public IPersistent
 {
 public:
-    static bool IsEnabled(TOperationSpecBasePtr operationSpec);
+    static bool IsEnabled(const TOperationSpecBasePtr& operationSpec);
 
-    virtual void PatchUserJobSpec(NScheduler::NProto::TUserJobSpec* jobSpec, TJobletPtr joblet) const = 0;
+    virtual void PatchUserJobSpec(
+        NScheduler::NProto::TUserJobSpec* jobSpec,
+        const TJobletPtr& joblet) const = 0;
     virtual NScheduler::EOperationAlertType GetAlertType() const = 0;
-    virtual TError GetAlertMessage(TOperationSpecBasePtr operationSpec) const = 0;
+    virtual TError GetAlertMessage(const TOperationSpecBasePtr& operationSpec) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobExperimentBase);
@@ -57,13 +59,15 @@ public:
         const NLogging::TLogger& logger);
 
     static bool IsEnabled(
-        TOperationSpecBasePtr operationSpec,
-        std::vector<NScheduler::TUserJobSpecPtr> userJobSpecs);
+        const TOperationSpecBasePtr& operationSpec,
+        const std::vector<NScheduler::TUserJobSpecPtr>& userJobSpecs);
 
-    void PatchUserJobSpec(NScheduler::NProto::TUserJobSpec* jobSpec, TJobletPtr joblet) const override;
+    void PatchUserJobSpec(
+        NScheduler::NProto::TUserJobSpec* jobSpec,
+        const TJobletPtr& joblet) const override;
 
     NScheduler::EOperationAlertType GetAlertType() const override;
-    TError GetAlertMessage(TOperationSpecBasePtr operationSpec) const override;
+    TError GetAlertMessage(const TOperationSpecBasePtr& operationSpec) const override;
 
     void Persist(const TPersistenceContext& context) override;
 
@@ -93,13 +97,15 @@ public:
         NLogging::TLogger logger);
 
     static bool IsEnabled(
-        TOperationSpecBasePtr operationSpec,
-        std::vector<NScheduler::TUserJobSpecPtr> userJobSpecs);
+        const TOperationSpecBasePtr& operationSpec,
+        const std::vector<NScheduler::TUserJobSpecPtr>& userJobSpecs);
 
-    void PatchUserJobSpec(NScheduler::NProto::TUserJobSpec* jobSpec, TJobletPtr joblet) const override;
+    void PatchUserJobSpec(
+        NScheduler::NProto::TUserJobSpec* jobSpec,
+        const TJobletPtr& joblet) const override;
 
     NScheduler::EOperationAlertType GetAlertType() const override;
-    TError GetAlertMessage(TOperationSpecBasePtr operationSpec) const override;
+    TError GetAlertMessage(const TOperationSpecBasePtr& operationSpec) const override;
 
     void Persist(const TPersistenceContext& context) override;
 
@@ -123,10 +129,10 @@ public:
 
     TExperimentJobManager(
         ICompetitiveJobManagerHost* host,
-        TOperationSpecBasePtr operationSpec,
+        const TOperationSpecBasePtr& operationSpec,
         NLogging::TLogger logger);
 
-    void SetJobExperiment(TJobExperimentBasePtr jobExperiment);
+    void SetJobExperiment(const TJobExperimentBasePtr& jobExperiment);
 
     void OnJobScheduled(const TJobletPtr& joblet) override;
     void OnJobCompleted(const TJobletPtr& joblet) override;
@@ -148,7 +154,9 @@ public:
     NJobTrackerClient::TJobId GetFailedTreatmentJob() const;
     NJobTrackerClient::TJobId GetFailedControlJob() const;
 
-    void PatchUserJobSpec(NScheduler::NProto::TUserJobSpec* jobSpec, TJobletPtr joblet) const;
+    void PatchUserJobSpec(
+        NScheduler::NProto::TUserJobSpec* jobSpec,
+        const TJobletPtr& joblet) const;
 
     void GenerateAlertIfNeeded(
         ITaskHost* taskHost,
