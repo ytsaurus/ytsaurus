@@ -15,6 +15,10 @@ struct ISchemafulNode
     virtual TMasterTableSchema* GetSchema() const = 0;
     virtual void SetSchema(TMasterTableSchema* schema) = 0;
     virtual NSecurityServer::TAccount* GetAccount() const = 0;
+
+    // COMPAT(h0pless): This is a temporary workaround until schemaful node typehandler is introduced.
+    virtual NObjectClient::TCellTag GetExternalCellTag() const = 0;
+    virtual bool IsExternal() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

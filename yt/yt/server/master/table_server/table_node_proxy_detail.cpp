@@ -2022,11 +2022,6 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     }
 
     if (schemaReceived || options.SchemaModification) {
-        if (table->IsExternal()) {
-            auto masterTableSchema = table->GetSchema();
-            masterTableSchema->UnexportRef(table->GetExternalCellTag());
-        }
-
         auto setCorrespondingTableSchema = [] (
             TTableNode* table,
             const TTableSchemaPtr& schema,
@@ -2037,6 +2032,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
                 return tableManager->GetOrCreateNativeMasterTableSchema(*schema, table);
             }
 
+            // COMPAT(h0pless): RefactorSchemaExport
             if (options.Schema) {
                 // COMPAT(h0pless): Remove this after schema migration is complete.
                 if (!options.SchemaId) {
@@ -2045,6 +2041,9 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
                     return tableManager->GetOrCreateNativeMasterTableSchema(*schema, table);
                 }
 
+                YT_LOG_ALERT("Created imported schema on an external cell outside of designated mutation "
+                    "(TableId: %v)",
+                    table->GetId());
                 return tableManager->CreateImportedMasterTableSchema(*schema, table, options.SchemaId);
             }
 
@@ -2090,12 +2089,6 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         if (resultingSchema) {
             auto schemaId = table->GetSchema()->GetId();
             ToProto(replicationRequest->mutable_schema_id(), schemaId);
-
-            if (!resultingSchema->IsExported(externalCellTag)) {
-                ToProto(replicationRequest->mutable_schema(), resultingSchema->AsTableSchema());
-            }
-
-            resultingSchema->ExportRef(externalCellTag);
         }
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();

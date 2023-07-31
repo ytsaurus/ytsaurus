@@ -37,6 +37,10 @@ public:
     virtual void SetSchema(NTableServer::TMasterTableSchema* schema) override;
     virtual NSecurityServer::TAccount* GetAccount() const override;
 
+    // COMPAT(h0pless): This is a temporary workaround until schemaful node typehandler is introduced.
+    virtual NObjectClient::TCellTag GetExternalCellTag() const override;
+    virtual bool IsExternal() const override;
+
     void Save(NCellMaster::TSaveContext& context) const override;
     void Load(NCellMaster::TLoadContext& context) override;
 

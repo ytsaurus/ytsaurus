@@ -59,9 +59,11 @@ using NYT::FromProto;
 
 TVirtualMulticellMapBase::TVirtualMulticellMapBase(
     NCellMaster::TBootstrap* bootstrap,
-    INodePtr owningNode)
+    INodePtr owningNode,
+    bool ignoreForeignObjects)
     : Bootstrap_(bootstrap)
     , OwningNode_(owningNode)
+    , IgnoreForeignObjects_(ignoreForeignObjects)
 { }
 
 bool TVirtualMulticellMapBase::DoInvoke(const IYPathServiceContextPtr& context)
@@ -413,6 +415,10 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromLocal(const TFetchItemsSes
                 if (!IsObjectAlive(object)) {
                     continue;
                 }
+                if (IgnoreForeignObjects_ && object->IsForeign()) {
+                    continue;
+                }
+
                 aliveKeys.push_back(key);
                 if (session->AttributeFilter && !session->AttributeFilter.IsEmpty()) {
                     TAsyncYsonWriter writer(EYsonType::MapFragment);
@@ -540,14 +546,19 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
             const auto& keys = keysOrError.Value();
             for (const auto& key : keys) {
                 auto* object = objectManager->FindObject(key);
-                if (IsObjectAlive(object)) {
-                    auto* protoItem = response->add_items();
-                    protoItem->set_key(ToString(key));
-                    TAsyncYsonWriter writer(EYsonType::MapFragment);
-                    auto proxy = objectManager->GetProxy(object, nullptr);
-                    proxy->WriteAttributesFragment(&writer, attributeFilter, false);
-                    asyncValues.push_back(writer.Finish());
+                if (!IsObjectAlive(object)) {
+                    continue;
                 }
+                if (IgnoreForeignObjects_ && object->IsForeign()) {
+                    continue;
+                }
+
+                auto* protoItem = response->add_items();
+                protoItem->set_key(ToString(key));
+                TAsyncYsonWriter writer(EYsonType::MapFragment);
+                auto proxy = objectManager->GetProxy(object, nullptr);
+                proxy->WriteAttributesFragment(&writer, attributeFilter, false);
+                asyncValues.push_back(writer.Finish());
             }
 
             response->set_incomplete(response->items_size() == limit);

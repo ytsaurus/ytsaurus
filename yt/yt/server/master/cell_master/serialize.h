@@ -161,6 +161,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixSymlinkCyclicityCheck)                                     (2346))  // h0pless
     ((FixChunkCreationTimeHistograms)                               (2347))  // gritukan
     ((IncludeOnlyOldStyleMountConfigAttributesInList)               (2348))  // ifsmirnov
+    ((RefactorSchemaExport)                                         (2349))  // h0pless
 );
 
 ////////////////////////////////////////////////////////////////////////////////

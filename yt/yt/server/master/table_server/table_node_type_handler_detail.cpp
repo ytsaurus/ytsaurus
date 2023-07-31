@@ -302,15 +302,6 @@ template <class TImpl>
 void TTableNodeTypeHandlerBase<TImpl>::DoZombify(TImpl* table)
 {
     TBase::DoZombify(table);
-
-    // NB: This can lead to additional attempts to send schema to an external cell.
-    if (table->IsExternal()) {
-        auto* schema = table->GetSchema();
-        auto externalCellTag = table->GetExternalCellTag();
-        if (schema && schema->IsExported(externalCellTag)) {
-            schema->UnexportRef(externalCellTag);
-        }
-    }
 }
 
 template <class TImpl>
@@ -365,11 +356,6 @@ void TTableNodeTypeHandlerBase<TImpl>::DoMerge(
     const auto& tableManager = this->Bootstrap_->GetTableManager();
 
     bool isQueueObjectBefore = originatingNode->IsQueueObject();
-
-    if (originatingNode->IsExternal()) {
-        auto* schema = originatingNode->GetSchema();
-        schema->UnexportRef(originatingNode->GetExternalCellTag());
-    }
 
     tableManager->SetTableSchema(originatingNode, branchedNode->GetSchema());
 

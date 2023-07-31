@@ -55,6 +55,7 @@ using namespace NHydra;
 using namespace NLogging;
 using namespace NObjectClient;
 using namespace NObjectServer;
+using namespace NProto;
 using namespace NSecurityServer;
 using namespace NTableClient;
 using namespace NTabletServer;
@@ -136,6 +137,12 @@ public:
         RegisterMethod(BIND(&TTableManager::HydraSendTableStatisticsUpdates, Unretained(this)), /*aliases*/ {"NYT.NTabletServer.NProto.TReqSendTableStatisticsUpdates"});
         RegisterMethod(BIND(&TTableManager::HydraUpdateTableStatistics, Unretained(this)), /*aliases*/ {"NYT.NTabletServer.NProto.TReqUpdateTableStatistics"});
         RegisterMethod(BIND(&TTableManager::HydraNotifyContentRevisionCasFailed, Unretained(this)));
+
+        RegisterMethod(BIND(&TTableManager::HydraImportMasterTableSchema, Unretained(this)));
+        RegisterMethod(BIND(&TTableManager::HydraUnimportMasterTableSchema, Unretained(this)));
+
+        // COMPAT(h0pless): RefactorSchemaExport
+        RegisterMethod(BIND(&TTableManager::HydraTakeArtificialRef, Unretained(this)));
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(New<TMasterTableSchemaTypeHandler>(this));
@@ -278,6 +285,10 @@ public:
         table->SetSchema(schema);
         objectManager->RefObject(schema);
 
+        if (table->IsExternal()) {
+            ExportMasterTableSchema(schema, table->GetExternalCellTag());
+        }
+
         auto* tableAccount = table->GetAccount();
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->UpdateMasterMemoryUsage(schema, tableAccount);
@@ -302,6 +313,11 @@ public:
             return;
         }
         YT_VERIFY(IsObjectAlive(oldSchema));
+
+        if (table->IsExternal()) {
+            UnexportMasterTableSchema(oldSchema, table->GetExternalCellTag());
+        }
+
         table->SetSchema(nullptr);
 
         if (auto* account = table->GetAccount()) {
@@ -344,79 +360,30 @@ public:
 
     TMasterTableSchema* CreateImportedMasterTableSchema(
         const NTableClient::TTableSchema& tableSchema,
-        ISchemafulNode* schemaHolder,
         TMasterTableSchemaId hintId) override
     {
-        return CreateMasterTableSchema(tableSchema, schemaHolder, /* isNative */ false, hintId);
+        // NB: An existing schema can be recreated without resurrection.
+        auto* masterTableSchema = CreateMasterTableSchema(tableSchema, /* isNative */ false, hintId);
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        // All imported schemas should have an artificial ref.
+        // This is done to make sure that native cell is managing their lifetime.
+        objectManager->RefObject(masterTableSchema);
+
+        return masterTableSchema;
     }
 
-    TMasterTableSchema* CreateImportedMasterTableSchema(
+    TMasterTableSchema* CreateImportedTemporaryMasterTableSchema(
         const NTableClient::TTableSchema& tableSchema,
-        NTransactionServer::TTransaction* schemaHolder,
-        TMasterTableSchemaId hintId) override
-    {
-        return CreateMasterTableSchema(tableSchema, schemaHolder, /* isNative */ false, hintId);
-    }
-
-    TMasterTableSchema* GetOrCreateNativeMasterTableSchema(
-        const TTableSchema& schema,
-        ISchemafulNode* schemaHolder) override
-    {
-        auto* existingSchema = FindNativeMasterTableSchema(schema);
-        if (!existingSchema) {
-            return CreateMasterTableSchema(schema, schemaHolder, /* isNative */ true);
-        }
-
-        SetTableSchema(schemaHolder, existingSchema);
-        return existingSchema;
-    }
-
-    TMasterTableSchema* GetOrCreateNativeMasterTableSchema(
-        const TTableSchema& schema,
-        TTransaction* schemaHolder) override
-    {
-        auto* existingSchema = FindNativeMasterTableSchema(schema);
-        if (!existingSchema) {
-            return CreateMasterTableSchema(schema, schemaHolder, /* isNative */ true);
-        }
-
-        if (!schemaHolder->StagedObjects().contains(existingSchema)) {
-            const auto& transactionManager = Bootstrap_->GetTransactionManager();
-            transactionManager->StageObject(schemaHolder, existingSchema);
-        }
-        return existingSchema;
-    }
-
-    TMasterTableSchema* CreateMasterTableSchema(
-        const TTableSchema& tableSchema,
-        ISchemafulNode* schemaHolder,
-        bool isNative,
-        TMasterTableSchemaId hintId = NObjectClient::NullObjectId)
-    {
-        auto* schema = FindMasterTableSchema(hintId);
-        if (!schema) {
-            schema = DoCreateMasterTableSchema(tableSchema, hintId, isNative);
-        } else if(!IsObjectAlive(schema)) {
-            ResurrectMasterTableSchema(schema);
-            YT_VERIFY(*schema->TableSchema_ == tableSchema);
-        }
-        SetTableSchema(schemaHolder, schema);
-        YT_VERIFY(IsObjectAlive(schema));
-        return schema;
-    }
-
-    TMasterTableSchema* CreateMasterTableSchema(
-        const TTableSchema& tableSchema,
         TTransaction* schemaHolder,
-        bool isNative,
-        TMasterTableSchemaId hintId = NObjectClient::NullObjectId)
+        TMasterTableSchemaId hintId) override
     {
         YT_VERIFY(IsObjectAlive(schemaHolder));
 
         auto* schema = FindMasterTableSchema(hintId);
         if (!schema) {
-            schema = DoCreateMasterTableSchema(tableSchema, hintId, isNative);
-        } else if (!IsObjectAlive(schema)) {
+            schema = DoCreateMasterTableSchema(tableSchema, hintId, /* isNative */ false);
+        } else if(!IsObjectAlive(schema)) {
             ResurrectMasterTableSchema(schema);
             YT_VERIFY(*schema->TableSchema_ == tableSchema);
         }
@@ -426,6 +393,61 @@ public:
             transactionManager->StageObject(schemaHolder, schema);
         }
         YT_VERIFY(IsObjectAlive(schema));
+
+        return schema;
+    }
+
+    TMasterTableSchema* GetOrCreateNativeMasterTableSchema(
+        const TTableSchema& schema,
+        ISchemafulNode* schemaHolder) override
+    {
+        auto* masterTableSchema = FindNativeMasterTableSchema(schema);
+        if (!masterTableSchema) {
+            masterTableSchema = CreateMasterTableSchema(schema, /* isNative */ true);
+        }
+
+        SetTableSchema(schemaHolder, masterTableSchema);
+        YT_VERIFY(IsObjectAlive(masterTableSchema));
+
+        return masterTableSchema;
+    }
+
+    TMasterTableSchema* GetOrCreateNativeMasterTableSchema(
+        const TTableSchema& schema,
+        TTransaction* schemaHolder) override
+    {
+        YT_VERIFY(IsObjectAlive(schemaHolder));
+
+        auto* masterTableSchema = FindNativeMasterTableSchema(schema);
+        if (!masterTableSchema) {
+            masterTableSchema = CreateMasterTableSchema(schema, /* isNative */ true);
+        }
+
+        if (!schemaHolder->StagedObjects().contains(masterTableSchema)) {
+            const auto& transactionManager = Bootstrap_->GetTransactionManager();
+            transactionManager->StageObject(schemaHolder, masterTableSchema);
+        }
+        YT_VERIFY(IsObjectAlive(masterTableSchema));
+
+        return masterTableSchema;
+    }
+
+    TMasterTableSchema* CreateMasterTableSchema(
+        const TTableSchema& tableSchema,
+        bool isNative,
+        TMasterTableSchemaId hintId = NObjectClient::NullObjectId)
+    {
+        auto* schema = FindMasterTableSchema(hintId);
+        if (!schema) {
+            schema = DoCreateMasterTableSchema(tableSchema, hintId, isNative);
+        } else if(!IsObjectAlive(schema)) {
+            ResurrectMasterTableSchema(schema);
+            YT_VERIFY(*schema->TableSchema_ == tableSchema);
+        } else {
+            // Just a sanity check.
+            YT_ASSERT(*schema->TableSchema_ == tableSchema);
+        }
+
         return schema;
     }
 
@@ -560,6 +582,48 @@ public:
             schema);
     }
 
+    void ExportMasterTableSchema(TMasterTableSchema* schema, TCellTag dstCellTag) override
+    {
+        YT_VERIFY(schema);
+
+        if (!schema->IsExported(dstCellTag)) {
+            TReqImportMasterTableSchema request;
+
+            ToProto(request.mutable_schema_id(), schema->GetId());
+            // NB: this sometimes will lead to a synchronous serialization of
+            // schemas in automaton thread. This is unavoidable.
+            ToProto(request.mutable_schema(), schema->AsTableSchema());
+
+            YT_LOG_DEBUG("Exporting schema to another cell (SchemaId: %v, DestinationCellTag: %v)",
+                schema->GetId(),
+                dstCellTag);
+
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            multicellManager->PostToMaster(request, dstCellTag);
+        }
+
+        schema->ExportRef(dstCellTag);
+    }
+
+    void UnexportMasterTableSchema(TMasterTableSchema* schema, TCellTag dstCellTag, int decreaseBy = 1) override
+    {
+        YT_VERIFY(schema && schema->IsExported(dstCellTag));
+
+        schema->UnexportRef(dstCellTag, decreaseBy);
+
+        if (!schema->IsExported(dstCellTag)) {
+            TReqUnimportMasterTableSchema request;
+            ToProto(request.mutable_schema_id(), schema->GetId());
+
+            YT_LOG_DEBUG("Unexporting schema from another cell (SchemaId: %v, DestinationCellTag: %v)",
+                schema->GetId(),
+                dstCellTag);
+
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            multicellManager->PostToMaster(request, dstCellTag);
+        }
+    }
+
     void ValidateTableSchemaCorrespondence(
         TVersionedNodeId nodeId,
         const TTableSchemaPtr& tableSchema,
@@ -679,28 +743,6 @@ public:
         }
 
         return effectiveTableSchema;
-    }
-
-    void EnsureSchemaExported(
-        const ISchemafulNode* node,
-        TCellTag externalCellTag,
-        TTransactionId externalizedTransactionId,
-        const IMulticellManagerPtr& multicellManager) override
-    {
-        auto* schema = node->GetSchema();
-        YT_VERIFY(schema);
-
-        if (!schema->IsExported(externalCellTag)) {
-            TReqExportTableSchema exportRequest;
-
-            ToProto(exportRequest.mutable_schema_id(), schema->GetId());
-            ToProto(exportRequest.mutable_schema(), schema->AsTableSchema());
-            ToProto(exportRequest.mutable_transaction_id(), externalizedTransactionId);
-
-            multicellManager->PostToMaster(exportRequest, externalCellTag);
-        }
-
-        schema->ExportRef(externalCellTag);
     }
 
     TTableCollocation* CreateTableCollocation(
@@ -1144,7 +1186,9 @@ private:
 
     // COMPAT(h0pless): Remove this after empty schema migration is complete.
     TMasterTableSchemaId PrimaryCellEmptyMasterTableSchemaId_;
-    bool NeedRecomputeMasterTableSchemaRefCounters_ = false;
+
+    // COMPAT(h0pless): RefactorSchemaExport
+    bool NeedTakeArtificialRef_ = false;
 
     TMasterTableSchemaId EmptyMasterTableSchemaId_;
     TMasterTableSchema* EmptyMasterTableSchema_ = nullptr;
@@ -1439,6 +1483,37 @@ private:
         }
     }
 
+    void HydraImportMasterTableSchema(NProto::TReqImportMasterTableSchema* request)
+    {
+        auto schema = FromProto<TTableSchema>(request->schema());
+        auto schemaId = FromProto<TMasterTableSchemaId>(request->schema_id());
+        CreateImportedMasterTableSchema(schema, schemaId);
+    }
+
+    void HydraUnimportMasterTableSchema(NProto::TReqUnimportMasterTableSchema* request)
+    {
+        auto schemaId = FromProto<TMasterTableSchemaId>(request->schema_id());
+        auto* schema = GetMasterTableSchema(schemaId);
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        // Getting rid of an artificial ref.
+        objectManager->UnrefObject(schema);
+    }
+
+    void HydraTakeArtificialRef(NProto::TReqTakeArtificialRef* request)
+    {
+        YT_LOG_DEBUG("Received TakeArtificialRef request (RequestSize: %v)",
+            request->schema_ids_size());
+        for (auto protoSchemaId : request->schema_ids()) {
+            auto schemaId = FromProto<TMasterTableSchemaId>(protoSchemaId);
+            auto* schema = GetMasterTableSchema(schemaId);
+
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            // All imported schemas should have an artificial ref.
+            // This is done to make sure that native cell is managing their lifetime.
+            objectManager->RefObject(schema);
+        }
+    }
 
     void Clear() override
     {
@@ -1455,7 +1530,7 @@ private:
         Queues_.clear();
         Consumers_.clear();
 
-        NeedRecomputeMasterTableSchemaRefCounters_ = false;
+        NeedTakeArtificialRef_ = false;
     }
 
     void SetZeroState() override
@@ -1483,15 +1558,17 @@ private:
         Load(context, Queues_);
         Load(context, Consumers_);
 
-        if (context.GetVersion() < EMasterReign::RecomputeMasterTableSchemaRefCounters) {
-            NeedRecomputeMasterTableSchemaRefCounters_ = true;
-        }
-
         auto schemaExportMode = ESchemaMigrationMode::None;
         if (context.GetVersion() < EMasterReign::ExportMasterTableSchemas) {
             schemaExportMode = ESchemaMigrationMode::AllSchemas;
         } else if (context.GetVersion() < EMasterReign::ExportEmptyMasterTableSchemas) {
             schemaExportMode = ESchemaMigrationMode::EmptySchemaOnly;
+        }
+
+        if (EMasterReign::ExportMasterTableSchemas < context.GetVersion() &&
+            context.GetVersion() < EMasterReign::RefactorSchemaExport)
+        {
+            NeedTakeArtificialRef_ = true;
         }
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
@@ -1544,9 +1621,7 @@ private:
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         for (auto [nodeId, node] : cypressManager->Nodes()) {
-            if (!IsObjectAlive(node) && node->IsTrunk()) {
-                continue;
-            }
+            // NB: Zombie nodes still hold export ref.
             if (!IsSchemafulType(node->GetType())) {
                 continue;
             }
@@ -1574,6 +1649,7 @@ private:
         // Empty schema has 1 additional artificial refcounter.
         for (auto [schemaId, schema] : MasterTableSchemaMap_) {
             auto isEmpty = schemaId == EmptyMasterTableSchemaId_ ? 1 : 0;
+
             EmplaceOrCrash(schemaToRefCounter, schema, isEmpty);
         }
 
@@ -1605,7 +1681,7 @@ private:
         return schemaToRefCounter;
     }
 
-    void RecomputeMasterTableSchemaExportRefCounters(ELogLevel logLevel)
+    void RecomputeMasterTableSchemaExportRefCounters(ELogLevel logLevel) override
     {
         auto schemaToExportRefCounters = ComputeMasterTableSchemaExportRefCounters();
         for (auto [schemaId, schema] : MasterTableSchemaMap_) {
@@ -1627,11 +1703,11 @@ private:
 
                     if (actualRefCounter > expectedRefCounter) {
                         for (int index = 0; index < actualRefCounter - expectedRefCounter; ++index) {
-                            schema->UnexportRef(cellTag);
+                            UnexportMasterTableSchema(schema, cellTag);
                         }
                     } else {
                         for (int index = 0; index < expectedRefCounter - actualRefCounter; ++index) {
-                            schema->ExportRef(cellTag);
+                            ExportMasterTableSchema(schema, cellTag);
                         }
                     }
                 }
@@ -1647,13 +1723,13 @@ private:
                     refCounter);
 
                 for (i64 index = 0; index < refCounter; ++index) {
-                    schema->ExportRef(cellTag);
+                    ExportMasterTableSchema(schema, cellTag);
                 }
             }
         }
     }
 
-    void RecomputeMasterTableSchemaRefCounters(ELogLevel logLevel)
+    void RecomputeMasterTableSchemaRefCounters(ELogLevel logLevel) override
     {
         auto schemaToRefCounter = ComputeMasterTableSchemaRefCounters();
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -1694,15 +1770,50 @@ private:
         //     part altogether) this initialization is crucial.
         InitBuiltins();
 
-        // NB: Referencing accounts are transient,
-        // thus only ref counters and export ref counters need to be recalculated here.
-        if (NeedRecomputeMasterTableSchemaRefCounters_) {
-            auto logLevel = Bootstrap_->GetConfig()->TableManager->AlertOnMasterTableSchemaRefCounterMismatch
-                ? ELogLevel::Alert
-                : ELogLevel::Error;
+        if (NeedTakeArtificialRef_) {
+            THashMap<TCellTag, std::vector<TMasterTableSchemaId>> cellTagToExportedSchemaIds;
+            for (auto [schemaId, schema] : MasterTableSchemaMap_) {
+                if (!IsObjectAlive(schema)) {
+                    continue;
+                }
+                if (!schema->IsNative()) {
+                    continue;
+                }
 
-            RecomputeMasterTableSchemaExportRefCounters(logLevel);
-            RecomputeMasterTableSchemaRefCounters(logLevel);
+                const auto& cellTagToExportCount = schema->CellTagToExportCount();
+                for (const auto& [cellTag, refCounter] : cellTagToExportCount) {
+                    cellTagToExportedSchemaIds[cellTag].push_back(schemaId);
+                }
+            }
+
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            auto sendRequestAndLog = [&] (TCellTag cellTag, NProto::TReqTakeArtificialRef& req) {
+                YT_LOG_DEBUG("Sending TakeArtificialRef request (DestinationCellTag: %v, RequestSize: %v)",
+                    cellTag,
+                    req.schema_ids_size());
+                multicellManager->PostToMaster(req, cellTag);
+                req.clear_schema_ids();
+            };
+
+            const auto maxBatchSize = 10000;
+            for (const auto& [cellTag, schemaIds] : cellTagToExportedSchemaIds) {
+                auto batchSize = 0;
+                NProto::TReqTakeArtificialRef req;
+                for (auto schemaId : schemaIds) {
+                    auto subreq = req.add_schema_ids();
+                    ToProto(subreq, schemaId);
+                    ++batchSize;
+
+                    if (batchSize >= maxBatchSize) {
+                        sendRequestAndLog(cellTag, req);
+                        batchSize = 0;
+                    }
+                }
+
+                if (batchSize != 0) {
+                    sendRequestAndLog(cellTag, req);
+                }
+            }
         }
     }
 
@@ -1753,7 +1864,9 @@ private:
             // Check ref counters.
             auto expectedRefCounter = GetOrCrash(schemaToRefCounter, schema);
             auto actualRefCounter = schema->GetObjectRefCounter();
-            YT_LOG_FATAL_UNLESS(expectedRefCounter == actualRefCounter,
+            YT_LOG_FATAL_UNLESS(
+                expectedRefCounter == actualRefCounter ||
+                (expectedRefCounter + 1 == actualRefCounter && schema->IsForeign()),
                 "Table schema has unexpected ref counter "
                 "(SchemaId: %v, ExpectedRefCounter: %v, ActualRefCounter: %v)",
                 schemaId,
@@ -1792,6 +1905,25 @@ private:
                 .TableIds = std::move(tableIds),
             });
         }
+    }
+
+    // COMPAT(h0pless): RefactorSchemaExport
+    TMasterTableSchema* CreateImportedMasterTableSchema(
+        const NTableClient::TTableSchema& tableSchema,
+        ISchemafulNode* schemaHolder,
+        TMasterTableSchemaId hintId) override
+    {
+        auto* schema = FindMasterTableSchema(hintId);
+        if (!schema) {
+            schema = DoCreateMasterTableSchema(tableSchema, hintId, /* isNative */ false);
+        } else if(!IsObjectAlive(schema)) {
+            ResurrectMasterTableSchema(schema);
+            YT_VERIFY(*schema->TableSchema_ == tableSchema);
+        }
+        SetTableSchema(schemaHolder, schema);
+        YT_VERIFY(IsObjectAlive(schema));
+
+        return schema;
     }
 };
 

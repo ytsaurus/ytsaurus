@@ -8,10 +8,11 @@
 
 namespace NYT::NChaosServer {
 
-using namespace NYTree;
 using namespace NCellMaster;
-using namespace NTableServer;
+using namespace NObjectServer;
 using namespace NSecurityServer;
+using namespace NTableServer;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,6 +44,16 @@ void TChaosReplicatedTableNode::SetSchema(TMasterTableSchema* schema)
 TAccount* TChaosReplicatedTableNode::GetAccount() const
 {
     return TCypressNode::Account().Get();
+}
+
+TCellTag TChaosReplicatedTableNode::GetExternalCellTag() const
+{
+    return TCypressNode::GetExternalCellTag();
+}
+
+bool TChaosReplicatedTableNode::IsExternal() const
+{
+    return TCypressNode::IsExternal();
 }
 
 void TChaosReplicatedTableNode::Save(TSaveContext& context) const

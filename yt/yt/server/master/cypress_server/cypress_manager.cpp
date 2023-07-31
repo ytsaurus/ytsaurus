@@ -33,6 +33,9 @@
 #include "shard_type_handler.h"
 #include "shard.h"
 
+// COMPAT(h0pless): RecomputeMasterTableSchemaRefCounters
+#include <yt/yt/server/master/table_server/config.h>
+
 // COMPAT(babenko)
 #include <yt/yt/server/master/journal_server/journal_node.h>
 #include <yt/yt/server/master/chunk_server/chunk_list.h>
@@ -113,6 +116,9 @@ using namespace NTransactionSupervisor;
 using namespace NYPath;
 using namespace NYson;
 using namespace NYTree;
+
+// COMPAT(h0pless): RecomputeMasterTableSchemaRefCounters
+using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -478,20 +484,9 @@ public:
                 auto* table = trunkNode->As<TTableNode>();
                 auto* schema = table->GetSchema();
                 auto schemaId = schema->GetId();
-                if (schema->IsExported(externalCellTag)) {
-                    replicationExplicitAttributes->Remove("schema");
-                } else {
-                    // NB: this sometimes will lead to a synchronous serialization of
-                    // schemas in automaton thread. This is unavoidable.
-                    // NB: every time a new schema is created we will first remove and then save a potentially heavy object here.
-                    // It shouldn't happen too often, and makes the code less fragile, this is why we decided to keep it this way.
-                    // It's done to keep a following invariant: external cell doesn't do any work related to schema modification.
-                    auto ysonSchema = schema->AsYsonSync();
-                    replicationExplicitAttributes->SetYson("schema", std::move(ysonSchema));
-                }
+                replicationExplicitAttributes->Remove("schema");
                 replicationExplicitAttributes->Set("schema_id", schemaId);
                 replicationExplicitAttributes->Set("schema_mode", table->GetSchemaMode());
-                schema->ExportRef(externalCellTag);
             }
 
             const auto& transactionManager = Bootstrap_->GetTransactionManager();
@@ -561,12 +556,6 @@ public:
         // which calls RegisterCreatedNode.
 
         if (clonedNode->IsExternal()) {
-            if (IsTableType(clonedNode->GetType())) {
-                auto* table = clonedNode->As<TTableNode>();
-                auto* schema = table->GetSchema();
-                schema->ExportRef(table->GetExternalCellTag());
-            }
-
             const auto& transactionManager = Bootstrap_->GetTransactionManager();
             auto externalCellTag = clonedNode->GetExternalCellTag();
             auto externalizedSourceTransactionId = transactionManager->ExternalizeTransaction(sourceNode->GetTransaction(), {externalCellTag});
@@ -603,14 +592,6 @@ public:
             // TODO(h0pless): Consider refactoring this later by adding a new set of virtual methods to typehandler, responsible for multicell activity.
             if (IsTableType(trunkNode->GetType())) {
                 auto* table = trunkNode->As<TTableNode>();
-
-                const auto& tableManager = Bootstrap_->GetTableManager();
-                tableManager->EnsureSchemaExported(
-                    table,
-                    externalCellTag,
-                    clonedNodeExternalizedTransactionId,
-                    Bootstrap_->GetMulticellManager());
-
                 auto* schema = table->GetSchema();
                 schemaId = schema->GetId();
             }
@@ -2527,6 +2508,10 @@ private:
     // COMPAT(h0pless): Remove this after schema migration is complete.
     ESchemaMigrationMode SchemaExportMode_ = ESchemaMigrationMode::None;
 
+    // COMPAT(h0pless): RecomputeMasterTableSchemaRefCounters, RefactorSchemaExport
+    bool NeedRecomputeMasterTableSchemaRefCounters_ = false;
+    bool NeedRecomputeMasterTableSchemaExportRefCounters_ = false;
+
     using TRecursiveResourceUsageCache = TSyncExpiringCache<TVersionedNodeId, TFuture<TYsonString>>;
     using TRecursiveResourceUsageCachePtr = TIntrusivePtr<TRecursiveResourceUsageCache>;
     const TRecursiveResourceUsageCachePtr RecursiveResourceUsageCache_;
@@ -2587,6 +2572,14 @@ private:
         } else if (context.GetVersion() < EMasterReign::ExportEmptyMasterTableSchemas) {
             SchemaExportMode_ = ESchemaMigrationMode::EmptySchemaOnly;
         }
+
+        if (context.GetVersion() < EMasterReign::RefactorSchemaExport) {
+            NeedRecomputeMasterTableSchemaRefCounters_ = true;
+
+            if (EMasterReign::ExportEmptyMasterTableSchemas < context.GetVersion()) {
+                NeedRecomputeMasterTableSchemaExportRefCounters_ = true;
+            }
+        }
     }
 
     void Clear() override
@@ -2613,6 +2606,9 @@ private:
 
         NeedFixNodeStatistics_ = false;
         SchemaExportMode_ = ESchemaMigrationMode::None;
+
+        NeedRecomputeMasterTableSchemaRefCounters_ = false;
+        NeedRecomputeMasterTableSchemaExportRefCounters_ = false;
     }
 
     void SetZeroState() override
@@ -2730,6 +2726,20 @@ private:
             }
         }
 
+        // NB: Referencing accounts are transient,
+        // thus only ref counters and export ref counters need to be recalculated here.
+        if (NeedRecomputeMasterTableSchemaRefCounters_) {
+            auto logLevel = Bootstrap_->GetConfig()->TableManager->AlertOnMasterTableSchemaRefCounterMismatch
+                ? ELogLevel::Alert
+                : ELogLevel::Error;
+
+            const auto& tableManager = Bootstrap_->GetTableManager();
+            if (NeedRecomputeMasterTableSchemaExportRefCounters_) {
+                tableManager->RecomputeMasterTableSchemaExportRefCounters(logLevel);
+            }
+            tableManager->RecomputeMasterTableSchemaRefCounters(logLevel);
+        }
+
         // This needs to be done for 2 reasons:
         //   - Empty schema has artificial export counters to all cells, which need to be dealt with.
         //   - Schema updates will use the same protocol as new migration, which also export refs it.
@@ -2844,12 +2854,10 @@ private:
                     ToProto(subrequest->mutable_table_node_id(), nodeId.ObjectId);
                     ToProto(subrequest->mutable_transaction_id(), nodeId.TransactionId);
                     ToProto(subrequest->mutable_schema_id(), schema->GetId());
-                    if (!schema->IsExported(cellTag)) {
-                        ToProto(subrequest->mutable_schema(), schema->AsTableSchema());
-                    }
+
+                    tableManager->ExportMasterTableSchema(schema, cellTag);
 
                     previousId = nodeId.ObjectId;
-                    schema->ExportRef(cellTag);
                     ++batchSize;
                 }
                 if (batchSize > 0) {
@@ -3920,19 +3928,6 @@ private:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(originatingNode->GetTrunkNode());
 
-        if (originatingNode->IsExternal() && IsTableType(originatingNode->GetType())) {
-            auto* table = originatingNode->As<TTableNode>();
-            const auto& transactionManager = Bootstrap_->GetTransactionManager();
-            auto externalizedTransactionId = transactionManager->ExternalizeTransaction(transaction, {table->GetExternalCellTag()});
-
-            const auto& tableManager = Bootstrap_->GetTableManager();
-            tableManager->EnsureSchemaExported(
-                table,
-                table->GetExternalCellTag(),
-                externalizedTransactionId,
-                Bootstrap_->GetMulticellManager());
-        }
-
         return branchedNode;
     }
 
@@ -4405,6 +4400,7 @@ private:
         DoUnlockNode(trunkNode, transaction, explicitOnly);
     }
 
+    // COMPAT(h0pless): RefactorSchemaExport. This is leftovers from EnsureSchemaExported methods.
     void HydraImportTableSchema(NProto::TReqExportTableSchema* request)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -4424,7 +4420,7 @@ private:
         YT_VERIFY(schemaId);
 
         const auto& tableManager = Bootstrap_->GetTableManager();
-        tableManager->CreateImportedMasterTableSchema(*schema, transaction, schemaId);
+        tableManager->CreateImportedTemporaryMasterTableSchema(*schema, transaction, schemaId);
     }
 
     // COMPAT(h0pless): Remove this after schema migration is complete.
@@ -4454,40 +4450,22 @@ private:
             auto* table = node->As<TTableNode>();
 
             auto* oldSchema = table->GetSchema();
-            if (subrequest.has_schema()) {
-                auto schema = FromProto<TTableSchema>(subrequest.schema());
+            auto* existingSchema = tableManager->FindMasterTableSchema(schemaId);
+            YT_VERIFY(IsObjectAlive(existingSchema));
 
-                // Just a sanity check.
-                if (*oldSchema->AsTableSchema() != schema) {
-                    YT_LOG_ALERT(
-                        "Schemas between native and external cells differ "
-                        "(NativeSchemaId: %v, ExternalSchemaId: %v, NativeSchema: %v, ExternalSchema: %v)",
-                        schemaId,
-                        oldSchema->GetId(),
-                        schema,
-                        oldSchema->AsTableSchema());
-                    YT_VERIFY(*oldSchema->AsTableSchema() == *emptySchema->AsTableSchema());
-                }
-
-                tableManager->CreateImportedMasterTableSchema(schema, table, schemaId);
-            } else {
-                auto* existingSchema = tableManager->FindMasterTableSchema(schemaId);
-                YT_VERIFY(IsObjectAlive(existingSchema));
-
-                // Just a sanity check.
-                if (*oldSchema->AsTableSchema() != *existingSchema->AsTableSchema()) {
-                    YT_LOG_ALERT(
-                        "Schemas between native and external cells differ "
-                        "(NativeSchemaId: %v, ExternalSchemaId: %v, NativeSchema: %v, ExternalSchema: %v)",
-                        schemaId,
-                        oldSchema->GetId(),
-                        *existingSchema->AsTableSchema(),
-                        oldSchema->AsTableSchema());
-                    YT_VERIFY(*oldSchema->AsTableSchema() == *emptySchema->AsTableSchema());
-                }
-
-                tableManager->SetTableSchema(table, existingSchema);
+            // Just a sanity check.
+            if (*oldSchema->AsTableSchema() != *existingSchema->AsTableSchema()) {
+                YT_LOG_ALERT(
+                    "Schemas between native and external cells differ "
+                    "(NativeSchemaId: %v, ExternalSchemaId: %v, NativeSchema: %v, ExternalSchema: %v)",
+                    schemaId,
+                    oldSchema->GetId(),
+                    *existingSchema->AsTableSchema(),
+                    oldSchema->AsTableSchema());
+                YT_VERIFY(*oldSchema->AsTableSchema() == *emptySchema->AsTableSchema());
             }
+
+            tableManager->SetTableSchema(table, existingSchema);
         }
     }
 
