@@ -174,11 +174,10 @@ public:
             "CellManager.Values",
             BIND(&TTamedCellManager::SaveValues, Unretained(this)));
 
-        // COMPAT(alexkolodezny)
-        RegisterMethod(BIND_NO_PROPAGATE(&TTamedCellManager::HydraAssignPeers, Unretained(this)), /*aliases*/ {"NYT.NTabletServer.NProto.TReqAssignPeers"});
-        RegisterMethod(BIND_NO_PROPAGATE(&TTamedCellManager::HydraRevokePeers, Unretained(this)), /*aliases*/ {"NYT.NTabletServer.NProto.TReqRevokePeers"});
-        RegisterMethod(BIND_NO_PROPAGATE(&TTamedCellManager::HydraReassignPeers, Unretained(this)), /*aliases*/ {"NYT.NTabletServer.NProto.TReqReassignPeers"});
-        RegisterMethod(BIND_NO_PROPAGATE(&TTamedCellManager::HydraSetLeadingPeer, Unretained(this)), /*aliases*/ {"NYT.NTabletServer.NProto.TReqSetLeadingPeer"});
+        RegisterMethod(BIND_NO_PROPAGATE(&TTamedCellManager::HydraAssignPeers, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTamedCellManager::HydraRevokePeers, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTamedCellManager::HydraReassignPeers, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTamedCellManager::HydraSetLeadingPeer, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTamedCellManager::HydraStartPrerequisiteTransaction, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTamedCellManager::HydraAbortPrerequisiteTransaction, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTamedCellManager::HydraDecommissionCellOnMaster, Unretained(this)));
@@ -188,7 +187,7 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TTamedCellManager::HydraSetCellConfigVersion, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTamedCellManager::HydraSetCellStatus, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTamedCellManager::HydraUpdateCellHealth, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TTamedCellManager::HydraUpdatePeerCount, Unretained(this)), /*aliases*/ {"NYT.NTabletServer.NProto.TReqUpdatePeerCount"});
+        RegisterMethod(BIND_NO_PROPAGATE(&TTamedCellManager::HydraUpdatePeerCount, Unretained(this)));
     }
 
     void Initialize() override
