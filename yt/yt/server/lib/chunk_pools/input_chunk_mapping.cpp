@@ -1,5 +1,7 @@
 #include "input_chunk_mapping.h"
 
+#include <yt/yt/server/lib/controller_agent/serialize.h>
+
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
@@ -286,6 +288,9 @@ void TInputChunkMapping::Persist(const TPersistenceContext& context)
     Persist<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>(context, Substitutes_);
     Persist<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>(context, OriginalStripes_);
     Persist(context, Mode_);
+    if (context.GetVersion() >= NControllerAgent::ESnapshotVersion::PersistInputChunkMappingLogger) {
+        Persist(context, Logger);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

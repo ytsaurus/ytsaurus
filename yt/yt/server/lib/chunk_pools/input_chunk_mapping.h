@@ -68,7 +68,7 @@ private:
     EChunkMappingMode Mode_;
     THashMap<NChunkClient::TInputChunkPtr, TCompactVector<NChunkClient::TInputChunkPtr, 1>> Substitutes_;
     THashMap<NChunkPools::IChunkPoolInput::TCookie, NChunkPools::TChunkStripePtr> OriginalStripes_;
-    NLogging::TLogger Logger;
+    NLogging::TSerializableLogger Logger;
 
     NChunkPools::TChunkStripePtr GetMappedStripeGuarded(const NChunkPools::TChunkStripePtr& stripe) const;
 

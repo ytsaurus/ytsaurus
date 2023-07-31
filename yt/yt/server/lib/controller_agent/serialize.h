@@ -27,6 +27,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((JobStateInJoblet)                     (301202))
     ((InitialMinNeededResources)            (301203))
     ((JobExperiment)                        (301204))
+    ((PersistInputChunkMappingLogger)       (301205))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
