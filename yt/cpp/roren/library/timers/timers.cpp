@@ -183,6 +183,9 @@ TVector<TTimer> TTimers::GetReadyTimers(size_t limit)
         if (0 == limit) {
             break;
         }
+        if (TInstant::Seconds(timer.GetValue().GetTimestamp()) > TInstant::Now()) {
+            break;
+        }
         if (TimerInFly_.contains(timer)) {
             continue;
         }
