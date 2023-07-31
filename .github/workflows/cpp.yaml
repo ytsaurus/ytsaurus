@@ -128,6 +128,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p ../docker-ytsaurus-build
+          mkdir -p ../docker-local-build
 
           tar -xf spyt-1.69.tar -C ../build
           tar -xf yql-package.tar -C ../build
@@ -145,8 +146,13 @@ jobs:
 
           bash ./yt/docker/ytsaurus/build.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --ytsaurus-spyt-release-path ../build/spyt_release --ytsaurus-yql-package-path ../build/yql_package --output-path ../docker-ytsaurus-build --image-tag ${IMAGE_TAG}
 
+          bash ./yt/docker/local/build.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --output-path ../docker-local-build --image-tag ${IMAGE_TAG}
+
           mv ../build_debug/yt/yt/server/all/ytserver-all ../build/yt/yt/server/all/ytserver-all
+
           bash ./yt/docker/ytsaurus/build.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --ytsaurus-spyt-release-path ../build/spyt_release --ytsaurus-yql-package-path ../build/yql_package --output-path ../docker-ytsaurus-build --image-tag ${IMAGE_TAG_DEBUG}
+
+          bash ./yt/docker/local/build.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --output-path ../docker-local-build --image-tag ${IMAGE_TAG_DEBUG}
 
           if [[ $IMAGE_TAG != "nopush" ]];
           then
@@ -157,21 +163,15 @@ jobs:
               docker push ytsaurus/ytsaurus:${IMAGE_TAG_DEBUG}
               docker tag ytsaurus/ytsaurus:${IMAGE_TAG_DEBUG} ytsaurus/ytsaurus-nightly:${IMAGE_TAG_DEBUG}-${GITHUB_SHA}
               docker push ytsaurus/ytsaurus-nightly:${IMAGE_TAG_DEBUG}-${GITHUB_SHA}
+
+              docker push ytsaurus/local:${IMAGE_TAG}
+              docker push ytsaurus/local:${IMAGE_TAG_DEBUG}
           fi
 
           if [[ $IMAGE_TAG == 'dev' ]];
           then
             docker tag ytsaurus/ytsaurus-nightly:${IMAGE_TAG}-${GITHUB_SHA} ytsaurus/ytsaurus-nightly:latest
             docker push ytsaurus/ytsaurus-nightly:latest
-          fi
-
-          cd yt/docker/local
-          bash ./build.sh --ytserver-all ../../../../build/yt/yt/server/all/ytserver-all --image-tag ${IMAGE_TAG}
-          bash ./build.sh --ytserver-all ../../../../build/yt/yt/server/all/ytserver-all --image-tag ${IMAGE_TAG_DEBUG}
-          if [[ $IMAGE_TAG != "nopush" ]];
-          then
-              docker push ytsaurus/local:${IMAGE_TAG}
-              docker push ytsaurus/local:${IMAGE_TAG_DEBUG}
           fi
 
       - name: Docker systest
