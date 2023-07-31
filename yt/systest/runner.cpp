@@ -52,25 +52,26 @@ void Runner::Run()
         DatasetPtrs_.push_back(std::move(shallowDataset));
     }
 
-    for (int i = 0; i < NumOperations_; i++) {
+    for (int i = 2; i < NumOperations_; i++) {
         if (Infos_[i].Stored.TotalBytes > (100 << 20)) {
             SortAndReduce(i, Infos_[i]);
         }
     }
 }
 
-void Runner::SortAndReduce(int index, const TDatasetInfo& info)
+void Runner::SortAndReduce(int opIndex, const TDatasetInfo& info)
 {
     auto sortedPath = TestHome_->CreateRandomTablePath();
     std::vector<TString> columns;
-    switch (index % 3) {
+    int index = 0;
+    switch (opIndex % 3) {
         case 0:
             columns = {"X2", "X5"};
             index = 4;
             break;
         case 1:
             columns = {"X2", "X0"};
-            index = 4;
+            index = 3;
             break;
         case 2:
             columns = {"X0"};
@@ -95,7 +96,8 @@ void Runner::SortAndReduce(int index, const TDatasetInfo& info)
 
     auto reducePath = TestHome_->CreateRandomTablePath();
 
-    YT_LOG_INFO("Performing reduce (InputTable: %v, OutputTable: %v)", sortedPath, reducePath);
+    YT_LOG_INFO("Performing reduce (InputTable: %v, OutputTable: %v, OpIndex: %v, ReduceIndex: %v)",
+        sortedPath, reducePath, opIndex, index);
 
     RunReduce(Client_, *TestHome_, sortedPath, reducePath, sortedDataset->table_schema(), reduceOperation);
 
