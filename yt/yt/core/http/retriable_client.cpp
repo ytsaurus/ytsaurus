@@ -179,7 +179,7 @@ private:
                 auto error = TError("Request attempt %v failed", attempt)
                     << rspOrError
                     << TErrorAttribute("attempt", attempt);
-                
+
                 YT_LOG_WARNING(
                     error,
                     "Request attempt failed (Url: %v, Attempt: %v)",

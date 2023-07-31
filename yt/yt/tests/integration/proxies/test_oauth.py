@@ -20,7 +20,7 @@ def auth_config(port):
             "user_info_endpoint": "user_info",
             "user_info_login_field": "login",
             "user_info_subject_field": "sub",
-            "user_info_error_field": "error" 
+            "user_info_error_field": "error"
         },
         "oauth_cookie_authenticator": {},
         "oauth_token_authenticator": {},
@@ -39,7 +39,7 @@ class TestOAuthBase(YTEnvSetup):
 
         cls.DELTA_PROXY_CONFIG["auth"] = auth_config(cls.mock_server_port)
         super(TestOAuthBase, cls).setup_class()
-    
+
     @classmethod
     def teardown_class(cls):
         pass
@@ -47,7 +47,7 @@ class TestOAuthBase(YTEnvSetup):
     def setup_method(self, method):
         super(TestOAuthBase, self).setup_method(method)
         create_user("u")
-    
+
     def _get_proxy_address(self):
         return "http://" + self.Env.get_proxy_address()
 

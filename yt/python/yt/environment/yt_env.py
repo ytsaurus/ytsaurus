@@ -268,7 +268,7 @@ class YTInstance(object):
             self._open_port_iterator = open_port_iterator
         else:
             self._open_port_iterator = _get_ports_generator(yt_config)
-        
+
         self._prepare_builtin_environment(self._open_port_iterator, modify_configs_func)
 
     def _prepare_directories(self):
