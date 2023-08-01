@@ -15,7 +15,7 @@ namespace NYT::NControllerAgent::NControllers {
 ////////////////////////////////////////////////////////////////////////////////
 
 NChunkPools::TBoundaryKeys BuildBoundaryKeysFromOutputResult(
-    const NScheduler::NProto::TOutputResult& boundaryKeys,
+    const NControllerAgent::NProto::TOutputResult& boundaryKeys,
     const TOutputStreamDescriptorPtr& outputTable,
     const NTableClient::TRowBufferPtr& rowBuffer);
 

@@ -23,6 +23,8 @@
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
+#include <yt/yt/ytlib/controller_agent/helpers.h>
+
 #include <yt/yt/ytlib/scheduler/helpers.h>
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
@@ -539,14 +541,14 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         try {
-            TJobFile file{
+            NControllerAgent::TJobFile file{
                 jobId,
                 path,
                 chunkId,
                 "input_context"
             };
             auto client = Bootstrap_->GetClient()->GetNativeConnection()->CreateNativeClient(TClientOptions::FromUser(user));
-            SaveJobFiles(client, operationId, { file });
+            NControllerAgent::SaveJobFiles(client, operationId, { file });
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error saving input context for job %v into %v", jobId, path)
                 << ex;

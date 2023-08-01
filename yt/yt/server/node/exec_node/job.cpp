@@ -48,8 +48,6 @@
 
 #include <yt/yt/ytlib/job_proxy/public.h>
 
-#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
-
 #include <yt/yt/ytlib/security_client/public.h>
 
 #include <yt/yt/ytlib/job_tracker_client/statistics.h>
@@ -148,7 +146,7 @@ TJob::TJob(
             CheckedEnumCast<EJobType>(jobSpec.type())),
         resourceUsage,
         resourceAttributes,
-        jobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext).user_job_spec().port_count())
+        jobSpec.GetExtension(TJobSpecExt::job_spec_ext).user_job_spec().port_count())
     , Id_(jobId)
     , OperationId_(operationId)
     , Bootstrap_(bootstrap)
@@ -162,13 +160,13 @@ TJob::TJob(
     , TrafficMeter_(New<TTrafficMeter>(
         Bootstrap_->GetLocalDescriptor().GetDataCenter()))
     , JobSpec_(std::move(jobSpec))
-    , SchedulerJobSpecExt_(&JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext))
-    , UserJobSpec_(SchedulerJobSpecExt_ && SchedulerJobSpecExt_->has_user_job_spec() ? &SchedulerJobSpecExt_->user_job_spec() : nullptr)
-    , JobTestingOptions_(SchedulerJobSpecExt_ && SchedulerJobSpecExt_->has_testing_options()
-        ? ConvertTo<TJobTestingOptionsPtr>(TYsonString(SchedulerJobSpecExt_->testing_options()))
+    , JobSpecExt_(&JobSpec_.GetExtension(TJobSpecExt::job_spec_ext))
+    , UserJobSpec_(JobSpecExt_ && JobSpecExt_->has_user_job_spec() ? &JobSpecExt_->user_job_spec() : nullptr)
+    , JobTestingOptions_(JobSpecExt_ && JobSpecExt_->has_testing_options()
+        ? ConvertTo<TJobTestingOptionsPtr>(TYsonString(JobSpecExt_->testing_options()))
         : New<TJobTestingOptions>())
-    , Interruptible_(SchedulerJobSpecExt_->interruptible())
-    , AbortJobIfAccountLimitExceeded_(SchedulerJobSpecExt_->abort_job_if_account_limit_exceeded())
+    , Interruptible_(JobSpecExt_->interruptible())
+    , AbortJobIfAccountLimitExceeded_(JobSpecExt_->abort_job_if_account_limit_exceeded())
     , IsGpuRequested_(resourceUsage.Gpu > 0)
     , RequestedCpu_(resourceUsage.Cpu)
     , RequestedMemory_(resourceUsage.UserMemory)
@@ -211,7 +209,7 @@ TJob::TJob(
     }
 
     HandleJobReport(MakeDefaultJobReport()
-        .TreeId(SchedulerJobSpecExt_->tree_id()));
+        .TreeId(JobSpecExt_->tree_id()));
 }
 
 TJob::~TJob()
@@ -517,7 +515,7 @@ void TJob::Finalize(TError error)
 
 void TJob::Finalize(
     TError error,
-    std::optional<NScheduler::NProto::TSchedulerJobResultExt> jobResultExtension,
+    std::optional<NControllerAgent::NProto::TJobResultExt> jobResultExtension,
     bool byJobProxyCompletion)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -590,10 +588,10 @@ void TJob::OnResultReceived(TJobResult jobResult)
     GuardedAction([&] {
         SetJobPhase(EJobPhase::FinalizingJobProxy);
 
-        std::optional<NScheduler::NProto::TSchedulerJobResultExt> schedulerResultExtension;
-        if (jobResult.HasExtension(NScheduler::NProto::TSchedulerJobResultExt::job_result_ext)) {
-            schedulerResultExtension = std::move(
-                *jobResult.ReleaseExtension(NScheduler::NProto::TSchedulerJobResultExt::job_result_ext));
+        std::optional<NControllerAgent::NProto::TJobResultExt> jobResultExtension;
+        if (jobResult.HasExtension(NControllerAgent::NProto::TJobResultExt::job_result_ext)) {
+            jobResultExtension = std::move(
+                *jobResult.ReleaseExtension(NControllerAgent::NProto::TJobResultExt::job_result_ext));
         }
 
         if (auto error = FromProto<TError>(jobResult.error());
@@ -601,7 +599,7 @@ void TJob::OnResultReceived(TJobResult jobResult)
         {
             Finalize(
                 std::move(error),
-                std::move(schedulerResultExtension),
+                std::move(jobResultExtension),
                 /*byJobProxyCompletion*/ true);
         } else {
             DoSetResult(
@@ -824,7 +822,7 @@ TJobResult TJob::GetResult() const
 
     if (JobResultExtension_) {
         *result.MutableExtension(
-            NScheduler::NProto::TSchedulerJobResultExt::job_result_ext) = *JobResultExtension_;
+            NControllerAgent::NProto::TJobResultExt::job_result_ext) = *JobResultExtension_;
     }
 
     return result;
@@ -1428,7 +1426,7 @@ void TJob::DoSetResult(TError error)
 
 void TJob::DoSetResult(
     TError error,
-    std::optional<NScheduler::NProto::TSchedulerJobResultExt> jobResultExtension,
+    std::optional<NControllerAgent::NProto::TJobResultExt> jobResultExtension,
     bool receivedFromJobProxy)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -1915,7 +1913,7 @@ void TJob::Cleanup()
     // NodeDirectory can be really huge, we better offload its cleanup.
     // NB: do this after slot cleanup.
     {
-        auto* inputNodeDirectory = JobSpec_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext)
+        auto* inputNodeDirectory = JobSpec_.MutableExtension(TJobSpecExt::job_spec_ext)
             ->release_input_node_directory();
         NRpc::TDispatcher::Get()->GetCompressionPoolInvoker()->Invoke(BIND([inputNodeDirectory] () {
             delete inputNodeDirectory;
@@ -1975,9 +1973,9 @@ void TJob::PrepareNodeDirectory()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto* schedulerJobSpecExt = JobSpec_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+    auto* jobSpecExt = JobSpec_.MutableExtension(TJobSpecExt::job_spec_ext);
 
-    if (schedulerJobSpecExt->has_input_node_directory()) {
+    if (jobSpecExt->has_input_node_directory()) {
         YT_LOG_INFO("Node directory is provided by scheduler");
         return;
     }
@@ -2016,8 +2014,8 @@ void TJob::PrepareNodeDirectory()
             }
         };
 
-        validateTableSpecs(schedulerJobSpecExt->input_table_specs());
-        validateTableSpecs(schedulerJobSpecExt->foreign_input_table_specs());
+        validateTableSpecs(jobSpecExt->input_table_specs());
+        validateTableSpecs(jobSpecExt->foreign_input_table_specs());
 
         // NB: No need to add these descriptors to the input node directory.
         for (const auto& artifact : Artifacts_) {
@@ -2047,7 +2045,7 @@ void TJob::PrepareNodeDirectory()
     try {
         WaitFor(BIND(&TNodeDirectory::DumpTo, nodeDirectory)
             .AsyncVia(Invoker_)
-            .Run(schedulerJobSpecExt->mutable_input_node_directory()))
+            .Run(jobSpecExt->mutable_input_node_directory()))
             .ThrowOnError();
     } catch (const std::exception& ex) {
         YT_LOG_FATAL(ex, "Preparing node directory failed");
@@ -2225,13 +2223,13 @@ TJobProxyConfigPtr TJob::CreateConfig()
     }
 
     proxyConfig->JobThrottler = CloneYsonStruct(DynamicConfig_->JobThrottler);
-    if (!SchedulerJobSpecExt_->enable_prefetching_job_throttler()) {
+    if (!JobSpecExt_->enable_prefetching_job_throttler()) {
         proxyConfig->JobThrottler->BandwidthPrefetch->Enable = false;
         proxyConfig->JobThrottler->RpsPrefetch->Enable = false;
     }
     YT_LOG_DEBUG("Initialize prefetching job throttler (DynamicConfigEnable: %v, JobSpecEnable: %v, PrefetchEnable: %v)",
         DynamicConfig_->JobThrottler->BandwidthPrefetch->Enable,
-        SchedulerJobSpecExt_->enable_prefetching_job_throttler(),
+        JobSpecExt_->enable_prefetching_job_throttler(),
         proxyConfig->JobThrottler->BandwidthPrefetch->Enable);
 
     proxyConfig->StatisticsOutputTableCountLimit = DynamicConfig_->StatisticsOutputTableCountLimit;
@@ -2318,8 +2316,8 @@ void TJob::InitializeArtifacts()
         }
     }
 
-    if (SchedulerJobSpecExt_->has_input_query_spec()) {
-        const auto& querySpec = SchedulerJobSpecExt_->input_query_spec();
+    if (JobSpecExt_->has_input_query_spec()) {
+        const auto& querySpec = JobSpecExt_->input_query_spec();
         for (const auto& function : querySpec.external_functions()) {
             TArtifactKey key;
             key.mutable_data_source()->set_type(static_cast<int>(EDataSourceType::File));
@@ -2348,7 +2346,7 @@ TArtifactDownloadOptions TJob::MakeArtifactDownloadOptions() const
     std::vector<TString> workloadDescriptorAnnotations = {
         Format("OperationId: %v", OperationId_),
         Format("JobId: %v", Id_),
-        Format("AuthenticatedUser: %v", SchedulerJobSpecExt_->authenticated_user()),
+        Format("AuthenticatedUser: %v", JobSpecExt_->authenticated_user()),
     };
 
     auto options = TArtifactDownloadOptions{
@@ -2804,14 +2802,14 @@ TNodeJobReport TJob::MakeDefaultJobReport()
     if (FinishTime_) {
         report.SetFinishTime(*FinishTime_);
     }
-    if (SchedulerJobSpecExt_->has_job_competition_id()) {
-        report.SetJobCompetitionId(FromProto<TGuid>(SchedulerJobSpecExt_->job_competition_id()));
+    if (JobSpecExt_->has_job_competition_id()) {
+        report.SetJobCompetitionId(FromProto<TGuid>(JobSpecExt_->job_competition_id()));
     }
-    if (SchedulerJobSpecExt_->has_probing_job_competition_id()) {
-        report.SetProbingJobCompetitionId(FromProto<TGuid>(SchedulerJobSpecExt_->probing_job_competition_id()));
+    if (JobSpecExt_->has_probing_job_competition_id()) {
+        report.SetProbingJobCompetitionId(FromProto<TGuid>(JobSpecExt_->probing_job_competition_id()));
     }
-    if (SchedulerJobSpecExt_ && SchedulerJobSpecExt_->has_task_name()) {
-        report.SetTaskName(SchedulerJobSpecExt_->task_name());
+    if (JobSpecExt_ && JobSpecExt_->has_task_name()) {
+        report.SetTaskName(JobSpecExt_->task_name());
     }
 
     return report;
@@ -2858,8 +2856,8 @@ bool TJob::ShouldCleanSandboxes()
 
 bool TJob::NeedGpuLayers()
 {
-    if (SchedulerJobSpecExt_->has_user_job_spec()) {
-        const auto& userJobSpec = SchedulerJobSpecExt_->user_job_spec();
+    if (JobSpecExt_->has_user_job_spec()) {
+        const auto& userJobSpec = JobSpecExt_->user_job_spec();
         if (userJobSpec.has_cuda_toolkit_version()) {
             return true;
         }

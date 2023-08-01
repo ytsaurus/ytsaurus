@@ -17,6 +17,10 @@
 #include <yt/yt/server/lib/job_proxy/config.h>
 #include <yt/yt/server/lib/job_proxy/public.h>
 
+#include <yt/yt/ytlib/controller_agent/public.h>
+
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
+
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
 #include <yt/yt/client/misc/workload.h>
@@ -271,7 +275,7 @@ private:
         if (request->has_finish_time()) {
             jobReport.SetFinishTime(FromProto<TInstant>(request->finish_time()));
         }
-        job->SetCoreInfos(FromProto<NScheduler::TCoreInfos>(request->core_infos()));
+        job->SetCoreInfos(FromProto<NControllerAgent::TCoreInfos>(request->core_infos()));
         job->HandleJobReport(std::move(jobReport));
 
         if (request->has_job_stderr()) {

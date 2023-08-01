@@ -176,12 +176,12 @@ private:
     void InitJobSpecTemplate()
     {
         JobSpecTemplate_.set_type(static_cast<int>(EJobType::Vanilla));
-        auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        auto* jobSpecExt = JobSpecTemplate_.MutableExtension(TJobSpecExt::job_spec_ext);
 
-        schedulerJobSpecExt->set_io_config(ConvertToYsonString(Spec_->JobIO).ToString());
+        jobSpecExt->set_io_config(ConvertToYsonString(Spec_->JobIO).ToString());
 
         TaskHost_->InitUserJobSpecTemplate(
-            schedulerJobSpecExt->mutable_user_job_spec(),
+            jobSpecExt->mutable_user_job_spec(),
             Spec_,
             TaskHost_->GetUserFiles(Spec_),
             TaskHost_->GetSpec()->DebugArtifactsAccount);

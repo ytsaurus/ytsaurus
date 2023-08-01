@@ -972,7 +972,6 @@ target_proto_messages(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/allocation.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/job.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/job_prober_service.proto
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/output_result.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/pool_ypath.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/scheduler_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/security_client/proto/account_ypath.proto
@@ -995,6 +994,7 @@ target_proto_messages(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/controller_agent/proto/job_prober_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/controller_agent/proto/controller_agent_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/controller_agent/proto/job.proto
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/controller_agent/proto/output_result.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/yql_client/proto/yql_service.proto
 )
 target_sources(yt-yt-ytlib PRIVATE

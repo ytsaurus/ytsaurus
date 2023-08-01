@@ -28,10 +28,6 @@ using NVectorHdrf::ResourceCount;
 
 namespace NProto {
 
-class TCoreInfo;
-class TSchedulerJobSpecExt;
-class TSchedulerJobResultExt;
-class TTableInputSpec;
 class TJobExperimentConfig;
 class TJobResources;
 class TJobResourcesWithQuota;
@@ -46,11 +42,10 @@ class TReqGetOperationInfo;
 class TRspGetOperationInfo;
 class TReqGetJobInfo;
 class TRspGetJobInfo;
-class TOutputResult;
-class TUserJobSpec;
 class TResourceLimits;
 class TQuerySpec;
 class TDiskQuota;
+class TDiskRequest;
 
 } // namespace NProto
 

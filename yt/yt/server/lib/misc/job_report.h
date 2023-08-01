@@ -10,11 +10,12 @@
 
 #include <yt/yt/ytlib/job_tracker_client/public.h>
 
+#include <yt/yt/ytlib/controller_agent/public.h>
+
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
 #include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
 
-#include <yt/yt/ytlib/scheduler/helpers.h>
 #include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/yt/core/yson/string.h>
@@ -73,7 +74,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Stderr);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, FailContext);
     DEFINE_BYREF_RO_PROPERTY(std::optional<NJobAgent::TJobProfile>, Profile);
-    DEFINE_BYREF_RO_PROPERTY(std::optional<NScheduler::TCoreInfos>, CoreInfos);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<NControllerAgent::TCoreInfos>, CoreInfos);
     DEFINE_BYREF_RO_PROPERTY(NJobTrackerClient::TJobId, JobCompetitionId);
     DEFINE_BYREF_RO_PROPERTY(NJobTrackerClient::TJobId, ProbingJobCompetitionId);
     DEFINE_BYREF_RO_PROPERTY(std::optional<bool>, HasCompetitors);

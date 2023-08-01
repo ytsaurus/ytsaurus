@@ -23,6 +23,8 @@
 #include <yt/yt/ytlib/chunk_client/data_sink.h>
 #include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
+
 #include <yt/yt/ytlib/job_proxy/helpers.h>
 
 #include <yt/yt/ytlib/object_client/helpers.h>
@@ -57,7 +59,7 @@ using namespace NObjectClient;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
-using namespace NScheduler::NProto;
+using namespace NControllerAgent::NProto;
 using namespace NScheduler;
 using namespace NControllerAgent::NProto;
 using namespace NTableClient;
@@ -82,7 +84,7 @@ class TRemoteCopyJob
 public:
     explicit TRemoteCopyJob(IJobHostPtr host)
         : TJob(std::move(host))
-        , SchedulerJobSpecExt_(Host_->GetJobSpecHelper()->GetSchedulerJobSpecExt())
+        , JobSpecExt_(Host_->GetJobSpecHelper()->GetJobSpecExt())
         , RemoteCopyJobSpecExt_(Host_->GetJobSpecHelper()->GetJobSpec().GetExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext))
         , ReaderConfig_(Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader)
         , WriterConfig_(CloneYsonStruct(Host_->GetJobSpecHelper()->GetJobIOConfig()->TableWriter))
@@ -93,10 +95,10 @@ public:
         , OutputTraceContext_(CreateTraceContextFromCurrent("TableWriter"))
         , OutputFinishGuard_(OutputTraceContext_)
     {
-        YT_VERIFY(SchedulerJobSpecExt_.input_table_specs_size() == 1);
-        YT_VERIFY(SchedulerJobSpecExt_.output_table_specs_size() == 1);
+        YT_VERIFY(JobSpecExt_.input_table_specs_size() == 1);
+        YT_VERIFY(JobSpecExt_.output_table_specs_size() == 1);
 
-        DataSliceDescriptors_ = UnpackDataSliceDescriptors(SchedulerJobSpecExt_.input_table_specs(0));
+        DataSliceDescriptors_ = UnpackDataSliceDescriptors(JobSpecExt_.input_table_specs(0));
 
         for (const auto& dataSliceDescriptor : DataSliceDescriptors_) {
             for (const auto& inputChunkSpec : dataSliceDescriptor.ChunkSpecs) {
@@ -116,7 +118,7 @@ public:
     void PopulateInputNodeDirectory() const override
     {
         RemoteConnection_->GetNodeDirectory()->MergeFrom(
-            Host_->GetJobSpecHelper()->GetSchedulerJobSpecExt().input_node_directory());
+            Host_->GetJobSpecHelper()->GetJobSpecExt().input_node_directory());
     }
 
     void Initialize() override
@@ -127,27 +129,27 @@ public:
         TJob::Initialize();
 
         TExtraChunkTags extraChunkTags;
-        const auto& tableSpec = SchedulerJobSpecExt_.input_table_specs()[0];
+        const auto& tableSpec = JobSpecExt_.input_table_specs()[0];
         if (tableSpec.chunk_specs_size() != 0) {
             extraChunkTags.ErasureCodec = NErasure::ECodec(tableSpec.chunk_specs()[0].erasure_codec());
         }
 
-        auto dataSourceDirectoryExt = GetProtoExtension<TDataSourceDirectoryExt>(SchedulerJobSpecExt_.extensions());
+        auto dataSourceDirectoryExt = GetProtoExtension<TDataSourceDirectoryExt>(JobSpecExt_.extensions());
         auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
         YT_VERIFY(std::ssize(dataSourceDirectory->DataSources()) == 1);
         PackBaggageForChunkReader(InputTraceContext_, dataSourceDirectory->DataSources()[0], extraChunkTags);
 
-        if (auto dataSinkDirectoryExt = FindProtoExtension<TDataSinkDirectoryExt>(SchedulerJobSpecExt_.extensions())) {
+        if (auto dataSinkDirectoryExt = FindProtoExtension<TDataSinkDirectoryExt>(JobSpecExt_.extensions())) {
             auto dataSinkDirectory = FromProto<TDataSinkDirectoryPtr>(*dataSinkDirectoryExt);
             YT_VERIFY(std::ssize(dataSinkDirectory->DataSinks()) == 1);
             PackBaggageForChunkWriter(OutputTraceContext_, dataSinkDirectory->DataSinks()[0], extraChunkTags);
         }
 
         WriterOptionsTemplate_ = ConvertTo<TTableWriterOptionsPtr>(
-            TYsonString(SchedulerJobSpecExt_.output_table_specs(0).table_writer_options()));
+            TYsonString(JobSpecExt_.output_table_specs(0).table_writer_options()));
 
         OutputChunkListId_ = FromProto<TChunkListId>(
-            SchedulerJobSpecExt_.output_table_specs(0).chunk_list_id());
+            JobSpecExt_.output_table_specs(0).chunk_list_id());
 
         WriterConfig_->UploadReplicationFactor = std::min(
             WriterConfig_->UploadReplicationFactor,
@@ -235,8 +237,8 @@ public:
         ToProto(result.mutable_error(), TError());
 
         if (IsTableDynamic()) {
-            auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::job_result_ext);
-            ToProto(schedulerResultExt->mutable_output_chunk_specs(), WrittenChunks_);
+            auto* jobResultExt = result.MutableExtension(TJobResultExt::job_result_ext);
+            ToProto(jobResultExt->mutable_output_chunk_specs(), WrittenChunks_);
         }
 
         return result;
@@ -285,7 +287,7 @@ public:
     }
 
 private:
-    const TSchedulerJobSpecExt& SchedulerJobSpecExt_;
+    const TJobSpecExt& JobSpecExt_;
     const TRemoteCopyJobSpecExt& RemoteCopyJobSpecExt_;
     const TTableReaderConfigPtr ReaderConfig_;
     const TTableWriterConfigPtr WriterConfig_;
@@ -330,7 +332,7 @@ private:
         auto writerOptions = CloneYsonStruct(WriterOptionsTemplate_);
         writerOptions->ErasureCodec = FromProto<NErasure::ECodec>(inputChunkSpec.erasure_codec());
 
-        auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
+        auto transactionId = FromProto<TTransactionId>(JobSpecExt_.output_transaction_id());
 
         return CreateChunk(
             Host_->GetClient(),
@@ -956,7 +958,7 @@ private:
 
     bool IsTableDynamic() const
     {
-        return SchedulerJobSpecExt_.output_table_specs(0).dynamic();
+        return JobSpecExt_.output_table_specs(0).dynamic();
     }
 
     TChunkReaderHostPtr GetRemoteChunkReaderHost()

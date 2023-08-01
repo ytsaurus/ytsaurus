@@ -34,7 +34,7 @@ public:
     static bool IsEnabled(const TOperationSpecBasePtr& operationSpec);
 
     virtual void PatchUserJobSpec(
-        NScheduler::NProto::TUserJobSpec* jobSpec,
+        NControllerAgent::NProto::TUserJobSpec* jobSpec,
         const TJobletPtr& joblet) const = 0;
     virtual NScheduler::EOperationAlertType GetAlertType() const = 0;
     virtual TError GetAlertMessage(const TOperationSpecBasePtr& operationSpec) const = 0;
@@ -63,7 +63,7 @@ public:
         const std::vector<NScheduler::TUserJobSpecPtr>& userJobSpecs);
 
     void PatchUserJobSpec(
-        NScheduler::NProto::TUserJobSpec* jobSpec,
+        NControllerAgent::NProto::TUserJobSpec* jobSpec,
         const TJobletPtr& joblet) const override;
 
     NScheduler::EOperationAlertType GetAlertType() const override;
@@ -101,7 +101,7 @@ public:
         const std::vector<NScheduler::TUserJobSpecPtr>& userJobSpecs);
 
     void PatchUserJobSpec(
-        NScheduler::NProto::TUserJobSpec* jobSpec,
+        NControllerAgent::NProto::TUserJobSpec* jobSpec,
         const TJobletPtr& joblet) const override;
 
     NScheduler::EOperationAlertType GetAlertType() const override;
@@ -155,7 +155,7 @@ public:
     NJobTrackerClient::TJobId GetFailedControlJob() const;
 
     void PatchUserJobSpec(
-        NScheduler::NProto::TUserJobSpec* jobSpec,
+        NControllerAgent::NProto::TUserJobSpec* jobSpec,
         const TJobletPtr& joblet) const;
 
     void GenerateAlertIfNeeded(

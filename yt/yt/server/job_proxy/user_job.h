@@ -3,7 +3,7 @@
 #include "public.h"
 #include "job.h"
 
-#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/controller_agent/public.h>
 
 namespace NYT::NJobProxy {
 
@@ -11,7 +11,7 @@ namespace NYT::NJobProxy {
 
 IJobPtr CreateUserJob(
     IJobHostPtr host,
-    const NScheduler::NProto::TUserJobSpec& userJobSpec,
+    const NControllerAgent::NProto::TUserJobSpec& userJobSpec,
     NJobTrackerClient::TJobId jobId,
     const std::vector<int>& ports,
     std::unique_ptr<TUserJobWriteController> userJobWriteController);

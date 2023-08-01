@@ -573,20 +573,20 @@ private:
     void InitJobSpecTemplate() override
     {
         JobSpecTemplate_.set_type(static_cast<int>(EJobType::OrderedMerge));
-        auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).ToString());
+        auto* jobSpecExt = JobSpecTemplate_.MutableExtension(TJobSpecExt::job_spec_ext);
+        jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).ToString());
 
         if (Spec_->InputQuery) {
-            WriteInputQueryToJobSpec(schedulerJobSpecExt);
+            WriteInputQueryToJobSpec(jobSpecExt);
         }
 
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
-            schedulerJobSpecExt->mutable_extensions(),
+            jobSpecExt->mutable_extensions(),
             BuildDataSourceDirectoryFromInputTables(InputTables_));
         SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
-            schedulerJobSpecExt->mutable_extensions(),
+            jobSpecExt->mutable_extensions(),
             BuildDataSinkDirectoryFromOutputTables(OutputTables_));
-        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
+        jobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
     }
 
     bool IsTeleportationSupported() const override
@@ -794,24 +794,24 @@ private:
     void InitJobSpecTemplate() override
     {
         JobSpecTemplate_.set_type(static_cast<int>(EJobType::OrderedMap));
-        auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).ToString());
+        auto* jobSpecExt = JobSpecTemplate_.MutableExtension(TJobSpecExt::job_spec_ext);
+        jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).ToString());
 
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
-            schedulerJobSpecExt->mutable_extensions(),
+            jobSpecExt->mutable_extensions(),
             BuildDataSourceDirectoryFromInputTables(InputTables_));
         SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
-            schedulerJobSpecExt->mutable_extensions(),
+            jobSpecExt->mutable_extensions(),
             BuildDataSinkDirectoryFromOutputTables(OutputTables_));
 
         if (Spec_->InputQuery) {
-            WriteInputQueryToJobSpec(schedulerJobSpecExt);
+            WriteInputQueryToJobSpec(jobSpecExt);
         }
 
-        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
+        jobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
 
         InitUserJobSpecTemplate(
-            schedulerJobSpecExt->mutable_user_job_spec(),
+            jobSpecExt->mutable_user_job_spec(),
             Spec_->Mapper,
             UserJobFiles_[Spec_->Mapper],
             Spec_->DebugArtifactsAccount);
@@ -1041,22 +1041,22 @@ private:
     void InitJobSpecTemplate() override
     {
         JobSpecTemplate_.set_type(static_cast<int>(EJobType::OrderedMerge));
-        auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).ToString());
+        auto* jobSpecExt = JobSpecTemplate_.MutableExtension(TJobSpecExt::job_spec_ext);
+        jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).ToString());
 
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
-            schedulerJobSpecExt->mutable_extensions(),
+            jobSpecExt->mutable_extensions(),
             BuildDataSourceDirectoryFromInputTables(InputTables_));
         SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
-            schedulerJobSpecExt->mutable_extensions(),
+            jobSpecExt->mutable_extensions(),
             BuildDataSinkDirectoryFromOutputTables(OutputTables_));
 
-        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
+        jobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
 
-        auto* jobSpecExt = JobSpecTemplate_.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
+        auto* mergejobSpecExt = JobSpecTemplate_.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
         const auto& table = OutputTables_[0];
         if (table->TableUploadOptions.TableSchema->IsSorted()) {
-            ToProto(jobSpecExt->mutable_key_columns(), table->TableUploadOptions.TableSchema->GetKeyColumns());
+            ToProto(mergejobSpecExt->mutable_key_columns(), table->TableUploadOptions.TableSchema->GetKeyColumns());
         }
     }
 
@@ -1316,16 +1316,16 @@ private:
     void InitJobSpecTemplate() override
     {
         JobSpecTemplate_.set_type(static_cast<int>(EJobType::RemoteCopy));
-        auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(
-            TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        auto* jobSpecExt = JobSpecTemplate_.MutableExtension(
+            TJobSpecExt::job_spec_ext);
 
-        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
-        schedulerJobSpecExt->set_table_reader_options("");
+        jobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
+        jobSpecExt->set_table_reader_options("");
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
-            schedulerJobSpecExt->mutable_extensions(),
+            jobSpecExt->mutable_extensions(),
             BuildDataSourceDirectoryFromInputTables(InputTables_));
         SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
-            schedulerJobSpecExt->mutable_extensions(),
+            jobSpecExt->mutable_extensions(),
             BuildDataSinkDirectoryFromOutputTables(OutputTables_));
 
         auto connectionConfig = GetRemoteConnectionConfig()->Clone();

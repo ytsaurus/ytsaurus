@@ -108,7 +108,7 @@ TNodeJobReport TNodeJobReport::Profile(const NJobAgent::TJobProfile& profile)
     return std::move(*this);
 }
 
-TNodeJobReport TNodeJobReport::CoreInfos(NScheduler::TCoreInfos coreInfos)
+TNodeJobReport TNodeJobReport::CoreInfos(NControllerAgent::TCoreInfos coreInfos)
 {
     CoreInfos_ = std::move(coreInfos);
     return std::move(*this);

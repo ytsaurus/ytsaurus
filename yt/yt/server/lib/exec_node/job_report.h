@@ -27,7 +27,7 @@ public:
     TNodeJobReport Stderr(const TString& stderr);
     TNodeJobReport FailContext(const TString& failContext);
     TNodeJobReport Profile(const NJobAgent::TJobProfile& profile);
-    TNodeJobReport CoreInfos(NScheduler::TCoreInfos coreInfos);
+    TNodeJobReport CoreInfos(NControllerAgent::TCoreInfos coreInfos);
     TNodeJobReport ExecAttributes(const NYson::TYsonString& execAttributes);
     TNodeJobReport TreeId(TString treeId);
     TNodeJobReport MonitoringDescriptor(TString monitoringDescriptor);

@@ -9,7 +9,7 @@
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/yt/ytlib/scheduler/proto/output_result.pb.h>
+#include <yt/yt/ytlib/controller_agent/proto/output_result.pb.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
 
@@ -35,7 +35,7 @@ const static auto& Logger = ControllerLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TBoundaryKeys BuildBoundaryKeysFromOutputResult(
-    const NScheduler::NProto::TOutputResult& boundaryKeys,
+    const NProto::TOutputResult& boundaryKeys,
     const TOutputStreamDescriptorPtr& streamDescriptor,
     const TRowBufferPtr& rowBuffer)
 {

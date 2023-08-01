@@ -41,19 +41,19 @@ struct TJobSummary
     const NProto::TJobResult& GetJobResult() const;
 
     //! Crashes if job result is not combined yet or it misses a scheduler job result extension.
-    NScheduler::NProto::TSchedulerJobResultExt& GetSchedulerJobResult();
-    const NScheduler::NProto::TSchedulerJobResultExt& GetSchedulerJobResult() const;
+    NControllerAgent::NProto::TJobResultExt& GetJobResultExt();
+    const NControllerAgent::NProto::TJobResultExt& GetJobResultExt() const;
 
     //! Crashes if job result is not combined yet, and returns nullptr if scheduler job
     //! result extension is missing.
-    const NScheduler::NProto::TSchedulerJobResultExt* FindSchedulerJobResult() const;
+    const NControllerAgent::NProto::TJobResultExt* FindJobResultExt() const;
 
     // COMPAT(max42): remove this when data statistics are always sent separately from the rest of statistics.
     void FillDataStatisticsFromStatistics();
 
     // NB: may be nullopt or may miss scheduler job result extension while job
     // result is being combined from scheduler and node parts.
-    // Prefer using GetJobResult() and GetSchedulerJobResult() helpers.
+    // Prefer using GetJobResult() and GetJobResult() helpers.
     std::optional<NProto::TJobResult> Result;
 
     TJobId Id;

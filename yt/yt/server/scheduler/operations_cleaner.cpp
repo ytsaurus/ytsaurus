@@ -1096,7 +1096,7 @@ private:
                 return true;
             }
 
-            if (!IsOperationWithUserJobs(request.OperationType) &&
+            if (!NControllerAgent::IsOperationWithUserJobs(request.OperationType) &&
                 request.State == EOperationState::Completed)
             {
                 return true;

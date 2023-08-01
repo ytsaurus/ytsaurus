@@ -6,13 +6,14 @@
 
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
+#include <yt/yt/ytlib/controller_agent/public.h>
+
+#include <yt/yt/ytlib/scheduler/config.h>
+
 #include <yt/yt/ytlib/security_client/public.h>
 
 #include <yt/yt/ytlib/table_client/helpers.h>
 #include <yt/yt/ytlib/table_client/samples_fetcher.h>
-
-#include <yt/yt/ytlib/scheduler/config.h>
-#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
 namespace NYT::NControllerAgent {
 
@@ -55,7 +56,7 @@ struct TUserFile
 ////////////////////////////////////////////////////////////////////////////////
 
 void BuildFileSpec(
-    NScheduler::NProto::TFileDescriptor* descriptor,
+    NControllerAgent::NProto::TFileDescriptor* descriptor,
     const TUserFile& file,
     bool copyFiles,
     bool enableBypassArtifactCache);
@@ -63,7 +64,7 @@ void BuildFileSpec(
 ////////////////////////////////////////////////////////////////////////////////
 
 void BuildFileSpecs(
-    NScheduler::NProto::TUserJobSpec* jobSpec,
+    NControllerAgent::NProto::TUserJobSpec* jobSpec,
     const std::vector<TUserFile>& files,
     const NScheduler::TUserJobSpecPtr& config,
     bool enableBypassArtifactCache);

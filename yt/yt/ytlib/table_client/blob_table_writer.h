@@ -4,7 +4,7 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 #include <yt/yt/ytlib/chunk_client/data_sink.h>
@@ -55,7 +55,7 @@ public:
         NChunkClient::TTrafficMeterPtr trafficMeter,
         NConcurrency::IThroughputThrottlerPtr throttler);
 
-    NScheduler::NProto::TOutputResult GetOutputResult() const;
+    NControllerAgent::NProto::TOutputResult GetOutputResult() const;
 
 private:
     void DoWrite(const void* buf, size_t size) override;

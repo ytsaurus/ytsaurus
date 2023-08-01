@@ -60,14 +60,14 @@ class TShallowMergeJob
 public:
     explicit TShallowMergeJob(IJobHostPtr host)
         : TJob(host)
-        , SchedulerJobSpecExt_(host->GetJobSpecHelper()->GetSchedulerJobSpecExt())
+        , JobSpecExt_(host->GetJobSpecHelper()->GetJobSpecExt())
         , ShallowMergeJobSpecExt_(host->GetJobSpecHelper()->GetJobSpec().GetExtension(TShallowMergeJobSpecExt::shallow_merge_job_spec_ext))
         , ReaderConfig_(Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader)
         , WriterConfig_(Host_->GetJobSpecHelper()->GetJobIOConfig()->TableWriter)
         , OutputTraceContext_(NTracing::CreateTraceContextFromCurrent("TableWriter"))
         , OutputFinishGuard_(OutputTraceContext_)
     {
-        YT_VERIFY(SchedulerJobSpecExt_.output_table_specs_size() == 1);
+        YT_VERIFY(JobSpecExt_.output_table_specs_size() == 1);
     }
 
     void Initialize() override
@@ -81,7 +81,7 @@ public:
         ChunkReadOptions_.ReadSessionId = TReadSessionId::Create();
 
         ReaderOptions_ = ConvertTo<TTableReaderOptionsPtr>(TYsonString(
-            SchedulerJobSpecExt_.table_reader_options()));
+            JobSpecExt_.table_reader_options()));
 
         PackBaggages();
         CreateChunkWriters();
@@ -120,8 +120,10 @@ public:
 
         TJobResult jobResult;
         ToProto(jobResult.mutable_error(), TError());
-        auto* schedulerResultExt = jobResult.MutableExtension(TSchedulerJobResultExt::job_result_ext);
-        ToProto(schedulerResultExt->add_output_chunk_specs(), GetOutputChunkSpec());
+        {
+            auto* jobResultExt = jobResult.MutableExtension(TJobResultExt::job_result_ext);
+            ToProto(jobResultExt->add_output_chunk_specs(), GetOutputChunkSpec());
+        }
 
         YT_LOG_INFO("Shallow merge completed");
         return jobResult;
@@ -190,7 +192,7 @@ private:
         bool IsErasureChunk;
     };
 
-    const TSchedulerJobSpecExt SchedulerJobSpecExt_;
+    const TJobSpecExt JobSpecExt_;
     const TShallowMergeJobSpecExt ShallowMergeJobSpecExt_;
 
     const TTableReaderConfigPtr ReaderConfig_;
@@ -221,13 +223,13 @@ private:
 
     void PackBaggages()
     {
-        auto dataSourceDirectoryExt = FindProtoExtension<TDataSourceDirectoryExt>(SchedulerJobSpecExt_.extensions());
+        auto dataSourceDirectoryExt = FindProtoExtension<TDataSourceDirectoryExt>(JobSpecExt_.extensions());
         auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(*dataSourceDirectoryExt);
 
         TExtraChunkTags extraChunkTags;
 
-        for (int inputSpecIndex = 0; inputSpecIndex < SchedulerJobSpecExt_.input_table_specs_size(); ++inputSpecIndex) {
-            const auto& tableSpec = SchedulerJobSpecExt_.input_table_specs()[inputSpecIndex];
+        for (int inputSpecIndex = 0; inputSpecIndex < JobSpecExt_.input_table_specs_size(); ++inputSpecIndex) {
+            const auto& tableSpec = JobSpecExt_.input_table_specs()[inputSpecIndex];
             const auto& traceContext = InputTraceContexts_.emplace_back(
                 CreateTraceContextFromCurrent(Format("TableReader.%v", inputSpecIndex)));
             InputFinishGuards_.emplace_back(traceContext);
@@ -243,7 +245,7 @@ private:
             }
         }
 
-        if (auto dataSinkDirectoryExt = FindProtoExtension<TDataSinkDirectoryExt>(SchedulerJobSpecExt_.extensions())) {
+        if (auto dataSinkDirectoryExt = FindProtoExtension<TDataSinkDirectoryExt>(JobSpecExt_.extensions())) {
             auto dataSinkDirectory = FromProto<TDataSinkDirectoryPtr>(*dataSinkDirectoryExt);
             YT_VERIFY(std::ssize(dataSinkDirectory->DataSinks()) == 1);
             PackBaggageForChunkWriter(OutputTraceContext_, dataSinkDirectory->DataSinks()[0], extraChunkTags);
@@ -252,7 +254,7 @@ private:
 
     void CreateChunkWriters()
     {
-        const auto& outputTableSpec = SchedulerJobSpecExt_.output_table_specs(0);
+        const auto& outputTableSpec = JobSpecExt_.output_table_specs(0);
         auto outputChunkListId = FromProto<TChunkListId>(outputTableSpec.chunk_list_id());
 
         UnderlyingWriterOptions_ = ConvertTo<TTableWriterOptionsPtr>(
@@ -273,7 +275,7 @@ private:
             WriterConfig_,
             UnderlyingWriterOptions_,
             CellTagFromId(outputChunkListId),
-            FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id()),
+            FromProto<TTransactionId>(JobSpecExt_.output_transaction_id()),
             outputChunkListId,
             Host_->GetClient(),
             Host_->GetLocalHostName(),
@@ -342,8 +344,8 @@ private:
     void BuildInputChunkStates()
     {
         std::vector<TFuture<TInputChunkState>> asyncResults;
-        for (int inputSpecIndex = 0; inputSpecIndex < SchedulerJobSpecExt_.input_table_specs_size(); ++inputSpecIndex) {
-            const auto& tableSpec = SchedulerJobSpecExt_.input_table_specs()[inputSpecIndex];
+        for (int inputSpecIndex = 0; inputSpecIndex < JobSpecExt_.input_table_specs_size(); ++inputSpecIndex) {
+            const auto& tableSpec = JobSpecExt_.input_table_specs()[inputSpecIndex];
 
             for (const auto& chunkSpec : tableSpec.chunk_specs()) {
                 auto asyncResult = BIND(&TShallowMergeJob::BuildInputChunkStateFromSpec,

@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
+#include <yt/yt/ytlib/controller_agent/public.h>
+
 #include <yt/yt/ytlib/object_client/config.h>
 
 #include <yt/yt/ytlib/table_client/config.h>
@@ -37,16 +39,6 @@
 #include <yt/yt/library/vector_hdrf/job_resources.h>
 
 namespace NYT::NScheduler {
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NProto {
-
-class TDiskRequest;
-class TTmpfsVolume;
-class TJobProfilerSpec;
-
-} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -711,8 +703,8 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TTmpfsVolumeConfig)
 
-void ToProto(NScheduler::NProto::TTmpfsVolume* protoTmpfsVolume, const TTmpfsVolumeConfig& tmpfsVolumeConfig);
-void FromProto(TTmpfsVolumeConfig* tmpfsVolumeConfig, const NScheduler::NProto::TTmpfsVolume& protoTmpfsVolume);
+void ToProto(NControllerAgent::NProto::TTmpfsVolume* protoTmpfsVolume, const TTmpfsVolumeConfig& tmpfsVolumeConfig);
+void FromProto(TTmpfsVolumeConfig* tmpfsVolumeConfig, const NControllerAgent::NProto::TTmpfsVolume& protoTmpfsVolume);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -814,8 +806,8 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TJobProfilerSpec)
 
-void ToProto(NProto::TJobProfilerSpec* protoJobProfilerSpec, const TJobProfilerSpec& jobProfilerSpec);
-void FromProto(TJobProfilerSpec* jobProfilerSpec, const NProto::TJobProfilerSpec& protoJobProfilerSpec);
+void ToProto(NControllerAgent::NProto::TJobProfilerSpec* protoJobProfilerSpec, const TJobProfilerSpec& jobProfilerSpec);
+void FromProto(TJobProfilerSpec* jobProfilerSpec, const NControllerAgent::NProto::TJobProfilerSpec& protoJobProfilerSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

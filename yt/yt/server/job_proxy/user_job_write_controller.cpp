@@ -9,6 +9,8 @@
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
+
 #include <yt/yt/ytlib/job_proxy/user_job_io_factory.h>
 
 #include <yt/yt/ytlib/table_client/blob_table_writer.h>
@@ -38,8 +40,8 @@ namespace NYT::NJobProxy {
 using namespace NConcurrency;
 using namespace NYson;
 using namespace NYTree;
-using namespace NScheduler;
-using namespace NScheduler::NProto;
+using namespace NControllerAgent;
+using namespace NControllerAgent::NProto;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NTableClient;
@@ -203,17 +205,17 @@ void TUserJobWriteController::Init()
         Host_->GetLocalHostName(),
         Host_->GetOutBandwidthThrottler());
 
-    const auto& schedulerJobSpecExt = Host_->GetJobSpecHelper()->GetSchedulerJobSpecExt();
-    auto outputTransactionId = FromProto<TTransactionId>(schedulerJobSpecExt.output_transaction_id());
+    const auto& jobSpecExt = Host_->GetJobSpecHelper()->GetJobSpecExt();
+    auto outputTransactionId = FromProto<TTransactionId>(jobSpecExt.output_transaction_id());
 
     TDataSinkDirectoryPtr dataSinkDirectory = nullptr;
-    if (auto dataSinkDirectoryExt = FindProtoExtension<TDataSinkDirectoryExt>(schedulerJobSpecExt.extensions())) {
+    if (auto dataSinkDirectoryExt = FindProtoExtension<TDataSinkDirectoryExt>(jobSpecExt.extensions())) {
         dataSinkDirectory = FromProto<TDataSinkDirectoryPtr>(*dataSinkDirectoryExt);
-        YT_VERIFY(std::ssize(dataSinkDirectory->DataSinks()) == schedulerJobSpecExt.output_table_specs_size());
+        YT_VERIFY(std::ssize(dataSinkDirectory->DataSinks()) == jobSpecExt.output_table_specs_size());
     }
 
-    for (int index = 0; index < schedulerJobSpecExt.output_table_specs_size(); ++index) {
-        const auto& outputSpec = schedulerJobSpecExt.output_table_specs(index);
+    for (int index = 0; index < jobSpecExt.output_table_specs_size(); ++index) {
+        const auto& outputSpec = jobSpecExt.output_table_specs(index);
         auto dataSink = dataSinkDirectory ? std::make_optional(dataSinkDirectory->DataSinks()[index]) : std::nullopt;
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         options->EnableValidationOptions();
@@ -248,8 +250,8 @@ void TUserJobWriteController::Init()
         Writers_.push_back(writer);
     }
 
-    if (schedulerJobSpecExt.user_job_spec().has_stderr_table_spec()) {
-        const auto& stderrTableSpec = schedulerJobSpecExt.user_job_spec().stderr_table_spec();
+    if (jobSpecExt.user_job_spec().has_stderr_table_spec()) {
+        const auto& stderrTableSpec = jobSpecExt.user_job_spec().stderr_table_spec();
         const auto& outputTableSpec = stderrTableSpec.output_table_spec();
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(stderrTableSpec.output_table_spec().table_writer_options()));
         options->EnableValidationOptions();
@@ -257,7 +259,7 @@ void TUserJobWriteController::Init()
         auto stderrTableWriterConfig = ConvertTo<TBlobTableWriterConfigPtr>(
             TYsonString(stderrTableSpec.blob_table_writer_config()));
 
-        auto debugTransactionId = FromProto<TTransactionId>(schedulerJobSpecExt.user_job_spec().debug_output_transaction_id());
+        auto debugTransactionId = FromProto<TTransactionId>(jobSpecExt.user_job_spec().debug_output_transaction_id());
 
         StderrTableWriter_.reset(
             new NTableClient::TBlobTableWriter(
@@ -286,7 +288,7 @@ std::vector<ISchemalessMultiChunkWriterPtr> TUserJobWriteController::GetWriters(
 int TUserJobWriteController::GetOutputStreamCount() const
 {
     int count = 0;
-    for (const auto& outputTableSpec : Host_->GetJobSpecHelper()->GetSchedulerJobSpecExt().output_table_specs()) {
+    for (const auto& outputTableSpec : Host_->GetJobSpecHelper()->GetJobSpecExt().output_table_specs()) {
         if (outputTableSpec.stream_schemas_size() > 0) {
             count += outputTableSpec.stream_schemas_size();
         } else {
@@ -303,13 +305,13 @@ std::vector<IValueConsumer*> TUserJobWriteController::CreateValueConsumers(
         return {};
     }
 
-    const auto& schedulerJobSpecExt = Host_->GetJobSpecHelper()->GetSchedulerJobSpecExt();
+    const auto& jobSpecExt = Host_->GetJobSpecHelper()->GetJobSpecExt();
 
     std::vector<IValueConsumer*> consumers;
-    consumers.reserve(schedulerJobSpecExt.output_table_specs_size());
-    YT_VERIFY(std::ssize(Writers_) == schedulerJobSpecExt.output_table_specs_size());
-    for (int outputIndex = 0; outputIndex < schedulerJobSpecExt.output_table_specs_size(); ++outputIndex) {
-        const auto& outputSpec = schedulerJobSpecExt.output_table_specs(outputIndex);
+    consumers.reserve(jobSpecExt.output_table_specs_size());
+    YT_VERIFY(std::ssize(Writers_) == jobSpecExt.output_table_specs_size());
+    for (int outputIndex = 0; outputIndex < jobSpecExt.output_table_specs_size(); ++outputIndex) {
+        const auto& outputSpec = jobSpecExt.output_table_specs(outputIndex);
         const auto& writer = Writers_[outputIndex];
         if (outputSpec.stream_schemas_size() > 1) {
             // NB(levysotsky): Currently only first output is supposed to have several streams.
@@ -344,29 +346,29 @@ IOutputStream* TUserJobWriteController::GetStderrTableWriter() const
     }
 }
 
-void TUserJobWriteController::PopulateResult(TSchedulerJobResultExt* schedulerJobResultExt)
+void TUserJobWriteController::PopulateResult(TJobResultExt* jobResultExt)
 {
     std::vector<NChunkClient::NProto::TChunkSpec> writtenChunkSpecs;
-    const auto& outputTableSpecs = Host_->GetJobSpecHelper()->GetSchedulerJobSpecExt().output_table_specs();
+    const auto& outputTableSpecs = Host_->GetJobSpecHelper()->GetJobSpecExt().output_table_specs();
     for (int index = 0; index < std::ssize(Writers_); ++index) {
         const auto& writer = Writers_[index];
         const auto& outputTableSpec = outputTableSpecs.Get(index);
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputTableSpec.table_writer_options()));
         if (options->ReturnBoundaryKeys) {
-            *schedulerJobResultExt->add_output_boundary_keys() = GetWrittenChunksBoundaryKeys(writer);
+            *jobResultExt->add_output_boundary_keys() = GetWrittenChunksBoundaryKeys(writer);
         }
         for (const auto& chunkSpec : writer->GetWrittenChunkSpecs()) {
             writtenChunkSpecs.push_back(chunkSpec);
             FilterProtoExtensions(writtenChunkSpecs.back().mutable_chunk_meta()->mutable_extensions(), GetSchedulerChunkMetaExtensionTagsFilter());
         }
     }
-    ToProto(schedulerJobResultExt->mutable_output_chunk_specs(), writtenChunkSpecs);
+    ToProto(jobResultExt->mutable_output_chunk_specs(), writtenChunkSpecs);
 }
 
-void TUserJobWriteController::PopulateStderrResult(NScheduler::NProto::TSchedulerJobResultExt* schedulerJobResultExt)
+void TUserJobWriteController::PopulateStderrResult(NControllerAgent::NProto::TJobResultExt* jobResultExt)
 {
     if (StderrTableWriter_) {
-        *schedulerJobResultExt->mutable_stderr_table_boundary_keys() = StderrTableWriter_->GetOutputResult();
+        *jobResultExt->mutable_stderr_table_boundary_keys() = StderrTableWriter_->GetOutputResult();
     }
 }
 

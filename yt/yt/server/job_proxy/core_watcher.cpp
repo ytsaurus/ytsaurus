@@ -38,7 +38,7 @@ namespace NYT::NJobProxy {
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NCoreDump;
-using namespace NScheduler::NProto;
+using namespace NControllerAgent::NProto;
 using namespace NCypressClient;
 using namespace NFS;
 using namespace NLogging;

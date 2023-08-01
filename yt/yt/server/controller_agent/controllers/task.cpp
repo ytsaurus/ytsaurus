@@ -16,6 +16,7 @@
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
+#include <yt/yt/ytlib/controller_agent/helpers.h>
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
 #include <yt/yt/ytlib/node_tracker_client/node_directory_builder.h>
@@ -56,9 +57,9 @@ using namespace NYPath;
 using NYT::FromProto;
 using NYT::ToProto;
 using NProfiling::TWallTimer;
-using NScheduler::NProto::TSchedulerJobSpecExt;
-using NScheduler::NProto::TSchedulerJobResultExt;
-using NScheduler::NProto::TTableInputSpec;
+using NControllerAgent::NProto::TJobSpecExt;
+using NControllerAgent::NProto::TJobResultExt;
+using NControllerAgent::NProto::TTableInputSpec;
 
 using NControllerAgent::NProto::TJobSpec;
 using NControllerAgent::NProto::TJobStatus;
@@ -452,7 +453,7 @@ void TTask::SwitchIntermediateMedium()
     }
 }
 
-void TTask::PatchUserJobSpec(NScheduler::NProto::TUserJobSpec* jobSpec, TJobletPtr joblet) const
+void TTask::PatchUserJobSpec(NControllerAgent::NProto::TUserJobSpec* jobSpec, TJobletPtr joblet) const
 {
     ExperimentJobManager_.PatchUserJobSpec(jobSpec, joblet);
 }
@@ -1378,14 +1379,14 @@ IDigest* TTask::GetJobProxyMemoryDigest() const
 }
 
 std::unique_ptr<TNodeDirectoryBuilder> TTask::MakeNodeDirectoryBuilder(
-    TSchedulerJobSpecExt* schedulerJobSpec)
+    TJobSpecExt* jobSpecExt)
 {
     VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
     return TaskHost_->GetOperationType() == EOperationType::RemoteCopy
         ? std::make_unique<TNodeDirectoryBuilder>(
             TaskHost_->InputNodeDirectory(),
-            schedulerJobSpec->mutable_input_node_directory())
+            jobSpecExt->mutable_input_node_directory())
         : nullptr;
 }
 
@@ -1396,9 +1397,9 @@ void TTask::AddSequentialInputSpec(
 {
     VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
-    auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-    auto directoryBuilder = MakeNodeDirectoryBuilder(schedulerJobSpecExt);
-    auto* inputSpec = schedulerJobSpecExt->add_input_table_specs();
+    auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
+    auto directoryBuilder = MakeNodeDirectoryBuilder(jobSpecExt);
+    auto* inputSpec = jobSpecExt->add_input_table_specs();
     const auto& list = joblet->InputStripeList;
     for (const auto& stripe : list->Stripes) {
         AddChunksToInputSpec(
@@ -1417,13 +1418,13 @@ void TTask::AddParallelInputSpec(
 {
     VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
-    auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-    auto directoryBuilder = MakeNodeDirectoryBuilder(schedulerJobSpecExt);
+    auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
+    auto directoryBuilder = MakeNodeDirectoryBuilder(jobSpecExt);
     const auto& list = joblet->InputStripeList;
     for (const auto& stripe : list->Stripes) {
         auto* inputSpec = stripe->Foreign
-            ? schedulerJobSpecExt->add_foreign_input_table_specs()
-            : schedulerJobSpecExt->add_input_table_specs();
+            ? jobSpecExt->add_foreign_input_table_specs()
+            : jobSpecExt->add_input_table_specs();
         AddChunksToInputSpec(
             directoryBuilder.get(),
             inputSpec,
@@ -1492,12 +1493,12 @@ void TTask::UpdateInputSpecTotals(
     TJobletPtr joblet)
 {
     const auto& list = joblet->InputStripeList;
-    auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-    schedulerJobSpecExt->set_input_data_weight(
-        schedulerJobSpecExt->input_data_weight() +
+    auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
+    jobSpecExt->set_input_data_weight(
+        jobSpecExt->input_data_weight() +
         list->TotalDataWeight);
-    schedulerJobSpecExt->set_input_row_count(
-        schedulerJobSpecExt->input_row_count() +
+    jobSpecExt->set_input_row_count(
+        jobSpecExt->input_row_count() +
         list->TotalRowCount);
 }
 
@@ -1533,10 +1534,10 @@ void TTask::AddOutputTableSpecs(
 
     const auto& outputStreamDescriptors = joblet->OutputStreamDescriptors;
     YT_VERIFY(joblet->ChunkListIds.size() == outputStreamDescriptors.size());
-    auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+    auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
     for (int index = 0; index < std::ssize(outputStreamDescriptors); ++index) {
         const auto& streamDescriptor = outputStreamDescriptors[index];
-        auto* outputSpec = schedulerJobSpecExt->add_output_table_specs();
+        auto* outputSpec = jobSpecExt->add_output_table_specs();
         outputSpec->set_table_writer_options(ConvertToYsonString(streamDescriptor->TableWriterOptions).ToString());
         if (streamDescriptor->TableWriterConfig) {
             outputSpec->set_table_writer_config(streamDescriptor->TableWriterConfig.ToString());
@@ -1558,7 +1559,7 @@ void TTask::AddOutputTableSpecs(
     for (int index = 0; index < std::ssize(inputStreamDescriptors); ++index) {
         const auto& streamDescriptor = inputStreamDescriptors[index];
         for (const auto& streamSchema : streamDescriptor->StreamSchemas) {
-            schedulerJobSpecExt->add_input_stream_schemas(GetOrCacheSerializedSchema(streamSchema));
+            jobSpecExt->add_input_stream_schemas(GetOrCacheSerializedSchema(streamSchema));
         }
     }
 }
@@ -1759,15 +1760,15 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const NScheduler::NProto:
     jobSpec->set_version(GetJobSpecVersion());
     TaskHost_->CustomizeJobSpec(joblet, jobSpec.get());
 
-    auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+    auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
     if (TaskHost_->GetSpec()->JobProxyMemoryOvercommitLimit) {
-        schedulerJobSpecExt->set_job_proxy_memory_overcommit_limit(*TaskHost_->GetSpec()->JobProxyMemoryOvercommitLimit);
+        jobSpecExt->set_job_proxy_memory_overcommit_limit(*TaskHost_->GetSpec()->JobProxyMemoryOvercommitLimit);
     }
-    schedulerJobSpecExt->set_job_proxy_ref_counted_tracker_log_period(ToProto<i64>(TaskHost_->GetSpec()->JobProxyRefCountedTrackerLogPeriod));
-    schedulerJobSpecExt->set_abort_job_if_account_limit_exceeded(TaskHost_->GetSpec()->SuspendOperationIfAccountLimitExceeded);
-    schedulerJobSpecExt->set_allow_cpu_idle_policy(TaskHost_->GetSpec()->AllowCpuIdlePolicy);
+    jobSpecExt->set_job_proxy_ref_counted_tracker_log_period(ToProto<i64>(TaskHost_->GetSpec()->JobProxyRefCountedTrackerLogPeriod));
+    jobSpecExt->set_abort_job_if_account_limit_exceeded(TaskHost_->GetSpec()->SuspendOperationIfAccountLimitExceeded);
+    jobSpecExt->set_allow_cpu_idle_policy(TaskHost_->GetSpec()->AllowCpuIdlePolicy);
     if (TaskHost_->GetSpec()->ForceJobProxyTracing) {
-        schedulerJobSpecExt->set_is_traced(true);
+        jobSpecExt->set_is_traced(true);
     }
 
     std::optional<TDuration> waitingJobTimeout;
@@ -1780,26 +1781,26 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const NScheduler::NProto:
     }
 
     if (waitingJobTimeout) {
-        schedulerJobSpecExt->set_waiting_job_timeout(ToProto<i64>(*waitingJobTimeout));
+        jobSpecExt->set_waiting_job_timeout(ToProto<i64>(*waitingJobTimeout));
     }
 
     // Adjust sizes if approximation flag is set.
     if (joblet->InputStripeList->IsApproximate) {
-        schedulerJobSpecExt->set_input_data_weight(static_cast<i64>(
-            schedulerJobSpecExt->input_data_weight() *
+        jobSpecExt->set_input_data_weight(static_cast<i64>(
+            jobSpecExt->input_data_weight() *
             ApproximateSizesBoostFactor));
-        schedulerJobSpecExt->set_input_row_count(static_cast<i64>(
-            schedulerJobSpecExt->input_row_count() *
+        jobSpecExt->set_input_row_count(static_cast<i64>(
+            jobSpecExt->input_row_count() *
             ApproximateSizesBoostFactor));
     }
 
-    schedulerJobSpecExt->set_job_cpu_monitor_config(ConvertToYsonString(TaskHost_->GetSpec()->JobCpuMonitor).ToString());
+    jobSpecExt->set_job_cpu_monitor_config(ConvertToYsonString(TaskHost_->GetSpec()->JobCpuMonitor).ToString());
 
-    if (schedulerJobSpecExt->input_data_weight() > TaskHost_->GetSpec()->MaxDataWeightPerJob) {
+    if (jobSpecExt->input_data_weight() > TaskHost_->GetSpec()->MaxDataWeightPerJob) {
         auto error = TError(
             NChunkPools::EErrorCode::MaxDataWeightPerJobExceeded,
             "Maximum allowed data weight per job exceeds the limit: %v > %v",
-            schedulerJobSpecExt->input_data_weight(),
+            jobSpecExt->input_data_weight(),
             TaskHost_->GetSpec()->MaxDataWeightPerJob);
         TaskHost_->GetCancelableInvoker()->Invoke(BIND(
             &ITaskHost::OnOperationFailed,
@@ -1810,12 +1811,12 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const NScheduler::NProto:
         THROW_ERROR(error);
     }
 
-    ToProto(schedulerJobSpecExt->mutable_job_competition_id(), joblet->CompetitionIds[EJobCompetitionType::Speculative]);
-    ToProto(schedulerJobSpecExt->mutable_probing_job_competition_id(), joblet->CompetitionIds[EJobCompetitionType::Probing]);
+    ToProto(jobSpecExt->mutable_job_competition_id(), joblet->CompetitionIds[EJobCompetitionType::Speculative]);
+    ToProto(jobSpecExt->mutable_probing_job_competition_id(), joblet->CompetitionIds[EJobCompetitionType::Probing]);
 
-    schedulerJobSpecExt->set_task_name(GetVertexDescriptor());
-    schedulerJobSpecExt->set_tree_id(joblet->TreeId);
-    schedulerJobSpecExt->set_authenticated_user(TaskHost_->GetAuthenticatedUser());
+    jobSpecExt->set_task_name(GetVertexDescriptor());
+    jobSpecExt->set_tree_id(joblet->TreeId);
+    jobSpecExt->set_authenticated_user(TaskHost_->GetAuthenticatedUser());
 
     auto ioTags = CreateEphemeralAttributes();
     if (joblet->PoolPath) {
@@ -1826,9 +1827,9 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const NScheduler::NProto:
     AddTagToBaggage(ioTags, EAggregateIOTag::OperationType, FormatEnum(GetTaskHost()->GetOperationType()));
     AddTagToBaggage(ioTags, EAggregateIOTag::TaskName, GetVertexDescriptor());
     AddTagToBaggage(ioTags, EAggregateIOTag::PoolTree, joblet->TreeId);
-    ToProto(schedulerJobSpecExt->mutable_io_tags(), *ioTags);
+    ToProto(jobSpecExt->mutable_io_tags(), *ioTags);
 
-    schedulerJobSpecExt->set_interruptible(joblet->JobInterruptible);
+    jobSpecExt->set_interruptible(joblet->JobInterruptible);
 
     return SerializeProtoToRefWithEnvelope(*jobSpec, TaskHost_->GetConfig()->JobSpecCodec);
 }
@@ -1859,12 +1860,12 @@ void TTask::RegisterOutput(
         return;
     }
 
-    auto& schedulerJobResult = completedJobSummary.GetSchedulerJobResult();
+    auto& jobResultExt = completedJobSummary.GetJobResultExt();
 
     auto outputStripes = BuildOutputChunkStripes(
-        schedulerJobResult,
+        jobResultExt,
         chunkListIds,
-        schedulerJobResult.output_boundary_keys());
+        jobResultExt.output_boundary_keys());
     PropagatePartitions(
         joblet->OutputStreamDescriptors,
         joblet->InputStripeList,
@@ -2048,11 +2049,11 @@ TChunkStripePtr TTask::BuildIntermediateChunkStripe(
 }
 
 std::vector<TChunkStripePtr> TTask::BuildOutputChunkStripes(
-    TSchedulerJobResultExt& schedulerJobResult,
+    TJobResultExt& jobResultExt,
     const std::vector<NChunkClient::TChunkTreeId>& chunkTreeIds,
-    google::protobuf::RepeatedPtrField<NScheduler::NProto::TOutputResult> boundaryKeysPerTable)
+    google::protobuf::RepeatedPtrField<NControllerAgent::NProto::TOutputResult> boundaryKeysPerTable)
 {
-    auto stripes = BuildChunkStripes(schedulerJobResult.mutable_output_chunk_specs(), chunkTreeIds.size());
+    auto stripes = BuildChunkStripes(jobResultExt.mutable_output_chunk_specs(), chunkTreeIds.size());
     // Some stream descriptors do not require boundary keys to be returned,
     // so they are skipped in `boundaryKeysPerTable`.
     int boundaryKeysIndex = 0;

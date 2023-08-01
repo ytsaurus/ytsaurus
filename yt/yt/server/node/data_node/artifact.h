@@ -4,9 +4,9 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/yt/ytlib/object_client/public.h>
+#include <yt/yt/ytlib/controller_agent/public.h>
 
-#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/object_client/public.h>
 
 namespace NYT::NDataNode {
 
@@ -18,7 +18,7 @@ struct TArtifactKey
     TArtifactKey() = default;
 
     explicit TArtifactKey(NChunkClient::TChunkId id);
-    explicit TArtifactKey(const NScheduler::NProto::TFileDescriptor& descriptor);
+    explicit TArtifactKey(const NControllerAgent::NProto::TFileDescriptor& descriptor);
 
     i64 GetCompressedDataSize() const;
 

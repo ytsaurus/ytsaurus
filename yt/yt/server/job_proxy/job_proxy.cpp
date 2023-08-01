@@ -36,6 +36,8 @@
 #include <yt/yt/ytlib/chunk_client/traffic_meter.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 
+#include <yt/yt/ytlib/controller_agent/helpers.h>
+
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
 #include <yt/yt/ytlib/job_proxy/config.h>
@@ -44,8 +46,6 @@
 #include <yt/yt/ytlib/job_tracker_client/statistics.h>
 
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
-
-#include <yt/yt/ytlib/scheduler/public.h>
 
 #include <yt/yt/library/auth/credentials_injecting_channel.h>
 
@@ -281,25 +281,25 @@ void TJobProxy::OnHeartbeatResponse(const TError& error)
 void TJobProxy::LogJobSpec(TJobSpec jobSpec)
 {
     // We patch copy of job spec for better reading experience.
-    if (jobSpec.HasExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext)) {
-        auto* schedulerJobSpecExt = jobSpec.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+    if (jobSpec.HasExtension(TJobSpecExt::job_spec_ext)) {
+        auto* jobSpecExt = jobSpec.MutableExtension(TJobSpecExt::job_spec_ext);
         // Some fields are serialized in binary YSON, let's make them human readable.
         #define TRANSFORM_TO_PRETTY_YSON(object, field) \
             if (object->has_ ## field() && !object->field().empty()) { \
                 object->set_ ## field(ConvertToYsonString(TYsonString(object->field()), EYsonFormat::Pretty).ToString()); \
             }
-        TRANSFORM_TO_PRETTY_YSON(schedulerJobSpecExt, io_config);
-        TRANSFORM_TO_PRETTY_YSON(schedulerJobSpecExt, table_reader_options);
-        TRANSFORM_TO_PRETTY_YSON(schedulerJobSpecExt, acl);
-        TRANSFORM_TO_PRETTY_YSON(schedulerJobSpecExt, job_cpu_monitor_config);
-        TRANSFORM_TO_PRETTY_YSON(schedulerJobSpecExt, testing_options);
+        TRANSFORM_TO_PRETTY_YSON(jobSpecExt, io_config);
+        TRANSFORM_TO_PRETTY_YSON(jobSpecExt, table_reader_options);
+        TRANSFORM_TO_PRETTY_YSON(jobSpecExt, acl);
+        TRANSFORM_TO_PRETTY_YSON(jobSpecExt, job_cpu_monitor_config);
+        TRANSFORM_TO_PRETTY_YSON(jobSpecExt, testing_options);
 
         // Input table specs may be large, so we print them separately.
         NProtoBuf::RepeatedPtrField<TTableInputSpec> primaryInputTableSpecs;
-        schedulerJobSpecExt->mutable_input_table_specs()->Swap(&primaryInputTableSpecs);
+        jobSpecExt->mutable_input_table_specs()->Swap(&primaryInputTableSpecs);
 
         NProtoBuf::RepeatedPtrField<TTableInputSpec> foreignInputTableSpecs;
-        schedulerJobSpecExt->mutable_foreign_input_table_specs()->Swap(&foreignInputTableSpecs);
+        jobSpecExt->mutable_foreign_input_table_specs()->Swap(&foreignInputTableSpecs);
 
         for (const auto& [name, inputTableSpecs] : {
             std::make_pair("primary", &primaryInputTableSpecs),
@@ -317,7 +317,7 @@ void TJobProxy::LogJobSpec(TJobSpec jobSpec)
         }
 
         // Node directory is huge and useless when debugging.
-        schedulerJobSpecExt->clear_input_node_directory();
+        jobSpecExt->clear_input_node_directory();
     }
     YT_LOG_DEBUG("Job spec:\n%v", jobSpec.DebugString());
 }
@@ -357,13 +357,13 @@ static NTableClient::TTableSchemaPtr SetStableNames(
 static IJobSpecHelperPtr MaybePatchDataSourceDirectory(
     const TJobSpec& jobSpecProto)
 {
-    auto schedulerJobSpecExt = jobSpecProto.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+    auto jobSpecExt = jobSpecProto.GetExtension(TJobSpecExt::job_spec_ext);
 
-    if (!HasProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(schedulerJobSpecExt.extensions())) {
+    if (!HasProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(jobSpecExt.extensions())) {
         return CreateJobSpecHelper(jobSpecProto);
     }
     const auto dataSourceDirectoryExt = GetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
-        schedulerJobSpecExt.extensions());
+        jobSpecExt.extensions());
 
     auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
 
@@ -386,12 +386,12 @@ static IJobSpecHelperPtr MaybePatchDataSourceDirectory(
     NChunkClient::NProto::TDataSourceDirectoryExt newExt;
     ToProto(&newExt, dataSourceDirectory);
     SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
-        schedulerJobSpecExt.mutable_extensions(),
+        jobSpecExt.mutable_extensions(),
         std::move(newExt));
 
     auto jobSpecProtoCopy = jobSpecProto;
-    auto* mutableExt = jobSpecProtoCopy.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-    *mutableExt = std::move(schedulerJobSpecExt);
+    auto* mutableExt = jobSpecProtoCopy.MutableExtension(TJobSpecExt::job_spec_ext);
+    *mutableExt = std::move(jobSpecExt);
     return CreateJobSpecHelper(jobSpecProtoCopy);
 }
 
@@ -423,7 +423,7 @@ void TJobProxy::RetrieveJobSpec()
 
     Ports_ = FromProto<std::vector<int>>(rsp->ports());
 
-    auto authenticatedUser = GetJobSpecHelper()->GetSchedulerJobSpecExt().authenticated_user();
+    auto authenticatedUser = GetJobSpecHelper()->GetJobSpecExt().authenticated_user();
     YT_LOG_INFO("Job spec received (JobType: %v, AuthenticatedUser: %v, ResourceLimits: {Cpu: %v, Memory: %v, Network: %v})",
         NScheduler::EJobType(rsp->job_spec().type()),
         authenticatedUser,
@@ -443,9 +443,9 @@ void TJobProxy::RetrieveJobSpec()
     ApprovedMemoryReserve_ = totalMemoryReserve;
     RequestedMemoryReserve_ = totalMemoryReserve;
 
-    const auto& schedulerJobSpecExt = JobSpecHelper_->GetSchedulerJobSpecExt();
-    if (schedulerJobSpecExt.has_user_job_spec()) {
-        const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
+    const auto& jobSpecExt = JobSpecHelper_->GetJobSpecExt();
+    if (jobSpecExt.has_user_job_spec()) {
+        const auto& userJobSpec = jobSpecExt.user_job_spec();
         JobProxyMemoryReserve_ = totalMemoryReserve - userJobSpec.memory_reserve();
         YT_LOG_DEBUG("Adjusting job proxy memory limit (JobProxyMemoryReserve: %v, UserJobMemoryReserve: %v)",
             JobProxyMemoryReserve_,
@@ -697,7 +697,7 @@ TJobResult TJobProxy::RunJob()
 
         PackBaggageFromJobSpec(RootSpan_, JobSpecHelper_->GetJobSpec(), OperationId_, JobId_);
 
-        auto cpuMonitorConfig = ConvertTo<TJobCpuMonitorConfigPtr>(TYsonString(JobSpecHelper_->GetSchedulerJobSpecExt().job_cpu_monitor_config()));
+        auto cpuMonitorConfig = ConvertTo<TJobCpuMonitorConfigPtr>(TYsonString(JobSpecHelper_->GetJobSpecExt().job_cpu_monitor_config()));
         CpuMonitor_ = New<TCpuMonitor>(std::move(cpuMonitorConfig), JobThread_->GetInvoker(), this, CpuGuarantee_);
 
         if (Config_->JobThrottler) {
@@ -738,24 +738,24 @@ TJobResult TJobProxy::RunJob()
             UserJobContainerCreationThrottler_ = GetUnlimitedThrottler();
         }
 
-        const auto& schedulerJobSpecExt = GetJobSpecHelper()->GetSchedulerJobSpecExt();
-        if (schedulerJobSpecExt.is_traced()) {
+        const auto& jobSpecExt = GetJobSpecHelper()->GetJobSpecExt();
+        if (jobSpecExt.is_traced()) {
             RootSpan_->SetSampled();
         }
 
-        JobProxyMemoryOvercommitLimit_ = schedulerJobSpecExt.has_job_proxy_memory_overcommit_limit()
-            ? std::make_optional(schedulerJobSpecExt.job_proxy_memory_overcommit_limit())
+        JobProxyMemoryOvercommitLimit_ = jobSpecExt.has_job_proxy_memory_overcommit_limit()
+            ? std::make_optional(jobSpecExt.job_proxy_memory_overcommit_limit())
             : std::nullopt;
 
-        RefCountedTrackerLogPeriod_ = FromProto<TDuration>(schedulerJobSpecExt.job_proxy_ref_counted_tracker_log_period());
+        RefCountedTrackerLogPeriod_ = FromProto<TDuration>(jobSpecExt.job_proxy_ref_counted_tracker_log_period());
 
         if (environment) {
             environment->SetCpuGuarantee(CpuGuarantee_);
-            if (schedulerJobSpecExt.has_user_job_spec() &&
-                schedulerJobSpecExt.user_job_spec().set_container_cpu_limit())
+            if (jobSpecExt.has_user_job_spec() &&
+                jobSpecExt.user_job_spec().set_container_cpu_limit())
             {
-                auto limit = schedulerJobSpecExt.user_job_spec().container_cpu_limit() > 0
-                    ? schedulerJobSpecExt.user_job_spec().container_cpu_limit()
+                auto limit = jobSpecExt.user_job_spec().container_cpu_limit() > 0
+                    ? jobSpecExt.user_job_spec().container_cpu_limit()
                     : CpuGuarantee_.load();
                 environment->SetCpuLimit(limit);
             }
@@ -776,10 +776,10 @@ TJobResult TJobProxy::RunJob()
             BIND(&TJobProxy::CheckMemoryUsage, MakeWeak(this)),
             jobEnvironmentConfig->MemoryWatchdogPeriod);
 
-        if (schedulerJobSpecExt.has_user_job_spec()) {
+        if (jobSpecExt.has_user_job_spec()) {
             job = CreateUserJob(
                 this,
-                schedulerJobSpecExt.user_job_spec(),
+                jobSpecExt.user_job_spec(),
                 JobId_,
                 Ports_,
                 std::make_unique<TUserJobWriteController>(this));
@@ -847,7 +847,7 @@ void TJobProxy::ReportResult(
     if (job) {
         FillStatistics(req, job, GetEnrichedStatistics());
     }
-    if (job && GetJobSpecHelper()->GetSchedulerJobSpecExt().has_user_job_spec()) {
+    if (job && GetJobSpecHelper()->GetJobSpecExt().has_user_job_spec()) {
         ToProto(req->mutable_core_infos(), job->GetCoreInfos());
 
         try {
@@ -1064,7 +1064,7 @@ TJobId TJobProxy::GetJobId() const
 
 TString TJobProxy::GetAuthenticatedUser() const
 {
-    return JobSpecHelper_->GetSchedulerJobSpecExt().authenticated_user();
+    return JobSpecHelper_->GetJobSpecExt().authenticated_user();
 }
 
 TString TJobProxy::GetLocalHostName() const
@@ -1273,9 +1273,9 @@ void TJobProxy::CheckMemoryUsage()
 
     i64 totalMemoryUsage = UserJobCurrentMemoryUsage_ + jobProxyMemoryUsage;
 
-    const auto& schedulerJobSpecExt = JobSpecHelper_->GetSchedulerJobSpecExt();
-    if (schedulerJobSpecExt.has_user_job_spec()) {
-        const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
+    const auto& jobSpecExt = JobSpecHelper_->GetJobSpecExt();
+    if (jobSpecExt.has_user_job_spec()) {
+        const auto& userJobSpec = jobSpecExt.user_job_spec();
         // NB: if job proxy is not prepared yet we cannot report actual statistics by heartbeat in abort.
         if (Config_->AlwaysAbortOnMemoryReserveOverdraft && Prepared_) {
             bool overdraft = false;
@@ -1336,12 +1336,12 @@ void TJobProxy::FillJobResult(TJobResult* jobResult)
     }
 
     // For erasure chunks, replace part id with whole chunk id.
-    auto* schedulerResultExt = jobResult->MutableExtension(TSchedulerJobResultExt::job_result_ext);
+    auto* jobResultExt = jobResult->MutableExtension(TJobResultExt::job_result_ext);
     for (auto chunkId : failedChunkIds) {
         auto actualChunkId = IsErasureChunkPartId(chunkId)
             ? ErasureChunkIdFromPartId(chunkId)
             : chunkId;
-        ToProto(schedulerResultExt->add_failed_chunk_ids(), actualChunkId);
+        ToProto(jobResultExt->add_failed_chunk_ids(), actualChunkId);
     }
 
     auto interruptDescriptor = job->GetInterruptDescriptor();
@@ -1355,23 +1355,23 @@ void TJobProxy::FillJobResult(TJobResult* jobResult)
             // of jobs being aborted by splitter instead of interrupts.
 
             ToProto(
-                schedulerResultExt->mutable_unread_chunk_specs(),
-                schedulerResultExt->mutable_chunk_spec_count_per_unread_data_slice(),
-                schedulerResultExt->mutable_virtual_row_index_per_unread_data_slice(),
+                jobResultExt->mutable_unread_chunk_specs(),
+                jobResultExt->mutable_chunk_spec_count_per_unread_data_slice(),
+                jobResultExt->mutable_virtual_row_index_per_unread_data_slice(),
                 interruptDescriptor.UnreadDataSliceDescriptors);
             ToProto(
-                schedulerResultExt->mutable_read_chunk_specs(),
-                schedulerResultExt->mutable_chunk_spec_count_per_read_data_slice(),
-                schedulerResultExt->mutable_virtual_row_index_per_read_data_slice(),
+                jobResultExt->mutable_read_chunk_specs(),
+                jobResultExt->mutable_chunk_spec_count_per_read_data_slice(),
+                jobResultExt->mutable_virtual_row_index_per_read_data_slice(),
                 interruptDescriptor.ReadDataSliceDescriptors);
 
-            schedulerResultExt->set_restart_needed(true);
+            jobResultExt->set_restart_needed(true);
 
             YT_LOG_INFO(
                 "Interrupt descriptor found (UnreadDescriptorCount: %v, ReadDescriptorCount: %v, SchedulerResultExt: %v)",
                 interruptDescriptor.UnreadDataSliceDescriptors.size(),
                 interruptDescriptor.ReadDataSliceDescriptors.size(),
-                schedulerResultExt->ShortDebugString());
+                jobResultExt->ShortDebugString());
         } else {
             if (jobResult->error().code() == 0) {
                 ToProto(
@@ -1381,9 +1381,9 @@ void TJobProxy::FillJobResult(TJobResult* jobResult)
         }
     }
 
-    const auto& schedulerJobSpecExt = GetJobSpecHelper()->GetSchedulerJobSpecExt();
-    if (schedulerJobSpecExt.has_user_job_spec()) {
-        const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
+    const auto& jobSpecExt = GetJobSpecHelper()->GetJobSpecExt();
+    if (jobSpecExt.has_user_job_spec()) {
+        const auto& userJobSpec = jobSpecExt.user_job_spec();
         if (userJobSpec.has_restart_exit_code()) {
             auto error = FromProto<TError>(jobResult->error());
             if (auto userJobFailedError = error.FindMatching(EErrorCode::UserJobFailed)) {
@@ -1391,7 +1391,7 @@ void TJobProxy::FillJobResult(TJobResult* jobResult)
                 if (processFailedError && processFailedError->Attributes().Get<int>("exit_code", 0) == userJobSpec.restart_exit_code()) {
                     YT_LOG_INFO("Job exited with code that indicates job restart (ExitCode: %v)",
                         userJobSpec.restart_exit_code());
-                    schedulerResultExt->set_restart_needed(true);
+                    jobResultExt->set_restart_needed(true);
                     ToProto(jobResult->mutable_error(), TError());
                 }
             }
@@ -1401,16 +1401,16 @@ void TJobProxy::FillJobResult(TJobResult* jobResult)
 
 void TJobProxy::FillStderrResult(TJobResult* jobResult)
 {
-    const auto& schedulerJobSpecExt = GetJobSpecHelper()->GetSchedulerJobSpecExt();
-    const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
+    const auto& jobSpecExt = GetJobSpecHelper()->GetJobSpecExt();
+    const auto& userJobSpec = jobSpecExt.user_job_spec();
 
-    auto* schedulerJobResultExt = jobResult->MutableExtension(TSchedulerJobResultExt::job_result_ext);
+    auto* jobResultExt = jobResult->MutableExtension(TJobResultExt::job_result_ext);
 
     // If we were provided with stderr_table_spec we are expected to write stderr and provide some results.
-    if (userJobSpec.has_stderr_table_spec() && !schedulerJobResultExt->has_stderr_table_boundary_keys()) {
+    if (userJobSpec.has_stderr_table_spec() && !jobResultExt->has_stderr_table_boundary_keys()) {
         // If error occurred during user job initialization, stderr blob table writer may not have been created at all.
         YT_LOG_WARNING("Stderr table boundary keys are absent");
-        auto* stderrBoundaryKeys = schedulerJobResultExt->mutable_stderr_table_boundary_keys();
+        auto* stderrBoundaryKeys = jobResultExt->mutable_stderr_table_boundary_keys();
         stderrBoundaryKeys->set_sorted(true);
         stderrBoundaryKeys->set_unique_keys(true);
         stderrBoundaryKeys->set_empty(true);

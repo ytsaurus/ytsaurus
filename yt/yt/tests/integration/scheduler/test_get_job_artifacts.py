@@ -733,9 +733,9 @@ class TestGetJobSpec(YTEnvSetup):
             return True
 
         job_spec = yson.loads(get_job_spec(job_id))
-        assert not path_exists(job_spec, "scheduler_job_spec_ext/input_node_directory")
-        assert path_exists(job_spec, "scheduler_job_spec_ext/input_table_specs")
-        assert path_exists(job_spec, "scheduler_job_spec_ext/output_table_specs")
+        assert not path_exists(job_spec, "job_spec_ext/input_node_directory")
+        assert path_exists(job_spec, "job_spec_ext/input_table_specs")
+        assert path_exists(job_spec, "job_spec_ext/output_table_specs")
 
         job_spec = yson.loads(
             get_job_spec(
@@ -746,9 +746,9 @@ class TestGetJobSpec(YTEnvSetup):
             )
         )
 
-        assert path_exists(job_spec, "scheduler_job_spec_ext/input_node_directory")
-        assert not path_exists(job_spec, "scheduler_job_spec_ext/input_table_specs")
-        assert not path_exists(job_spec, "scheduler_job_spec_ext/output_table_specs")
+        assert path_exists(job_spec, "job_spec_ext/input_node_directory")
+        assert not path_exists(job_spec, "job_spec_ext/input_table_specs")
+        assert not path_exists(job_spec, "job_spec_ext/output_table_specs")
 
         release_breakpoint()
         op.track()

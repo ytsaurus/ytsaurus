@@ -37,16 +37,13 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
+
 #include <yt/yt/ytlib/file_client/file_chunk_output.h>
 
 #include <yt/yt/ytlib/job_proxy/user_job_read_controller.h>
 
 #include <yt/yt/ytlib/job_prober_client/job_probe.h>
-
-#include <yt/yt/library/query/base/query.h>
-#include <yt/yt/library/query/base/public.h>
-
-#include <yt/yt/library/query/engine_api/evaluator.h>
 
 #include <yt/yt/ytlib/query_client/functions_cache.h>
 
@@ -57,6 +54,14 @@
 
 #include <yt/yt/ytlib/transaction_client/public.h>
 
+#include <yt/yt/library/process/process.h>
+#include <yt/yt/library/process/subprocess.h>
+
+#include <yt/yt/library/query/base/query.h>
+#include <yt/yt/library/query/base/public.h>
+
+#include <yt/yt/library/query/engine_api/evaluator.h>
+
 #include <yt/yt/client/formats/parser.h>
 
 #include <yt/yt/client/query_client/query_statistics.h>
@@ -64,11 +69,6 @@
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/unversioned_writer.h>
 #include <yt/yt/client/table_client/table_consumer.h>
-
-#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
-
-#include <yt/yt/library/process/process.h>
-#include <yt/yt/library/process/subprocess.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
@@ -109,8 +109,8 @@ using namespace NNet;
 using namespace NTableClient;
 using namespace NFormats;
 using namespace NFS;
-using namespace NScheduler;
-using namespace NScheduler::NProto;
+using namespace NControllerAgent;
+using namespace NControllerAgent::NProto;
 using namespace NShell;
 using namespace NTransactionClient;
 using namespace NConcurrency;
@@ -130,8 +130,8 @@ using namespace NUserJob;
 
 using NControllerAgent::NProto::TJobResult;
 using NControllerAgent::NProto::TJobSpec;
-using NScheduler::NProto::TUserJobSpec;
-using NScheduler::NProto::TCoreInfo;
+using NControllerAgent::NProto::TUserJobSpec;
+using NControllerAgent::NProto::TCoreInfo;
 using NChunkClient::TDataSliceDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -321,22 +321,22 @@ public:
         }
 
         TJobResult result;
-        auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::job_result_ext);
+        auto* jobResultExt = result.MutableExtension(TJobResultExt::job_result_ext);
         // COMPAT(ignat)
         if (Config_->UploadDebugArtifactChunks) {
-            SaveErrorChunkId(schedulerResultExt);
+            SaveErrorChunkId(jobResultExt);
         }
-        schedulerResultExt->set_has_stderr(ErrorOutput_->GetCurrentSize() > 0);
-        UserJobWriteController_->PopulateStderrResult(schedulerResultExt);
+        jobResultExt->set_has_stderr(ErrorOutput_->GetCurrentSize() > 0);
+        UserJobWriteController_->PopulateStderrResult(jobResultExt);
 
         if (jobResultError) {
             try {
-                DumpFailContexts(schedulerResultExt);
+                DumpFailContexts(jobResultExt);
             } catch (const std::exception& ex) {
                 YT_LOG_ERROR(ex, "Failed to dump input context");
             }
         } else {
-            UserJobWriteController_->PopulateResult(schedulerResultExt);
+            UserJobWriteController_->PopulateResult(jobResultExt);
         }
 
         if (UserJobSpec_.has_core_table_spec()) {
@@ -367,9 +367,9 @@ public:
 
             CoreInfos_ = coreResult.CoreInfos;
 
-            ToProto(schedulerResultExt->mutable_core_infos(), coreResult.CoreInfos);
+            ToProto(jobResultExt->mutable_core_infos(), coreResult.CoreInfos);
             YT_VERIFY(coreResult.BoundaryKeys.empty() || coreResult.BoundaryKeys.sorted());
-            ToProto(schedulerResultExt->mutable_core_table_boundary_keys(), coreResult.BoundaryKeys);
+            ToProto(jobResultExt->mutable_core_table_boundary_keys(), coreResult.BoundaryKeys);
         }
 
         if (ShellManager_) {
@@ -744,7 +744,7 @@ private:
     }
 
     // COMPAT(ignat)
-    void SaveErrorChunkId(TSchedulerJobResultExt* schedulerResultExt)
+    void SaveErrorChunkId(TJobResultExt* jobResultExt)
     {
         if (!ErrorOutput_) {
             return;
@@ -752,12 +752,12 @@ private:
 
         auto errorChunkId = ErrorOutput_->GetChunkId();
         if (errorChunkId) {
-            ToProto(schedulerResultExt->mutable_stderr_chunk_id(), errorChunkId);
+            ToProto(jobResultExt->mutable_stderr_chunk_id(), errorChunkId);
             YT_LOG_INFO("Stderr chunk generated (ChunkId: %v)", errorChunkId);
         }
     }
 
-    void DumpFailContexts(TSchedulerJobResultExt* schedulerResultExt)
+    void DumpFailContexts(TJobResultExt* jobResultExt)
     {
         auto contexts = WaitFor(UserJobReadController_->GetInputContext())
             .ValueOrThrow();
@@ -773,7 +773,7 @@ private:
             FailContext_->append(context.Begin(), context.Size());
         }
 
-        schedulerResultExt->set_has_fail_context(size > 0);
+        jobResultExt->set_has_fail_context(size > 0);
 
         // COMPAT(ignat)
         if (Config_->UploadDebugArtifactChunks) {
@@ -781,7 +781,7 @@ private:
 
             YT_VERIFY(contextChunkIds.size() <= 1);
             if (!contextChunkIds.empty()) {
-                ToProto(schedulerResultExt->mutable_fail_context_chunk_id(), contextChunkIds.front());
+                ToProto(jobResultExt->mutable_fail_context_chunk_id(), contextChunkIds.front());
             }
         }
     }

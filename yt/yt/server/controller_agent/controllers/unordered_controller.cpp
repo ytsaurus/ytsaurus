@@ -502,14 +502,14 @@ protected:
     virtual void InitJobSpecTemplate()
     {
         JobSpecTemplate.set_type(static_cast<int>(GetJobType()));
-        auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec->JobIO)).ToString());
+        auto* jobSpecExt = JobSpecTemplate.MutableExtension(TJobSpecExt::job_spec_ext);
+        jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec->JobIO)).ToString());
 
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
-            schedulerJobSpecExt->mutable_extensions(),
+            jobSpecExt->mutable_extensions(),
             BuildDataSourceDirectoryFromInputTables(InputTables_));
         SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
-            schedulerJobSpecExt->mutable_extensions(),
+            jobSpecExt->mutable_extensions(),
             BuildDataSinkDirectoryWithAutoMerge(
                 OutputTables_,
                 AutoMergeEnabled_,
@@ -518,10 +518,10 @@ protected:
                     : std::nullopt));
 
         if (Spec->InputQuery) {
-            WriteInputQueryToJobSpec(schedulerJobSpecExt);
+            WriteInputQueryToJobSpec(jobSpecExt);
         }
 
-        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).ToString());
+        jobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).ToString());
     }
 };
 
@@ -666,9 +666,9 @@ private:
     void InitJobSpecTemplate() override
     {
         TUnorderedControllerBase::InitJobSpecTemplate();
-        auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        auto* jobSpecExt = JobSpecTemplate.MutableExtension(TJobSpecExt::job_spec_ext);
         InitUserJobSpecTemplate(
-            schedulerJobSpecExt->mutable_user_job_spec(),
+            jobSpecExt->mutable_user_job_spec(),
             Spec->Mapper,
             UserJobFiles_[Spec->Mapper],
             Spec->DebugArtifactsAccount);

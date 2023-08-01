@@ -1,15 +1,15 @@
 package NYT.NClickHouseServer.NProto;
 
 import "yt/ytlib/chunk_client/proto/data_source.proto";
-import "yt/ytlib/scheduler/proto/job.proto";
+import "yt/ytlib/controller_agent/proto/job.proto";
 import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
 message TSubquerySpec
 {
-    required NChunkClient.NProto.TDataSourceDirectoryExt data_source_directory = 1;
-    repeated NScheduler.NProto.TTableInputSpec input_specs = 2;
+    required NYT.NChunkClient.NProto.TDataSourceDirectoryExt data_source_directory = 1;
+    repeated NYT.NControllerAgent.NProto.TTableInputSpec input_specs = 2;
     optional NYT.NTableClient.NProto.TTableSchemaExt read_schema = 6;
     optional int64 subquery_index = 8;
     optional int64 table_index = 9;

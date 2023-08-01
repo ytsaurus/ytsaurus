@@ -247,7 +247,7 @@ class TestJobCommands(object):
 
         job_id = job_events.wait_breakpoint()[0]
 
-        assert "scheduler_job_spec_ext" in yt.get_job_spec(job_id)
+        assert "job_spec_ext" in yt.get_job_spec(job_id)
 
         job_events.release_breakpoint()
         op.wait()

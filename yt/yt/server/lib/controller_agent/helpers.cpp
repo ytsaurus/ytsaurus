@@ -130,8 +130,8 @@ void PackBaggageFromJobSpec(
     TJobId jobId)
 {
     auto baggage = traceContext->UnpackOrCreateBaggage();
-    const auto& schedulerJobSpecExt = jobSpec.GetExtension(NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext);
-    auto ioTags = NYTree::FromProto(schedulerJobSpecExt.io_tags());
+    const auto& jobSpecExt = jobSpec.GetExtension(NControllerAgent::NProto::TJobSpecExt::job_spec_ext);
+    auto ioTags = NYTree::FromProto(jobSpecExt.io_tags());
     baggage->MergeFrom(*ioTags);
     AddTagToBaggage(baggage, ERawIOTag::OperationId, ToString(operationId));
     AddTagToBaggage(baggage, ERawIOTag::JobId, ToString(jobId));

@@ -19,7 +19,7 @@ namespace NYT::NJobProxy {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
-using namespace NScheduler::NProto;
+using namespace NControllerAgent::NProto;
 using namespace NTransactionClient;
 using namespace NTableClient;
 using namespace NObjectClient;
@@ -50,25 +50,25 @@ public:
         auto keyColumns = FromProto<TKeyColumns>(SortJobSpecExt_.key_columns());
         auto nameTable = TNameTable::FromKeyColumns(keyColumns);
 
-        TotalRowCount_ = SchedulerJobSpecExt_.input_row_count();
+        TotalRowCount_ = JobSpecExt_.input_row_count();
 
-        YT_VERIFY(SchedulerJobSpecExt_.input_table_specs_size() == 1);
-        const auto& inputSpec = SchedulerJobSpecExt_.input_table_specs(0);
+        YT_VERIFY(JobSpecExt_.input_table_specs_size() == 1);
+        const auto& inputSpec = JobSpecExt_.input_table_specs(0);
         auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
 
-        auto dataSourceDirectoryExt = GetProtoExtension<TDataSourceDirectoryExt>(SchedulerJobSpecExt_.extensions());
+        auto dataSourceDirectoryExt = GetProtoExtension<TDataSourceDirectoryExt>(JobSpecExt_.extensions());
         auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
 
         std::optional<int> partitionTag;
-        if (SchedulerJobSpecExt_.has_partition_tag()) {
-            partitionTag = SchedulerJobSpecExt_.partition_tag();
+        if (JobSpecExt_.has_partition_tag()) {
+            partitionTag = JobSpecExt_.partition_tag();
         } else if (SortJobSpecExt_.has_partition_tag()) {
             partitionTag = SortJobSpecExt_.partition_tag();
         }
         YT_VERIFY(partitionTag);
 
-        YT_VERIFY(SchedulerJobSpecExt_.output_table_specs_size() == 1);
-        const auto& outputSpec = SchedulerJobSpecExt_.output_table_specs(0);
+        YT_VERIFY(JobSpecExt_.output_table_specs_size() == 1);
+        const auto& outputSpec = JobSpecExt_.output_table_specs(0);
         TTableSchemaPtr outputSchema;
         DeserializeFromWireProto(&outputSchema, outputSpec.table_schema());
 
@@ -84,13 +84,13 @@ public:
                 dataSourceDirectory,
                 std::move(dataSliceDescriptors),
                 TotalRowCount_,
-                SchedulerJobSpecExt_.is_approximate(),
+                JobSpecExt_.is_approximate(),
                 *partitionTag,
                 ChunkReadOptions_,
                 MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
         };
 
-        auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
+        auto transactionId = FromProto<TTransactionId>(JobSpecExt_.output_transaction_id());
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         options->ExplodeOnValidationError = true;
@@ -105,7 +105,7 @@ public:
         auto timestamp = static_cast<TTimestamp>(outputSpec.timestamp());
 
         std::optional<NChunkClient::TDataSink> dataSink;
-        if (auto dataSinkDirectoryExt = FindProtoExtension<TDataSinkDirectoryExt>(SchedulerJobSpecExt_.extensions())) {
+        if (auto dataSinkDirectoryExt = FindProtoExtension<TDataSinkDirectoryExt>(JobSpecExt_.extensions())) {
             auto dataSinkDirectory = FromProto<TDataSinkDirectoryPtr>(*dataSinkDirectoryExt);
             YT_VERIFY(std::ssize(dataSinkDirectory->DataSinks()) == 1);
             dataSink = dataSinkDirectory->DataSinks()[0];

@@ -4,15 +4,15 @@
 
 #include <yt/yt/server/lib/job_proxy/public.h>
 
-#include <yt/yt/ytlib/scheduler/helpers.h>
-
 #include <yt/yt/ytlib/api/native/client.h>
+
+#include <yt/yt/ytlib/controller_agent/helpers.h>
+
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
 #include <yt/yt/ytlib/object_client/public.h>
 
 #include <yt/yt/ytlib/table_client/public.h>
-
-#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/yt/core/concurrency/async_rw_lock.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
@@ -25,8 +25,8 @@ namespace NYT::NJobProxy {
 
 struct TCoreResult
 {
-    NScheduler::TCoreInfos CoreInfos;
-    NScheduler::NProto::TOutputResult BoundaryKeys;
+    NControllerAgent::TCoreInfos CoreInfos;
+    NControllerAgent::NProto::TOutputResult BoundaryKeys;
 
     TCoreResult();
 };
@@ -117,7 +117,7 @@ private:
     void DoProcessLinuxCore(const TString& coreName, int coreIndex);
     void DoProcessGpuCore(NConcurrency::IAsyncInputStreamPtr coreStream, int coreIndex);
     i64 DoReadCore(const NConcurrency::IAsyncInputStreamPtr& coreStream, const TString& coreName, int coreIndex);
-    void DoAddCoreInfo(const NScheduler::NProto::TCoreInfo& coreInfo);
+    void DoAddCoreInfo(const NControllerAgent::NProto::TCoreInfo& coreInfo);
 };
 
 

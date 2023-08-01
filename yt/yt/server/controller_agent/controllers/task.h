@@ -249,7 +249,7 @@ public:
     void SwitchIntermediateMedium();
 
     //! Modifies the job spec so the job will use the experimental setup if required.
-    void PatchUserJobSpec(NScheduler::NProto::TUserJobSpec* jobSpec, TJobletPtr joblet) const;
+    void PatchUserJobSpec(NControllerAgent::NProto::TUserJobSpec* jobSpec, TJobletPtr joblet) const;
 
 protected:
     NLogging::TSerializableLogger Logger;
@@ -304,7 +304,7 @@ protected:
     void ReleaseJobletResources(TJobletPtr joblet, bool waitForSnapshot);
 
     std::unique_ptr<NNodeTrackerClient::TNodeDirectoryBuilder> MakeNodeDirectoryBuilder(
-        NScheduler::NProto::TSchedulerJobSpecExt* schedulerJobSpec);
+        NControllerAgent::NProto::TJobSpecExt* schedulerJobSpec);
     void AddSequentialInputSpec(
         NControllerAgent::NProto::TJobSpec* jobSpec,
         TJobletPtr joblet,
@@ -315,7 +315,7 @@ protected:
         NTableClient::TComparator comparator = NTableClient::TComparator());
     void AddChunksToInputSpec(
         NNodeTrackerClient::TNodeDirectoryBuilder* directoryBuilder,
-        NScheduler::NProto::TTableInputSpec* inputSpec,
+        NControllerAgent::NProto::TTableInputSpec* inputSpec,
         NChunkPools::TChunkStripePtr stripe,
         NTableClient::TComparator comparator = NTableClient::TComparator());
 
@@ -343,9 +343,9 @@ protected:
         google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>* chunkSpecs);
 
     std::vector<NChunkPools::TChunkStripePtr> BuildOutputChunkStripes(
-        NScheduler::NProto::TSchedulerJobResultExt& schedulerJobResult,
+        NControllerAgent::NProto::TJobResultExt& jobResult,
         const std::vector<NChunkClient::TChunkTreeId>& chunkTreeIds,
-        google::protobuf::RepeatedPtrField<NScheduler::NProto::TOutputResult> boundaryKeys);
+        google::protobuf::RepeatedPtrField<NControllerAgent::NProto::TOutputResult> boundaryKeys);
 
     void AddFootprintAndUserJobResources(TExtendedJobResources& jobResources) const;
 

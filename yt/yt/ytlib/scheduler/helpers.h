@@ -22,16 +22,6 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TCoreInfos = std::vector<NProto::TCoreInfo>;
-
-namespace NProto {
-
-void Serialize(const TCoreInfo& coreInfo, NYson::IYsonConsumer* consumer);
-
-} // namespace NProto
-
-////////////////////////////////////////////////////////////////////////////////
-
 NYPath::TYPath GetPoolTreesLockPath();
 NYPath::TYPath GetOperationsPath();
 NYPath::TYPath GetOperationPath(TOperationId operationId);
@@ -76,33 +66,12 @@ bool IsOperationFinished(EOperationState state);
 bool IsOperationFinishing(EOperationState state);
 bool IsOperationInProgress(EOperationState state);
 
-void ValidateEnvironmentVariableName(TStringBuf name);
-bool IsOperationWithUserJobs(EOperationType operationType);
-
-int GetJobSpecVersion();
-
 bool IsSchedulingReason(EAbortReason reason);
 bool IsNonSchedulingReason(EAbortReason reason);
 bool IsSentinelReason(EAbortReason reason);
-bool IsJobAbsenceGuaranteed(EAbortReason reason);
 
 TError GetSchedulerTransactionsAbortedError(const std::vector<NObjectClient::TTransactionId>& transactionIds);
 TError GetUserTransactionAbortedError(NObjectClient::TTransactionId transactionId);
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TJobFile
-{
-    TJobId JobId;
-    NYPath::TYPath Path;
-    NChunkClient::TChunkId ChunkId;
-    TString DescriptionType;
-};
-
-void SaveJobFiles(
-    const NApi::NNative::IClientPtr& client,
-    TOperationId operationId,
-    const std::vector<TJobFile>& files);
 
 ////////////////////////////////////////////////////////////////////////////////
 

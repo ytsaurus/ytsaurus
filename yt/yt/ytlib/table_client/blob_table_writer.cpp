@@ -78,10 +78,10 @@ TBlobTableWriter::TBlobTableWriter(
         throttler);
 }
 
-NScheduler::NProto::TOutputResult TBlobTableWriter::GetOutputResult() const
+NControllerAgent::NProto::TOutputResult TBlobTableWriter::GetOutputResult() const
 {
     if (Failed_) {
-        NScheduler::NProto::TOutputResult boundaryKeys;
+        NControllerAgent::NProto::TOutputResult boundaryKeys;
         boundaryKeys.set_empty(true);
         return boundaryKeys;
     } else {

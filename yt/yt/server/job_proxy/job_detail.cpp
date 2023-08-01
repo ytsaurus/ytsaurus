@@ -12,6 +12,8 @@
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
+
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/ytlib/job_proxy/helpers.h>
@@ -28,8 +30,8 @@ namespace NYT::NJobProxy {
 
 using namespace NChunkClient;
 using namespace NConcurrency;
+using namespace NControllerAgent;
 using namespace NControllerAgent::NProto;
-using namespace NScheduler::NProto;
 using namespace NTableClient;
 using namespace NYTree;
 using namespace NYson;
@@ -64,7 +66,7 @@ void TJob::Initialize()
 {
     PopulateInputNodeDirectory();
 
-    const auto& schedulerJobSpecExt = Host_->GetJobSpecHelper()->GetSchedulerJobSpecExt();
+    const auto& schedulerJobSpecExt = Host_->GetJobSpecHelper()->GetJobSpecExt();
     JobProfiler_ = CreateJobProfiler(&schedulerJobSpecExt);
     JobProfiler_->Start();
 }
@@ -72,7 +74,7 @@ void TJob::Initialize()
 void TJob::PopulateInputNodeDirectory() const
 {
     Host_->GetClient()->GetNativeConnection()->GetNodeDirectory()->MergeFrom(
-        Host_->GetJobSpecHelper()->GetSchedulerJobSpecExt().input_node_directory());
+        Host_->GetJobSpecHelper()->GetJobSpecExt().input_node_directory());
 }
 
 std::vector<NChunkClient::TChunkId> TJob::DumpInputContext()
@@ -148,7 +150,7 @@ std::optional<TJobEnvironmentCpuStatistics> TJob::GetUserJobCpuStatistics() cons
 TSimpleJobBase::TSimpleJobBase(IJobHostPtr host)
     : TJob(host)
     , JobSpec_(host->GetJobSpecHelper()->GetJobSpec())
-    , SchedulerJobSpecExt_(host->GetJobSpecHelper()->GetSchedulerJobSpecExt())
+    , JobSpecExt_(host->GetJobSpecHelper()->GetJobSpecExt())
 { }
 
 void TSimpleJobBase::Initialize()
@@ -174,7 +176,7 @@ TJobResult TSimpleJobBase::Run()
 
     Host_->OnPrepared();
 
-    const auto& jobSpec = Host_->GetJobSpecHelper()->GetSchedulerJobSpecExt();
+    const auto& jobSpec = Host_->GetJobSpecHelper()->GetJobSpecExt();
     if (jobSpec.has_input_query_spec()) {
         RunQuery(
             jobSpec.input_query_spec(),
@@ -203,15 +205,15 @@ TJobResult TSimpleJobBase::Run()
         ToProto(result.mutable_error(), TError());
 
         // ToDo(psushin): return written chunks only if required.
-        auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::job_result_ext);
+        auto* jobResultExt = result.MutableExtension(TJobResultExt::job_result_ext);
         for (const auto& chunkSpec : Writer_->GetWrittenChunkSpecs()) {
-            auto* resultChunkSpec = schedulerResultExt->add_output_chunk_specs();
+            auto* resultChunkSpec = jobResultExt->add_output_chunk_specs();
             *resultChunkSpec = chunkSpec;
             FilterProtoExtensions(resultChunkSpec->mutable_chunk_meta()->mutable_extensions(), GetSchedulerChunkMetaExtensionTagsFilter());
         }
 
         if (ShouldSendBoundaryKeys()) {
-            *schedulerResultExt->add_output_boundary_keys() = GetWrittenChunksBoundaryKeys(Writer_);
+            *jobResultExt->add_output_boundary_keys() = GetWrittenChunksBoundaryKeys(Writer_);
         }
 
         return result;

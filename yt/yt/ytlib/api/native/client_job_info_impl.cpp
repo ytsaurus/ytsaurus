@@ -27,6 +27,8 @@
 
 #include <yt/yt/ytlib/controller_agent/helpers.h>
 
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
+
 #include <yt/yt/ytlib/job_proxy/job_spec_helper.h>
 #include <yt/yt/ytlib/job_proxy/helpers.h>
 #include <yt/yt/ytlib/job_proxy/user_job_read_controller.h>
@@ -444,7 +446,7 @@ void TClient::ValidateOperationAccess(
     const TJobSpec& jobSpec,
     EPermissionSet permissions)
 {
-    const auto extensionId = NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext;
+    const auto extensionId = NControllerAgent::NProto::TJobSpecExt::job_spec_ext;
     TSerializableAccessControlList acl;
     if (jobSpec.HasExtension(extensionId) && jobSpec.GetExtension(extensionId).has_acl()) {
         TYsonString aclYson(jobSpec.GetExtension(extensionId).acl());
@@ -527,7 +529,7 @@ IAsyncZeroCopyInputStreamPtr TClient::DoGetJobInput(
 {
     auto jobSpec = FetchJobSpec(jobId, options.JobSpecSource, EPermissionSet(EPermission::Read));
 
-    auto* schedulerJobSpecExt = jobSpec.MutableExtension(NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext);
+    auto* schedulerJobSpecExt = jobSpec.MutableExtension(NControllerAgent::NProto::TJobSpecExt::job_spec_ext);
 
     auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
 
@@ -564,7 +566,7 @@ IAsyncZeroCopyInputStreamPtr TClient::DoGetJobInput(
 
     auto jobSpecHelper = NJobProxy::CreateJobSpecHelper(jobSpec);
     GetNativeConnection()->GetNodeDirectory()->MergeFrom(
-        jobSpecHelper->GetSchedulerJobSpecExt().input_node_directory());
+        jobSpecHelper->GetJobSpecExt().input_node_directory());
 
     auto userJobReadController = CreateUserJobReadController(
         jobSpecHelper,
@@ -590,9 +592,9 @@ TYsonString TClient::DoGetJobInputPaths(
 {
     auto jobSpec = FetchJobSpec(jobId, options.JobSpecSource, EPermissionSet(EPermissionSet::Read));
 
-    auto schedulerJobSpecExt = jobSpec.GetExtension(NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext);
+    const auto& jobSpecExt = jobSpec.GetExtension(NControllerAgent::NProto::TJobSpecExt::job_spec_ext);
 
-    auto optionalDataSourceDirectoryExt = FindProtoExtension<TDataSourceDirectoryExt>(schedulerJobSpecExt.extensions());
+    auto optionalDataSourceDirectoryExt = FindProtoExtension<TDataSourceDirectoryExt>(jobSpecExt.extensions());
     if (!optionalDataSourceDirectoryExt) {
         THROW_ERROR_EXCEPTION("Cannot build job input paths; job is either too old or has intermediate input")
             << TErrorAttribute("job_id", jobId);
@@ -609,14 +611,14 @@ TYsonString TClient::DoGetJobInputPaths(
     }
 
     std::vector<std::vector<TDataSliceDescriptor>> slicesByTable(dataSourceDirectory->DataSources().size());
-    for (const auto& inputSpec : schedulerJobSpecExt.input_table_specs()) {
+    for (const auto& inputSpec : jobSpecExt.input_table_specs()) {
         auto dataSliceDescriptors = NJobProxy::UnpackDataSliceDescriptors(inputSpec);
         for (const auto& slice : dataSliceDescriptors) {
             slicesByTable[slice.GetDataSourceIndex()].push_back(slice);
         }
     }
 
-    for (const auto& inputSpec : schedulerJobSpecExt.foreign_input_table_specs()) {
+    for (const auto& inputSpec : jobSpecExt.foreign_input_table_specs()) {
         auto dataSliceDescriptors = NJobProxy::UnpackDataSliceDescriptors(inputSpec);
         for (const auto& slice : dataSliceDescriptors) {
             slicesByTable[slice.GetDataSourceIndex()].push_back(slice);
@@ -635,19 +637,19 @@ TYsonString TClient::DoGetJobSpec(
     const TGetJobSpecOptions& options)
 {
     auto jobSpec = FetchJobSpec(jobId, options.JobSpecSource, EPermissionSet(EPermissionSet::Read));
-    auto* schedulerJobSpecExt = jobSpec.MutableExtension(NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext);
+    auto* jobSpecExt = jobSpec.MutableExtension(NControllerAgent::NProto::TJobSpecExt::job_spec_ext);
 
     if (options.OmitNodeDirectory) {
-        schedulerJobSpecExt->clear_input_node_directory();
+        jobSpecExt->clear_input_node_directory();
     }
 
     if (options.OmitInputTableSpecs) {
-        schedulerJobSpecExt->clear_input_table_specs();
-        schedulerJobSpecExt->clear_foreign_input_table_specs();
+        jobSpecExt->clear_input_table_specs();
+        jobSpecExt->clear_foreign_input_table_specs();
     }
 
     if (options.OmitOutputTableSpecs) {
-        schedulerJobSpecExt->clear_output_table_specs();
+        jobSpecExt->clear_output_table_specs();
     }
 
     TString jobSpecYsonBytes;

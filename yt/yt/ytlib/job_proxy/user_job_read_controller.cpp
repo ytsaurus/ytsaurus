@@ -5,8 +5,9 @@
 #include "job_spec_helper.h"
 #include "user_job_io_factory.h"
 
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
+
 #include <yt/yt/ytlib/table_client/helpers.h>
-#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/yt/client/table_client/adapters.h>
 #include <yt/yt/client/table_client/name_table.h>
@@ -30,8 +31,8 @@ using namespace NNodeTrackerClient;
 using namespace NTableClient;
 using namespace NYson;
 using namespace NYTree;
-using namespace NScheduler;
-using namespace NScheduler::NProto;
+using namespace NControllerAgent;
+using namespace NControllerAgent::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,13 +56,13 @@ public:
     //! Returns closure that launches data transfer to given async output.
     TCallback<TFuture<void>()> PrepareJobInputTransfer(const IAsyncOutputStreamPtr& asyncOutput) override
     {
-        const auto& schedulerJobSpecExt = JobSpecHelper_->GetSchedulerJobSpecExt();
+        const auto& jobSpecExt = JobSpecHelper_->GetJobSpecExt();
 
-        const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
+        const auto& userJobSpec = jobSpecExt.user_job_spec();
 
         auto format = ConvertTo<TFormat>(TYsonString(userJobSpec.input_format()));
-        if (schedulerJobSpecExt.has_input_query_spec()) {
-            return PrepareInputActionsQuery(schedulerJobSpecExt.input_query_spec(), format, asyncOutput);
+        if (jobSpecExt.has_input_query_spec()) {
+            return PrepareInputActionsQuery(jobSpecExt.input_query_spec(), format, asyncOutput);
         } else {
             return PrepareInputActionsPassthrough(format, asyncOutput);
         }
@@ -178,8 +179,8 @@ private:
         InitializeReader();
 
         std::vector<TTableSchemaPtr> schemas;
-        if (JobSpecHelper_->GetSchedulerJobSpecExt().input_stream_schemas_size() > 0) {
-            for (const auto& schemaProto : JobSpecHelper_->GetSchedulerJobSpecExt().input_stream_schemas()) {
+        if (JobSpecHelper_->GetJobSpecExt().input_stream_schemas_size() > 0) {
+            for (const auto& schemaProto : JobSpecHelper_->GetJobSpecExt().input_stream_schemas()) {
                 DeserializeFromWireProto(&schemas.emplace_back(), schemaProto);
             }
         } else {
@@ -198,7 +199,7 @@ private:
             JobSpecHelper_->GetJobIOConfig()->ControlAttributes,
             JobSpecHelper_->GetKeySwitchColumnCount());
 
-        if (JobSpecHelper_->GetSchedulerJobSpecExt().user_job_spec().cast_input_any_to_composite()) {
+        if (JobSpecHelper_->GetJobSpecExt().user_job_spec().cast_input_any_to_composite()) {
             // Intermediate chunks have incomplete schema, so Composite value type is not
             // restored in block reader. We need to restore it here.
             writer = New<TAnyToCompositeConverter>(std::move(writer), schemas, Reader_->GetNameTable());

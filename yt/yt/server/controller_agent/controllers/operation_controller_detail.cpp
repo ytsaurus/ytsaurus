@@ -42,6 +42,8 @@
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 
+#include <yt/yt/ytlib/controller_agent/helpers.h>
+
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
@@ -189,8 +191,8 @@ using NJobTrackerClient::EJobState;
 using NNodeTrackerClient::TNodeId;
 using NProfiling::CpuInstantToInstant;
 using NProfiling::TCpuInstant;
-using NScheduler::NProto::TSchedulerJobResultExt;
-using NScheduler::NProto::TSchedulerJobSpecExt;
+using NControllerAgent::NProto::TJobResultExt;
+using NControllerAgent::NProto::TJobSpecExt;
 using NScheduler::TExecNodeDescriptor;
 using NTableClient::NProto::TBoundaryKeysExt;
 using NTableClient::NProto::THeavyColumnStatisticsExt;
@@ -3014,13 +3016,13 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
 
     // TODO(max42): this code is overcomplicated, rethink it.
     if (!abandoned) {
-        const auto& schedulerJobResult = jobSummary->GetSchedulerJobResult();
+        const auto& jobResultExt = jobSummary->GetJobResultExt();
         bool restartNeeded = false;
         // TODO(max42): always send restart_needed?
-        if (schedulerJobResult.has_restart_needed()) {
-            restartNeeded = schedulerJobResult.restart_needed();
+        if (jobResultExt.has_restart_needed()) {
+            restartNeeded = jobResultExt.restart_needed();
         } else {
-            restartNeeded = schedulerJobResult.unread_chunk_specs_size() > 0;
+            restartNeeded = jobResultExt.unread_chunk_specs_size() > 0;
         }
 
         if (restartNeeded) {
@@ -3044,15 +3046,15 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
         }
 
         YT_VERIFY(
-            (jobSummary->InterruptReason == EInterruptReason::None && schedulerJobResult.unread_chunk_specs_size() == 0) ||
+            (jobSummary->InterruptReason == EInterruptReason::None && jobResultExt.unread_chunk_specs_size() == 0) ||
             (jobSummary->InterruptReason != EInterruptReason::None && (
-                schedulerJobResult.unread_chunk_specs_size() != 0 ||
-                schedulerJobResult.restart_needed())));
+                jobResultExt.unread_chunk_specs_size() != 0 ||
+                jobResultExt.restart_needed())));
 
         // Validate all node ids of the output chunks and populate the local node directory.
         // In case any id is not known, abort the job.
         const auto& globalNodeDirectory = Host->GetNodeDirectory();
-        for (const auto& chunkSpec : schedulerJobResult.output_chunk_specs()) {
+        for (const auto& chunkSpec : jobResultExt.output_chunk_specs()) {
             auto replicas = GetReplicasFromChunkSpec(chunkSpec);
             for (auto replica : replicas) {
                 auto nodeId = replica.GetNodeId();
@@ -3374,8 +3376,8 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
         UpdateJobMetrics(joblet, *jobSummary, /*isJobFinished*/ true);
 
         if (abortReason == EAbortReason::FailedChunks) {
-            const auto& schedulerJobResult = jobSummary->GetSchedulerJobResult();
-            failedChunkIds = FromProto<std::vector<TChunkId>>(schedulerJobResult.failed_chunk_ids());
+            const auto& jobResultExt = jobSummary->GetJobResultExt();
+            failedChunkIds = FromProto<std::vector<TChunkId>>(jobResultExt.failed_chunk_ids());
         }
         taskJobResult = joblet->Task->OnJobAborted(joblet, *jobSummary);
 
@@ -3637,11 +3639,11 @@ void TOperationControllerBase::BuildFinishedJobAttributes(
             auto error = FromProto<TError>(jobSummary->Result->error());
             fluent.Item("error").Value(error);
         })
-        .DoIf(jobSummary->GetJobResult().HasExtension(TSchedulerJobResultExt::job_result_ext),
+        .DoIf(jobSummary->GetJobResult().HasExtension(TJobResultExt::job_result_ext),
             [&] (TFluentMap fluent)
         {
-            const auto& schedulerJobResult = jobSummary->GetSchedulerJobResult();
-            fluent.Item("core_infos").Value(schedulerJobResult.core_infos());
+            const auto& jobResultExt = jobSummary->GetJobResultExt();
+            fluent.Item("core_infos").Value(jobResultExt.core_infos());
         })
         .Item("fail_context_size").Value(failContextSize);
 }
@@ -4447,28 +4449,28 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
 {
     VERIFY_INVOKER_AFFINITY(JobSpecBuildInvoker_);
 
-    auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+    auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
 
-    schedulerJobSpecExt->set_testing_options(ConvertToYsonString(Spec_->JobTestingOptions).ToString());
+    jobSpecExt->set_testing_options(ConvertToYsonString(Spec_->JobTestingOptions).ToString());
 
-    schedulerJobSpecExt->set_enable_prefetching_job_throttler(Spec_->EnablePrefetchingJobThrottler);
+    jobSpecExt->set_enable_prefetching_job_throttler(Spec_->EnablePrefetchingJobThrottler);
 
     if (OutputTransaction) {
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
+        ToProto(jobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
     }
 
     if (joblet->EnabledJobProfiler) {
-        auto* profiler = schedulerJobSpecExt->add_job_profilers();
+        auto* profiler = jobSpecExt->add_job_profilers();
         ToProto(profiler, *joblet->EnabledJobProfiler);
     }
 
     if (joblet->Task->GetUserJobSpec()) {
         InitUserJobSpec(
-            schedulerJobSpecExt->mutable_user_job_spec(),
+            jobSpecExt->mutable_user_job_spec(),
             joblet);
     }
 
-    schedulerJobSpecExt->set_acl(ConvertToYsonString(Acl).ToString());
+    jobSpecExt->set_acl(ConvertToYsonString(Acl).ToString());
 }
 
 void TOperationControllerBase::RegisterTask(TTaskPtr task)
@@ -5162,17 +5164,17 @@ void TOperationControllerBase::OnJobFinished(std::unique_ptr<TJobSummary> summar
     // TODO(max42): historically, this code accessed a default-constructed scheduler job result extension
     // in case when job summary missed it or even missed job result. We keep it as is, but this is a terrible
     // behavior that should be refactored.
-    // const auto& schedulerJobResult = summary->GetSchedulerJobResult();
-    TSchedulerJobResultExt schedulerJobResult;
+    // const auto& jobResult = summary->GetJobResult();
+    TJobResultExt jobResult;
     if (summary->Result) {
-        schedulerJobResult = summary->GetJobResult().GetExtension(TSchedulerJobResultExt::job_result_ext);
+        jobResult = summary->GetJobResult().GetExtension(TJobResultExt::job_result_ext);
     }
 
     bool hasStderr = false;
-    if (schedulerJobResult.has_has_stderr()) {
-        hasStderr = schedulerJobResult.has_stderr();
+    if (jobResult.has_has_stderr()) {
+        hasStderr = jobResult.has_stderr();
     } else {
-        auto stderrChunkId = FromProto<TChunkId>(schedulerJobResult.stderr_chunk_id());
+        auto stderrChunkId = FromProto<TChunkId>(jobResult.stderr_chunk_id());
         if (stderrChunkId) {
             Host->AddChunkTreesToUnstageList({stderrChunkId}, /*recursive*/ false );
         }
@@ -5180,14 +5182,14 @@ void TOperationControllerBase::OnJobFinished(std::unique_ptr<TJobSummary> summar
     }
 
     bool hasFailContext = false;
-    if (schedulerJobResult.has_has_fail_context()) {
-        hasFailContext = schedulerJobResult.has_fail_context();
+    if (jobResult.has_has_fail_context()) {
+        hasFailContext = jobResult.has_fail_context();
     } else {
-        auto failContextChunkId = FromProto<TChunkId>(schedulerJobResult.fail_context_chunk_id());
+        auto failContextChunkId = FromProto<TChunkId>(jobResult.fail_context_chunk_id());
         hasFailContext = static_cast<bool>(failContextChunkId);
     }
 
-    auto coreInfoCount = schedulerJobResult.core_infos().size();
+    auto coreInfoCount = jobResult.core_infos().size();
 
     auto joblet = GetJoblet(jobId);
     if (!joblet->IsStarted()) {
@@ -7182,9 +7184,9 @@ void TOperationControllerBase::ParseInputQuery(
         /*allowUnversionedUpdateColumns*/ true);
 }
 
-void TOperationControllerBase::WriteInputQueryToJobSpec(TSchedulerJobSpecExt* schedulerJobSpecExt)
+void TOperationControllerBase::WriteInputQueryToJobSpec(TJobSpecExt* jobSpecExt)
 {
-    auto* querySpec = schedulerJobSpecExt->mutable_input_query_spec();
+    auto* querySpec = jobSpecExt->mutable_input_query_spec();
     ToProto(querySpec->mutable_query(), InputQuery->Query);
     querySpec->mutable_query()->set_input_row_limit(std::numeric_limits<i64>::max() / 4);
     querySpec->mutable_query()->set_output_row_limit(std::numeric_limits<i64>::max() / 4);
@@ -7721,23 +7723,23 @@ void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& 
 {
     std::vector<TLegacyDataSlicePtr> dataSliceList;
 
-    const auto& schedulerJobResult = jobSummary.GetSchedulerJobResult();
+    const auto& jobResultExt = jobSummary.GetJobResultExt();
 
     std::vector<TDataSliceDescriptor> unreadDataSliceDescriptors;
     std::vector<TDataSliceDescriptor> readDataSliceDescriptors;
-    if (schedulerJobResult.unread_chunk_specs_size() > 0) {
+    if (jobResultExt.unread_chunk_specs_size() > 0) {
         FromProto(
             &unreadDataSliceDescriptors,
-            schedulerJobResult.unread_chunk_specs(),
-            schedulerJobResult.chunk_spec_count_per_unread_data_slice(),
-            schedulerJobResult.virtual_row_index_per_unread_data_slice());
+            jobResultExt.unread_chunk_specs(),
+            jobResultExt.chunk_spec_count_per_unread_data_slice(),
+            jobResultExt.virtual_row_index_per_unread_data_slice());
     }
-    if (schedulerJobResult.read_chunk_specs_size() > 0) {
+    if (jobResultExt.read_chunk_specs_size() > 0) {
         FromProto(
             &readDataSliceDescriptors,
-            schedulerJobResult.read_chunk_specs(),
-            schedulerJobResult.chunk_spec_count_per_read_data_slice(),
-            schedulerJobResult.virtual_row_index_per_read_data_slice());
+            jobResultExt.read_chunk_specs(),
+            jobResultExt.chunk_spec_count_per_read_data_slice(),
+            jobResultExt.virtual_row_index_per_read_data_slice());
     }
 
     auto extractDataSlice = [&] (const TDataSliceDescriptor& dataSliceDescriptor) {
@@ -7944,11 +7946,11 @@ void TOperationControllerBase::RegisterStderr(const TJobletPtr& joblet, const TJ
 
     const auto& chunkListId = joblet->StderrTableChunkListId;
 
-    const auto& schedulerJobResult = jobSummary.GetSchedulerJobResult();
+    const auto& jobResultExt = jobSummary.GetJobResultExt();
 
-    YT_VERIFY(schedulerJobResult.has_stderr_table_boundary_keys());
+    YT_VERIFY(jobResultExt.has_stderr_table_boundary_keys());
 
-    const auto& boundaryKeys = schedulerJobResult.stderr_table_boundary_keys();
+    const auto& boundaryKeys = jobResultExt.stderr_table_boundary_keys();
     if (boundaryKeys.empty()) {
         return;
     }
@@ -7979,9 +7981,9 @@ void TOperationControllerBase::RegisterCores(const TJobletPtr& joblet, const TJo
 
     const auto& chunkListId = joblet->CoreTableChunkListId;
 
-    const auto& schedulerJobResult = jobSummary.GetSchedulerJobResult();
+    const auto& jobResultExt = jobSummary.GetJobResultExt();
 
-    for (const auto& coreInfo : schedulerJobResult.core_infos()) {
+    for (const auto& coreInfo : jobResultExt.core_infos()) {
         YT_LOG_DEBUG("Core file (JobId: %v, ProcessId: %v, ExecutableName: %v, Size: %v, Error: %v, Cuda: %v)",
             joblet->JobId,
             coreInfo.process_id(),
@@ -7991,10 +7993,10 @@ void TOperationControllerBase::RegisterCores(const TJobletPtr& joblet, const TJo
             coreInfo.cuda());
     }
 
-    if (!schedulerJobResult.has_core_table_boundary_keys()) {
+    if (!jobResultExt.has_core_table_boundary_keys()) {
         return;
     }
-    const auto& boundaryKeys = schedulerJobResult.core_table_boundary_keys();
+    const auto& boundaryKeys = jobResultExt.core_table_boundary_keys();
     if (boundaryKeys.empty()) {
         return;
     }
@@ -8044,7 +8046,7 @@ void TOperationControllerBase::RegisterTeleportChunk(
         YT_VERIFY(chunk->GetRowCount() > 0);
         YT_VERIFY(chunk->GetUniqueKeys() || !table->TableWriterOptions->ValidateUniqueKeys);
 
-        NScheduler::NProto::TOutputResult resultBoundaryKeys;
+        NControllerAgent::NProto::TOutputResult resultBoundaryKeys;
         resultBoundaryKeys.set_empty(false);
         resultBoundaryKeys.set_sorted(true);
         resultBoundaryKeys.set_unique_keys(chunk->GetUniqueKeys());
@@ -9203,7 +9205,7 @@ i64 TOperationControllerBase::GetDataSliceCount() const
 }
 
 void TOperationControllerBase::InitUserJobSpecTemplate(
-    NScheduler::NProto::TUserJobSpec* jobSpec,
+    NControllerAgent::NProto::TUserJobSpec* jobSpec,
     const TUserJobSpecPtr& jobSpecConfig,
     const std::vector<TUserFile>& files,
     const TString& debugArtifactsAccount)
@@ -9363,7 +9365,7 @@ const std::vector<TUserFile>& TOperationControllerBase::GetUserFiles(const TUser
 }
 
 void TOperationControllerBase::InitUserJobSpec(
-    NScheduler::NProto::TUserJobSpec* jobSpec,
+    NControllerAgent::NProto::TUserJobSpec* jobSpec,
     TJobletPtr joblet) const
 {
     VERIFY_INVOKER_AFFINITY(JobSpecBuildInvoker_);
@@ -9433,7 +9435,7 @@ void TOperationControllerBase::InitUserJobSpec(
 }
 
 void TOperationControllerBase::AddStderrOutputSpecs(
-    NScheduler::NProto::TUserJobSpec* jobSpec,
+    NControllerAgent::NProto::TUserJobSpec* jobSpec,
     TJobletPtr joblet) const
 {
     VERIFY_INVOKER_AFFINITY(JobSpecBuildInvoker_);
@@ -9450,7 +9452,7 @@ void TOperationControllerBase::AddStderrOutputSpecs(
 }
 
 void TOperationControllerBase::AddCoreOutputSpecs(
-    NScheduler::NProto::TUserJobSpec* jobSpec,
+    NControllerAgent::NProto::TUserJobSpec* jobSpec,
     TJobletPtr joblet) const
 {
     VERIFY_INVOKER_AFFINITY(JobSpecBuildInvoker_);

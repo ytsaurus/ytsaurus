@@ -1,13 +1,29 @@
 package NYT.NControllerAgent.NProto;
 
+import "yt/ytlib/controller_agent/proto/output_result.proto";
+
 import "yt/ytlib/scheduler/proto/allocation.proto";
+import "yt/ytlib/scheduler/proto/job.proto";
+
+import "yt/ytlib/chunk_client/proto/data_source.proto";
+
+import "yt/library/query/proto/functions_cache.proto";
+import "yt/library/query/proto/query.proto";
 
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
+import "yt_proto/yt/client/node_tracker_client/proto/node_directory.proto";
 
 import "yt_proto/yt/client/chunk_client/proto/data_statistics.proto";
+import "yt_proto/yt/client/chunk_client/proto/chunk_spec.proto";
+import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 
 import "yt_proto/yt/core/misc/proto/error.proto";
 import "yt_proto/yt/core/misc/proto/guid.proto";
+import "yt_proto/yt/core/misc/proto/protobuf_helpers.proto";
+
+import "yt_proto/yt/core/yson/proto/protobuf_interop.proto";
+
+import "yt_proto/yt/core/ytree/proto/attributes.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,6 +92,570 @@ message TJobStatus
     required TTimeStatistics time_statistics = 15;
     optional int64 status_timestamp = 16;
     optional bool job_execution_completed = 17 [default = false];
+}
+
+message TCoreInfo
+{
+    required int32 process_id = 1;
+    required string executable_name = 2;
+    optional uint64 size = 3;
+    optional NYT.NProto.TError error = 4;
+    required int32 core_index = 5;
+    optional int32 thread_id = 6;
+    optional int32 signal = 7;
+    optional string container = 8;
+    optional string datetime = 9;
+    optional bool cuda = 10;
+}
+
+message TFileDescriptor
+{
+    optional string file_name = 3;
+    optional bool executable = 6;
+    optional bytes format = 7 [(NYT.NYson.NProto.yson_string) = true];
+    required NChunkClient.NProto.TDataSource data_source = 8;
+    repeated NYT.NChunkClient.NProto.TChunkSpec chunk_specs = 9;
+    optional bool bypass_artifact_cache = 10;
+    optional bool copy_file = 11;
+}
+
+message TTableBlobSpec
+{
+    required TTableOutputSpec output_table_spec = 1;
+    required bytes blob_table_writer_config = 2 [(NYT.NYson.NProto.yson_string) = true];
+}
+
+message TTmpfsVolume
+{
+    required int64 size = 1;
+    required string path = 2;
+}
+
+message TUserJobMonitoringConfig
+{
+    optional bool enable = 1;
+    optional string job_descriptor = 2;
+    repeated string sensor_names = 3;
+}
+
+message TJobProfilerSpec
+{
+    required int32 binary = 1; // EProfilingBinary
+    required int32 type = 2; // EProfilerType
+    required double profiling_probability = 3;
+    required int32 sampling_frequency = 4;
+    required bool run_external_symbolizer = 5;
+}
+
+// Specification for starting user code during a job.
+message TUserJobSpec
+{
+    // Additional files (tables) to be placed into the sandbox.
+    repeated TFileDescriptor files = 1;
+    repeated TFileDescriptor layers = 34;
+
+    // The user command to be executed.
+    required string shell_command = 2;
+
+    // Input format description (in YSON).
+    required bytes input_format = 3 [(NYT.NYson.NProto.yson_string) = true];
+
+    // Output format description (in YSON).
+    required bytes output_format = 4 [(NYT.NYson.NProto.yson_string) = true];
+
+    // Environment strings (K=V format) for starting user process.
+    repeated string environment = 5;
+
+    // Hard memory limit for user process, in bytes.
+    required int64 memory_limit = 7;
+
+    // Memory size reserved at job launch, in bytes.
+    required int64 memory_reserve = 9;
+
+    // Transaction for creating stderr chunks and input contexts.
+    required NYT.NProto.TGuid debug_output_transaction_id = 8;
+
+    optional bool use_yamr_descriptors = 10 [default = false];
+
+    required int64 max_stderr_size = 11;
+    optional bool upload_stderr_if_completed = 33 [default = true];
+
+    optional bool check_input_fully_consumed = 16 [default = false];
+
+    required int64 custom_statistics_count_limit = 18;
+
+    optional bool include_memory_mapped_files = 21 [default = true];
+
+    optional int64 tmpfs_size = 22;
+    optional string tmpfs_path = 23;
+
+    repeated TTmpfsVolume tmpfs_volumes = 41;
+
+    // COMPAT(gritukan): Drop it when nodes and controller agents
+    // will be fresh enough.
+    optional bool copy_files = 24 [default = false];
+
+    optional string debug_artifacts_account = 25;
+
+    // Time after which job will be failed.
+    optional uint64 job_time_limit = 26;
+
+    optional int32 iops_threshold = 27 [default = 1000];
+    optional int32 iops_throttler_limit = 28;
+
+    optional TTableBlobSpec stderr_table_spec = 29;
+
+    optional TTableBlobSpec core_table_spec = 30;
+    optional bool force_core_dump = 40 [default = false];
+
+    // COMPAT(ignat)
+    optional int64 disk_space_limit = 31;
+    optional int64 inode_limit = 32;
+
+    optional NYT.NScheduler.NProto.TDiskRequest disk_request = 51;
+
+    // Number of requested ports.
+    required int32 port_count = 35;
+
+    // Number of requested ports.
+    optional bool use_porto_memory_tracking = 36;
+
+    // Enables secure vault variables in job shell.
+    optional bool enable_secure_vault_variables_in_job_shell = 37 [default = true];
+
+    optional bool set_container_cpu_limit = 39 [default = false];
+
+    optional int64 prepare_time_limit = 42;
+
+    optional string interruption_signal = 43;
+
+    optional bool signal_root_process_only = 44 [default = false];
+
+    optional bool enable_gpu_layers = 45 [default = true];
+
+    optional string cuda_toolkit_version = 46;
+
+    optional uint32 network_project_id = 47;
+
+    optional int32 enable_porto = 49; // NScheduler::EEnablePorto
+
+    optional bool fail_job_on_core_dump = 50 [default = true];
+
+    optional bool enable_cuda_gpu_core_dump = 52 [default = false];
+
+    optional double container_cpu_limit = 53 [default = 0];
+
+    optional bool make_rootfs_writable = 54 [default = false];
+
+    optional int32 restart_exit_code = 55;
+
+    // Cast Any values from input row stream to Composite
+    // according to schemas from data source directory.
+    optional bool cast_input_any_to_composite = 56 [default = false];
+
+    optional bool use_smaps_memory_tracker = 57 [default = false];
+
+    optional TUserJobMonitoringConfig monitoring_config = 58;
+
+    optional string gpu_check_binary_path = 59;
+
+    // Limit for the number of threads in user job container.
+    optional int64 thread_limit = 60 [default = 1000000];
+
+    repeated string gpu_check_binary_args = 63;
+
+    // The following options must be used only with network projects.
+    // Enables NAT64 - YT-15665.
+    optional bool enable_nat64 = 64;
+
+    // Disables networking inside the job.
+    optional bool disable_network = 67;
+
+    optional bool enable_squashfs = 65;
+
+    // Memory size reserved for job proxy. Used in tests for checking job proxy memory overdraft.
+    optional int64 job_proxy_memory_reserve = 66;
+
+    reserved 38, 48, 61, 62;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TQuerySpec
+{
+    required NYT.NQueryClient.NProto.TQuery query = 1;
+    repeated NYT.NQueryClient.NProto.TExternalFunctionImpl external_functions = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Describes a part of input table(s) to be processed by a job.
+message TTableInputSpec
+{
+    // Table slice descriptors comprising the input.
+    repeated NYT.NChunkClient.NProto.TChunkSpec chunk_specs = 2;
+    repeated int32 chunk_spec_count_per_data_slice = 3;
+    // -1 stands for std::nullopt.
+    repeated int64 virtual_row_index_per_data_slice = 4;
+}
+
+// Defines how to store output from a job into a table.
+message TTableOutputSpec
+{
+    // The chunk list where output chunks must be placed.
+    required NYT.NProto.TGuid chunk_list_id = 2;
+
+    // YSON-serialized writer options obtained from table attributes.
+    required bytes table_writer_options = 6 [(NYT.NYson.NProto.yson_string) = true];
+
+    // YSON-serialized writer config obtained from table attributes.
+    optional bytes table_writer_config = 9 [(NYT.NYson.NProto.yson_string) = true];
+
+    // Timestamp for rows.
+    optional int64 timestamp = 10 [default = 0];
+
+    // Is table dynamic.
+    optional bool dynamic = 11 [default = false];
+
+    // Serialized NTableClient.NProto.TTableSchemaExt with output table schema.
+    required bytes table_schema = 8;
+
+    // Serialized NTableClient.NProto.TTableSchemaExt with stream schemas.
+    repeated bytes stream_schemas = 12;
+}
+
+// Describes a job submitted by a scheduler.
+message TJobSpecExt
+{
+    extend NControllerAgent.NProto.TJobSpec
+    {
+        optional TJobSpecExt job_spec_ext = 100;
+    }
+
+    // NB: Make sure to register all extensions that can appear here in
+    // TClient::DoGetJobSpec to make extension appear in GetJobSpec result.
+    optional NYT.NProto.TExtensionSet extensions = 18;
+
+    // Configuration for IO during job execution.
+    optional bytes io_config = 1 [(NYT.NYson.NProto.yson_string) = true];
+
+    // The transaction used for writing output chunks.
+    optional NYT.NProto.TGuid output_transaction_id = 2;
+
+    // Job input.
+    optional bytes table_reader_options = 19 [(NYT.NYson.NProto.yson_string) = true];
+
+    repeated TTableInputSpec input_table_specs = 3;
+    repeated TTableInputSpec foreign_input_table_specs = 15;
+
+    // Serialized NTableClient.NProto.TTableSchemaExt with stream schemas.
+    repeated bytes input_stream_schemas = 38;
+
+    // Job output.
+    repeated TTableOutputSpec output_table_specs = 4;
+
+    // Maps node ids to descriptors for input chunks.
+    // These nodes may either belong to the local cluster (for most types of jobs)
+    // or to a remote one (for remote copy jobs).
+    // For remote copy jobs, this directory is provided by the scheduler.
+    // For other types of jobs, this directory is provided by Exec Agent at the cluster node.
+    optional NNodeTrackerClient.NProto.TNodeDirectory input_node_directory = 5;
+
+    // Total input uncompressed data size estimate.
+    optional int64 input_data_weight = 6 [default = 0];
+
+    // Total input row count estimate.
+    optional int64 input_row_count = 7 [default = 0];
+
+    // True if data_size and row_count are approximate (e.g. restarted sort jobs).
+    optional bool is_approximate = 9 [default = false];
+
+    optional int64 job_proxy_memory_overcommit_limit = 16;
+
+    // Deprecated = 11
+
+    optional TUserJobSpec user_job_spec = 12;
+
+    optional TQuerySpec input_query_spec = 13;
+
+    optional int64 job_proxy_ref_counted_tracker_log_period = 17 [default = 5];
+
+    optional bool abort_job_if_account_limit_exceeded = 20;
+
+    optional bytes acl = 21 [(NYT.NYson.NProto.yson_string) = true];
+
+    optional bytes job_cpu_monitor_config = 22 [(NYT.NYson.NProto.yson_string) = true];
+
+    optional int64 waiting_job_timeout = 23;
+
+    optional NYT.NProto.TGuid job_competition_id = 24;
+
+    optional string task_name = 25;
+
+    // Index of partition job belongs to. This field is set only in
+    // Sort and MapReduce jobs.
+    optional int32 partition_tag = 26;
+
+    optional string tree_id = 27;
+
+    optional string authenticated_user = 29 [default = "unknown"];
+
+    optional bool is_traced = 30 [default = false];
+
+    optional bytes testing_options = 31 [(NYT.NYson.NProto.yson_string) = true];
+
+    optional NYT.NYTree.NProto.TAttributeDictionary io_tags = 32;
+
+    optional NYT.NProto.TGuid probing_job_competition_id = 33;
+
+    required bool interruptible = 34;
+
+    optional bool allow_cpu_idle_policy = 35 [default = false];
+
+    optional bool enable_prefetching_job_throttler = 36;
+
+    // At most one job profiler is supported for now.
+    repeated TJobProfilerSpec job_profilers = 37;
+
+    reserved 8, 28;
+}
+
+message TJobResultExt
+{
+    extend NControllerAgent.NProto.TJobResult
+    {
+        optional TJobResultExt job_result_ext = 100;
+    }
+
+    // List of output chunks produced by the job.
+    // NB: Only filled when necessary.
+    repeated NYT.NChunkClient.NProto.TChunkSpec output_chunk_specs = 3;
+
+    optional NYT.NProto.TGuid stderr_chunk_id = 4;
+
+    // List of input chunks the job was unable to read.
+    repeated NYT.NProto.TGuid failed_chunk_ids = 5;
+
+    // deprecated = 6;
+    // deprecated = 7;
+
+    optional NYT.NProto.TGuid fail_context_chunk_id = 8;
+
+    // Used for reordering chunks from operations that produce sorted output.
+    repeated TOutputResult output_boundary_keys = 9;
+
+    optional TOutputResult stderr_table_boundary_keys = 10;
+
+    repeated TCoreInfo core_infos = 11;
+    optional TOutputResult core_table_boundary_keys = 12;
+
+    // NB: these fields are used only if job is interrupted.
+    repeated NYT.NChunkClient.NProto.TChunkSpec unread_chunk_specs = 14;
+    repeated int32 chunk_spec_count_per_unread_data_slice = 15;
+    repeated int64 virtual_row_index_per_unread_data_slice = 19;
+    repeated NYT.NChunkClient.NProto.TChunkSpec read_chunk_specs = 16;
+    repeated int32 chunk_spec_count_per_read_data_slice = 17;
+    repeated int64 virtual_row_index_per_read_data_slice = 20;
+
+    // Used to restart completed job in case of interruption.
+    optional bool restart_needed = 18;
+
+    optional bool has_stderr = 21;
+    optional bool has_fail_context = 22;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Map jobs.
+/*
+ * Conceptually map is the simplest operation.
+ * Input consists of a number of tables (or parts thereof).
+ * These tables are merged together into a sequence of rows,
+ * sequence is split into fragments and these fragments
+ * are fed to jobs. Each job runs a given shell command.
+ * The outputs of jobs are collected thus forming a number
+ * of output tables.
+ *
+ * The input spec must contain TUserJobSpec.
+ * The result must contain TSchedulerJobResultExt.
+ */
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Merge jobs.
+/*
+ * A merge job takes a number of chunks sequences (each containing sorted data)
+ * and merges them. The result is split into chunks again.
+ *
+ * The input spec should contain TMergeJobSpecExt.
+ *
+ */
+
+message TMergeJobSpecExt
+{
+    extend NControllerAgent.NProto.TJobSpec
+    {
+        optional TMergeJobSpecExt merge_job_spec_ext = 102;
+    }
+
+    // For EJobType::SortedMerge, contains columns used for comparison.
+    // COMPAT(gritukan)
+    repeated string key_columns = 1;
+
+    // COMPAT(gritukan)
+    optional int32 partition_tag = 2;
+
+    // For EJobType::SortedMerge, used for row comparison.
+    optional NTableClient.NProto.TSortColumnsExt sort_columns = 3;
+}
+
+message TShallowMergeJobSpecExt
+{
+    extend NControllerAgent.NProto.TJobSpec
+    {
+        optional TShallowMergeJobSpecExt shallow_merge_job_spec_ext = 107;
+    }
+
+    optional bool allow_unknown_extensions = 1 [default = false];
+    optional int64 max_block_count = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Partition jobs.
+/*
+ * A partition jobs read the input and scatters the rows into buckets depending
+ * on their keys. When a bucket becomes full, it is written as a block.
+ * Output blocks are marked with |partition_tag| to enable subsequently
+ * started sort jobs to fetch appropriate portions of data.
+ *
+ * The input spec should contain TPartitionJobSpecExt.
+ * The result must contain TSchedulerJobResultExt.
+ *
+ */
+
+message TPartitionJobSpecExt
+{
+    extend NControllerAgent.NProto.TJobSpec
+    {
+        optional TPartitionJobSpecExt partition_job_spec_ext = 103;
+    }
+
+    // Number of partitions.
+    required int32 partition_count = 1;
+
+    // Deprecated = 2.
+    // Deprecated = 3.
+    // Deprecated = 4.
+    // Deprecated = 5.
+
+    // Sort key columns (may be wider than reduce key).
+    // COMPAT(gritukan): Deprecate.
+    required NTableClient.NProto.TKeyColumnsExt sort_key_columns = 6;
+
+    // Size of key prefix used for bucket decision.
+    optional int32 reduce_key_column_count = 7;
+
+    // If empty then THashPartitioner is used.
+    // Otherwise TOrderedPartitioner is used.
+    optional bytes wire_partition_keys = 8;
+
+    // Level of the partition task job belongs to.
+    // Refer to sort_controller.cpp for level description.
+    optional int32 partition_task_level = 9;
+
+    optional bytes wire_partition_lower_bound_prefixes = 10;
+
+    repeated bool partition_lower_bound_inclusivenesses = 11;
+
+    optional NTableClient.NProto.TSortColumnsExt sort_columns = 12;
+
+    optional bool use_sequential_reader = 13 [default = true];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Sort jobs.
+/*
+ * A sort job reads the input chunks, sorts the rows, and then flushes
+ * the rows into a sequence of output chunks.
+ *
+ * The input spec should contain TSortJobSpecExt.
+ *
+ */
+message TSortJobSpecExt
+{
+    extend NControllerAgent.NProto.TJobSpec
+    {
+        optional TSortJobSpecExt sort_job_spec_ext = 104;
+    }
+
+    // TODO(gritukan): This field is useless since key columns can be
+    // obtained from output stream schema. Remove it.
+    repeated string key_columns = 5;
+
+    // Optional, because simple sort jobs don't require partition tag.
+    // COMPAT(gritukan)
+    optional int32 partition_tag = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Reduce jobs.
+/*
+ * "Everything is either a sort or a merge. Reduce is the latter." (c) Pavel Sushin
+ *
+ * The input spec should contain TReduceJobSpecExt.
+ *
+ */
+
+message TReduceJobSpecExt
+{
+    extend NControllerAgent.NProto.TJobSpec
+    {
+        optional TReduceJobSpecExt reduce_job_spec_ext = 105;
+    }
+
+    // Sort by key columns.
+    // COMPAT(gritukan)
+    repeated string key_columns = 1;
+
+    // Reduce by prefix length of key columns.
+    required int32 reduce_key_column_count = 2;
+
+    // COMPAT(gritukan)
+    optional int32 partition_tag = 3;
+
+    // Join by prefix length of secondary key columns.
+    optional int32 join_key_column_count = 4 [default = 0];
+
+    optional NTableClient.NProto.TSortColumnsExt sort_columns = 5;
+
+    optional int64 foreign_table_lookup_keys_threshold = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Remote copy jobs.
+
+message TRemoteCopyJobSpecExt
+{
+    extend NControllerAgent.NProto.TJobSpec
+    {
+        optional TRemoteCopyJobSpecExt remote_copy_job_spec_ext = 106;
+    }
+
+    required bytes connection_config = 1;
+
+    required int32 concurrency = 2;
+
+    required int64 block_buffer_size = 3;
+
+    optional int64 delay_in_copy_chunk = 4;
+
+    optional int64 erasure_chunk_repair_delay = 5;
+
+    optional bool repair_erasure_chunks = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

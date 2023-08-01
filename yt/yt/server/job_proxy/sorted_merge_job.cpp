@@ -21,7 +21,7 @@ namespace NYT::NJobProxy {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
-using namespace NScheduler::NProto;
+using namespace NControllerAgent::NProto;
 using namespace NTransactionClient;
 using namespace NTableClient;
 using namespace NObjectClient;
@@ -45,8 +45,8 @@ public:
     {
         TSimpleJobBase::Initialize();
 
-        YT_VERIFY(SchedulerJobSpecExt_.output_table_specs_size() == 1);
-        const auto& outputSpec = SchedulerJobSpecExt_.output_table_specs(0);
+        YT_VERIFY(JobSpecExt_.output_table_specs_size() == 1);
+        const auto& outputSpec = JobSpecExt_.output_table_specs(0);
 
         auto keyColumns = FromProto<TKeyColumns>(MergeJobSpecExt_.key_columns());
         auto sortColumns = FromProto<TSortColumns>(MergeJobSpecExt_.sort_columns());
@@ -60,9 +60,9 @@ public:
 
         auto nameTable = TNameTable::FromKeyColumns(keyColumns);
 
-        auto dataSourceDirectoryExt = GetProtoExtension<TDataSourceDirectoryExt>(SchedulerJobSpecExt_.extensions());
+        auto dataSourceDirectoryExt = GetProtoExtension<TDataSourceDirectoryExt>(JobSpecExt_.extensions());
         auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
-        auto readerOptions = ConvertTo<NTableClient::TTableReaderOptionsPtr>(TYsonString(SchedulerJobSpecExt_.table_reader_options()));
+        auto readerOptions = ConvertTo<NTableClient::TTableReaderOptionsPtr>(TYsonString(JobSpecExt_.table_reader_options()));
 
         // We must always enable key widening to prevent out of range access of key prefixes in sorted merging/joining readers.
         readerOptions->EnableKeyWidening = true;
@@ -71,7 +71,7 @@ public:
 
         ReaderFactory_ = [=, this, this_ = MakeStrong(this)] (TNameTablePtr /*nameTable*/, const TColumnFilter& /*columnFilter*/) {
             std::vector<ISchemalessMultiChunkReaderPtr> readers;
-            for (const auto& inputSpec : SchedulerJobSpecExt_.input_table_specs()) {
+            for (const auto& inputSpec : JobSpecExt_.input_table_specs()) {
                 auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
 
                 TotalRowCount_ += GetCumulativeRowCount(dataSliceDescriptors);
@@ -102,7 +102,7 @@ public:
                 /*interruptAtKeyEdge*/ false);
         };
 
-        auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
+        auto transactionId = FromProto<TTransactionId>(JobSpecExt_.output_transaction_id());
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         // Right now intermediate data in sort operation doesn't have schema
@@ -117,7 +117,7 @@ public:
         DeserializeFromWireProto(&schema, outputSpec.table_schema());
 
         std::optional<NChunkClient::TDataSink> dataSink;
-        if (auto dataSinkDirectoryExt = FindProtoExtension<TDataSinkDirectoryExt>(SchedulerJobSpecExt_.extensions())) {
+        if (auto dataSinkDirectoryExt = FindProtoExtension<TDataSinkDirectoryExt>(JobSpecExt_.extensions())) {
             auto dataSinkDirectory = FromProto<TDataSinkDirectoryPtr>(*dataSinkDirectoryExt);
             YT_VERIFY(std::ssize(dataSinkDirectory->DataSinks()) == 1);
             dataSink = dataSinkDirectory->DataSinks()[0];
@@ -176,7 +176,7 @@ private:
     i64 GetTotalReaderMemoryLimit() const override
     {
         auto readerMemoryLimit = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader->MaxBufferSize;
-        return readerMemoryLimit * SchedulerJobSpecExt_.input_table_specs_size();
+        return readerMemoryLimit * JobSpecExt_.input_table_specs_size();
     }
 };
 

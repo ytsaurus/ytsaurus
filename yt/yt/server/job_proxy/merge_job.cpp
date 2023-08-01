@@ -8,19 +8,22 @@
 #include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 #include <yt/yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
+
 #include <yt/yt/ytlib/job_proxy/helpers.h>
+
+#include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
+#include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/table_client/name_table.h>
-#include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
-#include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
 
 namespace NYT::NJobProxy {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
-using namespace NScheduler::NProto;
+using namespace NControllerAgent::NProto;
 using namespace NTransactionClient;
 using namespace NTableClient;
 using namespace NObjectClient;
@@ -43,7 +46,7 @@ public:
         : TSimpleJobBase(host)
         , UseParallelReader_(useParallelReader)
     {
-        YT_VERIFY(SchedulerJobSpecExt_.output_table_specs_size() == 1);
+        YT_VERIFY(JobSpecExt_.output_table_specs_size() == 1);
     }
 
     void Initialize() override
@@ -55,8 +58,8 @@ public:
         if (JobSpec_.HasExtension(TMergeJobSpecExt::merge_job_spec_ext)) {
             const auto& mergeJobSpec = JobSpec_.GetExtension(TMergeJobSpecExt::merge_job_spec_ext);
             keyColumns = FromProto<TKeyColumns>(mergeJobSpec.key_columns());
-            if (SchedulerJobSpecExt_.has_partition_tag()) {
-                partitionTag = SchedulerJobSpecExt_.partition_tag();
+            if (JobSpecExt_.has_partition_tag()) {
+                partitionTag = JobSpecExt_.partition_tag();
             } else if (mergeJobSpec.has_partition_tag()) {
                 partitionTag = mergeJobSpec.partition_tag();
             }
@@ -64,16 +67,16 @@ public:
         }
 
         std::vector<TDataSliceDescriptor> dataSliceDescriptors;
-        for (const auto& inputSpec : SchedulerJobSpecExt_.input_table_specs()) {
+        for (const auto& inputSpec : JobSpecExt_.input_table_specs()) {
             auto descriptors = UnpackDataSliceDescriptors(inputSpec);
             dataSliceDescriptors.insert(dataSliceDescriptors.end(), descriptors.begin(), descriptors.end());
         }
 
-        TotalRowCount_ = SchedulerJobSpecExt_.input_row_count();
+        TotalRowCount_ = JobSpecExt_.input_row_count();
 
         auto readerOptions = ConvertTo<TTableReaderOptionsPtr>(TYsonString(
-            SchedulerJobSpecExt_.table_reader_options()));
-        auto dataSourceDirectoryExt = GetProtoExtension<TDataSourceDirectoryExt>(SchedulerJobSpecExt_.extensions());
+            JobSpecExt_.table_reader_options()));
+        auto dataSourceDirectoryExt = GetProtoExtension<TDataSourceDirectoryExt>(JobSpecExt_.extensions());
         auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
 
         NameTable_ = TNameTable::FromKeyColumns(keyColumns);
@@ -98,8 +101,8 @@ public:
                 MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
         };
 
-        auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
-        const auto& outputSpec = SchedulerJobSpecExt_.output_table_specs(0);
+        auto transactionId = FromProto<TTransactionId>(JobSpecExt_.output_transaction_id());
+        const auto& outputSpec = JobSpecExt_.output_table_specs(0);
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         options->CastAnyToComposite = true;
@@ -111,7 +114,7 @@ public:
         auto timestamp = static_cast<TTimestamp>(outputSpec.timestamp());
 
         std::optional<NChunkClient::TDataSink> dataSink;
-        if (auto dataSinkDirectoryExt = FindProtoExtension<TDataSinkDirectoryExt>(SchedulerJobSpecExt_.extensions())) {
+        if (auto dataSinkDirectoryExt = FindProtoExtension<TDataSinkDirectoryExt>(JobSpecExt_.extensions())) {
             auto dataSinkDirectory = FromProto<TDataSinkDirectoryPtr>(*dataSinkDirectoryExt);
             YT_VERIFY(std::ssize(dataSinkDirectory->DataSinks()) == 1);
             dataSink = dataSinkDirectory->DataSinks()[0];

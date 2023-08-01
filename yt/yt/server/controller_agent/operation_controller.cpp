@@ -33,7 +33,6 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NYTAlloc;
 
-using NScheduler::NProto::TSchedulerJobResultExt;
 using NYT::FromProto;
 using NYT::ToProto;
 

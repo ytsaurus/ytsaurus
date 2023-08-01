@@ -1,7 +1,5 @@
 package NYT.NExecNode.NProto;
 
-import "yt/ytlib/scheduler/proto/job.proto";
-
 import "yt/ytlib/controller_agent/proto/job.proto";
 
 import "yt_proto/yt/client/misc/proto/workload.proto";
@@ -105,7 +103,7 @@ message TReqOnJobFinished
     }
     repeated TProfile profiles = 12;
 
-    repeated NYT.NScheduler.NProto.TCoreInfo core_infos = 10;
+    repeated NYT.NControllerAgent.NProto.TCoreInfo core_infos = 10;
 
     reserved 8, 9, 11;
 }

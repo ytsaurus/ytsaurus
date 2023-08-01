@@ -846,17 +846,17 @@ public:
     void InitJobSpecTemplate() override
     {
         JobSpecTemplate_.set_type(static_cast<int>(EJobType::SortedMerge));
-        auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        auto* jobSpecExt = JobSpecTemplate_.MutableExtension(TJobSpecExt::job_spec_ext);
         auto* mergeJobSpecExt = JobSpecTemplate_.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
-        schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).ToString());
+        jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).ToString());
 
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
-            schedulerJobSpecExt->mutable_extensions(),
+            jobSpecExt->mutable_extensions(),
             BuildDataSourceDirectoryFromInputTables(InputTables_));
         SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
-            schedulerJobSpecExt->mutable_extensions(),
+            jobSpecExt->mutable_extensions(),
             BuildDataSinkDirectoryFromOutputTables(OutputTables_));
-        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
+        jobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
 
         ToProto(mergeJobSpecExt->mutable_key_columns(), GetColumnNames(PrimarySortColumns_));
         ToProto(mergeJobSpecExt->mutable_sort_columns(), PrimarySortColumns_);
@@ -1053,14 +1053,14 @@ public:
         YT_VERIFY(!PrimarySortColumns_.empty());
 
         JobSpecTemplate_.set_type(static_cast<int>(GetJobType()));
-        auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).ToString());
+        auto* jobSpecExt = JobSpecTemplate_.MutableExtension(TJobSpecExt::job_spec_ext);
+        jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).ToString());
 
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
-            schedulerJobSpecExt->mutable_extensions(),
+            jobSpecExt->mutable_extensions(),
             BuildDataSourceDirectoryFromInputTables(InputTables_));
         SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
-            schedulerJobSpecExt->mutable_extensions(),
+            jobSpecExt->mutable_extensions(),
             BuildDataSinkDirectoryWithAutoMerge(
                 OutputTables_,
                 AutoMergeEnabled_,
@@ -1068,10 +1068,10 @@ public:
                     ? std::make_optional(GetSpec()->IntermediateDataAccount)
                     : std::nullopt));
 
-        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
+        jobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
 
         InitUserJobSpecTemplate(
-            schedulerJobSpecExt->mutable_user_job_spec(),
+            jobSpecExt->mutable_user_job_spec(),
             Spec_->Reducer,
             UserJobFiles_[Spec_->Reducer],
             Spec_->DebugArtifactsAccount);

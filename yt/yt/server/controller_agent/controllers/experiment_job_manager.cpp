@@ -1,6 +1,8 @@
 #include "experiment_job_manager.h"
 #include "job_info.h"
 
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
+
 namespace NYT::NControllerAgent::NControllers {
 
 using namespace NChunkPools;
@@ -49,7 +51,7 @@ bool TLayerJobExperiment::IsEnabled(
 }
 
 void TLayerJobExperiment::PatchUserJobSpec(
-    NScheduler::NProto::TUserJobSpec* jobSpec,
+    NControllerAgent::NProto::TUserJobSpec* jobSpec,
     const TJobletPtr& joblet) const
 {
     YT_LOG_DEBUG("Switching the job to the probing layer (JobId: %v, Layer: %v)",
@@ -123,7 +125,7 @@ bool TMtnJobExperiment::IsEnabled(
 }
 
 void TMtnJobExperiment::PatchUserJobSpec(
-    NScheduler::NProto::TUserJobSpec* jobSpec,
+    NControllerAgent::NProto::TUserJobSpec* jobSpec,
     const TJobletPtr& joblet) const
 {
     YT_LOG_DEBUG("Switching the job to the probing network project "
@@ -345,7 +347,7 @@ TJobId TExperimentJobManager::GetFailedControlJob() const
 }
 
 void TExperimentJobManager::PatchUserJobSpec(
-    NScheduler::NProto::TUserJobSpec* jobSpec,
+    NControllerAgent::NProto::TUserJobSpec* jobSpec,
     const TJobletPtr& joblet) const
 {
     if (IsEnabled() &&

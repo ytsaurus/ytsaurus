@@ -328,7 +328,7 @@ public:
 
     ui64 NextJobIndex() override;
     void InitUserJobSpecTemplate(
-        NScheduler::NProto::TUserJobSpec* proto,
+        NControllerAgent::NProto::TUserJobSpec* proto,
         const NScheduler::TUserJobSpecPtr& jobSpecConfig,
         const std::vector<TUserFile>& files,
         const TString& debugArtifactsAccount) override;
@@ -715,7 +715,7 @@ protected:
         const TString& queryString,
         const std::optional<NQueryClient::TTableSchema>& schema);
     void WriteInputQueryToJobSpec(
-        NScheduler::NProto::TSchedulerJobSpecExt* schedulerJobSpecExt);
+        NControllerAgent::NProto::TJobSpecExt* jobSpecExt);
     virtual void PrepareInputQuery();
 
     // Completion.
@@ -944,15 +944,15 @@ protected:
 
 
     void InitUserJobSpec(
-        NScheduler::NProto::TUserJobSpec* proto,
+        NControllerAgent::NProto::TUserJobSpec* proto,
         TJobletPtr joblet) const;
 
     void AddStderrOutputSpecs(
-        NScheduler::NProto::TUserJobSpec* jobSpec,
+        NControllerAgent::NProto::TUserJobSpec* jobSpec,
         TJobletPtr joblet) const;
 
     void AddCoreOutputSpecs(
-        NScheduler::NProto::TUserJobSpec* jobSpec,
+        NControllerAgent::NProto::TUserJobSpec* jobSpec,
         TJobletPtr joblet) const;
 
     // Amount of memory reserved for output table writers in job proxy.

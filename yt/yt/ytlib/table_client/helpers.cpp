@@ -12,12 +12,12 @@
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
+
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/yt/ytlib/object_client/helpers.h>
-
-#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/yt/ytlib/table_chunk_format/column_reader_detail.h>
 
@@ -61,7 +61,7 @@ using namespace NFormats;
 using namespace NLogging;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
-using namespace NScheduler::NProto;
+using namespace NControllerAgent::NProto;
 using namespace NTabletClient;
 using namespace NTableChunkFormat;
 using namespace NYTree;

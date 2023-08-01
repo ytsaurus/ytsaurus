@@ -39,8 +39,8 @@ public:
     {
         TSimpleJobBase::Initialize();
 
-        YT_VERIFY(SchedulerJobSpecExt_.output_table_specs_size() == 1);
-        const auto& outputSpec = SchedulerJobSpecExt_.output_table_specs(0);
+        YT_VERIFY(JobSpecExt_.output_table_specs_size() == 1);
+        const auto& outputSpec = JobSpecExt_.output_table_specs(0);
 
         TTableSchemaPtr outputSchema;
         DeserializeFromWireProto(&outputSchema, outputSpec.table_schema());
@@ -48,13 +48,13 @@ public:
         auto keyColumns = outputSchema->GetKeyColumns();
         auto nameTable = TNameTable::FromKeyColumns(keyColumns);
 
-        YT_VERIFY(SchedulerJobSpecExt_.input_table_specs_size() == 1);
-        const auto& inputSpec = SchedulerJobSpecExt_.input_table_specs(0);
+        YT_VERIFY(JobSpecExt_.input_table_specs_size() == 1);
+        const auto& inputSpec = JobSpecExt_.input_table_specs(0);
         auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
-        auto dataSourceDirectoryExt = GetProtoExtension<TDataSourceDirectoryExt>(SchedulerJobSpecExt_.extensions());
+        auto dataSourceDirectoryExt = GetProtoExtension<TDataSourceDirectoryExt>(JobSpecExt_.extensions());
         auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
         auto readerOptions = ConvertTo<TTableReaderOptionsPtr>(TYsonString(
-            SchedulerJobSpecExt_.table_reader_options()));
+            JobSpecExt_.table_reader_options()));
 
         TotalRowCount_ = GetCumulativeRowCount(dataSliceDescriptors);
 
@@ -77,7 +77,7 @@ public:
             return CreateSortingReader(reader, nameTable, keyColumns, outputSchema->ToComparator());
         };
 
-        auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
+        auto transactionId = FromProto<TTransactionId>(JobSpecExt_.output_transaction_id());
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         options->ExplodeOnValidationError = true;
@@ -87,7 +87,7 @@ public:
         auto timestamp = static_cast<TTimestamp>(outputSpec.timestamp());
 
         std::optional<NChunkClient::TDataSink> dataSink = std::nullopt;
-        if (auto dataSinkDirectoryExt = FindProtoExtension<TDataSinkDirectoryExt>(SchedulerJobSpecExt_.extensions())) {
+        if (auto dataSinkDirectoryExt = FindProtoExtension<TDataSinkDirectoryExt>(JobSpecExt_.extensions())) {
             auto dataSinkDirectory = FromProto<TDataSinkDirectoryPtr>(*dataSinkDirectoryExt);
             YT_VERIFY(std::ssize(dataSinkDirectory->DataSinks()) == 1);
             dataSink = dataSinkDirectory->DataSinks()[0];

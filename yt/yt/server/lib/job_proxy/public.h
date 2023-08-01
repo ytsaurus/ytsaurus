@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/ytlib/scheduler/public.h>
+#include <yt/yt/ytlib/controller_agent/public.h>
 
 #include <library/cpp/yt/misc/enum.h>
 

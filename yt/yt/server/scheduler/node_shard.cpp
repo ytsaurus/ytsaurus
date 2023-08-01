@@ -58,7 +58,6 @@ using namespace NYTree;
 using namespace NYson;
 
 using NNodeTrackerClient::TNodeId;
-using NScheduler::NProto::TSchedulerJobResultExt;
 
 using NYT::FromProto;
 using NYT::ToProto;

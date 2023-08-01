@@ -13,8 +13,6 @@
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
-#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
-
 #include <yt/yt/ytlib/table_client/partitioner.h>
 #include <yt/yt/ytlib/table_client/partition_sort_reader.h>
 #include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
@@ -50,7 +48,7 @@ using namespace NJobTrackerClient;
 using namespace NJobTrackerClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
-using namespace NScheduler::NProto;
+using namespace NControllerAgent::NProto;
 using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NYson;
@@ -160,16 +158,16 @@ ISchemalessMultiChunkReaderPtr CreateRegularReader(
     const TClientChunkReadOptions& chunkReadOptions,
     IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
 {
-    const auto& schedulerJobSpecExt = jobSpecHelper->GetSchedulerJobSpecExt();
+    const auto& jobSpecExt = jobSpecHelper->GetJobSpecExt();
     std::vector<TDataSliceDescriptor> dataSliceDescriptors;
-    for (const auto& inputSpec : schedulerJobSpecExt.input_table_specs()) {
+    for (const auto& inputSpec : jobSpecExt.input_table_specs()) {
         auto descriptors = UnpackDataSliceDescriptors(inputSpec);
         dataSliceDescriptors.insert(dataSliceDescriptors.end(), descriptors.begin(), descriptors.end());
     }
 
     auto dataSourceDirectory = jobSpecHelper->GetDataSourceDirectory();
 
-    auto options = ConvertTo<TTableReaderOptionsPtr>(TYsonString(schedulerJobSpecExt.table_reader_options()));
+    auto options = ConvertTo<TTableReaderOptionsPtr>(TYsonString(jobSpecExt.table_reader_options()));
 
     auto createReader = isParallel
         ? CreateSchemalessParallelMultiReader
@@ -356,9 +354,9 @@ public:
 
         std::vector<ISchemalessMultiChunkReaderPtr> primaryReaders;
         nameTable = TNameTable::FromSortColumns(sortColumns);
-        const auto& schedulerJobSpecExt = JobSpecHelper_->GetSchedulerJobSpecExt();
+        const auto& jobSpecExt = JobSpecHelper_->GetJobSpecExt();
         auto options = ConvertTo<TTableReaderOptionsPtr>(TYsonString(
-            schedulerJobSpecExt.table_reader_options()));
+            jobSpecExt.table_reader_options()));
 
         // We must always enable table index to merge rows with the same index in the proper order.
         options->EnableTableIndex = true;
@@ -378,7 +376,7 @@ public:
         // Ff the primary table small, read it out completely into the memory to obtain
         // join keys.
         i64 inputRowCount = 0;
-        for (const auto& inputSpec : schedulerJobSpecExt.input_table_specs()) {
+        for (const auto& inputSpec : jobSpecExt.input_table_specs()) {
             for (const auto& chunkSpec : inputSpec.chunk_specs()) {
                 if (chunkSpec.has_row_count_override()) {
                     inputRowCount += chunkSpec.row_count_override();
@@ -405,15 +403,15 @@ public:
 
         if (reduceJobSpecExt.has_foreign_table_lookup_keys_threshold() &&
             inputRowCount < reduceJobSpecExt.foreign_table_lookup_keys_threshold() &&
-            schedulerJobSpecExt.foreign_input_table_specsSize() > 0)
+            jobSpecExt.foreign_input_table_specsSize() > 0)
         {
-            primaryKeyPrefixes.resize(schedulerJobSpecExt.input_table_specs_size());
+            primaryKeyPrefixes.resize(jobSpecExt.input_table_specs_size());
             i64 primaryRowCount = 0;
             // TODO(orlovorlov): surface it in `yt get-job` output that a preliminary
             // pass was performed.
 
-            for (int i = 0; i < schedulerJobSpecExt.input_table_specs_size(); i++) {
-                const auto& inputSpec = schedulerJobSpecExt.input_table_specs(i);
+            for (int i = 0; i < jobSpecExt.input_table_specs_size(); i++) {
+                const auto& inputSpec = jobSpecExt.input_table_specs(i);
                 auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
                 const auto& tableReaderConfig = JobSpecHelper_->GetJobIOConfig()->TableReader;
                 auto memoryManager = MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize);
@@ -438,14 +436,15 @@ public:
             }
             hintKeyPrefixes = THintKeyPrefixes{DedupRows(joinComparator, std::move(primaryKeyPrefixes))};
 
-            YT_LOG_INFO("Read all keys from primary table in a preliminary pass "
-                        "(EstimatedRowCount: %v, ActualRowCount: %v, DedupedRowCount: %v, "
-                        "NumForeignTables: %v)",
-                        inputRowCount, primaryRowCount, std::ssize(hintKeyPrefixes->HintPrefixes),
-                        schedulerJobSpecExt.foreign_input_table_specsSize());
+            YT_LOG_INFO(
+                "Read all keys from primary table in a preliminary pass "
+                "(EstimatedRowCount: %v, ActualRowCount: %v, DedupedRowCount: %v, "
+                "NumForeignTables: %v)",
+                inputRowCount, primaryRowCount, std::ssize(hintKeyPrefixes->HintPrefixes),
+                jobSpecExt.foreign_input_table_specsSize());
         }
 
-        for (const auto& inputSpec : schedulerJobSpecExt.input_table_specs()) {
+        for (const auto& inputSpec : jobSpecExt.input_table_specs()) {
             // ToDo(psushin): validate that input chunks are sorted.
             auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
             const auto& tableReaderConfig = JobSpecHelper_->GetJobIOConfig()->TableReader;
@@ -470,7 +469,7 @@ public:
 
         std::vector<ISchemalessMultiChunkReaderPtr> foreignReaders;
 
-        for (const auto& inputSpec : schedulerJobSpecExt.foreign_input_table_specs()) {
+        for (const auto& inputSpec : jobSpecExt.foreign_input_table_specs()) {
             auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
 
             const auto& tableReaderConfig = JobSpecHelper_->GetJobIOConfig()->TableReader;
@@ -505,8 +504,8 @@ protected:
     i64 GetTotalReaderMemoryLimit() const override
     {
         auto readerMemoryLimit = JobSpecHelper_->GetJobIOConfig()->TableReader->MaxBufferSize;
-        const auto& schedulerJobSpecExt = JobSpecHelper_->GetSchedulerJobSpecExt();
-        auto readerCount = schedulerJobSpecExt.input_table_specs_size() + schedulerJobSpecExt.foreign_input_table_specs_size();
+        const auto& jobSpecExt = JobSpecHelper_->GetJobSpecExt();
+        auto readerCount = jobSpecExt.input_table_specs_size() + jobSpecExt.foreign_input_table_specs_size();
         return readerMemoryLimit * readerCount;
     }
 
@@ -661,11 +660,11 @@ public:
     {
         YT_VERIFY(nameTable->GetSize() == 0 && columnFilter.IsUniversal());
 
-        const auto& schedulerJobSpecExt = JobSpecHelper_->GetSchedulerJobSpecExt();
+        const auto& jobSpecExt = JobSpecHelper_->GetJobSpecExt();
 
-        YT_VERIFY(schedulerJobSpecExt.input_table_specs_size() == 1);
+        YT_VERIFY(jobSpecExt.input_table_specs_size() == 1);
 
-        const auto& inputSpec = schedulerJobSpecExt.input_table_specs(0);
+        const auto& inputSpec = jobSpecExt.input_table_specs(0);
         auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
         auto dataSourceDirectory = JobSpecHelper_->GetDataSourceDirectory();
 
@@ -683,8 +682,8 @@ public:
         nameTable = TNameTable::FromKeyColumns(keyColumns);
 
         std::optional<int> partitionTag;
-        if (schedulerJobSpecExt.has_partition_tag()) {
-            partitionTag = schedulerJobSpecExt.partition_tag();
+        if (jobSpecExt.has_partition_tag()) {
+            partitionTag = jobSpecExt.partition_tag();
         } else if (reduceJobSpecExt.has_partition_tag()) {
             partitionTag = reduceJobSpecExt.partition_tag();
         }
@@ -700,8 +699,8 @@ public:
             onNetworkReleased,
             dataSourceDirectory,
             std::move(dataSliceDescriptors),
-            schedulerJobSpecExt.input_row_count(),
-            schedulerJobSpecExt.is_approximate(),
+            jobSpecExt.input_row_count(),
+            jobSpecExt.is_approximate(),
             *partitionTag,
             ChunkReadOptions_,
             MultiReaderMemoryManager_);

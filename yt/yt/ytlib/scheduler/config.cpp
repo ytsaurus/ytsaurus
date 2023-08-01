@@ -4,8 +4,11 @@
 
 #include "yt/yt/core/misc/error.h"
 
+#include <yt/yt/ytlib/controller_agent/helpers.h>
+
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
+
 #include <yt/yt/ytlib/scheduler/helpers.h>
-#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/yt/client/security_client/acl.h>
 #include <yt/yt/client/security_client/helpers.h>
@@ -375,13 +378,13 @@ void TTmpfsVolumeConfig::Register(TRegistrar registrar)
     registrar.Parameter("path", &TThis::Path);
 }
 
-void ToProto(NScheduler::NProto::TTmpfsVolume* protoTmpfsVolume, const TTmpfsVolumeConfig& tmpfsVolumeConfig)
+void ToProto(NControllerAgent::NProto::TTmpfsVolume* protoTmpfsVolume, const TTmpfsVolumeConfig& tmpfsVolumeConfig)
 {
     protoTmpfsVolume->set_size(tmpfsVolumeConfig.Size);
     protoTmpfsVolume->set_path(tmpfsVolumeConfig.Path);
 }
 
-void FromProto(TTmpfsVolumeConfig* tmpfsVolumeConfig, const NScheduler::NProto::TTmpfsVolume& protoTmpfsVolume)
+void FromProto(TTmpfsVolumeConfig* tmpfsVolumeConfig, const NControllerAgent::NProto::TTmpfsVolume& protoTmpfsVolume)
 {
     tmpfsVolumeConfig->Size = protoTmpfsVolume.size();
     tmpfsVolumeConfig->Path = protoTmpfsVolume.path();
@@ -489,7 +492,7 @@ void TJobProfilerSpec::Register(TRegistrar registrar)
         .Default(false);
 }
 
-void ToProto(NProto::TJobProfilerSpec* protoJobProfilerSpec, const TJobProfilerSpec& jobProfilerSpec)
+void ToProto(NControllerAgent::NProto::TJobProfilerSpec* protoJobProfilerSpec, const TJobProfilerSpec& jobProfilerSpec)
 {
     protoJobProfilerSpec->set_binary(::NYT::ToProto<int>(jobProfilerSpec.Binary));
     protoJobProfilerSpec->set_type(::NYT::ToProto<int>(jobProfilerSpec.Type));
@@ -498,7 +501,7 @@ void ToProto(NProto::TJobProfilerSpec* protoJobProfilerSpec, const TJobProfilerS
     protoJobProfilerSpec->set_run_external_symbolizer(jobProfilerSpec.RunExternalSymbolizer);
 }
 
-void FromProto(TJobProfilerSpec* jobProfilerSpec, const NProto::TJobProfilerSpec& protoJobProfilerSpec)
+void FromProto(TJobProfilerSpec* jobProfilerSpec, const NControllerAgent::NProto::TJobProfilerSpec& protoJobProfilerSpec)
 {
     jobProfilerSpec->Binary = static_cast<EProfilingBinary>(protoJobProfilerSpec.binary());
     jobProfilerSpec->Type = static_cast<EProfilerType>(protoJobProfilerSpec.type());
@@ -757,7 +760,7 @@ void TOperationSpecBase::Register(TRegistrar registrar)
 
         if (spec->SecureVault) {
             for (const auto& name : spec->SecureVault->GetKeys()) {
-                ValidateEnvironmentVariableName(name);
+                NControllerAgent::ValidateEnvironmentVariableName(name);
             }
         }
 
@@ -1054,7 +1057,7 @@ void TUserJobSpec::Register(TRegistrar registrar)
         spec->UserJobMemoryDigestDefaultValue = std::max(spec->UserJobMemoryDigestLowerBound, spec->UserJobMemoryDigestDefaultValue);
 
         for (const auto& [variableName, _] : spec->Environment) {
-            ValidateEnvironmentVariableName(variableName);
+            NControllerAgent::ValidateEnvironmentVariableName(variableName);
         }
 
         if (!spec->DiskSpaceLimit && spec->InodeLimit) {

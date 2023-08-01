@@ -7,9 +7,9 @@
 #include <yt/yt/library/query/engine_api/evaluator.h>
 #include <yt/yt/library/query/engine_api/config.h>
 
-#include <yt/yt/ytlib/query_client/functions_cache.h>
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
-#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/query_client/functions_cache.h>
 
 #include <yt/yt/ytlib/table_client/key_set.h>
 #include <yt/yt/ytlib/table_client/partitioner.h>
@@ -29,7 +29,7 @@ namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using namespace NScheduler::NProto;
+using namespace NControllerAgent::NProto;
 using namespace NQueryClient;
 using namespace NTableClient;
 using namespace NConcurrency;

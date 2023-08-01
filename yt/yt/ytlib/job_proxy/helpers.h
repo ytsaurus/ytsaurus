@@ -2,7 +2,7 @@
 
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 
-#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/controller_agent/public.h>
 
 #include <yt/yt/ytlib/table_client/partitioner.h>
 #include <yt/yt/ytlib/table_client/schemaful_reader_adapter.h>
@@ -22,14 +22,14 @@ using TSchemalessMultiChunkWriterFactory = std::function<NTableClient::ISchemale
 ////////////////////////////////////////////////////////////////////////////////
 
 void RunQuery(
-    const NScheduler::NProto::TQuerySpec& querySpec,
+    const NControllerAgent::NProto::TQuerySpec& querySpec,
     const NTableClient::TSchemalessReaderFactory& readerFactory,
     const NTableClient::TSchemalessWriterFactory& writerFactory,
     const std::optional<TString>& udfDirectory);
 
-std::vector<NChunkClient::TDataSliceDescriptor> UnpackDataSliceDescriptors(const NScheduler::NProto::TTableInputSpec& inputTableSpec);
+std::vector<NChunkClient::TDataSliceDescriptor> UnpackDataSliceDescriptors(const NControllerAgent::NProto::TTableInputSpec& inputTableSpec);
 
-NTableClient::IPartitionerPtr CreatePartitioner(const NScheduler::NProto::TPartitionJobSpecExt& partitionJobSpecExt);
+NTableClient::IPartitionerPtr CreatePartitioner(const NControllerAgent::NProto::TPartitionJobSpecExt& partitionJobSpecExt);
 
 ////////////////////////////////////////////////////////////////////////////////
 

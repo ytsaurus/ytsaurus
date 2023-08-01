@@ -6,14 +6,15 @@
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
-#include <yt/yt/ytlib/scheduler/proto/output_result.pb.h>
-#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
 #include <yt/yt/client/security_client/acl.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
+
+#include <yt/yt/ytlib/table_client/key_set.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -34,6 +35,7 @@ using namespace NSecurityClient;
 using namespace NScheduler;
 using namespace NTableClient;
 using namespace NTransactionClient;
+using namespace NYson;
 using namespace NYTree;
 using namespace NApi;
 using namespace NLogging;
@@ -42,6 +44,47 @@ using NYT::FromProto;
 using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+    void FromBytes(std::vector<TLegacyOwningKey>* keys, TStringBuf bytes)
+{
+    TKeySetReader reader(TSharedRef::FromString(TString(bytes)));
+    for (auto key : reader.GetKeys()) {
+        keys->push_back(TLegacyOwningKey(key));
+    }
+}
+
+void ToBytes(TString* bytes, const std::vector<TLegacyOwningKey>& keys)
+{
+    auto keySetWriter = New<TKeySetWriter>();
+    for (const auto& key : keys) {
+        keySetWriter->WriteKey(key);
+    }
+    auto serializedKeys = keySetWriter->Finish();
+    *bytes = TString(serializedKeys.begin(), serializedKeys.end());
+}
+
+// TODO(gritukan): Why does not it compile without these helpers?
+void Serialize(const std::vector<TLegacyOwningKey>& keys, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .DoListFor(keys, [] (TFluentList fluent, const TLegacyOwningKey& key) {
+            Serialize(key, fluent.GetConsumer());
+        });
+}
+
+void Deserialize(std::vector<TLegacyOwningKey>& keys, INodePtr node)
+{
+    for (const auto& child : node->AsList()->GetChildren()) {
+        TLegacyOwningKey key;
+        Deserialize(key, child);
+        keys.push_back(key);
+    }
+} // namespace
+
+REGISTER_INTERMEDIATE_PROTO_INTEROP_BYTES_FIELD_REPRESENTATION(NProto::TPartitionJobSpecExt, /*wire_partition_keys*/8, std::vector<TLegacyOwningKey>)
+
+}
 
 TString TrimCommandForBriefSpec(const TString& command)
 {
@@ -91,7 +134,7 @@ void TUserFile::Persist(const TPersistenceContext& context)
 ////////////////////////////////////////////////////////////////////////////////
 
 void BuildFileSpec(
-    NScheduler::NProto::TFileDescriptor* descriptor,
+    NControllerAgent::NProto::TFileDescriptor* descriptor,
     const TUserFile& file,
     bool copyFiles,
     bool enableBypassArtifactCache)
@@ -151,7 +194,7 @@ void BuildFileSpec(
 ////////////////////////////////////////////////////////////////////////////////
 
 void BuildFileSpecs(
-    NScheduler::NProto::TUserJobSpec* jobSpec,
+    NControllerAgent::NProto::TUserJobSpec* jobSpec,
     const std::vector<TUserFile>& files,
     const TUserJobSpecPtr& config,
     bool enableBypassArtifactCache)

@@ -12,6 +12,10 @@ namespace NYT::NControllerAgent {
 
 namespace NProto {
 
+class TCoreInfo;
+class TFileDescriptor;
+class TTmpfsVolume;
+
 class TJobMetrics;
 class TTreeTaggedJobMetrics;
 class TPoolTreeSchedulingTagFilter;
@@ -24,9 +28,24 @@ class TReviveOperationResult;
 class TCommitOperationResult;
 
 class TJobStatus;
+class TJobResultExt;
+class TOutputResult;
+
 class TJobSpec;
+class TJobSpecExt;
+class TUserJobSpec;
+
+class TTableInputSpec;
+class TQuerySpec;
+class TJobProfilerSpec;
+
+class TPartitionJobSpecExt;
 
 } // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TCoreInfos = std::vector<NProto::TCoreInfo>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

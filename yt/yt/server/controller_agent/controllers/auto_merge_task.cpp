@@ -490,9 +490,9 @@ void TAutoMergeTask::InitAutoMergeJobSpecTemplates()
     for (int tableIndex = 0; tableIndex < tableCount; ++tableIndex) {
         TJobSpec jobSpecTemplate;
         jobSpecTemplate.set_type(static_cast<int>(EJobType::UnorderedMerge));
-        auto* schedulerJobSpecExt = jobSpecTemplate
-            .MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        schedulerJobSpecExt->set_table_reader_options(
+        auto* jobSpecExt = jobSpecTemplate
+            .MutableExtension(TJobSpecExt::job_spec_ext);
+        jobSpecExt->set_table_reader_options(
             ConvertToYsonString(
                 CreateTableReaderOptions(autoMergeSpec->JobIO)).ToString());
 
@@ -517,12 +517,12 @@ void TAutoMergeTask::InitAutoMergeJobSpecTemplates()
         dataSinkDirectory->DataSinks().push_back(BuildDataSinkFromOutputTable(outputTable));
 
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
-            schedulerJobSpecExt->mutable_extensions(),
+            jobSpecExt->mutable_extensions(),
             dataSourceDirectory);
         SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
-            schedulerJobSpecExt->mutable_extensions(),
+            jobSpecExt->mutable_extensions(),
             dataSinkDirectory);
-        schedulerJobSpecExt->set_io_config(
+        jobSpecExt->set_io_config(
             ConvertToYsonString(autoMergeSpec->JobIO).ToString());
 
         auto& shallowTemplate = JobSpecTemplates_[tableIndex][EMergeJobType::Shallow];

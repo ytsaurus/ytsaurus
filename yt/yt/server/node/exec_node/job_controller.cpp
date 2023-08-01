@@ -58,11 +58,11 @@ using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
 using namespace NScheduler::NProto::NNode;
 using namespace NScheduler::NProto;
+using namespace NControllerAgent::NProto;
 using namespace NProfiling;
 using namespace NScheduler;
 using namespace NControllerAgent;
 
-using NControllerAgent::NProto::TJobSpec;
 using NNodeTrackerClient::NProto::TNodeResources;
 
 using TControllerAgentConnectorPtr = TControllerAgentConnectorPool::TControllerAgentConnectorPtr;
@@ -462,7 +462,7 @@ public:
         }
 
         for (const auto& job : jobsToRemove) {
-            RemoveJob(job, TReleaseJobFlags{});
+            RemoveJob(job, NControllerAgent::TReleaseJobFlags{});
         }
 
         return AllSet(std::move(jobResourceReleaseFutures))
@@ -630,11 +630,11 @@ private:
 
     NClusterNode::TJobResources BuildJobResources(
         const TNodeResources& nodeResources,
-        const TSchedulerJobSpecExt* schedulerSpec)
+        const TJobSpecExt* jobSpecExt)
     {
         auto resources = FromNodeResources(nodeResources);
-        const auto* userJobSpec = schedulerSpec && schedulerSpec->has_user_job_spec()
-            ? &schedulerSpec->user_job_spec()
+        const auto* userJobSpec = jobSpecExt && jobSpecExt->has_user_job_spec()
+            ? &jobSpecExt->user_job_spec()
             : nullptr;
 
         resources.DiskSpaceRequest = Bootstrap_->GetConfig()->ExecNode->MinRequiredDiskSpace;
@@ -653,14 +653,14 @@ private:
         return resources;
     }
 
-    NClusterNode::TJobResourceAttributes BuildJobResourceAttributes(const TSchedulerJobSpecExt* schedulerSpec)
+    NClusterNode::TJobResourceAttributes BuildJobResourceAttributes(const TJobSpecExt* jobSpecExt)
     {
-        const auto* userJobSpec = schedulerSpec && schedulerSpec->has_user_job_spec()
-            ? &schedulerSpec->user_job_spec()
+        const auto* userJobSpec = jobSpecExt && jobSpecExt->has_user_job_spec()
+            ? &jobSpecExt->user_job_spec()
             : nullptr;
 
         TJobResourceAttributes resourceAttributes;
-        resourceAttributes.AllowCpuIdlePolicy = schedulerSpec->allow_cpu_idle_policy();
+        resourceAttributes.AllowCpuIdlePolicy = jobSpecExt->allow_cpu_idle_policy();
 
         if (userJobSpec) {
             if (userJobSpec->has_disk_request() && userJobSpec->disk_request().has_medium_index()) {
@@ -703,7 +703,7 @@ private:
         }
 
         auto& jobInfo = jobInfoOrError.Value();
-        auto* jobSpecExt = &jobInfo.JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        auto* jobSpecExt = &jobInfo.JobSpec.GetExtension(TJobSpecExt::job_spec_ext);
 
         auto resources = BuildJobResources(resourceLimits, jobSpecExt);
         auto resourceAttributes = BuildJobResourceAttributes(jobSpecExt);
@@ -776,7 +776,7 @@ private:
             }
 
             const auto& jobSpec = job->GetSpec();
-            auto jobSpecExtId = NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext;
+            auto jobSpecExtId = TJobSpecExt::job_spec_ext;
             if (!jobSpec.HasExtension(jobSpecExtId)) {
                 continue;
             }
@@ -1581,7 +1581,7 @@ private:
             jobId,
             jobType);
 
-        auto jobSpecExtId = NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext;
+        auto jobSpecExtId = TJobSpecExt::job_spec_ext;
         auto waitingJobTimeout = Config_->WaitingJobsTimeout;
 
         YT_VERIFY(jobSpec.HasExtension(jobSpecExtId));
@@ -2083,7 +2083,7 @@ private:
                     VERIFY_THREAD_AFFINITY(JobThread);
 
                     if (auto job = weakJob.Lock(); job && !IsJobRemoved(job)) {
-                        RemoveJob(job, TReleaseJobFlags{});
+                        RemoveJob(job, NControllerAgent::TReleaseJobFlags{});
                     } else {
                         YT_LOG_DEBUG(
                             "Delayed remove skipped since job is already removed (JobId: %v)",

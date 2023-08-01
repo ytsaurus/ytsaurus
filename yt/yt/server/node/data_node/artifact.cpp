@@ -7,6 +7,8 @@
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
+
 #include <library/cpp/yt/misc/hash.h>
 
 namespace NYT::NDataNode {
@@ -32,7 +34,7 @@ TArtifactKey::TArtifactKey(TChunkId chunkId)
     *add_chunk_specs() = chunkSpec;
 }
 
-TArtifactKey::TArtifactKey(const NScheduler::NProto::TFileDescriptor& descriptor)
+TArtifactKey::TArtifactKey(const NControllerAgent::NProto::TFileDescriptor& descriptor)
 {
     mutable_data_source()->MergeFrom(descriptor.data_source());
 

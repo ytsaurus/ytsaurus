@@ -28,8 +28,8 @@ public:
         NTableClient::TTypeConversionConfigPtr typeConversionConfig);
     const std::vector<std::unique_ptr<NTableClient::IFlushableValueConsumer>>& GetAllValueConsumers() const;
 
-    void PopulateResult(NScheduler::NProto::TSchedulerJobResultExt* schedulerJobResultExt);
-    void PopulateStderrResult(NScheduler::NProto::TSchedulerJobResultExt* schedulerJobResultExt);
+    void PopulateResult(NControllerAgent::NProto::TJobResultExt* jobResultExt);
+    void PopulateStderrResult(NControllerAgent::NProto::TJobResultExt* jobResultExt);
 
 protected:
     const IJobHostPtr Host_;

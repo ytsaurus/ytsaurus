@@ -7,13 +7,11 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 
-#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
+#include <yt/yt/ytlib/controller_agent/public.h>
 
 #include <yt/yt/ytlib/job_proxy/helpers.h>
 
 #include <yt/yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
-
-#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/yt/ytlib/table_client/schemaful_reader_adapter.h>
 
@@ -42,7 +40,7 @@ public:
     TString GetStderr() override;
     std::optional<TString> GetFailContext() override;
     std::vector<NJobAgent::TJobProfile> GetProfiles() override;
-    const NScheduler::TCoreInfos& GetCoreInfos() const override;
+    const NControllerAgent::TCoreInfos& GetCoreInfos() const override;
     NApi::TPollJobShellResponse PollJobShell(
         const NJobProberClient::TJobShellDescriptor& jobShellDescriptor,
         const NYson::TYsonString& parameters) override;
@@ -89,7 +87,7 @@ public:
 
 protected:
     const NControllerAgent::NProto::TJobSpec& JobSpec_;
-    const NScheduler::NProto::TSchedulerJobSpecExt& SchedulerJobSpecExt_;
+    const NControllerAgent::NProto::TJobSpecExt& JobSpecExt_;
 
     NChunkClient::IMultiReaderMemoryManagerPtr MultiReaderMemoryManager_;
 
@@ -117,7 +115,7 @@ protected:
 
     virtual i64 GetTotalReaderMemoryLimit() const = 0;
 
-    NTableClient::TTableWriterConfigPtr GetWriterConfig(const NScheduler::NProto::TTableOutputSpec& outputSpec);
+    NTableClient::TTableWriterConfigPtr GetWriterConfig(const NControllerAgent::NProto::TTableOutputSpec& outputSpec);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

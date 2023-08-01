@@ -17,8 +17,6 @@
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
-#include <library/cpp/yt/misc/variant.h>
-
 #include <util/generic/cast.h>
 
 namespace NYT::NControllerAgent {
@@ -31,7 +29,7 @@ using namespace NJobTrackerClient;
 
 using NYT::FromProto;
 using NYT::ToProto;
-using NScheduler::NProto::TSchedulerJobResultExt;
+using NControllerAgent::NProto::TJobResultExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -149,25 +147,25 @@ const NProto::TJobResult& TJobSummary::GetJobResult() const
     return *Result;
 }
 
-TSchedulerJobResultExt& TJobSummary::GetSchedulerJobResult()
+TJobResultExt& TJobSummary::GetJobResultExt()
 {
     YT_VERIFY(Result);
-    YT_VERIFY(Result->HasExtension(TSchedulerJobResultExt::job_result_ext));
-    return *Result->MutableExtension(TSchedulerJobResultExt::job_result_ext);
+    YT_VERIFY(Result->HasExtension(TJobResultExt::job_result_ext));
+    return *Result->MutableExtension(TJobResultExt::job_result_ext);
 }
 
-const TSchedulerJobResultExt& TJobSummary::GetSchedulerJobResult() const
+const TJobResultExt& TJobSummary::GetJobResultExt() const
 {
     YT_VERIFY(Result);
-    YT_VERIFY(Result->HasExtension(TSchedulerJobResultExt::job_result_ext));
-    return Result->GetExtension(TSchedulerJobResultExt::job_result_ext);
+    YT_VERIFY(Result->HasExtension(TJobResultExt::job_result_ext));
+    return Result->GetExtension(TJobResultExt::job_result_ext);
 }
 
-const TSchedulerJobResultExt* TJobSummary::FindSchedulerJobResult() const
+const TJobResultExt* TJobSummary::FindJobResultExt() const
 {
     YT_VERIFY(Result);
-    return Result->HasExtension(TSchedulerJobResultExt::job_result_ext)
-        ? &Result->GetExtension(TSchedulerJobResultExt::job_result_ext)
+    return Result->HasExtension(TJobResultExt::job_result_ext)
+        ? &Result->GetExtension(TJobResultExt::job_result_ext)
         : nullptr;
 }
 

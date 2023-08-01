@@ -31,7 +31,7 @@
 
 #include <yt/yt/ytlib/job_proxy/public.h>
 
-#include <yt/yt/ytlib/scheduler/helpers.h>
+#include <yt/yt/ytlib/scheduler/public.h>
 
 #include <yt/yt/core/logging/log.h>
 
@@ -154,7 +154,7 @@ public:
 
     void AddProfile(NJobAgent::TJobProfile value);
 
-    void SetCoreInfos(NScheduler::TCoreInfos value);
+    void SetCoreInfos(NControllerAgent::TCoreInfos value);
 
     const NJobAgent::TChunkCacheStatistics& GetChunkCacheStatistics() const;
 
@@ -178,7 +178,7 @@ public:
 
     std::optional<TString> GetFailContext();
 
-    const NScheduler::TCoreInfos& GetCoreInfos();
+    const NControllerAgent::TCoreInfos& GetCoreInfos();
 
     NApi::TPollJobShellResponse PollJobShell(
         const NJobProberClient::TJobShellDescriptor& jobShellDescriptor,
@@ -246,8 +246,8 @@ private:
     const NChunkClient::TTrafficMeterPtr TrafficMeter_;
 
     NControllerAgent::NProto::TJobSpec JobSpec_;
-    const NScheduler::NProto::TSchedulerJobSpecExt* const SchedulerJobSpecExt_;
-    const NScheduler::NProto::TUserJobSpec* const UserJobSpec_;
+    const NControllerAgent::NProto::TJobSpecExt* const JobSpecExt_;
+    const NControllerAgent::NProto::TUserJobSpec* const UserJobSpec_;
     const NJobProxy::TJobTestingOptionsPtr JobTestingOptions_;
 
     const bool Interruptible_;
@@ -264,7 +264,7 @@ private:
     std::optional<TString> Stderr_;
     std::optional<TString> FailContext_;
     std::vector<NJobAgent::TJobProfile> Profiles_;
-    NScheduler::TCoreInfos CoreInfos_;
+    NControllerAgent::TCoreInfos CoreInfos_;
 
     bool InterruptionRequested_ = false;
     NConcurrency::TDelayedExecutorCookie InterruptionTimeoutCookie_;
@@ -281,7 +281,7 @@ private:
     TExecAttributes ExecAttributes_;
 
     std::optional<TError> Error_;
-    std::optional<NScheduler::NProto::TSchedulerJobResultExt> JobResultExtension_;
+    std::optional<NControllerAgent::NProto::TJobResultExt> JobResultExtension_;
 
     std::optional<TInstant> PrepareTime_;
     std::optional<TInstant> CopyTime_;
@@ -379,7 +379,7 @@ private:
 
     void DoSetResult(
         TError error,
-        std::optional<NScheduler::NProto::TSchedulerJobResultExt> jobResultExtension,
+        std::optional<NControllerAgent::NProto::TJobResultExt> jobResultExtension,
         bool receivedFromJobProxy);
 
     bool HandleFinishingPhase();
@@ -497,7 +497,7 @@ private:
 
     void Finalize(
         TError error,
-        std::optional<NScheduler::NProto::TSchedulerJobResultExt> jobResultExtension,
+        std::optional<NControllerAgent::NProto::TJobResultExt> jobResultExtension,
         bool byJobProxyCompletion);
 
     void Finalize(TError error);

@@ -8,13 +8,11 @@
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 
-#include <yt/yt/ytlib/scheduler/public.h>
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
 #include <yt/yt/ytlib/job_proxy/private.h>
 
 #include <yt/yt/ytlib/job_tracker_client/proto/job.pb.h>
-
-#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/yt/core/ytree/convert.h>
 
@@ -31,7 +29,8 @@ using namespace NChunkClient::NProto;
 using namespace NControllerAgent::NProto;
 using namespace NNodeTrackerClient;
 using namespace NScheduler;
-using namespace NScheduler::NProto;
+using namespace NControllerAgent;
+using namespace NControllerAgent::NProto;
 using namespace NYson;
 using namespace NYTree;
 
@@ -48,14 +47,14 @@ public:
     TJobSpecHelper(const TJobSpec& jobSpec)
         : JobSpec_(jobSpec)
     {
-        const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        JobIOConfig_ = ConvertTo<TJobIOConfigPtr>(TYsonString(schedulerJobSpecExt.io_config()));
-        if (schedulerJobSpecExt.has_testing_options()) {
-            JobTestingOptions_ = ConvertTo<TJobTestingOptionsPtr>(TYsonString(schedulerJobSpecExt.testing_options()));
+        const auto& jobSpecExt = JobSpec_.GetExtension(TJobSpecExt::job_spec_ext);
+        JobIOConfig_ = ConvertTo<TJobIOConfigPtr>(TYsonString(jobSpecExt.io_config()));
+        if (jobSpecExt.has_testing_options()) {
+            JobTestingOptions_ = ConvertTo<TJobTestingOptionsPtr>(TYsonString(jobSpecExt.testing_options()));
         } else {
             JobTestingOptions_ = New<TJobTestingOptions>();
         }
-        auto dataSourceDirectoryExt = FindProtoExtension<TDataSourceDirectoryExt>(GetSchedulerJobSpecExt().extensions());
+        auto dataSourceDirectoryExt = FindProtoExtension<TDataSourceDirectoryExt>(GetJobSpecExt().extensions());
         if (dataSourceDirectoryExt) {
             YT_LOG_DEBUG("Data source directory extension received\n%v", dataSourceDirectoryExt->DebugString());
             DataSourceDirectory_ = FromProto<TDataSourceDirectoryPtr>(*dataSourceDirectoryExt);
@@ -82,9 +81,9 @@ public:
         return JobTestingOptions_;
     }
 
-    const TSchedulerJobSpecExt& GetSchedulerJobSpecExt() const override
+    const TJobSpecExt& GetJobSpecExt() const override
     {
-        return JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        return JobSpec_.GetExtension(TJobSpecExt::job_spec_ext);
     }
 
     const TDataSourceDirectoryPtr& GetDataSourceDirectory() const override

@@ -25,7 +25,7 @@
 
 #include <yt/yt/ytlib/object_client/public.h>
 
-#include <yt/yt/ytlib/scheduler/public.h>
+#include <yt/yt/ytlib/controller_agent/public.h>
 
 namespace NYT::NTableClient {
 
@@ -71,7 +71,7 @@ TColumnFilter CreateColumnFilter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NScheduler::NProto::TOutputResult GetWrittenChunksBoundaryKeys(
+NControllerAgent::NProto::TOutputResult GetWrittenChunksBoundaryKeys(
     const ISchemalessMultiChunkWriterPtr& writer);
 
 std::pair<TLegacyOwningKey, TLegacyOwningKey> GetChunkBoundaryKeys(

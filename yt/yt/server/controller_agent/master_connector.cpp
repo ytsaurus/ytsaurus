@@ -31,8 +31,6 @@
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/yt/ytlib/scheduler/helpers.h>
-
 #include <yt/yt/ytlib/security_client/public.h>
 
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
@@ -1121,7 +1119,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        NScheduler::SaveJobFiles(Bootstrap_->GetClient(), operationId, files);
+        NControllerAgent::SaveJobFiles(Bootstrap_->GetClient(), operationId, files);
     }
 
     void BuildSnapshot()

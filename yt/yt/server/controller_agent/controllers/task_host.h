@@ -56,7 +56,7 @@ struct ITaskHost
 
     // TODO(max42): split this function into purely controller part and task part.
     virtual void InitUserJobSpecTemplate(
-        NScheduler::NProto::TUserJobSpec* proto,
+        NControllerAgent::NProto::TUserJobSpec* proto,
         const NScheduler::TUserJobSpecPtr& jobSpecConfig,
         const std::vector<TUserFile>& files,
         const TString& debugArtifactsAccount) = 0;

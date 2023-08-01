@@ -2,8 +2,9 @@
 
 #include "private.h"
 
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
+
 #include <yt/yt/ytlib/scheduler/config.h>
-#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/yt/library/process/subprocess.h>
 
@@ -31,9 +32,9 @@ class TJobProfiler
     : public IJobProfiler
 {
 public:
-    explicit TJobProfiler(const NScheduler::NProto::TSchedulerJobSpecExt* schedulerJobSpecExt)
+    explicit TJobProfiler(const NControllerAgent::NProto::TJobSpecExt* jobSpecExt)
     {
-        for (const auto& protoProfilerSpec : schedulerJobSpecExt->job_profilers()) {
+        for (const auto& protoProfilerSpec : jobSpecExt->job_profilers()) {
             auto profilerSpec = New<TJobProfilerSpec>();
             FromProto(profilerSpec.Get(), protoProfilerSpec);
             InitializeProfiler(profilerSpec);
@@ -257,9 +258,9 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IJobProfiler> CreateJobProfiler(
-    const NScheduler::NProto::TSchedulerJobSpecExt* schedulerJobSpecExt)
+    const NControllerAgent::NProto::TJobSpecExt* jobSpecExt)
 {
-    return std::make_unique<TJobProfiler>(schedulerJobSpecExt);
+    return std::make_unique<TJobProfiler>(jobSpecExt);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
