@@ -59,6 +59,7 @@ private:
     NConcurrency::TPeriodicExecutorPtr OperationIdUpdateExecutor_;
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, OperationIdLock_);
     THashMap<TString, NScheduler::TOperationId> AliasToOperationId_;
+    std::atomic<bool> AliasToOperationIdInitialized_ = false;
 
     void AdjustQueryCount(const TString& user, int delta);
 

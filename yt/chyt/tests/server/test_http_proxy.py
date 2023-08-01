@@ -68,7 +68,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
     @authors("dakovalkov", "gudqeit")
     @pytest.mark.parametrize("discovery_version", [1, 2])
     @pytest.mark.parametrize("has_alias", [True, False])
-    def test_http_proxy(self, discovery_version, has_alias):
+    def test_http_proxy_simple(self, discovery_version, has_alias):
         patch = {
             "yt": {
                 "discovery": {

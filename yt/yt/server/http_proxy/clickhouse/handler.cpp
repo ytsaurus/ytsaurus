@@ -1061,10 +1061,6 @@ TClickHouseHandler::TClickHouseHandler(TBootstrap* bootstrap)
 void TClickHouseHandler::Start()
 {
     OperationIdUpdateExecutor_->Start();
-
-    auto future = OperationIdUpdateExecutor_->GetExecutedEvent();
-    OperationIdUpdateExecutor_->ScheduleOutOfBand();
-    WaitFor(future).ThrowOnError();
 }
 
 void TClickHouseHandler::HandleRequest(
@@ -1174,10 +1170,18 @@ void TClickHouseHandler::UpdateOperationIds()
         auto guard = WriterGuard(OperationIdLock_);
         AliasToOperationId_.swap(aliasToOperationId);
     }
+
+    AliasToOperationIdInitialized_ = true;
 }
 
 TOperationId TClickHouseHandler::GetOperationId(const TString& alias) const
 {
+    if (!AliasToOperationIdInitialized_) {
+        auto future = OperationIdUpdateExecutor_->GetExecutedEvent();
+        OperationIdUpdateExecutor_->ScheduleOutOfBand();
+        WaitForFast(future).ThrowOnError();
+    }
+
     auto guard = ReaderGuard(OperationIdLock_);
     auto it = AliasToOperationId_.find(alias);
     return (it != AliasToOperationId_.end()) ? it->second : TOperationId();
