@@ -5,6 +5,7 @@
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/client/api/table_reader.h>
+#include <yt/yt/client/api/client.h>
 
 #include <yt/yt/client/ypath/rich.h>
 
@@ -87,39 +88,22 @@ TYqlRowset BuildRowset(
         table = "//" + table;
     }
     auto client = clientDirectory->GetClientOrThrow(cluster);
-    TRichYPath path(table);
-    if (references->Columns) {
-        path.SetColumns(*references->Columns);
-    }
-    TReadLimit upperReadLimit;
-    upperReadLimit.SetRowIndex(rowCountLimit + 1);
-    path.SetRanges({TReadRange({}, upperReadLimit)});
 
-    YT_LOG_DEBUG("Opening reader (Path: %v)", path);
-
-    auto reader = WaitFor(client->CreateTableReader(path))
-        .ValueOrThrow();
-
-    auto targetSchema = reader->GetTableSchema()->Filter(references->Columns);
-    auto targetNameTable = TNameTable::FromSchema(*targetSchema);
-    auto sourceNameTable = reader->GetNameTable();
-
-    YT_LOG_DEBUG("Reading and reordering rows (TargetSchema: %v)", targetSchema);
-
+    TTableSchemaPtr targetSchema;
+    TNameTablePtr targetNameTable;
+    TNameTablePtr sourceNameTable;
+    std::vector<TUnversionedRow> resultRows;
     std::vector<int> sourceIdToTargetId;
-
     auto rowBuffer = New<TRowBuffer>();
-    std::vector<TUnversionedRow> rows;
-    while (auto batch = reader->Read()) {
-        if (batch->IsEmpty()) {
-            WaitFor(reader->GetReadyEvent())
-                .ThrowOnError();
-        }
-        for (const auto& row : batch->MaterializeRows()) {
+
+    auto reorderAndSaveRows = [&] (TRange<TUnversionedRow> rows) {
+        for (const auto& row : rows) {
             if (!row) {
-                rows.push_back(row);
+                resultRows.push_back(row);
                 continue;
             }
+
+            std::vector<TUnversionedValue> values(targetNameTable->GetSize());
             auto reorderedRow = rowBuffer->AllocateUnversioned(targetNameTable->GetSize());
             for (int index = 0; index < static_cast<int>(reorderedRow.GetCount()); ++index) {
                 reorderedRow[index] = MakeUnversionedSentinelValue(EValueType::Null, index);
@@ -128,25 +112,76 @@ TYqlRowset BuildRowset(
                 auto targetId = VectorAtOr(sourceIdToTargetId, value.Id, /*defaultValue*/ -1);
                 if (targetId == -1) {
                     auto name = sourceNameTable->GetName(value.Id);
-                    targetId = targetNameTable->GetId(name);
+                    auto optionalTargetId = targetNameTable->FindId(name);
+                    if (!optionalTargetId) {
+                        continue;
+                    }
+
+                    targetId = *optionalTargetId;
                     AssignVectorAt(sourceIdToTargetId, value.Id, targetId, /*defaultValue*/ -1);
                 }
                 YT_VERIFY(0 <= targetId && targetId < targetNameTable->GetSize());
                 reorderedRow[targetId] = rowBuffer->CaptureValue(value);
                 reorderedRow[targetId].Id = targetId;
             }
-            rows.push_back(reorderedRow);
+            resultRows.push_back(reorderedRow);
+        }
+    };
+
+    bool isDynamicTable = ConvertTo<bool>(
+        WaitFor(client->GetNode(table + "/@dynamic"))
+            .ValueOrThrow());
+
+    if (isDynamicTable) {
+        YT_LOG_DEBUG("Selecting dynamic table rows (Table: %v)", table);
+
+        auto selectResult = WaitFor(client->SelectRows(Format("* from [%v] limit %v", table, rowCountLimit + 1)))
+            .ValueOrThrow();
+        targetSchema = selectResult.Rowset->GetSchema()->Filter(references->Columns);
+        targetNameTable = TNameTable::FromSchema(*targetSchema);
+        sourceNameTable = selectResult.Rowset->GetNameTable();
+
+        YT_LOG_DEBUG("Reading and reordering rows (TargetSchema: %v)", targetSchema);
+
+        reorderAndSaveRows(selectResult.Rowset->GetRows());
+    } else {
+        TRichYPath path(table);
+        if (references->Columns) {
+            path.SetColumns(*references->Columns);
+        }
+        TReadLimit upperReadLimit;
+        upperReadLimit.SetRowIndex(rowCountLimit + 1);
+        path.SetRanges({TReadRange({}, upperReadLimit)});
+
+        YT_LOG_DEBUG("Opening static table reader (Path: %v)", path);
+
+        auto reader = WaitFor(client->CreateTableReader(path))
+            .ValueOrThrow();
+
+        targetSchema = reader->GetTableSchema()->Filter(references->Columns);
+        targetNameTable = TNameTable::FromSchema(*targetSchema);
+        sourceNameTable = reader->GetNameTable();
+
+        YT_LOG_DEBUG("Reading and reordering rows (TargetSchema: %v)", targetSchema);
+
+        while (auto batch = reader->Read()) {
+            if (batch->IsEmpty()) {
+                WaitFor(reader->GetReadyEvent())
+                    .ThrowOnError();
+            }
+            reorderAndSaveRows(batch->MaterializeRows());
         }
     }
+
     bool incomplete = false;
-    if (std::ssize(rows) > rowCountLimit) {
-        rows.resize(rowCountLimit);
+    if (std::ssize(resultRows) > rowCountLimit) {
+        resultRows.resize(rowCountLimit);
         incomplete = true;
     }
-    YT_LOG_DEBUG("Result read (RowCount: %v, Incomplete: %v, ResultIndex: %v)", rows.size(), incomplete, resultIndex);
+    YT_LOG_DEBUG("Result read (RowCount: %v, Incomplete: %v, ResultIndex: %v)", resultRows.size(), incomplete, resultIndex);
     auto wireWriter = CreateWireProtocolWriter();
     wireWriter->WriteTableSchema(*targetSchema);
-    wireWriter->WriteSchemafulRowset(rows);
+    wireWriter->WriteSchemafulRowset(resultRows);
     auto refs = wireWriter->Finish();
     struct TYqlRefMergeTag {};
     return {.WireRowset = MergeRefsToRef<TYqlRefMergeTag>(refs), .Incomplete = incomplete};
