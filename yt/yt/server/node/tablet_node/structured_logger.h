@@ -117,6 +117,12 @@ struct IPerTabletStructuredLogger
         bool overwrite,
         TTransactionId transactionId) = 0;
 
+    virtual void OnTabletMounted() = 0;
+    virtual void OnTabletUnmounted() = 0;
+
+    virtual void OnTabletFrozen() = 0;
+    virtual void OnTabletUnfrozen(const std::vector<TDynamicStoreId>& dynamicStoreIds) = 0;
+
     virtual void OnPartitionStateChanged(const TPartition* partition) = 0;
     virtual void OnStoreStateChanged(const IStorePtr& store) = 0;
     virtual void OnHunkChunkStateChanged(const THunkChunkPtr& hunkChunk) = 0;

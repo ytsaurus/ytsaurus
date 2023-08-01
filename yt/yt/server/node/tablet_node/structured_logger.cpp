@@ -202,7 +202,9 @@ public:
             .Item("protocol_version").Value(ProtocolVersion)
             .Item("tablet_id").Value(Tablet_->GetId())
             .Item("table_id").Value(Tablet_->GetTableId())
+            .Item("table_path").Value(Tablet_->GetTablePath())
             .Item("state").Value(Tablet_->GetState())
+            .Item("mount_revision").Value(Tablet_->GetMountRevision())
             .DoIf(Tablet_->IsPhysicallySorted(), [&] (auto fluent) {
                 fluent
                     .Item("pivot_key").Value(Tablet_->GetPivotKey())
@@ -383,6 +385,29 @@ public:
                 })
             .Item("overwrite").Value(overwrite)
             .Item("transaction_id").Value(transactionId);
+    }
+
+    void OnTabletMounted() override
+    {
+        LogEvent("mount")
+            .Item("mount_revision").Value(Tablet_->GetMountRevision());
+    }
+
+    void OnTabletUnmounted() override
+    {
+        LogEvent("unmount")
+            .Item("mount_revision").Value(Tablet_->GetMountRevision());
+    }
+
+    void OnTabletFrozen() override
+    {
+        LogEvent("freeze");
+    }
+
+    void OnTabletUnfrozen(const std::vector<TDynamicStoreId>& dynamicStoreIds) override
+    {
+        LogEvent("unfreeze")
+            .Item("allocated_dynamic_store_ids").Value(dynamicStoreIds);
     }
 
     void OnPartitionStateChanged(const TPartition* partition) override

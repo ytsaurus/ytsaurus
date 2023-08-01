@@ -1219,6 +1219,7 @@ private:
             PostMasterMessage(tablet, response, /*forceCellMailbox*/ true);
         }
 
+        tablet->GetStructuredLogger()->OnTabletMounted();
         tablet->GetStructuredLogger()->OnFullHeartbeat();
 
         if (!IsRecovery()) {
@@ -1438,6 +1439,9 @@ private:
 
         UpdateTabletSnapshot(tablet);
 
+        auto dynamicStoreIds = FromProto<std::vector<TDynamicStoreId>>(request->dynamic_store_ids());
+        tablet->GetStructuredLogger()->OnTabletUnfrozen(dynamicStoreIds);
+
         TRspUnfreezeTablet response;
         ToProto(response.mutable_tablet_id(), tabletId);
         PostMasterMessage(tablet, response);
@@ -1629,6 +1633,8 @@ private:
                     PostTableReplicaStatistics(tablet, replicaInfo);
                 }
 
+                tablet->GetStructuredLogger()->OnTabletUnmounted();
+
                 TRspUnmountTablet response;
                 ToProto(response.mutable_tablet_id(), tabletId);
                 *response.mutable_mount_hint() = tablet->GetMountHint();
@@ -1668,6 +1674,8 @@ private:
 
                 YT_LOG_INFO("Tablet frozen (%v)",
                     tablet->GetLoggingTag());
+
+                tablet->GetStructuredLogger()->OnTabletFrozen();
 
                 TRspFreezeTablet response;
                 ToProto(response.mutable_tablet_id(), tabletId);
