@@ -5259,39 +5259,36 @@ void TOperationControllerBase::OnJobFinished(std::unique_ptr<TJobSummary> summar
 {
     auto jobId = summary->Id;
 
-    // TODO(max42): historically, this code accessed a default-constructed scheduler job result extension
-    // in case when job summary missed it or even missed job result. We keep it as is, but this is a terrible
-    // behavior that should be refactored.
-    // const auto& schedulerJobResult = summary->GetSchedulerJobResult();
-    TSchedulerJobResultExt schedulerJobResult;
-    if (summary->Result) {
-        schedulerJobResult = summary->GetJobResult().GetExtension(TSchedulerJobResultExt::job_result_ext);
-    }
-
-    bool hasStderr = false;
-    if (schedulerJobResult.has_has_stderr()) {
-        hasStderr = schedulerJobResult.has_stderr();
-    } else {
-        auto stderrChunkId = FromProto<TChunkId>(schedulerJobResult.stderr_chunk_id());
-        if (stderrChunkId) {
-            Host->AddChunkTreesToUnstageList({stderrChunkId}, /*recursive*/ false );
-        }
-        hasStderr = static_cast<bool>(stderrChunkId);
-    }
-
-    bool hasFailContext = false;
-    if (schedulerJobResult.has_has_fail_context()) {
-        hasFailContext = schedulerJobResult.has_fail_context();
-    } else {
-        auto failContextChunkId = FromProto<TChunkId>(schedulerJobResult.fail_context_chunk_id());
-        hasFailContext = static_cast<bool>(failContextChunkId);
-    }
-
-    auto coreInfoCount = schedulerJobResult.core_infos().size();
-
     auto joblet = GetJoblet(jobId);
     if (!joblet->IsStarted()) {
         return;
+    }
+
+    bool hasStderr = false;
+    bool hasFailContext = false;
+    int coreInfoCount = 0;
+
+    if (summary->Result) {
+        const auto& jobResultExtension = summary->GetJobResult().GetExtension(TSchedulerJobResultExt::job_result_ext);
+
+        if (jobResultExtension.has_has_stderr()) {
+            hasStderr = jobResultExtension.has_stderr();
+        } else {
+            auto stderrChunkId = FromProto<TChunkId>(jobResultExtension.stderr_chunk_id());
+            if (stderrChunkId) {
+                Host->AddChunkTreesToUnstageList({stderrChunkId}, /*recursive*/ false);
+            }
+            hasStderr = static_cast<bool>(stderrChunkId);
+        }
+
+        if (jobResultExtension.has_has_fail_context()) {
+            hasFailContext = jobResultExtension.has_fail_context();
+        } else {
+            auto failContextChunkId = FromProto<TChunkId>(jobResultExtension.fail_context_chunk_id());
+            hasFailContext = static_cast<bool>(failContextChunkId);
+        }
+
+        coreInfoCount = jobResultExtension.core_infos().size();
     }
 
     ReportControllerStateToArchive(joblet, summary->State);
