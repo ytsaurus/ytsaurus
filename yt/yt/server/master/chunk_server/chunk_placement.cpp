@@ -976,7 +976,7 @@ int TChunkPlacement::GetMaxReplicasPerRack(
             result = std::min(result, config->MaxJournalReplicasPerRack);
             break;
         case EObjectType::ErasureJournalChunk:
-            result = std::min({result, config->MaxJournalReplicasPerRack, config->MaxErasureReplicasPerRack});
+            result = std::min(result, config->MaxErasureJournalReplicasPerRack);
             break;
         default:
             YT_ABORT();

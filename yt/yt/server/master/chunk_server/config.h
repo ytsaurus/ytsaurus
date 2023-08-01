@@ -34,6 +34,8 @@ public:
     int MaxJournalReplicasPerRack;
     //! Same as #MaxReplicasPerRack but only applies to erasure chunks.
     int MaxErasureReplicasPerRack;
+    //! Same as #MaxReplicasPerRack but only applies to erasure journal chunks.
+    int MaxErasureJournalReplicasPerRack;
 
     //! Enables storing more than one chunk part per node.
     //! Should only be used in local mode to enable writing erasure chunks in a cluster with just one node.
@@ -74,6 +76,9 @@ public:
 
     //! Same as #MaxReplicasPerRack but only applies to erasure chunks.
     int MaxErasureReplicasPerRack;
+
+    //! Same as #MaxReplicasPerRack but only applies to erasure journal chunks.
+    int MaxErasureJournalReplicasPerRack;
 
     //! Default behavior for dynamic tables, living on this medium.
     bool PreferLocalHostForDynamicTables;
