@@ -84,7 +84,7 @@ const (
 	StateSpecletNodeMissing = "speclet_node_missing"
 	StateInvalidSpeclet     = "invalid_speclet"
 
-	UntrackedStage = "untracked"
+	StageUntracked = "untracked"
 )
 
 type Oplet struct {
@@ -298,7 +298,8 @@ func (oplet *Oplet) CheckOperationLiveness(ctx context.Context) error {
 		log.String("operation_state", string(ytOp.State)))
 
 	oplet.persistentState.YTOpState = ytOp.State
-	oplet.persistentState.YTOpStartTime = ytOp.StartTime
+	oplet.infoState.YTOpStartTime = ytOp.StartTime
+	oplet.infoState.YTOpFinishTime = ytOp.FinishTime
 
 	return nil
 }
@@ -411,7 +412,7 @@ func (oplet *Oplet) needsAbort() (needsAbort bool, reason string) {
 	if !oplet.strawberrySpeclet.ActiveOrDefault() {
 		return true, "oplet is in inactive state"
 	}
-	if oplet.strawberrySpeclet.StageOrDefault() != UntrackedStage && oplet.strawberrySpeclet.Pool == nil {
+	if oplet.strawberrySpeclet.StageOrDefault() != StageUntracked && oplet.strawberrySpeclet.Pool == nil {
 		return true, "pool is not set"
 	}
 	return false, "up to date"
@@ -645,7 +646,7 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 	spec["alias"] = "*" + oplet.alias
 	if oplet.strawberrySpeclet.Pool != nil {
 		spec["pool"] = *oplet.strawberrySpeclet.Pool
-	} else if oplet.strawberrySpeclet.StageOrDefault() != UntrackedStage {
+	} else if oplet.strawberrySpeclet.StageOrDefault() != StageUntracked {
 		err := yterrors.Err("can't run operation because pool is not set")
 		oplet.setError(err)
 		return err
@@ -719,7 +720,8 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 
 	oplet.persistentState.YTOpID = opID
 	oplet.persistentState.YTOpState = yt.StateInitializing
-	oplet.persistentState.YTOpStartTime = yson.Time{}
+	oplet.infoState.YTOpStartTime = yson.Time{}
+	oplet.infoState.YTOpFinishTime = yson.Time{}
 
 	oplet.persistentState.YTOpSpeclet = oplet.specletYson
 	oplet.persistentState.YTOpSpecletRevision = oplet.persistentState.SpecletRevision
@@ -860,17 +862,37 @@ func (oplet *Oplet) Pass(ctx context.Context) error {
 }
 
 type OpletStatus struct {
-	Status         string               `yson:"status"`
-	SpecletDiff    map[string]FieldDiff `yson:"speclet_diff,omitempty"`
-	OperationURL   string               `yson:"operation_url,omitempty"`
-	OperationState yt.OperationState    `yson:"operation_state,omitempty"`
-	Error          *string              `yson:"error,omitempty"`
+	Status           string               `yson:"status"`
+	SpecletDiff      map[string]FieldDiff `yson:"speclet_diff,omitempty"`
+	OperationURL     string               `yson:"operation_url,omitempty"`
+	OperationState   yt.OperationState    `yson:"yt_operation_state,omitempty"`
+	OperationID      yt.OperationID       `yson:"operation_id,omitempty"`
+	State            OperationState       `yson:"state"`
+	Creator          string               `yson:"creator,omitempty"`
+	Pool             string               `yson:"pool,omitempty"`
+	Stage            string               `yson:"stage"`
+	StartTime        yson.Time            `yson:"start_time,omitempty"`
+	FinishTime       yson.Time            `yson:"finish_time,omitempty"`
+	IncarnationIndex int                  `yson:"incarnation_index"`
+	CtlAttributes    map[string]any       `yson:"ctl_attributes"`
+	Error            string               `yson:"error,omitempty"`
 }
 
 func (oplet *Oplet) Status() (s OpletStatus, err error) {
+	s.State = GetOpState(oplet.ytOpStrawberrySpeclet, oplet.infoState)
+	s.Creator = oplet.persistentState.Creator
+	s.Stage = oplet.ytOpStrawberrySpeclet.StageOrDefault()
+	s.StartTime = oplet.infoState.YTOpStartTime
+	s.FinishTime = oplet.infoState.YTOpFinishTime
+	s.IncarnationIndex = oplet.persistentState.IncarnationIndex
+	if oplet.persistentState.YTOpPool != nil {
+		s.Pool = *oplet.persistentState.YTOpPool
+	}
+
 	if oplet.persistentState.YTOpID != yt.NullOperationID {
 		s.OperationURL = operationStringURL(oplet.agentInfo.ClusterURL, oplet.persistentState.YTOpID)
 		s.OperationState = oplet.persistentState.YTOpState
+		s.OperationID = oplet.persistentState.YTOpID
 
 		if oplet.strawberrySpeclet.ActiveOrDefault() {
 			if !reflect.DeepEqual(oplet.ytOpControllerSpeclet, oplet.controllerSpeclet) {
@@ -889,7 +911,15 @@ func (oplet *Oplet) Status() (s OpletStatus, err error) {
 		}
 	}
 
-	s.Error = oplet.infoState.Error
+	ctlAttributes, err := oplet.c.GetOpBriefAttributes(oplet.ytOpControllerSpeclet)
+	if err != nil {
+		return
+	}
+	s.CtlAttributes = ctlAttributes
+
+	if oplet.infoState.Error != nil {
+		s.Error = *oplet.infoState.Error
+	}
 
 	if ok, reason := oplet.needsAbort(); ok {
 		s.Status = "Waiting for abort: " + reason

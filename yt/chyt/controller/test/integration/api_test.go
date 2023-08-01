@@ -431,6 +431,7 @@ func TestHTTPAPIStatus(t *testing.T) {
 	err = yson.Unmarshal(r.Body, &result)
 	require.NoError(t, err)
 	require.True(t, strings.HasPrefix(result["result"].Status, "Waiting for restart"))
+	require.Equal(t, result["result"].Creator, "root")
 }
 
 func TestHTTPAPIGetSpeclet(t *testing.T) {

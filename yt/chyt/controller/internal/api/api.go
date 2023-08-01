@@ -598,8 +598,8 @@ func (a *API) SetOptions(ctx context.Context, alias string, options map[string]a
 
 func (a *API) getAgentInfoForUntrackedStage() strawberry.AgentInfo {
 	agentInfo := a.cfg.AgentInfo
-	agentInfo.Stage = strawberry.UntrackedStage
-	agentInfo.OperationNamespace = a.ctl.Family() + ":" + strawberry.UntrackedStage
+	agentInfo.Stage = strawberry.StageUntracked
+	agentInfo.OperationNamespace = a.ctl.Family() + ":" + strawberry.StageUntracked
 	return agentInfo
 }
 
@@ -619,7 +619,7 @@ func (a *API) Start(ctx context.Context, alias string, untracked bool, userClien
 		}
 		return nil
 	}
-	if err := a.SetOption(ctx, alias, "stage", strawberry.UntrackedStage); err != nil {
+	if err := a.SetOption(ctx, alias, "stage", strawberry.StageUntracked); err != nil {
 		return err
 	}
 	agentInfo := a.getAgentInfoForUntrackedStage()
@@ -649,7 +649,7 @@ func (a *API) Stop(ctx context.Context, alias string) error {
 	if err = a.SetOption(ctx, alias, "active", false); err != nil {
 		return err
 	}
-	if stage != strawberry.UntrackedStage {
+	if stage != strawberry.StageUntracked {
 		return nil
 	}
 	agentInfo := a.getAgentInfoForUntrackedStage()
