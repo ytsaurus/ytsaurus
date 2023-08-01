@@ -878,6 +878,15 @@ bool TReadRange::operator == (const TReadRange& other) const
     return LowerLimit_ == other.LowerLimit_ && UpperLimit_ == other.UpperLimit_;
 }
 
+TReadRange TReadRange::MakeEmpty()
+{
+    TReadRange result;
+    result.LowerLimit_.SetRowIndex(0);
+    result.UpperLimit_.SetRowIndex(0);
+    YT_ASSERT(result.LowerLimit() == result.UpperLimit() && !result.LowerLimit().IsTrivial());
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TString ToString(const TReadRange& readRange)

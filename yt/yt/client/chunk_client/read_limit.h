@@ -207,6 +207,9 @@ public:
         int keyLength = 0);
 
     bool operator == (const TReadRange& other) const;
+
+    //! Creates a range such that no row fits in it.
+    static TReadRange MakeEmpty();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

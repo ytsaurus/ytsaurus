@@ -35,6 +35,8 @@ struct TClientChunkReadOptions
     IHedgingManagerPtr HedgingManager;
 
     IMemoryReferenceTrackerPtr MemoryReferenceTracker;
+
+    NTableClient::IGranuleFilterPtr GranuleFilter;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

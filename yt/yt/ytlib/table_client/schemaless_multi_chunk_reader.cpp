@@ -5,6 +5,7 @@
 #include "chunk_state.h"
 #include "columnar_chunk_reader_base.h"
 #include "config.h"
+#include "granule_filter.h"
 #include "helpers.h"
 #include "hunks.h"
 #include "overlapping_reader.h"
@@ -101,7 +102,7 @@ TFuture<TColumnarChunkMetaPtr> DownloadChunkMeta(
     std::optional<int> partitionTag)
 {
     // Download chunk meta.
-    static const std::vector<int> ExtensionTags{
+    std::vector<int> extensionTags{
         TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value,
         TProtoExtensionTag<NProto::TTableSchemaExt>::Value,
         TProtoExtensionTag<NProto::TDataBlockMetaExt>::Value,
@@ -109,13 +110,16 @@ TFuture<TColumnarChunkMetaPtr> DownloadChunkMeta(
         TProtoExtensionTag<NProto::TNameTableExt>::Value,
         TProtoExtensionTag<NProto::TKeyColumnsExt>::Value,
         TProtoExtensionTag<NProto::THunkChunkRefsExt>::Value,
-        TProtoExtensionTag<NProto::THunkChunkMetasExt>::Value
+        TProtoExtensionTag<NProto::THunkChunkMetasExt>::Value,
     };
+    if (chunkReadOptions.GranuleFilter) {
+        extensionTags.emplace_back(TProtoExtensionTag<NProto::TColumnarStatisticsExt>::Value);
+    }
 
     return chunkReader->GetMeta(
         chunkReadOptions,
         partitionTag,
-        ExtensionTags)
+        extensionTags)
         .Apply(BIND([] (const TRefCountedChunkMetaPtr& chunkMeta) {
             return New<TColumnarChunkMeta>(*chunkMeta);
         }));
@@ -201,6 +205,21 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         }
                         if (chunkSpec.has_upper_limit()) {
                             FromProto(&readRange.UpperLimit(), chunkSpec.upper_limit(), /* isUpper */ true, keyColumnCount);
+                        }
+
+                        if (chunkReadOptions.GranuleFilter) {
+                            auto allColumnStatistics = FromProto<TColumnarStatistics>(chunkMeta->ColumnarStatisticsExt(), chunkMeta->Misc().row_count());
+
+                            std::vector<TStableName> readColumnNames;
+                            readColumnNames.reserve(nameTable->GetSize());
+                            for (const auto& name : nameTable->GetNames()) {
+                                readColumnNames.emplace_back(name);
+                            }
+
+                            auto readColumnStatistics = allColumnStatistics.SelectByColumnNames(chunkMeta->ChunkNameTable(), readColumnNames);
+                            if (chunkReadOptions.GranuleFilter->CanSkip(readColumnStatistics)) {
+                                readRange = TReadRange::MakeEmpty();
+                            }
                         }
 
                         auto chunkState = New<TChunkState>(TChunkState{

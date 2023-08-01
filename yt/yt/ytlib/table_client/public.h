@@ -146,6 +146,8 @@ DECLARE_REFCOUNTED_STRUCT(IChunkIndexReadController)
 
 DECLARE_REFCOUNTED_STRUCT(TTabletPerformanceCounters)
 
+DECLARE_REFCOUNTED_STRUCT(IGranuleFilter)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient
