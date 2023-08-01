@@ -535,7 +535,7 @@ IConsumerClientPtr CreateConsumerClient(
     if (schema == *YTConsumerTableSchema) {
         return New<TYTConsumerClient>(path);
     } else {
-        THROW_ERROR_EXCEPTION("Table schema %v is not recognized as a valid consumer schema")
+        THROW_ERROR_EXCEPTION("Table schema is not recognized as a valid consumer schema")
             << TErrorAttribute("expected_schema", *YTConsumerTableSchema)
             << TErrorAttribute("actual_schema", schema);
     }
