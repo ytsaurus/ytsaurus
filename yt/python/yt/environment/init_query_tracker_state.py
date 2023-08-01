@@ -1,6 +1,6 @@
 from yt.wrapper import YtClient, config
 
-from yt.migrationlib import TableInfo, Migration
+from yt.environment.migrationlib import TableInfo, Migration
 
 import argparse
 import logging
