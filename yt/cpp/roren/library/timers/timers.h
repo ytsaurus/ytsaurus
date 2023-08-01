@@ -86,10 +86,13 @@ public:
     TTimers(const NYT::NApi::IClientPtr ytClient, NYT::NYPath::TYPath ytPath, TTimer::TShardId shardId, TShardProvider shardProvider);
 
 protected:
+    using TLock = TMutex;
+    using TGuard = TGuard<TMutex>;
+
     static TTimer MergeTimers(const std::optional<TTimer>& oldTimer, const TTimer& newTimer, const TTimer::EMergePolicy policy);
-    void Cleanup();
+    void Cleanup(const TGuard& lock);
     void Migrate(const TTimer& timer, const TTimer::TShardId shardId);
-    void PopulateIndex();
+    void PopulateIndex(const TGuard& lock);
 
     TVector<TTimer> YtSelectIndex();
     TVector<TTimer> YtSelectMigrate();
@@ -100,10 +103,11 @@ protected:
     void YtDeleteTimer(const NYT::NApi::ITransactionPtr tx, const TTimer::TKey& key);
     void YtDeleteIndex(const NYT::NApi::ITransactionPtr tx, const TTimer& timer);
 
-    TGuard<TMutex> RAIILock();
+    TGuard GetLock();
 
-    TMutex  Mutex_;
+    TLock Lock_;
     std::atomic<bool> PopulateInProgress_ = false;
+    TInstant SkipPopulateUntil_ = TInstant::Seconds(0);
     uint64_t IndexLimit_ = 16384;
     uint64_t IndexSelectBatch_ = 1024;
     NYT::NApi::IClientPtr YtClient_;

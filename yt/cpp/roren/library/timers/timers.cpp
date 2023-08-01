@@ -89,17 +89,17 @@ TTimers::TTimers(const NYT::NApi::IClientPtr ytClient, NYT::NYPath::TYPath ytPat
 
 void TTimers::ReInit()
 {
-    const auto guard = RAIILock();
+    const auto lock = GetLock();
     Y_VERIFY(false == PopulateInProgress_);
     TimerIndex_.clear();
     TimerInFly_.clear();
     DeletedTimers_.clear();
-    PopulateIndex();
+    PopulateIndex(lock);
 }
 
-TGuard<TMutex> TTimers::RAIILock()
+TTimers::TGuard TTimers::GetLock()
 {
-    return TGuard<TMutex>(Mutex_);
+    return TGuard(Lock_);
 }
 
 TTimer TTimers::MergeTimers(const std::optional<TTimer>& oldTimer, const TTimer& newTimer, const TTimer::EMergePolicy policy)
@@ -140,7 +140,7 @@ void TTimers::Commit(const NYT::NApi::ITransactionPtr tx, const TTimers::TTimers
         );
     }
 
-    const auto guard = RAIILock();
+    const auto lock = GetLock();
     for (auto& [key, timerAndPolicy] : updates) {
         auto& [newTimer, policy] = timerAndPolicy;
         std::optional<std::reference_wrapper<const TTimer>> oldTimer;
@@ -163,7 +163,7 @@ void TTimers::Commit(const NYT::NApi::ITransactionPtr tx, const TTimers::TTimers
             YtInsertIndex(tx, targetTimer);
             if (!TimerIndex_ || newTimer < *(--TimerIndex_.end())) {
                 TimerIndex_.insert(newTimer);
-                Cleanup();
+                Cleanup(lock);
             }
         }
     }
@@ -171,13 +171,13 @@ void TTimers::Commit(const NYT::NApi::ITransactionPtr tx, const TTimers::TTimers
 
 void TTimers::OnCommit()
 {
-    const auto guard = RAIILock();
-    PopulateIndex();
+    const auto lock = GetLock();
+    PopulateIndex(lock);
 }
 
 TVector<TTimer> TTimers::GetReadyTimers(size_t limit)
 {
-    const auto guard = RAIILock();
+    const auto lock = GetLock();
     TVector<TTimer> result;
     for (const auto& timer : TimerIndex_) {
         if (0 == limit) {
@@ -198,12 +198,13 @@ TVector<TTimer> TTimers::GetReadyTimers(size_t limit)
 
 bool TTimers::IsValidForExecute(const TTimer& timer, const bool isTimerChanged)
 {
-    const auto guard = RAIILock();
+    const auto lock = GetLock();
     return TimerInFly_.contains(timer) && !isTimerChanged;
 }
 
-void TTimers::Cleanup()
+void TTimers::Cleanup(const TGuard& lock)
 {
+    Y_UNUSED(lock);
     while (TimerIndex_.size() > IndexLimit_) {
         TimerIndex_.erase(--TimerIndex_.end());
     }
@@ -219,8 +220,12 @@ void TTimers::Migrate(const TTimer& timer, const TTimer::TShardId shardId)
     tx->Commit();
 }
 
-void TTimers::PopulateIndex()
+void TTimers::PopulateIndex(const TGuard& lock)
 {
+    if (SkipPopulateUntil_ >= TInstant::Now()) {
+        return;
+    }
+
     //Skip populate if index is full
     if ((IndexLimit_ - TimerIndex_.size()) < IndexSelectBatch_) {
         return;
@@ -235,11 +240,7 @@ void TTimers::PopulateIndex()
         DeletedTimers_.clear();
         auto topTimers = YtSelectIndex();
         if (topTimers.empty()) {
-            const TDuration delay = TDuration::Seconds(1);
-            NYT::NConcurrency::TDelayedExecutor::MakeDelayed(delay).Apply(BIND([this]() {
-                PopulateInProgress_.store(false);
-            }));
-            return;
+            SkipPopulateUntil_ = TInstant::Now() + TDuration::Seconds(1);
         }
         for (auto& timer : topTimers) {
             if (DeletedTimers_.contains(timer)) {
@@ -252,7 +253,7 @@ void TTimers::PopulateIndex()
                 TimerIndex_.insert(timer);
             }
         }
-        Cleanup();
+        Cleanup(lock);
     } catch (...) {
         PopulateInProgress_.store(false);
         throw;
