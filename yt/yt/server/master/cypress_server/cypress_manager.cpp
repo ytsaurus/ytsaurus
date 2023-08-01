@@ -2510,6 +2510,7 @@ private:
 
     // COMPAT(h0pless): RecomputeMasterTableSchemaRefCounters, RefactorSchemaExport
     bool NeedRecomputeMasterTableSchemaRefCounters_ = false;
+    bool NeedRecomputeMasterTableSchemaExportRefCounters_ = false;
 
     using TRecursiveResourceUsageCache = TSyncExpiringCache<TVersionedNodeId, TFuture<TYsonString>>;
     using TRecursiveResourceUsageCachePtr = TIntrusivePtr<TRecursiveResourceUsageCache>;
@@ -2574,6 +2575,10 @@ private:
 
         if (context.GetVersion() < EMasterReign::RefactorSchemaExport) {
             NeedRecomputeMasterTableSchemaRefCounters_ = true;
+
+            if (EMasterReign::ExportEmptyMasterTableSchemas < context.GetVersion()) {
+                NeedRecomputeMasterTableSchemaExportRefCounters_ = true;
+            }
         }
     }
 
@@ -2603,6 +2608,7 @@ private:
         SchemaExportMode_ = ESchemaMigrationMode::None;
 
         NeedRecomputeMasterTableSchemaRefCounters_ = false;
+        NeedRecomputeMasterTableSchemaExportRefCounters_ = false;
     }
 
     void SetZeroState() override
@@ -2728,7 +2734,9 @@ private:
                 : ELogLevel::Error;
 
             const auto& tableManager = Bootstrap_->GetTableManager();
-            tableManager->RecomputeMasterTableSchemaExportRefCounters(logLevel);
+            if (NeedRecomputeMasterTableSchemaExportRefCounters_) {
+                tableManager->RecomputeMasterTableSchemaExportRefCounters(logLevel);
+            }
             tableManager->RecomputeMasterTableSchemaRefCounters(logLevel);
         }
 
