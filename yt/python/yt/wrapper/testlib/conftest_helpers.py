@@ -137,6 +137,16 @@ def test_environment_with_rpc(request):
     return environment
 
 
+@pytest.fixture(scope="class", params=["v3", "v4", "native_v4", "rpc"])
+def test_environment_chaos(request):
+    environment = init_environment_for_test_session(
+        request,
+        request.param,
+        env_options={"chaos_node_count": 1}
+    )
+    return environment
+
+
 @pytest.fixture(scope="class")
 def test_environment_for_yamr(request):
     environment = init_environment_for_test_session(request, "yamr")
@@ -280,6 +290,11 @@ def yt_env_with_framing(request, test_environment_with_framing):
 @pytest.fixture(scope="function")
 def yt_env_with_rpc(request, test_environment_with_rpc):
     return _yt_env(request, test_environment_with_rpc)
+
+
+@pytest.fixture(scope="function")
+def yt_env_chaos(request, test_environment_chaos):
+    return _yt_env(request, test_environment_chaos)
 
 
 @pytest.fixture(scope="function")
