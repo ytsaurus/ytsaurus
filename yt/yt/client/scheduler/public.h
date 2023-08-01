@@ -124,6 +124,7 @@ DEFINE_ENUM(EAbortReason,
     ((OperationAborted)                ( 45))
     ((OperationFinished)               ( 46))
     ((JobMemoryThrashing)              ( 47))
+    ((InterruptionUnsupported)         ( 48))
     ((SchedulingFirst)                 (100))
     ((SchedulingTimeout)               (101))
     ((SchedulingResourceOvercommit)    (102))
