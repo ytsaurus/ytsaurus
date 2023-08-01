@@ -8,6 +8,8 @@ from yt_commands import (
     sync_freeze_table, sync_unfreeze_table, get_singular_chunk_id,
     ban_node, disable_write_sessions_on_node, update_nodes_dynamic_config)
 
+from yt.common import YtError
+
 from yt_type_helpers import make_schema
 
 from yt_helpers import profiler_factory
@@ -612,6 +614,66 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
 
         tablet_id = get("//tmp/t/@tablets")[0]["tablet_id"]
         wait(lambda: get(f"//sys/tablets/{tablet_id}/orchid/lsm_statistics/pending_compaction_store_count/periodic") == 1)
+
+    @authors("alexelexa")
+    def test_narrow_chunk_view_compaction(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+
+        set("//tmp/t/@chunk_writer", {"block_size": 1})
+        set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", False)
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
+
+        sync_mount_table("//tmp/t")
+        rows = [{"key": i, "value": 'a' * 66000} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        assert len(get("//tmp/t/@chunk_ids")) == 1
+        size = get("//tmp/t/@compressed_data_size")
+
+        sync_unmount_table("//tmp/t")
+
+        sync_reshard_table(
+            "//tmp/t",
+            3,
+            enable_slicing=True)
+
+        tablet_ids = [tablet["tablet_id"] for tablet in get("//tmp/t/@tablets")]
+
+        set("//tmp/t/@mount_config/enable_narrow_chunk_view_compaction", True)
+        sync_mount_table("//tmp/t")
+
+        def is_chunk_view(store_id):
+            type = store_id.split("-")[2][-4:].lstrip("0")
+            return type == "7b"
+
+        def check():
+            try:
+                for tablet_id in tablet_ids:
+                    tablet_orchid = self._find_tablet_orchid(get_tablet_leader_address(tablet_id), tablet_id)
+                    for partition in tablet_orchid["partitions"]:
+                        for store_id, store_orchid in partition["stores"].items():
+                            if not is_chunk_view(store_id):
+                                continue
+                            if store_orchid.get("chunk_view_size_fetch_status", "none") not in ("compaction_required", "compaction_not_required"):
+                                return False
+
+                    for store_id, store_orchid in tablet_orchid["eden"]["stores"].items():
+                        if not is_chunk_view(store_id):
+                            continue
+                        if store_orchid.get("chunk_view_size_fetch_status", "none") not in ("compaction_required", "compaction_not_required"):
+                            return False
+                return True
+            except YtError:
+                return False
+
+        wait(check)
+
+        set("//tmp/t/@enable_compaction_and_partitioning", True)
+        remount_table("//tmp/t")
+
+        wait(lambda: all(get(f'#{tablet_id}/@statistics/compressed_data_size') < size for tablet_id in tablet_ids))
 
 ################################################################################
 

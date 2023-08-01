@@ -27,6 +27,7 @@
 #include "table_puller.h"
 #include "backup_manager.h"
 #include "hunk_lock_manager.h"
+#include "chunk_view_size_fetcher.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -185,6 +186,13 @@ public:
         , BackupManager_(CreateBackupManager(
             Slot_,
             Bootstrap_))
+        , ChunkViewSizeFetcher_(CreateChunkViewSizeFetcher(
+            slot->GetCellId(),
+            Bootstrap_->GetNodeDirectory(),
+            Slot_->GetGuardedAutomatonInvoker(),
+            Bootstrap_->GetStorageHeavyInvoker(),
+            Bootstrap_->GetClient(),
+            Bootstrap_->GetConnection()->GetChunkReplicaCache()))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
@@ -875,6 +883,8 @@ private:
 
     IBackupManagerPtr BackupManager_;
 
+    IChunkViewSizeFetcherPtr ChunkViewSizeFetcher_;
+
     const TCallback<void(TClusterTableConfigPatchSetPtr, TClusterTableConfigPatchSetPtr)> TableDynamicConfigChangedCallback_ =
         BIND(&TImpl::OnTableDynamicConfigChanged, MakeWeak(this));
 
@@ -1015,6 +1025,8 @@ private:
         for (auto [tabletId, tablet] : TabletMap_) {
             CheckIfTabletFullyUnlocked(tablet);
             CheckIfTabletFullyFlushed(tablet);
+
+            ChunkViewSizeFetcher_->FetchChunkViewSizes(tablet);
         }
 
         DecommissionCheckExecutor_->Start();
@@ -1144,6 +1156,10 @@ private:
             MakeRange(request->hunk_chunks()),
             /*createDynamicStore*/ !freeze,
             mountHint);
+
+        if (IsLeader()) {
+            ChunkViewSizeFetcher_->FetchChunkViewSizes(tablet);
+        }
 
         tablet->SetState(freeze ? ETabletState::Frozen : ETabletState::Mounted);
 
@@ -1522,6 +1538,10 @@ private:
             transactionId);
 
         storeManager->BulkAddStores(MakeRange(storesToAdd), /*onMount*/ false);
+
+        if (IsLeader()) {
+            ChunkViewSizeFetcher_->FetchChunkViewSizes(tablet, storesToAdd);
+        }
 
         const auto& lockManager = tablet->GetLockManager();
 
@@ -3593,6 +3613,17 @@ private:
 
     void StopTabletEpoch(TTablet* tablet)
     {
+        for (const auto& [storeId, store] : tablet->StoreIdMap()) {
+            if (store->IsChunk() && TypeFromId(store->GetId()) == EObjectType::ChunkView) {
+                YT_VERIFY(store->IsSorted());
+
+                auto sortedChunkStore = store->AsSortedChunk();
+                if (sortedChunkStore->GetChunkViewSizeFetchStatus() == EChunkViewSizeFetchStatus::Requested) {
+                    sortedChunkStore->SetChunkViewSizeFetchStatus(EChunkViewSizeFetchStatus::None);
+                }
+            }
+        }
+
         if (const auto& storeManager = tablet->GetStoreManager()) {
             // Store Manager could be null if snapshot loading is aborted.
             storeManager->StopEpoch();

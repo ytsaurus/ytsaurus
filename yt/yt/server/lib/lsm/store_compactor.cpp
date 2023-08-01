@@ -678,6 +678,10 @@ private:
             return EStoreCompactionReason::StoreOutOfTabletRange;
         }
 
+        if (store->GetIsChunkViewTooNarrow()) {
+            return EStoreCompactionReason::NarrowChunkView;
+        }
+
         return EStoreCompactionReason::None;
     }
 

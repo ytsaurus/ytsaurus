@@ -61,6 +61,13 @@ DEFINE_ENUM(ETabletLockType,
     ((PersistentTransaction)         (2))
 );
 
+DEFINE_ENUM(EChunkViewSizeFetchStatus,
+    (None)
+    (Requested)
+    (CompactionRequired)
+    (CompactionNotRequired)
+);
+
 using TTabletDistributedThrottlersVector = TEnumIndexedVector<
     ETabletDistributedThrottlerKind,
     NConcurrency::IThroughputThrottlerPtr>;
@@ -186,6 +193,8 @@ DECLARE_REFCOUNTED_STRUCT(IBackendChunkReadersHolder)
 DECLARE_REFCOUNTED_CLASS(TOverloadController)
 DECLARE_REFCOUNTED_CLASS(TMeanWaitTimeTracker)
 DECLARE_REFCOUNTED_CLASS(TCongestionController)
+
+DECLARE_REFCOUNTED_STRUCT(IChunkViewSizeFetcher)
 
 struct TSortedDynamicRowHeader;
 class TSortedDynamicRow;

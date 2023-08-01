@@ -353,7 +353,11 @@ void TSortedChunkStore::BuildOrchidYson(TFluentMap fluent)
     fluent
         .Item("min_key").Value(GetMinKey())
         .Item("upper_bound_key").Value(GetUpperBoundKey())
-        .Item("max_clip_timestamp").Value(MaxClipTimestamp_);
+        .Item("max_clip_timestamp").Value(MaxClipTimestamp_)
+        .DoIf(TypeFromId(StoreId_) == EObjectType::ChunkView, [&] (auto fluent) {
+            fluent
+                .Item("chunk_view_size_fetch_status").Value(ChunkViewSizeFetchStatus_);
+        });
 }
 
 TLegacyOwningKey TSortedChunkStore::GetMinKey() const
@@ -369,6 +373,22 @@ TLegacyOwningKey TSortedChunkStore::GetUpperBoundKey() const
 bool TSortedChunkStore::HasNontrivialReadRange() const
 {
     return ReadRange_.Front().first || ReadRange_.Front().second;
+}
+
+std::optional<NChunkClient::TReadLimit> TSortedChunkStore::GetChunkViewLowerLimit() const
+{
+    if (ReadRange_.Front().first) {
+        return NChunkClient::TReadLimit(KeyBoundFromLegacyRow(MinKey_, /*isUpper*/ false, KeyColumnCount_));
+    }
+    return std::nullopt;
+}
+
+std::optional<NChunkClient::TReadLimit> TSortedChunkStore::GetChunkViewUpperLimit() const
+{
+    if (ReadRange_.Front().second) {
+        return NChunkClient::TReadLimit(KeyBoundFromLegacyRow(UpperBoundKey_, /*isUpper*/ true, KeyColumnCount_));
+    }
+    return std::nullopt;
 }
 
 IVersionedReaderPtr TSortedChunkStore::CreateReader(

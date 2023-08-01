@@ -23,6 +23,9 @@ class TSortedChunkStore
     , public TSortedStoreBase
 {
 public:
+    DEFINE_BYVAL_RW_PROPERTY(EChunkViewSizeFetchStatus, ChunkViewSizeFetchStatus, EChunkViewSizeFetchStatus::None);
+
+public:
     TSortedChunkStore(
         TTabletManagerConfigPtr config,
         TStoreId id,
@@ -49,6 +52,9 @@ public:
     TLegacyOwningKey GetMinKey() const override;
     TLegacyOwningKey GetUpperBoundKey() const override;
     bool HasNontrivialReadRange() const override;
+
+    std::optional<NChunkClient::TReadLimit> GetChunkViewLowerLimit() const;
+    std::optional<NChunkClient::TReadLimit> GetChunkViewUpperLimit() const;
 
     NTableClient::IVersionedReaderPtr CreateReader(
         const TTabletSnapshotPtr& tabletSnapshot,
