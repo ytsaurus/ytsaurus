@@ -162,6 +162,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixChunkCreationTimeHistograms)                               (2347))  // gritukan
     ((IncludeOnlyOldStyleMountConfigAttributesInList)               (2348))  // ifsmirnov
     ((RefactorSchemaExport)                                         (2349))  // h0pless
+    ((MaxErasureJournalReplicasPerRack)                             (2350))  // vovamelnikov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

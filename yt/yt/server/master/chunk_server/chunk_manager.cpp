@@ -5498,6 +5498,7 @@ private:
         medium->Config()->MaxRegularReplicasPerRack = Config_->MaxRegularReplicasPerRack;
         medium->Config()->MaxJournalReplicasPerRack = Config_->MaxJournalReplicasPerRack;
         medium->Config()->MaxErasureReplicasPerRack = Config_->MaxErasureReplicasPerRack;
+        medium->Config()->MaxErasureJournalReplicasPerRack = Config_->MaxErasureJournalReplicasPerRack;
     }
 
     // COMPAT(shakurov)

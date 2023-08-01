@@ -27,6 +27,9 @@ void TChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_erasure_replicas_per_rack", &TThis::MaxErasureReplicasPerRack)
         .GreaterThan(0)
         .Default(std::numeric_limits<int>::max());
+    registrar.Parameter("max_erasure_journal_replicas_per_rack", &TThis::MaxErasureJournalReplicasPerRack)
+        .GreaterThan(0)
+        .Default(std::numeric_limits<int>::max());
 
     registrar.Parameter("allow_multiple_erasure_parts_per_node", &TThis::AllowMultipleErasurePartsPerNode)
         .Default(false);
@@ -54,6 +57,9 @@ void TMediumConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(0)
         .Default(std::numeric_limits<int>::max());
     registrar.Parameter("max_erasure_replicas_per_rack", &TThis::MaxErasureReplicasPerRack)
+        .GreaterThanOrEqual(0)
+        .Default(std::numeric_limits<int>::max());
+    registrar.Parameter("max_erasure_journal_replicas_per_rack", &TThis::MaxErasureJournalReplicasPerRack)
         .GreaterThanOrEqual(0)
         .Default(std::numeric_limits<int>::max());
     registrar.Parameter("prefer_local_host_for_dynamic_tables", &TThis::PreferLocalHostForDynamicTables)
