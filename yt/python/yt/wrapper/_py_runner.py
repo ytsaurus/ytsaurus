@@ -41,7 +41,7 @@ def get_platform_version():
     if name in ("linux", "linux2"):
         try:
             version.append(lsb_release())
-        except IOError:
+        except Exception:
             # In some cases libc_ver detection can fail
             # because of inability to open sys.executable file.
             pass
