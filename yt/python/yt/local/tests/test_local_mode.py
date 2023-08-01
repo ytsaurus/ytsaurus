@@ -307,7 +307,7 @@ class TestLocalMode(object):
             assert not client.exists("//test/node")
 
             client.mkdir("//test/folder")
-            assert client.get_type("//test/folder") == "map_node"
+            assert client.get("//test/folder/@type") == "map_node"
 
             table = "//test/table"
             client.create("table", table)
@@ -329,7 +329,7 @@ class TestLocalMode(object):
             assert not client.exists("//test/node")
 
             client.mkdir("//test/folder")
-            assert client.get_type("//test/folder") == "map_node"
+            assert client.get("//test/folder/@type") == "map_node"
 
             table = "//test/table"
             client.create("table", table)
@@ -348,7 +348,7 @@ class TestLocalMode(object):
             proxy_port = environment.get_proxy_address().rsplit(":", 1)[1]
             client = YtClient(proxy="localhost:{0}".format(proxy_port))
             assert list(client.read_table("//table")) == [{"x": "1", "y": "1"}]
-            assert client.get_type("//subdir") == "map_node"
+            assert client.get("//subdir/@type") == "map_node"
             assert client.get_attribute("//table", "myattr") == 4
             assert client.get_attribute("//subdir", "other_attr") == 42
             assert client.get_attribute("/", "root_attr") == "ok"
