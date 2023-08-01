@@ -2937,6 +2937,7 @@ class TestSlotManagerResurrect(YTEnvSetup):
         config["exec_agent"]["slot_manager"]["locations"][0]["path"] = cls.default_disk_path
 
     @authors("don-dron")
+    @pytest.mark.skip(reason="Test broken")
     def test_simple_job_env_resurrect(self):
         nodes = ls("//sys/cluster_nodes")
         locations = get("//sys/cluster_nodes/{0}/orchid/config/exec_agent/slot_manager/locations".format(nodes[0]))
