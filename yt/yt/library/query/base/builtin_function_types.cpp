@@ -123,7 +123,8 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
         EValueType::Int64,
         EValueType::Uint64,
         EValueType::Double,
-        EValueType::Any};
+        EValueType::Any
+    };
 
     result->emplace("int64", New<TFunctionTypeInferrer>(
         castConstraints,
@@ -164,7 +165,8 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
         EValueType::Boolean,
         EValueType::String,
         EValueType::Composite,
-        EValueType::Any};
+        EValueType::Any
+    };
     result->emplace("coalesce", New<TFunctionTypeInferrer>(
         coalesceConstraints,
         std::vector<TType>{},
@@ -175,7 +177,8 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
     sumConstraints[typeArg] = std::vector<EValueType>{
         EValueType::Int64,
         EValueType::Uint64,
-        EValueType::Double};
+        EValueType::Double
+    };
 
     result->emplace("sum", New<TAggregateTypeInferrer>(
         sumConstraints,
@@ -189,7 +192,8 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
         EValueType::Uint64,
         EValueType::Boolean,
         EValueType::Double,
-        EValueType::String};
+        EValueType::String
+    };
     for (const auto& name : {"min", "max"}) {
         result->emplace(name, New<TAggregateTypeInferrer>(
             constraints,
