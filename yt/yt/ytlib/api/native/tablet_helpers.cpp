@@ -417,6 +417,7 @@ TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
         proxy.SetDefaultTimeout(options.Timeout.value_or(connection->GetConfig()->DefaultGetInSyncReplicasTimeout));
 
         auto req = proxy.GetTabletInfo();
+        req->SetResponseHeavy(true);
         ToProto(req->mutable_tablet_ids(), tabletIds);
         for (int index = 0; index < std::ssize(tabletIds); ++index) {
             ToProto(req->add_cell_ids(), cellId);
