@@ -122,49 +122,6 @@ void TChunkList::Save(NCellMaster::TSaveContext& context) const
     Save(context, PivotKey_);
 }
 
-void TChunkList::LoadCumulativeStatisticsCompat(NCellMaster::TLoadContext& context)
-{
-    struct TDummyStatisticsEntry
-    {
-        i64 RowCount;
-        i64 ChunkCount;
-        i64 DataSize;
-
-        void Load(NCellMaster::TLoadContext& context)
-        {
-            using NYT::Load;
-            Load(context, RowCount);
-            Load(context, ChunkCount);
-            Load(context, DataSize);
-        }
-    };
-
-    auto dummyStatistics = NYT::Load<std::vector<TDummyStatisticsEntry>>(context);
-
-    if (Children_.empty() || !HasAppendableCumulativeStatistics()) {
-        return;
-    }
-
-    dummyStatistics.push_back(TDummyStatisticsEntry{
-        Statistics_.LogicalRowCount,
-        Statistics_.LogicalChunkCount,
-        Statistics_.UncompressedDataSize});
-
-    CumulativeStatistics_.Clear();
-    CumulativeStatistics_.DeclareAppendable();
-
-    TCumulativeStatisticsEntry previousSum;
-    for (const auto& entry : dummyStatistics) {
-        TCumulativeStatisticsEntry currentSum{
-            entry.RowCount,
-            entry.ChunkCount,
-            entry.DataSize
-        };
-        CumulativeStatistics_.PushBack(currentSum - previousSum);
-        previousSum = currentSum;
-    }
-}
-
 void TChunkList::Load(NCellMaster::TLoadContext& context)
 {
     TChunkTree::Load(context);

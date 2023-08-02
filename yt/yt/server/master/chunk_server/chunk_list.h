@@ -69,8 +69,6 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
-    void LoadCumulativeStatisticsCompat(NCellMaster::TLoadContext& context);
-
     TRange<TChunkList*> Parents() const;
     void AddParent(TChunkList* parent);
     void RemoveParent(TChunkList* parent);
