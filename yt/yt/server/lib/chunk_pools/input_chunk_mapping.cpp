@@ -42,7 +42,6 @@ TChunkStripePtr TInputChunkMapping::GetMappedStripeGuarded(const TChunkStripePtr
     YT_VERIFY(stripe);
 
     if (Substitutes_.empty()) {
-        YT_LOG_DEBUG("Input chunk mapping has not modified the stripe");
         return stripe;
     }
 
@@ -135,8 +134,6 @@ TChunkStripePtr TInputChunkMapping::GetMappedStripeGuarded(const TChunkStripePtr
             mappedStripe->DataSlices.emplace_back(dataSlice);
         }
     }
-
-    YT_LOG_DEBUG("Input chunk mapping has modified the stripe (ChunksMapped: %v)", chunksMapped);
 
     return mappedStripe;
 }
