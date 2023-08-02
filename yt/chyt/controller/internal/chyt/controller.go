@@ -15,25 +15,34 @@ import (
 	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
+type LogRotationModeType string
+
+const (
+	LogRotationModeDisabled  LogRotationModeType = "disabled"
+	LogRotationModeLogTailer LogRotationModeType = "log_tailer"
+	LogRotationModeBuiltin   LogRotationModeType = "builtin"
+
+	DefaultLogRotationMode = LogRotationModeBuiltin
+)
+
 type Config struct {
 	// LocalBinariesDir is set if we want to execute local binaries on the clique.
 	// This directory should contain trampoline, chyt and log-tailer binaries.
-	LocalBinariesDir          *string        `yson:"local_binaries_dir"`
-	EnableLogTailer           *bool          `yson:"enable_log_tailer"`
-	AddressResolver           map[string]any `yson:"address_resolver"`
-	EnableYandexSpecificLinks *bool          `yson:"enable_yandex_specific_links"`
+	LocalBinariesDir          *string              `yson:"local_binaries_dir"`
+	LogRotationMode           *LogRotationModeType `yson:"log_rotation_mode"`
+	AddressResolver           map[string]any       `yson:"address_resolver"`
+	EnableYandexSpecificLinks *bool                `yson:"enable_yandex_specific_links"`
 }
 
 const (
-	DefaultEnableLogTailer           = false
 	DefaultEnableYandexSpecificLinks = false
 )
 
-func (c *Config) EnableLogTailerOrDefault() bool {
-	if c.EnableLogTailer != nil {
-		return *c.EnableLogTailer
+func (c *Config) LogRotationModeOrDefault() LogRotationModeType {
+	if c.LogRotationMode != nil {
+		return *c.LogRotationMode
 	}
-	return DefaultEnableLogTailer
+	return DefaultLogRotationMode
 }
 
 func (c *Config) EnableYandexSpecificLinksOrDefault() bool {
@@ -110,7 +119,7 @@ func (c *Controller) buildCommand(speclet *Speclet) string {
 	if speclet.EnableGeoDataOrDefault() {
 		args = append(args, "--prepare-geodata")
 	}
-	if c.config.EnableLogTailerOrDefault() {
+	if c.config.LogRotationModeOrDefault() == LogRotationModeLogTailer {
 		args = append(args, "--log-tailer-bin", logTailerPath, "--log-tailer-monitoring-port", "10242")
 	}
 	return strings.Join(args, " ")

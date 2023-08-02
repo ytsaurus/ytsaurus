@@ -159,8 +159,8 @@ func getPatchedYtConfig(ctx context.Context, ytc yt.Client, oplet *strawberry.Op
 	return
 }
 
-func getPatchedLogRotationConfig(speclet *Speclet) (map[string]any, error) {
-	configNode, err := cloneNode(speclet.LogRotation)
+func getPatchedLogTailerLogRotationConfig(speclet *Speclet) (map[string]any, error) {
+	configNode, err := cloneNode(speclet.LogTailerLogRotation)
 	if err != nil {
 		return nil, err
 	}
@@ -180,6 +180,28 @@ func getPatchedLogRotationConfig(speclet *Speclet) (map[string]any, error) {
 	}
 	if _, ok := config["log_segment_count"]; !ok {
 		config["log_segment_count"] = 10
+	}
+	if _, ok := config["rotation_period"]; !ok {
+		config["rotation_period"] = 900000
+	}
+	return config, nil
+}
+
+func getPatchedBuiltinLogRotationPolicy(speclet *Speclet) (map[string]any, error) {
+	configNode, err := cloneNode(speclet.BuiltinLogRotationPolicy)
+	if err != nil {
+		return nil, err
+	}
+	config, ok := configNode.(map[string]any)
+	if !ok && configNode != nil {
+		return nil, yterrors.Err("builtin_log_rotation_policy config has unexpected type",
+			log.String("type", reflect.TypeOf(configNode).String()))
+	}
+	if config == nil {
+		config = map[string]any{}
+	}
+	if _, ok := config["max_segment_count_to_keep"]; !ok {
+		config["max_segment_count_to_keep"] = 10
 	}
 	if _, ok := config["rotation_period"]; !ok {
 		config["rotation_period"] = 900000
@@ -263,6 +285,14 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 		return fmt.Errorf("error creating artifact dir: %v", err)
 	}
 
+	var logRotationPolicy map[string]any
+	if c.config.LogRotationModeOrDefault() == LogRotationModeBuiltin {
+		logRotationPolicy, err = getPatchedBuiltinLogRotationPolicy(speclet)
+		if err != nil {
+			return err
+		}
+	}
+
 	ytServerClickHouseConfig := map[string]any{
 		"clickhouse":         clickhouseConfig,
 		"yt":                 ytConfig,
@@ -286,21 +316,25 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 			},
 		},
 		"logging": map[string]any{
+			"rotation_check_period": 60000,
 			"writers": map[string]any{
 				"error": map[string]any{
-					"file_name": "./clickhouse.error.log",
-					"type":      "file",
+					"file_name":       "./clickhouse.error.log",
+					"type":            "file",
+					"rotation_policy": logRotationPolicy,
 				},
 				"stderr": map[string]any{
 					"type": "stderr",
 				},
 				"debug": map[string]any{
-					"file_name": "./clickhouse.debug.log",
-					"type":      "file",
+					"file_name":       "./clickhouse.debug.log",
+					"type":            "file",
+					"rotation_policy": logRotationPolicy,
 				},
 				"info": map[string]any{
-					"file_name": "./clickhouse.log",
-					"type":      "file",
+					"file_name":       "./clickhouse.log",
+					"type":            "file",
+					"rotation_policy": logRotationPolicy,
 				},
 			},
 			"suppressed_messages": [2]string{
@@ -346,8 +380,8 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 	}
 	*filePaths = append(*filePaths, ytServerClickHouseConfigPath)
 
-	if c.config.EnableLogTailerOrDefault() {
-		logRotationConfig, err := getPatchedLogRotationConfig(speclet)
+	if c.config.LogRotationModeOrDefault() == LogRotationModeLogTailer {
+		logRotationConfig, err := getPatchedLogTailerLogRotationConfig(speclet)
 		if err != nil {
 			return err
 		}

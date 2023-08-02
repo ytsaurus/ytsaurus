@@ -149,7 +149,7 @@ def create_controller_run_config(proxy, work_dir, api_port, monitoring_port):
                 },
                 "controller": {
                     "local_binaries_dir": work_dir,
-                    "enable_log_tailer": False,
+                    "log_rotation_mode": "disabled",
                 },
                 "http_api_endpoint": ":{}".format(api_port),
                 "disable_api_auth": True,
@@ -168,7 +168,7 @@ def create_controller_one_shot_run_config(proxy, work_dir):
                 "strawberry_root": STRAWBERRY_ROOT,
                 "controller": {
                     "local_binaries_dir": work_dir,
-                    "enable_log_tailer": False,
+                    "log_rotation_mode": "disabled",
                 },
             },
             fout,

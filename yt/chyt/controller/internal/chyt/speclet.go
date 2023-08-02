@@ -25,8 +25,11 @@ type Speclet struct {
 	// YTConfig is a base config for YT part of CHYT. Its usage is highly discouraged.
 	YTConfig map[string]any `yson:"yt_config"`
 
-	// LogRotation contains options for rotating debug/info instance logs.
-	LogRotation map[string]any `yson:"log_rotation"`
+	// LogTailerLogRotation contains log-tailer options for rotating debug/info instance logs.
+	LogTailerLogRotation map[string]any `yson:"log_tailer_log_rotation"`
+
+	// BuiltinLogRotationPolicy contains options for builtin log rotation.
+	BuiltinLogRotationPolicy map[string]any `yson:"builtin_log_rotation_policy"`
 }
 
 const (

@@ -48,7 +48,7 @@ func (c *Controller) appendArtifacts(ctx context.Context, speclet *Speclet, file
 		{"clickhouse-trampoline", TrampolineBinaryDirectory.Child(speclet.TrampolineVersionOrDefault())},
 	}
 
-	if c.config.EnableLogTailerOrDefault() {
+	if c.config.LogRotationModeOrDefault() == LogRotationModeLogTailer {
 		artifacts = append(artifacts, artifact{"ytserver-log-tailer", LogTailerBinaryDirectory.Child(speclet.LogTailerVersionOrDefault())})
 	}
 	if speclet.EnableGeoDataOrDefault() {
