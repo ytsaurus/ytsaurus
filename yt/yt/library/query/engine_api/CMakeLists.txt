@@ -38,6 +38,7 @@ target_sources(library-query-engine_api PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/evaluator.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/builtin_function_profiler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/range_inferrer.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/new_range_inferrer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/position_independent_value.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/position_independent_value_transfer.cpp
 )

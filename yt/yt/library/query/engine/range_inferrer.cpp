@@ -1,6 +1,3 @@
-
-#include "folding_profiler.h"
-
 #include <yt/yt/library/query/base/private.h>
 #include <yt/yt/library/query/base/key_trie.h>
 #include <yt/yt/library/query/base/query.h>
@@ -8,6 +5,7 @@
 #include <yt/yt/library/query/base/coordination_helpers.h>
 
 #include <yt/yt/library/query/engine_api/range_inferrer.h>
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/schema.h>
@@ -700,39 +698,6 @@ void EnrichKeyRange(
     }
 }
 
-ui64 GetRangeCountLimit(
-    const TColumnEvaluator& evaluator,
-    const TSchemaColumns& columns,
-    size_t keySize,
-    ui64 rangeExpansionLimit)
-{
-    ui64 moduloExpansion = 1;
-    for (int index = 0; index < static_cast<int>(keySize); ++index) {
-        if (columns[index].Expression()) {
-            auto expr = evaluator.GetExpression(index)->As<TBinaryOpExpression>();
-            if (expr && expr->Opcode == EBinaryOp::Modulo) {
-                if (auto literalExpr = expr->Rhs->As<TLiteralExpression>()) {
-                    TUnversionedValue value = literalExpr->Value;
-                    switch (value.Type) {
-                        case EValueType::Int64:
-                            moduloExpansion *= value.Data.Int64 * 2;
-                            break;
-
-                        case EValueType::Uint64:
-                            moduloExpansion *= value.Data.Uint64 + 1;
-                            break;
-
-                        default:
-                            break;
-                    }
-                }
-            }
-        }
-    }
-
-    return rangeExpansionLimit / moduloExpansion;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TRangeInferrer CreateHeavyRangeInferrer(
@@ -760,11 +725,14 @@ TRangeInferrer CreateHeavyRangeInferrer(
         keyTrie);
 
     // TODO(savrus): this is a hotfix for YT-2836. Further discussion in YT-2842.
-    auto rangeCountLimit = GetRangeCountLimit(
-        *evaluator,
-        schema->Columns(),
-        keySize,
-        options.RangeExpansionLimit);
+    ui64 moduloExpansion = 1;
+    for (int index = 0; index < static_cast<int>(keySize); ++index) {
+        if (schema->Columns()[index].Expression()) {
+            moduloExpansion *= GetEvaluatedColumnModulo(evaluator->GetExpression(index));
+        }
+    }
+
+    auto rangeCountLimit = options.RangeExpansionLimit / moduloExpansion;
 
     auto ranges = GetRangesFromTrieWithinRange(
         TRowRange(buffer->CaptureRow(MinKey()), buffer->CaptureRow(MaxKey())),
@@ -881,6 +849,7 @@ TRangeInferrer CreateRangeInferrer(
             keyColumns,
             rangeExtractors,
             options);
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////

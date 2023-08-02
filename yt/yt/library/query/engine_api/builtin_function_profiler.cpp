@@ -48,6 +48,12 @@ Y_WEAK const TConstRangeExtractorMapPtr GetBuiltinRangeExtractors()
     YT_ABORT();
 }
 
+Y_WEAK const TConstConstraintExtractorMapPtr GetBuiltinConstraintExtractors()
+{
+    // Proper implementation resides in yt/yt/library/query/engine/builtin_function_profiler.cpp.
+    YT_ABORT();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_WEAK_REFCOUNTED_TYPE(IFunctionCodegen)

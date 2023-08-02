@@ -26,6 +26,7 @@ target_link_libraries(library-query-base PUBLIC
 )
 target_sources(library-query-base PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/ast.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/constraints.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/coordination_helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/functions.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/builtin_function_registry.cpp

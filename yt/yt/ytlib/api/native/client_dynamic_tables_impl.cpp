@@ -1465,6 +1465,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     queryOptions.TimestampRange.RetentionTimestamp = options.RetentionTimestamp;
     queryOptions.RangeExpansionLimit = options.RangeExpansionLimit;
     queryOptions.VerboseLogging = options.VerboseLogging;
+    queryOptions.NewRangeInference = options.NewRangeInference;
     queryOptions.EnableCodeCache = options.EnableCodeCache;
     queryOptions.MaxSubqueries = options.MaxSubqueries;
     queryOptions.WorkloadDescriptor = options.WorkloadDescriptor;

@@ -89,6 +89,7 @@ void GetQueryInfo(
             TQueryOptions queryOptions;
             queryOptions.RangeExpansionLimit = options.RangeExpansionLimit;
             queryOptions.VerboseLogging = options.VerboseLogging;
+            queryOptions.NewRangeInference = options.NewRangeInference;
             queryOptions.MaxSubqueries = options.MaxSubqueries;
 
             if (ranges) {

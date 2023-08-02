@@ -4,11 +4,13 @@
 #include "cg_fragment_compiler.h"
 
 #include <yt/yt/library/query/engine_api/range_inferrer.h>
+#include <yt/yt/library/query/engine_api/new_range_inferrer.h>
 
 #include <yt/yt/library/query/base/builtin_function_registry.h>
 #include <yt/yt/library/query/base/functions.h>
 #include <yt/yt/library/query/base/functions_builder.h>
 #include <yt/yt/library/query/base/query.h>
+#include <yt/yt/library/query/base/constraints.h>
 
 #include <library/cpp/yt/memory/ref.h>
 
@@ -103,6 +105,23 @@ public:
 
 };
 
+TStringBuf GetUpperBound(TStringBuf source, TChunkedMemoryPool* memoryPool)
+{
+    ui32 length = source.Size();
+    while (length > 0 && source[length - 1] == std::numeric_limits<char>::max()) {
+        --length;
+    }
+
+    if (length > 0) {
+        char* newValue = memoryPool->AllocateUnaligned(length);
+        memcpy(newValue, source.data(), length);
+        ++newValue[length - 1];
+        return {newValue, length};
+    } else {
+        return TStringBuf{};
+    }
+}
+
 TKeyTriePtr IsPrefixRangeExtractor(
     const TConstFunctionExpressionPtr& expr,
     const TKeyColumns& keyColumns,
@@ -124,27 +143,50 @@ TKeyTriePtr IsPrefixRangeExtractor(
 
             result = New<TKeyTrie>(keyPartIndex);
             result->Bounds.emplace_back(value, true);
-
-            ui32 length = value.Length;
-            while (length > 0 && value.Data.String[length - 1] == std::numeric_limits<char>::max()) {
-                --length;
-            }
-
-            if (length > 0) {
-                char* newValue = rowBuffer->GetPool()->AllocateUnaligned(length);
-                memcpy(newValue, value.Data.String, length);
-                ++newValue[length - 1];
-
-                value.Length = length;
-                value.Data.String = newValue;
-            } else {
-                value = MakeSentinelValue<TUnversionedValue>(EValueType::Max);
-            }
-            result->Bounds.emplace_back(value, false);
+            auto upper = GetUpperBound(TStringBuf{value.Data.String, value.Length}, rowBuffer->GetPool());
+            result->Bounds.emplace_back(
+                upper.Empty()
+                    ? MakeSentinelValue<TUnversionedValue>(EValueType::Max)
+                    : MakeUnversionedStringValue(upper),
+                false);
         }
     }
 
     return result;
+}
+
+TConstraintRef IsPrefixConstraintExtractor(
+    TConstraintsHolder* constraints,
+    const TConstFunctionExpressionPtr& expr,
+    const TKeyColumns& keyColumns,
+    const TRowBufferPtr& rowBuffer)
+{
+    auto lhsExpr = expr->Arguments[0];
+    auto rhsExpr = expr->Arguments[1];
+
+    auto referenceExpr = rhsExpr->As<TReferenceExpression>();
+    auto constantExpr = lhsExpr->As<TLiteralExpression>();
+
+    if (referenceExpr && constantExpr) {
+        int keyPartIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
+        if (keyPartIndex >= 0) {
+            auto value = TValue(constantExpr->Value);
+            YT_VERIFY(value.Type == EValueType::String);
+
+            auto upper = GetUpperBound(TStringBuf{value.Data.String, value.Length}, rowBuffer->GetPool());
+
+            return constraints->Interval(
+                TValueBound{value, false},
+                TValueBound{
+                    upper.Empty()
+                        ? MakeSentinelValue<TUnversionedValue>(EValueType::Max)
+                        : MakeUnversionedStringValue(upper),
+                    false},
+                keyPartIndex);
+        }
+    }
+
+    return TConstraintRef::Universal();
 }
 
 class TIsNullCodegen
@@ -811,6 +853,19 @@ TConstRangeExtractorMapPtr CreateBuiltinRangeExtractors()
 const TConstRangeExtractorMapPtr GetBuiltinRangeExtractors()
 {
     static const auto builtinRangeExtractors = CreateBuiltinRangeExtractors();
+    return builtinRangeExtractors;
+}
+
+TConstConstraintExtractorMapPtr CreateBuiltinConstraintExtractors()
+{
+    auto result = New<TConstraintExtractorMap>();
+    result->emplace("is_prefix", NBuiltins::IsPrefixConstraintExtractor);
+    return result;
+}
+
+const TConstConstraintExtractorMapPtr GetBuiltinConstraintExtractors()
+{
+    static const auto builtinRangeExtractors = CreateBuiltinConstraintExtractors();
     return builtinRangeExtractors;
 }
 

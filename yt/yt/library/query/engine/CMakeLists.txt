@@ -193,6 +193,7 @@ target_sources(library-query-engine PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/functions_cg.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/functions_builder.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/position_independent_value_caller.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/new_range_inferrer.cpp
 )
 
 add_global_library_for(library-query-engine.global library-query-engine)

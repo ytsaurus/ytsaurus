@@ -683,6 +683,8 @@ struct TSelectRowsOptionsBase
     std::optional<TString> UdfRegistryPath;
     //! If |true| then logging is more verbose.
     bool VerboseLogging = false;
+    //! Use fixed and rewritten range inference.
+    bool NewRangeInference = true;
 };
 
 struct TSelectRowsOptions

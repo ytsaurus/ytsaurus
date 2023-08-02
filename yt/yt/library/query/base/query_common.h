@@ -160,6 +160,7 @@ struct TQueryOptions
     TInstant Deadline = TInstant::Max();
     bool SuppressAccessTracking = false;
     std::optional<TString> ExecutionPool;
+    bool NewRangeInference = true;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
