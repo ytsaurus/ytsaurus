@@ -174,6 +174,7 @@ std::vector<TTableReplicaId> TClient::GetReplicatedTableInSyncReplicas(
         proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultGetInSyncReplicasTimeout));
 
         auto req = proxy.GetTabletInfo();
+        req->SetResponseHeavy(true);
         ToProto(req->mutable_tablet_ids(), perCellTabletIds);
         for (int index = 0; index < std::ssize(perCellTabletIds); ++index) {
             ToProto(req->add_cell_ids(), cellId);

@@ -434,6 +434,7 @@ std::vector<TTabletInfo> TClient::GetTabletInfosImpl(
             TQueryServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultGetTabletInfosTimeout));
             subrequest.Request = proxy.GetTabletInfo();
+            subrequest.Request->SetResponseHeavy(true);
         }
         ToProto(subrequest.Request->add_tablet_ids(), tabletInfo->TabletId);
         ToProto(subrequest.Request->add_cell_ids(), tabletInfo->CellId);
