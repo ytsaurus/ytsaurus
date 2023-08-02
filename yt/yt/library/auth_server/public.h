@@ -26,6 +26,14 @@ DECLARE_REFCOUNTED_CLASS(TBatchingSecretVaultServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TCachingSecretVaultServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TAuthenticationManagerConfig)
 
+DECLARE_REFCOUNTED_CLASS(TOAuthCookieAuthenticatorConfig)
+DECLARE_REFCOUNTED_CLASS(TOAuthTokenAuthenticatorConfig)
+DECLARE_REFCOUNTED_CLASS(TCachingOAuthCookieAuthenticatorConfig)
+DECLARE_REFCOUNTED_CLASS(TCachingOAuthTokenAuthenticatorConfig)
+DECLARE_REFCOUNTED_CLASS(TOAuthServiceConfig)
+DECLARE_REFCOUNTED_CLASS(TCypressUserManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TCachingCypressUserManagerConfig)
+
 DECLARE_REFCOUNTED_STRUCT(TCypressCookie)
 
 DECLARE_REFCOUNTED_STRUCT(TCypressCookieStoreConfig)
@@ -34,10 +42,12 @@ DECLARE_REFCOUNTED_STRUCT(TCypressCookieManagerConfig)
 
 DECLARE_REFCOUNTED_STRUCT(ICypressCookieStore)
 DECLARE_REFCOUNTED_STRUCT(ICypressCookieManager)
+DECLARE_REFCOUNTED_STRUCT(ICypressUserManager)
 
 DECLARE_REFCOUNTED_STRUCT(IAuthenticationManager)
 
 DECLARE_REFCOUNTED_STRUCT(IBlackboxService)
+DECLARE_REFCOUNTED_STRUCT(IOAuthService)
 
 DECLARE_REFCOUNTED_STRUCT(ICookieAuthenticator)
 DECLARE_REFCOUNTED_STRUCT(ITokenAuthenticator)
@@ -128,6 +138,7 @@ inline bool operator ==(
 constexpr TStringBuf BlackboxSessionIdCookieName = "Session_id";
 constexpr TStringBuf BlackboxSslSessionIdCookieName = "sessionid2";
 constexpr TStringBuf CypressCookieName = "YTCypressCookie";
+constexpr TStringBuf OAuthAccessTokenCookieName = "access_token";
 
 ////////////////////////////////////////////////////////////////////////////////
 

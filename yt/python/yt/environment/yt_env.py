@@ -159,7 +159,8 @@ class YTInstance(object):
                  stderrs_path=None,
                  preserve_working_dir=False,
                  external_bin_path=None,
-                 tmpfs_path=None):
+                 tmpfs_path=None,
+                 open_port_iterator=None):
         self.path = os.path.realpath(os.path.abspath(path))
         self.yt_config = yt_config
 
@@ -272,7 +273,11 @@ class YTInstance(object):
             }
         }
 
-        self._open_port_iterator = _get_ports_generator(yt_config)
+        if open_port_iterator is not None:
+            self._open_port_iterator = open_port_iterator
+        else:
+            self._open_port_iterator = _get_ports_generator(yt_config)
+
         self._prepare_builtin_environment(self._open_port_iterator, modify_configs_func)
 
     def _prepare_directories(self):
@@ -627,6 +632,9 @@ class YTInstance(object):
 
     def get_cluster_configuration(self):
         return self._cluster_configuration
+
+    def get_open_port_iterator(self):
+        return self._open_port_iterator
 
     # TODO(max42): remove this method and rename all its usages to get_http_proxy_address.
     def get_proxy_address(self):
