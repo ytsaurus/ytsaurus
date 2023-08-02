@@ -25,6 +25,7 @@ class TSchemalessFormatWriterBase
 {
 public:
     bool Write(TRange<NTableClient::TUnversionedRow> rows) override;
+    bool WriteBatch(NTableClient::IUnversionedRowBatchPtr rowBatch) override;
 
     TFuture<void> GetReadyEvent() override;
 
@@ -61,6 +62,7 @@ protected:
     virtual void FlushWriter();
 
     virtual void DoWrite(TRange<NTableClient::TUnversionedRow> rows) = 0;
+    virtual void DoWriteBatch(NTableClient::IUnversionedRowBatchPtr rowBatch);
 
     bool CheckKeySwitch(NTableClient::TUnversionedRow row, bool isLastRow);
 

@@ -2,6 +2,7 @@
 #include "config.h"
 
 #include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/row_batch.h>
 #include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/core/actions/future.h>
@@ -143,6 +144,27 @@ bool TSchemalessFormatWriterBase::Write(TRange<TUnversionedRow> rows)
     }
 
     return true;
+}
+
+bool TSchemalessFormatWriterBase::WriteBatch(IUnversionedRowBatchPtr rowBatch)
+{
+    if (!Error_.IsOK()) {
+        return false;
+    }
+
+    try {
+        DoWriteBatch(rowBatch);
+    } catch (const std::exception& ex) {
+        Error_ = TError(ex);
+        return false;
+    }
+
+    return true;
+}
+
+void TSchemalessFormatWriterBase::DoWriteBatch(IUnversionedRowBatchPtr rowBatch)
+{
+    return DoWrite(rowBatch->MaterializeRows());
 }
 
 bool TSchemalessFormatWriterBase::CheckKeySwitch(TUnversionedRow row, bool isLastRow)
