@@ -348,7 +348,6 @@ private:
         YT_LOG_DEBUG("Collecting partitions (Query: %v)", selectQuery);
 
         TSelectRowsOptions selectRowsOptions;
-        selectRowsOptions.Timestamp = AsyncLastCommittedTimestamp;
         auto selectRowsResult = WaitFor(client->SelectRows(selectQuery, selectRowsOptions))
             .ValueOrThrow();
 
@@ -422,7 +421,6 @@ private:
         options.KeepMissingRows = true;
         options.RetentionConfig = New<TRetentionConfig>();
         options.RetentionConfig->MaxDataVersions = 1;
-        options.Timestamp = AsyncLastCommittedTimestamp;
 
         auto versionedRowset = WaitFor(client->VersionedLookupRows(
             Path_,
