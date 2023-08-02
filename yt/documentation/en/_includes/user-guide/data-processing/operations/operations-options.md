@@ -91,7 +91,7 @@ The following parameters are supported for each user script (default values, if 
    – `set_container_cpu_limit` (false) – sets the `cpu_limit` for the porto container equal to the one requested.  By default, only the weight proportional to the requested `cpu_limit` is set.
 - `gpu_limit` (0) — number of GPU cards provided to the job.
 - `memory_limit` (512 MB) — limit on job memory consumption (in bytes).
-- `user_job_memory-digest_default_value` (0.5) — initial estimate for [memory reserve](../../../../user-guide/data-processing/scheduler/memory-digest.md) selection.
+- `user_job_memory_digest_default_value` (0.5) — initial estimate for [memory reserve](../../../../user-guide/data-processing/scheduler/memory-digest.md) selection.
 - `enable_input_table_index` — determines whether to write in the input stream information about which table the row originates from (input table index). By default, attributes are only written if there is more than one input table.
 - `tmpfs_path` — path to the `sandbox` where tmpfs is mounted. The default tmpfs size is equal to the job's `memory_limit`, and the actual occupied space factors into the job's memory consumption.
 - `tmpfs_size` — optional parameter that sets the limit of the tmpfs size for a job. This parameter only matters when `tmpfs_path` is specified. If the parameter is not specified, it is taken to equal `memory_limit`, with `memory_reserve_factor` being automatically set to 1.

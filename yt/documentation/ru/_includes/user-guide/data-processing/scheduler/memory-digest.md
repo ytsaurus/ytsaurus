@@ -30,7 +30,7 @@
 ### Настройки digest
 
 Доступные пользователю опции в спецификации операции:
-  * `user_job_memory-digest_default_value` - исходное предположение для выбора резерва памяти (по умолчанию 0.5).
-  * `user_job_memory-digest_lower_bound` - граница, ниже которой не может опускаться резерв (по умолчанию 0.05). Не рекомендуется менять значение по умолчанию.
-  * `memory_reserve_factor` - алиас для опции `user_job_memory-digest_lower_bound` и `user_job_memory-digest_default_value` одновременно. Не рекомендуется использовать данную опцию.
+  * `user_job_memory_digest_default_value` - исходное предположение для выбора резерва памяти (по умолчанию 0.5).
+  * `user_job_memory_digest_lower_bound` - граница, ниже которой не может опускаться резерв (по умолчанию 0.05). Не рекомендуется менять значение по умолчанию.
+  * `memory_reserve_factor` - алиас для опции `user_job_memory_digest_lower_bound` и `user_job_memory_digest_default_value` одновременно. Не рекомендуется использовать данную опцию.
 
