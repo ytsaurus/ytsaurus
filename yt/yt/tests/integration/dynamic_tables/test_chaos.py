@@ -20,7 +20,7 @@ from yt_commands import (
     get_in_sync_replicas, generate_timestamp, MaxTimestamp, raises_yt_error,
     create_table_replica, sync_enable_table_replica, get_tablet_infos, ban_node,
     suspend_chaos_cells, resume_chaos_cells, merge, add_maintenance, remove_maintenance,
-    sync_freeze_table, lock)
+    sync_freeze_table, lock, get_tablet_errors)
 
 from yt_type_helpers import make_schema
 
@@ -778,6 +778,58 @@ class TestChaos(ChaosTestBase):
         insert_rows("//tmp/t", values1)
         wait(lambda: _pull_rows(1, timestamp) == values1)
         wait(lambda: _pull_rows(2, timestamp) == values1)
+
+    @authors("ponasenko-rs")
+    def test_reshard_ordered_on_at_a_time(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
+        ]
+        remote_driver0 = get_driver(cluster="remote_0")
+
+        card_id, _ = self._create_chaos_tables(cell_id, replicas, ordered=True)
+
+        sync_unmount_table("//tmp/t")
+        reshard_table("//tmp/t", 2)
+        sync_mount_table("//tmp/t")
+
+        def _pull_failed():
+            tablet_infos = get_tablet_infos("//tmp/t", [1], request_errors=True)
+            errors = tablet_infos["tablets"][0]["tablet_errors"]
+            if len(errors) == 0 or errors[0]["attributes"]["background_activity"] != "pull":
+                return False
+            message = errors[0]["message"]
+            if message.startswith("Target queue has no corresponding tablet"):
+                return True
+            return False
+
+        wait(_pull_failed)
+
+        sync_unmount_table("//tmp/q", driver=remote_driver0)
+        reshard_table("//tmp/q", 2, driver=remote_driver0)
+        sync_mount_table("//tmp/q", driver=remote_driver0)
+
+        self._sync_replication_card(card_id)
+
+        tablet_count = 2
+        values = [{"$tablet_index": j, "key": i, "value": str(i + j)} for i in range(2) for j in range(tablet_count)]
+        data_values = [[{"key": i, "value": str(i + j)} for i in range(2)] for j in range(tablet_count)]
+        insert_rows("//tmp/t", values)
+
+        for j in range(tablet_count):
+            wait(lambda: select_rows(f"key, value from [//tmp/t] where [$tablet_index] = {j}") == data_values[j])
+            assert select_rows(f"key, value from [//tmp/q] where [$tablet_index] = {j}", driver=remote_driver0) == data_values[j]
+
+        def _no_pull_errors():
+            def _no_tablet_errors(table, driver=None):
+                errors = get_tablet_errors(table, driver=driver)
+                return len(errors["tablet_errors"]) == 0
+
+            return _no_tablet_errors("//tmp/t") and _no_tablet_errors("//tmp/q", driver=remote_driver0)
+
+        wait(_no_pull_errors)
 
     @authors("babenko")
     def test_chaos_replicated_table_requires_valid_card_id(self):
