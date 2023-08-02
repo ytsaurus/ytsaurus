@@ -2743,6 +2743,13 @@ TPullRowsResult TClient::DoPullRows(
         int index = segments[0].LowerKey.GetCount() > 0
             ? FromUnversionedValue<i64>(segments[0].LowerKey[0])
             : 0;
+
+        if (index >= std::ssize(tableInfo->Tablets)) {
+            THROW_ERROR_EXCEPTION("Target queue has no corresponding tablet")
+                << TErrorAttribute("tablet_index", index)
+                << TErrorAttribute("tablet_count", std::ssize(tableInfo->Tablets));
+        }
+
         requests.push_back({
             .TabletIndex = index,
             .StartReplicationRowIndex = getStartReplicationRowIndex(index),
