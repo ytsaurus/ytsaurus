@@ -1,6 +1,6 @@
 from yt.local import start, stop, delete
 import yt.local as yt_local
-from yt.common import remove_file, is_process_alive
+from yt.common import remove_file, is_process_alive, which
 from yt.wrapper import YtClient
 from yt.wrapper.common import generate_uuid
 from yt.environment.helpers import is_dead
@@ -227,6 +227,9 @@ class TestLocalMode(object):
                 assert os.path.exists(os.path.join(configs_path, name))
 
     def test_watcher(self):
+        if yatest_common is None and not which("logrotate"):
+            pytest.skip()
+
         watcher_config = {
             "logs_rotate_size": "1k",
             "logs_rotate_interval": 1,
