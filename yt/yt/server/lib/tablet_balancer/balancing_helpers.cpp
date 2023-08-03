@@ -307,6 +307,16 @@ std::vector<TReshardDescriptor> MergeSplitTabletsOfTable(
     const auto& table = tablets.front()->Table;
     auto config = GetTabletSizeConfig(table, Logger);
 
+    YT_LOG_DEBUG_IF(table->TableConfig->EnableVerboseLogging ||
+        table->Bundle->Config->EnableVerboseLogging,
+        "Reshard tablet size config (TableId: %v, MinTabletSize: %v, MaxTabletSize: %v, "
+        "DesiredTabletSize: %v, MinTabletCount: %v)",
+        table->Id,
+        config.MinTabletSize,
+        config.MaxTabletSize,
+        config.DesiredTabletSize,
+        config.MinTabletCount);
+
     // If MinTabletCount is set then the number of merges is limited. We want
     // to distribute merges evenly across the table. Merge budget (the number
     // of allowed merges) is distributed between starving tablets. When the
