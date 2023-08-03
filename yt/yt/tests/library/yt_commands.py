@@ -1907,10 +1907,10 @@ def create_pool_tree(name, config=None, wait_for_orchid=True, allow_patching=Tru
     if allow_patching:
         if "min_child_heap_size" not in config:
             config["min_child_heap_size"] = 3
-        if "prioritized_regular_scheduling" not in config:
-            config["prioritized_regular_scheduling"] = {
-                "medium_priority_operation_count_limit": 3,
-                "low_priority_fallback_min_spare_job_resources": {
+        if "batch_operation_scheduling" not in config:
+            config["batch_operation_scheduling"] = {
+                "batch_size": 3,
+                "fallback_min_spare_job_resources": {
                     "cpu": 1.5,
                     "user_slots": 1,
                     "memory": 512 * 1024 * 1024,

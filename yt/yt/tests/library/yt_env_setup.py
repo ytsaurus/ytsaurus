@@ -1230,9 +1230,9 @@ class YTEnvSetup(object):
             "nodes_filter": "",
             "main_resource": "cpu",
             "min_child_heap_size": 3,
-            "prioritized_regular_scheduling": {
-                "medium_priority_operation_count_limit": 3,
-                "low_priority_fallback_min_spare_job_resources": {
+            "batch_operation_scheduling": {
+                "batch_size": 3,
+                "fallback_min_spare_job_resources": {
                     "cpu": 1.5,
                     "user_slots": 1,
                     "memory": 512 * 1024 * 1024,

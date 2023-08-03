@@ -20,6 +20,8 @@ namespace NYT::NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 constexpr int SchedulingIndexProfilingRangeCount = 12;
+constexpr int MaxProfiledSchedulingStageAttemptIndex = 8;
+
 constexpr int InvalidSchedulableChildSetIndex = -1;
 constexpr int EmptySchedulingTagFilterIndex = -1;
 
@@ -272,6 +274,8 @@ struct TSchedulingStageProfilingCounters
     std::array<NProfiling::TCounter, SchedulingIndexProfilingRangeCount + 1> SchedulingIndexCounters;
     std::array<NProfiling::TCounter, SchedulingIndexProfilingRangeCount + 1> MaxSchedulingIndexCounters;
 
+    std::array<NProfiling::TCounter, MaxProfiledSchedulingStageAttemptIndex + 1> StageAttemptCount;
+
     NProfiling::TSummary ActiveTreeSize;
     NProfiling::TSummary ActiveOperationCount;
 };
@@ -369,7 +373,10 @@ public:
 
     TNonOwningOperationElementList ExtractBadPackingOperations();
 
-    void StartStage(EJobSchedulingStage stage, TSchedulingStageProfilingCounters* profilingCounters);
+    void StartStage(
+        EJobSchedulingStage stage,
+        TSchedulingStageProfilingCounters* profilingCounters,
+        int stageAttemptIndex = 0);
     void FinishStage();
     int GetStageMaxSchedulingIndex() const;
     bool GetStagePrescheduleExecuted() const;
@@ -408,8 +415,9 @@ private:
 
     struct TStageState
     {
-        EJobSchedulingStage Stage;
+        const EJobSchedulingStage Stage;
         TSchedulingStageProfilingCounters* const ProfilingCounters;
+        const int StageAttemptIndex;
 
         NProfiling::TWallTimer Timer;
 
@@ -758,7 +766,7 @@ private:
 
     NConcurrency::TPeriodicExecutorPtr SchedulingSegmentsManagementExecutor_;
 
-    TEnumIndexedVector<EJobSchedulingStage, TSchedulingStageProfilingCounters> SchedulingStageProfilingCounters_;
+    TEnumIndexedVector<EJobSchedulingStage, std::unique_ptr<TSchedulingStageProfilingCounters>> SchedulingStageProfilingCounters_;
 
     TFairShareTreeJobSchedulerOperationStateMap OperationIdToState_;
     TFairShareTreeJobSchedulerSharedOperationStateMap OperationIdToSharedState_;

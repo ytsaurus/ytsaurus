@@ -207,20 +207,20 @@ DEFINE_REFCOUNTED_TYPE(TFairShareStrategySsdPriorityPreemptionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPrioritizedRegularSchedulingConfig
+class TBatchOperationSchedulingConfig
     : public NYTree::TYsonStruct
 {
 public:
-    int MediumPriorityOperationCountLimit;
+    int BatchSize;
 
-    TJobResourcesConfigPtr LowPriorityFallbackMinSpareJobResources;
+    TJobResourcesConfigPtr FallbackMinSpareJobResources;
 
-    REGISTER_YSON_STRUCT(TPrioritizedRegularSchedulingConfig);
+    REGISTER_YSON_STRUCT(TBatchOperationSchedulingConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TPrioritizedRegularSchedulingConfig)
+DEFINE_REFCOUNTED_TYPE(TBatchOperationSchedulingConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -411,7 +411,7 @@ public:
 
     TDuration RunningJobStatisticsUpdatePeriod;
 
-    TPrioritizedRegularSchedulingConfigPtr PrioritizedRegularScheduling;
+    TBatchOperationSchedulingConfigPtr BatchOperationScheduling;
 
     EFifoPoolSchedulingOrder FifoPoolSchedulingOrder;
 

@@ -869,6 +869,14 @@ TSchedulingStageProfilingCounters::TSchedulingStageProfilingCounters(
             .WithTag("scheduling_index", FormatProfilingRangeIndex(rangeIndex))
             .Counter("/max_operation_scheduling_index");
     }
+
+    for (int stageAttemptIndex = 0; stageAttemptIndex < std::ssize(StageAttemptCount); ++stageAttemptIndex) {
+        // NB(eshcherbin): We use sparse to avoid creating many unneeded and noisy sensors.
+        StageAttemptCount[stageAttemptIndex] = profiler
+            .WithSparse()
+            .WithTag("attempt_index", ToString(stageAttemptIndex))
+            .Counter("/stage_attempt_count");
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1314,14 +1322,22 @@ TNonOwningOperationElementList TScheduleJobsContext::ExtractBadPackingOperations
     return badPackingOperations;
 }
 
-void TScheduleJobsContext::StartStage(EJobSchedulingStage stage, TSchedulingStageProfilingCounters* profilingCounters)
+void TScheduleJobsContext::StartStage(
+    EJobSchedulingStage stage,
+    TSchedulingStageProfilingCounters* profilingCounters,
+    int stageAttemptIndex)
 {
     YT_VERIFY(!StageState_);
 
     StageState_.emplace(TStageState{
         .Stage = stage,
         .ProfilingCounters = profilingCounters,
+        .StageAttemptIndex = stageAttemptIndex,
     });
+
+    if (stageAttemptIndex < std::ssize(profilingCounters->StageAttemptCount)) {
+        profilingCounters->StageAttemptCount[stageAttemptIndex].Increment();
+    }
 }
 
 void TScheduleJobsContext::FinishStage()
@@ -2345,9 +2361,10 @@ void TScheduleJobsContext::LogStageStatistics()
     YT_VERIFY(StageState_);
 
     YT_LOG_DEBUG(
-        "Scheduling statistics (SchedulingStage: %v, ActiveTreeSize: %v, ActiveOperationCount: %v, TotalHeapElementCount: %v, "
+        "Scheduling statistics (SchedulingStage: %v, StageAttemptIndex: %v, ActiveTreeSize: %v, ActiveOperationCount: %v, TotalHeapElementCount: %v, "
         "DeactivationReasons: %v, CanStartMoreJobs: %v, Address: %v, SchedulingSegment: %v, MaxSchedulingIndex: %v)",
         StageState_->Stage,
+        StageState_->StageAttemptIndex,
         StageState_->ActiveTreeSize,
         StageState_->ActiveOperationCount,
         StageState_->TotalHeapElementCount,
@@ -3105,7 +3122,8 @@ EJobPreemptionStatus TFairShareTreeJobScheduler::GetJobPreemptionStatusInTest(co
 void TFairShareTreeJobScheduler::InitSchedulingProfilingCounters()
 {
     for (auto stage : TEnumTraits<EJobSchedulingStage>::GetDomainValues()) {
-        SchedulingStageProfilingCounters_[stage] = TSchedulingStageProfilingCounters(Profiler_.WithTag("scheduling_stage", FormatEnum(stage)));
+        SchedulingStageProfilingCounters_[stage] = std::make_unique<TSchedulingStageProfilingCounters>(
+            Profiler_.WithTag("scheduling_stage", FormatEnum(stage)));
     }
 }
 
@@ -3139,29 +3157,61 @@ TRunningJobStatistics TFairShareTreeJobScheduler::ComputeRunningJobStatistics(
 
 void TFairShareTreeJobScheduler::DoRegularJobScheduling(TScheduleJobsContext* context)
 {
-    auto runRegularSchedulingStage = [&] (EJobSchedulingStage stageType, const TRegularSchedulingParameters& parameters = {}) {
-        context->StartStage(stageType, &SchedulingStageProfilingCounters_[stageType]);
+    const auto& treeConfig = context->TreeSnapshot()->TreeConfig();
+
+    auto runRegularSchedulingStage = [&] (
+        EJobSchedulingStage stageType,
+        const TRegularSchedulingParameters& parameters = {},
+        int stageAttemptIndex = 0)
+    {
+        context->StartStage(stageType, SchedulingStageProfilingCounters_[stageType].get(), stageAttemptIndex);
         RunRegularSchedulingStage(parameters, context);
         context->FinishStage();
     };
 
-    if (const auto& priorityConfig = context->TreeSnapshot()->TreeConfig()->PrioritizedRegularScheduling) {
-        const auto& schedulableOperationsPerPriority = context->TreeSnapshot()->SchedulingSnapshot()->SchedulableOperationsPerPriority();
-        runRegularSchedulingStage(
-            EJobSchedulingStage::RegularMediumPriority,
-            TRegularSchedulingParameters{
-                .ConsideredOperations = schedulableOperationsPerPriority[EOperationSchedulingPriority::Medium],
-            });
+    auto runRegularSchedulingStageWithBatching = [&] (
+        EJobSchedulingStage stageType,
+        const TNonOwningOperationElementList& operations)
+    {
+        const auto& batchConfig = treeConfig->BatchOperationScheduling;
+        const int batchSize = batchConfig->BatchSize;
+        auto batchStart = operations.begin();
+        auto getNextOperationBatch = [&] {
+            int currentBatchSize = std::min(batchSize, static_cast<int>(std::distance(batchStart, operations.end())));
+            auto batchEnd = std::next(batchStart, currentBatchSize);
+            TNonOwningOperationElementList batch(batchStart, batchEnd);
 
-        auto customLowPriorityMinSpareJobResources = !context->SchedulingContext()->StartedJobs().empty()
-            ? std::make_optional(ToJobResources(priorityConfig->LowPriorityFallbackMinSpareJobResources, TJobResources{}))
-            : std::nullopt;
-        runRegularSchedulingStage(
-            EJobSchedulingStage::RegularLowPriority,
-            TRegularSchedulingParameters{
-                .ConsideredOperations = schedulableOperationsPerPriority[EOperationSchedulingPriority::Medium],
-                .CustomMinSpareJobResources = customLowPriorityMinSpareJobResources,
-            });
+            batchStart = batchEnd;
+
+            return batch;
+        };
+
+        int stageAttemptIndex = 0;
+        int previouslyScheduledJobCount = std::ssize(context->SchedulingContext()->StartedJobs());
+        std::optional<TJobResources> customMinSpareJobResources;
+        while (batchStart != operations.end()) {
+            runRegularSchedulingStage(
+                stageType,
+                TRegularSchedulingParameters{
+                    .ConsideredOperations = getNextOperationBatch(),
+                    .CustomMinSpareJobResources = customMinSpareJobResources,
+                },
+                stageAttemptIndex);
+
+            ++stageAttemptIndex;
+
+            bool hasScheduledJobs = previouslyScheduledJobCount < std::ssize(context->SchedulingContext()->StartedJobs());
+            if (hasScheduledJobs && !customMinSpareJobResources) {
+                customMinSpareJobResources = ToJobResources(batchConfig->FallbackMinSpareJobResources, TJobResources{});
+            }
+        }
+    };
+
+    if (treeConfig->BatchOperationScheduling) {
+        const auto& schedulableOperationsPerPriority = context->TreeSnapshot()->SchedulingSnapshot()->SchedulableOperationsPerPriority();
+        runRegularSchedulingStageWithBatching(
+            EJobSchedulingStage::RegularMediumPriority,
+            schedulableOperationsPerPriority[EOperationSchedulingPriority::Medium]);
     } else {
         runRegularSchedulingStage(EJobSchedulingStage::RegularMediumPriority);
     }
@@ -3210,7 +3260,7 @@ void TFairShareTreeJobScheduler::DoPreemptiveJobScheduling(TScheduleJobsContext*
             break;
         }
 
-        context->StartStage(stage, &SchedulingStageProfilingCounters_[stage]);
+        context->StartStage(stage, SchedulingStageProfilingCounters_[stage].get());
         RunPreemptiveSchedulingStage(parameters, context);
         context->FinishStage();
     }
@@ -3428,11 +3478,6 @@ void TFairShareTreeJobScheduler::CollectSchedulableOperationsPerPriority(
     TFairSharePostUpdateContext* fairSharePostUpdateContext,
     TJobSchedulerPostUpdateContext* postUpdateContext) const
 {
-    const auto& priorityConfig = fairSharePostUpdateContext->TreeConfig->PrioritizedRegularScheduling;
-    if (!priorityConfig) {
-        return;
-    }
-
     TNonOwningOperationElementList sortedOperationElements;
     sortedOperationElements.reserve(postUpdateContext->RootElement->SchedulableElementCount());
     for (const auto& [_, operationElement] : fairSharePostUpdateContext->EnabledOperationIdToElement) {
@@ -3445,14 +3490,7 @@ void TFairShareTreeJobScheduler::CollectSchedulableOperationsPerPriority(
         return postUpdateContext->StaticAttributesList.AttributesOf(element).SchedulingIndex;
     });
 
-    auto& operationsPerPriority = postUpdateContext->SchedulableOperationsPerPriority;
-    for (auto* operationElement : sortedOperationElements) {
-        int highPriorityCount = std::ssize(operationsPerPriority[EOperationSchedulingPriority::Medium]);
-        auto priority = highPriorityCount < priorityConfig->MediumPriorityOperationCountLimit
-            ? EOperationSchedulingPriority::Medium
-            : EOperationSchedulingPriority::Low;
-        operationsPerPriority[priority].push_back(operationElement);
-    }
+    postUpdateContext->SchedulableOperationsPerPriority[EOperationSchedulingPriority::Medium] = std::move(sortedOperationElements);
 }
 
 void TFairShareTreeJobScheduler::PublishFairShareAndUpdatePreemptionAttributes(

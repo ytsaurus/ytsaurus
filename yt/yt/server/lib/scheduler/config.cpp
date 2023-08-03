@@ -219,13 +219,17 @@ void TFairShareStrategySsdPriorityPreemptionConfig::Register(TRegistrar registra
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TPrioritizedRegularSchedulingConfig::Register(TRegistrar registrar)
+void TBatchOperationSchedulingConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("medium_priority_operation_count_limit", &TThis::MediumPriorityOperationCountLimit)
+    registrar.Parameter("batch_size", &TThis::BatchSize)
+        // COMPAT(eshcherbin)
+        .Alias("medium_priority_operation_count_limit")
         .GreaterThanOrEqual(0)
         .Default(1000);
 
-    registrar.Parameter("low_priority_fallback_min_spare_job_resources", &TThis::LowPriorityFallbackMinSpareJobResources)
+    registrar.Parameter("fallback_min_spare_job_resources", &TThis::FallbackMinSpareJobResources)
+        // COMPAT(eshcherbin)
+        .Alias("low_priority_fallback_min_spare_job_resources")
         .DefaultCtor(&GetDefaultLowPriorityFallbackMinSpareJobResources);
 }
 
@@ -486,7 +490,9 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("running_job_statistics_update_period", &TThis::RunningJobStatisticsUpdatePeriod)
         .Default(TDuration::Seconds(1));
 
-    registrar.Parameter("prioritized_regular_scheduling", &TThis::PrioritizedRegularScheduling)
+    registrar.Parameter("batch_operation_scheduling", &TThis::BatchOperationScheduling)
+        // COMPAT(eshcherbin)
+        .Alias("prioritized_regular_scheduling")
         .Default();
 
     registrar.Parameter("fifo_pool_scheduling_order", &TThis::FifoPoolSchedulingOrder)
