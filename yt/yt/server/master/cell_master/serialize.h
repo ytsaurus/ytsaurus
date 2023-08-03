@@ -122,6 +122,7 @@ DEFINE_ENUM(EMasterReign,
     ((IncludeOnlyOldStyleMountConfigAttributesInList)               (2348))  // ifsmirnov
     ((RefactorSchemaExport)                                         (2349))  // h0pless
     ((MaxErasureJournalReplicasPerRack)                             (2350))  // vovamelnikov
+    ((FixChunkCreationTimeHistogramAgain)                           (2351))  // kvk1920
     // 23.2 starts here.
     ((TabletServants)                                               (2400))  // ifsmirnov
     ((MediumBase)                                                   (2401))  // gritukan

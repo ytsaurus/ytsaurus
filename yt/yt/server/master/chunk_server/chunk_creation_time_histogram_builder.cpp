@@ -45,7 +45,9 @@ public:
 
     void PersistentClear() noexcept override
     {
-        NeedBuildHistogramFromSnapshot_ = false;
+        // NB: `Load()` may be not called if snapshot does not contain chunk
+        // creation time histogram builder.
+        NeedBuildHistogramFromSnapshot_ = true;
 
         Bounds_ = GetDynamicConfig()->CreationTimeHistogramBucketBounds;
         // TODO(gritukan): Fix dynamic config manager and make sure that bounds are never empty.
@@ -150,7 +152,7 @@ public:
 
     void Load(NCellMaster::TLoadContext& context) override
     {
-        NeedBuildHistogramFromSnapshot_ = context.GetVersion() < EMasterReign::FixChunkCreationTimeHistogram;
+        NeedBuildHistogramFromSnapshot_ = context.GetVersion() < EMasterReign::FixChunkCreationTimeHistogramAgain;
 
         using NYT::Load;
 
@@ -163,7 +165,9 @@ public:
         THistogramSnapshot snapshot;
         Load(context, snapshot.Bounds);
         Load(context, snapshot.Values);
-        Histogram_.LoadSnapshot(std::move(snapshot));
+        if (!NeedBuildHistogramFromSnapshot_) {
+            Histogram_.LoadSnapshot(std::move(snapshot));
+        }
     }
 
     void OnAfterSnapshotLoaded() override
@@ -174,7 +178,9 @@ public:
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         for (auto [chunkId, chunk] : chunkManager->Chunks()) {
-            Histogram_.Add(GetCreationTime(chunk).MillisecondsFloat());
+            if (!chunk->IsJournal()) {
+                Histogram_.Add(GetCreationTime(chunk).MillisecondsFloat());
+            }
         }
 
         YT_LOG_DEBUG("Chunk creation time histogram built");
@@ -184,7 +190,7 @@ private:
     TBootstrap* const Bootstrap_;
 
     // COMPAT(kvk1920): EMasterReign::MasterCellChunkStatisticsCollector
-    bool NeedBuildHistogramFromSnapshot_ = false;
+    bool NeedBuildHistogramFromSnapshot_ = true;
 
     // Persistent.
     std::vector<TInstant> Bounds_;
