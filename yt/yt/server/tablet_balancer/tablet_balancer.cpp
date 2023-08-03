@@ -714,7 +714,7 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
             continue;
         }
 
-        auto& profilingCounters = GetOrCrash(bundleState->ProfilingCounters(), (*beginIt)->Table->Id);
+        auto tableId = (*beginIt)->Table->Id;
         auto tableTablets = std::vector<TTabletPtr>(beginIt, endIt);
         beginIt = endIt;
 
@@ -729,11 +729,13 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
             .Run())
             .ValueOrThrow();
 
+        auto& profilingCounters = GetOrCrash(bundleState->ProfilingCounters(), tableId);
         for (auto descriptor : descriptors) {
-            YT_LOG_DEBUG("Reshard action created (TabletIds: %v, TabletCount: %v, DataSize: %v)",
+            YT_LOG_DEBUG("Reshard action created (TabletIds: %v, TabletCount: %v, DataSize: %v, TableId: %v)",
                 descriptor.Tablets,
                 descriptor.TabletCount,
-                descriptor.DataSize);
+                descriptor.DataSize,
+                tableId);
             ActionManager_->ScheduleActionCreation(bundleState->GetBundle()->Name, descriptor);
 
             if (descriptor.TabletCount == 1) {
