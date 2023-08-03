@@ -711,7 +711,7 @@ std::vector<TMoveDescriptor> ReassignOrdinaryTablets(
                 continue;
             }
 
-            if (tablet->Cell == nullptr) {
+            if (tablet->Cell.IsExpired()) {
                 // Unmounted tablet.
                 continue;
             }
