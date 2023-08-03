@@ -51,10 +51,10 @@ TTimer::TTimer(const TRawKey& rawKey, const TTimerId& timerId, const TCallbackId
 
 bool TTimer::operator == (const TTimer& other) const noexcept
 {
-    return GetKey().GetKey() == other.GetKey().GetKey()
+    return GetValue().GetTimestamp() == other.GetValue().GetTimestamp()
+        && GetKey().GetKey() == other.GetKey().GetKey()
         && GetKey().GetTimerId() == other.GetKey().GetTimerId()
         && GetKey().GetCallbackId() == other.GetKey().GetCallbackId()
-        && GetValue().GetTimestamp() == other.GetValue().GetTimestamp()
         && GetValue().GetUserData() == other.GetValue().GetUserData();
 }
 
@@ -161,12 +161,12 @@ void TTimers::Commit(const NYT::NApi::ITransactionPtr tx, const TTimers::TTimers
         if (targetTimer.GetValue().GetTimestamp() != 0) {
             YtInsertTimer(tx, targetTimer);
             YtInsertIndex(tx, targetTimer);
-            if (!TimerIndex_ || newTimer < *(--TimerIndex_.end())) {
+            if (!TimerIndex_ || newTimer < *std::prev(TimerIndex_.end())) {
                 TimerIndex_.insert(newTimer);
-                Cleanup(lock);
             }
         }
     }
+    Cleanup(lock);
 }
 
 void TTimers::OnCommit()
@@ -179,20 +179,22 @@ TVector<TTimer> TTimers::GetReadyTimers(size_t limit)
 {
     const auto lock = GetLock();
     TVector<TTimer> result;
-    for (const auto& timer : TimerIndex_) {
-        if (0 == limit) {
+    limit = MIN(limit, TimerIndex_.size());
+    const auto now = TInstant::Now();
+    auto end = TimerIndex_.begin();
+    for (; limit > 0; --limit, ++end) {
+        const TTimer& timer = *end;
+        if (TInstant::Seconds(timer.GetValue().GetTimestamp()) > now) {
             break;
         }
-        if (TInstant::Seconds(timer.GetValue().GetTimestamp()) > TInstant::Now()) {
-            break;
-        }
-        if (TimerInFly_.contains(timer)) {
-            continue;
-        }
-        TimerInFly_.insert(timer);
-        result.push_back(timer);
-        --limit;
     }
+    for (auto it = TimerIndex_.begin(); it != end; ++it) {
+        const TTimer& timer = *it;
+        Y_VERIFY(!TimerInFly_.contains(timer));
+        result.push_back(timer);
+        TimerInFly_.insert(timer);
+    }
+    TimerIndex_.erase(TimerIndex_.begin(), end);
     return result;
 }
 
@@ -205,8 +207,11 @@ bool TTimers::IsValidForExecute(const TTimer& timer, const bool isTimerChanged)
 void TTimers::Cleanup(const TGuard& lock)
 {
     Y_UNUSED(lock);
-    while (TimerIndex_.size() > IndexLimit_) {
-        TimerIndex_.erase(--TimerIndex_.end());
+    const ssize_t n = TimerIndex_.size() + TimerInFly_.size() - IndexLimit_;
+    if (n > 0) {
+        auto it = TimerIndex_.end();
+        std::advance(it, -n);
+        TimerIndex_.erase(it, TimerIndex_.end());
     }
 }
 
@@ -223,11 +228,6 @@ void TTimers::Migrate(const TTimer& timer, const TTimer::TShardId shardId)
 void TTimers::PopulateIndex(const TGuard& lock)
 {
     if (SkipPopulateUntil_ >= TInstant::Now()) {
-        return;
-    }
-
-    //Skip populate if index is full
-    if ((IndexLimit_ - TimerIndex_.size()) < IndexSelectBatch_) {
         return;
     }
 
@@ -263,8 +263,11 @@ void TTimers::PopulateIndex(const TGuard& lock)
 
 TVector<TTimer> TTimers::YtSelectIndex()
 {
-    const size_t offset = TimerIndex_.size();
-    const size_t limit = IndexLimit_ - TimerIndex_.size();
+    const size_t offset = TimerIndex_.size() + TimerInFly_.size();
+    const size_t limit = MIN(IndexSelectBatch_, IndexLimit_ - offset);
+    if (limit == 0) {
+        return {};
+    }
     return NPrivate::YtSelectIndex(YtClient_, YTimersIndexPath_, ShardId_, offset, limit);
 }
 
