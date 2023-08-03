@@ -107,18 +107,28 @@ public:
         const TTabletBalancerDynamicConfigPtr& newConfig) override;
 
 private:
+    struct TScheduledActionCountLimiter
+    {
+        THashMap<TGlobalGroupTag, i64> GroupToActionCount;
+        i64 GroupLimit;
+
+        bool TryIncrease(const TGlobalGroupTag& groupTag);
+    };
+
     IBootstrap* const Bootstrap_;
     const TStandaloneTabletBalancerConfigPtr Config_;
     const IInvokerPtr ControlInvoker_;
     const TPeriodicExecutorPtr PollExecutor_;
     THashMap<TString, TBundleStatePtr> Bundles_;
     mutable THashMap<TString, std::deque<TError>> BundleErrors_;
+
     THashSet<TGlobalGroupTag> GroupsToMoveOnNextIteration_;
     IThreadPoolPtr WorkerPool_;
     IActionManagerPtr ActionManager_;
 
     TAtomicIntrusivePtr<TTabletBalancerDynamicConfig> DynamicConfig_;
 
+    TScheduledActionCountLimiter ActionCountLimiter_;
     TParameterizedBalancingTimeoutScheduler ParameterizedBalancingScheduler_;
     TInstant CurrentIterationStartTime_;
     THashMap<TGlobalGroupTag, TInstant> GroupPreviousIterationStartTime_;
@@ -131,11 +141,12 @@ private:
     void BalanceBundle(const TBundleStatePtr& bundleState);
 
     bool IsBalancingAllowed(const TBundleStatePtr& bundleState) const;
+    bool TryScheduleActionCreation(const TGlobalGroupTag& groupTag, const TActionDescriptor& descriptor);
 
     void BalanceViaReshard(const TBundleStatePtr& bundleState, const TGroupName& groupName);
-    void BalanceViaMove(const TBundleStatePtr& bundleState, const TGroupName& groupName) const;
-    void BalanceViaMoveInMemory(const TBundleStatePtr& bundleState) const;
-    void BalanceViaMoveOrdinary(const TBundleStatePtr& bundleState) const;
+    void BalanceViaMove(const TBundleStatePtr& bundleState, const TGroupName& groupName);
+    void BalanceViaMoveInMemory(const TBundleStatePtr& bundleState);
+    void BalanceViaMoveOrdinary(const TBundleStatePtr& bundleState);
     void TryBalanceViaMoveParameterized(const TBundleStatePtr& bundleState, const TGroupName& groupName);
     void BalanceViaMoveParameterized(const TBundleStatePtr& bundleState, const TGroupName& groupName);
 
@@ -238,6 +249,8 @@ void TTabletBalancer::BalancerIteration()
     YT_LOG_DEBUG("Finished fetching bundles (NewBundleCount: %v)", newBundles.size());
 
     CurrentIterationStartTime_ = TruncatedNow();
+    ActionCountLimiter_ = TScheduledActionCountLimiter{
+        .GroupLimit = DynamicConfig_.Acquire()->MaxActionsPerGroup};
 
     for (auto& [bundleName, bundle] : Bundles_) {
         if (!bundle->GetBundle()->Config) {
@@ -352,6 +365,31 @@ bool TTabletBalancer::IsBalancingAllowed(const TBundleStatePtr& bundleState) con
         bundleState->GetHealth() == ETabletCellHealth::Good &&
         (dynamicConfig->EnableEverywhere ||
          bundleState->GetBundle()->Config->EnableStandaloneTabletBalancer);
+}
+
+bool TTabletBalancer::TScheduledActionCountLimiter::TryIncrease(const TGlobalGroupTag& groupTag)
+{
+    if (GroupToActionCount[groupTag] >= GroupLimit) {
+        YT_LOG_WARNING("Action per iteration limit exceeded (BundleName: %v, Group: %v, Limit: %v)",
+            groupTag.first,
+            groupTag.second,
+            GroupLimit);
+        return false;
+    }
+
+    ++GroupToActionCount[groupTag];
+    return true;
+}
+
+bool TTabletBalancer::TryScheduleActionCreation(
+    const TGlobalGroupTag& groupTag,
+    const TActionDescriptor& descriptor)
+{
+    auto increased = ActionCountLimiter_.TryIncrease(groupTag);
+    if (increased) {
+        ActionManager_->ScheduleActionCreation(groupTag.first, descriptor);
+    }
+    return increased;
 }
 
 THashSet<TGroupName> TTabletBalancer::GetBalancingGroups(const TBundleStatePtr& bundleState) const
@@ -530,7 +568,7 @@ TTimeFormula TTabletBalancer::GetBundleSchedule(const TTabletCellBundlePtr& bund
     return formula;
 }
 
-void TTabletBalancer::BalanceViaMoveInMemory(const TBundleStatePtr& bundleState) const
+void TTabletBalancer::BalanceViaMoveInMemory(const TBundleStatePtr& bundleState)
 {
     YT_LOG_DEBUG("Balancing in memory tablets via move started (BundleName: %v)",
         bundleState->GetBundle()->Name);
@@ -554,21 +592,24 @@ void TTabletBalancer::BalanceViaMoveInMemory(const TBundleStatePtr& bundleState)
         .ValueOrThrow();
 
     int actionCount = 0;
+    auto groupTag = TGlobalGroupTag(bundleState->GetBundle()->Name, LegacyInMemoryGroupName);
 
     if (!descriptors.empty()) {
         for (auto descriptor : descriptors) {
+            if (!TryScheduleActionCreation(groupTag, descriptor)) {
+                break;
+            }
+
+            ++actionCount;
             YT_LOG_DEBUG("Move action created (TabletId: %v, CellId: %v)",
                 descriptor.TabletId,
                 descriptor.TabletCellId);
-            ActionManager_->ScheduleActionCreation(bundleState->GetBundle()->Name, descriptor);
 
             auto tablet = GetOrCrash(bundleState->Tablets(), descriptor.TabletId);
             bundleState->GetProfilingCounters(
                 tablet->Table,
                 LegacyInMemoryGroupName).InMemoryMoves.Increment(1);
         }
-
-        actionCount += std::ssize(descriptors);
     }
 
     YT_LOG_DEBUG("Balancing in memory tablets via move finished (BundleName: %v, ActionCount: %v)",
@@ -576,7 +617,7 @@ void TTabletBalancer::BalanceViaMoveInMemory(const TBundleStatePtr& bundleState)
         actionCount);
 }
 
-void TTabletBalancer::BalanceViaMoveOrdinary(const TBundleStatePtr& bundleState) const
+void TTabletBalancer::BalanceViaMoveOrdinary(const TBundleStatePtr& bundleState)
 {
     YT_LOG_DEBUG("Balancing ordinary tablets via move started (BundleName: %v)",
         bundleState->GetBundle()->Name);
@@ -599,20 +640,24 @@ void TTabletBalancer::BalanceViaMoveOrdinary(const TBundleStatePtr& bundleState)
         .ValueOrThrow();
 
     int actionCount = 0;
+    auto groupTag = TGlobalGroupTag(bundleState->GetBundle()->Name, LegacyGroupName);
+
     if (!descriptors.empty()) {
         for (auto descriptor : descriptors) {
+            if (!TryScheduleActionCreation(groupTag, descriptor)) {
+                break;
+            }
+
+            ++actionCount;
             YT_LOG_DEBUG("Move action created (TabletId: %v, CellId: %v)",
                 descriptor.TabletId,
                 descriptor.TabletCellId);
-            ActionManager_->ScheduleActionCreation(bundleState->GetBundle()->Name, descriptor);
 
             auto tablet = GetOrCrash(bundleState->Tablets(), descriptor.TabletId);
             bundleState->GetProfilingCounters(
                 tablet->Table,
                 LegacyGroupName).OrdinaryMoves.Increment(1);
         }
-
-        actionCount += std::ssize(descriptors);
     }
 
     YT_LOG_DEBUG("Balancing ordinary tablets via move finished (BundleName: %v, ActionCount: %v)",
@@ -656,13 +701,18 @@ void TTabletBalancer::BalanceViaMoveParameterized(const TBundleStatePtr& bundleS
         .ValueOrThrow();
 
     int actionCount = 0;
+    auto groupTag = TGlobalGroupTag(bundleState->GetBundle()->Name, groupName);
 
     if (!descriptors.empty()) {
         for (auto descriptor : descriptors) {
+            if (!TryScheduleActionCreation(groupTag, descriptor)) {
+                break;
+            }
+
+            ++actionCount;
             YT_LOG_DEBUG("Move action created (TabletId: %v, TabletCellId: %v)",
                 descriptor.TabletId,
                 descriptor.TabletCellId);
-            ActionManager_->ScheduleActionCreation(bundleState->GetBundle()->Name, descriptor);
 
             auto tablet = GetOrCrash(bundleState->Tablets(), descriptor.TabletId);
             bundleState->GetProfilingCounters(
@@ -671,8 +721,6 @@ void TTabletBalancer::BalanceViaMoveParameterized(const TBundleStatePtr& bundleS
 
             ApplyMoveTabletAction(tablet, descriptor.TabletCellId);
         }
-
-        actionCount += std::ssize(descriptors);
     }
 
     if (actionCount > 0) {
@@ -703,7 +751,7 @@ void TTabletBalancer::TryBalanceViaMoveParameterized(const TBundleStatePtr& bund
     }
 }
 
-void TTabletBalancer::BalanceViaMove(const TBundleStatePtr& bundleState, const TGroupName& groupName) const
+void TTabletBalancer::BalanceViaMove(const TBundleStatePtr& bundleState, const TGroupName& groupName)
 {
     if (groupName == LegacyGroupName) {
         BalanceViaMoveOrdinary(bundleState);
@@ -745,6 +793,8 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
         });
 
     int actionCount = 0;
+    bool actionLimitExceeded = false;
+    auto groupTag = TGlobalGroupTag(bundleState->GetBundle()->Name, groupName);
 
     auto dynamicConfig = DynamicConfig_.Acquire();
     bool pickReshardPivotKeys = dynamicConfig->PickReshardPivotKeys;
@@ -754,6 +804,10 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
 
     auto beginIt = tablets.begin();
     while (beginIt != tablets.end()) {
+        if (actionLimitExceeded) {
+            break;
+        }
+
         auto endIt = beginIt;
         while (endIt != tablets.end() && (*beginIt)->Table == (*endIt)->Table) {
             ++endIt;
@@ -799,7 +853,12 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
                 }
             }
 
-            ActionManager_->ScheduleActionCreation(bundleState->GetBundle()->Name, descriptor);
+            if (!TryScheduleActionCreation(groupTag, descriptor)) {
+                actionLimitExceeded = true;
+                break;
+            }
+
+            ++actionCount;
             YT_LOG_DEBUG("Reshard action created (TabletIds: %v, TabletCount: %v, DataSize: %v, TableId: %v)",
                 descriptor.Tablets,
                 descriptor.TabletCount,
@@ -813,8 +872,6 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
             } else {
                 profilingCounters.NonTrivialReshards.Increment(1);
             }
-
-            ++actionCount;
         }
     }
 

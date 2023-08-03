@@ -70,6 +70,10 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("reshard_slicing_accuracy", &TThis::ReshardSlicingAccuracy)
         .Default();
 
+    registrar.Parameter("max_actions_per_group", &TThis::MaxActionsPerGroup)
+        .Default(300)
+        .GreaterThan(0);
+
     registrar.Postprocessor([] (TThis* config) {
         if (config->Schedule.IsEmpty()) {
             THROW_ERROR_EXCEPTION("Schedule cannot be empty");

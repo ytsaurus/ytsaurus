@@ -350,39 +350,6 @@ std::vector<TReshardDescriptor> MergeSplitTabletsOfTable(
         }
     }
 
-    // TODO(alexelex): remove it.
-    for (int i = 0; i < std::ssize(tablets); ++i) {
-        YT_LOG_FATAL_IF(
-            tablets[i]->Table != table,
-            "Tablet belongs to another table (TabletId: %v, ExpectedTableId: %v, ActualTableId: %v)",
-            table->Id,
-            tablets[i]->Table->Id,
-            tablets[i]->Id);
-
-        YT_LOG_FATAL_IF(
-            tablets[i]->Index >= std::ssize(table->Tablets),
-            "Tablet index is not less than the number of tablets in the table "
-            "(TabletId: %v, TabletIndex: %v, TabletCount: %v)",
-            tablets[i]->Id,
-            tablets[i]->Index,
-            std::ssize(table->Tablets));
-
-        YT_LOG_FATAL_IF(
-            tablets[i]->Index < i,
-            "Tablet index is less than expected (TabletIndex: %v, ExpectedAtLeast: %v)",
-            tablets[i]->Index,
-            i);
-
-        YT_LOG_FATAL_IF(
-            table->Tablets[tablets[i]->Index].Get() != tablets[i].Get(),
-            "Tablets are expected to be the same, but they are different "
-            "(ExpectedTabletId: %v, ActualTabletId: %v, ExpectedTabletPtr: %v, ActialTabletPtr: %v)",
-            table->Tablets[tablets[i]->Index]->Id,
-            tablets[i]->Id,
-            table->Tablets[tablets[i]->Index].Get(),
-            tablets[i].Get());
-    }
-
     std::vector<TReshardDescriptor> descriptors;
     for (const auto& tablet : tablets) {
         auto descriptor = MergeSplitTablet(
