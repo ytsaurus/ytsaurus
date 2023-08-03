@@ -62,11 +62,11 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
   iputils-ping \
   lsb-release \
   openjdk-11-jdk \
-  python3.7 \
+  python3.11 \
   python3-pip \
-  python3.7-distutils
+  python3.11-distutils
 
-RUN python3.7 -m pip install \
+RUN python3.11 -m pip install \
     ytsaurus-spyt==${SPYT_VERSION}
 
 COPY ./ytsaurus_python /tmp/ytsaurus_python
@@ -76,13 +76,13 @@ RUN for package in client yson local native_driver; \
     wheel_path="${dist_dir}/$(ls ${dist_dir} | grep "^ytsaurus_$package.*whl$")"; \
     echo "DIST_DIR: ${dist_dir}"; \
     echo "WHEEL_PATH: ${wheel_path}"; \
-    python3.7 -m pip install ${wheel_path}; \
+    python3.11 -m pip install ${wheel_path}; \
   done
 
 RUN ln -s /usr/lib/jvm/java-11-openjdk-amd64 /opt/jdk11
 
 # Default python to be used by python3 jobs, for compatibility with jupyter tutorial.
-RUN ln -s /usr/bin/python3.7 /usr/bin/python3 -f
+RUN ln -s /usr/bin/python3.11 /usr/bin/python3 -f
 # Force lsb_release to use python it was born to use.
 RUN sed -i 's/python3/python3.8/' /usr/bin/lsb_release
 

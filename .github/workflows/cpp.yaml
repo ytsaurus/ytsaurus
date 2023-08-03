@@ -5,7 +5,7 @@ on:
     branches:
       - main
       - stable/[0-9]+\.[0-9]+
-
+      - test/python3.11
 jobs:
   start-vm:
     name: Start VM
@@ -132,6 +132,9 @@ jobs:
           elif [[ $GITHUB_REF =~ stable ]];
           then
             IMAGE_TAG=dev-${GITHUB_REF#refs/*/stable/}
+          elif [[ $GITHUB_REF =~ test ]];
+          then
+            IMAGE_TAG=test
           else
             IMAGE_TAG=nopush
           fi
