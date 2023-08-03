@@ -104,6 +104,13 @@ target_sources(yt-yt-client PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/client/chunk_client/public.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/chunk_client/read_limit.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/chunk_client/ready_event_reader_base.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/converters/boolean_converter.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/converters/converter.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/converters/floating_point_converter.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/converters/helper.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/converters/integer_converter.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/converters/null_converter.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/converters/string_converter.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/journal_client/public.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/journal_client/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/cypress_client/public.cpp
