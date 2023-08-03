@@ -277,6 +277,7 @@ std::optional<TReshardDescriptor> MergeSplitTablet(
             tablet->Id,
             size,
             newTabletCount);
+        return {};
     }
 
     std::vector<TTabletId> tablets;
