@@ -17,6 +17,8 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 
+#include <yt/yt/ytlib/tablet_client/pivot_keys_picker.h>
+
 #include <yt/yt/core/tracing/trace_context.h>
 
 namespace NYT::NTabletBalancer {
@@ -119,6 +121,8 @@ private:
     THashMap<TGlobalGroupTag, TInstant> GroupPreviousIterationStartTime_;
     i64 IterationIndex_;
 
+    NProfiling::TCounter PickPivotFailures;
+
     void BalancerIteration();
     void TryBalancerIteration();
     void BalanceBundle(const TBundleStatePtr& bundleState);
@@ -146,6 +150,11 @@ private:
     TTimeFormula GetBundleSchedule(const TTabletCellBundlePtr& bundle, const TTimeFormula& groupSchedule) const;
 
     void BuildOrchid(IYsonConsumer* consumer) const;
+
+    void PickReshardPivotKeys(
+        TReshardDescriptor* descriptor,
+        const NYPath::TYPath& tablePath,
+        std::optional<double> slicingAccuracy) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -174,6 +183,7 @@ TTabletBalancer::TTabletBalancer(
         Config_->ParameterizedTimeoutOnStart,
         Config_->ParameterizedTimeout)
     , IterationIndex_(0)
+    , PickPivotFailures(TabletBalancerProfiler.WithSparse().Counter("/pick_pivot_failures"))
 {
     bootstrap->GetDynamicConfigManager()->SubscribeConfigChanged(BIND(&TTabletBalancer::OnDynamicConfigChanged, MakeWeak(this)));
 }
@@ -698,6 +708,10 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
 
     int actionCount = 0;
 
+    auto dynamicConfig = DynamicConfig_.Acquire();
+    bool pickReshardPivotKeys = dynamicConfig->PickReshardPivotKeys;
+    auto slicingAccuracy = dynamicConfig->ReshardSlicingAccuracy;
+
     auto beginIt = tablets.begin();
     while (beginIt != tablets.end()) {
         auto endIt = beginIt;
@@ -719,8 +733,6 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
         auto tableTablets = std::vector<TTabletPtr>(beginIt, endIt);
         beginIt = endIt;
 
-        // TODO(alexelex): Check if the table has actions.
-
         auto descriptors = WaitFor(
             BIND(
                 MergeSplitTabletsOfTable,
@@ -731,12 +743,30 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
             .ValueOrThrow();
 
         auto& profilingCounters = GetOrCrash(bundleState->ProfilingCounters(), tableId);
+        const auto& tablePath = GetOrCrash(bundleState->GetBundle()->Tables, tableId)->Path;
+
         for (auto descriptor : descriptors) {
             YT_LOG_DEBUG("Reshard action created (TabletIds: %v, TabletCount: %v, DataSize: %v, TableId: %v)",
                 descriptor.Tablets,
                 descriptor.TabletCount,
                 descriptor.DataSize,
                 tableId);
+
+            if (pickReshardPivotKeys) {
+                try {
+                    PickReshardPivotKeys(&descriptor, tablePath, slicingAccuracy);
+                } catch (const std::exception& ex) {
+                    YT_LOG_ERROR(ex,
+                        "Failed to pick pivot keys for reshard action "
+                        "(TabletIds: %v, TabletCount: %v, DataSize: %v, TableId: %v)",
+                        descriptor.Tablets,
+                        descriptor.TabletCount,
+                        descriptor.DataSize,
+                        tableId);
+                    PickPivotFailures.Increment(1);
+                }
+            }
+
             ActionManager_->ScheduleActionCreation(bundleState->GetBundle()->Name, descriptor);
 
             if (descriptor.TabletCount == 1) {
@@ -746,8 +776,9 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
             } else {
                 profilingCounters.NonTrivialReshards.Increment(1);
             }
+
+            ++actionCount;
         }
-        actionCount += std::ssize(descriptors);
     }
 
     if (actionCount > 0) {
@@ -758,6 +789,21 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
         bundleState->GetBundle()->Name,
         groupName,
         actionCount);
+}
+
+void TTabletBalancer::PickReshardPivotKeys(
+    TReshardDescriptor* descriptor,
+    const NYPath::TYPath& tablePath,
+    std::optional<double> slicingAccuracy) const
+{
+    descriptor->PivotKeys = PickPivotKeysWithSlicing(
+        Bootstrap_->GetClient(),
+        tablePath,
+        descriptor->TabletCount,
+        TReshardTableOptions{
+            .EnableSlicing = true,
+            .SlicingAccuracy = slicingAccuracy},
+        Logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

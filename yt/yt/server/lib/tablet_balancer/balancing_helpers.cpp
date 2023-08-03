@@ -11,6 +11,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/client/table_client/unversioned_row.h>
+
 #include <yt/yt/core/misc/numeric_helpers.h>
 
 #include <yt/yt/library/query/base/public.h>
@@ -287,7 +289,7 @@ std::optional<TReshardDescriptor> MergeSplitTablet(
         context->TouchedTablets.insert(tabletId);
     }
 
-    return {TReshardDescriptor{tablets, newTabletCount, size}};
+    return {TReshardDescriptor{.Tablets = std::move(tablets), .TabletCount = newTabletCount, .DataSize = size}};
 }
 
 std::vector<TReshardDescriptor> MergeSplitTabletsOfTable(

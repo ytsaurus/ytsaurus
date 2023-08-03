@@ -63,6 +63,10 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("fetch_tablet_cells_from_secondary_masters", &TThis::FetchTabletCellsFromSecondaryMasters)
         .Default(false);
+    registrar.Parameter("pick_reshard_pivot_keys", &TThis::PickReshardPivotKeys)
+        .Default(false);
+    registrar.Parameter("reshard_slicing_accuracy", &TThis::ReshardSlicingAccuracy)
+        .Default();
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->Schedule.IsEmpty()) {
