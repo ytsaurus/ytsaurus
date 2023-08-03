@@ -17,7 +17,7 @@ void TTableRegistry::AddTable(const TTablePtr& table)
         YT_VERIFY(it->second->Bundle != table->Bundle);
 
         UnlinkTableFromOldBundle(it->second);
-        EraseOrCrash(table->Bundle->Tables, table->Id);
+        EraseOrCrash(it->second->Bundle->Tables, table->Id);
 
         it->second = table;
     } else {
