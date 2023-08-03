@@ -39,6 +39,8 @@ YT_DEFINE_ERROR_ENUM(
     ((ScheduleFormulaEvaluationFailed)                  (2910))
 );
 
+DECLARE_REFCOUNTED_CLASS(TTableRegistry)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletBalancer

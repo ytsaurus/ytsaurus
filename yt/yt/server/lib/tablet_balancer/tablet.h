@@ -33,7 +33,7 @@ struct TTablet final
     const TTable* Table;
 
     i64 Index = {};
-    TTabletCell* Cell = nullptr;
+    TWeakPtr<TTabletCell> Cell = nullptr;
     TInstant MountTime;
 
     TTabletStatistics Statistics;

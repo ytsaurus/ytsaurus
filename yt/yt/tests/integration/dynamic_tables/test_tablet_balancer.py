@@ -3,7 +3,8 @@ from .test_tablet_actions import TabletBalancerBase
 
 from yt_commands import (
     authors, set, get, ls, update, wait, sync_mount_table, sync_reshard_table,
-    insert_rows, sync_create_cells, sync_flush_table, remove, sync_compact_table, wait_for_tablet_state)
+    insert_rows, sync_create_cells, sync_flush_table, remove,
+    sync_compact_table, wait_for_tablet_state, create_tablet_cell_bundle, sync_unmount_table)
 
 from yt.common import update_inplace
 
@@ -145,6 +146,40 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
         )
 
         wait(lambda: any(len(get(f"//sys/tablet_balancer/instances/{instance}/orchid/tablet_balancer/bundle_errors")) > 0 for instance in instances))
+
+    @authors("alexelexa")
+    def test_move_table_between_bundles(self):
+        create_tablet_cell_bundle("another")
+        self._configure_bundle("default")
+        self._configure_bundle("another")
+
+        sync_create_cells(1, tablet_cell_bundle="another")
+        sync_create_cells(1, tablet_cell_bundle="default")
+
+        self._create_sorted_table("//tmp/t1", tablet_cell_bundle="another")
+        self._create_sorted_table("//tmp/t2", tablet_cell_bundle="default")
+        self._create_sorted_table("//tmp/t3", tablet_cell_bundle="default")
+
+        for index in range(1, 4):
+            sync_reshard_table(f"//tmp/t{index}", [[], [1]])
+            sync_mount_table(f"//tmp/t{index}")
+
+        for index in range(1, 4):
+            wait(lambda: get(f"//tmp/t{index}/@tablet_count") == 1)
+
+        sync_unmount_table("//tmp/t3")
+        set("//tmp/t3/@tablet_cell_bundle", "another")
+
+        self._create_sorted_table("//tmp/t4", tablet_cell_bundle="default")
+
+        sync_reshard_table("//tmp/t3", [[], [1]])
+        sync_reshard_table("//tmp/t4", [[], [1]])
+
+        sync_mount_table("//tmp/t3")
+        sync_mount_table("//tmp/t4")
+
+        wait(lambda: get("//tmp/t3/@tablet_count") == 1)
+        wait(lambda: get("//tmp/t4/@tablet_count") == 1)
 
 
 class TestStandaloneTabletBalancerSlow(TestStandaloneTabletBalancer):
