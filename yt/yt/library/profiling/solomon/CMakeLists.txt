@@ -15,7 +15,6 @@ include(FindProtobuf)
 find_package(Protobuf REQUIRED)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories(${Protobuf_INCLUDE_DIRS})
-message(boroda "${Protobuf_INCLUDE_DIRS}")
 target_link_libraries(library-profiling-solomon PUBLIC
 ${Protobuf_LIBRARIES}
   contrib-libs-linux-headers
