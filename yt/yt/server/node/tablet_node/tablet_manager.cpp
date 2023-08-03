@@ -388,9 +388,6 @@ public:
                         lockCount,
                         preparedLockCount);
                 }
-                if (preparedLockCount > lockCount) {
-                    YT_ABORT();
-                }
             }
         }
     }
