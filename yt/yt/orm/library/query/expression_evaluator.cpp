@@ -302,9 +302,9 @@ private:
     std::unique_ptr<TQueryEvaluationContext> CreateFakeTableQueryEvaluationContext(
         const TString& query)
     {
-        return std::make_unique<TQueryEvaluationContext>(CreateQueryEvaluationContext(
+        return CreateQueryEvaluationContext(
             CreateFakeTableFilterExpression(query),
-            CreateFakeTableSchema()));
+            CreateFakeTableSchema());
     }
 };
 

@@ -345,6 +345,18 @@ TEST(FilterMatcher, FullAttributePaths)
     }
 }
 
+TEST(FilterMatcher, Regex)
+{
+    {
+        auto matcher = CreateFilterMatcher("regex_full_match('aaa', 'aaa')", {"/labels"});
+        EXPECT_TRUE(matcher->Match(TYsonStringBuf("{foo=bar}")).ValueOrThrow());
+    }
+    {
+        auto matcher = CreateFilterMatcher("regex_full_match('aaa', 'aab')", {"/labels"});
+        EXPECT_FALSE(matcher->Match(TYsonStringBuf("{foo=bar}")).ValueOrThrow());
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

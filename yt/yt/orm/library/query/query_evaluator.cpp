@@ -11,7 +11,13 @@ using namespace NQueryClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TQueryEvaluationContext CreateQueryEvaluationContext(
+TQueryEvaluationContext::~TQueryEvaluationContext()
+{
+    // NB: function contexts should be destroyed before the Expression since Expression hosts destructors.
+    Variables.Clear();
+}
+
+std::unique_ptr<TQueryEvaluationContext> CreateQueryEvaluationContext(
     const NAst::TExpressionPtr& astExpression,
     const TTableSchemaPtr& schema)
 {
@@ -24,23 +30,23 @@ TQueryEvaluationContext CreateQueryEvaluationContext(
         std::move(expressionSource),
         std::move(astHead));
 
-    TQueryEvaluationContext context;
+    auto context = std::make_unique<TQueryEvaluationContext>();
 
-    context.Expression = PrepareExpression(
+    context->Expression = PrepareExpression(
         parsedSource,
         *schema,
         GetBuiltinTypeInferrers(),
         nullptr);
 
-    context.ExpressionCallback = Profile(
-        context.Expression,
+    context->ExpressionCallback = Profile(
+        context->Expression,
         schema,
         nullptr,
-        &context.Variables,
+        &context->Variables,
         GetBuiltinFunctionProfilers())();
 
     // YTORM-553 Initialize variables.
-    context.Variables.GetLiteralValues();
+    context->Variables.GetLiteralValues();
 
     return context;
 }
