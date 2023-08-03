@@ -248,11 +248,13 @@ class TestLocalMode(object):
 
             logs_path = environment.logs_path
 
+        assert os.path.exists(logs_path)
+
         # Some log file may be missing if we exited during log rotation.
         presented = 0
         for file_index in range(1, 5):
             presented += os.path.exists(os.path.join(logs_path, "http-proxy-0.debug.log.{0}.gz".format(file_index)))
-        assert presented in (3, 4)
+        assert presented in (3, 4), "Log paths: {}".format(", ".join(os.listdir(logs_path)))
 
     def test_commands_sanity(self):
         with local_yt(id=_get_id("test_commands_sanity")) as environment:
