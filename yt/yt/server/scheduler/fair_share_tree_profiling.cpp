@@ -442,7 +442,6 @@ void TFairShareTreeProfileManager::ProfileOperations(
             }
             ProfileResourceVolume(&buffer, accumulatedResourceUsageVolume, "/accumulated_resource_usage", EMetricType::Counter);
         }
-
         GetOrCrash(OperationIdToProfilingEntry_, operationId).BufferedProducer->Update(std::move(buffer));
     }
 }

@@ -56,6 +56,9 @@ public:
         const TJobResources& minNeededResources);
     TEnumIndexedVector<EJobResourceType, int> GetMinNeededResourcesUnsatisfiedCount();
 
+    void IncrementOperationScheduleJobAttemptCount(const ISchedulingContextPtr& schedulingContext);
+    int GetOperationScheduleJobAttemptCount();
+
     void OnOperationDeactivated(const ISchedulingContextPtr& schedulingContext, EDeactivationReason reason);
     TEnumIndexedVector<EDeactivationReason, int> GetDeactivationReasons();
     void ProcessUpdatedStarvationStatus(EStarvationStatus status);
@@ -131,11 +134,16 @@ private:
     TEnumIndexedVector<EJobResourceType, int> MinNeededResourcesUnsatisfiedCount_;
     TInstant LastDiagnosticCountersUpdateTime_;
 
+    //! Thread affinity: control, profiling.
+    std::atomic<i64> ScheduleJobAttemptCount_;
+
     struct alignas(CacheLineSize) TStateShard
     {
         TEnumIndexedVector<EDeactivationReason, std::atomic<int>> DeactivationReasons;
         TEnumIndexedVector<EDeactivationReason, std::atomic<int>> DeactivationReasonsFromLastNonStarvingTime;
         TEnumIndexedVector<EJobResourceType, std::atomic<int>> MinNeededResourcesUnsatisfiedCount;
+
+        std::atomic<i64> ScheduleJobAttemptCount;
     };
     std::array<TStateShard, MaxNodeShardCount> StateShards_;
 
