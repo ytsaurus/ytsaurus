@@ -563,8 +563,9 @@ void TTabletBalancer::BalanceViaMoveInMemory(const TBundleStatePtr& bundleState)
             ActionManager_->ScheduleActionCreation(bundleState->GetBundle()->Name, descriptor);
 
             auto tablet = GetOrCrash(bundleState->Tablets(), descriptor.TabletId);
-            auto& profilingCounters = GetOrCrash(bundleState->ProfilingCounters(), tablet->Table->Id);
-            profilingCounters.InMemoryMoves.Increment(1);
+            bundleState->GetProfilingCounters(
+                tablet->Table,
+                LegacyInMemoryGroupName).InMemoryMoves.Increment(1);
         }
 
         actionCount += std::ssize(descriptors);
@@ -606,8 +607,9 @@ void TTabletBalancer::BalanceViaMoveOrdinary(const TBundleStatePtr& bundleState)
             ActionManager_->ScheduleActionCreation(bundleState->GetBundle()->Name, descriptor);
 
             auto tablet = GetOrCrash(bundleState->Tablets(), descriptor.TabletId);
-            auto& profilingCounters = GetOrCrash(bundleState->ProfilingCounters(), tablet->Table->Id);
-            profilingCounters.OrdinaryMoves.Increment(1);
+            bundleState->GetProfilingCounters(
+                tablet->Table,
+                LegacyGroupName).OrdinaryMoves.Increment(1);
         }
 
         actionCount += std::ssize(descriptors);
@@ -663,8 +665,9 @@ void TTabletBalancer::BalanceViaMoveParameterized(const TBundleStatePtr& bundleS
             ActionManager_->ScheduleActionCreation(bundleState->GetBundle()->Name, descriptor);
 
             auto tablet = GetOrCrash(bundleState->Tablets(), descriptor.TabletId);
-            auto& profilingCounters = GetOrCrash(bundleState->ProfilingCounters(), tablet->Table->Id);
-            profilingCounters.ParameterizedMoves.Increment(1);
+            bundleState->GetProfilingCounters(
+                tablet->Table,
+                LegacyGroupName).ParameterizedMoves.Increment(1);
 
             ApplyMoveTabletAction(tablet, descriptor.TabletCellId);
         }
@@ -779,14 +782,8 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
             .Run())
             .ValueOrThrow();
 
-        auto& profilingCounters = GetOrCrash(bundleState->ProfilingCounters(), table->Id);
+        const auto& profilingCounters = bundleState->GetProfilingCounters(table, groupName);
         for (auto descriptor : descriptors) {
-            YT_LOG_DEBUG("Reshard action created (TabletIds: %v, TabletCount: %v, DataSize: %v, TableId: %v)",
-                descriptor.Tablets,
-                descriptor.TabletCount,
-                descriptor.DataSize,
-                table->Id);
-
             if (pickReshardPivotKeys) {
                 try {
                     PickReshardPivotKeys(&descriptor, table, bundleState, slicingAccuracy, enableVerboseLogging);
@@ -803,6 +800,11 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
             }
 
             ActionManager_->ScheduleActionCreation(bundleState->GetBundle()->Name, descriptor);
+            YT_LOG_DEBUG("Reshard action created (TabletIds: %v, TabletCount: %v, DataSize: %v, TableId: %v)",
+                descriptor.Tablets,
+                descriptor.TabletCount,
+                descriptor.DataSize,
+                table->Id);
 
             if (descriptor.TabletCount == 1) {
                 profilingCounters.TabletMerges.Increment(1);

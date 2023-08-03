@@ -215,7 +215,6 @@ void TBundleState::DoUpdateState(bool fetchTabletCellsFromSecondaryMasters)
 
     for (auto& [tableId, tableInfo] : tableInfos) {
         auto it = EmplaceOrCrash(Bundle_->Tables, tableId, std::move(tableInfo));
-        InitializeProfilingCounters(it->second);
 
         const auto& tablets = GetOrCrash(newTableIdToTablets, tableId);
         for (auto tabletId : tablets) {
@@ -650,11 +649,34 @@ THashMap<TTableId, std::vector<TBundleState::TTabletStatisticsResponse>> TBundle
     return tableStatistics;
 }
 
-void TBundleState::InitializeProfilingCounters(const TTablePtr& table)
+const TTableProfilingCounters& TBundleState::GetProfilingCounters(
+    const TTable* table,
+    const TString& groupName)
 {
-    TTableProfilingCounters profilingCounters;
+    auto it = ProfilingCounters_.find(table->Id);
+    if (it == ProfilingCounters_.end()) {
+        auto profilingCounters = InitializeProfilingCounters(table, groupName);
+        return EmplaceOrCrash(
+            ProfilingCounters_,
+            table->Id,
+            std::move(profilingCounters))->second;
+    }
+
+    if (it->second.GroupName != groupName) {
+        it->second = InitializeProfilingCounters(table, groupName);
+    }
+
+    return it->second;
+}
+
+TTableProfilingCounters TBundleState::InitializeProfilingCounters(
+    const TTable* table,
+    const TString& groupName) const
+{
+    TTableProfilingCounters profilingCounters{.GroupName = groupName};
     auto profiler = Profiler_
         .WithSparse()
+        .WithTag("group", groupName)
         .WithTag("table_path", table->Path);
 
     profilingCounters.InMemoryMoves = profiler.Counter("/tablet_balancer/in_memory_moves");
@@ -664,7 +686,7 @@ void TBundleState::InitializeProfilingCounters(const TTablePtr& table)
     profilingCounters.NonTrivialReshards = profiler.Counter("/tablet_balancer/non_trivial_reshards");
     profilingCounters.ParameterizedMoves = profiler.Counter("/tablet_balancer/parameterized_moves");
 
-    EmplaceOrCrash(ProfilingCounters_, table->Id, std::move(profilingCounters));
+    return profilingCounters;
 }
 
 void TBundleState::SetTableStatistics(
