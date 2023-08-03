@@ -63,6 +63,7 @@ public:
 
     bool FetchTabletCellsFromSecondaryMasters;
     bool PickReshardPivotKeys;
+    bool EnableReshardVerboseLogging;
     std::optional<double> ReshardSlicingAccuracy;
 
     REGISTER_YSON_STRUCT(TTabletBalancerDynamicConfig);

@@ -155,7 +155,8 @@ private:
         TReshardDescriptor* descriptor,
         const TTable* table,
         const TBundleStatePtr& bundleState,
-        std::optional<double> slicingAccuracy) const;
+        std::optional<double> slicingAccuracy,
+        bool enableVerboseLogging) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -712,6 +713,8 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
     auto dynamicConfig = DynamicConfig_.Acquire();
     bool pickReshardPivotKeys = dynamicConfig->PickReshardPivotKeys;
     auto slicingAccuracy = dynamicConfig->ReshardSlicingAccuracy;
+    bool enableVerboseLogging = dynamicConfig->EnableReshardVerboseLogging ||
+        bundleState->GetBundle()->Config->EnableVerboseLogging;
 
     auto beginIt = tablets.begin();
     while (beginIt != tablets.end()) {
@@ -753,7 +756,7 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
 
             if (pickReshardPivotKeys) {
                 try {
-                    PickReshardPivotKeys(&descriptor, table, bundleState, slicingAccuracy);
+                    PickReshardPivotKeys(&descriptor, table, bundleState, slicingAccuracy, enableVerboseLogging);
                 } catch (const std::exception& ex) {
                     YT_LOG_ERROR(ex,
                         "Failed to pick pivot keys for reshard action "
@@ -794,7 +797,8 @@ void TTabletBalancer::PickReshardPivotKeys(
     TReshardDescriptor* descriptor,
     const TTable* table,
     const TBundleStatePtr& bundleState,
-    std::optional<double> slicingAccuracy) const
+    std::optional<double> slicingAccuracy,
+    bool enableVerboseLogging) const
 {
     auto options = TReshardTableOptions{
         .EnableSlicing = true,
@@ -810,7 +814,8 @@ void TTabletBalancer::PickReshardPivotKeys(
         table->Path,
         descriptor->TabletCount,
         options,
-        Logger);
+        Logger,
+        enableVerboseLogging || table->TableConfig->EnableVerboseLogging);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

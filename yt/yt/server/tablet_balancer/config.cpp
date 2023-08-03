@@ -65,6 +65,8 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("pick_reshard_pivot_keys", &TThis::PickReshardPivotKeys)
         .Default(false);
+    registrar.Parameter("enable_reshard_verbose_logging", &TThis::EnableReshardVerboseLogging)
+        .Default(false);
     registrar.Parameter("reshard_slicing_accuracy", &TThis::ReshardSlicingAccuracy)
         .Default();
 
