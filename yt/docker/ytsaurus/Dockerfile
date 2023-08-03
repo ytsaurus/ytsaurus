@@ -66,6 +66,8 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
   python3-pip \
   python3.11-distutils
 
+RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11
+
 RUN python3.11 -m pip install \
     ytsaurus-spyt==${SPYT_VERSION}
 
