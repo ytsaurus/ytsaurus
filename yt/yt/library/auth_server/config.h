@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/core/http/public.h>
+
 #include <yt/yt/core/https/public.h>
 
 #include <yt/yt/core/misc/cache_config.h>
@@ -149,6 +151,34 @@ DEFINE_REFCOUNTED_TYPE(TCachingCypressTokenAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TOAuthTokenAuthenticatorConfig
+    : public virtual NYTree::TYsonStruct
+{
+public:
+    REGISTER_YSON_STRUCT(TOAuthTokenAuthenticatorConfig);
+
+    static void Register(TRegistrar)
+    { }
+};
+
+DEFINE_REFCOUNTED_TYPE(TOAuthTokenAuthenticatorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCachingOAuthTokenAuthenticatorConfig
+    : public TOAuthTokenAuthenticatorConfig
+    , public TCachingTokenAuthenticatorConfig
+{
+    REGISTER_YSON_STRUCT(TCachingOAuthTokenAuthenticatorConfig);
+
+    static void Register(TRegistrar)
+    { }
+};
+
+DEFINE_REFCOUNTED_TYPE(TCachingOAuthTokenAuthenticatorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 static const auto DefaultCsrfTokenTtl = TDuration::Days(7);
 
 class TBlackboxCookieAuthenticatorConfig
@@ -171,6 +201,60 @@ DEFINE_REFCOUNTED_TYPE(TBlackboxCookieAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TOAuthCookieAuthenticatorConfig
+    : public virtual NYTree::TYsonStruct
+{
+public:
+    REGISTER_YSON_STRUCT(TOAuthCookieAuthenticatorConfig);
+
+    static void Register(TRegistrar)
+    { }
+};
+
+DEFINE_REFCOUNTED_TYPE(TOAuthCookieAuthenticatorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TOAuthServiceConfig
+    : public virtual NYTree::TYsonStruct
+{
+public:
+    NHttp::TRetrialbeClientConfigPtr RetriableClient;
+    NHttps::TClientConfigPtr HttpClient;
+
+    TString Host;
+    int Port;
+    bool Secure;
+
+    TString AuthorizationHeaderPrefix;
+    TString UserInfoEndpoint;
+    TString UserInfoLoginField;
+    std::optional<TString> UserInfoSubjectField;
+    std::optional<TString> UserInfoErrorField;
+
+    REGISTER_YSON_STRUCT(TOAuthServiceConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TOAuthServiceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCypressUserManagerConfig
+    : public virtual NYTree::TYsonStruct
+{
+public:
+    REGISTER_YSON_STRUCT(TCypressUserManagerConfig);
+
+    static void Register(TRegistrar)
+    { }
+};
+
+DEFINE_REFCOUNTED_TYPE(TCypressUserManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCachingCookieAuthenticatorConfig
     : public virtual NYTree::TYsonStruct
 {
@@ -186,6 +270,21 @@ DEFINE_REFCOUNTED_TYPE(TCachingCookieAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCachingCypressUserManagerConfig
+    : public TCypressUserManagerConfig
+{
+public:
+    TAuthCacheConfigPtr Cache;
+
+    REGISTER_YSON_STRUCT(TCachingCypressUserManagerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCachingCypressUserManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCachingBlackboxCookieAuthenticatorConfig
     : public TBlackboxCookieAuthenticatorConfig
     , public TCachingCookieAuthenticatorConfig
@@ -197,6 +296,20 @@ class TCachingBlackboxCookieAuthenticatorConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachingBlackboxCookieAuthenticatorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCachingOAuthCookieAuthenticatorConfig
+    : public TOAuthCookieAuthenticatorConfig
+    , public TCachingCookieAuthenticatorConfig
+{
+    REGISTER_YSON_STRUCT(TCachingOAuthCookieAuthenticatorConfig);
+
+    static void Register(TRegistrar)
+    { }
+};
+
+DEFINE_REFCOUNTED_TYPE(TCachingOAuthCookieAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -338,8 +451,12 @@ public:
     TCachingCypressTokenAuthenticatorConfigPtr CypressTokenAuthenticator;
     TTvmServiceConfigPtr TvmService;
     TBlackboxTicketAuthenticatorConfigPtr BlackboxTicketAuthenticator;
+    TCachingOAuthCookieAuthenticatorConfigPtr OAuthCookieAuthenticator;
+    TCachingOAuthTokenAuthenticatorConfigPtr OAuthTokenAuthenticator;
+    TOAuthServiceConfigPtr OAuthService;
 
     TCypressCookieManagerConfigPtr CypressCookieManager;
+    TCachingCypressUserManagerConfigPtr CypressUserManager;
 
     TString GetCsrfSecret() const;
 

@@ -102,6 +102,42 @@ void TBlackboxCookieAuthenticatorConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TOAuthServiceConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("retriable_client",  &TThis::RetriableClient)
+        .DefaultNew();
+    registrar.Parameter("http_client",  &TThis::HttpClient)
+        .DefaultNew();
+
+    registrar.Parameter("host", &TThis::Host)
+        .NonEmpty();
+    registrar.Parameter("port", &TThis::Port)
+        .Default(80);
+    registrar.Parameter("secure", &TThis::Secure)
+        .Default(false);
+
+    registrar.Parameter("authorization_header_prefix", &TThis::AuthorizationHeaderPrefix)
+        .Default("Bearer");
+    registrar.Parameter("user_info_endpoint", &TThis::UserInfoEndpoint)
+        .Default("user/info");
+    registrar.Parameter("user_info_login_field", &TThis::UserInfoLoginField)
+        .Default("nickname");
+    registrar.Parameter("user_info_subject_field", &TThis::UserInfoSubjectField)
+        .Optional();
+    registrar.Parameter("user_info_error_field", &TThis::UserInfoErrorField)
+        .Optional();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TCachingCypressUserManagerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("cache", &TThis::Cache)
+        .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TCachingCookieAuthenticatorConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("cache", &TThis::Cache)
@@ -259,6 +295,14 @@ void TAuthenticationManagerConfig::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("cypress_cookie_manager", &TThis::CypressCookieManager)
         .Default();
+    registrar.Parameter("oauth_cookie_authenticator", &TThis::OAuthCookieAuthenticator)
+        .Optional();
+    registrar.Parameter("oauth_token_authenticator", &TThis::OAuthTokenAuthenticator)
+        .Optional();
+    registrar.Parameter("oauth_service", &TThis::OAuthService)
+        .Optional();
+    registrar.Parameter("cypress_user_manager", &TThis::CypressUserManager)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

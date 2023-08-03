@@ -28,6 +28,7 @@ struct IAuthenticationManager
     virtual const ITvmServicePtr& GetTvmService() const = 0;
 
     virtual const ICypressCookieManagerPtr& GetCypressCookieManager() const = 0;
+    virtual const ICypressUserManagerPtr& GetCypressUserManager() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IAuthenticationManager)
