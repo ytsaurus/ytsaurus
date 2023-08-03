@@ -31,6 +31,14 @@ DECLARE_REFCOUNTED_STRUCT(IActionManager)
 
 DECLARE_REFCOUNTED_CLASS(TDynamicConfigManager)
 
+YT_DEFINE_ERROR_ENUM(
+    ((IncorrectConfig)                                  (2901))
+    ((StatisticsFetchFailed)                            (2902))
+    ((ParameterizedBalancingFailed)                     (2903))
+
+    ((ScheduleFormulaEvaluationFailed)                  (2910))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletBalancer

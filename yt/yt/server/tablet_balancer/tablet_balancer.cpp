@@ -43,6 +43,8 @@ static const TString TabletCellBundlesPath("//sys/tablet_cell_bundles");
 
 constexpr static TDuration MinBalanceFrequency = TDuration::Minutes(1);
 
+static constexpr int MaxSavedErrorCount = 10;
+
 using TGlobalGroupTag = std::pair<TString, TGroupName>;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -110,6 +112,7 @@ private:
     const IInvokerPtr ControlInvoker_;
     const TPeriodicExecutorPtr PollExecutor_;
     THashMap<TString, TBundleStatePtr> Bundles_;
+    mutable THashMap<TString, std::deque<TError>> BundleErrors_;
     THashSet<TGlobalGroupTag> GroupsToMoveOnNextIteration_;
     IThreadPoolPtr WorkerPool_;
     IActionManagerPtr ActionManager_;
@@ -150,6 +153,7 @@ private:
     TTimeFormula GetBundleSchedule(const TTabletCellBundlePtr& bundle, const TTimeFormula& groupSchedule) const;
 
     void BuildOrchid(IYsonConsumer* consumer) const;
+    void SaveBundleError(const TString& bundleName, TError error) const;
 
     void PickReshardPivotKeys(
         TReshardDescriptor* descriptor,
@@ -237,8 +241,12 @@ void TTabletBalancer::BalancerIteration()
 
     for (auto& [bundleName, bundle] : Bundles_) {
         if (!bundle->GetBundle()->Config) {
-            YT_LOG_DEBUG("Skip balancing iteration since bundle has unparseable tablet balancer config (BundleName: %v)",
+            YT_LOG_ERROR("Skip balancing iteration since bundle has unparsable tablet balancer config (BundleName: %v)",
                 bundleName);
+
+            SaveBundleError(bundleName, TError(
+                EErrorCode::IncorrectConfig,
+                "Bundle has unparsable tablet balancer config"));
             continue;
         }
 
@@ -252,6 +260,11 @@ void TTabletBalancer::BalancerIteration()
 
         if (auto result = WaitFor(bundle->UpdateState(DynamicConfig_.Acquire()->FetchTabletCellsFromSecondaryMasters)); !result.IsOK()) {
             YT_LOG_ERROR(result, "Failed to update meta registry (BundleName: %v)", bundleName);
+
+            SaveBundleError(bundleName, TError(
+                EErrorCode::StatisticsFetchFailed,
+                "Failed to update meta registry")
+                << result);
             continue;
         }
 
@@ -263,6 +276,11 @@ void TTabletBalancer::BalancerIteration()
 
         if (auto result = WaitFor(bundle->FetchStatistics()); !result.IsOK()) {
             YT_LOG_ERROR(result, "Fetch statistics failed (BundleName: %v)", bundleName);
+
+            SaveBundleError(bundleName, TError(
+                EErrorCode::StatisticsFetchFailed,
+                "Fetch statistics failed")
+                << result);
             continue;
         }
 
@@ -365,6 +383,12 @@ void TTabletBalancer::BuildOrchid(IYsonConsumer* consumer) const
     BuildYsonFluently(consumer)
         .BeginMap()
             .Item("config").Value(Config_)
+            .Item("bundle_errors")
+                .DoMapFor(BundleErrors_, [] (auto fluent, const auto& pair) {
+                    fluent.Item(pair.first).DoListFor(pair.second, [] (auto fluent, const auto& error) {
+                        fluent.Item().Value(error);
+                    });
+                })
         .EndMap();
 }
 
@@ -476,6 +500,10 @@ bool TTabletBalancer::DidBundleBalancingTimeHappen(
         }
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(ex, "Failed to evaluate tablet balancer schedule formula");
+        SaveBundleError(bundle->Name, TError(
+            EErrorCode::StatisticsFetchFailed,
+            "Fetch statistics failed")
+            << ex);
         return false;
     }
 }
@@ -664,6 +692,11 @@ void TTabletBalancer::TryBalanceViaMoveParameterized(const TBundleStatePtr& bund
             groupName,
             groupConfig->Type,
             groupConfig->Parameterized->Metric);
+
+        SaveBundleError(bundle->Name, TError(
+            EErrorCode::ParameterizedBalancingFailed,
+            "Parameterized balancing failed")
+            << ex);
     }
 }
 
@@ -791,6 +824,16 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
         bundleState->GetBundle()->Name,
         groupName,
         actionCount);
+}
+
+void TTabletBalancer::SaveBundleError(const TString& bundleName, TError error) const
+{
+    auto it = BundleErrors_.emplace(bundleName, std::deque<TError>{}).first;
+    it->second.emplace_back(std::move(error));
+
+    if (it->second.size() > MaxSavedErrorCount) {
+        it->second.pop_front();
+    }
 }
 
 void TTabletBalancer::PickReshardPivotKeys(
