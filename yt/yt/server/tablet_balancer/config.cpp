@@ -43,7 +43,10 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_parameterized_move_action_count", &TThis::MaxParameterizedMoveActionCount)
         .Default(5)
         .GreaterThanOrEqual(0);
-    registrar.Parameter("parameterized_deviation_threshold", &TThis::ParameterizedDeviationThreshold)
+    registrar.Parameter("parameterized_node_deviation_threshold", &TThis::ParameterizedNodeDeviationThreshold)
+        .Default(0.1)
+        .GreaterThanOrEqual(0);
+    registrar.Parameter("parameterized_cell_deviation_threshold", &TThis::ParameterizedCellDeviationThreshold)
         .Default(0.1)
         .GreaterThanOrEqual(0);
     registrar.Parameter("parameterized_min_relative_metric_improvement", &TThis::ParameterizedMinRelativeMetricImprovement)

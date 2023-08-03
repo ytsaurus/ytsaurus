@@ -54,7 +54,8 @@ public:
 
     bool EnableSwaps;
     int MaxParameterizedMoveActionCount;
-    double ParameterizedDeviationThreshold;
+    double ParameterizedNodeDeviationThreshold;
+    double ParameterizedCellDeviationThreshold;
     double ParameterizedMinRelativeMetricImprovement;
     TString DefaultParameterizedMetric;
 

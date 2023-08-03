@@ -22,7 +22,8 @@ public:
     TString Metric;
     std::optional<bool> EnableSwaps;
     std::optional<int> MaxActionCount;
-    std::optional<double> DeviationThreshold;
+    std::optional<double> NodeDeviationThreshold;
+    std::optional<double> CellDeviationThreshold;
     std::optional<double> MinRelativeMetricImprovement;
 
     REGISTER_YSON_STRUCT(TParameterizedBalancingConfig);
