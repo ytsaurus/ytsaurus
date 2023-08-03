@@ -26,6 +26,7 @@
 #include <Access/MemoryAccessStorage.h>
 #include <Common/ClickHouseRevision.h>
 #include <Common/MemoryTracker.h>
+#include <Common/SensitiveDataMasker.h>
 #include <Databases/DatabaseMemory.h>
 #include <Interpreters/AsynchronousMetrics.h>
 #include <Interpreters/Context.h>
@@ -290,6 +291,11 @@ private:
         // Building CH with ordinary version of the aws library leads to nullptr dereference during EC2 metadata client usage (to get region, for example).
         // We disable the use of the aws ec2 metadata service with this env variable to avoid patching aws library.
         SetEnv("AWS_EC2_METADATA_DISABLED", "true");
+
+        if (Config_->QueryMaskingRules) {
+            YT_LOG_DEBUG("Setting up query masking rules");
+            DB::SensitiveDataMasker::setInstance(std::make_unique<DB::SensitiveDataMasker>(*LayeredConfig_, "query_masking_rules"));
+        }
 
         YT_LOG_INFO("Finished setting up context");
     }

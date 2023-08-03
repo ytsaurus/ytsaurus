@@ -203,6 +203,8 @@ public:
 
     TPocoOpenSSLConfigPtr OpenSSL;
 
+    NYTree::IMapNodePtr QueryMaskingRules;
+
     REGISTER_YSON_STRUCT(TClickHouseConfig);
 
     static void Register(TRegistrar registrar);
