@@ -877,8 +877,8 @@ INSTANTIATE_TEST_SUITE_P(
                         .TableSettings = "{sorted=%true; in_memory_mode=uncompressed}",
                         .TableConfig = "{enable_parameterized=%true}",
                         .Tablets = std::vector<TStringBuf>{
-                            TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=60}"},
-                            TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=40}"}}}}},
+                            TTestTabletParams{"{uncompressed_data_size=60; cell_index=0; memory_size=60}"},
+                            TTestTabletParams{"{uncompressed_data_size=40; cell_index=0; memory_size=40}"}}}}},
             /*moveDescriptors*/ "[{tablet_index=1; cell_index=1};]",
             /*moveActionLimit*/ 1,
             /*distribution*/ std::vector<int>{1, 1},
@@ -894,8 +894,8 @@ INSTANTIATE_TEST_SUITE_P(
                         .TableSettings = "{sorted=%true; in_memory_mode=uncompressed}",
                         .TableConfig = "{group=fex; enable_parameterized=%true}",
                         .Tablets = std::vector<TStringBuf>{
-                            TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=60}"},
-                            TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=40}"}}}}},
+                            TTestTabletParams{"{uncompressed_data_size=60; cell_index=0; memory_size=60}"},
+                            TTestTabletParams{"{uncompressed_data_size=40; cell_index=0; memory_size=40}"}}}}},
             /*moveDescriptors*/ "[{tablet_index=1; cell_index=1};]",
             /*moveActionLimit*/ 1,
             /*distribution*/ std::vector<int>{1, 1},

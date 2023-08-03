@@ -48,9 +48,9 @@ struct TTabletBalancerContext
 
 i64 GetTabletBalancingSize(const TTabletPtr& tablet)
 {
-    return tablet->Table->InMemoryMode == EInMemoryMode::None
-        ? tablet->Statistics.UncompressedDataSize
-        : tablet->Statistics.MemorySize;
+    return tablet->Table->InMemoryMode == EInMemoryMode::Compressed
+        ? tablet->Statistics.CompressedDataSize
+        : tablet->Statistics.UncompressedDataSize;
 }
 
 bool IsTabletReshardable(const TTabletPtr& tablet, bool ignoreConfig)

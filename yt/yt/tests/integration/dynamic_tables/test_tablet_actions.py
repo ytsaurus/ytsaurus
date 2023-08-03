@@ -4,7 +4,7 @@ from yt_env_setup import YTEnvSetup, parametrize_external, Restarter, NODES_SERV
 
 from yt_commands import (
     authors, print_debug, wait, create, ls, get, set,
-    remove, exists, multicell_sleep,
+    remove, exists, multicell_sleep, create_dynamic_table,
     create_account, create_user, create_tablet_cell_bundle, remove_tablet_cell_bundle, create_table_replica, make_ace,
     insert_rows, mount_table, unmount_table, freeze_table,
     unfreeze_table, reshard_table, wait_for_tablet_state, sync_create_cells, sync_mount_table,
@@ -948,27 +948,47 @@ class TabletBalancerBase(TabletActionsBase):
         sync_mount_table("//tmp/t")
         wait(lambda: get("//tmp/t/@tablet_count") == 1)
 
-    @authors("savrus", "ifsmirnov")
-    def test_tablet_split(self):
+    @authors("savrus", "ifsmirnov", "alexelexa")
+    @pytest.mark.parametrize("in_memory_mode", ["none", "uncompressed"])
+    @pytest.mark.parametrize("with_hunks", [True, False])
+    def test_tablet_split(self, in_memory_mode, with_hunks):
         self._set_enable_tablet_balancer(False)
+
+        if with_hunks and in_memory_mode != "none" and not self.ENABLE_STANDALONE_TABLET_BALANCER:
+            return
+
+        divider = 32 * int(with_hunks) + int(not with_hunks)
+
+        max_partition_data_size = 320 // divider
+        desired_partition_data_size = 256 // divider
+        min_partition_data_size = 240 // divider
 
         self._configure_bundle("default")
         sync_create_cells(2)
-        self._create_sorted_table("//tmp/t")
-        set("//tmp/t/@max_partition_data_size", 320)
-        set("//tmp/t/@desired_partition_data_size", 256)
-        set("//tmp/t/@min_partition_data_size", 240)
+
+        if with_hunks:
+            schema = [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string", "max_inline_hunk_size": 12}]
+            create_dynamic_table("//tmp/t", schema=schema)
+        else:
+            self._create_sorted_table("//tmp/t")
+
+        set("//tmp/t/@in_memory_mode", in_memory_mode)
+        set("//tmp/t/@max_partition_data_size", max_partition_data_size)
+        set("//tmp/t/@desired_partition_data_size", desired_partition_data_size)
+        set("//tmp/t/@min_partition_data_size", min_partition_data_size)
         set("//tmp/t/@compression_codec", "none")
         set("//tmp/t/@chunk_writer", {"block_size": 64})
 
-        # Create two chunks excelled from eden
+        # Create two chunks expelled from eden
         sync_reshard_table("//tmp/t", [[], [1]])
         sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", [{"key": i, "value": "A" * 256} for i in range(2)])
         sync_flush_table("//tmp/t")
         sync_compact_table("//tmp/t")
         chunks = get("//tmp/t/@chunk_ids")
-        assert len(chunks) == 2
+        assert len(chunks) == 2 * (1 + int(with_hunks))
         for chunk in chunks:
             assert not get("#{0}/@eden".format(chunk))
 
