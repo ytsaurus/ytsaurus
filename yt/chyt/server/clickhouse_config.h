@@ -131,6 +131,7 @@ class TPocoOpenSSLConfigEntry
 {
 public:
     TPocoInvalidCertificateHandlerConfigPtr InvalidCertificateHandler;
+    TString CAConfig;
 
     REGISTER_YSON_STRUCT(TPocoOpenSSLConfigEntry);
 
