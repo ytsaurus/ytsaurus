@@ -57,8 +57,7 @@ public:
         NHydra::TRevision revision,
         TInstant timestamp,
         TSharedRefArray responseMessage,
-        double byteRate,
-        TInstant lastUpdateTime);
+        TAverageHistoricUsageAggregator byteRateAggregator);
 
     DEFINE_BYVAL_RO_PROPERTY(bool, Success);
     DEFINE_BYVAL_RO_PROPERTY(TSharedRefArray, ResponseMessage);
@@ -66,15 +65,14 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TInstant, Timestamp);
     DEFINE_BYVAL_RO_PROPERTY(NHydra::TRevision, Revision);
 
-    void IncrementRate();
-
+    void UpdateByteRateOnRequest();
     double GetByteRate() const;
-    TInstant GetLastUpdateTime() const;
+
+    TAverageHistoricUsageAggregator GetByteRateAggregator() const;
 
 private:
-    std::atomic<double> ByteRate_ = 0;
-    std::atomic<TInstant> LastUpdateTime_ = TInstant::Zero();
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    mutable TAverageHistoricUsageAggregator ByteRateAggregator_;
 
     i64 ComputeExtraSpace() const;
 };
