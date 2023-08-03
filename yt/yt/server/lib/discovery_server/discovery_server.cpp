@@ -85,8 +85,9 @@ private:
             protoMember->set_id(member->GetId());
             protoMember->set_priority(member->GetPriority());
 
-            auto writer = member->CreateWriter();
-            auto* memberAttributes = writer.GetAttributes();
+            auto reader = member->CreateReader();
+            auto* memberAttributes = reader.GetAttributes();
+            protoMember->set_revision(reader.GetRevision());
             protoMember->mutable_attributes();
             for (const auto& key : options.AttributeKeys) {
                 if (auto value = memberAttributes->FindYson(key)) {
