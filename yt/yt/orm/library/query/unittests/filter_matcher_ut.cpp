@@ -260,6 +260,50 @@ TEST(FilterMatcher, FarmHash)
     EXPECT_TRUE(matcher->Match(TYsonStringBuf("{not_zone_label=1}")).ValueOrThrow());
 }
 
+TEST(FilterMatcher, FullAttributePaths)
+{
+    {
+        auto matcher = CreateFilterMatcher("[/meta/id] = 15 AND [/labels/a] = \"1\"", {"/meta/id", "/labels/a"});
+        EXPECT_TRUE(matcher->Match({TYsonStringBuf("15"), TYsonStringBuf("\"1\"")}).ValueOrThrow());
+    }
+    {
+        auto matcher = CreateFilterMatcher("[/meta/id] = 15 AND [/labels/a] = \"1\"");
+        EXPECT_TRUE(matcher->Match(TYsonStringBuf("{meta={id=15}; labels={a=\"1\"}}")).ValueOrThrow());
+    }
+    {
+        auto matcher = CreateFilterMatcher("[/meta/id] = 15 AND [/labels/a] = \"1\"");
+        EXPECT_TRUE(matcher->Match(
+            BuildYsonStringFluently()
+                .BeginMap()
+                    .Item("meta").Value(
+                        BuildYsonStringFluently()
+                            .BeginMap()
+                                .Item("id").Value(15)
+                            .EndMap()
+                    )
+                    .Item("labels").Value(
+                        BuildYsonStringFluently()
+                            .BeginMap()
+                                .Item("a").Value("1")
+                            .EndMap()
+                    )
+                .EndMap()
+        ).ValueOrThrow());
+    }
+}
+
+TEST(FilterMatcher, Regex)
+{
+    {
+        auto matcher = CreateFilterMatcher("regex_full_match('aaa', 'aaa')", {"/labels"});
+        EXPECT_TRUE(matcher->Match(TYsonStringBuf("{foo=bar}")).ValueOrThrow());
+    }
+    {
+        auto matcher = CreateFilterMatcher("regex_full_match('aaa', 'aab')", {"/labels"});
+        EXPECT_FALSE(matcher->Match(TYsonStringBuf("{foo=bar}")).ValueOrThrow());
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

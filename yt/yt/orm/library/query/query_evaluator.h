@@ -10,14 +10,18 @@ namespace NYT::NOrm::NQuery {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TQueryEvaluationContext
+class TQueryEvaluationContext
+    : public TNonCopyable
 {
+public:
     NQueryClient::TConstExpressionPtr Expression;
     NQueryClient::TCGVariables Variables;
     NQueryClient::TCGExpressionCallback ExpressionCallback;
+
+    ~TQueryEvaluationContext();
 };
 
-TQueryEvaluationContext CreateQueryEvaluationContext(
+std::unique_ptr<TQueryEvaluationContext> CreateQueryEvaluationContext(
     const NQueryClient::NAst::TExpressionPtr& astExpression,
     const NQueryClient::TTableSchemaPtr& schema);
 
