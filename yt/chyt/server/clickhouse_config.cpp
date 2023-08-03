@@ -93,6 +93,8 @@ void TPocoOpenSSLConfigEntry::Register(TRegistrar registrar)
     // https://docs.pocoproject.org/current/Poco.Net.SSLManager.html
     registrar.Parameter("invalidCertificateHandler", &TThis::InvalidCertificateHandler)
         .DefaultNew();
+    registrar.Parameter("caConfig", &TThis::CAConfig)
+        .Default("/etc/ssl/certs");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
