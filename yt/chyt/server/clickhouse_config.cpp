@@ -12,33 +12,39 @@ void TUserConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("quotas", &TThis::Quotas)
-        .Default(NYTree::BuildYsonNodeFluently()
-            .BeginMap()
-                .Item("default").BeginMap()
-                    .Item("interval").BeginMap()
-                        .Item("duration").Value(3600)
-                        .Item("errors").Value(0)
-                        .Item("execution_time").Value(0)
-                        .Item("queries").Value(0)
-                        .Item("read_rows").Value(0)
-                        .Item("result_rows").Value(0)
+        .DefaultCtor([] {
+            return NYTree::BuildYsonNodeFluently()
+                .BeginMap()
+                    .Item("default").BeginMap()
+                        .Item("interval").BeginMap()
+                            .Item("duration").Value(3600)
+                            .Item("errors").Value(0)
+                            .Item("execution_time").Value(0)
+                            .Item("queries").Value(0)
+                            .Item("read_rows").Value(0)
+                            .Item("result_rows").Value(0)
+                        .EndMap()
                     .EndMap()
-                .EndMap()
-            .EndMap()->AsMap());
+                .EndMap()->AsMap();
+        });
 
     registrar.Parameter("user_template", &TThis::UserTemplate)
-        .Default(NYTree::BuildYsonNodeFluently()
-            .BeginMap()
-                .Item("networks").BeginMap()
-                    .Item("ip").Value("::/0")
-                .EndMap()
-                .Item("password").Value("")
-                .Item("profile").Value("default")
-                .Item("quota").Value("default")
-            .EndMap()->AsMap());
+        .DefaultCtor([] {
+            return NYTree::BuildYsonNodeFluently()
+                .BeginMap()
+                    .Item("networks").BeginMap()
+                        .Item("ip").Value("::/0")
+                    .EndMap()
+                    .Item("password").Value("")
+                    .Item("profile").Value("default")
+                    .Item("quota").Value("default")
+                .EndMap()->AsMap();
+        });
 
     registrar.Parameter("users", &TThis::Users)
-        .Default(NYTree::BuildYsonNodeFluently().BeginMap().EndMap()->AsMap());
+        .DefaultCtor([] {
+            return NYTree::BuildYsonNodeFluently().BeginMap().EndMap()->AsMap();
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -164,6 +170,29 @@ void TClickHouseConfig::Register(TRegistrar registrar)
     // https://docs.pocoproject.org/current/Poco.Net.SSLManager.html
     registrar.Parameter("openSSL", &TThis::OpenSSL)
         .DefaultNew();
+
+    registrar.Parameter("query_masking_rules", &TThis::QueryMaskingRules)
+        .DefaultCtor([] {
+            return NYTree::BuildYsonNodeFluently()
+                .BeginMap()
+                    // NB: all items should start with "rule".
+                    .Item("rule_0")
+                        .BeginMap()
+                            .Item("regexp").Value(R"regexp(remote\(.*?\))regexp")
+                            .Item("replace").Value("remote(...)")
+                        .EndMap()
+                    .Item("rule_1")
+                        .BeginMap()
+                            .Item("regexp").Value(R"regexp(remoteSecure\(.*?\))regexp")
+                            .Item("replace").Value("remoteSecure(...)")
+                        .EndMap()
+                    .Item("rule_2")
+                        .BeginMap()
+                            .Item("regexp").Value(R"regexp(url\(.*?\))regexp")
+                            .Item("replace").Value("url(...)")
+                        .EndMap()
+                .EndMap()->AsMap();
+        });
 
     registrar.Preprocessor([] (TThis* config) {
         config->Settings["max_memory_usage_for_all_queries"] = NYTree::ConvertToNode(9_GB);

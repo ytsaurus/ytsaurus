@@ -26,6 +26,7 @@
 #include <Access/MemoryAccessStorage.h>
 #include <Common/ClickHouseRevision.h>
 #include <Common/MemoryTracker.h>
+#include <Common/SensitiveDataMasker.h>
 #include <Databases/DatabaseMemory.h>
 #include <Interpreters/AsynchronousMetrics.h>
 #include <Interpreters/Context.h>
@@ -280,6 +281,11 @@ private:
         YT_LOG_DEBUG("Setting chyt custom setting prefix");
 
         accessControl.setCustomSettingsPrefixes(std::vector<std::string>{"chyt_", "chyt."});
+
+        if (Config_->QueryMaskingRules) {
+            YT_LOG_DEBUG("Setting up query masking rules");
+            DB::SensitiveDataMasker::setInstance(std::make_unique<DB::SensitiveDataMasker>(*LayeredConfig_, "query_masking_rules"));
+        }
 
         YT_LOG_INFO("Finished setting up context");
     }
