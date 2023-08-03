@@ -15,6 +15,29 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NRpc::IChannelPtr CreateCredentialsInjectingChannel(
+    NRpc::IChannelPtr underlyingChannel,
+    const TAuthenticationOptions& options)
+{
+    if (options.Token) {
+        return CreateTokenInjectingChannel(
+            underlyingChannel,
+            options);
+    } else if (options.SessionId || options.SslSessionId) {
+        return CreateCookieInjectingChannel(
+            underlyingChannel,
+            options);
+    } else if (options.ServiceTicketAuth) {
+        return CreateServiceTicketInjectingChannel(
+            underlyingChannel,
+            options);
+    } else {
+        return CreateUserInjectingChannel(underlyingChannel, options);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TUserInjectingChannel
     : public TChannelWrapper
 {

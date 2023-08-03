@@ -63,29 +63,6 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IChannelPtr CreateCredentialsInjectingChannel(
-    IChannelPtr underlying,
-    const TClientOptions& options)
-{
-    if (options.Token) {
-        return CreateTokenInjectingChannel(
-            underlying,
-            options);
-    } else if (options.SessionId || options.SslSessionId) {
-        return CreateCookieInjectingChannel(
-            underlying,
-            options);
-    } else if (options.ServiceTicketAuth) {
-        return CreateServiceTicketInjectingChannel(
-            underlying,
-            options);
-    } else {
-        return CreateUserInjectingChannel(underlying, options);
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TClient::TClient(
     TConnectionPtr connection,
     const TClientOptions& clientOptions)

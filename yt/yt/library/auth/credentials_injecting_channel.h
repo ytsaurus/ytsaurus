@@ -10,6 +10,12 @@ namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NRpc::IChannelPtr CreateCredentialsInjectingChannel(
+    NRpc::IChannelPtr underlyingChannel,
+    const TAuthenticationOptions& options);
+
+////////////////////////////////////////////////////////////////////////////////
+
 NRpc::IChannelPtr CreateUserInjectingChannel(
     NRpc::IChannelPtr underlyingChannel,
     const TAuthenticationOptions& options);
