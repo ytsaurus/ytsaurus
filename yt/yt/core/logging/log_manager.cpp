@@ -398,6 +398,10 @@ public:
             EventQueue_,
             BIND(&TImpl::CheckSpace, MakeStrong(this)),
             std::nullopt))
+        , FileRotationExecutor_(New<TPeriodicExecutor>(
+            EventQueue_,
+            BIND(&TImpl::RotateFiles, MakeStrong(this)),
+            std::nullopt))
         , CompressionThreadPool_(CreateThreadPool(
             /*threadCount*/ 1,
             /*threadNamePrefix*/ "LogCompress"))
@@ -750,6 +754,7 @@ private:
             FlushExecutor_->Start();
             WatchExecutor_->Start();
             CheckSpaceExecutor_->Start();
+            FileRotationExecutor_->Start();
         });
     }
 
@@ -923,6 +928,7 @@ private:
         FlushExecutor_->SetPeriod(Config_->FlushPeriod);
         WatchExecutor_->SetPeriod(Config_->WatchPeriod);
         CheckSpaceExecutor_->SetPeriod(Config_->CheckSpacePeriod);
+        FileRotationExecutor_->SetPeriod(Config_->RotationCheckPeriod);
 
         Version_++;
     }
@@ -946,6 +952,15 @@ private:
             writer->Flush();
         }
         FlushedEvents_ = WrittenEvents_.load();
+    }
+
+    void RotateFiles()
+    {
+        for (const auto& [name, writer] : NameToWriter_) {
+            if (auto fileWriter = DynamicPointerCast<IFileLogWriter>(writer)) {
+                fileWriter->MaybeRotate();
+            }
+        }
     }
 
     void ReloadWriters()
@@ -1419,6 +1434,7 @@ private:
     const TPeriodicExecutorPtr FlushExecutor_;
     const TPeriodicExecutorPtr WatchExecutor_;
     const TPeriodicExecutorPtr CheckSpaceExecutor_;
+    const TPeriodicExecutorPtr FileRotationExecutor_;
 
     const IThreadPoolPtr CompressionThreadPool_;
 

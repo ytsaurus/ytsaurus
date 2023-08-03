@@ -34,15 +34,37 @@ std::optional<ELogLevel> GetLogLevelFromEnv()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TRotationPolicyConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("max_total_size_to_keep", &TThis::MaxTotalSizeToKeep)
+        .Default(std::numeric_limits<i64>::max())
+        .GreaterThan(0);
+    registrar.Parameter("max_segment_count_to_keep", &TThis::MaxSegmentCountToKeep)
+        .Default(std::numeric_limits<i64>::max())
+        .GreaterThan(0);
+    registrar.Parameter("max_segment_size", &TThis::MaxSegmentSize)
+        .Default(std::nullopt)
+        .GreaterThan(0);
+    registrar.Parameter("rotation_period", &TThis::RotationPeriod)
+        .Default(std::nullopt)
+        .GreaterThan(TDuration::Zero());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TFileLogWriterConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("file_name", &TThis::FileName);
+    registrar.Parameter("use_timestamp_suffix", &TThis::UseTimestampSuffix)
+        .Default(false);
     registrar.Parameter("enable_compression", &TThis::EnableCompression)
         .Default(false);
     registrar.Parameter("compression_method", &TThis::CompressionMethod)
         .Default(ECompressionMethod::Gzip);
     registrar.Parameter("compression_level", &TThis::CompressionLevel)
         .Default(6);
+    registrar.Parameter("rotation_policy", &TThis::RotationPolicy)
+        .DefaultNew();
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->CompressionMethod == ECompressionMethod::Gzip && (config->CompressionLevel < 0 || config->CompressionLevel > 9)) {
@@ -136,6 +158,9 @@ void TLogManagerConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("check_space_period", &TThis::CheckSpacePeriod)
         .Default();
+    registrar.Parameter("rotation_check_period", &TThis::RotationCheckPeriod)
+        .Default(TDuration::Seconds(5))
+        .GreaterThanOrEqual(TDuration::Seconds(1));
     registrar.Parameter("min_disk_space", &TThis::MinDiskSpace)
         .GreaterThanOrEqual(0)
         .Default(5_GB);
