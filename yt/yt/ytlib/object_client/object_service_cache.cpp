@@ -111,45 +111,33 @@ TObjectServiceCacheEntry::TObjectServiceCacheEntry(
     NHydra::TRevision revision,
     TInstant timestamp,
     TSharedRefArray responseMessage,
-    double byteRate,
-    TInstant lastUpdateTime)
+    TAverageHistoricUsageAggregator byteRateAggregator)
     : TAsyncCacheValueBase(key)
     , Success_(success)
     , ResponseMessage_(std::move(responseMessage))
     , Timestamp_(timestamp)
     , Revision_(revision)
-    , ByteRate_(byteRate)
-    , LastUpdateTime_(lastUpdateTime)
+    , ByteRateAggregator_(std::move(byteRateAggregator))
 {
     TotalSpace_ = sizeof(*this) + ComputeExtraSpace();
 }
 
-void TObjectServiceCacheEntry::IncrementRate()
+void TObjectServiceCacheEntry::UpdateByteRateOnRequest()
 {
     auto guard = Guard(Lock_);
-
-    auto now = TInstant::Now();
-    auto sinceLast = (now - LastUpdateTime_).SecondsFloat();
-    auto w = Exp2(-2. * sinceLast);
-
-    if (sinceLast > 0.01) {
-        auto average = TotalSpace_ * 1. / sinceLast;
-        ByteRate_ = w * ByteRate_ + (1 - w) * average;
-    } else {
-        constexpr auto c = 1.386; // 2 * ln2
-        ByteRate_ = w * ByteRate_ + (1 - sinceLast * c / 2) * c * TotalSpace_;
-    }
-    LastUpdateTime_ = now;
+    ByteRateAggregator_.UpdateAt(GetInstant(), TotalSpace_);
 }
 
 double TObjectServiceCacheEntry::GetByteRate() const
 {
-    return ByteRate_;
+    auto guard = Guard(Lock_);
+    return ByteRateAggregator_.GetHistoricUsage();
 }
 
-TInstant TObjectServiceCacheEntry::GetLastUpdateTime() const
+TAverageHistoricUsageAggregator TObjectServiceCacheEntry::GetByteRateAggregator() const
 {
-    return LastUpdateTime_;
+    auto guard = Guard(Lock_);
+    return ByteRateAggregator_;
 }
 
 i64 TObjectServiceCacheEntry::ComputeExtraSpace() const
@@ -294,20 +282,24 @@ void TObjectServiceCache::EndLookup(
         revision,
         success);
 
-    auto rate = 0.0;
-    auto lastUpdateTime = TInstant::Now();
-
+    std::optional<TAverageHistoricUsageAggregator> byteRateAggregator;
     {
         auto guard = WriterGuard(ExpiredEntriesLock_);
 
         if (auto it = ExpiredEntries_.find(key); it != ExpiredEntries_.end()) {
             const auto& expiredEntry = it->second;
-            rate = expiredEntry->GetByteRate();
-            lastUpdateTime = expiredEntry->GetLastUpdateTime();
+            byteRateAggregator.emplace(expiredEntry->GetByteRateAggregator());
             ExpiredEntries_.erase(it);
         }
     }
     MaybeEraseTopEntry(key);
+
+    if (!byteRateAggregator) {
+        byteRateAggregator.emplace();
+        byteRateAggregator->UpdateParameters(THistoricUsageAggregationParameters(
+            EHistoricUsageAggregationMode::ExponentialMovingAverage,
+            1.0 / 60.0));
+    }
 
     auto entry = New<TObjectServiceCacheEntry>(
         key,
@@ -315,8 +307,7 @@ void TObjectServiceCache::EndLookup(
         revision,
         TInstant::Now(),
         TSharedRefArray::MakeCopy(responseMessage, GetRefCountedTypeCookie<TCachedObjectServiceResponseTag>()),
-        rate,
-        lastUpdateTime);
+        *byteRateAggregator);
     TouchEntry(entry, /*forceRenewTop*/ true);
 
     cookie.EndInsert(entry);
@@ -428,7 +419,7 @@ void TObjectServiceCache::TouchEntry(const TObjectServiceCacheEntryPtr& entry, b
     const auto& key = entry->GetKey();
 
     auto previous = entry->GetByteRate();
-    entry->IncrementRate();
+    entry->UpdateByteRateOnRequest();
     auto current = entry->GetByteRate();
 
     auto topEntryByteRateThreshold = TopEntryByteRateThreshold_.load();
