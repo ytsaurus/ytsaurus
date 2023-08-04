@@ -587,7 +587,7 @@ TEST(SetAttribute, UnknownYsonFields)
 TEST(SetAttribute, UnknownYsonFieldsByPath)
 {
     NYson::TProtobufWriterOptions options;
-    options.UnknownYsonFieldModeResolver = [](const NYPath::TYPath& path) {
+    options.UnknownYsonFieldModeResolver = [] (const NYPath::TYPath& path) {
         if (path == "/nested_message/unknown_map") {
             return NYson::EUnknownYsonFieldsMode::Keep;
         }
@@ -624,7 +624,7 @@ TEST(SetAttribute, UnknownYsonFieldsByPath)
 TEST(SetAttribute, UnknownYsonNestedFieldsByPath)
 {
     NYson::TProtobufWriterOptions options;
-    options.UnknownYsonFieldModeResolver = [](const NYPath::TYPath&) {
+    options.UnknownYsonFieldModeResolver = [] (const NYPath::TYPath&) {
         return NYson::EUnknownYsonFieldsMode::Keep;
     };
 
