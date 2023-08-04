@@ -1709,7 +1709,7 @@ TCodegenExpression MakeCodegenArithmeticBinaryOpExpr(
                             builder->CreateCall(
                                 builder.Module->GetRoutine("ThrowQueryException"),
                                 {
-                                    builder->CreateGlobalStringPtr("Division INT_MIN by -1")
+                                    builder->CreateGlobalStringPtr("Division of INT_MIN by -1")
                                 });
                         });
 
