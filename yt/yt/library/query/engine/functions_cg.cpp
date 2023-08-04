@@ -327,6 +327,46 @@ TCGValue TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
         PointerType::getUnqual(unversionedValueOpaqueType));
     argumentValues.push_back(castedResultPtr);
 
+    auto convertFromPI = [&] (Value* piValuePtr, EValueType staticType) {
+        if (NTableClient::IsStringLikeType(staticType)) {
+            Value* dataPtr = builder->CreateConstInBoundsGEP2_32(
+                TValueTypeBuilder::Get(builder->getContext()),
+                piValuePtr,
+                0,
+                TValueTypeBuilder::Data,
+                ".dataPointer");
+            Value* data = builder->CreateLoad(
+                TValueTypeBuilder::TData::Get(builder->getContext()),
+                dataPtr,
+                ".PIData");
+            Value* dataPtrAsInt = builder->CreatePtrToInt(dataPtr, data->getType(), ".PIDataAsInt");
+            data = builder->CreateAdd(data, dataPtrAsInt, ".nonPIData");  // Similar to GetStringPosition
+            builder->CreateStore(
+                data,
+                dataPtr);
+        }
+    };
+
+    auto convertToPI = [&] (Value* valuePtr, EValueType staticType) {
+        if (NTableClient::IsStringLikeType(staticType)) {
+            Value* dataPtr = builder->CreateConstInBoundsGEP2_32(
+                TValueTypeBuilder::Get(builder->getContext()),
+                valuePtr,
+                0,
+                TValueTypeBuilder::Data,
+                ".dataPointer");
+            Value* data = builder->CreateLoad(
+                TValueTypeBuilder::TData::Get(builder->getContext()),
+                dataPtr,
+                ".nonPIData");
+            Value* dataPtrAsInt = builder->CreatePtrToInt(dataPtr, data->getType(), ".nonPIDataAsInt");
+            data = builder->CreateSub(data, dataPtrAsInt, ".PIdata");  // Similar to SetStringPosition.
+            builder->CreateStore(
+                data,
+                dataPtr);
+        }
+    };
+
     int argIndex = 0;
     auto arg = codegenArguments.begin();
     for (;
@@ -336,6 +376,8 @@ TCGValue TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
         auto valuePtr = builder->CreateAlloca(unversionedValueType);
         auto cgValue = (*arg)(builder);
         cgValue.StoreToValue(builder, valuePtr);
+
+        convertFromPI(valuePtr, cgValue.GetStaticType());
 
         auto castedValuePtr = builder->CreateBitCast(
             valuePtr,
@@ -365,10 +407,14 @@ TCGValue TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
 
             auto cgValue = (*arg)(builder);
             cgValue.StoreToValue(builder, valuePtr);
+
+            convertFromPI(valuePtr, cgValue.GetStaticType());
         }
     }
 
     codegenBody(builder, argumentValues);
+
+    convertToPI(resultPtr, type);
 
     return aggregate
         ? TCGValue::LoadFromAggregate(builder, resultPtr, type)

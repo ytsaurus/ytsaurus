@@ -233,7 +233,8 @@ size_t MakeCodegenAddStreamOp(
     size_t* slotCount,
     size_t slot,
     size_t rowSize,
-    EStreamTag value);
+    EStreamTag value,
+    const std::vector<EValueType>& stateTypes);
 
 size_t MakeCodegenOrderOp(
     TCodegenSource* codegenSource,

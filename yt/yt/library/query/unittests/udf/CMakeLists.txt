@@ -99,7 +99,7 @@ add_custom_command(
   -globalopt
   -globaldce
   -internalize
-  -internalize-public-api-list=seventyfive#strtol_udf#exp_udf#tolower_udf#is_null_udf#abs_udf#sum_udf#throw_if_negative_udf#avg_udaf_init#avg_udaf_update#avg_udaf_merge#avg_udaf_finalize
+  -internalize-public-api-list=seventyfive#strtol_udf#exp_udf#tolower_udf#is_null_udf#string_equals_42_udf#abs_udf#sum_udf#throw_if_negative_udf#avg_udaf_init#avg_udaf_update#avg_udaf_merge#avg_udaf_finalize
 )
 add_custom_command(
   OUTPUT

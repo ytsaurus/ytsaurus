@@ -1,9 +1,10 @@
 #include "cg_routines.h"
 #include "cg_types.h"
 
-#include <yt/yt/library/query/engine_api/evaluation_helpers.h>
-
 #include <yt/yt/library/query/base/private.h>
+
+#include <yt/yt/library/query/engine_api/position_independent_value.h>
+#include <yt/yt/library/query/engine_api/position_independent_value_transfer.h>
 
 #include <yt/yt/client/security_client/acl.h>
 #include <yt/yt/client/security_client/helpers.h>
@@ -104,9 +105,9 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef bool (*TRowsConsumer)(void** closure, TExpressionContext*, const TValue** rows, i64 size);
+typedef bool (*TRowsConsumer)(void** closure, TExpressionContext*, const TPIValue** rows, i64 size);
 
-bool WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TValue* values)
+bool WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TPIValue* values)
 {
     CHECK_STACK();
 
@@ -124,7 +125,7 @@ bool WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TValue* valu
 
     YT_ASSERT(batch.size() < WriteRowsetSize);
 
-    batch.push_back(rowBuffer->CaptureRow(MakeRange(values, closure->RowSize)));
+    batch.push_back(CopyAndConvertFromPI(rowBuffer.Get(), MakeRange(values, closure->RowSize)));
 
     // NB: Flags are neither set from TCG value nor cleared during row allocation.
     // XXX(babenko): fix this
@@ -176,7 +177,7 @@ void ScanOpHelper(
         .MaxRowsPerRead = context->Ordered ? std::min(startBatchSize, RowsetProcessingSize) : RowsetProcessingSize
     };
 
-    std::vector<const TValue*> values;
+    std::vector<const TPIValue*> values;
     values.reserve(readOptions.MaxRowsPerRead);
 
     auto& reader = context->Reader;
@@ -225,7 +226,8 @@ void ScanOpHelper(
         statistics->RowsRead += rows.size();
         for (auto row : rows) {
             statistics->DataWeightRead += GetDataWeight(row);
-            values.push_back(row.Begin());
+            auto asPositionIndependent = InplaceConvertToPI(row);
+            values.push_back(asPositionIndependent.Begin());
         }
 
         interrupt |= consumeRows(consumeRowsClosure, rowBuffer.Get(), values.data(), values.size());
@@ -254,29 +256,30 @@ struct TSlot
     size_t Count;
 };
 
-TValue* AllocateJoinKeys(
+TPIValue* AllocateJoinKeys(
     TExecutionContext* /*context*/,
     TMultiJoinClosure* closure,
-    TValue** keyPtrs)
+    TPIValue** keyPtrs)
 {
     for (size_t joinId = 0; joinId < closure->Items.size(); ++joinId) {
         auto& item = closure->Items[joinId];
         char* data = AllocateAlignedBytes(
             item.Buffer.Get(),
             GetUnversionedRowByteSize(item.KeySize) + sizeof(TSlot));
-        keyPtrs[joinId] = TMutableRow::Create(data, item.KeySize).Begin();
+        auto row = TMutableRow::Create(data, item.KeySize);
+        keyPtrs[joinId] = reinterpret_cast<TPIValue*>(row.Begin());
     }
 
-    size_t primaryRowSize = closure->PrimaryRowSize * sizeof(TValue) + sizeof(TSlot*) * closure->Items.size();
+    size_t primaryRowSize = closure->PrimaryRowSize * sizeof(TPIValue) + sizeof(TSlot*) * closure->Items.size();
 
-    return reinterpret_cast<TValue*>(AllocateAlignedBytes(closure->Buffer.Get(), primaryRowSize));
+    return reinterpret_cast<TPIValue*>(AllocateAlignedBytes(closure->Buffer.Get(), primaryRowSize));
 }
 
 bool StorePrimaryRow(
     TExecutionContext* context,
     TMultiJoinClosure* closure,
-    TValue** primaryValues,
-    TValue** keysPtr)
+    TPIValue** primaryValues,
+    TPIValue** keysPtr)
 {
     if (std::ssize(closure->PrimaryRows) >= context->JoinRowLimit) {
         throw TInterruptedIncompleteException();
@@ -285,13 +288,13 @@ bool StorePrimaryRow(
     closure->PrimaryRows.emplace_back(*primaryValues);
 
     for (size_t columnIndex = 0; columnIndex < closure->PrimaryRowSize; ++columnIndex) {
-        closure->Buffer->CaptureValue(*primaryValues + columnIndex);
+        CapturePIValue(closure->Buffer.Get(), *primaryValues + columnIndex);
     }
 
     for (size_t joinId = 0; joinId < closure->Items.size(); ++joinId) {
         auto keyPtr = keysPtr + joinId;
         auto& item = closure->Items[joinId];
-        TValue* key = *keyPtr;
+        TPIValue* key = *keyPtr;
 
         if (!item.LastKey || !item.PrefixEqComparer(key, item.LastKey)) {
             closure->ProcessSegment(joinId);
@@ -305,13 +308,14 @@ bool StorePrimaryRow(
         auto inserted = item.Lookup.insert(key);
         if (inserted.second) {
             for (size_t columnIndex = 0; columnIndex < item.KeySize; ++columnIndex) {
-                closure->Items[joinId].Buffer->CaptureValue(&key[columnIndex]);
+                CapturePIValue(closure->Items[joinId].Buffer.Get(), &key[columnIndex]);
             }
 
             char* data = AllocateAlignedBytes(
                 item.Buffer.Get(),
                 GetUnversionedRowByteSize(item.KeySize) + sizeof(TSlot));
-            *keyPtr = TMutableRow::Create(data, item.KeySize).Begin();
+            auto row = TMutableRow::Create(data, item.KeySize);
+            *keyPtr = reinterpret_cast<TPIValue*>(row.Begin());
         }
 
         reinterpret_cast<TSlot**>(*primaryValues + closure->PrimaryRowSize)[joinId] = reinterpret_cast<TSlot*>(
@@ -331,13 +335,14 @@ bool StorePrimaryRow(
             char* data = AllocateAlignedBytes(
                 item.Buffer.Get(),
                 GetUnversionedRowByteSize(item.KeySize) + sizeof(TSlot));
-            keysPtr[joinId] = TMutableRow::Create(data, item.KeySize).Begin();
+            auto row = TMutableRow::Create(data, item.KeySize);
+            keysPtr[joinId] = reinterpret_cast<TPIValue*>(row.Begin());
         }
     }
 
     size_t primaryRowSize = closure->PrimaryRowSize * sizeof(TValue) + sizeof(TSlot*) * closure->Items.size();
 
-    *primaryValues = reinterpret_cast<TValue*>(AllocateAlignedBytes(closure->Buffer.Get(), primaryRowSize));
+    *primaryValues = reinterpret_cast<TPIValue*>(AllocateAlignedBytes(closure->Buffer.Get(), primaryRowSize));
 
     return false;
 }
@@ -389,19 +394,23 @@ void MultiJoinOpHelper(
         for (size_t joinId = 0; joinId < closure.Items.size(); ++joinId) {
             closure.ProcessSegment(joinId);
 
-            std::vector<TRow> orderedKeys;
-            for (TValue* key : closure.Items[joinId].OrderedKeys) {
+            std::vector<TPIValueRange> orderedKeys;
+            orderedKeys.reserve(closure.Items[joinId].OrderedKeys.size());
+            for (auto* key : closure.Items[joinId].OrderedKeys) {
                 // NB: Flags are neither set from TCG value nor cleared during row allocation.
                 size_t id = 0;
                 for (auto* value = key; value < key + closure.Items[joinId].KeySize; ++value) {
                     value->Flags = {};
                     value->Id = id++;
                 }
-                orderedKeys.push_back(TRow(reinterpret_cast<const TUnversionedRowHeader*>(key) - 1));
+                auto row = TRow(reinterpret_cast<const TUnversionedRowHeader*>(key) - 1);
+                orderedKeys.emplace_back(key, row.GetCount());
             }
 
+            auto copy = CopyAndConvertFromPI(closure.Items[joinId].Buffer.Get(), orderedKeys, false);
+
             auto reader = parameters->Items[joinId].ExecuteForeign(
-                orderedKeys,
+                copy,
                 closure.Items[joinId].Buffer);
             readers.push_back(reader);
             closure.Items[joinId].Lookup.clear();
@@ -410,7 +419,7 @@ void MultiJoinOpHelper(
 
         TYielder yielder;
 
-        std::vector<std::vector<TValue*>> sortedForeignSequences;
+        std::vector<std::vector<TPIValue*>> sortedForeignSequences;
         for (size_t joinId = 0; joinId < closure.Items.size(); ++joinId) {
             closure.ProcessSegment(joinId);
 
@@ -431,15 +440,15 @@ void MultiJoinOpHelper(
             auto foreignPrefixEqComparer = comparers[joinId].ForeignPrefixEqComparer;
             auto fullTernaryComparer = comparers[joinId].FullTernaryComparer;
 
-            std::vector<TValue*> sortedForeignSequence;
+            std::vector<TPIValue*> sortedForeignSequence;
             size_t unsortedOffset = 0;
-            TValue* lastForeignKey = nullptr;
+            TPIValue* lastForeignKey = nullptr;
 
             TRowBatchReadOptions readOptions{
                 .MaxRowsPerRead = RowsetProcessingSize
             };
 
-            std::vector<TValue*> foreignValues;
+            std::vector<TPIValue*> foreignValues;
             foreignValues.reserve(readOptions.MaxRowsPerRead);
 
             // Sort-merge join
@@ -503,7 +512,9 @@ void MultiJoinOpHelper(
                 }
 
                 for (auto row : foreignRows) {
-                    foreignValues.push_back(closure.Buffer->CaptureRow(row).Begin());
+                    auto captured = closure.Buffer->CaptureRow(row);
+                    auto asPositionIndependent = InplaceConvertToPI(captured);
+                    foreignValues.push_back(asPositionIndependent.Begin());
                 }
 
                 {
@@ -542,7 +553,7 @@ void MultiJoinOpHelper(
         }
 
         auto intermediateBuffer = New<TRowBuffer>(TIntermediateBufferTag());
-        std::vector<const TValue*> joinedRows;
+        std::vector<const TPIValue*> joinedRows;
 
         i64 processedRows = 0;
 
@@ -572,11 +583,13 @@ void MultiJoinOpHelper(
 
         std::vector<size_t> indexes(closure.Items.size(), 0);
 
-        auto joinRows = [&] (TValue* rowValues) -> bool {
+        auto joinRows = [&] (TPIValue* rowValues) -> bool {
             size_t incrementIndex = 0;
             while (incrementIndex < closure.Items.size()) {
-                TMutableRow joinedRow = intermediateBuffer->AllocateUnversioned(resultRowSize);
-                std::copy(rowValues, rowValues + closure.PrimaryRowSize, joinedRow.Begin());
+                auto joinedRow = AllocatePIValueRange(intermediateBuffer.Get(), resultRowSize);
+                for (size_t index = 0; index < closure.PrimaryRowSize; ++index) {
+                    CopyPositionIndependent(&joinedRow[index], rowValues[index]);
+                }
 
                 size_t offset = closure.PrimaryRowSize;
                 for (size_t joinId = 0; joinId < closure.Items.size(); ++joinId) {
@@ -585,7 +598,7 @@ void MultiJoinOpHelper(
 
                     if (slot.Count != 0) {
                         YT_VERIFY(indexes[joinId] < slot.Count);
-                        TValue* foreignRow = sortedForeignSequences[joinId][slot.Offset + indexes[joinId]];
+                        TPIValue* foreignRow = sortedForeignSequences[joinId][slot.Offset + indexes[joinId]];
 
                         if (incrementIndex == joinId) {
                             ++indexes[joinId];
@@ -598,7 +611,7 @@ void MultiJoinOpHelper(
                         }
 
                         for (size_t columnIndex : foreignIndexes) {
-                            joinedRow[offset++] = foreignRow[columnIndex];
+                            CopyPositionIndependent(&joinedRow[offset++], foreignRow[columnIndex]);
                         }
                     } else {
                         if (incrementIndex == joinId) {
@@ -611,7 +624,7 @@ void MultiJoinOpHelper(
                             return false;
                         }
                         for (size_t count = foreignIndexes.size(); count > 0; --count) {
-                            joinedRow[offset++] = MakeUnversionedSentinelValue(EValueType::Null);
+                            MakePositionIndependentSentinelValue(&joinedRow[offset++], EValueType::Null);
                         }
                     }
                 }
@@ -639,7 +652,7 @@ void MultiJoinOpHelper(
 
         });
 
-        for (TValue* rowValues : closure.PrimaryRows) {
+        for (auto* rowValues : closure.PrimaryRows) {
             if (joinRows(rowValues)) {
                 return true;
             }
@@ -659,10 +672,10 @@ void MultiJoinOpHelper(
     closure.ProcessJoinBatch();
 }
 
-const TValue* InsertGroupRow(
+const TPIValue* InsertGroupRow(
     TExecutionContext* context,
     TGroupByClosure* closure,
-    TValue* row,
+    TPIValue* row,
     bool allAggregatesFirst)
 {
     CHECK_STACK();
@@ -707,7 +720,7 @@ const TValue* InsertGroupRow(
         YT_VERIFY(std::ssize(closure->GroupedRows) <= context->GroupRowLimit);
 
         for (int index = 0; index < closure->KeySize; ++index) {
-            closure->Buffer->CaptureValue(&row[index]);
+            CapturePIValue(closure->Buffer.Get(), &row[index]);
         }
 
         if (closure->CheckNulls) {
@@ -758,7 +771,7 @@ void GroupOpHelper(
 
     auto intermediateBuffer = New<TRowBuffer>(TIntermediateBufferTag());
 
-    auto flushGroupedRows = [&] (bool isBoundary, const TValue** begin, const TValue** end) {
+    auto flushGroupedRows = [&] (bool isBoundary, const TPIValue** begin, const TPIValue** end) {
         auto finished = false;
 
         if (context->Ordered && processedRows < context->Offset) {
@@ -854,7 +867,7 @@ void AllocatePermanentRow(
     *row = expressionContext->AllocateUnversioned(valueCount).Begin();
 }
 
-void AddRowToCollector(TTopCollector* topCollector, TValue* row)
+void AddRowToCollector(TTopCollector* topCollector, TPIValue* row)
 {
     topCollector->AddRow(row);
 }
@@ -948,88 +961,93 @@ char* AllocateBytes(TExpressionContext* context, size_t byteCount)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TPIValue* LookupInRowset(
+    TComparerFunction* comparer,
+    THasherFunction* hasher,
+    TComparerFunction* eqComparer,
+    TPIValue* key,
+    TSharedRange<TRange<TPIValue>>* rowset,
+    std::unique_ptr<TLookupRows>* lookupTable)
+{
+    if (rowset->Size() < 32) {
+        auto found = std::lower_bound(
+            rowset->Begin(),
+            rowset->End(),
+            key,
+            [&] (TRange<TPIValue> row, TPIValue* values) {
+                return comparer(row.Begin(), values);
+            });
+
+        if (found != rowset->End() && !comparer(key, found->Begin())) {
+            return const_cast<TPIValue*>(found->Begin());
+        }
+
+        return nullptr;
+    }
+
+    if (!*lookupTable) {
+        *lookupTable = std::make_unique<TLookupRows>(rowset->Size(), hasher, eqComparer);
+        (*lookupTable)->set_empty_key(nullptr);
+
+        for (auto& row: *rowset) {
+            (*lookupTable)->insert(row.Begin());
+        }
+    }
+
+    auto found = (*lookupTable)->find(key);
+    if (found != (*lookupTable)->end()) {
+        return const_cast<TPIValue*>(*found);
+    }
+
+    return nullptr;
+}
+
 char IsRowInRowset(
     TComparerFunction* comparer,
     THasherFunction* hasher,
     TComparerFunction* eqComparer,
-    TValue* values,
-    TSharedRange<TRow>* rows,
+    TPIValue* values,
+    TSharedRange<TRange<TPIValue>>* rows,
     std::unique_ptr<TLookupRows>* lookupRows)
 {
-    if (rows->Size() < 32) {
-        auto found = std::lower_bound(rows->Begin(), rows->End(), values, [&] (TRow row, TValue* values) {
-            return comparer(const_cast<TValue*>(row.Begin()), values);
-        });
-
-        return found != rows->End() && !comparer(values, const_cast<TValue*>(found->Begin()));
-    }
-
-    if (!*lookupRows) {
-        *lookupRows = std::make_unique<TLookupRows>(rows->Size(), hasher, eqComparer);
-        (*lookupRows)->set_empty_key(nullptr);
-
-        for (TRow row: *rows) {
-            (*lookupRows)->insert(row.Begin());
-        }
-    }
-
-    auto found = (*lookupRows)->find(values);
-    return found != (*lookupRows)->end();
+    return LookupInRowset(comparer, hasher, eqComparer, values, rows, lookupRows) != nullptr;
 }
 
 char IsRowInRanges(
     ui32 valuesCount,
-    TValue* values,
-    TSharedRange<TRowRange>* ranges)
+    TPIValue* values,
+    TSharedRange<TPIRowRange>* ranges)
 {
     auto it = std::lower_bound(
         ranges->Begin(),
         ranges->End(),
         values,
-        [&] (TRowRange range, TValue* values) {
-            ui32 length = std::min(range.second.GetCount(), valuesCount);
-            return CompareValueRanges(range.second.FirstNElements(length), MakeRange(values, length)) < 0;
+        [&] (TPIRowRange range, TPIValue* values) {
+            ui32 length = std::min(static_cast<ui32>(range.second.Size()), valuesCount);
+            return CompareRows(range.second.Begin(), range.second.Begin() + length, values, values + length) < 0;
         });
 
     if (it == ranges->End()) {
         return false;
     }
 
-    ui32 length = std::min(it->first.GetCount(), valuesCount);
-    return CompareValueRanges(it->first.FirstNElements(length), MakeRange(values, length)) <= 0;
+    ui32 length = std::min(static_cast<ui32>(it->first.Size()), valuesCount);
+    return CompareRows(
+        it->first.Begin(),
+        it->first.Begin() + length,
+        values,
+        values + length) <= 0;
 }
 
-const TValue* TransformTuple(
+const TPIValue* TransformTuple(
     TComparerFunction* comparer,
     THasherFunction* hasher,
     TComparerFunction* eqComparer,
-    TValue* values,
-    TSharedRange<TRow>* rows,
+    TPIValue* values,
+    TSharedRange<TRange<TPIValue>>* rows,
     std::unique_ptr<TLookupRows>* lookupRows)
 {
-    if (rows->Size() < 32) {
-        auto found = std::lower_bound(rows->Begin(), rows->End(), values, [&] (TRow row, TValue* values) {
-            return comparer(const_cast<TValue*>(row.Begin()), values);
-        });
-
-        if (found != rows->End() && !comparer(values, const_cast<TValue*>(found->Begin()))) {
-            return const_cast<TValue*>(found->Begin());
-        }
-
-        return nullptr;
-    }
-
-    if (!*lookupRows) {
-        *lookupRows = std::make_unique<TLookupRows>(rows->Size(), hasher, eqComparer);
-        (*lookupRows)->set_empty_key(nullptr);
-
-        for (TRow row: *rows) {
-            (*lookupRows)->insert(row.Begin());
-        }
-    }
-
-    auto found = (*lookupRows)->find(values);
-    return found != (*lookupRows)->end() ? *found : nullptr;
+    return LookupInRowset(comparer, hasher, eqComparer, values, rows, lookupRows);
 }
 
 size_t StringHash(
@@ -1138,15 +1156,16 @@ void ThrowQueryException(const char* error)
         << TError(error);
 }
 
-re2::RE2* RegexCreate(TUnversionedValue* regexp)
+re2::RE2* RegexCreate(TValue* regexp)
 {
+    auto piRegexp = BorrowFromNonPI(regexp);
     re2::RE2::Options options;
     options.set_log_errors(false);
-    auto re2 = std::make_unique<re2::RE2>(re2::StringPiece(regexp->Data.String, regexp->Length), options);
+    auto re2 = std::make_unique<re2::RE2>(re2::StringPiece(piRegexp.GetPIValue()->AsStringBuf().Data(), piRegexp.GetPIValue()->AsStringBuf().Size()), options);
     if (!re2->ok()) {
         THROW_ERROR_EXCEPTION(
             "Error parsing regular expression %Qv",
-            regexp->AsString())
+            piRegexp.GetPIValue()->AsStringBuf())
             << TError(re2->error().c_str());
     }
     return re2.release();
@@ -1157,107 +1176,126 @@ void RegexDestroy(re2::RE2* re2)
     delete re2;
 }
 
-ui8 RegexFullMatch(re2::RE2* re2, TUnversionedValue* string)
+ui8 RegexFullMatch(re2::RE2* re2, TValue* string)
 {
-    YT_VERIFY(string->Type == EValueType::String);
+    auto piString = BorrowFromNonPI(string);
+
+    YT_VERIFY(piString.GetPIValue()->Type == EValueType::String);
 
     return re2::RE2::FullMatch(
-        re2::StringPiece(string->Data.String, string->Length),
+        re2::StringPiece(piString.GetPIValue()->AsStringBuf().Data(), piString.GetPIValue()->AsStringBuf().Size()),
         *re2);
 }
 
-ui8 RegexPartialMatch(re2::RE2* re2, TUnversionedValue* string)
+ui8 RegexPartialMatch(re2::RE2* re2, TValue* string)
 {
-    YT_VERIFY(string->Type == EValueType::String);
+    auto piString = BorrowFromNonPI(string);
+
+    YT_VERIFY(piString.GetPIValue()->Type == EValueType::String);
 
     return re2::RE2::PartialMatch(
-        re2::StringPiece(string->Data.String, string->Length),
+        re2::StringPiece(piString.GetPIValue()->AsStringBuf().Data(), piString.GetPIValue()->AsStringBuf().size()),
         *re2);
 }
 
 template <typename TStringType>
-void CopyString(TExpressionContext* context, TUnversionedValue* result, const TStringType& str)
+void CopyString(TExpressionContext* context, TPIValue* result, const TStringType& str)
 {
     char* data = AllocateBytes(context, str.size());
-    memcpy(data, str.data(), str.size());
-    *result = MakeUnversionedStringValue(TStringBuf(data, str.size()));
+    ::memcpy(data, str.data(), str.size());
+    MakePositionIndependentStringValue(result, TStringBuf(data, str.size()));
 }
 
 template <typename TStringType>
-void CopyAny(TExpressionContext* context, TUnversionedValue* result, const TStringType& str)
+void CopyAny(TExpressionContext* context, TPIValue* result, const TStringType& str)
 {
     char* data = AllocateBytes(context, str.size());
-    memcpy(data, str.c_str(), str.size());
-    *result = MakeUnversionedAnyValue(TStringBuf(data, str.size()));
+    ::memcpy(data, str.data(), str.size());
+    MakePositionIndependentAnyValue(result, TStringBuf(data, str.size()));
 }
 
 void RegexReplaceFirst(
     TExpressionContext* context,
     re2::RE2* re2,
-    TUnversionedValue* string,
-    TUnversionedValue* rewrite,
-    TUnversionedValue* result)
+    TValue* string,
+    TValue* rewrite,
+    TValue* result)
 {
-    YT_VERIFY(string->Type == EValueType::String);
-    YT_VERIFY(rewrite->Type == EValueType::String);
+    auto piString = BorrowFromNonPI(string);
+    auto piRewrite = BorrowFromNonPI(rewrite);
+    auto piResult = BorrowFromNonPI(result);
 
-    std::string str(string->Data.String, string->Length);
+    YT_VERIFY(piString.GetPIValue()->Type == EValueType::String);
+    YT_VERIFY(piRewrite.GetPIValue()->Type == EValueType::String);
+
+    std::string str(piString.GetPIValue()->AsStringBuf().Data(), piString.GetPIValue()->AsStringBuf().Size());
     re2::RE2::Replace(
         &str,
         *re2,
-        re2::StringPiece(rewrite->Data.String, rewrite->Length));
+        re2::StringPiece(piRewrite.GetPIValue()->AsStringBuf().Data(), piRewrite.GetPIValue()->AsStringBuf().Size()));
 
-    CopyString(context, result, str);
+    CopyString(context, piResult.GetPIValue(), str);
 }
 
 void RegexReplaceAll(
     TExpressionContext* context,
     re2::RE2* re2,
-    TUnversionedValue* string,
-    TUnversionedValue* rewrite,
-    TUnversionedValue* result)
+    TValue* string,
+    TValue* rewrite,
+    TValue* result)
 {
-    YT_VERIFY(string->Type == EValueType::String);
-    YT_VERIFY(rewrite->Type == EValueType::String);
+    auto piString = BorrowFromNonPI(string);
+    auto piRewrite = BorrowFromNonPI(rewrite);
+    auto piResult = BorrowFromNonPI(result);
 
-    std::string str(string->Data.String, string->Length);
+    YT_VERIFY(piString.GetPIValue()->Type == EValueType::String);
+    YT_VERIFY(piRewrite.GetPIValue()->Type == EValueType::String);
+
+    std::string str(piString.GetPIValue()->AsStringBuf().Data(), piString.GetPIValue()->AsStringBuf().Size());
     re2::RE2::GlobalReplace(
         &str,
         *re2,
-        re2::StringPiece(rewrite->Data.String, rewrite->Length));
+        re2::StringPiece(piRewrite.GetPIValue()->AsStringBuf().Data(), piRewrite.GetPIValue()->AsStringBuf().Size()));
 
-    CopyString(context, result, str);
+    CopyString(context, piResult.GetPIValue(), str);
 }
 
 void RegexExtract(
     TExpressionContext* context,
     re2::RE2* re2,
-    TUnversionedValue* string,
-    TUnversionedValue* rewrite,
-    TUnversionedValue* result)
+    TValue* string,
+    TValue* rewrite,
+    TValue* result)
 {
-    YT_VERIFY(string->Type == EValueType::String);
-    YT_VERIFY(rewrite->Type == EValueType::String);
+    auto piString = BorrowFromNonPI(string);
+    auto piRewrite = BorrowFromNonPI(rewrite);
+    auto piResult = BorrowFromNonPI(result);
+
+    YT_VERIFY(piString.GetPIValue()->Type == EValueType::String);
+    YT_VERIFY(piRewrite.GetPIValue()->Type == EValueType::String);
 
     std::string str;
     re2::RE2::Extract(
-        re2::StringPiece(string->Data.String, string->Length),
+        re2::StringPiece(piString.GetPIValue()->AsStringBuf().Data(), piString.GetPIValue()->AsStringBuf().Size()),
         *re2,
-        re2::StringPiece(rewrite->Data.String, rewrite->Length),
+        re2::StringPiece(piRewrite.GetPIValue()->AsStringBuf().Data(), piRewrite.GetPIValue()->AsStringBuf().Size()),
         &str);
 
-    CopyString(context, result, str);
+    CopyString(context, piResult.GetPIValue(), str);
 }
 
 void RegexEscape(
     TExpressionContext* context,
-    TUnversionedValue* string,
-    TUnversionedValue* result)
+    TValue* string,
+    TValue* result)
 {
-    auto str = re2::RE2::QuoteMeta(
-        re2::StringPiece(string->Data.String, string->Length));
+    auto piString = BorrowFromNonPI(string);
+    auto piResult = BorrowFromNonPI(result);
 
-    CopyString(context, result, str);
+    auto str = re2::RE2::QuoteMeta(
+        re2::StringPiece(piString.GetPIValue()->AsStringBuf().Data(), piString.GetPIValue()->AsStringBuf().Size()));
+
+    CopyString(context, piResult.GetPIValue(), str);
 }
 
 static void* XdeltaAllocate(void* opaque, size_t size)
@@ -1305,13 +1343,16 @@ int XdeltaMerge(
 #define DEFINE_YPATH_GET_IMPL2(PREFIX, TYPE, STATEMENT_OK, STATEMENT_FAIL) \
     void PREFIX ## Get ## TYPE( \
         [[maybe_unused]] TExpressionContext* context, \
-        TUnversionedValue* result, \
-        TUnversionedValue* anyValue, \
-        TUnversionedValue* ypath) \
+        TValue* result, \
+        TValue* anyValue, \
+        TValue* ypath) \
     { \
+        auto piResult = BorrowFromNonPI(result); \
+        auto piAnyValue = BorrowFromNonPI(anyValue); \
+        auto piYpath = BorrowFromNonPI(ypath); \
         auto value = NYTree::TryGet ## TYPE( \
-            {anyValue->Data.String, anyValue->Length}, \
-            {ypath->Data.String, ypath->Length}); \
+            piAnyValue.GetPIValue()->AsStringBuf(), \
+            TString(piYpath.GetPIValue()->AsStringBuf())); \
         if (value) { \
             STATEMENT_OK \
         } else { \
@@ -1321,23 +1362,23 @@ int XdeltaMerge(
 
 #define DEFINE_YPATH_GET_IMPL(TYPE, STATEMENT_OK) \
     DEFINE_YPATH_GET_IMPL2(Try, TYPE, STATEMENT_OK, \
-        *result = MakeUnversionedNullValue();) \
+        MakePositionIndependentNullValue(piResult.GetPIValue());) \
     DEFINE_YPATH_GET_IMPL2(, TYPE, STATEMENT_OK, \
         THROW_ERROR_EXCEPTION("Value of type %Qlv is not found at YPath %v", \
             EValueType::TYPE, \
-            ypath->AsStringBuf());)
+            piYpath.GetPIValue()->AsStringBuf());)
 
 #define DEFINE_YPATH_GET(TYPE) \
     DEFINE_YPATH_GET_IMPL(TYPE, \
-        *result = MakeUnversioned ## TYPE ## Value(*value);)
+        MakePositionIndependent ## TYPE ## Value(piResult.GetPIValue(), *value);)
 
 #define DEFINE_YPATH_GET_STRING \
     DEFINE_YPATH_GET_IMPL(String, \
-        CopyString(context, result, *value);)
+        CopyString(context, piResult.GetPIValue(), *value);)
 
 #define DEFINE_YPATH_GET_ANY \
     DEFINE_YPATH_GET_IMPL(Any, \
-        CopyAny(context, result, *value);)
+        CopyAny(context, piResult.GetPIValue(), *value);)
 
 DEFINE_YPATH_GET(Int64)
 DEFINE_YPATH_GET(Uint64)
@@ -1349,10 +1390,10 @@ DEFINE_YPATH_GET_ANY
 ////////////////////////////////////////////////////////////////////////////////
 
 #define DEFINE_CONVERT_ANY(TYPE, STATEMENT_OK) \
-    void AnyTo ## TYPE([[maybe_unused]] TExpressionContext* context, TUnversionedValue* result, TUnversionedValue* anyValue) \
+    void AnyTo ## TYPE([[maybe_unused]] TExpressionContext* context, TPIValue* result, TPIValue* anyValue) \
     { \
         if (anyValue->Type == EValueType::Null) { \
-            *result = MakeUnversionedNullValue(); \
+            MakePositionIndependentNullValue(result); \
             return; \
         } \
         NYson::TToken token; \
@@ -1368,21 +1409,21 @@ DEFINE_YPATH_GET_ANY
     }
 
 #define DEFINE_CONVERT_ANY_NUMERIC_IMPL(TYPE) \
-    void AnyTo ## TYPE(TExpressionContext* /*context*/, TUnversionedValue* result, TUnversionedValue* anyValue) \
+    void AnyTo ## TYPE(TExpressionContext* /*context*/, TPIValue* result, TPIValue* anyValue) \
     { \
         if (anyValue->Type == EValueType::Null) { \
-            *result = MakeUnversionedNullValue(); \
+            MakePositionIndependentNullValue(result); \
             return; \
         } \
         NYson::TToken token; \
         auto anyString = anyValue->AsStringBuf(); \
         NYson::ParseToken(anyString, &token); \
         if (token.GetType() == NYson::ETokenType::Int64) { \
-            *result = MakeUnversioned ## TYPE ## Value(token.GetInt64Value()); \
+            MakePositionIndependent ## TYPE ## Value(result, token.GetInt64Value()); \
         } else if (token.GetType() == NYson::ETokenType::Uint64) { \
-            *result = MakeUnversioned ## TYPE ## Value(token.GetUint64Value()); \
+            MakePositionIndependent ## TYPE ## Value(result, token.GetUint64Value()); \
         } else if (token.GetType() == NYson::ETokenType::Double) { \
-            *result = MakeUnversioned ## TYPE ## Value(token.GetDoubleValue()); \
+            MakePositionIndependent ## TYPE ## Value(result, token.GetDoubleValue()); \
         } else { \
             THROW_ERROR_EXCEPTION("Cannot convert value %Qv of type \"any\" to %Qlv", \
                 anyString, \
@@ -1393,7 +1434,7 @@ DEFINE_YPATH_GET_ANY
 DEFINE_CONVERT_ANY_NUMERIC_IMPL(Int64)
 DEFINE_CONVERT_ANY_NUMERIC_IMPL(Uint64)
 DEFINE_CONVERT_ANY_NUMERIC_IMPL(Double)
-DEFINE_CONVERT_ANY(Boolean, *result = MakeUnversionedBooleanValue(token.GetBooleanValue());)
+DEFINE_CONVERT_ANY(Boolean, MakePositionIndependentBooleanValue(result, token.GetBooleanValue());)
 DEFINE_CONVERT_ANY(String, CopyString(context, result, token.GetStringValue());)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1538,11 +1579,14 @@ int CompareAnyString(char* lhsData, i32 lhsLength, char* rhsData, i32 rhsLength)
     }
 }
 
-void ToAny(TExpressionContext* context, TUnversionedValue* result, TUnversionedValue* value)
+void ToAny(TExpressionContext* context, TValue* result, TValue* value)
 {
     // TODO(babenko): for some reason, flags are garbage here.
     value->Flags = {};
-    *result = NTableClient::EncodeUnversionedAnyValue(*value, context->GetPool());
+
+    auto piResult = BorrowFromNonPI(result);
+    auto piValue = BorrowFromNonPI(value);
+    ToAny(context, piResult.GetPIValue(), piValue.GetPIValue());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1557,17 +1601,23 @@ void ToLowerUTF8(TExpressionContext* context, char** result, int* resultLength, 
     *resultLength = lowered.size();
 }
 
-TFingerprint GetFarmFingerprint(const TUnversionedValue* begin, const TUnversionedValue* end)
+TFingerprint GetFarmFingerprint(const TValue* begin, const TValue* end)
 {
-    return NYT::NTableClient::GetFarmFingerprint({begin, end});
+    auto asRange = TRange<TValue>(begin, static_cast<size_t>(end - begin));
+    auto asPIRange = BorrowFromNonPI(asRange);
+    return GetFarmFingerprint(asPIRange.Begin(), asPIRange.Begin() + asPIRange.Size());
 }
 
 extern "C" void MakeMap(
     TExpressionContext* context,
-    TUnversionedValue* result,
-    TUnversionedValue* args,
+    TValue* result,
+    TValue* args,
     int argCount)
 {
+    auto piResult = BorrowFromNonPI(result);
+
+    auto argumentRange = TRange<TValue>(args, static_cast<size_t>(argCount));
+    auto piArgs = BorrowFromNonPI(argumentRange);
     if (argCount % 2 != 0) {
         THROW_ERROR_EXCEPTION("\"make_map\" takes a even number of arguments");
     }
@@ -1578,8 +1628,8 @@ extern "C" void MakeMap(
 
     writer.OnBeginMap();
     for (int index = 0; index < argCount / 2; ++index) {
-        const auto& nameArg = args[index * 2];
-        const auto& valueArg = args[index * 2 + 1];
+        const auto& nameArg = piArgs[index * 2];
+        const auto& valueArg = piArgs[index * 2 + 1];
 
         if (nameArg.Type != EValueType::String) {
             THROW_ERROR_EXCEPTION("Invalid type of key in key-value pair #%v: expected %Qlv, got %Qlv",
@@ -1619,7 +1669,8 @@ extern "C" void MakeMap(
     }
     writer.OnEndMap();
 
-    *result = context->CaptureValue(MakeUnversionedAnyValue(resultYson));
+    MakePositionIndependentAnyValue(piResult.GetPIValue(), resultYson);
+    CapturePIValue(context, piResult.GetPIValue());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1637,35 +1688,40 @@ bool ListContainsImpl(const INodePtr& node, const TValue& value)
 
 void ListContains(
     TExpressionContext* /*context*/,
-    TUnversionedValue* result,
-    TUnversionedValue* ysonList,
-    TUnversionedValue* what)
+    TValue* result,
+    TValue* ysonList,
+    TValue* what)
 {
-    auto node = ConvertToNode(FromUnversionedValue<TYsonStringBuf>(*ysonList));
+    auto piResult = BorrowFromNonPI(result);
+    auto piYsonList = BorrowFromNonPI(ysonList);
+    auto piWhat = BorrowFromNonPI(what);
+
+    const auto node = NYTree::ConvertToNode(
+        FromPositionIndependentValue<NYson::TYsonStringBuf>(*piYsonList.GetPIValue()));
 
     bool found;
-    switch (what->Type) {
+    switch (piWhat.GetPIValue()->Type) {
         case EValueType::String:
-            found = ListContainsImpl<ENodeType::String, TString>(node, what->AsString());
+            found = ListContainsImpl<ENodeType::String, TString>(node, piWhat.GetPIValue()->AsStringBuf());
             break;
         case EValueType::Int64:
-            found = ListContainsImpl<ENodeType::Int64, i64>(node, what->Data.Int64);
+            found = ListContainsImpl<ENodeType::Int64, i64>(node, piWhat.GetPIValue()->Data.Int64);
             break;
         case EValueType::Uint64:
-            found = ListContainsImpl<ENodeType::Uint64, ui64>(node, what->Data.Uint64);
+            found = ListContainsImpl<ENodeType::Uint64, ui64>(node, piWhat.GetPIValue()->Data.Uint64);
             break;
         case EValueType::Boolean:
-            found = ListContainsImpl<ENodeType::Boolean, bool>(node, what->Data.Boolean);
+            found = ListContainsImpl<ENodeType::Boolean, bool>(node, piWhat.GetPIValue()->Data.Boolean);
             break;
         case EValueType::Double:
-            found = ListContainsImpl<ENodeType::Double, double>(node, what->Data.Double);
+            found = ListContainsImpl<ENodeType::Double, double>(node, piWhat.GetPIValue()->Data.Double);
             break;
         default:
             THROW_ERROR_EXCEPTION("ListContains is not implemented for %Qlv values",
-                what->Type);
+                piWhat.GetPIValue()->Type);
     }
 
-    *result = MakeUnversionedBooleanValue(found);
+    MakePositionIndependentBooleanValue(piResult.GetPIValue(), found);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1706,8 +1762,8 @@ void AnyToYsonString(
 
 extern "C" void NumericToString(
     TExpressionContext* context,
-    TUnversionedValue* result,
-    TUnversionedValue* value
+    TValue* result,
+    TValue* value
 )
 {
     if (value->Type == EValueType::Null) {
@@ -1715,45 +1771,51 @@ extern "C" void NumericToString(
         return;
     }
 
+    auto piResult = BorrowFromNonPI(result);
+    auto piValue = BorrowFromNonPI(value);
+
     TString resultYson;
     TStringOutput output(resultYson);
     TYsonWriter writer(&output, EYsonFormat::Text);
 
-    switch (value->Type) {
+    switch (piValue.GetPIValue()->Type) {
         case EValueType::Int64:
-            writer.OnInt64Scalar(value->Data.Int64);
+            writer.OnInt64Scalar(piValue.GetPIValue()->Data.Int64);
             break;
         case EValueType::Uint64:
-            writer.OnUint64Scalar(value->Data.Uint64);
+            writer.OnUint64Scalar(piValue.GetPIValue()->Data.Uint64);
             break;
         case EValueType::Double:
-            writer.OnDoubleScalar(value->Data.Double);
+            writer.OnDoubleScalar(piValue.GetPIValue()->Data.Double);
             break;
         default:
             YT_ABORT();
     }
 
-    *result = context->CaptureValue(MakeUnversionedStringValue(resultYson));
+    MakePositionIndependentStringValue(piResult.GetPIValue(), resultYson);
+    CapturePIValue(context, piResult.GetPIValue());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 #define DEFINE_CONVERT_STRING(TYPE) \
-    extern "C" void StringTo ## TYPE(TExpressionContext* /*context*/, TUnversionedValue* result, TUnversionedValue* value) \
+    extern "C" void StringTo ## TYPE(TExpressionContext* /*context*/, TValue* result, TValue* value) \
     { \
-        if (value->Type == EValueType::Null) { \
-            *result = MakeUnversionedNullValue(); \
+        auto piResult = BorrowFromNonPI(result); \
+        auto piValue = BorrowFromNonPI(value); \
+        if (piValue.GetPIValue()->Type == EValueType::Null) { \
+            MakePositionIndependentNullValue(piResult.GetPIValue()); \
             return; \
         } \
         NYson::TToken token; \
-        auto valueString = value->AsStringBuf(); \
+        auto valueString = piValue.GetPIValue()->AsStringBuf(); \
         NYson::ParseToken(valueString, &token); \
         if (token.GetType() == NYson::ETokenType::Int64) { \
-            *result = MakeUnversioned ## TYPE ## Value(token.GetInt64Value()); \
+            MakePositionIndependent ## TYPE ## Value(piResult.GetPIValue(), token.GetInt64Value()); \
         } else if (token.GetType() == NYson::ETokenType::Uint64) { \
-            *result = MakeUnversioned ## TYPE ## Value(token.GetUint64Value()); \
+            MakePositionIndependent ## TYPE ## Value(piResult.GetPIValue(), token.GetUint64Value()); \
         } else if (token.GetType() == NYson::ETokenType::Double) { \
-            *result = MakeUnversioned ## TYPE ## Value(token.GetDoubleValue()); \
+            MakePositionIndependent ## TYPE ## Value(piResult.GetPIValue(), token.GetDoubleValue()); \
         } else { \
             THROW_ERROR_EXCEPTION("Cannot convert value %Qv of type %Qlv to \"string\"", \
                 valueString, \
@@ -1767,11 +1829,13 @@ DEFINE_CONVERT_STRING(Double)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void HyperLogLogAllocate(TExpressionContext* context, TUnversionedValue* result)
+void HyperLogLogAllocate(TExpressionContext* context, TValue* result)
 {
+    auto piResult = BorrowFromNonPI(result);
+
     auto* hll = AllocateBytes(context, sizeof(THLL));
     new (hll) THLL();
-    *result = MakeUnversionedStringValue(TStringBuf(hll, sizeof(THLL)));
+    MakePositionIndependentStringValue(piResult.GetPIValue(), TStringBuf(hll, sizeof(THLL)));
 }
 
 void HyperLogLogAdd(void* hll, uint64_t value)
@@ -1791,6 +1855,7 @@ ui64 HyperLogLogEstimateCardinality(void* hll)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(dtorilov): Add unit-test.
 void HasPermissions(
     TExpressionContext* /*context*/,
     TUnversionedValue* result,
@@ -1880,6 +1945,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(AnyToDouble);
     REGISTER_ROUTINE(AnyToBoolean);
     REGISTER_ROUTINE(AnyToString);
+    REGISTER_ROUTINE(MakeMap);
     REGISTER_ROUTINE(ListContains);
     REGISTER_ROUTINE(AnyToYsonString);
     REGISTER_ROUTINE(NumericToString);

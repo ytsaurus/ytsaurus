@@ -93,7 +93,7 @@ void TColumnEvaluator::EvaluateKey(TMutableRow fullRow, const TRowBufferPtr& buf
         column.Variables.GetLiteralValues(),
         column.Variables.GetOpaqueData(),
         &fullRow[index],
-        fullRow.Begin(),
+        fullRow.GetRange(),
         buffer.Get());
 
     fullRow[index].Id = index;

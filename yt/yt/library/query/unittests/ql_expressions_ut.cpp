@@ -960,12 +960,12 @@ TEST_F(TExpressionTest, FunctionNullArgument)
 
         EXPECT_EQ(*expr->LogicalType, *OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)));
 
-        TUnversionedValue result;
+        TUnversionedValue result{};
         TCGVariables variables;
 
         auto callback = Profile(expr, schema, nullptr, &variables)();
 
-        callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Begin(), buffer.Get());
+        callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.GetRange(), buffer.Get());
 
         EXPECT_EQ(result, MakeNull());
     }
@@ -986,11 +986,11 @@ TEST_F(TExpressionTest, FunctionNullArgument)
         auto expr = PrepareExpression("if(null, 1, 2)", *schema);
         EXPECT_EQ(*expr->LogicalType, *OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)));
 
-        TUnversionedValue result;
+        TUnversionedValue result{};
         TCGVariables variables;
 
         auto callback = Profile(expr, schema, nullptr, &variables)();
-        callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Begin(), buffer.Get());
+        callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.GetRange(), buffer.Get());
 
         EXPECT_EQ(result, MakeNull());
     }
@@ -999,11 +999,11 @@ TEST_F(TExpressionTest, FunctionNullArgument)
         auto expr = PrepareExpression("if(false, 1, null)", *schema);
         EXPECT_EQ(*expr->LogicalType, *OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)));
 
-        TUnversionedValue result;
+        TUnversionedValue result{};
         TCGVariables variables;
 
         auto callback = Profile(expr, schema, nullptr, &variables)();
-        callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Begin(), buffer.Get());
+        callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.GetRange(), buffer.Get());
 
         EXPECT_EQ(result, MakeNull());
     }
@@ -1018,7 +1018,7 @@ TEST_P(TExpressionTest, Evaluate)
     auto rhs = std::get<3>(param);
     auto& expected = std::get<4>(param);
 
-    TUnversionedValue result;
+    TUnversionedValue result{};
     TCGVariables variables;
 
     auto columns = GetSampleTableSchema()->Columns();
@@ -1034,7 +1034,7 @@ TEST_P(TExpressionTest, Evaluate)
 
     auto buffer = New<TRowBuffer>();
 
-    callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Begin(), buffer.Get());
+    callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.GetRange(), buffer.Get());
 
     EXPECT_EQ(result, expected)
         << "row: " << ::testing::PrintToString(row);
@@ -1049,7 +1049,7 @@ TEST_P(TExpressionTest, EvaluateLhsValueRhsLiteral)
     auto rhs = std::get<3>(param);
     auto& expected = std::get<4>(param);
 
-    TUnversionedValue result;
+    TUnversionedValue result{};
     TCGVariables variables;
 
     auto columns = GetSampleTableSchema()->Columns();
@@ -1065,7 +1065,7 @@ TEST_P(TExpressionTest, EvaluateLhsValueRhsLiteral)
 
     auto buffer = New<TRowBuffer>();
 
-    callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Begin(), buffer.Get());
+    callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.GetRange(), buffer.Get());
 
     EXPECT_EQ(result, expected)
         << "row: " << ::testing::PrintToString(row);
@@ -1080,7 +1080,7 @@ TEST_P(TExpressionTest, EvaluateLhsLiteralRhsValue)
     auto rhs = std::get<3>(param);
     auto& expected = std::get<4>(param);
 
-    TUnversionedValue result;
+    TUnversionedValue result{};
     TCGVariables variables;
 
     auto columns = GetSampleTableSchema()->Columns();
@@ -1096,7 +1096,7 @@ TEST_P(TExpressionTest, EvaluateLhsLiteralRhsValue)
 
     auto buffer = New<TRowBuffer>();
 
-    callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Begin(), buffer.Get());
+    callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.GetRange(), buffer.Get());
 
     EXPECT_EQ(result, expected)
         << "row: " << ::testing::PrintToString(row);
@@ -1190,7 +1190,7 @@ TEST_P(TTernaryLogicTest, Evaluate)
     auto rhs = std::get<2>(param);
     auto expected = std::get<3>(param);
 
-    TUnversionedValue result;
+    TUnversionedValue result{};
     TCGVariables variables;
     auto buffer = New<TRowBuffer>();
     auto row = YsonToSchemafulRow("", TTableSchema(), true);
@@ -1205,12 +1205,12 @@ TEST_P(TTernaryLogicTest, Evaluate)
 
     TCGVariables variables1;
     auto compiledExpr1 = Profile(expr1, New<TTableSchema>(), nullptr, &variables1)();
-    compiledExpr1(variables1.GetLiteralValues(), variables1.GetOpaqueData(), &result, row.Begin(), buffer.Get());
+    compiledExpr1(variables1.GetLiteralValues(), variables1.GetOpaqueData(), &result, row.GetRange(), buffer.Get());
     EXPECT_TRUE(CompareRowValues(result, expected) == 0);
 
     TCGVariables variables2;
     auto compiledExpr2 = Profile(expr2, New<TTableSchema>(), nullptr, &variables2)();
-    compiledExpr2(variables2.GetLiteralValues(), variables2.GetOpaqueData(), &result, row.Begin(), buffer.Get());
+    compiledExpr2(variables2.GetLiteralValues(), variables2.GetOpaqueData(), &result, row.GetRange(), buffer.Get());
     EXPECT_TRUE(CompareRowValues(result, expected) == 0);
 }
 
@@ -1302,7 +1302,7 @@ TEST_P(TCompareWithNullTest, Simple)
     auto& exprString = std::get<1>(param);
     auto& expected = std::get<2>(param);
 
-    TUnversionedValue result;
+    TUnversionedValue result{};
     TCGVariables variables;
     auto schema = GetSampleTableSchema();
 
@@ -1312,7 +1312,7 @@ TEST_P(TCompareWithNullTest, Simple)
 
     auto buffer = New<TRowBuffer>();
 
-    callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Begin(), buffer.Get());
+    callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.GetRange(), buffer.Get());
 
     EXPECT_EQ(result, expected)
         << "row: " << ::testing::PrintToString(rowString) << std::endl
@@ -1401,7 +1401,7 @@ TEST_F(TEvaluateAggregationTest, AggregateFlag)
     callbacks.Merge(buffer.Get(), &state, &value);
     EXPECT_EQ(EValueFlags::None, state.Flags);
 
-    TUnversionedValue result;
+    TUnversionedValue result{};
     // Finalize preserves aggregate flag.
     state.Flags &= ~EValueFlags::Aggregate;
     callbacks.Finalize(buffer.Get(), &result, &state);
@@ -1429,14 +1429,14 @@ TEST_P(TEvaluateAggregationTest, Basic)
 
     auto buffer = New<TRowBuffer>();
 
-    TUnversionedValue state1;
+    TUnversionedValue state1{};
     callbacks.Init(buffer.Get(), &state1);
     EXPECT_EQ(EValueType::Null, state1.Type);
 
     callbacks.Update(buffer.Get(), &state1, &value1);
     EXPECT_EQ(value1, state1);
 
-    TUnversionedValue state2;
+    TUnversionedValue state2{};
     callbacks.Init(buffer.Get(), &state2);
     EXPECT_EQ(EValueType::Null, state2.Type);
 
@@ -1446,7 +1446,7 @@ TEST_P(TEvaluateAggregationTest, Basic)
     callbacks.Merge(buffer.Get(), &state1, &state2);
     EXPECT_EQ(expected, state1);
 
-    TUnversionedValue result;
+    TUnversionedValue result{};
     callbacks.Finalize(buffer.Get(), &result, &state1);
     EXPECT_EQ(expected, result);
 }
@@ -1520,7 +1520,7 @@ void EvaluateExpression(
 
     auto row = YsonToSchemafulRow(rowString, *schema, true);
 
-    callback(variables.GetLiteralValues(), variables.GetOpaqueData(), result, row.Begin(), buffer.Get());
+    callback(variables.GetLiteralValues(), variables.GetOpaqueData(), result, row.GetRange(), buffer.Get());
 }
 
 class TEvaluateExpressionTest
@@ -1546,7 +1546,7 @@ TEST_P(TEvaluateExpressionTest, Basic)
     auto expr = PrepareExpression(exprString, *schema);
 
     auto buffer = New<TRowBuffer>();
-    TUnversionedValue result;
+    TUnversionedValue result{};
     EvaluateExpression(expr, rowString, schema, &result, buffer);
 
     EXPECT_EQ(result, expected);
@@ -1711,7 +1711,7 @@ TEST_F(TFormatTimestampExpressionTest, TooSmallTimestamp)
     auto expr = PrepareExpression("format_timestamp(-62135596801, '')", *schema);
     auto buffer = New<TRowBuffer>();
 
-    TUnversionedValue result;
+    TUnversionedValue result{};
 
     EXPECT_THROW_THAT(
         EvaluateExpression(expr, "", schema, &result, buffer),
@@ -1725,7 +1725,7 @@ TEST_F(TFormatTimestampExpressionTest, TooLargeTimestamp)
     auto expr = PrepareExpression("format_timestamp(253402300800, '%Y%m%d')", *schema);
     auto buffer = New<TRowBuffer>();
 
-    TUnversionedValue result;
+    TUnversionedValue result{};
 
     EXPECT_THROW_THAT(
         EvaluateExpression(expr, "", schema, &result, buffer),
@@ -1739,7 +1739,7 @@ TEST_F(TFormatTimestampExpressionTest, InvalidFormat)
     auto expr = PrepareExpression("format_timestamp(0, '11111111112222222222333333333344')", *schema);
     auto buffer = New<TRowBuffer>();
 
-    TUnversionedValue result;
+    TUnversionedValue result{};
 
     EXPECT_THROW_THAT(
         EvaluateExpression(expr, "", schema, &result, buffer),
@@ -1764,7 +1764,7 @@ TEST_F(TExpressionErrorTest, Int64_DivisionByZero)
     auto expr = PrepareExpression("i1 / i2", *schema);
     auto buffer = New<TRowBuffer>();
 
-    TUnversionedValue result;
+    TUnversionedValue result{};
 
     EXPECT_THROW_THAT(
         EvaluateExpression(expr, "i1=1; i2=0", schema, &result, buffer),
@@ -1781,7 +1781,7 @@ TEST_F(TExpressionErrorTest, Int64_ModuloByZero)
     auto expr = PrepareExpression("i1 % i2", *schema);
     auto buffer = New<TRowBuffer>();
 
-    TUnversionedValue result;
+    TUnversionedValue result{};
 
     EXPECT_THROW_THAT(
         EvaluateExpression(expr, "i1=1; i2=0", schema, &result, buffer),
@@ -1798,7 +1798,7 @@ TEST_F(TExpressionErrorTest, UInt64_DivisionByZero)
     auto expr = PrepareExpression("u1 / u2", *schema);
     auto buffer = New<TRowBuffer>();
 
-    TUnversionedValue result;
+    TUnversionedValue result{};
 
     EXPECT_THROW_THAT(
         EvaluateExpression(expr, "u1=1u; u2=0u", schema, &result, buffer),
@@ -1815,7 +1815,7 @@ TEST_F(TExpressionErrorTest, UInt64_ModuloByZero)
     auto expr = PrepareExpression("u1 % u2", *schema);
     auto buffer = New<TRowBuffer>();
 
-    TUnversionedValue result;
+    TUnversionedValue result{};
 
     EXPECT_THROW_THAT(
         EvaluateExpression(expr, "u1=1u; u2=0u", schema, &result, buffer),
@@ -1832,7 +1832,7 @@ TEST_F(TExpressionErrorTest, Int64_DivisionIntMinByMinusOne)
     auto expr = PrepareExpression("i1 / i2", *schema);
     auto buffer = New<TRowBuffer>();
 
-    TUnversionedValue result;
+    TUnversionedValue result{};
 
     EXPECT_THROW_THAT(
         EvaluateExpression(expr, "i1=-9223372036854775808; i2=-1", schema, &result, buffer),
@@ -1846,7 +1846,7 @@ TEST_F(TExpressionErrorTest, ConvertFromAny)
     });
 
     auto buffer = New<TRowBuffer>();
-    TUnversionedValue result;
+    TUnversionedValue result{};
 
     EXPECT_THROW_THAT(
         [&] {
@@ -1892,7 +1892,7 @@ TEST_P(TExpressionStrConvTest, Basic)
     auto expr = PrepareExpression(exprString, *schema);
 
     auto buffer = New<TRowBuffer>();
-    TUnversionedValue result;
+    TUnversionedValue result{};
     EvaluateExpression(expr, rowString, schema, &result, buffer);
 
     EXPECT_EQ(result, expected);
@@ -1962,7 +1962,7 @@ TEST_F(TExpressionStrConvTest, ErrorConvertStringToNumericTest) {
     });
 
     auto buffer = New<TRowBuffer>();
-    TUnversionedValue result;
+    TUnversionedValue result{};
 
     EXPECT_THROW_THAT(
         [&] {

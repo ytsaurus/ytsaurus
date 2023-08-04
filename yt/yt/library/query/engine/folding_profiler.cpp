@@ -7,6 +7,10 @@
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_helpers.h>
 
+#include <yt/yt/library/query/engine_api/position_independent_value_transfer.h>
+
+#include <library/cpp/yt/memory/shared_range.h>
+
 namespace NYT::NQueryClient {
 namespace {
 
@@ -604,6 +608,8 @@ size_t TExpressionProfiler::Profile(
     return fragments->Items.size() - 1;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 size_t TExpressionProfiler::Profile(
     const TInExpression* inExpr,
     const TTableSchemaPtr& schema,
@@ -636,7 +642,7 @@ size_t TExpressionProfiler::Profile(
         ++fragments->Items[argId].UseCount;
     }
 
-    int index = Variables_->AddOpaque<TSharedRange<TRow>>(inExpr->Values);
+    int index = Variables_->AddOpaque<TSharedRange<TRange<TPIValue>>>(CopyAndConvertToPI(inExpr->Values, false));
     int hashtableIndex = Variables_->AddOpaque<std::unique_ptr<TLookupRows>>();
     fragments->DebugInfos.emplace_back(inExpr, argIds);
     fragments->Items.emplace_back(
@@ -679,7 +685,7 @@ size_t TExpressionProfiler::Profile(
         ++fragments->Items[argId].UseCount;
     }
 
-    int index = Variables_->AddOpaque<TSharedRange<TRowRange>>(betweenExpr->Ranges);
+    int index = Variables_->AddOpaque<TSharedRange<TPIRowRange>>(CopyAndConvertToPI(betweenExpr->Ranges, false));
     fragments->DebugInfos.emplace_back(betweenExpr, argIds);
     fragments->Items.emplace_back(
         MakeCodegenBetweenExpr(argIds, index, ComparerManager_),
@@ -741,7 +747,7 @@ size_t TExpressionProfiler::Profile(
         }
     }
 
-    int index = Variables_->AddOpaque<TSharedRange<TRow>>(transformExpr->Values);
+    int index = Variables_->AddOpaque<TSharedRange<TRange<TPIValue>>>(CopyAndConvertToPI(transformExpr->Values, false));
     int hashtableIndex = Variables_->AddOpaque<std::unique_ptr<TLookupRows>>();
 
     fragments->DebugInfos.emplace_back(transformExpr, argIds, defaultExprId);
@@ -1121,26 +1127,31 @@ void TQueryProfiler::Profile(
     size_t resultRowSize = schema->GetColumnCount();
 
     if (!finalMode) {
+        auto schemaTypes = GetTypesFromSchema(*schema);
+
         finalSlot = MakeCodegenAddStreamOp(
                 codegenSource,
                 slotCount,
                 finalSlot,
                 resultRowSize,
-                EStreamTag::Final);
+                EStreamTag::Final,
+                schemaTypes);
 
         totalsSlot = MakeCodegenAddStreamOp(
                 codegenSource,
                 slotCount,
                 totalsSlot,
                 resultRowSize,
-                EStreamTag::Totals);
+                EStreamTag::Totals,
+                schemaTypes);
 
         intermediateSlot = MakeCodegenAddStreamOp(
                 codegenSource,
                 slotCount,
                 intermediateSlot,
                 resultRowSize,
-                EStreamTag::Intermediate);
+                EStreamTag::Intermediate,
+                schemaTypes);
 
         ++resultRowSize;
     }
