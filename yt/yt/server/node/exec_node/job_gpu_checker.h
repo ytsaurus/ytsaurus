@@ -25,7 +25,7 @@ namespace NYT::NExecNode
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TJobGpuCheckerSettings
+struct TJobGpuCheckerContext
 {
     IUserSlotPtr Slot;
     TJobPtr Job;
@@ -53,15 +53,16 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(std::optional<TInstant>, GpuCheckFinishTime);
 
 public:
-    TJobGpuChecker(const TJobGpuCheckerSettings& settings);
+    TJobGpuChecker(TJobGpuCheckerContext context, NLogging::TLogger logger);
 
     TFuture<void> RunGpuCheck();
 
 private:
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
-    const TJobGpuCheckerSettings Settings_;
+    const TJobGpuCheckerContext Context_;
 
+    NLogging::TLogger Logger;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobGpuChecker)

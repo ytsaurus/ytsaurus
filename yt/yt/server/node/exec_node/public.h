@@ -55,12 +55,12 @@ DECLARE_REFCOUNTED_CLASS(TJob)
 DECLARE_REFCOUNTED_CLASS(IJobController)
 
 DECLARE_REFCOUNTED_CLASS(TJobWorkspaceBuilder)
-DECLARE_REFCOUNTED_STRUCT(TJobWorkspaceBuildSettings)
-DECLARE_REFCOUNTED_STRUCT(TJobWorkspaceBuildResult)
+struct TJobWorkspaceBuildingContext;
+struct TJobWorkspaceBuildingResult;
 
 DECLARE_REFCOUNTED_CLASS(TJobGpuChecker)
-DECLARE_REFCOUNTED_STRUCT(TJobGpuCheckerSettings)
-DECLARE_REFCOUNTED_STRUCT(TJobGpuCheckerResult)
+struct TJobGpuCheckerSettings;
+struct TJobGpuCheckerResult;
 
 DECLARE_REFCOUNTED_CLASS(TChunkCache)
 DECLARE_REFCOUNTED_CLASS(TCacheLocation)

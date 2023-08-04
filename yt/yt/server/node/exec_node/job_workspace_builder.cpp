@@ -22,51 +22,75 @@ using namespace NFS;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ExecNodeLogger;
 static const TString MountSuffix = "mount";
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobWorkspaceBuilder::TJobWorkspaceBuilder(
     IInvokerPtr invoker,
-    TJobWorkspaceBuildSettings settings,
+    TJobWorkspaceBuildingContext context,
     IJobDirectoryManagerPtr directoryManager)
     : Invoker_(std::move(invoker))
-    , Settings_(std::move(settings))
+    , Context_(std::move(context))
     , DirectoryManager_(std::move(directoryManager))
+    , Logger(Context_.Logger)
 {
-    YT_VERIFY(Settings_.Slot);
-    YT_VERIFY(Settings_.Job);
+    YT_VERIFY(Context_.Slot);
+    YT_VERIFY(Context_.Job);
     YT_VERIFY(DirectoryManager_);
 
-    if (Settings_.NeedGpuCheck) {
-        YT_VERIFY(Settings_.GpuCheckBinaryPath);
-        YT_VERIFY(Settings_.GpuCheckBinaryArgs);
+    if (Context_.NeedGpuCheck) {
+        YT_VERIFY(Context_.GpuCheckBinaryPath);
+        YT_VERIFY(Context_.GpuCheckBinaryArgs);
     }
 }
 
-template<TFuture<void>(TJobWorkspaceBuilder::*Method)()>
+template<TFuture<void>(TJobWorkspaceBuilder::*Step)()>
 TFuture<void> TJobWorkspaceBuilder::GuardedAction()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    switch (Settings_.Job->GetPhase()) {
+    auto jobPhase = Context_.Job->GetPhase();
+
+    switch (jobPhase) {
         case EJobPhase::WaitingAbort:
         case EJobPhase::Cleanup:
         case EJobPhase::Finished:
+            YT_LOG_DEBUG(
+                "Skip workspace building action (JobPhase: %v, ActionName: %v)",
+                jobPhase,
+                GetStepName<Step>());
             return VoidFuture;
 
         case EJobPhase::Created:
-            YT_VERIFY(Settings_.Job->GetState() == EJobState::Waiting);
+            YT_VERIFY(Context_.Job->GetState() == EJobState::Waiting);
             break;
 
         default:
-            YT_VERIFY(Settings_.Job->GetState() == EJobState::Running);
+            YT_VERIFY(Context_.Job->GetState() == EJobState::Running);
             break;
     }
 
     TForbidContextSwitchGuard contextSwitchGuard;
-    return (*this.*Method)();
+
+    YT_LOG_DEBUG(
+        "Run guarded workspace building action (JobPhase: %v, ActionName: %v)",
+        jobPhase,
+        GetStepName<Step>());
+
+    return (*this.*Step)();
+}
+
+template<TFuture<void>(TJobWorkspaceBuilder::*Step)()>
+constexpr const char* TJobWorkspaceBuilder::GetStepName()
+{
+    if (Step == &TJobWorkspaceBuilder::DoPrepareRootVolume) {
+        return "DoPrepareRootVolume";
+    } else if (Step == &TJobWorkspaceBuilder::DoRunSetupCommand) {
+        return "DoRunSetupCommand";
+    } else if (Step == &TJobWorkspaceBuilder::DoRunGpuCheckCommand) {
+        return "DoRunGpuCheckCommand";
+    }
 }
 
 template<TFuture<void>(TJobWorkspaceBuilder::*Method)()>
@@ -83,8 +107,13 @@ void TJobWorkspaceBuilder::ValidateJobPhase(EJobPhase expectedPhase) const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    auto jobPhase = Settings_.Job->GetPhase();
+    auto jobPhase = Context_.Job->GetPhase();
     if (jobPhase != expectedPhase) {
+        YT_LOG_DEBUG(
+            "Unexpected job phase during workspace preparation (Actual: %v, Expected: %v)",
+            jobPhase,
+            expectedPhase);
+
         THROW_ERROR_EXCEPTION("Unexpected job phase")
             << TErrorAttribute("expected_phase", expectedPhase)
             << TErrorAttribute("actual_phase", jobPhase);
@@ -105,7 +134,7 @@ void TJobWorkspaceBuilder::UpdateArtifactStatistics(i64 compressedDataSize, bool
     UpdateArtifactStatistics_.Fire(compressedDataSize, cacheHit);
 }
 
-TFuture<TJobWorkspaceBuildResult> TJobWorkspaceBuilder::Run()
+TFuture<TJobWorkspaceBuildingResult> TJobWorkspaceBuilder::Run()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -116,6 +145,8 @@ TFuture<TJobWorkspaceBuildResult> TJobWorkspaceBuilder::Run()
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunSetupCommand>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunGpuCheckCommand>())
         .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& result) {
+            YT_LOG_DEBUG(result, "Job workspace building finished");
+
             ResultHolder_.LastBuildError = result;
             return std::move(ResultHolder_);
         }).AsyncVia(Invoker_));
@@ -129,11 +160,11 @@ class TSimpleJobWorkspaceBuilder
 public:
     TSimpleJobWorkspaceBuilder(
         IInvokerPtr invoker,
-        TJobWorkspaceBuildSettings settings,
+        TJobWorkspaceBuildingContext context,
         IJobDirectoryManagerPtr directoryManager)
         : TJobWorkspaceBuilder(
             std::move(invoker),
-            std::move(settings),
+            std::move(context),
             std::move(directoryManager))
     { }
 
@@ -141,9 +172,13 @@ private:
 
     void MakeArtifactSymlinks()
     {
-        auto slot = Settings_.Slot;
+        const auto& slot = Context_.Slot;
 
-        for (const auto& artifact : Settings_.Artifacts) {
+        YT_LOG_DEBUG(
+            "Making artifact symlinks (SymlinkCount: %v)",
+            std::size(Context_.Artifacts));
+
+        for (const auto& artifact : Context_.Artifacts) {
             // Artifact is passed into the job via symlink.
             if (!artifact.BypassArtifactCache && !artifact.CopyFile) {
                 YT_VERIFY(artifact.Chunk);
@@ -161,17 +196,27 @@ private:
                     CombinePaths(sandboxPath, artifact.Name);
 
                 WaitFor(slot->MakeLink(
-                    Settings_.Job->GetId(),
+                    Context_.Job->GetId(),
                     artifact.Name,
                     artifact.SandboxKind,
                     artifact.Chunk->GetFileName(),
                     symlinkPath,
                     artifact.Executable))
                     .ThrowOnError();
+
+                YT_LOG_INFO(
+                    "Symlink for artifact is successfully made (FileName: %v, Executable: "
+                    "%v, SandboxKind: %v, CompressedDataSize: %v)",
+                    artifact.Name,
+                    artifact.Executable,
+                    artifact.SandboxKind,
+                    artifact.Key.GetCompressedDataSize());
             } else {
                 YT_VERIFY(artifact.SandboxKind == ESandboxKind::User);
             }
         }
+
+        YT_LOG_DEBUG("Artifact symlinks are made");
     }
 
     TRootFS MakeWritableRootFS()
@@ -180,7 +225,7 @@ private:
 
         YT_VERIFY(ResultHolder_.RootVolume);
 
-        std::vector<TBind> binds = Settings_.Binds;
+        auto binds = Context_.Binds;
 
         for (const auto& bind : ResultHolder_.RootBinds) {
             binds.push_back(bind);
@@ -189,7 +234,7 @@ private:
         return TRootFS {
             .RootPath = ResultHolder_.RootVolume->GetPath(),
             .IsRootReadOnly = false,
-            .Binds = binds
+            .Binds = std::move(binds),
         };
     }
 
@@ -202,9 +247,9 @@ private:
 
         YT_LOG_INFO("Started preparing sandbox directories");
 
-        auto slot = Settings_.Slot;
+        const auto& slot = Context_.Slot;
 
-        ResultHolder_.TmpfsPaths = WaitFor(slot->PrepareSandboxDirectories(Settings_.UserSandboxOptions))
+        ResultHolder_.TmpfsPaths = WaitFor(slot->PrepareSandboxDirectories(Context_.UserSandboxOptions))
             .ValueOrThrow();
 
         MakeArtifactSymlinks();
@@ -218,6 +263,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
+        YT_LOG_DEBUG("Root volume preparation is not supported in simple workspace");
+
         ValidateJobPhase(EJobPhase::PreparingSandboxDirectories);
         SetJobPhase(EJobPhase::PreparingRootVolume);
 
@@ -228,6 +275,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
+        YT_LOG_DEBUG("Setup command is not supported in simple workspace");
+
         ValidateJobPhase(EJobPhase::PreparingRootVolume);
         SetJobPhase(EJobPhase::RunningSetupCommands);
 
@@ -237,6 +286,8 @@ private:
     TFuture<void> DoRunGpuCheckCommand()
     {
         VERIFY_THREAD_AFFINITY(JobThread);
+
+        YT_LOG_DEBUG("Gpu check is not supported in simple workspace");
 
         ValidateJobPhase(EJobPhase::RunningSetupCommands);
         SetJobPhase(EJobPhase::RunningGpuCheckCommand);
@@ -249,12 +300,12 @@ private:
 
 TJobWorkspaceBuilderPtr CreateSimpleJobWorkspaceBuilder(
     IInvokerPtr invoker,
-    TJobWorkspaceBuildSettings settings,
+    TJobWorkspaceBuildingContext context,
     IJobDirectoryManagerPtr directoryManager)
 {
     return New<TSimpleJobWorkspaceBuilder>(
         std::move(invoker),
-        std::move(settings),
+        std::move(context),
         std::move(directoryManager));
 }
 
@@ -268,11 +319,11 @@ class TPortoJobWorkspaceBuilder
 public:
     TPortoJobWorkspaceBuilder(
         IInvokerPtr invoker,
-        TJobWorkspaceBuildSettings settings,
+        TJobWorkspaceBuildingContext context,
         IJobDirectoryManagerPtr directoryManager)
         : TJobWorkspaceBuilder(
             std::move(invoker),
-            std::move(settings),
+            std::move(context),
             std::move(directoryManager))
     { }
 
@@ -280,9 +331,13 @@ private:
 
     void MakeArtifactSymlinks()
     {
-        auto slot = Settings_.Slot;
+        const auto& slot = Context_.Slot;
 
-        for (const auto& artifact : Settings_.Artifacts) {
+        YT_LOG_DEBUG(
+            "Making artifact symlinks (ArtifactCount: %v)",
+            std::size(Context_.Artifacts));
+
+        for (const auto& artifact : Context_.Artifacts) {
             // Artifact is passed into the job via symlink.
             if (!artifact.BypassArtifactCache && !artifact.CopyFile) {
                 YT_VERIFY(artifact.Chunk);
@@ -300,22 +355,36 @@ private:
                     CombinePaths(sandboxPath, artifact.Name);
 
                 WaitFor(slot->MakeLink(
-                    Settings_.Job->GetId(),
+                    Context_.Job->GetId(),
                     artifact.Name,
                     artifact.SandboxKind,
                     artifact.Chunk->GetFileName(),
                     symlinkPath,
                     artifact.Executable))
                     .ThrowOnError();
+
+                YT_LOG_INFO(
+                    "Symlink for artifact is successfully made(FileName: %v, Executable: "
+                    "%v, SandboxKind: %v, CompressedDataSize: %v)",
+                    artifact.Name,
+                    artifact.Executable,
+                    artifact.SandboxKind,
+                    artifact.Key.GetCompressedDataSize());
             } else {
                 YT_VERIFY(artifact.SandboxKind == ESandboxKind::User);
             }
         }
+
+        YT_LOG_DEBUG("Artifact symlinks are made");
     }
 
     void SetArtifactPermissions()
     {
-        for (const auto& artifact : Settings_.Artifacts) {
+        YT_LOG_DEBUG(
+            "Setting permissions for artifactifacts (ArctifactCount: %v)",
+            std::size(Context_.Artifacts));
+
+        for (const auto& artifact : Context_.Artifacts) {
             if (!artifact.BypassArtifactCache && !artifact.CopyFile) {
                 YT_VERIFY(artifact.Chunk);
 
@@ -336,6 +405,8 @@ private:
                 YT_VERIFY(artifact.SandboxKind == ESandboxKind::User);
             }
         }
+
+        YT_LOG_DEBUG("Permissions for artifactifacts set");
     }
 
     TFuture<void> DoPrepareSandboxDirectories()
@@ -347,11 +418,11 @@ private:
 
         YT_LOG_INFO("Started preparing sandbox directories");
 
-        auto slot = Settings_.Slot;
-        ResultHolder_.TmpfsPaths = WaitFor(slot->PrepareSandboxDirectories(Settings_.UserSandboxOptions))
+        const auto& slot = Context_.Slot;
+        ResultHolder_.TmpfsPaths = WaitFor(slot->PrepareSandboxDirectories(Context_.UserSandboxOptions))
             .ValueOrThrow();
 
-        if (Settings_.LayerArtifactKeys.empty() || !Settings_.UserSandboxOptions.EnableArtifactBinds) {
+        if (Context_.LayerArtifactKeys.empty() || !Context_.UserSandboxOptions.EnableArtifactBinds) {
             MakeArtifactSymlinks();
         } else {
             SetArtifactPermissions();
@@ -368,7 +439,7 @@ private:
 
         YT_VERIFY(ResultHolder_.RootVolume);
 
-        auto binds = Settings_.Binds;
+        auto binds = Context_.Binds;
 
         for (const auto& bind : ResultHolder_.RootBinds) {
             binds.push_back(bind);
@@ -388,8 +459,8 @@ private:
         ValidateJobPhase(EJobPhase::PreparingSandboxDirectories);
         SetJobPhase(EJobPhase::PreparingRootVolume);
 
-        auto slot = Settings_.Slot;
-        auto layerArtifactKeys = Settings_.LayerArtifactKeys;
+        const auto& slot = Context_.Slot;
+        const auto& layerArtifactKeys = Context_.LayerArtifactKeys;
 
         if (!layerArtifactKeys.empty()) {
             VolumePrepareStartTime_ = TInstant::Now();
@@ -404,19 +475,25 @@ private:
 
             return slot->PrepareRootVolume(
                 layerArtifactKeys,
-                Settings_.ArtifactDownloadOptions,
-                Settings_.UserSandboxOptions)
+                Context_.ArtifactDownloadOptions,
+                Context_.UserSandboxOptions)
                 .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<IVolumePtr>& volumeOrError) {
                     if (!volumeOrError.IsOK()) {
-                        THROW_ERROR_EXCEPTION(TError(EErrorCode::RootVolumePreparationFailed, "Failed to prepare artifacts")
-                            << volumeOrError);
+                        YT_LOG_DEBUG("Failed to prepare root volume");
+
+                        THROW_ERROR_EXCEPTION(
+                            TError(EErrorCode::RootVolumePreparationFailed, "Failed to prepare artifacts")
+                                << volumeOrError);
                     }
+
+                    YT_LOG_DEBUG("Root volume prepared");
 
                     VolumePrepareFinishTime_ = TInstant::Now();
                     UpdateTimers_.Fire(MakeStrong(this));
                     ResultHolder_.RootVolume = volumeOrError.Value();
                 }));
         } else {
+            YT_LOG_DEBUG("Root volume preparation is not needed");
             return VoidFuture;
         }
     }
@@ -428,26 +505,28 @@ private:
         ValidateJobPhase(EJobPhase::PreparingRootVolume);
         SetJobPhase(EJobPhase::RunningSetupCommands);
 
-        if (Settings_.LayerArtifactKeys.empty()) {
+        if (Context_.LayerArtifactKeys.empty()) {
             return VoidFuture;
         }
 
-        auto slot = Settings_.Slot;
+        const auto &slot = Context_.Slot;
 
-        auto commands = Settings_.SetupCommands;
+        const auto& commands = Context_.SetupCommands;
         ResultHolder_.SetupCommandCount = commands.size();
 
         if (commands.empty()) {
+            YT_LOG_DEBUG("No setup command is needed");
+
             return VoidFuture;
         }
 
         YT_LOG_INFO("Running setup commands");
 
         return slot->RunSetupCommands(
-            Settings_.Job->GetId(),
+            Context_.Job->GetId(),
             commands,
             MakeWritableRootFS(),
-            Settings_.CommandUser,
+            Context_.CommandUser,
             /*devices*/ std::nullopt,
             /*startIndex*/ 0);
     }
@@ -459,33 +538,35 @@ private:
         ValidateJobPhase(EJobPhase::RunningSetupCommands);
         SetJobPhase(EJobPhase::RunningGpuCheckCommand);
 
-        if (Settings_.NeedGpuCheck) {
-            TJobGpuCheckerSettings settings {
-                .Slot = Settings_.Slot,
-                .Job = Settings_.Job,
+        if (Context_.NeedGpuCheck) {
+            TJobGpuCheckerContext settings {
+                .Slot = Context_.Slot,
+                .Job = Context_.Job,
                 .RootFs = MakeWritableRootFS(),
-                .CommandUser = Settings_.CommandUser,
+                .CommandUser = Context_.CommandUser,
 
-                .GpuCheckBinaryPath = *Settings_.GpuCheckBinaryPath,
-                .GpuCheckBinaryArgs = *Settings_.GpuCheckBinaryArgs,
-                .GpuCheckType = Settings_.GpuCheckType,
+                .GpuCheckBinaryPath = *Context_.GpuCheckBinaryPath,
+                .GpuCheckBinaryArgs = *Context_.GpuCheckBinaryArgs,
+                .GpuCheckType = Context_.GpuCheckType,
                 .CurrentStartIndex = ResultHolder_.SetupCommandCount,
                 // It is preliminary (not extra) GPU check.
                 .TestExtraGpuCheckCommandFailure = false,
-                .GpuDevices = Settings_.GpuDevices
+                .GpuDevices = Context_.GpuDevices
             };
 
-            auto checker = New<TJobGpuChecker>(std::move(settings));
+            auto checker = New<TJobGpuChecker>(std::move(settings), Logger);
 
             checker->SubscribeRunCheck(BIND_NO_PROPAGATE([=, this, this_ = MakeStrong(this)] () {
                 GpuCheckStartTime_ = TInstant::Now();
                 UpdateTimers_.Fire(MakeStrong(this));
             }));
 
-            checker->SubscribeRunCheck(BIND_NO_PROPAGATE([=, this, this_ = MakeStrong(this)] () {
+            checker->SubscribeFinishCheck(BIND_NO_PROPAGATE([=, this, this_ = MakeStrong(this)] () {
                 GpuCheckFinishTime_ = TInstant::Now();
                 UpdateTimers_.Fire(MakeStrong(this));
             }));
+
+            YT_LOG_DEBUG("Starting preliminary gpu check");
 
             return BIND(&TJobGpuChecker::RunGpuCheck, checker)
                 .AsyncVia(Invoker_)
@@ -493,12 +574,18 @@ private:
                 .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& result) {
                     ValidateJobPhase(EJobPhase::RunningGpuCheckCommand);
                     if (!result.IsOK()) {
+                        YT_LOG_WARNING("GPU check command failed");
+
                         auto checkError = TError(EErrorCode::GpuCheckCommandFailed, "GPU check command failed")
                             << result;
                         THROW_ERROR checkError;
                     }
+
+                    YT_LOG_DEBUG("GPU check command finished");
                 }).AsyncVia(Invoker_));
         } else {
+            YT_LOG_DEBUG("No preliminary gpu check is needed");
+
             return VoidFuture;
         }
     }
@@ -506,12 +593,12 @@ private:
 
 TJobWorkspaceBuilderPtr CreatePortoJobWorkspaceBuilder(
     IInvokerPtr invoker,
-    TJobWorkspaceBuildSettings settings,
+    TJobWorkspaceBuildingContext context,
     IJobDirectoryManagerPtr directoryManager)
 {
     return New<TPortoJobWorkspaceBuilder>(
         std::move(invoker),
-        std::move(settings),
+        std::move(context),
         std::move(directoryManager));
 }
 

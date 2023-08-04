@@ -63,7 +63,7 @@ struct IJobEnvironment
 
     virtual TJobWorkspaceBuilderPtr CreateJobWorkspaceBuilder(
         IInvokerPtr invoker,
-        TJobWorkspaceBuildSettings settings,
+        TJobWorkspaceBuildingContext context,
         IJobDirectoryManagerPtr directoryManager) = 0;
 };
 

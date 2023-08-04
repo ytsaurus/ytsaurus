@@ -14,29 +14,25 @@ using namespace NJobAgent;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ExecNodeLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 TJobGpuChecker::TJobGpuChecker(
-    const TJobGpuCheckerSettings& settings)
-    : Settings_(std::move(settings))
+    TJobGpuCheckerContext context,
+    NLogging::TLogger logger)
+    : Context_(std::move(context))
+    , Logger(std::move(logger))
 { }
 
 TFuture<void> TJobGpuChecker::RunGpuCheck()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    YT_LOG_INFO("Running %lv GPU check commands", Settings_.GpuCheckType);
-
     int checkStartIndex = 0;
 
-    switch (Settings_.GpuCheckType) {
+    switch (Context_.GpuCheckType) {
         case EGpuCheckType::Preliminary:
-            checkStartIndex = Settings_.CurrentStartIndex;
+            checkStartIndex = Context_.CurrentStartIndex;
             break;
         case EGpuCheckType::Extra:
-            checkStartIndex = Settings_.CurrentStartIndex + 2;
+            checkStartIndex = Context_.CurrentStartIndex + 2;
             break;
         default:
             Y_UNREACHABLE();
@@ -45,42 +41,56 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
     RunCheck_.Fire();
 
     {
+        YT_LOG_INFO("Verifying %lv GPU check commands", Context_.GpuCheckType);
+
         auto testFileCommand = New<TShellCommandConfig>();
         testFileCommand->Path = "/usr/bin/test";
-        testFileCommand->Args = {"-f", Settings_.GpuCheckBinaryPath};
+        testFileCommand->Args = {"-f", Context_.GpuCheckBinaryPath};
 
         auto testFileError = WaitFor(
-            Settings_.Slot->RunSetupCommands(
-                Settings_.Job->GetId(),
+            Context_.Slot->RunSetupCommands(
+                Context_.Job->GetId(),
                 {testFileCommand},
-                Settings_.RootFs,
-                Settings_.CommandUser,
+                Context_.RootFs,
+                Context_.CommandUser,
                 /*devices*/ std::nullopt,
                 /*startIndex*/ checkStartIndex));
 
         if (!testFileError.IsOK()) {
+            YT_LOG_INFO(
+                testFileError,
+                "Path to %lv GPU check binary is not a file",
+                Context_.GpuCheckType);
+
             THROW_ERROR_EXCEPTION(EErrorCode::GpuCheckCommandIncorrect, "Path to GPU check binary is not a file")
-                << TErrorAttribute("path", Settings_.GpuCheckBinaryPath)
+                << TErrorAttribute("path", Context_.GpuCheckBinaryPath)
                 << testFileError;
         }
+
+        YT_LOG_INFO("%lv GPU check commands successfully verified", Context_.GpuCheckType);
     }
 
     auto checkCommand = New<TShellCommandConfig>();
-    checkCommand->Path = Settings_.GpuCheckBinaryPath;
-    checkCommand->Args = std::move(Settings_.GpuCheckBinaryArgs);
+    checkCommand->Path = Context_.GpuCheckBinaryPath;
+    checkCommand->Args = std::move(Context_.GpuCheckBinaryArgs);
 
-    if (Settings_.TestExtraGpuCheckCommandFailure) {
+    YT_LOG_INFO("Running %lv GPU check commands", Context_.GpuCheckType);
+
+    if (Context_.TestExtraGpuCheckCommandFailure) {
+        YT_LOG_INFO("Testing extra GPU check command failed");
+
         return MakeFuture(TError("Testing extra GPU check command failed"));
     }
 
-    return Settings_.Slot->RunSetupCommands(
-        Settings_.Job->GetId(),
+    return Context_.Slot->RunSetupCommands(
+        Context_.Job->GetId(),
         {checkCommand},
-        Settings_.RootFs,
-        Settings_.CommandUser,
-        Settings_.GpuDevices,
+        Context_.RootFs,
+        Context_.CommandUser,
+        Context_.GpuDevices,
         /*startIndex*/ checkStartIndex + 1)
         .Apply(BIND([=, this, this_ = MakeStrong(this)] () {
+            YT_LOG_INFO("%lv GPU check commands finished", Context_.GpuCheckType);
             FinishCheck_.Fire();
         }));
 }

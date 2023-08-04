@@ -224,53 +224,55 @@ void TJob::DoStart()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    GuardedAction([&] () {
-        auto now = TInstant::Now();
-        PrepareTime_ = now;
+    GuardedAction(
+        "DoStart",
+        [&] () {
+            auto now = TInstant::Now();
+            PrepareTime_ = now;
 
-        StartUserJobMonitoring();
+            StartUserJobMonitoring();
 
-        InitializeArtifacts();
+            InitializeArtifacts();
 
-        if (UserJobSpec_) {
-            if (UserJobSpec_->has_prepare_time_limit()) {
-                auto prepareTimeLimit = FromProto<TDuration>(UserJobSpec_->prepare_time_limit());
-                TDelayedExecutor::Submit(
-                    BIND(&TJob::OnJobPreparationTimeout, MakeWeak(this), prepareTimeLimit, /*fatal*/ false)
-                        .Via(Invoker_),
-                    prepareTimeLimit);
+            if (UserJobSpec_) {
+                if (UserJobSpec_->has_prepare_time_limit()) {
+                    auto prepareTimeLimit = FromProto<TDuration>(UserJobSpec_->prepare_time_limit());
+                    TDelayedExecutor::Submit(
+                        BIND(&TJob::OnJobPreparationTimeout, MakeWeak(this), prepareTimeLimit, /*fatal*/ false)
+                            .Via(Invoker_),
+                        prepareTimeLimit);
+                }
+
+                if (auto prepareTimeLimit = Config_->JobPrepareTimeLimit) {
+                    TDelayedExecutor::Submit(
+                        BIND(&TJob::OnJobPreparationTimeout, MakeWeak(this), *prepareTimeLimit, /*fatal*/ true)
+                            .Via(Invoker_),
+                        *prepareTimeLimit);
+                }
+
+                if (UserJobSpec_->has_network_project_id()) {
+                    NetworkProjectId_ = UserJobSpec_->network_project_id();
+                }
             }
 
-            if (auto prepareTimeLimit = Config_->JobPrepareTimeLimit) {
-                TDelayedExecutor::Submit(
-                    BIND(&TJob::OnJobPreparationTimeout, MakeWeak(this), *prepareTimeLimit, /*fatal*/ true)
-                        .Via(Invoker_),
-                    *prepareTimeLimit);
+            if (NeedGpu()) {
+                for (int index = 0; index < std::ssize(GpuSlots_); ++index) {
+                    GpuStatistics_.push_back(TGpuStatistics{
+                        .LastUpdateTime = now
+                    });
+                }
             }
 
-            if (UserJobSpec_->has_network_project_id()) {
-                NetworkProjectId_ = UserJobSpec_->network_project_id();
-            }
-        }
+            SetJobPhase(EJobPhase::PreparingNodeDirectory);
 
-        if (NeedGpu()) {
-            for (int index = 0; index < std::ssize(GpuSlots_); ++index) {
-                GpuStatistics_.push_back(TGpuStatistics{
-                    .LastUpdateTime = now
-                });
-            }
-        }
-
-        SetJobPhase(EJobPhase::PreparingNodeDirectory);
-
-        // This is a heavy part of preparation, offload it to compression invoker.
-        BIND(&TJob::PrepareNodeDirectory, MakeWeak(this))
-            .AsyncVia(NRpc::TDispatcher::Get()->GetCompressionPoolInvoker())
-            .Run()
-            .Subscribe(
-                BIND(&TJob::OnNodeDirectoryPrepared, MakeWeak(this))
-                    .Via(Invoker_));
-    });
+            // This is a heavy part of preparation, offload it to compression invoker.
+            BIND(&TJob::PrepareNodeDirectory, MakeWeak(this))
+                .AsyncVia(NRpc::TDispatcher::Get()->GetCompressionPoolInvoker())
+                .Run()
+                .Subscribe(
+                    BIND(&TJob::OnNodeDirectoryPrepared, MakeWeak(this))
+                        .Via(Invoker_));
+        });
 }
 
 bool TJob::IsStarted() const
@@ -305,6 +307,8 @@ void TJob::Start() noexcept
     YT_LOG_INFO("Start job");
 
     SetJobState(EJobState::Running);
+
+    GetUserSlot()->SetAllocationId(GetAllocationId());
 
     Bootstrap_
         ->GetJobInvoker()
@@ -370,16 +374,18 @@ void TJob::OnJobProxySpawned()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    GuardedAction([&] {
-        YT_LOG_INFO("Job proxy spawned");
+    GuardedAction(
+        "OnJobProxySpawned",
+        [&] {
+            YT_LOG_INFO("Job proxy spawned");
 
-        ValidateJobPhase(EJobPhase::SpawningJobProxy);
-        SetJobPhase(EJobPhase::PreparingArtifacts);
+            ValidateJobPhase(EJobPhase::SpawningJobProxy);
+            SetJobPhase(EJobPhase::PreparingArtifacts);
 
-        if (!Bootstrap_->GetJobController()->IsJobProxyProfilingDisabled()) {
-            Bootstrap_->GetJobProxySolomonExporter()->AttachRemoteProcess(BIND(&TJob::DumpSensors, MakeStrong(this)));
-        }
-    });
+            if (!Bootstrap_->GetJobController()->IsJobProxyProfilingDisabled()) {
+                Bootstrap_->GetJobProxySolomonExporter()->AttachRemoteProcess(BIND(&TJob::DumpSensors, MakeStrong(this)));
+            }
+        });
 }
 
 void TJob::PrepareArtifact(
@@ -388,73 +394,75 @@ void TJob::PrepareArtifact(
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    GuardedAction([&] {
-        YT_LOG_DEBUG("Prepare job artifact (ArtifactName: %v, PipePath: %v)",
-            artifactName,
-            pipePath);
+    GuardedAction(
+        "PrepareArtifact",
+        [&] {
+            YT_LOG_DEBUG("Prepare job artifact (ArtifactName: %v, PipePath: %v)",
+                artifactName,
+                pipePath);
 
-        // NB: Open pipe for writing before reply.
-        auto pipeFd = HandleEintr(::open, pipePath.c_str(), O_WRONLY | O_NONBLOCK | O_CLOEXEC);
-        TFile pipe(pipeFd);
+            // NB: Open pipe for writing before reply.
+            auto pipeFd = HandleEintr(::open, pipePath.c_str(), O_WRONLY | O_NONBLOCK | O_CLOEXEC);
+            TFile pipe(pipeFd);
 
-        auto fcntlResult = HandleEintr(::fcntl, pipeFd, F_SETFL, O_WRONLY | O_CLOEXEC);
-        if (fcntlResult < 0) {
-            THROW_ERROR_EXCEPTION("Failed to disable O_NONBLOCK for artifact pipe")
-                << TError::FromSystem();
-        }
+            auto fcntlResult = HandleEintr(::fcntl, pipeFd, F_SETFL, O_WRONLY | O_CLOEXEC);
+            if (fcntlResult < 0) {
+                THROW_ERROR_EXCEPTION("Failed to disable O_NONBLOCK for artifact pipe")
+                    << TError::FromSystem();
+            }
 
-        ValidateJobPhase(EJobPhase::PreparingArtifacts);
+            ValidateJobPhase(EJobPhase::PreparingArtifacts);
 
-        int artifactIndex = GetOrCrash(UserArtifactNameToIndex_, artifactName);
-        const auto& artifact = Artifacts_[artifactIndex];
+            int artifactIndex = GetOrCrash(UserArtifactNameToIndex_, artifactName);
+            const auto& artifact = Artifacts_[artifactIndex];
 
-        YT_VERIFY(artifact.BypassArtifactCache || artifact.CopyFile);
+            YT_VERIFY(artifact.BypassArtifactCache || artifact.CopyFile);
 
-        auto traceContext = CreateTraceContextFromCurrent("ArtifactPrepare");
-        TTraceContextGuard guard(traceContext);
-        auto baggage = traceContext->UnpackOrCreateBaggage();
-        const char* jobIOKind = artifact.BypassArtifactCache ? "artifact_bypass_cache" : "artifact_copy";
-        AddTagToBaggage(baggage, EAggregateIOTag::JobIoKind, jobIOKind);
-        AddTagsFromDataSource(baggage, FromProto<NChunkClient::TDataSource>(artifact.Key.data_source()));
-        traceContext->PackBaggage(std::move(baggage));
+            auto traceContext = CreateTraceContextFromCurrent("ArtifactPrepare");
+            TTraceContextGuard guard(traceContext);
+            auto baggage = traceContext->UnpackOrCreateBaggage();
+            const char* jobIOKind = artifact.BypassArtifactCache ? "artifact_bypass_cache" : "artifact_copy";
+            AddTagToBaggage(baggage, EAggregateIOTag::JobIoKind, jobIOKind);
+            AddTagsFromDataSource(baggage, FromProto<NChunkClient::TDataSource>(artifact.Key.data_source()));
+            traceContext->PackBaggage(std::move(baggage));
 
-        if (artifact.BypassArtifactCache) {
-            YT_LOG_INFO("Download artifact with cache bypass (FileName: %v, Executable: %v, SandboxKind: %v, CompressedDataSize: %v)",
-                artifact.Name,
-                artifact.Executable,
-                artifact.SandboxKind,
-                artifact.Key.GetCompressedDataSize());
-
-            const auto& chunkCache = Bootstrap_->GetChunkCache();
-            auto downloadOptions = MakeArtifactDownloadOptions();
-            auto producer = chunkCache->MakeArtifactDownloadProducer(artifact.Key, downloadOptions);
-
-            ArtifactPrepareFutures_.push_back(
-                GetUserSlot()->MakeFile(
-                    Id_,
+            if (artifact.BypassArtifactCache) {
+                YT_LOG_INFO("Download artifact with cache bypass (FileName: %v, Executable: %v, SandboxKind: %v, CompressedDataSize: %v)",
                     artifact.Name,
+                    artifact.Executable,
                     artifact.SandboxKind,
-                    producer,
-                    pipe));
-        } else if (artifact.CopyFile) {
-            YT_VERIFY(artifact.Chunk);
+                    artifact.Key.GetCompressedDataSize());
 
-            YT_LOG_INFO("Copy artifact (FileName: %v, Executable: %v, SandboxKind: %v, CompressedDataSize: %v)",
-                artifact.Name,
-                artifact.Executable,
-                artifact.SandboxKind,
-                artifact.Key.GetCompressedDataSize());
+                const auto& chunkCache = Bootstrap_->GetChunkCache();
+                auto downloadOptions = MakeArtifactDownloadOptions();
+                auto producer = chunkCache->MakeArtifactDownloadProducer(artifact.Key, downloadOptions);
 
-            ArtifactPrepareFutures_.push_back(
-                GetUserSlot()->MakeCopy(
-                    Id_,
+                ArtifactPrepareFutures_.push_back(
+                    GetUserSlot()->MakeFile(
+                        Id_,
+                        artifact.Name,
+                        artifact.SandboxKind,
+                        producer,
+                        pipe));
+            } else if (artifact.CopyFile) {
+                YT_VERIFY(artifact.Chunk);
+
+                YT_LOG_INFO("Copy artifact (FileName: %v, Executable: %v, SandboxKind: %v, CompressedDataSize: %v)",
                     artifact.Name,
+                    artifact.Executable,
                     artifact.SandboxKind,
-                    artifact.Chunk->GetFileName(),
-                    pipe,
-                    artifact.Chunk->GetLocation()));
-        }
-    });
+                    artifact.Key.GetCompressedDataSize());
+
+                ArtifactPrepareFutures_.push_back(
+                    GetUserSlot()->MakeCopy(
+                        Id_,
+                        artifact.Name,
+                        artifact.SandboxKind,
+                        artifact.Chunk->GetFileName(),
+                        pipe,
+                        artifact.Chunk->GetLocation()));
+            }
+        });
 }
 
 void TJob::OnArtifactPreparationFailed(
@@ -466,15 +474,17 @@ void TJob::OnArtifactPreparationFailed(
 
     Y_UNUSED(artifactName);
 
-    GuardedAction([&] {
-        ValidateJobPhase(EJobPhase::PreparingArtifacts);
+    GuardedAction(
+        "OnArtifactPreparationFailed",
+        [&] {
+            ValidateJobPhase(EJobPhase::PreparingArtifacts);
 
-        GetUserSlot()->OnArtifactPreparationFailed(
-            Id_,
-            artifactName,
-            ESandboxKind::User,
-            artifactPath,
-            error);
+            GetUserSlot()->OnArtifactPreparationFailed(
+                Id_,
+                artifactName,
+                ESandboxKind::User,
+                artifactPath,
+                error);
     });
 }
 
@@ -486,26 +496,30 @@ void TJob::OnArtifactsPrepared()
     WaitFor(AllSucceeded(ArtifactPrepareFutures_))
         .ThrowOnError();
 
-    GuardedAction([&] {
-        YT_LOG_INFO("Artifacts prepared");
+    GuardedAction(
+        "OnArtifactsPrepared",
+        [&] {
+            YT_LOG_INFO("Artifacts prepared");
 
-        ValidateJobPhase(EJobPhase::PreparingArtifacts);
-        SetJobPhase(EJobPhase::PreparingJob);
-    });
+            ValidateJobPhase(EJobPhase::PreparingArtifacts);
+            SetJobPhase(EJobPhase::PreparingJob);
+        });
 }
 
 void TJob::OnJobPrepared()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    GuardedAction([&] {
-        JobPrepared_.Fire();
+    GuardedAction(
+        "OnJobPrepared",
+        [&] {
+            JobPrepared_.Fire();
 
-        YT_LOG_INFO("Job prepared");
+            YT_LOG_INFO("Job prepared");
 
-        ValidateJobPhase(EJobPhase::PreparingJob);
-        SetJobPhase(EJobPhase::Running);
-    });
+            ValidateJobPhase(EJobPhase::PreparingJob);
+            SetJobPhase(EJobPhase::Running);
+        });
 }
 
 void TJob::Finalize(TError error)
@@ -529,7 +543,7 @@ void TJob::Finalize(
 
     DoSetResult(std::move(error), std::move(jobResultExtension), byJobProxyCompletion);
 
-    YT_LOG_DEBUG("Finalize job");
+    YT_LOG_DEBUG(error, "Finalize job");
 
     FinishTime_ = TInstant::Now();
 
@@ -585,29 +599,31 @@ void TJob::OnResultReceived(TJobResult jobResult)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    GuardedAction([&] {
-        SetJobPhase(EJobPhase::FinalizingJobProxy);
+    GuardedAction(
+        "OnResultReceived",
+        [&] {
+            SetJobPhase(EJobPhase::FinalizingJobProxy);
 
-        std::optional<NControllerAgent::NProto::TJobResultExt> jobResultExtension;
-        if (jobResult.HasExtension(NControllerAgent::NProto::TJobResultExt::job_result_ext)) {
-            jobResultExtension = std::move(
-                *jobResult.ReleaseExtension(NControllerAgent::NProto::TJobResultExt::job_result_ext));
-        }
+            std::optional<NControllerAgent::NProto::TJobResultExt> jobResultExtension;
+            if (jobResult.HasExtension(NControllerAgent::NProto::TJobResultExt::job_result_ext)) {
+                jobResultExtension = std::move(
+                    *jobResult.ReleaseExtension(NControllerAgent::NProto::TJobResultExt::job_result_ext));
+            }
 
-        if (auto error = FromProto<TError>(jobResult.error());
-            error.IsOK() || !NeedsGpuCheck())
-        {
-            Finalize(
-                std::move(error),
-                std::move(jobResultExtension),
-                /*byJobProxyCompletion*/ true);
-        } else {
-            DoSetResult(
-                std::move(error),
-                /*jobResultExtension*/ std::nullopt,
-                /*receivedFromJobProxy*/ true);
-        }
-    });
+            if (auto error = FromProto<TError>(jobResult.error());
+                error.IsOK() || !NeedsGpuCheck())
+            {
+                Finalize(
+                    std::move(error),
+                    std::move(jobResultExtension),
+                    /*byJobProxyCompletion*/ true);
+            } else {
+                DoSetResult(
+                    std::move(error),
+                    /*jobResultExtension*/ std::nullopt,
+                    /*receivedFromJobProxy*/ true);
+            }
+        });
 }
 
 TJobId TJob::GetId() const
@@ -1379,6 +1395,11 @@ void TJob::SetJobState(EJobState state)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
+    YT_LOG_DEBUG(
+        "Setting new job state (Previous: %v, New: %v)",
+        JobState_,
+        state);
+
     JobState_ = state;
     AddJobEvent(state);
 }
@@ -1387,17 +1408,13 @@ void TJob::SetJobPhase(EJobPhase phase)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
+    YT_LOG_DEBUG(
+        "Setting new job phase (Previous: %v, New: %v)",
+        JobPhase_,
+        phase);
+
     JobPhase_ = phase;
     AddJobEvent(phase);
-}
-
-void TJob::SetJobStatePhase(EJobState state, EJobPhase phase)
-{
-    VERIFY_THREAD_AFFINITY(JobThread);
-
-    JobState_ = state;
-    JobPhase_ = phase;
-    AddJobEvent(state, phase);
 }
 
 void TJob::ValidateJobRunning() const
@@ -1504,6 +1521,11 @@ void TJob::ValidateJobPhase(EJobPhase expectedPhase) const
     VERIFY_THREAD_AFFINITY(JobThread);
 
     if (JobPhase_ != expectedPhase) {
+        YT_LOG_DEBUG(
+            "Unexpected job phase (Actual: %v, Expected: %v)",
+            JobPhase_,
+            expectedPhase);
+
         THROW_ERROR_EXCEPTION("Unexpected job phase")
             << TErrorAttribute("expected_phase", expectedPhase)
             << TErrorAttribute("actual_phase", JobPhase_);
@@ -1520,20 +1542,22 @@ void TJob::OnNodeDirectoryPrepared(const TError& error)
         TDelayedExecutor::WaitForDuration(*delay);
     }
 
-    GuardedAction([&] {
-        ValidateJobPhase(EJobPhase::PreparingNodeDirectory);
-        THROW_ERROR_EXCEPTION_IF_FAILED(error,
-            NExecNode::EErrorCode::NodeDirectoryPreparationFailed,
-            "Failed to prepare job node directory");
+    GuardedAction(
+        "OnNodeDirectoryPrepared",
+        [&] {
+            ValidateJobPhase(EJobPhase::PreparingNodeDirectory);
+            THROW_ERROR_EXCEPTION_IF_FAILED(error,
+                NExecNode::EErrorCode::NodeDirectoryPreparationFailed,
+                "Failed to prepare job node directory");
 
-        SetJobPhase(EJobPhase::DownloadingArtifacts);
+            SetJobPhase(EJobPhase::DownloadingArtifacts);
 
-        auto artifactsFuture = DownloadArtifacts();
-        artifactsFuture.Subscribe(
-            BIND(&TJob::OnArtifactsDownloaded, MakeWeak(this))
-                .Via(Invoker_));
-        ArtifactsFuture_ = artifactsFuture.As<void>();
-    });
+            auto artifactsFuture = DownloadArtifacts();
+            artifactsFuture.Subscribe(
+                BIND(&TJob::OnArtifactsDownloaded, MakeWeak(this))
+                    .Via(Invoker_));
+            ArtifactsFuture_ = artifactsFuture.As<void>();
+        });
 }
 
 std::vector<TDevice> TJob::GetGpuDevices()
@@ -1565,20 +1589,22 @@ void TJob::OnArtifactsDownloaded(const TErrorOr<std::vector<NDataNode::IChunkPtr
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    GuardedAction([&] {
-        ValidateJobPhase(EJobPhase::DownloadingArtifacts);
-        THROW_ERROR_EXCEPTION_IF_FAILED(errorOrArtifacts, "Failed to download artifacts");
+    GuardedAction(
+        "OnArtifactsDownloaded",
+        [&] {
+            ValidateJobPhase(EJobPhase::DownloadingArtifacts);
+            THROW_ERROR_EXCEPTION_IF_FAILED(errorOrArtifacts, "Failed to download artifacts");
 
-        YT_LOG_INFO("Artifacts downloaded");
+            YT_LOG_INFO("Artifacts downloaded");
 
-        const auto& chunks = errorOrArtifacts.Value();
-        for (size_t index = 0; index < Artifacts_.size(); ++index) {
-            Artifacts_[index].Chunk = chunks[index];
-        }
+            const auto& chunks = errorOrArtifacts.Value();
+            for (size_t index = 0; index < Artifacts_.size(); ++index) {
+                Artifacts_[index].Chunk = chunks[index];
+            }
 
-        CopyTime_ = TInstant::Now();
-        RunWithWorkspaceBuilder();
-    });
+            CopyTime_ = TInstant::Now();
+            RunWithWorkspaceBuilder();
+        });
 }
 
 void TJob::RunWithWorkspaceBuilder()
@@ -1599,7 +1625,8 @@ void TJob::RunWithWorkspaceBuilder()
 
     TUserSandboxOptions options = BuildUserSandboxOptions();
 
-    TJobWorkspaceBuildSettings settings {
+    TJobWorkspaceBuildingContext context{
+        .Logger = Logger,
         .UserSandboxOptions = options,
         .Slot = GetUserSlot(),
         .Job = MakeStrong(this),
@@ -1623,30 +1650,40 @@ void TJob::RunWithWorkspaceBuilder()
         .GpuDevices = devices
     };
 
-    auto workspaceBuilder = GetUserSlot()->CreateJobWorkspaceBuilder(Invoker_, std::move(settings));
+    auto workspaceBuilder = GetUserSlot()->CreateJobWorkspaceBuilder(
+        Invoker_,
+        std::move(context));
+
 
     workspaceBuilder->SubscribeUpdateArtifactStatistics(BIND_NO_PROPAGATE([=, this, this_ = MakeWeak(this)] (i64 compressedDataSize, bool cacheHit) {
         UpdateArtifactStatistics(compressedDataSize, cacheHit);
-    }));
+    })
+        .Via(Invoker_));
 
-    workspaceBuilder->SubscribeUpdateBuilderPhase(BIND([=, this, this_ = MakeWeak(this)] (EJobPhase phase) {
+    // TODO(pogorelov): Refactor it. Phase should be changed in callback, not in signal handler.
+    // We intentionally subscribe here without Via(Invoker_) to prevent data race.
+    workspaceBuilder->SubscribeUpdateBuilderPhase(BIND_NO_PROPAGATE([=, this, this_ = MakeWeak(this)] (EJobPhase phase) {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         SetJobPhase(phase);
     }));
 
+    // TODO(pogorelov): Do not pass TJobWorkspaceBuilderPtr, define structure.
     workspaceBuilder->SubscribeUpdateTimers(BIND_NO_PROPAGATE([=, this, this_ = MakeWeak(this)] (const TJobWorkspaceBuilderPtr& workspace) {
         PreliminaryGpuCheckStartTime_ = workspace->GetGpuCheckStartTime();
         PreliminaryGpuCheckFinishTime_ = workspace->GetGpuCheckFinishTime();
 
         StartPrepareVolumeTime_ = workspace->GetVolumePrepareStartTime();
         FinishPrepareVolumeTime_ = workspace->GetVolumePrepareFinishTime();
-    }));
+    })
+        .Via(Invoker_));
 
     workspaceBuilder->Run()
-        .Subscribe(BIND(&TJob::FinishPrepare, MakeStrong(this))
+        .Subscribe(BIND(&TJob::OnWorkspacePreparationFinished, MakeStrong(this))
             .Via(Invoker_));
 }
 
-void TJob::FinishPrepare(const TErrorOr<TJobWorkspaceBuildResult>& resultOrError)
+void TJob::OnWorkspacePreparationFinished(const TErrorOr<TJobWorkspaceBuildingResult>& resultOrError)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -1655,21 +1692,23 @@ void TJob::FinishPrepare(const TErrorOr<TJobWorkspaceBuildResult>& resultOrError
         TDelayedExecutor::WaitForDuration(*delay);
     }
 
-    GuardedAction([&] {
-        // There may be a possible cancellation, but this is not happening now.
-        YT_VERIFY(resultOrError.IsOK());
+    GuardedAction(
+        "OnWorkspacePreparationFinished",
+        [&] {
+            // There may be a possible cancellation, but this is not happening now.
+            YT_VERIFY(resultOrError.IsOK());
 
-        auto& holder = resultOrError.Value();
-        TmpfsPaths_ = holder.TmpfsPaths;
-        RootVolume_ = holder.RootVolume;
-        SetupCommandCount_ = holder.SetupCommandCount;
+            auto& holder = resultOrError.Value();
+            TmpfsPaths_ = holder.TmpfsPaths;
+            RootVolume_ = holder.RootVolume;
+            SetupCommandCount_ = holder.SetupCommandCount;
 
-        THROW_ERROR_EXCEPTION_IF_FAILED(
-            holder.LastBuildError,
-            "Job preparation failed");
+            THROW_ERROR_EXCEPTION_IF_FAILED(
+                holder.LastBuildError,
+                "Job preparation failed");
 
-        RunJobProxy();
-    });
+            RunJobProxy();
+        });
 }
 
 void TJob::OnExtraGpuCheckCommandFinished(const TError& error)
@@ -1703,6 +1742,8 @@ void TJob::OnExtraGpuCheckCommandFinished(const TError& error)
         YT_LOG_WARNING(checkError, "Extra GPU check command executed after job failure is also failed");
         Finalize(std::move(checkError));
     } else {
+        YT_LOG_DEBUG("Extra GPU check command finished");
+
         Finalize(std::move(initialError));
     }
 
@@ -1814,7 +1855,7 @@ void TJob::OnJobProxyFinished(const TError& error)
     if (!currentError.IsOK() && NeedsGpuCheck()) {
         SetJobPhase(EJobPhase::RunningExtraGpuCheckCommand);
 
-        TJobGpuCheckerSettings settings {
+        TJobGpuCheckerContext context {
             .Slot = GetUserSlot(),
             .Job = MakeStrong(this),
             .RootFs = MakeWritableRootFS(),
@@ -1828,13 +1869,17 @@ void TJob::OnJobProxyFinished(const TError& error)
             .GpuDevices = GetGpuDevices()
         };
 
-        auto checker = New<TJobGpuChecker>(std::move(settings));
-        checker->SubscribeRunCheck(BIND([=, this, this_ = MakeStrong(this)] () {
+        auto checker = New<TJobGpuChecker>(std::move(context), Logger);
+        checker->SubscribeRunCheck(BIND_NO_PROPAGATE([=, this, this_ = MakeStrong(this)] () {
             ExtraGpuCheckStartTime_ = TInstant::Now();
-        }));
-        checker->SubscribeFinishCheck(BIND([=, this, this_ = MakeStrong(this)] () {
+        })
+            .Via(Invoker_));
+        checker->SubscribeFinishCheck(BIND_NO_PROPAGATE([=, this, this_ = MakeStrong(this)] () {
             ExtraGpuCheckFinishTime_ = TInstant::Now();
-        }));
+        })
+            .Via(Invoker_));
+
+        YT_LOG_DEBUG("Running extra GPU check");
 
         BIND(&TJobGpuChecker::RunGpuCheck, checker)
             .AsyncVia(Invoker_)
@@ -1855,15 +1900,16 @@ void TJob::OnJobProxyFinished(const TError& error)
     }
 }
 
-template <class TCallback>
-void TJob::GuardedAction(const TCallback& action)
+template <class TSourceTag, class TCallback>
+void TJob::GuardedAction(const TSourceTag& sourceTag, const TCallback& action)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
     YT_LOG_DEBUG(
-        "Run guarded action (State: %v, Phase: %v)",
+        "Run guarded action (State: %v, Phase: %v, Source: %v)",
         JobState_,
-        JobPhase_);
+        JobPhase_,
+        sourceTag);
 
     if (HandleFinishingPhase()) {
         return;
@@ -1904,7 +1950,14 @@ void TJob::Cleanup()
         JobPhase_ == EJobPhase::Cleanup || JobPhase_ == EJobPhase::Finished,
         "Job cleanup should be called only once");
 
-    YT_VERIFY(!UserSlot_ || UserSlot_->GetRefCount() == 1);
+    if (UserSlot_) {
+        auto slotRefCount = UserSlot_->GetRefCount();
+
+        YT_LOG_FATAL_IF(
+            slotRefCount != 1,
+            "Unexpected user slot ref count (RefCount: %v)",
+            slotRefCount);
+    }
 
     if (auto delay = JobTestingOptions_->DelayInCleanup) {
         YT_LOG_DEBUG("Simulate delay in cleanup");

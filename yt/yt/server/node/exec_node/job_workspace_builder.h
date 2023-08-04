@@ -32,8 +32,10 @@ namespace NYT::NExecNode
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TJobWorkspaceBuildSettings
+struct TJobWorkspaceBuildingContext
 {
+    NLogging::TLogger Logger;
+
     TUserSandboxOptions UserSandboxOptions;
     IUserSlotPtr Slot;
     TJobPtr Job;
@@ -55,7 +57,7 @@ struct TJobWorkspaceBuildSettings
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TJobWorkspaceBuildResult
+struct TJobWorkspaceBuildingResult
 {
     IVolumePtr RootVolume;
     std::vector<TString> TmpfsPaths;
@@ -84,19 +86,21 @@ public:
 public:
     TJobWorkspaceBuilder(
         IInvokerPtr invoker,
-        TJobWorkspaceBuildSettings settings,
+        TJobWorkspaceBuildingContext context,
         IJobDirectoryManagerPtr directoryManager);
 
-    TFuture<TJobWorkspaceBuildResult> Run();
+    TFuture<TJobWorkspaceBuildingResult> Run();
 
 protected:
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
     const IInvokerPtr Invoker_;
-    const TJobWorkspaceBuildSettings Settings_;
+    const TJobWorkspaceBuildingContext Context_;
     const IJobDirectoryManagerPtr DirectoryManager_;
 
-    TJobWorkspaceBuildResult ResultHolder_;
+    TJobWorkspaceBuildingResult ResultHolder_;
+
+    const NLogging::TLogger& Logger;
 
     virtual TFuture<void> DoPrepareSandboxDirectories() = 0;
 
@@ -113,12 +117,14 @@ protected:
     void UpdateArtifactStatistics(i64 compressedDataSize, bool cacheHit);
 
 private:
-    template<TFuture<void>(TJobWorkspaceBuilder::*Method)()>
+    template<TFuture<void>(TJobWorkspaceBuilder::*Step)()>
     TCallback<TFuture<void>()> MakeStep();
 
-    template<TFuture<void>(TJobWorkspaceBuilder::*Method)()>
+    template<TFuture<void>(TJobWorkspaceBuilder::*Step)()>
     TFuture<void> GuardedAction();
 
+    template<TFuture<void>(TJobWorkspaceBuilder::*Step)()>
+    constexpr const char* GetStepName();
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobWorkspaceBuilder)
@@ -127,14 +133,14 @@ DEFINE_REFCOUNTED_TYPE(TJobWorkspaceBuilder)
 
 TJobWorkspaceBuilderPtr CreateSimpleJobWorkspaceBuilder(
     IInvokerPtr invoker,
-    TJobWorkspaceBuildSettings settings,
+    TJobWorkspaceBuildingContext context,
     IJobDirectoryManagerPtr directoryManager);
 
 #ifdef _linux_
 
 TJobWorkspaceBuilderPtr CreatePortoJobWorkspaceBuilder(
     IInvokerPtr invoker,
-    TJobWorkspaceBuildSettings settings,
+    TJobWorkspaceBuildingContext context,
     IJobDirectoryManagerPtr directoryManager);
 
 #endif

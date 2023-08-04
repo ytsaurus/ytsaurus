@@ -345,12 +345,12 @@ public:
 
     TJobWorkspaceBuilderPtr CreateJobWorkspaceBuilder(
         IInvokerPtr invoker,
-        TJobWorkspaceBuildSettings settings,
+        TJobWorkspaceBuildingContext context,
         IJobDirectoryManagerPtr directoryManager) override
     {
         return CreateSimpleJobWorkspaceBuilder(
             invoker,
-            settings,
+            std::move(context),
             directoryManager);
     }
 
@@ -515,7 +515,7 @@ public:
             for (int index = 0; index < std::ssize(commands); ++index) {
                 const auto& command = commands[index];
                 YT_LOG_DEBUG(
-                    "Run setup command (JobId: %v, Path: %v, Args: %v)",
+                    "Running setup command (JobId: %v, Path: %v, Args: %v)",
                     jobId,
                     command->Path,
                     command->Args);
@@ -543,6 +543,12 @@ public:
                     error.MutableAttributes()->Set("stderr", instanceStderr);
                     THROW_ERROR error;
                 }
+
+                YT_LOG_DEBUG(
+                    "Setup command finished (JobId: %v, Path: %v, Args: %v)",
+                    jobId,
+                    command->Path,
+                    command->Args);
             }
         })
             .AsyncVia(ActionQueue_->GetInvoker())
@@ -862,12 +868,12 @@ private:
 
     TJobWorkspaceBuilderPtr CreateJobWorkspaceBuilder(
         IInvokerPtr invoker,
-        TJobWorkspaceBuildSettings settings,
+        TJobWorkspaceBuildingContext context,
         IJobDirectoryManagerPtr directoryManager) override
     {
         return CreatePortoJobWorkspaceBuilder(
             invoker,
-            settings,
+            std::move(context),
             directoryManager);
     }
 };

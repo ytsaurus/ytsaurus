@@ -117,7 +117,10 @@ struct IUserSlot
 
     virtual TJobWorkspaceBuilderPtr CreateJobWorkspaceBuilder(
         IInvokerPtr invoker,
-        TJobWorkspaceBuildSettings settings) = 0;
+        TJobWorkspaceBuildingContext context) = 0;
+
+    //! Must be called before any action with slot.
+    virtual void SetAllocationId(TAllocationId allocationId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IUserSlot)
