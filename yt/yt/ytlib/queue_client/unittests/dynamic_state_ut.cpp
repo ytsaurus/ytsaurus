@@ -10,12 +10,16 @@
 
 #include <yt/yt/core/ytree/helpers.h>
 
+#include <yt/yt/client/complex_types/uuid_text.h>
+
 namespace NYT::NQueueClient {
 namespace {
 
 using namespace NYTree;
 using namespace NYson;
 using namespace NTableClient;
+using namespace NObjectClient;
+using namespace NComplexTypes;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,13 +58,18 @@ TEST(TTableRowTest, QueueBoilerplateSanity)
     auto expectedAutoTrimConfig = TQueueAutoTrimConfig::Create();
     expectedAutoTrimConfig.Enable = true;
 
+    TString guidBytes = "\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f\x10";
+    auto objectId = TObjectId(GuidFromBytes(guidBytes));
+
+    TString ysonAttributes = "{attribute_revision=43u; type=table; sorted=%false; dynamic=%true; "
+        "auto_trim_config={enable=%true}; queue_agent_stage=fun; "
+        + Format("id=%Qv}", objectId);
+
     CheckConversions<TQueueTableRow>(
         {.Cluster = "mamma", .Path = "mia"},
         15,
-        ConvertToAttributes(TYsonStringBuf(
-            "{attribute_revision=43u; type=table; sorted=%false; dynamic=%true; auto_trim_config={enable=%true}; "
-            "queue_agent_stage=fun}")),
-        {
+        ConvertToAttributes(TYsonStringBuf(ysonAttributes)),
+        TQueueTableRow{
             .Ref = {.Cluster = "mamma", .Path = "mia"},
             .RowRevision = 15,
             .Revision = 43,
@@ -69,6 +78,7 @@ TEST(TTableRowTest, QueueBoilerplateSanity)
             .Sorted = false,
             .AutoTrimConfig = expectedAutoTrimConfig,
             .QueueAgentStage = "fun",
+            .ObjectId = objectId,
             .SynchronizationError = TError(),
         });
 }

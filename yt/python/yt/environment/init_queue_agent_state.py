@@ -8,6 +8,7 @@ QUEUE_TABLE_SCHEMA = [
     {"name": "sorted", "type": "boolean"},
     {"name": "auto_trim_config", "type": "any"},
     {"name": "queue_agent_stage", "type": "string"},
+    {"name": "object_id", "type": "string"},
     {"name": "synchronization_error", "type": "any"},
 ]
 DEFAULT_QUEUE_TABLE_NAME = "queues"

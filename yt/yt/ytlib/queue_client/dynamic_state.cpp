@@ -136,6 +136,7 @@ TTableSchemaPtr TQueueTableDescriptor::Schema = New<TTableSchema>(std::vector<TC
     TColumnSchema("sorted", EValueType::Boolean),
     TColumnSchema("auto_trim_config", EValueType::Any),
     TColumnSchema("queue_agent_stage", EValueType::String),
+    TColumnSchema("object_id", EValueType::String),
     TColumnSchema("synchronization_error", EValueType::Any),
 });
 
@@ -158,6 +159,7 @@ std::vector<TQueueTableRow> TQueueTableRow::ParseRowRange(
     auto sortedId = nameTable->FindId("sorted");
     auto autoTrimConfigId = nameTable->FindId("auto_trim_config");
     auto queueAgentStageId = nameTable->FindId("queue_agent_stage");
+    auto objectIdFieldId = nameTable->FindId("object_id");
     auto synchronizationErrorId = nameTable->FindId("synchronization_error");
 
     for (const auto& row : rows) {
@@ -195,6 +197,7 @@ std::vector<TQueueTableRow> TQueueTableRow::ParseRowRange(
         }
 
         setSimpleOptional(queueAgentStageId, typedRow.QueueAgentStage);
+        setSimpleOptional(objectIdFieldId, typedRow.ObjectId);
         setSimpleOptional(synchronizationErrorId, typedRow.SynchronizationError);
     }
 
@@ -225,6 +228,7 @@ IUnversionedRowsetPtr TQueueTableRow::InsertRowRange(TRange<TQueueTableRow> rows
 
         rowBuilder.AddValue(ToUnversionedValue(autoTrimConfigYson, rowBuffer, nameTable->GetIdOrThrow("auto_trim_config")));
         rowBuilder.AddValue(ToUnversionedValue(row.QueueAgentStage, rowBuffer, nameTable->GetIdOrThrow("queue_agent_stage")));
+        rowBuilder.AddValue(ToUnversionedValue(row.ObjectId, rowBuffer, nameTable->GetIdOrThrow("object_id")));
         rowBuilder.AddValue(ToUnversionedValue(row.SynchronizationError, rowBuffer, nameTable->GetIdOrThrow("synchronization_error")));
 
         rowsBuilder.AddRow(rowBuilder.GetRow());
@@ -251,7 +255,7 @@ NApi::IUnversionedRowsetPtr TQueueTableRow::DeleteRowRange(TRange<TQueueTableRow
 
 std::vector<TString> TQueueTableRow::GetCypressAttributeNames()
 {
-    return {"attribute_revision", "type", "dynamic", "sorted", "auto_trim_config", "queue_agent_stage",
+    return {"attribute_revision", "type", "dynamic", "sorted", "auto_trim_config", "queue_agent_stage", "id",
             // Replicated tables and chaos replicated tables.
             "replicas",
             // Chaos replicated tables.
@@ -272,6 +276,7 @@ TQueueTableRow TQueueTableRow::FromAttributeDictionary(
         .Sorted = cypressAttributes->Find<bool>("sorted"),
         .AutoTrimConfig = cypressAttributes->Find<TQueueAutoTrimConfig>("auto_trim_config"),
         .QueueAgentStage = cypressAttributes->Find<TString>("queue_agent_stage"),
+        .ObjectId = cypressAttributes->Find<TObjectId>("id"),
         .SynchronizationError = TError(),
     };
 }
@@ -288,6 +293,7 @@ void Serialize(const TQueueTableRow& row, IYsonConsumer* consumer)
             .Item("sorted").Value(row.Sorted)
             .Item("auto_trim_config").Value(row.AutoTrimConfig)
             .Item("queue_agent_stage").Value(row.QueueAgentStage)
+            .Item("object_id").Value(row.ObjectId)
             .Item("synchronization_error").Value(row.SynchronizationError)
         .EndMap();
 }

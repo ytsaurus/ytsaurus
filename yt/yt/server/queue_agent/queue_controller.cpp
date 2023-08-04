@@ -438,15 +438,13 @@ private:
         try {
             GuardedTrim();
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Error while trimming queue %v", QueueRef_);
+            YT_LOG_ERROR(ex, "Error while trimming queue");
         }
     }
 
     void GuardedTrim()
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
-
-        YT_LOG_DEBUG("Performing trimming iteration");
 
         // Guard against context switches, just to be on the safe side.
         auto queueSnapshot = QueueSnapshot_.Acquire();
@@ -456,6 +454,15 @@ private:
                 "Trimming iteration skipped due to queue error")
                 << queueSnapshot->Error;
         }
+
+        auto queueObjectId = queueSnapshot->Row.ObjectId;
+        auto queueObjectPath = Format("#%v", queueObjectId);
+        // This field should be initialized when reading from dynamic state.
+        if (!queueObjectId) {
+            THROW_ERROR_EXCEPTION("Trimming iteration skipped due to the absence of filled field \"object_id\"");
+        }
+
+        YT_LOG_DEBUG("Performing trimming iteration for path %v", queueObjectPath);
 
         const auto& autoTrimConfig = queueSnapshot->Row.AutoTrimConfig;
         // This config should be initialized when reading from dynamic state.
@@ -516,12 +523,9 @@ private:
 
             auto latestTimestampOrError = WaitFor(timestampProvider->GenerateTimestamps());
             if (!latestTimestampOrError.IsOK()) {
-                YT_LOG_DEBUG(
-                    latestTimestampOrError,
-                    "Failed to generate last timestamp for queue %v",
-                    QueueRef_);
                 // Skip trimming, because unable to generate timestamp.
-                return;
+                THROW_ERROR_EXCEPTION("Failed to generate last timestamp")
+                    << latestTimestampOrError;
             }
             auto latestTimestamp = latestTimestampOrError.Value();
             auto now = TimestampToInstant(latestTimestamp).first;
@@ -563,7 +567,7 @@ private:
                 if (lifetimeDuration) {
                     safeTrimRowCountRequests.push_back(
                         NApi::TGetOrderedTabletSafeTrimRowCountRequest{
-                            QueueRef_.Path,
+                            queueObjectPath,
                             partitionIndex,
                             firstTimestampToRetainRows
                         }
@@ -652,7 +656,7 @@ private:
                     partitionIndex,
                     currentTrimmedRowCount,
                     updatedTrimmedRowCount);
-                asyncTrims.push_back(client->TrimTable(QueueRef_.Path, partitionIndex, updatedTrimmedRowCount));
+                asyncTrims.push_back(client->TrimTable(queueObjectPath, partitionIndex, updatedTrimmedRowCount));
                 trimmedPartitions.push_back(partitionIndex);
             }
         }

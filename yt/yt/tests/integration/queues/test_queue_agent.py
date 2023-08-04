@@ -1248,6 +1248,58 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         self._wait_for_row_count("//tmp/q", 1, 2)
         self._wait_for_min_row_index("//tmp/q", 1, 6)
 
+    @authors("cherepashka")
+    def test_trim_via_object_id(self):
+        queue_agent_orchid = QueueAgentOrchid()
+        cypress_synchronizer_orchid = CypressSynchronizerOrchid()
+
+        self._create_queue("//tmp/q")
+        self._create_registered_consumer("//tmp/c1", "//tmp/q", vital=True)
+        set("//tmp/q/@auto_trim_config", {"enable": True})
+
+        self._wait_for_component_passes()
+
+        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "bar"}] * 7)
+        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+
+        self._advance_consumer("//tmp/c1", "//tmp/q", 0, 1)
+        self._wait_for_row_count("//tmp/q", 0, 6)
+
+        unregister_queue_consumer("//tmp/q", "//tmp/c1")
+
+        cypress_synchronizer_orchid.wait_fresh_pass()
+
+        self._apply_dynamic_config_patch({
+            "cypress_synchronizer": {
+                "enable": False
+            }
+        })
+        time.sleep(1)
+
+        remove("//tmp/c1")
+        remove("//tmp/q")
+
+        self._create_queue("//tmp/q")
+        self._create_registered_consumer("//tmp/c1", "//tmp/q", vital=True)
+        set("//tmp/q/@auto_trim_config", {"enable": False})
+
+        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "bar"}] * 7)
+        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+
+        self._advance_consumer("//tmp/c1", "//tmp/q", 0, 4)
+        time.sleep(1)
+        self._wait_for_row_count("//tmp/q", 0, 7)
+
+        self._apply_dynamic_config_patch({
+            "cypress_synchronizer": {
+                "enable": True
+            }
+        })
+        time.sleep(1)
+
+        set("//tmp/q/@auto_trim_config", {"enable": True})
+        self._wait_for_row_count("//tmp/q", 0, 3)
+
     @authors("achulkov2")
     def test_vitality_changes(self):
         queue_agent_orchid = QueueAgentOrchid()
@@ -2045,6 +2097,7 @@ class TestCypressSynchronizerBase(TestQueueAgentBase):
                     continue
                 assert synchronization_error.code == 0
             assert queue["revision"] == get(queue["path"] + "/@attribute_revision")
+            assert queue["object_id"] == get(queue["path"] + "/@id")
         return queues
 
     # Expected_synchronization_errors should contain functions that assert for an expected error YSON.
@@ -2131,6 +2184,24 @@ class TestCypressSynchronizerCommon(TestCypressSynchronizerBase):
             self._assert_increased_revision(consumer)
 
         wait(lambda: not alert_orchid.get_alerts())
+
+    @authors("cherepashka")
+    def test_queue_recreation(self):
+        orchid = CypressSynchronizerOrchid()
+
+        self._create_and_register_queue("//tmp/q")
+        orchid.wait_fresh_pass()
+
+        old_queue = self._get_queues_and_check_invariants(expected_count=1)[0]
+
+        remove("//tmp/q")
+
+        self._create_and_register_queue("//tmp/q", initiate_helpers=False)
+        orchid.wait_fresh_pass()
+
+        new_queue = self._get_queues_and_check_invariants(expected_count=1)[0]
+
+        assert new_queue["object_id"] != old_queue["object_id"]
 
 
 # TODO(achulkov2): eliminate copy & paste between watching and polling versions below.

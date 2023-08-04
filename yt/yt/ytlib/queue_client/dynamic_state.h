@@ -58,6 +58,7 @@ struct TQueueTableRow
     std::optional<bool> Sorted;
     std::optional<TQueueAutoTrimConfig> AutoTrimConfig;
     std::optional<TString> QueueAgentStage;
+    std::optional<NObjectClient::TObjectId> ObjectId;
 
     std::optional<TError> SynchronizationError;
 
