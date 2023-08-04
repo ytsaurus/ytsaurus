@@ -732,6 +732,52 @@ class TestQuery(YTEnvSetup):
         assert sorted_dicts(expected) == sorted_dicts(actual)
 
     @authors("lukyan")
+    def test_join_common_prefix_limit(self):
+        sync_create_cells(1)
+
+        self._create_table(
+            "//tmp/jl",
+            [
+                {"name": "a", "type": "int64", "sort_order": "ascending"},
+                {"name": "b", "type": "int64"},
+            ],
+            [
+                {"a": 1, "b": 2},
+                {"a": 2, "b": 3},
+                {"a": 3, "b": 4},
+                {"a": 4, "b": 1},
+                {"a": 5, "b": 2},
+                {"a": 6, "b": 3},
+                {"a": 7, "b": 4},
+                {"a": 8, "b": 1},
+            ],
+            "scan",
+        )
+
+        self._create_table(
+            "//tmp/jr",
+            [
+                {"name": "a", "type": "int64", "sort_order": "ascending"},
+                {"name": "c", "type": "int64"},
+            ],
+            [
+                {"a": 1, "c": 80},
+                {"a": 3, "c": 62},
+                {"a": 4, "c": 53},
+                {"a": 6, "c": 17},
+            ],
+            "scan",
+        )
+
+        expected = [
+            {"a": 2, "b": 3, "c": None},
+            {"a": 5, "b": 2, "c": None},
+        ]
+
+        actual = select_rows("* from [//tmp/jl] left join [//tmp/jr] using a where c = null and a between 2 and 7 limit 2")
+        assert sorted_dicts(expected) == sorted_dicts(actual)
+
+    @authors("lukyan")
     def test_join_many(self):
         sync_create_cells(1)
 

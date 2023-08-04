@@ -66,6 +66,7 @@
 
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/tls_cache.h>
+#include <yt/yt/core/misc/range_formatters.h>
 
 #include <yt/yt/core/rpc/authentication_identity.h>
 
@@ -296,6 +297,137 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSimpleRowsetWriter
+    : public IUnversionedRowsetWriter
+{
+public:
+    explicit TSimpleRowsetWriter(IMemoryChunkProviderPtr chunkProvider)
+        : RowBuffer_(New<TRowBuffer>(TSchemafulRowsetWriterBufferTag(), std::move(chunkProvider)))
+    { }
+
+    TSharedRange<TUnversionedRow> GetRows() const
+    {
+        return MakeSharedRange(Rows_, RowBuffer_);
+    }
+
+    TFuture<TSharedRange<TUnversionedRow>> GetResult() const
+    {
+        return Result_.ToFuture();
+    }
+
+    TFuture<void> Close() override
+    {
+        Result_.TrySet(GetRows());
+        return VoidFuture;
+    }
+
+    bool Write(TRange<TUnversionedRow> rows) override
+    {
+        for (auto row : rows) {
+            Rows_.push_back(RowBuffer_->CaptureRow(row));
+        }
+        return true;
+    }
+
+    TFuture<void> GetReadyEvent() override
+    {
+        return VoidFuture;
+    }
+
+    void Fail(const TError& error)
+    {
+        Result_.TrySet(error);
+    }
+
+private:
+    struct TSchemafulRowsetWriterBufferTag
+    { };
+
+    TPromise<TSharedRange<TUnversionedRow>> Result_ = NewPromise<TSharedRange<TUnversionedRow>>();
+    const TRowBufferPtr RowBuffer_;
+    std::vector<TUnversionedRow> Rows_;
+};
+
+class TRowsetSubrangeReader
+    : public ISchemafulUnversionedReader
+{
+public:
+    TRowsetSubrangeReader(
+        TFuture<TSharedRange<TUnversionedRow>> asyncRows,
+        std::optional<TRowRange> rowRange)
+        : AsyncRows_(std::move(asyncRows))
+        , RowRange_(std::move(rowRange))
+    { }
+
+    IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    {
+        if (!RowRange_) {
+            return nullptr;
+        }
+        auto rowRange = *RowRange_;
+
+        if (!AsyncRows_.IsSet() || !AsyncRows_.Get().IsOK()) {
+            return CreateEmptyUnversionedRowBatch();
+        }
+
+        const auto& rows = AsyncRows_.Get().Value();
+
+        CurrentRowIndex_ = BinarySearch(CurrentRowIndex_, std::ssize(rows), [&] (i64 index) {
+            return !TestKeyWithWidening(
+                ToKeyRef(rows[index]),
+                TKeyBoundRef(ToKeyRef(rowRange.first), /*inclusive*/ true, /*upper*/ false));
+        });
+
+        auto startIndex = CurrentRowIndex_;
+
+        CurrentRowIndex_ = std::min(CurrentRowIndex_ + options.MaxRowsPerRead, std::ssize(rows));
+
+        CurrentRowIndex_ = BinarySearch(startIndex, CurrentRowIndex_, [&] (i64 index) {
+            return TestKeyWithWidening(
+                ToKeyRef(rows[index]),
+                TKeyBoundRef(ToKeyRef(rowRange.second), /*inclusive*/ true, /*upper*/ true));
+        });
+
+        if (startIndex == CurrentRowIndex_) {
+            return nullptr;
+        }
+
+        return CreateBatchFromUnversionedRows(MakeSharedRange(rows.Slice(startIndex, CurrentRowIndex_), rows));
+    }
+
+    TFuture<void> GetReadyEvent() const override
+    {
+        return AsyncRows_.AsVoid();
+    }
+
+    NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
+    {
+        return NChunkClient::NProto::TDataStatistics();
+    }
+
+    NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
+    {
+        return NChunkClient::TCodecStatistics();
+    }
+
+    bool IsFetchingCompleted() const override
+    {
+        return false;
+    }
+
+    std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
+    {
+        return {};
+    }
+
+private:
+    TFuture<TSharedRange<TUnversionedRow>> AsyncRows_;
+    i64 CurrentRowIndex_ = 0;
+    std::optional<TRowRange> RowRange_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TQueryExecution
     : public TRefCounted
 {
@@ -434,13 +566,16 @@ private:
             Query_,
             Writer_,
             refiners,
-            [&] (const TConstQueryPtr& subquery, int index) {
+            [&] (const TConstQueryPtr& primarySubquery, int index) {
                 auto asyncSubqueryResults = std::make_shared<std::vector<TFuture<TQueryStatistics>>>();
+
+                bool orderedExecution = primarySubquery->IsOrdered();
 
                 auto foreignProfileCallback = [
                     asyncSubqueryResults,
                     remoteExecutor,
                     dataSplits = std::move(readRanges[index]),
+                    orderedExecution,
                     this,
                     this_ = MakeStrong(this)
                 ] (const TQueryPtr& subquery, const TConstJoinClausePtr& joinClause) -> TJoinSubqueryEvaluator {
@@ -456,7 +591,7 @@ private:
                         joinClause->CommonKeyPrefix,
                         minKeyWidth);
 
-                    if (joinClause->CommonKeyPrefix >= minKeyWidth && minKeyWidth > 0) {
+                    if (joinClause->CommonKeyPrefix >= minKeyWidth && minKeyWidth > 0 && !orderedExecution) {
                         auto rowBuffer = New<TRowBuffer>(TQuerySubexecutorBufferTag(), MemoryChunkProvider_);
 
                         std::vector<TRowRange> prefixRanges;
@@ -539,27 +674,33 @@ private:
 
                         YT_LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", subquery->Id);
 
-                        auto pipe = New<NTableClient::TSchemafulPipe>(MemoryChunkProvider_);
+                        auto writer = New<TSimpleRowsetWriter>(MemoryChunkProvider_);
 
                         auto asyncResult = remoteExecutor->Execute(
                             subquery,
                             ExternalCGInfo_,
                             std::move(dataSource),
-                            pipe->GetWriter(),
+                            writer,
                             remoteOptions);
 
-                        asyncResult.Subscribe(BIND([pipe] (const TErrorOr<TQueryStatistics>& error) {
+                        asyncResult.Subscribe(BIND([writer] (const TErrorOr<TQueryStatistics>& error) {
                             if (!error.IsOK()) {
-                                pipe->Fail(error);
+                                writer->Fail(error);
                             }
                         }));
 
                         asyncSubqueryResults->push_back(asyncResult);
 
+                        auto asyncRows = writer->GetResult();
+
                         return [
-                            reader = pipe->GetReader()
-                        ] (std::vector<TRow> /*keys*/, TRowBufferPtr /*permanentBuffer*/) {
-                            return reader;
+                            asyncRows
+                        ] (std::vector<TRow> keys, TRowBufferPtr /*permanentBuffer*/) {
+                            std::optional<TRowRange> keyRange;
+                            if (!keys.empty()) {
+                                keyRange = TRowRange{keys.front(), keys.back()};
+                            }
+                            return New<TRowsetSubrangeReader>(asyncRows, keyRange);
                         };
                     } else {
                         return [
@@ -605,14 +746,14 @@ private:
 
                 auto mergingReader = subreaderCreators[index]();
 
-                YT_LOG_DEBUG("Evaluating subquery (SubqueryId: %v)", subquery->Id);
+                YT_LOG_DEBUG("Evaluating subquery (SubqueryId: %v)", primarySubquery->Id);
 
                 auto pipe = New<TSchemafulPipe>(MemoryChunkProvider_);
 
                 auto asyncStatistics = BIND(&IEvaluator::Run, Evaluator_)
                     .AsyncVia(Invoker_)
                     .Run(
-                        subquery,
+                        primarySubquery,
                         mergingReader,
                         pipe->GetWriter(),
                         foreignProfileCallback,
@@ -629,7 +770,7 @@ private:
                 {
                     if (!result.IsOK()) {
                         pipe->Fail(result);
-                        YT_LOG_DEBUG(result, "Failed evaluating subquery (SubqueryId: %v)", subquery->Id);
+                        YT_LOG_DEBUG(result, "Failed evaluating subquery (SubqueryId: %v)", primarySubquery->Id);
                         return MakeFuture(result);
                     } else {
                         TQueryStatistics statistics = result.Value();
