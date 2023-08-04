@@ -131,11 +131,15 @@ public:
         RegisterMethod(BIND(&TNodeTracker::HydraRegisterNode, Unretained(this)));
         RegisterMethod(BIND(&TNodeTracker::HydraUnregisterNode, Unretained(this)));
         RegisterMethod(BIND(&TNodeTracker::HydraClusterNodeHeartbeat, Unretained(this)));
+        // COMPAT(aleksandra-zh)
         RegisterMethod(BIND(&TNodeTracker::HydraSetCellNodeDescriptors, Unretained(this)));
         RegisterMethod(BIND(&TNodeTracker::HydraUpdateNodeResources, Unretained(this)));
         RegisterMethod(BIND(&TNodeTracker::HydraUpdateNodesForRole, Unretained(this)));
         RegisterMethod(BIND(&TNodeTracker::HydraAddMaintenance, Unretained(this)));
         RegisterMethod(BIND(&TNodeTracker::HydraRemoveMaintenance, Unretained(this)));
+        RegisterMethod(BIND(&TNodeTracker::HydraSendNodeStates, Unretained(this)));
+        RegisterMethod(BIND(&TNodeTracker::HydraSetNodeStatistics, Unretained(this)));
+        RegisterMethod(BIND(&TNodeTracker::HydraSetNodeStates, Unretained(this)));
 
         RegisterLoader(
             "NodeTracker.Keys",
@@ -888,6 +892,7 @@ private:
 
     TPeriodicExecutorPtr IncrementalNodeStatesGossipExecutor_;
     TPeriodicExecutorPtr FullNodeStatesGossipExecutor_;
+    TPeriodicExecutorPtr NodeStatisticsGossipExecutor_;
 
     const TAsyncSemaphorePtr HeartbeatSemaphore_ = New<TAsyncSemaphore>(0);
 
@@ -1018,6 +1023,11 @@ private:
                         node->GetDefaultAddress(),
                         aggregatedState);
                 }
+
+                if (node->GetRegistrationPending()) {
+                    THROW_ERROR_EXCEPTION("Node %Qv is already being registered; must wait for it to become fully offline",
+                        node->GetDefaultAddress());
+                }
             } else {
                 EnsureNodeDisposed(node);
             }
@@ -1134,6 +1144,7 @@ private:
         CheckNodeOnline(node);
 
         if (multicellManager->IsPrimaryMaster()) {
+            node->SetRegistrationPending(multicellManager->GetCellTag());
             PostRegisterNodeMutation(node, request);
         }
 
@@ -1185,15 +1196,25 @@ private:
         }
     }
 
-    void HydraSetCellNodeDescriptors(TReqSetCellNodeDescriptors* request)
+    bool ValidateGossipCell(TCellTag cellTag)
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         YT_VERIFY(multicellManager->IsPrimaryMaster());
 
-        auto cellTag = request->cell_tag();
         if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
             YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), "Received cell node descriptor gossip message from unknown cell (CellTag: %v)",
                 cellTag);
+            return false;
+        }
+
+        return true;
+    }
+
+    // COMPAT(aleksandra-zh)
+    void HydraSetCellNodeDescriptors(TReqSetCellNodeDescriptors* request)
+    {
+        auto cellTag = FromProto<TCellTag>(request->cell_tag());
+        if (!ValidateGossipCell(cellTag)) {
             return;
         }
 
@@ -1206,9 +1227,59 @@ private:
                 continue;
             }
 
-            auto newDescriptor = FromProto<TCellNodeDescriptor>(entry.node_descriptor());
+            const auto& descriptor = entry.node_descriptor();
+            auto statistics = FromProto<TCellNodeStatistics>(descriptor.statistics());
+            node->SetStatistics(cellTag, statistics);
+
             UpdateNodeCounters(node, -1);
-            node->SetCellDescriptor(cellTag, newDescriptor);
+            auto state = ENodeState(descriptor.state());
+            node->SetState(cellTag, state, /*redundant*/ false);
+            UpdateNodeCounters(node, +1);
+        }
+    }
+
+    void HydraSetNodeStatistics(TReqSetNodeStatistics* request)
+    {
+        auto cellTag = FromProto<TCellTag>(request->cell_tag());
+        if (!ValidateGossipCell(cellTag)) {
+            return;
+        }
+
+        YT_LOG_INFO("Received node statistics (CellTag: %v)",
+            cellTag);
+
+        for (const auto& entry : request->entries()) {
+            auto* node = FindNode(entry.node_id());
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
+
+            auto statistics = FromProto<TCellNodeStatistics>(entry.statistics());
+            node->SetStatistics(cellTag, statistics);
+        }
+    }
+
+    void HydraSetNodeStates(TReqSetNodeStates* request)
+    {
+        auto cellTag = FromProto<TCellTag>(request->cell_tag());
+        if (!ValidateGossipCell(cellTag)) {
+            return;
+        }
+
+        YT_LOG_INFO("Received node states (CellTag: %v)",
+            cellTag);
+
+        for (const auto& entry : request->entries()) {
+            auto* node = FindNode(entry.node_id());
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
+
+            auto state = ENodeState(entry.state());
+            auto redundant = entry.redundant();
+
+            UpdateNodeCounters(node, -1);
+            node->SetState(cellTag, state, redundant);
             UpdateNodeCounters(node, +1);
         }
     }
@@ -1426,7 +1497,6 @@ private:
         HostMap_.LoadValues(context);
     }
 
-
     void Clear() override
     {
         TMasterAutomatonPart::Clear();
@@ -1555,6 +1625,12 @@ private:
                 BIND(&TNodeTracker::OnNodeStatesGossip, MakeWeak(this), true));
             IncrementalNodeStatesGossipExecutor_->Start();
 
+            NodeStatisticsGossipExecutor_ = New<TPeriodicExecutor>(
+                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::NodeTrackerGossip),
+                BIND(&TNodeTracker::OnNodeStatisticsGossip, MakeWeak(this)));
+            NodeStatisticsGossipExecutor_->Start();
+
+            // COMPAT(aleksandra-zh).
             FullNodeStatesGossipExecutor_ = New<TPeriodicExecutor>(
                 Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::NodeTrackerGossip),
                 BIND(&TNodeTracker::OnNodeStatesGossip, MakeWeak(this), false));
@@ -1587,6 +1663,11 @@ private:
         if (FullNodeStatesGossipExecutor_) {
             FullNodeStatesGossipExecutor_->Stop();
             FullNodeStatesGossipExecutor_.Reset();
+        }
+
+        if (NodeStatisticsGossipExecutor_) {
+            NodeStatisticsGossipExecutor_->Stop();
+            NodeStatisticsGossipExecutor_.Reset();
         }
 
         PendingRegisterNodeAddreses_.clear();
@@ -1778,6 +1859,11 @@ private:
 
     void EnsureNodeDisposed(TNode* node)
     {
+        if (node->GetLocalState() != ENodeState::Offline) {
+            YT_LOG_ALERT("Node is not offline when it should be (NodeId: %v)");
+        }
+
+        // Everything below is COMPAT(aleksandra-zh).
         if (node->GetLocalState() == ENodeState::Registered ||
             node->GetLocalState() == ENodeState::Online)
         {
@@ -1787,7 +1873,6 @@ private:
         if (node->GetLocalState() == ENodeState::Unregistered ||
             node->GetLocalState() == ENodeState::BeingDisposed)
         {
-            // Sequoia probably would not like that.
             NodeDisposalManager_->DisposeNodeCompletely(node);
         }
     }
@@ -1799,8 +1884,50 @@ private:
             return;
         }
 
-        TReqSetCellNodeDescriptors request;
+        TReqSendNodeStates request;
+        request.set_incremental(incremental);
+
+        CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
+            ->CommitAndLog(Logger);
+    }
+
+    void OnNodeStatisticsGossip()
+    {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (!multicellManager->IsLocalMasterCellRegistered()) {
+            return;
+        }
+
+        TReqSetNodeStatistics request;
         request.set_cell_tag(multicellManager->GetCellTag());
+        for (auto [nodeId, node] : NodeMap_) {
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
+
+            auto* entry = request.add_entries();
+            entry->set_node_id(node->GetId());
+            ToProto(entry->mutable_statistics(), node->ComputeCellStatistics());
+        }
+
+        if (request.entries_size() == 0) {
+            return;
+        }
+
+        YT_LOG_INFO("Sending node statistics gossip message (NodeCount: %v)",
+            request.entries_size());
+
+        multicellManager->PostToPrimaryMaster(request, /*reliable*/ false);
+    }
+
+    void HydraSendNodeStates(NProto::TReqSendNodeStates* mutationRequest)
+    {
+        auto incremental = mutationRequest->incremental();
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+
+        TReqSetNodeStates gossipRequest;
+        gossipRequest.set_cell_tag(ToProto<int>(multicellManager->GetCellTag()));
         for (auto [nodeId, node] : NodeMap_) {
             if (!IsObjectAlive(node)) {
                 continue;
@@ -1811,22 +1938,27 @@ private:
                 continue;
             }
 
-            auto* entry = request.add_entries();
+            auto* entry = gossipRequest.add_entries();
             entry->set_node_id(node->GetId());
-            auto descriptor = TCellNodeDescriptor{state, node->ComputeCellStatistics()};
-            ToProto(entry->mutable_node_descriptor(), descriptor);
+
+            if (state == node->GetLastGossipState()) {
+                entry->set_redundant(true);
+            }
+
+            entry->set_state(ToProto<int>(state));
+
             node->SetLastGossipState(state);
         }
 
-        if (request.entries_size() == 0) {
+        if (gossipRequest.entries_size() == 0) {
             return;
         }
 
-        YT_LOG_INFO("Sending node states gossip message (Incremental: %v)",
-            incremental);
-        multicellManager->PostToPrimaryMaster(request, false);
+        YT_LOG_INFO("Sending node states gossip message (Incremental: %v, NodeCount: %v)",
+            incremental,
+            gossipRequest.entries_size());
+        multicellManager->PostToPrimaryMaster(gossipRequest);
     }
-
 
     void CommitMutationWithSemaphore(
         std::unique_ptr<TMutation> mutation,
@@ -2203,6 +2335,9 @@ private:
         }
         if (FullNodeStatesGossipExecutor_) {
             FullNodeStatesGossipExecutor_->SetPeriod(GetDynamicConfig()->FullNodeStatesGossipPeriod);
+        }
+        if (NodeStatisticsGossipExecutor_) {
+            NodeStatisticsGossipExecutor_->SetPeriod(GetDynamicConfig()->NodeStatisticsGossipPeriod);
         }
     }
 

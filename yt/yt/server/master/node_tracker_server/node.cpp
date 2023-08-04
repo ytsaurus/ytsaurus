@@ -87,6 +87,15 @@ void TNode::TCellSlot::Persist(const NCellMaster::TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TNode::TCellNodeDescriptor::Persist(const NCellMaster::TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, State);
+    Persist(context, RegistrationPending);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TCellNodeStatistics& operator+=(TCellNodeStatistics& lhs, const TCellNodeStatistics& rhs)
 {
     for (const auto& [mediumIndex, chunkReplicaCount] : rhs.ChunkReplicaCount) {
@@ -100,7 +109,7 @@ TCellNodeStatistics& operator+=(TCellNodeStatistics& lhs, const TCellNodeStatist
 }
 
 void ToProto(
-    NProto::TReqSetCellNodeDescriptors::TStatistics* protoStatistics,
+    NProto::TNodeStatistics* protoStatistics,
     const TCellNodeStatistics& statistics)
 {
     for (const auto& [mediumIndex, replicaCount] : statistics.ChunkReplicaCount) {
@@ -118,7 +127,7 @@ void ToProto(
 
 void FromProto(
     TCellNodeStatistics* statistics,
-    const NProto::TReqSetCellNodeDescriptors::TStatistics& protoStatistics)
+    const NProto::TNodeStatistics& protoStatistics)
 {
     statistics->ChunkReplicaCount.clear();
     for (const auto& mediumStatistics : protoStatistics.medium_statistics()) {
@@ -130,20 +139,6 @@ void FromProto(
     statistics->ChunkPushReplicationQueuesSize = protoStatistics.chunk_push_replication_queues_size();
     statistics->ChunkPullReplicationQueuesSize = protoStatistics.chunk_pull_replication_queues_size();
     statistics->PullReplicationChunkCount = protoStatistics.pull_replication_chunk_count();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ToProto(NProto::TReqSetCellNodeDescriptors::TNodeDescriptor* protoDescriptor, const TCellNodeDescriptor& descriptor)
-{
-    protoDescriptor->set_state(static_cast<int>(descriptor.State));
-    ToProto(protoDescriptor->mutable_statistics(), descriptor.Statistics);
-}
-
-void FromProto(TCellNodeDescriptor* descriptor, const NProto::TReqSetCellNodeDescriptors::TNodeDescriptor& protoDescriptor)
-{
-    descriptor->State = ENodeState(protoDescriptor.state());
-    descriptor->Statistics = FromProto<TCellNodeStatistics>(protoDescriptor.statistics());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -165,6 +160,7 @@ int TNode::GetConsistentReplicaPlacementTokenCount(int mediumIndex) const
 void TNode::ComputeAggregatedState()
 {
     std::optional<ENodeState> result;
+    auto registrationPending = false;
     for (const auto& [cellTag, descriptor] : MulticellDescriptors_) {
         if (result) {
             if (*result != descriptor.State) {
@@ -174,11 +170,16 @@ void TNode::ComputeAggregatedState()
         } else {
             result = descriptor.State;
         }
+
+        registrationPending |= descriptor.RegistrationPending;
     }
+
     if (AggregatedState_ != *result) {
         AggregatedState_ = *result;
         AggregatedStateChanged_.Fire(this);
     }
+
+    RegistrationPending_ = registrationPending;
 }
 
 void TNode::ComputeDefaultAddress()
@@ -358,7 +359,7 @@ void TNode::InitializeStates(TCellTag cellTag, const TCellTagList& secondaryCell
 {
     auto addCell = [&] (TCellTag someTag) {
         if (MulticellDescriptors_.find(someTag) == MulticellDescriptors_.end()) {
-            YT_VERIFY(MulticellDescriptors_.emplace(someTag, TCellNodeDescriptor{ENodeState::Offline, TCellNodeStatistics()}).second);
+            EmplaceOrCrash(MulticellDescriptors_, someTag, TCellNodeDescriptor{ENodeState::Offline, TCellNodeStatistics(), /*registrationPending*/ false});
         }
     };
 
@@ -400,14 +401,77 @@ void TNode::SetLocalState(ENodeState state)
     }
 }
 
-void TNode::SetCellDescriptor(TCellTag cellTag, const TCellNodeDescriptor& descriptor)
+void TNode::SetRegistrationPending(TCellTag selfCellTag)
 {
-    auto& oldDescriptor = GetOrCrash(MulticellDescriptors_, cellTag);
-    auto mustRecomputeState = (oldDescriptor.State != descriptor.State);
-    oldDescriptor = descriptor;
+    YT_VERIFY(HasMutationContext());
+
+    for (auto& [cellTag, descriptor] : MulticellDescriptors_) {
+        if (cellTag == selfCellTag) {
+            continue;
+        }
+
+        if (descriptor.State != ENodeState::Offline) {
+            YT_LOG_ALERT("Node is pending registration in unexpected state (NodeId: %v, CellTag: %v, State: %v)",
+                GetId(),
+                cellTag,
+                descriptor.State);
+            continue;
+        }
+        descriptor.RegistrationPending = true;
+    }
+    RegistrationPending_ = true;
+}
+
+void TNode::SetState(
+    TCellTag cellTag,
+    ENodeState state,
+    bool redundant)
+{
+    YT_VERIFY(HasMutationContext());
+
+    auto& descriptor = GetOrCrash(MulticellDescriptors_, cellTag);
+    auto mustRecomputeState = (descriptor.State != state);
+    if (redundant && mustRecomputeState) {
+        YT_LOG_ALERT("Cell reported new node state marked as redundant (NodeId: %v, CellTag: %v, OldState: %v, NewState: %v)",
+            GetId(),
+            cellTag,
+            descriptor.State,
+            state);
+    }
+
+    if (descriptor.State == ENodeState::Offline && state != ENodeState::Offline) {
+        descriptor.RegistrationPending = false;
+    }
+
+    if (descriptor.RegistrationPending && descriptor.State != ENodeState::Offline) {
+        YT_LOG_ALERT("Registration pending flag was not discarded (NodeId: %v, CellTag: %v, OldState: %v, NewState: %v)",
+            GetId(),
+            cellTag,
+            descriptor.State,
+            state);
+        descriptor.RegistrationPending = false;
+    }
+
+    descriptor.State = state;
+
     if (mustRecomputeState) {
         ComputeAggregatedState();
     }
+}
+
+void TNode::SetStatistics(
+    TCellTag cellTag,
+    const TCellNodeStatistics& statistics)
+{
+    YT_VERIFY(HasMutationContext());
+
+    auto& descriptor = GetOrCrash(MulticellDescriptors_, cellTag);
+    descriptor.Statistics = statistics;
+}
+
+bool TNode::GetRegistrationPending() const
+{
+    return RegistrationPending_;
 }
 
 ENodeState TNode::GetAggregatedState() const
@@ -499,16 +563,7 @@ void TNode::Save(TSaveContext& context) const
     using NYT::Save;
 
     Save(context, NodeAddresses_);
-    {
-        using TMulticellStates = THashMap<NObjectClient::TCellTag, ENodeState>;
-        TMulticellStates multicellStates;
-        multicellStates.reserve(MulticellDescriptors_.size());
-        for (const auto& [cellTag, descriptor] : MulticellDescriptors_) {
-            multicellStates.emplace(cellTag, descriptor.State);
-        }
-
-        Save(context, multicellStates);
-    }
+    Save(context, MulticellDescriptors_);
     Save(context, UserTags_);
     Save(context, NodeTags_);
     Save(context, RealChunkLocations_);
@@ -552,6 +607,7 @@ void TNode::Save(TSaveContext& context) const
     Save(context, ReplicaEndorsements_);
     Save(context, ConsistentReplicaPlacementTokenCount_);
     Save(context, NextDisposedLocationIndex_);
+    Save(context, LastGossipState_);
 }
 
 void TNode::Load(TLoadContext& context)
@@ -571,10 +627,12 @@ void TNode::Load(TLoadContext& context)
         TMaintenanceTarget::Load(context);
     }
 
-
     Load(context, NodeAddresses_);
 
-    {
+    // COMPAT(aleksandra-zh).
+    if (context.GetVersion() >= EMasterReign::ReliableNodeStateGossip) {
+        Load(context, MulticellDescriptors_);
+    } else {
         using TMulticellStates = THashMap<NObjectClient::TCellTag, ENodeState>;
         TMulticellStates multicellStates;
         Load(context, multicellStates);
@@ -582,7 +640,7 @@ void TNode::Load(TLoadContext& context)
         MulticellDescriptors_.clear();
         MulticellDescriptors_.reserve(multicellStates.size());
         for (const auto& [cellTag, state] : multicellStates) {
-            MulticellDescriptors_.emplace(cellTag, TCellNodeDescriptor{state, TCellNodeStatistics()});
+            MulticellDescriptors_.emplace(cellTag, TCellNodeDescriptor{state, TCellNodeStatistics(), false});
         }
     }
 
@@ -692,6 +750,11 @@ void TNode::Load(TLoadContext& context)
     // COMPAT(aleksandra-zh)
     if (context.GetVersion() >= EMasterReign::SplitNodeDisposal) {
         Load(context, NextDisposedLocationIndex_);
+    }
+
+    // COMPAT(aleksandra-zh)
+    if (context.GetVersion() >= EMasterReign::ReliableNodeStateGossip) {
+        Load(context, LastGossipState_);
     }
 
     ComputeDefaultAddress();
@@ -957,7 +1020,6 @@ void TNode::ClearPushReplicationTargetNodeIds(const INodeTrackerPtr& nodeTracker
 
 void TNode::Reset(const INodeTrackerPtr& nodeTracker)
 {
-    LastGossipState_ = ENodeState::Unknown;
     ClearSessionHints();
     for (auto& queue : ChunkPushReplicationQueues_) {
         queue.clear();

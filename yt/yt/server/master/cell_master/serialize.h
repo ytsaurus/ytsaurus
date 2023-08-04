@@ -164,6 +164,7 @@ DEFINE_ENUM(EMasterReign,
     ((RefactorSchemaExport)                                         (2349))  // h0pless
     ((MaxErasureJournalReplicasPerRack)                             (2350))  // vovamelnikov
     ((FixChunkCreationTimeHistogramAgain)                           (2351))  // kvk1920
+    ((ReliableNodeStateGossip)                                      (2352))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////
