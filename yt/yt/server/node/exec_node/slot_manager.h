@@ -166,6 +166,8 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, LocationsLock_);
     std::vector<TSlotLocationPtr> Locations_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, AliveLocationsLock_);
     std::vector<TSlotLocationPtr> AliveLocations_;
 
     std::vector<TNumaNodeState> NumaNodeStates_;
@@ -177,6 +179,7 @@ private:
 
     double IdlePolicyRequestedCpu_ = 0;
 
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, AlertsLock_);
     TEnumIndexedVector<ESlotManagerAlertType, TError> Alerts_;
 
     //! If we observe too many consecutive aborts, we disable user slots on

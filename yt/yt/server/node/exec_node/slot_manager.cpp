@@ -181,9 +181,17 @@ TFuture<void> TSlotManager::InitializeEnvironment()
 
     YT_VERIFY(std::ssize(FreeSlots_) == SlotCount_);
 
-    AliveLocations_.clear();
+    {
+        auto guard = WriterGuard(AliveLocationsLock_);
+        AliveLocations_.clear();
+    }
+
     NumaNodeStates_.clear();
-    Alerts_ = {};
+
+    {
+        auto guard = WriterGuard(AlertsLock_);
+        Alerts_ = {};
+    }
 
     JobEnvironment_ = CreateJobEnvironment(
         Config_->JobEnvironment,
@@ -272,6 +280,8 @@ void TSlotManager::UpdateAliveLocations()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
+    auto guard = WriterGuard(AliveLocationsLock_);
+
     AliveLocations_.clear();
     for (const auto& location : Locations_) {
         if (location->IsEnabled()) {
@@ -294,6 +304,9 @@ IUserSlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequ
     int skippedByDiskSpace = 0;
     int skippedByMedium = 0;
     TSlotLocationPtr bestLocation;
+
+    auto guard = ReaderGuard(AliveLocationsLock_);
+
     for (const auto& location : AliveLocations_) {
         auto diskResources = location->GetDiskResources();
         if (diskResources.usage() + diskRequest.disk_space() > diskResources.limit()) {
@@ -403,7 +416,7 @@ bool TSlotManager::IsInitialized() const
 
 bool TSlotManager::IsEnabled() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    VERIFY_THREAD_AFFINITY_ANY();
 
     bool enabled =
         JobProxyReady_.load() &&
@@ -417,7 +430,8 @@ bool TSlotManager::IsEnabled() const
 
 bool TSlotManager::HasGpuAlerts() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    VERIFY_THREAD_AFFINITY_ANY();
+    VERIFY_SPINLOCK_AFFINITY(AlertsLock_);
 
     auto dynamicConfig = DynamicConfig_.Acquire();
     bool disableJobsOnGpuCheckFailure = dynamicConfig
@@ -430,7 +444,8 @@ bool TSlotManager::HasGpuAlerts() const
 
 bool TSlotManager::HasNonFatalAlerts() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    VERIFY_THREAD_AFFINITY_ANY();
+    VERIFY_SPINLOCK_AFFINITY(AlertsLock_);
 
     return !Alerts_[ESlotManagerAlertType::TooManyConsecutiveJobAbortions].IsOK() ||
         !Alerts_[ESlotManagerAlertType::JobProxyUnavailable].IsOK() ||
@@ -439,7 +454,9 @@ bool TSlotManager::HasNonFatalAlerts() const
 
 bool TSlotManager::HasSlotDisablingAlert() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto guard = ReaderGuard(AlertsLock_);
 
     return !Alerts_[ESlotManagerAlertType::GenericPersistentError].IsOK() || HasNonFatalAlerts();
 }
@@ -449,6 +466,8 @@ bool TSlotManager::CanResurrect() const
     VERIFY_THREAD_AFFINITY(JobThread);
 
     bool disabled = !IsEnabled();
+
+    auto guard = ReaderGuard(AlertsLock_);
 
     return disabled &&
         !HasNonFatalAlerts();
@@ -481,17 +500,9 @@ bool TSlotManager::HasFatalAlert() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto result = WaitFor(BIND_NO_PROPAGATE([=, this, this_ = MakeStrong(this)] () {
-        VERIFY_THREAD_AFFINITY(JobThread);
+    auto guard = ReaderGuard(AlertsLock_);
 
-        return !Alerts_[ESlotManagerAlertType::GenericPersistentError].IsOK();
-    })
-        .AsyncVia(Bootstrap_->GetJobInvoker())
-        .Run());
-
-    YT_LOG_FATAL_IF(!result.IsOK(), result, "Cannot get info about slot manager fatal alert");
-
-    return result.Value();
+    return !Alerts_[ESlotManagerAlertType::GenericPersistentError].IsOK();
 }
 
 void TSlotManager::ForceInitialize()
@@ -513,24 +524,19 @@ void TSlotManager::ResetAlerts(const std::vector<ESlotManagerAlertType>& alertTy
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto result = WaitFor(BIND([=, this, this_ = MakeStrong(this)] () {
-        VERIFY_THREAD_AFFINITY(JobThread);
+    {
+        auto guard = WriterGuard(AlertsLock_);
 
-        bool needInitialize = false;
         for (auto alertType : alertTypes) {
             Alerts_[alertType] = {};
         }
+    }
 
-        needInitialize = !HasSlotDisablingAlert();
+    auto needInitialize = !HasSlotDisablingAlert();
 
-        if (!IsInitialized() && needInitialize) {
-            SubscribeDisabled(BIND(&TSlotManager::ForceInitialize, MakeStrong(this)));
-        }
-    })
-        .AsyncVia(Bootstrap_->GetJobInvoker())
-        .Run());
-
-    YT_LOG_FATAL_IF(!result.IsOK(), result, "Alerts reset failed");
+    if (!IsInitialized() && needInitialize) {
+        SubscribeDisabled(BIND(&TSlotManager::ForceInitialize, MakeWeak(this)));
+    }
 }
 
 void TSlotManager::OnJobsCpuLimitUpdated()
@@ -576,6 +582,8 @@ bool TSlotManager::Disable(const TError& error)
     }
 
     {
+        auto guard = WriterGuard(AlertsLock_);
+
         auto wrappedError = TError(EErrorCode::SchedulerJobsDisabled, "Scheduler jobs disabled")
             << error;
         YT_LOG_WARNING(wrappedError, "Disabling slot manager");
@@ -619,7 +627,10 @@ void TSlotManager::OnGpuCheckCommandFailed(const TError& error)
         error,
         "GPU check failed alert set, jobs may be disabled if \"disable_jobs_on_gpu_check_failure\" specified");
 
-    Alerts_[ESlotManagerAlertType::GpuCheckFailed] = error;
+    {
+        auto guard = WriterGuard(AlertsLock_);
+        Alerts_[ESlotManagerAlertType::GpuCheckFailed] = error;
+    }
 }
 
 void TSlotManager::OnJobFinished(const TJobPtr& job)
@@ -627,6 +638,7 @@ void TSlotManager::OnJobFinished(const TJobPtr& job)
     WaitFor(BIND([=, this, this_ = MakeStrong(this)] () {
         VERIFY_THREAD_AFFINITY(JobThread);
 
+        auto guard = WriterGuard(AlertsLock_);
         if (TypeFromId(job->GetId()) == EObjectType::SchedulerJob && job->GetState() == EJobState::Aborted) {
             ++ConsecutiveAbortedSchedulerJobCount_;
         } else {
@@ -674,31 +686,28 @@ void TSlotManager::OnJobFinished(const TJobPtr& job)
 
 void TSlotManager::OnJobProxyBuildInfoUpdated(const TError& error)
 {
-    WaitFor(BIND([=, this, this_ = MakeStrong(this)] () {
-        VERIFY_THREAD_AFFINITY(JobThread);
+    auto guard = WriterGuard(AlertsLock_);
 
-        // TODO(gritukan): Most likely #IsExecNode condition will not be required after bootstraps split.
-        if (!Config_->Testing->SkipJobProxyUnavailableAlert && Bootstrap_->IsExecNode()) {
-            auto& alert = Alerts_[ESlotManagerAlertType::JobProxyUnavailable];
+    // TODO(gritukan): Most likely #IsExecNode condition will not be required after bootstraps split.
+    if (!Config_->Testing->SkipJobProxyUnavailableAlert && Bootstrap_->IsExecNode()) {
+        auto& alert = Alerts_[ESlotManagerAlertType::JobProxyUnavailable];
 
-            if (alert.IsOK() && !error.IsOK()) {
-                YT_LOG_INFO(error, "Disabling scheduler jobs due to job proxy unavailability");
-            } else if (!alert.IsOK() && error.IsOK()) {
-                YT_LOG_INFO(error, "Enable scheduler jobs as job proxy became available");
-            }
-
-            alert = error;
+        if (alert.IsOK() && !error.IsOK()) {
+            YT_LOG_INFO(error, "Disabling scheduler jobs due to job proxy unavailability");
+        } else if (!alert.IsOK() && error.IsOK()) {
+            YT_LOG_INFO(error, "Enable scheduler jobs as job proxy became available");
         }
-        JobProxyReady_.store(true);
-    })
-        .AsyncVia(Bootstrap_->GetJobInvoker())
-        .Run())
-        .ThrowOnError();
+
+        alert = error;
+    }
+    JobProxyReady_.store(true);
 }
 
 void TSlotManager::ResetConsecutiveAbortedJobCount()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
+
+    auto guard = WriterGuard(AlertsLock_);
 
     Alerts_[ESlotManagerAlertType::TooManyConsecutiveJobAbortions] = {};
     ConsecutiveAbortedSchedulerJobCount_ = 0;
@@ -708,24 +717,21 @@ void TSlotManager::ResetConsecutiveFailedGpuJobCount()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
+    auto guard = WriterGuard(AlertsLock_);
+
     Alerts_[ESlotManagerAlertType::TooManyConsecutiveGpuJobFailures] = {};
     ConsecutiveFailedGpuJobCount_ = 0;
 }
 
 void TSlotManager::PopulateAlerts(std::vector<TError>* alerts)
 {
-    WaitFor(BIND([=, this, this_ = MakeStrong(this)] () {
-        VERIFY_THREAD_AFFINITY(JobThread);
+    auto guard = WriterGuard(AlertsLock_);
 
-        for (const auto& alert : Alerts_) {
-            if (!alert.IsOK()) {
-                alerts->push_back(alert);
-            }
+    for (const auto& alert : Alerts_) {
+        if (!alert.IsOK()) {
+            alerts->push_back(alert);
         }
-    })
-        .AsyncVia(Bootstrap_->GetJobInvoker())
-        .Run())
-        .ThrowOnError();
+    }
 }
 
 void TSlotManager::BuildOrchidYson(TFluentMap fluent) const
@@ -753,6 +759,8 @@ void TSlotManager::BuildOrchidYson(TFluentMap fluent) const
             TEnumTraits<ESlotManagerAlertType>::GetDomainValues(),
             [&] (TFluentMap fluent, ESlotManagerAlertType alertType) {
                 VERIFY_THREAD_AFFINITY(JobThread);
+
+                auto guard = ReaderGuard(AlertsLock_);
 
                 const auto& error = Alerts_[alertType];
                 if (!error.IsOK()) {
@@ -867,7 +875,10 @@ void TSlotManager::AsyncInitialize()
 
         YT_LOG_WARNING(wrappedError, "Initialization failed");
 
-        Alerts_[ESlotManagerAlertType::GenericPersistentError] = std::move(wrappedError);
+        {
+            auto guard = WriterGuard(AlertsLock_);
+            Alerts_[ESlotManagerAlertType::GenericPersistentError] = std::move(wrappedError);
+        }
 
         SetDisableState();
     }
@@ -926,6 +937,8 @@ NNodeTrackerClient::NProto::TDiskResources TSlotManager::GetDiskResources()
 
     // Make a copy, since GetDiskResources is async and iterator over AliveLocations_
     // may have been invalidated between iterations.
+    auto guard = ReaderGuard(AliveLocationsLock_);
+
     auto locations = AliveLocations_;
     for (const auto& location : locations) {
         try {
