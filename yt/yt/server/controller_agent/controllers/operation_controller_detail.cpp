@@ -7542,7 +7542,7 @@ void TOperationControllerBase::InferInputRanges()
             table->Schema,
             table->Schema->GetKeyColumns(),
             Host->GetClient()->GetNativeConnection()->GetColumnEvaluatorCache(),
-            GetBuiltinRangeExtractor(),
+            GetBuiltinRangeExtractors(),
             queryOptions);
 
         std::vector<TReadRange> inferredRanges;

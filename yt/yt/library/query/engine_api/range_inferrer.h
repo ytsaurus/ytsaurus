@@ -27,7 +27,7 @@ TKeyTriePtr ExtractMultipleConstraints(
     TConstExpressionPtr expr,
     const TKeyColumns& keyColumns,
     const TRowBufferPtr& rowBuffer,
-    const TConstRangeExtractorMapPtr& rangeExtractors = GetBuiltinRangeExtractor());
+    const TConstRangeExtractorMapPtr& rangeExtractors = GetBuiltinRangeExtractors());
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -24,7 +24,7 @@ using TConstRangeExtractorMapPtr = TIntrusivePtr<const TRangeExtractorMap>;
 
 const TConstFunctionProfilerMapPtr GetBuiltinFunctionProfilers();
 const TConstAggregateProfilerMapPtr GetBuiltinAggregateProfilers();
-const TConstRangeExtractorMapPtr GetBuiltinRangeExtractor();
+const TConstRangeExtractorMapPtr GetBuiltinRangeExtractors();
 
 ////////////////////////////////////////////////////////////////////////////////
 

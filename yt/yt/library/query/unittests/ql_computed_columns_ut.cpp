@@ -57,7 +57,7 @@ protected:
             dataSource.Ranges,
             rowBuffer,
             ColumnEvaluatorCache_,
-            GetBuiltinRangeExtractor(),
+            GetBuiltinRangeExtractors(),
             options);
 
         return GetRangesFromSources(prunedSplits);
@@ -90,7 +90,7 @@ protected:
             MakeSharedRange(foreignSplits),
             rowBuffer,
             ColumnEvaluatorCache_,
-            GetBuiltinRangeExtractor(),
+            GetBuiltinRangeExtractors(),
             options);
 
         return GetRangesFromSources(prunedSplits);

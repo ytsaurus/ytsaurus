@@ -29,7 +29,7 @@ void AppendFunctionImplementation(
             name,
             functionImpl,
             functionCallingConvention,
-            /*isFirst=*/false,
+            /*isFirst*/ false,
             functionChunkSpecsFingerprint));
     } else {
         functionProfilers->emplace(name, New<TExternalFunctionCodegen>(
