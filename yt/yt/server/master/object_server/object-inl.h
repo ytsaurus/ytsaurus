@@ -31,7 +31,7 @@ inline TObjectDynamicData* TObject::GetDynamicData() const
 
 inline void TObject::SetGhost()
 {
-    YT_ASSERT(RefCounter_ == 0);
+    YT_VERIFY(RefCounter_ == 0);
     Flags_.Ghost = true;
 }
 
@@ -47,13 +47,13 @@ inline TObjectId TObject::GetId() const
 
 inline int TObject::RefObject()
 {
-    YT_ASSERT(RefCounter_ >= 0);
+    YT_VERIFY(RefCounter_ >= 0);
     return ++RefCounter_;
 }
 
 inline int TObject::UnrefObject(int count)
 {
-    YT_ASSERT(RefCounter_ >= count);
+    YT_VERIFY(RefCounter_ >= count);
     return RefCounter_ -= count;
 }
 
@@ -71,14 +71,14 @@ inline int TObject::EphemeralUnrefObject()
 inline int TObject::WeakRefObject()
 {
     YT_VERIFY(IsObjectAlive(this));
-    YT_ASSERT(WeakRefCounter_ >= 0);
+    YT_VERIFY(WeakRefCounter_ >= 0);
 
     return ++WeakRefCounter_;
 }
 
 inline int TObject::WeakUnrefObject()
 {
-    YT_ASSERT(WeakRefCounter_ > 0);
+    YT_VERIFY(WeakRefCounter_ > 0);
     return --WeakRefCounter_;
 }
 
@@ -89,7 +89,7 @@ inline int TObject::ImportRefObject()
 
 inline int TObject::ImportUnrefObject()
 {
-    YT_ASSERT(ImportRefCounter_ > 0);
+    YT_VERIFY(ImportRefCounter_ > 0);
     return --ImportRefCounter_;
 }
 
