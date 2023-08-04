@@ -418,6 +418,8 @@ bool TSlotManager::IsEnabled() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    auto guard = ReaderGuard(AliveLocationsLock_);
+
     bool enabled =
         JobProxyReady_.load() &&
         IsInitialized() &&
