@@ -572,8 +572,8 @@ const TColumnSchema& TTableSchema::GetColumnOrThrow(TStringBuf name) const
 
 int TTableSchema::GetColumnIndex(const TColumnSchema& column) const
 {
-    auto begin = Columns().begin();
-    auto end = Columns().end();
+    auto begin = Columns().data();
+    auto end = begin + Columns().size();
     YT_VERIFY(begin <= &column && &column < end);
 
     return &column - begin;
