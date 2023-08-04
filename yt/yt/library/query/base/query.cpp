@@ -72,9 +72,7 @@ TString InferName(TConstBaseQueryPtr query, TInferNameOptions options)
     auto namedItemFormatter = [&] (TStringBuilderBase* builder, const TNamedItem& item) {
         builder->AppendString(InferName(item.Expression, options.OmitValues));
         if (!options.OmitAliases) {
-            builder->AppendFormat("%v AS %v",
-                InferName(item.Expression, options.OmitValues),
-                item.Name);
+            builder->AppendFormat(" AS %v", item.Name);
         }
     };
 
@@ -125,7 +123,7 @@ TString InferName(TConstBaseQueryPtr query, TInferNameOptions options)
     }
 
     if (query->GroupClause) {
-        clauses.push_back(Format("GROUP BY[common prefix: %v, disjoint: %v, aggregates: [%v]] %v",
+        clauses.push_back(Format("GROUP BY[common prefix: %v, disjoint: %v, aggregates: %v] %v",
             query->GroupClause->CommonPrefixWithPrimaryKey,
             query->UseDisjointGroupBy,
             MakeFormattableView(query->GroupClause->AggregateItems, [] (auto* builder, const auto& item) {
