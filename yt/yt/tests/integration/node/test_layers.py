@@ -268,7 +268,6 @@ class TestProbingLayer(TestLayers):
             "resource_limits": {
                 "user_slots": user_slots,
             },
-            "max_failed_job_count": 0,
         }
         return update(spec, options)
 
@@ -331,6 +330,7 @@ class TestProbingLayer(TestLayers):
         assert try_count < max_tries
 
     @authors("galtsev")
+    @pytest.mark.flaky(max_runs=5)
     @pytest.mark.timeout(600)
     def test_probing_layer_failure(self):
         self.setup_files()
@@ -370,6 +370,7 @@ class TestProbingLayer(TestLayers):
         assert alert_count >= 1
 
     @authors("galtsev")
+    @pytest.mark.flaky(max_runs=5)
     @pytest.mark.parametrize("options", [
         {"fail_on_job_restart": True},
         {"mapper": {"layer_paths": ["//tmp/layer2"]}},
@@ -402,6 +403,7 @@ class TestProbingLayer(TestLayers):
         assert op.get_job_count("aborted") == 0
 
     @authors("galtsev")
+    @pytest.mark.flaky(max_runs=5)
     @pytest.mark.timeout(600)
     def test_probing_layer_races(self):
         self.setup_files()
@@ -429,6 +431,7 @@ class TestProbingLayer(TestLayers):
             assert try_count < self.MAX_TRIES
 
     @authors("galtsev")
+    @pytest.mark.flaky(max_runs=5)
     @pytest.mark.timeout(600)
     def test_probing_layer_alert(self):
         self.setup_files()

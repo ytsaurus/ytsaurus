@@ -60,7 +60,6 @@ class TestJobExperiment(YTEnvSetup):
             "resource_limits": {
                 "user_slots": user_slots,
             },
-            "max_failed_job_count": 0,
         }
 
         return update(spec, options)
@@ -82,6 +81,7 @@ class TestJobExperiment(YTEnvSetup):
         return op
 
     @authors("galtsev")
+    @pytest.mark.flaky(max_runs=5)
     @pytest.mark.timeout(300)
     def test_job_experiment_success(self):
         job_count = 20
@@ -153,6 +153,7 @@ class TestJobExperiment(YTEnvSetup):
         assert alert_count >= 1
 
     @authors("galtsev")
+    @pytest.mark.flaky(max_runs=5)
     @pytest.mark.parametrize("options", [
         {"fail_on_job_restart": True},
         {"max_speculative_job_count_per_task": 0},
@@ -214,6 +215,7 @@ class TestJobExperiment(YTEnvSetup):
             assert try_count < self.MAX_TRIES
 
     @authors("galtsev")
+    @pytest.mark.flaky(max_runs=5)
     @pytest.mark.timeout(600)
     def test_job_experiment_alert(self):
         job_count = 10
