@@ -650,6 +650,13 @@ void TSchedulingSegmentManager::DoRebalanceSegments(TUpdateSchedulingSegmentsCon
             auto resourceAmountOnNode = GetNodeResourceLimit(*nextAvailableNode, keyResource);
             auto oldSegment = nextAvailableNode->SchedulingSegment;
 
+            YT_LOG_DEBUG("Moving node to a new scheduling segment (Address: %v, OldSegment: %v, NewSegment: %v, Module: %v, Penalty: %v)",
+                nextAvailableNode->Descriptor->Address,
+                nextAvailableNode->SchedulingSegment,
+                segment,
+                GetNodeModule(*nextAvailableNode),
+                nextAvailableNodeMovePenalty);
+
             SetNodeSegment(nextAvailableNode, segment, context);
             movedNodes.emplace_back(
                 TNodeWithMovePenalty{.Node = nextAvailableNode, .MovePenalty = nextAvailableNodeMovePenalty},
@@ -736,14 +743,6 @@ void TSchedulingSegmentManager::DoRebalanceSegments(TUpdateSchedulingSegmentsCon
         removedNodeCountPerSegment,
         context->CurrentResourceAmountPerSegment,
         totalPenalty);
-
-    for (const auto& [nodeWithPenalty, newSegment] : movedNodes) {
-        YT_LOG_DEBUG("Moving node to a new scheduling segment (Address: %v, OldSegment: %v, NewSegment: %v, Penalty: %v)",
-            nodeWithPenalty.Node->Descriptor->Address,
-            nodeWithPenalty.Node->SchedulingSegment,
-            newSegment,
-            nodeWithPenalty.MovePenalty);
-    }
 }
 
 void TSchedulingSegmentManager::GetMovableNodes(
@@ -819,6 +818,72 @@ void TSchedulingSegmentManager::GetMovableNodes(
     };
     sortAndReverseMovableNodes(*movableNodesPerModule);
     sortAndReverseMovableNodes(*aggressivelyMovableNodesPerModule);
+
+    if (Config_->EnableDetailedLogs) {
+        auto collectMovableNodeIndices = [&] (const THashMap<TSchedulingSegmentModule, TNodeWithMovePenaltyList>& nodesPerModule) {
+            THashMap<TNodeId, int> nodeIdToIndex;
+            for (const auto& [module, movableNodes] : nodesPerModule) {
+                for (int reverseIndex = 0; reverseIndex < std::ssize(movableNodes); ++reverseIndex) {
+                    auto nodeId = movableNodes[reverseIndex].Node->Descriptor->Id;
+                    int index = std::ssize(movableNodes) - 1 - reverseIndex;
+                    nodeIdToIndex[nodeId] = index;
+                }
+            }
+
+            return nodeIdToIndex;
+        };
+
+        auto movableNodeIdToIndex = collectMovableNodeIndices(*movableNodesPerModule);
+        auto getNodeMovableIndex = [&] (TNodeId nodeId) {
+            if (auto it = movableNodeIdToIndex.find(nodeId); it != movableNodeIdToIndex.end()) {
+                return it->second;
+            }
+            return -1;
+        };
+
+        auto aggressivelyMovableNodeIdToIndex = collectMovableNodeIndices(*aggressivelyMovableNodesPerModule);
+        auto getNodeAggressivelyMovableIndex = [&] (TNodeId nodeId) {
+            if (auto it = aggressivelyMovableNodeIdToIndex.find(nodeId); it != aggressivelyMovableNodeIdToIndex.end()) {
+                return it->second;
+            }
+            return -1;
+        };
+
+        // For better node log order.
+        using TNodeLogOrderKey = std::tuple<ESchedulingSegment, TSchedulingSegmentModule, int, int>;
+        auto getNodeLogOrderKey = [&] (TNodeId nodeId) {
+            const auto& node = GetOrCrash(context->NodeStates, nodeId);
+            return TNodeLogOrderKey{
+                node.SchedulingSegment,
+                GetNodeModule(node),
+                getNodeAggressivelyMovableIndex(nodeId),
+                getNodeMovableIndex(nodeId),
+            };
+        };
+
+        auto sortedNodeIds = GetKeys(context->NodeStates);
+        SortBy(sortedNodeIds, getNodeLogOrderKey);
+
+        for (auto nodeId : sortedNodeIds) {
+            const auto& node = GetOrCrash(context->NodeStates, nodeId);
+
+            YT_LOG_DEBUG(
+                "Considering node for scheduling segment rebalancing "
+                "(NodeId: %v, Address: %v, Segment: %v, SpecifiedSegment: %v, Module: %v, "
+                "MovePenalty: %v, RunningJobStatistics: %v, LastRunningJobStatisticsUpdateTime: %v, "
+                "MovableNodeIndex: %v, AggressivelyMovableNodeIndex: %v)",
+                nodeId,
+                node.Descriptor->Address,
+                node.SchedulingSegment,
+                node.SpecifiedSchedulingSegment,
+                GetNodeModule(node),
+                GetMovePenaltyForNode(node, Config_->Mode),
+                node.RunningJobStatistics,
+                CpuInstantToInstant(node.LastRunningJobStatisticsUpdateTime.value_or(0)),
+                getNodeMovableIndex(nodeId),
+                getNodeAggressivelyMovableIndex(nodeId));
+        }
+    }
 }
 
 const TSchedulingSegmentModule& TSchedulingSegmentManager::GetNodeModule(const TFairShareTreeJobSchedulerNodeState& node) const

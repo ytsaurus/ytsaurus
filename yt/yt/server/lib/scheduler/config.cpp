@@ -153,6 +153,9 @@ void TFairShareStrategySchedulingSegmentsConfig::Register(TRegistrar registrar)
     registrar.Parameter("allow_only_gang_operations_in_large_segment", &TThis::AllowOnlyGangOperationsInLargeSegment)
         .Default(false);
 
+    registrar.Parameter("enable_detailed_logs", &TThis::EnableDetailedLogs)
+        .Default(false);
+
     registrar.Postprocessor([&] (TFairShareStrategySchedulingSegmentsConfig* config) {
         for (const auto& schedulingSegmentModule : config->DataCenters) {
             ValidateDataCenterName(schedulingSegmentModule);
