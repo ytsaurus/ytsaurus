@@ -219,6 +219,7 @@ message TQueryOptions
     optional string execution_pool = 11;
     optional bool suppress_access_tracking = 12;
     optional uint64 range_expansion_limit = 13;
+    required bool new_range_inference = 15;
 }
 
 message TDataSource

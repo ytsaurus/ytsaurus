@@ -49,6 +49,8 @@ std::pair<TConstExpressionPtr, TConstExpressionPtr> SplitPredicateByColumnSubset
 // Wrapper around CompareRowValues that checks that its arguments are not nan.
 int CompareRowValuesCheckingNan(const NTableClient::TUnversionedValue& lhs, const NTableClient::TUnversionedValue& rhs);
 
+ui64 GetEvaluatedColumnModulo(const TConstExpressionPtr& expr);
+
 template <class TIter>
 TIter MergeOverlappingRanges(TIter begin, TIter end)
 {

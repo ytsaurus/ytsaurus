@@ -265,6 +265,8 @@ TSelectRowsCommandBase<
         .Default();
     this->RegisterParameter("verbose_logging", this->Options.VerboseLogging)
         .Optional();
+    this->RegisterParameter("new_range_inference", this->Options.NewRangeInference)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

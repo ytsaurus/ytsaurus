@@ -5,6 +5,7 @@
 
 #include <yt/yt/library/query/engine_api/coordinator.h>
 #include <yt/yt/library/query/engine_api/range_inferrer.h>
+#include <yt/yt/library/query/engine_api/new_range_inferrer.h>
 
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>
@@ -115,13 +116,25 @@ TRowRanges GetPrunedRanges(
 
     YT_LOG_DEBUG("Inferring ranges from predicate");
 
-    auto rangeInferrer = CreateRangeInferrer(
-        predicate,
-        tableSchema,
-        keyColumns,
-        evaluatorCache,
-        rangeExtractors,
-        options);
+    TRangeInferrer rangeInferrer;
+
+    if (options.NewRangeInference) {
+        rangeInferrer = CreateNewRangeInferrer(
+            predicate,
+            tableSchema,
+            keyColumns,
+            evaluatorCache,
+            GetBuiltinConstraintExtractors(),
+            options);
+    } else {
+        rangeInferrer = CreateRangeInferrer(
+            predicate,
+            tableSchema,
+            keyColumns,
+            evaluatorCache,
+            rangeExtractors,
+            options);
+    }
 
     auto keyRangeFormatter = [] (const TRowRange& range) {
         return Format("[%v .. %v]",

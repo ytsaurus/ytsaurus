@@ -291,7 +291,7 @@ TConstExpressionPtr EliminatePredicate(
                 return MakeAndExpression( // eliminate constants
                     refinePredicate(lhsExpr),
                     refinePredicate(rhsExpr));
-            } if (opcode == EBinaryOp::Or) {
+            } else if (opcode == EBinaryOp::Or) {
                 return MakeOrExpression(
                     refinePredicate(lhsExpr),
                     refinePredicate(rhsExpr));
@@ -396,7 +396,7 @@ TConstExpressionPtr EliminatePredicate(
                 return MakeAndExpression(
                     refinePredicate(lhsExpr),
                     refinePredicate(rhsExpr));
-            } if (opcode == EBinaryOp::Or) {
+            } else if (opcode == EBinaryOp::Or) {
                 return MakeOrExpression(
                     refinePredicate(lhsExpr),
                     refinePredicate(rhsExpr));
@@ -520,7 +520,7 @@ TConstExpressionPtr ExtractPredicateForColumnSubset(
             return MakeAndExpression(
                 ExtractPredicateForColumnSubset(binaryOpExpr->Lhs, tableSchema),
                 ExtractPredicateForColumnSubset(binaryOpExpr->Rhs, tableSchema));
-        } if (opcode == EBinaryOp::Or) {
+        } else if (opcode == EBinaryOp::Or) {
             return MakeOrExpression(
                 ExtractPredicateForColumnSubset(binaryOpExpr->Lhs, tableSchema),
                 ExtractPredicateForColumnSubset(binaryOpExpr->Rhs, tableSchema));
@@ -583,6 +583,32 @@ int CompareRowValuesCheckingNan(const TUnversionedValue& lhs, const TUnversioned
         THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::InvalidDoubleValue, "NaN value is not comparable");
     }
     return CompareRowValues(lhs, rhs);
+}
+
+ui64 GetEvaluatedColumnModulo(const TConstExpressionPtr& expr)
+{
+    ui64 moduloExpansion = 1;
+    auto binaryExpr = expr->As<TBinaryOpExpression>();
+
+    if (binaryExpr && binaryExpr->Opcode == EBinaryOp::Modulo) {
+        if (auto literalExpr = binaryExpr->Rhs->As<TLiteralExpression>()) {
+            TUnversionedValue value = literalExpr->Value;
+            switch (value.Type) {
+                case EValueType::Int64:
+                    moduloExpansion *= value.Data.Int64 * 2;
+                    break;
+
+                case EValueType::Uint64:
+                    moduloExpansion *= value.Data.Uint64 + 1;
+                    break;
+
+                default:
+                    break;
+            }
+        }
+    }
+
+    return moduloExpansion;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

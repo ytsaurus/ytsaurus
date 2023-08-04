@@ -3504,6 +3504,9 @@ private:
         if (request->has_verbose_logging()) {
             options.VerboseLogging = request->verbose_logging();
         }
+        if (request->has_new_range_inference()) {
+            options.NewRangeInference = request->new_range_inference();
+        }
         if (request->has_enable_code_cache()) {
             options.EnableCodeCache = request->enable_code_cache();
         }
@@ -3631,6 +3634,10 @@ private:
         TExplainQueryOptions options;
         SetTimeoutOptions(&options, context.Get());
         FillSelectRowsOptionsBaseFromRequest(request, &options);
+
+        if (request->has_new_range_inference()) {
+            options.NewRangeInference = request->new_range_inference();
+        }
 
         context->SetRequestInfo("Query: %v, Timestamp: %v",
             query,

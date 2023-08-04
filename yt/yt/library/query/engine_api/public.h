@@ -20,11 +20,15 @@ using TConstAggregateProfilerMapPtr = TIntrusivePtr<const TAggregateProfilerMap>
 DECLARE_REFCOUNTED_STRUCT(TRangeExtractorMap)
 using TConstRangeExtractorMapPtr = TIntrusivePtr<const TRangeExtractorMap>;
 
+DECLARE_REFCOUNTED_STRUCT(TConstraintExtractorMap)
+using TConstConstraintExtractorMapPtr = TIntrusivePtr<const TConstraintExtractorMap>;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 const TConstFunctionProfilerMapPtr GetBuiltinFunctionProfilers();
 const TConstAggregateProfilerMapPtr GetBuiltinAggregateProfilers();
 const TConstRangeExtractorMapPtr GetBuiltinRangeExtractors();
+const TConstConstraintExtractorMapPtr GetBuiltinConstraintExtractors();
 
 ////////////////////////////////////////////////////////////////////////////////
 

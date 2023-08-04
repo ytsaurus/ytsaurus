@@ -578,6 +578,7 @@ message TReqSelectRows
     optional string execution_pool = 15;
     optional EReplicaConsistency replica_consistency = 17;
     optional bytes placeholder_values = 18; // YSON
+    optional bool new_range_inference = 19;
 
     optional TSuppressableAccessTrackingOptions suppressable_access_tracking_options = 104;
 }
@@ -703,6 +704,7 @@ message TReqExplainQuery
     optional bool allow_join_without_index = 9;
     optional string udf_registry_path = 10;
     optional string execution_pool = 11;
+    optional bool new_range_inference = 12;
 }
 
 message TRspExplainQuery
