@@ -173,36 +173,56 @@ class TestRpcProxyStructuredLogging(YTEnvSetup):
 
     @authors("max42")
     def test_logging_dynamic_config(self):
-        query = "* from [//path/to/table]"
+        def method_path_list(from_barrier=None, to_barrier=None) -> list[tuple[str | None, str | None]]:
+            return [
+                (line.get("method", None), line.get("path", None))
+                for line in read_structured_log(self.rpc_proxy_log_file, from_barrier=from_barrier, to_barrier=to_barrier)
+            ]
+
+        path_for_get = "//tmp/path_for_get"
+        path_for_list = "//tmp/path_for_list"
+        create("map_node", path_for_get)
+        create("map_node", path_for_list)
 
         set("//sys/rpc_proxies/@config", {})
         time.sleep(0.5)
 
         b1 = self._write_log_barrier()
 
-        with raises_yt_error(yt_error_codes.ResolveErrorCode):
-            select_rows(query)
+        get(path_for_get)
+        ls(path_for_list)
 
         b2 = self._write_log_barrier()
+        assert ("GetNode", path_for_get) in method_path_list(b1, b2)
+        assert ("ListNode", path_for_list) in method_path_list(b1, b2)
 
         set("//sys/rpc_proxies/@config", {
-            "api": {"structured_logging_main_topic": {"suppressed_methods": ["SelectRows"]}},
+            "api": {"structured_logging_main_topic": {"suppressed_methods": ["GetNode"]}},
         })
         time.sleep(0.5)
 
-        with raises_yt_error(yt_error_codes.ResolveErrorCode):
-            select_rows(query)
+        get(path_for_get)
+        ls(path_for_list)
 
         b3 = self._write_log_barrier()
+        assert ("GetNode", path_for_get) not in method_path_list(b2, b3)
+        assert ("ListNode", path_for_list) in method_path_list(b2, b3)
 
-        def contains_entry(needle, from_barrier=None, to_barrier=None):
-            for line in read_structured_log(self.rpc_proxy_log_file, from_barrier=from_barrier, to_barrier=to_barrier):
-                if needle in line.get("request", {}).get("query", ""):
-                    return True
-            return False
+        set("//sys/rpc_proxies/@config", {
+            "api": {
+                "structured_logging_main_topic": {
+                    "methods": {"ListNode": {"enable": False}}
+                }
+            },
+        })
+        time.sleep(0.5)
 
-        assert contains_entry(query, from_barrier=b1, to_barrier=b2)
-        assert not contains_entry(query, from_barrier=b2, to_barrier=b3)
+        get(path_for_get)
+        ls(path_for_list)
+
+        b4 = self._write_log_barrier()
+        assert ("GetNode", path_for_get) in method_path_list(b3, b4)
+        assert ("ListNode", path_for_list) not in method_path_list(b3, b4)
 
     @authors("dgolear")
     def test_user_tag_pass(self):
@@ -266,6 +286,57 @@ class TestRpcProxyStructuredLogging(YTEnvSetup):
 
         assert get_select_entry(from_barrier=b1, to_barrier=b2)["request"]["query"] == query
         assert get_select_entry(from_barrier=b2, to_barrier=b3)["request"] == yson.YsonEntity()
+
+    @authors("ermolovd")
+    def test_per_request_max_request_byte_size(self):
+        def search_log_by_path(path, from_barrier=None, to_barrier=None):
+            for line in read_structured_log(self.rpc_proxy_log_file, from_barrier=from_barrier, to_barrier=to_barrier):
+                if line.get("path", None) == path:
+                    return line
+            return None
+
+        path_for_get = "//tmp/path_for_get"
+        path_for_list = "//tmp/path_for_list"
+
+        create("map_node", path_for_get)
+        create("map_node", path_for_list)
+
+        set("//sys/rpc_proxies/@config", {})
+        time.sleep(0.5)
+
+        b1 = self._write_log_barrier()
+
+        set("//sys/rpc_proxies/@config", {
+            "api": {},
+        })
+        time.sleep(0.5)
+
+        ls(path_for_get)
+        get(path_for_list)
+
+        b2 = self._write_log_barrier()
+        assert search_log_by_path(path_for_get, from_barrier=b1, to_barrier=b2)["request"]["path"] == path_for_get
+        assert search_log_by_path(path_for_list, from_barrier=b1, to_barrier=b2)["request"]["path"] == path_for_list
+
+        set("//sys/rpc_proxies/@config", {
+            "api": {
+                "structured_logging_main_topic": {
+                    "methods": {
+                        "ListNode": {
+                            "max_request_byte_size": 0,
+                        }
+                    },
+                }
+            },
+        })
+        time.sleep(0.5)
+
+        get(path_for_get)
+        ls(path_for_list)
+
+        b3 = self._write_log_barrier()
+        assert search_log_by_path(path_for_get, from_barrier=b2, to_barrier=b3)["request"]["path"] == path_for_get
+        assert search_log_by_path(path_for_list, from_barrier=b2, to_barrier=b3)["request"] == yson.YsonEntity()
 
     @authors("ermolovd")
     def test_query_truncation(self):
