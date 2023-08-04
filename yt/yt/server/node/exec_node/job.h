@@ -1,6 +1,5 @@
 #pragma once
 
-#include "job.h"
 #include "chunk_cache.h"
 #include "controller_agent_connector.h"
 #include "gpu_manager.h"
@@ -376,8 +375,6 @@ private:
 
     void SetJobPhase(EJobPhase phase);
 
-    void SetJobStatePhase(EJobState state, EJobPhase phase);
-
     void ValidateJobRunning() const;
 
     void StartUserJobMonitoring();
@@ -427,10 +424,10 @@ private:
 
     void OnJobProxyFinished(const TError& error);
 
-    template <class TCallback>
-    void GuardedAction(const TCallback& action);
+    template <class TSourceTag, class TCallback>
+    void GuardedAction(const TSourceTag& sourceTag, const TCallback& action);
 
-    void FinishPrepare(const TErrorOr<TJobWorkspaceBuildResult>& resultOrError);
+    void OnWorkspacePreparationFinished(const TErrorOr<TJobWorkspaceBuildingResult>& resultOrError);
 
     // Stop job proxy and porto containers.
     TFuture<void> StopJobProxy();

@@ -24,7 +24,7 @@
 
 namespace NYT::NExecNode {
 
-static NLogging::TLogger Logger("SlotLogger");
+static NLogging::TLogger SlotLogger("Slot");
 
 using namespace NBus;
 using namespace NConcurrency;
@@ -32,6 +32,13 @@ using namespace NContainers;
 using namespace NDataNode;
 using namespace NTools;
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+template<typename F>
+concept CCallableReturningFuture = requires(F f) {
+    { f() } -> CFuture;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,6 +66,7 @@ public:
         , NodeTag_(nodeTag)
         , JobProxyUnixDomainSocketPath_(GetJobProxyUnixDomainSocketPath())
         , NumaNodeAffinity_(numaNodeAffinity)
+        , Logger(SlotLogger.WithTag("SlotIndex: %v", SlotIndex_))
     {
         Location_->IncreaseSessionCount();
         if (diskRequest.disk_space() > 0) {
@@ -101,7 +109,7 @@ public:
         TJobId jobId,
         TOperationId operationId) override
     {
-        return RunPrepareAction<void>([&] {
+        return RunPreparationAction([&] {
             if (auto delay = config->JobTestingOptions->DelayBeforeRunJobProxy) {
                 YT_LOG_DEBUG("Testing delay before run job proxy");
                 TDelayedExecutor::WaitForDuration(*delay);
@@ -132,6 +140,7 @@ public:
 
             return result;
         },
+        /*actionName*/ "RunJobProxy",
         // Job proxy preparation is uncancelable, otherwise we might try to kill
         // a never-started job proxy process.
         true);
@@ -145,7 +154,7 @@ public:
         const TString& linkName,
         bool executable) override
     {
-        return RunPrepareAction<void>([&] {
+        return RunPreparationAction([&] {
                 return Location_->MakeSandboxLink(
                     jobId,
                     SlotIndex_,
@@ -154,7 +163,8 @@ public:
                     targetPath,
                     linkName,
                     executable);
-            });
+            },
+            /*actionName*/ "MakeLink");
     }
 
     TFuture<void> MakeCopy(
@@ -165,7 +175,7 @@ public:
         const TFile& destinationFile,
         const NDataNode::TChunkLocationPtr& sourceLocation) override
     {
-        return RunPrepareAction<void>([&] {
+        return RunPreparationAction([&] {
                 return Location_->MakeSandboxCopy(
                     jobId,
                     SlotIndex_,
@@ -174,7 +184,8 @@ public:
                     sourcePath,
                     destinationFile,
                     sourceLocation);
-            });
+            },
+            /*actionName*/ "MakeCopy");
     }
 
     TFuture<void> MakeFile(
@@ -184,7 +195,7 @@ public:
         const std::function<void(IOutputStream*)>& producer,
         const TFile& destinationFile) override
     {
-        return RunPrepareAction<void>([&] {
+        return RunPreparationAction([&] {
                 return Location_->MakeSandboxFile(
                     jobId,
                     SlotIndex_,
@@ -192,7 +203,8 @@ public:
                     sandboxKind,
                     producer,
                     destinationFile);
-            });
+            },
+            /*actionName*/ "MakeFile");
     }
 
     bool IsLayerCached(const TArtifactKey& artifactKey) const override
@@ -208,9 +220,10 @@ public:
         if (!VolumeManager_) {
             return MakeFuture<IVolumePtr>(TError("Porto layers and custom root FS are not supported"));
         }
-        return RunPrepareAction<IVolumePtr>([&] {
+        return RunPreparationAction([&] {
                 return VolumeManager_->PrepareVolume(layers, downloadOptions, options);
-            });
+            },
+            /*actionName*/ "PrepareRootVolume");
     }
 
     int GetSlotIndex() const override
@@ -251,11 +264,12 @@ public:
     TFuture<std::vector<TString>> PrepareSandboxDirectories(
         const TUserSandboxOptions& options) override
     {
-        return RunPrepareAction<std::vector<TString>>([&] {
+        return RunPreparationAction([&] {
                 return Location_->PrepareSandboxDirectories(
                     SlotIndex_,
                     options);
             },
+            /*actionName*/ "PrepareSandboxDirectories",
             // Includes quota setting and tmpfs creation.
             true);
     }
@@ -268,7 +282,7 @@ public:
         const std::optional<std::vector<TDevice>>& devices,
         int startIndex) override
     {
-        return RunPrepareAction<void>([&] {
+        return RunPreparationAction([&] {
                 return JobEnvironment_->RunSetupCommands(
                     SlotIndex_,
                     SlotGuard_->GetSlotType(),
@@ -279,6 +293,7 @@ public:
                     devices,
                     startIndex);
             },
+            /*actionName*/ "RunSetupCommands",
             // Setup commands are uncancelable since they are run in separate processes.
             true);
     }
@@ -301,17 +316,22 @@ public:
 
     TJobWorkspaceBuilderPtr CreateJobWorkspaceBuilder(
         IInvokerPtr invoker,
-        TJobWorkspaceBuildSettings settings) override
+        TJobWorkspaceBuildingContext context) override
     {
         return JobEnvironment_->CreateJobWorkspaceBuilder(
             invoker,
-            settings,
+            std::move(context),
             Location_->GetJobDirectoryManager());
     }
 
     int GetUserId() const override
     {
         return JobEnvironment_->GetUserId(SlotIndex_);
+    }
+
+    void SetAllocationId(TAllocationId allocationId) override
+    {
+        Logger.AddTag("AllocationId: %v", allocationId);
     }
 
 private:
@@ -337,13 +357,22 @@ private:
 
     TFuture<void> CleanProcessesFuture_;
 
-    template <class T>
-    TFuture<T> RunPrepareAction(std::function<TFuture<T>()> action, bool uncancelable = false)
+    NLogging::TLogger Logger;
+
+    template <CCallableReturningFuture TCallback, class TName>
+    auto RunPreparationAction(const TCallback& action, const TName& actionName, bool uncancelable = false) -> decltype(action())
     {
+        using TTypedFuture = decltype(action());
+        using TUnderlyingReturnType = typename TFutureTraits<TTypedFuture>::TUnderlying;
+
         if (PreparationCanceled_) {
-            return MakeFuture<T>(TError("Job preparation canceled")
+            YT_LOG_DEBUG("Skip preparation action since preparation is canceled (ActionName: %v", actionName);
+
+            return MakeFuture<TUnderlyingReturnType>(TError("Job preparation canceled")
                 << TErrorAttribute("slot_index", SlotIndex_));
         } else {
+            YT_LOG_DEBUG("Running preparation action (ActionName: %v", actionName);
+
             auto future = action();
             auto preparationFuture = future.template As<void>();
             PreparationFutures_.push_back(uncancelable
