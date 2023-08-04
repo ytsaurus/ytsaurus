@@ -189,12 +189,12 @@ class TestExplainQuery(YTEnvSetup):
         response = explain_query("* from [//tmp/t] where a IN (1, 2, 10) AND b BETWEEN (1 and 9)")
 
         expected_ranges = [
-            ["[0#1, 1#1]", "[0#1, 1#9, 0#<Max>]"],
-            ["[0#2, 1#1]", "[0#2, 1#9, 0#<Max>]"],
-            ["[0#10, 1#1]", "[0#10, 1#9, 0#<Max>]"],
+            ["[1, 1]", "[1, 9, <Max>]"],
+            ["[2, 1]", "[2, 9, <Max>]"],
+            ["[10, 1]", "[10, 9, <Max>]"],
         ]
         expected_key_trie = (
-            "(key0, {  })\n0#1:\n  (key1, { [0#1:0#9] })\n0#2:\n  (key1, { [0#1:0#9] })\n0#10:\n  (key1, { [0#1:0#9] })"
+            "(key0, {  })\n1:\n  (key1, { [1:9] })\n2:\n  (key1, { [1:9] })\n10:\n  (key1, { [1:9] })"
         )
 
         assert response["query"]["ranges"] == expected_ranges
@@ -222,9 +222,9 @@ class TestExplainQuery(YTEnvSetup):
 
         expected_ranges = [
             [
-                ["[0#1, 1#1]", "[0#1, 1#9, 0#<Max>]"],
-                ["[0#2, 1#1]", "[0#2, 1#9, 0#<Max>]"],
-                ["[0#10, 1#1]", "[0#10, 1#9, 0#<Max>]"],
+                ["[1, 1]", "[1, 9, <Max>]"],
+                ["[2, 1]", "[2, 9, <Max>]"],
+                ["[10, 1]", "[10, 9, <Max>]"],
             ]
         ]
 

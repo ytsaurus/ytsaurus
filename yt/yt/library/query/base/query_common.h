@@ -100,6 +100,9 @@ bool IsLogicalBinaryOp(EBinaryOp opcode);
 //! Classifies binary opcode according to classification above.
 bool IsRelationalBinaryOp(EBinaryOp opcode);
 
+//! Cast numeric values.
+TValue CastValueWithCheck(TValue value, EValueType targetType);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO(lukyan): Use opaque data descriptor instead of ObjectId, CellId and MountRevision.

@@ -116,6 +116,60 @@ bool IsRelationalBinaryOp(EBinaryOp opcode)
     }
 }
 
+TValue CastValueWithCheck(TValue value, EValueType targetType)
+{
+    if (value.Type == targetType || value.Type == EValueType::Null) {
+        return value;
+    }
+
+    if (value.Type == EValueType::Int64) {
+        if (targetType == EValueType::Double) {
+            auto int64Value = value.Data.Int64;
+            if (i64(double(int64Value)) != int64Value) {
+                THROW_ERROR_EXCEPTION("Failed to cast %v to double: inaccurate conversion", int64Value);
+            }
+            value.Data.Double = int64Value;
+        } else {
+            YT_VERIFY(targetType == EValueType::Uint64);
+        }
+    } else if (value.Type == EValueType::Uint64) {
+        if (targetType == EValueType::Int64) {
+            if (value.Data.Uint64 > std::numeric_limits<i64>::max()) {
+                THROW_ERROR_EXCEPTION(
+                    "Failed to cast %vu to int64: value is greater than maximum", value.Data.Uint64);
+            }
+        } else if (targetType == EValueType::Double) {
+            auto uint64Value = value.Data.Uint64;
+            if (ui64(double(uint64Value)) != uint64Value) {
+                THROW_ERROR_EXCEPTION("Failed to cast %vu to double: inaccurate conversion", uint64Value);
+            }
+            value.Data.Double = uint64Value;
+        } else {
+            YT_ABORT();
+        }
+    } else if (value.Type == EValueType::Double) {
+        auto doubleValue = value.Data.Double;
+        if (targetType == EValueType::Uint64) {
+            if (double(ui64(doubleValue)) != doubleValue) {
+                THROW_ERROR_EXCEPTION("Failed to cast %v to uint64: inaccurate conversion", doubleValue);
+            }
+            value.Data.Uint64 = doubleValue;
+        } else if (targetType == EValueType::Int64) {
+            if (double(i64(doubleValue)) != doubleValue) {
+                THROW_ERROR_EXCEPTION("Failed to cast %v to int64: inaccurate conversion", doubleValue);
+            }
+            value.Data.Int64 = doubleValue;
+        } else {
+            YT_ABORT();
+        }
+    } else {
+        YT_ABORT();
+    }
+
+    value.Type = targetType;
+    return value;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueryClient
