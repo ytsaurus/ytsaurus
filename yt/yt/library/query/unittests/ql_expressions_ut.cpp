@@ -15,6 +15,8 @@
 #include <yt/yt/library/query/engine/folding_profiler.h>
 #include <yt/yt/library/query/engine/functions_cg.h>
 
+#include <yt/yt/core/test_framework/fixed_growth_string_output.h>
+
 #include <library/cpp/resource/resource.h>
 
 // Tests:
@@ -1009,6 +1011,28 @@ TEST_F(TExpressionTest, FunctionNullArgument)
     }
 }
 
+TUnversionedValue YsonToUnversionedValue(TStringBuf str)
+{
+    NYson::TTokenizer tokenizer(str);
+    const auto& token = SkipAttributes(&tokenizer);
+    switch (token.GetType()) {
+        case NYson::ETokenType::Int64:
+            return MakeUnversionedInt64Value(token.GetInt64Value());
+        case NYson::ETokenType::Uint64:
+            return MakeUnversionedUint64Value(token.GetUint64Value());
+        case NYson::ETokenType::Double:
+            return MakeUnversionedDoubleValue(token.GetDoubleValue());
+        case NYson::ETokenType::Boolean:
+            return MakeUnversionedBooleanValue(token.GetBooleanValue());
+        case NYson::ETokenType::String:
+            return MakeUnversionedStringValue(token.GetStringValue());
+        case NYson::ETokenType::Hash:
+            return MakeUnversionedNullValue();
+        default:
+            YT_ABORT();
+    }
+}
+
 TEST_P(TExpressionTest, Evaluate)
 {
     auto& param = GetParam();
@@ -1018,12 +1042,18 @@ TEST_P(TExpressionTest, Evaluate)
     auto rhs = std::get<3>(param);
     auto& expected = std::get<4>(param);
 
+    auto lhsValue = YsonToUnversionedValue(lhs);
+    auto rhsValue = YsonToUnversionedValue(rhs);
+
+    auto lhsType = lhsValue.Type != EValueType::Null ? lhsValue.Type : type;
+    auto rhsType = rhsValue.Type != EValueType::Null ? rhsValue.Type : type;
+
     TUnversionedValue result{};
     TCGVariables variables;
 
     auto columns = GetSampleTableSchema()->Columns();
-    columns[0].SetLogicalType(OptionalLogicalType(SimpleLogicalType(GetLogicalType(type))));
-    columns[1].SetLogicalType(OptionalLogicalType(SimpleLogicalType(GetLogicalType(type))));
+    columns[0].SetLogicalType(OptionalLogicalType(SimpleLogicalType(GetLogicalType(lhsType))));
+    columns[1].SetLogicalType(OptionalLogicalType(SimpleLogicalType(GetLogicalType(rhsType))));
     auto schema = New<TTableSchema>(std::move(columns));
 
     auto expr = PrepareExpression(TString("k") + " " + op + " " + "l", *schema);
@@ -1049,12 +1079,18 @@ TEST_P(TExpressionTest, EvaluateLhsValueRhsLiteral)
     auto rhs = std::get<3>(param);
     auto& expected = std::get<4>(param);
 
+    auto lhsValue = YsonToUnversionedValue(lhs);
+    auto rhsValue = YsonToUnversionedValue(rhs);
+
+    auto lhsType = lhsValue.Type != EValueType::Null ? lhsValue.Type : type;
+    auto rhsType = rhsValue.Type != EValueType::Null ? rhsValue.Type : type;
+
     TUnversionedValue result{};
     TCGVariables variables;
 
     auto columns = GetSampleTableSchema()->Columns();
-    columns[0].SetLogicalType(OptionalLogicalType(SimpleLogicalType(GetLogicalType(type))));
-    columns[1].SetLogicalType(OptionalLogicalType(SimpleLogicalType(GetLogicalType(type))));
+    columns[0].SetLogicalType(OptionalLogicalType(SimpleLogicalType(GetLogicalType(lhsType))));
+    columns[1].SetLogicalType(OptionalLogicalType(SimpleLogicalType(GetLogicalType(rhsType))));
     auto schema = New<TTableSchema>(std::move(columns));
 
     auto expr = PrepareExpression(TString("k") + " " + op + " " + rhs, *schema);
@@ -1080,12 +1116,18 @@ TEST_P(TExpressionTest, EvaluateLhsLiteralRhsValue)
     auto rhs = std::get<3>(param);
     auto& expected = std::get<4>(param);
 
+    auto lhsValue = YsonToUnversionedValue(lhs);
+    auto rhsValue = YsonToUnversionedValue(rhs);
+
+    auto lhsType = lhsValue.Type != EValueType::Null ? lhsValue.Type : type;
+    auto rhsType = rhsValue.Type != EValueType::Null ? rhsValue.Type : type;
+
     TUnversionedValue result{};
     TCGVariables variables;
 
     auto columns = GetSampleTableSchema()->Columns();
-    columns[0].SetLogicalType(OptionalLogicalType(SimpleLogicalType(GetLogicalType(type))));
-    columns[1].SetLogicalType(OptionalLogicalType(SimpleLogicalType(GetLogicalType(type))));
+    columns[0].SetLogicalType(OptionalLogicalType(SimpleLogicalType(GetLogicalType(lhsType))));
+    columns[1].SetLogicalType(OptionalLogicalType(SimpleLogicalType(GetLogicalType(rhsType))));
     auto schema = New<TTableSchema>(std::move(columns));
 
     auto expr = PrepareExpression(TString(lhs) + " " + op + " " + "l", *schema);
@@ -1101,42 +1143,6 @@ TEST_P(TExpressionTest, EvaluateLhsLiteralRhsValue)
     EXPECT_EQ(result, expected)
         << "row: " << ::testing::PrintToString(row);
 }
-
-INSTANTIATE_TEST_SUITE_P(
-    TArithmeticTest,
-    TExpressionTest,
-    ::testing::Values(
-        TArithmeticTestParam(EValueType::Int64, "1", "+", "2", MakeInt64(3)),
-        TArithmeticTestParam(EValueType::Int64, "1", "-", "2", MakeInt64(-1)),
-        TArithmeticTestParam(EValueType::Int64, "3", "*", "2", MakeInt64(6)),
-        TArithmeticTestParam(EValueType::Int64, "6", "/", "2", MakeInt64(3)),
-        TArithmeticTestParam(EValueType::Int64, "6", "%", "4", MakeInt64(2)),
-        TArithmeticTestParam(EValueType::Int64, "6", "<<", "2", MakeInt64(24)),
-        TArithmeticTestParam(EValueType::Int64, "6", ">>", "1", MakeInt64(3)),
-        TArithmeticTestParam(EValueType::Int64, "1234567", "|", "1111111", MakeInt64(1242823)),
-        TArithmeticTestParam(EValueType::Int64, "1234567", "&", "1111111", MakeInt64(1102855)),
-        TArithmeticTestParam(EValueType::Int64, "6", ">", "4", MakeBoolean(true)),
-        TArithmeticTestParam(EValueType::Int64, "6", "<", "4", MakeBoolean(false)),
-        TArithmeticTestParam(EValueType::Int64, "6", ">=", "4", MakeBoolean(true)),
-        TArithmeticTestParam(EValueType::Int64, "6", "<=", "4", MakeBoolean(false)),
-        TArithmeticTestParam(EValueType::Int64, "6", ">=", "6", MakeBoolean(true)),
-        TArithmeticTestParam(EValueType::Int64, "6", "<=", "6", MakeBoolean(true)),
-        TArithmeticTestParam(EValueType::Uint64, "1u", "+", "2u", MakeUint64(3)),
-        TArithmeticTestParam(EValueType::Uint64, "1u", "-", "2u", MakeUint64(-1)),
-        TArithmeticTestParam(EValueType::Uint64, "3u", "*", "2u", MakeUint64(6)),
-        TArithmeticTestParam(EValueType::Uint64, "6u", "/", "2u", MakeUint64(3)),
-        TArithmeticTestParam(EValueType::Uint64, "6u", "%", "4u", MakeUint64(2)),
-        TArithmeticTestParam(EValueType::Uint64, "6u", "<<", "2u", MakeUint64(24)),
-        TArithmeticTestParam(EValueType::Uint64, "6u", ">>", "1u", MakeUint64(3)),
-        TArithmeticTestParam(EValueType::Uint64, "1234567u", "|", "1111111u", MakeUint64(1242823)),
-        TArithmeticTestParam(EValueType::Uint64, "1234567u", "&", "1111111u", MakeUint64(1102855)),
-        TArithmeticTestParam(EValueType::Uint64, "6u", ">", "4u", MakeBoolean(true)),
-        TArithmeticTestParam(EValueType::Uint64, "6u", "<", "4u", MakeBoolean(false)),
-        TArithmeticTestParam(EValueType::Uint64, "6u", ">=", "4u", MakeBoolean(true)),
-        TArithmeticTestParam(EValueType::Uint64, "6u", "<=", "4u", MakeBoolean(false)),
-        TArithmeticTestParam(EValueType::Uint64, "6u", ">=", "6u", MakeBoolean(true)),
-        TArithmeticTestParam(EValueType::Uint64, "6u", "<=", "6u", MakeBoolean(true))
-));
 
 INSTANTIATE_TEST_SUITE_P(
     TArithmeticNullTest,
@@ -1169,6 +1175,346 @@ INSTANTIATE_TEST_SUITE_P(
 
         TArithmeticTestParam(EValueType::Int64, "1", "+", "#", MakeNull())
 ));
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TArithmeticExpressionTest
+    : public ::testing::Test
+    , public TCompareExpressionTest
+{
+protected:
+    void SetUp() override
+    { }
+};
+
+TString UnversionedValueToString(TUnversionedValue value)
+{
+    TString result;
+    TFixedGrowthStringOutput outStream(&result, 300);
+    NYson::TUncheckedYsonTokenWriter writer(&outStream);
+
+    switch (value.Type) {
+        case EValueType::Int64:
+            writer.WriteTextInt64(value.Data.Int64);
+            break;
+        case EValueType::Uint64:
+            writer.WriteTextUint64(value.Data.Uint64);
+            break;
+        case EValueType::Double:
+            writer.WriteTextDouble(value.Data.Double);
+            break;
+        case EValueType::Boolean:
+            writer.WriteTextBoolean(value.Data.Boolean);
+            break;
+        case EValueType::String:
+            writer.WriteTextString(value.AsStringBuf());
+            break;
+        case EValueType::Null:
+            writer.WriteEntity();
+            break;
+        default:
+            YT_ABORT();
+    }
+
+    return result;
+}
+
+TRange<TUnversionedValue> GetValuesForType(EValueType type)
+{
+    if (type == EValueType::Int64) {
+        static auto result = {
+            MakeInt64(0),
+            MakeInt64(1),
+            MakeInt64(2),
+            MakeInt64(13),
+            MakeInt64(-1),
+            MakeInt64(-2),
+            MakeInt64(-10),
+            MakeInt64(std::numeric_limits<i64>::min()),
+            MakeInt64(std::numeric_limits<i64>::max()),
+            MakeInt64(std::numeric_limits<i64>::min() + 10),
+            MakeInt64(std::numeric_limits<i64>::max() - 10)
+            };
+        return result;
+    } else if (type == EValueType::Uint64) {
+        static auto result = {
+            MakeUint64(0),
+            MakeUint64(1),
+            MakeUint64(2),
+            MakeUint64(13),
+            MakeUint64(std::numeric_limits<ui64>::max()),
+            MakeUint64(std::numeric_limits<ui64>::max() - 1),
+            MakeUint64(std::numeric_limits<ui64>::max() - 10)
+            };
+        return result;
+    } else if (type == EValueType::Double) {
+        static auto result = {MakeDouble(0), MakeDouble(1), MakeDouble(0.00000234)};
+        return result;
+    }
+
+    YT_ABORT();
+}
+
+
+template <class T>
+T CastNumericValueTo(TUnversionedValue value)
+{
+    if (value.Type == EValueType::Int64) {
+        return value.Data.Int64;
+    } else if (value.Type == EValueType::Uint64) {
+        return value.Data.Uint64;
+    } else if (value.Type == EValueType::Double) {
+        return value.Data.Double;
+    }
+
+    YT_ABORT();
+}
+
+TUnversionedValue CastNumericValue(TUnversionedValue value, EValueType type)
+{
+    if (type == EValueType::Int64) {
+        return MakeInt64(CastNumericValueTo<i64>(value));
+    } else if (type == EValueType::Uint64) {
+        return MakeUint64(CastNumericValueTo<ui64>(value));
+    } else if (type == EValueType::Double) {
+        return MakeDouble(CastNumericValueTo<double>(value));
+    }
+
+    YT_ABORT();
+}
+
+
+bool IsExceptionCase(EBinaryOp op, EValueType castedType, TUnversionedValue lhs, TUnversionedValue rhs)
+{
+    // Cast is not revertible.
+    if (CastNumericValue(CastNumericValue(lhs, castedType), lhs.Type) != lhs) {
+        return true;
+    }
+
+    if (CastNumericValue(CastNumericValue(rhs, castedType), rhs.Type) != rhs) {
+        return true;
+    }
+
+    if (!IsIntegralType(castedType)) {
+        return false;
+    }
+
+    if (castedType < lhs.Type || castedType < rhs.Type) {
+        return true;
+    }
+
+    if (op != EBinaryOp::Divide && op != EBinaryOp::Modulo) {
+        return false;
+    }
+
+    return rhs == MakeInt64(0) || rhs == MakeUint64(0) || (lhs == MakeInt64(std::numeric_limits<i64>::min()) && rhs == MakeInt64(-1));
+}
+
+
+EValueType GetCastedType(EValueType lhsType, EValueType rhsType, bool lhsLiteral, bool rhsLiteral)
+{
+    if (lhsType == rhsType) {
+        return lhsType;
+    }
+
+    // Non literals must have equal types. If types are different than one of values must be literal.
+    YT_VERIFY(lhsLiteral || rhsLiteral);
+
+    if (!lhsLiteral) {
+        return lhsType;
+    }
+
+    if (!rhsLiteral) {
+        return rhsType;
+    }
+
+    return std::max(lhsType, rhsType);
+}
+
+template <class T>
+T(*GetArithmeticOpFunction(EBinaryOp op))(T, T)
+{
+    if (op == EBinaryOp::Plus) {
+        return [] (T a, T b) {return a + b;};
+    } else if (op == EBinaryOp::Minus) {
+        return [] (T a, T b) {return a - b;};
+    } else if (op == EBinaryOp::Multiply) {
+        return [] (T a, T b) {return a * b;};
+    } else if (op == EBinaryOp::Divide) {
+        return [] (T a, T b) {return a / b;};
+    }
+    YT_ABORT();
+}
+
+template <class T>
+T(*GetIntegralOpFunction(EBinaryOp op))(T, T)
+{
+    if (op == EBinaryOp::Modulo) {
+        return [] (T a, T b) {return a % b;};
+    } else if (op == EBinaryOp::LeftShift) {
+        return [] (T a, T b) {return a << b;};
+    } else if (op == EBinaryOp::RightShift) {
+        return [] (T a, T b) {return a >> b;};
+    } else if (op == EBinaryOp::BitOr) {
+        return [] (T a, T b) {return a | b;};
+    } else if (op == EBinaryOp::BitAnd) {
+        return [] (T a, T b) {return a & b;};
+    }
+
+    return GetArithmeticOpFunction<T>(op);
+}
+
+template <class T>
+bool(*GetRelationOpFunction(EBinaryOp op))(T, T)
+{
+    if (op == EBinaryOp::Equal) {
+        return [] (T a, T b) {return a == b;};
+    } else if (op == EBinaryOp::NotEqual) {
+        return [] (T a, T b) {return a != b;};
+    } else if (op == EBinaryOp::Less) {
+        return [] (T a, T b) {return a < b;};
+    } else if (op == EBinaryOp::LessOrEqual) {
+        return [] (T a, T b) {return a <= b;};
+    } else if (op == EBinaryOp::Greater) {
+        return [] (T a, T b) {return a > b;};
+    } else if (op == EBinaryOp::GreaterOrEqual) {
+        return [] (T a, T b) {return a >= b;};
+    }
+
+    YT_ABORT();
+}
+
+TUnversionedValue GetExpectedArithmeticResult(EBinaryOp op, EValueType castedType, TUnversionedValue lhs, TUnversionedValue rhs)
+{
+    lhs = CastValueWithCheck(lhs, castedType);
+    rhs = CastValueWithCheck(rhs, castedType);
+
+    if (castedType == EValueType::Int64) {
+        return MakeInt64(GetIntegralOpFunction<i64>(op)(lhs.Data.Int64, rhs.Data.Int64));
+    } else if (castedType == EValueType::Uint64) {
+        return MakeUint64(GetIntegralOpFunction<ui64>(op)(lhs.Data.Uint64, rhs.Data.Uint64));
+    } else if (castedType == EValueType::Double) {
+        return MakeDouble(GetArithmeticOpFunction<double>(op)(lhs.Data.Double, rhs.Data.Double));
+    }
+
+    YT_ABORT();
+}
+
+TUnversionedValue GetExpectedRelationResult(EBinaryOp op, EValueType castedType, TUnversionedValue lhs, TUnversionedValue rhs)
+{
+    lhs = CastValueWithCheck(lhs, castedType);
+    rhs = CastValueWithCheck(rhs, castedType);
+
+    if (castedType == EValueType::Int64) {
+        return MakeBoolean(GetRelationOpFunction<i64>(op)(lhs.Data.Int64, rhs.Data.Int64));
+    } else if (castedType == EValueType::Uint64) {
+        return MakeBoolean(GetRelationOpFunction<ui64>(op)(lhs.Data.Uint64, rhs.Data.Uint64));
+    } else if (castedType == EValueType::Double) {
+        return MakeBoolean(GetRelationOpFunction<double>(op)(lhs.Data.Double, rhs.Data.Double));
+    }
+
+    YT_ABORT();
+}
+
+TEST_F(TArithmeticExpressionTest, Test)
+{
+    EValueType types[] = {EValueType::Int64, EValueType::Uint64, EValueType::Double};
+
+    auto emptySchema = New<TTableSchema>();
+
+    THashMap<llvm::FoldingSetNodeID, TCGExpressionCallback> compiledQueriesCache;
+    auto getCallback = [&] (TConstExpressionPtr expr, TTableSchemaPtr schema, TCGVariables* variables) {
+        llvm::FoldingSetNodeID id;
+        auto comipleExpressionCallback = Profile(expr, schema, &id, variables);
+
+        auto [it, inserted] = compiledQueriesCache.emplace(id, TCGExpressionCallback{});
+        if (inserted) {
+            it->second = comipleExpressionCallback();
+        }
+        return it->second;
+    };
+
+    for (auto op : TEnumTraits<EBinaryOp>::GetDomainValues()) {
+        if (IsLogicalBinaryOp(op)) {
+            continue;
+        }
+
+        for (auto lhsType : types) {
+            for (auto rhsType : types) {
+                for (bool lhsLiteral : {false, true}) {
+                    for (bool rhsLiteral : {false, true}) {
+                        if (lhsType != rhsType && !lhsLiteral && !rhsLiteral) {
+                            continue;
+                        }
+
+                        auto castedType = GetCastedType(lhsType, rhsType, lhsLiteral, rhsLiteral);
+                        if (IsIntegralBinaryOp(op) && !IsIntegralType(castedType)) {
+                            continue;
+                        }
+
+                        for (auto lhsValue : GetValuesForType(lhsType)) {
+                            for (auto rhsValue : GetValuesForType(rhsType)) {
+
+                                if (IsExceptionCase(op, castedType, lhsValue, rhsValue)) {
+                                    continue;
+                                }
+
+                                auto expectedValue = IsRelationalBinaryOp(op)
+                                    ? GetExpectedRelationResult(op, castedType, lhsValue, rhsValue)
+                                    : GetExpectedArithmeticResult(op, castedType, lhsValue, rhsValue);
+
+                                if (lhsLiteral && rhsLiteral) {
+                                    auto queryString = Format("%v %v %v", UnversionedValueToString(lhsValue), GetBinaryOpcodeLexeme(op), UnversionedValueToString(rhsValue));
+
+                                    auto got = PrepareExpression(queryString, *emptySchema);
+                                    auto expected = Make<TLiteralExpression>(expectedValue);
+
+                                    EXPECT_TRUE(Equal(got, expected))
+                                        << "got: " <<  ::testing::PrintToString(got) << std::endl
+                                        << "expected: " <<  ::testing::PrintToString(expected) << std::endl;
+
+                                    continue;
+                                }
+
+                                TUnversionedValue result{};
+                                TCGVariables variables;
+                                TTableSchemaPtr schema;
+                                TConstExpressionPtr expr;
+                                TUnversionedOwningRow row;
+
+                                if (lhsLiteral) {
+                                    schema = New<TTableSchema>(std::vector{
+                                        TColumnSchema("b", rhsValue.Type)});
+                                    expr = PrepareExpression(Format("%v %v b", UnversionedValueToString(lhsValue), GetBinaryOpcodeLexeme(op)), *schema);
+                                    row = YsonToSchemafulRow(Format("b=%v", UnversionedValueToString(rhsValue)), *schema, true);
+                                } else if (rhsLiteral) {
+                                    schema = New<TTableSchema>(std::vector{
+                                        TColumnSchema("a", lhsValue.Type)});
+                                    expr = PrepareExpression(Format("a %v %v", GetBinaryOpcodeLexeme(op), UnversionedValueToString(rhsValue)), *schema);
+                                    row = YsonToSchemafulRow(Format("a=%v", UnversionedValueToString(lhsValue)), *schema, true);
+                                } else {
+                                    schema = New<TTableSchema>(std::vector{
+                                        TColumnSchema("a", lhsValue.Type),
+                                        TColumnSchema("b", rhsValue.Type)});
+                                    expr = PrepareExpression(Format("a %v b", GetBinaryOpcodeLexeme(op)), *schema);
+                                    row = YsonToSchemafulRow(Format("a=%v;b=%v", UnversionedValueToString(lhsValue), UnversionedValueToString(rhsValue)), *schema, true);
+                                }
+
+                                auto callback = getCallback(expr, schema, &variables);
+                                auto buffer = New<TRowBuffer>();
+                                callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer.Get());
+
+                                EXPECT_EQ(result, expectedValue)
+                                    << "row: " << ::testing::PrintToString(row);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTernaryLogicTest

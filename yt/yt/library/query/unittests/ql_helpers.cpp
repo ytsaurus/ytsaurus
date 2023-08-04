@@ -17,12 +17,12 @@ TValue MakeInt64(i64 value)
     return MakeUnversionedInt64Value(value);
 }
 
-TValue MakeUint64(i64 value)
+TValue MakeUint64(ui64 value)
 {
     return MakeUnversionedUint64Value(value);
 }
 
-TValue MakeDouble(i64 value)
+TValue MakeDouble(double value)
 {
     return MakeUnversionedDoubleValue(value);
 }
