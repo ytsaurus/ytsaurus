@@ -1,6 +1,6 @@
 from yt.local import start, stop, delete
 import yt.local as yt_local
-from yt.common import remove_file, is_process_alive, which
+from yt.common import remove_file, is_process_alive
 from yt.wrapper import YtClient
 from yt.wrapper.common import generate_uuid
 from yt.environment.helpers import is_dead
@@ -227,7 +227,10 @@ class TestLocalMode(object):
                 assert os.path.exists(os.path.join(configs_path, name))
 
     def test_watcher(self):
-        if yatest_common is None and not which("logrotate"):
+        # YT-19646: temporary disable this test in OS.
+        # Wait for YT-19347 to investigate this problem.
+        # if yatest_common is None and not which("logrotate"):
+        if yatest_common is None:
             pytest.skip()
 
         watcher_config = {
