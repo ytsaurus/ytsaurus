@@ -10,6 +10,8 @@ namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_REFCOUNTED_TYPE(TSecurityManagerDynamicConfig)
+
 void TSecurityManagerDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("user_cache", &TThis::UserCache)
@@ -22,6 +24,21 @@ void TSecurityManagerDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_REFCOUNTED_TYPE(TStructuredLoggingMethodDynamicConfig)
+
+void TStructuredLoggingMethodDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(true);
+
+    registrar.Parameter("max_request_byte_size", &TThis::MaxRequestByteSize)
+        .Default({});
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_REFCOUNTED_TYPE(TStructuredLoggingTopicDynamicConfig)
+
 void TStructuredLoggingTopicDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable", &TThis::Enable)
@@ -29,9 +46,14 @@ void TStructuredLoggingTopicDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("suppressed_methods", &TThis::SuppressedMethods)
         .Default();
+
+    registrar.Parameter("methods", &TThis::Methods)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_REFCOUNTED_TYPE(TApiServiceConfig)
 
 void TApiServiceConfig::Register(TRegistrar registrar)
 {
@@ -46,6 +68,8 @@ void TApiServiceConfig::Register(TRegistrar registrar)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_REFCOUNTED_TYPE(TApiServiceDynamicConfig)
 
 void TApiServiceDynamicConfig::Register(TRegistrar registrar)
 {

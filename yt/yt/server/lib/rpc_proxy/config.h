@@ -25,7 +25,26 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TSecurityManagerDynamicConfig)
+DECLARE_REFCOUNTED_TYPE(TSecurityManagerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TStructuredLoggingMethodDynamicConfig
+    : public virtual NYTree::TYsonStruct
+{
+public:
+    //! Whether to log this particular method.
+    bool Enable;
+
+    //! Request size limit for particular method.
+    //! If value is absent global limit StructuredLoggingMaxRequestByteSize is used.
+    std::optional<i64> MaxRequestByteSize;
+
+    REGISTER_YSON_STRUCT(TStructuredLoggingMethodDynamicConfig);
+    static void Register(TRegistrar registrar);
+};
+
+DECLARE_REFCOUNTED_TYPE(TStructuredLoggingMethodDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,15 +55,19 @@ public:
     //! Global switch for enabling or disabling particular structured logging topic.
     bool Enable;
 
-    //! List of methods for which structured logging is not emitted.
+    //! [Deprecated] List of methods for which structured logging is not emitted.
+    //! Prefer to use `Methods` config.
     THashSet<TString> SuppressedMethods;
+
+    //! Configuration for particular methods.
+    THashMap<TString, TStructuredLoggingMethodDynamicConfigPtr> Methods;
 
     REGISTER_YSON_STRUCT(TStructuredLoggingTopicDynamicConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TStructuredLoggingTopicDynamicConfig)
+DECLARE_REFCOUNTED_TYPE(TStructuredLoggingTopicDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,7 +86,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TApiServiceConfig)
+DECLARE_REFCOUNTED_TYPE(TApiServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -97,7 +120,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TApiServiceDynamicConfig)
+DECLARE_REFCOUNTED_TYPE(TApiServiceDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -786,6 +786,8 @@ private:
     const IStickyTransactionPoolPtr StickyTransactionPool_;
     const NNative::TClientCachePtr AuthenticatedClientCache_;
 
+    static const TStructuredLoggingMethodDynamicConfigPtr DefaultMethodConfig;
+
     TCounter SelectConsumeDataWeight_;
     TCounter SelectConsumeRowCount_;
 
@@ -865,9 +867,11 @@ private:
 
         // Finally, setup structured logging messages to be emitted.
 
-        auto shouldEmit = [method = context->GetMethod()] (const TStructuredLoggingTopicDynamicConfigPtr& config) {
-            return config->Enable && !config->SuppressedMethods.contains(method);
-        };
+        auto shouldEmit = [method = context->GetMethod()](const TStructuredLoggingTopicDynamicConfigPtr& config) {
+                return config->Enable &&
+                        !config->SuppressedMethods.contains(method) &&
+                        config->Methods.Value(method, DefaultMethodConfig)->Enable;
+            };
 
         const auto& config = Config_.Acquire();
 
@@ -891,7 +895,10 @@ private:
                 }
             }
 
-            if (static_cast<i64>(request->ByteSizeLong()) <= config->StructuredLoggingMaxRequestByteSize) {
+            const auto& methodConfig =  config->StructuredLoggingMainTopic->Methods.Value(context->GetMethod(), DefaultMethodConfig);
+            const auto maxRequestSize = methodConfig->MaxRequestByteSize.value_or(config->StructuredLoggingMaxRequestByteSize);
+
+            if (static_cast<i64>(request->ByteSizeLong()) <= maxRequestSize) {
                 WriteProtobufMessage(&requestYsonWriter, *request, parserOptions);
             } else {
                 requestYsonWriter.OnEntity();
@@ -5271,6 +5278,8 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TApiService)
+
+const TStructuredLoggingMethodDynamicConfigPtr TApiService::DefaultMethodConfig = New<TStructuredLoggingMethodDynamicConfig>();
 
 ////////////////////////////////////////////////////////////////////////////////
 
