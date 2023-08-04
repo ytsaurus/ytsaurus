@@ -60,6 +60,12 @@ void Ref(TFutureState<T>* state);
 template <class T>
 void Unref(TFutureState<T>* state);
 
+template<class T>
+constexpr bool IsFuture = false;
+
+template<class T>
+constexpr bool IsFuture<TFuture<T>> = true;
+
 } // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -708,6 +714,11 @@ template <class T>
 TFuture<std::vector<TErrorOr<T>>> CancelableRunWithBoundedConcurrency(
     std::vector<TCallback<TFuture<T>()>> callbacks,
     int concurrencyLimit);
+
+////////////////////////////////////////////////////////////////////////////////
+
+template<class T>
+concept CFuture = NDetail::IsFuture<T>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
