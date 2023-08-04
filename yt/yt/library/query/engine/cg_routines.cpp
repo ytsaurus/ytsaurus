@@ -387,8 +387,17 @@ void MultiJoinOpHelper(
         std::sort(orderedKeys.begin() + offset, orderedKeys.end(), comparers[joinId].SuffixLessComparer);
     };
 
+    bool finished = false;
+
     closure.ProcessJoinBatch = [&] () {
+        if (finished) {
+            return true;
+        }
+
         YT_LOG_DEBUG("Joining started");
+        auto finalLogger = Finally([&] {
+            YT_LOG_DEBUG("Joining finished");
+        });
 
         std::vector<ISchemafulUnversionedReaderPtr> readers;
         for (size_t joinId = 0; joinId < closure.Items.size(); ++joinId) {
@@ -583,7 +592,7 @@ void MultiJoinOpHelper(
 
         std::vector<size_t> indexes(closure.Items.size(), 0);
 
-        auto joinRows = [&] (TPIValue* rowValues) -> bool {
+        auto joinRow = [&] (TPIValue* rowValues) -> bool {
             size_t incrementIndex = 0;
             while (incrementIndex < closure.Items.size()) {
                 auto joinedRow = AllocatePIValueRange(intermediateBuffer.Get(), resultRowSize);
@@ -641,24 +650,24 @@ void MultiJoinOpHelper(
             return false;
         };
 
-        auto finally = Finally([&] {
-            closure.PrimaryRows.clear();
-            closure.Buffer->Clear();
-            for (auto& joinItem : closure.Items) {
-                joinItem.Buffer->Clear();
-            }
-
-            YT_LOG_DEBUG("Joining finished");
-
-        });
-
         for (auto* rowValues : closure.PrimaryRows) {
-            if (joinRows(rowValues)) {
-                return true;
+            if (joinRow(rowValues)) {
+                finished = true;
+                break;
             }
+        };
+
+        if (!finished) {
+            finished = consumeJoinedRows();
         }
 
-        return consumeJoinedRows();
+        closure.PrimaryRows.clear();
+        closure.Buffer->Clear();
+        for (auto& joinItem : closure.Items) {
+            joinItem.Buffer->Clear();
+        }
+
+        return finished;
     };
 
     try {
