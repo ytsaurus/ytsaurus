@@ -123,6 +123,7 @@ DEFINE_ENUM(EMasterReign,
     ((RefactorSchemaExport)                                         (2349))  // h0pless
     ((MaxErasureJournalReplicasPerRack)                             (2350))  // vovamelnikov
     ((FixChunkCreationTimeHistogramAgain)                           (2351))  // kvk1920
+    ((ReliableNodeStateGossip)                                      (2352))  // aleksandra-zh
     // 23.2 starts here.
     ((TabletServants)                                               (2400))  // ifsmirnov
     ((MediumBase)                                                   (2401))  // gritukan

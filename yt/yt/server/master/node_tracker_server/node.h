@@ -41,17 +41,8 @@ struct TCellNodeStatistics
 
 TCellNodeStatistics& operator+=(TCellNodeStatistics& lhs, const TCellNodeStatistics& rhs);
 
-void ToProto(NProto::TReqSetCellNodeDescriptors::TStatistics* protoStatistics, const TCellNodeStatistics& statistics);
-void FromProto(TCellNodeStatistics* statistics, const NProto::TReqSetCellNodeDescriptors::TStatistics& protoStatistics);
-
-struct TCellNodeDescriptor
-{
-    ENodeState State = ENodeState::Unknown;
-    TCellNodeStatistics Statistics;
-};
-
-void ToProto(NProto::TReqSetCellNodeDescriptors::TNodeDescriptor* protoDescriptor, const TCellNodeDescriptor& descriptor);
-void FromProto(TCellNodeDescriptor* descriptor, const NProto::TReqSetCellNodeDescriptors::TNodeDescriptor& protoDescriptor);
+void ToProto(NProto::TNodeStatistics* protoStatistics, const TCellNodeStatistics& statistics);
+void FromProto(TCellNodeStatistics* statistics, const NProto::TNodeStatistics& protoStatistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -109,12 +100,17 @@ public:
     // returns zero.
     int GetConsistentReplicaPlacementTokenCount(int mediumIndex) const;
 
-    // Transient property.
-    DEFINE_BYVAL_RW_PROPERTY(ENodeState, LastGossipState, ENodeState::Unknown);
-
     ui64 GetVisitMark(int mediumIndex);
     void SetVisitMark(int mediumIndex, ui64 mark);
 
+    struct TCellNodeDescriptor
+    {
+        ENodeState State = ENodeState::Unknown;
+        TCellNodeStatistics Statistics;
+        bool RegistrationPending = false;
+
+        void Persist(const NCellMaster::TPersistenceContext& context);
+    };
     using TMulticellDescriptors = THashMap<NObjectClient::TCellTag, TCellNodeDescriptor>;
     DEFINE_BYREF_RO_PROPERTY(TMulticellDescriptors, MulticellDescriptors);
 
@@ -281,6 +277,8 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(std::optional<TIncrementalHeartbeatCounters>, IncrementalHeartbeatCounters);
 
+    DEFINE_BYVAL_RW_PROPERTY(ENodeState, LastGossipState, ENodeState::Unknown);
+
     DEFINE_BYVAL_RW_PROPERTY(int, NextDisposedLocationIndex);
     DEFINE_BYVAL_RW_PROPERTY(bool, DisposalTickScheduled);
 
@@ -325,14 +323,22 @@ public:
     //! Sets the local state by dereferencing local state pointer.
     void SetLocalState(ENodeState state);
 
-    //! Sets the state and statistics for the given cell.
-    void SetCellDescriptor(
+    //! Sets state for the given cell.
+    void SetState(
         NObjectClient::TCellTag cellTag,
-        const TCellNodeDescriptor& descriptor);
+        ENodeState state,
+        bool redundant);
+    //! Sets statistics for the given cell.
+    void SetStatistics(
+        NObjectClient::TCellTag cellTag,
+        const TCellNodeStatistics& descriptor);
+    void SetRegistrationPending(NObjectClient::TCellTag selfCellTag);
 
     //! If states are same for all cells then returns this common value.
     //! Otherwise returns "mixed" state.
     ENodeState GetAggregatedState() const;
+    //! Returns true if at least one cell is pending node registration.
+    bool GetRegistrationPending() const;
 
     DEFINE_SIGNAL(void(TNode* node), AggregatedStateChanged);
 
@@ -438,6 +444,7 @@ private:
 
     ENodeState* LocalStatePtr_ = nullptr;
     ENodeState AggregatedState_ = ENodeState::Unknown;
+    bool RegistrationPending_ = false;
 
     THashMap<NCellarClient::ECellarType, NNodeTrackerClient::NProto::TCellarNodeStatistics> CellarNodeStatistics_;
 

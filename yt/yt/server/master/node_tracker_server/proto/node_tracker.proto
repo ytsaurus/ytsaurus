@@ -25,33 +25,64 @@ message TReqNodeDisposalTick
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqSendNodeStates
+{
+    required bool incremental = 1;
+}
+
+message TMediumStatistics
+{
+    required int32 medium_index = 1;
+    required uint32 chunk_replica_count = 2;
+}
+
+message TNodeStatistics
+{
+    repeated TMediumStatistics medium_statistics = 1;
+    required int64 destroyed_chunk_replica_count = 2;
+    required int64 chunk_push_replication_queues_size = 3;
+    required int64 chunk_pull_replication_queues_size = 4;
+    required int64 pull_replication_chunk_count = 5;
+}
+
+// COMPAT(aleksandra-zh).
 message TReqSetCellNodeDescriptors
 {
-    message TMediumStatistics
-    {
-        required int32 medium_index = 1;
-        required uint32 chunk_replica_count = 2;
-    }
-
-    message TStatistics
-    {
-        repeated TMediumStatistics medium_statistics = 1;
-        required int64 destroyed_chunk_replica_count = 2;
-        required int64 chunk_push_replication_queues_size = 3;
-        required int64 chunk_pull_replication_queues_size = 4;
-        required int64 pull_replication_chunk_count = 5;
-    }
-
     message TNodeDescriptor
     {
         required int32 state = 1; // ENodeState
-        required TStatistics statistics = 2;
+        required TNodeStatistics statistics = 2;
     }
 
     message TEntry
     {
         required int32 node_id = 1;
         required TNodeDescriptor node_descriptor = 2;
+    }
+
+    required int32 cell_tag = 1;
+    repeated TEntry entries = 2;
+}
+
+message TReqSetNodeStatistics
+{
+    message TEntry
+    {
+        required int32 node_id = 1;
+        required TNodeStatistics statistics = 2;
+    }
+
+    required int32 cell_tag = 1;
+    repeated TEntry entries = 2;
+}
+
+message TReqSetNodeStates
+{
+    message TEntry
+    {
+        required int32 node_id = 1;
+        required int32 state = 2; // ENodeState
+        optional bool redundant = 3 [default = false];
     }
 
     required int32 cell_tag = 1;

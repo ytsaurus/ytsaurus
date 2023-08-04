@@ -56,6 +56,8 @@ void TDynamicNodeTrackerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(1));
     registrar.Parameter("full_node_states_gossip_period", &TThis::FullNodeStatesGossipPeriod)
         .Default(TDuration::Minutes(1));
+    registrar.Parameter("node_statistics_gossip_period", &TThis::NodeStatisticsGossipPeriod)
+        .Default(TDuration::Minutes(10));
 
     registrar.Parameter("max_concurrent_node_registrations", &TThis::MaxConcurrentNodeRegistrations)
         .Default(20)
