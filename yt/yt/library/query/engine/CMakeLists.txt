@@ -185,7 +185,6 @@ target_sources(library-query-engine PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/functions_cg.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/functions_builder.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/position_independent_value_caller.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/new_range_inferrer.cpp
 )
 
 add_global_library_for(library-query-engine.global library-query-engine)
@@ -220,6 +219,7 @@ target_sources(library-query-engine.global PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/evaluator.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/builtin_function_profiler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/range_inferrer.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/new_range_inferrer.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/7012e6bf1f3f80fdfce54d63afee3869.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/4ea047f29359e3ff85a43c2543e4ce0b.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/f4f5f9a1dc189a93c6482fc5d1bf55fb.cpp
