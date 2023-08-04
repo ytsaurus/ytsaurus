@@ -389,6 +389,11 @@ protected:
             }
         }
 
+        bool HasAssignedNode() const
+        {
+            return AssignedNodeId != InvalidNodeId;
+        }
+
         void AddLocality(TNodeId nodeId, i64 delta)
         {
             // Locality is defined for final partitions only.
@@ -2250,8 +2255,7 @@ protected:
             if (!partition->Maniac && !IsSortedMergeNeeded(partition)) {
                 continue;
             }
-            // Only take partitions for which no jobs are launched yet.
-            if (PartitionsLocalityByNodeId[partition->Index].empty()) {
+            if (!partition->HasAssignedNode()) {
                 partitionsToAssign.push_back(partition);
             }
         }
