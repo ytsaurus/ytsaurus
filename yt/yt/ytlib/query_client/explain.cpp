@@ -2,10 +2,10 @@
 #include "explain.h"
 
 #include <yt/yt/library/query/base/functions.h>
-#include <yt/yt/library/query/base/query_helpers.h>
 #include <yt/yt/library/query/base/query_preparer.h>
 
 #include <yt/yt/library/query/engine_api/coordinator.h>
+#include <yt/yt/library/query/engine_api/range_inferrer.h>
 
 #include <yt/yt/client/api/public.h>
 
@@ -77,7 +77,7 @@ void GetQueryInfo(
         })
         .DoIf(!keyColumns.empty(), [&] (auto fluent) {
             auto buffer = New<TRowBuffer>();
-            auto trie = ExtractMultipleConstraints(expression, keyColumns, buffer, BuiltinRangeExtractorMap.Get());
+            auto trie = ExtractMultipleConstraints(expression, keyColumns, buffer, GetBuiltinRangeExtractor().Get());
             fluent.Item("key_trie").Value(ToString(trie));
 
             auto ranges = GetRangesFromTrieWithinRange(TRowRange(MinKey(), MaxKey()), trie, buffer);

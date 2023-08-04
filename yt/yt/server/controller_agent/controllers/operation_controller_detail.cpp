@@ -7282,7 +7282,7 @@ void TOperationControllerBase::ParseInputQuery(
 
     auto externalCGInfo = New<TExternalCGInfo>();
     auto fetchFunctions = [&] (const std::vector<TString>& names, const TTypeInferrerMapPtr& typeInferrers) {
-        MergeFrom(typeInferrers.Get(), *BuiltinTypeInferrersMap);
+        MergeFrom(typeInferrers.Get(), *GetBuiltinTypeInferrers());
 
         std::vector<TString> externalNames;
         for (const auto& name : names) {
@@ -7542,7 +7542,7 @@ void TOperationControllerBase::InferInputRanges()
             table->Schema,
             table->Schema->GetKeyColumns(),
             Host->GetClient()->GetNativeConnection()->GetColumnEvaluatorCache(),
-            BuiltinRangeExtractorMap,
+            GetBuiltinRangeExtractor(),
             queryOptions);
 
         std::vector<TReadRange> inferredRanges;

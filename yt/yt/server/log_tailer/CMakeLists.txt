@@ -16,6 +16,7 @@ target_link_libraries(yt-server-log_tailer PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
+  library-query-engine
   yt-yt-core
   yt-yt-ytlib
   ytserver

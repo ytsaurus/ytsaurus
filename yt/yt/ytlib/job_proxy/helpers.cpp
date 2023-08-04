@@ -57,8 +57,8 @@ void RunQuery(
 
     auto functionGenerators = New<TFunctionProfilerMap>();
     auto aggregateGenerators = New<TAggregateProfilerMap>();
-    MergeFrom(functionGenerators.Get(), *BuiltinFunctionProfilers);
-    MergeFrom(aggregateGenerators.Get(), *BuiltinAggregateProfilers);
+    MergeFrom(functionGenerators.Get(), *GetBuiltinFunctionProfilers());
+    MergeFrom(aggregateGenerators.Get(), *GetBuiltinAggregateProfilers());
     if (udfDirectory) {
         FetchFunctionImplementationsFromFiles(
             functionGenerators,

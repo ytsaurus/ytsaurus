@@ -85,29 +85,13 @@ DECLARE_REFCOUNTED_STRUCT(IColumnEvaluatorCache)
 DECLARE_REFCOUNTED_CLASS(TColumnEvaluatorCacheConfig)
 DECLARE_REFCOUNTED_CLASS(TColumnEvaluatorCacheDynamicConfig)
 
-DECLARE_REFCOUNTED_STRUCT(IFunctionCodegen)
-
-DECLARE_REFCOUNTED_STRUCT(IAggregateCodegen)
-
 DECLARE_REFCOUNTED_STRUCT(TExternalCGInfo)
 typedef TIntrusivePtr<const TExternalCGInfo> TConstExternalCGInfoPtr;
 
 DECLARE_REFCOUNTED_STRUCT(TTypeInferrerMap)
 typedef TIntrusivePtr<const TTypeInferrerMap> TConstTypeInferrerMapPtr;
 
-DECLARE_REFCOUNTED_STRUCT(TRangeExtractorMap)
-typedef TIntrusivePtr<const TRangeExtractorMap> TConstRangeExtractorMapPtr;
-
-DECLARE_REFCOUNTED_STRUCT(TFunctionProfilerMap)
-typedef TIntrusivePtr<const TFunctionProfilerMap> TConstFunctionProfilerMapPtr;
-
-DECLARE_REFCOUNTED_STRUCT(TAggregateProfilerMap)
-typedef TIntrusivePtr<const TAggregateProfilerMap> TConstAggregateProfilerMapPtr;
-
-extern const TConstTypeInferrerMapPtr BuiltinTypeInferrersMap;
-extern const TConstRangeExtractorMapPtr BuiltinRangeExtractorMap;
-extern const TConstFunctionProfilerMapPtr BuiltinFunctionProfilers;
-extern const TConstAggregateProfilerMapPtr BuiltinAggregateProfilers;
+const TConstTypeInferrerMapPtr GetBuiltinTypeInferrers();
 
 DECLARE_REFCOUNTED_STRUCT(IFunctionRegistry)
 DECLARE_REFCOUNTED_STRUCT(ITypeInferrer)

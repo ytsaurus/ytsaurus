@@ -900,7 +900,7 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   library-tvm-service
   yt-library-xor_filter
   yt-client-formats
-  library-query-engine
+  library-query-engine_api
   library-query-row_comparer_api
   yt-library-program
   yt-library-vector_hdrf
@@ -1512,7 +1512,7 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
   library-tvm-service
   yt-library-xor_filter
   yt-client-formats
-  library-query-engine
+  library-query-engine_api
   library-query-row_comparer_api
   yt-library-program
   yt-library-vector_hdrf

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "public.h"
 #include "evaluation_helpers.h"
+#include "public.h"
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 
@@ -95,8 +95,8 @@ DEFINE_REFCOUNTED_TYPE(IColumnEvaluatorCache)
 
 IColumnEvaluatorCachePtr CreateColumnEvaluatorCache(
     TColumnEvaluatorCacheConfigPtr config,
-    TConstTypeInferrerMapPtr typeInferrers = BuiltinTypeInferrersMap,
-    TConstFunctionProfilerMapPtr profilers = BuiltinFunctionProfilers);
+    TConstTypeInferrerMapPtr typeInferrers = GetBuiltinTypeInferrers(),
+    TConstFunctionProfilerMapPtr profilers = GetBuiltinFunctionProfilers());
 
 ////////////////////////////////////////////////////////////////////////////////
 

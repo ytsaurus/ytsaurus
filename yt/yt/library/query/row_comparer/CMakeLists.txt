@@ -7,11 +7,8 @@
 
 
 
-add_library(library-query-row_comparer)
-target_compile_options(library-query-row_comparer PRIVATE
-  -Wdeprecated-this-capture
-)
-target_link_libraries(library-query-row_comparer PUBLIC
+add_library(library-query-row_comparer INTERFACE)
+target_link_libraries(library-query-row_comparer INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
@@ -19,6 +16,19 @@ target_link_libraries(library-query-row_comparer PUBLIC
   yt-yt-core
   yt-library-codegen
 )
-target_sources(library-query-row_comparer PRIVATE
+
+add_global_library_for(library-query-row_comparer.global library-query-row_comparer)
+target_compile_options(library-query-row_comparer.global PRIVATE
+  -Wdeprecated-this-capture
+)
+target_link_libraries(library-query-row_comparer.global PUBLIC
+  contrib-libs-linux-headers
+  contrib-libs-cxxsupp
+  yutil
+  yt-yt-client
+  yt-yt-core
+  yt-library-codegen
+)
+target_sources(library-query-row_comparer.global PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/row_comparer/row_comparer_generator.cpp
 )

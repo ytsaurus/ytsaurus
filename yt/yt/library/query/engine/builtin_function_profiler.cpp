@@ -1,11 +1,13 @@
-#include "functions_builtin_profilers.h"
+#include "builtin_function_profiler.h"
 
 #include "functions_cg.h"
 #include "cg_fragment_compiler.h"
 
+#include <yt/yt/library/query/engine_api/range_inferrer.h>
+
+#include <yt/yt/library/query/base/builtin_function_registry.h>
 #include <yt/yt/library/query/base/functions.h>
 #include <yt/yt/library/query/base/functions_builder.h>
-#include <yt/yt/library/query/base/functions_builtin_registry.h>
 #include <yt/yt/library/query/base/query.h>
 
 #include <library/cpp/yt/memory/ref.h>
@@ -750,7 +752,15 @@ TConstRangeExtractorMapPtr CreateBuiltinRangeExtractorMap()
     return result;
 }
 
-const TConstRangeExtractorMapPtr BuiltinRangeExtractorMap = CreateBuiltinRangeExtractorMap();
+const TConstRangeExtractorMapPtr GetBuiltinRangeExtractor()
+{
+    static TConstRangeExtractorMapPtr builtinRangeExtractorMap  ;
+    static std::once_flag onceFlag;
+    std::call_once(onceFlag, [&] {
+        builtinRangeExtractorMap = CreateBuiltinRangeExtractorMap();
+    });
+    return builtinRangeExtractorMap;
+}
 
 TConstFunctionProfilerMapPtr CreateBuiltinFunctionProfilers()
 {
@@ -780,7 +790,15 @@ TConstFunctionProfilerMapPtr CreateBuiltinFunctionProfilers()
     return result;
 }
 
-const TConstFunctionProfilerMapPtr BuiltinFunctionProfilers = CreateBuiltinFunctionProfilers();
+const TConstFunctionProfilerMapPtr GetBuiltinFunctionProfilers()
+{
+    static TConstFunctionProfilerMapPtr builtinFunctionProfilers;
+    static std::once_flag onceFlag;
+    std::call_once(onceFlag, [&] {
+        builtinFunctionProfilers = CreateBuiltinFunctionProfilers();
+    });
+    return builtinFunctionProfilers;
+}
 
 TConstAggregateProfilerMapPtr CreateBuiltinAggregateProfilers()
 {
@@ -798,7 +816,15 @@ TConstAggregateProfilerMapPtr CreateBuiltinAggregateProfilers()
     return result;
 }
 
-const TConstAggregateProfilerMapPtr BuiltinAggregateProfilers = CreateBuiltinAggregateProfilers();
+const TConstAggregateProfilerMapPtr GetBuiltinAggregateProfilers()
+{
+    static TConstAggregateProfilerMapPtr builtinAggregateProfilers;
+    static std::once_flag onceFlag;
+    std::call_once(onceFlag, [&] {
+        builtinAggregateProfilers = CreateBuiltinAggregateProfilers();
+    });
+    return builtinAggregateProfilers;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

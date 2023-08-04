@@ -1,4 +1,5 @@
 #include "functions_builder.h"
+#include "builtin_function_profiler.h"
 
 namespace NYT::NQueryClient {
 

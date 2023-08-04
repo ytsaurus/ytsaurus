@@ -9,7 +9,7 @@ Y_WEAK std::pair<TConstFrontQueryPtr, std::vector<TConstQueryPtr>> CoordinateQue
     const std::vector<TRefiner>& /*refiners*/)
 {
     // Proper implementation resides in yt/yt/library/query/engine/coordinator.cpp.
-    THROW_ERROR_EXCEPTION("Error query/engine library is not linked; consider PEERDIR'ing yt/yt/library/query/engine");
+    YT_ABORT();
 }
 
 Y_WEAK TRowRanges GetPrunedRanges(
@@ -25,7 +25,7 @@ Y_WEAK TRowRanges GetPrunedRanges(
     TGuid /*queryId*/)
 {
     // Proper implementation resides in yt/yt/library/query/engine/coordinator.cpp.
-    THROW_ERROR_EXCEPTION("Error query/engine library is not linked; consider PEERDIR'ing yt/yt/library/query/engine");
+    YT_ABORT();
 }
 
 Y_WEAK TRowRanges GetPrunedRanges(
@@ -38,7 +38,7 @@ Y_WEAK TRowRanges GetPrunedRanges(
     const TQueryOptions& /*options*/)
 {
     // Proper implementation resides in yt/yt/library/query/engine/coordinator.cpp.
-    THROW_ERROR_EXCEPTION("Error query/engine library is not linked; consider PEERDIR'ing yt/yt/library/query/engine");
+    YT_ABORT();
 }
 
 Y_WEAK TQueryStatistics CoordinateAndExecute(
@@ -49,10 +49,9 @@ Y_WEAK TQueryStatistics CoordinateAndExecute(
     std::function<TQueryStatistics(const TConstFrontQueryPtr&, const ISchemafulUnversionedReaderPtr&, const IUnversionedRowsetWriterPtr&)> /*evaluateTop*/)
 {
     // Proper implementation resides in yt/yt/library/query/engine/coordinator.cpp.
-    THROW_ERROR_EXCEPTION("Error query/engine library is not linked; consider PEERDIR'ing yt/yt/library/query/engine");
+    YT_ABORT();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueryClient
-

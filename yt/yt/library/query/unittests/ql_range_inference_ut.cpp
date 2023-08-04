@@ -1,5 +1,8 @@
 #include "ql_helpers.h"
 
+#include <yt/yt/library/query/engine_api/builtin_function_profiler.h>
+#include <yt/yt/library/query/engine_api/range_inferrer.h>
+
 #include <yt/yt/library/query/base/query_helpers.h>
 #include <yt/yt/library/query/base/query_preparer.h>
 

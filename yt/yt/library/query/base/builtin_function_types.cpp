@@ -1,4 +1,4 @@
-#include "functions_builtin_types.h"
+#include "builtin_function_types.h"
 
 #include "functions_builder.h"
 #include "functions.h"
@@ -189,7 +189,15 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
     return result;
 }
 
-const TConstTypeInferrerMapPtr BuiltinTypeInferrersMap = CreateBuiltinTypeInferrers();
+const TConstTypeInferrerMapPtr GetBuiltinTypeInferrers()
+{
+    static TConstTypeInferrerMapPtr builtinTypeInferrersMap ;
+    static std::once_flag onceFlag;
+    std::call_once(onceFlag, [&] {
+        builtinTypeInferrersMap = CreateBuiltinTypeInferrers();
+    });
+    return builtinTypeInferrersMap;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

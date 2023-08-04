@@ -1,6 +1,8 @@
 #pragma once
 
+#include "builtin_function_profiler.h"
 #include "public.h"
+
 #include <yt/yt/library/query/base/callbacks.h>
 
 #include <yt/yt/library/profiling/sensor.h>
@@ -32,4 +34,3 @@ IEvaluatorPtr CreateEvaluator(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueryClient
-

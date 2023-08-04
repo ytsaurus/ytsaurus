@@ -30,8 +30,8 @@ target_sources(library-query-base PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/ast.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/coordination_helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/functions.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/functions_builtin_registry.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/functions_builtin_types.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/builtin_function_registry.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/builtin_function_types.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/functions_common.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/key_trie.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/base/public.cpp

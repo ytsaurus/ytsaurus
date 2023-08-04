@@ -68,13 +68,13 @@ TQueryPtr PrepareJobQuery(
 TConstExpressionPtr PrepareExpression(
     const TString& source,
     const TTableSchema& tableSchema,
-    const TConstTypeInferrerMapPtr& functions = BuiltinTypeInferrersMap,
+    const TConstTypeInferrerMapPtr& functions = GetBuiltinTypeInferrers(),
     THashSet<TString>* references = nullptr);
 
 TConstExpressionPtr PrepareExpression(
     const TParsedSource& parsedSource,
     const TTableSchema& tableSchema,
-    const TConstTypeInferrerMapPtr& functions = BuiltinTypeInferrersMap,
+    const TConstTypeInferrerMapPtr& functions = GetBuiltinTypeInferrers(),
     THashSet<TString>* references = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////

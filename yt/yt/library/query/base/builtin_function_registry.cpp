@@ -1,4 +1,4 @@
-#include "functions_builtin_registry.h"
+#include "builtin_function_registry.h"
 
 #include "functions.h"
 

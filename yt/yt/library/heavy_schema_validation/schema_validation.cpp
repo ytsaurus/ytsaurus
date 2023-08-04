@@ -191,7 +191,7 @@ void ValidateAggregatedColumns(const TTableSchema& schema)
             }
 
             const auto& name = *columnSchema.Aggregate();
-            if (auto descriptor = BuiltinTypeInferrersMap->GetFunction(name)->As<TAggregateTypeInferrer>()) {
+            if (auto descriptor = GetBuiltinTypeInferrers()->GetFunction(name)->As<TAggregateTypeInferrer>()) {
                 TTypeSet constraint;
                 std::optional<EValueType> stateType;
                 std::optional<EValueType> resultType;
@@ -239,7 +239,7 @@ void ValidateComputedColumns(const TTableSchema& schema, bool isTableDynamic)
                 THROW_ERROR_EXCEPTION("Non-key column %v cannot be computed", columnSchema.GetDiagnosticNameString());
             }
             THashSet<TString> references;
-            auto expr = PrepareExpression(*columnSchema.Expression(), schema, BuiltinTypeInferrersMap, &references);
+            auto expr = PrepareExpression(*columnSchema.Expression(), schema, GetBuiltinTypeInferrers(), &references);
             if (*columnSchema.LogicalType() != *expr->LogicalType) {
                 THROW_ERROR_EXCEPTION(
                     "Computed column %v type mismatch: declared type is %Qlv but expression type is %Qlv",

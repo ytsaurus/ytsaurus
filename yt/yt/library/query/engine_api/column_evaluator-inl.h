@@ -16,4 +16,3 @@ Y_FORCE_INLINE bool TColumnEvaluator::IsAggregate(int index) const
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueryClient
-

@@ -35,7 +35,7 @@ std::unique_ptr<TQueryEvaluationContext> CreateQueryEvaluationContext(
     context->Expression = PrepareExpression(
         parsedSource,
         *schema,
-        BuiltinTypeInferrersMap,
+        GetBuiltinTypeInferrers(),
         nullptr);
 
     context->ExpressionCallback = Profile(
@@ -43,7 +43,7 @@ std::unique_ptr<TQueryEvaluationContext> CreateQueryEvaluationContext(
         schema,
         nullptr,
         &context->Variables,
-        BuiltinFunctionProfilers)();
+        GetBuiltinFunctionProfilers())();
 
     // YTORM-553 Initialize variables.
     context->Variables.GetLiteralValues();

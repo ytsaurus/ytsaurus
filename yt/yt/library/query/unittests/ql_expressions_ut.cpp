@@ -11,8 +11,8 @@
 #include <yt/yt/library/query/engine_api/config.h>
 #include <yt/yt/library/query/engine_api/coordinator.h>
 
+#include <yt/yt/library/query/engine/builtin_function_profiler.h>
 #include <yt/yt/library/query/engine/folding_profiler.h>
-#include <yt/yt/library/query/engine/functions_builtin_profilers.h>
 #include <yt/yt/library/query/engine/functions_cg.h>
 
 #include <library/cpp/resource/resource.h>
@@ -1421,7 +1421,7 @@ TEST_P(TEvaluateAggregationTest, Basic)
     auto value2 = std::get<3>(param);
     auto expected = std::get<4>(param);
 
-    auto registry = BuiltinAggregateProfilers;
+    auto registry = GetBuiltinAggregateProfilers();
     auto aggregate = registry->GetAggregate(aggregateName);
     auto callbacks = CodegenAggregate(
         aggregate->Profile(type, type, type, aggregateName),

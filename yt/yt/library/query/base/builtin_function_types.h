@@ -1,6 +1,6 @@
 #pragma once
 
-#include "functions_builtin_registry.h"
+#include "builtin_function_registry.h"
 
 namespace NYT::NQueryClient {
 

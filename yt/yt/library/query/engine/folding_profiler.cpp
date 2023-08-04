@@ -7,6 +7,7 @@
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_helpers.h>
 
+#include <yt/yt/library/query/engine_api/builtin_function_profiler.h>
 #include <yt/yt/library/query/engine_api/position_independent_value_transfer.h>
 
 #include <library/cpp/yt/memory/shared_range.h>
