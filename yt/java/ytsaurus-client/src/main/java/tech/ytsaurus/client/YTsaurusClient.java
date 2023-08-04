@@ -140,6 +140,15 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
     }
 
     /**
+     * Create client with default settings.
+     */
+    public static YTsaurusClient of(String cluster) {
+        return builder()
+                .setCluster(cluster)
+                .build();
+    }
+
+    /**
      * Create builder for YTsaurusClient.
      */
     public static ClientBuilder<? extends YTsaurusClient, ?> builder() {

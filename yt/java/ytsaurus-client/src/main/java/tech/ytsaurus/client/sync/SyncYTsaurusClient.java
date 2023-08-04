@@ -19,6 +19,15 @@ public class SyncYTsaurusClient
         this.client = client;
     }
 
+    /**
+     * Create client with default settings.
+     */
+    public static SyncYTsaurusClient of(String cluster) {
+        return builder()
+                .setCluster(cluster)
+                .build();
+    }
+
     public static SyncYTsaurusClient wrap(YTsaurusClient client) {
         return new SyncYTsaurusClient(client);
     }
