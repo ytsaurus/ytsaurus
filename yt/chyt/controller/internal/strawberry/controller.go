@@ -24,13 +24,16 @@ type Controller interface {
 	// filtering using YT list_operations API.
 	Family() string
 
+	// Root returns path to the cypress directory containing strawberry nodes.
+	Root() ypath.Path
+
 	ParseSpeclet(specletYson yson.RawValue) (parsedSpeclet any, err error)
 
 	// UpdateState updates the controller's state.
 	// Returns true if the state has been changed and all oplets should be restarted.
 	UpdateState() (changed bool, err error)
 
-	// DescribeOptions returns human readable descriptors for controller-related speclet options.
+	// DescribeOptions returns human-readable descriptors for controller-related speclet options.
 	// Some options can be missing in the result if they are not intended to be visible through user interfaces.
 	//
 	// Given speclet should have suitable type for the specific controller.
@@ -45,4 +48,7 @@ type Controller interface {
 	GetOpBriefAttributes(parsedSpeclet any) (map[string]any, error)
 }
 
-type ControllerFactory = func(l log.Logger, ytc yt.Client, root ypath.Path, cluster string, config yson.RawValue) Controller
+type ControllerFactory struct {
+	Ctor   func(l log.Logger, ytc yt.Client, root ypath.Path, cluster string, config yson.RawValue) Controller
+	Config yson.RawValue
+}

@@ -133,13 +133,21 @@ func PrepareAPI(t *testing.T) (*Env, *RequestClient) {
 
 	c := api.HTTPAPIConfig{
 		BaseAPIConfig: api.APIConfig{
-			ControllerFactory: sleep.NewController,
+			ControllerFactories: map[string]strawberry.ControllerFactory{
+				"sleep": strawberry.ControllerFactory{
+					Ctor: sleep.NewController,
+				},
+			},
+			ControllerMappings: map[string]string{
+				"*": "sleep",
+			},
 		},
 		ClusterInfos: []strawberry.AgentInfo{
 			{
 				StrawberryRoot: env.StrawberryRoot,
 				Stage:          "test_stage",
 				Proxy:          proxy,
+				Family:         "sleep",
 			},
 		},
 		DisableAuth: true,

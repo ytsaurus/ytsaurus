@@ -118,13 +118,14 @@ def get_log_tailer_config(mock_tvm_id=None, inject_secret=False):
     return config
 
 
-def create_controller_init_cluster_config(proxy, work_dir):
+def create_controller_init_cluster_config(proxy, work_dir, families=[]):
     config_filename = work_dir + "/" + INIT_CLUSTER_CONFIG_FILENAME
     with open(config_filename, "wb") as fout:
         yson.dump(
             {
                 "proxy": proxy,
                 "strawberry_root": STRAWBERRY_ROOT,
+                "families": families,
             },
             fout
         )

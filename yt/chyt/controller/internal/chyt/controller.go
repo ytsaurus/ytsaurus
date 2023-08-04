@@ -125,6 +125,10 @@ func (c *Controller) buildCommand(speclet *Speclet) string {
 	return strings.Join(args, " ")
 }
 
+func (c *Controller) Root() ypath.Path {
+	return c.root
+}
+
 func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 	spec map[string]any, description map[string]any, annotations map[string]any, err error) {
 	alias := oplet.Alias()

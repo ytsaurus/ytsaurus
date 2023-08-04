@@ -124,9 +124,10 @@ func (c CmdParameter) AsExplicit() CmdParameter {
 }
 
 type CmdDescriptor struct {
-	Name        string         `yson:"name"`
-	Parameters  []CmdParameter `yson:"parameters"`
-	Description string         `yson:"description,omitempty"`
+	Name        string                                                                           `yson:"name"`
+	Parameters  []CmdParameter                                                                   `yson:"parameters"`
+	Description string                                                                           `yson:"description,omitempty"`
+	Handler     func(api HTTPAPI, w http.ResponseWriter, r *http.Request, params map[string]any) `yson:"-"`
 }
 
 func (a HTTPAPI) parseAndValidateRequestParams(w http.ResponseWriter, r *http.Request, cmd CmdDescriptor) map[string]any {
@@ -281,23 +282,8 @@ func HandlePing(w http.ResponseWriter, r *http.Request) {
 func HandleDescribe(w http.ResponseWriter, r *http.Request, clusters []string) {
 	body, err := yson.Marshal(map[string]any{
 		"clusters": clusters,
-		"commands": []CmdDescriptor{
-			ListCmdDescriptor,
-			CreateCmdDescriptor,
-			RemoveCmdDescriptor,
-			ExistsCmdDescriptor,
-			StatusCmdDescriptor,
-			GetOptionCmdDescriptor,
-			SetOptionCmdDescriptor,
-			RemoveOptionCmdDescriptor,
-			GetSpecletCmdDescriptor,
-			SetSpecletCmdDescriptor,
-			SetOptionsCmdDescriptor,
-			StartCmdDescriptor,
-			StopCmdDescriptor,
-			// DescribeOptions is done only for UI, it shouldn't be visible in CLI.
-			// DescribeOptionsCmdDescriptor,
-		}})
+		"commands": AllCommands,
+	})
 	if err != nil {
 		panic(err)
 	}

@@ -17,6 +17,8 @@ type ClusterInitializerConfig struct {
 
 	// RobotUsername is the name of the robot from which all controller operations are done.
 	RobotUsername string `yson:"robot_username"`
+
+	Families []string `yson:"families"`
 }
 
 type ClusterInitializer struct {
@@ -86,12 +88,25 @@ func (initializer *ClusterInitializer) checkRobotPermissions(ctx context.Context
 	return nil
 }
 
-func (initializer *ClusterInitializer) createRootIfNotExists(ctx context.Context) error {
-	_, err := initializer.ytc.CreateNode(ctx, initializer.config.StrawberryRoot, yt.NodeMap, &yt.CreateNodeOptions{
+func (initializer *ClusterInitializer) createRootsIfNotExists(ctx context.Context) error {
+	root := initializer.config.StrawberryRoot
+	_, err := initializer.ytc.CreateNode(ctx, root, yt.NodeMap, &yt.CreateNodeOptions{
 		Recursive:      true,
 		IgnoreExisting: true,
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	for _, family := range initializer.config.Families {
+		_, err := initializer.ytc.CreateNode(ctx, root.Child(family), yt.NodeMap, &yt.CreateNodeOptions{
+			IgnoreExisting: true,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (initializer *ClusterInitializer) createACONamespaceIfNotExists(ctx context.Context) error {
@@ -122,7 +137,7 @@ func (initializer *ClusterInitializer) createACONamespaceIfNotExists(ctx context
 
 func (initializer *ClusterInitializer) InitCluster() error {
 	ctx := context.Background()
-	if err := initializer.createRootIfNotExists(ctx); err != nil {
+	if err := initializer.createRootsIfNotExists(ctx); err != nil {
 		return err
 	}
 	if err := initializer.createACONamespaceIfNotExists(ctx); err != nil {

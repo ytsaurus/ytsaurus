@@ -46,7 +46,7 @@ class TestController(object):
         os.environ["CHYT_CTL_ADDRESS"] = "http://localhost:{}".format(controller_api_port)
 
         work_dir = os.getcwd()
-        init_cluster_config_path = create_controller_init_cluster_config(cluster_proxy, work_dir)
+        init_cluster_config_path = create_controller_init_cluster_config(cluster_proxy, work_dir, ["chyt"])
         run_config_path = create_controller_run_config(
             proxy=cluster_proxy,
             work_dir=work_dir,
