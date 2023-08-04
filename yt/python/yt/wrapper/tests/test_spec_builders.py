@@ -259,13 +259,13 @@ class TestSpecBuilders(object):
         spec_defaults = {
             "mapper": {
                 "memory_limit": 128 * 1024 * 1024,
-                "cpu_limit": 0.5772156649,
                 "environment": {
                     "var1": "1",
                     "var2": "2"}}}
 
         spec_overrides = {
             "mapper": {
+                "cpu_limit": 0.5772156649,
                 "memory_reserve_factor": 0.31,
                 "environment": {
                     "var2": "5",
@@ -277,6 +277,7 @@ class TestSpecBuilders(object):
                     .begin_mapper() \
                         .command("cat") \
                         .format("json") \
+                        .cpu_limit(1.0) \
                         .memory_limit(256 * 1024 * 1024) \
                     .end_mapper() \
                     .input_table_paths(input_table) \
@@ -285,7 +286,7 @@ class TestSpecBuilders(object):
                 op = yt.run_operation(spec_builder)
                 attributes = op.get_attributes()
                 assert attributes["spec"]["mapper"]["memory_limit"] == 256 * 1024 * 1024
-                assert abs(attributes["spec"]["mapper"]["cpu_limit"] - 0.5772156649) < 1e-5
+                assert abs(attributes["spec"]["mapper"]["cpu_limit"] - 1.0) < 1e-5
                 assert abs(attributes["spec"]["mapper"]["memory_reserve_factor"] - 0.31) < 1e-5
                 assert attributes["spec"]["mapper"]["environment"]["var1"] == "1"
                 assert attributes["spec"]["mapper"]["environment"]["var2"] == "5"
