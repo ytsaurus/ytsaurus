@@ -344,10 +344,13 @@ void ValidateOperationAccess(
 
     for (const auto& result : results) {
         if (result.Action != ESecurityAction::Allow) {
+            auto userStr = user.value_or(GetCurrentAuthenticationIdentity().User);
             auto error = TError(
                 NSecurityClient::EErrorCode::AuthorizationError,
-                "Operation access denied")
-                << TErrorAttribute("user", user.value_or(GetCurrentAuthenticationIdentity().User))
+                "Operation access denied, user %Qv doesn't have permissions: %v",
+                userStr,
+                FormatPermissions(permissionSet))
+                << TErrorAttribute("user", userStr)
                 << TErrorAttribute("required_permissions", permissionSet)
                 << TErrorAttribute("acl", acl);
             if (operationId) {
