@@ -150,3 +150,18 @@ def get_work_path():
             return os.path.join(yatest_common.work_path())
     else:
         return os.environ["YT_TESTS_SANDBOX"]
+
+
+def prepare_yt_environment():
+    from yt.environment import arcadia_interop
+
+    if arcadia_interop.yatest_common is not None:
+        arcadia_interop.configure_logging()
+
+    destination = os.path.join(get_tests_sandbox(), "build")
+    if not os.path.exists(destination):
+        os.makedirs(destination)
+    path = arcadia_interop.prepare_yt_environment(destination, binary_root=get_build_root())
+    environment_paths = os.environ.get("PATH", "").split(os.pathsep)
+    if path not in environment_paths:
+        os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])

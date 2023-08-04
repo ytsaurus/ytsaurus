@@ -5,7 +5,7 @@ from yt.wrapper import YtClient
 from yt.wrapper.common import generate_uuid
 from yt.environment.helpers import is_dead
 from yt.environment.arcadia_interop import yatest_common, search_binary_path
-from yt.test_helpers import get_tests_sandbox, get_build_root, wait
+from yt.test_helpers import get_tests_sandbox, get_build_root, wait, prepare_yt_environment
 import yt.subprocess_wrapper as subprocess
 
 import yt.yson as yson
@@ -85,22 +85,8 @@ def _wait_instance_to_become_ready(process, instance_id):
 
 
 @pytest.fixture(scope="session", autouse=True)
-def prepare_path():
-    try:
-        from yt.environment import arcadia_interop
-
-        if yatest_common is not None:
-            arcadia_interop.configure_logging()
-
-        destination = os.path.join(get_tests_sandbox(), "build")
-        if not os.path.exists(destination):
-            os.makedirs(destination)
-        path = arcadia_interop.prepare_yt_environment(destination, binary_root=get_build_root())
-        environment_paths = os.environ.get("PATH", "").split(os.pathsep)
-        if path not in environment_paths:
-            os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
-    except ImportError:
-        pass
+def prepare_yt():
+    prepare_yt_environment()
 
 
 @contextlib.contextmanager
