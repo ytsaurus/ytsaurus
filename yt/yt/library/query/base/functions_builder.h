@@ -8,9 +8,8 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class IFunctionRegistryBuilder
+struct IFunctionRegistryBuilder
 {
-public:
     virtual ~IFunctionRegistryBuilder() = default;
 
     virtual void RegisterFunction(

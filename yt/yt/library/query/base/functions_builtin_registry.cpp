@@ -8,6 +8,8 @@ namespace NYT::NQueryClient {
 
 using namespace NTableClient;
 
+////////////////////////////////////////////////////////////////////////////////
+
 void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
 {
     builder->RegisterFunction(

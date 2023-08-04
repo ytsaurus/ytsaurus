@@ -4,8 +4,6 @@
 
 namespace NYT::NQueryClient {
 
-using namespace NTableClient;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IFunctionRegistryBuilder> CreateTypeInferrerFunctionRegistryBuilder(
