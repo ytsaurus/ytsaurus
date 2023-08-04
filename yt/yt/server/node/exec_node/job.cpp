@@ -1256,7 +1256,11 @@ void TJob::GuardedInterrupt(
         if (timeout) {
             TDelayedExecutor::CancelAndClear(InterruptionTimeoutCookie_);
             InterruptionTimeoutCookie_ = TDelayedExecutor::Submit(
-                BIND(&TJob::OnJobInterruptionTimeout, MakeWeak(this)),
+                BIND(
+                    &TJob::OnJobInterruptionTimeout,
+                    MakeWeak(this),
+                    InterruptionReason_,
+                    preemptionReason),
                 timeout,
                 Bootstrap_->GetJobInvoker());
             InterruptionDeadline_ = TInstant::Now() + timeout;
@@ -1319,11 +1323,24 @@ bool TJob::IsInterruptible() const noexcept
     return Interruptible_;
 }
 
-void TJob::OnJobInterruptionTimeout()
+void TJob::OnJobInterruptionTimeout(
+    EInterruptReason interruptionReason,
+    const std::optional<TString>& preemptionReason)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    Abort(TError(NJobProxy::EErrorCode::InterruptionTimeout, "Interruption is timed out"));
+    auto error = TError(NJobProxy::EErrorCode::InterruptionTimeout, "Interruption is timed out")
+        << TErrorAttribute("interruption_reason", InterruptionReason_)
+        << TErrorAttribute("abort_reason", EAbortReason::InterruptionTimeout);
+
+    if (interruptionReason == EInterruptReason::Preemption) {
+        error = TError("Job preempted") << error;
+        error = error
+            << TErrorAttribute("preemption_reason", preemptionReason)
+            << TErrorAttribute("abort_reason", EAbortReason::Preemption);
+    }
+
+    Abort(std::move(error));
 }
 
 TControllerAgentConnectorPool::TControllerAgentConnectorPtr TJob::GetControllerAgentConnector() const noexcept

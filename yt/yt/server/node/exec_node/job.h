@@ -211,7 +211,9 @@ public:
 
     bool IsInterruptible() const noexcept;
 
-    void OnJobInterruptionTimeout();
+    void OnJobInterruptionTimeout(
+        NScheduler::EInterruptReason interruptionReason,
+        const std::optional<TString>& preemptionReason);
 
     TControllerAgentConnectorPool::TControllerAgentConnectorPtr GetControllerAgentConnector() const noexcept;
 
