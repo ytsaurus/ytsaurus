@@ -121,3 +121,15 @@ yt set //home/project/path/table/@expiration_timeout 604800000
 Ряд вызовов API, создающих временные таблицы, устанавливают на них `expiration_time`/`expiration_timeout`, чтобы таблицы самоочищались. Следует иметь это в виду и не хранить в таких таблицах важные данные.
 
 {% endnote %}
+
+Удаление может произойти раньше, если узел находится в поддереве с меньшим значением `expiration_time`/`expiration_timeout` в корне. Чтобы получить фактическое время удаления узла, можно воспользоваться атрибутом `effective_expiration`:
+
+```bash
+$ yt get //home/project/path/table/@effective_expiration
+{
+  "time": {"value": 42, "path": //testator/path}
+  "timeout": {"value": 42, "path": //testator/path}
+}
+```
+
+При отсутствии, например, `expiration_time` на пути от корня до узла, в поле `"time"` будет записано YSON entity.

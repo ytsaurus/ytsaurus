@@ -1,8 +1,13 @@
 # Автодополнение { #autocompletion }
 
-В комплекте с PyPI-пакетами также поставляется скрипт для bash autocompletion.
+В комплекте с Deb-пакетом также поставляется скрипт для bash autocompletion, который при установке автоматически добавляется в `/etc/bash_completion.d/`.
 
- Проверить его работоспособность можно набрав в консоли:
+В случае pip-пакета включить autocompletion можно с помощью утилиты `register-python-argcomplete`, которая поставляется вместе с пакетом argcomplete.
+```
+register-python-argcomplete yt | sudo tee /etc/bash_completion.d/yt >/dev/null
+```
+
+Проверить работоспособность автодополнения можно набрав в консоли:
 
 ```bash
 yt <TAB><TAB>

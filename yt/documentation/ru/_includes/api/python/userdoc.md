@@ -69,7 +69,7 @@ print(client.list("/"))
 
 При использовании [CLI](../../../api/cli/cli.md) патч к конфигурации можно передать с помощью опции `--config`.
 
-Обратите внимание, что конфигурация библиотеки не влияет на конфигурацию клиента, и по умолчанию при создании клиента используется конфигурация со значениями по умолчанию. Вы можете передать в клиент конфигурацию, построенную на основе переменных окружения следующим образом: `client = yt.YtClient(..., config=yt.get_config_from_env())`, также вы можете обновить имеющуюся конфигурацию значениями из переменных окружения с помощью функции `update_config_from_env(config)`.
+Обратите внимание, что конфигурация библиотеки не влияет на конфигурацию клиента и по умолчанию при создании клиента используется конфиг с дефолтными значениями. Вы можете передать в клиент конфиг, построенный на основе переменных окружения следующим образом `client = yt.YtClient(..., config=yt.default_config.get_config_from_env())`, также вы можете обновить имеющийся у вас конфиг значениями из переменных окружения с помощью функции `update_config_from_env(config)`.
 
 Также обратите внимание на порядок приоритетов. При импорте библиотеки применяются конфигурации, переданные через `YT_CONFIG_PATCHES`. В данной переменной окружения ожидается list_fragment, то есть может быть передано несколько конфигураций, разделенных точкой с запятой. Указанные патчи накладываются от последнего к первому. Дальше накладываются значения опций, указанные через конкретные переменные окружения, например через `YT_PROXY`. И лишь затем накладываются конфигурации, указанные явно в коде, или переданные через опцию `--config` при использовании CLI.
 
@@ -91,7 +91,7 @@ client = yt.YtClient(proxy=<cluster-name>, config={"create_table_attributes": {"
 Настройка глобального клиента для сбора архивов зависимостей в python-операциях с использованием локальной директории отличной от `/tmp`. Затем создание клиента с дополнительной настройкой max_row_weight в 128 МБ:
 
 ```python
-my_config = yt.get_config_from_env()
+my_config = yt.default_config.get_config_from_env()
 my_config["local_temp_directory"] = "/home/ignat/tmp"
 my_config["table_writer"] = {"max_row_weight": 128 * 1024 * 1024}
 client = yt.YtClient(config=my_config)
@@ -504,7 +504,7 @@ class Row:
 
 #### Схемы { #table_schema }
 
-Каждая таблица в {{product-name}} имеет [схему](../../../user-guide/storage/static-schema.md). В Python API есть соответствующий класс [TableSchema](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.schema.table_schema.TableSchema). Основной способ создания схемы — из [класса данных](#dataclass): `schema = TableSchema.from_row_type(Row)`, в частности, схема создаётся автоматически при записи таблицы.  Иногда приходится собирать схему вручную, это удобно делать с помощью builder-интерфейса, например:
+Каждая таблица в YT имеет [схему](../../../user-guide/storage/static-schema.md). В Python API есть соответствующий класс [TableSchema](https://pydoc.yt.yandex.net/yt.wrapper.schema.html#yt.wrapper.schema.table_schema.TableSchema). Основной способ создания схемы — из [датакласса](#dataclass): `schema = TableSchema.from_row_type(Row)`, в частности, это происходит автоматически при записи таблицы.Однако иногда приходится собирать схему вручную, это может быть удобно делать с помощью builder-интерфейса, например:
 
 ```python
 import yt.type_info.typing as ti
@@ -890,7 +890,7 @@ with yt.Transaction():
 
 ## Вложенные транзакции
 with yt.Transaction():
-    yt.lock("//home/table", waitable=True)
+    yt.lock("//home/table", waitable=True, wait_for=60000)
     with yt.Transaction():
         yt.set("//home/table/@attr", "value")
 ```
@@ -1177,7 +1177,7 @@ yt.get_attribute("//sys/groups/testers", "members")
 
  В классе джоба обязательно должен быть определен метод `__call__(self, row)` (для mapper-а) или `__call__(self, rows)` (для reducer-а). На вход данному методу приходят строки таблицы (в случае reducer-а один вызов `__call__` соответствует набору строк с одинаковым ключом). Он обязан вернуть (**с помощью `yield`**) строки которые нужно записать в выходную таблицу. Если выходных таблиц несколько, нужно использовать класс-обёртку `yt.wrapper.OutputRow`, конструктор которого принимает записываемую строку и `table_index` в виде именованного параметра (смотрите [пример](../../../api/python/examples.md#table_switches) в туториале).
 
-Дополнительно можно определить методы `start(self)` (будет вызван ровно один раз перед обработкой записей джоба) и `finish(self)` (будет вызван один раз после обработки записей джоба), которые, как и `__call__`, могут генерировать (с помощью `yield`) новые записи, что позволяет, например, удобно делать агрегирующие операции. А также метод [`.prepare_operation(self, context, preparer)`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.TypedJob.prepare_operation). Он используется для указания типов строк входных и выходных таблиц, а также для модификации спеки операции. Более подробно смотрите [ниже](#prepare_operation) и примеры в туториале: [раз](../../../api/python/examples.md#prepare_operation) и [два](#examples.md#grep).
+Дополнительно можно определить методы `start(self)` (будет вызван ровно один раз перед обработкой записей джоба) и `finish(self)` (будет вызван один раз после обработки записей джоба), которые, как и `__call__`, могут генерировать (с помощью `yield`) новые записи, что позволяет, например, удобно делать агрегирующие операции (не вызываются для "честных" агрегирующих операций типа `@yt.aggregator`). А также метод [`.prepare_operation(self, context, preparer)`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.TypedJob.prepare_operation). Он используется для указания типов строк входных и выходных таблиц, а также для модификации спеки операции. Более подробно смотрите [ниже](#prepare_operation) и примеры в туториале: [раз](../../../api/python/examples.md#prepare_operation) и [два](#examples.md#grep).
 
 ### Подготовка операции из джоба { #prepare_operation }
 

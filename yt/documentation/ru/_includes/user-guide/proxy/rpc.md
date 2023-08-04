@@ -6,6 +6,10 @@
 
 Пример на [Github](https://github.com/ytsaurus/ytsaurus/blob/main/yt/examples/rpc_proxy_sample/main.cpp)
 
+<!--[Интерфейс клиента](https://a.yandex-team.ru/arc/trunk/arcadia/yt/yt/client/api/client.h)
+[Создание подключения](https://a.yandex-team.ru/arc/trunk/arcadia/yt/yt/client/api/rpc_proxy/connection.h)
+[Пример](https://a.yandex-team.ru/arc/trunk/arcadia/yt/examples/rpc_proxy_sample/main.cpp)-->
+
 В примере реализована программа, через которую можно работать с динамическими таблицами в интерактивном режиме. 
 
 Формат вызова:
