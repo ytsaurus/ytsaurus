@@ -73,8 +73,8 @@
 #include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/yt/core/misc/public.h>
 #include <yt/yt/core/misc/id_generator.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/net/address.h>
 
@@ -929,7 +929,7 @@ private:
     {
         TNodeId id;
         while (true) {
-            id = NodeIdGenerator_.Next();
+            id = TNodeId(NodeIdGenerator_.Next());
             // Beware of sentinels!
             if (id == InvalidNodeId) {
                 // Just wait for the next attempt.
@@ -1069,7 +1069,7 @@ private:
         }
 
         if (isNodeNew) {
-            auto nodeId = request->has_node_id() ? request->node_id() : GenerateNodeId();
+            auto nodeId = request->has_node_id() ? FromProto<TNodeId>(request->node_id()) : GenerateNodeId();
             node = CreateNode(nodeId, nodeAddresses);
         } else {
             // NB: Default address should not change.
@@ -1152,7 +1152,7 @@ private:
             PostRegisterNodeMutation(node, request);
         }
 
-        response->set_node_id(node->GetId());
+        response->set_node_id(ToProto<ui32>(node->GetId()));
         response->set_use_new_heartbeats(true);
 
         if (context) {
@@ -1163,7 +1163,7 @@ private:
 
     void HydraUnregisterNode(TReqUnregisterNode* request)
     {
-        auto nodeId = request->node_id();
+        auto nodeId = FromProto<TNodeId>(request->node_id());
 
         auto* node = FindNode(nodeId);
         if (!IsObjectAlive(node)) {
@@ -1183,7 +1183,7 @@ private:
         TReqHeartbeat* request,
         TRspHeartbeat* response)
     {
-        auto nodeId = request->node_id();
+        auto nodeId = FromProto<TNodeId>(request->node_id());
         auto* node = GetNodeOrThrow(nodeId);
 
         node->ValidateRegistered();
@@ -1226,7 +1226,8 @@ private:
             cellTag);
 
         for (const auto& entry : request->entries()) {
-            auto* node = FindNode(entry.node_id());
+            auto nodeId = FromProto<TNodeId>(entry.node_id());
+            auto* node = FindNode(nodeId);
             if (!IsObjectAlive(node)) {
                 continue;
             }
@@ -1253,7 +1254,8 @@ private:
             cellTag);
 
         for (const auto& entry : request->entries()) {
-            auto* node = FindNode(entry.node_id());
+            auto nodeId = FromProto<TNodeId>(entry.node_id());
+            auto* node = FindNode(nodeId);
             if (!IsObjectAlive(node)) {
                 continue;
             }
@@ -1274,7 +1276,8 @@ private:
             cellTag);
 
         for (const auto& entry : request->entries()) {
-            auto* node = FindNode(entry.node_id());
+            auto nodeId = FromProto<TNodeId>(entry.node_id());
+            auto* node = FindNode(nodeId);
             if (!IsObjectAlive(node)) {
                 continue;
             }
@@ -1290,11 +1293,12 @@ private:
 
     void HydraUpdateNodeResources(NProto::TReqUpdateNodeResources* request)
     {
-        auto* node = FindNode(request->node_id());
+        auto nodeId = FromProto<TNodeId>(request->node_id());
+        auto* node = FindNode(nodeId);
         if (!node) {
             YT_LOG_ERROR(
                 "Error updating cluster node resource usage and limits: node not found (NodeId: %v)",
-                request->node_id());
+                nodeId);
             return;
         }
 
@@ -1308,7 +1312,8 @@ private:
         auto& nodeList = NodeListPerRole_[nodeRole].Nodes();
         nodeList.clear();
 
-        for (auto nodeId: request->node_ids()) {
+        for (auto protoNodeId: request->node_ids()) {
+            auto nodeId = FromProto<TNodeId>(protoNodeId);
             auto* node = FindNode(nodeId);
             if (IsObjectAlive(node)) {
                 nodeList.push_back(node);
@@ -1903,7 +1908,7 @@ private:
             }
 
             auto* entry = request.add_entries();
-            entry->set_node_id(node->GetId());
+            entry->set_node_id(ToProto<ui32>(node->GetId()));
             ToProto(entry->mutable_statistics(), node->ComputeCellStatistics());
         }
 
@@ -1936,7 +1941,7 @@ private:
             }
 
             auto* entry = gossipRequest.add_entries();
-            entry->set_node_id(node->GetId());
+            entry->set_node_id(ToProto<ui32>(node->GetId()));
 
             if (state == node->GetLastGossipState()) {
                 entry->set_redundant(true);
@@ -1987,7 +1992,7 @@ private:
     void PostRegisterNodeMutation(TNode* node, const TReqRegisterNode* originalRequest)
     {
         TReqRegisterNode request;
-        request.set_node_id(node->GetId());
+        request.set_node_id(ToProto<ui32>(node->GetId()));
         ToProto(request.mutable_node_addresses(), node->GetNodeAddresses());
         for (const auto& tag : node->NodeTags()) {
             request.add_tags(tag);
@@ -2021,7 +2026,7 @@ private:
     void PostUnregisterNodeMutation(TNode* node)
     {
         TReqUnregisterNode request;
-        request.set_node_id(node->GetId());
+        request.set_node_id(ToProto<ui32>(node->GetId()));
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToSecondaryMasters(request);
@@ -2099,7 +2104,7 @@ private:
             // NB: TReqRegisterNode+TReqUnregisterNode create an offline node at the secondary master.
             {
                 TReqRegisterNode request;
-                request.set_node_id(node->GetId());
+                request.set_node_id(ToProto<ui32>(node->GetId()));
                 ToProto(request.mutable_node_addresses(), node->GetNodeAddresses());
                 request.set_suppress_unsupported_chunk_locations_alert(true);
 
@@ -2110,7 +2115,7 @@ private:
             }
             {
                 TReqUnregisterNode request;
-                request.set_node_id(node->GetId());
+                request.set_node_id(ToProto<ui32>(node->GetId()));
                 multicellManager->PostToMaster(request, cellTag);
             }
             for (const auto& [id, request] : node->MaintenanceRequests()) {

@@ -195,7 +195,7 @@ protected:
         if (!NodeDirectory_) {
             NodeDirectory_ = New<TNodeDirectory>();
             for (int nodeId = 1; nodeId <= NodeCount_; ++nodeId) {
-                NodeDirectory_->AddDescriptor(nodeId, TNodeDescriptor{Format("node-%v", nodeId)});
+                NodeDirectory_->AddDescriptor(TNodeId(nodeId), TNodeDescriptor{Format("node-%v", nodeId)});
             }
         }
 
@@ -209,13 +209,13 @@ protected:
         }
     }
 
-    void SetNodeResponse(int nodeId, const TNodeResponseScenario& nodeResponseScenario)
+    void SetNodeResponse(int nodeIndex, const TNodeResponseScenario& nodeResponseScenario)
     {
-        YT_VERIFY(1 <= nodeId && nodeId <= NodeCount_);
+        YT_VERIFY(1 <= nodeIndex && nodeIndex <= NodeCount_);
         for (const auto& [chunkIndex, value] : nodeResponseScenario.ChunkResponses) {
             YT_VERIFY(0 <= chunkIndex && chunkIndex < ChunkCount_);
         }
-        ResponseProfile_[nodeId] = nodeResponseScenario;
+        ResponseProfile_[TNodeId(nodeIndex)] = nodeResponseScenario;
     }
 
     static TInputChunkPtr CreateChunk(int id, const std::vector<int>& replicaNodes)
@@ -225,7 +225,7 @@ protected:
 
         TChunkReplicaWithMediumList replicas;
         for (int index = 0; index < std::ssize(replicaNodes); ++index) {
-            replicas.emplace_back(replicaNodes[index], index, GenericMediumIndex);
+            replicas.emplace_back(TNodeId(replicaNodes[index]), index, GenericMediumIndex);
         }
         inputChunk->SetReplicaList(replicas);
 
@@ -292,7 +292,7 @@ TEST_F(TFetcherBaseTest, StaleNodeDirectory)
             continue;
         }
 
-        nodeDirectory->AddDescriptor(nodeId, TNodeDescriptor{Format("node-%v", nodeId)});
+        nodeDirectory->AddDescriptor(TNodeId(nodeId), TNodeDescriptor{Format("node-%v", nodeId)});
     }
     NodeDirectory_ = nodeDirectory;
 
@@ -319,7 +319,7 @@ TEST_F(TFetcherBaseTest, StaleNodeDirectory)
     TDelayedExecutor::Submit(BIND([this] {
         auto completeNodeDirectory = New<TNodeDirectory>();
         for (int nodeId = 1; nodeId <= NodeCount_; ++nodeId) {
-            completeNodeDirectory->AddDescriptor(nodeId, TNodeDescriptor{Format("node-%v", nodeId)});
+            completeNodeDirectory->AddDescriptor(TNodeId(nodeId), TNodeDescriptor{Format("node-%v", nodeId)});
         }
         NodeDirectory_->MergeFrom(completeNodeDirectory);
     }), TDuration::Seconds(5));
@@ -338,7 +338,7 @@ TEST_F(TFetcherBaseTest, StaleNodeDirectoryFails)
             continue;
         }
 
-        nodeDirectory->AddDescriptor(nodeId, TNodeDescriptor{Format("node-%v", nodeId)});
+        nodeDirectory->AddDescriptor(TNodeId(nodeId), TNodeDescriptor{Format("node-%v", nodeId)});
     }
     NodeDirectory_ = nodeDirectory;
 

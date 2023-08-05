@@ -71,7 +71,7 @@ std::vector<TExecNodePtr> CreateExecNodes(const std::vector<TNodeGroupConfigPtr>
     for (const auto& nodeGroupConfig : nodeGroups) {
         for (int i = 0; i < nodeGroupConfig->Count; ++i) {
             // NB: 0 is InvalidNodeId therefore we need +1.
-            auto nodeId = execNodes.size() + 1;
+            auto nodeId = TNodeId(execNodes.size() + 1);
             TNodeDescriptor descriptor("node" + ToString(nodeId));
 
             auto node = New<TExecNode>(nodeId, descriptor, NScheduler::ENodeState::Online);

@@ -659,7 +659,7 @@ private:
                 TDataNodeServiceProxy proxy(channel);
 
                 auto req = proxy.AnnounceChunkReplicas();
-                req->set_source_node_id(selfNodeId);
+                req->set_source_node_id(ToProto<ui32>(selfNodeId));
                 ToProto(req->mutable_announcements(), parcel);
                 req->SetTimeout(config->AnnouncementRequestTimeout);
 

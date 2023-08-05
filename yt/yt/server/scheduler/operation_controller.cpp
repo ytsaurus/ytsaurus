@@ -13,7 +13,6 @@ using namespace NYson;
 using std::placeholders::_1;
 
 using NYT::FromProto;
-using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -121,7 +120,7 @@ void FromProto(
             jobProto.tree_id(),
             UndefinedSchedulingIndex,
             /*schedulingStage*/ std::nullopt,
-            jobProto.node_id(),
+            FromProto<NNodeTrackerClient::TNodeId>(jobProto.node_id()),
             jobProto.node_address());
         job->SetAllocationState(EAllocationState::Running);
         result->RevivedJobs.push_back(job);

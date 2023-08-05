@@ -17,6 +17,8 @@ using namespace NExecNodeTrackerClient;
 using namespace NHydra;
 using namespace NRpc;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TExecNodeTrackerService
@@ -40,7 +42,7 @@ private:
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
 
-        auto nodeId = request->node_id();
+        auto nodeId = FromProto<TNodeId>(request->node_id());
         const auto& statistics = request->statistics();
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();

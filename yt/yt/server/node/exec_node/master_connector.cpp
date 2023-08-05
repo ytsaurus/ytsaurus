@@ -61,7 +61,7 @@ public:
 
         TReqHeartbeat heartbeat;
 
-        heartbeat.set_node_id(Bootstrap_->GetNodeId());
+        heartbeat.set_node_id(ToProto<ui32>(Bootstrap_->GetNodeId()));
 
         auto* statistics = heartbeat.mutable_statistics();
         const auto& slotManager = Bootstrap_->GetSlotManager();

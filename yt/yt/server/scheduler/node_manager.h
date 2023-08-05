@@ -121,7 +121,7 @@ private:
 
     // Special map to support node consistency between node shards YT-11381.
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, NodeAddressToNodeIdLock_);
-    THashMap<TString, int> NodeAddressToNodeId_;
+    THashMap<TString, NNodeTrackerClient::TNodeId> NodeAddressToNodeId_;
 
     const TNodeShardPtr& GetNodeShard(NNodeTrackerClient::TNodeId nodeId) const;
     const TNodeShardPtr& GetNodeShardByJobId(TJobId jobId) const;

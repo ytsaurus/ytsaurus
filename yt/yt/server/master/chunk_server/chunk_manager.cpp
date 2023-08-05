@@ -2079,7 +2079,7 @@ public:
         // If node resource usage or limits have changed, we commit mutation with new values.
         if (node->ResourceUsage() != resourceUsage || node->ResourceLimits() != resourceLimits) {
             NNodeTrackerServer::NProto::TReqUpdateNodeResources request;
-            request.set_node_id(node->GetId());
+            request.set_node_id(ToProto<ui32>(node->GetId()));
             request.mutable_resource_usage()->CopyFrom(resourceUsage);
             request.mutable_resource_limits()->CopyFrom(resourceLimits);
 

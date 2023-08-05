@@ -426,7 +426,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        request->set_node_id(Bootstrap_->GetNodeId());
+        request->set_node_id(ToProto<ui32>(Bootstrap_->GetNodeId()));
         ToProto(request->mutable_node_descriptor(), Bootstrap_->GetLocalDescriptor());
         *request->mutable_resource_limits() = ToNodeResources(JobResourceManager_->GetResourceLimits());
         *request->mutable_resource_usage() = ToNodeResources(JobResourceManager_->GetResourceUsage(/*includeWaiting*/ true));

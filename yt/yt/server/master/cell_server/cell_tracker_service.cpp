@@ -88,7 +88,7 @@ private:
                 ToProto(protoPeer->mutable_assigned_node_descriptor(), peer.Descriptor);
             }
             if (peer.Node) {
-                protoPeer->set_last_seen_node_id(peer.Node->GetId());
+                protoPeer->set_last_seen_node_id(ToProto<ui32>(peer.Node->GetId()));
                 allNodes.insert(peer.Node);
             }
             protoPeer->set_last_peer_state(::NYT::ToProto<i32>(peer.LastSeenState));
@@ -132,7 +132,7 @@ private:
             const auto& nodeSet = bundleTracker->GetAreaNodes(&area);
             for (auto node : nodeSet) {
                 if (IsObjectAlive(node)) {
-                    protoArea->add_node_ids(node->GetId());
+                    protoArea->add_node_ids(ToProto<ui32>(node->GetId()));
                 }
             }
             allNodes.insert(nodeSet.begin(), nodeSet.end());

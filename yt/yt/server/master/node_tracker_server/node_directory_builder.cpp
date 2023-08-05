@@ -23,7 +23,7 @@ void TNodeDirectoryBuilder::Add(const TNode* node)
     }
 
     auto* item = ProtoDirectory_->add_items();
-    item->set_node_id(node->GetId());
+    item->set_node_id(ToProto<ui32>(node->GetId()));
     ToProto(item->mutable_node_descriptor(), node->GetDescriptor(AddressType_));
 }
 

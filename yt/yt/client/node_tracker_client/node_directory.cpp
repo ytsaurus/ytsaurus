@@ -435,7 +435,8 @@ void TNodeDirectory::MergeFrom(const NProto::TNodeDirectory& source)
     {
         auto guard = ReaderGuard(SpinLock_);
         for (const auto& item : source.items()) {
-            if (CheckNodeDescriptor(item.node_id(), item.node_descriptor())) {
+            auto nodeId = TNodeId(item.node_id());
+            if (CheckNodeDescriptor(nodeId, item.node_descriptor())) {
                 items.push_back(&item);
             }
         }
@@ -444,7 +445,8 @@ void TNodeDirectory::MergeFrom(const NProto::TNodeDirectory& source)
     {
         auto guard = WriterGuard(SpinLock_);
         for (const auto* item : items) {
-            DoAddDescriptor(item->node_id(), item->node_descriptor());
+            auto nodeId = TNodeId(item->node_id());
+            DoAddDescriptor(nodeId, item->node_descriptor());
         }
     }
 }
@@ -479,7 +481,7 @@ void TNodeDirectory::DumpTo(NProto::TNodeDirectory* destination)
     auto guard = ReaderGuard(SpinLock_);
     for (auto [id, descriptor] : IdToDescriptor_) {
         auto* item = destination->add_items();
-        item->set_node_id(id);
+        item->set_node_id(ToProto<ui32>(id));
         ToProto(item->mutable_node_descriptor(), *descriptor);
     }
 }

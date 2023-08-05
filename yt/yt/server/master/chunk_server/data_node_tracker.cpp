@@ -517,7 +517,7 @@ private:
         TReqIncrementalHeartbeat* request,
         TRspIncrementalHeartbeat* response)
     {
-        auto nodeId = request->node_id();
+        auto nodeId = FromProto<TNodeId>(request->node_id());
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
@@ -552,7 +552,7 @@ private:
         TReqFullHeartbeat* request,
         TRspFullHeartbeat* response)
     {
-        auto nodeId = request->node_id();
+        auto nodeId = FromProto<TNodeId>(request->node_id());
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);

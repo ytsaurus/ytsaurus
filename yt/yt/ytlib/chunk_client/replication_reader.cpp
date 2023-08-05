@@ -1664,7 +1664,8 @@ private:
         bool addedNewPeers = false;
         for (const auto& peerDescriptor : probeResult.PeerDescriptors) {
             int blockIndex = peerDescriptor.block_index();
-            for (auto peerNodeId : peerDescriptor.node_ids()) {
+            for (auto protoPeerNodeId : peerDescriptor.node_ids()) {
+                auto peerNodeId = NNodeTrackerClient::TNodeId(protoPeerNodeId);
                 auto maybeSuggestedDescriptor = NodeDirectory_->FindDescriptor(peerNodeId);
                 if (!maybeSuggestedDescriptor) {
                     YT_LOG_DEBUG("Cannot resolve peer descriptor (SuggestedNodeId: %v, SuggestorAddress: %v)",
@@ -2073,7 +2074,7 @@ private:
 
                 ToProto(wait->mutable_session_id(), sessionId);
                 wait->set_iteration(iteration);
-                wait->set_if_node_id(peer.Replica.GetNodeId());
+                wait->set_if_node_id(ToProto<ui32>(peer.Replica.GetNodeId()));
             }
         }
     }

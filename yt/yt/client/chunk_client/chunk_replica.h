@@ -8,8 +8,8 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(ui64* value, TChunkReplicaWithMedium replica);
-void FromProto(TChunkReplicaWithMedium* replica, ui64 value);
+void ToProto(ui64* protoReplica, TChunkReplicaWithMedium replica);
+void FromProto(TChunkReplicaWithMedium* replica, ui64 protoReplica);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,7 +39,7 @@ private:
      *  24-28: replica index (5 bits)
      *  29-37: medium index (7 bits)
      */
-    ui64 Value;
+    ui64 Value_;
 
     explicit TChunkReplicaWithMedium(ui64 value);
 
@@ -94,7 +94,7 @@ class TChunkReplica
 {
 public:
     TChunkReplica();
-    TChunkReplica(int nodeId, int replicaIndex);
+    TChunkReplica(NNodeTrackerClient::TNodeId nodeId, int replicaIndex);
     TChunkReplica(const TChunkReplicaWithMedium& replica);
 
     NNodeTrackerClient::TNodeId GetNodeId() const;
@@ -106,7 +106,7 @@ private:
      *   0-23: node id (24 bits)
      *  24-28: replica index (5 bits)
      */
-    ui32 Value;
+    ui32 Value_;
 
     explicit TChunkReplica(ui32 value);
 

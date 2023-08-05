@@ -73,7 +73,7 @@ private:
                 request->node_id());
         }
 
-        auto nodeId = request->node_id();
+        auto nodeId = FromProto<TNodeId>(request->node_id());
 
         const auto& resourceLimits = request->resource_limits();
         const auto& resourceUsage = request->resource_usage();

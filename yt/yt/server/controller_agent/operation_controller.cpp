@@ -104,7 +104,7 @@ void ToProto(NProto::TReviveOperationResult* resultProto, const TOperationContro
         ToProto(jobProto->mutable_disk_quota(), job.DiskQuota);
         jobProto->set_interruptible(job.Interruptible);
         jobProto->set_tree_id(job.TreeId);
-        jobProto->set_node_id(job.NodeId);
+        jobProto->set_node_id(ToProto<ui32>(job.NodeId));
         jobProto->set_node_address(job.NodeAddress);
     }
     ToProto(resultProto->mutable_revived_banned_tree_ids(), result.RevivedBannedTreeIds);

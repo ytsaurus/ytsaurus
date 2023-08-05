@@ -120,7 +120,7 @@ private:
         TReqHeartbeat* request,
         TRspHeartbeat* response)
     {
-        auto nodeId = request->node_id();
+        auto nodeId = FromProto<TNodeId>(request->node_id());
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);

@@ -22,6 +22,8 @@ using namespace NExecNodeTrackerClient::NProto;
 using namespace NHydra;
 using namespace NNodeTrackerClient;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = NodeTrackerServerLogger;
@@ -82,7 +84,7 @@ private:
         TReqHeartbeat* request,
         TRspHeartbeat* response)
     {
-        auto nodeId = request->node_id();
+        auto nodeId = FromProto<TNodeId>(request->node_id());
 
         auto jobProxyVersion = YT_PROTO_OPTIONAL(*request, job_proxy_build_version);
 

@@ -130,7 +130,7 @@ public:
 
         TReqHeartbeat heartbeat;
 
-        heartbeat.set_node_id(GetNodeId());
+        heartbeat.set_node_id(ToProto<ui32>(GetNodeId()));
 
         const auto& memoryTracker = Bootstrap_->GetMemoryUsageTracker();
         auto* protoMemory = heartbeat.mutable_statistics()->mutable_memory();
@@ -585,7 +585,7 @@ private:
             }
         }
 
-        NodeId_.store(rsp->node_id());
+        NodeId_.store(FromProto<TNodeId>(rsp->node_id()));
     }
 
     void SyncDirectories()

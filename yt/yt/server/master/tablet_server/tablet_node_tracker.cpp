@@ -25,6 +25,8 @@ using namespace NNodeTrackerServer;
 using namespace NTabletNodeTrackerClient::NProto;
 using namespace NTabletServer;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = TabletServerLogger;
@@ -89,7 +91,7 @@ private:
         TReqHeartbeat* request,
         TRspHeartbeat* response)
     {
-        auto nodeId = request->node_id();
+        auto nodeId = FromProto<TNodeId>(request->node_id());
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);

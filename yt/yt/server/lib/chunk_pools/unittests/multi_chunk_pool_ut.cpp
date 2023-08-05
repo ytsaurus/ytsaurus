@@ -25,7 +25,6 @@ namespace {
 using ::testing::InSequence;
 using ::testing::InvokeWithoutArgs;
 using ::testing::Return;
-using ::testing::ReturnRef;
 using ::testing::Test;
 using ::testing::_;
 
@@ -246,7 +245,7 @@ protected:
 
         for (int index = 0; index < std::ssize(Mocks_); ++index) {
             if (stripeCounts[index]) {
-                EXPECT_CALL(*Mocks_[index], Extract(0))
+                EXPECT_CALL(*Mocks_[index], Extract(NNodeTrackerClient::TNodeId(0)))
                     .Times(stripeCounts[index])
                     .WillRepeatedly(InvokeWithoutArgs([this, index] {
                         auto& mock = Mocks_[index];
@@ -388,7 +387,7 @@ TEST_F(TMultiChunkPoolOutputTest, TestGetLocality)
 {
     InitPools({0});
 
-    EXPECT_EQ(Pool_->GetLocality(42), 0);
+    EXPECT_EQ(Pool_->GetLocality(NNodeTrackerClient::TNodeId(42)), 0);
     EXPECT_TRUE(Pool_->IsCompleted());
 }
 

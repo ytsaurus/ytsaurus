@@ -23,6 +23,8 @@ using namespace NHydra;
 using namespace NProto;
 using namespace NProfiling;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = NodeTrackerServerLogger;
@@ -63,7 +65,7 @@ public:
         YT_VERIFY(IsLeader());
 
         TReqDisposeNode request;
-        request.set_node_id(node->GetId());
+        request.set_node_id(ToProto<ui32>(node->GetId()));
 
         auto mutation = CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
@@ -225,7 +227,7 @@ private:
                 node->GetDefaultAddress());
 
             TReqNodeDisposalTick request;
-            request.set_node_id(nodeId);
+            request.set_node_id(ToProto<ui32>(nodeId));
 
             auto mutation = CreateMutation(
                 Bootstrap_->GetHydraFacade()->GetHydraManager(),
@@ -243,7 +245,7 @@ private:
 
     void HydraDisposeNode(TReqDisposeNode* request)
     {
-        auto nodeId = request->node_id();
+        auto nodeId = FromProto<NNodeTrackerClient::TNodeId>(request->node_id());
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->FindNode(nodeId);
@@ -265,7 +267,7 @@ private:
     void HydraNodeDisposalTick(TReqNodeDisposalTick* request)
     {
         YT_PROFILE_TIMING("/node_tracker/node_dispose_time") {
-            auto nodeId = request->node_id();
+            auto nodeId = FromProto<NNodeTrackerClient::TNodeId>(request->node_id());
 
             const auto& nodeTracker = Bootstrap_->GetNodeTracker();
             auto* node = nodeTracker->FindNode(nodeId);

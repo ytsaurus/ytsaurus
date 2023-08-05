@@ -509,7 +509,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         JobReporterWriteFailuresCount_.fetch_add(jobReporterWriteFailuresCount, std::memory_order::relaxed);
     }
 
-    auto nodeId = request->node_id();
+    auto nodeId = FromProto<TNodeId>(request->node_id());
     auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
     const auto& resourceLimits = request->resource_limits();
     const auto& resourceUsage = request->resource_usage();

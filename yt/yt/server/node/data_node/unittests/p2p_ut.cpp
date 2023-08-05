@@ -74,7 +74,7 @@ TEST_F(TP2PTest, SnoopNoNodes)
 
 TEST_F(TP2PTest, LargeBlockRead)
 {
-    std::vector<TNodeId> peers = {42, 43, 44, 45, 46};
+    std::vector peers{TNodeId(42), TNodeId(43), TNodeId(44), TNodeId(45), TNodeId(46)};
     Snooper->SetEligiblePeers(peers);
 
     auto chunk0 = TChunkId::Create();
@@ -94,7 +94,7 @@ TEST_F(TP2PTest, LargeBlockRead)
 
 TEST_F(TP2PTest, MaxBytesPerNode)
 {
-    std::vector<TNodeId> peers = {42, 43, 44, 45, 46};
+    std::vector peers{TNodeId(42), TNodeId(43), TNodeId(44), TNodeId(45), TNodeId(46)};
     Snooper->SetEligiblePeers(peers);
 
     auto chunk0 = TChunkId::Create();
@@ -109,7 +109,7 @@ TEST_F(TP2PTest, MaxBytesPerNode)
     auto suggestions = Snooper->OnBlockRead(chunk0, {0}, &blocks);
     ASSERT_FALSE(suggestions.empty());
 
-    peers = {142, 143, 144, 145, 146};
+    peers = {TNodeId(142), TNodeId(143), TNodeId(144), TNodeId(145), TNodeId(146)};
     Snooper->SetEligiblePeers(peers);
 
     blocks = {bigBlock};
@@ -132,7 +132,7 @@ TEST_F(TP2PTest, MaxBytesPerNode)
 
 TEST_F(TP2PTest, BlockRedistribution)
 {
-    std::vector<TNodeId> peers = {42, 43, 44, 45, 46};
+    std::vector peers{TNodeId(42), TNodeId(43), TNodeId(44), TNodeId(45), TNodeId(46)};
     Snooper->SetEligiblePeers(peers);
 
     auto chunk0 = TChunkId::Create();
@@ -145,7 +145,7 @@ TEST_F(TP2PTest, BlockRedistribution)
     auto suggestions = Snooper->OnBlockRead(chunk0, {2}, &blocks);
     ASSERT_FALSE(suggestions.empty());
 
-    peers = {142, 143, 144, 145, 146};
+    peers = {TNodeId(142), TNodeId(143), TNodeId(144), TNodeId(145), TNodeId(146)};
     Snooper->SetEligiblePeers(peers);
 
     for (int i = 0; i < Config->BlockRedistributionTicks; i++) {
@@ -171,7 +171,7 @@ TEST_F(TP2PTest, Snoop)
     auto block3 = TBlock{TSharedRef::FromString("b3")};
     auto block4 = TBlock{TSharedRef::FromString("b4")};
 
-    std::vector<TNodeId> peers = {42, 43, 44, 45, 46};
+    std::vector peers{TNodeId(42), TNodeId(43), TNodeId(44), TNodeId(45), TNodeId(46)};
     Snooper->SetEligiblePeers(peers);
 
     std::vector<TBlock> blocks{block2, block3};

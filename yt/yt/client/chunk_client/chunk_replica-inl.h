@@ -18,23 +18,23 @@ static_assert(
     "Medium index must fit into 7 bits.");
 
 Y_FORCE_INLINE TChunkReplicaWithMedium::TChunkReplicaWithMedium()
-    : TChunkReplicaWithMedium(NNodeTrackerClient::InvalidNodeId)
+    : Value_(NNodeTrackerClient::InvalidNodeId.Underlying())
 { }
 
 Y_FORCE_INLINE TChunkReplicaWithMedium::TChunkReplicaWithMedium(ui64 value)
-    : Value(value)
+    : Value_(value)
 { }
 
 Y_FORCE_INLINE TChunkReplicaWithMedium::TChunkReplicaWithMedium(
     NNodeTrackerClient::TNodeId nodeId,
     int replicaIndex,
     int mediumIndex)
-    : Value(
-        static_cast<ui64>(nodeId) |
+    : Value_(
+        static_cast<ui64>(nodeId.Underlying()) |
         (static_cast<ui64>(replicaIndex) << 24) |
         (static_cast<ui64>(mediumIndex) << 29))
 {
-    YT_ASSERT(nodeId >= 0 && nodeId <= static_cast<int>(NNodeTrackerClient::MaxNodeId));
+    YT_ASSERT(nodeId.Underlying() >= 0 && nodeId.Underlying() <= NNodeTrackerClient::MaxNodeId.Underlying());
     YT_ASSERT(replicaIndex >= 0 && replicaIndex < ChunkReplicaIndexBound);
     YT_ASSERT(mediumIndex >= 0 && mediumIndex < MediumIndexBound);
 }
@@ -49,17 +49,17 @@ Y_FORCE_INLINE TChunkReplicaWithMedium::TChunkReplicaWithMedium(
 
 Y_FORCE_INLINE NNodeTrackerClient::TNodeId TChunkReplicaWithMedium::GetNodeId() const
 {
-    return Value & 0x00ffffff;
+    return NNodeTrackerClient::TNodeId(Value_ & 0x00ffffff);
 }
 
 Y_FORCE_INLINE int TChunkReplicaWithMedium::GetReplicaIndex() const
 {
-    return (Value & 0x1f000000) >> 24;
+    return (Value_ & 0x1f000000) >> 24;
 }
 
 Y_FORCE_INLINE int TChunkReplicaWithMedium::GetMediumIndex() const
 {
-    return Value >> 29;
+    return Value_ >> 29;
 }
 
 Y_FORCE_INLINE TChunkReplica TChunkReplicaWithMedium::ToChunkReplica() const
@@ -67,14 +67,14 @@ Y_FORCE_INLINE TChunkReplica TChunkReplicaWithMedium::ToChunkReplica() const
     return TChunkReplica(GetNodeId(), GetReplicaIndex());
 }
 
-Y_FORCE_INLINE void ToProto(ui64* value, TChunkReplicaWithMedium replica)
+Y_FORCE_INLINE void ToProto(ui64* protoReplica, TChunkReplicaWithMedium replica)
 {
-    *value = replica.Value;
+    *protoReplica = replica.Value_;
 }
 
-Y_FORCE_INLINE void FromProto(TChunkReplicaWithMedium* replica, ui64 value)
+Y_FORCE_INLINE void FromProto(TChunkReplicaWithMedium* replica, ui64 protoReplica)
 {
-    replica->Value = value;
+    replica->Value_ = protoReplica;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -108,42 +108,42 @@ Y_FORCE_INLINE TChunkLocationUuid TChunkReplicaWithLocation::GetChunkLocationUui
 ////////////////////////////////////////////////////////////////////////////////
 
 Y_FORCE_INLINE TChunkReplica::TChunkReplica()
-    : TChunkReplica(NNodeTrackerClient::InvalidNodeId)
+    : Value_(NNodeTrackerClient::InvalidNodeId.Underlying())
 { }
 
 Y_FORCE_INLINE TChunkReplica::TChunkReplica(ui32 value)
-    : Value(value)
+    : Value_(value)
 { }
 
-Y_FORCE_INLINE TChunkReplica::TChunkReplica(int nodeId, int replicaIndex)
-    : Value(static_cast<ui64>(nodeId) | (static_cast<ui64>(replicaIndex) << 24))
+Y_FORCE_INLINE TChunkReplica::TChunkReplica(NNodeTrackerClient::TNodeId nodeId, int replicaIndex)
+    : Value_(static_cast<ui64>(nodeId.Underlying()) | (static_cast<ui64>(replicaIndex) << 24))
 {
-    YT_ASSERT(nodeId >= 0 && nodeId <= static_cast<int>(NNodeTrackerClient::MaxNodeId));
+    YT_ASSERT(nodeId.Underlying() >= 0 && nodeId.Underlying() <= NNodeTrackerClient::MaxNodeId.Underlying());
     YT_ASSERT(replicaIndex >= 0 && replicaIndex < ChunkReplicaIndexBound);
 }
 
 Y_FORCE_INLINE TChunkReplica::TChunkReplica(const TChunkReplicaWithMedium& replica)
-    : Value(static_cast<ui64>(replica.GetNodeId()) | (static_cast<ui64>(replica.GetReplicaIndex()) << 24))
+    : Value_(static_cast<ui64>(replica.GetNodeId().Underlying()) | (static_cast<ui64>(replica.GetReplicaIndex()) << 24))
 { }
 
 Y_FORCE_INLINE NNodeTrackerClient::TNodeId TChunkReplica::GetNodeId() const
 {
-    return Value & 0x00ffffff;
+    return NNodeTrackerClient::TNodeId(Value_ & 0x00ffffff);
 }
 
 Y_FORCE_INLINE int TChunkReplica::GetReplicaIndex() const
 {
-    return (Value & 0x1f000000) >> 24;
+    return (Value_ & 0x1f000000) >> 24;
 }
 
 Y_FORCE_INLINE void ToProto(ui32* value, TChunkReplica replica)
 {
-    *value = replica.Value;
+    *value = replica.Value_;
 }
 
 Y_FORCE_INLINE void FromProto(TChunkReplica* replica, ui32 value)
 {
-    replica->Value = value;
+    replica->Value_ = value;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -16,9 +16,9 @@ TEST(TChunkReplicaWithMediumTest, Simple)
     int totalNodes = 10;
     srand(0);
     for (int i = 0; i < totalNodes; ++i) {
-        int nodeId = rand() % (1<<23);
-        int replicaIndex = rand() % (1<<4);
-        int mediumIndex = rand() % (1<<7);
+        auto nodeId = NNodeTrackerClient::TNodeId(rand() % (1 << 23));
+        int replicaIndex = rand() % (1 << 4);
+        int mediumIndex = rand() % (1 << 7);
         TChunkReplicaWithMedium replica(nodeId, replicaIndex, mediumIndex);
 
         EXPECT_THAT(replica.GetNodeId(), nodeId);

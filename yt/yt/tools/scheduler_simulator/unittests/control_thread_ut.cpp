@@ -214,10 +214,10 @@ protected:
     TExecNodePtr CreateExecNode(const TJobResources& resourceLimits)
     {
         auto node = New<TExecNode>(
-            /* nodeId */ NextNodeId_,
+            /*nodeId*/ NextNodeId_,
             TNodeDescriptor(Format("node%02d", NextNodeId_)),
             NScheduler::ENodeState::Online);
-        NextNodeId_ += 1;
+        NextNodeId_ = TNodeId(NextNodeId_.Underlying() + 1);
         node->Tags() = TBooleanFormulaTags(THashSet<TString>{"internal"});
         node->SetResourceLimits(resourceLimits);
 
@@ -244,7 +244,7 @@ protected:
 
 private:
     int NextOperationId_ = 1;
-    int NextNodeId_ = 1;
+    NNodeTrackerClient::TNodeId NextNodeId_ = NNodeTrackerClient::TNodeId(1);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

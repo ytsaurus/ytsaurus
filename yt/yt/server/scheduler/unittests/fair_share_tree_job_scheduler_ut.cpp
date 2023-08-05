@@ -563,7 +563,7 @@ protected:
     TSchedulingStageProfilingCounters PreemptiveSchedulingProfilingCounters_{NProfiling::TProfiler("/preemptive_test_scheduling_stage")};
 
     int SlotIndex_ = 0;
-    NNodeTrackerClient::TNodeId ExecNodeId_ = 0;
+    NNodeTrackerClient::TNodeId ExecNodeId_ = NNodeTrackerClient::TNodeId(0);
 
     void TearDown() override
     {
@@ -703,7 +703,9 @@ protected:
         diskResources.mutable_disk_location_resources()->Add();
         diskResources.mutable_disk_location_resources(0)->set_limit(nodeResources.GetDiskQuota().DiskSpacePerMedium[NChunkClient::DefaultSlotsMediumIndex]);
 
-        auto execNode = New<TExecNode>(ExecNodeId_++, NNodeTrackerClient::TNodeDescriptor(), ENodeState::Online);
+        auto nodeId = ExecNodeId_;
+        ExecNodeId_ = NNodeTrackerClient::TNodeId(nodeId.Underlying() + 1);
+        auto execNode = New<TExecNode>(nodeId, NNodeTrackerClient::TNodeDescriptor(), ENodeState::Online);
         execNode->SetResourceLimits(nodeResources.ToJobResources());
         execNode->SetDiskResources(diskResources);
 

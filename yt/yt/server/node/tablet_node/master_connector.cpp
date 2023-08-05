@@ -85,7 +85,7 @@ public:
         YT_VERIFY(Bootstrap_->IsConnected());
 
         TReqHeartbeat heartbeatRequest;
-        heartbeatRequest.set_node_id(Bootstrap_->GetNodeId());
+        heartbeatRequest.set_node_id(ToProto<ui32>(Bootstrap_->GetNodeId()));
         AddTabletInfoToHeartbeatRequest(cellTag, &heartbeatRequest);
 
         return heartbeatRequest;

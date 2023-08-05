@@ -45,7 +45,7 @@ TNodeManager::TNodeManager(TSchedulerConfigPtr config, INodeManagerHost* host, T
 void TNodeManager::ProcessNodeHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context)
 {
     auto* request = &context->Request();
-    auto nodeId = request->node_id();
+    auto nodeId = FromProto<NNodeTrackerClient::TNodeId>(request->node_id());
 
     if (nodeId == InvalidNodeId) {
         THROW_ERROR_EXCEPTION("Cannot process a heartbeat with invalid node id");
@@ -60,7 +60,7 @@ void TNodeManager::ProcessNodeHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& 
         const auto& address = descriptor.GetDefaultAddress();
         auto it = NodeAddressToNodeId_.find(address);
         if (it != NodeAddressToNodeId_.end()) {
-            int oldNodeId = it->second;
+            auto oldNodeId = it->second;
             if (nodeId != oldNodeId) {
                 auto nodeShard = GetNodeShard(oldNodeId);
                 unregisterFuture =
@@ -482,7 +482,7 @@ int TNodeManager::GetNodeShardId(TNodeId nodeId) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return nodeId % std::ssize(NodeShards_);
+    return nodeId.Underlying() % std::ssize(NodeShards_);
 }
 
 const std::vector<TNodeShardPtr>& TNodeManager::GetNodeShards() const

@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
+#include <yt/yt/core/misc/protobuf_helpers.h>
+
 namespace NYT::NScheduler {
 
 using namespace NNodeTrackerClient;
@@ -126,7 +128,7 @@ void TExecNodeDescriptor::Persist(const TStreamPersistenceContext& context)
 
 void ToProto(NScheduler::NProto::TExecNodeDescriptor* protoDescriptor, const NScheduler::TExecNodeDescriptor& descriptor)
 {
-    protoDescriptor->set_node_id(descriptor.Id);
+    protoDescriptor->set_node_id(ToProto<ui32>(descriptor.Id));
     protoDescriptor->set_address(descriptor.Address);
     protoDescriptor->set_io_weight(descriptor.IOWeight);
     protoDescriptor->set_online(descriptor.Online);
@@ -139,7 +141,7 @@ void ToProto(NScheduler::NProto::TExecNodeDescriptor* protoDescriptor, const NSc
 
 void FromProto(NScheduler::TExecNodeDescriptor* descriptor, const NScheduler::NProto::TExecNodeDescriptor& protoDescriptor)
 {
-    descriptor->Id = protoDescriptor.node_id();
+    descriptor->Id = FromProto<NNodeTrackerClient::TNodeId>(protoDescriptor.node_id());
     descriptor->Address = protoDescriptor.address();
     descriptor->IOWeight = protoDescriptor.io_weight();
     descriptor->Online = protoDescriptor.online();

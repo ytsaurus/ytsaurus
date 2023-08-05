@@ -27,12 +27,12 @@ TJobId GenerateJobId(TCellTag tag, TNodeId nodeId)
         EObjectType::SchedulerJob,
         tag,
         RandomNumber<ui64>(),
-        nodeId);
+        nodeId.Underlying());
 }
 
 TNodeId NodeIdFromJobId(TJobId jobId)
 {
-    return jobId.Parts32[0];
+    return TNodeId(jobId.Parts32[0]);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

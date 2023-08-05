@@ -45,8 +45,10 @@ void SetNodeInfoToRequest(
     IBootstrap const* bootstrap,
     const auto& request)
 {
-    request->set_node_id(bootstrap->GetNodeId());
+    request->set_node_id(NYT::ToProto<ui32>(bootstrap->GetNodeId()));
     ToProto(request->mutable_node_descriptor(), bootstrap->GetLocalDescriptor());
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NExecNode

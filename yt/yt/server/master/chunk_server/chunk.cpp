@@ -853,7 +853,7 @@ void TChunk::TPerCellExportData::Save(TSaveContext& context) const
 {
     std::unique_ptr<TCellTagToChunkExportData> uniquePtr(Get());
     TUniquePtrSerializer<>::Save(context, uniquePtr);
-    uniquePtr.release();
+    Y_UNUSED(uniquePtr.release());
 }
 
 TCellTagToChunkExportData* TChunk::TPerCellExportData::Get() const noexcept

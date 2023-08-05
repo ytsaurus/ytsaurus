@@ -479,7 +479,7 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
     auto incarnationId = FromProto<TIncarnationId>(request->controller_agent_incarnation_id());
     auto nodeDescriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
 
-    TNodeId nodeId = request->node_id();
+    auto nodeId = FromProto<TNodeId>(request->node_id());
 
     if (!incarnationId) {
         WrongIncarnationRequestCount_.Increment();
@@ -545,7 +545,7 @@ void TJobTracker::SettleJob(const TJobTracker::TCtxSettleJobPtr& context)
     auto incarnationId = FromProto<TIncarnationId>(request->controller_agent_incarnation_id());
     auto nodeDescriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
 
-    TNodeId nodeId = request->node_id();
+    auto nodeId = FromProto<TNodeId>(request->node_id());
     auto allocationId = FromProto<TAllocationId>(request->allocation_id());
     auto operationId = FromProto<TOperationId>(request->operation_id());
 

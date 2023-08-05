@@ -19,6 +19,8 @@ using namespace NNodeTrackerServer;
 using namespace NRpc;
 using namespace NTabletNodeTrackerClient;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletNodeTrackerService
@@ -43,7 +45,7 @@ private:
         ValidatePeer(EPeerKind::Leader);
         SyncWithUpstream();
 
-        auto nodeId = request->node_id();
+        auto nodeId = FromProto<NNodeTrackerClient::TNodeId>(request->node_id());
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);

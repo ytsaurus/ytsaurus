@@ -4,6 +4,8 @@
 
 #include <yt/yt/client/object_client/public.h>
 
+#include <library/cpp/yt/misc/strong_typedef.h>
+
 namespace NYT::NNodeTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -39,9 +41,9 @@ DEFINE_ENUM(EAddressType,
     ((MonitoringHttp) (2))
 );
 
-using TNodeId = ui32;
-constexpr TNodeId InvalidNodeId = 0;
-constexpr TNodeId MaxNodeId = (1 << 24) - 1; // TNodeId must fit into 24 bits (see TChunkReplica)
+YT_DEFINE_STRONG_TYPEDEF(TNodeId, ui32);
+constexpr TNodeId InvalidNodeId = TNodeId(0);
+constexpr TNodeId MaxNodeId = TNodeId((1 << 24) - 1); // TNodeId must fit into 24 bits (see TChunkReplica)
 
 using THostId = NObjectClient::TObjectId;
 using TRackId = NObjectClient::TObjectId;

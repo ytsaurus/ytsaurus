@@ -2986,7 +2986,7 @@ TEST_F(TSortedChunkPoolTest, TrickySliceSortOrder)
     ChunkPool_->Finish();
 
     EXPECT_EQ(1, ChunkPool_->GetJobCounter()->GetPending());
-    auto outputCookie = ChunkPool_->Extract(0);
+    auto outputCookie = ChunkPool_->Extract(NNodeTrackerClient::TNodeId(0));
     auto stripeList = ChunkPool_->GetStripeList(outputCookie);
     EXPECT_EQ(1u, stripeList->Stripes.size());
     EXPECT_EQ(2u, stripeList->Stripes[0]->DataSlices.size());
@@ -3003,7 +3003,7 @@ TEST_F(TSortedChunkPoolTest, TrickySliceSortOrder)
     ChunkPool_->Completed(outputCookie, jobSummary);
 
     EXPECT_EQ(1, ChunkPool_->GetJobCounter()->GetPending());
-    outputCookie = ChunkPool_->Extract(0);
+    outputCookie = ChunkPool_->Extract(NNodeTrackerClient::TNodeId(0));
     stripeList = ChunkPool_->GetStripeList(outputCookie);
     EXPECT_EQ(1u, stripeList->Stripes.size());
     EXPECT_EQ(2u, stripeList->Stripes[0]->DataSlices.size());
@@ -3045,7 +3045,7 @@ TEST_F(TSortedChunkPoolTest, TrickySliceSortOrder2)
     ChunkPool_->Finish();
 
     EXPECT_EQ(1, ChunkPool_->GetJobCounter()->GetPending());
-    auto outputCookie = ChunkPool_->Extract(0);
+    auto outputCookie = ChunkPool_->Extract(NNodeTrackerClient::TNodeId(0));
     auto stripeList = ChunkPool_->GetStripeList(outputCookie);
     EXPECT_EQ(1u, stripeList->Stripes.size());
     EXPECT_EQ(2u, stripeList->Stripes[0]->DataSlices.size());
@@ -3063,7 +3063,7 @@ TEST_F(TSortedChunkPoolTest, TrickySliceSortOrder2)
     ChunkPool_->Completed(outputCookie, jobSummary);
 
     EXPECT_EQ(1, ChunkPool_->GetJobCounter()->GetPending());
-    outputCookie = ChunkPool_->Extract(0);
+    outputCookie = ChunkPool_->Extract(NNodeTrackerClient::TNodeId(0));
     stripeList = ChunkPool_->GetStripeList(outputCookie);
     EXPECT_EQ(1u, stripeList->Stripes.size());
     EXPECT_EQ(2u, stripeList->Stripes[0]->DataSlices.size());

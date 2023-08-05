@@ -79,7 +79,6 @@ using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NScheduler;
 
-using NYT::FromProto;
 using NYT::ToProto;
 
 using NTableClient::TLegacyKey;
@@ -90,7 +89,6 @@ using NControllerAgent::NProto::TReduceJobSpecExt;
 using NControllerAgent::NProto::TSortJobSpecExt;
 using NControllerAgent::NProto::TMergeJobSpecExt;
 using NControllerAgent::NProto::TJobSpecExt;
-using NControllerAgent::NProto::TJobResultExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 

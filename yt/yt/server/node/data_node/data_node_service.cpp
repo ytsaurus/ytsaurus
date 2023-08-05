@@ -2159,7 +2159,7 @@ private:
         const auto& allyReplicaManager = Bootstrap_->GetAllyReplicaManager();
         allyReplicaManager->OnAnnouncementsReceived(
             MakeRange(request->announcements()),
-            request->source_node_id());
+            FromProto<TNodeId>(request->source_node_id()));
 
         context->Reply();
     }

@@ -48,7 +48,7 @@ private:
         ValidateLocationDirectory(*request);
         SyncWithUpstream();
 
-        auto nodeId = request->node_id();
+        auto nodeId = FromProto<TNodeId>(request->node_id());
         const auto& statistics = request->statistics();
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
@@ -70,7 +70,7 @@ private:
         ValidateLocationDirectory(*request);
         SyncWithUpstream();
 
-        auto nodeId = request->node_id();
+        auto nodeId = FromProto<TNodeId>(request->node_id());
         const auto& statistics = request->statistics();
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
