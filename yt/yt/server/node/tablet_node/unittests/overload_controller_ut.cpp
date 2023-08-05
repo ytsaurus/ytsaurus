@@ -230,7 +230,7 @@ TEST(TOverloadControllerTest, TestTwoInvokersSameMethod)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TExecutorPtr>
+template <class TExecutorPtr>
 void ExecuteWaitTimeTest(const TExecutorPtr& executor, const IInvokerPtr& invoker)
 {
     static constexpr int DesiredActionsCount = 27;
