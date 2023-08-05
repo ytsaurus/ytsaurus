@@ -17,6 +17,10 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::optional<TDuration> GetTimeout(const std::unique_ptr<NRpc::NProto::TRequestHeader>& header);
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TBaseService>
 template <typename... TArgs>
 TOverloadControllingServiceBase<TBaseService>::TOverloadControllingServiceBase(
@@ -26,7 +30,6 @@ TOverloadControllingServiceBase<TBaseService>::TOverloadControllingServiceBase(
     , Bootstrap_(bootstrap)
 { }
 
-
 template <class TBaseService>
 void TOverloadControllingServiceBase<TBaseService>::HandleRequest(
     std::unique_ptr<NRpc::NProto::TRequestHeader> header,
@@ -34,23 +37,32 @@ void TOverloadControllingServiceBase<TBaseService>::HandleRequest(
     NBus::IBusPtr replyBus)
 {
     const auto& controller = Bootstrap_->GetOverloadController();
+    TDuration totalThrottledTime;
 
-    if (auto status = controller->GetOverloadStatus(header->service(), header->method()); status.SkipCall) {
-        // Limit incoming request rate by slowing down further requests from this socket.
-        TDelayedExecutor::WaitForDuration(status.ThrottleTime);
+    while (true) {
+        auto status = controller->GetOverloadStatus(
+            totalThrottledTime,
+            header->service(),
+            header->method(),
+            GetTimeout(header));
 
-        if (status.DoNotReply) {
-            // Fierce defense mode: do not send any reply on heavy overloads.
-            return;
+        if (!status.Overloaded) {
+            break;
         }
 
-        // Reply with error if we are slightly overloaded.
-        return TBaseService::ReplyError(
-            TError(
-                NRpc::EErrorCode::Overloaded,
-                "Request is dropped due to a tablet node overload"),
-            *header,
-            replyBus);
+        // Limit incoming request rate by slowing down further requests from this socket.
+        TDelayedExecutor::WaitForDuration(status.ThrottleTime);
+        totalThrottledTime += status.ThrottleTime;
+
+        // Giving up on this request.
+        if (status.SkipCall) {
+            return TBaseService::ReplyError(
+                TError(
+                    NRpc::EErrorCode::Overloaded,
+                    "Request is dropped due to a tablet node overload"),
+                *header,
+                replyBus);
+        }
     }
 
     TBaseService::HandleRequest(std::move(header), std::move(message), std::move(replyBus));

@@ -14,8 +14,8 @@ namespace NYT::NTabletNode {
 
 struct TOverloadedStatus
 {
+    bool Overloaded = false;
     bool SkipCall = false;
-    bool DoNotReply = false;
     TDuration ThrottleTime;
 };
 
@@ -49,7 +49,11 @@ public:
     void TrackInvoker(const TString& name, const IInvokerPtr& invoker);
     void TrackFSHThreadPool(const TString& name, const NConcurrency::ITwoLevelFairShareThreadPoolPtr& threadPool);
 
-    TOverloadedStatus GetOverloadStatus(const TString& service, const TString& method) const;
+    TOverloadedStatus GetOverloadStatus(
+        TDuration totalThrottledTime,
+        const TString& service,
+        const TString& method,
+        std::optional<TDuration> requestTimeout) const;
 
     void Reconfigure(TOverloadControllerConfigPtr config);
 
