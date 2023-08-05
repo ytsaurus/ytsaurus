@@ -574,7 +574,7 @@ private:
                 .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& result) {
                     ValidateJobPhase(EJobPhase::RunningGpuCheckCommand);
                     if (!result.IsOK()) {
-                        YT_LOG_WARNING(result, "GPU check command failed");
+                        YT_LOG_WARNING(result, "Preliminary GPU check command failed");
 
                         auto checkError = TError(EErrorCode::GpuCheckCommandFailed, "Preliminary GPU check command failed")
                             << result;
