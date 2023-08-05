@@ -25,8 +25,8 @@ jobs:
           image-id: ${{ vars.YC_DEFAULT_IMAGE_ID }}
           zone-id: ${{ vars.YC_ZONE_ID }}
           subnet-id: ${{ vars.YC_SUBNET_ID }}
-          cores: 4
-          memory: 8GB
+          cores: 8
+          memory: 16GB
           core-fraction: 100
           disk-type: network-ssd-nonreplicated
           disk-size: 93GB
