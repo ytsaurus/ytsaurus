@@ -146,6 +146,7 @@ jobs:
             -DpublishYt=False \
             -DcustomClusterVersion=${{ needs.prepare_env.outputs.release_version }} \
             -DcustomSparkForkVersion=${{ needs.prepare_env.outputs.release_major_version }} \
+            -Dgpg.passphrase=${{ secrets.GPG_PASSWORD }} \
             spytPublishSparkForkRelease
         env:
           OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}

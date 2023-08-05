@@ -2900,9 +2900,6 @@
               <goals>
                 <goal>sign</goal>
               </goals>
-              <configuration>
-                <keyname>ossrh</keyname>
-              </configuration>
             </execution>
           </executions>
         </plugin>

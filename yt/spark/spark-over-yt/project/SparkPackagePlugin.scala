@@ -59,6 +59,8 @@ object SparkPackagePlugin extends AutoPlugin {
     }
   }
 
+  private def gpgPassphrase: Option[String] = Option(System.getProperty("gpg.passphrase"))
+
   private def readSparkDefaults(file: File): Map[String, String] = {
     import scala.collection.JavaConverters._
     val reader = new InputStreamReader(new FileInputStream(file))
@@ -161,7 +163,8 @@ object SparkPackagePlugin extends AutoPlugin {
     import scala.language.postfixOps
     import scala.sys.process._
 
-    val sparkBuildCommand = s"./build/mvn -P scala-2.12 clean install -Dscala-2.12 -Djava11 -DskipTests=true -pl core -pl sql/catalyst -pl sql/core"
+    val dPassphrase = gpgPassphrase.map(x => s"-Dgpg.passphrase=$x").getOrElse("")
+    val sparkBuildCommand = s"./build/mvn -P scala-2.12 clean install $dPassphrase -Dscala-2.12 -Djava11 -DskipTests=true -pl core -pl sql/catalyst -pl sql/core"
     println("Maven install. Building spark...")
     val code = Process(sparkBuildCommand, cwd = sparkHome) !
 
@@ -175,7 +178,8 @@ object SparkPackagePlugin extends AutoPlugin {
     import scala.language.postfixOps
     import scala.sys.process._
 
-    val sparkBuildCommand = s"./build/mvn -P scala-2.12 clean deploy -Dscala-2.12 -Djava11 -DskipTests=true -pl core -pl sql/catalyst -pl sql/core"
+    val dPassphrase = gpgPassphrase.map(x => s"-Dgpg.passphrase=$x").getOrElse("")
+    val sparkBuildCommand = s"./build/mvn -P scala-2.12 clean deploy $dPassphrase -Dscala-2.12 -Djava11 -DskipTests=true -pl core -pl sql/catalyst -pl sql/core"
     println("Maven deploy. Building spark...")
     val code = Process(sparkBuildCommand, cwd = sparkHome) !
 
