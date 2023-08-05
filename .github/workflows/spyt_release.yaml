@@ -158,18 +158,20 @@ jobs:
         run: |
           echo '${{ secrets.DOCKER_HUB_PASSWORD }}' | docker login --username ${{ secrets.DOCKER_HUB_LOGIN }} --password-stdin
 
-      - name: Build and push docker image
+      - name: Build and push spark fork docker image
         run: |
           cd yt/spark/spark-over-yt
           cd tools/release/spark_image
-          bash ./build.sh --spark-version ${{ steps.prepare_env.outputs.release_major_version }}
-          docker push ytsaurus/spark:${{ steps.prepare_env.outputs.release_major_version }}
-          cd ../spyt_image
+          bash ./build.sh --spark-version ${{ needs.prepare_env.outputs.release_major_version }}
+          docker push ytsaurus/spark:${{ needs.prepare_env.outputs.release_major_version }}
+      - name: Build and push spyt docker image
+        run: |
+          cd yt/spark/spark-over-yt
+          cd tools/release/spyt_image
           bash ./build.sh \
-            --spark-version ${{ steps.prepare_env.outputs.release_major_version }} \
-            --spyt-version ${{ steps.prepare_env.outputs.release_version }}
-          docker push ytsaurus/spyt:${{ steps.prepare_env.outputs.release_version }}
-          cd ../../..
+            --spark-version ${{ needs.prepare_env.outputs.release_major_version }} \
+            --spyt-version ${{ needs.prepare_env.outputs.release_version }}
+          docker push ytsaurus/spyt:${{ needs.prepare_env.outputs.release_version }}
 
 #      - name: Prepare pyspark package publish
 #        run: |
