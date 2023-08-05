@@ -82,32 +82,29 @@ class TCongestionController
 public:
     TCongestionController(const TOverloadControllerConfigPtr& config, TProfiler profiler)
         : MaxWindow_(config->MaxWindow)
-        , HeavilyOverloadedThrottleTime_(config->HeavilyOverloadedThrottleTime)
-        , OverloadedThrottleTime_(config->OverloadedThrottleTime)
-        , DoNotReplOnHeavyOverload_(config->DoNotReplyOnHeavyOverload)
+        , ThrottlingStepTime_(config->ThrottlingStepTime)
+        , MaxThrottlingTime_(config->MaxThrottlingTime)
         , Window_(MaxWindow_)
+        , ThrottledRequestCount_(profiler.Counter("/throttled_request_count"))
         , SkippedRequestCount_(profiler.Counter("/skipped_request_count"))
-        , UnrepliedRequestCount_(profiler.Counter("/unreplied_request_count"))
         , WindowGauge_(profiler.Gauge("/window"))
         , SlowStartThresholdGauge_(profiler.Gauge("/slow_start_threshold_gauge"))
         , MaxWindowGauge_(profiler.Gauge("/max_window"))
     { }
 
-    TOverloadedStatus GetOverloadedStatus()
+    TOverloadedStatus GetOverloadedStatus(TDuration totalThrottledTime, std::optional<TDuration> requestTimeout)
     {
         auto window = Window_.load(std::memory_order::relaxed);
-        bool skip = static_cast<int>(RandomNumber<ui32>(MaxWindow_)) + 1 > window;
+        bool overloaded = static_cast<int>(RandomNumber<ui32>(MaxWindow_)) + 1 > window;
+        bool skipCall = totalThrottledTime + ThrottlingStepTime_ >= requestTimeout.value_or(MaxThrottlingTime_);
 
-        bool heavilyOverloaded = window == 0;
-        bool doNotReply = DoNotReplOnHeavyOverload_ && heavilyOverloaded;
-
-        SkippedRequestCount_.Increment(static_cast<int>(skip));
-        UnrepliedRequestCount_.Increment(static_cast<int>(doNotReply));
+        ThrottledRequestCount_.Increment(static_cast<int>(overloaded && totalThrottledTime == TDuration::Zero()));
+        SkippedRequestCount_.Increment(static_cast<int>(skipCall));
 
         return TOverloadedStatus {
-            .SkipCall = skip,
-            .DoNotReply = doNotReply,
-            .ThrottleTime = heavilyOverloaded ? HeavilyOverloadedThrottleTime_ : OverloadedThrottleTime_,
+            .Overloaded = overloaded,
+            .SkipCall = skipCall,
+            .ThrottleTime = ThrottlingStepTime_,
         };
     }
 
@@ -121,7 +118,7 @@ public:
         SlowStartThresholdGauge_.Update(SlowStartThreshold_);
 
         if (overloaded) {
-            SlowStartThreshold_ = window / 2;
+            SlowStartThreshold_ = window > 0 ? window / 2 : SlowStartThreshold_;
             Window_.store(0, std::memory_order::relaxed);
 
             YT_LOG_WARNING("System is overloaded (SlowStartThreshold: %v, Window: %v)",
@@ -150,15 +147,14 @@ public:
 
 private:
     const int MaxWindow_;
-    const TDuration HeavilyOverloadedThrottleTime_;
-    const TDuration OverloadedThrottleTime_;
-    const bool DoNotReplOnHeavyOverload_;
+    const TDuration ThrottlingStepTime_;
+    const TDuration MaxThrottlingTime_;
 
     std::atomic<int> Window_;
     int SlowStartThreshold_ = 0;
 
+    TCounter ThrottledRequestCount_;
     TCounter SkippedRequestCount_;
-    TCounter UnrepliedRequestCount_;
     TGauge WindowGauge_;
     TGauge SlowStartThresholdGauge_;
     TGauge MaxWindowGauge_;
@@ -214,8 +210,10 @@ void TOverloadController::AddTracker(const TString& name, const TExecutorPtr& in
 }
 
 TOverloadedStatus TOverloadController::GetOverloadStatus(
+    TDuration totalThrottledTime,
     const TString& service,
-    const TString& method) const
+    const TString& method,
+    std::optional<TDuration> requestTimeout) const
 {
     auto snapshot = GetStateSnapshot();
 
@@ -225,7 +223,7 @@ TOverloadedStatus TOverloadController::GetOverloadStatus(
 
     const auto& controllers = snapshot->CongestionControllers;
     if (auto it = controllers.find(std::make_pair(service, method)); it != controllers.end()) {
-        return it->second->GetOverloadedStatus();
+        return it->second->GetOverloadedStatus(totalThrottledTime, requestTimeout);
     }
 
     return {};
@@ -239,9 +237,10 @@ TOverloadController::TMethodsCongestionControllers TOverloadController::CreateCo
 
     for (const auto& [_, tracker] : config->Trackers) {
         for (const auto& method : tracker->MethodsToThrottle) {
-            auto controller = New<TCongestionController>(
-                config,
-                profiler.WithTag("method", method->Method));
+            auto controllerProfiler = profiler
+                .WithTag("yt_service", method->Service)
+                .WithTag("method", method->Method);
+            auto controller = New<TCongestionController>(config, std::move(controllerProfiler));
             controllers[std::make_pair(method->Service, method->Method)] = controller;
         }
     }

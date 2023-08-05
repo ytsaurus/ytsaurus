@@ -248,6 +248,7 @@ target_sources(yt-server-node PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/transaction_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/versioned_chunk_meta_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/overload_controller.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/tablet_node/overload_controlling_service_base.cpp
 )
 target_proto_addincls(yt-server-node
   ./yt

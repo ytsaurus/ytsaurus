@@ -79,7 +79,7 @@ TOverloadControllerConfigPtr CreateConfig(const THashMap<TString, TMethodInfo>& 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TOverloadControllerTest, TestSkipsRequests)
+TEST(TOverloadControllerTest, TestOverloadsRequests)
 {
     auto controller = New<TOverloadController>(New<TOverloadControllerConfig>());
     auto mockInvoker = New<TMockInvoker>();
@@ -100,13 +100,13 @@ TEST(TOverloadControllerTest, TestSkipsRequests)
         mockInvoker->WaitTimeObserver(MeanWaitTimeThreshold * 2);
     }
 
-    // Check skipping incoming requests
+    // Check overload incoming requests
     int remainsCount = 1000;
     while (remainsCount > 0) {
-        EXPECT_FALSE(controller->GetOverloadStatus("MockService", "MockMethod2").SkipCall);
+        EXPECT_FALSE(controller->GetOverloadStatus({}, "MockService", "MockMethod2", {}).Overloaded);
 
-        auto status = controller->GetOverloadStatus("MockService", "MockMethod");
-        if (status.SkipCall) {
+        auto status = controller->GetOverloadStatus({}, "MockService", "MockMethod", {});
+        if (status.Overloaded) {
             --remainsCount;
         } else {
             Sleep(TDuration::MicroSeconds(10));
@@ -115,8 +115,8 @@ TEST(TOverloadControllerTest, TestSkipsRequests)
 
     // Check recovering even if no calls
     while (remainsCount < 1000) {
-        auto status = controller->GetOverloadStatus("MockService", "MockMethod");
-        if (!status.SkipCall) {
+        auto status = controller->GetOverloadStatus({}, "MockService", "MockMethod", {});
+        if (!status.Overloaded) {
             ++remainsCount;
         } else {
             Sleep(TDuration::MicroSeconds(1));
@@ -124,39 +124,7 @@ TEST(TOverloadControllerTest, TestSkipsRequests)
     }
 }
 
-TEST(TOverloadControllerTest, TestHeavilyOverloaded)
-{
-    auto controller = New<TOverloadController>(New<TOverloadControllerConfig>());
-    auto mockInvoker = New<TMockInvoker>();
-
-    controller->TrackInvoker("Mock", mockInvoker);
-
-    auto config = CreateConfig({
-        {"Mock", {{"MockService", "MockMethod"}}}
-    });
-    config->LoadAdjustingPeriod = TDuration::MilliSeconds(1);
-    config->DoNotReplyOnHeavyOverload = true;
-
-    controller->Reconfigure(config);
-
-    // Simulate overload
-    for (int i = 0; i < 5000; ++i) {
-        mockInvoker->WaitTimeObserver(MeanWaitTimeThreshold * 2);
-    }
-
-    int remainsCount = 1000;
-    while (remainsCount > 0) {
-        mockInvoker->WaitTimeObserver(MeanWaitTimeThreshold * 2);
-        auto status = controller->GetOverloadStatus("MockService", "MockMethod");
-        if (status.DoNotReply) {
-            --remainsCount;
-        } else {
-            Sleep(TDuration::MicroSeconds(10));
-        }
-    }
-}
-
-TEST(TOverloadControllerTest, TestNoSkipsIfNoOverload)
+TEST(TOverloadControllerTest, TestNoOverloads)
 {
     auto controller = New<TOverloadController>(New<TOverloadControllerConfig>());
     auto mockInvoker = New<TMockInvoker>();
@@ -176,7 +144,7 @@ TEST(TOverloadControllerTest, TestNoSkipsIfNoOverload)
     }
 
     for (int i = 0; i < 10000; ++i) {
-        EXPECT_FALSE(controller->GetOverloadStatus("MockService", "MockMethod").SkipCall);
+        EXPECT_FALSE(controller->GetOverloadStatus({}, "MockService", "MockMethod", {}).Overloaded);
         mockInvoker->WaitTimeObserver(MeanWaitTimeThreshold / 2);
 
         Sleep(TDuration::MicroSeconds(10));
@@ -206,11 +174,11 @@ TEST(TOverloadControllerTest, TestTwoInvokersSameMethod)
         mockInvoker2->WaitTimeObserver(MeanWaitTimeThreshold / 2);
     }
 
-    // Check skipping incoming requests
+    // Check overloading incoming requests
     int remainsCount = 1000;
     while (remainsCount > 0) {
-        auto status = controller->GetOverloadStatus("MockService", "MockMethod");
-        if (status.SkipCall) {
+        auto status = controller->GetOverloadStatus({}, "MockService", "MockMethod", {});
+        if (status.Overloaded) {
             --remainsCount;
         } else {
             Sleep(TDuration::MicroSeconds(10));
@@ -219,12 +187,103 @@ TEST(TOverloadControllerTest, TestTwoInvokersSameMethod)
 
     // Check recovering even if no calls
     while (remainsCount < 1000) {
-        auto status = controller->GetOverloadStatus("MockService", "MockMethod");
-        if (!status.SkipCall) {
+        auto status = controller->GetOverloadStatus({}, "MockService", "MockMethod", {});
+        if (!status.Overloaded) {
             ++remainsCount;
         } else {
             Sleep(TDuration::MicroSeconds(1));
         }
+    }
+}
+
+TEST(TOverloadControllerTest, TestThrottlingAndSkips)
+{
+    auto controller = New<TOverloadController>(New<TOverloadControllerConfig>());
+    auto mockInvoker = New<TMockInvoker>();
+    auto mockInvoker2 = New<TMockInvoker>();
+
+    controller->TrackInvoker("Mock", mockInvoker);
+
+    auto config = CreateConfig({
+        {"Mock", {{"MockService", "MockMethod"}}},
+    });
+    config->LoadAdjustingPeriod = TDuration::MilliSeconds(200);
+    config->ThrottlingStepTime = TDuration::MilliSeconds(12);
+    config->MaxThrottlingTime = TDuration::MilliSeconds(127);
+
+    controller->Reconfigure(config);
+
+    // Simulate overload
+    for (int i = 0; i < 5000; ++i) {
+        mockInvoker->WaitTimeObserver(MeanWaitTimeThreshold * 2);
+    }
+
+    // Check overload incoming requests
+    int remainsCount = 1000;
+    while (remainsCount > 0) {
+        auto status = controller->GetOverloadStatus({}, "MockService", "MockMethod", {});
+        if (status.Overloaded) {
+            break;
+        } else {
+            Sleep(TDuration::MilliSeconds(10));
+        }
+    }
+
+    {
+        auto status = controller->GetOverloadStatus({}, "MockService", "MockMethod", {});
+        EXPECT_TRUE(status.Overloaded);
+        EXPECT_FALSE(status.SkipCall);
+        EXPECT_EQ(status.ThrottleTime, config->ThrottlingStepTime);
+    }
+
+    {
+        auto status = controller->GetOverloadStatus(config->MaxThrottlingTime / 2, "MockService", "MockMethod", {});
+        EXPECT_TRUE(status.Overloaded);
+        EXPECT_FALSE(status.SkipCall);
+        EXPECT_EQ(status.ThrottleTime, config->ThrottlingStepTime);
+    }
+
+    {
+        auto status = controller->GetOverloadStatus(
+            config->MaxThrottlingTime - config->ThrottlingStepTime,
+            "MockService",
+            "MockMethod",
+            {});
+
+        EXPECT_TRUE(status.Overloaded);
+        EXPECT_TRUE(status.SkipCall);
+        EXPECT_EQ(status.ThrottleTime, config->ThrottlingStepTime);
+    }
+
+    {
+        auto status = controller->GetOverloadStatus(config->MaxThrottlingTime * 2, "MockService", "MockMethod", {});
+        EXPECT_TRUE(status.Overloaded);
+        EXPECT_TRUE(status.SkipCall);
+        EXPECT_EQ(status.ThrottleTime, config->ThrottlingStepTime);
+    }
+
+    {
+        auto status = controller->GetOverloadStatus(
+            config->MaxThrottlingTime * 2,
+            "MockService",
+            "MockMethod",
+            config->MaxThrottlingTime * 4);
+
+        EXPECT_TRUE(status.Overloaded);
+        EXPECT_FALSE(status.SkipCall);
+        EXPECT_EQ(status.ThrottleTime, config->ThrottlingStepTime);
+    }
+
+    {
+        auto status = controller->GetOverloadStatus(
+            config->MaxThrottlingTime / 2,
+            "MockService",
+            "MockMethod",
+            config->MaxThrottlingTime / 4);
+
+        EXPECT_TRUE(status.Overloaded);
+        EXPECT_TRUE(status.SkipCall);
+        EXPECT_EQ(status.ThrottleTime, config->ThrottlingStepTime);
     }
 }
 

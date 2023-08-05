@@ -797,10 +797,9 @@ public:
     THashMap<TString, TOverloadTrackerConfigPtr> Trackers;
     TDuration LoadAdjustingPeriod;
     int MaxWindow;
-    bool DoNotReplyOnHeavyOverload;
 
-    TDuration HeavilyOverloadedThrottleTime;
-    TDuration OverloadedThrottleTime;
+    TDuration ThrottlingStepTime;
+    TDuration MaxThrottlingTime;
 
     REGISTER_YSON_STRUCT(TOverloadControllerConfig);
 
