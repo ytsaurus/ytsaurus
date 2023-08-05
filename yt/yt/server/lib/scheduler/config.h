@@ -177,6 +177,8 @@ public:
 
     bool AllowOnlyGangOperationsInLargeSegment;
 
+    bool EnableDetailedLogs;
+
     const THashSet<TString>& GetModules() const;
 
     REGISTER_YSON_STRUCT(TFairShareStrategySchedulingSegmentsConfig);
