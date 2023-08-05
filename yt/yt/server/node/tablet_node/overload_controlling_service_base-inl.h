@@ -46,7 +46,9 @@ void TOverloadControllingServiceBase<TBaseService>::HandleRequest(
 
         // Reply with error if we are slightly overloaded.
         return TBaseService::ReplyError(
-            TError("Request is dropped due to a tablet node overload"),
+            TError(
+                NRpc::EErrorCode::Overloaded,
+                "Request is dropped due to a tablet node overload"),
             *header,
             replyBus);
     }

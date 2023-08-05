@@ -24,13 +24,12 @@ protected:
         NBus::IBusPtr replyBus) override;
 
 private:
-    NTabletNode::IBootstrap* Bootstrap_;
+    const NTabletNode::IBootstrap* Bootstrap_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode
-
 
 #define OVERLOAD_CONTROLLING_SERVICE_BASE_INL_H_
 #include "overload_controlling_service_base-inl.h"

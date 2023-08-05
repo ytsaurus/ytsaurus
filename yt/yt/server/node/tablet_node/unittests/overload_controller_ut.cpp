@@ -2,10 +2,16 @@
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/new_fair_share_thread_pool.h>
+#include <yt/yt/core/concurrency/two_level_fair_share_thread_pool.h>
+
 #include <yt/yt/core/test_framework/framework.h>
 
 namespace NYT::NTabletNode {
 namespace {
+
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -219,6 +225,56 @@ TEST(TOverloadControllerTest, TestTwoInvokersSameMethod)
         } else {
             Sleep(TDuration::MicroSeconds(1));
         }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template<class TExecutorPtr>
+void ExecuteWaitTimeTest(const TExecutorPtr& executor, const IInvokerPtr& invoker)
+{
+    static constexpr int DesiredActionsCount = 27;
+
+    TDuration totalWaitTime;
+    int actionsCount = 0;
+
+    executor->RegisterWaitTimeObserver([&] (TDuration waitTime) {
+        totalWaitTime += waitTime;
+        ++actionsCount;
+    });
+
+    std::vector<TFuture<void>> futures;
+    for (int i = 0; i < DesiredActionsCount; ++i) {
+        auto future = BIND([] {
+            Sleep(TDuration::MilliSeconds(1));
+        }).AsyncVia(invoker)
+        .Run();
+
+        futures.push_back(std::move(future));
+    }
+
+    WaitFor(AllSucceeded(std::move(futures)))
+        .ThrowOnError();
+
+    EXPECT_EQ(DesiredActionsCount, actionsCount);
+    EXPECT_GE(totalWaitTime, TDuration::MilliSeconds(DesiredActionsCount - 1));
+}
+
+TEST(TOverloadControllerTest, WaitTimeObserver)
+{
+    {
+        auto actionQueue = New<TActionQueue>("TestActionQueue");
+        ExecuteWaitTimeTest(actionQueue->GetInvoker(), actionQueue->GetInvoker());
+    }
+
+    {
+        auto fshThreadPool = CreateTwoLevelFairShareThreadPool(1, "TestFsh");
+        ExecuteWaitTimeTest(fshThreadPool, fshThreadPool->GetInvoker("test-pool", "fsh-tag"));
+    }
+
+    {
+        auto fshThreadPool = CreateNewTwoLevelFairShareThreadPool(1, "TestNewFsh");
+        ExecuteWaitTimeTest(fshThreadPool, fshThreadPool->GetInvoker("test-pool", "fsh-tag"));
     }
 }
 
