@@ -126,7 +126,7 @@ jobs:
         run: |
           cd yt/spark/spark-over-yt
           sbt \
-            -DpublishRepo=False \
+            -DpublishRepo=True \
             -DinnerSidecarConfig=False \
             -DconfigGeneration=False \
             -DpublishYt=False \
@@ -210,7 +210,7 @@ jobs:
         run: |
           cd yt/spark/spark-over-yt
           sbt \
-            -DpublishRepo=False \
+            -DpublishRepo=True \
             -DinnerSidecarConfig=False \
             -DconfigGeneration=False \
             -DpublishYt=False \
