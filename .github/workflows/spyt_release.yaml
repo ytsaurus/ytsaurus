@@ -107,12 +107,12 @@ jobs:
           python3 -m pip install twine "setuptools<60.0.0"
           python3 -m pip install ytsaurus-client==0.13.5
 
-      - name: Set up gpg
-        run: |
-          echo "use-agent" >> ~/.gnupg/gpg.conf
-          echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
-          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
-          echo RELOADAGENT | gpg-connect-agent
+#      - name: Set up gpg
+#        run: |
+#          echo "use-agent" >> ~/.gnupg/gpg.conf
+#          echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
+#          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
+#          echo RELOADAGENT | gpg-connect-agent
 
       - name: Write credentials
         run: |
@@ -149,6 +149,7 @@ jobs:
           cd yt/spark/spark-over-yt/tools/release/spark_image
           bash ./build.sh --spark-version ${{ needs.prepare_env.outputs.release_major_version }}
           docker push ytsaurus/spark:${{ needs.prepare_env.outputs.release_major_version }}
+
       - name: Build and push spyt docker image
         run: |
           cd yt/spark/spark-over-yt/tools/release/spyt_image
@@ -156,28 +157,6 @@ jobs:
             --spark-version ${{ needs.prepare_env.outputs.release_major_version }} \
             --spyt-version ${{ needs.prepare_env.outputs.release_version }}
           docker push ytsaurus/spyt:${{ needs.prepare_env.outputs.release_version }}
-
-#      - name: Prepare pyspark package publish
-#        run: |
-#          rm -f dist
-#          mv "build_output/ytsaurus-pyspark" dist
-#
-#      - name: Publish package distributions to TestPyPI
-#        uses: pypa/gh-action-pypi-publish@release/v1
-#        with:
-#          repository-url: https://test.pypi.org/legacy/
-#          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
-
-      - name: Prepare ytsaurus-spyt package publish
-        run: |
-          rm -f dist
-          mv "yt/spark/spark-over-yt/build_output/ytsaurus-spyt" dist
-
-      - name: Publish package distributions to TestPyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          repository-url: https://test.pypi.org/legacy/
-          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
 
   cluster_release:
     name: Run Spyt release
@@ -251,17 +230,6 @@ jobs:
             --spark-version ${{ needs.prepare_env.outputs.release_major_version }} \
             --spyt-version ${{ needs.prepare_env.outputs.release_version }}
           docker push ytsaurus/spyt:${{ needs.prepare_env.outputs.release_version }}
-
-      - name: Prepare ytsaurus-spyt package publish
-        run: |
-          rm -f dist
-          mv "yt/spark/spark-over-yt/build_output/ytsaurus-spyt" dist
-
-      - name: Publish package distributions to TestPyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          repository-url: https://test.pypi.org/legacy/
-          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
 
   stop-vm:
     name: Stop VM
