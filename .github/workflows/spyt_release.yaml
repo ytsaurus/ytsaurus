@@ -1,0 +1,266 @@
+name: Release SPYT
+
+on:
+  push:
+    tags:
+      - 'spyt-spark/1\.[0-9]+\.0'
+      - 'spyt/1\.[0-9]+\.[0-9]+'
+
+jobs:
+  start-vm:
+    name: Start VM
+    runs-on: trampoline
+    outputs:
+      label: ${{ steps.start-yc-runner.outputs.label }}
+      instance-id: ${{ steps.start-yc-runner.outputs.instance-id }}
+    steps:
+      - name: Start YC runner
+        id: start-yc-runner
+        uses: yc-actions/yc-github-runner@v1
+        with:
+          mode: start
+          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          folder-id: ${{ vars.YC_FOLDER_ID }}
+          image-id: ${{ vars.YC_DEFAULT_IMAGE_ID }}
+          zone-id: ${{ vars.YC_ZONE_ID }}
+          subnet-id: ${{ vars.YC_SUBNET_ID }}
+          cores: 8
+          memory: 16GB
+          core-fraction: 100
+          disk-type: network-ssd-nonreplicated
+          disk-size: 93GB
+
+  checkout:
+    name: Checkout sources
+    needs: start-vm
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+  prepare_env:
+    name: Prepare environment
+    needs:
+      - start-vm
+      - checkout
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    outputs:
+      release_type: ${{ steps.tag.outputs.RELEASE_TYPE }}
+      release_version: ${{ steps.tag.outputs.RELEASE_VERSION }}
+      release_major_version: ${{ steps.tag.outputs.RELEASE_MAJOR_VERSION }}
+    steps:
+      - name: Parse tag
+        id: tag
+        run: |
+          tmp=${GITHUB_REF#refs/*/}; if [[ "${tmp%%/*}" == "spyt-spark" ]]
+          then
+              echo "RELEASE_TYPE=spark_fork" >> $GITHUB_OUTPUT
+          elif [[ "${tmp%%/*}" == "spyt" ]]
+          then
+              echo "RELEASE_TYPE=cluster" >> $GITHUB_OUTPUT
+          fi
+          RELEASE_VERSION=$(echo ${GITHUB_REF#refs/*/*/})
+          RELEASE_MAJOR_VERSION=$(echo $RELEASE_VERSION | sed 's/\.[0-9]*$/.0/')
+          echo "RELEASE_VERSION=$RELEASE_VERSION" >> $GITHUB_OUTPUT
+          echo "RELEASE_MAJOR_VERSION=$RELEASE_MAJOR_VERSION" >> $GITHUB_OUTPUT
+          echo "RELEASE_VERSION=$RELEASE_VERSION"
+          echo "RELEASE_MAJOR_VERSION=$RELEASE_MAJOR_VERSION"
+
+  spark_fork_release:
+    name: Run Spark fork release
+    needs:
+      - start-vm
+      - checkout
+      - prepare_env
+    if: ${{ needs.prepare_env.outputs.release_type == 'spark_fork' }}
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    steps:
+      - name: Set up JDK 11
+        uses: actions/setup-java@v3
+        with:
+          java-version: '11'
+          distribution: 'temurin'
+          server-id: ossrh
+          server-username: OSSRH_USERNAME
+          server-password: OSSRH_PASSWORD
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg-passphrase: GPG_PASSWORD
+      - name: Set up SBT
+        run: |
+          curl -fsL "https://github.com/sbt/sbt/releases/download/v1.5.4/sbt-1.5.4.tgz" | tar xfz - -C /usr/share && \
+            chown -R root:root /usr/share/sbt && \
+            chmod -R 755 /usr/share/sbt && \
+            ln -s /usr/share/sbt/bin/sbt /usr/local/bin/sbt
+
+      - name: Set up scala
+        run: |
+          curl -fsL https://downloads.typesafe.com/scala/2.12.14/scala-2.12.14.tgz | tar xfz - -C /usr/share && \
+            mv /usr/share/scala-2.12.14 /usr/share/scala && \
+            chown -R root:root /usr/share/scala && \
+            chmod -R 755 /usr/share/scala && \
+            ln -s /usr/share/scala/bin/* /usr/local/bin
+
+      - name: Set up python
+        run: |
+          ln -sf /usr/bin/python3.11 /usr/bin/python3
+          python3 -m pip install twine "setuptools<60.0.0"
+          python3 -m pip install ytsaurus-client==0.13.5
+
+      - name: Write credentials
+        run: |
+          mkdir -p ~/.sbt
+          echo "realm=Sonatype Nexus Repository Manager" > ~/.sbt/.ossrh_credentials
+          echo "host=s01.oss.sonatype.org" >> ~/.sbt/.ossrh_credentials
+          echo "user=${{ secrets.OSSRH_USERNAME }}" >> ~/.sbt/.ossrh_credentials
+          echo "password=${{ secrets.OSSRH_PASSWORD }}" >> ~/.sbt/.ossrh_credentials
+
+      - name: Run sbt build
+        run: |
+          cd yt/spark/spark-over-yt
+          sbt \
+            -DpublishRepo=False \
+            -DinnerSidecarConfig=False \
+            -DconfigGeneration=False \
+            -DpublishYt=False \
+            -DcustomClusterVersion=${{ needs.prepare_env.outputs.release_version }} \
+            -DcustomSparkForkVersion=${{ needs.prepare_env.outputs.release_major_version }} \
+            -Dgpg.passphrase=${{ secrets.GPG_PASSWORD }} \
+            spytPublishSparkForkRelease
+        env:
+          OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
+          OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
+          GPG_PASSWORD: ${{ secrets.GPG_PASSWORD }}
+
+      - name: DockerHub login
+        shell: bash
+        run: |
+          echo '${{ secrets.DOCKER_HUB_PASSWORD }}' | docker login --username ${{ secrets.DOCKER_HUB_LOGIN }} --password-stdin
+
+      - name: Build and push spark fork docker image
+        run: |
+          cd yt/spark/spark-over-yt/tools/release/spark_image
+          bash ./build.sh --spark-version ${{ needs.prepare_env.outputs.release_major_version }}
+          docker push ytsaurus/spark:${{ needs.prepare_env.outputs.release_major_version }}
+
+      - name: Build and push spyt docker image
+        run: |
+          cd yt/spark/spark-over-yt/tools/release/spyt_image
+          bash ./build.sh \
+            --spark-version ${{ needs.prepare_env.outputs.release_major_version }} \
+            --spyt-version ${{ needs.prepare_env.outputs.release_version }}
+          docker push ytsaurus/spyt:${{ needs.prepare_env.outputs.release_version }}
+
+  cluster_release:
+    name: Run Spyt release
+    needs:
+      - start-vm
+      - checkout
+      - prepare_env
+    if: ${{ needs.prepare_env.outputs.release_type == 'cluster' }}
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    steps:
+      - name: Set up JDK 11
+        uses: actions/setup-java@v3
+        with:
+          java-version: '11'
+          distribution: 'temurin'
+          server-id: ossrh
+          server-username: ${{ secrets.OSSRH_USERNAME }}
+          server-password: OSSRH_TOKEN
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg-passphrase: ${{ secrets.GPG_PASSWORD }}
+      - name: Set up SBT
+        run: |
+          curl -fsL "https://github.com/sbt/sbt/releases/download/v1.5.4/sbt-1.5.4.tgz" | tar xfz - -C /usr/share && \
+            chown -R root:root /usr/share/sbt && \
+            chmod -R 755 /usr/share/sbt && \
+            ln -s /usr/share/sbt/bin/sbt /usr/local/bin/sbt
+
+      - name: Set up scala
+        run: |
+          curl -fsL https://downloads.typesafe.com/scala/2.12.14/scala-2.12.14.tgz | tar xfz - -C /usr/share && \
+            mv /usr/share/scala-2.12.14 /usr/share/scala && \
+            chown -R root:root /usr/share/scala && \
+            chmod -R 755 /usr/share/scala && \
+            ln -s /usr/share/scala/bin/* /usr/local/bin
+
+      - name: Set up python
+        run: |
+          ln -sf /usr/bin/python3.11 /usr/bin/python3
+          python3 -m pip install twine "setuptools<60.0.0"
+          python3 -m pip install ytsaurus-client==0.13.5
+
+      - name: Write credentials
+        run: |
+          mkdir -p ~/.sbt
+          echo "realm=Sonatype Nexus Repository Manager" > ~/.sbt/.ossrh_credentials
+          echo "host=s01.oss.sonatype.org" >> ~/.sbt/.ossrh_credentials
+          echo "user=${{ secrets.OSSRH_USERNAME }}" >> ~/.sbt/.ossrh_credentials
+          echo "password=${{ secrets.OSSRH_PASSWORD }}" >> ~/.sbt/.ossrh_credentials
+
+      - name: Run sbt build
+        run: |
+          cd yt/spark/spark-over-yt
+          sbt \
+            -DpublishRepo=False \
+            -DinnerSidecarConfig=False \
+            -DconfigGeneration=False \
+            -DpublishYt=False \
+            -DcustomClusterVersion=${{ needs.prepare_env.outputs.release_version }} \
+            -DcustomSparkForkVersion=${{ needs.prepare_env.outputs.release_major_version }} \
+            spytPublishClusterRelease
+
+      - name: DockerHub login
+        shell: bash
+        run: |
+          echo '${{ secrets.DOCKER_HUB_PASSWORD }}' | docker login --username ${{ secrets.DOCKER_HUB_LOGIN }} --password-stdin
+
+      - name: Build and push docker image
+        run: |
+          cd yt/spark/spark-over-yt/tools/release/spyt_image
+          bash ./build.sh \
+            --spark-version ${{ needs.prepare_env.outputs.release_major_version }} \
+            --spyt-version ${{ needs.prepare_env.outputs.release_version }}
+          docker push ytsaurus/spyt:${{ needs.prepare_env.outputs.release_version }}
+
+  stop-vm:
+    name: Stop VM
+    needs:
+      - start-vm
+      - prepare_env
+      - spark_fork_release
+      - cluster_release
+    runs-on: trampoline
+    if: ${{ always() }}
+    steps:
+      - name: Stop YC runner
+        uses: yc-actions/yc-github-runner@v1
+        with:
+          mode: stop
+          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          label: ${{ needs.start-vm.outputs.label }}
+          instance-id: ${{ needs.start-vm.outputs.instance-id }}
+
+#  send-notifications:
+#    name: Send notifications
+#    needs:
+#      - stop-vm
+#    runs-on: trampoline
+#    if: ${{ failure() }}
+#    steps:
+#      - name: Send telegram message
+#        uses: appleboy/telegram-action@master
+#        with:
+#          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+#          token: ${{ secrets.TELEGRAM_TOKEN }}
+#          disable_web_page_preview: true
+#          format: markdown
+#          message: |
+#            Workflow *${{github.workflow}}* failed: ${{github.server_url}}/${{github.repository}}/actions/runs/${{github.run_id}}.
+#            Git ${{github.ref_type}}: *${{github.ref_name}}*.
+#            Commit:
+#            ```
+#            ${{github.event.head_commit.message}}
+#            ```
