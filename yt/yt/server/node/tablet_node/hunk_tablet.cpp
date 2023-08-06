@@ -283,6 +283,7 @@ void THunkTablet::RotateActiveStore()
 
 void THunkTablet::LockTransaction(TTransactionId transactionId)
 {
+    YT_VERIFY(transactionId);
     if (LockTransactionId_) {
         THROW_ERROR_EXCEPTION("Tablet %v is already locked by transaction %v",
             Id_,
@@ -290,17 +291,32 @@ void THunkTablet::LockTransaction(TTransactionId transactionId)
     }
 
     LockTransactionId_ = transactionId;
+
+    YT_LOG_DEBUG_IF(
+        IsMutationLoggingEnabled(),
+        "Hunk tablet locked by transaction (TransactionId: %v)",
+        transactionId);
 }
 
-void THunkTablet::UnlockTransaction(TTransactionId transactionId)
+bool THunkTablet::TryUnlockTransaction(TTransactionId transactionId)
 {
-    YT_VERIFY(!LockTransactionId_ || LockTransactionId_ == transactionId);
-    LockTransactionId_ = NullTransactionId;
+    YT_VERIFY(transactionId);
+    if (LockTransactionId_ != transactionId) {
+        return false;
+    }
+    LockTransactionId_ = {};
+
+    YT_LOG_DEBUG_IF(
+        IsMutationLoggingEnabled(),
+        "Hunk tablet unlocked by transaction (TransactionId: %v)",
+        transactionId);
+
+    return true;
 }
 
-bool THunkTablet::IsLockedByTransaction() const
+TTransactionId THunkTablet::GetLockTransactionId() const
 {
-    return static_cast<bool>(LockTransactionId_);
+    return LockTransactionId_;
 }
 
 bool THunkTablet::TryLockScan()

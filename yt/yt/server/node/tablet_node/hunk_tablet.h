@@ -69,8 +69,8 @@ public:
     void RotateActiveStore();
 
     void LockTransaction(TTransactionId transactionId);
-    void UnlockTransaction(TTransactionId transactionId);
-    bool IsLockedByTransaction() const;
+    bool TryUnlockTransaction(TTransactionId transactionId);
+    TTransactionId GetLockTransactionId() const;
 
     bool TryLockScan();
     void UnlockScan();
@@ -91,7 +91,7 @@ private:
 
     THashMap<TStoreId, THunkStorePtr> IdToStore_;
 
-    TTransactionId LockTransactionId_ = NullTransactionId;
+    TTransactionId LockTransactionId_;
 
     bool LockedByScan_ = false;
 

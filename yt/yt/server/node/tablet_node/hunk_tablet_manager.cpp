@@ -431,7 +431,11 @@ private:
         }
 
         auto transactionId = transaction->GetId();
-        tablet->UnlockTransaction(transactionId);
+        if (!tablet->TryUnlockTransaction(transactionId)) {
+            YT_LOG_ALERT("Failed to unlock hunk tablet (TransactionId: %v, HunkTabletLockTransactionId: %v)",
+                transactionId,
+                tablet->GetLockTransactionId());
+        }
 
         for (const auto& storeToAdd : request->stores_to_add()) {
             auto sessionId = FromProto<TSessionId>(storeToAdd.session_id());
@@ -509,9 +513,7 @@ private:
         }
 
         auto transactionId = transaction->GetId();
-        if (tablet->IsLockedByTransaction()) {
-            tablet->UnlockTransaction(transactionId);
-        }
+        tablet->TryUnlockTransaction(transactionId);
 
         for (const auto& storeToRemove : request->stores_to_remove()) {
             auto storeId = FromProto<TStoreId>(storeToRemove.store_id());
