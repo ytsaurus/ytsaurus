@@ -26,9 +26,7 @@ message TReqNodeDisposalTick
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqSendNodeStates
-{
-    required bool incremental = 1;
-}
+{ }
 
 message TMediumStatistics
 {
@@ -76,17 +74,24 @@ message TReqSetNodeStatistics
     repeated TEntry entries = 2;
 }
 
+// COMPAT(aleksandra-zh)
 message TReqSetNodeStates
 {
     message TEntry
     {
         required int32 node_id = 1;
         required int32 state = 2; // ENodeState
-        optional bool redundant = 3 [default = false];
     }
 
     required int32 cell_tag = 1;
     repeated TEntry entries = 2;
+}
+
+message TReqSetNodeState
+{
+    required int32 node_id = 1;
+    required int32 state = 2; // ENodeState
+    required int32 cell_tag = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

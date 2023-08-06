@@ -184,6 +184,13 @@ def check_replication_queue_list():
 class TestMasterSnapshotsCompatibility(ChaosTestBase, MasterSnapshotsCompatibilityBase):
     TEST_MAINTENANCE_FLAGS = True
 
+    DELTA_MASTER_CONFIG = {
+        "logging": {
+            # COMPAT(aleksandra-zh)
+            "abort_on_alert": False,
+        }
+    }
+
     @authors("gritukan", "kvk1920")
     @pytest.mark.timeout(150)
     def test(self):

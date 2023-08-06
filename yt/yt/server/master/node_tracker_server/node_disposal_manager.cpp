@@ -88,7 +88,8 @@ public:
             // Node was being disposed location by location, but smth needs it to be disposed right now.
             if (node->GetLocalState() == ENodeState::BeingDisposed) {
                 EraseOrCrash(NodesBeingDisposed_, node->GetId());
-                node->SetLocalState(ENodeState::Unregistered);
+                const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+                nodeTracker->SetNodeLocalState(node, ENodeState::Unregistered);
             }
 
             DoStartNodeDisposal(node);
@@ -196,7 +197,8 @@ private:
         YT_VERIFY(HasMutationContext());
 
         DoStartNodeDisposal(node);
-        node->SetLocalState(ENodeState::BeingDisposed);
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        nodeTracker->SetNodeLocalState(node, ENodeState::BeingDisposed);
         node->SetNextDisposedLocationIndex(0);
 
         InsertOrCrash(NodesBeingDisposed_, node->GetId());
@@ -348,7 +350,8 @@ private:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         chunkManager->DisposeNode(node);
 
-        node->SetLocalState(ENodeState::Offline);
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        nodeTracker->SetNodeLocalState(node, ENodeState::Offline);
 
         YT_LOG_INFO("Node offline (NodeId: %v, Address: %v)",
             node->GetId(),
