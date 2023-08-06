@@ -347,7 +347,7 @@ void ValidateOperationAccess(
             auto userStr = user.value_or(GetCurrentAuthenticationIdentity().User);
             auto error = TError(
                 NSecurityClient::EErrorCode::AuthorizationError,
-                "Operation access denied, user %Qv doesn't have permissions: %v",
+                "Operation access denied, user %Qv does not have %Qlv permissions",
                 userStr,
                 FormatPermissions(permissionSet))
                 << TErrorAttribute("user", userStr)
