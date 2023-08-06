@@ -111,8 +111,7 @@ class TCachingBlackboxTokenAuthenticatorConfig
 {
     REGISTER_YSON_STRUCT(TCachingBlackboxTokenAuthenticatorConfig);
 
-    static void Register(TRegistrar)
-    { }
+    static void Register(TRegistrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachingBlackboxTokenAuthenticatorConfig)
@@ -143,8 +142,7 @@ class TCachingCypressTokenAuthenticatorConfig
 {
     REGISTER_YSON_STRUCT(TCachingCypressTokenAuthenticatorConfig);
 
-    static void Register(TRegistrar)
-    { }
+    static void Register(TRegistrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachingCypressTokenAuthenticatorConfig)
@@ -157,8 +155,7 @@ class TOAuthTokenAuthenticatorConfig
 public:
     REGISTER_YSON_STRUCT(TOAuthTokenAuthenticatorConfig);
 
-    static void Register(TRegistrar)
-    { }
+    static void Register(TRegistrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TOAuthTokenAuthenticatorConfig)
@@ -171,8 +168,7 @@ class TCachingOAuthTokenAuthenticatorConfig
 {
     REGISTER_YSON_STRUCT(TCachingOAuthTokenAuthenticatorConfig);
 
-    static void Register(TRegistrar)
-    { }
+    static void Register(TRegistrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachingOAuthTokenAuthenticatorConfig)
@@ -207,8 +203,7 @@ class TOAuthCookieAuthenticatorConfig
 public:
     REGISTER_YSON_STRUCT(TOAuthCookieAuthenticatorConfig);
 
-    static void Register(TRegistrar)
-    { }
+    static void Register(TRegistrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TOAuthCookieAuthenticatorConfig)
@@ -219,7 +214,7 @@ class TOAuthServiceConfig
     : public virtual NYTree::TYsonStruct
 {
 public:
-    NHttp::TRetrialbeClientConfigPtr RetriableClient;
+    NHttp::TRetryingClientConfigPtr RetryingClient;
     NHttps::TClientConfigPtr HttpClient;
 
     TString Host;
@@ -247,8 +242,7 @@ class TCypressUserManagerConfig
 public:
     REGISTER_YSON_STRUCT(TCypressUserManagerConfig);
 
-    static void Register(TRegistrar)
-    { }
+    static void Register(TRegistrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCypressUserManagerConfig)
@@ -291,8 +285,7 @@ class TCachingBlackboxCookieAuthenticatorConfig
 {
     REGISTER_YSON_STRUCT(TCachingBlackboxCookieAuthenticatorConfig);
 
-    static void Register(TRegistrar)
-    { }
+    static void Register(TRegistrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachingBlackboxCookieAuthenticatorConfig)
@@ -305,8 +298,7 @@ class TCachingOAuthCookieAuthenticatorConfig
 {
     REGISTER_YSON_STRUCT(TCachingOAuthCookieAuthenticatorConfig);
 
-    static void Register(TRegistrar)
-    { }
+    static void Register(TRegistrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachingOAuthCookieAuthenticatorConfig)

@@ -7,8 +7,7 @@
 #include <yt/yt/core/http/client.h>
 #include <yt/yt/core/http/helpers.h>
 #include <yt/yt/core/http/http.h>
-#include <yt/yt/core/http/public.h>
-#include <yt/yt/core/http/retriable_client.h>
+#include <yt/yt/core/http/retrying_client.h>
 
 #include <yt/yt/core/https/client.h>
 #include <yt/yt/core/https/config.h>
@@ -47,8 +46,8 @@ public:
         NProfiling::TProfiler profiler)
         : Config_(std::move(config))
         , HttpClient_(
-            CreateRetriableClient(
-                Config_->RetriableClient,
+            CreateRetryingClient(
+                Config_->RetryingClient,
                 Config_->Secure
                     ? NHttps::CreateClient(Config_->HttpClient, poller)
                     : NHttp::CreateClient(Config_->HttpClient, poller),
@@ -67,7 +66,7 @@ public:
 
 private:
     const TOAuthServiceConfigPtr Config_;
-    const NHttp::IRetriableClientPtr HttpClient_;
+    const NHttp::IRetryingClientPtr HttpClient_;
 
     NProfiling::TCounter OAuthCalls_;
     NProfiling::TCounter OAuthCallErrors_;
@@ -99,7 +98,9 @@ private:
             Config_->Port,
             Config_->UserInfoEndpoint);
 
-        YT_LOG_DEBUG("Calling OAuth get user info (Url: %v, CallId: %v)", NHttp::SanitizeUrl(url), callId);
+        YT_LOG_DEBUG("Calling OAuth get user info (Url: %v, CallId: %v)",
+            NHttp::SanitizeUrl(url),
+            callId);
 
         auto result = [&] {
             NProfiling::TWallTimer timer;

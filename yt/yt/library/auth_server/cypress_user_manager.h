@@ -13,7 +13,7 @@ namespace NYT::NAuth {
 struct ICypressUserManager
     : public virtual TRefCounted
 {
-    virtual TFuture<NObjectClient::TObjectId> CreateUser(const TString& user) = 0;
+    virtual TFuture<NObjectClient::TObjectId> CreateUser(const TString& name) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICypressUserManager)
