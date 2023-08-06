@@ -25,8 +25,6 @@ object SpytRelease {
     commitReleaseClientVersion,  // TODO(alex-shishkin): Fix vcs auto-commit
     setNextClientVersion,
     ReleaseStep(releaseStepTask(spytUpdatePythonVersion)),
-    commitNextClientVersion,
-    maybePushChanges,
     logClientVersion
   )
 
@@ -45,8 +43,6 @@ object SpytRelease {
     setNextClientVersion,
     setNextClusterVersion,
     ReleaseStep(releaseStepTask(spytUpdatePythonVersion)),
-    commitNextClusterVersion,
-    maybePushChanges,
     logClusterVersion,
     logClientVersion
   )
@@ -71,8 +67,6 @@ object SpytRelease {
     setNextClientVersion,
     setNextClusterVersion,
     ReleaseStep(releaseStepTask(spytUpdatePythonVersion)),
-    commitNextClusterVersion,
-    maybePushChanges,
     logSparkForkVersion,
     logClusterVersion,
     logClientVersion
