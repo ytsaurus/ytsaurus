@@ -677,6 +677,13 @@ TOperationId TJob::GetOperationId() const
     return OperationId_;
 }
 
+IInvokerPtr TJob::GetInvoker() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return Invoker_;
+}
+
 const TControllerAgentDescriptor& TJob::GetControllerAgentDescriptor() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -1687,21 +1694,21 @@ void TJob::RunWithWorkspaceBuilder()
         Invoker_,
         std::move(context));
 
-    workspaceBuilder->SubscribeUpdateArtifactStatistics(BIND_NO_PROPAGATE([=, this, this_ = MakeWeak(this)] (i64 compressedDataSize, bool cacheHit) {
+    workspaceBuilder->SubscribeUpdateArtifactStatistics(BIND_NO_PROPAGATE([this, this_ = MakeWeak(this)] (i64 compressedDataSize, bool cacheHit) {
         UpdateArtifactStatistics(compressedDataSize, cacheHit);
     })
         .Via(Invoker_));
 
     // TODO(pogorelov): Refactor it. Phase should be changed in callback, not in signal handler.
     // We intentionally subscribe here without Via(Invoker_) to prevent data race.
-    workspaceBuilder->SubscribeUpdateBuilderPhase(BIND_NO_PROPAGATE([=, this, this_ = MakeWeak(this)] (EJobPhase phase) {
+    workspaceBuilder->SubscribeUpdateBuilderPhase(BIND_NO_PROPAGATE([this, this_ = MakeWeak(this)] (EJobPhase phase) {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         SetJobPhase(phase);
     }));
 
     // TODO(pogorelov): Do not pass TJobWorkspaceBuilderPtr, define structure.
-    workspaceBuilder->SubscribeUpdateTimers(BIND_NO_PROPAGATE([=, this, this_ = MakeWeak(this)] (const TJobWorkspaceBuilderPtr& workspace) {
+    workspaceBuilder->SubscribeUpdateTimers(BIND_NO_PROPAGATE([this, this_ = MakeWeak(this)] (const TJobWorkspaceBuilderPtr& workspace) {
         PreliminaryGpuCheckStartTime_ = workspace->GetGpuCheckStartTime();
         PreliminaryGpuCheckFinishTime_ = workspace->GetGpuCheckFinishTime();
 
@@ -1897,11 +1904,11 @@ void TJob::OnJobProxyFinished(const TError& error)
         };
 
         auto checker = New<TJobGpuChecker>(std::move(context), Logger);
-        checker->SubscribeRunCheck(BIND_NO_PROPAGATE([=, this, this_ = MakeStrong(this)] () {
+        checker->SubscribeRunCheck(BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] () {
             ExtraGpuCheckStartTime_ = TInstant::Now();
         })
             .Via(Invoker_));
-        checker->SubscribeFinishCheck(BIND([=, this, this_ = MakeStrong(this)] () {
+        checker->SubscribeFinishCheck(BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] () {
             ExtraGpuCheckFinishTime_ = TInstant::Now();
         })
             .Via(Invoker_));
@@ -2482,7 +2489,7 @@ TFuture<std::vector<NDataNode::IChunkPtr>> TJob::DownloadArtifacts()
         auto downloadOptions = MakeArtifactDownloadOptions();
         bool fetchedFromCache = false;
         auto asyncChunk = chunkCache->DownloadArtifact(artifact.Key, downloadOptions, &fetchedFromCache)
-            .Apply(BIND([=, fileName = artifact.Name, this, this_ = MakeStrong(this)] (const TErrorOr<IChunkPtr>& chunkOrError) {
+            .Apply(BIND([fileName = artifact.Name, this, this_ = MakeStrong(this)] (const TErrorOr<IChunkPtr>& chunkOrError) {
                 THROW_ERROR_EXCEPTION_IF_FAILED(chunkOrError,
                     EErrorCode::ArtifactDownloadFailed,
                     "Failed to prepare user file %Qv",

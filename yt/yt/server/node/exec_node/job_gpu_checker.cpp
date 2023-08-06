@@ -19,7 +19,9 @@ TJobGpuChecker::TJobGpuChecker(
     NLogging::TLogger logger)
     : Context_(std::move(context))
     , Logger(std::move(logger))
-{ }
+{
+    YT_LOG_DEBUG("Creating %lv job GPU checker", Context_.GpuCheckType);
+}
 
 TFuture<void> TJobGpuChecker::RunGpuCheck()
 {
@@ -89,10 +91,18 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
         Context_.CommandUser,
         Context_.GpuDevices,
         /*startIndex*/ checkStartIndex + 1)
-        .Apply(BIND([=, this, this_ = MakeStrong(this)] () {
-            YT_LOG_INFO("%lv GPU check commands finished", Context_.GpuCheckType);
+        .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& result) {
+            YT_LOG_INFO(result, "%lv GPU check commands finished", Context_.GpuCheckType);
             FinishCheck_.Fire();
-        }));
+
+            result.ThrowOnError();
+        })
+            .AsyncVia(Context_.Job->GetInvoker()));
+}
+
+TJobGpuChecker::~TJobGpuChecker()
+{
+    YT_LOG_DEBUG("Destroying %lv job GPU checker", Context_.GpuCheckType);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
