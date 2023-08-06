@@ -1415,9 +1415,9 @@ private:
             YT_LOG_INFO("Common watchers update results handled");
 
             for (const auto& watcher : Owner_->CustomWatcherRecords_) {
-                YT_LOG_INFO("Updating custom watcher (WatcherType: %v)", FormatEnum(watcher.WatcherType));
+                YT_LOG_INFO("Updating custom watcher (WatcherType: %v)", watcher.WatcherType);
                 Owner_->ExecuteCustomWatcherUpdate(watcher, /* strictMode */ true);
-                YT_LOG_INFO("Custom watcher updated (WatcherType: %v)", FormatEnum(watcher.WatcherType));
+                YT_LOG_INFO("Custom watcher updated (WatcherType: %v)", watcher.WatcherType);
             }
 
             Owner_->SetSchedulerAlert(ESchedulerAlertType::SchedulerCannotConnect, TError());
@@ -1982,8 +1982,8 @@ private:
     ITransactionPtr StartWatcherLockTransaction(const TCustomWatcherRecord& watcher)
     {
         auto attributes = CreateEphemeralAttributes();
-        attributes->Set("title", Format("Scheduler %v watcher lock at %v",
-            FormatEnum(watcher.WatcherType),
+        attributes->Set("title", Format("Scheduler %Qlv watcher lock at %v",
+            watcher.WatcherType,
             GetDefaultAddress(Bootstrap_->GetLocalAddresses())));
         TTransactionStartOptions options{
             .Timeout = watcher.LockOptions->WaitTimeout,
@@ -2000,7 +2000,7 @@ private:
         }
 
         YT_LOG_INFO("Watcher lock transaction created (WatcherType: %v, TransactionId: %v)",
-            FormatEnum(watcher.WatcherType),
+            watcher.WatcherType,
             transactionOrError.Value()->GetId());
 
         return transactionOrError.Value();
@@ -2027,7 +2027,7 @@ private:
                 return;
             }
 
-            YT_LOG_INFO("Lock for watcher %v acquired", FormatEnum(watcher.WatcherType));
+            YT_LOG_INFO("Lock for watcher acquired (WatcherType: %v)", watcher.WatcherType);
 
             TPrerequisiteOptions prerequisiteOptions;
             prerequisiteOptions.PrerequisiteTransactionIds.push_back(watcherLockTransaction->GetId());
