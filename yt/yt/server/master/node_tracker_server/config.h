@@ -94,7 +94,6 @@ public:
 
     TDuration TotalNodeStatisticsUpdatePeriod;
 
-    TDuration IncrementalNodeStatesGossipPeriod;
     // COMPAT(aleksandra-zh).
     TDuration FullNodeStatesGossipPeriod;
     TDuration NodeStatisticsGossipPeriod;

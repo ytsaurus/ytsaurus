@@ -254,6 +254,9 @@ public:
     //! Forces node to report an out-of-order cellar heartbeat.
     virtual void RequestCellarHeartbeat(TNodeId nodeId) = 0;
 
+    //! Sets node state and sends it to primary master.
+    virtual void SetNodeLocalState(TNode* node, ENodeState state) = 0;
+
 private:
     friend class TNodeTypeHandler;
     friend class THostTypeHandler;
