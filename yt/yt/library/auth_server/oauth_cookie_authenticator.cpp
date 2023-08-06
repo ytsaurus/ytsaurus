@@ -57,7 +57,7 @@ public:
         auto userIP = FormatUserIP(credentials.UserIP);
 
         YT_LOG_DEBUG(
-            "Authenticating user via oauth cookie (AccessTokenMD5: %v, UserIP: %v)",
+            "Authenticating user via OAuth cookie (AccessTokenMD5: %v, UserIP: %v)",
             accessTokenMD5,
             userIP);
 
@@ -80,12 +80,12 @@ private:
         auto result = OnGetUserInfoImpl(userInfo);
         if (result.IsOK()) {
             YT_LOG_DEBUG(
-                "Authentication via oauth successful (AccessTokenMD5: %v, Login: %v, Realm: %v)",
+                "Authentication via OAuth successful (AccessTokenMD5: %v, Login: %v, Realm: %v)",
                 accessTokenMD5,
                 result.Value().Login,
                 result.Value().Realm);
         } else {
-            YT_LOG_DEBUG(result, "Authentication via oauth failed (AccessTokenMD5: %v)", accessTokenMD5);
+            YT_LOG_DEBUG(result, "Authentication via OAuth failed (AccessTokenMD5: %v)", accessTokenMD5);
             result.MutableAttributes()->Set("access_token_md5", accessTokenMD5);
         }
 

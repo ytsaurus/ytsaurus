@@ -44,7 +44,7 @@ public:
         auto userIP = FormatUserIP(credentials.UserIP);
 
         YT_LOG_DEBUG(
-            "Authenticating user with token via oauth (TokenHash: %v, UserIP: %v)",
+            "Authenticating user with token via OAuth (TokenHash: %v, UserIP: %v)",
             tokenHash,
             userIP);
 
@@ -67,12 +67,12 @@ private:
         auto result = OnGetUserInfoImpl(userInfo);
         if (result.IsOK()) {
             YT_LOG_DEBUG(
-                "Authentication via oauth successful (TokenHash: %v, Login: %v, Realm: %v)",
+                "Authentication via OAuth successful (TokenHash: %v, Login: %v, Realm: %v)",
                 tokenHash,
                 result.Value().Login,
                 result.Value().Realm);
         } else {
-            YT_LOG_DEBUG(result, "Authentication via oauth failed (TokenHash: %v)", tokenHash);
+            YT_LOG_DEBUG(result, "Authentication via OAuth failed (TokenHash: %v)", tokenHash);
             result.MutableAttributes()->Set("token_hash", tokenHash);
         }
 

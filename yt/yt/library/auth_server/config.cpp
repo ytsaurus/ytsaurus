@@ -73,6 +73,11 @@ void TCachingTokenAuthenticatorConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TCachingBlackboxTokenAuthenticatorConfig::Register(TRegistrar /*registrar*/)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TCypressTokenAuthenticatorConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("root_path", &TThis::RootPath)
@@ -83,6 +88,21 @@ void TCypressTokenAuthenticatorConfig::Register(TRegistrar registrar)
     registrar.Parameter("secure", &TThis::Secure)
         .Default(false);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TCachingCypressTokenAuthenticatorConfig::Register(TRegistrar /*registrar*/)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TOAuthTokenAuthenticatorConfig::Register(TRegistrar /*registrar*/)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TCachingOAuthTokenAuthenticatorConfig::Register(TRegistrar /*registrar*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -102,9 +122,14 @@ void TBlackboxCookieAuthenticatorConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TOAuthCookieAuthenticatorConfig::Register(TRegistrar /*registrar*/)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TOAuthServiceConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("retriable_client",  &TThis::RetriableClient)
+    registrar.Parameter("retrying_client",  &TThis::RetryingClient)
         .DefaultNew();
     registrar.Parameter("http_client",  &TThis::HttpClient)
         .DefaultNew();
@@ -130,11 +155,26 @@ void TOAuthServiceConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TCypressUserManagerConfig::Register(TRegistrar /*registrar*/)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TCachingCypressUserManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("cache", &TThis::Cache)
         .DefaultNew();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TCachingBlackboxCookieAuthenticatorConfig::Register(TRegistrar /*registrar*/)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TCachingOAuthCookieAuthenticatorConfig::Register(TRegistrar /*registrar*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
