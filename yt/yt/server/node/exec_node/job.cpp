@@ -1858,7 +1858,7 @@ void TJob::OnJobProxyFinished(const TError& error)
         TJobGpuCheckerContext context {
             .Slot = GetUserSlot(),
             .Job = MakeStrong(this),
-            .RootFs = MakeWritableRootFS(),
+            .RootFS = MakeWritableRootFS(),
             .CommandUser = Config_->JobController->SetupCommandUser,
 
             .GpuCheckBinaryPath = UserJobSpec_->gpu_check_binary_path(),
@@ -2313,7 +2313,7 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
     // NB: this eventually results in job failure.
     options.DiskOverdraftCallback = BIND(&TJob::Abort, MakeWeak(this))
         .Via(Invoker_);
-    options.HasRootFsQuota = false;
+    options.HasRootFSQuota = false;
     options.EnableArtifactBinds = Config_->UseArtifactBinds;
     options.EnableDiskQuota = Bootstrap_->GetConfig()->DataNode->VolumeManager->EnableDiskQuota;
     options.UserId = GetUserSlot()->GetUserId();

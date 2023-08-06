@@ -211,7 +211,7 @@ std::vector<TString> TSlotLocation::DoPrepareSandboxDirectories(
 
     bool shouldApplyQuota = (options.InodeLimit || options.DiskSpaceLimit) &&
         !sandboxInsideTmpfs &&
-        !options.HasRootFsQuota;
+        !options.HasRootFSQuota;
     if (shouldApplyQuota) {
         try {
             auto properties = TJobDirectoryProperties {
@@ -236,7 +236,7 @@ std::vector<TString> TSlotLocation::DoPrepareSandboxDirectories(
 
     // This tmp sandbox is a temporary workaround for nirvana. We apply the same quota as we do for usual sandbox.
     if ((options.DiskSpaceLimit || options.InodeLimit) &&
-        !options.HasRootFsQuota) {
+        !options.HasRootFSQuota) {
         auto tmpPath = GetSandboxPath(slotIndex, ESandboxKind::Tmp);
         try {
             auto properties = TJobDirectoryProperties{options.DiskSpaceLimit, options.InodeLimit, userId};

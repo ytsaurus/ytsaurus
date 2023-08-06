@@ -536,7 +536,7 @@ void TExecNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_artifact_copy_tracking", &TThis::EnableArtifactCopyTracking)
         .Default(false);
 
-    registrar.Parameter("use_common_root_fs_quota", &TThis::UseCommonRootFsQuota)
+    registrar.Parameter("use_common_root_fs_quota", &TThis::UseCommonRootFSQuota)
         .Default(false);
 
     registrar.Parameter("use_artifact_binds", &TThis::UseArtifactBinds)

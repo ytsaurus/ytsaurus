@@ -542,7 +542,7 @@ private:
             TJobGpuCheckerContext settings {
                 .Slot = Context_.Slot,
                 .Job = Context_.Job,
-                .RootFs = MakeWritableRootFS(),
+                .RootFS = MakeWritableRootFS(),
                 .CommandUser = Context_.CommandUser,
 
                 .GpuCheckBinaryPath = *Context_.GpuCheckBinaryPath,

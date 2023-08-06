@@ -51,7 +51,7 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
             Context_.Slot->RunSetupCommands(
                 Context_.Job->GetId(),
                 {testFileCommand},
-                Context_.RootFs,
+                Context_.RootFS,
                 Context_.CommandUser,
                 /*devices*/ std::nullopt,
                 /*startIndex*/ checkStartIndex));
@@ -85,7 +85,7 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
     return Context_.Slot->RunSetupCommands(
         Context_.Job->GetId(),
         {checkCommand},
-        Context_.RootFs,
+        Context_.RootFS,
         Context_.CommandUser,
         Context_.GpuDevices,
         /*startIndex*/ checkStartIndex + 1)

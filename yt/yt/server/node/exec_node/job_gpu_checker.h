@@ -29,7 +29,7 @@ struct TJobGpuCheckerContext
 {
     IUserSlotPtr Slot;
     TJobPtr Job;
-    NContainers::TRootFS RootFs;
+    NContainers::TRootFS RootFS;
     TString CommandUser;
 
     TString GpuCheckBinaryPath;

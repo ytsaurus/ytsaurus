@@ -4,7 +4,7 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetRootFsUserDirectory();
+TString GetRootFSUserDirectory();
 
 TString GetSandboxRelPath(ESandboxKind sandboxKind);
 

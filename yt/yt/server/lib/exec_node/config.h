@@ -467,7 +467,7 @@ public:
     //! Instead of actually setting root fs, it just provides special environment variable.
     bool TestRootFS;
     bool EnableArtifactCopyTracking;
-    bool UseCommonRootFsQuota;
+    bool UseCommonRootFSQuota;
     bool UseArtifactBinds;
 
     std::vector<NJobProxy::TBindConfigPtr> RootFSBinds;

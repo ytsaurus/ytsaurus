@@ -897,7 +897,7 @@ private:
             THashMap<TString, TString> properties;
             properties["backend"] = "overlay";
 
-            if (options.EnableDiskQuota && options.HasRootFsQuota) {
+            if (options.EnableDiskQuota && options.HasRootFSQuota) {
                 properties["user"] = ToString(options.UserId);
                 properties["permissions"] = "0777";
 
