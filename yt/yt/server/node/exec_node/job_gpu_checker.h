@@ -57,6 +57,8 @@ public:
 
     TFuture<void> RunGpuCheck();
 
+    ~TJobGpuChecker();
+
 private:
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 

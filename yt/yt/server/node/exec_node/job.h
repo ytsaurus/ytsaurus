@@ -109,6 +109,8 @@ public:
 
     TOperationId GetOperationId() const;
 
+    IInvokerPtr GetInvoker() const;
+
     const TControllerAgentDescriptor& GetControllerAgentDescriptor() const;
 
     void UpdateControllerAgentDescriptor(TControllerAgentDescriptor agentInfo);
