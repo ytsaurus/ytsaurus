@@ -543,7 +543,7 @@ void TJob::Finalize(
 
     DoSetResult(std::move(error), std::move(jobResultExtension), byJobProxyCompletion);
 
-    YT_LOG_DEBUG(error, "Finalize job");
+    YT_LOG_DEBUG("Finalize job");
 
     FinishTime_ = TInstant::Now();
 
@@ -1429,6 +1429,11 @@ void TJob::ValidateJobRunning() const
     VERIFY_THREAD_AFFINITY(JobThread);
 
     if (JobPhase_ != EJobPhase::Running) {
+        YT_LOG_DEBUG(
+            "Unexpected job phase (Actual: %v, Expected: %v)",
+            JobPhase_,
+            EJobPhase::Running);
+
         THROW_ERROR_EXCEPTION(NJobProberClient::EErrorCode::JobIsNotRunning, "Job %v is not running", Id_)
             << TErrorAttribute("job_state", JobState_)
             << TErrorAttribute("job_phase", JobPhase_);

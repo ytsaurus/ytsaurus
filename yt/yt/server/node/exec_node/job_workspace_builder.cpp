@@ -364,8 +364,8 @@ private:
                     .ThrowOnError();
 
                 YT_LOG_INFO(
-                    "Symlink for artifact is successfully made(FileName: %v, Executable: "
-                    "%v, SandboxKind: %v, CompressedDataSize: %v)",
+                    "Symlink for artifact is successfully made(FileName: %v, Executable: %v,"
+                    " SandboxKind: %v, CompressedDataSize: %v)",
                     artifact.Name,
                     artifact.Executable,
                     artifact.SandboxKind,
@@ -481,9 +481,8 @@ private:
                     if (!volumeOrError.IsOK()) {
                         YT_LOG_DEBUG("Failed to prepare root volume");
 
-                        THROW_ERROR_EXCEPTION(
-                            TError(EErrorCode::RootVolumePreparationFailed, "Failed to prepare artifacts")
-                                << volumeOrError);
+                        THROW_ERROR_EXCEPTION(EErrorCode::RootVolumePreparationFailed, "Failed to prepare artifacts")
+                            << volumeOrError;
                     }
 
                     YT_LOG_DEBUG("Root volume prepared");
@@ -566,7 +565,7 @@ private:
                 UpdateTimers_.Fire(MakeStrong(this));
             }));
 
-            YT_LOG_DEBUG("Starting preliminary gpu check");
+            YT_LOG_INFO("Starting preliminary GPU check");
 
             return BIND(&TJobGpuChecker::RunGpuCheck, checker)
                 .AsyncVia(Invoker_)
@@ -574,17 +573,17 @@ private:
                 .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& result) {
                     ValidateJobPhase(EJobPhase::RunningGpuCheckCommand);
                     if (!result.IsOK()) {
-                        YT_LOG_WARNING("GPU check command failed");
+                        YT_LOG_WARNING("Preliminary GPU check command failed");
 
                         auto checkError = TError(EErrorCode::GpuCheckCommandFailed, "GPU check command failed")
                             << result;
                         THROW_ERROR checkError;
                     }
 
-                    YT_LOG_DEBUG("GPU check command finished");
+                    YT_LOG_INFO("Preliminary GPU check command finished");
                 }).AsyncVia(Invoker_));
         } else {
-            YT_LOG_DEBUG("No preliminary gpu check is needed");
+            YT_LOG_INFO("No preliminary GPU check is needed");
 
             return VoidFuture;
         }

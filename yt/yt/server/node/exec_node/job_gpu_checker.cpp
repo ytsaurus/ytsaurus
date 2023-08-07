@@ -43,7 +43,7 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
     RunCheck_.Fire();
 
     {
-        YT_LOG_INFO("Verifying %lv GPU check commands", Context_.GpuCheckType);
+        YT_LOG_INFO("Verifying %lv GPU check command", Context_.GpuCheckType);
 
         auto testFileCommand = New<TShellCommandConfig>();
         testFileCommand->Path = "/usr/bin/test";
@@ -69,7 +69,7 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
                 << testFileError;
         }
 
-        YT_LOG_INFO("%lv GPU check commands successfully verified", Context_.GpuCheckType);
+        YT_LOG_INFO("%lv GPU check command successfully verified", Context_.GpuCheckType);
     }
 
     auto checkCommand = New<TShellCommandConfig>();

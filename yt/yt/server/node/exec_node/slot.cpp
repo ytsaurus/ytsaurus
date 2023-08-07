@@ -109,41 +109,42 @@ public:
         TJobId jobId,
         TOperationId operationId) override
     {
-        return RunPreparationAction([&] {
-            if (auto delay = config->JobTestingOptions->DelayBeforeRunJobProxy) {
-                YT_LOG_DEBUG("Testing delay before run job proxy");
-                TDelayedExecutor::WaitForDuration(*delay);
-            }
+        return RunPreparationAction(
+            /*actionName*/ "RunJobProxy",
+            // Job proxy preparation is uncancelable, otherwise we might try to kill
+            // a never-started job proxy process.
+            /*uncancelable*/ true,
+            [&] {
+                if (auto delay = config->JobTestingOptions->DelayBeforeRunJobProxy) {
+                    YT_LOG_DEBUG("Testing delay before run job proxy");
+                    TDelayedExecutor::WaitForDuration(*delay);
+                }
 
-            YT_LOG_DEBUG("Start making job proxy config (JobId: %v)", jobId);
+                YT_LOG_DEBUG("Start making job proxy config (JobId: %v)", jobId);
 
-            {
-                auto error = WaitFor(Location_->MakeConfig(SlotIndex_, ConvertToNode(config)));
-                THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to create job proxy config");
-            }
+                {
+                    auto error = WaitFor(Location_->MakeConfig(SlotIndex_, ConvertToNode(config)));
+                    THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to create job proxy config");
+                }
 
-            YT_LOG_DEBUG("Finish making job proxy config (JobId: %v)", jobId);
+                YT_LOG_DEBUG("Finish making job proxy config (JobId: %v)", jobId);
 
-            auto result = JobEnvironment_->RunJobProxy(
-                SlotGuard_->GetSlotType(),
-                SlotIndex_,
-                Location_->GetSlotPath(SlotIndex_),
-                jobId,
-                operationId,
-                config->StderrPath,
-                NumaNodeAffinity_);
+                auto result = JobEnvironment_->RunJobProxy(
+                    SlotGuard_->GetSlotType(),
+                    SlotIndex_,
+                    Location_->GetSlotPath(SlotIndex_),
+                    jobId,
+                    operationId,
+                    config->StderrPath,
+                    NumaNodeAffinity_);
 
-            if (auto delay = config->JobTestingOptions->DelayAfterRunJobProxy) {
-                YT_LOG_DEBUG("Testing delay after run job proxy");
-                TDelayedExecutor::WaitForDuration(*delay);
-            }
+                if (auto delay = config->JobTestingOptions->DelayAfterRunJobProxy) {
+                    YT_LOG_DEBUG("Testing delay after run job proxy");
+                    TDelayedExecutor::WaitForDuration(*delay);
+                }
 
-            return result;
-        },
-        /*actionName*/ "RunJobProxy",
-        // Job proxy preparation is uncancelable, otherwise we might try to kill
-        // a never-started job proxy process.
-        true);
+                return result;
+            });
     }
 
     TFuture<void> MakeLink(
@@ -154,7 +155,10 @@ public:
         const TString& linkName,
         bool executable) override
     {
-        return RunPreparationAction([&] {
+        return RunPreparationAction(
+            /*actionName*/ "MakeLink",
+            /*uncancelable*/ false,
+            [&] {
                 return Location_->MakeSandboxLink(
                     jobId,
                     SlotIndex_,
@@ -163,8 +167,7 @@ public:
                     targetPath,
                     linkName,
                     executable);
-            },
-            /*actionName*/ "MakeLink");
+            });
     }
 
     TFuture<void> MakeCopy(
@@ -175,7 +178,10 @@ public:
         const TFile& destinationFile,
         const NDataNode::TChunkLocationPtr& sourceLocation) override
     {
-        return RunPreparationAction([&] {
+        return RunPreparationAction(
+            /*actionName*/ "MakeCopy",
+            /*uncancelable*/ false,
+            [&] {
                 return Location_->MakeSandboxCopy(
                     jobId,
                     SlotIndex_,
@@ -184,8 +190,7 @@ public:
                     sourcePath,
                     destinationFile,
                     sourceLocation);
-            },
-            /*actionName*/ "MakeCopy");
+            });
     }
 
     TFuture<void> MakeFile(
@@ -195,7 +200,10 @@ public:
         const std::function<void(IOutputStream*)>& producer,
         const TFile& destinationFile) override
     {
-        return RunPreparationAction([&] {
+        return RunPreparationAction(
+            /*actionName*/ "MakeFile",
+            /*uncancelable*/ false,
+            [&] {
                 return Location_->MakeSandboxFile(
                     jobId,
                     SlotIndex_,
@@ -203,8 +211,7 @@ public:
                     sandboxKind,
                     producer,
                     destinationFile);
-            },
-            /*actionName*/ "MakeFile");
+            });
     }
 
     bool IsLayerCached(const TArtifactKey& artifactKey) const override
@@ -220,10 +227,12 @@ public:
         if (!VolumeManager_) {
             return MakeFuture<IVolumePtr>(TError("Porto layers and custom root FS are not supported"));
         }
-        return RunPreparationAction([&] {
+        return RunPreparationAction(
+            /*actionName*/ "PrepareRootVolume",
+            /*uncancelable*/ false,
+            [&] {
                 return VolumeManager_->PrepareVolume(layers, downloadOptions, options);
-            },
-            /*actionName*/ "PrepareRootVolume");
+            });
     }
 
     int GetSlotIndex() const override
@@ -264,14 +273,15 @@ public:
     TFuture<std::vector<TString>> PrepareSandboxDirectories(
         const TUserSandboxOptions& options) override
     {
-        return RunPreparationAction([&] {
+        return RunPreparationAction(
+            /*actionName*/ "PrepareSandboxDirectories",
+            // Includes quota setting and tmpfs creation.
+            /*uncancelable*/ true,
+            [&] {
                 return Location_->PrepareSandboxDirectories(
                     SlotIndex_,
                     options);
-            },
-            /*actionName*/ "PrepareSandboxDirectories",
-            // Includes quota setting and tmpfs creation.
-            true);
+            });
     }
 
     TFuture<void> RunSetupCommands(
@@ -282,7 +292,11 @@ public:
         const std::optional<std::vector<TDevice>>& devices,
         int startIndex) override
     {
-        return RunPreparationAction([&] {
+        return RunPreparationAction(
+            /*actionName*/ "RunSetupCommands",
+            // Setup commands are uncancelable since they are run in separate processes.
+            /*uncancelable*/ true,
+            [&] {
                 return JobEnvironment_->RunSetupCommands(
                     SlotIndex_,
                     SlotGuard_->GetSlotType(),
@@ -292,10 +306,7 @@ public:
                     user,
                     devices,
                     startIndex);
-            },
-            /*actionName*/ "RunSetupCommands",
-            // Setup commands are uncancelable since they are run in separate processes.
-            true);
+            });
     }
 
     void OnArtifactPreparationFailed(
@@ -359,8 +370,8 @@ private:
 
     NLogging::TLogger Logger;
 
-    template <CCallableReturningFuture TCallback, class TName>
-    auto RunPreparationAction(const TCallback& action, const TName& actionName, bool uncancelable = false) -> decltype(action())
+    template <class TName, CCallableReturningFuture TCallback>
+    auto RunPreparationAction(const TName& actionName, bool uncancelable, const TCallback& action) -> decltype(action())
     {
         using TTypedFuture = decltype(action());
         using TUnderlyingReturnType = typename TFutureTraits<TTypedFuture>::TUnderlying;
