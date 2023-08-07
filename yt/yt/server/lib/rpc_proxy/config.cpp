@@ -10,8 +10,6 @@ namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_REFCOUNTED_TYPE(TSecurityManagerDynamicConfig)
-
 void TSecurityManagerDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("user_cache", &TThis::UserCache)
@@ -24,8 +22,6 @@ void TSecurityManagerDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_REFCOUNTED_TYPE(TStructuredLoggingMethodDynamicConfig)
-
 void TStructuredLoggingMethodDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable", &TThis::Enable)
@@ -36,8 +32,6 @@ void TStructuredLoggingMethodDynamicConfig::Register(TRegistrar registrar)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_REFCOUNTED_TYPE(TStructuredLoggingTopicDynamicConfig)
 
 void TStructuredLoggingTopicDynamicConfig::Register(TRegistrar registrar)
 {
@@ -53,8 +47,6 @@ void TStructuredLoggingTopicDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_REFCOUNTED_TYPE(TApiServiceConfig)
-
 void TApiServiceConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("client_cache", &TThis::ClientCache)
@@ -68,8 +60,6 @@ void TApiServiceConfig::Register(TRegistrar registrar)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_REFCOUNTED_TYPE(TApiServiceDynamicConfig)
 
 void TApiServiceDynamicConfig::Register(TRegistrar registrar)
 {
