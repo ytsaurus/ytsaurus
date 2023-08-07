@@ -1,7 +1,9 @@
 #include "bundle_scheduler.h"
 
 #include "config.h"
+#include "cypress_bindings.h"
 
+#include <algorithm>
 #include <library/cpp/yt/yson_string/public.h>
 
 #include <util/string/subst.h>
@@ -16,6 +18,7 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = BundleControllerLogger;
+static const TString DefaultDataCenterName = "default";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -123,76 +126,13 @@ public:
         const TString& bundleName,
         TInstanceTypeAdapter* adapter,
         const TSchedulerInputState& input,
-        TSchedulerMutations* mutations,
-        bool disrupted)
-    {
-        if (disrupted) {
-            YT_LOG_WARNING("Instance management skipped for bundle due zone unhealthy state"
-                " (BundleName: %v, InstanceType: %v)",
-                bundleName,
-                adapter->GetInstanceType());
-
-            mutations->AlertsToFire.push_back(TAlert{
-                .Id = "zone_is_disrupted",
-                .BundleName = bundleName,
-                .Description = Format("Zone is disrupted. Disabling all %v allocations.",
-                    adapter->GetInstanceType())
-            });
-        }
-
-        ProcessExistingAllocations(bundleName, adapter, input, mutations);
-        if (!disrupted) {
-            InitNewAllocations(bundleName, adapter, input, mutations);
-        }
-
-        ProcessExistingDeallocations(bundleName, adapter, input, mutations);
-        if (!disrupted) {
-            InitNewDeallocations(bundleName, adapter, input, mutations);
-        }
-    }
-
-private:
-    NLogging::TLogger Logger;
-
-
-    static bool IsResourceUsageExceeded(const TInstanceResourcesPtr& usage, const TResourceQuotaPtr& quota)
-    {
-        if (!quota) {
-            return false;
-        }
-
-        return usage->Vcpu > quota->Vcpu() || usage->Memory > quota->Memory;
-    }
-
-    void InitNewAllocations(
-        const TString& bundleName,
-        TInstanceTypeAdapter* adapter,
-        const TSchedulerInputState& input,
         TSchedulerMutations* mutations)
     {
-        // TODO(capone212): think about allocation/deallocation budget.
+        ProcessExistingAllocations(bundleName, adapter, input, mutations);
+        ProcessExistingDeallocations(bundleName, adapter, input, mutations);
+
         const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
-        auto& allocationsState = adapter->AllocationsState();
-
-        if (!adapter->IsNewAllocationAllowed(bundleInfo, input)) {
-            return;
-        }
-
         YT_VERIFY(bundleInfo->EnableBundleController);
-
-        int aliveInstanceCount = std::ssize(adapter->GetAliveInstancies());
-        int instanceCountToAllocate = adapter->GetTargetInstanceCount(bundleInfo) -
-            aliveInstanceCount -
-            std::ssize(allocationsState);
-
-        YT_LOG_DEBUG("Scheduling allocations (BundleName: %v, InstanceType: %v, InstanceCount: %v, "
-            "AliveInstanceCount: %v, RequestCount: %v, ExistingAllocations: %v)",
-            bundleName,
-            adapter->GetInstanceType(),
-            adapter->GetTargetInstanceCount(bundleInfo),
-            aliveInstanceCount,
-            instanceCountToAllocate,
-            std::ssize(allocationsState));
 
         auto zoneIt = input.Zones.find(bundleInfo->Zone);
 
@@ -209,8 +149,98 @@ private:
             return;
         }
 
-        const auto& zoneInfo = zoneIt->second;
-        if (instanceCountToAllocate > 0 && adapter->IsInstanceCountLimitReached(bundleInfo->Zone, zoneInfo, input)) {
+        const auto& [zoneName, zoneInfo] = *zoneIt;
+        for (const auto& [dataCenterName, _] : zoneInfo->DataCenters) {
+            auto disruptionIt = input.DatacenterDisrupted.find(std::make_pair(zoneName, dataCenterName));
+            if (disruptionIt != input.DatacenterDisrupted.end() && adapter->IsDataCenterDisrupted(disruptionIt->second)) {
+                YT_LOG_WARNING("Instance management skipped for bundle due zone unhealthy state"
+                    " (BundleName: %v, InstanceType: %v)",
+                    bundleName,
+                    adapter->GetInstanceType());
+
+                mutations->AlertsToFire.push_back(TAlert{
+                    .Id = "zone_is_disrupted",
+                    .BundleName = bundleName,
+                    .Description = Format("Zone is disrupted. Disabling all %v allocations.",
+                        adapter->GetInstanceType())
+                });
+                continue;
+            }
+
+            InitNewAllocations(
+                bundleName,
+                zoneName,
+                dataCenterName,
+                adapter,
+                input,
+                mutations);
+
+            InitNewDeallocations(
+                bundleName,
+                zoneName,
+                dataCenterName,
+                adapter,
+                input,
+                mutations);
+        }
+    }
+
+private:
+    NLogging::TLogger Logger;
+
+    static bool IsResourceUsageExceeded(const TInstanceResourcesPtr& usage, const TResourceQuotaPtr& quota)
+    {
+        if (!quota) {
+            return false;
+        }
+
+        return usage->Vcpu > quota->Vcpu() || usage->Memory > quota->Memory;
+    }
+
+    int GetAllocationsCountInDataCenter(
+        const TIndexedEntries<TAllocationRequestState>& allocationsState,
+        const TString& dataCenterName)
+    {
+        return std::count_if(allocationsState.begin(), allocationsState.end(), [&] (const auto& record) {
+            return record.second->DataCenter.value_or(DefaultDataCenterName) == dataCenterName;
+        });
+    }
+
+    void InitNewAllocations(
+        const TString& bundleName,
+        const TString& zoneName,
+        const TString& dataCenterName,
+        TInstanceTypeAdapter* adapter,
+        const TSchedulerInputState& input,
+        TSchedulerMutations* mutations)
+    {
+        const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
+        const auto& zoneInfo = GetOrCrash(input.Zones, zoneName);
+        const auto& dataCenterInfo = GetOrCrash(zoneInfo->DataCenters, dataCenterName);
+        auto& allocationsState = adapter->AllocationsState();
+
+        YT_VERIFY(bundleInfo->EnableBundleController);
+
+        if (!adapter->IsNewAllocationAllowed(bundleInfo, dataCenterName, input)) {
+            return;
+        }
+
+        int aliveInstanceCount = std::ssize(adapter->GetAliveInstancies(dataCenterName));
+        int targetInstanceCount = adapter->GetTargetInstanceCount(bundleInfo, zoneInfo);
+        int currentDataCenterAllocations = GetAllocationsCountInDataCenter(allocationsState, dataCenterName);
+        int instanceCountToAllocate = targetInstanceCount - aliveInstanceCount - currentDataCenterAllocations;
+
+        YT_LOG_DEBUG("Scheduling allocations (BundleName: %v, DataCenter: %v, TargetInstanceType: %v, InstanceCount: %v, "
+            "AliveInstanceCount: %v, RequestCount: %v, ExistingAllocations: %v)",
+            bundleName,
+            dataCenterName,
+            adapter->GetInstanceType(),
+            targetInstanceCount,
+            aliveInstanceCount,
+            instanceCountToAllocate,
+            currentDataCenterAllocations);
+
+        if (instanceCountToAllocate > 0 && adapter->IsInstanceCountLimitReached(bundleInfo->Zone, dataCenterName, zoneInfo, input)) {
             mutations->AlertsToFire.push_back(TAlert{
                 .Id = "zone_instance_limit_reached",
                 .BundleName = bundleName,
@@ -240,7 +270,7 @@ private:
         }
 
         if (instanceCountToAllocate == 0) {
-            auto outdatedInstanceCount = GetOutdatedInstanceCount(adapter, input, bundleInfo);
+            auto outdatedInstanceCount = GetOutdatedInstanceCount(adapter, dataCenterName, input, bundleInfo);
             instanceCountToAllocate = std::min(outdatedInstanceCount, input.Config->ReallocateInstanceBudget);
         }
 
@@ -253,11 +283,13 @@ private:
                 allocationId);
 
             auto spec = New<TAllocationRequestSpec>();
-            spec->YPCluster = zoneInfo->YPCluster;
-            spec->NannyService = adapter->GetNannyService(zoneInfo);
+            spec->YPCluster = dataCenterInfo->YPCluster;
+
+            spec->NannyService = adapter->GetNannyService(dataCenterInfo);
             *spec->ResourceRequest = *adapter->GetResourceGuarantee(bundleInfo);
             spec->PodIdTemplate = GetPodIdTemplate(
                 bundleName,
+                dataCenterName,
                 zoneInfo,
                 adapter,
                 input,
@@ -271,19 +303,21 @@ private:
             auto allocationState = New<TAllocationRequestState>();
             allocationState->CreationTime = TInstant::Now();
             allocationState->PodIdTemplate = spec->PodIdTemplate;
+            allocationState->DataCenter = dataCenterName;
             allocationsState[allocationId] = allocationState;
         }
     }
 
     int GetOutdatedInstanceCount(
         TInstanceTypeAdapter* adapter,
+        const TString& dataCenterName,
         const TSchedulerInputState& input,
         const TBundleInfoPtr& bundleInfo)
     {
         int count = 0;
         const auto& targetResource = adapter->GetResourceGuarantee(bundleInfo);
 
-        for (const auto& instanceName : adapter->GetAliveInstancies()) {
+        for (const auto& instanceName : adapter->GetAliveInstancies(dataCenterName)) {
             const auto& instanceInfo = adapter->GetInstanceInfo(instanceName, input);
             const auto& instanceResource = instanceInfo->Annotations->Resource;
 
@@ -314,17 +348,22 @@ private:
 
     TString GetPodIdTemplate(
         const TString& bundleName,
+        const TString& dataCenterName,
         const TZoneInfoPtr& zoneInfo,
         TInstanceTypeAdapter* adapter,
         const TSchedulerInputState& input,
         TSchedulerMutations* mutations)
     {
         std::vector<TString> knownPodIds;
-        for (const auto& instanceName : adapter->GetInstancies()) {
+        for (const auto& instanceName : adapter->GetInstancies(dataCenterName)) {
             knownPodIds.push_back(GetPodIdForInstance(instanceName));
         }
 
         for (const auto& [allocationId, state] : adapter->AllocationsState()) {
+            if (state->DataCenter.value_or(DefaultDataCenterName) != dataCenterName) {
+                continue;
+            }
+
             if (state->PodIdTemplate.Empty()) {
                 YT_LOG_WARNING("Empty PodIdTemplate found in allocation state "
                     "(AllocationId: %v, InstanceType: %v, BundleName: %v)",
@@ -375,7 +414,7 @@ private:
         auto& allocationsState = adapter->AllocationsState();
 
         TIndexedEntries<TAllocationRequestState> aliveAllocations;
-        for (const auto& [allocationId, allocationState] :allocationsState) {
+        for (const auto& [allocationId, allocationState] : allocationsState) {
             auto it = input.AllocationRequests.find(allocationId);
             if (it == input.AllocationRequests.end()) {
                 YT_LOG_WARNING("Cannot find allocation (AllocationId: %v, InstanceType: %v, BundleName: %v)",
@@ -417,7 +456,14 @@ private:
             }
 
             auto instanceName = LocateAllocatedInstance(allocationInfo, input);
-            if (!instanceName.empty() && adapter->EnsureAllocatedInstanceTagsSet(instanceName, bundleName, allocationInfo, input, mutations)) {
+            if (!instanceName.empty() && adapter->EnsureAllocatedInstanceTagsSet(
+                    instanceName,
+                    bundleName,
+                    allocationState->DataCenter.value_or(DefaultDataCenterName),
+                    allocationInfo,
+                    input,
+                    mutations))
+            {
                 YT_LOG_INFO("Instance allocation completed (Name: %v, AllocationId: %v, BundleName: %v)",
                     instanceName,
                     allocationId,
@@ -646,26 +692,31 @@ private:
 
     void InitNewDeallocations(
         const TString& bundleName,
+        const TString& zoneName,
+        const TString& dataCenterName,
         TInstanceTypeAdapter* adapter,
         const TSchedulerInputState& input,
         TSchedulerMutations* /*mutations*/)
     {
-        // TODO(capone212): think about allocation deallocation budget.
         const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
         YT_VERIFY(bundleInfo->EnableBundleController);
 
-        if (!adapter->IsNewDeallocationAllowed(bundleInfo, input)) {
+        const auto& zoneInfo = GetOrCrash(input.Zones, zoneName);
+
+        if (!adapter->IsNewDeallocationAllowed(bundleInfo, dataCenterName, input)) {
             return;
         }
 
-        auto aliveInstancies = adapter->GetAliveInstancies();
-        int instanceCountToDeallocate = std::ssize(aliveInstancies) - adapter->GetTargetInstanceCount(bundleInfo);
+        auto aliveInstancies = adapter->GetAliveInstancies(dataCenterName);
+        auto targetInstanceCount = adapter->GetTargetInstanceCount(bundleInfo, zoneInfo);
+        auto instanceCountToDeallocate = std::ssize(aliveInstancies) - targetInstanceCount;
         auto& deallocationsState = adapter->DeallocationsState();
 
-        YT_LOG_DEBUG("Scheduling deallocations (BundleName: %v, InstanceCount: %v, AliveInstances: %v, "
+        YT_LOG_DEBUG("Scheduling deallocations (BundleName: %v, DataCenter: %v, TargetInstanceCount: %v, AliveInstances: %v, "
             "RequestCount: %v, ExistingDeallocations: %v)",
             bundleName,
-            adapter->GetTargetInstanceCount(bundleInfo),
+            dataCenterName,
+            targetInstanceCount,
             std::ssize(aliveInstancies),
             instanceCountToDeallocate,
             std::ssize(deallocationsState));
@@ -674,7 +725,11 @@ private:
             return;
         }
 
-        const auto instanciesToRemove = adapter->PeekInstanciesToDeallocate(instanceCountToDeallocate, bundleInfo, input);
+        const auto instanciesToRemove = adapter->PeekInstanciesToDeallocate(
+            instanceCountToDeallocate,
+            dataCenterName,
+            bundleInfo,
+            input);
 
         for (const auto& instanceName : instanciesToRemove) {
             const auto& instanceInfo = adapter->GetInstanceInfo(instanceName, input);
@@ -683,6 +738,7 @@ private:
             auto deallocationState = New<TDeallocationRequestState>();
             deallocationState->CreationTime = TInstant::Now();
             deallocationState->InstanceName = instanceName;
+            deallocationState->DataCenter = dataCenterName;
             deallocationState->Strategy = instanceInfo->Annotations->DeallocationStrategy;
 
             if (deallocationState->Strategy.empty()) {
@@ -719,24 +775,20 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename TInstanceInfoPtr>
-TString GetBundleNameFor(const TString& /*name*/, const TInstanceInfoPtr& info)
-{
-    return info->Annotations->AllocatedForBundle;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <typename TCollection>
 TSchedulerInputState::TBundleToInstanceMapping MapBundlesToInstancies(const TCollection& collection)
 {
     TSchedulerInputState::TBundleToInstanceMapping result;
 
     for (const auto& [instanceName, instanceInfo] : collection) {
-        auto bundleName = GetBundleNameFor(instanceName, instanceInfo);
+        auto dataCenter = instanceInfo->Annotations->DataCenter.value_or(DefaultDataCenterName);
+        auto bundleName = instanceInfo->Annotations->AllocatedForBundle;
+
         if (!bundleName.empty()) {
-            result[bundleName].push_back(instanceName);
+            result[bundleName][dataCenter].push_back(instanceName);
         }
+
+
     }
 
     return result;
@@ -749,14 +801,16 @@ TSchedulerInputState::TZoneToInstanceMap MapZonesToInstancies(
     const TSchedulerInputState& input,
     const TCollection& collection)
 {
-    THashMap<TString, TString> nannyServiceToZone;
+    THashMap<TString, std::pair<TString, TString>> nannyServiceToZone;
     for (const auto& [zoneName, zoneInfo] : input.Zones) {
-        if (!zoneInfo->TabletNodeNannyService.empty()) {
-            nannyServiceToZone[zoneInfo->TabletNodeNannyService] = zoneName;
-        }
+        for (const auto& [dataCenterName, dataCenterInfo] : zoneInfo->DataCenters) {
+            if (!dataCenterInfo->TabletNodeNannyService.empty()) {
+                nannyServiceToZone[dataCenterInfo->TabletNodeNannyService] = std::make_pair(zoneName, dataCenterName);
+            }
 
-        if (!zoneInfo->RpcProxyNannyService.empty()) {
-            nannyServiceToZone[zoneInfo->RpcProxyNannyService] = zoneName;
+            if (!dataCenterInfo->RpcProxyNannyService.empty()) {
+                nannyServiceToZone[dataCenterInfo->RpcProxyNannyService] = std::make_pair(zoneName, dataCenterName);
+            }
         }
     }
 
@@ -769,8 +823,8 @@ TSchedulerInputState::TZoneToInstanceMap MapZonesToInstancies(
         if (it == nannyServiceToZone.end()) {
             continue;
         }
-        const auto& zoneName = it->second;
-        result[zoneName].push_back(instanceName);
+        const auto& [zoneName, dataCenterName] = it->second;
+        result[zoneName].PerDataCenter[dataCenterName].push_back(instanceName);
     }
 
     return result;
@@ -778,66 +832,80 @@ TSchedulerInputState::TZoneToInstanceMap MapZonesToInstancies(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashMap<TString, TInstanceRackInfo> MapZonesToRacks(
+THashMap<TString, TDataCenterRackInfo> MapZonesToRacks(
     const TSchedulerInputState& input,
     TSchedulerMutations* mutations)
 {
-    THashMap<TString, TInstanceRackInfo> zoneToRacks;
+    THashMap<TString, TDataCenterRackInfo> zoneToRacks;
 
     for (const auto& [zoneName, zoneNodes] : input.ZoneNodes) {
         auto zoneInfo = GetOrCrash(input.Zones, zoneName);
-        auto zoneBundleName = GetSpareBundleName(zoneInfo);
-        auto& zoneRacks = zoneToRacks[zoneName];
+        auto spareBundleName = GetSpareBundleName(zoneInfo);
 
-        for (const auto& tabletNode : zoneNodes) {
-            const auto& nodeInfo = GetOrCrash(input.TabletNodes, tabletNode);
-            if (nodeInfo->State != InstanceStateOnline) {
-                continue;
-            }
+        for (const auto& [dataCenterName, dataCenterNodes] : zoneNodes.PerDataCenter) {
+            auto& dataCenterRacks = zoneToRacks[zoneName][dataCenterName];
 
-            if (nodeInfo->Annotations->AllocatedForBundle == zoneBundleName) {
-                ++zoneRacks.RackToSpareInstances[nodeInfo->Rack];
-            } else {
-                ++zoneRacks.RackToBundleInstances[nodeInfo->Rack];
+            for (const auto& tabletNode : dataCenterNodes) {
+                const auto& nodeInfo = GetOrCrash(input.TabletNodes, tabletNode);
+                if (nodeInfo->State != InstanceStateOnline) {
+                    continue;
+                }
+
+                if (nodeInfo->Annotations->AllocatedForBundle == spareBundleName) {
+                    ++dataCenterRacks.RackToSpareInstances[nodeInfo->Rack];
+                } else {
+                    ++dataCenterRacks.RackToBundleInstances[nodeInfo->Rack];
+                }
             }
         }
     }
 
     for (auto& [_, zoneRacks] : zoneToRacks) {
-        for (const auto& [rackName, bundleNodes] : zoneRacks.RackToBundleInstances) {
-            int spareNodesCount = 0;
+        for (auto& [_, dataCenterRacks] : zoneRacks) {
+            for (const auto& [rackName, bundleNodes] : dataCenterRacks.RackToBundleInstances) {
+                int spareNodesCount = 0;
 
-            const auto& spareRacks = zoneRacks.RackToSpareInstances;
-            if (auto it = spareRacks.find(rackName); it != spareRacks.end()) {
-                spareNodesCount = it->second;
+                const auto& spareRacks = dataCenterRacks.RackToSpareInstances;
+                if (auto it = spareRacks.find(rackName); it != spareRacks.end()) {
+                    spareNodesCount = it->second;
+                }
+
+                dataCenterRacks.RequiredSpareNodesCount = std::max(
+                    dataCenterRacks.RequiredSpareNodesCount,
+                    bundleNodes + spareNodesCount);
             }
-
-            zoneRacks.RequiredSpareNodesCount = std::max(
-                zoneRacks.RequiredSpareNodesCount,
-                bundleNodes + spareNodesCount);
         }
     }
 
     for (auto& [zone, zoneInfo] : input.Zones) {
-        auto it = zoneToRacks.find(zone);
-        if (it == zoneToRacks.end()) {
-            continue;
-        }
+        for (auto& [dataCenter, _] : zoneInfo->DataCenters) {
+            auto zoneIt = zoneToRacks.find(zone);
+            if (zoneIt == zoneToRacks.end()) {
+                continue;
+            }
 
-        if (zoneInfo->RequiresMinusOneRackGuarantee && zoneInfo->SpareTargetConfig->TabletNodeCount < it->second.RequiredSpareNodesCount) {
-            mutations->AlertsToFire.push_back(TAlert{
-                .Id = "minus_one_rack_guarantee_violation",
-                .Description = Format("Zone %v with has target spare nodes: %v "
-                    ", where required count is at least %v.",
+            auto dataCenterIt = zoneIt->second.find(dataCenter);
+            if (dataCenterIt == zoneIt->second.end()) {
+                continue;
+            }
+
+            if (zoneInfo->RequiresMinusOneRackGuarantee && zoneInfo->SpareTargetConfig->TabletNodeCount < dataCenterIt->second.RequiredSpareNodesCount) {
+                mutations->AlertsToFire.push_back(TAlert{
+                    .Id = "minus_one_rack_guarantee_violation",
+                    .Description = Format("Zone %v in data center %v has target spare nodes: %v "
+                        ", where required count is at least %v.",
+                        zone,
+                        dataCenter,
+                        zoneInfo->SpareTargetConfig->TabletNodeCount,
+                        dataCenterIt->second.RequiredSpareNodesCount),
+                });
+
+                YT_LOG_WARNING("Zone spare nodes violate minus one rack guarantee (Zone: %v, DataCenter: %v, ZoneSpareNodes: %v, RequiredSpareNodes: %v)",
                     zone,
+                    dataCenter,
                     zoneInfo->SpareTargetConfig->TabletNodeCount,
-                    it->second.RequiredSpareNodesCount),
-            });
-
-            YT_LOG_WARNING("Zone spare nodes violate minus one rack guarantee (Zone: %v, ZoneSpareNodes: %v, RequiredSpareNodes: %v)",
-                zone,
-                zoneInfo->SpareTargetConfig->TabletNodeCount,
-                it->second.RequiredSpareNodesCount);
+                    dataCenterIt->second.RequiredSpareNodesCount);
+            }
         }
     }
 
@@ -978,10 +1046,22 @@ void CalculateResourceUsage(TSchedulerInputState& input)
             auto aliveResourceUsage = New<TInstanceResources>();
             aliveResourceUsage->Clear();
 
-            auto aliveNodes = GetAliveNodes(bundleName, input.BundleNodes[bundleName], input, EGracePeriodBehaviour::Wait);
+            TBundleControllerStatePtr bundleState;
+            if (auto it = input.BundleStates.find(bundleName); it != input.BundleStates.end()) {
+                bundleState = NYTree::CloneYsonStruct(it->second);
+            }
+
+            auto perDCaliveNodes = GetAliveNodes(
+                bundleName,
+                input.BundleNodes[bundleName],
+                input,
+                bundleState,
+                EGracePeriodBehaviour::Wait);
+
+            auto aliveNodes = FlattenAliveInstancies(perDCaliveNodes);
             calculateResources(aliveNodes, input.TabletNodes, aliveResourceUsage, input.AliveNodesBySize[bundleName]);
 
-            auto aliveProxies = GetAliveProxies(input.BundleProxies[bundleName], input, EGracePeriodBehaviour::Wait);
+            auto aliveProxies = FlattenAliveInstancies(GetAliveProxies(input.BundleProxies[bundleName], input, EGracePeriodBehaviour::Wait));
             calculateResources(aliveProxies, input.RpcProxies, aliveResourceUsage, input.AliveProxiesBySize[bundleName]);
 
             aliveResources[bundleName] = aliveResourceUsage;
@@ -990,8 +1070,8 @@ void CalculateResourceUsage(TSchedulerInputState& input)
         {
             auto allocated = New<TInstanceResources>();
             allocated->Clear();
-            calculateResources(input.BundleNodes[bundleName], input.TabletNodes, allocated, input.AllocatedNodesBySize[bundleName]);
-            calculateResources(input.BundleProxies[bundleName], input.RpcProxies, allocated, input.AllocatedProxiesBySize[bundleName]);
+            calculateResources(FlattenBundleInstancies(input.BundleNodes[bundleName]), input.TabletNodes, allocated, input.AllocatedNodesBySize[bundleName]);
+            calculateResources(FlattenBundleInstancies(input.BundleProxies[bundleName]), input.RpcProxies, allocated, input.AllocatedProxiesBySize[bundleName]);
 
             allocatedResources[bundleName] = allocated;
         }
@@ -1014,64 +1094,77 @@ void CalculateResourceUsage(TSchedulerInputState& input)
     input.BundleResourceTarget = targetResources;
 }
 
-THashSet<TString> GetAliveNodes(
+THashMap<TString, THashSet<TString>> GetAliveNodes(
     const TString& bundleName,
-    const std::vector<TString>& bundleNodes,
+    const TDataCenterToInstanceMap& bundleNodes,
     const TSchedulerInputState& input,
+    const TBundleControllerStatePtr& bundleState,
     EGracePeriodBehaviour gracePeriodBehaviour)
 {
     const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
-    THashSet<TString> aliveNodes;
+    THashMap<TString, THashSet<TString>> aliveNodes;
 
     auto now = TInstant::Now();
 
-    for (const auto& nodeName : bundleNodes) {
-        const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
-        if (!nodeInfo->Annotations->Allocated || nodeInfo->Banned) {
-            continue;
-        }
-
-        if (!bundleInfo->NodeTagFilter.empty() && nodeInfo->Decommissioned) {
-            continue;
-        }
-
-        if (nodeInfo->State != InstanceStateOnline) {
-            if (gracePeriodBehaviour == EGracePeriodBehaviour::Immediately ||
-                now - nodeInfo->LastSeenTime > input.Config->OfflineInstanceGracePeriod)
-            {
+    for (const auto& [dataCenterName, dataCenterNodes] : bundleNodes) {
+        for (const auto& nodeName: dataCenterNodes) {
+            const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+            if (!nodeInfo->Annotations->Allocated || nodeInfo->Banned) {
                 continue;
             }
-        }
 
-        aliveNodes.insert(nodeName);
+            bool internallyDecommissioned = bundleState &&
+                (bundleState->BundleNodeAssignments.count(nodeName) != 0 ||
+                bundleState->BundleNodeReleasements.count(nodeName) != 0);
+
+            if (!bundleInfo->NodeTagFilter.empty() && nodeInfo->Decommissioned && !internallyDecommissioned) {
+                YT_LOG_DEBUG("Node is externally decommissioned (BundleName: %v, Node: %v)",
+                    bundleName,
+                    nodeName);
+                continue;
+            }
+
+            if (nodeInfo->State != InstanceStateOnline) {
+                if (gracePeriodBehaviour == EGracePeriodBehaviour::Immediately ||
+                    now - nodeInfo->LastSeenTime > input.Config->OfflineInstanceGracePeriod)
+                {
+                    continue;
+                }
+            }
+
+            aliveNodes[dataCenterName].insert(nodeName);
+        }
     }
 
     return aliveNodes;
 }
 
-THashSet<TString> GetAliveProxies(
-    const std::vector<TString>& bundleProxies,
+THashMap<TString, THashSet<TString>> GetAliveProxies(
+    const TDataCenterToInstanceMap& bundleProxies,
     const TSchedulerInputState& input,
     EGracePeriodBehaviour gracePeriodBehaviour)
 {
+    THashMap<TString, THashSet<TString>> aliveProxies;
+
     auto now = TInstant::Now();
-    THashSet<TString> aliveProxies;
 
-    for (const auto& proxyName : bundleProxies) {
-        const auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
-        if (!proxyInfo->Annotations->Allocated || proxyInfo->Banned) {
-            continue;
-        }
-
-        if (!proxyInfo->Alive) {
-            if (gracePeriodBehaviour == EGracePeriodBehaviour::Immediately ||
-                now - proxyInfo->ModificationTime > input.Config->OfflineInstanceGracePeriod)
-            {
+    for (const auto& [dataCenterName, dataCenterProxies] : bundleProxies) {
+        for (const auto& proxyName: dataCenterProxies) {
+            const auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
+            if (!proxyInfo->Annotations->Allocated || proxyInfo->Banned) {
                 continue;
             }
-        }
 
-        aliveProxies.insert(proxyName);
+            if (!proxyInfo->Alive) {
+                if (gracePeriodBehaviour == EGracePeriodBehaviour::Immediately ||
+                    now - proxyInfo->ModificationTime > input.Config->OfflineInstanceGracePeriod)
+                {
+                    continue;
+                }
+            }
+
+            aliveProxies[dataCenterName].insert(proxyName);
+        }
     }
 
     return aliveProxies;
@@ -1108,10 +1201,18 @@ struct TNodeRemoveOrder
     }
 };
 
-int GetTargetCellCount(const TBundleInfoPtr& bundleInfo)
+int GetTargetCellCount(const TBundleInfoPtr& bundleInfo, const TZoneInfoPtr& zoneInfo)
 {
+    if (zoneInfo->DataCenters.empty()) {
+        return 0;
+    }
+
     const auto& targetConfig = bundleInfo->TargetConfig;
-    return targetConfig->TabletNodeCount * targetConfig->CpuLimits->WriteThreadPoolSize / bundleInfo->Options->PeerCount;
+    int activeDataCenterCount = std::ssize(zoneInfo->DataCenters) - zoneInfo->RedundantDataCenterCount;
+    int activeNodeCount = (targetConfig->TabletNodeCount * activeDataCenterCount) / std::ssize(zoneInfo->DataCenters);
+
+    YT_VERIFY(activeNodeCount >= 0);
+    return activeNodeCount * targetConfig->CpuLimits->WriteThreadPoolSize / bundleInfo->Options->PeerCount;
 }
 
 bool EnsureNodeDecommissioned(
@@ -1183,7 +1284,7 @@ std::vector<TString> PeekTabletCellsToRemove(
 
 void ProcessRemovingCells(
     const TString& bundleName,
-    const std::vector<TString>& /*bundleNodes*/,
+    const TDataCenterToInstanceMap& /*bundleNodes*/,
     const TSchedulerInputState& input,
     TSchedulerMutations* mutations)
 {
@@ -1232,17 +1333,25 @@ void ProcessRemovingCells(
 
 void CreateRemoveTabletCells(
     const TString& bundleName,
-    const std::vector<TString>& bundleNodes,
+    const TDataCenterToInstanceMap& bundleNodes,
     const TSchedulerInputState& input,
     TSchedulerMutations* mutations)
 {
     const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
     const auto& bundleState = mutations->ChangedStates[bundleName];
-    auto aliveNodes = GetAliveNodes(bundleName, bundleNodes, input, EGracePeriodBehaviour::Wait);
 
     if (!bundleInfo->EnableTabletCellManagement) {
         return;
     }
+
+    const auto& zoneInfo = GetOrCrash(input.Zones, bundleInfo->Zone);
+    auto aliveNodes = FlattenAliveInstancies(GetAliveNodes(
+        bundleName,
+        bundleNodes,
+        input,
+        mutations->ChangedStates[bundleName],
+        EGracePeriodBehaviour::Wait));
+
 
     if (std::ssize(aliveNodes) < bundleInfo->TargetConfig->TabletNodeCount ||
         !bundleState->NodeAllocations.empty() ||
@@ -1257,7 +1366,7 @@ void CreateRemoveTabletCells(
         return;
     }
 
-    int targetCellCount = GetTargetCellCount(bundleInfo);
+    int targetCellCount = GetTargetCellCount(bundleInfo, zoneInfo);
     int cellCountDiff = targetCellCount - std::ssize(bundleInfo->TabletCellIds);
 
     YT_LOG_DEBUG("Managing tablet cells (BundleName: %v, TargetCellCount: %v, ExistingCount: %v)",
@@ -1409,7 +1518,9 @@ void ManageSystemAccountLimit(const TSchedulerInputState& input, TSchedulerMutat
             continue;
         }
 
-        int cellCount = std::max<int>(GetTargetCellCount(bundleInfo), std::ssize(bundleInfo->TabletCellIds));
+        const auto& zoneInfo = GetOrCrash(input.Zones, bundleInfo->Zone);
+
+        int cellCount = std::max<int>(GetTargetCellCount(bundleInfo, zoneInfo), std::ssize(bundleInfo->TabletCellIds));
         int cellPeerCount = cellCount * bundleInfo->Options->PeerCount;
         AddQuotaChanges(bundleName, bundleInfo, input, cellPeerCount, quotaChanges);
     }
@@ -1482,66 +1593,76 @@ TString GetSpareBundleName(const TZoneInfoPtr& zoneInfo)
     return zoneInfo->SpareBundleName;
 }
 
-THashMap<TString, TZoneDisruptedState> GetZoneDisruptedState(TSchedulerInputState& input)
+THashMap<TSchedulerInputState::TQualifiedDCName, TDataCenterDisruptedState> GetDataCenterDisruptedState(TSchedulerInputState& input)
 {
-    THashMap<TString, int> zoneOfflineNodeCount;
+    using TQualifiedDCName = TSchedulerInputState::TQualifiedDCName;
+
+    THashMap<TQualifiedDCName, int> zoneOfflineNodeCount;
+
     for (const auto& [zoneName, zoneNodes] : input.ZoneNodes) {
-        for (const auto& nodeName : zoneNodes) {
-            const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
-            if (nodeInfo->State == InstanceStateOnline) {
-                continue;
+        for (const auto& [dataCenterName, dataCenterNodes] : zoneNodes.PerDataCenter) {
+            for (const auto& nodeName : dataCenterNodes) {
+                const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+                if (nodeInfo->State == InstanceStateOnline) {
+                    continue;
+                }
+
+                YT_LOG_DEBUG("Node is offline (NodeName: %v, NannyService: %v, Banned: %v, LastSeen: %v)",
+                    nodeName,
+                    nodeInfo->Annotations->NannyService,
+                    nodeInfo->Banned,
+                    nodeInfo->LastSeenTime);
+
+                ++zoneOfflineNodeCount[std::make_pair(zoneName, dataCenterName)];
             }
-
-            YT_LOG_DEBUG("Node is offline (NodeName: %v, NannyService: %v, Banned: %v, LastSeen: %v)",
-                nodeName,
-                nodeInfo->Annotations->NannyService,
-                nodeInfo->Banned,
-                nodeInfo->LastSeenTime);
-
-            ++zoneOfflineNodeCount[zoneName];
         }
     }
 
-    THashMap<TString, int> zoneOfflineProxyCount;
+    THashMap<TQualifiedDCName, int> zoneOfflineProxyCount;
     for (const auto& [zoneName, zoneProxies] : input.ZoneProxies) {
-        for (const auto& proxyName : zoneProxies) {
-            const auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
-            if (proxyInfo->Alive) {
-                continue;
+        for (const auto& [dataCenterName, dataCenterProxies] : zoneProxies.PerDataCenter) {
+            for (const auto& proxyName : dataCenterProxies) {
+                const auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
+                if (proxyInfo->Alive) {
+                    continue;
+                }
+
+                YT_LOG_DEBUG("Proxy is offline (ProxyName: %v, NannyService: %v)",
+                    proxyName,
+                    proxyInfo->Annotations->NannyService);
+
+                ++zoneOfflineProxyCount[std::make_pair(zoneName, dataCenterName)];
             }
-
-            YT_LOG_DEBUG("Proxy is offline (ProxyName: %v, NannyService: %v)",
-                proxyName,
-                proxyInfo->Annotations->NannyService);
-
-            ++zoneOfflineProxyCount[zoneName];
         }
     }
 
-    THashMap<TString, TZoneDisruptedState> result;
+    THashMap<TQualifiedDCName, TDataCenterDisruptedState> result;
     for (const auto& [zoneName, zoneInfo] : input.Zones) {
+        for (const auto& [dataCenterName, dataCenterInfo] : zoneInfo->DataCenters) {
+            auto& dataCenterDisrupted = result[std::make_pair(zoneName, dataCenterName)];
 
-        auto& zoneDisrupted = result[zoneName];
+            dataCenterDisrupted.OfflineNodeCount = zoneOfflineNodeCount[std::make_pair(zoneName, dataCenterName)];
+            dataCenterDisrupted.OfflineNodeThreshold = zoneInfo->SpareTargetConfig->TabletNodeCount * zoneInfo->DisruptedThresholdFactor / std::ssize(zoneInfo->DataCenters);
 
-        zoneDisrupted.OfflineNodeCount = zoneOfflineNodeCount[zoneName];
-        zoneDisrupted.OfflineNodeThreshold = zoneInfo->SpareTargetConfig->TabletNodeCount * zoneInfo->DisruptedThresholdFactor;
+            YT_LOG_WARNING_IF(dataCenterDisrupted.IsNodesDisrupted(), "Zone data center is in disrupted state"
+                " (ZoneName: %v, DataCenter: %v, NannyService: %v, DisruptedThreshold: %v, OfflineNodeCount: %v)",
+                zoneName,
+                dataCenterName,
+                dataCenterInfo->TabletNodeNannyService,
+                dataCenterDisrupted.OfflineNodeThreshold,
+                dataCenterDisrupted.OfflineNodeCount);
 
-        YT_LOG_WARNING_IF(zoneDisrupted.IsNodesDisrupted(), "Zone is in disrupted state"
-            " (ZoneName: %v, NannyService: %v, DisruptedThreshold: %v, OfflineNodeCount: %v)",
-            zoneName,
-            zoneInfo->TabletNodeNannyService,
-            zoneDisrupted.OfflineNodeThreshold,
-            zoneDisrupted.OfflineNodeCount);
+            dataCenterDisrupted.OfflineProxyThreshold = zoneInfo->SpareTargetConfig->RpcProxyCount * zoneInfo->DisruptedThresholdFactor / std::ssize(zoneInfo->DataCenters);
+            dataCenterDisrupted.OfflineProxyCount = zoneOfflineProxyCount[std::make_pair(zoneName, dataCenterName)];
 
-        zoneDisrupted.OfflineProxyThreshold = zoneInfo->SpareTargetConfig->RpcProxyCount * zoneInfo->DisruptedThresholdFactor;
-        zoneDisrupted.OfflineProxyCount = zoneOfflineProxyCount[zoneName];
-
-        YT_LOG_WARNING_IF(zoneDisrupted.IsProxiesDisrupted(), "Zone is in disrupted state"
-            " (ZoneName: %v, NannyService: %v, DisruptedThreshold: %v, OfflineProxyCount: %v)",
-            zoneName,
-            zoneInfo->RpcProxyNannyService,
-            zoneDisrupted.OfflineProxyThreshold,
-            zoneDisrupted.OfflineProxyCount);
+            YT_LOG_WARNING_IF(dataCenterDisrupted.IsProxiesDisrupted(), "Zone data center is in disrupted state"
+                " (ZoneName: %v, DataCenter: %v, NannyService: %v, DisruptedThreshold: %v, OfflineProxyCount: %v)",
+                zoneName,
+                dataCenterName,
+                dataCenterInfo->RpcProxyNannyService,
+                dataCenterDisrupted.OfflineProxyThreshold,
+                dataCenterDisrupted.OfflineProxyCount);
+        }
     }
 
     return result;
@@ -1549,6 +1670,7 @@ THashMap<TString, TZoneDisruptedState> GetZoneDisruptedState(TSchedulerInputStat
 
 TInstanceAnnotationsPtr GetInstanceAnnotationsToSet(
     const TString& bundleName,
+    const TString& dataCenterName,
     const TAllocationRequestPtr& allocationInfo,
     const TInstanceAnnotationsPtr& annotations)
 {
@@ -1559,10 +1681,22 @@ TInstanceAnnotationsPtr GetInstanceAnnotationsToSet(
     result->YPCluster = allocationInfo->Spec->YPCluster;
     result->NannyService = allocationInfo->Spec->NannyService;
     result->AllocatedForBundle = bundleName;
+    result->DataCenter = dataCenterName;
     result->Allocated = true;
     result->DeallocationStrategy = DeallocationStrategyHulkRequest;
     *result->Resource = *allocationInfo->Spec->ResourceRequest;
     return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+int GetTargetDataCenterInstanceCount(int targetCount, const TZoneInfoPtr& zone)
+{
+    if (zone->DataCenters.empty()) {
+        return 0;
+    }
+
+    return targetCount / std::ssize(zone->DataCenters);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1572,16 +1706,19 @@ class TTabletNodeAllocatorAdapter
 public:
     TTabletNodeAllocatorAdapter(
         TBundleControllerStatePtr state,
-        const std::vector<TString>& bundleNodes,
-        const THashSet<TString>& aliveBundleNodes)
+        const TDataCenterToInstanceMap& bundleNodes,
+        const THashMap<TString, THashSet<TString>>& aliveBundleNodes)
         : State_(std::move(state))
         , BundleNodes_(bundleNodes)
         , AliveBundleNodes_(aliveBundleNodes)
     { }
 
-    bool IsNewAllocationAllowed(const TBundleInfoPtr& /*bundleInfo*/, const TSchedulerInputState& /*input*/) {
-        if (!State_->BundleNodeAssignments.empty())
-        {
+    bool IsNewAllocationAllowed(
+        const TBundleInfoPtr& /*bundleInfo*/,
+        const TString& dataCenterName,
+        const TSchedulerInputState& input)
+    {
+        if (GetInProgressAssignmentCount(dataCenterName, input) > 0) {
             // Do not mix node tag operations with new node allocations.
             return false;
         }
@@ -1589,19 +1726,50 @@ public:
         return true;
     }
 
-    bool IsNewDeallocationAllowed(const TBundleInfoPtr& bundleInfo, const TSchedulerInputState& input)
+    int GetInProgressAssignmentCount(const TString& dataCenterName, const TSchedulerInputState& input)
     {
+        auto dataCenterPredicate = [&] (const auto& pair) {
+            const auto& nodeInfo = GetOrCrash(input.TabletNodes, pair.first);
+            return nodeInfo->Annotations->DataCenter == dataCenterName;
+        };
+
+        const auto& assignments = State_->BundleNodeAssignments;
+        const auto& releasements = State_->BundleNodeReleasements;
+
+        return std::count_if(assignments.begin(), assignments.end(), dataCenterPredicate) +
+            std::count_if(releasements.begin(), releasements.end(), dataCenterPredicate);
+    }
+
+    bool IsDataCenterDisrupted(const TDataCenterDisruptedState& dcState)
+    {
+        return dcState.IsNodesDisrupted();
+    }
+
+    bool IsNewDeallocationAllowed(
+        const TBundleInfoPtr& bundleInfo,
+        const TString& dataCenterName,
+        const TSchedulerInputState& input)
+    {
+        bool deallocationsInDataCenter = std::any_of(
+            State_->NodeDeallocations.begin(),
+            State_->NodeDeallocations.end(),
+            [&] (const auto& record) {
+                return record.second->DataCenter.value_or(DefaultDataCenterName) == dataCenterName;
+            });
+
         if (!State_->NodeAllocations.empty() ||
-            !State_->NodeDeallocations.empty() ||
+            deallocationsInDataCenter ||
             !State_->RemovingCells.empty() ||
-            !State_->BundleNodeAssignments.empty())
+            GetInProgressAssignmentCount(dataCenterName, input) > 0)
         {
             // It is better not to mix allocation and deallocation requests.
             return false;
         }
 
+        const auto& zoneInfo = GetOrCrash(input.Zones, bundleInfo->Zone);
+
         if (bundleInfo->EnableTabletCellManagement) {
-            if (GetTargetCellCount(bundleInfo) != std::ssize(bundleInfo->TabletCellIds)) {
+            if (GetTargetCellCount(bundleInfo, zoneInfo) != std::ssize(bundleInfo->TabletCellIds)) {
                 // Wait for tablet cell management to complete.
                 return false;
             }
@@ -1609,7 +1777,7 @@ public:
             // Check that all alive instancies have appropriate node_tag_filter and slots count
             auto expectedSlotsCount = bundleInfo->TargetConfig->CpuLimits->WriteThreadPoolSize;
 
-            for (const auto& nodeName : AliveBundleNodes_) {
+            for (const auto& nodeName : GetAliveInstancies(dataCenterName)) {
                 const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
                 if (nodeInfo->UserTags.count(bundleInfo->NodeTagFilter) == 0 ||
                     std::ssize(nodeInfo->TabletSlots) != expectedSlotsCount)
@@ -1628,30 +1796,41 @@ public:
 
     bool IsInstanceCountLimitReached(
         const TString& zoneName,
+        const TString& dataCenterName,
         const TZoneInfoPtr& zoneInfo,
         const TSchedulerInputState& input) const
     {
-        auto it = input.ZoneNodes.find(zoneName);
-        if (it == input.ZoneNodes.end()) {
+        auto zoneIt = input.ZoneNodes.find(zoneName);
+        if (zoneIt == input.ZoneNodes.end()) {
             // No allocated tablet nodes for this zone
             return false;
         }
 
-        int currentZoneNodeCount = std::ssize(it->second);
-        if (currentZoneNodeCount >= zoneInfo->MaxTabletNodeCount) {
+        auto dataCenterIt = zoneIt->second.PerDataCenter.find(dataCenterName);
+        if (dataCenterIt == zoneIt->second.PerDataCenter.end()) {
+            // No allocated tablet nodes for this dc
+            return false;
+        }
+
+        int currentDataCenterNodeCount = std::ssize(dataCenterIt->second);
+        int datacenterMaxNodeCount = zoneInfo->MaxTabletNodeCount / std::ssize(zoneInfo->DataCenters);
+
+        if (currentDataCenterNodeCount >= datacenterMaxNodeCount) {
             YT_LOG_WARNING("Max nodes count limit reached"
-                " (Zone: %v, CurrentZoneNodeCount: %v, MaxTabletNodeCount: %v)",
+                " (Zone: %v, DataCenter: %v, CurrentDataCenterNodeCount: %v, ZoneMaxTabletNodeCount: %v, DatacenterMaxTabletNodeCount: %v)",
                 zoneName,
-                currentZoneNodeCount,
-                zoneInfo->MaxTabletNodeCount);
+                dataCenterName,
+                currentDataCenterNodeCount,
+                zoneInfo->MaxTabletNodeCount,
+                datacenterMaxNodeCount);
             return true;
         }
         return false;
     }
 
-    int GetTargetInstanceCount(const TBundleInfoPtr& bundleInfo) const
+    int GetTargetInstanceCount(const TBundleInfoPtr& bundleInfo, const TZoneInfoPtr& zoneInfo) const
     {
-        return bundleInfo->TargetConfig->TabletNodeCount;
+        return GetTargetDataCenterInstanceCount(bundleInfo->TargetConfig->TabletNodeCount, zoneInfo);
     }
 
     int GetInstanceRole() const
@@ -1703,14 +1882,15 @@ public:
         return EnsureNodeDecommissioned(instanceName, nodeInfo, mutations);
     }
 
-    TString GetNannyService(const TZoneInfoPtr& zoneInfo) const
+    TString GetNannyService(const TDataCenterInfoPtr& dataCenterInfo) const
     {
-        return zoneInfo->TabletNodeNannyService;
+        return dataCenterInfo->TabletNodeNannyService;
     }
 
     bool EnsureAllocatedInstanceTagsSet(
         const TString& nodeName,
         const TString& bundleName,
+        const TString& dataCenterName,
         const TAllocationRequestPtr& allocationInfo,
         const TSchedulerInputState& input,
         TSchedulerMutations* mutations) const
@@ -1732,7 +1912,7 @@ public:
 
         const auto& annotations = nodeInfo->Annotations;
 
-        if (auto changed = GetInstanceAnnotationsToSet(bundleName, allocationInfo, annotations)) {
+        if (auto changed = GetInstanceAnnotationsToSet(bundleName, dataCenterName, allocationInfo, annotations)) {
             mutations->ChangeNodeAnnotations[nodeName] = changed;
             return false;
         }
@@ -1754,7 +1934,7 @@ public:
             return false;
         }
 
-        if (AliveBundleNodes_.count(nodeName) == 0) {
+        if (GetAliveInstancies(dataCenterName).count(nodeName) == 0) {
             return false;
         }
 
@@ -1788,27 +1968,45 @@ public:
         return true;
     }
 
-    const THashSet<TString>& GetAliveInstancies() const
+    const THashSet<TString>& GetAliveInstancies(const TString& dataCenterName) const
     {
-        return AliveBundleNodes_;
+        const static THashSet<TString> Dummy;
+
+        auto it = AliveBundleNodes_.find(dataCenterName);
+        if (it != AliveBundleNodes_.end()) {
+            return it->second;
+        }
+
+        return Dummy;
     }
 
-    const std::vector<TString>& GetInstancies() const
+    const std::vector<TString>& GetInstancies(const TString& dataCenterName) const
     {
-        return BundleNodes_;
+        const static std::vector<TString> Dummy;
+
+        auto it = BundleNodes_.find(dataCenterName);
+        if (it != BundleNodes_.end()) {
+            return it->second;
+        }
+
+        return Dummy;
     }
 
     std::vector<TString> PeekInstanciesToDeallocate(
         int nodeCountToRemove,
+        const TString& dataCenterName,
         const TBundleInfoPtr& bundleInfo,
         const TSchedulerInputState& input) const
     {
+        const auto& aliveDataCenterNodes = GetAliveInstancies(dataCenterName);
+
         std::vector<TNodeRemoveOrder> nodesOrder;
-        nodesOrder.reserve(AliveBundleNodes_.size());
+
+        nodesOrder.reserve(aliveDataCenterNodes.size());
 
         const auto& targetResource = GetResourceGuarantee(bundleInfo);
 
-        for (auto nodeName : AliveBundleNodes_) {
+        for (auto nodeName : aliveDataCenterNodes) {
             const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
             const auto& instanceResource = nodeInfo->Annotations->Resource;
 
@@ -1837,8 +2035,8 @@ public:
 
 private:
     TBundleControllerStatePtr State_;
-    const std::vector<TString>& BundleNodes_;
-    const THashSet<TString>& AliveBundleNodes_;
+    const TDataCenterToInstanceMap& BundleNodes_;
+    const THashMap<TString, THashSet<TString>>& AliveBundleNodes_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1867,22 +2065,31 @@ class TRpcProxyAllocatorAdapter
 public:
     TRpcProxyAllocatorAdapter(
         TBundleControllerStatePtr state,
-        const std::vector<TString>& bundleProxies,
-        const THashSet<TString>& aliveProxies)
+        const TDataCenterToInstanceMap& bundleProxies,
+        const THashMap<TString, THashSet<TString>>& aliveProxies)
         : State_(std::move(state))
         , BundleProxies_(bundleProxies)
         , AliveProxies_(aliveProxies)
     { }
 
-    bool IsNewAllocationAllowed(const TBundleInfoPtr& /*bundleInfo*/, const TSchedulerInputState& /*input*/) {
+    bool IsNewAllocationAllowed(
+        const TBundleInfoPtr& /*bundleInfo*/,
+        const TString& /*dataCenterName*/,
+        const TSchedulerInputState& /*input*/)
+    {
         return true;
     }
 
-    bool IsNewDeallocationAllowed(const TBundleInfoPtr& /*bundleInfo*/, const TSchedulerInputState& /*input*/)
+    bool IsNewDeallocationAllowed(const TBundleInfoPtr& /*bundleInfo*/, const TString& dataCenterName, const TSchedulerInputState& /*input*/)
     {
-        if (!State_->ProxyAllocations.empty() ||
-            !State_->ProxyDeallocations.empty())
-        {
+        bool deallocationsInDataCenter = std::any_of(
+            State_->ProxyDeallocations.begin(),
+            State_->ProxyDeallocations.end(),
+            [&] (const auto& record) {
+                return record.second->DataCenter.value_or(DefaultDataCenterName) == dataCenterName;
+            });
+
+        if (!State_->ProxyAllocations.empty() || deallocationsInDataCenter) {
             // It is better not to mix allocation and deallocation requests.
             return false;
         }
@@ -1892,30 +2099,46 @@ public:
 
     bool IsInstanceCountLimitReached(
         const TString& zoneName,
+        const TString& dataCenterName,
         const TZoneInfoPtr& zoneInfo,
         const TSchedulerInputState& input) const
     {
-        auto it = input.ZoneProxies.find(zoneName);
-        if (it == input.ZoneProxies.end()) {
+        auto zoneIt = input.ZoneProxies.find(zoneName);
+        if (zoneIt == input.ZoneProxies.end()) {
             // No allocated rpc proxies for this zone
             return false;
         }
 
-        int currentZoneProxyCount = std::ssize(it->second);
-        if (currentZoneProxyCount >= zoneInfo->MaxRpcProxyCount) {
+        auto dataCenterIt = zoneIt->second.PerDataCenter.find(dataCenterName);
+        if (dataCenterIt == zoneIt->second.PerDataCenter.end()) {
+            // No allocated rpc proxies for this dc
+            return false;
+        }
+
+        int currentDataCenterProxyCount = std::ssize(dataCenterIt->second);
+        int maxDataCenterProxyCount = zoneInfo->MaxRpcProxyCount / std::ssize(zoneInfo->DataCenters);
+
+        if (currentDataCenterProxyCount >= maxDataCenterProxyCount) {
             YT_LOG_WARNING("Max Rpc proxies count limit reached"
-                " (Zone: %v, CurrentZoneRpcProxyCount: %v, MaxRpcProxyCount: %v)",
+                " (Zone: %v, DataCenter: %v, DataCenterRpcProxyCount: %v, ZoneMaxRpcProxyCount: %v, DataCenterMaxProxyCount: %v)",
                 zoneName,
-                currentZoneProxyCount,
-                zoneInfo->MaxRpcProxyCount);
+                dataCenterName,
+                currentDataCenterProxyCount,
+                zoneInfo->MaxRpcProxyCount,
+                maxDataCenterProxyCount);
             return true;
         }
         return false;
     }
 
-    int GetTargetInstanceCount(const TBundleInfoPtr& bundleInfo) const
+    bool IsDataCenterDisrupted(const TDataCenterDisruptedState& dcState)
     {
-        return bundleInfo->TargetConfig->RpcProxyCount;
+        return dcState.IsProxiesDisrupted();
+    }
+
+    int GetTargetInstanceCount(const TBundleInfoPtr& bundleInfo, const TZoneInfoPtr& zoneInfo) const
+    {
+        return GetTargetDataCenterInstanceCount(bundleInfo->TargetConfig->RpcProxyCount, zoneInfo);
     }
 
     int GetInstanceRole() const
@@ -1958,14 +2181,15 @@ public:
         return true;
     }
 
-    TString GetNannyService(const TZoneInfoPtr& zoneInfo) const
+    TString GetNannyService(const TDataCenterInfoPtr& dataCenterInfo) const
     {
-        return zoneInfo->RpcProxyNannyService;
+        return dataCenterInfo->RpcProxyNannyService;
     }
 
     bool EnsureAllocatedInstanceTagsSet(
         const TString& proxyName,
         const TString& bundleName,
+        const TString& dataCenterName,
         const TAllocationRequestPtr& allocationInfo,
         const TSchedulerInputState& input,
         TSchedulerMutations* mutations) const
@@ -1976,7 +2200,7 @@ public:
         }
 
         const auto& annotations = proxyInfo->Annotations;
-        if (auto changed = GetInstanceAnnotationsToSet(bundleName, allocationInfo, annotations)) {
+        if (auto changed = GetInstanceAnnotationsToSet(bundleName, dataCenterName, allocationInfo, annotations)) {
             mutations->ChangedProxyAnnotations[proxyName] = changed;
             return false;
         }
@@ -1990,7 +2214,7 @@ public:
             return false;
         }
 
-        if (AliveProxies_.count(proxyName) == 0) {
+        if (GetAliveInstancies(dataCenterName).count(proxyName) == 0) {
             return false;
         }
 
@@ -2017,29 +2241,45 @@ public:
         return true;
     }
 
-    const THashSet<TString>& GetAliveInstancies() const
+    const THashSet<TString>& GetAliveInstancies(const TString& dataCenterName) const
     {
-        return AliveProxies_;
+        const static THashSet<TString> Dummy;
+
+        auto it = AliveProxies_.find(dataCenterName);
+        if (it != AliveProxies_.end()) {
+            return it->second;
+        }
+
+        return Dummy;
     }
 
-    const std::vector<TString>& GetInstancies() const
+    const std::vector<TString>& GetInstancies(const TString& dataCenterName) const
     {
-        return BundleProxies_;
+        const static std::vector<TString> Dummy;
+
+        auto it = BundleProxies_.find(dataCenterName);
+        if (it != BundleProxies_.end()) {
+            return it->second;
+        }
+
+        return Dummy;
     }
 
     std::vector<TString> PeekInstanciesToDeallocate(
         int proxiesCountToRemove,
+        const TString& dataCenterName,
         const TBundleInfoPtr& bundleInfo,
         const TSchedulerInputState& input) const
     {
-        YT_VERIFY(std::ssize(AliveProxies_) >= proxiesCountToRemove);
+        const auto& aliveProxies = GetAliveInstancies(dataCenterName);
+        YT_VERIFY(std::ssize(aliveProxies) >= proxiesCountToRemove);
 
         std::vector<TProxyRemoveOrder> proxyOrder;
-        proxyOrder.reserve(AliveProxies_.size());
+        proxyOrder.reserve(aliveProxies.size());
 
         const auto& targetResource = GetResourceGuarantee(bundleInfo);
 
-        for (const auto& proxyName : AliveProxies_) {
+        for (const auto& proxyName : aliveProxies) {
             const auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
             const auto& instanceResource = proxyInfo->Annotations->Resource;
 
@@ -2067,8 +2307,8 @@ public:
 
 private:
     TBundleControllerStatePtr State_;
-    const std::vector<TString>& BundleProxies_;
-    const THashSet<TString>& AliveProxies_;
+    const TDataCenterToInstanceMap& BundleProxies_;
+    const THashMap<TString, THashSet<TString>>& AliveProxies_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2133,9 +2373,10 @@ void ManageInstancies(TSchedulerInputState& input, TSchedulerMutations* mutation
         bundleInfo->Zone = zoneName;
         input.Bundles[spareVirtualBundle] = bundleInfo;
     }
+
     CalculateResourceUsage(input);
 
-    input.ZonesDisrupted = GetZoneDisruptedState(input);
+    input.DatacenterDisrupted = GetDataCenterDisruptedState(input);
     input.BundleToShortName = MapBundlesToShortNames(input);
 
     TInstanceManager<TTabletNodeAllocatorAdapter> nodeAllocator(BundleControllerLogger);
@@ -2152,21 +2393,20 @@ void ManageInstancies(TSchedulerInputState& input, TSchedulerMutations* mutation
         }
         mutations->ChangedStates[bundleName] = bundleState;
 
-        const auto& zoneDisruptedInfo = input.ZonesDisrupted[bundleInfo->Zone];
-
         const auto& bundleNodes = input.BundleNodes[bundleName];
         auto aliveNodes = GetAliveNodes(
             bundleName,
             bundleNodes,
             input,
+            bundleState,
             EGracePeriodBehaviour::Wait);
         TTabletNodeAllocatorAdapter nodeAdapter(bundleState, bundleNodes, aliveNodes);
-        nodeAllocator.ManageInstancies(bundleName, &nodeAdapter, input, mutations, zoneDisruptedInfo.IsNodesDisrupted());
+        nodeAllocator.ManageInstancies(bundleName, &nodeAdapter, input, mutations);
 
         const auto& bundleProxies = input.BundleProxies[bundleName];
         auto aliveProxies = GetAliveProxies(bundleProxies, input, EGracePeriodBehaviour::Wait);
         TRpcProxyAllocatorAdapter proxyAdapter(bundleState, bundleProxies, aliveProxies);
-        proxyAllocator.ManageInstancies(bundleName, &proxyAdapter, input, mutations, zoneDisruptedInfo.IsProxiesDisrupted());
+        proxyAllocator.ManageInstancies(bundleName, &proxyAdapter, input, mutations);
     }
 
     mutations->NodesToCleanup = ScanForObsoleteCypressNodes(input, input.TabletNodes);
@@ -2287,7 +2527,6 @@ void InitializeNodeTagFilters(TSchedulerInputState& input, TSchedulerMutations* 
     }
 }
 
-
 void TrimNetworkInfo(TSchedulerInputState* input)
 {
     if (input->Config->EnableNetworkLimits) {
@@ -2326,6 +2565,20 @@ void TrimNetworkInfo(TSchedulerInputState* input)
         const auto& spareTargetConfig = zoneInfo->SpareTargetConfig;
         spareTargetConfig->TabletNodeResourceGuarantee->Net.reset();
         spareTargetConfig->RpcProxyResourceGuarantee->Net.reset();
+    }
+}
+
+void InitDefaultDataCenter(TSchedulerInputState* input)
+{
+    for (const auto& [zoneName, zoneInfo] : input->Zones) {
+        if (!zoneInfo->DataCenters.empty()) {
+            continue;
+        }
+        auto dataCenter = New<TDataCenterInfo>();
+        dataCenter->YPCluster = zoneInfo->DefaultYPCluster;
+        dataCenter->TabletNodeNannyService = zoneInfo->DefaultTabletNodeNannyService;
+        dataCenter->RpcProxyNannyService = zoneInfo->DefaultRpcProxyNannyService;
+        zoneInfo->DataCenters[DefaultDataCenterName] = std::move(dataCenter);
     }
 }
 
@@ -2371,6 +2624,8 @@ void InitializeBundleTargetConfig(TSchedulerInputState& input, TSchedulerMutatio
 
 void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations)
 {
+    InitDefaultDataCenter(&input);
+
     input.ZoneNodes = MapZonesToInstancies(input, input.TabletNodes);
     input.ZoneProxies = MapZonesToInstancies(input, input.RpcProxies);
     input.BundleNodes = MapBundlesToInstancies(input.TabletNodes);
@@ -2408,6 +2663,34 @@ TIndexedEntries<TBundleControllerState> MergeBundleStates(
     }
 
     return results;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+THashSet<TString> FlattenAliveInstancies(const THashMap<TString, THashSet<TString>>& instancies)
+{
+    THashSet<TString> result;
+
+    for (const auto& [_, dataCenterInstancies] : instancies) {
+        for (const auto& instance : dataCenterInstancies) {
+            result.insert(instance);
+        }
+    }
+
+    return result;
+}
+
+std::vector<TString> FlattenBundleInstancies(const THashMap<TString, std::vector<TString>>& instancies)
+{
+    std::vector<TString> result;
+
+    for (const auto& [_, dataCenterInstancies] : instancies) {
+        for (const auto& instance : dataCenterInstancies) {
+            result.push_back(instance);
+        }
+    }
+
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

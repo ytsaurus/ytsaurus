@@ -618,44 +618,47 @@ private:
             sensors->ReleasingSpareNodes.Update(std::ssize(bundleState->SpareNodeReleasements));
         }
 
-        for (const auto& [bundleName, nodes] : input.BundleNodes) {
+        for (const auto& [bundleName, dataCenterNodes] : input.BundleNodes) {
             int offlineNodeCount = 0;
             int decommissionedNodeCount = 0;
             int maintenanceRequestedNodeCount = 0;
 
-            for (const auto& nodeName : nodes) {
-                const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+            for (const auto& [_, nodes] : dataCenterNodes) {
+                for (const auto& nodeName : nodes) {
+                    const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
 
-                if (nodeInfo->State != InstanceStateOnline) {
-                    ++offlineNodeCount;
-                    continue;
+                    if (nodeInfo->State != InstanceStateOnline) {
+                        ++offlineNodeCount;
+                        continue;
+                    }
+
+                    if (!nodeInfo->CmsMaintenanceRequests.empty()) {
+                        ++maintenanceRequestedNodeCount;
+                        continue;
+                    }
+
+                    if (nodeInfo->Decommissioned) {
+                        ++decommissionedNodeCount;
+                        continue;
+                    }
                 }
 
-                if (!nodeInfo->CmsMaintenanceRequests.empty()) {
-                    ++maintenanceRequestedNodeCount;
-                    continue;
-                }
-
-                if (nodeInfo->Decommissioned) {
-                    ++decommissionedNodeCount;
-                    continue;
-                }
             }
-
             auto sensors = GetBundleSensors(bundleName);
             sensors->OfflineNodeCount.Update(offlineNodeCount);
             sensors->MaintenanceRequestedNodeCount.Update(maintenanceRequestedNodeCount);
             sensors->DecommissionedNodeCount.Update(decommissionedNodeCount);
         }
 
-        for (const auto& [bundleName, proxies] : input.BundleProxies) {
+        for (const auto& [bundleName, dataCenterProxies] : input.BundleProxies) {
             int offlineProxyCount = 0;
 
-            for (const auto& proxyName : proxies) {
-                const auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
-
-                if (!proxyInfo->Alive) {
-                    ++offlineProxyCount;
+            for (const auto& [_, proxies] : dataCenterProxies) {
+                for (const auto& proxyName : proxies) {
+                    const auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
+                    if (!proxyInfo->Alive) {
+                        ++offlineProxyCount;
+                    }
                 }
             }
 
@@ -663,26 +666,28 @@ private:
             sensors->OfflineProxyCount.Update(offlineProxyCount);
         }
 
-        for (const auto& [zoneName, zoneDisrupted] : input.ZonesDisrupted) {
-            auto sensor = GetZoneSensors(zoneName);
+        for (const auto& [dcPair, zoneDisrupted] : input.DatacenterDisrupted) {
+            auto sensor = GetZoneSensors(dcPair.first, dcPair.second);
             sensor->OfflineNodeCount.Update(zoneDisrupted.OfflineNodeCount);
             sensor->OfflineNodeThreshold.Update(zoneDisrupted.OfflineNodeThreshold);
             sensor->OfflineProxyCount.Update(zoneDisrupted.OfflineProxyCount);
             sensor->OfflineProxyThreshold.Update(zoneDisrupted.OfflineProxyThreshold);
         }
 
-        for (const auto& [zoneName, spareInfo] : input.ZoneToSpareNodes) {
-            auto zoneSensor = GetZoneSensors(zoneName);
-            zoneSensor->FreeSpareNodeCount.Update(std::ssize(spareInfo.FreeNodes));
+        for (const auto& [zoneName, perDCSpareInfo] : input.ZoneToSpareNodes) {
+            for (const auto& [dataCenter, spareInfo] : perDCSpareInfo) {
+                auto zoneSensor = GetZoneSensors(zoneName, dataCenter);
+                zoneSensor->FreeSpareNodeCount.Update(std::ssize(spareInfo.FreeNodes));
 
-            for (const auto& [bundleName, instancies] : spareInfo.UsedByBundle) {
-                auto bundleSensors = GetBundleSensors(bundleName);
-                bundleSensors->UsingSpareNodeCount.Update(std::ssize(instancies));
+                for (const auto& [bundleName, instancies] : spareInfo.UsedByBundle) {
+                    auto bundleSensors = GetBundleSensors(bundleName);
+                    bundleSensors->UsingSpareNodeCount.Update(std::ssize(instancies));
+                }
             }
         }
 
         for (const auto& [zoneName, spareInfo] : input.ZoneToSpareProxies) {
-            auto zoneSensor = GetZoneSensors(zoneName);
+            auto zoneSensor = GetZoneSensors(zoneName, {});
             zoneSensor->FreeSpareProxyCount.Update(std::ssize(spareInfo.FreeProxies));
 
             for (const auto& [bundleName, instancies] : spareInfo.UsedByBundle) {
@@ -692,8 +697,10 @@ private:
         }
 
         for (const auto& [zoneName, rackInfo] : input.ZoneToRacks) {
-            auto zoneSensor = GetZoneSensors(zoneName);
-            zoneSensor->RequiredSpareNodesCount.Update(rackInfo.RequiredSpareNodesCount);
+            for (const auto& [dataCenter, dataCenterRacks] : rackInfo) {
+                auto zoneSensor = GetZoneSensors(zoneName, dataCenter);
+                zoneSensor->RequiredSpareNodesCount.Update(dataCenterRacks.RequiredSpareNodesCount);
+            }
         }
     }
 
@@ -775,7 +782,7 @@ private:
         return sensors;
     }
 
-    TZoneSensorsPtr GetZoneSensors(const TString& zoneName) const
+    TZoneSensorsPtr GetZoneSensors(const TString& zoneName, const TString& dataCenter) const
     {
         auto it = ZoneSensors_.find(zoneName);
         if (it != ZoneSensors_.end()) {
@@ -783,7 +790,9 @@ private:
         }
 
         auto sensors = New<TZoneSensors>();
-        sensors->Profiler = Profiler.WithPrefix("/resource").WithTag("zone", zoneName);
+        sensors->Profiler = Profiler.WithPrefix("/resource")
+            .WithTag("zone", zoneName)
+            .WithTag("data_center", dataCenter);
         auto& zoneProfiler = sensors->Profiler;
 
         sensors->OfflineNodeCount = zoneProfiler.Gauge("/offline_node_count");

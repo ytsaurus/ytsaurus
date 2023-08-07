@@ -48,6 +48,7 @@ DECLARE_REFCOUNTED_STRUCT(TRpcProxyInfo)
 DECLARE_REFCOUNTED_STRUCT(TAccountResources)
 DECLARE_REFCOUNTED_STRUCT(TSystemAccount)
 DECLARE_REFCOUNTED_STRUCT(TNodeTagFilterOperationState)
+DECLARE_REFCOUNTED_STRUCT(TDataCenterInfo)
 
 template <typename TEntryInfo>
 using TIndexedEntries = THashMap<TString, TIntrusivePtr<TEntryInfo>>;
@@ -312,12 +313,31 @@ DEFINE_REFCOUNTED_TYPE(TBundleInfo)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TZoneInfo
-    : public TYsonStructAttributes<TZoneInfo>
+struct TDataCenterInfo
+    : public NYTree::TYsonStruct
 {
     TString YPCluster;
     TString TabletNodeNannyService;
     TString RpcProxyNannyService;
+
+    bool Forbidden;
+
+    REGISTER_YSON_STRUCT(TDataCenterInfo);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDataCenterInfo)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TZoneInfo
+    : public TYsonStructAttributes<TZoneInfo>
+{
+    TString DefaultYPCluster;
+    TString DefaultTabletNodeNannyService;
+    TString DefaultRpcProxyNannyService;
+
     std::optional<TString> ShortName;
 
     int MaxTabletNodeCount;
@@ -331,6 +351,9 @@ struct TZoneInfo
     double DisruptedThresholdFactor;
 
     bool RequiresMinusOneRackGuarantee;
+    int RedundantDataCenterCount;
+
+    THashMap<TString, TDataCenterInfoPtr> DataCenters;
 
     REGISTER_YSON_STRUCT(TZoneInfo);
 
@@ -457,6 +480,7 @@ struct TAllocationRequestState
 {
     TInstant CreationTime;
     TString PodIdTemplate;
+    std::optional<TString> DataCenter;
 
     REGISTER_YSON_STRUCT(TAllocationRequestState);
 
@@ -473,6 +497,7 @@ struct TDeallocationRequestState
     TInstant CreationTime;
     TString InstanceName;
     TString Strategy;
+    std::optional<TString> DataCenter;
 
     bool HulkRequestCreated;
 
@@ -525,10 +550,9 @@ struct TBundleControllerState
 
     TIndexedEntries<TNodeTagFilterOperationState> BundleNodeAssignments;
     TIndexedEntries<TNodeTagFilterOperationState> SpareNodeAssignments;
-    // Is "releasement" can be used as opposite of "assignment"?
-    // Chat GPT3: Yes, "releasement" can also be used as the opposite of "assignment"
-    // It refers to the act of releasing or freeing someone or something from an assigned task
-    // or responsibility.
+
+    // Here "releasement" is used as the opposite of "assignment"
+    TIndexedEntries<TNodeTagFilterOperationState> BundleNodeReleasements;
     TIndexedEntries<TNodeTagFilterOperationState> SpareNodeReleasements;
 
     REGISTER_YSON_STRUCT(TBundleControllerState);
@@ -551,6 +575,8 @@ struct TInstanceAnnotations
 
     std::optional<TInstant> DeallocatedAt;
     TString DeallocationStrategy;
+
+    std::optional<TString> DataCenter;
 
     REGISTER_YSON_STRUCT(TInstanceAnnotations);
 
