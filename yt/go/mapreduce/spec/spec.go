@@ -45,8 +45,6 @@ type UserScript struct {
 	MemoryReserveFactor float64 `yson:"memory_reserve_factor,omitempty"`
 	GPULimit            int     `yson:"gpu_limit,omitempty"`
 
-	JobCPUMonitor *JobCPUMonitor `yson:"job_cpu_monitor,omitempty"`
-
 	NetworkProject string `yson:"network_project,omitempty"`
 
 	EnablePorto            string `yson:"enable_porto,omitempty"`
@@ -78,14 +76,14 @@ type JobIO struct {
 }
 
 type JobCPUMonitor struct {
-	StartDelay            yson.Duration `yson:"start_delay"`
-	CheckPeriod           yson.Duration `yson:"check_period"`
-	IncreaseCoefficient   float64       `yson:"increase_coefficient"`
-	DecreaseCoefficient   float64       `yson:"decrease_coefficient"`
-	SmoothingFactor       float64       `yson:"smoothing_factor"`
-	VoteWindowSize        int           `yson:"vote_window_size"`
-	VoteDecisionThreshold int           `yson:"vote_decision_threshold"`
-	MinCPULimit           float64       `yson:"min_cpu_limit"`
+	StartDelay            yson.Duration `yson:"start_delay,omitempty"`
+	CheckPeriod           yson.Duration `yson:"check_period,omitempty"`
+	IncreaseCoefficient   float64       `yson:"increase_coefficient,omitempty"`
+	DecreaseCoefficient   float64       `yson:"decrease_coefficient,omitempty"`
+	SmoothingFactor       float64       `yson:"smoothing_factor,omitempty"`
+	VoteWindowSize        int           `yson:"vote_window_size,omitempty"`
+	VoteDecisionThreshold int           `yson:"vote_decision_threshold,omitempty"`
+	MinCPULimit           float64       `yson:"min_cpu_limit,omitempty"`
 	EnableCPUReclaim      bool          `yson:"enable_cpu_reclaim"`
 }
 
@@ -151,6 +149,8 @@ type Spec struct {
 	TryAvoidDuplicatingJobs       *bool         `yson:"try_avoid_duplicating_jobs,omitempty"`
 	StderrTablePath               ypath.Path    `yson:"stderr_table_path,omitempty"`
 	CoreTablePath                 ypath.Path    `yson:"core_table_path,omitempty"`
+
+	JobCPUMonitor *JobCPUMonitor `yson:"job_cpu_monitor,omitempty"`
 
 	Mapper         *UserScript            `yson:"mapper,omitempty"`
 	Reducer        *UserScript            `yson:"reducer,omitempty"`
