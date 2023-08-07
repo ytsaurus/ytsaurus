@@ -70,7 +70,7 @@ EOperationAlertType TLayerJobExperiment::GetAlertType() const
     return EOperationAlertType::BaseLayerProbeFailed;
 }
 
-TError TLayerJobExperiment::GetAlertMessage(const TOperationSpecBasePtr& operationSpec) const
+TError TLayerJobExperiment::GetAlert(const TOperationSpecBasePtr& operationSpec) const
 {
     return TError(
         "A job with experimental base layer has failed; "
@@ -146,7 +146,7 @@ EOperationAlertType TMtnJobExperiment::GetAlertType() const
     return EOperationAlertType::MtnExperimentFailed;
 }
 
-TError TMtnJobExperiment::GetAlertMessage(const TOperationSpecBasePtr& operationSpec) const
+TError TMtnJobExperiment::GetAlert(const TOperationSpecBasePtr& operationSpec) const
 {
     return TError(
         "A job with experimental network settings has failed; "
@@ -370,7 +370,7 @@ void TExperimentJobManager::GenerateAlertIfNeeded(
         (OperationSpec_->JobExperiment->AlertOnAnyTreatmentFailure || GetFailedControlJobCount() == 0) &&
         GetFailedTreatmentJobCount() > 0)
     {
-        auto error = JobExperiment_->GetAlertMessage(OperationSpec_)
+        auto error = JobExperiment_->GetAlert(OperationSpec_)
             << TErrorAttribute("task_name", taskName)
             << TErrorAttribute("failed_treatment_job_count", GetFailedTreatmentJobCount())
             << TErrorAttribute("succeeded_treatment_job_count", GetSucceededTreatmentJobCount())

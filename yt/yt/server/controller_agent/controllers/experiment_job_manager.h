@@ -37,7 +37,7 @@ public:
         NControllerAgent::NProto::TUserJobSpec* jobSpec,
         const TJobletPtr& joblet) const = 0;
     virtual NScheduler::EOperationAlertType GetAlertType() const = 0;
-    virtual TError GetAlertMessage(const TOperationSpecBasePtr& operationSpec) const = 0;
+    virtual TError GetAlert(const TOperationSpecBasePtr& operationSpec) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobExperimentBase);
@@ -67,7 +67,7 @@ public:
         const TJobletPtr& joblet) const override;
 
     NScheduler::EOperationAlertType GetAlertType() const override;
-    TError GetAlertMessage(const TOperationSpecBasePtr& operationSpec) const override;
+    TError GetAlert(const TOperationSpecBasePtr& operationSpec) const override;
 
     void Persist(const TPersistenceContext& context) override;
 
@@ -105,7 +105,7 @@ public:
         const TJobletPtr& joblet) const override;
 
     NScheduler::EOperationAlertType GetAlertType() const override;
-    TError GetAlertMessage(const TOperationSpecBasePtr& operationSpec) const override;
+    TError GetAlert(const TOperationSpecBasePtr& operationSpec) const override;
 
     void Persist(const TPersistenceContext& context) override;
 
