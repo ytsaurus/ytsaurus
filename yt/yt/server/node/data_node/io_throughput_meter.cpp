@@ -560,7 +560,7 @@ private:
         TIOThroughputMeterConfigPtr config,
         const TString& medium)
     {
-        for (const auto& mediumConfig : config->Mediums) {
+        for (const auto& mediumConfig : config->Media) {
             if (mediumConfig->MediumName == medium) {
                 return mediumConfig;
             }

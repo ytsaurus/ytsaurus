@@ -500,7 +500,8 @@ void TIOThroughputMeterConfig::Register(TRegistrar registrar)
     registrar.Parameter("enabled", &TThis::Enabled)
         .Default(false);
 
-    registrar.Parameter("mediums", &TThis::Mediums);
+    registrar.Parameter("media", &TThis::Media)
+        .Alias("mediums");
 
     registrar.Parameter("time_between_tests", &TThis::TimeBetweenTests)
         .Default(TDuration::Hours(12));
