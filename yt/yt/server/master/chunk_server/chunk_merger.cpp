@@ -1191,12 +1191,13 @@ void TChunkMerger::OnTraversalFinished(TObjectId nodeId, EMergeSessionResult res
     auto& session = GetOrCrash(RunningSessions_, nodeId);
     session.TraversalInfo = traversalInfo;
     session.TraversalFinished = true;
-    if (session.IsReadyForFinalization()) {
-        ScheduleSessionFinalization(nodeId, result);
-    }
 
     auto& statistics = AccountToChunkMergerStatistics_[session.AccountId];
     statistics.ViolatedCriteria += traversalInfo.ViolatedCriteriaStatistics;
+
+    if (session.IsReadyForFinalization()) {
+        ScheduleSessionFinalization(nodeId, result);
+    }
 }
 
 void TChunkMerger::ScheduleSessionFinalization(TObjectId nodeId, EMergeSessionResult result)
