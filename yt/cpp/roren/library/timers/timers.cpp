@@ -4,9 +4,9 @@
 #include <util/digest/multi.h>
 
 template <>
-struct THash<NRoren::NPrivate::TTimers::TTimer::TKey>: public NRoren::NPrivate::TTimers::TTimer::TKeyHasher {};
+struct THash<NRoren::NPrivate::TTimer::TKey>: public NRoren::NPrivate::TTimer::TKeyHasher {};
 template <>
-struct THash<NRoren::NPrivate::TTimers::TTimer::TValue>: public NRoren::NPrivate::TTimers::TTimer::TValueHasher {};
+struct THash<NRoren::NPrivate::TTimer::TValue>: public NRoren::NPrivate::TTimer::TValueHasher {};
 
 namespace NRoren::NPrivate
 {
@@ -72,6 +72,122 @@ bool TTimer::operator < (const TTimer& other) const noexcept
     return Tie(*this) < Tie(other);
 }
 
+TTimersContainer::TGuard TTimersContainer::GetLock()
+{
+    return TGuard(Lock_);
+}
+
+void TTimersContainer::Clear(const TGuard& lock)
+{
+    Y_UNUSED(lock);
+    TimersIndex_.clear();
+    TimersNotInFly_.clear();
+    TimersInFly_.clear();
+    DeletedTimers_.clear();
+}
+
+void TTimersContainer::Insert(const TGuard& lock, TTimer timer)
+{
+    Y_UNUSED(lock);
+    auto [it, isInserted] = TimersIndex_.insert(std::move(timer));
+    Y_VERIFY(isInserted);
+    TimersNotInFly_.insert(it);
+}
+
+bool TTimersContainer::InsertBetween(const TGuard& lock, TTimer timer)
+{
+    const bool inRange = !TimersIndex_ || timer < *std::prev(TimersIndex_.end());
+    if (inRange) {
+        TTimersContainer::Insert(lock, timer);
+    }
+    return inRange;
+}
+
+void TTimersContainer::Delete(const TGuard& lock, const TTimer& timer)
+{
+    Y_UNUSED(lock);
+    DeletedTimers_.emplace(timer);
+    auto it = TimersIndex_.find(timer);
+    if (it != TimersIndex_.end()) {
+        if (0 == TimersInFly_.erase(timer)) {
+            TimersNotInFly_.erase(it);
+        }
+        TimersIndex_.erase(it);
+    }
+}
+
+void TTimersContainer::Cleanup(const TGuard& lock, size_t limit)
+{
+    Y_UNUSED(lock);
+    const ssize_t n = TimersIndex_.size() - limit;
+    if (n <= 0) {
+        return;
+    }
+
+    auto it = TimersIndex_.end();
+    std::advance(it, -n);
+    TimersNotInFly_.erase(TimersNotInFly_.find(it), TimersNotInFly_.end());
+    TimersIndex_.erase(it, TimersIndex_.end());
+}
+
+size_t TTimersContainer::GetIndexSize(const TGuard& lock) const
+{
+    Y_UNUSED(lock);
+    return TimersIndex_.size();
+}
+
+void TTimersContainer::ResetDeletedTimers(const TGuard& lock)
+{
+    Y_UNUSED(lock);
+    DeletedTimers_.clear();
+}
+
+bool TTimersContainer::IsDeleted(const TGuard& lock, const TTimer& timer) const
+{
+    Y_UNUSED(lock);
+    return DeletedTimers_.contains(timer);
+}
+
+TVector<TTimer> TTimersContainer::GetReadyTimers(size_t limit)
+{
+    const auto lock = GetLock();
+    return GetReadyTimers(lock, limit);
+}
+
+TVector<TTimer> TTimersContainer::GetReadyTimers(const TGuard& lock, size_t limit)
+{
+    Y_UNUSED(lock);
+    TVector<TTimer> result;
+    limit = MIN(limit, TimersNotInFly_.size());
+    const auto now = TInstant::Now();
+    auto end = TimersNotInFly_.begin();
+    for (; limit > 0; --limit, ++end) {
+        const TTimer& timer = **end;
+        if (TInstant::Seconds(timer.GetValue().GetTimestamp()) > now) {
+            break;
+        }
+    }
+    for (auto it = TimersNotInFly_.begin(); it != end; ++it) {
+        const TTimer& timer = **it;
+        result.push_back(timer);
+        TimersInFly_.insert(timer);
+    }
+    TimersNotInFly_.erase(TimersNotInFly_.begin(), end);
+    return result;
+}
+
+bool TTimersContainer::IsValidForExecute(const TTimer& timer, const bool isTimerChanged)
+{
+    const auto lock = GetLock();
+    return IsValidForExecute(lock, timer, isTimerChanged);
+}
+
+bool TTimersContainer::IsValidForExecute(const TGuard& lock, const TTimer& timer, const bool isTimerChanged)
+{
+    Y_UNUSED(lock);
+    return !isTimerChanged && TimersInFly_.contains(timer);
+}
+
 TTimers::TTimers(const NYT::NApi::IClientPtr ytClient, NYT::NYPath::TYPath ytPath, TTimer::TShardId shardId, TShardProvider shardProvider)
     : YtClient_(ytClient)
     , YTimersPath_(ytPath + "/timers" )
@@ -89,17 +205,12 @@ TTimers::TTimers(const NYT::NApi::IClientPtr ytClient, NYT::NYPath::TYPath ytPat
 
 void TTimers::ReInit()
 {
-    const auto lock = GetLock();
-    Y_VERIFY(false == PopulateInProgress_);
-    TimerIndex_.clear();
-    TimerInFly_.clear();
-    DeletedTimers_.clear();
-    PopulateIndex(lock);
-}
-
-TTimers::TGuard TTimers::GetLock()
-{
-    return TGuard(Lock_);
+    {
+        const auto lock = GetLock();
+        Y_VERIFY(false == PopulateInProgress_);
+        TTimersContainer::Clear(lock);
+    }
+    PopulateIndex();
 }
 
 TTimer TTimers::MergeTimers(const std::optional<TTimer>& oldTimer, const TTimer& newTimer, const TTimer::EMergePolicy policy)
@@ -142,7 +253,7 @@ void TTimers::Commit(const NYT::NApi::ITransactionPtr tx, const TTimers::TTimers
 
     const auto lock = GetLock();
     for (auto& [key, timerAndPolicy] : updates) {
-        auto& [newTimer, policy] = timerAndPolicy;
+        const auto& [newTimer, policy] = timerAndPolicy;
         std::optional<std::reference_wrapper<const TTimer>> oldTimer;
         if (existsTimers.contains(key)) {
             oldTimer = std::cref(existsTimers.at(key));
@@ -154,65 +265,20 @@ void TTimers::Commit(const NYT::NApi::ITransactionPtr tx, const TTimers::TTimers
         YtDeleteTimer(tx, key);
         if (oldTimer) {
             YtDeleteIndex(tx, oldTimer.value());
-            DeletedTimers_.emplace(oldTimer.value());
-            TimerIndex_.erase(oldTimer.value());
-            TimerInFly_.erase(oldTimer.value());
+            TTimersContainer::Delete(lock, oldTimer.value());
         }
         if (targetTimer.GetValue().GetTimestamp() != 0) {
             YtInsertTimer(tx, targetTimer);
             YtInsertIndex(tx, targetTimer);
-            if (!TimerIndex_ || newTimer < *std::prev(TimerIndex_.end())) {
-                TimerIndex_.insert(newTimer);
-            }
+            TTimersContainer::InsertBetween(lock, newTimer);
         }
     }
-    Cleanup(lock);
+    Cleanup(lock, IndexLimit_);
 }
 
 void TTimers::OnCommit()
 {
-    const auto lock = GetLock();
-    PopulateIndex(lock);
-}
-
-TVector<TTimer> TTimers::GetReadyTimers(size_t limit)
-{
-    const auto lock = GetLock();
-    TVector<TTimer> result;
-    limit = MIN(limit, TimerIndex_.size());
-    const auto now = TInstant::Now();
-    auto end = TimerIndex_.begin();
-    for (; limit > 0; --limit, ++end) {
-        const TTimer& timer = *end;
-        if (TInstant::Seconds(timer.GetValue().GetTimestamp()) > now) {
-            break;
-        }
-    }
-    for (auto it = TimerIndex_.begin(); it != end; ++it) {
-        const TTimer& timer = *it;
-        Y_VERIFY(!TimerInFly_.contains(timer));
-        result.push_back(timer);
-        TimerInFly_.insert(timer);
-    }
-    TimerIndex_.erase(TimerIndex_.begin(), end);
-    return result;
-}
-
-bool TTimers::IsValidForExecute(const TTimer& timer, const bool isTimerChanged)
-{
-    const auto lock = GetLock();
-    return TimerInFly_.contains(timer) && !isTimerChanged;
-}
-
-void TTimers::Cleanup(const TGuard& lock)
-{
-    Y_UNUSED(lock);
-    const ssize_t n = TimerIndex_.size() + TimerInFly_.size() - IndexLimit_;
-    if (n > 0) {
-        auto it = TimerIndex_.end();
-        std::advance(it, -n);
-        TimerIndex_.erase(it, TimerIndex_.end());
-    }
+    PopulateIndex();
 }
 
 void TTimers::Migrate(const TTimer& timer, const TTimer::TShardId shardId)
@@ -225,35 +291,43 @@ void TTimers::Migrate(const TTimer& timer, const TTimer::TShardId shardId)
     tx->Commit();
 }
 
-void TTimers::PopulateIndex(const TGuard& lock)
+void TTimers::PopulateIndex()
 {
-    if (SkipPopulateUntil_ >= TInstant::Now()) {
-        return;
-    }
+    size_t offset = 0;
+    {
+        const auto lock = GetLock();
+        if (SkipPopulateUntil_ >= TInstant::Now()) {
+            return;
+        }
 
-    bool expected = false;
-    if (!PopulateInProgress_.compare_exchange_strong(expected, true)) {
-        return;
+        bool expected = false;
+        if (!PopulateInProgress_.compare_exchange_strong(expected, true)) {
+            return;
+        }
+
+        ResetDeletedTimers(lock);
+        offset = TTimersContainer::GetIndexSize(lock);
     }
 
     try {
-        DeletedTimers_.clear();
-        auto topTimers = YtSelectIndex();
-        if (topTimers.empty()) {
+        auto selectedTimers = YtSelectIndex(offset);
+
+        const auto lock = GetLock();
+        if (selectedTimers.empty()) {
             SkipPopulateUntil_ = TInstant::Now() + TDuration::Seconds(1);
         }
-        for (auto& timer : topTimers) {
-            if (DeletedTimers_.contains(timer)) {
+        for (auto& timer : selectedTimers) {
+            if (IsDeleted(lock, timer)) {
                 continue;
             }
             const TTimer::TShardId trueShardId = GetShardId_(timer.GetKey().GetKey());
             if (ShardId_ != trueShardId) {
                 Migrate(timer, trueShardId);
             } else {
-                TimerIndex_.insert(timer);
+                TTimersContainer::Insert(lock, timer);
             }
         }
-        Cleanup(lock);
+        Cleanup(lock, IndexLimit_);
     } catch (...) {
         PopulateInProgress_.store(false);
         throw;
@@ -261,9 +335,8 @@ void TTimers::PopulateIndex(const TGuard& lock)
     PopulateInProgress_.store(false);
 }
 
-TVector<TTimer> TTimers::YtSelectIndex()
+TVector<TTimer> TTimers::YtSelectIndex(const size_t offset)
 {
-    const size_t offset = TimerIndex_.size() + TimerInFly_.size();
     const size_t limit = MIN(IndexSelectBatch_, IndexLimit_ - offset);
     if (limit == 0) {
         return {};

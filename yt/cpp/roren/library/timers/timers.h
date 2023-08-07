@@ -12,89 +12,115 @@
 
 namespace NRoren::NPrivate
 {
-
-class TTimers
+struct TTimer:
+    public TTimerProto
 {
-public:
-    struct TTimer:
-        public TTimerProto
+    using TShardId = uint64_t;
+    using TRawKey = TString;
+    using TTimerId = TString;
+    using TCallbackId = TString;
+    using TTimestamp = uint64_t;
+    using TUserData = std::optional<TString>;
+
+    enum class EMergePolicy
     {
-        using TShardId = uint64_t;
-        using TRawKey = TString;
-        using TTimerId = TString;
-        using TCallbackId = TString;
-        using TTimestamp = uint64_t;
-        using TUserData = std::optional<TString>;
-
-        enum class EMergePolicy
-        {
-            REPLACE,
-            MIN,
-            MAX
-        };
-
-        using TKey = TTimerKeyProto;
-        using TValue = TTimerValueProto;
-
-        TTimer(TTimerProto timerProto);
-        TTimer(TTimer&&) = default;
-        TTimer(const TTimer&) = default;
-        TTimer(const TRawKey& rawKey, const TTimerId& timerId, const TCallbackId& callbackId, const TTimestamp& timestamp, const TUserData& userData);
-        TTimer& operator = (TTimer&&) = default;
-
-        bool operator == (const TTimer& other) const noexcept;
-        bool operator < (const TTimer& other) const noexcept;
-
-        struct TKeyHasher
-        {
-            size_t operator () (const TKey& key) const;
-        };
-
-        struct TValueHasher
-        {
-            size_t operator () (const TValue& value) const;
-        };
-
-        struct THasher
-        {
-            size_t operator () (const TTimer& timer) const;
-        };
-
-        struct TKeyEqual
-        {
-            bool operator () (const TTimer::TKey& a, const TTimer::TKey& b);
-        };
-    };  // TTimerData
-
-    using TShardProvider = std::function<TTimer::TShardId(const TTimer::TRawKey&)>;
-    using TTimersHashMap = THashMap<TTimer::TKey, std::tuple<TTimer, TTimer::EMergePolicy>, TTimer::TKeyHasher, TTimer::TKeyEqual>;
-
-    struct TYtTimerIndex
-    {
-        TTimer::TShardId ShardId;
-        TTimer Timer;
+        REPLACE,
+        MIN,
+        MAX
     };
 
-    void ReInit();
-    void Commit(const NYT::NApi::ITransactionPtr tx, const TTimers::TTimersHashMap& updates);
-    void OnCommit();
+    using TKey = TTimerKeyProto;
+    using TValue = TTimerValueProto;
 
-    TVector<TTimer> GetReadyTimers(size_t limit);
+    TTimer(TTimerProto timerProto);
+    TTimer(TTimer&&) = default;
+    TTimer(const TTimer&) = default;
+    TTimer(const TRawKey& rawKey, const TTimerId& timerId, const TCallbackId& callbackId, const TTimestamp& timestamp, const TUserData& userData);
+    TTimer& operator = (TTimer&&) = default;
 
+    bool operator == (const TTimer& other) const noexcept;
+    bool operator < (const TTimer& other) const noexcept;
+
+    struct TKeyHasher
+    {
+        size_t operator () (const TKey& key) const;
+    };
+
+    struct TValueHasher
+    {
+        size_t operator () (const TValue& value) const;
+    };
+
+    struct THasher
+    {
+        size_t operator () (const TTimer& timer) const;
+    };
+
+    struct TKeyEqual
+    {
+        bool operator () (const TTimer::TKey& a, const TTimer::TKey& b);
+    };
+};  // TTimerData
+
+class TTimersContainer
+{
+public:
     bool IsValidForExecute(const TTimer& timer, const bool isTimerChanged);
-
-    TTimers(const NYT::NApi::IClientPtr ytClient, NYT::NYPath::TYPath ytPath, TTimer::TShardId shardId, TShardProvider shardProvider);
+    TVector<TTimer> GetReadyTimers(size_t limit);
 
 protected:
     using TLock = TMutex;
     using TGuard = TGuard<TMutex>;
 
-    static TTimer MergeTimers(const std::optional<TTimer>& oldTimer, const TTimer& newTimer, const TTimer::EMergePolicy policy);
-    void Cleanup(const TGuard& lock);
-    void Migrate(const TTimer& timer, const TTimer::TShardId shardId);
-    void PopulateIndex(const TGuard& lock);
+    TGuard GetLock();
 
-    TVector<TTimer> YtSelectIndex();
+    bool IsValidForExecute(const TGuard& lock, const TTimer& timer, const bool isTimerChanged);
+    TVector<TTimer> GetReadyTimers(const TGuard& lock, size_t limit);
+    void Clear(const TGuard& lock);
+    void Insert(const TGuard& lock, TTimer timer);
+    bool InsertBetween(const TGuard& lock, TTimer timer); // Insert only if timer timestamp between min and max known timers, return true if inserted
+    void Delete(const TGuard& lock, const TTimer& timer);
+    void Cleanup(const TGuard& lock, size_t limit);
+    size_t GetIndexSize(const TGuard& lock) const;
+
+    void ResetDeletedTimers(const TGuard& lock);
+    bool IsDeleted(const TGuard& lock, const TTimer& timer) const;
+
+private:
+    struct TLessValByIt
+    {
+        bool operator () (const TSet<TTimer>::iterator l, const TSet<TTimer>::iterator r) const
+        {
+            return *l < *r;
+        }
+    };
+
+    TLock Lock_;
+    TSet<TTimer> TimersIndex_;
+    TSet<TSet<TTimer>::iterator, TLessValByIt> TimersNotInFly_;
+    THashSet<TTimer, TTimer::THasher> TimersInFly_;
+    THashSet<TTimer, TTimer::THasher> DeletedTimers_;
+}; // class TTimersContainer
+
+class TTimers:
+    public TTimersContainer
+{
+public:
+    using TShardProvider = std::function<TTimer::TShardId(const TTimer::TRawKey&)>;
+    using TTimersHashMap = THashMap<TTimer::TKey, std::tuple<TTimer, TTimer::EMergePolicy>, TTimer::TKeyHasher, TTimer::TKeyEqual>;
+
+    void ReInit();
+    void Commit(const NYT::NApi::ITransactionPtr tx, const TTimers::TTimersHashMap& updates);
+    void OnCommit();
+
+    TTimers(const NYT::NApi::IClientPtr ytClient, NYT::NYPath::TYPath ytPath, TTimer::TShardId shardId, TShardProvider shardProvider);
+
+protected:
+    static TTimer MergeTimers(const std::optional<TTimer>& oldTimer, const TTimer& newTimer, const TTimer::EMergePolicy policy);
+    void Migrate(const TTimer& timer, const TTimer::TShardId shardId);
+    void PopulateIndex();
+
+    TVector<TTimer> YtSelectIndex(const size_t offset);
     TVector<TTimer> YtSelectMigrate();
     TVector<TTimer> YtLookupTimers(const NYT::NApi::IClientBasePtr tx, const TVector<TTimer::TKey>& keys);
     void YtInsertMigrate(const NYT::NApi::ITransactionPtr tx, const TTimer& timer, const TTimer::TShardId shardId);
@@ -103,9 +129,6 @@ protected:
     void YtDeleteTimer(const NYT::NApi::ITransactionPtr tx, const TTimer::TKey& key);
     void YtDeleteIndex(const NYT::NApi::ITransactionPtr tx, const TTimer& timer);
 
-    TGuard GetLock();
-
-    TLock Lock_;
     std::atomic<bool> PopulateInProgress_ = false;
     TInstant SkipPopulateUntil_ = TInstant::Seconds(0);
     uint64_t IndexLimit_ = 16384;
@@ -115,17 +138,13 @@ protected:
     NYT::NYPath::TYPath YTimersIndexPath_;
     NYT::NYPath::TYPath YTimersMigratePath_;
     TTimer::TShardId ShardId_ = 0;
-    TSet<TTimer> TimerIndex_;
     TShardProvider GetShardId_;
-    THashSet<TTimer, TTimer::THasher> TimerInFly_;
-    THashSet<TTimer, TTimer::THasher> DeletedTimers_;
 };
-
-using TYtTimerIndex = TTimers::TYtTimerIndex;
 
 }  // namespace NRoren::NPrivate
 
-namespace NRoren {
-    using TTimer = NPrivate::TTimers::TTimer;
-}
+namespace NRoren
+{
+    using TTimer = NPrivate::TTimer;
+} // namespace NRoren
 
