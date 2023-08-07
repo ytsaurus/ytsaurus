@@ -59,7 +59,7 @@ void TOverloadControllingServiceBase<TBaseService>::HandleRequest(
             return TBaseService::ReplyError(
                 TError(
                     NRpc::EErrorCode::Overloaded,
-                    "Request is dropped due to a tablet node overload"),
+                    "Request is dropped due to tablet node overload"),
                 *header,
                 replyBus);
         }
