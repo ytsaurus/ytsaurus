@@ -229,7 +229,7 @@ bool IsCollocationType(EObjectType type)
 bool IsMediumType(EObjectType type)
 {
     return
-        type == EObjectType::Medium ||
+        type == EObjectType::DomesticMedium ||
         type == EObjectType::S3Medium;
 }
 

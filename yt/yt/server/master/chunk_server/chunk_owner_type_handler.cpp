@@ -623,7 +623,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoEndCopy(
 
     using NYT::Load;
 
-    auto* medium = Load<TMediumBase*>(*context);
+    auto* medium = Load<TMedium*>(*context);
     trunkNode->SetPrimaryMediumIndex(medium->GetIndex());
 
     Load(*context, trunkNode->Replication());

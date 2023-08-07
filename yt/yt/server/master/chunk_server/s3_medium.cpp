@@ -23,7 +23,7 @@ TString TS3Medium::GetCapitalizedObjectName() const
 
 void TS3Medium::Save(NCellMaster::TSaveContext& context) const
 {
-    TMediumBase::Save(context);
+    TMedium::Save(context);
 
     using NYT::Save;
 
@@ -32,7 +32,7 @@ void TS3Medium::Save(NCellMaster::TSaveContext& context) const
 
 void TS3Medium::Load(NCellMaster::TLoadContext& context)
 {
-    TMediumBase::Load(context);
+    TMedium::Load(context);
 
     using NYT::Load;
 

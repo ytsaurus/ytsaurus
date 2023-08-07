@@ -391,7 +391,7 @@ public:
             CreateMasterCellChunkStatisticsCollector(
                 Bootstrap_,
                 {CreateChunkCreationTimeHistogramBuilder(bootstrap)}))
-        , MediumMap_(TEntityMapTypeTraits<TMediumBase>(Bootstrap_))
+        , MediumMap_(TEntityMapTypeTraits<TMedium>(Bootstrap_))
     {
         RegisterMethod(BIND(&TChunkManager::HydraConfirmChunkListsRequisitionTraverseFinished, Unretained(this)));
         RegisterMethod(BIND(&TChunkManager::HydraUpdateChunkRequisition, Unretained(this)));
@@ -425,7 +425,7 @@ public:
             BIND(&TChunkManager::SaveValues, Unretained(this)));
 
         auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
-        DefaultStoreMediumId_ = MakeWellKnownId(EObjectType::Medium, primaryCellTag, 0xffffffffffffffff);
+        DefaultStoreMediumId_ = MakeWellKnownId(EObjectType::DomesticMedium, primaryCellTag, 0xffffffffffffffff);
 
         JobController_->RegisterJobController(EJobType::ReplicateChunk, ChunkReplicator_);
         JobController_->RegisterJobController(EJobType::RemoveChunk, ChunkReplicator_);
@@ -1113,7 +1113,7 @@ public:
         TAccount* account,
         int replicationFactor,
         NErasure::ECodec erasureCodecId,
-        TMediumBase* medium,
+        TMedium* medium,
         int readQuorum,
         int writeQuorum,
         bool movable,
@@ -2285,7 +2285,7 @@ public:
         CreateMediumPrologue(name);
 
         auto objectManager = Bootstrap_->GetObjectManager();
-        auto id = objectManager->GenerateId(EObjectType::Medium, hintId);
+        auto id = objectManager->GenerateId(EObjectType::DomesticMedium, hintId);
         auto mediumIndex = hintIndex ? *hintIndex : GetFreeMediumIndex();
         return DoCreateDomesticMedium(
             id,
@@ -2315,14 +2315,14 @@ public:
             priority);
     }
 
-    void DestroyMedium(TMediumBase* medium) override
+    void DestroyMedium(TMedium* medium) override
     {
         UnregisterMedium(medium);
 
         MediumMap_.Release(medium->GetId());
     }
 
-    void RenameMedium(TMediumBase* medium, const TString& newName) override
+    void RenameMedium(TMedium* medium, const TString& newName) override
     {
         if (medium->GetName() == newName) {
             return;
@@ -2345,7 +2345,7 @@ public:
         medium->SetName(newName);
     }
 
-    void SetMediumPriority(TMediumBase* medium, int priority) override
+    void SetMediumPriority(TMedium* medium, int priority) override
     {
         if (medium->GetPriority() == priority) {
             return;
@@ -2373,13 +2373,13 @@ public:
         ChunkReplicator_->ScheduleGlobalChunkRefresh();
     }
 
-    TMediumBase* FindMediumByName(const TString& name) const override
+    TMedium* FindMediumByName(const TString& name) const override
     {
         auto it = NameToMediumMap_.find(name);
         return it == NameToMediumMap_.end() ? nullptr : it->second;
     }
 
-    TMediumBase* GetMediumByNameOrThrow(const TString& name) const override
+    TMedium* GetMediumByNameOrThrow(const TString& name) const override
     {
         auto* medium = FindMediumByName(name);
         if (!IsObjectAlive(medium)) {
@@ -2391,7 +2391,7 @@ public:
         return medium;
     }
 
-    TMediumBase* GetMediumOrThrow(TMediumId id) const override
+    TMedium* GetMediumOrThrow(TMediumId id) const override
     {
         auto* medium = FindMedium(id);
         if (!IsObjectAlive(medium)) {
@@ -2403,14 +2403,14 @@ public:
         return medium;
     }
 
-    TMediumBase* FindMediumByIndex(int index) const override
+    TMedium* FindMediumByIndex(int index) const override
     {
         return index >= 0 && index < MaxMediumCount
             ? IndexToMediumMap_[index]
             : nullptr;
     }
 
-    TMediumBase* GetMediumByIndexOrThrow(int index) const override
+    TMedium* GetMediumByIndexOrThrow(int index) const override
     {
         auto* medium = FindMediumByIndex(index);
         if (!IsObjectAlive(medium)) {
@@ -2422,7 +2422,7 @@ public:
         return medium;
     }
 
-    TMediumBase* GetMediumByIndex(int index) const override
+    TMedium* GetMediumByIndex(int index) const override
     {
         auto* medium = FindMediumByIndex(index);
         YT_VERIFY(medium);
@@ -2564,7 +2564,7 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(ChunkView, TChunkView);
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(DynamicStore, TDynamicStore);
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(ChunkList, TChunkList);
-    DECLARE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS_OVERRIDE(Medium, Media, TMediumBase);
+    DECLARE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS_OVERRIDE(Medium, Media, TMedium);
 
     TEntityMap<TChunk>& MutableChunks() override
     {
@@ -2688,13 +2688,13 @@ private:
 
     THashSet<TChunk*> ForeignChunks_;
 
-    NHydra::TEntityMap<TMediumBase, TEntityMapTypeTraits<TMediumBase>> MediumMap_;
-    THashMap<TString, TMediumBase*> NameToMediumMap_;
-    std::vector<TMediumBase*> IndexToMediumMap_;
+    NHydra::TEntityMap<TMedium, TEntityMapTypeTraits<TMedium>> MediumMap_;
+    THashMap<TString, TMedium*> NameToMediumMap_;
+    std::vector<TMedium*> IndexToMediumMap_;
     TMediumSet UsedMediumIndexes_;
 
     TMediumId DefaultStoreMediumId_;
-    TMediumBase* DefaultStoreMedium_ = nullptr;
+    TMedium* DefaultStoreMedium_ = nullptr;
 
     TChunkRequisitionRegistry ChunkRequisitionRegistry_;
 
@@ -4648,7 +4648,7 @@ private:
 
         MediumMap_.Clear();
         NameToMediumMap_.clear();
-        IndexToMediumMap_ = std::vector<TMediumBase*>(MaxMediumCount, nullptr);
+        IndexToMediumMap_ = std::vector<TMedium*>(MaxMediumCount, nullptr);
         UsedMediumIndexes_.reset();
 
         ChunksCreated_ = 0;
@@ -4719,7 +4719,7 @@ private:
     }
 
     bool EnsureBuiltinMediumInitialized(
-        TMediumBase*& medium,
+        TMedium*& medium,
         TMediumId id,
         int mediumIndex,
         const TString& name)
@@ -5577,7 +5577,7 @@ private:
         return medium;
     }
 
-    void RegisterMedium(TMediumBase* medium)
+    void RegisterMedium(TMedium* medium)
     {
         EmplaceOrCrash(NameToMediumMap_, medium->GetName(), medium);
 
@@ -5589,7 +5589,7 @@ private:
         IndexToMediumMap_[mediumIndex] = medium;
     }
 
-    void UnregisterMedium(TMediumBase* medium)
+    void UnregisterMedium(TMedium* medium)
     {
         EraseOrCrash(NameToMediumMap_, medium->GetName());
 
@@ -5783,7 +5783,7 @@ DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager, Chunk, TChunk, ChunkMap_);
 DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager, ChunkView, TChunkView, ChunkViewMap_);
 DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager, DynamicStore, TDynamicStore, DynamicStoreMap_);
 DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager, ChunkList, TChunkList, ChunkListMap_);
-DEFINE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(TChunkManager, Medium, Media, TMediumBase, MediumMap_);
+DEFINE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(TChunkManager, Medium, Media, TMedium, MediumMap_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

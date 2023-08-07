@@ -82,7 +82,7 @@ DECLARE_ENTITY_TYPE(TDynamicStore, TDynamicStoreId, NObjectClient::TDirectObject
 DECLARE_ENTITY_TYPE(TChunkList, TChunkListId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TDomesticMedium, TMediumId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TS3Medium, TMediumId, NObjectClient::TDirectObjectIdHash)
-DECLARE_ENTITY_TYPE(TMediumBase, TMediumId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(TMedium, TMediumId, NObjectClient::TDirectObjectIdHash)
 
 DECLARE_MASTER_OBJECT_TYPE(TRealChunkLocation)
 DECLARE_MASTER_OBJECT_TYPE(TChunk)

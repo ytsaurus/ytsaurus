@@ -27,7 +27,7 @@ protected:
 private:
     void DoSerializeAccountViolatedResourceLimits(
         NSecurityServer::TAccount* account,
-        NChunkServer::TMediumBase* medium,
+        NChunkServer::TMedium* medium,
         NYson::IYsonConsumer* consumer) const;
 };
 

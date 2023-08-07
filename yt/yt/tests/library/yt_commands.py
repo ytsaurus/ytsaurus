@@ -2165,11 +2165,17 @@ def remove_host(name, **kwargs):
 
 
 def create_domestic_medium(name, **kwargs):
-    kwargs["type"] = "medium"
+    kwargs["type"] = "domestic_medium"
     if "attributes" not in kwargs:
         kwargs["attributes"] = dict()
     kwargs["attributes"]["name"] = name
-    execute_command("create", kwargs)
+    # COMPAT(babenko)
+    try:
+        return execute_command("create", kwargs)
+    except YtResponseError as err:
+        if err.contains_text("Error parsing"):
+            kwargs["type"] = "medium"
+        return execute_command("create", kwargs)
 
 
 def create_s3_medium(name, config, **kwargs):
@@ -2178,7 +2184,7 @@ def create_s3_medium(name, config, **kwargs):
         kwargs["attributes"] = dict()
     kwargs["attributes"]["name"] = name
     kwargs["attributes"]["config"] = config
-    execute_command("create", kwargs)
+    return execute_command("create", kwargs)
 
 
 def create_replication_card(chaos_cell_id, **kwargs):

@@ -13,7 +13,7 @@ namespace NYT::NChunkServer {
 
 /// Represents a storage type (e.g. HDD, SSD, RAM).
 class TDomesticMedium
-    : public TMediumBase
+    : public TMedium
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Transient, false);
@@ -23,7 +23,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::optional<std::vector<TString>>, DiskFamilyWhitelist);
 
 public:
-    using TMediumBase::TMediumBase;
+    using TMedium::TMedium;
 
     bool IsDomestic() const override;
 

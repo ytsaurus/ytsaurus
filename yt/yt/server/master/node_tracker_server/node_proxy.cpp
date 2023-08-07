@@ -523,7 +523,7 @@ private:
                 BuildYsonFluently(consumer)
                     .DoMapFor(chunkManager->Media(), [&] (
                         TFluentMap fluent,
-                        const std::pair<const TGuid, NChunkServer::TMediumBase*>& pair)
+                        const std::pair<const TGuid, NChunkServer::TMedium*>& pair)
                     {
                         const auto* medium = pair.second;
                         if (IsObjectAlive(medium) && medium->IsDomestic()) {

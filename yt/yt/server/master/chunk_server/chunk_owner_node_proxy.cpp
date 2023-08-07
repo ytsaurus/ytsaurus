@@ -1252,7 +1252,7 @@ void TChunkOwnerNodeProxy::SetReplication(const TChunkReplication& replication)
         node->Replication());
  }
 
-void TChunkOwnerNodeProxy::SetPrimaryMedium(TMediumBase* medium)
+void TChunkOwnerNodeProxy::SetPrimaryMedium(TMedium* medium)
 {
     auto* node = GetThisImpl<TChunkOwnerBase>();
     YT_VERIFY(node->IsTrunk());

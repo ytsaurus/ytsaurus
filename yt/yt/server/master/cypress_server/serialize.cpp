@@ -107,7 +107,7 @@ TAccount* TEndCopyContext::GetObject(TObjectId id)
 }
 
 template <>
-TMediumBase* TEndCopyContext::GetObject(TObjectId id)
+TMedium* TEndCopyContext::GetObject(TObjectId id)
 {
     return Bootstrap_->GetChunkManager()->GetMediumOrThrow(id);
 }

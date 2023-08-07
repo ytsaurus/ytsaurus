@@ -35,7 +35,7 @@ public:
 
     EObjectType GetType() const override
     {
-        return EObjectType::Medium;
+        return EObjectType::DomesticMedium;
     }
 
     TObject* CreateObject(

@@ -949,7 +949,7 @@ void TChunkPlacement::AddSessionHint(TNode* node, int mediumIndex, ESessionType 
 }
 
 int TChunkPlacement::GetMaxReplicasPerRack(
-    const TMediumBase* medium,
+    const TMedium* medium,
     const TChunk* chunk,
     std::optional<int> replicationFactorOverride) const
 {

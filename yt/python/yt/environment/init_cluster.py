@@ -227,7 +227,12 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
 
     for medium in ["default", "ssd_journals"]:
         if not client.exists("//sys/media/%s" % medium):
-            client.create("medium", attributes={"name": medium})
+            # COMPAT(babenko)
+            try:
+                client.create("domestic_medium", attributes={"name": medium})
+            except yt.YtResponseError as err:
+                if err.contains_text("Error parsing"):
+                    client.create("medium", attributes={"name": medium})
 
     # add_acl to schemas
     for schema in ["user", "group", "tablet_cell", "tablet_cell_bundle"]:

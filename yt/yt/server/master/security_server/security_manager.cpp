@@ -2093,7 +2093,7 @@ public:
             const auto& usage,
             const auto& increase,
             const auto& limit,
-            const TMediumBase* medium = nullptr)
+            const TMedium* medium = nullptr)
         {
             auto errorMessage = Format("%v %Qv is over %v limit%v%v",
                 overdrawnAccount == initialAccount
@@ -3986,14 +3986,14 @@ private:
 
         // Sort media by index to make sure they have the same indexing in the secondary
         // cell. Also, this makes the code deterministic which is a must.
-        std::vector<TMediumBase*> media;
+        std::vector<TMedium*> media;
         media.reserve(chunkManager->Media().size());
         for (auto [mediumId, medium] : chunkManager->Media()) {
             if (IsObjectAlive(medium)) {
                 media.push_back(medium);
             }
         }
-        auto indexLess = [] (TMediumBase* lhs, TMediumBase* rhs) {
+        auto indexLess = [] (TMedium* lhs, TMedium* rhs) {
             return lhs->GetIndex() < rhs->GetIndex();
         };
         std::sort(media.begin(), media.end(), indexLess);

@@ -294,7 +294,7 @@ bool TCellBundleProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
 
 void TCellBundleProxy::DoSerializeAccountViolatedResourceLimits(
     TAccount* account,
-    TMediumBase* medium,
+    TMedium* medium,
     IYsonConsumer* consumer) const
 {
     auto enableTabletResourceValidation =

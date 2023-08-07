@@ -80,7 +80,7 @@ public:
     TChunkLocation* GetRemovalTarget(TChunkPtrWithReplicaAndMediumIndex replica);
 
     int GetMaxReplicasPerRack(
-        const TMediumBase* medium,
+        const TMedium* medium,
         const TChunk* chunk,
         std::optional<int> replicationFactorOverride = std::nullopt) const;
     int GetMaxReplicasPerRack(

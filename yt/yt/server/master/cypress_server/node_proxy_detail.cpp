@@ -1245,7 +1245,7 @@ void TNontemplateCypressNodeProxyBase::ValidateMediaChange(
 }
 
 bool TNontemplateCypressNodeProxyBase::ValidatePrimaryMediumChange(
-    TMediumBase* newPrimaryMedium,
+    TMedium* newPrimaryMedium,
     const TChunkReplication& oldReplication,
     std::optional<int> oldPrimaryMediumIndex,
     TChunkReplication* newReplication)

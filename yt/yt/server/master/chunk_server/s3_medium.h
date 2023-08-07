@@ -10,13 +10,13 @@ namespace NYT::NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TS3Medium
-    : public TMediumBase
+    : public TMedium
 {
 public:
     DEFINE_BYREF_RW_PROPERTY(TS3MediumConfigPtr, Config, New<TS3MediumConfig>());
 
 public:
-    using TMediumBase::TMediumBase;
+    using TMedium::TMedium;
 
     bool IsDomestic() const override;
 

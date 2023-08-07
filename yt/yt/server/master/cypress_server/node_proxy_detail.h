@@ -198,7 +198,7 @@ protected:
      * On success, returns true and modifies *newReplication accordingly.
      */
     bool ValidatePrimaryMediumChange(
-        NChunkServer::TMediumBase* newPrimaryMedium,
+        NChunkServer::TMedium* newPrimaryMedium,
         const NChunkServer::TChunkReplication& oldReplication,
         std::optional<int> oldPrimaryMediumIndex,
         NChunkServer::TChunkReplication* newReplication);

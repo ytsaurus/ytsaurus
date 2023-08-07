@@ -9,14 +9,14 @@ namespace NYT::NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMediumProxyBase
-    : public NObjectServer::TNonversionedObjectProxyBase<TMediumBase>
+    : public NObjectServer::TNonversionedObjectProxyBase<TMedium>
     , public virtual NYTree::TStaticServiceDispatcher
 {
 public:
     using TNonversionedObjectProxyBase::TNonversionedObjectProxyBase;
 
 protected:
-    using TBase = NObjectServer::TNonversionedObjectProxyBase<TMediumBase>;
+    using TBase = NObjectServer::TNonversionedObjectProxyBase<TMedium>;
 
     void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;

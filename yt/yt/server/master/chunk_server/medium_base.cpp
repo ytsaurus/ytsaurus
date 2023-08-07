@@ -10,29 +10,29 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMediumBase::TMediumBase(TMediumId id)
+TMedium::TMedium(TMediumId id)
     : TObject(id)
     , Acd_(this)
 { }
 
-bool TMediumBase::IsOffshore() const
+bool TMedium::IsOffshore() const
 {
     return !IsDomestic();
 }
 
-TDomesticMedium* TMediumBase::AsDomestic()
+TDomesticMedium* TMedium::AsDomestic()
 {
     YT_VERIFY(IsDomestic());
     return As<TDomesticMedium>();
 }
 
-const TDomesticMedium* TMediumBase::AsDomestic() const
+const TDomesticMedium* TMedium::AsDomestic() const
 {
     YT_VERIFY(IsDomestic());
     return As<TDomesticMedium>();
 }
 
-void TMediumBase::Save(TSaveContext& context) const
+void TMedium::Save(TSaveContext& context) const
 {
     TObject::Save(context);
 
@@ -43,7 +43,7 @@ void TMediumBase::Save(TSaveContext& context) const
     Save(context, Acd_);
 }
 
-void TMediumBase::Load(TLoadContext& context)
+void TMedium::Load(TLoadContext& context)
 {
     TObject::Load(context);
 

@@ -27,7 +27,7 @@ TString TDomesticMedium::GetCapitalizedObjectName() const
 
 void TDomesticMedium::Save(NCellMaster::TSaveContext& context) const
 {
-    TMediumBase::Save(context);
+    TMedium::Save(context);
 
     using NYT::Save;
     Save(context, Transient_);
@@ -37,7 +37,7 @@ void TDomesticMedium::Save(NCellMaster::TSaveContext& context) const
 
 void TDomesticMedium::Load(NCellMaster::TLoadContext& context)
 {
-    TMediumBase::Load(context);
+    TMedium::Load(context);
 
     using NYT::Load;
 

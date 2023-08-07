@@ -159,7 +159,7 @@ DEFINE_ENUM(EObjectType,
     ((ChunkListMap)                                 (406))
     ((ChunkView)                                    (123))
     ((ChunkViewMap)                                 (430))
-    ((Medium)                                       (408))
+    ((DomesticMedium)                               (408))
     ((S3Medium)                                     (435))
     ((MediumMap)                                    (409))
     ((ErasureJournalChunk)                          (124)) // erasure journal chunk as a whole

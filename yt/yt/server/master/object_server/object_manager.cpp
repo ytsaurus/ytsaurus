@@ -1415,7 +1415,7 @@ TObject* TObjectManager::CreateObject(
 
     // COMPAT(aleksandra-zh): medium replication hotfix.
     if (replicate && IsMediumType(type)) {
-        auto* medium = object->As<TMediumBase>();
+        auto* medium = object->As<TMedium>();
         replicatedAttributes->Set("index", medium->GetIndex());
     }
 

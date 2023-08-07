@@ -15,9 +15,9 @@ namespace NYT::NChunkServer {
 
 // Represents a storage type which is either subset of disks in YT
 // or external storage system.
-class TMediumBase
+class TMedium
     : public NObjectServer::TObject
-    , public TRefTracked<TMediumBase>
+    , public TRefTracked<TMedium>
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(TString, Name);
@@ -27,7 +27,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 
 public:
-    explicit TMediumBase(TMediumId id);
+    explicit TMedium(TMediumId id);
 
     virtual bool IsDomestic() const = 0;
     bool IsOffshore() const;
