@@ -58,14 +58,14 @@ public:
         Reset();
     }
 
-    bool Finished() const
+    bool IsFinished() const
     {
         return Value_.Data.Uint64 == Modulo_;
     }
 
     TUnversionedValue Next()
     {
-        YT_VERIFY(!Finished());
+        YT_VERIFY(!IsFinished());
         auto result = Value_;
         ++Value_.Data.Uint64;
         return result;
@@ -108,7 +108,7 @@ public:
 
     void ResetUnsigned(ui64 lower)
     {
-        YT_VERIFY(Finished());
+        YT_VERIFY(IsFinished());
         Next_ = 0;
         for (auto& [nextValue, divisor] : DivisorQueue_) {
             nextValue = divisor - (lower % divisor);
@@ -121,7 +121,7 @@ public:
 
     void ResetSigned(i64 lower)
     {
-        YT_VERIFY(Finished());
+        YT_VERIFY(IsFinished());
         Next_ = 0;
         for (auto& [nextValue, divisor] : DivisorQueue_) {
             nextValue = lower >= 0
@@ -137,14 +137,14 @@ public:
         Finished_ = false;
     }
 
-    bool Finished() const
+    bool IsFinished() const
     {
         return Finished_;
     }
 
     ui64 Next()
     {
-        YT_VERIFY(!Finished());
+        YT_VERIFY(!IsFinished());
 
         auto& top = DivisorQueue_.front();
         auto result = Next_;
@@ -277,7 +277,7 @@ public:
 
     TUnversionedValue Reset()
     {
-        YT_VERIFY(Finished());
+        YT_VERIFY(IsFinished());
         // Start value is used to evaluate initial value for each divisor.
         if (SignedType_) {
             TQuotientGenerator::ResetSigned(Start_);
@@ -294,14 +294,14 @@ public:
 
     TUnversionedValue Next()
     {
-        YT_VERIFY(!Finished());
+        YT_VERIFY(!IsFinished());
         return DoNext();
     }
 
 private:
-    ui64 Start_;
-    bool ProduceNull_;
-    bool SignedType_;
+    const ui64 Start_;
+    const bool ProduceNull_;
+    const bool SignedType_;
 
     TUnversionedValue DoNext()
     {
@@ -361,7 +361,7 @@ public:
             auto columnId = ColumnIds_[EvalIndex_];
             auto& generator = Generators_[EvalIndex_];
 
-            if (!generator.Finished()) {
+            if (!generator.IsFinished()) {
                 PrefixRow_[columnId] = generator.Next();
                 // Suffix is resetted here.
                 EvalIndex_ = std::ssize(Generators_);
@@ -529,7 +529,7 @@ public:
     // - computed columns (evaluated but not modulo columns).
     // Calculate estimation during collection.
 
-    explicit TComputedColumnsEvaluator(
+    TComputedColumnsEvaluator(
         TComputedColumnsInfo computedColumnsInfo,
         const TCompactVector<EValueType, 16> keyTypes,
         bool verboseLogging)
@@ -802,7 +802,7 @@ public:
             }
 
             if (evaluatedColumnViolatesConstraints) {
-                YT_LOG_DEBUG_IF(VerboseLogging_, "Skipping range: %k", boundRow);
+                YT_LOG_DEBUG_IF(VerboseLogging_, "Skipping range (BoundRow: %kv)", boundRow);
                 continue;
             }
 
@@ -823,7 +823,7 @@ public:
                     rowRange = RowRangeFromPrefix(buffer, MakeRange(boundRow.Begin(), prefixSize));
                 }
 
-                YT_LOG_DEBUG_IF(VerboseLogging_, "Producing range [%kv .. %kv]", rowRange.first, rowRange.second);
+                YT_LOG_DEBUG_IF(VerboseLogging_, "Producing range [%kv .. %kv]",rowRange.first, rowRange.second);
 
                 resultRanges.push_back(rowRange);
             } while (rowModuloGenerator.Next());

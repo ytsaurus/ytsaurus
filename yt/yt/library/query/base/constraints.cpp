@@ -4,6 +4,8 @@
 
 namespace NYT::NQueryClient {
 
+////////////////////////////////////////////////////////////////////////////////
+
 // Min is included because lower bound is included.
 // Max is excluded beacuse upper bound is excluded.
 // It allows keep resulting ranges without augmenting suffix with additional sentinels (e.g. [Max included] -> [Max included, Max excluded]).
@@ -11,28 +13,6 @@ TValueBound MinBound{MakeUnversionedSentinelValue(EValueType::Min), false};
 TValueBound MaxBound{MakeUnversionedSentinelValue(EValueType::Max), false};
 
 TColumnConstraint UniversalInterval{MinBound, MaxBound};
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool operator < (const TValueBound& lhs, const TValueBound& rhs)
-{
-    return std::tie(lhs.Value, lhs.Flag) < std::tie(rhs.Value, rhs.Flag);
-}
-
-bool operator <= (const TValueBound& lhs, const TValueBound& rhs)
-{
-    return std::tie(lhs.Value, lhs.Flag) <= std::tie(rhs.Value, rhs.Flag);
-}
-
-bool operator == (const TValueBound& lhs, const TValueBound& rhs)
-{
-    return std::tie(lhs.Value, lhs.Flag) == std::tie(rhs.Value, rhs.Flag);
-}
-
-bool TestValue(TValue value, const TValueBound& lower, const TValueBound& upper)
-{
-    return lower < TValueBound{value, true} && TValueBound{value, false} < upper;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -292,68 +272,75 @@ TConstraintRef TConstraintsHolder::Unite(TConstraintRef lhs, TConstraintRef rhs)
 
 TString ToString(const TConstraintsHolder& constraints, TConstraintRef root)
 {
-    TString str = "Constraints:";
+    TStringBuilder result;
+
+    result.AppendString("Constraints:");
 
     auto addOffset = [&] (int offset) {
         for (int i = 0; i < offset; ++i) {
-            str += ". ";
+            result.AppendString(". ");
         }
-        return str;
+        return result;
     };
 
     std::function<void(TConstraintRef)> printNode =
         [&] (TConstraintRef ref) {
             if (ref.ColumnId == SentinelColumnId) {
-                str += " <universe>";
+                result.AppendString(" <universe>");
             } else {
                 if (ref.StartIndex == ref.EndIndex) {
-                    str += " <empty>";
+                    result.AppendString(" <empty>");
                     return;
                 }
 
                 for (const auto& item : MakeRange(constraints[ref.ColumnId]).Slice(ref.StartIndex, ref.EndIndex)) {
-                    str += "\n";
+                    result.AppendString("\n");
                     addOffset(ref.ColumnId);
                     TColumnConstraint columnConstraint{item.GetLowerBound(), item.GetUpperBound()};
 
                     if (columnConstraint.IsExact()) {
-                        str += Format("%kv", columnConstraint.GetValue());
+                        result.AppendFormat("%kv", columnConstraint.GetValue());
                     } else {
-                        str += Format("%v%kv .. %kv%v",
+                        result.AppendFormat("%v%kv .. %kv%v",
                             "[("[columnConstraint.Lower.Flag],
                             columnConstraint.Lower.Value,
                             columnConstraint.Upper.Value,
                             ")]"[columnConstraint.Upper.Flag]);
                     }
 
-                    str += ":";
+                    result.AppendString(":");
                     printNode(item.Next);
                 }
             }
         };
 
     printNode(root);
-    return str;
+    return result.Flush();
 }
+
+TReadRangesGenerator::TReadRangesGenerator(const TConstraintsHolder& constraints)
+    : Constraints_(constraints)
+    , Row_(Constraints_.size(), UniversalInterval)
+{ }
 
 static void CopyValues(TRange<TValue> source, TMutableRow dest)
 {
     std::copy(source.Begin(), source.End(), dest.Begin());
 }
 
-TMutableRow MakeLowerBound(TRowBuffer* buffer, TRange<TValue> boundPrefix, TValueBound lastBound)
+TMutableRow MakeLowerBound(TRowBuffer* rowBuffer, TRange<TValue> boundPrefix, TValueBound lastBound)
 {
     auto prefixSize = boundPrefix.Size();
 
     if (lastBound.Value.Type == EValueType::Min) {
-        auto lowerBound = buffer->AllocateUnversioned(prefixSize);
+        auto lowerBound = rowBuffer->AllocateUnversioned(prefixSize);
         CopyValues(boundPrefix, lowerBound);
         return lowerBound;
     }
 
     // Consider included/excluded bounds.
     bool lowerExcluded = lastBound.Flag;
-    auto lowerBound = buffer->AllocateUnversioned(prefixSize + 1 + lowerExcluded);
+    auto lowerBound = rowBuffer->AllocateUnversioned(prefixSize + 1 + lowerExcluded);
     CopyValues(boundPrefix, lowerBound);
     lowerBound[prefixSize] = lastBound.Value;
     if (lowerExcluded) {
@@ -362,13 +349,13 @@ TMutableRow MakeLowerBound(TRowBuffer* buffer, TRange<TValue> boundPrefix, TValu
     return lowerBound;
 }
 
-TMutableRow MakeUpperBound(TRowBuffer* buffer, TRange<TValue> boundPrefix, TValueBound lastBound)
+TMutableRow MakeUpperBound(TRowBuffer* rowBuffer, TRange<TValue> boundPrefix, TValueBound lastBound)
 {
     auto prefixSize = boundPrefix.Size();
 
     // Consider included/excluded bounds.
     bool upperIncluded = lastBound.Flag;
-    auto upperBound = buffer->AllocateUnversioned(prefixSize + 1 + upperIncluded);
+    auto upperBound = rowBuffer->AllocateUnversioned(prefixSize + 1 + upperIncluded);
     CopyValues(boundPrefix, upperBound);
     upperBound[prefixSize] = lastBound.Value;
     if (upperIncluded) {
@@ -377,14 +364,14 @@ TMutableRow MakeUpperBound(TRowBuffer* buffer, TRange<TValue> boundPrefix, TValu
     return upperBound;
 }
 
-TRowRange RowRangeFromPrefix(TRowBuffer* buffer, TRange<TValue> boundPrefix)
+TRowRange RowRangeFromPrefix(TRowBuffer* rowBuffer, TRange<TValue> boundPrefix)
 {
     auto prefixSize = boundPrefix.Size();
 
-    auto lowerBound = buffer->AllocateUnversioned(prefixSize);
+    auto lowerBound = rowBuffer->AllocateUnversioned(prefixSize);
     CopyValues(boundPrefix, lowerBound);
 
-    auto upperBound = buffer->AllocateUnversioned(prefixSize + 1);
+    auto upperBound = rowBuffer->AllocateUnversioned(prefixSize + 1);
     CopyValues(boundPrefix, upperBound);
     upperBound[prefixSize] = MakeUnversionedSentinelValue(EValueType::Max);
     return std::make_pair(lowerBound, upperBound);
