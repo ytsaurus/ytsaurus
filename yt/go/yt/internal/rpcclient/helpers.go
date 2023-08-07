@@ -343,7 +343,7 @@ func makeRemoveMaintenanceResponse(r *rpc_proxy.TRspRemoveMaintenance) (*yt.Remo
 
 	ret := &yt.RemoveMaintenanceResponse{
 		BanCounts:                  int(r.GetBan()),
-		DecommisionCounts:          int(r.GetDecommission()),
+		DecommissionCounts:         int(r.GetDecommission()),
 		DisableSchedulerJobsCounts: int(r.GetDisableSchedulerJobs()),
 		DisableWriteSessionsCounts: int(r.GetDisableWriteSessions()),
 		DisableTabletCellsCounts:   int(r.GetDisableTabletCells()),

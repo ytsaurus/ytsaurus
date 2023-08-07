@@ -857,7 +857,7 @@ type AddMaintenanceResponse struct {
 
 type RemoveMaintenanceResponse struct {
 	BanCounts                  int `yson:"ban"`
-	DecommisionCounts          int `yson:"decommision"`
+	DecommissionCounts         int `yson:"decommission"`
 	DisableSchedulerJobsCounts int `yson:"disable_scheduler_jobs"`
 	DisableWriteSessionsCounts int `yson:"disable_write_sessions"`
 	DisableTabletCellsCounts   int `yson:"disable_tablet_cells"`
