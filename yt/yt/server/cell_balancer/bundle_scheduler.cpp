@@ -801,15 +801,15 @@ TSchedulerInputState::TZoneToInstanceMap MapZonesToInstancies(
     const TSchedulerInputState& input,
     const TCollection& collection)
 {
-    THashMap<TString, std::pair<TString, TString>> nannyServiceToZone;
+    THashMap<TString, TString> nannyServiceToZone;
     for (const auto& [zoneName, zoneInfo] : input.Zones) {
         for (const auto& [dataCenterName, dataCenterInfo] : zoneInfo->DataCenters) {
             if (!dataCenterInfo->TabletNodeNannyService.empty()) {
-                nannyServiceToZone[dataCenterInfo->TabletNodeNannyService] = std::make_pair(zoneName, dataCenterName);
+                nannyServiceToZone[dataCenterInfo->TabletNodeNannyService] = zoneName;
             }
 
             if (!dataCenterInfo->RpcProxyNannyService.empty()) {
-                nannyServiceToZone[dataCenterInfo->RpcProxyNannyService] = std::make_pair(zoneName, dataCenterName);
+                nannyServiceToZone[dataCenterInfo->RpcProxyNannyService] = zoneName;
             }
         }
     }
@@ -823,7 +823,8 @@ TSchedulerInputState::TZoneToInstanceMap MapZonesToInstancies(
         if (it == nannyServiceToZone.end()) {
             continue;
         }
-        const auto& [zoneName, dataCenterName] = it->second;
+        const auto& zoneName = it->second;
+        const auto& dataCenterName = instanceInfo->Annotations->DataCenter.value_or(DefaultDataCenterName);
         result[zoneName].PerDataCenter[dataCenterName].push_back(instanceName);
     }
 
@@ -1345,6 +1346,7 @@ void CreateRemoveTabletCells(
     }
 
     const auto& zoneInfo = GetOrCrash(input.Zones, bundleInfo->Zone);
+
     auto aliveNodes = FlattenAliveInstancies(GetAliveNodes(
         bundleName,
         bundleNodes,
@@ -1518,7 +1520,11 @@ void ManageSystemAccountLimit(const TSchedulerInputState& input, TSchedulerMutat
             continue;
         }
 
-        const auto& zoneInfo = GetOrCrash(input.Zones, bundleInfo->Zone);
+        auto zoneIt = input.Zones.find(bundleInfo->Zone);
+        if (zoneIt == input.Zones.end()) {
+            continue;
+        }
+        const auto& zoneInfo = zoneIt->second;
 
         int cellCount = std::max<int>(GetTargetCellCount(bundleInfo, zoneInfo), std::ssize(bundleInfo->TabletCellIds));
         int cellPeerCount = cellCount * bundleInfo->Options->PeerCount;
@@ -1564,6 +1570,11 @@ void ManageResourceLimits(TSchedulerInputState& input, TSchedulerMutations* muta
             !bundleInfo->EnableTabletCellManagement ||
             !bundleInfo->EnableResourceLimitsManagement)
         {
+            continue;
+        }
+
+        auto zoneIt = input.Zones.find(bundleInfo->Zone);
+        if (zoneIt == input.Zones.end()) {
             continue;
         }
 
@@ -2387,6 +2398,10 @@ void ManageInstancies(TSchedulerInputState& input, TSchedulerMutations* mutation
             continue;
         }
 
+        if (auto zoneIt = input.Zones.find(bundleInfo->Zone); zoneIt == input.Zones.end()) {
+            continue;
+        }
+
         auto bundleState = New<TBundleControllerState>();
         if (auto it = input.BundleStates.find(bundleName); it != input.BundleStates.end()) {
             bundleState = NYTree::CloneYsonStruct(it->second);
@@ -2419,6 +2434,10 @@ void ManageCells(TSchedulerInputState& input, TSchedulerMutations* mutations)
 {
     for (const auto& [bundleName, bundleInfo] : input.Bundles) {
         if (!bundleInfo->EnableBundleController) {
+            continue;
+        }
+
+        if (auto zoneIt = input.Zones.find(bundleInfo->Zone); zoneIt == input.Zones.end()) {
             continue;
         }
 

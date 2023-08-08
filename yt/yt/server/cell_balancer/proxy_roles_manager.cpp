@@ -174,7 +174,6 @@ void ManageRpcProxyRoles(TSchedulerInputState& input, TSchedulerMutations* mutat
         if (!bundleInfo->EnableBundleController) {
             continue;
         }
-
         if (bundleInfo->RpcProxyRole && !bundleInfo->RpcProxyRole->empty()) {
             proxyRoleToBundle[*bundleInfo->RpcProxyRole] = bundleName;
         } else {
@@ -201,6 +200,9 @@ void ManageRpcProxyRoles(TSchedulerInputState& input, TSchedulerMutations* mutat
 
     for (const auto& [bundleName, bundleInfo] : input.Bundles) {
         if (!bundleInfo->EnableBundleController || !bundleInfo->EnableRpcProxyManagement) {
+            continue;
+        }
+        if (auto zoneIt = input.Zones.find(bundleInfo->Zone); zoneIt == input.Zones.end()) {
             continue;
         }
 

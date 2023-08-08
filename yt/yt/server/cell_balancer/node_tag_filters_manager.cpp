@@ -809,6 +809,10 @@ void ManageNodeTagFilters(TSchedulerInputState& input, TSchedulerMutations* muta
             continue;
         }
 
+        if (auto zoneIt = input.Zones.find(bundleInfo->Zone); zoneIt == input.Zones.end()) {
+            continue;
+        }
+
         auto& spareNodes = input.ZoneToSpareNodes[bundleInfo->Zone];
         const auto& bundleNodes = input.BundleNodes[bundleName];
         SetNodeTagFilter(bundleName, bundleNodes, input, spareNodes, mutations);
