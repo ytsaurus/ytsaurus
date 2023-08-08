@@ -12,6 +12,7 @@ DECLARE_REFCOUNTED_CLASS(TApiServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TApiServiceDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TSecurityManagerDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TStructuredLoggingTopicDynamicConfig)
+DECLARE_REFCOUNTED_CLASS(TStructuredLoggingMethodDynamicConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IAccessChecker)
 DECLARE_REFCOUNTED_STRUCT(IProxyCoordinator)

@@ -25,7 +25,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DECLARE_REFCOUNTED_TYPE(TSecurityManagerDynamicConfig)
+DEFINE_REFCOUNTED_TYPE(TSecurityManagerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,7 +44,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DECLARE_REFCOUNTED_TYPE(TStructuredLoggingMethodDynamicConfig)
+DEFINE_REFCOUNTED_TYPE(TStructuredLoggingMethodDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,7 +67,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DECLARE_REFCOUNTED_TYPE(TStructuredLoggingTopicDynamicConfig)
+DEFINE_REFCOUNTED_TYPE(TStructuredLoggingTopicDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,7 +86,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DECLARE_REFCOUNTED_TYPE(TApiServiceConfig)
+DEFINE_REFCOUNTED_TYPE(TApiServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -120,7 +120,7 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-DECLARE_REFCOUNTED_TYPE(TApiServiceDynamicConfig)
+DEFINE_REFCOUNTED_TYPE(TApiServiceDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
