@@ -62,6 +62,12 @@ TParameterizedReassignSolverConfig TParameterizedReassignSolverConfig::MergeWith
     };
 }
 
+bool IsTableMovable(TTableId tableId)
+{
+    auto type = TypeFromId(tableId);
+    return type == EObjectType::Table || type == EObjectType::ReplicatedTable;
+}
+
 class TParameterizedReassignSolver
     : public IParameterizedReassignSolver
 {
@@ -186,7 +192,7 @@ void TParameterizedReassignSolver::Initialize()
         })->second;
 
         for (const auto& [tabletId, tablet] : cell->Tablets) {
-            if (TypeFromId(tablet->Table->Id) != EObjectType::Table) {
+            if (!IsTableMovable(tablet->Table->Id)) {
                 continue;
             }
 
