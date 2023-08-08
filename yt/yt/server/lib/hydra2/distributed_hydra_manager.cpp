@@ -2442,6 +2442,7 @@ private:
         // Make sure we dont try to build the same snapshot twice.
         // (It does not always help, LoadSnapshot in decorated automaton explains why).
         SnapshotId_ = committedState.SegmentId;
+        SnapshotFuture_ = MakeFuture<TRemoteSnapshotParams>(TError("Not building snapshot as it could have been downloaded during recovery"));
 
         epochContext->EpochControlInvoker->Invoke(
             BIND(&TDistributedHydraManager::RecoverFollower, MakeStrong(this)));
