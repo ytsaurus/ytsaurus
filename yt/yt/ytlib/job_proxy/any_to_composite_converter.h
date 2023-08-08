@@ -21,6 +21,7 @@ public:
 
     TFuture<void> GetReadyEvent() override;
     bool Write(TRange<NTableClient::TUnversionedRow> rows) override;
+    bool WriteBatch(NTableClient::IUnversionedRowBatchPtr rowBatch) override;
     TBlob GetContext() const override;
     i64 GetWrittenSize() const override;
     TFuture<void> Close() override;

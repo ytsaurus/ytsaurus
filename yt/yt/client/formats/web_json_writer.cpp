@@ -10,6 +10,7 @@
 
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/row_batch.h>
 
 #include <yt/yt/core/concurrency/async_stream.h>
 
@@ -481,6 +482,7 @@ public:
         TWebJsonFormatConfigPtr config);
 
     bool Write(TRange<TUnversionedRow> rows) override;
+    bool WriteBatch(NTableClient::IUnversionedRowBatchPtr rowBatch) override;
     TFuture<void> GetReadyEvent() override;
     TBlob GetContext() const override;
     i64 GetWrittenSize() const override;
@@ -559,6 +561,12 @@ bool TWriterForWebJson<TValueWriter>::Write(TRange<TUnversionedRow> rows)
     }
 
     return true;
+}
+
+template <typename TValueWriter>
+bool TWriterForWebJson<TValueWriter>::WriteBatch(NTableClient::IUnversionedRowBatchPtr rowBatch)
+{
+    return Write(rowBatch->MaterializeRows());
 }
 
 template <typename TValueWriter>

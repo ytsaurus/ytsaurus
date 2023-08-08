@@ -50,7 +50,7 @@ struct ISchemalessFormatWriter
 
     [[nodiscard]] virtual TFuture<void> Flush() = 0;
 
-    virtual bool WriteBatch(NTableClient::IUnversionedRowBatchPtr rowBatch);
+    virtual bool WriteBatch(NTableClient::IUnversionedRowBatchPtr rowBatch) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchemalessFormatWriter)

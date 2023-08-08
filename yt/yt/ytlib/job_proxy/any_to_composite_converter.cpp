@@ -44,6 +44,11 @@ bool TAnyToCompositeConverter::Write(TRange<TUnversionedRow> rows)
     return UnderlyingWriter_->Write(ConvertAnyToComposite(rows));
 }
 
+bool TAnyToCompositeConverter::WriteBatch(NTableClient::IUnversionedRowBatchPtr rowBatch)
+{
+    return UnderlyingWriter_->WriteBatch(rowBatch);
+}
+
 TBlob TAnyToCompositeConverter::GetContext() const
 {
     return UnderlyingWriter_->GetContext();
