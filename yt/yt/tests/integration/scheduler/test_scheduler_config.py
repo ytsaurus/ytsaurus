@@ -40,6 +40,8 @@ class TestSchedulerConfig(YTEnvSetup):
 
     @authors("ignat")
     def test_basic(self):
+        assert get("//sys/scheduler/config/@type") == "document"
+
         orchid_scheduler_config = "//sys/scheduler/orchid/scheduler/config"
         assert get("{0}/event_log/flush_period".format(orchid_scheduler_config)) == 5000
         assert get("{0}/event_log/retry_backoff_time".format(orchid_scheduler_config)) == 7

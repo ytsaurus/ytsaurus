@@ -77,6 +77,15 @@ class TestControllerAgentOrchid(YTEnvSetup):
         assert list(get(orchid_path)) == [str(op.id)]
 
 
+class TestControllerAgentConfig(YTEnvSetup):
+    NUM_SCHEDULERS = 1
+    NUM_CONTROLLER_AGENTS = 1
+
+    @authors("ignat")
+    def test_basic(self):
+        assert get("//sys/controller_agents/config/@type") == "document"
+
+
 class TestControllerAgentRegistration(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_CONTROLLER_AGENTS = 1

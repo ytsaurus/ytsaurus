@@ -308,6 +308,16 @@ private:
                     .EndMap());
 
             ScheduleCreateNode(
+                "//sys/scheduler/config",
+                transactionId,
+                EObjectType::Document,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("value").BeginMap()
+                        .EndMap()
+                    .EndMap());
+
+            ScheduleCreateNode(
                 "//sys/controller_agents/instances",
                 transactionId,
                 EObjectType::MapNode,
@@ -320,6 +330,16 @@ private:
                 "//sys/controller_agents/orchid",
                 transactionId,
                 EObjectType::Orchid);
+
+            ScheduleCreateNode(
+                "//sys/controller_agents/config",
+                transactionId,
+                EObjectType::Document,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("value").BeginMap()
+                        .EndMap()
+                    .EndMap());
 
             // As well as //tmp, this is often a portal. Attempting to create the
             // node when it's already a portal will forward that request to another
