@@ -41,6 +41,8 @@ struct TParameterizedReassignSolverConfig
     TParameterizedReassignSolverConfig MergeWith(const TParameterizedBalancingConfigPtr& groupConfig) const;
 };
 
+bool IsTableMovable(TTableId tableId);
+
 IParameterizedReassignSolverPtr CreateParameterizedReassignSolver(
     TTabletCellBundlePtr bundle,
     std::vector<TString> performanceCountersKeys,
