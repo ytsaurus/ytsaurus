@@ -65,6 +65,8 @@ private:
     const TJobGpuCheckerContext Context_;
 
     NLogging::TLogger Logger;
+
+    static void OnGpuCheckFinished(TJobGpuCheckerPtr checker, const TError& result);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobGpuChecker)

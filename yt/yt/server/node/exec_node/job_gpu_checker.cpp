@@ -91,13 +91,22 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
         Context_.CommandUser,
         Context_.GpuDevices,
         /*startIndex*/ checkStartIndex + 1)
-        .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& result) {
-            YT_LOG_INFO(result, "%lv GPU check commands finished", Context_.GpuCheckType);
-            FinishCheck_.Fire();
-
-            result.ThrowOnError();
-        })
+        // We want to destroy checker in job thread,
+        // so we pass the only reference to it in callback calling in job thread.
+        .Apply(BIND(&OnGpuCheckFinished, Passed(MakeStrong(this)))
             .AsyncVia(Context_.Job->GetInvoker()));
+}
+
+void TJobGpuChecker::OnGpuCheckFinished(TJobGpuCheckerPtr checker, const TError& result)
+{
+    VERIFY_THREAD_AFFINITY(checker->JobThread);
+
+    const auto& Logger = checker->Logger;
+
+    YT_LOG_INFO(result, "%lv GPU check commands finished", checker->Context_.GpuCheckType);
+    checker->FinishCheck_.Fire();
+
+    result.ThrowOnError();
 }
 
 TJobGpuChecker::~TJobGpuChecker()
