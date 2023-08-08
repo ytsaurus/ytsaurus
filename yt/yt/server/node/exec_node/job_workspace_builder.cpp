@@ -166,10 +166,16 @@ public:
             std::move(invoker),
             std::move(context),
             std::move(directoryManager))
-    { }
+    {
+        YT_LOG_DEBUG("Creating simple job workspace builder");
+    }
+
+    ~TSimpleJobWorkspaceBuilder()
+    {
+        YT_LOG_DEBUG("Destroying simple job workspace builder");
+    }
 
 private:
-
     void MakeArtifactSymlinks()
     {
         const auto& slot = Context_.Slot;
@@ -325,10 +331,16 @@ public:
             std::move(invoker),
             std::move(context),
             std::move(directoryManager))
-    { }
+    {
+        YT_LOG_DEBUG("Creating porto job workspace builder");
+    }
+
+    ~TPortoJobWorkspaceBuilder()
+    {
+        YT_LOG_DEBUG("Destroying porto job workspace builder");
+    }
 
 private:
-
     void MakeArtifactSymlinks()
     {
         const auto& slot = Context_.Slot;
@@ -568,7 +580,7 @@ private:
 
             YT_LOG_DEBUG("Starting preliminary gpu check");
 
-            return BIND(&TJobGpuChecker::RunGpuCheck, checker)
+            return BIND(&TJobGpuChecker::RunGpuCheck, std::move(checker))
                 .AsyncVia(Invoker_)
                 .Run()
                 .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& result) {
