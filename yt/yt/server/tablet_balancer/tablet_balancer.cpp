@@ -721,7 +721,7 @@ void TTabletBalancer::BalanceViaMoveParameterized(const TBundleStatePtr& bundleS
             auto tablet = GetOrCrash(bundleState->Tablets(), descriptor.TabletId);
             bundleState->GetProfilingCounters(
                 tablet->Table,
-                LegacyGroupName).ParameterizedMoves.Increment(1);
+                groupName).ParameterizedMoves.Increment(1);
 
             ApplyMoveTabletAction(tablet, descriptor.TabletCellId);
         }
