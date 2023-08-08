@@ -165,6 +165,7 @@ DEFINE_ENUM(EMasterReign,
     ((MaxErasureJournalReplicasPerRack)                             (2350))  // vovamelnikov
     ((FixChunkCreationTimeHistogramAgain)                           (2351))  // kvk1920
     ((ReliableNodeStateGossip)                                      (2352))  // aleksandra-zh
+    ((ReadRequestComplexityLimitsToggle)                            (2353))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////

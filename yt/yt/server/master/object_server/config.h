@@ -153,6 +153,8 @@ public:
 
     TMaxReadRequestComplexityLimitsConfigPtr MaxReadRequestComplexityLimits;
 
+    bool EnableReadRequestComplexityLimits;
+
     REGISTER_YSON_STRUCT(TDynamicObjectServiceConfig);
 
     static void Register(TRegistrar registrar);

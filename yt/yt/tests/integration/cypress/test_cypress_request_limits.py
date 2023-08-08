@@ -29,6 +29,12 @@ class TestCypressRequestLimits(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 0
 
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "object_service": {
+            "enable_read_request_complexity_limits": True
+        }
+    }
+
     @authors("kvk1920")
     def test_get_node_count_limit(self):
         create_user("u")
@@ -112,3 +118,14 @@ class TestCypressRequestLimits(YTEnvSetup):
         with set_config("//sys/@config/object_service/max_read_request_complexity_limits", {"node_count": 100, "result_size": 100}):
             with raises_yt_error("Read complexity limit exceeded"):
                 ls("//tmp", attributes=["my_attr"], authenticated_user="u")
+
+    @authors("kvk1920")
+    def test_disabling(self):
+        create_user("u")
+        for i in range(50):
+            create("map_node", f"//tmp/{i}")
+        set("//sys/users/u/@request_limits/read_request_complexity/node_count", 10)
+        with raises_yt_error("Read complexity limit exceeded"):
+            ls("//tmp", authenticated_user="u")
+        set("//sys/@config/object_service/enable_read_request_complexity_limits", False)
+        assert ls("//tmp") == ls("//tmp", authenticated_user="u")
