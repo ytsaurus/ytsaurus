@@ -418,8 +418,8 @@ void TNode::SetRegistrationPending(TCellTag selfCellTag)
             continue;
         }
         descriptor.RegistrationPending = true;
+        RegistrationPending_ = true;
     }
-    RegistrationPending_ = true;
 }
 
 void TNode::SetState(
