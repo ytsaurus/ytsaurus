@@ -1467,11 +1467,11 @@ private:
             auto* user = securityManager->GetUserByNameOrThrow(UserName_, /*activeLifeStageOnly*/ true);
             User_ = TEphemeralObjectPtr<TUser>(user);
 
-            if (user != securityManager->GetRootUser()) {
+            const auto& config = Owner_->GetDynamicConfig();
+            if (config->EnableReadRequestComplexityLimits && user != securityManager->GetRootUser()) {
                 const auto& userConfig = user->GetObjectServiceRequestLimits()->ReadRequestComplexityLimits;
                 ReadRequestComplexityLimits_ = userConfig->GetValue();
 
-                const auto& config = Owner_->GetDynamicConfig();
                 TReadRequestComplexity maxReadRequestComplexity;
                 config->MaxReadRequestComplexityLimits->ToReadRequestComplexity(maxReadRequestComplexity);
                 ReadRequestComplexityLimits_.Sanitize(maxReadRequestComplexity);

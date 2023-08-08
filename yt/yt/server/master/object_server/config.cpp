@@ -118,6 +118,9 @@ void TDynamicObjectServiceConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("max_read_request_complexity_limits", &TThis::MaxReadRequestComplexityLimits)
         .DefaultNew();
+
+    registrar.Parameter("enable_read_request_complexity_limits", &TThis::EnableReadRequestComplexityLimits)
+        .Default(false);
 }
 
 DEFINE_REFCOUNTED_TYPE(TDynamicObjectServiceConfig)
