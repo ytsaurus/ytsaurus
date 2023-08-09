@@ -197,7 +197,7 @@ private:
         return usage->Vcpu > quota->Vcpu() || usage->Memory > quota->Memory;
     }
 
-    int GetAllocationsCountInDataCenter(
+    int GetAllocationCountInDataCenter(
         const TIndexedEntries<TAllocationRequestState>& allocationsState,
         const TString& dataCenterName)
     {
@@ -227,7 +227,7 @@ private:
 
         int aliveInstanceCount = std::ssize(adapter->GetAliveInstancies(dataCenterName));
         int targetInstanceCount = adapter->GetTargetInstanceCount(bundleInfo, zoneInfo);
-        int currentDataCenterAllocations = GetAllocationsCountInDataCenter(allocationsState, dataCenterName);
+        int currentDataCenterAllocations = GetAllocationCountInDataCenter(allocationsState, dataCenterName);
         int instanceCountToAllocate = targetInstanceCount - aliveInstanceCount - currentDataCenterAllocations;
 
         YT_LOG_DEBUG("Scheduling allocations (BundleName: %v, DataCenter: %v, TargetInstanceType: %v, InstanceCount: %v, "
@@ -864,16 +864,16 @@ THashMap<TString, TDataCenterRackInfo> MapZonesToRacks(
     for (auto& [_, zoneRacks] : zoneToRacks) {
         for (auto& [_, dataCenterRacks] : zoneRacks) {
             for (const auto& [rackName, bundleNodes] : dataCenterRacks.RackToBundleInstances) {
-                int spareNodesCount = 0;
+                int spareNodeCount = 0;
 
                 const auto& spareRacks = dataCenterRacks.RackToSpareInstances;
                 if (auto it = spareRacks.find(rackName); it != spareRacks.end()) {
-                    spareNodesCount = it->second;
+                    spareNodeCount = it->second;
                 }
 
-                dataCenterRacks.RequiredSpareNodesCount = std::max(
-                    dataCenterRacks.RequiredSpareNodesCount,
-                    bundleNodes + spareNodesCount);
+                dataCenterRacks.RequiredSpareNodeCount = std::max(
+                    dataCenterRacks.RequiredSpareNodeCount,
+                    bundleNodes + spareNodeCount);
             }
         }
     }
@@ -890,7 +890,7 @@ THashMap<TString, TDataCenterRackInfo> MapZonesToRacks(
                 continue;
             }
 
-            if (zoneInfo->RequiresMinusOneRackGuarantee && zoneInfo->SpareTargetConfig->TabletNodeCount < dataCenterIt->second.RequiredSpareNodesCount) {
+            if (zoneInfo->RequiresMinusOneRackGuarantee && zoneInfo->SpareTargetConfig->TabletNodeCount < dataCenterIt->second.RequiredSpareNodeCount) {
                 mutations->AlertsToFire.push_back(TAlert{
                     .Id = "minus_one_rack_guarantee_violation",
                     .Description = Format("Zone %v in data center %v has target spare nodes: %v "
@@ -898,14 +898,14 @@ THashMap<TString, TDataCenterRackInfo> MapZonesToRacks(
                         zone,
                         dataCenter,
                         zoneInfo->SpareTargetConfig->TabletNodeCount,
-                        dataCenterIt->second.RequiredSpareNodesCount),
+                        dataCenterIt->second.RequiredSpareNodeCount),
                 });
 
                 YT_LOG_WARNING("Zone spare nodes violate minus one rack guarantee (Zone: %v, DataCenter: %v, ZoneSpareNodes: %v, RequiredSpareNodes: %v)",
                     zone,
                     dataCenter,
                     zoneInfo->SpareTargetConfig->TabletNodeCount,
-                    dataCenterIt->second.RequiredSpareNodesCount);
+                    dataCenterIt->second.RequiredSpareNodeCount);
             }
         }
     }
@@ -1786,17 +1786,17 @@ public:
             }
 
             // Check that all alive instancies have appropriate node_tag_filter and slots count
-            auto expectedSlotsCount = bundleInfo->TargetConfig->CpuLimits->WriteThreadPoolSize;
+            auto expectedSlotCount = bundleInfo->TargetConfig->CpuLimits->WriteThreadPoolSize;
 
             for (const auto& nodeName : GetAliveInstancies(dataCenterName)) {
                 const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
                 if (nodeInfo->UserTags.count(bundleInfo->NodeTagFilter) == 0 ||
-                    std::ssize(nodeInfo->TabletSlots) != expectedSlotsCount)
+                    std::ssize(nodeInfo->TabletSlots) != expectedSlotCount)
                 {
                     // Wait while all alive nodes have updated settings.
                     YT_LOG_DEBUG("Node is not ready "
-                        "(NodeName: %v, ExpectedSlotsCount: %v, NodeTagFilter: %v, SlotsCount: %v, UserTags: %v)",
-                        nodeName, expectedSlotsCount, bundleInfo->NodeTagFilter, std::ssize(nodeInfo->TabletSlots), nodeInfo->UserTags);
+                        "(NodeName: %v, ExpectedSlotCount: %v, NodeTagFilter: %v, SlotCount: %v, UserTags: %v)",
+                        nodeName, expectedSlotCount, bundleInfo->NodeTagFilter, std::ssize(nodeInfo->TabletSlots), nodeInfo->UserTags);
                     return false;
                 }
             }
@@ -2277,13 +2277,13 @@ public:
     }
 
     std::vector<TString> PeekInstanciesToDeallocate(
-        int proxiesCountToRemove,
+        int proxyCountToRemove,
         const TString& dataCenterName,
         const TBundleInfoPtr& bundleInfo,
         const TSchedulerInputState& input) const
     {
         const auto& aliveProxies = GetAliveInstancies(dataCenterName);
-        YT_VERIFY(std::ssize(aliveProxies) >= proxiesCountToRemove);
+        YT_VERIFY(std::ssize(aliveProxies) >= proxyCountToRemove);
 
         std::vector<TProxyRemoveOrder> proxyOrder;
         proxyOrder.reserve(aliveProxies.size());
@@ -2302,8 +2302,8 @@ public:
         }
 
         auto endIt = proxyOrder.end();
-        if (std::ssize(proxyOrder) > proxiesCountToRemove) {
-            endIt = proxyOrder.begin() + proxiesCountToRemove;
+        if (std::ssize(proxyOrder) > proxyCountToRemove) {
+            endIt = proxyOrder.begin() + proxyCountToRemove;
             std::nth_element(proxyOrder.begin(), endIt, proxyOrder.end());
         }
 

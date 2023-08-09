@@ -118,8 +118,9 @@ struct TZoneSensors final
     TGauge OfflineProxyThreshold;
 
     TGauge FreeSpareNodeCount;
+    TGauge ExternallyDecommissionedNodeCount;
     TGauge FreeSpareProxyCount;
-    TGauge RequiredSpareNodesCount;
+    TGauge RequiredSpareNodeCount;
 };
 
 using TZoneSensorsPtr = TIntrusivePtr<TZoneSensors>;
@@ -148,11 +149,11 @@ public:
         , ChangedNodeAnnotationCounter_(Profiler.Counter("/changed_node_annotation_counter"))
         , ChangedBundleShortNameCounter_(Profiler.Counter("/changed_bundle_short_name_counter"))
         , ChangedProxyRoleCounter_(Profiler.Counter("/changed_proxy_role_counter"))
-        , InitializedNodeTagFiltersCounter_(Profiler.Counter("/initialized_node_tag_filters_counter"))
+        , InitializedNodeTagFilterCounter_(Profiler.Counter("/initialized_node_tag_filters_counter"))
         , InitializedBundleTargetConfigCounter_(Profiler.Counter("/initialized_bundle_target_config_counter"))
         , ChangedProxyAnnotationCounter_(Profiler.Counter("/changed_proxy_annotation_counter"))
         , ChangedSystemAccountLimitCounter_(Profiler.Counter("/changed_system_account_limit_counter"))
-        , ChangedResourceLimitsCounter_(Profiler.Counter("/changed_resource_limits_counter"))
+        , ChangedResourceLimitCounter_(Profiler.Counter("/changed_resource_limits_counter"))
     { }
 
     void Start() override
@@ -196,12 +197,12 @@ private:
 
     TCounter ChangedBundleShortNameCounter_;
     TCounter ChangedProxyRoleCounter_;
-    TCounter InitializedNodeTagFiltersCounter_;
+    TCounter InitializedNodeTagFilterCounter_;
     TCounter InitializedBundleTargetConfigCounter_;
 
     TCounter ChangedProxyAnnotationCounter_;
     TCounter ChangedSystemAccountLimitCounter_;
-    TCounter ChangedResourceLimitsCounter_;
+    TCounter ChangedResourceLimitCounter_;
 
     mutable THashMap<TString, TBundleSensorsPtr> BundleSensors_;
     mutable THashMap<TString, TZoneSensorsPtr> ZoneSensors_;
@@ -404,10 +405,10 @@ private:
         ChangedProxyRoleCounter_.Increment(mutations.RemovedProxyRole.size());
         ChangedProxyAnnotationCounter_.Increment(mutations.ChangedProxyAnnotations.size());
         ChangedSystemAccountLimitCounter_.Increment(mutations.LoweredSystemAccountLimit.size() + mutations.LiftedSystemAccountLimit.size());
-        ChangedResourceLimitsCounter_.Increment(mutations.ChangedTabletStaticMemory.size());
+        ChangedResourceLimitCounter_.Increment(mutations.ChangedTabletStaticMemory.size());
 
         ChangedBundleShortNameCounter_.Increment(mutations.ChangedBundleShortName.size());
-        InitializedNodeTagFiltersCounter_.Increment(mutations.InitializedNodeTagFilters.size());
+        InitializedNodeTagFilterCounter_.Increment(mutations.InitializedNodeTagFilters.size());
         InitializedBundleTargetConfigCounter_.Increment(mutations.InitializedBundleTargetConfig.size());
 
         RemoveInstanceCypressNode(transaction, TabletNodesPath, mutations.NodesToCleanup);
@@ -678,6 +679,7 @@ private:
             for (const auto& [dataCenter, spareInfo] : perDCSpareInfo) {
                 auto zoneSensor = GetZoneSensors(zoneName, dataCenter);
                 zoneSensor->FreeSpareNodeCount.Update(std::ssize(spareInfo.FreeNodes));
+                zoneSensor->ExternallyDecommissionedNodeCount.Update(std::ssize(spareInfo.ExternallyDecommissioned));
 
                 for (const auto& [bundleName, instancies] : spareInfo.UsedByBundle) {
                     auto bundleSensors = GetBundleSensors(bundleName);
@@ -699,7 +701,7 @@ private:
         for (const auto& [zoneName, rackInfo] : input.ZoneToRacks) {
             for (const auto& [dataCenter, dataCenterRacks] : rackInfo) {
                 auto zoneSensor = GetZoneSensors(zoneName, dataCenter);
-                zoneSensor->RequiredSpareNodesCount.Update(dataCenterRacks.RequiredSpareNodesCount);
+                zoneSensor->RequiredSpareNodeCount.Update(dataCenterRacks.RequiredSpareNodeCount);
             }
         }
     }
@@ -802,8 +804,9 @@ private:
         sensors->OfflineProxyThreshold = zoneProfiler.Gauge("/offline_proxy_threshold");
 
         sensors->FreeSpareNodeCount = zoneProfiler.Gauge("/free_spare_node_count");
+        sensors->FreeSpareNodeCount = zoneProfiler.Gauge("/externally_decommissioned_node_count");
         sensors->FreeSpareProxyCount = zoneProfiler.Gauge("/free_spare_proxy_count");
-        sensors->RequiredSpareNodesCount = zoneProfiler.Gauge("/required_spare_nodes_count");
+        sensors->RequiredSpareNodeCount = zoneProfiler.Gauge("/required_spare_nodes_count");
 
         ZoneSensors_[zoneName] = sensors;
         return sensors;
