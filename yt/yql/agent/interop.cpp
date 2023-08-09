@@ -128,7 +128,7 @@ TYqlRowset BuildRowset(
         }
     };
 
-    bool isDynamicTable = ConvertTo<bool>(
+    auto isDynamicTable = ConvertTo<bool>(
         WaitFor(client->GetNode(table + "/@dynamic"))
             .ValueOrThrow());
 

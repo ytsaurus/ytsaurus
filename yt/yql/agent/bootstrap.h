@@ -57,8 +57,6 @@ private:
 
     TDynamicConfigManagerPtr DynamicConfigManager_;
 
-    NCypressElection::ICypressElectionManagerPtr ElectionManager_;
-
     IYqlAgentPtr YqlAgent_;
 
     NRpc::IAuthenticatorPtr NativeAuthenticator_;

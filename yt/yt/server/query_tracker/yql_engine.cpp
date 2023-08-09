@@ -97,10 +97,10 @@ public:
     }
 
 private:
-    TString Query_;
-    TYqlEngineConfigPtr Config_;
-    NApi::NNative::IConnectionPtr Connection_;
-    TYqlSettingsPtr Settings_;
+    const TString Query_;
+    const TYqlEngineConfigPtr Config_;
+    const NApi::NNative::IConnectionPtr Connection_;
+    const TYqlSettingsPtr Settings_;
 
     TFuture<TTypedClientResponse<TRspStartQuery>::TResult> AsyncQueryResult_;
 
@@ -165,7 +165,6 @@ private:
     const IClientPtr StateClient_;
     const TYPath StateRoot_;
     TYqlEngineConfigPtr Config_;
-    TClusterDirectoryPtr ClusterDirectory_;
 };
 
 IQueryEnginePtr CreateYqlEngine(const IClientPtr& stateClient, const TYPath& stateRoot)

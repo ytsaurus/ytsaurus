@@ -103,11 +103,11 @@ public:
     }
 
 private:
-    TYqlAgentConfigPtr Config_;
-    TClusterDirectoryPtr ClusterDirectory_;
-    TClientDirectoryPtr ClientDirectory_;
-    IInvokerPtr ControlInvoker_;
-    TString AgentId_;
+    const TYqlAgentConfigPtr Config_;
+    const TClusterDirectoryPtr ClusterDirectory_;
+    const TClientDirectoryPtr ClientDirectory_;
+    const IInvokerPtr ControlInvoker_;
+    const TString AgentId_;
 
     std::unique_ptr<NYqlPlugin::IYqlPlugin> YqlPlugin_;
 
@@ -115,7 +115,7 @@ private:
 
     std::pair<TRspStartQuery, std::vector<TSharedRef>> DoStartQuery(TQueryId queryId, const TString& impersonationUser, const TReqStartQuery& request)
     {
-        static const TYsonString EmptyMap = TYsonString(TString("{}"));
+        static const auto EmptyMap = TYsonString(TString("{}"));
 
         const auto& Logger = YqlAgentLogger.WithTag("QueryId: %v", queryId);
 
