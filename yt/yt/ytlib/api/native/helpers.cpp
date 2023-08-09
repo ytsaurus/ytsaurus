@@ -76,6 +76,11 @@ void SetupClusterConnectionDynamicConfigUpdate(
         try {
             dynamicConfig = ConvertTo<TConnectionDynamicConfigPtr>(dynamicConfigNode);
             connection->Reconfigure(dynamicConfig);
+
+            YT_LOG_DEBUG("Cluster connection dynamic config applied (Policy: %v, Cluster: %v, DynamicConfig: %v)",
+                policy,
+                connection->GetClusterName(),
+                ConvertToYsonString(dynamicConfigNode, EYsonFormat::Text).ToString());
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(
                 ex,
