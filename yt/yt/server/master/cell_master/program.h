@@ -77,6 +77,10 @@ public:
             .SetFlag(&EnableTotalWriteCountReport_)
             .NoArgument();
         Opts_
+            .AddLongOption("skip-tvm-service-env-validation", "don't validate tvm service files")
+            .SetFlag(&SkipTVMServiceEnvValidation_)
+            .NoArgument();
+        Opts_
             .AddLongOption("sleep-after-initialize", "sleep for 10s after calling TBootstrap::Initialize()")
             .SetFlag(&SleepAfterInitialize_)
             .NoArgument();
@@ -135,6 +139,13 @@ protected:
             config->DryRun->EnableDryRun = true;
             config->Logging->ShutdownGraceTimeout = TDuration::Seconds(10);
             config->Snapshots->Path = NFS::GetDirectoryName(".");
+
+            if (SkipTVMServiceEnvValidation_) {
+                const auto& nativeAuthenticationManager = config->NativeAuthenticationManager;
+                nativeAuthenticationManager->EnableValidation = false;
+                nativeAuthenticationManager->EnableSubmission = false;
+                nativeAuthenticationManager->TvmService = nullptr;
+            }
         }
 
         if (replayChangelogs) {
@@ -202,6 +213,7 @@ private:
     std::vector<TString> ChangelogFileNames_;
     TString SnapshotBuildDirectory_;
     bool EnableTotalWriteCountReport_ = false;
+    bool SkipTVMServiceEnvValidation_ = false;
     bool SleepAfterInitialize_ = false;
 };
 
