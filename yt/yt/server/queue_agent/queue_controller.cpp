@@ -42,6 +42,7 @@ using namespace NQueueClient;
 using namespace NYson;
 using namespace NTracing;
 using namespace NLogging;
+using namespace NObjectClient;
 
 using namespace std::placeholders;
 
@@ -456,13 +457,13 @@ private:
         }
 
         auto queueObjectId = queueSnapshot->Row.ObjectId;
-        auto queueObjectPath = Format("#%v", queueObjectId);
+        auto queueObjectPath = FromObjectId(*queueObjectId);
         // This field should be initialized when reading from dynamic state.
         if (!queueObjectId) {
             THROW_ERROR_EXCEPTION("Trimming iteration skipped due to the absence of filled field \"object_id\"");
         }
 
-        YT_LOG_DEBUG("Performing trimming iteration for path %v", queueObjectPath);
+        YT_LOG_DEBUG("Performing trimming iteration (Path: %v)", queueObjectPath);
 
         const auto& autoTrimConfig = queueSnapshot->Row.AutoTrimConfig;
         // This config should be initialized when reading from dynamic state.

@@ -255,11 +255,20 @@ NApi::IUnversionedRowsetPtr TQueueTableRow::DeleteRowRange(TRange<TQueueTableRow
 
 std::vector<TString> TQueueTableRow::GetCypressAttributeNames()
 {
-    return {"attribute_revision", "type", "dynamic", "sorted", "auto_trim_config", "queue_agent_stage", "id",
-            // Replicated tables and chaos replicated tables.
-            "replicas",
-            // Chaos replicated tables.
-            "replication_card_id", "treat_as_queue_consumer"};
+    return {
+        "attribute_revision",
+        "type",
+        "dynamic",
+        "sorted",
+        "auto_trim_config",
+        "queue_agent_stage",
+        "id",
+        // Replicated tables and chaos replicated tables.
+        "replicas",
+        // Chaos replicated tables.
+        "replication_card_id",
+        "treat_as_queue_consumer"
+    };
 }
 
 TQueueTableRow TQueueTableRow::FromAttributeDictionary(
@@ -439,11 +448,17 @@ NApi::IUnversionedRowsetPtr TConsumerTableRow::DeleteRowRange(TRange<TConsumerTa
 
 std::vector<TString> TConsumerTableRow::GetCypressAttributeNames()
 {
-    return {"attribute_revision", "type", "treat_as_queue_consumer", "schema", "queue_agent_stage",
-            // Replicated tables and chaos replicated tables.
-            "replicas",
-            // Chaos replicated tables.
-            "replication_card_id"};
+    return {
+        "attribute_revision",
+        "type",
+        "treat_as_queue_consumer",
+        "schema",
+        "queue_agent_stage",
+        // Replicated tables and chaos replicated tables.
+        "replicas",
+        // Chaos replicated tables.
+        "replication_card_id"
+    };
 }
 
 TConsumerTableRow TConsumerTableRow::FromAttributeDictionary(
