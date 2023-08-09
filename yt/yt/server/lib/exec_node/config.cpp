@@ -521,9 +521,6 @@ void TExecNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("job_proxy_heartbeat_period", &TThis::JobProxyHeartbeatPeriod)
         .Default(TDuration::Seconds(5));
 
-    registrar.Parameter("job_proxy_upload_debug_artifact_chunks", &TThis::JobProxyUploadDebugArtifactChunks)
-        .Default(false);
-
     registrar.Parameter("job_proxy_send_heartbeat_before_abort", &TThis::JobProxySendHeartbeatBeforeAbort)
         .Default(false);
 

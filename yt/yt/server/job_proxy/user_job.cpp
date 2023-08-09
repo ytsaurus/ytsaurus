@@ -294,9 +294,6 @@ public:
             if (!JobErrorPromise_.IsSet()) {
                 FinalizeJobIO();
             }
-            if (Config_->UploadDebugArtifactChunks) {
-                UploadStderrFile();
-            }
 
             CleanupUserProcesses();
 
@@ -322,10 +319,6 @@ public:
 
         TJobResult result;
         auto* jobResultExt = result.MutableExtension(TJobResultExt::job_result_ext);
-        // COMPAT(ignat)
-        if (Config_->UploadDebugArtifactChunks) {
-            SaveErrorChunkId(jobResultExt);
-        }
         jobResultExt->set_has_stderr(ErrorOutput_->GetCurrentSize() > 0);
         UserJobWriteController_->PopulateStderrResult(jobResultExt);
 
@@ -774,16 +767,6 @@ private:
         }
 
         jobResultExt->set_has_fail_context(size > 0);
-
-        // COMPAT(ignat)
-        if (Config_->UploadDebugArtifactChunks) {
-            auto contextChunkIds = DoDumpInputContext(contexts);
-
-            YT_VERIFY(contextChunkIds.size() <= 1);
-            if (!contextChunkIds.empty()) {
-                ToProto(jobResultExt->mutable_fail_context_chunk_id(), contextChunkIds.front());
-            }
-        }
     }
 
     std::vector<TChunkId> DumpInputContext() override
@@ -957,20 +940,6 @@ private:
     {
         if (!Prepared_) {
             THROW_ERROR_EXCEPTION(EErrorCode::JobNotPrepared, "Cannot operate on job: job has not been prepared yet");
-        }
-    }
-
-    // COMPAT(ignat)
-    void UploadStderrFile()
-    {
-        if (JobErrorPromise_.IsSet() || UserJobSpec_.upload_stderr_if_completed()) {
-            ErrorOutput_->Upload(
-                JobIOConfig_->ErrorFileWriter,
-                CreateFileOptions(),
-                Host_->GetClient(),
-                FromProto<TTransactionId>(UserJobSpec_.debug_output_transaction_id()),
-                Host_->GetTrafficMeter(),
-                Host_->GetOutBandwidthThrottler());
         }
     }
 

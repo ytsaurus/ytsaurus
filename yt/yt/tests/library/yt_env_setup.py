@@ -285,9 +285,6 @@ class YTEnvSetup(object):
     NODE_IO_ENGINE_TYPE = None  # use "thread_pool" or "uring"
     NODE_USE_DIRECT_IO_FOR_READS = "never"
 
-    # COMPAT(ignat)
-    UPLOAD_DEBUG_ARTIFACT_CHUNKS = False
-
     # COMPAT(kvk1920)
     TEST_LOCATION_AWARE_REPLICATOR = False
 
@@ -719,8 +716,6 @@ class YTEnvSetup(object):
                 config = update_inplace(config, get_porto_delta_node_config())
             if cls.USE_CUSTOM_ROOTFS:
                 config = update_inplace(config, get_custom_rootfs_delta_node_config())
-
-            config["exec_node"]["job_proxy_upload_debug_artifact_chunks"] = cls.UPLOAD_DEBUG_ARTIFACT_CHUNKS
 
             config["ref_counted_tracker_dump_period"] = 5000
 

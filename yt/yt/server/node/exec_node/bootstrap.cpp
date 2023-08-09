@@ -289,7 +289,6 @@ private:
 
         JobProxyConfigTemplate_->HeartbeatPeriod = GetConfig()->ExecNode->JobProxyHeartbeatPeriod;
 
-        JobProxyConfigTemplate_->UploadDebugArtifactChunks = GetConfig()->ExecNode->JobProxyUploadDebugArtifactChunks;
         JobProxyConfigTemplate_->SendHeartbeatBeforeAbort = GetConfig()->ExecNode->JobProxySendHeartbeatBeforeAbort;
 
         JobProxyConfigTemplate_->JobEnvironment = GetConfig()->ExecNode->SlotManager->JobEnvironment;

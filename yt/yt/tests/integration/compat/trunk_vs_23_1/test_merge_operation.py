@@ -10,8 +10,6 @@ class TestMergeCommandsCompatNewCA(BaseTestMergeCommands):
 
 
 class TestMergeCommandsCompatNewNodes(BaseTestMergeCommands):
-    UPLOAD_DEBUG_ARTIFACT_CHUNKS = True
-
     ARTIFACT_COMPONENTS = {
         "23_1": ["master", "scheduler", "controller-agent"],
         "trunk": ["node", "job-proxy", "exec", "tools", "proxy", "http-proxy"],

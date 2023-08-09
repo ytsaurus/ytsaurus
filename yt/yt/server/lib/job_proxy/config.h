@@ -231,8 +231,6 @@ public:
 
     bool ForceIdleCpuPolicy;
 
-    bool UploadDebugArtifactChunks;
-
     bool SendHeartbeatBeforeAbort;
 
     std::optional<int> StatisticsOutputTableCountLimit;
@@ -261,8 +259,6 @@ public:
     bool UsePortoKillForSignalling;
 
     bool ForceIdleCpuPolicy;
-
-    bool UploadDebugArtifactChunks;
 
     bool AbortOnUncaughtException;
 

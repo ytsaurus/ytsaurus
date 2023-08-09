@@ -187,9 +187,6 @@ void TJobProxyConfig::Register(TRegistrar registrar)
     registrar.Parameter("force_idle_cpu_policy", &TThis::ForceIdleCpuPolicy)
         .Default(false);
 
-    registrar.Parameter("upload_debug_artifact_chunks", &TThis::UploadDebugArtifactChunks)
-        .Default(true);
-
     registrar.Parameter("send_heartbeat_before_abort", &TThis::SendHeartbeatBeforeAbort)
         .Default(false);
 
@@ -227,9 +224,6 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("force_idle_cpu_policy", &TThis::ForceIdleCpuPolicy)
         .Default(false);
-
-    registrar.Parameter("upload_debug_artifact_chunks", &TThis::UploadDebugArtifactChunks)
-        .Default(true);
 
     registrar.Parameter("abort_on_uncaught_exception", &TThis::AbortOnUncaughtException)
         .Default(false);

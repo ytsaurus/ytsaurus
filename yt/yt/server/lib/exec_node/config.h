@@ -457,8 +457,6 @@ public:
 
     TDuration JobProxyHeartbeatPeriod;
 
-    bool JobProxyUploadDebugArtifactChunks;
-
     bool JobProxySendHeartbeatBeforeAbort;
 
     NDns::TDnsOverRpcResolverConfigPtr JobProxyDnsOverRpcResolver;

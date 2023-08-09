@@ -2297,7 +2297,6 @@ TJobProxyConfigPtr TJob::CreateConfig()
         proxyConfig->EnableJobShellSeccopm = proxyDynamicConfig->EnableJobShellSeccopm;
         proxyConfig->UsePortoKillForSignalling = proxyDynamicConfig->UsePortoKillForSignalling;
         proxyConfig->ForceIdleCpuPolicy = proxyDynamicConfig->ForceIdleCpuPolicy;
-        proxyConfig->UploadDebugArtifactChunks = proxyDynamicConfig->UploadDebugArtifactChunks;
         proxyConfig->AbortOnUncaughtException = proxyDynamicConfig->AbortOnUncaughtException;
         if (proxyDynamicConfig->JobEnvironment) {
             proxyConfig->JobEnvironment = PatchNode(proxyConfig->JobEnvironment, proxyDynamicConfig->JobEnvironment);
