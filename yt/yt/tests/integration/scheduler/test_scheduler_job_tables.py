@@ -141,6 +141,57 @@ class TestStderrTable(YTEnvSetup):
         expect_to_find_in_stderr_table("//tmp/t_stderr", ["GG\n"])
         compare_stderr_table_and_files("//tmp/t_stderr", op)
 
+    @authors("ignat")
+    def test_empty_debug_transaction(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        create("table", "//tmp/t_stderr")
+        write_table("//tmp/t_input", [{"key": 0}])
+
+        op = map(
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            command=with_breakpoint("BREAKPOINT"),
+            track=False,
+            spec={
+                "job_count": 1,
+                "data_size_per_sort_job": 10,
+            },
+        )
+
+        wait_breakpoint()
+
+        debug_transaction_id = get(op.get_path() + "/@debug_transaction_id")
+        assert debug_transaction_id == "0-0-0-0"
+
+    @authors("ignat")
+    def test_non_empty_debug_transaction(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        create("table", "//tmp/t_stderr")
+        write_table("//tmp/t_input", [{"key": 0}])
+
+        op = map(
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            command=with_breakpoint("BREAKPOINT"),
+            track=False,
+            spec={
+                "stderr_table_path": "//tmp/t_stderr",
+                "job_count": 1,
+                "data_size_per_sort_job": 10,
+            },
+        )
+
+        wait_breakpoint()
+
+        debug_transaction_id = get(op.get_path() + "/@debug_transaction_id")
+        assert debug_transaction_id != "0-0-0-0"
+
+        locks = get("//tmp/t_stderr/@locks")
+        assert len(locks) == 1
+        assert locks[0]["transaction_id"] == debug_transaction_id
+
     @authors("ermolovd")
     def test_ordered_map(self):
         create("table", "//tmp/t_input")

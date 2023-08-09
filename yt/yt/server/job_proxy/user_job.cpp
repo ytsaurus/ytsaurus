@@ -241,7 +241,7 @@ public:
             tableWriterOptions->EnableValidationOptions();
             auto chunkList = FromProto<TChunkListId>(coreTableSpec.output_table_spec().chunk_list_id());
             auto blobTableWriterConfig = ConvertTo<TBlobTableWriterConfigPtr>(TYsonString(coreTableSpec.blob_table_writer_config()));
-            auto debugTransactionId = FromProto<TTransactionId>(UserJobSpec_.debug_output_transaction_id());
+            auto debugTransactionId = FromProto<TTransactionId>(UserJobSpec_.debug_transaction_id());
 
             CoreWatcher_ = New<TCoreWatcher>(
                 Config_->CoreWatcher,
@@ -791,7 +791,13 @@ private:
     {
         std::vector<TChunkId> result;
 
-        auto transactionId = FromProto<TTransactionId>(UserJobSpec_.debug_output_transaction_id());
+        TTransactionId transactionId;
+        if (UserJobSpec_.has_input_transaction_id()) {
+            transactionId = FromProto<TTransactionId>(UserJobSpec_.input_transaction_id());
+        } else {
+            // COMPAT(ignat): remove after CA update.
+            transactionId = FromProto<TTransactionId>(UserJobSpec_.debug_transaction_id());
+        }
         for (int index = 0; index < std::ssize(contexts); ++index) {
             // NB. We use empty data sink here, so the details like object path and account are not present in IO tags.
             // That's because this code is legacy anyway and not worth covering with IO tags.

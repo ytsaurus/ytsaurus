@@ -47,6 +47,7 @@
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
+#include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -1453,8 +1454,7 @@ bool TOperationControllerBase::IsTransactionNeeded(ETransactionType type) const
             return !GetOutputTablePaths().empty();
         case ETransactionType::Debug:
         case ETransactionType::DebugCompletion:
-            // TODO(max42): Re-think about this transaction when YT-8270 is done.
-            return true;
+            return GetStderrTablePath() || GetCoreTablePath();
         default:
             YT_ABORT();
     }
@@ -1670,6 +1670,16 @@ TFuture<NNative::ITransactionPtr> TOperationControllerBase::StartTransaction(
 
 void TOperationControllerBase::PickIntermediateDataCells()
 {
+    if (GetOutputTablePaths().empty()) {
+        return;
+    }
+
+    WaitForFast(OutputClient
+        ->GetNativeConnection()
+        ->GetMasterCellDirectorySynchronizer()
+        ->RecentSync())
+        .ThrowOnError();
+
     IntermediateOutputCellTagList = OutputClient
         ->GetNativeConnection()
         ->GetMasterCellDirectory()
@@ -1714,12 +1724,14 @@ void TOperationControllerBase::InitChunkListPools()
         }
     }
 
-    DebugChunkListPool_ = New<TChunkListPool>(
-        Config,
-        OutputClient,
-        CancelableInvokerPool,
-        OperationId,
-        DebugTransaction->GetId());
+    if (DebugTransaction) {
+        DebugChunkListPool_ = New<TChunkListPool>(
+            Config,
+            OutputClient,
+            CancelableInvokerPool,
+            OperationId,
+            DebugTransaction->GetId());
+    }
 
     CellTagToRequiredDebugChunkListCount_.clear();
     if (StderrTable_) {
@@ -2228,15 +2240,11 @@ void TOperationControllerBase::CommitFeatures()
         .Item("features").Do(
             BIND(&TOperationControllerBase::BuildFeatureYson, Unretained(this)));
 
-    if (!DebugTransaction) {
-        return;
-    }
-
     auto proxy = CreateObjectServiceWriteProxy(Host->GetClient());
 
+    // TODO(YT-19713): write it to archive directly.
     auto path = GetOperationPath(OperationId) + "/@controller_features";
     auto req = TYPathProxy::Set(path);
-    SetTransactionId(req, DebugTransaction->GetId());
     auto featureYson = BuildYsonStringFluently().Do(
         BIND(&TOperationControllerBase::BuildFeatureYson, Unretained(this)));
     ValidateYson(featureYson, GetYsonNestingLevelLimit());
@@ -8353,6 +8361,7 @@ bool TOperationControllerBase::HasEnoughChunkLists(bool isWritingStderrTable, bo
         if (CoreTable_ && !isWritingCoreTable && CoreTable_->ExternalCellTag == cellTag) {
             --count;
         }
+        YT_VERIFY(DebugChunkListPool_);
         if (count > 0 && !DebugChunkListPool_->HasEnough(cellTag, count)) {
             result = false;
         }
@@ -8367,6 +8376,7 @@ TChunkListId TOperationControllerBase::ExtractOutputChunkList(TCellTag cellTag)
 
 TChunkListId TOperationControllerBase::ExtractDebugChunkList(TCellTag cellTag)
 {
+    YT_VERIFY(DebugChunkListPool_);
     return DebugChunkListPool_->Extract(cellTag);
 }
 
@@ -9369,7 +9379,13 @@ void TOperationControllerBase::InitUserJobSpec(
 {
     VERIFY_INVOKER_AFFINITY(JobSpecBuildInvoker_);
 
-    ToProto(jobSpec->mutable_debug_output_transaction_id(), DebugTransaction->GetId());
+    ToProto(
+        jobSpec->mutable_debug_transaction_id(),
+        DebugTransaction ? DebugTransaction->GetId() : NullTransactionId);
+
+    ToProto(
+        jobSpec->mutable_input_transaction_id(),
+        InputTransaction ? InputTransaction->GetId() : NullTransactionId);
 
     jobSpec->set_memory_reserve(joblet->UserJobMemoryReserve);
     jobSpec->set_job_proxy_memory_reserve(

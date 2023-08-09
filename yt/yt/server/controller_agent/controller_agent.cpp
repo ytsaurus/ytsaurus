@@ -27,6 +27,8 @@
 
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
+#include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
+
 #include <yt/yt/ytlib/chunk_client/throttler_manager.h>
 #include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
 
@@ -1212,6 +1214,7 @@ private:
             OnConnecting();
             SyncClusterDirectory();
             SyncMediumDirectory();
+            SyncMasterCellDirectory();
             UpdateConfig();
             PerformHandshake();
             FetchOperationsEffectiveAcl();
@@ -1279,6 +1282,20 @@ private:
             .ThrowOnError();
 
         YT_LOG_INFO("Medium directory received");
+    }
+
+    void SyncMasterCellDirectory()
+    {
+        YT_LOG_INFO("Syncing master cell directory");
+
+        WaitForFast(Bootstrap_
+            ->GetClient()
+            ->GetNativeConnection()
+            ->GetMasterCellDirectorySynchronizer()
+            ->NextSync(/*force*/ true))
+            .ThrowOnError();
+
+        YT_LOG_INFO("Master cell directory synced");
     }
 
     void UpdateConfig()

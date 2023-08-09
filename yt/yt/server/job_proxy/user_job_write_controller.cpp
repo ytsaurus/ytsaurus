@@ -259,7 +259,7 @@ void TUserJobWriteController::Init()
         auto stderrTableWriterConfig = ConvertTo<TBlobTableWriterConfigPtr>(
             TYsonString(stderrTableSpec.blob_table_writer_config()));
 
-        auto debugTransactionId = FromProto<TTransactionId>(jobSpecExt.user_job_spec().debug_output_transaction_id());
+        auto debugTransactionId = FromProto<TTransactionId>(jobSpecExt.user_job_spec().debug_transaction_id());
 
         StderrTableWriter_.reset(
             new NTableClient::TBlobTableWriter(

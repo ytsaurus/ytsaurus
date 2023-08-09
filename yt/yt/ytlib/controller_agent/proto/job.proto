@@ -172,8 +172,11 @@ message TUserJobSpec
     // Memory size reserved at job launch, in bytes.
     required int64 memory_reserve = 9;
 
-    // Transaction for creating stderr chunks and input contexts.
-    required NYT.NProto.TGuid debug_output_transaction_id = 8;
+    // Transaction for creating chunks for stderr and core tables.
+    required NYT.NProto.TGuid debug_transaction_id = 8;
+    
+    // Transaction for creating job input context.
+    optional NYT.NProto.TGuid input_transaction_id = 68;
 
     optional bool use_yamr_descriptors = 10 [default = false];
 
