@@ -74,6 +74,15 @@ public:
         Value_.Length = 0;
     }
 
+    //! Provides mutable access to the string data.
+    char* GetMutableString()
+    {
+        YT_VERIFY(IsStringLikeType(Value_.Type));
+        // NB: it is correct to use `const_cast` here to modify the stored string
+        // because initially it's allocated as a non-const `char*`.
+        return const_cast<char*>(Value_.Data.String);
+    }
+
 private:
     TUnversionedValue Value_{
         .Id = 0,

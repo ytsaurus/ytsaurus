@@ -11,6 +11,8 @@
 namespace NYT::NTableClient {
 namespace {
 
+////////////////////////////////////////////////////////////////////////////////
+
 std::vector<TUnversionedRow> CaptureRows(TRowBufferPtr rowBuffer, const std::vector<std::vector<TUnversionedValue>>& rows)
 {
     std::vector<TUnversionedRow> result(rows.size());
@@ -20,10 +22,12 @@ std::vector<TUnversionedRow> CaptureRows(TRowBufferPtr rowBuffer, const std::vec
     return result;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TEST(TUpdateColumnarStatisticsTest, EmptyStruct)
 {
     auto rowBuffer = New<TRowBuffer>();
-    std::vector<TUnversionedRow> rows = CaptureRows(rowBuffer, {
+    auto rows = CaptureRows(rowBuffer, {
         {
             MakeUnversionedInt64Value(12, 0),
             MakeUnversionedStringValue("buzz", 1),
@@ -41,7 +45,7 @@ TEST(TUpdateColumnarStatisticsTest, EmptyStruct)
         },
     });
 
-    TColumnarStatistics statistics = TColumnarStatistics::MakeEmpty(3);
+    auto statistics = TColumnarStatistics::MakeEmpty(3);
     statistics.Update(rows);
 
     TColumnarStatistics expected{
@@ -85,7 +89,7 @@ TEST(TUpdateColumnarStatisticsTest, InitializedStruct)
     };
 
     auto rowBuffer = New<TRowBuffer>();
-    std::vector<TUnversionedRow> rows = CaptureRows(rowBuffer, {
+    auto rows = CaptureRows(rowBuffer, {
         {
             MakeUnversionedUint64Value(2, 0),
             MakeUnversionedStringValue("blabla", 1),
@@ -126,7 +130,7 @@ TEST(TUpdateColumnarStatisticsTest, InitializedStruct)
 TEST(TUpdateColumnarStatisticsTest, DefaultStruct)
 {
     auto rowBuffer = New<TRowBuffer>();
-    std::vector<TUnversionedRow> rows = CaptureRows(rowBuffer, {
+    auto rows = CaptureRows(rowBuffer, {
         {
             MakeUnversionedInt64Value(12, 0),
             MakeUnversionedStringValue("buzz", 1),
@@ -159,7 +163,7 @@ TEST(TUpdateColumnarStatisticsTest, DefaultStruct)
 TEST(TUpdateColumnarStatisticsTest, StructSizeLessThanRowSize)
 {
     auto rowBuffer = New<TRowBuffer>();
-    std::vector<TUnversionedRow> rows = CaptureRows(rowBuffer, {
+    auto rows = CaptureRows(rowBuffer, {
         {
             MakeUnversionedInt64Value(12, 0),
             MakeUnversionedStringValue("buzz", 1),
@@ -167,7 +171,7 @@ TEST(TUpdateColumnarStatisticsTest, StructSizeLessThanRowSize)
         },
     });
 
-    TColumnarStatistics statistics = TColumnarStatistics::MakeEmpty(1);
+    auto statistics = TColumnarStatistics::MakeEmpty(1);
     statistics.Update(rows);
 
     TColumnarStatistics expected{
@@ -192,7 +196,7 @@ TEST(TUpdateColumnarStatisticsTest, StructSizeLessThanRowSize)
 TEST(TUpdateColumnarStatisticsTest, NoValueStatistics)
 {
     auto rowBuffer = New<TRowBuffer>();
-    std::vector<TUnversionedRow> rows = CaptureRows(rowBuffer, {
+    auto rows = CaptureRows(rowBuffer, {
         {
             MakeUnversionedInt64Value(12, 0),
             MakeUnversionedStringValue("buzz", 1),
@@ -200,7 +204,7 @@ TEST(TUpdateColumnarStatisticsTest, NoValueStatistics)
         },
     });
 
-    TColumnarStatistics statistics = TColumnarStatistics::MakeEmpty(3, /*hasValueStatistics*/ false);
+    auto statistics = TColumnarStatistics::MakeEmpty(3, /*hasValueStatistics*/ false);
     statistics.Update(rows);
 
     TColumnarStatistics expected{
@@ -217,7 +221,7 @@ TEST(TUpdateColumnarStatisticsTest, NoValueStatistics)
 TEST(TUpdateColumnarStatisticsTest, LegacyStruct)
 {
     auto rowBuffer = New<TRowBuffer>();
-    std::vector<TUnversionedRow> rows = CaptureRows(rowBuffer, {
+    auto rows = CaptureRows(rowBuffer, {
         {
             MakeUnversionedInt64Value(12, 0),
             MakeUnversionedStringValue("buzz", 1),
@@ -225,7 +229,7 @@ TEST(TUpdateColumnarStatisticsTest, LegacyStruct)
         },
     });
 
-    TColumnarStatistics statistics = TColumnarStatistics::MakeLegacy(3, 82, 2);
+    auto statistics = TColumnarStatistics::MakeLegacy(3, 82, 2);
     statistics.Update(rows);
 
     TColumnarStatistics expected{
@@ -245,13 +249,13 @@ TEST(TUpdateColumnarStatisticsTest, CheckStringApproximation)
     constexpr int MaxStringValueLength = 100;
 
     auto rowBuffer = New<TRowBuffer>();
-    std::vector<TUnversionedRow> rows = CaptureRows(rowBuffer, {
+    auto rows = CaptureRows(rowBuffer, {
         {MakeUnversionedStringValue(std::string(MaxStringValueLength + 1, 'c'))},
         {MakeUnversionedStringValue("cb")},
         {MakeUnversionedStringValue(std::string(70, 'a') + std::string(MaxStringValueLength - 70 + 1, 'x'))},
     });
 
-    TColumnarStatistics statistics = TColumnarStatistics::MakeEmpty(1);
+    auto statistics = TColumnarStatistics::MakeEmpty(1);
     statistics.Update(rows);
 
     std::vector<TUnversionedOwningValue> expectedColumnMinValues =
@@ -265,16 +269,16 @@ TEST(TUpdateColumnarStatisticsTest, CheckStringApproximation)
 TEST(TUpdateColumnarStatisticsTest, NullColumn)
 {
     auto rowBuffer = New<TRowBuffer>();
-    std::vector<TUnversionedRow> rows = CaptureRows(rowBuffer, {
+    auto rows = CaptureRows(rowBuffer, {
         {MakeUnversionedNullValue()},
         {MakeUnversionedNullValue()},
         {MakeUnversionedNullValue()},
     });
 
-    TColumnarStatistics statistics = TColumnarStatistics::MakeEmpty(1);
+    auto statistics = TColumnarStatistics::MakeEmpty(1);
     statistics.Update(rows);
 
-    TColumnarStatistics expected = TColumnarStatistics::MakeEmpty(1);
+    auto expected = TColumnarStatistics::MakeEmpty(1);
     expected.ChunkRowCount = 3;
     expected.LegacyChunkRowCount = 0;
     EXPECT_EQ(statistics, expected);
@@ -283,13 +287,13 @@ TEST(TUpdateColumnarStatisticsTest, NullColumn)
 TEST(TUpdateColumnarStatisticsTest, DifferentTypesInOneColumn)
 {
     auto rowBuffer = New<TRowBuffer>();
-    std::vector<TUnversionedRow> rows = CaptureRows(rowBuffer, {
+    auto rows = CaptureRows(rowBuffer, {
         {MakeUnversionedInt64Value(1000)},
         {MakeUnversionedStringValue("chyt")},
         {MakeUnversionedBooleanValue(true)},
     });
 
-    TColumnarStatistics statistics = TColumnarStatistics::MakeEmpty(1);
+    auto statistics = TColumnarStatistics::MakeEmpty(1);
     statistics.Update(rows);
 
     TColumnarStatistics expected{
@@ -320,7 +324,7 @@ TEST(TUpdateColumnarStatisticsTest, VersionedRow)
     builder.AddValue(MakeVersionedInt64Value(143, 11, 2));
     rows.emplace_back(builder.FinishRow());
 
-    TColumnarStatistics statistics = TColumnarStatistics::MakeEmpty(3);
+    auto statistics = TColumnarStatistics::MakeEmpty(3);
     statistics.Update(rows);
 
     TColumnarStatistics expected{
@@ -343,9 +347,11 @@ TEST(TUpdateColumnarStatisticsTest, VersionedRow)
     EXPECT_EQ(statistics, expected);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TEST(TMergeColumnarStatisticsTest, EmptyAndNonEmpty)
 {
-    TColumnarStatistics lhs = TColumnarStatistics::MakeEmpty(4);
+    auto lhs = TColumnarStatistics::MakeEmpty(4);
     TColumnarStatistics rhs{
         .ColumnDataWeights = {40, 80, 400, 128},
         .ColumnMinValues = {
@@ -388,8 +394,8 @@ TEST(TMergeColumnarStatisticsTest, NonEmptyAndEmpty)
         .ChunkRowCount = 50,
         .LegacyChunkRowCount = 5,
     };
-    TColumnarStatistics rhs = TColumnarStatistics::MakeEmpty(4);
-    TColumnarStatistics oldLhs = lhs;
+    auto rhs = TColumnarStatistics::MakeEmpty(4);
+    auto oldLhs = lhs;
     lhs += rhs;
     EXPECT_EQ(lhs, oldLhs);
 }
@@ -516,7 +522,7 @@ TEST(TMergeColumnarStatisticsTest, NoValueStatistics)
         .ChunkRowCount = 8,
     };
 
-    TColumnarStatistics rhs = TColumnarStatistics::MakeEmpty(1, /*hasValueStatistics*/ false);
+    auto rhs = TColumnarStatistics::MakeEmpty(1, /*hasValueStatistics*/ false);
 
     lhs += rhs;
 
@@ -541,7 +547,7 @@ TEST(TMergeColumnarStatisticsTest, LegacyStruct)
         .ChunkRowCount = 8,
     };
 
-    TColumnarStatistics rhs = TColumnarStatistics::MakeLegacy(1, 178, 3);
+    auto rhs = TColumnarStatistics::MakeLegacy(1, 178, 3);
 
     lhs += rhs;
 
@@ -556,6 +562,8 @@ TEST(TMergeColumnarStatisticsTest, LegacyStruct)
     };
     EXPECT_EQ(lhs, expected);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 TEST(TColumnarStatisticsColumnSelectionTest, ColumnSelect)
 {
@@ -583,7 +591,7 @@ TEST(TColumnarStatisticsColumnSelectionTest, ColumnSelect)
         .ChunkRowCount = 10,
         .LegacyChunkRowCount = 2,
     };
-    TNameTablePtr nameTable = TNameTable::FromKeyColumns({"buzz", "off", "taken", "sec", "list", "size", "friend"});
+    auto nameTable = TNameTable::FromKeyColumns({"buzz", "off", "taken", "sec", "list", "size", "friend"});
     std::vector<TStableName> stableNames = {
         TStableName("friend"),
         TStableName("taken"),
@@ -593,7 +601,7 @@ TEST(TColumnarStatisticsColumnSelectionTest, ColumnSelect)
         TStableName("bar"),
     };
 
-    TColumnarStatistics selectedStatistics = statistics.SelectByColumnNames(nameTable, stableNames);
+    auto selectedStatistics = statistics.SelectByColumnNames(nameTable, stableNames);
 
     TColumnarStatistics expected{
         .ColumnDataWeights = {0, 10, 64, 0, 100, 0},
@@ -619,6 +627,8 @@ TEST(TColumnarStatisticsColumnSelectionTest, ColumnSelect)
     };
     EXPECT_EQ(selectedStatistics, expected);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 } // namespace NYT::NTableClient

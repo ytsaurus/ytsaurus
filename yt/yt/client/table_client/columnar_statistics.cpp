@@ -30,7 +30,7 @@ TNamedColumnarStatistics& TNamedColumnarStatistics::operator+=(const TNamedColum
 namespace {
 
 constexpr size_t MaxStringValueLength = 100;
-constexpr TUnversionedValue NullUnversionedValue = MakeNullValue<TUnversionedValue>();
+constexpr auto NullUnversionedValue = MakeNullValue<TUnversionedValue>();
 
 //! Approximates long string values with shorter but lexicographically less ones. Other values are intact.
 TUnversionedOwningValue ApproximateMinValue(TUnversionedValue value)
@@ -52,21 +52,22 @@ TUnversionedOwningValue ApproximateMaxValue(TUnversionedValue value)
         return value;
     }
 
-    TString truncatedString(value.AsStringBuf().SubString(0, MaxStringValueLength));
+    const char MaxChar = std::numeric_limits<unsigned char>::max();
+    auto truncatedStringBuf = value.AsStringBuf().SubString(0, MaxStringValueLength);
 
-    while (!truncatedString.Empty()) {
-        if (static_cast<unsigned char>(truncatedString.back()) != std::numeric_limits<unsigned char>::max()) {
-            truncatedString.back() = static_cast<unsigned char>(truncatedString.back()) + 1;
-            break;
-        }
-        truncatedString.pop_back();
+    while (!truncatedStringBuf.empty() && truncatedStringBuf.back() == MaxChar) {
+        truncatedStringBuf.remove_suffix(1);
     }
 
-    if (truncatedString.Empty()) {
+    if (truncatedStringBuf.empty()) {
         // String was larger than any possible approximation.
         return MakeSentinelValue<TUnversionedValue>(EValueType::Max);
     } else {
-        return MakeUnversionedStringValue(truncatedString);
+        TUnversionedOwningValue result = MakeUnversionedStringValue(truncatedStringBuf);
+        char* mutableString = result.GetMutableString();
+        int lastIndex = truncatedStringBuf.size() - 1;
+        mutableString[lastIndex] = static_cast<unsigned char>(mutableString[lastIndex]) + 1;
+        return result;
     }
 }
 
@@ -79,7 +80,7 @@ void UpdateColumnarStatistics(TColumnarStatistics& statistics, TRange<TRow> rows
             maxId = std::max<int>(maxId, value.Id);
         }
     }
-    if (maxId >= statistics.Size()) {
+    if (maxId >= statistics.GetColumnCount()) {
         statistics.Resize(maxId + 1);
     }
 
@@ -140,13 +141,13 @@ void UpdateColumnarStatistics(TColumnarStatistics& statistics, TRange<TRow> rows
 
 TColumnarStatistics& TColumnarStatistics::operator+=(const TColumnarStatistics& other)
 {
-    if (Size() == 0) {
-        Resize(other.Size(), other.HasValueStatistics());
+    if (GetColumnCount() == 0) {
+        Resize(other.GetColumnCount(), other.HasValueStatistics());
     }
 
-    YT_VERIFY(Size() == other.Size());
+    YT_VERIFY(GetColumnCount() == other.GetColumnCount());
 
-    for (int index = 0; index < Size(); ++index) {
+    for (int index = 0; index < GetColumnCount(); ++index) {
         ColumnDataWeights[index] += other.ColumnDataWeights[index];
     }
     if (other.TimestampTotalWeight) {
@@ -168,7 +169,7 @@ TColumnarStatistics& TColumnarStatistics::operator+=(const TColumnarStatistics& 
     if (!other.HasValueStatistics()) {
         ClearValueStatistics();
     } else if (HasValueStatistics()) {
-        for (int index = 0; index < Size(); ++index) {
+        for (int index = 0; index < GetColumnCount(); ++index) {
 
             if (other.ColumnMinValues[index] != NullUnversionedValue &&
                 (ColumnMinValues[index] == NullUnversionedValue || ColumnMinValues[index] > other.ColumnMinValues[index]))
@@ -230,7 +231,7 @@ bool TColumnarStatistics::HasValueStatistics() const
     YT_VERIFY(ColumnMinValues.size() == ColumnMaxValues.size());
     YT_VERIFY(ColumnMinValues.size() == ColumnNonNullValueCounts.size());
 
-    return Size() == 0 || !ColumnMinValues.empty();
+    return GetColumnCount() == 0 || !ColumnMinValues.empty();
 }
 
 void TColumnarStatistics::ClearValueStatistics()
@@ -240,7 +241,7 @@ void TColumnarStatistics::ClearValueStatistics()
     ColumnNonNullValueCounts.clear();
 }
 
-int TColumnarStatistics::Size() const
+int TColumnarStatistics::GetColumnCount() const
 {
     return ColumnDataWeights.size();
 }
@@ -297,10 +298,10 @@ void TColumnarStatistics::Update(TRange<TVersionedRow> rows)
 
 TColumnarStatistics TColumnarStatistics::SelectByColumnNames(const TNameTablePtr& nameTable, const std::vector<TStableName>& columnStableNames) const
 {
-    TColumnarStatistics result = MakeEmpty(columnStableNames.size(), HasValueStatistics());
+    auto result = MakeEmpty(columnStableNames.size(), HasValueStatistics());
 
     for (const auto& [columnIndex, columnName] : Enumerate(columnStableNames)) {
-        if (auto id = nameTable->FindId(columnName.Get()); id && *id < Size()) {
+        if (auto id = nameTable->FindId(columnName.Get()); id && *id < GetColumnCount()) {
 
             result.ColumnDataWeights[columnIndex] = ColumnDataWeights[*id];
 

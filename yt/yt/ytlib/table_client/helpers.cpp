@@ -574,7 +574,7 @@ NProto::THeavyColumnStatisticsExt GetHeavyColumnStatisticsExt(
     int columnCount,
     int maxHeavyColumns)
 {
-    YT_VERIFY(columnCount == columnarStatistics.Size());
+    YT_VERIFY(columnCount == columnarStatistics.GetColumnCount());
 
     // Column weights here are measured in units, which are equal to 1/255 of the weight
     // of heaviest column.

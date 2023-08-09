@@ -258,13 +258,14 @@ std::vector<TUnversionedRow> CreateFilteredRangedRows(
 
 void PrintTo(const TColumnarStatistics& statistics, std::ostream* os)
 {
-    *os << "ColumnDataWeights: "
+    *os
+        << "ColumnDataWeights: "
         << ::testing::PrintToString(statistics.ColumnDataWeights) << "\n"
         << "TimestampTotalWeight: "
         << ::testing::PrintToString(statistics.TimestampTotalWeight) << "\n"
         << "LegacyChunkDataWeight: "
         << ::testing::PrintToString(statistics.LegacyChunkDataWeight) << "\n"
-        << "ColumnMinValue: "
+        << "ColumnMinValues: "
         << ::testing::PrintToString(statistics.ColumnMinValues) << "\n"
         << "ColumnMaxValues: "
         << ::testing::PrintToString(statistics.ColumnMaxValues) << "\n"

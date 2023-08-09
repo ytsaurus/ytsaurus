@@ -283,14 +283,14 @@ void TMetaAggregatingWriter::AbsorbMeta(const TDeferredChunkMetaPtr& meta, TChun
             // First meta.
             ColumnarStatistics_ = std::move(chunkColumnarStatistics);
         } else {
-            if (ColumnarStatistics_->Size() != chunkColumnarStatistics.Size()) {
+            if (ColumnarStatistics_->GetColumnCount() != chunkColumnarStatistics.GetColumnCount()) {
                 THROW_ERROR_EXCEPTION(
                     EErrorCode::IncompatibleChunkMetas,
                     "Sizes of columnar statistics differ in chunks %v and %v",
                     FirstChunkId_,
                     chunkId)
-                    << TErrorAttribute("previous", ColumnarStatistics_->Size())
-                    << TErrorAttribute("current", chunkColumnarStatistics.Size());
+                    << TErrorAttribute("previous", ColumnarStatistics_->GetColumnCount())
+                    << TErrorAttribute("current", chunkColumnarStatistics.GetColumnCount());
             }
             *ColumnarStatistics_ += chunkColumnarStatistics;
         }

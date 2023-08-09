@@ -80,8 +80,7 @@ struct TColumnarStatistics
     //! Clears minimum, maximum, and non-null value statistics.
     void ClearValueStatistics();
 
-    //! Returns column count in statistics.
-    int Size() const;
+    int GetColumnCount() const;
 
     void Resize(int columnCount, bool keepValueStatistics = true);
 
