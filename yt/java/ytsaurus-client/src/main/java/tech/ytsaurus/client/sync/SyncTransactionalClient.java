@@ -2,6 +2,13 @@ package tech.ytsaurus.client.sync;
 
 import java.util.List;
 
+import tech.ytsaurus.client.operations.MapReduceSpec;
+import tech.ytsaurus.client.operations.MapSpec;
+import tech.ytsaurus.client.operations.MergeSpec;
+import tech.ytsaurus.client.operations.ReduceSpec;
+import tech.ytsaurus.client.operations.RemoteCopySpec;
+import tech.ytsaurus.client.operations.SortSpec;
+import tech.ytsaurus.client.operations.VanillaSpec;
 import tech.ytsaurus.client.request.AbstractLookupRowsRequest;
 import tech.ytsaurus.client.request.CheckPermission;
 import tech.ytsaurus.client.request.ConcatenateNodes;
@@ -71,24 +78,131 @@ public interface SyncTransactionalClient {
             YTreeRowSerializer<T> serializer
     );
 
+    /**
+     * Run map operation. Wait for its completion and check status.
+     * <p>
+     *     This method provides more possibilities for fine-tuning compared to
+     *     {@link #map(MapSpec)}.
+     */
     SyncOperation map(MapOperation req);
 
-    SyncOperation reduce(ReduceOperation req);
+    /** Run reduce operation. Wait for its completion and check status.
+     * <p>
+     *     {@link #map(MapOperation)} provides more possibilities for fine-tuning.
+     */
+    default SyncOperation map(MapSpec spec) {
+        return map(MapOperation.builder()
+                .setSpec(spec)
+                .build());
+    }
 
     /**
-     * Run map-reduce operation. Wait for its completion.
-     * @param req mapreduce operation spec.
-     * @return operation object.
+     * Run reduce operation. Wait for its completion and check status.
+     * <p>
+     *     This method provides more possibilities for fine-tuning compared to
+     *     {@link #reduce(ReduceSpec)}.
+     */
+    SyncOperation reduce(ReduceOperation req);
+
+    /** Run reduce operation. Wait for its completion and check status.
+     * <p>
+     *     {@link #reduce(ReduceOperation)} provides more possibilities for fine-tuning.
+     */
+    default SyncOperation reduce(ReduceSpec spec) {
+        return reduce(ReduceOperation.builder()
+                .setSpec(spec)
+                .build());
+    }
+
+    /**
+     * Run map-reduce operation. Wait for its completion and check status.
+     * <p>
+     *     This method provides more possibilities for fine-tuning compared to
+     *     {@link #mapReduce(MapReduceSpec)}.
      */
     SyncOperation mapReduce(MapReduceOperation req);
 
+    /** Run map-reduce operation. Wait for its completion and check status.
+     * <p>
+     *     {@link #mapReduce(MapReduceOperation)} provides more possibilities for fine-tuning.
+     */
+    default SyncOperation mapReduce(MapReduceSpec spec) {
+        return mapReduce(MapReduceOperation.builder()
+                .setSpec(spec)
+                .build());
+    }
+
+    /**
+     * Run merge operation. Wait for its completion and check status.
+     * <p>
+     *     This method provides more possibilities for fine-tuning compared to
+     *     {@link #merge(MergeSpec)}.
+     */
     SyncOperation merge(MergeOperation req);
 
+    /** Run merge operation. Wait for its completion and check status.
+     * <p>
+     *     {@link #merge(MergeOperation)} provides more possibilities for fine-tuning.
+     */
+    default SyncOperation merge(MergeSpec spec) {
+        return merge(MergeOperation.builder()
+                .setSpec(spec)
+                .build());
+    }
+
+    /**
+     * Run sort operation. Wait for its completion and check status.
+     * <p>
+     *     This method provides more possibilities for fine-tuning compared to
+     *     {@link #sort(SortSpec)}.
+     */
     SyncOperation sort(SortOperation req);
 
+    /** Run sort operation. Wait for its completion and check status.
+     * <p>
+     *     {@link #sort(SortOperation)} provides more possibilities for fine-tuning.
+     */
+    default SyncOperation sort(SortSpec spec) {
+        return sort(SortOperation.builder()
+                .setSpec(spec)
+                .build());
+    }
+
+    /**
+     * Run vanilla operation. Wait for its completion and check status.
+     * <p>
+     *     This method provides more possibilities for fine-tuning compared to
+     *     {@link #vanilla(VanillaSpec)}.
+     */
     SyncOperation vanilla(VanillaOperation req);
 
+    /** Run vanilla operation. Wait for its completion and check status.
+     * <p>
+     *     {@link #vanilla(VanillaOperation)} provides more possibilities for fine-tuning.
+     */
+    default SyncOperation vanilla(VanillaSpec spec) {
+        return vanilla(VanillaOperation.builder()
+                .setSpec(spec)
+                .build());
+    }
+
+    /**
+     * Run remote-copy operation. Wait for its completion and check status.
+     * <p>
+     *     This method provides more possibilities for fine-tuning compared to
+     *     {@link #remoteCopy(RemoteCopySpec)}.
+     */
     SyncOperation remoteCopy(RemoteCopyOperation req);
+
+    /** Run remote-copy operation. Wait for its completion and check status.
+     * <p>
+     *     {@link #remoteCopy(RemoteCopyOperation)} provides more possibilities for fine-tuning.
+     */
+    default SyncOperation remoteCopy(RemoteCopySpec spec) {
+        return remoteCopy(RemoteCopyOperation.builder()
+                .setSpec(spec)
+                .build());
+    }
 
     SyncOperation startMap(MapOperation req);
 
