@@ -3321,7 +3321,7 @@ void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jo
 
 void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->JobEventsControllerQueue));
+    VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
 
     auto jobId = jobSummary->Id;
     auto abortReason = jobSummary->AbortReason;
@@ -5048,7 +5048,9 @@ void TOperationControllerBase::OnOperationTimeLimitExceeded()
     auto error = GetTimeLimitError();
 
     bool hasJobsToFail = false;
-    for (const auto& [jobId, joblet] : JobletMap) {
+
+    auto jobletMapCopy = JobletMap;
+    for (const auto& [jobId, joblet] : jobletMapCopy) {
         switch (joblet->JobType) {
             // TODO(ignat): YT-11247, add helper with list of job types with user code.
             case EJobType::Map:
