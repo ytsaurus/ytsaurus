@@ -204,6 +204,7 @@ def get_compact_vector_elements(compact_vector):
 
 def find_trace_context():
     frame = gdb.selected_frame()
+    prev = frame
     thread = gdb.selected_thread()
     try:
         # For some reason it's faster to get full backtrace and check if frame present by hand
@@ -216,8 +217,10 @@ def find_trace_context():
         # In release build it's likely to be right on top of RunInFiberContext due to inlining.
         # In debug build we need to skip TCallback::operator().
         frame = gdb.selected_frame().newer()
-        for _ in range(2):
-            if frame is None:
+        trace_context = None
+        i = 0
+        while True:
+            if not frame:
                 break
             frame.select()
             try:
@@ -225,21 +228,21 @@ def find_trace_context():
                 if not is_null:
                     thread.switch()
                     frame.select()
-                    return gdb.parse_and_eval('{NYT::NTracing::TTraceContext} NYT::NTracing::TryGetTraceContextFromPropagatingStorage(unoptimizedState->Storage_)')
+                    trace_context = gdb.parse_and_eval('{NYT::NTracing::TTraceContext} NYT::NTracing::TryGetTraceContextFromPropagatingStorage(unoptimizedState->Storage_)')
                 else:
-                    gdb.write('Trace context is null\n')
-                    return None
+                    gdb.write(f'Trace context at frame[{i}] is null\n')
             except gdb.error:
                 pass
+            prev = frame
             frame = frame.newer()
-        return None
+            i += 1
     except gdb.error as e:
         gdb.write('GDB error: {}\n'.format(e))
         pass
     finally:
         thread.switch()
-        frame.select()
-    return None
+        prev.select()
+    return trace_context
 
 
 class PrintFibersCommand(gdb.Command):
