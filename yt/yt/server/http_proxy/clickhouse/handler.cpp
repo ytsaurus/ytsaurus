@@ -650,6 +650,9 @@ private:
             auto discoveryV2 = CreateDiscoveryV2();
             auto discoveryV2Future = discoveryV2->UpdateList().Apply(BIND([discovery = std::move(discoveryV2)] { return discovery; }));
             futures.emplace_back(std::move(discoveryV2Future));
+        } else {
+            YT_LOG_DEBUG("Skipping discovery v2 because of missing discovery connection config (ClusterConnection: %v)",
+                ConvertToYsonString(Bootstrap_->GetNativeConnection()->GetConfig(), EYsonFormat::Text).ToString());
         }
 
         auto valueOrError = WaitFor(AnySucceeded(futures));
