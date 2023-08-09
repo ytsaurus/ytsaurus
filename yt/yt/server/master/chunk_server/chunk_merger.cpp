@@ -549,7 +549,7 @@ private:
             ChunkIds_.push_back(chunk->GetId());
             return true;
         } else {
-            YT_LOG_DEBUG("Cannot add chunk to merje job due to limits violation (NodeId: %v, "
+            YT_LOG_DEBUG("Cannot add chunk to merge job due to limits violation (NodeId: %v, "
                 "CurrentRowCount: %v, ChunkRowCount: %v, MaxRowCount: %v, "
                 "CurrentDataWeight: %v, ChunkDataWeight: %v, MaxDataWeight: %v, MaxInputChunkDataWeight: %v, "
                 "CurrentCompressedDataSize: %v, ChunkCompressedDataSize: %v, MaxCompressedDataSize: %v, "
