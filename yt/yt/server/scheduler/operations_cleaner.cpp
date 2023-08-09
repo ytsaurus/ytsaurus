@@ -1096,12 +1096,6 @@ private:
                 return true;
             }
 
-            if (!NControllerAgent::IsOperationWithUserJobs(request.OperationType) &&
-                request.State == EOperationState::Completed)
-            {
-                return true;
-            }
-
             if (operationCountPerUser[request.AuthenticatedUser] >= Config_->MaxOperationCountPerUser) {
                 return true;
             }
