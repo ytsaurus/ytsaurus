@@ -599,7 +599,7 @@ class YTEnvSetup(object):
                 attributes={
                     "dynamic": True,
                     "schema": [
-                        {"name": "id_hash", "type": "uint64", "sort_order": "ascending"},
+                        {"name": "id_hash", "type": "uint32", "sort_order": "ascending"},
                         {"name": "id", "type": "string", "sort_order": "ascending"},
                         {"name": "misc_ext", "type": "string"},
                         {"name": "hunk_chunk_refs_ext", "type": "string"},
@@ -625,6 +625,40 @@ class YTEnvSetup(object):
                     "account": "sequoia",
                 })
             yt_commands.sync_mount_table("//sys/sequoia/resolve_node")
+
+            yt_commands.create(
+                "table",
+                "//sys/sequoia/chunk_replicas",
+                attributes={
+                    "dynamic": True,
+                    "schema": [
+                        {"name": "id_hash", "type": "uint32", "sort_order": "ascending"},
+                        {"name": "chunk_id", "type": "string", "sort_order": "ascending"},
+                        {"name": "location_uuid", "type": "string", "sort_order": "ascending"},
+                        {"name": "replica_index", "type": "int32", "sort_order": "ascending"},
+                        {"name": "node_id", "type": "uint32"},
+                    ],
+                    "tablet_cell_bundle": "sequoia",
+                    "account": "sequoia",
+                })
+            yt_commands.sync_mount_table("//sys/sequoia/chunk_replicas")
+
+            yt_commands.create(
+                "table",
+                "//sys/sequoia/location_replicas",
+                attributes={
+                    "dynamic": True,
+                    "schema": [
+                        {"name": "node_id", "type": "uint32", "sort_order": "ascending"},
+                        {"name": "id_hash", "type": "uint32", "sort_order": "ascending"},
+                        {"name": "location_uuid", "type": "string", "sort_order": "ascending"},
+                        {"name": "chunk_id", "type": "string"},
+                        {"name": "replica_index", "type": "int32"},
+                    ],
+                    "tablet_cell_bundle": "sequoia",
+                    "account": "sequoia",
+                })
+            yt_commands.sync_mount_table("//sys/sequoia/location_replicas")
 
         if cls.USE_DYNAMIC_TABLES:
             for cluster_index in range(cls.NUM_REMOTE_CLUSTERS + 1):

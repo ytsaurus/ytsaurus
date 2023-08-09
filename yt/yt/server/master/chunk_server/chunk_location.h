@@ -27,6 +27,7 @@ private:
 
 public:
     DEFINE_BYVAL_RW_PROPERTY(TNode*, Node);
+    DEFINE_BYVAL_RW_PROPERTY(bool, BeingDisposed);
 
     // NB: Randomize replica hashing to avoid collisions during balancing.
     using TReplicaSet = THashSet<TChunkPtrWithReplicaInfo, TReplicaHasher, TReplicaEqual>;

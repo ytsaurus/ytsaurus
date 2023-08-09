@@ -9,13 +9,19 @@ namespace NYT::NSequoiaClient {
 DEFINE_ENUM(ESequoiaTable,
     (ChunkMetaExtensions)
     (ResolveNode)
+    (ChunkReplicas)
+    (LocationReplicas)
 );
 
 namespace NRecords {
 
 struct TChunkMetaExtensionsKey;
 struct TChunkMetaExtensions;
+
 struct TResolveNode;
+
+struct TChunkReplicas;
+struct TLocationReplicas;
 
 } // namespace NRecords
 

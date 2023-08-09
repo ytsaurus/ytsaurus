@@ -167,6 +167,8 @@ struct IChunkManager
     virtual bool IsSequoiaCreateChunkRequest(const NChunkClient::NProto::TReqCreateChunk& request) = 0;
     virtual bool IsSequoiaConfirmChunkRequest(const NChunkClient::NProto::TReqConfirmChunk& request) = 0;
 
+    virtual bool IsSequoiaChunkReplica(TChunkId chunkId, TChunkLocationUuid locationUuid) = 0;
+
     using TCtxJobHeartbeat = NRpc::TTypedServiceContext<
         NJobTrackerClient::NProto::TReqHeartbeat,
         NJobTrackerClient::NProto::TRspHeartbeat>;
@@ -378,6 +380,18 @@ struct IChunkManager
     virtual void DisposeLocation(NChunkServer::TChunkLocation* location) = 0;
 
     virtual void DestroyMedium(TMedium* medium) = 0;
+
+    virtual void ProcessIncrementalDataNodeHeartbeat(
+        TNode* node,
+        NDataNodeTrackerClient::NProto::TReqIncrementalHeartbeat* request,
+        NDataNodeTrackerClient::NProto::TRspIncrementalHeartbeat* response) = 0;
+    virtual void ProcessFullDataNodeHeartbeat(
+        TNode* node,
+        NDataNodeTrackerClient::NProto::TReqFullHeartbeat* request,
+        NDataNodeTrackerClient::NProto::TRspFullHeartbeat* response) = 0;
+
+    virtual TFuture<NDataNodeTrackerClient::NProto::TRspModifyReplicas> ModifySequoiaReplicas(
+        const NDataNodeTrackerClient::NProto::TReqModifyReplicas& request) = 0;
 
 private:
     friend class TChunkTypeHandler;

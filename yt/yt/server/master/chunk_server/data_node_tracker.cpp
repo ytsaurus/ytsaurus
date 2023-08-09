@@ -82,18 +82,6 @@ class TDataNodeTracker
     , public TMasterAutomatonPart
 {
 public:
-    DEFINE_SIGNAL_OVERRIDE(void(
-        TNode* node,
-        TReqFullHeartbeat* request,
-        TRspFullHeartbeat* response),
-        FullHeartbeat);
-    DEFINE_SIGNAL_OVERRIDE(void(
-        TNode* node,
-        TReqIncrementalHeartbeat* request,
-        TRspIncrementalHeartbeat* response),
-        IncrementalHeartbeat);
-
-public:
     explicit TDataNodeTracker(TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::DataNodeTracker)
     {
@@ -143,12 +131,48 @@ public:
 
     void ProcessFullHeartbeat(TCtxFullHeartbeatPtr context) override
     {
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+        auto preparedRequest = New<TFullHeartbeatRequest>();
+        const auto& originalRequest = context->Request();
+
+        preparedRequest->NonSequoiaRequest.CopyFrom(originalRequest);
+        preparedRequest->NonSequoiaRequest.mutable_chunks()->Clear();
+
+        preparedRequest->SequoiaRequest.set_node_id(originalRequest.node_id());
+        for (auto locationUuid : originalRequest.location_directory()) {
+            *preparedRequest->SequoiaRequest.add_location_directory() = locationUuid;
+        }
+
+        for (const auto& chunkInfo : originalRequest.chunks()) {
+            auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
+            auto locationIndex = chunkInfo.location_index();
+            YT_VERIFY(locationIndex < originalRequest.location_directory_size());
+            auto locationUuid = FromProto<TChunkLocationUuid>(originalRequest.location_directory()[locationIndex]);
+            if (chunkManager->IsSequoiaChunkReplica(chunkId, locationUuid)) {
+                *preparedRequest->SequoiaRequest.add_added_chunks() = chunkInfo;
+            } else {
+                *preparedRequest->NonSequoiaRequest.add_chunks() = chunkInfo;
+            }
+        }
+
+        if (preparedRequest->SequoiaRequest.removed_chunks_size() + preparedRequest->SequoiaRequest.added_chunks_size() > 0) {
+            WaitFor(chunkManager->ModifySequoiaReplicas(preparedRequest->SequoiaRequest))
+                .ThrowOnError();
+        }
+
         auto mutation = CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
-            context,
+            &preparedRequest->NonSequoiaRequest,
+            &preparedRequest->NonSequoiaResponse,
             &TDataNodeTracker::HydraFullDataNodeHeartbeat,
             this);
-        CommitMutationWithSemaphore(std::move(mutation), std::move(context), FullHeartbeatSemaphore_);
+
+        CommitMutationWithSemaphore(
+            std::move(mutation),
+            std::move(context),
+            std::move(preparedRequest),
+            FullHeartbeatSemaphore_);
     }
 
     void ProcessFullHeartbeat(
@@ -172,17 +196,66 @@ public:
             SerializeMediumOverrides(node, response->mutable_medium_overrides());
         }
 
-        FullHeartbeat_.Fire(node, request, response);
+        chunkManager->ProcessFullDataNodeHeartbeat(node, request, response);
     }
 
     void ProcessIncrementalHeartbeat(TCtxIncrementalHeartbeatPtr context) override
     {
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+        auto preparedRequest = New<TIncrementalHeartbeatRequest>();
+        const auto& originalRequest = context->Request();
+
+        preparedRequest->NonSequoiaRequest.CopyFrom(originalRequest);
+        preparedRequest->NonSequoiaRequest.mutable_added_chunks()->Clear();
+        preparedRequest->NonSequoiaRequest.mutable_removed_chunks()->Clear();
+
+        preparedRequest->SequoiaRequest.set_node_id(originalRequest.node_id());
+        for (auto locationUuid : originalRequest.location_directory()) {
+            *preparedRequest->SequoiaRequest.add_location_directory() = locationUuid;
+        }
+
+        for (const auto& chunkInfo : originalRequest.added_chunks()) {
+            auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
+            auto locationIndex = chunkInfo.location_index();
+            YT_VERIFY(locationIndex < originalRequest.location_directory_size());
+            auto locationUuid = FromProto<TChunkLocationUuid>(originalRequest.location_directory()[locationIndex]);
+            if (chunkManager->IsSequoiaChunkReplica(chunkId, locationUuid)) {
+                *preparedRequest->SequoiaRequest.add_added_chunks() = chunkInfo;
+            } else {
+                *preparedRequest->NonSequoiaRequest.add_added_chunks() = chunkInfo;
+            }
+        }
+
+        for (const auto& chunkInfo : originalRequest.removed_chunks()) {
+            auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
+            auto locationIndex = chunkInfo.location_index();
+            YT_VERIFY(locationIndex < originalRequest.location_directory_size());
+            auto locationUuid = FromProto<TChunkLocationUuid>(originalRequest.location_directory()[locationIndex]);
+            if (chunkManager->IsSequoiaChunkReplica(chunkId, locationUuid)) {
+                *preparedRequest->SequoiaRequest.add_removed_chunks() = chunkInfo;
+            } else {
+                *preparedRequest->NonSequoiaRequest.add_removed_chunks() = chunkInfo;
+            }
+        }
+
+        if (preparedRequest->SequoiaRequest.removed_chunks_size() + preparedRequest->SequoiaRequest.added_chunks_size() > 0) {
+            WaitFor(chunkManager->ModifySequoiaReplicas(preparedRequest->SequoiaRequest))
+                .ThrowOnError();
+        }
+
         auto mutation = CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
-            context,
+            &preparedRequest->NonSequoiaRequest,
+            &preparedRequest->NonSequoiaResponse,
             &TDataNodeTracker::HydraIncrementalDataNodeHeartbeat,
             this);
-        CommitMutationWithSemaphore(std::move(mutation), std::move(context), IncrementalHeartbeatSemaphore_);
+
+        CommitMutationWithSemaphore(
+            std::move(mutation),
+            std::move(context),
+            std::move(preparedRequest),
+            IncrementalHeartbeatSemaphore_);
     }
 
     void ProcessIncrementalHeartbeat(
@@ -210,7 +283,7 @@ public:
             node->SetDisableWriteSessionsSentToNode(node->AreWriteSessionsDisabled());
         }
 
-        IncrementalHeartbeat_.Fire(node, request, response);
+        chunkManager->ProcessIncrementalDataNodeHeartbeat(node, request, response);
     }
 
     void ValidateRegisterNode(
@@ -417,6 +490,26 @@ private:
 
     THashMap<TChunkLocationUuid, TError> LocationAlerts_;
 
+    struct TFullHeartbeatRequest final
+    {
+        TReqFullHeartbeat NonSequoiaRequest;
+        TRspFullHeartbeat NonSequoiaResponse;
+
+        TReqModifyReplicas SequoiaRequest;
+        TRspModifyReplicas SequoiaResponse;
+    };
+    using TFullHeartbeatRequestPtr = TIntrusivePtr<TFullHeartbeatRequest>;
+
+    struct TIncrementalHeartbeatRequest final
+    {
+        TReqIncrementalHeartbeat NonSequoiaRequest;
+        TRspIncrementalHeartbeat NonSequoiaResponse;
+
+        TReqModifyReplicas SequoiaRequest;
+        TRspModifyReplicas SequoiaResponse;
+    };
+    using TIncrementalHeartbeatRequestPtr = TIntrusivePtr<TIncrementalHeartbeatRequest>;
+
 
     TChunkLocationUuidMap& GetChunkLocationShard(TChunkLocationUuid uuid)
     {
@@ -552,9 +645,9 @@ private:
         TReqFullHeartbeat* request,
         TRspFullHeartbeat* response)
     {
-        auto nodeId = FromProto<TNodeId>(request->node_id());
-
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+
+        auto nodeId = FromProto<TNodeId>(request->node_id());
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
 
         node->ValidateRegistered();
@@ -668,9 +761,11 @@ private:
         }
     }
 
+    template <class TRequestPtr, class TContextPtr>
     void CommitMutationWithSemaphore(
         std::unique_ptr<TMutation> mutation,
-        NRpc::IServiceContextPtr context,
+        TContextPtr context,
+        TRequestPtr preparedRequest,
         const TAsyncSemaphorePtr& semaphore)
     {
         auto timeBefore = NProfiling::GetInstant();
@@ -678,14 +773,23 @@ private:
         const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
         auto expectedMutationCommitDuration = config->CellMaster->ExpectedMutationCommitDuration;
 
-        auto handler = BIND([=, mutation = std::move(mutation), context = std::move(context)] (TAsyncSemaphoreGuard) {
+        auto handler = BIND([=, mutation = std::move(mutation), context = std::move(context), preparedRequest = std::move(preparedRequest)] (TAsyncSemaphoreGuard) {
             auto requestTimeout = context->GetTimeout();
             auto timeAfter = NProfiling::GetInstant();
             if (requestTimeout && timeAfter + expectedMutationCommitDuration >= timeBefore + *requestTimeout) {
                 context->Reply(TError(NYT::EErrorCode::Timeout, "Semaphore acquisition took too long"));
-            } else {
-                Y_UNUSED(WaitFor(mutation->CommitAndReply(context)));
+                return;
             }
+
+            auto result = WaitFor(mutation->Commit());
+            if (!result.IsOK()) {
+                context->Reply(result);
+                return;
+            }
+
+            auto* response = &context->Response();
+            response->CopyFrom(std::move(preparedRequest->NonSequoiaResponse));
+            context->Reply();
         });
 
         semaphore->AsyncAcquire(handler, EpochAutomatonInvoker_);
@@ -701,7 +805,6 @@ private:
         FullHeartbeatSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentFullHeartbeats);
         IncrementalHeartbeatSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentIncrementalHeartbeats);
     }
-
 
     void Clear() override
     {
@@ -743,6 +846,27 @@ private:
         return id;
     }
 
+    void OnEpochFinished()
+    {
+        for (auto [locationId, location] : ChunkLocationMap_) {
+            location->SetBeingDisposed(false);
+        }
+    }
+
+    void OnStopLeading() override
+    {
+        TMasterAutomatonPart::OnStopLeading();
+
+        OnEpochFinished();
+    }
+
+    void OnStopFollowing() override
+    {
+        TMasterAutomatonPart::OnStopFollowing();
+
+        OnEpochFinished();
+    }
+
     void OnAfterSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
@@ -752,7 +876,6 @@ private:
         }
     }
 
-
     void OnReplicateKeysToSecondaryMaster(TCellTag cellTag)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -760,7 +883,6 @@ private:
             objectManager->ReplicateObjectCreationToSecondaryMaster(object, cellTag);
         }
     }
-
 
     void OnReplicateValuesToSecondaryMaster(TCellTag cellTag)
     {

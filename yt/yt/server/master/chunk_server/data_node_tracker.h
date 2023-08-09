@@ -25,20 +25,6 @@ using TChunkLocationUuidMap = THashMap<TChunkLocationUuid, TRealChunkLocation*>;
 struct IDataNodeTracker
     : public virtual TRefCounted
 {
-    //! Fired when a full data node heartbeat is received.
-    DECLARE_INTERFACE_SIGNAL(void(
-        TNode* node,
-        NDataNodeTrackerClient::NProto::TReqFullHeartbeat* request,
-        NDataNodeTrackerClient::NProto::TRspFullHeartbeat* response),
-        FullHeartbeat);
-
-    //! Fired when an incremental data node heartbeat is received.
-    DECLARE_INTERFACE_SIGNAL(void(
-        TNode* node,
-        NDataNodeTrackerClient::NProto::TReqIncrementalHeartbeat* request,
-        NDataNodeTrackerClient::NProto::TRspIncrementalHeartbeat* response),
-        IncrementalHeartbeat);
-
     virtual void Initialize() = 0;
 
     using TCtxFullHeartbeat = NRpc::TTypedServiceContext<

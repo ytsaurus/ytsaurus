@@ -13,12 +13,18 @@ message TReqUnregisterNode
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqDisposeNode
+message TReqDisposeLocation
+{
+    required int32 node_id = 1;
+    required int32 location_index = 2;
+}
+
+message TReqStartNodeDisposal
 {
     required int32 node_id = 1;
 }
 
-message TReqNodeDisposalTick
+message TReqFinishNodeDisposal
 {
     required int32 node_id = 1;
 }

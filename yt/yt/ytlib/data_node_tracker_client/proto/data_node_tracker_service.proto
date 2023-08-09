@@ -22,6 +22,38 @@ message TMediumOverrides
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqModifyReplicas
+{
+    required int32 node_id = 1;
+
+    repeated NChunkClient.NProto.TChunkAddInfo added_chunks = 2;
+    repeated NChunkClient.NProto.TChunkRemoveInfo removed_chunks = 3;
+
+    repeated NYT.NProto.TGuid location_directory = 4; // TChunkLocationDirectory
+}
+
+message TRspModifyReplicas
+{
+    optional TChunkReplicaAnnouncements replica_announcements = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TChunkReplicaAnnouncements
+{
+    optional uint64 revision = 1;
+    repeated NChunkClient.NProto.TChunkReplicaAnnouncementRequest replica_announcement_requests = 2;
+}
+
+message TReplicaAnnouncements
+{
+    optional TChunkReplicaAnnouncements non_sequoia_announcements = 1;
+    optional TChunkReplicaAnnouncements sequoia_announcements = 2;
+    optional bool enable_lazy_replica_announcements = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqFullHeartbeat
 {
     required int32 node_id = 1;
@@ -40,8 +72,11 @@ message TRspFullHeartbeat
     //! Hydra revision.
     optional uint64 revision = 1;
 
+    //! COMPAT(aleksandra-zh)
     repeated NChunkClient.NProto.TChunkReplicaAnnouncementRequest replica_announcement_requests = 2;
     optional bool enable_lazy_replica_announcements = 3;
+
+    optional TReplicaAnnouncements replica_announcements = 6;
 
     optional NChunkClient.NProto.TMediumDirectory medium_directory = 4;
     optional TMediumOverrides medium_overrides = 5;
@@ -76,8 +111,11 @@ message TRspIncrementalHeartbeat
     //! Hydra revision.
     optional uint64 revision = 2;
 
+    //! COMPAT(aleksandra-zh)
     repeated NChunkClient.NProto.TChunkReplicaAnnouncementRequest replica_announcement_requests = 3;
     optional bool enable_lazy_replica_announcements = 4;
+
+    optional TReplicaAnnouncements replica_announcements = 7;
 
     optional NChunkClient.NProto.TMediumDirectory medium_directory = 5;
     optional TMediumOverrides medium_overrides = 6;

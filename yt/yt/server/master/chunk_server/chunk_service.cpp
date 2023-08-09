@@ -37,6 +37,7 @@
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
 #include <yt/yt/ytlib/object_client/helpers.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/core/rpc/helpers.h>
 #include <yt/yt/core/rpc/per_user_request_queue_provider.h>
@@ -896,7 +897,7 @@ private:
                 "Chunk confirmation request without location uuids is received");
         }
 
-        if (configManager->GetConfig()->SequoiaManager->Enable && chunkManager->IsSequoiaConfirmChunkRequest(*request)) {
+        if (chunkManager->IsSequoiaConfirmChunkRequest(*request)) {
             context->ReplyFrom(chunkManager->SequoiaConfirmChunk(*request)
                 .Apply(BIND([] (const NChunkClient::NProto::TRspConfirmChunk& response) {
                     return CreateResponseMessage(response);

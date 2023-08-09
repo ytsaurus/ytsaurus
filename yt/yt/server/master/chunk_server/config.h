@@ -570,6 +570,9 @@ public:
     //! Probability (in percents) that newly created chunk will be Sequoia.
     int SequoiaChunkProbability;
 
+    //! Probability (in percents) that chunk replicas will be Sequoia.
+    int SequoiaChunkReplicasPercentage;
+
     //! When set of active chunk replicator shards is changed, no removal jobs
     //! will be scheduled within this period.
     TDuration RemovalJobScheduleDelay;

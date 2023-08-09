@@ -16,6 +16,8 @@ struct INodeDisposalManager
     virtual void Initialize() = 0;
 
     virtual void DisposeNodeWithSemaphore(TNode* node) = 0;
+
+    // This does not dispose sequoia replicas.
     virtual void DisposeNodeCompletely(TNode* node) = 0;
 
     virtual void OnProfiling(NProfiling::TSensorBuffer* buffer) const = 0;

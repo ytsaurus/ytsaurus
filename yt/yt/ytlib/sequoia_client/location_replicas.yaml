@@ -1,0 +1,35 @@
+namespace: NYT::NSequoiaClient::NRecords
+
+types:
+  - type_name: TLocationReplicas
+    fields:
+      - cpp_name: NodeId
+        cpp_type: ui32
+        column_name: node_id
+        column_type: Uint32
+        sort_order: Ascending
+
+      - cpp_name: IdHash
+        cpp_type: ui32
+        column_name: id_hash
+        column_type: Uint32
+        sort_order: Ascending
+
+      - cpp_name: LocationUuid
+        cpp_type: TString
+        column_name: location_uuid
+        column_type: String
+        sort_order: Ascending
+
+      - cpp_name: ChunkId
+        cpp_type: TString
+        column_name: chunk_id
+        column_type: String
+
+      - cpp_name: ReplicaIndex
+        cpp_type: i32
+        column_name: replica_index
+        column_type: Int32
+
+    verbatim: |
+        static constexpr auto Table = ESequoiaTable::LocationReplicas;

@@ -140,6 +140,7 @@ DEFINE_ENUM(EMasterReign,
     ((GetRidOfCellIndex)                                            (2411))  // kvk1920
     ((DontForgetToCommitInSetNodeByYPath)                           (2412))  // kvk1920
     ((ResetErrorCountOfUnmountedTablets)                            (2413))  // alexelexa
+    ((SequoiaReplicas)                                              (2414))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////

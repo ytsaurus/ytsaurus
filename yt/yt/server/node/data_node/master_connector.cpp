@@ -38,6 +38,8 @@
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 
+#include <yt/yt/client/tablet_client/public.h>
+
 #include <yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h>
 
 #include <yt/yt/core/rpc/helpers.h>
@@ -313,6 +315,7 @@ public:
         YT_VERIFY(delta->ChangedMediumSinceLastSuccess.empty());
 
         const auto& allyReplicaManager = Bootstrap_->GetAllyReplicaManager();
+        // COMPAT(aleksandra-zh)
         if (!response.replica_announcement_requests().empty()) {
             YT_VERIFY(response.has_revision());
             allyReplicaManager->ScheduleAnnouncements(
@@ -323,6 +326,8 @@ public:
         if (response.has_enable_lazy_replica_announcements()) {
             allyReplicaManager->SetEnableLazyAnnouncements(response.enable_lazy_replica_announcements());
         }
+
+        HandleReplicaAnnouncements(allyReplicaManager, response, /*onFullHeartbeat*/ true);
 
         OnlineCellCount_ += 1;
 
@@ -401,6 +406,7 @@ public:
         }
 
         const auto& allyReplicaManager = Bootstrap_->GetAllyReplicaManager();
+        // COMPAT(aleksandra-zh)
         if (!response.replica_announcement_requests().empty()) {
             YT_VERIFY(response.has_revision());
             allyReplicaManager->ScheduleAnnouncements(
@@ -411,6 +417,7 @@ public:
         if (response.has_enable_lazy_replica_announcements()) {
             allyReplicaManager->SetEnableLazyAnnouncements(response.enable_lazy_replica_announcements());
         }
+        HandleReplicaAnnouncements(allyReplicaManager, response, /*onFullHeartbeat*/ false);
 
         const auto& connection = Bootstrap_->GetConnection();
         if (cellTag == connection->GetPrimaryMasterCellTag()) {
@@ -580,6 +587,38 @@ private:
 
     // COMPAT(kvk1920)
     bool LocationUuidsRequired_ = true;
+
+    template <typename TResponse>
+    void HandleReplicaAnnouncements(
+        const IAllyReplicaManagerPtr& allyReplicaManager,
+        const TResponse& response,
+        bool onFullHeartbeat)
+    {
+        if (!response.has_replica_announcements()) {
+            return;
+        }
+
+        const auto& replicaAnnouncements = response.replica_announcements();
+        if (replicaAnnouncements.has_non_sequoia_announcements()) {
+            const auto& nonSequoiaAnnouncements = replicaAnnouncements.non_sequoia_announcements();
+            allyReplicaManager->ScheduleAnnouncements(
+                MakeRange(nonSequoiaAnnouncements.replica_announcement_requests()),
+                nonSequoiaAnnouncements.revision(),
+                onFullHeartbeat);
+        }
+
+        if (replicaAnnouncements.has_sequoia_announcements()) {
+            const auto& sequoiaAnnouncements = replicaAnnouncements.sequoia_announcements();
+            allyReplicaManager->ScheduleAnnouncements(
+                MakeRange(sequoiaAnnouncements.replica_announcement_requests()),
+                sequoiaAnnouncements.revision(),
+                onFullHeartbeat);
+        }
+
+        if (replicaAnnouncements.has_enable_lazy_replica_announcements()) {
+            allyReplicaManager->SetEnableLazyAnnouncements(replicaAnnouncements.enable_lazy_replica_announcements());
+        }
+    }
 
     const TIncrementalHeartbeatCounters& GetIncrementalHeartbeatCounters(TCellTag cellTag)
     {
@@ -835,8 +874,9 @@ private:
         } else {
             YT_LOG_WARNING(rspOrError, "Error reporting full data node heartbeat to master (CellTag: %v)",
                 cellTag);
+
             if (IsRetriableError(rspOrError)) {
-                DoScheduleHeartbeat(cellTag, /* immediately*/ false);
+                DoScheduleHeartbeat(cellTag, /*immediately*/ false);
             } else {
                 Bootstrap_->ResetAndRegisterAtMaster();
             }

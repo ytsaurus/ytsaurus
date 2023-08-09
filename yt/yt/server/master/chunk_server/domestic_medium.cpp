@@ -33,6 +33,7 @@ void TDomesticMedium::Save(NCellMaster::TSaveContext& context) const
     Save(context, Transient_);
     Save(context, *Config_);
     Save(context, DiskFamilyWhitelist_);
+    Save(context, EnableSequoiaReplicas_);
 }
 
 void TDomesticMedium::Load(NCellMaster::TLoadContext& context)
@@ -63,6 +64,11 @@ void TDomesticMedium::Load(NCellMaster::TLoadContext& context)
     }
 
     Load(context, DiskFamilyWhitelist_);
+
+    // COMPAT(aleksandra-zh)
+    if (context.GetVersion() >= EMasterReign::SequoiaReplicas) {
+        Load(context, EnableSequoiaReplicas_);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

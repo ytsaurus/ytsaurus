@@ -1031,7 +1031,6 @@ private:
                         localState);
                     UnregisterNode(node, true);
                 }
-
                 auto aggregatedState = node->GetAggregatedState();
                 if (aggregatedState != ENodeState::Offline) {
                     THROW_ERROR_EXCEPTION("Node %Qv is still in %Qlv state; must wait for it to become fully offline",
@@ -1901,6 +1900,7 @@ private:
         if (node->GetLocalState() == ENodeState::Unregistered ||
             node->GetLocalState() == ENodeState::BeingDisposed)
         {
+            // This does not remove sequoia replicas.
             NodeDisposalManager_->DisposeNodeCompletely(node);
         }
     }

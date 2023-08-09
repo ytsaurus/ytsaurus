@@ -317,42 +317,61 @@ private:
         auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CellTag_);
         TChunkServiceProxy proxy(channel);
 
-        auto batchReq = proxy.ExecuteBatch();
-        GenerateMutationId(batchReq);
-        batchReq->set_suppress_upstream_sync(true);
+        auto fillReqeust = [&] (auto req) {
+            ToProto(req->mutable_chunk_id(), SessionId_.ChunkId);
+            *req->mutable_chunk_info() = UnderlyingWriter_->GetChunkInfo();
+            *req->mutable_chunk_meta() = *ChunkMeta_;
 
-        auto* req = batchReq->add_confirm_chunk_subrequests();
-        ToProto(req->mutable_chunk_id(), SessionId_.ChunkId);
-        *req->mutable_chunk_info() = UnderlyingWriter_->GetChunkInfo();
-        *req->mutable_chunk_meta() = *ChunkMeta_;
+            auto memoryUsageGuard = TMemoryUsageTrackerGuard::Acquire(
+                Options_->MemoryTracker,
+                req->mutable_chunk_meta()->ByteSize());
 
-        auto memoryUsageGuard = TMemoryUsageTrackerGuard::Acquire(
-            Options_->MemoryTracker,
-            req->mutable_chunk_meta()->ByteSize());
+            FilterProtoExtensions(req->mutable_chunk_meta()->mutable_extensions(), GetMasterChunkMetaExtensionTagsFilter());
+            req->set_request_statistics(true);
+            ToProto(req->mutable_legacy_replicas(), replicas);
 
-        FilterProtoExtensions(req->mutable_chunk_meta()->mutable_extensions(), GetMasterChunkMetaExtensionTagsFilter());
-        req->set_request_statistics(true);
-        ToProto(req->mutable_legacy_replicas(), replicas);
+            req->set_location_uuids_supported(true);
 
-        req->set_location_uuids_supported(true);
+            for (const auto& replica : replicas) {
+                auto* replicaInfo = req->add_replicas();
+                replicaInfo->set_replica(ToProto<ui64>(replica));
+                ToProto(replicaInfo->mutable_location_uuid(), replica.GetChunkLocationUuid());
+            }
+        };
 
-        for (const auto& replica : replicas) {
-            auto* replicaInfo = req->add_replicas();
-            replicaInfo->set_replica(ToProto<ui64>(replica));
-            ToProto(replicaInfo->mutable_location_uuid(), replica.GetChunkLocationUuid());
+        auto req = proxy.ConfirmChunk();
+        GenerateMutationId(req);
+        fillReqeust(req);
+        auto* multicellSyncExt = req->Header().MutableExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);
+        multicellSyncExt->set_suppress_upstream_sync(true);
+
+        auto rspOrError = WaitFor(req->Invoke());
+        if (!rspOrError.FindMatching(NRpc::EErrorCode::NoSuchMethod)) {
+            THROW_ERROR_EXCEPTION_IF_FAILED(
+                rspOrError,
+                NChunkClient::EErrorCode::MasterCommunicationFailed,
+                "Failed to confirm chunk %v",
+                SessionId_.ChunkId);
+
+            DataStatistics_ = rspOrError.Value()->statistics();
+        } else {
+            auto batchReq = proxy.ExecuteBatch();
+            GenerateMutationId(batchReq);
+            batchReq->set_suppress_upstream_sync(true);
+            auto* req = batchReq->add_confirm_chunk_subrequests();
+            fillReqeust(req);
+
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(
+                GetCumulativeError(batchRspOrError),
+                NChunkClient::EErrorCode::MasterCommunicationFailed,
+                "Failed to confirm chunk %v",
+                SessionId_.ChunkId);
+
+            const auto& batchRsp = batchRspOrError.Value();
+            const auto& rsp = batchRsp->confirm_chunk_subresponses(0);
+            DataStatistics_ = rsp.statistics();
         }
-
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(
-            GetCumulativeError(batchRspOrError),
-            EErrorCode::MasterCommunicationFailed,
-            "Failed to confirm chunk %v",
-            SessionId_.ChunkId);
-
-
-        const auto& batchRsp = batchRspOrError.Value();
-        const auto& rsp = batchRsp->confirm_chunk_subresponses(0);
-        DataStatistics_ = rsp.statistics();
 
         Closed_ = true;
 
