@@ -16,7 +16,7 @@ func ContainsUnauthorized(err error) bool {
 }
 
 func WhoAmI(proxy string, token string) (username string, err error) {
-	address := yt.NormalizeProxyURL(proxy, false /*tvmOnly*/, 0 /*tvmOnlyPort*/).Address
+	address := yt.NormalizeProxyURL(proxy, false /*disableDiscovery*/, false /*tvmOnly*/, 0 /*tvmOnlyPort*/).Address
 	url := address + "/auth/whoami"
 	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
 		url = "http://" + url

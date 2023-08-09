@@ -73,6 +73,13 @@ type Config struct {
 	// UseTVMOnlyEndpoint configures client to use tvm-only endpoints in cluster connection.
 	UseTVMOnlyEndpoint bool
 
+	// DisableProxyDiscovery configures whether proxy discovery is enabled.
+	//
+	// Typically proxy discovery should be enabled, but in case if there is no
+	// network connectivity from the client to the proxy instances and balancer
+	// is used instead, proxy discovery should be disabled.
+	DisableProxyDiscovery bool
+
 	// Logger overrides default logger, used by the client.
 	//
 	// When Logger is not set, logging behaviour is configured by YT_LOG_LEVEL environment variable.
@@ -249,17 +256,19 @@ type ClusterURL struct {
 	DisableDiscovery bool
 }
 
-func NormalizeProxyURL(proxy string, tvmOnly bool, tvmOnlyPort int) ClusterURL {
+func NormalizeProxyURL(proxy string, disableDiscovery bool, tvmOnly bool, tvmOnlyPort int) ClusterURL {
 	const prefix = "http://"
 	const suffix = ".yt.yandex.net"
 
 	var url ClusterURL
-	if !strings.Contains(proxy, ".") && !strings.Contains(proxy, ":") && !strings.Contains(proxy, "localhost") {
-		proxy += suffix
+	if disableDiscovery {
+		url.DisableDiscovery = true
+		url.Address = proxy
+		return url
 	}
 
-	if strings.ContainsAny(proxy, "0123456789") {
-		url.DisableDiscovery = true
+	if !strings.Contains(proxy, ".") && !strings.Contains(proxy, ":") && !strings.Contains(proxy, "localhost") {
+		proxy += suffix
 	}
 
 	proxy = strings.TrimPrefix(proxy, prefix)

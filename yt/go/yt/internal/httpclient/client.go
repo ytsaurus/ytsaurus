@@ -663,7 +663,7 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 	}
 
 	client.config = c
-	client.clusterURL = yt.NormalizeProxyURL(proxy, c.UseTVMOnlyEndpoint, getTVMOnlyPort(c))
+	client.clusterURL = yt.NormalizeProxyURL(proxy, c.DisableProxyDiscovery, c.UseTVMOnlyEndpoint, getTVMOnlyPort(c))
 	client.netDialer = &net.Dialer{
 		Timeout:   30 * time.Second,
 		KeepAlive: 30 * time.Second,

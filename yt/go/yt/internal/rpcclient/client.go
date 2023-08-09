@@ -44,8 +44,8 @@ type client struct {
 func NewClient(conf *yt.Config) (*client, error) {
 	c := &client{
 		conf:           conf,
-		httpClusterURL: yt.NormalizeProxyURL(conf.Proxy, conf.UseTVMOnlyEndpoint, yt.TVMOnlyHTTPProxyPort),
-		rpcClusterURL:  yt.NormalizeProxyURL(conf.RPCProxy, conf.UseTVMOnlyEndpoint, yt.TVMOnlyRPCProxyPort),
+		httpClusterURL: yt.NormalizeProxyURL(conf.Proxy, conf.DisableProxyDiscovery, conf.UseTVMOnlyEndpoint, yt.TVMOnlyHTTPProxyPort),
+		rpcClusterURL:  yt.NormalizeProxyURL(conf.RPCProxy, conf.DisableProxyDiscovery, conf.UseTVMOnlyEndpoint, yt.TVMOnlyRPCProxyPort),
 		log:            conf.GetLogger(),
 		tracer:         conf.GetTracer(),
 		stop:           internal.NewStopGroup(),
