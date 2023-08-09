@@ -1619,6 +1619,7 @@ private:
             EmplaceOrCrash(schemaToExportRefCounters, schema, THashMap<TCellTag, int>());
         }
 
+        // Exported nodes increase export ref counter.
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         for (auto [nodeId, node] : cypressManager->Nodes()) {
             // NB: Zombie nodes still hold export ref.
@@ -1634,6 +1635,10 @@ private:
             YT_VERIFY(schemafulNode);
 
             auto* schema = schemafulNode->GetSchema();
+            if (!schema) {
+                continue;
+            }
+
             auto [it, inserted] = schemaToExportRefCounters[schema].emplace(externalCellTag, 1);
             if (!inserted) {
                 ++it->second;
@@ -1664,6 +1669,10 @@ private:
             YT_VERIFY(schemafulNode);
 
             auto* schema = schemafulNode->GetSchema();
+            if (!schema) {
+                continue;
+            }
+
             ++schemaToRefCounter[schema];
         }
 
