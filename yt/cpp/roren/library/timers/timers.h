@@ -78,7 +78,7 @@ protected:
     TVector<TTimer> GetReadyTimers(const TGuard& lock, size_t limit);
     void Clear(const TGuard& lock);
     void Insert(const TGuard& lock, TTimer timer);
-    bool InsertBetween(const TGuard& lock, TTimer timer); // Insert only if timer timestamp between min and max known timers, return true if inserted
+    bool InsertTop(const TGuard& lock, TTimer timer); // Insert only if timer timestamp less than max known timer, return true if inserted
     void Delete(const TGuard& lock, const TTimer& timer);
     void Cleanup(const TGuard& lock, size_t limit);
     size_t GetIndexSize(const TGuard& lock) const;
@@ -89,15 +89,15 @@ protected:
 private:
     struct TLessValByIt
     {
-        bool operator () (const TSet<TTimer>::iterator l, const TSet<TTimer>::iterator r) const
+        bool operator () (const std::set<TTimer>::iterator l, const std::set<TTimer>::iterator r) const
         {
             return *l < *r;
         }
     };
 
     TLock Lock_;
-    TSet<TTimer> TimersIndex_;
-    TSet<TSet<TTimer>::iterator, TLessValByIt> TimersNotInFly_;
+    std::set<TTimer> TimersIndex_;
+    std::set<std::set<TTimer>::iterator, TLessValByIt> TimersNotInFly_;
     THashSet<TTimer, TTimer::THasher> TimersInFly_;
     THashSet<TTimer, TTimer::THasher> DeletedTimers_;
 }; // class TTimersContainer

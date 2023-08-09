@@ -94,11 +94,11 @@ void TTimersContainer::Insert(const TGuard& lock, TTimer timer)
     TimersNotInFly_.insert(it);
 }
 
-bool TTimersContainer::InsertBetween(const TGuard& lock, TTimer timer)
+bool TTimersContainer::InsertTop(const TGuard& lock, TTimer timer)
 {
-    const bool inRange = !TimersIndex_ || timer < *std::prev(TimersIndex_.end());
+    const bool inRange = TimersIndex_.empty() || timer < *std::prev(TimersIndex_.end());
     if (inRange) {
-        TTimersContainer::Insert(lock, timer);
+        TTimersContainer::Insert(lock, std::move(timer));
     }
     return inRange;
 }
@@ -258,7 +258,7 @@ void TTimers::Commit(const NYT::NApi::ITransactionPtr tx, const TTimers::TTimers
         if (existsTimers.contains(key)) {
             oldTimer = std::cref(existsTimers.at(key));
         }
-        const auto targetTimer = MergeTimers(oldTimer, newTimer, policy);
+        auto targetTimer = MergeTimers(oldTimer, newTimer, policy);
         if (oldTimer && targetTimer == *oldTimer) {
             continue;
         }
@@ -270,7 +270,7 @@ void TTimers::Commit(const NYT::NApi::ITransactionPtr tx, const TTimers::TTimers
         if (targetTimer.GetValue().GetTimestamp() != 0) {
             YtInsertTimer(tx, targetTimer);
             YtInsertIndex(tx, targetTimer);
-            TTimersContainer::InsertBetween(lock, newTimer);
+            TTimersContainer::InsertTop(lock, std::move(targetTimer));
         }
     }
     Cleanup(lock, IndexLimit_);
