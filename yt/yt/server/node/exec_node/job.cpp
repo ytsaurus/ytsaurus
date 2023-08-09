@@ -329,7 +329,7 @@ void TJob::Abort(TError error)
     switch (JobPhase_) {
         case EJobPhase::Created:
             SetJobPhase(EJobPhase::WaitingAbort);
-            Finalize(std::move(error));
+            FinalizeAborted(std::move(error));
             TDelayedExecutor::Submit(
                 BIND(&TJob::OnJobAbortionTimeout, MakeStrong(this))
                     .Via(Invoker_),
@@ -348,7 +348,7 @@ void TJob::Abort(TError error)
         case EJobPhase::SpawningJobProxy:
         case EJobPhase::PreparingJob:
             SetJobPhase(EJobPhase::WaitingAbort);
-            Finalize(std::move(error));
+            FinalizeAborted(std::move(error));
             TDelayedExecutor::Submit(
                 BIND(&TJob::OnJobAbortionTimeout, MakeStrong(this))
                     .Via(Invoker_),
@@ -524,7 +524,19 @@ void TJob::OnJobPrepared()
 
 void TJob::Finalize(TError error)
 {
+    VERIFY_THREAD_AFFINITY(JobThread);
+
     Finalize(std::move(error), /*jobResultExtension*/ std::nullopt, /*byJobProxyCompletion*/ false);
+
+    YT_VERIFY(Error_);
+    auto& currentError = *Error_;
+
+    // NB: we should disable slot here to give scheduler information about job failure.
+    if (currentError.FindMatching(NExecNode::EErrorCode::GpuCheckCommandFailed) &&
+        !currentError.FindMatching(NExecNode::EErrorCode::GpuCheckCommandIncorrect))
+    {
+        Bootstrap_->GetSlotManager()->OnGpuCheckCommandFailed(currentError);
+    }
 }
 
 void TJob::Finalize(
@@ -539,21 +551,81 @@ void TJob::Finalize(
         return;
     }
 
+    YT_LOG_DEBUG("Finalizing job");
+
     TForbidContextSwitchGuard guard;
 
     DoSetResult(std::move(error), std::move(jobResultExtension), byJobProxyCompletion);
 
-    YT_LOG_DEBUG("Finalize job");
+    DeduceFinishedJobState();
 
-    FinishTime_ = TInstant::Now();
+    OnJobFinalized();
+}
+
+void TJob::FinalizeAborted(TError error)
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    if (IsFinished()) {
+        YT_LOG_DEBUG("Job already finalized");
+        return;
+    }
+
+    YT_LOG_DEBUG("Finalizing aborted job");
+
+    TForbidContextSwitchGuard guard;
+
+    DoSetResult(
+        std::move(error),
+        /*jobResultExtension*/ std::nullopt,
+        /*receivedFromJobProxy*/ false);
 
     YT_VERIFY(Error_);
+    auto& currentError = *Error_;
 
+    auto abortReason = GetAbortReason();
+    currentError.MutableAttributes()->Set("abort_reason", abortReason);
+
+    SetJobState(EJobState::Aborted);
+
+    OnJobFinalized();
+}
+
+void TJob::OnJobFinalized()
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    YT_VERIFY(Error_);
+    auto& currentError = *Error_;
+
+    YT_LOG_INFO(
+        currentError,
+        "Job finalized (JobState: %v, ResourceUsage: %v)",
+        GetState(),
+        FormatResources(GetResourceUsage()));
+
+    YT_VERIFY(IsFinished());
+
+    FinishTime_ = TInstant::Now();
     // Copy info from traffic meter to statistics.
     auto statistics = ConvertTo<TStatistics>(StatisticsYson_);
     FillTrafficStatistics(ExecAgentTrafficStatisticsPrefix, statistics, TrafficMeter_);
     StatisticsYson_ = ConvertToYsonString(statistics);
 
+    JobFinished_.Fire();
+
+    if (!currentError.IsOK()) {
+        // NB: it is required to report error that occurred in some place different
+        // from OnJobFinished method.
+        HandleJobReport(MakeDefaultJobReport().Error(currentError));
+    }
+}
+
+void TJob::DeduceFinishedJobState()
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    YT_VERIFY(Error_);
     auto& currentError = *Error_;
 
     if (currentError.IsOK()) {
@@ -570,29 +642,6 @@ void TJob::Finalize(
             SetJobState(EJobState::Failed);
         }
     }
-
-    if (!currentError.IsOK()) {
-        // NB: it is required to report error that occurred in some place different
-        // from OnJobFinished method.
-        HandleJobReport(MakeDefaultJobReport().Error(currentError));
-    }
-
-    // NB: we should disable slot here to give scheduler information about job failure.
-    if (currentError.FindMatching(NExecNode::EErrorCode::GpuCheckCommandFailed) &&
-        !currentError.FindMatching(NExecNode::EErrorCode::GpuCheckCommandIncorrect))
-    {
-        Bootstrap_->GetSlotManager()->OnGpuCheckCommandFailed(currentError);
-    }
-
-    YT_LOG_INFO(
-        currentError,
-        "Set final job state (JobState: %v, ResourceUsage: %v)",
-        GetState(),
-        FormatResources(GetResourceUsage()));
-
-    YT_VERIFY(IsFinished());
-
-    JobFinished_.Fire();
 }
 
 void TJob::OnResultReceived(TJobResult jobResult)

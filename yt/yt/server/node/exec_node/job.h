@@ -500,8 +500,12 @@ private:
         TError error,
         std::optional<NControllerAgent::NProto::TJobResultExt> jobResultExtension,
         bool byJobProxyCompletion);
-
     void Finalize(TError error);
+    void FinalizeAborted(TError error);
+
+    void OnJobFinalized();
+
+    void DeduceFinishedJobState();
 
     bool NeedsGpuCheck() const;
 };
