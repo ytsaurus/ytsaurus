@@ -2772,9 +2772,7 @@ private:
             THashMap<TVersionedNodeId, TMasterTableSchema*> nodeIdToSchema;
             THashMap<TCellTag, std::vector<TVersionedNodeId>> cellTagToNodeIds;
             for (auto [nodeId, node] : NodeMap_) {
-                if (!IsObjectAlive(node) && node->IsTrunk()) {
-                    continue;
-                }
+                // We need to export all nodes, even zombies because schemas are unexported during node destruction.
                 if (!node->IsNative()) {
                     continue;
                 }
@@ -4445,7 +4443,14 @@ private:
             }
 
             auto* node = FindNode(TVersionedNodeId{nodeId, effectiveTransactionId});
-            YT_VERIFY(IsObjectAlive(node) || !node->IsTrunk());
+            if (!node) {
+                // This can happen when a node is still a zombie on the native cell, but was already destroyed on the external.
+                YT_LOG_ALERT("Received HydraSetTableSchemas request for a non-existing node (NodeId: %v, SchemaId: %v)",
+                    TVersionedNodeId{nodeId, effectiveTransactionId},
+                    schemaId);
+                continue;
+            }
+
             YT_VERIFY(IsTableType(node->GetType()));
             auto* table = node->As<TTableNode>();
 
