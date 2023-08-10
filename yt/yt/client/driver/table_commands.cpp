@@ -633,8 +633,6 @@ TSelectRowsCommand::TSelectRowsCommand()
         .Optional();
     RegisterParameter("output_row_limit", Options.OutputRowLimit)
         .Optional();
-    RegisterParameter("use_multijoin", Options.UseMultijoin)
-        .Optional();
     RegisterParameter("allow_full_scan", Options.AllowFullScan)
         .Optional();
     RegisterParameter("allow_join_without_index", Options.AllowJoinWithoutIndex)

@@ -140,7 +140,6 @@ struct TQueryBaseOptions
     i64 OutputRowLimit = std::numeric_limits<i64>::max();
 
     bool EnableCodeCache = true;
-    bool UseMultijoin = true;
     TReadSessionId ReadSessionId;
     size_t MemoryLimitPerNode = std::numeric_limits<size_t>::max();
 };

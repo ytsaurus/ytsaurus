@@ -857,7 +857,6 @@ void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original)
     serialized->set_max_subqueries(original.MaxSubqueries);
     serialized->set_enable_code_cache(original.EnableCodeCache);
     ToProto(serialized->mutable_workload_descriptor(), original.WorkloadDescriptor);
-    serialized->set_use_multijoin(original.UseMultijoin);
     serialized->set_allow_full_scan(original.AllowFullScan);
     ToProto(serialized->mutable_read_session_id(), original.ReadSessionId);
     serialized->set_deadline(ToProto<ui64>(original.Deadline));
@@ -880,7 +879,6 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
     original->WorkloadDescriptor = serialized.has_workload_descriptor()
         ? FromProto<TWorkloadDescriptor>(serialized.workload_descriptor())
         : TWorkloadDescriptor();
-    original->UseMultijoin = serialized.use_multijoin();
     original->AllowFullScan = serialized.allow_full_scan();
     original->ReadSessionId  = serialized.has_read_session_id()
         ? FromProto<TReadSessionId>(serialized.read_session_id())

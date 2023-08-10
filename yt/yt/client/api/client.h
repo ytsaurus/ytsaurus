@@ -700,8 +700,6 @@ struct TSelectRowsOptions
     std::optional<i64> InputRowLimit;
     //! If null then connection defaults are used.
     std::optional<i64> OutputRowLimit;
-    //! Combine independent joins in one.
-    bool UseMultijoin = true;
     //! Allow queries without any condition on key columns.
     bool AllowFullScan = true;
     //! Allow queries with join condition which implies foreign query with IN operator.

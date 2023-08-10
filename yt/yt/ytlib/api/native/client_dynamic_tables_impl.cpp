@@ -1471,7 +1471,6 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     queryOptions.WorkloadDescriptor = options.WorkloadDescriptor;
     queryOptions.InputRowLimit = inputRowLimit;
     queryOptions.OutputRowLimit = outputRowLimit;
-    queryOptions.UseMultijoin = options.UseMultijoin;
     queryOptions.AllowFullScan = options.AllowFullScan;
     queryOptions.ReadSessionId = TReadSessionId::Create();
     queryOptions.MemoryLimitPerNode = options.MemoryLimitPerNode;
