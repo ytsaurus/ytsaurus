@@ -3,7 +3,7 @@
 from __future__ import print_function
 
 from .conftest import authors
-from .helpers import set_config_option
+from .helpers import set_config_option, dumps_yt_config, get_test_file_path, get_python
 
 import yt.wrapper as yt
 
@@ -12,9 +12,12 @@ try:
 except ImportError:
     from six import PY3
 
-from flaky import flaky
+import yt.subprocess_wrapper as subprocess
 
+from flaky import flaky
 import pytest
+
+import os
 import sys
 import time
 
@@ -72,6 +75,7 @@ def reproduce_transaction_loss(
                     first_sleep_duration = get_time() - wait_begin
 
         if expects_exception:
+            assert first_exception is not None
             assert exception_raised_in_time, "Exception has not raised in time"
 
         try:
@@ -117,11 +121,23 @@ class TestPingFailedModes(object):
             reproduce_transaction_loss()
         assert called
 
-    @authors("marat-khalili")
+    @authors("ignat")
     def test_interrupt_main(self):
-        with set_config_option("ping_failed_mode", "interrupt_main"):
-            with pytest.raises(KeyboardInterrupt):
-                reproduce_transaction_loss(expects_exception=True)
+        if not PY3:
+            pytest.skip()
+        env = {
+            "YT_CONFIG_PATCHES": dumps_yt_config(),
+            "PYTHONPATH": os.environ["PYTHONPATH"],
+        }
+        binary = get_test_file_path("main_interrupted_by_ping_failed.py")
+        process = subprocess.Popen(
+            [get_python(), binary, "--exit-code", "42"],
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE)
+        stdout, stderr = process.communicate()
+
+        assert process.returncode == 42, "Stdout:\n{}\nStderr:\n{}".format(stdout, stderr)
 
     @authors("marat-khalili")
     def test_pass(self):
