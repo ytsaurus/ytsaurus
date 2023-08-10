@@ -176,7 +176,11 @@ public:
     {
         auto config = Config_.Acquire();
 
-        StickyGroupSizeCache_ = config->EnableDynamicCacheStickyGroupSize ? New<TStickyGroupSizeCache>() : nullptr;
+        if (config->EnableDynamicCacheStickyGroupSize) {
+            YT_LOG_INFO("Dynamic cache sticky group size enabled");
+            StickyGroupSizeCache_ = New<TStickyGroupSizeCache>(
+                config->StickyGroupSizeCacheExpirationTimeout);
+        }
 
         ChannelFactory_ = CreateNativeAuthenticationInjectingChannelFactory(
             CreateCachingChannelFactory(
@@ -1116,15 +1120,14 @@ TStickyGroupSizeCache::TStickyGroupSizeCache(TDuration expirationTimeout)
         GetSyncInvoker()))
 { }
 
-void TStickyGroupSizeCache::UpdateAdvisedStickyGroupSize(const TKey& key, int stickyGroupSize)
+std::optional<int> TStickyGroupSizeCache::UpdateAdvisedStickyGroupSize(const TKey& key, int stickyGroupSize)
 {
-    AdvisedStickyGroupSize_->Set(key, stickyGroupSize);
+    return AdvisedStickyGroupSize_->Set(key, stickyGroupSize).value_or(std::nullopt);
 }
 
 std::optional<int> TStickyGroupSizeCache::GetAdvisedStickyGroupSize(const TKey& key)
 {
-    auto result = AdvisedStickyGroupSize_->Find(key);
-    return result.value_or(std::nullopt);
+    return AdvisedStickyGroupSize_->Find(key).value_or(std::nullopt);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

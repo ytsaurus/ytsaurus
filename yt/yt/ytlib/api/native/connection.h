@@ -172,9 +172,9 @@ public:
         bool operator == (const TKey& other) const;
     };
 
-    TStickyGroupSizeCache(TDuration expirationTimeout = TDuration::Seconds(30));
+    explicit TStickyGroupSizeCache(TDuration expirationTimeout = TDuration::Seconds(30));
 
-    void UpdateAdvisedStickyGroupSize(const TKey& key, int stickyGroupSize);
+    std::optional<int> UpdateAdvisedStickyGroupSize(const TKey& key, int stickyGroupSize);
     std::optional<int> GetAdvisedStickyGroupSize(const TKey& key);
 
 private:

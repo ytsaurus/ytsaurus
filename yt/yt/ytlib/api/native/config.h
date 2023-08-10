@@ -259,6 +259,7 @@ public:
 
     int DefaultCacheStickyGroupSize;
     bool EnableDynamicCacheStickyGroupSize;
+    TDuration StickyGroupSizeCacheExpirationTimeout;
 
     ssize_t MaxRequestWindowSize;
 

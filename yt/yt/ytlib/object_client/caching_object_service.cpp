@@ -131,10 +131,10 @@ private:
     const IThrottlingChannelPtr CypressChannel_;
     const NLogging::TLogger Logger;
 
+    const IRequestQueueProviderPtr ExecuteRequestQueueProvider_ = New<TPerUserRequestQueueProvider>();
+
     std::atomic<double> CacheTtlRatio_;
     std::atomic<i64> EntryByteRateLimit_;
-
-    IRequestQueueProviderPtr ExecuteRequestQueueProvider_ = New<TPerUserRequestQueueProvider>();
 
     std::atomic<bool> CachingEnabled_ = false;
 
@@ -198,6 +198,10 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
             suppressTransactionCoordinatorSync |= multicellSyncExt.suppress_transaction_coordinator_sync();
         }
 
+        auto currentStickyGroupSize = request->has_current_sticky_group_size()
+            ? std::make_optional(request->current_sticky_group_size())
+            : std::nullopt;
+
         TObjectServiceCacheKey key(
             CellTagFromId(CellId_),
             cachingRequestHeaderExt->disable_per_user_cache() ? TString() : context->GetAuthenticationIdentity().User,
@@ -216,10 +220,11 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
             THROW_ERROR_EXCEPTION("Cannot cache responses for requests with attachments");
         }
 
-        YT_LOG_DEBUG("Serving subrequest from cache (RequestId: %v, SubrequestIndex: %v, Key: %v)",
+        YT_LOG_DEBUG("Serving subrequest from cache (RequestId: %v, SubrequestIndex: %v, Key: %v, CurrentStickyGroupSize: %v)",
             requestId,
             subrequestIndex,
-            key);
+            key,
+            currentStickyGroupSize);
 
         auto expireAfterSuccessfulUpdateTime = FromProto<TDuration>(cachingRequestHeaderExt->expire_after_successful_update_time());
         auto expireAfterFailedUpdateTime = FromProto<TDuration>(cachingRequestHeaderExt->expire_after_failed_update_time());
@@ -326,6 +331,13 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
                     auto currentStickyGroupSize = request->current_sticky_group_size();
                     auto totalSize = cacheEntry->GetByteRate() * currentStickyGroupSize;
                     auto advisedStickyGroupSize = 1 + static_cast<int>(totalSize / EntryByteRateLimit_.load());
+                    YT_LOG_DEBUG_IF(
+                        advisedStickyGroupSize != currentStickyGroupSize,
+                        "Cache sticky group size advised (RequestId: %v, Key: %v, Size: %v -> %v)",
+                        requestId,
+                        cacheEntry->GetKey(),
+                        currentStickyGroupSize,
+                        advisedStickyGroupSize);
                     response->add_advised_sticky_group_size(advisedStickyGroupSize);
                 }
                 const auto& responseMessage = cacheEntry->GetResponseMessage();
