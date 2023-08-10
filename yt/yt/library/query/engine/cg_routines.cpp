@@ -716,7 +716,7 @@ bool InsertGroupRow(
         return false;
     }
 
-    // FIXME: Incorrect in case of grouping by prefix.
+    // FIXME(lukyan): Incorrect in case of grouping by prefix.
     bool limitReached = std::ssize(closure->GroupedRows) == context->GroupRowLimit;
 
     if (limitReached) {
@@ -794,10 +794,6 @@ void GroupOpHelper(
     TRowsConsumer innerConsumeRows,
     TComparerFunction* orderOpComparer)
 {
-    auto finalLogger = Finally([&] () {
-        YT_LOG_DEBUG("Finalizing group helper");
-    });
-
     TGroupByClosure closure(
         context->MemoryChunkProvider,
         prefixEqComparer,
@@ -812,6 +808,10 @@ void GroupOpHelper(
 
     TYielder yielder;
     i64 processedRows = 0;
+
+    auto finalLogger = Finally([&] () {
+        YT_LOG_DEBUG("Finalizing group helper (PrecessedRows: %v)", processedRows);
+    });
 
     auto intermediateBuffer = New<TRowBuffer>(TIntermediateBufferTag());
 
@@ -849,7 +849,7 @@ void GroupOpHelper(
         }
     };
 
-    bool isBoundarySegment = true;
+    bool boundarySegment = true;
 
     // ProcessSegment will be called on each grouped row
     // when group key contains full primary key (used with joins).
@@ -857,20 +857,21 @@ void GroupOpHelper(
         auto& groupedRows = closure.GroupedRows;
         auto& lookup = closure.Lookup;
 
-        if (Y_UNLIKELY(isBoundarySegment)) {
+        if (Y_UNLIKELY(boundarySegment)) {
+            // Can be non null in last call.
             size_t innerCount = groupedRows.size() - lookup.size();
 
             flushGroupedRows(false, groupedRows.data(), groupedRows.data() + innerCount);
             flushGroupedRows(true, groupedRows.data() + innerCount, groupedRows.data() + groupedRows.size());
 
-            closure.GroupedRows.clear();
+            groupedRows.clear();
         } else if(Y_UNLIKELY(groupedRows.size() >= RowsetProcessingSize)) {
             flushGroupedRows(false, groupedRows.data(), groupedRows.data() + groupedRows.size());
-            closure.GroupedRows.clear();
+            groupedRows.clear();
         }
 
         lookup.clear();
-        isBoundarySegment = false;
+        boundarySegment = false;
     };
 
     try {
@@ -880,7 +881,7 @@ void GroupOpHelper(
         context->Statistics->IncompleteOutput = true;
     }
 
-    isBoundarySegment = true;
+    boundarySegment = true;
 
     const bool combinedWithOrderOp = orderOpComparer != nullptr;
     if (combinedWithOrderOp) {
@@ -901,7 +902,6 @@ void GroupOpHelper(
 
     YT_VERIFY(closure.GroupedRows.empty());
 
-    YT_LOG_DEBUG("Processed %v group rows", processedRows);
 }
 
 void GroupTotalsOpHelper(

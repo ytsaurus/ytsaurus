@@ -2178,10 +2178,7 @@ void PrepareQuery(
     }
 
     if (ast.GroupExprs) {
-        auto groupClause = BuildGroupClause(
-            ast.GroupExprs->first,
-            ast.GroupExprs->second,
-            builder);
+        auto groupClause = BuildGroupClause(ast.GroupExprs->first, ast.GroupExprs->second, builder);
 
         auto keyColumns = query->GetKeyColumns();
 
@@ -2212,11 +2209,7 @@ void PrepareQuery(
 
             // Call PrepareExpression to extract references only.
             THashSet<TString> references;
-            PrepareExpression(
-                *expression,
-                *query->Schema.Original,
-                builder.Functions,
-                &references);
+            PrepareExpression(*expression, *query->Schema.Original, builder.Functions, &references);
 
             auto canEvaluate = true;
             for (const auto& reference : references) {

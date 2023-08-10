@@ -46,34 +46,7 @@ std::pair<TConstFrontQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
 
     auto topQuery = New<TFrontQuery>();
 
-    if (auto groupClause = query->GroupClause.Get()) {
-        auto topGroupClause = New<TGroupClause>();
-        auto& finalGroupItems = topGroupClause->GroupItems;
-        for (const auto& groupItem : groupClause->GroupItems) {
-            auto referenceExpr = New<TReferenceExpression>(
-                groupItem.Expression->LogicalType,
-                groupItem.Name);
-            finalGroupItems.emplace_back(std::move(referenceExpr), groupItem.Name);
-        }
-
-        auto& finalAggregateItems = topGroupClause->AggregateItems;
-        for (const auto& aggregateItem : groupClause->AggregateItems) {
-            auto referenceExpr = New<TReferenceExpression>(
-                aggregateItem.Expression->LogicalType,
-                aggregateItem.Name);
-            finalAggregateItems.emplace_back(
-                std::move(referenceExpr),
-                aggregateItem.AggregateFunction,
-                aggregateItem.Name,
-                aggregateItem.StateType,
-                aggregateItem.ResultType);
-        }
-
-        topGroupClause->TotalsMode = groupClause->TotalsMode;
-
-        topQuery->GroupClause = topGroupClause;
-    }
-
+    topQuery->GroupClause = query->GroupClause;
     topQuery->HavingClause = query->HavingClause;
     topQuery->OrderClause = query->OrderClause;
     topQuery->Offset = query->Offset;

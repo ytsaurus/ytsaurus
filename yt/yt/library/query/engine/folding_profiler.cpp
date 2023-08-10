@@ -919,7 +919,17 @@ void TQueryProfiler::Profile(
 
         TExpressionFragments groupFragments;
         for (const auto& groupItem : groupClause->GroupItems) {
-            groupExprIds.push_back(Profile(groupItem, schema, &expressionFragments));
+            size_t groupExprId;
+            if (mergeMode) {
+                auto referenceExpr = New<TReferenceExpression>(
+                    groupItem.Expression->LogicalType,
+                    groupItem.Name);
+                groupExprId = Profile(TNamedItem(std::move(referenceExpr), groupItem.Name), schema, &expressionFragments);
+            } else {
+                groupExprId = Profile(groupItem, schema, &expressionFragments);
+            }
+            groupExprIds.push_back(groupExprId);
+
             keyTypes.push_back(groupItem.Expression->GetWireType());
         }
 
@@ -1019,7 +1029,9 @@ void TQueryProfiler::Profile(
             mergeMode,
             groupClause->TotalsMode != ETotalsMode::None,
             combineGroupOpAndOrderOp,
-            groupClause->CommonPrefixWithPrimaryKey,
+            // Input is ordered for ordered queries and bottom fragments if CommonPrefixWithPrimaryKey > 0.
+            // Prefix comparer can be used only if input is ordered.
+            !mergeMode || query->IsOrdered() ? groupClause->CommonPrefixWithPrimaryKey : 0,
             ComparerManager_);
 
         Fold(static_cast<int>(EFoldingObjectType::TotalsMode));
@@ -1230,28 +1242,28 @@ void TQueryProfiler::Profile(
         auto schemaTypes = GetTypesFromSchema(*schema);
 
         finalSlot = MakeCodegenAddStreamOp(
-                codegenSource,
-                slotCount,
-                finalSlot,
-                resultRowSize,
-                EStreamTag::Final,
-                schemaTypes);
+            codegenSource,
+            slotCount,
+            finalSlot,
+            resultRowSize,
+            EStreamTag::Final,
+            schemaTypes);
 
         totalsSlot = MakeCodegenAddStreamOp(
-                codegenSource,
-                slotCount,
-                totalsSlot,
-                resultRowSize,
-                EStreamTag::Totals,
-                schemaTypes);
+            codegenSource,
+            slotCount,
+            totalsSlot,
+            resultRowSize,
+            EStreamTag::Totals,
+            schemaTypes);
 
         intermediateSlot = MakeCodegenAddStreamOp(
-                codegenSource,
-                slotCount,
-                intermediateSlot,
-                resultRowSize,
-                EStreamTag::Intermediate,
-                schemaTypes);
+            codegenSource,
+            slotCount,
+            intermediateSlot,
+            resultRowSize,
+            EStreamTag::Intermediate,
+            schemaTypes);
 
         ++resultRowSize;
     }
@@ -1477,7 +1489,7 @@ void TQueryProfiler::Profile(
         TSchemaProfiler::Profile(schema);
     }
 
-    if (whereClause) {
+    if (whereClause && !IsTrue(whereClause)) {
         Fold(static_cast<int>(EFoldingObjectType::FilterOp));
         TExpressionFragments filterExprFragments;
         size_t predicateId = TExpressionProfiler::Profile(whereClause, schema, &filterExprFragments);
@@ -1495,7 +1507,7 @@ void TQueryProfiler::Profile(
     }
 
     size_t dummySlot = (*slotCount)++;
-    Profile(codegenSource, query, slotCount, dummySlot, currentSlot, dummySlot, schema, false);
+    Profile(codegenSource, query, slotCount, dummySlot, currentSlot, dummySlot, schema, /*mergeMode*/ false);
 }
 
 void TQueryProfiler::Profile(
@@ -1525,7 +1537,8 @@ void TQueryProfiler::Profile(
         currentSlot,
         schema->GetColumnCount());
 
-    Profile(codegenSource, query, slotCount, finalSlot, intermediateSlot, totalsSlot, schema, true);
+    // Front query always perform merge.
+    Profile(codegenSource, query, slotCount, finalSlot, intermediateSlot, totalsSlot, schema, /*mergeMode*/ true);
 }
 
 size_t TQueryProfiler::Profile(

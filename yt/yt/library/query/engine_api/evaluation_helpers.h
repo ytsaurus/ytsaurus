@@ -192,6 +192,8 @@ struct TGroupByClosure
     int OrderKeySize;
     bool CheckNulls;
 
+    // GroupedRows can be flushed and cleared during aggregation.
+    // So we have to count grouped rows separately.
     size_t GroupedRowCount = 0;
 
     TGroupByClosure(

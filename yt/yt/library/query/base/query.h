@@ -537,12 +537,7 @@ struct TQuery
         : TBaseQuery(id)
     { }
 
-    TQuery(const TQuery& other)
-        : TBaseQuery(other)
-        , Schema(other.Schema)
-        , JoinClauses(other.JoinClauses)
-        , WhereClause(other.WhereClause)
-    { }
+    TQuery(const TQuery& other) = default;
 
     TKeyColumns GetKeyColumns() const
     {
@@ -596,9 +591,7 @@ struct TFrontQuery
         : TBaseQuery(id)
     { }
 
-    TFrontQuery(const TFrontQuery& other)
-        : TBaseQuery(other)
-    { }
+    TFrontQuery(const TFrontQuery& other) = default;
 
     TTableSchemaPtr Schema;
 
