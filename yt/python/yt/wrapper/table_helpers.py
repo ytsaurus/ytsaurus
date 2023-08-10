@@ -179,6 +179,8 @@ class _MultipleFilesProgressBar(object):
         self._tqdm = None
 
     def _set_status(self, status):
+        if self._tqdm is None:
+            return
         self._tqdm.set_description("({}/{}) [{}] {}".format(self._current_file_index, self.file_count, status.upper(),
                                                             os.path.basename(self._current_filename)))
 
