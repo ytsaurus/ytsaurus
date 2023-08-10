@@ -127,10 +127,10 @@ ISerializable<IRawRead>::TDefaultFactoryFunc TRawDummyRead::GetDefaultFactory() 
     };
 }
 
-void TRawDummyRead::SaveState(IOutputStream&) const
+void TRawDummyRead::Save(IOutputStream*) const
 {}
 
-void TRawDummyRead::LoadState(IInputStream&)
+void TRawDummyRead::Load(IInputStream*)
 {}
 
 std::vector<TDynamicTypeTag> TRawDummyRead::GetInputTags() const
@@ -173,10 +173,10 @@ ISerializable<IRawWrite>::TDefaultFactoryFunc TRawDummyWriter::GetDefaultFactory
     };
 }
 
-void TRawDummyWriter::SaveState(IOutputStream&) const
+void TRawDummyWriter::Save(IOutputStream*) const
 {}
 
-void TRawDummyWriter::LoadState(IInputStream&)
+void TRawDummyWriter::Load(IInputStream*)
 {}
 
 ////////////////////////////////////////////////////////////////////////////////

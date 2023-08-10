@@ -131,22 +131,22 @@ public:
         };
     }
 
-    void SaveState(IOutputStream& stream) const override
+    void Save(IOutputStream* stream) const override
     {
-        ::Save(&stream, ParDoNodes_);
-        ::Save(&stream, PCollectionNodeOutputIndex_);
-        ::Save(&stream, InputVtable_);
-        ::Save(&stream, OutputTags_);
-        ::Save(&stream, FnAttributes_);
+        ::Save(stream, ParDoNodes_);
+        ::Save(stream, PCollectionNodeOutputIndex_);
+        ::Save(stream, InputVtable_);
+        ::Save(stream, OutputTags_);
+        ::Save(stream, FnAttributes_);
     }
 
-    void LoadState(IInputStream& stream) override
+    void Load(IInputStream* stream) override
     {
-        ::Load(&stream, ParDoNodes_);
-        ::Load(&stream, PCollectionNodeOutputIndex_);
-        ::Load(&stream, InputVtable_);
-        ::Load(&stream, OutputTags_);
-        ::Load(&stream, FnAttributes_);
+        ::Load(stream, ParDoNodes_);
+        ::Load(stream, PCollectionNodeOutputIndex_);
+        ::Load(stream, InputVtable_);
+        ::Load(stream, OutputTags_);
+        ::Load(stream, FnAttributes_);
         InitializeOutputTags();
     }
 

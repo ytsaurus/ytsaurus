@@ -17,16 +17,6 @@ public:
         : InputTags_(std::move(inputTags))
     { }
 
-    void SaveState(IOutputStream& output) const override
-    {
-        Save(&output, InputTags_);
-    }
-
-    void LoadState(IInputStream& input) override
-    {
-        Load(&input, InputTags_);
-    }
-
     std::vector<TDynamicTypeTag> GetInputTags() const override
     {
         return InputTags_;
@@ -50,6 +40,8 @@ private:
     std::vector<TDynamicTypeTag> InputTags_;
 
     IRawOutputPtr SingleOutput_;
+
+    Y_SAVELOAD_DEFINE_OVERRIDE(InputTags_);
 };
 
 IRawCoGroupByKeyPtr MakeRawCoGroupByKey(std::vector<TDynamicTypeTag> inputTags)

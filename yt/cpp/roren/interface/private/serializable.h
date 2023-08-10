@@ -33,8 +33,8 @@ public:
 
 private:
     virtual TDefaultFactoryFunc GetDefaultFactory() const = 0;
-    virtual void SaveState(IOutputStream& stream) const = 0;
-    virtual void LoadState(IInputStream& stream) = 0;
+    virtual void Save(IOutputStream* stream) const = 0;
+    virtual void Load(IInputStream* stream) = 0;
 
 private:
     template <typename T>
@@ -52,14 +52,14 @@ template <typename TDerived>
 
     {
         TStringOutput out(state);
-        SaveState(out);
+        Save(&out);
         out.Finish();
     }
 
     auto newObject = GetDefaultFactory()();
     {
         TStringInput in(state);
-        newObject->LoadState(in);
+        newObject->Load(&in);
     }
     return newObject;
 }
@@ -68,7 +68,7 @@ template <typename T>
 NYT::TNode SerializableToNode(const ISerializable<T>& serializable)
 {
     TStringStream state;
-    serializable.SaveState(state);
+    serializable.Save(&state);
     NYT::TNode result;
     result["default_factory"] = reinterpret_cast<ui64>(serializable.GetDefaultFactory());
     result["state"] = state.Str();
@@ -86,7 +86,7 @@ template <typename T>
     auto computation = defaultFactory();
     auto state = description["state"].AsString();
     TStringInput stringInput(state);
-    computation->LoadState(stringInput);
+    computation->Load(&stringInput);
     return computation;
 }
 

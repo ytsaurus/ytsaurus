@@ -60,14 +60,14 @@ void TYtJobOutput::SetSinkIndices(const std::vector<int>& sinkIndices)
     SinkIndex_ = std::move(sinkIndices[0]);
 }
 
-void TYtJobOutput::SaveState(IOutputStream &stream) const
+void TYtJobOutput::Save(IOutputStream* stream) const
 {
-    ::Save(&stream, SinkIndex_);
+    ::Save(stream, SinkIndex_);
 }
 
-void TYtJobOutput::LoadState(IInputStream &stream)
+void TYtJobOutput::Load(IInputStream* stream)
 {
-    ::Load(&stream, SinkIndex_);
+    ::Load(stream, SinkIndex_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -108,10 +108,10 @@ public:
         };
     }
 
-    void SaveState(IOutputStream& /*stream*/) const override
+    void Save(IOutputStream* /*stream*/) const override
     { }
 
-    void LoadState(IInputStream& /*stream*/) override
+    void Load(IInputStream* /*stream*/) override
     { }
 
 private:
@@ -298,21 +298,21 @@ public:
         };
     }
 
-    void SaveState(IOutputStream& stream) const override
+    void Save(IOutputStream* stream) const override
     {
-        Save(&stream, RowVtables_.size());
+        ::Save(stream, RowVtables_.size());
         for (const auto& rowVtable : RowVtables_) {
-            Save(&stream, rowVtable);
+            ::Save(stream, rowVtable);
         }
     }
 
-    void LoadState(IInputStream& stream) override
+    void Load(IInputStream* stream) override
     {
         size_t count;
-        Load(&stream, count);
+        ::Load(stream, count);
         RowVtables_.resize(count);
         for (auto& rowVtable : RowVtables_) {
-            Load(&stream, rowVtable);
+            ::Load(stream, rowVtable);
         }
     }
 
@@ -374,18 +374,18 @@ public:
         };
     }
 
-    void SaveState(IOutputStream& stream) const override
+    void Save(IOutputStream* stream) const override
     {
-        TYtJobOutput::SaveState(stream);
-        SaveSerializable(&stream, Encoder_);
-        ::Save(&stream, DataSize_);
+        TYtJobOutput::Save(stream);
+        SaveSerializable(stream, Encoder_);
+        ::Save(stream, DataSize_);
     }
 
-    void LoadState(IInputStream& stream) override
+    void Load(IInputStream* stream) override
     {
-        TYtJobOutput::LoadState(stream);
-        LoadSerializable(&stream, Encoder_);
-        ::Load(&stream, DataSize_);
+        TYtJobOutput::Load(stream);
+        LoadSerializable(stream, Encoder_);
+        ::Load(stream, DataSize_);
     }
 
 private:
@@ -493,41 +493,41 @@ public:
         };
     }
 
-    void SaveState(IOutputStream& stream) const override
+    void Save(IOutputStream* stream) const override
     {
-        TYtJobOutput::SaveState(stream);
+        TYtJobOutput::Save(stream);
 
-        SaveSize(&stream, RowVtables_.size());
-        SaveArray<TRowVtable>(&stream, RowVtables_.data(), RowVtables_.size());
+        SaveSize(stream, RowVtables_.size());
+        SaveArray<TRowVtable>(stream, RowVtables_.data(), RowVtables_.size());
 
-        SaveSize(&stream, KeyEncoders_.size());
+        SaveSize(stream, KeyEncoders_.size());
         for (const auto& keyEncoder : KeyEncoders_) {
-            SaveSerializable(&stream, keyEncoder);
+            SaveSerializable(stream, keyEncoder);
         }
 
-        SaveSize(&stream, ValueEncoders_.size());
+        SaveSize(stream, ValueEncoders_.size());
         for (const auto& valueEncoder : ValueEncoders_) {
-            SaveSerializable(&stream, valueEncoder);
+            SaveSerializable(stream, valueEncoder);
         }
     }
 
-    void LoadState(IInputStream& stream) override
+    void Load(IInputStream* stream) override
     {
-        TYtJobOutput::LoadState(stream);
+        TYtJobOutput::Load(stream);
 
-        LoadSizeAndResize(&stream, RowVtables_);
-        LoadArray<TRowVtable>(&stream, RowVtables_.data(), RowVtables_.size());
+        LoadSizeAndResize(stream, RowVtables_);
+        LoadArray<TRowVtable>(stream, RowVtables_.data(), RowVtables_.size());
 
-        size_t count = LoadSize(&stream);
+        size_t count = LoadSize(stream);
         KeyEncoders_.resize(count);
         for (auto& keyEncoder : KeyEncoders_) {
-            LoadSerializable(&stream, keyEncoder);
+            LoadSerializable(stream, keyEncoder);
         }
 
-        count = LoadSize(&stream);
+        count = LoadSize(stream);
         ValueEncoders_.resize(count);
         for (auto& valueEncoder : ValueEncoders_) {
-            LoadSerializable(&stream, valueEncoder);
+            LoadSerializable(stream, valueEncoder);
         }
     }
 
@@ -636,21 +636,21 @@ public:
         };
     }
 
-    void SaveState(IOutputStream& stream) const override
+    void Save(IOutputStream* stream) const override
     {
-        ::Save(&stream, std::ssize(Outputs_));
+        ::Save(stream, std::ssize(Outputs_));
         for (const auto& output : Outputs_) {
-            SaveSerializable(&stream, output);
+            SaveSerializable(stream, output);
         }
     }
 
-    void LoadState(IInputStream& stream) override
+    void Load(IInputStream* stream) override
     {
         ssize_t size;
-        ::Load(&stream, size);
+        ::Load(stream, size);
         Outputs_.resize(size);
         for (int i = 0; i < size; ++i) {
-            LoadSerializable(&stream, Outputs_[i]);
+            LoadSerializable(stream, Outputs_[i]);
         }
     }
 
@@ -727,16 +727,16 @@ public:
         };
     }
 
-    void SaveState(IOutputStream& stream) const override
+    void Save(IOutputStream* stream) const override
     {
-        TTeeJobOutput::SaveState(stream);
-        SaveSerializable(&stream, RawParDo_);
+        TTeeJobOutput::Save(stream);
+        SaveSerializable(stream, RawParDo_);
     }
 
-    void LoadState(IInputStream& stream) override
+    void Load(IInputStream* stream) override
     {
-        TTeeJobOutput::LoadState(stream);
-        LoadSerializable(&stream, RawParDo_);
+        TTeeJobOutput::Load(stream);
+        LoadSerializable(stream, RawParDo_);
     }
 
 private:

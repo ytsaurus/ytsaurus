@@ -63,23 +63,23 @@ ISerializable<IRawWrite>::TDefaultFactoryFunc TRawMultiWrite::GetDefaultFactory(
     };
 }
 
-void TRawMultiWrite::SaveState(IOutputStream& stream) const
+void TRawMultiWrite::Save(IOutputStream* stream) const
 {
-    ::Save(&stream, static_cast<i64>(Writes_.size()));
+    ::Save(stream, static_cast<i64>(Writes_.size()));
 
     for (const auto& write : Writes_) {
-        SaveSerializable(&stream, write);
+        SaveSerializable(stream, write);
     }
 }
 
-void TRawMultiWrite::LoadState(IInputStream& stream)
+void TRawMultiWrite::Load(IInputStream* stream)
 {
     i64 writeCount;
-    ::Load(&stream, writeCount);
+    ::Load(stream, writeCount);
 
     for (i64 i = 0; i < writeCount; ++i) {
         IRawWritePtr write;
-        LoadSerializable(&stream, write);
+        LoadSerializable(stream, write);
         Writes_.push_back(write);
     }
 }

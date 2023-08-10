@@ -84,18 +84,18 @@ private:
         }
     }
 
-    void SaveState(IOutputStream& stream) const override
+    void Save(IOutputStream* stream) const override
     {
-        CombineFn_->Save(&stream);
-        ::Save(&stream, InputVtable_);
-        ::Save(&stream, OutputVtable_);
+        CombineFn_->Save(stream);
+        ::Save(stream, InputVtable_);
+        ::Save(stream, OutputVtable_);
     }
 
-    void LoadState(IInputStream& stream) override
+    void Load(IInputStream* stream) override
     {
-        CombineFn_->Load(&stream);
-        ::Load(&stream, InputVtable_);
-        ::Load(&stream, OutputVtable_);
+        CombineFn_->Load(stream);
+        ::Load(stream, InputVtable_);
+        ::Load(stream, OutputVtable_);
     }
 
 private:

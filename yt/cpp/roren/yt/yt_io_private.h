@@ -64,8 +64,8 @@ public:
     std::vector<int> GetSinkIndices() const override;
     void SetSinkIndices(const std::vector<int>& sinkIndices) override;
 
-    void SaveState(IOutputStream& stream) const override;
-    void LoadState(IInputStream& stream) override;
+    void Save(IOutputStream* stream) const override;
+    void Load(IInputStream* stream) override;
 
 private:
     int SinkIndex_ = -1;
@@ -112,14 +112,14 @@ public:
 
     [[nodiscard]] virtual IYtJobInputPtr CreateJobInput() const = 0;
 
-    void SaveState(IOutputStream& stream) const override
+    void Save(IOutputStream* stream) const override
     {
-        SaveThroughYson(&stream, Path_);
+        SaveThroughYson(stream, Path_);
     }
 
-    void LoadState(IInputStream& stream) override
+    void Load(IInputStream* stream) override
     {
-        LoadThroughYson(&stream, Path_);
+        LoadThroughYson(stream, Path_);
     }
 
 private:
@@ -149,16 +149,16 @@ public:
 
     virtual IYtJobOutputPtr CreateJobOutput(int sinkIndex = 0) const = 0;
 
-    void SaveState(IOutputStream& stream) const override
+    void Save(IOutputStream* stream) const override
     {
-        SaveThroughYson(&stream, Path_);
-        SaveThroughYson(&stream, Schema_);
+        SaveThroughYson(stream, Path_);
+        SaveThroughYson(stream, Schema_);
     }
 
-    void LoadState(IInputStream& stream) override
+    void Load(IInputStream* stream) override
     {
-        LoadThroughYson(&stream, Path_);
-        LoadThroughYson(&stream, Schema_);
+        LoadThroughYson(stream, Path_);
+        LoadThroughYson(stream, Schema_);
     }
 
     void AddRaw(const void*, ssize_t) override

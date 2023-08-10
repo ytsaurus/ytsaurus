@@ -20,8 +20,8 @@ public:
     std::vector<TDynamicTypeTag> GetOutputTags() const override;
 
     TDefaultFactoryFunc GetDefaultFactory() const override;
-    void SaveState(IOutputStream& stream) const override;
-    void LoadState(IInputStream& stream) override;
+    void Save(IOutputStream* stream) const override;
+    void Load(IInputStream* stream) override;
 
 private:
     std::vector<IRawWritePtr> Writes_;

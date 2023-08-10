@@ -86,8 +86,8 @@ public:
     const void* NextRaw() override;
 
     TDefaultFactoryFunc GetDefaultFactory() const override;
-    void SaveState(IOutputStream&) const override;
-    void LoadState(IInputStream&) override;
+    void Save(IOutputStream*) const override;
+    void Load(IInputStream*) override;
     std::vector<TDynamicTypeTag> GetInputTags() const override;
     std::vector<TDynamicTypeTag> GetOutputTags() const override;
 };
@@ -113,8 +113,8 @@ public:
     void Close() override;
 
     TDefaultFactoryFunc GetDefaultFactory() const override;
-    void SaveState(IOutputStream&) const override;
-    void LoadState(IInputStream&) override;
+    void Save(IOutputStream*) const override;
+    void Load(IInputStream*) override;
     std::vector<TDynamicTypeTag> GetInputTags() const override;
     std::vector<TDynamicTypeTag> GetOutputTags() const override;
 };

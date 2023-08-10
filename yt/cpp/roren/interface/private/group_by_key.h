@@ -83,10 +83,10 @@ private:
         };
     }
 
-    void SaveState(IOutputStream&) const override
+    void Save(IOutputStream*) const override
     { }
 
-    void LoadState(IInputStream&) override
+    void Load(IInputStream*) override
     { }
 
 private:

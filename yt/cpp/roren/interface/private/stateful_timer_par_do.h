@@ -84,21 +84,21 @@ public:
         Func_->Finish(GetOutput(), *RawStateMap_->Upcast<TKey, TState>());
     }
 
-    void SaveState(IOutputStream& output) const override
+    void Save(IOutputStream* output) const override
     {
-        ::Save(&output, InputTag_);
-        ::Save(&output, OutputTags_);
-        ::Save(&output, FnAttributes_);
+        ::Save(output, InputTag_);
+        ::Save(output, OutputTags_);
+        ::Save(output, FnAttributes_);
 
-        static_cast<const IFnBase*>(Func_.Get())->Save(&output);
+        static_cast<const IFnBase*>(Func_.Get())->Save(output);
     }
 
-    void LoadState(IInputStream& input) override
+    void Load(IInputStream* input) override
     {
-        ::Load(&input, InputTag_);
-        ::Load(&input, OutputTags_);
-        ::Load(&input, FnAttributes_);
-        static_cast<IFnBase*>(Func_.Get())->Load(&input);
+        ::Load(input, InputTag_);
+        ::Load(input, OutputTags_);
+        ::Load(input, FnAttributes_);
+        static_cast<IFnBase*>(Func_.Get())->Load(input);
     }
 
     [[nodiscard]] std::vector<TDynamicTypeTag> GetInputTags() const override

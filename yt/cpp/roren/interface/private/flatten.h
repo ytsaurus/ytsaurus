@@ -39,21 +39,11 @@ public:
         };
     }
 
-    void SaveState(IOutputStream& stream) const override
-    {
-        ::Save(&stream, InputCount_);
-        ::Save(&stream, RowVtable_);
-    }
-
-    void LoadState(IInputStream& stream) override
-    {
-        ::Load(&stream, InputCount_);
-        ::Load(&stream, RowVtable_);
-    }
-
 private:
     TRowVtable RowVtable_;
     ssize_t InputCount_ = 0;
+
+    Y_SAVELOAD_DEFINE_OVERRIDE(InputCount_, RowVtable_);
 };
 
 

@@ -63,10 +63,10 @@ private:
         };
     }
 
-    void SaveState(IOutputStream& /*stream*/) const override
+    void Save(IOutputStream* /*stream*/) const override
     { }
 
-    void LoadState(IInputStream& /*stream*/) override
+    void Load(IInputStream* /*stream*/) override
     { }
 
 private:
