@@ -11,7 +11,7 @@ java {
     withJavadocJar()
 }
 
-dependencies{
+dependencies {
     api(project(":yt:java:annotations"))
     api(project(":yt:java:ytsaurus-testlib:src:main:proto"))
     api("com.google.protobuf:protobuf-java:3.21.12")

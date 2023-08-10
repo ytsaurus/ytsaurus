@@ -16,7 +16,7 @@ java {
     withJavadocJar()
 }
 
-dependencies{
+dependencies {
     api("io.dropwizard.metrics:metrics-core:3.1.2")
     api(project(":yt:java:annotations"))
     api(project(":yt:java:skiff"))

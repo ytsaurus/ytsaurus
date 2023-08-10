@@ -16,7 +16,7 @@ java {
     withJavadocJar()
 }
 
-dependencies{
+dependencies {
     api(project(":yt:java:type-info"))
     api(project(":yt:java:yson"))
     api(project(":yt:java:yson-tree"))

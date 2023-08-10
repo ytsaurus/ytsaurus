@@ -15,7 +15,7 @@ java {
     withJavadocJar()
 }
 
-dependencies{
+dependencies {
     implementation(project(":yt:java:annotations"))
     implementation(project(":yt:java:ytsaurus-client"))
     implementation("javax.persistence:persistence-api:1.0")

@@ -16,7 +16,7 @@ java {
     withJavadocJar()
 }
 
-dependencies{
+dependencies {
     api(project(":yt:java:annotations"))
     api(project(":yt:java:yson-tree"))
     api(project(":yt:java:ytsaurus-client-core"))

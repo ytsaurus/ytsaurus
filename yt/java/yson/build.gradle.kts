@@ -16,7 +16,7 @@ java {
     withJavadocJar()
 }
 
-dependencies{
+dependencies {
     api(project(":yt:java:annotations"))
     api("com.google.code.findbugs:jsr305:3.0.2")
     testImplementation("junit:junit:4.13")
