@@ -75,7 +75,7 @@ mkdir "$DOCS_ROOT"
   3. Run following commands
 ```
 cd "$PYTHON_ROOT""
-PYTHONPATH="$PYTHON_ROOT" sphinx-apidoc -F -o "$DOCS_ROOT" yt yt/packages yt/test_helpers yt/testlib yt/tool yt/environment yt/local yt/entry
+PYTHONPATH="$PYTHON_ROOT" sphinx-apidoc -F -o "$DOCS_ROOT" yt yt/packages yt/test_helpers yt/testlib yt/tool yt/environment yt/local yt/entry yt/operations_archive '*tests*'
 PYTHONPATH="$PYTHON_ROOT" sphinx-build -b html "$DOCS_ROOT" "$DOCS_ROOT/_html"
 ```
 
