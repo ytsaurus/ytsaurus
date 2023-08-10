@@ -276,6 +276,7 @@ private:
         JobProxyConfigTemplate_->FiberStackPoolSizes = GetConfig()->FiberStackPoolSizes;
         JobProxyConfigTemplate_->AddressResolver = GetConfig()->AddressResolver;
         JobProxyConfigTemplate_->RpcDispatcher = GetConfig()->RpcDispatcher;
+        JobProxyConfigTemplate_->TcpDispatcher = GetConfig()->TcpDispatcher;
         JobProxyConfigTemplate_->YPServiceDiscovery = GetConfig()->YPServiceDiscovery;
         JobProxyConfigTemplate_->ChunkClientDispatcher = GetConfig()->ChunkClientDispatcher;
 
