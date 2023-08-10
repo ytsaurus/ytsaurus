@@ -73,11 +73,18 @@ public:
         RegisterLoader(
             "ChaosManager.Keys",
             BIND(&TChaosManager::LoadKeys, Unretained(this)));
+        RegisterLoader(
+            "ChaosManager.Values",
+            BIND(&TChaosManager::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "ChaosManager.Keys",
             BIND(&TChaosManager::SaveKeys, Unretained(this)));
+        RegisterSaver(
+            ESyncSerializationPriority::Values,
+            "ChaosManager.Values",
+            BIND(&TChaosManager::SaveValues, Unretained(this)));
 
         RegisterMethod(BIND(&TChaosManager::HydraUpdateAlienCellPeers, Unretained(this)));
     }
@@ -502,7 +509,10 @@ private:
     {
         Save(context, *AlienClusterRegistry_);
         Save(context, EnabledMetadataClusters_);
+    }
 
+    void SaveValues(NCellMaster::TSaveContext& context) const
+    {
         Save(context, Queues_);
         Save(context, Consumers_);
     }
@@ -519,11 +529,18 @@ private:
         }
 
         // COMPAT(cherepashka, achulkov2)
+        NeedToAddChaosReplicatedQueues_ = context.GetVersion() < EMasterReign::ChaosReplicatedQueuesAndConsumersList;
+    }
+
+    void LoadValues(NCellMaster::TLoadContext& context)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        // COMPAT(cherepashka, achulkov2)
         if (context.GetVersion() >= EMasterReign::ChaosReplicatedQueuesAndConsumersList) {
             Load(context, Queues_);
             Load(context, Consumers_);
         }
-        NeedToAddChaosReplicatedQueues_ = context.GetVersion() < EMasterReign::ChaosReplicatedQueuesAndConsumersList;
     }
 
     void OnAfterSnapshotLoaded() override
