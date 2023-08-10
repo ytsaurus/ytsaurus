@@ -365,6 +365,13 @@ std::pair<std::vector<TTableMountInfoPtr>, std::vector<TTableReplicaInfoPtrList>
     auto tableInfos = WaitFor(AllSucceeded(asyncTableInfos))
         .ValueOrThrow();
 
+    return PrepareInSyncReplicaCandidates(options, tableInfos);
+}
+
+std::pair<std::vector<TTableMountInfoPtr>, std::vector<TTableReplicaInfoPtrList>> TClient::PrepareInSyncReplicaCandidates(
+    const TTabletReadOptions& options,
+    const std::vector<TTableMountInfoPtr>& tableInfos)
+{
     bool someReplicated = false;
     bool someNotReplicated = false;
     for (const auto& tableInfo : tableInfos) {
@@ -407,7 +414,7 @@ std::pair<std::vector<TTableMountInfoPtr>, std::vector<TTableReplicaInfoPtrList>
         auto bannedReplicaTracker = Connection_->GetBannedReplicaTrackerCache()->GetTracker(tableInfo->TableId);
         bannedReplicaTracker->SyncReplicas(replicationCard);
 
-        YT_LOG_DEBUG("Picked in-sync replicas for select (ReplicaIds: %v, Timestamp: %v, ReplicationCard: %v)",
+        YT_LOG_DEBUG("Picked in-sync replicas for query (ReplicaIds: %v, Timestamp: %v, ReplicationCard: %v)",
             replicaIds,
             options.Timestamp,
             *replicationCard);
@@ -426,8 +433,8 @@ std::pair<std::vector<TTableMountInfoPtr>, std::vector<TTableReplicaInfoPtrList>
     };
 
     std::vector<TFuture<TTableReplicaInfoPtrList>> asyncCandidates;
-    for (size_t tableIndex = 0; tableIndex < tableInfos.size(); ++tableIndex) {
-        asyncCandidates.push_back(pickInSyncReplicas(tableInfos[tableIndex]));
+    for (const auto& tableInfo : tableInfos) {
+        asyncCandidates.push_back(pickInSyncReplicas(tableInfo));
     }
 
     auto candidates = WaitFor(AllSucceeded(asyncCandidates))

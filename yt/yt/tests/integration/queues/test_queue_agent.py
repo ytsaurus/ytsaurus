@@ -3,9 +3,10 @@ from yt_chaos_test_base import ChaosTestBase
 
 from yt_commands import (authors, get, set, ls, wait, assert_yt_error, create, sync_mount_table, sync_create_cells,
                          insert_rows, delete_rows, remove, raises_yt_error, exists, start_transaction, select_rows,
-                         sync_unmount_table, sync_reshard_table, trim_rows, print_debug, alter_table,
+                         sync_unmount_table, sync_reshard_table, trim_rows, print_debug, alter_table, get_driver,
                          register_queue_consumer, unregister_queue_consumer, mount_table, wait_for_tablet_state,
-                         sync_freeze_table, sync_unfreeze_table, create_table_replica, alter_table_replica)
+                         sync_freeze_table, sync_unfreeze_table, create_table_replica, alter_table_replica,
+                         sync_enable_table_replica)
 
 from yt.common import YtError, update_inplace, update
 
@@ -180,6 +181,68 @@ class QueueAgentShardingManagerOrchid(OrchidWithRegularPasses, OrchidSingleLeade
 
 class CypressSynchronizerOrchid(OrchidWithRegularPasses, OrchidSingleLeaderMixin):
     ENTITY_NAME = "cypress_synchronizer"
+
+
+##################################################################
+
+
+class ReplicatedObjectBase(ChaosTestBase):
+    @staticmethod
+    def _is_ordered_schema(schema):
+        return not any("sort_order" in column for column in schema)
+
+    @staticmethod
+    def _create_replicated_table_base(replicated_table_path, replicas, schema, replicated_table_attributes_patch=None,
+                                      create_replica_tables=True):
+        base_attributes = {
+            "dynamic": True,
+            "schema": schema,
+        }
+
+        create("replicated_table",
+               replicated_table_path,
+               attributes=update(base_attributes, replicated_table_attributes_patch or {}))
+        sync_mount_table(replicated_table_path)
+
+        replica_ids = []
+        for replica in replicas:
+            replica["mode"] = replica.get("mode", "async")
+            replica_id = create_table_replica(replicated_table_path, replica["cluster_name"], replica["replica_path"],
+                                              attributes={"mode": replica["mode"]})
+            if replica.get("enabled", False):
+                sync_enable_table_replica(replica_id)
+
+            replica_ids.append(replica_id)
+
+            if create_replica_tables:
+                replica_driver = get_driver(cluster=replica["cluster_name"])
+                create("table", replica["replica_path"],
+                       attributes=update(base_attributes, {"upstream_replica_id": replica_id}),
+                       driver=replica_driver)
+                sync_mount_table(replica["replica_path"], driver=replica_driver)
+
+        return replica_ids
+
+    def _create_chaos_replicated_table_base(self, chaos_replicated_table_path, replicas, schema,
+                                            replicated_table_options=None, chaos_cell_bundle="c",
+                                            sync_replication_era=True):
+        replicated_table_options = replicated_table_options or {}
+        create("chaos_replicated_table", chaos_replicated_table_path, attributes={
+            "chaos_cell_bundle": chaos_cell_bundle,
+            "replicated_table_options": replicated_table_options,
+            "schema": schema,
+        })
+        card_id = get(f"{chaos_replicated_table_path}/@replication_card_id")
+
+        replica_ids = self._create_chaos_table_replicas(replicas, table_path=chaos_replicated_table_path)
+        self._create_replica_tables(replicas, replica_ids, schema=schema, ordered=self._is_ordered_schema(schema))
+        if sync_replication_era:
+            self._sync_replication_era(card_id)
+
+        return replica_ids, card_id
+
+
+##################################################################
 
 
 class TestQueueAgentBase(YTEnvSetup):
@@ -2500,7 +2563,7 @@ class TestCypressSynchronizerWatching(TestCypressSynchronizerBase):
         # TODO(max42): come up with some checks here.
 
 
-class TestReplicatedTableObjects(TestQueueAgentBase, ChaosTestBase):
+class TestReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjectBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "cypress_synchronizer": {
             "policy": "watching",
@@ -2551,27 +2614,24 @@ class TestReplicatedTableObjects(TestQueueAgentBase, ChaosTestBase):
         cypress_synchronizer_orchid = CypressSynchronizerOrchid()
 
         # Create replicated queue.
-        create("replicated_table", replicated_queue, attributes={
-            "dynamic": True,
-            "schema": self.QUEUE_SCHEMA
-        })
         replicated_queue_replicas = [
             {"cluster_name": "primary", "replica_path": f"{replicated_queue}_replica_0"},
             {"cluster_name": "primary", "replica_path": f"{replicated_queue}_replica_1"}
         ]
-        replicated_queue_replica_ids = self._create_replicas(replicated_queue, replicated_queue_replicas)
+        replicated_queue_replica_ids = self._create_replicated_table_base(
+            replicated_queue, replicated_queue_replicas, schema=self.QUEUE_SCHEMA, create_replica_tables=False)
 
         # Create replicated consumer.
-        create("replicated_table", replicated_consumer, attributes={
-            "dynamic": True,
-            "schema": init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA,
-            "treat_as_queue_consumer": True
-        })
         replicated_consumer_replicas = [
             {"cluster_name": "primary", "replica_path": f"{replicated_consumer}_replica",
              "mode": "sync", "state": "enabled"},
         ]
-        replicated_consumer_replica_ids = self._create_replicas(replicated_consumer, replicated_consumer_replicas)
+        replicated_consumer_replica_ids = self._create_replicated_table_base(
+            replicated_consumer,
+            replicated_consumer_replicas,
+            schema=init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA,
+            replicated_table_attributes_patch={"treat_as_queue_consumer": True},
+            create_replica_tables=False)
 
         # Create chaos replicated queue.
         create("chaos_replicated_table", chaos_replicated_queue, attributes={
@@ -2581,11 +2641,6 @@ class TestReplicatedTableObjects(TestQueueAgentBase, ChaosTestBase):
         queue_replication_card_id = get(f"{chaos_replicated_queue}/@replication_card_id")
 
         # Create chaos replicated consumer.
-        create("chaos_replicated_table", chaos_replicated_consumer, attributes={
-            "chaos_cell_bundle": "c",
-            "schema": init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA,
-        })
-        consumer_replication_card_id = get(f"{chaos_replicated_consumer}/@replication_card_id")
         consumer_data_replica_path = f"{chaos_replicated_consumer}_data"
         consumer_queue_replica_path = f"{chaos_replicated_consumer}_queue"
         chaos_replicated_consumer_replicas = [
@@ -2602,12 +2657,10 @@ class TestReplicatedTableObjects(TestQueueAgentBase, ChaosTestBase):
             {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True,
              "replica_path": f"{consumer_queue_replica_path}_2"},
         ]
-        chaos_replicated_consumer_replica_ids = self._create_chaos_table_replicas(
+        chaos_replicated_consumer_replica_ids, consumer_replication_card_id = self._create_chaos_replicated_table_base(
+            chaos_replicated_consumer,
             chaos_replicated_consumer_replicas,
-            table_path=chaos_replicated_consumer)
-        self._create_replica_tables(chaos_replicated_consumer_replicas, chaos_replicated_consumer_replica_ids,
-                                    schema=init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA)
-        self._sync_replication_era(consumer_replication_card_id)
+            init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA)
 
         # Register queues and consumers for cypress synchronizer to see them.
         register_queue_consumer(replicated_queue, replicated_consumer, vital=False)
