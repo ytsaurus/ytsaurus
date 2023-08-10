@@ -90,7 +90,6 @@ void TTimersContainer::Insert(const TGuard& lock, TTimer timer)
 {
     Y_UNUSED(lock);
     auto [it, isInserted] = TimersIndex_.insert(std::move(timer));
-    Y_VERIFY(isInserted);
     TimersNotInFly_.insert(it);
 }
 
@@ -262,8 +261,8 @@ void TTimers::Commit(const NYT::NApi::ITransactionPtr tx, const TTimers::TTimers
         if (oldTimer && targetTimer == *oldTimer) {
             continue;
         }
-        YtDeleteTimer(tx, key);
         if (oldTimer) {
+            YtDeleteTimer(tx, key);
             YtDeleteIndex(tx, oldTimer.value());
             TTimersContainer::Delete(lock, oldTimer.value());
         }
