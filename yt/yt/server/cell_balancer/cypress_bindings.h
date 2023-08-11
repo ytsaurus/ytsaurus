@@ -288,6 +288,7 @@ struct TBundleInfo
     std::optional<TString> RpcProxyRole;
 
     bool EnableBundleController;
+    bool EnableInstanceAllocation;
     bool EnableTabletCellManagement;
     bool EnableNodeTagFilterManagement;
     bool EnableTabletNodeDynamicConfig;

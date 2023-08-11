@@ -2408,6 +2408,10 @@ void ManageInstancies(TSchedulerInputState& input, TSchedulerMutations* mutation
         }
         mutations->ChangedStates[bundleName] = bundleState;
 
+        if (!bundleInfo->EnableInstanceAllocation) {
+            continue;
+        }
+
         const auto& bundleNodes = input.BundleNodes[bundleName];
         auto aliveNodes = GetAliveNodes(
             bundleName,

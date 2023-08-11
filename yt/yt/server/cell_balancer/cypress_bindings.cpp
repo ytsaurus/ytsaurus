@@ -203,6 +203,8 @@ void TBundleInfo::Register(TRegistrar registrar)
         .Optional();
     RegisterAttribute(registrar, "enable_bundle_controller", &TThis::EnableBundleController)
         .Default(false);
+    RegisterAttribute(registrar, "enable_instance_allocation", &TThis::EnableInstanceAllocation)
+        .Default(true);
     RegisterAttribute(registrar, "enable_tablet_cell_management", &TThis::EnableTabletCellManagement)
         .Default(true);
     RegisterAttribute(registrar, "enable_node_tag_filter_management", &TThis::EnableNodeTagFilterManagement)

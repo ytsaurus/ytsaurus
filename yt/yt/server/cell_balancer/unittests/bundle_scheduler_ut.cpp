@@ -645,6 +645,22 @@ TEST_P(TBundleSchedulerTest, AllocationCreated)
     }
 }
 
+TEST_P(TBundleSchedulerTest, AllocationsAreDisabled)
+{
+    auto input = GenerateInputContext(5 * GetDataCenterCount());
+    auto dataCenters = GetDataCenters(input);
+    TSchedulerMutations mutations;
+
+    const auto& bundleInfo = input.Bundles["bigd"];
+    bundleInfo->EnableInstanceAllocation = false;
+
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    VerifyMultiDCNodeAllocationRequests(mutations, ForEachDataCenter(input, 0));
+}
+
 TEST_P(TBundleSchedulerTest, InitializeTargetConfig)
 {
     auto input = GenerateInputContext(0);
@@ -1036,6 +1052,32 @@ TEST_P(TBundleSchedulerTest, CreateNewDeallocations)
     for (auto& [_, state] : mutations.ChangedStates[bundleName]->NodeDeallocations) {
         EXPECT_TRUE(state->HulkRequestCreated);
     }
+}
+
+TEST_P(TBundleSchedulerTest, DeallocationsAreDisabled)
+{
+    constexpr int TabletSlotCount = 10;
+
+    auto input = GenerateInputContext(2 * GetDataCenterCount(), TabletSlotCount);
+    auto dataCenters = GetDataCenters(input);
+    const TString bundleName = "bigd";
+    const auto& bundleInfo = input.Bundles[bundleName];
+    bundleInfo->EnableInstanceAllocation = false;
+
+    GenerateTabletCellsForBundle(input, bundleName, 2 * TabletSlotCount * GetActiveDataCenterCount());
+
+    for (const auto& dataCenter : dataCenters) {
+        GenerateNodesForBundle(input, bundleName, 5, {.SetFilterTag=SetNodeTagFilters, .SlotCount=TabletSlotCount, .DC=dataCenter});
+    }
+
+    TSchedulerMutations mutations;
+
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates[bundleName]->NodeDeallocations));
 }
 
 TEST_P(TBundleSchedulerTest, DeallocationProgressTrackFailed)
