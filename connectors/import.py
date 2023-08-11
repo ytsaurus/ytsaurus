@@ -29,11 +29,10 @@ def find_hive_jars():
                    "--jars /path/to/hive/jars/.*.jar".format(path))
     return jars
 
-def start_spyt_cluster(args):
-    yt_client = YtClient(proxy=args.proxy, token=spyt.utils.default_token())
-    spyt.standalone.start_spark_cluster(args.cores_per_executor,
-                                        args.ram_per_core * args.cores_per_executor,
-                                        args.num_executors,
+def start_spyt_cluster(yt_client, args):
+    spyt.standalone.start_spark_cluster(worker_cores = args.cores_per_executor,
+                                        worker_memory = args.ram_per_core * args.cores_per_executor,
+                                        worker_num = args.num_executors,
                                         worker_timeout = args.executor_timeout,
                                         discovery_path = args.discovery_path,
                                         tmpfs_limit = args.executor_tmpfs_limit,
@@ -43,16 +42,22 @@ def start_spyt_cluster(args):
                                         params=spyt.standalone.SparkDefaultArguments.get_params(),
                                         client=yt_client)
 
-def open_spark_session(args):
+def open_spark_session(yt_client, args):
     conf = spyt.client._build_spark_conf(discovery_path=args.discovery_path,
                                          num_executors=args.num_executors,
                                          cores_per_executor=args.cores_per_executor,
                                          driver_memory="1G",
-                                         executor_memory_per_core=args.ram_per_core)
+                                         executor_memory_per_core=args.ram_per_core,
+                                         client=yt_client)
 
     if args.metastore:
         conf.set('hive.metastore.uris', 'thrift://%s' % args.metastore)
         conf.set('spark.sql.warehouse.dir', args.warehouse_dir)
+
+
+    if args.extra_conf:
+        for keyvalue in args.extra_conf.split(','):
+            conf.set(keyvalue.split('=')[0], keyvalue.split('=')[1])
 
     jar_list = []
 
@@ -71,7 +76,10 @@ def open_spark_session(args):
 
     os.environ['SPARK_DIST_CLASSPATH'] = classpath
 
-    return pyspark.sql.SparkSession.builder.enableHiveSupport().config(conf=conf).getOrCreate()
+    builder = pyspark.sql.SparkSession.builder
+    if args.metastore:
+        builder = builder.enableHiveSupport()
+    return builder.config(conf=conf).getOrCreate()
 
 def use_hive_db(spark, db):
     spark.sql("USE {}".format(db)).collect()
@@ -197,6 +205,7 @@ def main():
     parser.add_argument("--jdbc-server", required=False)
     parser.add_argument("--jdbc-user", required=False, default='')
     parser.add_argument("--jdbc-password", required=False)
+    parser.add_argument("--extra-conf", required=False)
 
     parser.add_argument('--jars',
                         nargs='*',
@@ -219,10 +228,11 @@ def main():
     for (in_table, out_table) in zip(args.input, args.output):
         validate_args(args, in_table, out_table)
 
+    yt_client = YtClient(proxy=args.proxy, token=spyt.utils.default_token())
     if args.start_spyt:
-        start_spyt_cluster(args)
+        start_spyt_cluster(yt_client, args)
 
-    spark = open_spark_session(args)
+    spark = open_spark_session(yt_client, args)
 
     try:
         for (in_table, out_table) in zip(args.input, args.output):
