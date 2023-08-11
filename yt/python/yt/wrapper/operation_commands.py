@@ -264,15 +264,18 @@ class TimeWatcher(object):
         self.min_interval = min_interval
         self.max_interval = max_interval
         self.slowdown_coef = slowdown_coef
-        self.total_time = 0.0
+        self._total_time = 0.0
 
     def _bound(self, interval):
         return min(max(interval, self.min_interval), self.max_interval)
 
+    def reset(self):
+        self._total_time = 0.0
+
     def wait(self):
         """Sleep proper time."""
-        pause = self._bound(self.total_time * self.slowdown_coef)
-        self.total_time += pause
+        pause = self._bound(self._total_time * self.slowdown_coef)
+        self._total_time += pause
         sleep(pause)
 
 
@@ -421,6 +424,7 @@ def get_operation_state_monitor(operation, time_watcher, action=lambda: None, cl
 
     :return: iterator over operation states.
     """
+    last_state = None
     while True:
         action()
 
@@ -428,6 +432,11 @@ def get_operation_state_monitor(operation, time_watcher, action=lambda: None, cl
         yield state
         if state.is_finished():
             break
+
+        if state != last_state:
+            time_watcher.reset()
+        last_state = state
+
         time_watcher.wait()
 
 
@@ -722,9 +731,9 @@ class Operation(object):
 
         finalization_actions = flatten(self.finalization_actions) if self.finalization_actions else []
         operation_poll_period = get_config(self.client)["operation_tracker"]["poll_period"] / 1000.0
-        time_watcher = TimeWatcher(min_interval=operation_poll_period / 5.0,
+        time_watcher = TimeWatcher(min_interval=operation_poll_period / 10.0,
                                    max_interval=operation_poll_period,
-                                   slowdown_coef=0.1)
+                                   slowdown_coef=0.2)
         print_info = self.printer if print_progress else lambda state: None
 
         def abort():
