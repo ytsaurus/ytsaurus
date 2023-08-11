@@ -2249,7 +2249,14 @@ class TestCypressSynchronizerCommon(TestCypressSynchronizerBase):
         wait(lambda: not alert_orchid.get_alerts())
 
     @authors("cherepashka")
-    def test_queue_recreation(self):
+    @pytest.mark.parametrize("policy", ["polling", "watching"])
+    def test_queue_recreation(self, policy):
+        self._apply_dynamic_config_patch({
+            "cypress_synchronizer": {
+                "policy": policy
+            }
+        })
+
         orchid = CypressSynchronizerOrchid()
 
         self._create_and_register_queue("//tmp/q")
@@ -2258,8 +2265,9 @@ class TestCypressSynchronizerCommon(TestCypressSynchronizerBase):
         old_queue = self._get_queues_and_check_invariants(expected_count=1)[0]
 
         remove("//tmp/q")
+        self._wait_for_component_passes()
 
-        self._create_and_register_queue("//tmp/q", initiate_helpers=False)
+        self._create_queue_object("//tmp/q", initiate_helpers=False)
         orchid.wait_fresh_pass()
 
         new_queue = self._get_queues_and_check_invariants(expected_count=1)[0]
