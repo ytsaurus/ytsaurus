@@ -52,6 +52,9 @@ def retry_backoff_config(**kwargs):
 
 
 def retries_config(**kwargs):
+    if "total_timeout" in kwargs and isinstance(kwargs["total_timeout"], timedelta):
+        kwargs["total_timeout"] = int(kwargs["total_timeout"].total_seconds() * 1000)
+
     config_dict = {
         "count": None,
         "enable": None,

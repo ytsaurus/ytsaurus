@@ -203,6 +203,18 @@ if (sys.version_info.major, sys.version_info.minor) >= (3, 7):
     SUBPARSER_KWARGS["required"] = True
 
 
+def parse_structured_arguments_or_file(string, **kwargs):
+    if os.path.isfile(string):
+        with open(string, 'rb') as fh:
+            file_data = fh.read()
+            data = parse_arguments(file_data, **kwargs)
+    else:
+        data = parse_arguments(string, **kwargs)
+    if isinstance(data, yson.YsonUnicode):
+        raise ValueError("Parameter should be '{<some_yson>}' of 'some_file.yson'")
+    return data
+
+
 class ParseFormat(Action):
     def __call__(self, parser, namespace, values, option_string=None):
         setattr(namespace, self.dest, yt.create_format(values))
@@ -2541,7 +2553,7 @@ def main_func():
                                                "by default YT_PROXY from environment")
     config_parser.add_argument("--prefix", help="specify common prefix for all relative paths, "
                                                 "by default YT_PREFIX from environment")
-    config_parser.add_argument("--config", action=ParseStructuredArgument, action_load_method=parse_arguments,
+    config_parser.add_argument("--config", action=ParseStructuredArgument, action_load_method=parse_structured_arguments_or_file,
                                help="specify configuration", default={})
     config_parser.add_argument("--tx", help="perform command in the context of the given "
                                             "transaction, by default 0-0-0-0")

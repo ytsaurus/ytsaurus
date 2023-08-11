@@ -14,13 +14,13 @@ from yt.wrapper.driver import get_api_version
 from yt.wrapper.retries import run_with_retries, Retrier
 from yt.wrapper.ypath import ypath_join, ypath_dirname, ypath_split, YPath
 from yt.wrapper.stream import _ChunkStream
-from yt.wrapper.default_config import retries_config as get_default_retries_config
+from yt.wrapper.default_config import retries_config as get_default_retries_config, get_default_config
 from yt.wrapper.format import SkiffFormat
 
 import yt.environment.arcadia_interop as arcadia_interop
 
 from yt.common import makedirp
-from yt.yson import to_yson_type
+from yt.yson import to_yson_type, dumps
 import yt.yson as yson
 import yt.json_wrapper as json
 
@@ -1352,3 +1352,8 @@ class TestSkiffFormat(object):
         # YT-14559
         with pytest.raises(yt.YtError, match="Cannot resolve type reference"):
             SkiffFormat(schema_registry={}, schemas=['$0'])
+
+
+@authors("denvr")
+def test_show_default_config():
+    assert dumps(get_default_config())
