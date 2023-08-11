@@ -195,13 +195,13 @@ public:
 
     void ReportProfile();
 
-    void GuardedInterrupt(
+    void DoInterrupt(
         TDuration timeout,
         NScheduler::EInterruptReason interruptionReason,
         const std::optional<TString>& preemptionReason,
         const std::optional<NScheduler::TPreemptedFor>& preemptedFor);
 
-    void GuardedFail();
+    void DoFail(std::optional<TError> error);
 
     bool GetStored() const;
 
@@ -223,7 +223,7 @@ public:
         const std::optional<TString>& preemptionReason,
         const std::optional<NScheduler::TPreemptedFor>& preemptedFor);
 
-    void Fail();
+    void Fail(std::optional<TError> error);
 
     NScheduler::EInterruptReason GetInterruptionReason() const noexcept;
     const std::optional<NScheduler::TPreemptedFor>& GetPreemptedFor() const noexcept;
@@ -419,7 +419,7 @@ private:
 
     void OnJobPreparationTimeout(TDuration prepareTimeLimit, bool fatal);
 
-    void OnJobAbortionTimeout();
+    void OnWaitingForCleanupTimeout();
 
     void OnJobProxyFinished(const TError& error);
 
@@ -456,7 +456,7 @@ private:
 
     TUserSandboxOptions BuildUserSandboxOptions();
 
-    std::optional<NScheduler::EAbortReason> GetAbortReason();
+    std::optional<NScheduler::EAbortReason> DeduceAbortReason();
 
     bool IsFatalError(const TError& error);
 
@@ -496,16 +496,19 @@ private:
 
     void OnResourcesAcquired() noexcept override;
 
-    void Finalize(
+    void Terminate(EJobState finalState, TError error);
+
+    bool Finalize(
+        std::optional<EJobState> finalJobState,
         TError error,
         std::optional<NControllerAgent::NProto::TJobResultExt> jobResultExtension,
         bool byJobProxyCompletion);
     void Finalize(TError error);
-    void FinalizeAborted(TError error);
+    void Finalize(EJobState finalState, TError error);
 
     void OnJobFinalized();
 
-    void DeduceFinishedJobState();
+    void DeduceAndSetFinishedJobState();
 
     bool NeedsGpuCheck() const;
 };

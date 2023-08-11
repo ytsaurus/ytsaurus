@@ -818,7 +818,7 @@ class TestJobAbortDuringVolumePreparation(YTEnvSetup):
                     "type": "porto",
                 },
             },
-            "job_abortion_timeout": 5000,
+            "waiting_for_job_cleanup_timeout": 5000,
         },
     }
 

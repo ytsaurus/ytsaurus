@@ -1196,7 +1196,7 @@ private:
                     "Agent requested to fail job (JobId: %v)",
                     jobId);
 
-                job->Fail();
+                job->Fail(/*error*/ std::nullopt);
             } else {
                 YT_LOG_WARNING(
                     "Agent requested to fail a non-existent job (JobId: %v)",

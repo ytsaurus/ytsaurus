@@ -477,7 +477,7 @@ public:
 
     i64 MinRequiredDiskSpace;
 
-    TDuration JobAbortionTimeout;
+    TDuration WaitingForJobCleanupTimeout;
 
     std::optional<TDuration> JobPrepareTimeLimit;
 
@@ -606,7 +606,7 @@ public:
     TSchedulerConnectorDynamicConfigPtr SchedulerConnector;
     TControllerAgentConnectorDynamicConfigPtr ControllerAgentConnector;
 
-    std::optional<TDuration> JobAbortionTimeout;
+    std::optional<TDuration> WaitingForJobCleanupTimeout;
     TDuration SlotReleaseTimeout;
 
     std::optional<TDuration> JobProxyPreparationTimeout;

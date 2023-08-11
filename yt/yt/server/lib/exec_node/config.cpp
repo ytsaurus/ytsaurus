@@ -552,7 +552,7 @@ void TExecNodeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("min_required_disk_space", &TThis::MinRequiredDiskSpace)
         .Default(100_MB);
-    registrar.Parameter("job_abortion_timeout", &TThis::JobAbortionTimeout)
+    registrar.Parameter("waiting_for_job_cleanup_timeout", &TThis::WaitingForJobCleanupTimeout)
         .Default(TDuration::Minutes(15));
 
     registrar.Parameter("job_prepare_time_limit", &TThis::JobPrepareTimeLimit)
@@ -672,7 +672,7 @@ void TExecNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("job_proxy_preparation_timeout", &TThis::JobProxyPreparationTimeout)
         .Default(TDuration::Minutes(3));
 
-    registrar.Parameter("job_abortion_timeout", &TThis::JobAbortionTimeout)
+    registrar.Parameter("waiting_for_job_cleanup_timeout", &TThis::WaitingForJobCleanupTimeout)
         .Default();
     registrar.Parameter("slot_release_timeout", &TThis::SlotReleaseTimeout)
         .Default(TDuration::Minutes(20));

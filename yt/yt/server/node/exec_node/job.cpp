@@ -319,55 +319,13 @@ void TJob::Abort(TError error)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    auto timeout = DynamicConfig_->JobAbortionTimeout.value_or(Config_->JobAbortionTimeout);
-
     YT_LOG_INFO(
         error,
-        "Job abort requested (Phase: %v, Timeout: %v)",
+        "Job abort requested (Phase: %v, State: %v)",
         JobPhase_,
-        timeout);
-    switch (JobPhase_) {
-        case EJobPhase::Created:
-            SetJobPhase(EJobPhase::WaitingAbort);
-            FinalizeAborted(std::move(error));
-            TDelayedExecutor::Submit(
-                BIND(&TJob::OnJobAbortionTimeout, MakeStrong(this))
-                    .Via(Invoker_),
-                timeout);
-            Cleanup();
-            return;
+        JobState_);
 
-        case EJobPhase::DownloadingArtifacts:
-        case EJobPhase::RunningGpuCheckCommand:
-        case EJobPhase::RunningExtraGpuCheckCommand:
-        case EJobPhase::Running:
-        case EJobPhase::PreparingNodeDirectory:
-        case EJobPhase::PreparingSandboxDirectories:
-        case EJobPhase::PreparingArtifacts:
-        case EJobPhase::PreparingRootVolume:
-        case EJobPhase::SpawningJobProxy:
-        case EJobPhase::PreparingJob:
-            SetJobPhase(EJobPhase::WaitingAbort);
-            FinalizeAborted(std::move(error));
-            TDelayedExecutor::Submit(
-                BIND(&TJob::OnJobAbortionTimeout, MakeStrong(this))
-                    .Via(Invoker_),
-                timeout);
-            ArtifactsFuture_.Cancel(TError("Job aborted"));
-
-            if (auto slot = GetUserSlot()) {
-                slot->CancelPreparation();
-            }
-
-            StopJobProxy();
-            return;
-
-        default:
-            YT_LOG_DEBUG("Cannot abort job (JobState: %v, JobPhase: %v)",
-                JobState_,
-                JobPhase_);
-            return;
-    }
+    Terminate(EJobState::Aborted, std::move(error));
 }
 
 void TJob::OnJobProxySpawned()
@@ -522,11 +480,71 @@ void TJob::OnJobPrepared()
         });
 }
 
+void TJob::Terminate(EJobState finalState, TError error)
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    auto doTerminate = [&] {
+        auto timeout = DynamicConfig_->WaitingForJobCleanupTimeout.value_or(
+            Config_->WaitingForJobCleanupTimeout);
+
+        SetJobPhase(EJobPhase::WaitingCleanup);
+        Finalize(finalState, std::move(error));
+        YT_LOG_DEBUG("Waiting for job cleanup (Timeout: %v)", timeout);
+        TDelayedExecutor::Submit(
+            BIND(&TJob::OnWaitingForCleanupTimeout, MakeStrong(this))
+                .Via(Invoker_),
+            timeout);
+        ArtifactsFuture_.Cancel(TError("Job terminated"));
+
+        if (const auto& slot = GetUserSlot()) {
+            slot->CancelPreparation();
+        }
+    };
+
+    switch (JobPhase_) {
+        case EJobPhase::Created:
+            doTerminate();
+            Cleanup();
+
+            return;
+
+        case EJobPhase::DownloadingArtifacts:
+        case EJobPhase::RunningGpuCheckCommand:
+        case EJobPhase::RunningExtraGpuCheckCommand:
+        case EJobPhase::Running:
+        case EJobPhase::PreparingNodeDirectory:
+        case EJobPhase::PreparingSandboxDirectories:
+        case EJobPhase::PreparingArtifacts:
+        case EJobPhase::PreparingRootVolume:
+        case EJobPhase::SpawningJobProxy:
+        case EJobPhase::PreparingJob:
+            doTerminate();
+            StopJobProxy();
+
+            return;
+
+        default:
+            YT_LOG_DEBUG(
+                "Cannot terminate job (JobState: %v, JobPhase: %v)",
+                JobState_,
+                JobPhase_);
+            return;
+    }
+}
+
 void TJob::Finalize(TError error)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    Finalize(std::move(error), /*jobResultExtension*/ std::nullopt, /*byJobProxyCompletion*/ false);
+    if (!Finalize(
+            /*finalJobState*/ std::nullopt,
+            std::move(error),
+            /*jobResultExtension*/ std::nullopt,
+            /*byJobProxyCompletion*/ false))
+    {
+        return;
+    }
 
     YT_VERIFY(Error_);
     auto& currentError = *Error_;
@@ -539,7 +557,8 @@ void TJob::Finalize(TError error)
     }
 }
 
-void TJob::Finalize(
+bool TJob::Finalize(
+    std::optional<EJobState> finalJobState,
     TError error,
     std::optional<NControllerAgent::NProto::TJobResultExt> jobResultExtension,
     bool byJobProxyCompletion)
@@ -548,47 +567,51 @@ void TJob::Finalize(
 
     if (IsFinished()) {
         YT_LOG_DEBUG("Job already finalized");
-        return;
+        return false;
     }
 
-    YT_LOG_DEBUG("Finalizing job");
+    YT_LOG_DEBUG("Finalizing job (FinalState: %v)", finalJobState);
 
     TForbidContextSwitchGuard guard;
 
     DoSetResult(std::move(error), std::move(jobResultExtension), byJobProxyCompletion);
 
-    DeduceFinishedJobState();
-
-    OnJobFinalized();
-}
-
-void TJob::FinalizeAborted(TError error)
-{
-    VERIFY_THREAD_AFFINITY(JobThread);
-
-    if (IsFinished()) {
-        YT_LOG_DEBUG("Job already finalized");
-        return;
-    }
-
-    YT_LOG_DEBUG("Finalizing aborted job");
-
-    TForbidContextSwitchGuard guard;
-
-    DoSetResult(
-        std::move(error),
-        /*jobResultExtension*/ std::nullopt,
-        /*receivedFromJobProxy*/ false);
-
     YT_VERIFY(Error_);
     auto& currentError = *Error_;
 
-    auto abortReason = GetAbortReason();
-    currentError.MutableAttributes()->Set("abort_reason", abortReason);
+    if (!finalJobState) {
+        DeduceAndSetFinishedJobState();
+    } else {
+        if (*finalJobState == EJobState::Aborted) {
+            if (auto deducedAbortReason = DeduceAbortReason()) {
+                currentError.MutableAttributes()->Set("abort_reason", deducedAbortReason);
 
-    SetJobState(EJobState::Aborted);
+                YT_LOG_DEBUG(
+                    "Deduced abort reason set to error (AbortReason: %v, Error: %v)",
+                    deducedAbortReason,
+                    currentError);
+            }
+        }
+
+        SetJobState(*finalJobState);
+    }
 
     OnJobFinalized();
+
+    return true;
+}
+
+void TJob::Finalize(EJobState finalState, TError error)
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    YT_VERIFY(finalState == EJobState::Aborted || finalState == EJobState::Failed);
+
+    Finalize(
+        finalState,
+        std::move(error),
+        /*jobResultExtension*/ std::nullopt,
+        /*byJobProxyCompletion*/ false);
 }
 
 void TJob::OnJobFinalized()
@@ -621,7 +644,7 @@ void TJob::OnJobFinalized()
     }
 }
 
-void TJob::DeduceFinishedJobState()
+void TJob::DeduceAndSetFinishedJobState()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -634,9 +657,9 @@ void TJob::DeduceFinishedJobState()
         currentError.MutableAttributes()->Set("fatal", true);
         SetJobState(EJobState::Failed);
     } else {
-        auto abortReason = GetAbortReason();
-        if (abortReason) {
-            currentError.MutableAttributes()->Set("abort_reason", abortReason);
+        auto deducedAbortReason = DeduceAbortReason();
+        if (deducedAbortReason) {
+            currentError.MutableAttributes()->Set("abort_reason", deducedAbortReason);
             SetJobState(EJobState::Aborted);
         } else {
             SetJobState(EJobState::Failed);
@@ -663,6 +686,7 @@ void TJob::OnResultReceived(TJobResult jobResult)
                 error.IsOK() || !NeedsGpuCheck())
             {
                 Finalize(
+                    /*finalJobState*/ std::nullopt,
                     std::move(error),
                     std::move(jobResultExtension),
                     /*byJobProxyCompletion*/ true);
@@ -1222,7 +1246,7 @@ void TJob::ReportProfile()
     }
 }
 
-void TJob::GuardedInterrupt(
+void TJob::DoInterrupt(
     TDuration timeout,
     EInterruptReason interruptionReason,
     const std::optional<TString>& preemptionReason,
@@ -1320,21 +1344,30 @@ void TJob::GuardedInterrupt(
     }
 }
 
-void TJob::GuardedFail()
+void TJob::DoFail(std::optional<TError> error)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
     if (JobPhase_ != EJobPhase::Running) {
-        Abort(TError(NJobProxy::EErrorCode::JobNotRunning, "Fail job that is not running"));
+        if (!error) {
+            error = TError("Fail job that is not running");
+        }
+
+        Terminate(EJobState::Failed, std::move(*error));
 
         return;
     }
 
+    // TODO(pogorelov): We should not request running job failure, it must be special type of abort.
     try {
         GetJobProbeOrThrow()->Fail();
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error failing job on job proxy")
-                << ex;
+        auto abortionError = TError("Error failing job on job proxy")
+            << ex;
+        if (error) {
+            abortionError = abortionError << *error;
+        }
+        Abort(std::move(abortionError));
     }
 }
 
@@ -1406,18 +1439,18 @@ void TJob::Interrupt(
         timeout);
 
     try {
-        GuardedInterrupt(timeout, interruptionReason, preemptionReason, preemptedFor);
+        DoInterrupt(timeout, interruptionReason, preemptionReason, preemptedFor);
     } catch (const std::exception& ex) {
         YT_LOG_WARNING(ex, "Failed to interrupt job");
     }
 }
 
-void TJob::Fail()
+void TJob::Fail(std::optional<TError> error)
 {
-    YT_LOG_INFO("Fail job");
+    YT_LOG_INFO("Fail job (Error: %v)", error);
 
     try {
-        GuardedFail();
+        DoFail(std::move(error));
     } catch (const std::exception& ex) {
         YT_LOG_WARNING(ex, "Failed to fail job");
     }
@@ -1564,7 +1597,7 @@ bool TJob::HandleFinishingPhase()
     VERIFY_THREAD_AFFINITY(JobThread);
 
     switch (JobPhase_) {
-        case EJobPhase::WaitingAbort:
+        case EJobPhase::WaitingCleanup:
             Cleanup();
             return true;
 
@@ -1874,19 +1907,27 @@ void TJob::OnJobPreparationTimeout(TDuration prepareTimeLimit, bool fatal)
             << TErrorAttribute("prepare_time_limit", prepareTimeLimit)
             << TErrorAttribute("job_start_time", StartTime_)
             << TErrorAttribute("job_phase", JobPhase_);
-        Abort(error);
+
+        if (fatal) {
+            Fail(std::move(error));
+        } else {
+            Abort(std::move(error));
+        }
     }
 }
 
-void TJob::OnJobAbortionTimeout()
+void TJob::OnWaitingForCleanupTimeout()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    if (JobPhase_ == EJobPhase::WaitingAbort) {
-        auto error = TError("Failed to abort job within timeout")
+    if (JobPhase_ == EJobPhase::WaitingCleanup) {
+        auto timeout = DynamicConfig_->WaitingForJobCleanupTimeout.value_or(
+            Config_->WaitingForJobCleanupTimeout);
+
+        auto error = TError("Failed to wait for job cleanup within timeout")
             << TErrorAttribute("job_id", Id_)
             << TErrorAttribute("operation_id", OperationId_)
-            << TErrorAttribute("job_abortion_timeout", Config_->JobAbortionTimeout);
+            << TErrorAttribute("waiting_for_job_cleanup_timeout", timeout);
         Bootstrap_->GetSlotManager()->Disable(error);
     }
 }
@@ -1908,7 +1949,14 @@ void TJob::OnJobProxyFinished(const TError& error)
         return;
     }
 
-    YT_VERIFY(UserSlot_->GetRefCount() == 1);
+    {
+        auto slotRefCount = UserSlot_->GetRefCount();
+
+        YT_LOG_FATAL_IF(
+            slotRefCount != 1,
+            "Unexpected user slot ref count (RefCount: %v)",
+            slotRefCount);
+    }
 
     const auto& currentError = Error_
         ? *Error_
@@ -1991,13 +2039,11 @@ TFuture<void> TJob::StopJobProxy()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    if (auto slot = GetUserSlot()) {
-        YT_LOG_DEBUG("Clean processes (SlotIndex: %v)", slot->GetSlotIndex());
+    const auto& slot = GetUserSlot();
 
-        return slot->CleanProcesses();
-    }
+    YT_LOG_DEBUG("Clean processes (SlotIndex: %v)", slot->GetSlotIndex());
 
-    return VoidFuture;
+    return slot->CleanProcesses();
 }
 
 // Finalization.
@@ -2031,7 +2077,7 @@ void TJob::Cleanup()
 
     SetJobPhase(EJobPhase::Cleanup);
 
-    if (auto slot = GetUserSlot()) {
+    if (const auto& slot = GetUserSlot()) {
         try {
             WaitFor(StopJobProxy())
                 .ThrowOnError();
@@ -2068,7 +2114,7 @@ void TJob::Cleanup()
         RootVolume_.Reset();
     }
 
-    if (auto slot = GetUserSlot()) {
+    if (const auto& slot = GetUserSlot()) {
         if (ShouldCleanSandboxes()) {
             try {
                 YT_LOG_DEBUG("Clean sandbox (SlotIndex: %v)", slot->GetSlotIndex());
@@ -2561,7 +2607,7 @@ TError TJob::BuildJobProxyError(const TError& spawnError)
     return jobProxyError;
 }
 
-std::optional<EAbortReason> TJob::GetAbortReason()
+std::optional<EAbortReason> TJob::DeduceAbortReason()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 

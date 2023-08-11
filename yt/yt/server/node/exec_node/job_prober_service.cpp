@@ -156,7 +156,7 @@ private:
 
         context->SetRequestInfo("JobId: %v, InterruptionTimeout: %v",
             jobId, timeout);
-        
+
         if (NObjectClient::TypeFromId(jobId) != NCypressClient::EObjectType::SchedulerJob) {
             THROW_ERROR_EXCEPTION("Cannot interrupt job %v because it is not a scheduler job",
                 jobId);
@@ -197,7 +197,7 @@ private:
         auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
         job->Abort(error);
 
-        if (job->GetPhase() < EJobPhase::WaitingAbort) {
+        if (job->GetPhase() < EJobPhase::WaitingCleanup) {
             THROW_ERROR_EXCEPTION("Failed to abort job %v", jobId)
                 << TErrorAttribute("job_state", job->GetState())
                 << TErrorAttribute("job_phase", job->GetPhase());

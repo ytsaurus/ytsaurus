@@ -357,7 +357,7 @@ private:
 
         job->SetResourceUsage(resourceUsage);
 
-        if (job->GetPhase() >= EJobPhase::WaitingAbort) {
+        if (job->GetPhase() >= EJobPhase::WaitingCleanup) {
             THROW_ERROR_EXCEPTION("Cannot update resource usage for job in %Qlv phase", job->GetPhase());
         }
 

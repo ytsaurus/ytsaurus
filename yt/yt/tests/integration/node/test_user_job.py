@@ -2312,7 +2312,7 @@ class TestHealExecNode(YTEnvSetup):
 
         update_nodes_dynamic_config({
             "exec_node": {
-                "job_abortion_timeout": 500,
+                "waiting_for_job_cleanup_timeout": 500,
             },
         })
 
