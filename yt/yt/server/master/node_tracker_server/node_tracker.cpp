@@ -1950,6 +1950,7 @@ private:
 
         TReqSetNodeStates gossipRequest;
         gossipRequest.set_cell_tag(ToProto<int>(multicellManager->GetCellTag()));
+
         for (auto [nodeId, node] : NodeMap_) {
             if (!IsObjectAlive(node)) {
                 continue;
@@ -1971,6 +1972,13 @@ private:
         if (gossipRequest.entries_size() == 0) {
             return;
         }
+
+        std::sort(
+            gossipRequest.mutable_entries()->begin(),
+            gossipRequest.mutable_entries()->end(),
+            [] (const auto& lhs, const auto& rhs) {
+                return lhs.node_id() < rhs.node_id();
+            });
 
         YT_LOG_INFO("Sending node states gossip message (NodeCount: %v)",
             gossipRequest.entries_size());
