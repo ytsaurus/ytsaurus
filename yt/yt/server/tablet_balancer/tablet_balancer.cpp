@@ -167,6 +167,7 @@ private:
 
     void BuildOrchid(IYsonConsumer* consumer) const;
     void SaveBundleError(const TString& bundleName, TError error) const;
+    void RemoveBundleErrorsByTtl(TDuration ttl);
 
     void PickReshardPivotKeys(
         TReshardDescriptor* descriptor,
@@ -252,8 +253,10 @@ void TTabletBalancer::BalancerIteration()
     YT_LOG_DEBUG("Finished fetching bundles (NewBundleCount: %v)", newBundles.size());
 
     CurrentIterationStartTime_ = TruncatedNow();
+    auto dynamicConfig = DynamicConfig_.Acquire();
+    RemoveBundleErrorsByTtl(dynamicConfig->BundleErrorsTtl);
     ActionCountLimiter_ = TScheduledActionCountLimiter{
-        .GroupLimit = DynamicConfig_.Acquire()->MaxActionsPerGroup};
+        .GroupLimit = dynamicConfig->MaxActionsPerGroup};
 
     for (auto& [bundleName, bundle] : Bundles_) {
         if (!bundle->GetBundle()->Config) {
@@ -897,6 +900,27 @@ void TTabletBalancer::SaveBundleError(const TString& bundleName, TError error) c
     if (it->second.size() > MaxSavedErrorCount) {
         it->second.pop_front();
     }
+}
+
+void TTabletBalancer::RemoveBundleErrorsByTtl(TDuration ttl)
+{
+    THashSet<TString> bundlesToRemove;
+    for (auto& [bundleName, errors] : BundleErrors_) {
+        while (!errors.empty()) {
+            const auto& error = errors.front();
+            if (error.HasDatetime() && error.GetDatetime() + ttl < CurrentIterationStartTime_) {
+                errors.pop_front();
+                continue;
+            }
+            break;
+        }
+
+        if (errors.empty()) {
+            bundlesToRemove.insert(bundleName);
+        }
+    }
+
+    DropMissingKeys(BundleErrors_, bundlesToRemove);
 }
 
 void TTabletBalancer::PickReshardPivotKeys(

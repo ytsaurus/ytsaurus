@@ -60,6 +60,7 @@ public:
     TString DefaultParameterizedMetric;
 
     TTimeFormula Schedule;
+    TDuration BundleErrorsTtl;
 
     bool FetchTabletCellsFromSecondaryMasters;
     bool PickReshardPivotKeys;

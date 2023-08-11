@@ -147,6 +147,14 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
 
         wait(lambda: any(len(get(f"//sys/tablet_balancer/instances/{instance}/orchid/tablet_balancer/bundle_errors")) > 0 for instance in instances))
 
+        self._apply_dynamic_config_patch({
+            "bundle_errors_ttl": 100,
+        })
+
+        remove("//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups")
+
+        wait(lambda: all(len(get(f"//sys/tablet_balancer/instances/{instance}/orchid/tablet_balancer/bundle_errors")) == 0 for instance in instances))
+
     @authors("alexelexa")
     def test_move_table_between_bundles(self):
         create_tablet_cell_bundle("another")
