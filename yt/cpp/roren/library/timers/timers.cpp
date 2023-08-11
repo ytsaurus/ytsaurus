@@ -175,6 +175,16 @@ TVector<TTimer> TTimersContainer::GetReadyTimers(const TGuard& lock, size_t limi
     return result;
 }
 
+void TTimersContainer::ResetInFly(const TGuard& lock, const TTimer& timer)
+{
+    Y_UNUSED(lock);
+    if (TimersInFly_.erase(timer)) {
+        auto it = TimersIndex_.find(timer);
+        Y_VERIFY(it != TimersIndex_.end());
+        TimersNotInFly_.insert(std::move(it));
+    }
+}
+
 bool TTimersContainer::IsValidForExecute(const TTimer& timer, const bool isTimerChanged)
 {
     const auto lock = GetLock();
@@ -259,6 +269,7 @@ void TTimers::Commit(const NYT::NApi::ITransactionPtr tx, const TTimers::TTimers
         }
         auto targetTimer = MergeTimers(oldTimer, newTimer, policy);
         if (oldTimer && targetTimer == *oldTimer) {
+            TTimersContainer::ResetInFly(lock, targetTimer);
             continue;
         }
         if (oldTimer) {

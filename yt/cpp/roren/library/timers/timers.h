@@ -74,6 +74,7 @@ protected:
 
     TGuard GetLock();
 
+    void ResetInFly(const TGuard& lock, const TTimer& timer);
     bool IsValidForExecute(const TGuard& lock, const TTimer& timer, const bool isTimerChanged);
     TVector<TTimer> GetReadyTimers(const TGuard& lock, size_t limit);
     void Clear(const TGuard& lock);
