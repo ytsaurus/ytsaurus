@@ -925,6 +925,22 @@ func (e *Encoder) AlterTableReplica(
 	return
 }
 
+func (e *Encoder) CreateTableBackup(
+	ctx context.Context,
+	manifest yt.BackupManifest,
+	options *yt.CreateTableBackupOptions,
+) error {
+	return xerrors.New("CreateTableBackup not implemented")
+}
+
+func (e *Encoder) RestoreTableBackup(
+	ctx context.Context,
+	manifest yt.BackupManifest,
+	options *yt.RestoreTableBackupOptions,
+) error {
+	return xerrors.New("RestoreTableBackup not implemented")
+}
+
 func (e *Encoder) StartTx(
 	ctx context.Context,
 	opts *yt.StartTxOptions,

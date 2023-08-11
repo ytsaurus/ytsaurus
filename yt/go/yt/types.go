@@ -332,3 +332,21 @@ func (id *MaintenanceID) UnmarshalYSON(data []byte) (err error) {
 	*id = MaintenanceID(g)
 	return
 }
+
+type OrderedTableBackupMode string
+
+const (
+	OrderedTableBackupModeExact   OrderedTableBackupMode = "exact"
+	OrderedTableBackupModeAtLeast OrderedTableBackupMode = "at_least"
+	OrderedTableBackupModeAtMost  OrderedTableBackupMode = "at_most"
+)
+
+type TableBackupManifest struct {
+	SourcePath      ypath.Path             `yson:"source_path"`
+	DestinationPath ypath.Path             `yson:"destination_path"`
+	OrderedMode     OrderedTableBackupMode `yson:"ordered_mode,omitempty"`
+}
+
+type BackupManifest struct {
+	Clusters map[string][]TableBackupManifest `yson:"clusters"`
+}

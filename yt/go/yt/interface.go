@@ -1308,6 +1308,42 @@ type MountClient interface {
 	) (err error)
 }
 
+type CreateTableBackupOptions struct {
+	CheckpointTimestampDelay *yson.Duration `http:"checkpoint_timestamp_delay,omitnil"`
+	CheckpointCheckPeriod    *yson.Duration `http:"checkpoint_check_period,omitnil"`
+	CheckpointCheckTimeout   *yson.Duration `http:"checkpoint_check_timeout,omitnil"`
+
+	Force bool `http:"force"`
+
+	*TimeoutOptions
+}
+
+type RestoreTableBackupOptions struct {
+	Force          bool `http:"force"`
+	Mount          bool `http:"mount"`
+	EnableReplicas bool `http:"enable_replicas"`
+
+	*TimeoutOptions
+}
+
+type TableBackupClient interface {
+	// http:verb:"create_table_backup"
+	// http:params:"manifest"
+	CreateTableBackup(
+		ctx context.Context,
+		manifest BackupManifest,
+		options *CreateTableBackupOptions,
+	) error
+
+	// http:verb:"restore_table_backup"
+	// http:params:"manifest"
+	RestoreTableBackup(
+		ctx context.Context,
+		manifest BackupManifest,
+		options *RestoreTableBackupOptions,
+	) error
+}
+
 type TabletTx interface {
 	TabletClient
 
@@ -1345,6 +1381,7 @@ type Client interface {
 
 	TabletClient
 	MountClient
+	TableBackupClient
 
 	// http:verb:"generate_timestamp"
 	GenerateTimestamp(ctx context.Context, options *GenerateTimestampOptions) (ts Timestamp, err error)

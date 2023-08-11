@@ -948,6 +948,40 @@ func writeStartTabletTxOptions(w *yson.Writer, o *yt.StartTabletTxOptions) {
 	w.Any(o.Sticky)
 }
 
+func writeCreateTableBackupOptions(w *yson.Writer, o *yt.CreateTableBackupOptions) {
+	if o == nil {
+		return
+	}
+	if o.CheckpointTimestampDelay != nil {
+		w.MapKeyString("checkpoint_timestamp_delay")
+		w.Any(o.CheckpointTimestampDelay)
+	}
+	if o.CheckpointCheckPeriod != nil {
+		w.MapKeyString("checkpoint_check_period")
+		w.Any(o.CheckpointCheckPeriod)
+	}
+	if o.CheckpointCheckTimeout != nil {
+		w.MapKeyString("checkpoint_check_timeout")
+		w.Any(o.CheckpointCheckTimeout)
+	}
+	w.MapKeyString("force")
+	w.Any(o.Force)
+	writeTimeoutOptions(w, o.TimeoutOptions)
+}
+
+func writeRestoreTableBackupOptions(w *yson.Writer, o *yt.RestoreTableBackupOptions) {
+	if o == nil {
+		return
+	}
+	w.MapKeyString("force")
+	w.Any(o.Force)
+	w.MapKeyString("mount")
+	w.Any(o.Mount)
+	w.MapKeyString("enable_replicas")
+	w.Any(o.EnableReplicas)
+	writeTimeoutOptions(w, o.TimeoutOptions)
+}
+
 func writeLocateSkynetShareOptions(w *yson.Writer, o *yt.LocateSkynetShareOptions) {
 	if o == nil {
 		return
@@ -3740,6 +3774,90 @@ func (p *AlterTableReplicaParams) MarshalHTTP(w *yson.Writer) {
 	w.MapKeyString("replica_id")
 	w.Any(p.id)
 	writeAlterTableReplicaOptions(w, p.options)
+}
+
+type CreateTableBackupParams struct {
+	verb     Verb
+	manifest yt.BackupManifest
+	options  *yt.CreateTableBackupOptions
+}
+
+func NewCreateTableBackupParams(
+	manifest yt.BackupManifest,
+	options *yt.CreateTableBackupOptions,
+) *CreateTableBackupParams {
+	if options == nil {
+		options = &yt.CreateTableBackupOptions{}
+	}
+	return &CreateTableBackupParams{
+		Verb("create_table_backup"),
+		manifest,
+		options,
+	}
+}
+
+func (p *CreateTableBackupParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *CreateTableBackupParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *CreateTableBackupParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("manifest", p.manifest),
+	}
+}
+
+func (p *CreateTableBackupParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("manifest")
+	w.Any(p.manifest)
+	writeCreateTableBackupOptions(w, p.options)
+}
+
+func (p *CreateTableBackupParams) TimeoutOptions() **yt.TimeoutOptions {
+	return &p.options.TimeoutOptions
+}
+
+type RestoreTableBackupParams struct {
+	verb     Verb
+	manifest yt.BackupManifest
+	options  *yt.RestoreTableBackupOptions
+}
+
+func NewRestoreTableBackupParams(
+	manifest yt.BackupManifest,
+	options *yt.RestoreTableBackupOptions,
+) *RestoreTableBackupParams {
+	if options == nil {
+		options = &yt.RestoreTableBackupOptions{}
+	}
+	return &RestoreTableBackupParams{
+		Verb("restore_table_backup"),
+		manifest,
+		options,
+	}
+}
+
+func (p *RestoreTableBackupParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *RestoreTableBackupParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *RestoreTableBackupParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("manifest", p.manifest),
+	}
+}
+
+func (p *RestoreTableBackupParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("manifest")
+	w.Any(p.manifest)
+	writeRestoreTableBackupOptions(w, p.options)
+}
+
+func (p *RestoreTableBackupParams) TimeoutOptions() **yt.TimeoutOptions {
+	return &p.options.TimeoutOptions
 }
 
 type GenerateTimestampParams struct {

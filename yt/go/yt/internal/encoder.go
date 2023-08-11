@@ -799,6 +799,24 @@ func (e *Encoder) AlterTableReplica(
 	return e.do(ctx, e.newCall(NewAlterTableReplicaParams(id, options)), func(res *CallResult) error { return nil })
 }
 
+func (e *Encoder) CreateTableBackup(
+	ctx context.Context,
+	manifest yt.BackupManifest,
+	options *yt.CreateTableBackupOptions,
+) (err error) {
+	call := e.newCall(NewCreateTableBackupParams(manifest, options))
+	return e.do(ctx, call, func(res *CallResult) error { return nil })
+}
+
+func (e *Encoder) RestoreTableBackup(
+	ctx context.Context,
+	manifest yt.BackupManifest,
+	options *yt.RestoreTableBackupOptions,
+) (err error) {
+	call := e.newCall(NewRestoreTableBackupParams(manifest, options))
+	return e.do(ctx, call, func(res *CallResult) error { return nil })
+}
+
 func (e *Encoder) LocateSkynetShare(
 	ctx context.Context,
 	path ypath.YPath,
