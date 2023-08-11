@@ -570,7 +570,7 @@ void TFairShareStrategyConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("fair_share_update_period", &TThis::FairShareUpdatePeriod)
         .InRange(TDuration::MilliSeconds(10), TDuration::Seconds(60))
-        .Default(TDuration::MilliSeconds(1000));
+        .Default(TDuration::MilliSeconds(200));
 
     registrar.Parameter("fair_share_profiling_period", &TThis::FairShareProfilingPeriod)
         .InRange(TDuration::MilliSeconds(10), TDuration::Seconds(60))
