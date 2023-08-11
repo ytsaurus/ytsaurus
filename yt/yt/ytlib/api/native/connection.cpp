@@ -194,7 +194,7 @@ public:
             Options_,
             ChannelFactory_,
             Logger);
-        MasterCellDirectorySynchronizer_ = New<NCellMasterClient::TCellDirectorySynchronizer>(
+        MasterCellDirectorySynchronizer_ = NCellMasterClient::CreateCellDirectorySynchronizer(
             StaticConfig_->MasterCellDirectorySynchronizer,
             MasterCellDirectory_);
 
@@ -582,7 +582,7 @@ public:
         return MasterCellDirectory_;
     }
 
-    const NCellMasterClient::TCellDirectorySynchronizerPtr& GetMasterCellDirectorySynchronizer() override
+    const NCellMasterClient::ICellDirectorySynchronizerPtr& GetMasterCellDirectorySynchronizer() override
     {
         return MasterCellDirectorySynchronizer_;
     }
@@ -806,7 +806,7 @@ private:
 
     // NB: There're also CellDirectory_ and CellDirectorySynchronizer_, which are completely different from these.
     NCellMasterClient::TCellDirectoryPtr MasterCellDirectory_;
-    NCellMasterClient::TCellDirectorySynchronizerPtr MasterCellDirectorySynchronizer_;
+    NCellMasterClient::ICellDirectorySynchronizerPtr MasterCellDirectorySynchronizer_;
 
     IChannelPtr CypressProxyChannel_;
 

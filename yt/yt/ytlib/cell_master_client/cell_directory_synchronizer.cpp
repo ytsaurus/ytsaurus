@@ -23,34 +23,34 @@ static const auto& Logger = CellMasterClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellDirectorySynchronizer::TImpl
-    : public TRefCounted
+class TCellDirectorySynchronizer
+    : public ICellDirectorySynchronizer
 {
 public:
-    TImpl(
+    TCellDirectorySynchronizer(
         TCellDirectorySynchronizerConfigPtr config,
         TCellDirectoryPtr directory)
         : Config_(std::move(config))
         , Directory_(std::move(directory))
         , SyncExecutor_(New<TPeriodicExecutor>(
             NRpc::TDispatcher::Get()->GetLightInvoker(),
-            BIND(&TImpl::OnSync, MakeWeak(this)),
+            BIND(&TCellDirectorySynchronizer::OnSync, MakeWeak(this)),
             Config_->SyncPeriod))
     { }
 
-    void Start()
+    void Start() override
     {
         auto guard = Guard(SpinLock_);
         DoStart(false);
     }
 
-    void Stop()
+    void Stop() override
     {
         auto guard = Guard(SpinLock_);
         DoStop();
     }
 
-    TFuture<void> NextSync(bool force)
+    TFuture<void> NextSync(bool force) override
     {
         auto guard = Guard(SpinLock_);
         if (Stopped_) {
@@ -60,7 +60,7 @@ public:
         return NextSyncPromise_.ToFuture();
     }
 
-    TFuture<void> RecentSync()
+    TFuture<void> RecentSync() override
     {
         auto guard = Guard(SpinLock_);
         if (Stopped_) {
@@ -191,37 +191,16 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCellDirectorySynchronizer::TCellDirectorySynchronizer(
+ICellDirectorySynchronizerPtr CreateCellDirectorySynchronizer(
     TCellDirectorySynchronizerConfigPtr config,
     TCellDirectoryPtr directory)
-    : Impl_(New<TCellDirectorySynchronizer::TImpl>(
+{
+    return New<TCellDirectorySynchronizer>(
         std::move(config),
-        std::move(directory)))
-{ }
-
-TCellDirectorySynchronizer::~TCellDirectorySynchronizer()
-{ }
-
-void TCellDirectorySynchronizer::Start()
-{
-    Impl_->Start();
-}
-
-void TCellDirectorySynchronizer::Stop()
-{
-    Impl_->Stop();
-}
-
-TFuture<void> TCellDirectorySynchronizer::NextSync(bool force)
-{
-    return Impl_->NextSync(force);
-}
-
-TFuture<void> TCellDirectorySynchronizer::RecentSync()
-{
-    return Impl_->RecentSync();
+        std::move(directory));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
 
 } // namespace NYT::NCellMasterClient

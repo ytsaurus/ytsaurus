@@ -14,31 +14,26 @@ namespace NYT::NCellMasterClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TCellDirectorySynchronizer
+struct ICellDirectorySynchronizer
     : public TRefCounted
 {
-public:
-    TCellDirectorySynchronizer(
-        TCellDirectorySynchronizerConfigPtr config,
-        TCellDirectoryPtr directory);
-
-    ~TCellDirectorySynchronizer();
-
-    void Start();
-    void Stop();
+    virtual void Start() = 0;
+    virtual void Stop() = 0;
 
     //! Returns a future that will be set after the next sync.
-    TFuture<void> NextSync(bool force = false);
+    virtual TFuture<void> NextSync(bool force = false) = 0;
 
     //! Returns a future that was set by the most recent sync.
-    TFuture<void> RecentSync();
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
+    virtual TFuture<void> RecentSync() = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TCellDirectorySynchronizer)
+DEFINE_REFCOUNTED_TYPE(ICellDirectorySynchronizer)
+
+////////////////////////////////////////////////////////////////////////////////
+
+ICellDirectorySynchronizerPtr CreateCellDirectorySynchronizer(
+    TCellDirectorySynchronizerConfigPtr config,
+    TCellDirectoryPtr directory);
 
 ////////////////////////////////////////////////////////////////////////////////
 

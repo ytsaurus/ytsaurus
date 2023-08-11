@@ -69,7 +69,7 @@ public:
     {
         YT_UNIMPLEMENTED();
     }
-    const NCellMasterClient::TCellDirectorySynchronizerPtr& GetMasterCellDirectorySynchronizer() override
+    const NCellMasterClient::ICellDirectorySynchronizerPtr& GetMasterCellDirectorySynchronizer() override
     {
         YT_UNIMPLEMENTED();
     }
