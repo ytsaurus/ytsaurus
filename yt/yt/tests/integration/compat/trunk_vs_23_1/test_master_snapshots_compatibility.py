@@ -69,28 +69,6 @@ class MasterSnapshotsCompatibilityBase(YTEnvSetup):
 ##################################################################
 
 
-# COMPAT(h0pless): It's safe to remove this when updating 23.1 package to a fresh one.
-def check_schema_refactor_migration():
-    schema = [{"name": "some_unique_name_like_ae12", "type": "string"}]
-    create("table", "//tmp/test_schema_holder", attributes={"schema": schema, "external_cell_tag": 11})
-    create("table", "//tmp/other_holder_for_the_same_schema", attributes={"schema": schema, "external_cell_tag": 11})
-    create("table", "//tmp/and_another_one", attributes={"schema": schema, "external_cell_tag": 11})
-    create("table", "//tmp/and_another_one_again", attributes={"schema": schema, "external_cell_tag": 11})
-
-    create("table", "//tmp/same_but_on_other_cell", attributes={"schema": schema, "external_cell_tag": 12})
-
-    schema_id = get("//tmp/test_schema_holder/@schema_id")
-    assert get("#{}/@ref_counter".format(schema_id)) == 5
-    assert get("#{}/@ref_counter".format(schema_id), driver=get_driver(1)) == 4
-    assert get("#{}/@ref_counter".format(schema_id), driver=get_driver(2)) == 1
-
-    yield
-
-    assert get("#{}/@ref_counter".format(schema_id)) == 5
-    assert get("#{}/@ref_counter".format(schema_id), driver=get_driver(1)) == 5
-    assert get("#{}/@ref_counter".format(schema_id), driver=get_driver(2)) == 2
-
-
 def check_maintenance_flags():
     node = ls("//sys/cluster_nodes")[0]
     set(f"//sys/cluster_nodes/{node}/@banned", True)
@@ -200,7 +178,6 @@ class TestMasterSnapshotsCompatibility(ChaosTestBase, MasterSnapshotsCompatibili
         set("//sys/chaos_cell_bundles/chaos_bundle/@metadata_cell_id", cell_id)
 
         CHECKER_LIST = [
-            check_schema_refactor_migration,
             check_maintenance_flags,
             check_chunk_creation_time_histogram,
             check_replication_queue_list,
