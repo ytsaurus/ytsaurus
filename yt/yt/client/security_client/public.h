@@ -70,6 +70,7 @@ YT_DEFINE_ERROR_ENUM(
     ((NoSuchAccount)                (905))
     ((NoSuchSubject)                (907))
     ((SafeModeEnabled)              (906))
+    ((AlreadyPresentInGroup)        (908))
 );
 
 // NB: Changing this list requires reign promotion.

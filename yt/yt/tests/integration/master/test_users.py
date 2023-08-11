@@ -10,6 +10,8 @@ from yt_commands import (
     build_snapshot,
 )
 
+import yt_error_codes
+
 from yt_helpers import profiler_factory
 
 from yt.environment.helpers import assert_items_equal
@@ -243,8 +245,12 @@ class TestUsers(YTEnvSetup):
         create_user("max")
         create_group("devs")
         add_member("max", "devs")
+
         assert get("//sys/groups/devs/@members") == ["max"]
         assert get("//sys/groups/devs/@members") == ["max"]
+
+        with raises_yt_error(yt_error_codes.IsAlreadyPresentInGroup):
+            add_member("max", "devs")
 
     @authors("asaitgalin", "babenko", "ignat")
     def test_membership2(self):

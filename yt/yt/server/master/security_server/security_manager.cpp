@@ -1665,7 +1665,9 @@ public:
             if (ignoreExisting) {
                 return;
             }
-            THROW_ERROR_EXCEPTION("Member %Qv is already present in group %Qv",
+            THROW_ERROR_EXCEPTION(
+                NSecurityClient::EErrorCode::AlreadyPresentInGroup,
+                "Member %Qv is already present in group %Qv",
                 member->GetName(),
                 group->GetName());
         }

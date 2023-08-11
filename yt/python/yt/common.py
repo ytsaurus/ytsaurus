@@ -346,6 +346,10 @@ class YtError(Exception):
         """Chunk data is not preloaded yet"""
         return self.contains_code(1735)
 
+    def is_already_present_in_group(self):
+        """Member is already present in group"""
+        return self.contains_code(908)
+
 
 class YtResponseError(YtError):
     """Represents an error in YT response."""

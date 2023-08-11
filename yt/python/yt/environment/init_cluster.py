@@ -33,10 +33,9 @@ def is_member_of(subject, group, client):
 def add_member(subject, group, client):
     try:
         client.add_member(subject, group)
-    except:
-        if is_member_of(subject, group, client):
+    except yt.YtResponseError as err:
+        if err.is_already_present_in_group():
             logger.warning("'{0}' is already present in group '{1}'".format(subject, group))
-            return True
         else:
             raise
 

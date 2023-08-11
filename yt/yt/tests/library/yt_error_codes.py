@@ -17,6 +17,7 @@ InvalidInputChunk = 733
 UnsupportedChunkFeature = 734
 AuthorizationErrorCode = 901
 AccountLimitExceeded = 902
+IsAlreadyPresentInGroup = 908
 InvalidObjectType = 1006
 TmpfsOverflow = 1124
 JobProxyUnavailable = 1127
