@@ -19,6 +19,7 @@ import yt.environment.arcadia_interop as arcadia_interop
 from yt.wrapper.errors import YtRetriableError
 import yt.wrapper as yt
 
+import datetime
 import glob
 import os
 import random
@@ -102,6 +103,8 @@ def _filter_simple_types(obj):
             isinstance(obj, yson.YsonType) or \
             isinstance(obj, (binary_type, text_type)):
         return obj
+    elif isinstance(obj, datetime.timedelta):
+        return obj.total_seconds() * 1000.0
     elif isinstance(obj, list):
         return [_filter_simple_types(item) for item in obj]
     elif isinstance(obj, collections_abc.Mapping):

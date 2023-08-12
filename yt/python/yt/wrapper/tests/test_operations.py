@@ -386,6 +386,7 @@ input, output = sys.argv[1:3]
 yt.config["transaction_timeout"] = 5000
 yt.config["proxy"]["request_timeout"] = 5000
 yt.config["proxy"]["retries"]["count"] = 1
+yt.config["proxy"]["retries"]["total_timeout"] = 5000
 yt.config["detached"] = False
 op = yt.run_map("sleep 1000", input, output, format="json", sync=False)
 print(op.id)
