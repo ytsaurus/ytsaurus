@@ -60,6 +60,7 @@ i64 GetBasicPriority(EWorkloadCategory category)
             return 0;
 
         case EWorkloadCategory::SystemReplication:
+        case EWorkloadCategory::SystemMerge:
         case EWorkloadCategory::SystemTabletCompaction:
         case EWorkloadCategory::SystemTabletPartitioning:
         case EWorkloadCategory::SystemTabletPreload:
