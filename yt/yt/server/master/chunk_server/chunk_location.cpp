@@ -268,7 +268,8 @@ i64 TChunkLocation::GetDestroyedReplicasCount() const
     return count;
 }
 
-const TChunkLocation::TDestroyedReplicaSet& TChunkLocation::GetDestroyedReplicaSet(int shardId) const {
+const TChunkLocation::TDestroyedReplicaSet& TChunkLocation::GetDestroyedReplicaSet(int shardId) const
+{
     return DestroyedReplicas_[shardId];
 }
 
