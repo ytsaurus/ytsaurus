@@ -128,7 +128,7 @@ void TApi::PutUserIntoBanCache(const TString& user)
     BanCache_[user] = TInstant::Now() + Config_->BanCacheExpirationTime;
 }
 
-TError TApi::ValidateAccess(const TString& user)
+TError TApi::CheckAccess(const TString& user)
 {
     return AccessChecker_->CheckAccess(user);
 }

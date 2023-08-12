@@ -212,7 +212,7 @@ bool TContext::TryParseUser()
         return false;
     }
 
-    if (auto error = Api_->ValidateAccess(authenticatedUser); !error.IsOK()) {
+    if (auto error = Api_->CheckAccess(authenticatedUser); !error.IsOK()) {
         YT_LOG_DEBUG(error);
         Response_->SetStatus(EStatusCode::Forbidden);
         ReplyError(TError{Format("User %Qv is not allowed to access this proxy", authenticatedUser)});

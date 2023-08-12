@@ -64,7 +64,7 @@ public:
     bool IsUserBannedInCache(const TString& user);
     void PutUserIntoBanCache(const TString& user);
 
-    TError ValidateAccess(const TString& user);
+    TError CheckAccess(const TString& user);
 
     std::optional<TSemaphoreGuard> AcquireSemaphore(const TString& user, const TString& command);
     void ReleaseSemaphore(const TUserCommandPair& key);
