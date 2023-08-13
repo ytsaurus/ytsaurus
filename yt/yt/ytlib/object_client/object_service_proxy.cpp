@@ -487,9 +487,16 @@ void TObjectServiceProxy::TReqExecuteBatch::SetBalancingHeader()
     balancingHeaderExt->set_enable_client_stickiness(EnableClientStickiness_);
 
     auto stickyGroupSize = *StickyGroupSize_;
-    auto advisedStickyGroupSize = GetAdvisedStickyGroupSize();
-    if (advisedStickyGroupSize) {
+    if (auto advisedStickyGroupSize = GetAdvisedStickyGroupSize()) {
         stickyGroupSize = std::max(stickyGroupSize, *advisedStickyGroupSize);
+        YT_LOG_DEBUG("Using advised sticky group size (RequestId: %v, ProvidedSize: %v, AdviseSize: %v)",
+            GetRequestId(),
+            stickyGroupSize,
+            *advisedStickyGroupSize);
+    } else {
+        YT_LOG_DEBUG("Not using advised sticky group size (RequestId: %v, ProvidedSize: %v)",
+            GetRequestId(),
+            stickyGroupSize);
     }
     balancingHeaderExt->set_sticky_group_size(stickyGroupSize);
 }
@@ -697,15 +704,22 @@ bool TObjectServiceProxy::TRspExecuteBatch::TryDeserializeBody(
 
         auto partIndex = 0;
         for (const auto& subresponse : body.subresponses()) {
-            auto i = subresponse.index();
+            auto subrequestIndex = subresponse.index();
             auto partCount = subresponse.part_count();
             auto revision = subresponse.revision();
             if (subresponse.has_advised_sticky_group_size() && StickyGroupSizeCache_) {
                 auto advisedStickyGroupSize = subresponse.advised_sticky_group_size();
-                auto key = InnerRequestDescriptors_[i].GetKey();
-                StickyGroupSizeCache_->UpdateAdvisedStickyGroupSize(key, advisedStickyGroupSize);
+                auto key = InnerRequestDescriptors_[subrequestIndex].GetKey();
+                auto oldAdvisedStickyGroupSize = StickyGroupSizeCache_->UpdateAdvisedStickyGroupSize(key, advisedStickyGroupSize);
+                YT_LOG_DEBUG_IF(
+                    advisedStickyGroupSize != oldAdvisedStickyGroupSize,
+                    "Cached sticky group size updated (RequestId: %v, SubrequestIndex: %v, Size: %v -> %v)",
+                    GetRequestId(),
+                    subrequestIndex,
+                    oldAdvisedStickyGroupSize,
+                    advisedStickyGroupSize);
             }
-            InnerResponseDescriptors_[i].Meta = {{partIndex, partIndex + partCount}, revision};
+            InnerResponseDescriptors_[subrequestIndex].Meta = {{partIndex, partIndex + partCount}, revision};
             partIndex += partCount;
         }
         ResponseCount_ = body.subresponses_size();
@@ -725,15 +739,22 @@ bool TObjectServiceProxy::TRspExecuteBatch::TryDeserializeBody(
             : FromProto<std::vector<NHydra::TRevision>>(body.revisions());
 
         auto partIndex = 0;
-        for (auto i = 0; i < body.part_counts_size(); ++i) {
-            auto partCount = body.part_counts(i);
-            InnerResponseDescriptors_[i].Meta = {{partIndex, partIndex + partCount}, revisions[i]};
+        for (auto subrequestIndex = 0; subrequestIndex < body.part_counts_size(); ++subrequestIndex) {
+            auto partCount = body.part_counts(subrequestIndex);
+            InnerResponseDescriptors_[subrequestIndex].Meta = {{partIndex, partIndex + partCount}, revisions[subrequestIndex]};
             partIndex += partCount;
 
             if (body.advised_sticky_group_size_size() > 0 && StickyGroupSizeCache_) {
-                auto advisedStickyGroupSize = body.advised_sticky_group_size(i);
-                auto key = InnerRequestDescriptors_[i].GetKey();
-                StickyGroupSizeCache_->UpdateAdvisedStickyGroupSize(key, advisedStickyGroupSize);
+                auto advisedStickyGroupSize = body.advised_sticky_group_size(subrequestIndex);
+                auto key = InnerRequestDescriptors_[subrequestIndex].GetKey();
+                auto oldAdvisedStickyGroupSize = StickyGroupSizeCache_->UpdateAdvisedStickyGroupSize(key, advisedStickyGroupSize);
+                YT_LOG_DEBUG_IF(
+                    advisedStickyGroupSize != oldAdvisedStickyGroupSize,
+                    "Cached sticky group size updated (RequestId: %v, SubrequestIndex: %v, Size: %v -> %v)",
+                    GetRequestId(),
+                    subrequestIndex,
+                    oldAdvisedStickyGroupSize,
+                    advisedStickyGroupSize);
             }
         }
 

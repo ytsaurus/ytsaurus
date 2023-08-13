@@ -279,7 +279,9 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Alias("cache_sticky_group_size_override")
         .Default(1);
     registrar.Parameter("enable_dynamic_cache_sticky_group_size", &TThis::EnableDynamicCacheStickyGroupSize)
-        .Default(false);
+        .Default(true);
+    registrar.Parameter("sticky_group_size_cache_expiration_timeout", &TThis::StickyGroupSizeCacheExpirationTimeout)
+        .Default(TDuration::Minutes(5));
 
     registrar.Parameter("max_request_window_size", &TThis::MaxRequestWindowSize)
         .GreaterThan(0)
