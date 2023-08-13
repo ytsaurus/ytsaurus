@@ -249,7 +249,7 @@ void TJobControllerDynamicConfig::Register(TRegistrar registrar)
         if (config->CpuModelToCpuToVCpuFactor) {
             for (const auto& [cpu_model, factor] : config->CpuModelToCpuToVCpuFactor.value()) {
                 if (factor <= 0) {
-                    THROW_ERROR_EXCEPTION("Factor in `cpu_model_to_cpu_to_vcpu_factor` must be greater than 0")
+                    THROW_ERROR_EXCEPTION("Factor in \"cpu_model_to_cpu_to_vcpu_factor\" must be greater than 0")
                         << TErrorAttribute("cpu_model", cpu_model)
                         << TErrorAttribute("cpu_to_vcpu_factor", factor);
                 }
