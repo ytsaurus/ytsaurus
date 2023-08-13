@@ -141,6 +141,7 @@ DEFINE_ENUM(EMasterReign,
     ((DontForgetToCommitInSetNodeByYPath)                           (2412))  // kvk1920
     ((ResetErrorCountOfUnmountedTablets)                            (2413))  // alexelexa
     ((SequoiaReplicas)                                              (2414))  // aleksandra-zh
+    ((AutoTurnOffPendingRestartMaintenanceFlag)                     (2415))  // danilalexeev
 );
 
 ////////////////////////////////////////////////////////////////////////////////

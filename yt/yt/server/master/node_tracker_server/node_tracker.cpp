@@ -75,6 +75,7 @@
 
 #include <yt/yt/core/misc/id_generator.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/transparent_pair_compare.h>
 
 #include <yt/yt/core/net/address.h>
 
@@ -142,6 +143,7 @@ public:
         // COMPAT(aleksandra-zh)
         RegisterMethod(BIND(&TNodeTracker::HydraSetNodeStates, Unretained(this)));
         RegisterMethod(BIND(&TNodeTracker::HydraSetNodeState, Unretained(this)));
+        RegisterMethod(BIND(&TNodeTracker::HydraResetNodePendingRestartMaintenance, Unretained(this)));
 
         RegisterLoader(
             "NodeTracker.Keys",
@@ -169,6 +171,11 @@ public:
             MasterCacheManager_ = New<TNodeDiscoveryManager>(Bootstrap_, ENodeRole::MasterCache);
             TimestampProviderManager_ = New<TNodeDiscoveryManager>(Bootstrap_, ENodeRole::TimestampProvider);
         }
+
+        ResetNodePendingRestartMaintenanceExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
+            BIND(&TNodeTracker::ResetNodesPendingRestartMaintenanceOnTimeout, MakeWeak(this)));
+        ResetNodePendingRestartMaintenanceExecutor_->Start();
     }
 
     void SubscribeToAggregatedNodeStateChanged(TNode* node)
@@ -908,6 +915,11 @@ private:
 
     TPeriodicExecutorPtr FullNodeStatesGossipExecutor_;
     TPeriodicExecutorPtr NodeStatisticsGossipExecutor_;
+    TPeriodicExecutorPtr ResetNodePendingRestartMaintenanceExecutor_;
+
+    using TMaintenanceNodeIdSet = std::set<std::pair<TInstant, TNodeId>, TTransparentPairCompare<TInstant, TNodeId>>;
+    TMaintenanceNodeIdSet PendingRestartMaintenanceNodeIds_;
+    std::map<TNodeId, TMaintenanceNodeIdSet::iterator> PendingRestartMaintenanceNodeIdToSetIt_;
 
     const TAsyncSemaphorePtr HeartbeatSemaphore_ = New<TAsyncSemaphore>(0);
 
@@ -1138,6 +1150,14 @@ private:
         if (node->IsDataNode() || (node->IsExecNode() && !execNodeIsNotDataNode)) {
             const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
             dataNodeTracker->ProcessRegisterNode(node, request, response);
+        }
+
+        if (node->ClearMaintenanceFlag(EMaintenanceType::PendingRestart)) {
+            OnNodePendingRestartUpdated(node);
+
+            YT_LOG_INFO("Removed pending restart flag (NodeId: %v, Address: %v)",
+                node->GetId(),
+                address);
         }
 
         NodeRegistered_.Fire(node);
@@ -1437,6 +1457,21 @@ private:
         }
     }
 
+    void HydraResetNodePendingRestartMaintenance(TReqResetNodePendingRestartMaintenance* request)
+    {
+        for (auto protoNodeId : request->node_ids()) {
+            auto nodeId = FromProto<TNodeId>(protoNodeId);
+            auto* node = FindNode(nodeId);
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
+
+            if (node->ClearMaintenanceFlag(EMaintenanceType::PendingRestart)) {
+                OnNodePendingRestartUpdated(node);
+            }
+        }
+    }
+
     void DoProcessHeartbeat(
         TNode* node,
         TReqHeartbeat* request,
@@ -1508,6 +1543,7 @@ private:
         RackMap_.SaveValues(context);
         DataCenterMap_.SaveValues(context);
         HostMap_.SaveValues(context);
+        Save(context, PendingRestartMaintenanceNodeIds_);
     }
 
     void LoadKeys(NCellMaster::TLoadContext& context)
@@ -1532,6 +1568,10 @@ private:
         RackMap_.LoadValues(context);
         DataCenterMap_.LoadValues(context);
         HostMap_.LoadValues(context);
+
+        if (context.GetVersion() >= EMasterReign::AutoTurnOffPendingRestartMaintenanceFlag) {
+            Load(context, PendingRestartMaintenanceNodeIds_);
+        }
     }
 
     void Clear() override
@@ -1628,6 +1668,13 @@ private:
 
         for (auto nodeRole : TEnumTraits<ENodeRole>::GetDomainValues()) {
             NodeListPerRole_[nodeRole].UpdateAddresses();
+        }
+
+        for (auto it = PendingRestartMaintenanceNodeIds_.begin();
+            it != PendingRestartMaintenanceNodeIds_.end();
+            ++it)
+        {
+            PendingRestartMaintenanceNodeIdToSetIt_.emplace(it->second, it);
         }
     }
 
@@ -2009,6 +2056,27 @@ private:
             state);
 
         multicellManager->PostToPrimaryMaster(request);
+    }
+
+    void ResetNodesPendingRestartMaintenanceOnTimeout()
+    {
+        if (!IsLeader()) {
+            return;
+        }
+
+        NProto::TReqResetNodePendingRestartMaintenance request;
+
+        auto endIt = PendingRestartMaintenanceNodeIds_.upper_bound(
+            TInstant::Now() - GetDynamicConfig()->PendingRestartLeaseTimeout);
+
+        for (auto it = PendingRestartMaintenanceNodeIds_.begin(); it != endIt; ++it) {
+            request.add_node_ids(ToProto<ui32>(it->second));
+        }
+
+        if (request.node_ids_size() != 0) {
+            YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
+                ->CommitAndLog(Logger));
+        }
     }
 
     void CommitMutationWithSemaphore(
@@ -2484,6 +2552,8 @@ private:
         RebuildAggregatedNodeStatistics();
 
         ProfilingExecutor_->SetPeriod(GetDynamicConfig()->ProfilingPeriod);
+
+        ResetNodePendingRestartMaintenanceExecutor_->SetPeriod(GetDynamicConfig()->ResetNodePendingRestartMaintenancePeriod);
     }
 
     void OnNodeBanUpdated(TNode* node)
@@ -2592,13 +2662,26 @@ private:
             }
         }
 
+        auto nodeId = node->GetId();
+
+        if (auto it = PendingRestartMaintenanceNodeIdToSetIt_.find(nodeId);
+            it != PendingRestartMaintenanceNodeIdToSetIt_.end())
+        {
+            PendingRestartMaintenanceNodeIds_.erase(it->second);
+            PendingRestartMaintenanceNodeIdToSetIt_.erase(it);
+        }
+
         if (node->IsPendingRestart()) {
-            YT_LOG_INFO("Pending restart (NodeId: %v, Address: %v)",
+            YT_LOG_INFO("Node restart is pending (NodeId: %v, Address: %v)",
                 node->GetId(),
                 node->GetDefaultAddress());
+
+            auto* mutationContext = GetCurrentMutationContext();
+            auto it = PendingRestartMaintenanceNodeIds_.emplace(mutationContext->GetTimestamp(), nodeId).first;
+            PendingRestartMaintenanceNodeIdToSetIt_.emplace(nodeId, it);
         } else {
-            YT_LOG_INFO("No longer pending restart (NodeId: %v, Address: %v)",
-                node->GetId(),
+            YT_LOG_INFO("Node restart is no longer pending (NodeId: %v, Address: %v)",
+                nodeId,
                 node->GetDefaultAddress());
         }
         NodePendingRestartChanged_.Fire(node);

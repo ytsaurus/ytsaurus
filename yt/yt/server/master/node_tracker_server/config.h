@@ -134,6 +134,8 @@ public:
 
     TDuration PendingRestartLeaseTimeout;
 
+    TDuration ResetNodePendingRestartMaintenancePeriod;
+
     REGISTER_YSON_STRUCT(TDynamicNodeTrackerConfig);
 
     static void Register(TRegistrar registrar);

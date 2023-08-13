@@ -534,6 +534,40 @@ class TestNodeLeaseTransactionTimeout(YTEnvSetup):
         sleep(4.0)
         assert get("//sys/cluster_nodes/{}/@state".format(node)) == "offline"
 
+    @authors("danilalexeev")
+    def test_auto_remove_pending_restart_simple(self):
+        set("//sys/@config/node_tracker/pending_restart_lease_timeout", 1000)
+
+        node = ls("//sys/cluster_nodes")[0]
+        maintenance_id = add_maintenance("cluster_node", node, "pending_restart", "")
+
+        assert get(f"//sys/cluster_nodes/{node}/@pending_restart")
+
+        wait(lambda: not get(f"//sys/cluster_nodes/{node}/@pending_restart"), sleep_backoff=1.0)
+
+        assert remove_maintenance("cluster_node", node, id=maintenance_id) == {}
+
+    @authors("danilalexeev")
+    def test_auto_remove_pending_restart_medium(self):
+        set("//sys/@config/node_tracker/pending_restart_lease_timeout", 1000)
+
+        nodes = ls("//sys/cluster_nodes")
+        maintenance_ids = [0] * 4
+
+        for i, node in enumerate(nodes):
+            maintenance_ids[i] = add_maintenance("cluster_node", node, "pending_restart", "")
+
+        for _ in range(4):
+            for i, node in enumerate(nodes):
+                remove_maintenance("cluster_node", node, id=maintenance_ids[i])
+                maintenance_ids[i] = add_maintenance("cluster_node", node, "pending_restart", "")
+
+        for node in nodes:
+            assert get(f"//sys/cluster_nodes/{node}/@pending_restart")
+
+        for node in nodes:
+            wait(lambda: not get(f"//sys/cluster_nodes/{node}/@pending_restart"), sleep_backoff=1.0)
+
 
 ##################################################################
 

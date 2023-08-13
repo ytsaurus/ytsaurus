@@ -111,6 +111,9 @@ void TDynamicNodeTrackerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("pending_restart_lease_timeout", &TThis::PendingRestartLeaseTimeout)
         .Default(TDuration::Minutes(10));
+
+    registrar.Parameter("reset_node_pending_restart_maintenance_period", &TThis::ResetNodePendingRestartMaintenancePeriod)
+        .Default(TDuration::Seconds(2));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
