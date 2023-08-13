@@ -1517,7 +1517,7 @@ NYson::TYsonString TClient::DoExplainQuery(
 {
     auto parsedQuery = ParseSource(queryString, EParseMode::Query);
 
-    const auto& udfRegistryPath = options.UdfRegistryPath
+    auto udfRegistryPath = options.UdfRegistryPath
         ? *options.UdfRegistryPath
         : GetNativeConnection()->GetConfig()->UdfRegistryPath;
 
