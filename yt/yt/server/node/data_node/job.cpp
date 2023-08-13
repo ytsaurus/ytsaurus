@@ -2588,9 +2588,9 @@ private:
             if (replicaOrError.IsOK()) {
                 succeededWriters.push_back(writers[index]);
             } else {
-                auto error = TError("Tail replica writer failed (TailChunkId: %v, WriterIndex: %v)",
-                    TailChunkId_,
-                    index)
+                auto error = TError("Tail replica writer failed")
+                    << TErrorAttribute("tail_chunk_id", TailChunkId_)
+                    << TErrorAttribute("writer_index", index)
                     << replicaOrError;
                 YT_LOG_WARNING(error);
                 writerErrors.push_back(std::move(error));
