@@ -77,31 +77,13 @@ public:
         : Ptr_(ptr)
     { }
 
-    enum class ESentinelType : ui64
+    bool operator () (const TPIValue* a, const TPIValue* b) const
     {
-        Empty = 0,
-        Deleted = 1,
-    };
-
-    static const TPIValue* MakeSentinel(ESentinelType type)
-    {
-        return reinterpret_cast<TPIValue*>(type);
-    }
-
-    bool operator () (const TPIValue* lhs, const TPIValue* rhs) const
-    {
-        return (lhs == rhs) ||
-            (!IsSentinel(lhs) && !IsSentinel(rhs) && Ptr_(lhs, rhs));
+        return a == b || a && b && Ptr_(a, b);
     }
 
 private:
     TComparerFunction* Ptr_;
-
-    static bool IsSentinel(const TPIValue* value)
-    {
-        return value == MakeSentinel(ESentinelType::Empty) ||
-            value == MakeSentinel(ESentinelType::Deleted);
-    }
 };
 
 } // namespace NDetail
@@ -177,8 +159,6 @@ struct TMultiJoinClosure
     std::function<bool()> ProcessJoinBatch;
 };
 
-class TTopCollector;
-
 struct TGroupByClosure
 {
     TRowBufferPtr Buffer;
@@ -186,10 +166,8 @@ struct TGroupByClosure
     TLookupRows Lookup;
     const TPIValue* LastKey = nullptr;
     std::vector<const TPIValue*> GroupedRows;
-    std::unique_ptr<TTopCollector> TopCollector = nullptr;
     int KeySize;
-    int GroupStateSize;
-    int OrderKeySize;
+    int ValuesCount;
     bool CheckNulls;
 
     // GroupedRows can be flushed and cleared during aggregation.
@@ -202,10 +180,7 @@ struct TGroupByClosure
         THasherFunction* groupHasher,
         TComparerFunction* groupComparer,
         int keySize,
-        int groupStateSize,
-        int orderKeySize,
-        i64 orderLimit,
-        TComparerFunction* orderComparer,
+        int valuesCount,
         bool checkNulls);
 
     std::function<void()> ProcessSegment;
@@ -264,25 +239,17 @@ public:
         i64 limit,
         TComparerFunction* comparer,
         size_t rowSize,
-        IMemoryChunkProviderPtr memoryChunkProvider,
-        TLookupRows* lookup = nullptr);
+        IMemoryChunkProviderPtr memoryChunkProvider);
 
     std::vector<const TPIValue*> GetRows() const;
 
-    // Returns a pointer to the captured row if |row| was added.
-    const TPIValue* AddRow(const TPIValue* row);
+    void AddRow(const TPIValue* row);
 
 private:
     // GarbageMemorySize <= AllocatedMemorySize <= TotalMemorySize
     size_t TotalMemorySize_ = 0;
     size_t AllocatedMemorySize_ = 0;
     size_t GarbageMemorySize_ = 0;
-
-    struct TRowAndBuffer
-    {
-        const TPIValue* Row = nullptr;
-        int BufferIndex = -1;
-    };
 
     class TComparer
     {
@@ -291,9 +258,9 @@ private:
             : Ptr_(ptr)
         { }
 
-        bool operator() (const TRowAndBuffer& lhs, const TRowAndBuffer& rhs) const
+        bool operator() (const std::pair<const TPIValue*, int>& lhs, const std::pair<const TPIValue*, int>& rhs) const
         {
-            return (*this)(lhs.Row, rhs.Row);
+            return (*this)(lhs.first, rhs.first);
         }
 
         bool operator () (const TPIValue* a, const TPIValue* b) const
@@ -305,16 +272,15 @@ private:
         TComparerFunction* const Ptr_;
     };
 
-    const TComparer Comparer_;
-    const size_t RowSize_;
-    const IMemoryChunkProviderPtr MemoryChunkProvider_;
-    TLookupRows* const Lookup_ = nullptr;
+    TComparer Comparer_;
+    size_t RowSize_;
+    IMemoryChunkProviderPtr MemoryChunkProvider_;
 
     std::vector<TRowBufferPtr> Buffers_;
     std::vector<int> EmptyBufferIds_;
-    std::vector<TRowAndBuffer> Rows_;
+    std::vector<std::pair<const TPIValue*, int>> Rows_;
 
-    TRowAndBuffer Capture(const TPIValue* row);
+    std::pair<const TPIValue*, int> Capture(const TPIValue* row);
 
     void AccountGarbage(const TPIValue* row);
 };
