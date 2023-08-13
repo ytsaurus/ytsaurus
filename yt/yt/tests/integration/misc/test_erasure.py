@@ -289,10 +289,12 @@ class TestErasure(TestErasureBase):
     def _test_repair(self, codec, replica_count, data_replica_count, adaptive_repair):
         update_nodes_dynamic_config({
             "data_node": {
-                "adaptive_chunk_repair_job": {
-                    "enable_auto_repair": adaptive_repair,
+                "repair_chunk_job": {
+                    "reader": {
+                        "enable_auto_repair": adaptive_repair,
+                    },
                 },
-            }
+            },
         })
 
         remove("//tmp/table", force=True)
@@ -336,11 +338,13 @@ class TestErasure(TestErasureBase):
 
         dyn_config = {
             "data_node": {
-                "adaptive_chunk_repair_job": {
-                    "enable_auto_repair": adaptive_repair,
-                    "replication_reader_timeout" : 3000,
+                "repair_chunk_job": {
+                    "reader": {
+                        "enable_auto_repair": adaptive_repair,
+                        "replication_reader_timeout" : 3000,
+                    },
                 },
-            }
+            },
         }
         update_nodes_dynamic_config(dyn_config)
 

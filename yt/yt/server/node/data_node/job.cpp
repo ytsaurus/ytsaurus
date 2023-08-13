@@ -470,14 +470,15 @@ public:
             bootstrap)
         , JobSpecExt_(JobSpec_.GetExtension(TReplicateChunkJobSpecExt::replicate_chunk_job_spec_ext))
         , ChunkId_(FromProto<TChunkId>(JobSpecExt_.chunk_id()))
+        , DynamicConfig_(Bootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->ReplicateChunkJob)
     {
         Logger.AddTag("ChunkId: %v", ChunkId_);
     }
 
 private:
     const TReplicateChunkJobSpecExt JobSpecExt_;
-
     const TChunkId ChunkId_;
+    const TReplicateChunkJobDynamicConfigPtr DynamicConfig_;
 
     void DoRun() override
     {
@@ -528,15 +529,15 @@ private:
         options->AllowAllocatingNewTargetNodes = false;
 
         auto writer = CreateReplicationWriter(
-            Config_->ReplicationWriter,
+            DynamicConfig_->Writer,
             options,
             sessionId,
             std::move(targetReplicas),
             Bootstrap_->GetClient(),
             Bootstrap_->GetLocalHostName(),
             GetNullBlockCache(),
-            /* trafficMeter */ nullptr,
-            Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::ReplicationOut));
+            /*trafficMeter*/ nullptr,
+            Bootstrap_->GetThrottler(EDataNodeThrottlerKind::ReplicationOut));
 
         {
             YT_LOG_DEBUG("Started opening writer");
@@ -669,6 +670,7 @@ public:
         , SourceReplicas_(ParseSourceReplicas(JobSpecExt_))
         , TargetReplicas_(FromProto<TChunkReplicaWithMediumList>(JobSpecExt_.target_replicas()))
         , Sensors_(std::move(sensors))
+        , DynamicConfig_(Bootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->RepairChunkJob)
     {
         Logger.AddTag("ChunkId: %v", ChunkId_);
     }
@@ -679,6 +681,7 @@ private:
     const TChunkReplicaWithMediumList SourceReplicas_;
     const TChunkReplicaWithMediumList TargetReplicas_;
     const TMasterJobSensors Sensors_;
+    const TRepairChunkJobDynamicConfigPtr DynamicConfig_;
 
     // COMPAT(babenko)
     static TChunkReplicaWithMediumList ParseSourceReplicas(const TRepairChunkJobSpecExt& jobSpecExt)
@@ -715,7 +718,7 @@ private:
 
         auto partChunkId = ErasurePartIdFromChunkId(ChunkId_, partIndex);
         if (partReplicas.empty()) {
-            return NChunkClient::CreateUnavailablePartReader(partChunkId);
+            return CreateUnavailablePartReader(partChunkId);
         }
 
         auto options = New<TRemoteReaderOptions>();
@@ -727,12 +730,12 @@ private:
             Bootstrap_->GetBlockCache(),
             /*chunkMetaCache*/ nullptr,
             /*nodeStatusDirectory*/ nullptr,
-            /*bandwidthThrottler*/ Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::RepairIn),
+            /*bandwidthThrottler*/ Bootstrap_->GetThrottler(EDataNodeThrottlerKind::RepairIn),
             /*rpsThrottler*/ GetUnlimitedThrottler(),
             /*trafficMeter*/ nullptr);
 
         return CreateReplicationReader(
-            Config_->RepairReader,
+            DynamicConfig_->Reader,
             options,
             std::move(chunkReaderHost),
             partChunkId,
@@ -751,19 +754,20 @@ private:
         }();
         auto partChunkId = ErasurePartIdFromChunkId(ChunkId_, partIndex);
         auto partSessionId = TSessionId(partChunkId, targetReplica.GetMediumIndex());
+
         auto options = New<TRemoteWriterOptions>();
         options->AllowAllocatingNewTargetNodes = false;
-        auto writer = CreateReplicationWriter(
-            Config_->RepairWriter,
+
+        return CreateReplicationWriter(
+            DynamicConfig_->Writer,
             options,
             partSessionId,
             TChunkReplicaWithMediumList(1, targetReplica),
             Bootstrap_->GetClient(),
             Bootstrap_->GetLocalHostName(),
             GetNullBlockCache(),
-            /* trafficMeter */ nullptr,
-            Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::RepairOut));
-        return writer;
+            /*trafficMeter*/ nullptr,
+            Bootstrap_->GetThrottler(EDataNodeThrottlerKind::RepairOut));
     }
 
     TFuture<void> StartChunkRepairJob(
@@ -772,27 +776,26 @@ private:
         const IChunkReader::TReadBlocksOptions& readBlocksOptions,
         const std::vector<IChunkWriterPtr>& writers)
     {
-        auto adaptiveRepairConfig = GetDynamicConfig()->Reader;
-
+        auto readerConfig = DynamicConfig_->Reader;
         auto stripedErasure = JobSpecExt_.striped_erasure_chunk();
 
         // TODO(gritukan): Implement adaptive repair for striped erasure.
-        if (adaptiveRepairConfig->EnableAutoRepair && !stripedErasure) {
+        if (readerConfig->EnableAutoRepair && !stripedErasure) {
             YT_LOG_INFO("Executing adaptive chunk repair (ReplicationReaderSpeedLimitPerSec: %v, "
                 "SlowReaderExpirationTimeout: %v, ReplicationReaderTimeout: %v, ReplicationReaderFailureTimeout: %v)",
-                adaptiveRepairConfig->ReplicationReaderSpeedLimitPerSec,
-                adaptiveRepairConfig->SlowReaderExpirationTimeout,
-                adaptiveRepairConfig->ReplicationReaderTimeout,
-                adaptiveRepairConfig->ReplicationReaderFailureTimeout);
+                readerConfig->ReplicationReaderSpeedLimitPerSec,
+                readerConfig->SlowReaderExpirationTimeout,
+                readerConfig->ReplicationReaderTimeout,
+                readerConfig->ReplicationReaderFailureTimeout);
 
             std::vector<IChunkReaderAllowingRepairPtr> readers;
             for (int partIndex = 0; partIndex < codec->GetTotalPartCount(); ++partIndex) {
                 readers.push_back(CreateReader(partIndex));
             }
-            auto future = NChunkClient::AdaptiveRepairErasedParts(
+            auto future = AdaptiveRepairErasedParts(
                 ChunkId_,
                 codec,
-                adaptiveRepairConfig,
+                readerConfig,
                 erasedPartIndexes,
                 readers,
                 BIND(&TChunkRepairJob::CreateWriter, MakeStrong(this)),
@@ -831,21 +834,21 @@ private:
         }
 
         if (stripedErasure) {
-            auto windowSize = GetDynamicConfig()->WindowSize;
+            auto windowSize = DynamicConfig_->WindowSize;
             auto memoryManager = New<TChunkReaderMemoryManager>(TChunkReaderMemoryManagerOptions(
                 windowSize,
                 {},
                 false));
 
-            return NChunkClient::RepairErasedPartsStriped(
-                adaptiveRepairConfig,
+            return RepairErasedPartsStriped(
+                readerConfig,
                 codec,
                 std::move(readers),
                 std::move(writers),
                 std::move(memoryManager),
                 readBlocksOptions);
         } else {
-            return NChunkClient::RepairErasedParts(
+            return RepairErasedParts(
                 codec,
                 erasedPartIndexes,
                 readers,
@@ -923,7 +926,7 @@ private:
                     }
 
                     future = NJournalClient::RepairErasedParts(
-                        Config_->RepairReader,
+                        DynamicConfig_->Reader,
                         codec,
                         *rowCount,
                         erasedPartIndexes,
@@ -942,12 +945,6 @@ private:
             WaitFor(future)
                 .ThrowOnError();
         }
-    }
-
-    TChunkRepairJobDynamicConfigPtr GetDynamicConfig() const
-    {
-        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        return dynamicConfigManager->GetConfig()->DataNode->ChunkRepairJob;
     }
 };
 
@@ -973,14 +970,15 @@ public:
             bootstrap)
         , JobSpecExt_(JobSpec_.GetExtension(TSealChunkJobSpecExt::seal_chunk_job_spec_ext))
         , ChunkId_(FromProto<TChunkId>(JobSpecExt_.chunk_id()))
+        , DynamicConfig_(Bootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->SealChunkJob)
     {
         Logger.AddTag("ChunkId: %v", ChunkId_);
     }
 
 private:
     const TSealChunkJobSpecExt JobSpecExt_;
-
     const TChunkId ChunkId_;
+    const TSealChunkJobDynamicConfigPtr DynamicConfig_;
 
     // COMPAT(babenko)
     static TChunkReplicaWithMediumList ParseSourceReplicas(const TSealChunkJobSpecExt& jobSpecExt)
@@ -1049,11 +1047,11 @@ private:
                 Bootstrap_->GetBlockCache(),
                 /*chunkMetaCache*/ nullptr,
                 /*nodeStatusDirectory*/ nullptr,
-                Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::ReplicationIn),
+                Bootstrap_->GetThrottler(EDataNodeThrottlerKind::ReplicationIn),
                 /*rpsThrottler*/ GetUnlimitedThrottler(),
                 /*trafficMeter*/ nullptr);
             auto reader = NJournalClient::CreateChunkReader(
-                Config_->SealReader,
+                DynamicConfig_->Reader,
                 std::move(chunkReaderHost),
                 ChunkId_,
                 codecId,
@@ -1240,6 +1238,7 @@ public:
         , MemoryUsageTracker_(New<TJobSystemMemoryUsageTracker>(
             MakeWeak(this)))
         , ReadMemoryLimit_(readMemoryLimit)
+        , DynamicConfig_(Bootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->MergeChunksJob)
     {
         YT_VERIFY(readMemoryLimit > 0);
 
@@ -1257,11 +1256,13 @@ public:
 private:
     const TMergeChunksJobSpecExt JobSpecExt_;
     const TCellTag CellTag_;
-    bool DeepMergeFallbackOccurred_ = false;
-    TError ShallowMergeValidationError_;
-    NChunkClient::EChunkMergerMode MergeMode_;
     const ITypedNodeMemoryTrackerPtr MemoryUsageTracker_;
     const i64 ReadMemoryLimit_;
+    const TMergeChunksJobDynamicConfigPtr DynamicConfig_;
+
+    bool DeepMergeFallbackOccurred_ = false;
+    TError ShallowMergeValidationError_;
+    EChunkMergerMode MergeMode_;
     IMultiReaderMemoryManagerPtr MultiReaderMemoryManager_;
 
     TTableSchemaPtr Schema_;
@@ -1279,7 +1280,7 @@ private:
         TDeferredChunkMetaPtr Meta;
         TChunkId ChunkId;
         std::vector<i64> BlockSizes;
-        NChunkClient::IChunkReader::TReadBlocksOptions Options;
+        IChunkReader::TReadBlocksOptions Options;
         TMergeChunkInfo MergeChunkInfo;
     };
     std::vector<TChunkReadContext> InputChunkReadContexts_;
@@ -1288,17 +1289,19 @@ private:
     {
     public:
         TMergeChunkReader(
-            IBootstrap* bootstrap,
+            NTableClient::TChunkReaderConfigPtr readerConfig,
             std::vector<TChunkReadContext> contexts,
             TTableSchemaPtr schema,
             TNameTablePtr nameTable,
             bool permuteRows,
+            IBlockCachePtr blockCache,
             IMultiReaderMemoryManagerPtr memoryManager)
-            : Bootstrap_(bootstrap)
-            , Contexts_(contexts)
+            : ReaderConfig_(std::move(readerConfig))
+            , Contexts_(std::move(contexts))
             , Schema_(std::move(schema))
             , NameTable_(std::move(nameTable))
             , PermuteRows_(permuteRows)
+            , BlockCache_(std::move(blockCache))
             , MemoryManager_(std::move(memoryManager))
         {
             OpenReader();
@@ -1354,12 +1357,12 @@ private:
         }
 
     private:
-        IBootstrap* const Bootstrap_;
+        const NTableClient::TChunkReaderConfigPtr ReaderConfig_;
         const std::vector<TChunkReadContext> Contexts_;
         const TTableSchemaPtr Schema_;
         const TNameTablePtr NameTable_;
-
         const bool PermuteRows_;
+        const IBlockCachePtr BlockCache_;
         const IMultiReaderMemoryManagerPtr MemoryManager_;
 
         int CurrentChunkIndex_ = 0;
@@ -1369,7 +1372,7 @@ private:
         {
             const auto& context = Contexts_[CurrentChunkIndex_];
             auto chunkState = New<TChunkState>(TChunkState{
-                .BlockCache = Bootstrap_->GetBlockCache(),
+                .BlockCache = BlockCache_,
                 .ChunkSpec = GetChunkSpec(context.MergeChunkInfo),
                 .TableSchema = Schema_,
             });
@@ -1377,14 +1380,14 @@ private:
             ChunkReader_ = CreateSchemalessRangeChunkReader(
                 std::move(chunkState),
                 New<TColumnarChunkMeta>(*context.Meta),
-                NTableClient::TChunkReaderConfig::GetDefault(),
+                ReaderConfig_,
                 TChunkReaderOptions::GetDefault(),
                 context.Reader,
                 New<TNameTable>(),
                 context.Options.ClientOptions,
                 /*keyColumns*/ {},
                 /*omittedInaccessibleColumns*/ {},
-                NTableClient::TColumnFilter(),
+                TColumnFilter(),
                 NChunkClient::TReadRange(),
                 /*partitionTag*/ std::nullopt,
                 MemoryManager_->CreateChunkReaderMemoryManager());
@@ -1394,7 +1397,7 @@ private:
     void SetMergeJobResult()
     {
         auto* jobResultExt = Result_.MutableExtension(TMergeChunksJobResultExt::merge_chunks_job_result_ext);
-        if (MergeMode_ == NChunkClient::EChunkMergerMode::Auto) {
+        if (MergeMode_ == EChunkMergerMode::Auto) {
             jobResultExt->set_deep_merge_fallback_occurred(DeepMergeFallbackOccurred_);
         }
         ToProto(jobResultExt->mutable_shallow_merge_validation_error(), ShallowMergeValidationError_);
@@ -1434,18 +1437,18 @@ private:
             MaxBlockCount_ = chunkMergerWriterOptions.max_block_count();
         }
 
-        MergeMode_ = CheckedEnumCast<NChunkClient::EChunkMergerMode>(chunkMergerWriterOptions.merge_mode());
+        MergeMode_ = CheckedEnumCast<EChunkMergerMode>(chunkMergerWriterOptions.merge_mode());
         YT_LOG_INFO("Chunk merge job started (Mode: %v)", MergeMode_);
 
         PrepareInputChunkReadContexts();
         switch (MergeMode_) {
-            case NChunkClient::EChunkMergerMode::Shallow:
+            case EChunkMergerMode::Shallow:
                 MergeShallow();
                 break;
-            case NChunkClient::EChunkMergerMode::Deep:
+            case EChunkMergerMode::Deep:
                 MergeDeep();
                 break;
-            case NChunkClient::EChunkMergerMode::Auto:
+            case EChunkMergerMode::Auto:
                 try {
                     MergeShallow();
                 } catch (const TErrorException& ex) {
@@ -1631,7 +1634,7 @@ private:
         }
 
         auto writer = CreateSchemalessChunkWriter(
-            New<TChunkWriterConfig>(),
+            DynamicConfig_->Writer,
             chunkWriterOptions,
             Schema_,
             /*nameTable*/ nullptr,
@@ -1646,11 +1649,12 @@ private:
             YT_VERIFY(MultiReaderMemoryManager_);
 
             TMergeChunkReader chunkReader(
-                Bootstrap_,
+                DynamicConfig_->Reader,
                 InputChunkReadContexts_,
                 Schema_,
                 writerNameTable,
                 /*permuteRows*/ true,
+                Bootstrap_->GetBlockCache(),
                 MultiReaderMemoryManager_);
 
             while (auto rows = chunkReader.ReadRows(rowBuffer)) {
@@ -1679,7 +1683,7 @@ private:
         options->ErasureCodec = ErasureCodec_;
 
         return CreateConfirmingWriter(
-            Config_->MergeWriter,
+            DynamicConfig_->Writer,
             options,
             CellTag_,
             NullTransactionId,
@@ -1688,7 +1692,7 @@ private:
             Bootstrap_->GetLocalHostName(),
             Bootstrap_->GetBlockCache(),
             /*trafficMeter*/ nullptr,
-            Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::MergeOut),
+            Bootstrap_->GetThrottler(EDataNodeThrottlerKind::MergeOut),
             sessionId,
             std::move(targetReplicas));
     }
@@ -1719,7 +1723,7 @@ private:
             Bootstrap_->GetBlockCache(),
             /*chunkMetaCache*/ nullptr,
             /*nodeStatusDirectory*/ nullptr,
-            Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::MergeIn),
+            Bootstrap_->GetThrottler(EDataNodeThrottlerKind::MergeIn),
             /*rpsThrottler*/ GetUnlimitedThrottler(),
             /*trafficMeter*/ nullptr);
         return CreateRemoteReader(
@@ -1743,9 +1747,9 @@ private:
         const IMetaAggregatingWriterPtr& writer,
         const IMultiReaderMemoryManagerPtr& multiReaderMemoryManager)
     {
-        YT_LOG_DEBUG("Validating shallow merge result");
+        YT_LOG_INFO("Validating shallow merge result");
 
-        if (GetDynamicConfig()->FailShallowMergeValidation) {
+        if (DynamicConfig_->FailShallowMergeValidation) {
             return TError("Testing error");
         }
 
@@ -1762,22 +1766,26 @@ private:
 
         auto outputChunkReadContext = GetChunkReadContext(writer);
 
+        auto readerConfig = DynamicConfig_->Reader;
+
         TMergeChunkReader outputChunkReader(
-            Bootstrap_,
+            readerConfig,
             {outputChunkReadContext},
             Schema_,
             nameTable,
             /*permuteRows*/ false,
+            Bootstrap_->GetBlockCache(),
             multiReaderMemoryManager);
 
         // NB: #InputChunkReadContexts_ could be already used during merge.
         PrepareInputChunkReadContexts();
         TMergeChunkReader inputChunksReader(
-            Bootstrap_,
+            readerConfig,
             InputChunkReadContexts_,
             Schema_,
             nameTable,
             /*permuteRows*/ true,
+            Bootstrap_->GetBlockCache(),
             multiReaderMemoryManager);
 
         i64 outputChunkRowCount = outputChunkReadContext.MergeChunkInfo.row_count();
@@ -1882,12 +1890,6 @@ private:
             }
         }
     }
-
-    const TChunkMergerConfigPtr& GetDynamicConfig() const
-    {
-        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        return dynamicConfigManager->GetConfig()->DataNode->ChunkMerger;
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1923,6 +1925,7 @@ public:
             ? std::optional(JobSpecExt_.enable_skynet_sharing())
             : std::nullopt)
         , NodeDirectory_(New<NNodeTrackerClient::TNodeDirectory>())
+        , DynamicConfig_(Bootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->ReincarnateChunkJob)
     {
         NodeDirectory_->MergeFrom(JobSpecExt_.node_directory());
     }
@@ -1938,6 +1941,7 @@ private:
     const int MediumIndex_;
     const std::optional<bool> EnableSkynetSharing_;
     const TNodeDirectoryPtr NodeDirectory_;
+    const TReincarnateChunkJobDynamicConfigPtr DynamicConfig_;
 
     static void CopyMeta(const TDeferredChunkMetaPtr& src, const TDeferredChunkMetaPtr& dst)
     {
@@ -1973,14 +1977,14 @@ private:
             THROW_ERROR_EXCEPTION("Testing failure");
         }
 
-        auto erasureReaderConfig = New<TErasureReaderConfig>();
-        erasureReaderConfig->EnableAutoRepair = false;
-
         TChunkSpec oldChunkSpec;
         ToProto(oldChunkSpec.mutable_chunk_id(), OldChunkId_);
         oldChunkSpec.set_erasure_codec(ToProto<int>(ErasureCodec_));
         *oldChunkSpec.mutable_legacy_replicas() = JobSpecExt_.legacy_source_replicas();
         *oldChunkSpec.mutable_replicas() = JobSpecExt_.source_replicas();
+
+        auto readerConfig = DynamicConfig_->Reader;
+        auto writerConfig = DynamicConfig_->Writer;
 
         auto chunkReaderHost = New<TChunkReaderHost>(
             Bootstrap_->GetClient(),
@@ -1988,12 +1992,12 @@ private:
             Bootstrap_->GetBlockCache(),
             /*chunkMetaCache*/ nullptr,
             /*nodeStatusDirectory*/ nullptr,
-            Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::ReincarnationIn),
+            Bootstrap_->GetThrottler(EDataNodeThrottlerKind::ReincarnationIn),
             /*rpsThrottler*/ GetUnlimitedThrottler(),
             /*trafficMeter*/ nullptr);
         auto remoteReader = CreateRemoteReader(
             oldChunkSpec,
-            erasureReaderConfig,
+            readerConfig,
             New<TRemoteReaderOptions>(),
             std::move(chunkReaderHost));
 
@@ -2027,7 +2031,7 @@ private:
         auto reader = CreateSchemalessRangeChunkReader(
             oldChunkState,
             New<TColumnarChunkMeta>(*oldChunkMeta),
-            NTableClient::TChunkReaderConfig::GetDefault(),
+            readerConfig,
             TChunkReaderOptions::GetDefault(),
             remoteReader,
             New<TNameTable>(),
@@ -2043,7 +2047,7 @@ private:
         confirmingWriterOptions->ErasureCodec = ErasureCodec_;
 
         auto confirmingWriter = CreateConfirmingWriter(
-            Config_->ReincarnationWriter,
+            writerConfig,
             confirmingWriterOptions,
             CellTag_,
             NullTransactionId,
@@ -2052,7 +2056,7 @@ private:
             Bootstrap_->GetLocalHostName(),
             Bootstrap_->GetBlockCache(),
             /*trafficMeter*/ nullptr,
-            Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::ReincarnationOut),
+            Bootstrap_->GetThrottler(EDataNodeThrottlerKind::ReincarnationOut),
             TSessionId(NewChunkId_, MediumIndex_),
             TargetReplicas_);
 
@@ -2063,7 +2067,7 @@ private:
         chunkWriterOptions->Postprocess();
 
         auto writer = CreateSchemalessChunkWriter(
-            New<TChunkWriterConfig>(),
+            writerConfig,
             chunkWriterOptions,
             columnarMeta->ChunkSchema(),
             columnarMeta->ChunkNameTable(),
@@ -2084,19 +2088,22 @@ private:
 
     bool IsTestingFailureNeeded()
     {
-        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        const auto& testingConfig = dynamicConfigManager->GetConfig()->DataNode->TestingOptions;
-        return testingConfig->FailReincarnationJobs;
+        return Bootstrap_
+            ->GetDynamicConfigManager()
+            ->GetConfig()
+            ->DataNode
+            ->TestingOptions
+            ->FailReincarnationJobs;
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkAutotomyJob
+class TAutotomizeChunkJob
     : public TMasterJobBase
 {
 public:
-    TChunkAutotomyJob(
+    TAutotomizeChunkJob(
         TJobId jobId,
         const TJobSpec& jobSpec,
         TString jobTrackerAddress,
@@ -2119,6 +2126,7 @@ public:
         , WriteQuorum_(JobSpecExt_.write_quorum())
         , MediumIndex_(JobSpecExt_.medium_index())
         , ErasureCodecId_(CheckedEnumCast<NErasure::ECodec>(JobSpecExt_.erasure_codec()))
+        , DynamicConfig_(Bootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->AutotomizeChunkJob)
     {
         NodeDirectory_->MergeFrom(JobSpecExt_.node_directory());
     }
@@ -2141,6 +2149,8 @@ private:
 
     const NErasure::ECodec ErasureCodecId_;
 
+    const TAutotomizeChunkJobDynamicConfigPtr DynamicConfig_;
+
 
     struct TChunkWriterWithIndex
     {
@@ -2152,11 +2162,10 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        if (GetDynamicConfig()->FailJobs) {
+        if (DynamicConfig_->FailJobs) {
             THROW_ERROR_EXCEPTION("Testing failure");
         }
-
-        if (GetDynamicConfig()->SleepInJobs) {
+        if (DynamicConfig_->SleepInJobs) {
             YT_LOG_WARNING("Sleeping forever");
             TDelayedExecutor::WaitForDuration(TDuration::Max());
         }
@@ -2217,7 +2226,7 @@ private:
         auto future = AbortSessionsQuorum(
             BodyChunkId_,
             bodyChunkReplicaDescriptors,
-            GetDynamicConfig()->RpcTimeout,
+            DynamicConfig_->RpcTimeout,
             /*quorumSessionDelay*/ TDuration::Zero(),
             ReadQuorum_,
             GetNodeChannelFactory());
@@ -2251,7 +2260,7 @@ private:
 
             auto req = proxy.GetChunkMeta();
             SetRequestWorkloadDescriptor(req, TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery));
-            req->SetTimeout(GetDynamicConfig()->RpcTimeout);
+            req->SetTimeout(DynamicConfig_->RpcTimeout);
             ToProto(req->mutable_chunk_id(), partChunkId);
             req->add_extension_tags(TProtoExtensionTag<TMiscExt>::Value);
             req->set_supported_chunk_features(ToUnderlying(GetSupportedChunkFeatures()));
@@ -2357,11 +2366,12 @@ private:
             Bootstrap_->GetBlockCache(),
             /*chunkMetaCache*/ nullptr,
             /*nodeStatusDirectory*/ nullptr,
-            Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::AutotomyIn),
+            Bootstrap_->GetThrottler(EDataNodeThrottlerKind::AutotomyIn),
             /*rpsThrottler*/ GetUnlimitedThrottler(),
             /*trafficMeter*/ nullptr);
+
         auto reader = NJournalClient::CreateChunkReader(
-            Config_->AutotomyReader,
+            DynamicConfig_->Reader,
             std::move(chunkReaderHost),
             BodyChunkId_,
             ErasureCodecId_,
@@ -2444,13 +2454,13 @@ private:
         if (IsErasure()) {
             auto* erasureCodec = NErasure::GetCodec(ErasureCodecId_);
             auto erasurePartWriters = CreateAllErasurePartWriters(
-                Config_->AutotomyWriter,
+                DynamicConfig_->Writer,
                 New<TRemoteWriterOptions>(),
                 writeSessionId,
                 erasureCodec,
                 Bootstrap_->GetClient(),
                 /*trafficMeter*/ nullptr,
-                Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::AutotomyOut),
+                Bootstrap_->GetThrottler(EDataNodeThrottlerKind::AutotomyOut),
                 GetNullBlockCache());
 
             std::vector<TChunkWriterWithIndex> writers;
@@ -2480,7 +2490,7 @@ private:
             YT_VERIFY(std::ssize(writeTargets) == ReplicationFactor_);
 
             // Each writer uploads exactly one replica.
-            auto writerConfig = CloneYsonStruct(Config_->AutotomyWriter);
+            auto writerConfig = CloneYsonStruct(DynamicConfig_->Writer);
             writerConfig->UploadReplicationFactor = 1;
             writerConfig->MinUploadReplicationFactor = 1;
 
@@ -2499,7 +2509,7 @@ private:
                     Bootstrap_->GetLocalHostName(),
                     GetNullBlockCache(),
                     /*trafficMeter*/ nullptr,
-                    Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::AutotomyOut));
+                    Bootstrap_->GetThrottler(EDataNodeThrottlerKind::AutotomyOut));
                 writers.push_back(TChunkWriterWithIndex{
                     .ChunkWriter = std::move(writer),
                     .Index = index
@@ -2685,17 +2695,11 @@ private:
 
     INodeChannelFactoryPtr GetNodeChannelFactory() const
     {
-        auto nativeClient = Bootstrap_
+        return Bootstrap_
             ->GetClient()
             ->GetNativeConnection()
-            ->CreateNativeClient({.User = NSecurityClient::RootUserName});
-        return nativeClient->GetChannelFactory();
-    }
-
-    const TChunkAutotomizerConfigPtr& GetDynamicConfig() const
-    {
-        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        return dynamicConfigManager->GetConfig()->DataNode->ChunkAutotomizer;
+            ->CreateNativeClient({.User = NSecurityClient::RootUserName})
+            ->GetChannelFactory();
     }
 };
 
@@ -2754,11 +2758,10 @@ TMasterJobBasePtr CreateJob(
                 ->GetDynamicConfigManager()
                 ->GetConfig()
                 ->DataNode
-                ->ChunkMerger
+                ->MergeChunksJob
                 ->ReadMemoryLimit;
             auto mergeSlots = bootstrap
                 ->GetJobResourceManager()
-                .Get()
                 ->GetResourceLimits()
                 .MergeSlots;
             auto readMemoryLimit = totalMergeJobMemoryLimit / mergeSlots;
@@ -2772,8 +2775,9 @@ TMasterJobBasePtr CreateJob(
                 bootstrap,
                 readMemoryLimit);
         }
+
         case EJobType::AutotomizeChunk:
-            return New<TChunkAutotomyJob>(
+            return New<TAutotomizeChunkJob>(
                 jobId,
                 std::move(jobSpec),
                 std::move(jobTrackerAddress),

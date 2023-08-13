@@ -385,20 +385,6 @@ DEFINE_REFCOUNTED_TYPE(TVolumeManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRepairReaderConfig
-    : public virtual NChunkClient::TReplicationReaderConfig
-    , public virtual NJournalClient::TChunkReaderConfig
-{
-    REGISTER_YSON_STRUCT(TRepairReaderConfig);
-
-    static void Register(TRegistrar)
-    { }
-};
-
-DEFINE_REFCOUNTED_TYPE(TRepairReaderConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 // COMPAT(gritukan): Drop all the optionals in this class after configs migration.
 class TMasterConnectorConfig
     : public NYTree::TYsonStruct
@@ -484,25 +470,6 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TAllyReplicaManagerDynamicConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TChunkAutotomizerConfig
-    : public NYTree::TYsonStruct
-{
-public:
-    TDuration RpcTimeout;
-
-    // Testing options.
-    bool FailJobs;
-    bool SleepInJobs;
-
-    REGISTER_YSON_STRUCT(TChunkAutotomizerConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TChunkAutotomizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -597,38 +564,166 @@ DEFINE_REFCOUNTED_TYPE(TLocationHealthCheckerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkMergerConfig
+class TReplicateChunkJobDynamicConfig
     : public NYTree::TYsonStruct
 {
 public:
+    NChunkClient::TReplicationWriterConfigPtr Writer;
+
+    REGISTER_YSON_STRUCT(TReplicateChunkJobDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TReplicateChunkJobDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMergeWriterConfig
+    : public NChunkClient::TMultiChunkWriterConfig
+    , public NTableClient::TChunkWriterConfig
+{
+    REGISTER_YSON_STRUCT(TMergeWriterConfig);
+
+    static void Register(TRegistrar)
+    { }
+};
+
+DEFINE_REFCOUNTED_TYPE(TMergeWriterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMergeChunksJobDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    NTableClient::TChunkReaderConfigPtr Reader;
+    TMergeWriterConfigPtr Writer;
+
     // Testing options.
     bool FailShallowMergeValidation;
 
     i64 ReadMemoryLimit;
 
-    REGISTER_YSON_STRUCT(TChunkMergerConfig);
+    REGISTER_YSON_STRUCT(TMergeChunksJobDynamicConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TChunkMergerConfig)
+DEFINE_REFCOUNTED_TYPE(TMergeChunksJobDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkRepairJobDynamicConfig
+class TRepairReaderConfig
+    : public NChunkClient::TErasureReaderConfig
+    , public NJournalClient::TChunkReaderConfig
+{
+    REGISTER_YSON_STRUCT(TRepairReaderConfig);
+
+    static void Register(TRegistrar)
+    { }
+};
+
+DEFINE_REFCOUNTED_TYPE(TRepairReaderConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRepairChunkJobDynamicConfig
     : public NYTree::TYsonStruct
 {
 public:
-    NChunkClient::TErasureReaderConfigPtr Reader;
+    TRepairReaderConfigPtr Reader;
+    NChunkClient::TReplicationWriterConfigPtr Writer;
 
     i64 WindowSize;
 
-    REGISTER_YSON_STRUCT(TChunkRepairJobDynamicConfig);
+    REGISTER_YSON_STRUCT(TRepairChunkJobDynamicConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TChunkRepairJobDynamicConfig)
+DEFINE_REFCOUNTED_TYPE(TRepairChunkJobDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAutotomizeChunkJobDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    NJournalClient::TChunkReaderConfigPtr Reader;
+    NChunkClient::TReplicationWriterConfigPtr Writer;
+
+    TDuration RpcTimeout;
+
+    // Testing options.
+    bool FailJobs;
+    bool SleepInJobs;
+
+    REGISTER_YSON_STRUCT(TAutotomizeChunkJobDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TAutotomizeChunkJobDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TReincarnateReaderConfig
+    : public NChunkClient::TErasureReaderConfig
+    , public NTableClient::TChunkReaderConfig
+{
+    REGISTER_YSON_STRUCT(TReincarnateReaderConfig);
+
+    static void Register(TRegistrar)
+    { }
+};
+
+DEFINE_REFCOUNTED_TYPE(TReincarnateReaderConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TReincarnateWriterConfig
+    : public NChunkClient::TMultiChunkWriterConfig
+    , public NTableClient::TChunkWriterConfig
+{
+    REGISTER_YSON_STRUCT(TReincarnateWriterConfig);
+
+    static void Register(TRegistrar)
+    { }
+};
+
+DEFINE_REFCOUNTED_TYPE(TReincarnateWriterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TReincarnateChunkJobDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TReincarnateReaderConfigPtr Reader;
+    TReincarnateWriterConfigPtr Writer;
+
+    REGISTER_YSON_STRUCT(TReincarnateChunkJobDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TReincarnateChunkJobDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSealChunkJobDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    NJournalClient::TChunkReaderConfigPtr Reader;
+
+    REGISTER_YSON_STRUCT(TSealChunkJobDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TSealChunkJobDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -761,33 +856,6 @@ public:
     //! Manages layers and root volumes for Porto job environment.
     TVolumeManagerConfigPtr VolumeManager;
 
-    //! Writer configuration used to replicate chunks.
-    NChunkClient::TReplicationWriterConfigPtr ReplicationWriter;
-
-    //! Reader configuration used to repair chunks (both blob and journal).
-    TRepairReaderConfigPtr RepairReader;
-
-    //! Writer configuration used to repair chunks.
-    NChunkClient::TReplicationWriterConfigPtr RepairWriter;
-
-    //! Reader configuration used to seal chunks.
-    NJournalClient::TChunkReaderConfigPtr SealReader;
-
-    //! Reader configuration used to merge chunks.
-    NChunkClient::TReplicationReaderConfigPtr MergeReader;
-
-    //! Writer configuration used to merge chunks.
-    NChunkClient::TMultiChunkWriterConfigPtr MergeWriter;
-
-    //! Reader configuration used to autotomize chunks.
-    NJournalClient::TChunkReaderConfigPtr AutotomyReader;
-
-    //! Writer configuration used to autotomize chunks.
-    NChunkClient::TReplicationWriterConfigPtr AutotomyWriter;
-
-    //! Writer configuration used to reincarnate chunks.
-    NChunkClient::TMultiChunkWriterConfigPtr ReincarnationWriter;
-
     //! Configuration for various Data Node throttlers. Used when fair throttler is not enabled.
     TEnumIndexedVector<EDataNodeThrottlerKind, NConcurrency::TRelativeThroughputThrottlerConfigPtr> Throttlers;
 
@@ -919,18 +987,16 @@ public:
 
     TP2PConfigPtr P2P;
 
-    TChunkAutotomizerConfigPtr ChunkAutotomizer;
-
     TDuration IOStatisticsUpdateTimeout;
-
-    // COMPAT(gritukan, capone212)
-    NChunkClient::TErasureReaderConfigPtr AdaptiveChunkRepairJob;
 
     TIOThroughputMeterConfigPtr IOThroughputMeter;
 
-    TChunkMergerConfigPtr ChunkMerger;
-
-    TChunkRepairJobDynamicConfigPtr ChunkRepairJob;
+    TReplicateChunkJobDynamicConfigPtr ReplicateChunkJob;
+    TMergeChunksJobDynamicConfigPtr MergeChunksJob;
+    TRepairChunkJobDynamicConfigPtr RepairChunkJob;
+    TAutotomizeChunkJobDynamicConfigPtr AutotomizeChunkJob;
+    TReincarnateChunkJobDynamicConfigPtr ReincarnateChunkJob;
+    TSealChunkJobDynamicConfigPtr SealChunkJob;
 
     TLocationHealthCheckerDynamicConfigPtr LocationHealthChecker;
 
