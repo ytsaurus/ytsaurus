@@ -82,6 +82,9 @@ public:
     //! User under which requests are performed to read and write registrations.
     TString User;
 
+    // ! If true, then symbolic links in queues' and consumers' paths will be resolved in registrations and unregistrations.
+    bool ResolveSymlinks;
+
     REGISTER_YSON_STRUCT(TQueueConsumerRegistrationManagerConfig);
 
     static void Register(TRegistrar registrar);

@@ -1449,6 +1449,7 @@ private:
                     protoReplica->set_replica_path(replica->ReplicaPath);
                     protoReplica->set_mode(static_cast<i32>(replica->Mode));
                 }
+                response->set_physical_path(tableMountInfo->PhysicalPath);
 
                 context->SetResponseInfo("Dynamic: %v, TabletCount: %v, ReplicaCount: %v",
                     tableMountInfo->Dynamic,

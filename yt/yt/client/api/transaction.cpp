@@ -154,8 +154,15 @@ void ITransaction::AdvanceConsumer(
 {
     THROW_ERROR_EXCEPTION_IF(newOffset < 0, "Queue consumer offset %v cannot be negative", newOffset);
 
+    auto tableMountCache = GetClient()->GetTableMountCache();
+    auto queuePhysicalPath = queuePath;
+    auto queueTableInfoOrError = WaitFor(tableMountCache->GetTableInfo(queuePath.GetPath()));
+    if (queueTableInfoOrError.IsOK()) {
+        queuePhysicalPath = NYPath::TRichYPath(queueTableInfoOrError.Value()->PhysicalPath, queuePath.Attributes());
+    }
+
     // TODO(achulkov2): Support consumers from any cluster.
-    auto subConsumerClient = CreateSubConsumerClient(GetClient(), consumerPath.GetPath(), queuePath);
+    auto subConsumerClient = CreateSubConsumerClient(GetClient(), consumerPath.GetPath(), queuePhysicalPath);
     return subConsumerClient->Advance(MakeStrong(this), partitionIndex, oldOffset, newOffset);
 }
 

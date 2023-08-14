@@ -124,6 +124,43 @@ std::optional<TConsumerRegistrationTableRow> TQueueConsumerRegistrationManager::
     return {};
 }
 
+NYPath::TRichYPath TQueueConsumerRegistrationManager::ResolveObjectPhysicalPath(
+        const NYPath::TRichYPath& objectPath,
+        const TString& objectRole,
+        bool throwOnFailure) const
+{
+    YT_VERIFY(!Connection_.IsExpired());
+
+    auto lockedConnection = Connection_.Lock();
+
+    auto resolvedObjectPath = objectPath;
+    auto resolvedObjectPhysicalPathOrError = WaitFor(ResolvePhysicalPath(objectPath, lockedConnection));
+
+    if (resolvedObjectPhysicalPathOrError.IsOK()) {
+        resolvedObjectPath = resolvedObjectPhysicalPathOrError.Value();
+        if (resolvedObjectPath.GetPath() != objectPath.GetPath()) {
+            YT_LOG_DEBUG(
+                "Resolved symlink (Original%vPath: %v, Resolved%vPath: %v)",
+                objectRole,
+                objectPath,
+                objectRole,
+                resolvedObjectPhysicalPathOrError.Value());
+        }
+    } else {
+        YT_LOG_DEBUG(
+            resolvedObjectPhysicalPathOrError,
+            "Failed to resolve physical path (%v: %v)",
+            objectRole,
+            objectPath);
+
+        if (throwOnFailure) {
+            resolvedObjectPhysicalPathOrError.ValueOrThrow();
+        }
+    }
+
+    return resolvedObjectPath;
+}
+
 std::vector<TConsumerRegistrationTableRow> TQueueConsumerRegistrationManager::ListRegistrations(
     std::optional<TRichYPath> queue,
     std::optional<TRichYPath> consumer)
@@ -132,6 +169,24 @@ std::vector<TConsumerRegistrationTableRow> TQueueConsumerRegistrationManager::Li
 
     if (!ClusterName_) {
         THROW_ERROR_EXCEPTION("Cannot serve request, queue consumer registration manager was not properly configured with a cluster name");
+    }
+
+    if (Config_->ResolveSymlinks) {
+        if (!Connection_.IsExpired()) {
+            // NB: We want to get a registration list corresponding to the queue and consumer passed from the user,
+            // if they don't exist, then we don't want to throw an exception.
+            if (queue) {
+                queue = ResolveObjectPhysicalPath(*queue, "Queue", /*throwOnFailure*/ false);
+            }
+            if (consumer) {
+                consumer = ResolveObjectPhysicalPath(*consumer, "Consumer", /*throwOnFailure*/ false);
+            }
+        } else {
+            YT_LOG_DEBUG(
+                "Unable to resolve physical paths to list registrations due to expired connection (Queue: %v, Consumer: %v)",
+                queue,
+                consumer);
+        }
     }
 
     if (queue && !queue->GetCluster()) {
@@ -176,9 +231,23 @@ void TQueueConsumerRegistrationManager::RegisterQueueConsumer(
 
     auto registrationTableClient = CreateRegistrationTableWriteClientOrThrow();
 
+    auto resolvedQueuePath = queue;
+    auto resolvedConsumerPath = consumer;
+    if (Config_->ResolveSymlinks) {
+        if (!Connection_.IsExpired()) {
+            resolvedQueuePath = ResolveObjectPhysicalPath(queue, "Queue", /*throwOnFailure*/ true);
+            resolvedConsumerPath = ResolveObjectPhysicalPath(consumer, "Consumer", /*throwOnFailure*/ true);
+        } else {
+            YT_LOG_DEBUG(
+                "Unable to resolve physical paths to register consumer due to expired connection (Queue: %v, Consumer: %v)",
+                queue,
+                consumer);
+        }
+    }
+
     WaitFor(registrationTableClient->Insert(std::vector{TConsumerRegistrationTableRow{
-        .Queue = FillCrossClusterReferencesFromRichYPath(queue, ClusterName_),
-        .Consumer = FillCrossClusterReferencesFromRichYPath(consumer, ClusterName_),
+        .Queue = FillCrossClusterReferencesFromRichYPath(resolvedQueuePath, ClusterName_),
+        .Consumer = FillCrossClusterReferencesFromRichYPath(resolvedConsumerPath, ClusterName_),
         .Vital = vital,
         .Partitions = partitions,
     }}))
@@ -193,9 +262,24 @@ void TQueueConsumerRegistrationManager::UnregisterQueueConsumer(
 
     auto registrationTableClient = CreateRegistrationTableWriteClientOrThrow();
 
+    auto resolvedQueuePath = queue;
+    auto resolvedConsumerPath = consumer;
+    if (Config_->ResolveSymlinks) {
+        if (!Connection_.IsExpired()) {
+            // NB: We want to allow to delete registrations with nonexistent queues/consumers, therefore, we don't throw exceptions.
+            resolvedQueuePath = ResolveObjectPhysicalPath(queue, "Queue", /*throwOnFailure*/ false);
+            resolvedConsumerPath = ResolveObjectPhysicalPath(consumer, "Consumer", /*throwOnFailure*/ false);
+        } else {
+            YT_LOG_DEBUG(
+                "Unable to resolve physical paths to unregister consumer due to expired connection (Queue: %v, Consumer: %v)",
+                queue,
+                consumer);
+        }
+    }
+
     WaitFor(registrationTableClient->Delete(std::vector{TConsumerRegistrationTableRow{
-        .Queue = FillCrossClusterReferencesFromRichYPath(queue, ClusterName_),
-        .Consumer = FillCrossClusterReferencesFromRichYPath(consumer, ClusterName_),
+        .Queue = FillCrossClusterReferencesFromRichYPath(resolvedQueuePath, ClusterName_),
+        .Consumer = FillCrossClusterReferencesFromRichYPath(resolvedConsumerPath, ClusterName_),
     }}))
         .ValueOrThrow();
 }

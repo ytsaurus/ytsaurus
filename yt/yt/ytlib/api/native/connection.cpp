@@ -112,8 +112,6 @@ using namespace NObjectClient;
 using namespace NProfiling;
 using namespace NQueryClient;
 using namespace NQueueClient;
-using namespace NRpc;
-using namespace NScheduler;
 using namespace NScheduler;
 using namespace NSecurityClient;
 using namespace NTabletClient;
@@ -123,6 +121,7 @@ using namespace NYson;
 using namespace NDiscoveryClient;
 using namespace NRpc;
 using namespace NYqlClient;
+using namespace NYPath;
 
 using std::placeholders::_1;
 
@@ -1198,6 +1197,19 @@ IConnectionPtr GetRemoteConnectionOrThrow(
         THROW_ERROR_EXCEPTION("Cannot find cluster with cell tag %v", cellTag);
     }
     return remoteConnection;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<TRichYPath> ResolvePhysicalPath(const TRichYPath& objectPath, const IConnectionPtr& connection)
+{
+    auto objectConnection = FindRemoteConnection(connection, objectPath.GetCluster());
+    YT_VERIFY(objectConnection);
+    auto objectTableMountCache = objectConnection->GetTableMountCache();
+    return objectTableMountCache->GetTableInfo(objectPath.GetPath())
+        .Apply(BIND([=] (const TTableMountInfoPtr& tableInfo) -> TRichYPath {
+            return TRichYPath(tableInfo->PhysicalPath, objectPath.Attributes());
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

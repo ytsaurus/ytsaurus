@@ -184,6 +184,8 @@ private:
         const bool IsPeriodicUpdate_;
         const NLogging::TLogger Logger;
 
+        // PhysicalPath points to a physical object, if current object is linked to some other object, then this field will point to the source.
+        NYPath::TYPath PhysicalPath_;
         TTableId TableId_;
         TCellTag CellTag_;
         NHydra::TRevision PrimaryRevision_ = NHydra::NullRevision;
@@ -227,7 +229,8 @@ private:
                 ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
                     "id",
                     "dynamic",
-                    "external_cell_tag"
+                    "external_cell_tag",
+                    "path",
                 });
 
                 SetCachingHeader(req, connection, options, refreshPrimaryRevision);
@@ -254,6 +257,7 @@ private:
 
             auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
 
+            PhysicalPath_ = attributes->Get<NYPath::TYPath>("path", Path_);
             CellTag_ = attributes->Get<TCellTag>("external_cell_tag", PrimaryMasterCellTagSentinel);
             TableId_ = attributes->Get<TObjectId>("id");
             auto dynamic = attributes->Get<bool>("dynamic", false);
@@ -343,6 +347,7 @@ private:
             tableInfo->NeedKeyEvaluation = primarySchema->HasComputedColumns();
             tableInfo->EnableDetailedProfiling = rsp->enable_detailed_profiling();
             tableInfo->ReplicationCardId = FromProto<TReplicationCardId>(rsp->replication_card_id());
+            tableInfo->PhysicalPath = PhysicalPath_;
 
             for (const auto& protoTabletInfo : rsp->tablets()) {
                 auto tabletInfo = New<TTabletInfo>();

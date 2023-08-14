@@ -4,7 +4,7 @@ from yt_commands import (authors, wait, get, set, create, sync_mount_table, crea
                          sync_enable_table_replica, select_rows, print_debug, check_permission, register_queue_consumer,
                          unregister_queue_consumer, list_queue_consumer_registrations, raises_yt_error, create_user,
                          sync_create_cells, remove, pull_queue, pull_consumer, advance_consumer, insert_rows,
-                         start_transaction, commit_transaction)
+                         start_transaction, commit_transaction, link)
 
 from yt_env_setup import (
     Restarter,
@@ -235,7 +235,7 @@ class TestQueueConsumerApiBase(ChaosTestBase):
 
 
 class TestConsumerRegistrations(TestQueueConsumerApiBase):
-    NUM_TEST_PARTITIONS = 3
+    NUM_TEST_PARTITIONS = 4
 
     @staticmethod
     def _replica_registrations_are(local_replica_path, expected_registrations, driver):
@@ -503,6 +503,79 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
 
         wait(lambda: self.listed_registrations_are_equal(list_queue_consumer_registrations(), []))
 
+    @authors("cherepashka")
+    @pytest.mark.parametrize("create_registration_table", [
+        TestQueueConsumerApiBase._create_simple_registration_table,
+    ])
+    def test_list_registrations_for_symlinks(self, create_registration_table):
+        config = create_registration_table(self)
+        self._apply_registration_table_config(config)
+
+        attrs = {"dynamic": True, "schema": [{"name": "a", "type": "string"}]}
+        create("table", "//tmp/q1", attributes=attrs)
+        create("table", "//tmp/q2", attributes=attrs)
+        create("table", "//tmp/c1", attributes=attrs)
+        create("table", "//tmp/c2", attributes=attrs)
+
+        link("//tmp/q1", "//tmp/q1-link")
+        link("//tmp/q2", "//tmp/q2-link")
+        link("//tmp/c1", "//tmp/c1-link")
+        link("//tmp/c2", "//tmp/c2-link")
+
+        register_queue_consumer("//tmp/q1-link", "//tmp/c1-link", vital=True)
+        register_queue_consumer("//tmp/q1-link", "//tmp/c2-link", vital=False)
+        register_queue_consumer("//tmp/q2-link", "//tmp/c1-link", vital=True, partitions=[1, 5, 4, 3])
+
+        wait(lambda: self.listed_registrations_are_equal(
+            list_queue_consumer_registrations(queue_path="//tmp/q1-link", consumer_path="//tmp/c1-link"),
+            [
+                ("primary", "//tmp/q1", "primary", "//tmp/c1", True),
+            ]
+        ))
+
+        wait(lambda: self.listed_registrations_are_equal(
+            list_queue_consumer_registrations(queue_path="//tmp/q1-link"),
+            [
+                ("primary", "//tmp/q1", "primary", "//tmp/c1", True),
+                ("primary", "//tmp/q1", "primary", "//tmp/c2", False),
+            ]
+        ))
+
+        wait(lambda: self.listed_registrations_are_equal(
+            list_queue_consumer_registrations(consumer_path="//tmp/c1-link"),
+            [
+                ("primary", "//tmp/q1", "primary", "//tmp/c1", True),
+                ("primary", "//tmp/q2", "primary", "//tmp/c1", True, (1, 5, 4, 3)),
+            ]
+        ))
+
+        wait(lambda: self.listed_registrations_are_equal(
+            list_queue_consumer_registrations(consumer_path="primary://tmp/c2-link"),
+            [
+                ("primary", "//tmp/q1", "primary", "//tmp/c2", False),
+            ]
+        ))
+
+        wait(lambda: self.listed_registrations_are_equal(
+            list_queue_consumer_registrations(),
+            [
+                ("primary", "//tmp/q1", "primary", "//tmp/c1", True),
+                ("primary", "//tmp/q1", "primary", "//tmp/c2", False),
+                ("primary", "//tmp/q2", "primary", "//tmp/c1", True, (1, 5, 4, 3)),
+            ]
+        ))
+
+        wait(lambda: self.listed_registrations_are_equal(
+            list_queue_consumer_registrations(queue_path="remote_0://tmp/q1-link"),
+            []
+        ))
+
+        unregister_queue_consumer("//tmp/q1-link", "//tmp/c1-link")
+        unregister_queue_consumer("//tmp/q1-link", "//tmp/c2-link")
+        unregister_queue_consumer("//tmp/q2-link", "//tmp/c1-link")
+
+        wait(lambda: self.listed_registrations_are_equal(list_queue_consumer_registrations(), []))
+
     def _restart_service(self, service):
         for env in [self.Env] + self.remote_envs:
             with Restarter(env, service):
@@ -603,6 +676,104 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
                     (queue_cluster, "//tmp/q", consumer_cluster, "//tmp/c", True),
                 }), ignore_exceptions=True)
 
+    @authors("cherepashka")
+    @pytest.mark.parametrize("create_registration_table", [
+        TestQueueConsumerApiBase._create_simple_registration_table,
+    ])
+    def test_symlink_registrations(self, create_registration_table):
+        config = create_registration_table(self)
+        self._apply_registration_table_config(config)
+
+        local_replica_path = config["local_replica_path"]
+        replica_clusters = config["replica_clusters"]
+
+        cell_id = self._sync_create_chaos_bundle_and_cell(name="cb")
+        set("//sys/chaos_cell_bundles/cb/@metadata_cell_id", cell_id)
+
+        create("table", "//tmp/q", attributes={"dynamic": True, "schema": TestDataApi.DEFAULT_QUEUE_SCHEMA})
+        create("replicated_table", "//tmp/rep_q", attributes={"dynamic": True, "schema": TestDataApi.DEFAULT_QUEUE_SCHEMA})
+        create("chaos_replicated_table",
+               "//tmp/chaos_rep_q",
+               attributes={"chaos_cell_bundle": "cb",
+                           "schema": TestDataApi.DEFAULT_QUEUE_SCHEMA})
+
+        create("table",
+               "//tmp/c",
+               attributes={"dynamic": True,
+                           "schema": init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA,
+                           "treat_as_queue_consumer": True})
+        create("replicated_table",
+               "//tmp/rep_c",
+               attributes={"dynamic": True,
+                           "schema": init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA,
+                           "treat_as_queue_consumer": True})
+        create("chaos_replicated_table",
+               "//tmp/chaos_rep_c",
+               attributes={"chaos_cell_bundle": "cb",
+                           "schema": init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA,
+                           "treat_as_queue_consumer": True})
+
+        for (queue, consumer) in (("//tmp/q", "//tmp/c"), ("//tmp/rep_q", "//tmp/rep_c"), ("//tmp/chaos_rep_q", "//tmp/chaos_rep_c")):
+            link(queue, f"{queue}-link")
+            register_queue_consumer(f"{queue}-link", consumer, vital=True)
+            wait(lambda: self._registrations_are(local_replica_path, replica_clusters, {
+                ("primary", queue, "primary", consumer, True),
+            }))
+            unregister_queue_consumer(f"{queue}-link", consumer)
+            wait(lambda: self._registrations_are(local_replica_path, replica_clusters, builtins.set()))
+
+            link(consumer, f"{consumer}-link")
+            register_queue_consumer(queue, f"{consumer}-link", vital=True)
+            wait(lambda: self._registrations_are(local_replica_path, replica_clusters, {
+                ("primary", queue, "primary", consumer, True),
+            }))
+            unregister_queue_consumer(queue, f"{consumer}-link")
+            wait(lambda: self._registrations_are(local_replica_path, replica_clusters, builtins.set()))
+
+            register_queue_consumer(f"{queue}-link", f"{consumer}-link", vital=True)
+            wait(lambda: self._registrations_are(local_replica_path, replica_clusters, {
+                ("primary", queue, "primary", consumer, True),
+            }))
+            unregister_queue_consumer(f"{queue}-link", f"{consumer}-link")
+            wait(lambda: self._registrations_are(local_replica_path, replica_clusters, builtins.set()))
+
+            remove(f"{queue}-link")
+            remove(f"{consumer}-link")
+
+    @authors("cherepashka")
+    @pytest.mark.parametrize("create_registration_table", [
+        TestQueueConsumerApiBase._create_simple_registration_table,
+    ])
+    def test_multicluster_symlink_registrations(self, create_registration_table):
+        config = create_registration_table(self)
+        self._apply_registration_table_config(config)
+
+        local_replica_path = config["local_replica_path"]
+        replica_clusters = config["replica_clusters"]
+
+        _, queue_cluster, consumer_cluster = self.get_cluster_names()
+
+        create("table",
+               f"{queue_cluster}://tmp/q",
+               attributes={"dynamic": True, "schema": [{"name": "a", "type": "string"}]},
+               driver=get_driver(cluster=queue_cluster))
+        create("table",
+               f"{consumer_cluster}://tmp/c",
+               attributes={"dynamic": True,
+                           "schema": init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA,
+                           "treat_as_queue_consumer": True},
+               driver=get_driver(cluster=consumer_cluster))
+
+        link(f"{queue_cluster}://tmp/q", f"{queue_cluster}://tmp/q-link", driver=get_driver(cluster=queue_cluster))
+        link(f"{consumer_cluster}://tmp/c", f"{consumer_cluster}://tmp/c-link", driver=get_driver(cluster=consumer_cluster))
+
+        register_queue_consumer(f"{queue_cluster}://tmp/q-link", f"{consumer_cluster}://tmp/c-link", vital=True)
+        wait(lambda: self._registrations_are(local_replica_path, replica_clusters, {
+            (queue_cluster, "//tmp/q", consumer_cluster, "//tmp/c", True),
+        }))
+        unregister_queue_consumer(f"{queue_cluster}://tmp/q-link", f"{consumer_cluster}://tmp/c-link")
+        wait(lambda: self._registrations_are(local_replica_path, replica_clusters, builtins.set()))
+
 
 class TestDataApi(TestQueueConsumerApiBase):
     NUM_TEST_PARTITIONS = 2
@@ -643,9 +814,23 @@ class TestDataApi(TestQueueConsumerApiBase):
         if mount:
             sync_mount_table(path)
 
+    @staticmethod
+    def _create_symlink_queue(path):
+        TestDataApi._create_queue(f"{path}-original")
+        link(f"{path}-original", path)
+
+    @staticmethod
+    def _create_symlink_consumer(path):
+        TestDataApi._create_consumer(f"{path}-original")
+        link(f"{path}-original", path)
+
     @authors("achulkov2")
-    def test_pull_queue(self):
-        self._create_queue("//tmp/q")
+    @pytest.mark.parametrize("create_queue", [
+        _create_queue,
+        _create_symlink_queue,
+    ])
+    def test_pull_queue(self, create_queue):
+        create_queue("//tmp/q")
 
         insert_rows("//tmp/q", [{"data": "foo"}])
         insert_rows("//tmp/q", [{"data": "bar"}])
@@ -668,9 +853,13 @@ class TestDataApi(TestQueueConsumerApiBase):
         ]
 
     @authors("achulkov2")
-    def test_pull_consumer(self):
+    @pytest.mark.parametrize("create_consumer", [
+        _create_consumer,
+        _create_symlink_consumer,
+    ])
+    def test_pull_consumer(self, create_consumer):
         self._create_queue("//tmp/q")
-        self._create_consumer("//tmp/c")
+        create_consumer("//tmp/c")
 
         insert_rows("//tmp/q", [{"data": "foo"}])
         insert_rows("//tmp/q", [{"data": "bar"}])
@@ -698,8 +887,12 @@ class TestDataApi(TestQueueConsumerApiBase):
         ]
 
     @authors("achulkov2")
-    def test_advance_consumer(self):
-        self._create_consumer("//tmp/c")
+    @pytest.mark.parametrize("create_consumer", [
+        _create_consumer,
+        _create_symlink_consumer,
+    ])
+    def test_advance_consumer(self, create_consumer):
+        create_consumer("//tmp/c")
 
         def get_offset(queue, partition_index=0):
             rows = select_rows(
