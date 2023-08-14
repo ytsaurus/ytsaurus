@@ -165,6 +165,10 @@ void TAlertManagerConfig::Register(TRegistrar registrar)
         .Default(0.3)
         .InRange(0.0, 1.0);
 
+    registrar.Parameter("low_gpu_usage_alert_gpu_utilization_sm_threshold", &TThis::LowGpuUsageAlertGpuUtilizationSMThreshold)
+        .Default(0.3)
+        .InRange(0.0, 1.0);
+
     registrar.Parameter("low_gpu_usage_alert_statistics", &TThis::LowGpuUsageAlertStatistics)
         .Default({
             "/user_job/gpu/cumulative_utilization_gpu",
