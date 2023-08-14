@@ -206,6 +206,12 @@ void TCellTrackerImpl::ScanCellarCells(ECellarType cellarType)
 
     TReqReassignPeers request;
 
+    // List of the cells that are ready to reassign leader together with new leading peer id.
+    std::vector<std::pair<TCellBase*, TPeerId>> leaderReassignments;
+    // Set of the bundles that contain cell that are going to reassign leader but leader reassignment
+    // is not ready yet. For such bundles we do not execute any leader reassignments to synchronize
+    // reassignment downtimes of different cells.
+    THashSet<TCellBundle*> bundlesWithUnreadyLeaderReassignments;
     for (auto* cell : cellManger->Cells(cellarType)) {
         if (!IsObjectAlive(cell)) {
             continue;
@@ -219,10 +225,29 @@ void TCellTrackerImpl::ScanCellarCells(ECellarType cellarType)
         }
 
         if (!cell->CellBundle()->GetOptions()->IndependentPeers) {
-            ScheduleLeaderReassignment(cell);
+            if (auto peerId = FindNewLeadingPeerId(cell); peerId != InvalidPeerId) {
+                leaderReassignments.emplace_back(cell, peerId);
+            } else if (IsLeaderReassignmentRequired(cell)) {
+                // Leader reassignment is required not is not ready.
+                bundlesWithUnreadyLeaderReassignments.insert(cell->CellBundle().Get());
+            }
         }
         SchedulePeerAssignment(cell, balancer.get());
         SchedulePeerRevocation(cell, balancer.get());
+    }
+
+    for (auto [cell, peerId] : leaderReassignments) {
+        // NB: IsLeaderReassignmentRequired check is essential here to distinguish between
+        // extra peer decommission and multipeer cell leader switch. We don't want to delay
+        // reassignments of the second kind.
+        if (GetDynamicConfig()->SynchronizeTabletCellLeaderSwitches &&
+            IsLeaderReassignmentRequired(cell) &&
+            bundlesWithUnreadyLeaderReassignments.contains(cell->CellBundle().Get()))
+        {
+            continue;
+        }
+
+        ScheduleLeaderReassignment(cell, peerId);
     }
 
     auto moveDescriptors = balancer->GetCellMoveDescriptors();
@@ -297,7 +322,22 @@ void TCellTrackerImpl::Profile(const std::vector<TCellMoveDescriptor>& moveDescr
     }
 }
 
-void TCellTrackerImpl::ScheduleLeaderReassignment(TCellBase* cell)
+bool TCellTrackerImpl::IsLeaderReassignmentRequired(TCellBase* cell)
+{
+    if (!GetDynamicConfig()->DecommissionThroughExtraPeers) {
+        return false;
+    }
+
+    const auto& leadingPeer = cell->Peers()[cell->GetLeadingPeerId()];
+    if (leadingPeer.Descriptor.IsNull()) {
+        return false;
+    }
+
+    auto error = IsFailed(leadingPeer, cell, GetDynamicConfig()->LeaderReassignmentTimeout);
+    return static_cast<bool>(error.FindMatching(NCellServer::EErrorCode::NodeDecommissioned));
+}
+
+TPeerId TCellTrackerImpl::FindNewLeadingPeerId(TCellBase* cell)
 {
     const auto& leadingPeer = cell->Peers()[cell->GetLeadingPeerId()];
     TError error;
@@ -305,7 +345,7 @@ void TCellTrackerImpl::ScheduleLeaderReassignment(TCellBase* cell)
     if (!leadingPeer.Descriptor.IsNull()) {
         error = IsFailed(leadingPeer, cell, GetDynamicConfig()->LeaderReassignmentTimeout);
         if (error.IsOK()) {
-            return;
+            return InvalidPeerId;
         }
     }
 
@@ -314,33 +354,46 @@ void TCellTrackerImpl::ScheduleLeaderReassignment(TCellBase* cell)
             (cell->LastPeerCountUpdateTime() == TInstant{} ||
              cell->LastPeerCountUpdateTime() + *GetDynamicConfig()->DecommissionedLeaderReassignmentTimeout > TInstant::Now()))
     {
-        return;
+        return InvalidPeerId;
     }
 
     // Switching to good follower is always better than switching to non-follower.
-    int newLeaderId = FindGoodFollower(cell);
+    int newLeadingPeerId = FindGoodFollower(cell);
 
     if (GetDynamicConfig()->DecommissionThroughExtraPeers) {
         // If node is decommissioned we switch only to followers, otherwise to any good peer.
-        if (!error.FindMatching(NCellServer::EErrorCode::NodeDecommissioned) && newLeaderId == InvalidPeerId) {
-            newLeaderId = FindGoodPeer(cell);
+        if (!error.FindMatching(NCellServer::EErrorCode::NodeDecommissioned) && newLeadingPeerId == InvalidPeerId) {
+            newLeadingPeerId = FindGoodPeer(cell);
         }
-    } else if (newLeaderId == InvalidPeerId) {
-        newLeaderId = FindGoodPeer(cell);
+    } else if (newLeadingPeerId == InvalidPeerId) {
+        newLeadingPeerId = FindGoodPeer(cell);
     }
 
-    if (newLeaderId == InvalidPeerId || newLeaderId == cell->GetLeadingPeerId()) {
-        return;
+    if (newLeadingPeerId != InvalidPeerId && newLeadingPeerId != cell->GetLeadingPeerId()) {
+        return newLeadingPeerId;
+    } else {
+        return InvalidPeerId;
+    }
+}
+
+void TCellTrackerImpl::ScheduleLeaderReassignment(TCellBase* cell, TPeerId newLeadingPeerId)
+{
+    const auto& leadingPeer = cell->Peers()[cell->GetLeadingPeerId()];
+    TError error;
+
+    if (!leadingPeer.Descriptor.IsNull()) {
+        error = IsFailed(leadingPeer, cell, GetDynamicConfig()->LeaderReassignmentTimeout);
     }
 
-    YT_LOG_DEBUG(error, "Scheduling leader reassignment (CellId: %v, PeerId: %v, Address: %v)",
+    YT_LOG_DEBUG(error, "Scheduling leader reassignment (CellId: %v, LeaderPeerId: %v, NewLeadingPeerId: %v, Address: %v)",
         cell->GetId(),
         cell->GetLeadingPeerId(),
+        newLeadingPeerId,
         leadingPeer.Descriptor.GetDefaultAddress());
 
     TReqSetLeadingPeer request;
     ToProto(request.mutable_cell_id(), cell->GetId());
-    request.set_peer_id(newLeaderId);
+    request.set_peer_id(newLeadingPeerId);
 
     cell->CellBundle()
         ->ProfilingCounters()

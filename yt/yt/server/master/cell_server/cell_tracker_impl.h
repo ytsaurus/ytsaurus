@@ -45,7 +45,18 @@ private:
     void Profile(const std::vector<TCellMoveDescriptor>& moveDescriptors);
 
     void ScanCellarCells(NCellarClient::ECellarType cellarType);
-    void ScheduleLeaderReassignment(TCellBase* cell);
+
+    // Returns true if it is required to reassign leader of the cell
+    // due to the decommission through extra peers. Note that leader
+    // switch may not be possible right now, for example, due to
+    // unfinished follower recovery.
+    bool IsLeaderReassignmentRequired(TCellBase* cell);
+    // If it is possible to reassign leader right now, returns the new leading peer id.
+    // Otherwise, returns #InvalidPeerId.
+    TPeerId FindNewLeadingPeerId(TCellBase* cell);
+
+    void ScheduleLeaderReassignment(TCellBase* cell, TPeerId newLeaderPeerId);
+
     void SchedulePeerAssignment(TCellBase* cell, ICellBalancer* balancer);
     void SchedulePeerRevocation(TCellBase* cell, ICellBalancer* balancer);
     bool SchedulePeerCountChange(TCellBase* cell, NCellBalancerClient::NProto::TReqReassignPeers* request);

@@ -240,6 +240,8 @@ public:
 
     bool DecommissionThroughExtraPeers;
 
+    bool SynchronizeTabletCellLeaderSwitches;
+
     // TODO(gritukan): Move it to node dynamic config when it will be ready.
     bool AbandonLeaderLeaseDuringRecovery;
 
