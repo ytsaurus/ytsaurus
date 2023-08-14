@@ -1144,7 +1144,7 @@ std::optional<TString> TJob::GetStderr()
         if (Error_->FindMatching(NExecNode::EErrorCode::JobProxyFailed) ||
             Error_->FindMatching(NExecNode::EErrorCode::JobProxyPreparationTimeout))
         {
-            return nullptr;
+            return std::nullopt;
         }
     }
 
