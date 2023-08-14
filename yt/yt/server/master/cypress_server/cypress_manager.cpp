@@ -4446,7 +4446,7 @@ private:
             if (!node) {
                 // This can happen when a node is still a zombie on the native cell, but was already destroyed on the external.
                 YT_LOG_ALERT("Received HydraSetTableSchemas request for a non-existing node (NodeId: %v, SchemaId: %v)",
-                    TVersionedNodeId{nodeId, effectiveTransactionId},
+                    TVersionedNodeId(nodeId, effectiveTransactionId),
                     schemaId);
                 continue;
             }
