@@ -1190,6 +1190,7 @@ private:
         : public TYPathServiceBase
         , public TSupportsGet
         , public TSupportsList
+        , public TSupportsExists
     {
     public:
         explicit TPoolsOrchidService(TIntrusivePtr<const TFairShareTree> tree)
@@ -1242,7 +1243,7 @@ private:
 
         IYPathService::TResolveResult ResolveRecursive(
             const TYPath& path,
-            const IYPathServiceContextPtr& /*context*/) final
+            const IYPathServiceContextPtr& context) final
         {
             auto fairShareTreeSnapshot = FairShareTree_->GetTreeSnapshotForOrchid();
 
@@ -1252,6 +1253,9 @@ private:
 
             const auto& poolName = tokenizer.GetLiteralValue();
             if (poolName != RootPoolName && !fairShareTreeSnapshot->PoolMap().contains(poolName)) {
+                if (context->GetMethod() == "Exists") {
+                    return TResolveResultHere{path};
+                }
                 THROW_ERROR_EXCEPTION("Pool tree %Qv has no pool %Qv",
                     FairShareTree_->TreeId_,
                     poolName);
@@ -1286,6 +1290,7 @@ private:
         {
             DISPATCH_YPATH_SERVICE_METHOD(Get);
             DISPATCH_YPATH_SERVICE_METHOD(List);
+            DISPATCH_YPATH_SERVICE_METHOD(Exists);
             return TYPathServiceBase::DoInvoke(context);
         }
 
