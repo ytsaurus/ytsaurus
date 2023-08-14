@@ -15,6 +15,8 @@ except ImportError:
 import os
 import sys
 import traceback
+import yt
+import yt.json_wrapper as json
 from argparse import Action
 
 
@@ -122,3 +124,87 @@ def populate_argument_help(parser):
     parser.add_argument = add_argument
     parser.set_defaults(last_parser=parser)
     return parser
+
+
+SUBPARSER_KWARGS = {}
+if (sys.version_info.major, sys.version_info.minor) >= (3, 7):
+    SUBPARSER_KWARGS["required"] = True
+
+
+def yson_dumps(data):
+    return yson._dumps_to_native_str(data, yson_format="pretty", indent=2)
+
+
+YT_ARGUMENTS_FORMAT = os.environ.get("YT_ARGUMENTS_FORMAT", "yson")
+YT_STRUCTURED_DATA_FORMAT = os.environ.get("YT_STRUCTURED_DATA_FORMAT", "yson")
+YT_SORT_STRUCTURED_OUTPUT_KEYS = os.environ.get("YT_SORT_STRUCTURED_OUTPUT_KEYS", "0")
+PARSERS = {"json": lambda string: yson.json_to_yson(json.loads(string)),
+           "yson": yson._loads_from_native_str}
+DUMPERS = {"json": lambda data: json.dumps(yson.yson_to_json(data), indent=2),
+           "yson": yson_dumps}
+OUTPUT_FORMATS = {"json": "<format=pretty>json",
+                  "yson": "<format=pretty>yson"}
+
+try:
+    if int(YT_SORT_STRUCTURED_OUTPUT_KEYS):
+        OUTPUT_FORMATS["yson"] = "<format=pretty;sort_keys=%true>yson"
+except ValueError:
+    pass
+
+try:
+    parse_arguments = PARSERS[YT_ARGUMENTS_FORMAT]
+    parse_data = PARSERS[YT_STRUCTURED_DATA_FORMAT]
+    dump_data = DUMPERS[YT_STRUCTURED_DATA_FORMAT]
+    output_format = OUTPUT_FORMATS[YT_STRUCTURED_DATA_FORMAT]
+except KeyError as e:
+    raise yt.YtError("Incorrect structured format " + str(e))
+
+
+def add_argument(parser, name, help=None, description=None, aliases=[], **kwargs):
+    if description:
+        if help:
+            if help.endswith("."):
+                help = help[:-1]
+            help = "".join([help, ". ", description])
+        else:
+            help = description
+    return parser.add_argument(name, *aliases, help=help, **kwargs)
+
+
+def add_structured_argument(parser, name, help="", **kwargs):
+    description = "structured %s in %s format" % (name.strip("-"), YT_ARGUMENTS_FORMAT)
+    add_argument(
+        parser,
+        name,
+        help,
+        description=description,
+        action=ParseStructuredArgument,
+        action_load_method=parse_arguments,
+        **kwargs)
+
+
+def add_subparser(subparsers, params_argument=True):
+    def extract_help(function):
+        if function.__doc__ is None:
+            return ""
+        help = function.__doc__.split("\n")[0]
+        pythonic_help = help.strip(" .")
+        pythonic_help = pythonic_help[0].lower() + pythonic_help[1:]
+        return pythonic_help
+
+    def add_parser(command_name, function=None, help=None, pythonic_help=None, *args, **kwargs):
+        if pythonic_help is None:
+            pythonic_help = extract_help(function)
+        if help is not None:
+            description = "{}. {}".format(pythonic_help, help)
+        else:
+            description = pythonic_help
+        parser = populate_argument_help(
+            subparsers.add_parser(command_name, *args, description=description, help=pythonic_help, **kwargs))
+        parser.set_defaults(func=function)
+
+        if params_argument:
+            add_structured_argument(parser, "--params", "specify additional params")
+        return parser
+
+    return add_parser

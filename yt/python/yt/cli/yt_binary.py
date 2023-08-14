@@ -10,7 +10,9 @@ from yt.wrapper.common import (
     DoNotReplaceAction, get_binary_std_stream, get_disk_space_from_resources,
     chunk_iter_rows, format_disk_space)
 from yt.wrapper.cli_helpers import (
-    write_silently, print_to_output, run_main, ParseStructuredArgument, populate_argument_help)
+    write_silently, print_to_output, run_main, ParseStructuredArgument, populate_argument_help, SUBPARSER_KWARGS,
+    add_subparser, parse_arguments, parse_data, output_format, dump_data, add_argument, add_structured_argument,
+    YT_STRUCTURED_DATA_FORMAT, YT_ARGUMENTS_FORMAT)
 from yt.wrapper.constants import GETTINGSTARTED_DOC_URL, TUTORIAL_DOC_URL
 from yt.wrapper.default_config import get_default_config
 from yt.wrapper.admin_commands import add_switch_leader_parser
@@ -20,7 +22,6 @@ from yt.wrapper.spec_builders import (
     MergeSpecBuilder, SortSpecBuilder, JoinReduceSpecBuilder, RemoteCopySpecBuilder,
     VanillaSpecBuilder)
 import yt.wrapper.cli_impl as cli_impl
-import yt.wrapper.clickhouse_ctl as chyt_ctl
 import yt.wrapper.job_tool as yt_job_tool
 import yt.wrapper.run_compression_benchmarks as yt_run_compression_benchmarks
 import yt.wrapper.completers as completers
@@ -29,7 +30,6 @@ try:
     HAS_IDM_CLI_HELPERS = True
 except ImportError:
     HAS_IDM_CLI_HELPERS = False
-import yt.json_wrapper as json
 
 try:
     from yt.packages.six import PY3, iteritems
@@ -49,9 +49,10 @@ import fnmatch
 import shlex
 import signal
 import time
-from argparse import ArgumentParser, Action, RawDescriptionHelpFormatter, SUPPRESS
+from argparse import ArgumentParser, Action, RawDescriptionHelpFormatter
 from datetime import datetime
 
+from .strawberry_parser import add_strawberry_ctl_parser
 
 HAS_SKY_SHARE = hasattr(yt, "sky_share")
 
@@ -89,7 +90,7 @@ Other commands:
     show-spec, execute, execute-batch, sky-share, show-default-config, transfer-account-resources, transfer-pool-resources,
     generate-timestamp
 Subtools:
-    clickhouse, spark, idm
+    chyt, spyt, jupyt, idm
 '''
 
 EPILOG = '''Examples:
@@ -170,39 +171,6 @@ See also:
 )
 
 
-def yson_dumps(data):
-    return yson._dumps_to_native_str(data, yson_format="pretty", indent=2)
-
-
-YT_ARGUMENTS_FORMAT = os.environ.get("YT_ARGUMENTS_FORMAT", "yson")
-YT_STRUCTURED_DATA_FORMAT = os.environ.get("YT_STRUCTURED_DATA_FORMAT", "yson")
-YT_SORT_STRUCTURED_OUTPUT_KEYS = os.environ.get("YT_SORT_STRUCTURED_OUTPUT_KEYS", "0")
-PARSERS = {"json": lambda string: yson.json_to_yson(json.loads(string)),
-           "yson": yson._loads_from_native_str}
-DUMPERS = {"json": lambda data: json.dumps(yson.yson_to_json(data), indent=2),
-           "yson": yson_dumps}
-OUTPUT_FORMATS = {"json": "<format=pretty>json",
-                  "yson": "<format=pretty>yson"}
-
-try:
-    if int(YT_SORT_STRUCTURED_OUTPUT_KEYS):
-        OUTPUT_FORMATS["yson"] = "<format=pretty;sort_keys=%true>yson"
-except ValueError:
-    pass
-
-try:
-    parse_arguments = PARSERS[YT_ARGUMENTS_FORMAT]
-    parse_data = PARSERS[YT_STRUCTURED_DATA_FORMAT]
-    dump_data = DUMPERS[YT_STRUCTURED_DATA_FORMAT]
-    output_format = OUTPUT_FORMATS[YT_STRUCTURED_DATA_FORMAT]
-except KeyError as e:
-    raise yt.YtError("Incorrect structured format " + str(e))
-
-SUBPARSER_KWARGS = {}
-if (sys.version_info.major, sys.version_info.minor) >= (3, 7):
-    SUBPARSER_KWARGS["required"] = True
-
-
 def parse_structured_arguments_or_file(string, **kwargs):
     if os.path.isfile(string):
         with open(string, 'rb') as fh:
@@ -258,17 +226,6 @@ class ParseMemoryLimit(Action):
         setattr(namespace, self.dest, values)
 
 
-def add_argument(parser, name, help=None, description=None, aliases=[], **kwargs):
-    if description:
-        if help:
-            if help.endswith("."):
-                help = help[:-1]
-            help = "".join([help, ". ", description])
-        else:
-            help = description
-    return parser.add_argument(name, *aliases, help=help, **kwargs)
-
-
 def add_hybrid_argument(parser, name, help=None, description=None, group_required=True, aliases=[], **kwargs):
     group = parser.add_mutually_exclusive_group(required=group_required)
     dest = None
@@ -318,18 +275,6 @@ def add_format_argument(parser, name="--format", help="", **kwargs):
     description = '(yson string), one of "yson", "json", "yamr", "dsv", "yamred_dsv", "schemaful_dsv" '\
                   'with modifications. See also: https://ytsaurus.tech/docs/en/user-guide/storage/formats'
     add_argument(parser, name, help, description=description, action=ParseFormat, **kwargs)
-
-
-def add_structured_argument(parser, name, help="", **kwargs):
-    description = "structured %s in %s format" % (name.strip("-"), YT_ARGUMENTS_FORMAT)
-    add_argument(
-        parser,
-        name,
-        help,
-        description=description,
-        action=ParseStructuredArgument,
-        action_load_method=parse_arguments,
-        **kwargs)
 
 
 def add_type_argument(parser, name, hybrid=False):
@@ -2191,7 +2136,8 @@ def add_dirtable_parser(root_subparsers):
 
 
 def add_spark_parser(root_subparsers):
-    parser = populate_argument_help(root_subparsers.add_parser("spark", description="Spark over YT commands"))
+    parser = populate_argument_help(root_subparsers.add_parser("spyt", aliases=["spark"],
+                                                               description="Spark over YT commands"))
     spark_subparsers = parser.add_subparsers(metavar="spark_command", **SUBPARSER_KWARGS)
     add_spark_subparser = add_subparser(spark_subparsers, params_argument=False)
     add_start_spark_cluster_parser(add_spark_subparser)
@@ -2265,154 +2211,26 @@ def add_clickhouse_execute_parser(add_parser):
     parser.add_argument("--setting", action="append", help="Add ClickHouse setting to query in format <key>=<value>.")
 
 
-def clickhouse_ctl_handler(**kwards):
-    address = kwards.pop("address")
-    command_name = kwards.pop("command_name")
-    parser = kwards.pop("parser")
-    proxy_choices = kwards.pop("proxy_choices")
-    cluster_proxy = yt.config["proxy"]["url"]
-    params = kwards
-
-    if cluster_proxy not in proxy_choices:
-        address = chyt_ctl.get_full_ctl_address(address)
-        msg = "bad cluster proxy choice: {}\n".format(cluster_proxy)
-        msg += "controller {} serves only following clusters: {}\n".format(address, proxy_choices)
-        msg += "set up proper cluster proxy via --proxy option or via YT_PROXY env variable"
-        parser.error(msg)
-
-    try:
-        for response in chyt_ctl.make_request_generator(
-                command_name=command_name,
-                params=params,
-                address=address,
-                cluster_proxy=cluster_proxy,
-                unparsed=True):
-
-            if "to_print" in response:
-                print(response["to_print"])
-            elif "result" in response:
-                print(yson.dumps(response["result"], yson_format="pretty").decode("utf-8"))
-
-    except Exception as e:
-        msg = "failed to execute the command in controller service\n"
-        msg += str(e)
-        parser.error(msg)
-
-    if "error" in response:
-        exit(2)
-
-
-def add_clickhouse_ctl_parser(add_parser):
-    address_parser = ArgumentParser(add_help=False)
-    address_parser.add_argument("--address", help="controller service address")
-    # "help" option should not be handled before we fetch and register all available commands.
-    # We will add it manually later.
-    parser = add_parser("ctl", add_help=False, pythonic_help="CHYT clique controller", parents=[address_parser])
-    # Create "subparsers" immediately to show the semantic that "command" argument is expected.
-    # Otherwise argcomplete goes crazy. Nevertheless, "subparsers" are empty before calling "register_commands".
-    subparsers = parser.add_subparsers(metavar="command", **SUBPARSER_KWARGS)
-    add_cmd_subparser = add_subparser(subparsers, params_argument=False)
-
-    def register_commands(address):
-        try:
-            api_structure = chyt_ctl.describe_api(address)
-        except Exception as e:
-            msg = "failed to fetch available commands from controller service\n"
-            msg += str(e)
-            parser.error(msg)
-
-        parser.add_argument("-h", "--help", action="help", default=SUPPRESS,
-                            help="show this help message and exit")
-
-        parser.set_defaults(proxy_choices=api_structure["clusters"])
-
-        for command in api_structure["commands"]:
-            subparser = add_cmd_subparser(
-                command["name"].replace("_", "-"),
-                clickhouse_ctl_handler,
-                pythonic_help=command.get("description"))
-            subparser.set_defaults(command_name=command["name"], parser=subparser)
-
-            for param in command.get("parameters", []):
-                required = param.get("required", False)
-                env_variable = param.get("env_variable")
-                # Parameter is passed as a positional argument if it is required and can not be set implicitly via an env variable.
-                as_positional_argument = required and not env_variable
-                name = param["name"]
-                aliases = [("-" if len(a) == 1 else "--") + a.replace("_", "-") for a in param.get("aliases", [])]
-                description = param.get("description")
-
-                default_value = None
-                if env_variable:
-                    # We add prefix "CHYT_" for all ctl-related env variables to prevent stealing
-                    # sensitive env variables if controller is compromised.
-                    default_value = os.getenv("CHYT_" + env_variable)
-                    description_ext = "default value can be set via CHYT_{} env variable".format(env_variable)
-
-                    if default_value is not None:
-                        description_ext += " (current value: \"{}\")".format(default_value)
-                        # If there is a default value, the parameter is not required anymore.
-                        required = False
-
-                    if description:
-                        description += "; " + description_ext
-                    else:
-                        description = description_ext
-
-                element_name = param.get("element_name")
-                element_description = param.get("element_description")
-                element_aliases = [("-" if len(a) == 1 else "--") + a.replace("_", "-") for a in param.get("element_aliases", [])]
-
-                if as_positional_argument:
-                    add_argument(
-                        subparser,
-                        name,
-                        description=description)
-                elif element_name:
-                    group = subparser.add_mutually_exclusive_group()
-                    add_argument(
-                        group,
-                        "--" + name.replace("_", "-"),
-                        action=param.get("action"),
-                        description=description,
-                        aliases=aliases)
-                    add_argument(
-                        group,
-                        "--" + element_name.replace("_", "-"),
-                        action="append",
-                        aliases=element_aliases,
-                        dest=name,
-                        description=element_description)
-                else:
-                    add_argument(
-                        subparser,
-                        "--" + name.replace("_", "-"),
-                        action=param.get("action"),
-                        description=description,
-                        required=required,
-                        aliases=aliases,
-                        default=default_value)
-
-    # We replace original "parse_known_args" with our implementation, which fetches and registers available commands before parsing.
-    do_parse_known_args = parser.parse_known_args
-
-    def parse_known_args(*args, **kwargs):
-        parsed_address, unparsed = address_parser.parse_known_args(*args, **kwargs)
-        register_commands(parsed_address.address)
-        return do_parse_known_args(*args, **kwargs)
-
-    parser.parse_known_args = parse_known_args
-
-
-def add_clickhouse_parser(root_subparsers):
-    parser = populate_argument_help(root_subparsers.add_parser("clickhouse", description="ClickHouse over YT commands"))
+def add_chyt_parser(root_subparsers):
+    parser = populate_argument_help(root_subparsers.add_parser(
+        "chyt", aliases=["clickhouse"], description="ClickHouse over YT commands"))
 
     clickhouse_subparsers = parser.add_subparsers(metavar="clickhouse_command", **SUBPARSER_KWARGS)
 
     add_clickhouse_subparser = add_subparser(clickhouse_subparsers, params_argument=False)
     add_clickhouse_start_clique_parser(add_clickhouse_subparser)
     add_clickhouse_execute_parser(add_clickhouse_subparser)
-    add_clickhouse_ctl_parser(add_clickhouse_subparser)
+    add_strawberry_ctl_parser(add_clickhouse_subparser, "chyt")
+
+
+def add_jupyt_parser(root_subparsers):
+    parser = populate_argument_help(root_subparsers.add_parser(
+        "jupyt", aliases=["jupyter"], description="Jupyter over YT commands"))
+
+    jupyter_subparsers = parser.add_subparsers(metavar="jupyter_command", **SUBPARSER_KWARGS)
+
+    add_jupyter_subparser = add_subparser(jupyter_subparsers, params_argument=False)
+    add_strawberry_ctl_parser(add_jupyter_subparser, "jupyt")
 
 
 @copy_docstring_from(yt.start_spark_cluster)
@@ -2518,33 +2336,6 @@ def add_run_command_with_lock_parser(add_parser):
     parser.add_argument("--recursive", action="store_true", default=False,
                         help="Create lock path recursively")
     parser.set_defaults(func=run_command_with_lock_handler)
-
-
-def add_subparser(subparsers, params_argument=True):
-    def extract_help(function):
-        if function.__doc__ is None:
-            return ""
-        help = function.__doc__.split("\n")[0]
-        pythonic_help = help.strip(" .")
-        pythonic_help = pythonic_help[0].lower() + pythonic_help[1:]
-        return pythonic_help
-
-    def add_parser(command_name, function=None, help=None, pythonic_help=None, *args, **kwargs):
-        if pythonic_help is None:
-            pythonic_help = extract_help(function)
-        if help is not None:
-            description = "{}. {}".format(pythonic_help, help)
-        else:
-            description = pythonic_help
-        parser = populate_argument_help(
-            subparsers.add_parser(command_name, *args, description=description, help=pythonic_help, **kwargs))
-        parser.set_defaults(func=function)
-
-        if params_argument:
-            add_structured_argument(parser, "--params", "specify additional params")
-        return parser
-
-    return add_parser
 
 
 def main_func():
@@ -2708,7 +2499,8 @@ def main_func():
 
     add_run_command_with_lock_parser(add_parser)
 
-    add_clickhouse_parser(subparsers)
+    add_chyt_parser(subparsers)
+    add_jupyt_parser(subparsers)
     add_spark_parser(subparsers)
 
     if HAS_IDM_CLI_HELPERS:
