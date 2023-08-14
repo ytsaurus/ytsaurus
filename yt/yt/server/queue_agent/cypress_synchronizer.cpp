@@ -530,6 +530,10 @@ private:
                 .Type = ECypressSyncObjectType::Consumer,
             });
         }
+
+        for (const auto& [cluster, polledObjects] : ClusterToPolledObjects_) {
+            YT_LOG_DEBUG("Fetched polled objects (Cluster: %v, Count: %v)", cluster, polledObjects.size());
+        }
     }
 
     static std::vector<TString> GetCypressAttributeNames(const TObject& object)

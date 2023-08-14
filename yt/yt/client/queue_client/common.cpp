@@ -46,6 +46,20 @@ TCrossClusterReference TCrossClusterReference::FromString(TStringBuf path)
     return result;
 }
 
+TCrossClusterReference TCrossClusterReference::FromRichYPath(const TRichYPath& path)
+{
+    auto cluster = path.GetCluster();
+    if (!cluster) {
+        THROW_ERROR_EXCEPTION(
+            "Attempting to build cross-cluster reference from rich YPath %Qv without a cluster set",
+            path);
+    }
+    return {
+        .Cluster = *cluster,
+        .Path = path.GetPath(),
+    };
+}
+
 TString ToString(const TCrossClusterReference& queueRef)
 {
     return Format("%v:%v", queueRef.Cluster, queueRef.Path);

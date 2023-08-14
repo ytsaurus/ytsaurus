@@ -9,6 +9,8 @@
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 
+#include <yt/yt/client/tablet_client/table_mount_cache.h>
+
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/ytree/fluent.h>
@@ -18,7 +20,9 @@ namespace NYT::NQueueClient {
 
 using namespace NApi;
 using namespace NConcurrency;
+using namespace NObjectClient;
 using namespace NSecurityClient;
+using namespace NTabletClient;
 using namespace NThreading;
 using namespace NYson;
 using namespace NYPath;
@@ -30,19 +34,63 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCrossClusterReference FillCrossClusterReferencesFromRichYPath(
-    const TRichYPath& path,
-    const std::optional<TString>& clusterName)
+template <class T>
+T* OptionalToPointer(std::optional<T>& optionalValue)
 {
-    if (!path.GetCluster() && !clusterName) {
-        THROW_ERROR_EXCEPTION("Cluster name missing in path and not specified in cluster connection config")
-            << TErrorAttribute("path", path);
+    if (optionalValue) {
+        return &(*optionalValue);
     }
 
-    return {
-        .Cluster = path.GetCluster().value_or(*clusterName),
-        .Path = path.GetPath(),
-    };
+    return nullptr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TTable>
+TIntrusivePtr<TTable> CreateStateTableClientOrThrow(
+    const TWeakPtr<NApi::NNative::IConnection>& connection,
+    const std::optional<TString>& cluster,
+    const TYPath& path,
+    const TString& user)
+{
+    auto localConnection = connection.Lock();
+    if (!localConnection) {
+        THROW_ERROR_EXCEPTION("Queue consumer registration cache owning connection expired");
+    }
+
+    IClientPtr client;
+    auto clientOptions = TClientOptions::FromUser(user);
+    if (cluster) {
+        auto remoteConnection = localConnection->GetClusterDirectory()->GetConnectionOrThrow(*cluster);
+        client = remoteConnection->CreateClient(clientOptions);
+    } else {
+        client = localConnection->CreateClient(clientOptions);
+    }
+
+    return New<TTable>(path, client);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void HandleTableMountInfoError(
+    const TRichYPath& objectPath,
+    const TErrorOr<TTableMountInfoPtr>& tableMountInfoOrError,
+    bool throwOnFailure,
+    const NLogging::TLogger& Logger)
+{
+    if (!tableMountInfoOrError.IsOK()) {
+        YT_LOG_DEBUG(
+            tableMountInfoOrError,
+            "Failed to get table mount info to perform registration manager resolutions (Object: %v)",
+            objectPath);
+
+        if (throwOnFailure) {
+            THROW_ERROR_EXCEPTION(
+                "Failed to get table mount info to perform registration manager resolutions for object %Qv",
+                objectPath)
+            << tableMountInfoOrError;
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -90,23 +138,11 @@ void TQueueConsumerRegistrationManager::StopSync() const
     YT_UNUSED_FUTURE(ConfigurationRefreshExecutor_->Stop());
 }
 
-std::optional<TConsumerRegistrationTableRow> TQueueConsumerRegistrationManager::GetRegistration(
-    const TRichYPath& queue,
-    const TRichYPath& consumer)
+TQueueConsumerRegistrationManager::TGetRegistrationResult TQueueConsumerRegistrationManager::GetRegistration(
+    TRichYPath queue,
+    TRichYPath consumer)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-
-    if (!ClusterName_) {
-        return {};
-    }
-
-    std::pair lookupKey{queue, consumer};
-    if (!queue.GetCluster()) {
-        lookupKey.first.SetCluster(*ClusterName_);
-    }
-    if (!consumer.GetCluster()) {
-        lookupKey.second.SetCluster(*ClusterName_);
-    }
 
     auto config = GetDynamicConfig();
     YT_VERIFY(config);
@@ -115,50 +151,108 @@ std::optional<TConsumerRegistrationTableRow> TQueueConsumerRegistrationManager::
         RefreshCache();
     }
 
+    Resolve(config, &queue, &consumer, /*throwOnFailure*/ true);
+
+    TGetRegistrationResult result{.ResolvedQueue = queue, .ResolvedConsumer = consumer};
+
     auto guard = ReaderGuard(CacheSpinLock_);
 
-    if (auto it = Registrations_.find(lookupKey); it != Registrations_.end()) {
-        return it->second;
+    if (auto it = Registrations_.find(std::pair{queue, consumer}); it != Registrations_.end()) {
+        result.Registration = it->second;
     }
 
-    return {};
+    return result;
 }
 
-NYPath::TRichYPath TQueueConsumerRegistrationManager::ResolveObjectPhysicalPath(
-        const NYPath::TRichYPath& objectPath,
-        const TString& objectRole,
-        bool throwOnFailure) const
+TRichYPath TQueueConsumerRegistrationManager::ResolveObjectPhysicalPath(
+    const TRichYPath& objectPath,
+    const TTableMountInfoPtr& tableMountInfo) const
 {
-    YT_VERIFY(!Connection_.IsExpired());
-
-    auto lockedConnection = Connection_.Lock();
-
     auto resolvedObjectPath = objectPath;
-    auto resolvedObjectPhysicalPathOrError = WaitFor(ResolvePhysicalPath(objectPath, lockedConnection));
+    resolvedObjectPath.SetPath(tableMountInfo->PhysicalPath);
 
-    if (resolvedObjectPhysicalPathOrError.IsOK()) {
-        resolvedObjectPath = resolvedObjectPhysicalPathOrError.Value();
-        if (resolvedObjectPath.GetPath() != objectPath.GetPath()) {
-            YT_LOG_DEBUG(
-                "Resolved symlink (Original%vPath: %v, Resolved%vPath: %v)",
-                objectRole,
-                objectPath,
-                objectRole,
-                resolvedObjectPhysicalPathOrError.Value());
-        }
-    } else {
+    if (resolvedObjectPath.GetPath() != objectPath.GetPath()) {
         YT_LOG_DEBUG(
-            resolvedObjectPhysicalPathOrError,
-            "Failed to resolve physical path (%v: %v)",
-            objectRole,
-            objectPath);
-
-        if (throwOnFailure) {
-            resolvedObjectPhysicalPathOrError.ValueOrThrow();
-        }
+            "Using corresponding physical path instead of symlinked path (SymlinkedPath: %v, PhysicalPath: %v)",
+            objectPath,
+            resolvedObjectPath);
     }
 
     return resolvedObjectPath;
+}
+
+TRichYPath TQueueConsumerRegistrationManager::ResolveReplica(
+    const TRichYPath& objectPath,
+    const TTableMountInfoPtr& tableMountInfo,
+    bool throwOnFailure) const
+{
+    auto guard = ReaderGuard(CacheSpinLock_);
+
+    auto replicaToReplicatedTableIt = ReplicaToReplicatedTable_.find(objectPath);
+    if (replicaToReplicatedTableIt != ReplicaToReplicatedTable_.end()) {
+        YT_LOG_DEBUG(
+            "Using corresponding replicated table path in request instead of replica path (ReplicaPath: %v, ReplicatedTablePath: %v)",
+            objectPath,
+            replicaToReplicatedTableIt->second);
+        return replicaToReplicatedTableIt->second;
+    } else if (tableMountInfo->UpstreamReplicaId != NullObjectId && throwOnFailure) {
+        THROW_ERROR_EXCEPTION(
+            "Cannot perform request for replica %Qv with unknown [chaos_]replicated_table; please contact YT support,"
+            " unless you specifically understand what this error means",
+            objectPath);
+    }
+
+    return objectPath;
+}
+
+void TQueueConsumerRegistrationManager::Resolve(
+    const TQueueConsumerRegistrationManagerConfigPtr& config,
+    NYPath::TRichYPath* queuePath,
+    NYPath::TRichYPath* consumerPath,
+    bool throwOnFailure)
+{
+    ValidateClusterNameConfigured();
+
+    auto connection = Connection_.Lock();
+    if (!connection) {
+        // NB: This error indicates that we are in the process of stopping the connection or something went wrong
+        // completely. In both cases it is OK to throw even when `throwOnFailure` is false.
+        THROW_ERROR_EXCEPTION("Error perform path resolution for queue and consumer due to expired connection");
+    }
+
+    if (queuePath) {
+        auto queueTableMountInfoOrError = WaitFor(GetTableMountInfo(*queuePath, connection));
+        HandleTableMountInfoError(*queuePath, queueTableMountInfoOrError, throwOnFailure, Logger);
+
+        if (!queuePath->GetCluster()) {
+            queuePath->SetCluster(*ClusterName_);
+        }
+
+        if (config->ResolveSymlinks && queueTableMountInfoOrError.IsOK()) {
+            *queuePath = ResolveObjectPhysicalPath(*queuePath, queueTableMountInfoOrError.Value());
+        }
+
+        if (config->ResolveReplicas && queueTableMountInfoOrError.IsOK()) {
+            *queuePath = ResolveReplica(*queuePath, queueTableMountInfoOrError.Value(), throwOnFailure);
+        }
+    }
+
+    if (consumerPath) {
+        auto consumerTableMountInfoOrError = WaitFor(GetTableMountInfo(*consumerPath, connection));
+        HandleTableMountInfoError(*consumerPath, consumerTableMountInfoOrError, throwOnFailure, Logger);
+
+        if (!consumerPath->GetCluster()) {
+            consumerPath->SetCluster(*ClusterName_);
+        }
+
+        if (config->ResolveSymlinks && consumerTableMountInfoOrError.IsOK()) {
+            *consumerPath = ResolveObjectPhysicalPath(*consumerPath, consumerTableMountInfoOrError.Value());
+        }
+
+        if (config->ResolveReplicas && consumerTableMountInfoOrError.IsOK()) {
+            *consumerPath = ResolveReplica(*consumerPath, consumerTableMountInfoOrError.Value(), throwOnFailure);
+        }
+    }
 }
 
 std::vector<TConsumerRegistrationTableRow> TQueueConsumerRegistrationManager::ListRegistrations(
@@ -167,41 +261,16 @@ std::vector<TConsumerRegistrationTableRow> TQueueConsumerRegistrationManager::Li
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    if (!ClusterName_) {
-        THROW_ERROR_EXCEPTION("Cannot serve request, queue consumer registration manager was not properly configured with a cluster name");
-    }
-
-    if (Config_->ResolveSymlinks) {
-        if (!Connection_.IsExpired()) {
-            // NB: We want to get a registration list corresponding to the queue and consumer passed from the user,
-            // if they don't exist, then we don't want to throw an exception.
-            if (queue) {
-                queue = ResolveObjectPhysicalPath(*queue, "Queue", /*throwOnFailure*/ false);
-            }
-            if (consumer) {
-                consumer = ResolveObjectPhysicalPath(*consumer, "Consumer", /*throwOnFailure*/ false);
-            }
-        } else {
-            YT_LOG_DEBUG(
-                "Unable to resolve physical paths to list registrations due to expired connection (Queue: %v, Consumer: %v)",
-                queue,
-                consumer);
-        }
-    }
-
-    if (queue && !queue->GetCluster()) {
-        queue->SetCluster(*ClusterName_);
-    }
-    if (consumer && !consumer->GetCluster()) {
-        consumer->SetCluster(*ClusterName_);
-    }
-
     auto config = GetDynamicConfig();
     YT_VERIFY(config);
 
     if (config->BypassCaching) {
         RefreshCache();
     }
+
+    // NB: We want to return an empty list if the provided queue/consumer does not exist,
+    // thus we ignore resolution failures.
+    Resolve(config, OptionalToPointer(queue), OptionalToPointer(consumer), /*throwOnFailure*/ false);
 
     auto guard = ReaderGuard(CacheSpinLock_);
 
@@ -222,32 +291,20 @@ std::vector<TConsumerRegistrationTableRow> TQueueConsumerRegistrationManager::Li
 }
 
 void TQueueConsumerRegistrationManager::RegisterQueueConsumer(
-    const TRichYPath& queue,
-    const TRichYPath& consumer,
+    TRichYPath queue,
+    TRichYPath consumer,
     bool vital,
     const std::optional<std::vector<int>>& partitions)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    auto config = GetDynamicConfig();
+    Resolve(config, &queue, &consumer, /*throwOnFailure*/ true);
+
     auto registrationTableClient = CreateRegistrationTableWriteClientOrThrow();
-
-    auto resolvedQueuePath = queue;
-    auto resolvedConsumerPath = consumer;
-    if (Config_->ResolveSymlinks) {
-        if (!Connection_.IsExpired()) {
-            resolvedQueuePath = ResolveObjectPhysicalPath(queue, "Queue", /*throwOnFailure*/ true);
-            resolvedConsumerPath = ResolveObjectPhysicalPath(consumer, "Consumer", /*throwOnFailure*/ true);
-        } else {
-            YT_LOG_DEBUG(
-                "Unable to resolve physical paths to register consumer due to expired connection (Queue: %v, Consumer: %v)",
-                queue,
-                consumer);
-        }
-    }
-
     WaitFor(registrationTableClient->Insert(std::vector{TConsumerRegistrationTableRow{
-        .Queue = FillCrossClusterReferencesFromRichYPath(resolvedQueuePath, ClusterName_),
-        .Consumer = FillCrossClusterReferencesFromRichYPath(resolvedConsumerPath, ClusterName_),
+        .Queue = TCrossClusterReference::FromRichYPath(queue),
+        .Consumer = TCrossClusterReference::FromRichYPath(consumer),
         .Vital = vital,
         .Partitions = partitions,
     }}))
@@ -255,31 +312,19 @@ void TQueueConsumerRegistrationManager::RegisterQueueConsumer(
 }
 
 void TQueueConsumerRegistrationManager::UnregisterQueueConsumer(
-    const TRichYPath& queue,
-    const TRichYPath& consumer)
+    TRichYPath queue,
+    TRichYPath consumer)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    auto config = GetDynamicConfig();
+    // NB: We want to allow to delete registrations with nonexistent queues/consumers, therefore we don't throw exceptions.
+    Resolve(config, &queue, &consumer, /*throwOnFailure*/ false);
+
     auto registrationTableClient = CreateRegistrationTableWriteClientOrThrow();
-
-    auto resolvedQueuePath = queue;
-    auto resolvedConsumerPath = consumer;
-    if (Config_->ResolveSymlinks) {
-        if (!Connection_.IsExpired()) {
-            // NB: We want to allow to delete registrations with nonexistent queues/consumers, therefore, we don't throw exceptions.
-            resolvedQueuePath = ResolveObjectPhysicalPath(queue, "Queue", /*throwOnFailure*/ false);
-            resolvedConsumerPath = ResolveObjectPhysicalPath(consumer, "Consumer", /*throwOnFailure*/ false);
-        } else {
-            YT_LOG_DEBUG(
-                "Unable to resolve physical paths to unregister consumer due to expired connection (Queue: %v, Consumer: %v)",
-                queue,
-                consumer);
-        }
-    }
-
     WaitFor(registrationTableClient->Delete(std::vector{TConsumerRegistrationTableRow{
-        .Queue = FillCrossClusterReferencesFromRichYPath(resolvedQueuePath, ClusterName_),
-        .Consumer = FillCrossClusterReferencesFromRichYPath(resolvedConsumerPath, ClusterName_),
+        .Queue = TCrossClusterReference::FromRichYPath(queue),
+        .Consumer = TCrossClusterReference::FromRichYPath(consumer),
     }}))
         .ValueOrThrow();
 }
@@ -290,6 +335,7 @@ void TQueueConsumerRegistrationManager::Clear()
 
     auto guard = WriterGuard(CacheSpinLock_);
     Registrations_.clear();
+    ReplicaToReplicatedTable_.clear();
 }
 
 void TQueueConsumerRegistrationManager::RefreshCache()
@@ -301,6 +347,12 @@ void TQueueConsumerRegistrationManager::RefreshCache()
     } catch (const std::exception& ex) {
         YT_LOG_DEBUG(ex, "Could not refresh queue consumer registration cache");
     }
+
+    try {
+        GuardedRefreshReplicationTableMappingCache();
+    } catch (const std::exception& ex) {
+        YT_LOG_DEBUG(ex, "Could not refresh queue consumer replication table mapping cache");
+    }
 }
 
 void TQueueConsumerRegistrationManager::GuardedRefreshCache()
@@ -309,7 +361,9 @@ void TQueueConsumerRegistrationManager::GuardedRefreshCache()
 
     YT_LOG_DEBUG("Refreshing queue consumer registration cache");
 
-    auto registrations = FetchRegistrationsOrThrow();
+    auto config = GetDynamicConfig();
+    auto registrations = FetchStateRowsOrThrow<TConsumerRegistrationTable>(
+        config->StateReadPath, config->User);
 
     auto guard = WriterGuard(CacheSpinLock_);
 
@@ -320,6 +374,32 @@ void TQueueConsumerRegistrationManager::GuardedRefreshCache()
     }
 
     YT_LOG_DEBUG("Queue consumer registration cache refreshed (RegistrationCount: %v)", Registrations_.size());
+}
+
+void TQueueConsumerRegistrationManager::GuardedRefreshReplicationTableMappingCache()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    YT_LOG_DEBUG("Refreshing queue consumer replication table mapping cache");
+
+    auto config = GetDynamicConfig();
+    auto replicatedTableMapping = FetchStateRowsOrThrow<TReplicatedTableMappingTable>(
+        config->ReplicatedTableMappingReadPath, config->User);
+
+    auto guard = WriterGuard(CacheSpinLock_);
+
+    ReplicaToReplicatedTable_.clear();
+
+    for (const auto& replicatedTableInfo : replicatedTableMapping) {
+        for (const auto& replica : replicatedTableInfo.GetReplicas()) {
+            ReplicaToReplicatedTable_[replica] = replicatedTableInfo.Ref;
+        }
+    }
+
+    YT_LOG_DEBUG(
+        "Queue consumer replication table mapping cache refreshed (MappingRows: %v, Replicas: %v)",
+        replicatedTableMapping.size(),
+        ReplicaToReplicatedTable_.size());
 }
 
 void TQueueConsumerRegistrationManager::RefreshConfiguration()
@@ -383,71 +463,49 @@ void TQueueConsumerRegistrationManager::GuardedRefreshConfiguration()
     YT_LOG_DEBUG("Refreshed queue consumer registration manager configuration");
 }
 
-TConsumerRegistrationTablePtr CreateRegistrationTableClientOrThrow(
-    const TWeakPtr<NApi::NNative::IConnection>& connection,
-    const std::optional<TString>& cluster,
-    const TYPath& path,
-    const TString& user)
-{
-    auto localConnection = connection.Lock();
-    if (!localConnection) {
-        THROW_ERROR_EXCEPTION("Queue consumer registration cache owning connection expired");
-    }
-
-    IClientPtr client;
-    auto clientOptions = TClientOptions::FromUser(user);
-    if (cluster) {
-        auto remoteConnection = localConnection->GetClusterDirectory()->GetConnectionOrThrow(*cluster);
-        client = remoteConnection->CreateClient(clientOptions);
-    } else {
-        client = localConnection->CreateClient(clientOptions);
-    }
-
-    return New<TConsumerRegistrationTable>(path, client);
-}
-
 TConsumerRegistrationTablePtr TQueueConsumerRegistrationManager::CreateRegistrationTableWriteClientOrThrow() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto config = GetDynamicConfig();
 
-    return CreateRegistrationTableClientOrThrow(
+    return CreateStateTableClientOrThrow<TConsumerRegistrationTable>(
         Connection_,
         config->StateWritePath.GetCluster(),
         config->StateWritePath.GetPath(),
         config->User);
 }
 
-std::vector<TConsumerRegistrationTableRow> TQueueConsumerRegistrationManager::FetchRegistrationsOrThrow() const
+template <class TTable>
+std::vector<typename TTable::TRowType> TQueueConsumerRegistrationManager::FetchStateRowsOrThrow(
+    const NYPath::TRichYPath& stateReadPath,
+    const TString& user) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto config = GetDynamicConfig();
+    std::vector<TIntrusivePtr<TTable>> readClients;
 
-    std::vector<TConsumerRegistrationTablePtr> readClients;
-
-    auto readClusters = config->StateReadPath.GetClusters();
+    auto readClusters = stateReadPath.GetClusters();
     if (readClusters && !readClusters->empty()) {
         for (const auto& cluster : *readClusters) {
-            auto remoteReadClient = CreateRegistrationTableClientOrThrow(
-                Connection_, cluster, config->StateReadPath.GetPath(), config->User);
+            auto remoteReadClient = CreateStateTableClientOrThrow<TTable>(
+                Connection_, cluster, stateReadPath.GetPath(), user);
             readClients.push_back(remoteReadClient);
         }
     } else {
-        auto localReadClient = CreateRegistrationTableClientOrThrow(
-            Connection_, /*cluster*/ {}, config->StateReadPath.GetPath(), config->User);
+        auto localReadClient = CreateStateTableClientOrThrow<TTable>(
+            Connection_, /*cluster*/ {}, stateReadPath.GetPath(), user);
         readClients.push_back(localReadClient);
     }
 
-    std::vector<TFuture<std::vector<TConsumerRegistrationTableRow>>> asyncRegistrations;
-    asyncRegistrations.reserve(readClients.size());
+    std::vector<TFuture<std::vector<typename TTable::TRowType>>> asyncRows;
+    asyncRows.reserve(readClients.size());
     for (const auto& client : readClients) {
-        asyncRegistrations.push_back(client->Select());
+        asyncRows.push_back(client->Select());
     }
 
     // NB: It's hard to return a future here, since you would need to keep all the clients alive as well.
-    return WaitFor(AnySucceeded(std::move(asyncRegistrations)))
+    return WaitFor(AnySucceeded(std::move(asyncRows)))
         .ValueOrThrow();
 }
 
@@ -495,6 +553,13 @@ void TQueueConsumerRegistrationManager::BuildOrchid(TFluentAny fluent)
                         .EndMap();
             })
         .EndMap();
+}
+
+void TQueueConsumerRegistrationManager::ValidateClusterNameConfigured() const
+{
+    if (!ClusterName_) {
+        THROW_ERROR_EXCEPTION("Cannot serve request, queue consumer registration manager was not properly configured with a cluster name");
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

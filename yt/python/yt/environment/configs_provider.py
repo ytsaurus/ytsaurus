@@ -1239,6 +1239,7 @@ def _build_cluster_connection_config(yt_config,
                 "cache_refresh_period": 3000,
                 "configuration_refresh_period": 500,
                 "resolve_symlinks": True,
+                "resolve_replicas": True,
             },
         },
         "permission_cache": {

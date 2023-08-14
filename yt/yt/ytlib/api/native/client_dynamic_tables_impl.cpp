@@ -2440,17 +2440,15 @@ IQueueRowsetPtr TClient::DoPullConsumer(
     WaitFor(permissionCache->Get(permissionKey))
         .ThrowOnError();
 
-    TRichYPath consumerPhysicalPath(consumerTableInfo->PhysicalPath, consumerPath.Attributes());
-    TRichYPath queuePhysicalPath = WaitFor(ResolvePhysicalPath(queuePath, Connection_))
-        .ValueOrThrow();
-
-    auto registration = Connection_->GetQueueConsumerRegistrationManager()->GetRegistration(queuePhysicalPath, consumerPhysicalPath);
-    if (!registration) {
+    auto registrationCheckResult = Connection_->GetQueueConsumerRegistrationManager()->GetRegistration(queuePath, consumerPath);
+    if (!registrationCheckResult.Registration) {
         THROW_ERROR_EXCEPTION(
             NYT::NSecurityClient::EErrorCode::AuthorizationError,
             "Consumer %Qv is not registered for queue %Qv",
-            consumerPhysicalPath,
-            queuePhysicalPath);
+            registrationCheckResult.ResolvedConsumer,
+            registrationCheckResult.ResolvedQueue)
+            << TErrorAttribute("raw_queue", queuePath)
+            << TErrorAttribute("raw_consumer", consumerPath);
     }
 
     auto queueClusterClient = MakeStrong(static_cast<IInternalClient*>(this));
