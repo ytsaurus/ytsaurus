@@ -434,19 +434,6 @@ void TAllyReplicaManagerDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TChunkAutotomizerConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("rpc_timeout", &TThis::RpcTimeout)
-        .Default(TDuration::Seconds(5));
-
-    registrar.Parameter("fail_jobs", &TThis::FailJobs)
-        .Default(false);
-    registrar.Parameter("sleep_in_jobs", &TThis::SleepInJobs)
-        .Default(false);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TDataNodeTestingOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter(
@@ -529,23 +516,118 @@ void TLocationHealthCheckerDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TChunkMergerConfig::Register(TRegistrar registrar)
+void TReplicateChunkJobDynamicConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("fail_shallow_merge_validation", &TThis::FailShallowMergeValidation)
-        .Default(false);
-    registrar.Parameter("read_memory_limit", &TThis::ReadMemoryLimit)
-        .Default(1_GB);
+    registrar.Parameter("writer", &TThis::Writer)
+        .DefaultNew();
+
+    registrar.Preprocessor([] (TThis* config) {
+        // Disable target allocation from master.
+        config->Writer->UploadReplicationFactor = 1;
+
+        // Use proper workload descriptors.
+        // TODO(babenko): avoid passing workload descriptor in config
+        config->Writer->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemReplication);
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TChunkRepairJobDynamicConfig::Register(TRegistrar registrar)
+void TMergeChunksJobDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("reader", &TThis::Reader)
-        .Default();
+        .DefaultNew();
+    registrar.Parameter("writer", &TThis::Writer)
+        .DefaultNew();
+
+    registrar.Parameter("fail_shallow_merge_validation", &TThis::FailShallowMergeValidation)
+        .Default(false);
+    registrar.Parameter("read_memory_limit", &TThis::ReadMemoryLimit)
+        .Default(1_GB);
+
+    registrar.Preprocessor([] (TThis* config) {
+        // Use proper workload descriptors.
+        // TODO(babenko): avoid passing workload descriptor in config
+        config->Writer->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemMerge);
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TRepairChunkJobDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("reader", &TThis::Reader)
+        .DefaultNew();
+    registrar.Parameter("writer", &TThis::Writer)
+        .DefaultNew();
 
     registrar.Parameter("window_size", &TThis::WindowSize)
         .Default(256_MBs);
+
+    registrar.Preprocessor([] (TThis* config) {
+        // Disable target allocation from master.
+        config->Writer->UploadReplicationFactor = 1;
+
+        // Use proper workload descriptors.
+        // TODO(babenko): avoid passing workload descriptor in config
+        config->Writer->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemRepair);
+
+        // Don't populate caches in chunk jobs.
+        config->Reader->PopulateCache = false;
+        config->Reader->RetryTimeout = TDuration::Minutes(15);
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TAutotomizeChunkJobDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("reader", &TThis::Reader)
+        .DefaultNew();
+    registrar.Parameter("writer", &TThis::Writer)
+        .DefaultNew();
+
+    registrar.Parameter("rpc_timeout", &TThis::RpcTimeout)
+        .Default(TDuration::Seconds(5));
+
+    registrar.Parameter("fail_jobs", &TThis::FailJobs)
+        .Default(false);
+    registrar.Parameter("sleep_in_jobs", &TThis::SleepInJobs)
+        .Default(false);
+
+    registrar.Preprocessor([] (TThis* config) {
+        // Use proper workload descriptors.
+        // SystemTabletLogging seems to be a good fit since we what writes to have high priority.
+        // TODO(babenko): avoid passing workload descriptor in config
+        config->Writer->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletLogging);
+
+        // Don't populate caches in chunk jobs.
+        config->Reader->PopulateCache = false;
+        config->Reader->RetryTimeout = TDuration::Minutes(15);
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TReincarnateChunkJobDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("reader", &TThis::Reader)
+        .DefaultNew();
+    registrar.Parameter("writer", &TThis::Writer)
+        .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TSealChunkJobDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("reader", &TThis::Reader)
+        .DefaultNew();
+
+    registrar.Preprocessor([] (TThis* config) {
+        // Don't populate caches in chunk jobs.
+        config->Reader->PopulateCache = false;
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -648,29 +730,6 @@ void TDataNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("volume_manager", &TThis::VolumeManager)
         .DefaultNew();
 
-    registrar.Parameter("replication_writer", &TThis::ReplicationWriter)
-        .DefaultNew();
-    registrar.Parameter("repair_reader", &TThis::RepairReader)
-        .DefaultNew();
-    registrar.Parameter("repair_writer", &TThis::RepairWriter)
-        .DefaultNew();
-
-    registrar.Parameter("seal_reader", &TThis::SealReader)
-        .DefaultNew();
-
-    registrar.Parameter("merge_reader", &TThis::MergeReader)
-        .DefaultNew();
-    registrar.Parameter("merge_writer", &TThis::MergeWriter)
-        .DefaultNew();
-
-    registrar.Parameter("autotomy_reader", &TThis::AutotomyReader)
-        .DefaultNew();
-    registrar.Parameter("autotomy_writer", &TThis::AutotomyWriter)
-        .DefaultNew();
-
-    registrar.Parameter("reincarnation_writer", &TThis::ReincarnationWriter)
-        .DefaultNew();
-
     registrar.Parameter("throttlers", &TThis::Throttlers)
         .Default();
 
@@ -756,20 +815,6 @@ void TDataNodeConfig::Register(TRegistrar registrar)
         config->BlobReaderCache->Capacity = 256;
 
         config->ChangelogReaderCache->Capacity = 256;
-
-        // Disable target allocation from master.
-        config->ReplicationWriter->UploadReplicationFactor = 1;
-        config->RepairWriter->UploadReplicationFactor = 1;
-
-        // Use proper workload descriptors.
-        // TODO(babenko): avoid passing workload descriptor in config
-        config->RepairWriter->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemRepair);
-        config->ReplicationWriter->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemReplication);
-
-        // Don't populate caches in chunk jobs.
-        config->RepairReader->PopulateCache = false;
-        config->RepairReader->RetryTimeout = TDuration::Minutes(15);
-        config->SealReader->PopulateCache = false;
     });
 
     registrar.Postprocessor([] (TThis* config) {
@@ -865,14 +910,8 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("p2p", &TThis::P2P)
         .Optional();
 
-    registrar.Parameter("chunk_autotomizer", &TThis::ChunkAutotomizer)
-        .DefaultNew();
-
     registrar.Parameter("io_statistics_update_timeout", &TThis::IOStatisticsUpdateTimeout)
         .Default(TDuration::Seconds(10));
-
-    registrar.Parameter("adaptive_chunk_repair_job", &TThis::AdaptiveChunkRepairJob)
-        .Optional();
 
     registrar.Parameter("io_throughput_meter", &TThis::IOThroughputMeter)
         .DefaultNew();
@@ -880,10 +919,17 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("disk_manager_proxy", &TThis::DiskManagerProxy)
         .DefaultNew();
 
-    registrar.Parameter("chunk_merger", &TThis::ChunkMerger)
+    registrar.Parameter("replicate_chunk_job", &TThis::ReplicateChunkJob)
         .DefaultNew();
-
-    registrar.Parameter("chunk_repair_job", &TThis::ChunkRepairJob)
+    registrar.Parameter("merge_chunks_job", &TThis::MergeChunksJob)
+        .DefaultNew();
+    registrar.Parameter("repair_chunk_job", &TThis::RepairChunkJob)
+        .DefaultNew();
+    registrar.Parameter("autotomize_chunk_job", &TThis::AutotomizeChunkJob)
+        .DefaultNew();
+    registrar.Parameter("reincarnate_chunk_job", &TThis::ReincarnateChunkJob)
+        .DefaultNew();
+    registrar.Parameter("seal_chunk_job", &TThis::SealChunkJob)
         .DefaultNew();
 
     registrar.Parameter("store_location_config_per_medium", &TThis::StoreLocationConfigPerMedium)
@@ -909,15 +955,6 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Postprocessor([] (TThis* config) {
-        if (!config->AdaptiveChunkRepairJob) {
-            config->AdaptiveChunkRepairJob = New<NChunkClient::TErasureReaderConfig>();
-            config->AdaptiveChunkRepairJob->EnableAutoRepair = false;
-        }
-
-        if (!config->ChunkRepairJob->Reader) {
-            config->ChunkRepairJob->Reader = config->AdaptiveChunkRepairJob;
-        }
-
         if (config->DisableLocationWritesPendingReadSizeHighLimit.has_value() != config->DisableLocationWritesPendingReadSizeLowLimit.has_value()) {
             THROW_ERROR_EXCEPTION(
                 "\"disable_location_writes_pending_read_size_high_limit\" and "

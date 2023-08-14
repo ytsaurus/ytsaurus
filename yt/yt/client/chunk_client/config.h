@@ -275,7 +275,7 @@ DEFINE_REFCOUNTED_TYPE(TBlockFetcherConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TErasureReaderConfig
-    : public TReplicationReaderConfig
+    : public virtual TReplicationReaderConfig
     , public virtual TBlockFetcherConfig
 {
 public:

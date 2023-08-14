@@ -993,7 +993,7 @@ class TestChunkAutotomizer(TestJournalsBase):
     def _set_fail_jobs(self, fail_jobs):
         update_nodes_dynamic_config({
             "data_node": {
-                "chunk_autotomizer": {
+                "autotomize_chunk_job": {
                     "fail_jobs": fail_jobs,
                 },
             }
@@ -1002,7 +1002,7 @@ class TestChunkAutotomizer(TestJournalsBase):
     def _set_sleep_in_jobs(self, sleep_in_jobs):
         update_nodes_dynamic_config({
             "data_node": {
-                "chunk_autotomizer": {
+                "autotomize_chunk_job": {
                     "sleep_in_jobs": sleep_in_jobs,
                 },
             }

@@ -1228,10 +1228,10 @@ class TestShallowMergeValidation(YTEnvSetup):
     def test_validation_failed(self):
         update_nodes_dynamic_config({
             "data_node": {
-                "chunk_merger": {
+                "merge_chunks_job": {
                     "fail_shallow_merge_validation": True,
                 },
-            }
+            },
         })
 
         create("table", "//tmp/t")
