@@ -10,10 +10,9 @@ namespace NYT::NOrm::NQuery {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueryEvaluationContext
+struct TQueryEvaluationContext
     : public TNonCopyable
 {
-public:
     NQueryClient::TConstExpressionPtr Expression;
     NQueryClient::TCGVariables Variables;
     NQueryClient::TCGExpressionCallback ExpressionCallback;
