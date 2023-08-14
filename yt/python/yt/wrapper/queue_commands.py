@@ -64,6 +64,7 @@ def list_queue_consumer_registrations(queue_path=None, consumer_path=None, forma
 
 def pull_queue(queue_path, offset, partition_index,
                max_row_count=None, max_data_weight=None,
+               replica_consistency=None,
                format=None, raw=None, client=None):
     """Reads rows from a single partition of a queue (i.e. any ordered dynamic table).
     Returns at most max_row_count consecutive rows of a single tablet with row indexes larger than the given offset.
@@ -78,6 +79,11 @@ def pull_queue(queue_path, offset, partition_index,
     :type max_row_count: int
     :param max_data_weight: a hint for the maximum data weight of the returned batch in bytes.
     :type max_data_weight: int
+    :param replica_consistency: requested read consistency for chaos replicas.
+    :type replica_consistency: EReplicaConsistency
+    :param format: output format.
+    :type format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
+    :param bool raw: don't parse response to rows.
     """
 
     if raw is None:
@@ -92,6 +98,7 @@ def pull_queue(queue_path, offset, partition_index,
     set_param(params, "partition_index", partition_index)
     set_param(params, "max_row_count", max_row_count)
     set_param(params, "max_data_weight", max_data_weight)
+    set_param(params, "replica_consistency", replica_consistency)
 
     response = DynamicTableRequestRetrier(
         get_config(client)["dynamic_table_retries"],
@@ -108,6 +115,7 @@ def pull_queue(queue_path, offset, partition_index,
 
 def pull_consumer(consumer_path, queue_path, offset, partition_index,
                   max_row_count=None, max_data_weight=None,
+                  replica_consistency=None,
                   format=None, raw=None, client=None):
     """Reads rows from a single partition of a queue (i.e. any ordered dynamic table) with authorization via consumer.
     Returns at most max_row_count consecutive rows of a single tablet with row indexes larger than the given offset.
@@ -124,6 +132,11 @@ def pull_consumer(consumer_path, queue_path, offset, partition_index,
     :type max_row_count: int
     :param max_data_weight: a hint for the maximum data weight of the returned batch in bytes.
     :type max_data_weight: int
+    :param replica_consistency: requested read consistency for chaos replicas.
+    :type replica_consistency: EReplicaConsistency
+    :param format: output format.
+    :type format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
+    :param bool raw: don't parse response to rows.
     """
 
     if raw is None:
@@ -139,6 +152,7 @@ def pull_consumer(consumer_path, queue_path, offset, partition_index,
     set_param(params, "partition_index", partition_index)
     set_param(params, "max_row_count", max_row_count)
     set_param(params, "max_data_weight", max_data_weight)
+    set_param(params, "replica_consistency", replica_consistency)
 
     response = DynamicTableRequestRetrier(
         get_config(client)["dynamic_table_retries"],

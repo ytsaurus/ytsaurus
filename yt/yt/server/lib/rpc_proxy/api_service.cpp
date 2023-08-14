@@ -3823,6 +3823,9 @@ private:
 
         // TODO(achulkov2): Support WorkloadDescriptor.
         options.UseNativeTabletNodeApi = request->use_native_tablet_node_api();
+        if (request->has_replica_consistency()) {
+            options.ReplicaConsistency = FromProto<EReplicaConsistency>(request->replica_consistency());
+        }
 
         ExecuteCall(
             context,
@@ -3870,6 +3873,9 @@ private:
             rowBatchReadOptions.DataWeightPerRowHint);
 
         // TODO(achulkov2): Support WorkloadDescriptor.
+        if (request->has_replica_consistency()) {
+            options.ReplicaConsistency = FromProto<EReplicaConsistency>(request->replica_consistency());
+        }
 
         ExecuteCall(
             context,

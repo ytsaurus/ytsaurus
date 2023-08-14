@@ -1181,6 +1181,7 @@ def add_pull_queue_parser(add_parser):
     parser.add_argument("--partition-index", type=int, required=True)
     parser.add_argument("--max-row-count", type=int)
     parser.add_argument("--max-data-weight", type=int)
+    parser.add_argument("--replica-consistency", type=str, choices=["none", "sync"])
     add_structured_format_argument(parser)
 
 
@@ -1198,6 +1199,7 @@ def add_pull_consumer_parser(add_parser):
     parser.add_argument("--partition-index", type=int, required=True)
     parser.add_argument("--max-row-count", type=int)
     parser.add_argument("--max-data-weight", type=int)
+    parser.add_argument("--replica-consistency", type=str, choices=["none", "sync"])
     add_structured_format_argument(parser)
 
 

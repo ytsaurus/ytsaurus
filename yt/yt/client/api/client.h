@@ -593,15 +593,20 @@ struct TTabletReadOptions
     , public TTabletReadOptionsBase
 { };
 
+struct TFallbackReplicaOptions
+{
+    NTableClient::TTableSchemaPtr FallbackTableSchema;
+    NTabletClient::TTableReplicaId FallbackReplicaId;
+};
+
 struct TLookupRequestOptions
+    : public TFallbackReplicaOptions
 {
     NTableClient::TColumnFilter ColumnFilter;
     bool KeepMissingRows = false;
     bool EnablePartialResult = false;
     std::optional<bool> UseLookupCache;
     TDetailedProfilingInfoPtr DetailedProfilingInfo;
-    NTableClient::TTableSchemaPtr FallbackTableSchema;
-    NTabletClient::TTableReplicaId FallbackReplicaId;
 };
 
 struct TLookupRowsOptionsBase
@@ -1000,6 +1005,7 @@ struct TTableWriterOptions
 
 struct TPullQueueOptions
     : public TSelectRowsOptions
+    , public TFallbackReplicaOptions
 {
     bool UseNativeTabletNodeApi = true;
 };

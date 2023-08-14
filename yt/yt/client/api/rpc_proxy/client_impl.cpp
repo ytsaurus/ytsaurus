@@ -753,7 +753,9 @@ TFuture<IQueueRowsetPtr> TClient::PullQueue(
     req->set_offset(offset);
     req->set_partition_index(partitionIndex);
     ToProto(req->mutable_row_batch_read_options(), rowBatchReadOptions);
+
     req->set_use_native_tablet_node_api(options.UseNativeTabletNodeApi);
+    req->set_replica_consistency(static_cast<NProto::EReplicaConsistency>(options.ReplicaConsistency));
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspPullQueuePtr& rsp) -> IQueueRowsetPtr {
         auto rowset = DeserializeRowset<TUnversionedRow>(
@@ -782,6 +784,8 @@ TFuture<IQueueRowsetPtr> TClient::PullConsumer(
     req->set_offset(offset);
     req->set_partition_index(partitionIndex);
     ToProto(req->mutable_row_batch_read_options(), rowBatchReadOptions);
+
+    req->set_replica_consistency(static_cast<NProto::EReplicaConsistency>(options.ReplicaConsistency));
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspPullConsumerPtr& rsp) -> IQueueRowsetPtr {
         auto rowset = DeserializeRowset<TUnversionedRow>(

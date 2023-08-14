@@ -606,6 +606,7 @@ message TReqPullQueue
     optional TRowBatchReadOptions row_batch_read_options = 4;
 
     optional bool use_native_tablet_node_api = 5 [default = false];
+    optional EReplicaConsistency replica_consistency = 6;
 }
 
 message TRspPullQueue
@@ -621,6 +622,8 @@ message TReqPullConsumer
     optional int64 offset = 3;
     optional int32 partition_index = 4;
     optional TRowBatchReadOptions row_batch_read_options = 5;
+
+    optional EReplicaConsistency replica_consistency = 6;
 }
 
 message TRspPullConsumer

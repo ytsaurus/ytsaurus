@@ -2152,6 +2152,126 @@ IQueueRowsetPtr TClient::DoPullQueue(
         queuePath,
         offset);
 
+    const auto& tableMountCache = Connection_->GetTableMountCache();
+    auto tableInfo = WaitFor(tableMountCache->GetTableInfo(queuePath.GetPath()))
+        .ValueOrThrow();
+
+    tableInfo->ValidateDynamic();
+    tableInfo->ValidateOrdered();
+
+    // The non-native API via SelectRows checks permissions on its own.
+    if (checkPermissions && options.UseNativeTabletNodeApi) {
+        NSecurityClient::TPermissionKey permissionKey{
+            .Object = FromObjectId(tableInfo->TableId),
+            .User = Options_.GetAuthenticatedUser(),
+            .Permission = EPermission::Read,
+        };
+        const auto& permissionCache = Connection_->GetPermissionCache();
+        WaitFor(permissionCache->Get(permissionKey))
+            .ThrowOnError();
+    }
+
+    // The code below is used to facilitate reading from [chaos] replicated tables and
+    // performing sync reads from async chaos replicas.
+
+    const auto& schema = tableInfo->Schemas[ETableSchemaKind::Primary];
+
+    if (options.FallbackReplicaId && tableInfo->UpstreamReplicaId != options.FallbackReplicaId) {
+        THROW_ERROR_EXCEPTION("Invalid upstream replica id for chosen sync replica %Qv: expected %v, got %v",
+            queuePath,
+            options.FallbackReplicaId,
+            tableInfo->UpstreamReplicaId);
+    }
+
+    if (options.FallbackTableSchema && tableInfo->ReplicationCardId) {
+        ValidateTableSchemaUpdate(
+            *options.FallbackTableSchema,
+            *tableInfo->Schemas[ETableSchemaKind::Primary],
+            true,
+            false);
+    }
+
+    // The non-native API via SelectRows redirects requests to fallback-replicas on its own.
+    if ((tableInfo->IsReplicated() ||
+        tableInfo->IsChaosReplicated() ||
+        (tableInfo->ReplicationCardId && options.ReplicaConsistency == EReplicaConsistency::Sync)) &&
+        options.UseNativeTabletNodeApi) {
+
+        auto bannedReplicaTracker = static_cast<bool>(tableInfo->ReplicationCardId) || tableInfo->IsChaosReplicated()
+            ? Connection_->GetBannedReplicaTrackerCache()->GetTracker(tableInfo->TableId)
+            : nullptr;
+
+        auto pickedSyncReplicas = PrepareInSyncReplicaCandidates(options, {tableInfo}).second[0];
+
+        auto retryCountLimit = tableInfo->ReplicationCardId
+            ? Connection_->GetConfig()->ReplicaFallbackRetryCount
+            : 0;
+
+        TErrorOr<IQueueRowsetPtr> resultOrError;
+
+        for (int retryCount = 0; retryCount <= retryCountLimit; ++retryCount) {
+            TTableReplicaInfoPtrList inSyncReplicas;
+            std::vector<TTableReplicaId> bannedSyncReplicaIds;
+            for (const auto& replicaInfo : pickedSyncReplicas) {
+                if (bannedReplicaTracker && bannedReplicaTracker->IsReplicaBanned(replicaInfo->ReplicaId)) {
+                    bannedSyncReplicaIds.push_back(replicaInfo->ReplicaId);
+                } else {
+                    inSyncReplicas.push_back(replicaInfo);
+                }
+            }
+
+            if (inSyncReplicas.empty()) {
+                std::vector<TError> replicaErrors;
+                for (auto bannedReplicaId : bannedSyncReplicaIds) {
+                    if (auto error = bannedReplicaTracker->GetReplicaError(bannedReplicaId); !error.IsOK()) {
+                        replicaErrors.push_back(std::move(error));
+                    }
+                }
+
+                auto error = TError(
+                    NTabletClient::EErrorCode::NoInSyncReplicas,
+                    "No in-sync replicas found for table %v",
+                    tableInfo->Path)
+                    << TErrorAttribute("banned_replicas", bannedSyncReplicaIds);
+                *error.MutableInnerErrors() = std::move(replicaErrors);
+                THROW_ERROR error;
+            }
+
+            auto replicaFallbackInfo = GetReplicaFallbackInfo(inSyncReplicas);
+            replicaFallbackInfo.OriginalTableSchema = schema;
+
+            auto unresolveOptions = options;
+            unresolveOptions.ReplicaConsistency = EReplicaConsistency::None;
+            unresolveOptions.FallbackTableSchema = replicaFallbackInfo.OriginalTableSchema;
+            unresolveOptions.FallbackReplicaId = replicaFallbackInfo.ReplicaId;
+            resultOrError = WaitFor(replicaFallbackInfo.Client->PullQueue(
+                replicaFallbackInfo.Path,
+                offset,
+                partitionIndex,
+                rowBatchReadOptions,
+                unresolveOptions));
+            if (resultOrError.IsOK()) {
+                return resultOrError.Value();
+            }
+
+            YT_LOG_DEBUG(
+                resultOrError,
+                "Fallback to replica failed (ReplicaId: %v)",
+                replicaFallbackInfo.ReplicaId);
+
+            if (bannedReplicaTracker) {
+                bannedReplicaTracker->BanReplica(replicaFallbackInfo.ReplicaId, resultOrError.Truncate());
+            }
+        }
+
+        YT_VERIFY(!resultOrError.IsOK());
+        resultOrError.ThrowOnError();
+    } else if (tableInfo->IsReplicationLog()) {
+        THROW_ERROR_EXCEPTION("This query is not supported for replication log tables");
+    }
+
+    // The code below performs the actual request.
+
     rowBatchReadOptions.MaxRowCount = ComputeRowsToRead(rowBatchReadOptions);
 
     IUnversionedRowsetPtr rowset;

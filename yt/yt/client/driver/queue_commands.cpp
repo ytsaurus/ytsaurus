@@ -105,6 +105,9 @@ TPullQueueCommand::TPullQueueCommand()
         .Optional();
     RegisterParameter("data_weight_per_row_hint", RowBatchReadOptions.DataWeightPerRowHint)
         .Optional();
+
+    RegisterParameter("replica_consistency", Options.ReplicaConsistency)
+        .Optional();
 }
 
 void TPullQueueCommand::DoExecute(ICommandContextPtr context)
@@ -143,6 +146,9 @@ TPullConsumerCommand::TPullConsumerCommand()
     RegisterParameter("max_data_weight", RowBatchReadOptions.MaxDataWeight)
         .Optional();
     RegisterParameter("data_weight_per_row_hint", RowBatchReadOptions.DataWeightPerRowHint)
+        .Optional();
+
+    RegisterParameter("replica_consistency", Options.ReplicaConsistency)
         .Optional();
 }
 
