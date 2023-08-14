@@ -427,7 +427,11 @@ void TLeaderCommitter::FlushMutations()
         ToProto(request->mutable_epoch_id(), EpochContext_->EpochId);
         request->set_start_sequence_number(followerState.NextExpectedSequenceNumber);
 
-        // We do not want followers to apply mutations before leader.
+        // We do not want followers to apply mutations before leader, as im might brake multicell:
+        // during multicell sync, a cell can get an outdated seqno from leader.
+        // This (probably) can be fixed by adding local syncs to committed version
+        // before replying to multicell sync, but it sounds like a long and
+        // dangerous journey.
         TReachableState automatonState(
             DecoratedAutomaton_->GetAutomatonVersion().SegmentId,
             DecoratedAutomaton_->GetSequenceNumber());
