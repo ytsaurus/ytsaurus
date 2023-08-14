@@ -119,7 +119,7 @@ jobs:
         run: |
           cd yt/spark/spark-over-yt
           sbt \
-            -DpublishRepo=False \
+            -DpublishRepo=True \
             -DinnerSidecarConfig=False \
             -DconfigGeneration=False \
             -DpublishYt=False \
@@ -166,10 +166,10 @@ jobs:
           java-version: '11'
           distribution: 'temurin'
           server-id: ossrh
-          server-username: ${{ secrets.OSSRH_USERNAME }}
-          server-password: OSSRH_TOKEN
+          server-username: OSSRH_USERNAME
+          server-password: OSSRH_PASSWORD
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
-          gpg-passphrase: ${{ secrets.GPG_PASSWORD }}
+          gpg-passphrase: GPG_PASSWORD
       - name: Set up SBT
         run: |
           curl -fsL "https://github.com/sbt/sbt/releases/download/v1.5.4/sbt-1.5.4.tgz" | tar xfz - -C /usr/share && \
@@ -203,13 +203,18 @@ jobs:
         run: |
           cd yt/spark/spark-over-yt
           sbt \
-            -DpublishRepo=False \
+            -DpublishRepo=True \
             -DinnerSidecarConfig=False \
             -DconfigGeneration=False \
             -DpublishYt=False \
             -DcustomClusterVersion=${{ needs.prepare_env.outputs.release_version }} \
             -DcustomSparkForkVersion=${{ needs.prepare_env.outputs.release_major_version }} \
+            -Dgpg.passphrase=${{ secrets.GPG_PASSWORD }} \
             spytPublishClusterRelease
+        env:
+          OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
+          OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
+          GPG_PASSWORD: ${{ secrets.GPG_PASSWORD }}
 
       - name: DockerHub login
         shell: bash
