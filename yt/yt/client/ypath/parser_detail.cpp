@@ -105,7 +105,7 @@ TString ParseCluster(TString str, const IAttributeDictionaryPtr& attributes)
     // will remain " cluster://path" after this function.
     size_t index = 0;
     size_t clusterStart = index;
-    while (index < str.size() && (IsAsciiAlnum(str[index]) || str[index] == '-')) {
+    while (index < str.size() && (IsAsciiAlnum(str[index]) || str[index] == '-' || str[index] == '_')) {
         ++index;
     }
     if (index >= str.size() || str[index] != ':') {
