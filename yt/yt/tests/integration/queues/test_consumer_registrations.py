@@ -133,8 +133,8 @@ class TestQueueConsumerApiBase(ChaosTestBase):
              "replica_path": data_replica_path},
             {"cluster_name": "remote_1", "content_type": "queue", "mode": "sync", "enabled": True,
              "replica_path": queue_replica_path},
-
         ]
+
         replica_ids = self._create_chaos_table_replicas(replicas, table_path="//tmp/crt")
         self._create_replica_tables(replicas, replica_ids, schema=schema)
         wait(lambda: all([get("#{0}/@mode".format(replica)) == "sync" for replica in replica_ids]))

@@ -251,7 +251,11 @@ NApi::IUnversionedRowsetPtr TQueueTableRow::DeleteRowRange(TRange<TQueueTableRow
 
 std::vector<TString> TQueueTableRow::GetCypressAttributeNames()
 {
-    return {"attribute_revision", "type", "dynamic", "sorted", "auto_trim_config", "queue_agent_stage"};
+    return {"attribute_revision", "type", "dynamic", "sorted", "auto_trim_config", "queue_agent_stage",
+            // Replicated tables and chaos replicated tables.
+            "replicas",
+            // Chaos replicated tables.
+            "replication_card_id", "treat_as_queue_consumer"};
 }
 
 TQueueTableRow TQueueTableRow::FromAttributeDictionary(
@@ -429,7 +433,11 @@ NApi::IUnversionedRowsetPtr TConsumerTableRow::DeleteRowRange(TRange<TConsumerTa
 
 std::vector<TString> TConsumerTableRow::GetCypressAttributeNames()
 {
-    return {"attribute_revision", "type", "treat_as_queue_consumer", "schema", "queue_agent_stage"};
+    return {"attribute_revision", "type", "treat_as_queue_consumer", "schema", "queue_agent_stage",
+            // Replicated tables and chaos replicated tables.
+            "replicas",
+            // Chaos replicated tables.
+            "replication_card_id"};
 }
 
 TConsumerTableRow TConsumerTableRow::FromAttributeDictionary(
@@ -671,6 +679,195 @@ TConsumerRegistrationTable::TConsumerRegistrationTable(TYPath path, IClientPtr c
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TReplicaInfo::Register(TRegistrar registrar)
+{
+    registrar.Parameter("cluster_name", &TThis::ClusterName);
+    registrar.Parameter("replica_path", &TThis::ReplicaPath);
+    registrar.Parameter("state", &TThis::State);
+    registrar.Parameter("mode", &TThis::Mode);
+}
+
+void TChaosReplicaInfo::Register(TRegistrar registrar)
+{
+    registrar.Parameter("content_type", &TThis::ContentType);
+}
+
+void TReplicatedTableMeta::Register(TRegistrar registrar)
+{
+    registrar.Parameter("replicas", &TThis::Replicas)
+        .Default();
+}
+
+void TChaosReplicatedTableMeta::Register(TRegistrar registrar)
+{
+    registrar.Parameter("replication_card_id", &TThis::ReplicationCardId)
+        .Default(NullObjectId);
+    registrar.Parameter("replicas", &TThis::Replicas)
+        .Default();
+}
+
+void TGenericReplicatedTableMeta::Register(TRegistrar registrar)
+{
+    registrar.Parameter("replicated_table_meta", &TThis::ReplicatedTableMeta)
+        .Default();
+    registrar.Parameter("chaos_replicated_table_meta", &TThis::ChaosReplicatedTableMeta)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TReplicatedTableMappingTableDescriptor
+{
+    static constexpr TStringBuf Name = "replicated_table_mapping";
+    static NTableClient::TTableSchemaPtr Schema;
+};
+
+TTableSchemaPtr TReplicatedTableMappingTableDescriptor::Schema = New<TTableSchema>(std::vector<TColumnSchema>{
+    TColumnSchema("cluster", EValueType::String, ESortOrder::Ascending),
+    TColumnSchema("path", EValueType::String, ESortOrder::Ascending),
+    TColumnSchema("revision", EValueType::Uint64),
+    TColumnSchema("object_type", EValueType::String),
+    TColumnSchema("meta", EValueType::Any),
+    TColumnSchema("synchronization_error", EValueType::Any),
+});
+
+TGenericReplicatedTableMetaPtr ParseReplicatedTableMeta(EObjectType objectType, const IAttributeDictionaryPtr& cypressAttributes)
+{
+    auto genericReplicatedTableMeta = New<TGenericReplicatedTableMeta>();
+
+    auto attributesAsMapNode = cypressAttributes->ToMap();
+    switch (objectType) {
+        case EObjectType::ReplicatedTable:
+            genericReplicatedTableMeta->ReplicatedTableMeta = ConvertTo<TReplicatedTableMetaPtr>(attributesAsMapNode);
+            break;
+        case EObjectType::ChaosReplicatedTable:
+            genericReplicatedTableMeta->ChaosReplicatedTableMeta = ConvertTo<TChaosReplicatedTableMetaPtr>(attributesAsMapNode);
+            break;
+        default:
+            break;
+    }
+
+    return genericReplicatedTableMeta;
+}
+
+TReplicatedTableMappingTableRow TReplicatedTableMappingTableRow::FromAttributeDictionary(
+    const TCrossClusterReference& object,
+    const IAttributeDictionaryPtr& cypressAttributes)
+{
+    auto objectType = cypressAttributes->Get<EObjectType>("type");
+    return {
+        .Ref = object,
+        .Revision = cypressAttributes->Get<NHydra::TRevision>("attribute_revision"),
+        .ObjectType = objectType,
+        .Meta = ParseReplicatedTableMeta(objectType, cypressAttributes),
+        .SynchronizationError = TError(),
+    };
+}
+
+std::vector<TReplicatedTableMappingTableRow> TReplicatedTableMappingTableRow::ParseRowRange(
+    TRange<TUnversionedRow> rows,
+    const TNameTablePtr& nameTable)
+{
+    std::vector<TReplicatedTableMappingTableRow> typedRows;
+    typedRows.reserve(rows.size());
+
+    auto clusterId = nameTable->GetIdOrThrow("cluster");
+    auto pathId = nameTable->GetIdOrThrow("path");
+
+    auto objectTypeId = nameTable->FindId("object_type");
+    auto revisionId = nameTable->FindId("revision");
+    auto metaId = nameTable->FindId("meta");
+    auto synchronizationErrorId = nameTable->FindId("synchronization_error");
+
+    for (const auto& row : rows) {
+        auto& typedRow = typedRows.emplace_back();
+        typedRow.Ref = TCrossClusterReference{row[clusterId].AsString(), row[pathId].AsString()};
+
+        auto findValue = [&] (std::optional<int> id) -> std::optional<TUnversionedValue> {
+            if (id && row[*id].Type != EValueType::Null) {
+                return row[*id];
+            }
+            return std::nullopt;
+        };
+
+        auto setSimpleOptional = [&]<class T>(std::optional<int> id, std::optional<T>& valueToSet) {
+            if (auto value = findValue(id)) {
+                valueToSet = FromUnversionedValue<T>(*value);
+            }
+        };
+
+        setSimpleOptional(revisionId, typedRow.Revision);
+
+        if (auto type = findValue(objectTypeId)) {
+            // TODO(max42): possible exception here is not handled well.
+            typedRow.ObjectType = ParseEnum<EObjectType>(type->AsStringBuf());
+        }
+
+        if (auto meta = findValue(metaId)) {
+            typedRow.Meta = ConvertTo<TGenericReplicatedTableMetaPtr>(TYsonStringBuf(meta->AsStringBuf()));
+        }
+
+        setSimpleOptional(synchronizationErrorId, typedRow.SynchronizationError);
+    }
+
+    return typedRows;
+}
+
+IUnversionedRowsetPtr TReplicatedTableMappingTableRow::InsertRowRange(TRange<TReplicatedTableMappingTableRow> rows)
+{
+    auto nameTable = TNameTable::FromSchema(*TReplicatedTableMappingTableDescriptor::Schema);
+
+    TUnversionedRowsBuilder rowsBuilder;
+    for (const auto& row : rows) {
+        auto rowBuffer = New<TRowBuffer>();
+        TUnversionedRowBuilder rowBuilder;
+
+        rowBuilder.AddValue(ToUnversionedValue(row.Ref.Cluster, rowBuffer, nameTable->GetIdOrThrow("cluster")));
+        rowBuilder.AddValue(ToUnversionedValue(row.Ref.Path, rowBuffer, nameTable->GetIdOrThrow("path")));
+        rowBuilder.AddValue(ToUnversionedValue(row.Revision, rowBuffer, nameTable->GetIdOrThrow("revision")));
+        rowBuilder.AddValue(ToUnversionedValue(MapEnumToString(row.ObjectType), rowBuffer, nameTable->GetIdOrThrow("object_type")));
+
+        std::optional<TYsonString> metaYson;
+        if (row.Meta) {
+            metaYson = ConvertToYsonString(row.Meta);
+        }
+        rowBuilder.AddValue(ToUnversionedValue(metaYson, rowBuffer, nameTable->GetIdOrThrow("meta")));
+
+        rowBuilder.AddValue(ToUnversionedValue(row.SynchronizationError, rowBuffer, nameTable->GetIdOrThrow("synchronization_error")));
+
+        rowsBuilder.AddRow(rowBuilder.GetRow());
+    }
+
+    return CreateRowset(TReplicatedTableMappingTableDescriptor::Schema, rowsBuilder.Build());
+}
+
+
+NApi::IUnversionedRowsetPtr TReplicatedTableMappingTableRow::DeleteRowRange(TRange<TReplicatedTableMappingTableRow> keys)
+{
+    auto nameTable = TNameTable::FromSchema(*TReplicatedTableMappingTableDescriptor::Schema);
+
+    TUnversionedRowsBuilder rowsBuilder;
+    for (const auto& row : keys) {
+        TUnversionedOwningRowBuilder rowBuilder;
+        rowBuilder.AddValue(MakeUnversionedStringValue(row.Ref.Cluster, nameTable->GetIdOrThrow("cluster")));
+        rowBuilder.AddValue(MakeUnversionedStringValue(row.Ref.Path, nameTable->GetIdOrThrow("path")));
+
+        rowsBuilder.AddRow(rowBuilder.FinishRow().Get());
+    }
+
+    return CreateRowset(TConsumerRegistrationTableDescriptor::Schema, rowsBuilder.Build());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template class TTableBase<TReplicatedTableMappingTableRow>;
+
+TReplicatedTableMappingTable::TReplicatedTableMappingTable(TYPath path, IClientPtr client)
+    : TTableBase<TReplicatedTableMappingTableRow>(std::move(path), std::move(client))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 TDynamicState::TDynamicState(
     const TQueueAgentDynamicStateConfigPtr& config,
     const IClientPtr& localClient,
@@ -681,6 +878,9 @@ TDynamicState::TDynamicState(
     , Registrations(New<TConsumerRegistrationTable>(
         config->ConsumerRegistrationTablePath.GetPath(),
         GetRemoteClient(localClient, clientDirectory, config->ConsumerRegistrationTablePath.GetCluster())))
+    , ReplicatedTableMapping(New<TReplicatedTableMappingTable>(
+        config->ReplicatedTableMappingTablePath.GetPath(),
+        GetRemoteClient(localClient, clientDirectory, config->ReplicatedTableMappingTablePath.GetCluster())))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

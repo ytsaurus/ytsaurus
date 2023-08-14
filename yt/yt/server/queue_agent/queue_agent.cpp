@@ -367,6 +367,11 @@ void TQueueAgent::Pass()
 
     auto filterRows = [&, this] <class T>(std::vector<T>& rowList) {
         rowList.erase(std::remove_if(rowList.begin(), rowList.end(), [&, this] (const T& row) {
+            // Do not perform mutating requests to replicated table objects unless flag is set.
+            if (!DynamicConfig_->HandleReplicatedObjects && IsReplicatedTableObjectType(row.ObjectType)) {
+                return true;
+            }
+
             // NB: We don't need to check the object's stage, since the object to host mapping only contains objects for our stage.
             auto it = objectMapping.find(row.Ref);
             return it == objectMapping.end() || it->second != AgentId_;

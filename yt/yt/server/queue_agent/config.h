@@ -71,6 +71,17 @@ public:
     //! Clusters polled by the watching version of the synchronizer.
     std::vector<TString> Clusters;
 
+    //! If true, the synchronizer will add objects from the registration table to the list of objects to watch.
+    //! NB: This flag is only supported with the `watching` policy.
+    bool PollReplicatedObjects;
+    //! If true, the synchronizer will update the configured replicated table mapping table with the corresponding meta.
+    //! NB: This flag is only supported with the `watching` policy, as well as enabled polling of replicated objects.
+    bool WriteReplicatedTableMapping;
+    //! COMPAT(achulkov2): Remove this once the queue_agent_stage attribute is supported for chaos replicated tables.
+    //! Currently chaos replicated tables do not have a builtin queue_agent_stage attribute, thus we set a default
+    //! stage for crt-objects in the dynamic config.
+    TString ChaosReplicatedTableQueueAgentStage;
+
     REGISTER_YSON_STRUCT(TCypressSynchronizerDynamicConfig);
 
     static void Register(TRegistrar registrar);
@@ -132,6 +143,10 @@ public:
 
     //! Configuration of queue controllers.
     TQueueControllerDynamicConfigPtr Controller;
+
+    //! Controls whether replicated objects are handled by this queue agent instance.
+    //! NB: Even when set to true, mutating requests are only performed for objects with the corresponding stage.
+    bool HandleReplicatedObjects;
 
     REGISTER_YSON_STRUCT(TQueueAgentDynamicConfig);
 

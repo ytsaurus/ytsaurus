@@ -40,6 +40,11 @@ public:
     //! If no cluster is specified, the table will be assumed to be located on the queue agent's local cluster.
     NYPath::TRichYPath ConsumerRegistrationTablePath;
 
+    //! Path to the dynamic table containing a {[chaos] replicated table -> replicas} mapping.
+    //! This table is shared by all queue agent installations and should be parametrized by the correct cluster.
+    //! If no cluster is specified, the table will be assumed to be located on the queue agent's local cluster.
+    NYPath::TRichYPath ReplicatedTableMappingTablePath;
+
     REGISTER_YSON_STRUCT(TQueueAgentDynamicStateConfig);
 
     static void Register(TRegistrar registrar);

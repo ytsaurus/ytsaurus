@@ -39,6 +39,12 @@ void TCypressSynchronizerDynamicConfig::Register(TRegistrar registrar)
         .Default(ECypressSynchronizerPolicy::Polling);
     registrar.Parameter("clusters", &TThis::Clusters)
         .Default();
+    registrar.Parameter("poll_replicated_objects", &TThis::PollReplicatedObjects)
+        .Default(false);
+    registrar.Parameter("write_registration_table_mapping", &TThis::WriteReplicatedTableMapping)
+        .Default(false);
+    registrar.Parameter("chaos_replicated_table_queue_agent_stage", &TThis::ChaosReplicatedTableQueueAgentStage)
+        .Default(NQueueClient::ProductionStage);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -71,6 +77,8 @@ void TQueueAgentDynamicConfig::Register(TRegistrar registrar)
         .Default(4);
     registrar.Parameter("controller", &TThis::Controller)
         .DefaultNew();
+    registrar.Parameter("handle_replicated_objects", &TThis::HandleReplicatedObjects)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
