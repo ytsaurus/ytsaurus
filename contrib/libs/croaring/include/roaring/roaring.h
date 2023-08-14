@@ -35,7 +35,7 @@ roaring_bitmap_t *roaring_bitmap_create_with_capacity(uint32_t cap);
  * Returns NULL if the allocation fails.
  * Client is responsible for calling `roaring_bitmap_free()`.
  */
-static inline roaring_bitmap_t *roaring_bitmap_create(void)
+inline roaring_bitmap_t *roaring_bitmap_create(void)
   { return roaring_bitmap_create_with_capacity(0); }
 
 /**
@@ -50,7 +50,7 @@ bool roaring_bitmap_init_with_capacity(roaring_bitmap_t *r, uint32_t cap);
  * The bitmap will be in a "clear" state, with no auxiliary allocations.
  * Since this performs no allocations, the function will not fail.
  */
-static inline void roaring_bitmap_init_cleared(roaring_bitmap_t *r)
+inline void roaring_bitmap_init_cleared(roaring_bitmap_t *r)
   { roaring_bitmap_init_with_capacity(r, 0); }
 
 /**
@@ -74,11 +74,10 @@ roaring_bitmap_t *roaring_bitmap_of_ptr(size_t n_args, const uint32_t *vals);
  * do so for all of your bitmaps, since interactions between bitmaps with and
  * without COW is unsafe.
  */
-static inline bool roaring_bitmap_get_copy_on_write(const roaring_bitmap_t* r) {
+inline bool roaring_bitmap_get_copy_on_write(const roaring_bitmap_t* r) {
     return r->high_low_container.flags & ROARING_FLAG_COW;
 }
-static inline void roaring_bitmap_set_copy_on_write(roaring_bitmap_t* r,
-                                                    bool cow) {
+inline void roaring_bitmap_set_copy_on_write(roaring_bitmap_t* r, bool cow) {
     if (cow) {
         r->high_low_container.flags |= ROARING_FLAG_COW;
     } else {
@@ -332,8 +331,8 @@ void roaring_bitmap_add_range_closed(roaring_bitmap_t *r,
 /**
  * Add all values in range [min, max)
  */
-static inline void roaring_bitmap_add_range(roaring_bitmap_t *r,
-                                            uint64_t min, uint64_t max) {
+inline void roaring_bitmap_add_range(roaring_bitmap_t *r,
+                                     uint64_t min, uint64_t max) {
     if(max <= min) return;
     roaring_bitmap_add_range_closed(r, (uint32_t)min, (uint32_t)(max - 1));
 }
@@ -352,8 +351,8 @@ void roaring_bitmap_remove_range_closed(roaring_bitmap_t *r,
 /**
  * Remove all values in range [min, max)
  */
-static inline void roaring_bitmap_remove_range(roaring_bitmap_t *r,
-                                               uint64_t min, uint64_t max) {
+inline void roaring_bitmap_remove_range(roaring_bitmap_t *r,
+                                        uint64_t min, uint64_t max) {
     if(max <= min) return;
     roaring_bitmap_remove_range_closed(r, (uint32_t)min, (uint32_t)(max - 1));
 }

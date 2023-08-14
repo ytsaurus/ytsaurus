@@ -56,17 +56,17 @@ bitset_t *bitset_copy(const bitset_t *bitset);
 bool bitset_resize(bitset_t *bitset, size_t newarraysize, bool padwithzeroes);
 
 /* returns how many bytes of memory the backend buffer uses */
-static inline size_t bitset_size_in_bytes(const bitset_t *bitset) {
+inline size_t bitset_size_in_bytes(const bitset_t *bitset) {
     return bitset->arraysize * sizeof(uint64_t);
 }
 
 /* returns how many bits can be accessed */
-static inline size_t bitset_size_in_bits(const bitset_t *bitset) {
+inline size_t bitset_size_in_bits(const bitset_t *bitset) {
     return bitset->arraysize * 64;
 }
 
 /* returns how many words (64-bit) of memory the backend buffer uses */
-static inline size_t bitset_size_in_words(const bitset_t *bitset) {
+inline size_t bitset_size_in_words(const bitset_t *bitset) {
     return bitset->arraysize;
 }
 
@@ -88,7 +88,7 @@ void bitset_shift_right(bitset_t *bitset, size_t s);
 
 /* Set the ith bit. Attempts to resize the bitset if needed (may silently fail)
  */
-static inline void bitset_set(bitset_t *bitset, size_t i) {
+inline void bitset_set(bitset_t *bitset, size_t i) {
     size_t shiftedi = i / 64;
     if (shiftedi >= bitset->arraysize) {
         if (!bitset_grow(bitset, shiftedi + 1)) {
@@ -100,7 +100,7 @@ static inline void bitset_set(bitset_t *bitset, size_t i) {
 
 /* Set the ith bit to the specified value. Attempts to resize the bitset if
  * needed (may silently fail) */
-static inline void bitset_set_to_value(bitset_t *bitset, size_t i, bool flag) {
+inline void bitset_set_to_value(bitset_t *bitset, size_t i, bool flag) {
     size_t shiftedi = i / 64;
     uint64_t mask = ((uint64_t)1) << (i % 64);
     uint64_t dynmask = ((uint64_t)flag) << (i % 64);
@@ -116,7 +116,7 @@ static inline void bitset_set_to_value(bitset_t *bitset, size_t i, bool flag) {
 }
 
 /* Get the value of the ith bit.  */
-static inline bool bitset_get(const bitset_t *bitset, size_t i) {
+inline bool bitset_get(const bitset_t *bitset, size_t i) {
     size_t shiftedi = i / 64;
     if (shiftedi >= bitset->arraysize) {
         return false;
@@ -184,7 +184,7 @@ size_t bitset_symmetric_difference_count(const bitset_t *CBITSET_RESTRICT b1,
     //.....
   }
   */
-static inline bool bitset_next_set_bit(const bitset_t *bitset, size_t *i) {
+inline bool bitset_next_set_bit(const bitset_t *bitset, size_t *i) {
     size_t x = *i / 64;
     if (x >= bitset->arraysize) {
         return false;
@@ -216,8 +216,8 @@ static inline bool bitset_next_set_bit(const bitset_t *bitset, size_t *i) {
     //.....
   }
   */
-static inline size_t bitset_next_set_bits(const bitset_t *bitset, size_t *buffer,
-                                 size_t capacity, size_t *startfrom) {
+inline size_t bitset_next_set_bits(const bitset_t *bitset, size_t *buffer,
+                                   size_t capacity, size_t *startfrom) {
     if (capacity == 0) return 0;  // sanity check
     size_t x = *startfrom / 64;
     if (x >= bitset->arraysize) {
@@ -252,8 +252,8 @@ end:
 typedef bool (*bitset_iterator)(size_t value, void *param);
 
 // return true if uninterrupted
-static inline bool bitset_for_each(const bitset_t *b, bitset_iterator iterator,
-                                   void *ptr) {
+inline bool bitset_for_each(const bitset_t *b, bitset_iterator iterator,
+                            void *ptr) {
     size_t base = 0;
     for (size_t i = 0; i < b->arraysize; ++i) {
         uint64_t w = b->array[i];
@@ -268,7 +268,7 @@ static inline bool bitset_for_each(const bitset_t *b, bitset_iterator iterator,
     return true;
 }
 
-static inline void bitset_print(const bitset_t *b) {
+inline void bitset_print(const bitset_t *b) {
     printf("{");
     for (size_t i = 0; bitset_next_set_bit(b, &i); i++) {
         printf("%zu, ", i);
