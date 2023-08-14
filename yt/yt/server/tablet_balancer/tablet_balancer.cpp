@@ -904,23 +904,24 @@ void TTabletBalancer::SaveBundleError(const TString& bundleName, TError error) c
 
 void TTabletBalancer::RemoveBundleErrorsByTtl(TDuration ttl)
 {
-    THashSet<TString> bundlesToRemove;
+    auto currentTime = Now();
+    THashSet<TString> relevantBundles;
     for (auto& [bundleName, errors] : BundleErrors_) {
         while (!errors.empty()) {
             const auto& error = errors.front();
-            if (error.HasDatetime() && error.GetDatetime() + ttl < CurrentIterationStartTime_) {
+            if (error.HasDatetime() && error.GetDatetime() + ttl < currentTime) {
                 errors.pop_front();
                 continue;
             }
             break;
         }
 
-        if (errors.empty()) {
-            bundlesToRemove.insert(bundleName);
+        if (!errors.empty()) {
+            relevantBundles.insert(bundleName);
         }
     }
 
-    DropMissingKeys(BundleErrors_, bundlesToRemove);
+    DropMissingKeys(BundleErrors_, relevantBundles);
 }
 
 void TTabletBalancer::PickReshardPivotKeys(
