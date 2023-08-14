@@ -310,10 +310,10 @@ const (
 type MaintenanceComponent string
 
 const (
-	MaintenanceComponentClusterNode = "cluster_node"
-	MaintenanceComponentHTTPProxy   = "http_proxy"
-	MaintenanceComponentRPCProxy    = "rpc_proxy"
-	MaintenanceComponentHost        = "host"
+	MaintenanceComponentClusterNode MaintenanceComponent = "cluster_node"
+	MaintenanceComponentHTTPProxy   MaintenanceComponent = "http_proxy"
+	MaintenanceComponentRPCProxy    MaintenanceComponent = "rpc_proxy"
+	MaintenanceComponentHost        MaintenanceComponent = "host"
 )
 
 type MaintenanceID guid.GUID
