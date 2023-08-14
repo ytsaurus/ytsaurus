@@ -398,14 +398,17 @@ class Format(object):
 
 class StructuredSkiffFormat(Format):
     def __init__(self, py_schemas, for_reading, raw=None):
+        # type: (list[schema.internal_schema.RowSchema], bool, bool | None) -> None
         assert not raw
         schema.check_schema_module_available()
         self._for_reading = for_reading
         self._py_schemas = py_schemas
         for py_schema in self._py_schemas:
-            schema._validate_py_schema(py_schema, for_reading=for_reading)
+            # assert py_schema.schema_runtime_context._for_reading == for_reading
+            py_schema._schema_runtime_context.set_for_reading_only(bool(for_reading))
+            schema._validate_py_schema(py_schema)
         self._skiff_schemas = [
-            schema._row_py_schema_to_skiff_schema(py_schema, for_reading=for_reading)
+            schema._row_py_schema_to_skiff_schema(py_schema)
             for py_schema in self._py_schemas
         ]
         attributes = {

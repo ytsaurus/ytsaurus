@@ -25,49 +25,67 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPythonToSkiffConverter CreatePythonToSkiffConverter(TString description, Py::Object pySchema);
+TPythonToSkiffConverter CreatePythonToSkiffConverter(TString description, Py::Object pySchema, bool validateOptionalOnRuntime);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <bool IsPySchemaOptional, typename TConverter>
-TPythonToSkiffConverter CreateOptionalPythonToSkiffConverter(TConverter converter)
+template <bool IsValidateOptionalOnRuntime, typename TConverter>
+TPythonToSkiffConverter CreateOptionalPythonToSkiffConverter(TString description, TConverter converter, bool isPySchemaOptional, bool isTiSchemaOptional)
 {
-    return [converter=std::move(converter)] (PyObject* obj, TCheckedInDebugSkiffWriter* writer) mutable {
-        if constexpr (IsPySchemaOptional) {
+    if (isTiSchemaOptional) {
+        // ti - optional
+        // py - any
+        return [converter=std::move(converter)] (PyObject* obj, TCheckedInDebugSkiffWriter* writer) mutable {
             if (obj == Py_None) {
                 writer->WriteVariant8Tag(0);
             } else {
                 writer->WriteVariant8Tag(1);
                 converter(obj, writer);
             }
+        };
+    } else {
+        if (isPySchemaOptional) {
+            // ti - mandatory
+            // py - optional
+            return [converter=std::move(converter), description=std::move(description)] (PyObject* obj, TCheckedInDebugSkiffWriter* writer) mutable {
+                if constexpr (IsValidateOptionalOnRuntime) {
+                    if (obj == Py_None) {
+                        THROW_ERROR_EXCEPTION("Malformed dataclass: None in required for field %Qv", description);
+                    } else {
+                        converter(obj, writer);
+                    }
+                } else {
+                    THROW_ERROR_EXCEPTION("Malformed dataclass: None in required for field %Qv", description);
+                }
+            };
         } else {
-            if (Y_UNLIKELY(obj == Py_None)) {
-                THROW_ERROR_EXCEPTION("Malformed dataclass: None in required field");
-            }
-            writer->WriteVariant8Tag(1);
-            converter(obj, writer);
+            // ti - mandatory
+            // py - mandatory
+            return [converter=std::move(converter)] (PyObject* obj, TCheckedInDebugSkiffWriter* writer) mutable {
+                converter(obj, writer);
+            };
         }
-    };
+    }
 }
 
-template <bool IsPySchemaOptional, bool IsTITypeOptional, typename TConverter>
-TPythonToSkiffConverter WrapPythonToSkiffConverterImpl(TConverter converter)
+template <typename TConverter>
+TPythonToSkiffConverter WrapPythonToSkiffConverterImpl(TString description, TConverter converter, bool isPySchemaOptional, bool isTiSchemaOptional, bool validateOptionalOnRuntime)
 {
-    if constexpr (IsPySchemaOptional || IsTITypeOptional) {
-        return CreateOptionalPythonToSkiffConverter<IsPySchemaOptional>(std::move(converter));
+    if (isPySchemaOptional || isTiSchemaOptional) {
+        if (validateOptionalOnRuntime) {
+            return CreateOptionalPythonToSkiffConverter<true>(std::move(description), std::move(converter), isPySchemaOptional, isTiSchemaOptional);
+        } else {
+            return CreateOptionalPythonToSkiffConverter<false>(std::move(description), std::move(converter), isPySchemaOptional, isTiSchemaOptional);
+        }
     } else {
         return converter;
     }
 }
 
-template <bool IsPySchemaOptional, typename TConverter>
-TPythonToSkiffConverter MaybeWrapPythonToSkiffConverter(const Py::Object& pySchema, TConverter converter)
+template <typename TConverter>
+TPythonToSkiffConverter MaybeWrapPythonToSkiffConverter(TString description, TConverter converter, bool isPySchemaOptional, bool isTiSchemaOptional, bool validateOptionalOnRuntime)
 {
-    if (IsTiTypeOptional(pySchema)) {
-        return WrapPythonToSkiffConverterImpl<IsPySchemaOptional, true>(std::move(converter));
-    } else {
-        return WrapPythonToSkiffConverterImpl<IsPySchemaOptional, false>(std::move(converter));
-    }
+    return WrapPythonToSkiffConverterImpl(std::move(description), std::move(converter), isPySchemaOptional, isTiSchemaOptional, validateOptionalOnRuntime);
 }
 
 template <EWireType WireType, EPythonType PythonType>
@@ -207,8 +225,8 @@ private:
     }
 };
 
-template <bool IsPySchemaOptional>
-TPythonToSkiffConverter CreatePrimitivePythonToSkiffConverterImpl(TString description, Py::Object pySchema, EPythonType pythonType)
+template <bool IsValidateOptionalOnRuntime>
+TPythonToSkiffConverter CreatePrimitivePythonToSkiffConverterImpl(TString description, Py::Object pySchema, EPythonType pythonType, bool isPySchemaOptional, bool isTiSchemaOptional)
 {
     auto wireTypeStr = Py::ConvertStringObjectToString(GetAttr(pySchema, WireTypeFieldName));
     auto wireType = ::FromString<EWireType>(wireTypeStr);
@@ -219,9 +237,13 @@ TPythonToSkiffConverter CreatePrimitivePythonToSkiffConverterImpl(TString descri
 #define CASE(WireType) \
                 case WireType: { \
                     auto converter = TPrimitivePythonToSkiffConverter<WireType, EPythonType::Int>(description); \
-                    return MaybeWrapPythonToSkiffConverter<IsPySchemaOptional>( \
-                        std::move(pySchema), \
-                        std::move(converter)); \
+                    return MaybeWrapPythonToSkiffConverter( \
+                        std::move(description), \
+                        std::move(converter), \
+                        isPySchemaOptional, \
+                        isTiSchemaOptional, \
+                        IsValidateOptionalOnRuntime \
+                    ); \
                 }
 
                 CASE(EWireType::Int8)
@@ -240,9 +262,13 @@ TPythonToSkiffConverter CreatePrimitivePythonToSkiffConverterImpl(TString descri
 #define CASE(PythonType, WireType) \
         case PythonType: { \
                 auto converter = TPrimitivePythonToSkiffConverter<WireType, PythonType>(description); \
-                return MaybeWrapPythonToSkiffConverter<IsPySchemaOptional>( \
-                    std::move(pySchema), \
-                    std::move(converter)); \
+                return MaybeWrapPythonToSkiffConverter( \
+                    std::move(description), \
+                    std::move(converter), \
+                    isPySchemaOptional, \
+                    isTiSchemaOptional, \
+                    IsValidateOptionalOnRuntime \
+                ); \
             }
 
         CASE(EPythonType::Bytes, EWireType::String32)
@@ -264,8 +290,7 @@ TPythonToSkiffConverter WrapWithMiddlewareConverter(TPythonToSkiffConverter conv
     };
 }
 
-template <bool IsPySchemaOptional>
-TPythonToSkiffConverter CreatePrimitivePythonToSkiffConverter(TString description, Py::Object pySchema)
+TPythonToSkiffConverter CreatePrimitivePythonToSkiffConverter(TString description, Py::Object pySchema, bool isPySchemaOptional, bool isTiSchemaOptional, bool validateOptionalOnRuntime)
 {
     auto middlewareTypeConverter = GetAttr(pySchema, "_to_yt_type");
 
@@ -276,10 +301,23 @@ TPythonToSkiffConverter CreatePrimitivePythonToSkiffConverter(TString descriptio
         pythonType = GetPythonType(GetAttr(pySchema, PyWireTypeFieldName));
     }
 
-    auto primitiveConverter = CreatePrimitivePythonToSkiffConverterImpl<IsPySchemaOptional>(
-        description,
-        std::move(pySchema),
-        pythonType);
+    TPythonToSkiffConverter primitiveConverter;
+
+    if (validateOptionalOnRuntime) {
+        primitiveConverter = CreatePrimitivePythonToSkiffConverterImpl<true>(
+            description,
+            std::move(pySchema),
+            pythonType,
+            isPySchemaOptional,
+            isTiSchemaOptional);
+    } else {
+        primitiveConverter = CreatePrimitivePythonToSkiffConverterImpl<false>(
+            description,
+            std::move(pySchema),
+            pythonType,
+            isPySchemaOptional,
+            isTiSchemaOptional);
+    }
 
     if (middlewareTypeConverter.isNone()) {
         return primitiveConverter;
@@ -290,7 +328,7 @@ TPythonToSkiffConverter CreatePrimitivePythonToSkiffConverter(TString descriptio
 class TStructPythonToSkiffConverter
 {
 public:
-    TStructPythonToSkiffConverter(TString description, Py::Object pySchema)
+    TStructPythonToSkiffConverter(TString description, Py::Object pySchema, bool validateOptionalOnRuntime)
         : Description_(description)
     {
         static auto StructFieldClass = GetSchemaType("StructField");
@@ -299,9 +337,13 @@ public:
             if (PyObject_IsInstance(field.ptr(), StructFieldClass.get())) {
                 auto fieldName = Py::ConvertStringObjectToString(GetAttr(field, NameFieldName));
                 auto fieldDescription = Description_ + "." + fieldName;
-                FieldConverters_.push_back(CreatePythonToSkiffConverter(
-                    fieldDescription,
-                    GetAttr(field, PySchemaFieldName)));
+                FieldConverters_.push_back(
+                    CreatePythonToSkiffConverter(
+                        fieldDescription,
+                        GetAttr(field, PySchemaFieldName),
+                        validateOptionalOnRuntime
+                    )
+                );
                 FieldNames_.push_back(fieldName);
             }
         }
@@ -331,11 +373,15 @@ private:
 class TListPythonToSkiffConverter
 {
 public:
-    explicit TListPythonToSkiffConverter(TString description, Py::Object pySchema)
+    explicit TListPythonToSkiffConverter(TString description, Py::Object pySchema, bool validateOptionalOnRuntime)
         : Description_(description)
-        , ItemConverter_(CreatePythonToSkiffConverter(
-            Description_ + ".<list-element>",
-            GetAttr(pySchema, ItemFieldName)))
+        , ItemConverter_(
+            CreatePythonToSkiffConverter(
+                Description_ + ".<list-element>",
+                GetAttr(pySchema, ItemFieldName),
+                validateOptionalOnRuntime
+            )
+        )
     { }
 
     void operator() (PyObject* obj, TCheckedInDebugSkiffWriter* writer)
@@ -366,13 +412,13 @@ private:
 class TTuplePythonToSkiffConverter
 {
 public:
-    explicit TTuplePythonToSkiffConverter(TString description, Py::Object pySchema)
+    explicit TTuplePythonToSkiffConverter(TString description, Py::Object pySchema, bool validateOptionalOnRuntime)
         : Description_(description)
     {
         int i = 0;
         for (const auto& pyElementSchema : Py::List(GetAttr(pySchema, ElementsFieldName))) {
             ElementConverters_.push_back(
-                CreatePythonToSkiffConverter(Format("%v.<tuple-element-%v>", description, i), pyElementSchema)
+                CreatePythonToSkiffConverter(Format("%v.<tuple-element-%v>", description, i), pyElementSchema, validateOptionalOnRuntime)
             );
             i += 1;
         }
@@ -404,14 +450,16 @@ private:
 class TDictPythonToSkiffConverter
 {
 public:
-    explicit TDictPythonToSkiffConverter(TString description, Py::Object pySchema)
+    explicit TDictPythonToSkiffConverter(TString description, Py::Object pySchema, bool validateOptionalOnRuntime)
         : Description_(description)
         , KeyConverter_(CreatePythonToSkiffConverter(
             Description_ + ".<key>",
-            GetAttr(pySchema, KeyFieldName)))
+            GetAttr(pySchema, KeyFieldName),
+            validateOptionalOnRuntime))
         , ValueConverter_(CreatePythonToSkiffConverter(
             Description_ + ".<value>",
-            GetAttr(pySchema, ValueFieldName)))
+            GetAttr(pySchema, ValueFieldName),
+            validateOptionalOnRuntime))
     { }
 
     void operator() (PyObject* obj, TCheckedInDebugSkiffWriter* writer)
@@ -443,7 +491,11 @@ class TRowPythonToSkiffConverter
 public:
     explicit TRowPythonToSkiffConverter(Py::Object pySchema)
         : RowClassName_(GetRowClassName(pySchema))
-        , StructConverter_(RowClassName_, GetAttr(pySchema, StructSchemaFieldName))
+        , ValidateOptionalOnRuntime_(
+            FindAttr(pySchema, SchemaRuntimeContextFieldName)
+            && GetAttr(GetAttr(pySchema, SchemaRuntimeContextFieldName), ValidateOptionalOnRuntimeFieldName).as_bool()
+        )
+        , StructConverter_(RowClassName_, GetAttr(pySchema, StructSchemaFieldName), ValidateOptionalOnRuntime_)
     {
         auto otherColumnsField = GetAttr(GetAttr(pySchema, StructSchemaFieldName), OtherColumnsFieldFieldName);
         if (!otherColumnsField.isNone()) {
@@ -475,6 +527,7 @@ public:
 
 private:
     TString RowClassName_;
+    bool ValidateOptionalOnRuntime_;
     TStructPythonToSkiffConverter StructConverter_;
     std::optional<TString> OtherColumnsFieldName_;
 };
@@ -484,8 +537,7 @@ TPythonToSkiffConverter CreateRowPythonToSkiffConverter(Py::Object pySchema)
     return TRowPythonToSkiffConverter(std::move(pySchema));
 }
 
-template <bool IsPySchemaOptional>
-TPythonToSkiffConverter CreatePythonToSkiffConverterImpl(TString description, Py::Object pySchema)
+TPythonToSkiffConverter CreatePythonToSkiffConverterImpl(TString description, Py::Object pySchema, bool isPySchemaOptional, bool isTiSchemaOptional, bool validateOptionalOnRuntime)
 {
     static auto StructSchemaClass = GetSchemaType("StructSchema");
     static auto PrimitiveSchemaClass = GetSchemaType("PrimitiveSchema");
@@ -495,49 +547,82 @@ TPythonToSkiffConverter CreatePythonToSkiffConverterImpl(TString description, Py
     static auto DictSchemaClass = GetSchemaType("DictSchema");
 
     if (PyObject_IsInstance(pySchema.ptr(), StructSchemaClass.get())) {
-        return MaybeWrapPythonToSkiffConverter<IsPySchemaOptional>(
-            pySchema,
-            TStructPythonToSkiffConverter(description, pySchema));
+        return MaybeWrapPythonToSkiffConverter(
+            std::move(description),
+            TStructPythonToSkiffConverter(description, pySchema, validateOptionalOnRuntime),
+            isPySchemaOptional,
+            isTiSchemaOptional,
+            validateOptionalOnRuntime);
     } else if (PyObject_IsInstance(pySchema.ptr(), PrimitiveSchemaClass.get())) {
-        return CreatePrimitivePythonToSkiffConverter<IsPySchemaOptional>(description, std::move(pySchema));
+        return CreatePrimitivePythonToSkiffConverter(
+            std::move(description),
+            std::move(pySchema),
+            isPySchemaOptional,
+            isTiSchemaOptional,
+            validateOptionalOnRuntime);
     } else if (PyObject_IsInstance(pySchema.ptr(), OptionalSchemaClass.get())) {
-        if constexpr (IsPySchemaOptional) {
+        if (isPySchemaOptional) {
             THROW_ERROR_EXCEPTION("It's a bug, please contact yt@. Optional[Optional[T]] is not allowed");
         }
-        return CreatePythonToSkiffConverterImpl<true>(
+        bool isTiSchemaOptional = IsTiTypeOptional(pySchema);
+        return CreatePythonToSkiffConverterImpl(
             description + ".<optional-element>",
-            GetAttr(pySchema, ItemFieldName));
+            GetAttr(pySchema, ItemFieldName),
+            true,
+            isTiSchemaOptional,
+            validateOptionalOnRuntime);
     } else if (PyObject_IsInstance(pySchema.ptr(), ListSchemaClass.get())) {
-        return MaybeWrapPythonToSkiffConverter<IsPySchemaOptional>(
-            pySchema,
-            TListPythonToSkiffConverter(description, pySchema));
+        return MaybeWrapPythonToSkiffConverter(
+            std::move(description),
+            TListPythonToSkiffConverter(description, pySchema, validateOptionalOnRuntime),
+            isPySchemaOptional,
+            isTiSchemaOptional,
+            validateOptionalOnRuntime);
     } else if (PyObject_IsInstance(pySchema.ptr(), TupleSchemaClass.get())) {
-        return MaybeWrapPythonToSkiffConverter<IsPySchemaOptional>(
-            pySchema,
-            TTuplePythonToSkiffConverter(description, pySchema));
+        return MaybeWrapPythonToSkiffConverter(
+            std::move(description),
+            TTuplePythonToSkiffConverter(description, pySchema, validateOptionalOnRuntime),
+            isPySchemaOptional,
+            isTiSchemaOptional,
+            validateOptionalOnRuntime);
     } else if (PyObject_IsInstance(pySchema.ptr(), DictSchemaClass.get())) {
-        return MaybeWrapPythonToSkiffConverter<IsPySchemaOptional>(
-            pySchema,
-            TDictPythonToSkiffConverter(description, pySchema));
+        return MaybeWrapPythonToSkiffConverter(
+            std::move(description),
+            TDictPythonToSkiffConverter(description, pySchema, validateOptionalOnRuntime),
+            isPySchemaOptional,
+            isTiSchemaOptional,
+            validateOptionalOnRuntime);
     } else {
         THROW_ERROR_EXCEPTION("It's a bug, please contact yt@. Unknown schema type %Qv",
             Repr(pySchema.type()));
     }
 }
 
-TPythonToSkiffConverter CreatePythonToSkiffConverter(TString description, Py::Object pySchema)
+TPythonToSkiffConverter CreatePythonToSkiffConverter(TString description, Py::Object pySchema, bool validateOptionalOnRuntime)
 {
     static auto OptionalSchemaClass = GetSchemaType("OptionalSchema");
+    bool isTiSchemaOptional = IsTiTypeOptional(pySchema);
+    bool isPySchemaOptional = PyObject_IsInstance(pySchema.ptr(), OptionalSchemaClass.get());
 
-    if (PyObject_IsInstance(pySchema.ptr(), OptionalSchemaClass.get())) {
-        if (!IsTiTypeOptional(pySchema)) {
+    if (isPySchemaOptional) {
+        if (!isTiSchemaOptional && !validateOptionalOnRuntime) {
             THROW_ERROR_EXCEPTION("It's a bug, please contact yt@. Can not write optional "
                 "python field %Qv to non-optional schema field",
                 description);
         }
-        return CreatePythonToSkiffConverterImpl<true>(description + ".<optional-element>", GetAttr(pySchema, ItemFieldName));
+        return CreatePythonToSkiffConverterImpl(
+            description + ".<optional-element>",
+            GetAttr(pySchema, ItemFieldName),
+            true,
+            isTiSchemaOptional,
+            validateOptionalOnRuntime);
     } else {
-        return CreatePythonToSkiffConverterImpl<false>(description, std::move(pySchema));
+        return CreatePythonToSkiffConverterImpl(
+            description,
+            std::move(pySchema),
+            false,
+            isTiSchemaOptional,
+            validateOptionalOnRuntime);
     }
 }
 

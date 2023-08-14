@@ -5,11 +5,11 @@ from yt.wrapper.schema import (
     Int64,
     Uint64,
     OtherColumns,
-    _create_row_py_schema,
     SkiffError,
 )
 
 from yt.wrapper.schema.internal_schema import _row_py_schema_to_skiff_schema
+from yt.wrapper.schema import _SchemaRuntimeCtx
 
 from yt.skiff import SkiffSchema, load_structured, dump_structured
 
@@ -150,8 +150,8 @@ def create_single_value_row_class(type_):
 def dump_single_value_row(type_, value):
     Row = create_single_value_row_class(type_)
 
-    py_schema = _create_row_py_schema(Row)
-    skiff_schema_for_writing = SkiffSchema([_row_py_schema_to_skiff_schema(py_schema, for_reading=False)])
+    py_schema = _SchemaRuntimeCtx().set_for_reading_only(False).create_row_py_schema(Row)
+    skiff_schema_for_writing = SkiffSchema([_row_py_schema_to_skiff_schema(py_schema)])
 
     stream = io.BytesIO()
     row = Row(x=value)
@@ -163,9 +163,9 @@ def dump_single_value_row(type_, value):
 def check_dump_load(type_, skiff_bytes, value, *, expected_type=None, assert_value_eq=_default_value_eq):
     Row = create_single_value_row_class(type_)
 
-    py_schema = _create_row_py_schema(Row)
+    py_schema = _SchemaRuntimeCtx().set_for_reading_only(True).create_row_py_schema(Row)
 
-    skiff_schema_for_reading = SkiffSchema([_row_py_schema_to_skiff_schema(py_schema, for_reading=True)])
+    skiff_schema_for_reading = SkiffSchema([_row_py_schema_to_skiff_schema(py_schema)])
 
     skiff_bytes_extended = b"\x00\x00" + skiff_bytes
     stream = io.BytesIO(skiff_bytes_extended)
@@ -300,6 +300,14 @@ class TestDumpLoadStructuredSkiff(object):
         check_dump_load(typing.Tuple[int, typing.List[int]], SKIFF_INT64_13330 + b"\x00" + SKIFF_UINT64_15 + b"\x00" + SKIFF_UINT64_15 + b"\xff", (13330, [15, 15],), expected_type=tuple)
 
         check_dump_load(typing.Tuple[int, bool], SKIFF_TUPLE_INT_BOOL_13330_TRUE, (13330, True, ), expected_type=tuple)
+
+        check_dump_load(typing.Tuple[int, typing.Optional[int], int], SKIFF_INT64_13330 + SKIFF_OPTIONAL_INT64_15 + SKIFF_INT64_13330, (13330, 15, 13330, ), expected_type=tuple)
+
+        check_dump_load(typing.Tuple[int, typing.Optional[int], int], SKIFF_INT64_13330 + SKIFF_OPTIONAL_NOTHING + SKIFF_INT64_13330, (13330, None, 13330, ), expected_type=tuple)
+
+        check_dump_load(typing.Tuple[typing.Optional[int]], SKIFF_OPTIONAL_NOTHING, (None, ), expected_type=tuple)
+
+        check_dump_load(typing.Tuple[typing.Optional[int]], SKIFF_OPTIONAL_INT64_15, (15, ), expected_type=tuple)
 
         with pytest.raises(SkiffError) as ex:
             check_dump_load(typing.Tuple[int, bool], SKIFF_INT64_13330 + b"", tuple(), expected_type=tuple)

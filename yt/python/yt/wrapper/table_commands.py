@@ -17,7 +17,7 @@ from .table_helpers import (_prepare_source_tables, _are_default_empty_table, _p
                             _remove_tables, DEFAULT_EMPTY_TABLE, _to_chunk_stream, _prepare_command_format)
 from .file_commands import _get_remote_temp_files_directory, _enrich_with_attributes
 from .parallel_reader import make_read_parallel_request
-from .schema import _create_row_py_schema, TableSchema
+from .schema import _SchemaRuntimeCtx, TableSchema
 from .ypath import TablePath, ypath_join
 
 import yt.json_wrapper as json
@@ -279,7 +279,10 @@ def write_table_structured(table, row_type, input_stream, table_writer=None, max
     write_table(
         table,
         input_stream,
-        format=StructuredSkiffFormat([_create_row_py_schema(row_type, schema)], for_reading=False),
+        format=StructuredSkiffFormat(
+            [_SchemaRuntimeCtx().set_validation_mode_from_config(get_config(client)).create_row_py_schema(row_type, schema)],
+            for_reading=False,
+        ),
         table_writer=table_writer,
         max_row_buffer_size=max_row_buffer_size,
         is_stream_compressed=False,
@@ -857,7 +860,9 @@ def read_table_structured(table, row_type, table_reader=None, unordered=None,
         "enable_row_index": True,
         "enable_range_index": True,
     }
-    py_schema = _create_row_py_schema(row_type, schema, control_attributes=control_attributes)
+    py_schema = _SchemaRuntimeCtx() \
+        .set_validation_mode_from_config(config=get_config(client)) \
+        .create_row_py_schema(row_type, schema, control_attributes=control_attributes)
     if not isinstance(table, TablePath):
         table = TablePath(table)
     columns = py_schema.get_columns_for_reading()

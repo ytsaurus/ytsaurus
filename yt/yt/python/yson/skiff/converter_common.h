@@ -44,6 +44,7 @@ using TPythonToSkiffConverter = std::function<void(PyObject*, NSkiff::TCheckedIn
 ////////////////////////////////////////////////////////////////////////////////
 
 bool IsTiTypeOptional(Py::Object pySchema);
+bool IsPySchemaHasRuntimeValidation(Py::Object pySchema);
 PyObjectPtr GetSchemaType(const TString& name);
 EPythonType GetPythonType(Py::Object pyType);
 TString GetRowClassName(Py::Object pySchema);
@@ -65,6 +66,8 @@ const TString OtherColumnsFieldFieldName = "_other_columns_field";
 const TString ControlAttributesFieldName = "_control_attributes";
 const TString SystemColumnsFieldName = "_SYSTEM_COLUMNS";
 const TString IsTiTypeOptionalFieldName = "_is_ti_type_optional";
+const TString SchemaRuntimeContextFieldName = "_schema_runtime_context";
+const TString ValidateOptionalOnRuntimeFieldName = "_validate_optional_on_runtime";
 const TString QualNameFieldName = "__qualname__";
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,9 +2,11 @@ from .batch_helpers import create_batch_client
 from .cypress_commands import get
 from .errors import YtError, YtResolveError, YtResponseError
 from .format import StructuredSkiffFormat
-from .schema import (TableSchema, _create_row_py_schema, _validate_py_schema,
-                     is_yt_dataclass, check_schema_module_available, is_schema_module_available)
+from .schema import (TableSchema, _SchemaRuntimeCtx, _validate_py_schema, is_yt_dataclass,
+                     check_schema_module_available, is_schema_module_available)
+from .schema.internal_schema import RowSchema  # noqa
 from .ypath import TablePath
+from .config import get_config
 
 from yt.yson import to_yson_type
 
@@ -179,7 +181,7 @@ class OperationPreparer:
         return self
 
     def __init__(self, context, input_control_attributes=None):
-        self._context = context
+        self._context = context  # type: IntermediateOperationPreparationContext
         self._input_count = self._context.get_input_count()
         self._output_count = self._context.get_output_count()
         self._input_types = [None] * self._input_count
@@ -187,8 +189,8 @@ class OperationPreparer:
         self._output_schemas = [None] * self._output_count
         self._input_column_filters = [None] * self._input_count
         self._input_column_renamings = [{}] * self._input_count
-        self._input_py_schemas = []
-        self._output_py_schemas = []
+        self._input_py_schemas = []  # type: list[RowSchema]
+        self._output_py_schemas = []  # type: list[RowSchema]
         self._infer_strict_output_schemas = [True] * self._output_count
         if input_control_attributes is None:
             input_control_attributes = {
@@ -222,21 +224,22 @@ class OperationPreparer:
             if type_ is None:
                 self._raise_missing("input", index)
             column_renaming = self._input_column_renamings[index]
-            py_schema = _create_row_py_schema(
-                type_,
-                input_schemas[index],
-                column_renaming=column_renaming,
-                control_attributes=self._input_control_attributes,
-            )
+            py_schema = _SchemaRuntimeCtx() \
+                .set_validation_mode_from_config(get_config(client=self._context.get_client())) \
+                .set_for_reading_only(True) \
+                .create_row_py_schema(type_, input_schemas[index], control_attributes=self._input_control_attributes, column_renaming=column_renaming)
             self._input_py_schemas.append(py_schema)
-            _validate_py_schema(py_schema, for_reading=True)
+            _validate_py_schema(py_schema)
         for index, type_ in enumerate(self._output_types):
             if type_ is None:
                 self._raise_missing("output", index)
             if self._output_schemas[index] is None:
                 self._output_schemas[index] = output_schemas[index]
-            py_schema = _create_row_py_schema(type_, self._output_schemas[index])
-            _validate_py_schema(py_schema, for_reading=False)
+            py_schema = _SchemaRuntimeCtx() \
+                .set_validation_mode_from_config(get_config(client=self._context.get_client())) \
+                .set_for_reading_only(False) \
+                .create_row_py_schema(type_, self._output_schemas[index])
+            _validate_py_schema(py_schema)
             self._output_py_schemas.append(py_schema)
             if self._output_schemas[index] is None or self._output_schemas[index].is_empty_nonstrict():
                 self._output_schemas[index] = TableSchema.from_row_type(
@@ -297,6 +300,9 @@ class SimpleOperationPreparationContext(OperationPreparationContext):
     def get_output_paths(self):
         return self._output_paths
 
+    def get_client(self):
+        return self._client
+
 
 class IntermediateOperationPreparationContext(OperationPreparationContext):
     def __init__(self, input_schemas, output_paths, client):
@@ -325,6 +331,9 @@ class IntermediateOperationPreparationContext(OperationPreparationContext):
 
     def get_output_paths(self):
         return self._output_paths
+
+    def get_client(self):
+        return self._client
 
 
 def run_operation_preparation(job, context, input_control_attributes):

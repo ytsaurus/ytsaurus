@@ -2,7 +2,7 @@
 
 from yt.testlib import authors
 
-from yt.wrapper.schema import SortColumn, ColumnSchema, TableSchema, yt_dataclass, _create_row_py_schema
+from yt.wrapper.schema import _create_row_py_schema, SortColumn, ColumnSchema, TableSchema, yt_dataclass
 from yt.wrapper.schema.types import Uint8, Int32, YsonBytes
 from yt.wrapper.format import StructuredSkiffFormat
 from yt.common import YtError

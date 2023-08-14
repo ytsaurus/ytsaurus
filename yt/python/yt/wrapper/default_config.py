@@ -639,6 +639,11 @@ default_config = {
     "allow_fallback_to_native_driver": True,
 
     "started_by_command_length_limit": 4096,
+
+    # Handle (some) type mismatch while reading, not initializing
+    # i.e. do not throw exception while declare "weak" reading (f.e. read Optional[int] into int)
+    # but throw excepion while reading bad data (if None really occurs)
+    "runtime_type_validation": False,
 }
 
 # pydoc :: default_config :: end

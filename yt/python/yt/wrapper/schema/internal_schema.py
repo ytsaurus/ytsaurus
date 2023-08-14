@@ -3,13 +3,14 @@ from .types import (is_yt_dataclass, Annotation,
                     _is_py_type_optional, _get_py_time_types)
 from . import types
 from .helpers import check_schema_module_available, is_schema_module_available
-
 from ..errors import YtError
 
 import copy
 import datetime
+import typing  # noqa
 
 import yt.type_info as ti
+import yt.logger as logger
 
 try:
     import dataclasses
@@ -42,7 +43,15 @@ class _PySchemaSerializer:
 
 
 class PrimitiveSchema(_PySchemaSerializer):
-    def __init__(self, py_type, ti_type, to_yt_type=None, from_yt_type=None, is_ti_type_optional=False, annotation_ti_type=None):
+    def __init__(
+        self,
+        py_type,                    # type: object
+        ti_type,                    # type: ti.type_base.Primitive | ti.Any
+        to_yt_type=None,            # type: ti.Any | None
+        from_yt_type=None,          # type: ti.Any | None
+        is_ti_type_optional=False,  # type: bool | False
+        annotation_ti_type=None,    # type: ti.Any | None
+    ):
         self._py_type = py_type
         self._ti_type = ti_type
         self._wire_type = _ti_type_to_wire_type(ti_type)
@@ -70,6 +79,7 @@ class PrimitiveSchema(_PySchemaSerializer):
 
 class OptionalSchema:
     def __init__(self, item, is_ti_type_optional=True):
+        # type: (object, bool | True) -> None
         self._item = item
         self._is_ti_type_optional = is_ti_type_optional
 
@@ -79,6 +89,7 @@ class OptionalSchema:
 
 class StructField:
     def __init__(self, name, schema, yt_name=None):
+        # type: (str, object, str | None) -> None
         self._name = name
         self._py_schema = schema
         self._yt_name = yt_name if yt_name is not None else name
@@ -89,6 +100,7 @@ class StructField:
 
 class StructSchema(_PySchemaSerializer):
     def __init__(self, fields, py_type, is_ti_type_optional=False, other_columns_field=None):
+        # type: (list[StructField], object, bool | False, FieldMissingFromSchema | None) -> None
         self._other_columns_field = other_columns_field
         self._fields = fields
         self._py_type = py_type
@@ -101,6 +113,7 @@ class StructSchema(_PySchemaSerializer):
 
 class ListSchema:
     def __init__(self, item, is_ti_type_optional=False):
+        # type: (object, bool | False) -> None
         self._item = item
         self._is_ti_type_optional = is_ti_type_optional
 
@@ -110,6 +123,7 @@ class ListSchema:
 
 class TupleSchema:
     def __init__(self, elements, is_ti_type_optional=False):
+        # type: (list[object], bool | False) -> None
         self._elements = elements
         self._is_ti_type_optional = is_ti_type_optional
 
@@ -119,6 +133,7 @@ class TupleSchema:
 
 class DictSchema:
     def __init__(self, key, value, is_ti_type_optional=False):
+        # type: (object, object, bool | False) -> None
         self._key = key
         self._value = value
         self._is_ti_type_optional = is_ti_type_optional
@@ -131,12 +146,14 @@ class RowSchema:
     # NB. This list is used to keep consistency of the order of system columns.
     _SYSTEM_COLUMNS = ("key_switch", "row_index", "range_index", "other_columns")
 
-    def __init__(self, struct_schema, control_attributes=None):
+    def __init__(self, struct_schema, control_attributes=None, schema_runtime_context=None):
+        # type: (StructSchema, dict | None, _SchemaRuntimeCtx | None) -> RowSchema
         if control_attributes is None:
             control_attributes = {}
         self._struct_schema = struct_schema
         self._control_attributes = control_attributes
         self._is_ti_type_optional = False
+        self._schema_runtime_context = schema_runtime_context
 
     def get_columns_for_reading(self):
         if self._struct_schema._other_columns_field is not None:
@@ -153,6 +170,7 @@ class RowSchema:
 
 class FieldMissingFromRowClass(_PySchemaSerializer):
     def __init__(self, name, ti_type):
+        # type: (str, ti.type_base.Primitive | ti.Ani) -> None
         self._name = name
         self._ti_type = ti_type
 
@@ -162,6 +180,7 @@ class FieldMissingFromRowClass(_PySchemaSerializer):
 
 class FieldMissingFromSchema:
     def __init__(self, name, py_type):
+        # type: (str, object) -> None
         self._name = name
         self._py_type = py_type
 
@@ -266,7 +285,7 @@ def _get_time_types_converters():
     return converters
 
 
-def _create_primitive_schema(py_type, ti_type=None, is_ti_type_optional=False, field_name=None):
+def _create_primitive_schema(py_type, ti_type=None, is_ti_type_optional=False, field_name=None, schema_runtime_context=None):
     effective_field_name = field_name if field_name is not None else "<unknown>"
     if not hasattr(_create_primitive_schema, "_default_ti_type"):
         _create_primitive_schema._default_ti_type = {
@@ -331,21 +350,32 @@ def _is_nullable_ti_type(ti_type):
     )
 
 
-def _validate_py_schema(py_schema, for_reading):
+def _validate_py_schema(py_schema):
+    # type: (RowSchema) -> None
     check_schema_module_available()
     assert isinstance(py_schema, RowSchema)
     struct_schema = py_schema._struct_schema
     field_path = struct_schema._py_type.__qualname__
-    _validate_py_schema_impl(struct_schema, for_reading=for_reading, field_path=field_path)
+    _validate_py_schema_impl(struct_schema, field_path=field_path, schema_runtime_context=py_schema._schema_runtime_context)
 
 
-def _validate_py_schema_impl(py_schema, for_reading, field_path):
+def _validate_py_schema_impl(py_schema, field_path, schema_runtime_context):
+    # type: (StructSchema | OptionalSchema | PrimitiveSchema | ListSchema | TupleSchema | DictSchema, str, _SchemaRuntimeCtx) -> None
+    def _error(is_fatal, message, attributes=None):
+        if is_fatal:
+            raise YtError(message, attributes=attributes)
+        else:
+            logger.warning(message)
+
     def validate_not_optional():
-        if for_reading and py_schema._is_ti_type_optional:
+        if schema_runtime_context._for_reading and py_schema._is_ti_type_optional:
             assert field_path is not None
-            raise YtError("Schema and yt_dataclass mismatch: field \"{}\" is non-nullable in yt_dataclass and "
-                          "optional in table schema"
-                          .format(field_path))
+            is_fatal = not schema_runtime_context._validate_optional_on_runtime
+            _error(
+                is_fatal=is_fatal,
+                message="Schema and yt_dataclass mismatch: field \"{}\" is non-nullable in yt_dataclass and "
+                        "optional in table schema".format(field_path)
+            )
 
     if isinstance(py_schema, StructSchema):
         validate_not_optional()
@@ -353,59 +383,70 @@ def _validate_py_schema_impl(py_schema, for_reading, field_path):
             subfield_path = "{}.{}".format(field_path, field._name)
             if isinstance(field, FieldMissingFromRowClass):
                 if (
-                    not for_reading and
+                    not schema_runtime_context._for_reading and
                     not _is_nullable_ti_type(field._ti_type) and
                     py_schema._other_columns_field is None
                 ):
-                    raise YtError(
-                        "Schema and yt_dataclass mismatch: yt_dataclass is missing non-nullable field \"{}\""
-                        .format(subfield_path),
+                    _error(
+                        is_fatal=True,
+                        message="Schema and yt_dataclass mismatch: yt_dataclass is missing non-nullable field \"{}\"".format(subfield_path),
                         attributes={
                             "type_in_schema": ti.serialize_yson(field._ti_type),
                         },
                     )
             elif isinstance(field, FieldMissingFromSchema):
-                if for_reading and not _is_py_type_optional(field._py_type):
-                    raise YtError(
-                        "Schema and yt_dataclass mismatch: struct schema is missing non-nullable field \"{}\""
-                        .format(subfield_path),
+                if schema_runtime_context._for_reading and not _is_py_type_optional(field._py_type):
+                    _error(
+                        is_fatal=True,
+                        message="Schema and yt_dataclass mismatch: struct schema is missing non-nullable field \"{}\"".format(subfield_path),
                         attributes={"type": field._py_type},
                     )
-                if not for_reading:
-                    raise YtError(
-                        "Schema and yt_dataclass mismatch: struct schema is missing field \"{}\""
-                        .format(subfield_path),
+                if not schema_runtime_context._for_reading:
+                    _error(
+                        is_fatal=True,
+                        message="Schema and yt_dataclass mismatch: struct schema is missing field \"{}\"".format(subfield_path),
                         attributes={"type": field._py_type},
                     )
             elif isinstance(field, StructField):
-                _validate_py_schema_impl(field._py_schema, for_reading=for_reading, field_path=subfield_path)
+                _validate_py_schema_impl(field._py_schema, field_path=subfield_path, schema_runtime_context=schema_runtime_context)
             else:
                 assert False
     elif isinstance(py_schema, OptionalSchema):
-        if not for_reading and not py_schema._is_ti_type_optional:
-            raise YtError("Schema and yt_dataclass mismatch: field \"{}\" is optional in yt_dataclass and "
-                          "required in table schema"
-                          .format(field_path))
-        _validate_py_schema_impl(py_schema._item, for_reading=for_reading, field_path=field_path + ".<optional-element>")
+        if not schema_runtime_context._for_reading and not py_schema._is_ti_type_optional:
+            is_fatal = not schema_runtime_context._validate_optional_on_runtime
+            _error(
+                is_fatal=is_fatal,
+                message="Schema and yt_dataclass mismatch: field \"{}\" is optional in yt_dataclass and "
+                        "required in table schema".format(field_path)
+            )
+        _validate_py_schema_impl(py_schema._item, field_path=field_path + ".<optional-element>", schema_runtime_context=schema_runtime_context)
     elif isinstance(py_schema, PrimitiveSchema):
         validate_not_optional()
-        py_schema._check_ti_types_compatible(for_reading=for_reading, field_path=field_path)
+        py_schema._check_ti_types_compatible(for_reading=schema_runtime_context._for_reading, field_path=field_path)
     elif isinstance(py_schema, ListSchema):
         validate_not_optional()
-        _validate_py_schema_impl(py_schema._item, for_reading=for_reading, field_path=field_path + ".<list-element>")
+        _validate_py_schema_impl(py_schema._item, field_path=field_path + ".<list-element>", schema_runtime_context=schema_runtime_context)
     elif isinstance(py_schema, TupleSchema):
         validate_not_optional()
         for i, element in enumerate(py_schema._elements):
-            _validate_py_schema_impl(element, for_reading=for_reading, field_path=field_path + ".<tuple-element-{}>".format(i))
+            _validate_py_schema_impl(element, field_path=field_path + ".<tuple-element-{}>".format(i), schema_runtime_context=schema_runtime_context)
     elif isinstance(py_schema, DictSchema):
         validate_not_optional()
-        _validate_py_schema_impl(py_schema._key, for_reading=for_reading, field_path=field_path + ".<key>")
-        _validate_py_schema_impl(py_schema._value, for_reading=for_reading, field_path=field_path + ".<value>")
+        _validate_py_schema_impl(py_schema._key, field_path=field_path + ".<key>", schema_runtime_context=schema_runtime_context)
+        _validate_py_schema_impl(py_schema._value, field_path=field_path + ".<value>", schema_runtime_context=schema_runtime_context)
     else:
         assert False
 
 
-def _create_struct_schema(py_type, yt_fields=None, is_ti_type_optional=False, allow_other_columns=False):
+def _create_struct_schema(
+    py_type,                     # type: object
+    yt_fields=None,              # type: typing.Iterable[tuple[str, ti.type_base.Primitive | ti.Ani]] | None
+    is_ti_type_optional=False,   # type: bool | False
+    allow_other_columns=False,   # type: bool | False
+    schema_runtime_context=None  # type: _SchemaRuntimeCtx | None
+):
+    """Construct StructSchema from complex python object
+    """
     assert is_yt_dataclass(py_type)
     name_to_type = get_type_hints(py_type, include_extras=True)
 
@@ -416,7 +457,7 @@ def _create_struct_schema(py_type, yt_fields=None, is_ti_type_optional=False, al
             if name_to_type[field.name] == types.OtherColumns:
                 other_columns_field = FieldMissingFromSchema(field.name, name_to_type[field.name])
             else:
-                py_schema_fields.append(StructField(field.name, _create_py_schema(name_to_type[field.name], field_name=field.name)))
+                py_schema_fields.append(StructField(field.name, _create_py_schema(name_to_type[field.name], field_name=field.name, schema_runtime_context=schema_runtime_context)))
         return StructSchema(py_schema_fields, py_type,
                             other_columns_field=other_columns_field, is_ti_type_optional=is_ti_type_optional)
 
@@ -432,7 +473,7 @@ def _create_struct_schema(py_type, yt_fields=None, is_ti_type_optional=False, al
         if field is None:
             py_schema_fields.append(FieldMissingFromRowClass(yt_name, ti_type))
         else:
-            struct_field = StructField(field.name, _create_py_schema(name_to_type[field.name], ti_type, field_name=field.name))
+            struct_field = StructField(field.name, _create_py_schema(name_to_type[field.name], ti_type, field_name=field.name, schema_runtime_context=schema_runtime_context))
             py_schema_fields.append(struct_field)
             del name_to_field[yt_name]
     other_columns_field = None
@@ -455,13 +496,18 @@ def _create_struct_schema(py_type, yt_fields=None, is_ti_type_optional=False, al
     )
 
 
-def _create_py_schema(py_type, ti_type=None, field_name=None):
+def _create_py_schema(py_type, ti_type=None, field_name=None, schema_runtime_context=None):
+    # type: (object, ti.type_base.Primitive | None, str | None, _SchemaRuntimeCtx | None) -> OptionalSchema | ListSchema | TupleSchema | DictSchema | PrimitiveSchema
+    """Recursive construct internal schema from python specification
+    """
     effective_field_name = field_name if field_name is not None else "<unknown>"
     is_ti_type_optional = False
     primitive_origin, annotation = _get_primitive_type_origin_and_annotation(py_type)
+
     if ti_type is not None and ti_type.name == "Optional":
         is_ti_type_optional = True
         ti_type = ti_type.item
+
     if is_yt_dataclass(py_type):
         yt_fields = None
         if ti_type is not None:
@@ -477,7 +523,7 @@ def _create_py_schema(py_type, ti_type=None, field_name=None):
         if ti_type is None:
             is_ti_type_optional = True
         return OptionalSchema(
-            _create_py_schema(_unwrap_optional_type(py_type), ti_type),
+            _create_py_schema(_unwrap_optional_type(py_type), ti_type, schema_runtime_context=schema_runtime_context),
             is_ti_type_optional=is_ti_type_optional,
         )
     elif _get_list_item_type(py_type) is not None:
@@ -491,7 +537,7 @@ def _create_py_schema(py_type, ti_type=None, field_name=None):
                     .format(field_name, ti_type)
                 )
             item_ti_type = ti_type.item
-        item_py_schema = _create_py_schema(_get_list_item_type(py_type), ti_type=item_ti_type)
+        item_py_schema = _create_py_schema(_get_list_item_type(py_type), ti_type=item_ti_type, schema_runtime_context=schema_runtime_context)
         return ListSchema(item_py_schema, is_ti_type_optional=is_ti_type_optional)
     elif _get_tuple_elements_types(py_type) is not None:
         if ti_type is None:
@@ -510,7 +556,7 @@ def _create_py_schema(py_type, ti_type=None, field_name=None):
                     .format(field_name, len(_get_tuple_elements_types(py_type)), len(element_ti_types), py_type, ti_type)
                 )
         elements_py_schema = [
-            _create_py_schema(py_type=el_py_type, ti_type=el_ti_type)
+            _create_py_schema(py_type=el_py_type, ti_type=el_ti_type, schema_runtime_context=schema_runtime_context)
                 for el_py_type, el_ti_type in zip(_get_tuple_elements_types(py_type), element_ti_types)
         ]
         return TupleSchema(elements_py_schema, is_ti_type_optional=is_ti_type_optional)
@@ -528,11 +574,11 @@ def _create_py_schema(py_type, ti_type=None, field_name=None):
             key_ti_type = ti_type.key
             value_ti_type = ti_type.value
         key_type, value_type = _get_dict_key_value_types(py_type)
-        key_py_schema = _create_py_schema(key_type, ti_type=key_ti_type)
-        value_py_schema = _create_py_schema(value_type, ti_type=value_ti_type)
+        key_py_schema = _create_py_schema(key_type, ti_type=key_ti_type, schema_runtime_context=schema_runtime_context)
+        value_py_schema = _create_py_schema(value_type, ti_type=value_ti_type, schema_runtime_context=schema_runtime_context)
         return DictSchema(key_py_schema, value_py_schema, is_ti_type_optional=is_ti_type_optional)
     elif primitive_origin is not None:
-        return _create_primitive_schema(py_type, ti_type, is_ti_type_optional=is_ti_type_optional, field_name=field_name)
+        return _create_primitive_schema(py_type, ti_type, is_ti_type_optional=is_ti_type_optional, field_name=field_name, schema_runtime_context=schema_runtime_context)
     else:
         raise YtError("Unsupported field type. Cannot create py_schema for field \"{}\" from type {}".format(effective_field_name, py_type))
 
@@ -606,15 +652,18 @@ def _create_optional_skiff_schema(item, name=None):
     return schema
 
 
-def _row_py_schema_to_skiff_schema(py_schema, for_reading):
+def _row_py_schema_to_skiff_schema(py_schema):
+    # type: (RowSchema) -> dict
+    """Convert RowSchema into skiff format
+    """
     assert isinstance(py_schema, RowSchema)
     skiff_schema = _py_schema_to_skiff_schema(py_schema._struct_schema)
     system_column_iter = iter(RowSchema._SYSTEM_COLUMNS)
     assert next(system_column_iter) == "key_switch"
-    if for_reading and py_schema._control_attributes.get("enable_key_switch", False):
+    if py_schema._schema_runtime_context._for_reading and py_schema._control_attributes.get("enable_key_switch", False):
         skiff_schema["children"].append({"name": "$key_switch", "wire_type": "boolean"})
     assert next(system_column_iter) == "row_index"
-    if for_reading and py_schema._control_attributes.get("enable_row_index", False):
+    if py_schema._schema_runtime_context._for_reading and py_schema._control_attributes.get("enable_row_index", False):
         row_index_schema = {
             "wire_type": "variant8",
             "children": [
@@ -626,7 +675,7 @@ def _row_py_schema_to_skiff_schema(py_schema, for_reading):
         }
         skiff_schema["children"].append(row_index_schema)
     assert next(system_column_iter) == "range_index"
-    if for_reading and py_schema._control_attributes.get("enable_range_index", False):
+    if py_schema._schema_runtime_context._for_reading and py_schema._control_attributes.get("enable_range_index", False):
         range_index_schema = _create_optional_skiff_schema({"wire_type": "int64"}, name="$range_index")
         skiff_schema["children"].append(range_index_schema)
     assert next(system_column_iter) == "other_columns"
@@ -636,6 +685,9 @@ def _row_py_schema_to_skiff_schema(py_schema, for_reading):
 
 
 def _py_schema_to_skiff_schema(py_schema, name=None):
+    # type: (object, str | None) -> dict
+    """Convert internal schema into skiff format
+    """
     check_schema_module_available()
     if isinstance(py_schema, StructSchema):
         children = []
@@ -690,6 +742,9 @@ def _py_schema_to_skiff_schema(py_schema, name=None):
 
 
 def _py_schema_to_ti_type(py_schema):
+    # type: (object) -> ti.type_base.Primitive | ti.Ani
+    """Get appropriate type from type info for internal schema
+    """
     if isinstance(py_schema, RowSchema):
         ti_type = _py_schema_to_ti_type(py_schema._struct_schema)
     elif isinstance(py_schema, StructSchema):
