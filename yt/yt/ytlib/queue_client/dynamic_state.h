@@ -31,6 +31,8 @@ class TTableBase
     : public TRefCounted
 {
 public:
+    using TRowType = TRow;
+
     TTableBase(NYPath::TYPath path, NApi::IClientPtr client);
 
     TFuture<std::vector<TRow>> Select(TStringBuf columns = "*", TStringBuf where = "1 = 1") const;
@@ -291,6 +293,8 @@ struct TReplicatedTableMappingTableRow
     static TReplicatedTableMappingTableRow FromAttributeDictionary(
         const TCrossClusterReference& object,
         const NYTree::IAttributeDictionaryPtr& cypressAttributes);
+
+    std::vector<NYPath::TRichYPath> GetReplicas() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

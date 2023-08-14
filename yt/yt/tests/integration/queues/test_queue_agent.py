@@ -224,14 +224,15 @@ class ReplicatedObjectBase(ChaosTestBase):
         return replica_ids
 
     def _create_chaos_replicated_table_base(self, chaos_replicated_table_path, replicas, schema,
-                                            replicated_table_options=None, chaos_cell_bundle="c",
-                                            sync_replication_era=True):
+                                            replicated_table_options=None, replicated_table_attributes=None,
+                                            chaos_cell_bundle="c", sync_replication_era=True):
         replicated_table_options = replicated_table_options or {}
-        create("chaos_replicated_table", chaos_replicated_table_path, attributes={
+        replicated_table_attributes = replicated_table_attributes or {}
+        create("chaos_replicated_table", chaos_replicated_table_path, attributes=update(replicated_table_attributes, {
             "chaos_cell_bundle": chaos_cell_bundle,
             "replicated_table_options": replicated_table_options,
             "schema": schema,
-        })
+        }))
         card_id = get(f"{chaos_replicated_table_path}/@replication_card_id")
 
         replica_ids = self._create_chaos_table_replicas(replicas, table_path=chaos_replicated_table_path)
@@ -270,6 +271,8 @@ class TestQueueAgentBase(YTEnvSetup):
 
     INSTANCES = None
 
+    DO_PREPARE_TABLES_ON_SETUP = True
+
     @classmethod
     def modify_queue_agent_config(cls, config):
         update_inplace(config, {
@@ -306,7 +309,8 @@ class TestQueueAgentBase(YTEnvSetup):
     def setup_method(self, method):
         super(TestQueueAgentBase, self).setup_method(method)
 
-        self._prepare_tables()
+        if self.DO_PREPARE_TABLES_ON_SETUP:
+            self._prepare_tables()
 
     def teardown_method(self, method):
         self._drop_tables()

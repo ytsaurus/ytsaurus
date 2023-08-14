@@ -26,6 +26,8 @@ void TQueueConsumerRegistrationManagerConfig::Register(TRegistrar registrar)
         .Default("//sys/queue_agents/consumer_registrations");
     registrar.Parameter("state_read_path", &TThis::StateReadPath)
         .Default("//sys/queue_agents/consumer_registrations");
+    registrar.Parameter("replicated_table_mapping_read_path", &TThis::ReplicatedTableMappingReadPath)
+        .Default("//sys/queue_agents/replicated_table_mapping");
     registrar.Parameter("bypass_caching", &TThis::BypassCaching)
         .Default(false);
     registrar.Parameter("cache_refresh_period", &TThis::CacheRefreshPeriod)
@@ -35,6 +37,8 @@ void TQueueConsumerRegistrationManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("user", &TThis::User)
         .Default(RootUserName);
     registrar.Parameter("resolve_symlinks", &TThis::ResolveSymlinks)
+        .Default(false);
+    registrar.Parameter("resolve_replicas", &TThis::ResolveReplicas)
         .Default(false);
 }
 

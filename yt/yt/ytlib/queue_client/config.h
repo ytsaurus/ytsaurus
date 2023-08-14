@@ -68,6 +68,12 @@ public:
     //! and use any successful result.
     NYPath::TRichYPath StateReadPath;
 
+    //! Path to the dynamic table containing mapping of replicated table objects to their corresponding replicas.
+    //! Parametrized by a list of clusters. If no clusters are specified, the connection's local cluster is used.
+    //! If a list of clusters is specified, the registration manager will send read-requests to all of them
+    //! and use any successful result.
+    NYPath::TRichYPath ReplicatedTableMappingReadPath;
+
     //! If true, the table will be polled for each registration check and orchid call.
     //! Off by default.
     bool BypassCaching;
@@ -79,11 +85,13 @@ public:
     //! the connection with which the manager was created.
     TDuration ConfigurationRefreshPeriod;
 
-    //! User under which requests are performed to read and write registrations.
+    //! User under which requests are performed to read and write state tables.
     TString User;
 
-    // ! If true, then symbolic links in queues' and consumers' paths will be resolved in registrations and unregistrations.
+    //! If true, then symbolic links in queues' and consumers' paths will be resolved in registrations and unregistrations.
     bool ResolveSymlinks;
+    //! If true, replicas found in the replicated table mapping cache will be resolved to their corresponding replicated table objects.
+    bool ResolveReplicas;
 
     REGISTER_YSON_STRUCT(TQueueConsumerRegistrationManagerConfig);
 

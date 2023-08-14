@@ -858,6 +858,25 @@ NApi::IUnversionedRowsetPtr TReplicatedTableMappingTableRow::DeleteRowRange(TRan
     return CreateRowset(TConsumerRegistrationTableDescriptor::Schema, rowsBuilder.Build());
 }
 
+std::vector<TRichYPath> TReplicatedTableMappingTableRow::GetReplicas() const
+{
+    std::vector<TRichYPath> replicas;
+
+    if (ObjectType && *ObjectType == EObjectType::ReplicatedTable && Meta && Meta->ReplicatedTableMeta) {
+        for (const auto& replica : GetValues(Meta->ReplicatedTableMeta->Replicas)) {
+            replicas.push_back(TCrossClusterReference{replica->ClusterName, replica->ReplicaPath});
+        }
+    }
+
+    if (ObjectType && *ObjectType == EObjectType::ChaosReplicatedTable && Meta && Meta->ChaosReplicatedTableMeta) {
+        for (const auto& replica : GetValues(Meta->ChaosReplicatedTableMeta->Replicas)) {
+            replicas.push_back(TCrossClusterReference{replica->ClusterName, replica->ReplicaPath});
+        }
+    }
+
+    return replicas;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template class TTableBase<TReplicatedTableMappingTableRow>;

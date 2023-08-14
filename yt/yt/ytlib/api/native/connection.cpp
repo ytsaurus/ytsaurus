@@ -1201,15 +1201,16 @@ IConnectionPtr GetRemoteConnectionOrThrow(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<TRichYPath> ResolvePhysicalPath(const TRichYPath& objectPath, const IConnectionPtr& connection)
+TFuture<TTableMountInfoPtr> GetTableMountInfo(const TRichYPath& objectPath, const IConnectionPtr& connection)
 {
-    auto objectConnection = FindRemoteConnection(connection, objectPath.GetCluster());
+    const auto& objectCluster = objectPath.GetCluster();
+    // NB: For better cache locality, use the provided connection when its cluster is equal to the object's cluster.
+    auto objectConnection = ((objectCluster && objectCluster == connection->GetClusterName())
+        ? connection
+        : FindRemoteConnection(connection, objectPath.GetCluster()));
     YT_VERIFY(objectConnection);
     auto objectTableMountCache = objectConnection->GetTableMountCache();
-    return objectTableMountCache->GetTableInfo(objectPath.GetPath())
-        .Apply(BIND([=] (const TTableMountInfoPtr& tableInfo) {
-            return TRichYPath(tableInfo->PhysicalPath, objectPath.Attributes());
-        }));
+    return objectTableMountCache->GetTableInfo(objectPath.GetPath());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

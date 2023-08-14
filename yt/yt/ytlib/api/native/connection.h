@@ -246,8 +246,8 @@ IConnectionPtr GetRemoteConnectionOrThrow(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Returns path to the source of the object, if objectPath points to symlink, then resolves path to original.
-TFuture<NYPath::TRichYPath> ResolvePhysicalPath(
+//! Fetches table mount info for object on a potentially-remote cluster, which may be specified in the rich YPath.
+TFuture<NTabletClient::TTableMountInfoPtr> GetTableMountInfo(
     const NYPath::TRichYPath& objectPath,
     const IConnectionPtr& connection);
 

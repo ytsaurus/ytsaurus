@@ -22,6 +22,7 @@ struct TCrossClusterReference
     operator NYPath::TRichYPath() const;
 
     static TCrossClusterReference FromString(TStringBuf path);
+    static TCrossClusterReference FromRichYPath(const NYPath::TRichYPath& path);
 };
 
 TString ToString(const TCrossClusterReference& queueRef);
