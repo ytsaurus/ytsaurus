@@ -544,6 +544,27 @@ private:
                 EOperationAlertType::LowGpuPower,
                 alertMessage);
         }
+
+        {
+            auto needSetAlert = [&] (TDuration totalExecutionDuration, double gpuCount, i64 /*jobCount*/, double ratio) {
+                return totalExecutionDuration.SecondsFloat() * gpuCount > Config_->LowGpuUsageAlertMinTotalGpuDuration.SecondsFloat() &&
+                    ratio < Config_->LowGpuUsageAlertGpuUtilizationSMThreshold;
+            };
+
+            static const TString alertMessage = Format(
+                "Average GPU SM usage is significantly lower than %v percents. "
+                "Consider optimizing your GPU process",
+                Config_->LowGpuUsageAlertGpuUtilizationSMThreshold * 100.0);
+
+            AnalyzeProcessingUnitUsage(
+                {"/user_job/gpu/cumulative_sm_utilization"},
+                Config_->LowGpuUsageAlertJobStates,
+                getGpuLimit,
+                needSetAlert,
+                "gpu",
+                EOperationAlertType::LowGpuSMUsage,
+                alertMessage);
+        }
     }
 
     void AnalyzeGpuPowerUsageOnWindow()
