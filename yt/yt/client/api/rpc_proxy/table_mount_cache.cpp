@@ -68,7 +68,7 @@ private:
                 tableInfo->NeedKeyEvaluation = primarySchema->HasComputedColumns();
 
                 if (rsp->has_physical_path()) {
-                    tableInfo->PhysicalPath = FromProto<NYPath::TYPath>(rsp->physical_path());
+                    tableInfo->PhysicalPath = rsp->physical_path();
                 } else {
                     tableInfo->PhysicalPath = path;
                 }
