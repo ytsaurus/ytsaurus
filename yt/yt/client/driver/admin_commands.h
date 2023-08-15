@@ -254,4 +254,20 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Endpoint is necessary for manual configuration regeneration, disk partitioning and node restart.
+// Important part of Hot Swap mechanic.
+class TRequestRebootCommand
+    : public TTypedCommand<NApi::TRequestRebootOptions>
+{
+public:
+   TRequestRebootCommand();
+
+private:
+    TString NodeAddress_;
+
+    void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver

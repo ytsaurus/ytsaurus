@@ -90,6 +90,7 @@ DEFINE_ENUM(EAccessControlObject,
     (BuildSnapshot)
     (BuildMasterSnapshot)
     (SwitchLeader)
+    (RequestReboot)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -700,6 +700,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DisableChunkLocations));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DestroyChunkLocations));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ResurrectChunkLocations));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(RequestReboot));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateObject));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableMountInfo));
@@ -4509,6 +4510,29 @@ private:
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 ToProto(response->mutable_location_uuids(), result.LocationUuids);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, RequestReboot)
+    {
+        auto nodeAddress = request->node_address();
+
+        TRequestRebootOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        context->SetRequestInfo("NodeAddress: %v", nodeAddress);
+
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->RequestReboot(
+                    nodeAddress,
+                    options);
+            },
+            [] (const auto& /*context*/, const auto& /*result*/) {
+                // do nothing.
             });
     }
 

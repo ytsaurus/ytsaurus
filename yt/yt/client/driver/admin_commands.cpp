@@ -437,4 +437,17 @@ void TResurrectChunkLocationsCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TRequestRebootCommand::TRequestRebootCommand()
+{
+    RegisterParameter("node_address", NodeAddress_);
+}
+
+void TRequestRebootCommand::DoExecute(ICommandContextPtr context)
+{
+    WaitFor(context->GetClient()->RequestReboot(NodeAddress_, Options))
+        .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver

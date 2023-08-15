@@ -879,6 +879,13 @@ TFuture<TResurrectChunkLocationsResult> TDelegatingClient::ResurrectChunkLocatio
     return Underlying_->ResurrectChunkLocations(nodeAddress, locationUuids, options);
 }
 
+TFuture<TRequestRebootResult> TDelegatingClient::RequestReboot(
+    const TString& nodeAddress,
+    const TRequestRebootOptions& options)
+{
+    return Underlying_->RequestReboot(nodeAddress, options);
+}
+
 TFuture<void> TDelegatingClient::SetUserPassword(
     const TString& user,
     const TString& currentPasswordSha256,
