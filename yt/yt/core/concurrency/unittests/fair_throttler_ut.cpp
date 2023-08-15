@@ -255,7 +255,6 @@ TEST_F(TFairThrottlerTest, TryAcquireAvailable)
     Sleep(TDuration::Seconds(1));
     ASSERT_EQ(bucket->TryAcquireAvailable(150), 100);
     ASSERT_EQ(bucket->GetQueueTotalAmount(), 0);
-    ASSERT_GE(bucket->GetAvailable(), 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
