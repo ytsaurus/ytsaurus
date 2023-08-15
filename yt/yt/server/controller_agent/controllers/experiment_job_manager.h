@@ -31,7 +31,9 @@ class TJobExperimentBase
     , public IPersistent
 {
 public:
-    static bool IsEnabled(const TOperationSpecBasePtr& operationSpec);
+    static bool IsEnabled(
+        const TOperationSpecBasePtr& operationSpec,
+        const std::vector<NScheduler::TUserJobSpecPtr>& userJobSpecs);
 
     virtual void PatchUserJobSpec(
         NScheduler::NProto::TUserJobSpec* jobSpec,

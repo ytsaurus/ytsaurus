@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, create, create_network_project, create_user,
-    get, make_ace, map, print_debug, read_table, set, write_table)
+    get, make_ace, map, print_debug, read_table, run_test_vanilla, set, wait, write_table)
 
 from yt.common import update
 
@@ -186,6 +186,35 @@ class TestJobExperiment(YTEnvSetup):
         assert counter["treatment"] == 0
 
         assert op.get_job_count("aborted") == 0
+
+    @authors("galtsev")
+    @pytest.mark.timeout(300)
+    def test_do_not_fail_on_completed_job_restart(self):
+        job_count = 1
+        self.setup(job_count)
+
+        op = run_test_vanilla(
+            "true",
+            task_patch={
+                "restart_completed_jobs": True,
+            },
+            spec={
+                "job_experiment": {
+                    "network_project": TestJobExperiment.NETWORK_PROJECT,
+                },
+                "max_failed_job_count": 1000,
+            },
+        )
+
+        def check_status():
+            print_debug(op.build_progress())
+            if op.get_job_count("lost") >= 3:
+                return True
+            if op.get_state(verbose=False) == "failed":
+                raise op.get_error()
+            return False
+
+        wait(check_status, timeout=300)
 
     @authors("galtsev")
     @pytest.mark.timeout(300)
