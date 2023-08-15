@@ -300,6 +300,9 @@ void TOperationOptions::Register(TRegistrar registrar)
         // Defaults for system jobs are in Initializer.
         .Default(1000)
         .GreaterThan(0);
+    registrar.Parameter("max_data_slices_per_job_limit", &TThis::MaxDataSlicesPerJobLimit)
+        .Default(10000)
+        .GreaterThan(0);
 
     registrar.Parameter("max_slice_data_weight", &TThis::MaxSliceDataWeight)
         .Alias("max_slice_data_size")
@@ -358,6 +361,12 @@ void TOperationOptions::Register(TRegistrar registrar)
             THROW_ERROR_EXCEPTION("Minimum slice data weight must be less than or equal to maximum slice data size")
                 << TErrorAttribute("min_slice_data_weight", options->MinSliceDataWeight)
                 << TErrorAttribute("max_slice_data_weight", options->MaxSliceDataWeight);
+        }
+
+        if (options->MaxDataSlicesPerJobLimit < options->MaxDataSlicesPerJob) {
+            THROW_ERROR_EXCEPTION("Default maximum count of data slices per job must be less than or equal to the limit of the maximum count of data slices per job")
+                << TErrorAttribute("max_data_slices_per_job", options->MaxDataSlicesPerJob)
+                << TErrorAttribute("max_data_slices_per_job_limit", options->MaxDataSlicesPerJobLimit);
         }
     });
 }
