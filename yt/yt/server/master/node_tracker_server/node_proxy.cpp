@@ -110,6 +110,7 @@ private:
         descriptors->push_back(EInternedAttributeKey::DataCenter);
         descriptors->push_back(EInternedAttributeKey::State);
         descriptors->push_back(EInternedAttributeKey::MulticellStates);
+        descriptors->push_back(EInternedAttributeKey::RegistrationPending);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UserTags)
             .SetWritable(true)
             .SetReplicated(true));
@@ -254,6 +255,11 @@ private:
                     .Value(state);
                 return true;
             }
+
+            case EInternedAttributeKey::RegistrationPending:
+                BuildYsonFluently(consumer)
+                    .Value(node->GetRegistrationPending());
+                return true;
 
             case EInternedAttributeKey::Annotations: {
                 if (!node->GetAnnotations()) {
