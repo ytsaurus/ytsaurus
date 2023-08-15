@@ -119,6 +119,11 @@ class TTransformNode
     , public TAttributes
 {
 public:
+    const TString GetName() const {
+        return Name_;
+    }
+
+
     const IRawTransformPtr& GetRawTransform() const {
         return Transform_;
     }
@@ -165,15 +170,19 @@ public:
     void SlowlyPrintDebugDescription(IOutputStream* out) const;
 
 private:
-    explicit TTransformNode(IRawTransformPtr transform);
+    TTransformNode(TString name, IRawTransformPtr transform);
 
     static TTransformNodePtr Allocate(
+        TString name,
         const TRawPipelinePtr& rawPipeline,
         IRawTransformPtr transform,
         const std::vector<TPCollectionNode*>& inputs,
         const TRawPStateNodePtr& pState = nullptr);
 
 private:
+    // Name is unique throughout pipeline.
+    const TString Name_;
+
     IRawTransformPtr Transform_;
     std::vector<TPCollectionNodePtr> SourceList_;
     std::vector<TPCollectionNodePtr> SinkList_;
@@ -190,16 +199,24 @@ class TRawPipeline
     : public TThrRefBase
 {
 public:
-    TRawPipeline() = default;
+    class TStartTransformGuard;
 
+public:
+    TRawPipeline();
     TRawPipeline(const TRawPipeline&) = delete;
+    ~TRawPipeline();
 
-    TTransformNodePtr AddTransform(IRawTransformPtr transform, const std::vector<TPCollectionNode*>& inputs, const TRawPStateNodePtr& pState = nullptr);
+    TTransformNodePtr AddTransform(
+        IRawTransformPtr transform,
+        const std::vector<TPCollectionNode*>& inputs,
+        const TRawPStateNodePtr& pState = nullptr);
 
     [[nodiscard]] const std::vector<TTransformNodePtr>& GetTransformList() const
     {
         return TransformList_;
     }
+
+    std::shared_ptr<TStartTransformGuard> StartTransformGuard(TString name);
 
 private:
     TPCollectionNodePtr AllocatePCollectionNode(TRowVtable rowVtable, TTransformNode* outputOf)
@@ -213,8 +230,13 @@ private:
     }
 
 private:
+    class TNameRegistry;
+
+private:
+    THashMap<TString, TTransformNodePtr> TransformByName_;
     std::vector<TTransformNodePtr> TransformList_;
     int NextNodeId_ = 0;
+    std::unique_ptr<TNameRegistry> NameRegitstry_;
 
     friend class TTransformNode;
 };

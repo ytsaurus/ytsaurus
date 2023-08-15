@@ -15,6 +15,11 @@ TGroupByKeyTransform GroupByKey()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TString TCoGroupByKeyTransform::GetName() const
+{
+    return "CoGroupByKey";
+}
+
 TPCollection<TCoGbkResult> TCoGroupByKeyTransform::ApplyTo(const TMultiPCollection& multiPCollection) const
 {
     // 1. Нужно убедиться, что все ключи имеют один тип.
@@ -51,7 +56,7 @@ TPCollection<TCoGbkResult> TCoGroupByKeyTransform::ApplyTo(const TMultiPCollecti
 
 TCoGroupByKeyTransform CoGroupByKey()
 {
-    return {};
+    return TCoGroupByKeyTransform{};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

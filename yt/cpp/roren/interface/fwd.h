@@ -55,6 +55,9 @@ class TTypeTag;
 template <typename I, typename O>
 class TTransform;
 
+template <typename T>
+class TRenamedTransform;
+
 class TDynamicTypeTag;
 
 class TCoGbkResult;

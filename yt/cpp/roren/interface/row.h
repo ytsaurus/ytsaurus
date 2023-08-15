@@ -26,9 +26,10 @@ concept CRorenGraphItem =
     TIsSpecializationOf<TPCollection, TItem>::value;
 
 template <typename TTransform, typename TInput>
-concept CApplicableTo = requires(const TTransform& a, const TInput& input)
+concept CApplicableTo = requires(const TTransform& transform, const TInput& input)
 {
-    { a.ApplyTo(input) } -> CRorenGraphItem;
+    { transform.ApplyTo(input) } -> CRorenGraphItem;
+    { transform.GetName() } -> std::same_as<TString>;
 };
 
 

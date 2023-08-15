@@ -32,6 +32,7 @@
 
 #include <util/stream/input.h>
 #include <util/stream/output.h>
+#include <util/system/type_name.h>
 
 #include <type_traits>
 #include <functional>
@@ -102,9 +103,14 @@ class TReadTransform
     : public NPrivate::IWithAttributes
 {
 public:
-    TReadTransform(NPrivate::IRawReadPtr rawRead)
+    explicit TReadTransform(NPrivate::IRawReadPtr rawRead)
         : RawRead_(rawRead)
     { }
+
+    TString GetName() const
+    {
+        return "Read";
+    }
 
     TPCollection<TOutputRow> ApplyTo(const TPipeline& pipeline) const
     {
@@ -146,6 +152,11 @@ public:
     explicit TWriteTransform(NPrivate::IRawWritePtr rawWriteTransform)
         : RawWrite_(std::move(rawWriteTransform))
     { }
+
+    TString GetName() const
+    {
+        return "Write";
+    }
 
     void ApplyTo(const TPCollection<TInputRow>& pCollection) const
     {
@@ -193,6 +204,11 @@ public:
     explicit TParDoTransform(NPrivate::IRawParDoPtr rawParDo)
         : RawParDo_(std::move(rawParDo))
     { }
+
+    TString GetName() const
+    {
+        return "ParDo";
+    }
 
     auto ApplyTo(const TPCollection<TInput>& pCollection) const
     {
@@ -284,6 +300,11 @@ public:
         , RawPStateNode_(pState)
     { }
 
+    TString GetName() const
+    {
+        return "StatefulParDo";
+    }
+
     auto ApplyTo(const TPCollection<TInput>& pCollection) const
     {
         const auto& rawPipeline = NPrivate::GetRawPipeline(pCollection);
@@ -345,6 +366,11 @@ public:
         , RawPStateNode_(pState)
     { }
 
+    TString GetName() const
+    {
+        return "StatefulTimerParDo";
+    }
+
     auto ApplyTo(const TPCollection<TInput>& pCollection) const
     {
         const auto& rawPipeline = NPrivate::GetRawPipeline(pCollection);
@@ -403,6 +429,11 @@ class TGroupByKeyTransform
 public:
     TGroupByKeyTransform() = default;
 
+    TString GetName() const
+    {
+        return "GroupByKey";
+    }
+
     template <typename TKey, typename TValue>
     TPCollection<TKV<TKey, TInputPtr<TValue>>> ApplyTo(const TPCollection<TKV<TKey, TValue>>& pCollection) const
     {
@@ -451,6 +482,11 @@ public:
         : CombineFn_(std::move(combineFn))
     { }
 
+    TString GetName() const
+    {
+        return "CombinePerKey";
+    }
+
     template <typename TKey>
     TPCollection<TKV<TKey, TCombineOutput>> ApplyTo(const TPCollection<TKV<TKey, TCombineInput>>& pCollection) const
     {
@@ -498,6 +534,8 @@ public:
 public:
     TCoGroupByKeyTransform() = default;
 
+    TString GetName() const;
+
     TPCollection<TCoGbkResult> ApplyTo(const TMultiPCollection& multiPCollection) const;
 
 private:
@@ -531,6 +569,11 @@ class TFlattenTransform
     : public NPrivate::IWithAttributes
 {
 public:
+    TString GetName() const
+    {
+        return "Flatten";
+    }
+
     template <typename TRow>
     TPCollection<TRow> ApplyTo(const std::vector<TPCollection<TRow>>& pCollectionList) const
     {
@@ -642,16 +685,30 @@ public:
     template <typename T>
         requires CApplicableTo<T, TArgument>
     TTransform(T t)
-        : Applier_([t=t] (const TArgument& input) {
+        : Name_(t.GetName())
+        , Applier_([t=t] (const TArgument& input) {
             return t.ApplyTo(input);
         })
     { }
 
     template <typename T>
         requires std::is_convertible_v<T, std::function<TResult(const TArgument&)>>
-    TTransform(T&& applier)
-        : Applier_(std::forward<T>(applier))
+    TTransform(TString name, T&& applier)
+        : Name_(std::move(name))
+        , Applier_(std::forward<T>(applier))
     { }
+
+    template <typename T>
+        requires std::is_convertible_v<T, std::function<TResult(const TArgument&)>>
+    TTransform(T&& applier)
+        : Name_("UserDefinedTransform")
+        , Applier_(std::forward<T>(applier))
+    { }
+
+    TString GetName() const
+    {
+        return Name_;
+    }
 
     TResult ApplyTo(const TArgument& pCollection) const
     {
@@ -659,7 +716,8 @@ public:
     }
 
 private:
-    std::function<TResult(const TArgument&)> Applier_;
+    const TString Name_;
+    const std::function<TResult(const TArgument&)> Applier_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -667,6 +725,11 @@ private:
 class TNullWriteTransform
 {
 public:
+    TString GetName() const
+    {
+        return "NullWrite";
+    }
+
     template <typename T>
     void ApplyTo(const TPCollection<T>& pCollection) const
     {

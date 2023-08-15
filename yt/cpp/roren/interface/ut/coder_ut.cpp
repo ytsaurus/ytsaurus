@@ -1,4 +1,3 @@
-
 #include <yt/cpp/roren/interface/coder.h>
 
 #include <library/cpp/testing/gtest/gtest.h>

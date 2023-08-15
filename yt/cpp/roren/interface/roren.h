@@ -78,6 +78,7 @@ public:
     template <CApplicableTo<TPCollection<T>> TTransform>
     auto operator|(const TTransform& transform) const
     {
+        auto guard = RawPipeline_->StartTransformGuard(transform.GetName());
         return transform.ApplyTo(*this);
     }
 
@@ -184,6 +185,7 @@ public:
     template <CApplicableTo<TPipeline> TTransform>
     auto operator|(const TTransform& transform) const
     {
+        auto guard = RawPipeline_->StartTransformGuard(transform.GetName());
         return transform.ApplyTo(*this);
     }
 
@@ -239,6 +241,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+///
+/// @brief Set name for given transform
+template <typename TTransform>
+TRenamedTransform<TTransform> operator>>(TString name, TTransform transform);
+
+////////////////////////////////////////////////////////////////////////////////
+
 // || |\    /| |==\\ ||     |=== |\    /| ||=== |\ || ====   /\   ====  ||  //\\  |\ ||
 // || ||\  /|| |==// ||    ||=== ||\  /|| ||=== ||\||  ||   /__\   ||   || ||  || ||\||
 // || || \/ || ||    ||===  |=== || \/ || ||=== || \|  ||  //  \\  ||   ||  \\//  || \|
@@ -272,6 +281,7 @@ std::tuple<TPCollection<typename TypeTags::TRow>...> TMultiPCollection::Unpack(T
 template <CApplicableTo<TMultiPCollection> TTransform>
 auto TMultiPCollection::operator|(const TTransform& transform) const
 {
+    auto guard = RawPipeline_->StartTransformGuard(transform.GetName());
     return transform.ApplyTo(*this);
 }
 
@@ -297,6 +307,41 @@ TPState<K, S>::TPState(NPrivate::TRawPStateNodePtr rawPStateNode, NPrivate::TRaw
     : RawPipeline_(std::move(rawPipeline))
     , RawPStateNode_(std::move(rawPStateNode))
 { }
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename TTransform>
+class TRenamedTransform
+{
+public:
+    TRenamedTransform(TString newName, TTransform transform)
+        : Name_(std::move(newName))
+        , Transform_(transform)
+    { }
+
+    TString GetName() const
+    {
+        return Name_;
+    }
+
+    template <typename TGraphItem>
+    auto ApplyTo(const TGraphItem& item) const
+    {
+        return Transform_.ApplyTo(item);
+    }
+
+private:
+    const TString Name_;
+    const TTransform Transform_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename TTransform>
+TRenamedTransform<TTransform> operator>>(TString name, TTransform transform)
+{
+    return TRenamedTransform{std::move(name), std::move(transform)};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
