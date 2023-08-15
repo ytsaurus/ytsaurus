@@ -7191,5 +7191,111 @@ INSTANTIATE_TEST_SUITE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TQueryEvaluateYsonLengthTest
+    : public TQueryEvaluateTest
+{ };
+
+TEST_F(TQueryEvaluateYsonLengthTest, Simple)
+{
+    auto split = MakeSplit({{"any", EValueType::Any},});
+    auto source = std::vector<TString>{
+        "any={}",
+        "any=[]",
+        "any={a={b=c}}",
+        "any=[#]",
+        "any={a=[1;2;3;4]}",
+        "any={a=[<attribute=attribute>42]}",
+        "any=<attribute=<attribute=attribute>attribute>{a=[42]}",
+        "any={a=[<attribute=[1;2;<attribute=attribute>{}]>42]}",
+        "any={a={b=c};d=e}",
+        "any={a=a;b=b;c={d={e=f}}}",
+        "any=[1;2;3]",
+        "any=[[];[];[1;2;<attribute=attribute>3]]",
+        "any={a={b=c};d=e;f=<attribute=attribute>{}}",
+        "any=#",
+        "any=<attribute=attribute>#",
+    };
+
+    auto result = YsonToRows({
+        "length=0",
+        "length=0",
+        "length=1",
+        "length=1",
+        "length=1",
+        "length=1",
+        "length=1",
+        "length=1",
+        "length=2",
+        "length=3",
+        "length=3",
+        "length=3",
+        "length=3",
+        "length=#",
+        "length=#",
+    }, MakeSplit({{"length", EValueType::Int64},}));
+
+    Evaluate("yson_length(any) as length from [//t]", split, source, ResultMatcher(result));
+}
+
+TEST_F(TQueryEvaluateYsonLengthTest, GetAny)
+{
+    auto split = MakeSplit({{"any", EValueType::Any},});
+    auto source = std::vector<TString>{
+        "any={a=[1;2;3;4]}",
+        "any=#",
+    };
+
+    auto result = YsonToRows({
+        "length=4",
+        "length=#",
+    }, MakeSplit({{"length", EValueType::Int64},}));
+
+    Evaluate("yson_length(get_any(any, '/a')) as length from [//t]", split, source, ResultMatcher(result));
+}
+
+class TQueryYsonLengthWithIncorrectSyntaxTest
+    : public TQueryEvaluateTest
+    , public ::testing::WithParamInterface<std::tuple<
+        const char*, // row
+        const char*>> // error message
+{ };
+
+TEST_P(TQueryYsonLengthWithIncorrectSyntaxTest, Simple)
+{
+    const auto& args = GetParam();
+    const auto& row = std::get<0>(args);
+    const auto& errorMessage = std::get<1>(args);
+
+    auto split = MakeSplit({{"any", EValueType::Any},});
+    auto source = std::vector<TString>{row,};
+
+    EXPECT_THROW_THAT(
+        Evaluate(
+            "yson_length(any) as length from [//t]",
+            split,
+            source, [] (TRange<TRow> /*result*/, const TTableSchema& /*tableSchema*/) { }),
+        HasSubstr(errorMessage));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    QueryYsonLengthWithIncorrectSyntaxTest,
+    TQueryYsonLengthWithIncorrectSyntaxTest,
+    ::testing::Values(
+        std::make_tuple("any=1", "YSON List or Map expected, but got Int64"),
+        std::make_tuple("any=<attribute=attribute>abc", "YSON List or Map expected, but got String"),
+        std::make_tuple("any=<attribute=attribute>", "Unexpected \"finish\""),
+        std::make_tuple("any={", "Unexpected \"finish\""),
+        std::make_tuple("any=}", "Error occurred while parsing YSON"),
+        std::make_tuple("any={a=}", "Unexpected \"}\""),
+        std::make_tuple("any={<attribute=attribute>}", "Unexpected \"<\""),
+        std::make_tuple("any=[<attribute=attribute>]", "Unexpected \"]\""),
+        std::make_tuple("any={a={b={}}", "Unexpected \"finish\""),
+        std::make_tuple("any={[}", "Unexpected \"[\""),
+        std::make_tuple("any={]", "Unexpected \"]\""),
+        std::make_tuple("any=[}", "Unexpected \"}\""),
+        std::make_tuple("any=[];[]", "Error occurred while parsing YSON")));
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT::NQueryClient

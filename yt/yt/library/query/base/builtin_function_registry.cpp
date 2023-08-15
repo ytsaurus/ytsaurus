@@ -34,6 +34,13 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         ECallingConvention::Simple);
 
     builder->RegisterFunction(
+        "yson_length",
+        std::vector<TType>{EValueType::Any},
+        EValueType::Int64,
+        "yson_length",
+        ECallingConvention::Simple);
+
+    builder->RegisterFunction(
         "concat",
         std::vector<TType>{EValueType::String, EValueType::String},
         EValueType::String,
