@@ -580,23 +580,6 @@ public:
         TNodeId sourceNodeId)
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-
-        TMasterTableSchemaId schemaId;
-        TTransactionId clonedNodeExternalizedTransactionId;
-        if (trunkNode->IsExternal()) {
-            auto externalCellTag = trunkNode->GetExternalCellTag();
-            const auto& transactionManager = Bootstrap_->GetTransactionManager();
-            clonedNodeExternalizedTransactionId = transactionManager->ExternalizeTransaction(Transaction_, {externalCellTag});
-
-            // NB: LockNode will create a branch, and branch expects that schema is already present on the external cell.
-            // TODO(h0pless): Consider refactoring this later by adding a new set of virtual methods to typehandler, responsible for multicell activity.
-            if (IsTableType(trunkNode->GetType())) {
-                auto* table = trunkNode->As<TTableNode>();
-                auto* schema = table->GetSchema();
-                schemaId = schema->GetId();
-            }
-        }
-
         auto* clonedNode = cypressManager->LockNode(
             trunkNode,
             Transaction_,
@@ -620,7 +603,16 @@ public:
                     NTransactionClient::MakeExternalizedTransactionId(transactionId, sourceNodeNativeCellTag);
             }
 
+            TMasterTableSchemaId schemaId;
+            if (IsTableType(trunkNode->GetType())) {
+                auto* table = trunkNode->As<TTableNode>();
+                auto* schema = table->GetSchema();
+                schemaId = schema->GetId();
+            }
+
+            const auto& transactionManager = Bootstrap_->GetTransactionManager();
             auto externalCellTag = clonedNode->GetExternalCellTag();
+            auto clonedNodeExternalizedTransactionId = transactionManager->ExternalizeTransaction(Transaction_, {externalCellTag});
             ClonedExternalNodes_.push_back(TClonedExternalNode{
                 .Mode = context->GetMode(),
                 .SourceNodeId = TVersionedObjectId(sourceNodeId, sourceNodeExternalizedTransactionId),
@@ -4231,15 +4223,14 @@ private:
             clonedNodeId,
             mode);
 
-        // This is a dirty way of doing stuff, but pulling TableSchemaId all the way through DoCloneNode is even worse.
-        // TODO(h0pless): rethink & refactor.
+        // NB: Schema needs to be set here because cloned table's native cell is different from original's.
         if (schemaId) {
             YT_VERIFY(IsTableType(clonedTrunkNode->GetType()));
 
             const auto& tableManager = Bootstrap_->GetTableManager();
             auto* table = clonedTrunkNode->As<TTableNode>();
 
-            tableManager->SetTableSchemaOrThrow(table, schemaId);
+            tableManager->SetTableSchemaOrCrash(table, schemaId);
         }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
