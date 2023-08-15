@@ -69,7 +69,7 @@ void TObjectServiceConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("enable_local_read_executor", &TThis::EnableLocalReadExecutor)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("enable_local_read_busy_wait", &TThis::EnableLocalReadBusyWait)
         .Default(true);
 }
