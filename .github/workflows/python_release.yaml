@@ -47,6 +47,8 @@ jobs:
     runs-on: ${{ needs.start-vm.outputs.label }}
     outputs:
       release_type: ${{ steps.tag.outputs.RELEASE_TYPE }}
+      package_name: ${{ steps.tag.outputs.PACKAGE_NAME }}
+      pydoc_dir: ${{ steps.build.outputs.PYDOC_DIR }}
     steps:
       - name: Parse tag
         id: tag
@@ -62,7 +64,6 @@ jobs:
           echo "PACKAGE_NAME=$(tmp=${GITHUB_REF#refs/*/python*/}; echo ${tmp%%/*})" >> $GITHUB_OUTPUT
 
       - name: Configure
-        shell: bash
         run: |
           mkdir -p ../build
           cd ../build
@@ -76,7 +77,6 @@ jobs:
             ../ytsaurus
 
       - name: Build C++
-        shell: bash
         run: |
           cd ../build
           export CCACHE_BASEDIR="$(realpath ..)"
@@ -85,16 +85,25 @@ jobs:
           ninja yson_lib driver_lib driver_rpc_lib
 
       - name: Build package
-        shell: bash
+        id: build
         run: |
           echo "RELEASE_VERSION: ${{ steps.tag.outputs.RELEASE_VERSION }}"
           echo "PACKAGE_NAME: ${{ steps.tag.outputs.PACKAGE_NAME }}"
           echo "RELEASE_TYPE: ${{ steps.tag.outputs.RELEASE_TYPE }}"
           python3.11 -m venv ../venv
           source ../venv/bin/activate
+          pip3 install -r ./yt/yt/scripts/pytest_requirements.txt
           YTSAURUS_PACKAGE_VERSION=${{ steps.tag.outputs.RELEASE_VERSION }} bash ./yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --ytsaurus-package-name ${{ steps.tag.outputs.PACKAGE_NAME }}
           ytsaurus_python=$(realpath "../build/ytsaurus_python")
           mv "${ytsaurus_python}/$(echo ${{ steps.tag.outputs.PACKAGE_NAME }} | sed -E "s/-/_/g")_dist" dist
+
+          pip3 install sphinx
+          export DOCS_ROOT=$(realpath "../build/pydoc")
+          mkdir "$DOCS_ROOT"
+          cd "${ytsaurus_python}"
+          PYTHONPATH="${ytsaurus_python}" sphinx-apidoc -F -o "$DOCS_ROOT" yt yt/packages yt/test_helpers yt/testlib yt/tool yt/environment yt/local yt/entry yt/operations_archive '*tests*'
+          PYTHONPATH="${ytsaurus_python}" sphinx-build -b html "$DOCS_ROOT" "$DOCS_ROOT/_html"
+          echo "PYDOC_DIR=$DOCS_ROOT/_html" >> $GITHUB_OUTPUT
 
   test_release:
     name: Run release TestPyPi
@@ -105,6 +114,30 @@ jobs:
     if: ${{ needs.build.outputs.release_type == 'test' }}
     runs-on: ${{ needs.start-vm.outputs.label }}
     steps:
+      - name: Publish pydoc
+        uses: yc-actions/yc-obj-storage-upload@v1
+        if: ${{ needs.build.outputs.package_name == 'ytsaurus-client' }}
+        with:
+          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+          bucket: ${{ secrets.TEST_PYDOC_S3_BUCKET }}
+          root: ${{ needs.build.outputs.pydoc_dir }}
+          include: |
+            _sources/*
+            _static/*
+            .doctrees/*
+            _modules/yt/cli/*
+            _modules/yt/clickhouse/*
+            _modules/yt/tools/*
+            _modules/yt/type_info/*
+            _modules/yt/wire_format/*
+            _modules/yt/wrapper/*
+            _modules/yt/wrapper/schema/*
+            _modules/yt/ypath/*
+            _modules/yt/yson/*
+            _modules/yt/*
+            _modules/*
+            *
+
       - name: Publish package distributions to TestPyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
@@ -120,6 +153,30 @@ jobs:
     if: ${{ needs.build.outputs.release_type == 'prod' }}
     runs-on: ${{ needs.start-vm.outputs.label }}
     steps:
+      - name: Publish pydoc
+        uses: yc-actions/yc-obj-storage-upload@v1
+        if: ${{ needs.build.outputs.package_name == 'ytsaurus-client' }}
+        with:
+          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+          bucket: ${{ secrets.PYDOC_S3_BUCKET }}
+          root: ${{ needs.build.outputs.pydoc_dir }}
+          include: |
+            _sources/*
+            _static/*
+            .doctrees/*
+            _modules/yt/cli/*
+            _modules/yt/clickhouse/*
+            _modules/yt/tools/*
+            _modules/yt/type_info/*
+            _modules/yt/wire_format/*
+            _modules/yt/wrapper/*
+            _modules/yt/wrapper/schema/*
+            _modules/yt/ypath/*
+            _modules/yt/yson/*
+            _modules/yt/*
+            _modules/*
+            *
+
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
