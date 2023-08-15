@@ -11,14 +11,19 @@ using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TJobExperimentBase::IsEnabled(const TOperationSpecBasePtr& operationSpec)
+bool TJobExperimentBase::IsEnabled(const TOperationSpecBasePtr& operationSpec,
+    const std::vector<TUserJobSpecPtr>& userJobSpecs)
 {
     return operationSpec &&
         operationSpec->JobExperiment &&
         !operationSpec->TryAvoidDuplicatingJobs &&
         !operationSpec->FailOnJobRestart &&
         operationSpec->MaxProbingJobCountPerTask != 0 &&
-        operationSpec->MaxSpeculativeJobCountPerTask != 0;
+        operationSpec->MaxSpeculativeJobCountPerTask != 0 &&
+        std::all_of(userJobSpecs.begin(), userJobSpecs.end(), [](const auto& userJobSpec) {
+            auto vanillaTaskSpec = dynamic_cast<const TVanillaTaskSpec*>(userJobSpec.Get());
+            return !vanillaTaskSpec || !vanillaTaskSpec->RestartCompletedJobs;
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,7 +46,7 @@ bool TLayerJobExperiment::IsEnabled(
     const TOperationSpecBasePtr& operationSpec,
     const std::vector<TUserJobSpecPtr>& userJobSpecs)
 {
-    return TJobExperimentBase::IsEnabled(operationSpec) &&
+    return TJobExperimentBase::IsEnabled(operationSpec, userJobSpecs) &&
         operationSpec->DefaultBaseLayerPath &&
         operationSpec->JobExperiment->BaseLayerPath &&
         std::all_of(
@@ -116,7 +121,7 @@ bool TMtnJobExperiment::IsEnabled(
     const TOperationSpecBasePtr& operationSpec,
     const std::vector<TUserJobSpecPtr>& userJobSpecs)
 {
-    return TJobExperimentBase::IsEnabled(operationSpec) &&
+    return TJobExperimentBase::IsEnabled(operationSpec, userJobSpecs) &&
         operationSpec->JobExperiment->NetworkProject &&
         std::all_of(
             userJobSpecs.begin(),
@@ -189,7 +194,7 @@ TExperimentJobManager::TExperimentJobManager(
 
 void TExperimentJobManager::SetJobExperiment(const TJobExperimentBasePtr& jobExperiment)
 {
-    if (TJobExperimentBase::IsEnabled(OperationSpec_)) {
+    if (TJobExperimentBase::IsEnabled(OperationSpec_, {})) {
         JobExperiment_ = jobExperiment;
     }
 }
