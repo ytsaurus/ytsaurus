@@ -6,9 +6,16 @@ import yt.cli.yt_binary
 import yt.python.yt.wrapper.bin.yt_cli_all_make.yt_admin as yt_admin
 
 
+def python_yt():
+    env = os.environ.copy()
+    env["Y_PYTHON_ENTRY_POINT"] = ":main"
+    os.execvpe(sys.argv[0], sys.argv, env=env)
+
+
 MAIN_DICT = {
     "yt": yt.cli.yt_binary.main,
     "yt-admin": yt_admin.main,
+    "python-yt": python_yt,
 }
 
 
