@@ -416,9 +416,9 @@ private:
         // First, we collect all dynamic state objects for which the current Cypress revision
         // is larger than the stored revision.
 
-        // Objects that were considered to be modified based on the contents of the watchlist.
-        // Used for adding polling objects.
-        THashSet<TCrossClusterReference> modifiedObjects;
+        // Objects for which we can infer from the watchlist whether they were modified or not.
+        // Used for adding objects polled from the registration table.
+        THashSet<TCrossClusterReference> watchedObjects;
 
         if (auto clusterToObjectsIt = ClusterToDynamicStateObjects_.find(cluster); clusterToObjectsIt != ClusterToDynamicStateObjects_.end()) {
             for (const auto& object : clusterToObjectsIt->second) {
@@ -433,7 +433,12 @@ private:
                             object.Revision,
                             cypressObjectIt->second);
                         ClusterToModifiedObjects_[cluster].push_back(object);
-                        modifiedObjects.insert(object.Object);
+                        watchedObjects.insert(object.Object);
+                    } else if (object.ObjectType && !IsReplicatedTableObjectType(*object.ObjectType)) {
+                        // Besides actually modified objects, we also add regular objects for which the revision has
+                        // not changed to this list, so that we do not perform unnecessary attribute fetches when
+                        // adding objects polled from registrations.
+                        watchedObjects.insert(object.Object);
                     }
                     relevantCypressWatchlist.erase(cypressObjectIt);
                 } else if (!isPolledObject) {
@@ -470,7 +475,7 @@ private:
                     .Type = type,
                     .Revision = revision,
                 });
-                modifiedObjects.insert(objectRef);
+                watchedObjects.insert(objectRef);
             }
         }
 
@@ -482,7 +487,7 @@ private:
             // There is no way to distinguish these objects from watched replicated objects for which the master
             // revision doesn't always change when we want it to change (e.g. when the replica set is updated).
             // TODO(achulkov2): How long do we want to keep this behavior? Especially the latter.
-            if (!modifiedObjects.contains(object.Object)) {
+            if (!watchedObjects.contains(object.Object)) {
                 YT_LOG_DEBUG("Discovered polled registration table object (Object: %v)", object.Object);
                 ClusterToModifiedObjects_[cluster].push_back(object);
             }
