@@ -754,13 +754,9 @@ private:
         }
         req->set_is_cypress_transaction(options.StartCypressTransaction);
         if (options.ReplicateToMasterCellTags) {
-            if (options.ReplicateToMasterCellTags->empty()) {
-                req->set_dont_replicate(true);
-            } else {
-                for (auto tag : *options.ReplicateToMasterCellTags) {
-                    if (tag != CoordinatorMasterCellTag_) {
-                        req->add_replicate_to_cell_tags(ToProto<int>(tag));
-                    }
+            for (auto tag : *options.ReplicateToMasterCellTags) {
+                if (tag != CoordinatorMasterCellTag_) {
+                    req->add_replicate_to_cell_tags(ToProto<int>(tag));
                 }
             }
         }

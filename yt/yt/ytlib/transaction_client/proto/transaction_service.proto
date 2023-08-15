@@ -16,16 +16,15 @@ message TReqStartTransaction
 
     reserved 6;
 
-    // If replicate_to_cell_tags are empty then at primary all secondaries are assumed
-    // for compatibility reason. To suppress any replication, set dont_replicate to true.
+    // If replicate_to_cell_tags are empty then at primary all secondaries are assumed.
     repeated int32 replicate_to_cell_tags = 7;
-    // COMPAT(shakurov): remove this once transaction sharding is deployed to all masters.
-    optional bool dont_replicate = 9;
 
     required int64 timeout = 3;
     optional uint64 deadline = 8;
 
     optional bool is_cypress_transaction = 10;
+
+    reserved 9;
 }
 
 message TRspStartTransaction

@@ -1440,30 +1440,10 @@ private:
             deadline = FromProto<TInstant>(request->deadline());
         }
 
-        TCellTagList replicateToCellTags;
-        if (!request->dont_replicate()) {
-            // Handling *empty* replicate_to_cell_tags has changed. Regardless of dont_replicate,
-            // replication is skipped (well, more likely deferred). The "replicate to all cells"
-            // behavior is no more (the config option to enable it will go away soon).
-            //
-            // This makes dont_replicate obsolete, and it will be removed in the future. For now,
-            // it has to stay for compatibility.
-            //
-            // Other than that, we still obey replicate_to_cell_tags and do not attempt to be lazy
-            // in this regard. This has two benefits:
-            //   - it allows for better performance in certain cases;
-            //   - it allows us to do without lazy transaction replication support in certain methods.
-            //
-            // One example of the latter is dyntable-related transactions. They specify target cells
-            // explicitly, and this allows us, when registering a transaction action, to expect the
-            // transaction to be present at the target cell immediately.
-
-            replicateToCellTags = FromProto<TCellTagList>(request->replicate_to_cell_tags());
-
-            if (!GetDynamicConfig()->EnableLazyTransactionReplication && replicateToCellTags.empty()) {
-                const auto& multicellManager = Bootstrap_->GetMulticellManager();
-                replicateToCellTags = multicellManager->GetRegisteredMasterCellTags();
-            }
+        auto replicateToCellTags = FromProto<TCellTagList>(request->replicate_to_cell_tags());
+        if (!GetDynamicConfig()->EnableLazyTransactionReplication) {
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            replicateToCellTags = multicellManager->GetRegisteredMasterCellTags();
         }
 
         auto isCypressTransaction = request->is_cypress_transaction();

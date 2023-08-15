@@ -21,12 +21,10 @@ message TReqStartTransaction
 
     // See NYT.NTransactionClient.NProto.TReqStartTransaction.
     repeated int32 replicate_to_cell_tags = 9;
-    // COMPAT(shakurov): remove this once transaction sharding is deployed to all masters.
-    optional bool dont_replicate = 11;
 
     optional bool is_cypress_transaction = 13;
 
-    reserved 2;
+    reserved 2, 11;
 }
 
 message TReqPrepareTransactionCommit
