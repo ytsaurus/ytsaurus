@@ -3,6 +3,7 @@
 #include <yt/cpp/mapreduce/interface/client.h>
 
 #include <yt/cpp/mapreduce/util/batch.h>
+#include <yt/cpp/mapreduce/common/helpers.h>
 
 namespace NYT::NDetail {
 
@@ -59,15 +60,51 @@ i64 TTableSlicer::GetUpperLimit() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+
+template <typename TResult>
+TVector<TResult> CollectUniqueRawPathVectorCallResultsForRichPathVector(
+    const IClientBasePtr& client,
+    const TVector<TRichYPath>& paths,
+    const std::function<TVector<TResult>(const IClientBasePtr&, const TVector<TYPath>&)> &fn)
+{
+    THashSet<TYPath> uniqueRawPathsSet;
+    for (const auto& path : paths) {
+        uniqueRawPathsSet.emplace(path.Path_);
+    }
+    TVector<TYPath> rawPaths(uniqueRawPathsSet.begin(), uniqueRawPathsSet.end());
+
+    auto valuesList = fn(client, rawPaths);
+    Y_VERIFY(valuesList.size() == rawPaths.size());
+    THashMap<TYPath, TResult> rawPathToResult;
+    rawPathToResult.reserve(rawPaths.size());
+    for (int i = 0; i < static_cast<int>(rawPaths.size()); i++) {
+        rawPathToResult.emplace(rawPaths[i], std::move(valuesList[i]));
+    }
+
+    TVector<TResult> result;
+    result.reserve(paths.size());
+
+    for (const auto& path : paths) {
+        result.emplace_back(rawPathToResult.at(path.Path_));
+    }
+    return result;
+}
+
+
 std::pair<IClientBasePtr, TVector<TRichYPath>> CreateRangeReaderClientAndPaths(
     const IClientBasePtr& client,
     const TVector<TRichYPath>& paths,
     bool createTransaction)
 {
     auto lockPaths = [&] (const IClientBasePtr& client, TVector<TRichYPath> paths) {
-        auto locks = BatchTransform(client, paths, [] (const TBatchRequestPtr& batch, const TRichYPath& path) {
-            return batch->Lock(path.Path_, ELockMode::LM_SNAPSHOT);
-        });
+        auto locks = CollectUniqueRawPathVectorCallResultsForRichPathVector<ILockPtr>(
+            client, paths, [] ( const auto& client, const auto& rawPaths) {
+                return BatchTransform(client, rawPaths, [] (const TBatchRequestPtr& batch, const TYPath& path) {
+                    return batch->Lock(path, ELockMode::LM_SNAPSHOT);
+                });
+            }
+        );
+
         TVector<TRichYPath> result = std::move(paths);
         for (int i = 0; i < static_cast<int>(paths.size()); ++i) {
             result[i].Path("#" + GetGuidAsString(locks[i]->GetLockedNodeId()));
@@ -109,47 +146,75 @@ std::pair<IClientBasePtr, TVector<TRichYPath>> CreateRangeReaderClientAndPaths(
     return {std::move(rangeReaderClient), std::move(rangeReaderPaths)};
 }
 
+
 i64 EstimateTableRowWeight(const IClientBasePtr& client, const TVector<TRichYPath>& paths)
 {
-    TVector<TRichYPath> pathsForColumnStatistics;
+    TVector<i64> dataWeights;
+    dataWeights.reserve(paths.size());
+    TVector<i64> rowCounts;
+    rowCounts.reserve(paths.size());
 
-    auto dataWeights = BatchTransform(client, paths, [&] (const TBatchRequestPtr& batch, const TRichYPath& path) {
-        if (path.Columns_) {
-            auto pathWithoutRanges = path;
-            pathWithoutRanges.ResetRanges();
-            pathsForColumnStatistics.push_back(pathWithoutRanges);
-            return NThreading::MakeFuture(TNode(0));
-        } else {
-            return batch->Get(path.Path_ + "/@data_weight");
-        }
-    });
+    /// ------------------- @row_count and @data_weight --------------------------
+    {
+        auto attributes = CollectUniqueRawPathVectorCallResultsForRichPathVector<TNode>(
+            client, paths, [] ( const auto& client, const auto& rawPaths) {
+                return BatchTransform(client, rawPaths, [] (const TBatchRequestPtr& batch, const TYPath& path) {
+                    return batch->Get(path + "/@", TGetOptions().AttributeFilter(TAttributeFilter().AddAttribute("data_weight").AddAttribute("row_count")));
+                });
+            }
+        );
 
-    if (!pathsForColumnStatistics.empty()) {
-        auto columnarStatistics = client->GetTableColumnarStatistics(pathsForColumnStatistics);
-        auto statisticsIt = columnarStatistics.cbegin();
-        for (int i = 0; i < static_cast<int>(paths.size()); ++i) {
-            const auto& path = paths[i];
-            if (!path.Columns_) {
-                continue;
-            }
-            Y_VERIFY(statisticsIt != columnarStatistics.cend());
-            i64 dataWeight = 0;
-            for (const auto& [columnName, columnWeight] : statisticsIt->ColumnDataWeight) {
-                dataWeight += columnWeight;
-            }
-            dataWeights[i] = dataWeight;
-            ++statisticsIt;
+        for (const auto& node : attributes) {
+            dataWeights.emplace_back(node.ChildConvertTo<i64>("data_weight"));
+            rowCounts.emplace_back(node.ChildConvertTo<i64>("row_count"));
         }
     }
 
-    auto rowCounts = BatchTransform(client, paths, [&] (const TBatchRequestPtr& batch, const TRichYPath& path) {
-        return batch->Get(path.Path_ + "/@row_count");
-    });
+    /// ------------------- Columnar statistics --------------------------
+    {
+        THashMap<TYPath, THashSet<TString>> tableToColumnsSet;
+        for (const auto& path : paths) {
+            if (path.Columns_) {
+                for (const auto& column : path.Columns_->Parts_) {
+                    tableToColumnsSet[path.Path_].emplace(column);
+                }
+            }
+        }
 
+        TVector<TRichYPath> pathsForColumnStatistics;
+        for (const auto& [path, columnsSet] : tableToColumnsSet) {
+            TRichYPath richPath(path);
+            richPath.Columns(TVector<TString>(columnsSet.begin(), columnsSet.end()));
+            pathsForColumnStatistics.emplace_back(richPath);
+        }
+
+        if (!pathsForColumnStatistics.empty()) {
+            THashMap<TString, TTableColumnarStatistics> columnarStatistics;
+            auto columnarStatsResponse = client->GetTableColumnarStatistics(pathsForColumnStatistics);
+            for (int i = 0; i < static_cast<int>(columnarStatsResponse.size()); i++) {
+                columnarStatistics.emplace(pathsForColumnStatistics[i].Path_, columnarStatsResponse[i]);
+            }
+
+            for (int i = 0; i < static_cast<int>(paths.size()); ++i) {
+                const auto& path = paths[i];
+                if (!path.Columns_) {
+                    continue;
+                }
+                const auto& colStats = columnarStatistics.at(path.Path_);
+                i64 dataWeight = 0;
+                for (const auto& column : path.Columns_->Parts_) {
+                    dataWeight += colStats.ColumnDataWeight.at(column);
+                }
+                dataWeights[i] = dataWeight;
+            }
+        }
+    }
+
+    // --------------------- Row weight estimation ---------------------
     i64 rowWeight = 1;
     for (int i = 0; i < static_cast<int>(paths.size()); ++i) {
-        auto dataWeight = dataWeights[i].AsInt64();
-        auto rowCount = Max(rowCounts[i].AsInt64(), static_cast<i64>(1));
+        auto dataWeight = dataWeights[i];
+        auto rowCount = Max(rowCounts[i], static_cast<i64>(1));
         rowWeight = Max(rowWeight, dataWeight / rowCount);
     }
     return rowWeight;
