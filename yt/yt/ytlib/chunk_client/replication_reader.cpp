@@ -3001,9 +3001,10 @@ private:
         TotalBytesReceived_ += result.Size();
         BytesToThrottle_ += result.Size();
 
-        if (ShouldThrottle(respondedPeer.Address, BytesToThrottle_ > 0)) {
-            BytesThrottled_ += BytesToThrottle_;
-            BandwidthThrottler_->Acquire(BytesToThrottle_);
+        if (ShouldThrottle(respondedPeer.Address, BytesToThrottle_ > BytesThrottled_)) {
+            auto delta = BytesToThrottle_ - BytesThrottled_;
+            BytesThrottled_ += delta;
+            BandwidthThrottler_->Acquire(delta);
             BytesToThrottle_ = 0;
         }
 
