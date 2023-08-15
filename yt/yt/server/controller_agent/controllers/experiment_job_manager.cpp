@@ -9,7 +9,7 @@ using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TJobExperimentBase::IsEnabled(TOperationSpecBasePtr operationSpec)
+bool TJobExperimentBase::IsEnabled(const TOperationSpecBasePtr& operationSpec)
 {
     return operationSpec &&
         operationSpec->JobExperiment &&
@@ -36,8 +36,8 @@ TLayerJobExperiment::TLayerJobExperiment(
 { }
 
 bool TLayerJobExperiment::IsEnabled(
-    TOperationSpecBasePtr operationSpec,
-    std::vector<TUserJobSpecPtr> userJobSpecs)
+    const TOperationSpecBasePtr& operationSpec,
+    const std::vector<TUserJobSpecPtr>& userJobSpecs)
 {
     return TJobExperimentBase::IsEnabled(operationSpec) &&
         operationSpec->DefaultBaseLayerPath &&
@@ -45,10 +45,12 @@ bool TLayerJobExperiment::IsEnabled(
         std::all_of(
             userJobSpecs.begin(),
             userJobSpecs.end(),
-            [](TUserJobSpecPtr userJobSpec) { return userJobSpec->LayerPaths.empty(); });
+            [](const auto& userJobSpec) { return userJobSpec->LayerPaths.empty(); });
 }
 
-void TLayerJobExperiment::PatchUserJobSpec(NScheduler::NProto::TUserJobSpec* jobSpec, TJobletPtr joblet) const
+void TLayerJobExperiment::PatchUserJobSpec(
+    NScheduler::NProto::TUserJobSpec* jobSpec,
+    const TJobletPtr& joblet) const
 {
     YT_LOG_DEBUG("Switching the job to the probing layer (JobId: %v, Layer: %v)",
         joblet->JobId,
@@ -66,7 +68,7 @@ EOperationAlertType TLayerJobExperiment::GetAlertType() const
     return EOperationAlertType::BaseLayerProbeFailed;
 }
 
-TError TLayerJobExperiment::GetAlertMessage(TOperationSpecBasePtr operationSpec) const
+TError TLayerJobExperiment::GetAlertMessage(const TOperationSpecBasePtr& operationSpec) const
 {
     return TError(
         "A job with experimental base layer has failed; "
@@ -109,18 +111,20 @@ TMtnJobExperiment::TMtnJobExperiment(
 }
 
 bool TMtnJobExperiment::IsEnabled(
-    TOperationSpecBasePtr operationSpec,
-    std::vector<TUserJobSpecPtr> userJobSpecs)
+    const TOperationSpecBasePtr& operationSpec,
+    const std::vector<TUserJobSpecPtr>& userJobSpecs)
 {
     return TJobExperimentBase::IsEnabled(operationSpec) &&
         operationSpec->JobExperiment->NetworkProject &&
         std::all_of(
             userJobSpecs.begin(),
             userJobSpecs.end(),
-            [](TUserJobSpecPtr userJobSpec) { return !userJobSpec->NetworkProject; });
+            [](const auto& userJobSpec) { return !userJobSpec->NetworkProject; });
 }
 
-void TMtnJobExperiment::PatchUserJobSpec(NScheduler::NProto::TUserJobSpec* jobSpec, TJobletPtr joblet) const
+void TMtnJobExperiment::PatchUserJobSpec(
+    NScheduler::NProto::TUserJobSpec* jobSpec,
+    const TJobletPtr& joblet) const
 {
     YT_LOG_DEBUG("Switching the job to the probing network project "
         "(JobId: %v, NetworkProject: %v, NetworkProjectId: %v, EnableNat64: %v, DisableNetwork: %v)",
@@ -140,7 +144,7 @@ EOperationAlertType TMtnJobExperiment::GetAlertType() const
     return EOperationAlertType::MtnExperimentFailed;
 }
 
-TError TMtnJobExperiment::GetAlertMessage(TOperationSpecBasePtr operationSpec) const
+TError TMtnJobExperiment::GetAlertMessage(const TOperationSpecBasePtr& operationSpec) const
 {
     return TError(
         "A job with experimental network settings has failed; "
@@ -170,7 +174,7 @@ TExperimentJobManager::TExperimentJobManager()
 
 TExperimentJobManager::TExperimentJobManager(
     ICompetitiveJobManagerHost* host,
-    TOperationSpecBasePtr operationSpec,
+    const TOperationSpecBasePtr& operationSpec,
     NLogging::TLogger logger)
     : TCompetitiveJobManagerBase(
         host,
@@ -181,7 +185,7 @@ TExperimentJobManager::TExperimentJobManager(
     , OperationSpec_(operationSpec)
 { }
 
-void TExperimentJobManager::SetJobExperiment(TJobExperimentBasePtr jobExperiment)
+void TExperimentJobManager::SetJobExperiment(const TJobExperimentBasePtr& jobExperiment)
 {
     if (TJobExperimentBase::IsEnabled(OperationSpec_)) {
         JobExperiment_ = jobExperiment;
@@ -340,7 +344,9 @@ TJobId TExperimentJobManager::GetFailedControlJob() const
     return FailedControlJob_;
 }
 
-void TExperimentJobManager::PatchUserJobSpec(NScheduler::NProto::TUserJobSpec* jobSpec, TJobletPtr joblet) const
+void TExperimentJobManager::PatchUserJobSpec(
+    NScheduler::NProto::TUserJobSpec* jobSpec,
+    const TJobletPtr& joblet) const
 {
     if (IsEnabled() &&
         (joblet->CompetitionType == EJobCompetitionType::Experiment || ShouldSwitchSettings()))
