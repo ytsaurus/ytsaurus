@@ -978,8 +978,8 @@ class TestCellId(object):
 class TestExternalize(object):
     @authors("ignat")
     def test_externalize(self):
-        yt.create("account", attributes={"name": "a", "resource_limits" : get_default_resource_limits(yt)})
-        yt.create("account", attributes={"name": "b", "resource_limits" : get_default_resource_limits(yt)})
+        yt.create("account", attributes={"name": "a", "resource_limits": get_default_resource_limits()})
+        yt.create("account", attributes={"name": "b", "resource_limits": get_default_resource_limits()})
         yt.create("user", attributes={"name": "u"})
         wait(lambda: yt.get("//sys/users/u/@life_stage") == "creation_committed")
         wait(lambda: yt.get("//sys/accounts/a/@life_stage") == "creation_committed")

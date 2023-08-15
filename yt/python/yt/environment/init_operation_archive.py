@@ -83,7 +83,7 @@ def create_operations_archive_account(client):
         logging.info("Creating account: %s", OPERATIONS_ARCHIVE_ACCOUNT_NAME)
         client.create("account", attributes={
             "name": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
-            "resource_limits" : get_default_resource_limits(client)
+            "resource_limits" : get_default_resource_limits(),
         })
         while client.get("//sys/accounts/{0}/@life_stage".format(OPERATIONS_ARCHIVE_ACCOUNT_NAME)) != "creation_committed":
             time.sleep(0.1)

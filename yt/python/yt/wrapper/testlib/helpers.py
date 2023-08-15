@@ -200,7 +200,7 @@ def run_python_script_with_check(yt_env, script):
 
 
 # By default, accounts have empty resource limits upon creation.
-def get_default_resource_limits(client):
+def get_default_resource_limits():
     GB = 1024 ** 3
     TB = 1024 ** 4
 
@@ -211,14 +211,11 @@ def get_default_resource_limits(client):
             "total": 100 * GB,
             "chunk_host": 100 * GB,
             "per_cell": {}
-        }
+        },
+        "disk_space_per_medium": {
+            "default": 10 * TB,
+        },
     }
-
-    # Backwards compatibility.
-    if client.exists("//sys/media"):
-        result["disk_space_per_medium"] = {"default": 10 * TB}
-    else:
-        result["disk_space"] = 10 * TB
 
     return result
 

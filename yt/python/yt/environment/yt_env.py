@@ -10,7 +10,7 @@ from .helpers import (
     is_port_opened, push_front_env_path)
 from .porto_helpers import PortoSubprocess, porto_available
 from .watcher import ProcessWatcher
-from .init_cluster import _initialize_world
+from .init_cluster import _initialize_world_for_local_cluster
 from .local_cypress import _synchronize_cypress_with_local_dir
 from .local_cluster_configuration import modify_cluster_configuration
 
@@ -548,7 +548,7 @@ class YTInstance(object):
                     # we should use latter.
                     client.config["proxy"]["enable_proxy_discovery"] = False
 
-                    _initialize_world(
+                    _initialize_world_for_local_cluster(
                         client,
                         self,
                         self.yt_config)
