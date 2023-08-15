@@ -102,7 +102,7 @@ private:
     void OnResponse(
         const IServiceContextPtr& context,
         const TYPath& path,
-        const TString& method,
+        std::string method,
         const TOrchidServiceProxy::TErrorOrRspExecutePtr& rspOrError)
     {
         if (rspOrError.IsOK()) {

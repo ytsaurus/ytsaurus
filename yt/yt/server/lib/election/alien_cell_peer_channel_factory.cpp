@@ -109,7 +109,7 @@ public:
         return GetChannel();
     }
 
-    TFuture<IChannelPtr> GetChannel(const TString& /*request*/) override
+    TFuture<IChannelPtr> GetChannel(std::string /*serviceName*/) override
     {
         return GetChannel();
     }

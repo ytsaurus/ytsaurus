@@ -56,13 +56,13 @@ std::optional<TTransaction*> GetTransactionFromToken(TPathResolver::TTransaction
 
 TPathResolver::TPathResolver(
     TBootstrap* bootstrap,
-    const TString& service,
-    const TString& method,
+    std::string service,
+    std::string method,
     const NYPath::TYPath& path,
     TTransactionToken transactionToken)
     : Bootstrap_(bootstrap)
-    , Service_(service)
-    , Method_(method)
+    , Service_(std::move(service))
+    , Method_(std::move(method))
     , Path_(path)
     , TransactionId_(GetTransactionIdFromToken(transactionToken))
     , Transaction_(GetTransactionFromToken(transactionToken))

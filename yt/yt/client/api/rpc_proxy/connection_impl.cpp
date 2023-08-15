@@ -180,7 +180,7 @@ public:
     void Terminate(const TError& /*error*/) override
     { }
 
-    TFuture<IChannelPtr> GetChannel(const TString& /*serviceName*/) override
+    TFuture<IChannelPtr> GetChannel(std::string /*serviceName*/) override
     {
         return GetChannel();
     }
