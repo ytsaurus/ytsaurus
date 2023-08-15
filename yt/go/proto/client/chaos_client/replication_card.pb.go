@@ -7,7 +7,7 @@
 package chaos_client
 
 import (
-	misc "go.ytsaurus.tech/yt/go/proto/core/misc"
+	misc "github.com/doublecloud/transfer/yt/go/proto/core/misc"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
