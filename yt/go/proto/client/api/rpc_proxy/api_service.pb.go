@@ -7,11 +7,11 @@
 package rpc_proxy
 
 import (
-	chaos_client "github.com/doublecloud/transfer/yt/go/proto/client/chaos_client"
-	chunk_client "github.com/doublecloud/transfer/yt/go/proto/client/chunk_client"
-	hive "github.com/doublecloud/transfer/yt/go/proto/client/hive"
-	misc "github.com/doublecloud/transfer/yt/go/proto/core/misc"
-	ytree "github.com/doublecloud/transfer/yt/go/proto/core/ytree"
+	chaos_client "go.ytsaurus.tech/yt/go/proto/client/chaos_client"
+	chunk_client "go.ytsaurus.tech/yt/go/proto/client/chunk_client"
+	hive "go.ytsaurus.tech/yt/go/proto/client/hive"
+	misc "go.ytsaurus.tech/yt/go/proto/core/misc"
+	ytree "go.ytsaurus.tech/yt/go/proto/core/ytree"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
