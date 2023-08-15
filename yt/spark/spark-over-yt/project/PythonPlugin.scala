@@ -66,7 +66,7 @@ object PythonPlugin extends AutoPlugin {
     pythonUpload := {
       val log = streams.value.log
       val dPassword = pypiPassword.map(x => s"-p $x").getOrElse("")
-      val command = s"${pythonCommand.value} -m twine upload --repository-url https://upload.pypi.org/legacy/ -u __token__ $dPassword --verbose dist/*"
+      val command = s"${pythonCommand.value} -m twine upload --non-interactive --repository-url https://upload.pypi.org/legacy/ -u __token__ $dPassword --verbose dist/*"
       if (sys.env.get("RELEASE_TEST").exists(_.toBoolean)) {
         log.info(s"RELEASE_TEST: run $command")
       } else {

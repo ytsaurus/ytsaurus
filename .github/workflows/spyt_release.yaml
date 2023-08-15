@@ -126,7 +126,7 @@ jobs:
             -DcustomClusterVersion=${{ needs.prepare_env.outputs.release_version }} \
             -DcustomSparkForkVersion=${{ needs.prepare_env.outputs.release_major_version }} \
             -Dgpg.passphrase=${{ secrets.GPG_PASSWORD }} \
-            -Dpypi.password=${{ secrets.TEST_PYPI_API_TOKEN }} \
+            -Dpypi.password=${{ secrets.PYPI_API_TOKEN }} \
             spytPublishSparkForkRelease
         env:
           OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
@@ -211,7 +211,7 @@ jobs:
             -DcustomClusterVersion=${{ needs.prepare_env.outputs.release_version }} \
             -DcustomSparkForkVersion=${{ needs.prepare_env.outputs.release_major_version }} \
             -Dgpg.passphrase=${{ secrets.GPG_PASSWORD }} \
-            -Dpypi.password=${{ secrets.TEST_PYPI_API_TOKEN }} \
+            -Dpypi.password=${{ secrets.PYPI_API_TOKEN }} \
             spytPublishClusterRelease
         env:
           OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
