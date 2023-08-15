@@ -361,7 +361,10 @@ public:
 
     i64 GetMaxDataSlicesPerJob() const override
     {
-        return std::max<i64>(Options_->MaxDataSlicesPerJob, Spec_->JobCount && *Spec_->JobCount > 0
+        auto maxDataSlicesPerJob = std::min(
+            Spec_->MaxDataSlicesPerJob.value_or(Options_->MaxDataSlicesPerJob),
+            Options_->MaxDataSlicesPerJobLimit);
+        return std::max<i64>(maxDataSlicesPerJob, Spec_->JobCount && *Spec_->JobCount > 0
             ? DivCeil<i64>(InputChunkCount_, *Spec_->JobCount)
             : 1);
     }

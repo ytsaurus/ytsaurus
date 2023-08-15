@@ -316,8 +316,11 @@ public:
     //! Controls finer initial slicing of input data to ensure even distribution of data split sizes among jobs.
     double SliceDataWeightMultiplier;
 
-    //! Maximum number of primary data slices per job.
+    //! Maximum number of primary data slices per job. It is the default value for user operations.
     int MaxDataSlicesPerJob;
+
+    //! Users can tune the maximum number of primary data slices per job in their operations upto this limit.
+    int MaxDataSlicesPerJobLimit;
 
     i64 MaxSliceDataWeight;
     i64 MinSliceDataWeight;

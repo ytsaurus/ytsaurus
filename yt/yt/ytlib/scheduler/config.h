@@ -1349,6 +1349,8 @@ public:
     std::optional<int> JobCount;
     std::optional<int> MaxJobCount;
 
+    std::optional<int> MaxDataSlicesPerJob;
+
     bool ForceJobSizeAdjuster;
 
     TDuration LocalityTimeout;

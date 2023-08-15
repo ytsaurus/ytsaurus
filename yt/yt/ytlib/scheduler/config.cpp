@@ -1195,6 +1195,9 @@ void TSimpleOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("max_job_count", &TThis::MaxJobCount)
         .Default()
         .GreaterThan(0);
+    registrar.Parameter("max_data_slices_per_job", &TThis::MaxDataSlicesPerJob)
+        .Default()
+        .GreaterThan(0);
     registrar.Parameter("force_job_size_adjuster", &TThis::ForceJobSizeAdjuster)
         .Default(false);
     registrar.Parameter("locality_timeout", &TThis::LocalityTimeout)
