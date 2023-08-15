@@ -3839,10 +3839,11 @@ class TestFifoPools(YTEnvSetup):
         set("//sys/pool_trees/default/first/@resource_limits", {"user_slots": 1})
         set("//sys/pool_trees/default/second/@resource_limits", {"user_slots": 1})
 
+        wait(lambda: get(scheduler_orchid_pool_path("second") + "/resource_limits/user_slots") == 1)
+
         op_a1 = run_sleeping_vanilla(job_count=2, spec={"pool": "first"})
         op_b1 = run_sleeping_vanilla(job_count=2, spec={"pool": "second"})
 
-        time.sleep(0.1)
         wait(lambda: get(scheduler_orchid_operation_path(op_a1.id) + "/resource_usage/user_slots", default=None) == 1)
         wait(lambda: get(scheduler_orchid_operation_path(op_b1.id) + "/resource_usage/user_slots") == 1)
 
