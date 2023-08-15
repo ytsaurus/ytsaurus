@@ -25,7 +25,7 @@
 #endif /* _WIN32 */
 
 #ifdef _WIN32
-#error #include "windows.hxx"
+#include "windows.hxx"
 #endif
 
 #include "replxx_impl.hxx"

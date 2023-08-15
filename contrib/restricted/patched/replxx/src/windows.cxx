@@ -2,7 +2,7 @@
 
 #include <iostream>
 
-#error #include "windows.hxx"
+#include "windows.hxx"
 #include "conversion.hxx"
 #include "terminal.hxx"
 

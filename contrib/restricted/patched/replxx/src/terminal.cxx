@@ -20,7 +20,7 @@
 static DWORD const ENABLE_VIRTUAL_TERMINAL_PROCESSING = 4;
 #endif
 
-#error #include "windows.hxx"
+#include "windows.hxx"
 
 #else /* _WIN32 */
 
