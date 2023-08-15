@@ -1356,8 +1356,6 @@ void TChunkLocation::ResetLocationStatistic()
         count.store(0);
     }
     ChunkCount_.store(0);
-
-    ChunkStoreHost_->ScheduleMasterHeartbeat();
 }
 
 const TChunkStorePtr& TChunkLocation::GetChunkStore() const
@@ -1874,6 +1872,16 @@ bool TStoreLocation::ScheduleDisable(const TError& reason)
 
     BIND([=, this, this_ = MakeStrong(this)] () {
         try {
+            CreateDisableLockFile(reason);
+        } catch (const std::exception& ex) {
+            YT_LOG_ALERT(ex, "Creating disable lock file failed");
+        }
+
+        try {
+            // Fast removal of chunks is necessary to avoid problems with access to chunks on the node.
+            RemoveLocationChunks();
+            ChunkStoreHost_->ScheduleMasterHeartbeat();
+
             ChunkStoreHost_->CancelLocationSessions(MakeStrong(static_cast<TChunkLocation*>(this)));
 
             WaitFor(BIND(&TStoreLocation::SynchronizeActions, MakeStrong(this))
@@ -1881,11 +1889,12 @@ bool TStoreLocation::ScheduleDisable(const TError& reason)
                 .Run())
                 .ThrowOnError();
 
+            // Additional removal of chunks that were recorded in unfinished sessions.
             RemoveLocationChunks();
             ResetLocationStatistic();
-            CreateDisableLockFile(reason);
+            ChunkStoreHost_->ScheduleMasterHeartbeat();
         } catch (const std::exception& ex) {
-            YT_LOG_ALERT(ex, "Location disabling error");
+            YT_LOG_FATAL(ex, "Location disabling error");
         }
 
         auto finish = ChangeState(ELocationState::Disabled, ELocationState::Disabling);
