@@ -113,7 +113,7 @@ TFuture<TColumnarChunkMetaPtr> DownloadChunkMeta(
         TProtoExtensionTag<NProto::THunkChunkMetasExt>::Value,
     };
     if (chunkReadOptions.GranuleFilter) {
-        extensionTags.emplace_back(TProtoExtensionTag<NProto::TColumnarStatisticsExt>::Value);
+        extensionTags.push_back(TProtoExtensionTag<NProto::TColumnarStatisticsExt>::Value);
     }
 
     return chunkReader->GetMeta(

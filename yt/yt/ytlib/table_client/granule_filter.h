@@ -6,9 +6,9 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Interface of a callback that checks whether it's possible to skip a granule when processing some query
-//! (by "granule" we mean any part of a table, i.e. a chunk or a part of a chunk).
-//! It is used in unversioned chunk readers (more precisely, when creating reader fabric).
+//! Interface of a callback that checks whether it's possible to skip a granule when processing some query.
+//! By a "granule" we mean any part of a table, i.e. a chunk or a part of a chunk.
+//! It is used in unversioned chunk readers (more precisely, when creating reader factories).
 struct IGranuleFilter
     : public TRefCounted
 {
@@ -20,4 +20,4 @@ DEFINE_REFCOUNTED_TYPE(IGranuleFilter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // NYT::NTableClient
+} // namespace NYT::NTableClient
