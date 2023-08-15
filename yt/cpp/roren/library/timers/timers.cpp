@@ -208,8 +208,6 @@ TTimers::TTimers(const NYT::NApi::IClientPtr ytClient, NYT::NYPath::TYPath ytPat
     CreateTimerTable(YtClient_, YTimersPath_);
     CreateTimerIndexTable(YtClient_, YTimersIndexPath_);
     CreateTimerMigrateTable(YtClient_, YTimersMigratePath_);
-
-    ReInit();
 }
 
 void TTimers::ReInit()
@@ -244,6 +242,10 @@ TTimer TTimers::MergeTimers(const std::optional<TTimer>& oldTimer, const TTimer&
 
 void TTimers::Commit(const NYT::NApi::ITransactionPtr tx, const TTimers::TTimersHashMap& updates)
 {
+    if (updates.empty()) {
+        return;
+    }
+
     TVector<TTimer::TKey> keys;
     keys.reserve(updates.size());
     for (const auto& [key, timerAndPolicy] : updates) {
@@ -327,7 +329,7 @@ void TTimers::PopulateIndex()
             SkipPopulateUntil_ = TInstant::Now() + TDuration::Seconds(1);
         }
         for (auto& timer : selectedTimers) {
-            if (IsDeleted(lock, timer)) {
+            if (IsDeleted(lock, timer) || IsValidForExecute(timer, false)) {
                 continue;
             }
             const TTimer::TShardId trueShardId = GetShardId_(timer.GetKey().GetKey());
