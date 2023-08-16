@@ -4,8 +4,6 @@
 
 #include <yt/cpp/mapreduce/interface/config.h>
 
-#include <yt/yt/core/actions/future.h>
-
 #include <library/cpp/iterator/functools.h>
 #include <library/cpp/threading/blocking_queue/blocking_queue.h>
 #include <library/cpp/threading/future/async.h>
