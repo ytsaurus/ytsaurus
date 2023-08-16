@@ -17,6 +17,10 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using namespace NTracing;
+
+////////////////////////////////////////////////////////////////////////////////
+
 Y_WEAK void* CreateAllocationTagsData()
 {
     return nullptr;
@@ -36,6 +40,13 @@ Y_WEAK const std::vector<std::pair<TString, TString>>& ReadAllocationTagsData(vo
     return emptyTags;
 }
 
+Y_WEAK std::optional<TString> FindTagValue(
+    const std::vector<std::pair<TString, TString>>&,
+    const TString&)
+{
+    return ToString(NullMemoryTag);
+}
+
 Y_WEAK void StartAllocationTagsCleanupThread(TDuration /*cleanupInterval*/)
 { }
 
@@ -46,6 +57,7 @@ Y_WEAK void StartAllocationTagsCleanupThread(TDuration /*cleanupInterval*/)
 namespace NYT::NYTProf {
 
 using namespace NThreading;
+using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,7 +88,6 @@ NProto::Profile ConvertAllocationProfile(const tcmalloc::Profile& snapshot)
 
     profile.set_period(snapshot.Period());
 
-    auto memoryTagId = addString("memory_tag");
     auto allocatedSizeId = addString("allocated_size");
     auto requestedSizeId = addString("requested_size");
     auto requestedAlignmentId = addString("requested_alignment");
@@ -86,13 +97,6 @@ NProto::Profile ConvertAllocationProfile(const tcmalloc::Profile& snapshot)
         auto sampleProto = profile.add_sample();
         sampleProto->add_value(sample.count);
         sampleProto->add_value(sample.sum);
-
-        auto memoryTag = sample.stack[0];
-        if (memoryTag != 0) {
-            auto label = sampleProto->add_label();
-            label->set_key(memoryTagId);
-            label->set_num(reinterpret_cast<i64>(memoryTag));
-        }
 
         auto allocatedSizeLabel = sampleProto->add_label();
         allocatedSizeLabel->set_key(allocatedSizeId);
@@ -109,7 +113,7 @@ NProto::Profile ConvertAllocationProfile(const tcmalloc::Profile& snapshot)
         requestedAlignmentLabel->set_num(sample.requested_alignment);
         requestedAlignmentLabel->set_num_unit(bytesUnitId);
 
-        for (int i = 1; i < sample.depth; i++) {
+        for (int i = 0; i < sample.depth; i++) {
             auto ip = sample.stack[i];
 
             auto it = locations.find(ip);
@@ -159,9 +163,15 @@ THashMap<TMemoryTag, ui64> GetEstimatedMemoryUsage()
 
     auto snapshot = tcmalloc::MallocExtension::SnapshotCurrent(tcmalloc::ProfileType::kHeap);
     snapshot.Iterate([&] (const tcmalloc::Profile::Sample& sample) {
-        auto memoryTag = sample.stack[0];
-        if (memoryTag != 0) {
-            usage[reinterpret_cast<TMemoryTag>(memoryTag)] += sample.sum;
+        auto maybeMemoryTagStr = FindTagValue(
+            ReadAllocationTagsData(sample.user_data),
+            MemoryTagLiteral);
+
+        if (maybeMemoryTagStr) {
+            TMemoryTag memoryTag = FromString<TMemoryTag>(maybeMemoryTagStr.value());
+            if (memoryTag != NullMemoryTag) {
+                usage[memoryTag] += sample.sum;
+            }
         }
     });
 
@@ -220,12 +230,8 @@ int AbslStackUnwinder(
         cursor.MoveNext();
     }
 
-    if (maxFrames > 0) {
-        frames[0] = reinterpret_cast<void*>(MemoryTag);
-    }
-
-    int count = 1;
-    for (int i = 1; i < maxFrames; ++i) {
+    int count = 0;
+    for (int i = 0; i < maxFrames; ++i) {
         if (cursor.IsFinished()) {
             return count;
         }

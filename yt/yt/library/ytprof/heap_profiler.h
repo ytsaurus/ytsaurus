@@ -1,10 +1,12 @@
 #pragma once
 
+#include <yt/yt/library/ytprof/profile.pb.h>
+
+#include <yt/yt/core/tracing/public.h>
+
 #include <util/generic/hash.h>
 
 #include <tcmalloc/malloc_extension.h>
-
-#include <yt/yt/library/ytprof/profile.pb.h>
 
 namespace NYT::NYTProf {
 
