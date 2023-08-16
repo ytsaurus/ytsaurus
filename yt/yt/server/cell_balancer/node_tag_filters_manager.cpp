@@ -785,29 +785,33 @@ void SetNodeTagFilter(
             return 0;
         };
 
-        int dataCenterSlotCount = GetCeiledShare(requiredSlotCount, std::ssize(dataCentersToPopulate));
+        int requiredDataCenterSlotCount = GetCeiledShare(requiredSlotCount, std::ssize(dataCentersToPopulate));
         if (dataCentersToPopulate.count(dataCenterName) == 0) {
-            dataCenterSlotCount = 0;
+            requiredDataCenterSlotCount = 0;
         }
 
         int readyBundleNodes = GetReadyNodeCount(bundleInfo, aliveNodes, input);
         int actualSlotCount = perNodeSlotCount * readyBundleNodes;
         int usedSpareSlotCount = getSpareSlotCount(spareNodes.UsedByBundle);
-        int slotsBalance = usedSpareSlotCount + actualSlotCount - dataCenterSlotCount;
+
+        int releasingSlotCount = usedSpareSlotCount + actualSlotCount - requiredDataCenterSlotCount;
+        int assigningSlotCount = requiredDataCenterSlotCount - usedSpareSlotCount - std::ssize(aliveNodes) * perNodeSlotCount;
 
         YT_LOG_DEBUG("Checking tablet cell slots for bundle "
-            "(Bundle: %v, DataCenter: %v, SlotsBalance: %v, SpareSlotCount: %v, BundleSlotCount: %v, DataCenterSlotCount: %v)",
+            "(Bundle: %v, DataCenter: %v, ReleasingSlotCount: %v, AssigningSlotCount: %v, "
+            "SpareSlotCount: %v, BundleSlotCount: %v, RequiredDataCenterSlotCount: %v)",
             bundleName,
             dataCenterName,
-            slotsBalance,
+            releasingSlotCount,
+            assigningSlotCount,
             usedSpareSlotCount,
             actualSlotCount,
-            dataCenterSlotCount);
+            requiredDataCenterSlotCount);
 
-        if (slotsBalance > 0) {
-            TryCreateSpareNodesReleasements(bundleName, input, slotsBalance, &spareNodes, bundleState);
-        } else {
-            TryCreateSpareNodesAssignment(bundleName, input, std::abs(slotsBalance), &spareNodes, bundleState);
+        if (releasingSlotCount > 0) {
+            TryCreateSpareNodesReleasements(bundleName, input, releasingSlotCount, &spareNodes, bundleState);
+        } else if (assigningSlotCount > 0) {
+            TryCreateSpareNodesAssignment(bundleName, input, assigningSlotCount, &spareNodes, bundleState);
         }
     }
 
