@@ -64,6 +64,7 @@ dockerfile="${ytsaurus_source_path}/yt/docker/systest/Dockerfile"
 cp ${systest} ${output_path}
 cp ${dockerfile} ${output_path}
 cp -r ${ytsaurus_build_path}/ytsaurus_python ${output_path}
+cp -r ${ytsaurus_source_path}/yt/yt/experiments/new_stress_test/ ${output_path}
 cp ${benchmarks_path} ${output_path}
 
 cd ${output_path}

@@ -22,6 +22,8 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
   openjdk-11-jdk
 
 COPY ./ytsaurus_python /tmp/ytsaurus_python
+COPY ./new_stress_test /usr/new_stress_test
+
 RUN for package in client yson local native_driver; \
   do \
     dist_dir="/tmp/ytsaurus_python/ytsaurus_${package}_dist"; \
