@@ -42,13 +42,15 @@ class _TestColumnarStatisticsBase(YTEnvSetup):
         },
     }
 
-    DELTA_NODE_CONFIG = {
-        "data_node": {
-            "testing_options": {
-                "columnar_statistics_chunk_meta_fetch_max_delay": 5000
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "data_node": {
+                "testing_options": {
+                    "columnar_statistics_chunk_meta_fetch_max_delay": 5000,
+                    "columnar_statistics_read_timeout_fraction": 0.1,
+                },
             },
-            "columnar_statistics_read_timeout_fraction": 0.1,
-        }
+        },
     }
 
     DELTA_DRIVER_CONFIG = {
@@ -756,13 +758,15 @@ class TestColumnarStatisticsOperationsEarlyFinish(TestColumnarStatisticsOperatio
         },
     }
 
-    DELTA_NODE_CONFIG = {
-        "data_node": {
-            "testing_options": {
-                "columnar_statistics_chunk_meta_fetch_max_delay": 6000
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "data_node": {
+                "testing_options": {
+                    "columnar_statistics_chunk_meta_fetch_max_delay": 6000,
+                    "columnar_statistics_read_timeout_fraction": 0.3,
+                },
             },
-            "columnar_statistics_read_timeout_fraction": 0.3,
-        }
+        },
     }
 
     DELTA_DRIVER_CONFIG = {
@@ -787,13 +791,15 @@ class TestColumnarStatisticsCommandEarlyFinish(_TestColumnarStatisticsBase):
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
 
-    DELTA_NODE_CONFIG = {
-        "data_node": {
-            "testing_options": {
-                "columnar_statistics_chunk_meta_fetch_max_delay": 6000
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "data_node": {
+                "testing_options": {
+                    "columnar_statistics_chunk_meta_fetch_max_delay": 6000,
+                    "columnar_statistics_read_timeout_fraction": 0.3,
+                },
             },
-            "columnar_statistics_read_timeout_fraction": 0.3,
-        }
+        },
     }
 
     DELTA_DRIVER_CONFIG = {

@@ -186,6 +186,8 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
 {
     VERIFY_INVOKER_AFFINITY(Invoker_);
 
+    YT_LOG_DEBUG("Trying to update dynamic config");
+
     NApi::TGetNodeOptions getOptions;
     getOptions.ReadFrom = Options_.ReadFrom;
     auto configOrError = NConcurrency::WaitFor(Client_->GetNode(Options_.ConfigPath, getOptions));

@@ -486,6 +486,16 @@ public:
     // For testing purposes.
     bool FailReincarnationJobs;
 
+    //! Fraction of GetBlockSet/GetBlockRange RPC timeout, after which reading routine tries
+    //! to return all blocks read up to moment (in case at least one block is read; otherwise
+    //! it still tries to read at least one block).
+    double BlockReadTimeoutFraction;
+
+    //! Fraction of the GetColumnarStatistics RPC timeout, after which early exit is performed and currently uncompleted
+    //! chunk fetches are failed with a timeout error.
+    //! The enable_early_exit field has to be set to true in the request options for this option to have any effect.
+    double ColumnarStatisticsReadTimeoutFraction;
+
     REGISTER_YSON_STRUCT(TDataNodeTestingOptions);
 
     static void Register(TRegistrar registrar);
@@ -909,16 +919,6 @@ public:
     //! Number of tablet errors sent in heartbeat.
     int MaxTabletErrorsInHeartbeat;
 
-    //! Fraction of GetBlockSet/GetBlockRange RPC timeout, after which reading routine tries
-    //! to return all blocks read up to moment (in case at least one block is read; otherwise
-    //! it still tries to read at least one block).
-    double BlockReadTimeoutFraction;
-
-    //! Fraction of the GetColumnarStatistics RPC timeout, after which early exit is performed and currently uncompleted
-    //! chunk fetches are failed with a timeout error.
-    //! The enable_early_exit field has to be set to true in the request options for this option to have any effect.
-    double ColumnarStatisticsReadTimeoutFraction;
-
     //! Delay between node initialization and start of background artifact validation.
     TDuration BackgroundArtifactValidationDelay;
 
@@ -927,9 +927,6 @@ public:
 
     //! Config for the new P2P implementation.
     TP2PConfigPtr P2P;
-
-    //! Testing options.
-    TDataNodeTestingOptionsPtr TestingOptions;
 
     i64 GetCacheCapacity() const;
 

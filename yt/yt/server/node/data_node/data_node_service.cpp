@@ -834,7 +834,9 @@ private:
             options.ChunkReaderStatistics = chunkReaderStatistics;
             options.ReadSessionId = readSessionId;
             if (context->GetTimeout() && context->GetStartTime()) {
-                options.Deadline = *context->GetStartTime() + *context->GetTimeout() * Config_->BlockReadTimeoutFraction;
+                options.Deadline =
+                    *context->GetStartTime() +
+                    *context->GetTimeout() * GetDynamicConfig()->TestingOptions->BlockReadTimeoutFraction;
             }
 
             if (!chunk && options.FetchFromCache) {
@@ -965,7 +967,9 @@ private:
         options.FetchFromDisk = !netThrottling && !diskThrottling;
         options.ChunkReaderStatistics = chunkReaderStatistics;
         if (context->GetTimeout() && context->GetStartTime()) {
-            options.Deadline = *context->GetStartTime() + *context->GetTimeout() * Config_->BlockReadTimeoutFraction;
+            options.Deadline =
+                *context->GetStartTime() +
+                *context->GetTimeout() * GetDynamicConfig()->TestingOptions->BlockReadTimeoutFraction;
         }
 
         if (chunk) {
@@ -1906,7 +1910,7 @@ private:
 
         std::optional<TDuration> earlyFinishTimeout;
         if (request->enable_early_finish() && context->GetTimeout()) {
-            earlyFinishTimeout = *context->GetTimeout() * Config_->ColumnarStatisticsReadTimeoutFraction;
+            earlyFinishTimeout = *context->GetTimeout() * GetDynamicConfig()->TestingOptions->ColumnarStatisticsReadTimeoutFraction;
         }
 
         context->SetRequestInfo(
@@ -1965,11 +1969,10 @@ private:
                     chunkId)
                 .AsyncVia(heavyInvoker));
             // Fault-injection for tests.
-            if (Config_->TestingOptions->ColumnarStatisticsChunkMetaFetchMaxDelay) {
+            if (auto optionalDelay = GetDynamicConfig()->TestingOptions->ColumnarStatisticsChunkMetaFetchMaxDelay) {
                 chunkMetaFuture = chunkMetaFuture
                     .Apply(BIND([=, Logger = Logger, config = Config_] (const TRefCountedColumnarStatisticsSubresponsePtr& result) {
-                        auto maxDelay = *config->TestingOptions->ColumnarStatisticsChunkMetaFetchMaxDelay;
-                        auto delay = index * maxDelay / request->subrequests_size();
+                        auto delay = index * *optionalDelay / request->subrequests_size();
                         YT_LOG_DEBUG("Injected a random delay after a chunk meta fetch (Delay: %v)", delay);
                         TDelayedExecutor::WaitForDuration(delay);
                         return result;

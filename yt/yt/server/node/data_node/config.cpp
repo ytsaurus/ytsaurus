@@ -438,20 +438,20 @@ void TAllyReplicaManagerDynamicConfig::Register(TRegistrar registrar)
 
 void TDataNodeTestingOptions::Register(TRegistrar registrar)
 {
-    registrar.Parameter(
-        "columnar_statistics_chunk_meta_fetch_max_delay",
-        &TThis::ColumnarStatisticsChunkMetaFetchMaxDelay)
+    registrar.Parameter("columnar_statistics_chunk_meta_fetch_max_delay", &TThis::ColumnarStatisticsChunkMetaFetchMaxDelay)
         .Default();
 
-    registrar.Parameter(
-        "simulate_network_throttling_for_get_block_set",
-        &TThis::SimulateNetworkThrottlingForGetBlockSet)
+    registrar.Parameter("simulate_network_throttling_for_get_block_set", &TThis::SimulateNetworkThrottlingForGetBlockSet)
         .Default(false);
 
-    registrar.Parameter(
-        "fail_reincarnation_jobs",
-        &TThis::FailReincarnationJobs)
+    registrar.Parameter("fail_reincarnation_jobs", &TThis::FailReincarnationJobs)
         .Default(false);
+
+    registrar.Parameter("block_read_timeout_fraction", &TThis::BlockReadTimeoutFraction)
+        .Default(0.75);
+
+    registrar.Parameter("columnar_statistics_read_timeout_fraction", &TThis::ColumnarStatisticsReadTimeoutFraction)
+        .Default(0.75);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -791,12 +791,6 @@ void TDataNodeConfig::Register(TRegistrar registrar)
         .GreaterThan(0)
         .Default(10);
 
-    registrar.Parameter("block_read_timeout_fraction", &TThis::BlockReadTimeoutFraction)
-        .Default(0.75);
-
-    registrar.Parameter("columnar_statistics_read_timeout_fraction", &TThis::ColumnarStatisticsReadTimeoutFraction)
-        .Default(0.75);
-
     registrar.Parameter("background_artifact_validation_delay", &TThis::BackgroundArtifactValidationDelay)
         .Default(TDuration::Minutes(5));
 
@@ -804,9 +798,6 @@ void TDataNodeConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("p2p", &TThis::P2P)
-        .DefaultNew();
-
-    registrar.Parameter("testing_options", &TThis::TestingOptions)
         .DefaultNew();
 
     registrar.Preprocessor([] (TThis* config) {
