@@ -10,14 +10,25 @@ namespace NYT::NContainers::NCri {
 
 namespace NProto = ::runtime::v1;
 
-// Reasonable default for CRI gRPC socket address.
+//! Reasonable default for CRI gRPC socket address.
 constexpr TStringBuf DefaultCriEndpoint = "unix:///run/containerd/containerd.sock";
 
-// RuntimeReady means the runtime is up and ready to accept basic containers.
+//! RuntimeReady means the runtime is up and ready to accept basic containers.
 constexpr TStringBuf RuntimeReady = "RuntimeReady";
 
-// NetworkReady means the runtime network is up and ready to accept containers which require network.
+//! NetworkReady means the runtime network is up and ready to accept containers which require network.
 constexpr TStringBuf NetworkReady = "NetworkReady";
+
+//! CRI uses cgroupfs notation for systemd slices, but each name must ends with ".slice".
+constexpr TStringBuf SystemdSliceSuffix = ".slice";
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! CRI labels for pods and containers managed by YT
+constexpr TStringBuf YTPodNamespaceLabel = "tech.ytsaurus.pod.namespace";
+constexpr TStringBuf YTPodNameLabel = "tech.ytsaurus.pod.name";
+constexpr TStringBuf YTContainerNameLabel = "tech.ytsaurus.container.name";
+constexpr TStringBuf YTJobIdLabel = "tech.ytsaurus.job.id";
 
 ////////////////////////////////////////////////////////////////////////////////
 

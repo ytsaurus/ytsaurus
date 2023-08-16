@@ -17,6 +17,8 @@
 #include <yt/yt/library/containers/porto_executor.h>
 #endif
 
+#include <yt/yt/library/containers/cri/config.h>
+
 #include <yt/yt/library/process/process.h>
 
 #include <yt/yt/core/logging/log_manager.h>
@@ -781,6 +783,184 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCriUserJobEnvironment
+    : public IUserJobEnvironment
+{
+public:
+    TDuration GetBlockIOWatchdogPeriod() const override
+    {
+        // No IO watchdog for simple job environment.
+        return TDuration::Max();
+    }
+
+    TErrorOr<std::optional<TJobEnvironmentMemoryStatistics>> GetMemoryStatistics() const override
+    {
+        return {};
+    }
+
+    TErrorOr<std::optional<TJobEnvironmentNetworkStatistics>> GetNetworkStatistics() const override
+    {
+        return {};
+    }
+
+    TErrorOr<std::optional<TJobEnvironmentCpuStatistics>> GetCpuStatistics() const override
+    {
+        return {};
+    }
+
+    TErrorOr<std::optional<TJobEnvironmentBlockIOStatistics>> GetBlockIOStatistics() const override
+    {
+        return {};
+    }
+
+    void CleanProcesses() override
+    {
+        if (auto process = Process_.Acquire()) {
+            auto pids = GetJobPids();
+            if (process->IsStarted()) {
+                process->Kill(SIGKILL);
+            }
+            for (auto pid : pids) {
+                if (pid != process->GetProcessId()) {
+                    if (TryKillProcessByPid(pid, SIGKILL)) {
+                        YT_LOG_DEBUG("Child job process killed (Pid: %v)", pid);
+                    } else {
+                        YT_LOG_DEBUG("Failed to kill child job process (Pid: %v)", pid);
+                    }
+                }
+            }
+        }
+    }
+
+    void SetIOThrottle(i64 /*operations*/) override
+    {
+        // Noop.
+    }
+
+    TFuture<void> SpawnUserProcess(
+        const TString& path,
+        const std::vector<TString>& arguments,
+        const TString& workingDirectory) override
+    {
+        auto process = New<TSimpleProcess>(path, /*copyEnv =*/ false);
+        process->AddArguments(arguments);
+        process->SetWorkingDirectory(workingDirectory);
+        Process_.Store(process);
+        return process->Spawn();
+    }
+
+    NContainers::IInstancePtr GetUserJobInstance() const override
+    {
+        return nullptr;
+    }
+
+    std::optional<pid_t> GetJobRootPid() const override
+    {
+        if (auto process = Process_.Acquire()) {
+            return process->GetProcessId();
+        } else {
+            return std::nullopt;
+        }
+    }
+
+    std::vector<pid_t> GetJobPids() const override
+    {
+        if (auto process = Process_.Acquire()) {
+            auto pid = process->GetProcessId();
+            return GetPidsUnderParent(pid);
+        }
+
+        return {};
+    }
+
+    bool IsPidNamespaceIsolationEnabled() const override
+    {
+        return false;
+    }
+
+    //! Returns the list of environment-specific environment variables in key=value format.
+    const std::vector<TString>& GetEnvironmentVariables() const override
+    {
+        static std::vector<TString> emptyEnvironment;
+        return emptyEnvironment;
+    }
+
+    i64 GetMajorPageFaultCount() const override
+    {
+        return 0;
+    }
+
+private:
+    TAtomicIntrusivePtr<TProcessBase> Process_;
+};
+
+DECLARE_REFCOUNTED_CLASS(TCriUserJobEnvironment)
+DEFINE_REFCOUNTED_TYPE(TCriUserJobEnvironment)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCriJobProxyEnvironment
+    : public IJobProxyEnvironment
+{
+public:
+    TCriJobProxyEnvironment(TCriJobEnvironmentConfigPtr config)
+        : Config_(std::move(config))
+    { }
+
+    void SetCpuGuarantee(double /*value*/) override
+    {
+        YT_LOG_WARNING("CPU guarantees are not supported in CRI job environment");
+    }
+
+    void SetCpuLimit(double /*value*/) override
+    {
+        YT_LOG_WARNING("CPU limits are not supported in CRI job environment");
+    }
+
+    void SetCpuPolicy(const TString& /*value*/) override
+    {
+        YT_LOG_WARNING("CPU policy is not supported in CRI job environment");
+    }
+
+    TErrorOr<std::optional<TJobEnvironmentCpuStatistics>> GetCpuStatistics() const override
+    {
+        return {};
+    }
+
+    TErrorOr<std::optional<TJobEnvironmentBlockIOStatistics>> GetBlockIOStatistics() const override
+    {
+        return {};
+    }
+
+    IUserJobEnvironmentPtr CreateUserJobEnvironment(
+        TGuid /*jobId*/,
+        const TUserJobEnvironmentOptions& options) override
+    {
+        if (options.RootFS) {
+            THROW_ERROR_EXCEPTION("Root FS isolation is not supported in CRI job environment");
+        }
+
+        if (!options.GpuDevices.empty()) {
+            // This could only happen in tests, e.g. TestSchedulerGpu.
+            YT_LOG_WARNING("GPU devices are not supported in CRI job environment");
+        }
+
+        if (options.EnablePortoMemoryTracking) {
+            THROW_ERROR_EXCEPTION("Porto memory tracking is not supported in CRI job environment");
+        }
+
+        return New<TCriUserJobEnvironment>();
+    }
+
+private:
+    const TCriJobEnvironmentConfigPtr Config_;
+};
+
+DECLARE_REFCOUNTED_CLASS(TCriJobProxyEnvironment)
+DEFINE_REFCOUNTED_TYPE(TCriJobProxyEnvironment)
+
+////////////////////////////////////////////////////////////////////////////////
+
 IJobProxyEnvironmentPtr CreateJobProxyEnvironment(NYTree::INodePtr config)
 {
     auto environmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(config);
@@ -795,6 +975,9 @@ IJobProxyEnvironmentPtr CreateJobProxyEnvironment(NYTree::INodePtr config)
 
         case EJobEnvironmentType::Testing:
             return New<TTestingJobProxyEnvironment>(ConvertTo<TTestingJobEnvironmentConfigPtr>(config));
+
+        case EJobEnvironmentType::Cri:
+            return New<TCriJobProxyEnvironment>(ConvertTo<TCriJobEnvironmentConfigPtr>(config));
 
         default:
             THROW_ERROR_EXCEPTION("Unable to create resource controller for %Qlv environment",

@@ -96,6 +96,8 @@ target_proto_addincls(unittester-tablet-node
   ${CMAKE_SOURCE_DIR}
   ${CMAKE_SOURCE_DIR}/yt
   ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${CMAKE_SOURCE_DIR}/yt/yt/contrib/cri-api
+  ${CMAKE_SOURCE_DIR}/yt/yt/contrib/gogoproto
   ${CMAKE_BINARY_DIR}
   ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
 )

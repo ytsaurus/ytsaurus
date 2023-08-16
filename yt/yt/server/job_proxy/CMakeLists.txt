@@ -21,6 +21,7 @@ target_link_libraries(yt-server-job_proxy PUBLIC
   ytserver
   server-lib-controller_agent
   yt-library-containers
+  library-containers-cri
   server-lib-exec_node
   yt-server-tools
   server-lib-shell
