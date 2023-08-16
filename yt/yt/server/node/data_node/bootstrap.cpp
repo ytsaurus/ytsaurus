@@ -243,6 +243,7 @@ public:
             DiskManagerProxy_,
             GetConfig()->DataNode->DiskInfoProvider);
         LocationManager_ = New<TLocationManager>(
+            this,
             ChunkStore_,
             GetControlInvoker(),
             DiskInfoProvider_);

@@ -1,5 +1,6 @@
 #include "location_manager.h"
 
+#include "bootstrap.h"
 #include "private.h"
 
 #include <yt/yt/server/node/data_node/chunk_store.h>
@@ -18,6 +19,7 @@
 
 namespace NYT::NDataNode {
 
+using namespace NClusterNode;
 using namespace NConcurrency;
 using namespace NContainers;
 using namespace NFS;
@@ -31,6 +33,7 @@ static const auto& Logger = DataNodeLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TLocationManager::TLocationManager(
+    IBootstrap* bootstrap,
     TChunkStorePtr chunkStore,
     IInvokerPtr controlInvoker,
     TDiskInfoProviderPtr diskInfoProvider)
@@ -38,7 +41,10 @@ TLocationManager::TLocationManager(
     , ChunkStore_(std::move(chunkStore))
     , ControlInvoker_(std::move(controlInvoker))
     , OrchidService_(CreateOrchidService())
-{ }
+{
+    bootstrap->SubscribePopulateAlerts(
+        BIND(&TLocationManager::PopulateAlerts, MakeWeak(this)));
+}
 
 void TLocationManager::BuildOrchid(IYsonConsumer* consumer)
 {
@@ -86,6 +92,24 @@ TFuture<void> TLocationManager::FailDiskByName(
 
             return VoidFuture;
         }));
+}
+
+void TLocationManager::PopulateAlerts(std::vector<TError>* alerts)
+{
+    for (const auto* alertHolder : {&DiskFailedAlert_}) {
+        if (auto alert = alertHolder->Load(); !alert.IsOK()) {
+            alerts->push_back(std::move(alert));
+        }
+    }
+}
+
+void TLocationManager::SetDiskAlert(TError alert)
+{
+    if (DiskFailedAlert_.Load().IsOK() && !alert.IsOK()) {
+        DiskFailedAlert_.Store(alert);
+    } else if (!DiskFailedAlert_.Load().IsOK() && alert.IsOK()) {
+        DiskFailedAlert_.Store(alert);
+    }
 }
 
 std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivenessInfo(
@@ -349,15 +373,49 @@ void TLocationHealthChecker::OnDiskHealthCheck()
 
 void TLocationHealthChecker::OnLocationsHealthCheck()
 {
-    auto livenessInfosOrError = WaitFor(LocationManager_->GetLocationsLiveness());
+    auto diskInfos = WaitFor(LocationManager_->GetDiskInfos());
 
     // Fast path.
-    if (!livenessInfosOrError.IsOK()) {
-        YT_LOG_ERROR(livenessInfosOrError, "Failed to list location livenesses");
+    if (!diskInfos.IsOK()) {
+        YT_LOG_ERROR(diskInfos, "Failed to list disk infos");
         return;
     }
 
-    const auto& livenessInfos = livenessInfosOrError.Value();
+    auto livenessInfos = LocationManager_->MapLocationToLivenessInfo(diskInfos.Value());
+
+    auto diskAlert = TError();
+    std::optional<TString> diskAlertId;
+    for (const auto& diskInfo : diskInfos.Value()) {
+        if (diskInfo.State == NContainers::EDiskState::Failed) {
+            diskAlertId = diskInfo.DiskId;
+            diskAlert = TError("Disk failed, need hot swap")
+                << TErrorAttribute("disk_id", diskInfo.DiskId)
+                << TErrorAttribute("disk_model", diskInfo.DiskModel)
+                << TErrorAttribute("disk_state", diskInfo.State)
+                << TErrorAttribute("disk_path", diskInfo.DevicePath)
+                << TErrorAttribute("disk_name", diskInfo.DeviceName);
+            break;
+        }
+    }
+
+    LocationManager_->SetDiskAlert(diskAlert);
+
+    if (diskAlertId) {
+        bool diskLinkedWithLocation = false;
+
+        for (const auto& livenessInfo : livenessInfos) {
+            if (livenessInfo.DiskId == diskAlertId.value()) {
+                diskLinkedWithLocation = true;
+                break;
+            }
+        }
+
+        if (!diskLinkedWithLocation) {
+            auto result = WaitFor(LocationManager_->RecoverDisk(diskAlertId.value()));
+
+            YT_LOG_ERROR_IF(!result.IsOK(), result);
+        }
+    }
 
     THashSet<TString> diskWithLivenessLocations;
     THashSet<TString> diskWithNotDestroyingLocations;

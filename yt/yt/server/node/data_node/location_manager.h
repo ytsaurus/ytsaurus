@@ -29,6 +29,7 @@ class TLocationManager
 {
 public:
     TLocationManager(
+        IBootstrap* bootstrap,
         TChunkStorePtr chunkStore,
         IInvokerPtr controlInvoker,
         NContainers::TDiskInfoProviderPtr diskInfoProvider);
@@ -36,6 +37,8 @@ public:
     TFuture<std::vector<TLocationLivenessInfo>> GetLocationsLiveness();
 
     std::vector<TString> GetConfigDiskIds();
+
+    void SetDiskAlert(TError alert);
 
     TFuture<std::vector<NContainers::TDiskInfo>> GetDiskInfos();
 
@@ -55,6 +58,9 @@ public:
 
     NYTree::IYPathServicePtr GetOrchidService();
 
+    std::vector<TLocationLivenessInfo> MapLocationToLivenessInfo(
+        const std::vector<NContainers::TDiskInfo>& failedDisks);
+
 private:
     const NContainers::TDiskInfoProviderPtr DiskInfoProvider_;
 
@@ -63,13 +69,13 @@ private:
     const NYTree::IYPathServicePtr OrchidService_;
 
     std::atomic<bool> DiskIdsMismatched_;
+    TAtomicObject<TError> DiskFailedAlert_;
 
     NYTree::IYPathServicePtr CreateOrchidService();
 
-    void BuildOrchid(NYT::NYson::IYsonConsumer* consumer);
+    void PopulateAlerts(std::vector<TError>* alerts);
 
-    std::vector<TLocationLivenessInfo> MapLocationToLivenessInfo(
-        const std::vector<NContainers::TDiskInfo>& failedDisks);
+    void BuildOrchid(NYT::NYson::IYsonConsumer* consumer);
 
     std::vector<TGuid> DoResurrectLocations(const THashSet<TGuid>& locationUuids);
 

@@ -496,6 +496,7 @@ std::vector<TChunkDescriptor> TChunkLocation::Scan()
 void TChunkLocation::InitializeIds()
 {
     try {
+        HealthChecker_->Start();
         InitializeCellId();
         InitializeUuid();
     } catch (const std::exception& ex) {
@@ -1244,7 +1245,6 @@ std::vector<TChunkDescriptor> TChunkLocation::DoScan()
 void TChunkLocation::DoStart()
 {
     HealthChecker_->SubscribeFailed(BIND(&TChunkLocation::OnHealthCheckFailed, Unretained(this)));
-    HealthChecker_->Start();
 }
 
 void TChunkLocation::SubscribeDiskCheckFailed(const TCallback<void(const TError&)> callback)
