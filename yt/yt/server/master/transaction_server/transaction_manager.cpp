@@ -292,8 +292,7 @@ public:
     {
         if (hintId &&
             TypeFromId(hintId) != EObjectType::UploadTransaction &&
-            TypeFromId(hintId) != EObjectType::UploadNestedTransaction &&
-            GetDynamicConfig()->EnableDedicatedUploadTransactionObjectTypes)
+            TypeFromId(hintId) != EObjectType::UploadNestedTransaction)
         {
             if (IsHiveMutation()) {
                 // COMPAT(shakurov)
@@ -327,7 +326,7 @@ public:
 
         const auto& dynamicConfig = GetDynamicConfig();
 
-        auto transactionObjectType = upload && dynamicConfig->EnableDedicatedUploadTransactionObjectTypes
+        auto transactionObjectType = upload
             ? (parent ? EObjectType::UploadNestedTransaction : EObjectType::UploadTransaction)
             : (parent ? EObjectType::NestedTransaction : EObjectType::Transaction);
 
@@ -1484,7 +1483,6 @@ private:
         auto title = request->has_title() ? std::make_optional(request->title()) : std::nullopt;
 
         YT_VERIFY(
-            !GetDynamicConfig()->EnableDedicatedUploadTransactionObjectTypes ||
             isUpload == (
                 TypeFromId(hintId) == EObjectType::UploadTransaction ||
                 TypeFromId(hintId) == EObjectType::UploadNestedTransaction));
