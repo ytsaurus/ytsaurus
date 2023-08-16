@@ -7,7 +7,7 @@
 package misc
 
 import (
-	ytree "go.ytsaurus.tech/yt/go/proto/core/ytree"
+	ytree "github.com/doublecloud/transfer/yt/go/proto/core/ytree"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
