@@ -1560,8 +1560,6 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
         }
 
         case EInternedAttributeKey::MountConfig: {
-            ValidateNoTransaction();
-
             auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
             auto* lockedTable = LockThisImpl(lockRequest);
             auto* storage = lockedTable->GetMutableMountConfigStorage();
@@ -1741,7 +1739,8 @@ IAttributeDictionary* TTableNodeProxy::GetCustomAttributes()
     if (!WrappedAttributes_) {
         const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->TabletManager;
         WrappedAttributes_ = New<TMountConfigAttributeDictionary>(
-            static_cast<TTableNode*>(Object_),
+            Bootstrap_,
+            GetThisImpl(),
             Transaction_,
             TBase::GetCustomAttributes(),
             config->IncludeMountConfigAttributesInUserAttributes);

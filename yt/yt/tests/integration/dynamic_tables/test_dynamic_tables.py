@@ -2794,12 +2794,6 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         with raises_yt_error():
             remount_table("//tmp/t")
 
-        tx = start_transaction(timeout=60000)
-        with raises_yt_error():
-            set("//tmp/t/@mount_config/min_data_ttl", 1, tx=tx)
-        with raises_yt_error():
-            set("//tmp/t/@min_data_ttl", 1, tx=tx)
-
     @authors("ifsmirnov")
     def test_mount_config_copy(self):
         create("table", "//tmp/t")
@@ -2851,6 +2845,69 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         set("//tmp/t/@mount_config/min_data_ttl", 123)
         set("//tmp/t/@max_data_ttl", 456)
         assert get("//tmp/t/@mount_config") == {"min_data_ttl": 123, "max_data_ttl": 456}
+
+    @authors("dave11ar")
+    def test_mount_config_under_transaction(self):
+        def check_both(field, value, **kwargs):
+            assert get(f"//tmp/t/@mount_config/{field}", **kwargs) == value
+            assert get(f"//tmp/t/@{field}", **kwargs) == value
+
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        # init
+        set("//tmp/t/@mount_config/min_data_ttl", 0)
+        set("//tmp/t/@mount_config/max_data_ttl", 0)
+
+        # commit transaction
+        tx = start_transaction(timeout=60000)
+        set("//tmp/t/@mount_config/min_data_ttl", 1, tx=tx)
+        check_both(field="min_data_ttl", value=1, tx=tx)
+        set("//tmp/t/@min_data_ttl", 2, tx=tx)
+        check_both(field="min_data_ttl", value=2, tx=tx)
+
+        commit_transaction(tx)
+        check_both(field="min_data_ttl", value=2)
+
+        # nested transactions
+        tx = start_transaction(timeout=60000)
+        set("//tmp/t/@mount_config/min_data_ttl", 3, tx=tx)
+        tx_nested = start_transaction(tx=tx, timeout=60000)
+        check_both(field="min_data_ttl", value=3, tx=tx_nested)
+        set("//tmp/t/@mount_config/min_data_ttl", 4, tx=tx_nested)
+
+        check_both(field="min_data_ttl", value=4, tx=tx_nested)
+        check_both(field="min_data_ttl", value=3, tx=tx)
+        commit_transaction(tx_nested)
+        check_both(field="min_data_ttl", value=4, tx=tx)
+        commit_transaction(tx)
+        check_both(field="min_data_ttl", value=4)
+
+        # aborted transactions
+        tx = start_transaction(timeout=60000)
+        set("//tmp/t/@mount_config/min_data_ttl", 5, tx=tx)
+        set("//tmp/t/@max_data_ttl", 1, tx=tx)
+        check_both(field="min_data_ttl", value=5, tx=tx)
+        check_both(field="max_data_ttl", value=1, tx=tx)
+        abort_transaction(tx)
+        check_both(field="min_data_ttl", value=4)
+        check_both(field="max_data_ttl", value=0)
+
+        # concurrent transactions
+        set("//tmp/t/@mount_config/max_data_ttl", 42)
+
+        tx0 = start_transaction(timeout=60000)
+        set("//tmp/t/@min_data_ttl", 6, tx=tx0)
+        tx1 = start_transaction(timeout=60000)
+        with raises_yt_error():
+            set("//tmp/t/@max_data_ttl", 4, tx=tx1)
+
+        commit_transaction(tx1)
+        commit_transaction(tx0)
+
+        check_both(field="min_data_ttl", value=6)
+        check_both(field="max_data_ttl", value=42)
 
     @authors("gritukan")
     def test_suspend_tablet_cell(self):

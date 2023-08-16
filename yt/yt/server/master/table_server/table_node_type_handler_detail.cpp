@@ -24,6 +24,7 @@
 
 #include <yt/yt/server/master/tablet_server/chaos_helpers.h>
 #include <yt/yt/server/master/tablet_server/hunk_storage_node.h>
+#include <yt/yt/server/master/tablet_server/mount_config_storage.h>
 #include <yt/yt/server/master/tablet_server/tablet.h>
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
 
@@ -340,6 +341,9 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBranch(
     branchedNode->SetProfilingMode(originatingNode->GetProfilingMode());
     branchedNode->SetProfilingTag(originatingNode->GetProfilingTag());
     branchedNode->SetUpstreamReplicaId(originatingNode->GetUpstreamReplicaId());
+    if (auto* originatingMountConfig = originatingNode->FindMountConfigStorage()) {
+        *branchedNode->GetMutableMountConfigStorage() = *originatingMountConfig;
+    }
 
     // Save current retained and unflushed timestamps in locked node.
     branchedNode->SetRetainedTimestamp(originatingNode->GetCurrentRetainedTimestamp());
@@ -370,6 +374,9 @@ void TTableNodeTypeHandlerBase<TImpl>::DoMerge(
     originatingNode->SetProfilingMode(branchedNode->GetProfilingMode());
     originatingNode->SetProfilingTag(branchedNode->GetProfilingTag());
     originatingNode->SetUpstreamReplicaId(branchedNode->GetUpstreamReplicaId());
+    if (auto* branchedMountConfig = branchedNode->FindMountConfigStorage()) {
+        *originatingNode->GetMutableMountConfigStorage() = *branchedMountConfig;
+    }
 
     TBase::DoMerge(originatingNode, branchedNode);
 

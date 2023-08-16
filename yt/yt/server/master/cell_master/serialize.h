@@ -142,6 +142,7 @@ DEFINE_ENUM(EMasterReign,
     ((ResetErrorCountOfUnmountedTablets)                            (2413))  // alexelexa
     ((SequoiaReplicas)                                              (2414))  // aleksandra-zh
     ((AutoTurnOffPendingRestartMaintenanceFlag)                     (2415))  // danilalexeev
+    ((AllowSetMountConfigUnderTransaction)                          (2416))  // dave11ar
 );
 
 ////////////////////////////////////////////////////////////////////////////////

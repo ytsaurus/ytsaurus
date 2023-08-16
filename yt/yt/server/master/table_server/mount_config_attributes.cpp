@@ -3,9 +3,13 @@
 #include "private.h"
 #include "table_node.h"
 
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+
 #include <yt/yt/server/master/tablet_server/mount_config_storage.h>
 
 #include <yt/yt/server/master/object_server/attribute_set.h>
+
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
@@ -15,15 +19,12 @@
 namespace NYT::NTableServer {
 
 using namespace NCellMaster;
+using namespace NCypressServer;
 using namespace NTabletNode;
 using namespace NYson;
 using namespace NYTree;
 using namespace NTransactionServer;
 using namespace NObjectServer;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static const auto& Logger = TableServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -131,11 +132,13 @@ bool IsOldStyleMountConfigAttribute(TStringBuf key)
 ////////////////////////////////////////////////////////////////////////////////
 
 TMountConfigAttributeDictionary::TMountConfigAttributeDictionary(
+    TBootstrap* bootstrap,
     TTableNode* owner,
     TTransaction* transaction,
     NYTree::IAttributeDictionary* baseAttributes,
     bool includeOldAttributesInList)
-    : Owner_(owner)
+    : Bootstrap_(bootstrap)
+    , Owner_(owner)
     , Transaction_(transaction)
     , BaseAttributes_(baseAttributes)
     , IncludeOldAttributesInList_(includeOldAttributesInList)
@@ -195,9 +198,9 @@ TYsonString TMountConfigAttributeDictionary::FindYson(TStringBuf key) const
 void TMountConfigAttributeDictionary::SetYson(const TString& key, const NYson::TYsonString& value)
 {
     if (NDetail::IsOldStyleMountConfigAttribute(key)) {
-        ValidateNoTransaction();
-        Owner_->OnRemountNeeded();
-        return Owner_->GetMutableMountConfigStorage()->Set(key, value);
+        auto* lockedTable = LockMountConfigAttribute();
+        Owner_->GetTrunkNode()->OnRemountNeeded();
+        return lockedTable->GetMutableMountConfigStorage()->Set(key, value);
     }
     return BaseAttributes_->SetYson(key, value);
 }
@@ -205,32 +208,19 @@ void TMountConfigAttributeDictionary::SetYson(const TString& key, const NYson::T
 bool TMountConfigAttributeDictionary::Remove(const TString& key)
 {
     if (NDetail::IsOldStyleMountConfigAttribute(key)) {
-        ValidateNoTransaction();
-        Owner_->OnRemountNeeded();
-        return Owner_->GetMutableMountConfigStorage()->Remove(key);
+        auto* lockedTable = LockMountConfigAttribute();
+        Owner_->GetTrunkNode()->OnRemountNeeded();
+        return lockedTable->GetMutableMountConfigStorage()->Remove(key);
     }
     return BaseAttributes_->Remove(key);
 }
 
-void TMountConfigAttributeDictionary::ValidateNoTransaction() const
+TTableNode* TMountConfigAttributeDictionary::LockMountConfigAttribute()
 {
-    // Actually, this check should also pass at the external cell if it had passed
-    // at native. However, a native->external hive message may be in-flight when
-    // masters are updated. In this case a set-under-transaction request will reach
-    // the external cell and should be accepted silently.
-    if (!Owner_->IsNative()) {
-        if (Transaction_) {
-            YT_LOG_ALERT("Mount config attribute is modified under transaction "
-                "(TableId: %v, TransactionId: %v)",
-                Owner_->GetId(),
-                Transaction_->GetId());
-        }
-        return;
-    }
-
-    if (Transaction_) {
-        THROW_ERROR_EXCEPTION("Operation cannot be performed in transaction");
-    }
+    return Bootstrap_->GetCypressManager()->LockNode(
+        Owner_->GetTrunkNode(),
+        Transaction_,
+        TLockRequest::MakeSharedAttribute(EInternedAttributeKey::MountConfig.Unintern()))->As<TTableNode>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -248,7 +238,7 @@ void InternalizeMountConfigAttributes(IAttributeDictionary* attributes)
         return;
     }
 
-    auto mountConfigNode = attributes->FindAndRemove<IMapNodePtr>("mount_config");
+    auto mountConfigNode = attributes->FindAndRemove<IMapNodePtr>(EInternedAttributeKey::MountConfig.Unintern());
     if (!mountConfigNode) {
         mountConfigNode = GetEphemeralNodeFactory()->CreateMap();
     }
@@ -257,7 +247,7 @@ void InternalizeMountConfigAttributes(IAttributeDictionary* attributes)
         mountConfigNode->AddChild(key, ConvertToNode(std::move(value)));
     }
 
-    attributes->Set("mount_config", mountConfigNode);
+    attributes->Set(EInternedAttributeKey::MountConfig.Unintern(), mountConfigNode);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
