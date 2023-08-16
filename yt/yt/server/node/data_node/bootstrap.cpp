@@ -28,7 +28,6 @@
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
-#include <yt/yt/library/containers/disk_manager/active_disk_checker.h>
 #include <yt/yt/library/containers/disk_manager/disk_info_provider.h>
 #include <yt/yt/library/containers/disk_manager/disk_manager_proxy.h>
 
@@ -240,7 +239,9 @@ public:
 
         DiskManagerProxy_ = CreateDiskManagerProxy(
             GetConfig()->DataNode->DiskManagerProxy);
-        DiskInfoProvider_ = New<TDiskInfoProvider>(DiskManagerProxy_);
+        DiskInfoProvider_ = New<TDiskInfoProvider>(
+            DiskManagerProxy_,
+            GetConfig()->DataNode->DiskInfoProvider);
         LocationManager_ = New<TLocationManager>(
             ChunkStore_,
             GetControlInvoker(),
@@ -248,12 +249,9 @@ public:
         LocationHealthChecker_ = New<TLocationHealthChecker>(
             ChunkStore_,
             LocationManager_,
-            GetControlInvoker());
+            GetControlInvoker(),
+            RebootManager_);
         LocationHealthChecker_->Initialize();
-        ActiveDiskChecker_ = New<TActiveDiskChecker>(
-            DiskInfoProvider_,
-            ClusterNodeBootstrap_->GetRebootManager(),
-            GetControlInvoker());
     }
 
     void Run() override
@@ -262,6 +260,11 @@ public:
         SkynetHttpServer_->AddHandler(
             "/read_skynet_part",
             MakeSkynetHttpHandler(this));
+
+        SetNodeByYPath(
+            GetOrchidRoot(),
+            "/location_manager",
+            CreateVirtualNode(LocationManager_->GetOrchidService()));
 
         SetNodeByYPath(
             GetOrchidRoot(),
@@ -283,8 +286,6 @@ public:
         AllyReplicaManager_->Start();
 
         LocationHealthChecker_->Start();
-
-        ActiveDiskChecker_->Start();
     }
 
     const TChunkStorePtr& GetChunkStore() const override
@@ -460,7 +461,6 @@ private:
     TDiskInfoProviderPtr DiskInfoProvider_;
     TLocationManagerPtr LocationManager_;
     TLocationHealthCheckerPtr LocationHealthChecker_;
-    TActiveDiskCheckerPtr ActiveDiskChecker_;
 
     void OnDynamicConfigChanged(
         const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
@@ -494,7 +494,6 @@ private:
 
         DiskManagerProxy_->OnDynamicConfigChanged(newConfig->DataNode->DiskManagerProxy);
         LocationHealthChecker_->OnDynamicConfigChanged(newConfig->DataNode->LocationHealthChecker);
-        ActiveDiskChecker_->OnDynamicConfigChanged(newConfig->DataNode->ActiveDiskChecker);
     }
 };
 

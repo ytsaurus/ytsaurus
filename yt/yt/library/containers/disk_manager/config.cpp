@@ -22,6 +22,14 @@ void TMockedDiskConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDiskInfoProviderConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("disk_ids", &TThis::DiskIds)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TDiskManagerProxyConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("disk_manager_address", &TThis::DiskManagerAddress)
@@ -46,16 +54,6 @@ void TDiskManagerProxyDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("request_timeout", &TThis::RequestTimeout)
         .Default();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TActiveDiskCheckerDynamicConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("check_period", &TThis::CheckPeriod)
-        .Default(TDuration::Minutes(1));
-    registrar.Parameter("enabled", &TThis::Enabled)
-        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

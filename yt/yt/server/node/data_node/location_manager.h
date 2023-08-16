@@ -6,6 +6,10 @@
 
 #include <yt/yt/library/containers/disk_manager/public.h>
 
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/ypath_service.h>
+
 namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,6 +35,10 @@ public:
 
     TFuture<std::vector<TLocationLivenessInfo>> GetLocationsLiveness();
 
+    std::vector<TString> GetConfigDiskIds();
+
+    TFuture<std::vector<NContainers::TDiskInfo>> GetDiskInfos();
+
     TFuture<std::vector<TGuid>> ResurrectChunkLocations(const THashSet<TGuid>& locationUuids);
 
     TFuture<std::vector<TGuid>> DisableChunkLocations(const THashSet<TGuid>& locationUuids);
@@ -43,11 +51,22 @@ public:
 
     TFuture<void> RecoverDisk(const TString& diskId);
 
+    void SetDiskIdsMismatched(bool diskIdsMismatched);
+
+    NYTree::IYPathServicePtr GetOrchidService();
+
 private:
     const NContainers::TDiskInfoProviderPtr DiskInfoProvider_;
 
     const TChunkStorePtr ChunkStore_;
     const IInvokerPtr ControlInvoker_;
+    const NYTree::IYPathServicePtr OrchidService_;
+
+    std::atomic<bool> DiskIdsMismatched_;
+
+    NYTree::IYPathServicePtr CreateOrchidService();
+
+    void BuildOrchid(NYT::NYson::IYsonConsumer* consumer);
 
     std::vector<TLocationLivenessInfo> MapLocationToLivenessInfo(
         const std::vector<NContainers::TDiskInfo>& failedDisks);
@@ -72,7 +91,8 @@ public:
     TLocationHealthChecker(
         TChunkStorePtr chunkStore,
         TLocationManagerPtr locationManager,
-        IInvokerPtr invoker);
+        IInvokerPtr invoker,
+        TRebootManagerPtr rebootManager);
 
     void Initialize();
 
@@ -82,12 +102,17 @@ public:
 
 private:
     TAtomicIntrusivePtr<TLocationHealthCheckerDynamicConfig> DynamicConfig_;
-    const IInvokerPtr Invoker_;
 
     const TChunkStorePtr ChunkStore_;
     const TLocationManagerPtr LocationManager_;
+    const IInvokerPtr Invoker_;
+    const TRebootManagerPtr RebootManager_;
 
     NConcurrency::TPeriodicExecutorPtr HealthCheckerExecutor_;
+
+    void OnHealthCheck();
+
+    void OnDiskHealthCheck();
 
     void OnLocationsHealthCheck();
 

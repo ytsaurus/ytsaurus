@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/node/data_node/chunk_store.h>
 
+#include <yt/yt/server/lib/misc/reboot_manager.h>
+
 #include <yt/yt/library/containers/disk_manager/disk_info_provider.h>
 
 #include <yt/yt/core/actions/future.h>
@@ -19,6 +21,8 @@ namespace NYT::NDataNode {
 using namespace NConcurrency;
 using namespace NContainers;
 using namespace NFS;
+using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,7 +37,28 @@ TLocationManager::TLocationManager(
     : DiskInfoProvider_(std::move(diskInfoProvider))
     , ChunkStore_(std::move(chunkStore))
     , ControlInvoker_(std::move(controlInvoker))
+    , OrchidService_(CreateOrchidService())
 { }
+
+void TLocationManager::BuildOrchid(IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("disk_ids_mismatched")
+            .Value(DiskIdsMismatched_.load())
+        .EndMap();
+}
+
+IYPathServicePtr TLocationManager::CreateOrchidService()
+{
+    return IYPathService::FromProducer(BIND(&TLocationManager::BuildOrchid, MakeStrong(this)))
+        ->Via(ControlInvoker_);
+}
+
+IYPathServicePtr TLocationManager::GetOrchidService()
+{
+    return OrchidService_;
+}
 
 TFuture<void> TLocationManager::FailDiskByName(
     const TString& diskName,
@@ -106,6 +131,16 @@ TFuture<std::vector<TLocationLivenessInfo>> TLocationManager::GetLocationsLivene
     return DiskInfoProvider_->GetYtDiskInfos()
         .Apply(BIND(&TLocationManager::MapLocationToLivenessInfo, MakeStrong(this))
         .AsyncVia(ControlInvoker_));
+}
+
+TFuture<std::vector<TDiskInfo>> TLocationManager::GetDiskInfos()
+{
+    return DiskInfoProvider_->GetYtDiskInfos();
+}
+
+std::vector<TString> TLocationManager::GetConfigDiskIds()
+{
+    return DiskInfoProvider_->GetConfigDiskIds();
 }
 
 std::vector<TGuid> TLocationManager::DoDisableLocations(const THashSet<TGuid>& locationUuids)
@@ -194,16 +229,23 @@ TFuture<void> TLocationManager::RecoverDisk(const TString& diskId)
     return DiskInfoProvider_->RecoverDisk(diskId);
 }
 
+void TLocationManager::SetDiskIdsMismatched(bool diskIdsMismatched)
+{
+    return DiskIdsMismatched_.store(diskIdsMismatched);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TLocationHealthChecker::TLocationHealthChecker(
     TChunkStorePtr chunkStore,
     TLocationManagerPtr locationManager,
-    IInvokerPtr invoker)
+    IInvokerPtr invoker,
+    TRebootManagerPtr rebootManager)
     : DynamicConfig_(New<TLocationHealthCheckerDynamicConfig>())
-    , Invoker_(std::move(invoker))
     , ChunkStore_(std::move(chunkStore))
     , LocationManager_(std::move(locationManager))
+    , Invoker_(std::move(invoker))
+    , RebootManager_(rebootManager)
     , HealthCheckerExecutor_(New<TPeriodicExecutor>(
         Invoker_,
         BIND(&TLocationHealthChecker::OnLocationsHealthCheck, MakeWeak(this)),
@@ -257,6 +299,52 @@ void TLocationHealthChecker::OnDiskHealthCheckFailed(
     if (config->Enabled && config->EnableManualDiskFailures) {
         YT_UNUSED_FUTURE(LocationManager_->FailDiskByName(location->GetStaticConfig()->DeviceName, error));
     }
+}
+
+void TLocationHealthChecker::OnHealthCheck()
+{
+    auto config = DynamicConfig_.Acquire();
+
+    if (config->NewDiskCheckerEnabled)
+    {
+        OnDiskHealthCheck();
+    }
+
+    OnLocationsHealthCheck();
+}
+
+void TLocationHealthChecker::OnDiskHealthCheck()
+{
+    auto diskInfos = WaitFor(LocationManager_->GetDiskInfos());
+
+    // Fast path.
+    if (!diskInfos.IsOK()) {
+        YT_LOG_ERROR(diskInfos, "Failed to disks");
+        return;
+    }
+
+    THashSet<TString> diskIds;
+
+    for (const auto& disk : diskInfos.Value()) {
+        diskIds.insert(disk.DiskId);
+    }
+
+    auto oldDiskIds = LocationManager_->GetConfigDiskIds();
+
+    bool matched = true;
+
+    if (oldDiskIds.size() < diskIds.size()) {
+        matched = false;
+    } else if (oldDiskIds.size() == diskIds.size()) {
+        for (const auto& oldId : oldDiskIds) {
+            if (!diskIds.contains(oldId)) {
+                matched = false;
+                break;
+            }
+        }
+    }
+
+    LocationManager_->SetDiskIdsMismatched(!matched);
 }
 
 void TLocationHealthChecker::OnLocationsHealthCheck()

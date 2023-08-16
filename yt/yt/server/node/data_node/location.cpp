@@ -590,6 +590,8 @@ bool TChunkLocation::Resurrect()
         return false;
     }
 
+    YT_LOG_WARNING("Location resurrection (LocationUuid: %v)", GetUuid());
+
     BIND([=, this, this_ = MakeStrong(this)] () {
         try {
             // Remove disabled lock file if exists.

@@ -563,6 +563,8 @@ public:
 
     bool EnableManualDiskFailures;
 
+    bool NewDiskCheckerEnabled;
+
     TDuration HealthCheckPeriod;
 
     REGISTER_YSON_STRUCT(TLocationHealthCheckerDynamicConfig);
@@ -822,6 +824,8 @@ public:
     //! Configuration of the interaction with the host disk manager.
     NContainers::TDiskManagerProxyConfigPtr DiskManagerProxy;
 
+    NContainers::TDiskInfoProviderConfigPtr DiskInfoProvider;
+
     //! Upload session timeout.
     /*!
      * Some activity must be happening in a session regularly (i.e. new
@@ -979,8 +983,6 @@ public:
 
     //! Publish disabled locations to master.
     std::optional<bool> PublishDisabledLocations;
-
-    NContainers::TActiveDiskCheckerDynamicConfigPtr ActiveDiskChecker;
 
     TP2PConfigPtr P2P;
 

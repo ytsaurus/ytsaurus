@@ -32,7 +32,7 @@ private:
     const IInvokerPtr Invoker_;
     const NYTree::IYPathServicePtr OrchidService_;
 
-    bool NeedReboot_ = false;
+    std::atomic<bool> NeedReboot_ = false;
 
     NYTree::IYPathServicePtr CreateOrchidService();
 

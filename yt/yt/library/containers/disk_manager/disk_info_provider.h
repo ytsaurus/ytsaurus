@@ -12,7 +12,11 @@ class TDiskInfoProvider
     : public TRefCounted
 {
 public:
-    explicit TDiskInfoProvider(IDiskManagerProxyPtr diskManagerProxy);
+    explicit TDiskInfoProvider(
+        IDiskManagerProxyPtr diskManagerProxy,
+        TDiskInfoProviderConfigPtr config);
+
+    std::vector<TString> GetConfigDiskIds() const;
 
     TFuture<std::vector<TDiskInfo>> GetYtDiskInfos();
 
@@ -24,6 +28,7 @@ public:
 
 private:
     const IDiskManagerProxyPtr DiskManagerProxy_;
+    const TDiskInfoProviderConfigPtr Config_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDiskInfoProvider)
