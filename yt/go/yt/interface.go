@@ -826,6 +826,9 @@ type DestroyChunkLocationsOptions struct {
 type ResurrectChunkLocationsOptions struct {
 }
 
+type RequestRebootOptions struct {
+}
+
 type CheckPermissionResult struct {
 	Action      SecurityAction `yson:"action"`
 	ObjectID    NodeID         `yson:"object_id,omitempty"`
@@ -873,6 +876,9 @@ type DestroyChunkLocationsResponse struct {
 
 type ResurrectChunkLocationsResponse struct {
 	LocationUUIDs []guid.GUID
+}
+
+type RequestRebootResponse struct {
 }
 
 type AdminClient interface {
@@ -983,6 +989,14 @@ type AdminClient interface {
 		locationUUIDs []guid.GUID,
 		options *ResurrectChunkLocationsOptions,
 	) (result *ResurrectChunkLocationsResponse, err error)
+
+	// http:verb:"request_reboot"
+	// http:params:"node_address"
+	RequestReboot(
+		ctx context.Context,
+		nodeAddress string,
+		options *RequestRebootOptions,
+	) (result *RequestRebootResponse, err error)
 }
 
 type LockNodeOptions struct {

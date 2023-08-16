@@ -456,6 +456,16 @@ func makeResurrectChunkLocationsResponse(response *rpc_proxy.TRspResurrectChunkL
 	return ret, nil
 }
 
+func makeRequestRebootResponse(response *rpc_proxy.TRspRequestReboot) (*yt.RequestRebootResponse, error) {
+	if response == nil {
+		return nil, nil
+	}
+
+	ret := &yt.RequestRebootResponse{}
+
+	return ret, nil
+}
+
 func convertOperationType(typ *yt.OperationType) (*rpc_proxy.EOperationType, error) {
 	if typ == nil {
 		return nil, nil

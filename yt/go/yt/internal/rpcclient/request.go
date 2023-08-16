@@ -992,6 +992,24 @@ func (r ResurrectChunkLocationsRequest) Path() (string, bool) {
 	return "", false
 }
 
+type RequestRebootRequest struct {
+	*rpc_proxy.TReqRequestReboot
+}
+
+func NewRequestRebootRequest(r *rpc_proxy.TReqRequestReboot) *RequestRebootRequest {
+	return &RequestRebootRequest{TReqRequestReboot: r}
+}
+
+func (r RequestRebootRequest) Log() []log.Field {
+	return []log.Field{
+		log.String("node_address", r.GetNodeAddress()),
+	}
+}
+
+func (r RequestRebootRequest) Path() (string, bool) {
+	return "", false
+}
+
 var _ TransactionalRequest = (*LockNodeRequest)(nil)
 var _ MutatingRequest = (*LockNodeRequest)(nil)
 
