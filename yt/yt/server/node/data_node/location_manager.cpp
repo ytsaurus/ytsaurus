@@ -167,6 +167,16 @@ std::vector<TString> TLocationManager::GetConfigDiskIds()
     return DiskInfoProvider_->GetConfigDiskIds();
 }
 
+void TLocationManager::UpdateOldDiskIds(std::vector<TString> oldDiskIds)
+{
+    OldDiskIds_ = oldDiskIds;
+}
+
+std::vector<TString> TLocationManager::GetOldDiskIds()
+{
+    return OldDiskIds_;
+}
+
 std::vector<TGuid> TLocationManager::DoDisableLocations(const THashSet<TGuid>& locationUuids)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -353,22 +363,37 @@ void TLocationHealthChecker::OnDiskHealthCheck()
         diskIds.insert(disk.DiskId);
     }
 
-    auto oldDiskIds = LocationManager_->GetConfigDiskIds();
+    auto configDiskIds = LocationManager_->GetConfigDiskIds();
+    auto oldDiskIds = LocationManager_->GetOldDiskIds();
 
-    bool matched = true;
-
-    if (oldDiskIds.size() < diskIds.size()) {
-        matched = false;
-    } else if (oldDiskIds.size() == diskIds.size()) {
-        for (const auto& oldId : oldDiskIds) {
-            if (!diskIds.contains(oldId)) {
-                matched = false;
-                break;
+    auto checkDisks = [] (const auto& oldDisks, const auto& newDisks) {
+        if (oldDisks.size() != newDisks.size()) {
+            return false;
+        } else if (oldDisks.size() == newDisks.size()) {
+            for (const auto& oldId : oldDisks) {
+                if (!newDisks.contains(oldId)) {
+                    return false;
+                }
             }
         }
+
+        return true;
+    };
+
+    if (!oldDiskIds.empty()) {
+        LocationManager_->SetDiskIdsMismatched(
+            !checkDisks(oldDiskIds, diskIds) ||
+            !checkDisks(configDiskIds, diskIds));
     }
 
-    LocationManager_->SetDiskIdsMismatched(!matched);
+    std::vector<TString> newOldDiskIds;
+    newOldDiskIds.reserve(diskIds.size());
+
+    for (const auto& diskId : diskIds) {
+        newOldDiskIds.push_back(diskId);
+    }
+
+    LocationManager_->UpdateOldDiskIds(newOldDiskIds);
 }
 
 void TLocationHealthChecker::OnLocationsHealthCheck()

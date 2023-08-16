@@ -61,6 +61,10 @@ public:
     std::vector<TLocationLivenessInfo> MapLocationToLivenessInfo(
         const std::vector<NContainers::TDiskInfo>& failedDisks);
 
+    void UpdateOldDiskIds(std::vector<TString> oldDiskIds);
+
+    std::vector<TString> GetOldDiskIds();
+
 private:
     const NContainers::TDiskInfoProviderPtr DiskInfoProvider_;
 
@@ -70,6 +74,7 @@ private:
 
     std::atomic<bool> DiskIdsMismatched_;
     TAtomicObject<TError> DiskFailedAlert_;
+    std::vector<TString> OldDiskIds_;
 
     NYTree::IYPathServicePtr CreateOrchidService();
 
