@@ -950,20 +950,6 @@ class YTInstance(object):
 
         safe_kill(lambda: os.killpg(proc.pid, signal.SIGKILL))
 
-        # XXX: KERNEL-579 – temporarily solution for diagnostics
-        # try:
-        #     wait(lambda: is_dead(proc.pid))
-        # except WaitFailed:
-        #     if not is_dead(proc.pid):
-        #         exc_info = sys.exc_info()
-        #         try:
-        #             with open("/proc/{0}/status".format(proc.pid), "r") as fin:
-        #                 logger.error("Process status: %s", fin.read().replace("\n", "\\n"))
-        #             stack = subprocess.check_output(["sudo", "cat", "/proc/{0}/stack".format(proc.pid)])
-        #             logger.error("Process stack: %s", stack.replace("\n", "\\n"))
-        #         except (IOError, subprocess.CalledProcessError):
-        #             pass
-        #         reraise(*exc_info)
         for i in range(100):
             verbose = i > 50 and (i + 1) % 10 == 0
             if is_dead(proc.pid, verbose=verbose):
