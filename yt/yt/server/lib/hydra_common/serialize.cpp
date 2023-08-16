@@ -32,7 +32,7 @@ TSaveContext::TSaveContext(
     const TSaveContext* parentContext)
     : TEntityStreamSaveContext(
         output,
-        parentContext->GetVersion())
+        parentContext)
     , Logger_(parentContext->GetLogger())
 { }
 
