@@ -393,6 +393,7 @@
     XX(RegisterTime, register_time) \
     XX(Registered, registered) \
     XX(RegisteredMasterCellTags, registered_master_cell_tags) \
+    XX(RegistrationPending, registration_pending) \
     XX(RemovalStarted, removal_started) \
     XX(RemountNeededTabletCount, remount_needed_tablet_count) \
     XX(ReplicaLagLimit, replica_lag_limit) \
