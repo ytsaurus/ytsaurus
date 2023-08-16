@@ -3415,7 +3415,7 @@ private:
         int locationDirectorySize)
     {
         // Heartbeats should no longer contain location uuids but if node was
-        // registered before master server update it still can send  heartbeats
+        // registered before master server update it still can send heartbeats
         // with location uuids.
         YT_ASSERT(
             !chunkInfo.has_location_uuid() ||
