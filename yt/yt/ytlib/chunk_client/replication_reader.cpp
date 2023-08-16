@@ -572,6 +572,18 @@ protected:
             }).Via(SessionInvoker_));
     }
 
+    // NB: Now we use this method only in case of failed session.
+    void ReleaseThrottleBytesExcess(const IThroughputThrottlerPtr& throttler, i64 throttledBytes)
+    {
+        if (throttledBytes > TotalBytesReceived_) {
+            YT_LOG_DEBUG("Releasing excess throttled bytes (ThrottledBytes: %v, ReceivedBytes: %v)",
+                throttledBytes,
+                TotalBytesReceived_);
+
+            throttler->Release(throttledBytes - TotalBytesReceived_);
+        }
+    }
+
     void BanPeer(const TString& address, bool forever)
     {
         auto reader = Reader_.Lock();
@@ -2138,6 +2150,8 @@ private:
             SetReaderFailed();
         }
 
+        ReleaseThrottleBytesExcess(BandwidthThrottler_, BytesThrottled_);
+
         Promise_.TrySet(error);
     }
 
@@ -2410,11 +2424,14 @@ private:
 
     void OnSessionFailed(bool fatal, const TError& error) override
     {
-        YT_LOG_DEBUG(error, "Reader session failed (Fatal: %v)", fatal);
+        YT_LOG_DEBUG(error, "Reader session failed (Fatal: %v)",
+            fatal);
 
         if (fatal) {
             SetReaderFailed();
         }
+
+        ReleaseThrottleBytesExcess(BandwidthThrottler_, BytesThrottled_);
 
         Promise_.TrySet(error);
     }
@@ -2780,6 +2797,8 @@ private:
         if (fatal) {
             SetReaderFailed();
         }
+
+        ReleaseThrottleBytesExcess(BandwidthThrottler_, BytesThrottled_);
 
         Promise_.TrySet(error);
     }

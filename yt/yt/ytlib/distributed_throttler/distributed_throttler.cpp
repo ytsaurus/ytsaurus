@@ -151,6 +151,11 @@ public:
         Underlying_->Acquire(amount);
     }
 
+    void Release(i64 /*amount*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     bool IsOverdraft() override
     {
         YT_VERIFY(Config_.Acquire()->Mode != EDistributedThrottlerMode::Precise);

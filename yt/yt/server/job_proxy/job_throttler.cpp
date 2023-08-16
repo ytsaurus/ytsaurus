@@ -143,6 +143,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    void Release(i64 /*amount*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     bool IsOverdraft() override
     {
         YT_UNIMPLEMENTED();
