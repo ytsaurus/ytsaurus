@@ -3393,18 +3393,18 @@ class TestSatisfactionRatio(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_use_pool_satisfaction_for_scheduling(self):
-        create_pool("first", attributes={
-            "use_pool_satisfaction_for_scheduling": False,
-            "strong_guarantee_resources": {"cpu": 3.0},
+        create_pool("first", attributes={"strong_guarantee_resources": {"cpu": 3.0}})
+        create_pool("second", attributes={
+            "use_pool_satisfaction_for_scheduling": True,
+            "strong_guarantee_resources": {"cpu": 3.0}
         })
-        create_pool("second", attributes={"strong_guarantee_resources": {"cpu": 3.0}})
 
         set("//sys/pool_trees/default/first/@resource_limits", {"user_slots": 1})
         set("//sys/pool_trees/default/second/@resource_limits", {"user_slots": 1})
 
         wait(lambda: get(scheduler_orchid_pool_path("second") + "/effective_use_pool_satisfaction_for_scheduling", default=None))
         wait(lambda: not get(scheduler_orchid_pool_path("first") + "/effective_use_pool_satisfaction_for_scheduling"))
-        wait(lambda: get(scheduler_orchid_pool_path("<Root>") + "/effective_use_pool_satisfaction_for_scheduling"))
+        wait(lambda: not get(scheduler_orchid_pool_path("<Root>") + "/effective_use_pool_satisfaction_for_scheduling"))
 
         op1 = run_sleeping_vanilla(job_count=2, spec={"pool": "first"})
         op2 = run_sleeping_vanilla(job_count=3, spec={"pool": "second"})
@@ -3432,7 +3432,7 @@ class TestSatisfactionRatio(YTEnvSetup):
         wait(lambda: get(scheduler_orchid_operation_path(op2.id) + "/scheduling_index") == 1)
         wait(lambda: get(scheduler_orchid_operation_path(op3.id) + "/scheduling_index") == 0)
 
-        remove("//sys/pool_trees/default/first/@use_pool_satisfaction_for_scheduling")
+        set("//sys/pool_trees/default/first/@use_pool_satisfaction_for_scheduling", True)
 
         wait(lambda: get(scheduler_orchid_operation_path(op1.id) + "/scheduling_index") == 1)
         wait(lambda: get(scheduler_orchid_operation_path(op2.id) + "/scheduling_index") == 2)
@@ -3839,12 +3839,12 @@ class TestFifoPools(YTEnvSetup):
             "non_preemptible_resource_usage_threshold": {"user_slots": 10},
         })
 
-        create_pool("first", attributes={"mode": "fifo", "fifo_pool_scheduling_order": "satisfaction"})
-        create_pool("second", attributes={"mode": "fifo"})
+        create_pool("first", attributes={"mode": "fifo"})
+        create_pool("second", attributes={"mode": "fifo", "fifo_pool_scheduling_order": "fifo"})
 
         wait(lambda: get(scheduler_orchid_pool_path("second") + "/effective_fifo_pool_scheduling_order", default=None) == "fifo")
         wait(lambda: get(scheduler_orchid_pool_path("first") + "/effective_fifo_pool_scheduling_order") == "satisfaction")
-        wait(lambda: get(scheduler_orchid_pool_path("<Root>") + "/effective_fifo_pool_scheduling_order") == "fifo")
+        wait(lambda: get(scheduler_orchid_pool_path("<Root>") + "/effective_fifo_pool_scheduling_order") == "satisfaction")
 
         set("//sys/pool_trees/default/first/@resource_limits", {"user_slots": 1})
         set("//sys/pool_trees/default/second/@resource_limits", {"user_slots": 1})

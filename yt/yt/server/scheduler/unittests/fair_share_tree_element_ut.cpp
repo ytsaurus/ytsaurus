@@ -790,9 +790,7 @@ TEST_F(TFairShareTreeElementTest, TestSatisfactionRatio)
         EXPECT_EQ(0.0, operationElements[3]->PostUpdateAttributes().SatisfactionRatio);
         EXPECT_EQ(0.0, poolA->PostUpdateAttributes().SatisfactionRatio);
         EXPECT_EQ(InfiniteSatisfactionRatio, poolB->PostUpdateAttributes().SatisfactionRatio);
-        // NB(eshcherbin): Here it's 1/3 because in FIFO pools we don't search for the least satisfied child;
-        // in this case, we take the minimum of the pool's local satisfaction (1/3) and the first child's satisfaction (0.5).
-        EXPECT_NEAR(1.0 / 3.0, poolC->PostUpdateAttributes().SatisfactionRatio, 1e-7);
+        EXPECT_EQ(0.0, poolC->PostUpdateAttributes().SatisfactionRatio);
         EXPECT_EQ(InfiniteSatisfactionRatio, poolD->PostUpdateAttributes().SatisfactionRatio);
 
         const auto& digest = rootElement->PostUpdateAttributes().SatisfactionDigest;
