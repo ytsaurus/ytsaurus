@@ -656,7 +656,7 @@ struct TSelectRowsOptionsBase
     bool VerboseLogging = false;
     // COMPAT(lukyan)
     //! Use fixed and rewritten range inference.
-    bool NewRangeInference = true;
+    bool NewRangeInference = false;
 };
 
 struct TSelectRowsOptions
