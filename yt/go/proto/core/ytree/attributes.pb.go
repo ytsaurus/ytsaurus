@@ -7,7 +7,7 @@
 package ytree
 
 import (
-	_ "go.ytsaurus.tech/yt/go/proto/core/yson"
+	_ "github.com/doublecloud/transfer/yt/go/proto/core/yson"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
