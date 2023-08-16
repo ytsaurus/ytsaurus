@@ -693,7 +693,7 @@ TDynamicStoreId TStoreManagerBase::GenerateDynamicStoreId()
     if (Tablet_->GetSettings().MountConfig->EnableDynamicStoreRead) {
         return Tablet_->PopDynamicStoreIdFromPool();
     } else {
-        return TabletContext_->GenerateId(Tablet_->IsPhysicallySorted()
+        return Tablet_->GenerateId(Tablet_->IsPhysicallySorted()
             ? EObjectType::SortedDynamicTabletStore
             : EObjectType::OrderedDynamicTabletStore);
     }

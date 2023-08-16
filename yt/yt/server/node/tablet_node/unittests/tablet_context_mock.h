@@ -27,7 +27,7 @@ public:
     int GetAutomatonTerm() const override;
     NQueryClient::IColumnEvaluatorCachePtr GetColumnEvaluatorCache() const override;
     NQueryClient::IRowComparerProviderPtr GetRowComparerProvider() const override;
-    NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type) const override;
+    NObjectClient::TObjectId GenerateIdDeprecated(NObjectClient::EObjectType type) const override;
     NApi::NNative::IClientPtr GetClient() const override;
     NClusterNode::TClusterNodeDynamicConfigManagerPtr GetDynamicConfigManager() const override;
     IStorePtr CreateStore(

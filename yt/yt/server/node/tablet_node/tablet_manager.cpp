@@ -778,7 +778,7 @@ private:
             return Owner_->Bootstrap_->GetRowComparerProvider();
         }
 
-        TObjectId GenerateId(EObjectType type) const override
+        TObjectId GenerateIdDeprecated(EObjectType type) const override
         {
             return Owner_->Slot_->GenerateId(type);
         }
@@ -1115,6 +1115,12 @@ private:
         std::vector<TError> configErrors;
         auto settings = rawSettings.BuildEffectiveSettings(&configErrors, nullptr);
 
+        TIdGenerator idGenerator(
+            CellTagFromId(tabletId),
+            // Make first ids look like 1-1-... rather than 0-1-...
+            /*counter*/ 1ull << 32,
+            /*seed*/ GetCurrentMutationContext()->RandomGenerator()->Generate<ui64>());
+
         auto tabletHolder = std::make_unique<TTablet>(
             tabletId,
             settings,
@@ -1122,6 +1128,7 @@ private:
             tableId,
             path,
             &TabletContext_,
+            idGenerator,
             schemaId,
             schema,
             pivotKey,

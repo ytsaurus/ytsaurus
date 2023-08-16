@@ -78,6 +78,7 @@ void TSimpleTabletManager::InitializeTablet(TTabletOptions options)
             NullObjectId,
             "ut",
             &TabletContext_,
+            TIdGenerator::CreateDummy(),
             /*schemaId*/ NullObjectId,
             options.Schema,
             sorted ? MinKey() : TLegacyOwningKey(),

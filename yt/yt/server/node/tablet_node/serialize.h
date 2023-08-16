@@ -39,6 +39,7 @@ DEFINE_ENUM(ETabletReign,
     ((RestoreHunkLocks)                   (100706)) // aleksandra-zh
     // 23.2 starts here.
     ((Avenues)                            (100800)) // ifsmirnov
+    ((TabletIdGenerator)                  (100801)) // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

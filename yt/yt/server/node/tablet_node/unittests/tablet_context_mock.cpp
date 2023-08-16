@@ -77,9 +77,9 @@ NQueryClient::IRowComparerProviderPtr TTabletContextMock::GetRowComparerProvider
     return RowComparerProvider_;
 }
 
-TObjectId TTabletContextMock::GenerateId(EObjectType /*type*/) const
+TObjectId TTabletContextMock::GenerateIdDeprecated(EObjectType /*type*/) const
 {
-    return TObjectId::Create();
+    YT_ABORT();
 }
 
 NNative::IClientPtr TTabletContextMock::GetClient() const

@@ -194,6 +194,7 @@ public:
             /*tableId*/ NullObjectId,
             "ut",
             &TabletContext_,
+            TIdGenerator::CreateDummy(),
             /*schemaId*/ NullObjectId,
             schema,
             sorted ? MinKey() : TLegacyOwningKey(),

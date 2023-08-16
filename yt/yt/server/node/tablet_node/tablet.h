@@ -304,7 +304,7 @@ struct ITabletContext
     virtual NQueryClient::IRowComparerProviderPtr GetRowComparerProvider() const = 0;
     virtual NApi::NNative::IClientPtr GetClient() const = 0;
     virtual NClusterNode::TClusterNodeDynamicConfigManagerPtr GetDynamicConfigManager() const = 0;
-    virtual NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type) const = 0;
+    virtual NObjectClient::TObjectId GenerateIdDeprecated(NObjectClient::EObjectType type) const = 0;
     virtual IStorePtr CreateStore(
         TTablet* tablet,
         EStoreType type,
@@ -433,6 +433,28 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TIdGenerator
+{
+public:
+    TIdGenerator() = default;
+
+    TIdGenerator(NObjectClient::TCellTag cellTag, ui64 counter, ui64 seed);
+
+    NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type);
+
+    // Used in tests.
+    static TIdGenerator CreateDummy();
+
+    void Persist(const TPersistenceContext& context);
+
+private:
+    ui16 CellTag_;
+    ui64 Counter_{};
+    ui64 Seed_{};
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTablet
     : public TObjectBase
     , public TRefTracked<TTablet>
@@ -555,6 +577,7 @@ public:
         NObjectClient::TObjectId tableId,
         const NYPath::TYPath& path,
         ITabletContext* context,
+        TIdGenerator idGenerator,
         NObjectClient::TObjectId schemaId,
         NTableClient::TTableSchemaPtr schema,
         TLegacyOwningKey pivotKey,
@@ -614,6 +637,8 @@ public:
     TTableReplicaInfo* GetReplicaInfoOrThrow(TTableReplicaId id);
 
     NChaosClient::TReplicationCardId GetReplicationCardId() const;
+
+    NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type);
 
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
@@ -729,6 +754,7 @@ public:
 
 private:
     ITabletContext* const Context_;
+    TIdGenerator IdGenerator_;
 
     const TLockManagerPtr LockManager_;
     const IHunkLockManagerPtr HunkLockManager_;

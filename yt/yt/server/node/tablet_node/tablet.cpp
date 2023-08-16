@@ -500,6 +500,46 @@ TTimestamp TBackupMetadata::GetCheckpointTimestamp() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TIdGenerator::TIdGenerator(TCellTag cellTag, ui64 counter, ui64 seed)
+    : CellTag_(cellTag)
+    , Counter_(counter)
+    , Seed_(seed)
+{ }
+
+TObjectId TIdGenerator::GenerateId(EObjectType type)
+{
+    // Validate that the generator is initialized.
+    YT_VERIFY(CellTag_);
+
+    Seed_ = TRandomGenerator(Seed_).Generate<ui64>();
+    ++Counter_;
+
+    return TObjectId(
+        Seed_,
+        (CellTag_ << 16) + static_cast<int>(type),
+        Counter_ & 0xffffffff,
+        Counter_ >> 32);
+}
+
+TIdGenerator TIdGenerator::CreateDummy()
+{
+    return TIdGenerator(
+        NObjectClient::TCellTag(1),
+        /*counter*/ 0,
+        /*seed*/ 0xabacabadabacabaULL);
+}
+
+void TIdGenerator::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, CellTag_);
+    Persist(context, Counter_);
+    Persist(context, Seed_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTablet::TTablet(
     TTabletId tabletId,
     ITabletContext* context)
@@ -510,15 +550,7 @@ TTablet::TTablet(
     , HunkLockManager_(CreateHunkLockManager(this, Context_))
     , Logger(TabletNodeLogger.WithTag("TabletId: %v", Id_))
     , Settings_(TTableSettings::CreateNew())
-{
-    Settings_.MountConfig = New<TTableMountConfig>();
-    Settings_.StoreReaderConfig = New<TTabletStoreReaderConfig>();
-    Settings_.HunkReaderConfig = New<TTabletHunkReaderConfig>();
-    Settings_.StoreWriterConfig = New<TTabletStoreWriterConfig>();
-    Settings_.StoreWriterOptions = New<TTabletStoreWriterOptions>();
-    Settings_.HunkWriterConfig = New<TTabletHunkWriterConfig>();
-    Settings_.HunkWriterOptions = New<TTabletHunkWriterOptions>();
-}
+{ }
 
 TTablet::TTablet(
     TTabletId tabletId,
@@ -527,6 +559,7 @@ TTablet::TTablet(
     TObjectId tableId,
     const TYPath& path,
     ITabletContext* context,
+    TIdGenerator idGenerator,
     TObjectId schemaId,
     TTableSchemaPtr schema,
     TLegacyOwningKey pivotKey,
@@ -552,13 +585,14 @@ TTablet::TTablet(
     , RetainedTimestamp_(retainedTimestamp)
     , TabletWriteManager_(CreateTabletWriteManager(this, context))
     , Context_(context)
+    , IdGenerator_(idGenerator)
     , LockManager_(New<TLockManager>())
     , HunkLockManager_(CreateHunkLockManager(this, Context_))
     , Logger(TabletNodeLogger.WithTag("TabletId: %v", Id_))
     , Settings_(std::move(settings))
     , Eden_(std::make_unique<TPartition>(
         this,
-        context->GenerateId(EObjectType::TabletPartition),
+        GenerateId(EObjectType::TabletPartition),
         EdenIndex,
         PivotKey_,
         NextPivotKey_))
@@ -630,6 +664,21 @@ TReplicationCardId TTablet::GetReplicationCardId() const
     return ReplicationCardIdFromUpstreamReplicaIdOrNull(UpstreamReplicaId_);
 }
 
+TObjectId TTablet::GenerateId(EObjectType type)
+{
+    // COMPAT(ifsmirnov)
+    const auto* mutationContext = TryGetCurrentMutationContext();
+
+    // NB: no mutation context in tests.
+    if (!mutationContext ||
+        mutationContext->Request().Reign >= static_cast<int>(ETabletReign::TabletIdGenerator))
+    {
+        return IdGenerator_.GenerateId(type);
+    } else {
+        return Context_->GenerateIdDeprecated(type);
+    }
+}
+
 void TTablet::Save(TSaveContext& context) const
 {
     using NYT::Save;
@@ -694,6 +743,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, *TabletWriteManager_);
     Save(context, LastDiscardStoresRevision_);
     Save(context, PreparedReplicatorTransactionIds_);
+    Save(context, IdGenerator_);
 
     HunkLockManager_->Save(context);
 }
@@ -831,6 +881,11 @@ void TTablet::Load(TLoadContext& context)
 
     Load(context, LastDiscardStoresRevision_);
     Load(context, PreparedReplicatorTransactionIds_);
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= ETabletReign::TabletIdGenerator) {
+        Load(context, IdGenerator_);
+    }
 
     // COMPAT(aleksandra-zh)
     if (context.GetVersion() >= ETabletReign::JournalHunks) {
@@ -1037,7 +1092,7 @@ void TTablet::CreateInitialPartition()
     YT_VERIFY(PartitionList_.empty());
     auto partition = std::make_unique<TPartition>(
         this,
-        Context_->GenerateId(EObjectType::TabletPartition),
+        GenerateId(EObjectType::TabletPartition),
         static_cast<int>(PartitionList_.size()),
         PivotKey_,
         NextPivotKey_);
@@ -1070,7 +1125,7 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex, TDuration splitDela
 
     auto mergedPartition = std::make_unique<TPartition>(
         this,
-        Context_->GenerateId(EObjectType::TabletPartition),
+        GenerateId(EObjectType::TabletPartition),
         firstIndex,
         PartitionList_[firstIndex]->GetPivotKey(),
         PartitionList_[lastIndex]->GetNextPivotKey());
@@ -1157,7 +1212,7 @@ void TTablet::SplitPartition(int index, const std::vector<TLegacyOwningKey>& piv
             : pivotKeys[pivotKeyIndex + 1];
         auto partition = std::make_unique<TPartition>(
             this,
-            Context_->GenerateId(EObjectType::TabletPartition),
+            GenerateId(EObjectType::TabletPartition),
             index + pivotKeyIndex,
             thisPivotKey,
             nextPivotKey);
