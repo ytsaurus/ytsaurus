@@ -54,7 +54,7 @@ public:
 
     TFuture<void> RecoverDisk(const TString& diskId);
 
-    void SetDiskIdsMismatched(bool diskIdsMismatched);
+    void SetDiskIdsMismatched();
 
     NYTree::IYPathServicePtr GetOrchidService();
 

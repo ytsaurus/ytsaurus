@@ -263,9 +263,9 @@ TFuture<void> TLocationManager::RecoverDisk(const TString& diskId)
     return DiskInfoProvider_->RecoverDisk(diskId);
 }
 
-void TLocationManager::SetDiskIdsMismatched(bool diskIdsMismatched)
+void TLocationManager::SetDiskIdsMismatched()
 {
-    return DiskIdsMismatched_.store(diskIdsMismatched);
+    return DiskIdsMismatched_.store(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -282,7 +282,7 @@ TLocationHealthChecker::TLocationHealthChecker(
     , RebootManager_(rebootManager)
     , HealthCheckerExecutor_(New<TPeriodicExecutor>(
         Invoker_,
-        BIND(&TLocationHealthChecker::OnLocationsHealthCheck, MakeWeak(this)),
+        BIND(&TLocationHealthChecker::OnHealthCheck, MakeWeak(this)),
         DynamicConfig_.Acquire()->HealthCheckPeriod))
 { }
 
@@ -298,28 +298,14 @@ void TLocationHealthChecker::Initialize()
 
 void TLocationHealthChecker::Start()
 {
-    if (DynamicConfig_.Acquire()->Enabled) {
-        YT_LOG_DEBUG("Starting location health checker");
-        HealthCheckerExecutor_->Start();
-    }
+    HealthCheckerExecutor_->Start();
 }
 
 void TLocationHealthChecker::OnDynamicConfigChanged(const TLocationHealthCheckerDynamicConfigPtr& newConfig)
 {
     auto config = DynamicConfig_.Acquire();
-    auto oldEnabled = config->Enabled;
-    auto newEnabled = newConfig->Enabled;
-
     auto newHealthCheckPeriod = newConfig->HealthCheckPeriod;
     HealthCheckerExecutor_->SetPeriod(newHealthCheckPeriod);
-
-    if (oldEnabled && !newEnabled) {
-        YT_LOG_DEBUG("Stopping location health checker");
-        YT_UNUSED_FUTURE(HealthCheckerExecutor_->Stop());
-    } else if (!oldEnabled && newEnabled) {
-        YT_LOG_DEBUG("Starting location health checker");
-        HealthCheckerExecutor_->Start();
-    }
 
     DynamicConfig_.Store(newConfig);
 }
@@ -339,12 +325,13 @@ void TLocationHealthChecker::OnHealthCheck()
 {
     auto config = DynamicConfig_.Acquire();
 
-    if (config->NewDiskCheckerEnabled)
-    {
-        OnDiskHealthCheck();
-    }
+    if (config->Enabled) {
+        if (config->NewDiskCheckerEnabled) {
+            OnDiskHealthCheck();
+        }
 
-    OnLocationsHealthCheck();
+        OnLocationsHealthCheck();
+    }
 }
 
 void TLocationHealthChecker::OnDiskHealthCheck()
@@ -358,9 +345,14 @@ void TLocationHealthChecker::OnDiskHealthCheck()
     }
 
     THashSet<TString> diskIds;
+    THashSet<TString> aliveDiskIds;
 
     for (const auto& disk : diskInfos.Value()) {
         diskIds.insert(disk.DiskId);
+
+        if (disk.State == NContainers::EDiskState::Ok) {
+            aliveDiskIds.insert(disk.DiskId);
+        }
     }
 
     auto configDiskIds = LocationManager_->GetConfigDiskIds();
@@ -380,16 +372,24 @@ void TLocationHealthChecker::OnDiskHealthCheck()
         return true;
     };
 
+    YT_LOG_DEBUG("ConfigDiskIdsSize: %v, OldCheckDiskIdsSize: %v, NewCheckDiskIdsSize: %v",
+        configDiskIds.size(),
+        oldDiskIds.size(),
+        aliveDiskIds.size());
+
     if (!oldDiskIds.empty()) {
-        LocationManager_->SetDiskIdsMismatched(
-            !checkDisks(oldDiskIds, diskIds) ||
-            !checkDisks(configDiskIds, diskIds));
+        if (oldDiskIds.size() < aliveDiskIds.size() ||
+            !checkDisks(configDiskIds, diskIds))
+        {
+            YT_LOG_WARNING("Set disk ids mismatched flag");
+            LocationManager_->SetDiskIdsMismatched();
+        }
     }
 
     std::vector<TString> newOldDiskIds;
-    newOldDiskIds.reserve(diskIds.size());
+    newOldDiskIds.reserve(aliveDiskIds.size());
 
-    for (const auto& diskId : diskIds) {
+    for (const auto& diskId : aliveDiskIds) {
         newOldDiskIds.push_back(diskId);
     }
 
