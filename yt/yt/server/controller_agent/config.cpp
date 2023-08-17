@@ -75,7 +75,7 @@ void TAlertManagerConfig::Register(TRegistrar registrar)
         .Default(0.8);
 
     registrar.Parameter("aborted_jobs_alert_max_aborted_time", &TThis::AbortedJobsAlertMaxAbortedTime)
-        .Default((i64) 10 * 60 * 1000)
+        .Default((i64) 10 * 60 * 1'000)
         .GreaterThan(0);
 
     registrar.Parameter("aborted_jobs_alert_max_aborted_time_ratio", &TThis::AbortedJobsAlertMaxAbortedTimeRatio)
@@ -86,7 +86,7 @@ void TAlertManagerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(1));
 
     registrar.Parameter("short_jobs_alert_min_job_count", &TThis::ShortJobsAlertMinJobCount)
-        .Default(1000);
+        .Default(1'000);
 
     registrar.Parameter("short_jobs_alert_min_allowed_operation_duration_to_max_job_duration_ratio", &TThis::ShortJobsAlertMinAllowedOperationDurationToMaxJobDurationRatio)
         .Default(2.0);
@@ -100,7 +100,7 @@ void TAlertManagerConfig::Register(TRegistrar registrar)
         .GreaterThan(0);
 
     registrar.Parameter("job_spec_throttling_alert_activation_count_threshold", &TThis::JobSpecThrottlingAlertActivationCountThreshold)
-        .Default(1000)
+        .Default(1'000)
         .GreaterThan(0);
 
     registrar.Parameter("low_cpu_usage_alert_min_execution_time", &TThis::LowCpuUsageAlertMinExecTime)
@@ -267,7 +267,7 @@ void TSuspiciousJobsOptions::Register(TRegistrar registrar)
 void TDataBalancerOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter("logging_min_consecutive_violation_count", &TThis::LoggingMinConsecutiveViolationCount)
-        .Default(1000);
+        .Default(1'000);
     registrar.Parameter("logging_period", &TThis::LoggingPeriod)
         .Default(TDuration::Minutes(1));
     registrar.Parameter("tolerance", &TThis::Tolerance)
@@ -298,10 +298,10 @@ void TOperationOptions::Register(TRegistrar registrar)
     registrar.Parameter("max_data_slices_per_job", &TThis::MaxDataSlicesPerJob)
         // This is a reasonable default for jobs with user code.
         // Defaults for system jobs are in Initializer.
-        .Default(1000)
+        .Default(1'000)
         .GreaterThan(0);
     registrar.Parameter("max_data_slices_per_job_limit", &TThis::MaxDataSlicesPerJobLimit)
-        .Default(10000)
+        .Default(10'000)
         .GreaterThan(0);
 
     registrar.Parameter("max_slice_data_weight", &TThis::MaxSliceDataWeight)
@@ -315,12 +315,12 @@ void TOperationOptions::Register(TRegistrar registrar)
         .GreaterThan(0);
 
     registrar.Parameter("max_input_table_count", &TThis::MaxInputTableCount)
-        .Default(3000)
+        .Default(3'000)
         .GreaterThan(0);
 
     registrar.Parameter("max_output_tables_times_jobs_count", &TThis::MaxOutputTablesTimesJobsCount)
-        .Default(20 * 100000)
-        .GreaterThanOrEqual(100000);
+        .Default(20 * 100'000)
+        .GreaterThanOrEqual(100'000);
 
     registrar.Parameter("job_splitter", &TThis::JobSplitter)
         .DefaultNew();
@@ -374,7 +374,7 @@ void TOperationOptions::Register(TRegistrar registrar)
 void TSimpleOperationOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_job_count", &TThis::MaxJobCount)
-        .Default(100000);
+        .Default(100'000);
 
     registrar.Parameter("data_weight_per_job", &TThis::DataWeightPerJob)
         .Alias("data_size_per_job")
@@ -402,11 +402,11 @@ void TReduceOperationOptions::Register(TRegistrar registrar)
 void TSortOperationOptionsBase::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_partition_job_count", &TThis::MaxPartitionJobCount)
-        .Default(500000)
+        .Default(500'000)
         .GreaterThan(0);
 
     registrar.Parameter("max_partition_count", &TThis::MaxPartitionCount)
-        .Default(200000)
+        .Default(200'000)
         .GreaterThan(0);
 
     registrar.Parameter("max_new_partition_count", &TThis::MaxNewPartitionCount)
@@ -438,7 +438,7 @@ void TSortOperationOptionsBase::Register(TRegistrar registrar)
         .GreaterThanOrEqual(1);
 
     registrar.Parameter("max_value_count_per_simple_sort_job", &TThis::MaxValueCountPerSimpleSortJob)
-        .Default(10 * 1000 * 1000)
+        .Default(10'000'000)
         .GreaterThanOrEqual(1);
 
     registrar.Parameter("partition_job_size_adjuster", &TThis::PartitionJobSizeAdjuster)
@@ -459,7 +459,7 @@ void TRemoteCopyOperationOptions::Register(TRegistrar registrar)
 void TZombieOperationOrchidsConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("limit", &TThis::Limit)
-        .Default(10000)
+        .Default(10'000)
         .GreaterThanOrEqual(0);
 
     registrar.Parameter("clean_period", &TThis::CleanPeriod)
@@ -476,7 +476,7 @@ void TUserJobMonitoringConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(0);
 
     registrar.Parameter("max_monitored_user_jobs_per_agent", &TThis::MaxMonitoredUserJobsPerAgent)
-        .Default(1000)
+        .Default(1'000)
         .GreaterThanOrEqual(0);
 }
 
@@ -501,7 +501,7 @@ void TUserFileLimitsConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_table_data_weight", &TThis::MaxTableDataWeight)
         .Default(10_GB);
     registrar.Parameter("max_chunk_count", &TThis::MaxChunkCount)
-        .Default(1000);
+        .Default(1'000);
 }
 
 void TUserFileLimitsPatchConfig::Register(TRegistrar registrar)
@@ -537,7 +537,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Default(128)
         .GreaterThanOrEqual(0);
     registrar.Parameter("max_chunk_list_allocation_count", &TThis::MaxChunkListAllocationCount)
-        .Default(16384)
+        .Default(16 << 10)
         .GreaterThanOrEqual(0);
     registrar.Parameter("chunk_list_watermark_count", &TThis::ChunkListWatermarkCount)
         .Default(50)
@@ -546,7 +546,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Default(2.0)
         .GreaterThan(1.0);
     registrar.Parameter("desired_chunk_lists_per_release", &TThis::DesiredChunkListsPerRelease)
-        .Default(10 * 1000);
+        .Default(10'000);
     registrar.Parameter("intermediate_output_master_cell_count", &TThis::IntermediateOutputMasterCellCount)
         .GreaterThanOrEqual(1)
         .Default(4);
@@ -589,7 +589,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("max_children_per_attach_request", &TThis::MaxChildrenPerAttachRequest)
-        .Default(10000)
+        .Default(10'000)
         .GreaterThan(0);
 
     registrar.Parameter("chunk_location_throttler", &TThis::ChunkLocationThrottler)
@@ -699,12 +699,12 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Alias("max_job_nodes_per_operation")
         .Default(200)
         .GreaterThanOrEqual(0)
-        .LessThanOrEqual(1000);
+        .LessThanOrEqual(1'000);
 
     registrar.Parameter("max_archived_job_spec_count_per_operation", &TThis::MaxArchivedJobSpecCountPerOperation)
         .Default(500)
         .GreaterThanOrEqual(0)
-        .LessThanOrEqual(5000);
+        .LessThanOrEqual(5'000);
 
     registrar.Parameter("guaranteed_archived_job_spec_count_per_operation", &TThis::GuaranteedArchivedJobSpecCountPerOperation)
         .Default(10)
@@ -716,7 +716,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(TDuration::Minutes(5));
 
     registrar.Parameter("max_chunks_per_fetch", &TThis::MaxChunksPerFetch)
-        .Default(100000)
+        .Default(100'000)
         .GreaterThan(0);
 
     registrar.Parameter("user_file_limits", &TThis::UserFileLimits)
@@ -726,21 +726,21 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("max_user_file_count", &TThis::MaxUserFileCount)
-        .Default(1000)
+        .Default(1'000)
         .GreaterThan(0);
     registrar.Parameter("max_user_file_size", &TThis::MaxUserFileSize)
         .Default();
 
     registrar.Parameter("max_input_table_count", &TThis::MaxInputTableCount)
-        .Default(1000)
+        .Default(1'000)
         .GreaterThan(0);
 
     registrar.Parameter("max_output_table_count", &TThis::MaxOutputTableCount)
-        .Default(1000)
+        .Default(1'000)
         .GreaterThan(0);
 
     registrar.Parameter("max_ranges_on_table", &TThis::MaxRangesOnTable)
-        .Default(1000)
+        .Default(1'000)
         .GreaterThan(0);
 
     registrar.Parameter("safe_online_node_count", &TThis::SafeOnlineNodeCount)
@@ -755,7 +755,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("max_chunks_per_locate_request", &TThis::MaxChunksPerLocateRequest)
         .GreaterThan(0)
-        .Default(10000);
+        .Default(10'000);
 
     registrar.Parameter("operation_options", &TThis::OperationOptions)
         .Default(NYTree::GetEphemeralNodeFactory()->CreateMap())
@@ -824,7 +824,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("heavy_job_spec_slice_count_threshold", &TThis::HeavyJobSpecSliceCountThreshold)
-        .Default(1000)
+        .Default(1'000)
         .GreaterThan(0);
 
     //! By default we disable job size adjustment for partition maps,
@@ -864,7 +864,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("max_total_slice_count", &TThis::MaxTotalSliceCount)
-        .Default((i64) 10 * 1000 * 1000)
+        .Default((i64) 10'000'000)
         .GreaterThan(0);
 
     registrar.Parameter("alert_manager", &TThis::AlertManager)
@@ -906,7 +906,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(1));
 
     registrar.Parameter("job_spec_slice_throttler", &TThis::JobSpecSliceThrottler)
-        .DefaultCtor([] () { return NConcurrency::TThroughputThrottlerConfig::Create(500000); });
+        .DefaultCtor([] () { return NConcurrency::TThroughputThrottlerConfig::Create(500'000); });
 
     registrar.Parameter("static_orchid_cache_update_period", &TThis::StaticOrchidCacheUpdatePeriod)
         .Default(TDuration::Seconds(1));
@@ -1048,17 +1048,17 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
             config->EventLog->Path = "//sys/scheduler/event_log";
         }
 
-        config->ChunkLocationThrottler->Limit = 10000;
+        config->ChunkLocationThrottler->Limit = 10'000;
 
         // Value in options is an upper bound hint on uncompressed data size for merge jobs.
         config->OrderedMergeOperationOptions->DataWeightPerJob = 20_GB;
-        config->OrderedMergeOperationOptions->MaxDataSlicesPerJob = 10000;
+        config->OrderedMergeOperationOptions->MaxDataSlicesPerJob = 10'000;
 
         config->SortedMergeOperationOptions->DataWeightPerJob = 20_GB;
-        config->SortedMergeOperationOptions->MaxDataSlicesPerJob = 10000;
+        config->SortedMergeOperationOptions->MaxDataSlicesPerJob = 10'000;
 
         config->UnorderedMergeOperationOptions->DataWeightPerJob = 20_GB;
-        config->UnorderedMergeOperationOptions->MaxDataSlicesPerJob = 10000;
+        config->UnorderedMergeOperationOptions->MaxDataSlicesPerJob = 10'000;
 
         config->OperationOptions->AsMap()->AddChild("controller_building_job_spec_count_limit", NYTree::ConvertToNode(100));
         config->OperationOptions->AsMap()->AddChild("controller_total_building_job_spec_slice_count_limit", NYTree::ConvertToNode(50'000));
