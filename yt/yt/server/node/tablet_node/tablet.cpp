@@ -885,6 +885,16 @@ void TTablet::Load(TLoadContext& context)
     // COMPAT(ifsmirnov)
     if (context.GetVersion() >= ETabletReign::TabletIdGenerator) {
         Load(context, IdGenerator_);
+    } else {
+        // Seems random enough.
+        auto preSeed = Id_.Parts64[1] ^ TableId_.Parts64[1] ^ SchemaId_.Parts64[1] ^ RuntimeData_->LastCommitTimestamp ^ MountRevision_;
+        auto seed = TRandomGenerator(preSeed).Generate<ui64>();
+
+        IdGenerator_ = TIdGenerator(
+            CellTagFromId(Id_),
+            // Make first ids look like 1-1-... rather than 0-1-...
+            /*counter*/ 1ull << 32,
+            /*seed*/ seed);
     }
 
     // COMPAT(aleksandra-zh)

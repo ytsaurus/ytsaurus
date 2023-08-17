@@ -1115,11 +1115,23 @@ private:
         std::vector<TError> configErrors;
         auto settings = rawSettings.BuildEffectiveSettings(&configErrors, nullptr);
 
+        // COMPAT(gritukan, ifsmirnov)
+        auto seed = [&] {
+            auto* mutationContext = GetCurrentMutationContext();
+            if (mutationContext->Request().Reign >= ToUnderlying(ETabletReign::TabletIdGenerator)) {
+                return mutationContext->RandomGenerator()->Generate<ui64>();
+            } else {
+                auto preSeed = mutationContext->GetRandomSeed() ^ tabletId.Parts64[1] ^ tableId.Parts64[1] ^ mountRevision;
+                // Seems random enough.
+                return TRandomGenerator(preSeed).Generate<ui64>();
+            }
+        }();
+
         TIdGenerator idGenerator(
             CellTagFromId(tabletId),
             // Make first ids look like 1-1-... rather than 0-1-...
             /*counter*/ 1ull << 32,
-            /*seed*/ GetCurrentMutationContext()->RandomGenerator()->Generate<ui64>());
+            /*seed*/ seed);
 
         auto tabletHolder = std::make_unique<TTablet>(
             tabletId,
