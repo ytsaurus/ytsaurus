@@ -91,27 +91,11 @@ public:
 
     TFuture<TJobWorkspaceBuildingResult> Run();
 
-    friend void Ref(TJobWorkspaceBuilder* obj)
-    {
-        const auto& Logger = obj->Logger;
-        YT_LOG_DEBUG("Ref job workspace builder");
-
-        obj->Ref();
-    }
-
-    friend void Unref(TJobWorkspaceBuilder* obj)
-    {
-        const auto& Logger = obj->Logger;
-        YT_LOG_DEBUG("Unref job workspace builder");
-
-        obj->Unref();
-    }
-
 protected:
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
     const IInvokerPtr Invoker_;
-    const TJobWorkspaceBuildingContext Context_;
+    TJobWorkspaceBuildingContext Context_;
     const IJobDirectoryManagerPtr DirectoryManager_;
 
     TJobWorkspaceBuildingResult ResultHolder_;

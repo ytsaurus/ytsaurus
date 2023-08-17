@@ -1773,23 +1773,8 @@ void TJob::RunWithWorkspaceBuilder()
         .Via(Invoker_));
 
     workspaceBuilder->Run()
-        .Apply(BIND([
-            workspaceBuilderWeak = MakeWeak(workspaceBuilder),
-            this,
-            this_ = MakeStrong(this)
-        ] (const TErrorOr<TJobWorkspaceBuildingResult>& resultOrError)
-        {
-            if (auto workspaceBuilder = workspaceBuilderWeak.Lock()) {
-                YT_LOG_FATAL(
-                    resultOrError,
-                    "Workspace builder must be destroyed (RefCount: %v)",
-                    workspaceBuilder->GetRefCount());
-            }
-
-            return resultOrError.ValueOrThrow();
-        })
-            .AsyncVia(Invoker_))
-        .Subscribe(BIND(&TJob::OnWorkspacePreparationFinished, MakeStrong(this)));
+        .Subscribe(BIND(&TJob::OnWorkspacePreparationFinished, MakeStrong(this))
+            .Via(Invoker_));
 }
 
 void TJob::OnWorkspacePreparationFinished(const TErrorOr<TJobWorkspaceBuildingResult>& resultOrError)

@@ -197,6 +197,7 @@ TFuture<TJobWorkspaceBuildingResult> TJobWorkspaceBuilder::Run()
             YT_LOG_INFO(result, "Job workspace building finished");
 
             ResultHolder_.LastBuildError = result;
+            Context_.Slot.Reset();
             return std::move(ResultHolder_);
         }).AsyncVia(Invoker_));
 }
