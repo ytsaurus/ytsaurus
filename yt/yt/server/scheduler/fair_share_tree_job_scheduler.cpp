@@ -7,6 +7,8 @@
 #include <yt/yt/core/misc/heap.h>
 #include <yt/yt/core/misc/string_builder.h>
 
+#include <yt/yt/core/actions/new_with_offloaded_dtor.h>
+
 namespace NYT::NScheduler {
 
 using namespace NConcurrency;
@@ -2535,7 +2537,9 @@ void TFairShareTreeJobScheduler::ProcessSchedulingHeartbeat(
             LastSchedulingInformationLoggedTime_ = now;
         }
 
-        TScheduleJobsContext context(
+
+        auto context = NewWithOffloadedDtor<TScheduleJobsContext>(
+            StrategyHost_->GetBackgroundInvoker(),
             schedulingContext,
             treeSnapshot,
             nodeState,
@@ -2543,7 +2547,7 @@ void TFairShareTreeJobScheduler::ProcessSchedulingHeartbeat(
             StrategyHost_,
             ScheduleJobsDeadlineReachedCounter_,
             Logger);
-        ScheduleJobs(&context);
+        ScheduleJobs(context.Get());
     }
 }
 

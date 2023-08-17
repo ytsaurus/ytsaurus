@@ -314,6 +314,7 @@ namespace NYT::NScheduler {
 
 // TODO(eshcherbin): This class is now huge and a bit overloaded with methods and state. Think about further refactoring.
 class TScheduleJobsContext
+    : public TRefCounted
 {
 public:
     DEFINE_BYREF_RO_PROPERTY(ISchedulingContextPtr, SchedulingContext);
@@ -542,6 +543,8 @@ private:
     EJobPreemptionLevel GetJobPreemptionLevel(const TJobWithPreemptionInfo& jobWithPreemptionInfo) const;
     bool IsEligibleForSsdPriorityPreemption(const THashSet<int>& diskRequestMedia) const;
 };
+
+DEFINE_REFCOUNTED_TYPE(TScheduleJobsContext)
 
 ////////////////////////////////////////////////////////////////////////////////
 

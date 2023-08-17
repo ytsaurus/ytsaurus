@@ -773,7 +773,7 @@ protected:
     {
         ISchedulingContextPtr SchedulingContext;
         TFairShareTreeSnapshotPtr TreeSnapshot;
-        TScheduleJobsContext ScheduleJobsContext;
+        TScheduleJobsContextPtr ScheduleJobsContext;
     };
 
     TFairShareTreeSnapshotPtr DoFairShareUpdate(
@@ -836,13 +836,13 @@ protected:
             /*runningJobs*/ {},
             strategyHost->GetMediumDirectory());
 
-        TScheduleJobsContext scheduleJobsContext(
+        auto scheduleJobsContext = New<TScheduleJobsContext>(
             schedulingContext,
             treeSnapshot,
             strategyHost->GetNodeState(execNode),
             /*schedulingInfoLoggingEnabled*/ true,
             strategyHost,
-            /*scheduleJobsDeadlineReachedCounter*/ {},
+            /*scheduleJobsDeadlineReachedCounter*/ NProfiling::TCounter{},
             SchedulerLogger);
 
         return TScheduleJobsContextWithDependencies{
@@ -859,15 +859,15 @@ protected:
         const TSchedulerOperationElementPtr& operationElement)
     {
         auto scheduleJobsContextWithDependencies = PrepareScheduleJobsContext(strategyHost, treeSnapshot, execNode);
-        auto& context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
+        auto context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
 
-        context.StartStage(EJobSchedulingStage::RegularMediumPriority, &RegularSchedulingProfilingCounters_);
+        context->StartStage(EJobSchedulingStage::RegularMediumPriority, &RegularSchedulingProfilingCounters_);
 
-        context.PrepareForScheduling();
-        context.PrescheduleJob();
-        context.ScheduleJobInTest(operationElement.Get(), /*ignorePacking*/ true);
+        context->PrepareForScheduling();
+        context->PrescheduleJob();
+        context->ScheduleJobInTest(operationElement.Get(), /*ignorePacking*/ true);
 
-        context.FinishStage();
+        context->FinishStage();
     }
 
 private:
@@ -1174,22 +1174,22 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestConditionalPreemption)
 
     auto treeSnapshot = DoFairShareUpdate(strategyHost.Get(), treeScheduler, rootElement);
     auto scheduleJobsContextWithDependencies = PrepareScheduleJobsContext(strategyHost.Get(), treeSnapshot, execNode);
-    auto& context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
+    auto context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
 
-    context.StartStage(EJobSchedulingStage::PreemptiveNormal, &PreemptiveSchedulingProfilingCounters_);
-    context.PrepareForScheduling();
+    context->StartStage(EJobSchedulingStage::PreemptiveNormal, &PreemptiveSchedulingProfilingCounters_);
+    context->PrepareForScheduling();
 
     for (int jobIndex = 0; jobIndex < 10; ++jobIndex) {
         EXPECT_NE(EJobPreemptionStatus::Preemptible, treeScheduler->GetJobPreemptionStatusInTest(donorOperationElement.Get(), donorJobs[jobIndex]->GetId()));
     }
 
     auto targetOperationPreemptionPriority = EOperationPreemptionPriority::Normal;
-    EXPECT_EQ(guaranteedPool.Get(), context.FindPreemptionBlockingAncestor(donorOperationElement.Get(), targetOperationPreemptionPriority));
+    EXPECT_EQ(guaranteedPool.Get(), context->FindPreemptionBlockingAncestor(donorOperationElement.Get(), targetOperationPreemptionPriority));
     for (int jobIndex = 10; jobIndex < 15; ++jobIndex) {
         const auto& job = donorJobs[jobIndex];
         auto preemptionStatus = treeScheduler->GetJobPreemptionStatusInTest(donorOperationElement.Get(), job->GetId());
         EXPECT_EQ(EJobPreemptionStatus::Preemptible, preemptionStatus);
-        context.ConditionallyPreemptibleJobSetMap()[guaranteedPool->GetTreeIndex()].insert(TJobWithPreemptionInfo{
+        context->ConditionallyPreemptibleJobSetMap()[guaranteedPool->GetTreeIndex()].insert(TJobWithPreemptionInfo{
             .Job = job,
             .PreemptionStatus = preemptionStatus,
             .OperationElement = donorOperationElement.Get(),
@@ -1200,10 +1200,10 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestConditionalPreemption)
         TScheduleJobsContext::TPrepareConditionalUsageDiscountsContext prepareConditionalUsageDiscountsContext{
             .TargetOperationPreemptionPriority = targetOperationPreemptionPriority,
         };
-        context.PrepareConditionalUsageDiscounts(rootElement.Get(), &prepareConditionalUsageDiscountsContext);
+        context->PrepareConditionalUsageDiscounts(rootElement.Get(), &prepareConditionalUsageDiscountsContext);
     }
 
-    auto jobs = context.GetConditionallyPreemptibleJobsInPool(guaranteedPool.Get());
+    auto jobs = context->GetConditionallyPreemptibleJobsInPool(guaranteedPool.Get());
     EXPECT_EQ(5, std::ssize(jobs));
     for (int jobIndex = 10; jobIndex < 15; ++jobIndex) {
         const auto& job = donorJobs[jobIndex];
@@ -1214,8 +1214,8 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestConditionalPreemption)
         }));
     }
 
-    EXPECT_TRUE(context.GetConditionallyPreemptibleJobsInPool(blockingPool.Get()).empty());
-    EXPECT_TRUE(context.GetConditionallyPreemptibleJobsInPool(rootElement.Get()).empty());
+    EXPECT_TRUE(context->GetConditionallyPreemptibleJobsInPool(blockingPool.Get()).empty());
+    EXPECT_TRUE(context->GetConditionallyPreemptibleJobsInPool(rootElement.Get()).empty());
 
     TJobResources expectedDiscount;
     expectedDiscount.SetUserSlots(5);
@@ -1306,23 +1306,23 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableOperationsOrder)
 
         auto doCheckOrderDuringSchedulingStage = [&] (auto getBestOperation) {
             auto scheduleJobsContextWithDependencies = PrepareScheduleJobsContext(strategyHost.Get(), treeSnapshot, execNode);
-            auto& context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
-            context.StartStage(EJobSchedulingStage::RegularMediumPriority, &RegularSchedulingProfilingCounters_);
-            context.PrepareForScheduling();
-            context.PrescheduleJob(consideredOperations);
+            auto context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
+            context->StartStage(EJobSchedulingStage::RegularMediumPriority, &RegularSchedulingProfilingCounters_);
+            context->PrepareForScheduling();
+            context->PrescheduleJob(consideredOperations);
             auto finally = Finally([&] {
-                context.FinishStage();
+                context->FinishStage();
             });
 
             THashMap<TSchedulerElement*, int> operationToIndex;
             for (int opIndex = 0; opIndex < OperationCount; ++opIndex) {
-                auto* element = getBestOperation(context.DynamicAttributesOf(pool.Get()));
+                auto* element = getBestOperation(context->DynamicAttributesOf(pool.Get()));
                 EmplaceOrCrash(
                     operationToIndex,
                     element,
                     opIndex);
 
-                context.DeactivateOperationInTest(static_cast<TSchedulerOperationElement*>(element));
+                context->DeactivateOperationInTest(static_cast<TSchedulerOperationElement*>(element));
             }
 
             for (int opIndex = 0; opIndex < OperationCount; ++opIndex) {
@@ -1332,7 +1332,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableOperationsOrder)
                     expectedOperationIndices[opIndex],
                     operationToIndex[element.Get()],
                     element->GetWeight(),
-                    context.DynamicAttributesOf(element.Get()).LocalSatisfactionRatio);
+                    context->DynamicAttributesOf(element.Get()).LocalSatisfactionRatio);
 
                 EXPECT_EQ(expectedOperationIndices[opIndex], operationToIndex[element.Get()]);
             }
@@ -1444,11 +1444,11 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableChildSetWithBatchSchedulin
     }
 
     auto checkRootChildSet = [rootElement = rootElement.Get()] (
-        const TScheduleJobsContext& context,
+        const TScheduleJobsContextPtr& context,
         int expectedChildCount,
         bool expectedUsesHeap)
     {
-        const auto& childSet = context.DynamicAttributesOf(rootElement).SchedulableChildSet;
+        const auto& childSet = context->DynamicAttributesOf(rootElement).SchedulableChildSet;
 
         ASSERT_TRUE(childSet);
         EXPECT_EQ(expectedChildCount, std::ssize(childSet->GetChildren()));
@@ -1456,7 +1456,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableChildSetWithBatchSchedulin
 
         int childIndex = 0;
         for (auto* element : childSet->GetChildren()) {
-            EXPECT_EQ(context.DynamicAttributesOf(element).SchedulableChildSetIndex, childIndex);
+            EXPECT_EQ(context->DynamicAttributesOf(element).SchedulableChildSetIndex, childIndex);
             ++childIndex;
         }
     };
@@ -1468,7 +1468,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableChildSetWithBatchSchedulin
     {
         auto treeSnapshot = DoFairShareUpdate(strategyHost.Get(), treeScheduler, rootElement);
         auto scheduleJobsContextWithDependencies = PrepareScheduleJobsContext(strategyHost.Get(), treeSnapshot, execNode);
-        auto& context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
+        auto context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
 
         auto sortedOperationElements = operationElements;
         SortBy(sortedOperationElements, [&] (const TSchedulerOperationElementPtr& element) {
@@ -1484,41 +1484,41 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableChildSetWithBatchSchedulin
                 schedulableOperations.begin(),
                 schedulableOperations.begin() + FirstBatchOperationCount);
 
-            context.StartStage(
+            context->StartStage(
                 EJobSchedulingStage::RegularMediumPriority,
                 &RegularSchedulingProfilingCounters_,
                 /*stageAttemptIndex*/ 0);
-            context.PrepareForScheduling();
-            context.PrescheduleJob(operationBatch);
+            context->PrepareForScheduling();
+            context->PrescheduleJob(operationBatch);
 
             for (int i = 0; i < FirstBatchOperationCount; ++i) {
                 const auto& operationElement = sortedOperationElements[i];
                 EXPECT_EQ(schedulableOperations[i], operationElement.Get());
 
-                const auto& dynamicAttributes = context.DynamicAttributesOf(operationElement.Get());
+                const auto& dynamicAttributes = context->DynamicAttributesOf(operationElement.Get());
                 EXPECT_TRUE(dynamicAttributes.Active);
             }
             for (int i = FirstBatchOperationCount; i < OperationCount; ++i) {
                 const auto& operationElement = sortedOperationElements[i];
                 EXPECT_EQ(schedulableOperations[i], operationElement.Get());
 
-                const auto& dynamicAttributes = context.DynamicAttributesOf(operationElement.Get());
+                const auto& dynamicAttributes = context->DynamicAttributesOf(operationElement.Get());
                 EXPECT_FALSE(dynamicAttributes.Active);
             }
 
             for (int iter = 0; iter < 2; ++iter) {
                 for (int i = 0; i < FirstBatchOperationCount; ++i) {
-                    EXPECT_TRUE(context.SchedulingContext()->CanStartMoreJobs());
+                    EXPECT_TRUE(context->SchedulingContext()->CanStartMoreJobs());
 
                     const auto& operationElement = sortedOperationElements[i];
-                    bool scheduled = context.ScheduleJobInTest(operationElement.Get(), /*ignorePacking*/ true);
+                    bool scheduled = context->ScheduleJobInTest(operationElement.Get(), /*ignorePacking*/ true);
                     EXPECT_TRUE(scheduled);
 
                     checkRootChildSet(context, /*expectedChildCount*/ 3, /*expectedUsesHeap*/ true);
                 }
             }
 
-            context.FinishStage();
+            context->FinishStage();
         }
 
         {
@@ -1527,25 +1527,25 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableChildSetWithBatchSchedulin
                 schedulableOperations.begin() + FirstBatchOperationCount,
                 schedulableOperations.end());
 
-            context.StartStage(
+            context->StartStage(
                 EJobSchedulingStage::RegularMediumPriority,
                 &RegularSchedulingProfilingCounters_,
                 /*stageAttemptIndex*/ 1);
-            context.PrepareForScheduling();
-            context.PrescheduleJob(operationBatch);
+            context->PrepareForScheduling();
+            context->PrescheduleJob(operationBatch);
 
             for (int i = 0; i < FirstBatchOperationCount; ++i) {
                 const auto& operationElement = sortedOperationElements[i];
                 EXPECT_EQ(schedulableOperations[i], operationElement.Get());
 
-                const auto& dynamicAttributes = context.DynamicAttributesOf(operationElement.Get());
+                const auto& dynamicAttributes = context->DynamicAttributesOf(operationElement.Get());
                 EXPECT_FALSE(dynamicAttributes.Active);
             }
             for (int i = FirstBatchOperationCount; i < OperationCount; ++i) {
                 const auto& operationElement = sortedOperationElements[i];
                 EXPECT_EQ(schedulableOperations[i], operationElement.Get());
 
-                const auto& dynamicAttributes = context.DynamicAttributesOf(operationElement.Get());
+                const auto& dynamicAttributes = context->DynamicAttributesOf(operationElement.Get());
                 EXPECT_TRUE(dynamicAttributes.Active);
             }
 
@@ -1554,18 +1554,18 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableChildSetWithBatchSchedulin
 
             for (int iter = 0; iter < 2; ++iter) {
                 for (int i = FirstBatchOperationCount; i < OperationCount; ++i) {
-                    EXPECT_FALSE(context.SchedulingContext()->CanStartMoreJobs(FallbackMinSpareResources));
-                    EXPECT_TRUE(context.SchedulingContext()->CanStartMoreJobs());
+                    EXPECT_FALSE(context->SchedulingContext()->CanStartMoreJobs(FallbackMinSpareResources));
+                    EXPECT_TRUE(context->SchedulingContext()->CanStartMoreJobs());
 
                     const auto& operationElement = sortedOperationElements[i];
-                    bool scheduled = context.ScheduleJobInTest(operationElement.Get(), /*ignorePacking*/ true);
+                    bool scheduled = context->ScheduleJobInTest(operationElement.Get(), /*ignorePacking*/ true);
                     EXPECT_TRUE(scheduled);
 
                     checkRootChildSet(context, /*expectedChildCount*/ 2, /*expectedUsesHeap*/ false);
                 }
             }
 
-            context.FinishStage();
+            context->FinishStage();
         }
     }
 
@@ -1583,19 +1583,19 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableChildSetWithBatchSchedulin
     {
         auto treeSnapshot = DoFairShareUpdate(strategyHost.Get(), treeScheduler, rootElement);
         auto scheduleJobsContextWithDependencies = PrepareScheduleJobsContext(strategyHost.Get(), treeSnapshot, execNode);
-        auto& context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
+        auto context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
 
         const auto& schedulableOperations = treeSnapshot->SchedulingSnapshot()->SchedulableOperationsPerPriority()[EOperationSchedulingPriority::Medium];
         ASSERT_EQ(NewOperationCount, std::ssize(schedulableOperations));
 
         {
-            context.StartStage(EJobSchedulingStage::RegularMediumPriority, &RegularSchedulingProfilingCounters_);
-            context.PrepareForScheduling();
-            context.PrescheduleJob(schedulableOperations);
+            context->StartStage(EJobSchedulingStage::RegularMediumPriority, &RegularSchedulingProfilingCounters_);
+            context->PrepareForScheduling();
+            context->PrescheduleJob(schedulableOperations);
 
             checkRootChildSet(context, /*expectedChildCount*/ 2, /*expectedUsesHeap*/ false);
 
-            context.FinishStage();
+            context->FinishStage();
         }
     }
 }
@@ -1656,57 +1656,57 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableChildSetWithoutBatchSchedu
     {
         auto treeSnapshot = DoFairShareUpdate(strategyHost.Get(), treeScheduler, rootElement);
         auto scheduleJobsContextWithDependencies = PrepareScheduleJobsContext(strategyHost.Get(), treeSnapshot, execNode);
-        auto& context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
+        auto context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
 
-        context.StartStage(EJobSchedulingStage::RegularMediumPriority, &RegularSchedulingProfilingCounters_);
-        context.PrepareForScheduling();
-        context.PrescheduleJob();
+        context->StartStage(EJobSchedulingStage::RegularMediumPriority, &RegularSchedulingProfilingCounters_);
+        context->PrepareForScheduling();
+        context->PrescheduleJob();
 
         for (const auto& operationElement : operationElements) {
-            const auto& dynamicAttributes = context.DynamicAttributesOf(operationElement.Get());
+            const auto& dynamicAttributes = context->DynamicAttributesOf(operationElement.Get());
             ASSERT_TRUE(dynamicAttributes.Active);
         }
 
         for (int iter = 0; iter < 2; ++iter) {
             for (auto operationElement : operationElements) {
-                YT_VERIFY(context.SchedulingContext()->CanStartMoreJobs());
+                YT_VERIFY(context->SchedulingContext()->CanStartMoreJobs());
 
-                bool scheduled = context.ScheduleJobInTest(operationElement.Get(), /*ignorePacking*/ true);
+                bool scheduled = context->ScheduleJobInTest(operationElement.Get(), /*ignorePacking*/ true);
                 EXPECT_TRUE(scheduled);
 
-                const auto& childSet = context.DynamicAttributesOf(rootElement.Get()).SchedulableChildSet;
+                const auto& childSet = context->DynamicAttributesOf(rootElement.Get()).SchedulableChildSet;
 
                 ASSERT_TRUE(childSet);
                 EXPECT_TRUE(childSet->UsesHeapInTest());
 
                 int childIndex = 0;
                 for (auto* element : childSet->GetChildren()) {
-                    EXPECT_EQ(context.DynamicAttributesOf(element).SchedulableChildSetIndex, childIndex);
+                    EXPECT_EQ(context->DynamicAttributesOf(element).SchedulableChildSetIndex, childIndex);
                     ++childIndex;
                 }
             }
         }
 
-        context.FinishStage();
+        context->FinishStage();
 
         // NB(eshcherbin): It is impossible to have two consecutive non-preemptive scheduling stages, however
         // here we only need to trigger the second PrescheduleJob call so that the child heap is rebuilt.
-        context.StartStage(EJobSchedulingStage::RegularMediumPriority, &RegularSchedulingProfilingCounters_);
-        context.PrepareForScheduling();
-        context.PrescheduleJob();
+        context->StartStage(EJobSchedulingStage::RegularMediumPriority, &RegularSchedulingProfilingCounters_);
+        context->PrepareForScheduling();
+        context->PrescheduleJob();
 
-        const auto& childSet = context.DynamicAttributesOf(rootElement.Get()).SchedulableChildSet;
+        const auto& childSet = context->DynamicAttributesOf(rootElement.Get()).SchedulableChildSet;
 
         ASSERT_TRUE(childSet);
         EXPECT_TRUE(childSet->UsesHeapInTest());
 
         int childIndex = 0;
         for (auto* element : childSet->GetChildren()) {
-            EXPECT_EQ(context.DynamicAttributesOf(element).SchedulableChildSetIndex, childIndex);
+            EXPECT_EQ(context->DynamicAttributesOf(element).SchedulableChildSetIndex, childIndex);
             ++childIndex;
         }
 
-        context.FinishStage();
+        context->FinishStage();
     }
 
     // Without heap.
@@ -1723,17 +1723,17 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestSchedulableChildSetWithoutBatchSchedu
     {
         auto treeSnapshot = DoFairShareUpdate(strategyHost.Get(), treeScheduler, rootElement);
         auto scheduleJobsContextWithDependencies = PrepareScheduleJobsContext(strategyHost.Get(), treeSnapshot, execNode);
-        auto& context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
+        auto context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
 
-        context.StartStage(EJobSchedulingStage::RegularMediumPriority, &RegularSchedulingProfilingCounters_);
-        context.PrepareForScheduling();
-        context.PrescheduleJob();
+        context->StartStage(EJobSchedulingStage::RegularMediumPriority, &RegularSchedulingProfilingCounters_);
+        context->PrepareForScheduling();
+        context->PrescheduleJob();
 
-        const auto& childSet = context.DynamicAttributesOf(rootElement.Get()).SchedulableChildSet;
+        const auto& childSet = context->DynamicAttributesOf(rootElement.Get()).SchedulableChildSet;
 
         EXPECT_FALSE(childSet);
 
-        context.FinishStage();
+        context->FinishStage();
     }
 }
 
@@ -1803,36 +1803,36 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestCollectConsideredSchedulableChildrenP
 
         auto treeSnapshot = DoFairShareUpdate(strategyHost.Get(), treeScheduler, rootElement);
         auto scheduleJobsContextWithDependencies = PrepareScheduleJobsContext(strategyHost.Get(), treeSnapshot, execNode);
-        auto& context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
-        context.StartStage(EJobSchedulingStage::RegularMediumPriority, &RegularSchedulingProfilingCounters_);
+        auto context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
+        context->StartStage(EJobSchedulingStage::RegularMediumPriority, &RegularSchedulingProfilingCounters_);
         auto finally = Finally([&] {
-            context.FinishStage();
+            context->FinishStage();
         });
 
-        context.PrepareForScheduling();
-        context.PrescheduleJob(consideredOperationsList);
+        context->PrepareForScheduling();
+        context->PrescheduleJob(consideredOperationsList);
 
         for (auto* element : treeElements) {
             YT_LOG_INFO("Testing element activeness (ElementId: %v, ExpectedActive: %v, ActualActive: %v)",
                 element->GetId(),
                 expectedActiveElements.contains(element),
-                context.DynamicAttributesOf(element).Active);
+                context->DynamicAttributesOf(element).Active);
 
-            EXPECT_EQ(expectedActiveElements.contains(element), context.DynamicAttributesOf(element).Active);
+            EXPECT_EQ(expectedActiveElements.contains(element), context->DynamicAttributesOf(element).Active);
 
             if (auto* pool = dynamic_cast<TSchedulerCompositeElement*>(element)) {
                 YT_LOG_INFO("Testing pool's child set presence: (ExpectedPresent: %v, ActualPresent: %v)",
                     expectedActiveElements.contains(pool),
-                    context.DynamicAttributesOf(pool).SchedulableChildSet.has_value());
+                    context->DynamicAttributesOf(pool).SchedulableChildSet.has_value());
 
                 ASSERT_EQ(
                     expectedActiveElements.contains(pool),
-                    context.DynamicAttributesOf(pool).SchedulableChildSet.has_value());
+                    context->DynamicAttributesOf(pool).SchedulableChildSet.has_value());
             }
         }
 
         for (auto* pool : expectedActivePools) {
-            const auto& childSet = context.DynamicAttributesOf(pool).SchedulableChildSet;
+            const auto& childSet = context->DynamicAttributesOf(pool).SchedulableChildSet;
             auto isChildInSet = [&childSet] (TSchedulerElement* child) {
                 const auto& children = childSet->GetChildren();
                 return std::find(children.begin(), children.end(), child) != children.end();
@@ -1971,20 +1971,20 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestCollectConsideredSchedulableChildrenP
 
         auto treeSnapshot = DoFairShareUpdate(strategyHost.Get(), treeScheduler, rootElement);
         auto scheduleJobsContextWithDependencies = PrepareScheduleJobsContext(strategyHost.Get(), treeSnapshot, execNode);
-        auto& context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
-        context.StartStage(EJobSchedulingStage::RegularMediumPriority, &RegularSchedulingProfilingCounters_);
+        auto context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
+        context->StartStage(EJobSchedulingStage::RegularMediumPriority, &RegularSchedulingProfilingCounters_);
         auto finally = Finally([&] {
-            context.FinishStage();
+            context->FinishStage();
         });
 
-        context.PrepareForScheduling();
-        context.PrescheduleJob(TNonOwningOperationElementList{});
+        context->PrepareForScheduling();
+        context->PrescheduleJob(TNonOwningOperationElementList{});
 
         for (auto* element : treeElements) {
-            EXPECT_FALSE(context.DynamicAttributesOf(element).Active);
+            EXPECT_FALSE(context->DynamicAttributesOf(element).Active);
         }
 
-        const auto& childSet = context.DynamicAttributesOf(rootElement.Get()).SchedulableChildSet;
+        const auto& childSet = context->DynamicAttributesOf(rootElement.Get()).SchedulableChildSet;
         EXPECT_TRUE(childSet.has_value());
         EXPECT_TRUE(childSet->GetChildren().empty());
     }
