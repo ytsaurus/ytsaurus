@@ -91,6 +91,14 @@ class TestSchedulerOperationsByPoolOrchid(YTEnvSetup):
             scheduler_new_orchid_pool_tree_path("default") + "/pools") == ls(
                 scheduler_orchid_pool_tree_path("default") + "/pools"))
 
+    @authors("omgronny")
+    def test_pools_exist(self):
+        create_pool("valid_pool")
+
+        assert exists("//sys/scheduler/orchid/scheduler/pool_trees/default/pools")
+        assert exists("//sys/scheduler/orchid/scheduler/pool_trees/default/pools/valid_pool")
+        assert not exists("//sys/scheduler/orchid/scheduler/pool_trees/default/pools/invalid_pool")
+
     @authors("pogorelov")
     def test_pools_single_pool(self):
         create_pool("pool")
