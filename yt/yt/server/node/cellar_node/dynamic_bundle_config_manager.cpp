@@ -10,6 +10,8 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 
+#include <yt/yt/client/node_tracker_client/node_directory.h>
+
 #include <yt/yt/library/dynamic_config/dynamic_config_manager.h>
 
 namespace NYT::NCellarNode {

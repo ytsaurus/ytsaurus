@@ -1,6 +1,7 @@
 #include "consumer_client.h"
 #include "private.h"
 
+#include <yt/yt/client/table_client/config.h>
 #include <yt/yt/client/table_client/comparator.h>
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/schema.h>

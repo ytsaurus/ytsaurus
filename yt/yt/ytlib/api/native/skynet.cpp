@@ -8,6 +8,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/client/chunk_client/config.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/yt/ytlib/chunk_client/private.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>

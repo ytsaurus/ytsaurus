@@ -11,6 +11,8 @@
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 
+#include <yt/yt/client/node_tracker_client/node_directory.h>
+
 #include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/client/object_client/helpers.h>

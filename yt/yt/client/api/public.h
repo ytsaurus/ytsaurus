@@ -18,8 +18,6 @@ namespace NYT::NApi {
 
 using TClusterTag = NObjectClient::TCellTag;
 
-////////////////////////////////////////////////////////////////////////////////
-
 // Keep in sync with NRpcProxy::NProto::EMasterReadKind.
 // On cache miss request is redirected to next level cache:
 // Local cache -> (node) cache -> master cache
@@ -85,6 +83,12 @@ DEFINE_ENUM(EProxyType,
     ((Http) (1))
     ((Rpc)  (2))
     ((Grpc) (3))
+);
+
+DEFINE_ENUM(EOperationSortDirection,
+    ((None)   (0))
+    ((Past)   (1))
+    ((Future) (2))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -169,6 +173,8 @@ DECLARE_REFCOUNTED_CLASS(TClientCache)
 DECLARE_REFCOUNTED_STRUCT(TTableBackupManifest)
 DECLARE_REFCOUNTED_STRUCT(TBackupManifest)
 
+DECLARE_REFCOUNTED_STRUCT(TListOperationsAccessFilter)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 inline const TString ClusterNamePath("//sys/@cluster_name");
@@ -205,7 +211,6 @@ DEFINE_ENUM(EMaintenanceComponent,
 );
 
 using TMaintenanceId = TGuid;
-
 using TMaintenanceCounts = TEnumIndexedVector<EMaintenanceType, int>;
 
 ////////////////////////////////////////////////////////////////////////////////

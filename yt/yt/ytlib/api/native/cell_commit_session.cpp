@@ -2,6 +2,8 @@
 
 #include "client.h"
 
+#include <yt/yt/client/object_client/helpers.h>
+
 #include <yt/yt/ytlib/chaos_client/coordinator_service_proxy.h>
 
 #include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/transaction.h>
 
 #include <yt/yt/core/misc/shared_range.h>
 

@@ -59,8 +59,15 @@ target_link_libraries(yt-yt-client PUBLIC
 target_sources(yt-yt-client PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/client/api/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/api/client.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/api/client_common.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/api/client_cache.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/api/delegating_client.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/api/etc_client.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/api/journal_client.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/api/operation_client.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/api/security_client.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/api/table_client.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/api/query_tracker_client.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/api/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/api/internal_client.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/api/operation_archive_schema.cpp

@@ -3,6 +3,7 @@
 #include "transaction.h"
 
 #include <yt/yt/client/object_client/helpers.h>
+#include <yt/yt/client/table_client/helpers.h>
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 

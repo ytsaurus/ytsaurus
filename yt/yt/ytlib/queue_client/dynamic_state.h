@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/hive/public.h>
 
+#include <yt/yt/client/api/transaction.h>
+
 #include <yt/yt/client/chaos_client/public.h>
 
 #include <yt/yt/client/table_client/public.h>

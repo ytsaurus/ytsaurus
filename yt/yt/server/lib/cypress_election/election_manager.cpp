@@ -5,6 +5,8 @@
 
 #include <yt/yt/client/api/transaction.h>
 
+#include <yt/yt/client/object_client/helpers.h>
+
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/action_queue.h>
 
