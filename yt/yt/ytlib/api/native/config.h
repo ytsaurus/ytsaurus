@@ -307,6 +307,8 @@ public:
 
     int ReplicaFallbackRetryCount;
 
+    bool DisableNewRangeInference;
+
     REGISTER_YSON_STRUCT(TConnectionDynamicConfig);
 
     static void Register(TRegistrar registrar);

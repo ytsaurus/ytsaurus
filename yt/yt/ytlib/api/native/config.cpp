@@ -369,6 +369,9 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("replica_fallback_retry_count", &TThis::ReplicaFallbackRetryCount)
         .GreaterThanOrEqual(0)
         .Default(3);
+
+    registrar.Parameter("disable_new_range_inference", &TThis::DisableNewRangeInference)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
