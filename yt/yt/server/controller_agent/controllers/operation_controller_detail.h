@@ -377,8 +377,9 @@ public:
 
     void RegisterJoblet(const TJobletPtr& joblet) override;
 
-    std::optional<TString> RegisterJobForMonitoring(TJobId jobId) override;
+    std::optional<TJobMonitoringDescriptor> RegisterJobForMonitoring(TJobId jobId) override;
     void UnregisterJobForMonitoring(const TJobletPtr& joblet);
+    std::optional<TJobMonitoringDescriptor> RegisterNewMonitoringDescriptor();
 
     const std::optional<TJobResources>& CachedMaxAvailableExecNodeResources() const override;
 
@@ -599,9 +600,11 @@ protected:
     std::atomic<int> BuildingJobSpecCount_ = {0};
     std::atomic<i64> TotalBuildingJobSpecSliceCount_ = {0};
 
-    // These values are transient.
+    // These values are intentionally transient.
     int MonitoredUserJobCount_ = 0;
     int MonitoredUserJobAttemptCount_ = 0;
+    THashSet<int> MonitoringDescriptorIndexPool_;
+    THashMap<TJobId, TJobMonitoringDescriptor> JobIdToMonitoringDescriptor_;
 
     std::optional<TUserFile> BaseLayer_;
 

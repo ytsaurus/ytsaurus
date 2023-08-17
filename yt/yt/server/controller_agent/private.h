@@ -57,6 +57,16 @@ struct TStartedJobInfo
     TString NodeAddress;
 };
 
+struct TJobMonitoringDescriptor
+{
+    TIncarnationId IncarnationId;
+    int Index;
+};
+
+void FormatValue(TStringBuilderBase* builder, const TJobMonitoringDescriptor& descriptor, TStringBuf /*format*/);
+
+TString ToString(const TJobMonitoringDescriptor& descriptor);
+
 struct TLivePreviewTableBase;
 
 ////////////////////////////////////////////////////////////////////////////////

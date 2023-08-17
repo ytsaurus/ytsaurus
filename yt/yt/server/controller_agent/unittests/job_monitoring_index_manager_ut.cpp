@@ -16,27 +16,20 @@ TEST(TJobMonitoringIndexManager, Simple)
     TOperationId operationId2 = TOperationId(7, 9);
     TOperationId operationId3 = TOperationId(7, 10);
 
-    TJobId jobId1 = TJobId(1, 1);
-    TJobId jobId2 = TJobId(1, 2);
-    TJobId jobId3 = TJobId(1, 3);
-    TJobId jobId4 = TJobId(1, 4);
-    TJobId jobId5 = TJobId(1, 5);
-    TJobId jobId6 = TJobId(1, 6);
-
-    auto i1 = manager.TryAddJob(operationId1, jobId1);
+    auto i1 = manager.TryAddIndex(operationId1);
     ASSERT_EQ(manager.GetSize(), 1);
     ASSERT_EQ(manager.GetResidualCapacity(), 4);
-    auto i2 = manager.TryAddJob(operationId1, jobId2);
+    auto i2 = manager.TryAddIndex(operationId1);
     ASSERT_EQ(manager.GetSize(), 2);
     ASSERT_EQ(manager.GetResidualCapacity(), 3);
-    auto i3 = manager.TryAddJob(operationId2, jobId3);
+    auto i3 = manager.TryAddIndex(operationId2);
     ASSERT_EQ(manager.GetSize(), 3);
     ASSERT_EQ(manager.GetResidualCapacity(), 2);
     // Note that jobId4 is skipped.
-    auto i5 = manager.TryAddJob(operationId3, jobId5);
+    auto i5 = manager.TryAddIndex(operationId3);
     ASSERT_EQ(manager.GetSize(), 4);
     ASSERT_EQ(manager.GetResidualCapacity(), 1);
-    auto i6 = manager.TryAddJob(operationId3, jobId6);
+    auto i6 = manager.TryAddIndex(operationId3);
     ASSERT_EQ(manager.GetSize(), 5);
     ASSERT_EQ(manager.GetResidualCapacity(), 0);
 
@@ -52,30 +45,21 @@ TEST(TJobMonitoringIndexManager, Simple)
     ASSERT_EQ(*i5, 3);
     ASSERT_EQ(*i6, 4);
 
-    auto tryI4 = manager.TryAddJob(operationId3, jobId4);
+    auto tryI4 = manager.TryAddIndex(operationId3);
     ASSERT_FALSE(tryI4.has_value());
     ASSERT_EQ(manager.GetSize(), 5);
 
-    ASSERT_TRUE(manager.TryRemoveJob(operationId1, jobId1));
+    ASSERT_TRUE(manager.TryRemoveIndex(operationId1, *i1));
     ASSERT_EQ(manager.GetSize(), 4);
-    ASSERT_FALSE(manager.TryRemoveJob(operationId1, jobId1));
+    ASSERT_FALSE(manager.TryRemoveIndex(operationId1, *i1));
     ASSERT_EQ(manager.GetSize(), 4);
-    ASSERT_FALSE(manager.TryRemoveJob(operationId2, jobId4));
+    // Try remove missing index.
+    ASSERT_FALSE(manager.TryRemoveIndex(operationId2, -1));
 
-    ASSERT_TRUE(manager.TryRemoveOperationJobs(operationId3));
+    ASSERT_TRUE(manager.TryRemoveOperation(operationId3));
     ASSERT_EQ(manager.GetSize(), 2);
-    ASSERT_FALSE(manager.TryRemoveOperationJobs(operationId3));
+    ASSERT_FALSE(manager.TryRemoveOperation(operationId3));
     ASSERT_EQ(manager.GetSize(), 2);
-
-    auto newI1 = manager.TryAddJob(operationId1, jobId1);
-    ASSERT_TRUE(newI1.has_value());
-    ASSERT_EQ(*newI1, 0);
-    ASSERT_EQ(manager.GetSize(), 3);
-
-    auto i4 = manager.TryAddJob(operationId2, jobId4);
-    ASSERT_TRUE(i4.has_value());
-    ASSERT_EQ(*i4, 3);
-    ASSERT_EQ(manager.GetSize(), 4);
 }
 
 TEST(TJobMonitoringIndexManager, Large)
@@ -86,29 +70,26 @@ TEST(TJobMonitoringIndexManager, Large)
     auto operationId = TOperationId(7, 8);
 
     for (int i = 0; i < Count; ++i) {
-        auto jobId = TJobId(1, i);
-        auto index = manager.TryAddJob(operationId, jobId);
+        auto index = manager.TryAddIndex(operationId);
         ASSERT_TRUE(index.has_value());
         ASSERT_EQ(*index, i);
         ASSERT_EQ(manager.GetSize(), i + 1);
     }
 
     for (int i = 0; i < Count; ++i) {
-        auto jobId = TJobId(1, i);
-        ASSERT_TRUE(manager.TryRemoveJob(operationId, jobId));
+        ASSERT_TRUE(manager.TryRemoveIndex(operationId, i));
         ASSERT_EQ(manager.GetSize(), Count - i - 1);
-        ASSERT_FALSE(manager.TryRemoveJob(operationId, jobId));
+        ASSERT_FALSE(manager.TryRemoveIndex(operationId, i));
         ASSERT_EQ(manager.GetSize(), Count - i - 1);
     }
 
     for (int i = 0; i < Count; ++i) {
-        auto jobId = TJobId(1, i);
-        auto index = manager.TryAddJob(operationId, jobId);
+        auto index = manager.TryAddIndex(operationId);
         ASSERT_EQ(*index, i);
         ASSERT_EQ(manager.GetSize(), i + 1);
     }
 
-    ASSERT_TRUE(manager.TryRemoveOperationJobs(operationId));
+    ASSERT_TRUE(manager.TryRemoveOperation(operationId));
     ASSERT_EQ(manager.GetSize(), 0);
 }
 

@@ -106,7 +106,7 @@ struct ITaskHost
 
     virtual void RegisterJoblet(const TJobletPtr& joblet) = 0;
 
-    virtual std::optional<TString> RegisterJobForMonitoring(TJobId jobId) = 0;
+    virtual std::optional<TJobMonitoringDescriptor> RegisterJobForMonitoring(TJobId jobId) = 0;
 
     virtual const std::optional<TJobResources>& CachedMaxAvailableExecNodeResources() const = 0;
 

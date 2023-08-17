@@ -188,12 +188,12 @@ struct IOperationControllerHost
     //!
     //! \returns job descriptor for the corresponding monitoring tag
     //!          or nullopt if monitored jobs limit is reached.
-    virtual std::optional<TString> RegisterJobForMonitoring(TOperationId operationId, TJobId jobId) = 0;
+    virtual std::optional<TJobMonitoringDescriptor> TryAcquireJobMonitoringDescriptor(TOperationId operationId) = 0;
 
     //! Tries to unregister monitored job.
     //!
     //! \returns true iff the job was actually monitored.
-    virtual bool UnregisterJobForMonitoring(TOperationId operationId, TJobId jobId) = 0;
+    virtual bool ReleaseJobMonitoringDescriptor(TOperationId operationId, TJobMonitoringDescriptor descriptor) = 0;
 
     virtual TFuture<TOperationSnapshot> DownloadSnapshot() = 0;
     virtual TFuture<void> RemoveSnapshot() = 0;

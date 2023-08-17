@@ -2214,6 +2214,36 @@ class TestUserJobMonitoring(YTEnvSetup):
         wait(lambda: memory_reserve_gauge.get() is not None)
         assert memory_reserve_gauge.get() >= 1024 ** 3
 
+    @authors("ignat")
+    def test_descriptor_reusage(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=1,
+            task_patch={
+                "monitoring": {
+                    "enable": True,
+                    "sensor_names": ["cpu/user"],
+                },
+            },
+        )
+        job1_id, = wait_breakpoint()
+
+        wait(lambda: "monitoring_descriptor" in get_job(op.id, job1_id))
+
+        job_info = get_job(op.id, job1_id)
+        job1_descriptor = job_info["monitoring_descriptor"]
+
+        abort_job(job1_id)
+
+        job1_id, = wait_breakpoint()
+
+        wait(lambda: "monitoring_descriptor" in get_job(op.id, job1_id))
+
+        job_info = get_job(op.id, job1_id)
+        job2_descriptor = job_info["monitoring_descriptor"]
+
+        assert job1_descriptor == job2_descriptor
+
 
 ##################################################################
 

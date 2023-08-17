@@ -26,9 +26,9 @@ public:
     int GetResidualCapacity();
     void SetMaxSize(int maxSize);
 
-    std::optional<int> TryAddJob(TOperationId operationId, TJobId jobId);
-    bool TryRemoveJob(TOperationId operationId, TJobId jobId);
-    bool TryRemoveOperationJobs(TOperationId operationId);
+    std::optional<int> TryAddIndex(TOperationId operationId);
+    bool TryRemoveIndex(TOperationId operationId, int index);
+    bool TryRemoveOperation(TOperationId operationId);
 
 private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
@@ -36,8 +36,7 @@ private:
     int MaxSize_ = -1;
     int IndexCount_ = InitialIndexCount;
     std::set<int> FreeIndices_;
-    using TJobIdToIndex = THashMap<TJobId, int>;
-    THashMap<TOperationId, TJobIdToIndex> OperationIdToJobIdToIndex_;
+    THashMap<TOperationId, THashSet<int>> OperationIdToIndexes_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -197,7 +197,7 @@ public:
      *           or nullopt if monitored job limit is reached.
      *  \note Thread affinity: any
      */
-    std::optional<TString> RegisterJobForMonitoring(TOperationId operationId, TJobId jobId);
+    std::optional<TJobMonitoringDescriptor> TryAcquireJobMonitoringDescriptor(TOperationId operationId);
 
     //! Unregisters job monitoring.
     /*!
@@ -205,7 +205,7 @@ public:
      *
      *  \note Thread affinity: any
      */
-    bool UnregisterJobForMonitoring(TOperationId operationId, TJobId jobId);
+    bool ReleaseJobMonitoringDescriptor(TOperationId operationId, TJobMonitoringDescriptor descriptor);
 
     //! Schedule job monitoring alert update.
     /*!

@@ -8425,7 +8425,30 @@ TJobletPtr TOperationControllerBase::GetJobletOrThrow(TJobId jobId) const
     return joblet;
 }
 
-std::optional<TString> TOperationControllerBase::RegisterJobForMonitoring(TJobId jobId)
+std::optional<TJobMonitoringDescriptor> TOperationControllerBase::RegisterJobForMonitoring(TJobId jobId)
+{
+    std::optional<TJobMonitoringDescriptor> descriptor;
+    if (MonitoringDescriptorIndexPool_.empty()) {
+        descriptor = RegisterNewMonitoringDescriptor();
+    } else {
+        auto it = MonitoringDescriptorIndexPool_.begin();
+        auto index = *it;
+        MonitoringDescriptorIndexPool_.erase(it);
+        descriptor = TJobMonitoringDescriptor{Host->GetIncarnationId(), index};
+    }
+    if (descriptor) {
+        YT_LOG_DEBUG("Monitoring descriptor assigned to job (JobId: %v, MonitoringDescriptor: %v)",
+            jobId,
+            descriptor);
+
+        EmplaceOrCrash(JobIdToMonitoringDescriptor_, jobId, *descriptor);
+    } else {
+        YT_LOG_DEBUG("Failed to assign monitoring descriptor to job (JobId: %v)", jobId);
+    }
+    return descriptor;
+}
+
+std::optional<TJobMonitoringDescriptor> TOperationControllerBase::RegisterNewMonitoringDescriptor()
 {
     ++MonitoredUserJobAttemptCount_;
     if (MonitoredUserJobCount_ >= Config->UserJobMonitoring->MaxMonitoredUserJobsPerOperation) {
@@ -8435,8 +8458,8 @@ std::optional<TString> TOperationControllerBase::RegisterJobForMonitoring(TJobId
                 << TErrorAttribute("limit_per_operation", Config->UserJobMonitoring->MaxMonitoredUserJobsPerOperation));
         return {};
     }
-    auto jobDescriptor = Host->RegisterJobForMonitoring(OperationId, jobId);
-    if (!jobDescriptor) {
+    auto descriptor = Host->TryAcquireJobMonitoringDescriptor(OperationId);
+    if (!descriptor) {
         SetOperationAlert(
             EOperationAlertType::UserJobMonitoringLimited,
             TError("Limit of monitored user jobs per controller agent reached, some jobs may be not monitored")
@@ -8444,7 +8467,7 @@ std::optional<TString> TOperationControllerBase::RegisterJobForMonitoring(TJobId
         return {};
     }
     ++MonitoredUserJobCount_;
-    return *jobDescriptor;
+    return descriptor;
 }
 
 void TOperationControllerBase::UnregisterJobForMonitoring(const TJobletPtr& joblet)
@@ -8454,8 +8477,11 @@ void TOperationControllerBase::UnregisterJobForMonitoring(const TJobletPtr& jobl
         --MonitoredUserJobAttemptCount_;
     }
     if (joblet->UserJobMonitoringDescriptor) {
-        Host->UnregisterJobForMonitoring(OperationId, joblet->JobId);
+        InsertOrCrash(MonitoringDescriptorIndexPool_, joblet->UserJobMonitoringDescriptor->Index);
+        EraseOrCrash(JobIdToMonitoringDescriptor_, joblet->JobId);
         --MonitoredUserJobCount_;
+        // NB: we do not want to remove index, but old version of logic can be done with the following call.
+        // Host->ReleaseJobMonitoringDescriptor(OperationId, joblet->UserJobMonitoringDescriptor->Index);
     }
     if (MonitoredUserJobCount_ <= MonitoredUserJobAttemptCount_) {
         SetOperationAlert(EOperationAlertType::UserJobMonitoringLimited, TError());
@@ -9443,7 +9469,7 @@ void TOperationControllerBase::InitUserJobSpec(
     if (joblet->UserJobMonitoringDescriptor) {
         auto* monitoringConfig = jobSpec->mutable_monitoring_config();
         monitoringConfig->set_enable(true);
-        monitoringConfig->set_job_descriptor(*joblet->UserJobMonitoringDescriptor);
+        monitoringConfig->set_job_descriptor(ToString(*joblet->UserJobMonitoringDescriptor));
     }
 
     joblet->Task->PatchUserJobSpec(jobSpec, joblet);

@@ -111,8 +111,8 @@ public:
         TJobId jobId,
         NScheduler::EAbortReason abortReason) override;
 
-    std::optional<TString> RegisterJobForMonitoring(TOperationId operationId, TJobId jobId) override;
-    bool UnregisterJobForMonitoring(TOperationId operationId, TJobId jobId) override;
+    std::optional<TJobMonitoringDescriptor> TryAcquireJobMonitoringDescriptor(TOperationId operationId) override;
+    bool ReleaseJobMonitoringDescriptor(TOperationId operationId, TJobMonitoringDescriptor descriptor) override;
 
     TFuture<TOperationSnapshot> DownloadSnapshot() override;
     TFuture<void> RemoveSnapshot() override;
