@@ -11,7 +11,8 @@ using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TJobExperimentBase::IsEnabled(const TOperationSpecBasePtr& operationSpec,
+bool TJobExperimentBase::IsEnabled(
+    const TOperationSpecBasePtr& operationSpec,
     const std::vector<TUserJobSpecPtr>& userJobSpecs)
 {
     return operationSpec &&
@@ -20,7 +21,7 @@ bool TJobExperimentBase::IsEnabled(const TOperationSpecBasePtr& operationSpec,
         !operationSpec->FailOnJobRestart &&
         operationSpec->MaxProbingJobCountPerTask != 0 &&
         operationSpec->MaxSpeculativeJobCountPerTask != 0 &&
-        std::all_of(userJobSpecs.begin(), userJobSpecs.end(), [](const auto& userJobSpec) {
+        std::all_of(userJobSpecs.begin(), userJobSpecs.end(), [] (const auto& userJobSpec) {
             auto vanillaTaskSpec = dynamic_cast<const TVanillaTaskSpec*>(userJobSpec.Get());
             return !vanillaTaskSpec || !vanillaTaskSpec->RestartCompletedJobs;
         });
@@ -194,7 +195,7 @@ TExperimentJobManager::TExperimentJobManager(
 
 void TExperimentJobManager::SetJobExperiment(const TJobExperimentBasePtr& jobExperiment)
 {
-    if (TJobExperimentBase::IsEnabled(OperationSpec_, {})) {
+    if (TJobExperimentBase::IsEnabled(OperationSpec_, /*userJobSpecs*/ {})) {
         JobExperiment_ = jobExperiment;
     }
 }
