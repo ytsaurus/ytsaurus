@@ -795,13 +795,13 @@ private:
             if (!archiveUpdated) {
                 hasSubrequests = true;
 
-                auto progress_req = multisetReq->add_subrequests();
-                progress_req->set_attribute("progress");
-                progress_req->set_value(progress.ToString());
+                auto progressReq = multisetReq->add_subrequests();
+                progressReq->set_attribute("progress");
+                progressReq->set_value(progress.ToString());
 
-                auto brief_progress_req = multisetReq->add_subrequests();
-                brief_progress_req->set_attribute("brief_progress");
-                brief_progress_req->set_value(briefProgress.ToString());
+                auto briefProgressReq = multisetReq->add_subrequests();
+                briefProgressReq->set_attribute("brief_progress");
+                briefProgressReq->set_value(briefProgress.ToString());
             }
         }
 
@@ -809,9 +809,9 @@ private:
             hasSubrequests = true;
 
             bool operationHasFailedJobs = controller->GetFailedJobCount() > 0;
-            auto has_failed_jobs = multisetReq->add_subrequests();
-            has_failed_jobs->set_attribute("has_failed_jobs");
-            has_failed_jobs->set_value(ConvertToYsonStringNestingLimited(operationHasFailedJobs).ToString());
+            auto hasFailedJobsReq = multisetReq->add_subrequests();
+            hasFailedJobsReq->set_attribute("has_failed_jobs");
+            hasFailedJobsReq->set_value(ConvertToYsonStringNestingLimited(operationHasFailedJobs).ToString());
         }
 
         if (hasSubrequests) {
@@ -836,12 +836,15 @@ private:
            transaction->GetId(),
            operationId);
 
+        auto progressString = progress.ToString();
+        auto briefProgressString = briefProgress.ToString();
+
         TOrderedByIdTableDescriptor tableDescriptor;
         TUnversionedRowBuilder builder;
         builder.AddValue(MakeUnversionedUint64Value(operationId.Parts64[0], tableDescriptor.Index.IdHi));
         builder.AddValue(MakeUnversionedUint64Value(operationId.Parts64[1], tableDescriptor.Index.IdLo));
-        builder.AddValue(MakeUnversionedAnyValue(progress.ToString(), tableDescriptor.Index.Progress));
-        builder.AddValue(MakeUnversionedAnyValue(briefProgress.ToString(), tableDescriptor.Index.BriefProgress));
+        builder.AddValue(MakeUnversionedAnyValue(progressString, tableDescriptor.Index.Progress));
+        builder.AddValue(MakeUnversionedAnyValue(briefProgressString, tableDescriptor.Index.BriefProgress));
 
         auto rowBuffer = New<TRowBuffer>();
         auto row = rowBuffer->CaptureRow(builder.GetRow());
