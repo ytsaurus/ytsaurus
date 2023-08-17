@@ -132,11 +132,11 @@ protected:
             Exit(18);
         }
 
-        std::vector<char*> env;
-        for (auto environment : config->Environment) {
-            env.push_back(const_cast<char*>(environment.c_str()));
+        std::vector<const char*> env;
+        for (const auto& environment : config->Environment) {
+            env.push_back(environment.c_str());
         }
-        env.push_back(const_cast<char*>("SHELL=/bin/bash"));
+        env.push_back("SHELL=/bin/bash");
         env.push_back(nullptr);
 
         std::vector<const char*> args;
