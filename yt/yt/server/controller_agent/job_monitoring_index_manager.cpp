@@ -1,5 +1,7 @@
 #include "job_monitoring_index_manager.h"
 
+#include <yt/yt/core/misc/collection_helpers.h>
+
 namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -36,7 +38,7 @@ void TJobMonitoringIndexManager::SetMaxSize(int maxSize)
     MaxSize_ = maxSize;
 }
 
-std::optional<int> TJobMonitoringIndexManager::TryAddJob(TOperationId operationId, TJobId jobId)
+std::optional<int> TJobMonitoringIndexManager::TryAddIndex(TOperationId operationId)
 {
     auto guard = TGuard(SpinLock_);
 
@@ -56,50 +58,51 @@ std::optional<int> TJobMonitoringIndexManager::TryAddJob(TOperationId operationI
     auto indexIt = FreeIndices_.begin();
     auto index = *indexIt;
     FreeIndices_.erase(indexIt);
-    YT_VERIFY(OperationIdToJobIdToIndex_[operationId].emplace(jobId, index).second);
+    InsertOrCrash(OperationIdToIndexes_[operationId], index);
     ++Size_;
     return index;
 }
 
-bool TJobMonitoringIndexManager::TryRemoveJob(TOperationId operationId, TJobId jobId)
+bool TJobMonitoringIndexManager::TryRemoveIndex(TOperationId operationId, int index)
 {
     auto guard = TGuard(SpinLock_);
 
-    auto jobIdToIndexIt = OperationIdToJobIdToIndex_.find(operationId);
-    if (jobIdToIndexIt == OperationIdToJobIdToIndex_.end()) {
+    auto indexesIt = OperationIdToIndexes_.find(operationId);
+    if (indexesIt == OperationIdToIndexes_.end()) {
         return false;
     }
-    auto& jobIdToIndex = jobIdToIndexIt->second;
-    auto jobIt = jobIdToIndex.find(jobId);
-    if (jobIt == jobIdToIndex.end()) {
+    auto& indexes = indexesIt->second;
+
+    auto indexIt = indexes.find(index);
+    if (indexIt == indexes.end()) {
         return false;
     }
 
-    auto index = jobIt->second;
-    YT_VERIFY(FreeIndices_.insert(index).second);
-    jobIdToIndex.erase(jobIt);
+    InsertOrCrash(FreeIndices_, index);
+    indexes.erase(indexIt);
     --Size_;
     return true;
 }
 
-bool TJobMonitoringIndexManager::TryRemoveOperationJobs(TOperationId operationId)
+bool TJobMonitoringIndexManager::TryRemoveOperation(TOperationId operationId)
 {
     auto guard = TGuard(SpinLock_);
 
-    auto jobIdToIndexIt = OperationIdToJobIdToIndex_.find(operationId);
-    if (jobIdToIndexIt == OperationIdToJobIdToIndex_.end()) {
+    auto indexesIt = OperationIdToIndexes_.find(operationId);
+    if (indexesIt == OperationIdToIndexes_.end()) {
         return false;
     }
-    const auto& jobIdToIndex = jobIdToIndexIt->second;
-    if (jobIdToIndex.empty()) {
+    auto& indexes = indexesIt->second;
+    if (indexes.empty()) {
+        OperationIdToIndexes_.erase(indexesIt);
         return false;
     }
-    for (const auto& [jobId, index] : jobIdToIndex) {
-        YT_VERIFY(FreeIndices_.insert(index).second);
+    for (auto index : indexes) {
+        InsertOrCrash(FreeIndices_, index);
     }
 
-    Size_ -= static_cast<int>(jobIdToIndex.size());
-    OperationIdToJobIdToIndex_.erase(jobIdToIndexIt);
+    Size_ -= static_cast<int>(indexes.size());
+    OperationIdToIndexes_.erase(indexesIt);
     return true;
 }
 

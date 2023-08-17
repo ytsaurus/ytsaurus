@@ -137,7 +137,7 @@ struct TJoblet
     std::vector<TInputStreamDescriptorPtr> InputStreamDescriptors;
 
     // These fields are used only to build job spec and thus transient.
-    std::optional<TString> UserJobMonitoringDescriptor;
+    std::optional<TJobMonitoringDescriptor> UserJobMonitoringDescriptor;
     std::optional<TString> PoolPath;
 
     NScheduler::TJobProfilerSpecPtr EnabledJobProfiler;

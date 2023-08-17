@@ -327,14 +327,14 @@ void TOperationControllerHost::AbortJobOnNode(
     JobTrackerOperationHandler_->RequestJobAbortion(jobId, abortReason);
 }
 
-std::optional<TString> TOperationControllerHost::RegisterJobForMonitoring(TOperationId operationId, TJobId jobId)
+std::optional<TJobMonitoringDescriptor> TOperationControllerHost::TryAcquireJobMonitoringDescriptor(TOperationId operationId)
 {
-    return Bootstrap_->GetControllerAgent()->RegisterJobForMonitoring(operationId, jobId);
+    return Bootstrap_->GetControllerAgent()->TryAcquireJobMonitoringDescriptor(operationId);
 }
 
-bool TOperationControllerHost::UnregisterJobForMonitoring(TOperationId operationId, TJobId jobId)
+bool TOperationControllerHost::ReleaseJobMonitoringDescriptor(TOperationId operationId, TJobMonitoringDescriptor descriptor)
 {
-    return Bootstrap_->GetControllerAgent()->UnregisterJobForMonitoring(operationId, jobId);
+    return Bootstrap_->GetControllerAgent()->ReleaseJobMonitoringDescriptor(operationId, descriptor);
 }
 
 TFuture<TOperationSnapshot> TOperationControllerHost::DownloadSnapshot()

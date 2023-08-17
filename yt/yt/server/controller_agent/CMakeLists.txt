@@ -46,6 +46,7 @@ target_sources(yt-server-controller_agent PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/operation.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/operation_controller.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/operation_controller_host.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/private.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/snapshot_builder.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/snapshot_downloader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/memory_tag_queue.cpp

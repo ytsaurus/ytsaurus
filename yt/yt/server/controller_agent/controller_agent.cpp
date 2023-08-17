@@ -709,7 +709,9 @@ public:
 
         MasterConnector_->UnregisterOperation(operationId);
 
-        JobMonitoringIndexManager_.TryRemoveOperationJobs(operationId);
+        if (JobMonitoringIndexManager_.TryRemoveOperation(operationId)) {
+            EnqueueJobMonitoringAlertUpdate();
+        }
 
         JobTracker_->UnregisterOperation(operationId);
 
@@ -1054,35 +1056,27 @@ public:
             Logger);
     }
 
-    std::optional<TString> RegisterJobForMonitoring(TOperationId operationId, TJobId jobId)
+    std::optional<TJobMonitoringDescriptor> TryAcquireJobMonitoringDescriptor(TOperationId operationId)
     {
-        auto index = JobMonitoringIndexManager_.TryAddJob(operationId, jobId);
+        auto index = JobMonitoringIndexManager_.TryAddIndex(operationId);
 
         if (!index) {
             YT_LOG_DEBUG(
                 "Failed to register job for monitoring: too many monitored jobs per controller agent "
-                "(OperationId: %v, JobId: %v, MaxMonitoredUserJobsPerAgent: %v)",
+                "(OperationId: %v, MaxMonitoredUserJobsPerAgent: %v)",
                 operationId,
-                jobId,
                 JobMonitoringIndexManager_.GetMaxSize());
 
             EnqueueJobMonitoringAlertUpdate();
             return std::nullopt;
         }
 
-        auto descriptor = Format("%v/%v", IncarnationId_, *index);
-
-        YT_LOG_DEBUG("Registered job for monitoring (OperationId: %v, JobId: %v, MonitoringDescriptor: %v)",
-            operationId,
-            jobId,
-            descriptor);
-
-        return descriptor;
+        return TJobMonitoringDescriptor{IncarnationId_, *index};
     }
 
-    bool UnregisterJobForMonitoring(TOperationId operationId, TJobId jobId)
+    bool ReleaseJobMonitoringDescriptor(TOperationId operationId, TJobMonitoringDescriptor descriptor)
     {
-        auto result = JobMonitoringIndexManager_.TryRemoveJob(operationId, jobId);
+        auto result = JobMonitoringIndexManager_.TryRemoveIndex(operationId, descriptor.Index);
         if (JobMonitoringIndexManager_.GetResidualCapacity() == 1) {
             EnqueueJobMonitoringAlertUpdate();
         }
@@ -2444,14 +2438,14 @@ void TControllerAgent::ValidateOperationAccess(
     return Impl_->ValidateOperationAccess(user, operationId, permission);
 }
 
-std::optional<TString> TControllerAgent::RegisterJobForMonitoring(TOperationId operationId, TJobId jobId)
+std::optional<TJobMonitoringDescriptor> TControllerAgent::TryAcquireJobMonitoringDescriptor(TOperationId operationId)
 {
-    return Impl_->RegisterJobForMonitoring(operationId, jobId);
+    return Impl_->TryAcquireJobMonitoringDescriptor(operationId);
 }
 
-bool TControllerAgent::UnregisterJobForMonitoring(TOperationId operationId, TJobId jobId)
+bool TControllerAgent::ReleaseJobMonitoringDescriptor(TOperationId operationId, TJobMonitoringDescriptor descriptor)
 {
-    return Impl_->UnregisterJobForMonitoring(operationId, jobId);
+    return Impl_->ReleaseJobMonitoringDescriptor(operationId, descriptor);
 }
 
 DELEGATE_SIGNAL(TControllerAgent, void(), SchedulerConnecting, *Impl_);
