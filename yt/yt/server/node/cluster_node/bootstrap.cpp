@@ -4,6 +4,7 @@
 #include "batching_chunk_service.h"
 #include "dynamic_config_manager.h"
 #include "node_resource_manager.h"
+#include "reboot_service.h"
 #include "master_connector.h"
 #include "private.h"
 
@@ -926,6 +927,8 @@ private:
             timestampProviderConfig,
             CreateTimestampProviderChannel(timestampProviderConfig, Connection_->GetChannelFactory()));
         RpcServer_->RegisterService(CreateTimestampProxyService(timestampProvider, /*authenticator*/ nullptr));
+
+        RpcServer_->RegisterService(CreateRebootService(this));
 
         ObjectServiceCache_ = New<TObjectServiceCache>(
             Config_->CachingObjectService,

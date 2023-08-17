@@ -39,7 +39,8 @@ const std::vector<EAccessControlObjectNamespace> AccessControlObjectNamespaces =
 const THashMap<EAccessControlObject, TAccessControlObjectDescriptor> AccessControlObjects = {
     ACCESS_CONTROL_ENTRY(EAccessControlObjectNamespace::AdminCommands, EAccessControlObject::DisableChunkLocations),
     ACCESS_CONTROL_ENTRY(EAccessControlObjectNamespace::AdminCommands, EAccessControlObject::DestroyChunkLocations),
-    ACCESS_CONTROL_ENTRY(EAccessControlObjectNamespace::AdminCommands, EAccessControlObject::ResurrectChunkLocations)
+    ACCESS_CONTROL_ENTRY(EAccessControlObjectNamespace::AdminCommands, EAccessControlObject::ResurrectChunkLocations),
+    ACCESS_CONTROL_ENTRY(EAccessControlObjectNamespace::AdminCommands, EAccessControlObject::RequestReboot)
 };
 
 ////////////////////////////////////////////////////////////////////////////////

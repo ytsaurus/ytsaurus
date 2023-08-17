@@ -6,6 +6,9 @@
 
 #include <yt/yt/library/containers/disk_manager/public.h>
 
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/ypath_service.h>
+
 namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -25,11 +28,18 @@ class TLocationManager
 {
 public:
     TLocationManager(
+        IBootstrap* bootstrap,
         TChunkStorePtr chunkStore,
         IInvokerPtr controlInvoker,
         NContainers::TDiskInfoProviderPtr diskInfoProvider);
 
     TFuture<std::vector<TLocationLivenessInfo>> GetLocationsLiveness();
+
+    const std::vector<TString>& GetConfigDiskIds();
+
+    void SetDiskAlert(TError alert);
+
+    TFuture<std::vector<NContainers::TDiskInfo>> GetDiskInfos();
 
     TFuture<std::vector<TGuid>> ResurrectChunkLocations(const THashSet<TGuid>& locationUuids);
 
@@ -43,14 +53,33 @@ public:
 
     TFuture<void> RecoverDisk(const TString& diskId);
 
+    void SetDiskIdsMismatched();
+
+    NYTree::IYPathServicePtr GetOrchidService();
+
+    std::vector<TLocationLivenessInfo> MapLocationToLivenessInfo(
+        const std::vector<NContainers::TDiskInfo>& diskInfos);
+
+    void UpdateOldDiskIds(std::vector<TString> oldDiskIds);
+
+    const std::vector<TString>& GetOldDiskIds() const;
+
 private:
     const NContainers::TDiskInfoProviderPtr DiskInfoProvider_;
 
     const TChunkStorePtr ChunkStore_;
     const IInvokerPtr ControlInvoker_;
+    const NYTree::IYPathServicePtr OrchidService_;
 
-    std::vector<TLocationLivenessInfo> MapLocationToLivenessInfo(
-        const std::vector<NContainers::TDiskInfo>& failedDisks);
+    std::atomic<bool> DiskIdsMismatched_;
+    TAtomicObject<TError> DiskFailedAlert_;
+    std::vector<TString> OldDiskIds_;
+
+    NYTree::IYPathServicePtr CreateOrchidService();
+
+    void PopulateAlerts(std::vector<TError>* alerts);
+
+    void BuildOrchid(NYT::NYson::IYsonConsumer* consumer);
 
     std::vector<TGuid> DoResurrectLocations(const THashSet<TGuid>& locationUuids);
 
@@ -72,7 +101,8 @@ public:
     TLocationHealthChecker(
         TChunkStorePtr chunkStore,
         TLocationManagerPtr locationManager,
-        IInvokerPtr invoker);
+        IInvokerPtr invoker,
+        TRebootManagerPtr rebootManager);
 
     void Initialize();
 
@@ -82,12 +112,17 @@ public:
 
 private:
     TAtomicIntrusivePtr<TLocationHealthCheckerDynamicConfig> DynamicConfig_;
-    const IInvokerPtr Invoker_;
 
     const TChunkStorePtr ChunkStore_;
     const TLocationManagerPtr LocationManager_;
+    const IInvokerPtr Invoker_;
+    const TRebootManagerPtr RebootManager_;
 
     NConcurrency::TPeriodicExecutorPtr HealthCheckerExecutor_;
+
+    void OnHealthCheck();
+
+    void OnDiskHealthCheck();
 
     void OnLocationsHealthCheck();
 

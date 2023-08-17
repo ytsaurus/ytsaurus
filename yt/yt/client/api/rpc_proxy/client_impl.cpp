@@ -1937,6 +1937,20 @@ TFuture<TResurrectChunkLocationsResult> TClient::ResurrectChunkLocations(
     }));
 }
 
+TFuture<TRequestRebootResult> TClient::RequestReboot(
+    const TString& nodeAddress,
+    const TRequestRebootOptions& /*options*/)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.RequestReboot();
+    ToProto(req->mutable_node_address(), nodeAddress);
+
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspRequestRebootPtr& /*rsp*/) {
+        return TRequestRebootResult();
+    }));
+}
+
 TFuture<NQueryTrackerClient::TQueryId> TClient::StartQuery(
     NQueryTrackerClient::EQueryEngine /*engine*/,
     const TString& /*query*/,

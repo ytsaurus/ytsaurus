@@ -16,12 +16,12 @@ TRebootManager::TRebootManager(IInvokerPtr invoker)
 
 void TRebootManager::RequestReboot()
 {
-    NeedReboot_ = true;
+    NeedReboot_.store(true);
 }
 
 bool TRebootManager::IsRebootNeeded()
 {
-    return NeedReboot_;
+    return NeedReboot_.load();
 }
 
 void TRebootManager::BuildOrchid(IYsonConsumer* consumer)

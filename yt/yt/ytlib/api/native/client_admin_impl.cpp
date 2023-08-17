@@ -6,6 +6,7 @@
 #include "transaction.h"
 
 #include <yt/yt/ytlib/admin/admin_service_proxy.h>
+#include <yt/yt/ytlib/admin/reboot_service_proxy.h>
 
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_cache.h>
@@ -662,6 +663,24 @@ TResurrectChunkLocationsResult TClient::DoResurrectChunkLocations(
     return TResurrectChunkLocationsResult{
         .LocationUuids = FromProto<std::vector<TGuid>>(rsp->location_uuids())
     };
+}
+
+TRequestRebootResult TClient::DoRequestReboot(
+    const TString& nodeAddress,
+    const TRequestRebootOptions& options)
+{
+    ValidatePermissionsWithACN(
+        EAccessControlObject::RequestReboot,
+        EPermission::Use);
+
+    TRebootServiceProxy proxy(Connection_->GetChannelFactory()->CreateChannel(nodeAddress));
+
+    auto req = proxy.RequestReboot();
+    req->SetTimeout(options.Timeout);
+
+    auto rsp = WaitFor(req->Invoke())
+        .ValueOrThrow();
+    return TRequestRebootResult();
 }
 
 void TClient::SyncCellsIfNeeded(const std::vector<TCellId>& cellIds)

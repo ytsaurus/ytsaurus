@@ -497,6 +497,7 @@ std::vector<TChunkDescriptor> TChunkLocation::Scan()
 void TChunkLocation::InitializeIds()
 {
     try {
+        HealthChecker_->Start();
         InitializeCellId();
         InitializeUuid();
     } catch (const std::exception& ex) {
@@ -590,6 +591,8 @@ bool TChunkLocation::Resurrect()
     if (!ChangeState(ELocationState::Enabling, ELocationState::Disabled)) {
         return false;
     }
+
+    YT_LOG_WARNING("Location resurrection (LocationUuid: %v)", GetUuid());
 
     BIND([=, this, this_ = MakeStrong(this)] () {
         try {
@@ -1243,7 +1246,6 @@ std::vector<TChunkDescriptor> TChunkLocation::DoScan()
 void TChunkLocation::DoStart()
 {
     HealthChecker_->SubscribeFailed(BIND(&TChunkLocation::OnHealthCheckFailed, Unretained(this)));
-    HealthChecker_->Start();
 }
 
 void TChunkLocation::SubscribeDiskCheckFailed(const TCallback<void(const TError&)> callback)
@@ -1357,8 +1359,6 @@ void TChunkLocation::ResetLocationStatistic()
         count.store(0);
     }
     ChunkCount_.store(0);
-
-    ChunkStoreHost_->ScheduleMasterHeartbeat();
 }
 
 const TChunkStorePtr& TChunkLocation::GetChunkStore() const
@@ -1875,6 +1875,16 @@ bool TStoreLocation::ScheduleDisable(const TError& reason)
 
     BIND([=, this, this_ = MakeStrong(this)] () {
         try {
+            CreateDisableLockFile(reason);
+        } catch (const std::exception& ex) {
+            YT_LOG_ALERT(ex, "Creating disable lock file failed");
+        }
+
+        try {
+            // Fast removal of chunks is necessary to avoid problems with access to chunks on the node.
+            RemoveLocationChunks();
+            ChunkStoreHost_->ScheduleMasterHeartbeat();
+
             ChunkStoreHost_->CancelLocationSessions(MakeStrong(static_cast<TChunkLocation*>(this)));
 
             WaitFor(BIND(&TStoreLocation::SynchronizeActions, MakeStrong(this))
@@ -1882,11 +1892,12 @@ bool TStoreLocation::ScheduleDisable(const TError& reason)
                 .Run())
                 .ThrowOnError();
 
+            // Additional removal of chunks that were recorded in unfinished sessions.
             RemoveLocationChunks();
             ResetLocationStatistic();
-            CreateDisableLockFile(reason);
+            ChunkStoreHost_->ScheduleMasterHeartbeat();
         } catch (const std::exception& ex) {
-            YT_LOG_ALERT(ex, "Location disabling error");
+            YT_LOG_FATAL(ex, "Location disabling error");
         }
 
         auto finish = ChangeState(ELocationState::Disabled, ELocationState::Disabling);

@@ -86,6 +86,7 @@ DEFINE_ENUM(EAccessControlObject,
     (DisableChunkLocations)
     (DestroyChunkLocations)
     (ResurrectChunkLocations)
+    (RequestReboot)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

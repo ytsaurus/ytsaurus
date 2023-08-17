@@ -48,6 +48,20 @@ DEFINE_REFCOUNTED_TYPE(TDiskManagerProxyConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDiskInfoProviderConfig
+    : public NYTree::TYsonStruct
+{
+    std::vector<TString> DiskIds;
+
+    REGISTER_YSON_STRUCT(TDiskInfoProviderConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDiskInfoProviderConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TDiskManagerProxyDynamicConfig
     : public NYTree::TYsonStruct
 {
@@ -59,21 +73,6 @@ struct TDiskManagerProxyDynamicConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TDiskManagerProxyDynamicConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TActiveDiskCheckerDynamicConfig
-    : public NYTree::TYsonStruct
-{
-    bool Enabled;
-    TDuration CheckPeriod;
-
-    REGISTER_YSON_STRUCT(TActiveDiskCheckerDynamicConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TActiveDiskCheckerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

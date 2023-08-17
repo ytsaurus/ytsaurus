@@ -510,6 +510,9 @@ void TLocationHealthCheckerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_manual_disk_failures", &TThis::EnableManualDiskFailures)
         .Default(false);
 
+    registrar.Parameter("new_disk_checker_enabled", &TThis::EnableNewDiskChecker)
+        .Default(false);
+
     registrar.Parameter("health_check_period", &TThis::HealthCheckPeriod)
         .Default(TDuration::Seconds(60));
 }
@@ -747,6 +750,9 @@ void TDataNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("disk_manager_proxy", &TThis::DiskManagerProxy)
         .DefaultNew();
 
+    registrar.Parameter("disk_info_provider", &TThis::DiskInfoProvider)
+        .DefaultNew();
+
     registrar.Parameter("max_write_sessions", &TThis::MaxWriteSessions)
         .Default(1000)
         .GreaterThanOrEqual(1);
@@ -949,9 +955,6 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("testing_options", &TThis::TestingOptions)
-        .DefaultNew();
-
-    registrar.Parameter("active_disk_checker", &TThis::ActiveDiskChecker)
         .DefaultNew();
 
     registrar.Postprocessor([] (TThis* config) {

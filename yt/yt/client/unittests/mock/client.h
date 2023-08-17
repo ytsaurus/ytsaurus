@@ -556,6 +556,10 @@ public:
         const std::vector<TGuid>& locationUuids,
         const TResurrectChunkLocationsOptions& options), (override));
 
+    MOCK_METHOD(TFuture<TRequestRebootResult>, RequestReboot, (
+        const TString& nodeAddress,
+        const TRequestRebootOptions& options), (override));
+
     MOCK_METHOD(TFuture<void>, SetUserPassword, (
         const TString& user,
         const TString& currentPasswordSha256,

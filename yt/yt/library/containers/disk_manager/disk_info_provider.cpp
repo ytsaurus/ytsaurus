@@ -11,11 +11,19 @@ namespace NYT::NContainers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDiskInfoProvider::TDiskInfoProvider(IDiskManagerProxyPtr diskManagerProxy)
+TDiskInfoProvider::TDiskInfoProvider(
+    IDiskManagerProxyPtr diskManagerProxy,
+    TDiskInfoProviderConfigPtr config)
     : DiskManagerProxy_(std::move(diskManagerProxy))
+    , Config_(std::move(config))
 { }
 
-TFuture<std::vector<TDiskInfo>> TDiskInfoProvider::GetYtDiskInfos()
+const std::vector<TString>& TDiskInfoProvider::GetConfigDiskIds() const
+{
+    return Config_->DiskIds;
+}
+
+TFuture<std::vector<TDiskInfo>> TDiskInfoProvider::GetYTDiskInfos()
 {
     auto diskInfosFuture = DiskManagerProxy_->GetDisks();
     auto ytDiskPathsFuture = DiskManagerProxy_->GetYtDiskMountPaths();
