@@ -856,10 +856,14 @@ private:
             auto [typeType, typeOffset] = SerializeColumnType(&flatbufBuilder, columnSchema);
 
             flatbuffers::Offset<org::apache::arrow::flatbuf::DictionaryEncoding> dictionaryEncodingOffset;
+
+            auto indexTypeOffset = org::apache::arrow::flatbuf::CreateInt(flatbufBuilder, 32, false);
+
             if (IsDictionaryEncodedColumn(*typedColumn.Column)) {
                 dictionaryEncodingOffset = org::apache::arrow::flatbuf::CreateDictionaryEncoding(
                     flatbufBuilder,
-                    arrowDictionaryIdCounter++);
+                    arrowDictionaryIdCounter++,
+                    indexTypeOffset);
             }
 
             auto fieldOffset = org::apache::arrow::flatbuf::CreateField(

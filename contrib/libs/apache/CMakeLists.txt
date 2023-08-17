@@ -6,4 +6,6 @@
 # original buildsystem will not be accepted.
 
 
+add_subdirectory(arrow)
 add_subdirectory(avro)
+add_subdirectory(orc)

@@ -23,6 +23,7 @@ target_link_libraries(cpp-integration-test-rpc-api PUBLIC
   yt-yt-ytlib
   yt-core-test_framework
   yt-library-named_value
+  libs-apache-arrow
 )
 target_link_options(cpp-integration-test-rpc-api PRIVATE
   -ldl

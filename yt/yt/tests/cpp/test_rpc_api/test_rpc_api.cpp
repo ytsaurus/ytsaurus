@@ -18,6 +18,9 @@
 
 #include <yt/yt/client/api/rpc_proxy/helpers.h>
 #include <yt/yt/client/api/rpc_proxy/public.h>
+#include <yt/yt/client/api/rpc_proxy/config.h>
+#include <yt/yt/client/api/rpc_proxy/connection.h>
+#include <yt/yt/client/api/rpc_proxy/row_stream.h>
 
 #include <yt/yt/client/object_client/public.h>
 #include <yt/yt/client/object_client/helpers.h>
@@ -32,6 +35,10 @@
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
+
+#include <contrib/libs/apache/arrow/cpp/src/arrow/api.h>
+#include <contrib/libs/apache/arrow/cpp/src/arrow/ipc/api.h>
+#include <contrib/libs/apache/arrow/cpp/src/arrow/io/api.h>
 
 #include <util/generic/cast.h>
 
@@ -813,6 +820,129 @@ TEST_F(TClearTmpTestBase, TestEmptyTableSkiffReading_YT18817)
             .ValueOrThrow();
 
         stream->ReadAll();
+    }
+}
+
+std::shared_ptr<arrow::RecordBatch> MakeBatch(TStringBuf buf)
+{
+    auto buffer = arrow::Buffer(reinterpret_cast<const ui8*>(buf.data()), buf.size());
+    arrow::io::BufferReader bufferReader(buffer);
+    auto batchReader = (arrow::ipc::RecordBatchStreamReader::Open(&bufferReader)).ValueOrDie();
+    auto batch = batchReader->Next().ValueOrDie();
+    return batch;
+}
+
+std::vector<ui32> ReadInterger32Array(std::shared_ptr<arrow::Array> array)
+{
+    auto sizeArray = array->length();
+    auto int32Array = std::dynamic_pointer_cast<arrow::UInt32Array>(array);
+    YT_VERIFY(int32Array != nullptr);
+
+    const ui32* data = int32Array->raw_values();
+    std::vector<ui32> result;
+    for(int idx = 0; idx < sizeArray; idx++) {
+        result.push_back(*data);
+        data++;
+    }
+    return result;
+}
+
+std::vector<std::string> ReadStringArray(std::shared_ptr<arrow::Array> array)
+{
+    auto sizeArray = array->length();
+    auto binArray = std::dynamic_pointer_cast<arrow::BinaryArray>(array);
+    YT_VERIFY(binArray != nullptr);
+
+    std::vector<std::string> stringArray;
+    for(int i = 0; i < sizeArray; i++) {
+        stringArray.push_back(binArray->GetString(i));
+    }
+    return stringArray;
+}
+
+std::vector<std::string> ReadStringArrayFromDictionaryArray(std::shared_ptr<arrow::Array> array)
+{
+    auto dictArray = std::dynamic_pointer_cast<arrow::DictionaryArray>(array);
+    YT_VERIFY(dictArray != nullptr);
+
+    auto indices = ReadInterger32Array(dictArray->indices());
+
+    // get values array
+    auto values =  ReadStringArray(dictArray->dictionary());
+
+    std::vector<std::string> result;
+    for (const auto& index : indices) {
+        auto value = values[index];
+        result.push_back(value);
+    }
+    return result;
+}
+
+
+TEST_F(TClearTmpTestBase, YTADMINREQ_33599)
+{
+    TRichYPath tablePath{"//tmp/test_arrow_reading"};
+    TCreateNodeOptions options;
+    options.Attributes = NYTree::CreateEphemeralAttributes();
+    options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{{"StringColumn", EValueType::String}}));
+    options.Attributes->Set("optimize_for", "scan");
+    options.Force = true;
+    const int rowCount = 20;
+
+    WaitFor(Client_->CreateNode(tablePath.GetPath(), EObjectType::Table, options))
+        .ThrowOnError();
+
+    {
+        auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
+            .ValueOrThrow();
+        auto columnId = writer->GetNameTable()->GetIdOrRegisterName("StringColumn");
+        std::vector<TUnversionedRow> rows;
+        std::vector<TUnversionedRowBuilder> rowsBuilders(rowCount);
+
+        for (int rowIdx = 0; rowIdx < rowCount; rowIdx++) {
+            rowsBuilders[rowIdx].AddValue(MakeUnversionedStringValue("VeryLongString", columnId));
+        }
+
+        for (int rowIdx = 0; rowIdx < std::ssize(rowsBuilders); rowIdx++) {
+            rows.push_back(rowsBuilders[rowIdx].GetRow());
+        }
+
+        YT_VERIFY(writer->Write(rows));
+        WaitFor(writer->Close())
+            .ThrowOnError();
+    }
+
+    auto apiServiceProxy = VerifyDynamicCast<NYT::NApi::NRpcProxy::TClientBase*>(Client_.Get())->CreateApiServiceProxy();
+    auto req = apiServiceProxy.ReadTable();
+
+    req->set_desired_rowset_format(NRpcProxy::NProto::ERowsetFormat::RF_ARROW);
+    req->set_arrow_fallback_rowset_format(NRpcProxy::NProto::ERowsetFormat::RF_FORMAT);
+    req->set_format("<format=text>yson");
+
+    ToProto(req->mutable_path(), tablePath);
+    auto stream = WaitFor(NRpc::CreateRpcClientInputStream(req))
+        .ValueOrThrow();
+
+    auto metaRef = WaitFor(stream->Read())
+            .ValueOrThrow();
+
+    NRpcProxy::NProto::TRspReadTableMeta meta;
+    if (!TryDeserializeProto(&meta, metaRef)) {
+        THROW_ERROR_EXCEPTION("Failed to deserialize table reader meta information");
+    }
+
+    while (auto block = WaitFor(stream->Read()).ValueOrThrow()) {
+        NApi::NRpcProxy::NProto::TRowsetDescriptor descriptor;
+        NApi::NRpcProxy::NProto::TRowsetStatistics statistics;
+        auto payloadRef = NApi::NRpcProxy::DeserializeRowStreamBlockEnvelope(block, &descriptor, &statistics);
+
+        if (descriptor.rowset_format() == NApi::NRpcProxy::NProto::RF_ARROW) {
+            auto batch = MakeBatch(payloadRef.ToStringBuf());
+            EXPECT_EQ(batch->num_columns(), 1);
+            EXPECT_EQ(batch->column_name(0),"StringColumn");
+            std::vector<std::string> expectedArray(rowCount, "VeryLongString");
+            EXPECT_EQ(ReadStringArrayFromDictionaryArray(batch->column(0)), expectedArray);
+        }
     }
 }
 
