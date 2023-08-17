@@ -299,12 +299,15 @@ public:
            transaction->GetId(),
            operationId);
 
+        auto fullSpecString = fullSpec.ToString();
+        auto unrecognizedSpecString = unrecognizedSpec.ToString();
+
         TOrderedByIdTableDescriptor tableDescriptor;
         TUnversionedRowBuilder builder;
         builder.AddValue(MakeUnversionedUint64Value(operationId.Parts64[0], tableDescriptor.Index.IdHi));
         builder.AddValue(MakeUnversionedUint64Value(operationId.Parts64[1], tableDescriptor.Index.IdLo));
-        builder.AddValue(MakeUnversionedAnyValue(fullSpec.ToString(), tableDescriptor.Index.FullSpec));
-        builder.AddValue(MakeUnversionedAnyValue(unrecognizedSpec.ToString(), tableDescriptor.Index.UnrecognizedSpec));
+        builder.AddValue(MakeUnversionedAnyValue(fullSpecString, tableDescriptor.Index.FullSpec));
+        builder.AddValue(MakeUnversionedAnyValue(unrecognizedSpecString, tableDescriptor.Index.UnrecognizedSpec));
 
         auto rowBuffer = New<TRowBuffer>();
         auto row = rowBuffer->CaptureRow(builder.GetRow());
