@@ -115,6 +115,8 @@ public:
     std::optional<TDuration> HealthCheckPeriod;
     std::optional<TDuration> HealthCheckFailureBackoff;
 
+    std::optional<TShellCommandConfigPtr> JobSetupCommand;
+
     std::optional<TDuration> DriverLayerFetchPeriod;
 
     std::optional<THashMap<TString, TString>> CudaToolkitMinDriverVersion;

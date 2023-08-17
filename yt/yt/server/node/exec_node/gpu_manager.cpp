@@ -496,6 +496,11 @@ std::vector<TShellCommandConfigPtr> TGpuManager::GetSetupCommands()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    auto dynamicConfig = DynamicConfig_.Acquire();
+    if (dynamicConfig && dynamicConfig->JobSetupCommand) {
+        return {*dynamicConfig->JobSetupCommand};
+    }
+
     if (Config_->JobSetupCommand) {
         return {*Config_->JobSetupCommand};
     }

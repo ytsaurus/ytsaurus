@@ -28,6 +28,9 @@ class TestGpuJobSetup(YTEnvSetup):
     NUM_NODES = 1
 
     DELTA_NODE_CONFIG = {
+        "dynamic_config_manager": {
+            "enable_unrecognized_options_alert": True,
+        },
         "exec_node": {
             "test_root_fs": True,
             "use_artifact_binds": True,
@@ -45,6 +48,9 @@ class TestGpuJobSetup(YTEnvSetup):
                             "echo SETUP-GPU-OUTPUT > /gpu_setup_output_file",
                         ],
                     },
+                    # For to GPU manager to initialize properly.
+                    "test_resource": True,
+                    "test_gpu_count": 1,
                     "test_setup_commands": True,
                 },
             },
@@ -114,6 +120,45 @@ class TestGpuJobSetup(YTEnvSetup):
 
         res = op.read_stderr(job_id)
         assert res == b"SETUP-GPU-OUTPUT\n"
+
+    @authors("eshcherbin")
+    @pytest.mark.timeout(180)
+    def test_dynamic_config_for_gpu_setup_commands(self):
+        self.setup_files()
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "gpu_manager": {
+                        "job_setup_command": {
+                            "path": "/static-bin/static-bash",
+                            "args": [
+                                "-c",
+                                "echo SETUP-GPU-OUTPUT-DYNAMIC > /gpu_setup_output_file",
+                            ],
+                        },
+                        "cuda_toolkit_min_driver_version": {"1": "0"},
+                    },
+                },
+            },
+        })
+
+        op = run_test_vanilla(
+            "$YT_ROOT_FS/static-bin/static-cat $YT_ROOT_FS/gpu_setup_output_file >&2",
+            spec={
+                "max_failed_job_count": 1,
+            },
+            task_patch={
+                "layer_paths": ["//tmp/layer1"],
+            },
+            track=True,
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        job_id = job_ids[0]
+
+        res = op.read_stderr(job_id)
+        assert res == b"SETUP-GPU-OUTPUT-DYNAMIC\n"
 
 
 @authors("ignat")

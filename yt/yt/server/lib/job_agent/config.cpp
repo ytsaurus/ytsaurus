@@ -135,6 +135,9 @@ void TGpuManagerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("health_check_failure_backoff", &TThis::HealthCheckFailureBackoff)
         .Default();
 
+    registrar.Parameter("job_setup_command", &TThis::JobSetupCommand)
+        .Default();
+
     registrar.Parameter("driver_layer_fetch_period", &TThis::DriverLayerFetchPeriod)
         .Default();
     registrar.Parameter("cuda_toolkit_min_driver_version", &TThis::CudaToolkitMinDriverVersion)
