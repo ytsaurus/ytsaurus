@@ -33,6 +33,8 @@ RUN for package in client yson local native_driver; \
     python3.7 -m pip install ${wheel_path}; \
   done
 
+RUN python3.7 -m pip install numpy
+
 COPY ./systest /usr/bin/systest
 COPY benchmark-0.0.1.tgz /tmp
 
