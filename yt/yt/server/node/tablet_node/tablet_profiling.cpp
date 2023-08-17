@@ -192,6 +192,10 @@ TQueryServiceCounters::TQueryServiceCounters(const TProfiler& profiler)
     , PullRows(profiler.WithPrefix("/pull_rows"))
 { }
 
+TTabletServiceCounters::TTabletServiceCounters(const TProfiler& profiler)
+    : Write(profiler.WithPrefix("/write"))
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TStoreRotationCounters::TStoreRotationCounters(const TProfiler& profiler)
@@ -715,6 +719,11 @@ TRemoteDynamicStoreReadCounters* TTableProfiler::GetRemoteDynamicStoreReadCounte
 TQueryServiceCounters* TTableProfiler::GetQueryServiceCounters(const std::optional<TString>& userTag)
 {
     return QueryServiceCounters_.Get(Disabled_, userTag, Profiler_);
+}
+
+TTabletServiceCounters* TTableProfiler::GetTabletServiceCounters(const std::optional<TString>& userTag)
+{
+    return TabletServiceCounters_.Get(Disabled_, userTag, Profiler_);
 }
 
 TPullRowsCounters* TTableProfiler::GetPullRowsCounters(const std::optional<TString>& userTag)
