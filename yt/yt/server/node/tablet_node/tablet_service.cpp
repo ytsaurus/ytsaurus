@@ -156,6 +156,8 @@ private:
             upstreamReplicaId,
             replicationEra);
 
+        TServiceProfilerGuard profilerGuard;
+
         // NB: Must serve the whole request within a single epoch.
         auto epochInvoker = Slot_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write);
         TCurrentInvokerGuard invokerGuard(epochInvoker.Get());
@@ -259,6 +261,9 @@ private:
                 << TErrorAttribute("table_path", tabletSnapshot->TablePath);
         }
 
+        auto* counters = tabletSnapshot->TableProfiler->GetTabletServiceCounters(GetCurrentProfilingUser());
+        profilerGuard.Start(counters->Write);
+
         auto* requestCodec = NCompression::GetCodec(requestCodecId);
         auto requestData = requestCodec->Decompress(request->Attachments()[0]);
         struct TWriteBufferTag { };
@@ -275,6 +280,8 @@ private:
             ++tabletSnapshot->PerformanceCounters->WriteErrorCount;
             throw;
         }
+
+        commitResult.Subscribe(BIND([profilerGuard = std::move(profilerGuard)] (const TError& /*error*/) {}));
 
         if (atomicity == EAtomicity::None && durability == EDurability::Sync) {
             context->ReplyFrom(commitResult);

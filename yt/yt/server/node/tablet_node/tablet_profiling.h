@@ -247,6 +247,15 @@ struct TQueryServiceCounters
     TMethodCounters PullRows;
 };
 
+struct TTabletServiceCounters
+{
+    TTabletServiceCounters() = default;
+
+    explicit TTabletServiceCounters(const NProfiling::TProfiler& profiler);
+
+    TMethodCounters Write;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TStoreRotationCounters
@@ -392,13 +401,15 @@ public:
 
     TTabletCounters GetTabletCounters();
 
+    TQueryServiceCounters* GetQueryServiceCounters(const std::optional<TString>& userTag);
+    TTabletServiceCounters* GetTabletServiceCounters(const std::optional<TString>& userTag);
+
     TLookupCounters* GetLookupCounters(const std::optional<TString>& userTag);
     TWriteCounters* GetWriteCounters(const std::optional<TString>& userTag);
     TCommitCounters* GetCommitCounters(const std::optional<TString>& userTag);
     TSelectCpuCounters* GetSelectCpuCounters(const std::optional<TString>& userTag);
     TSelectReadCounters* GetSelectReadCounters(const std::optional<TString>& userTag);
     TRemoteDynamicStoreReadCounters* GetRemoteDynamicStoreReadCounters(const std::optional<TString>& userTag);
-    TQueryServiceCounters* GetQueryServiceCounters(const std::optional<TString>& userTag);
     TPullRowsCounters* GetPullRowsCounters(const std::optional<TString>& userTag);
 
     TReplicaCounters GetReplicaCounters(const TString& cluster);
@@ -433,13 +444,15 @@ private:
             const NTableClient::TTableSchemaPtr& schema);
     };
 
+    TUserTaggedCounter<TQueryServiceCounters> QueryServiceCounters_;
+    TUserTaggedCounter<TTabletServiceCounters> TabletServiceCounters_;
+
     TUserTaggedCounter<TLookupCounters> LookupCounters_;
     TUserTaggedCounter<TWriteCounters> WriteCounters_;
     TUserTaggedCounter<TCommitCounters> CommitCounters_;
     TUserTaggedCounter<TSelectCpuCounters> SelectCpuCounters_;
     TUserTaggedCounter<TSelectReadCounters> SelectReadCounters_;
     TUserTaggedCounter<TRemoteDynamicStoreReadCounters> DynamicStoreReadCounters_;
-    TUserTaggedCounter<TQueryServiceCounters> QueryServiceCounters_;
     TUserTaggedCounter<TPullRowsCounters> PullRowsCounters_;
 
     TTablePullerCounters TablePullerCounters_;
