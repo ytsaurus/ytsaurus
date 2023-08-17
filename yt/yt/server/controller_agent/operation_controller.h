@@ -201,6 +201,8 @@ struct IOperationControllerHost
     virtual TFuture<void> FlushOperationNode() = 0;
     virtual TFuture<void> UpdateInitializedOperationNode(bool isCleanOperationStart) = 0;
 
+    virtual TFuture<void> UpdateControllerFeatures(const NYson::TYsonString& featureYson) = 0;
+
     virtual TFuture<void> AttachChunkTreesToLivePreview(
         NTransactionClient::TTransactionId transactionId,
         NCypressClient::TNodeId tableId,

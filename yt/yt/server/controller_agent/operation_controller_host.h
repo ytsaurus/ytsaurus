@@ -120,6 +120,8 @@ public:
     TFuture<void> FlushOperationNode() override;
     TFuture<void> UpdateInitializedOperationNode(bool isCleanOperationStart) override;
 
+    TFuture<void> UpdateControllerFeatures(const NYson::TYsonString& featureYson) override;
+
     TFuture<void> AttachChunkTreesToLivePreview(
         NTransactionClient::TTransactionId transactionId,
         NCypressClient::TNodeId tableId,

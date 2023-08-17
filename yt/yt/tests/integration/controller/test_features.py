@@ -2,12 +2,15 @@ from yt_env_setup import YTEnvSetup, Restarter, CONTROLLER_AGENTS_SERVICE
 from yt_commands import (
     authors, clean_operations, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     remove, abort_job, ls,
-    vanilla,
-    write_table, map, get_operation, sync_create_cells, raises_yt_error, disable_scheduler_jobs_on_node)
+    vanilla, map,
+    update_controller_agent_config,
+    write_table, get_operation, exists, get_operation_cypress_path, sync_create_cells, raises_yt_error, disable_scheduler_jobs_on_node)
 
 import yt.environment.init_operation_archive as init_operation_archive
 
 import time
+
+import pytest
 
 ##################################################################
 
@@ -91,7 +94,10 @@ class TestControllerFeatures(YTEnvSetup):
         super(TestControllerFeatures, self).teardown_method(method)
 
     @authors("alexkolodezny")
-    def test_controller_features(self):
+    @pytest.mark.parametrize("enable_controller_features_archivation", [True, False])
+    def test_controller_features(self, enable_controller_features_archivation):
+        update_controller_agent_config("enable_controller_features_archivation", enable_controller_features_archivation)
+
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"key": 1}])
 
@@ -105,6 +111,8 @@ class TestControllerFeatures(YTEnvSetup):
             features = ControllerFeatures(op.id)
             assert features.task["map"]["wall_time"] > 1000
             assert features.operation["wall_time"] > 1000
+            if enable_controller_features_archivation:
+                assert not exists(get_operation_cypress_path(op.id) + "/@controller_features")
 
         check_features(op)
 

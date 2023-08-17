@@ -952,6 +952,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("operation_progress_archivation_timeout", &TThis::OperationProgressArchivationTimeout)
         .Default(TDuration::Seconds(3));
 
+    registrar.Parameter("enable_controller_features_archivation", &TThis::EnableControllerFeaturesArchivation)
+        .Default(true);
+
     registrar.Parameter("legacy_live_preview_user_blacklist", &TThis::LegacyLivePreviewUserBlacklist)
         .DefaultNew("robot-.*");
 

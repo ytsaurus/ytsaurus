@@ -36,6 +36,8 @@ public:
 
     TFuture<void> UpdateInitializedOperationNode(TOperationId operationId, bool isCleanOperationStart);
 
+    TFuture<void> UpdateControllerFeatures(TOperationId operationId, const NYson::TYsonString& featureYson);
+
     TFuture<void> AttachToLivePreview(
         TOperationId operationId,
         NObjectClient::TTransactionId transactionId,

@@ -544,6 +544,9 @@ TOperation TClient::DoGetOperationImpl(
         if (auto unrecognizedSpec = archiveResult->UnrecognizedSpec) {
             (*cypressResult)->UnrecognizedSpec = std::move(unrecognizedSpec);
         }
+        if (auto controllerFeatures = archiveResult->ControllerFeatures) {
+            (*cypressResult)->ControllerFeatures = std::move(controllerFeatures);
+        }
     };
 
     if (cypressResult && archiveResultOrError.IsOK()) {

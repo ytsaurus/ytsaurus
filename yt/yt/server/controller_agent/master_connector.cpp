@@ -136,6 +136,15 @@ public:
             .Run();
     }
 
+    TFuture<void> UpdateControllerFeatures(TOperationId operationId, const TYsonString& featureYson)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return BIND(&TImpl::DoUpdateControllerFeatures, MakeStrong(this), operationId, featureYson)
+            .AsyncVia(CancelableControlInvoker_)
+            .Run();
+    }
+
     TFuture<void> FlushOperationNode(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -736,6 +745,75 @@ private:
             .AsyncVia(CancelableControlInvoker_);
     }
 
+    void DoUpdateControllerFeatures(TOperationId operationId, const TYsonString& featureYson)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        const auto& controllerAgent = Bootstrap_->GetControllerAgent();
+        auto operation = controllerAgent->FindOperation(operationId);
+        if (!operation) {
+            return;
+        }
+
+        auto controller = operation->GetController();
+
+        if (!Config_->EnableControllerFeaturesArchivation ||
+            !DoesOperationsArchiveExist() ||
+            !TryUpdateControllerFeaturesInArchive(operationId, featureYson))
+        {
+            auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetClient());
+
+            auto path = GetOperationPath(operationId) + "/@controller_features";
+            auto req = TYPathProxy::Set(path);
+            req->set_value(featureYson.ToString());
+
+            WaitFor(proxy.Execute(req))
+                .ThrowOnError();
+        }
+    }
+
+    bool TryUpdateControllerFeaturesInArchive(TOperationId operationId, const TYsonString& featureYson)
+    {
+        const auto& client = Bootstrap_->GetClient();
+        auto transaction = WaitFor(client->StartTransaction(ETransactionType::Tablet, TTransactionStartOptions{}))
+           .ValueOrThrow();
+        YT_LOG_DEBUG("Operation controller features update transaction started (TransactionId: %v, OperationId: %v)",
+           transaction->GetId(),
+           operationId);
+
+        TOrderedByIdTableDescriptor tableDescriptor;
+        TUnversionedRowBuilder builder;
+        builder.AddValue(MakeUnversionedUint64Value(operationId.Parts64[0], tableDescriptor.Index.IdHi));
+        builder.AddValue(MakeUnversionedUint64Value(operationId.Parts64[1], tableDescriptor.Index.IdLo));
+        builder.AddValue(MakeUnversionedAnyValue(featureYson.ToString(), tableDescriptor.Index.ControllerFeatures));
+
+        auto rowBuffer = New<TRowBuffer>();
+        auto row = rowBuffer->CaptureRow(builder.GetRow());
+        i64 orderedByIdRowsDataWeight = GetDataWeight(row);
+
+        transaction->WriteRows(
+            GetOperationsArchiveOrderedByIdPath(),
+            tableDescriptor.NameTable,
+            MakeSharedRange(TCompactVector<TUnversionedRow, 1>{1, row}, std::move(rowBuffer)));
+
+        auto error = WaitFor(transaction->Commit()
+            .ToUncancelable());
+
+        if (!error.IsOK()) {
+            YT_LOG_WARNING(
+                error,
+                "Operation controller features update in archive failed (TransactionId: %v, OperationId: %v)",
+                transaction->GetId(),
+                operationId);
+        } else {
+            YT_LOG_DEBUG("Operation controller features updated successfully (TransactionId: %v, DataWeight: %v, OperationId: %v)",
+                transaction->GetId(),
+                orderedByIdRowsDataWeight,
+                operationId);
+        }
+        return error.IsOK();
+    }
+
     void UpdateOperationProgress(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -857,7 +935,7 @@ private:
         if (!error.IsOK()) {
             YT_LOG_WARNING(
                 error,
-                "Operation progress update in Archive failed (TransactionId: %v, OperationId: %v)",
+                "Operation progress update in archive failed (TransactionId: %v, OperationId: %v)",
                 transaction->GetId(),
                 operationId);
             UpdateOperationProgressFailuresCounter_.Increment();
@@ -1554,6 +1632,11 @@ TFuture<void> TMasterConnector::FlushOperationNode(TOperationId operationId)
 TFuture<void> TMasterConnector::UpdateInitializedOperationNode(TOperationId operationId, bool isCleanOperationStart)
 {
     return Impl_->UpdateInitializedOperationNode(operationId, isCleanOperationStart);
+}
+
+TFuture<void> TMasterConnector::UpdateControllerFeatures(TOperationId operationId, const TYsonString& featureYson)
+{
+    return Impl_->UpdateControllerFeatures(operationId, featureYson);
 }
 
 TFuture<void> TMasterConnector::AttachToLivePreview(

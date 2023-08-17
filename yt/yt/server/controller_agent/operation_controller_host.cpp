@@ -311,6 +311,13 @@ TFuture<void> TOperationControllerHost::UpdateInitializedOperationNode(bool isCl
         .Run(OperationId_, isClean);
 }
 
+TFuture<void> TOperationControllerHost::UpdateControllerFeatures(const NYson::TYsonString& featureYson)
+{
+    return BIND(&NControllerAgent::TMasterConnector::UpdateControllerFeatures, Bootstrap_->GetControllerAgent()->GetMasterConnector())
+        .AsyncVia(CancelableControlInvoker_)
+        .Run(OperationId_, featureYson);
+}
+
 TFuture<void> TOperationControllerHost::AttachChunkTreesToLivePreview(
     NTransactionClient::TTransactionId transactionId,
     NCypressClient::TNodeId tableId,

@@ -2240,17 +2240,11 @@ void TOperationControllerBase::CommitFeatures()
         .Item("features").Do(
             BIND(&TOperationControllerBase::BuildFeatureYson, Unretained(this)));
 
-    auto proxy = CreateObjectServiceWriteProxy(Host->GetClient());
-
-    // TODO(YT-19713): write it to archive directly.
-    auto path = GetOperationPath(OperationId) + "/@controller_features";
-    auto req = TYPathProxy::Set(path);
     auto featureYson = BuildYsonStringFluently().Do(
         BIND(&TOperationControllerBase::BuildFeatureYson, Unretained(this)));
     ValidateYson(featureYson, GetYsonNestingLevelLimit());
-    req->set_value(featureYson.ToString());
 
-    WaitFor(proxy.Execute(req))
+    WaitFor(Host->UpdateControllerFeatures(featureYson))
         .ThrowOnError();
 }
 
