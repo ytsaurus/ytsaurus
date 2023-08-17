@@ -1,11 +1,12 @@
 #include "block_input_stream.h"
 
-#include "query_context.h"
-#include "host.h"
-#include "helpers.h"
 #include "config.h"
-#include "subquery_spec.h"
 #include "conversion.h"
+#include "granule_min_max_filter.h"
+#include "helpers.h"
+#include "host.h"
+#include "query_context.h"
+#include "subquery_spec.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -365,7 +366,8 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
     const std::vector<TString>& virtualColumns,
     const NTracing::TTraceContextPtr& traceContext,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
-    DB::PrewhereInfoPtr prewhereInfo)
+    DB::PrewhereInfoPtr prewhereInfo,
+    IGranuleFilterPtr granuleFilter)
 {
     auto* queryContext = storageContext->QueryContext;
     auto chunkReadOptions = CreateChunkReadOptions(queryContext->User);
@@ -428,6 +430,7 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
             TColumnFilter(readSchemaWithVirtualColumns->GetColumnCount()),
             /*multiReaderMemoryManager*/ readerMemoryManager);
     } else {
+        chunkReadOptions.GranuleFilter = granuleFilter;
         reader = CreateSchemalessParallelMultiReader(
             std::move(tableReaderConfig),
             New<NTableClient::TTableReaderOptions>(),

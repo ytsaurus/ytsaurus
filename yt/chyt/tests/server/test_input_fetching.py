@@ -27,7 +27,7 @@ class TestInputFetching(ClickHouseTestBase):
         create("table", "//tmp/t", attributes={"schema": [{"name": "i", "type": "int64", "sort_order": "ascending"}]})
         for i in range(10):
             write_table("<append=%true>//tmp/t", [{"i": i}])
-        with Clique(1) as clique:
+        with Clique(1, config_patch={"yt": {"settings": {"execution": {"enable_min_max_filtering": False}}}}) as clique:
             clique.make_query_and_validate_row_count(
                 'select * from "//tmp/t" {} i >= 3'.format(where_prewhere), exact=7
             )
@@ -60,7 +60,8 @@ class TestInputFetching(ClickHouseTestBase):
             with Clique(
                     1,
                     config_patch={
-                        "yt": {"settings": {"enable_computed_column_deduction": enable_computed_column_deduction}},
+                        "yt": {"settings": {"enable_computed_column_deduction": enable_computed_column_deduction,
+                                            "execution": {"enable_min_max_filtering": False}}},
                         "clickhouse": {"settings": {"optimize_move_to_prewhere": 0}},
                     },
             ) as clique:
@@ -125,7 +126,8 @@ class TestInputFetching(ClickHouseTestBase):
         with Clique(
                 1,
                 config_patch={
-                    "yt": {"settings": {"enable_computed_column_deduction": True}}
+                    "yt": {"settings": {"enable_computed_column_deduction": True,
+                                        "execution": {"enable_min_max_filtering": False}}}
                 },
         ) as clique:
             clique.make_query_and_validate_row_count("select * from `//tmp/t`", exact=5)
@@ -168,7 +170,8 @@ class TestInputFetching(ClickHouseTestBase):
         with Clique(
                 1,
                 config_patch={
-                    "yt": {"settings": {"enable_computed_column_deduction": True}}
+                    "yt": {"settings": {"enable_computed_column_deduction": True,
+                                        "execution": {"enable_min_max_filtering": False}}}
                 },
         ) as clique:
             assert len(clique.make_query_and_validate_row_count("select * from `//tmp/t`", exact=5)) == 5
@@ -229,7 +232,8 @@ class TestInputFetching(ClickHouseTestBase):
         write_table("//tmp/t2", {"a": 18, "c": 2.71})
         write_table("//tmp/t3", {"a": 18, "c": 2.71})
 
-        with Clique(1, config_patch={"clickhouse": {"settings": {"optimize_move_to_prewhere": 0}}}) as clique:
+        with Clique(1, config_patch={"clickhouse": {"settings": {"optimize_move_to_prewhere": 0}},
+                                     "yt": {"settings": {"execution": {"enable_min_max_filtering": False}}}}) as clique:
             # Column 'a' is sorted.
             clique.make_query_and_validate_row_count(
                 'select * from concatYtTables("//tmp/t1", "//tmp/t2") where a > 18', exact=1
@@ -295,7 +299,7 @@ class TestInputFetching(ClickHouseTestBase):
         for type, scale in zip(date_types, date_scales):
             create_type_table(type, [scale * value for value in date_values])
 
-        with Clique(1) as clique:
+        with Clique(1, config_patch={"yt": {"settings": {"execution": {"enable_min_max_filtering": False}}}}) as clique:
             query1 = 'select * from "//tmp/t_{}" where key = 2'
             query2 = 'select * from "//tmp/t_{}" where 1 < key and key < 3'
             for type in (int_types + float_types):
@@ -329,7 +333,7 @@ class TestInputFetching(ClickHouseTestBase):
         assert get("#" + chunk_id + "/@compressed_data_size") > 100 * 1024
         assert get("#" + chunk_id + "/@max_block_size") < 20 * 1024
 
-        with Clique(1) as clique:
+        with Clique(1, config_patch={"yt": {"settings": {"execution": {"enable_min_max_filtering": False}}}}) as clique:
             # Due to inclusiveness issues each of the row counts should be correct with some error.
             clique.make_query_and_validate_row_count('select i from "//tmp/t" where i >= 3', min=7, max=8)
             clique.make_query_and_validate_row_count('select i from "//tmp/t" where i < 2', min=3, max=4)
@@ -339,7 +343,8 @@ class TestInputFetching(ClickHouseTestBase):
             )
 
         # Forcefully disable chunk slicing.
-        with Clique(1, config_patch={"yt": {"subquery": {"max_sliced_chunk_count": 0}}}) as clique:
+        with Clique(1, config_patch={"yt": {"subquery": {"max_sliced_chunk_count": 0},
+                                            "settings": {"execution": {"enable_min_max_filtering": False}}}}) as clique:
             # Due to inclusiveness issues each of the row counts should be correct with some error.
             clique.make_query_and_validate_row_count('select i from "//tmp/t" where i >= 3', exact=10)
             clique.make_query_and_validate_row_count('select i from "//tmp/t" where i < 2', exact=10)
@@ -358,7 +363,7 @@ class TestInputFetching(ClickHouseTestBase):
             },
         )
         write_table("//tmp/t", [{"a": i, "b": "A" * 1500} for i in range(1000)], verbose=False)
-        with Clique(1) as clique:
+        with Clique(1, config_patch={"yt": {"settings": {"execution": {"enable_min_max_filtering": False}}}}) as clique:
             settings = {"chyt.use_block_sampling": int(use_block_sampling)}
             clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 0.1', min=60, max=170,
                                                      verbose=False, settings=settings)
@@ -888,6 +893,37 @@ class TestInputFetching(ClickHouseTestBase):
 
             with raises_yt_error(QueryFailedError):
                 clique.make_query('exists "//tmp/table_banned"', settings={'chyt.testing.check_chyt_banned': 1})
+
+    @authors("denvid")
+    def test_min_max_filtering(self):
+        schema = [
+            {"name": "a", "type": "int64"},
+            {"name": "b", "type": "uint64"},
+            {"name": "c", "type": "string"},
+            {"name": "d", "type": "double"},
+        ]
+        table_path = "//tmp/t"
+        create(
+            "table",
+            table_path,
+            attributes={
+                "schema": schema,
+            },
+        )
+
+        write_table("<append=%true>" + table_path, [{"a": 5, "b": 8, "c": "polka", "d": 3.14}])
+        write_table("<append=%true>" + table_path, [{"a": -12, "b": 0, "c": "apple", "d": -1.414}])
+        write_table("<append=%true>" + table_path, [{"a": 65, "b": 74, "c": "ab" * 100, "d": None}])
+        write_table("<append=%true>" + table_path, [{"a": 2, "b": 32, "c": "teapot", "d": None}])
+        write_table("<append=%true>" + table_path, [{"a": -33, "b": 91, "c": "ytsaurus", "d": 10.01}])
+
+        with Clique(1, config_patch={"yt": {"settings": {"execution": {"enable_min_max_filtering": True}}}}) as clique:
+            assert clique.make_query_and_validate_row_count(f'select c from "{table_path}" where a > 2 or b == 0 order by c', exact=3) == \
+                [{"c": "ab" * 100}, {"c": "apple"}, {"c": "polka"}]
+
+            clique.make_query_and_validate_row_count(f'select d from "{table_path}" where c < \'axe\'', exact=2)
+
+            clique.make_query_and_validate_row_count(f'select b from "{table_path}" where d is null', exact=2)
 
 
 class TestInputFetchingYPath(ClickHouseTestBase):

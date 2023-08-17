@@ -127,6 +127,9 @@ void TExecutionSettings::Register(TRegistrar registrar)
 
     registrar.Parameter("table_read_lock_mode", &TThis::TableReadLockMode)
         .Default(ETableReadLockMode::BestEffort);
+
+    registrar.Parameter("enable_min_max_filtering", &TThis::EnableMinMaxFiltering)
+        .Default(true);
 }
 ////////////////////////////////////////////////////////////////////////////////
 

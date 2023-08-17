@@ -62,6 +62,7 @@ target_sources(yt-chyt-server PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/chyt/server/dictionary_source.cpp
   ${CMAKE_SOURCE_DIR}/yt/chyt/server/format.cpp
   ${CMAKE_SOURCE_DIR}/yt/chyt/server/function_helpers.cpp
+  ${CMAKE_SOURCE_DIR}/yt/chyt/server/granule_min_max_filter.cpp
   ${CMAKE_SOURCE_DIR}/yt/chyt/server/health_checker.cpp
   ${CMAKE_SOURCE_DIR}/yt/chyt/server/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/chyt/server/host.cpp

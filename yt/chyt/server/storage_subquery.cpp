@@ -7,6 +7,7 @@
 #include "subquery_spec.h"
 #include "query_registry.h"
 #include "storage_base.h"
+#include "granule_min_max_filter.h"
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
@@ -151,6 +152,11 @@ public:
             THROW_ERROR_EXCEPTION("PREWHERE is not supported for dynamic tables (CHYT-462)");
         }
 
+        IGranuleFilterPtr granuleMinMaxFilter = nullptr;
+        if (StorageContext_->Settings->Execution->EnableMinMaxFiltering) {
+            granuleMinMaxFilter = CreateGranuleMinMaxFilter(queryInfo, StorageContext_->Settings->Composite, schema, context, realColumnNames);
+        }
+
         for (int threadIndex = 0;
             threadIndex < static_cast<int>(perThreadDataSliceDescriptors.size());
             ++threadIndex)
@@ -174,7 +180,8 @@ public:
                     virtualColumnNames,
                     traceContext,
                     threadDataSliceDescriptors,
-                    prewhereInfo)));
+                    prewhereInfo,
+                    granuleMinMaxFilter)));
             }
 
             i64 rowCount = 0;

@@ -169,6 +169,8 @@ public:
     //! Mode defines how tables are locked for reading during the query execution.
     ETableReadLockMode TableReadLockMode;
 
+    bool EnableMinMaxFiltering;
+
     REGISTER_YSON_STRUCT(TExecutionSettings);
 
     static void Register(TRegistrar registrar);

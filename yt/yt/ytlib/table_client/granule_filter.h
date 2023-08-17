@@ -12,8 +12,7 @@ namespace NYT::NTableClient {
 struct IGranuleFilter
     : public TRefCounted
 {
-    // NB: column order corresponds to a name table provided to a reader.
-    virtual bool CanSkip(const TColumnarStatistics& granuleColumnarStatistics) const = 0;
+    virtual bool CanSkip(const TColumnarStatistics& granuleColumnarStatistics, TNameTablePtr granuleNameTable) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IGranuleFilter)
