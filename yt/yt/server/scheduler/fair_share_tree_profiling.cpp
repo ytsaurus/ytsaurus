@@ -1,4 +1,5 @@
 #include "fair_share_tree_profiling.h"
+#include "fair_share_tree_job_scheduler.h"
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
@@ -29,16 +30,14 @@ bool TFairShareTreeProfileManager::TOperationUserProfilingTag::operator != (cons
 ////////////////////////////////////////////////////////////////////////////////
 
 TFairShareTreeProfileManager::TFairShareTreeProfileManager(
-    const TString& treeId,
+    TProfiler profiler,
     bool sparsifyMetrics,
-    const IInvokerPtr& profilingInvoker)
-    : Profiler_(
-        SchedulerProfiler
-            .WithGlobal()
-            .WithProducerRemoveSupport()
-            .WithRequiredTag("tree", treeId))
+    const IInvokerPtr& profilingInvoker,
+    TFairShareTreeJobSchedulerPtr treeScheduler)
+    : Profiler_(std::move(profiler))
     , SparsifyMetrics_(sparsifyMetrics)
     , ProfilingInvoker_(profilingInvoker)
+    , TreeScheduler_(std::move(treeScheduler))
     , NodeCountGauge_(Profiler_.Gauge("/node_count_per_tree"))
     , PoolCountGauge_(Profiler_.Gauge("/pools/pool_count"))
     , TotalElementCountGauge_(Profiler_.Gauge("/pools/total_element_count"))
@@ -429,19 +428,21 @@ void TFairShareTreeProfileManager::ProfileOperations(
             &buffer,
             element,
             treeSnapshot->TreeConfig());
+
+        TreeScheduler_->ProfileOperation(element, treeSnapshot, &buffer);
+
+        if (auto itUsage = OperationIdToAccumulatedResourceUsage_.find(operationId);
+            itUsage != OperationIdToAccumulatedResourceUsage_.end())
         {
-            if (auto itUsage = OperationIdToAccumulatedResourceUsage_.find(operationId);
-                itUsage != OperationIdToAccumulatedResourceUsage_.end())
+            auto& accumulatedResourceUsageVolume = itUsage->second;
+            if (auto itUsageDelta = operationIdToAccumulatedResourceUsageDelta.find(operationId);
+                itUsageDelta != operationIdToAccumulatedResourceUsageDelta.end())
             {
-                auto& accumulatedResourceUsageVolume = itUsage->second;
-                if (auto itUsageDelta = operationIdToAccumulatedResourceUsageDelta.find(operationId);
-                    itUsageDelta != operationIdToAccumulatedResourceUsageDelta.end())
-                {
-                    accumulatedResourceUsageVolume += itUsageDelta->second;
-                }
-                ProfileResourceVolume(&buffer, accumulatedResourceUsageVolume, "/accumulated_resource_usage", EMetricType::Counter);
+                accumulatedResourceUsageVolume += itUsageDelta->second;
             }
+            ProfileResourceVolume(&buffer, accumulatedResourceUsageVolume, "/accumulated_resource_usage", EMetricType::Counter);
         }
+
         GetOrCrash(OperationIdToProfilingEntry_, operationId).BufferedProducer->Update(std::move(buffer));
     }
 }

@@ -14,9 +14,10 @@ class TFairShareTreeProfileManager
 {
 public:
     TFairShareTreeProfileManager(
-        const TString& treeId,
+        NProfiling::TProfiler profiler,
         bool sparsifyMetrics,
-        const IInvokerPtr& profilingInvoker);
+        const IInvokerPtr& profilingInvoker,
+        TFairShareTreeJobSchedulerPtr treeScheduler);
 
     // Thread affinity: Control thread.
     NProfiling::TProfiler GetProfiler() const;
@@ -50,6 +51,7 @@ private:
     const NProfiling::TProfiler Profiler_;
     const bool SparsifyMetrics_;
     const IInvokerPtr ProfilingInvoker_;
+    const TFairShareTreeJobSchedulerPtr TreeScheduler_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
