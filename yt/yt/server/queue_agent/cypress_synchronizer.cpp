@@ -8,6 +8,7 @@
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
+#include <yt/yt/core/ytree/attributes.h>
 #include <yt/yt/core/ytree/ypath_proxy.h>
 #include <yt/yt/core/ytree/ypath_service.h>
 
@@ -178,13 +179,17 @@ private:
             }
         }
 
-        void AppendObjectWithError(const TObject& object, const TError& error)
+        void AppendObjectWithError(
+            const TObject& object,
+            const TError& error,
+            std::optional<NHydra::TRevision> revision = std::nullopt)
         {
             switch (object.Type) {
                 case ECypressSyncObjectType::Queue:
                     QueueRows.push_back({
                         .Ref = object.Object,
                         .RowRevision = NextRowRevision(object.RowRevision),
+                        .Revision = revision,
                         .SynchronizationError = error,
                     });
                     break;
@@ -192,16 +197,21 @@ private:
                     ConsumerRows.push_back({
                         .Ref = object.Object,
                         .RowRevision = NextRowRevision(object.RowRevision),
+                        .Revision = revision,
                         .SynchronizationError = error,
                     });
                     break;
             }
         }
 
-        void AppendReplicatedObjectWithError(const TObject& object, const TError& error)
+        void AppendReplicatedObjectWithError(
+            const TObject& object,
+            const TError& error,
+            std::optional<NHydra::TRevision> revision = std::nullopt)
         {
             ReplicatedTableMappingRows.push_back({
                 .Ref = object.Object,
+                .Revision = revision,
                 .SynchronizationError = error,
             });
         }
@@ -604,6 +614,13 @@ private:
                     object.Object,
                     ConvertToYsonString(attributes, EYsonFormat::Text));
 
+                std::optional<NHydra::TRevision> revision;
+                try {
+                    revision = attributes->Find<NHydra::TRevision>("attribute_revision");
+                } catch (const std::exception& ex) {
+                    YT_LOG_DEBUG(ex, "Error parsing attribute revision for object %v", object.Object);
+                }
+
                 // First, we try to interpret the attributes as one of two types: a queue, or a consumer.
                 // If successful, we prepare an updated row for the corresponding state table.
                 try {
@@ -616,7 +633,7 @@ private:
                         ex,
                         "Error converting attributes to object %v",
                         object.Object);
-                    RowsWithErrors_.AppendObjectWithError(object, ex);
+                    RowsWithErrors_.AppendObjectWithError(object, ex, revision);
                 }
 
                 if (!DynamicConfigSnapshot_->WriteReplicatedTableMapping) {
