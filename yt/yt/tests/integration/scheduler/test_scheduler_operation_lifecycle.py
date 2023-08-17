@@ -859,10 +859,12 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
 
         accumulated_resource_usage_cpu_sensors = dict()
         accumulated_resource_usage_user_slots_sensors = dict()
+        operation_schedule_job_attempt_count_sensor = dict()
 
         for name, tags in (("tags1", tags1), ("tags2", tags2)):
             accumulated_resource_usage_cpu_sensors[name] = profiler.counter(metric_prefix + "accumulated_resource_usage/cpu", tags=tags)
             accumulated_resource_usage_user_slots_sensors[name] = profiler.counter(metric_prefix + "accumulated_resource_usage/user_slots", tags=tags)
+            operation_schedule_job_attempt_count_sensor[name] = profiler.counter(metric_prefix + "schedule_job_attempt_count", tags=tags)
 
         op1 = run_sleeping_vanilla(spec={"pool": "some_pool"})
         wait(lambda: op1.get_job_count("running") == 1)
@@ -889,6 +891,8 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: accumulated_resource_usage_cpu_sensors["tags1"].get_delta() > 2.0)
         wait(lambda: accumulated_resource_usage_user_slots_sensors["tags1"].get_delta() > 2.0)
 
+        wait(lambda: operation_schedule_job_attempt_count_sensor["tags1"].get_delta() >= 1.0)
+
         wait(lambda: are_almost_equal(dominant_fair_share_sensor.get(tags=tags2), 0.5))
         wait(lambda: dominant_usage_share_sensor.get(tags=tags2) == 0)
         wait(lambda: dominant_demand_share_sensor.get(tags=tags2) == 1.0)
@@ -909,6 +913,8 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: dominant_demand_share_sensor.get(tags=tags2) == 1.0)
         wait(lambda: dominant_promised_fair_share_sensor.get(tags=tags2) == 1.0)
         wait(lambda: weight_sensor.get(tags=tags2) == 1.0)
+
+        wait(lambda: operation_schedule_job_attempt_count_sensor["tags2"].get_delta() == 1.0)
 
     @authors("ignat", "eshcherbin")
     def test_operations_by_user_profiling(self):
@@ -931,6 +937,10 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         cpu_demand_sensor = profiler.gauge(metric_prefix + "resource_demand/cpu")
         user_slots_demand_sensor = profiler.gauge(metric_prefix + "resource_demand/user_slots")
 
+        tags = {"pool": "some_pool", "user_name": "ignat"}
+
+        operation_schedule_job_attempt_count_sensor = profiler.counter(metric_prefix + "schedule_job_attempt_count", tags=tags)
+
         op1 = run_sleeping_vanilla(
             spec={"pool": "some_pool", "custom_profiling_tag": "hello"},
             authenticated_user="ignat",
@@ -952,7 +962,6 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         )
         wait(lambda: op4.get_state() == "running")
 
-        tags = {"pool": "some_pool", "user_name": "ignat"}
         wait(lambda: are_almost_equal(dominant_fair_share_sensor.get(tags=tags), 0.5))
         wait(lambda: dominant_usage_share_sensor.get(tags=tags) == 1.0)
         wait(lambda: dominant_demand_share_sensor.get(tags=tags) == 1.0)
@@ -962,11 +971,24 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: user_slots_usage_sensor.get(tags=tags) == 1)
         wait(lambda: cpu_demand_sensor.get(tags=tags) == 1)
         wait(lambda: user_slots_demand_sensor.get(tags=tags) == 1)
+        wait(lambda: operation_schedule_job_attempt_count_sensor.get_delta() == 1.0)
 
         def get_total_metric_by_users(metric, tags_):
             return sum(metric.get(tags=dict({"user_name": user}, **tags_), default=0) for user in ("ignat", "egor"))
 
+        def get_total_counter_metric_by_users(counter):
+            return sum(counter[user].get_delta() for user in ("ignat", "egor"))
+
+        def create_operation_schedule_job_attempt_count_sensor(tags_):
+            return {
+                "ignat": profiler.counter(metric_prefix + "schedule_job_attempt_count", tags=dict({"user_name": "ignat"}, **tags_)),
+                "egor": profiler.counter(metric_prefix + "schedule_job_attempt_count", tags=dict({"user_name": "egor"}, **tags_)),
+            }
+
         tags = {"pool": "other_pool", "custom": "hello"}
+
+        operation_schedule_job_attempt_count_sensor = create_operation_schedule_job_attempt_count_sensor(tags)
+
         wait(lambda: are_almost_equal(get_total_metric_by_users(dominant_fair_share_sensor, tags), 1.0 / 3.0))
         wait(lambda: get_total_metric_by_users(dominant_usage_share_sensor, tags) == 0)
         wait(lambda: get_total_metric_by_users(dominant_demand_share_sensor, tags) == 2.0)
@@ -976,8 +998,12 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: get_total_metric_by_users(user_slots_usage_sensor, tags) == 0)
         wait(lambda: get_total_metric_by_users(cpu_demand_sensor, tags) == 2)
         wait(lambda: get_total_metric_by_users(user_slots_demand_sensor, tags) == 2)
+        wait(lambda: get_total_counter_metric_by_users(operation_schedule_job_attempt_count_sensor) >= 0.0)
 
         tags = {"pool": "other_pool", "custom": "world"}
+
+        operation_schedule_job_attempt_count_sensor = create_operation_schedule_job_attempt_count_sensor(tags)
+
         wait(lambda: are_almost_equal(get_total_metric_by_users(dominant_fair_share_sensor, tags), 1.0 / 6.0))
         wait(lambda: get_total_metric_by_users(dominant_usage_share_sensor, tags) == 0)
         wait(lambda: get_total_metric_by_users(dominant_demand_share_sensor, tags) == 1.0)
@@ -987,8 +1013,12 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: get_total_metric_by_users(user_slots_usage_sensor, tags) == 0)
         wait(lambda: get_total_metric_by_users(cpu_demand_sensor, tags) == 1)
         wait(lambda: get_total_metric_by_users(user_slots_demand_sensor, tags) == 1)
+        wait(lambda: get_total_counter_metric_by_users(operation_schedule_job_attempt_count_sensor) == 0.0)
 
         tags = {"pool": "other_pool", "user_name": "egor"}
+
+        operation_schedule_job_attempt_count_sensor = profiler.counter(metric_prefix + "schedule_job_attempt_count", tags=tags)
+
         wait(lambda: are_almost_equal(dominant_fair_share_sensor.get(tags=tags), 0.5))
         wait(lambda: dominant_usage_share_sensor.get(tags=tags) == 0)
         wait(lambda: dominant_demand_share_sensor.get(tags=tags) == 3.0)
@@ -998,24 +1028,33 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: user_slots_usage_sensor.get(tags=tags) == 0)
         wait(lambda: cpu_demand_sensor.get(tags=tags) == 3)
         wait(lambda: user_slots_demand_sensor.get(tags=tags) == 3)
+        wait(lambda: operation_schedule_job_attempt_count_sensor.get_delta() == 0.0)
 
         op4.abort(wait_until_finished=True)
         op3.abort(wait_until_finished=True)
         op1.abort(wait_until_finished=True)
 
         tags = {"pool": "other_pool", "user_name": "egor"}
+
+        operation_schedule_job_attempt_count_sensor = profiler.counter(metric_prefix + "schedule_job_attempt_count", tags=tags)
+
         wait(lambda: dominant_fair_share_sensor.get(tags=tags) == 1.0)
         wait(lambda: dominant_usage_share_sensor.get(tags=tags) == 1.0)
         wait(lambda: dominant_demand_share_sensor.get(tags=tags) == 1.0)
         wait(lambda: are_almost_equal(dominant_promised_fair_share_sensor.get(tags=tags), 0.5))
         wait(lambda: weight_sensor.get(tags=tags) == 1.0)
+        wait(lambda: operation_schedule_job_attempt_count_sensor.get_delta() == 1.0)
 
         tags = {"pool": "other_pool", "custom": "world"}
+
+        operation_schedule_job_attempt_count_sensor = create_operation_schedule_job_attempt_count_sensor(tags)
+
         wait(lambda: get_total_metric_by_users(dominant_fair_share_sensor, tags) == 1.0)
         wait(lambda: get_total_metric_by_users(dominant_usage_share_sensor, tags) == 1.0)
         wait(lambda: get_total_metric_by_users(dominant_demand_share_sensor, tags) == 1.0)
         wait(lambda: are_almost_equal(get_total_metric_by_users(dominant_promised_fair_share_sensor, tags), 0.5))
         wait(lambda: get_total_metric_by_users(weight_sensor, tags) == 1.0)
+        wait(lambda: get_total_counter_metric_by_users(operation_schedule_job_attempt_count_sensor) == 0.0)
 
     @authors("ignat", "eshcherbin")
     def test_job_count_profiling(self):

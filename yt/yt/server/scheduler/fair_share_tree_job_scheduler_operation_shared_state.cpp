@@ -10,7 +10,8 @@ namespace {
 
 // NB(eshcherbin): Used in situations where counter is only incremented by a single thread
 // in order to avoid "lock add" on x86.
-inline void IncrementAtomicCounterUnsafely(std::atomic<int>* counter)
+template <class T>
+inline void IncrementAtomicCounterUnsafely(std::atomic<T>* counter)
 {
     counter->store(counter->load() + 1, std::memory_order::release);
 }
@@ -495,6 +496,20 @@ TEnumIndexedVector<EDeactivationReason, int> TFairShareTreeJobSchedulerOperation
     return DeactivationReasonsFromLastNonStarvingTime_;
 }
 
+void TFairShareTreeJobSchedulerOperationSharedState::IncrementOperationScheduleJobAttemptCount(const ISchedulingContextPtr& schedulingContext)
+{
+    auto& shard = StateShards_[schedulingContext->GetNodeShardId()];
+
+    IncrementAtomicCounterUnsafely(&shard.ScheduleJobAttemptCount);
+}
+
+int TFairShareTreeJobSchedulerOperationSharedState::GetOperationScheduleJobAttemptCount()
+{
+    UpdateDiagnosticCounters();
+
+    return ScheduleJobAttemptCount_;
+}
+
 void TFairShareTreeJobSchedulerOperationSharedState::ProcessUpdatedStarvationStatus(EStarvationStatus status)
 {
     if (StarvationStatusAtLastUpdate_ == EStarvationStatus::NonStarving && status != EStarvationStatus::NonStarving) {
@@ -526,6 +541,7 @@ void TFairShareTreeJobSchedulerOperationSharedState::UpdateDiagnosticCounters()
     std::fill(DeactivationReasons_.begin(), DeactivationReasons_.end(), 0);
     std::fill(DeactivationReasonsFromLastNonStarvingTime_.begin(), DeactivationReasonsFromLastNonStarvingTime_.end(), 0);
     std::fill(MinNeededResourcesUnsatisfiedCount_.begin(), MinNeededResourcesUnsatisfiedCount_.end(), 0);
+    i64 scheduleJobAttemptCount = 0;
 
     for (int shardId = 0; shardId < std::ssize(StrategyHost_->GetNodeShardInvokers()); ++shardId) {
         auto& shard = StateShards_[shardId];
@@ -538,8 +554,10 @@ void TFairShareTreeJobSchedulerOperationSharedState::UpdateDiagnosticCounters()
             MinNeededResourcesUnsatisfiedCount_[resource] +=
                 shard.MinNeededResourcesUnsatisfiedCount[resource].load();
         }
+        scheduleJobAttemptCount += shard.ScheduleJobAttemptCount;
     }
 
+    ScheduleJobAttemptCount_ = scheduleJobAttemptCount;
     LastDiagnosticCountersUpdateTime_ = now;
 }
 

@@ -1665,6 +1665,7 @@ TFairShareScheduleJobResult TScheduleJobsContext::ScheduleJobAtOperation(TSchedu
     YT_VERIFY(schedulingIndex != UndefinedSchedulingIndex);
     ++StageState_->SchedulingIndexToScheduleJobAttemptCount[schedulingIndex];
     StageState_->MaxSchedulingIndex = std::max(StageState_->MaxSchedulingIndex, schedulingIndex);
+    IncrementOperationScheduleJobAttemptCount(element);
 
     if (auto blockedReason = CheckBlocked(element)) {
         deactivateOperationElement(*blockedReason);
@@ -2234,6 +2235,11 @@ void TScheduleJobsContext::UpdateOperationPreemptionStatusStatistics(
     EOperationPreemptionStatus status) const
 {
     TreeSnapshot_->SchedulingSnapshot()->GetEnabledOperationSharedState(element)->UpdatePreemptionStatusStatistics(status);
+}
+
+void TScheduleJobsContext::IncrementOperationScheduleJobAttemptCount(const TSchedulerOperationElement* element) const
+{
+    TreeSnapshot_->SchedulingSnapshot()->GetEnabledOperationSharedState(element)->IncrementOperationScheduleJobAttemptCount(SchedulingContext_);
 }
 
 int TScheduleJobsContext::GetOperationRunningJobCount(const TSchedulerOperationElement* element) const
@@ -3094,6 +3100,9 @@ void TFairShareTreeJobScheduler::ProfileOperation(
 
     const auto& attributes = treeSnapshot->SchedulingSnapshot()->StaticAttributesList().AttributesOf(element);
     writer->AddGauge("/scheduling_index", attributes.SchedulingIndex);
+
+    const auto& operationSharedState = treeSnapshot->SchedulingSnapshot()->GetEnabledOperationSharedState(element);
+    writer->AddCounter("/schedule_job_attempt_count", operationSharedState->GetOperationScheduleJobAttemptCount());
 }
 
 void TFairShareTreeJobScheduler::UpdateConfig(TFairShareStrategyTreeConfigPtr config)

@@ -523,6 +523,7 @@ private:
         const TJobResources& availableResources,
         const TJobResources& minNeededResources) const;
     void UpdateOperationPreemptionStatusStatistics(const TSchedulerOperationElement* element, EOperationPreemptionStatus status) const;
+    void IncrementOperationScheduleJobAttemptCount(const TSchedulerOperationElement* element) const;
     int GetOperationRunningJobCount(const TSchedulerOperationElement* element) const;
 
     //! Other methods.
