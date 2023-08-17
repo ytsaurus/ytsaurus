@@ -12,13 +12,13 @@ class TDiskInfoProvider
     : public TRefCounted
 {
 public:
-    explicit TDiskInfoProvider(
+    TDiskInfoProvider(
         IDiskManagerProxyPtr diskManagerProxy,
         TDiskInfoProviderConfigPtr config);
 
-    std::vector<TString> GetConfigDiskIds() const;
+    const std::vector<TString>& GetConfigDiskIds() const;
 
-    TFuture<std::vector<TDiskInfo>> GetYtDiskInfos();
+    TFuture<std::vector<TDiskInfo>> GetYTDiskInfos();
 
     TFuture<void> RecoverDisk(const TString& diskId);
 

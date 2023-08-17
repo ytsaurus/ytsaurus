@@ -563,7 +563,7 @@ public:
 
     bool EnableManualDiskFailures;
 
-    bool NewDiskCheckerEnabled;
+    bool EnableNewDiskChecker;
 
     TDuration HealthCheckPeriod;
 

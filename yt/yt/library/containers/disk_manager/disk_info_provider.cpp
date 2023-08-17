@@ -18,12 +18,12 @@ TDiskInfoProvider::TDiskInfoProvider(
     , Config_(std::move(config))
 { }
 
-std::vector<TString> TDiskInfoProvider::GetConfigDiskIds() const
+const std::vector<TString>& TDiskInfoProvider::GetConfigDiskIds() const
 {
     return Config_->DiskIds;
 }
 
-TFuture<std::vector<TDiskInfo>> TDiskInfoProvider::GetYtDiskInfos()
+TFuture<std::vector<TDiskInfo>> TDiskInfoProvider::GetYTDiskInfos()
 {
     auto diskInfosFuture = DiskManagerProxy_->GetDisks();
     auto ytDiskPathsFuture = DiskManagerProxy_->GetYtDiskMountPaths();

@@ -50,8 +50,7 @@ void TLocationManager::BuildOrchid(IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("disk_ids_mismatched")
-            .Value(DiskIdsMismatched_.load())
+            .Item("disk_ids_mismatched").Value(DiskIdsMismatched_.load())
         .EndMap();
 }
 
@@ -70,7 +69,7 @@ TFuture<void> TLocationManager::FailDiskByName(
     const TString& diskName,
     const TError& error)
 {
-    return DiskInfoProvider_->GetYtDiskInfos()
+    return DiskInfoProvider_->GetYTDiskInfos()
         .Apply(BIND([=, this, this_ = MakeStrong(this)] (const std::vector<TDiskInfo>& diskInfos) {
             for (const auto& diskInfo : diskInfos) {
                 if (diskInfo.DeviceName == diskName &&
@@ -152,17 +151,17 @@ std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivenessInfo(
 
 TFuture<std::vector<TLocationLivenessInfo>> TLocationManager::GetLocationsLiveness()
 {
-    return DiskInfoProvider_->GetYtDiskInfos()
+    return DiskInfoProvider_->GetYTDiskInfos()
         .Apply(BIND(&TLocationManager::MapLocationToLivenessInfo, MakeStrong(this))
         .AsyncVia(ControlInvoker_));
 }
 
 TFuture<std::vector<TDiskInfo>> TLocationManager::GetDiskInfos()
 {
-    return DiskInfoProvider_->GetYtDiskInfos();
+    return DiskInfoProvider_->GetYTDiskInfos();
 }
 
-std::vector<TString> TLocationManager::GetConfigDiskIds()
+const std::vector<TString>& TLocationManager::GetConfigDiskIds()
 {
     return DiskInfoProvider_->GetConfigDiskIds();
 }
@@ -172,7 +171,7 @@ void TLocationManager::UpdateOldDiskIds(std::vector<TString> oldDiskIds)
     OldDiskIds_ = oldDiskIds;
 }
 
-std::vector<TString> TLocationManager::GetOldDiskIds()
+const std::vector<TString>& TLocationManager::GetOldDiskIds() const
 {
     return OldDiskIds_;
 }
@@ -279,7 +278,7 @@ TLocationHealthChecker::TLocationHealthChecker(
     , ChunkStore_(std::move(chunkStore))
     , LocationManager_(std::move(locationManager))
     , Invoker_(std::move(invoker))
-    , RebootManager_(rebootManager)
+    , RebootManager_(std::move(rebootManager))
     , HealthCheckerExecutor_(New<TPeriodicExecutor>(
         Invoker_,
         BIND(&TLocationHealthChecker::OnHealthCheck, MakeWeak(this)),
@@ -326,7 +325,7 @@ void TLocationHealthChecker::OnHealthCheck()
     auto config = DynamicConfig_.Acquire();
 
     if (config->Enabled) {
-        if (config->NewDiskCheckerEnabled) {
+        if (config->EnableNewDiskChecker) {
             OnDiskHealthCheck();
         }
 
@@ -336,22 +335,22 @@ void TLocationHealthChecker::OnHealthCheck()
 
 void TLocationHealthChecker::OnDiskHealthCheck()
 {
-    auto diskInfos = WaitFor(LocationManager_->GetDiskInfos());
+    auto diskInfosOrError = WaitFor(LocationManager_->GetDiskInfos());
 
     // Fast path.
-    if (!diskInfos.IsOK()) {
-        YT_LOG_ERROR(diskInfos, "Failed to disks");
+    if (!diskInfosOrError.IsOK()) {
+        YT_LOG_ERROR(diskInfosOrError, "Failed to disks");
         return;
     }
 
     THashSet<TString> diskIds;
     THashSet<TString> aliveDiskIds;
 
-    for (const auto& disk : diskInfos.Value()) {
-        diskIds.insert(disk.DiskId);
+    for (const auto& diskInfo : diskInfosOrError.Value()) {
+        diskIds.insert(diskInfo.DiskId);
 
-        if (disk.State == NContainers::EDiskState::Ok) {
-            aliveDiskIds.insert(disk.DiskId);
+        if (diskInfo.State == NContainers::EDiskState::Ok) {
+            aliveDiskIds.insert(diskInfo.DiskId);
         }
     }
 
@@ -371,11 +370,6 @@ void TLocationHealthChecker::OnDiskHealthCheck()
 
         return true;
     };
-
-    YT_LOG_DEBUG("ConfigDiskIdsSize: %v, OldCheckDiskIdsSize: %v, NewCheckDiskIdsSize: %v",
-        configDiskIds.size(),
-        oldDiskIds.size(),
-        aliveDiskIds.size());
 
     if (!oldDiskIds.empty()) {
         if (oldDiskIds.size() < aliveDiskIds.size() ||

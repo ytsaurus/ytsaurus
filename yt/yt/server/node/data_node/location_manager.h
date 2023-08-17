@@ -7,7 +7,6 @@
 #include <yt/yt/library/containers/disk_manager/public.h>
 
 #include <yt/yt/core/ytree/fluent.h>
-#include <yt/yt/core/ytree/public.h>
 #include <yt/yt/core/ytree/ypath_service.h>
 
 namespace NYT::NDataNode {
@@ -36,7 +35,7 @@ public:
 
     TFuture<std::vector<TLocationLivenessInfo>> GetLocationsLiveness();
 
-    std::vector<TString> GetConfigDiskIds();
+    const std::vector<TString>& GetConfigDiskIds();
 
     void SetDiskAlert(TError alert);
 
@@ -59,11 +58,11 @@ public:
     NYTree::IYPathServicePtr GetOrchidService();
 
     std::vector<TLocationLivenessInfo> MapLocationToLivenessInfo(
-        const std::vector<NContainers::TDiskInfo>& failedDisks);
+        const std::vector<NContainers::TDiskInfo>& diskInfos);
 
     void UpdateOldDiskIds(std::vector<TString> oldDiskIds);
 
-    std::vector<TString> GetOldDiskIds();
+    const std::vector<TString>& GetOldDiskIds() const;
 
 private:
     const NContainers::TDiskInfoProviderPtr DiskInfoProvider_;
