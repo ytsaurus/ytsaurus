@@ -983,10 +983,10 @@ TEST_F(TComputedColumnTest, DivideComplex2)
 TEST_F(TComputedColumnTest, DivideNull)
 {
     TTableSchema tableSchema({
-        TColumnSchema("k", EValueType::Int64)
+        TColumnSchema("k", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
             .SetExpression(TString("l / 7")),
-        TColumnSchema("l", EValueType::Int64)
+        TColumnSchema("l", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
     });
@@ -999,25 +999,25 @@ TEST_F(TComputedColumnTest, DivideNull)
     EXPECT_EQ(4u, result.size());
 
     EXPECT_EQ(YsonToKey(_NULL_ ";" _NULL_), result[0].first);
-    EXPECT_EQ(YsonToKey(_NULL_ ";16"), result[0].second);
+    EXPECT_EQ(YsonToKey(_NULL_ ";16u"), result[0].second);
 
-    EXPECT_EQ(YsonToKey("0;" _NULL_), result[1].first);
-    EXPECT_EQ(YsonToKey("0;16"), result[1].second);
+    EXPECT_EQ(YsonToKey("0u;" _NULL_), result[1].first);
+    EXPECT_EQ(YsonToKey("0u;16u"), result[1].second);
 
-    EXPECT_EQ(YsonToKey("1;" _NULL_), result[2].first);
-    EXPECT_EQ(YsonToKey("1;16"), result[2].second);
+    EXPECT_EQ(YsonToKey("1u;" _NULL_), result[2].first);
+    EXPECT_EQ(YsonToKey("1u;16u"), result[2].second);
 
-    EXPECT_EQ(YsonToKey("2;" _NULL_), result[3].first);
-    EXPECT_EQ(YsonToKey("2;16"), result[3].second);
+    EXPECT_EQ(YsonToKey("2u;" _NULL_), result[3].first);
+    EXPECT_EQ(YsonToKey("2u;16u"), result[3].second);
 }
 
 TEST_F(TComputedColumnTest, DivideOneBound)
 {
     TTableSchema tableSchema({
-        TColumnSchema("k", EValueType::Int64)
+        TColumnSchema("k", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
             .SetExpression(TString("l / 7")),
-        TColumnSchema("l", EValueType::Int64)
+        TColumnSchema("l", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
     });
@@ -1030,16 +1030,16 @@ TEST_F(TComputedColumnTest, DivideOneBound)
     EXPECT_EQ(4u, result.size());
 
     EXPECT_EQ(YsonToKey(_NULL_), result[0].first);
-    EXPECT_EQ(YsonToKey(_NULL_ ";16"), result[0].second);
+    EXPECT_EQ(YsonToKey(_NULL_ ";16u"), result[0].second);
 
-    EXPECT_EQ(YsonToKey("0"), result[1].first);
-    EXPECT_EQ(YsonToKey("0;16"), result[1].second);
+    EXPECT_EQ(YsonToKey("0u"), result[1].first);
+    EXPECT_EQ(YsonToKey("0u;16u"), result[1].second);
 
-    EXPECT_EQ(YsonToKey("1"), result[2].first);
-    EXPECT_EQ(YsonToKey("1;16"), result[2].second);
+    EXPECT_EQ(YsonToKey("1u"), result[2].first);
+    EXPECT_EQ(YsonToKey("1u;16u"), result[2].second);
 
-    EXPECT_EQ(YsonToKey("2"), result[3].first);
-    EXPECT_EQ(YsonToKey("2;16"), result[3].second);
+    EXPECT_EQ(YsonToKey("2u"), result[3].first);
+    EXPECT_EQ(YsonToKey("2u;16u"), result[3].second);
 }
 
 TEST_F(TComputedColumnTest, DivideTypeCast)
@@ -1446,6 +1446,83 @@ INSTANTIATE_TEST_SUITE_P(
             "1;1;",
             "1;1;" _MAX_}
 ));
+
+TEST_F(TComputedColumnTest, BigBKeySchema)
+{
+    TTableSchema tableSchema({
+        TColumnSchema("Hash", EValueType::Uint64)
+            .SetSortOrder(ESortOrder::Ascending)
+            .SetExpression(TString("bigb_hash(UniqID) % 768")),
+        TColumnSchema("UniqID", EValueType::String)
+            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("Value", EValueType::Int64)
+    });
+
+    SetSchema(tableSchema);
+
+    auto query = TString("Value from [//t] where ((Hash,UniqID) > (628,\"duid/1692118319191641157\")) AND (Hash BETWEEN 628 AND 628)");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(1u, result.size());
+
+    EXPECT_EQ(YsonToKey("628u; \"duid/1692118319191641157\"; " _MAX_), result[0].first);
+    EXPECT_EQ(YsonToKey("628u;" _MAX_), result[0].second);
+}
+
+TEST_F(TComputedColumnTest, TwoComputedColumns)
+{
+    TTableSchema tableSchema({
+        TColumnSchema("k", EValueType::Int64)
+            .SetSortOrder(ESortOrder::Ascending)
+            .SetExpression(TString("n")),
+        TColumnSchema("l", EValueType::Int64)
+            .SetSortOrder(ESortOrder::Ascending)
+            .SetExpression(TString("m")),
+        TColumnSchema("m", EValueType::Int64)
+            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("n", EValueType::Int64)
+            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("v", EValueType::Int64)
+    });
+
+    SetSchema(tableSchema);
+
+    auto query = TString("v from [//t] where k = 1 and m between 3 and 5");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(3u, result.size());
+
+    EXPECT_EQ(YsonToKey("1;3;3"), result[0].first);
+    EXPECT_EQ(YsonToKey("1;3;5;" _MAX_), result[0].second);
+
+    EXPECT_EQ(YsonToKey("1;4;3"), result[1].first);
+    EXPECT_EQ(YsonToKey("1;4;5;" _MAX_), result[1].second);
+
+    EXPECT_EQ(YsonToKey("1;5;3"), result[2].first);
+    EXPECT_EQ(YsonToKey("1;5;5;" _MAX_), result[2].second);
+}
+
+TEST_F(TComputedColumnTest, YabsGoodEvent)
+{
+    TTableSchema tableSchema({
+        TColumnSchema("k", EValueType::Uint64)
+            .SetSortOrder(ESortOrder::Ascending)
+            .SetExpression(TString("farm_hash(l)")),
+        TColumnSchema("l", EValueType::Int64)
+            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("v", EValueType::Int64)
+    });
+
+    SetSchema(tableSchema);
+
+    auto query = TString("v from [//t] where l <= 0");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(1u, result.size());
+
+    EXPECT_EQ(YsonToKey(_MIN_), result[0].first);
+    EXPECT_EQ(YsonToKey(_MAX_), result[0].second);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
