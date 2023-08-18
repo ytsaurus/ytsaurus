@@ -92,3 +92,22 @@ jobs:
           label: ${{ needs.start-vm.outputs.label }}
           instance-id: ${{ needs.start-vm.outputs.instance-id }}
 
+  send-notifications:
+    name: Send notifications
+    needs:
+      - stop-vm
+    runs-on: trampoline
+    if: ${{ failure() }}
+    steps:
+      - name: Send telegram message
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          disable_web_page_preview: true
+          format: markdown
+          message: |
+            Workflow *${{github.workflow}}* failed: ${{github.server_url}}/${{github.repository}}/actions/runs/${{github.run_id}}. Commit:
+            ```
+            ${{github.event.head_commit.message}}
+            ```
