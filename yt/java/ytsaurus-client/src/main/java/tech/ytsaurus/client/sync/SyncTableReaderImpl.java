@@ -4,7 +4,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 
@@ -12,12 +12,12 @@ import tech.ytsaurus.client.AsyncReader;
 
 class SyncTableReaderImpl<T> implements SyncTableReader<T> {
     private final AsyncReader<T> reader;
-    private final Executor executor;
+    private final ExecutorService executor;
     private Iterator<T> iterator;
 
     private SyncTableReaderImpl(AsyncReader<T> reader) {
         this.reader = reader;
-        this.executor = Executors.newCachedThreadPool();
+        this.executor = Executors.newSingleThreadExecutor();
         this.iterator = Collections.emptyIterator();
     }
 
@@ -54,5 +54,6 @@ class SyncTableReaderImpl<T> implements SyncTableReader<T> {
     @Override
     public void close() throws IOException {
         reader.close();
+        executor.shutdown();
     }
 }
