@@ -28,12 +28,12 @@ inline T powm1_imp(const T x, const T y, const Policy& pol)
    static const char* function = "boost::math::powm1<%1%>(%1%, %1%)";
    if (x > 0)
    {
-      if ((fabs(y * (x - 1)) < 0.5) || (fabs(y) < 0.2))
+      if ((fabs(y * (x - 1)) < T(0.5)) || (fabs(y) < T(0.2)))
       {
          // We don't have any good/quick approximation for log(x) * y
          // so just try it and see:
          T l = y * log(x);
-         if (l < 0.5)
+         if (l < T(0.5))
             return boost::math::expm1(l, pol);
          if (l > boost::math::tools::log_max_value<T>())
             return boost::math::policies::raise_overflow_error<T>(function, nullptr, pol);

@@ -115,7 +115,7 @@ T temme_method_1_ibeta_inverse(T a, T b, T z, const Policy& pol)
    T c = -exp(-eta_2 / 2);
    T x;
    if(eta_2 == 0)
-      x = 0.5;
+      x = static_cast<T>(0.5f);
    else
       x = (1 + eta * sqrt((1 + c) / eta_2)) / 2;
    //
