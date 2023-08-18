@@ -12,13 +12,13 @@
 
 #include <yt/yt/server/lib/chaos_node/config.h>
 
-#include <yt/yt/library/dynamic_config/config.h>
-
-#include <yt/yt/core/http/config.h>
-
 #include <yt/yt/ytlib/object_client/config.h>
 
 #include <yt/yt/client/transaction_client/config.h>
+
+#include <yt/yt/core/http/config.h>
+
+#include <yt/yt/library/dynamic_config/config.h>
 
 namespace NYT::NClusterNode {
 

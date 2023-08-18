@@ -21,8 +21,6 @@
 
 #include <yt/yt/ytlib/program/config.h>
 
-#include <yt/yt/library/program/public.h>
-
 #include <yt/yt/client/ypath/public.h>
 
 #include <yt/yt/core/concurrency/public.h>
@@ -32,6 +30,8 @@
 #include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/library/re2/re2.h>
+
+#include <yt/yt/library/program/public.h>
 
 namespace NYT::NScheduler {
 

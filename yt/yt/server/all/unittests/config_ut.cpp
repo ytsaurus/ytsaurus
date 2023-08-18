@@ -7,9 +7,9 @@
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/rpc_proxy/config.h>
 
-#include <yt/yt/core/ytree/convert.h>
-
 #include <yt/yt/ytlib/scheduler/config.h>
+
+#include <yt/yt/core/ytree/convert.h>
 
 #include <library/cpp/testing/common/env.h>
 
