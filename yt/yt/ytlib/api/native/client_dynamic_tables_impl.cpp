@@ -1347,7 +1347,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     auto inputRowLimit = options.InputRowLimit.value_or(Connection_->GetConfig()->DefaultInputRowLimit);
     auto outputRowLimit = options.OutputRowLimit.value_or(Connection_->GetConfig()->DefaultOutputRowLimit);
 
-    const auto& udfRegistryPath = options.UdfRegistryPath
+    auto udfRegistryPath = options.UdfRegistryPath
         ? *options.UdfRegistryPath
         : Connection_->GetConfig()->UdfRegistryPath;
 
@@ -1511,7 +1511,7 @@ NYson::TYsonString TClient::DoExplainQuery(
 {
     auto parsedQuery = ParseSource(queryString, EParseMode::Query);
 
-    const auto& udfRegistryPath = options.UdfRegistryPath
+    auto udfRegistryPath = options.UdfRegistryPath
         ? *options.UdfRegistryPath
         : GetNativeConnection()->GetConfig()->UdfRegistryPath;
 
