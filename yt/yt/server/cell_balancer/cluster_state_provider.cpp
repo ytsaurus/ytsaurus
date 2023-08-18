@@ -165,7 +165,7 @@ TClusterStateProvider::TClusterStateProvider(NCellBalancerClient::NProto::TRspGe
         createNode(&protoNode);
     }
 
-    for(auto& protoCellBundle : *response->mutable_cell_bundles()) {
+    for (auto& protoCellBundle : *response->mutable_cell_bundles()) {
         createCellBundle(&protoCellBundle);
     }
 

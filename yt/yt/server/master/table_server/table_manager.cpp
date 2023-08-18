@@ -387,7 +387,7 @@ public:
         auto* schema = FindMasterTableSchema(hintId);
         if (!schema) {
             schema = DoCreateMasterTableSchema(tableSchema, hintId, /* isNative */ false);
-        } else if(!IsObjectAlive(schema)) {
+        } else if (!IsObjectAlive(schema)) {
             ResurrectMasterTableSchema(schema);
             YT_VERIFY(*schema->TableSchema_ == tableSchema);
         }
@@ -444,7 +444,7 @@ public:
         auto* schema = FindMasterTableSchema(hintId);
         if (!schema) {
             schema = DoCreateMasterTableSchema(tableSchema, hintId, isNative);
-        } else if(!IsObjectAlive(schema)) {
+        } else if (!IsObjectAlive(schema)) {
             ResurrectMasterTableSchema(schema);
             YT_VERIFY(*schema->TableSchema_ == tableSchema);
         } else {
@@ -1956,7 +1956,7 @@ private:
         auto* schema = FindMasterTableSchema(hintId);
         if (!schema) {
             schema = DoCreateMasterTableSchema(tableSchema, hintId, /* isNative */ false);
-        } else if(!IsObjectAlive(schema)) {
+        } else if (!IsObjectAlive(schema)) {
             ResurrectMasterTableSchema(schema);
             YT_VERIFY(*schema->TableSchema_ == tableSchema);
         }

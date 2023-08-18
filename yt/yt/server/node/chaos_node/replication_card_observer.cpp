@@ -142,7 +142,7 @@ private:
         }
 
         auto checkExpiredHistory = [expiredHistories] (TReplicaId replicaId, const TReplicaInfo& replica, TTimestamp timestamp) {
-            if(std::ssize(replica.History) > 1 && replica.History[1].Timestamp <= timestamp) {
+            if (std::ssize(replica.History) > 1 && replica.History[1].Timestamp <= timestamp) {
                 expiredHistories->push_back({replicaId, timestamp});
             }
         };

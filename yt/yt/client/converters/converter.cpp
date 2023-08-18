@@ -64,7 +64,7 @@ TConvertedColumnRange ConvertRowsToColumns(
     const std::vector<NTableClient::TColumnSchema> &columnSchema)
 {
     TConvertedColumnRange convertedColumnsRange;
-    for(int columnId = 0; columnId < std::ssize(columnSchema); columnId++) {
+    for (int columnId = 0; columnId < std::ssize(columnSchema); columnId++) {
         auto converter = CreateColumnConvert(columnSchema[columnId], columnId);
         auto columns = converter->Convert(rows);
         convertedColumnsRange.push_back(columns);

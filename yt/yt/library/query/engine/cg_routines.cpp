@@ -830,7 +830,7 @@ void GroupOpHelper(
             flushGroupedRows(true, groupedRows.data() + innerCount, groupedRows.data() + groupedRows.size());
 
             groupedRows.clear();
-        } else if(Y_UNLIKELY(groupedRows.size() >= RowsetProcessingSize)) {
+        } else if (Y_UNLIKELY(groupedRows.size() >= RowsetProcessingSize)) {
             flushGroupedRows(false, groupedRows.data(), groupedRows.data() + groupedRows.size());
             groupedRows.clear();
         }

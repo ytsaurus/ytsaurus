@@ -1625,7 +1625,7 @@ void TSortedDynamicStore::SetKeys(TSortedDynamicRow dstRow, TSortedDynamicRow sr
         bool isNull = nullKeyMask & nullKeyBit;
         dstRow.GetDataWeight() += GetDataWeight(columnIt->GetWireType(), isNull, *srcKeys);
         if (!isNull) {
-            if(IsStringLikeType(columnIt->GetWireType())) {
+            if (IsStringLikeType(columnIt->GetWireType())) {
                 *dstKeys = CaptureStringValue(*srcKeys);
             } else {
                 *dstKeys = *srcKeys;

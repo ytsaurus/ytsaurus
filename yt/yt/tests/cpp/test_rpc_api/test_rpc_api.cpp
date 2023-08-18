@@ -919,7 +919,7 @@ std::vector<ui32> ReadInterger32Array(std::shared_ptr<arrow::Array> array)
 
     const ui32* data = int32Array->raw_values();
     std::vector<ui32> result;
-    for (int i = 0; i < sizeArray; i++) {
+    for (int idx = 0; idx < sizeArray; idx++) {
         result.push_back(*data);
         data++;
     }

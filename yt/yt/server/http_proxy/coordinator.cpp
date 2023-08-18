@@ -188,7 +188,7 @@ std::vector<TCoordinatorProxyPtr> TCoordinator::ListProxies(std::optional<TStrin
             continue;
         }
 
-        if(!proxy->Entry->IsBanned && !IsDead(proxy->Entry, now)) {
+        if (!proxy->Entry->IsBanned && !IsDead(proxy->Entry, now)) {
             filtered.push_back(proxy);
         }
     }
