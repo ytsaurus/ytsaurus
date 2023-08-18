@@ -371,7 +371,7 @@ void TLocationHealthChecker::OnDiskHealthCheck()
         return true;
     };
 
-    if (!oldDiskIds.empty()) {
+    if (!oldDiskIds.empty() && !configDiskIds.empty()) {
         if (oldDiskIds.size() < aliveDiskIds.size() ||
             !checkDisks(configDiskIds, diskIds))
         {
