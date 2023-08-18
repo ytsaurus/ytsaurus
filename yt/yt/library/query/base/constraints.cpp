@@ -36,8 +36,24 @@ TConstraintRef TConstraintsHolder::Interval(TValueBound lower, TValueBound upper
     return Append({TConstraint::Make(lower, upper)}, keyPartIndex);
 }
 
+void VerifyConstraintsAreSorted(const TConstraintsHolder& holder, TConstraintRef ref)
+{
+    if (ref.ColumnId == SentinelColumnId) {
+        return;
+    }
+
+    const auto& columnConstraints = holder[ref.ColumnId];
+
+    for (ui32 index = ref.StartIndex + 1; index < ref.EndIndex; ++index) {
+        YT_VERIFY(columnConstraints[index - 1].GetUpperBound() <= columnConstraints[index].GetLowerBound());
+    }
+}
+
 TConstraintRef TConstraintsHolder::Intersect(TConstraintRef lhs, TConstraintRef rhs)
 {
+    VerifyConstraintsAreSorted(*this, lhs);
+    VerifyConstraintsAreSorted(*this, rhs);
+
     if (lhs.ColumnId > rhs.ColumnId) {
         std::swap(lhs, rhs);
     }
@@ -69,7 +85,7 @@ TConstraintRef TConstraintsHolder::Intersect(TConstraintRef lhs, TConstraintRef 
 
     YT_VERIFY(lhs.ColumnId == rhs.ColumnId);
 
-    if (lhs.ColumnId == std::numeric_limits<ui32>::max()) {
+    if (lhs.ColumnId == SentinelColumnId) {
         return TConstraintRef::Universal();
     }
 
@@ -124,6 +140,9 @@ TConstraintRef TConstraintsHolder::Intersect(TConstraintRef lhs, TConstraintRef 
 
 TConstraintRef TConstraintsHolder::Unite(TConstraintRef lhs, TConstraintRef rhs)
 {
+    VerifyConstraintsAreSorted(*this, lhs);
+    VerifyConstraintsAreSorted(*this, rhs);
+
     if (lhs.ColumnId > rhs.ColumnId) {
         std::swap(lhs, rhs);
     }
@@ -143,7 +162,7 @@ TConstraintRef TConstraintsHolder::Unite(TConstraintRef lhs, TConstraintRef rhs)
 
     YT_VERIFY(lhs.ColumnId == rhs.ColumnId);
 
-    if (lhs.ColumnId == std::numeric_limits<ui32>::max()) {
+    if (lhs.ColumnId == SentinelColumnId) {
         return TConstraintRef::Universal();
     }
 

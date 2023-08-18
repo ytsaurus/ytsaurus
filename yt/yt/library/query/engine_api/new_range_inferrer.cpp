@@ -1,5 +1,7 @@
 #include "new_range_inferrer.h"
 
+#include <yt/yt/library/query/base/query_helpers.h>
+
 namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -18,6 +20,22 @@ std::vector<int> BuildKeyMapping(const TKeyColumns& keyColumns, TRange<TConstExp
         }
     }
     return keyMapping;
+}
+
+int CompareRowUsingMapping(TRow lhs, TRow rhs, TRange<int> mapping)
+{
+    for (auto index : mapping) {
+        if (index == -1) {
+            continue;
+        }
+
+        int result = CompareRowValuesCheckingNan(lhs.Begin()[index], rhs.Begin()[index]);
+
+        if (result != 0) {
+            return result;
+        }
+    }
+    return 0;
 }
 
 TConstraintRef TConstraintsHolder::ExtractFromExpression(
@@ -117,8 +135,9 @@ TConstraintRef TConstraintsHolder::ExtractFromExpression(
             functionExpr,
             keyColumns,
             rowBuffer);
-    } else if (const auto* inExpr = expr->As<TInExpression>()) {;
-        auto rowCount = std::ssize(inExpr->Values);
+    } else if (const auto* inExpr = expr->As<TInExpression>()) {
+        TRange<TRow> values = inExpr->Values;
+        auto rowCount = std::ssize(values);
 
         std::vector<ui32> startOffsets;
         startOffsets.reserve(size());
@@ -127,6 +146,23 @@ TConstraintRef TConstraintsHolder::ExtractFromExpression(
         }
 
         auto keyMapping = BuildKeyMapping(keyColumns, inExpr->Arguments);
+
+        bool orderedMapping = true;
+        for (int index = 1; index < std::ssize(keyMapping); ++index) {
+            if (keyMapping[index] <= keyMapping[index - 1]) {
+                orderedMapping = false;
+                break;
+            }
+        }
+
+        std::vector<TRow> sortedValues;
+        if (!orderedMapping) {
+            sortedValues = values.ToVector();
+            std::sort(sortedValues.begin(), sortedValues.end(), [&] (TRow lhs, TRow rhs) {
+                return CompareRowUsingMapping(lhs, rhs, keyMapping) < 0;
+            });
+            values = sortedValues;
+        }
 
         int lastKeyPart = -1;
         for (int keyIndex = keyMapping.size() - 1; keyIndex >= 0; --keyIndex) {
@@ -142,7 +178,7 @@ TConstraintRef TConstraintsHolder::ExtractFromExpression(
                         next.EndIndex = next.StartIndex + 1;
                     }
 
-                    const auto& value = inExpr->Values[rowIndex][index];
+                    const auto& value = values[rowIndex][index];
 
                     columnConstraints.push_back(TConstraint::Make(
                         TValueBound{value, false},

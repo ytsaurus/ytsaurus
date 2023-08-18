@@ -1211,6 +1211,28 @@ TEST_F(TRefineKeyRangeTest, RedundantCondition)
     EXPECT_EQ(YsonToKey("2;4;" _MAX_), result[1].second);
 }
 
+TEST_F(TRefineKeyRangeTest, InColumnPermutation)
+{
+    auto expr = PrepareExpression(
+        "(l, k) in ((0, 5), (1, 3))",
+        *GetSampleTableSchema());
+
+    auto rowBuffer = New<TRowBuffer>();
+    auto result = GetRangesFromExpression(
+        rowBuffer,
+        GetSampleKeyColumns(),
+        expr,
+        std::make_pair(YsonToKey("1;1;1"), YsonToKey("100;100;100")));
+
+    EXPECT_EQ(2u, result.size());
+
+    EXPECT_EQ(YsonToKey("3;1"), result[0].first);
+    EXPECT_EQ(YsonToKey("3;1;" _MAX_), result[0].second);
+
+    EXPECT_EQ(YsonToKey("5;0"), result[1].first);
+    EXPECT_EQ(YsonToKey("5;0;" _MAX_), result[1].second);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

@@ -239,10 +239,10 @@ TUnversionedValue UpperBoundToValue(TValueBound upper, bool signedType)
     return value;
 }
 
-ui64 ValueToUint64(TUnversionedValue value)
+ui64 ValueToUint64(TUnversionedValue value, bool signedType)
 {
     if (value.Type == EValueType::Null) {
-        return 0;
+        return signedType ? std::numeric_limits<i64>::min() : 0;
     }
 
     return value.Data.Uint64;
@@ -268,9 +268,9 @@ public:
         TUnversionedValue upper,
         TRange<ui64> divisors)
         : TQuotientGenerator(
-            ValueToUint64(upper) - ValueToUint64(lower),
+            ValueToUint64(upper, signedType) - ValueToUint64(lower, signedType),
             divisors)
-        , Start_(ValueToUint64(lower))
+        , Start_(ValueToUint64(lower, signedType))
         , ProduceNull_(lower.Type == EValueType::Null)
         , SignedType_(signedType)
     { }
@@ -613,7 +613,8 @@ public:
             // For full range 0 .. MAX_INT cardinality is MAX_INT + 1 but it can not be represented.
             // For range N .. N cardinality is 1.
             // Cardinality always greater than zero. So we can keep it as cardinalityMinusOne.
-            ui64 cardinalityMinusOne = ValueToUint64(upperBoundValue) - ValueToUint64(lowerBoundValue);
+            ui64 cardinalityMinusOne =
+                ValueToUint64(upperBoundValue, signedType) - ValueToUint64(lowerBoundValue, signedType);
 
             auto uniqueDivisors = MakeRange(mergedDivisors).Slice(savedDivisorsCount, mergedDivisors.size());
             expressionEstimation = SaturationArithmeticMultiply(
@@ -622,6 +623,14 @@ public:
             YT_VERIFY(expressionEstimation != 0);
         }
         return expressionEstimation;
+    }
+
+    void RevertLastDivisors(TRange<int> referenceIds)
+    {
+        for (auto refColumnId : referenceIds) {
+            // If constraint is exact counts are equal.
+            ReferenceIdToDivisorsMerged_[refColumnId].resize(LastDivisorCounts_[refColumnId]);
+        }
     }
 
     // Returns estimation and generatable fixed key prefix size.
@@ -662,11 +671,8 @@ public:
                      return {0, 0};
                 }
 
-                YT_VERIFY(expressionEstimation != 0);
-
                 bool moduloEnumeration = false;
-
-                if (ModuloPerEvaluatedColumn_[evaluatedColumnIndex].Type != EValueType::Null) {
+                if (ModuloPerEvaluatedColumn_[evaluatedColumnIndex].Type != EValueType::Null && !constraints[columnId].IsExact()) {
                     auto cardinality = GetModuloCardinality(ModuloPerEvaluatedColumn_[evaluatedColumnIndex]);
                     if (cardinality < expressionEstimation) {
                         YT_VERIFY(cardinality != 0);
@@ -675,34 +681,27 @@ public:
                     }
                 }
 
-                if (expressionEstimation > maxEstimation / estimation) {
-                    // Reset divisors.
-                    for (auto refColumnId : referenceIds) {
-                        // If constraint is exact counts are equal.
-                        ReferenceIdToDivisorsMerged_[refColumnId].resize(LastDivisorCounts_[refColumnId]);
+                if (expressionEstimation <= maxEstimation / estimation) {
+                    if (moduloEnumeration) {
+                        RevertLastDivisors(referenceIds);
+                        ModuloColumnIds_.push_back(evaluatedColumnIndex);
+                    } else {
+                        ComputedColumnIds_.push_back(columnId);
                     }
+
+                    estimation = SaturationArithmeticMultiply(estimation, expressionEstimation);
+                    YT_VERIFY(estimation <= maxEstimation);
+                } else {
+                    RevertLastDivisors(referenceIds);
 
                     // Continue if column is exact. No need to evaluate computed column in this case.
                     if (!constraints[columnId].IsExact()) {
                         // Column cannot be evaluated and constraint is not exact.
                         break;
                     }
-                } else {
-                    if (moduloEnumeration) {
-                        // Reset divisors.
-                        for (auto refColumnId : referenceIds) {
-                            // If constraint is exact counts are equal.
-                            ReferenceIdToDivisorsMerged_[refColumnId].resize(LastDivisorCounts_[refColumnId]);
-                        }
-                        ModuloColumnIds_.push_back(evaluatedColumnIndex);
-                    } else {
-                        ComputedColumnIds_.push_back(EvaluatedExpressionToColumnId_[evaluatedColumnIndex]);
-                    }
-
-                    estimation = SaturationArithmeticMultiply(estimation, expressionEstimation);
-                    YT_VERIFY(estimation <= maxEstimation);
-                    ++evaluatedColumnIndex;
                 }
+
+                ++evaluatedColumnIndex;
             } else if (!constraints[columnId].IsExact()) {
                 break;
             }
@@ -788,9 +787,9 @@ public:
             MakeMutableRange(boundRow.Begin(), boundRow.End()));
 
         std::vector<TRowRange> resultRanges;
-
         do {
             bool evaluatedColumnViolatesConstraints = false;
+
             for (auto columnId : ComputedColumnIds_) {
                 evaluator.EvaluateKey(boundRow, buffer, columnId);
 
