@@ -1358,6 +1358,125 @@ type TableBackupClient interface {
 	) error
 }
 
+type QueryTrackerOptions struct {
+	Stage *string `http:"stage,omitnil"`
+}
+
+type StartQueryOptions struct {
+	Settings    any   `http:"settings,omitnil"`
+	Draft       *bool `http:"draft,omitnil"`
+	Annotations any   `http:"annotations,omitnil"`
+
+	*QueryTrackerOptions
+}
+
+type AbortQueryOptions struct {
+	AbortMessage *string `http:"abort_message,omitnil"`
+
+	*QueryTrackerOptions
+}
+
+type GetQueryOptions struct {
+	Attributes []string `http:"attributes,omitnil"`
+	Timestamp  *uint64  `http:"timestamp,omitnil"`
+
+	*QueryTrackerOptions
+}
+
+type ListQueriesOptions struct {
+	FromTime        *yson.Time              `http:"from_time,omitnil"`
+	ToTime          *yson.Time              `http:"to_time,omitnil"`
+	CursorTime      *yson.Time              `http:"cursor_time,omitnil"`
+	CursorDirection *OperationSortDirection `http:"cursor_direction,omitnil"`
+	UserFilter      *string                 `http:"user_filter,omitnil"`
+
+	StateFilter  *QueryState  `http:"state_filter,omitnil"`
+	EngineFilter *QueryEngine `http:"engine_filter,omitnil"`
+	SubstrFilter *string      `http:"substr_filter,omitnil"`
+	Limit        *int64       `http:"limit,omitnil"`
+
+	Attributes []string `http:"attributes,omitnil"`
+
+	*QueryTrackerOptions
+}
+
+type GetQueryResultOptions struct {
+	*QueryTrackerOptions
+}
+
+type ReadQueryResultOptions struct {
+	Columns       []string `http:"columns,omitnil"`
+	LowerRowIndex *int64   `http:"lower_row_index,omitnil"`
+	UpperRowIndex *int64   `http:"upper_row_index,omitnil"`
+
+	*QueryTrackerOptions
+}
+
+type AlterQueryOptions struct {
+	Annotations any `http:"annotations,omitnil"`
+
+	*QueryTrackerOptions
+}
+
+type QueryTrackerClient interface {
+	// http:verb:"start_query"
+	// http:params:"engine","query"
+	StartQuery(
+		ctx context.Context,
+		engine QueryEngine,
+		query string,
+		options *StartQueryOptions,
+	) (id QueryID, err error)
+
+	// http:verb:"abort_query"
+	// http:params:"query_id"
+	AbortQuery(
+		ctx context.Context,
+		id QueryID,
+		options *AbortQueryOptions,
+	) (err error)
+
+	// http:verb:"get_query"
+	// http:params:"query_id"
+	GetQuery(
+		ctx context.Context,
+		id QueryID,
+		options *GetQueryOptions,
+	) (query *Query, err error)
+
+	// http:verb:"list_queries"
+	ListQueries(
+		ctx context.Context,
+		options *ListQueriesOptions,
+	) (result *ListQueriesResult, err error)
+
+	// http:verb:"get_query_result"
+	// http:params:"query_id","result_index"
+	GetQueryResult(
+		ctx context.Context,
+		id QueryID,
+		resultIndex int64,
+		options *GetQueryResultOptions,
+	) (result *QueryResult, err error)
+
+	// http:verb:"read_query_result"
+	// http:params:"query_id","result_index"
+	ReadQueryResult(
+		ctx context.Context,
+		id QueryID,
+		resultIndex int64,
+		options *ReadQueryResultOptions,
+	) (r TableReader, err error)
+
+	// http:verb:"alter_query"
+	// http:params:"query_id"
+	AlterQuery(
+		ctx context.Context,
+		id QueryID,
+		options *AlterQueryOptions,
+	) (err error)
+}
+
 type TabletTx interface {
 	TabletClient
 
@@ -1404,6 +1523,8 @@ type Client interface {
 	LowLevelSchedulerClient
 
 	AdminClient
+
+	QueryTrackerClient
 
 	// http:verb:"locate_skynet_share"
 	// http:params:"path"

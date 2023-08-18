@@ -350,3 +350,51 @@ type TableBackupManifest struct {
 type BackupManifest struct {
 	Clusters map[string][]TableBackupManifest `yson:"clusters"`
 }
+
+type QueryEngine string
+
+const (
+	QueryEngineQL   QueryEngine = "ql"
+	QueryEngineYQL  QueryEngine = "yql"
+	QueryEngineCHYT QueryEngine = "chyt"
+	QueryEngineMock QueryEngine = "mock"
+)
+
+type QueryID guid.GUID
+
+func (id QueryID) String() string {
+	return guid.GUID(id).String()
+}
+
+func (id QueryID) MarshalYSON(w *yson.Writer) error {
+	return guid.GUID(id).MarshalYSON(w)
+}
+
+func (id *QueryID) UnmarshalYSON(data []byte) (err error) {
+	var g guid.GUID
+	err = g.UnmarshalYSON(data)
+	*id = QueryID(g)
+	return
+}
+
+type QueryState string
+
+const (
+	QueryStateDraft      QueryState = "draft"
+	QueryStatePending    QueryState = "pending"
+	QueryStateRunning    QueryState = "running"
+	QueryStateAborting   QueryState = "aborting"
+	QueryStateAborted    QueryState = "aborted"
+	QueryStateCompleting QueryState = "completing"
+	QueryStateCompleted  QueryState = "completed"
+	QueryStateFailing    QueryState = "failing"
+	QueryStateFailed     QueryState = "failed"
+)
+
+type OperationSortDirection string
+
+const (
+	SortDirectionNone   OperationSortDirection = "none"
+	SortDirectionPast   OperationSortDirection = "past"
+	SortDirectionFuture OperationSortDirection = "future"
+)

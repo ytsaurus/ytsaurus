@@ -48,7 +48,7 @@ type errorCode struct {
 }
 
 var (
-	reStart = regexp.MustCompile(`DEFINE_ENUM\(EErrorCode,`)
+	reStart = regexp.MustCompile(`YT_DEFINE_ERROR_ENUM`)
 	reValue = regexp.MustCompile(`\(\((\w+)\)\s*\((\d+)\)\)`)
 	reEnd   = regexp.MustCompile(`\);`)
 )
@@ -134,10 +134,16 @@ func main() {
 			return errorCode{"InvalidElectionEpoch", e.value}
 		case 800:
 			return errorCode{"InvalidElectionState", e.value}
+		case 1129:
+			return errorCode{"ExecNodeLayerUnpackingFailed", e.value}
 		case 1915:
 			return errorCode{"APINoSuchOperation", e.value}
 		case 1916:
 			return errorCode{"APINoSuchJob", e.value}
+		case 3900:
+			return errorCode{"QueryTrackerClientIncarnationMismatch", e.value}
+		case 19000:
+			return errorCode{"MiscIOError", e.value}
 		default:
 			return e
 		}

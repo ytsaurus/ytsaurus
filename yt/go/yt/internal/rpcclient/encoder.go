@@ -1981,3 +1981,68 @@ func (e *Encoder) GetInSyncReplicas(
 
 	return ids, nil
 }
+
+func (e *Encoder) StartQuery(
+	ctx context.Context,
+	engine yt.QueryEngine,
+	query string,
+	options *yt.StartQueryOptions,
+) (id yt.QueryID, err error) {
+	err = xerrors.New("method StartQuery is not implemented")
+	return
+}
+
+func (e *Encoder) AbortQuery(
+	ctx context.Context,
+	id yt.QueryID,
+	options *yt.AbortQueryOptions,
+) (err error) {
+	err = xerrors.New("method AbortQuery is not implemented")
+	return
+}
+
+func (e *Encoder) GetQuery(
+	ctx context.Context,
+	id yt.QueryID,
+	options *yt.GetQueryOptions,
+) (query *yt.Query, err error) {
+	err = xerrors.New("method GetQuery is not implemented")
+	return
+}
+
+func (e *Encoder) ListQueries(
+	ctx context.Context,
+	options *yt.ListQueriesOptions,
+) (result *yt.ListQueriesResult, err error) {
+	err = xerrors.New("method ListQueries is not implemented")
+	return
+}
+
+func (e *Encoder) GetQueryResult(
+	ctx context.Context,
+	id yt.QueryID,
+	resultIndex int64,
+	options *yt.GetQueryResultOptions,
+) (rm *yt.QueryResult, err error) {
+	err = xerrors.New("method GetQueryResult is not implemented")
+	return
+}
+
+func (e *Encoder) ReadQueryResult(
+	ctx context.Context,
+	id yt.QueryID,
+	resultIndex int64,
+	options *yt.ReadQueryResultOptions,
+) (r yt.TableReader, err error) {
+	err = xerrors.New("method ReadQueryResult is not implemented")
+	return
+}
+
+func (e *Encoder) AlterQuery(
+	ctx context.Context,
+	id yt.QueryID,
+	options *yt.AlterQueryOptions,
+) (err error) {
+	err = xerrors.New("method AlterQuery is not implemented")
+	return
+}

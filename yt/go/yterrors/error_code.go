@@ -4,229 +4,337 @@ package yterrors
 import "fmt"
 
 const (
-	CodeOK                                     ErrorCode = 0
-	CodeGeneric                                ErrorCode = 1
-	CodeCanceled                               ErrorCode = 2
-	CodeTimeout                                ErrorCode = 3
-	CodeFutureCombinerFailure                  ErrorCode = 4
-	CodeFutureCombinerShortcut                 ErrorCode = 5
-	CodeTransportError                         ErrorCode = 100
-	CodeProtocolError                          ErrorCode = 101
-	CodeNoSuchService                          ErrorCode = 102
-	CodeNoSuchMethod                           ErrorCode = 103
-	CodeUnavailable                            ErrorCode = 105
-	CodePoisonPill                             ErrorCode = 106
-	CodeRPCRequestQueueSizeLimitExceeded       ErrorCode = 108
-	CodeRPCAuthenticationError                 ErrorCode = 109
-	CodeInvalidCsrfToken                       ErrorCode = 110
-	CodeInvalidCredentials                     ErrorCode = 111
-	CodeStreamingNotSupported                  ErrorCode = 112
-	CodeUnsupportedClientFeature               ErrorCode = 113
-	CodeUnsupportedServerFeature               ErrorCode = 114
-	CodePeerBanned                             ErrorCode = 115
-	CodeNoSuchOperation                        ErrorCode = 200
-	CodeInvalidOperationState                  ErrorCode = 201
-	CodeTooManyOperations                      ErrorCode = 202
-	CodeNoSuchJob                              ErrorCode = 203
-	CodeOperationFailedOnJobRestart            ErrorCode = 210
-	CodeOperationFailedWithInconsistentLocking ErrorCode = 211
-	CodeOperationControllerCrashed             ErrorCode = 212
-	CodeTestingError                           ErrorCode = 213
-	CodePoolTreesAreUnspecified                ErrorCode = 214
-	CodeMaxFailedJobsLimitExceeded             ErrorCode = 215
-	CodeOperationFailedToPrepare               ErrorCode = 216
-	CodeWatcherHandlerFailed                   ErrorCode = 217
-	CodeMasterDisconnected                     ErrorCode = 218
-	CodeSortOrderViolation                     ErrorCode = 301
-	CodeInvalidDoubleValue                     ErrorCode = 302
-	CodeIncomparableType                       ErrorCode = 303
-	CodeUnhashableType                         ErrorCode = 304
-	CodeCorruptedNameTable                     ErrorCode = 305
-	CodeUniqueKeyViolation                     ErrorCode = 306
-	CodeSchemaViolation                        ErrorCode = 307
-	CodeRowWeightLimitExceeded                 ErrorCode = 308
-	CodeInvalidColumnFilter                    ErrorCode = 309
-	CodeInvalidColumnRenaming                  ErrorCode = 310
-	CodeIncompatibleKeyColumns                 ErrorCode = 311
-	CodeReaderDeadlineExpired                  ErrorCode = 312
-	CodeTimestampOutOfRange                    ErrorCode = 313
-	CodeInvalidSchemaValue                     ErrorCode = 314
-	CodeFormatCannotRepresentRow               ErrorCode = 315
-	CodeIncompatibleSchemas                    ErrorCode = 316
-	CodeSameTransactionLockConflict            ErrorCode = 400
-	CodeDescendantTransactionLockConflict      ErrorCode = 401
-	CodeConcurrentTransactionLockConflict      ErrorCode = 402
-	CodePendingLockConflict                    ErrorCode = 403
-	CodeLockDestroyed                          ErrorCode = 404
-	CodeResolveError                           ErrorCode = 500
-	CodeAlreadyExists                          ErrorCode = 501
-	CodeMaxChildCountViolation                 ErrorCode = 502
-	CodeMaxStringLengthViolation               ErrorCode = 503
-	CodeMaxAttributeSizeViolation              ErrorCode = 504
-	CodeMaxKeyLengthViolation                  ErrorCode = 505
-	CodeNoSuchSnapshot                         ErrorCode = 600
-	CodeNoSuchChangelog                        ErrorCode = 601
-	CodeInvalidEpoch                           ErrorCode = 602
-	CodeInvalidVersion                         ErrorCode = 603
-	CodeOutOfOrderMutations                    ErrorCode = 609
-	CodeInvalidSnapshotVersion                 ErrorCode = 610
-	CodeReadOnlySnapshotBuilt                  ErrorCode = 611
-	CodeReadOnlySnapshotBuildFailed            ErrorCode = 612
-	CodeBrokenChangelog                        ErrorCode = 613
-	CodeChangelogIOError                       ErrorCode = 614
-	CodeInvalidChangelogState                  ErrorCode = 615
-	CodeAllTargetNodesFailed                   ErrorCode = 700
-	CodeSendBlocksFailed                       ErrorCode = 701
-	CodeNoSuchSession                          ErrorCode = 702
-	CodeSessionAlreadyExists                   ErrorCode = 703
-	CodeChunkAlreadyExists                     ErrorCode = 704
-	CodeWindowError                            ErrorCode = 705
-	CodeBlockContentMismatch                   ErrorCode = 706
-	CodeNoSuchBlock                            ErrorCode = 707
-	CodeNoSuchChunk                            ErrorCode = 708
-	CodeNoLocationAvailable                    ErrorCode = 710
-	CodeIOError                                ErrorCode = 711
-	CodeMasterCommunicationFailed              ErrorCode = 712
-	CodeNoSuchChunkTree                        ErrorCode = 713
-	CodeMasterNotConnected                     ErrorCode = 714
-	CodeChunkUnavailable                       ErrorCode = 716
-	CodeNoSuchChunkList                        ErrorCode = 717
-	CodeWriteThrottlingActive                  ErrorCode = 718
-	CodeNoSuchMedium                           ErrorCode = 719
-	CodeOptimisticLockFailure                  ErrorCode = 720
-	CodeInvalidBlockChecksum                   ErrorCode = 721
-	CodeBlockOutOfRange                        ErrorCode = 722
-	CodeMissingExtension                       ErrorCode = 724
-	CodeBandwidthThrottlingFailed              ErrorCode = 725
-	CodeReaderTimeout                          ErrorCode = 726
-	CodeNoSuchChunkView                        ErrorCode = 727
-	CodeIncorrectChunkFileChecksum             ErrorCode = 728
-	CodeIncorrectChunkFileHeaderSignature      ErrorCode = 729
-	CodeIncorrectLayerFileSize                 ErrorCode = 730
-	CodeNoSpaceLeftOnDevice                    ErrorCode = 731
-	CodeConcurrentChunkUpdate                  ErrorCode = 732
-	CodeInvalidElectionState                   ErrorCode = 800
-	CodeInvalidLeader                          ErrorCode = 801
-	CodeInvalidElectionEpoch                   ErrorCode = 802
-	CodeAuthenticationError                    ErrorCode = 900
-	CodeAuthorizationError                     ErrorCode = 901
-	CodeAccountLimitExceeded                   ErrorCode = 902
-	CodeUserBanned                             ErrorCode = 903
-	CodeRequestQueueSizeLimitExceeded          ErrorCode = 904
-	CodeNoSuchAccount                          ErrorCode = 905
-	CodeSafeModeEnabled                        ErrorCode = 906
-	CodeNoSuchSubject                          ErrorCode = 907
-	CodePrerequisiteCheckFailed                ErrorCode = 1000
-	CodeInvalidObjectLifeStage                 ErrorCode = 1001
-	CodeCrossCellAdditionalPath                ErrorCode = 1002
-	CodeCrossCellRevisionPrerequisitePath      ErrorCode = 1003
-	CodeForwardedRequestFailed                 ErrorCode = 1004
-	CodeCannotCacheMutatingRequest             ErrorCode = 1005
-	CodeConfigCreationFailed                   ErrorCode = 1100
-	CodeAbortByScheduler                       ErrorCode = 1101
-	CodeResourceOverdraft                      ErrorCode = 1102
-	CodeWaitingJobTimeout                      ErrorCode = 1103
-	CodeSlotNotFound                           ErrorCode = 1104
-	CodeJobEnvironmentDisabled                 ErrorCode = 1105
-	CodeJobProxyConnectionFailed               ErrorCode = 1106
-	CodeArtifactCopyingFailed                  ErrorCode = 1107
-	CodeNodeDirectoryPreparationFailed         ErrorCode = 1108
-	CodeSlotLocationDisabled                   ErrorCode = 1109
-	CodeQuotaSettingFailed                     ErrorCode = 1110
-	CodeRootVolumePreparationFailed            ErrorCode = 1111
-	CodeNotEnoughDiskSpace                     ErrorCode = 1112
-	CodeArtifactDownloadFailed                 ErrorCode = 1113
-	CodeJobProxyPreparationTimeout             ErrorCode = 1114
-	CodeJobPreparationTimeout                  ErrorCode = 1115
-	CodeJobProxyFailed                         ErrorCode = 1120
-	CodeSetupCommandFailed                     ErrorCode = 1121
-	CodeGpuLayerNotFetched                     ErrorCode = 1122
-	CodeGpuJobWithoutLayers                    ErrorCode = 1123
-	CodeTmpfsOverflow                          ErrorCode = 1124
-	CodeGpuCheckCommandFailed                  ErrorCode = 1125
-	CodeGpuCheckCommandIncorrect               ErrorCode = 1126
-	CodeMemoryLimitExceeded                    ErrorCode = 1200
-	CodeMemoryCheckFailed                      ErrorCode = 1201
-	CodeJobTimeLimitExceeded                   ErrorCode = 1202
-	CodeUnsupportedJobType                     ErrorCode = 1203
-	CodeJobNotPrepared                         ErrorCode = 1204
-	CodeUserJobFailed                          ErrorCode = 1205
-	CodeUserJobProducedCoreFiles               ErrorCode = 1206
-	CodeLocalChunkReaderFailed                 ErrorCode = 1300
-	CodeLayerUnpackingFailed                   ErrorCode = 1301
-	CodeNodeDecommissioned                     ErrorCode = 1401
-	CodeNodeBanned                             ErrorCode = 1402
-	CodeNodeTabletSlotsDisabled                ErrorCode = 1403
-	CodeNodeFilterMismatch                     ErrorCode = 1404
-	CodeCellDidNotAppearWithinTimeout          ErrorCode = 1405
-	CodeAborted                                ErrorCode = 1500
-	CodeResolveTimedOut                        ErrorCode = 1501
-	CodeNoSuchNode                             ErrorCode = 1600
-	CodeInvalidState                           ErrorCode = 1601
-	CodeNoSuchNetwork                          ErrorCode = 1602
-	CodeNoSuchRack                             ErrorCode = 1603
-	CodeNoSuchDataCenter                       ErrorCode = 1604
-	CodeTransactionLockConflict                ErrorCode = 1700
-	CodeNoSuchTablet                           ErrorCode = 1701
-	CodeTabletNotMounted                       ErrorCode = 1702
-	CodeAllWritesDisabled                      ErrorCode = 1703
-	CodeInvalidMountRevision                   ErrorCode = 1704
-	CodeTableReplicaAlreadyExists              ErrorCode = 1705
-	CodeInvalidTabletState                     ErrorCode = 1706
-	CodeTableMountInfoNotReady                 ErrorCode = 1707
-	CodeTabletSnapshotExpired                  ErrorCode = 1708
-	CodeQueryInputRowCountLimitExceeded        ErrorCode = 1709
-	CodeQueryOutputRowCountLimitExceeded       ErrorCode = 1710
-	CodeQueryExpressionDepthLimitExceeded      ErrorCode = 1711
-	CodeRowIsBlocked                           ErrorCode = 1712
-	CodeBlockedRowWaitTimeout                  ErrorCode = 1713
-	CodeNoSyncReplicas                         ErrorCode = 1714
-	CodeTableMustNotBeReplicated               ErrorCode = 1715
-	CodeTableMustBeSorted                      ErrorCode = 1716
-	CodeTooManyRowsInTransaction               ErrorCode = 1717
-	CodeUpstreamReplicaMismatch                ErrorCode = 1718
-	CodeNoSuchDynamicStore                     ErrorCode = 1719
-	CodeShellExited                            ErrorCode = 1800
-	CodeShellManagerShutDown                   ErrorCode = 1801
-	CodeTooManyConcurrentRequests              ErrorCode = 1900
-	CodeJobArchiveUnavailable                  ErrorCode = 1910
-	CodeRetriableArchiveError                  ErrorCode = 1911
-	CodeAPINoSuchOperation                     ErrorCode = 1915
-	CodeAPINoSuchJob                           ErrorCode = 1916
-	CodeNoSuchAttribute                        ErrorCode = 1920
-	CodeDataSliceLimitExceeded                 ErrorCode = 2000
-	CodeMaxDataWeightPerJobExceeded            ErrorCode = 2001
-	CodeMaxPrimaryDataWeightPerJobExceeded     ErrorCode = 2002
-	CodeProxyBanned                            ErrorCode = 2100
-	CodeSubqueryDataWeightLimitExceeded        ErrorCode = 2200
-	CodeParticipantUnregistered                ErrorCode = 2201
-	CodeNoSuchGroup                            ErrorCode = 2300
-	CodeNoSuchMember                           ErrorCode = 2301
-	CodeNoSuchThrottler                        ErrorCode = 2400
-	CodeUnexpectedThrottlerMode                ErrorCode = 2401
-	CodeUnrecognizedConfigOption               ErrorCode = 2500
-	CodeFailedToFetchDynamicConfig             ErrorCode = 2501
-	CodeDuplicateMatchingDynamicConfigs        ErrorCode = 2502
-	CodeUnrecognizedDynamicConfigOption        ErrorCode = 2503
-	CodeFailedToApplyDynamicConfig             ErrorCode = 2504
-	CodeInvalidDynamicConfig                   ErrorCode = 2505
-	CodeAgentCallFailed                        ErrorCode = 4400
-	CodeNoOnlineNodeToScheduleJob              ErrorCode = 4410
-	CodeMaterializationFailed                  ErrorCode = 4415
-	CodeNoSuchTransaction                      ErrorCode = 11000
-	CodeNestedExternalTransactionExists        ErrorCode = 11001
-	CodeTransactionDepthLimitReached           ErrorCode = 11002
-	CodeInvalidTransactionState                ErrorCode = 11003
-	CodeParticipantFailedToPrepare             ErrorCode = 11004
-	CodeSomeParticipantsAreDown                ErrorCode = 11005
-	CodeAlienTransactionsForbidden             ErrorCode = 11006
-	CodeMalformedAlienTransaction              ErrorCode = 11007
-	CodeInvalidTransactionAtomicity            ErrorCode = 11008
-	CodeUploadTransactionCannotHaveNested      ErrorCode = 11009
-	CodeForeignParentTransaction               ErrorCode = 11010
-	CodeForeignPrerequisiteTransaction         ErrorCode = 11011
-	CodeFailedToStartContainer                 ErrorCode = 14000
-	CodeJobIsNotRunning                        ErrorCode = 17000
+	CodeOK                                              ErrorCode = 0
+	CodeGeneric                                         ErrorCode = 1
+	CodeCanceled                                        ErrorCode = 2
+	CodeTimeout                                         ErrorCode = 3
+	CodeFutureCombinerFailure                           ErrorCode = 4
+	CodeFutureCombinerShortcut                          ErrorCode = 5
+	CodeTransportError                                  ErrorCode = 100
+	CodeProtocolError                                   ErrorCode = 101
+	CodeNoSuchService                                   ErrorCode = 102
+	CodeNoSuchMethod                                    ErrorCode = 103
+	CodeUnavailable                                     ErrorCode = 105
+	CodePoisonPill                                      ErrorCode = 106
+	CodeRPCRequestQueueSizeLimitExceeded                ErrorCode = 108
+	CodeRPCAuthenticationError                          ErrorCode = 109
+	CodeInvalidCsrfToken                                ErrorCode = 110
+	CodeInvalidCredentials                              ErrorCode = 111
+	CodeStreamingNotSupported                           ErrorCode = 112
+	CodeUnsupportedClientFeature                        ErrorCode = 113
+	CodeUnsupportedServerFeature                        ErrorCode = 114
+	CodePeerBanned                                      ErrorCode = 115
+	CodeTransientFailure                                ErrorCode = 116
+	CodeNoSuchRealm                                     ErrorCode = 117
+	CodeOverloaded                                      ErrorCode = 118
+	CodeSslError                                        ErrorCode = 119
+	CodeNoSuchOperation                                 ErrorCode = 200
+	CodeInvalidOperationState                           ErrorCode = 201
+	CodeTooManyOperations                               ErrorCode = 202
+	CodeNoSuchJob                                       ErrorCode = 203
+	CodeAgentRevoked                                    ErrorCode = 204
+	CodeOperationFailedOnJobRestart                     ErrorCode = 210
+	CodeOperationFailedWithInconsistentLocking          ErrorCode = 211
+	CodeOperationControllerCrashed                      ErrorCode = 212
+	CodeTestingError                                    ErrorCode = 213
+	CodePoolTreesAreUnspecified                         ErrorCode = 214
+	CodeMaxFailedJobsLimitExceeded                      ErrorCode = 215
+	CodeOperationFailedToPrepare                        ErrorCode = 216
+	CodeWatcherHandlerFailed                            ErrorCode = 217
+	CodeMasterDisconnected                              ErrorCode = 218
+	CodeNoSuchJobShell                                  ErrorCode = 219
+	CodeSortOrderViolation                              ErrorCode = 301
+	CodeInvalidDoubleValue                              ErrorCode = 302
+	CodeIncomparableTypes                               ErrorCode = 303
+	CodeUnhashableType                                  ErrorCode = 304
+	CodeCorruptedNameTable                              ErrorCode = 305
+	CodeUniqueKeyViolation                              ErrorCode = 306
+	CodeSchemaViolation                                 ErrorCode = 307
+	CodeRowWeightLimitExceeded                          ErrorCode = 308
+	CodeInvalidColumnFilter                             ErrorCode = 309
+	CodeInvalidColumnRenaming                           ErrorCode = 310
+	CodeIncompatibleKeyColumns                          ErrorCode = 311
+	CodeReaderDeadlineExpired                           ErrorCode = 312
+	CodeTimestampOutOfRange                             ErrorCode = 313
+	CodeInvalidSchemaValue                              ErrorCode = 314
+	CodeFormatCannotRepresentRow                        ErrorCode = 315
+	CodeIncompatibleSchemas                             ErrorCode = 316
+	CodeInvalidPartitionedBy                            ErrorCode = 317
+	CodeMisconfiguredPartitions                         ErrorCode = 318
+	CodeTooManyRowsInRowset                             ErrorCode = 319
+	CodeTooManyColumnsInKey                             ErrorCode = 320
+	CodeTooManyValuesInRow                              ErrorCode = 321
+	CodeDuplicateColumnInSchema                         ErrorCode = 322
+	CodeMissingRequiredColumnInSchema                   ErrorCode = 323
+	CodeIncomparableComplexValues                       ErrorCode = 324
+	CodeKeyCannotBeNan                                  ErrorCode = 325
+	CodeStringLikeValueLengthLimitExceeded              ErrorCode = 326
+	CodeNameTableUpdateFailed                           ErrorCode = 327
+	CodeInvalidTableChunkFormat                         ErrorCode = 328
+	CodeSameTransactionLockConflict                     ErrorCode = 400
+	CodeDescendantTransactionLockConflict               ErrorCode = 401
+	CodeConcurrentTransactionLockConflict               ErrorCode = 402
+	CodePendingLockConflict                             ErrorCode = 403
+	CodeLockDestroyed                                   ErrorCode = 404
+	CodeTooManyLocksOnTransaction                       ErrorCode = 405
+	CodeResolveError                                    ErrorCode = 500
+	CodeAlreadyExists                                   ErrorCode = 501
+	CodeMaxChildCountViolation                          ErrorCode = 502
+	CodeMaxStringLengthViolation                        ErrorCode = 503
+	CodeMaxAttributeSizeViolation                       ErrorCode = 504
+	CodeMaxKeyLengthViolation                           ErrorCode = 505
+	CodeNoSuchSnapshot                                  ErrorCode = 600
+	CodeNoSuchChangelog                                 ErrorCode = 601
+	CodeInvalidEpoch                                    ErrorCode = 602
+	CodeInvalidVersion                                  ErrorCode = 603
+	CodeOutOfOrderMutations                             ErrorCode = 609
+	CodeInvalidSnapshotVersion                          ErrorCode = 610
+	CodeReadOnlySnapshotBuilt                           ErrorCode = 611
+	CodeReadOnlySnapshotBuildFailed                     ErrorCode = 612
+	CodeBrokenChangelog                                 ErrorCode = 613
+	CodeChangelogIOError                                ErrorCode = 614
+	CodeInvalidChangelogState                           ErrorCode = 615
+	CodeReadOnly                                        ErrorCode = 616
+	CodeAllTargetNodesFailed                            ErrorCode = 700
+	CodeSendBlocksFailed                                ErrorCode = 701
+	CodeNoSuchSession                                   ErrorCode = 702
+	CodeSessionAlreadyExists                            ErrorCode = 703
+	CodeChunkAlreadyExists                              ErrorCode = 704
+	CodeWindowError                                     ErrorCode = 705
+	CodeBlockContentMismatch                            ErrorCode = 706
+	CodeNoSuchBlock                                     ErrorCode = 707
+	CodeNoSuchChunk                                     ErrorCode = 708
+	CodeNoLocationAvailable                             ErrorCode = 710
+	CodeIOError                                         ErrorCode = 711
+	CodeMasterCommunicationFailed                       ErrorCode = 712
+	CodeNoSuchChunkTree                                 ErrorCode = 713
+	CodeMasterNotConnected                              ErrorCode = 714
+	CodeChunkUnavailable                                ErrorCode = 716
+	CodeNoSuchChunkList                                 ErrorCode = 717
+	CodeWriteThrottlingActive                           ErrorCode = 718
+	CodeNoSuchMedium                                    ErrorCode = 719
+	CodeOptimisticLockFailure                           ErrorCode = 720
+	CodeInvalidBlockChecksum                            ErrorCode = 721
+	CodeMalformedReadRequest                            ErrorCode = 722
+	CodeMissingExtension                                ErrorCode = 724
+	CodeReaderThrottlingFailed                          ErrorCode = 725
+	CodeReaderTimeout                                   ErrorCode = 726
+	CodeNoSuchChunkView                                 ErrorCode = 727
+	CodeIncorrectChunkFileChecksum                      ErrorCode = 728
+	CodeBrokenChunkFileMeta                             ErrorCode = 729
+	CodeIncorrectLayerFileSize                          ErrorCode = 730
+	CodeNoSpaceLeftOnDevice                             ErrorCode = 731
+	CodeConcurrentChunkUpdate                           ErrorCode = 732
+	CodeInvalidInputChunk                               ErrorCode = 733
+	CodeUnsupportedChunkFeature                         ErrorCode = 734
+	CodeIncompatibleChunkMetas                          ErrorCode = 735
+	CodeAutoRepairFailed                                ErrorCode = 736
+	CodeChunkBlockFetchFailed                           ErrorCode = 737
+	CodeChunkMetaFetchFailed                            ErrorCode = 738
+	CodeRowsLookupFailed                                ErrorCode = 739
+	CodeBlockChecksumMismatch                           ErrorCode = 740
+	CodeNoChunkSeedsKnown                               ErrorCode = 741
+	CodeNoChunkSeedsGiven                               ErrorCode = 742
+	CodeChunkIsLost                                     ErrorCode = 743
+	CodeChunkReadSessionSlow                            ErrorCode = 744
+	CodeNodeProbeFailed                                 ErrorCode = 745
+	CodeUnrecoverableRepairError                        ErrorCode = 747
+	CodeMissingJournalChunkRecord                       ErrorCode = 748
+	CodeLocationDiskFailed                              ErrorCode = 749
+	CodeLocationCrashed                                 ErrorCode = 750
+	CodeLocationDiskWaitingReplacement                  ErrorCode = 751
+	CodeChunkMetaCacheFetchFailed                       ErrorCode = 752
+	CodeInvalidElectionState                            ErrorCode = 800
+	CodeInvalidLeader                                   ErrorCode = 801
+	CodeInvalidElectionEpoch                            ErrorCode = 802
+	CodeAuthenticationError                             ErrorCode = 900
+	CodeAuthorizationError                              ErrorCode = 901
+	CodeAccountLimitExceeded                            ErrorCode = 902
+	CodeUserBanned                                      ErrorCode = 903
+	CodeRequestQueueSizeLimitExceeded                   ErrorCode = 904
+	CodeNoSuchAccount                                   ErrorCode = 905
+	CodeSafeModeEnabled                                 ErrorCode = 906
+	CodeNoSuchSubject                                   ErrorCode = 907
+	CodeAlreadyPresentInGroup                           ErrorCode = 908
+	CodePrerequisiteCheckFailed                         ErrorCode = 1000
+	CodeInvalidObjectLifeStage                          ErrorCode = 1001
+	CodeCrossCellAdditionalPath                         ErrorCode = 1002
+	CodeCrossCellRevisionPrerequisitePath               ErrorCode = 1003
+	CodeForwardedRequestFailed                          ErrorCode = 1004
+	CodeCannotCacheMutatingRequest                      ErrorCode = 1005
+	CodeInvalidObjectType                               ErrorCode = 1006
+	CodeRequestInvolvesSequoia                          ErrorCode = 1007
+	CodeRequestInvolvesCypress                          ErrorCode = 1008
+	CodeConfigCreationFailed                            ErrorCode = 1100
+	CodeAbortByScheduler                                ErrorCode = 1101
+	CodeResourceOverdraft                               ErrorCode = 1102
+	CodeWaitingJobTimeout                               ErrorCode = 1103
+	CodeSlotNotFound                                    ErrorCode = 1104
+	CodeJobEnvironmentDisabled                          ErrorCode = 1105
+	CodeJobProxyConnectionFailed                        ErrorCode = 1106
+	CodeArtifactCopyingFailed                           ErrorCode = 1107
+	CodeNodeDirectoryPreparationFailed                  ErrorCode = 1108
+	CodeSlotLocationDisabled                            ErrorCode = 1109
+	CodeQuotaSettingFailed                              ErrorCode = 1110
+	CodeRootVolumePreparationFailed                     ErrorCode = 1111
+	CodeNotEnoughDiskSpace                              ErrorCode = 1112
+	CodeArtifactDownloadFailed                          ErrorCode = 1113
+	CodeJobProxyPreparationTimeout                      ErrorCode = 1114
+	CodeJobPreparationTimeout                           ErrorCode = 1115
+	CodeFatalJobPreparationTimeout                      ErrorCode = 1116
+	CodeJobProxyFailed                                  ErrorCode = 1120
+	CodeSetupCommandFailed                              ErrorCode = 1121
+	CodeGpuLayerNotFetched                              ErrorCode = 1122
+	CodeGpuJobWithoutLayers                             ErrorCode = 1123
+	CodeTmpfsOverflow                                   ErrorCode = 1124
+	CodeGpuCheckCommandFailed                           ErrorCode = 1125
+	CodeGpuCheckCommandIncorrect                        ErrorCode = 1126
+	CodeJobProxyUnavailable                             ErrorCode = 1127
+	CodeNodeResourceOvercommit                          ErrorCode = 1128
+	CodeExecNodeLayerUnpackingFailed                    ErrorCode = 1129
+	CodeTmpfsLayerImportFailed                          ErrorCode = 1130
+	CodeSchedulerJobsDisabled                           ErrorCode = 1131
+	CodeMemoryLimitExceeded                             ErrorCode = 1200
+	CodeMemoryCheckFailed                               ErrorCode = 1201
+	CodeJobTimeLimitExceeded                            ErrorCode = 1202
+	CodeUnsupportedJobType                              ErrorCode = 1203
+	CodeJobNotPrepared                                  ErrorCode = 1204
+	CodeUserJobFailed                                   ErrorCode = 1205
+	CodeUserJobProducedCoreFiles                        ErrorCode = 1206
+	CodeShallowMergeFailed                              ErrorCode = 1207
+	CodeJobNotRunning                                   ErrorCode = 1208
+	CodeInterruptionUnsupported                         ErrorCode = 1209
+	CodeInterruptionTimeout                             ErrorCode = 1210
+	CodeLocalChunkReaderFailed                          ErrorCode = 1300
+	CodeLayerUnpackingFailed                            ErrorCode = 1301
+	CodeNodeDecommissioned                              ErrorCode = 1401
+	CodeNodeBanned                                      ErrorCode = 1402
+	CodeNodeTabletSlotsDisabled                         ErrorCode = 1403
+	CodeNodeFilterMismatch                              ErrorCode = 1404
+	CodeCellDidNotAppearWithinTimeout                   ErrorCode = 1405
+	CodeAborted                                         ErrorCode = 1500
+	CodeResolveTimedOut                                 ErrorCode = 1501
+	CodeNoSuchNode                                      ErrorCode = 1600
+	CodeInvalidState                                    ErrorCode = 1601
+	CodeNoSuchNetwork                                   ErrorCode = 1602
+	CodeNoSuchRack                                      ErrorCode = 1603
+	CodeNoSuchDataCenter                                ErrorCode = 1604
+	CodeTransactionLockConflict                         ErrorCode = 1700
+	CodeNoSuchTablet                                    ErrorCode = 1701
+	CodeTabletNotMounted                                ErrorCode = 1702
+	CodeAllWritesDisabled                               ErrorCode = 1703
+	CodeInvalidMountRevision                            ErrorCode = 1704
+	CodeTableReplicaAlreadyExists                       ErrorCode = 1705
+	CodeInvalidTabletState                              ErrorCode = 1706
+	CodeTableMountInfoNotReady                          ErrorCode = 1707
+	CodeTabletSnapshotExpired                           ErrorCode = 1708
+	CodeQueryInputRowCountLimitExceeded                 ErrorCode = 1709
+	CodeQueryOutputRowCountLimitExceeded                ErrorCode = 1710
+	CodeQueryExpressionDepthLimitExceeded               ErrorCode = 1711
+	CodeRowIsBlocked                                    ErrorCode = 1712
+	CodeBlockedRowWaitTimeout                           ErrorCode = 1713
+	CodeNoSyncReplicas                                  ErrorCode = 1714
+	CodeTableMustNotBeReplicated                        ErrorCode = 1715
+	CodeTableMustBeSorted                               ErrorCode = 1716
+	CodeTooManyRowsInTransaction                        ErrorCode = 1717
+	CodeUpstreamReplicaMismatch                         ErrorCode = 1718
+	CodeNoSuchDynamicStore                              ErrorCode = 1719
+	CodeBundleResourceLimitExceeded                     ErrorCode = 1720
+	CodeNoSuchCell                                      ErrorCode = 1721
+	CodeSyncReplicaIsNotKnown                           ErrorCode = 1722
+	CodeSyncReplicaIsNotInSyncMode                      ErrorCode = 1723
+	CodeSyncReplicaIsNotWritten                         ErrorCode = 1724
+	CodeRequestThrottled                                ErrorCode = 1725
+	CodeColumnNotFound                                  ErrorCode = 1726
+	CodeReplicatorWriteBlockedByUser                    ErrorCode = 1727
+	CodeUserWriteBlockedByReplicator                    ErrorCode = 1728
+	CodeCannotCheckConflictsAgainstChunkStore           ErrorCode = 1729
+	CodeInvalidBackupState                              ErrorCode = 1730
+	CodeWriteRetryIsImpossible                          ErrorCode = 1731
+	CodeSyncReplicaNotInSync                            ErrorCode = 1732
+	CodeBackupCheckpointRejected                        ErrorCode = 1733
+	CodeBackupInProgress                                ErrorCode = 1734
+	CodeChunkIsNotPreloaded                             ErrorCode = 1735
+	CodeNoInSyncReplicas                                ErrorCode = 1736
+	CodeCellHasNoAssignedPeers                          ErrorCode = 1737
+	CodeTableSchemaIncompatible                         ErrorCode = 1738
+	CodeBundleIsBanned                                  ErrorCode = 1739
+	CodeShellExited                                     ErrorCode = 1800
+	CodeShellManagerShutDown                            ErrorCode = 1801
+	CodeTooManyConcurrentRequests                       ErrorCode = 1900
+	CodeJobArchiveUnavailable                           ErrorCode = 1910
+	CodeRetriableArchiveError                           ErrorCode = 1911
+	CodeAPINoSuchOperation                              ErrorCode = 1915
+	CodeAPINoSuchJob                                    ErrorCode = 1916
+	CodeUncertainOperationControllerState               ErrorCode = 1917
+	CodeNoSuchAttribute                                 ErrorCode = 1920
+	CodeFormatDisabled                                  ErrorCode = 1925
+	CodeClusterLivenessCheckFailed                      ErrorCode = 1926
+	CodeDataSliceLimitExceeded                          ErrorCode = 2000
+	CodeMaxDataWeightPerJobExceeded                     ErrorCode = 2001
+	CodeMaxPrimaryDataWeightPerJobExceeded              ErrorCode = 2002
+	CodeProxyBanned                                     ErrorCode = 2100
+	CodeMailboxNotCreatedYet                            ErrorCode = 2200
+	CodeParticipantUnregistered                         ErrorCode = 2201
+	CodeNoSuchGroup                                     ErrorCode = 2300
+	CodeNoSuchMember                                    ErrorCode = 2301
+	CodeInvalidGroupId                                  ErrorCode = 2302
+	CodeInvalidMemberId                                 ErrorCode = 2303
+	CodeNoSuchThrottler                                 ErrorCode = 2400
+	CodeUnexpectedThrottlerMode                         ErrorCode = 2401
+	CodeUnrecognizedConfigOption                        ErrorCode = 2500
+	CodeFailedToFetchDynamicConfig                      ErrorCode = 2600
+	CodeDuplicateMatchingDynamicConfigs                 ErrorCode = 2601
+	CodeUnrecognizedDynamicConfigOption                 ErrorCode = 2602
+	CodeFailedToApplyDynamicConfig                      ErrorCode = 2603
+	CodeInvalidDynamicConfig                            ErrorCode = 2604
+	CodeNoSuitableDynamicConfig                         ErrorCode = 2605
+	CodeInvalidReadRange                                ErrorCode = 2700
+	CodeInvalidFormat                                   ErrorCode = 2800
+	CodeSubqueryDataWeightLimitExceeded                 ErrorCode = 2900
+	CodeIncorrectConfig                                 ErrorCode = 2901
+	CodeStatisticsFetchFailed                           ErrorCode = 2902
+	CodeParameterizedBalancingFailed                    ErrorCode = 2903
+	CodeScheduleFormulaEvaluationFailed                 ErrorCode = 2910
+	CodeCypressSynchronizerUnableToFetchObjectRevisions ErrorCode = 3000
+	CodeCypressSynchronizerUnableToFetchAttributes      ErrorCode = 3001
+	CodeCypressSynchronizerPassFailed                   ErrorCode = 3002
+	CodeQueueAgentPassFailed                            ErrorCode = 3025
+	CodeQueueAgentShardingManagerPassFailed             ErrorCode = 3050
+	CodeConsumerOffsetConflict                          ErrorCode = 3100
+	CodeReplicationCardNotKnown                         ErrorCode = 3200
+	CodeReplicationCardMigrated                         ErrorCode = 3201
+	CodeChaosCellSuspended                              ErrorCode = 3202
+	CodeQueryTrackerClientIncarnationMismatch           ErrorCode = 3900
+	CodeQueryNotFound                                   ErrorCode = 3901
+	CodeQueryResultNotFound                             ErrorCode = 3902
+	CodeAgentCallFailed                                 ErrorCode = 4400
+	CodeNoOnlineNodeToScheduleJob                       ErrorCode = 4410
+	CodeMaterializationFailed                           ErrorCode = 4415
+	CodeOperationControllerMemoryLimitExceeded          ErrorCode = 4416
+	CodeIncarnationMismatch                             ErrorCode = 4417
+	CodeAgentDisconnected                               ErrorCode = 4418
+	CodeIncorrectMapperId                               ErrorCode = 4500
+	CodeNoSuchTransaction                               ErrorCode = 11000
+	CodeNestedExternalTransactionExists                 ErrorCode = 11001
+	CodeTransactionDepthLimitReached                    ErrorCode = 11002
+	CodeInvalidTransactionState                         ErrorCode = 11003
+	CodeParticipantFailedToPrepare                      ErrorCode = 11004
+	CodeSomeParticipantsAreDown                         ErrorCode = 11005
+	CodeAlienTransactionsForbidden                      ErrorCode = 11006
+	CodeMalformedAlienTransaction                       ErrorCode = 11007
+	CodeInvalidTransactionAtomicity                     ErrorCode = 11008
+	CodeUploadTransactionCannotHaveNested               ErrorCode = 11009
+	CodeForeignParentTransaction                        ErrorCode = 11010
+	CodeForeignPrerequisiteTransaction                  ErrorCode = 11011
+	CodeIncompletePrepareSignature                      ErrorCode = 11012
+	CodeFailedToStartContainer                          ErrorCode = 14000
+	CodeJobIsNotRunning                                 ErrorCode = 17000
+	CodeMiscIOError                                     ErrorCode = 19000
+	CodeEndpointSetDoesNotExist                         ErrorCode = 20000
+	CodeEndpointResolveFailed                           ErrorCode = 20001
+	CodeUnknownResolveStatus                            ErrorCode = 20002
+	CodePoolTreeGuaranteesOvercommit                    ErrorCode = 29000
 )
 
 func (e ErrorCode) String() string {
@@ -271,6 +379,14 @@ func (e ErrorCode) String() string {
 		return "UnsupportedServerFeature"
 	case CodePeerBanned:
 		return "PeerBanned"
+	case CodeTransientFailure:
+		return "TransientFailure"
+	case CodeNoSuchRealm:
+		return "NoSuchRealm"
+	case CodeOverloaded:
+		return "Overloaded"
+	case CodeSslError:
+		return "SslError"
 	case CodeNoSuchOperation:
 		return "NoSuchOperation"
 	case CodeInvalidOperationState:
@@ -279,6 +395,8 @@ func (e ErrorCode) String() string {
 		return "TooManyOperations"
 	case CodeNoSuchJob:
 		return "NoSuchJob"
+	case CodeAgentRevoked:
+		return "AgentRevoked"
 	case CodeOperationFailedOnJobRestart:
 		return "OperationFailedOnJobRestart"
 	case CodeOperationFailedWithInconsistentLocking:
@@ -297,12 +415,14 @@ func (e ErrorCode) String() string {
 		return "WatcherHandlerFailed"
 	case CodeMasterDisconnected:
 		return "MasterDisconnected"
+	case CodeNoSuchJobShell:
+		return "NoSuchJobShell"
 	case CodeSortOrderViolation:
 		return "SortOrderViolation"
 	case CodeInvalidDoubleValue:
 		return "InvalidDoubleValue"
-	case CodeIncomparableType:
-		return "IncomparableType"
+	case CodeIncomparableTypes:
+		return "IncomparableTypes"
 	case CodeUnhashableType:
 		return "UnhashableType"
 	case CodeCorruptedNameTable:
@@ -329,6 +449,30 @@ func (e ErrorCode) String() string {
 		return "FormatCannotRepresentRow"
 	case CodeIncompatibleSchemas:
 		return "IncompatibleSchemas"
+	case CodeInvalidPartitionedBy:
+		return "InvalidPartitionedBy"
+	case CodeMisconfiguredPartitions:
+		return "MisconfiguredPartitions"
+	case CodeTooManyRowsInRowset:
+		return "TooManyRowsInRowset"
+	case CodeTooManyColumnsInKey:
+		return "TooManyColumnsInKey"
+	case CodeTooManyValuesInRow:
+		return "TooManyValuesInRow"
+	case CodeDuplicateColumnInSchema:
+		return "DuplicateColumnInSchema"
+	case CodeMissingRequiredColumnInSchema:
+		return "MissingRequiredColumnInSchema"
+	case CodeIncomparableComplexValues:
+		return "IncomparableComplexValues"
+	case CodeKeyCannotBeNan:
+		return "KeyCannotBeNan"
+	case CodeStringLikeValueLengthLimitExceeded:
+		return "StringLikeValueLengthLimitExceeded"
+	case CodeNameTableUpdateFailed:
+		return "NameTableUpdateFailed"
+	case CodeInvalidTableChunkFormat:
+		return "InvalidTableChunkFormat"
 	case CodeSameTransactionLockConflict:
 		return "SameTransactionLockConflict"
 	case CodeDescendantTransactionLockConflict:
@@ -339,6 +483,8 @@ func (e ErrorCode) String() string {
 		return "PendingLockConflict"
 	case CodeLockDestroyed:
 		return "LockDestroyed"
+	case CodeTooManyLocksOnTransaction:
+		return "TooManyLocksOnTransaction"
 	case CodeResolveError:
 		return "ResolveError"
 	case CodeAlreadyExists:
@@ -373,6 +519,8 @@ func (e ErrorCode) String() string {
 		return "ChangelogIOError"
 	case CodeInvalidChangelogState:
 		return "InvalidChangelogState"
+	case CodeReadOnly:
+		return "ReadOnly"
 	case CodeAllTargetNodesFailed:
 		return "AllTargetNodesFailed"
 	case CodeSendBlocksFailed:
@@ -413,26 +561,64 @@ func (e ErrorCode) String() string {
 		return "OptimisticLockFailure"
 	case CodeInvalidBlockChecksum:
 		return "InvalidBlockChecksum"
-	case CodeBlockOutOfRange:
-		return "BlockOutOfRange"
+	case CodeMalformedReadRequest:
+		return "MalformedReadRequest"
 	case CodeMissingExtension:
 		return "MissingExtension"
-	case CodeBandwidthThrottlingFailed:
-		return "BandwidthThrottlingFailed"
+	case CodeReaderThrottlingFailed:
+		return "ReaderThrottlingFailed"
 	case CodeReaderTimeout:
 		return "ReaderTimeout"
 	case CodeNoSuchChunkView:
 		return "NoSuchChunkView"
 	case CodeIncorrectChunkFileChecksum:
 		return "IncorrectChunkFileChecksum"
-	case CodeIncorrectChunkFileHeaderSignature:
-		return "IncorrectChunkFileHeaderSignature"
+	case CodeBrokenChunkFileMeta:
+		return "BrokenChunkFileMeta"
 	case CodeIncorrectLayerFileSize:
 		return "IncorrectLayerFileSize"
 	case CodeNoSpaceLeftOnDevice:
 		return "NoSpaceLeftOnDevice"
 	case CodeConcurrentChunkUpdate:
 		return "ConcurrentChunkUpdate"
+	case CodeInvalidInputChunk:
+		return "InvalidInputChunk"
+	case CodeUnsupportedChunkFeature:
+		return "UnsupportedChunkFeature"
+	case CodeIncompatibleChunkMetas:
+		return "IncompatibleChunkMetas"
+	case CodeAutoRepairFailed:
+		return "AutoRepairFailed"
+	case CodeChunkBlockFetchFailed:
+		return "ChunkBlockFetchFailed"
+	case CodeChunkMetaFetchFailed:
+		return "ChunkMetaFetchFailed"
+	case CodeRowsLookupFailed:
+		return "RowsLookupFailed"
+	case CodeBlockChecksumMismatch:
+		return "BlockChecksumMismatch"
+	case CodeNoChunkSeedsKnown:
+		return "NoChunkSeedsKnown"
+	case CodeNoChunkSeedsGiven:
+		return "NoChunkSeedsGiven"
+	case CodeChunkIsLost:
+		return "ChunkIsLost"
+	case CodeChunkReadSessionSlow:
+		return "ChunkReadSessionSlow"
+	case CodeNodeProbeFailed:
+		return "NodeProbeFailed"
+	case CodeUnrecoverableRepairError:
+		return "UnrecoverableRepairError"
+	case CodeMissingJournalChunkRecord:
+		return "MissingJournalChunkRecord"
+	case CodeLocationDiskFailed:
+		return "LocationDiskFailed"
+	case CodeLocationCrashed:
+		return "LocationCrashed"
+	case CodeLocationDiskWaitingReplacement:
+		return "LocationDiskWaitingReplacement"
+	case CodeChunkMetaCacheFetchFailed:
+		return "ChunkMetaCacheFetchFailed"
 	case CodeInvalidElectionState:
 		return "InvalidElectionState"
 	case CodeInvalidLeader:
@@ -455,6 +641,8 @@ func (e ErrorCode) String() string {
 		return "SafeModeEnabled"
 	case CodeNoSuchSubject:
 		return "NoSuchSubject"
+	case CodeAlreadyPresentInGroup:
+		return "AlreadyPresentInGroup"
 	case CodePrerequisiteCheckFailed:
 		return "PrerequisiteCheckFailed"
 	case CodeInvalidObjectLifeStage:
@@ -467,6 +655,12 @@ func (e ErrorCode) String() string {
 		return "ForwardedRequestFailed"
 	case CodeCannotCacheMutatingRequest:
 		return "CannotCacheMutatingRequest"
+	case CodeInvalidObjectType:
+		return "InvalidObjectType"
+	case CodeRequestInvolvesSequoia:
+		return "RequestInvolvesSequoia"
+	case CodeRequestInvolvesCypress:
+		return "RequestInvolvesCypress"
 	case CodeConfigCreationFailed:
 		return "ConfigCreationFailed"
 	case CodeAbortByScheduler:
@@ -499,6 +693,8 @@ func (e ErrorCode) String() string {
 		return "JobProxyPreparationTimeout"
 	case CodeJobPreparationTimeout:
 		return "JobPreparationTimeout"
+	case CodeFatalJobPreparationTimeout:
+		return "FatalJobPreparationTimeout"
 	case CodeJobProxyFailed:
 		return "JobProxyFailed"
 	case CodeSetupCommandFailed:
@@ -513,6 +709,16 @@ func (e ErrorCode) String() string {
 		return "GpuCheckCommandFailed"
 	case CodeGpuCheckCommandIncorrect:
 		return "GpuCheckCommandIncorrect"
+	case CodeJobProxyUnavailable:
+		return "JobProxyUnavailable"
+	case CodeNodeResourceOvercommit:
+		return "NodeResourceOvercommit"
+	case CodeExecNodeLayerUnpackingFailed:
+		return "ExecNodeLayerUnpackingFailed"
+	case CodeTmpfsLayerImportFailed:
+		return "TmpfsLayerImportFailed"
+	case CodeSchedulerJobsDisabled:
+		return "SchedulerJobsDisabled"
 	case CodeMemoryLimitExceeded:
 		return "MemoryLimitExceeded"
 	case CodeMemoryCheckFailed:
@@ -527,6 +733,14 @@ func (e ErrorCode) String() string {
 		return "UserJobFailed"
 	case CodeUserJobProducedCoreFiles:
 		return "UserJobProducedCoreFiles"
+	case CodeShallowMergeFailed:
+		return "ShallowMergeFailed"
+	case CodeJobNotRunning:
+		return "JobNotRunning"
+	case CodeInterruptionUnsupported:
+		return "InterruptionUnsupported"
+	case CodeInterruptionTimeout:
+		return "InterruptionTimeout"
 	case CodeLocalChunkReaderFailed:
 		return "LocalChunkReaderFailed"
 	case CodeLayerUnpackingFailed:
@@ -595,6 +809,46 @@ func (e ErrorCode) String() string {
 		return "UpstreamReplicaMismatch"
 	case CodeNoSuchDynamicStore:
 		return "NoSuchDynamicStore"
+	case CodeBundleResourceLimitExceeded:
+		return "BundleResourceLimitExceeded"
+	case CodeNoSuchCell:
+		return "NoSuchCell"
+	case CodeSyncReplicaIsNotKnown:
+		return "SyncReplicaIsNotKnown"
+	case CodeSyncReplicaIsNotInSyncMode:
+		return "SyncReplicaIsNotInSyncMode"
+	case CodeSyncReplicaIsNotWritten:
+		return "SyncReplicaIsNotWritten"
+	case CodeRequestThrottled:
+		return "RequestThrottled"
+	case CodeColumnNotFound:
+		return "ColumnNotFound"
+	case CodeReplicatorWriteBlockedByUser:
+		return "ReplicatorWriteBlockedByUser"
+	case CodeUserWriteBlockedByReplicator:
+		return "UserWriteBlockedByReplicator"
+	case CodeCannotCheckConflictsAgainstChunkStore:
+		return "CannotCheckConflictsAgainstChunkStore"
+	case CodeInvalidBackupState:
+		return "InvalidBackupState"
+	case CodeWriteRetryIsImpossible:
+		return "WriteRetryIsImpossible"
+	case CodeSyncReplicaNotInSync:
+		return "SyncReplicaNotInSync"
+	case CodeBackupCheckpointRejected:
+		return "BackupCheckpointRejected"
+	case CodeBackupInProgress:
+		return "BackupInProgress"
+	case CodeChunkIsNotPreloaded:
+		return "ChunkIsNotPreloaded"
+	case CodeNoInSyncReplicas:
+		return "NoInSyncReplicas"
+	case CodeCellHasNoAssignedPeers:
+		return "CellHasNoAssignedPeers"
+	case CodeTableSchemaIncompatible:
+		return "TableSchemaIncompatible"
+	case CodeBundleIsBanned:
+		return "BundleIsBanned"
 	case CodeShellExited:
 		return "ShellExited"
 	case CodeShellManagerShutDown:
@@ -609,8 +863,14 @@ func (e ErrorCode) String() string {
 		return "APINoSuchOperation"
 	case CodeAPINoSuchJob:
 		return "APINoSuchJob"
+	case CodeUncertainOperationControllerState:
+		return "UncertainOperationControllerState"
 	case CodeNoSuchAttribute:
 		return "NoSuchAttribute"
+	case CodeFormatDisabled:
+		return "FormatDisabled"
+	case CodeClusterLivenessCheckFailed:
+		return "ClusterLivenessCheckFailed"
 	case CodeDataSliceLimitExceeded:
 		return "DataSliceLimitExceeded"
 	case CodeMaxDataWeightPerJobExceeded:
@@ -619,14 +879,18 @@ func (e ErrorCode) String() string {
 		return "MaxPrimaryDataWeightPerJobExceeded"
 	case CodeProxyBanned:
 		return "ProxyBanned"
-	case CodeSubqueryDataWeightLimitExceeded:
-		return "SubqueryDataWeightLimitExceeded"
+	case CodeMailboxNotCreatedYet:
+		return "MailboxNotCreatedYet"
 	case CodeParticipantUnregistered:
 		return "ParticipantUnregistered"
 	case CodeNoSuchGroup:
 		return "NoSuchGroup"
 	case CodeNoSuchMember:
 		return "NoSuchMember"
+	case CodeInvalidGroupId:
+		return "InvalidGroupId"
+	case CodeInvalidMemberId:
+		return "InvalidMemberId"
 	case CodeNoSuchThrottler:
 		return "NoSuchThrottler"
 	case CodeUnexpectedThrottlerMode:
@@ -643,12 +907,60 @@ func (e ErrorCode) String() string {
 		return "FailedToApplyDynamicConfig"
 	case CodeInvalidDynamicConfig:
 		return "InvalidDynamicConfig"
+	case CodeNoSuitableDynamicConfig:
+		return "NoSuitableDynamicConfig"
+	case CodeInvalidReadRange:
+		return "InvalidReadRange"
+	case CodeInvalidFormat:
+		return "InvalidFormat"
+	case CodeSubqueryDataWeightLimitExceeded:
+		return "SubqueryDataWeightLimitExceeded"
+	case CodeIncorrectConfig:
+		return "IncorrectConfig"
+	case CodeStatisticsFetchFailed:
+		return "StatisticsFetchFailed"
+	case CodeParameterizedBalancingFailed:
+		return "ParameterizedBalancingFailed"
+	case CodeScheduleFormulaEvaluationFailed:
+		return "ScheduleFormulaEvaluationFailed"
+	case CodeCypressSynchronizerUnableToFetchObjectRevisions:
+		return "CypressSynchronizerUnableToFetchObjectRevisions"
+	case CodeCypressSynchronizerUnableToFetchAttributes:
+		return "CypressSynchronizerUnableToFetchAttributes"
+	case CodeCypressSynchronizerPassFailed:
+		return "CypressSynchronizerPassFailed"
+	case CodeQueueAgentPassFailed:
+		return "QueueAgentPassFailed"
+	case CodeQueueAgentShardingManagerPassFailed:
+		return "QueueAgentShardingManagerPassFailed"
+	case CodeConsumerOffsetConflict:
+		return "ConsumerOffsetConflict"
+	case CodeReplicationCardNotKnown:
+		return "ReplicationCardNotKnown"
+	case CodeReplicationCardMigrated:
+		return "ReplicationCardMigrated"
+	case CodeChaosCellSuspended:
+		return "ChaosCellSuspended"
+	case CodeQueryTrackerClientIncarnationMismatch:
+		return "QueryTrackerClientIncarnationMismatch"
+	case CodeQueryNotFound:
+		return "QueryNotFound"
+	case CodeQueryResultNotFound:
+		return "QueryResultNotFound"
 	case CodeAgentCallFailed:
 		return "AgentCallFailed"
 	case CodeNoOnlineNodeToScheduleJob:
 		return "NoOnlineNodeToScheduleJob"
 	case CodeMaterializationFailed:
 		return "MaterializationFailed"
+	case CodeOperationControllerMemoryLimitExceeded:
+		return "OperationControllerMemoryLimitExceeded"
+	case CodeIncarnationMismatch:
+		return "IncarnationMismatch"
+	case CodeAgentDisconnected:
+		return "AgentDisconnected"
+	case CodeIncorrectMapperId:
+		return "IncorrectMapperId"
 	case CodeNoSuchTransaction:
 		return "NoSuchTransaction"
 	case CodeNestedExternalTransactionExists:
@@ -673,10 +985,22 @@ func (e ErrorCode) String() string {
 		return "ForeignParentTransaction"
 	case CodeForeignPrerequisiteTransaction:
 		return "ForeignPrerequisiteTransaction"
+	case CodeIncompletePrepareSignature:
+		return "IncompletePrepareSignature"
 	case CodeFailedToStartContainer:
 		return "FailedToStartContainer"
 	case CodeJobIsNotRunning:
 		return "JobIsNotRunning"
+	case CodeMiscIOError:
+		return "MiscIOError"
+	case CodeEndpointSetDoesNotExist:
+		return "EndpointSetDoesNotExist"
+	case CodeEndpointResolveFailed:
+		return "EndpointResolveFailed"
+	case CodeUnknownResolveStatus:
+		return "UnknownResolveStatus"
+	case CodePoolTreeGuaranteesOvercommit:
+		return "PoolTreeGuaranteesOvercommit"
 	default:
 		return fmt.Sprintf("UnknownCode%d", int(e))
 	}

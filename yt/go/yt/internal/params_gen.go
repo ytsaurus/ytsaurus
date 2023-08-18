@@ -988,6 +988,145 @@ func writeRestoreTableBackupOptions(w *yson.Writer, o *yt.RestoreTableBackupOpti
 	writeTimeoutOptions(w, o.TimeoutOptions)
 }
 
+func writeQueryTrackerOptions(w *yson.Writer, o *yt.QueryTrackerOptions) {
+	if o == nil {
+		return
+	}
+	if o.Stage != nil {
+		w.MapKeyString("stage")
+		w.Any(o.Stage)
+	}
+}
+
+func writeStartQueryOptions(w *yson.Writer, o *yt.StartQueryOptions) {
+	if o == nil {
+		return
+	}
+	if o.Settings != nil {
+		w.MapKeyString("settings")
+		w.Any(o.Settings)
+	}
+	if o.Draft != nil {
+		w.MapKeyString("draft")
+		w.Any(o.Draft)
+	}
+	if o.Annotations != nil {
+		w.MapKeyString("annotations")
+		w.Any(o.Annotations)
+	}
+	writeQueryTrackerOptions(w, o.QueryTrackerOptions)
+}
+
+func writeAbortQueryOptions(w *yson.Writer, o *yt.AbortQueryOptions) {
+	if o == nil {
+		return
+	}
+	if o.AbortMessage != nil {
+		w.MapKeyString("abort_message")
+		w.Any(o.AbortMessage)
+	}
+	writeQueryTrackerOptions(w, o.QueryTrackerOptions)
+}
+
+func writeGetQueryOptions(w *yson.Writer, o *yt.GetQueryOptions) {
+	if o == nil {
+		return
+	}
+	if o.Attributes != nil {
+		w.MapKeyString("attributes")
+		w.Any(o.Attributes)
+	}
+	if o.Timestamp != nil {
+		w.MapKeyString("timestamp")
+		w.Any(o.Timestamp)
+	}
+	writeQueryTrackerOptions(w, o.QueryTrackerOptions)
+}
+
+func writeListQueriesOptions(w *yson.Writer, o *yt.ListQueriesOptions) {
+	if o == nil {
+		return
+	}
+	if o.FromTime != nil {
+		w.MapKeyString("from_time")
+		w.Any(o.FromTime)
+	}
+	if o.ToTime != nil {
+		w.MapKeyString("to_time")
+		w.Any(o.ToTime)
+	}
+	if o.CursorTime != nil {
+		w.MapKeyString("cursor_time")
+		w.Any(o.CursorTime)
+	}
+	if o.CursorDirection != nil {
+		w.MapKeyString("cursor_direction")
+		w.Any(o.CursorDirection)
+	}
+	if o.UserFilter != nil {
+		w.MapKeyString("user_filter")
+		w.Any(o.UserFilter)
+	}
+	if o.StateFilter != nil {
+		w.MapKeyString("state_filter")
+		w.Any(o.StateFilter)
+	}
+	if o.EngineFilter != nil {
+		w.MapKeyString("engine_filter")
+		w.Any(o.EngineFilter)
+	}
+	if o.SubstrFilter != nil {
+		w.MapKeyString("substr_filter")
+		w.Any(o.SubstrFilter)
+	}
+	if o.Limit != nil {
+		w.MapKeyString("limit")
+		w.Any(o.Limit)
+	}
+	if o.Attributes != nil {
+		w.MapKeyString("attributes")
+		w.Any(o.Attributes)
+	}
+	writeQueryTrackerOptions(w, o.QueryTrackerOptions)
+}
+
+func writeGetQueryResultOptions(w *yson.Writer, o *yt.GetQueryResultOptions) {
+	if o == nil {
+		return
+	}
+	writeQueryTrackerOptions(w, o.QueryTrackerOptions)
+}
+
+func writeReadQueryResultOptions(w *yson.Writer, o *yt.ReadQueryResultOptions) {
+	if o == nil {
+		return
+	}
+	if o.Columns != nil {
+		w.MapKeyString("columns")
+		w.Any(o.Columns)
+	}
+	if o.LowerRowIndex != nil {
+		w.MapKeyString("lower_row_index")
+		w.Any(o.LowerRowIndex)
+	}
+	if o.UpperRowIndex != nil {
+		w.MapKeyString("upper_row_index")
+		w.Any(o.UpperRowIndex)
+	}
+	writeQueryTrackerOptions(w, o.QueryTrackerOptions)
+}
+
+func writeAlterQueryOptions(w *yson.Writer, o *yt.AlterQueryOptions) {
+	if o == nil {
+		return
+	}
+	if o.Annotations != nil {
+		w.MapKeyString("annotations")
+		w.Any(o.Annotations)
+	}
+	writeQueryTrackerOptions(w, o.QueryTrackerOptions)
+}
+
 func writeLocateSkynetShareOptions(w *yson.Writer, o *yt.LocateSkynetShareOptions) {
 	if o == nil {
 		return
@@ -3902,6 +4041,311 @@ func (p *RestoreTableBackupParams) MarshalHTTP(w *yson.Writer) {
 
 func (p *RestoreTableBackupParams) TimeoutOptions() **yt.TimeoutOptions {
 	return &p.options.TimeoutOptions
+}
+
+type StartQueryParams struct {
+	verb    Verb
+	engine  yt.QueryEngine
+	query   string
+	options *yt.StartQueryOptions
+}
+
+func NewStartQueryParams(
+	engine yt.QueryEngine,
+	query string,
+	options *yt.StartQueryOptions,
+) *StartQueryParams {
+	if options == nil {
+		options = &yt.StartQueryOptions{}
+	}
+	return &StartQueryParams{
+		Verb("start_query"),
+		engine,
+		query,
+		options,
+	}
+}
+
+func (p *StartQueryParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *StartQueryParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *StartQueryParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("engine", p.engine),
+		log.Any("query", p.query),
+	}
+}
+
+func (p *StartQueryParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("engine")
+	w.Any(p.engine)
+	w.MapKeyString("query")
+	w.Any(p.query)
+	writeStartQueryOptions(w, p.options)
+}
+
+func (p *StartQueryParams) QueryTrackerOptions() **yt.QueryTrackerOptions {
+	return &p.options.QueryTrackerOptions
+}
+
+type AbortQueryParams struct {
+	verb    Verb
+	id      yt.QueryID
+	options *yt.AbortQueryOptions
+}
+
+func NewAbortQueryParams(
+	id yt.QueryID,
+	options *yt.AbortQueryOptions,
+) *AbortQueryParams {
+	if options == nil {
+		options = &yt.AbortQueryOptions{}
+	}
+	return &AbortQueryParams{
+		Verb("abort_query"),
+		id,
+		options,
+	}
+}
+
+func (p *AbortQueryParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *AbortQueryParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *AbortQueryParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("id", p.id),
+	}
+}
+
+func (p *AbortQueryParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("query_id")
+	w.Any(p.id)
+	writeAbortQueryOptions(w, p.options)
+}
+
+func (p *AbortQueryParams) QueryTrackerOptions() **yt.QueryTrackerOptions {
+	return &p.options.QueryTrackerOptions
+}
+
+type GetQueryParams struct {
+	verb    Verb
+	id      yt.QueryID
+	options *yt.GetQueryOptions
+}
+
+func NewGetQueryParams(
+	id yt.QueryID,
+	options *yt.GetQueryOptions,
+) *GetQueryParams {
+	if options == nil {
+		options = &yt.GetQueryOptions{}
+	}
+	return &GetQueryParams{
+		Verb("get_query"),
+		id,
+		options,
+	}
+}
+
+func (p *GetQueryParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *GetQueryParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *GetQueryParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("id", p.id),
+	}
+}
+
+func (p *GetQueryParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("query_id")
+	w.Any(p.id)
+	writeGetQueryOptions(w, p.options)
+}
+
+func (p *GetQueryParams) QueryTrackerOptions() **yt.QueryTrackerOptions {
+	return &p.options.QueryTrackerOptions
+}
+
+type ListQueriesParams struct {
+	verb    Verb
+	options *yt.ListQueriesOptions
+}
+
+func NewListQueriesParams(
+	options *yt.ListQueriesOptions,
+) *ListQueriesParams {
+	if options == nil {
+		options = &yt.ListQueriesOptions{}
+	}
+	return &ListQueriesParams{
+		Verb("list_queries"),
+		options,
+	}
+}
+
+func (p *ListQueriesParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *ListQueriesParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *ListQueriesParams) Log() []log.Field {
+	return []log.Field{}
+}
+
+func (p *ListQueriesParams) MarshalHTTP(w *yson.Writer) {
+	writeListQueriesOptions(w, p.options)
+}
+
+func (p *ListQueriesParams) QueryTrackerOptions() **yt.QueryTrackerOptions {
+	return &p.options.QueryTrackerOptions
+}
+
+type GetQueryResultParams struct {
+	verb        Verb
+	id          yt.QueryID
+	resultIndex int64
+	options     *yt.GetQueryResultOptions
+}
+
+func NewGetQueryResultParams(
+	id yt.QueryID,
+	resultIndex int64,
+	options *yt.GetQueryResultOptions,
+) *GetQueryResultParams {
+	if options == nil {
+		options = &yt.GetQueryResultOptions{}
+	}
+	return &GetQueryResultParams{
+		Verb("get_query_result"),
+		id,
+		resultIndex,
+		options,
+	}
+}
+
+func (p *GetQueryResultParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *GetQueryResultParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *GetQueryResultParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("id", p.id),
+		log.Any("resultIndex", p.resultIndex),
+	}
+}
+
+func (p *GetQueryResultParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("query_id")
+	w.Any(p.id)
+	w.MapKeyString("result_index")
+	w.Any(p.resultIndex)
+	writeGetQueryResultOptions(w, p.options)
+}
+
+func (p *GetQueryResultParams) QueryTrackerOptions() **yt.QueryTrackerOptions {
+	return &p.options.QueryTrackerOptions
+}
+
+type ReadQueryResultParams struct {
+	verb        Verb
+	id          yt.QueryID
+	resultIndex int64
+	options     *yt.ReadQueryResultOptions
+}
+
+func NewReadQueryResultParams(
+	id yt.QueryID,
+	resultIndex int64,
+	options *yt.ReadQueryResultOptions,
+) *ReadQueryResultParams {
+	if options == nil {
+		options = &yt.ReadQueryResultOptions{}
+	}
+	return &ReadQueryResultParams{
+		Verb("read_query_result"),
+		id,
+		resultIndex,
+		options,
+	}
+}
+
+func (p *ReadQueryResultParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *ReadQueryResultParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *ReadQueryResultParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("id", p.id),
+		log.Any("resultIndex", p.resultIndex),
+	}
+}
+
+func (p *ReadQueryResultParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("query_id")
+	w.Any(p.id)
+	w.MapKeyString("result_index")
+	w.Any(p.resultIndex)
+	writeReadQueryResultOptions(w, p.options)
+}
+
+func (p *ReadQueryResultParams) QueryTrackerOptions() **yt.QueryTrackerOptions {
+	return &p.options.QueryTrackerOptions
+}
+
+type AlterQueryParams struct {
+	verb    Verb
+	id      yt.QueryID
+	options *yt.AlterQueryOptions
+}
+
+func NewAlterQueryParams(
+	id yt.QueryID,
+	options *yt.AlterQueryOptions,
+) *AlterQueryParams {
+	if options == nil {
+		options = &yt.AlterQueryOptions{}
+	}
+	return &AlterQueryParams{
+		Verb("alter_query"),
+		id,
+		options,
+	}
+}
+
+func (p *AlterQueryParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *AlterQueryParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *AlterQueryParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("id", p.id),
+	}
+}
+
+func (p *AlterQueryParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("query_id")
+	w.Any(p.id)
+	writeAlterQueryOptions(w, p.options)
+}
+
+func (p *AlterQueryParams) QueryTrackerOptions() **yt.QueryTrackerOptions {
+	return &p.options.QueryTrackerOptions
 }
 
 type GenerateTimestampParams struct {

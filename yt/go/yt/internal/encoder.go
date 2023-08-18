@@ -876,3 +876,86 @@ func (e *Encoder) GetInSyncReplicas(
 
 	return
 }
+
+func (e *Encoder) StartQuery(
+	ctx context.Context,
+	engine yt.QueryEngine,
+	query string,
+	options *yt.StartQueryOptions,
+) (id yt.QueryID, err error) {
+	call := e.newCall(NewStartQueryParams(engine, query, options))
+	err = e.do(ctx, call, func(res *CallResult) error {
+		return res.decodeSingle("query_id", &id)
+	})
+	return
+}
+
+func (e *Encoder) AbortQuery(
+	ctx context.Context,
+	id yt.QueryID,
+	options *yt.AbortQueryOptions,
+) (err error) {
+	call := e.newCall(NewAbortQueryParams(id, options))
+	err = e.do(ctx, call, func(res *CallResult) error {
+		return nil
+	})
+	return
+}
+
+func (e *Encoder) GetQuery(
+	ctx context.Context,
+	id yt.QueryID,
+	options *yt.GetQueryOptions,
+) (query *yt.Query, err error) {
+	call := e.newCall(NewGetQueryParams(id, options))
+	err = e.do(ctx, call, func(res *CallResult) error {
+		return res.decode(&query)
+	})
+	return
+}
+
+func (e *Encoder) ListQueries(
+	ctx context.Context,
+	options *yt.ListQueriesOptions,
+) (result *yt.ListQueriesResult, err error) {
+	call := e.newCall(NewListQueriesParams(options))
+	err = e.do(ctx, call, func(res *CallResult) error {
+		return res.decode(&result)
+	})
+	return
+}
+
+func (e *Encoder) GetQueryResult(
+	ctx context.Context,
+	id yt.QueryID,
+	resultIndex int64,
+	options *yt.GetQueryResultOptions,
+) (result *yt.QueryResult, err error) {
+	call := e.newCall(NewGetQueryResultParams(id, resultIndex, options))
+	err = e.do(ctx, call, func(res *CallResult) error {
+		return res.decode(&result)
+	})
+	return
+}
+
+func (e *Encoder) ReadQueryResult(
+	ctx context.Context,
+	id yt.QueryID,
+	resultIndex int64,
+	options *yt.ReadQueryResultOptions,
+) (r yt.TableReader, err error) {
+	call := e.newCall(NewReadQueryResultParams(id, resultIndex, options))
+	return e.InvokeReadRow(ctx, call)
+}
+
+func (e *Encoder) AlterQuery(
+	ctx context.Context,
+	id yt.QueryID,
+	options *yt.AlterQueryOptions,
+) (err error) {
+	call := e.newCall(NewAlterQueryParams(id, options))
+	err = e.do(ctx, call, func(res *CallResult) error {
+		return nil
+	})
+	return
+}
