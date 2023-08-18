@@ -6,6 +6,8 @@
 #include <yt/yt/client/api/rpc_proxy/row_stream.h>
 #include <yt/yt/client/api/rpc_proxy/wire_row_stream.h>
 
+#include <yt/yt/client/formats/config.h>
+
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/row_batch.h>
@@ -631,11 +633,29 @@ public:
     TArrowRowStreamEncoder(
         TTableSchemaPtr schema,
         TNameTablePtr nameTable,
-        IRowStreamEncoderPtr fallbackEncoder)
+        IRowStreamEncoderPtr fallbackEncoder,
+        NFormats::TControlAttributesConfigPtr controlAttributesConfig)
         : Schema_(std::move(schema))
         , NameTable_(std::move(nameTable))
         , FallbackEncoder_(std::move(fallbackEncoder))
+        , ControlAttributesConfig_(controlAttributesConfig)
     {
+        if (ControlAttributesConfig_->EnableRowIndex) {
+            RowIndexId_ = NameTable_->GetIdOrRegisterName(RowIndexColumnName);
+        }
+
+        if (ControlAttributesConfig_->EnableRangeIndex) {
+            RangeIndexId_ = NameTable_->GetIdOrRegisterName(RangeIndexColumnName);
+        }
+
+        if (ControlAttributesConfig_->EnableTableIndex) {
+            TableIndexId_ = NameTable_->GetIdOrRegisterName(TableIndexColumnName);
+        }
+
+        if (ControlAttributesConfig_->EnableTabletIndex) {
+            TabletIndexId_ = NameTable_->GetIdOrRegisterName(TabletIndexColumnName);
+        }
+
         YT_LOG_DEBUG("Row stream encoder created (Schema: %v)",
             *Schema_);
     }
@@ -660,6 +680,41 @@ public:
         return ArrowDictionaryIds_;
     }
 
+    bool IsTableIndexColumnId(int id) const
+    {
+        return id == TableIndexId_;
+    }
+
+    bool IsRowIndexColumnId(int id) const
+    {
+        return id == RowIndexId_;
+    }
+
+    bool IsRangeIndexColumnId(int id) const
+    {
+        return id == RangeIndexId_;
+    }
+
+    bool IsTabletIndexColumnId(int id) const
+    {
+        return id == TabletIndexId_;
+    }
+
+    bool IsSystemColumnId(int id) const
+    {
+        return IsTableIndexColumnId(id) ||
+            IsRangeIndexColumnId(id) ||
+            IsRowIndexColumnId(id) ||
+            IsTabletIndexColumnId(id);
+    }
+
+    bool IsSystemColumnEnable(int columnIdx) {
+        return ControlAttributesConfig_->EnableTableIndex && IsTableIndexColumnId(columnIdx) ||
+            ControlAttributesConfig_->EnableRangeIndex && IsRangeIndexColumnId(columnIdx) ||
+            ControlAttributesConfig_->EnableRowIndex && IsRowIndexColumnId(columnIdx) ||
+            ControlAttributesConfig_->EnableTabletIndex && IsTabletIndexColumnId(columnIdx);
+    }
+
     TSharedRef Encode(
         const IUnversionedRowBatchPtr& batch,
         const NApi::NRpcProxy::NProto::TRowsetStatistics* statistics) override;
@@ -668,6 +723,12 @@ private:
     const TTableSchemaPtr Schema_;
     const TNameTablePtr NameTable_;
     const IRowStreamEncoderPtr FallbackEncoder_;
+    const NFormats::TControlAttributesConfigPtr ControlAttributesConfig_;
+
+    int RowIndexId_ = -1;
+    int RangeIndexId_ = -1;
+    int TableIndexId_ = -1;
+    int TabletIndexId_ = -1;
 
     bool FirstBatch_ = true;
     std::vector<IUnversionedColumnarRowBatch::TDictionaryId> ArrowDictionaryIds_;
@@ -766,7 +827,6 @@ private:
 
     std::vector<TMessage> Messages_;
 
-
     void RegisterEosMarker()
     {
         YT_LOG_DEBUG("EOS marker registered");
@@ -797,11 +857,22 @@ private:
         });
     }
 
-    const TColumnSchema& GetColumnSchema(const TBatchColumn& column)
+    std::optional<TColumnSchema> FindColumnSchema(const TBatchColumn& column)
     {
         YT_VERIFY(column.Id >= 0);
         auto name = StreamEncoder_->GetNameTable()->GetName(column.Id);
-        return StreamEncoder_->GetSchema()->GetColumn(name);
+        auto columnSchemaPtr = StreamEncoder_->GetSchema()->FindColumn(name);
+        if (!columnSchemaPtr) {
+            if (StreamEncoder_->IsSystemColumnId(column.Id) && StreamEncoder_->IsSystemColumnEnable(column.Id)) {
+                return TColumnSchema(TString(name), EValueType::Int64);
+            }
+            return std::nullopt;
+        }
+        auto columnSchema = *columnSchemaPtr;
+        if (CastToV1Type(columnSchema.LogicalType()).first != ESimpleLogicalValueType::Null) {
+            return columnSchema;
+        }
+        return std::nullopt;
     }
 
     void PrepareColumns()
@@ -809,10 +880,14 @@ private:
         auto batchColumns = Batch_->MaterializeColumns();
         TypedColumns_.reserve(batchColumns.Size());
         for (const auto* column : batchColumns) {
-            TypedColumns_.push_back(TTypedBatchColumn{
-                column,
-                GetColumnSchema(*column).LogicalType()
-            });
+            // Ignoring null schema column and not enabled system columns.
+            auto columnSchema = FindColumnSchema(*column);
+            if (columnSchema) {
+                TypedColumns_.push_back(TTypedBatchColumn{
+                    column,
+                    columnSchema->LogicalType()
+                });
+            }
         }
     }
 
@@ -849,7 +924,9 @@ private:
         std::vector<flatbuffers::Offset<org::apache::arrow::flatbuf::Field>> fieldOffsets;
 
         for (const auto& typedColumn : TypedColumns_) {
-            const auto& columnSchema = GetColumnSchema(*typedColumn.Column);
+            auto optionalColumnSchema = FindColumnSchema(*typedColumn.Column);
+            YT_VERIFY(optionalColumnSchema != std::nullopt);
+            auto columnSchema = *optionalColumnSchema;
 
             auto nameOffset = SerializeString(&flatbufBuilder, columnSchema.Name());
 
@@ -1022,7 +1099,6 @@ TSharedRef TArrowRowStreamEncoder::Encode(
         YT_LOG_DEBUG("Encoding non-columnar batch; running fallback");
         return FallbackEncoder_->Encode(batch, statistics);
     }
-
     YT_LOG_DEBUG("Encoding columnar batch (RowCount: %v)",
         batch->GetRowCount());
 
@@ -1052,12 +1128,14 @@ TSharedRef TArrowRowStreamEncoder::Encode(
 IRowStreamEncoderPtr CreateArrowRowStreamEncoder(
     TTableSchemaPtr schema,
     TNameTablePtr nameTable,
-    IRowStreamEncoderPtr fallbackEncoder)
+    IRowStreamEncoderPtr fallbackEncoder,
+    NFormats::TControlAttributesConfigPtr controlAttributesConfig)
 {
     return New<TArrowRowStreamEncoder>(
         std::move(schema),
         std::move(nameTable),
-        std::move(fallbackEncoder));
+        std::move(fallbackEncoder),
+        std::move(controlAttributesConfig));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
