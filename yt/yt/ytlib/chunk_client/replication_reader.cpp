@@ -573,7 +573,7 @@ protected:
     }
 
     // NB: Now we use this method only in case of failed session.
-    void ReleaseThrottleBytesExcess(const IThroughputThrottlerPtr& throttler, i64 throttledBytes)
+    void ReleaseThrottledBytesExcess(const IThroughputThrottlerPtr& throttler, i64 throttledBytes)
     {
         if (throttledBytes > TotalBytesReceived_) {
             YT_LOG_DEBUG("Releasing excess throttled bytes (ThrottledBytes: %v, ReceivedBytes: %v)",
@@ -2150,7 +2150,7 @@ private:
             SetReaderFailed();
         }
 
-        ReleaseThrottleBytesExcess(BandwidthThrottler_, BytesThrottled_);
+        ReleaseThrottledBytesExcess(BandwidthThrottler_, BytesThrottled_);
 
         Promise_.TrySet(error);
     }
@@ -2431,7 +2431,7 @@ private:
             SetReaderFailed();
         }
 
-        ReleaseThrottleBytesExcess(BandwidthThrottler_, BytesThrottled_);
+        ReleaseThrottledBytesExcess(BandwidthThrottler_, BytesThrottled_);
 
         Promise_.TrySet(error);
     }
@@ -2798,7 +2798,7 @@ private:
             SetReaderFailed();
         }
 
-        ReleaseThrottleBytesExcess(BandwidthThrottler_, BytesThrottled_);
+        ReleaseThrottledBytesExcess(BandwidthThrottler_, BytesThrottled_);
 
         Promise_.TrySet(error);
     }
