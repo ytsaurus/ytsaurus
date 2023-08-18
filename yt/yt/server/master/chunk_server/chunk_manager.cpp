@@ -2167,7 +2167,9 @@ public:
         }
 
         // If node resource usage or limits have changed, we commit mutation with new values.
-        if (node->ResourceUsage() != resourceUsage || node->ResourceLimits() != resourceLimits) {
+        // It is sufficient to report these values from leaders only and forwarding these mutations from
+        // followers may end up with strange reorderings.
+        if (IsLeader() && (node->ResourceUsage() != resourceUsage || node->ResourceLimits() != resourceLimits)) {
             NNodeTrackerServer::NProto::TReqUpdateNodeResources request;
             request.set_node_id(ToProto<ui32>(node->GetId()));
             request.mutable_resource_usage()->CopyFrom(resourceUsage);
