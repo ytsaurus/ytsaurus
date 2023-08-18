@@ -24,6 +24,7 @@
 
 #include <yt/yt/server/node/cellar_node/bootstrap.h>
 #include <yt/yt/server/node/cellar_node/dynamic_bundle_config_manager.h>
+#include <yt/yt/server/node/cellar_node/config.h>
 
 #include <yt/yt/server/node/data_node/bootstrap.h>
 
@@ -31,6 +32,7 @@
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
+#include <yt/yt/server/node/query_agent/config.h>
 #include <yt/yt/server/node/query_agent/query_service.h>
 
 #include <yt/yt/server/lib/cellar_agent/cellar.h>

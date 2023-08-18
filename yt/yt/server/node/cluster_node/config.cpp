@@ -1,5 +1,23 @@
 #include "config.h"
 
+#include <yt/yt/server/node/data_node/config.h>
+
+#include <yt/yt/server/node/cellar_node/config.h>
+
+#include <yt/yt/server/node/query_agent/config.h>
+
+#include <yt/yt/server/lib/exec_node/config.h>
+
+#include <yt/yt/server/lib/tablet_node/config.h>
+
+#include <yt/yt/server/lib/chaos_node/config.h>
+
+#include <yt/yt/library/dynamic_config/config.h>
+
+#include <yt/yt/core/http/config.h>
+
+#include <yt/yt/ytlib/object_client/config.h>
+
 #include <yt/yt/client/transaction_client/config.h>
 
 namespace NYT::NClusterNode {

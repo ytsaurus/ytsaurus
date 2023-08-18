@@ -14,6 +14,7 @@
 #include <yt/yt/server/node/exec_node/slot.h>
 #include <yt/yt/server/node/exec_node/slot_manager.h>
 
+#include <yt/yt/server/lib/exec_node/config.h>
 #include <yt/yt/server/lib/job_agent/config.h>
 
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>

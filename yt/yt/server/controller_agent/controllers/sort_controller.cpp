@@ -53,6 +53,7 @@
 
 #include <yt/yt/core/misc/numeric_helpers.h>
 #include <yt/yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/config.h>
 
 #include <yt/yt/core/logging/serializable_logger.h>
 

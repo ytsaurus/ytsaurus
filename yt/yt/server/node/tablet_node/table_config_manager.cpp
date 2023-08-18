@@ -3,6 +3,8 @@
 
 #include <yt/yt/server/node/cluster_node/config.h>
 
+#include <yt/yt/server/lib/tablet_node/config.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 
 namespace NYT::NTabletNode {

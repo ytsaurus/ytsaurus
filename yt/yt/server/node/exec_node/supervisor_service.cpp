@@ -5,6 +5,7 @@
 #include "job_controller.h"
 #include "private.h"
 
+#include <yt/yt/server/lib/exec_node/config.h>
 #include <yt/yt/server/lib/exec_node/supervisor_service_proxy.h>
 
 #include <yt/yt/server/node/cluster_node/config.h>

@@ -1,5 +1,8 @@
 #include "config.h"
 
+#include <yt/yt/library/containers/config.h>
+#include <yt/yt/library/containers/disk_manager/config.h>
+
 namespace NYT::NDataNode {
 
 using namespace NConcurrency;

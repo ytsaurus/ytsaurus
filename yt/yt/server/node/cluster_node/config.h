@@ -2,45 +2,47 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/chaos_node/config.h>
+#include <yt/yt/server/lib/chaos_node/public.h>
 
-#include <yt/yt/server/lib/exec_node/config.h>
+#include <yt/yt/server/lib/exec_node/public.h>
+
+#include <yt/yt/server/lib/io/public.h>
 
 #include <yt/yt/server/lib/misc/config.h>
 
-#include <yt/yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/tablet_node/public.h>
 
-#include <yt/yt/server/node/cellar_node/config.h>
+#include <yt/yt/server/node/cellar_node/public.h>
 
-#include <yt/yt/server/node/data_node/config.h>
+#include <yt/yt/server/node/data_node/public.h>
 
-#include <yt/yt/server/node/query_agent/config.h>
+#include <yt/yt/server/node/query_agent/public.h>
 
-#include <yt/yt/ytlib/hive/config.h>
+#include <yt/yt/ytlib/hive/public.h>
 
-#include <yt/yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/yt/ytlib/node_tracker_client/config.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
-#include <yt/yt/ytlib/transaction_client/config.h>
+#include <yt/yt/ytlib/transaction_client/public.h>
 
-#include <yt/yt/ytlib/object_client/config.h>
+#include <yt/yt/ytlib/object_client/public.h>
 
-#include <yt/yt/ytlib/chunk_client/config.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/yt/library/dynamic_config/config.h>
+#include <yt/yt/library/dynamic_config/public.h>
 
 #include <yt/yt/library/profiling/solomon/exporter.h>
 
 #include <yt/yt/library/containers/public.h>
 
-#include <yt/yt/core/rpc/config.h>
+#include <yt/yt/core/rpc/public.h>
 
-#include <yt/yt/core/concurrency/config.h>
+#include <yt/yt/core/concurrency/public.h>
 #include <yt/yt/core/concurrency/fair_throttler.h>
 
-#include <yt/yt/core/http/config.h>
+#include <yt/yt/core/http/public.h>
 
 namespace NYT::NClusterNode {
 

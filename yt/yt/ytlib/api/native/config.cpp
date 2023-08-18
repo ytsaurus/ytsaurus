@@ -10,6 +10,10 @@
 
 #include <yt/yt/ytlib/table_client/config.h>
 
+#include <yt/yt/ytlib/chaos_client/config.h>
+
+#include <yt/yt/ytlib/security_client/config.h>
+
 #include <yt/yt/ytlib/tablet_client/config.h>
 
 #include <yt/yt/ytlib/queue_client/config.h>
@@ -23,6 +27,10 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/transaction_client/config.h>
+
+#include <yt/yt/library/query/engine_api/config.h>
+
+#include <yt/yt/core/bus/tcp/config.h>
 
 namespace NYT::NApi::NNative {
 

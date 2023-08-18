@@ -21,6 +21,8 @@
 #include <yt/yt/library/containers/instance.h>
 #include <yt/yt/library/containers/porto_executor.h>
 
+#include <yt/yt/server/lib/exec_node/config.h>
+
 #include <yt/yt/server/lib/misc/disk_health_checker.h>
 #include <yt/yt/server/lib/misc/private.h>
 

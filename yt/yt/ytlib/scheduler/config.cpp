@@ -16,6 +16,7 @@
 #include <yt/yt/core/ytree/convert.h>
 
 #include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/config.h>
 
 #include <util/string/split.h>
 

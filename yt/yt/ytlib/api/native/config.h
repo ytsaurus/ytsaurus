@@ -6,13 +6,13 @@
 
 #include <yt/yt/ytlib/cell_master_client/config.h>
 
-#include <yt/yt/ytlib/hive/config.h>
+#include <yt/yt/ytlib/hive/public.h>
 
 #include <yt/yt/ytlib/hydra/config.h>
 
-#include <yt/yt/ytlib/object_client/config.h>
+#include <yt/yt/ytlib/object_client/public.h>
 
-#include <yt/yt/library/query/engine_api/config.h>
+#include <yt/yt/library/query/engine_api/public.h>
 
 #include <yt/yt/ytlib/discovery_client/public.h>
 
@@ -24,25 +24,25 @@
 
 #include <yt/yt/ytlib/yql_client/public.h>
 
-#include <yt/yt/ytlib/table_client/config.h>
+#include <yt/yt/ytlib/table_client/public.h>
 
 #include <yt/yt/ytlib/transaction_client/public.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/yt/ytlib/security_client/config.h>
+#include <yt/yt/ytlib/security_client/public.h>
 
 #include <yt/yt/ytlib/chunk_client/config.h>
 
-#include <yt/yt/ytlib/chaos_client/config.h>
+#include <yt/yt/ytlib/chaos_client/public.h>
 
 #include <yt/yt/library/auth_server/public.h>
 
-#include <yt/yt/core/bus/tcp/config.h>
+#include <yt/yt/core/bus/tcp/public.h>
 
 #include <yt/yt/core/compression/public.h>
 
-#include <yt/yt/core/misc/config.h>
+#include <yt/yt/core/misc/public.h>
 
 #include <yt/yt/core/rpc/config.h>
 

@@ -9,6 +9,7 @@
 
 #include <yt/yt/ytlib/hydra/peer_channel.h>
 
+#include <yt/yt/ytlib/object_client/config.h>
 #include <yt/yt/ytlib/object_client/caching_object_service.h>
 #include <yt/yt/ytlib/object_client/object_service_cache.h>
 

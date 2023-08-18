@@ -20,6 +20,7 @@
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
+#include <yt/yt/ytlib/object_client/config.h>
 #include <yt/yt/ytlib/object_client/helpers.h>
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 

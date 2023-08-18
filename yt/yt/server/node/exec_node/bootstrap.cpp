@@ -20,6 +20,8 @@
 #include <yt/yt/server/node/data_node/bootstrap.h>
 #include <yt/yt/server/node/data_node/ytree_integration.h>
 
+#include <yt/yt/server/lib/exec_node/config.h>
+
 #include <yt/yt/server/lib/misc/job_reporter.h>
 
 #include <yt/yt/ytlib/auth/native_authentication_manager.h>

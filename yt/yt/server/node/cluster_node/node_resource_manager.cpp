@@ -15,6 +15,8 @@
 
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
+#include <yt/yt/server/lib/exec_node/config.h>
+
 #include <yt/yt/library/containers/instance_limits_tracker.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>

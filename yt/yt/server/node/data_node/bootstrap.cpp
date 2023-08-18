@@ -26,7 +26,9 @@
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
-#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+#include <yt/yt/server/lib/tablet_node/config.h>
+
+#include <yt/yt/library/query/engine_api/config.h>
 
 #include <yt/yt/library/containers/disk_manager/disk_info_provider.h>
 #include <yt/yt/library/containers/disk_manager/disk_manager_proxy.h>
@@ -38,6 +40,8 @@
 #include <yt/yt/core/http/server.h>
 
 #include <yt/yt/core/ytree/virtual.h>
+
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 namespace NYT::NDataNode {
 

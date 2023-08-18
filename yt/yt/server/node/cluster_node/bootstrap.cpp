@@ -75,6 +75,8 @@
 
 #include <yt/yt/server/lib/chaos_node/config.h>
 
+#include <yt/yt/server/lib/tablet_node/config.h>
+
 #include <yt/yt/server/lib/transaction_server/timestamp_proxy_service.h>
 
 #include <yt/yt/server/lib/admin/admin_service.h>
@@ -119,6 +121,7 @@
 #include <yt/yt/library/monitoring/http_integration.h>
 #include <yt/yt/library/monitoring/monitoring_manager.h>
 
+#include <yt/yt/ytlib/object_client/config.h>
 #include <yt/yt/ytlib/object_client/caching_object_service.h>
 #include <yt/yt/ytlib/object_client/object_service_cache.h>
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>

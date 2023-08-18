@@ -14,6 +14,7 @@
 #include <yt/yt/ytlib/chaos_client/banned_replica_tracker.h>
 #include <yt/yt/ytlib/chaos_client/chaos_cell_directory_synchronizer.h>
 #include <yt/yt/ytlib/chaos_client/chaos_cell_channel_factory.h>
+#include <yt/yt/ytlib/chaos_client/config.h>
 #include <yt/yt/ytlib/chaos_client/native_replication_card_cache_detail.h>
 #include <yt/yt/ytlib/chaos_client/replication_card_channel_factory.h>
 #include <yt/yt/ytlib/chaos_client/replication_card_residency_cache.h>
@@ -27,6 +28,7 @@
 #include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
 #include <yt/yt/ytlib/chunk_client/chunk_replica_cache.h>
 
+#include <yt/yt/ytlib/hive/config.h>
 #include <yt/yt/ytlib/hive/cell_directory.h>
 #include <yt/yt/ytlib/hive/cell_directory_synchronizer.h>
 #include <yt/yt/ytlib/hive/cell_tracker.h>

@@ -36,9 +36,9 @@
 
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
-#include <yt/yt/core/misc/finally.h>
-
 #include <yt/yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/finally.h>
+#include <yt/yt/core/misc/config.h>
 
 #include <library/cpp/iterator/zip.h>
 

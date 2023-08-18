@@ -8,9 +8,9 @@
 
 #include <yt/yt/server/lib/io/config.h>
 
-#include <yt/yt/library/containers/config.h>
+#include <yt/yt/library/containers/public.h>
 
-#include <yt/yt/library/containers/disk_manager/config.h>
+#include <yt/yt/library/containers/disk_manager/public.h>
 
 #include <yt/yt/ytlib/chunk_client/config.h>
 
@@ -18,9 +18,9 @@
 
 #include <yt/yt/ytlib/table_client/config.h>
 
-#include <yt/yt/client/api/config.h>
+#include <yt/yt/client/api/public.h>
 
-#include <yt/yt/core/concurrency/config.h>
+#include <yt/yt/core/concurrency/public.h>
 
 #include <yt/yt/core/misc/arithmetic_formula.h>
 

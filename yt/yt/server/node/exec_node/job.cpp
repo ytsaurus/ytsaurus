@@ -27,6 +27,7 @@
 
 #include <yt/yt/server/lib/io/io_tracker.h>
 
+#include <yt/yt/server/lib/exec_node/config.h>
 #include <yt/yt/server/lib/exec_node/helpers.h>
 
 #include <yt/yt/server/lib/scheduler/helpers.h>

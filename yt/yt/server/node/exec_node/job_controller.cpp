@@ -14,6 +14,8 @@
 #include <yt/yt/server/node/data_node/bootstrap.h>
 #include <yt/yt/server/node/data_node/job_controller.h>
 
+#include <yt/yt/server/lib/exec_node/config.h>
+
 #include <yt/yt/server/lib/controller_agent/helpers.h>
 #include <yt/yt/server/lib/controller_agent/job_spec_service_proxy.h>
 

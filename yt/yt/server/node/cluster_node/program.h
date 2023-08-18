@@ -2,6 +2,7 @@
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/private.h>
 
+#include <yt/yt/server/node/cellar_node/config.h>
 #include <yt/yt/server/node/cellar_node/bootstrap.h>
 
 #include <yt/yt/server/node/tablet_node/serialize.h>
@@ -9,6 +10,10 @@
 #include <yt/yt/server/lib/misc/cluster_connection.h>
 
 #include <yt/yt/server/lib/hydra_common/dry_run/utils.h>
+
+#include <yt/yt/server/lib/tablet_node/config.h>
+
+#include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/library/program/program.h>
 #include <yt/yt/library/program/program_config_mixin.h>

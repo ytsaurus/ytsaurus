@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 
+#include <yt/yt/ytlib/scheduler/config.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/security_client/acl.h>

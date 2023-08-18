@@ -2,6 +2,8 @@
 
 #include <yt/yt/ytlib/api/native/config.h>
 
+#include <yt/yt/ytlib/object_client/config.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 namespace NYT::NCellMasterClient {

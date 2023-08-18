@@ -8,6 +8,10 @@
 
 #include <yt/yt/server/lib/node_tracker_server/name_helpers.h>
 
+#include <yt/yt/core/misc/config.h>
+
+#include <yt/yt/ytlib/event_log/config.h>
+
 #include <yt/yt/ytlib/scheduler/config.h>
 
 namespace NYT::NScheduler {

@@ -5,25 +5,29 @@
 #include "scheduling_segment_map.h"
 #include "structs.h"
 
-#include <yt/yt/server/lib/job_proxy/config.h>
+#include <yt/yt/server/lib/misc/config.h>
 
-#include <yt/yt/ytlib/chunk_client/config.h>
+#include <yt/yt/server/lib/job_proxy/public.h>
 
-#include <yt/yt/ytlib/table_client/config.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/yt/ytlib/hive/config.h>
+#include <yt/yt/ytlib/table_client/public.h>
 
-#include <yt/yt/ytlib/scheduler/config.h>
+#include <yt/yt/ytlib/hive/public.h>
 
-#include <yt/yt/ytlib/event_log/config.h>
+#include <yt/yt/ytlib/scheduler/public.h>
 
-#include <yt/yt/library/program/config.h>
+#include <yt/yt/ytlib/event_log/public.h>
+
+#include <yt/yt/ytlib/program/config.h>
+
+#include <yt/yt/library/program/public.h>
 
 #include <yt/yt/client/ypath/public.h>
 
-#include <yt/yt/core/concurrency/config.h>
+#include <yt/yt/core/concurrency/public.h>
 
-#include <yt/yt/core/rpc/config.h>
+#include <yt/yt/core/rpc/public.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
 

@@ -12,6 +12,7 @@
 #include <yt/yt/server/node/exec_node/bootstrap.h>
 #include <yt/yt/server/node/exec_node/job_controller.h>
 
+#include <yt/yt/server/lib/exec_node/config.h>
 #include <yt/yt/server/lib/job_agent/config.h>
 
 #include <yt/yt/ytlib/job_tracker_client/helpers.h>
