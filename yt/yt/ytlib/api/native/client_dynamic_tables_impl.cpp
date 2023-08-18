@@ -417,74 +417,98 @@ std::vector<TTabletInfo> TClient::GetTabletInfosImpl(
 {
     tableInfo->ValidateDynamic();
 
-    struct TSubrequest
+    struct TTabletBatch
     {
-        TQueryServiceProxy::TReqGetTabletInfoPtr Request;
-        std::vector<size_t> ResultIndexes;
+        std::vector<TTabletId> TabletIds;
+        std::vector<int> ResultIndexes;
     };
 
-    THashMap<TCellId, TSubrequest> cellIdToSubrequest;
+    THashMap<TCellId, TTabletBatch> cellIdToTabletBatch;
+    std::vector<TCellId> cellIds;
 
-    for (size_t resultIndex = 0; resultIndex < tabletIndexes.size(); ++resultIndex) {
+    for (int resultIndex = 0; resultIndex < std::ssize(tabletIndexes); ++resultIndex) {
         auto tabletIndex = tabletIndexes[resultIndex];
         auto tabletInfo = tableInfo->GetTabletByIndexOrThrow(tabletIndex);
-        auto& subrequest = cellIdToSubrequest[tabletInfo->CellId];
-        if (!subrequest.Request) {
-            auto channel = GetReadCellChannelOrThrow(tabletInfo->CellId);
-            TQueryServiceProxy proxy(channel);
-            proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultGetTabletInfosTimeout));
-            subrequest.Request = proxy.GetTabletInfo();
-            subrequest.Request->SetResponseHeavy(true);
+
+        auto [it, emplaced] = cellIdToTabletBatch.try_emplace(tabletInfo->CellId);
+        if (emplaced) {
+            cellIds.push_back(it->first);
         }
-        ToProto(subrequest.Request->add_tablet_ids(), tabletInfo->TabletId);
-        ToProto(subrequest.Request->add_cell_ids(), tabletInfo->CellId);
-        subrequest.Request->set_request_errors(options.RequestErrors);
-        subrequest.ResultIndexes.push_back(resultIndex);
+        it->second.TabletIds.push_back(tabletInfo->TabletId);
+        it->second.ResultIndexes.push_back(resultIndex);
     }
 
-    std::vector<TFuture<TQueryServiceProxy::TRspGetTabletInfoPtr>> asyncRspsOrErrors;
-    std::vector<const TSubrequest*> subrequests;
-    for (const auto& [cellId, subrequest] : cellIdToSubrequest) {
-        subrequests.push_back(&subrequest);
-        asyncRspsOrErrors.push_back(subrequest.Request->Invoke());
+    auto cellDescriptorsByPeer = GroupCellDescriptorsByPeer(Connection_, cellIds);
+
+    std::vector<TFuture<TQueryServiceProxy::TRspGetTabletInfoPtr>> futures;
+    futures.reserve(cellDescriptorsByPeer.size());
+    for (const auto& cellDescriptors : cellDescriptorsByPeer) {
+        auto channel = GetReadCellChannelOrThrow(cellDescriptors[0]);
+
+        TQueryServiceProxy proxy(channel);
+        proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultGetTabletInfosTimeout));
+
+        auto req = proxy.GetTabletInfo();
+        req->SetResponseHeavy(true);
+        for (const auto& cellDescriptor : cellDescriptors) {
+            auto cellId = cellDescriptor->CellId;
+            const auto& tabletBatch = GetOrCrash(cellIdToTabletBatch, cellId);
+            for (auto tabletId : tabletBatch.TabletIds) {
+                ToProto(req->add_tablet_ids(), tabletId);
+                ToProto(req->add_cell_ids(), cellId);
+            }
+        }
+
+        req->set_request_errors(options.RequestErrors);
+        futures.push_back(req->Invoke());
     }
 
-    auto rspsOrErrors = WaitFor(AllSucceeded(asyncRspsOrErrors))
+    auto responses = WaitFor(AllSucceeded(std::move(futures)))
         .ValueOrThrow();
 
     std::vector<TTabletInfo> results(tabletIndexes.size());
-    for (size_t subrequestIndex = 0; subrequestIndex < rspsOrErrors.size(); ++subrequestIndex) {
-        const auto& subrequest = *subrequests[subrequestIndex];
-        const auto& rsp = rspsOrErrors[subrequestIndex];
-        YT_VERIFY(rsp->tablets_size() == std::ssize(subrequest.ResultIndexes));
-        for (size_t resultIndexIndex = 0; resultIndexIndex < subrequest.ResultIndexes.size(); ++resultIndexIndex) {
-            auto& result = results[subrequest.ResultIndexes[resultIndexIndex]];
-            const auto& tabletInfo = rsp->tablets(static_cast<int>(resultIndexIndex));
-            result.TotalRowCount = tabletInfo.total_row_count();
-            result.TrimmedRowCount = tabletInfo.trimmed_row_count();
-            result.DelayedLocklessRowCount = tabletInfo.delayed_lockless_row_count();
-            result.BarrierTimestamp = tabletInfo.barrier_timestamp();
-            result.LastWriteTimestamp = tabletInfo.last_write_timestamp();
-            result.TableReplicaInfos = tabletInfo.replicas().empty()
-                ? std::nullopt
-                : std::make_optional(std::vector<TTabletInfo::TTableReplicaInfo>());
-            if (options.RequestErrors) {
-                FromProto(&result.TabletErrors, tabletInfo.tablet_errors());
-            }
+    for (int responseIndex = 0; responseIndex < std::ssize(responses); ++responseIndex) {
+        const auto& response = responses[responseIndex];
+        const auto& cellDescriptors = cellDescriptorsByPeer[responseIndex];
 
-            for (const auto& protoReplicaInfo : tabletInfo.replicas()) {
-                auto& currentReplica = result.TableReplicaInfos->emplace_back();
-                currentReplica.ReplicaId = FromProto<TGuid>(protoReplicaInfo.replica_id());
-                currentReplica.LastReplicationTimestamp = protoReplicaInfo.last_replication_timestamp();
-                currentReplica.Mode = CheckedEnumCast<ETableReplicaMode>(protoReplicaInfo.mode());
-                currentReplica.CurrentReplicationRowIndex = protoReplicaInfo.current_replication_row_index();
-                currentReplica.CommittedReplicationRowIndex = protoReplicaInfo.committed_replication_row_index();
-                if (options.RequestErrors && protoReplicaInfo.has_replication_error()) {
-                    FromProto(&currentReplica.ReplicationError, protoReplicaInfo.replication_error());
+        int indexInResponse = 0;
+        for (const auto& cellDescriptor : cellDescriptors) {
+            auto cellId = cellDescriptor->CellId;
+            const auto& tabletBatch = GetOrCrash(cellIdToTabletBatch, cellId);
+            for (int resultIndex : tabletBatch.ResultIndexes) {
+                auto& result = results[resultIndex];
+
+                const auto& tabletInfo = response->tablets(indexInResponse++);
+
+                result.TotalRowCount = tabletInfo.total_row_count();
+                result.TrimmedRowCount = tabletInfo.trimmed_row_count();
+                result.DelayedLocklessRowCount = tabletInfo.delayed_lockless_row_count();
+                result.BarrierTimestamp = tabletInfo.barrier_timestamp();
+                result.LastWriteTimestamp = tabletInfo.last_write_timestamp();
+                result.TableReplicaInfos = tabletInfo.replicas().empty()
+                    ? std::nullopt
+                    : std::make_optional(std::vector<TTabletInfo::TTableReplicaInfo>());
+                if (options.RequestErrors) {
+                    FromProto(&result.TabletErrors, tabletInfo.tablet_errors());
+                }
+
+                for (const auto& protoReplicaInfo : tabletInfo.replicas()) {
+                    auto& currentReplica = result.TableReplicaInfos->emplace_back();
+                    currentReplica.ReplicaId = FromProto<TGuid>(protoReplicaInfo.replica_id());
+                    currentReplica.LastReplicationTimestamp = protoReplicaInfo.last_replication_timestamp();
+                    currentReplica.Mode = CheckedEnumCast<ETableReplicaMode>(protoReplicaInfo.mode());
+                    currentReplica.CurrentReplicationRowIndex = protoReplicaInfo.current_replication_row_index();
+                    currentReplica.CommittedReplicationRowIndex = protoReplicaInfo.committed_replication_row_index();
+                    if (options.RequestErrors && protoReplicaInfo.has_replication_error()) {
+                        FromProto(&currentReplica.ReplicationError, protoReplicaInfo.replication_error());
+                    }
                 }
             }
         }
+
+        YT_VERIFY(indexInResponse == response->tablets_size());
     }
+
     return results;
 }
 
@@ -993,7 +1017,7 @@ TRowset TClient::DoLookupRowsOnce(
 
     std::vector<std::vector<TBatch>> batchesByCells;
     THashMap<TCellId, size_t> cellIdToBatchIndex;
-
+    std::vector<TCellId> cellIds;
 
     auto inMemoryMode = EInMemoryMode::None;
 
@@ -1048,9 +1072,10 @@ TRowset TClient::DoLookupRowsOnce(
 
             ValidateTabletMountedOrFrozen(tableInfo, startShard);
 
-            auto emplaced = cellIdToBatchIndex.emplace(startShard->CellId, batchesByCells.size());
-            if (emplaced.second) {
+            auto [it, emplaced] = cellIdToBatchIndex.emplace(startShard->CellId, batchesByCells.size());
+            if (emplaced) {
                 batchesByCells.emplace_back();
+                cellIds.push_back(it->first);
             }
 
             TBatch batch;
@@ -1076,7 +1101,7 @@ TRowset TClient::DoLookupRowsOnce(
             }
 
             batch.Keys = std::move(rows);
-            batchesByCells[emplaced.first->second].push_back(std::move(batch));
+            batchesByCells[it->second].push_back(std::move(batch));
         }
     }
 
@@ -1088,49 +1113,17 @@ TRowset TClient::DoLookupRowsOnce(
 
     auto* codec = NCompression::GetCodec(connectionConfig->LookupRowsRequestCodec);
 
-    const auto& cellDirectory = Connection_->GetCellDirectory();
+    auto cellDescriptorsByPeer = GroupCellDescriptorsByPeer(Connection_, cellIds);
+
     const auto& networks = Connection_->GetNetworks();
 
-    std::vector<std::vector<TCellId>> cellIdsByChannels;
-    THashMap<TString, int> channelIndexByAddress;
+    std::vector<TFuture<TQueryServiceProxy::TRspMultireadPtr>> multireadFutures;
+    multireadFutures.reserve(cellDescriptorsByPeer.size());
 
-    for (auto [cellId, cellIndex] : cellIdToBatchIndex) {
-        auto descriptor = cellDirectory->GetDescriptorOrThrow(cellId);
-
-        // Cells with multiple peers, as well as with zero peers, are not frequent.
-        // We do not coalesce them and allow each cell to pick its channel (possibly hedging)
-        // individually.
-        if (descriptor->Peers.size() != 1) {
-            cellIdsByChannels.push_back({cellId});
-            continue;
-        }
-
-        if (descriptor->Peers[0].IsNull()) {
-            THROW_ERROR_EXCEPTION(
-                NTabletClient::EErrorCode::CellHasNoAssignedPeers,
-                "Cell %v has no assigned peers",
-                cellId);
-        }
-
-        const auto& address = descriptor->Peers[0].GetAddressOrThrow(networks);
-        auto emplaced = channelIndexByAddress.emplace(
-            address,
-            cellIdsByChannels.size());
-
-        if (emplaced.second) {
-            cellIdsByChannels.emplace_back();
-        }
-
-        cellIdsByChannels[emplaced.first->second].push_back(cellId);
-    }
-
-    std::vector<TFuture<TQueryServiceProxy::TRspMultireadPtr>> asyncResults;
-    asyncResults.reserve(cellIdsByChannels.size());
-
-    for (const auto& cellIds : cellIdsByChannels) {
+    for (const auto& cellDescriptors : cellDescriptorsByPeer) {
         auto channel = CreateTabletReadChannel(
             ChannelFactory_,
-            *cellDirectory->GetDescriptorOrThrow(cellIds[0]),
+            *cellDescriptors[0],
             options,
             networks);
 
@@ -1140,7 +1133,7 @@ TRowset TClient::DoLookupRowsOnce(
         }
         if (timeout == TDuration::Zero()) {
             TError error(NYT::EErrorCode::Timeout, "Multiread request timed out before being run");
-            asyncResults.push_back(MakeFuture<TQueryServiceProxy::TRspMultireadPtr>(error));
+            multireadFutures.push_back(MakeFuture<TQueryServiceProxy::TRspMultireadPtr>(error));
             continue;
         }
 
@@ -1174,7 +1167,8 @@ TRowset TClient::DoLookupRowsOnce(
             req->set_retention_config(*retentionConfig);
         }
 
-        for (auto cellId : cellIds) {
+        for (const auto& cellDescriptor : cellDescriptors) {
+            auto cellId = cellDescriptor->CellId;
             int batchIndex = cellIdToBatchIndex[cellId];
             for (const auto& batch : batchesByCells[batchIndex]) {
                 ToProto(req->add_cell_ids(), cellId);
@@ -1188,10 +1182,10 @@ TRowset TClient::DoLookupRowsOnce(
         auto* ext = req->Header().MutableExtension(NQueryClient::NProto::TReqMultireadExt::req_multiread_ext);
         ext->set_in_memory_mode(ToProto<int>(inMemoryMode));
 
-        asyncResults.push_back(req->Invoke());
+        multireadFutures.push_back(req->Invoke());
     }
 
-    auto results = WaitFor(AllSet(std::move(asyncResults)))
+    auto results = WaitFor(AllSet(std::move(multireadFutures)))
         .ValueOrThrow();
 
     if (!options.EnablePartialResult && options.DetailedProfilingInfo) {
@@ -1218,7 +1212,8 @@ TRowset TClient::DoLookupRowsOnce(
         const auto& result = results[channelIndex].ValueOrThrow();
 
         int batchOffset = 0;
-        for (auto cellId : cellIdsByChannels[channelIndex]) {
+        for (const auto& cellDescriptor : cellDescriptorsByPeer[channelIndex]) {
+            auto cellId = cellDescriptor->CellId;
             const auto& batches = batchesByCells[cellIdToBatchIndex[cellId]];
             for (int localBatchIndex = 0; localBatchIndex < ssize(batches); ++localBatchIndex) {
                 const auto& attachment = result->Attachments()[batchOffset + localBatchIndex];

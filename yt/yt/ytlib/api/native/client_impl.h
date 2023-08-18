@@ -835,6 +835,7 @@ private:
     std::unique_ptr<TProxy> CreateWriteProxy(
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel);
     NRpc::IChannelPtr GetReadCellChannelOrThrow(NObjectClient::TCellId cellId);
+    NRpc::IChannelPtr GetReadCellChannelOrThrow(const NHiveClient::TCellDescriptorPtr& cellDescriptor);
     NRpc::IChannelPtr GetHydraAdminChannelOrThrow(NObjectClient::TCellId cellId);
     NHiveClient::TCellDescriptorPtr GetCellDescriptorOrThrow(NObjectClient::TCellId cellId);
     std::vector<TString> GetCellAddressesOrThrow(NObjectClient::TCellId cellId);

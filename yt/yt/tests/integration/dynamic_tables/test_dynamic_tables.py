@@ -41,6 +41,7 @@ from flaky import flaky
 from collections import Counter
 import time
 import builtins
+from random import shuffle
 
 ##################################################################
 
@@ -3056,6 +3057,29 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert get(f"//sys/tablets/{tablet_id}/orchid/remount_count") == 0
         remount_table("//tmp/t")
         wait(lambda: get(f"//sys/tablets/{tablet_id}/orchid/remount_count") == 2)
+
+    @authors("akozhikhov")
+    def test_batched_get_tablet_infos(self):
+        cell_ids = sync_create_cells(22)
+        node_addresses = [get("#{}/@peers/0/address".format(cell_id)) for cell_id in cell_ids]
+        slots_per_node = 4
+        assert len(builtins.set(node_addresses)) > (22 // slots_per_node)
+
+        self._create_ordered_table("//tmp/t")
+        sync_reshard_table("//tmp/t", 22)
+        for i in range(22):
+            sync_mount_table("//tmp/t", first_tablet_index=i, last_tablet_index=i, cell_id=cell_ids[i])
+
+        for i in range(22):
+            rows = [{"$tablet_index": i, "key": j, "value": str(j)} for j in range(i)]
+            insert_rows("//tmp/t", rows)
+
+        tablet_indexes = list(range(22))
+        shuffle(tablet_indexes)
+        tablet_infos = get_tablet_infos("//tmp/t", tablet_indexes)
+        assert len(tablet_infos["tablets"]) == 22
+        for i in range(22):
+            assert tablet_infos["tablets"][i]["total_row_count"] == tablet_indexes[i]
 
 
 ##################################################################
