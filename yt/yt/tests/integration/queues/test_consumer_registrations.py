@@ -1,4 +1,4 @@
-from .test_queue_agent import ReplicatedObjectBase, TestQueueAgentBase, CypressSynchronizerOrchid
+from yt_queue_agent_test_base import (TestQueueAgentBase, ReplicatedObjectBase, CypressSynchronizerOrchid)
 
 from yt_commands import (authors, wait, get, set, create, sync_mount_table, get_driver, select_rows, print_debug, link,
                          check_permission, register_queue_consumer, unregister_queue_consumer, commit_transaction,
