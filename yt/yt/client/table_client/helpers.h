@@ -159,13 +159,13 @@ void ToUnversionedValue(
     const T& value,
     const TRowBufferPtr& rowBuffer,
     int id = 0,
-    EValueFlags flags = EValueFlags::None,
-    typename std::enable_if<std::is_convertible<T*, ::google::protobuf::Message*>::value, void>::type* = nullptr);
+    EValueFlags flags = EValueFlags::None)
+    requires std::is_convertible<T*, ::google::protobuf::Message*>::value;
 template <class T>
 void FromUnversionedValue(
     T* value,
-    TUnversionedValue unversionedValue,
-    typename std::enable_if<std::is_convertible<T*, ::google::protobuf::Message*>::value, void>::type* = nullptr);
+    TUnversionedValue unversionedValue)
+    requires std::is_convertible<T*, ::google::protobuf::Message*>::value;
 
 template <class T>
 void ToUnversionedValue(
@@ -189,13 +189,13 @@ void ToUnversionedValue(
 template <class T>
 void FromUnversionedValue(
     std::vector<T>* values,
-    TUnversionedValue unversionedValue,
-    typename std::enable_if<std::is_convertible<T*, ::google::protobuf::Message*>::value, void>::type* = nullptr);
+    TUnversionedValue unversionedValue)
+    requires std::is_convertible<T*, ::google::protobuf::Message*>::value;
 template <class T>
 void FromUnversionedValue(
     std::vector<T>* values,
-    TUnversionedValue unversionedValue,
-    typename std::enable_if<TUnversionedValueConversionTraits<T>::Scalar, void>::type* = nullptr);
+    TUnversionedValue unversionedValue)
+    requires TUnversionedValueConversionTraits<T>::Scalar;
 
 template <class TKey, class TValue>
 void ToUnversionedValue(
@@ -207,8 +207,8 @@ void ToUnversionedValue(
 template <class TKey, class TValue>
 void FromUnversionedValue(
     THashMap<TKey, TValue>* map,
-    TUnversionedValue unversionedValue,
-    typename std::enable_if<std::is_convertible<TValue*, ::google::protobuf::Message*>::value, void>::type* = nullptr);
+    TUnversionedValue unversionedValue)
+    requires std::is_convertible<TValue*, ::google::protobuf::Message*>::value;
 
 //! Values get sequential ids 0..N-1 (unless wrapped into TValueWithId).
 template <class... Ts>

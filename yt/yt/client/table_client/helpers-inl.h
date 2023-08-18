@@ -13,6 +13,8 @@
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
+#include <library/cpp/yt/misc/strong_typedef.h>
+
 #include <array>
 
 namespace NYT::NTableClient {
@@ -72,14 +74,21 @@ struct TUnversionedValueConversionTraits<T>
 };
 
 template <class T>
-struct TUnversionedValueConversionTraits<std::optional<T>, void>
+struct TUnversionedValueConversionTraits<std::optional<T>>
+{
+    static constexpr bool Scalar = TUnversionedValueConversionTraits<T>::Scalar;
+    static constexpr bool Inline = TUnversionedValueConversionTraits<T>::Inline;
+};
+
+template <class T, class TTag>
+struct TUnversionedValueConversionTraits<TStrongTypedef<T, TTag>>
 {
     static constexpr bool Scalar = TUnversionedValueConversionTraits<T>::Scalar;
     static constexpr bool Inline = TUnversionedValueConversionTraits<T>::Inline;
 };
 
 template <class T>
-struct TUnversionedValueConversionTraits<TAnnotatedValue<T>, void>
+struct TUnversionedValueConversionTraits<TAnnotatedValue<T>>
 {
     static constexpr bool Scalar = TUnversionedValueConversionTraits<T>::Scalar;
     static constexpr bool Inline = TUnversionedValueConversionTraits<T>::Inline;
@@ -176,8 +185,8 @@ void ToUnversionedValue(
     const T& value,
     const TRowBufferPtr& rowBuffer,
     int id,
-    EValueFlags flags,
-    typename std::enable_if<std::is_convertible<T*, google::protobuf::Message*>::value, void>::type*)
+    EValueFlags flags)
+    requires std::is_convertible<T*, google::protobuf::Message*>::value
 {
     ProtobufToUnversionedValueImpl(
         unversionedValue,
@@ -198,8 +207,8 @@ void UnversionedValueToProtobufImpl(
 template <class T>
 void FromUnversionedValue(
     T* value,
-    TUnversionedValue unversionedValue,
-    typename std::enable_if<std::is_convertible<T*, google::protobuf::Message*>::value, void>::type*)
+    TUnversionedValue unversionedValue)
+    requires std::is_convertible<T*, google::protobuf::Message*>::value
 {
     UnversionedValueToProtobufImpl(
         value,
@@ -235,6 +244,27 @@ void FromUnversionedValue(
         value->emplace();
         FromUnversionedValue(&**value, unversionedValue);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T, class TTag>
+void ToUnversionedValue(
+    TUnversionedValue* unversionedValue,
+    const TStrongTypedef<T, TTag>& value,
+    const TRowBufferPtr& rowBuffer,
+    int id,
+    EValueFlags flags)
+{
+    ToUnversionedValue(unversionedValue, value.Underlying(), rowBuffer, id, flags);
+}
+
+template <class T, class TTag>
+void FromUnversionedValue(
+    TStrongTypedef<T, TTag>* value,
+    TUnversionedValue unversionedValue)
+{
+    FromUnversionedValue(&value->Underlying(), unversionedValue);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -316,8 +346,8 @@ void UnversionedValueToListImpl(
 template <class T>
 void FromUnversionedValue(
     std::vector<T>* values,
-    TUnversionedValue unversionedValue,
-    typename std::enable_if<std::is_convertible<T*, google::protobuf::Message*>::value, void>::type*)
+    TUnversionedValue unversionedValue)
+    requires std::is_convertible<T*, google::protobuf::Message*>::value
 {
     values->clear();
     UnversionedValueToListImpl(
@@ -336,8 +366,8 @@ void UnversionedValueToListImpl(
 template <class T>
 void FromUnversionedValue(
     std::vector<T>* values,
-    TUnversionedValue unversionedValue,
-    typename std::enable_if<TUnversionedValueConversionTraits<T>::Scalar, void>::type*)
+    TUnversionedValue unversionedValue)
+    requires TUnversionedValueConversionTraits<T>::Scalar
 {
     values->clear();
     UnversionedValueToListImpl(
@@ -390,8 +420,8 @@ void UnversionedValueToMapImpl(
 template <class TKey, class TValue>
 void FromUnversionedValue(
     THashMap<TKey, TValue>* map,
-    TUnversionedValue unversionedValue,
-    typename std::enable_if<std::is_convertible<TValue*, ::google::protobuf::Message*>::value, void>::type*)
+    TUnversionedValue unversionedValue)
+    requires std::is_convertible<TValue*, ::google::protobuf::Message*>::value
 {
     map->clear();
     UnversionedValueToMapImpl(
