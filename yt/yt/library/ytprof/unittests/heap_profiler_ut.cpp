@@ -95,14 +95,7 @@ TEST(HeapProfiler, ReadProfile)
 
 TEST(HeapProfiler, AllocationTagsWithMemoryTag)
 {
-    absl::SetStackUnwinder(AbslStackUnwinder);
-    tcmalloc::MallocExtension::SetProfileSamplingRate(256_KB);
-
-    auto token = tcmalloc::MallocExtension::StartAllocationProfiling();
-
-    EnableMemoryProfilingTags();
-    auto traceContext = TTraceContext::NewRoot("Root");
-    TTraceContextGuard guard(traceContext);
+    auto maxDifference = 6_MB;
 
     enum EMemoryTags {
         MT_0 = NullMemoryTag,
@@ -114,6 +107,10 @@ TEST(HeapProfiler, AllocationTagsWithMemoryTag)
         MT_6,
         MT_7
     };
+
+    EnableMemoryProfilingTags();
+    auto traceContext = TTraceContext::NewRoot("Root");
+    TTraceContextGuard guard(traceContext);
 
     ASSERT_EQ(traceContext->FindAllocationTag<TMemoryTag>(MemoryTagLiteral), std::nullopt);
     traceContext->SetAllocationTags({{"user", "first user"}, {NTracing::MemoryTagLiteral, ToString(0)}});
@@ -131,8 +128,8 @@ TEST(HeapProfiler, AllocationTagsWithMemoryTag)
     traceContext->SetAllocationTag<TMemoryTag>(MemoryTagLiteral, MT_0);
 
     auto usage1 = GetEstimatedMemoryUsage()[MT_1];
-    ASSERT_GE(usage1, 9_MB);
-    ASSERT_LE(usage1, 16_MB);
+
+    ASSERT_NEAR(usage1, 10_MB, maxDifference);
 
     traceContext->SetAllocationTag<TMemoryTag>(MemoryTagLiteral, MT_2);
     ASSERT_EQ(traceContext->FindAllocationTag<TMemoryTag>(MemoryTagLiteral), MT_2);
@@ -174,13 +171,12 @@ TEST(HeapProfiler, AllocationTagsWithMemoryTag)
     traceContext->SetAllocationTag<TMemoryTag>(MemoryTagLiteral, MT_0);
 
     auto usage = GetEstimatedMemoryUsage();
-    auto maxDifference = 5_MB;
+
     ASSERT_NEAR(usage[MT_1], usage[MT_3], maxDifference);
     ASSERT_NEAR(usage[MT_3], usage[MT_5], maxDifference);
     ASSERT_NEAR(usage[MT_1], usage[MT_5], maxDifference);
-    ASSERT_GE(usage[MT_4], 19_MB);
-    ASSERT_LE(usage[MT_4], 27_MB);
-    ASSERT_NEAR(usage[MT_4], usage[MT_1] +  usage[MT_5], 4_MB);
+    ASSERT_NEAR(usage[MT_4], 20_MB, 2 * maxDifference);
+    ASSERT_NEAR(usage[MT_4], usage[MT_1] +  usage[MT_5], maxDifference);
 }
 
 template <size_t Index>
@@ -196,20 +192,15 @@ Y_NO_INLINE auto BlowHeap(int64_t megabytes)
 
 TEST(HeapProfiler, HugeAllocationsTagsWithMemoryTag)
 {
-    absl::SetStackUnwinder(AbslStackUnwinder);
-    tcmalloc::MallocExtension::SetProfileSamplingRate(256_KB);
-
-    auto token = tcmalloc::MallocExtension::StartAllocationProfiling();
-
-    EnableMemoryProfilingTags();
-    auto traceContext = TTraceContext::NewRoot("Root");
-    TCurrentTraceContextGuard guard(traceContext);
-
     enum EMemoryTags {
         MT_0 = NullMemoryTag,
         MT_1,
         MT_2
     };
+
+    EnableMemoryProfilingTags();
+    auto traceContext = TTraceContext::NewRoot("Root");
+    TCurrentTraceContextGuard guard(traceContext);
 
     std::vector<std::vector<TString>> heap;
 
