@@ -235,6 +235,18 @@ get_built_tool_path(
   contrib/tools/protoc/plugins/cpp_styleguide
   cpp_styleguide
 )
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
+)
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
 
 add_library(yt_proto-yt-client)
 target_include_directories(yt_proto-yt-client PUBLIC
@@ -257,6 +269,7 @@ target_proto_messages(yt_proto-yt-client PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt_proto/yt/client/chunk_client/proto/read_limit.proto
   ${CMAKE_SOURCE_DIR}/yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.proto
   ${CMAKE_SOURCE_DIR}/yt/yt_proto/yt/client/chunk_client/proto/confirm_chunk_replica_info.proto
+  ${CMAKE_SOURCE_DIR}/yt/yt_proto/yt/client/discovery_client/proto/discovery_client_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt_proto/yt/client/hive/proto/timestamp_map.proto
   ${CMAKE_SOURCE_DIR}/yt/yt_proto/yt/client/hive/proto/cluster_directory.proto
   ${CMAKE_SOURCE_DIR}/yt/yt_proto/yt/client/node_tracker_client/proto/node.proto

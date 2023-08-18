@@ -2,7 +2,7 @@
 
 #include <yt/yt/core/rpc/client.h>
 
-#include <yt/yt/ytlib/discovery_client/proto/discovery_client_service.pb.h>
+#include <yt/yt_proto/yt/client/discovery_client/proto/discovery_client_service.pb.h>
 
 namespace NYT::NDiscoveryClient {
 

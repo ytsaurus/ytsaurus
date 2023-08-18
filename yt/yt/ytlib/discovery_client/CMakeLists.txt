@@ -6,18 +6,6 @@
 # original buildsystem will not be accepted.
 
 
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
 
 add_library(yt-ytlib-discovery_client)
 target_compile_options(yt-ytlib-discovery_client PRIVATE
@@ -34,9 +22,6 @@ target_link_libraries(yt-ytlib-discovery_client PUBLIC
   yt-yt-core
   yt-yt-client
 )
-target_proto_messages(yt-ytlib-discovery_client PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/discovery_client/proto/discovery_client_service.proto
-)
 target_sources(yt-ytlib-discovery_client PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/discovery_client/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/discovery_client/discovery_client.cpp
@@ -44,19 +29,4 @@ target_sources(yt-ytlib-discovery_client PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/discovery_client/member_client.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/discovery_client/public.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/discovery_client/request_session.cpp
-)
-target_proto_addincls(yt-ytlib-discovery_client
-  ./yt
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${CMAKE_SOURCE_DIR}/yt
-  ${CMAKE_BINARY_DIR}
-  ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
-)
-target_proto_outs(yt-ytlib-discovery_client
-  --cpp_out=${CMAKE_BINARY_DIR}/yt
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/yt
 )

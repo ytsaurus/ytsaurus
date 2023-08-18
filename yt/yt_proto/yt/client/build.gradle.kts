@@ -40,6 +40,7 @@ val prepareProto = tasks.register<Copy>("prepareProto") {
         include("yt/yt_proto/yt/client/chunk_client/proto/read_limit.proto")
         include("yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.proto")
         include("yt/yt_proto/yt/client/chunk_client/proto/confirm_chunk_replica_info.proto")
+        include("yt/yt_proto/yt/client/discovery_client/proto/discovery_client_service.proto")
         include("yt/yt_proto/yt/client/hive/proto/timestamp_map.proto")
         include("yt/yt_proto/yt/client/hive/proto/cluster_directory.proto")
         include("yt/yt_proto/yt/client/node_tracker_client/proto/node.proto")
