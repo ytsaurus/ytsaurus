@@ -3,12 +3,11 @@
 // Copyright (c) 2007-2022 Barend Gehrels, Amsterdam, the Netherlands.
 // Copyright (c) 2008-2012 Bruno Lalande, Paris, France.
 // Copyright (c) 2009-2012 Mateusz Loskot, London, UK.
-// Copyright (c) 2017 Adam Wulkiewicz, Lodz, Poland.
+// Copyright (c) 2017-2023 Adam Wulkiewicz, Lodz, Poland.
 // Copyright (c) 2020 Baidyanath Kundu, Haldia, India
 
 // This file was modified by Oracle on 2014-2021.
 // Modifications copyright (c) 2014-2021 Oracle and/or its affiliates.
-
 // Contributed and/or modified by Adam Wulkiewicz, on behalf of Oracle
 
 // Parts of Boost.Geometry are redesigned from Geodan's Geographic Library
@@ -24,14 +23,13 @@
 #include <cstddef>
 #include <string>
 
+#include <boost/algorithm/string/predicate.hpp>
 #include <boost/lexical_cast.hpp>
-#include <boost/tokenizer.hpp>
-
-#include <boost/algorithm/string.hpp>
 #include <boost/range/begin.hpp>
 #include <boost/range/end.hpp>
 #include <boost/range/size.hpp>
 #include <boost/range/value_type.hpp>
+#include <boost/tokenizer.hpp>
 #include <boost/throw_exception.hpp>
 
 #include <boost/geometry/algorithms/assign.hpp>
@@ -754,7 +752,7 @@ struct box_parser
     {
         auto const tokens{make_tokenizer(wkt)};
         auto it = tokens.begin();
-        auto end = tokens.end();
+        auto const end = tokens.end();
 
         apply(it, end, wkt, box);
 
@@ -835,7 +833,7 @@ struct segment_parser
     {
         auto const tokens{make_tokenizer(wkt)};
         auto it = tokens.begin();
-        auto end = tokens.end();
+        auto const end = tokens.end();
 
         apply(it, end, wkt, segment);
 
@@ -1122,7 +1120,7 @@ struct read_wkt<DynamicGeometry, dynamic_geometry_tag>
     {
         auto tokens{detail::wkt::make_tokenizer(wkt)};
         auto it = tokens.begin();
-        auto end = tokens.end();
+        auto const end = tokens.end();
         if (it == end)
         {
             BOOST_THROW_EXCEPTION(read_wkt_exception(

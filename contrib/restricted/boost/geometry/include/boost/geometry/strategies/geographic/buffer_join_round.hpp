@@ -1,6 +1,7 @@
 // Boost.Geometry
 
 // Copyright (c) 2022 Barend Gehrels, Amsterdam, the Netherlands.
+// Copyright (c) 2023 Adam Wulkiewicz, Lodz, Poland.
 
 // Use, modification and distribution is subject to the Boost Software License,
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
@@ -55,7 +56,7 @@ public :
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
     //! Fills output_range with a rounded shape around a vertex
     template <typename Point, typename DistanceType, typename RangeOut>
-    inline bool apply(Point const& /* ip */, Point const& vertex,
+    inline bool apply(Point const& /*ip*/, Point const& vertex,
                       Point const& perp1, Point const& perp2,
                       DistanceType const& buffer_distance,
                       RangeOut& range_out) const

@@ -82,8 +82,8 @@ inline void cleanup_clusters(Turns& turns, Clusters& clusters)
     for (auto& pair : clusters)
     {
         auto& cinfo = pair.second;
-        auto& ids = cinfo.turn_indices;
-        for (auto sit = ids.begin(); sit != ids.end(); /* no increment */)
+        auto& indices = cinfo.turn_indices;
+        for (auto sit = indices.begin(); sit != indices.end(); /* no increment */)
         {
             auto current_it = sit;
             ++sit;
@@ -91,7 +91,7 @@ inline void cleanup_clusters(Turns& turns, Clusters& clusters)
             auto const turn_index = *current_it;
             if (turns[turn_index].discarded)
             {
-                ids.erase(current_it);
+                indices.erase(current_it);
             }
         }
     }
@@ -100,14 +100,14 @@ inline void cleanup_clusters(Turns& turns, Clusters& clusters)
     colocate_clusters(clusters, turns);
 }
 
-template <typename Turn, typename IdSet>
-inline void discard_colocated_turn(Turn& turn, IdSet& ids, signed_size_type id)
+template <typename Turn, typename IndexSet>
+inline void discard_colocated_turn(Turn& turn, IndexSet& indices, signed_size_type index)
 {
     turn.discarded = true;
     // Set cluster id to -1, but don't clear colocated flags
     turn.cluster_id = -1;
     // To remove it later from clusters
-    ids.insert(id);
+    indices.insert(index);
 }
 
 template <bool Reverse>
@@ -167,22 +167,17 @@ template
 >
 inline void discard_interior_exterior_turns(Turns& turns, Clusters& clusters)
 {
-    typedef std::set<signed_size_type>::const_iterator set_iterator;
-    typedef typename boost::range_value<Turns>::type turn_type;
+    std::set<signed_size_type> indices_to_remove;
 
-    std::set<signed_size_type> ids_to_remove;
-
-    for (typename Clusters::iterator cit = clusters.begin();
-         cit != clusters.end(); ++cit)
+    for (auto& pair : clusters)
     {
-        cluster_info& cinfo = cit->second;
-        std::set<signed_size_type>& ids = cinfo.turn_indices;
+        cluster_info& cinfo = pair.second;
 
-        ids_to_remove.clear();
+        indices_to_remove.clear();
 
-        for (set_iterator it = ids.begin(); it != ids.end(); ++it)
+        for (auto index : cinfo.turn_indices)
         {
-            turn_type& turn = turns[*it];
+            auto& turn = turns[index];
             segment_identifier const& seg_0 = turn.operations[0].seg_id;
             segment_identifier const& seg_1 = turn.operations[1].seg_id;
 
@@ -193,34 +188,33 @@ inline void discard_interior_exterior_turns(Turns& turns, Clusters& clusters)
                 continue;
             }
 
-            for (set_iterator int_it = ids.begin(); int_it != ids.end(); ++int_it)
+            for (auto interior_index : cinfo.turn_indices)
             {
-                if (*it == *int_it)
+                if (index == interior_index)
                 {
                     continue;
                 }
 
                 // Turn with, possibly, an interior ring involved
-                turn_type& int_turn = turns[*int_it];
-                segment_identifier const& int_seg_0 = int_turn.operations[0].seg_id;
-                segment_identifier const& int_seg_1 = int_turn.operations[1].seg_id;
+                auto& interior_turn = turns[interior_index];
+                segment_identifier const& int_seg_0 = interior_turn.operations[0].seg_id;
+                segment_identifier const& int_seg_1 = interior_turn.operations[1].seg_id;
 
                 if (is_ie_turn<Reverse0, Reverse1>(seg_0, seg_1, int_seg_0, int_seg_1))
                 {
-                    discard_colocated_turn(int_turn, ids_to_remove, *int_it);
+                    discard_colocated_turn(interior_turn, indices_to_remove, interior_index);
                 }
                 if (is_ie_turn<Reverse1, Reverse0>(seg_1, seg_0, int_seg_1, int_seg_0))
                 {
-                    discard_colocated_turn(int_turn, ids_to_remove, *int_it);
+                    discard_colocated_turn(interior_turn, indices_to_remove, interior_index);
                 }
             }
         }
 
-        // Erase from the ids (which cannot be done above)
-        for (set_iterator sit = ids_to_remove.begin();
-             sit != ids_to_remove.end(); ++sit)
+        // Erase from the indices (which cannot be done above)
+        for (auto index : indices_to_remove)
         {
-            ids.erase(*sit);
+            cinfo.turn_indices.erase(index);
         }
     }
 }
@@ -233,19 +227,14 @@ template
 >
 inline void set_colocation(Turns& turns, Clusters const& clusters)
 {
-    typedef std::set<signed_size_type>::const_iterator set_iterator;
-    typedef typename boost::range_value<Turns>::type turn_type;
-
-    for (typename Clusters::const_iterator cit = clusters.begin();
-         cit != clusters.end(); ++cit)
+    for (auto const& pair : clusters)
     {
-        cluster_info const& cinfo = cit->second;
-        std::set<signed_size_type> const& ids = cinfo.turn_indices;
+        cluster_info const& cinfo = pair.second;
 
         bool both_target = false;
-        for (set_iterator it = ids.begin(); it != ids.end(); ++it)
+        for (auto index : cinfo.turn_indices)
         {
-            turn_type const& turn = turns[*it];
+            auto const& turn = turns[index];
             if (turn.both(operation_from_overlay<OverlayType>::value))
             {
                 both_target = true;
@@ -255,9 +244,9 @@ inline void set_colocation(Turns& turns, Clusters const& clusters)
 
         if (both_target)
         {
-            for (set_iterator it = ids.begin(); it != ids.end(); ++it)
+            for (auto index : cinfo.turn_indices)
             {
-                turn_type& turn = turns[*it];
+                auto& turn = turns[index];
                 turn.has_colocated_both = true;
             }
         }
@@ -276,7 +265,7 @@ inline void check_colocation(bool& has_blocked,
 
     has_blocked = false;
 
-    typename Clusters::const_iterator mit = clusters.find(cluster_id);
+    auto mit = clusters.find(cluster_id);
     if (mit == clusters.end())
     {
         return;
@@ -284,11 +273,9 @@ inline void check_colocation(bool& has_blocked,
 
     cluster_info const& cinfo = mit->second;
 
-    for (std::set<signed_size_type>::const_iterator it
-         = cinfo.turn_indices.begin();
-         it != cinfo.turn_indices.end(); ++it)
+    for (auto index : cinfo.turn_indices)
     {
-        turn_type const& turn = turns[*it];
+        turn_type const& turn = turns[index];
         if (turn.any_blocked())
         {
             has_blocked = true;
@@ -410,21 +397,15 @@ inline bool fill_sbs(Sbs& sbs, Point& turn_point,
                      Turns const& turns,
                      Geometry1 const& geometry1, Geometry2 const& geometry2)
 {
-    typedef typename boost::range_value<Turns>::type turn_type;
-
-    std::set<signed_size_type> const& ids = cinfo.turn_indices;
-
-    if (ids.empty())
+    if (cinfo.turn_indices.empty())
     {
         return false;
     }
 
     bool first = true;
-    for (std::set<signed_size_type>::const_iterator sit = ids.begin();
-         sit != ids.end(); ++sit)
+    for (auto turn_index : cinfo.turn_indices)
     {
-        signed_size_type turn_index = *sit;
-        turn_type const& turn = turns[turn_index];
+        auto const& turn = turns[turn_index];
         if (first)
         {
             turn_point = turn.point;
@@ -464,10 +445,9 @@ inline void gather_cluster_properties(Clusters& clusters, Turns& turns,
             Reverse1, Reverse2, OverlayType, point_type, SideStrategy, std::less<int>
         > sbs_type;
 
-    for (typename Clusters::iterator mit = clusters.begin();
-         mit != clusters.end(); ++mit)
+    for (auto& pair : clusters)
     {
-        cluster_info& cinfo = mit->second;
+        cluster_info& cinfo = pair.second;
 
         sbs_type sbs(strategy);
         point_type turn_point; // should be all the same for all turns in cluster

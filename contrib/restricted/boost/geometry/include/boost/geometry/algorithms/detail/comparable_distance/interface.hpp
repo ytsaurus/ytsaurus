@@ -79,7 +79,7 @@ struct comparable_distance<Strategy, false>
             <
                 decltype(strategy_converter<Strategy>::get(strategy))
             >;
-        
+
         return dispatch::distance
             <
                 Geometry1, Geometry2,

@@ -1,6 +1,7 @@
 // Boost.Geometry (aka GGL, Generic Geometry Library)
 
 // Copyright (c) 2012-2015 Barend Gehrels, Amsterdam, the Netherlands.
+// Copyright (c) 2023 Adam Wulkiewicz, Lodz, Poland.
 
 // This file was modified by Oracle on 2015.
 // Modifications copyright (c) 2015, Oracle and/or its affiliates.
@@ -122,7 +123,7 @@ public :
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
     //! Fills output_range with a rounded shape around a vertex
     template <typename Point, typename DistanceType, typename RangeOut>
-    inline bool apply(Point const& /* ip */, Point const& vertex,
+    inline bool apply(Point const& ip, Point const& vertex,
                 Point const& perp1, Point const& perp2,
                 DistanceType const& buffer_distance,
                 RangeOut& range_out) const
@@ -143,6 +144,7 @@ public :
         geometry::equal_to<Point> equals;
         if (equals(perp1, perp2))
         {
+            boost::ignore_unused(ip);
 #ifdef BOOST_GEOMETRY_DEBUG_BUFFER_WARN
             std::cout << "Corner for equal points " << geometry::wkt(ip) << " " << geometry::wkt(perp1) << std::endl;
 #endif
