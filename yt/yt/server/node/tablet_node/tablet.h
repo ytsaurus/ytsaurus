@@ -12,6 +12,8 @@
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
+#include <yt/yt/server/master/table_server/public.h>
+
 #include <yt/yt/server/lib/lsm/statistics.h>
 
 #include <yt/yt/server/lib/tablet_node/table_settings.h>
@@ -187,6 +189,9 @@ struct TTabletSnapshot
     TLegacyOwningKey NextPivotKey;
     NTableClient::TTableSchemaPtr PhysicalSchema;
     NTableClient::TTableSchemaPtr QuerySchema;
+    // Chunk and table schemas here are identical, since in order to change it, tablet needs to be unmounted,
+    // and if it is unmounted then a new chunk can't be written.
+    NTableClient::TMasterTableSchemaId SchemaId;
     NTableClient::TSchemaData TableSchemaData;
     NTableClient::TSchemaData KeysSchemaData;
     NTransactionClient::EAtomicity Atomicity;

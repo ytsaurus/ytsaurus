@@ -12,6 +12,8 @@
 
 #include <yt/yt/server/master/table_server/table_manager.h>
 
+#include "private.h"
+
 namespace NYT::NTableServer {
 
 using namespace NCellMaster;
@@ -46,6 +48,7 @@ void TMasterTableSchema::Save(NCellMaster::TSaveContext& context) const
 
     Save(context, *TableSchema_);
     Save(context, CellTagToExportCount_);
+    Save(context, ReferencingAccounts_);
 }
 
 void TMasterTableSchema::Load(NCellMaster::TLoadContext& context)
@@ -84,6 +87,10 @@ void TMasterTableSchema::Load(NCellMaster::TLoadContext& context)
         } else {
             Load(context, CellTagToExportCount_);
         }
+    }
+
+    if (context.GetVersion() >= EMasterReign::AddChunkSchemas) {
+        Load(context, ReferencingAccounts_);
     }
 }
 
@@ -130,26 +137,30 @@ TYsonString TMasterTableSchema::AsYsonSync() const
     return NYson::ConvertToYsonString(*AsTableSchema());
 }
 
-bool TMasterTableSchema::RefBy(TAccount* account)
+bool TMasterTableSchema::RefBy(TAccount* account, int delta)
 {
-    YT_VERIFY(IsObjectAlive(account));
+    YT_VERIFY(delta > 0);
 
-    return ++ReferencingAccounts_[account] == 1;
+    auto [it, inserted] = ReferencingAccounts_.emplace(std::move(TAccountPtr(account)), delta);
+    if (!inserted) {
+        it->second += delta;
+    }
+    return inserted;
 }
 
-bool TMasterTableSchema::UnrefBy(TAccount* account)
+bool TMasterTableSchema::UnrefBy(TAccount* account, int delta)
 {
-    YT_VERIFY(IsObjectAlive(account));
+    YT_VERIFY(delta > 0);
 
-    auto it = ReferencingAccounts_.find(account);
-    YT_VERIFY(it != ReferencingAccounts_.end());
-    if (--it->second == 0) {
+    auto it = GetIteratorOrCrash(ReferencingAccounts_, account);
+    it->second -= delta;
+    if (it->second == 0) {
         ReferencingAccounts_.erase(it);
         return true;
-    } else {
-        YT_VERIFY(it->second > 0);
-        return false;
     }
+
+    YT_VERIFY(it->second > 0);
+    return false;
 }
 
 bool TMasterTableSchema::IsExported(TCellTag cellTag) const
@@ -189,11 +200,12 @@ void TMasterTableSchema::SetChargedMasterMemoryUsage(TAccount* account, i64 usag
 {
     if (usage == 0) {
         ChargedMasterMemoryUsage_.erase(account);
-    } else {
-        auto [it, inserted] = ChargedMasterMemoryUsage_.insert({account, usage});
-        if (!inserted) {
-            it->second = usage;
-        }
+        return;
+    }
+
+    auto [it, inserted] = ChargedMasterMemoryUsage_.emplace(account, usage);
+    if (!inserted) {
+        it->second = usage;
     }
 }
 

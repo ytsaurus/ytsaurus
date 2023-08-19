@@ -395,6 +395,8 @@ DEFINE_ENUM(ESchemaCompatibility,
     (FullyCompatible)
 );
 
+static constexpr TMasterTableSchemaId NullTableSchemaId = TMasterTableSchemaId();
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient

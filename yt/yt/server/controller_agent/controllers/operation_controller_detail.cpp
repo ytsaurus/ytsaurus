@@ -2815,8 +2815,11 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
                     SetTransactionId(req, table->UploadTransactionId);
                     GenerateMutationId(req);
                     *req->mutable_statistics() = table->DataStatistics;
-                    ToProto(req->mutable_table_schema(), table->TableUploadOptions.TableSchema);
+
+                    // COMPAT(h0pless): remove this when masters will receive schema in BeginUpload.
+                    ToProto(req->mutable_table_schema(), table->TableUploadOptions.TableSchema.Get());
                     req->set_schema_mode(ToProto<int>(table->TableUploadOptions.SchemaMode));
+
                     req->set_optimize_for(ToProto<int>(table->TableUploadOptions.OptimizeFor));
                     if (table->TableUploadOptions.ChunkFormat) {
                         req->set_chunk_format(ToProto<int>(*table->TableUploadOptions.ChunkFormat));
@@ -5502,7 +5505,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
                 table->TableWriterOptions->Account,
                 "create_output",
                 table->EffectiveAcl,
-                table->TableUploadOptions.TableSchema);
+                table->TableUploadOptions.TableSchema.Get());
         }
     }
 
@@ -5519,7 +5522,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
             /*account*/ std::nullopt,
             "create_stderr",
             StderrTable_->EffectiveAcl,
-            StderrTable_->TableUploadOptions.TableSchema);
+            StderrTable_->TableUploadOptions.TableSchema.Get());
     }
 
     if (IsIntermediateLivePreviewSupported()) {
@@ -5797,19 +5800,24 @@ void TOperationControllerBase::LockInputTables()
     }
 }
 
-template <class TTable, class TTransactionIdFunc, class TCellTagFunc>
+template <class TTable, class TTransactionIdFunc>
 void TOperationControllerBase::FetchTableSchemas(
     const NApi::NNative::IClientPtr& client,
     const TRange<TTable>& tables,
     TTransactionIdFunc tableToTransactionId,
-    TCellTagFunc tableToCellTag) const
+    bool fetchFromExternalCells) const
 {
-    // The tableToCellTag parameter allows us to fetch the schema from both native cell and external cell.
+    // The fetchFromExternalCells parameter allows us to choose whether to fetch the schema from native or external cell.
     // Ideally, we want to fetch schemas only from external cells, but it is not possible now. For output
     // tables, lock is acquired after the schema is fetched. This behavior is bad as it may lead to races.
     // Once locking output tables is fixed, we will always fetch the schemas from external cells, and the
-    // tableToCellTag parameter will be removed. See also YT-15269.
+    // fetchFromExternalCells parameter will be removed. See also YT-15269.
     // TODO(gepardo): always fetch schemas from external cells.
+    auto tableToCellTag = [&] (const TTable& table) {
+        return fetchFromExternalCells
+            ? table->ExternalCellTag
+            : CellTagFromId(table->ObjectId);
+    };
 
     THashMap<TGuid, std::vector<TTable>> schemaIdToTables;
     THashMap<TCellTag, std::vector<TGuid>> cellTagToSchemaIds;
@@ -6025,7 +6033,7 @@ void TOperationControllerBase::GetInputTablesAttributes()
         InputClient,
         MakeRange(InputTables_),
         [] (const auto& table) { return table->ExternalTransactionId; },
-        [] (const auto& table) { return table->ExternalCellTag; });
+        /*fetchFromExternalCells*/ true);
 
     bool haveTablesWithEnabledDynamicStoreRead = false;
 
@@ -6107,7 +6115,6 @@ void TOperationControllerBase::GetOutputTablesSchema()
 {
     YT_LOG_INFO("Getting output tables schema");
 
-    // XXX(babenko): fetch from external cells
     auto proxy = CreateObjectServiceReadProxy(OutputClient, EMasterChannelKind::Follower);
     auto batchReq = proxy.ExecuteBatch();
 
@@ -6119,6 +6126,8 @@ void TOperationControllerBase::GetOutputTablesSchema()
             });
     }();
 
+    YT_LOG_DEBUG("Fetching output tables schema information from primary cell");
+
     for (const auto& table : UpdatingTables_) {
         auto req = TTableYPathProxy::Get(table->GetObjectIdPath() + "/@");
         ToProto(req->mutable_attributes()->mutable_keys(), AttributeKeys);
@@ -6128,7 +6137,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
     }
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting attributes of output tables");
+    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting attributes of output tables from native cell");
     const auto& batchRsp = batchRspOrError.Value();
 
     THashMap<TOutputTablePtr, IAttributeDictionaryPtr> tableAttributes;
@@ -6141,15 +6150,21 @@ void TOperationControllerBase::GetOutputTablesSchema()
         tableAttributes.emplace(std::move(table), std::move(attributes));
     }
 
+    YT_LOG_DEBUG("Finished fetching output tables schema information from primary cell");
+
     // Fetch the schemas based on schema IDs. We didn't fetch the schemas initially to allow deduplication
     // if there are multiple tables sharing same schema.
     for (const auto& [table, attributes] : tableAttributes) {
         table->SchemaId = attributes->Get<TGuid>("schema_id");
     }
-    FetchTableSchemas(OutputClient,
+
+    // TODO(h0pless): Try fetching schema from external cells.
+    // With schemas being externalized it became possible to do so.
+    FetchTableSchemas(
+        OutputClient,
         MakeRange(UpdatingTables_),
         [this] (const auto& table) { return GetTransactionForOutputTable(table)->GetId(); },
-        [] (const auto&) { return PrimaryMasterCellTagSentinel; });
+        /*fetchFromExternalCells*/ false);
 
     for (const auto& [table, attributes] : tableAttributes) {
         const auto& path = table->Path;
@@ -6160,6 +6175,12 @@ void TOperationControllerBase::GetOutputTablesSchema()
             *attributes,
             table->Schema,
             0); // Here we assume zero row count, we will do additional check later.
+
+        // Will be used by AddOutputTableSpecs.
+        table->TableUploadOptions.SchemaId = table->SchemaId;
+
+        // Saving it here to make sure that we notice table schema change in PrepareOutputTables (if there is any).
+        table->OriginalTableSchemaRevision = table->TableUploadOptions.TableSchema.GetRevision();
 
         if (table->Dynamic) {
             if (!table->TableUploadOptions.TableSchema->IsSorted()) {
@@ -6314,27 +6335,87 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
     YT_LOG_INFO("Getting output tables attributes");
 
     {
+        THashMap<TCellTag, TVector<TOutputTablePtr>> perCellUpdatingTables;
+        for (const auto& table : UpdatingTables_) {
+            perCellUpdatingTables[table->ExternalCellTag].push_back(table);
+        }
+
+        std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> futures;
+        for (const auto& [externalCellTag, tables] : perCellUpdatingTables) {
+            auto proxy = CreateObjectServiceReadProxy(OutputClient, EMasterChannelKind::Follower, externalCellTag);
+            auto batchReq = proxy.ExecuteBatch();
+
+            YT_LOG_DEBUG("Fetching attributes of output tables from external cell (CellTag: %v, NodeCount: %v)",
+                externalCellTag,
+                tables.size());
+
+            for (const auto& table : tables) {
+                auto req = TTableYPathProxy::Get(table->GetObjectIdPath() + "/@");
+                ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
+                    "schema_id",
+                    "account",
+                    "chunk_writer",
+                    "primary_medium",
+                    "replication_factor",
+                    "row_count",
+                    "vital",
+                    "enable_skynet_sharing",
+                    "atomicity",
+                });
+                req->Tag() = table;
+                SetTransactionId(req, table->ExternalTransactionId);
+
+                batchReq->AddRequest(req);
+            }
+
+            futures.push_back(batchReq->Invoke());
+        }
+
+        auto responses = WaitFor(AllSucceeded(futures));
+        THROW_ERROR_EXCEPTION_IF_FAILED(responses, "Error getting attributes of output tables from external cells");
+
+        THashMap<TOutputTablePtr, IAttributeDictionaryPtr> tableAttributes;
+        for (const auto& response : responses.Value()) {
+            auto rspsOrErrors = response->GetResponses<TTableYPathProxy::TRspGet>();
+            for (const auto& rspOrError : rspsOrErrors) {
+                const auto& rsp = rspOrError.Value();
+
+                auto table = std::any_cast<TOutputTablePtr>(rsp->Tag());
+                auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+                tableAttributes.emplace(std::move(table), std::move(attributes));
+            }
+        }
+
+        YT_LOG_DEBUG("Finished fetching output tables schema from external cells");
+
+        for (const auto& [table, attributes] : tableAttributes) {
+            auto receivedSchemaId = attributes->GetAndRemove<TGuid>("schema_id");
+            if (receivedSchemaId != table->SchemaId) {
+                THROW_ERROR_EXCEPTION(
+                    NScheduler::EErrorCode::OperationFailedWithInconsistentLocking,
+                    "Schema of an output table %v has changed between schema fetch and lock acquisition",
+                    table->GetPath())
+                        << TErrorAttribute("expected_schema_id", table->SchemaId)
+                        << TErrorAttribute("received_schema_id", receivedSchemaId);
+            }
+        }
+
+        // Getting attributes from primary cell
         auto proxy = CreateObjectServiceReadProxy(OutputClient, EMasterChannelKind::Follower);
         auto batchReq = proxy.ExecuteBatch();
 
+        YT_LOG_DEBUG("Fetching attributes of output tables from native cell");
+
         for (const auto& table : UpdatingTables_) {
             auto req = TTableYPathProxy::Get(table->GetObjectIdPath() + "/@");
-            req->Tag() = table;
             ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
-                "account",
-                "chunk_writer",
                 "effective_acl",
-                "primary_medium",
-                "replication_factor",
-                "row_count",
-                "vital",
-                "enable_skynet_sharing",
                 "tablet_state",
                 "backup_state",
-                "atomicity",
                 "tablet_statistics",
                 "max_overlapping_store_count",
             });
+            req->Tag() = table;
             SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
             batchReq->AddRequest(req);
         }
@@ -6342,7 +6423,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(
             GetCumulativeError(batchRspOrError),
-            "Error getting attributes of output tables");
+            "Error getting attributes of output tables from native cell");
         const auto& batchRsp = batchRspOrError.Value();
 
         auto rspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspGet>();
@@ -6350,9 +6431,17 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
             const auto& rsp = rspOrError.Value();
 
             auto table = std::any_cast<TOutputTablePtr>(rsp->Tag());
-            const auto& path = table->GetPath();
-
             auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+
+            auto it = tableAttributes.find(table);
+            YT_VERIFY(it != tableAttributes.end());
+            it->second->MergeFrom(*attributes.Get());
+        }
+
+        YT_LOG_DEBUG("Finished fetching output tables schema from native cell");
+
+        for (const auto& [table, attributes] : tableAttributes) {
+            const auto& path = table->GetPath();
 
             if (table->Dynamic) {
                 auto tabletState = attributes->Get<ETabletState>("tablet_state");
@@ -6477,6 +6566,18 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
                 SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
                 GenerateMutationId(req);
                 req->Tag() = table;
+
+                auto schemaChanged = table->OriginalTableSchemaRevision != table->TableUploadOptions.TableSchema.GetRevision();
+                if (!schemaChanged) {
+                    YT_VERIFY(table->TableUploadOptions.SchemaId);
+                    ToProto(req->mutable_table_schema_id(), table->TableUploadOptions.SchemaId);
+                } else {
+                    // Sending schema, since in this case it might be not registered on master yet.
+                    YT_LOG_DEBUG("Sending full table schema to master during begin upload");
+                    ToProto(req->mutable_table_schema(), table->TableUploadOptions.TableSchema.Get());
+                }
+
+                req->set_schema_mode(ToProto<int>(table->TableUploadOptions.SchemaMode));
                 req->set_update_mode(ToProto<int>(table->TableUploadOptions.UpdateMode));
                 req->set_lock_mode(ToProto<int>(table->TableUploadOptions.LockMode));
                 req->set_upload_transaction_title(Format("Upload to %v from operation %v",
@@ -6502,6 +6603,7 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
 
                 auto table = std::any_cast<TOutputTablePtr>(rsp->Tag());
                 table->UploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
+                table->SchemaId = FromProto<TMasterTableSchemaId>(rsp->upload_chunk_schema_id());
             }
         }
     }
@@ -9478,7 +9580,7 @@ void TOperationControllerBase::AddStderrOutputSpecs(
     auto* stderrTableSpec = jobSpec->mutable_stderr_table_spec();
     auto* outputSpec = stderrTableSpec->mutable_output_table_spec();
     outputSpec->set_table_writer_options(ConvertToYsonString(StderrTable_->TableWriterOptions).ToString());
-    outputSpec->set_table_schema(SerializeToWireProto(StderrTable_->TableUploadOptions.TableSchema));
+    outputSpec->set_table_schema(SerializeToWireProto(StderrTable_->TableUploadOptions.TableSchema.Get()));
     ToProto(outputSpec->mutable_chunk_list_id(), joblet->StderrTableChunkListId);
 
     auto writerConfig = GetStderrTableWriterConfig();
@@ -9495,7 +9597,7 @@ void TOperationControllerBase::AddCoreOutputSpecs(
     auto* coreTableSpec = jobSpec->mutable_core_table_spec();
     auto* outputSpec = coreTableSpec->mutable_output_table_spec();
     outputSpec->set_table_writer_options(ConvertToYsonString(CoreTable_->TableWriterOptions).ToString());
-    outputSpec->set_table_schema(SerializeToWireProto(CoreTable_->TableUploadOptions.TableSchema));
+    outputSpec->set_table_schema(SerializeToWireProto(CoreTable_->TableUploadOptions.TableSchema.Get()));
     ToProto(outputSpec->mutable_chunk_list_id(), joblet->CoreTableChunkListId);
 
     auto writerConfig = GetCoreTableWriterConfig();
@@ -9802,7 +9904,7 @@ void TOperationControllerBase::ValidateOutputSchemaComputedColumnsCompatibility(
             auto filteredInputTableSchema = inputTable->Schema->Filter(inputTable->Path.GetColumns());
             ValidateComputedColumnsCompatibility(
                 *filteredInputTableSchema,
-                *OutputTables_[0]->TableUploadOptions.TableSchema)
+                *OutputTables_[0]->TableUploadOptions.TableSchema.Get())
                 .ThrowOnError();
             ValidateComputedColumns(*filteredInputTableSchema, /*isTableDynamic*/ false);
         } else {

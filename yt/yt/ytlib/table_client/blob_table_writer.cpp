@@ -30,6 +30,7 @@ TBlobTableWriter::TBlobTableWriter(
     TBlobTableWriterConfigPtr blobTableWriterConfig,
     TTableWriterOptionsPtr tableWriterOptions,
     TTransactionId transactionId,
+    TMasterTableSchemaId schemaId,
     const std::optional<NChunkClient::TDataSink>& dataSink,
     TChunkListId chunkListId,
     TTrafficMeterPtr trafficMeter,
@@ -71,6 +72,7 @@ TBlobTableWriter::TBlobTableWriter(
         /*localHostName*/ TString(), // Locality is not important for table upload.
         NObjectClient::CellTagFromId(chunkListId),
         transactionId,
+        schemaId,
         dataSink,
         chunkListId,
         TChunkTimestamps(),

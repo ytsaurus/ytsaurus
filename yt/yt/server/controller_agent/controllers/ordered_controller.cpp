@@ -433,7 +433,7 @@ protected:
                 if (InputTables_[index]->SupportsTeleportation() && OutputTables_[0]->SupportsTeleportation()) {
                     InputTables_[index]->Teleportable = CheckTableSchemaCompatibility(
                         *InputTables_[index]->Schema,
-                        *OutputTables_[0]->TableUploadOptions.TableSchema,
+                        *OutputTables_[0]->TableUploadOptions.TableSchema.Get(),
                         false /* ignoreSortOrder */).first == ESchemaCompatibility::FullyCompatible;
                 }
             }
@@ -1017,7 +1017,7 @@ private:
                     if (InputTables_[0]->SchemaMode == ETableSchemaMode::Strong) {
                         const auto& [compatibility, error] = CheckTableSchemaCompatibility(
                             *InputTables_[0]->Schema,
-                            *table->TableUploadOptions.TableSchema,
+                            *table->TableUploadOptions.TableSchema.Get(),
                             /* ignoreSortOrder */ false);
                         if (compatibility != ESchemaCompatibility::FullyCompatible) {
                             THROW_ERROR_EXCEPTION(error);

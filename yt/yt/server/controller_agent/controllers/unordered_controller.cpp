@@ -301,7 +301,7 @@ protected:
                 if (InputTables_[index]->SupportsTeleportation() && OutputTables_[0]->SupportsTeleportation()) {
                     InputTables_[index]->Teleportable = CheckTableSchemaCompatibility(
                         *InputTables_[index]->Schema,
-                        *OutputTables_[0]->TableUploadOptions.TableSchema,
+                        *OutputTables_[0]->TableUploadOptions.TableSchema.Get(),
                         false /* ignoreSortOrder */).first == ESchemaCompatibility::FullyCompatible;
                 }
             }

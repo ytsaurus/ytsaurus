@@ -1484,7 +1484,7 @@ class TestAccounts(AccountsTestSuiteBase):
         assert get("//sys/accounts/a/@resource_usage/node_count") == 0
 
         set("//tmp/t/@account", "a")
-        assert get("//sys/accounts/a/@ref_counter") == 3
+        assert get("//sys/accounts/a/@ref_counter") == 4
         wait(
             lambda: get("//sys/accounts/tmp/@resource_usage/node_count") == tmp_nc + 1
             and get("//sys/accounts/a/@resource_usage/node_count") == 1
@@ -1495,7 +1495,7 @@ class TestAccounts(AccountsTestSuiteBase):
             lambda: get("//sys/accounts/tmp/@resource_usage/node_count") == tmp_nc
             and get("//sys/accounts/a/@resource_usage/node_count") == 1
         )
-        assert get("//sys/accounts/a/@ref_counter") == 3
+        assert get("//sys/accounts/a/@ref_counter") == 4
 
     def _get_master_memory_usage(self, account):
         master_memory = get("//sys/accounts/{}/@resource_usage/master_memory/total".format(account))
@@ -1812,6 +1812,64 @@ class TestAccounts(AccountsTestSuiteBase):
         assert builtins.set(get("#" + t2_schema_id + "/@referencing_accounts")) == {"tmp", "a"}
         wait(lambda: get("//sys/accounts/a/@resource_usage/detailed_master_memory/schemas") == expected_memory_usage,
              sleep_backoff=2.0)
+
+    @authors("h0pless")
+    def test_master_memory_chunk_schema_accounting(self):
+        create_account("parent")
+        create_account("child", "parent")
+
+        schema = [
+            {"name": "a", "type": "int64"},
+            {"name": "b", "type": "int64"},
+            {"name": "c", "type": "int64"}
+        ]
+
+        cell_tag = 11 if self.is_multicell() else 10
+        create("table", "//tmp/t1", attributes={
+            "account": "child",
+            "schema": schema,
+            "external_cell_tag": cell_tag})
+        master_memory_sleep()
+
+        def get_schema_schema_usage(account):
+            return get("//sys/accounts/{}/@resource_usage/detailed_master_memory/schemas".format(account))
+
+        def get_schema_recursive_schema_usage(account):
+            return get("//sys/accounts/{}/@recursive_resource_usage/detailed_master_memory/schemas".format(account))
+
+        wait(lambda: get_schema_schema_usage("child") > 0)
+        starting_schema_usage = get_schema_schema_usage("child")
+        wait(lambda: get_schema_recursive_schema_usage("parent") == starting_schema_usage)
+
+        write_table(
+            "<chunk_sort_columns=[{name=a;sort_order=descending};{name=b;sort_order=descending};{name=c;sort_order=descending}];append=true>//tmp/t1",
+            {"a": 42, "b": 123, "c": 88555})
+
+        wait(lambda: get_schema_schema_usage("child") > starting_schema_usage)
+        new_schema_usage = get_schema_schema_usage("child")
+        wait(lambda: get_schema_recursive_schema_usage("parent") == new_schema_usage)
+
+        create("table", "//tmp/t2", attributes={
+            "account": "child",
+            "schema": schema,
+            "external_cell_tag": cell_tag})
+
+        sleep(1)
+        assert get_schema_schema_usage("child") == new_schema_usage
+        assert get_schema_recursive_schema_usage("parent") == new_schema_usage
+
+        remove("//tmp/t1")
+        wait(lambda: get_schema_schema_usage("child") == starting_schema_usage)
+        wait(lambda: get_schema_recursive_schema_usage("parent") == starting_schema_usage)
+
+        create("table", "//tmp/t3", attributes={
+            "account": "parent",
+            "schema": schema,
+            "external_cell_tag": cell_tag})
+
+        wait(lambda: get_schema_schema_usage("parent") == starting_schema_usage)
+        wait(lambda: get_schema_recursive_schema_usage("parent") == 2 * starting_schema_usage)
+        assert get_schema_schema_usage("child") == starting_schema_usage
 
     @authors("babenko")
     def test_regular_disk_usage(self):

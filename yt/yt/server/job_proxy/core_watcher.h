@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/server/master/table_server/public.h>
+
 #include <yt/yt/server/lib/job_proxy/public.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -69,7 +71,8 @@ public:
         NTableClient::TBlobTableWriterConfigPtr blobTableWriterConfig,
         NTableClient::TTableWriterOptionsPtr tableWriterOptions,
         NCypressClient::TTransactionId transaction,
-        NChunkClient::TChunkListId chunkList);
+        NChunkClient::TChunkListId chunkList,
+        NTableClient::TMasterTableSchemaId schemaId);
 
     //! Should be called after job completion to obtain core watcher result.
     //! If `finalizationTimeout' is set, core watcher will wait for at least one core
@@ -94,6 +97,7 @@ private:
     const NTableClient::TTableWriterOptionsPtr TableWriterOptions_;
     const NCypressClient::TTransactionId Transaction_;
     const NChunkClient::TChunkListId ChunkList_;
+    const NTableClient::TMasterTableSchemaId SchemaId_;
 
     THashSet<TString> SeenCoreNames_;
 

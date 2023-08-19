@@ -294,6 +294,7 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
             writerOptions,
             tabletCellTag,
             transaction->GetId(),
+            tabletSnapshot->SchemaId,
             NullChunkListId,
             Client_,
             TabletContext_->GetLocalHostName(),

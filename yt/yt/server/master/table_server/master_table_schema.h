@@ -38,14 +38,16 @@ public:
 
     using TCellTagToExportRefcount = THashMap<NObjectClient::TCellTag, int>;
 
+    // TODO(h0pless): Change this to TCompactFlatMap.
+    using TAccountToRefCounterMap = THashMap<NSecurityServer::TAccountPtr, i64>;
     using TAccountToMasterMemoryUsage = TCompactFlatMap<NSecurityServer::TAccount*, i64, 2>;
-    using TAccountToRefCounterMap = TCompactFlatMap<NSecurityServer::TAccount*, i64, 2>;
 
     DEFINE_BYREF_RO_PROPERTY(TCellTagToExportRefcount, CellTagToExportCount);
 
-    // These are transient and are used for master memory accounting only.
-    DEFINE_BYREF_RO_PROPERTY(TAccountToMasterMemoryUsage, ChargedMasterMemoryUsage);
     DEFINE_BYREF_RO_PROPERTY(TAccountToRefCounterMap, ReferencingAccounts);
+
+    // This field is transient and used for master memory accounting only.
+    DEFINE_BYREF_RO_PROPERTY(TAccountToMasterMemoryUsage, ChargedMasterMemoryUsage);
 
     using TObject::TObject;
     TMasterTableSchema(TMasterTableSchemaId id, TNativeTableSchemaToObjectMapIterator it);
@@ -59,14 +61,14 @@ public:
     // Whenever possible, prefer the above.
     NYson::TYsonString AsYsonSync() const;
 
-    //! Increases the number of times this schema is referenced by #account.
+    //! Increases the number of times this schema is referenced by #account by #delta.
     //! Returns true iff this schema has just become referenced by it for the
-    //! first time (i.e. iff refcounter has become equal to one).
-    [[nodiscard]] bool RefBy(NSecurityServer::TAccount* account);
-    //! Decreases the number of times this schema is referenced by #account.
+    //! first time (i.e. iff refcounter has changed from zero).
+    [[nodiscard]] bool RefBy(NSecurityServer::TAccount* account, int delta = 1);
+    //! Decreases the number of times this schema is referenced by #account by #delta.
     //! Returns true iff this schema is no longer referenced by it (i.e. iff
     //! refcounter has come down to zero).
-    [[nodiscard]] bool UnrefBy(NSecurityServer::TAccount* account);
+    [[nodiscard]] bool UnrefBy(NSecurityServer::TAccount* account, int delta = 1);
 
     bool IsExported(NObjectClient::TCellTag cellTag) const;
 
@@ -106,6 +108,8 @@ private:
     //! Decrements export ref counter.
     void UnexportRef(NObjectClient::TCellTag cellTag, int decreaseBy = 1);
 };
+
+DEFINE_MASTER_OBJECT_TYPE(TMasterTableSchema)
 
 ////////////////////////////////////////////////////////////////////////////////
 

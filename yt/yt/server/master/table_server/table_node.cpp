@@ -253,28 +253,42 @@ const TTableNode* TTableNode::GetTrunkNode() const
     return TTabletOwnerBase::GetTrunkNode()->As<TTableNode>();
 }
 
-void TTableNode::EndUpload(const TEndUploadContext& context)
+void TTableNode::ParseCommonUploadContext(const TCommonUploadContext& context)
 {
     if (IsDynamic()) {
         if (SchemaMode_ != context.SchemaMode ||
-            *GetSchema()->AsTableSchema() != *context.Schema->AsTableSchema())
+            *GetSchema()->AsTableSchema() != *context.TableSchema->AsTableSchema())
         {
-            YT_LOG_ALERT("Schema of a dynamic table changed during end upload (TableId: %v, TransactionId: %v, "
+            YT_LOG_ALERT("Schema of a dynamic table changed during upload (TableId: %v, TransactionId: %v, "
                 "OriginalSchemaMode: %v, NewSchemaMode: %v, OriginalSchema: %v, NewSchema: %v)",
                 GetId(),
                 GetTransaction()->GetId(),
                 SchemaMode_,
                 context.SchemaMode,
                 GetSchema()->AsTableSchema(),
-                context.Schema->AsTableSchema());
+                context.TableSchema->AsTableSchema());
         }
     }
 
     SchemaMode_ = context.SchemaMode;
-    YT_VERIFY(context.Schema);
+    YT_VERIFY(context.TableSchema);
 
     const auto& tableManager = context.Bootstrap->GetTableManager();
-    tableManager->SetTableSchema(this, context.Schema);
+    tableManager->SetTableSchema(this, context.TableSchema);
+}
+
+void TTableNode::BeginUpload(const TBeginUploadContext &context)
+{
+    ParseCommonUploadContext(context);
+
+    TTabletOwnerBase::BeginUpload(context);
+}
+
+void TTableNode::EndUpload(const TEndUploadContext &context)
+{
+    // COMPAT(h0pless): Change this to check that schema has not changed during upload when
+    // clients will send table schema options during begin upload.
+    ParseCommonUploadContext(context);
 
     if (context.OptimizeFor) {
         OptimizeFor_.Set(*context.OptimizeFor);

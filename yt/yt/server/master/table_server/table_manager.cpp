@@ -19,6 +19,7 @@
 #include <yt/yt/server/master/chaos_server/chaos_manager.h>
 #include <yt/yt/server/master/chaos_server/chaos_replicated_table_node.h>
 
+#include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/chunk_owner_base.h>
 
 #include <yt/yt/server/master/object_server/object_manager.h>
@@ -295,7 +296,7 @@ public:
 
         auto* tableAccount = table->GetAccount();
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->UpdateMasterMemoryUsage(schema, tableAccount);
+        securityManager->UpdateMasterMemoryUsage(schema, tableAccount, 1);
     }
 
     void SetTableSchemaOrThrow(ISchemafulNode* table, TMasterTableSchemaId schemaId) override
@@ -326,11 +327,26 @@ public:
 
         if (auto* account = table->GetAccount()) {
             const auto& securityManager = Bootstrap_->GetSecurityManager();
-            securityManager->ResetMasterMemoryUsage(oldSchema, account);
+            securityManager->UpdateMasterMemoryUsage(oldSchema, account, -1);
         }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->UnrefObject(oldSchema);
+    }
+
+    void SetChunkSchema(TChunk* chunk, TMasterTableSchema* schema) override
+    {
+        YT_VERIFY(schema);
+
+        // Since chunk is immutable, schema should never change.
+        auto& chunkSchema =  chunk->Schema();
+        YT_VERIFY(!chunkSchema);
+
+        // NB: a newly created schema object has zero reference count.
+        // Thus the new schema may technically be not alive here.
+        YT_VERIFY(!schema->IsGhost());
+
+        chunkSchema = TMasterTableSchemaPtr(schema);
     }
 
     TMasterTableSchema* GetMasterTableSchemaOrThrow(TMasterTableSchemaId id) override
@@ -371,7 +387,7 @@ public:
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         // All imported schemas should have an artificial ref.
-        // This is done to make sure that native cell is managing their lifetime.
+        // This is done to make sure that native cell manages schema lifetime.
         objectManager->RefObject(masterTableSchema);
 
         return masterTableSchema;
@@ -431,6 +447,26 @@ public:
             const auto& transactionManager = Bootstrap_->GetTransactionManager();
             transactionManager->StageObject(schemaHolder, masterTableSchema);
         }
+        YT_VERIFY(IsObjectAlive(masterTableSchema));
+
+        return masterTableSchema;
+    }
+
+    TMasterTableSchema* GetOrCreateNativeMasterTableSchema(
+        const NTableClient::TTableSchema& schema,
+        TChunk* schemaHolder) override
+    {
+        // NB: a newly created chunk in operation can have zero reference count.
+        // Thus it may technically be not alive here.
+        YT_VERIFY(!schemaHolder->IsGhost());
+
+        auto* masterTableSchema = FindNativeMasterTableSchema(schema);
+        if (!masterTableSchema) {
+
+            masterTableSchema = CreateMasterTableSchema(schema, /* isNative */ true);
+        }
+
+        SetChunkSchema(schemaHolder, masterTableSchema);
         YT_VERIFY(IsObjectAlive(masterTableSchema));
 
         return masterTableSchema;
@@ -630,8 +666,9 @@ public:
 
     void ValidateTableSchemaCorrespondence(
         TVersionedNodeId nodeId,
-        const TTableSchemaPtr& tableSchema,
-        TMasterTableSchemaId schemaId) override
+        const TTableSchemaPtr& schema,
+        TMasterTableSchemaId schemaId,
+        bool isChunkSchema = false) override
     {
         auto type = TypeFromId(nodeId.ObjectId);
         YT_VERIFY(IsSchemafulType(type));
@@ -639,6 +676,12 @@ public:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         auto nativeCellTag = CellTagFromId(nodeId.ObjectId);
         auto native = nativeCellTag == multicellManager->GetCellTag();
+
+        // I know that this is a hack, and not even a good one.
+        // But I really don't want to butcher this validation code everywhere else
+        // just to make a temporary compat message a tiny bit prettier.
+        // COMPAT(h0pless): AddChunkSchemas
+        auto messagePart = isChunkSchema ? "chunk schema" : "schema";
 
         const auto& tableManager = Bootstrap_->GetTableManager();
         TMasterTableSchema* schemaById = nullptr;
@@ -649,8 +692,9 @@ public:
         } else {
             // On external cells schemaId should always be present.
             // COMPAT(h0pless): Change this to YT_VERIFY after schema migration is complete.
-            YT_LOG_ALERT_IF(!schemaId, "Request to create a foreign node has no schema id on external cell "
+            YT_LOG_ALERT_IF(!schemaId, "Request to create a foreign node has no %v id on external cell "
                 "(NodeId: %v, NativeCellTag: %v, CellTag: %v)",
+                messagePart,
                 nodeId,
                 nativeCellTag,
                 multicellManager->GetCellTag());
@@ -659,8 +703,9 @@ public:
 
             if (!schemaById) {
                 // COMPAT(h0pless): Change this to YT_VERIFY after schema migration is complete.
-                YT_LOG_ALERT_IF(!tableSchema, "Request to create a foreign node has schema id of an unimported schema on external cell "
+                YT_LOG_ALERT_IF(!schema, "Request to create a foreign node has %v id of an unimported schema on external cell "
                     "(NodeId: %v, NativeCellTag: %v, CellTag: %v, SchemaId: %v)",
+                    messagePart,
                     nodeId,
                     nativeCellTag,
                     multicellManager->GetCellTag(),
@@ -668,14 +713,14 @@ public:
             }
         }
 
-        if (tableSchema && schemaById && schemaById->IsNative()) {
-            auto* schemaByYson = tableManager->FindNativeMasterTableSchema(*tableSchema);
+        if (schema && schemaById && schemaById->IsNative()) {
+            auto* schemaByYson = tableManager->FindNativeMasterTableSchema(*schema);
             if (IsObjectAlive(schemaByYson)) {
                 if (schemaById != schemaByYson) {
                     THROW_ERROR_EXCEPTION("Both \"schema\" and \"schema_id\" specified and they refer to different schemas");
                 }
             } else {
-                if (*schemaById->AsTableSchema(/* crashOnZombie */ false) != *tableSchema) {
+                if (*schemaById->AsTableSchema(/* crashOnZombie */ false) != *schema) {
                     THROW_ERROR_EXCEPTION("Both \"schema\" and \"schema_id\" specified and the schemas do not match");
                 }
             }
@@ -1632,12 +1677,66 @@ private:
         TMasterAutomatonPart::OnBeforeSnapshotLoaded();
     }
 
+    THashMap<TMasterTableSchema*, THashMap<TAccount*, int>> ComputeMasterTableSchemaReferencingAccounts()
+    {
+        THashMap<TMasterTableSchema*, THashMap<TAccount*, int>> schemaToReferencingAccounts;
+        for (auto [schemaId, schema] : MasterTableSchemaMap_) {
+            EmplaceOrCrash(schemaToReferencingAccounts, schema, THashMap<TAccount*, int>());
+        }
+
+        auto referenceAccount = [&] (TMasterTableSchema* schema, TAccount* account) {
+            auto [it, inserted] = schemaToReferencingAccounts[schema].emplace(account, 1);
+            if (!inserted) {
+                ++it->second;
+            }
+        };
+
+        // Nodes reference schemas.
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        for (auto [nodeId, node] : cypressManager->Nodes()) {
+            // NB: Zombie nodes still hold ref.
+            if (!IsSchemafulType(node->GetType())) {
+                continue;
+            }
+
+            auto* account = node->Account().Get();
+            auto* schemafulNode = dynamic_cast<ISchemafulNode*>(node);
+            YT_VERIFY(schemafulNode);
+
+            auto* schema = schemafulNode->GetSchema();
+            referenceAccount(schema, account);
+        }
+
+        // Chunks reference schemas. Accounts are charged per-requisition.
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
+        for (auto [chunkId, chunk] : chunkManager->Chunks()) {
+            const auto& chunkSchema = chunk->Schema();
+            if (!chunkSchema) {
+                continue;
+            }
+
+            for (const auto& requisition : chunk->GetAggregatedRequisition(requisitionRegistry)) {
+                referenceAccount(chunkSchema.Get(), requisition.Account);
+            }
+        }
+
+        return schemaToReferencingAccounts;
+    }
+
     THashMap<TMasterTableSchema*, THashMap<TCellTag, int>> ComputeMasterTableSchemaExportRefCounters()
     {
         THashMap<TMasterTableSchema*, THashMap<TCellTag, int>> schemaToExportRefCounters;
         for (auto [schemaId, schema] : MasterTableSchemaMap_) {
             EmplaceOrCrash(schemaToExportRefCounters, schema, THashMap<TCellTag, int>());
         }
+
+        auto increaseSchemaExportRefCounter = [&] (TMasterTableSchema* schema, TCellTag cellTag, int counter = 1) {
+            auto [it, inserted] = schemaToExportRefCounters[schema].emplace(cellTag, counter);
+            if (!inserted) {
+                it->second += counter;
+            }
+        };
 
         // Exported nodes increase export ref counter.
         const auto& cypressManager = Bootstrap_->GetCypressManager();
@@ -1659,11 +1758,30 @@ private:
                 continue;
             }
 
-            auto [it, inserted] = schemaToExportRefCounters[schema].emplace(externalCellTag, 1);
-            if (!inserted) {
-                ++it->second;
+            increaseSchemaExportRefCounter(schema, externalCellTag);
+        }
+
+        // Exported chunks increase export ref counter.
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        for (auto [chunkId, chunk] : chunkManager->Chunks()) {
+            if (!chunk->IsExported()) {
+                continue;
+            }
+
+            const auto& chunkSchema = chunk->Schema();
+            if (!chunkSchema) {
+                continue;
+            }
+
+            for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
+                if (chunk->IsExportedToCell(cellTag)) {
+                    auto exportData = chunk->GetExportData(cellTag);
+                    increaseSchemaExportRefCounter(chunkSchema.Get(), cellTag, exportData.RefCounter);
+                }
             }
         }
+
         return schemaToExportRefCounters;
     }
 
@@ -1674,7 +1792,6 @@ private:
         // Empty schema has 1 additional artificial refcounter.
         for (auto [schemaId, schema] : MasterTableSchemaMap_) {
             auto isEmpty = schemaId == EmptyMasterTableSchemaId_ ? 1 : 0;
-
             EmplaceOrCrash(schemaToRefCounter, schema, isEmpty);
         }
 
@@ -1694,6 +1811,14 @@ private:
             }
 
             ++schemaToRefCounter[schema];
+        }
+
+        // Chunks hold strong refs.
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        for (auto [chunkId, chunk] : chunkManager->Chunks()) {
+            if (const auto& schema = chunk->Schema()) {
+                ++schemaToRefCounter[schema.Get()];
+            }
         }
 
         // Schema can be staged in a transaction.
@@ -1861,6 +1986,7 @@ private:
     {
         auto schemaToExportRefCounters = ComputeMasterTableSchemaExportRefCounters();
         auto schemaToRefCounter = ComputeMasterTableSchemaRefCounters();
+        auto schemaToReferencingAccounts = ComputeMasterTableSchemaReferencingAccounts();
         for (auto [schemaId, schema] : MasterTableSchemaMap_) {
             // Check export ref counters.
             auto expectedExportRefCounters = GetOrCrash(schemaToExportRefCounters, schema);
@@ -1912,6 +2038,36 @@ private:
                 schemaId,
                 expectedRefCounter,
                 actualRefCounter);
+
+            // Check referencing accounts.
+            auto expectedReferencingAccounts = GetOrCrash(schemaToReferencingAccounts, schema);
+            const auto& actualReferencingAccounts = schema->ReferencingAccounts();
+            for (const auto& [account, actualRefCounter] : actualReferencingAccounts) {
+                auto it = expectedReferencingAccounts.find(account.Get());
+
+                auto expectedRefCounter = it != expectedReferencingAccounts.end()
+                    ? it->second
+                    : 0;
+
+                YT_LOG_FATAL_UNLESS(expectedRefCounter == actualRefCounter,
+                    "Table schema has unexpected referencing accounts counter "
+                    "(SchemaId: %v, AccountId: %v, Account: %v, ExpectedRefCounter: %v, ActualRefCounter: %v)",
+                    schemaId,
+                    account->GetId(),
+                    account->GetName(),
+                    expectedRefCounter,
+                    actualRefCounter);
+
+                expectedReferencingAccounts.erase(it);
+            }
+
+            auto actualReferencingAccountsSize = actualReferencingAccounts.size();
+            YT_LOG_FATAL_UNLESS(expectedExportRefCounters.empty(),
+                "Table schema has missing entries in referencing accounts map "
+                "(SchemaId: %v, ExpectedReferencingAccountsMapSize: %v, ActualReferencingAccountsMapSize: %v)",
+                schemaId,
+                expectedReferencingAccounts.size() + actualReferencingAccountsSize,
+                actualReferencingAccountsSize);
         }
     }
 

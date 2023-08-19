@@ -41,6 +41,8 @@
 #include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/config.h>
 
+#include <yt/yt/server/master/table_server/table_manager.h>
+
 #include <yt/yt/server/master/cell_master/proto/multicell_manager.pb.h>
 
 #include <yt/yt/server/master/chunk_server/proto/chunk_manager.pb.h>
@@ -113,6 +115,7 @@
 #include <yt/yt/ytlib/tablet_client/helpers.h>
 
 #include <yt/yt/client/object_client/helpers.h>
+#include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 #include <yt/yt/client/chunk_client/data_statistics.h>
@@ -163,8 +166,10 @@ using namespace NJournalClient;
 using namespace NJournalServer;
 using namespace NSequoiaClient;
 using namespace NSequoiaServer;
-using namespace NTabletServer;
+using namespace NTableClient;
+using namespace NTableServer;
 using namespace NTabletClient;
+using namespace NTabletServer;
 using namespace NTransactionSupervisor;
 
 using NChunkClient::TSessionId;
@@ -951,7 +956,8 @@ public:
         TChunk* chunk,
         const TChunkReplicaWithLocationList& replicas,
         const TChunkInfo& chunkInfo,
-        const TChunkMeta& chunkMeta)
+        const TChunkMeta& chunkMeta,
+        TMasterTableSchemaId schemaId)
     {
         auto id = chunk->GetId();
 
@@ -959,6 +965,13 @@ public:
             YT_LOG_DEBUG("Chunk is already confirmed (ChunkId: %v)",
                 id);
             return;
+        }
+
+        if (GetDynamicConfig()->EnableChunkSchemas && schemaId != NullTableSchemaId) {
+            const auto& tableManager = Bootstrap_->GetTableManager();
+            // TODO(h0pless): Maybe think of a better exception here.
+            auto* temporarySchema = tableManager->GetMasterTableSchemaOrThrow(schemaId);
+            tableManager->GetOrCreateNativeMasterTableSchema(*temporarySchema->AsTableSchema(), chunk);
         }
 
         // NB: Figure out and validate all hunk chunks we are about to reference _before_ confirming
@@ -1053,6 +1066,7 @@ public:
             OnChunkSealed(chunk);
         }
 
+        UpdateChunkSchemaMasterMemoryUsage(chunk, +1);
         if (!chunk->IsJournal()) {
             UpdateResourceUsage(chunk, +1);
         }
@@ -1075,6 +1089,17 @@ public:
         const auto& requisition = ChunkRequisitionRegistry_.GetRequisition(chunk->GetLocalRequisitionIndex());
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->UpdateTransactionResourceUsage(chunk, requisition, delta);
+    }
+
+    // Adds #chunk schemas usage to accounts resource usage.
+    // As a result of this, account can become strongly referenced by schema.
+    void UpdateChunkSchemaMasterMemoryUsage(const TChunk* chunk, i64 delta, const TChunkRequisition* forcedRequisition = nullptr)
+    {
+        const auto& requisition = forcedRequisition
+            ? *forcedRequisition
+            : chunk->GetAggregatedRequisition(GetChunkRequisitionRegistry());
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->UpdateChunkSchemaMasterMemoryUsage(chunk, requisition, delta);
     }
 
     // Adds #chunk to accounts' resource usage.
@@ -1489,6 +1514,7 @@ public:
             ConsistentChunkPlacement_->RemoveChunk(chunk);
         }
 
+        UpdateChunkSchemaMasterMemoryUsage(chunk, -1);
         if (chunk->IsNative() && chunk->IsDiskSizeFinal()) {
             // The chunk has been already unstaged.
             UpdateResourceUsage(chunk, -1);
@@ -1574,6 +1600,7 @@ public:
             const auto& requisitionBefore = chunk->GetAggregatedRequisition(requisitionRegistry);
             auto replicationBefore = requisitionBefore.ToReplication();
 
+            UpdateChunkSchemaMasterMemoryUsage(chunk, -1, &requisitionBefore);
             if (isChunkDiskSizeFinal) {
                 UpdateResourceUsage(chunk, -1, &requisitionBefore);
             }
@@ -1582,11 +1609,17 @@ public:
 
             // NB: don't use requisitionBefore after unexporting (but replicationBefore is ok).
 
+            UpdateChunkSchemaMasterMemoryUsage(chunk, +1, nullptr);
             if (isChunkDiskSizeFinal) {
                 UpdateResourceUsage(chunk, +1, nullptr);
             }
 
             OnChunkUpdated(chunk, replicationBefore);
+        }
+
+        if (const auto& schema = chunk->Schema()) {
+            const auto& tableManager = Bootstrap_->GetTableManager();
+            tableManager->UnexportMasterTableSchema(schema.Get(), destinationCellTag, importRefCounter);
         }
     }
 
@@ -4020,36 +4053,36 @@ private:
                 continue;
             }
 
-            if (chunk->IsForeign()) {
-                setChunkRequisitionIndex(chunk, newRequisitionIndex);
+            const auto isChunkDiskSizeFinal = chunk->IsDiskSizeFinal();
 
+            // NB: changing chunk's requisition may unreference and destroy the old requisition.
+            // Worse yet, this may, in turn, weak-unreference some accounts, thus triggering
+            // destruction of their control blocks (that hold strong and weak counters).
+            // So be sure to use the old requisition *before* setting the new one.
+            const auto& requisitionBefore = chunk->GetAggregatedRequisition(requisitionRegistry);
+            auto replicationBefore = requisitionBefore.ToReplication();
+
+            UpdateChunkSchemaMasterMemoryUsage(chunk, -1, &requisitionBefore);
+            if (isChunkDiskSizeFinal && chunk->IsNative()) {
+                UpdateResourceUsage(chunk, -1, &requisitionBefore);
+            }
+
+            setChunkRequisitionIndex(chunk, newRequisitionIndex);
+
+            // NB: don't use requisitionBefore after the change.
+
+            UpdateChunkSchemaMasterMemoryUsage(chunk, +1, nullptr);
+            if (isChunkDiskSizeFinal && chunk->IsNative()) {
+                UpdateResourceUsage(chunk, +1, nullptr);
+            }
+
+            if (chunk->IsForeign()) {
                 YT_ASSERT(local);
                 auto& crossCellRequest = getCrossCellRequest(chunk);
                 auto* crossCellUpdate = crossCellRequest.add_updates();
                 ToProto(crossCellUpdate->mutable_chunk_id(), chunk->GetId());
                 crossCellUpdate->set_chunk_requisition_index(newRequisitionIndex);
             } else {
-                const auto isChunkDiskSizeFinal = chunk->IsDiskSizeFinal();
-
-                // NB: changing chunk's requisition may unreference and destroy the old requisition.
-                // Worse yet, this may, in turn, weak-unreference some accounts, thus triggering
-                // destruction of their control blocks (that hold strong and weak counters).
-                // So be sure to use the old requisition *before* setting the new one.
-                const auto& requisitionBefore = chunk->GetAggregatedRequisition(requisitionRegistry);
-                auto replicationBefore = requisitionBefore.ToReplication();
-
-                if (isChunkDiskSizeFinal) {
-                    UpdateResourceUsage(chunk, -1, &requisitionBefore);
-                }
-
-                setChunkRequisitionIndex(chunk, newRequisitionIndex);
-
-                // NB: don't use requisitionBefore after the change.
-
-                if (isChunkDiskSizeFinal) {
-                    UpdateResourceUsage(chunk, +1, nullptr);
-                }
-
                 OnChunkUpdated(chunk, replicationBefore);
             }
         }
@@ -4174,6 +4207,7 @@ private:
         }
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& tableManager = Bootstrap_->GetTableManager();
 
         std::vector<TChunkId> chunkIds;
         for (const auto& exportData : request->chunks()) {
@@ -4199,6 +4233,10 @@ private:
                 chunkInfo->set_disk_space(chunk->GetDiskSpace());
 
                 ToProto(importData->mutable_meta(), chunk->ChunkMeta());
+                if (const auto& schema = chunk->Schema()) {
+                    tableManager->ExportMasterTableSchema(schema.Get(), cellTag);
+                    ToProto(importData->mutable_chunk_schema_id(), schema->GetId());
+                }
 
                 importData->set_erasure_codec(static_cast<int>(chunk->GetErasureCodec()));
             }
@@ -4222,6 +4260,7 @@ private:
         }
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& tableManager = Bootstrap_->GetTableManager();
 
         std::vector<TChunkId> chunkIds;
         for (const auto& importData : request->chunks()) {
@@ -4234,7 +4273,16 @@ private:
             if (!chunk) {
                 chunk = DoCreateChunk(chunkId);
                 chunk->SetForeign();
+                if (importData.has_chunk_schema_id()) {
+                    auto chunkSchemaId = FromProto<TMasterTableSchemaId>(importData.chunk_schema_id());
+
+                    auto* existingChunkSchema = tableManager->GetMasterTableSchema(chunkSchemaId);
+                    tableManager->SetChunkSchema(chunk, existingChunkSchema);
+                }
+
                 chunk->Confirm(importData.info(), importData.meta());
+                UpdateChunkSchemaMasterMemoryUsage(chunk, +1);
+
                 chunk->SetErasureCodec(NErasure::ECodec(importData.erasure_codec()));
                 YT_VERIFY(ForeignChunks_.insert(chunk).second);
             }
@@ -4532,13 +4580,15 @@ private:
         }
 
         auto chunkId = FromProto<TChunkId>(subrequest->chunk_id());
+        auto schemaId = FromProto<TMasterTableSchemaId>(subrequest->schema_id());
         auto* chunk = GetChunkOrThrow(chunkId);
 
         ConfirmChunk(
             chunk,
             replicas,
             subrequest->chunk_info(),
-            subrequest->chunk_meta());
+            subrequest->chunk_meta(),
+            schemaId);
 
         if (subresponse && subrequest->request_statistics()) {
             *subresponse->mutable_statistics() = chunk->GetStatistics().ToDataStatistics();

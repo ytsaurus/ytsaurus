@@ -91,10 +91,22 @@ protected:
 
     void GetBasicAttributes(TGetBasicAttributesContext* context) override;
 
+    void ReplicateBeginUploadRequestToExternalCell(
+        TChunkOwnerBase* node,
+        TTransactionId uploadTransactionId,
+        NChunkClient::NProto::TReqBeginUpload* request,
+        TChunkOwnerBase::TBeginUploadContext& uploadContext) const;
+
     void ReplicateEndUploadRequestToExternalCell(
         TChunkOwnerBase* node,
         NChunkClient::NProto::TReqEndUpload* request,
-        TChunkOwnerBase::TEndUploadContext& uploadContext);
+        TChunkOwnerBase::TEndUploadContext& uploadContext) const;
+
+    NTableServer::TMasterTableSchema* CalculateEffectiveMasterTableSchema(
+        TChunkOwnerBase* node,
+        NTableClient::TTableSchemaPtr schema,
+        NTableClient::TMasterTableSchemaId schemaId,
+        NTransactionServer::TTransaction* schemaHolder);
 
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Fetch);
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, BeginUpload);

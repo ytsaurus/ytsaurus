@@ -170,6 +170,7 @@ message TChunkMergerWriterOptions
     optional int32 merge_mode = 6 [default = 2]; // NChunkClient::EChunkMergerMode, default is EChunkMergerMode::Deep
     optional int32 max_heavy_columns = 7 [default = 0];
     optional int64 max_block_count = 8;
+    optional NYT.NProto.TGuid schema_id = 10;
 }
 
 message TMergeChunksJobSpecExt

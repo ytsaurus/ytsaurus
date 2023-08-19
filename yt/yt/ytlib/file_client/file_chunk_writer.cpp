@@ -273,6 +273,7 @@ IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
         /*localHostName*/ TString(), // Locality is not important for files.
         cellTag,
         transactionId,
+        NullTableSchemaId, // Schema is inapplicable to file chunks.
         parentChunkListId,
         createChunkWriter,
         trafficMeter,

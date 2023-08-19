@@ -49,6 +49,7 @@
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 
 #include <yt/yt/server/master/table_server/master_table_schema.h>
+#include <yt/yt/server/master/table_server/table_manager.h>
 #include <yt/yt/server/master/table_server/table_node.h>
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
@@ -847,6 +848,22 @@ public:
         }
     }
 
+    void UpdateChunkSchemaMasterMemoryUsage(const TChunk* chunk, const TChunkRequisition& requisition, i64 delta) override
+    {
+        auto* schema = chunk->Schema().Get();
+        if (delta == 0 || !schema) {
+            return;
+        }
+
+        for (const auto& entry : requisition) {
+            auto* account = entry.Account;
+
+            YT_VERIFY(IsObjectAlive(account));
+
+            UpdateMasterMemoryUsage(schema, account, delta);
+        }
+    }
+
     void UpdateResourceUsage(const TChunk* chunk, const TChunkRequisition& requisition, i64 delta) override
     {
         YT_VERIFY(chunk->IsNative());
@@ -860,8 +877,9 @@ public:
             chunk,
             requisition,
             delta,
-            [&] (TAccount* account, int mediumIndex, i64 chunkCount, i64 diskSpace, i64 masterMemory, bool committed) {
-                account->DetailedMasterMemoryUsage()[EMasterMemoryType::Chunks] += masterMemory;
+            [&] (TAccount* account, int mediumIndex, i64 chunkCount, i64 diskSpace, i64 chunkMasterMemory, bool committed) {
+                account->DetailedMasterMemoryUsage()[EMasterMemoryType::Chunks] += chunkMasterMemory;
+
                 doCharge(&account->ClusterStatistics().ResourceUsage, mediumIndex, chunkCount, diskSpace);
                 doCharge(&account->LocalStatistics().ResourceUsage, mediumIndex, chunkCount, diskSpace);
                 if (committed) {
@@ -916,7 +934,7 @@ public:
         auto* stagingTransaction = chunk->GetStagingTransaction();
         auto* stagingAccount = chunk->StagingAccount().Get();
 
-        auto chargeTransaction = [&] (TAccount* account, int mediumIndex, i64 chunkCount, i64 diskSpace, i64 /*masterMemoryUsage*/, bool /*committed*/) {
+        auto chargeTransaction = [&] (TAccount* account, int mediumIndex, i64 chunkCount, i64 diskSpace, i64 /*chunkMasterMemoryUsage*/, bool /*committed*/) {
             // If a chunk has been created before the migration but is being confirmed after it,
             // charge it to the staging account anyway: it's ok, because transaction resource usage accounting
             // isn't really delta-based, and it's nicer from the user's point of view.
@@ -935,6 +953,8 @@ public:
     void ResetMasterMemoryUsage(TCypressNode* node)
     {
         auto* account = node->Account().Get();
+        YT_VERIFY(IsObjectAlive(account));
+
         auto chargedMasterMemoryUsage = ChargeMasterMemoryUsage(
             account,
             TDetailedMasterMemory(),
@@ -948,7 +968,7 @@ public:
             const auto* schemafulNode = dynamic_cast<ISchemafulNode*>(node);
             YT_VERIFY(schemafulNode);
 
-            ResetMasterMemoryUsage(schemafulNode->GetSchema(), account);
+            UpdateMasterMemoryUsage(schemafulNode->GetSchema(), account, -1);
         }
     }
 
@@ -959,11 +979,14 @@ public:
             return;
         }
 
+        YT_VERIFY(IsObjectAlive(account));
+
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         const auto& typeHandler = cypressManager->GetHandler(node);
         auto detailedMasterMemoryUsage = node->GetDetailedMasterMemoryUsage();
         auto staticMasterMemoryUsage = typeHandler->GetStaticMasterMemoryUsage();
         detailedMasterMemoryUsage[EMasterMemoryType::Nodes] += staticMasterMemoryUsage;
+
         auto chargedMasterMemoryUsage = ChargeMasterMemoryUsage(
             account,
             detailedMasterMemoryUsage,
@@ -976,19 +999,15 @@ public:
             const auto* schemafulNode = dynamic_cast<ISchemafulNode*>(node);
             YT_VERIFY(schemafulNode);
 
-            UpdateMasterMemoryUsage(schemafulNode->GetSchema(), account);
+            UpdateMasterMemoryUsage(schemafulNode->GetSchema(), account, 1);
         }
     }
 
-    void ResetMasterMemoryUsage(TMasterTableSchema* schema, TAccount* account) override
+    void DecreaseMasterMemoryUsage(TMasterTableSchema* schema, TAccount* account, int delta)
     {
         YT_VERIFY(IsObjectAlive(account));
 
-        if (!schema) {
-            return;
-        }
-
-        if (schema->UnrefBy(account)) {
+        if (schema->UnrefBy(account, delta)) {
             TDetailedMasterMemory currentMasterMemoryUsage; // Leaving empty.
 
             TDetailedMasterMemory chargedMasterMemoryUsage;
@@ -1003,15 +1022,11 @@ public:
         }
     }
 
-    void UpdateMasterMemoryUsage(TMasterTableSchema* schema, TAccount* account) override
+    void IncreaseMasterMemoryUsage(TMasterTableSchema* schema, TAccount* account, int delta, bool recomputingMasterMemory = false)
     {
-        if (!schema) {
-            return;
-        }
-
         YT_VERIFY(IsObjectAlive(account));
 
-        if (schema->RefBy(account)) {
+        if (recomputingMasterMemory || schema->RefBy(account, delta)) {
             TDetailedMasterMemory currentMasterMemoryUsage;
             currentMasterMemoryUsage[EMasterMemoryType::Schemas] += schema->GetMasterMemoryUsage(account);
 
@@ -1026,6 +1041,19 @@ public:
         }
     }
 
+    void UpdateMasterMemoryUsage(TMasterTableSchema* schema, TAccount* account, int delta) override
+    {
+        if (delta == 0 || !schema) {
+            return;
+        }
+
+        if (delta > 0) {
+            IncreaseMasterMemoryUsage(schema, account, delta);
+        } else {
+            DecreaseMasterMemoryUsage(schema, account, -delta);
+        }
+    }
+
     [[nodiscard]] TDetailedMasterMemory ChargeMasterMemoryUsage(
         TAccount* account,
         const TDetailedMasterMemory& currentDetailedMasterMemoryUsage,
@@ -1036,16 +1064,19 @@ public:
             account->GetName(),
             account->DetailedMasterMemoryUsage(),
             delta);
+
         ChargeAccountAncestry(
             account,
             [&] (TAccount* account) {
                 account->DetailedMasterMemoryUsage() += delta;
             });
+
         if (account->DetailedMasterMemoryUsage().IsNegative()) {
             YT_LOG_ALERT("Master memory usage is negative (Account: %v, MasterMemoryUsage: %v)",
                 account->GetName(),
                 account->DetailedMasterMemoryUsage());
         }
+
         return currentDetailedMasterMemoryUsage;
     }
 
@@ -2509,6 +2540,9 @@ private:
     // COMPAT(h0pless): Reign UpdatePerUserThrottlerLimits
     bool NeedUpdatePerUserThrottlerLimits_ = false;
 
+    // COMPAT(h0pless): Remove this after chunk schemas are introduced.
+    bool NeedRecomputeReferencingAccounts_ = false;
+
     // COMPAT(shakurov)
     bool RecomputeAccountResourceUsages_ = false;
     bool RecomputeAccountRefCounters_ = false;
@@ -2549,7 +2583,7 @@ private:
         const TAccount* lastAccount = nullptr;
         auto lastMediumIndex = GenericMediumIndex;
         i64 lastDiskSpace = 0;
-        auto masterMemoryUsageDelta = delta * chunk->GetMasterMemoryUsage();
+        auto chunkMasterMemoryUsageDelta = delta * chunk->GetMasterMemoryUsage();
 
         for (const auto& entry : requisition) {
             auto* account = entry.Account;
@@ -2564,11 +2598,11 @@ private:
             auto diskSpace = delta * GetDiskSpaceToCharge(chunkDiskSpace, erasureCodec, policy);
 
             auto chunkCount = delta;
-            auto masterMemoryUsage = masterMemoryUsageDelta;
+            auto chunkMasterMemoryUsage = chunkMasterMemoryUsageDelta;
             // Charge once per account.
             if (account == lastAccount) {
                 chunkCount = 0;
-                masterMemoryUsage = 0;
+                chunkMasterMemoryUsage = 0;
             }
 
             if (account == lastAccount && mediumIndex == lastMediumIndex) {
@@ -2590,7 +2624,7 @@ private:
             ChargeAccountAncestry(
                 account,
                 [&] (TAccount* account) {
-                    doCharge(account, mediumIndex, chunkCount, diskSpace, masterMemoryUsage, entry.Committed);
+                    doCharge(account, mediumIndex, chunkCount, diskSpace, chunkMasterMemoryUsage, entry.Committed);
                 });
 
             lastAccount = account;
@@ -2821,6 +2855,8 @@ private:
         AccountResourceUsageLeaseMap_.LoadKeys(context);
 
         NeedUpdatePerUserThrottlerLimits_ = context.GetVersion() < EMasterReign::UpdatePerUserThrottlerLimits;
+
+        NeedRecomputeReferencingAccounts_ = context.GetVersion() < EMasterReign::AddChunkSchemas;
 
         RecomputeAccountRefCounters_ = context.GetVersion() < EMasterReign::RecomputeAccountRefCounters;
         RecomputeAccountResourceUsages_ = context.GetVersion() < EMasterReign::FixAccountResourceUsageCharge;
@@ -3175,11 +3211,11 @@ private:
                 auto* table = node->As<TTableNode>();
                 table->RecomputeTabletMasterMemoryUsage();
             }
-            UpdateMasterMemoryUsage(node, /*accountChanged*/ true);
+            UpdateMasterMemoryUsage(node, NeedRecomputeReferencingAccounts_);
         }
 
-        auto chargeAccount = [&] (TAccount* account, int /*mediumIndex*/, i64 /*chunkCount*/, i64 /*diskSpace*/, i64 masterMemoryUsage, bool /*committed*/) {
-            account->DetailedMasterMemoryUsage()[EMasterMemoryType::Chunks] += masterMemoryUsage;
+        auto chargeAccount = [&] (TAccount* account, int /*mediumIndex*/, i64 /*chunkCount*/, i64 /*diskSpace*/, i64 chunkMasterMemoryUsage, bool /*committed*/) {
+            account->DetailedMasterMemoryUsage()[EMasterMemoryType::Chunks] += chunkMasterMemoryUsage;
         };
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -3201,6 +3237,18 @@ private:
 
             auto requisition = chunk->GetAggregatedRequisition(requisitionRegistry);
             ComputeChunkResourceDelta(chunk, requisition, +1, chargeAccount);
+        }
+
+        if (!NeedRecomputeReferencingAccounts_) {
+            // Master table schema memory usage is recalculated separately.
+            const auto& tableManager = Bootstrap_->GetTableManager();
+            for (auto [schemaId, schema] : tableManager->MasterTableSchemas()) {
+                for (const auto& [account, refCounter] : schema->ReferencingAccounts()) {
+                    YT_VERIFY(schema->GetChargedMasterMemoryUsage(account.Get()) == 0);
+
+                    IncreaseMasterMemoryUsage(schema, account.Get(), +1, /* recomputingMasterMemory */ true);
+                }
+            }
         }
 
         YT_LOG_INFO("Finished recomputing account master memory usage");
@@ -3308,6 +3356,14 @@ private:
             }
         }
 
+        // Accounts are referenced by schemas.
+        const auto& tableManager = Bootstrap_->GetTableManager();
+        for (auto [schemaId, schema] : tableManager->MasterTableSchemas()) {
+            for (const auto& [account, counter] : schema->ReferencingAccounts()) {
+                ++accountToRefCounter[account.Get()];
+            }
+        }
+
         // Accounts are referenced by resource usage leases.
         for (auto [leaseId, lease] : AccountResourceUsageLeaseMap_) {
             ++accountToRefCounter[lease->Account().Get()];
@@ -3376,6 +3432,7 @@ private:
 
         MustRecomputeMembershipClosure_ = false;
         NeedUpdatePerUserThrottlerLimits_ = false;
+        NeedRecomputeReferencingAccounts_ = false;
         RecomputeAccountRefCounters_ = false;
         RecomputeAccountResourceUsages_ = false;
 

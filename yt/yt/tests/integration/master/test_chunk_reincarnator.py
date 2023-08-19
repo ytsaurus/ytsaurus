@@ -167,6 +167,12 @@ class TestChunkReincarnatorBase(YTEnvSetup):
             "chunk_replicator_address",
         ]
 
+        # COMPAT(h0pless): Remove this when reincarnator will learn how to set chunk schemas
+        if "schema" in attrs:
+            attrs.pop("schema")
+        if "schema_id" in attrs:
+            attrs.pop("schema_id")
+
         for attr in transient_attrs:
             if attr in attrs:
                 attrs.pop(attr)

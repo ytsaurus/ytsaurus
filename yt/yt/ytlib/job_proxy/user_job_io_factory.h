@@ -37,6 +37,7 @@ struct IUserJobIOFactory
         NChunkClient::TChunkListId chunkListId,
         NTransactionClient::TTransactionId transactionId,
         NTableClient::TTableSchemaPtr tableSchema,
+        NTableClient::TMasterTableSchemaId schemaId,
         const NTableClient::TChunkTimestamps& chunkTimestamps,
         const std::optional<NChunkClient::TDataSink>& dataSink) = 0;
 };

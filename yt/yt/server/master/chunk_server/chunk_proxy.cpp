@@ -92,6 +92,7 @@ private:
         bool hasBoundaryKeysExt = chunk->ChunkMeta()->HasExtension<TBoundaryKeysExt>();
         bool hasHunkChunkMiscExt = chunk->ChunkMeta()->HasExtension<THunkChunkMiscExt>();
         auto isForeign = chunk->IsForeign();
+        const auto& chunkSchema = chunk->Schema();
 
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::StoredReplicas)
             .SetPresent(!isForeign));
@@ -224,6 +225,11 @@ private:
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::StripedErasure)
             .SetPresent(chunk->IsBlob() && chunk->IsErasure() && chunk->IsConfirmed()));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Schema)
+            .SetPresent(chunkSchema.operator bool())
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SchemaId)
+            .SetPresent(chunkSchema.operator bool()));
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -940,6 +946,17 @@ private:
                 return true;
             }
 
+            case EInternedAttributeKey::SchemaId: {
+                const auto& chunkSchema = chunk->Schema();
+                if (!chunkSchema) {
+                    break;
+                }
+
+                BuildYsonFluently(consumer)
+                    .Value(chunkSchema->GetId());
+                return true;
+            }
+
             default:
                 break;
         }
@@ -1052,6 +1069,15 @@ private:
                     break;
                 }
                 return requestAttributeFromChunkReplicator("/@local_replication_status");
+
+            case EInternedAttributeKey::Schema: {
+                const auto& chunkSchema = chunk->Schema();
+                if (!chunkSchema) {
+                    break;
+                }
+
+                return chunkSchema->AsYsonAsync();
+            }
 
             default:
                 break;

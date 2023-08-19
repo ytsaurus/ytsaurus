@@ -109,6 +109,7 @@ public:
         // so all composite values in input tables become Any values.
         // Cast them back.
         options->CastAnyToComposite = true;
+        auto schemaId = FromProto<TMasterTableSchemaId>(outputSpec.schema_id());
 
         auto writerConfig = GetWriterConfig(outputSpec);
         auto timestamp = static_cast<TTimestamp>(outputSpec.timestamp());
@@ -134,6 +135,7 @@ public:
                 Host_->GetLocalHostName(),
                 CellTagFromId(chunkListId),
                 transactionId,
+                schemaId,
                 dataSink,
                 chunkListId,
                 TChunkTimestamps{timestamp, timestamp},

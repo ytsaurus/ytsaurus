@@ -187,6 +187,7 @@ protected:
             Bootstrap_->GetLocalHostName(),
             CellTagFromId(TabletSnapshot_->TabletId),
             Transaction_->GetId(),
+            TabletSnapshot_->SchemaId,
             /*parentChunkListId*/ {},
             Bootstrap_->GetOutThrottler(WorkloadCategory_),
             BlockCache_);
@@ -234,6 +235,7 @@ private:
             HunkWriterOptions_,
             CellTagFromId(TabletSnapshot_->TabletId),
             Transaction_->GetId(),
+            TabletSnapshot_->SchemaId,
             /*parentChunkListId*/ {},
             Bootstrap_->GetClient(),
             Bootstrap_->GetLocalHostName(),

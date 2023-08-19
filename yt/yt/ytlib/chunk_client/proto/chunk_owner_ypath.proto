@@ -26,12 +26,19 @@ message TReqBeginUpload
     // may provide additional cells to replicate the transaction to.
     // This is useful, e.g., in implementing "concat" command.
     repeated int32 upload_transaction_secondary_cell_tags = 6;
+    optional NYT.NTableClient.NProto.TTableSchemaExt table_schema = 7;
+    optional int32 schema_mode = 8; // ETableSchemaMode
+    optional int32 optimize_for = 9; // EOptimizeFor
+    optional NYT.NTableClient.NProto.TTableSchemaExt chunk_schema = 10;
+    optional NYT.NProto.TGuid table_schema_id = 11;
+    optional NYT.NProto.TGuid chunk_schema_id = 12;
 }
 
 message TRspBeginUpload
 {
     required NYT.NProto.TGuid upload_transaction_id = 1;
     required int32 cell_tag = 2;
+    optional NYT.NProto.TGuid upload_chunk_schema_id = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -59,14 +66,17 @@ message TRspGetUploadParams
 message TReqEndUpload
 {
     optional TDataStatistics statistics = 1;
+
+    // COMPAT(h0pless): remove this when clients will send table schema options during begin upload.
     optional NYT.NTableClient.NProto.TTableSchemaExt table_schema = 6;
     optional int32 schema_mode = 7; // ETableSchemaMode
+    optional NYT.NProto.TGuid table_schema_id = 14;
+
     optional int32 optimize_for = 8; // EOptimizeFor
     optional int32 compression_codec = 9; // NCompression::ECodec
     optional int32 erasure_codec = 10; // NErasure::ECodec
     optional NYT.NCrypto.NProto.TMD5Hasher md5_hasher = 11;
     optional int32 chunk_format = 13; // EChunkFormat
-    optional NYT.NProto.TGuid table_schema_id = 14;
 
     message TSecurityTags
     {

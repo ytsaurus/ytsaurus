@@ -143,6 +143,7 @@ DEFINE_ENUM(EMasterReign,
     ((SequoiaReplicas)                                              (2414))  // aleksandra-zh
     ((AutoTurnOffPendingRestartMaintenanceFlag)                     (2415))  // danilalexeev
     ((AllowSetMountConfigUnderTransaction)                          (2416))  // dave11ar
+    ((AddChunkSchemas)                                              (2417))  // h0pless
 );
 
 ////////////////////////////////////////////////////////////////////////////////

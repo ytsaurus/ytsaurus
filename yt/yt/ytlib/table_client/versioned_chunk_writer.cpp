@@ -936,6 +936,7 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
     TString localHostName,
     TCellTag cellTag,
     TTransactionId transactionId,
+    TMasterTableSchemaId schemaId,
     TChunkListId parentChunkListId,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
@@ -953,6 +954,7 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
         std::move(localHostName),
         cellTag,
         transactionId,
+        schemaId,
         parentChunkListId,
         std::move(chunkWriterFactory),
         /* trafficMeter */ nullptr,
@@ -970,6 +972,7 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
     TString localHostName,
     TCellTag cellTag,
     TTransactionId transactionId,
+    TMasterTableSchemaId schemaId,
     const std::optional<NChunkClient::TDataSink>& dataSink,
     TChunkListId parentChunkListId,
     IThroughputThrottlerPtr throttler,
@@ -993,6 +996,7 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
         std::move(localHostName),
         cellTag,
         transactionId,
+        schemaId,
         parentChunkListId,
         std::move(throttler),
         std::move(blockCache));

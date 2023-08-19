@@ -1667,6 +1667,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(
     snapshot->PivotKey = PivotKey_;
     snapshot->NextPivotKey = NextPivotKey_;
     snapshot->TableSchema = TableSchema_;
+    snapshot->SchemaId = SchemaId_;
     snapshot->PhysicalSchema = PhysicalSchema_;
     snapshot->QuerySchema = PhysicalSchema_->ToQuery();
     snapshot->TableSchemaData = TableSchemaData_;

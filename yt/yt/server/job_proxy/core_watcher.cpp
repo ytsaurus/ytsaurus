@@ -45,6 +45,7 @@ using namespace NLogging;
 using namespace NNet;
 using namespace NPipes;
 using namespace NTableClient;
+using namespace NTableServer;
 using namespace NYTree;
 using namespace NYson;
 
@@ -99,7 +100,8 @@ TCoreWatcher::TCoreWatcher(
     TBlobTableWriterConfigPtr blobTableWriterConfig,
     TTableWriterOptionsPtr tableWriterOptions,
     TTransactionId transaction,
-    TChunkListId chunkList)
+    TChunkListId chunkList,
+    TMasterTableSchemaId schemaId)
     : Config_(std::move(config))
     , ControlInvoker_(std::move(controlInvoker))
     , IOInvoker_(CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker(), "core_watcher"))
@@ -113,6 +115,7 @@ TCoreWatcher::TCoreWatcher(
     , TableWriterOptions_(std::move(tableWriterOptions))
     , Transaction_(transaction)
     , ChunkList_(chunkList)
+    , SchemaId_(schemaId)
     , Logger(CoreWatcherLogger.WithTag("JobId: %v", JobHost_->GetJobId()))
 {
     PeriodicExecutor_->Start();
@@ -369,6 +372,7 @@ i64 TCoreWatcher::DoReadCore(const IAsyncInputStreamPtr& coreStream, const TStri
         BlobTableWriterConfig_,
         TableWriterOptions_,
         Transaction_,
+        SchemaId_,
         /*dataSink*/ std::nullopt,
         ChunkList_,
         JobHost_->GetTrafficMeter(),

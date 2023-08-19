@@ -31,7 +31,6 @@ protected:
     NCellMaster::TBootstrap* const Bootstrap_;
     const NYTree::INodePtr OwningNode_;
 
-
     TVirtualMulticellMapBase(
         NCellMaster::TBootstrap* bootstrap,
         NYTree::INodePtr owningNode,

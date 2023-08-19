@@ -540,19 +540,7 @@ std::function<int()> CreateBasicKeyYielder()
 
 class TChunkTreeTraversingTest
     : public TChunkGeneratorBase
-    , public TBootstrapMock
-{
-public:
-    void SetUp() override
-    {
-        SetupMasterSmartpointers();
-    }
-
-    void TearDown() override
-    {
-        ResetMasterSmartpointers();
-    }
-};
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1600,19 +1588,7 @@ INSTANTIATE_TEST_SUITE_P(
 
 class TChunkTreeTraversingStressTest
     : public TChunkGeneratorBase
-    , public TBootstrapMock
-{
-public:
-    void SetUp() override
-    {
-        SetupMasterSmartpointers();
-    }
-
-    void TearDown() override
-    {
-        ResetMasterSmartpointers();
-    }
-};
+{ };
 
 TEST_F(TChunkTreeTraversingStressTest, StaticWithoutKeys)
 {

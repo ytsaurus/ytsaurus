@@ -63,7 +63,7 @@ private:
             case EInternedAttributeKey::ReferencingAccounts:
                 BuildYsonFluently(consumer)
                     .DoMapFor(schema->ReferencingAccounts(), [] (TFluentMap fluent, const auto& pair) {
-                        auto [account, refCounter] = pair;
+                        const auto& [account, refCounter] = pair;
                         fluent
                             .Item(account->GetName())
                             .Value(refCounter);

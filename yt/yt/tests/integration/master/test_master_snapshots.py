@@ -158,7 +158,7 @@ def check_hierarchical_accounts():
         assert account in accounts
         assert account not in topmost_accounts
 
-    wait(lambda: get("//sys/account_tree/@ref_counter") == len(topmost_accounts) + 1)
+    # Check invariants in master will catch /sys/account_tree ref counter mismatch on load.
 
     assert ls("//sys/account_tree/b1") == ["b11"]
     assert ls("//sys/account_tree/b2") == ["b21"]
@@ -191,9 +191,13 @@ def check_master_memory():
     }
     create_account("a", attributes={"resource_limits": resource_limits})
 
-    create("map_node", "//tmp/dir1", attributes={"account": "a", "sdkjnfkdjs": "lsdkfj"})
-    create("table", "//tmp/dir1/t", attributes={"account": "a", "aksdj": "sdkjf"})
-    write_table("//tmp/dir1/t", {"adssaa": "kfjhsdkb"})
+    create("map_node", "//tmp/dir1", attributes={"account": "a", "attr_for_dir": "BooYa"})
+    create("table", "//tmp/dir1/t", attributes={"account": "a", "attr_for_tab": "Boopers"})
+    write_table("//tmp/dir1/t", {"a": 1})
+    write_table(
+        "<chunk_sort_columns=[{name=a;sort_order=descending};{name=b;sort_order=descending};{name=c;sort_order=descending}];append=true>//tmp/dir1/t",
+        {"a": 42, "b": 123, "c": 88005553535})
+
     copy("//tmp/dir1", "//tmp/dir2", preserve_account=True)
 
     sync_create_cells(1)

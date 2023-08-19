@@ -23,6 +23,7 @@ IChunkWriterPtr CreateConfirmingWriter(
     TMultiChunkWriterOptionsPtr options,
     NObjectClient::TCellTag cellTag,
     NTransactionClient::TTransactionId transactionId,
+    NTableClient::TMasterTableSchemaId schemaId,
     TChunkListId parentChunkListId,
     NApi::NNative::IClientPtr client,
     TString localHostName,

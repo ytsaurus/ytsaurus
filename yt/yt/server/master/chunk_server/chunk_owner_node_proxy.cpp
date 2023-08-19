@@ -1348,10 +1348,57 @@ void TChunkOwnerNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* contex
     }
 }
 
+void TChunkOwnerNodeProxy::ReplicateBeginUploadRequestToExternalCell(
+    TChunkOwnerBase* node,
+    TTransactionId uploadTransactionId,
+    NChunkClient::NProto::TReqBeginUpload* request,
+    TChunkOwnerBase::TBeginUploadContext& uploadContext) const
+{
+    auto externalCellTag = node->GetExternalCellTag();
+    const auto& transactionManager = Bootstrap_->GetTransactionManager();
+    auto externalizedTransactionId = node->IsExternal()
+        ? transactionManager->ExternalizeTransaction(Transaction_, {externalCellTag})
+        : GetObjectId(Transaction_);
+
+    auto replicationRequest = TChunkOwnerYPathProxy::BeginUpload(FromObjectId(GetId()));
+    replicationRequest->set_update_mode(request->update_mode());
+    replicationRequest->set_lock_mode(request->lock_mode());
+
+    if (request->has_schema_mode()) {
+        replicationRequest->set_schema_mode(request->schema_mode());
+    }
+
+    ToProto(replicationRequest->mutable_upload_transaction_id(), uploadTransactionId);
+    if (request->has_upload_transaction_title()) {
+        replicationRequest->set_upload_transaction_title(request->upload_transaction_title());
+    }
+
+    // NB: Journals and files have no schema, thus no need to replicate one.
+    if (uploadContext.TableSchema) {
+        auto tableSchemaId = uploadContext.TableSchema->GetId();
+        ToProto(replicationRequest->mutable_table_schema_id(), tableSchemaId);
+    }
+
+    if (uploadContext.ChunkSchema) {
+        if (!uploadContext.ChunkSchema->IsExported(externalCellTag)) {
+            ToProto(replicationRequest->mutable_chunk_schema(), uploadContext.ChunkSchema->AsTableSchema());
+        }
+
+        auto chunkSchemaId = uploadContext.ChunkSchema->GetId();
+        ToProto(replicationRequest->mutable_chunk_schema_id(), chunkSchemaId);
+    }
+
+    SetTransactionId(replicationRequest, externalizedTransactionId);
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    // NB: upload_transaction_timeout must remain null
+    // NB: upload_transaction_secondary_cell_tags must remain empty
+    multicellManager->PostToMaster(replicationRequest, externalCellTag);
+}
+
 void TChunkOwnerNodeProxy::ReplicateEndUploadRequestToExternalCell(
     TChunkOwnerBase* node,
     NChunkClient::NProto::TReqEndUpload* request,
-    TChunkOwnerBase::TEndUploadContext& uploadContext)
+    TChunkOwnerBase::TEndUploadContext& uploadContext) const
 {
     auto externalCellTag = node->GetExternalCellTag();
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
@@ -1360,9 +1407,6 @@ void TChunkOwnerNodeProxy::ReplicateEndUploadRequestToExternalCell(
     auto replicationRequest = TChunkOwnerYPathProxy::EndUpload(FromObjectId(GetId()));
     if (request->has_statistics()) {
         replicationRequest->mutable_statistics()->CopyFrom(request->statistics());
-    }
-    if (request->has_schema_mode()) {
-        replicationRequest->set_schema_mode(request->schema_mode());
     }
     if (request->has_optimize_for()) {
         replicationRequest->set_optimize_for(request->optimize_for());
@@ -1383,16 +1427,54 @@ void TChunkOwnerNodeProxy::ReplicateEndUploadRequestToExternalCell(
         replicationRequest->mutable_security_tags()->CopyFrom(request->security_tags());
     }
 
+    // COMPAT(h0pless): remove this when clients will send table schema options during begin upload.
     // NB: Journals and files have no schema, thus no need to replicate one.
-    if (uploadContext.Schema) {
-        auto tableSchemaId = uploadContext.Schema->GetId();
+    if (uploadContext.TableSchema) {
+        auto tableSchemaId = uploadContext.TableSchema->GetId();
         // Schema was exported during EndUpload call, it's safe to send id only.
         ToProto(replicationRequest->mutable_table_schema_id(), tableSchemaId);
+    }
+    if (request->has_schema_mode()) {
+        replicationRequest->set_schema_mode(request->schema_mode());
     }
 
     SetTransactionId(replicationRequest, externalizedTransactionId);
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     multicellManager->PostToMaster(replicationRequest, externalCellTag);
+}
+
+TMasterTableSchema* TChunkOwnerNodeProxy::CalculateEffectiveMasterTableSchema(
+    TChunkOwnerBase* node,
+    TTableSchemaPtr schema,
+    TMasterTableSchemaId schemaId,
+    TTransaction* schemaHolder)
+{
+    const auto& tableManager = Bootstrap_->GetTableManager();
+    if (node->IsNative()) {
+        if (schema) {
+            return tableManager->GetOrCreateNativeMasterTableSchema(*schema, schemaHolder);
+        }
+
+        if (schemaId) {
+            return tableManager->GetMasterTableSchemaOrThrow(schemaId);
+        }
+
+        return tableManager->GetEmptyMasterTableSchema();
+    }
+
+    if (schema) {
+        // COMPAT(h0pless): Remove this after schema migration is complete.
+        if (!schemaId) {
+            YT_LOG_ALERT("Created native schema on an external cell tag (NodeId: %v, TransactionId: %v)",
+                node->GetId(),
+                schemaHolder->GetId());
+            return tableManager->GetOrCreateNativeMasterTableSchema(*schema, schemaHolder);
+        }
+
+        return tableManager->CreateImportedTemporaryMasterTableSchema(*schema, schemaHolder, schemaId);
+    }
+
+    return tableManager->GetMasterTableSchema(schemaId);
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
@@ -1441,7 +1523,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 {
     DeclareMutating();
 
-    TChunkOwnerBase::TBeginUploadContext uploadContext;
+    TChunkOwnerBase::TBeginUploadContext uploadContext(Bootstrap_);
     uploadContext.Mode = CheckedEnumCast<EUpdateMode>(request->update_mode());
     if (uploadContext.Mode != EUpdateMode::Append && uploadContext.Mode != EUpdateMode::Overwrite) {
         THROW_ERROR_EXCEPTION("Invalid update mode %Qlv for a chunk owner node",
@@ -1465,6 +1547,20 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         ? std::make_optional(FromProto<TDuration>(request->upload_transaction_timeout()))
         : std::nullopt;
 
+    auto tableSchema = request->has_table_schema()
+        ? FromProto<TTableSchemaPtr>(request->table_schema())
+        : nullptr;
+
+    auto tableSchemaId = FromProto<TMasterTableSchemaId>(request->table_schema_id());
+
+    auto chunkSchema = request->has_chunk_schema()
+        ? FromProto<TTableSchemaPtr>(request->chunk_schema())
+        : nullptr;
+
+    auto chunkSchemaId = FromProto<TMasterTableSchemaId>(request->chunk_schema_id());
+
+    uploadContext.SchemaMode = CheckedEnumCast<ETableSchemaMode>(request->schema_mode());
+
     auto uploadTransactionIdHint = FromProto<TTransactionId>(request->upload_transaction_id());
 
     auto replicatedToCellTags = FromProto<TCellTagList>(request->upload_transaction_secondary_cell_tags());
@@ -1486,13 +1582,15 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
     RemoveCellTag(&replicateStartToCellTags, externalCellTag);
 
     context->SetRequestInfo(
-        "UpdateMode: %v, LockMode: %v, "
-        "Title: %v, Timeout: %v, ReplicatedToCellTags: %v",
+        "SchemaMode: %v, UpdateMode: %v, LockMode: %v, Title: %v, "
+        "Timeout: %v, ReplicatedToCellTags: %v, TableSchemaId: %v",
+        uploadContext.SchemaMode,
         uploadContext.Mode,
         lockMode,
         uploadTransactionTitle,
         uploadTransactionTimeout,
-        replicatedToCellTags);
+        replicatedToCellTags,
+        tableSchemaId);
 
     // NB: No need for a permission check;
     // the client must have invoked GetBasicAttributes.
@@ -1502,6 +1600,18 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
+
+    YT_LOG_ALERT_IF(!IsSchemafulType(node->GetType()) && (tableSchema || tableSchemaId),
+        "Received a schema or schema ID while beginning upload into a non-schemaful node (NodeId: %v, Schema: %v, SchemaId: %v)",
+        node->GetId(),
+        tableSchema,
+        tableSchemaId);
+
+    YT_LOG_ALERT_IF(!IsSchemafulType(node->GetType()) && (chunkSchema || chunkSchemaId),
+        "Received a chunk schema or chunk schema ID while beginning upload into a non-schemaful node (NodeId: %v, ChunkSchema: %v, ChunkSchemaId: %v)",
+        node->GetId(),
+        chunkSchema,
+        chunkSchemaId);
 
     auto* uploadTransaction = transactionManager->StartUploadTransaction(
         /* parent */ Transaction_,
@@ -1513,6 +1623,31 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
     auto* lockedNode = cypressManager
         ->LockNode(TrunkNode_, uploadTransaction, lockMode, false, true)
         ->As<TChunkOwnerBase>();
+
+    const auto& tableManager = Bootstrap_->GetTableManager();
+    if (IsSchemafulType(node->GetType())) {
+        tableManager->ValidateTableSchemaCorrespondence(
+            node->GetVersionedId(),
+            tableSchema,
+            tableSchemaId);
+
+        uploadContext.TableSchema = CalculateEffectiveMasterTableSchema(node, tableSchema, tableSchemaId, uploadTransaction);
+
+        // NB: Chunk schema is at least as strict as the table schema, possibly more strict.
+        // Thus we can send extra information only when they differ, and otherwise treat them the same way.
+        if (chunkSchema || chunkSchemaId) {
+            tableManager->ValidateTableSchemaCorrespondence(
+                node->GetVersionedId(),
+                chunkSchema,
+                chunkSchemaId,
+                /* isChunkSchema */ true);
+
+            uploadContext.ChunkSchema = CalculateEffectiveMasterTableSchema(node, chunkSchema, chunkSchemaId, uploadTransaction);
+            ToProto(response->mutable_upload_chunk_schema_id(), uploadContext.ChunkSchema->GetId());
+        } else {
+            ToProto(response->mutable_upload_chunk_schema_id(), uploadContext.TableSchema->GetId());
+        }
+    }
 
     if (!node->IsExternal()) {
         switch (uploadContext.Mode) {
@@ -1623,8 +1758,6 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         }
     }
 
-    lockedNode->BeginUpload(uploadContext);
-
     auto uploadTransactionId = uploadTransaction->GetId();
     ToProto(response->mutable_upload_transaction_id(), uploadTransactionId);
 
@@ -1633,31 +1766,17 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         ? multicellManager->GetCellTag()
         : externalCellTag));
 
-    auto maybeExternalizeTransaction = [&] (TCellTag dstCellTag) {
-        return node->IsExternal()
-            ? transactionManager->ExternalizeTransaction(Transaction_, {dstCellTag})
-            : GetObjectId(Transaction_);
-    };
+    lockedNode->BeginUpload(uploadContext);
 
     if (node->IsExternal()) {
-        auto externalizedTransactionId = maybeExternalizeTransaction(externalCellTag);
-
-        auto replicationRequest = TChunkOwnerYPathProxy::BeginUpload(FromObjectId(GetId()));
-        SetTransactionId(replicationRequest, externalizedTransactionId);
-        replicationRequest->set_update_mode(static_cast<int>(uploadContext.Mode));
-        replicationRequest->set_lock_mode(static_cast<int>(lockMode));
-        ToProto(replicationRequest->mutable_upload_transaction_id(), uploadTransactionId);
-        if (uploadTransactionTitle) {
-            replicationRequest->set_upload_transaction_title(*uploadTransactionTitle);
-        }
-        // NB: upload_transaction_timeout must remain null
-        // NB: upload_transaction_secondary_cell_tags must remain empty
-        multicellManager->PostToMaster(replicationRequest, externalCellTag);
+        ReplicateBeginUploadRequestToExternalCell(node, uploadTransactionId, request, uploadContext);
     }
 
     if (!replicateStartToCellTags.empty()) {
         for (auto dstCellTag : replicateStartToCellTags) {
-            auto externalizedTransactionId = maybeExternalizeTransaction(dstCellTag);
+            auto externalizedTransactionId = node->IsExternal()
+                ? transactionManager->ExternalizeTransaction(Transaction_, {dstCellTag})
+                : GetObjectId(Transaction_);
 
             NTransactionServer::NProto::TReqStartForeignTransaction startRequest;
             ToProto(startRequest.mutable_id(), uploadTransactionId);
@@ -1739,7 +1858,6 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, GetUploadParams)
                 }
                 ToProto(response->add_tablet_chunk_list_ids(), tabletList->GetId());
             }
-
             break;
         }
 
@@ -1760,14 +1878,11 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
 
     TChunkOwnerBase::TEndUploadContext uploadContext(Bootstrap_);
 
+    // COMPAT(h0pless): remove this when clients will send table schema options during begin upload.
     auto tableSchema = request->has_table_schema()
         ? FromProto<TTableSchemaPtr>(request->table_schema())
         : nullptr;
-
-    auto tableSchemaId = request->has_table_schema_id()
-        ? FromProto<TMasterTableSchemaId>(request->table_schema_id())
-        : NullObjectId;
-
+    auto tableSchemaId = FromProto<TMasterTableSchemaId>(request->table_schema_id());
     uploadContext.SchemaMode = CheckedEnumCast<ETableSchemaMode>(request->schema_mode());
 
     if (request->has_statistics()) {
@@ -1806,15 +1921,13 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
         uploadContext.ErasureCodec = CheckedEnumCast<NErasure::ECodec>(request->erasure_codec());
     }
 
-    context->SetRequestInfo("SchemaMode: %v, Statistics: %v, CompressionCodec: %v, ErasureCodec: %v, OptimizeFor: %v, "
-        "ChunkFormat: %v, MD5Hasher: %v",
-        uploadContext.SchemaMode,
+    context->SetRequestInfo("Statistics: %v, CompressionCodec: %v, ErasureCodec: %v, ChunkFormat: %v, MD5Hasher: %v, OptimizeFor: %v",
         uploadContext.Statistics,
         uploadContext.CompressionCodec,
         uploadContext.ErasureCodec,
-        uploadContext.OptimizeFor,
         uploadContext.ChunkFormat,
-        uploadContext.MD5Hasher.has_value());
+        uploadContext.MD5Hasher.has_value(),
+        uploadContext.OptimizeFor);
 
     ValidateTransaction();
     ValidateInUpdate();
@@ -1833,50 +1946,13 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
         tableSchemaId);
 
     const auto& tableManager = Bootstrap_->GetTableManager();
-    auto getOrCreateCorrespondingTableSchema = [&] ()
-    {
-        if (node->IsNative()) {
-            if (tableSchema) {
-                return tableManager->GetOrCreateNativeMasterTableSchema(*tableSchema, Transaction_);
-            }
-
-            if (tableSchemaId) {
-                return tableManager->GetMasterTableSchemaOrThrow(tableSchemaId);
-            }
-
-            return tableManager->GetEmptyMasterTableSchema();
-        }
-
-        if (tableSchema) {
-            // COMPAT(h0pless): Remove this after schema migration is complete.
-            if (!tableSchemaId) {
-                YT_LOG_ALERT("Created native schema on an external cell tag (NodeId: %v, TransactionId: %v)",
-                    node->GetId(),
-                    Transaction_->GetId());
-                return tableManager->GetOrCreateNativeMasterTableSchema(*tableSchema, Transaction_);
-            }
-
-            // COMPAT(h0pless): This branch will be used by chunk schemas. When they get introduced this alert will be removed.
-            YT_LOG_ALERT("Created imported schema on an external cell outside of a designated mutation "
-                "(TableSchemaId: %v, TransactionId: %v)",
-                tableSchemaId,
-                Transaction_->GetId());
-            return tableManager->CreateImportedTemporaryMasterTableSchema(
-                *tableSchema,
-                Transaction_,
-                tableSchemaId);
-        }
-
-        return tableManager->GetMasterTableSchema(tableSchemaId);
-    };
-
     if (IsTableType(node->GetType())) {
         tableManager->ValidateTableSchemaCorrespondence(
             node->GetVersionedId(),
             tableSchema,
             tableSchemaId);
 
-        uploadContext.Schema = getOrCreateCorrespondingTableSchema();
+        uploadContext.TableSchema = CalculateEffectiveMasterTableSchema(node, tableSchema, tableSchemaId, Transaction_);
     }
 
     node->EndUpload(uploadContext);

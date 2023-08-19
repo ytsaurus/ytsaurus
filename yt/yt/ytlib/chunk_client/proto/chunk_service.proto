@@ -9,6 +9,7 @@ import "yt_proto/yt/client/chunk_client/proto/chunk_meta.proto";
 import "yt_proto/yt/client/chunk_client/proto/data_statistics.proto";
 import "yt_proto/yt/client/chunk_client/proto/chunk_spec.proto";
 import "yt_proto/yt/client/chunk_client/proto/confirm_chunk_replica_info.proto";
+import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -134,6 +135,7 @@ message TChunkImportData
     required NYT.NChunkClient.NProto.TChunkInfo info = 2;
     required NYT.NChunkClient.NProto.TChunkMeta meta = 3;
     required int32 erasure_codec = 4; // NErasure::ECodec
+    optional NYT.NProto.TGuid chunk_schema_id = 5;
 }
 
 message TReqExportChunks
@@ -263,6 +265,7 @@ message TReqConfirmChunk
     required TChunkMeta chunk_meta = 3;
     required TChunkInfo chunk_info = 4;
     optional bool request_statistics = 5 [default = false];
+    optional NYT.NProto.TGuid schema_id = 8;
 }
 
 message TRspConfirmChunk

@@ -59,12 +59,20 @@ std::unique_ptr<TChunk> CreateChunk()
 
 class TChunkTreeBalancerCallbacksMock
     : public IChunkTreeBalancerCallbacks
+    , public TBootstrapMock
 {
 public:
     explicit TChunkTreeBalancerCallbacksMock(std::vector<std::unique_ptr<TChunkList>>* chunkLists)
         : Config_(New<TDynamicChunkTreeBalancerConfig>())
         , ChunkLists_(chunkLists)
-    { }
+    {
+        SetupMasterSmartpointers();
+    }
+
+    ~TChunkTreeBalancerCallbacksMock()
+    {
+        ResetMasterSmartpointers();
+    }
 
     const TDynamicChunkTreeBalancerConfigPtr& GetConfig() const override
     {

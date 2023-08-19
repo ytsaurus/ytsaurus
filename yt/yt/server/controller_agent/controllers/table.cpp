@@ -86,6 +86,9 @@ void TOutputTable::Persist(const TPersistenceContext& context)
     Persist(context, TableUploadOptions);
     Persist(context, TableWriterOptions);
     Persist(context, OutputType);
+    if (context.GetVersion() >= ESnapshotVersion::AddChunkSchemas) {
+        Persist(context, OriginalTableSchemaRevision);
+    }
     Persist(context, Type);
     Persist(context, DataStatistics);
     // NB: Scheduler snapshots need not be stable.

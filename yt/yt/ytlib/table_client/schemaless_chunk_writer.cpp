@@ -3,6 +3,7 @@
 #include "chunk_meta_extensions.h"
 #include "config.h"
 #include "partitioner.h"
+#include "schema.h"
 #include "schemaless_block_writer.h"
 #include "table_ypath_proxy.h"
 #include "helpers.h"
@@ -51,6 +52,7 @@
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/schemaless_row_reorderer.h>
+#include <yt/yt/client/table_client/check_schema_compatibility.h>
 
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/transaction.h>
@@ -983,6 +985,7 @@ public:
         TString localHostName,
         TCellTag cellTag,
         TTransactionId transactionId,
+        TMasterTableSchemaId schemaId,
         TChunkListId parentChunkListId,
         TNameTablePtr nameTable,
         TTableSchemaPtr schema,
@@ -997,6 +1000,7 @@ public:
             std::move(localHostName),
             cellTag,
             transactionId,
+            schemaId,
             parentChunkListId,
             trafficMeter,
             throttler,
@@ -1336,6 +1340,7 @@ public:
         TString localHostName,
         TCellTag cellTag,
         TTransactionId transactionId,
+        TMasterTableSchemaId schemaId,
         TChunkListId parentChunkListId,
         TNameTablePtr nameTable,
         TTableSchemaPtr schema,
@@ -1351,6 +1356,7 @@ public:
             std::move(localHostName),
             cellTag,
             transactionId,
+            schemaId,
             parentChunkListId,
             nameTable,
             schema,
@@ -1553,6 +1559,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     TString localHostName,
     TCellTag cellTag,
     TTransactionId transactionId,
+    TMasterTableSchemaId schemaId,
     TChunkListId parentChunkListId,
     IPartitionerPtr partitioner,
     const std::optional<NChunkClient::TDataSink>& dataSink,
@@ -1567,6 +1574,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
         std::move(localHostName),
         cellTag,
         transactionId,
+        schemaId,
         parentChunkListId,
         std::move(nameTable),
         std::move(schema),
@@ -1594,6 +1602,7 @@ public:
         TString localHostName,
         TCellTag cellTag,
         TTransactionId transactionId,
+        TMasterTableSchemaId schemaId,
         TChunkListId parentChunkListId,
         std::function<ISchemalessChunkWriterPtr(IChunkWriterPtr)> createChunkWriter,
         TNameTablePtr nameTable,
@@ -1609,6 +1618,7 @@ public:
             std::move(localHostName),
             cellTag,
             transactionId,
+            schemaId,
             parentChunkListId,
             nameTable,
             schema,
@@ -1670,6 +1680,7 @@ public:
         TString localHostName,
         TCellTag cellTag,
         TTransactionId transactionId,
+        TMasterTableSchemaId schemaId,
         TChunkListId parentChunkListId,
         std::function<IVersionedChunkWriterPtr(IChunkWriterPtr)> createChunkWriter,
         TNameTablePtr nameTable,
@@ -1685,6 +1696,7 @@ public:
             std::move(localHostName),
             cellTag,
             transactionId,
+            schemaId,
             parentChunkListId,
             nameTable,
             schema->ToUnversionedUpdate(),
@@ -1920,6 +1932,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     TString localHostName,
     TCellTag cellTag,
     TTransactionId transactionId,
+    TMasterTableSchemaId schemaId,
     const std::optional<NChunkClient::TDataSink>& dataSink,
     TChunkListId parentChunkListId,
     const TChunkTimestamps& chunkTimestamps,
@@ -1948,6 +1961,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
                 localHostName,
                 cellTag,
                 transactionId,
+                schemaId,
                 parentChunkListId,
                 createChunkWriter,
                 nameTable,
@@ -1980,6 +1994,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
                 localHostName,
                 cellTag,
                 transactionId,
+                schemaId,
                 parentChunkListId,
                 createChunkWriter,
                 nameTable,
@@ -2072,7 +2087,7 @@ public:
 
     const TTableSchemaPtr& GetSchema() const override
     {
-        return TableUploadOptions_.TableSchema;
+        return TableUploadOptions_.TableSchema.Get();
     }
 
 private:
@@ -2260,6 +2275,8 @@ private:
                 Options_->EnableSkynetSharing);
         }
 
+        TMasterTableSchemaId chunkSchemaId;
+
         {
             YT_LOG_DEBUG("Starting table upload");
 
@@ -2268,6 +2285,21 @@ private:
 
             {
                 auto req = TTableYPathProxy::BeginUpload(objectIdPath);
+                ToProto(req->mutable_table_schema(), TableUploadOptions_.TableSchema.Get());
+                // Only time this can be true is when RichPath_ has extra chunk sort colums.
+                if (chunkSchema != TableUploadOptions_.TableSchema.Get()) {
+                    auto checkResult = CheckTableSchemaCompatibility(*chunkSchema, *TableUploadOptions_.TableSchema.Get(), false);
+                    if (!checkResult.second.IsOK()) {
+                        YT_LOG_FATAL(
+                            checkResult.second,
+                            "Chunk schema is incompatible with a table schema (ChunkSchema: %v, TableSchema: %v)",
+                            *chunkSchema,
+                            *TableUploadOptions_.TableSchema.Get());
+                    }
+                    ToProto(req->mutable_chunk_schema(), chunkSchema);
+                }
+                req->set_schema_mode(static_cast<int>(TableUploadOptions_.SchemaMode));
+                req->set_optimize_for(static_cast<int>(TableUploadOptions_.OptimizeFor));
                 req->set_update_mode(static_cast<int>(TableUploadOptions_.UpdateMode));
                 req->set_lock_mode(static_cast<int>(TableUploadOptions_.LockMode));
                 req->set_upload_transaction_title(Format("Upload to %v", path));
@@ -2283,11 +2315,10 @@ private:
                 "Error starting upload to table %v",
                 path);
             const auto& batchRsp = batchRspOrError.Value();
-
             {
                 auto rsp = batchRsp->GetResponse<TTableYPathProxy::TRspBeginUpload>("begin_upload").Value();
                 auto uploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
-
+                chunkSchemaId = FromProto<TMasterTableSchemaId>(rsp->upload_chunk_schema_id());
                 UploadTransaction_ = Client_->AttachTransaction(uploadTransactionId, TTransactionAttachOptions{
                     .AutoAbort = true
                 });
@@ -2354,6 +2385,7 @@ private:
             LocalHostName_,
             externalCellTag,
             UploadTransaction_->GetId(),
+            chunkSchemaId,
             dataSink,
             chunkListId,
             TChunkTimestamps{timestamp, timestamp},
@@ -2386,14 +2418,17 @@ private:
         {
             auto req = TTableYPathProxy::EndUpload(objectIdPath);
             *req->mutable_statistics() = UnderlyingWriter_->GetDataStatistics();
-            ToProto(req->mutable_table_schema(), TableUploadOptions_.TableSchema);
-            req->set_schema_mode(ToProto<int>(TableUploadOptions_.SchemaMode));
-            req->set_optimize_for(ToProto<int>(TableUploadOptions_.OptimizeFor));
             if (TableUploadOptions_.ChunkFormat) {
                 req->set_chunk_format(ToProto<int>(*TableUploadOptions_.ChunkFormat));
             }
             req->set_compression_codec(ToProto<int>(TableUploadOptions_.CompressionCodec));
             req->set_erasure_codec(ToProto<int>(TableUploadOptions_.ErasureCodec));
+
+            // COMPAT(h0pless): remove this when clients will send table schema options during begin upload.
+            ToProto(req->mutable_table_schema(), TableUploadOptions_.TableSchema.Get());
+            req->set_schema_mode(ToProto<int>(TableUploadOptions_.SchemaMode));
+            req->set_optimize_for(ToProto<int>(TableUploadOptions_.OptimizeFor));
+
             if (TableUploadOptions_.SecurityTags) {
                 ToProto(req->mutable_security_tags()->mutable_items(), *TableUploadOptions_.SecurityTags);
             }

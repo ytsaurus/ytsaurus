@@ -108,10 +108,10 @@ public:
 
         auto transactionId = FromProto<TTransactionId>(JobSpecExt_.output_transaction_id());
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
-
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         // We pass key column for partitioning through schema, but input stream is not sorted.
         options->ValidateSorted = false;
+        auto schemaId = FromProto<TMasterTableSchemaId>(outputSpec.schema_id());
         auto writerConfig = GetWriterConfig(outputSpec);
 
         std::optional<NChunkClient::TDataSink> dataSink;
@@ -131,6 +131,7 @@ public:
                 Host_->GetLocalHostName(),
                 CellTagFromId(chunkListId),
                 transactionId,
+                schemaId,
                 chunkListId,
                 CreatePartitioner(PartitionJobSpecExt_),
                 dataSink,

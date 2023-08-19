@@ -1542,8 +1542,10 @@ void TTask::AddOutputTableSpecs(
         if (streamDescriptor->TableWriterConfig) {
             outputSpec->set_table_writer_config(streamDescriptor->TableWriterConfig.ToString());
         }
-        const auto& outputTableSchema = streamDescriptor->TableUploadOptions.TableSchema;
+        const auto& outputTableSchema = streamDescriptor->TableUploadOptions.TableSchema.Get();
+        auto schemaId = streamDescriptor->TableUploadOptions.SchemaId;
         outputSpec->set_table_schema(GetOrCacheSerializedSchema(outputTableSchema));
+        ToProto(outputSpec->mutable_schema_id(), schemaId);
         ToProto(outputSpec->mutable_chunk_list_id(), joblet->ChunkListIds[index]);
         if (streamDescriptor->Timestamp) {
             outputSpec->set_timestamp(*streamDescriptor->Timestamp);

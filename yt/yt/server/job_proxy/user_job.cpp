@@ -239,6 +239,7 @@ public:
             auto tableWriterOptions = ConvertTo<TTableWriterOptionsPtr>(
                 TYsonString(coreTableSpec.output_table_spec().table_writer_options()));
             tableWriterOptions->EnableValidationOptions();
+            auto schemaId = FromProto<TMasterTableSchemaId>(coreTableSpec.output_table_spec().schema_id());
             auto chunkList = FromProto<TChunkListId>(coreTableSpec.output_table_spec().chunk_list_id());
             auto blobTableWriterConfig = ConvertTo<TBlobTableWriterConfigPtr>(TYsonString(coreTableSpec.blob_table_writer_config()));
             auto debugTransactionId = FromProto<TTransactionId>(UserJobSpec_.debug_transaction_id());
@@ -251,7 +252,8 @@ public:
                 blobTableWriterConfig,
                 tableWriterOptions,
                 debugTransactionId,
-                chunkList);
+                chunkList,
+                schemaId);
         }
     }
 

@@ -72,28 +72,46 @@ public:
 
     NSecurityServer::TSecurityTags ComputeSecurityTags() const;
 
-    struct TBeginUploadContext
+    // COMPAT (h0pless): Once clients are sending table schema options during begin upload:
+    //   - move fields from TCommonUploadContext to TBeginUploadContext;
+    //   - remove inheritance by TEndUploadContext;
+    //   - delete ParseCommonUploadContext function.
+    struct TCommonUploadContext
     {
-        NChunkClient::EUpdateMode Mode;
+        explicit TCommonUploadContext(NCellMaster::TBootstrap* bootstrap);
+
+        NChunkClient::EUpdateMode Mode = {};
+        NTableServer::TMasterTableSchema* TableSchema = nullptr;
+        NTableClient::ETableSchemaMode SchemaMode = NTableClient::ETableSchemaMode::Weak;
+
+        NCellMaster::TBootstrap* const Bootstrap = nullptr;
+    };
+
+    virtual void ParseCommonUploadContext(const TCommonUploadContext& context);
+
+    struct TBeginUploadContext
+        : public TCommonUploadContext
+    {
+        NTableServer::TMasterTableSchema* ChunkSchema = nullptr;
+        explicit TBeginUploadContext(NCellMaster::TBootstrap* bootstrap);
     };
 
     virtual void BeginUpload(const TBeginUploadContext& context);
 
     struct TEndUploadContext
+        : public TCommonUploadContext
     {
+        // COMPAT (h0pless): remove this when clients will send table schema options during begin upload
         explicit TEndUploadContext(NCellMaster::TBootstrap* bootstrap);
 
+        std::optional<NTableClient::EOptimizeFor> OptimizeFor;
         std::optional<NCompression::ECodec> CompressionCodec;
         std::optional<NErasure::ECodec> ErasureCodec;
         const NChunkClient::NProto::TDataStatistics* Statistics = nullptr;
-        NTableServer::TMasterTableSchema* Schema = nullptr;
-        NTableClient::ETableSchemaMode SchemaMode = NTableClient::ETableSchemaMode::Weak;
-        std::optional<NTableClient::EOptimizeFor> OptimizeFor;
         std::optional<NChunkClient::EChunkFormat> ChunkFormat;
         std::optional<NCrypto::TMD5Hasher> MD5Hasher;
         NSecurityServer::TInternedSecurityTags SecurityTags;
 
-        NCellMaster::TBootstrap* const Bootstrap;
     };
 
     virtual void EndUpload(const TEndUploadContext& context);

@@ -1759,6 +1759,10 @@ private:
         auto req = TChunkOwnerYPathProxy::BeginUpload(DstObject_.GetObjectIdPath());
         req->set_update_mode(static_cast<int>(Append_ ? EUpdateMode::Append : EUpdateMode::Overwrite));
         req->set_lock_mode(static_cast<int>(Append_ ? ELockMode::Shared : ELockMode::Exclusive));
+        if (CommonType_ == EObjectType::Table) {
+            ToProto(req->mutable_table_schema(), OutputTableSchema_);
+            req->set_schema_mode(static_cast<int>(OutputTableSchemaMode_));
+        }
 
         std::vector<TString> srcObjectPaths;
         srcObjectPaths.reserve(SrcObjects_.size());
@@ -1869,6 +1873,8 @@ private:
 
         auto req = TChunkOwnerYPathProxy::EndUpload(DstObject_.GetObjectIdPath());
         *req->mutable_statistics() = DataStatistics_;
+
+        // COMPAT(h0pless): remove this when clients will send table schema options during begin upload.
         if (CommonType_ == EObjectType::Table) {
             ToProto(req->mutable_table_schema(), OutputTableSchema_);
             req->set_schema_mode(static_cast<int>(OutputTableSchemaMode_));

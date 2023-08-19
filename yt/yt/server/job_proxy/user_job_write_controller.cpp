@@ -235,6 +235,7 @@ void TUserJobWriteController::Init()
 
         TTableSchemaPtr schema;
         DeserializeFromWireProto(&schema, outputSpec.table_schema());
+        auto schemaId = FromProto<TMasterTableSchemaId>(outputSpec.schema_id());
 
         // ToDo(psushin): open writers in parallel.
         auto writer = userJobIOFactory->CreateWriter(
@@ -244,6 +245,7 @@ void TUserJobWriteController::Init()
             chunkListId,
             outputTransactionId,
             schema,
+            schemaId,
             TChunkTimestamps{timestamp, timestamp},
             dataSink);
 
@@ -261,6 +263,8 @@ void TUserJobWriteController::Init()
 
         auto debugTransactionId = FromProto<TTransactionId>(jobSpecExt.user_job_spec().debug_transaction_id());
 
+        auto schemaId = FromProto<TMasterTableSchemaId>(outputTableSpec.schema_id());
+
         StderrTableWriter_.reset(
             new NTableClient::TBlobTableWriter(
                 GetStderrBlobTableSchema(),
@@ -269,6 +273,7 @@ void TUserJobWriteController::Init()
                 stderrTableWriterConfig,
                 options,
                 debugTransactionId,
+                schemaId,
                 /*dataSink*/ std::nullopt,
                 FromProto<TChunkListId>(outputTableSpec.chunk_list_id()),
                 Host_->GetTrafficMeter(),

@@ -82,6 +82,7 @@ public:
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         options->ExplodeOnValidationError = true;
         options->ValidateKeyWeight = true;
+        auto schemaId = FromProto<TMasterTableSchemaId>(outputSpec.schema_id());
 
         auto writerConfig = GetWriterConfig(outputSpec);
         auto timestamp = static_cast<TTimestamp>(outputSpec.timestamp());
@@ -104,6 +105,7 @@ public:
                 Host_->GetLocalHostName(),
                 CellTagFromId(chunkListId),
                 transactionId,
+                schemaId,
                 dataSink,
                 chunkListId,
                 TChunkTimestamps{timestamp, timestamp},

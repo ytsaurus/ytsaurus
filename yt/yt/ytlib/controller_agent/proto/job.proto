@@ -325,6 +325,9 @@ message TTableOutputSpec
 
     // Serialized NTableClient.NProto.TTableSchemaExt with stream schemas.
     repeated bytes stream_schemas = 12;
+
+    // Table schema ID.
+    optional NYT.NProto.TGuid schema_id = 13;
 }
 
 // Describes a job submitted by a scheduler.

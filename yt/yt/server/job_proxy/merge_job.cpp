@@ -106,6 +106,7 @@ public:
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         options->CastAnyToComposite = true;
+        auto schemaId = FromProto<TMasterTableSchemaId>(outputSpec.schema_id());
 
         TTableSchemaPtr schema;
         DeserializeFromWireProto(&schema, outputSpec.table_schema());
@@ -131,6 +132,7 @@ public:
                 Host_->GetLocalHostName(),
                 CellTagFromId(chunkListId),
                 transactionId,
+                schemaId,
                 dataSink,
                 chunkListId,
                 TChunkTimestamps{timestamp, timestamp},

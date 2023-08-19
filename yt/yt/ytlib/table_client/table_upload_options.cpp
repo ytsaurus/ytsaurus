@@ -17,11 +17,65 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEpochSchema::TEpochSchema(const TEpochSchema& other)
+{
+    *this = other;
+}
+
+TEpochSchema& TEpochSchema::operator=(const TEpochSchema& other)
+{
+    TableSchema_ = other.TableSchema_;
+    Revision_ += other.Revision_;
+    return *this;
+}
+
+TEpochSchema& TEpochSchema::operator=(TTableSchemaPtr schema)
+{
+    Set(schema);
+    return *this;
+}
+
+const TTableSchema* TEpochSchema::operator->() const
+{
+    return TableSchema_.Get();
+}
+
+const TTableSchemaPtr& TEpochSchema::operator*() const
+{
+    return TableSchema_;
+}
+
+const TTableSchemaPtr& TEpochSchema::Get() const
+{
+    return TableSchema_;
+}
+
+ui64 TEpochSchema::GetRevision() const
+{
+    return Revision_;
+}
+
+ui64 TEpochSchema::Set(const TTableSchemaPtr& schema)
+{
+    TableSchema_ = schema;
+    return ++Revision_;
+}
+
+void TEpochSchema::Persist(const NPhoenix::TPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, Revision_);
+    Persist<TNonNullableIntrusivePtrSerializer<>>(context, TableSchema_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTableSchemaPtr TTableUploadOptions::GetUploadSchema() const
 {
     switch (SchemaModification) {
         case ETableSchemaModification::None:
-            return TableSchema;
+            return TableSchema.Get();
 
         case ETableSchemaModification::UnversionedUpdate:
             return TableSchema->ToUnversionedUpdate(/*sorted*/ true);
@@ -37,7 +91,15 @@ void TTableUploadOptions::Persist(const NPhoenix::TPersistenceContext& context)
 
     Persist(context, UpdateMode);
     Persist(context, LockMode);
-    Persist<TNonNullableIntrusivePtrSerializer<>>(context, TableSchema);
+    // COMPAT(h0pless): NControllerAgent::ESnapshotVersion::AddChunkSchemas
+    if (context.GetVersion() >= 301300) {
+        Persist(context, TableSchema);
+    } else {
+        TTableSchemaPtr schema;
+        Persist<TNonNullableIntrusivePtrSerializer<>>(context, schema);
+        TableSchema.Set(schema);
+    }
+    Persist(context, SchemaId);
     Persist(context, SchemaModification);
     Persist(context, SchemaMode);
     Persist(context, OptimizeFor);
@@ -171,11 +233,10 @@ TTableUploadOptions GetTableUploadOptions(
         result.SchemaMode = ETableSchemaMode::Strong;
         result.TableSchema = schema;
     } else if (path.GetAppend() && path.GetSortedBy().empty() && (schemaMode == ETableSchemaMode::Weak)) {
-        // Old behaviour - reset key columns if there were any.
+        // Old behaviour - reset key columns if there were any, keep schema empty.
         result.LockMode = ELockMode::Shared;
         result.UpdateMode = EUpdateMode::Append;
         result.SchemaMode = ETableSchemaMode::Weak;
-        result.TableSchema = New<TTableSchema>();
     } else if (!path.GetAppend() && !path.GetSortedBy().empty() && (schemaMode == ETableSchemaMode::Strong)) {
         ValidateSortColumnsEqual(path.GetSortedBy(), *schema);
 

@@ -85,19 +85,7 @@ private:
 
 class TChunkReplacerTest
     : public TChunkGeneratorBase
-    , public TBootstrapMock
-{
-public:
-    void SetUp() override
-    {
-        SetupMasterSmartpointers();
-    }
-
-    void TearDown() override
-    {
-        ResetMasterSmartpointers();
-    }
-};
+{ };
 
 TEST_F(TChunkReplacerTest, Simple)
 {

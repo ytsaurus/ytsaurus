@@ -29,6 +29,7 @@ public:
         TString localHostName,
         NObjectClient::TCellTag cellTag,
         NTransactionClient::TTransactionId transactionId,
+        NTableClient::TMasterTableSchemaId schemaId,
         TChunkListId parentChunkListId,
         TTrafficMeterPtr trafficMeter,
         NConcurrency::IThroughputThrottlerPtr throttler,
@@ -53,6 +54,7 @@ public:
 
 protected:
     NLogging::TLogger Logger;
+    const NTableClient::TMasterTableSchemaId SchemaId_;
     const NApi::NNative::IClientPtr Client_;
 
     bool TrySwitchSession();
@@ -127,6 +129,7 @@ public:
         TString localHostName,
         NObjectClient::TCellTag cellTag,
         NTransactionClient::TTransactionId transactionId,
+        NTableClient::TMasterTableSchemaId schemaId,
         TChunkListId parentChunkListId,
         std::function<ISpecificChunkWriterPtr(IChunkWriterPtr)> createChunkWriter,
         TTrafficMeterPtr trafficMeter,
@@ -139,6 +142,7 @@ public:
             std::move(localHostName),
             cellTag,
             transactionId,
+            schemaId,
             parentChunkListId,
             trafficMeter,
             throttler,

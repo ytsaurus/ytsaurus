@@ -179,6 +179,13 @@ public:
         TAccount* dstAccount,
         const TClusterResourceLimits& resourceDelta) = 0;
 
+    //! Adds the #chunk schemas usage to the resource usage of accounts mentioned in #requisition.
+    //! As a result of this, account can become strongly referenced by schema.
+    virtual void UpdateChunkSchemaMasterMemoryUsage(
+        const NChunkServer::TChunk* chunk,
+        const NChunkServer::TChunkRequisition& requisition,
+        i64 delta)  = 0;
+
     //! Adds the #chunk to the resource usage of accounts mentioned in #requisition.
     virtual void UpdateResourceUsage(
         const NChunkServer::TChunk* chunk,
@@ -206,8 +213,10 @@ public:
         NCypressServer::TCypressNode* node,
         bool accountChanged = false) = 0;
 
-    virtual void UpdateMasterMemoryUsage(NTableServer::TMasterTableSchema* schema, TAccount* account) = 0;
-    virtual void ResetMasterMemoryUsage(NTableServer::TMasterTableSchema* schema, TAccount* account) = 0;
+    virtual void UpdateMasterMemoryUsage(
+        NTableServer::TMasterTableSchema* schema,
+        TAccount* account,
+        int delta) = 0;
 
     //! Clears the transaction per-account usage statistics releasing the references to accounts.
     virtual void ResetTransactionAccountResourceUsage(NTransactionServer::TTransaction* transaction) = 0;

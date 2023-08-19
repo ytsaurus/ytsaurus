@@ -28,14 +28,15 @@
 
 namespace NYT::NChunkServer {
 
+using namespace NCellMaster;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NJournalClient;
-using namespace NObjectServer;
-using namespace NObjectClient;
-using namespace NSecurityServer;
-using namespace NCellMaster;
 using namespace NJournalClient;
+using namespace NObjectClient;
+using namespace NObjectServer;
+using namespace NSecurityServer;
+using namespace NTableServer;
 
 using NYT::FromProto;
 
@@ -162,6 +163,7 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     Save(context, GetWriteQuorum());
     Save(context, LogReplicaLagLimit_);
     Save(context, GetDiskSpace());
+    Save(context, Schema_);
     Save(context, GetErasureCodec());
     Save(context, GetMovable());
     Save(context, GetOverlayed());
@@ -209,6 +211,11 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     Load(context, LogReplicaLagLimit_);
 
     SetDiskSpace(Load<i64>(context));
+
+    // COMPAT(h0pless)
+    if (context.GetVersion() >= EMasterReign::AddChunkSchemas) {
+        Load(context, Schema_);
+    }
 
     SetErasureCodec(Load<NErasure::ECodec>(context));
     SetMovable(Load<bool>(context));
@@ -358,9 +365,7 @@ void TChunk::SetApprovedReplicaCount(int count)
     MutableReplicasData()->ApprovedReplicaCount = count;
 }
 
-void TChunk::Confirm(
-    const TChunkInfo& chunkInfo,
-    const TChunkMeta& chunkMeta)
+void TChunk::Confirm(const TChunkInfo& chunkInfo, const TChunkMeta& chunkMeta)
 {
     // YT-3251
     if (!HasProtoExtension<TMiscExt>(chunkMeta.extensions())) {

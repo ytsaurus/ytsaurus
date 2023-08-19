@@ -67,6 +67,7 @@ ISchemalessMultiChunkWriterPtr CreateTableWriter(
     TChunkListId chunkListId,
     TTransactionId transactionId,
     TTableSchemaPtr tableSchema,
+    TMasterTableSchemaId schemaId,
     const TChunkTimestamps& chunkTimestamps,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler,
@@ -85,6 +86,7 @@ ISchemalessMultiChunkWriterPtr CreateTableWriter(
         std::move(localHostName),
         CellTagFromId(chunkListId),
         transactionId,
+        schemaId,
         dataSink,
         chunkListId,
         chunkTimestamps,
@@ -230,6 +232,7 @@ struct TUserJobIOFactoryBase
         TChunkListId chunkListId,
         TTransactionId transactionId,
         TTableSchemaPtr tableSchema,
+        TMasterTableSchemaId schemaId,
         const TChunkTimestamps& chunkTimestamps,
         const std::optional<TDataSink>& dataSink) override
     {
@@ -241,6 +244,7 @@ struct TUserJobIOFactoryBase
             chunkListId,
             transactionId,
             std::move(tableSchema),
+            schemaId,
             chunkTimestamps,
             // NB: This is ok, since traffic meter is shared between readers and writers.
             ChunkReaderHost_->TrafficMeter,
@@ -561,6 +565,7 @@ public:
         TChunkListId chunkListId,
         TTransactionId transactionId,
         TTableSchemaPtr tableSchema,
+        TMasterTableSchemaId schemaId,
         const TChunkTimestamps& chunkTimestamps,
         const std::optional<TDataSink>& dataSink) override
     {
@@ -602,6 +607,7 @@ public:
                 LocalHostName_,
                 CellTagFromId(chunkListId),
                 transactionId,
+                schemaId,
                 chunkListId,
                 std::move(partitioner),
                 dataSink,
@@ -617,6 +623,7 @@ public:
                 chunkListId,
                 transactionId,
                 std::move(tableSchema),
+                schemaId,
                 chunkTimestamps,
                 ChunkReaderHost_->TrafficMeter,
                 OutBandwidthThrottler_,

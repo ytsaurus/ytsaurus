@@ -38,8 +38,21 @@ static const auto& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkOwnerBase::TEndUploadContext::TEndUploadContext(TBootstrap* bootstrap)
+TChunkOwnerBase::TCommonUploadContext::TCommonUploadContext(TBootstrap* bootstrap)
     : Bootstrap(bootstrap)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TChunkOwnerBase::TBeginUploadContext::TBeginUploadContext(TBootstrap* bootstrap)
+    : TCommonUploadContext(bootstrap)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+// COMPAT(h0pless): remove this when clients will send table schema options during begin upload.
+TChunkOwnerBase::TEndUploadContext::TEndUploadContext(TBootstrap* bootstrap)
+    : TCommonUploadContext(bootstrap)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -206,6 +219,9 @@ TSecurityTags TChunkOwnerBase::ComputeSecurityTags() const
 {
     return *SnapshotSecurityTags_ + *DeltaSecurityTags_;
 }
+
+void TChunkOwnerBase::ParseCommonUploadContext(const TCommonUploadContext& /*context*/)
+{ }
 
 void TChunkOwnerBase::BeginUpload(const TBeginUploadContext& context)
 {

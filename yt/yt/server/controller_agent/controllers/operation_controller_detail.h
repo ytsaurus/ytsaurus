@@ -1409,12 +1409,12 @@ private:
 
     void ReportJobHasCompetitors(const TJobletPtr& joblet, EJobCompetitionType competitionType);
 
-    template <class TTable, class TTransactionIdFunc, class TCellTagFunc>
+    template <class TTable, class TTransactionIdFunc>
     void FetchTableSchemas(
         const NApi::NNative::IClientPtr& client,
         const TRange<TTable>& tables,
         TTransactionIdFunc tableToTransactionId,
-        TCellTagFunc tableToCellTag) const;
+        bool fetchFromExternalCells) const;
 
     //! Returns list of operation tasks that have a vertex in data flow graph,
     //! ordered according to topological order of data flow graph.

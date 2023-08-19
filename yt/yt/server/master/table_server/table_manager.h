@@ -101,6 +101,12 @@ public:
         const NTableClient::TTableSchema& schema,
         NTransactionServer::TTransaction* schemaHolder) = 0;
 
+    //! Same as above but associates resulting schema with a chunk instead
+    //! of a transaction.
+    virtual TMasterTableSchema* GetOrCreateNativeMasterTableSchema(
+        const NTableClient::TTableSchema& schema,
+        NChunkServer::TChunk* schemaHolder) = 0;
+
     // For loading from snapshot.
     virtual TMasterTableSchema::TNativeTableSchemaToObjectMapIterator RegisterNativeSchema(
         TMasterTableSchema* schema,
@@ -115,6 +121,10 @@ public:
     virtual void SetTableSchemaOrThrow(ISchemafulNode* table, TMasterTableSchemaId schemaId) = 0;
     virtual void SetTableSchemaOrCrash(ISchemafulNode* table, TMasterTableSchemaId schemaId) = 0;
     virtual void ResetTableSchema(ISchemafulNode* table) = 0;
+
+    // NB: Additional set methods are not needed for chunks, since chunks are immutable.
+    // On top of that they use smart pointers over schemas, thus removing the need to use manual reset.
+    virtual void SetChunkSchema(NChunkServer::TChunk* chunk, TMasterTableSchema* schema) = 0;
 
     //! Increases export ref counter of a schema.
     /*!
@@ -133,10 +143,12 @@ public:
         NObjectClient::TCellTag dstCellTag,
         int decreaseBy = 1) = 0;
 
+    // COMPAT(h0pless): Remove isChunkSchema flag after chunk schemas are introduced.
     virtual void ValidateTableSchemaCorrespondence(
         NCypressClient::TVersionedNodeId nodeId,
         const NTableClient::TTableSchemaPtr& tableSchema,
-        TMasterTableSchemaId schemaId) = 0;
+        TMasterTableSchemaId schemaId,
+        bool isChunkSchema = false) = 0;
 
     virtual const NTableClient::TTableSchema* ProcessSchemaFromAttributes(
         NTableClient::TTableSchemaPtr& tableSchema,

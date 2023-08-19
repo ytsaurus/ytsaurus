@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/yt/server/master/object_server/public.h>
+
 #include <yt/yt/server/lib/hydra_common/public.h>
 
 #include <yt/yt/core/misc/public.h>
@@ -35,6 +37,8 @@ DECLARE_REFCOUNTED_CLASS(TTableManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletBalancerConfig)
 DECLARE_REFCOUNTED_CLASS(TPartitionConfig)
 DECLARE_REFCOUNTED_CLASS(TMountConfigAttributeDictionary)
+
+DECLARE_MASTER_OBJECT_TYPE(TMasterTableSchema);
 
 using NTableClient::ETableCollocationType;
 

@@ -29,16 +29,16 @@
 
 namespace NYT::NChunkClient {
 
+using namespace NApi;
 using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 using namespace NErasure;
-using namespace NApi;
 using namespace NNodeTrackerClient;
-using namespace NTransactionClient;
 using namespace NObjectClient;
+using namespace NTableClient;
+using namespace NTransactionClient;
 
 using NYT::ToProto;
-using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,11 +49,13 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     TString localHostName,
     TCellTag cellTag,
     TTransactionId transactionId,
+    TMasterTableSchemaId schemaId,
     TChunkListId parentChunkListId,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
     : Logger(ChunkClientLogger)
+    , SchemaId_(schemaId)
     , Client_(client)
     , Config_(config)
     , Options_(options)
@@ -194,6 +196,7 @@ void TNontemplateMultiChunkWriterBase::InitSession()
         Options_,
         CellTag_,
         TransactionId_,
+        SchemaId_,
         ParentChunkListId_,
         Client_,
         LocalHostName_,

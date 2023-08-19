@@ -50,6 +50,7 @@ public:
         TBlobTableWriterConfigPtr blobTableWriterConfig,
         TTableWriterOptionsPtr tableWriterOptions,
         NTransactionClient::TTransactionId transactionId,
+        TMasterTableSchemaId schemaId,
         const std::optional<NChunkClient::TDataSink>& dataSink,
         NChunkClient::TChunkListId chunkListId,
         NChunkClient::TTrafficMeterPtr trafficMeter,

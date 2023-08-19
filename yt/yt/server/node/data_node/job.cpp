@@ -1256,6 +1256,7 @@ private:
     IMultiReaderMemoryManagerPtr MultiReaderMemoryManager_;
 
     TTableSchemaPtr Schema_;
+    TMasterTableSchemaId SchemaId_;
     NCompression::ECodec CompressionCodec_;
     NErasure::ECodec ErasureCodec_;
     std::optional<EOptimizeFor> OptimizeFor_;
@@ -1411,6 +1412,7 @@ private:
 
         const auto& chunkMergerWriterOptions = JobSpecExt_.chunk_merger_writer_options();
         Schema_ = New<TTableSchema>(FromProto<TTableSchema>(chunkMergerWriterOptions.schema()));
+        SchemaId_ = FromProto<TMasterTableSchemaId>(chunkMergerWriterOptions.schema_id());
         CompressionCodec_ = CheckedEnumCast<NCompression::ECodec>(chunkMergerWriterOptions.compression_codec());
         ErasureCodec_ = CheckedEnumCast<NErasure::ECodec>(chunkMergerWriterOptions.erasure_codec());
         if (chunkMergerWriterOptions.has_optimize_for()) {
@@ -1677,6 +1679,7 @@ private:
             options,
             CellTag_,
             NullTransactionId,
+            SchemaId_,
             NullChunkListId,
             Bootstrap_->GetClient(),
             Bootstrap_->GetLocalHostName(),
@@ -2041,6 +2044,7 @@ private:
             confirmingWriterOptions,
             CellTag_,
             NullTransactionId,
+            TMasterTableSchemaId(), // TODO(h0pless): Deduce chunk schemaId on master and send it here.
             NullChunkListId,
             Bootstrap_->GetClient(),
             Bootstrap_->GetLocalHostName(),

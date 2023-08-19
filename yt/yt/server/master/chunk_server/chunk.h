@@ -118,6 +118,11 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(i64, DiskSpace);
 
+    // NB: It's necessary to hold a strong ref on schema due to the fact that
+    // a chunk can have a schema that's different from that of its table.
+    // This can happen, for example, when chunk_sort_columns is used during upload.
+    DEFINE_BYREF_RW_PROPERTY(NTableServer::TMasterTableSchemaPtr, Schema);
+
     //! Some TMiscExt fields extracted for effective access.
     DEFINE_BYVAL_RO_PROPERTY(i64, RowCount);
     DEFINE_BYVAL_RO_PROPERTY(i64, CompressedDataSize);
@@ -522,7 +527,7 @@ private:
 
 DEFINE_MASTER_OBJECT_TYPE(TChunk)
 
-static_assert(sizeof(TChunk) == 288, "sizeof(TChunk) != 288");
+static_assert(sizeof(TChunk) == 296, "sizeof(TChunk) != 296");
 
 ////////////////////////////////////////////////////////////////////////////////
 

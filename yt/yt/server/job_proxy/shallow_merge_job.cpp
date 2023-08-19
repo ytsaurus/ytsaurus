@@ -256,6 +256,7 @@ private:
     {
         const auto& outputTableSpec = JobSpecExt_.output_table_specs(0);
         auto outputChunkListId = FromProto<TChunkListId>(outputTableSpec.chunk_list_id());
+        auto schemaId = FromProto<TMasterTableSchemaId>(outputTableSpec.schema_id());
 
         UnderlyingWriterOptions_ = ConvertTo<TTableWriterOptionsPtr>(
             TYsonString(outputTableSpec.table_writer_options()));
@@ -276,6 +277,7 @@ private:
             UnderlyingWriterOptions_,
             CellTagFromId(outputChunkListId),
             FromProto<TTransactionId>(JobSpecExt_.output_transaction_id()),
+            schemaId,
             outputChunkListId,
             Host_->GetClient(),
             Host_->GetLocalHostName(),

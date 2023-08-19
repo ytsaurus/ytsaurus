@@ -51,6 +51,7 @@ public:
         TMultiChunkWriterOptionsPtr options,
         TCellTag cellTag,
         TTransactionId transactionId,
+        TMasterTableSchemaId schemaId,
         TChunkListId parentChunkListId,
         NNative::IClientPtr client,
         TString localHostName,
@@ -66,6 +67,7 @@ public:
         , ParentChunkListId_(parentChunkListId)
         , Client_(std::move(client))
         , LocalHostName_(std::move(localHostName))
+        , SchemaId_(schemaId)
         , BlockCache_(std::move(blockCache))
         , Throttler_(std::move(throttler))
         , TrafficMeter_(std::move(trafficMeter))
@@ -201,6 +203,7 @@ private:
     const TChunkListId ParentChunkListId_;
     const NNative::IClientPtr Client_;
     const TString LocalHostName_;
+    const TMasterTableSchemaId SchemaId_;
     const IBlockCachePtr BlockCache_;
     const IThroughputThrottlerPtr Throttler_;
     const TTrafficMeterPtr TrafficMeter_;
@@ -317,7 +320,7 @@ private:
         auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CellTag_);
         TChunkServiceProxy proxy(channel);
 
-        auto fillReqeust = [&] (auto req) {
+        auto fillRequest = [&] (auto req) {
             ToProto(req->mutable_chunk_id(), SessionId_.ChunkId);
             *req->mutable_chunk_info() = UnderlyingWriter_->GetChunkInfo();
             *req->mutable_chunk_meta() = *ChunkMeta_;
@@ -337,11 +340,15 @@ private:
                 replicaInfo->set_replica(ToProto<ui64>(replica));
                 ToProto(replicaInfo->mutable_location_uuid(), replica.GetChunkLocationUuid());
             }
+
+            if (SchemaId_ != NullTableSchemaId) {
+                ToProto(req->mutable_schema_id(), SchemaId_);
+            }
         };
 
         auto req = proxy.ConfirmChunk();
         GenerateMutationId(req);
-        fillReqeust(req);
+        fillRequest(req);
         auto* multicellSyncExt = req->Header().MutableExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);
         multicellSyncExt->set_suppress_upstream_sync(true);
 
@@ -359,7 +366,7 @@ private:
             GenerateMutationId(batchReq);
             batchReq->set_suppress_upstream_sync(true);
             auto* req = batchReq->add_confirm_chunk_subrequests();
-            fillReqeust(req);
+            fillRequest(req);
 
             auto batchRspOrError = WaitFor(batchReq->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(
@@ -386,6 +393,7 @@ IChunkWriterPtr CreateConfirmingWriter(
     TMultiChunkWriterOptionsPtr options,
     TCellTag cellTag,
     TTransactionId transactionId,
+    TMasterTableSchemaId schemaId,
     TChunkListId parentChunkListId,
     NNative::IClientPtr client,
     TString localHostName,
@@ -400,6 +408,7 @@ IChunkWriterPtr CreateConfirmingWriter(
         std::move(options),
         cellTag,
         transactionId,
+        schemaId,
         parentChunkListId,
         std::move(client),
         std::move(localHostName),

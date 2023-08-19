@@ -3469,9 +3469,10 @@ private:
         RegisterLock(lock);
 
         if (transaction->LockedNodes().insert(trunkNode).second) {
-            YT_LOG_DEBUG("Node locked (NodeId: %v, TransactionId: %v)",
+            YT_LOG_DEBUG("Node locked (NodeId: %v, TransactionId: %v, DontLockForeign: %v)",
                 trunkNode->GetId(),
-                transaction->GetId());
+                transaction->GetId(),
+                dontLockForeign);
         }
 
         if (trunkNode->IsExternal() && trunkNode->IsNative() && !dontLockForeign) {

@@ -586,6 +586,8 @@ public:
     // For full description see TDynamicChunkManagerConfig::Register().
     bool EnableChunkConfirmationWithoutLocationUuid;
 
+    bool EnableChunkSchemas;
+
     REGISTER_YSON_STRUCT(TDynamicChunkManagerConfig);
 
     static void Register(TRegistrar registrar);

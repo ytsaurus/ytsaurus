@@ -1,5 +1,7 @@
 #pragma once
 
+#include "helpers.h"
+
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/server/master/chunk_server/chunk.h>
@@ -29,6 +31,7 @@ void DetachFromChunkList(
 
 class TChunkGeneratorBase
     : public ::testing::Test
+    , public TBootstrapMock
 {
 public:
     TChunk* CreateChunk(
@@ -39,6 +42,10 @@ public:
         NTableClient::TLegacyOwningKey minKey = {},
         NTableClient::TLegacyOwningKey maxKey = {},
         EChunkType chunkType = EChunkType::Table);
+
+    void SetUp() override;
+
+    void TearDown() override;
 
     TChunk* CreateUnconfirmedChunk();
     TChunk* CreateJournalChunk(bool sealed, bool overlayed);

@@ -135,6 +135,16 @@ TChunkView* TChunkGeneratorBase::CreateChunkView(
     return ptr;
 }
 
+void TChunkGeneratorBase::SetUp()
+{
+    SetupMasterSmartpointers();
+}
+
+void TChunkGeneratorBase::TearDown()
+{
+    ResetMasterSmartpointers();
+}
+
 void TChunkGeneratorBase::ConfirmChunk(
     TChunk *chunk,
     i64 rowCount,

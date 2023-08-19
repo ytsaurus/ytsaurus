@@ -220,6 +220,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
                 return emptySchema;
             }
 
+            // COMPAT(h0pless): AddChunkSchemas
             if (tableSchema) {
                 // COMPAT(h0pless): Remove this after schema migration is complete.
                 if (!schemaId) {
@@ -228,6 +229,9 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
                     return tableManager->GetOrCreateNativeMasterTableSchema(*tableSchema, node);
                 }
 
+                YT_LOG_ALERT("Created imported schema on an external cell tag outside of designated mutation "
+                    "(NodeId: %v)",
+                    node->GetId());
                 return tableManager->CreateImportedMasterTableSchema(*tableSchema, node, schemaId);
             }
 

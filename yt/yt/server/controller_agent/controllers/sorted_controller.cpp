@@ -579,7 +579,7 @@ protected:
                 if (inputTable->SupportsTeleportation() && OutputTables_[*tableIndex]->SupportsTeleportation()) {
                     inputTable->Teleportable = CheckTableSchemaCompatibility(
                         *inputTable->Schema,
-                        *OutputTables_[*tableIndex]->TableUploadOptions.TableSchema,
+                        *OutputTables_[*tableIndex]->TableUploadOptions.TableSchema.Get(),
                         false /* ignoreSortOrder */).first == ESchemaCompatibility::FullyCompatible;
                     if (GetJobType() == EJobType::SortedReduce) {
                         inputTable->Teleportable &= inputTable->Path.GetTeleport();

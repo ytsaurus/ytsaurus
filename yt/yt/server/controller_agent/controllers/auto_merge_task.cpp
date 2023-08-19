@@ -504,7 +504,7 @@ void TAutoMergeTask::InitAutoMergeJobSpecTemplates()
         dataSourceDirectory->DataSources().resize(tableIndex);
         auto& dataSource = dataSourceDirectory->DataSources().emplace_back(MakeUnversionedDataSource(
             GetIntermediatePath(tableIndex),
-            outputTable->TableUploadOptions.TableSchema,
+            outputTable->TableUploadOptions.TableSchema.Get(),
             /*columns*/ std::nullopt,
             /*omittedInaccessibleColumns*/ {},
             /*columnRenameDescriptors*/ {}));

@@ -30,13 +30,14 @@
 
 namespace NYT::NFileClient {
 
-using namespace NYTree;
-using namespace NConcurrency;
-using namespace NChunkClient;
-using namespace NObjectClient;
-using namespace NNodeTrackerClient;
-using namespace NChunkClient::NProto;
 using namespace NApi;
+using namespace NChunkClient;
+using namespace NChunkClient::NProto;
+using namespace NConcurrency;
+using namespace NNodeTrackerClient;
+using namespace NObjectClient;
+using namespace NTableClient;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -113,6 +114,7 @@ void TFileChunkOutput::EnsureOpen()
         Options_,
         cellTag,
         TransactionId_,
+        NullTableSchemaId, // Schema is inapplicable to file chunks.
         NullChunkListId,
         Client_,
         /*localHostName*/ TString(), // Locality is not important for files.
