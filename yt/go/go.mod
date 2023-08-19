@@ -1,6 +1,6 @@
 module go.ytsaurus.tech/yt/go
 
-go 1.18
+go 1.20
 
 require (
 	github.com/andybalholm/brotli v1.0.4
@@ -22,6 +22,7 @@ require (
 	go.ytsaurus.tech/library/go/core/log v0.0.3
 	go.ytsaurus.tech/library/go/core/xerrors v0.0.3
 	go.ytsaurus.tech/library/go/ptr v0.0.1
+	golang.org/x/exp v0.0.0-20230725093048-515e97ebf090
 	golang.org/x/sync v0.3.0
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 	google.golang.org/protobuf v1.30.0
