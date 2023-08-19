@@ -12,7 +12,9 @@ namespace NYT::NTableClient {
 struct IGranuleFilter
     : public TRefCounted
 {
-    virtual bool CanSkip(const TColumnarStatistics& granuleColumnarStatistics, TNameTablePtr granuleNameTable) const = 0;
+    virtual bool CanSkip(
+        const TColumnarStatistics& granuleColumnarStatistics,
+        const TNameTablePtr& granuleNameTable) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IGranuleFilter)

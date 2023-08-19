@@ -4,6 +4,7 @@
 #include "std_helpers.h"
 
 #include <yt/yt/client/table_client/columnar_statistics.h>
+#include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
@@ -31,61 +32,56 @@ public:
         , ColumnDataTypes_(ToDataTypes(*QueryRealColumnsSchema_, settings))
     { }
 
-    bool CanSkip(const TColumnarStatistics& statistics, TNameTablePtr granuleNameTable) const override
+    bool CanSkip(
+        const TColumnarStatistics& statistics,
+        const TNameTablePtr& granuleNameTable) const override
     {
         if (!statistics.HasValueStatistics()) {
             return false;
         }
-        std::vector<DB::Range> columnarValueRanges;
-        columnarValueRanges.reserve(QueryRealColumnsSchema_->GetColumnCount());
+
+        const auto typeAny = OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any));
+
+        std::vector<DB::Range> columnRanges;
+        columnRanges.reserve(QueryRealColumnsSchema_->GetColumnCount());
+
         for (const auto& columnSchema : QueryRealColumnsSchema_->Columns()) {
-            // Here by "position" we mean the column position in the table schema.
-            auto maybeColumnPosition = granuleNameTable->FindId(columnSchema.Name());
-            TUnversionedValue minValue;
-            TUnversionedValue maxValue;
-            if (!maybeColumnPosition.has_value()) {
-                // There is no such a column in the chunk, but we're iterating over real columns,
-                // so it is a column consisting of Null's
-                minValue = MakeUnversionedNullValue();
-                maxValue = MakeUnversionedNullValue();
-            } else {
-                minValue = statistics.ColumnMinValues[*maybeColumnPosition];
-                maxValue = statistics.ColumnMaxValues[*maybeColumnPosition];
-            }
+            auto columnId = granuleNameTable->FindId(columnSchema.Name());
 
-            DB::Field minField;
-            DB::Field maxField;
-            bool includeMinBound = true;
-            bool includeMaxBound = true;
-
-            if (minValue.Type == EValueType::Min) {
-                minField = DB::NEGATIVE_INFINITY;
-                includeMinBound = false;
+            if (!columnId || statistics.ColumnNonNullValueCounts[*columnId] == 0) {
+                // All column values are null.
+                columnRanges.emplace_back(DB::NEGATIVE_INFINITY);
             } else {
-                minField = ToField(minValue, columnSchema.LogicalType());
-            }
-            if (maxValue.Type == EValueType::Max) {
-                maxField = DB::POSITIVE_INFINITY;
-                includeMaxBound = false;
-            } else {
-                maxField = ToField(maxValue, columnSchema.LogicalType());
-            }
+                bool hasNull = statistics.ColumnNonNullValueCounts[*columnId] != statistics.ChunkRowCount;
+                auto columnType = columnSchema.LogicalType();
 
-            if (!maybeColumnPosition.has_value() || statistics.ColumnNonNullValueCounts[*maybeColumnPosition] < statistics.ChunkRowCount) {
-                // There is Null in the column. Even if there's no such column in the chunk
-                // we fall here for consistency, because it's still column with at least one Null.
-                minField = DB::NEGATIVE_INFINITY;
-                includeMinBound = true;
+                auto range = hasNull
+                    ? DB::Range::createWholeUniverse()
+                    : DB::Range::createWholeUniverseWithoutNull();
+
+                // 'Any' columns are converted to yson strings, so min/max statistics are meaningless for them.
+                if (*columnType != *typeAny) {
+                    if (statistics.ColumnMinValues[*columnId].Type() != EValueType::Min && !hasNull) {
+                        range.left = ToField(statistics.ColumnMinValues[*columnId], columnType);
+                        range.left_included = true;
+                    }
+                    if (statistics.ColumnMaxValues[*columnId].Type() != EValueType::Max) {
+                        range.right = ToField(statistics.ColumnMaxValues[*columnId], columnType);
+                        range.right_included = true;
+                    }
+                }
+
+                columnRanges.push_back(std::move(range));
             }
-            columnarValueRanges.push_back(DB::Range(minField, includeMinBound, maxField, includeMaxBound));
         }
-        return !KeyCondition_.checkInHyperrectangle(columnarValueRanges, ColumnDataTypes_).can_be_true;
+
+        return !KeyCondition_.checkInHyperrectangle(columnRanges, ColumnDataTypes_).can_be_true;
     }
 
 private:
-    DB::KeyCondition KeyCondition_;
-    TTableSchemaPtr QueryRealColumnsSchema_;
-    DB::DataTypes ColumnDataTypes_;
+    const DB::KeyCondition KeyCondition_;
+    const TTableSchemaPtr QueryRealColumnsSchema_;
+    const DB::DataTypes ColumnDataTypes_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

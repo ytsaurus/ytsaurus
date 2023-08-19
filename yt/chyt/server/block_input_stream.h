@@ -90,7 +90,7 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
     const NTracing::TTraceContextPtr& traceContext,
     const std::vector<NChunkClient::TDataSliceDescriptor>& dataSliceDescriptors,
     DB::PrewhereInfoPtr prewhereInfo,
-    NTableClient::IGranuleFilterPtr granuleFilter = nullptr);
+    NTableClient::IGranuleFilterPtr granuleFilter);
 
 ////////////////////////////////////////////////////////////////////////////////
 

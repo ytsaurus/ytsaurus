@@ -83,13 +83,18 @@ public:
         return const_cast<char*>(Value_.Data.String);
     }
 
+    EValueType Type() const
+    {
+        return Value_.Type;
+    }
+
 private:
     TUnversionedValue Value_{
         .Id = 0,
         .Type = EValueType::TheBottom,
         .Flags = {},
         .Length = 0,
-        .Data = {}
+        .Data = {},
     };
 
     void Assign(const TUnversionedValue& other)

@@ -152,7 +152,7 @@ public:
             THROW_ERROR_EXCEPTION("PREWHERE is not supported for dynamic tables (CHYT-462)");
         }
 
-        IGranuleFilterPtr granuleMinMaxFilter = nullptr;
+        IGranuleFilterPtr granuleMinMaxFilter;
         if (StorageContext_->Settings->Execution->EnableMinMaxFiltering) {
             granuleMinMaxFilter = CreateGranuleMinMaxFilter(queryInfo, StorageContext_->Settings->Composite, schema, context, realColumnNames);
         }
@@ -171,7 +171,8 @@ public:
                     virtualColumnNames,
                     traceContext,
                     threadDataSliceDescriptors,
-                    prewhereInfo)));
+                    prewhereInfo,
+                    granuleMinMaxFilter)));
             } else {
                 pipes.emplace_back(std::make_shared<DB::SourceFromInputStream>(CreateBlockInputStream(
                     StorageContext_,

@@ -901,6 +901,7 @@ class TestInputFetching(ClickHouseTestBase):
             {"name": "b", "type": "uint64"},
             {"name": "c", "type": "string"},
             {"name": "d", "type": "double"},
+            {"name": "e", "type": "any"},
         ]
         table_path = "//tmp/t"
         create(
@@ -911,11 +912,11 @@ class TestInputFetching(ClickHouseTestBase):
             },
         )
 
-        write_table("<append=%true>" + table_path, [{"a": 5, "b": 8, "c": "polka", "d": 3.14}])
-        write_table("<append=%true>" + table_path, [{"a": -12, "b": 0, "c": "apple", "d": -1.414}])
-        write_table("<append=%true>" + table_path, [{"a": 65, "b": 74, "c": "ab" * 100, "d": None}])
-        write_table("<append=%true>" + table_path, [{"a": 2, "b": 32, "c": "teapot", "d": None}])
-        write_table("<append=%true>" + table_path, [{"a": -33, "b": 91, "c": "ytsaurus", "d": 10.01}])
+        write_table("<append=%true>" + table_path, [{"a": 5, "b": 8, "c": "polka", "d": 3.14, "e": "a"}])
+        write_table("<append=%true>" + table_path, [{"a": -12, "b": 0, "c": "apple", "d": -1.414, "e": None}])
+        write_table("<append=%true>" + table_path, [{"a": 65, "b": 74, "c": "ab" * 100, "d": None, "e": 2}])
+        write_table("<append=%true>" + table_path, [{"a": 2, "b": 32, "c": "teapot", "d": None, "e": "c"}])
+        write_table("<append=%true>" + table_path, [{"a": -33, "b": 91, "c": "ytsaurus", "d": 10.01, "e": []}])
 
         with Clique(1, config_patch={"yt": {"settings": {"execution": {"enable_min_max_filtering": True}}}}) as clique:
             assert clique.make_query_and_validate_row_count(f'select c from "{table_path}" where a > 2 or b == 0 order by c', exact=3) == \
@@ -924,6 +925,17 @@ class TestInputFetching(ClickHouseTestBase):
             clique.make_query_and_validate_row_count(f'select d from "{table_path}" where c < \'axe\'', exact=2)
 
             clique.make_query_and_validate_row_count(f'select b from "{table_path}" where d is null', exact=2)
+            clique.make_query_and_validate_row_count(f'select b from "{table_path}" where d is not null', exact=3)
+
+            clique.make_query_and_validate_row_count(f'select b from "{table_path}" prewhere d is null', exact=2)
+
+            # < and > conditions on 'any' columns should not prefilter any values.
+            # But it may filter out chunks with only null values sometimes (depends on key condition details).
+            clique.make_query_and_validate_row_count(f'select b from "{table_path}" where e < \'a\'', min=4, max=5)
+            clique.make_query_and_validate_row_count(f'select b from "{table_path}" where e > \'a\'', min=4, max=5)
+            # But isNull/isNotNull should work fine even with 'any' columns.
+            clique.make_query_and_validate_row_count(f'select b from "{table_path}" where e is null', exact=1)
+            clique.make_query_and_validate_row_count(f'select b from "{table_path}" where e is not null', exact=4)
 
 
 class TestInputFetchingYPath(ClickHouseTestBase):

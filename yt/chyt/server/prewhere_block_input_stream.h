@@ -21,7 +21,8 @@ DB::BlockInputStreamPtr CreatePrewhereBlockInputStream(
     const std::vector<TString>& virtualColumns,
     const NTracing::TTraceContextPtr& traceContext,
     std::vector<NChunkClient::TDataSliceDescriptor> dataSliceDescriptors,
-    DB::PrewhereInfoPtr prewhereInfo);
+    DB::PrewhereInfoPtr prewhereInfo,
+    NTableClient::IGranuleFilterPtr granuleFilter);
 
 ////////////////////////////////////////////////////////////////////////////////
 
