@@ -450,8 +450,12 @@ public:
         const auto& controlInvoker = Bootstrap_->GetControlInvoker();
         const auto& masterCellTags = Bootstrap_->GetMasterCellTags();
         for (auto cellTag : masterCellTags) {
-            controlInvoker->Invoke(
-                BIND(&TMasterConnector::DoScheduleHeartbeat, MakeWeak(this), cellTag, immediately));
+            controlInvoker->Invoke(BIND(
+                &TMasterConnector::DoScheduleHeartbeat,
+                MakeWeak(this),
+                cellTag,
+                immediately,
+                /*outOfOrder*/ true));
         }
     }
 
@@ -701,18 +705,23 @@ private:
 
         const auto& masterCellTags = Bootstrap_->GetMasterCellTags();
         for (auto cellTag : masterCellTags) {
-            DoScheduleHeartbeat(cellTag, /*immediately*/ true);
+            DoScheduleHeartbeat(cellTag, /*immediately*/ true, /*outOfOrder*/ false);
         }
 
         DoScheduleJobHeartbeat(/*immediately*/ true);
     }
 
-    void DoScheduleHeartbeat(TCellTag cellTag, bool immediately)
+    void DoScheduleHeartbeat(TCellTag cellTag, bool immediately, bool outOfOrder)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto* cellTagData = GetCellTagData(cellTag);
         ++cellTagData->ScheduledDataNodeHeartbeatCount;
+
+        // Out-of-order heartbeats are best effort, so we do not execute them if node is not online.
+        if (outOfOrder && cellTagData->ChunksDelta->State != EMasterConnectorState::Online) {
+            return;
+        }
 
         auto delay = immediately ? TDuration::Zero() : IncrementalHeartbeatPeriod_ + RandomDuration(IncrementalHeartbeatPeriodSplay_);
         TDelayedExecutor::Submit(
@@ -870,13 +879,13 @@ private:
                 cellTag);
 
             // Schedule next heartbeat.
-            DoScheduleHeartbeat(cellTag, /*immediately*/ false);
+            DoScheduleHeartbeat(cellTag, /*immediately*/ false, /*outOfOrder*/ false);
         } else {
             YT_LOG_WARNING(rspOrError, "Error reporting full data node heartbeat to master (CellTag: %v)",
                 cellTag);
 
             if (IsRetriableError(rspOrError)) {
-                DoScheduleHeartbeat(cellTag, /*immediately*/ false);
+                DoScheduleHeartbeat(cellTag, /*immediately*/ false, /*outOfOrder*/ false);
             } else {
                 Bootstrap_->ResetAndRegisterAtMaster();
             }
@@ -906,7 +915,7 @@ private:
             // Schedule next heartbeat if no more heartbeats are scheduled.
             auto* cellTagData = GetCellTagData(cellTag);
             if (cellTagData->ScheduledDataNodeHeartbeatCount == 0) {
-                DoScheduleHeartbeat(cellTag, /*immediately*/ false);
+                DoScheduleHeartbeat(cellTag, /*immediately*/ false, /*outOfOrder*/ false);
             }
         } else {
             YT_LOG_WARNING(rspOrError, "Error reporting incremental data node heartbeat to master (CellTag: %v)",
@@ -915,7 +924,7 @@ private:
             OnIncrementalHeartbeatFailed(cellTag);
 
             if (IsRetriableError(rspOrError)) {
-                DoScheduleHeartbeat(cellTag, /*immediately*/ false);
+                DoScheduleHeartbeat(cellTag, /*immediately*/ false, /*outOfOrder*/ false);
             } else {
                 Bootstrap_->ResetAndRegisterAtMaster();
             }
