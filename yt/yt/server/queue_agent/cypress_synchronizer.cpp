@@ -308,7 +308,7 @@ private:
                 if (!responseOrError.IsOK()) {
                     YT_LOG_DEBUG(
                         responseOrError,
-                        "Error fetching revision for object %v",
+                        "Error fetching revision (Object: %v)",
                         object.Object);
                     RowsWithErrors_.AppendObjectWithError(object, responseOrError);
                     continue;
@@ -320,7 +320,7 @@ private:
                 } catch (const std::exception& ex) {
                     YT_LOG_DEBUG(
                         ex,
-                        "Error parsing revision for object %v",
+                        "Error parsing revision (Object: %v)",
                         object.Object);
                     RowsWithErrors_.AppendObjectWithError(object, ex);
                     continue;
@@ -631,7 +631,7 @@ private:
                 } catch (const std::exception& ex) {
                     YT_LOG_DEBUG(
                         ex,
-                        "Error converting attributes to object %v",
+                        "Error parsing object attributes (Object: %v)",
                         object.Object);
                     RowsWithErrors_.AppendObjectWithError(object, ex, revision);
                 }
@@ -651,7 +651,7 @@ private:
                 } catch (const std::exception& ex) {
                     YT_LOG_DEBUG(
                         ex,
-                        "Error converting attributes to replicated object %v",
+                        "Error parsing replicated object attributes (Object: %v)",
                         object.Object);
                     RowsWithErrors_.AppendReplicatedObjectWithError(object, ex);
                 }
