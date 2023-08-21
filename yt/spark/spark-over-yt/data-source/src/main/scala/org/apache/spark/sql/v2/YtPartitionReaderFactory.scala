@@ -12,6 +12,7 @@ import org.apache.spark.sql.execution.datasources.PartitionedFile
 import org.apache.spark.sql.execution.datasources.v2.{FilePartitionReaderFactory, PartitionReaderWithPartitionValues}
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types._
+import org.apache.spark.sql.v2.YtUtils.bytesReadReporter
 import org.apache.spark.sql.vectorized.{ColumnVector, ColumnarBatch, SingleValueColumnVector, YtVectorizedReader}
 import org.apache.spark.util.SerializableConfiguration
 import org.slf4j.LoggerFactory
@@ -165,7 +166,7 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
       split.ytPathWithFiltersDetailed,
       InternalRowDeserializer.getOrCreate(resultSchema),
       ytClientConf.timeout, None,
-      incrementBytesRead
+      bytesReadReporter(broadcastedConf)
     )
     val unsafeProjection = UnsafeProjection.create(resultSchema)
 
@@ -207,19 +208,8 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
       returnBatch = returnBatch,
       arrowEnabled = arrowEnabled,
       timeout = ytClientConf.timeout,
-      incrementBytesRead
+      bytesReadReporter(broadcastedConf)
     )
-  }
-
-  private def incrementBytesRead: Long => Unit = {
-    val fs = FileSystem.get(broadcastedConf.value.value)
-    fs match {
-      case yfs: YtFileSystem => yfs.internalStatistics.incrementBytesRead
-      case ytfs: YtTableFileSystem => ytfs.internalStatistics.incrementBytesRead
-      case _ =>
-        log.warn(s"Unsupported fs: ${fs.getClass.getName}")
-        _ => () //noop
-    }
   }
 
   private def arrowSchemaSupported(dataSchema: StructType): Boolean = {

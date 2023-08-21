@@ -12,6 +12,8 @@ import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.sources.{DataSourceRegister, Filter}
 import org.apache.spark.sql.types.{AtomicType, StructType}
 import org.apache.spark.sql.v2.YtUtils
+import org.apache.spark.sql.v2.YtUtils.bytesReadReporter
+import org.apache.spark.util.SerializableConfiguration
 import org.slf4j.LoggerFactory
 import tech.ytsaurus.spyt.format._
 import tech.ytsaurus.spyt.format.conf.SparkYtConfiguration.Read._
@@ -62,9 +64,7 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
     log.info(s"Batch read enabled: $readBatch")
     log.info(s"Batch return enabled: $returnBatch")
     log.info(s"Arrow enabled: $arrowEnabledValue")
-
-    val fs = FileSystem.get(hadoopConf).asInstanceOf[YtFileSystemBase]
-
+    val broadcastedConf = sparkSession.sparkContext.broadcast(new SerializableConfiguration(hadoopConf))
     val ytLoggerConfig = YtDynTableLoggerConfig.fromSpark(sparkSession)
 
     {
@@ -84,7 +84,7 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
             returnBatch = returnBatch,
             arrowEnabled = arrowEnabledValue,
             timeout = ytClientConf.timeout,
-            bytesRead => fs.internalStatistics.incrementBytesRead(bytesRead)
+            bytesReadReporter(broadcastedConf)
           )
           val iter = new RecordReaderIterator(ytVectorizedReader)
           Option(TaskContext.get()).foreach(_.addTaskCompletionListener[Unit](_ => iter.close()))
@@ -104,7 +104,7 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
             InternalRowDeserializer.getOrCreate(requiredSchema),
             ytClientConf.timeout,
             None,
-            bytesRead => fs.internalStatistics.incrementBytesRead(bytesRead)
+            bytesReadReporter(broadcastedConf)
           )
           val unsafeProjection = UnsafeProjection.create(requiredSchema)
           tableIterator.map(unsafeProjection(_))

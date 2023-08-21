@@ -1,12 +1,14 @@
 package org.apache.spark.sql.v2
 
-import org.apache.hadoop.fs.FileStatus
+import org.apache.hadoop.fs.{FileStatus, FileSystem}
 import org.apache.spark.SparkException
+import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.types.{MetadataBuilder, StructField, StructType}
+import org.apache.spark.util.SerializableConfiguration
 import org.slf4j.LoggerFactory
 import tech.ytsaurus.spyt.fs.YtClientConfigurationConverter.ytClientConfiguration
-import tech.ytsaurus.spyt.fs.YtPath
+import tech.ytsaurus.spyt.fs.{YtFileSystemBase, YtPath}
 import tech.ytsaurus.spyt.fs.path.YPathEnriched
 import tech.ytsaurus.spyt.fs.path.YPathEnriched.ypath
 import tech.ytsaurus.spyt.serializers.SchemaConverter.MetadataFields
@@ -159,5 +161,18 @@ object YtUtils {
     }
 
     def setNullable(value: Boolean = true): StructField = field.copy(nullable = value)
+  }
+
+  def bytesReadReporter(conf: Broadcast[SerializableConfiguration]): Long => Unit = {
+    // TODO(alex-shishkin): Extracting FS every read report
+    val fsScheme = FileSystem.getDefaultUri(conf.value.value).getScheme
+    fsScheme match {
+      case scheme if scheme == "yt" || scheme == "ytTable" =>
+        bytesRead =>
+          FileSystem.get(conf.value.value).asInstanceOf[YtFileSystemBase].internalStatistics.incrementBytesRead(bytesRead)
+      case scheme =>
+        log.warn(s"Unsupported uri: $scheme")
+        _ => () //noop
+    }
   }
 }
