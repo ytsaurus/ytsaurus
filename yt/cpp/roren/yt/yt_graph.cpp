@@ -858,6 +858,9 @@ public:
                 Graph_.AddMapOperationNode(inputNode, outputNodes, transform->GetRawTransform());
                 break;
             }
+            case ERawTransformType::StatefulParDo: {
+                THROW_NOT_IMPLEMENTED_YET();
+            }
             default:
                 Y_FAIL();
         }
