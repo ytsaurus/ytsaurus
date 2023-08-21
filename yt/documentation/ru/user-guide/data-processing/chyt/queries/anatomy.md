@@ -1,1 +1,0 @@
-{% include [Анатомия запроса](../../../../_includes/user-guide/data-processing/chyt/queries/anatomy.md) %}

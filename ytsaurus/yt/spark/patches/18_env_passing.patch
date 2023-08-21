@@ -1,0 +1,325 @@
+commit b4f9fe9058d9c9661f79d172e2b6e7e170a65b2d (HEAD -> SPYT-413_bugfix_spark32, arcadia/users/alex-shishkin/SPYT-413_bugfix_spark32)
+author: alex-shishkin
+date: 2023-02-14T12:03:24+03:00
+
+    SPYT-413: Fix env variables pass
+
+--- yt/spark/spark/core/src/main/scala/org/apache/spark/SparkConf.scala	(0ee5c459a888c10bf20e030264342ea5278e7a5e)
++++ yt/spark/spark/core/src/main/scala/org/apache/spark/SparkConf.scala	(b4f9fe9058d9c9661f79d172e2b6e7e170a65b2d)
+@@ -68,6 +68,7 @@ class SparkConf(loadDefaults: Boolean) extends Cloneable with Logging with Seria
+ 
+   if (loadDefaults) {
+     loadFromSystemProperties(false)
++    loadFromEnvironment(false)
+   }
+ 
+   private[spark] def loadFromSystemProperties(silent: Boolean): SparkConf = {
+@@ -78,6 +79,13 @@ class SparkConf(loadDefaults: Boolean) extends Cloneable with Logging with Seria
+     this
+   }
+ 
++  private[spark] def loadFromEnvironment(silent: Boolean): SparkConf = {
++    for ((key, value) <- sys.env if key.startsWith("SPARK_")) {
++      set(SparkConf.envToConfName(key), value, silent)
++    }
++    this
++  }
++
+   /** Set a configuration variable. */
+   def set(key: String, value: String): SparkConf = {
+     set(key, value, false)
+@@ -583,6 +591,13 @@ class SparkConf(loadDefaults: Boolean) extends Cloneable with Logging with Seria
+ }
+ 
+ private[spark] object SparkConf extends Logging {
++  private[spark] def envToConfName(envName: String): String = {
++    envName.toLowerCase().replace("_", ".")
++  }
++
++  private[spark] def confToEnvName(confName: String): String = {
++    confName.replace(".", "_").toUpperCase()
++  }
+ 
+   /**
+    * Maps deprecated config keys to information about the deprecation.
+--- yt/spark/spark/core/src/main/scala/org/apache/spark/api/python/ExecutableWorkerFactory.scala	(0ee5c459a888c10bf20e030264342ea5278e7a5e)
++++ yt/spark/spark/core/src/main/scala/org/apache/spark/api/python/ExecutableWorkerFactory.scala	(b4f9fe9058d9c9661f79d172e2b6e7e170a65b2d)
+@@ -24,7 +24,7 @@ import scala.collection.JavaConverters._
+ 
+ import org.apache.spark._
+ import org.apache.spark.api.python.PythonWorkerFactory.PROCESS_WAIT_TIMEOUT_MS
+-import org.apache.spark.deploy.ExecutableRunMode
++import org.apache.spark.deploy.ExecutableEnv._
+ import org.apache.spark.util.Utils
+ 
+ // Copied from PythonWorkerFactory and adjusted to work with executable files
+@@ -43,7 +43,9 @@ private[spark] class ExecutableWorkerFactory(execPath: String, envVars: Map[Stri
+       serverSocket = new ServerSocket(0, 1, InetAddress.getByAddress(Array(127, 0, 0, 1)))
+ 
+       // Create and start the worker
+-      val pb = new ProcessBuilder(Seq(execPath).asJava)
++      val args = MainArgs.deserialize(envVars(MainArgs.envName))
++      val command = (execPath +: args).asJava
++      val pb = new ProcessBuilder(command)
+       val workerEnv = pb.environment()
+       workerEnv.putAll(envVars.asJava)
+       workerEnv.put("PYTHONPATH", pythonPath)
+@@ -51,7 +53,7 @@ private[spark] class ExecutableWorkerFactory(execPath: String, envVars: Map[Stri
+       workerEnv.put("PYTHONUNBUFFERED", "YES")
+       workerEnv.put("PYTHON_WORKER_FACTORY_PORT", serverSocket.getLocalPort.toString)
+       workerEnv.put("PYTHON_WORKER_FACTORY_SECRET", authHelper.secret)
+-      workerEnv.put(ExecutableRunMode.ENV_VARIABLE_NAME, ExecutableRunMode.WORKER)
++      workerEnv.put(RunMode.envName, RunMode.WORKER)
+ 
+       val worker = pb.start()
+ 
+@@ -93,7 +95,8 @@ private[spark] class ExecutableWorkerFactory(execPath: String, envVars: Map[Stri
+ 
+       try {
+         // Create and start the daemon
+-        val command = Seq(execPath).asJava
++        val args = MainArgs.deserialize(envVars(MainArgs.envName))
++        val command = (execPath +: args).asJava
+         val pb = new ProcessBuilder(command)
+         val workerEnv = pb.environment()
+         workerEnv.putAll(envVars.asJava)
+@@ -101,7 +104,7 @@ private[spark] class ExecutableWorkerFactory(execPath: String, envVars: Map[Stri
+         workerEnv.put("PYTHON_WORKER_FACTORY_SECRET", authHelper.secret)
+         // This is equivalent to setting the -u flag; we use it because ipython doesn't support -u:
+         workerEnv.put("PYTHONUNBUFFERED", "YES")
+-        workerEnv.put(ExecutableRunMode.ENV_VARIABLE_NAME, ExecutableRunMode.DAEMON)
++        workerEnv.put(RunMode.envName, RunMode.DAEMON)
+ 
+         daemon = pb.start()
+ 
+--- yt/spark/spark/core/src/main/scala/org/apache/spark/deploy/ExecutableEnv.scala	(0ee5c459a888c10bf20e030264342ea5278e7a5e)
++++ yt/spark/spark/core/src/main/scala/org/apache/spark/deploy/ExecutableEnv.scala	(b4f9fe9058d9c9661f79d172e2b6e7e170a65b2d)
+@@ -0,0 +1,45 @@
++/*
++ * Licensed to the Apache Software Foundation (ASF) under one or more
++ * contributor license agreements.  See the NOTICE file distributed with
++ * this work for additional information regarding copyright ownership.
++ * The ASF licenses this file to You under the Apache License, Version 2.0
++ * (the "License"); you may not use this file except in compliance with
++ * the License.  You may obtain a copy of the License at
++ *
++ *    http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package org.apache.spark.deploy
++
++import com.fasterxml.jackson.databind.ObjectMapper
++import scala.collection.mutable.ArrayBuffer
++
++sealed abstract class ExecutableEnv(val envName: String)
++
++
++object ExecutableEnv {
++  case object RunMode extends ExecutableEnv("SPYT_RUN_MODE") {
++    val DRIVER = "spyt_driver"
++    val DAEMON = "spyt_daemon"
++    val WORKER = "spyt_worker"
++  }
++
++  case object MainArgs extends ExecutableEnv("SPYT_MAIN_ARGS") {
++    private val mapper = new ObjectMapper()
++
++    def serialize(args: ArrayBuffer[String]): String = {
++      mapper.writeValueAsString(args.toArray)
++    }
++
++    def deserialize(args: String): Seq[String] = {
++      import scala.collection.JavaConverters._
++      mapper.readTree(args).iterator().asScala.map(_.asText()).toList
++    }
++  }
++}
+--- yt/spark/spark/core/src/main/scala/org/apache/spark/deploy/ExecutableRunMode.scala	(0ee5c459a888c10bf20e030264342ea5278e7a5e)
++++ yt/spark/spark/core/src/main/scala/org/apache/spark/deploy/ExecutableRunMode.scala	(b4f9fe9058d9c9661f79d172e2b6e7e170a65b2d)
+@@ -1,25 +0,0 @@
+-/*
+- * Licensed to the Apache Software Foundation (ASF) under one or more
+- * contributor license agreements.  See the NOTICE file distributed with
+- * this work for additional information regarding copyright ownership.
+- * The ASF licenses this file to You under the Apache License, Version 2.0
+- * (the "License"); you may not use this file except in compliance with
+- * the License.  You may obtain a copy of the License at
+- *
+- *    http://www.apache.org/licenses/LICENSE-2.0
+- *
+- * Unless required by applicable law or agreed to in writing, software
+- * distributed under the License is distributed on an "AS IS" BASIS,
+- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- * See the License for the specific language governing permissions and
+- * limitations under the License.
+- */
+-
+-package org.apache.spark.deploy
+-
+-object ExecutableRunMode {
+-  val ENV_VARIABLE_NAME = "SPYT_RUN_MODE"
+-  val DRIVER = "spyt_driver"
+-  val DAEMON = "spyt_daemon"
+-  val WORKER = "spyt_worker"
+-}
+--- yt/spark/spark/core/src/main/scala/org/apache/spark/deploy/ExecutableRunner.scala	(0ee5c459a888c10bf20e030264342ea5278e7a5e)
++++ yt/spark/spark/core/src/main/scala/org/apache/spark/deploy/ExecutableRunner.scala	(b4f9fe9058d9c9661f79d172e2b6e7e170a65b2d)
+@@ -78,7 +78,7 @@ object ExecutableRunner {
+     val builder = new ProcessBuilder((Seq(formattedExecFile) ++ execArgs).asJava)
+     val env = builder.environment()
+     env.put("PYTHONPATH", pythonPath)
+-    env.put(ExecutableRunMode.ENV_VARIABLE_NAME, ExecutableRunMode.DRIVER)
++    env.put(ExecutableEnv.RunMode.envName, ExecutableEnv.RunMode.DRIVER)
+     // This is equivalent to setting the -u flag; we use it because ipython doesn't support -u:
+     env.put("PYTHONUNBUFFERED", "YES") // value is needed to be set to a non-empty string
+     env.put("PYSPARK_GATEWAY_PORT", "" + gatewayServer.getListeningPort)
+--- yt/spark/spark/core/src/main/scala/org/apache/spark/deploy/SparkSubmit.scala	(0ee5c459a888c10bf20e030264342ea5278e7a5e)
++++ yt/spark/spark/core/src/main/scala/org/apache/spark/deploy/SparkSubmit.scala	(b4f9fe9058d9c9661f79d172e2b6e7e170a65b2d)
+@@ -527,6 +527,8 @@ private[spark] class SparkSubmit extends Logging {
+       val submitPyFiles = sparkConf.getOption("spark.submit.pyFiles").orNull
+       // make sure our executable is not in spark.submit.pyFiles: bad things happen when it is
+       sparkConf.set("spark.submit.pyFiles", mergeFileLists(submitPyFiles, args.pyFiles))
++      sparkConf.set(s"spark.executorEnv.${ExecutableEnv.MainArgs.envName}",
++        ExecutableEnv.MainArgs.serialize(args.childArgs))
+       args.pyFiles = mergeFileLists(args.pyFiles, args.primaryResource)
+       args.files = mergeFileLists(args.files, args.pyFiles)
+       args.childArgs = ArrayBuffer("{{USER_JAR}}", "{{PY_FILES}}") ++ args.childArgs
+--- yt/spark/spark/core/src/main/scala/org/apache/spark/deploy/worker/DriverRunner.scala	(0ee5c459a888c10bf20e030264342ea5278e7a5e)
++++ yt/spark/spark/core/src/main/scala/org/apache/spark/deploy/worker/DriverRunner.scala	(b4f9fe9058d9c9661f79d172e2b6e7e170a65b2d)
+@@ -22,6 +22,7 @@ import java.net.URI
+ import java.nio.charset.StandardCharsets
+ 
+ import scala.collection.JavaConverters._
++import scala.util.matching._
+ 
+ import com.google.common.io.Files
+ 
+@@ -32,7 +33,7 @@ import org.apache.spark.deploy.StandaloneResourceUtils.prepareResourcesFile
+ import org.apache.spark.deploy.master.DriverState
+ import org.apache.spark.deploy.master.DriverState.DriverState
+ import org.apache.spark.internal.Logging
+-import org.apache.spark.internal.config.{DRIVER_RESOURCES_FILE, SPARK_DRIVER_PREFIX}
++import org.apache.spark.internal.config.{DRIVER_RESOURCES_FILE, SECRET_REDACTION_PATTERN, SPARK_DRIVER_PREFIX}
+ import org.apache.spark.internal.config.UI.UI_REVERSE_PROXY
+ import org.apache.spark.internal.config.Worker.WORKER_DRIVER_TERMINATE_TIMEOUT
+ import org.apache.spark.resource.ResourceInformation
+@@ -195,6 +196,14 @@ private[deploy] class DriverRunner(
+       case other => other
+     }
+ 
++    val subsOpts = driverDesc.command.javaOpts.map { opt =>
++      FileUtils.substituteFiles(opt, driverDir, conf)
++    }
++
++    val (publicOpts, additionalEnv) =
++      DriverRunner.moveRedactedOptsToEnv(conf.get(SECRET_REDACTION_PATTERN), subsOpts)
++    val driverEnv = driverDesc.command.environment ++ additionalEnv
++
+     // config resource file for driver, which would be used to load resources when driver starts up
+     val javaOpts = driverDesc.command.javaOpts ++ resourceFileOpt.map(f =>
+       Seq(s"-D${DRIVER_RESOURCES_FILE.key}=${f.getAbsolutePath}")).getOrElse(Seq.empty)
+@@ -269,6 +278,23 @@ private[deploy] class DriverRunner(
+   }
+ }
+ 
++private[worker] object DriverRunner {
++  private[worker] def moveRedactedOptsToEnv(regex: Regex, opts: Seq[String]):
++  (Seq[String], Map[String, String]) = {
++    val confOpt = "-D(.+)=(.+)".r
++    val optsBuilder = Seq.newBuilder[String]
++    val envBuilder = Map.newBuilder[String, String]
++    for (opt <- opts) {
++      opt match {
++        case confOpt(key, value) if regex.findFirstIn(key).nonEmpty =>
++          envBuilder += SparkConf.confToEnvName(key) -> value
++        case _ => optsBuilder += opt
++      }
++    }
++    (optsBuilder.result(), envBuilder.result())
++  }
++}
++
+ private[deploy] trait Sleeper {
+   def sleep(seconds: Int): Unit
+ }
+--- yt/spark/spark/core/src/main/scala/org/apache/spark/deploy/worker/FileUtils.scala	(0ee5c459a888c10bf20e030264342ea5278e7a5e)
++++ yt/spark/spark/core/src/main/scala/org/apache/spark/deploy/worker/FileUtils.scala	(b4f9fe9058d9c9661f79d172e2b6e7e170a65b2d)
+@@ -0,0 +1,72 @@
++/*
++ * Licensed to the Apache Software Foundation (ASF) under one or more
++ * contributor license agreements.  See the NOTICE file distributed with
++ * this work for additional information regarding copyright ownership.
++ * The ASF licenses this file to You under the Apache License, Version 2.0
++ * (the "License"); you may not use this file except in compliance with
++ * the License.  You may obtain a copy of the License at
++ *
++ *    http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++package org.apache.spark.deploy.worker
++
++import java.io.{File, IOException}
++import java.net.URI
++
++import org.apache.spark.SparkConf
++import org.apache.spark.deploy.SparkHadoopUtil
++import org.apache.spark.internal.Logging
++import org.apache.spark.util.Utils
++
++object FileUtils extends Logging {
++  private val DOWNLOAD_SUFFIX = ".download"
++  private val DOWNLOAD_FS_SUFFIX = ".downloadFs"
++
++  def downloadFile(sourceUrl: String, destDir: File, conf: SparkConf): String = {
++    val fileName = new URI(sourceUrl).getPath.split("/").last
++    val localJarFile = new File(destDir, fileName)
++    if (!localJarFile.exists()) { // May already exist if running multiple workers on one node
++      logInfo(s"Copying user file $sourceUrl to $localJarFile")
++      Utils.fetchFile(
++        sourceUrl,
++        destDir,
++        conf,
++        SparkHadoopUtil.get.newConfiguration(conf),
++        System.currentTimeMillis(),
++        useCache = false)
++      if (!localJarFile.exists()) { // Verify copy succeeded
++        throw new IOException(
++          s"Can not find expected file $fileName which should have been loaded in $destDir")
++      }
++    }
++    localJarFile.getAbsolutePath
++  }
++
++  def substituteFiles(opt: String, dir: File, conf: SparkConf): String = {
++    def substitute(name: String, files: String, prefix: String): String = {
++      val downloadedFiles = files.split(",")
++        .map(file => s"$prefix${downloadFile(file, dir, conf)}")
++      val newOpt = s"$name=${downloadedFiles.mkString(",")}"
++      logInfo(s"Substitute $opt with $newOpt")
++      newOpt
++    }
++
++    if (opt.contains("://")) {
++      val name :: files :: Nil = opt.split("=", 2).toList
++      name match {
++        case _ if name.endsWith(DOWNLOAD_SUFFIX) =>
++          substitute(name.dropRight(DOWNLOAD_SUFFIX.length), files, "")
++        case _ if name.endsWith(DOWNLOAD_FS_SUFFIX) =>
++          substitute(name.dropRight(DOWNLOAD_FS_SUFFIX.length), files, "file://")
++        case _ => opt
++      }
++    } else opt
++  }
++}

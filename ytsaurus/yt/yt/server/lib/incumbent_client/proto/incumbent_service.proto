@@ -1,0 +1,23 @@
+package NYT.NIncumbentClient.NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqHeartbeat
+{
+    message TIncumbentDescriptor
+    {
+        required int32 type = 1; // EIncumbentType
+
+        //! List of the peer addresses incumbent shards assigned to.
+        //! Empty strings corresponds to unassigned shard.
+        repeated string addresses = 2;
+    }
+    repeated TIncumbentDescriptor descriptors = 1;
+
+    required int64 peer_lease_deadline = 2; // TInstant
+}
+
+message TRspHeartbeat
+{ }
+
+////////////////////////////////////////////////////////////////////////////////

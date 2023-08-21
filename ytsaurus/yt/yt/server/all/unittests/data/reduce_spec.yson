@@ -1,0 +1,307 @@
+{
+    "use_columnar_statistics" = %true;
+    "max_failed_job_count" = 5;
+    "reduce_by" = [
+        "ride_date";
+        "ride_time";
+        "log_time";
+        "rover";
+        "message_ts";
+        "pool_id";
+        "testcase_id";
+    ];
+    "started_by" = {
+        "python_version" = "3.6.9";
+        "hostname" = "NvYt-d68a9c178706-edddf580-acc4e4a5-3fe03e8-a462e0c9.yandex.net";
+        "pid" = 45725;
+        "platform" = "Ubuntu 18.04 (Bionic Beaver)";
+        "command" = [
+            "-c";
+        ];
+        "user" = "19504";
+        "wrapper_version" = "0.10.17";
+    };
+    "enable_job_splitting" = %false;
+    "pool_trees" = [
+        "gpu_geforce_1080ti";
+    ];
+    "title" = "djvu:apply_filter:filter.robot_boxnet";
+    "output_table_paths" = [
+        <
+            "optimize_for" = "scan";
+            "schema" = <
+                "strict" = %true;
+            > [
+                {
+                    "type" = "string";
+                    "required" = %false;
+                    "sort_order" = "ascending";
+                    "name" = "ride_date";
+                };
+                {
+                    "type" = "string";
+                    "required" = %false;
+                    "sort_order" = "ascending";
+                    "name" = "ride_time";
+                };
+                {
+                    "type" = "string";
+                    "required" = %false;
+                    "sort_order" = "ascending";
+                    "name" = "log_time";
+                };
+                {
+                    "type" = "string";
+                    "required" = %false;
+                    "sort_order" = "ascending";
+                    "name" = "rover";
+                };
+                {
+                    "type" = "int64";
+                    "required" = %false;
+                    "sort_order" = "ascending";
+                    "name" = "message_ts";
+                };
+                {
+                    "type" = "uint64";
+                    "required" = %false;
+                    "sort_order" = "ascending";
+                    "name" = "pool_id";
+                };
+                {
+                    "type" = "uint64";
+                    "required" = %false;
+                    "sort_order" = "ascending";
+                    "name" = "testcase_id";
+                };
+                {
+                    "required" = %false;
+                    "type" = "int64";
+                    "name" = "header_ts";
+                };
+                {
+                    "required" = %false;
+                    "type" = "any";
+                    "name" = "/robot/detection_3d/boxnet";
+                };
+                {
+                    "required" = %false;
+                    "type" = "any";
+                    "name" = "/robot/detection_3d/boxnet/obstacle_cloud";
+                };
+            ];
+        > "//home/selfdriving/offline/artifacts/99949acf_-10_0/filter.robot_boxnet/015c9f4295c5d1b8dd3b3910c9db74d6ed41b3af";
+    ];
+    "job_io" = {
+        "control_attributes" = {
+            "enable_key_switch" = %true;
+        };
+        "table_writer" = {
+            "max_row_weight" = 134217728;
+            "desired_chunk_size" = 2147483648;
+        };
+    };
+    "merge_job_io" = {
+        "table_writer" = {
+            "max_row_weight" = 134217728;
+            "desired_chunk_size" = 2147483648;
+        };
+    };
+    "scheduling_tag_filter" = "porto";
+    "input_table_paths" = [
+        <
+            "columns" = [
+                "rover";
+                "/default/Sensor/merged_points";
+                "message_ts";
+                "ride_time";
+                "header_ts";
+                "testcase_id";
+                "pool_id";
+                "log_time";
+                "ride_date";
+            ];
+        > "//home/selfdriving/offline/artifacts/99949acf_-10_0/filter.lidar_clouds/4624e688ba3c93fc135cb2487f9bd99cff3694b5";
+        "//home/selfdriving/offline/artifacts/99949acf_-10_0/filter.localization_migration/1e0781086797d6f42b24deb91b4d6f336187e1a8";
+    ];
+    "annotations" = {
+        "script_name" = "djvu:apply_filter:filter.robot_boxnet";
+    };
+    "ignore_job_failures_at_banned_nodes" = %true;
+    "mapper" = {
+        "memory_limit" = 12540968960;
+        "tmpfs_path" = ".";
+        "environment" = {
+            "OMP_NUM_THREADS" = "1";
+            "SDC_RESOURCES" = ".";
+            "SDC_MLOCKALL_MODE" = "OFF";
+            "MATPLOTLIBDATA" = "./modules/matplotlib/_data";
+            "MPLCONFIGDIR" = "./modules/matplotlib/_config";
+            "MATPLOTLIBRC" = "./modules/matplotlib/matplotlibrc";
+            "ROS_PACKAGE_PATH" = "./modules/ros_pkg_resources_0:./modules/ros_pkg_resources_1:./modules/ros_pkg_resources_2:./modules/ros_pkg_resources_3";
+            "PATH" = "/usr/bin";
+            "SDC_RESOURCES_SYMLINKS" = ".";
+            "LD_LIBRARY_PATH" = "./modules/_shared:./tmpfs/modules/_shared";
+        };
+        "gpu_limit" = 1;
+        "cpu_limit" = 3;
+        "copy_files" = %true;
+        "memory_reserve_factor" = 0.;
+        "layer_paths" = [
+            "//home/selfdriving/porto_layers/ubuntu-bionic-base.tar.xz";
+        ];
+    };
+    "weight" = 1.;
+    "map_job_io" = {
+        "table_writer" = {
+            "max_row_weight" = 134217728;
+            "desired_chunk_size" = 2147483648;
+        };
+    };
+    "reduce_job_io" = {
+        "table_writer" = {
+            "max_row_weight" = 134217728;
+            "desired_chunk_size" = 2147483648;
+        };
+    };
+    "data_size_per_job" = 8589934592;
+    "sort_job_io" = {
+        "table_writer" = {
+            "max_row_weight" = 134217728;
+            "desired_chunk_size" = 2147483648;
+        };
+    };
+    "pool" = "selfdriving-dev";
+    "ban_nodes_with_failed_jobs" = %true;
+    "owners" = [
+        "selfdriving";
+    ];
+    "auto_merge" = {
+        "mode" = "relaxed";
+    };
+    "reducer" = {
+        "memory_limit" = 50221727907;
+        "tmpfs_path" = ".";
+        "file_paths" = [
+            <
+                "file_name" = "boxnet_aarch64.tar.bz2";
+                "executable" = %false;
+            > "//tmp/yt_wrapper/file_storage/hash/49/671db304ee4874031d10884566173049";
+            <
+                "file_name" = "boxnet_vlp16.tar.bz2";
+                "executable" = %false;
+            > "//tmp/yt_wrapper/file_storage/hash/64/cbdb3a562355c2badaa81a21e5dca364";
+            <
+                "file_name" = "_py_runner.py";
+                "executable" = %false;
+            > "//tmp/yt_wrapper/file_storage/hash/e5/992d4b6c602da2a522a93a41a6cadee5";
+            <
+                "file_name" = "ApplyFilterReduce.pickle";
+                "executable" = %true;
+            > "//tmp/yt_wrapper/file_storage/hash/32/99c6648458da72c793231d2fa7b5cf32";
+            <
+                "file_name" = "config_dump";
+                "executable" = %true;
+            > "//tmp/yt_wrapper/file_storage/hash/c7/b6ff8d0f441ff734f11b4ba3e7b8c6c7";
+            <
+                "file_name" = "modules_0.tar.gz";
+                "executable" = %true;
+            > "//tmp/yt_wrapper/file_storage/hash/7c/6e8fa35f814938549aa8fb3086a1617c";
+            <
+                "file_name" = "modules_1.tar.gz";
+                "executable" = %true;
+            > "//tmp/yt_wrapper/file_storage/hash/cb/c0ac3bbfb8e5ce4d6c668b47d50888cb";
+            <
+                "file_name" = "modules_2.tar.gz";
+                "executable" = %true;
+            > "//tmp/yt_wrapper/file_storage/hash/af/8cf9bbf40a41c36a3ad0387faccc84af";
+            <
+                "file_name" = "modules_3.tar.gz";
+                "executable" = %true;
+            > "//tmp/yt_wrapper/file_storage/hash/e6/2420e13ee6575efb7c995a33c9abf1e6";
+            <
+                "file_name" = "modules_4.tar.gz";
+                "executable" = %true;
+            > "//tmp/yt_wrapper/file_storage/hash/ff/06475ffd1dd85bfc6fac44dcc07b41ff";
+            <
+                "file_name" = "modules_5.tar.gz";
+                "executable" = %true;
+            > "//tmp/yt_wrapper/file_storage/hash/30/16e454edf703f86f4288560c7eb6bf30";
+            <
+                "file_name" = "modules_6.tar.gz";
+                "executable" = %true;
+            > "//tmp/yt_wrapper/file_storage/hash/ff/6a5753fb0589e3e88967dd635886d4ff";
+            <
+                "file_name" = "modules_7.tar.gz";
+                "executable" = %true;
+            > "//tmp/yt_wrapper/file_storage/hash/f9/89f3260388b4331c58af406fb6f0b6f9";
+            <
+                "file_name" = "modules_8.tar.gz";
+                "executable" = %true;
+            > "//tmp/yt_wrapper/file_storage/hash/99/d8792ce07c04efd9b4e032d6bcbeec99";
+            <
+                "file_name" = "_modules_info";
+                "executable" = %true;
+            > "//tmp/yt_wrapper/file_storage/hash/49/a8602a13952765d57da4e1faaa292549";
+            <
+                "file_name" = "_main_module.py";
+                "executable" = %true;
+            > "//tmp/yt_wrapper/file_storage/hash/7e/d41d8cd98f00b204e9800998ecf8427e";
+        ];
+        "input_format" = <
+            "sort_keys" = %false;
+            "ignore_inner_attributes" = %false;
+            "lazy" = %false;
+            "always_create_attributes" = %false;
+            "format" = "binary";
+        > "yson";
+        "title" = "ApplyFilterReduce";
+        "tmpfs_size" = 37680758947;
+        "output_format" = <
+            "sort_keys" = %false;
+            "ignore_inner_attributes" = %false;
+            "lazy" = %false;
+            "always_create_attributes" = %false;
+            "format" = "binary";
+        > "yson";
+        "use_yamr_descriptors" = %false;
+        "environment" = {
+            "YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB" = "0";
+            "YT_FORBID_REQUESTS_FROM_JOB" = "1";
+            "OMP_NUM_THREADS" = "1";
+            "SDC_RESOURCES" = ".";
+            "SDC_MLOCKALL_MODE" = "OFF";
+            "MATPLOTLIBDATA" = "./modules/matplotlib/_data";
+            "MPLCONFIGDIR" = "./modules/matplotlib/_config";
+            "MATPLOTLIBRC" = "./modules/matplotlib/matplotlibrc";
+            "ROS_PACKAGE_PATH" = "./modules/ros_pkg_resources_0:./modules/ros_pkg_resources_1:./modules/ros_pkg_resources_2:./modules/ros_pkg_resources_3";
+            "PATH" = "/usr/bin";
+            "SDC_RESOURCES_SYMLINKS" = ".";
+            "LD_LIBRARY_PATH" = "./modules/_shared:./tmpfs/modules/_shared";
+        };
+        "gpu_limit" = 1;
+        "command" = "python3 _py_runner.py ApplyFilterReduce.pickle config_dump _modules_info _main_module.py _main_module PY_SOURCE";
+        "cpu_limit" = 3;
+        "copy_files" = %true;
+        "memory_reserve_factor" = 0.;
+        "layer_paths" = [
+            "//home/selfdriving/porto_layers/ubuntu-bionic-base.tar.xz";
+        ];
+        "check_input_fully_consumed" = %false;
+    };
+    "sort_by" = [
+        "ride_date";
+        "ride_time";
+        "log_time";
+        "rover";
+        "message_ts";
+        "pool_id";
+        "testcase_id";
+    ];
+    "partition_job_io" = {
+        "table_writer" = {
+            "max_row_weight" = 134217728;
+            "desired_chunk_size" = 2147483648;
+        };
+    };
+}

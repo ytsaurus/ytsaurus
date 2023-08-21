@@ -1,1 +1,0 @@
-{% include [Обзор](../../../_includes/user-guide/data-processing/chyt/about-chyt.md) %}

@@ -1,0 +1,126 @@
+package NYT.NNodeTrackerClient.NProto;
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+import "yt_proto/yt/core/misc/proto/error.proto";
+import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
+import "yt/ytlib/chunk_client/proto/heartbeat.proto";
+
+// COMPAT(kvk1920)
+import "yt/ytlib/chunk_client/proto/medium_directory.proto";
+
+// COMPAT(ifsmirnov, kvk1920)
+import "yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRegisterNode
+{
+    required TNodeAddressMap node_addresses = 1;
+
+    optional NYT.NProto.TGuid lease_transaction_id = 3;
+    optional int32 node_id = 4;
+    repeated string tags = 5;
+    optional bytes cypress_annotations = 6; // YSON
+    optional string build_version = 7;
+    repeated int32 flavors = 8; // ENodeFlavor
+    repeated NYT.NProto.TGuid chunk_location_uuids = 9;
+    optional string host_name = 10;
+    repeated string table_mount_config_keys = 11;
+
+    // COMPAT(gritukan)
+    optional bool exec_node_is_not_data_node = 12;
+
+    // COMPAT(kvk1920)
+    optional bool chunk_locations_supported = 13;
+    // COMPAT(kvk1920)
+    // This flag is only needed for replication nodes to secondary cells.
+    optional bool suppress_unsupported_chunk_locations_alert = 14;
+
+    // COMPAT(kvk1920)
+    optional bool location_directory_supported = 15;
+
+    reserved 2;
+}
+
+message TRspRegisterNode
+{
+    required int32 node_id = 1;
+
+    // COMPAT(gritukan)
+    optional bool use_new_heartbeats = 2;
+
+    extensions 100 to max;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// COMPAT(kvk1920): move this extension to data_node_tracker_service.proto
+message TDataNodeInfoExt
+{
+    extend TRspRegisterNode
+    {
+        optional TDataNodeInfoExt data_node_info_ext = 100;
+    }
+
+    optional NChunkClient.NProto.TMediumDirectory medium_directory = 1;
+    optional NDataNodeTrackerClient.NProto.TMediumOverrides medium_overrides = 2;
+
+    // COMPAT(kvk1920): Remove after location directory will be enabled everywhere.
+    optional bool require_location_uuids = 3 [default = true];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqHeartbeat
+{
+    required int32 node_id = 1;
+
+    required TClusterNodeStatistics statistics = 2;
+
+    repeated NYT.NProto.TError alerts = 3;
+
+    required NNodeTrackerClient.NProto.TNodeResources resource_usage = 4;
+    required NNodeTrackerClient.NProto.TNodeResources resource_limits = 5;
+}
+
+message TRspHeartbeat
+{
+    optional string host_name = 6;
+    optional string rack = 1;
+    optional string data_center = 2;
+    repeated string tags = 3;
+
+    optional TNodeResourceLimitsOverrides resource_limits_overrides = 4;
+
+    optional bool decommissioned = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// COMPAT(kvk1920): Remove after 23.2.
+message TReqAddMaintenance
+{
+    required string node_address = 1;
+    required int32 type = 2; // EMaintenanceType
+    required string comment = 3;
+}
+
+message TRspAddMaintenance
+{
+    required NYT.NProto.TGuid id = 1; // TMaintenanceId
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// COMPAT(kvk1920): Remove after 23.2.
+message TReqRemoveMaintenance
+{
+    required string node_address = 1;
+    required NYT.NProto.TGuid id = 2; // TMaintenanceId
+}
+
+message TRspRemoveMaintenance
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////

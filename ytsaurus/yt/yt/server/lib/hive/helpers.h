@@ -1,0 +1,19 @@
+#pragma once
+
+#include "public.h"
+
+namespace NYT::NHiveServer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSerializedMessagePtr SerializeOutcomingMessage(
+    const ::google::protobuf::MessageLite& protoMessage);
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsAvenueEndpointType(NObjectClient::EObjectType type);
+TAvenueEndpointId GetSiblingAvenueEndpointId(TAvenueEndpointId endpointId);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NHiveServer

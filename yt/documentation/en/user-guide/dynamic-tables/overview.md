@@ -1,1 +1,0 @@
-{% include [Динамические таблицы](../../_includes/user-guide/dynamic-tables/overview.md) %}

@@ -1,0 +1,112 @@
+package NYT.NObjectClient.NProto;
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+import "yt_proto/yt/core/ytree/proto/attributes.proto";
+import "yt_proto/yt/client/cell_master/proto/cell_directory.proto";
+import "yt_proto/yt/client/node_tracker_client/proto/node_directory.proto";
+import "yt_proto/yt/client/hive/proto/cluster_directory.proto";
+import "yt/ytlib/chunk_client/proto/medium_directory.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCreateObject
+{
+    required int32 type = 1;
+    optional bool ignore_existing = 3 [default = false];
+    optional NYT.NYTree.NProto.TAttributeDictionary object_attributes = 2;
+}
+
+message TRspCreateObject
+{
+    required NYT.NProto.TGuid object_id = 1;
+    optional bool two_phase_creation = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetClusterMeta
+{
+    optional bool populate_node_directory = 1;
+    optional bool populate_cluster_directory = 2;
+    optional bool populate_medium_directory = 3;
+    optional bool populate_cell_directory = 4;
+    optional bool populate_master_cache_node_addresses = 5;
+    optional bool populate_timestamp_provider_node_addresses = 6;
+    optional bool populate_features = 7;
+    optional bool populate_chaos_cache_node_addresses = 8 [default = false];
+}
+
+message TRspGetClusterMeta
+{
+    optional NNodeTrackerClient.NProto.TNodeDirectory node_directory = 1;
+    optional NHiveClient.NProto.TClusterDirectory cluster_directory = 2;
+    optional NChunkClient.NProto.TMediumDirectory medium_directory = 3;
+    optional NCellMasterClient.NProto.TCellDirectory cell_directory = 4;
+    repeated string master_cache_node_addresses = 5;
+    repeated string timestamp_provider_node_addresses = 6;
+    optional bytes features = 7; // YSON
+    repeated string chaos_cache_node_addresses = 8;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCheckPermissionByAcl
+{
+    required string user = 1;
+    required int32 permission = 2;
+    required string acl = 3;
+    optional bool ignore_missing_subjects = 4 [default = false];
+}
+
+message TRspCheckPermissionByAcl
+{
+    required int32 action = 1;
+    optional NYT.NProto.TGuid subject_id = 2;
+    optional string subject_name = 3;
+    repeated string missing_subjects = 4;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqAddMaintenance
+{
+    required int32 component = 1; // EMaintenanceComponent
+    required string address = 2;
+    required int32 type = 3; // EMaintenanceType
+    required string comment = 4;
+}
+
+message TRspAddMaintenance
+{
+    required NYT.NProto.TGuid id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRemoveMaintenance
+{
+    required int32 component = 1; // EMaintenanceComponent
+    required string address = 2;
+    repeated NYT.NProto.TGuid ids = 3; // TMaintenanceId
+    optional string user = 4;
+    optional int32 type = 5; // EMaintenanceType
+    optional bool mine = 6 [default = false];
+}
+
+message TRspRemoveMaintenance
+{
+    // COMPAT(kvk1920): Can be removed after all masters and proxies will be updated.
+    optional int32 ban = 1;
+    optional int32 decommission = 2;
+    optional int32 disable_scheduler_jobs = 3;
+    optional int32 disable_write_sessions = 4;
+    optional int32 disable_tablet_cells = 5;
+
+    // COMPAT(kvk1920)
+    optional bool use_map_instead_of_fields = 6 [default = false];
+    map<int32, int32> removed_maintenance_counts = 7; // Key: EMaintenanceType
+
+    optional int32 pending_restart = 8;
+}
+
+////////////////////////////////////////////////////////////////////////////////

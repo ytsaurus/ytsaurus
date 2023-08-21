@@ -1,0 +1,38 @@
+package NYT.NCellarNodeTrackerClient.NProto;
+
+import "yt/ytlib/cellar_node_tracker_client/proto/heartbeat.proto";
+
+import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCellarHeartbeat
+{
+    required int32 type = 1; // NCellarClient::ECellarType
+
+    required NNodeTrackerClient.NProto.TCellarNodeStatistics statistics = 2;
+    repeated TCellSlotInfo cell_slots = 3;
+}
+
+message TRspCellarHeartbeat
+{
+    required int32 type = 1; // NCellarClient::ECellarType
+
+    repeated TCreateCellSlotInfo slots_to_create = 2;
+    repeated TRemoveCellSlotInfo slots_to_remove = 3;
+    repeated TConfigureCellSlotInfo slots_to_configure = 4;
+    repeated TUpdateCellSlotInfo slots_to_update = 5;
+}
+
+message TReqHeartbeat
+{
+    required int32 node_id = 1;
+    repeated TReqCellarHeartbeat cellars = 2;
+}
+
+message TRspHeartbeat
+{
+    repeated TRspCellarHeartbeat cellars = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

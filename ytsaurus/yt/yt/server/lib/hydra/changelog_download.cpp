@@ -1,0 +1,137 @@
+#include "changelog_download.h"
+#include "changelog_discovery.h"
+#include "private.h"
+#include "hydra_service_proxy.h"
+
+#include <yt/yt/server/lib/hydra_common/changelog.h>
+#include <yt/yt/server/lib/hydra_common/config.h>
+
+#include <yt/yt/ytlib/election/cell_manager.h>
+
+#include <yt/yt/core/concurrency/scheduler.h>
+
+namespace NYT::NHydra {
+
+using namespace NElection;
+using namespace NConcurrency;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = HydraLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+void DoDownloadChangelog(
+    TDistributedHydraManagerConfigPtr config,
+    TCellManagerPtr cellManager,
+    IChangelogStorePtr changelogStore,
+    int changelogId,
+    int recordCount)
+{
+    try {
+        YT_LOG_INFO("Requested %v records in changelog %v",
+            recordCount,
+            changelogId);
+
+        auto asyncChangelog = changelogStore->OpenChangelog(changelogId);
+        auto changelog = WaitFor(asyncChangelog)
+            .ValueOrThrow();
+
+        if (changelog->GetRecordCount() >= recordCount) {
+            YT_LOG_INFO("Local changelog already contains %v records, no download needed",
+                changelog->GetRecordCount());
+            return;
+        }
+
+        auto asyncChangelogInfo = DiscoverChangelog(config, cellManager, changelogId, recordCount);
+        auto changelogInfo = WaitFor(asyncChangelogInfo)
+            .ValueOrThrow();
+        int downloadedRecordCount = changelog->GetRecordCount();
+
+        YT_LOG_INFO("Downloading records %v-%v from peer %v",
+            changelog->GetRecordCount(),
+            recordCount - 1,
+            changelogInfo.PeerId);
+
+        TLegacyHydraServiceProxy proxy(cellManager->GetPeerChannel(changelogInfo.PeerId));
+        proxy.SetDefaultTimeout(config->ChangelogDownloadRpcTimeout);
+
+        while (downloadedRecordCount < recordCount) {
+            int desiredChunkSize = std::min(
+                config->MaxChangelogRecordsPerRequest,
+                recordCount - downloadedRecordCount);
+
+            YT_LOG_DEBUG("Requesting records %v-%v",
+                downloadedRecordCount,
+                downloadedRecordCount + desiredChunkSize - 1);
+
+            auto req = proxy.ReadChangeLog();
+            req->set_changelog_id(changelogId);
+            req->set_start_record_id(downloadedRecordCount);
+            req->set_record_count(desiredChunkSize);
+
+            auto rspOrError = WaitFor(req->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error downloading changelog");
+            const auto& rsp = rspOrError.Value();
+
+            const auto& attachments = rsp->Attachments();
+            YT_VERIFY(attachments.size() == 1);
+
+            auto records = UnpackRefs(rsp->Attachments()[0]);
+
+            if (records.empty()) {
+                THROW_ERROR_EXCEPTION("Peer %v does not have %v records of changelog %v anymore",
+                    changelogInfo.PeerId,
+                    recordCount,
+                    changelogId);
+            }
+
+            int actualChunkSize = static_cast<int>(records.size());
+            if (actualChunkSize != desiredChunkSize) {
+                YT_LOG_DEBUG("Received records %v-%v while %v records were requested",
+                    downloadedRecordCount,
+                    downloadedRecordCount + actualChunkSize - 1,
+                    desiredChunkSize);
+                // Continue anyway.
+            } else {
+                YT_LOG_DEBUG("Received records %v-%v",
+                    downloadedRecordCount,
+                    downloadedRecordCount + actualChunkSize - 1);
+            }
+
+            auto future = changelog->Append(records);
+            downloadedRecordCount += records.size();
+
+            WaitFor(future)
+                .ThrowOnError();
+        }
+
+        WaitFor(changelog->Flush())
+            .ThrowOnError();
+
+        YT_LOG_INFO("Changelog downloaded successfully");
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error downloading changelog %v", changelogId)
+            << ex;
+    }
+}
+
+} // namespace
+
+TFuture<void> DownloadChangelog(
+    TDistributedHydraManagerConfigPtr config,
+    NElection::TCellManagerPtr cellManager,
+    IChangelogStorePtr changelogStore,
+    int changelogId,
+    int recordCount)
+{
+    return BIND(&DoDownloadChangelog)
+        .AsyncVia(GetCurrentInvoker())
+        .Run(config, cellManager, changelogStore, changelogId, recordCount);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NHydra

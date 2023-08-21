@@ -1,1 +1,0 @@
-{% include [Подбор памяти для джобов](../../../_includes/user-guide/data-processing/scheduler/memory-digest.md) %}

@@ -1,0 +1,15 @@
+#pragma once
+
+#include "public.h"
+
+#include <yt/yt/core/logging/log.h>
+
+namespace NYT::NSequoiaServer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline const NLogging::TLogger SequoiaServerLogger("SequoiaServer");
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NSequoiaServer

@@ -1,0 +1,55 @@
+package NYT.NChaosClient.NProto;
+
+import "yt/ytlib/chaos_client/proto/alien_cell.proto";
+import "yt/ytlib/hive/proto/cell_directory.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqSyncAlienCells
+{
+    repeated TAlienCellDescriptorLite cell_descriptors = 1;
+    optional bool full_sync = 2 [default = false];
+}
+
+message TRspSyncAlienCells
+{
+    repeated TAlienCellDescriptor cell_descriptors = 1;
+    optional bool enable_metadata_cells = 2 [default = true];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetCellDescriptorsByCellBundle
+{
+    required string cell_bundle = 2;
+}
+
+message TRspGetCellDescriptorsByCellBundle
+{
+    repeated NYT.NHiveClient.NProto.TCellDescriptor cell_descriptors = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetCellDescriptors
+{ }
+
+message TRspGetCellDescriptors
+{
+    repeated NYT.NHiveClient.NProto.TCellDescriptor cell_descriptors = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqFindCellDescriptorsByCellTags
+{
+    repeated int32 cell_tags = 1;
+}
+
+message TRspFindCellDescriptorsByCellTags
+{
+    repeated NYT.NHiveClient.NProto.TCellDescriptor cell_descriptors = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+

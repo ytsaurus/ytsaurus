@@ -1,0 +1,40 @@
+commit 69eac58b1103b4e2e6d749071fa4c1f2ba1ef24d (HEAD -> SPYT-444_add_maven_gpg, arcadia/users/alex-shishkin/SPYT-444_add_maven_gpg)
+author: alex-shishkin
+date: 2023-05-22T13:37:30+03:00
+
+    SPYT-444: Add GPG
+
+--- yt/spark/spark/pom.xml	(e19b8832da928e6e3bf50bb308b853453a1e55cb)
++++ yt/spark/spark/pom.xml	(69eac58b1103b4e2e6d749071fa4c1f2ba1ef24d)
+@@ -2890,6 +2890,20 @@
+           </configuration>
+         </plugin>
+         <plugin>
++          <groupId>org.apache.maven.plugins</groupId>
++          <artifactId>maven-gpg-plugin</artifactId>
++          <version>1.5</version>
++          <executions>
++            <execution>
++              <id>sign-artifacts</id>
++              <phase>verify</phase>
++              <goals>
++                <goal>sign</goal>
++              </goals>
++            </execution>
++          </executions>
++        </plugin>
++        <plugin>
+           <groupId>org.codehaus.mojo</groupId>
+           <artifactId>exec-maven-plugin</artifactId>
+           <version>${exec-maven-plugin.version}</version>
+@@ -3104,6 +3118,10 @@
+         <artifactId>maven-source-plugin</artifactId>
+       </plugin>
+       <plugin>
++        <groupId>org.apache.maven.plugins</groupId>
++        <artifactId>maven-gpg-plugin</artifactId>
++      </plugin>
++      <plugin>
+         <groupId>org.scalastyle</groupId>
+         <artifactId>scalastyle-maven-plugin</artifactId>
+         <version>1.0.0</version>

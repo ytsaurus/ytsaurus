@@ -1,0 +1,160 @@
+package NYT.NTabletClient.NProto;
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqMount
+{
+    // If omitted then all tablets are affected.
+    required int32 first_tablet_index = 1 [default = -1];
+    required int32 last_tablet_index = 2 [default = -1];
+
+    // If omitted then cell is chosen automatically.
+    optional NYT.NProto.TGuid cell_id = 3;
+
+    required bool freeze = 4;
+    optional uint64 mount_timestamp = 5 [default = 0];
+
+    required NYT.NProto.TGuid table_id = 6;
+    required string path = 7;
+
+    repeated NYT.NProto.TGuid target_cell_ids = 8;
+}
+
+message TRspMount
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqUnmount
+{
+    // If omitted then all tablets are affected.
+    required int32 first_tablet_index = 1 [default = -1];
+    required int32 last_tablet_index = 2 [default = -1];
+    required bool force = 3;
+    required NYT.NProto.TGuid table_id = 4;
+}
+
+message TRspUnmount
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRemount
+{
+    // If omitted then all tablets are affected.
+    required int32 first_tablet_index = 1 [default = -1];
+    required int32 last_tablet_index = 2 [default = -1];
+    required NYT.NProto.TGuid table_id = 3;
+}
+
+message TRspRemount
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqFreeze
+{
+    // If omitted then all tablets are affected.
+    required int32 first_tablet_index = 1 [default = -1];
+    required int32 last_tablet_index = 2 [default = -1];
+    required NYT.NProto.TGuid table_id = 3;
+}
+
+message TRspFreeze
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqUnfreeze
+{
+    // If omitted then all tablets are affected.
+    required int32 first_tablet_index = 1 [default = -1];
+    required int32 last_tablet_index = 2 [default = -1];
+    required NYT.NProto.TGuid table_id = 3;
+}
+
+message TRspUnfreeze
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqReshard
+{
+    // If omitted then all tablets are affected.
+    required int32 first_tablet_index = 1 [default = -1];
+    required int32 last_tablet_index = 2 [default = -1];
+    // For sorted tables only.
+    repeated bytes pivot_keys = 3;
+    required int32 tablet_count = 4;
+    required NYT.NProto.TGuid table_id = 5;
+}
+
+message TRspReshard
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetTableBalancingAttributes
+{
+    repeated NYT.NProto.TGuid table_ids = 1;
+    repeated string requested_performance_counters = 2;
+    optional bool fetch_balancing_attributes = 3 [default = false];
+    optional bool fetch_statistics = 4 [default = false];
+    repeated string user_attribute_keys = 5;
+}
+
+message TRspGetTableBalancingAttributes
+{
+    message TTablet
+    {
+        //! Tablet statistics are usually stored in yson. Here we send multiple statistics at once
+        //! and don't want to send the same parameter names multiple times.
+        //! We use a name directory of the following kind. Each TCompressedStatistics entry
+        //! contains N i64 entries in |i64_fields| and M i32 entries in |i32_fields|.
+        //! Their names are stored in |statistics_field_names| (one per enclosing proto message)
+        //! in corresponding order: first N names correspond to |i64_fields|,
+        //! next M names correspond to |i32_fields|.
+        message TCompressedStatistics
+        {
+            repeated int64 i64_fields = 1;
+            repeated int32 i32_fields = 2;
+        }
+
+        message TEmaCounterSnapshot
+        {
+            required int64 count = 1;
+            required double rate = 2;
+            required double rate_10m = 3;
+            required double rate_1h = 4;
+        }
+
+        required NYT.NProto.TGuid tablet_id = 1;
+        optional NYT.NProto.TGuid cell_id = 2;
+        required int32 state = 3; // ETabletState
+        required int32 index = 4;
+        required TCompressedStatistics statistics = 5;
+        repeated TEmaCounterSnapshot performance_counters = 6;
+        optional int64 mount_time = 7;
+    }
+
+    message TTableBalancingAttributes
+    {
+        required bool dynamic = 1;
+        required int32 in_memory_mode = 2; // EInMemoryMode
+        required string tablet_balancer_config = 3;
+    }
+
+    message TTable
+    {
+        optional TTableBalancingAttributes balancing_attributes = 1;
+        repeated TTablet tablets = 2;
+        repeated bytes user_attributes = 3;
+    }
+
+    repeated string statistics_field_names = 1;
+    repeated TTable tables = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////

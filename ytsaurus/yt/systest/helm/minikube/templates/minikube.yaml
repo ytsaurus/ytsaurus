@@ -1,0 +1,110 @@
+apiVersion: cluster.ytsaurus.tech/v1
+kind: Ytsaurus
+metadata:
+  name: minisaurus
+spec:
+  coreImage: {{ .Values.YtsaurusImagePath }}
+  uiImage: ytsaurus/ui:stable
+
+  cellTag: 1
+
+  discovery:
+    instanceGroup:
+      instanceCount: 1
+
+  chyt:
+    resources:
+      limits:
+        memory: 100Mi
+
+  spyt:
+    sparkVersion: '1.69.0'
+    spytVersion: '1.69.3'
+
+  masters:
+    instanceGroup:
+      instanceCount: 1
+      locations:
+        - locationType: MasterChangelogs
+          path: /yt/master-data/master-changelogs
+        - locationType: MasterSnapshots
+          path: /yt/master-data/master-snapshots
+
+      volumes:
+        - name: master-data
+          emptyDir:
+            sizeLimit: 5Gi
+
+      volumeMounts:
+        - name: master-data
+          mountPath: /yt/master-data
+
+  httpProxies:
+    serviceType: NodePort
+    instanceGroup:
+      instanceCount: 1
+
+  rpcProxies:
+    instanceGroup:
+      instanceCount: 1
+
+  dataNodes:
+    instanceGroup:
+      instanceCount: 1
+
+      volumeMounts:
+        - name: node-data
+          mountPath: /yt/node-data
+
+      volumes:
+        - name: node-data
+          emptyDir:
+            sizeLimit: 25Gi
+
+      locations:
+        - locationType: ChunkStore
+          path: /yt/node-data/chunk-store
+
+  execNodes:
+    instanceGroup:
+      instanceCount: 1
+
+      resources:
+        limits:
+          cpu: 3
+          memory: 4Gi
+
+      volumeMounts:
+        - name: node-data
+          mountPath: /yt/node-data
+
+      volumes:
+        - name: node-data
+          emptyDir:
+            sizeLimit: 20Gi
+
+      locations:
+        - locationType: ChunkCache
+          path: /yt/node-data/chunk-cache
+        - locationType: Slots
+          path: /yt/node-data/slots
+
+  tabletNodes:
+    instanceGroup:
+      instanceCount: 1
+
+  queryTrackers:
+    instanceGroup:
+      instanceCount: 1
+
+  schedulers:
+    instanceGroup:
+      instanceCount: 1
+
+  controllerAgents:
+    instanceGroup:
+      instanceCount: 1
+
+  ui:
+    serviceType: NodePort
+    instanceCount: 1
