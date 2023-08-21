@@ -1892,7 +1892,7 @@ class TYsonLengthEvaluationVisitor
     : public TYsonConsumerBase
 {
 public:
-    void OnStringScalar(TStringBuf) override
+    void OnStringScalar(TStringBuf /*value*/) override
     {
         if (AttributesDepth_ == 0 && Depth_ == 0) {
             THROW_ERROR_EXCEPTION("YSON List or Map expected, but got %v",
@@ -1900,7 +1900,7 @@ public:
         }
     }
 
-    void OnInt64Scalar(i64) override
+    void OnInt64Scalar(i64 /*value*/) override
     {
         if (AttributesDepth_ == 0 && Depth_ == 0) {
             THROW_ERROR_EXCEPTION("YSON List or Map expected, but got %v",
@@ -1908,7 +1908,7 @@ public:
         }
     }
 
-    void OnUint64Scalar(ui64) override
+    void OnUint64Scalar(ui64 /*value*/) override
     {
         if (AttributesDepth_ == 0 && Depth_ == 0) {
             THROW_ERROR_EXCEPTION("YSON List or Map expected, but got %v",
@@ -1916,7 +1916,7 @@ public:
         }
     }
 
-    void OnDoubleScalar(double) override
+    void OnDoubleScalar(double /*value*/) override
     {
         if (AttributesDepth_ == 0 && Depth_ == 0) {
             THROW_ERROR_EXCEPTION("YSON List or Map expected, but got %v",
@@ -1924,7 +1924,7 @@ public:
         }
     }
 
-    void OnBooleanScalar(bool) override
+    void OnBooleanScalar(bool /*value*/) override
     {
         if (AttributesDepth_ == 0 && Depth_ == 0) {
             THROW_ERROR_EXCEPTION("YSON List or Map expected, but got %v",
@@ -1976,7 +1976,7 @@ public:
         ++Depth_;
     }
 
-    void OnKeyedItem(TStringBuf) override
+    void OnKeyedItem(TStringBuf /*value*/) override
     {
         if (AttributesDepth_ == 0 && Depth_ == 1) {
             ++Length_;
