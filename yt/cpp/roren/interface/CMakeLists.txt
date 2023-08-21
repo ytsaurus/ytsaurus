@@ -26,6 +26,7 @@ target_sources(cpp-roren-interface PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/attributes.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/co_group_by_key.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/combine.cpp
+  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/dummy_pipeline.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/fn_attributes_ops.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/group_by_key.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/merge_par_dos.cpp

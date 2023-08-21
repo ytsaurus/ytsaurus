@@ -1,0 +1,16 @@
+#pragma once
+
+#include "../fwd.h"
+
+namespace NRoren::NPrivate {
+
+////////////////////////////////////////////////////////////////////////////////
+
+/// Create a dummy pipeline.
+/// This pipeline can store computation graph but cannot be executed.
+/// Useful in tests.
+TPipeline MakeDummyPipeline();
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NRoren::NPrivate
