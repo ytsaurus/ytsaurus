@@ -130,7 +130,7 @@ private:
 
     void OnHealthCheck();
 
-    void OnDiskHealthCheck();
+    void OnDiskHealthCheck(const std::vector<NContainers::TDiskInfo>& diskInfos);
 
     void OnLocationsHealthCheck();
 

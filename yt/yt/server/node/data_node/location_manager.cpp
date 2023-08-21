@@ -338,28 +338,16 @@ void TLocationHealthChecker::OnHealthCheck()
     auto config = DynamicConfig_.Acquire();
 
     if (config->Enabled) {
-        if (config->EnableNewDiskChecker) {
-            OnDiskHealthCheck();
-        }
-
         OnLocationsHealthCheck();
     }
 }
 
-void TLocationHealthChecker::OnDiskHealthCheck()
+void TLocationHealthChecker::OnDiskHealthCheck(const std::vector<TDiskInfo>& diskInfos)
 {
-    auto diskInfosOrError = WaitFor(LocationManager_->GetDiskInfos());
-
-    // Fast path.
-    if (!diskInfosOrError.IsOK()) {
-        YT_LOG_ERROR(diskInfosOrError, "Failed to disks");
-        return;
-    }
-
     THashSet<TString> diskIds;
     THashSet<TString> aliveDiskIds;
 
-    for (const auto& diskInfo : diskInfosOrError.Value()) {
+    for (const auto& diskInfo : diskInfos) {
         diskIds.insert(diskInfo.DiskId);
 
         if (diskInfo.State == NContainers::EDiskState::Ok) {
@@ -405,19 +393,20 @@ void TLocationHealthChecker::OnDiskHealthCheck()
 
 void TLocationHealthChecker::OnLocationsHealthCheck()
 {
-    auto diskInfos = WaitFor(LocationManager_->GetDiskInfos());
+    auto diskInfosOrError = WaitFor(LocationManager_->GetDiskInfos());
 
     // Fast path.
-    if (!diskInfos.IsOK()) {
-        YT_LOG_ERROR(diskInfos, "Failed to list disk infos");
+    if (!diskInfosOrError.IsOK()) {
+        YT_LOG_ERROR(diskInfosOrError, "Failed to list disk infos");
         return;
     }
 
-    auto livenessInfos = LocationManager_->MapLocationToLivenessInfo(diskInfos.Value());
+    auto diskInfos = diskInfosOrError.Value();
+    auto livenessInfos = LocationManager_->MapLocationToLivenessInfo(diskInfos);
 
     auto diskAlert = TError();
     std::optional<TString> diskAlertId;
-    for (const auto& diskInfo : diskInfos.Value()) {
+    for (const auto& diskInfo : diskInfos) {
         if (diskInfo.State == NContainers::EDiskState::Failed) {
             diskAlertId = diskInfo.DiskId;
             diskAlert = TError("Disk failed, need hot swap")
@@ -434,7 +423,7 @@ void TLocationHealthChecker::OnLocationsHealthCheck()
     i64 diskWithFailedState = 0;
     i64 diskWithRecoverWaitState = 0;
 
-    for (const auto& diskInfo : diskInfos.Value()) {
+    for (const auto& diskInfo : diskInfos) {
         if (diskInfo.State == NContainers::EDiskState::Ok) {
             diskWithOkState++;
         } else if (diskInfo.State == NContainers::EDiskState::RecoverWait) {
@@ -465,6 +454,10 @@ void TLocationHealthChecker::OnLocationsHealthCheck()
 
             YT_LOG_ERROR_IF(!result.IsOK(), result);
         }
+    }
+
+    if (DynamicConfig_.Acquire()->EnableNewDiskChecker) {
+        OnDiskHealthCheck(diskInfos);
     }
 
     THashSet<TString> diskWithLivenessLocations;
