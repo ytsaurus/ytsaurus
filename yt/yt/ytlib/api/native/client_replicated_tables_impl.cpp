@@ -124,10 +124,16 @@ std::vector<TTableReplicaId> TClient::GetReplicatedTableInSyncReplicas(
 {
     THashMap<TCellId, std::vector<TTabletId>> cellToTabletIds;
     THashSet<TTabletId> tabletIds;
+    std::vector<TCellId> cellIds;
+
     auto registerTablet = [&] (const TTabletInfoPtr& tabletInfo) {
         if (tabletIds.insert(tabletInfo->TabletId).second) {
             ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
-            cellToTabletIds[tabletInfo->CellId].push_back(tabletInfo->TabletId);
+            auto [it, emplaced] = cellToTabletIds.try_emplace(tabletInfo->CellId);
+            if (emplaced) {
+                cellIds.push_back(it->first);
+            }
+            it->second.push_back(tabletInfo->TabletId);
         }
     };
 
@@ -166,25 +172,36 @@ std::vector<TTableReplicaId> TClient::GetReplicatedTableInSyncReplicas(
         return replicaIds;
     }
 
+    auto cellDescriptorsByPeer = GroupCellDescriptorsByPeer(Connection_, cellIds);
+
+    int requestedTabletCount = 0;
     std::vector<TFuture<TQueryServiceProxy::TRspGetTabletInfoPtr>> futures;
-    for (const auto& [cellId, perCellTabletIds] : cellToTabletIds) {
-        auto channel = GetReadCellChannelOrThrow(cellId);
+    futures.reserve(cellDescriptorsByPeer.size());
+    for (const auto& cellDescriptors : cellDescriptorsByPeer) {
+        auto channel = GetReadCellChannelOrThrow(cellDescriptors[0]);
 
         TQueryServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultGetInSyncReplicasTimeout));
 
         auto req = proxy.GetTabletInfo();
         req->SetResponseHeavy(true);
-        ToProto(req->mutable_tablet_ids(), perCellTabletIds);
-        for (int index = 0; index < std::ssize(perCellTabletIds); ++index) {
-            ToProto(req->add_cell_ids(), cellId);
+        for (const auto& cellDescriptor : cellDescriptors) {
+            auto cellId = cellDescriptor->CellId;
+            for (auto tabletId : cellToTabletIds[cellId]) {
+                ToProto(req->add_tablet_ids(), tabletId);
+                ToProto(req->add_cell_ids(), cellId);
+            }
         }
+
+        requestedTabletCount += req->tablet_ids_size();
 
         futures.push_back(req->Invoke());
     }
 
-    auto responsesResult = WaitFor(AllSucceeded(futures));
-    auto responses = responsesResult.ValueOrThrow();
+    YT_VERIFY(requestedTabletCount == std::ssize(tabletIds));
+
+    auto responses = WaitFor(AllSucceeded(std::move(futures)))
+        .ValueOrThrow();
 
     THashMap<TTableReplicaId, int> replicaIdToCount;
     for (const auto& response : responses) {

@@ -27,7 +27,7 @@ from time import sleep
 from copy import deepcopy
 
 import builtins
-
+import random
 
 ##################################################################
 
@@ -3254,6 +3254,69 @@ class TestReplicatedDynamicTablesRpcProxy(TestReplicatedDynamicTables):
             check(timeout=0, expected_replica_ids=[replica_id, replica_id2])
         else:
             check(timeout=0, expected_replica_ids=[replica_id])
+
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("use_replica_cache", [False, True])
+    def test_batched_get_in_sync_replicas(self, use_replica_cache):
+        [cell_ids, _] = self._create_cells(10)
+        node_addresses = [get("#{}/@peers/0/address".format(cell_id)) for cell_id in cell_ids]
+        slots_per_node = 4
+        assert len(builtins.set(node_addresses)) > (10 // slots_per_node)
+
+        pivot_keys = [[]] + [[i] for i in range(0, 18, 2)]
+
+        self._create_replicated_table("//tmp/t", mount=False)
+        reshard_table("//tmp/t", pivot_keys)
+        for i in range(10):
+            sync_mount_table("//tmp/t", first_tablet_index=i, last_tablet_index=i, cell_id=cell_ids[i])
+
+        replica_id1 = create_table_replica(
+            "//tmp/t",
+            self.REPLICA_CLUSTER_NAME,
+            "//tmp/r1",
+            attributes={"mode": "sync"})
+        self._create_replica_table("//tmp/r1", replica_id1, mount=False)
+        reshard_table("//tmp/r1", pivot_keys, driver=self.replica_driver)
+        sync_enable_table_replica(replica_id1)
+        sync_mount_table("//tmp/r1", driver=self.replica_driver)
+
+        replica_id2 = create_table_replica(
+            "//tmp/t",
+            self.REPLICA_CLUSTER_NAME,
+            "//tmp/r2",
+            attributes={"mode": "async"})
+        self._create_replica_table("//tmp/r2", replica_id2, mount=False)
+        reshard_table("//tmp/r2", pivot_keys, driver=self.replica_driver)
+        sync_enable_table_replica(replica_id2)
+        sync_mount_table("//tmp/r2", driver=self.replica_driver)
+        unmounted_tablet_index = random.randint(0, 10)
+        sync_unmount_table("//tmp/r2", driver=self.replica_driver,
+                           first_tablet_index=unmounted_tablet_index, last_tablet_index=unmounted_tablet_index)
+
+        for i in range(-1, 18, 2):
+            insert_rows("//tmp/t", [{"key": i, "value1": str(i)}])
+
+        def _check(expected_sync_replicas):
+            if use_replica_cache:
+                actual = get_in_sync_replicas(
+                    "//tmp/t",
+                    None,
+                    timestamp=SyncLastCommittedTimestamp,
+                    cached_sync_replicas_timeout=10,
+                )
+            else:
+                actual = get_in_sync_replicas(
+                    "//tmp/t",
+                    None,
+                    timestamp=SyncLastCommittedTimestamp,
+                )
+            return builtins.set(expected_sync_replicas) == builtins.set(actual)
+
+        assert _check([replica_id1])
+
+        sync_mount_table("//tmp/r2", driver=self.replica_driver)
+        sync_alter_table_replica_mode(replica_id2, "sync")
+        wait(lambda: _check([replica_id1, replica_id2]))
 
 
 ##################################################################

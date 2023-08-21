@@ -470,12 +470,17 @@ template std::unique_ptr<TChunkServiceProxy> TClient::CreateWriteProxy<TChunkSer
 
 template std::unique_ptr<TObjectServiceProxy> TClient::CreateWriteProxy<TObjectServiceProxy>(TCellTag cellTag);
 
+NRpc::IChannelPtr TClient::GetReadCellChannelOrThrow(const NHiveClient::TCellDescriptorPtr& cellDescriptor)
+{
+    const auto& primaryPeerDescriptor = GetPrimaryTabletPeerDescriptor(*cellDescriptor, NHydra::EPeerKind::Leader);
+    return ChannelFactory_->CreateChannel(primaryPeerDescriptor.GetAddressOrThrow(Connection_->GetNetworks()));
+}
+
 IChannelPtr TClient::GetReadCellChannelOrThrow(TTabletCellId cellId)
 {
     const auto& cellDirectory = Connection_->GetCellDirectory();
     auto cellDescriptor = cellDirectory->GetDescriptorOrThrow(cellId);
-    const auto& primaryPeerDescriptor = GetPrimaryTabletPeerDescriptor(*cellDescriptor, NHydra::EPeerKind::Leader);
-    return ChannelFactory_->CreateChannel(primaryPeerDescriptor.GetAddressOrThrow(Connection_->GetNetworks()));
+    return GetReadCellChannelOrThrow(cellDescriptor);
 }
 
 IChannelPtr TClient::GetHydraAdminChannelOrThrow(TCellId cellId)

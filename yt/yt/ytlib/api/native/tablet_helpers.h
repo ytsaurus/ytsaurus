@@ -94,4 +94,13 @@ TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Will group #cellIds by cell peer addresses. Corresponsing cell descriptors will be returned.
+//! NB: If a cell has multiple or zero peers, it will be assigned to its own slot in the returned list.
+//! This is among other reasons due to various channel picking policies (i.e. EPeerKind values).
+std::vector<std::vector<NHiveClient::TCellDescriptorPtr>> GroupCellDescriptorsByPeer(
+    const IConnectionPtr& connection,
+    const std::vector<NObjectClient::TCellId>& cellIds);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NApi::NNative

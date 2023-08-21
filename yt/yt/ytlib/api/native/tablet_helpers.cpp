@@ -366,8 +366,11 @@ TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
         : std::nullopt;
 
     int totalTabletCount = 0;
+    std::vector<TCellId> cellIds;
+    cellIds.reserve(cellIdToTabletIds.size());
     for (const auto& [cellId, tabletIds] : cellIdToTabletIds) {
         totalTabletCount += tabletIds.size();
+        cellIds.push_back(cellId);
     }
 
     THashMap<TTableReplicaId, int> replicaIdToCount;
@@ -394,22 +397,19 @@ TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
         cachedTabletCount);
 
     const auto& channelFactory = connection->GetChannelFactory();
-    const auto& cellDirectory = connection->GetCellDirectory();
 
-    std::vector<TFuture<NQueryClient::TQueryServiceProxy::TRspGetTabletInfoPtr>> asyncResults;
+    auto cellDescriptorsByPeer = GroupCellDescriptorsByPeer(connection, cellIds);
+
+    std::vector<TFuture<NQueryClient::TQueryServiceProxy::TRspGetTabletInfoPtr>> futures;
     if (!cachedSyncReplicasAt) {
-        asyncResults.reserve(cellIdToTabletIds.size());
+        futures.reserve(cellDescriptorsByPeer.size());
     }
 
-    for (const auto& [cellId, tabletIds] : cellIdToTabletIds) {
-        if (tabletIds.empty()) {
-            continue;
-        }
-
-        auto cellDescriptor = cellDirectory->GetDescriptorOrThrow(cellId);
+    int requestedTabletCount = 0;
+    for (const auto& cellDescriptors : cellDescriptorsByPeer) {
         auto channel = CreateTabletReadChannel(
             channelFactory,
-            *cellDescriptor,
+            *cellDescriptors[0],
             options,
             connection->GetNetworks());
 
@@ -418,16 +418,27 @@ TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
 
         auto req = proxy.GetTabletInfo();
         req->SetResponseHeavy(true);
-        ToProto(req->mutable_tablet_ids(), tabletIds);
-        for (int index = 0; index < std::ssize(tabletIds); ++index) {
-            ToProto(req->add_cell_ids(), cellId);
+        for (const auto& cellDescriptor : cellDescriptors) {
+            auto cellId = cellDescriptor->CellId;
+            const auto& tabletIds = cellIdToTabletIds[cellId];
+            for (auto tabletId : tabletIds) {
+                ToProto(req->add_tablet_ids(), tabletId);
+                ToProto(req->add_cell_ids(), cellId);
+            }
         }
 
-        asyncResults.push_back(req->Invoke());
+        requestedTabletCount += req->tablet_ids_size();
+        if (req->tablet_ids_size() == 0) {
+            continue;
+        }
+
+        futures.push_back(req->Invoke());
     }
 
-    auto asyncResult = AllSucceeded(std::move(asyncResults));
-    if (const auto& resultOrError = asyncResult.TryGet()) {
+    YT_VERIFY(requestedTabletCount + cachedTabletCount == totalTabletCount);
+
+    auto future = AllSucceeded(std::move(futures));
+    if (const auto& resultOrError = future.TryGet()) {
         return MakeFuture(OnTabletInfosReceived(
             connection,
             tableInfo,
@@ -436,7 +447,7 @@ TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
             std::move(replicaIdToCount),
             resultOrError->ValueOrThrow()));
     } else {
-        return asyncResult.Apply(BIND(
+        return future.Apply(BIND(
             &OnTabletInfosReceived,
             connection,
             tableInfo,
@@ -485,6 +496,50 @@ TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
         tableInfo,
         options,
         std::move(cellIdToTabletIds));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::vector<TCellDescriptorPtr>> GroupCellDescriptorsByPeer(
+    const IConnectionPtr& connection,
+    const std::vector<TCellId>& cellIds)
+{
+    const auto& cellDirectory = connection->GetCellDirectory();
+    const auto& networks = connection->GetNetworks();
+
+    std::vector<std::vector<TCellDescriptorPtr>> cellDescriptorsByPeer;
+    THashMap<TString, int> channelIndexByAddress;
+
+    for (auto cellId : cellIds) {
+        auto descriptor = cellDirectory->GetDescriptorOrThrow(cellId);
+
+        // Cells with multiple peers, as well as with zero peers, are not frequent.
+        // We do not coalesce them and allow each cell to pick its channel (possibly hedging)
+        // individually.
+        if (descriptor->Peers.size() != 1) {
+            cellDescriptorsByPeer.push_back({std::move(descriptor)});
+            continue;
+        }
+
+        if (descriptor->Peers[0].IsNull()) {
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::CellHasNoAssignedPeers,
+                "Cell %v has no assigned peers",
+                cellId);
+        }
+
+        const auto& address = descriptor->Peers[0].GetAddressOrThrow(networks);
+        auto [it, emplaced] = channelIndexByAddress.try_emplace(
+            address,
+            cellDescriptorsByPeer.size());
+        if (emplaced) {
+            cellDescriptorsByPeer.emplace_back();
+        }
+
+        cellDescriptorsByPeer[it->second].push_back(std::move(descriptor));
+    }
+
+    return cellDescriptorsByPeer;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
