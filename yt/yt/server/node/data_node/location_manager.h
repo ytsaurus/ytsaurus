@@ -6,6 +6,8 @@
 
 #include <yt/yt/library/containers/disk_manager/public.h>
 
+#include <yt/yt/library/profiling/producer.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/ypath_service.h>
 
@@ -102,7 +104,8 @@ public:
         TChunkStorePtr chunkStore,
         TLocationManagerPtr locationManager,
         IInvokerPtr invoker,
-        TRebootManagerPtr rebootManager);
+        TRebootManagerPtr rebootManager,
+        const NProfiling::TProfiler& profiler);
 
     void Initialize();
 
@@ -119,6 +122,11 @@ private:
     const TRebootManagerPtr RebootManager_;
 
     NConcurrency::TPeriodicExecutorPtr HealthCheckerExecutor_;
+    const NProfiling::TProfiler Profiler_;
+
+    NProfiling::TGauge DiskOkGauge_;
+    NProfiling::TGauge DiskFailedGauge_;
+    NProfiling::TGauge DiskRecoverWaitGauge_;
 
     void OnHealthCheck();
 
@@ -132,6 +140,14 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TLocationHealthChecker)
+
+////////////////////////////////////////////////////////////////////////////////
+
+TLocationHealthCheckerPtr CreateLocationHealthChecker(
+    TChunkStorePtr chunkStore,
+    TLocationManagerPtr locationManager,
+    IInvokerPtr invoker,
+    TRebootManagerPtr rebootManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 

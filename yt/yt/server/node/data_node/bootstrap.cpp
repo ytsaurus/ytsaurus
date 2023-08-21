@@ -251,7 +251,7 @@ public:
             ChunkStore_,
             GetControlInvoker(),
             DiskInfoProvider_);
-        LocationHealthChecker_ = New<TLocationHealthChecker>(
+        LocationHealthChecker_ = CreateLocationHealthChecker(
             ChunkStore_,
             LocationManager_,
             GetControlInvoker(),

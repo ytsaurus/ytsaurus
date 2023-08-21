@@ -23,6 +23,7 @@ using namespace NClusterNode;
 using namespace NConcurrency;
 using namespace NContainers;
 using namespace NFS;
+using namespace NProfiling;
 using namespace NYTree;
 using namespace NYson;
 
@@ -273,7 +274,8 @@ TLocationHealthChecker::TLocationHealthChecker(
     TChunkStorePtr chunkStore,
     TLocationManagerPtr locationManager,
     IInvokerPtr invoker,
-    TRebootManagerPtr rebootManager)
+    TRebootManagerPtr rebootManager,
+    const TProfiler& profiler)
     : DynamicConfig_(New<TLocationHealthCheckerDynamicConfig>())
     , ChunkStore_(std::move(chunkStore))
     , LocationManager_(std::move(locationManager))
@@ -283,7 +285,18 @@ TLocationHealthChecker::TLocationHealthChecker(
         Invoker_,
         BIND(&TLocationHealthChecker::OnHealthCheck, MakeWeak(this)),
         DynamicConfig_.Acquire()->HealthCheckPeriod))
-{ }
+    , Profiler_(profiler)
+{
+    DiskOkGauge_ = Profiler_
+        .WithTag("state", FormatEnum(EDiskState::Ok))
+        .Gauge("/disk_state");
+    DiskFailedGauge_ = Profiler_
+        .WithTag("state", FormatEnum(EDiskState::Failed))
+        .Gauge("/disk_state");
+    DiskRecoverWaitGauge_ = Profiler_
+        .WithTag("state", FormatEnum(EDiskState::RecoverWait))
+        .Gauge("/disk_state");
+}
 
 void TLocationHealthChecker::Initialize()
 {
@@ -417,6 +430,24 @@ void TLocationHealthChecker::OnLocationsHealthCheck()
         }
     }
 
+    i64 diskWithOkState = 0;
+    i64 diskWithFailedState = 0;
+    i64 diskWithRecoverWaitState = 0;
+
+    for (const auto& diskInfo : diskInfos.Value()) {
+        if (diskInfo.State == NContainers::EDiskState::Ok) {
+            diskWithOkState++;
+        } else if (diskInfo.State == NContainers::EDiskState::RecoverWait) {
+            diskWithRecoverWaitState++;
+        } else if (diskInfo.State == NContainers::EDiskState::Failed) {
+            diskWithFailedState++;
+        }
+    }
+
+    DiskOkGauge_.Update(diskWithOkState);
+    DiskFailedGauge_.Update(diskWithFailedState);
+    DiskRecoverWaitGauge_.Update(diskWithRecoverWaitState);
+
     LocationManager_->SetDiskAlert(diskAlert);
 
     if (diskAlertId) {
@@ -484,6 +515,22 @@ void TLocationHealthChecker::OnLocationsHealthCheck()
             livenessInfo.Location->OnDiskRepaired();
         }
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TLocationHealthCheckerPtr CreateLocationHealthChecker(
+    TChunkStorePtr chunkStore,
+    TLocationManagerPtr locationManager,
+    IInvokerPtr invoker,
+    TRebootManagerPtr rebootManager)
+{
+    return New<TLocationHealthChecker>(
+        chunkStore,
+        locationManager,
+        invoker,
+        rebootManager,
+        NProfiling::TProfiler("/data_node"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
