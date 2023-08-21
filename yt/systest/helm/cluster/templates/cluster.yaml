@@ -1,16 +1,16 @@
 apiVersion: cluster.ytsaurus.tech/v1
 kind: Ytsaurus
 metadata:
-  name: minisaurus
+  name: ytdemo
 spec:
   coreImage: {{ .Values.YtsaurusImagePath }}
   uiImage: ytsaurus/ui:stable
 
-  cellTag: 1
+  adminCredentials:
+    name: ytadminsec
 
   discovery:
-    instanceGroup:
-      instanceCount: 1
+    instanceCount: 1
 
   chyt:
     resources:
@@ -21,36 +21,37 @@ spec:
     sparkVersion: '1.69.0'
     spytVersion: '1.69.3'
 
-  masters:
-    instanceGroup:
-      instanceCount: 1
-      locations:
-        - locationType: MasterChangelogs
-          path: /yt/master-data/master-changelogs
-        - locationType: MasterSnapshots
-          path: /yt/master-data/master-snapshots
+  primaryMasters:
+    instanceCount: 3
+    cellTag: 1
+    volumeMounts:
+      - name: master-data
+        mountPath: /yt/master-data
+    locations:
+      - locationType: MasterChangelogs
+        path: /yt/master-data/master-changelogs
+      - locationType: MasterSnapshots
+        path: /yt/master-data/master-snapshots
 
-      volumes:
-        - name: master-data
-          emptyDir:
-            sizeLimit: 10Gi
-
-      volumeMounts:
-        - name: master-data
-          mountPath: /yt/master-data
+    volumeClaimTemplates:
+      - metadata:
+          name: master-data
+        spec:
+          accessModes: [ "ReadWriteOnce" ]
+          resources:
+            requests:
+              storage: 20Gi
 
   httpProxies:
-    serviceType: NodePort
-    instanceGroup:
+    - serviceType: NodePort
       instanceCount: 1
 
   rpcProxies:
-    instanceGroup:
+    - serviceType: LoadBalancer
       instanceCount: 1
 
   dataNodes:
-    instanceGroup:
-      instanceCount: 3
+    - instanceCount: 3
 
       resources:
         limits:
@@ -61,19 +62,21 @@ spec:
         - name: node-data
           mountPath: /yt/node-data
 
-      volumes:
-        - name: node-data
-          emptyDir:
-            sizeLimit: 50Gi
-
       locations:
         - locationType: ChunkStore
           path: /yt/node-data/chunk-store
 
-  execNodes:
-    instanceGroup:
-      instanceCount: 3
+      volumeClaimTemplates:
+        - metadata:
+            name: node-data
+          spec:
+            accessModes: [ "ReadWriteOnce" ]
+            resources:
+              requests:
+                storage: 50Gi
 
+  execNodes:
+    - instanceCount: 3
       resources:
         limits:
           cpu: 3
@@ -95,24 +98,19 @@ spec:
           path: /yt/node-data/slots
 
   tabletNodes:
-    instanceGroup:
-      instanceCount: 4
+    - instanceCount: 4
 
   queryTrackers:
-    instanceGroup:
-      instanceCount: 1
-
-  schedulers:
-    instanceGroup:
-      instanceCount: 1
-
-  controllerAgents:
-    instanceGroup:
-      instanceCount: 1
+    instanceCount: 1
 
   yqlAgents:
-    instanceGroup:
-      instanceCount: 1
+    instanceCount: 1
+
+  schedulers:
+    instanceCount: 1
+
+  controllerAgents:
+    instanceCount: 1
 
   ui:
     serviceType: NodePort
