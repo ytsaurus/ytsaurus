@@ -4,7 +4,7 @@ from yt.clickhouse.test_helpers import (get_host_paths, create_symlinks_for_chyt
 
 from yt.common import wait
 
-from yt.wrapper.clickhouse_ctl import describe_api
+from yt.wrapper.strawberry import describe_api
 
 import yt.wrapper as yt
 import yt.clickhouse as chyt
@@ -24,7 +24,7 @@ HOST_PATHS = get_host_paths(arcadia_interop, ["ytserver-clickhouse", "clickhouse
 
 def check_controller_api_readiness():
     try:
-        describe_api(os.environ["CHYT_CTL_ADDRESS"])
+        describe_api(os.environ["CHYT_CTL_ADDRESS"], "chyt")
         return True
     except requests.exceptions.ConnectionError:
         return False
