@@ -167,12 +167,12 @@ const std::vector<TString>& TLocationManager::GetConfigDiskIds()
     return DiskInfoProvider_->GetConfigDiskIds();
 }
 
-void TLocationManager::UpdateOldDiskIds(std::vector<TString> oldDiskIds)
+void TLocationManager::UpdateOldDiskIds(THashSet<TString> oldDiskIds)
 {
     OldDiskIds_ = oldDiskIds;
 }
 
-const std::vector<TString>& TLocationManager::GetOldDiskIds() const
+const THashSet<TString>& TLocationManager::GetOldDiskIds() const
 {
     return OldDiskIds_;
 }
@@ -346,6 +346,8 @@ void TLocationHealthChecker::OnDiskHealthCheck(const std::vector<TDiskInfo>& dis
 {
     THashSet<TString> diskIds;
     THashSet<TString> aliveDiskIds;
+    THashSet<TString> oldDiskIds = LocationManager_->GetOldDiskIds();
+    THashSet<TString> configDiskIds;
 
     for (const auto& diskInfo : diskInfos) {
         diskIds.insert(diskInfo.DiskId);
@@ -355,17 +357,14 @@ void TLocationHealthChecker::OnDiskHealthCheck(const std::vector<TDiskInfo>& dis
         }
     }
 
-    auto configDiskIds = LocationManager_->GetConfigDiskIds();
-    auto oldDiskIds = LocationManager_->GetOldDiskIds();
+    for (const auto& diskId : LocationManager_->GetConfigDiskIds()) {
+        configDiskIds.insert(diskId);
+    }
 
-    auto checkDisks = [] (const auto& oldDisks, const auto& newDisks) {
-        if (oldDisks.size() != newDisks.size()) {
-            return false;
-        } else if (oldDisks.size() == newDisks.size()) {
-            for (const auto& oldId : oldDisks) {
-                if (!newDisks.contains(oldId)) {
-                    return false;
-                }
+    auto checkDisks = [] (const THashSet<TString>& oldDisks, const THashSet<TString>& newDisks) {
+        for (const auto& newDiskId : newDisks) {
+            if (!oldDisks.contains(newDiskId)) {
+                return false;
             }
         }
 
@@ -373,7 +372,7 @@ void TLocationHealthChecker::OnDiskHealthCheck(const std::vector<TDiskInfo>& dis
     };
 
     if (!oldDiskIds.empty() && !configDiskIds.empty()) {
-        if (oldDiskIds.size() < aliveDiskIds.size() ||
+        if (!checkDisks(oldDiskIds, aliveDiskIds) ||
             !checkDisks(configDiskIds, diskIds))
         {
             YT_LOG_WARNING("Set disk ids mismatched flag");
@@ -381,14 +380,7 @@ void TLocationHealthChecker::OnDiskHealthCheck(const std::vector<TDiskInfo>& dis
         }
     }
 
-    std::vector<TString> newOldDiskIds;
-    newOldDiskIds.reserve(aliveDiskIds.size());
-
-    for (const auto& diskId : aliveDiskIds) {
-        newOldDiskIds.push_back(diskId);
-    }
-
-    LocationManager_->UpdateOldDiskIds(newOldDiskIds);
+    LocationManager_->UpdateOldDiskIds(aliveDiskIds);
 }
 
 void TLocationHealthChecker::OnLocationsHealthCheck()
