@@ -70,3 +70,6 @@ bash ${ytsaurus_source_path}/yt/systest/scripts/wait.sh --name tester ${tester_f
 
 helm install ${nsflags} ${name_systest} --set YtsaurusImagePath=${image} ${ytsaurus_source_path}/yt/systest/helm/systest
 bash ${ytsaurus_source_path}/yt/systest/scripts/wait.sh --wait-minutes 60  --name systest ${tester_flags}
+
+helm install ${nsflags} ${name_systest} --set YtsaurusImagePath=${image} ${ytsaurus_source_path}/yt/systest/helm/new_stress_test
+bash ${ytsaurus_source_path}/yt/systest/scripts/wait.sh --wait-minutes 60  --name new_stress_test ${tester_flags}

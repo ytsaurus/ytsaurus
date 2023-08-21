@@ -1,0 +1,24 @@
+{
+    path="//sys/admin/stress_test/iterative";
+    preset=full;
+    mixins=[medium];
+    timeout=10800;
+    transaction_title="Iterative stress test for Odin";
+    expiration_timeout=36000;
+    spec={
+        sorted={
+            write_policy=insert_rows;
+        };
+        alter=<any=%true>[true; false];
+        extra_attributes={
+            foo=bar;
+        };
+        size={
+            iterations=5;
+        };
+        mapreduce=%true;
+        testing={
+            skip_verify=%false;
+        };
+    }
+}
