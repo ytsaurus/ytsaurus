@@ -1889,6 +1889,152 @@ void HasPermissions(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TYsonLengthEvaluationVisitor
+    : public TYsonConsumerBase
+{
+public:
+    void OnStringScalar(TStringBuf /*value*/) override
+    {
+        if (AttributesDepth_ == 0 && Depth_ == 0) {
+            THROW_ERROR_EXCEPTION("YSON List or Map expected, but got %v",
+                "String");
+        }
+    }
+
+    void OnInt64Scalar(i64 /*value*/) override
+    {
+        if (AttributesDepth_ == 0 && Depth_ == 0) {
+            THROW_ERROR_EXCEPTION("YSON List or Map expected, but got %v",
+                "Int64");
+        }
+    }
+
+    void OnUint64Scalar(ui64 /*value*/) override
+    {
+        if (AttributesDepth_ == 0 && Depth_ == 0) {
+            THROW_ERROR_EXCEPTION("YSON List or Map expected, but got %v",
+                "Uint64");
+        }
+    }
+
+    void OnDoubleScalar(double /*value*/) override
+    {
+        if (AttributesDepth_ == 0 && Depth_ == 0) {
+            THROW_ERROR_EXCEPTION("YSON List or Map expected, but got %v",
+                "Double");
+        }
+    }
+
+    void OnBooleanScalar(bool /*value*/) override
+    {
+        if (AttributesDepth_ == 0 && Depth_ == 0) {
+            THROW_ERROR_EXCEPTION("YSON List or Map expected, but got %v",
+                "Boolean");
+        }
+    }
+
+    void OnEntity() override
+    {
+        if (AttributesDepth_ == 0 && Depth_ == 0) {
+            THROW_ERROR_EXCEPTION("YSON List or Map expected, but got %v",
+                "Entity");
+        }
+    }
+
+    void OnBeginList() override
+    {
+        if (AttributesDepth_ == 0 && Depth_ == 0) {
+            YT_ASSERT(!IsList_.has_value());
+            IsList_ = true;
+        }
+        ++Depth_;
+    }
+
+    void OnListItem() override
+    {
+        if (AttributesDepth_ == 0 && Depth_ == 1) {
+            ++Length_;
+        }
+    }
+
+    void OnEndList() override
+    {
+        --Depth_;
+        if (AttributesDepth_ == 0 && Depth_ == 0) {
+            YT_ASSERT(IsList_.has_value());
+            YT_ASSERT(IsList_ == true);
+            YT_ASSERT(!Done_);
+            Done_ = true;
+        }
+    }
+
+    void OnBeginMap() override
+    {
+        if (AttributesDepth_ == 0 && Depth_ == 0) {
+            YT_ASSERT(!IsList_.has_value());
+            IsList_ = false;
+        }
+        ++Depth_;
+    }
+
+    void OnKeyedItem(TStringBuf /*value*/) override
+    {
+        if (AttributesDepth_ == 0 && Depth_ == 1) {
+            ++Length_;
+        }
+    }
+
+    void OnEndMap() override
+    {
+        --Depth_;
+        if (AttributesDepth_ == 0 && Depth_ == 0) {
+            YT_ASSERT(IsList_.has_value());
+            YT_ASSERT(IsList_ == false);
+            YT_ASSERT(!Done_);
+            Done_ = true;
+        }
+    }
+
+    void OnBeginAttributes() override
+    {
+        ++AttributesDepth_;
+    }
+
+    void OnEndAttributes() override
+    {
+        --AttributesDepth_;
+    }
+
+    i64 GetLength() const
+    {
+        return Length_;
+    }
+
+    bool Done() const
+    {
+        return Done_;
+    }
+
+private:
+    i64 Depth_ = 0;
+    i64 AttributesDepth_ = 0;
+    i64 Length_ = 0;
+    std::optional<bool> IsList_;
+    bool Done_ = false;
+};
+
+i64 YsonLength(char* data, int length)
+{
+    TMemoryInput input(data, length);
+    TYsonPullParser ysonParser(&input, EYsonType::Node);
+    TYsonPullParserCursor ysonCursor(&ysonParser);
+
+    TYsonLengthEvaluationVisitor lengthEvaluator;
+    ysonCursor.TransferComplexValue(&lengthEvaluator);
+    YT_ASSERT(lengthEvaluator.Done());
+    return lengthEvaluator.GetLength();
+}
+
 } // namespace NRoutines
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1966,6 +2112,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(HyperLogLogMerge);
     REGISTER_ROUTINE(HyperLogLogEstimateCardinality);
     REGISTER_ROUTINE(HasPermissions);
+    REGISTER_ROUTINE(YsonLength);
 #undef REGISTER_TRY_GET_ROUTINE
 #undef REGISTER_ROUTINE
 
