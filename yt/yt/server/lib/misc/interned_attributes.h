@@ -309,6 +309,7 @@
     XX(Mode, mode) \
     XX(ModificationTime, modification_time) \
     XX(MountConfig, mount_config) \
+    XX(MountHint, mount_hint) \
     XX(MountRevision, mount_revision) \
     XX(MountTime, mount_time) \
     XX(Movable, movable) \

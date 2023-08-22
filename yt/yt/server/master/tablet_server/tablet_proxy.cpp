@@ -75,6 +75,8 @@ private:
         descriptors->push_back(EInternedAttributeKey::BackupState);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationProgress)
             .SetPresent(!tablet->ReplicationProgress().Segments.empty()));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MountHint)
+            .SetOpaque(true));
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -152,6 +154,13 @@ private:
 
                 BuildYsonFluently(consumer)
                     .Value(tablet->ReplicationProgress());
+                return true;
+
+            case EInternedAttributeKey::MountHint:
+                BuildYsonFluently(consumer)
+                    .BeginMap()
+                        .Item("eden_store_ids").List(tablet->EdenStoreIds())
+                    .EndMap();
                 return true;
 
             default:
