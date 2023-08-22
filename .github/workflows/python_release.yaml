@@ -104,6 +104,9 @@ jobs:
           PYTHONPATH="${ytsaurus_python}" sphinx-apidoc -F -o "$DOCS_ROOT" yt yt/packages yt/test_helpers yt/testlib yt/tool yt/environment yt/local yt/entry yt/operations_archive '*tests*'
           PYTHONPATH="${ytsaurus_python}" sphinx-build -b html "$DOCS_ROOT" "$DOCS_ROOT/_html"
           echo "PYDOC_DIR=$DOCS_ROOT/_html" >> $GITHUB_OUTPUT
+          ls -la $DOCS_ROOT/_html
+          ls -la $DOCS_ROOT/_html/_modules
+          ls -la $DOCS_ROOT/_html/_modules/yt
 
   test_release:
     name: Run release TestPyPi
@@ -120,7 +123,7 @@ jobs:
         with:
           yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
           bucket: ${{ secrets.TEST_PYDOC_S3_BUCKET }}
-          root: ${{ needs.build.outputs.pydoc_dir }}
+          root: ../build/pydoc/_html
           include: |
             _sources/*
             _static/*
@@ -159,7 +162,7 @@ jobs:
         with:
           yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
           bucket: ${{ secrets.PYDOC_S3_BUCKET }}
-          root: ${{ needs.build.outputs.pydoc_dir }}
+          root: ../build/pydoc/_html
           include: |
             _sources/*
             _static/*
