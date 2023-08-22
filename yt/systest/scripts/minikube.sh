@@ -46,7 +46,7 @@ eval $(minikube docker-env)
 
 docker pull ${image}
 
-helm install cluster --set YtsaurusImagePath=${image} ${ytsaurus_source_path}/yt/systest/helm/cluster
+helm install cluster --set YtsaurusImagePath=${image} ${ytsaurus_source_path}/yt/systest/helm/minikube
 helm install tester --set YtsaurusImagePath=${image} ${ytsaurus_source_path}/yt/systest/helm/tester
 
 bash ${ytsaurus_source_path}/yt/systest/scripts/wait.sh --name tester
