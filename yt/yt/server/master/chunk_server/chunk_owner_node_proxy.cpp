@@ -1474,6 +1474,12 @@ TMasterTableSchema* TChunkOwnerNodeProxy::CalculateEffectiveMasterTableSchema(
         return tableManager->CreateImportedTemporaryMasterTableSchema(*schema, schemaHolder, schemaId);
     }
 
+    if (!schemaId) {
+        YT_LOG_ALERT("Used empty native schema on an external cell tag (NodeId: %v)",
+            node->GetId());
+        return tableManager->GetEmptyMasterTableSchema();
+    }
+
     return tableManager->GetMasterTableSchema(schemaId);
 }
 
