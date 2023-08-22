@@ -3135,9 +3135,9 @@ private:
             return;
         }
 
+        auto isImaginary = location->IsImaginary();
         for (auto replica : location->Replicas()) {
             auto* chunk = replica.GetPtr();
-            YT_VERIFY(!chunk->IsSequoia());
 
             TChunkPtrWithReplicaIndex replicaWithoutState(replica);
             bool approved = !location->HasUnapprovedReplica(replicaWithoutState);
@@ -3147,6 +3147,16 @@ private:
                 ERemoveReplicaReason::NodeDisposed,
                 approved);
 
+            auto chunkId = chunk->GetId();
+            if (!isImaginary) {
+                auto locationUuid = location->AsReal()->GetUuid();
+                if (IsSequoiaChunkReplica(chunkId, locationUuid)) {
+                    YT_LOG_ALERT("Removing sequoia replica in a nonsequoia way (ChunkId: %v, locationUuid: %v)",
+                        chunkId,
+                        locationUuid);
+                }
+            }
+
             if (chunk->IsBlob()) {
                 ScheduleEndorsement(chunk);
             }
@@ -3155,7 +3165,14 @@ private:
         for (const auto& destroyedReplicasSet : location->DestroyedReplicas()) {
             for (auto replica : destroyedReplicasSet) {
                 auto chunkId = replica.Id;
-                YT_VERIFY(!IsSequoiaId(chunkId));
+                if (!isImaginary) {
+                    auto locationUuid = location->AsReal()->GetUuid();
+                    if (IsSequoiaChunkReplica(chunkId, locationUuid)) {
+                        YT_LOG_ALERT("Removing destroyrd sequoia replica in a nonsequoia way (ChunkId: %v, locationUuid: %v)",
+                            chunkId,
+                            locationUuid);
+                    }
+                }
             }
         }
 
