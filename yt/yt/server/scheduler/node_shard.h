@@ -147,6 +147,8 @@ public:
     int GetTotalNodeCount() const;
     int GetSubmitToStrategyJobCount() const;
 
+    int GetTotalConcurrentHeartbeatComplexity() const;
+
     TFuture<TControllerScheduleJobResultPtr> BeginScheduleJob(
         TIncarnationId incarnationId,
         TOperationId operationId,
@@ -210,6 +212,7 @@ private:
     IInvokerPtr CancelableInvoker_;
 
     int ConcurrentHeartbeatCount_ = 0;
+    std::atomic<int> ConcurrentHeartbeatComplexity_ = 0;
 
     bool HasOngoingNodesAttributesUpdate_ = false;
 
@@ -239,6 +242,7 @@ private:
 
     NProfiling::TCounter HardConcurrentHeartbeatLimitReachedCounter_;
     NProfiling::TCounter SoftConcurrentHeartbeatLimitReachedCounter_;
+    NProfiling::TCounter ConcurrentHeartbeatComplexityLimitReachedCounter_;
     NProfiling::TCounter HeartbeatWithScheduleJobsCounter_;
     NProfiling::TCounter HeartbeatJobCount_;
     NProfiling::TCounter HeartbeatCount_;
@@ -338,6 +342,9 @@ private:
         const TExecNodePtr& node,
         TRspHeartbeat* response,
         TStatus* jobStatus);
+
+    bool IsHeartbeatThrottlingWithComplexity(const TExecNodePtr& node);
+    bool IsHeartbeatThrottlingWithCount(const TExecNodePtr& node);
 
     using TAllocationStateToJobList = TEnumIndexedVector<EAllocationState, std::vector<TJobPtr>>;
     void LogOngoingJobsAt(TInstant now, const TExecNodePtr& node, const TAllocationStateToJobList& ongoingJobsByAllocationState) const;

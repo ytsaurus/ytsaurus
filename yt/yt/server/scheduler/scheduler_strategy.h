@@ -150,6 +150,8 @@ struct ISchedulerStrategy
     //! Processes running jobs and schedules new jobs.
     virtual TFuture<void> ProcessSchedulingHeartbeat(const ISchedulingContextPtr& schedulingContext, bool skipScheduleJobs) = 0;
 
+    virtual int GetSchedulingHeartbeatComplexityForNode(const TString& nodeAddress, const TBooleanFormulaTags& nodeTags) const = 0;
+
     //! Notify strategy about job updates.
     virtual void ProcessJobUpdates(
         const std::vector<TJobUpdate>& jobUpdates,

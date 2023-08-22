@@ -2075,6 +2075,9 @@ private:
         SchedulerProfiler.AddFuncGauge("/jobs/submit_to_strategy_count", MakeStrong(this), [this] {
             return NodeManager_->GetSubmitToStrategyJobCount();
         });
+        SchedulerProfiler.AddFuncGauge("/total_scheduling_heartbeat_complexity", MakeStrong(this), [this] {
+            return NodeManager_->GetTotalConcurrentHeartbeatComplexity();
+        });
         SchedulerProfiler.AddFuncGauge("/exec_node_count", MakeStrong(this), [this] {
             return NodeManager_->GetExecNodeCount();
         });
@@ -3699,6 +3702,11 @@ private:
         nodesService->AddChild("ongoing_heartbeat_count", IYPathService::FromProducer(BIND(
             [scheduler{this}] (IYsonConsumer* consumer) {
                 BuildYsonFluently(consumer).Value(scheduler->NodeManager_->GetOngoingHeartbeatsCount());
+            })));
+
+        nodesService->AddChild("total_scheduling_heartbeat_complexity", IYPathService::FromProducer(BIND(
+            [scheduler{this}] (IYsonConsumer* consumer) {
+                BuildYsonFluently(consumer).Value(scheduler->NodeManager_->GetTotalConcurrentHeartbeatComplexity());
             })));
 
         return nodesService;
