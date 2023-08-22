@@ -1870,6 +1870,12 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
                 tableSchemaId);
         }
 
+        if (!tableSchemaId) {
+            YT_LOG_ALERT("Used empty native schema on an external cell tag (NodeId: %v)",
+                node->GetId());
+            return tableManager->GetEmptyMasterTableSchema();
+        }
+
         return tableManager->GetMasterTableSchema(tableSchemaId);
     };
 
