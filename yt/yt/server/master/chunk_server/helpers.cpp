@@ -767,11 +767,7 @@ TYsonString DoGetMulticellOwningNodes(
         }
 
         auto type = TypeFromId(chunkTreeId);
-        if (type != EObjectType::Chunk &&
-            type != EObjectType::ErasureChunk &&
-            type != EObjectType::JournalChunk &&
-            type != EObjectType::ErasureJournalChunk)
-        {
+        if (!IsPhysicalChunkType(type)) {
             return;
         }
 
