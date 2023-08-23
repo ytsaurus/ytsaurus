@@ -1,6 +1,7 @@
 #include "yt.h"
 
 #include "yt_graph.h"
+#include "yt_graph_v2.h"
 
 #include <yt/cpp/roren/interface/roren.h>
 #include <yt/cpp/roren/interface/executor.h>
@@ -48,7 +49,12 @@ public:
 
             YT_LOG_DEBUG("Transforming Roren pipeline to YT graph");
 
-            auto ytGraph = BuildYtGraph(pipeline, Config_);
+            std::unique_ptr<IYtGraph> ytGraph;
+            if (Config_.GetEnableV2Optimizer()) {
+                ytGraph = BuildYtGraphV2(pipeline, Config_);
+            } else {
+                ytGraph = BuildYtGraph(pipeline, Config_);
+            }
 
             YT_LOG_DEBUG("Optimizing YT graph");
 

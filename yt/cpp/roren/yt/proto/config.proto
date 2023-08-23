@@ -17,5 +17,8 @@ message TYtPipelineConfig
     // All Roren operations run under this transaction.
     // Roren program doesn't ping this transaction and doesn't commit or abort it
     optional string TransactionId = 4;
-}
 
+    // Enable V2 optimizer for yt graph.
+    // For now V2 optimzier is unstable and not recommended to use.
+    optional bool EnableV2Optimizer = 5;
+}
