@@ -15,6 +15,8 @@ object SparkYtConfiguration {
 
     case object MiniBatchSize extends IntConfigEntry(s"$prefix.miniBatchSize", Some(1000))
 
+    case object DynBatchSize extends IntConfigEntry(s"$prefix.dynBatchSize", Some(50000))
+
     case object Timeout extends DurationSecondsConfigEntry(s"$prefix.timeout", Some(300 seconds))
 
     case object TypeV3Format extends BooleanConfigEntry(s"$prefix.typeV3Format.enabled", Some(false))

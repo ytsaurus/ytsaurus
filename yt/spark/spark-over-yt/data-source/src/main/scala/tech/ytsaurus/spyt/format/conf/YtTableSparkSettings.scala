@@ -7,7 +7,7 @@ import tech.ytsaurus.spyt.serializers.SchemaConverter.{SortOption, Sorted, Unord
 import tech.ytsaurus.spyt.serializers.SchemaConverter
 import tech.ytsaurus.spyt.wrapper.table.YtTableSettings
 import tech.ytsaurus.spyt.fs.conf.{BooleanConfigEntry, ConfigEntry, LongConfigEntry, StringConfigEntry, StringListConfigEntry}
-import tech.ytsaurus.spyt.serializers.{SchemaConverter, YtLogicalType}
+import tech.ytsaurus.spyt.serializers.YtLogicalType
 import tech.ytsaurus.ysontree.YTreeNode
 
 case class YtTableSparkSettings(configuration: Configuration) extends YtTableSettings {
@@ -48,7 +48,7 @@ object YtTableSparkSettings {
 
   case object KeyPartitioned extends BooleanConfigEntry("key_partitioned")
 
-  case object Dynamic extends BooleanConfigEntry("dynamic")
+  case object Dynamic extends BooleanConfigEntry("dynamic", Some(false))
 
   case object Transaction extends StringConfigEntry("transaction")
 
@@ -62,6 +62,8 @@ object YtTableSparkSettings {
   case object SortColumns extends StringListConfigEntry("sort_columns", Some(Nil))
 
   case object UniqueKeys extends BooleanConfigEntry("unique_keys", Some(false))
+
+  case object InconsistentDynamicWrite extends BooleanConfigEntry("inconsistent_dynamic_write", Some(false))
 
   case object WriteSchemaHint extends YtLogicalTypeMapConfigEntry("write_schema_hint", Some(Map.empty))
 
@@ -93,6 +95,10 @@ object YtTableSparkSettings {
 
   def isTable(configuration: Configuration): Boolean = {
     configuration.ytConf(IsTable)
+  }
+
+  def isDynamicTable(configuration: Configuration): Boolean = {
+    configuration.ytConf(Dynamic)
   }
 
   def isNullTypeAllowed(options: Map[String, String]): Boolean = {
