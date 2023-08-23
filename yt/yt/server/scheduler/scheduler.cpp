@@ -1289,7 +1289,18 @@ public:
     {
         if (scheduleOperationInSingleTree) {
             auto neededResources = operation->GetController()->GetNeededResources();
-            auto chosenTree = Strategy_->ChooseBestSingleTreeForOperation(operation->GetId(), neededResources.DefaultResources);
+            TString chosenTree;
+            {
+                auto treeOrError = Strategy_->ChooseBestSingleTreeForOperation(
+                    operation->GetId(),
+                    neededResources.DefaultResources,
+                    operation->Spec()->ConsiderGuaranteesForSingleTree);
+                if (!treeOrError.IsOK()) {
+                    OnOperationFailed(operation, treeOrError);
+                    return;
+                }
+                chosenTree = treeOrError.Value();
+            }
 
             std::vector<TString> treeIdsToUnregister;
             for (const auto& [treeId, treeRuntimeParameters] : operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree) {

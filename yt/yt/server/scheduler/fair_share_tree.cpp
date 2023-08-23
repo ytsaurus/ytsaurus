@@ -2421,7 +2421,7 @@ private:
         if (auto* element = treeSnapshot->FindPool(poolId)) {
             return TSchedulerElementStateSnapshot{
                 element->Attributes().DemandShare,
-                element->Attributes().PromisedFairShare};
+                element->Attributes().EstimatedGuaranteeShare};
         }
 
         return std::nullopt;
@@ -2995,6 +2995,9 @@ private:
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "promised_fair_share", attributes.PromisedFairShare)
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "promised_dominant_fair_share", MaxComponent(attributes.PromisedFairShare))
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "promised_fair_share_resources", promisedFairShareResources)
+
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "estimated_guarantee_share", attributes.EstimatedGuaranteeShare)
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "dominant_estimated_guarantee_share", MaxComponent(attributes.EstimatedGuaranteeShare))
 
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "proposed_integral_share", attributes.ProposedIntegralShare)
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "best_allocation_share", persistentAttributes.BestAllocationShare)

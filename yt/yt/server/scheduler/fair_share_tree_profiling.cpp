@@ -285,6 +285,7 @@ void TFairShareTreeProfileManager::ProfileElement(
     writer->AddGauge("/dominant_usage_share", element->GetResourceDominantUsageShareAtUpdate());
     writer->AddGauge("/dominant_demand_share", MaxComponent(attributes.DemandShare));
     writer->AddGauge("/promised_dominant_fair_share", MaxComponent(attributes.PromisedFairShare));
+    writer->AddGauge("/dominant_estimated_guarantee_share", MaxComponent(attributes.EstimatedGuaranteeShare));
     writer->AddGauge("/accumulated_volume_dominant_share", element->GetAccumulatedResourceRatioVolume());
     writer->AddGauge("/weight", element->GetWeight());
     writer->AddGauge("/dominant_fair_share/strong_guarantee", MaxComponent(detailedFairShare.StrongGuarantee));
@@ -402,6 +403,12 @@ void TFairShareTreeProfileManager::ProfileElement(
             profiledResources,
             attributes.PromisedFairShare,
             "/promised_fair_share");
+
+        ProfileResourceVector(
+            writer,
+            profiledResources,
+            attributes.EstimatedGuaranteeShare,
+            "/estimated_guarantee_share");
 
         if (!element->IsOperation()) {
             ProfileResourceVolume(

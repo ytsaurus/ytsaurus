@@ -1156,7 +1156,7 @@ public:
         }
     }
 
-    TString ChooseBestSingleTreeForOperation(TOperationId operationId, TJobResources newDemand) override
+    TErrorOr<TString> ChooseBestSingleTreeForOperation(TOperationId operationId, TJobResources newDemand, bool considerGuaranteesForSingleTree) override
     {
         auto idToTree = SnapshottedIdToTree_.Load();
 
@@ -1164,12 +1164,13 @@ public:
         // First, we ignore all trees in which the new operation is not marked running.
         // Then for every candidate pool we model the case if the new operation is assigned to it:
         // 1) We add the pool's current demand share and the operation's demand share to get the model demand share.
-        // 2) We calculate reserveShare, defined as (promisedFairShare - modelDemandShare).
+        // 2) We calculate reserveShare, defined as (estimatedGuaranteeShare - modelDemandShare).
         // Finally, we choose the pool with the maximum of MinComponent(reserveShare) over all trees.
         // More precisely, we compute MinComponent ignoring the resource types which are absent in the tree (e.g. GPU).
         TString bestTree;
         auto bestReserveRatio = std::numeric_limits<double>::lowest();
         std::vector<TString> emptyTrees;
+        std::vector<TString> zeroGuaranteeTrees;
         for (const auto& [treeId, poolName] : GetOperationState(operationId)->TreeIdToPoolNameMap()) {
             YT_VERIFY(idToTree.contains(treeId));
             auto tree = idToTree[treeId];
@@ -1187,15 +1188,20 @@ public:
             // If pool is not present in the tree (e.g. due to poor timings or if it is an ephemeral pool),
             // then its demand and guaranteed resources ratio are considered to be zero.
             TResourceVector currentDemandShare;
-            TResourceVector promisedFairShare;
+            TResourceVector estimatedGuaranteeShare;
             if (auto poolStateSnapshot = tree->GetMaybeStateSnapshotForPool(poolName.GetPool())) {
                 currentDemandShare = poolStateSnapshot->DemandShare;
-                promisedFairShare = poolStateSnapshot->PromisedFairShare;
+                estimatedGuaranteeShare = poolStateSnapshot->EstimatedGuaranteeShare;
+            }
+
+            if (Dominates(TResourceVector::SmallEpsilon(), estimatedGuaranteeShare) && considerGuaranteesForSingleTree) {
+                zeroGuaranteeTrees.push_back(treeId);
+                continue;
             }
 
             auto newDemandShare = TResourceVector::FromJobResources(newDemand, totalResourceLimits);
             auto modelDemandShare = newDemandShare + currentDemandShare;
-            auto reserveShare = promisedFairShare - modelDemandShare;
+            auto reserveShare = estimatedGuaranteeShare - modelDemandShare;
 
             // TODO(eshcherbin): Perhaps we need to add a configurable main resource for each tree and compare the shares of this resource.
             auto currentReserveRatio = std::numeric_limits<double>::max();
@@ -1211,14 +1217,14 @@ public:
                 "Considering candidate single tree for operation ("
                 "OperationId: %v, TreeId: %v, TotalResourceLimits: %v, "
                 "NewDemandShare: %.6g, CurrentDemandShare: %.6g, ModelDemandShare: %.6g, "
-                "PromisedFairShare: %.6g, ReserveShare: %.6g, CurrentReserveRatio: %v)",
+                "EstimatedGuaranteeShare: %.6g, ReserveShare: %.6g, CurrentReserveRatio: %v)",
                 operationId,
                 treeId,
                 FormatResources(totalResourceLimits),
                 newDemandShare,
                 currentDemandShare,
                 modelDemandShare,
-                promisedFairShare,
+                estimatedGuaranteeShare,
                 reserveShare,
                 currentReserveRatio);
 
@@ -1228,24 +1234,31 @@ public:
             }
         }
 
-        YT_VERIFY(bestTree || !emptyTrees.empty());
+        if (!bestTree) {
+            if (considerGuaranteesForSingleTree) {
+                return TError("Found no best single non-empty tree for operation")
+                    << TErrorAttribute("operation_id", operationId)
+                    << TErrorAttribute("empty_candidate_trees", emptyTrees)
+                    << TErrorAttribute("zero_guarantee_candidate_trees", zeroGuaranteeTrees);
+            } else {
+                YT_VERIFY(!emptyTrees.empty());
 
-        if (bestTree) {
-            YT_LOG_DEBUG("Chose best single tree for operation (OperationId: %v, BestTree: %v, BestReserveRatio: %v, EmptyCandidateTrees: %v)",
-                operationId,
-                bestTree,
-                bestReserveRatio,
-                emptyTrees);
-        } else {
-            bestTree = emptyTrees[0];
+                bestTree = emptyTrees[0];
 
-            YT_LOG_DEBUG(
-                "Found no best single non-empty tree for operation; choosing first found empty tree"
-                "(OperationId: %v, BestTree: %v, EmptyCandidateTrees: %v)",
-                operationId,
-                bestTree,
-                emptyTrees);
+                YT_LOG_DEBUG(
+                    "Found no best single non-empty tree for operation; choosing first found empty tree"
+                    "(OperationId: %v, BestTree: %v, EmptyCandidateTrees: %v)",
+                    operationId,
+                    bestTree,
+                    emptyTrees);
+            }
         }
+
+        YT_LOG_DEBUG("Chose best single tree for operation (OperationId: %v, BestTree: %v, BestReserveRatio: %v, EmptyCandidateTrees: %v)",
+            operationId,
+            bestTree,
+            bestReserveRatio,
+            emptyTrees);
 
         return bestTree;
     }

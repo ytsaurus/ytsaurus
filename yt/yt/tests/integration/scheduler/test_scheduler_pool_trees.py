@@ -10,7 +10,8 @@ from yt_commands import (
     create, ls,
     get, set, move, remove, exists, create_pool, create_pool_tree, remove_pool_tree, create_network_project, write_table, write_file,
     map, map_reduce, run_test_vanilla, run_sleeping_vanilla, abort_job, list_jobs, start_transaction, lock,
-    sync_create_cells, update_controller_agent_config, update_op_parameters, create_test_tables,
+    sync_create_cells, update_controller_agent_config, update_op_parameters,
+    create_test_tables,
     extract_statistic_v2, update_pool_tree_config_option, raises_yt_error)
 
 from yt_scheduler_helpers import (
@@ -1195,7 +1196,7 @@ class TestSchedulingTagFilterOnPerPoolTreeConfiguration(YTEnvSetup):
 class TestSchedulerScheduleInSingleTree(YTEnvSetup):
     NUM_TEST_PARTITIONS = 2
     NUM_MASTERS = 1
-    NUM_NODES = 3
+    NUM_NODES = 4
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
 
@@ -1246,22 +1247,23 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         )
 
         nodes = ls("//sys/cluster_nodes")
-        for node, tag in zip(nodes, ["default_tag", "nirvana_tag", "cloud_tag"]):
+        for node, tag in zip(nodes, ["default_tag", "nirvana_tag", "cloud_tag", "empty_tag"]):
             set("//sys/cluster_nodes/{}/@user_tags".format(node), [tag])
 
         set("//sys/pool_trees/default/@config/nodes_filter", "default_tag")
         set("//sys/pool_trees/default/@config/total_resource_limits_consider_delay", 1000)
-        for tree in ["default", "nirvana", "cloud"]:
+        for tree in ["default", "nirvana", "cloud", "empty"]:
             if tree != "default":
                 create_pool_tree(tree, config={
                     "nodes_filter": tree + "_tag",
                     "total_resource_limits_consider_delay": 1000
                 })
-            create_pool("research", pool_tree=tree, wait_for_orchid=False)
-            # Create "prodX" pools to spread guaranteed resources ratio.
-            for i in range(9):
-                create_pool("prod" + str(i), pool_tree=tree, wait_for_orchid=False)
-            wait(lambda: exists(scheduler_orchid_pool_tree_path(tree)))
+            if tree != "empty":
+                create_pool("research", pool_tree=tree, wait_for_orchid=False)
+                # Create "prodX" pools to spread guaranteed resources ratio.
+                for i in range(9):
+                    create_pool("prod" + str(i), pool_tree=tree, wait_for_orchid=False)
+                wait(lambda: exists(scheduler_orchid_pool_tree_path(tree)))
 
     def _get_tree_for_job(self, job):
         node = job["address"]
@@ -1316,6 +1318,28 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         }
         possible_trees = ["nirvana", "cloud"]
         self._run_vanilla_and_check_tree(spec, possible_trees)
+
+    @authors("omgronny")
+    def test_empty_trees_fail(self):
+        spec = {
+            "pool_trees": ["empty"],
+            "pool": "research",
+            "schedule_in_single_tree": True,
+            "consider_guarantees_for_single_tree": True,
+        }
+        with pytest.raises(YtError):
+            run_test_vanilla("sleep 0.6", spec=spec, track=True)
+
+    @authors("omgronny")
+    def test_zero_guarantee_trees_fail(self):
+        spec = {
+            "pool_trees": ["nirvana", "cloud"],
+            "pool": "research",
+            "schedule_in_single_tree": True,
+            "consider_guarantees_for_single_tree": True,
+        }
+        with pytest.raises(YtError):
+            run_test_vanilla("sleep 0.6", spec=spec, track=True)
 
     @authors("eshcherbin")
     def test_two_trees_with_unequal_demand(self):

@@ -2140,6 +2140,8 @@ void TStrategyOperationSpec::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("schedule_in_single_tree", &TThis::ScheduleInSingleTree)
         .Default(false);
+    registrar.Parameter("consider_guarantees_for_single_tree", &TThis::ConsiderGuaranteesForSingleTree)
+        .Default(false);
     registrar.Parameter("tentative_pool_trees", &TThis::TentativePoolTrees)
         .Default();
     registrar.Parameter("use_default_tentative_pool_trees", &TThis::UseDefaultTentativePoolTrees)
@@ -2197,6 +2199,11 @@ void TStrategyOperationSpec::Register(TRegistrar registrar)
                 "schedule_in_single_tree",
                 "tentative_pool_trees",
                 "use_default_tentative_pool_trees");
+        }
+        if (!spec->ScheduleInSingleTree && spec->ConsiderGuaranteesForSingleTree) {
+            THROW_ERROR_EXCEPTION("%Qv option cannot be used without %Qv",
+                "consider_guarantees_for_single_tree",
+                "schedule_in_single_tree");
         }
     });
 }
