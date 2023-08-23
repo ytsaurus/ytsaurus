@@ -33,6 +33,7 @@ EError TPortoApi::SetError(const TString &prefix, int _errno) {
             LastError = EError::SocketUnavailable;
             break;
         case EAGAIN:
+            LastErrorMsg = prefix + ": Timeout exceeded. Timeout value: " + std::to_string(Timeout);
             LastError = EError::SocketTimeout;
             break;
         case EIO:
@@ -43,6 +44,7 @@ EError TPortoApi::SetError(const TString &prefix, int _errno) {
             LastError = EError::Unknown;
             break;
     }
+
     Disconnect();
     return LastError;
 }
