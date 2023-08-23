@@ -391,7 +391,7 @@ public:
             BIND(&TConsumerController::Pass, MakeWeak(this)),
             dynamicConfig->PassPeriod))
         , ProfileManager_(CreateConsumerProfileManager(
-            QueueAgentProfiler
+            QueueAgentProfilerGlobal
                 .WithRequiredTag("consumer_path", ConsumerRef_.Path)
                 .WithRequiredTag("consumer_cluster", ConsumerRef_.Cluster),
             Logger))

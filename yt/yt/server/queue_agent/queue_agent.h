@@ -18,13 +18,16 @@ namespace NYT::NQueueAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TClusterProfilingCounters
+struct TTaggedProfilingCounters
 {
     NProfiling::TGauge Queues;
     NProfiling::TGauge Consumers;
     NProfiling::TGauge Partitions;
+    NProfiling::TGauge TrimmedQueues;
+    NProfiling::TGauge ErroneousQueues;
+    NProfiling::TGauge ErroneousConsumers;
 
-    explicit TClusterProfilingCounters(NProfiling::TProfiler profiler);
+    explicit TTaggedProfilingCounters(NProfiling::TProfiler profiler);
 };
 
 struct TGlobalProfilingCounters
@@ -78,7 +81,7 @@ private:
 
     const TString AgentId_;
 
-    THashMap<TString, TClusterProfilingCounters> ClusterProfilingCounters_;
+    THashMap<NQueueClient::TProfilingTags, TTaggedProfilingCounters> TaggedProfilingCounters_;
     TGlobalProfilingCounters GlobalProfilingCounters_;
 
     std::atomic<bool> Active_ = false;
@@ -129,7 +132,7 @@ private:
 
     void DoPopulateAlerts(std::vector<TError>* alerts) const;
 
-    TClusterProfilingCounters& GetOrCreateClusterProfilingCounters(TString cluster);
+    TTaggedProfilingCounters& GetOrCreateTaggedProfilingCounters(const NQueueClient::TProfilingTags& profilingTags);
 
     void Profile();
 

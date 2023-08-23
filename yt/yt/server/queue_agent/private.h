@@ -16,7 +16,8 @@ inline const NLogging::TLogger AlertManagerLogger("AlertManager");
 inline const NLogging::TLogger QueueAgentLogger("QueueAgent");
 inline const NLogging::TLogger QueueAgentShardingManagerLogger("QueueAgentShardingManager");
 inline const NLogging::TLogger CypressSynchronizerLogger("CypressSynchronizer");
-inline const NProfiling::TProfiler QueueAgentProfiler = NProfiling::TProfiler("/queue_agent").WithGlobal();
+inline const NProfiling::TProfiler QueueAgentProfilerGlobal = NProfiling::TProfiler("/queue_agent").WithGlobal();
+inline const NProfiling::TProfiler QueueAgentProfiler = NProfiling::TProfiler("/queue_agent");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -115,6 +116,10 @@ DEFINE_ENUM(EConsumerPartitionDisposition,
     //! Ahead of the window, i.e. "unread row count < 0" (unread row count is capped)
     (Ahead)
 );
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline const TString NoneQueueAgentStage = "none";
 
 ////////////////////////////////////////////////////////////////////////////////
 

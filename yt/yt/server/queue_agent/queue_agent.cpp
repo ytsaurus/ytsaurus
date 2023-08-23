@@ -143,10 +143,13 @@ private:
     TString QueryRoot_;
 };
 
-TClusterProfilingCounters::TClusterProfilingCounters(TProfiler profiler)
+TTaggedProfilingCounters::TTaggedProfilingCounters(TProfiler profiler)
     : Queues(profiler.Gauge("/queues"))
     , Consumers(profiler.Gauge("/consumers"))
     , Partitions(profiler.Gauge("/partitions"))
+    , TrimmedQueues(profiler.Gauge("/trimmed_queues"))
+    , ErroneousQueues(profiler.Gauge("/erroneous_queues"))
+    , ErroneousConsumers(profiler.Gauge("/erroneous_consumers"))
 { }
 
 TGlobalProfilingCounters::TGlobalProfilingCounters(TProfiler profiler)
@@ -173,7 +176,7 @@ TQueueAgent::TQueueAgent(
         BIND(&TQueueAgent::Pass, MakeWeak(this)),
         DynamicConfig_->PassPeriod))
     , AgentId_(std::move(agentId))
-    , GlobalProfilingCounters_(QueueAgentProfiler)
+    , GlobalProfilingCounters_(QueueAgentProfilerGlobal)
     , QueueAgentChannelFactory_(
         NAuth::CreateNativeAuthenticationInjectingChannelFactory(
             CreateCachingChannelFactory(CreateTcpBusChannelFactory(Config_->BusClient)),
@@ -523,38 +526,75 @@ void TQueueAgent::Pass()
 
 void TQueueAgent::Profile()
 {
-    struct TClusterCounters {
+    struct TTaggedCounters {
         int QueueCount;
         int ConsumerCount;
         int PartitionCount;
+        int TrimmedQueueCount;
+        int ErroneousQueueCount;
+        int ErroneousConsumerCount;
     };
 
-    THashMap<TString, TClusterCounters> clusterToCounters;
+    THashMap<TProfilingTags, TTaggedCounters> tagsToCounters;
+
+    auto getLeadingStatus = [&] (const IObjectControllerPtr& controller) {
+        return controller->IsLeading() ? "leader" : "follower";
+    };
 
     {
         auto guard = ReaderGuard(ObjectLock_);
 
         for (const auto& [queueRef, queue] : Objects_[EObjectKind::Queue]) {
-            auto& clusterCounters = clusterToCounters[queueRef.Cluster];
-            ++clusterCounters.QueueCount;
             const auto& snapshot = DynamicPointerCast<TQueueSnapshot>(queue.Controller->GetLatestSnapshot());
-            clusterCounters.PartitionCount += snapshot->PartitionCount;
+
+            TProfilingTags profilingTags = {
+                .Cluster = queueRef.Cluster,
+                .LeadingStatus = getLeadingStatus(queue.Controller),
+                .QueueAgentStage = snapshot->Row.QueueAgentStage.value_or(NoneQueueAgentStage),
+            };
+
+            auto& taggedCounters = tagsToCounters[profilingTags];
+            ++taggedCounters.QueueCount;
+            taggedCounters.PartitionCount += snapshot->PartitionCount;
+
+            const auto& autoTrimConfig = snapshot->Row.AutoTrimConfig;
+            if (autoTrimConfig && autoTrimConfig->Enable) {
+                ++taggedCounters.TrimmedQueueCount;
+            }
+
+            if (!snapshot->Error.IsOK()) {
+                ++taggedCounters.ErroneousQueueCount;
+            }
         }
         for (const auto& [consumerRef, consumer] : Objects_[EObjectKind::Consumer]) {
-            auto& clusterCounters = clusterToCounters[consumerRef.Cluster];
-            ++clusterCounters.ConsumerCount;
             const auto& snapshot = DynamicPointerCast<TConsumerSnapshot>(consumer.Controller->GetLatestSnapshot());
+
+            TProfilingTags profilingTags = {
+                .Cluster = consumerRef.Cluster,
+                .LeadingStatus = getLeadingStatus(consumer.Controller),
+                .QueueAgentStage = snapshot->Row.QueueAgentStage.value_or(NoneQueueAgentStage),
+            };
+
+            auto& taggedCounters = tagsToCounters[profilingTags];
+            ++taggedCounters.ConsumerCount;
             for (const auto& [_, subConsumer] : snapshot->SubSnapshots) {
-                clusterCounters.PartitionCount += subConsumer->PartitionCount;
+                taggedCounters.PartitionCount += subConsumer->PartitionCount;
+            }
+
+            if (!snapshot->Error.IsOK()) {
+                ++taggedCounters.ErroneousConsumerCount;
             }
         }
     }
 
-    for (const auto& [cluster, clusterCounters] : clusterToCounters) {
-        auto& profilingCounters = GetOrCreateClusterProfilingCounters(cluster);
-        profilingCounters.Queues.Update(clusterCounters.QueueCount);
-        profilingCounters.Consumers.Update(clusterCounters.ConsumerCount);
-        profilingCounters.Partitions.Update(clusterCounters.PartitionCount);
+    for (const auto& [tag, taggedCounters] : tagsToCounters) {
+        auto& profilingCounters = GetOrCreateTaggedProfilingCounters(tag);
+        profilingCounters.Queues.Update(taggedCounters.QueueCount);
+        profilingCounters.Consumers.Update(taggedCounters.ConsumerCount);
+        profilingCounters.Partitions.Update(taggedCounters.PartitionCount);
+        profilingCounters.TrimmedQueues.Update(taggedCounters.TrimmedQueueCount);
+        profilingCounters.ErroneousQueues.Update(taggedCounters.ErroneousQueueCount);
+        profilingCounters.ErroneousConsumers.Update(taggedCounters.ErroneousConsumerCount);
     }
 }
 
@@ -571,12 +611,16 @@ NYTree::IYPathServicePtr TQueueAgent::RedirectYPathRequest(const TString& host, 
     });
 }
 
-TClusterProfilingCounters& TQueueAgent::GetOrCreateClusterProfilingCounters(TString cluster)
+TTaggedProfilingCounters& TQueueAgent::GetOrCreateTaggedProfilingCounters(const TProfilingTags& profilingTags)
 {
-    auto it = ClusterProfilingCounters_.find(cluster);
-    if (it == ClusterProfilingCounters_.end()) {
-        it = ClusterProfilingCounters_.insert(
-            {cluster, TClusterProfilingCounters(QueueAgentProfiler.WithTag("yt_cluster", cluster))}).first;
+    auto it = TaggedProfilingCounters_.find(profilingTags);
+    if (it == TaggedProfilingCounters_.end()) {
+        auto profilingCounters =
+            TTaggedProfilingCounters(QueueAgentProfiler
+                .WithTag("yt_cluster", profilingTags.Cluster)
+                .WithTag("leading_status", profilingTags.LeadingStatus)
+                .WithTag("queue_agent_stage", profilingTags.QueueAgentStage));
+        it = TaggedProfilingCounters_.insert({profilingTags, profilingCounters}).first;
     }
     return it->second;
 }

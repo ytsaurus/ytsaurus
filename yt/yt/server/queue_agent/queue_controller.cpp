@@ -278,7 +278,7 @@ public:
                 .Splay = dynamicConfig->PassPeriod,
             }))
         , ProfileManager_(CreateQueueProfileManager(
-            QueueAgentProfiler
+            QueueAgentProfilerGlobal
                 .WithRequiredTag("queue_path", QueueRef_.Path)
                 .WithRequiredTag("queue_cluster", QueueRef_.Cluster),
             Logger))
