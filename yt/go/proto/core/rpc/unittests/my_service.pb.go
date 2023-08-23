@@ -1677,6 +1677,91 @@ func (x *TRspCustomMetadata) GetParsedCustomMetadata() map[string][]byte {
 	return nil
 }
 
+type TReqGetChannelFailureError struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	RedirectionAddress *string `protobuf:"bytes,1,opt,name=redirection_address,json=redirectionAddress" json:"redirection_address,omitempty"`
+}
+
+func (x *TReqGetChannelFailureError) Reset() {
+	*x = TReqGetChannelFailureError{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yt_yt_core_rpc_unittests_lib_my_service_proto_msgTypes[40]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TReqGetChannelFailureError) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TReqGetChannelFailureError) ProtoMessage() {}
+
+func (x *TReqGetChannelFailureError) ProtoReflect() protoreflect.Message {
+	mi := &file_yt_yt_core_rpc_unittests_lib_my_service_proto_msgTypes[40]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TReqGetChannelFailureError.ProtoReflect.Descriptor instead.
+func (*TReqGetChannelFailureError) Descriptor() ([]byte, []int) {
+	return file_yt_yt_core_rpc_unittests_lib_my_service_proto_rawDescGZIP(), []int{40}
+}
+
+func (x *TReqGetChannelFailureError) GetRedirectionAddress() string {
+	if x != nil && x.RedirectionAddress != nil {
+		return *x.RedirectionAddress
+	}
+	return ""
+}
+
+type TRspGetChannelFailureError struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *TRspGetChannelFailureError) Reset() {
+	*x = TRspGetChannelFailureError{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yt_yt_core_rpc_unittests_lib_my_service_proto_msgTypes[41]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TRspGetChannelFailureError) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TRspGetChannelFailureError) ProtoMessage() {}
+
+func (x *TRspGetChannelFailureError) ProtoReflect() protoreflect.Message {
+	mi := &file_yt_yt_core_rpc_unittests_lib_my_service_proto_msgTypes[41]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TRspGetChannelFailureError.ProtoReflect.Descriptor instead.
+func (*TRspGetChannelFailureError) Descriptor() ([]byte, []int) {
+	return file_yt_yt_core_rpc_unittests_lib_my_service_proto_rawDescGZIP(), []int{41}
+}
+
 var File_yt_yt_core_rpc_unittests_lib_my_service_proto protoreflect.FileDescriptor
 
 var file_yt_yt_core_rpc_unittests_lib_my_service_proto_rawDesc = []byte{
@@ -1776,11 +1861,17 @@ var file_yt_yt_core_rpc_unittests_lib_my_service_proto_rawDesc = []byte{
 	0x61, 0x74, 0x61, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18,
 	0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x14, 0x0a, 0x05, 0x76, 0x61,
 	0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65,
-	0x3a, 0x02, 0x38, 0x01, 0x42, 0x3b, 0x5a, 0x39, 0x61, 0x2e, 0x79, 0x61, 0x6e, 0x64, 0x65, 0x78,
-	0x2d, 0x74, 0x65, 0x61, 0x6d, 0x2e, 0x72, 0x75, 0x2f, 0x79, 0x74, 0x2f, 0x67, 0x6f, 0x2f, 0x70,
-	0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x63, 0x6f, 0x72, 0x65, 0x2f, 0x72, 0x70, 0x63, 0x2f, 0x75, 0x6e,
-	0x69, 0x74, 0x74, 0x65, 0x73, 0x74, 0x73, 0x3b, 0x6d, 0x79, 0x73, 0x65, 0x72, 0x76, 0x69, 0x63,
-	0x65,
+	0x3a, 0x02, 0x38, 0x01, 0x22, 0x4d, 0x0a, 0x1a, 0x54, 0x52, 0x65, 0x71, 0x47, 0x65, 0x74, 0x43,
+	0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x46, 0x61, 0x69, 0x6c, 0x75, 0x72, 0x65, 0x45, 0x72, 0x72,
+	0x6f, 0x72, 0x12, 0x2f, 0x0a, 0x13, 0x72, 0x65, 0x64, 0x69, 0x72, 0x65, 0x63, 0x74, 0x69, 0x6f,
+	0x6e, 0x5f, 0x61, 0x64, 0x64, 0x72, 0x65, 0x73, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x12, 0x72, 0x65, 0x64, 0x69, 0x72, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x41, 0x64, 0x64, 0x72,
+	0x65, 0x73, 0x73, 0x22, 0x1c, 0x0a, 0x1a, 0x54, 0x52, 0x73, 0x70, 0x47, 0x65, 0x74, 0x43, 0x68,
+	0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x46, 0x61, 0x69, 0x6c, 0x75, 0x72, 0x65, 0x45, 0x72, 0x72, 0x6f,
+	0x72, 0x42, 0x3b, 0x5a, 0x39, 0x61, 0x2e, 0x79, 0x61, 0x6e, 0x64, 0x65, 0x78, 0x2d, 0x74, 0x65,
+	0x61, 0x6d, 0x2e, 0x72, 0x75, 0x2f, 0x79, 0x74, 0x2f, 0x67, 0x6f, 0x2f, 0x70, 0x72, 0x6f, 0x74,
+	0x6f, 0x2f, 0x63, 0x6f, 0x72, 0x65, 0x2f, 0x72, 0x70, 0x63, 0x2f, 0x75, 0x6e, 0x69, 0x74, 0x74,
+	0x65, 0x73, 0x74, 0x73, 0x3b, 0x6d, 0x79, 0x73, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65,
 }
 
 var (
@@ -1795,7 +1886,7 @@ func file_yt_yt_core_rpc_unittests_lib_my_service_proto_rawDescGZIP() []byte {
 	return file_yt_yt_core_rpc_unittests_lib_my_service_proto_rawDescData
 }
 
-var file_yt_yt_core_rpc_unittests_lib_my_service_proto_msgTypes = make([]protoimpl.MessageInfo, 41)
+var file_yt_yt_core_rpc_unittests_lib_my_service_proto_msgTypes = make([]protoimpl.MessageInfo, 43)
 var file_yt_yt_core_rpc_unittests_lib_my_service_proto_goTypes = []interface{}{
 	(*TReqSomeCall)(nil),                  // 0: NMyRpc.TReqSomeCall
 	(*TRspSomeCall)(nil),                  // 1: NMyRpc.TRspSomeCall
@@ -1837,12 +1928,14 @@ var file_yt_yt_core_rpc_unittests_lib_my_service_proto_goTypes = []interface{}{
 	(*TRspGetTraceBaggage)(nil),           // 37: NMyRpc.TRspGetTraceBaggage
 	(*TReqCustomMetadata)(nil),            // 38: NMyRpc.TReqCustomMetadata
 	(*TRspCustomMetadata)(nil),            // 39: NMyRpc.TRspCustomMetadata
-	nil,                                   // 40: NMyRpc.TRspCustomMetadata.ParsedCustomMetadataEntry
-	(*misc.TGuid)(nil),                    // 41: NYT.NProto.TGuid
+	(*TReqGetChannelFailureError)(nil),    // 40: NMyRpc.TReqGetChannelFailureError
+	(*TRspGetChannelFailureError)(nil),    // 41: NMyRpc.TRspGetChannelFailureError
+	nil,                                   // 42: NMyRpc.TRspCustomMetadata.ParsedCustomMetadataEntry
+	(*misc.TGuid)(nil),                    // 43: NYT.NProto.TGuid
 }
 var file_yt_yt_core_rpc_unittests_lib_my_service_proto_depIdxs = []int32{
-	41, // 0: NMyRpc.TRspPassCall.mutation_id:type_name -> NYT.NProto.TGuid
-	40, // 1: NMyRpc.TRspCustomMetadata.parsed_custom_metadata:type_name -> NMyRpc.TRspCustomMetadata.ParsedCustomMetadataEntry
+	43, // 0: NMyRpc.TRspPassCall.mutation_id:type_name -> NYT.NProto.TGuid
+	42, // 1: NMyRpc.TRspCustomMetadata.parsed_custom_metadata:type_name -> NMyRpc.TRspCustomMetadata.ParsedCustomMetadataEntry
 	2,  // [2:2] is the sub-list for method output_type
 	2,  // [2:2] is the sub-list for method input_type
 	2,  // [2:2] is the sub-list for extension type_name
@@ -2336,6 +2429,30 @@ func file_yt_yt_core_rpc_unittests_lib_my_service_proto_init() {
 				return nil
 			}
 		}
+		file_yt_yt_core_rpc_unittests_lib_my_service_proto_msgTypes[40].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TReqGetChannelFailureError); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yt_yt_core_rpc_unittests_lib_my_service_proto_msgTypes[41].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TRspGetChannelFailureError); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -2343,7 +2460,7 @@ func file_yt_yt_core_rpc_unittests_lib_my_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_yt_yt_core_rpc_unittests_lib_my_service_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   41,
+			NumMessages:   43,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
