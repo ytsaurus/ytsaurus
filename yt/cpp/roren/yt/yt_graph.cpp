@@ -914,7 +914,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<TYtGraph> BuildYtGraph(const TPipeline& pipeline, const TYtPipelineConfig& config)
+std::unique_ptr<IYtGraph> BuildYtGraph(const TPipeline& pipeline, const TYtPipelineConfig& config)
 {
     auto graph = std::make_unique<TYtGraph>(config);
     TBuildingVisitor visitor(config, graph.get());

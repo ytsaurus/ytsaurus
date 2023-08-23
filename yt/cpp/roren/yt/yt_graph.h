@@ -15,12 +15,27 @@ class TYtPipelineConfig;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYtGraph
+class IYtGraph
 {
 public:
     using TTableNodeId = int;
     using TOperationNodeId = int;
 
+public:
+    virtual ~IYtGraph() = default;
+
+    virtual void Optimize() = 0;
+
+    virtual std::vector<std::vector<TOperationNodeId>> GetOperationLevels() const = 0;
+    virtual NYT::IOperationPtr StartOperation(const NYT::IClientBasePtr& client, TOperationNodeId id) const = 0;
+
+    virtual TString DumpDOTSubGraph(const TString& name) const = 0;
+    virtual TString DumpDOT(const TString& prefix) const = 0;  // dump graph in DOT format
+};
+
+class TYtGraph
+    : public IYtGraph
+{
 private:
     class TTableNode;
 
@@ -30,14 +45,14 @@ private:
 
 public:
     TYtGraph(const TYtPipelineConfig& config);
-    ~TYtGraph();
-    void Optimize();
+    ~TYtGraph() override;
+    void Optimize() override;
 
-    std::vector<std::vector<TYtGraph::TOperationNodeId>> GetOperationLevels() const;
-    NYT::IOperationPtr StartOperation(const NYT::IClientBasePtr& client, TOperationNodeId id) const;
+    std::vector<std::vector<TYtGraph::TOperationNodeId>> GetOperationLevels() const override;
+    NYT::IOperationPtr StartOperation(const NYT::IClientBasePtr& client, TOperationNodeId id) const override;
 
-    TString DumpDOTSubGraph(const TString& name) const;
-    TString DumpDOT(const TString& prefix) const;  // dump graph in DOT format
+    TString DumpDOTSubGraph(const TString& name) const override;
+    TString DumpDOT(const TString& prefix) const override;  // dump graph in DOT format
 
 private:
     TTableNodeId AddTableNode(NYT::TRichYPath path, std::optional<NYT::TTableSchema> schema, NPrivate::TRowVtable rowVtable);
@@ -69,7 +84,7 @@ private:
     friend void OptimizeYtGraph(TYtGraph* graph);
 };
 
-std::unique_ptr<TYtGraph> BuildYtGraph(const TPipeline& pipeline, const TYtPipelineConfig& config);
+std::unique_ptr<IYtGraph> BuildYtGraph(const TPipeline& pipeline, const TYtPipelineConfig& config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
