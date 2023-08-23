@@ -30,7 +30,6 @@ target_sources(cpp-roren-interface PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/fn_attributes_ops.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/group_by_key.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/merge_par_dos.cpp
-  ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/optimizer.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/raw_transform.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/raw_coder.cpp
   ${CMAKE_SOURCE_DIR}/yt/cpp/roren/interface/private/raw_multi_write.cpp
