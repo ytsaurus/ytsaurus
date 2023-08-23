@@ -38,8 +38,6 @@ class TObjectServiceCacheConfig
     : public TSlruCacheConfig
 {
 public:
-    double TopEntryByteRateThreshold;
-
     REGISTER_YSON_STRUCT(TObjectServiceCacheConfig);
 
     static void Register(TRegistrar registrar);
@@ -53,7 +51,11 @@ class TObjectServiceCacheDynamicConfig
     : public TSlruCacheDynamicConfig
 {
 public:
-    std::optional<double> TopEntryByteRateThreshold;
+    i64 EntryByteRateLimit;
+    i64 TopEntryByteRateThreshold;
+    TDuration AggregationPeriod;
+    int MinAdvisedStickyGroupSize;
+    int MaxAdvisedStickyGroupSize;
 
     REGISTER_YSON_STRUCT(TObjectServiceCacheDynamicConfig);
 
@@ -69,9 +71,6 @@ class TCachingObjectServiceConfig
     , public TObjectServiceCacheConfig
 {
 public:
-    double CacheTtlRatio;
-    i64 EntryByteRateLimit;
-
     REGISTER_YSON_STRUCT(TCachingObjectServiceConfig);
 
     static void Register(TRegistrar registrar);
@@ -86,8 +85,7 @@ class TCachingObjectServiceDynamicConfig
     , public TObjectServiceCacheDynamicConfig
 {
 public:
-    std::optional<double> CacheTtlRatio;
-    std::optional<i64> EntryByteRateLimit;
+    double CacheTtlRatio;
 
     REGISTER_YSON_STRUCT(TCachingObjectServiceDynamicConfig);
 

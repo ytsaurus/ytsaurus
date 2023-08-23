@@ -49,6 +49,8 @@ class TMasterCacheDynamicConfig
     : public TNativeSingletonsDynamicConfig
 {
 public:
+    NObjectClient::TCachingObjectServiceDynamicConfigPtr CachingObjectService;
+
     REGISTER_YSON_STRUCT(TMasterCacheDynamicConfig);
 
     static void Register(TRegistrar registrar);

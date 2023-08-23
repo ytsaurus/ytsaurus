@@ -35,30 +35,37 @@ void TObjectServiceCacheConfig::Register(TRegistrar registrar)
     registrar.Preprocessor([] (TThis* config) {
         config->Capacity = 1_GB;
     });
-
-    registrar.Parameter("top_entry_byte_rate_threshold", &TThis::TopEntryByteRateThreshold)
-        .Default(10_KB);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TObjectServiceCacheDynamicConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("entry_byte_rate_limit", &TThis::EntryByteRateLimit)
+        .GreaterThan(0)
+        .Default(10_MB);
     registrar.Parameter("top_entry_byte_rate_threshold", &TThis::TopEntryByteRateThreshold)
-        .Optional();
+        .Default(10_KB);
+    registrar.Parameter("aggregation_period", &TThis::AggregationPeriod)
+        .Default(TDuration::Seconds(60));
+    registrar.Parameter("min_advised_sticky_group_size", &TThis::MinAdvisedStickyGroupSize)
+        .GreaterThanOrEqual(1)
+        .Default(1);
+    registrar.Parameter("max_advised_sticky_group_size", &TThis::MaxAdvisedStickyGroupSize)
+        .LessThanOrEqual(1'000)
+        .Default(20);
+
+    registrar.Postprocessor([] (TObjectServiceCacheDynamicConfig* config) {
+        if (config->MinAdvisedStickyGroupSize > config->MaxAdvisedStickyGroupSize) {
+            THROW_ERROR_EXCEPTION("\"min_advised_sticky_group_size\" must be less than or equal to \"max_advised_sticky_group_size\"");
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCachingObjectServiceConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("cache_ttl_ratio", &TThis::CacheTtlRatio)
-        .InRange(0, 1)
-        .Default(0.5);
-    registrar.Parameter("entry_byte_rate_limit", &TThis::EntryByteRateLimit)
-        .GreaterThan(0)
-        .Default(10_MB);
-}
+void TCachingObjectServiceConfig::Register(TRegistrar /*registrar*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,10 +73,7 @@ void TCachingObjectServiceDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("cache_ttl_ratio", &TThis::CacheTtlRatio)
         .InRange(0, 1)
-        .Optional();
-    registrar.Parameter("entry_byte_rate_limit", &TThis::EntryByteRateLimit)
-        .GreaterThan(0)
-        .Optional();
+        .Default(0.5);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -39,8 +39,11 @@ void TMasterCacheConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TMasterCacheDynamicConfig::Register(TRegistrar /*registrar*/)
-{ }
+void TMasterCacheDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("caching_object_service", &TThis::CachingObjectService)
+        .DefaultNew();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

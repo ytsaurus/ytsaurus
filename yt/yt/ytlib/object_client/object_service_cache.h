@@ -57,7 +57,8 @@ public:
         NHydra::TRevision revision,
         TInstant timestamp,
         TSharedRefArray responseMessage,
-        TAverageHistoricUsageAggregator byteRateAggregator);
+        TDuration aggregationPeriod,
+        const TObjectServiceCacheEntryPtr& expiredEntry);
 
     DEFINE_BYVAL_RO_PROPERTY(bool, Success);
     DEFINE_BYVAL_RO_PROPERTY(TSharedRefArray, ResponseMessage);
@@ -65,16 +66,22 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TInstant, Timestamp);
     DEFINE_BYVAL_RO_PROPERTY(NHydra::TRevision, Revision);
 
-    void UpdateByteRateOnRequest();
-    double GetByteRate() const;
-
-    TAverageHistoricUsageAggregator GetByteRateAggregator() const;
+    i64 GetByteRate() const;
+    i64 GetTotalByteRate() const;
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    friend class TObjectServiceCache;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ByteRateAggregatorLock_);
     mutable TAverageHistoricUsageAggregator ByteRateAggregator_;
 
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, TotalByteRateAggregatorLock_);
+    mutable TAverageHistoricUsageAggregator TotalByteRateAggregator_;
+
     i64 ComputeExtraSpace() const;
+
+    void UpdateByteRate();
+    void UpdateTotalByteRate(int stickyGroupSize);
 };
 
 DEFINE_REFCOUNTED_TYPE(TObjectServiceCacheEntry)
@@ -133,6 +140,9 @@ public:
         NHydra::TRevision revision,
         bool success);
 
+    void UpdateAdvisedEntryStickyGroupSize(const TObjectServiceCacheEntryPtr& entry, int currentSize);
+    int GetAdvisedEntryStickyGroupSize(const TObjectServiceCacheEntryPtr& entry);
+
     NYTree::IYPathServicePtr GetOrchidService();
 
     void Configure(const TObjectServiceCacheDynamicConfigPtr& config);
@@ -142,7 +152,11 @@ private:
     const NLogging::TLogger Logger;
     const NProfiling::TProfiler Profiler_;
 
+    std::atomic<i64> EntryByteRateLimit_;
     std::atomic<double> TopEntryByteRateThreshold_;
+    std::atomic<TDuration> AggregationPeriod_;
+    std::atomic<int> MinAdvisedStickyGroupSize_;
+    std::atomic<int> MaxAdvisedStickyGroupSize_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
 

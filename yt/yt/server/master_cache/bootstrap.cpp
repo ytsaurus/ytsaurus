@@ -127,6 +127,11 @@ public:
         return NativeAuthenticator_;
     }
 
+    const TDynamicConfigManagerPtr& GetDynamicConfigManger() const override
+    {
+        return DynamicConfigManager_;
+    }
+
 private:
     const TMasterCacheConfigPtr Config_;
 
@@ -287,6 +292,11 @@ const IInvokerPtr& TBootstrapBase::GetControlInvoker() const
 const NRpc::IAuthenticatorPtr& TBootstrapBase::GetNativeAuthenticator() const
 {
     return Bootstrap_->GetNativeAuthenticator();
+}
+
+const TDynamicConfigManagerPtr& TBootstrapBase::GetDynamicConfigManger() const
+{
+    return Bootstrap_->GetDynamicConfigManger();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
