@@ -118,6 +118,7 @@ struct TMemoryLimits
     std::optional<i64> TabletDynamic;
     std::optional<i64> CompressedBlockCache;
     std::optional<i64> UncompressedBlockCache;
+    std::optional<i64> KeyFilterBlockCache;
     std::optional<i64> VersionedChunkMeta;
     std::optional<i64> LookupRowCache;
 
