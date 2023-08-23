@@ -111,33 +111,55 @@ TObjectServiceCacheEntry::TObjectServiceCacheEntry(
     NHydra::TRevision revision,
     TInstant timestamp,
     TSharedRefArray responseMessage,
-    TAverageHistoricUsageAggregator byteRateAggregator)
+    TDuration aggregationPeriod,
+    const TObjectServiceCacheEntryPtr& expiredEntry)
     : TAsyncCacheValueBase(key)
     , Success_(success)
     , ResponseMessage_(std::move(responseMessage))
     , Timestamp_(timestamp)
     , Revision_(revision)
-    , ByteRateAggregator_(std::move(byteRateAggregator))
 {
+    if (expiredEntry) {
+        {
+            auto guard = Guard(expiredEntry->ByteRateAggregatorLock_);
+            ByteRateAggregator_ = expiredEntry->ByteRateAggregator_;
+        }
+        {
+            auto guard = Guard(expiredEntry->TotalByteRateAggregatorLock_);
+            TotalByteRateAggregator_ = expiredEntry->TotalByteRateAggregator_;
+        }
+    } else {
+        THistoricUsageAggregationParameters params(
+            EHistoricUsageAggregationMode::ExponentialMovingAverage,
+            1.0 / aggregationPeriod.SecondsFloat());
+        ByteRateAggregator_.UpdateParameters(params);
+        TotalByteRateAggregator_.UpdateParameters(params);
+    }
     TotalSpace_ = sizeof(*this) + ComputeExtraSpace();
 }
 
-void TObjectServiceCacheEntry::UpdateByteRateOnRequest()
+i64 TObjectServiceCacheEntry::GetByteRate() const
 {
-    auto guard = Guard(Lock_);
+    auto guard = Guard(ByteRateAggregatorLock_);
+    return static_cast<i64>(ByteRateAggregator_.GetHistoricUsage());
+}
+
+i64 TObjectServiceCacheEntry::GetTotalByteRate() const
+{
+    auto guard = Guard(TotalByteRateAggregatorLock_);
+    return static_cast<i64>(TotalByteRateAggregator_.GetHistoricUsage());
+}
+
+void TObjectServiceCacheEntry::UpdateByteRate()
+{
+    auto guard = Guard(ByteRateAggregatorLock_);
     ByteRateAggregator_.UpdateAt(GetInstant(), TotalSpace_);
 }
 
-double TObjectServiceCacheEntry::GetByteRate() const
+void TObjectServiceCacheEntry::UpdateTotalByteRate(int stickyGroupSize)
 {
-    auto guard = Guard(Lock_);
-    return ByteRateAggregator_.GetHistoricUsage();
-}
-
-TAverageHistoricUsageAggregator TObjectServiceCacheEntry::GetByteRateAggregator() const
-{
-    auto guard = Guard(Lock_);
-    return ByteRateAggregator_;
+    auto guard = Guard(TotalByteRateAggregatorLock_);
+    TotalByteRateAggregator_.UpdateAt(GetInstant(), TotalSpace_ * stickyGroupSize);
 }
 
 i64 TObjectServiceCacheEntry::ComputeExtraSpace() const
@@ -181,8 +203,9 @@ TObjectServiceCache::TObjectServiceCache(
     , Config_(std::move(config))
     , Logger(logger)
     , Profiler_(profiler.WithSparse())
-    , TopEntryByteRateThreshold_(Config_->TopEntryByteRateThreshold)
-{ }
+{
+    Configure(New<TObjectServiceCacheDynamicConfig>());
+}
 
 TObjectServiceCache::TCookie TObjectServiceCache::BeginLookup(
     TRequestId requestId,
@@ -282,24 +305,16 @@ void TObjectServiceCache::EndLookup(
         revision,
         success);
 
-    std::optional<TAverageHistoricUsageAggregator> byteRateAggregator;
+    TObjectServiceCacheEntryPtr expiredEntry;
     {
         auto guard = WriterGuard(ExpiredEntriesLock_);
 
         if (auto it = ExpiredEntries_.find(key); it != ExpiredEntries_.end()) {
-            const auto& expiredEntry = it->second;
-            byteRateAggregator.emplace(expiredEntry->GetByteRateAggregator());
+            expiredEntry = std::move(it->second);
             ExpiredEntries_.erase(it);
         }
     }
     MaybeEraseTopEntry(key);
-
-    if (!byteRateAggregator) {
-        byteRateAggregator.emplace();
-        byteRateAggregator->UpdateParameters(THistoricUsageAggregationParameters(
-            EHistoricUsageAggregationMode::ExponentialMovingAverage,
-            1.0 / 60.0));
-    }
 
     auto entry = New<TObjectServiceCacheEntry>(
         key,
@@ -307,10 +322,26 @@ void TObjectServiceCache::EndLookup(
         revision,
         TInstant::Now(),
         TSharedRefArray::MakeCopy(responseMessage, GetRefCountedTypeCookie<TCachedObjectServiceResponseTag>()),
-        *byteRateAggregator);
+        AggregationPeriod_.load(std::memory_order::relaxed),
+        expiredEntry);
     TouchEntry(entry, /*forceRenewTop*/ true);
 
     cookie.EndInsert(entry);
+}
+
+void TObjectServiceCache::UpdateAdvisedEntryStickyGroupSize(const TObjectServiceCacheEntryPtr& entry, int currentSize)
+{
+    entry->UpdateTotalByteRate(currentSize);
+}
+
+int TObjectServiceCache::GetAdvisedEntryStickyGroupSize(const TObjectServiceCacheEntryPtr& entry)
+{
+    auto totalByteRate = entry->GetTotalByteRate();
+    int advisedSize = 1 + static_cast<int>(totalByteRate / EntryByteRateLimit_.load(std::memory_order::relaxed));
+    return std::clamp(
+        advisedSize,
+        MinAdvisedStickyGroupSize_.load(std::memory_order::relaxed),
+        MaxAdvisedStickyGroupSize_.load(std::memory_order::relaxed));
 }
 
 IYPathServicePtr TObjectServiceCache::GetOrchidService()
@@ -322,8 +353,11 @@ IYPathServicePtr TObjectServiceCache::GetOrchidService()
 void TObjectServiceCache::Configure(const TObjectServiceCacheDynamicConfigPtr& config)
 {
     TMemoryTrackingAsyncSlruCacheBase::Reconfigure(config);
-    TopEntryByteRateThreshold_.store(config->TopEntryByteRateThreshold.value_or(
-        Config_->TopEntryByteRateThreshold));
+    EntryByteRateLimit_.store(config->EntryByteRateLimit);
+    TopEntryByteRateThreshold_.store(config->TopEntryByteRateThreshold);
+    AggregationPeriod_.store(config->AggregationPeriod);
+    MinAdvisedStickyGroupSize_.store(config->MinAdvisedStickyGroupSize);
+    MaxAdvisedStickyGroupSize_.store(config->MaxAdvisedStickyGroupSize);
 }
 
 TCacheProfilingCountersPtr TObjectServiceCache::GetProfilingCounters(const TString& user, const TString& method)
@@ -419,10 +453,10 @@ void TObjectServiceCache::TouchEntry(const TObjectServiceCacheEntryPtr& entry, b
     const auto& key = entry->GetKey();
 
     auto previous = entry->GetByteRate();
-    entry->UpdateByteRateOnRequest();
+    entry->UpdateByteRate();
     auto current = entry->GetByteRate();
 
-    auto topEntryByteRateThreshold = TopEntryByteRateThreshold_.load();
+    auto topEntryByteRateThreshold = TopEntryByteRateThreshold_.load(std::memory_order::relaxed);
     if ((previous < topEntryByteRateThreshold && current >= topEntryByteRateThreshold) || forceRenewTop) {
         auto guard = WriterGuard(TopEntriesLock_);
 
@@ -455,7 +489,9 @@ void TObjectServiceCache::DoBuildOrchid(IYsonConsumer* consumer)
     struct TFrozenEntry
     {
         TObjectServiceCacheKey Key;
-        double ByteRate;
+        i64 ByteRate;
+        i64 TotalByteRate;
+        int AdvisedStickyGroupSize;
     };
 
     std::vector<TFrozenEntry> top;
@@ -464,7 +500,9 @@ void TObjectServiceCache::DoBuildOrchid(IYsonConsumer* consumer)
         for (const auto& [key, entry] : TopEntries_) {
             top.push_back({
                 .Key = key,
-                .ByteRate = entry->GetByteRate()
+                .ByteRate = entry->GetByteRate(),
+                .TotalByteRate = entry->GetTotalByteRate(),
+                .AdvisedStickyGroupSize = GetAdvisedEntryStickyGroupSize(entry),
             });
         }
     }
@@ -486,6 +524,8 @@ void TObjectServiceCache::DoBuildOrchid(IYsonConsumer* consumer)
                             .Item("path").Value(item.Key.Path)
                             .Item("request_body_hash").Value(item.Key.RequestBodyHash)
                             .Item("byte_rate").Value(item.ByteRate)
+                            .Item("total_byte_rate").Value(item.TotalByteRate)
+                            .Item("advised_sticky_group_size").Value(item.AdvisedStickyGroupSize)
                         .EndMap();
                 })
         .EndMap();

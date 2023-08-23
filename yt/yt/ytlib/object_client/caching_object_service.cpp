@@ -64,8 +64,6 @@ public:
         , CellId_(masterCellId)
         , CypressChannel_(std::move(cypressChannel))
         , Logger(logger.WithTag("RealmId: %v", masterCellId))
-        , CacheTtlRatio_(Config_->CacheTtlRatio)
-        , EntryByteRateLimit_(Config_->EntryByteRateLimit)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
             .SetQueueSizeLimit(10'000)
@@ -74,6 +72,8 @@ public:
 
         DeclareServerFeature(EMasterFeature::Portals);
         DeclareServerFeature(EMasterFeature::PortalExitSynchronization);
+
+        Reconfigure(New<TCachingObjectServiceDynamicConfig>());
     }
 
     TCachingObjectService(
@@ -118,8 +118,7 @@ public:
     void Reconfigure(const TCachingObjectServiceDynamicConfigPtr& config) override
     {
         CypressChannel_->Reconfigure(config);
-        CacheTtlRatio_.store(config->CacheTtlRatio.value_or(Config_->CacheTtlRatio));
-        EntryByteRateLimit_.store(config->EntryByteRateLimit.value_or(Config_->EntryByteRateLimit));
+        CacheTtlRatio_.store(config->CacheTtlRatio);
     }
 
 private:
@@ -134,7 +133,6 @@ private:
     const IRequestQueueProviderPtr ExecuteRequestQueueProvider_ = New<TPerUserRequestQueueProvider>();
 
     std::atomic<double> CacheTtlRatio_;
-    std::atomic<i64> EntryByteRateLimit_;
 
     std::atomic<bool> CachingEnabled_ = false;
 
@@ -328,17 +326,15 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
             for (int subrequestIndex = 0; subrequestIndex < request->part_counts_size(); ++subrequestIndex) {
                 const auto& cacheEntry = cacheEntries[subrequestIndex];
                 if (request->has_current_sticky_group_size()) {
-                    auto currentStickyGroupSize = request->current_sticky_group_size();
-                    auto totalSize = cacheEntry->GetByteRate() * currentStickyGroupSize;
-                    auto advisedStickyGroupSize = 1 + static_cast<int>(totalSize / EntryByteRateLimit_.load());
-                    YT_LOG_DEBUG_IF(
-                        advisedStickyGroupSize != currentStickyGroupSize,
-                        "Cache sticky group size advised (RequestId: %v, Key: %v, Size: %v -> %v)",
+                    auto currentSize = request->current_sticky_group_size();
+                    Cache_->UpdateAdvisedEntryStickyGroupSize(cacheEntry, currentSize);
+                    int advisedSize = Cache_->GetAdvisedEntryStickyGroupSize(cacheEntry);
+                    YT_LOG_DEBUG("Cache sticky group size advised (RequestId: %v, Key: %v, CurrentSize: %v, AdvisedSize: %v)",
                         requestId,
                         cacheEntry->GetKey(),
-                        currentStickyGroupSize,
-                        advisedStickyGroupSize);
-                    response->add_advised_sticky_group_size(advisedStickyGroupSize);
+                        currentSize,
+                        advisedSize);
+                    response->add_advised_sticky_group_size(advisedSize);
                 }
                 const auto& responseMessage = cacheEntry->GetResponseMessage();
                 response->add_part_counts(responseMessage.Size());

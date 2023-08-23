@@ -28,6 +28,7 @@ struct IBootstrap
     virtual const NRpc::IServerPtr& GetRpcServer() const = 0;
     virtual const IInvokerPtr& GetControlInvoker() const = 0;
     virtual const NRpc::IAuthenticatorPtr& GetNativeAuthenticator() const = 0;
+    virtual const TDynamicConfigManagerPtr& GetDynamicConfigManger() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -49,6 +50,7 @@ public:
     const NRpc::IServerPtr& GetRpcServer() const override;
     const IInvokerPtr& GetControlInvoker() const override;
     const NRpc::IAuthenticatorPtr& GetNativeAuthenticator() const override;
+    const TDynamicConfigManagerPtr& GetDynamicConfigManger() const override;
 
 private:
     IBootstrap* const Bootstrap_;

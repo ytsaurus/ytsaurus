@@ -489,7 +489,7 @@ void TObjectServiceProxy::TReqExecuteBatch::SetBalancingHeader()
     auto stickyGroupSize = *StickyGroupSize_;
     if (auto advisedStickyGroupSize = GetAdvisedStickyGroupSize()) {
         stickyGroupSize = std::max(stickyGroupSize, *advisedStickyGroupSize);
-        YT_LOG_DEBUG("Using advised sticky group size (RequestId: %v, ProvidedSize: %v, AdviseSize: %v)",
+        YT_LOG_DEBUG("Using advised sticky group size (RequestId: %v, ProvidedSize: %v, AdvisedSize: %v)",
             GetRequestId(),
             stickyGroupSize,
             *advisedStickyGroupSize);
