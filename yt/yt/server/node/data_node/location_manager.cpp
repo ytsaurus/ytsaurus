@@ -373,7 +373,8 @@ void TLocationHealthChecker::OnDiskHealthCheck(const std::vector<TDiskInfo>& dis
 
     if (!oldDiskIds.empty() && !configDiskIds.empty()) {
         if (!checkDisks(oldDiskIds, aliveDiskIds) ||
-            !checkDisks(configDiskIds, diskIds))
+            !checkDisks(configDiskIds, diskIds) ||
+            !checkDisks(diskIds, configDiskIds))
         {
             YT_LOG_WARNING("Set disk ids mismatched flag");
             LocationManager_->SetDiskIdsMismatched();
