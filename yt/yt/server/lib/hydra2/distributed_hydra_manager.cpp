@@ -2464,7 +2464,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto selfPeerId = electionEpochContext->CellManager->GetSelfPeerId();
-        auto voting = electionEpochContext->CellManager->GetPeerConfig(selfPeerId).Voting;
+        auto voting = electionEpochContext->CellManager->GetPeerConfig(selfPeerId)->Voting;
 
         auto epochContext = New<TEpochContext>();
         epochContext->CellManager = electionEpochContext->CellManager;

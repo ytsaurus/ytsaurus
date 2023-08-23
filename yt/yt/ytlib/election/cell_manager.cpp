@@ -56,7 +56,7 @@ TPeerId TCellManager::GetSelfPeerId() const
     return SelfId_;
 }
 
-const TCellPeerConfig& TCellManager::GetSelfConfig() const
+const TCellPeerConfigPtr& TCellManager::GetSelfConfig() const
 {
     return GetPeerConfig(GetSelfPeerId());
 }
@@ -76,7 +76,7 @@ int TCellManager::GetTotalPeerCount() const
     return TotalPeerCount_;
 }
 
-const TCellPeerConfig& TCellManager::GetPeerConfig(TPeerId id) const
+const TCellPeerConfigPtr& TCellManager::GetPeerConfig(TPeerId id) const
 {
     return Config_->Peers[id];
 }
@@ -86,19 +86,21 @@ IChannelPtr TCellManager::GetPeerChannel(TPeerId id) const
     return PeerChannels_[id];
 }
 
-IChannelPtr TCellManager::CreatePeerChannel(TPeerId id, const TCellPeerConfig& config)
+IChannelPtr TCellManager::CreatePeerChannel(TPeerId id, const TCellPeerConfigPtr& config)
 {
-    if (config.AlienCluster) {
+    if (config->AlienCluster) {
         return AlienCellPeerChannelFactory_->CreateChannel(
-            *config.AlienCluster,
+            *config->AlienCluster,
             Config_->CellId,
             id);
     }
-    if (!config.Address) {
+
+    if (!config->Address) {
         return nullptr;
     }
+
     return CreateRealmChannel(
-        ChannelFactory_->CreateChannel(*config.Address),
+        ChannelFactory_->CreateChannel(*config->Address),
         Config_->CellId);
 }
 

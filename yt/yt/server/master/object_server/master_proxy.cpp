@@ -230,8 +230,8 @@ private:
                 ToProto(cellItem->mutable_cell_id(), cellConfig->CellId);
 
                 for (const auto& peerConfig : cellConfig->Peers) {
-                    if (peerConfig.Address) {
-                        cellItem->add_addresses(*peerConfig.Address);
+                    if (peerConfig->Address) {
+                        cellItem->add_addresses(*peerConfig->Address);
                     }
                 }
 

@@ -47,11 +47,11 @@ public:
     TCellPeerDescriptor();
     TCellPeerDescriptor(const NNodeTrackerClient::TNodeDescriptor& other, bool voting = true);
     TCellPeerDescriptor(const TCellPeerDescriptor& other) = default;
-    TCellPeerDescriptor(const NElection::TCellPeerConfig& config, const NNodeTrackerClient::TNetworkPreferenceList& networks);
+    TCellPeerDescriptor(const NElection::TCellPeerConfigPtr& config, const NNodeTrackerClient::TNetworkPreferenceList& networks);
 
     TCellPeerDescriptor& operator=(const TCellPeerDescriptor& other) = default;
 
-    NElection::TCellPeerConfig ToConfig(const NNodeTrackerClient::TNetworkPreferenceList& networkName) const;
+    NElection::TCellPeerConfigPtr ToConfig(const NNodeTrackerClient::TNetworkPreferenceList& networkName) const;
 };
 
 void ToProto(NProto::TCellPeerDescriptor* protoDescriptor, const TCellPeerDescriptor& descriptor);

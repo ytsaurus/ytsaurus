@@ -31,6 +31,14 @@ def _get_timestamp_provider_addresses(yt_config,
         return master_connection_configs[master_connection_configs["primary_cell_tag"]]["addresses"]
 
 
+def _get_timestamp_provider_peer_configs(yt_config,
+                                         master_connection_configs,
+                                         clock_connection_config,
+                                         timestamp_provider_addresses):
+    addresses = _get_timestamp_provider_addresses(yt_config, master_connection_configs, clock_connection_config, timestamp_provider_addresses)
+    return [{"address" : address} for address in addresses]
+
+
 def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version):
     discovery_configs = _build_discovery_server_configs(
         yt_config,
@@ -282,18 +290,24 @@ def _build_master_configs(yt_config,
     for cell_index in xrange(yt_config.secondary_cell_count + 1):
         cell_ports = []
         cell_addresses = []
+        peer_configs = []
 
         for i in xrange(yt_config.master_count):
             rpc_port, monitoring_port = next(ports_generator), next(ports_generator)
-            address = to_yson_type("{0}:{1}".format(yt_config.fqdn, rpc_port))
+            address = "{0}:{1}".format(yt_config.fqdn, rpc_port)
+            peer_config = {}
+            peer_config["address"] = address
             if i >= yt_config.master_count - nonvoting_master_count:
-                address.attributes["voting"] = False
+                peer_config["voting"] = False
+            peer_configs.append(peer_config)
             cell_addresses.append(address)
             cell_ports.append((rpc_port, monitoring_port))
 
         ports.append(cell_ports)
 
         connection_config = {
+            "peers": peer_configs,
+            # COMPAT(aleksandra-zh)
             "addresses": cell_addresses,
             "cell_id": cell_ids[cell_index]
         }
@@ -342,8 +356,11 @@ def _build_master_configs(yt_config,
                 discovery_server_config["addresses"] = discovery_configs[0]["discovery_server"]["server_addresses"]
                 config["discovery_server"] = discovery_server_config
 
+            # COMPAT(aleksandra-zh)
             set_at(config, "timestamp_provider/addresses",
                    _get_timestamp_provider_addresses(yt_config, connection_configs, clock_connection_config, None))
+            set_at(config, "timestamp_provider/peers",
+                   _get_timestamp_provider_peer_configs(yt_config, connection_configs, clock_connection_config, None))
 
             set_at(config, "snapshots/path",
                    os.path.join(master_dirs[cell_index][master_index], "snapshots"))
@@ -390,15 +407,21 @@ def _build_clock_configs(yt_config, clock_dirs, clock_tmpfs_dirs, ports_generato
 
     ports = []
     cell_addresses = []
+    peer_configs = []
 
     for i in xrange(yt_config.clock_count):
         rpc_port, monitoring_port = next(ports_generator), next(ports_generator)
         address = to_yson_type("{0}:{1}".format(yt_config.fqdn, rpc_port))
         cell_addresses.append(address)
+        peer_config = {}
+        peer_config["address"] = address
+        peer_configs.append(peer_config)
         ports.append((rpc_port, monitoring_port))
 
     connection_config = {
+        # COMPAT(aleksandra-zh)
         "addresses": cell_addresses,
+        "peers": peer_configs,
         "cell_id": cell_id
     }
 
@@ -420,6 +443,7 @@ def _build_clock_configs(yt_config, clock_dirs, clock_tmpfs_dirs, ports_generato
 
         config["clock_cell"] = connection_config
 
+        # COMPAT(aleksandra-zh)
         set_at(config, "timestamp_provider/addresses", connection_config["addresses"])
         set_at(config, "snapshots/path",
                os.path.join(clock_dirs[clock_index], "snapshots"))
@@ -532,8 +556,11 @@ def _build_timestamp_provider_configs(yt_config,
             "timestamp_provider_index": str(index)
         })
 
+        # COMPAT(aleksandra-zh)
         set_at(config, "timestamp_provider/addresses",
                _get_timestamp_provider_addresses(yt_config, master_connection_configs, clock_connection_config, None))
+        set_at(config, "timestamp_provider/peers",
+               _get_timestamp_provider_peer_configs(yt_config, master_connection_configs, clock_connection_config, None))
 
         config["rpc_port"] = next(ports_generator)
         config["monitoring_port"] = next(ports_generator)
@@ -1037,12 +1064,17 @@ def _build_native_driver_configs(master_connection_configs,
                     "sync_period": None
                 },
                 "timestamp_provider": {
+                    # COMPAT(aleksandra-zh)
                     "addresses": _get_timestamp_provider_addresses(
                         yt_config,
                         master_connection_configs,
                         clock_connection_config,
-                        timestamp_provider_addresses,
-                    ),
+                        timestamp_provider_addresses),
+                    "peers": _get_timestamp_provider_peer_configs(
+                        yt_config,
+                        master_connection_configs,
+                        clock_connection_config,
+                        timestamp_provider_addresses),
                 },
                 "transaction_manager": {
                     "default_ping_period": DEFAULT_TRANSACTION_PING_PERIOD
@@ -1198,8 +1230,11 @@ def _build_cluster_connection_config(yt_config,
             "default_ping_period": DEFAULT_TRANSACTION_PING_PERIOD
         },
         "timestamp_provider": {
+            # COMPAT(aleksandra-zh)
             "addresses": _get_timestamp_provider_addresses(yt_config, master_connection_configs,
                                                            clock_connection_config, timestamp_provider_addresses),
+            "peers": _get_timestamp_provider_peer_configs(yt_config, master_connection_configs,
+                                                          clock_connection_config, timestamp_provider_addresses),
             "update_period": 500,
             "soft_backoff_time": 100,
             "hard_backoff_time": 100

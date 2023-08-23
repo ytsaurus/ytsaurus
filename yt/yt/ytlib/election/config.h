@@ -8,24 +8,21 @@ namespace NYT::NElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCellPeerConfig
+class TCellPeerConfig
+    : public NYTree::TYsonStruct
 {
-    TCellPeerConfig();
-    explicit TCellPeerConfig(const std::optional<TString>& address, bool voting = true);
-
+public:
     std::optional<TString> Address;
     std::optional<TString> AlienCluster;
-    bool Voting = true;
+    bool Voting;
+
+    REGISTER_YSON_STRUCT(TCellPeerConfig);
+
+    static void Register(TRegistrar registrar);
 };
+DEFINE_REFCOUNTED_TYPE(TCellPeerConfig)
 
-TString ToString(const TCellPeerConfig& config);
-
-void Serialize(const TCellPeerConfig& config, NYson::IYsonConsumer* consumer);
-void Deserialize(TCellPeerConfig& config, NYTree::INodePtr node);
-void Deserialize(TCellPeerConfig& config, NYson::TYsonPullParserCursor* cursor);
-
-bool operator ==(const TCellPeerConfig& lhs, const TCellPeerConfig& rhs);
-bool operator !=(const TCellPeerConfig& lhs, const TCellPeerConfig& rhs);
+TString ToString(const TCellPeerConfigPtr& config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,7 +35,7 @@ public:
 
     //! Peer addresses.
     //! Some could be Null to indicate that the peer is temporarily missing.
-    std::vector<TCellPeerConfig> Peers;
+    std::vector<TCellPeerConfigPtr> Peers;
 
     void ValidateAllPeersPresent();
 

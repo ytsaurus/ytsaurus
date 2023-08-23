@@ -917,7 +917,7 @@ private:
                 const NElection::TCellConfigPtr& cellConfig)
             {
                 for (const auto& peer : cellConfig->Peers) {
-                    const auto& address = *peer.Address;
+                    const auto& address = *peer->Address;
                     auto addressPath = rootPath + "/" + ToYPathLiteral(address);
                     createOrchidNode(addressPath, address);
 

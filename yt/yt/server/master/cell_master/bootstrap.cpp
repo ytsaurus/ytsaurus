@@ -854,8 +854,8 @@ void TBootstrap::DoInitialize()
     std::vector<TString> addresses;
     addresses.reserve(localCellConfig->Peers.size());
     for (const auto& peer : localCellConfig->Peers) {
-        if (peer.Address) {
-            addresses.push_back(*peer.Address);
+        if (peer->Address) {
+            addresses.push_back(*peer->Address);
         }
     }
 

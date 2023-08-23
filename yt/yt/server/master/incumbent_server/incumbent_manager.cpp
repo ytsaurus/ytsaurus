@@ -173,7 +173,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         const auto& cellManager = Bootstrap_->GetCellManager();
-        return *cellManager->GetSelfConfig().Address;
+        return *cellManager->GetSelfConfig()->Address;
     }
 
     void OnLeaderActive() override
@@ -193,7 +193,7 @@ private:
         for (int peerIndex = 0; peerIndex < peerCount; ++peerIndex) {
             bool leader = peerIndex == cellManager->GetSelfPeerId();
             Peers_.push_back(TPeerState{
-                .Address = *cellManager->GetPeerConfig(peerIndex).Address,
+                .Address = *cellManager->GetPeerConfig(peerIndex)->Address,
                 .Leader = leader,
                 .Online = leader,
             });

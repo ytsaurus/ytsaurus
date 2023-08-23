@@ -765,13 +765,13 @@ bool TDistributedElectionManager::CheckQuorum()
 bool TDistributedElectionManager::IsVotingPeer() const
 {
     const auto& config = CellManager_->GetSelfConfig();
-    return config.Voting;
+    return config->Voting;
 }
 
 bool TDistributedElectionManager::IsVotingPeer(TPeerId peerId) const
 {
     const auto& config = CellManager_->GetPeerConfig(peerId);
-    return config.Voting;
+    return config->Voting;
 }
 
 void TDistributedElectionManager::ContinueVoting(TPeerId voteId, TEpochId voteEpoch)

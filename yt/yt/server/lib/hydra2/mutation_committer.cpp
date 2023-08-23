@@ -618,8 +618,7 @@ void TLeaderCommitter::MaybePromoteCommittedSequenceNumber()
 
     std::vector<i64> loggedNumbers;
     for (int i = 0; i < CellManager_->GetTotalPeerCount(); ++i) {
-        auto voting = CellManager_->GetPeerConfig(i).Voting;
-        if (voting) {
+        if (CellManager_->GetPeerConfig(i)->Voting) {
             loggedNumbers.push_back(PeerStates_[i].LastLoggedSequenceNumber);
         }
     }

@@ -207,7 +207,7 @@ private:
             }
 
             const auto& config = CellManager_->GetPeerConfig(peerId);
-            if (!config.Voting) {
+            if (!config->Voting) {
                 continue;
             }
 

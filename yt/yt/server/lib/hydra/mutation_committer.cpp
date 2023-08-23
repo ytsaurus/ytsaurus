@@ -245,7 +245,7 @@ private:
 
         const auto& rsp = rspOrError.Value();
         if (rsp->logged()) {
-            auto voting = owner->CellManager_->GetPeerConfig(followerId).Voting;
+            auto voting = owner->CellManager_->GetPeerConfig(followerId)->Voting;
             YT_LOG_DEBUG("Mutations are logged by follower (PeerId: %v, Voting: %v, StartVersion: %v, MutationCount: %v, WallTime: %v)",
                 followerId,
                 voting,

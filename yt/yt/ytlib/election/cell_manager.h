@@ -25,13 +25,13 @@ public:
 
     TCellId GetCellId() const;
     TPeerId GetSelfPeerId() const;
-    const TCellPeerConfig& GetSelfConfig() const;
+    const TCellPeerConfigPtr& GetSelfConfig() const;
 
     int GetVotingPeerCount() const;
     int GetQuorumPeerCount() const;
     int GetTotalPeerCount() const;
 
-    const TCellPeerConfig& GetPeerConfig(TPeerId id) const;
+    const TCellPeerConfigPtr& GetPeerConfig(TPeerId id) const;
     NRpc::IChannelPtr GetPeerChannel(TPeerId id) const;
 
 private:
@@ -48,7 +48,7 @@ private:
 
     std::vector<NRpc::IChannelPtr> PeerChannels_;
 
-    NRpc::IChannelPtr CreatePeerChannel(TPeerId id, const TCellPeerConfig& peerConfig);
+    NRpc::IChannelPtr CreatePeerChannel(TPeerId id, const TCellPeerConfigPtr& peerConfig);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCellManager)

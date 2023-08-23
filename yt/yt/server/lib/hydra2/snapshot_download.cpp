@@ -41,7 +41,7 @@ void DoDownloadSnapshot(
     // However, non-voting peers with local snapshot stores are currently not used
     // in practice, and there's no way to distinguish remote and local store
     // at the moment (at least, there's no non-ugly way).
-    if (!cellManager->GetSelfConfig().Voting) {
+    if (!cellManager->GetSelfConfig()->Voting) {
         THROW_ERROR_EXCEPTION("Snapshot downloading by non-voting peers is prohibited");
     }
 

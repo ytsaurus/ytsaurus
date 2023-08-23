@@ -12,92 +12,27 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCellPeerConfig::TCellPeerConfig()
-{ }
+void TCellPeerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("address", &TThis::Address)
+        .Default();
+    registrar.Parameter("alien_cluster", &TThis::AlienCluster)
+        .Default();
+    registrar.Parameter("voting", &TThis::Voting)
+        .Default(true);
+}
 
-TCellPeerConfig::TCellPeerConfig(const std::optional<TString>& address, bool voting)
-    : Address(address)
-    , Voting(voting)
-{ }
-
-TString ToString(const TCellPeerConfig& config)
+TString ToString(const TCellPeerConfigPtr& config)
 {
     TStringBuilder builder;
-    builder.AppendFormat("%v", config.Address);
-    if (config.AlienCluster) {
-        builder.AppendFormat("@%v", *config.AlienCluster);
+    builder.AppendFormat("%v", config->Address);
+    if (config->AlienCluster) {
+        builder.AppendFormat("@%v", *config->AlienCluster);
     }
-    if (!config.Voting) {
+    if (!config->Voting) {
         builder.AppendString(" (non-voting)");
     }
     return builder.Flush();
-}
-
-void Serialize(const TCellPeerConfig& config, IYsonConsumer* consumer)
-{
-    if (!config.Voting || config.AlienCluster) {
-        consumer->OnBeginAttributes();
-
-        if (!config.Voting) {
-            consumer->OnKeyedItem("voting");
-            consumer->OnBooleanScalar(false);
-        }
-
-        if (config.AlienCluster) {
-            consumer->OnKeyedItem("alien_cluster");
-            consumer->OnStringScalar(*config.AlienCluster);
-        }
-
-        consumer->OnEndAttributes();
-    }
-    if (config.Address) {
-        consumer->OnStringScalar(*config.Address);
-    } else {
-        consumer->OnEntity();
-    }
-}
-
-void Deserialize(TCellPeerConfig& config, INodePtr node)
-{
-    config.Address = node->GetType() == ENodeType::Entity ? std::nullopt : std::make_optional(node->GetValue<TString>());
-    config.Voting = node->Attributes().Get<bool>("voting", true);
-    config.AlienCluster = node->Attributes().Find<TString>("alien_cluster");
-}
-
-void Deserialize(TCellPeerConfig& config, TYsonPullParserCursor* cursor)
-{
-    config.Address.reset();
-    config.Voting = true;
-    config.AlienCluster.reset();
-
-    if ((*cursor)->GetType() == EYsonItemType::BeginAttributes) {
-        cursor->ParseAttributes([&](TYsonPullParserCursor* cursor) {
-            auto key = (*cursor)->UncheckedAsString();
-            if (key == "voting") {
-                cursor->Next();
-                config.Voting = ExtractTo<bool>(cursor);
-            } else if (key == "alien_cluster") {
-                cursor->Next();
-                config.AlienCluster = ExtractTo<TString>(cursor);
-            }
-        });
-    }
-    if ((*cursor)->GetType() != EYsonItemType::EntityValue) {
-        EnsureYsonToken("TCellPeerConfig", *cursor, EYsonItemType::StringValue);
-        config.Address = ExtractTo<TString>(cursor);
-    }
-}
-
-bool operator ==(const TCellPeerConfig& lhs, const TCellPeerConfig& rhs)
-{
-    return
-        lhs.Address == rhs.Address &&
-        lhs.Voting == rhs.Voting;
-}
-
-bool operator !=(const TCellPeerConfig& lhs, const TCellPeerConfig& rhs)
-{
-    return !(lhs == rhs);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -105,8 +40,7 @@ bool operator !=(const TCellPeerConfig& lhs, const TCellPeerConfig& rhs)
 void TCellConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("cell_id", &TThis::CellId);
-    // TODO(babenko): rename to peers?
-    registrar.Parameter("addresses", &TThis::Peers);
+    registrar.Parameter("peers", &TThis::Peers);
 
     registrar.Postprocessor([] (TThis* config) {
         auto type = TypeFromId(config->CellId);
@@ -124,7 +58,7 @@ void TCellConfig::Register(TRegistrar registrar)
 
         int votingPeerCount = 0;
         for (const auto& peer : config->Peers) {
-            if (peer.Voting) {
+            if (peer->Voting) {
                 ++votingPeerCount;
             }
         }
@@ -138,7 +72,7 @@ void TCellConfig::Register(TRegistrar registrar)
 void TCellConfig::ValidateAllPeersPresent()
 {
     for (int index = 0; index < std::ssize(Peers); ++index) {
-        if (!Peers[index].Address) {
+        if (!Peers[index]->Address) {
             THROW_ERROR_EXCEPTION("Peer %v is missing in configuration of cell %v",
                 index,
                 CellId);
@@ -150,7 +84,7 @@ int TCellConfig::CountVotingPeers() const
 {
     int votingPeerCount = 0;
     for (const auto& peer : Peers) {
-        if (peer.Voting) {
+        if (peer->Voting) {
             ++votingPeerCount;
         }
     }
@@ -161,7 +95,7 @@ int TCellConfig::CountVotingPeers() const
 int TCellConfig::FindPeerId(const TString& address) const
 {
     for (TPeerId id = 0; id < std::ssize(Peers); ++id) {
-        const auto& peerAddress = Peers[id].Address;
+        const auto& peerAddress = Peers[id]->Address;
         if (peerAddress && to_lower(*peerAddress) == to_lower(address)) {
             return id;
         }

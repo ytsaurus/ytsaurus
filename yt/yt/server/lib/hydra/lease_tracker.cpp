@@ -129,7 +129,7 @@ private:
             req->add_alive_peer_ids(peerId);
         }
 
-        bool voting = Owner_->EpochContext_->CellManager->GetPeerConfig(followerId).Voting;
+        bool voting = Owner_->EpochContext_->CellManager->GetPeerConfig(followerId)->Voting;
         AsyncResults_.push_back(req->Invoke().Apply(
             BIND(&TFollowerPinger::OnResponse, MakeStrong(this), followerId, voting)
                 .Via(epochContext->EpochControlInvoker)));

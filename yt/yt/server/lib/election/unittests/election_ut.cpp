@@ -73,7 +73,9 @@ public:
 
         auto cellConfig = New<TCellConfig>();
         for (int id = 0; id < peerCount; ++id) {
-            cellConfig->Peers.push_back(TCellPeerConfig(GetPeerAddress(id)));
+            auto peerConfig = New<TCellPeerConfig>();
+            peerConfig->Address = GetPeerAddress(id);
+            cellConfig->Peers.push_back(peerConfig);
         }
 
         auto cellManager = New<TCellManager>(cellConfig, ChannelFactory, nullptr, selfId);

@@ -139,7 +139,7 @@ private:
             return;
         }
 
-        auto voting = EpochContext_->CellManager->GetPeerConfig(id).Voting;
+        auto voting = EpochContext_->CellManager->GetPeerConfig(id)->Voting;
         YT_LOG_INFO("Remote changelog acquired by follower (PeerId: %v, Voting: %v)",
             id,
             voting);

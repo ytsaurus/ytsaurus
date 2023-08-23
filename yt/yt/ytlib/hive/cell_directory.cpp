@@ -160,16 +160,16 @@ TCellPeerDescriptor::TCellPeerDescriptor(const TNodeDescriptor& other, bool voti
 
 namespace {
 
-TAddressMap ToAddressMap(const TCellPeerConfig& config, const TNetworkPreferenceList& networks)
+TAddressMap ToAddressMap(const TCellPeerConfigPtr& config, const TNetworkPreferenceList& networks)
 {
     TAddressMap result;
-    if (config.Address) {
+    if (config->Address) {
         result.reserve(networks.size() + 1);
         for (const auto& network : networks) {
-            EmplaceOrCrash(result, network, *config.Address);
+            EmplaceOrCrash(result, network, *config->Address);
         }
         // Default network must always be present in address map.
-        result.emplace(DefaultNetworkName, *config.Address);
+        result.emplace(DefaultNetworkName, *config->Address);
     }
     return result;
 }
@@ -177,18 +177,18 @@ TAddressMap ToAddressMap(const TCellPeerConfig& config, const TNetworkPreference
 } // namespace
 
 TCellPeerDescriptor::TCellPeerDescriptor(
-    const TCellPeerConfig& config,
+    const TCellPeerConfigPtr& config,
     const TNetworkPreferenceList& networks)
     : TNodeDescriptor(ToAddressMap(config, networks))
-    , Voting_(config.Voting)
+    , Voting_(config->Voting)
 { }
 
-TCellPeerConfig TCellPeerDescriptor::ToConfig(const TNetworkPreferenceList& networks) const
+TCellPeerConfigPtr TCellPeerDescriptor::ToConfig(const TNetworkPreferenceList& networks) const
 {
-    TCellPeerConfig config;
-    config.Voting = Voting_;
-    config.Address = IsNull() ? std::nullopt : std::make_optional(GetAddressOrThrow(networks));
-    config.AlienCluster = AlienCluster_;
+    auto config = New<TCellPeerConfig>();
+    config->Voting = Voting_;
+    config->Address = IsNull() ? std::nullopt : std::make_optional(GetAddressOrThrow(networks));
+    config->AlienCluster = AlienCluster_;
     return config;
 }
 
@@ -461,7 +461,9 @@ public:
         cellConfig->CellId = config->CellId;
         if (config->Addresses) {
             for (const auto& address : *config->Addresses) {
-                cellConfig->Peers.emplace_back(address);
+                auto peerConfig = New<TCellPeerConfig>();
+                peerConfig->Address = address;
+                cellConfig->Peers.push_back(peerConfig);
             }
         }
         return ReconfigureCell(cellConfig, configVersion);

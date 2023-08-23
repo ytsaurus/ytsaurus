@@ -211,7 +211,7 @@ private:
             }
 
             const auto& config = CellManager_->GetPeerConfig(peerId);
-            if (!config.Voting) {
+            if (!config->Voting) {
                 continue;
             }
 
@@ -307,7 +307,7 @@ public:
         YT_VERIFY(Config_);
         YT_VERIFY(CellManager_);
 
-        YT_VERIFY(CellManager_->GetSelfConfig().Voting);
+        YT_VERIFY(CellManager_->GetSelfConfig()->Voting);
         RegisterSuccess(localChangelogId, localTerm);
     }
 
@@ -357,7 +357,7 @@ private:
             }
 
             const auto& config = CellManager_->GetPeerConfig(peerId);
-            if (!config.Voting) {
+            if (!config->Voting) {
                 continue;
             }
 
