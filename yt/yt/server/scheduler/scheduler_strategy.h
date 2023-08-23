@@ -226,7 +226,7 @@ struct ISchedulerStrategy
 
     //! Out of the pool trees specified for the operation, choose one most suitable tree
     //! depending on the operation's demand and current resource usage in each tree.
-    virtual TString ChooseBestSingleTreeForOperation(TOperationId operationId, TJobResources newDemand) = 0;
+    virtual TErrorOr<TString> ChooseBestSingleTreeForOperation(TOperationId operationId, TJobResources newDemand, bool considerGuaranteesForSingleTree) = 0;
 
     //! Error results in operation's failure.
     virtual TError OnOperationMaterialized(TOperationId operationId) = 0;

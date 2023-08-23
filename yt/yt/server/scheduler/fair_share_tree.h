@@ -50,7 +50,7 @@ struct TPoolsUpdateResult
 struct TSchedulerElementStateSnapshot
 {
     TResourceVector DemandShare;
-    TResourceVector PromisedFairShare;
+    TResourceVector EstimatedGuaranteeShare;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
