@@ -2,14 +2,19 @@ from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE, NODES_SERVIC
 
 from yt_commands import (
     authors, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create, ls,
-    get, set, remove, exists, run_test_vanilla, raises_yt_error, update_nodes_dynamic_config,
-    create_pool, create_pool_tree, read_table, write_table, map, abort_job, get_job, list_jobs,
+    get, set, remove, exists, raises_yt_error,
+    update_nodes_dynamic_config, update_scheduler_config, update_pool_tree_config_option,
+    create_pool, create_pool_tree, read_table, write_table,
+    map, run_test_vanilla,
+    abort_job, get_job, list_jobs,
     get_operation_cypress_path, set_banned_flag)
 
 import yt_error_codes
 
+from yt_helpers import profiler_factory
+
 from yt_scheduler_helpers import (
-    scheduler_orchid_node_path)
+    scheduler_orchid_node_path, scheduler_orchid_path)
 
 from yt.common import YtError, YtResponseError
 
@@ -719,3 +724,76 @@ class TestOperationNodeBan(YTEnvSetup):
         jobs = list_jobs(op.id)["jobs"]
         assert all(job["state"] == "failed" for job in jobs)
         assert len(builtins.set(job["address"] for job in jobs)) == 3
+
+
+class TestSchedulingHeartbeatThrottling(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 7
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "node_heartbeat_timeout": 10000000,
+            "node_shard_count": 1,
+        },
+    }
+
+    @authors("omgronny")
+    def test_scheduler_throttles_heartbeats_by_complexity(self):
+        update_scheduler_config("use_heartbeat_scheduling_complexity_throttling", True)
+        update_scheduler_config("scheduling_heartbeat_complexity_limit", 18)
+
+        all_nodes = ls("//sys/cluster_nodes")
+        for i, node in enumerate(all_nodes):
+            if i == 0:
+                set("//sys/cluster_nodes/{}/@user_tags".format(node), ["tagA"])
+            elif i < len(all_nodes) - 1:
+                set("//sys/cluster_nodes/{}/@user_tags".format(node), ["tagB"])
+            else:
+                set("//sys/cluster_nodes/{}/@user_tags".format(node), ["tagC"])
+        update_pool_tree_config_option(tree="default", option="nodes_filter", value="default")
+
+        create_pool_tree("empty_tree", config={"nodes_filter": "tagA"})
+        create_pool_tree("busy_tree", config={"nodes_filter": "tagB"})
+        create_pool_tree("small_tree", config={"nodes_filter": "tagC"})
+
+        create_pool("empty_pool", pool_tree="empty_tree")
+        create_pool("busy_pool", pool_tree="busy_tree")
+        create_pool("small_pool", pool_tree="small_tree")
+
+        concurrent_complexity_limit_reached_count = profiler_factory().at_scheduler().counter("scheduler/node_heartbeat/concurrent_complexity_limit_reached_count")
+
+        def get_total_scheduling_heartbeat_complexity():
+            total_scheduling_heartbeat_complexity_orchid_path = scheduler_orchid_path() + "/scheduler/node_shards/total_scheduling_heartbeat_complexity"
+            return get(total_scheduling_heartbeat_complexity_orchid_path)
+
+        testing_options = {
+            "schedule_job_delay": {
+                "duration": 10000000,
+                "type": "async",
+            },
+        }
+
+        run_test_vanilla(
+            command="sleep 0.5",
+            job_count=5,
+            spec={
+                "pool": "busy_pool",
+                "pool_trees": ["busy_tree"],
+                "testing": testing_options,
+            })
+
+        wait(lambda: get_total_scheduling_heartbeat_complexity() == 15)
+        assert concurrent_complexity_limit_reached_count.get_delta() == 0
+
+        run_test_vanilla(
+            command="sleep 0.5",
+            job_count=1,
+            spec={
+                "pool": "small_pool",
+                "pool_trees": ["small_tree"],
+                "testing": testing_options,
+            })
+
+        wait(lambda: get_total_scheduling_heartbeat_complexity() == 18)
+        wait(lambda: concurrent_complexity_limit_reached_count.get_delta() > 0)

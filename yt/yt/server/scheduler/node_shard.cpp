@@ -219,6 +219,8 @@ TNodeShard::TNodeShard(
     HardConcurrentHeartbeatLimitReachedCounter_ = SchedulerProfiler
         .WithTag("limit_type", "hard")
         .Counter("/node_heartbeat/concurrent_limit_reached_count");
+    ConcurrentHeartbeatComplexityLimitReachedCounter_ = SchedulerProfiler
+        .Counter("/node_heartbeat/concurrent_complexity_limit_reached_count");
     HeartbeatWithScheduleJobsCounter_ = SchedulerProfiler
         .Counter("/node_heartbeat/with_schedule_jobs_count");
     HeartbeatJobCount_ = SchedulerProfiler
@@ -604,22 +606,11 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             return;
         }
 
-        if (ConcurrentHeartbeatCount_ >= Config_->HardConcurrentHeartbeatLimit) {
-            isThrottlingActive = true;
-            YT_LOG_INFO("Hard heartbeat limit reached (NodeAddress: %v, Limit: %v, Count: %v)",
-                node->GetDefaultAddress(),
-                Config_->HardConcurrentHeartbeatLimit,
-                ConcurrentHeartbeatCount_);
-            HardConcurrentHeartbeatLimitReachedCounter_.Increment();
-        } else if (ConcurrentHeartbeatCount_ >= Config_->SoftConcurrentHeartbeatLimit &&
-            node->GetLastSeenTime() + Config_->HeartbeatProcessBackoff > TInstant::Now())
-        {
-            isThrottlingActive = true;
-            YT_LOG_DEBUG("Soft heartbeat limit reached (NodeAddress: %v, Limit: %v, Count: %v)",
-                node->GetDefaultAddress(),
-                Config_->SoftConcurrentHeartbeatLimit,
-                ConcurrentHeartbeatCount_);
-            SoftConcurrentHeartbeatLimitReachedCounter_.Increment();
+        if (Config_->UseHeartbeatSchedulingComplexityThrottling) {
+            isThrottlingActive = IsHeartbeatThrottlingWithComplexity(node);
+        } else {
+            isThrottlingActive = IsHeartbeatThrottlingWithCount(node);
+            node->SetSchedulingHeartbeatComplexity(1);
         }
 
         response->set_operation_archive_version(ManagerHost_->GetOperationArchiveVersion());
@@ -707,9 +698,11 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     AddRegisteredControllerAgentsToResponse(response);
 
     context->SetResponseInfo(
-        "NodeId: %v, NodeAddress: %v, IsThrottling: %v",
+        "NodeId: %v, NodeAddress: %v, HeartbeatComplexity: %v, TotalComplexity: %v, IsThrottling: %v",
         nodeId,
         descriptor.GetDefaultAddress(),
+        node->GetSchedulingHeartbeatComplexity(),
+        ConcurrentHeartbeatComplexity_.load(),
         isThrottlingActive);
 
     TStringBuilder schedulingAttributesBuilder;
@@ -1366,6 +1359,13 @@ int TNodeShard::GetTotalNodeCount() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return TotalNodeCount_;
+}
+
+int TNodeShard::GetTotalConcurrentHeartbeatComplexity() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return ConcurrentHeartbeatComplexity_;
 }
 
 TFuture<TControllerScheduleJobResultPtr> TNodeShard::BeginScheduleJob(
@@ -2222,6 +2222,47 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
     return job;
 }
 
+bool TNodeShard::IsHeartbeatThrottlingWithComplexity(const TExecNodePtr& node)
+{
+    int schedulingHeartbeatComplexity = ManagerHost_->GetStrategy()->GetSchedulingHeartbeatComplexityForNode(node->GetDefaultAddress(), node->Tags());
+    node->SetSchedulingHeartbeatComplexity(schedulingHeartbeatComplexity);
+
+    if (ConcurrentHeartbeatComplexity_ >= Config_->SchedulingHeartbeatComplexityLimit) {
+        YT_LOG_INFO("Heartbeat complexity limit reached (NodeAddress: %v, TotalHeartbeatComplexity: %v, CurrentComplexity: %v)",
+            node->GetDefaultAddress(),
+            ConcurrentHeartbeatComplexity_.load(),
+            schedulingHeartbeatComplexity);
+        ConcurrentHeartbeatComplexityLimitReachedCounter_.Increment();
+        return true;
+    }
+    return false;
+}
+
+bool TNodeShard::IsHeartbeatThrottlingWithCount(const TExecNodePtr& node)
+{
+    if (ConcurrentHeartbeatCount_ >= Config_->HardConcurrentHeartbeatLimit) {
+        YT_LOG_INFO("Hard heartbeat limit reached (NodeAddress: %v, Limit: %v, Count: %v)",
+            node->GetDefaultAddress(),
+            Config_->HardConcurrentHeartbeatLimit,
+            ConcurrentHeartbeatCount_);
+        HardConcurrentHeartbeatLimitReachedCounter_.Increment();
+        return true;
+    }
+
+    if (ConcurrentHeartbeatCount_ >= Config_->SoftConcurrentHeartbeatLimit &&
+        node->GetLastSeenTime() + Config_->HeartbeatProcessBackoff > TInstant::Now())
+    {
+        YT_LOG_DEBUG("Soft heartbeat limit reached (NodeAddress: %v, Limit: %v, Count: %v)",
+            node->GetDefaultAddress(),
+            Config_->SoftConcurrentHeartbeatLimit,
+            ConcurrentHeartbeatCount_);
+        SoftConcurrentHeartbeatLimitReachedCounter_.Increment();
+        return true;
+    }
+
+    return false;
+}
+
 void TNodeShard::SubtractNodeResources(const TExecNodePtr& node)
 {
     TotalNodeCount_ -= 1;
@@ -2289,6 +2330,7 @@ void TNodeShard::BeginNodeHeartbeatProcessing(const TExecNodePtr& node)
     node->SetHasOngoingHeartbeat(true);
     node->SetLastSeenTime(TInstant::Now());
 
+    ConcurrentHeartbeatComplexity_ += node->GetSchedulingHeartbeatComplexity();
     ConcurrentHeartbeatCount_ += 1;
 }
 
@@ -2300,7 +2342,9 @@ void TNodeShard::EndNodeHeartbeatProcessing(const TExecNodePtr& node)
 
     node->SetHasOngoingHeartbeat(false);
 
+    ConcurrentHeartbeatComplexity_ -= node->GetSchedulingHeartbeatComplexity();
     ConcurrentHeartbeatCount_ -= 1;
+
     node->SetLastSeenTime(TInstant::Now());
 
     if (node->GetPendingJobsAbortionReason()) {

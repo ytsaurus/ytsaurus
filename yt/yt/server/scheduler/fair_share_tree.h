@@ -76,6 +76,8 @@ struct IFairShareTree
         THashSet<TJobId>* jobsToPostpone,
         std::vector<TJobId>* jobsToAbort) = 0;
 
+    virtual int GetSchedulingHeartbeatComplexity() const = 0;
+
     virtual bool IsSnapshottedOperationRunningInTree(TOperationId operationId) const = 0;
 
     virtual TFairShareStrategyTreeConfigPtr GetSnapshottedConfig() const = 0;

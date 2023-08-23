@@ -88,6 +88,9 @@ public:
     //! Is |true| iff heartbeat from this node is being processed at the moment.
     DEFINE_BYVAL_RW_PROPERTY(bool, HasOngoingHeartbeat);
 
+    //! Complexity of processing heartbeat.
+    DEFINE_BYVAL_RW_PROPERTY(int, SchedulingHeartbeatComplexity);
+
     //! Stores the time when resources overcommit has detected.
     DEFINE_BYVAL_RW_PROPERTY(TInstant, ResourcesOvercommitStartTime);
 

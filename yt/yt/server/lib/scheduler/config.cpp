@@ -949,6 +949,13 @@ void TSchedulerConfig::Register(TRegistrar registrar)
         .Default(100)
         .GreaterThanOrEqual(1);
 
+    registrar.Parameter("scheduling_heartbeat_complexity_limit", &TThis::SchedulingHeartbeatComplexityLimit)
+        .Default(200000)
+        .GreaterThanOrEqual(1);
+
+    registrar.Parameter("use_heartbeat_scheduling_complexity_throttling", &TThis::UseHeartbeatSchedulingComplexityThrottling)
+        .Default(false);
+
     registrar.Parameter("static_orchid_cache_update_period", &TThis::StaticOrchidCacheUpdatePeriod)
         .Default(TDuration::Seconds(1));
 

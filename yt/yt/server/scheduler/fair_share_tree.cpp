@@ -2217,6 +2217,17 @@ private:
                 treeSnapshot));
     }
 
+    int GetSchedulingHeartbeatComplexity() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto treeSnapshot = GetAtomicTreeSnapshot();
+
+        YT_VERIFY(treeSnapshot);
+
+        return treeSnapshot->RootElement()->SchedulableElementCount();
+    }
+
     void ProcessJobUpdates(
         const std::vector<TJobUpdate>& jobUpdates,
         THashSet<TJobId>* jobsToPostpone,

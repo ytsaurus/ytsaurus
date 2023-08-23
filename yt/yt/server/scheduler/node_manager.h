@@ -97,6 +97,8 @@ public:
     int GetTotalNodeCount() const;
     int GetSubmitToStrategyJobCount() const;
 
+    int GetTotalConcurrentHeartbeatComplexity() const;
+
     int ExtractJobReporterWriteFailuresCount();
     int GetJobReporterQueueIsTooLargeNodeCount();
 

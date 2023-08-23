@@ -828,6 +828,12 @@ public:
     // Maximum number of simultaneously processed heartbeats.
     int HardConcurrentHeartbeatLimit;
 
+    // Maximum scheduling capacity of concurrent heartbeats in a node shard.
+    int SchedulingHeartbeatComplexityLimit;
+
+    // Use heartbeat complexities in throttling.
+    bool UseHeartbeatSchedulingComplexityThrottling;
+
     // Scheduler does not apply this option on the fly yet.
     TDuration OrchidKeysUpdatePeriod;
 

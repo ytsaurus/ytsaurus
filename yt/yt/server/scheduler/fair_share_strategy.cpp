@@ -215,6 +215,14 @@ public:
         return VoidFuture;
     }
 
+    int GetSchedulingHeartbeatComplexityForNode(const TString& nodeAddress, const TBooleanFormulaTags& nodeTags) const override
+    {
+        if (auto tree = FindTreeForNode(nodeAddress, nodeTags)) {
+            return tree->GetSchedulingHeartbeatComplexity();
+        }
+        return 0;
+    }
+
     void RegisterOperation(
         IOperationStrategyHost* operation,
         std::vector<TString>* unknownTreeIds,

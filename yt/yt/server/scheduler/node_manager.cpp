@@ -454,6 +454,17 @@ int TNodeManager::GetSubmitToStrategyJobCount() const
     return submitToStrategyJobCount;
 }
 
+int TNodeManager::GetTotalConcurrentHeartbeatComplexity() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    int totalConcurrentHeartbeatComplexity = 0;
+    for (const auto& nodeShard : NodeShards_) {
+        totalConcurrentHeartbeatComplexity += nodeShard->GetTotalConcurrentHeartbeatComplexity();
+    }
+    return totalConcurrentHeartbeatComplexity;
+}
+
 int TNodeManager::ExtractJobReporterWriteFailuresCount()
 {
     int result = 0;
