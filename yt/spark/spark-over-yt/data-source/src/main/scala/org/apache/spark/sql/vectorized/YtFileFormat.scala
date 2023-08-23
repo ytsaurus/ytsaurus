@@ -2,7 +2,7 @@ package org.apache.spark.sql.vectorized
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileStatus, FileSystem, Path}
-import org.apache.hadoop.mapreduce.{Job, TaskAttemptContext}
+import org.apache.hadoop.mapreduce.Job
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.InternalRow
@@ -12,10 +12,11 @@ import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.sources.{DataSourceRegister, Filter}
 import org.apache.spark.sql.types.{AtomicType, StructType}
 import org.apache.spark.sql.v2.YtUtils
+import org.apache.spark.sql.v2.YtUtils.bytesReadReporter
+import org.apache.spark.util.SerializableConfiguration
 import org.slf4j.LoggerFactory
 import tech.ytsaurus.spyt.format._
 import tech.ytsaurus.spyt.format.conf.SparkYtConfiguration.Read._
-import tech.ytsaurus.spyt.format.conf.YtTableSparkSettings
 import tech.ytsaurus.spyt.fs.YtClientConfigurationConverter.ytClientConfiguration
 import tech.ytsaurus.spyt.fs.{YtDynamicPath, YtFileSystemBase}
 import tech.ytsaurus.spyt.serializers.InternalRowDeserializer
@@ -24,7 +25,6 @@ import tech.ytsaurus.client.CompoundClient
 import tech.ytsaurus.spyt.format.YtPartitionedFile
 import tech.ytsaurus.spyt.format.conf.{FilterPushdownConfig, SparkYtWriteConfiguration}
 import tech.ytsaurus.spyt.logger.YtDynTableLoggerConfig
-import tech.ytsaurus.spyt.serializers.SchemaConverter
 import tech.ytsaurus.spyt.wrapper.client.YtClientProvider
 
 class YtFileFormat extends FileFormat with DataSourceRegister with Serializable {
@@ -62,9 +62,7 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
     log.info(s"Batch read enabled: $readBatch")
     log.info(s"Batch return enabled: $returnBatch")
     log.info(s"Arrow enabled: $arrowEnabledValue")
-
-    val fs = FileSystem.get(hadoopConf).asInstanceOf[YtFileSystemBase]
-
+    val broadcastedConf = sparkSession.sparkContext.broadcast(new SerializableConfiguration(hadoopConf))
     val ytLoggerConfig = YtDynTableLoggerConfig.fromSpark(sparkSession)
 
     {
@@ -84,7 +82,7 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
             returnBatch = returnBatch,
             arrowEnabled = arrowEnabledValue,
             timeout = ytClientConf.timeout,
-            bytesRead => fs.internalStatistics.incrementBytesRead(bytesRead)
+            bytesReadReporter(broadcastedConf)
           )
           val iter = new RecordReaderIterator(ytVectorizedReader)
           Option(TaskContext.get()).foreach(_.addTaskCompletionListener[Unit](_ => iter.close()))
@@ -104,7 +102,7 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
             InternalRowDeserializer.getOrCreate(requiredSchema),
             ytClientConf.timeout,
             None,
-            bytesRead => fs.internalStatistics.incrementBytesRead(bytesRead)
+            bytesReadReporter(broadcastedConf)
           )
           val unsafeProjection = UnsafeProjection.create(requiredSchema)
           tableIterator.map(unsafeProjection(_))
@@ -112,32 +110,17 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
     }
   }
 
-  private def addWriteOptions(options: Map[String, String],
-                              writeConfiguration: SparkYtWriteConfiguration): Map[String, String] = {
-    import YtTableSparkSettings.WriteTypeV3
-    if (options.contains(WriteTypeV3.name)) options
-    else options + (WriteTypeV3.name -> writeConfiguration.typeV3Format.toString)
-  }
-
   override def prepareWrite(sparkSession: SparkSession,
                             job: Job,
                             options: Map[String, String],
                             dataSchema: StructType): OutputWriterFactory = {
-    val writeConfiguration = SparkYtWriteConfiguration(sparkSession.sqlContext)
-    SchemaConverter.checkSchema(dataSchema, options)
-
-    val ytClientConf = ytClientConfiguration(sparkSession)
-    val updatedOptions = addWriteOptions(options, writeConfiguration)
-    YtTableSparkSettings.serialize(updatedOptions, dataSchema, job.getConfiguration)
-
-    new OutputWriterFactory {
-      override def getFileExtension(context: TaskAttemptContext): String = ""
-
-      override def newInstance(path: String, dataSchema: StructType, context: TaskAttemptContext): OutputWriter = {
-        val transaction = YtOutputCommitter.getWriteTransaction(context.getConfiguration)
-        new YtOutputWriter(path, dataSchema, ytClientConf, writeConfiguration, transaction, updatedOptions)
-      }
-    }
+    YtOutputWriterFactory.create(
+        SparkYtWriteConfiguration(sparkSession.sqlContext),
+        ytClientConfiguration(sparkSession),
+        options,
+        dataSchema,
+        job.getConfiguration
+    )
   }
 
   override def shortName(): String = "yt"

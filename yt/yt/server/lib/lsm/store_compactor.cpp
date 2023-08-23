@@ -120,7 +120,7 @@ private:
         }
 
         auto* tablet = eden->GetTablet();
-        const auto mountConfig = tablet->GetMountConfig();
+        auto mountConfig = tablet->GetMountConfig();
 
         auto [reason, stores] = PickStoresForPartitioning(eden);
         if (stores.empty()) {
@@ -152,7 +152,7 @@ private:
 
         auto* tablet = partition->GetTablet();
 
-        const auto mountConfig = tablet->GetMountConfig();
+        auto mountConfig = tablet->GetMountConfig();
         if (!mountConfig->EnableDiscardingExpiredPartitions || mountConfig->MinDataVersions != 0) {
             return {};
         }
@@ -234,7 +234,7 @@ private:
             .Stores = stores,
             .Reason = reason,
         };
-        const auto mountConfig = tablet->GetMountConfig();
+        auto mountConfig = tablet->GetMountConfig();
         // We aim to improve OSC; compaction improves OSC _only_ if the partition contributes towards OSC.
         // So we consider how constrained is the partition, and how many stores we consider for compaction.
         const int overlappingStoreLimit = GetOverlappingStoreLimit(mountConfig);
@@ -269,7 +269,7 @@ private:
         std::vector<TStoreId> finalists;
 
         const auto* tablet = eden->GetTablet();
-        const auto mountConfig = tablet->GetMountConfig();
+        auto mountConfig = tablet->GetMountConfig();
 
         std::vector<TStore*> candidates;
 
@@ -340,7 +340,7 @@ private:
         std::vector<TStoreId> finalists;
 
         const auto* tablet = partition->GetTablet();
-        const auto mountConfig = tablet->GetMountConfig();
+        auto mountConfig = tablet->GetMountConfig();
 
         auto Logger = NLsm::Logger.WithTag("%v, PartitionId: %v, Eden: %v",
             tablet->GetLoggingTag(),
@@ -389,8 +389,6 @@ private:
             partition->GetTablet()->LsmStatistics().PendingCompactionStoreCount[reason] += storeCountByReason[reason];
         }
 
-        EStoreCompactionReason finalistCompactionReason;
-
         YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging &&
                 (storeCountByReason[EStoreCompactionReason::TooManyTimestamps] > 0 ||
                  storeCountByReason[EStoreCompactionReason::TtlCleanupExpected] > 0),
@@ -399,13 +397,26 @@ private:
             storeCountByReason[EStoreCompactionReason::TooManyTimestamps],
             storeCountByReason[EStoreCompactionReason::TtlCleanupExpected]);
 
+        // Strictly determine order of incoming stores.
+        // Use std::stable_sort instead of std::sort in the further for compaction candidates.
+        std::sort(
+            candidates.begin(),
+            candidates.end(),
+            [] (const TStoreWithReason& lhs, const TStoreWithReason& rhs) {
+                return lhs.Store->GetMinTimestamp() != rhs.Store->GetMinTimestamp()
+                    ? lhs.Store->GetMinTimestamp() < rhs.Store->GetMinTimestamp()
+                    : lhs.Store->GetId() < rhs.Store->GetId();
+            });
+
+        EStoreCompactionReason finalistCompactionReason;
+
         if (mountConfig->PeriodicCompactionMode == EPeriodicCompactionMode::Partition &&
             storeCountByReason[EStoreCompactionReason::Periodic] > 0)
         {
             // Check if periodic compaction for the partition has come.
 
             finalistCompactionReason = EStoreCompactionReason::Periodic;
-            std::sort(
+            std::stable_sort(
                 candidates.begin(),
                 candidates.end(),
                 [] (const TStoreWithReason& lhs, const TStoreWithReason& rhs) {
@@ -420,18 +431,11 @@ private:
             }
         } else if (storeCountByReason[EStoreCompactionReason::TooManyTimestamps] > 0) {
             // Check if compaction of certain stores will likely prune some timestamps.
-
-            // We sort stores by min timestamp to avoid sabotage by major timestamp.
-            std::sort(
-                candidates.begin(),
-                candidates.end(),
-                [] (const TStoreWithReason& lhs, const TStoreWithReason& rhs) {
-                    return lhs.Store->GetMinTimestamp() < rhs.Store->GetMinTimestamp();
-                });
+            // Stores are already sorted by min timestamp, so we avoid sabotage by major timestamp.
 
             int lastNecessaryStoreIndex = -1;
             for (int index = 0; index < std::min<int>(ssize(candidates), mountConfig->MaxCompactionStoreCount); ++index) {
-                const auto reason = candidates[index].Reason;
+                auto reason = candidates[index].Reason;
                 if (reason != EStoreCompactionReason::None) {
                     finalistCompactionReason = reason;
                     lastNecessaryStoreIndex = index;
@@ -446,7 +450,7 @@ private:
 
             YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
                 "Finalist stores for compaction picked by row digest advice (StoreCount: %v, Reason: %v)",
-                ssize(finalists),
+                std::ssize(finalists),
                 EStoreCompactionReason::TooManyTimestamps);
         } else if (*std::max_element(storeCountByReason.begin(), storeCountByReason.end()) > 0) {
             for (auto [store, reason] : candidates) {
@@ -473,11 +477,11 @@ private:
         if (!finalists.empty()) {
             // NB: Situations when there are multiple different reasons are
             // very rare, we take arbitrary reason in this case.
-            return {finalistCompactionReason, finalists};
+            return {finalistCompactionReason, std::move(finalists)};
         }
 
         // Sort by increasing data size.
-        std::sort(
+        std::stable_sort(
             candidates.begin(),
             candidates.end(),
             [] (const TStoreWithReason& lhs, const TStoreWithReason& rhs) {
@@ -553,7 +557,7 @@ private:
 
     static bool IsStoreCompactionForced(const TStore* store)
     {
-        const auto mountConfig = store->GetTablet()->GetMountConfig();
+        auto mountConfig = store->GetTablet()->GetMountConfig();
         auto forcedCompactionRevision = std::max(
             mountConfig->ForcedCompactionRevision,
             mountConfig->ForcedStoreCompactionRevision);
@@ -569,7 +573,7 @@ private:
 
     bool IsStorePeriodicCompactionNeeded(const TStore* store) const
     {
-        const auto mountConfig = store->GetTablet()->GetMountConfig();
+        auto mountConfig = store->GetTablet()->GetMountConfig();
         if (!mountConfig->AutoCompactionPeriod) {
             return false;
         }
@@ -606,7 +610,7 @@ private:
 
         const auto& digest = *store->RowDigest();
 
-        const auto mountConfig = store->GetTablet()->GetMountConfig();
+        auto mountConfig = store->GetTablet()->GetMountConfig();
         i64 maxRetentionTime = (CurrentTime_ - mountConfig->MaxDataTtl).Seconds();
         i64 minRetentionTime = (CurrentTime_ - mountConfig->MinDataTtl).Seconds();
 

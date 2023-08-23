@@ -57,7 +57,7 @@ trait YtTableUtils {
   }
 
   def readTable[T](path: YPath, deserializer: WireRowDeserializer[T], timeout: Duration = 1 minute,
-                   transaction: Option[String] = None, reportBytesRead: Long => Unit)
+                   transaction: Option[String] = None, reportBytesRead: Long => Unit = _ => ())
                   (implicit yt: CompoundClient): TableIterator[T] = {
     val request = ReadTable.builder()
       .setPath(path)

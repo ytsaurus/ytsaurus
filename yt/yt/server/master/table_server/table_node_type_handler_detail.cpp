@@ -235,6 +235,14 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
                 return tableManager->CreateImportedMasterTableSchema(*tableSchema, node, schemaId);
             }
 
+            if (!schemaId) {
+                YT_LOG_ALERT("Used empty native schema on an external cell tag (NodeId: %v)",
+                    node->GetId());
+                auto* emptySchema = tableManager->GetEmptyMasterTableSchema();
+                tableManager->SetTableSchema(node, emptySchema);
+                return emptySchema;
+            }
+
             auto* schemaById = tableManager->GetMasterTableSchema(schemaId);
             tableManager->SetTableSchema(node, schemaById);
             return schemaById;

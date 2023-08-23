@@ -26,24 +26,26 @@ Y_WEAK void* CreateAllocationTagsData()
     return nullptr;
 }
 
-Y_WEAK void* CopyAllocationTagsData(void* ptr)
+Y_WEAK void* CopyAllocationTagsData(void* userData)
 {
-    return ptr;
+    return userData;
 }
 
-Y_WEAK void DestroyAllocationTagsData(void* /*ptr*/)
+Y_WEAK void DestroyAllocationTagsData(void* /*userData*/)
 { }
 
-Y_WEAK const std::vector<std::pair<TString, TString>>& ReadAllocationTagsData(void* /*ptr*/)
+Y_WEAK const std::vector<std::pair<TString, TString>>& ReadAllocationTagsData(void* /*userData*/)
 {
-    static std::vector<std::pair<TString, TString>> emptyTags;
+    static const std::vector<std::pair<TString, TString>> emptyTags;
     return emptyTags;
 }
 
 Y_WEAK std::optional<TString> FindTagValue(
-    const std::vector<std::pair<TString, TString>>&,
-    const TString&)
+    const std::vector<std::pair<TString, TString>>& tags,
+    const TString& key)
 {
+    Y_UNUSED(tags);
+    Y_UNUSED(key);
     return ToString(NullMemoryTag);
 }
 
@@ -168,7 +170,7 @@ THashMap<TMemoryTag, ui64> GetEstimatedMemoryUsage()
             MemoryTagLiteral);
 
         if (maybeMemoryTagStr) {
-            TMemoryTag memoryTag = FromString<TMemoryTag>(maybeMemoryTagStr.value());
+            auto memoryTag = FromString<TMemoryTag>(maybeMemoryTagStr.value());
             if (memoryTag != NullMemoryTag) {
                 usage[memoryTag] += sample.sum;
             }

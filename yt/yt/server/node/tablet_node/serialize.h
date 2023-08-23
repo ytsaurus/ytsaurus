@@ -40,6 +40,7 @@ DEFINE_ENUM(ETabletReign,
     // 23.2 starts here.
     ((Avenues)                            (100800)) // ifsmirnov
     ((TabletIdGenerator)                  (100801)) // ifsmirnov
+    ((FixRaceBetweenCompactionUnmount)    (100802)) // dave11ar
 );
 
 ////////////////////////////////////////////////////////////////////////////////

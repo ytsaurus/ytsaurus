@@ -78,8 +78,12 @@ func (e *wrappedErrorf) Error() string {
 }
 
 func (e *wrappedErrorf) Unwrap() error {
-	// Skip wrapped error and return whatever it is wrapping
+	// Skip wrapped error and return whatever it is wrapping if inner error contains single error
 	// TODO: test for correct unwrap
+	if _, ok := e.err.(interface{ Unwrap() []error }); ok {
+		return e.err
+	}
+
 	return Unwrap(e.err)
 }
 

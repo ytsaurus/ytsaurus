@@ -52,6 +52,7 @@ tester_flags=""
 name_cluster="ytsaurus"
 name_tester="tester"
 name_systest="systest"
+name_new_stress_test="new_stress_test"
 
 if [[ ${namespace} != "" ]]; then
   kubectl create namespace ${namespace}
@@ -60,6 +61,7 @@ if [[ ${namespace} != "" ]]; then
   name_cluster="ytsaurus-${namespace}"
   name_tester="tester-${namespace}"
   name_systest="systest-${namespace}"
+  name_new_stress_test="new_stress_test-${namespace}"
 fi
 
 helm install ${nsflags} ${name_cluster} --set YtsaurusImagePath=${image} ${ytsaurus_source_path}/yt/systest/helm/cluster
@@ -70,3 +72,6 @@ bash ${ytsaurus_source_path}/yt/systest/scripts/wait.sh --name tester ${tester_f
 
 helm install ${nsflags} ${name_systest} --set YtsaurusImagePath=${image} ${ytsaurus_source_path}/yt/systest/helm/systest
 bash ${ytsaurus_source_path}/yt/systest/scripts/wait.sh --wait-minutes 60  --name systest ${tester_flags}
+
+helm install ${nsflags} ${name_new_stress_test} --set YtsaurusImagePath=${image} ${ytsaurus_source_path}/yt/systest/helm/new_stress_test
+bash ${ytsaurus_source_path}/yt/systest/scripts/wait.sh --wait-minutes 60  --name new_stress_test ${tester_flags}

@@ -59,6 +59,7 @@ struct TSchedulableAttributes
     TResourceVector StrongGuaranteeShare;
     TResourceVector ProposedIntegralShare;
     TResourceVector PromisedFairShare;
+    TResourceVector EstimatedGuaranteeShare;
 
     TResourceVolume VolumeOverflow;
     TResourceVolume AcceptableVolume;

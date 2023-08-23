@@ -59,7 +59,7 @@ const (
 	ObjectTypeChunkListMap              ObjectType = 406
 	ObjectTypeChunkView                 ObjectType = 123
 	ObjectTypeChunkViewMap              ObjectType = 430
-	ObjectTypeMedium                    ObjectType = 408
+	ObjectTypeDomesticMedium            ObjectType = 408
 	ObjectTypeMediumMap                 ObjectType = 409
 	ObjectTypeErasureJournalChunk       ObjectType = 124 // erasure journal chunk as a whole
 	ObjectTypeErasureJournalChunkPart0  ObjectType = 125 // erasure chunk parts, mnemonic names are for debugging convenience only
@@ -197,8 +197,8 @@ func convertObjectType(typ yt.NodeType) (ObjectType, error) {
 		ret = ObjectTypeGroup
 	case yt.NodeAccount:
 		ret = ObjectTypeAccount
-	case yt.NodeMedium:
-		ret = ObjectTypeMedium
+	case yt.NodeDomesticMedium:
+		ret = ObjectTypeDomesticMedium
 	case yt.NodeTabletCellBundle:
 		ret = ObjectTypeTabletCellBundle
 	case yt.NodeSys:

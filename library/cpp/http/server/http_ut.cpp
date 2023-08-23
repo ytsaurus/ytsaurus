@@ -9,6 +9,7 @@
 #include <util/stream/zlib.h>
 #include <util/system/datetime.h>
 #include <util/system/mutex.h>
+#include <util/random/random.h>
 
 Y_UNIT_TEST_SUITE(THttpServerTest) {
     class TEchoServer: public THttpServer::ICallBack {
@@ -763,15 +764,18 @@ Y_UNIT_TEST_SUITE(THttpServerTest) {
                         try {
                             TTestRequest r(port);
                             r.KeepAliveConnection = true;
-                            for (;;) {
+                            for (size_t j = 0; j < 100; ++j) {
                                 if (Stopped_.load()) {
                                     return;
                                 }
                                 r.Execute();
+                                Sleep(TDuration::MilliSeconds(1) * RandomNumber<float>());
                                 Counters_[i].Success++;
                             }
                         } catch (TSystemError& e) {
                             UNIT_ASSERT_C(e.Status() == ECONNRESET || e.Status() == ECONNREFUSED, CurrentExceptionMessage());
+                            Counters_[i].Fail++;
+                        } catch (THttpReadException&) {
                             Counters_[i].Fail++;
                         } catch (...) {
                             UNIT_ASSERT_C(false, CurrentExceptionMessage());
@@ -826,34 +830,83 @@ Y_UNIT_TEST_SUITE(THttpServerTest) {
         TShooter shooter(threadCount, port);
 
         TString res = TestData();
-        TEchoServer serverImpl(res);
-        THttpServer server(&serverImpl, THttpServer::TOptions(port).EnableKeepAlive(true));
-        for (size_t i = 0; i < 100; ++i) {
-            UNIT_ASSERT(server.Start());
-            shooter.WaitProgress();
-
-            {
-                auto before = shooter.GetCounters();
+        for (bool oneShot : {true, false}) {
+            TEchoServer serverImpl(res);
+            THttpServer server(&serverImpl, THttpServer::TOptions(port).EnableKeepAlive(true).SetOneShotPoll(oneShot));
+            for (size_t i = 0; i < 100; ++i) {
+                UNIT_ASSERT(server.Start());
                 shooter.WaitProgress();
-                auto after = shooter.GetCounters();
-                for (size_t i = 0; i < before.size(); ++i) {
-                    UNIT_ASSERT(before[i].Success < after[i].Success);
-                    UNIT_ASSERT(before[i].Fail == after[i].Fail);
+
+                {
+                    auto before = shooter.GetCounters();
+                    shooter.WaitProgress();
+                    auto after = shooter.GetCounters();
+                    for (size_t i = 0; i < before.size(); ++i) {
+                        UNIT_ASSERT(before[i].Success < after[i].Success);
+                        UNIT_ASSERT(before[i].Fail == after[i].Fail);
+                    }
                 }
-            }
 
-            server.Stop();
-            shooter.WaitProgress();
-            {
-                auto before = shooter.GetCounters();
+                server.Stop();
                 shooter.WaitProgress();
-                auto after = shooter.GetCounters();
-                for (size_t i = 0; i < before.size(); ++i) {
-                    UNIT_ASSERT(before[i].Success == after[i].Success);
-                    UNIT_ASSERT(before[i].Fail < after[i].Fail);
+                {
+                    auto before = shooter.GetCounters();
+                    shooter.WaitProgress();
+                    auto after = shooter.GetCounters();
+                    for (size_t i = 0; i < before.size(); ++i) {
+                        UNIT_ASSERT(before[i].Success == after[i].Success);
+                        UNIT_ASSERT(before[i].Fail < after[i].Fail);
+                    }
                 }
             }
         }
+    }
 
+    Y_UNIT_TEST(TestMaxConnections) {
+        class TMaxConnServer
+            : public TEchoServer
+        {
+        public:
+            using TEchoServer::TEchoServer;
+
+            void OnMaxConn() override {
+                ++MaxConns;
+            }
+        public:
+            std::atomic<size_t> MaxConns = 0;
+
+        };
+
+        TPortManager pm;
+        const ui16 port = pm.GetPort();
+
+        const size_t maxConnections = 5;
+
+        TString res = TestData();
+
+        for (bool oneShot : {true, false}) {
+            TMaxConnServer serverImpl(res);
+            THttpServer server(&serverImpl, THttpServer::TOptions(port).EnableKeepAlive(true).SetMaxConnections(maxConnections).SetOneShotPoll(oneShot));
+
+            UNIT_ASSERT(server.Start());
+
+            TShooter shooter(maxConnections + 1, port);
+
+            for (size_t i = 0; i < 100; ++i) {
+                const size_t prev = serverImpl.MaxConns.load();
+                while (serverImpl.MaxConns.load() < prev + 100) {
+                    Sleep(TDuration::MilliSeconds(1));
+                }
+            }
+
+            shooter.Stop();
+            server.Stop();
+
+            for (const auto& c : shooter.GetCounters()) {
+                UNIT_ASSERT(c.Success > 0);
+                UNIT_ASSERT(c.Fail > 0);
+                UNIT_ASSERT(c.Success > c.Fail);
+            }
+        }
     }
 }

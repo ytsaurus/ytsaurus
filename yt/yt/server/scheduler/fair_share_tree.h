@@ -50,7 +50,7 @@ struct TPoolsUpdateResult
 struct TSchedulerElementStateSnapshot
 {
     TResourceVector DemandShare;
-    TResourceVector PromisedFairShare;
+    TResourceVector EstimatedGuaranteeShare;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -75,6 +75,8 @@ struct IFairShareTree
         const std::vector<TJobUpdate>& jobUpdates,
         THashSet<TJobId>* jobsToPostpone,
         std::vector<TJobId>* jobsToAbort) = 0;
+
+    virtual int GetSchedulingHeartbeatComplexity() const = 0;
 
     virtual bool IsSnapshottedOperationRunningInTree(TOperationId operationId) const = 0;
 

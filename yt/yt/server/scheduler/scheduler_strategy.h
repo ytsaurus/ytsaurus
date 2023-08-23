@@ -150,6 +150,8 @@ struct ISchedulerStrategy
     //! Processes running jobs and schedules new jobs.
     virtual TFuture<void> ProcessSchedulingHeartbeat(const ISchedulingContextPtr& schedulingContext, bool skipScheduleJobs) = 0;
 
+    virtual int GetSchedulingHeartbeatComplexityForNode(const TString& nodeAddress, const TBooleanFormulaTags& nodeTags) const = 0;
+
     //! Notify strategy about job updates.
     virtual void ProcessJobUpdates(
         const std::vector<TJobUpdate>& jobUpdates,
@@ -226,7 +228,7 @@ struct ISchedulerStrategy
 
     //! Out of the pool trees specified for the operation, choose one most suitable tree
     //! depending on the operation's demand and current resource usage in each tree.
-    virtual TString ChooseBestSingleTreeForOperation(TOperationId operationId, TJobResources newDemand) = 0;
+    virtual TErrorOr<TString> ChooseBestSingleTreeForOperation(TOperationId operationId, TJobResources newDemand, bool considerGuaranteesForSingleTree) = 0;
 
     //! Error results in operation's failure.
     virtual TError OnOperationMaterialized(TOperationId operationId) = 0;

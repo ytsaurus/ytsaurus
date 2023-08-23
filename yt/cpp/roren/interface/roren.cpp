@@ -1,7 +1,7 @@
 #include "roren.h"
 
 #include "executor.h"
-#include "private/optimizer.h"
+#include "private/merge_par_dos.h"
 
 
 namespace NRoren {
@@ -32,8 +32,7 @@ void TPipeline::Run()
 
 void TPipeline::Optimize()
 {
-    NPrivate::TOptimizer optimizer;
-    RawPipeline_ = optimizer.Optimize(RawPipeline_);
+    RawPipeline_ = NPrivate::MergeParDos(RawPipeline_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

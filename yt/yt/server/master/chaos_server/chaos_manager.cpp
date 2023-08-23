@@ -505,14 +505,14 @@ private:
     { }
 
 
-    void SaveKeys(NCellMaster::TSaveContext& context) const
-    {
-        Save(context, *AlienClusterRegistry_);
-        Save(context, EnabledMetadataClusters_);
-    }
+    void SaveKeys(NCellMaster::TSaveContext& /*context*/) const
+    { }
 
     void SaveValues(NCellMaster::TSaveContext& context) const
     {
+        Save(context, *AlienClusterRegistry_);
+        Save(context, EnabledMetadataClusters_);
+
         Save(context, Queues_);
         Save(context, Consumers_);
     }
@@ -521,11 +521,14 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        Load(context, *AlienClusterRegistry_);
+        // COMPAT(cherepashka)
+        if (context.GetVersion() < EMasterReign::ChaosManagerSnapshotSaveAndLoadMovement) {
+            Load(context, *AlienClusterRegistry_);
 
-        // COMPAT(ponasenko-rs)
-        if (context.GetVersion() >= EMasterReign::UseMetadataCellIds) {
-            Load(context, EnabledMetadataClusters_);
+            // COMPAT(ponasenko-rs)
+            if (context.GetVersion() >= EMasterReign::UseMetadataCellIds) {
+                Load(context, EnabledMetadataClusters_);
+            }
         }
 
         // COMPAT(cherepashka, achulkov2)
@@ -535,6 +538,14 @@ private:
     void LoadValues(NCellMaster::TLoadContext& context)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        // COMPAT(cherepashka)
+        if (context.GetVersion() >= EMasterReign::ChaosManagerSnapshotSaveAndLoadMovement) {
+            Load(context, *AlienClusterRegistry_);
+
+            // COMPAT(ponasenko-rs)
+            Load(context, EnabledMetadataClusters_);
+        }
 
         // COMPAT(cherepashka, achulkov2)
         if (context.GetVersion() >= EMasterReign::ChaosReplicatedQueuesAndConsumersList) {

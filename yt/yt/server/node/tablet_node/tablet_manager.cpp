@@ -1804,9 +1804,21 @@ private:
         auto* tablet = GetTabletOrThrow(tabletId);
         const auto& structuredLogger = tablet->GetStructuredLogger();
 
+        auto updateReason = FromProto<ETabletStoresUpdateReason>(request->update_reason());
+
         // Validate.
         auto mountRevision = request->mount_revision();
         tablet->ValidateMountRevision(mountRevision);
+
+        // COMPAT(dave11ar)
+        if (static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) >=
+            ETabletReign::FixRaceBetweenCompactionUnmount)
+        {
+            if (IsInUnmountWorkflow(tablet->GetState()) && updateReason != ETabletStoresUpdateReason::Flush) {
+                THROW_ERROR_EXCEPTION("Tablet is in %Qlv state", tablet->GetState())
+                    << TErrorAttribute("update_reason", updateReason);
+            }
+        }
 
         THashSet<TChunkId> hunkChunkIdsToAdd;
         for (const auto& descriptor : request->hunk_chunks_to_add()) {
@@ -1940,8 +1952,6 @@ private:
                 }
             }
         }
-
-        auto updateReason = FromProto<ETabletStoresUpdateReason>(request->update_reason());
 
         // TODO(ifsmirnov): log preparation errors as well.
         structuredLogger->OnTabletStoresUpdatePrepared(

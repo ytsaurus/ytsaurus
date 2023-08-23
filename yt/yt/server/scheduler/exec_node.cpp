@@ -106,6 +106,7 @@ void TExecNode::BuildAttributes(TFluentMap fluent)
 
     fluent
         .Item("scheduler_state").Value(SchedulerState_)
+        .Item("scheduling_heartbeat_complexity").Value(SchedulingHeartbeatComplexity_)
         .Item("master_state").Value(MasterState_)
         .Item("state").Value(oldState)
         .Item("resource_usage").Value(ResourceUsage_)

@@ -167,12 +167,12 @@ const std::vector<TString>& TLocationManager::GetConfigDiskIds()
     return DiskInfoProvider_->GetConfigDiskIds();
 }
 
-void TLocationManager::UpdateOldDiskIds(std::vector<TString> oldDiskIds)
+void TLocationManager::UpdateOldDiskIds(THashSet<TString> oldDiskIds)
 {
     OldDiskIds_ = oldDiskIds;
 }
 
-const std::vector<TString>& TLocationManager::GetOldDiskIds() const
+const THashSet<TString>& TLocationManager::GetOldDiskIds() const
 {
     return OldDiskIds_;
 }
@@ -338,28 +338,18 @@ void TLocationHealthChecker::OnHealthCheck()
     auto config = DynamicConfig_.Acquire();
 
     if (config->Enabled) {
-        if (config->EnableNewDiskChecker) {
-            OnDiskHealthCheck();
-        }
-
         OnLocationsHealthCheck();
     }
 }
 
-void TLocationHealthChecker::OnDiskHealthCheck()
+void TLocationHealthChecker::OnDiskHealthCheck(const std::vector<TDiskInfo>& diskInfos)
 {
-    auto diskInfosOrError = WaitFor(LocationManager_->GetDiskInfos());
-
-    // Fast path.
-    if (!diskInfosOrError.IsOK()) {
-        YT_LOG_ERROR(diskInfosOrError, "Failed to disks");
-        return;
-    }
-
     THashSet<TString> diskIds;
     THashSet<TString> aliveDiskIds;
+    THashSet<TString> oldDiskIds = LocationManager_->GetOldDiskIds();
+    THashSet<TString> configDiskIds;
 
-    for (const auto& diskInfo : diskInfosOrError.Value()) {
+    for (const auto& diskInfo : diskInfos) {
         diskIds.insert(diskInfo.DiskId);
 
         if (diskInfo.State == NContainers::EDiskState::Ok) {
@@ -367,17 +357,14 @@ void TLocationHealthChecker::OnDiskHealthCheck()
         }
     }
 
-    auto configDiskIds = LocationManager_->GetConfigDiskIds();
-    auto oldDiskIds = LocationManager_->GetOldDiskIds();
+    for (const auto& diskId : LocationManager_->GetConfigDiskIds()) {
+        configDiskIds.insert(diskId);
+    }
 
-    auto checkDisks = [] (const auto& oldDisks, const auto& newDisks) {
-        if (oldDisks.size() != newDisks.size()) {
-            return false;
-        } else if (oldDisks.size() == newDisks.size()) {
-            for (const auto& oldId : oldDisks) {
-                if (!newDisks.contains(oldId)) {
-                    return false;
-                }
+    auto checkDisks = [] (const THashSet<TString>& oldDisks, const THashSet<TString>& newDisks) {
+        for (const auto& newDiskId : newDisks) {
+            if (!oldDisks.contains(newDiskId)) {
+                return false;
             }
         }
 
@@ -385,7 +372,7 @@ void TLocationHealthChecker::OnDiskHealthCheck()
     };
 
     if (!oldDiskIds.empty() && !configDiskIds.empty()) {
-        if (oldDiskIds.size() < aliveDiskIds.size() ||
+        if (!checkDisks(oldDiskIds, aliveDiskIds) ||
             !checkDisks(configDiskIds, diskIds))
         {
             YT_LOG_WARNING("Set disk ids mismatched flag");
@@ -393,31 +380,25 @@ void TLocationHealthChecker::OnDiskHealthCheck()
         }
     }
 
-    std::vector<TString> newOldDiskIds;
-    newOldDiskIds.reserve(aliveDiskIds.size());
-
-    for (const auto& diskId : aliveDiskIds) {
-        newOldDiskIds.push_back(diskId);
-    }
-
-    LocationManager_->UpdateOldDiskIds(newOldDiskIds);
+    LocationManager_->UpdateOldDiskIds(aliveDiskIds);
 }
 
 void TLocationHealthChecker::OnLocationsHealthCheck()
 {
-    auto diskInfos = WaitFor(LocationManager_->GetDiskInfos());
+    auto diskInfosOrError = WaitFor(LocationManager_->GetDiskInfos());
 
     // Fast path.
-    if (!diskInfos.IsOK()) {
-        YT_LOG_ERROR(diskInfos, "Failed to list disk infos");
+    if (!diskInfosOrError.IsOK()) {
+        YT_LOG_ERROR(diskInfosOrError, "Failed to list disk infos");
         return;
     }
 
-    auto livenessInfos = LocationManager_->MapLocationToLivenessInfo(diskInfos.Value());
+    auto diskInfos = diskInfosOrError.Value();
+    auto livenessInfos = LocationManager_->MapLocationToLivenessInfo(diskInfos);
 
     auto diskAlert = TError();
     std::optional<TString> diskAlertId;
-    for (const auto& diskInfo : diskInfos.Value()) {
+    for (const auto& diskInfo : diskInfos) {
         if (diskInfo.State == NContainers::EDiskState::Failed) {
             diskAlertId = diskInfo.DiskId;
             diskAlert = TError("Disk failed, need hot swap")
@@ -434,7 +415,7 @@ void TLocationHealthChecker::OnLocationsHealthCheck()
     i64 diskWithFailedState = 0;
     i64 diskWithRecoverWaitState = 0;
 
-    for (const auto& diskInfo : diskInfos.Value()) {
+    for (const auto& diskInfo : diskInfos) {
         if (diskInfo.State == NContainers::EDiskState::Ok) {
             diskWithOkState++;
         } else if (diskInfo.State == NContainers::EDiskState::RecoverWait) {
@@ -465,6 +446,10 @@ void TLocationHealthChecker::OnLocationsHealthCheck()
 
             YT_LOG_ERROR_IF(!result.IsOK(), result);
         }
+    }
+
+    if (DynamicConfig_.Acquire()->EnableNewDiskChecker) {
+        OnDiskHealthCheck(diskInfos);
     }
 
     THashSet<TString> diskWithLivenessLocations;

@@ -525,7 +525,7 @@ private:
             auto latestTimestampOrError = WaitFor(timestampProvider->GenerateTimestamps());
             if (!latestTimestampOrError.IsOK()) {
                 // Skip trimming, because unable to generate timestamp.
-                THROW_ERROR_EXCEPTION("Failed to generate last timestamp")
+                THROW_ERROR_EXCEPTION("Failed to generate latest timestamp")
                     << latestTimestampOrError;
             }
             auto latestTimestamp = latestTimestampOrError.Value();
@@ -541,7 +541,10 @@ private:
             const auto& partitionSnapshot = queueSnapshot->PartitionSnapshots[partitionIndex];
 
             if (partitionSnapshot->TabletState != NTabletClient::ETabletState::Mounted) {
-                YT_LOG_DEBUG("Partition %v is not in mounted state, actual state is %v, skip from trimming", partitionIndex, partitionSnapshot->TabletState);
+                YT_LOG_DEBUG(
+                    "Not trimming partition since it is not mounted (PartitionIndex: %v, TabletState: %v)",
+                    partitionIndex,
+                    partitionSnapshot->TabletState);
                 continue;
             }
             TError partitionError;
@@ -667,7 +670,7 @@ private:
         for (int trimmedPartitionIndex = 0; trimmedPartitionIndex < std::ssize(trimmingResults); ++trimmedPartitionIndex) {
             const auto& trimmingResult = trimmingResults[trimmedPartitionIndex];
             if (!trimmingResult.IsOK()) {
-                YT_LOG_DEBUG(trimmingResult, "Error trimming partition %v", trimmedPartitions[trimmedPartitionIndex]);
+                YT_LOG_DEBUG(trimmingResult, "Error trimming partition (PartitionIndex: %v)", trimmedPartitions[trimmedPartitionIndex]);
             }
         }
     }

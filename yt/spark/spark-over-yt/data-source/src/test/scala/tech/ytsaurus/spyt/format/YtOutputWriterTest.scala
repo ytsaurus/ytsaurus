@@ -13,7 +13,8 @@ import tech.ytsaurus.spyt.test.{LocalSpark, TmpDir}
 import tech.ytsaurus.spyt.wrapper.YtWrapper
 import tech.ytsaurus.spyt.wrapper.client.YtClientConfiguration
 import tech.ytsaurus.client.{ApiServiceTransaction, CompoundClient, TableWriter}
-import tech.ytsaurus.core.tables.TableSchema
+import tech.ytsaurus.core.cypress.YPath
+import tech.ytsaurus.core.tables.{ColumnValueType, TableSchema}
 import tech.ytsaurus.spyt.format.conf.SparkYtWriteConfiguration
 
 import java.util
@@ -22,6 +23,7 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 
 class YtOutputWriterTest extends FlatSpec with TmpDir with LocalSpark with Matchers {
+  import YtOutputWriterTest._
   private val schema = StructType(Seq(StructField("a", IntegerType)))
 
   "YtOutputWriterTest" should "write several batches" in {
@@ -48,6 +50,21 @@ class YtOutputWriterTest extends FlatSpec with TmpDir with LocalSpark with Match
       spark.read.yt(tmpPath).collect() should contain theSameElementsAs rows
       YtWrapper.chunkCount(tmpPath) shouldEqual 1
     }
+  }
+
+  it should "use YtOutputWriter if used via spark.write.format(yt) for static tables" in {
+    import spark.implicits._
+    val sampleData = (1 to 1000).map(n => SampleRow(n.longValue() * n, 1.0 + 1.7*n, s"$n-th row"))
+
+    val df = spark.createDataset(sampleData)
+    df.write.format("yt").save("yt:/" + tmpPath)
+
+    val yPath = YPath.simple(YtWrapper.formatPath(tmpPath))
+    val outputPathAttributes = YtWrapper.attributes(yPath, None, Set.empty[String])
+
+    outputPathAttributes("dynamic").boolValue() shouldBe false
+
+    YtDataCheck.yPathShouldContainExpectedData(yPath, sampleData)(_.getValues.get(0).longValue())
   }
 
   def runTestWithSpecificPath(path: String): Unit = {
@@ -102,7 +119,7 @@ class YtOutputWriterTest extends FlatSpec with TmpDir with LocalSpark with Match
       path,
       schema,
       YtClientConfiguration.default("local"),
-      SparkYtWriteConfiguration(1, batchSize, 5 minutes, typeV3Format = false),
+      SparkYtWriteConfiguration(1, batchSize, batchSize, 5 minutes, typeV3Format = false),
       transaction.getId.toString,
       Map("sort_columns" -> SortColumns.set(sortOption.keys), "unique_keys" -> UniqueKeys.set(sortOption.uniqueKeys))
     ) {
@@ -174,6 +191,12 @@ class YtOutputWriterTest extends FlatSpec with TmpDir with LocalSpark with Match
     override def get(ordinal: Int, dataType: DataType): AnyRef = ???
   }
 
+}
+
+object YtOutputWriterTest {
+  case class SampleRow(id: Long, ratio: Double, value: String)
+
+  implicit val sampleRowOrdering: Ordering[SampleRow] = Ordering.by(_.id)
 }
 
 
