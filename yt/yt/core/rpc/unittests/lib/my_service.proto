@@ -208,3 +208,14 @@ message TRspGetTraceBaggage
 {
     required string baggage = 1;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetChannelFailureError
+{
+    optional string redirection_address = 1;
+}
+
+message TRspGetChannelFailureError
+{
+}

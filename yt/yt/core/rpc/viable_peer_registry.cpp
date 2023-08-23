@@ -281,6 +281,7 @@ private:
 
     const size_t ClientStickinessRandomNumber_ = RandomNumber<size_t>();
 
+
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
 
     // Information for active peers with created channels.

@@ -25,12 +25,16 @@ class TMyService
     , public TServiceBase
 {
 public:
-    TMyService(IInvokerPtr invoker, bool secure)
+    TMyService(
+        IInvokerPtr invoker,
+        bool secure,
+        TTestCreateChannelCallback createChannel)
         : TServiceBase(
             invoker,
             TMyProxy::GetDescriptor(),
             NLogging::TLogger("Main"))
         , Secure_(secure)
+        , CreateChannel_(createChannel)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SomeCall));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PassCall));
@@ -62,6 +66,7 @@ public:
             .SetStreamingEnabled(true)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTraceBaggage));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChannelFailureError));
         // NB: NotRegisteredCall is not registered intentionally
 
         DeclareServerFeature(EMyFeature::Great);
@@ -311,6 +316,22 @@ public:
         context->Reply();
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NMyRpc, GetChannelFailureError)
+    {
+        context->SetRequestInfo();
+
+        if (request->has_redirection_address()) {
+            YT_VERIFY(CreateChannel_);
+            TMyProxy proxy(CreateChannel_(request->redirection_address()));
+            auto req = proxy.GetChannelFailureError();
+            context->ReplyFrom(req->Invoke().AsVoid());
+        } else {
+            TError channelFailureError(NRpc::EErrorCode::Unavailable, "Test channel failure error");
+            YT_VERIFY(IsChannelFailureError(channelFailureError));
+            context->Reply(channelFailureError);
+        }
+    }
+
     TFuture<void> GetServerStreamsAborted() const override
     {
         return ServerStreamsAborted_.ToFuture();
@@ -318,6 +339,7 @@ public:
 
 private:
     const bool Secure_;
+    const TTestCreateChannelCallback CreateChannel_;
 
     TPromise<void> SlowCallCanceled_ = NewPromise<void>();
     TPromise<void> ServerStreamsAborted_ = NewPromise<void>();
@@ -335,9 +357,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IMyServicePtr CreateMyService(IInvokerPtr invoker, bool secure)
+IMyServicePtr CreateMyService(
+    IInvokerPtr invoker,
+    bool secure,
+    TTestCreateChannelCallback createChannel)
 {
-    return New<TMyService>(invoker, secure);
+    return New<TMyService>(invoker, secure, createChannel);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
