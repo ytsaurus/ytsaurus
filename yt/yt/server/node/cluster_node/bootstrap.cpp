@@ -1252,6 +1252,7 @@ private:
         const auto& memoryLimits = bundleConfig->MemoryLimits;
         overrideCapacity(blockCacheConfig->CompressedData, memoryLimits->CompressedBlockCache);
         overrideCapacity(blockCacheConfig->UncompressedData, memoryLimits->UncompressedBlockCache);
+        overrideCapacity(blockCacheConfig->XorFilter, memoryLimits->KeyFilterBlockCache);
         overrideCapacity(versionedChunkMetaConfig, memoryLimits->VersionedChunkMeta);
 
         ClientBlockCache_->Reconfigure(blockCacheConfig);

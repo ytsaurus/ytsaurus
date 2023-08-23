@@ -33,6 +33,8 @@ void TMemoryLimits::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("uncompressed_block_cache", &TThis::UncompressedBlockCache)
         .Optional();
+    registrar.Parameter("key_filter_block_cache", &TThis::KeyFilterBlockCache)
+        .Optional();
     registrar.Parameter("versioned_chunk_meta", &TThis::VersionedChunkMeta)
         .Optional();
     registrar.Parameter("lookup_row_cache", &TThis::LookupRowCache)
