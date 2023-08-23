@@ -27,7 +27,7 @@ const (
 	NodeUser              NodeType = "user"
 	NodeGroup             NodeType = "group"
 	NodeAccount           NodeType = "account"
-	NodeMedium            NodeType = "medium"
+	NodeDomesticMedium    NodeType = "domestic_medium"
 	NodeTabletCellBundle  NodeType = "tablet_cell_bundle"
 	NodeTabletCell        NodeType = "tablet_cell"
 	NodeSys               NodeType = "sys_node"
