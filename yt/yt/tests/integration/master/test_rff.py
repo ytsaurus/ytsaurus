@@ -1,11 +1,12 @@
 from yt_env_setup import YTEnvSetup
 
-from yt_commands import authors, wait, get, set, ls, create, write_table, start_transaction
+from yt_commands import authors, wait, get, set, ls, create, write_table, start_transaction, build_snapshot
 
 from yt_helpers import get_current_time, parse_yt_time
 
 import time
 
+import os
 
 ##################################################################
 
@@ -69,6 +70,21 @@ class TestRff(YTEnvSetup):
         now = get_current_time()
         assert last_ping_time < now
         assert (now - last_ping_time).total_seconds() < 3
+
+    @authors("aleksandra-zh")
+    def test_snapshots(self):
+        cell_id = get("//sys/@cell_id")
+        snapshot_id = build_snapshot(cell_id=cell_id, set_read_only=False)
+
+        for peer_index in range(self.NUM_MASTERS):
+            result_dir = os.path.join(self.path_to_run, "runtime_data", "master", str(peer_index))
+            assert os.path.exists(result_dir)
+
+            snapshot_dir = os.path.join(result_dir, "snapshots")
+
+            snapshot_ids = [int(name.split(".")[0]) for name in os.listdir(snapshot_dir) if name.endswith("snapshot")]
+
+            assert snapshot_id in snapshot_ids
 
 
 ##################################################################

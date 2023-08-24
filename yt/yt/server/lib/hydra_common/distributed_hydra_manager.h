@@ -17,8 +17,7 @@ namespace NYT::NHydra {
 struct TDistributedHydraManagerOptions
 {
     bool UseFork = false;
-    bool WriteChangelogsAtFollowers = true;
-    bool WriteSnapshotsAtFollowers = true;
+    bool EnableObserverPersistence = true;
     NRpc::IResponseKeeperPtr ResponseKeeper;
 };
 

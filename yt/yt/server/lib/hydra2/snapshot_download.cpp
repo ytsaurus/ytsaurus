@@ -1,10 +1,12 @@
 #include "snapshot_download.h"
 #include "private.h"
 #include "snapshot_discovery.h"
+#include "helpers.h"
 
 #include <yt/yt/server/lib/hydra2/hydra_service_proxy.h>
 
 #include <yt/yt/server/lib/hydra_common/config.h>
+#include <yt/yt/server/lib/hydra_common/distributed_hydra_manager.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 #include <yt/yt/ytlib/election/config.h>
@@ -24,6 +26,7 @@ namespace {
 
 void DoDownloadSnapshot(
     const TDistributedHydraManagerConfigPtr& config,
+    TDistributedHydraManagerOptions options,
     const TCellManagerPtr& cellManager,
     const ISnapshotStorePtr& store,
     int snapshotId,
@@ -33,16 +36,9 @@ void DoDownloadSnapshot(
         snapshotId,
         cellManager->GetSelfPeerId());
 
-    // Non-voting peers usually peek into another peer's remote snapshot store.
-    // They definitely shouldn't download anything anywhere.
-    // TODO(shakurov):
-    // Strictly speaking, this check is incorrect, as it disables non-voting peers
-    // with *local* stores from downloading snapshots, either.
-    // However, non-voting peers with local snapshot stores are currently not used
-    // in practice, and there's no way to distinguish remote and local store
-    // at the moment (at least, there's no non-ugly way).
-    if (!cellManager->GetSelfConfig()->Voting) {
-        THROW_ERROR_EXCEPTION("Snapshot downloading by non-voting peers is prohibited");
+    auto isPersistenceEnabled = IsPersistenceEnabled(cellManager, options);
+    if (!isPersistenceEnabled) {
+        THROW_ERROR_EXCEPTION("Snapshot downloading by observers is prohibited");
     }
 
     try {
@@ -92,6 +88,7 @@ void DoDownloadSnapshot(
 
 TFuture<void> DownloadSnapshot(
     TDistributedHydraManagerConfigPtr config,
+    TDistributedHydraManagerOptions options,
     TCellManagerPtr cellManager,
     ISnapshotStorePtr store,
     int snapshotId,
@@ -99,7 +96,7 @@ TFuture<void> DownloadSnapshot(
 {
     return BIND(DoDownloadSnapshot)
         .AsyncVia(GetCurrentInvoker())
-        .Run(std::move(config), std::move(cellManager), std::move(store), snapshotId, std::move(logger));
+        .Run(std::move(config), std::move(options), std::move(cellManager), std::move(store), snapshotId, std::move(logger));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

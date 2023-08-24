@@ -108,7 +108,7 @@ private:
         SnapshotChecksums_.resize(Owner_->CellManager_->GetTotalPeerCount());
 
         std::vector<TFuture<void>> asyncResults;
-        if (Owner_->Options_.WriteSnapshotsAtFollowers) {
+        if (Owner_->Options_.EnableObserverPersistence) {
             for (auto peerId = 0; peerId < Owner_->CellManager_->GetTotalPeerCount(); ++peerId) {
                 if (peerId == Owner_->CellManager_->GetSelfPeerId())
                     continue;

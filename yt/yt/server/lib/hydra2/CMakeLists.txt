@@ -49,6 +49,7 @@ target_sources(server-lib-hydra2 PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra2/decorated_automaton.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra2/distributed_hydra_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra2/dry_run_hydra_manager.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra2/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra2/lease_tracker.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra2/mutation_committer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra2/private.cpp

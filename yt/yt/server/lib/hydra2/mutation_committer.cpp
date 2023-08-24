@@ -3,6 +3,7 @@
 #include "decorated_automaton.h"
 #include "changelog_acquisition.h"
 #include "lease_tracker.h"
+#include "helpers.h"
 
 #include <yt/yt/server/lib/hydra_common/changelog.h>
 #include <yt/yt/server/lib/hydra_common/config.h>
@@ -1392,10 +1393,11 @@ void TFollowerCommitter::LogMutations()
     std::vector<TSharedRef> recordsData;
     recordsData.reserve(AcceptedMutations_.size());
 
+    auto isPersistenceEnabled = IsPersistenceEnabled(EpochContext_->CellManager, Options_);
     while (!AcceptedMutations_.empty()) {
         auto version = AcceptedMutations_.front()->Version;
 
-        if ((!Changelog_ || version.SegmentId != Changelog_->GetId()) && Options_.WriteChangelogsAtFollowers) {
+        if ((!Changelog_ || version.SegmentId != Changelog_->GetId()) && isPersistenceEnabled) {
             if (!recordsData.empty()) {
                 break;
             }
@@ -1423,7 +1425,7 @@ void TFollowerCommitter::LogMutations()
     }
 
     if (!Changelog_) {
-        YT_VERIFY(!Options_.WriteChangelogsAtFollowers);
+        YT_VERIFY(!isPersistenceEnabled);
         LastLoggedSequenceNumber_ = lastSequenceNumber;
         LoggingMutations_ = false;
         return;

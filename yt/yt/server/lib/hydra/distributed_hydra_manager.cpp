@@ -699,7 +699,7 @@ private:
                             request->Attachments());
                         WaitFor(asyncResult)
                             .ThrowOnError();
-                        response->set_logged(Options_.WriteChangelogsAtFollowers);
+                        response->set_logged(Options_.EnableObserverPersistence);
                     } catch (const std::exception& ex) {
                         auto error = TError("Error logging mutations")
                             << ex;
@@ -813,7 +813,7 @@ private:
                 controlState);
         }
 
-        if (!Options_.WriteSnapshotsAtFollowers) {
+        if (!Options_.EnableObserverPersistence) {
             THROW_ERROR_EXCEPTION("Cannot build snapshot at follower");
         }
 
@@ -1858,7 +1858,7 @@ private:
             case EFinalRecoveryAction::BuildSnapshotAndRestart:
                 SetReadOnly(true);
 
-                if (isLeader || Options_.WriteSnapshotsAtFollowers) {
+                if (isLeader || Options_.EnableObserverPersistence) {
                     YT_LOG_INFO("Building compatibility snapshot");
                     DecoratedAutomaton_->RotateAutomatonVersionAfterRecovery();
                     auto resultOrError = WaitFor(DecoratedAutomaton_->BuildSnapshot(/*setReadOnly*/ false));

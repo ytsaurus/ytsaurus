@@ -8,6 +8,7 @@
 #include "lease_tracker.h"
 #include "mutation_committer.h"
 #include "recovery.h"
+#include "helpers.h"
 
 #include <yt/yt/server/lib/hydra_common/distributed_hydra_manager.h>
 #include <yt/yt/server/lib/hydra_common/changelog.h>
@@ -1159,6 +1160,7 @@ private:
 
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        auto isPersistenceEnabled = IsPersistenceEnabled(epochContext->CellManager, Options_);
         auto controlState = GetControlState();
         if (controlState != EPeerState::Following && controlState != EPeerState::FollowerRecovery) {
             THROW_ERROR_EXCEPTION(
@@ -1231,7 +1233,7 @@ private:
                         SnapshotId_,
                         snapshotSequenceNumber,
                         readOnly);
-                    if (Options_.WriteSnapshotsAtFollowers) {
+                    if (isPersistenceEnabled) {
                         SnapshotFuture_ = BIND(&TDecoratedAutomaton::BuildSnapshot, DecoratedAutomaton_)
                             .AsyncVia(epochContext->EpochUserAutomatonInvoker)
                             .Run(SnapshotId_, snapshotSequenceNumber, readOnly);
@@ -2256,7 +2258,6 @@ private:
         ControlState_ = EPeerState::FollowerRecovery;
 
         auto epochContext = StartEpoch(electionEpochContext);
-
         epochContext->FollowerCommitter = New<TFollowerCommitter>(
             Config_,
             Options_,
@@ -2433,10 +2434,11 @@ private:
             Logger);
         epochContext->FollowerCommitter->SetSequenceNumber(committedState.SequenceNumber);
 
+        auto isPersistenceEnabled = IsPersistenceEnabled(epochContext->CellManager, Options_);
         // If we join an active quorum, we wont get an AcquireChangelog request from leader,
         // so we wont be able to promote our term there, so we have to do it here.
         // Looks safe.
-        if (Options_.WriteChangelogsAtFollowers) {
+        if (isPersistenceEnabled) {
             WaitFor(ChangelogStore_->SetTerm(term))
                 .ThrowOnError();
         }
@@ -2465,12 +2467,13 @@ private:
 
         auto selfPeerId = electionEpochContext->CellManager->GetSelfPeerId();
         auto voting = electionEpochContext->CellManager->GetPeerConfig(selfPeerId)->Voting;
+        auto isPersistenceEnabled = IsPersistenceEnabled(electionEpochContext->CellManager, Options_);
 
         auto epochContext = New<TEpochContext>();
         epochContext->CellManager = electionEpochContext->CellManager;
         epochContext->ChangelogStore = ChangelogStore_;
         epochContext->ReachableState = ElectionPriority_->ReachableState;
-        epochContext->Term = voting ? ChangelogStore_->GetTermOrThrow() : InvalidTerm;
+        epochContext->Term = isPersistenceEnabled ? ChangelogStore_->GetTermOrThrow() : InvalidTerm;
         epochContext->LeaderId = electionEpochContext->LeaderId;
         epochContext->EpochId = electionEpochContext->EpochId;
         epochContext->CancelableContext = electionEpochContext->CancelableContext;

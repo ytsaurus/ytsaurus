@@ -431,8 +431,7 @@ public:
 
             TDistributedHydraManagerOptions hydraManagerOptions{
                 .UseFork = false,
-                .WriteChangelogsAtFollowers = independent,
-                .WriteSnapshotsAtFollowers = independent,
+                .EnableObserverPersistence = independent,
                 .ResponseKeeper = ResponseKeeper_
             };
 

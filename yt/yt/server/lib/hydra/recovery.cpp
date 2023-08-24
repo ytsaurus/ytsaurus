@@ -184,7 +184,7 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
     }
 
     // Shortcut for observer startup.
-    if (targetVersion == TVersion() && !IsLeader() && !Options_.WriteChangelogsAtFollowers)
+    if (targetVersion == TVersion() && !IsLeader() && !Options_.EnableObserverPersistence)
         return;
 
     YT_LOG_INFO("Replaying changelogs (ChangelogIds: %v-%v, TargetVersion: %v)",
@@ -205,7 +205,7 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
         YT_LOG_INFO("Changelog opened (ChangelogId: %v)",
                 changelogId);
         } else {
-            if (!IsLeader() && !Options_.WriteChangelogsAtFollowers) {
+            if (!IsLeader() && !Options_.EnableObserverPersistence) {
                 THROW_ERROR_EXCEPTION("Changelog %v is missing", changelogId);
             }
 
@@ -218,7 +218,7 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
                 .ValueOrThrow();
         }
 
-        if (!IsLeader() && Options_.WriteChangelogsAtFollowers) {
+        if (!IsLeader() && Options_.EnableObserverPersistence) {
             SyncChangelog(changelog, changelogId);
         }
 
@@ -238,7 +238,7 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
         ++changelogId;
     }
 
-    if (IsLeader() || Options_.WriteChangelogsAtFollowers) {
+    if (IsLeader() || Options_.EnableObserverPersistence) {
         YT_VERIFY(targetChangelog);
 
         YT_VERIFY(targetChangelog->GetRecordCount() == targetVersion.RecordId);

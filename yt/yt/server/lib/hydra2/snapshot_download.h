@@ -13,6 +13,7 @@ namespace NYT::NHydra2 {
 
 TFuture<void> DownloadSnapshot(
     NHydra::TDistributedHydraManagerConfigPtr config,
+    NHydra::TDistributedHydraManagerOptions options,
     NElection::TCellManagerPtr cellManager,
     NHydra::ISnapshotStorePtr store,
     int snapshotId,

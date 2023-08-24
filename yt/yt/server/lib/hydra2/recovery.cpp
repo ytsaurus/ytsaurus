@@ -6,6 +6,7 @@
 #include "hydra_service_proxy.h"
 #include "snapshot_discovery.h"
 #include "snapshot_download.h"
+#include "helpers.h"
 
 #include <yt/yt/server/lib/hydra_common/changelog.h>
 #include <yt/yt/server/lib/hydra_common/config.h>
@@ -125,6 +126,7 @@ void TRecovery::DoRun()
                     snapshotId);
                 WaitFor(DownloadSnapshot(
                     Config_,
+                    Options_,
                     epochContext->CellManager,
                     SnapshotStore_,
                     snapshotId,
@@ -192,9 +194,11 @@ void TRecovery::DoRun()
         initialChangelogId = currentState.SegmentId;
     }
 
+    auto isPersistenceEnabled = IsPersistenceEnabled(EpochContext_->CellManager, Options_);
+
     // Shortcut for observer startup.
     // XXX(babenko)
-    if (TargetState_ == TReachableState() && !IsLeader_ && !Options_.WriteChangelogsAtFollowers) {
+    if (TargetState_ == TReachableState() && !isPersistenceEnabled) {
         return;
     }
 
@@ -216,7 +220,7 @@ void TRecovery::DoRun()
             YT_LOG_INFO("Changelog opened (ChangelogId: %v)",
                 changelogId);
         } else {
-            if (!IsLeader_ && !Options_.WriteChangelogsAtFollowers) {
+            if (!isPersistenceEnabled) {
                 THROW_ERROR_EXCEPTION("Changelog %v is missing", changelogId);
             }
 
@@ -229,7 +233,7 @@ void TRecovery::DoRun()
                 .ValueOrThrow();
         }
 
-        if (!IsLeader_ && Options_.WriteChangelogsAtFollowers) {
+        if (!IsLeader_ && isPersistenceEnabled) {
             SyncChangelog(changelog);
         }
 
