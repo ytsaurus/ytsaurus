@@ -177,6 +177,12 @@
         "addresses" = [
             "localhost:25282";
         ];
+        "peers" = [
+            {
+                "address" = "localhost:25282";
+                "voting" = %true;
+            };
+        ];
         "enable_master_cache_discovery" = %false;
         "soft_backoff_time" = 100;
         "retry_attempts" = 100;
