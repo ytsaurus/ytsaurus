@@ -10,10 +10,13 @@ class TestObjectServiceCache(YTEnvSetup):
 
     USE_MASTER_CACHE = True
 
-    DELTA_NODE_CONFIG = {
-        "master_cache_service": {
-            "top_entry_byte_rate_threshold": 1
-        }
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "caching_object_service": {
+                "top_entry_byte_rate_threshold": 1,
+                "aggregation_period": 1000,
+            },
+        },
     }
 
     @authors("aleksandra-zh")

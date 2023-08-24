@@ -99,7 +99,7 @@ private:
         const TMasterCacheDynamicConfigPtr& /*oldConfig*/,
         const TMasterCacheDynamicConfigPtr& newConfig)
     {
-        ObjectServiceCache_->Configure(newConfig->CachingObjectService);
+        ObjectServiceCache_->Reconfigure(newConfig->CachingObjectService);
         for (const auto& cachingObjectService : CachingObjectServices_) {
             cachingObjectService->Reconfigure(newConfig->CachingObjectService);
         }

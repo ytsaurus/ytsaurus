@@ -1,6 +1,6 @@
-#include "config.h"
-
 #include "object_service_cache.h"
+
+#include "config.h"
 #include "object_service_proxy.h"
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
@@ -191,20 +191,67 @@ const TObjectServiceCacheEntryPtr& TObjectServiceCache::TCookie::ExpiredEntry() 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TObjectServiceCache::TObjectServiceCache(
+TObjectServiceCache::TCache::TCache(
+    TObjectServiceCache* owner,
     TObjectServiceCacheConfigPtr config,
     IMemoryUsageTrackerPtr memoryTracker,
-    const NLogging::TLogger& logger,
     const NProfiling::TProfiler& profiler)
     : TMemoryTrackingAsyncSlruCacheBase(
         config,
         std::move(memoryTracker),
         profiler)
+    , Owner_(owner)
+{ }
+
+bool TObjectServiceCache::TCache::IsResurrectionSupported() const
+{
+    return false;
+}
+
+void TObjectServiceCache::TCache::OnAdded(const TObjectServiceCacheEntryPtr& entry)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TMemoryTrackingAsyncSlruCacheBase::OnAdded(entry);
+    if (auto owner = Owner_.Lock()) {
+        owner->OnAdded(entry);
+    }
+}
+
+void TObjectServiceCache::TCache::OnRemoved(const TObjectServiceCacheEntryPtr& entry)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TMemoryTrackingAsyncSlruCacheBase::OnRemoved(entry);
+    if (auto owner = Owner_.Lock()) {
+        owner->OnAdded(entry);
+    }
+}
+
+i64 TObjectServiceCache::TCache::GetWeight(const TObjectServiceCacheEntryPtr& entry) const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return entry->GetTotalSpace();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TObjectServiceCache::TObjectServiceCache(
+    TObjectServiceCacheConfigPtr config,
+    IMemoryUsageTrackerPtr memoryTracker,
+    const NLogging::TLogger& logger,
+    const NProfiling::TProfiler& profiler)
+    : Cache_(New<TCache>(
+        this,
+        config,
+        std::move(memoryTracker),
+        profiler))
     , Config_(std::move(config))
     , Logger(logger)
     , Profiler_(profiler.WithSparse())
 {
-    Configure(New<TObjectServiceCacheDynamicConfig>());
+    Reconfigure(New<TObjectServiceCacheDynamicConfig>());
 }
 
 TObjectServiceCache::TCookie TObjectServiceCache::BeginLookup(
@@ -215,14 +262,14 @@ TObjectServiceCache::TCookie TObjectServiceCache::BeginLookup(
     TDuration successStalenessBound,
     NHydra::TRevision refreshRevision)
 {
-    auto entry = Find(key);
+    auto entry = Cache_->Find(key);
     auto tryRemove = [&] () {
         {
             auto guard = WriterGuard(ExpiredEntriesLock_);
             ExpiredEntries_.emplace(key, entry);
         }
 
-        TryRemoveValue(entry);
+        Cache_->TryRemoveValue(entry);
     };
 
     bool cacheHit = false;
@@ -270,7 +317,7 @@ TObjectServiceCache::TCookie TObjectServiceCache::BeginLookup(
         counters->MissRequestCount.Increment();
     }
 
-    auto underlyingCookie = BeginInsert(key);
+    auto underlyingCookie = Cache_->BeginInsert(key);
 
     if (underlyingCookie.GetValue().IsSet()) {
         // Do not return stale response, when actual one is available.
@@ -350,14 +397,15 @@ IYPathServicePtr TObjectServiceCache::GetOrchidService()
     return IYPathService::FromProducer(producer);
 }
 
-void TObjectServiceCache::Configure(const TObjectServiceCacheDynamicConfigPtr& config)
+void TObjectServiceCache::Reconfigure(const TObjectServiceCacheDynamicConfigPtr& config)
 {
-    TMemoryTrackingAsyncSlruCacheBase::Reconfigure(config);
+    Cache_->Reconfigure(config);
     EntryByteRateLimit_.store(config->EntryByteRateLimit);
     TopEntryByteRateThreshold_.store(config->TopEntryByteRateThreshold);
     AggregationPeriod_.store(config->AggregationPeriod);
     MinAdvisedStickyGroupSize_.store(config->MinAdvisedStickyGroupSize);
     MaxAdvisedStickyGroupSize_.store(config->MaxAdvisedStickyGroupSize);
+    YT_LOG_INFO("reconfig %v", ConvertToYsonString(config, EYsonFormat::Text).ToString());
 }
 
 TCacheProfilingCountersPtr TObjectServiceCache::GetProfilingCounters(const TString& user, const TString& method)
@@ -382,16 +430,9 @@ TCacheProfilingCountersPtr TObjectServiceCache::GetProfilingCounters(const TStri
     }
 }
 
-bool TObjectServiceCache::IsResurrectionSupported() const
-{
-    return false;
-}
-
 void TObjectServiceCache::OnAdded(const TObjectServiceCacheEntryPtr& entry)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-
-    TMemoryTrackingAsyncSlruCacheBase::OnAdded(entry);
 
     const auto& key = entry->GetKey();
     YT_LOG_DEBUG("Cache entry added (Key: %v, Revision: %x, Success: %v, TotalSpace: %v)",
@@ -404,8 +445,6 @@ void TObjectServiceCache::OnAdded(const TObjectServiceCacheEntryPtr& entry)
 void TObjectServiceCache::OnRemoved(const TObjectServiceCacheEntryPtr& entry)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-
-    TMemoryTrackingAsyncSlruCacheBase::OnRemoved(entry);
 
     const auto& key = entry->GetKey();
     YT_LOG_DEBUG("Cache entry removed (Key: %v, Revision: %x, Success: %v, TotalSpace: %v)",
@@ -427,13 +466,6 @@ void TObjectServiceCache::MaybeEraseTopEntry(const TObjectServiceCacheKey& key)
     if (TopEntries_.erase(key) > 0) {
         YT_LOG_DEBUG("Removed entry from top (Key: %v)", key);
     }
-}
-
-i64 TObjectServiceCache::GetWeight(const TObjectServiceCacheEntryPtr& entry) const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return entry->GetTotalSpace();
 }
 
 bool TObjectServiceCache::IsExpired(
@@ -460,6 +492,7 @@ void TObjectServiceCache::TouchEntry(const TObjectServiceCacheEntryPtr& entry, b
     if ((previous < topEntryByteRateThreshold && current >= topEntryByteRateThreshold) || forceRenewTop) {
         auto guard = WriterGuard(TopEntriesLock_);
 
+        YT_LOG_INFO("XXX %v %v %v", key, entry->GetByteRate(), topEntryByteRateThreshold);
         if (entry->GetByteRate() >= topEntryByteRateThreshold) {
             if (TopEntries_.emplace(key, entry).second) {
                 YT_LOG_DEBUG("Added entry to top (Key: %v, ByteRate: %v -> %v)",

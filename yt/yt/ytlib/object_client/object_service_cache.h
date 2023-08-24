@@ -103,7 +103,7 @@ DEFINE_REFCOUNTED_TYPE(TCacheProfilingCounters)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TObjectServiceCache
-    : public TMemoryTrackingAsyncSlruCacheBase<TObjectServiceCacheKey, TObjectServiceCacheEntry>
+    : public TRefCounted
 {
 public:
     using TUnderlyingCookie = TAsyncSlruCacheBase<TObjectServiceCacheKey, TObjectServiceCacheEntry>::TInsertCookie;
@@ -145,15 +145,36 @@ public:
 
     NYTree::IYPathServicePtr GetOrchidService();
 
-    void Configure(const TObjectServiceCacheDynamicConfigPtr& config);
+    void Reconfigure(const TObjectServiceCacheDynamicConfigPtr& config);
 
 private:
+    class TCache
+        : public TMemoryTrackingAsyncSlruCacheBase<TObjectServiceCacheKey, TObjectServiceCacheEntry>
+    {
+    public:
+        TCache(
+            TObjectServiceCache* owner,
+            TObjectServiceCacheConfigPtr config,
+            IMemoryUsageTrackerPtr memoryTracker,
+            const NProfiling::TProfiler& profiler);
+
+    private:
+        TWeakPtr<TObjectServiceCache> const Owner_;
+
+        bool IsResurrectionSupported() const override;
+        void OnAdded(const TObjectServiceCacheEntryPtr& entry) override;
+        void OnRemoved(const TObjectServiceCacheEntryPtr& entry) override;
+        i64 GetWeight(const TObjectServiceCacheEntryPtr& entry) const override;
+    };
+
+    const TIntrusivePtr<TCache> Cache_;
+
     const TObjectServiceCacheConfigPtr Config_;
     const NLogging::TLogger Logger;
     const NProfiling::TProfiler Profiler_;
 
     std::atomic<i64> EntryByteRateLimit_;
-    std::atomic<double> TopEntryByteRateThreshold_;
+    std::atomic<i64> TopEntryByteRateThreshold_;
     std::atomic<TDuration> AggregationPeriod_;
     std::atomic<int> MinAdvisedStickyGroupSize_;
     std::atomic<int> MaxAdvisedStickyGroupSize_;
@@ -171,13 +192,10 @@ private:
 
     TCacheProfilingCountersPtr GetProfilingCounters(const TString& user, const TString& method);
 
-    bool IsResurrectionSupported() const override;
-
     void MaybeEraseTopEntry(const TObjectServiceCacheKey& key);
 
-    void OnAdded(const TObjectServiceCacheEntryPtr& entry) override;
-    void OnRemoved(const TObjectServiceCacheEntryPtr& entry) override;
-    i64 GetWeight(const TObjectServiceCacheEntryPtr& entry) const override;
+    void OnAdded(const TObjectServiceCacheEntryPtr& entry);
+    void OnRemoved(const TObjectServiceCacheEntryPtr& entry);
 
     static bool IsExpired(
         const TObjectServiceCacheEntryPtr& entry,
