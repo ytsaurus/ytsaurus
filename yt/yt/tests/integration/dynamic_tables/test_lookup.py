@@ -665,14 +665,21 @@ class TestLookup(TestSortedDynamicTablesBase):
 
         insert_rows("//tmp/t", [{"key": 1, "value": "1"}, {"key": 2, "value": "22"}])
 
-        row_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="lookup/row_count")
-        missing_row_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="lookup/missing_row_count")
-        unmerged_row_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="lookup/unmerged_row_count")
-        unmerged_missing_row_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="lookup/unmerged_missing_row_count")
+        iter = 0
+        while iter < 10:
+            row_count = profiler_factory().at_tablet_node("//tmp/t").counter(
+                name="lookup/row_count")
+            missing_row_count = profiler_factory().at_tablet_node("//tmp/t").counter(
+                name="lookup/missing_row_count")
+            unmerged_row_count = profiler_factory().at_tablet_node("//tmp/t").counter(
+                name="lookup/unmerged_row_count")
+            unmerged_missing_row_count = profiler_factory().at_tablet_node("//tmp/t").counter(
+                name="lookup/unmerged_missing_row_count")
+            if row_count.get_delta() == 0 and missing_row_count.get_delta() == 0 and \
+               unmerged_row_count.get_delta() == 0 and unmerged_missing_row_count.get_delta() == 0:
+                break
+            iter += 1
+        assert iter < 10
 
         assert lookup_rows("//tmp/t", [{"key": 0}, {"key": 1}, {"key": 2}, {"key": 3}]) == \
             [{"key": 0, "value": "0"}, {"key": 1, "value": "1"}, {"key": 2, "value": "22"}]
@@ -841,6 +848,7 @@ class TestLookup(TestSortedDynamicTablesBase):
 
         sync_create_cells(1)
         sync_mount_table("//tmp/t")
+        wait(lambda: get("//tmp/t/@preload_state") == "complete")
 
         assert lookup_rows("//tmp/t", [{"key": 0}, {"key": 1}]) == rows
 

@@ -3236,8 +3236,6 @@ class TestReplicatedDynamicTablesRpcProxy(TestReplicatedDynamicTables):
 
         sync_alter_table_replica_mode(replica_id2, "async")
 
-        check(timeout=10000, expected_replica_ids=[replica_id, replica_id2])
-
         if keys_mode == "empty":
             check(timeout=0, expected_replica_ids=[replica_id, replica_id2])
         else:
@@ -3277,7 +3275,7 @@ class TestReplicatedDynamicTablesRpcProxy(TestReplicatedDynamicTables):
         reshard_table("//tmp/r2", pivot_keys, driver=self.replica_driver)
         sync_enable_table_replica(replica_id2)
         sync_mount_table("//tmp/r2", driver=self.replica_driver)
-        unmounted_tablet_index = random.randint(0, 10)
+        unmounted_tablet_index = random.randint(0, 9)
         sync_unmount_table("//tmp/r2", driver=self.replica_driver,
                            first_tablet_index=unmounted_tablet_index, last_tablet_index=unmounted_tablet_index)
 

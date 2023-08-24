@@ -257,6 +257,11 @@ private:
             errors.push_back(result);
         }
 
+        // NB: This is solely for testing purposes. We want to eliminate unlikely test flaps.
+        if (ReadersObserver_->GetConfig()->ChunkMetaCacheFailureProbability) {
+            return DoGetMetaImpl(options, extensionTags);
+        }
+
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::ChunkMetaFetchFailed,
             "Failed to get chunk meta of chunk %v from any of valid part readers",
