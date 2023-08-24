@@ -191,9 +191,9 @@ private:
     i64 MutationQueueDataSize_ = 0;
     std::deque<TPendingMutationPtr> MutationQueue_;
 
-    NProfiling::TSummary BatchSummarySize_;
-    NProfiling::TSummary MutationQueueSummarySize_;
-    NProfiling::TSummary MutationQueueSummaryDataSize_;
+    NProfiling::TSummary BatchSizeSummary_;
+    NProfiling::TSummary MutationQueueSizeSummary_;
+    NProfiling::TSummary MutationQueueDataSizeSummary_;
 
     void FlushMutations();
     void OnMutationsAcceptedByFollower(

@@ -166,9 +166,9 @@ TLeaderCommitter::TLeaderCommitter(
         Config_->Get()->CheckpointCheckPeriod))
     , InitialState_(reachableState)
     , CommittedState_(std::move(reachableState))
-    , BatchSummarySize_(profiler.Summary("/mutation_batch_size"))
-    , MutationQueueSummarySize_(profiler.Summary("/mutation_queue_size"))
-    , MutationQueueSummaryDataSize_(profiler.Summary("/mutation_queue_data_size"))
+    , BatchSizeSummary_(profiler.Summary("/mutation_batch_size"))
+    , MutationQueueSizeSummary_(profiler.Summary("/mutation_queue_size"))
+    , MutationQueueDataSizeSummary_(profiler.Summary("/mutation_queue_data_size"))
 {
     PeerStates_.assign(CellManager_->GetTotalPeerCount(), {-1, -1});
 
@@ -335,9 +335,9 @@ void TLeaderCommitter::Stop()
     CloseChangelog(Changelog_);
 
     MutationQueue_.clear();
-    MutationQueueSummarySize_.Record(0);
+    MutationQueueSizeSummary_.Record(0);
     MutationQueueDataSize_ = 0;
-    MutationQueueSummaryDataSize_.Record(0);
+    MutationQueueDataSizeSummary_.Record(0);
 
     if (LastSnapshotInfo_) {
         LastSnapshotInfo_->Promise.TrySet(error);
@@ -456,7 +456,7 @@ void TLeaderCommitter::FlushMutations()
             mutationCount,
             CommittedState_);
 
-        BatchSummarySize_.Record(mutationCount);
+        BatchSizeSummary_.Record(mutationCount);
 
         i64 mutationDataSize = 0;
         if (mutationCount > 0) {
@@ -678,8 +678,8 @@ void TLeaderCommitter::DrainQueue()
         MutationQueueDataSize_ -= GetMutationDataSize(mutation);
         MutationQueue_.pop_front();
 
-        MutationQueueSummarySize_.Record(MutationQueue_.size());
-        MutationQueueSummaryDataSize_.Record(MutationQueueDataSize_);
+        MutationQueueSizeSummary_.Record(MutationQueue_.size());
+        MutationQueueDataSizeSummary_.Record(MutationQueueDataSize_);
     };
 
     auto config = Config_->Get();
@@ -1039,8 +1039,8 @@ void TLeaderCommitter::LogMutations(std::vector<TMutationDraft> mutationDrafts)
     }
     auto lastSequenceNumber = NextLoggedSequenceNumber_ - 1;
 
-    MutationQueueSummarySize_.Record(MutationQueue_.size());
-    MutationQueueSummaryDataSize_.Record(MutationQueueDataSize_);
+    MutationQueueSizeSummary_.Record(MutationQueue_.size());
+    MutationQueueDataSizeSummary_.Record(MutationQueueDataSize_);
 
     auto future = Changelog_->Append(std::move(recordsData));
     LastLoggedMutationFuture_ = future.Apply(
