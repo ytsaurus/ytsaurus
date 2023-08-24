@@ -760,6 +760,9 @@ TYsonString DoGetMulticellOwningNodes(
 
     const auto& multicellManager = bootstrap->GetMulticellManager();
 
+    std::vector<std::pair<TCellTag, TFuture<TChunkServiceProxy::TRspGetChunkOwningNodesPtr>>> requestFutures;
+    requestFutures.reserve(multicellManager->GetCellCount());
+
     // Request owning nodes from all cells.
     auto requestIdsFromCell = [&] (TCellTag cellTag) {
         if (cellTag == multicellManager->GetCellTag()) {
@@ -779,9 +782,18 @@ TYsonString DoGetMulticellOwningNodes(
         auto req = proxy.GetChunkOwningNodes();
         ToProto(req->mutable_chunk_id(), chunkTreeId);
 
-        auto rspOrError = WaitFor(req->Invoke());
+        requestFutures.emplace_back(cellTag, req->Invoke());
+    };
+
+    requestIdsFromCell(multicellManager->GetPrimaryCellTag());
+    for (auto cellTag : multicellManager->GetSecondaryCellTags()) {
+        requestIdsFromCell(cellTag);
+    }
+
+    for (const auto& [cellTag, future] : requestFutures) {
+        auto rspOrError = WaitFor(future);
         if (rspOrError.GetCode() == NChunkClient::EErrorCode::NoSuchChunk) {
-            return;
+            continue;
         }
 
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting owning nodes for chunk %v from cell %v",
@@ -794,11 +806,6 @@ TYsonString DoGetMulticellOwningNodes(
                 FromProto<NCypressClient::TNodeId>(protoNode.node_id()),
                 FromProto<TTransactionId>(protoNode.transaction_id()));
         }
-    };
-
-    requestIdsFromCell(multicellManager->GetPrimaryCellTag());
-    for (auto cellTag : multicellManager->GetSecondaryCellTags()) {
-        requestIdsFromCell(cellTag);
     }
 
     {
