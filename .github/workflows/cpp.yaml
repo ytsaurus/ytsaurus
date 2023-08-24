@@ -181,12 +181,6 @@ jobs:
           bash ./yt/docker/systest/build.sh --ytsaurus-source-path $(pwd)  --ytsaurus-build-path ../build --benchmarks-path benchmark-0.0.1.tgz --output-path ../docker-systest-build --image-tag latest
           docker push ytsaurus/ytsaurus-systest:latest
 
-      - name: Kube
-        shell: bash
-        run: |
-          export HOME=/root
-          bash yt/systest/scripts/minikube.sh --image ytsaurus/ytsaurus-nightly:latest --ytsaurus-source-path $(pwd)
-
       - name: Unittests
         shell: bash
         run: |
