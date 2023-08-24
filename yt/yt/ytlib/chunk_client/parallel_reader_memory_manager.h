@@ -38,7 +38,6 @@ DEFINE_REFCOUNTED_TYPE(IMultiReaderMemoryManager)
 struct IReaderMemoryManagerHost
     : public virtual TRefCounted
 {
-public:
     //! Called by chunk reader memory manager when it is finalized and its usage becomes zero, so we don't need it anymore.
     virtual void Unregister(IReaderMemoryManagerPtr readerMemoryManager) = 0;
 
