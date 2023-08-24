@@ -19,19 +19,18 @@ get_built_tool_path(
   cpp_styleguide
 )
 
-add_library(yt-client-hedging-proto)
-target_link_libraries(yt-client-hedging-proto PUBLIC
+add_library(yt-client-cache-proto)
+target_link_libraries(yt-client-cache-proto PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt_proto-yt-core
-  yt-client-cache-proto
   contrib-libs-protobuf
 )
-target_proto_messages(yt-client-hedging-proto PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt_proto/yt/client/hedging/proto/config.proto
+target_proto_messages(yt-client-cache-proto PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt_proto/yt/client/cache/proto/config.proto
 )
-target_proto_addincls(yt-client-hedging-proto
+target_proto_addincls(yt-client-cache-proto
   ./
   ${CMAKE_SOURCE_DIR}/
   ${CMAKE_BINARY_DIR}
@@ -41,7 +40,7 @@ target_proto_addincls(yt-client-hedging-proto
   ${CMAKE_BINARY_DIR}
   ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
 )
-target_proto_outs(yt-client-hedging-proto
+target_proto_outs(yt-client-cache-proto
   --cpp_out=${CMAKE_BINARY_DIR}/
   --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
 )
