@@ -35,11 +35,10 @@ struct TChunkReaderMemoryManagerOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! This interface is used by MultiReaderMemoryManager to track children memory managers.
-class IReaderMemoryManager
+//! This interface is used by MultiReaderMemoryManager to track child memory managers.
+struct IReaderMemoryManager
     : public virtual TRefCounted
 {
-public:
     //! Minimum amount of memory required by reader to perform reads.
     virtual i64 GetRequiredMemorySize() const = 0;
 
