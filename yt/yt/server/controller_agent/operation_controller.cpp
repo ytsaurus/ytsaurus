@@ -17,6 +17,8 @@
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 #include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
+#include <yt/yt/core/tracing/trace_context.h>
+
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/core/yson/consumer.h>
@@ -28,6 +30,7 @@ using namespace NApi;
 using namespace NScheduler;
 using namespace NObjectClient;
 using namespace NProfiling;
+using namespace NTracing;
 using namespace NYson;
 using namespace NYPath;
 using namespace NYTree;
@@ -148,8 +151,14 @@ public:
         , Underlying_(std::move(underlying))
         , DtorInvoker_(std::move(dtorInvoker))
         , MemoryTag_(memoryTag)
+        , TraceContext_(CreateTraceContextFromCurrent("TOperationControllerWrapper"))
+        , TraceContextFinishGuard_(TraceContext_)
         , MemoryTagQueue_(memoryTagQueue)
-    { }
+    {
+        TraceContext_->SetAllocationTagsPtr(
+            New<TAllocationTags>(
+                TAllocationTags::TTags({{MemoryTagLiteral, ToString(MemoryTag_)}, {OperationIdAllocationTag, ToString(Id_)}})));
+    }
 
     ~TOperationControllerWrapper() override
     {
@@ -186,66 +195,92 @@ public:
 
     std::pair<NApi::ITransactionPtr, TString> GetIntermediateMediumTransaction() override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         return Underlying_->GetIntermediateMediumTransaction();
     }
 
     void UpdateIntermediateMediumUsage(i64 usage) override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         Underlying_->UpdateIntermediateMediumUsage(usage);
     }
 
     TOperationControllerInitializeResult InitializeClean() override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         return Underlying_->InitializeClean();
     }
 
     TOperationControllerInitializeResult InitializeReviving(const TControllerTransactionIds& transactions) override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         return Underlying_->InitializeReviving(transactions);
     }
 
     TOperationControllerPrepareResult Prepare() override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         return Underlying_->Prepare();
     }
 
     TOperationControllerMaterializeResult Materialize() override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         return Underlying_->Materialize();
     }
 
     void Commit() override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         Underlying_->Commit();
     }
 
     void SaveSnapshot(IZeroCopyOutput* output) override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         Underlying_->SaveSnapshot(output);
     }
 
     TOperationControllerReviveResult Revive() override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         return Underlying_->Revive();
     }
 
     void Terminate(EControllerState finalState) override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         Underlying_->Terminate(finalState);
     }
 
     void Cancel() override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         Underlying_->Cancel();
     }
 
     void Complete() override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         Underlying_->Complete();
     }
 
     void Dispose() override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         Underlying_->Dispose();
     }
 
@@ -261,46 +296,64 @@ public:
 
     void UpdateRuntimeParameters(const TOperationRuntimeParametersUpdatePtr& update) override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         Underlying_->UpdateRuntimeParameters(update);
     }
 
     void OnTransactionsAborted(const std::vector<TTransactionId>& transactionIds) override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         Underlying_->OnTransactionsAborted(transactionIds);
     }
 
     TCancelableContextPtr GetCancelableContext() const override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         return Underlying_->GetCancelableContext();
     }
 
     IInvokerPtr GetInvoker(EOperationControllerQueue queue) const override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         return Underlying_->GetInvoker(queue);
     }
 
     IInvokerPtr GetCancelableInvoker(EOperationControllerQueue queue) const override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         return Underlying_->GetCancelableInvoker(queue);
     }
 
     IDiagnosableInvokerPool::TInvokerStatistics GetInvokerStatistics(EOperationControllerQueue queue) const override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         return Underlying_->GetInvokerStatistics(queue);
     }
 
     TFuture<void> Suspend() override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         return Underlying_->Suspend();
     }
 
     void Resume() override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         Underlying_->Resume();
     }
 
     TCompositePendingJobCount GetPendingJobCount() const override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         return Underlying_->GetPendingJobCount();
     }
 
@@ -326,41 +379,57 @@ public:
 
     TCompositeNeededResources GetNeededResources() const override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         return Underlying_->GetNeededResources();
     }
 
     void UpdateMinNeededJobResources() override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         Underlying_->UpdateMinNeededJobResources();
     }
 
     TJobResourcesWithQuotaList GetMinNeededJobResources() const override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         return Underlying_->GetMinNeededJobResources();
     }
 
     void OnJobAbortedEventReceivedFromScheduler(TAbortedBySchedulerJobSummary&& eventSummary) override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         Underlying_->OnJobAbortedEventReceivedFromScheduler(std::move(eventSummary));
     }
 
     void OnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary) override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         Underlying_->OnJobRunning(std::move(jobSummary));
     }
 
     void AbandonJob(TJobId jobId) override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         Underlying_->AbandonJob(jobId);
     }
 
     void OnJobInfoReceivedFromNode(std::unique_ptr<TJobSummary> jobSummary) override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         Underlying_->OnJobInfoReceivedFromNode(std::move(jobSummary));
     }
 
     void AbortJobByJobTracker(TJobId jobId, EAbortReason abortReason) override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         Underlying_->AbortJobByJobTracker(jobId, abortReason);
     }
 
@@ -369,21 +438,29 @@ public:
         const TJobResources& jobLimits,
         const TString& treeId) override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         return Underlying_->ScheduleJob(context, jobLimits, treeId);
     }
 
     void UpdateConfig(const TControllerAgentConfigPtr& config) override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         Underlying_->UpdateConfig(config);
     }
 
     bool ShouldUpdateProgressAttributes() const override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         return Underlying_->ShouldUpdateProgressAttributes();
     }
 
     void SetProgressAttributesUpdated() override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         Underlying_->SetProgressAttributesUpdated();
     }
 
@@ -394,51 +471,71 @@ public:
 
     TYsonString GetProgress() const override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         return Underlying_->GetProgress();
     }
 
     TYsonString GetBriefProgress() const override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         return Underlying_->GetBriefProgress();
     }
 
     TYsonString BuildJobYson(TJobId jobId, bool outputStatistics) const override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         return Underlying_->BuildJobYson(jobId, outputStatistics);
     }
 
     TJobStartInfo SettleJob(TAllocationId allocationId) override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         return Underlying_->SettleJob(allocationId);
     }
 
     TOperationJobMetrics PullJobMetricsDelta(bool force) override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         return Underlying_->PullJobMetricsDelta(force);
     }
 
     TOperationAlertMap GetAlerts() override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         return Underlying_->GetAlerts();
     }
 
     TOperationInfo BuildOperationInfo() override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         return Underlying_->BuildOperationInfo();
     }
 
     TYsonString GetSuspiciousJobsYson() const override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         return Underlying_->GetSuspiciousJobsYson();
     }
 
     TSnapshotCookie OnSnapshotStarted() override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         return Underlying_->OnSnapshotStarted();
     }
 
     void OnSnapshotCompleted(const TSnapshotCookie& cookie) override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         return Underlying_->OnSnapshotCompleted(cookie);
     }
 
@@ -449,21 +546,29 @@ public:
 
     IYPathServicePtr GetOrchid() const override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         return Underlying_->GetOrchid();
     }
 
     void ZombifyOrchid() override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         return Underlying_->ZombifyOrchid();
     }
 
     TString WriteCoreDump() const override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         return Underlying_->WriteCoreDump();
     }
 
     void RegisterOutputRows(i64 count, int tableIndex) override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         return Underlying_->RegisterOutputRows(count, tableIndex);
     }
 
@@ -474,26 +579,36 @@ public:
 
     void LoadSnapshot(const TOperationSnapshot& snapshot) override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         return Underlying_->LoadSnapshot(snapshot);
     }
 
     i64 GetMemoryUsage() const override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         return Underlying_->GetMemoryUsage();
     }
 
     void SetOperationAlert(EOperationAlertType type, const TError& alert) override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         return Underlying_->SetOperationAlert(type, alert);
     }
 
     void OnMemoryLimitExceeded(const TError& error) override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         return Underlying_->OnMemoryLimitExceeded(error);
     }
 
     bool IsMemoryLimitExceeded() const override
     {
+        auto guard = TCurrentTraceContextGuard(TraceContext_);
+
         return Underlying_->IsMemoryLimitExceeded();
     }
 
@@ -503,10 +618,15 @@ public:
     }
 
 private:
+
     const TOperationId Id_;
     const IOperationControllerPtr Underlying_;
     const IInvokerPtr DtorInvoker_;
     const TMemoryTag MemoryTag_;
+
+    const TTraceContextPtr TraceContext_;
+    const TTraceContextFinishGuard TraceContextFinishGuard_;
+
     TMemoryTagQueue* const MemoryTagQueue_;
 };
 
@@ -692,4 +812,3 @@ IOperationControllerPtr CreateControllerForOperation(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent
-

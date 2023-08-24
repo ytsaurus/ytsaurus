@@ -253,9 +253,7 @@ TOperationControllerBase::TOperationControllerBase(
     , CancelableContext(New<TCancelableContext>())
     , DiagnosableInvokerPool_(CreateFairShareInvokerPool(
         CreateCodicilGuardedInvoker(
-            CreateMemoryTaggingInvoker(
-                CreateSerializedInvoker(Host->GetControllerThreadPoolInvoker(), "operation_controller_base"),
-                operation->GetMemoryTag()),
+            CreateSerializedInvoker(Host->GetControllerThreadPoolInvoker(), "operation_controller_base"),
             Format(
                 "OperationId: %v\nAuthenticatedUser: %v",
                 OperationId,
@@ -266,10 +264,7 @@ TOperationControllerBase::TOperationControllerBase(
     , CancelableInvokerPool(TransformInvokerPool(
         SuspendableInvokerPool,
         BIND(&TCancelableContext::CreateInvoker, CancelableContext)))
-    , JobSpecBuildInvoker_(
-        CreateMemoryTaggingInvoker(
-            Host->GetJobSpecBuildPoolInvoker(),
-            operation->GetMemoryTag()))
+    , JobSpecBuildInvoker_(Host->GetJobSpecBuildPoolInvoker())
     , RowBuffer(New<TRowBuffer>(TRowBufferTag(), Config->ControllerRowBufferChunkSize))
     , MemoryTag_(operation->GetMemoryTag())
     , PoolTreeControllerSettingsMap_(operation->PoolTreeControllerSettingsMap())
