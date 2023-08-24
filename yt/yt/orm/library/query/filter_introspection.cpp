@@ -1,6 +1,6 @@
 #include "filter_introspection.h"
 
-#include <yt/yt/orm/library/attributes/helpers.h>
+#include <yt/yt/orm/library/attributes/attribute_path.h>
 
 #include <yt/yt/library/query/base/query_preparer.h>
 

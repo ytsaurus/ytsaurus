@@ -10,8 +10,6 @@ namespace NYT::NOrm::NAttributes {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateAttributePath(const NYPath::TYPath& path);
-
 const NYson::TProtobufMessageType* GetMessageTypeByYPath(
     const NYson::TProtobufMessageType* rootType,
     const NYPath::TYPath& path,

@@ -13,8 +13,7 @@ using TReferenceMapping = std::function<NQueryClient::NAst::TExpressionPtr(
 using TFunctionRewriter = std::function<NQueryClient::NAst::TExpressionPtr(
     NQueryClient::NAst::TFunctionExpression*)>;
 
-NQueryClient::NAst::TExpressionPtr DummyFunctionRewriter(
-    NQueryClient::NAst::TFunctionExpression*);
+NQueryClient::NAst::TExpressionPtr DummyFunctionRewriter(NQueryClient::NAst::TFunctionExpression*);
 
 class TQueryRewriter
 {

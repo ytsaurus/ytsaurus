@@ -18,17 +18,6 @@ using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateAttributePath(const NYPath::TYPath& path)
-{
-    TTokenizer tokenizer(path);
-    while (tokenizer.Advance() != ETokenType::EndOfStream) {
-        tokenizer.Expect(NYPath::ETokenType::Slash);
-
-        tokenizer.Advance();
-        tokenizer.Expect(NYPath::ETokenType::Literal);
-    }
-}
-
 const NYson::TProtobufMessageType* GetMessageTypeByYPath(
     const NYson::TProtobufMessageType* rootType,
     const NYPath::TYPath& path,

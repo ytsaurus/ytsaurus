@@ -2,7 +2,7 @@
 #include "query_evaluator.h"
 #include "query_rewriter.h"
 
-#include <yt/yt/orm/library/attributes/helpers.h>
+#include <yt/yt/orm/library/attributes/attribute_path.h>
 
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/row_buffer.h>
@@ -181,7 +181,7 @@ private:
     const std::vector<TTypedAttributePath> TypedAttributePaths_;
 
     std::unique_ptr<TQueryEvaluationContext> EvaluationContext_;
-    NYT::TObjectsHolder ObjectsHolder_;
+    TObjectsHolder ObjectsHolder_;
 
     struct TRowBufferTag
     { };
@@ -223,7 +223,7 @@ private:
     TReferenceExpressionPtr CreateFakeTableColumnReference(const NYPath::TYPath& attributePath)
     {
         return ObjectsHolder_.New<TReferenceExpression>(
-            NYT::NQueryClient::NullSourceLocation,
+            NQueryClient::NullSourceLocation,
             GetFakeTableColumnName(attributePath));
     }
 
@@ -248,15 +248,15 @@ private:
 
             if (typedDataAttributePath.Type == EValueType::Any) {
                 return ObjectsHolder_.New<TFunctionExpression>(
-                    NYT::NQueryClient::NullSourceLocation,
+                    NQueryClient::NullSourceLocation,
                     "try_get_any",
                     TExpressionList{
                         CreateFakeTableColumnReference(dataAttributePath),
                         ObjectsHolder_.New<TLiteralExpression>(
-                            NYT::NQueryClient::NullSourceLocation,
+                            NQueryClient::NullSourceLocation,
                             std::move(queryAttributePathSuffix))});
             }
-            if (!queryAttributePathSuffix.Empty()) {
+            if (queryAttributePathSuffix) {
                 THROW_ERROR_EXCEPTION(
                     "Attribute path of type %Qlv does not support nested attributes",
                     typedDataAttributePath.Type);
@@ -269,10 +269,10 @@ private:
         }
     }
 
-    NYT::NQueryClient::NAst::TExpressionPtr CreateFakeTableFilterExpression(
+    NQueryClient::NAst::TExpressionPtr CreateFakeTableFilterExpression(
         const TString& query)
     {
-        auto parsedQuery = ParseSource(query, NYT::NQueryClient::EParseMode::Expression);
+        auto parsedQuery = ParseSource(query, NQueryClient::EParseMode::Expression);
         auto queryExpression = std::get<TExpressionPtr>(parsedQuery->AstHead.Ast);
 
         ObjectsHolder_.Merge(std::move(parsedQuery->AstHead));
