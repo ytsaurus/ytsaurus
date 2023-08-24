@@ -45,12 +45,12 @@ target_link_libraries(rpc-unittests-lib PUBLIC
   contrib-libs-protobuf
 )
 target_proto_messages(rpc-unittests-lib PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/unittests/lib/my_service.proto
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/unittests/lib/test_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/unittests/lib/no_baggage_service.proto
 )
 target_sources(rpc-unittests-lib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/unittests/lib/common.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/unittests/lib/my_service.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/unittests/lib/test_service.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/rpc/unittests/lib/no_baggage_service.cpp
 )
 target_proto_addincls(rpc-unittests-lib

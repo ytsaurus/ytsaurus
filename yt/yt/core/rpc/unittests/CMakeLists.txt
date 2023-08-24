@@ -6,6 +6,7 @@
 # original buildsystem will not be accepted.
 
 
+add_subdirectory(allocation_tags)
 add_subdirectory(bin)
 add_subdirectory(lib)
 add_subdirectory(main)
