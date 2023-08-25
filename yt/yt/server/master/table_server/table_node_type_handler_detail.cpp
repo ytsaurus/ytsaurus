@@ -595,6 +595,30 @@ ICypressNodeProxyPtr TReplicatedTableNodeTypeHandler::DoGetProxy(
         trunkNode);
 }
 
+void TReplicatedTableNodeTypeHandler::DoBranch(
+    const TReplicatedTableNode* originatingNode,
+    TReplicatedTableNode* branchedNode,
+    const NCypressServer::TLockRequest& lockRequest)
+{
+    // NB: Replica set is got from trunk node (see #TReplicatedTableNode::Replicas).
+    branchedNode->SetReplicatedTableOptions(CloneYsonStruct(originatingNode->GetReplicatedTableOptions()));
+
+    TBase::DoBranch(originatingNode, branchedNode, lockRequest);
+}
+
+void TReplicatedTableNodeTypeHandler::DoClone(
+    TReplicatedTableNode* sourceNode,
+    TReplicatedTableNode* clonedTrunkNode,
+    NCypressServer::ICypressNodeFactory* factory,
+    NCypressServer::ENodeCloneMode mode,
+    NSecurityServer::TAccount* account)
+{
+    TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
+
+    // NB: Replica set is intentionally not copied but recreated by tablet manager.
+    clonedTrunkNode->SetReplicatedTableOptions(CloneYsonStruct(sourceNode->GetReplicatedTableOptions()));
+}
+
 void TReplicatedTableNodeTypeHandler::DoBeginCopy(
     TReplicatedTableNode* /*node*/,
     TBeginCopyContext* /*context*/)
@@ -615,4 +639,3 @@ void TReplicatedTableNodeTypeHandler::DoEndCopy(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableServer
-

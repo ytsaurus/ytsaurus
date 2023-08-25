@@ -420,7 +420,8 @@ public:
         EAtomicity atomicity,
         bool enabled,
         TTimestamp startReplicationTimestamp,
-        const std::optional<std::vector<i64>>& startReplicationRowIndexes)
+        const std::optional<std::vector<i64>>& startReplicationRowIndexes,
+        bool enableReplicatedTableTracker)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -460,6 +461,7 @@ public:
             ? ETableReplicaState::Enabled
             : ETableReplicaState::Disabled;
         replicaHolder->SetState(state);
+        replicaHolder->SetEnableReplicatedTableTracker(enableReplicatedTableTracker);
 
         auto* replica = TableReplicaMap_.Insert(id, std::move(replicaHolder));
         objectManager->RefObject(replica);
@@ -2072,7 +2074,8 @@ public:
                     replica->GetAtomicity(),
                     /*enabled*/ false,
                     replica->GetStartReplicationTimestamp(),
-                    committedReplicationRowIndexes);
+                    committedReplicationRowIndexes,
+                    replica->GetEnableReplicatedTableTracker());
 
                 YT_LOG_DEBUG(
                     "Table replica cloned (OriginalReplicaId: %v, ClonedReplicaId: %v, "
@@ -7148,7 +7151,8 @@ TTableReplica* TTabletManager::CreateTableReplica(
     EAtomicity atomicity,
     bool enabled,
     TTimestamp startReplicationTimestamp,
-    const  std::optional<std::vector<i64>>& startReplicationRowIndexes)
+    const std::optional<std::vector<i64>>& startReplicationRowIndexes,
+    bool enableReplicatedTableTracker)
 {
     return Impl_->CreateTableReplica(
         table,
@@ -7159,7 +7163,8 @@ TTableReplica* TTabletManager::CreateTableReplica(
         atomicity,
         enabled,
         startReplicationTimestamp,
-        startReplicationRowIndexes);
+        startReplicationRowIndexes,
+        enableReplicatedTableTracker);
 }
 
 void TTabletManager::ZombifyTableReplica(TTableReplica* replica)

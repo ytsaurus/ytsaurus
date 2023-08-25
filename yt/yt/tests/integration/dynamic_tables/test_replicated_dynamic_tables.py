@@ -2991,6 +2991,59 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         wait(lambda: get("#{0}/@mode".format(replica1)) == "async")
         wait(lambda: get("#{0}/@mode".format(replica2)) == "sync")
 
+    @authors("akozhikhov")
+    def test_rtt_for_copied_table(self):
+        self._create_cells()
+        self._create_replicated_table(
+            "//tmp/t_original",
+            schema=self.SIMPLE_SCHEMA_SORTED,
+            replicated_table_options={
+                "enable_replicated_table_tracker": False,
+                "min_sync_replica_count": 0,
+                "max_sync_replica_count": 2,
+            })
+        create_table_replica(
+            "//tmp/t_original",
+            self.REPLICA_CLUSTER_NAME,
+            "//tmp/r",
+            attributes={"mode": "async"},
+        )
+        create_table_replica(
+            "//tmp/t_original",
+            self.REPLICA_CLUSTER_NAME,
+            "//tmp/r2",
+            attributes={"mode": "async", "enable_replicated_table_tracker": False},
+        )
+        self._create_replica_table("//tmp/r", schema=self.SIMPLE_SCHEMA_SORTED)
+        self._create_replica_table("//tmp/r2", schema=self.SIMPLE_SCHEMA_SORTED)
+
+        sync_unmount_table("//tmp/t_original")
+        copy("//tmp/t_original", "//tmp/t_copy")
+        sync_mount_table("//tmp/t_copy")
+
+        replicas = get("//tmp/t_copy/@replicas")
+        [replica_id, replica_id2] = list(replicas.keys())
+        if replicas[replica_id]["replica_path"] == "//tmp/r2":
+            replica_id, replica_id2 = replica_id2, replica_id
+
+        set("//tmp/t_copy/@replicated_table_options/enable_replicated_table_tracker", True)
+        assert get("//tmp/t_copy/@replicated_table_options/min_sync_replica_count") == 0
+        assert get("#{}/@enable_replicated_table_tracker".format(replica_id))
+        assert not get("#{}/@enable_replicated_table_tracker".format(replica_id2))
+
+        sync_enable_table_replica(replica_id)
+        sync_enable_table_replica(replica_id2)
+
+        wait(lambda: get("#{0}/@mode".format(replica_id)) == "sync")
+        assert get("#{0}/@mode".format(replica_id2)) == "async"
+
+        set("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/banned_replica_clusters",
+            [self.REPLICA_CLUSTER_NAME])
+        wait(lambda: get("#{0}/@mode".format(replica_id)) == "async")
+
+        set("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/banned_replica_clusters", [])
+        wait(lambda: get("#{0}/@mode".format(replica_id)) == "sync")
+
 
 ##################################################################
 
