@@ -14,6 +14,7 @@ import org.junit.Test;
 import tech.ytsaurus.client.request.CreateNode;
 import tech.ytsaurus.client.request.ReadFile;
 import tech.ytsaurus.client.request.ReadTable;
+import tech.ytsaurus.client.request.SerializationContext;
 import tech.ytsaurus.client.request.SetNode;
 import tech.ytsaurus.client.request.WriteFile;
 import tech.ytsaurus.client.request.WriteTable;
@@ -98,7 +99,11 @@ public class CypressTest extends YTsaurusClientTestBase {
         yt.createNode(tablePath.toString(), CypressNodeType.TABLE).get(2, TimeUnit.SECONDS);
 
         var writer = yt.writeTable(
-                new WriteTable<>(tablePath, TableRow.class)
+                WriteTable.<TableRow>builder()
+                        .setPath(tablePath)
+                        .setSerializationContext(new SerializationContext<>(TableRow.class))
+                        .setNeedRetries(false)
+                        .build()
         ).get(defaultFutureTimeoutSeconds, TimeUnit.SECONDS);
 
         try {

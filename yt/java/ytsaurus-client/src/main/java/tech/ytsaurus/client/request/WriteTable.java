@@ -206,7 +206,7 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
         private long windowSize = 16000000L;
         private long packetSize = windowSize / 2;
 
-        private boolean needRetries = false;
+        private boolean needRetries = true;
         private int maxWritesInFlight = 1;
         private int chunkSize = 524288000;
 
