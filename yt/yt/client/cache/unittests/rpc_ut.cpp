@@ -1,9 +1,8 @@
-#include <yt/yt/client/hedging/rpc.h>
-#include <yt/yt_proto/yt/client/hedging/proto/config.pb.h>
+#include <yt/yt/client/cache/rpc.h>
 
 #include <library/cpp/testing/gtest/gtest.h>
 
-namespace NYT::NClient::NHedging::NRpc {
+namespace NYT::NClient::NCache {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,4 +31,4 @@ TEST(RpcClientTest, ProxyRoleOverride)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NClient::NHedging::NRpc
+} // namespace NYT::NClient::NCache

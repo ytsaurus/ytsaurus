@@ -1,5 +1,5 @@
-#include <yt/yt/client/hedging/cache.h>
-#include <yt/yt_proto/yt/client/hedging/proto/config.pb.h>
+#include <yt/yt/client/cache/cache.h>
+#include <yt/yt_proto/yt/client/cache/proto/config.pb.h>
 
 #include <library/cpp/testing/gtest/gtest.h>
 
@@ -11,7 +11,7 @@
 
 #include <thread>
 
-namespace NYT::NClient::NHedging::NRpc {
+namespace NYT::NClient::NCache {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -107,4 +107,4 @@ TEST(TClientsCacheTest, MakeClusterConfig) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NClient::NHedging::NRpc
+} // namespace NYT::NClient::NCache

@@ -1,4 +1,4 @@
-#include <yt/yt/client/hedging/options.h>
+#include <yt/yt/client/cache/options.h>
 
 #include <library/cpp/testing/common/scope.h>
 #include <library/cpp/testing/gtest/gtest.h>
@@ -10,7 +10,7 @@
 
 #include <util/system/env.h>
 
-namespace NYT::NClient::NHedging {
+namespace NYT::NClient::NCache {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,4 +80,4 @@ TEST(TClientOptionsTest, AllowEmptyUser)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NClient::NHedging
+} // namespace NYT::NClient::NCache

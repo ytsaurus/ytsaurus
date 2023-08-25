@@ -7,6 +7,7 @@
 
 
 add_subdirectory(arrow)
+add_subdirectory(cache)
 add_subdirectory(driver)
 add_subdirectory(federated)
 add_subdirectory(formats)

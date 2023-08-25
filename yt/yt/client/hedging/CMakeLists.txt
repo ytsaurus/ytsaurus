@@ -18,18 +18,16 @@ target_link_libraries(yt-client-hedging PUBLIC
   yutil
   yt-yt-core
   yt-yt-client
+  yt-client-cache
   yt-library-profiling
   yt-client-hedging-proto
   library-cpp-iterator
 )
 target_sources(yt-client-hedging PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/hedging/cache.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/hedging/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/hedging/counter.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/hedging/hedging.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/hedging/hedging_executor.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/hedging/logger.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/hedging/options.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/hedging/penalty_provider.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/hedging/rpc.cpp
 )
