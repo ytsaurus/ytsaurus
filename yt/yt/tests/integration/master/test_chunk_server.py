@@ -198,7 +198,7 @@ class TestChunkServer(YTEnvSetup):
         nodes = ls("//sys/cluster_nodes")
         assert len(nodes) == 21
 
-        assert get("//sys/@chunk_replicator_enabled")
+        wait(lambda: get("//sys/@chunk_replicator_enabled"))
 
         for i in range(19):
             ban_node(nodes[i], "test disable replicator when few nodes are online")
@@ -207,7 +207,7 @@ class TestChunkServer(YTEnvSetup):
 
     @authors("babenko")
     def test_disable_replicator_when_explicitly_requested_so(self):
-        assert get("//sys/@chunk_replicator_enabled")
+        wait(lambda: get("//sys/@chunk_replicator_enabled"))
 
         set("//sys/@config/chunk_manager/enable_chunk_replicator", False, recursive=True)
 
