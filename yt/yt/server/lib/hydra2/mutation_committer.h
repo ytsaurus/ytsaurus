@@ -18,6 +18,8 @@
 #include <yt/yt/core/concurrency/thread_affinity.h>
 #include <yt/yt/core/concurrency/invoker_alarm.h>
 
+#include <yt/yt/core/ytree/fluent.h>
+
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/mpsc_queue.h>
@@ -112,7 +114,7 @@ public:
         NLogging::TLogger logger,
         NProfiling::TProfiler profiler);
 
-    TVersion GetLoggedVersion() const;
+    TVersion GetNextLoggedVersion() const;
     i64 GetLoggedSequenceNumber() const;
     i64 GetLastOffloadedSequenceNumber() const;
 
@@ -131,11 +133,7 @@ public:
 
     void SerializeMutations();
 
-    //! Raised each time a checkpoint is needed.
-    DEFINE_SIGNAL(void(bool snapshotIsMandatory), CheckpointNeeded);
-
-    //! Raised on commit failure.
-    DEFINE_SIGNAL(void(const TError& error), CommitFailed);
+    void BuildMonitoring(NYTree::TFluentMap fluent);
 
 private:
     const TMutationDraftQueuePtr MutationDraftQueue_;
@@ -264,6 +262,8 @@ public:
     i64 GetLoggedSequenceNumber() const;
     i64 GetExpectedSequenceNumber() const;
     void SetSequenceNumber(i64 number);
+
+    void BuildMonitoring(NYTree::TFluentMap fluent);
 
     void CatchUp();
 

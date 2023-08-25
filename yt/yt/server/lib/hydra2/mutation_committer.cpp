@@ -284,6 +284,29 @@ void TLeaderCommitter::SerializeMutations()
     DrainQueue();
 }
 
+void TLeaderCommitter::BuildMonitoring(TFluentMap fluent)
+{
+    fluent
+        .Item("next_logged_version").Value(ToString(NextLoggedVersion_))
+        .Item("next_logged_sequence_number").Value(NextLoggedSequenceNumber_)
+        .Item("last_offloaded_sequence_number").Value(LastOffloadedSequenceNumber_)
+        .Item("last_random_seed").Value(LastRandomSeed_)
+        .Item("committed_sequence_number").Value(CommittedState_.SequenceNumber)
+        .Item("committed_seqment_id").Value(CommittedState_.SegmentId)
+        .Item("peer_states").DoListFor(
+            PeerStates_,
+            [&] (TFluentList fluent, const auto& peer) {
+                fluent.Item().BeginMap()
+                    .Item("next_expected_sequence_number").Value(peer.NextExpectedSequenceNumber)
+                    .Item("last_logged_sequence_number").Value(peer.LastLoggedSequenceNumber)
+                    .Item("in_flight_request_count").Value(peer.InFlightRequestCount)
+                    .Item("in_flight_mutation_count").Value(peer.InFlightMutationCount)
+                    .Item("in_flight_mutation_data_size").Value(peer.InFlightMutationDataSize)
+                    .Item("accept_mutations_mode").Value(peer.Mode)
+                .EndMap();
+            });
+}
+
 void TLeaderCommitter::Reconfigure()
 {
     auto config = Config_->Get();
@@ -1112,7 +1135,7 @@ void TLeaderCommitter::OnCommittedSequenceNumberUpdated()
     YT_UNUSED_FUTURE(ScheduleApplyMutations(std::move(mutations)));
 }
 
-TVersion TLeaderCommitter::GetLoggedVersion() const
+TVersion TLeaderCommitter::GetNextLoggedVersion() const
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1170,6 +1193,17 @@ void TFollowerCommitter::SetSequenceNumber(i64 number)
 
     YT_VERIFY(CommittedSequenceNumber_ == -1);
     CommittedSequenceNumber_ = number;
+}
+
+void TFollowerCommitter::BuildMonitoring(TFluentMap fluent)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    fluent
+        .Item("last _logged_sequence_number").Value(LastLoggedSequenceNumber_)
+        .Item("last_accepted_sequence_number").Value(LastAcceptedSequenceNumber_)
+        .Item("committed_sequence_number").Value(CommittedSequenceNumber_)
+        .Item("follower_recovery_complete").Value(RecoveryComplete_);
 }
 
 void TFollowerCommitter::CatchUp()

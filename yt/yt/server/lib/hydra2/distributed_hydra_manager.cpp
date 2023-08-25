@@ -380,7 +380,7 @@ public:
                 }
             }
 
-            auto loggedVersion = leaderCommitter->GetLoggedVersion();
+            auto loggedVersion = leaderCommitter->GetNextLoggedVersion();
             auto lastSnapshotId = DecoratedAutomaton_->GetLastSuccessfulSnapshotId();
             if (loggedVersion.RecordId == 0 && loggedVersion.SegmentId == lastSnapshotId) {
                 return MakeFuture<int>(TError(
@@ -410,13 +410,24 @@ public:
 
         return BIND([=, this, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
             VERIFY_THREAD_AFFINITY_ANY();
+            auto epochContext = AtomicEpochContext_.Acquire();
 
             BuildYsonFluently(consumer)
                 .BeginMap()
-                    // TODO(aleksandra-zh): add real committed/logged info.
+                    .DoIf(static_cast<bool>(epochContext), [&] (TFluentMap fluent) {
+                        auto selfId = epochContext->CellManager->GetSelfPeerId();
+                        fluent
+                            .Item("term").Value(epochContext->Term)
+                            .Item("epoch_id").Value(epochContext->EpochId)
+                            .Item("leader_id").Value(epochContext->LeaderId)
+                            .Item("self_id").Value(selfId)
+                            .Item("voting").Value(epochContext->CellManager->GetPeerConfig(selfId)->Voting);
+                            // TODO(aleksandra-zh): add stuff.
+                    })
                     .Item("committed_version").Value(ToString(DecoratedAutomaton_->GetAutomatonVersion()))
 
                     .Item("state").Value(DecoratedAutomaton_->GetState())
+
                     .Item("automaton_version").Value(ToString(DecoratedAutomaton_->GetAutomatonVersion()))
                     .Item("automaton_random_seed").Value(DecoratedAutomaton_->GetRandomSeed())
                     .Item("automaton_sequence_number").Value(DecoratedAutomaton_->GetSequenceNumber())
@@ -428,6 +439,7 @@ public:
                     .Item("read_only").Value(GetReadOnly())
                     .Item("warming_up").Value(Options_.ResponseKeeper ? Options_.ResponseKeeper->IsWarmingUp() : false)
                     .Item("grace_delay_status").Value(GraceDelayStatus_.load())
+
                     .Item("building_snapshot").Value(DecoratedAutomaton_->IsBuildingSnapshotNow())
                     .Item("last_snapshot_id").Value(DecoratedAutomaton_->GetLastSuccessfulSnapshotId())
                     .Item("last_snapshot_read_only").Value(DecoratedAutomaton_->GetLastSuccessfulSnapshotReadOnly())
