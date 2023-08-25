@@ -67,15 +67,16 @@ void TEncodingWriter::WriteBlock(
 
     YT_LOG_DEBUG("Pending block added (Block: %v)", AddedBlockIndex_);
 
-    CodecSemaphore_->AsyncAcquire(BIND(
-        &TEncodingWriter::DoCompressBlock,
-        MakeWeak(this),
-        std::move(block),
-        blockType,
-        AddedBlockIndex_,
-        groupIndex,
-        std::move(promise)),
-        CompressionInvoker_);
+    CodecSemaphore_->AsyncAcquire(
+        BIND(
+            &TEncodingWriter::DoCompressBlock,
+            MakeWeak(this),
+            std::move(block),
+            blockType,
+            AddedBlockIndex_,
+            groupIndex,
+            std::move(promise))
+        .Via(CompressionInvoker_));
 
     ++AddedBlockIndex_;
 }
@@ -101,15 +102,16 @@ void TEncodingWriter::WriteBlock(
 
     YT_LOG_DEBUG("Pending block added (Block: %v)", AddedBlockIndex_);
 
-    CodecSemaphore_->AsyncAcquire(BIND(
-        &TEncodingWriter::DoCompressVector,
-        MakeWeak(this),
-        std::move(vectorizedBlock),
-        blockType,
-        AddedBlockIndex_,
-        groupIndex,
-        std::move(promise)),
-        CompressionInvoker_);
+    CodecSemaphore_->AsyncAcquire(
+        BIND(
+            &TEncodingWriter::DoCompressVector,
+            MakeWeak(this),
+            std::move(vectorizedBlock),
+            blockType,
+            AddedBlockIndex_,
+            groupIndex,
+            std::move(promise))
+        .Via(CompressionInvoker_));
 
     ++AddedBlockIndex_;
 }

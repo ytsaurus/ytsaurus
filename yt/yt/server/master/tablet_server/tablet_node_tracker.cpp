@@ -121,17 +121,16 @@ private:
         const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
         auto expectedMutationCommitDuration = config->CellMaster->ExpectedMutationCommitDuration;
 
-        auto handler = BIND([=, mutation = std::move(mutation), context = std::move(context)] (TAsyncSemaphoreGuard) {
-            auto requestTimeout = context->GetTimeout();
-            auto timeAfter = NProfiling::GetInstant();
-            if (requestTimeout && timeAfter + expectedMutationCommitDuration >= timeBefore + *requestTimeout) {
-                context->Reply(TError(NYT::EErrorCode::Timeout, "Semaphore acquisition took too long"));
-            } else {
-                Y_UNUSED(WaitFor(mutation->CommitAndReply(context)));
-            }
-        });
-
-        semaphore->AsyncAcquire(handler, EpochAutomatonInvoker_);
+        semaphore->AsyncAcquire(
+            BIND([=, mutation = std::move(mutation), context = std::move(context)] (TAsyncSemaphoreGuard) {
+                auto requestTimeout = context->GetTimeout();
+                auto timeAfter = NProfiling::GetInstant();
+                if (requestTimeout && timeAfter + expectedMutationCommitDuration >= timeBefore + *requestTimeout) {
+                    context->Reply(TError(NYT::EErrorCode::Timeout, "Semaphore acquisition took too long"));
+                } else {
+                    Y_UNUSED(WaitFor(mutation->CommitAndReply(context)));
+                }
+            }).Via(EpochAutomatonInvoker_));
     }
 
     const TDynamicTabletNodeTrackerConfigPtr& GetDynamicConfig() const

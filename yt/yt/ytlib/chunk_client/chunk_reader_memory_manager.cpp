@@ -137,7 +137,6 @@ TFuture<TMemoryUsageGuardPtr> TChunkReaderMemoryManager::AsyncAcquire(i64 size)
             &TChunkReaderMemoryManager::OnSemaphoreAcquired,
             MakeWeak(this),
             Passed(std::move(memoryPromise))),
-        GetSyncInvoker(),
         size);
 
     return memoryFuture.ToImmediatelyCancelable();

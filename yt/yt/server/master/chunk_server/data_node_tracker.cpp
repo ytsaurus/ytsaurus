@@ -773,26 +773,25 @@ private:
         const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
         auto expectedMutationCommitDuration = config->CellMaster->ExpectedMutationCommitDuration;
 
-        auto handler = BIND([=, mutation = std::move(mutation), context = std::move(context), preparedRequest = std::move(preparedRequest)] (TAsyncSemaphoreGuard) {
-            auto requestTimeout = context->GetTimeout();
-            auto timeAfter = NProfiling::GetInstant();
-            if (requestTimeout && timeAfter + expectedMutationCommitDuration >= timeBefore + *requestTimeout) {
-                context->Reply(TError(NYT::EErrorCode::Timeout, "Semaphore acquisition took too long"));
-                return;
-            }
+        semaphore->AsyncAcquire(
+            BIND([=, mutation = std::move(mutation), context = std::move(context), preparedRequest = std::move(preparedRequest)] (TAsyncSemaphoreGuard) {
+                auto requestTimeout = context->GetTimeout();
+                auto timeAfter = NProfiling::GetInstant();
+                if (requestTimeout && timeAfter + expectedMutationCommitDuration >= timeBefore + *requestTimeout) {
+                    context->Reply(TError(NYT::EErrorCode::Timeout, "Semaphore acquisition took too long"));
+                    return;
+                }
 
-            auto result = WaitFor(mutation->Commit());
-            if (!result.IsOK()) {
-                context->Reply(result);
-                return;
-            }
+                auto result = WaitFor(mutation->Commit());
+                if (!result.IsOK()) {
+                    context->Reply(result);
+                    return;
+                }
 
-            auto* response = &context->Response();
-            response->CopyFrom(std::move(preparedRequest->NonSequoiaResponse));
-            context->Reply();
-        });
-
-        semaphore->AsyncAcquire(handler, EpochAutomatonInvoker_);
+                auto* response = &context->Response();
+                response->CopyFrom(std::move(preparedRequest->NonSequoiaResponse));
+                context->Reply();
+            }).Via(EpochAutomatonInvoker_));
     }
 
     const TDynamicDataNodeTrackerConfigPtr& GetDynamicConfig() const

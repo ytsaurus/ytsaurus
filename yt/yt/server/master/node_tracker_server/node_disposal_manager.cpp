@@ -79,11 +79,11 @@ public:
             &TNodeDisposalManager::HydraStartNodeDisposal,
             this);
 
-        auto handler = BIND([mutation = std::move(mutation)] (TAsyncSemaphoreGuard) {
-            Y_UNUSED(WaitFor(mutation->CommitAndLog(Logger)));
-        });
-
-        DisposeNodeSemaphore_->AsyncAcquire(handler, EpochAutomatonInvoker_);
+        DisposeNodeSemaphore_->AsyncAcquire(
+            BIND([mutation = std::move(mutation)] (TAsyncSemaphoreGuard) {
+                Y_UNUSED(WaitFor(mutation->CommitAndLog(Logger)));
+            })
+            .Via(EpochAutomatonInvoker_));
     }
 
     void DisposeNodeCompletely(TNode* node) override

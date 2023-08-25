@@ -624,8 +624,8 @@ public:
                     MakeWeak(this),
                     tablet,
                     transaction,
-                    Passed(std::move(promise))),
-                tablet->GetEpochAutomatonInvoker());
+                    Passed(std::move(promise)))
+                .Via(tablet->GetEpochAutomatonInvoker()));
         return future;
     }
 
