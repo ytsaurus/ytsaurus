@@ -29,6 +29,8 @@ using namespace NControllerAgent;
 using namespace NControllerAgent::NProto;
 using namespace NScheduler::NProto::NNode;
 
+using NScheduler::TIncarnationId;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = ExecNodeLogger;
@@ -678,6 +680,26 @@ void TControllerAgentConnectorPool::OnRegisteredAgentSetReceived(
         YT_LOG_DEBUG("Add new controller agent connector (ControllerAgentDescriptor: %v)", descriptor);
         AddControllerAgentConnector(std::move(descriptor));
     }
+}
+
+std::vector<TIncarnationId> TControllerAgentConnectorPool::GetRegisteredAgentIncarnationIds() const
+{
+    std::vector<TIncarnationId> incarnationIds;
+    incarnationIds.reserve(ControllerAgentConnectors_.size());
+    for (const auto& [descriptor, _] : ControllerAgentConnectors_) {
+        incarnationIds.push_back(descriptor.IncarnationId);
+    }
+    return incarnationIds;
+}
+
+std::optional<TControllerAgentDescriptor> TControllerAgentConnectorPool::GetDescriptorByIncarnationId(TIncarnationId incarnationId) const
+{
+    for (const auto& [descriptor, _] : ControllerAgentConnectors_) {
+        if (descriptor.IncarnationId == incarnationId) {
+            return descriptor;
+        }
+    }
+    return std::nullopt;
 }
 
 std::vector<TFuture<TControllerAgentConnectorPool::TControllerAgentConnector::TJobStartInfo>>

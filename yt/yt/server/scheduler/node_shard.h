@@ -228,6 +228,7 @@ private:
         TIncarnationId IncarnationId;
     };
     THashMap<TAgentId, TControllerAgentInfo> RegisteredAgents_;
+    THashSet<TIncarnationId> RegisteredAgentIncarnationIds_;
 
     // Exec node is the node that is online and has user slots.
     std::atomic<int> ExecNodeCount_ = 0;
@@ -428,6 +429,8 @@ private:
     void ProcessOperationInfoHeartbeat(
         const TScheduler::TCtxNodeHeartbeat::TTypedRequest* request,
         TScheduler::TCtxNodeHeartbeat::TTypedResponse* response);
+
+    bool ShouldSendRegisteredControllerAgents(TScheduler::TCtxNodeHeartbeat::TTypedRequest* request);
     void AddRegisteredControllerAgentsToResponse(auto* response);
 
     void SetMinSpareResources(TScheduler::TCtxNodeHeartbeat::TTypedResponse* response);

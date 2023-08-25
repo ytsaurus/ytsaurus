@@ -100,7 +100,7 @@ EAllocationState GetAllocationState(NProto::TAllocationStatus* status)
     return CheckedEnumCast<EAllocationState>(status->state());
 }
 
-void SetControllerAgentInfo(
+void SetControllerAgentDescriptor(
     const TAgentId& agentId,
     const TAddressMap& addresses,
     TIncarnationId incarnationId,
@@ -111,9 +111,14 @@ void SetControllerAgentInfo(
     ToProto(proto->mutable_agent_id(), agentId);
 }
 
-void SetControllerAgentInfo(const TControllerAgentPtr& agent, auto proto)
+void SetControllerAgentDescriptor(const TControllerAgentPtr& agent, auto proto)
 {
-    SetControllerAgentInfo(agent->GetId(), agent->GetAgentAddresses(), agent->GetIncarnationId(), proto);
+    SetControllerAgentDescriptor(agent->GetId(), agent->GetAgentAddresses(), agent->GetIncarnationId(), proto);
+}
+
+void SetControllerAgentIncarnationId(const TControllerAgentPtr& agent, auto proto)
+{
+    ToProto(proto->mutable_incarnation_id(), agent->GetIncarnationId());
 }
 
 auto* AddJobsToInterrupt(NProto::NNode::TRspHeartbeat* response)
@@ -327,6 +332,7 @@ void TNodeShard::DoCleanup()
     OperationIdToJobIterators_.clear();
 
     RegisteredAgents_.clear();
+    RegisteredAgentIncarnationIds_.clear();
 
     SubmitJobsToStrategy();
 }
@@ -666,15 +672,22 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     ProcessOperationInfoHeartbeat(request, response);
     SetMinSpareResources(response);
 
-    AddRegisteredControllerAgentsToResponse(response);
+    auto now = TInstant::Now();
+    auto shouldSendRegisteredControllerAgents = ShouldSendRegisteredControllerAgents(request);
+    response->set_registered_controller_agents_sent(shouldSendRegisteredControllerAgents);
+    if (shouldSendRegisteredControllerAgents) {
+        AddRegisteredControllerAgentsToResponse(response);
+        node->SetLastRegisteredControllerAgentsSentTime(now);
+    }
 
     context->SetResponseInfo(
-        "NodeId: %v, NodeAddress: %v, HeartbeatComplexity: %v, TotalComplexity: %v, IsThrottling: %v",
+        "NodeId: %v, NodeAddress: %v, HeartbeatComplexity: %v, TotalComplexity: %v, IsThrottling: %v, SendRegisteredControllerAgents: %v",
         nodeId,
         descriptor.GetDefaultAddress(),
         node->GetSchedulingHeartbeatComplexity(),
         ConcurrentHeartbeatComplexity_.load(),
-        isThrottlingActive);
+        isThrottlingActive,
+        shouldSendRegisteredControllerAgents);
 
     TStringBuilder schedulingAttributesBuilder;
     TDelimitedStringBuilderWrapper delimitedSchedulingAttributesBuilder(&schedulingAttributesBuilder);
@@ -1434,13 +1447,20 @@ void TNodeShard::RegisterAgent(
         RegisteredAgents_,
         std::move(id),
         TControllerAgentInfo{std::move(addresses), incarnationId});
+    InsertOrCrash(
+        RegisteredAgentIncarnationIds_,
+        incarnationId);
 }
 
 void TNodeShard::UnregisterAgent(TAgentId id)
 {
     YT_LOG_DEBUG("Agent unregistered from node shard (AgentId: %v)", id);
 
-    EraseOrCrash(RegisteredAgents_, id);
+    auto it = GetIteratorOrCrash(RegisteredAgents_, id);
+    const auto& info = it->second;
+
+    EraseOrCrash(RegisteredAgentIncarnationIds_, info.IncarnationId);
+    RegisteredAgents_.erase(it);
 }
 
 TExecNodePtr TNodeShard::GetOrRegisterNode(TNodeId nodeId, const TNodeDescriptor& descriptor, ENodeState state)
@@ -2135,7 +2155,11 @@ void TNodeShard::ProcessScheduledAndPreemptedJobs(
         ToProto(startInfo->mutable_operation_id(), job->GetOperationId());
         *startInfo->mutable_resource_limits() = ToNodeResources(job->ResourceUsage());
 
-        SetControllerAgentInfo(agent, startInfo->mutable_controller_agent_descriptor());
+        if (Config_->SendFullControllerAgentDescriptorsForJobs) {
+            SetControllerAgentDescriptor(agent, startInfo->mutable_controller_agent_descriptor());
+        } else {
+            SetControllerAgentIncarnationId(agent, startInfo->mutable_controller_agent_descriptor());
+        }
     }
 
     for (const auto& preemptedJob : schedulingContext->PreemptedJobs()) {
@@ -2345,7 +2369,11 @@ void TNodeShard::ProcessOperationInfoHeartbeat(
             continue;
         }
 
-        SetControllerAgentInfo(agent, protoOperationInfo->mutable_controller_agent_descriptor());
+        if (Config_->SendFullControllerAgentDescriptorsForJobs) {
+            SetControllerAgentDescriptor(agent, protoOperationInfo->mutable_controller_agent_descriptor());
+        } else {
+            SetControllerAgentIncarnationId(agent, protoOperationInfo->mutable_controller_agent_descriptor());
+        }
     }
 }
 
@@ -2358,11 +2386,28 @@ void TNodeShard::SetMinSpareResources(
     ToProto(response->mutable_min_spare_resources(), minSpareResources);
 }
 
+bool TNodeShard::ShouldSendRegisteredControllerAgents(TScheduler::TCtxNodeHeartbeat::TTypedRequest* request)
+{
+    if (Config_->AlwaysSendControllerAgentDescriptors) {
+        return true;
+    }
+
+    THashSet<TIncarnationId> nodeAgentIncarnationIds;
+    for (const auto& protoAgentDescriptor : request->registered_controller_agents()) {
+        InsertOrCrash(
+            nodeAgentIncarnationIds,
+            FromProto<NScheduler::TIncarnationId>(protoAgentDescriptor.incarnation_id()));
+    }
+
+    return nodeAgentIncarnationIds != RegisteredAgentIncarnationIds_;
+}
+
 void TNodeShard::AddRegisteredControllerAgentsToResponse(auto* response)
 {
+    response->set_registered_controller_agents_sent(true);
     for (const auto& [agentId, agentInfo] : RegisteredAgents_) {
         auto agentDescriptorProto = response->add_registered_controller_agents();
-        SetControllerAgentInfo(agentId, agentInfo.Addresses, agentInfo.IncarnationId, agentDescriptorProto);
+        SetControllerAgentDescriptor(agentId, agentInfo.Addresses, agentInfo.IncarnationId, agentDescriptorProto);
     }
 
     HeartbeatRegisteredControllerAgentsBytes_.Increment(

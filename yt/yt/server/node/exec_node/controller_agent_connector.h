@@ -146,6 +146,10 @@ public:
 
     void OnRegisteredAgentSetReceived(THashSet<TControllerAgentDescriptor> controllerAgentDescriptors);
 
+    std::optional<TControllerAgentDescriptor> GetDescriptorByIncarnationId(NScheduler::TIncarnationId incarnationId) const;
+
+    std::vector<NScheduler::TIncarnationId> GetRegisteredAgentIncarnationIds() const;
+
     std::vector<TFuture<TControllerAgentConnector::TJobStartInfo>>
     SettleJobs(
         const TControllerAgentDescriptor& agentDescriptor,

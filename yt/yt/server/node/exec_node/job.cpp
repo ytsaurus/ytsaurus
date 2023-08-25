@@ -3261,35 +3261,4 @@ template void FillJobStatus(NControllerAgent::NProto::TJobStatus* status, const 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TControllerAgentDescriptor::operator==(const TControllerAgentDescriptor& other) const noexcept
-{
-    return other.Address == Address && other.IncarnationId == IncarnationId;
-}
-
-bool TControllerAgentDescriptor::operator!=(const TControllerAgentDescriptor& other) const noexcept
-{
-    return !(*this == other);
-}
-
-bool TControllerAgentDescriptor::Empty() const noexcept
-{
-    return *this == TControllerAgentDescriptor{};
-}
-
-TControllerAgentDescriptor::operator bool() const noexcept
-{
-    return !Empty();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NExecNode
-
-size_t THash<NYT::NExecNode::TControllerAgentDescriptor>::operator () (
-    const NYT::NExecNode::TControllerAgentDescriptor& descriptor) const
-{
-    size_t hash = THash<decltype(descriptor.Address)>{}(descriptor.Address);
-    NYT::HashCombine(hash, descriptor.IncarnationId);
-
-    return hash;
-}

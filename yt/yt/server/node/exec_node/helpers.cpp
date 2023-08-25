@@ -206,9 +206,15 @@ TErrorOr<TControllerAgentDescriptor> TryParseControllerAgentDescriptor(
 
     const auto incarnationId = FromProto<NScheduler::TIncarnationId>(proto.incarnation_id());
 
+    if (!proto.has_addresses()) {
+        return TError("Controller agent descriptor has no addresses")
+            << TErrorAttribute("incarnation_id", incarnationId);
+    }
+
     auto addressOrError = TryParseControllerAgentAddress(proto.addresses(), localNetworks);
     if (!addressOrError.IsOK()) {
-        return TError{std::move(addressOrError)};
+        return TError{std::move(addressOrError)}
+            << TErrorAttribute("incarnation_id", incarnationId);
     }
 
     return TControllerAgentDescriptor{std::move(addressOrError.Value()), incarnationId};

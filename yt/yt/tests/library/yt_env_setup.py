@@ -707,6 +707,9 @@ class YTEnvSetup(object):
             # COMPAT(pogorelov)
             if "scheduler" in cls.ARTIFACT_COMPONENTS.get("23_1", []):
                 config["scheduler"]["control_unknown_operation_jobs_lifetime"] = False
+            if "node" in cls.ARTIFACT_COMPONENTS.get("23_1", []):
+                config["scheduler"].pop("always_send_controller_agent_descriptors")
+                config["scheduler"].pop("send_full_controller_agent_descriptors_for_jobs")
 
             configs["scheduler"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_scheduler_config(configs["scheduler"][index])

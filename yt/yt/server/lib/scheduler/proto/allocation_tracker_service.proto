@@ -14,7 +14,7 @@ import "yt_proto/yt/core/misc/proto/guid.proto";
 message TControllerAgentDescriptor
 {
     required NYT.NProto.TGuid incarnation_id = 1;
-    required NNodeTrackerClient.NProto.TAddressMap addresses = 2;
+    optional NNodeTrackerClient.NProto.TAddressMap addresses = 2;
     optional string agent_id = 3;
 }
 
@@ -45,6 +45,8 @@ message TReqHeartbeat
     repeated TSpecFetchFailedAllocationInfo spec_fetch_failed_allocations = 12;
 
     reserved 9, 10;
+    
+    repeated TControllerAgentDescriptor registered_controller_agents = 13;
 }
 
 message TAllocationStartInfo
@@ -91,6 +93,7 @@ message TRspHeartbeat
 
     repeated TOperationInfo operation_infos = 10;
 
+    optional bool registered_controller_agents_sent = 13 [default = true];
     repeated TControllerAgentDescriptor registered_controller_agents = 11;
 
     optional TJobResources min_spare_resources = 12;

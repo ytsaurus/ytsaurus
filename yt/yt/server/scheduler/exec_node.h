@@ -63,6 +63,9 @@ public:
     //! Last time when heartbeat from node was processed.
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastSeenTime);
 
+    //! Last time when controller agents were sent in heartbeat.
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, LastRegisteredControllerAgentsSentTime);
+
     //! Controls node at scheduler.
     DEFINE_BYVAL_RW_PROPERTY(NConcurrency::TLease, RegistrationLease);
 

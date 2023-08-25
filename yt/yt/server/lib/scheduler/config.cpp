@@ -929,6 +929,11 @@ void TSchedulerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(30));
     registrar.Parameter("exec_node_descriptors_update_period", &TThis::ExecNodeDescriptorsUpdatePeriod)
         .Default(TDuration::Seconds(10));
+
+    registrar.Parameter("always_send_controller_agent_descriptors", &TThis::AlwaysSendControllerAgentDescriptors)
+        .Default(true);
+    registrar.Parameter("send_full_controller_agent_descriptors_for_jobs", &TThis::SendFullControllerAgentDescriptorsForJobs)
+        .Default(true);
     registrar.Parameter("jobs_logging_period", &TThis::JobsLoggingPeriod)
         .Default(TDuration::Seconds(30));
     registrar.Parameter("running_jobs_update_period", &TThis::RunningJobsUpdatePeriod)

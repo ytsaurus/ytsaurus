@@ -802,6 +802,10 @@ public:
 
     TDuration ExecNodeDescriptorsUpdatePeriod;
 
+    bool AlwaysSendControllerAgentDescriptors;
+
+    bool SendFullControllerAgentDescriptorsForJobs;
+
     //! Jobs running on node are logged periodically or when they change their state.
     TDuration JobsLoggingPeriod;
 

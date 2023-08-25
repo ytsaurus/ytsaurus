@@ -570,31 +570,19 @@ private:
             auto operationId = FromProto<TOperationId>(startInfoProto.operation_id());
             auto allocationId = FromProto<TAllocationId>(startInfoProto.allocation_id());
 
-            if (auto agentDescriptorOrError = TryParseControllerAgentDescriptor(
-                    startInfoProto.controller_agent_descriptor(),
-                    Bootstrap_->GetLocalNetworks());
-                agentDescriptorOrError.IsOK())
-            {
-                auto& agentDescriptor = agentDescriptorOrError.Value();
-                YT_LOG_DEBUG("Job spec will be requested (OperationId: %v, AllocationId: %v, ControllerAgentDescriptor: %v)",
-                    operationId,
-                    allocationId,
-                    agentDescriptor);
+            auto incarnationId = FromProto<NScheduler::TIncarnationId>(
+                startInfoProto.controller_agent_descriptor().incarnation_id());
 
-                groupedStartInfoProtos[std::move(agentDescriptor)].push_back(std::move(startInfoProto));
-            } else {
-                YT_LOG_DEBUG(
-                    agentDescriptorOrError,
-                    "Job spec cannot be requested (OperationId: %v, AllocationId: %v)",
-                    operationId,
-                    allocationId);
+            const auto& controllerAgentConnectorPool = Bootstrap_->GetExecNodeBootstrap()->GetControllerAgentConnectorPool();
+            auto descriptor = controllerAgentConnectorPool->GetDescriptorByIncarnationId(incarnationId);
+            YT_VERIFY(descriptor);
 
-                JobRegistrationFailed_.Fire(
-                    allocationId,
-                    operationId,
-                    TControllerAgentDescriptor{},
-                    agentDescriptorOrError);
-            }
+            YT_LOG_DEBUG("Job spec will be requested (OperationId: %v, AllocationId: %v, ControllerAgentDescriptor: %v)",
+                operationId,
+                allocationId,
+                descriptor);
+
+            groupedStartInfoProtos[std::move(*descriptor)].push_back(std::move(startInfoProto));
         }
 
         for (auto& [agentDescriptor, startInfoProtos] : groupedStartInfoProtos) {
@@ -1276,12 +1264,19 @@ private:
 
         YT_LOG_DEBUG("Preparing scheduler heartbeat request");
 
+        const auto& controllerAgentConnectorPool = Bootstrap_->GetExecNodeBootstrap()->GetControllerAgentConnectorPool();
+
         SetNodeInfoToRequest(Bootstrap_->GetExecNodeBootstrap(), request);
 
         *request->mutable_resource_limits() = ToNodeResources(JobResourceManager_->GetResourceLimits());
         *request->mutable_resource_usage() = ToNodeResources(JobResourceManager_->GetResourceUsage(/*includeWaiting*/ true));
 
         *request->mutable_disk_resources() = JobResourceManager_->GetDiskResources();
+
+        for (auto incarnationId : controllerAgentConnectorPool->GetRegisteredAgentIncarnationIds()) {
+            auto* agentDescriptorProto = request->add_registered_controller_agents();
+            ToProto(agentDescriptorProto->mutable_incarnation_id(), incarnationId);
+        }
 
         const auto& jobReporter = Bootstrap_->GetExecNodeBootstrap()->GetJobReporter();
         request->set_job_reporter_write_failures_count(jobReporter->ExtractWriteFailuresCount());
@@ -1356,7 +1351,6 @@ private:
             }
         }
 
-        const auto& controllerAgentConnectorPool = Bootstrap_->GetExecNodeBootstrap()->GetControllerAgentConnectorPool();
 
         for (auto [allocationId, operationId] : controllerAgentConnectorPool->GetAllocationIdsWaitingForSpec()) {
             auto* allocationStatus = request->add_allocations();
@@ -1421,7 +1415,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        {
+        if (response->registered_controller_agents_sent()) {
             THashSet<TControllerAgentDescriptor> receivedRegisteredAgents;
             receivedRegisteredAgents.reserve(response->registered_controller_agents_size());
             for (const auto& protoAgentDescriptor : response->registered_controller_agents()) {
@@ -1503,16 +1497,13 @@ private:
                 continue;
             }
 
-            auto descriptorOrError = TryParseControllerAgentDescriptor(
-                protoOperationInfo.controller_agent_descriptor(),
-                Bootstrap_->GetLocalNetworks());
-            YT_LOG_FATAL_IF(
-                !descriptorOrError.IsOK(),
-                descriptorOrError,
-                "Failed to parse new controller agent descriptor for operation (OperationId: %v)",
-                operationId);
+            auto incarnationId = FromProto<NScheduler::TIncarnationId>(
+                protoOperationInfo.controller_agent_descriptor().incarnation_id());
 
-            UpdateOperationControllerAgent(operationId, std::move(descriptorOrError.Value()));
+            const auto& controllerAgentConnectorPool = Bootstrap_->GetExecNodeBootstrap()->GetControllerAgentConnectorPool();
+            auto descriptor = controllerAgentConnectorPool->GetDescriptorByIncarnationId(incarnationId);
+            YT_VERIFY(descriptor);
+            UpdateOperationControllerAgent(operationId, std::move(*descriptor));
         }
 
         {

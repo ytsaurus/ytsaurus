@@ -201,6 +201,9 @@ def get_scheduler_config():
         operation_to_agent_assignment_backoff = 100;
         orchid_keys_update_period = 100;
 
+        always_send_controller_agent_descriptors = %false;
+        send_full_controller_agent_descriptors_for_jobs = %false;
+
         min_needed_resources_update_period = 100;
 
         job_revival_abort_timeout = 2000;
