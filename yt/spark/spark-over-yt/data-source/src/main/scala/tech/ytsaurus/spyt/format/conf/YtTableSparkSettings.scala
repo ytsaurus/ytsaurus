@@ -48,7 +48,7 @@ object YtTableSparkSettings {
 
   case object KeyPartitioned extends BooleanConfigEntry("key_partitioned")
 
-  case object Dynamic extends BooleanConfigEntry("dynamic", Some(false))
+  case object Dynamic extends BooleanConfigEntry("dynamic")
 
   case object Transaction extends StringConfigEntry("transaction")
 
@@ -77,7 +77,7 @@ object YtTableSparkSettings {
 
   case object OptimizeFor extends StringConfigEntry("optimize_for")
 
-  case object Path extends StringListConfigEntry("path")
+  case object Path extends StringConfigEntry("path")
 
   case object Options extends StringListConfigEntry("options") {
 
@@ -95,10 +95,6 @@ object YtTableSparkSettings {
 
   def isTable(configuration: Configuration): Boolean = {
     configuration.ytConf(IsTable)
-  }
-
-  def isDynamicTable(configuration: Configuration): Boolean = {
-    configuration.ytConf(Dynamic)
   }
 
   def isNullTypeAllowed(options: Map[String, String]): Boolean = {

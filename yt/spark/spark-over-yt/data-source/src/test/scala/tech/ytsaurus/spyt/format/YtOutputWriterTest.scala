@@ -57,7 +57,7 @@ class YtOutputWriterTest extends FlatSpec with TmpDir with LocalSpark with Match
     val sampleData = (1 to 1000).map(n => SampleRow(n.longValue() * n, 1.0 + 1.7*n, s"$n-th row"))
 
     val df = spark.createDataset(sampleData)
-    df.write.format("yt").save("yt:/" + tmpPath)
+    df.write.format("yt").save("ytTable:/" + tmpPath)
 
     val yPath = YPath.simple(YtWrapper.formatPath(tmpPath))
     val outputPathAttributes = YtWrapper.attributes(yPath, None, Set.empty[String])
@@ -118,7 +118,6 @@ class YtOutputWriterTest extends FlatSpec with TmpDir with LocalSpark with Match
     extends YtOutputWriter(
       path,
       schema,
-      YtClientConfiguration.default("local"),
       SparkYtWriteConfiguration(1, batchSize, batchSize, 5 minutes, typeV3Format = false),
       transaction.getId.toString,
       Map("sort_columns" -> SortColumns.set(sortOption.keys), "unique_keys" -> UniqueKeys.set(sortOption.uniqueKeys))
@@ -143,8 +142,6 @@ class YtOutputWriterTest extends FlatSpec with TmpDir with LocalSpark with Match
         override def cancel(): Unit = writer.cancel()
       }
     }
-
-    override protected def createYtClient(): CompoundClient = yt
 
     override protected def initialize(): Unit = {}
   }

@@ -21,9 +21,9 @@ import scala.collection.JavaConverters._
 
 class YtDynamicTableWriter(val path: String,
                            schema: StructType,
-                           ytClientConfiguration: YtClientConfiguration,
                            wConfig: SparkYtWriteConfiguration,
-                           options: Map[String, String]) extends OutputWriter {
+                           options: Map[String, String])
+                          (implicit ytClient: CompoundClient) extends OutputWriter {
   import YtDynamicTableWriter._
 
   private val schemaHint = options.ytConf(WriteSchemaHint)
@@ -31,9 +31,7 @@ class YtDynamicTableWriter(val path: String,
 
   private val tableSchema = SchemaConverter.tableSchema(schema, Unordered, schemaHint, typeV3Format)
   private var count = 0
-  private var modifyRowsRequestBuilder: ModifyRowsRequest.Builder = null
-
-  private implicit val ytClient: CompoundClient = YtClientProvider.ytClient(ytClientConfiguration)
+  private var modifyRowsRequestBuilder: ModifyRowsRequest.Builder = _
 
   initialize()
 
@@ -58,8 +56,7 @@ class YtDynamicTableWriter(val path: String,
   }
 
   private def commitBatch(): Unit = {
-
-    log.debug(s"Batch size: ${wConfig.dynBatchSize}, actual batch size: ${count}")
+    log.debug(s"Batch size: ${wConfig.dynBatchSize}, actual batch size: $count")
     YtMetricsRegister.time(writeBatchTime, writeBatchTimeSum) {
       val request: ModifyRowsRequest = modifyRowsRequestBuilder.build()
       val transaction = YtWrapper.createTransaction(parent = None, timeout = wConfig.timeout, sticky = true)
@@ -71,7 +68,7 @@ class YtDynamicTableWriter(val path: String,
   }
 
   private def initialize(): Unit = {
-    log.debug(s"[${Thread.currentThread().getName}] Creating new YtDynamicTableWriter for path ${path}")
+    log.debug(s"[${Thread.currentThread().getName}] Creating new YtDynamicTableWriter for path $path")
     initBatch()
     YtMetricsRegister.register()
   }

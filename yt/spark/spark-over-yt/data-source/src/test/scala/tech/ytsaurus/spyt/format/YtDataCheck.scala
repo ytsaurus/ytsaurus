@@ -10,7 +10,9 @@ import tech.ytsaurus.spyt.wrapper.YtWrapper
 object YtDataCheck extends Matchers {
 
   def yPathShouldContainExpectedData[T <: Product : Ordering, U: Ordering]
-  (yPath: YPath, expectedData: Seq[T])(rowKeyExtractor: UnversionedRow => U)(implicit yt: CompoundClient): Unit = {
+  (yPath: YPath, expectedData: Seq[T], strictRowCheck: Boolean = true, columnShift: Int = 0)
+  (rowKeyExtractor: UnversionedRow => U)
+  (implicit yt: CompoundClient): Unit = {
     val resultRows = YtWrapper.readTable(
       yPath,
       new UnversionedRowDeserializer(),
@@ -25,10 +27,14 @@ object YtDataCheck extends Matchers {
 
     (resultRowsSorted zip expectedDataSorted).foreach { case (resultRow, expectedRow) =>
       val resultRowValues = resultRow.getValues
-      resultRowValues.size() shouldEqual expectedRow.productArity
+      if (strictRowCheck) {
+        resultRowValues.size() shouldEqual expectedRow.productArity
+      } else {
+        resultRowValues.size() should be >= expectedRow.productArity
+      }
 
       (0 until expectedRow.productArity).foreach { pos =>
-        val cell = resultRowValues.get(pos)
+        val cell = resultRowValues.get(pos + columnShift)
         val cellValue = if (cell.getType == ColumnValueType.STRING) {
           cell.stringValue()
         } else {

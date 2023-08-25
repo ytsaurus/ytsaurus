@@ -13,11 +13,10 @@ import tech.ytsaurus.spyt.fs.path.GlobalTableSettings
 import tech.ytsaurus.spyt.fs.path.YPathEnriched.YtRootPath
 import tech.ytsaurus.spyt.wrapper.YtWrapper
 import tech.ytsaurus.client.{ApiServiceTransaction, CompoundClient}
+import tech.ytsaurus.spyt.exceptions._
 import tech.ytsaurus.spyt.format.conf.SparkYtConfiguration.Write.DynBatchSize
 import tech.ytsaurus.spyt.fs.conf.StringConfigEntry
 import tech.ytsaurus.spyt.wrapper.client.YtClientProvider
-
-import scala.concurrent.duration.DurationInt
 
 class YtOutputCommitter(jobId: String,
                         outputPath: String,
@@ -39,22 +38,21 @@ class YtOutputCommitter(jobId: String,
 
     if (isDynamicTable(conf)) {
       setupDynamicTable(path, conf)
-      return
+    } else {
+      withTransaction(createTransaction(conf, GlobalTransaction, externalTransaction))({ transaction =>
+        GlobalTableSettings.setTransaction(path, transaction)
+        deletedDirectories.get().foreach(p => YtWrapper.remove(p.toUri.getPath, Some(transaction)))
+        deletedDirectories.set(Nil)
+        if (isTableSorted(conf)) {
+          setupSortedTmpTables(transaction)
+        }
+        if (isTable(conf)) {
+          setupTable(path, conf, transaction)
+        } else {
+          setupFiles(transaction)
+        }
+      }, removeGlobalTransactions())
     }
-
-    withTransaction(createTransaction(conf, GlobalTransaction, externalTransaction))({ transaction =>
-      GlobalTableSettings.setTransaction(path, transaction)
-      deletedDirectories.get().foreach(p => YtWrapper.remove(p.toUri.getPath, Some(transaction)))
-      deletedDirectories.set(Nil)
-      if (isTableSorted(conf)) {
-        setupSortedTmpTables(transaction)
-      }
-      if (isTable(conf)) {
-        setupTable(path, conf, transaction)
-      } else {
-        setupFiles(transaction)
-      }
-    }, removeGlobalTransactions())
   }
 
   private def setupSortedTmpTables(transaction: String)(implicit yt: CompoundClient): Unit = {
@@ -89,6 +87,10 @@ class YtOutputCommitter(jobId: String,
   }
 
   private def setupDynamicTable(path: String, conf: Configuration)(implicit yt: CompoundClient): Unit = {
+    if (!YtWrapper.isMounted(path)) {
+      throw TableNotMountedException("Dynamic table should be mounted before writing to it")
+    }
+
     val inconsistentDynamicWrite = conf.ytConf(InconsistentDynamicWrite)
     if (!inconsistentDynamicWrite) {
       throw InconsistentDynamicWriteException("For dynamic tables you should explicitly specify an additional " +
@@ -96,14 +98,10 @@ class YtOutputCommitter(jobId: String,
         "transactional writes to dynamic tables")
     }
 
-    val dynBatchSize = conf.get(s"spark.yt.${DynBatchSize.name}", DynBatchSize.default.get.toString).toInt
-    if (dynBatchSize > 50000) {
-      throw TooLargeBatchException("spark.yt.write.batchSize must be set to no more than 50000 for dynamic tables")
-    }
-    if (!YtWrapper.exists(path, None)) {
-      val options = YtTableSparkSettings.deserialize(conf)
-      YtWrapper.createTable(path, options, None)
-      YtWrapper.mountTableSync(path, 1.minute)
+    val maxDynBatchSize = DynBatchSize.default.get
+    val dynBatchSize = conf.get(s"spark.yt.${DynBatchSize.name}", maxDynBatchSize.toString).toInt
+    if (dynBatchSize > maxDynBatchSize) {
+      throw TooLargeBatchException(s"spark.yt.write.batchSize must be set to no more than $maxDynBatchSize for dynamic tables")
     }
   }
 
@@ -122,31 +120,31 @@ class YtOutputCommitter(jobId: String,
 
   override def setupTask(taskContext: TaskAttemptContext): Unit = {
     val conf = taskContext.getConfiguration
-    if (isDynamicTable(conf)) {
-      return
-    }
-    val parent = YtOutputCommitter.getGlobalWriteTransaction(conf)
-    withTransaction(createTransaction(conf, Transaction, Some(parent))) { transaction =>
-      if (isTableSorted(conf)) setupTmpTable(taskContext, transaction)
+    implicit val ytClient: CompoundClient = yt(conf)
+    if (!isDynamicTable(conf)) {
+      val parent = YtOutputCommitter.getGlobalWriteTransaction(conf)
+      withTransaction(createTransaction(conf, Transaction, Some(parent))) { transaction =>
+        if (isTableSorted(conf)) setupTmpTable(taskContext, transaction)
+      }
     }
   }
 
   override def abortJob(jobContext: JobContext): Unit = {
     deletedDirectories.set(Nil)
     val conf = jobContext.getConfiguration
-    if (isDynamicTable(conf)) {
-      return
+    implicit val ytClient: CompoundClient = yt(conf)
+    if (!isDynamicTable(conf)) {
+      removeGlobalTransactions()
+      abortTransaction(conf, GlobalTransaction)
     }
-    removeGlobalTransactions()
-    abortTransaction(jobContext.getConfiguration, GlobalTransaction)
   }
 
   override def abortTask(taskContext: TaskAttemptContext): Unit = {
     val conf = taskContext.getConfiguration
-    if (isDynamicTable(conf)) {
-      return
+    implicit val ytClient: CompoundClient = yt(conf)
+    if (!isDynamicTable(conf)) {
+      abortTransaction(taskContext.getConfiguration, Transaction)
     }
-    abortTransaction(taskContext.getConfiguration, Transaction)
   }
 
   /**
@@ -168,26 +166,25 @@ class YtOutputCommitter(jobId: String,
 
   override def commitJob(jobContext: JobContext, taskCommits: Seq[FileCommitProtocol.TaskCommitMessage]): Unit = {
     val conf = jobContext.getConfiguration
-    if (isDynamicTable(conf)) {
-      implicit val ytClient: CompoundClient = yt(conf)
-      YtWrapper.unmountTableSync(path, 1.minute)
-      return
-    }
-    withTransaction(YtOutputCommitter.getGlobalWriteTransaction(conf)) { transaction =>
-      if (isTableSorted(conf)) {
-        mergeSortedTables(conf, transaction)
+    implicit val ytClient: CompoundClient = yt(conf)
+    if (!isDynamicTable(conf)) {
+      withTransaction(YtOutputCommitter.getGlobalWriteTransaction(conf)) { transaction =>
+        if (isTableSorted(conf)) {
+          mergeSortedTables(conf, transaction)
+        }
+        removeGlobalTransactions()
+        commitTransaction(conf, GlobalTransaction)
       }
-      removeGlobalTransactions()
-      commitTransaction(jobContext.getConfiguration, GlobalTransaction)
     }
   }
 
   override def commitTask(taskContext: TaskAttemptContext): FileCommitProtocol.TaskCommitMessage = {
     val conf = taskContext.getConfiguration
+    implicit val ytClient: CompoundClient = yt(conf)
     if (isDynamicTable(conf)) {
       return FileCommitProtocol.EmptyTaskCommitMessage
     }
-    val transactionId = taskContext.getConfiguration.ytConf(Transaction)
+    val transactionId = conf.ytConf(Transaction)
     muteTransaction(transactionId)
     new FileCommitProtocol.TaskCommitMessage(transactionId)
   }
@@ -207,13 +204,15 @@ class YtOutputCommitter(jobId: String,
   }
 
   override def newTaskTempFile(taskContext: TaskAttemptContext, dir: Option[String], ext: String): String = {
-    if (isTableSorted(taskContext.getConfiguration) && !isDynamicTable(taskContext.getConfiguration)) {
+    val conf = taskContext.getConfiguration
+    implicit val ytClient: CompoundClient = yt(conf)
+    if (isTableSorted(conf) && !isDynamicTable(conf)) {
       tmpTablePath(taskContext)
-    } else if (isTable(taskContext.getConfiguration)) {
+    } else if (isTable(conf)) {
       path
     } else {
       YtRootPath(new Path(s"$path/${partFilename(taskContext, ext)}"))
-        .withTransaction(taskContext.getConfiguration.ytConf(Transaction))
+        .withTransaction(conf.ytConf(Transaction))
         .toStringPath
     }
   }
@@ -310,5 +309,9 @@ object YtOutputCommitter {
 
   def getGlobalWriteTransaction(conf: Configuration): String = {
     conf.ytConf(GlobalTransaction)
+  }
+
+  def isDynamicTable(conf: Configuration)(implicit yt: CompoundClient): Boolean = {
+    conf.getYtConf(YtTableSparkSettings.Path).exists(ytPath => YtWrapper.isDynamicTable(ytPath))
   }
 }

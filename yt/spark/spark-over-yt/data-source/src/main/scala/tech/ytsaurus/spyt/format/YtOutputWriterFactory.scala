@@ -5,11 +5,11 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext
 import org.apache.spark.sql.execution.datasources.{OutputWriter, OutputWriterFactory}
 import org.apache.spark.sql.types.StructType
 import org.slf4j.LoggerFactory
-import tech.ytsaurus.spyt.format.conf.YtTableSparkSettings.Dynamic
+import tech.ytsaurus.client.CompoundClient
 import tech.ytsaurus.spyt.format.conf.{SparkYtWriteConfiguration, YtTableSparkSettings}
-import tech.ytsaurus.spyt.fs.conf._
 import tech.ytsaurus.spyt.serializers.SchemaConverter
-import tech.ytsaurus.spyt.wrapper.client.YtClientConfiguration
+import tech.ytsaurus.spyt.wrapper.YtWrapper
+import tech.ytsaurus.spyt.wrapper.client.{YtClientConfiguration, YtClientProvider}
 
 class YtOutputWriterFactory(ytClientConf: YtClientConfiguration,
                             writeConfiguration: SparkYtWriteConfiguration,
@@ -21,13 +21,13 @@ class YtOutputWriterFactory(ytClientConf: YtClientConfiguration,
   override def newInstance(path: String, dataSchema: StructType, context: TaskAttemptContext): OutputWriter = {
     log.debug(s"[${Thread.currentThread().getName}] Creating new output writer for ${context.getTaskAttemptID.getTaskID} at path $path")
 
-    val isDynamic = options.ytConf(Dynamic)
+    implicit val ytClient: CompoundClient = YtClientProvider.ytClient(ytClientConf)
 
-    if (isDynamic) {
-      new YtDynamicTableWriter(path, dataSchema, ytClientConf, writeConfiguration, options)
+    if (YtWrapper.isDynamicTable(path)) {
+      new YtDynamicTableWriter(path, dataSchema, writeConfiguration, options)
     } else {
       val transaction = YtOutputCommitter.getWriteTransaction(context.getConfiguration)
-      new YtOutputWriter(path, dataSchema, ytClientConf, writeConfiguration, transaction, options)
+      new YtOutputWriter(path, dataSchema, writeConfiguration, transaction, options)
     }
   }
 }

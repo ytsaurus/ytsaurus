@@ -26,10 +26,10 @@ import scala.util.{Failure, Try}
 
 class YtOutputWriter(val path: String,
                      schema: StructType,
-                     ytClientConfiguration: YtClientConfiguration,
                      writeConfiguration: SparkYtWriteConfiguration,
                      transactionGuid: String,
-                     options: Map[String, String]) extends OutputWriter with LogLazy {
+                     options: Map[String, String])
+                    (implicit client: CompoundClient) extends OutputWriter with LogLazy {
 
   import writeConfiguration._
 
@@ -37,8 +37,6 @@ class YtOutputWriter(val path: String,
 
   private val schemaHint = options.ytConf(WriteSchemaHint)
   private val typeV3Format = options.ytConf(WriteTypeV3)
-
-  private val client = createYtClient()
 
   private val splitPartitions = options.ytConf(SortColumns).isEmpty
 
@@ -158,10 +156,6 @@ class YtOutputWriter(val path: String,
       .setTransactionalOptions(new TransactionalOptions(GUID.valueOf(transactionGuid)))
       .build()
     client.writeTable(request).join()
-  }
-
-  protected def createYtClient(): CompoundClient = {
-    YtClientProvider.ytClient(ytClientConfiguration)
   }
 
   protected def initialize(): Unit = {

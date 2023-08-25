@@ -121,8 +121,16 @@ trait YtDynTableUtils {
     waitUnmount(timeout.toMillis)
   }
 
+  def isDynamicTable(path: String)(implicit yt: CompoundClient): Boolean = {
+    exists(path) && attribute(path, "dynamic").boolValue()
+  }
+
   def isDynTablePrepared(path: String)(implicit yt: CompoundClient): Boolean = {
-    exists(path) && tabletState(path) == TabletState.Mounted
+    exists(path) && isMounted(path)
+  }
+
+  def isMounted(path: String)(implicit yt: CompoundClient): Boolean = {
+    tabletState(path) == TabletState.Mounted
   }
 
   def createDynTableAndMount(path: String,
@@ -131,7 +139,7 @@ trait YtDynTableUtils {
                              ignoreExisting: Boolean = true)
                             (implicit yt: CompoundClient): Unit = {
     val tableExists = exists(path)
-    val tabletMounted = tableExists && tabletState(path) == TabletState.Mounted
+    val tabletMounted = tableExists && isMounted(path)
 
     if (tableExists && tabletMounted && !ignoreExisting) {
       throw new RuntimeException("Table already exists")

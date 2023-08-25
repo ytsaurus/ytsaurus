@@ -1,23 +1,17 @@
 package tech.ytsaurus.spyt.format
 
-import org.apache.hadoop.fs.Path
-import org.apache.hadoop.io.MD5Hash
-import org.apache.spark.sql.Row
-import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.SparkException
+import org.apache.spark.sql.{AnalysisException, Row, SaveMode}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import tech.ytsaurus.client.request.{ModifyRowsRequest, TransactionalOptions, WriteSerializationContext, WriteTable}
 import tech.ytsaurus.core.cypress.YPath
-import tech.ytsaurus.spyt.fs.conf._
-import tech.ytsaurus.spyt.format.conf.YtTableSparkSettings.{SortColumns, UniqueKeys, WriteSchemaHint, WriteTypeV3}
+import tech.ytsaurus.core.tables.{ColumnValueType, TableSchema}
+import tech.ytsaurus.spyt.exceptions._
 import tech.ytsaurus.spyt.serializers.{InternalRowSerializer, SchemaConverter}
 import tech.ytsaurus.spyt.serializers.SchemaConverter.{Sorted, Unordered}
 import tech.ytsaurus.spyt.test.{LocalSpark, TmpDir}
 import tech.ytsaurus.spyt.wrapper.YtWrapper
 
-import java.sql.Timestamp
-import java.util
-import java.util.Date
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
@@ -27,22 +21,85 @@ class YtDynamicTableWriterTest extends AnyFlatSpec with TmpDir with LocalSpark w
   override val numExecutors = 8
 
   "YtDynamicTableWriter" should "write lots of data to yt" in {
-    doTheTest()
+    doTheTest(dataSize = 1000000)
   }
 
   it should "check if the inconsistent_dynamic_write is explicitly set to true" in {
     an [InconsistentDynamicWriteException] should be thrownBy {
-      doTheTest(dataSize = 10, setInconsistentDynamicWrite = false)
+      doTheTest(setInconsistentDynamicWrite = false)
     }
   }
 
   it should "check that the batch size is less than or equal 50K" in {
     a [TooLargeBatchException] should be thrownBy {
-      doTheTest(dataSize = 10, dynBatchSize = Some(200000))
+      doTheTest(dynBatchSize = Some(200000))
     }
   }
 
-  private def doTheTest(dataSize: Int = 1000000, dynBatchSize: Option[Int] = None, setInconsistentDynamicWrite: Boolean = true): Unit = {
+  it should "check that the table is mounted" in {
+    a [TableNotMountedException] should be thrownBy {
+      doTheTest(mountTable = false)
+    }
+  }
+
+  it should "not write to the table with not matching schema" in {
+    val sparkException = the [SparkException] thrownBy {
+      val tableSchema = TableSchema.builder()
+          .addValue("index", ColumnValueType.INT64)
+          .addValue("content", ColumnValueType.STRING)
+          .build()
+      doTheTest(externalTableSchema = Some(tableSchema))
+    }
+
+    sparkException.getMessage shouldEqual "Job aborted."
+  }
+
+  it should "write the data to the table when dataframe contains some part of the table's columns" in {
+    doTheTest(strictRowCheck = false, columnShift = 1, schemaModifier = { baseSchema =>
+      TableSchema.builder()
+          .addValue("extra_1", ColumnValueType.STRING)
+          .addAll(baseSchema.getColumns)
+          .addValue("extra_2", ColumnValueType.INT64)
+          .addValue("extra_3", ColumnValueType.DOUBLE)
+          .build()
+    })
+  }
+
+  it should "not write the data to the table when dataframe does not contain all key columns" in {
+    val sparkException = the [SparkException] thrownBy {
+        doTheTest(schemaModifier = { baseSchema =>
+            TableSchema.builder()
+                .addKey("extra_key", ColumnValueType.INT64)
+                .addAll(baseSchema.getColumns)
+                .addValue("extra_value", ColumnValueType.STRING)
+                .build()
+        })
+    }
+
+    sparkException.getMessage shouldEqual "Job aborted."
+  }
+
+  it should "check that the saveMode is set to Append" in {
+    an [AnalysisException] should be thrownBy {
+      doTheTest(saveMode = SaveMode.ErrorIfExists)
+    }
+  }
+
+  it should "write to a static table if it doesn't exist at specified path" in {
+    doTheTest(createNewTable = false, mountTable = false)
+  }
+
+  private def doTheTest(dataSize: Int = 10,
+                        dynBatchSize: Option[Int] = None,
+                        setInconsistentDynamicWrite: Boolean = true,
+                        createNewTable: Boolean = true,
+                        mountTable: Boolean = true,
+                        externalTableSchema: Option[TableSchema] = None,
+                        strictRowCheck: Boolean = true,
+                        columnShift: Int = 0,
+                        saveMode: SaveMode = SaveMode.Append,
+                        schemaModifier: TableSchema => TableSchema = identity
+                       ): Unit = {
     val sampleData = generateSampleData(dataSize)
 
     def writeDataLambda(): Unit = {
@@ -50,17 +107,34 @@ class YtDynamicTableWriterTest extends AnyFlatSpec with TmpDir with LocalSpark w
 
       val df = spark.createDataset(sampleData)
 
-      var dfWriter = df.write
-        .format("yt")
-        .option("dynamic", "true")
-        .option("sort_columns", """["key"]""")
-        .option("unique_keys", "true")
-
-      if (setInconsistentDynamicWrite) {
-        dfWriter = dfWriter.option("inconsistent_dynamic_write", "true")
+      if (createNewTable) {
+        val tableSchema = if (externalTableSchema.isEmpty) {
+          schemaModifier(SchemaConverter.tableSchema(df.schema, Unordered, Map.empty))
+        } else {
+          externalTableSchema.get
+        }
+        YtWrapper.createDynTable(tmpPath, tableSchema)
       }
 
-      dfWriter.save("yt:/" + tmpPath)
+      if (mountTable) {
+        YtWrapper.mountTableSync(tmpPath, 1.minute)
+      }
+
+      try {
+        var dfWriter = df.write
+          .format("yt")
+          .mode(saveMode)
+
+        if (setInconsistentDynamicWrite) {
+          dfWriter = dfWriter.option("inconsistent_dynamic_write", "true")
+        }
+
+        dfWriter.save("ytTable:/" + tmpPath)
+      } finally {
+        if (mountTable) {
+          YtWrapper.unmountTableSync(tmpPath, 1.minute)
+        }
+      }
     }
 
     dynBatchSize match {
@@ -71,9 +145,9 @@ class YtDynamicTableWriterTest extends AnyFlatSpec with TmpDir with LocalSpark w
     val yPath = YPath.simple(YtWrapper.formatPath(tmpPath))
 
     val outputPathAttributes = YtWrapper.attributes(yPath, None, Set.empty[String])
-    outputPathAttributes("dynamic").boolValue() shouldBe true
+    outputPathAttributes("dynamic").boolValue() shouldBe createNewTable
 
-    YtDataCheck.yPathShouldContainExpectedData(yPath, sampleData)(_.getValues.get(0).stringValue())
+    YtDataCheck.yPathShouldContainExpectedData(yPath, sampleData, strictRowCheck, columnShift)(_.getValues.get(0 + columnShift).stringValue())
   }
 }
 
