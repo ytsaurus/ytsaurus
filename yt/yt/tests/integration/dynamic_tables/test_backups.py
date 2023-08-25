@@ -1255,6 +1255,36 @@ class TestReplicatedTableBackups(TestReplicatedDynamicTablesBase):
             else:
                 assert get(f"#{r}/@state") == "disabled"
 
+    @authors("akozhikhov")
+    def test_rtt_for_restored_table(self):
+        self._create_cells()
+        self._create_tables(["async"])
+
+        set("//tmp/t/@replicated_table_options", {
+            "min_sync_replica_count": 0,
+            "max_sync_replica_count": 1,
+        })
+        assert get("//tmp/t/@replicated_table_options/min_sync_replica_count") == 0
+
+        create_table_backup(self._make_backup_manifest(1))
+        restore_table_backup(
+            self._make_restore_manifest(1),
+            mount=True,
+            enable_replicas=True)
+
+        assert get("//tmp/res/@replicated_table_options/min_sync_replica_count") == 0
+        set("//tmp/res/@replicated_table_options/enable_replicated_table_tracker", True)
+
+        replica_id = list(get("//tmp/res/@replicas").keys())[0]
+        wait(lambda: get("#{0}/@mode".format(replica_id)) == "sync")
+
+        set("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/banned_replica_clusters",
+            [self.REPLICA_CLUSTER_NAME])
+        wait(lambda: get("#{0}/@mode".format(replica_id)) == "async")
+
+        set("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/banned_replica_clusters", [])
+        wait(lambda: get("#{0}/@mode".format(replica_id)) == "sync")
+
 
 ##################################################################
 

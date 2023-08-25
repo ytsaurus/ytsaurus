@@ -61,6 +61,7 @@ public:
         auto preserveTimestamps = attributes->GetAndRemove<bool>("preserve_timestamps", true);
         auto atomicity = attributes->GetAndRemove<NTransactionClient::EAtomicity>("atomicity", NTransactionClient::EAtomicity::Full);
         auto enabled = attributes->GetAndRemove<bool>("enabled", false);
+        auto enableReplicatedTableTracker = attributes->GetAndRemove<bool>("enable_replicated_table_tracker", true);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* trunkNode = cypressManager->ResolvePathToTrunkNode(tablePath);
@@ -90,7 +91,8 @@ public:
             atomicity,
             enabled,
             startReplicationTimestamp,
-            startReplicationRowIndexes);
+            startReplicationRowIndexes,
+            enableReplicatedTableTracker);
     }
 
 private:

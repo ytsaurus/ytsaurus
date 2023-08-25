@@ -110,6 +110,17 @@ protected:
         TReplicatedTableNode* trunkNode,
         NTransactionServer::TTransaction* transaction) override;
 
+    void DoBranch(
+        const TReplicatedTableNode* originatingNode,
+        TReplicatedTableNode* branchedNode,
+        const NCypressServer::TLockRequest& lockRequest) override;
+
+    void DoClone(
+        TReplicatedTableNode* sourceNode,
+        TReplicatedTableNode* clonedTrunkNode,
+        NCypressServer::ICypressNodeFactory* factory,
+        NCypressServer::ENodeCloneMode mode,
+        NSecurityServer::TAccount* account) override;
     void DoBeginCopy(
         TReplicatedTableNode* node,
         NCypressServer::TBeginCopyContext* context) override;
@@ -122,4 +133,3 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableServer
-

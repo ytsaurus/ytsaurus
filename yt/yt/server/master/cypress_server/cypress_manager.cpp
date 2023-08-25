@@ -4047,6 +4047,8 @@ private:
             SetExpirationTimeout(clonedTrunkNode, *expirationTimeout);
         }
 
+        NodeCreated_.Fire(clonedTrunkNode);
+
         return clonedTrunkNode;
     }
 

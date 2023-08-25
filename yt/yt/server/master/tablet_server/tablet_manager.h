@@ -230,7 +230,8 @@ private:
         NTransactionClient::EAtomicity atomicity,
         bool enabled,
         NTransactionClient::TTimestamp startReplicationTimestamp,
-        const std::optional<std::vector<i64>>& startReplicationRowIndexes);
+        const std::optional<std::vector<i64>>& startReplicationRowIndexes,
+        bool enableReplicatedTableTracker);
     void ZombifyTableReplica(TTableReplica* replica);
 
     TTabletAction* CreateTabletAction(

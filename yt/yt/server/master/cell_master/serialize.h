@@ -166,6 +166,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixChunkCreationTimeHistogramAgain)                           (2351))  // kvk1920
     ((ReliableNodeStateGossip)                                      (2352))  // aleksandra-zh
     ((ReadRequestComplexityLimitsToggle)                            (2353))  // kvk1920
+    ((RTTforCopiedAndRestoredTables)                                (2354))  // akozhikhov
 );
 
 ////////////////////////////////////////////////////////////////////////////////
