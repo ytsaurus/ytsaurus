@@ -9,14 +9,12 @@ from yt_commands import (
 
 import yt.environment.init_operation_archive as init_operation_archive
 
-from yt.common import datetime_to_string, uuid_to_parts, YtError
+from yt.common import datetime_to_string, uuid_to_parts
 
 from yt.yson import YsonEntity
 
 import time
 from datetime import datetime
-
-import pytest
 
 ##################################################################
 
@@ -183,23 +181,6 @@ class TestSchedulerAlertHistory(TestSchedulerAlertHistoryBase):
             ignore_exceptions=False,
         )
         _wait_for_alert_events(op2, 2)
-
-
-class TestSchedulerAlertHistoryWithOldArchive(TestSchedulerAlertHistoryBase):
-    def setup_method(self, method):
-        super(TestSchedulerAlertHistoryWithOldArchive, self).setup_method(method)
-        sync_create_cells(1)
-        init_operation_archive.create_tables(
-            self.Env.create_native_client(),
-            42,
-            override_tablet_cell_bundle="default",
-        )
-
-    @authors("egor-gutrov")
-    def test_alert_events_column_absence(self):
-        op = _run_op_with_input_chunks_alert(return_events=False)
-        with pytest.raises(YtError, match="No such column \"alert_events\""):
-            _lookup_ordered_by_id_row(op.id)
 
 
 class TestUpdateAlertEventsSenderPeriodOnDisabledCleaner(YTEnvSetup):
