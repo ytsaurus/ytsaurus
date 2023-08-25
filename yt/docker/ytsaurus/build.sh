@@ -5,7 +5,6 @@ script_name=$0
 image_tag=""
 ytsaurus_source_path="."
 ytsaurus_build_path="."
-ytsaurus_yql_package_path="./yql_package"
 ytsaurus_spyt_release_path="./spyt_release"
 output_path="."
 
@@ -14,7 +13,6 @@ print_usage() {
 Usage: $script_name [-h|--help]
                     [--ytsaurus-source-path /path/to/ytsaurus.repo (default: $ytsaurus_source_path)]
                     [--ytsaurus-build-path /path/to/ytsaurus.build (default: $ytsaurus_build_path)]
-                    [--ytsaurus-yql-package-path /path/to/ytsaurus-yql-package (default: $ytsaurus_yql_package_path)]
                     [--ytsaurus-spyt-release-path /path/to/ytsaurus-spyt-release (default: $ytsaurus_spyt_release_path)]
                     [--output-path /path/to/output (default: $output_path)]
                     [--image-tag some-tag (default: $image_tag)]
@@ -36,10 +34,6 @@ while [[ $# -gt 0 ]]; do
         ;;
         --output-path)
         output_path="$2"
-        shift 2
-        ;;
-        --ytsaurus-yql-package-path)
-        ytsaurus_yql_package_path="$2"
         shift 2
         ;;
         --ytsaurus-spyt-release-path)
@@ -81,7 +75,6 @@ cp ${clickhouse_trampoline} ${output_path}
 cp -r ${ytsaurus_build_path}/ytsaurus_python ${output_path}
 
 cp ${dockerfile} ${output_path}
-cp -r ${ytsaurus_yql_package_path} ${output_path}
 cp -r ${ytsaurus_spyt_release_path} ${output_path}
 cp -r ${credits} ${output_path}
 

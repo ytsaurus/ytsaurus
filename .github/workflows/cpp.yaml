@@ -36,8 +36,17 @@ jobs:
     needs: start-vm
     runs-on: ${{ needs.start-vm.outputs.label }}
     steps:
-      - name: Checkout
+      - name: Checkout ytsaurus
         uses: actions/checkout@v3
+        with:
+          path: ytsaurus
+
+      - name: Checkout ydb
+        uses: actions/checkout@v3
+        with:
+          repository: ydb-platform/ydb
+          ref: 2c1c42926da1c9de23cac9f100df8b3706dd6377
+          path: ydb
 
   check:
     name: Run checks
@@ -54,7 +63,7 @@ jobs:
       - name: Build Go
         shell: bash
         run: |
-          cd yt/chyt/controller/cmd/chyt-controller
+          cd ../ytsaurus/ytsaurus/yt/chyt/controller/cmd/chyt-controller
           export HOME=${RUNNER_WORKSPACE}
           /opt/go/bin/go build
 
@@ -67,10 +76,10 @@ jobs:
           cmake \
             -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/clang.toolchain \
+            -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/ytsaurus/clang.toolchain \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            ../ytsaurus
+            ../ytsaurus/ytsaurus
 
           mkdir -p ../build_debug
           cd ../build_debug
@@ -78,10 +87,47 @@ jobs:
           cmake \
             -G Ninja \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-            -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/clang.toolchain \
+            -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/ytsaurus/clang.toolchain \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            ../ytsaurus
+            ../ytsaurus/ytsaurus
+
+          #TODO: install it inside vm image.
+          sudo apt-get -y install antlr3 libaio1 libaio-dev
+
+          #TODO: remove -DMKQL_DISABLE_CODEGEN after YT-19852.
+          mkdir -p ../build_qt
+          cd ../build_qt
+          rm -rf *
+          cmake \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER_LAUNCHER=/usr/local/bin/ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=/usr/local/bin/ccache \
+            -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/ydb/clang.toolchain \
+            -DCMAKE_C_FLAGS_RELEASE="-O2 -UNDEBUG -DMKQL_DISABLE_CODEGEN" \
+            -DCMAKE_CXX_FLAGS_RELEASE="-O2 -UNDEBUG -DMKQL_DISABLE_CODEGEN" \
+            -DCMAKE_C_FLAGS="-O2 -UNDEBUG -DMKQL_DISABLE_CODEGEN" \
+            -DCMAKE_CXX_FLAGS="-O2 -UNDEBUG -DMKQL_DISABLE_CODEGEN" \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=On \
+            ../ytsaurus/ydb
+
+          mkdir -p ../build_qt_debug
+          cd ../build_qt_debug
+          rm -rf *
+          cmake \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_C_COMPILER_LAUNCHER=/usr/local/bin/ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=/usr/local/bin/ccache \
+            -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/ydb/clang.toolchain \
+            -DCMAKE_C_FLAGS="-O2 -UNDEBUG -DMKQL_DISABLE_CODEGEN" \
+            -DCMAKE_CXX_FLAGS="-O2 -UNDEBUG -DMKQL_DISABLE_CODEGEN" \
+            -DCMAKE_C_FLAGS_RELWITHDEBINFO="-O2 -UNDEBUG -DMKQL_DISABLE_CODEGEN" \
+            -DCMAKE_CXX_FLAGS_RELWITHDEBINFO="-O2 -UNDEBUG -DMKQL_DISABLE_CODEGEN" \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=On \
+            ../ytsaurus/ydb
+
 
       - name: Build
         shell: bash
@@ -95,11 +141,41 @@ jobs:
           cd ../build_debug
           ninja ytserver-all
 
+          if [[ $GITHUB_REF =~ main$ ]];
+          then
+            cd ../build_qt
+            ninja libyqlplugin.so
+            ninja libdatetime2_udf.so
+            ninja libhyperloglog_udf.so
+            ninja libjson_udf.so
+            ninja libset_udf.so
+            ninja libtop_udf.so
+            ninja libyson2_udf.so
+            ninja libdigest_udf.so
+            ninja libhyperscan_udf.so
+            ninja libmath_udf.so
+            ninja libstat_udf.so
+            ninja libtopfreq_udf.so
+            ninja libdsv_udf.so
+            ninja libip_udf.so
+            ninja libpire_udf.so
+            ninja libunicode_udf.so
+            ninja libhistogram_udf.so
+            ninja libjson2_udf.so
+            ninja libre2_udf.so
+            ninja libstring_udf.so
+            ninja liburl_udf.so
+            ninja mrjob
+
+            cd ../build_qt_debug
+            ninja mrjob
+          fi
+
       - name: Build Python packages
         shell: bash
         run: |
           source ../venv/bin/activate
-          YTSAURUS_COMMIT_HASH=${GITHUB_SHA} bash ./yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build
+          YTSAURUS_COMMIT_HASH=${GITHUB_SHA} bash ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build
 
       - name: DockerHub login
         shell: bash
@@ -112,26 +188,20 @@ jobs:
           latest: true
           fileName: "spyt-1.69.tar"
 
-      - name: Download YQL
-        uses: robinraju/release-downloader@v1.8
-        with:
-          latest: true
-          fileName: "yql-package.tar"
-
       - name: Download benchmarks
         uses: robinraju/release-downloader@v1.8
         with:
           latest: true
           fileName: "benchmark-0.0.1.tgz"
 
-      - name: Build and push ytsaurus docker image
+      - name: Build and push ytsaurus docker images
         shell: bash
         run: |
           mkdir -p ../docker-ytsaurus-build
           mkdir -p ../docker-local-build
+          mkdir -p ../docker-query-tracker-build
 
           tar -xf spyt-1.69.tar -C ../build
-          tar -xf yql-package.tar -C ../build
 
           if [[ $GITHUB_REF =~ main$ ]];
           then
@@ -144,28 +214,58 @@ jobs:
           fi
           IMAGE_TAG_DEBUG=${IMAGE_TAG}-debug
 
-          bash ./yt/docker/ytsaurus/build.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --ytsaurus-spyt-release-path ../build/spyt_release --ytsaurus-yql-package-path ../build/yql_package --output-path ../docker-ytsaurus-build --image-tag ${IMAGE_TAG}
+          # Build ytsaurus core image.
+          bash ./ytsaurus/yt/docker/ytsaurus/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --ytsaurus-spyt-release-path ../build/spyt_release  --output-path ../docker-ytsaurus-build --image-tag ${IMAGE_TAG}
 
-          bash ./yt/docker/local/build.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --output-path ../docker-local-build --image-tag ${IMAGE_TAG}
+          if [[ $GITHUB_REF =~ main$ ]];
+          then
+            # Build query-tracker image.
+            bash ./ytsaurus/yt/docker/query-tracker/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --qt-build-path ../build_qt --output-path ../docker-query-tracker-build --image-tag ${IMAGE_TAG}
+          fi
 
+          # Build yt local image.
+          bash ./ytsaurus/yt/docker/local/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --output-path ../docker-local-build --image-tag ${IMAGE_TAG}
+
+          # Build images with relwithdebinfo binaries.
           mv ../build_debug/yt/yt/server/all/ytserver-all ../build/yt/yt/server/all/ytserver-all
 
-          bash ./yt/docker/ytsaurus/build.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --ytsaurus-spyt-release-path ../build/spyt_release --ytsaurus-yql-package-path ../build/yql_package --output-path ../docker-ytsaurus-build --image-tag ${IMAGE_TAG_DEBUG}
+          if [[ $GITHUB_REF =~ main$ ]];
+          then
+            mv ../build_qt_debug/ydb/library/yql/tools/mrjob/mrjob ../build_qt/ydb/library/yql/tools/mrjob/mrjob
+          fi
 
-          bash ./yt/docker/local/build.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --output-path ../docker-local-build --image-tag ${IMAGE_TAG_DEBUG}
+          bash ./ytsaurus/yt/docker/ytsaurus/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --ytsaurus-spyt-release-path ../build/spyt_release --output-path ../docker-ytsaurus-build --image-tag ${IMAGE_TAG_DEBUG}
+
+          if [[ $GITHUB_REF =~ main$ ]];
+          then
+            bash ./ytsaurus/yt/docker/query-tracker/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --qt-build-path ../build_qt --output-path ../docker-query-tracker-build --image-tag ${IMAGE_TAG_DEBUG}
+          fi
+
+          bash ./ytsaurus/yt/docker/local/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --output-path ../docker-local-build --image-tag ${IMAGE_TAG_DEBUG}
 
           if [[ $IMAGE_TAG != "nopush" ]];
           then
-              docker push ytsaurus/ytsaurus:${IMAGE_TAG}
-              docker tag ytsaurus/ytsaurus:${IMAGE_TAG} ytsaurus/ytsaurus-nightly:${IMAGE_TAG}-${GITHUB_SHA}
-              docker push ytsaurus/ytsaurus-nightly:${IMAGE_TAG}-${GITHUB_SHA}
+            docker push ytsaurus/ytsaurus:${IMAGE_TAG}
+            docker tag ytsaurus/ytsaurus:${IMAGE_TAG} ytsaurus/ytsaurus-nightly:${IMAGE_TAG}-${GITHUB_SHA}
+            docker push ytsaurus/ytsaurus-nightly:${IMAGE_TAG}-${GITHUB_SHA}
 
-              docker push ytsaurus/ytsaurus:${IMAGE_TAG_DEBUG}
-              docker tag ytsaurus/ytsaurus:${IMAGE_TAG_DEBUG} ytsaurus/ytsaurus-nightly:${IMAGE_TAG_DEBUG}-${GITHUB_SHA}
-              docker push ytsaurus/ytsaurus-nightly:${IMAGE_TAG_DEBUG}-${GITHUB_SHA}
+            docker push ytsaurus/ytsaurus:${IMAGE_TAG_DEBUG}
+            docker tag ytsaurus/ytsaurus:${IMAGE_TAG_DEBUG} ytsaurus/ytsaurus-nightly:${IMAGE_TAG_DEBUG}-${GITHUB_SHA}
+            docker push ytsaurus/ytsaurus-nightly:${IMAGE_TAG_DEBUG}-${GITHUB_SHA}
 
-              docker push ytsaurus/local:${IMAGE_TAG}
-              docker push ytsaurus/local:${IMAGE_TAG_DEBUG}
+            if [[ $GITHUB_REF =~ main$ ]];
+            then
+              docker push ytsaurus/query-tracker:${IMAGE_TAG}
+              docker tag ytsaurus/query-tracker:${IMAGE_TAG} ytsaurus/query-tracker-nightly:${IMAGE_TAG}-${GITHUB_SHA}
+              docker push ytsaurus/query-tracker-nightly:${IMAGE_TAG}-${GITHUB_SHA}
+
+              docker push ytsaurus/query-tracker:${IMAGE_TAG_DEBUG}
+              docker tag ytsaurus/query-tracker:${IMAGE_TAG_DEBUG} ytsaurus/query-tracker-nightly:${IMAGE_TAG_DEBUG}-${GITHUB_SHA}
+              docker push ytsaurus/query-tracker-nightly:${IMAGE_TAG_DEBUG}-${GITHUB_SHA}
+            fi
+
+            docker push ytsaurus/local:${IMAGE_TAG}
+            docker push ytsaurus/local:${IMAGE_TAG_DEBUG}
           fi
 
           if [[ $IMAGE_TAG == 'dev' ]];
@@ -178,30 +278,30 @@ jobs:
         shell: bash
         run: |
           mkdir -p ../docker-systest-build
-          bash ./yt/docker/systest/build.sh --ytsaurus-source-path $(pwd)  --ytsaurus-build-path ../build --benchmarks-path benchmark-0.0.1.tgz --output-path ../docker-systest-build --image-tag latest
+          bash ./ytsaurus/yt/docker/systest/build.sh --ytsaurus-source-path $(pwd)/ytsaurus  --ytsaurus-build-path ../build --benchmarks-path benchmark-0.0.1.tgz --output-path ../docker-systest-build --image-tag latest
           docker push ytsaurus/ytsaurus-systest:latest
 
       - name: Unittests
         shell: bash
         run: |
-          cp ./yt/yt/scripts/run_unittests.sh ../build/
+          cp ./ytsaurus/yt/yt/scripts/run_unittests.sh ../build/
           cd ../build
           ./run_unittests.sh
 
       - name: Prepare pytest environment
         shell: bash
         run: |
-          yt/yt/scripts/prepare_pytest_environment.sh
+          ytsaurus/yt/yt/scripts/prepare_pytest_environment.sh
 
       - name: Integration tests
         shell: bash
         run: |
-          yt/yt/scripts/run_integration_tests.sh
+          ytsaurus/yt/yt/scripts/run_integration_tests.sh
 
       - name: Python tests
         shell: bash
         run: |
-          yt/yt/scripts/run_python_tests.sh
+          ytsaurus/yt/yt/scripts/run_python_tests.sh
 
       - name: Testmo unittests upload
         shell: bash
