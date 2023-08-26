@@ -20,6 +20,9 @@ get_built_tool_path(
 )
 
 add_library(yt-client-cache-proto)
+target_include_directories(yt-client-cache-proto PUBLIC
+  ${CMAKE_BINARY_DIR}/yt
+)
 target_link_libraries(yt-client-cache-proto PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -31,16 +34,17 @@ target_proto_messages(yt-client-cache-proto PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt_proto/yt/client/cache/proto/config.proto
 )
 target_proto_addincls(yt-client-cache-proto
-  ./
-  ${CMAKE_SOURCE_DIR}/
+  ./yt
+  ${CMAKE_SOURCE_DIR}/yt
   ${CMAKE_BINARY_DIR}
   ${CMAKE_SOURCE_DIR}
+  ${CMAKE_SOURCE_DIR}/yt
   ${CMAKE_SOURCE_DIR}/yt
   ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
   ${CMAKE_BINARY_DIR}
   ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
 )
 target_proto_outs(yt-client-cache-proto
-  --cpp_out=${CMAKE_BINARY_DIR}/
-  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/
+  --cpp_out=${CMAKE_BINARY_DIR}/yt
+  --cpp_styleguide_out=${CMAKE_BINARY_DIR}/yt
 )
