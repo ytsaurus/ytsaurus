@@ -364,7 +364,7 @@ TFuture<void> TSlotLocation::DoMakeSandboxFile(
     bool canUseLightInvoker)
 {
     if (destinationPath) {
-        canUseLightInvoker &= IsInsideTmpfs(*destinationPath);
+        canUseLightInvoker = canUseLightInvoker && IsInsideTmpfs(*destinationPath);
     }
 
     const auto& invoker = canUseLightInvoker
