@@ -6470,7 +6470,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
 
                 auto atomicity = attributes->Get<EAtomicity>("atomicity");
                 if (atomicity != Spec_->Atomicity) {
-                    THROW_ERROR_EXCEPTION("Output table %v atomicity %Qv does not match spec atomicity %Qv",
+                    THROW_ERROR_EXCEPTION("Output table %lv atomicity %Qv does not match spec atomicity %Qlv",
                         path,
                         atomicity,
                         Spec_->Atomicity);
