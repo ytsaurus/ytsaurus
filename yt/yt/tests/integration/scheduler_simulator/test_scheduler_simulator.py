@@ -10,6 +10,7 @@ from yt.common import date_string_to_datetime
 import os
 import subprocess
 import csv
+import sys
 from copy import deepcopy
 from collections import defaultdict
 
@@ -414,6 +415,7 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
                     simulator_files_path["scheduler_simulator_config_yson_file"],
                 ],
                 stdin=fin,
+                stderr=sys.stderr,
             )
 
         with open(simulator_files_path["operations_stats_file"]) as fin:
