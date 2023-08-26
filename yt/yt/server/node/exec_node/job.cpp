@@ -2418,7 +2418,7 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
 {
     TUserSandboxOptions options;
     // NB: this eventually results in job failure.
-    options.DiskOverdraftCallback = BIND(&TJob::Abort, MakeWeak(this))
+    options.DiskOverdraftCallback = BIND(&TJob::Fail, MakeWeak(this))
         .Via(Invoker_);
     options.HasRootFSQuota = false;
     options.EnableArtifactBinds = Config_->UseArtifactBinds;
