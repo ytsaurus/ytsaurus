@@ -14,13 +14,17 @@ class TestPartitionTablesBase(YTEnvSetup):
         sync_create_cells(1)
 
     @staticmethod
-    def _create_table(table, chunk_count, rows_per_chunk, row_weight, dynamic=False, columnar=False):
+    def _create_table(table, chunk_count, rows_per_chunk, row_weight, dynamic=False, sorted=True, columnar=False):
         schema = [
-            {"name": "key_0", "type": "string", "sort_order": "ascending"},
-            {"name": "key_1", "type": "string", "sort_order": "ascending"},
+            {"name": "key_0", "type": "string"},
+            {"name": "key_1", "type": "string"},
             {"name": "value_0", "type": "string"},
             {"name": "value_1", "type": "string"},
         ]
+        if sorted:
+            for i in range(len(schema)):
+                if schema[i]["name"].startswith("key"):
+                    schema[i]["sort_order"] = "ascending"
         create("table", table, attributes={
             "schema": schema,
             "replication_factor": 1,
@@ -59,12 +63,13 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
         assert partitions == []
 
     @authors("galtsev")
-    def test_unordered_one_table(self):
+    @pytest.mark.parametrize("dynamic,sorted", [(False, False), (False, True), (True, False)])
+    def test_unordered_one_table(self, dynamic, sorted):
         table = "//tmp/sorted-static"
         chunk_count = 6
         rows_per_chunk = 1000
         row_weight = 1000
-        data_weight = self._create_table(table, chunk_count, rows_per_chunk, row_weight)
+        data_weight = self._create_table(table, chunk_count, rows_per_chunk, row_weight, dynamic=dynamic, sorted=sorted)
 
         # TODO(galtsev): yields unequal partitions for data_weight_per_partition=int(2 * row_weight * rows_per_chunk)
         partitions = partition_tables([table], data_weight_per_partition=data_weight // 3)
