@@ -304,6 +304,38 @@ class TestMountConfig(DynamicTablesBase):
         assert get("//tmp/t/@user_attribute_keys") == ["foobar"]
         assert get("//tmp/t/@user_attributes") == {"foobar": "bazqux"}
 
+    @authors("dave11ar")
+    def test_forbidden_fields_change_in_experiments(self):
+        def _try_change_mount_config(path, field, value):
+            basic_error_message = "Forbidden to change field \"{}\" in experiments, fix your {}"
+            with raises_yt_error(basic_error_message.format(field, "template patch")):
+                set(f"{path}/mount_config_template_patch/{field}", value)
+            with raises_yt_error(basic_error_message.format(field, "patch")):
+                set(f"{path}/mount_config_patch/{field}", value)
+
+        tablet_manager_path = "//sys/@config/tablet_manager"
+
+        field_values = [
+            ("tablet_cell_bundle", "dave11ar_bundle"),
+            ("in_memory_mode", "compressed"),
+            ("profiling_mode", "path"),
+            ("profiling_tag", "tag"),
+            ("enable_dynamic_store_read", True),
+            ("enable_consistent_chunk_replica_placement", True),
+            ("enable_detailed_profiling", True),
+        ]
+
+        for (field, value) in field_values:
+            _try_change_mount_config(tablet_manager_path, field, value)
+
+        experiment_path = f"{tablet_manager_path}/table_config_experiments/foo"
+        set(experiment_path, {
+            "fraction": 1.0,
+            "auto_apply": True,
+        })
+
+        for (field, value) in field_values:
+            _try_change_mount_config(f"{experiment_path}/patch", field, value)
 
 ##################################################################
 

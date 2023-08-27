@@ -146,6 +146,7 @@ DEFINE_ENUM(EMasterReign,
     ((AllowSetMountConfigUnderTransaction)                          (2416))  // dave11ar
     ((AddChunkSchemas)                                              (2417))  // h0pless
     ((ChaosManagerSnapshotSaveAndLoadMovement)                      (2418))  // cherepashka
+    ((ForbidChangeBuiltinAttributesInExperiments)                   (2419))  // dave11ar
 );
 
 ////////////////////////////////////////////////////////////////////////////////

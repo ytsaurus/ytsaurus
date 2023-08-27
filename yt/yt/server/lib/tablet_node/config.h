@@ -104,6 +104,8 @@ DEFINE_REFCOUNTED_TYPE(TRowDigestCompactionConfig)
 class TBuiltinTableMountConfig
     : public virtual NYTree::TYsonStruct
 {
+    // Any fields that should not be modified in a mounted table by the experiment
+    // must be listed in ValidateNoForbiddenKeysInPatch.
 public:
     TString TabletCellBundle;
 

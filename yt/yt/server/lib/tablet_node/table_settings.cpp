@@ -59,6 +59,33 @@ bool TTableIOConfigPatch::IsEqual(const TTableIOConfigPatchPtr& other) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+void ValidateNoForbiddenKeysInPatch(const NYTree::IMapNodePtr& keys, TStringBuf patchKind)
+{
+    static constexpr std::array ExperimentModificationForbidden{
+        "tablet_cell_bundle",
+        "in_memory_mode",
+        "profiling_mode",
+        "profiling_tag",
+        "enable_dynamic_store_read",
+        "enable_consistent_chunk_replica_placement",
+        "enable_detailed_profiling",
+    };
+    static_assert(ExperimentModificationForbidden.size() == 7,
+        "Consider promoting master reign");
+
+    for (auto forbiddenKey : ExperimentModificationForbidden) {
+        if (keys->FindChild(forbiddenKey)) {
+            THROW_ERROR_EXCEPTION("Forbidden to change field %Qlv in experiments, fix your %v",
+                forbiddenKey,
+                patchKind);
+        }
+    }
+}
+
+} // namespace
+
 void TTableConfigPatch::Register(TRegistrar registrar)
 {
     registrar.Parameter("mount_config_template_patch", &TThis::MountConfigTemplatePatch)
@@ -75,6 +102,9 @@ void TTableConfigPatch::Register(TRegistrar registrar)
     });
 
     registrar.Postprocessor([&] (TTableConfigPatch* config) {
+        ValidateNoForbiddenKeysInPatch(config->MountConfigTemplatePatch, "template patch");
+        ValidateNoForbiddenKeysInPatch(config->MountConfigPatch, "patch");
+
         if (config->MountConfigTemplatePatch &&
             config->MountConfigTemplatePatch->GetChildCount() > 0)
         {
