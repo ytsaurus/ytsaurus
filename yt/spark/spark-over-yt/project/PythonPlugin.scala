@@ -44,6 +44,8 @@ object PythonPlugin extends AutoPlugin {
     }
   }
 
+  private def pypiPassword: Option[String] = Option(System.getProperty("pypi.password"))
+
   override def projectSettings: Seq[Def.Setting[_]] = Seq(
     pythonCommand := "python3",
     pythonSetupName := "setup.py",
@@ -63,7 +65,8 @@ object PythonPlugin extends AutoPlugin {
     },
     pythonUpload := {
       val log = streams.value.log
-      val command = s"${pythonCommand.value} -m twine upload -r release-pypi --verbose dist/*"
+      val dPassword = pypiPassword.map(x => s"-p $x").getOrElse("")
+      val command = s"${pythonCommand.value} -m twine upload --non-interactive --repository-url https://upload.pypi.org/legacy/ -u __token__ $dPassword --verbose dist/*"
       if (sys.env.get("RELEASE_TEST").exists(_.toBoolean)) {
         log.info(s"RELEASE_TEST: run $command")
       } else {

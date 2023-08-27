@@ -21,7 +21,8 @@ class ClientBuilder(NamedTuple):
 
 class Client:
     def __init__(self, client_builder: ClientBuilder):
-        self.yt_client = YtClient()
+        from yt.wrapper.default_config import get_config_from_env
+        self.yt_client = YtClient(config=get_config_from_env())
         self.root_path = client_builder.root_path
 
     def resolve_from_root(self, path):

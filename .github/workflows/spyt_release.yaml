@@ -119,13 +119,14 @@ jobs:
         run: |
           cd yt/spark/spark-over-yt
           sbt \
-            -DpublishRepo=False \
+            -DpublishRepo=True \
             -DinnerSidecarConfig=False \
             -DconfigGeneration=False \
             -DpublishYt=False \
             -DcustomClusterVersion=${{ needs.prepare_env.outputs.release_version }} \
             -DcustomSparkForkVersion=${{ needs.prepare_env.outputs.release_major_version }} \
             -Dgpg.passphrase=${{ secrets.GPG_PASSWORD }} \
+            -Dpypi.password=${{ secrets.PYPI_API_TOKEN }} \
             spytPublishSparkForkRelease
         env:
           OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
@@ -166,10 +167,10 @@ jobs:
           java-version: '11'
           distribution: 'temurin'
           server-id: ossrh
-          server-username: ${{ secrets.OSSRH_USERNAME }}
-          server-password: OSSRH_TOKEN
+          server-username: OSSRH_USERNAME
+          server-password: OSSRH_PASSWORD
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
-          gpg-passphrase: ${{ secrets.GPG_PASSWORD }}
+          gpg-passphrase: GPG_PASSWORD
       - name: Set up SBT
         run: |
           curl -fsL "https://github.com/sbt/sbt/releases/download/v1.5.4/sbt-1.5.4.tgz" | tar xfz - -C /usr/share && \
@@ -203,13 +204,19 @@ jobs:
         run: |
           cd yt/spark/spark-over-yt
           sbt \
-            -DpublishRepo=False \
+            -DpublishRepo=True \
             -DinnerSidecarConfig=False \
             -DconfigGeneration=False \
             -DpublishYt=False \
             -DcustomClusterVersion=${{ needs.prepare_env.outputs.release_version }} \
             -DcustomSparkForkVersion=${{ needs.prepare_env.outputs.release_major_version }} \
+            -Dgpg.passphrase=${{ secrets.GPG_PASSWORD }} \
+            -Dpypi.password=${{ secrets.PYPI_API_TOKEN }} \
             spytPublishClusterRelease
+        env:
+          OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
+          OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
+          GPG_PASSWORD: ${{ secrets.GPG_PASSWORD }}
 
       - name: DockerHub login
         shell: bash
@@ -243,24 +250,24 @@ jobs:
           label: ${{ needs.start-vm.outputs.label }}
           instance-id: ${{ needs.start-vm.outputs.instance-id }}
 
-#  send-notifications:
-#    name: Send notifications
-#    needs:
-#      - stop-vm
-#    runs-on: trampoline
-#    if: ${{ failure() }}
-#    steps:
-#      - name: Send telegram message
-#        uses: appleboy/telegram-action@master
-#        with:
-#          to: ${{ secrets.TELEGRAM_CHAT_ID }}
-#          token: ${{ secrets.TELEGRAM_TOKEN }}
-#          disable_web_page_preview: true
-#          format: markdown
-#          message: |
-#            Workflow *${{github.workflow}}* failed: ${{github.server_url}}/${{github.repository}}/actions/runs/${{github.run_id}}.
-#            Git ${{github.ref_type}}: *${{github.ref_name}}*.
-#            Commit:
-#            ```
-#            ${{github.event.head_commit.message}}
-#            ```
+  send-notifications:
+    name: Send notifications
+    needs:
+      - stop-vm
+    runs-on: trampoline
+    if: ${{ failure() }}
+    steps:
+      - name: Send telegram message
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          disable_web_page_preview: true
+          format: markdown
+          message: |
+            Workflow *${{github.workflow}}* failed: ${{github.server_url}}/${{github.repository}}/actions/runs/${{github.run_id}}.
+            Git ${{github.ref_type}}: *${{github.ref_name}}*.
+            Commit:
+            ```
+            ${{github.event.head_commit.message}}
+            ```
