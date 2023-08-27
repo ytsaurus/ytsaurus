@@ -143,6 +143,8 @@ void TTableConfigExperiment::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("tablet_cell_bundle", &TThis::TabletCellBundle)
         .Default();
+    registrar.Parameter("in_memory_mode", &TThis::InMemoryMode)
+        .Default();
     registrar.Parameter("sorted", &TThis::Sorted)
         .Default();
     registrar.Parameter("replicated", &TThis::Replicated)
@@ -162,7 +164,7 @@ void TTableConfigExperiment::Register(TRegistrar registrar)
     });
 }
 
-bool TTableConfigExperiment::Matches(const TTableDescriptor& descriptor) const
+bool TTableConfigExperiment::Matches(const TTableDescriptor& descriptor, bool oldBehaviorCompat) const
 {
     if (Sorted.has_value() && *Sorted != descriptor.Sorted) {
         return false;
@@ -172,12 +174,23 @@ bool TTableConfigExperiment::Matches(const TTableDescriptor& descriptor) const
         return false;
     }
 
-    if (TabletCellBundle.has_value() && *TabletCellBundle != descriptor.TabletCellBundle) {
+    if (PathRe && !NRe2::TRe2::FullMatch(NRe2::StringPiece(descriptor.TablePath), *PathRe)) {
         return false;
     }
 
-    if (PathRe && !NRe2::TRe2::FullMatch(NRe2::StringPiece(descriptor.TablePath), *PathRe)) {
-        return false;
+    // COMPAT(dave11ar): Remove oldBehaviorCompat from Matches and DropIrrelevantExperiments.
+    if (oldBehaviorCompat) {
+        if (TabletCellBundle && TabletCellBundle->pattern() != descriptor.TabletCellBundle) {
+            return false;
+        }
+    } else {
+        if (TabletCellBundle && !NRe2::TRe2::FullMatch(NRe2::StringPiece(descriptor.TabletCellBundle), *TabletCellBundle)) {
+            return false;
+        }
+
+        if (InMemoryMode && !NRe2::TRe2::FullMatch(NRe2::StringPiece(FormatEnum(descriptor.InMemoryMode)), *InMemoryMode)) {
+            return false;
+        }
     }
 
     auto hash = ComputeHash(descriptor.TableId);
@@ -222,10 +235,11 @@ void TRawTableSettings::CreateNewProvidedConfigs()
 }
 
 void TRawTableSettings::DropIrrelevantExperiments(
-    const TTableConfigExperiment::TTableDescriptor& descriptor)
+    const TTableConfigExperiment::TTableDescriptor& descriptor,
+    bool oldBehaviorCompat)
 {
     for (auto it = Experiments.begin(); it != Experiments.end(); ) {
-        if (it->second->Matches(descriptor)) {
+        if (it->second->Matches(descriptor, oldBehaviorCompat)) {
             ++it;
         } else {
             it = Experiments.erase(it);

@@ -147,6 +147,7 @@ DEFINE_ENUM(EMasterReign,
     ((AddChunkSchemas)                                              (2417))  // h0pless
     ((ChaosManagerSnapshotSaveAndLoadMovement)                      (2418))  // cherepashka
     ((ForbidChangeBuiltinAttributesInExperiments)                   (2419))  // dave11ar
+    ((InMemoryModeAndBundleInExperimentDescriptor)                  (2420))  // dave11ar
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -69,7 +69,7 @@ void TRowDigestCompactionConfig::Register(TRegistrar registrar)
 void TBuiltinTableMountConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("tablet_cell_bundle", &TThis::TabletCellBundle)
-        .Optional();
+        .Default();
     registrar.Parameter("in_memory_mode", &TThis::InMemoryMode)
         .Default(NTabletClient::EInMemoryMode::None);
     registrar.Parameter("forced_compaction_revision", &TThis::ForcedCompactionRevision)

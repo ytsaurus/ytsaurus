@@ -1001,6 +1001,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                 .TableId = table->GetId(),
                 .TablePath = GetPath(),
                 .TabletCellBundle = table->TabletCellBundle()->GetName(),
+                .InMemoryMode = table->GetInMemoryMode(),
                 .Sorted = table->IsSorted(),
                 .Replicated = table->IsReplicated(),
             };

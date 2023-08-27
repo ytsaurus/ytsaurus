@@ -1101,16 +1101,21 @@ private:
         const auto& mountHint = request->mount_hint();
         auto cumulativeDataWeight = request->cumulative_data_weight();
 
-        {
-            TTableConfigExperiment::TTableDescriptor descriptor{
+        rawSettings.DropIrrelevantExperiments(
+            {
                 .TableId = tableId,
                 .TablePath = path,
                 .TabletCellBundle = Slot_->GetTabletCellBundleName(),
+                // NB: Generally InMemoryMode is taken from mount config, but it is not assembled yet at this point.
+                // Experiments never affect in memory mode, so it is safe to use the raw value.
+                .InMemoryMode = rawSettings.Provided.MountConfigNode->GetChildValueOrDefault<EInMemoryMode>(
+                    "in_memory_mode",
+                    EInMemoryMode::None),
                 .Sorted = schema->IsSorted(),
                 .Replicated = TypeFromId(tableId) == EObjectType::ReplicatedTable,
-            };
-            rawSettings.DropIrrelevantExperiments(descriptor);
-        }
+            },
+            static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) <
+                ETabletReign::InMemoryModeAndBundleInExperimentDescriptor);
 
         std::vector<TError> configErrors;
         auto settings = rawSettings.BuildEffectiveSettings(&configErrors, nullptr);
@@ -1337,7 +1342,10 @@ private:
         auto rawSettings = DeserializeTableSettings(request, tabletId);
 
         auto descriptor = GetTableConfigExperimentDescriptor(tablet);
-        rawSettings.DropIrrelevantExperiments(descriptor);
+        rawSettings.DropIrrelevantExperiments(
+            descriptor,
+            static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) <
+                ETabletReign::InMemoryModeAndBundleInExperimentDescriptor);
 
         ReconfigureTablet(tablet, std::move(rawSettings));
 
@@ -1366,7 +1374,10 @@ private:
         newRawSettings.GlobalPatch = ConvertTo<TTableConfigPatchPtr>(TYsonString(request->global_patch()));
 
         auto descriptor = GetTableConfigExperimentDescriptor(tablet);
-        newRawSettings.DropIrrelevantExperiments(descriptor);
+        newRawSettings.DropIrrelevantExperiments(
+            descriptor,
+            static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) <
+                ETabletReign::InMemoryModeAndBundleInExperimentDescriptor);
 
         auto& oldExperiments = tablet->RawSettings().Experiments;
         auto& newExperiments = newRawSettings.Experiments;
@@ -4690,6 +4701,8 @@ private:
             .TableId = tablet->GetTableId(),
             .TablePath = tablet->GetTablePath(),
             .TabletCellBundle = Slot_->GetTabletCellBundleName(),
+            // NB: Experiments never affect in memory mode.
+            .InMemoryMode = tablet->GetSettings().MountConfig->InMemoryMode,
             .Sorted = tablet->GetTableSchema()->IsSorted(),
             .Replicated = tablet->IsReplicated(),
         };

@@ -24,23 +24,24 @@ NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(NHydra::TReign reign);
 
 DEFINE_ENUM(ETabletReign,
     // 22.3 starts here.
-    ((TabletWriteManager)                 (100600)) // gritukan
-    ((HunkTablets)                        (100601)) // gritukan
-    ((AdvanceReplicationRound)            (100602)) // savrus
-    ((ReworkTabletLocks)                  (100603)) // gritukan
-    ((MountConfigExperiments)             (100604)) // ifsmirnov
+    ((TabletWriteManager)                          (100600)) // gritukan
+    ((HunkTablets)                                 (100601)) // gritukan
+    ((AdvanceReplicationRound)                     (100602)) // savrus
+    ((ReworkTabletLocks)                           (100603)) // gritukan
+    ((MountConfigExperiments)                      (100604)) // ifsmirnov
     // 23.1 starts here.
-    ((LockingState)                       (100700)) // gritukan
-    ((JournalHunks)                       (100701)) // aleksandra-zh
-    ((FixHunkStorage)                     (100702)) // gritukan
-    ((SendDynamicStoreInBackup)           (100703)) // ifsmirnov
-    ((FixBulkInsertAtomicityNone)         (100704)) // ifsmirnov
-    ((JournalHunksCommitted)              (100705)) // aleksandra-zh
-    ((RestoreHunkLocks)                   (100706)) // aleksandra-zh
+    ((LockingState)                                (100700)) // gritukan
+    ((JournalHunks)                                (100701)) // aleksandra-zh
+    ((FixHunkStorage)                              (100702)) // gritukan
+    ((SendDynamicStoreInBackup)                    (100703)) // ifsmirnov
+    ((FixBulkInsertAtomicityNone)                  (100704)) // ifsmirnov
+    ((JournalHunksCommitted)                       (100705)) // aleksandra-zh
+    ((RestoreHunkLocks)                            (100706)) // aleksandra-zh
     // 23.2 starts here.
-    ((Avenues)                            (100800)) // ifsmirnov
-    ((TabletIdGenerator)                  (100801)) // ifsmirnov
-    ((FixRaceBetweenCompactionUnmount)    (100802)) // dave11ar
+    ((Avenues)                                     (100800)) // ifsmirnov
+    ((TabletIdGenerator)                           (100801)) // ifsmirnov
+    ((FixRaceBetweenCompactionUnmount)             (100802)) // dave11ar
+    ((InMemoryModeAndBundleInExperimentDescriptor) (100803)) // dave11ar
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -70,7 +70,9 @@ public:
     //! If not null, take only tables whose paths match the RE.
     NRe2::TRe2Ptr PathRe;
     //! If not null, take only tables of the specified tablet cell bundle.
-    std::optional<TString> TabletCellBundle;
+    NRe2::TRe2Ptr TabletCellBundle;
+    //! If not null, take only tables wih specified memory mode.
+    NRe2::TRe2Ptr InMemoryMode;
     //! If not null, take only sorted/non-sorted tables respectively.
     std::optional<bool> Sorted;
     //! If not null, take only replicated/non-replicated tables respectively.
@@ -101,6 +103,7 @@ public:
         const NTableClient::TTableId TableId;
         const TString TablePath;
         const TString TabletCellBundle;
+        const NTabletClient::EInMemoryMode InMemoryMode;
         const bool Sorted;
         const bool Replicated;
     };
@@ -108,7 +111,7 @@ public:
     //! Returns true iff the experiment affects a table denoted by |descriptor|. That is,
     //! the table belongs to the working set and a certain random number is less than |Fraction|.
     //! Random number deterministically depends on |descriptor.TableId| and |Salt|.
-    bool Matches(const TTableDescriptor& descriptor) const;
+    bool Matches(const TTableDescriptor& descriptor, bool oldBehaviorCompat = false) const;
 
 private:
     double Fraction;
@@ -204,7 +207,9 @@ struct TRawTableSettings
     void CreateNewProvidedConfigs();
 
     //! Removes from the |Experiments| map all experiments which do not match |descritor|.
-    void DropIrrelevantExperiments(const TTableConfigExperiment::TTableDescriptor& descriptor);
+    void DropIrrelevantExperiments(
+        const TTableConfigExperiment::TTableDescriptor& descriptor,
+        bool oldBehaviorCompat);
 
     //! Combines all patches, experiments and provided settings. Each patch is either
     //! applied completely or not applied at all. If a patch cannot be applied, related

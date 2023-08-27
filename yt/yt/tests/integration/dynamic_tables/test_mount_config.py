@@ -3,6 +3,7 @@ from yt_dynamic_tables_base import DynamicTablesBase
 from yt_commands import (
     authors, wait, get, set, remount_table,
     sync_create_cells, sync_mount_table, raises_yt_error,
+    create_tablet_cell_bundle,
 )
 
 import yt.yson as yson
@@ -265,8 +266,11 @@ class TestMountConfig(DynamicTablesBase):
 
     @authors("ifsmirnov")
     def test_experiments_simple(self):
-        sync_create_cells(1)
+        create_tablet_cell_bundle("dave11ar_bundle")
+        sync_create_cells(1, tablet_cell_bundle="dave11ar_bundle")
         self._create_sorted_table("//tmp/t")
+        set("//tmp/t/@tablet_cell_bundle", "dave11ar_bundle")
+        set("//tmp/t/@in_memory_mode", "uncompressed")
         sync_mount_table("//tmp/t")
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
@@ -276,6 +280,8 @@ class TestMountConfig(DynamicTablesBase):
 
         set("//sys/@config/tablet_manager/table_config_experiments/foo", {
             "fraction": 1.0,
+            "tablet_cell_bundle": "\\w*_bundle",
+            "in_memory_mode": "un[[:alpha:]]*",
             "patch": {
                 "mount_config_patch": {
                     "min_compaction_store_count": 4,
@@ -293,6 +299,41 @@ class TestMountConfig(DynamicTablesBase):
 
         set("//sys/@config/tablet_manager/table_config_experiments/foo/sorted", False)
         wait(lambda: _get_orchid("/config/min_compaction_store_count") == 3)
+
+    @authors("dave11ar")
+    def test_experiments_descriptors(self):
+        def create_table(bundle, in_memory_mode):
+            create_tablet_cell_bundle(bundle)
+            sync_create_cells(1, tablet_cell_bundle=bundle)
+            table_path = f"//tmp/t_{bundle}"
+            self._create_sorted_table(table_path)
+            set(f"{table_path}/@tablet_cell_bundle", bundle)
+            set(f"{table_path}/@in_memory_mode", in_memory_mode)
+            sync_mount_table(table_path)
+            return get(f"{table_path}/@tablets/0/tablet_id")
+
+        dave11ar0_tablet_id = create_table("dave11ar0", "uncompressed")
+        dave11ar1_tablet_id = create_table("dave11ar1", "compressed")
+        ifsmirnov_tablet_id = create_table("ifsmirnov", "uncompressed")
+
+        set("//sys/@config/tablet_manager/table_config_experiments/foo", {
+            "fraction": 1.0,
+            "tablet_cell_bundle": "\\w*11\\w*",
+            "in_memory_mode": "un[[:alpha:]]*",
+            "patch": {
+                "mount_config_patch": {
+                    "min_compaction_store_count": 4,
+                },
+            },
+            "auto_apply": True,
+        })
+
+        def min_compaction_store_count_checker(tablet_id, value):
+            return lambda: get(f"//sys/tablets/{tablet_id}/orchid/config/min_compaction_store_count") == value
+
+        wait(min_compaction_store_count_checker(dave11ar0_tablet_id, 4))
+        wait(min_compaction_store_count_checker(dave11ar1_tablet_id, 3))
+        wait(min_compaction_store_count_checker(ifsmirnov_tablet_id, 3))
 
     @authors("ifsmirnov")
     def test_common_key_in_attributes_and_mount_config(self):
