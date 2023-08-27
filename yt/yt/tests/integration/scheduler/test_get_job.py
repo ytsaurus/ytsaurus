@@ -403,9 +403,6 @@ class TestGetJob(_TestGetJobCommon):
         _update_job_in_archive(op.id, job_id, {"transient_state": "running"})
         wait(lambda: _get_controller_state_from_archive(op.id, job_id) == "aborted")
 
-        job_info = retry(lambda: get_job(op.id, job_id))
-        assert job_info.get("is_stale")
-
     @authors("levysotsky")
     def test_not_found(self):
         with raises_yt_error(yt_error_codes.NoSuchOperation):
@@ -450,23 +447,16 @@ class TestGetJob(_TestGetJobCommon):
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
         (job_id,) = wait_breakpoint()
 
-        with Restarter(self.Env, NODES_SERVICE):
-            pass
-
         release_breakpoint()
         op.track()
 
-        # We emulate the situation when aborted (in CA's opinion) job
-        # still reports "running" to archive.
-        _update_job_in_archive(op.id, job_id, {"state": "running", "transient_state": "running"})
+        # We emulate the situation when completed job still reports "running" to archive.
+        _update_job_in_archive(op.id, job_id, {"controller_state": "running", "transient_state": "running"})
 
-        @wait_no_assert
-        def is_job_aborted_in_controller_agent():
-            job_info = retry(lambda: get_job(op.id, job_id))
-            assert job_info.get("controller_state") == "aborted"
+        op.wait_for_state("completed")
 
         job_info = retry(lambda: get_job(op.id, job_id))
-        assert job_info.get("controller_state") == "aborted"
+        assert job_info.get("controller_state") == "running"
         assert job_info.get("archive_state") == "running"
         assert job_info.get("is_stale")
 

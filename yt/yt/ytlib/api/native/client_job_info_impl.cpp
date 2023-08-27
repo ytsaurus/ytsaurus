@@ -1530,7 +1530,7 @@ static void ParseJobsFromControllerAgentResponse(
         jobs);
 }
 
-TFuture<TClient::TListJobsFromControllerAgentResult> TClient::DoListJobsFromControllerAgentAsync(
+TFuture<TListJobsFromControllerAgentResult> TClient::DoListJobsFromControllerAgentAsync(
     TOperationId operationId,
     const std::optional<TString>& controllerAgentAddress,
     TInstant deadline,
@@ -1709,35 +1709,46 @@ static void MergeJobs(TJob&& controllerAgentJob, TJob* archiveJob)
     }
 }
 
-static void UpdateJobsAndAddMissing(std::vector<std::vector<TJob>>&& controllerAgentJobs, std::vector<TJob>* archiveJobs)
+static void UpdateStalenessInRunningOperationJobs(const TListJobsFromControllerAgentResult& controllerAgentJobs, std::vector<TJob>* archiveJobs)
+{
+    THashSet<TJobId> controllerJobIds;
+    auto insertJobs = [&] (const std::vector<TJob>& controllerJobs) {
+        for (const auto& job : controllerJobs) {
+            controllerJobIds.insert(job.Id);
+        }
+    };
+    insertJobs(controllerAgentJobs.InProgressJobs);
+    insertJobs(controllerAgentJobs.FinishedJobs);
+
+    for (auto& job : *archiveJobs) {
+        auto jobState = job.GetState();
+        job.IsStale = jobState && IsJobInProgress(*jobState) && !controllerJobIds.contains(job.Id);
+    }
+}
+
+static void UpdateJobsAndAddMissing(TListJobsFromControllerAgentResult&& controllerAgentJobs, std::vector<TJob>* archiveJobs)
 {
     THashMap<TJobId, TJob*> jobIdToArchiveJob;
     for (auto& job : *archiveJobs) {
         jobIdToArchiveJob.emplace(job.Id, &job);
     }
     std::vector<TJob> newJobs;
-    for (auto& jobs : controllerAgentJobs) {
-        for (auto& job : jobs) {
+    auto mergeOrInsertControllerJobs = [&] (std::vector<TJob>* controllerJobs) {
+        for (auto& job : *controllerJobs) {
             if (auto it = jobIdToArchiveJob.find(job.Id); it != jobIdToArchiveJob.end()) {
                 MergeJobs(std::move(job), it->second);
             } else {
                 newJobs.push_back(std::move(job));
             }
         }
-    }
+    };
+    mergeOrInsertControllerJobs(&controllerAgentJobs.InProgressJobs);
+    mergeOrInsertControllerJobs(&controllerAgentJobs.FinishedJobs);
+
     archiveJobs->insert(
         archiveJobs->end(),
         std::make_move_iterator(newJobs.begin()),
         std::make_move_iterator(newJobs.end()));
-}
-
-static bool IsJobStale(std::optional<EJobState> controllerState, std::optional<EJobState> archiveState)
-{
-    return
-        (!controllerState ||
-            IsJobFinished(*controllerState)) &&
-        archiveState &&
-        IsJobInProgress(*archiveState);
 }
 
 static TError TryFillJobPools(
@@ -1831,6 +1842,7 @@ TListJobsResult TClient::DoListJobs(
         .Attributes = {{"state"}},
         .IncludeRuntime = true,
     });
+    auto operationFinished = operationInfo.State && IsOperationFinished(*operationInfo.State);
 
     // Wait for results and extract them.
     TListJobsResult result;
@@ -1841,7 +1853,6 @@ TListJobsResult TClient::DoListJobs(
         result.ControllerAgentJobCount =
             controllerAgentResult.TotalFinishedJobCount + controllerAgentResult.TotalInProgressJobCount;
     } else {
-        auto operationFinished = operationInfo.State && IsOperationFinished(*operationInfo.State);
         if (operationFinished && controllerAgentResultOrError.FindMatching(EErrorCode::UncertainOperationControllerState)) {
             // No such operation in the controller agent.
             result.ControllerAgentJobCount = 0;
@@ -1867,12 +1878,21 @@ TListJobsResult TClient::DoListJobs(
     if (!controllerAgentAddress) {
         result.Jobs = std::move(archiveResult);
     } else {
-        UpdateJobsAndAddMissing(
-            {std::move(controllerAgentResult.InProgressJobs), std::move(controllerAgentResult.FinishedJobs)},
-            &archiveResult);
+        if (!operationFinished) {
+            UpdateStalenessInRunningOperationJobs(controllerAgentResult, &archiveResult);
+        }
+
+        UpdateJobsAndAddMissing(std::move(controllerAgentResult), &archiveResult);
         result.Jobs = std::move(archiveResult);
         auto jobComparator = GetJobsComparator(options.SortField, options.SortOrder);
         std::sort(result.Jobs.begin(), result.Jobs.end(), jobComparator);
+    }
+
+    if (operationFinished) {
+        for (auto& job : result.Jobs) {
+            auto jobState = job.GetState();
+            job.IsStale = jobState && IsJobInProgress(*jobState);
+        }
     }
 
     // Take the correct range [offset, offset + limit).
@@ -1902,11 +1922,6 @@ TListJobsResult TClient::DoListJobs(
     if (!error.IsOK()) {
         YT_LOG_DEBUG(error, "Failed to fill job pools (OperationId: %v)",
             operationId);
-    }
-
-    // Compute job staleness.
-    for (auto& job : result.Jobs) {
-        job.IsStale = IsJobStale(job.ControllerState, job.ArchiveState);
     }
 
     return result;
@@ -2113,11 +2128,14 @@ TYsonString TClient::DoGetJob(
     }
 
     auto operationInfo = WaitFor(operationInfoFuture).ValueOrThrow();
+    auto operationFinished = operationInfo.State && IsOperationFinished(*operationInfo.State);
 
-    if (!controllerAgentError.IsOK() && (!operationInfo.State || !IsOperationFinished(*operationInfo.State))) {
+    if (!controllerAgentError.IsOK() && !operationFinished) {
         // Operation is running but controller agent request failed, it is bad.
         THROW_ERROR controllerAgentError;
     }
+
+    bool jobInControllerAgent = controllerAgentJob.has_value();
 
     TJob job;
     if (archiveJob && controllerAgentJob) {
@@ -2135,7 +2153,10 @@ TYsonString TClient::DoGetJob(
             operationId);
     }
 
-    job.IsStale = IsJobStale(job.ControllerState, job.ArchiveState);
+    job.IsStale = [&] {
+        auto jobState = job.GetState();
+        return jobState && IsJobInProgress(*jobState) && (operationFinished || !jobInControllerAgent);
+    }();
 
     if (attributes.contains("pool")) {
         auto error = TryFillJobPools(this, operationId, TMutableRange(&job, 1), Logger);
