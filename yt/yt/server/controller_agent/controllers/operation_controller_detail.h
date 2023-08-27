@@ -364,7 +364,7 @@ public:
     bool ShouldSkipSanityCheck() override;
 
     TExtendedJobResources GetAutoMergeResources(
-        const NChunkPools::TChunkStripeStatisticsVector& statistics) const override;
+        const NTableClient::TChunkStripeStatisticsVector& statistics) const override;
     TAutoMergeDirector* GetAutoMergeDirector() override;
 
     const TChunkListPoolPtr& GetOutputChunkListPool() const override;
@@ -978,7 +978,7 @@ protected:
 
     i64 GetFinalIOMemorySize(
         NScheduler::TJobIOConfigPtr ioConfig,
-        const NChunkPools::TChunkStripeStatisticsVector& stripeStatistics) const;
+        const NTableClient::TChunkStripeStatisticsVector& stripeStatistics) const;
 
     void ValidateUserFileCount(NScheduler::TUserJobSpecPtr spec, const TString& operation);
 

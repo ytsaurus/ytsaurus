@@ -60,7 +60,7 @@ public:
 public:
     MOCK_METHOD(TOutputOrderPtr, GetOutputOrder, (), (const, override));
     MOCK_METHOD(i64, GetLocality, (NNodeTrackerClient::TNodeId), (const, override));
-    MOCK_METHOD(TChunkStripeStatisticsVector, GetApproximateStripeStatistics, (), (const, override));
+    MOCK_METHOD(NTableClient::TChunkStripeStatisticsVector, GetApproximateStripeStatistics, (), (const, override));
     MOCK_METHOD(TCookie, Extract, (NNodeTrackerClient::TNodeId), (override));
     MOCK_METHOD(TChunkStripeListPtr, GetStripeList, (TCookie cookie), (override));
     MOCK_METHOD(bool, IsCompleted, (), (const, override));

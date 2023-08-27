@@ -61,7 +61,7 @@ public:
 
     virtual i64 GetLocality(NNodeTrackerClient::TNodeId nodeId) const override;
 
-    virtual NChunkPools::TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override;
+    virtual NTableClient::TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override;
 
     virtual TCookie Extract(NNodeTrackerClient::TNodeId nodeId) override;
 

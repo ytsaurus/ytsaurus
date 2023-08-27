@@ -222,6 +222,7 @@ void Serialize(const TMultiTablePartition& partition, NYson::IYsonConsumer* cons
     BuildYsonFluently(consumer)
         .BeginMap()
             .Item("table_ranges").Value(partition.TableRanges)
+            .Item("aggregate_statistics").Value(partition.AggregateStatistics)
         .EndMap();
 }
 

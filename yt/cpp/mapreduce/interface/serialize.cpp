@@ -494,10 +494,19 @@ void Deserialize(TTableColumnarStatistics& statistics, const TNode& node)
     DESERIALIZE_ITEM("timestamp_total_weight", statistics.TimestampTotalWeight);
 }
 
+void Deserialize(TMultiTablePartition::TStatistics& statistics, const TNode& node)
+{
+    const auto& nodeMap = node.AsMap();
+    DESERIALIZE_ITEM("chunk_count", statistics.ChunkCount);
+    DESERIALIZE_ITEM("data_weight", statistics.DataWeight);
+    DESERIALIZE_ITEM("row_count", statistics.RowCount);
+}
+
 void Deserialize(TMultiTablePartition& partition, const TNode& node)
 {
     const auto& nodeMap = node.AsMap();
     DESERIALIZE_ITEM("table_ranges", partition.TableRanges);
+    DESERIALIZE_ITEM("aggregate_statistics", partition.AggregateStatistics);
 }
 
 void Deserialize(TMultiTablePartitions& partitions, const TNode& node)

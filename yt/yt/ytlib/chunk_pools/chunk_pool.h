@@ -77,7 +77,7 @@ struct IChunkPoolOutput
     virtual i64 GetLocality(NNodeTrackerClient::TNodeId nodeId) const = 0;
 
     //! Approximate average stripe list statistics to estimate memory usage.
-    virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const = 0;
+    virtual NTableClient::TChunkStripeStatisticsVector GetApproximateStripeStatistics() const = 0;
 
     virtual TCookie Extract(
         NNodeTrackerClient::TNodeId nodeId = NNodeTrackerClient::InvalidNodeId) = 0;

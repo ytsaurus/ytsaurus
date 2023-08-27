@@ -7,6 +7,7 @@ namespace NYT::NControllerAgent::NControllers {
 using namespace NChunkClient;
 using namespace NChunkPools;
 using namespace NScheduler;
+using namespace NTableClient;
 
 using NChunkClient::ChunkReaderMemorySize;
 

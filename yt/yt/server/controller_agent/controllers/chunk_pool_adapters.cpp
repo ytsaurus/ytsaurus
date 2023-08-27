@@ -94,7 +94,7 @@ i64 TChunkPoolOutputAdapterBase::GetLocality(TNodeId nodeId) const
     return UnderlyingOutput_->GetLocality(nodeId);
 }
 
-TChunkStripeStatisticsVector TChunkPoolOutputAdapterBase::GetApproximateStripeStatistics() const
+NTableClient::TChunkStripeStatisticsVector TChunkPoolOutputAdapterBase::GetApproximateStripeStatistics() const
 {
     return UnderlyingOutput_->GetApproximateStripeStatistics();
 }
