@@ -75,7 +75,8 @@ std::vector<NYPath::TRichYPath> CombineDataSlices(
     YT_VERIFY(!paths || paths->size() == slicesByTable.size());
 
     for (const auto& [tableIndex, dataSource] : Enumerate(dataSourceDirectory->DataSources())) {
-        bool versioned = dataSource.GetType() == EDataSourceType::VersionedTable;
+        bool versioned = dataSource.GetType() == EDataSourceType::VersionedTable &&
+            dataSource.Schema()->IsSorted();
         auto& tableSlices = slicesByTable[tableIndex];
         std::sort(
             tableSlices.begin(),
