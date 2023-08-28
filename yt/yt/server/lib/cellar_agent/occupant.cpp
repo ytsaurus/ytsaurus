@@ -341,13 +341,14 @@ public:
         }
 
         if (configureInfo.has_options()) {
-            YT_LOG_DEBUG("Dynamic cell options updated to: %v",
+            YT_LOG_DEBUG("Dynamic cell options updated (Options: %v)",
                 ConvertToYsonString(TYsonString(configureInfo.options()), EYsonFormat::Text).AsStringBuf());
             Options_ = ConvertTo<TTabletCellOptionsPtr>(TYsonString(configureInfo.options()));
         }
 
-        TDistributedHydraManagerDynamicOptions hydraManagerDynamicOptions;
-        hydraManagerDynamicOptions.AbandonLeaderLeaseDuringRecovery = configureInfo.abandon_leader_lease_during_recovery();
+        TDistributedHydraManagerDynamicOptions hydraManagerDynamicOptions{
+            .AbandonLeaderLeaseDuringRecovery = configureInfo.abandon_leader_lease_during_recovery(),
+        };
 
         auto newPrerequisiteTransactionId = FromProto<TTransactionId>(configureInfo.prerequisite_transaction_id());
         if (newPrerequisiteTransactionId != PrerequisiteTransactionId_) {

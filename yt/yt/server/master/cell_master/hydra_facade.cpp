@@ -124,9 +124,6 @@ public:
             .UseFork = true,
             .ResponseKeeper = ResponseKeeper_
         };
-        TDistributedHydraManagerDynamicOptions hydraManagerDynamicOptions{
-            .AbandonLeaderLeaseDuringRecovery = true
-        };
         if (Config_->DryRun->EnableDryRun) {
             hydraManagerOptions.UseFork = false;
 
@@ -150,8 +147,7 @@ public:
                 Bootstrap_->GetChangelogStoreFactory(),
                 Bootstrap_->GetSnapshotStore(),
                 Bootstrap_->GetNativeAuthenticator(),
-                hydraManagerOptions,
-                hydraManagerDynamicOptions);
+                hydraManagerOptions);
         }
 
         HydraManager_->SubscribeStartLeading(BIND(&THydraFacade::OnStartEpoch, MakeWeak(this)));
