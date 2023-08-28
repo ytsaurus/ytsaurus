@@ -369,6 +369,8 @@ public:
             TDuration::Seconds(10)))
         , LookupMountCacheWaitTime_(Profiler_.Timer("/lookup_mount_cache_wait_time"))
         , SelectMountCacheWaitTime_(Profiler_.Timer("/select_mount_cache_wait_time"))
+        , LookupPermissionCacheWaitTime_(Profiler_.Timer("/lookup_permission_cache_wait_time"))
+        , SelectPermissionCacheWaitTime_(Profiler_.Timer("/select_permission_cache_wait_time"))
         , WastedLookupSubrequestCount_(Profiler_.Counter("/wasted_lookup_subrequest_count"))
     { }
 
@@ -390,6 +392,16 @@ public:
     const TEventTimer& SelectMountCacheWaitTimer() const
     {
         return SelectMountCacheWaitTime_;
+    }
+
+    const TEventTimer& LookupPermissionCacheWaitTimer() const
+    {
+        return LookupPermissionCacheWaitTime_;
+    }
+
+    const TEventTimer& SelectPermissionCacheWaitTimer() const
+    {
+        return SelectPermissionCacheWaitTime_;
     }
 
     const TCounter& WastedLookupSubrequestCount() const
@@ -419,6 +431,8 @@ private:
     //! Timers.
     TEventTimer LookupMountCacheWaitTime_;
     TEventTimer SelectMountCacheWaitTime_;
+    TEventTimer LookupPermissionCacheWaitTime_;
+    TEventTimer SelectPermissionCacheWaitTime_;
 
     TCounter WastedLookupSubrequestCount_;
 
@@ -3174,6 +3188,7 @@ private:
             });
             counters->LookupDurationTimer().Record(timer.GetElapsedTime());
             counters->LookupMountCacheWaitTimer().Record(detailedProfilingInfo->MountCacheWaitTime);
+            counters->LookupPermissionCacheWaitTimer().Record(detailedProfilingInfo->PermissionCacheWaitTime);
         } else if (!detailedProfilingInfo->RetryReasons.empty() ||
             detailedProfilingInfo->WastedSubrequestCount > 0)
         {
@@ -3202,6 +3217,7 @@ private:
             });
             counters->SelectDurationTimer().Record(timer.GetElapsedTime());
             counters->SelectMountCacheWaitTimer().Record(detailedProfilingInfo->MountCacheWaitTime);
+            counters->SelectPermissionCacheWaitTimer().Record(detailedProfilingInfo->PermissionCacheWaitTime);
         } else if (!detailedProfilingInfo->RetryReasons.empty()) {
             counters = GetOrCreateDetailedProfilingCounters({});
         }

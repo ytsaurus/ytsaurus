@@ -98,6 +98,7 @@ struct TDetailedProfilingInfo
     bool EnableDetailedTableProfiling = false;
     NYPath::TYPath TablePath;
     TDuration MountCacheWaitTime;
+    TDuration PermissionCacheWaitTime;
 
     int WastedSubrequestCount = 0;
 
