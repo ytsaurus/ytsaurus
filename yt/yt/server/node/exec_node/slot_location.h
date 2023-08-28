@@ -134,9 +134,6 @@ private:
     //! creating job proxy config on disk.
     const IInvokerPtr LightInvoker_;
 
-    //! This invoker is a serialized wrapper for HeavyInvoker_
-    const IInvokerPtr SerializedHeavyInvoker_;
-
     const TDiskHealthCheckerPtr HealthChecker_;
     const NConcurrency::TPeriodicExecutorPtr DiskResourcesUpdateExecutor_;
     const NConcurrency::TPeriodicExecutorPtr SlotLocationStatisticsUpdateExecutor_;

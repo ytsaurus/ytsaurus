@@ -79,7 +79,6 @@ TSlotLocation::TSlotLocation(
     , LightLocationQueue_(New<TActionQueue>(Format("LightIO:%v", id)))
     , HeavyInvoker_(HeavyLocationQueue_->GetInvoker())
     , LightInvoker_(LightLocationQueue_->GetInvoker())
-    , SerializedHeavyInvoker_(CreateSerializedInvoker(HeavyInvoker_))
     , HealthChecker_(New<TDiskHealthChecker>(
         bootstrap->GetConfig()->DataNode->DiskHealthChecker,
         Config_->Path,
@@ -121,13 +120,13 @@ TFuture<void> TSlotLocation::Initialize()
 
         Bootstrap_->SubscribePopulateAlerts(BIND(&TSlotLocation::PopulateAlerts, MakeWeak(this)));
     })
-    .AsyncVia(SerializedHeavyInvoker_)
+    .AsyncVia(HeavyInvoker_)
     .Run();
 }
 
 void TSlotLocation::DoInitialize()
 {
-    VERIFY_INVOKER_AFFINITY(SerializedHeavyInvoker_);
+    VERIFY_INVOKER_AFFINITY(HeavyInvoker_);
 
     YT_LOG_INFO("Location initialization started");
 
@@ -863,7 +862,7 @@ void TSlotLocation::OnArtifactPreparationFailed(
 TFuture<void> TSlotLocation::Repair(bool force)
 {
     return BIND(&TSlotLocation::DoRepair, MakeStrong(this), force)
-        .AsyncVia(SerializedHeavyInvoker_)
+        .AsyncVia(HeavyInvoker_)
         .Run();
 }
 
@@ -933,7 +932,7 @@ void TSlotLocation::Disable(const TError& error)
 
         YT_VERIFY(ChangeState(ELocationState::Disabled, ELocationState::Disabling));
     })
-    .AsyncVia(SerializedHeavyInvoker_)
+    .AsyncVia(HeavyInvoker_)
     .Run();
 }
 
