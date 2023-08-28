@@ -1205,7 +1205,7 @@ def read_query_result(**kwargs):
 def add_read_query_result_parser(add_parser):
     parser = add_parser("read-query-result", read_query_result)
     parser.add_argument("query_id", type=str, help="query id")
-    parser.add_argument("--result-index", type=str, help="index of query result, defaults to 0")
+    parser.add_argument("--result-index", type=int, help="index of query result, defaults to 0")
     parser.add_argument("--stage", type=str, help='query tracker stage, defaults to "production"')
     add_format_argument(parser, help="output format")
 
