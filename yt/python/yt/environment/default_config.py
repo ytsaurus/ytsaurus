@@ -55,7 +55,7 @@ def get_master_config():
 
     world_initializer = {
         init_retry_period = 100;
-        update_period = 5000;
+        update_period = 1000000000;
     };
 
     expose_testing_facilities = %true
