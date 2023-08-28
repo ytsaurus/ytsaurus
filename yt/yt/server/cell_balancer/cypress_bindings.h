@@ -66,6 +66,8 @@ inline static const TString PeerStateLeading = "leading";
 inline static const TString DeallocationStrategyHulkRequest = "hulk_deallocation_request";
 inline static const TString DeallocationStrategyReturnToBB = "return_to_bundle_balancer";
 
+inline static const TString TrashRole = "trash-role";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TDerived>

@@ -1977,11 +1977,18 @@ public:
             return false;
         }
 
-        if (!instanceInfo->EnableBundleBalancer || *instanceInfo->EnableBundleBalancer == false) {
-            YT_LOG_DEBUG("Returning node to BundleBalancer (NodeName: %v)",
-                nodeName);
+        if (!instanceInfo->UserTags.empty()) {
+            mutations->ChangedNodeUserTags[nodeName] = {};
+            return false;
+        }
 
-            mutations->ChangedEnableBundleBalancerFlag[nodeName] = true;
+        if (strategy == DeallocationStrategyReturnToBB) {
+            if (!instanceInfo->EnableBundleBalancer || *instanceInfo->EnableBundleBalancer == false) {
+                YT_LOG_DEBUG("Returning node to BundleBalancer (NodeName: %v)",
+                    nodeName);
+
+                mutations->ChangedEnableBundleBalancerFlag[nodeName] = true;
+            }
         }
         return true;
     }
@@ -2256,6 +2263,12 @@ public:
             mutations->ChangedProxyAnnotations[proxyName] = newAnnotations;
             return false;
         }
+
+        if (instanceInfo->Role != TrashRole) {
+            mutations->ChangedProxyRole[proxyName] = TrashRole;
+            return false;
+        }
+
         return true;
     }
 
