@@ -817,12 +817,6 @@ TRowset TClient::DoLookupRowsOnce(
     tableInfo->ValidateDynamic();
     tableInfo->ValidateSorted();
 
-    if (options.DetailedProfilingInfo && tableInfo->EnableDetailedProfiling) {
-        options.DetailedProfilingInfo->EnableDetailedTableProfiling = true;
-        options.DetailedProfilingInfo->TablePath = path;
-        options.DetailedProfilingInfo->MountCacheWaitTime = mountCacheWaitTime;
-    }
-
     const auto& schema = tableInfo->Schemas[ETableSchemaKind::Primary];
 
     if (options.FallbackReplicaId && tableInfo->UpstreamReplicaId != options.FallbackReplicaId) {
@@ -847,6 +841,7 @@ TRowset TClient::DoLookupRowsOnce(
     auto resultSchema = tableInfo->Schemas[ETableSchemaKind::Primary]->Filter(remappedColumnFilter, true);
     auto resultSchemaData = IWireProtocolReader::GetSchemaData(*schema, remappedColumnFilter);
 
+    timer.Restart();
     NSecurityClient::TPermissionKey permissionKey{
         .Object = FromObjectId(tableInfo->TableId),
         .User = Options_.GetAuthenticatedUser(),
@@ -856,6 +851,14 @@ TRowset TClient::DoLookupRowsOnce(
     const auto& permissionCache = Connection_->GetPermissionCache();
     WaitFor(permissionCache->Get(permissionKey))
         .ThrowOnError();
+    auto permissionCacheWaitTime = timer.GetElapsedTime();
+
+    if (options.DetailedProfilingInfo && tableInfo->EnableDetailedProfiling) {
+        options.DetailedProfilingInfo->EnableDetailedTableProfiling = true;
+        options.DetailedProfilingInfo->TablePath = path;
+        options.DetailedProfilingInfo->MountCacheWaitTime = mountCacheWaitTime;
+        options.DetailedProfilingInfo->PermissionCacheWaitTime = permissionCacheWaitTime;
+    }
 
     if (keys.Empty()) {
         return CreateRowset(resultSchema, TSharedRange<TRow>());
@@ -1432,6 +1435,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         });
     }
 
+    NProfiling::TWallTimer timer;
     const auto& permissionCache = Connection_->GetPermissionCache();
     auto permissionCheckErrors = WaitFor(permissionCache->GetMany(permissionKeys))
         .ValueOrThrow();
@@ -1441,10 +1445,11 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         }
         error.ThrowOnError();
     }
+    auto permissionCacheWaitTime = timer.GetElapsedTime();
 
     if (options.DetailedProfilingInfo) {
         const auto& path = astQuery->Table.Path;
-        NProfiling::TWallTimer timer;
+        timer.Restart();
         auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
             .ValueOrThrow();
         auto mountCacheWaitTime = timer.GetElapsedTime();
@@ -1452,6 +1457,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
             options.DetailedProfilingInfo->EnableDetailedTableProfiling = true;
             options.DetailedProfilingInfo->TablePath = path;
             options.DetailedProfilingInfo->MountCacheWaitTime += mountCacheWaitTime;
+            options.DetailedProfilingInfo->PermissionCacheWaitTime += permissionCacheWaitTime;
         }
     }
 
