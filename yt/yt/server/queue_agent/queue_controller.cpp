@@ -457,11 +457,12 @@ private:
         }
 
         auto queueObjectId = queueSnapshot->Row.ObjectId;
-        auto queueObjectPath = FromObjectId(*queueObjectId);
         // This field should be initialized when reading from dynamic state.
         if (!queueObjectId) {
             THROW_ERROR_EXCEPTION("Trimming iteration skipped due to the absence of filled field \"object_id\"");
         }
+
+        auto queueObjectPath = FromObjectId(*queueObjectId);
 
         YT_LOG_DEBUG("Performing trimming iteration (Path: %v)", queueObjectPath);
 
