@@ -24,7 +24,7 @@ struct TDistributedHydraManagerOptions
 
 struct TDistributedHydraManagerDynamicOptions
 {
-    bool AbandonLeaderLeaseDuringRecovery = false;
+    bool AbandonLeaderLeaseDuringRecovery = true;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
