@@ -1497,6 +1497,9 @@ class TestPortals(YTEnvSetup):
         create_user("dog")
         create_user("cat")
         create_user("rat")
+        create_user("bat")
+        set("//tmp/@inherit_acl", False)
+        set("//tmp/@acl", [])
         folder = "//tmp/dir_with_acl"
         create(
             "map_node",
@@ -1521,11 +1524,13 @@ class TestPortals(YTEnvSetup):
         assert "allow" == check_permission("dog", "write", portal_entrance)["action"]
         assert "deny" == check_permission("cat", "read", portal_exit)["action"]
         assert "allow" == check_permission("dog", "read", portal_exit)["action"]
+        assert "deny" == check_permission("bat", "read", portal_exit)["action"]  # No matching ACE.
         table = portal_exit + "/t"
         create("table", table, attributes={"inherit_acl": True})
         assert "allow" == check_permission("dog", "write", table)["action"]
         assert "deny" == check_permission("cat", "read", table)["action"]
         assert "allow" == check_permission("rat", "read", table)["action"]
+        assert "deny" == check_permission("bat", "read", table)["action"]  # No matching ACE.
 
         set(portal_entrance + "/@inherit_acl", False)
         wait(lambda: not get(f"{portal_exit}/@inherit_acl"))

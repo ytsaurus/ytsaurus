@@ -1416,6 +1416,12 @@ public:
         return RootShard_;
     }
 
+    bool IsShardRoot(const TObject* object) const override
+    {
+        return object == GetRootNode() ||
+            object->GetType() == EObjectType::PortalExit;
+    }
+
     TCypressNode* GetNodeOrThrow(TVersionedNodeId id) override
     {
         Bootstrap_->VerifyPersistentStateRead();

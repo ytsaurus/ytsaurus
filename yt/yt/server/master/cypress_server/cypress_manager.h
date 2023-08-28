@@ -128,6 +128,9 @@ public:
     //! Returns the root shard.
     virtual TCypressShard* GetRootCypressShard() const = 0;
 
+    //! Returns true iff the object is either the global Cypress root or a portal exit.
+    virtual bool IsShardRoot(const NObjectServer::TObject* object) const = 0;
+
     //! Finds node by id, throws if nothing is found.
     virtual TCypressNode* GetNodeOrThrow(TVersionedNodeId id) = 0;
 
