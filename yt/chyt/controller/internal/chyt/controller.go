@@ -85,6 +85,19 @@ func (c *Controller) getTvmID() (int64, bool) {
 	return tvmID, true
 }
 
+var (
+	clusterConnectionFields = []string{
+		"discovery_connection",
+		"master_cache",
+		"primary_master",
+		"secondary_masters",
+		"timestamp_provider",
+		"tvm_id",
+		"chyt",
+		"table_mount_cache",
+	}
+)
+
 func (c *Controller) updateClusterConnection(ctx context.Context) (changed bool, err error) {
 	var clusterConnection map[string]any
 	err = c.ytc.GetNode(ctx, ypath.Path("//sys/@cluster_connection"), &clusterConnection, nil)
@@ -96,11 +109,17 @@ func (c *Controller) updateClusterConnection(ctx context.Context) (changed bool,
 		c.l.Error("failed to update cluster connection: cluster connection contains block_cache section")
 		return false, fmt.Errorf("chyt: cluster connection contains block_cache section; looks like a misconfiguration")
 	}
-	if !reflect.DeepEqual(clusterConnection, c.cachedClusterConnection) {
-		c.cachedClusterConnection = clusterConnection
-		changed = true
+	for _, field := range clusterConnectionFields {
+		newValue, newValueExists := clusterConnection[field]
+		cachedValue, cachedValueExists := c.cachedClusterConnection[field]
+		if newValueExists != cachedValueExists ||
+			newValueExists && cachedValueExists && !reflect.DeepEqual(newValue, cachedValue) {
+			c.cachedClusterConnection = clusterConnection
+			changed = true
+			break
+		}
 	}
-	c.l.Error("cluster connection updated", log.Bool("changed", changed))
+	c.l.Info("cluster connection updated", log.Bool("changed", changed))
 	return changed, nil
 }
 
