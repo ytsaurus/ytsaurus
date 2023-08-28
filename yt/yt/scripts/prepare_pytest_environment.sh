@@ -1,4 +1,4 @@
-export SOURCE_ROOT="$(pwd)"
+export SOURCE_ROOT="$(pwd)/ytsaurus"
 export BUILD_ROOT="$(realpath ../build)"
 export PYTHON_ROOT="$(realpath ../python)"
 export VIRTUALENV_PATH="$(realpath ../venv)"
@@ -8,9 +8,9 @@ source "$VIRTUALENV_PATH/bin/activate"
 
 mkdir "$PYTHON_ROOT"
 
-pip3 install -e yt/python/packages
+pip3 install -e ${SOURCE_ROOT}/yt/python/packages
 
-yt/python/packages/yt_setup/generate_python_proto.py \
+${SOURCE_ROOT}/yt/python/packages/yt_setup/generate_python_proto.py \
     --source-root "$SOURCE_ROOT" \
     --output "$PYTHON_ROOT"
 
