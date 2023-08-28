@@ -1313,7 +1313,7 @@ private:
 
             YT_VERIFY(TypeFromId(jobId) == EObjectType::SchedulerJob);
 
-            if (requestOperationInfosForJobs) {
+            if (requestOperationInfosForJobs && !job->GetControllerAgentDescriptor()) {
                 operationIdsToRequestInfo.insert(job->GetOperationId());
             }
 
@@ -1493,7 +1493,6 @@ private:
             }
 
             if (!protoOperationInfo.has_controller_agent_descriptor()) {
-                UpdateOperationControllerAgent(operationId, TControllerAgentDescriptor{});
                 continue;
             }
 
