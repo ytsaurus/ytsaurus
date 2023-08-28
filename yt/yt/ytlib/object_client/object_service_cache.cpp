@@ -492,7 +492,6 @@ void TObjectServiceCache::TouchEntry(const TObjectServiceCacheEntryPtr& entry, b
     if ((previous < topEntryByteRateThreshold && current >= topEntryByteRateThreshold) || forceRenewTop) {
         auto guard = WriterGuard(TopEntriesLock_);
 
-        YT_LOG_INFO("XXX %v %v %v", key, entry->GetByteRate(), topEntryByteRateThreshold);
         if (entry->GetByteRate() >= topEntryByteRateThreshold) {
             if (TopEntries_.emplace(key, entry).second) {
                 YT_LOG_DEBUG("Added entry to top (Key: %v, ByteRate: %v -> %v)",
