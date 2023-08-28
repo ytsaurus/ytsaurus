@@ -364,18 +364,15 @@ std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> TQueryContext::GetObjectA
     std::vector<NYPath::TYPath> missingPaths = {missingPathSet.begin(), missingPathSet.end()};
 
     if (QueryKind == EQueryKind::InitialQuery &&
-        Settings->Execution->TableReadLockMode != ETableReadLockMode::None &&
+        Settings->Execution->TableReadLockMode == ETableReadLockMode::Sync &&
         !tablesToLock.empty())
     {
-        auto future = AcquireSnapshotLocks(tablesToLock);
-        if (Settings->Execution->TableReadLockMode == ETableReadLockMode::Sync) {
-            // Here we save read transaction id, which will be used in attribute fetch.
-            EnsureQueryReadTransactionCreated();
+        auto acquiredPathToNodeId = WaitFor(AcquireSnapshotLocks(tablesToLock))
+            .ValueOrThrow();
+        PathToNodeId.insert(acquiredPathToNodeId.begin(), acquiredPathToNodeId.end());
 
-            auto acquiredPathToNodeId = WaitFor(future)
-                .ValueOrThrow();
-            PathToNodeId.insert(acquiredPathToNodeId.begin(), acquiredPathToNodeId.end());
-        }
+        // Here we save read transaction id, which will be used in attribute fetch.
+        EnsureQueryReadTransactionCreated();
     }
 
     auto missingAttributes = GetTableAttributes(missingPaths);
@@ -397,6 +394,7 @@ std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> TQueryContext::GetObjectA
     }
 
     std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> result;
+    THashSet<TYPath> dynamicTablesToLock;
     result.reserve(paths.size());
 
     for (const auto& path : paths) {
@@ -414,8 +412,19 @@ std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> TQueryContext::GetObjectA
 
             if (attributes->Get<bool>("dynamic", false)) {
                 HasDynamicTable = true;
+                if (tablesToLock.contains(path)) {
+                    dynamicTablesToLock.emplace(path);
+                }
             }
         }
+    }
+
+    if (QueryKind == EQueryKind::InitialQuery &&
+        Settings->Execution->TableReadLockMode == ETableReadLockMode::BestEffort &&
+        !dynamicTablesToLock.empty())
+    {
+        // We intentionally omit waiting for the future.
+        AcquireSnapshotLocks(dynamicTablesToLock);
     }
 
     if (Settings->Execution->TableReadLockMode != ETableReadLockMode::None && HasDynamicTable) {
