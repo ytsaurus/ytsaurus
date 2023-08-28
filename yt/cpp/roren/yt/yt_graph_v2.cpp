@@ -1,4 +1,5 @@
 #include "yt_graph_v2.h"
+#include "jobs.h"
 
 #include "yt_graph.h"
 #include "yt_io_private.h"
@@ -9,8 +10,11 @@
 #include <yt/cpp/roren/interface/roren.h>
 
 #include <yt/cpp/mapreduce/interface/operation.h>
+#include <yt/cpp/mapreduce/interface/client.h>
 
 #include <library/cpp/yt/string/format.h>
+
+#include <util/generic/hash_multi_map.h>
 
 namespace NRoren::NPrivate {
 
@@ -39,19 +43,136 @@ enum class ETableType
 
 using TOperationConnector = std::pair<EJobType, TParDoTreeBuilder::TPCollectionNodeId>;
 
-struct TYtGraphV2::TTableNode
+class TInputTableNode;
+class TOutputTableNode;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TYtGraphV2::TTableNode
 {
-    ETableType TableType;
-    NYT::TRichYPath Path;
-    std::optional<NYT::TTableSchema> Schema;
+public:
+    TRowVtable Vtable;
 
     std::vector<TOperationNode*> InputFor;
     TOperationNode* OutputOf = nullptr;
 
-    TTableNode(ETableType type, NYT::TRichYPath path)
-        : TableType(type)
-        , Path(std::move(path))
+public:
+    TTableNode(TRowVtable vtable, NYT::TRichYPath path)
+        : Vtable(vtable)
+        , Path_(std::move(path))
     { }
+
+    virtual ~TTableNode() = default;
+
+    virtual ETableType GetTableType() const = 0;
+    virtual IYtJobInputPtr CreateJobInput() const = 0;
+    virtual IYtJobOutputPtr CreateJobOutput(ssize_t sinkIndex) const = 0;
+
+    const NYT::TRichYPath& GetPath() const
+    {
+        return Path_;
+    }
+
+    template <typename T>
+    T& AsRef()
+    {
+        static_assert(std::is_base_of_v<TTableNode, T>, "Class is not derived from TTableNode");
+        T* result = dynamic_cast<T*>(this);
+        Y_VERIFY(result);
+        return *result;
+    }
+
+    template <typename T>
+    T* TryAsPtr()
+    {
+        return dynamic_cast<T*>(this);
+    }
+
+private:
+    NYT::TRichYPath Path_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TInputTableNode
+    : public TYtGraphV2::TTableNode
+{
+public:
+    TInputTableNode(TRowVtable vtable, IRawYtReadPtr rawYtRead)
+        : TYtGraphV2::TTableNode(std::move(vtable), rawYtRead->GetPath())
+        , RawYtRead_(rawYtRead)
+    { }
+
+    ETableType GetTableType() const override
+    {
+        return ETableType::Input;
+    }
+
+    IYtJobInputPtr CreateJobInput() const override
+    {
+        return RawYtRead_->CreateJobInput();
+    }
+
+    IYtJobOutputPtr CreateJobOutput(ssize_t /*sinkIndex*/) const override
+    {
+        Y_FAIL("input table is not expected to be written");
+    }
+
+private:
+    IRawYtReadPtr RawYtRead_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TOutputTableNode
+    : public TYtGraphV2::TTableNode
+{
+public:
+    TOutputTableNode(TRowVtable vtable, IRawYtWritePtr rawYtWrite)
+        : TYtGraphV2::TTableNode(std::move(vtable), rawYtWrite->GetPath())
+        , RawYtWrite_(std::move(rawYtWrite))
+        , Schema_(RawYtWrite_->GetSchema())
+    { }
+
+    ETableType GetTableType() const override
+    {
+        return ETableType::Output;
+    }
+
+    IYtJobInputPtr CreateJobInput() const override
+    {
+        Y_FAIL("input table is not expected to be read");
+    }
+
+    IYtJobOutputPtr CreateJobOutput(ssize_t sinkIndex) const override
+    {
+        return RawYtWrite_->CreateJobOutput(sinkIndex);
+    }
+
+    const NYT::TTableSchema& GetSchema() const
+    {
+        return Schema_;
+    }
+
+private:
+    IRawYtWritePtr RawYtWrite_;
+    NYT::TTableSchema Schema_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TIntermediateTableNode
+    : public TYtGraphV2::TTableNode
+{
+public:
+    TIntermediateTableNode(TRowVtable vtable, NYT::TRichYPath path)
+        : TYtGraphV2::TTableNode(std::move(vtable), std::move(path))
+    { }
+
+    ETableType GetTableType() const
+    {
+        return ETableType::Intermediate;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -93,25 +214,26 @@ public:
     std::pair<TOperationNode*,TTableNode*> CreateMergeOperation(
         std::vector<TTableNode*> inputs,
         TString operationFirstName,
-        NYT::TRichYPath outputPath,
-        NYT::TTableSchema outputSchema)
+        TRowVtable outputVtable,
+        IRawYtWritePtr rawYtWrite)
     {
         auto operation = std::make_shared<TOperationNode>(EOperationType::Merge, std::move(operationFirstName));
         Operations.push_back(operation);
         LinkWithInputs(std::move(inputs), operation.get());
 
-        auto table = std::make_shared<TTableNode>(ETableType::Output, std::move(outputPath));
+        auto table = std::make_shared<TOutputTableNode>(
+            std::move(outputVtable),
+            rawYtWrite);
         Tables.push_back(table);
-        table->Schema = std::move(outputSchema);
         table->OutputOf = operation.get();
         operation->OutputTables[TOperationConnector{EJobType::Map, TParDoTreeBuilder::RootNodeId}] = table.get();
 
         return {operation.get(), table.get()};
     }
 
-    TTableNode* CreatePipelineInputSchema(NYT::TRichYPath path)
+    TTableNode* CreatePipelineInputSchema(TRowVtable vtable, const IRawYtReadPtr& rawYtRead)
     {
-        auto table = std::make_shared<TTableNode>(ETableType::Input, std::move(path));
+        auto table = std::make_shared<TInputTableNode>(std::move(vtable), rawYtRead);
         Tables.push_back(table);
         return table.get();
     }
@@ -119,12 +241,11 @@ public:
     TTableNode* CreateResultTable(
         TOperationNode* operation,
         TOperationConnector connector,
-        NYT::TRichYPath path,
-        NYT::TTableSchema schema)
+        TRowVtable vtable,
+        IRawYtWritePtr rawYtWrite)
     {
-        auto table = std::make_shared<TTableNode>(ETableType::Output, std::move(path));
+        auto table = std::make_shared<TOutputTableNode>(std::move(vtable), rawYtWrite);
         Tables.push_back(table);
-        table->Schema = std::move(schema);
 
         auto inserted = operation->OutputTables.emplace(connector, table.get()).second;
         Y_VERIFY(inserted);
@@ -177,17 +298,17 @@ public:
         auto rawTransform = transformNode->GetRawTransform();
         switch (rawTransform->GetType()) {
             case ERawTransformType::Read:
-                if (const auto* rawYtInput = dynamic_cast<const IRawYtRead*>(&*rawTransform->AsRawRead())) {
+                if (auto* rawYtRead = dynamic_cast<IRawYtRead*>(&*rawTransform->AsRawRead())) {
                     Y_VERIFY(transformNode->GetSinkCount() == 1);
                     const auto* pCollectionNode = transformNode->GetSink(0).Get();
-                    auto* tableNode = PlainGraph_->CreatePipelineInputSchema(rawYtInput->GetPath());
+                    auto* tableNode = PlainGraph_->CreatePipelineInputSchema(pCollectionNode->GetRowVtable(), IRawYtReadPtr{rawYtRead});
                     RegisterPCollection(pCollectionNode, tableNode);
                 } else {
                     ythrow yexception() << transformNode->GetName() << " is not a YtRead and not supported";
                 }
                 break;
             case ERawTransformType::Write:
-                if (const auto* rawYtOutput = dynamic_cast<const IRawYtWrite*>(&*rawTransform->AsRawWrite())) {
+                if (auto* rawYtWrite = dynamic_cast<IRawYtWrite*>(&*rawTransform->AsRawWrite())) {
                     Y_VERIFY(transformNode->GetSourceCount() == 1);
                     const auto* source = transformNode->GetSource(0).Get();
                     auto sourceImage = GetPCollectionImage(source);
@@ -200,16 +321,16 @@ public:
                             PlainGraph_->CreateMergeOperation(
                                 {inputTable},
                                 transformNode->GetName(),
-                                rawYtOutput->GetPath(),
-                                rawYtOutput->GetSchema()
+                                source->GetRowVtable(),
+                                rawYtWrite
                             );
                         } else if constexpr (std::is_same_v<TType, TEphemeralImage>) {
                             const auto& ephemeralImage = sourceImage;
                             PlainGraph_->CreateResultTable(
                                 ephemeralImage.Operation,
                                 ephemeralImage.Connector,
-                                rawYtOutput->GetPath(),
-                                rawYtOutput->GetSchema()
+                                source->GetRowVtable(),
+                                IRawYtWritePtr(rawYtWrite)
                             );
                         } else {
                             static_assert(std::is_same_v<TType, void>);
@@ -307,20 +428,112 @@ TYtGraphV2::~TYtGraphV2()
 { }
 
 void TYtGraphV2::Optimize()
-{
-     Y_FAIL("Not implemented yet");
-}
+{ }
 
 std::vector<std::vector<IYtGraph::TOperationNodeId>> TYtGraphV2::GetOperationLevels() const
 {
-    Y_FAIL("Not implemented yet");
-    return {};
+    std::vector<const TTableNode*> readyTables;
+
+    THashMap<const TOperationNode*, std::set<const TTableNode*>> dependencyMap;
+    THashMap<const TOperationNode*, std::vector<const TTableNode*>> outputMap;
+    THashMap<const TOperationNode*, IYtGraph::TOperationNodeId> idMap;
+
+    for (const auto& tableNode : PlainGraph_->Tables) {
+        if (tableNode->GetTableType() == ETableType::Input) {
+            readyTables.push_back(tableNode.get());
+        }
+    }
+
+    for (ssize_t i = 0; i < std::ssize(PlainGraph_->Operations); ++i) {
+        const auto& operationNode = PlainGraph_->Operations[i];
+        idMap[operationNode.get()] = i;
+        dependencyMap[operationNode.get()].insert(
+            operationNode->InputTables.begin(),
+            operationNode->InputTables.end());
+
+        auto& curOutputs = outputMap[operationNode.get()];
+        for (const auto& item : operationNode->OutputTables) {
+            curOutputs.push_back(item.second);
+        }
+    }
+
+    std::vector<std::vector<IYtGraph::TOperationNodeId>> operationNodeLevels;
+    while (!readyTables.empty()) {
+        std::vector<const TOperationNode*> readyOperations;
+
+        for (const auto* table : readyTables) {
+            for (const auto* operation : table->InputFor) {
+                auto it = dependencyMap.find(operation);
+                Y_VERIFY(it != dependencyMap.end());
+                auto& dependencies = it->second;
+                dependencies.erase(table);
+                if (dependencies.empty()) {
+                    readyOperations.push_back(operation);
+                    dependencyMap.erase(operation);
+                }
+            }
+
+            operationNodeLevels.emplace_back();
+            operationNodeLevels.back().reserve(readyOperations.size());
+            readyTables.clear();
+            for (const auto* operation : readyOperations) {
+                operationNodeLevels.back().push_back(idMap[operation]);
+                for (const auto& item : operation->OutputTables) {
+                    readyTables.push_back(item.second);
+                }
+            }
+        }
+    }
+
+    return operationNodeLevels;
 }
 
-NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr&, TOperationNodeId) const
+NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client, TOperationNodeId nodeId) const
 {
-    Y_FAIL("Not implemented yet");
-    return nullptr;
+    Y_VERIFY(nodeId >= 0 && nodeId < std::ssize(PlainGraph_->Operations));
+    const auto& operation = PlainGraph_->Operations[nodeId];
+    switch (operation->OperationType) {
+        case EOperationType::MapReduce: {
+            NYT::TRawMapOperationSpec spec;
+            Y_VERIFY(operation->InputTables.size() == 1);
+            const auto* inputTable = operation->InputTables[0];
+            spec.AddInput(inputTable->GetPath());
+            auto jobInput = inputTable->CreateJobInput();
+
+            TParDoTreeBuilder mapBuilder = operation->MapperBuilder;
+            std::vector<IYtJobOutputPtr> jobOutputs;
+            ssize_t sinkIndex = 0;
+            for (const auto &[key, table] : operation->OutputTables) {
+                Y_VERIFY(key.first == EJobType::Map);
+                auto output = table->GetPath();
+                if (auto* outputTable = table->TryAsPtr<TOutputTableNode>()) {
+                    output.Schema(outputTable->GetSchema());
+                }
+                spec.AddOutput(table->GetPath());
+                mapBuilder.MarkAsOutput(key.second);
+                jobOutputs.push_back(table->CreateJobOutput(sinkIndex));
+                ++sinkIndex;
+            }
+            spec.Format(NYT::TFormat::YsonBinary());
+
+            NYT::IRawJobPtr job = CreateParDoMap(mapBuilder.Build(), jobInput, jobOutputs);
+
+            return client->RawMap(spec, job, NYT::TOperationOptions().Wait(false));
+        }
+        case EOperationType::Merge: {
+            NYT::TMergeOperationSpec spec;
+            for (const auto *table : operation->InputTables) {
+                spec.AddInput(table->GetPath());
+            }
+            Y_VERIFY(std::ssize(operation->OutputTables) == 1);
+            for (const auto &[_, table] : operation->OutputTables) {
+                auto output = table->GetPath();
+                output.Schema(table->AsRef<TOutputTableNode>().GetSchema());
+                spec.Output(table->GetPath());
+            }
+            return client->Merge(spec, NYT::TOperationOptions{}.Wait(false));
+        }
+    }
 }
 
 TString TYtGraphV2::DumpDOTSubGraph(const TString&) const
@@ -339,9 +552,9 @@ std::set<TString> TYtGraphV2::GetEdgeDebugStringSet() const
 {
     std::set<TString> result;
     for (const auto& table : PlainGraph_->Tables) {
-        if (table->TableType == ETableType::Input) {
+        if (table->GetTableType() == ETableType::Input) {
             for (const auto& operation : table->InputFor) {
-                auto edge = NYT::Format("%v -> %v", table->Path.Path_, operation->FirstName);
+                auto edge = NYT::Format("%v -> %v", table->GetPath().Path_, operation->FirstName);
                 result.insert(std::move(edge));
             }
         }
@@ -349,9 +562,9 @@ std::set<TString> TYtGraphV2::GetEdgeDebugStringSet() const
 
     for (const auto& operation : PlainGraph_->Operations) {
         for (const auto& [connector, outputTable] : operation->OutputTables) {
-            switch (outputTable->TableType) {
+            switch (outputTable->GetTableType()) {
                 case ETableType::Output: {
-                    auto edge = NYT::Format("%v -> %v", operation->FirstName, outputTable->Path.Path_);
+                    auto edge = NYT::Format("%v -> %v", operation->FirstName, outputTable->GetPath().Path_);
                     result.insert(std::move(edge));
                     break;
                 }

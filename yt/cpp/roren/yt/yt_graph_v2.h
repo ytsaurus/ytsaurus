@@ -19,7 +19,7 @@ class TYtGraphV2
     : public IYtGraph
 {
 public:
-    struct TTableNode;
+    class TTableNode;
     using TTableNodePtr = std::shared_ptr<TTableNode>;
     struct TOperationNode;
     using TOperationNodePtr = std::shared_ptr<TOperationNode>;
