@@ -1,6 +1,6 @@
 #pragma once
 
-#include "private.h"
+#include "helpers.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 

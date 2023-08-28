@@ -44,9 +44,9 @@ message TReqHeartbeat
 
     repeated TSpecFetchFailedAllocationInfo spec_fetch_failed_allocations = 12;
 
-    reserved 9, 10;
-    
     repeated TControllerAgentDescriptor registered_controller_agents = 13;
+
+    reserved 9, 10;
 }
 
 message TAllocationStartInfo

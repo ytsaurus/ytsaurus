@@ -35,6 +35,24 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TControllerAgentDescriptor
+{
+    TString Address;
+    NScheduler::TIncarnationId IncarnationId;
+
+    bool operator==(const TControllerAgentDescriptor& other) const noexcept;
+    bool operator!=(const TControllerAgentDescriptor& other) const noexcept;
+
+    explicit operator bool() const noexcept;
+};
+
+void FormatValue(
+    TStringBuilderBase* builder,
+    const TControllerAgentDescriptor& controllerAgentDescriptor,
+    TStringBuf /*format*/);
+
+////////////////////////////////////////////////////////////////////////////////
+
 TErrorOr<TControllerAgentDescriptor> TryParseControllerAgentDescriptor(
     const NScheduler::NProto::NNode::TControllerAgentDescriptor& proto,
     const NNodeTrackerClient::TNetworkPreferenceList& localNetworks);
@@ -52,3 +70,9 @@ void SetNodeInfoToRequest(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NExecNode
+
+template <>
+struct THash<NYT::NExecNode::TControllerAgentDescriptor>
+{
+    size_t operator () (const NYT::NExecNode::TControllerAgentDescriptor& descriptor) const;
+};

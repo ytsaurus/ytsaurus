@@ -16,26 +16,6 @@ DECLARE_REFCOUNTED_CLASS(TSchedulerConnector)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TControllerAgentDescriptor
-{
-    TString Address;
-    NScheduler::TIncarnationId IncarnationId;
-
-    bool operator==(const TControllerAgentDescriptor& other) const noexcept;
-    bool operator!=(const TControllerAgentDescriptor& other) const noexcept;
-
-    bool Empty() const noexcept;
-
-    explicit operator bool() const noexcept;
-};
-
-void FormatValue(
-    TStringBuilderBase* builder,
-    const TControllerAgentDescriptor& controllerAgentDescriptor,
-    TStringBuf /*format*/);
-
-////////////////////////////////////////////////////////////////////////////////
-
 DECLARE_REFCOUNTED_CLASS(TJob)
 
 DECLARE_REFCOUNTED_STRUCT(TSchedulerHeartbeatContext)
@@ -52,9 +32,3 @@ constexpr int TmpfsRemoveAttemptCount = 5;
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NExecNode
-
-template <>
-struct THash<NYT::NExecNode::TControllerAgentDescriptor>
-{
-    size_t operator () (const NYT::NExecNode::TControllerAgentDescriptor& descriptor) const;
-};

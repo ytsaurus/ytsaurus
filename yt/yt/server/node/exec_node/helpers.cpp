@@ -198,6 +198,30 @@ TErrorOr<TString> TryParseControllerAgentAddress(
 
 } // namespace
 
+////////////////////////////////////////////////////////////////////////////////
+
+bool TControllerAgentDescriptor::operator==(const TControllerAgentDescriptor& other) const noexcept = default;
+
+bool TControllerAgentDescriptor::operator!=(const TControllerAgentDescriptor& other) const noexcept = default;
+
+TControllerAgentDescriptor::operator bool() const noexcept
+{
+    return *this != TControllerAgentDescriptor{};
+}
+
+void FormatValue(
+    TStringBuilderBase* builder,
+    const TControllerAgentDescriptor& controllerAgentDescriptor,
+    TStringBuf /*format*/)
+{
+    builder->AppendFormat(
+        "{Address: %v, IncarnationId: %v}",
+        controllerAgentDescriptor.Address,
+        controllerAgentDescriptor.IncarnationId);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TErrorOr<TControllerAgentDescriptor> TryParseControllerAgentDescriptor(
     const NScheduler::NProto::NNode::TControllerAgentDescriptor& proto,
     const NNodeTrackerClient::TNetworkPreferenceList& localNetworks)
@@ -223,3 +247,9 @@ TErrorOr<TControllerAgentDescriptor> TryParseControllerAgentDescriptor(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NExecNode
+
+size_t THash<NYT::NExecNode::TControllerAgentDescriptor>::operator () (
+    const NYT::NExecNode::TControllerAgentDescriptor& descriptor) const
+{
+    return MultiHash(descriptor.Address, descriptor.IncarnationId);
+}

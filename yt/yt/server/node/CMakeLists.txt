@@ -167,7 +167,6 @@ target_sources(yt-server-node PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/exec_node/job_prober_service.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/exec_node/job_workspace_builder.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/exec_node/master_connector.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/exec_node/private.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/exec_node/public.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/exec_node/scheduler_connector.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/exec_node/slot.cpp
