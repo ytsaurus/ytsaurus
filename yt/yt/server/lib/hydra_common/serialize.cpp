@@ -59,10 +59,21 @@ int TSaveContext::GetBackgroundParallelism() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLoadContext::TLoadContext(ICheckpointableInputStream* input)
+TLoadContext::TLoadContext(
+    ICheckpointableInputStream* input,
+    IThreadPoolPtr backgroundThreadPool)
     : TEntityStreamLoadContext(input)
     , CheckpointableInput_(input)
+    , BackgroundThreadPool_(std::move(backgroundThreadPool))
 { }
+
+TLoadContext::TLoadContext(
+    IZeroCopyInput* input,
+    const TLoadContext* parentContext)
+    : TEntityStreamLoadContext(input, parentContext)
+{
+    SetVersion(parentContext->GetVersion());
+}
 
 void TLoadContext::SkipToCheckpoint()
 {
@@ -73,6 +84,16 @@ void TLoadContext::SkipToCheckpoint()
 i64 TLoadContext::GetOffset() const
 {
     return CheckpointableInput_->GetOffset();
+}
+
+IInvokerPtr TLoadContext::GetBackgroundInvoker() const
+{
+    return BackgroundThreadPool_ ? BackgroundThreadPool_->GetInvoker() : nullptr;
+}
+
+int TLoadContext::GetBackgroundParallelism() const
+{
+    return BackgroundThreadPool_ ? BackgroundThreadPool_->GetThreadCount() : 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

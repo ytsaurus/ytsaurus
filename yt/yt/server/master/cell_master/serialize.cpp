@@ -92,9 +92,16 @@ EMasterReign TSaveContext::GetVersion()
 
 TLoadContext::TLoadContext(
     TBootstrap* bootstrap,
-    ICheckpointableInputStream* input)
-    : NHydra::TLoadContext(input)
+    ICheckpointableInputStream* input,
+    NConcurrency::IThreadPoolPtr backgroundThreadPool)
+    : NHydra::TLoadContext(input, std::move(backgroundThreadPool))
     , Bootstrap_(bootstrap)
+{ }
+
+TLoadContext::TLoadContext(
+    IZeroCopyInput* input,
+    const TLoadContext* parentContext)
+    : NHydra::TLoadContext(input, parentContext)
 { }
 
 TObject* TLoadContext::GetWeakGhostObject(TObjectId id) const

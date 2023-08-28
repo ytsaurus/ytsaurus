@@ -4800,8 +4800,8 @@ private:
     {
         using NYT::Load;
 
-        ChunkMap_.LoadValues(context);
-        ChunkListMap_.LoadValues(context);
+        ChunkMap_.LoadValuesParallel(context);
+        ChunkListMap_.LoadValuesParallel(context);
         MediumMap_.LoadValues(context);
 
         // COMPAT(kvk1920): move to OnAfterSnapshotLoaded

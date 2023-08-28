@@ -102,7 +102,7 @@ struct TStrongNonversionedObjectPtrSerializer
     {
         typename NObjectServer::TObjectPtrTraits<T>::TUnderlying* rawObject;
         TRawNonversionedObjectPtrSerializer::Load(context, rawObject);
-        object = T(rawObject, NObjectServer::TObjectPtrLoadTag());
+        object.Assign(rawObject, NObjectServer::TObjectPtrLoadTag());
     }
 };
 
@@ -149,7 +149,7 @@ struct TStrongVersionedObjectPtrSerializer
     {
         typename NObjectServer::TObjectPtrTraits<T>::TUnderlying* rawObject;
         TRawVersionedObjectPtrSerializer::Load(context, rawObject);
-        object = T(rawObject, NObjectServer::TObjectPtrLoadTag());
+        object.Assign(rawObject, NObjectServer::TObjectPtrLoadTag());
     }
 };
 

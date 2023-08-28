@@ -37,9 +37,9 @@ inline TChunk::TReplicasDataBase* TChunk::MutableReplicasData()
 {
     if (!ReplicasData_) {
         if (IsErasure()) {
-            ReplicasData_ = TPoolAllocator::New<TErasureChunkReplicasData>();
+            ReplicasData_ = std::make_unique<TErasureChunkReplicasData>();
         } else {
-            ReplicasData_ = TPoolAllocator::New<TRegularChunkReplicasData>();
+            ReplicasData_ = std::make_unique<TRegularChunkReplicasData>();
         }
         ReplicasData_->Initialize();
     }

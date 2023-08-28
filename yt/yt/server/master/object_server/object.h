@@ -373,6 +373,7 @@ public:
     const TObjectPtr& operator=(const TObjectPtr& other) = delete;
 
     void Assign(T* ptr) noexcept;
+    void Assign(T* ptr, TObjectPtrLoadTag) noexcept;
     void Reset() noexcept;
 
     T* operator->() const noexcept;

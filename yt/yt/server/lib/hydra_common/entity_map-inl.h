@@ -8,6 +8,7 @@
 
 #include <yt/yt/core/misc/pool_allocator.h>
 
+#include <library/cpp/yt/memory/chunked_input_stream.h>
 #include <library/cpp/yt/memory/chunked_output_stream.h>
 
 namespace NYT::NHydra {
@@ -324,6 +325,7 @@ void TEntityMap<TValue, TTraits>::SaveKeys(TContext& context) const
             [] (auto lhs, auto rhs) { return lhs->first < rhs->first; });
     }
 
+    TSizeSerializer::Save(context, BatchedFormatMarker);
     TSizeSerializer::Save(context, SaveIterators_.size());
     for (const auto& it : SaveIterators_) {
         Save(context, it->first);
@@ -335,6 +337,10 @@ template <class TValue, class TTraits>
 template <class TContext>
 void TEntityMap<TValue, TTraits>::SaveValues(TContext& context) const
 {
+    if (!SaveIterators_.empty()) {
+        Save(context, AllEntitiesBatchEntityCount);
+    }
+
     for (const auto& it : SaveIterators_) {
         Save(context, *it->second);
     }
@@ -353,7 +359,14 @@ void TEntityMap<TValue, TTraits>::SaveValuesParallel(TContext& context) const
 
     int batchSize = EstimateParallelSaveBatchSize(context);
 
-    std::vector<std::vector<TSharedRef>> batchResults;
+    struct TBatchResult
+    {
+        int EntityCount;
+        size_t ByteSize;
+        std::vector<TSharedRef> Chunks;
+    };
+
+    std::vector<TBatchResult> batchResults;
     std::vector<TCallback<TFuture<void>()>> batchExecutors;
     int entityStartIndex = 0;
     while (entityStartIndex < std::ssize(SaveIterators_)) {
@@ -366,7 +379,11 @@ void TEntityMap<TValue, TTraits>::SaveValuesParallel(TContext& context) const
                 Save(batchContext, *SaveIterators_[index]->second);
             }
             batchContext.Finish();
-            batchResults[batchIndex] = batchOutput.Finish();
+            batchResults[batchIndex] = {
+                .EntityCount = entityEndIndex - entityStartIndex,
+                .ByteSize = batchOutput.GetSize(),
+                .Chunks = batchOutput.Finish(),
+            };
         }).AsyncVia(backgroundInvoker));
         entityStartIndex = entityEndIndex;
     }
@@ -397,8 +414,13 @@ void TEntityMap<TValue, TTraits>::SaveValuesParallel(TContext& context) const
             .Get()
             .ThrowOnError();
         --batchesRunning;
+
         auto batchResult = std::move(batchResults[batchIndexToWaitFor]);
-        for (const auto& chunk : batchResult) {
+
+        Save(context, batchResult.EntityCount);
+        TSizeSerializer::Save(context, batchResult.ByteSize);
+
+        for (const auto& chunk : batchResult.Chunks) {
             context.GetOutput()->Write(chunk.Begin(), chunk.Size());
         }
         ++batchIndexToWaitFor;
@@ -448,7 +470,15 @@ void TEntityMap<TValue, TTraits>::LoadKeys(TContext& context)
 
     Clear();
 
-    size_t size = TSizeSerializer::LoadSuspended(context);
+    size_t size;
+
+    auto value = TSizeSerializer::Load(context);
+    if (value == BatchedFormatMarker) {
+        BatchedValuesFormat_ = true;
+        size = TSizeSerializer::LoadSuspended(context);
+    } else {
+        size = value;
+    }
 
     SERIALIZATION_DUMP_WRITE(context, "keys[%v]", size);
 
@@ -484,19 +514,129 @@ void TEntityMap<TValue, TTraits>::LoadValues(TContext& context)
 
     YT_VERIFY(LoadKeys_.size() == LoadValues_.size());
 
+    auto finally = Finally([&] {
+        LoadKeys_.clear();
+        LoadValues_.clear();
+        BatchedValuesFormat_ = false;
+    });
+
     SERIALIZATION_DUMP_WRITE(context, "values[%v]", LoadKeys_.size());
 
-    SERIALIZATION_DUMP_INDENT(context) {
-        for (size_t index = 0; index != LoadKeys_.size(); ++index) {
-            SERIALIZATION_DUMP_WRITE(context, "%v =>", LoadKeys_[index]);
-            SERIALIZATION_DUMP_INDENT(context) {
-                Load(context, *LoadValues_[index]);
-            }
-        }
+    int batchEntityCount = std::ssize(LoadKeys_);
+    if (BatchedValuesFormat_ && !LoadKeys_.empty()) {
+        Load(context, batchEntityCount);
     }
 
-    LoadKeys_.clear();
-    LoadValues_.clear();
+    bool areSizePrefixesPresent = BatchedValuesFormat_ && batchEntityCount != AllEntitiesBatchEntityCount;
+    if (batchEntityCount == AllEntitiesBatchEntityCount) {
+        batchEntityCount = std::ssize(LoadKeys_);
+    }
+
+    SERIALIZATION_DUMP_INDENT(context) {
+        int entityStartIndex = 0;
+        while (entityStartIndex < std::ssize(LoadKeys_)) {
+            int entityEndIndex = std::min<int>(entityStartIndex + batchEntityCount, std::ssize(LoadKeys_));
+
+            if (areSizePrefixesPresent) {
+                if (entityStartIndex > 0) {
+                    int dumpBatchEntityCount;
+                    Load(context, dumpBatchEntityCount);
+                }
+                TSizeSerializer::Load(context);
+            }
+
+            for (int index = entityStartIndex; index < entityEndIndex; ++index) {
+                SERIALIZATION_DUMP_WRITE(context, "%v =>", LoadKeys_[index]);
+                SERIALIZATION_DUMP_INDENT(context) {
+                    Load(context, *LoadValues_[index]);
+                }
+            }
+
+            entityStartIndex = entityEndIndex;
+        }
+    }
+}
+
+template <class TValue, class TTraits>
+template <class TContext>
+void TEntityMap<TValue, TTraits>::LoadValuesParallel(TContext& context)
+{
+    VERIFY_THREAD_AFFINITY(this->UserThread);
+
+    YT_VERIFY(LoadKeys_.size() == LoadValues_.size());
+
+    auto finally = Finally([&] {
+        LoadKeys_.clear();
+        LoadValues_.clear();
+        BatchedValuesFormat_ = false;
+    });
+
+    int batchEntityCount = AllEntitiesBatchEntityCount;
+    if (BatchedValuesFormat_ && !LoadKeys_.empty()) {
+        Load(context, batchEntityCount);
+        BatchedValuesFormat_ = false;
+    }
+
+    auto backgroundInvoker = context.GetBackgroundInvoker();
+    if (!backgroundInvoker || batchEntityCount == AllEntitiesBatchEntityCount) {
+        LoadValues(context);
+        return;
+    }
+
+    SERIALIZATION_DUMP_WRITE(context, "values[%v]", LoadKeys_.size());
+
+    int batchesRunning = 0;
+    std::vector<TFuture<void>> batchFutures;
+
+    int entityStartIndex = 0;
+    auto startMoreBatches = [&] {
+        while (entityStartIndex < std::ssize(LoadKeys_) && batchesRunning < context.GetBackgroundParallelism()) {
+            if (entityStartIndex > 0) {
+                Load(context, batchEntityCount);
+            }
+            auto batchByteSize = TSizeSerializer::Load(context);
+            SERIALIZATION_DUMP_WRITE(context, "batchEntityCount: %v, batchByteSize: %v", batchEntityCount, batchByteSize);
+
+            int entityEndIndex = std::min<int>(entityStartIndex + batchEntityCount, std::ssize(LoadKeys_));
+
+            TChunkedOutputStream batchBuffer(GetRefCountedTypeCookie<TEntityMapSaveBufferTag>());
+            auto* buffer = batchBuffer.Preallocate(batchByteSize);
+            context.GetInput()->Load(buffer, batchByteSize);
+            batchBuffer.Advance(batchByteSize);
+
+            batchFutures.push_back(BIND(
+                [this, &context, entityStartIndex, entityEndIndex] (std::vector<TSharedRef> batchChunks) {
+                    auto batchInput = TChunkedInputStream(std::move(batchChunks));
+                    auto batchContext = TContext(&batchInput, &context);
+
+                    for (int index = entityStartIndex; index < entityEndIndex; ++index) {
+                        Load(batchContext, *LoadValues_[index]);
+                    }
+                }).AsyncVia(backgroundInvoker).Run(batchBuffer.Finish()));
+
+            ++batchesRunning;
+            entityStartIndex = entityEndIndex;
+        }
+    };
+
+    int batchIndexToWaitFor = 0;
+    auto waitForBatch = [&] {
+        if (batchIndexToWaitFor >= std::ssize(batchFutures)) {
+            return false;
+        }
+        batchFutures[batchIndexToWaitFor]
+            .Get()
+            .ThrowOnError();
+        --batchesRunning;
+        ++batchIndexToWaitFor;
+        return true;
+    };
+
+    SERIALIZATION_DUMP_INDENT(context) {
+        do {
+            startMoreBatches();
+        } while (waitForBatch());
+    }
 }
 
 template <class TValue, class TTraits>

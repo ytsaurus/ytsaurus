@@ -56,13 +56,23 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(i64, UpperWriteCountDumpLimit);
 
 public:
-    explicit TLoadContext(ICheckpointableInputStream* input);
+    explicit TLoadContext(
+        ICheckpointableInputStream* input,
+        NConcurrency::IThreadPoolPtr backgroundThreadPool = nullptr);
+
+    TLoadContext(
+        IZeroCopyInput* input,
+        const TLoadContext* parentContext);
 
     void SkipToCheckpoint();
     i64 GetOffset() const;
 
+    IInvokerPtr GetBackgroundInvoker() const;
+    int GetBackgroundParallelism() const;
+
 private:
-    ICheckpointableInputStream* const CheckpointableInput_;
+    ICheckpointableInputStream* const CheckpointableInput_ = nullptr;
+    const NConcurrency::IThreadPoolPtr BackgroundThreadPool_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

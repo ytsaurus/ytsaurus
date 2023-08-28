@@ -156,6 +156,9 @@ public:
     template <class TContext>
     void LoadValues(TContext& context);
 
+    template <class TContext>
+    void LoadValuesParallel(TContext& context);
+
 private:
     using TMapType = typename TReadOnlyEntityMap<TValue>::TMapType;
 
@@ -165,6 +168,11 @@ private:
 
     TChunkedMemoryPool DynamicDataPool_;
     TSpareEntityDynamicData* FirstSpareDynamicData_ = nullptr;
+
+    static constexpr int AllEntitiesBatchEntityCount = -1;
+    static constexpr size_t BatchedFormatMarker = std::numeric_limits<ui32>::max();
+
+    bool BatchedValuesFormat_ = false;
 
     std::vector<TKey> LoadKeys_;
     std::vector<TValue*> LoadValues_;

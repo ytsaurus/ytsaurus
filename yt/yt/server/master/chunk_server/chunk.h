@@ -440,7 +440,6 @@ private:
     } Flags_ = {};
 
     struct TReplicasDataBase
-        : public TPoolAllocator::TObjectBase
     {
         //! Number of approved replicas among stored.
         int ApprovedReplicaCount = 0;

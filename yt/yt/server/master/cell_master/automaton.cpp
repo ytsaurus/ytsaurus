@@ -67,7 +67,13 @@ std::unique_ptr<NHydra::TSaveContext> TMasterAutomaton::CreateSaveContext(
 std::unique_ptr<NHydra::TLoadContext> TMasterAutomaton::CreateLoadContext(
     ICheckpointableInputStream* input)
 {
-    auto context = std::make_unique<TLoadContext>(Bootstrap_, input);
+    auto backgroundThreadPool = Bootstrap_->GetConfig()->HydraManager->SnapshotBackgroundThreadCount > 0
+        ? CreateThreadPool(Bootstrap_->GetConfig()->HydraManager->SnapshotBackgroundThreadCount, "SnapshotBack")
+        : nullptr;
+    auto context = std::make_unique<TLoadContext>(
+        Bootstrap_,
+        input,
+        std::move(backgroundThreadPool));
     TCompositeAutomaton::SetupLoadContext(context.get());
     return context;
 }

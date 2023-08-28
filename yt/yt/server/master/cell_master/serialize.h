@@ -186,7 +186,11 @@ public:
 public:
     TLoadContext(
         TBootstrap* bootstrap,
-        NHydra::ICheckpointableInputStream* input);
+        NHydra::ICheckpointableInputStream* input,
+        NConcurrency::IThreadPoolPtr backgroundThreadPool);
+    TLoadContext(
+        IZeroCopyInput* input,
+        const TLoadContext* parentContext);
 
     NObjectServer::TObject* GetWeakGhostObject(NObjectServer::TObjectId id) const;
 

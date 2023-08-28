@@ -469,6 +469,16 @@ void TObjectPtr<T, C>::Assign(T* ptr) noexcept
 }
 
 template <class T, class C>
+void TObjectPtr<T, C>::Assign(T* ptr, TObjectPtrLoadTag) noexcept
+{
+    static_assert(C::Persistent);
+    YT_VERIFY(!Ptr_);
+    Ptr_ = ptr;
+    Context_ = C::Capture();
+    NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
+}
+
+template <class T, class C>
 void TObjectPtr<T, C>::Reset() noexcept
 {
     NDetail::AssertPersistentStateRead();
