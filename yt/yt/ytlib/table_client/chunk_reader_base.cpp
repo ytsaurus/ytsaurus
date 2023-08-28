@@ -182,7 +182,7 @@ int TChunkReaderBase::ApplyLowerRowLimit(const TDataBlockMetaExt& blockMeta, con
         return blockMeta.data_blocks_size();
     }
 
-    typedef decltype(blockMetaEntries.end()) TIter;
+    using TIter = decltype(blockMetaEntries.end());
     auto rbegin = std::reverse_iterator<TIter>(blockMetaEntries.end() - 1);
     auto rend = std::reverse_iterator<TIter>(blockMetaEntries.begin());
 

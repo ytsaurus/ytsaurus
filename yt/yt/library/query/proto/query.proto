@@ -128,7 +128,7 @@ message TAggregateItem
 message TSelfEquation
 {
     required TExpression expression = 1;
-    required bool is_key = 2;
+    required bool evaluated = 2;
 }
 
 message TJoinClause
@@ -166,7 +166,7 @@ message TGroupClause
 message TOrderItem
 {
     required TExpression expression = 1;
-    required bool is_descending = 2;
+    required bool descending = 2;
 }
 
 message TOrderClause

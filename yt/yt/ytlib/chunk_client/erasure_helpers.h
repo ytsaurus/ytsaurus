@@ -177,7 +177,7 @@ struct TDataBlocksPlacementInPart
     std::vector<TPartRange> Ranges;
 };
 
-typedef std::vector<TDataBlocksPlacementInPart> TDataBlocksPlacementInParts;
+using TDataBlocksPlacementInParts = std::vector<TDataBlocksPlacementInPart>;
 
 TDataBlocksPlacementInParts BuildDataBlocksPlacementInParts(
     const std::vector<int>& blockIndexes,

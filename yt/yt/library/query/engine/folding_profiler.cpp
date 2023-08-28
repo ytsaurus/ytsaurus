@@ -1080,10 +1080,10 @@ void TQueryProfiler::Profile(
         std::vector<EValueType> orderColumnTypes;
         TExpressionFragments orderExprFragments;
         for (const auto& item : orderClause->OrderItems) {
-            orderExprIds.push_back(TExpressionProfiler::Profile(item.first, schema, &orderExprFragments));
-            Fold(item.second);
-            isDesc.push_back(item.second);
-            orderColumnTypes.push_back(item.first->GetWireType());
+            orderExprIds.push_back(TExpressionProfiler::Profile(item.Expression, schema, &orderExprFragments));
+            Fold(item.Descending);
+            isDesc.push_back(item.Descending);
+            orderColumnTypes.push_back(item.Expression->GetWireType());
         }
 
         auto orderFragmentsInfos = orderExprFragments.ToFragmentInfos("orderExpression");
@@ -1259,20 +1259,17 @@ void TQueryProfiler::Profile(
 
             std::vector<std::pair<size_t, bool>> selfKeys;
             std::vector<EValueType> lookupKeyTypes;
-            for (const auto& column : joinClause->SelfEquations) {
-                TConstExpressionPtr expression;
-                bool isEvaluated;
-                std::tie(expression, isEvaluated) = column;
+            for (const auto& [expression, evaluated] : joinClause->SelfEquations) {
 
-                const auto& expressionSchema = isEvaluated ? joinClause->Schema.Original : schema;
+                const auto& expressionSchema = evaluated ? joinClause->Schema.Original : schema;
 
                 selfKeys.emplace_back(
                     TExpressionProfiler::Profile(
                         expression,
                         expressionSchema,
                         &equationFragments,
-                        isEvaluated),
-                    isEvaluated);
+                        evaluated),
+                    evaluated);
                 lookupKeyTypes.push_back(expression->GetWireType());
             }
 

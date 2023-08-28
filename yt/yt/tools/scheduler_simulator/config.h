@@ -42,16 +42,16 @@ TIntrusivePtr<TConfig> LoadConfig(const TString& configFilename)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNodeResourcesConfig;
-typedef TIntrusivePtr<TNodeResourcesConfig> TNodeResourcesConfigPtr;
+using TNodeResourcesConfigPtr = TIntrusivePtr<TNodeResourcesConfig>;
 
 class TNodeGroupConfig;
-typedef TIntrusivePtr<TNodeGroupConfig> TNodeGroupConfigPtr;
+using TNodeGroupConfigPtr = TIntrusivePtr<TNodeGroupConfig>;
 
 class TRemoteEventLogConfig;
-typedef TIntrusivePtr<TRemoteEventLogConfig> TRemoteEventLogConfigPtr;
+using TRemoteEventLogConfigPtr = TIntrusivePtr<TRemoteEventLogConfig>;
 
 class TSchedulerSimulatorConfig;
-typedef TIntrusivePtr<TSchedulerSimulatorConfig> TSchedulerSimulatorConfigPtr;
+using TSchedulerSimulatorConfigPtr = TIntrusivePtr<TSchedulerSimulatorConfig>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -105,8 +105,8 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef bool (*TRowsConsumer)(void** closure, TExpressionContext*, const TPIValue** rows, i64 size);
-typedef bool (*TUnversionedRowsConsumer)(void** closure, TExpressionContext*, const TValue** rows, i64 size);
+using TRowsConsumer = bool (*)(void** closure, TExpressionContext*, const TPIValue** rows, i64 size);
+using TUnversionedRowsConsumer = bool (*)(void** closure, TExpressionContext*, const TValue** rows, i64 size);
 
 bool WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TPIValue* values)
 {

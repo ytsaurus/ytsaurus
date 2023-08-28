@@ -96,7 +96,7 @@ class TInputChunk
 {
 public:
     // Here are read limits. They are not read-only because of chunk pool unittests.
-    typedef std::unique_ptr<TLegacyReadLimit> TReadLimitHolder;
+    using TReadLimitHolder = std::unique_ptr<TLegacyReadLimit>;
     DEFINE_BYREF_RW_PROPERTY(TReadLimitHolder, LowerLimit);
     DEFINE_BYREF_RW_PROPERTY(TReadLimitHolder, UpperLimit);
 

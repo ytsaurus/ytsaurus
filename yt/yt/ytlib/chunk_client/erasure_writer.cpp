@@ -221,7 +221,7 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TErasurePartWriterWrapper)
 
-typedef TIntrusivePtr<TErasurePartWriterWrapper> TErasurePartWriterWrapperPtr;
+using TErasurePartWriterWrapperPtr = TIntrusivePtr<TErasurePartWriterWrapper>;
 
 } // namespace
 

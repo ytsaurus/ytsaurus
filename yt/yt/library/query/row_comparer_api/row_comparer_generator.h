@@ -18,9 +18,9 @@ using NTabletClient::TDynamicValueData;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef int(TDDComparerSignature)(ui32, const TDynamicValueData*, ui32, const TDynamicValueData*);
-typedef int(TDUComparerSignature)(ui32, const TDynamicValueData*, const TUnversionedValue*, int);
-typedef int(TUUComparerSignature)(const TUnversionedValue*, const TUnversionedValue*, i32);
+using TDDComparerSignature = int(ui32, const TDynamicValueData*, ui32, const TDynamicValueData*);
+using TDUComparerSignature = int(ui32, const TDynamicValueData*, const TUnversionedValue*, int);
+using TUUComparerSignature = int(const TUnversionedValue*, const TUnversionedValue*, i32);
 
 struct TCGKeyComparers
 {

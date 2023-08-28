@@ -2390,7 +2390,7 @@ size_t MakeCodegenMultiJoinOp(
             joinComparersType,
             builder->getInt64(parameters.size()));
 
-        typedef TTypeBuilder<TJoinComparers>::Fields TFields;
+        using TFields = TTypeBuilder<TJoinComparers>::Fields;
 
         for (size_t index = 0; index < parameters.size(); ++index) {
             const auto& lookupKeyTypes = parameters[index].LookupKeyTypes;
@@ -2751,7 +2751,7 @@ size_t MakeCodegenOnceOp(
         codegenSource = std::move(*codegenSource)
     ] (TCGOperatorContext& builder) {
 
-        typedef NCodegen::TTypes::i<1> TBool;
+        using TBool = NCodegen::TTypes::i<1>;
         auto onceWrapper = MakeClosure<TBool(TExpressionContext*, TPIValue*)>(builder, "OnceWrapper", [&] (
             TCGOperatorContext& builder,
             Value* buffer,

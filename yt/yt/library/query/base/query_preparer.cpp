@@ -1323,7 +1323,7 @@ public:
     }
 };
 
-typedef std::function<TConstExpressionPtr(EValueType)> TExpressionGenerator;
+using TExpressionGenerator = std::function<TConstExpressionPtr(EValueType)>;
 
 struct TUntypedExpression
 {
@@ -2266,7 +2266,7 @@ void PrepareQuery(
                     expressionAst,
                     ComparableTypes);
 
-                orderClause->OrderItems.emplace_back(typedExpr, orderExpr.second);
+                orderClause->OrderItems.push_back({typedExpr, orderExpr.second});
             }
         }
 
@@ -2274,11 +2274,11 @@ void PrepareQuery(
         while (keyPrefix < std::ssize(orderClause->OrderItems)) {
             const auto& item = orderClause->OrderItems[keyPrefix];
 
-            if (item.second) {
+            if (item.Descending) {
                 break;
             }
 
-            const auto* referenceExpr = item.first->As<TReferenceExpression>();
+            const auto* referenceExpr = item.Expression->As<TReferenceExpression>();
 
             if (!referenceExpr) {
                 break;
@@ -2612,7 +2612,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
             join.Table.Alias,
             &joinClause->Schema.Mapping};
 
-        std::vector<std::pair<TConstExpressionPtr, bool>> selfEquations;
+        std::vector<TSelfEquation> selfEquations;
         std::vector<TConstExpressionPtr> foreignEquations;
         // Merge columns.
         for (const auto& referenceExpr : join.Fields) {
@@ -2639,14 +2639,12 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
                     << TErrorAttribute("foreign_type", foreignColumn->LogicalType);
             }
 
-            selfEquations.emplace_back(New<TReferenceExpression>(selfColumn->LogicalType, selfColumn->Name), false);
+            selfEquations.push_back({New<TReferenceExpression>(selfColumn->LogicalType, selfColumn->Name), false});
             foreignEquations.push_back(New<TReferenceExpression>(foreignColumn->LogicalType, foreignColumn->Name));
         }
 
         for (const auto& argument : join.Lhs) {
-            selfEquations.emplace_back(
-                builder.BuildTypedExpression(argument, ComparableTypes),
-                false);
+            selfEquations.push_back({builder.BuildTypedExpression(argument, ComparableTypes), false});
         }
 
         for (const auto& argument : join.Rhs) {
@@ -2663,18 +2661,18 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
         }
 
         for (size_t index = 0; index < selfEquations.size(); ++index) {
-            if (*selfEquations[index].first->LogicalType != *foreignEquations[index]->LogicalType) {
+            if (*selfEquations[index].Expression->LogicalType != *foreignEquations[index]->LogicalType) {
                 THROW_ERROR_EXCEPTION("Types mismatch in join equation \"%v = %v\"",
-                    InferName(selfEquations[index].first),
+                    InferName(selfEquations[index].Expression),
                     InferName(foreignEquations[index]))
-                    << TErrorAttribute("self_type", selfEquations[index].first->LogicalType)
+                    << TErrorAttribute("self_type", selfEquations[index].Expression->LogicalType)
                     << TErrorAttribute("foreign_type", foreignEquations[index]->LogicalType);
             }
         }
 
         // If can use ranges, rearrange equations according to key columns and enrich with evaluated columns
 
-        std::vector<std::pair<TConstExpressionPtr, bool>> keySelfEquations(foreignKeyColumnsCount);
+        std::vector<TSelfEquation> keySelfEquations(foreignKeyColumnsCount);
         std::vector<TConstExpressionPtr> keyForeignEquations(foreignKeyColumnsCount);
 
         for (size_t equationIndex = 0; equationIndex < foreignEquations.size(); ++equationIndex) {
@@ -2697,9 +2695,9 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
         size_t keyPrefix = 0;
         for (; keyPrefix < foreignKeyColumnsCount; ++keyPrefix) {
             if (keyForeignEquations[keyPrefix]) {
-                YT_VERIFY(keySelfEquations[keyPrefix].first);
+                YT_VERIFY(keySelfEquations[keyPrefix].Expression);
 
-                if (const auto* referenceExpr = keySelfEquations[keyPrefix].first->As<TReferenceExpression>()) {
+                if (const auto* referenceExpr = keySelfEquations[keyPrefix].Expression->As<TReferenceExpression>()) {
                     if (ColumnNameToKeyPartIndex(query->GetKeyColumns(), referenceExpr->ColumnName) != static_cast<ssize_t>(keyPrefix)) {
                         commonKeyPrefix = std::min(commonKeyPrefix, keyPrefix);
                     }
@@ -2726,7 +2724,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
             auto canEvaluate = true;
             for (const auto& reference : references) {
                 int referenceIndex = foreignTableSchema->GetColumnIndexOrThrow(reference);
-                if (!keySelfEquations[referenceIndex].first) {
+                if (!keySelfEquations[referenceIndex].Expression) {
                     YT_VERIFY(!keyForeignEquations[referenceIndex]);
                     canEvaluate = false;
                 }
@@ -2736,7 +2734,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
                 break;
             }
 
-            keySelfEquations[keyPrefix] = std::make_pair(evaluatedColumnExpression, true);
+            keySelfEquations[keyPrefix] = {evaluatedColumnExpression, true};
 
             auto reference = NAst::TReference(
                 foreignTableSchema->Columns()[keyPrefix].Name(),
@@ -2752,8 +2750,8 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
         commonKeyPrefix = std::min(commonKeyPrefix, keyPrefix);
 
         for (size_t index = 0; index < keyPrefix; ++index) {
-            if (keySelfEquations[index].second) {
-                const auto& evaluatedColumnExpression = keySelfEquations[index].first;
+            if (keySelfEquations[index].Evaluated) {
+                const auto& evaluatedColumnExpression = keySelfEquations[index].Expression;
 
                 if (const auto& selfColumnExpression = tableSchema->Columns()[index].Expression()) {
                     auto evaluatedSelfColumnExpression = PrepareExpression(
@@ -2781,7 +2779,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
         size_t lastEmptyIndex = keyPrefix;
         for (size_t index = keyPrefix; index < keyForeignEquations.size(); ++index) {
             if (keyForeignEquations[index]) {
-                YT_VERIFY(keySelfEquations[index].first);
+                YT_VERIFY(keySelfEquations[index].Expression);
                 keyForeignEquations[lastEmptyIndex] = std::move(keyForeignEquations[index]);
                 keySelfEquations[lastEmptyIndex] = std::move(keySelfEquations[index]);
                 ++lastEmptyIndex;

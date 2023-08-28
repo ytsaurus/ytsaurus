@@ -51,7 +51,7 @@ private:
             , LastUpdateTime(GetCpuInstant())
         { }
     };
-    typedef TIntrusivePtr<TEntry> TEntryPtr;
+    using TEntryPtr = TIntrusivePtr<TEntry>;
 
     const TAuthCacheConfigPtr Config_;
     const NProfiling::TProfiler Profiler_;

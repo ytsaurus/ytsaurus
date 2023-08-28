@@ -31,7 +31,7 @@ public:
 class TRoutineRegistry
 {
 public:
-    typedef std::function<llvm::FunctionType*(llvm::LLVMContext&)> TValueTypeBuilder;
+    using TValueTypeBuilder = std::function<llvm::FunctionType*(llvm::LLVMContext&)>;
 
     template <class TResult, class... TArgs>
     void RegisterRoutine(

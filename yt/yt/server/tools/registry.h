@@ -12,7 +12,7 @@ namespace NYT::NTools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::function<NYson::TYsonString(const NYson::TYsonString&)> TGenericTool;
+using TGenericTool = std::function<NYson::TYsonString(const NYson::TYsonString&)>;
 
 struct TToolRegistryEntry
 {
@@ -20,7 +20,7 @@ struct TToolRegistryEntry
     TGenericTool Tool;
 };
 
-typedef std::map<TString, TToolRegistryEntry> TToolRegistry;
+using TToolRegistry = std::map<TString, TToolRegistryEntry>;
 
 TToolRegistry* GetToolRegistry();
 

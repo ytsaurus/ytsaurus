@@ -13,8 +13,8 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::function<TCGQueryCallback()> TCGQueryCallbackGenerator;
-typedef std::function<TCGExpressionCallback()> TCGExpressionCallbackGenerator;
+using TCGQueryCallbackGenerator = std::function<TCGQueryCallback()>;
+using TCGExpressionCallbackGenerator = std::function<TCGExpressionCallback()>;
 
 void Profile(
     const TTableSchemaPtr& tableSchema,

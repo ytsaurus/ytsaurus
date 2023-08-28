@@ -253,10 +253,10 @@ IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
 {
-    typedef TMultiChunkWriterBase<
+    using TFileMultiChunkWriter = TMultiChunkWriterBase<
         IFileMultiChunkWriter,
         IFileChunkWriter,
-        TRef> TFileMultiChunkWriter;
+        TRef>;
 
     auto createChunkWriter = [=] (IChunkWriterPtr chunkWriter) {
          return CreateFileChunkWriter(

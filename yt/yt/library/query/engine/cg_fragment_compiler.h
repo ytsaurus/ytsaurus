@@ -10,9 +10,9 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::function<void(TCGOperatorContext& builder)> TCodegenSource;
-typedef std::function<TCGValue(TCGBaseContext& builder)> TCodegenValue;
-typedef std::function<TCGValue(TCGExprContext& builder)> TCodegenExpression;
+using TCodegenSource = std::function<void(TCGOperatorContext& builder)>;
+using TCodegenValue = std::function<TCGValue(TCGBaseContext& builder)>;
+using TCodegenExpression = std::function<TCGValue(TCGExprContext& builder)>;
 
 struct TCodegenFragmentInfo
 {
@@ -49,10 +49,10 @@ struct TCodegenFragmentInfos
 
 DEFINE_REFCOUNTED_TYPE(TCodegenFragmentInfos)
 
-typedef std::function<TCGValue(TCGBaseContext& builder, Value* buffer)> TCodegenAggregateInit;
-typedef std::function<TCGValue(TCGBaseContext& builder, Value* buffer, TCGValue aggState, TCGValue newValue)> TCodegenAggregateUpdate;
-typedef std::function<TCGValue(TCGBaseContext& builder, Value* buffer, TCGValue dstAggState, TCGValue aggState)> TCodegenAggregateMerge;
-typedef std::function<TCGValue(TCGBaseContext& builder, Value* buffer, TCGValue aggState)> TCodegenAggregateFinalize;
+using TCodegenAggregateInit = std::function<TCGValue(TCGBaseContext& builder, Value* buffer)>;
+using TCodegenAggregateUpdate = std::function<TCGValue(TCGBaseContext& builder, Value* buffer, TCGValue aggState, TCGValue newValue)>;
+using TCodegenAggregateMerge = std::function<TCGValue(TCGBaseContext& builder, Value* buffer, TCGValue dstAggState, TCGValue aggState)>;
+using TCodegenAggregateFinalize = std::function<TCGValue(TCGBaseContext& builder, Value* buffer, TCGValue aggState)>;
 
 struct TCodegenAggregate
 {

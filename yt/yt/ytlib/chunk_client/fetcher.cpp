@@ -360,7 +360,7 @@ void TFetcherBase::StartFetchingRound(const TError& preparationError)
     }
 
     // Construct address -> chunk* map.
-    typedef THashMap<TNodeId, std::vector<int>> TNodeIdToChunkIndexes;
+    using TNodeIdToChunkIndexes = THashMap<TNodeId, std::vector<int>>;
     TNodeIdToChunkIndexes nodeIdToChunkIndexes;
     THashSet<TInputChunkPtr> unavailableChunks;
 

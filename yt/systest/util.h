@@ -5,7 +5,7 @@
 
 namespace NYT::NTest {
 
-typedef std::unordered_map<TString, int> TColumnIndex;
+using TColumnIndex = std::unordered_map<TString, int>;
 
 TColumnIndex BuildColumnIndex(const std::vector<TDataColumn>& dataColumns);
 

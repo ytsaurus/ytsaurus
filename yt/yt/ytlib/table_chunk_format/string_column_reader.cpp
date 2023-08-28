@@ -610,37 +610,37 @@ public:
 private:
     std::unique_ptr<IUnversionedSegmentReader> CreateSegmentReader(int segmentIndex, bool scan) override
     {
-        typedef TDenseUnversionedSegmentReader<
+        using TDirectDenseScanReader = TDenseUnversionedSegmentReader<
             ValueType,
-            TDirectDenseStringUnversionedValueExtractor<ValueType, true>> TDirectDenseScanReader;
+            TDirectDenseStringUnversionedValueExtractor<ValueType, true>>;
 
-        typedef TDenseUnversionedSegmentReader<
+        using TDirectDenseLookupReader = TDenseUnversionedSegmentReader<
             ValueType,
-            TDirectDenseStringUnversionedValueExtractor<ValueType, false>> TDirectDenseLookupReader;
+            TDirectDenseStringUnversionedValueExtractor<ValueType, false>>;
 
-        typedef TDenseUnversionedSegmentReader<
+        using TDictionaryDenseScanReader = TDenseUnversionedSegmentReader<
             ValueType,
-            TDictionaryDenseStringUnversionedValueExtractor<ValueType, true>> TDictionaryDenseScanReader;
+            TDictionaryDenseStringUnversionedValueExtractor<ValueType, true>>;
 
-        typedef TDenseUnversionedSegmentReader<
+        using TDictionaryDenseLookupReader = TDenseUnversionedSegmentReader<
             ValueType,
-            TDictionaryDenseStringUnversionedValueExtractor<ValueType, false>> TDictionaryDenseLookupReader;
+            TDictionaryDenseStringUnversionedValueExtractor<ValueType, false>>;
 
-        typedef TRleUnversionedSegmentReader<
+        using TDirectRleScanReader = TRleUnversionedSegmentReader<
             ValueType,
-            TDirectRleStringUnversionedValueExtractor<ValueType, true>> TDirectRleScanReader;
+            TDirectRleStringUnversionedValueExtractor<ValueType, true>>;
 
-        typedef TRleUnversionedSegmentReader<
+        using TDirectRleLookupReader = TRleUnversionedSegmentReader<
             ValueType,
-            TDirectRleStringUnversionedValueExtractor<ValueType, false>> TDirectRleLookupReader;
+            TDirectRleStringUnversionedValueExtractor<ValueType, false>>;
 
-        typedef TRleUnversionedSegmentReader<
+        using TDictionaryRleScanReader = TRleUnversionedSegmentReader<
             ValueType,
-            TDictionaryRleStringUnversionedValueExtractor<ValueType, true>> TDictionaryRleScanReader;
+            TDictionaryRleStringUnversionedValueExtractor<ValueType, true>>;
 
-        typedef TRleUnversionedSegmentReader<
+        using TDictionaryRleLookupReader = TRleUnversionedSegmentReader<
             ValueType,
-            TDictionaryRleStringUnversionedValueExtractor<ValueType, false>> TDictionaryRleLookupReader;
+            TDictionaryRleStringUnversionedValueExtractor<ValueType, false>>;
 
         const auto& meta = ColumnMeta_.segments(segmentIndex);
         auto segmentType = FromProto<EUnversionedStringSegmentType>(meta.type());

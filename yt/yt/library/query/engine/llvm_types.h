@@ -20,14 +20,14 @@ template <>
 struct TTypeBuilder<NYT::NQueryClient::TPositionIndependentValueData>
 {
 public:
-    typedef TTypeBuilder<char> TBoolean;
-    typedef TTypeBuilder<i64> TInt64;
-    typedef TTypeBuilder<ui64> TUint64;
-    typedef TTypeBuilder<double> TDouble;
-    typedef TTypeBuilder<const char*> TStringType;
-    typedef TTypeBuilder<const char*> TAny;
-    typedef TTypeBuilder<const char*> TComposite;
-    typedef TTypeBuilder<ptrdiff_t> TPointerDiff;
+    using TBoolean = TTypeBuilder<char>;
+    using TInt64 = TTypeBuilder<i64>;
+    using TUint64 = TTypeBuilder<ui64>;
+    using TDouble = TTypeBuilder<double>;
+    using TStringType = TTypeBuilder<const char*>;
+    using TAny = TTypeBuilder<const char*>;
+    using TComposite = TTypeBuilder<const char*>;
+    using TPointerDiff = TTypeBuilder<ptrdiff_t>;
 
     static Type* Get(LLVMContext& context)
     {
@@ -75,11 +75,11 @@ template <>
 struct TTypeBuilder<NYT::NQueryClient::TPositionIndependentValue>
 {
 public:
-    typedef TTypeBuilder<ui16> TId;
-    typedef TTypeBuilder<ui8> TType;
-    typedef TTypeBuilder<ui8> TAggregate;
-    typedef TTypeBuilder<ui32> TLength;
-    typedef TTypeBuilder<NYT::NQueryClient::TPositionIndependentValueData> TData;
+    using TId = TTypeBuilder<ui16>;
+    using TType = TTypeBuilder<ui8>;
+    using TAggregate = TTypeBuilder<ui8>;
+    using TLength = TTypeBuilder<ui32>;
+    using TData = TTypeBuilder<NYT::NQueryClient::TPositionIndependentValueData>;
 
     enum Fields
     {

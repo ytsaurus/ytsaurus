@@ -57,7 +57,7 @@ struct TFixedPointNumberSerializer
 template <class U, int P, class C>
 struct TSerializerTraits<TFixedPointNumber<U, P>, C, void>
 {
-    typedef TFixedPointNumberSerializer TSerializer;
+    using TSerializer = TFixedPointNumberSerializer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

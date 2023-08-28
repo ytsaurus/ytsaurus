@@ -60,8 +60,8 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef TTypeBuilder<TValue> TValueTypeBuilder;
-typedef TTypeBuilder<TValueData> TDataTypeBuilder;
+using TValueTypeBuilder = TTypeBuilder<TValue>;
+using TDataTypeBuilder = TTypeBuilder<TValueData>;
 
 Type* GetABIType(llvm::LLVMContext& context, NYT::NTableClient::EValueType staticType);
 
@@ -590,7 +590,7 @@ private:
 struct TCodegenFragmentInfo;
 struct TCodegenFragmentInfos;
 
-typedef TTypeBuilder<TExpressionClosure> TClosureTypeBuilder;
+using TClosureTypeBuilder = TTypeBuilder<TExpressionClosure>;
 
 class TCGExprData
 {
@@ -655,7 +655,7 @@ public:
 
 struct TCGContext;
 
-typedef std::function<Value*(TCGContext& builder, Value* row)> TCodegenConsumer;
+using TCodegenConsumer = std::function<Value*(TCGContext& builder, Value* row)>;
 
 class TCGOperatorContext
     : public TCGOpaqueValuesContext
@@ -862,7 +862,7 @@ struct TClosureFunctionDefiner;
 template <class TResult, class... TArgs>
 struct TClosureFunctionDefiner<TResult(TArgs...)>
 {
-    typedef typename std::make_integer_sequence<unsigned, sizeof...(TArgs)> TIndexesPack;
+    using TIndexesPack = typename std::make_integer_sequence<unsigned, sizeof...(TArgs)>;
 
     template <class TBody>
     static TLlvmClosure Do(const TCGModulePtr& module, TCGOperatorContext& parentBuilder, TBody&& body, llvm::Twine name)
@@ -916,7 +916,7 @@ struct TFunctionDefiner;
 template <class TResult, class... TArgs>
 struct TFunctionDefiner<TResult(TArgs...)>
 {
-    typedef typename std::make_integer_sequence<unsigned, sizeof...(TArgs)> TIndexesPack;
+    using TIndexesPack = typename std::make_integer_sequence<unsigned, sizeof...(TArgs)>;
 
     template <class TBody>
     static Function* Do(const TCGModulePtr& module, TBody&& body, llvm::Twine name)

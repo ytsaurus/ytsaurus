@@ -47,7 +47,7 @@ struct TCachedCGQuery
     { }
 };
 
-typedef TIntrusivePtr<TCachedCGQuery> TCachedCGQueryPtr;
+using TCachedCGQueryPtr = TIntrusivePtr<TCachedCGQuery>;
 
 class TEvaluator
     : public TAsyncSlruCacheBase<llvm::FoldingSetNodeID, TCachedCGQuery>

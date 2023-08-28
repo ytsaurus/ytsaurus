@@ -120,7 +120,7 @@ class TMultiChunkWriterBase
     , public IMultiChunkWriter
 {
 public:
-    typedef TIntrusivePtr<ISpecificChunkWriter> ISpecificChunkWriterPtr;
+    using ISpecificChunkWriterPtr = TIntrusivePtr<ISpecificChunkWriter>;
 
     TMultiChunkWriterBase(
         TMultiChunkWriterConfigPtr config,

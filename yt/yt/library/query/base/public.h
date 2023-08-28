@@ -36,31 +36,31 @@ class TDataSource;
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(TExpression)
-typedef TIntrusivePtr<const TExpression> TConstExpressionPtr;
+using TConstExpressionPtr = TIntrusivePtr<const TExpression>;
 
 DECLARE_REFCOUNTED_STRUCT(TFunctionExpression)
-typedef TIntrusivePtr<const TFunctionExpression> TConstFunctionExpressionPtr;
+using TConstFunctionExpressionPtr = TIntrusivePtr<const TFunctionExpression>;
 
 DECLARE_REFCOUNTED_STRUCT(TJoinClause)
-typedef TIntrusivePtr<const TJoinClause> TConstJoinClausePtr;
+using TConstJoinClausePtr = TIntrusivePtr<const TJoinClause>;
 
 DECLARE_REFCOUNTED_STRUCT(TGroupClause)
-typedef TIntrusivePtr<const TGroupClause> TConstGroupClausePtr;
+using TConstGroupClausePtr = TIntrusivePtr<const TGroupClause>;
 
 DECLARE_REFCOUNTED_STRUCT(TOrderClause)
-typedef TIntrusivePtr<const TOrderClause> TConstOrderClausePtr;
+using TConstOrderClausePtr = TIntrusivePtr<const TOrderClause>;
 
 DECLARE_REFCOUNTED_STRUCT(TProjectClause)
-typedef TIntrusivePtr<const TProjectClause> TConstProjectClausePtr;
+using TConstProjectClausePtr = TIntrusivePtr<const TProjectClause>;
 
 DECLARE_REFCOUNTED_STRUCT(TBaseQuery)
-typedef TIntrusivePtr<const TBaseQuery> TConstBaseQueryPtr;
+using TConstBaseQueryPtr = TIntrusivePtr<const TBaseQuery>;
 
 DECLARE_REFCOUNTED_STRUCT(TFrontQuery)
-typedef TIntrusivePtr<const TFrontQuery> TConstFrontQueryPtr;
+using TConstFrontQueryPtr = TIntrusivePtr<const TFrontQuery>;
 
 DECLARE_REFCOUNTED_STRUCT(TQuery)
-typedef TIntrusivePtr<const TQuery> TConstQueryPtr;
+using TConstQueryPtr = TIntrusivePtr<const TQuery>;
 
 struct IPrepareCallbacks;
 
@@ -86,10 +86,10 @@ DECLARE_REFCOUNTED_CLASS(TColumnEvaluatorCacheConfig)
 DECLARE_REFCOUNTED_CLASS(TColumnEvaluatorCacheDynamicConfig)
 
 DECLARE_REFCOUNTED_STRUCT(TExternalCGInfo)
-typedef TIntrusivePtr<const TExternalCGInfo> TConstExternalCGInfoPtr;
+using TConstExternalCGInfoPtr = TIntrusivePtr<const TExternalCGInfo>;
 
 DECLARE_REFCOUNTED_STRUCT(TTypeInferrerMap)
-typedef TIntrusivePtr<const TTypeInferrerMap> TConstTypeInferrerMapPtr;
+using TConstTypeInferrerMapPtr = TIntrusivePtr<const TTypeInferrerMap>;
 
 const TConstTypeInferrerMapPtr GetBuiltinTypeInferrers();
 
@@ -118,23 +118,23 @@ using NTransactionClient::NullTimestamp;
 using NTableClient::TRowBuffer;
 using NTableClient::TRowBufferPtr;
 
-typedef std::vector<NTableClient::TColumnSchema> TSchemaColumns;
+using TSchemaColumns = std::vector<NTableClient::TColumnSchema>;
 
-typedef NTableClient::TUnversionedRow TRow;
-typedef NTableClient::TMutableUnversionedRow TMutableRow;
-typedef NTableClient::TUnversionedRowHeader TRowHeader;
-typedef NTableClient::TUnversionedRowBuilder TRowBuilder;
-typedef NTableClient::TUnversionedOwningRow TOwningRow;
-typedef NTableClient::TUnversionedOwningRowBuilder TOwningRowBuilder;
-typedef NTableClient::TUnversionedValue TValue;
-typedef NTableClient::TUnversionedValueData TValueData;
-typedef NTableClient::TUnversionedOwningValue TOwningValue;
-typedef NTableClient::TLegacyOwningKey TLegacyOwningKey;
+using TRow = NTableClient::TUnversionedRow;
+using TMutableRow = NTableClient::TMutableUnversionedRow;
+using TRowHeader = NTableClient::TUnversionedRowHeader;
+using TRowBuilder = NTableClient::TUnversionedRowBuilder;
+using TOwningRow = NTableClient::TUnversionedOwningRow;
+using TOwningRowBuilder = NTableClient::TUnversionedOwningRowBuilder;
+using TValue = NTableClient::TUnversionedValue;
+using TValueData = NTableClient::TUnversionedValueData;
+using TOwningValue = NTableClient::TUnversionedOwningValue;
+using TLegacyOwningKey = NTableClient::TLegacyOwningKey;
 
-typedef std::pair<TLegacyOwningKey, TLegacyOwningKey> TKeyRange;
-typedef std::pair<TMutableRow, TMutableRow> TMutableRowRange;
-typedef std::vector<TRowRange> TRowRanges;
-typedef std::vector<TMutableRowRange> TMutableRowRanges;
+using TKeyRange = std::pair<TLegacyOwningKey, TLegacyOwningKey>;
+using TMutableRowRange = std::pair<TMutableRow, TMutableRow>;
+using TRowRanges = std::vector<TRowRange>;
+using TMutableRowRanges = std::vector<TMutableRowRange>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

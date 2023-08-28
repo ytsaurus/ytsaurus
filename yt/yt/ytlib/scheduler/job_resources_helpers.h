@@ -143,7 +143,7 @@ void FromProto(NScheduler::TJobResourcesWithQuota* resources, const NScheduler::
 template <class C>
 struct TSerializerTraits<NScheduler::TJobResources, C, void>
 {
-    typedef NScheduler::TJobResourcesSerializer TSerializer;
+    using TSerializer = NScheduler::TJobResourcesSerializer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

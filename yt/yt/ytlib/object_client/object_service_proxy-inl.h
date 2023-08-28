@@ -84,7 +84,7 @@ template <class TTypedRequest>
 TFuture<TIntrusivePtr<typename TTypedRequest::TTypedResponse> >
 TObjectServiceProxy::Execute(TIntrusivePtr<TTypedRequest> innerRequest)
 {
-    typedef typename TTypedRequest::TTypedResponse TTypedResponse;
+    using TTypedResponse = typename TTypedRequest::TTypedResponse;
 
     auto outerRequest = ExecuteBatch();
     outerRequest->AddRequest(innerRequest);

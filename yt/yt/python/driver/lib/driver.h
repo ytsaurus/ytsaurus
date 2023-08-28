@@ -93,7 +93,7 @@ void InitializeDriverModule();
 class TDriverModuleBase
 {
 public:
-    typedef Py::Object (TDriverModuleBase::*PycxxMethod)(const Py::Tuple &args, const Py::Dict& kwargs);
+    using PycxxMethod = Py::Object (TDriverModuleBase::*)(const Py::Tuple &args, const Py::Dict& kwargs);
 
     void Initialize(
         const TString& moduleName,

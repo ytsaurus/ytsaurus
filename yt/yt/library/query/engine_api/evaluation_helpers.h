@@ -126,10 +126,10 @@ struct TMultiJoinClosure
 {
     TRowBufferPtr Buffer;
 
-    typedef google::dense_hash_set<
+    using THashJoinLookup = google::dense_hash_set<
         TPIValue*,
         NDetail::TGroupHasher,
-        NDetail::TRowComparer> THashJoinLookup;  // + slot after row
+        NDetail::TRowComparer>;  // + slot after row
 
     std::vector<TPIValue*> PrimaryRows;
 
@@ -197,7 +197,7 @@ struct TWriteOpClosure
     explicit TWriteOpClosure(IMemoryChunkProviderPtr chunkProvider);
 };
 
-typedef TRowBuffer TExpressionContext;
+using TExpressionContext = TRowBuffer;
 
 #define CHECK_STACK() (void) 0;
 

@@ -532,7 +532,7 @@ public:
     TSharedRef File;
 };
 
-typedef TIntrusivePtr<TFunctionImplCacheEntry> TFunctionImplCacheEntryPtr;
+using TFunctionImplCacheEntryPtr = TIntrusivePtr<TFunctionImplCacheEntry>;
 
 } // namespace
 

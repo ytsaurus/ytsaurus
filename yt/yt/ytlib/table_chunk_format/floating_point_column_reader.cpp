@@ -201,9 +201,9 @@ public:
 private:
     std::unique_ptr<IUnversionedSegmentReader> CreateSegmentReader(int segmentIndex, bool /* scan */) override
     {
-        typedef TDenseUnversionedSegmentReader<
+        using TSegmentReader = TDenseUnversionedSegmentReader<
             EValueType::Double,
-            TUnversionedFloatingPointValueExtractor<T>> TSegmentReader;
+            TUnversionedFloatingPointValueExtractor<T>>;
 
         const auto& meta = ColumnMeta_.segments(segmentIndex);
         return DoCreateSegmentReader<TSegmentReader>(meta);

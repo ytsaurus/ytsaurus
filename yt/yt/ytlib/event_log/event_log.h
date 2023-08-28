@@ -39,7 +39,7 @@ private:
 template <class TParent>
 class TFluentLogEventImpl;
 
-typedef TFluentLogEventImpl<NYTree::TFluentYsonVoid> TFluentLogEvent;
+using TFluentLogEvent = TFluentLogEventImpl<NYTree::TFluentYsonVoid>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

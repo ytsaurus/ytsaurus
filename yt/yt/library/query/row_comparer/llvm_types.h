@@ -14,8 +14,8 @@ template <>
 struct TTypeBuilder<NYT::NTabletClient::TDynamicString>
 {
 public:
-    typedef TTypeBuilder<i32> TLength;
-    typedef TTypeBuilder<char> TData;
+    using TLength = TTypeBuilder<i32>;
+    using TData = TTypeBuilder<char>;
 
     enum Fields
     {
@@ -50,11 +50,11 @@ template <>
 struct TTypeBuilder<NYT::NTabletClient::TDynamicValueData>
 {
 public:
-    typedef TTypeBuilder<char> TBoolean;
-    typedef TTypeBuilder<i64> TInt64;
-    typedef TTypeBuilder<ui64> TUint64;
-    typedef TTypeBuilder<double> TDouble;
-    typedef TTypeBuilder<NYT::NTabletClient::TDynamicString*> TStringType;
+    using TBoolean = TTypeBuilder<char>;
+    using TInt64 = TTypeBuilder<i64>;
+    using TUint64 = TTypeBuilder<ui64>;
+    using TDouble = TTypeBuilder<double>;
+    using TStringType = TTypeBuilder<NYT::NTabletClient::TDynamicString*>;
 
     enum Fields
     {

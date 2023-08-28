@@ -1058,7 +1058,7 @@ TEST_F(TJobQueryPrepareTest, FalsePredicate)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::vector<TDataSplit> TDataSplits;
+using TDataSplits = std::vector<TDataSplit>;
 
 class TQueryCoordinateTest
     : public ::testing::Test
@@ -1288,7 +1288,7 @@ std::vector<TRow> OrderRowsBy(TRange<TRow> rows, const std::vector<TString>& col
     return result;
 }
 
-typedef std::function<void(TRange<TRow>, const TTableSchema&)> TResultMatcher;
+using TResultMatcher = std::function<void(TRange<TRow>, const TTableSchema&)>;
 
 TResultMatcher ResultMatcher(std::vector<TOwningRow> expectedResult, TTableSchemaPtr expectedSchema = nullptr)
 {

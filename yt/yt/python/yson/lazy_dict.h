@@ -35,7 +35,7 @@ struct TLazyDictValue
 class TLazyDict
 {
 public:
-    typedef THashMap<Py::Object, TLazyDictValue, TPyObjectHasher> THashMapType;
+    using THashMapType = THashMap<Py::Object, TLazyDictValue, TPyObjectHasher>;
 
     TLazyDict(bool alwaysCreateAttributes, const std::optional<TString>& encoding);
 
@@ -61,7 +61,7 @@ private:
     Py::Callable YsonBoolean;
     Py::Callable YsonEntity;
     PyObjectPtr Tuple1_;
-    
+
     bool AlwaysCreateAttributes_;
     std::optional<TString> Encoding_;
 };

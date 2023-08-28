@@ -78,8 +78,8 @@ TString InferName(TConstBaseQueryPtr query, TInferNameOptions options)
 
     auto orderItemFormatter = [&] (TStringBuilderBase* builder, const TOrderItem& item) {
         builder->AppendFormat("%v %v",
-            InferName(item.first, options.OmitValues),
-            item.second ? "DESC" : "ASC");
+            InferName(item.Expression, options.OmitValues),
+            item.Descending ? "DESC" : "ASC");
     };
 
     std::vector<TString> clauses;
@@ -97,7 +97,7 @@ TString InferName(TConstBaseQueryPtr query, TInferNameOptions options)
         for (const auto& joinClause : derivedQuery->JoinClauses) {
             std::vector<TString> selfJoinEquation;
             for (const auto& equation : joinClause->SelfEquations) {
-                selfJoinEquation.push_back(InferName(equation.first, options.OmitValues));
+                selfJoinEquation.push_back(InferName(equation.Expression, options.OmitValues));
             }
             std::vector<TString> foreignJoinEquation;
             for (const auto& equation : joinClause->ForeignEquations) {
@@ -302,8 +302,8 @@ std::vector<size_t> GetJoinGroups(
         TExtraColumnsChecker extraColumnsChecker(names);
 
         for (const auto& equation : joinClause->SelfEquations) {
-            if (!equation.second) {
-                extraColumnsChecker.Visit(equation.first);
+            if (!equation.Evaluated) {
+                extraColumnsChecker.Visit(equation.Expression);
             }
         }
 
@@ -617,16 +617,16 @@ void FromProto(TAggregateItem* original, const NProto::TAggregateItem& serialize
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NProto::TSelfEquation* proto, const std::pair<TConstExpressionPtr, bool>& original)
+void ToProto(NProto::TSelfEquation* proto, const TSelfEquation& original)
 {
-    ToProto(proto->mutable_expression(), original.first);
-    proto->set_is_key(original.second);
+    ToProto(proto->mutable_expression(), original.Expression);
+    proto->set_evaluated(original.Evaluated);
 }
 
-void FromProto(std::pair<TConstExpressionPtr, bool>* original, const NProto::TSelfEquation& serialized)
+void FromProto(TSelfEquation* original, const NProto::TSelfEquation& serialized)
 {
-    FromProto(&original->first, serialized.expression());
-    FromProto(&original->second, serialized.is_key());
+    FromProto(&original->Expression, serialized.expression());
+    FromProto(&original->Evaluated, serialized.evaluated());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -746,14 +746,14 @@ void FromProto(TConstProjectClausePtr* original, const NProto::TProjectClause& s
 
 void ToProto(NProto::TOrderItem* serialized, const TOrderItem& original)
 {
-    ToProto(serialized->mutable_expression(), original.first);
-    serialized->set_is_descending(original.second);
+    ToProto(serialized->mutable_expression(), original.Expression);
+    serialized->set_descending(original.Descending);
 }
 
 void FromProto(TOrderItem* original, const NProto::TOrderItem& serialized)
 {
-    FromProto(&original->first, serialized.expression());
-    FromProto(&original->second, serialized.is_descending());
+    FromProto(&original->Expression, serialized.expression());
+    FromProto(&original->Descending, serialized.descending());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

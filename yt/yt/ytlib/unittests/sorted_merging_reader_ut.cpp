@@ -276,7 +276,7 @@ class TSortedMergingReaderTest
     : public ::testing::Test
 {
 protected:
-    typedef std::function<ISchemalessMultiChunkReaderPtr(std::vector<TResultStorage>* resultStorage)> TReaderFactory;
+    using TReaderFactory = std::function<ISchemalessMultiChunkReaderPtr(std::vector<TResultStorage>* resultStorage)>;
 
     void ReadAndCheckResult(
         TReaderFactory createReader,

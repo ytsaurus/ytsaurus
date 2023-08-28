@@ -30,7 +30,7 @@ struct TDataSplit
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::pair<int, int> TSourceLocation;
+using TSourceLocation = std::pair<int, int>;
 static const TSourceLocation NullSourceLocation(0, 0);
 
 DEFINE_ENUM(EUnaryOp,

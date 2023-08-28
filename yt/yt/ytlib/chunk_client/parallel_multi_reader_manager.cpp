@@ -23,7 +23,7 @@ public:
     TMultiReaderManagerUnreadState GetUnreadState() const override;
 
 private:
-    typedef NConcurrency::TNonblockingQueue<TMultiReaderManagerSession> TMultiReaderManagerSessionQueue;
+    using TMultiReaderManagerSessionQueue = NConcurrency::TNonblockingQueue<TMultiReaderManagerSession>;
 
     TMultiReaderManagerSessionQueue ReadySessions_;
     int FinishedReaderCount_ = 0;

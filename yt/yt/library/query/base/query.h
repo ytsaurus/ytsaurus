@@ -268,7 +268,7 @@ struct TNamedItem
     { }
 };
 
-typedef std::vector<TNamedItem> TNamedItemList;
+using TNamedItemList = std::vector<TNamedItem>;
 
 struct TAggregateItem
     : public TNamedItem
@@ -292,7 +292,7 @@ struct TAggregateItem
     { }
 };
 
-typedef std::vector<TAggregateItem> TAggregateItemList;
+using TAggregateItemList = std::vector<TAggregateItem>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -332,6 +332,12 @@ struct TMappedSchema
     }
 };
 
+struct TSelfEquation
+{
+    TConstExpressionPtr Expression;
+    bool Evaluated;
+};
+
 struct TJoinClause
     : public TRefCounted
 {
@@ -342,7 +348,7 @@ struct TJoinClause
     TConstExpressionPtr Predicate;
 
     std::vector<TConstExpressionPtr> ForeignEquations;
-    std::vector<std::pair<TConstExpressionPtr, bool>> SelfEquations;
+    std::vector<TSelfEquation> SelfEquations;
 
     size_t CommonKeyPrefix = 0;
     size_t ForeignKeyPrefix = 0;
@@ -427,7 +433,11 @@ struct TGroupClause
 
 DEFINE_REFCOUNTED_TYPE(TGroupClause)
 
-typedef std::pair<TConstExpressionPtr, bool> TOrderItem;
+struct TOrderItem
+{
+    TConstExpressionPtr Expression;
+    bool Descending;
+};
 
 struct TOrderClause
     : public TRefCounted

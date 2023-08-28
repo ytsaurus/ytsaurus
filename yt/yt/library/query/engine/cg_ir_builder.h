@@ -42,9 +42,9 @@ class TCGIRBuilder
 {
 private:
 #if LLVM_VERSION_GE(3, 9)
-    typedef llvm::IRBuilder<llvm::ConstantFolder, TContextTrackingInserter> TBase;
+    using TBase = llvm::IRBuilder<llvm::ConstantFolder, TContextTrackingInserter>;
 #else
-    typedef llvm::IRBuilder<true, llvm::ConstantFolder, TContextTrackingInserter> TBase;
+    using TBase = llvm::IRBuilder<true, llvm::ConstantFolder, TContextTrackingInserter>;
 #endif
 
     //! Builder associated with the parent context.
