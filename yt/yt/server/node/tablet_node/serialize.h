@@ -37,11 +37,13 @@ DEFINE_ENUM(ETabletReign,
     ((FixBulkInsertAtomicityNone)                  (100704)) // ifsmirnov
     ((JournalHunksCommitted)                       (100705)) // aleksandra-zh
     ((RestoreHunkLocks)                            (100706)) // aleksandra-zh
+    ((RegisterTxActionsShouldPersistTx_23_1)       (100707)) // ifsmirnov
     // 23.2 starts here.
     ((Avenues)                                     (100800)) // ifsmirnov
     ((TabletIdGenerator)                           (100801)) // ifsmirnov
     ((FixRaceBetweenCompactionUnmount)             (100802)) // dave11ar
     ((InMemoryModeAndBundleInExperimentDescriptor) (100803)) // dave11ar
+    ((RegisterTxActionsShouldPersistTx)            (100804)) // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

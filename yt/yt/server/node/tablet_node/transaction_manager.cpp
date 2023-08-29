@@ -1023,6 +1023,17 @@ private:
             transactionTimeout,
             /*transient*/ false);
 
+        if (transaction->GetTransient()) {
+            // COMPAT(ifsmirnov)
+            auto reign = static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign);
+            if (reign >= ETabletReign::RegisterTxActionsShouldPersistTx ||
+                (reign >= ETabletReign::RegisterTxActionsShouldPersistTx_23_1 &&
+                    reign < ETabletReign::Avenues))
+            {
+                transaction = MakeTransactionPersistentOrThrow(transactionId);
+            }
+        }
+
         auto state = transaction->GetPersistentState();
         if (state != ETransactionState::Active) {
             transaction->ThrowInvalidState();
