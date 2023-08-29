@@ -1387,11 +1387,18 @@ private:
         }
     }
 
-    i64 GetNetworkThrottlerLimit(const TClusterNodeDynamicConfigPtr& dynamicConfig, std::optional<i64> netLimit) const
+    i64 GetNetworkThrottlerLimit(const TClusterNodeDynamicConfigPtr& dynamicConfig, std::optional<i64> portoNetLimit) const
     {
         auto throttlerFreeBandwidthRatio = dynamicConfig
             ? dynamicConfig->ThrottlerFreeBandwidthRatio.value_or(Config_->ThrottlerFreeBandwidthRatio)
             : Config_->ThrottlerFreeBandwidthRatio;
+
+        std::optional<i64> netLimit;
+
+        if (dynamicConfig && dynamicConfig->UsePortoNetworkLimitInThrottler) {
+            netLimit = portoNetLimit;
+        }
+
         return netLimit.value_or(Config_->NetworkBandwidth) * (1. - throttlerFreeBandwidthRatio);
     }
 };

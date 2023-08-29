@@ -454,6 +454,8 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("throttler_free_bandwidth_ratio", &TThis::ThrottlerFreeBandwidthRatio)
         .InRange(0.0, 1.0)
         .Optional();
+    registrar.Parameter("use_porto_network_limit_in_throttler", &TThis::UsePortoNetworkLimitInThrottler)
+        .Default(true);
     registrar.Parameter("porto_executor", &TThis::PortoExecutor)
         .DefaultNew();
 }
