@@ -1384,13 +1384,18 @@ void CreateRemoveTabletCells(
         std::ssize(bundleInfo->TabletCellIds));
 
     if (cellCountDiff < 0) {
-        mutations->CellsToRemove = PeekTabletCellsToRemove(std::abs(cellCountDiff), bundleInfo->TabletCellIds);
+        auto cellsToRemove = PeekTabletCellsToRemove(std::abs(cellCountDiff), bundleInfo->TabletCellIds);
 
         YT_LOG_INFO("Removing tablet cells (BundleName: %v, CellIds: %v)",
             bundleName,
-            mutations->CellsToRemove);
+            cellsToRemove);
 
-        for (auto& cellId : mutations->CellsToRemove) {
+        mutations->CellsToRemove.insert(
+            mutations->CellsToRemove.end(),
+            cellsToRemove.begin(),
+            cellsToRemove.end());
+
+        for (auto& cellId : cellsToRemove) {
             auto removingCellState = New<TRemovingTabletCellState>();
             removingCellState->RemovedTime = TInstant::Now();
             bundleState->RemovingCells[cellId] = removingCellState;
