@@ -98,6 +98,8 @@ DEFINE_REFCOUNTED_TYPE(TBundleInfo);
 
 using TBundlesInfo = THashMap<TString, TBundleInfoPtr>;
 
+using TBundlesInfo = THashMap<TString, TBundleInfoPtr>;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TZoneRacksInfo
