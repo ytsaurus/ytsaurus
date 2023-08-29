@@ -430,23 +430,34 @@ def build_arguments_parser():
     return parser
 
 
+def run(client, archive_path, target_version, shard_count, latest, force):
+    migration = prepare_migration(client, archive_path)
+
+    target_version = target_version
+    if latest:
+        target_version = migration.get_latest_version()
+
+    migration.run(
+        client=client,
+        tables_path=archive_path,
+        target_version=target_version,
+        shard_count=shard_count,
+        force=force,
+    )
+
+
 def main():
     logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 
     args = build_arguments_parser().parse_args()
     client = YtClient(proxy=args.proxy, token=config["token"])
 
-    migration = prepare_migration(client, args.archive_path)
-
-    target_version = args.target_version
-    if args.latest:
-        target_version = migration.get_latest_version()
-
-    migration.run(
+    run(
         client=client,
-        tables_path=args.archive_path,
-        target_version=target_version,
+        archive_path=args.archive_path,
+        target_version=args.target_version,
         shard_count=args.shard_count,
+        latest=args.latest,
         force=args.force,
     )
 
