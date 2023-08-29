@@ -123,6 +123,8 @@ message TAggregateItem
     required string aggregate_function_name = 3;
     optional uint32 state_type = 4;
     optional uint32 result_type = 5;
+    // COMPAT(sabdenov): Legacy clients may omit this field.
+    repeated TExpression arguments = 6;
 }
 
 message TSelfEquation

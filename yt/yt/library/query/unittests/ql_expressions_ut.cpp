@@ -28,6 +28,7 @@
 // TCompareWithNullTest
 // TEvaluateExpressionTest
 // TEvaluateAggregationTest
+// TEvaluateAggregationWithStringStateTest
 // TExpressionStrConvTest
 
 namespace NYT::NQueryClient {
@@ -1771,7 +1772,7 @@ TEST_F(TEvaluateAggregationTest, AggregateFlag)
 
     builder->RegisterAggregate(
         "xor_aggregate",
-        std::unordered_map<TTypeArgument, TUnionType>(),
+        std::unordered_map<TTypeParameter, TUnionType>(),
         EValueType::Int64,
         EValueType::Int64,
         EValueType::Int64,
@@ -1780,8 +1781,8 @@ TEST_F(TEvaluateAggregationTest, AggregateFlag)
 
     auto callbacks = CodegenAggregate(
         aggregateProfilers->GetAggregate("xor_aggregate")->Profile(
-            EValueType::Int64, EValueType::Int64, EValueType::Int64, "xor_aggregate"),
-        EValueType::Int64, EValueType::Int64);
+            {EValueType::Int64}, EValueType::Int64, EValueType::Int64, "xor_aggregate"),
+        {EValueType::Int64}, EValueType::Int64);
 
     auto buffer = New<TRowBuffer>();
 
@@ -1793,14 +1794,14 @@ TEST_F(TEvaluateAggregationTest, AggregateFlag)
     EXPECT_EQ(EValueFlags::Aggregate, state.Flags);
 
     value.Flags |= EValueFlags::Aggregate;
-    callbacks.Update(buffer.Get(), &state, &value);
+    callbacks.Update(buffer.Get(), &state, TRange<TValue>(&value, 1));
     EXPECT_EQ(EValueFlags::None, state.Flags);
 
-    callbacks.Update(buffer.Get(), &state, &value);
+    callbacks.Update(buffer.Get(), &state, TRange<TValue>(&value, 1));
     EXPECT_EQ(EValueFlags::Aggregate, state.Flags);
 
     value.Flags &= ~EValueFlags::Aggregate;
-    callbacks.Update(buffer.Get(), &state, &value);
+    callbacks.Update(buffer.Get(), &state, TRange<TValue>(&value, 1));
     EXPECT_EQ(EValueFlags::Aggregate, state.Flags);
 
     value.Flags &= ~EValueFlags::Aggregate;
@@ -1834,8 +1835,8 @@ TEST_P(TEvaluateAggregationTest, Basic)
     auto registry = GetBuiltinAggregateProfilers();
     auto aggregate = registry->GetAggregate(aggregateName);
     auto callbacks = CodegenAggregate(
-        aggregate->Profile(type, type, type, aggregateName),
-        type, type);
+        aggregate->Profile({type}, type, type, aggregateName),
+        {type}, type);
 
     auto buffer = New<TRowBuffer>();
 
@@ -1843,14 +1844,14 @@ TEST_P(TEvaluateAggregationTest, Basic)
     callbacks.Init(buffer.Get(), &state1);
     EXPECT_EQ(EValueType::Null, state1.Type);
 
-    callbacks.Update(buffer.Get(), &state1, &value1);
+    callbacks.Update(buffer.Get(), &state1, TRange<TValue>(&value1, 1));
     EXPECT_EQ(value1, state1);
 
     TUnversionedValue state2{};
     callbacks.Init(buffer.Get(), &state2);
     EXPECT_EQ(EValueType::Null, state2.Type);
 
-    callbacks.Update(buffer.Get(), &state2, &value2);
+    callbacks.Update(buffer.Get(), &state2, TRange<TValue>(&value2, 1));
     EXPECT_EQ(value2, state2);
 
     callbacks.Merge(buffer.Get(), &state1, &state2);
@@ -1913,6 +1914,180 @@ INSTANTIATE_TEST_SUITE_P(
             MakeBoolean(true),
             MakeBoolean(false),
             MakeBoolean(false)}
+));
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TEvaluateAggregationWithStringStateParam = std::tuple<
+    const char*,
+    std::vector<EValueType>,
+    EValueType,
+    EValueType,
+    std::vector<std::vector<TUnversionedValue>>,
+    std::vector<std::vector<TUnversionedValue>>,
+    std::vector<TStringBuf>,
+    std::vector<TStringBuf>,
+    TStringBuf,
+    TUnversionedValue>;
+
+class TEvaluateAggregationWithStringStateTest
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<TEvaluateAggregationWithStringStateParam>
+{ };
+
+TEST_P(TEvaluateAggregationWithStringStateTest, Basic)
+{
+    const auto& param = GetParam();
+    const auto& aggregateName = std::get<0>(param);
+    auto argumentTypes = std::get<1>(param);
+    auto stateType = std::get<2>(param);
+    auto resultType = std::get<3>(param);
+    auto argumentPackList1 = std::get<4>(param);
+    auto argumentPackList2 = std::get<5>(param);
+    auto expectedValuesOnUpdate1 = std::get<6>(param);
+    auto expectedValuesOnUpdate2 = std::get<7>(param);
+    auto afterMergeValue = std::get<8>(param);
+    auto expectedFinalValue = std::get<9>(param);
+
+    ASSERT_EQ(argumentPackList1.size(), expectedValuesOnUpdate1.size());
+    ASSERT_EQ(argumentPackList2.size(), expectedValuesOnUpdate2.size());
+
+    auto registry = GetBuiltinAggregateProfilers();
+    auto aggregate = registry->GetAggregate(aggregateName);
+    auto callbacks = CodegenAggregate(
+        aggregate->Profile(argumentTypes, stateType, resultType, aggregateName),
+        argumentTypes,
+        stateType);
+
+    auto buffer = New<TRowBuffer>();
+
+    TUnversionedValue state1{};
+    callbacks.Init(buffer.Get(), &state1);
+    EXPECT_EQ(EValueType::Null, state1.Type);
+
+    for (int index = 0; index < std::ssize(argumentPackList1); ++index) {
+        callbacks.Update(buffer.Get(), &state1, TRange<TValue>(argumentPackList1[index]));
+        EXPECT_EQ(state1, MakeString(expectedValuesOnUpdate1[index]));
+    }
+
+    TUnversionedValue state2{};
+    callbacks.Init(buffer.Get(), &state2);
+    EXPECT_EQ(EValueType::Null, state2.Type);
+
+    for (int index = 0; index < std::ssize(argumentPackList2); ++index) {
+        callbacks.Update(buffer.Get(), &state2, TRange<TValue>(argumentPackList2[index]));
+        EXPECT_EQ(state2, MakeString(expectedValuesOnUpdate2[index]));
+    }
+
+    callbacks.Merge(buffer.Get(), &state1, &state2);
+    EXPECT_EQ(state1, MakeString(afterMergeValue));
+
+    TUnversionedValue result{};
+    callbacks.Finalize(buffer.Get(), &result, &state1);
+    EXPECT_EQ(result, expectedFinalValue);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    EvaluateAggregationWithStringStateTest,
+    TEvaluateAggregationWithStringStateTest,
+    ::testing::Values(
+        TEvaluateAggregationWithStringStateParam{
+            "argmax",
+            {EValueType::String, EValueType::Int64},
+            EValueType::String,
+            EValueType::String,
+            {
+                {MakeString("ingrid"), MakeInt64(022)},
+                {MakeString("kilian"), MakeInt64(016)},
+                {MakeString("luca"), MakeInt64(031)}
+            },
+            {
+                {MakeString("ophelia"), MakeInt64(027)},
+                {MakeString("tyodor"), MakeInt64(036)},
+                {MakeString("fiona"), MakeInt64(020)}},
+            {
+                TStringBuf("\6\0\0\0ingrid\22\0\0\0\0\0\0\0", 18),
+                TStringBuf("\6\0\0\0ingrid\22\0\0\0\0\0\0\0", 18),
+                TStringBuf("\4\0\0\0luca\31\0\0\0\0\0\0\0", 16)
+            },
+            {
+                TStringBuf("\7\0\0\0ophelia\27\0\0\0\0\0\0\0", 19),
+                TStringBuf("\6\0\0\0tyodor\36\0\0\0\0\0\0\0", 18),
+                TStringBuf("\6\0\0\0tyodor\36\0\0\0\0\0\0\0", 18)
+            },
+            TStringBuf("\6\0\0\0tyodor\36\0\0\0\0\0\0\0", 18),
+            MakeString("tyodor")},
+        TEvaluateAggregationWithStringStateParam{
+            "argmin",
+            {EValueType::Boolean, EValueType::Int64},
+            EValueType::String,
+            EValueType::Boolean,
+            {
+                {MakeBoolean(true), MakeInt64(022)},
+                {MakeBoolean(false), MakeInt64(016)},
+                {MakeBoolean(true), MakeInt64(031)}
+            },
+            {
+                {MakeBoolean(true), MakeInt64(027)},
+                {MakeBoolean(false), MakeInt64(036)},
+                {MakeBoolean(false), MakeInt64(020)}
+            },
+            {
+                TStringBuf("\1\0\0\0\0\0\0\0\22\0\0\0\0\0\0\0", 16),
+                TStringBuf("\0\0\0\0\0\0\0\0\16\0\0\0\0\0\0\0", 16),
+                TStringBuf("\0\0\0\0\0\0\0\0\16\0\0\0\0\0\0\0", 16)
+            },
+            {
+                TStringBuf("\1\0\0\0\0\0\0\0\27\0\0\0\0\0\0\0", 16),
+                TStringBuf("\1\0\0\0\0\0\0\0\27\0\0\0\0\0\0\0", 16),
+                TStringBuf("\0\0\0\0\0\0\0\0\20\0\0\0\0\0\0\0", 16)
+            },
+            TStringBuf("\0\0\0\0\0\0\0\0\16\0\0\0\0\0\0\0", 16),
+            MakeBoolean(false)},
+        TEvaluateAggregationWithStringStateParam{
+            "argmin",
+            {EValueType::String, EValueType::String},
+            EValueType::String,
+            EValueType::String,
+            {
+                {MakeString("aba"), MakeString("caba")},
+                {MakeString("aca"), MakeString("baca")}
+            },
+            {
+                {MakeString("cab"), MakeString("abac")},
+                {MakeString("bac"), MakeString("acab")}
+            },
+            {
+                TStringBuf("\3\0\0\0aba\4\0\0\0caba", 15),
+                TStringBuf("\3\0\0\0aca\4\0\0\0baca", 15)
+            },
+            {TStringBuf("\3\0\0\0cab\4\0\0\0abac", 15),
+             TStringBuf("\3\0\0\0cab\4\0\0\0abac", 15)},
+            TStringBuf("\3\0\0\0cab\4\0\0\0abac", 15),
+            MakeString("cab")},
+        TEvaluateAggregationWithStringStateParam{
+            "argmax",
+            {EValueType::Double, EValueType::Double},
+            EValueType::String,
+            EValueType::Double,
+            {
+                {MakeDouble(4.44), MakeDouble(44.4)},
+                {MakeDouble(5.55), MakeDouble(33.3)}
+            },
+            {
+                {MakeDouble(1.11), MakeDouble(77.7)},
+                {MakeDouble(2.22), MakeDouble(88.8)}
+            },
+            {
+                TStringBuf("\303\365\50\134\217\302\21\100\63\63\63\63\63\63\106\100", 16),
+                TStringBuf("\303\365\50\134\217\302\21\100\63\63\63\63\63\63\106\100", 16)
+            },
+            {
+                TStringBuf("\303\365\50\134\217\302\361\77\315\314\314\314\314\154\123\100", 16),
+                TStringBuf("\303\365\50\134\217\302\1\100\63\63\63\63\63\63\126\100", 16)
+            },
+            TStringBuf("\303\365\50\134\217\302\1\100\63\63\63\63\63\63\126\100", 16),
+            MakeDouble(2.22)}
 ));
 
 ////////////////////////////////////////////////////////////////////////////////

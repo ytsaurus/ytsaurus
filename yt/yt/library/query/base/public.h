@@ -41,6 +41,9 @@ using TConstExpressionPtr = TIntrusivePtr<const TExpression>;
 DECLARE_REFCOUNTED_STRUCT(TFunctionExpression)
 using TConstFunctionExpressionPtr = TIntrusivePtr<const TFunctionExpression>;
 
+DECLARE_REFCOUNTED_STRUCT(TAggregateFunctionExpression)
+using TConstAggregateFunctionExpressionPtr = TIntrusivePtr<const TAggregateFunctionExpression>;
+
 DECLARE_REFCOUNTED_STRUCT(TJoinClause)
 using TConstJoinClausePtr = TIntrusivePtr<const TJoinClause>;
 
@@ -94,7 +97,7 @@ using TConstTypeInferrerMapPtr = TIntrusivePtr<const TTypeInferrerMap>;
 const TConstTypeInferrerMapPtr GetBuiltinTypeInferrers();
 
 DECLARE_REFCOUNTED_STRUCT(IFunctionRegistry)
-DECLARE_REFCOUNTED_STRUCT(ITypeInferrer)
+DECLARE_REFCOUNTED_CLASS(ITypeInferrer)
 
 DECLARE_REFCOUNTED_CLASS(TFunctionImplCache)
 

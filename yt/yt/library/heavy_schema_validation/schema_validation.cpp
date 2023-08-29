@@ -228,7 +228,8 @@ void ValidateAggregatedColumns(const TTableSchema& schema)
             }
 
             const auto& name = *columnSchema.Aggregate();
-            if (auto descriptor = GetBuiltinTypeInferrers()->GetFunction(name)->As<TAggregateTypeInferrer>()) {
+            auto typeInferrer = GetBuiltinTypeInferrers()->GetFunction(name);
+            if (auto descriptor = typeInferrer->As<TAggregateTypeInferrer>()) {
                 TTypeSet constraint;
                 std::optional<EValueType> stateType;
                 std::optional<EValueType> resultType;
@@ -254,6 +255,22 @@ void ValidateAggregatedColumns(const TTableSchema& schema)
                     THROW_ERROR_EXCEPTION("Aggregate function %Qv result type %Qlv differs from column %v type %Qlv",
                         *columnSchema.Aggregate(),
                         resultType,
+                        columnSchema.GetDiagnosticNameString(),
+                        columnSchema.GetWireType());
+                }
+            } else if (auto descriptor = typeInferrer->As<TAggregateFunctionTypeInferrer>()) {
+                std::vector<TTypeSet> typeConstraints;
+                std::vector<int> argumentIndexes;
+
+                auto [_, resultIndex] = descriptor->GetNormalizedConstraints(
+                    &typeConstraints,
+                    &argumentIndexes);
+                auto& resultConstraint = typeConstraints[resultIndex];
+
+                if (!resultConstraint.Get(columnSchema.GetWireType())) {
+                    THROW_ERROR_EXCEPTION("Aggregate function %Qv result type set %Qlv differs from column %v type %Qlv",
+                        *columnSchema.Aggregate(),
+                        resultConstraint,
                         columnSchema.GetDiagnosticNameString(),
                         columnSchema.GetWireType());
                 }

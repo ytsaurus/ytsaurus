@@ -6,23 +6,23 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t TFunctionTypeInferrer::GetNormalizedConstraints(
+int TFunctionTypeInferrer::GetNormalizedConstraints(
     std::vector<TTypeSet>* typeConstraints,
-    std::vector<size_t>* formalArguments,
-    std::optional<std::pair<size_t, bool>>* repeatedType) const
+    std::vector<int>* formalArguments,
+    std::optional<std::pair<int, bool>>* repeatedType) const
 {
-    std::unordered_map<TTypeArgument, size_t> idToIndex;
+    std::unordered_map<TTypeParameter, int> idToIndex;
 
-    auto getIndex = [&] (const TType& type) -> size_t {
+    auto getIndex = [&] (const TType& type) -> int {
         return Visit(type,
-            [&] (TTypeArgument genericId) -> size_t {
+            [&] (TTypeParameter genericId) -> int {
                 auto itIndex = idToIndex.find(genericId);
                 if (itIndex != idToIndex.end()) {
                     return itIndex->second;
                 } else {
-                    size_t index = typeConstraints->size();
-                    auto it = TypeArgumentConstraints_.find(genericId);
-                    if (it == TypeArgumentConstraints_.end()) {
+                    int index = typeConstraints->size();
+                    auto it = TypeParameterConstraints_.find(genericId);
+                    if (it == TypeParameterConstraints_.end()) {
                         typeConstraints->push_back(TTypeSet({
                             EValueType::Null,
                             EValueType::Int64,
@@ -38,13 +38,13 @@ size_t TFunctionTypeInferrer::GetNormalizedConstraints(
                     return index;
                 }
             },
-            [&] (EValueType fixedType) -> size_t {
-                size_t index = typeConstraints->size();
+            [&] (EValueType fixedType) -> int {
+                int index = typeConstraints->size();
                 typeConstraints->push_back(TTypeSet({fixedType}));
                 return index;
             },
-            [&] (const TUnionType& unionType) -> size_t {
-                size_t index = typeConstraints->size();
+            [&] (const TUnionType& unionType) -> int {
+                int index = typeConstraints->size();
                 typeConstraints->push_back(TTypeSet(unionType.begin(), unionType.end()));
                 return index;
             });
@@ -54,8 +54,12 @@ size_t TFunctionTypeInferrer::GetNormalizedConstraints(
         formalArguments->push_back(getIndex(argumentType));
     }
 
-    if (!(std::holds_alternative<EValueType>(RepeatedArgumentType_) && std::get<EValueType>(RepeatedArgumentType_) == EValueType::Null)) {
-        *repeatedType = std::make_pair(getIndex(RepeatedArgumentType_), std::get_if<TUnionType>(&RepeatedArgumentType_));
+    if (!(std::holds_alternative<EValueType>(RepeatedArgumentType_) &&
+        std::get<EValueType>(RepeatedArgumentType_) == EValueType::Null))
+    {
+        *repeatedType = std::make_pair(
+            getIndex(RepeatedArgumentType_),
+            std::get_if<TUnionType>(&RepeatedArgumentType_));
     }
 
     return getIndex(ResultType_);
@@ -67,7 +71,7 @@ void TAggregateTypeInferrer::GetNormalizedConstraints(
     std::optional<EValueType>* resultType,
     TStringBuf name) const
 {
-    if (TypeArgumentConstraints_.size() > 1) {
+    if (TypeParameterConstraints_.size() > 1) {
         THROW_ERROR_EXCEPTION("Too many constraints for aggregate function");
     }
 
@@ -76,9 +80,9 @@ void TAggregateTypeInferrer::GetNormalizedConstraints(
             return *fixedType;
         }
         if (allowGeneric) {
-            if (auto* typeId = std::get_if<TTypeArgument>(&targetType)) {
-                auto found = TypeArgumentConstraints_.find(*typeId);
-                if (found != TypeArgumentConstraints_.end()) {
+            if (auto* typeId = std::get_if<TTypeParameter>(&targetType)) {
+                auto found = TypeParameterConstraints_.find(*typeId);
+                if (found != TypeParameterConstraints_.end()) {
                     return std::nullopt;
                 }
             }
@@ -97,16 +101,66 @@ void TAggregateTypeInferrer::GetNormalizedConstraints(
             *resultType = setType(ResultType_, false);
             *stateType = setType(StateType_, false);
         },
-        [&] (TTypeArgument typeId) {
-            auto found = TypeArgumentConstraints_.find(typeId);
-            if (found == TypeArgumentConstraints_.end()) {
+        [&] (TTypeParameter typeId) {
+            auto found = TypeParameterConstraints_.find(typeId);
+            if (found == TypeParameterConstraints_.end()) {
                 THROW_ERROR_EXCEPTION("Invalid type constraints for aggregate function %Qv", name);
             }
+
             *constraint = TTypeSet(found->second.begin(), found->second.end());
             *resultType = setType(ResultType_, true);
             *stateType = setType(StateType_, true);
         });
 }
+
+std::pair<int, int> TAggregateFunctionTypeInferrer::GetNormalizedConstraints(
+    std::vector<TTypeSet>* typeConstraints,
+    std::vector<int>* argumentConstraintIndexes) const
+{
+    std::unordered_map<TTypeParameter, int> idToIndex;
+
+    auto getIndex = [&] (const TType& type) -> int {
+        return Visit(type,
+            [&] (EValueType fixedType) -> int {
+                typeConstraints->push_back(TTypeSet({fixedType}));
+                return typeConstraints->size() - 1;
+            },
+            [&] (TTypeParameter genericId) -> int {
+                auto itIndex = idToIndex.find(genericId);
+                if (itIndex != idToIndex.end()) {
+                    return itIndex->second;
+                } else {
+                    int index = typeConstraints->size();
+                    auto it = TypeParameterConstraints_.find(genericId);
+                    if (it == TypeParameterConstraints_.end()) {
+                        typeConstraints->push_back(TTypeSet({
+                            EValueType::Null,
+                            EValueType::Int64,
+                            EValueType::Uint64,
+                            EValueType::Double,
+                            EValueType::Boolean,
+                            EValueType::String,
+                            EValueType::Any}));
+                    } else {
+                        typeConstraints->push_back(TTypeSet(it->second.begin(), it->second.end()));
+                    }
+                    idToIndex.emplace(genericId, index);
+                    return index;
+                }
+            },
+            [&] (const TUnionType& unionType) -> int {
+                typeConstraints->push_back(TTypeSet(unionType.begin(), unionType.end()));
+                return typeConstraints->size() - 1;
+            });
+    };
+
+    for (const auto& argumentType : ArgumentTypes_) {
+        argumentConstraintIndexes->push_back(getIndex(argumentType));
+    }
+
+    return std::make_pair(getIndex(StateType_), getIndex(ResultType_));
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -15,7 +15,7 @@ struct IFunctionRegistryBuilder
     virtual void RegisterFunction(
         const TString& functionName,
         const TString& symbolName,
-        std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
+        std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
         std::vector<TType> argumentTypes,
         TType repeatedArgType,
         TType resultType,
@@ -32,7 +32,7 @@ struct IFunctionRegistryBuilder
 
     virtual void RegisterFunction(
         const TString& functionName,
-        std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
+        std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
         std::vector<TType> argumentTypes,
         TType repeatedArgType,
         TType resultType,
@@ -40,7 +40,7 @@ struct IFunctionRegistryBuilder
 
     virtual void RegisterAggregate(
         const TString& aggregateName,
-        std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
+        std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
         TType argumentType,
         TType resultType,
         TType stateType,

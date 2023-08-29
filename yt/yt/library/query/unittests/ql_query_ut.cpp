@@ -901,7 +901,7 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
 
     {
         TypeInferrers_->emplace("short_invalid_ir", New<TFunctionTypeInferrer>(
-            std::unordered_map<TTypeArgument, TUnionType>{},
+            std::unordered_map<TTypeParameter, TUnionType>{},
             std::vector<TType>{EValueType::Int64},
             EValueType::Null,
             EValueType::Int64));
@@ -917,7 +917,7 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
 
     {
         TypeInferrers_->emplace("long_invalid_ir", New<TFunctionTypeInferrer>(
-            std::unordered_map<TTypeArgument, TUnionType>{},
+            std::unordered_map<TTypeParameter, TUnionType>{},
             std::vector<TType>{EValueType::Int64},
             EValueType::Null,
             EValueType::Int64));
@@ -936,7 +936,7 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
     builder->RegisterFunction(
         "abs_udf_arity",
         "abs_udf",
-        std::unordered_map<TTypeArgument, TUnionType>(),
+        std::unordered_map<TTypeParameter, TUnionType>(),
         std::vector<TType>{EValueType::Int64, EValueType::Int64},
         EValueType::Null,
         EValueType::Int64,
@@ -946,7 +946,7 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
     builder->RegisterFunction(
         "abs_udf_double",
         "abs_udf",
-        std::unordered_map<TTypeArgument, TUnionType>(),
+        std::unordered_map<TTypeParameter, TUnionType>(),
         std::vector<TType>{EValueType::Double},
         EValueType::Null,
         EValueType::Int64,
@@ -1412,7 +1412,7 @@ protected:
             ECallingConvention::UnversionedValue);
         builder->RegisterFunction(
             "sum_udf",
-            std::unordered_map<TTypeArgument, TUnionType>(),
+            std::unordered_map<TTypeParameter, TUnionType>(),
             std::vector<TType>{EValueType::Int64},
             EValueType::Int64,
             EValueType::Int64,
@@ -6223,6 +6223,36 @@ TEST_F(TQueryEvaluateTest, StringAgg)
     }, resultSplit);
 
     Evaluate("min(a) as b, max(a) as c from [//t] group by 1", split, source, ResultMatcher(result));
+}
+
+TEST_F(TQueryEvaluateTest, ArgMin)
+{
+    auto split = MakeSplit({
+        {"string", EValueType::String},
+        {"double", EValueType::Double},
+        {"integer", EValueType::Int64}
+    });
+
+    std::vector<TString> source = {
+        "string=\"aaa\";double=5.55;integer=1",
+        "string=\"bbb\";double=4.44;integer=1",
+        "string=\"ccc\";double=3.33;integer=2",
+        "string=\"ddd\";double=4.44;integer=2",
+        "string=\"eee\";double=1.11;integer=1",
+        "string=\"fff\";double=6.66;integer=2"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"integer", EValueType::Int64},
+        {"c", EValueType::String}
+    });
+
+    auto result = YsonToRows({
+        "integer=1;c=\"eee\"",
+        "integer=2;c=\"ccc\""
+    }, resultSplit);
+
+    Evaluate("integer, argmin(string, double) as c from [//t] group by integer", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, CardinalityAggregate)

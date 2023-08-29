@@ -50,7 +50,7 @@ struct TCodegenFragmentInfos
 DEFINE_REFCOUNTED_TYPE(TCodegenFragmentInfos)
 
 using TCodegenAggregateInit = std::function<TCGValue(TCGBaseContext& builder, Value* buffer)>;
-using TCodegenAggregateUpdate = std::function<TCGValue(TCGBaseContext& builder, Value* buffer, TCGValue aggState, TCGValue newValue)>;
+using TCodegenAggregateUpdate = std::function<TCGValue(TCGBaseContext& builder, Value* buffer, TCGValue aggState, std::vector<TCGValue> newValues)>;
 using TCodegenAggregateMerge = std::function<TCGValue(TCGBaseContext& builder, Value* buffer, TCGValue dstAggState, TCGValue aggState)>;
 using TCodegenAggregateFinalize = std::function<TCGValue(TCGBaseContext& builder, Value* buffer, TCGValue aggState)>;
 
@@ -204,7 +204,7 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
     size_t producerSlot,
     TCodegenFragmentInfosPtr fragmentInfos,
     std::vector<size_t> groupExprsIds,
-    std::vector<size_t> aggregateExprIds,
+    std::vector<std::vector<size_t>> aggregateExprIds,
     std::vector<TCodegenAggregate> codegenAggregates,
     std::vector<EValueType> keyTypes,
     std::vector<EValueType> stateTypes,
@@ -280,7 +280,7 @@ TCGExpressionCallback CodegenStandaloneExpression(
 
 TCGAggregateCallbacks CodegenAggregate(
     TCodegenAggregate codegenAggregate,
-    EValueType argumentType,
+    std::vector<EValueType> argumentType,
     EValueType stateType);
 
 ////////////////////////////////////////////////////////////////////////////////

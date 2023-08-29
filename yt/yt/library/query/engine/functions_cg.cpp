@@ -729,7 +729,7 @@ TCodegenExpression TExternalFunctionCodegen::Profile(
 ////////////////////////////////////////////////////////////////////////////////
 
 TCodegenAggregate TExternalAggregateCodegen::Profile(
-    EValueType argumentType,
+    std::vector<EValueType> argumentTypes,
     EValueType stateType,
     EValueType resultType,
     const TString& name,
@@ -748,7 +748,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
 
     auto makeCodegenBody = [
         this_ = MakeStrong(this),
-        argumentType,
+        argumentTypes = std::move(argumentTypes),
         stateType,
         resultType,
         initName,
@@ -759,7 +759,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
         return [
             this_,
             executionContext,
-            argumentType,
+            argumentTypes = std::move(argumentTypes),
             stateType,
             resultType,
             functionName,
@@ -779,11 +779,12 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
                 false);
             auto init = std::make_pair(initName, initType);
 
+            std::vector<EValueType> updateArgs = {stateType};
+            updateArgs.insert(updateArgs.end(), argumentTypes.begin(), argumentTypes.end());
+
             auto updateType = this_->CallingConvention_->GetCalleeType(
                 builder,
-                std::vector<EValueType>{
-                    stateType,
-                    argumentType},
+                updateArgs,
                 stateType,
                 false);
             auto update = std::make_pair(updateName, updateType);
@@ -846,14 +847,16 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
         stateType,
         name,
         makeCodegenBody
-    ] (TCGBaseContext& builder, Value* buffer, TCGValue aggState, TCGValue newValue) {
-        auto codegenArgs = std::vector<TCodegenValue>();
+    ] (TCGBaseContext& builder, Value* buffer, TCGValue aggState, std::vector<TCGValue> newValues) {
+        std::vector<TCodegenValue> codegenArgs;
         codegenArgs.push_back([=] (TCGBaseContext& /*builder*/) {
             return aggState;
         });
-        codegenArgs.push_back([=] (TCGBaseContext& /*builder*/) {
-            return newValue;
-        });
+        for (auto argument : newValues) {
+            codegenArgs.push_back([=] (TCGBaseContext& /*builder*/) {
+                return argument;
+            });
+        }
 
         return this_->CallingConvention_->MakeCodegenFunctionCall(
             builder,

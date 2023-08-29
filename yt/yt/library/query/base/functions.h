@@ -10,9 +10,10 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct ITypeInferrer
+class ITypeInferrer
     : public virtual TRefCounted
 {
+public:
     template <class TDerived>
     const TDerived* As() const
     {
@@ -30,27 +31,27 @@ DEFINE_REFCOUNTED_TYPE(ITypeInferrer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFunctionTypeInferrer
+class TFunctionTypeInferrer
     : public ITypeInferrer
 {
 public:
     TFunctionTypeInferrer(
-        std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
+        std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
         std::vector<TType> argumentTypes,
         TType repeatedArgumentType,
         TType resultType)
-        : TypeArgumentConstraints_(std::move(typeArgumentConstraints))
+        : TypeParameterConstraints_(std::move(typeParameterConstraints))
         , ArgumentTypes_(std::move(argumentTypes))
         , RepeatedArgumentType_(repeatedArgumentType)
         , ResultType_(resultType)
     { }
 
     TFunctionTypeInferrer(
-        std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
+        std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
         std::vector<TType> argumentTypes,
         TType resultType)
         : TFunctionTypeInferrer(
-            std::move(typeArgumentConstraints),
+            std::move(typeParameterConstraints),
             std::move(argumentTypes),
             EValueType::Null,
             resultType)
@@ -60,33 +61,33 @@ public:
         std::vector<TType> argumentTypes,
         TType resultType)
         : TFunctionTypeInferrer(
-            std::unordered_map<TTypeArgument, TUnionType>(),
+            std::unordered_map<TTypeParameter, TUnionType>(),
             std::move(argumentTypes),
             resultType)
     { }
 
-    size_t GetNormalizedConstraints(
+    int GetNormalizedConstraints(
         std::vector<TTypeSet>* typeConstraints,
-        std::vector<size_t>* formalArguments,
-        std::optional<std::pair<size_t, bool>>* repeatedType) const;
+        std::vector<int>* formalArguments,
+        std::optional<std::pair<int, bool>>* repeatedType) const;
 
 private:
-    const std::unordered_map<TTypeArgument, TUnionType> TypeArgumentConstraints_;
+    const std::unordered_map<TTypeParameter, TUnionType> TypeParameterConstraints_;
     const std::vector<TType> ArgumentTypes_;
     const TType RepeatedArgumentType_;
     const TType ResultType_;
 };
 
-struct TAggregateTypeInferrer
+class TAggregateTypeInferrer
     : public ITypeInferrer
 {
 public:
     TAggregateTypeInferrer(
-        std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
+        std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
         TType argumentType,
         TType resultType,
         TType stateType)
-        : TypeArgumentConstraints_(std::move(typeArgumentConstraints))
+        : TypeParameterConstraints_(std::move(typeParameterConstraints))
         , ArgumentType_(argumentType)
         , ResultType_(resultType)
         , StateType_(stateType)
@@ -99,10 +100,36 @@ public:
         TStringBuf name) const;
 
 private:
-    const std::unordered_map<TTypeArgument, TUnionType> TypeArgumentConstraints_;
+    const std::unordered_map<TTypeParameter, TUnionType> TypeParameterConstraints_;
     const TType ArgumentType_;
     const TType ResultType_;
     const TType StateType_;
+};
+
+class TAggregateFunctionTypeInferrer
+    : public ITypeInferrer
+{
+public:
+    TAggregateFunctionTypeInferrer(
+        std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
+        std::vector<TType> argumentTypes,
+        TType stateType,
+        TType resultType)
+        : TypeParameterConstraints_(std::move(typeParameterConstraints))
+        , ArgumentTypes_(std::move(argumentTypes))
+        , StateType_(stateType)
+        , ResultType_(resultType)
+    { }
+
+    std::pair<int, int> GetNormalizedConstraints(
+        std::vector<TTypeSet>* typeConstraints,
+        std::vector<int>* argumentConstraintIndexes) const;
+
+private:
+    const std::unordered_map<TTypeParameter, TUnionType> TypeParameterConstraints_;
+    const std::vector<TType> ArgumentTypes_;
+    const TType StateType_;
+    const TType ResultType_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

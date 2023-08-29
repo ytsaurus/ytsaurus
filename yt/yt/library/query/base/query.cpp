@@ -598,21 +598,26 @@ void FromProto(TNamedItem* original, const NProto::TNamedItem& serialized)
 
 void ToProto(NProto::TAggregateItem* serialized, const TAggregateItem& original)
 {
-    ToProto(serialized->mutable_expression(), original.Expression);
+    ToProto(serialized->mutable_expression(), original.Arguments.front());
     serialized->set_aggregate_function_name(original.AggregateFunction);
     serialized->set_state_type(static_cast<int>(original.StateType));
     serialized->set_result_type(static_cast<int>(original.ResultType));
     ToProto(serialized->mutable_name(), original.Name);
+    ToProto(serialized->mutable_arguments(), original.Arguments);
 }
 
 void FromProto(TAggregateItem* original, const NProto::TAggregateItem& serialized)
 {
-    *original = TAggregateItem(
-        FromProto<TConstExpressionPtr>(serialized.expression()),
-        serialized.aggregate_function_name(),
-        serialized.name(),
-        EValueType(serialized.state_type()),
-        EValueType(serialized.result_type()));
+    original->AggregateFunction = serialized.aggregate_function_name();
+    original->Name = serialized.name();
+    original->StateType = static_cast<EValueType>(serialized.state_type());
+    original->ResultType = static_cast<EValueType>(serialized.result_type());
+    // COMPAT(sabdenovch)
+    if (serialized.arguments_size() > 0) {
+        original->Arguments = FromProto<std::vector<TConstExpressionPtr>>(serialized.arguments());
+    } else {
+        original->Arguments = {FromProto<TConstExpressionPtr>(serialized.expression())};
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

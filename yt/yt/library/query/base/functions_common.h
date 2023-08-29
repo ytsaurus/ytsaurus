@@ -10,9 +10,9 @@ using NTableClient::EValueType;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TTypeArgument = int;
+using TTypeParameter = int;
 using TUnionType = std::vector<EValueType>;
-using TType = std::variant<EValueType, TTypeArgument, TUnionType>;
+using TType = std::variant<EValueType, TTypeParameter, TUnionType>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,7 +23,7 @@ DEFINE_ENUM(ECallingConvention,
 
 DEFINE_ENUM(ETypeTag,
     ((ConcreteType) (0))
-    ((TypeArgument) (1))
+    ((TypeParameter) (1))
     ((UnionType)    (2))
 );
 

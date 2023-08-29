@@ -42,7 +42,7 @@ public:
     void UpdateAggregate(
         int index,
         NTableClient::TUnversionedValue* state,
-        const NTableClient::TUnversionedValue& update,
+        const TRange<NTableClient::TUnversionedValue> update,
         const TRowBufferPtr& buffer) const;
 
     void MergeAggregate(

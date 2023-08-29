@@ -865,7 +865,7 @@ void TQueryProfiler::Profile(
         std::vector<EValueType> stateTypes;
 
         std::vector<size_t> groupExprIds;
-        std::vector<size_t> aggregateExprIds;
+        std::vector<std::vector<size_t>> aggregateExprIdsByFunc;
         std::vector<TCodegenAggregate> codegenAggregates;
 
         TExpressionFragments expressionFragments;
@@ -899,10 +899,18 @@ void TQueryProfiler::Profile(
             }
 
             if (!mergeMode) {
-                aggregateExprIds.push_back(Profile(aggregateItem, schema, &expressionFragments));
+                std::vector<size_t> aggrArgIds;
+                for (auto& arg : aggregateItem.Arguments) {
+                    aggrArgIds.push_back(Profile(TNamedItem{arg, ""}, schema, &expressionFragments));
+                }
+                aggregateExprIdsByFunc.emplace_back(std::move(aggrArgIds));
+            }
+            std::vector<EValueType> wireTypes;
+            for (const auto& arg : aggregateItem.Arguments) {
+                wireTypes.push_back(arg->GetWireType());
             }
             codegenAggregates.push_back(aggregate->Profile(
-                aggregateItem.Expression->GetWireType(),
+                wireTypes,
                 aggregateItem.StateType,
                 aggregateItem.ResultType,
                 aggregateItem.Name,
@@ -911,7 +919,9 @@ void TQueryProfiler::Profile(
         }
 
         auto fragmentInfos = expressionFragments.ToFragmentInfos("groupExpression");
-        expressionFragments.DumpArgs(aggregateExprIds);
+        for (const auto& funcArgs : aggregateExprIdsByFunc) {
+            expressionFragments.DumpArgs(funcArgs);
+        }
         expressionFragments.DumpArgs(groupExprIds);
 
         // If group key contains primary key prefix, full grouped rowset is not keeped till the end but flushed
@@ -926,8 +936,8 @@ void TQueryProfiler::Profile(
             slotCount,
             intermediateSlot,
             fragmentInfos,
-            groupExprIds,
-            aggregateExprIds,
+            std::move(groupExprIds),
+            std::move(aggregateExprIdsByFunc),
             codegenAggregates,
             keyTypes,
             stateTypes,

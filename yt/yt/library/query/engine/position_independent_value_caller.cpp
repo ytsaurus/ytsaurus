@@ -65,19 +65,23 @@ template <>
 void TCGPICaller<TCGAggregateUpdateSignature, TCGPIAggregateUpdateSignature>::Run(
     TExpressionContext* context,
     TValue* first,
+    TRange<TValue> second)
+{
+    auto positionIndependentFirst = BorrowFromNonPI(first);
+    auto positionIndependentSecond = BorrowFromNonPI(second);
+
+    Callback_(
+        context,
+        positionIndependentFirst.GetPIValue(),
+        positionIndependentSecond.Begin());
+}
+
+template <>
+void TCGPICaller<TCGAggregateMergeSignature, TCGPIAggregateMergeSignature>::Run(
+    TExpressionContext* context,
+    TValue* first,
     const TValue* second)
 {
-    static_assert(
-        std::is_same_v<
-            TCGPIAggregateUpdateSignature,
-            TCGPIAggregateMergeSignature>,
-        "We assume the signatures are equal");
-    static_assert(
-        std::is_same_v<
-            TCGPIAggregateUpdateSignature,
-            TCGPIAggregateFinalizeSignature>,
-        "We assume the signatures are equal");
-
     auto positionIndependentFirst = BorrowFromNonPI(first);
     auto positionIndependentSecond = BorrowFromNonPI(const_cast<TValue*>(second));
 

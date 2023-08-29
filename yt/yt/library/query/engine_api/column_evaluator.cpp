@@ -95,10 +95,10 @@ void TColumnEvaluator::InitAggregate(
 void TColumnEvaluator::UpdateAggregate(
     int index,
     TUnversionedValue* state,
-    const TUnversionedValue& update,
+    const TRange<TUnversionedValue> update,
     const TRowBufferPtr& buffer) const
 {
-    Columns_[index].Aggregate.Update(buffer.Get(), state, &update);
+    Columns_[index].Aggregate.Update(buffer.Get(), state, update);
     state->Id = index;
 }
 

@@ -20,7 +20,7 @@ public:
     void RegisterFunction(
         const TString& functionName,
         const TString& /*symbolName*/,
-        std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
+        std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
         std::vector<TType> argumentTypes,
         TType repeatedArgType,
         TType resultType,
@@ -29,7 +29,7 @@ public:
         bool /*useFunctionContext*/) override
     {
         TypeInferrers_->emplace(functionName, New<TFunctionTypeInferrer>(
-            std::move(typeArgumentConstraints),
+            std::move(typeParameterConstraints),
             std::move(argumentTypes),
             repeatedArgType,
             resultType));
@@ -43,7 +43,7 @@ public:
         ECallingConvention /*callingConvention*/) override
     {
         TypeInferrers_->emplace(functionName, New<TFunctionTypeInferrer>(
-            std::unordered_map<TTypeArgument, TUnionType>{},
+            std::unordered_map<TTypeParameter, TUnionType>{},
             std::move(argumentTypes),
             EValueType::Null,
             resultType));
@@ -51,14 +51,14 @@ public:
 
     void RegisterFunction(
         const TString& functionName,
-        std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
+        std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
         std::vector<TType> argumentTypes,
         TType repeatedArgType,
         TType resultType,
         TStringBuf /*implementationFile*/) override
     {
         TypeInferrers_->emplace(functionName, New<TFunctionTypeInferrer>(
-            std::move(typeArgumentConstraints),
+            std::move(typeParameterConstraints),
             std::move(argumentTypes),
             repeatedArgType,
             resultType));
@@ -66,7 +66,7 @@ public:
 
     void RegisterAggregate(
         const TString& aggregateName,
-        std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
+        std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
         TType argumentType,
         TType resultType,
         TType stateType,
@@ -75,7 +75,7 @@ public:
         bool /*isFirst*/) override
     {
         TypeInferrers_->emplace(aggregateName, New<TAggregateTypeInferrer>(
-            typeArgumentConstraints,
+            typeParameterConstraints,
             argumentType,
             resultType,
             stateType));
@@ -97,19 +97,21 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
 {
     auto result = New<TTypeInferrerMap>();
 
+    const TTypeParameter primitive = 0;
+
     result->emplace("if", New<TFunctionTypeInferrer>(
-        std::unordered_map<TTypeArgument, TUnionType>(),
-        std::vector<TType>{ EValueType::Boolean, 0, 0 },
-        0));
+        std::unordered_map<TTypeParameter, TUnionType>(),
+        std::vector<TType>{EValueType::Boolean, primitive, primitive},
+        primitive));
 
     result->emplace("is_prefix", New<TFunctionTypeInferrer>(
-        std::unordered_map<TTypeArgument, TUnionType>(),
-        std::vector<TType>{ EValueType::String, EValueType::String },
+        std::unordered_map<TTypeParameter, TUnionType>(),
+        std::vector<TType>{EValueType::String, EValueType::String},
         EValueType::Boolean));
 
     result->emplace("is_null", New<TFunctionTypeInferrer>(
-        std::unordered_map<TTypeArgument, TUnionType>(),
-        std::vector<TType>{0},
+        std::unordered_map<TTypeParameter, TUnionType>(),
+        std::vector<TType>{primitive},
         EValueType::Null,
         EValueType::Boolean));
 
@@ -117,9 +119,9 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
         std::vector<TType>{EValueType::Double},
         EValueType::Boolean));
 
-    auto typeArg = 0;
-    auto castConstraints = std::unordered_map<TTypeArgument, TUnionType>();
-    castConstraints[typeArg] = std::vector<EValueType>{
+    const TTypeParameter castable = 1;
+    auto castConstraints = std::unordered_map<TTypeParameter, TUnionType>();
+    castConstraints[castable] = std::vector<EValueType>{
         EValueType::Int64,
         EValueType::Uint64,
         EValueType::Double,
@@ -128,19 +130,19 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
 
     result->emplace("int64", New<TFunctionTypeInferrer>(
         castConstraints,
-        std::vector<TType>{typeArg},
+        std::vector<TType>{castable},
         EValueType::Null,
         EValueType::Int64));
 
     result->emplace("uint64", New<TFunctionTypeInferrer>(
         castConstraints,
-        std::vector<TType>{typeArg},
+        std::vector<TType>{castable},
         EValueType::Null,
         EValueType::Uint64));
 
     result->emplace("double", New<TFunctionTypeInferrer>(
         castConstraints,
-        std::vector<TType>{typeArg},
+        std::vector<TType>{castable},
         EValueType::Null,
         EValueType::Double));
 
@@ -153,12 +155,14 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
         EValueType::String));
 
     result->emplace("if_null", New<TFunctionTypeInferrer>(
-        std::unordered_map<TTypeArgument, TUnionType>(),
-        std::vector<TType>{0, 0},
-        0));
+        std::unordered_map<TTypeParameter, TUnionType>(),
+        std::vector<TType>{primitive, primitive},
+        primitive));
 
-    std::unordered_map<TTypeArgument, TUnionType> coalesceConstraints;
-    coalesceConstraints[typeArg] = {
+    const TTypeParameter nullable = 2;
+
+    std::unordered_map<TTypeParameter, TUnionType> coalesceConstraints;
+    coalesceConstraints[nullable] = {
         EValueType::Int64,
         EValueType::Uint64,
         EValueType::Double,
@@ -170,11 +174,12 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
     result->emplace("coalesce", New<TFunctionTypeInferrer>(
         coalesceConstraints,
         std::vector<TType>{},
-        typeArg,
-        typeArg));
+        nullable,
+        nullable));
 
-    auto sumConstraints = std::unordered_map<TTypeArgument, TUnionType>();
-    sumConstraints[typeArg] = std::vector<EValueType>{
+    const TTypeParameter summable = 3;
+    auto sumConstraints = std::unordered_map<TTypeParameter, TUnionType>();
+    sumConstraints[summable] = std::vector<EValueType>{
         EValueType::Int64,
         EValueType::Uint64,
         EValueType::Double
@@ -182,12 +187,13 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
 
     result->emplace("sum", New<TAggregateTypeInferrer>(
         sumConstraints,
-        typeArg,
-        typeArg,
-        typeArg));
+        summable,
+        summable,
+        summable));
 
-    auto constraints = std::unordered_map<TTypeArgument, TUnionType>();
-    constraints[typeArg] = std::vector<EValueType>{
+    const TTypeParameter comparable = 4;
+    auto minMaxConstraints = std::unordered_map<TTypeParameter, TUnionType>();
+    minMaxConstraints[comparable] = std::vector<EValueType>{
         EValueType::Int64,
         EValueType::Uint64,
         EValueType::Boolean,
@@ -196,10 +202,26 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
     };
     for (const auto& name : {"min", "max"}) {
         result->emplace(name, New<TAggregateTypeInferrer>(
-            constraints,
-            typeArg,
-            typeArg,
-            typeArg));
+            minMaxConstraints,
+            comparable,
+            comparable,
+            comparable));
+    }
+
+    auto argMinMaxConstraints = std::unordered_map<TTypeParameter, TUnionType>();
+    argMinMaxConstraints[comparable] = std::vector<EValueType>{
+        EValueType::Int64,
+        EValueType::Uint64,
+        EValueType::Boolean,
+        EValueType::Double,
+        EValueType::String
+    };
+    for (const auto& name : {"argmin", "argmax"}) {
+        result->emplace(name, New<TAggregateFunctionTypeInferrer>(
+            argMinMaxConstraints,
+            std::vector<TType>{primitive, comparable},
+            EValueType::String,
+            primitive));
     }
 
     TTypeInferrerFunctionRegistryBuilder builder{result.Get()};

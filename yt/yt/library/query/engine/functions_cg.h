@@ -34,7 +34,7 @@ struct IAggregateCodegen
     : public TRefCounted
 {
     virtual TCodegenAggregate Profile(
-        EValueType argumentType,
+        std::vector<EValueType> argumentTypes,
         EValueType stateType,
         EValueType resultType,
         const TString& name,
@@ -195,7 +195,7 @@ public:
     { }
 
     TCodegenAggregate Profile(
-        EValueType argumentType,
+        std::vector<EValueType> argumentTypes,
         EValueType stateType,
         EValueType resultType,
         const TString& name,

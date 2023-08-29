@@ -56,7 +56,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
 
     builder->RegisterFunction(
         "farm_hash",
-        std::unordered_map<TTypeArgument, TUnionType>(),
+        std::unordered_map<TTypeParameter, TUnionType>(),
         std::vector<TType>{},
         TUnionType{
             EValueType::Int64,
@@ -76,7 +76,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
 
     builder->RegisterFunction(
         "make_map",
-        std::unordered_map<TTypeArgument, TUnionType>(),
+        std::unordered_map<TTypeParameter, TUnionType>(),
         std::vector<TType>{},
         TUnionType{
             EValueType::Int64,
@@ -125,7 +125,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
     builder->RegisterFunction(
         "regex_full_match",
         "regex_full_match",
-        std::unordered_map<TTypeArgument, TUnionType>(),
+        std::unordered_map<TTypeParameter, TUnionType>(),
         std::vector<TType>{EValueType::String, EValueType::String},
         EValueType::Null,
         EValueType::Boolean,
@@ -136,7 +136,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
     builder->RegisterFunction(
         "regex_partial_match",
         "regex_partial_match",
-        std::unordered_map<TTypeArgument, TUnionType>(),
+        std::unordered_map<TTypeParameter, TUnionType>(),
         std::vector<TType>{EValueType::String, EValueType::String},
         EValueType::Null,
         EValueType::Boolean,
@@ -147,7 +147,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
     builder->RegisterFunction(
         "regex_replace_first",
         "regex_replace_first",
-        std::unordered_map<TTypeArgument, TUnionType>(),
+        std::unordered_map<TTypeParameter, TUnionType>(),
         std::vector<TType>{EValueType::String, EValueType::String, EValueType::String},
         EValueType::Null,
         EValueType::String,
@@ -158,7 +158,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
     builder->RegisterFunction(
         "regex_replace_all",
         "regex_replace_all",
-        std::unordered_map<TTypeArgument, TUnionType>(),
+        std::unordered_map<TTypeParameter, TUnionType>(),
         std::vector<TType>{EValueType::String, EValueType::String, EValueType::String},
         EValueType::Null,
         EValueType::String,
@@ -169,7 +169,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
     builder->RegisterFunction(
         "regex_extract",
         "regex_extract",
-        std::unordered_map<TTypeArgument, TUnionType>(),
+        std::unordered_map<TTypeParameter, TUnionType>(),
         std::vector<TType>{EValueType::String, EValueType::String, EValueType::String},
         EValueType::Null,
         EValueType::String,
@@ -180,7 +180,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
     builder->RegisterFunction(
         "regex_escape",
         "regex_escape",
-        std::unordered_map<TTypeArgument, TUnionType>(),
+        std::unordered_map<TTypeParameter, TUnionType>(),
         std::vector<TType>{EValueType::String},
         EValueType::Null,
         EValueType::String,
@@ -188,9 +188,9 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         ECallingConvention::UnversionedValue,
         true);
 
-    auto typeArg = 0;
-    auto anyConstraints = std::unordered_map<TTypeArgument, TUnionType>();
-    anyConstraints[typeArg] = std::vector<EValueType>{
+    const TTypeParameter typeParameter = 0;
+    auto anyConstraints = std::unordered_map<TTypeParameter, TUnionType>();
+    anyConstraints[typeParameter] = std::vector<EValueType>{
         EValueType::Int64,
         EValueType::Uint64,
         EValueType::Boolean,
@@ -201,29 +201,29 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
     builder->RegisterAggregate(
         "first",
         anyConstraints,
-        typeArg,
-        typeArg,
-        typeArg,
+        typeParameter,
+        typeParameter,
+        typeParameter,
         "first",
         ECallingConvention::UnversionedValue,
         true);
 
-    auto xdeltaConstraints = std::unordered_map<TTypeArgument, TUnionType>();
-    xdeltaConstraints[typeArg] = std::vector<EValueType>{
+    auto xdeltaConstraints = std::unordered_map<TTypeParameter, TUnionType>();
+    xdeltaConstraints[typeParameter] = std::vector<EValueType>{
         EValueType::Null,
         EValueType::String};
     builder->RegisterAggregate(
         "xdelta",
         xdeltaConstraints,
-        typeArg,
-        typeArg,
-        typeArg,
+        typeParameter,
+        typeParameter,
+        typeParameter,
         "xdelta",
         ECallingConvention::UnversionedValue);
 
     builder->RegisterAggregate(
         "avg",
-        std::unordered_map<TTypeArgument, TUnionType>(),
+        std::unordered_map<TTypeParameter, TUnionType>(),
         EValueType::Int64,
         EValueType::Double,
         EValueType::String,
@@ -232,7 +232,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
 
     builder->RegisterAggregate(
         "cardinality",
-        std::unordered_map<TTypeArgument, TUnionType>(),
+        std::unordered_map<TTypeParameter, TUnionType>(),
         std::vector<EValueType>{
             EValueType::String,
             EValueType::Uint64,
@@ -339,7 +339,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
     builder->RegisterFunction(
         "_yt_has_permissions",
         "has_permissions",
-        std::unordered_map<TTypeArgument, TUnionType>(),
+        std::unordered_map<TTypeParameter, TUnionType>(),
         std::vector<TType>{EValueType::Any, EValueType::String, EValueType::String},
         EValueType::Null,
         EValueType::Boolean,

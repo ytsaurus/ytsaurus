@@ -23,7 +23,7 @@ public:
     void RegisterFunction(
         const TString& functionName,
         const TString& symbolName,
-        std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
+        std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
         std::vector<TType> argumentTypes,
         TType repeatedArgType,
         TType resultType,
@@ -32,12 +32,12 @@ public:
         bool useFunctionContext) override
     {
         TypeInferrersBuilder_->RegisterFunction(
-            functionName, symbolName, typeArgumentConstraints,
+            functionName, symbolName, typeParameterConstraints,
             argumentTypes, repeatedArgType, resultType,
             implementationFile, callingConvention, useFunctionContext);
 
         FunctionProfilersBuilder_->RegisterFunction(
-            functionName, symbolName, typeArgumentConstraints,
+            functionName, symbolName, typeParameterConstraints,
             argumentTypes, repeatedArgType, resultType,
             implementationFile, callingConvention, useFunctionContext);
     }
@@ -60,26 +60,26 @@ public:
 
     void RegisterFunction(
         const TString& functionName,
-        std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
+        std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
         std::vector<TType> argumentTypes,
         TType repeatedArgType,
         TType resultType,
         TStringBuf implementationFile) override
     {
         TypeInferrersBuilder_->RegisterFunction(
-            functionName, typeArgumentConstraints,
+            functionName, typeParameterConstraints,
             argumentTypes, repeatedArgType, resultType,
             implementationFile);
 
         FunctionProfilersBuilder_->RegisterFunction(
-            functionName, typeArgumentConstraints,
+            functionName, typeParameterConstraints,
             argumentTypes, repeatedArgType, resultType,
             implementationFile);
     }
 
     void RegisterAggregate(
         const TString& aggregateName,
-        std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
+        std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
         TType argumentType,
         TType resultType,
         TType stateType,
@@ -88,12 +88,12 @@ public:
         bool isFirst) override
     {
         TypeInferrersBuilder_->RegisterAggregate(
-            aggregateName, typeArgumentConstraints,
+            aggregateName, typeParameterConstraints,
             argumentType, resultType, stateType,
             implementationFile, callingConvention, isFirst);
 
         FunctionProfilersBuilder_->RegisterAggregate(
-            aggregateName, typeArgumentConstraints,
+            aggregateName, typeParameterConstraints,
             argumentType, resultType, stateType,
             implementationFile, callingConvention, isFirst);
     }

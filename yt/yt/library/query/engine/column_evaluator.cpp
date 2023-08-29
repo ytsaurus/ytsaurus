@@ -35,9 +35,10 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
     std::vector<bool> isAggregate(schema->GetColumnCount());
 
     for (int index = 0; index < schema->GetColumnCount(); ++index) {
+        THashSet<TString> references;
         auto& column = columns[index];
+
         if (schema->Columns()[index].Expression()) {
-            THashSet<TString> references;
 
             column.Expression = PrepareExpression(
                 *schema->Columns()[index].Expression(),
@@ -63,8 +64,8 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
             const auto& aggregateName = *schema->Columns()[index].Aggregate();
             auto type = schema->Columns()[index].GetWireType();
             column.Aggregate = CodegenAggregate(
-                GetBuiltinAggregateProfilers()->GetAggregate(aggregateName)->Profile(type, type, type, aggregateName),
-                type, type);
+                GetBuiltinAggregateProfilers()->GetAggregate(aggregateName)->Profile({type}, type, type, aggregateName),
+                {type}, type);
             isAggregate[index] = true;
         }
     }

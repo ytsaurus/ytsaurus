@@ -338,12 +338,12 @@ void AppendUdfDescriptors(
 
             auto typer = functionDescriptor->RepeatedArgumentType
                 ? New<TFunctionTypeInferrer>(
-                    std::unordered_map<TTypeArgument, TUnionType>(),
+                    std::unordered_map<TTypeParameter, TUnionType>(),
                     functionDescriptor->GetArgumentsTypes(),
                     functionDescriptor->RepeatedArgumentType->Type,
                     functionDescriptor->ResultType.Type)
                 : New<TFunctionTypeInferrer>(
-                    std::unordered_map<TTypeArgument, TUnionType>(),
+                    std::unordered_map<TTypeParameter, TUnionType>(),
                     functionDescriptor->GetArgumentsTypes(),
                     functionDescriptor->ResultType.Type);
 
@@ -361,7 +361,7 @@ void AppendUdfDescriptors(
             functionBody.RepeatedArgIndex = -1;
 
             auto typer = New<TAggregateTypeInferrer>(
-                std::unordered_map<TTypeArgument, TUnionType>(),
+                std::unordered_map<TTypeParameter, TUnionType>(),
                 aggregateDescriptor->ArgumentType.Type,
                 aggregateDescriptor->ResultType.Type,
                 aggregateDescriptor->StateType.Type);
@@ -747,8 +747,8 @@ ETypeTag TypeTagFromType(TType type)
         [] (EValueType) {
             return ETypeTag::ConcreteType;
         },
-        [] (const TTypeArgument&) {
-            return ETypeTag::TypeArgument;
+        [] (const TTypeParameter&) {
+            return ETypeTag::TypeParameter;
         },
         [] (const TUnionType&) {
             return ETypeTag::UnionType;
@@ -777,8 +777,8 @@ void Deserialize(TDescriptorType& value, NYTree::INodePtr node)
     auto tag = ConvertTo<ETypeTag>(mapNode->GetChildOrThrow("tag"));
     auto valueNode = mapNode->GetChildOrThrow("value");
     switch (tag) {
-        case ETypeTag::TypeArgument:
-            value.Type = ConvertTo<TTypeArgument>(valueNode);
+        case ETypeTag::TypeParameter:
+            value.Type = ConvertTo<TTypeParameter>(valueNode);
             break;
         case ETypeTag::UnionType:
             value.Type = ConvertTo<TUnionType>(valueNode);

@@ -327,7 +327,7 @@ TSharedRange<TRowRange> LiteralRangesListToRows(
 
     std::sort(ranges.begin(), ranges.end());
 
-    for (size_t index = 1; index < ranges.size(); ++index) {
+    for (int index = 1; index < std::ssize(ranges); ++index) {
         TRow previousUpper = ranges[index - 1].second;
         TRow currentLower = ranges[index].first;
 
@@ -773,16 +773,16 @@ TTypeSet InferFunctionTypes(
     TStringBuf source)
 {
     std::vector<TTypeSet> typeConstraints;
-    std::vector<size_t> formalArguments;
-    std::optional<std::pair<size_t, bool>> repeatedType;
-    size_t formalResultType = inferrer->GetNormalizedConstraints(
+    std::vector<int> formalArguments;
+    std::optional<std::pair<int, bool>> repeatedType;
+    int formalResultType = inferrer->GetNormalizedConstraints(
         &typeConstraints,
         &formalArguments,
         &repeatedType);
 
     *genericAssignments = typeConstraints;
 
-    auto argIndex = 1;
+    int argIndex = 1;
     auto arg = effectiveTypes.begin();
     auto formalArg = formalArguments.begin();
     for (;
@@ -815,7 +815,7 @@ TTypeSet InferFunctionTypes(
     }
 
     for (; arg != effectiveTypes.end(); arg++) {
-        size_t constraintIndex = repeatedType->first;
+        int constraintIndex = repeatedType->first;
         if (repeatedType->second) {
             constraintIndex = genericAssignments->size();
             genericAssignments->push_back((*genericAssignments)[repeatedType->first]);
@@ -837,14 +837,14 @@ TTypeSet InferFunctionTypes(
 std::vector<EValueType> RefineFunctionTypes(
     const TFunctionTypeInferrer* inferrer,
     EValueType resultType,
-    size_t argumentCount,
+    int argumentCount,
     std::vector<TTypeSet>* genericAssignments,
     TStringBuf source)
 {
     std::vector<TTypeSet> typeConstraints;
-    std::vector<size_t> formalArguments;
-    std::optional<std::pair<size_t, bool>> repeatedType;
-    size_t formalResultType = inferrer->GetNormalizedConstraints(
+    std::vector<int> formalArguments;
+    std::optional<std::pair<int, bool>> repeatedType;
+    int formalResultType = inferrer->GetNormalizedConstraints(
         &typeConstraints,
         &formalArguments,
         &repeatedType);
@@ -857,17 +857,17 @@ std::vector<EValueType> RefineFunctionTypes(
     }
 
     std::vector<EValueType> effectiveTypes;
-    auto argIndex = 0;
+    int argIndex = 0;
     auto formalArg = formalArguments.begin();
     for (;
-        formalArg != formalArguments.end() && argIndex < static_cast<ssize_t>(argumentCount);
+        formalArg != formalArguments.end() && argIndex < argumentCount;
         ++formalArg, ++argIndex)
     {
         effectiveTypes.push_back(genericAssignmentsMin[*formalArg]);
     }
 
-    for (; argIndex < static_cast<ssize_t>(argumentCount); ++argIndex) {
-        size_t constraintIndex = repeatedType->first;
+    for (; argIndex < argumentCount; ++argIndex) {
+        int constraintIndex = repeatedType->first;
         if (repeatedType->second) {
             constraintIndex = genericAssignments->size() - (argumentCount - argIndex);
         }
@@ -882,6 +882,61 @@ std::vector<EValueType> RefineFunctionTypes(
 //    Intersect generic assignments with argument types and save them
 //    Infer feasible result types
 // 2. Apply result types and restrict generic assignments and argument types
+
+void IntersectGenericsWithArgumentTypes(
+    const std::vector<TTypeSet>& effectiveTypes,
+    std::vector<TTypeSet>* genericAssignments,
+    const std::vector<int>& formalArguments,
+    TStringBuf functionName,
+    TStringBuf source)
+{
+    if (formalArguments.size() != effectiveTypes.size()) {
+        THROW_ERROR_EXCEPTION("Expected %v number of arguments to function %Qv, got %v",
+            formalArguments.size(),
+            functionName,
+            effectiveTypes.size());
+    }
+
+    for (int argIndex = 0; argIndex < std::ssize(formalArguments); ++argIndex)
+    {
+        auto& constraints = (*genericAssignments)[formalArguments[argIndex]];
+        if (!Unify(&constraints, effectiveTypes[argIndex])) {
+            THROW_ERROR_EXCEPTION("Wrong type for argument %v to function %Qv: expected %Qv, got %Qv",
+                argIndex + 1,
+                functionName,
+                constraints,
+                effectiveTypes[argIndex])
+                << TErrorAttribute("expression", source);
+        }
+    }
+}
+
+std::vector<EValueType> RefineFunctionTypes(
+    int formalResultType,
+    int formalStateType,
+    const std::vector<int>& formalArguments,
+    EValueType resultType,
+    EValueType* stateType,
+    std::vector<TTypeSet>* genericAssignments,
+    TStringBuf source)
+{
+    (*genericAssignments)[formalResultType] = TTypeSet({resultType});
+
+    std::vector<EValueType> genericAssignmentsMin;
+    for (auto& constraint : *genericAssignments) {
+        genericAssignmentsMin.push_back(GetFrontWithCheck(constraint, source));
+    }
+
+    *stateType = genericAssignmentsMin[formalStateType];
+
+    std::vector<EValueType> effectiveTypes;
+    for (int formalArgConstraint : formalArguments)
+    {
+        effectiveTypes.push_back(genericAssignmentsMin[formalArgConstraint]);
+    }
+
+    return effectiveTypes;
+}
 
 struct TOperatorTyper
 {
@@ -1225,7 +1280,7 @@ public:
 
     void CheckNoOtherColumn(const NAst::TReference& reference, size_t startTableIndex) const
     {
-        for (size_t index = startTableIndex; index < Tables.size(); ++index) {
+        for (int index = startTableIndex; index < std::ssize(Tables); ++index) {
             auto& [schema, alias, mapping] = Tables[index];
 
             if (alias == reference.TableName && schema.FindColumn(reference.ColumnName)) {
@@ -1240,8 +1295,8 @@ public:
         const TTable* result = nullptr;
         TLogicalTypePtr type;
 
-        size_t index = 0;
-        for (; index < Tables.size(); ++index) {
+        int index = 0;
+        for (; index < std::ssize(Tables); ++index) {
             auto& [schema, alias, mapping] = Tables[index];
 
             if (alias != reference.TableName) {
@@ -1271,7 +1326,7 @@ public:
 
     static const std::optional<TBaseColumn> FindColumn(const TNamedItemList& schema, const TString& name)
     {
-        for (size_t index = 0; index < schema.size(); ++index) {
+        for (int index = 0; index < std::ssize(schema); ++index) {
             if (schema[index].Name == name) {
                 return TBaseColumn(name, schema[index].Expression->LogicalType);
             }
@@ -1344,7 +1399,7 @@ private:
     std::set<TString> UsedAliases;
     size_t Depth = 0;
 
-    THashMap<std::pair<TString, EValueType>, TBaseColumn> AggregateLookup;
+    THashMap<std::pair<TString, EValueType>, TConstAggregateFunctionExpressionPtr> AggregateLookup;
 
 public:
     TBuilderCtx(
@@ -1363,9 +1418,9 @@ public:
     // TODO: Move ProvideAggregateColumn and GetAggregateColumnPtr to TBuilderCtxBase and provide callback
     //  OnExpression.
     // Or split into two functions. GetAggregate and SetAggregate.
-    std::pair<TTypeSet, std::function<TBaseColumn(EValueType)>> ProvideAggregateColumn(
+    std::pair<TTypeSet, std::function<TConstExpressionPtr(EValueType)>> ProvideAggregateColumn(
         const TString& name,
-        const TAggregateTypeInferrer* aggregateFunction,
+        const TAggregateTypeInferrer* aggregateItem,
         const NAst::TExpression* argument,
         const TString& subexpressionName)
     {
@@ -1380,7 +1435,7 @@ public:
         std::optional<EValueType> stateType;
         std::optional<EValueType> resultType;
 
-        aggregateFunction->GetNormalizedConstraints(&constraint, &stateType, &resultType, name);
+        aggregateItem->GetNormalizedConstraints(&constraint, &stateType, &resultType, name);
 
         TTypeSet resultTypes;
         TTypeSet genericAssignments = constraint;
@@ -1422,20 +1477,20 @@ public:
             typedOperand = TNotExpressionPropagator().Visit(typedOperand);
 
             AggregateItems->emplace_back(
-                typedOperand,
+                std::vector<TConstExpressionPtr>{typedOperand},
                 name,
                 subexpressionName,
                 effectiveStateType,
                 type);
 
-            return TBaseColumn(subexpressionName, MakeLogicalType(GetLogicalType(type), false));
+            return typedOperand;
         });
     }
 
     TUntypedExpression GetAggregateColumnPtr(
         const TString& functionName,
-        const TAggregateTypeInferrer* aggregateFunction,
-        const NAst::TExpression* arguments,
+        const TAggregateTypeInferrer* aggregateItem,
+        const NAst::TExpression* argument,
         const TString& subexpressionName)
     {
         if (!AfterGroupBy) {
@@ -1444,19 +1499,26 @@ public:
 
         auto typer = ProvideAggregateColumn(
             functionName,
-            aggregateFunction,
-            arguments,
+            aggregateItem,
+            argument,
             subexpressionName);
 
         TExpressionGenerator generator = [=, this] (EValueType type) {
-            auto found = AggregateLookup.find(std::make_pair(subexpressionName, type));
+            auto key = std::make_pair(subexpressionName, type);
+            auto found = AggregateLookup.find(key);
             if (found != AggregateLookup.end()) {
-                TBaseColumn columnInfo = found->second;
-                return New<TReferenceExpression>(columnInfo.LogicalType, columnInfo.Name);
+                return found->second;
             } else {
-                TBaseColumn columnInfo = typer.second(type);
-                YT_VERIFY(AggregateLookup.emplace(std::make_pair(subexpressionName, type), columnInfo).second);
-                return New<TReferenceExpression>(columnInfo.LogicalType, columnInfo.Name);
+                auto argExpression = typer.second(type);
+                TConstAggregateFunctionExpressionPtr expr = New<TAggregateFunctionExpression>(
+                    MakeLogicalType(GetLogicalType(type), false),
+                    subexpressionName,
+                    std::vector{argExpression},
+                    type,
+                    type,
+                    functionName);
+                YT_VERIFY(AggregateLookup.emplace(key, expr).second);
+                return expr;
             }
         };
 
@@ -1634,19 +1696,105 @@ TUntypedExpression TBuilderCtx::OnFunction(const NAst::TFunctionExpression* func
 
     const auto& descriptor = Functions->GetFunction(functionName);
 
-    if (const auto* aggregateFunction = descriptor->As<TAggregateTypeInferrer>()) {
+    if (const auto* aggregateFunction = descriptor->As<TAggregateFunctionTypeInferrer>()) {
+        auto subexpressionName = InferColumnName(*functionExpr);
+
+        std::vector<TTypeSet> argTypes;
+        std::vector<TTypeSet> genericAssignments;
+        std::vector<TExpressionGenerator> operandTypers;
+        std::vector<int> formalArguments;
+
+        YT_VERIFY(AfterGroupBy);
+
+        AfterGroupBy = false;
+        for (const auto& argument : functionExpr->Arguments) {
+            auto untypedArgument = OnExpression(argument);
+            argTypes.push_back(untypedArgument.FeasibleTypes);
+            operandTypers.push_back(untypedArgument.Generator);
+        }
+        AfterGroupBy = true;
+
+        int stateConstraintIndex;
+        int resultConstraintIndex;
+
+        std::tie(stateConstraintIndex, resultConstraintIndex) = aggregateFunction->GetNormalizedConstraints(
+            &genericAssignments,
+            &formalArguments);
+        IntersectGenericsWithArgumentTypes(
+            argTypes,
+            &genericAssignments,
+            formalArguments,
+            functionName,
+            functionExpr->GetSource(Source));
+
+        auto resultTypes = genericAssignments[resultConstraintIndex];
+
+        TExpressionGenerator generator = [
+            this,
+            stateConstraintIndex,
+            resultConstraintIndex,
+            functionName = std::move(functionName),
+            subexpressionName = std::move(subexpressionName),
+            operandTypers = std::move(operandTypers),
+            genericAssignments = std::move(genericAssignments),
+            formalArguments = std::move(formalArguments),
+            source = functionExpr->GetSource(Source)
+        ] (EValueType type) mutable {
+            auto key = std::make_pair(subexpressionName, type);
+            auto foundCached = AggregateLookup.find(key);
+            if (foundCached != AggregateLookup.end()) {
+                return foundCached->second;
+            }
+
+            EValueType stateType;
+            auto effectiveTypes = RefineFunctionTypes(
+                resultConstraintIndex,
+                stateConstraintIndex,
+                formalArguments,
+                type,
+                &stateType,
+                &genericAssignments,
+                source);
+
+            std::vector<TConstExpressionPtr> typedOperands;
+            for (int index = 0; index < std::ssize(effectiveTypes); ++index) {
+                typedOperands.push_back(operandTypers[index](effectiveTypes[index]));
+                typedOperands.back() = TCastEliminator().Visit(typedOperands.back());
+                typedOperands.back() = TExpressionSimplifier().Visit(typedOperands.back());
+                typedOperands.back() = TNotExpressionPropagator().Visit(typedOperands.back());
+            }
+
+            AggregateItems->emplace_back(
+                typedOperands,
+                functionName,
+                subexpressionName,
+                stateType,
+                type);
+
+            TConstAggregateFunctionExpressionPtr expr = New<TAggregateFunctionExpression>(
+                MakeLogicalType(GetLogicalType(type), false),
+                subexpressionName,
+                typedOperands,
+                stateType,
+                type,
+                functionName);
+            AggregateLookup.emplace(key, expr);
+
+            return expr;
+        };
+
+        return TUntypedExpression{resultTypes, std::move(generator), false};
+    } else if (const auto* aggregateItem = descriptor->As<TAggregateTypeInferrer>()) {
         auto subexpressionName = InferColumnName(*functionExpr);
 
         try {
             if (functionExpr->Arguments.size() != 1) {
-                THROW_ERROR_EXCEPTION(
-                    "Aggregate function %Qv must have exactly one argument",
-                    functionName);
+                THROW_ERROR_EXCEPTION("Aggregate function %Qv must have exactly one argument", functionName);
             }
 
             auto aggregateColumn = GetAggregateColumnPtr(
                 functionName,
-                aggregateFunction,
+                aggregateItem,
                 functionExpr->Arguments.front(),
                 subexpressionName);
 
@@ -1678,9 +1826,8 @@ TUntypedExpression TBuilderCtx::OnFunction(const NAst::TFunctionExpression* func
             regularFunction,
             operandTypers,
             genericAssignments,
-            source = functionExpr->GetSource(Source)]
-        (EValueType type) mutable
-        {
+            source = functionExpr->GetSource(Source)
+        ] (EValueType type) mutable {
             auto effectiveTypes = RefineFunctionTypes(
                 regularFunction,
                 type,
@@ -1689,7 +1836,7 @@ TUntypedExpression TBuilderCtx::OnFunction(const NAst::TFunctionExpression* func
                 source);
 
             std::vector<TConstExpressionPtr> typedOperands;
-            for (size_t index = 0; index < effectiveTypes.size(); ++index) {
+            for (int index = 0; index < std::ssize(effectiveTypes); ++index) {
                 typedOperands.push_back(operandTypers[index](effectiveTypes[index]));
             }
 
@@ -2054,7 +2201,7 @@ TUntypedExpression TBuilderCtx::OnTransformOp(
     TUnversionedRowBuilder rowBuilder;
     std::vector<TRow> rows;
 
-    for (size_t index = 0; index < transformExpr->From.size(); ++index) {
+    for (int index = 0; index < std::ssize(transformExpr->From); ++index) {
         const auto& sourceTuple = transformExpr->From[index];
         if (sourceTuple.size() != argTypes.size()) {
             THROW_ERROR_EXCEPTION("Arguments size mismatch in tuple")
@@ -2185,7 +2332,7 @@ void PrepareQuery(
         TNamedItemList groupItems = std::move(groupClause->GroupItems);
 
         std::vector<int> touchedKeyColumns(keyColumns.size(), -1);
-        for (size_t index = 0; index < groupItems.size(); ++index) {
+        for (int index = 0; index < std::ssize(groupItems); ++index) {
             const auto& item = groupItems[index];
             if (auto referenceExpr = item.Expression->As<TReferenceExpression>()) {
                 int keyPartIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
@@ -2660,7 +2807,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
                 << TErrorAttribute("rhs_source", FormatExpression(join.Rhs));
         }
 
-        for (size_t index = 0; index < selfEquations.size(); ++index) {
+        for (int index = 0; index < std::ssize(selfEquations); ++index) {
             if (*selfEquations[index].Expression->LogicalType != *foreignEquations[index]->LogicalType) {
                 THROW_ERROR_EXCEPTION("Types mismatch in join equation \"%v = %v\"",
                     InferName(selfEquations[index].Expression),
@@ -2679,7 +2826,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
             const auto& expr = foreignEquations[equationIndex];
 
             if (const auto* referenceExpr = expr->As<TReferenceExpression>()) {
-                auto index = ColumnNameToKeyPartIndex(joinClause->GetKeyColumns(), referenceExpr->ColumnName);
+                int index = ColumnNameToKeyPartIndex(joinClause->GetKeyColumns(), referenceExpr->ColumnName);
 
                 if (index >= 0) {
                     keySelfEquations[index] = selfEquations[equationIndex];
@@ -2777,7 +2924,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
         YT_VERIFY(keyForeignEquations.size() == keySelfEquations.size());
 
         size_t lastEmptyIndex = keyPrefix;
-        for (size_t index = keyPrefix; index < keyForeignEquations.size(); ++index) {
+        for (int index = keyPrefix; index < std::ssize(keyForeignEquations); ++index) {
             if (keyForeignEquations[index]) {
                 YT_VERIFY(keySelfEquations[index].Expression);
                 keyForeignEquations[lastEmptyIndex] = std::move(keyForeignEquations[index]);

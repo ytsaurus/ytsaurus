@@ -133,6 +133,31 @@ struct TFunctionExpression
 
 DEFINE_REFCOUNTED_TYPE(TFunctionExpression)
 
+struct TAggregateFunctionExpression
+    : public TReferenceExpression
+{
+    std::vector<TConstExpressionPtr> Arguments;
+    EValueType StateType;
+    EValueType ResultType;
+    TString FunctionName;
+
+    TAggregateFunctionExpression(
+        const NTableClient::TLogicalTypePtr& type,
+        const TString& exprName,
+        const std::vector<TConstExpressionPtr>& arguments,
+        EValueType stateType,
+        EValueType resultType,
+        const TString& functionName)
+        : TReferenceExpression(type, exprName)
+        , Arguments(arguments)
+        , StateType(stateType)
+        , ResultType(resultType)
+        , FunctionName(functionName)
+    { }
+};
+
+DEFINE_REFCOUNTED_TYPE(TAggregateFunctionExpression)
+
 struct TUnaryOpExpression
     : public TExpression
 {
@@ -271,8 +296,9 @@ struct TNamedItem
 using TNamedItemList = std::vector<TNamedItem>;
 
 struct TAggregateItem
-    : public TNamedItem
 {
+    std::vector<TConstExpressionPtr> Arguments;
+    TString Name;
     TString AggregateFunction;
     EValueType StateType;
     EValueType ResultType;
@@ -280,12 +306,13 @@ struct TAggregateItem
     TAggregateItem() = default;
 
     TAggregateItem(
-        TConstExpressionPtr expression,
+        std::vector<TConstExpressionPtr> arguments,
         const TString& aggregateFunction,
         const TString& name,
         EValueType stateType,
         EValueType resultType)
-        : TNamedItem(expression, name)
+        : Arguments(std::move(arguments))
+        , Name(name)
         , AggregateFunction(aggregateFunction)
         , StateType(stateType)
         , ResultType(resultType)

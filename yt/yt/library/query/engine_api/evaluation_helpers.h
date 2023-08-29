@@ -318,7 +318,7 @@ using TCGPIAggregateFinalizeSignature = void(TExpressionContext*, TPIValue*, con
 using TCGQuerySignature = void(TRange<TPIValue>, TRange<void*>, TExecutionContext*);
 using TCGExpressionSignature = void(TRange<TPIValue>, TRange<void*>, TValue*, TRange<TValue>, TRowBuffer*);
 using TCGAggregateInitSignature = void(TExpressionContext*, TValue*);
-using TCGAggregateUpdateSignature = void(TExpressionContext*, TValue*, const TValue*);
+using TCGAggregateUpdateSignature = void(TExpressionContext*, TValue*, TRange<TValue>);
 using TCGAggregateMergeSignature = void(TExpressionContext*, TValue*, const TValue*);
 using TCGAggregateFinalizeSignature = void(TExpressionContext*, TValue*, const TValue*);
 
