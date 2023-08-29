@@ -1797,6 +1797,16 @@ TEST_P(TBundleSchedulerTest, ProxyDeallocationProgressTrackCompleted)
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
 
+    EXPECT_EQ(GetDataCenterCount(), std::ssize(mutations.ChangedProxyRole));
+    for (const auto& [proxyName, role] : mutations.ChangedProxyRole) {
+        ASSERT_EQ(role, TrashRole);
+        input.RpcProxies[proxyName]->Role = role;
+    }
+
+    // Schedule one more time with annotation tags set
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
     EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->ProxyDeallocations));
@@ -2866,6 +2876,17 @@ TEST_P(TBundleSchedulerTest, DeallocateAdoptedNodes)
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
 
+    EXPECT_EQ(3 * GetDataCenterCount(), std::ssize(mutations.ChangedNodeUserTags));
+    for (auto& [nodeName, tags] : mutations.ChangedNodeUserTags) {
+        EXPECT_EQ(0, std::ssize(tags));
+        const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+        nodeInfo->UserTags = tags;
+        EXPECT_TRUE(nodesToRemove.count(nodeName));
+    }
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
     EXPECT_EQ(3 * GetDataCenterCount(), std::ssize(mutations.ChangedEnableBundleBalancerFlag));
     for (auto& [nodeName, enableBundleBalancer] : mutations.ChangedEnableBundleBalancerFlag) {
         GetOrCrash(input.TabletNodes, nodeName)->EnableBundleBalancer = enableBundleBalancer;
@@ -2880,12 +2901,6 @@ TEST_P(TBundleSchedulerTest, DeallocateAdoptedNodes)
     for (auto& [nodeName, decommissioned] : mutations.ChangedDecommissionedFlag) {
         EXPECT_FALSE(decommissioned);
         EXPECT_TRUE(nodesToRemove.count(nodeName));
-    }
-
-    EXPECT_EQ(3 * GetDataCenterCount(), std::ssize(mutations.ChangedNodeUserTags));
-    for (auto& [nodeName, tags] : mutations.ChangedNodeUserTags) {
-        EXPECT_TRUE(nodesToRemove.count(nodeName));
-        EXPECT_EQ(0, std::ssize(tags));
     }
 
     EXPECT_EQ(1, std::ssize(mutations.ChangedStates));
