@@ -1895,11 +1895,14 @@ private:
 
         if (ShouldThrottle(peers[0].Address, BytesThrottled_ == 0 && EstimatedSize_)) {
             // NB(psushin): This is preliminary throttling. The subsequent request may fail or return partial result.
-            // In order not to throttle twice, we use BandwidthThrottled_ flag.
+            // In order not to throttle twice, we check BytesThrottled_ is zero.
             // Still it protects us from bursty incoming traffic on the host.
             // If estimated size was not given, we fallback to post-throttling on actual received size.
-            BytesThrottled_ = *EstimatedSize_;
-            if (!SyncThrottle(BandwidthThrottler_, *EstimatedSize_)) {
+            YT_VERIFY(blockIndexes.size() <= BlockIndexes_.size());
+            // NB: Some blocks are read from cache hence we need to further estimate throttling amount.
+            auto requestedBlocksEstimatedSize = *EstimatedSize_ * std::ssize(blockIndexes) / std::ssize(BlockIndexes_);
+            BytesThrottled_ = requestedBlocksEstimatedSize;
+            if (!SyncThrottle(BandwidthThrottler_, requestedBlocksEstimatedSize)) {
                 cancelAll(TError(
                     NChunkClient::EErrorCode::ReaderThrottlingFailed,
                     "Failed to apply throttling in reader"));
@@ -2121,8 +2124,6 @@ private:
 
     void OnSessionSucceeded()
     {
-        YT_LOG_DEBUG("All requested blocks are fetched");
-
         std::vector<TBlock> blocks;
         blocks.reserve(BlockIndexes_.size());
         for (int blockIndex : BlockIndexes_) {
@@ -2130,6 +2131,14 @@ private:
             YT_VERIFY(block.Data);
             blocks.push_back(block);
         }
+
+        YT_LOG_DEBUG("All requested blocks are fetched "
+            "(BlockCount: %v, TotalSize: %v, ThrottledSize: %v, EstimatedSize: %v)",
+            blocks.size(),
+            GetByteSize(blocks),
+            BytesThrottled_,
+            EstimatedSize_);
+
         Promise_.TrySet(std::vector<TBlock>(blocks));
     }
 
@@ -2291,7 +2300,7 @@ private:
 
         if (ShouldThrottle(peerAddress, BytesThrottled_ == 0 && EstimatedSize_)) {
             // NB(psushin): This is preliminary throttling. The subsequent request may fail or return partial result.
-            // In order not to throttle twice, we use BandwidthThrottled_ flag.
+            // In order not to throttle twice, we check BytesThrottled_ is zero.
             // Still it protects us from bursty incoming traffic on the host.
             // If estimated size was not given, we fallback to post-throttling on actual received size.
             BytesThrottled_ = *EstimatedSize_;
@@ -2878,7 +2887,7 @@ private:
 
         if (ShouldThrottle(peers[0].Address, BytesThrottled_ == 0 && BytesToThrottle_ > 0)) {
             // NB(psushin): This is preliminary throttling. The subsequent request may fail or return partial result.
-            // In order not to throttle twice, we use BandwidthThrottled_ flag.
+            // In order not to throttle twice, we check BytesThrottled_ is zero.
             // Still it protects us from bursty incoming traffic on the host.
             // If estimated size was not given, we fallback to post-throttling on actual received size.
             std::swap(BytesThrottled_, BytesToThrottle_);

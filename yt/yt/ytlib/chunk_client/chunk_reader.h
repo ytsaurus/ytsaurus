@@ -16,6 +16,7 @@ struct IChunkReader
     struct TReadBlocksOptions
     {
         TClientChunkReadOptions ClientOptions;
+        //! Estimation for (compressed) size of the requested blocks.
         std::optional<i64> EstimatedSize;
         IInvokerPtr SessionInvoker;
     };
