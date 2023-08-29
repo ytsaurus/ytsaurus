@@ -108,7 +108,7 @@ struct TDataCenterRacksInfo
 {
     THashMap<TString, int> RackToBundleNodes;
     THashMap<TString, int> RackToSpareNodes;
-    int RequiredSpareNodesCount;
+    int RequiredSpareNodeCount;
 
     REGISTER_YSON_STRUCT(TDataCenterRacksInfo);
 

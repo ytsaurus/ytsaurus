@@ -92,7 +92,7 @@ void TDataCenterRacksInfo::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("rack_to_spare_nodes", &TThis::RackToSpareNodes)
         .Default();
-    registrar.Parameter("required_spare_nodes_count", &TThis::RequiredSpareNodesCount)
+    registrar.Parameter("required_spare_node_count", &TThis::RequiredSpareNodeCount)
         .Default();
 }
 
@@ -287,7 +287,7 @@ TZonesRacksInfo GetZonesRacksInfo(const TSchedulerInputState& state)
             orchidRack = New<TDataCenterRacksInfo>();
             orchidRack->RackToBundleNodes = dataCenterInfo.RackToBundleInstances;
             orchidRack->RackToSpareNodes = dataCenterInfo.RackToSpareInstances;
-            orchidRack->RequiredSpareNodesCount = dataCenterInfo.RequiredSpareNodesCount;
+            orchidRack->RequiredSpareNodeCount = dataCenterInfo.RequiredSpareNodeCount;
         }
     }
 

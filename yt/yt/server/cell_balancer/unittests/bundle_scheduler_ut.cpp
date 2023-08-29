@@ -926,16 +926,16 @@ TEST_P(TBundleSchedulerTest, DoNotCreateNewDeallocationsWhileInProgress)
 
 TEST_P(TBundleSchedulerTest, DoNotCreateNewDeallocationsIfNodesAreNotReady)
 {
-    constexpr int TabletSlotsCount = 10;
+    constexpr int TabletSlotCount = 10;
 
-    auto input = GenerateInputContext(2 * GetDataCenterCount(), TabletSlotsCount);
+    auto input = GenerateInputContext(2 * GetDataCenterCount(), TabletSlotCount);
     auto dataCenters = GetDataCenters(input);
 
-    GenerateTabletCellsForBundle(input, "bigd", 2 * TabletSlotsCount * GetActiveDataCenterCount());
+    GenerateTabletCellsForBundle(input, "bigd", 2 * TabletSlotCount * GetActiveDataCenterCount());
 
     // Do not deallocate nodes if node tag filter is not set for all alive nodes
     for (const auto& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, "bigd", 5, {.SetFilterTag=!SetNodeTagFilters, .SlotCount=TabletSlotsCount, .DC=dataCenter});
+        GenerateNodesForBundle(input, "bigd", 5, {.SetFilterTag=!SetNodeTagFilters, .SlotCount=TabletSlotCount, .DC=dataCenter});
     }
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
@@ -946,7 +946,7 @@ TEST_P(TBundleSchedulerTest, DoNotCreateNewDeallocationsIfNodesAreNotReady)
     // Do not deallocate nodes if cell cout is not actual for all the nodes
     input.TabletNodes.clear();
     for (const auto& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, "bigd", 5, {.SetFilterTag=SetNodeTagFilters, .SlotCount=TabletSlotsCount / 2, .DC=dataCenter});
+        GenerateNodesForBundle(input, "bigd", 5, {.SetFilterTag=SetNodeTagFilters, .SlotCount=TabletSlotCount / 2, .DC=dataCenter});
     }
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
@@ -957,7 +957,7 @@ TEST_P(TBundleSchedulerTest, DoNotCreateNewDeallocationsIfNodesAreNotReady)
     // Finally init deallocations if nodes are up to date.
     input.TabletNodes.clear();
     for (const auto& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, "bigd", 5, {.SetFilterTag=SetNodeTagFilters, .SlotCount=TabletSlotsCount, .DC=dataCenter});
+        GenerateNodesForBundle(input, "bigd", 5, {.SetFilterTag=SetNodeTagFilters, .SlotCount=TabletSlotCount, .DC=dataCenter});
     }
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
@@ -967,16 +967,16 @@ TEST_P(TBundleSchedulerTest, DoNotCreateNewDeallocationsIfNodesAreNotReady)
 
 TEST_P(TBundleSchedulerTest, CreateNewDeallocations)
 {
-    constexpr int TabletSlotsCount = 10;
+    constexpr int TabletSlotCount = 10;
 
-    auto input = GenerateInputContext(2 * GetDataCenterCount(), TabletSlotsCount);
+    auto input = GenerateInputContext(2 * GetDataCenterCount(), TabletSlotCount);
     auto dataCenters = GetDataCenters(input);
     const TString bundleName = "bigd";
 
-    GenerateTabletCellsForBundle(input, bundleName, 2 * TabletSlotsCount * GetActiveDataCenterCount());
+    GenerateTabletCellsForBundle(input, bundleName, 2 * TabletSlotCount * GetActiveDataCenterCount());
 
     for (const auto& dataCenter : dataCenters) {
-        GenerateNodesForBundle(input, bundleName, 5, {.SetFilterTag=SetNodeTagFilters, .SlotCount=TabletSlotsCount, .DC=dataCenter});
+        GenerateNodesForBundle(input, bundleName, 5, {.SetFilterTag=SetNodeTagFilters, .SlotCount=TabletSlotCount, .DC=dataCenter});
     }
 
     TSchedulerMutations mutations;
@@ -3356,6 +3356,7 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodeTagsAssigned)
     for (const auto& node : newTabletNodes) {
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, node);
         nodeInfo->TabletSlots.resize(bundleInfo->TargetConfig->CpuLimits->WriteThreadPoolSize);
+        SetTabletSlotsState(input, node, TabletSlotStateEmpty);
         nodeInfo->Statistics->Memory->TabletStatic->Limit = *bundleInfo->TargetConfig->MemoryLimits->TabletStatic;
     }
 
@@ -3598,6 +3599,7 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodesWithSpare)
     for (auto& node : spareNodes) {
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, node);
         nodeInfo->TabletSlots.resize(bundleInfo->TargetConfig->CpuLimits->WriteThreadPoolSize);
+        SetTabletSlotsState(input, node, TabletSlotStateEmpty);
     }
 
     mutations = TSchedulerMutations{};
@@ -3686,6 +3688,7 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodesWithSpare)
 
         nodeInfo->Statistics->Memory->TabletStatic->Limit = *bundleInfo->TargetConfig->MemoryLimits->TabletStatic;
         nodeInfo->TabletSlots.resize(bundleInfo->TargetConfig->CpuLimits->WriteThreadPoolSize);
+        SetTabletSlotsState(input, nodeName, TabletSlotStateEmpty);
     }
 
     ApplyChangedStates(&input, mutations);
@@ -3939,9 +3942,10 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodesGracePeriod)
 TEST_P(TNodeTagsFilterManager, SpareNodesExhausted)
 {
     const int SlotCount = 5;
-    auto input = GenerateInputContext(2 * GetDataCenterCount(), SlotCount);
+    auto input = GenerateInputContext(0, SlotCount);
     auto dataCenters = GetDataCenters(input);
     input.Bundles["bigd"]->EnableNodeTagFilterManagement = true;
+    input.Bundles["bigd"]->EnableTabletCellManagement = false;
     GenerateTabletCellsForBundle(input, "bigd", 20 * GetActiveDataCenterCount());
 
     // Generate Spare nodes
@@ -3963,6 +3967,7 @@ TEST_P(TNodeTagsFilterManager, SpareNodesExhausted)
         input.TabletNodes[nodeName]->UserTags = tags;
         input.TabletNodes[nodeName]->Decommissioned = mutations.ChangedDecommissionedFlag[nodeName];
     }
+    ApplyChangedStates(&input, mutations);
 
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
@@ -3974,9 +3979,10 @@ TEST_P(TNodeTagsFilterManager, SpareNodesExhausted)
 TEST_P(TNodeTagsFilterManager, SpareNodesOffline)
 {
     const int SlotCount = 5;
-    auto input = GenerateInputContext(2 * GetDataCenterCount(), SlotCount);
+    auto input = GenerateInputContext(0, SlotCount);
     auto dataCenters = GetDataCenters(input);
     input.Bundles["bigd"]->EnableNodeTagFilterManagement = true;
+    input.Bundles["bigd"]->EnableTabletCellManagement = false;
 
     GenerateTabletCellsForBundle(input, "bigd", 10 * GetActiveDataCenterCount());
 
@@ -4012,6 +4018,7 @@ TEST_P(TNodeTagsFilterManager, SpareNodesOffline)
 
         EXPECT_TRUE(aliveSpare.count(nodeName) != 0);
     }
+    ApplyChangedStates(&input, mutations);
 
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
@@ -4023,9 +4030,10 @@ TEST_P(TNodeTagsFilterManager, SpareNodesOffline)
 TEST_P(TNodeTagsFilterManager, SpareNodesWentOfflineAfterAssigning)
 {
     const int SlotCount = 5;
-    auto input = GenerateInputContext(2 * GetDataCenterCount(), SlotCount);
+    auto input = GenerateInputContext(0, SlotCount);
     auto dataCenters = GetDataCenters(input);
     input.Bundles["bigd"]->EnableNodeTagFilterManagement = true;
+    input.Bundles["bigd"]->EnableTabletCellManagement = false;
     auto bundleNodeTagFilter = input.Bundles["bigd"]->NodeTagFilter;
 
     GenerateTabletCellsForBundle(input, "bigd", SlotCount * GetActiveDataCenterCount());
@@ -4065,6 +4073,7 @@ TEST_P(TNodeTagsFilterManager, SpareNodesWentOfflineAfterAssigning)
         nodeInfo->State = InstanceStateOffline;
         nodeInfo->LastSeenTime = TInstant::Now();
     }
+    ApplyChangedStates(&input, mutations);
 
     mutations = {};
     ScheduleBundles(input, &mutations);
@@ -4078,6 +4087,84 @@ TEST_P(TNodeTagsFilterManager, SpareNodesWentOfflineAfterAssigning)
         input.TabletNodes[nodeName]->Decommissioned = mutations.ChangedDecommissionedFlag[nodeName];
 
         EXPECT_TRUE(usingSpareNode.count(nodeName) == 0);
+    }
+}
+
+TEST_P(TNodeTagsFilterManager, SpareNodesDecommissionedAfterAssigning)
+{
+    const int SlotCount = 5;
+    auto input = GenerateInputContext(0, SlotCount);
+    auto dataCenters = GetDataCenters(input);
+    input.Bundles["bigd"]->EnableNodeTagFilterManagement = true;
+    input.Bundles["bigd"]->EnableTabletCellManagement = false;
+    auto bundleNodeTagFilter = input.Bundles["bigd"]->NodeTagFilter;
+
+    GenerateTabletCellsForBundle(input, "bigd", SlotCount * GetActiveDataCenterCount());
+
+    // Generate Spare nodes
+    auto zoneInfo = input.Zones["default-zone"];
+    zoneInfo->SpareTargetConfig->TabletNodeCount = 3 * GetDataCenterCount();
+    THashSet<TString> activeDataCenters;
+    THashSet<TString> usingSpareNode;
+    int dataCenterIndex = 0;
+
+    for (const auto& dataCenter : dataCenters) {
+        auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 3, {.SlotCount=SlotCount, .DC=dataCenter});
+        if (++dataCenterIndex > GetActiveDataCenterCount()) {
+            break;
+        }
+
+        auto dcUsingSpareNode = GetRandomElements(spareNodes, 1);
+        usingSpareNode.insert(dcUsingSpareNode.begin(), dcUsingSpareNode.end());
+        activeDataCenters.insert(dataCenter);
+
+        for (const auto& spareNode : dcUsingSpareNode) {
+            const auto& nodeInfo = GetOrCrash(input.TabletNodes, spareNode);
+            nodeInfo->UserTags = { bundleNodeTagFilter };
+            nodeInfo->Decommissioned = false;
+        }
+    }
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    CheckEmptyAlerts(mutations);
+    EXPECT_EQ(0, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeUserTags));
+
+    // Using spare node were externally decommissioned
+    for (const auto& spareNode : usingSpareNode) {
+        const auto& nodeInfo = GetOrCrash(input.TabletNodes, spareNode);
+        nodeInfo->Decommissioned = true;
+    }
+    ApplyChangedStates(&input, mutations);
+
+    mutations = {};
+    ScheduleBundles(input, &mutations);
+
+    CheckEmptyAlerts(mutations);
+    EXPECT_EQ(GetActiveDataCenterCount(), std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(GetActiveDataCenterCount(), std::ssize(mutations.ChangedNodeUserTags));
+
+    for (auto& [nodeName, tags] : mutations.ChangedNodeUserTags) {
+        const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+        nodeInfo->UserTags = tags;
+        nodeInfo->Decommissioned = mutations.ChangedDecommissionedFlag[nodeName];
+
+        EXPECT_TRUE(activeDataCenters.count(*nodeInfo->Annotations->DataCenter) != 0);
+        EXPECT_TRUE(usingSpareNode.count(nodeName) == 0);
+    }
+
+    ApplyChangedStates(&input, mutations);
+    mutations = {};
+    ScheduleBundles(input, &mutations);
+    CheckEmptyAlerts(mutations);
+
+    for (const TString& dataCenter : activeDataCenters) {
+        const auto& spareNodesInfo = input.ZoneToSpareNodes["default-zone"][dataCenter];
+        EXPECT_EQ(1, std::ssize(spareNodesInfo.FreeNodes));
+        EXPECT_EQ(1, std::ssize(spareNodesInfo.UsedByBundle.at("bigd")));
+        EXPECT_EQ(1, std::ssize(spareNodesInfo.ExternallyDecommissioned));
     }
 }
 
@@ -4619,6 +4706,52 @@ TEST(TDataCentersPriority, DisruptionMinimizing)
     EXPECT_EQ(2, std::ssize(assigningDC));
     dataCenters.erase(offlineDC);
     EXPECT_EQ(assigningDC, dataCenters);
+}
+
+TEST(TDataCentersPriority, MinimizingTabletMoves)
+{
+    constexpr int SlotCount = 5;
+    auto input = GenerateMultiDCInputContext(9, SlotCount);
+    auto dataCenters = THashSet<TString>{"dc-1", "dc-2", "dc-3"};
+    input.Bundles["bigd"]->EnableNodeTagFilterManagement = true;
+    auto bundleNodeTagFilter = input.Bundles["bigd"]->NodeTagFilter;
+
+    // Generate Spare nodes
+    auto zoneInfo = input.Zones["default-zone"];
+
+    // Add new node to bundle
+    TString offlineDC = *GetRandomElements(dataCenters, 1).begin();
+
+    for (const auto& dataCenter : dataCenters) {
+        auto flags = TGenerateNodeOptions{.SetFilterTag=true, .SlotCount=SlotCount, .DC=dataCenter};
+        auto nodes = GenerateNodesForBundle(input, "bigd", 3, flags);
+
+        if (dataCenter == offlineDC) {
+            continue;
+        }
+
+        for (auto& nodeName : nodes) {
+            SetTabletSlotsState(input, nodeName, PeerStateLeading);
+        }
+    }
+
+    GenerateTabletCellsForBundle(input, "bigd", SlotCount * 6);
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    CheckEmptyAlerts(mutations);
+    EXPECT_EQ(3, std::ssize(mutations.ChangedStates.at("bigd")->BundleNodeReleasements));
+
+    THashSet<TString> releasingDC;
+    for (const auto& [nodeName, _] : mutations.ChangedStates.at("bigd")->BundleNodeReleasements) {
+        const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+        releasingDC.insert(*nodeInfo->Annotations->DataCenter);
+    }
+
+    // Releasing data centers are all from single datacenter.
+    EXPECT_EQ(1, std::ssize(releasingDC));
+    EXPECT_TRUE(releasingDC.count(offlineDC) != 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

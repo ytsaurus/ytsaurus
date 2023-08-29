@@ -13,6 +13,7 @@ using TBundlesDynamicConfig = THashMap<TString, TBundleDynamicConfigPtr>;
 struct TSpareNodesInfo
 {
     std::vector<TString> FreeNodes;
+    std::vector<TString> ExternallyDecommissioned;
     THashMap<TString, std::vector<TString>> UsedByBundle;
     THashMap<TString, std::vector<TString>> ReleasingByBundle;
 };
@@ -35,7 +36,7 @@ struct TInstanceRackInfo
     THashMap<TString, int> RackToSpareInstances;
 
     // Spare instances needed-for-minus one rack guarantee.
-    int RequiredSpareNodesCount = 0;
+    int RequiredSpareNodeCount = 0;
 };
 
 using TDataCenterRackInfo = THashMap<TString, TInstanceRackInfo>;

@@ -79,13 +79,13 @@ void TryReleaseSpareProxies(
 void TryAssignSpareProxies(
     const TString& bundleName,
     const TString& proxyRole,
-    int proxiesCount,
+    int proxyCount,
     TSpareProxiesInfo& spareProxyInfo,
     TSchedulerMutations* mutations)
 {
     auto& freeProxies = spareProxyInfo.FreeProxies;
 
-    while (!freeProxies.empty() && proxiesCount > 0) {
+    while (!freeProxies.empty() && proxyCount > 0) {
         const auto& proxyName = freeProxies.back();
         mutations->ChangedProxyRole[proxyName] = proxyRole;
 
@@ -94,7 +94,7 @@ void TryAssignSpareProxies(
             proxyName);
 
         freeProxies.pop_back();
-        --proxiesCount;
+        --proxyCount;
     }
 }
 
