@@ -518,20 +518,21 @@ func (e *Encoder) SelectRows(
 		Timestamp:          convertTimestamp(opts.Timestamp),
 		RetentionTimestamp: nil, // todo
 
-		InputRowLimit:          intPtrToUint64Ptr(opts.InputRowLimit),
-		OutputRowLimit:         intPtrToUint64Ptr(opts.OutputRowLimit),
-		RangeExpansionLimit:    nil, // todo
-		FailOnIncompleteResult: opts.FailOnIncompleteResult,
-		VerboseLogging:         nil, // todo
-		EnableCodeCache:        nil, // todo
-		MaxSubqueries:          nil, // todo
-		AllowFullScan:          nil, // todo
-		AllowJoinWithoutIndex:  nil, // todo
-		UdfRegistryPath:        nil, // todo
-		MemoryLimitPerNode:     nil, // todo
-		ExecutionPool:          nil, // todo
-		ReplicaConsistency:     nil, // todo
-		PlaceholderValues:      placeholderValues,
+		InputRowLimit:             intPtrToUint64Ptr(opts.InputRowLimit),
+		OutputRowLimit:            intPtrToUint64Ptr(opts.OutputRowLimit),
+		RangeExpansionLimit:       nil, // todo
+		FailOnIncompleteResult:    opts.FailOnIncompleteResult,
+		VerboseLogging:            nil, // todo
+		EnableCodeCache:           nil, // todo
+		MaxSubqueries:             nil, // todo
+		AllowFullScan:             nil, // todo
+		AllowJoinWithoutIndex:     nil, // todo
+		UdfRegistryPath:           nil, // todo
+		MemoryLimitPerNode:        nil, // todo
+		ExecutionPool:             nil, // todo
+		ReplicaConsistency:        nil, // todo
+		PlaceholderValues:         placeholderValues,
+		UseCanonicalNullRelations: opts.UseCanonicalNullRelations,
 
 		SuppressableAccessTrackingOptions: nil, // todo
 	}

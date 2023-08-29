@@ -48,8 +48,9 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
             column.Evaluator = Profile(
                 column.Expression,
                 schema,
-                nullptr,
+                /*id*/ nullptr,
                 &column.Variables,
+                /*useCanonicalNullRelations*/ false,
                 profilers)();
 
             for (const auto& reference : references) {

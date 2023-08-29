@@ -1159,9 +1159,10 @@ type DeleteRowsOptions struct {
 }
 
 type SelectRowsOptions struct {
-	FailOnIncompleteResult *bool `http:"fail_on_incomplete_result,omitnil"`
-	InputRowLimit          *int  `http:"input_row_limit,omitnil"`
-	OutputRowLimit         *int  `http:"output_row_limit,omitnil"`
+	FailOnIncompleteResult    *bool `http:"fail_on_incomplete_result,omitnil"`
+	InputRowLimit             *int  `http:"input_row_limit,omitnil"`
+	OutputRowLimit            *int  `http:"output_row_limit,omitnil"`
+	UseCanonicalNullRelations *bool `http:"use_canonical_null_relations,omitnil"`
 
 	Timestamp *Timestamp `http:"timestamp,omitnil"`
 

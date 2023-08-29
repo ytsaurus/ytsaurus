@@ -1398,6 +1398,10 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     const auto& query = fragment->Query;
     const auto& dataSource = fragment->DataSource;
 
+    THROW_ERROR_EXCEPTION_IF(
+        query->GetTableSchema()->HasComputedColumns() && options.UseCanonicalNullRelations,
+        "Currently queries with canonical null relations aren't allowed on tables with computed columns");
+
     for (size_t index = 0; index < query->JoinClauses.size(); ++index) {
         if (query->JoinClauses[index]->ForeignKeyPrefix == 0 && !options.AllowJoinWithoutIndex) {
             const auto& ast = std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);
@@ -1480,6 +1484,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     queryOptions.ExecutionPool = options.ExecutionPool;
     queryOptions.Deadline = options.Timeout.value_or(Connection_->GetConfig()->DefaultSelectRowsTimeout).ToDeadLine();
     queryOptions.SuppressAccessTracking = options.SuppressAccessTracking;
+    queryOptions.UseCanonicalNullRelations = options.UseCanonicalNullRelations;
 
     IUnversionedRowsetWriterPtr writer;
     TFuture<IUnversionedRowsetPtr> asyncRowset;

@@ -964,7 +964,7 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
         TCGVariables variables;
 
         EXPECT_THROW_THAT({
-            auto codegen = Profile(expr, schema, nullptr, &variables, FunctionProfilers_);
+            auto codegen = Profile(expr, schema, nullptr, &variables, false, FunctionProfilers_);
             auto callback = codegen();
         }, HasSubstr("LLVM bitcode"));
     }
@@ -975,7 +975,7 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
         TCGVariables variables;
 
         EXPECT_THROW_THAT({
-            auto codegen = Profile(expr, schema, nullptr, &variables, FunctionProfilers_);
+            auto codegen = Profile(expr, schema, nullptr, &variables, false, FunctionProfilers_);
             auto callback = codegen();
         }, HasSubstr("LLVM bitcode"));
     }
@@ -986,7 +986,7 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
         TCGVariables variables;
 
         EXPECT_THROW_THAT({
-            auto codegen = Profile(expr, schema, nullptr, &variables, FunctionProfilers_);
+            auto codegen = Profile(expr, schema, nullptr, &variables, false, FunctionProfilers_);
             auto callback = codegen();
         }, HasSubstr("LLVM bitcode"));
     }
@@ -1443,7 +1443,8 @@ protected:
         const TResultMatcher& resultMatcher,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
         i64 outputRowLimit = std::numeric_limits<i64>::max(),
-        NYson::TYsonStringBuf placeholderValues = {})
+        NYson::TYsonStringBuf placeholderValues = {},
+        bool useCanonicalNullRelations = false)
     {
         return BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .AsyncVia(ActionQueue_->GetInvoker())
@@ -1455,7 +1456,8 @@ protected:
                 inputRowLimit,
                 outputRowLimit,
                 false,
-                placeholderValues)
+                placeholderValues,
+                useCanonicalNullRelations)
             .Get()
             .ValueOrThrow();
     }
@@ -1486,7 +1488,8 @@ protected:
         const TResultMatcher& resultMatcher,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
         i64 outputRowLimit = std::numeric_limits<i64>::max(),
-        NYson::TYsonStringBuf placeholderValues = {})
+        NYson::TYsonStringBuf placeholderValues = {},
+        bool useCanonicalNullRelations = false)
     {
         std::vector<std::vector<TString>> owningSources = {
             owningSourceRows
@@ -1502,7 +1505,8 @@ protected:
             resultMatcher,
             inputRowLimit,
             outputRowLimit,
-            placeholderValues);
+            placeholderValues,
+            useCanonicalNullRelations);
     }
 
     TQueryPtr Evaluate(
@@ -1512,7 +1516,8 @@ protected:
         const TResultMatcher& resultMatcher,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
         i64 outputRowLimit = std::numeric_limits<i64>::max(),
-        NYson::TYsonStringBuf placeholderValues = {})
+        NYson::TYsonStringBuf placeholderValues = {},
+        bool useCanonicalNullRelations = false)
     {
         return EvaluateWithQueryStatistics(
             query,
@@ -1521,7 +1526,8 @@ protected:
             resultMatcher,
             inputRowLimit,
             outputRowLimit,
-            placeholderValues).first;
+            placeholderValues,
+            useCanonicalNullRelations).first;
     }
 
     TQueryPtr EvaluateExpectingError(
@@ -1530,7 +1536,8 @@ protected:
         const std::vector<TString>& owningSourceRows,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
         i64 outputRowLimit = std::numeric_limits<i64>::max(),
-        NYson::TYsonStringBuf placeholderValues = {})
+        NYson::TYsonStringBuf placeholderValues = {},
+        bool useCanonicalNullRelations = false)
     {
         std::vector<std::vector<TString>> owningSources = {
             owningSourceRows
@@ -1551,7 +1558,8 @@ protected:
                 inputRowLimit,
                 outputRowLimit,
                 true,
-                placeholderValues)
+                placeholderValues,
+                useCanonicalNullRelations)
             .Get()
             .ValueOrThrow().first;
     }
@@ -1588,13 +1596,15 @@ protected:
         i64 inputRowLimit,
         i64 outputRowLimit,
         bool failure,
-        NYson::TYsonStringBuf placeholderValues)
+        NYson::TYsonStringBuf placeholderValues,
+        bool useCanonicalNullRelations)
     {
         auto primaryQuery = Prepare(query, dataSplits, placeholderValues);
 
         TQueryBaseOptions options;
         options.InputRowLimit = inputRowLimit;
         options.OutputRowLimit = outputRowLimit;
+        options.UseCanonicalNullRelations = useCanonicalNullRelations;
 
         size_t sourceIndex = 1;
 
@@ -1836,6 +1846,35 @@ TEST_F(TQueryEvaluateTest, FilterNulls2)
     }, split);
 
     Evaluate("a, b FROM [//t] where b > 0 or is_null(b)", split, source, ResultMatcher(result));
+}
+
+TEST_F(TQueryEvaluateTest, FilterNulls3)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<TString> source = {
+        "a=4;b=5",
+        "a=6",
+        "a=10;b=11"
+    };
+
+    auto result = YsonToRows({
+        "a=4;b=5",
+        "a=10;b=11"
+    }, split);
+
+    Evaluate(
+        "a, b FROM [//t] where a < b is not null",
+        split,
+        source,
+        ResultMatcher(result),
+        std::numeric_limits<i64>::max(),
+        std::numeric_limits<i64>::max(),
+        {},
+        true);
 }
 
 TEST_F(TQueryEvaluateTest, SimpleCmpInt)

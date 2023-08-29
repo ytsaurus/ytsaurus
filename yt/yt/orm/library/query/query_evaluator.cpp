@@ -41,8 +41,9 @@ std::unique_ptr<TQueryEvaluationContext> CreateQueryEvaluationContext(
     context->ExpressionCallback = Profile(
         context->Expression,
         schema,
-        nullptr,
+        /*id*/ nullptr,
         &context->Variables,
+        /*useCanonicalNullRelations*/ false,
         GetBuiltinFunctionProfilers())();
 
     // YTORM-553 Initialize variables.

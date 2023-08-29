@@ -3555,6 +3555,9 @@ private:
         if (request->has_placeholder_values()) {
             options.PlaceholderValues = NYson::TYsonString(request->placeholder_values());
         }
+        if (request->has_use_canonical_null_relations()) {
+            options.UseCanonicalNullRelations = request->use_canonical_null_relations();
+        }
         auto detailedProfilingInfo = New<TDetailedProfilingInfo>();
         options.DetailedProfilingInfo = detailedProfilingInfo;
 

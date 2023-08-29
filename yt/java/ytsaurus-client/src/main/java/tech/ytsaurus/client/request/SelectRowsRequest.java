@@ -37,6 +37,8 @@ public class SelectRowsRequest
     private final Boolean allowFullScan;
     @Nullable
     private final Long rangeExpansionLimit;
+    @Nullable
+    private final Boolean useCanonicalNullRelations;
 
     public SelectRowsRequest(BuilderBase<?> builder) {
         super(builder);
@@ -52,6 +54,7 @@ public class SelectRowsRequest
         this.executionPool = builder.executionPool;
         this.allowFullScan = builder.allowFullScan;
         this.rangeExpansionLimit = builder.rangeExpansionLimit;
+        this.useCanonicalNullRelations = builder.useCanonicalNullRelations;
     }
 
     private SelectRowsRequest(String query) {
@@ -114,6 +117,10 @@ public class SelectRowsRequest
         return Optional.ofNullable(rangeExpansionLimit);
     }
 
+    public Optional<Boolean> getUseCanonicalNullRelations() {
+        return Optional.ofNullable(useCanonicalNullRelations);
+    }
+
     /**
      * Internal method: prepare request to send over network.
      */
@@ -152,6 +159,9 @@ public class SelectRowsRequest
         }
         if (getRangeExpansionLimit().isPresent()) {
             builder.body().setRangeExpansionLimit(getRangeExpansionLimit().get());
+        }
+        if (getUseCanonicalNullRelations().isPresent()) {
+            builder.body().setUseCanonicalNullRelations(getUseCanonicalNullRelations().get());
         }
     }
 
@@ -203,6 +213,9 @@ public class SelectRowsRequest
         if (rangeExpansionLimit != null) {
             builder.setRangeExpansionLimit(rangeExpansionLimit);
         }
+        if (useCanonicalNullRelations != null) {
+            builder.setUseCanonicalNullRelations(useCanonicalNullRelations);
+        }
         return builder;
     }
 
@@ -240,6 +253,8 @@ public class SelectRowsRequest
         private Boolean allowFullScan;
         @Nullable
         private Long rangeExpansionLimit;
+        @Nullable
+        private Boolean useCanonicalNullRelations;
 
         public BuilderBase() {
         }
@@ -258,6 +273,7 @@ public class SelectRowsRequest
             executionPool = builder.executionPool;
             allowFullScan = builder.allowFullScan;
             rangeExpansionLimit = builder.rangeExpansionLimit;
+            useCanonicalNullRelations = builder.useCanonicalNullRelations;
         }
 
         public TBuilder setQuery(String query) {
@@ -320,6 +336,11 @@ public class SelectRowsRequest
             return self();
         }
 
+        public TBuilder setUseCanonicalNullRelations(boolean useCanonicalNullRelations) {
+            this.useCanonicalNullRelations = useCanonicalNullRelations;
+            return self();
+        }
+
         public String getQuery() {
             return Objects.requireNonNull(query);
         }
@@ -366,6 +387,10 @@ public class SelectRowsRequest
 
         public Optional<Long> getRangeExpansionLimit() {
             return Optional.ofNullable(rangeExpansionLimit);
+        }
+
+        public Optional<Boolean> getUseCanonicalNullRelations() {
+            return Optional.ofNullable(useCanonicalNullRelations);
         }
 
         @Override

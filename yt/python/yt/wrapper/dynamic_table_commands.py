@@ -181,7 +181,7 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
                 fail_on_incomplete_result=None, verbose_logging=None, enable_code_cache=None, max_subqueries=None,
                 workload_descriptor=None, allow_full_scan=None, allow_join_without_index=None, format=None, raw=None,
                 execution_pool=None, response_parameters=None, retention_timestamp=None, placeholder_values=None,
-                client=None):
+                use_canonical_null_relations=None, client=None):
     """Executes a SQL-like query on dynamic table.
 
     .. seealso:: `supported features <https://ytsaurus.tech/docs/en/user-guide/dynamic-tables/dyn-query-language>`_
@@ -215,6 +215,7 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
     set_param(params, "timeout", get_config(client)["proxy"]["heavy_request_timeout"])
     set_param(params, "enable_statistics", response_parameters is not None)
     set_param(params, "placeholder_values", placeholder_values)
+    set_param(params, "use_canonical_null_relations", use_canonical_null_relations)
 
     _check_transaction_type(client)
 

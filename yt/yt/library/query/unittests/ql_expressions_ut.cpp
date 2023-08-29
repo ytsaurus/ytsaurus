@@ -702,6 +702,28 @@ INSTANTIATE_TEST_SUITE_P(
             "not a = 2"),
         std::tuple<TConstExpressionPtr, const char*>(
             Make<TBinaryOpExpression>(EBinaryOp::Or,
+                Make<TBinaryOpExpression>(EBinaryOp::Equal,
+                    Make<TReferenceExpression>("a"),
+                    Make<TLiteralExpression>(MakeInt64(0))),
+                Make<TFunctionExpression>("is_null",
+                    std::initializer_list<TConstExpressionPtr>({
+                        Make<TReferenceExpression>("b")}))),
+            "a = 0 or b is null"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            Make<TFunctionExpression>("is_null",
+                std::initializer_list<TConstExpressionPtr>({
+                    Make<TBinaryOpExpression>(EBinaryOp::Equal,
+                        Make<TReferenceExpression>("a"),
+                        Make<TReferenceExpression>("b"))})),
+            "a = b is null"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            Make<TUnaryOpExpression>(EUnaryOp::Not,
+                Make<TFunctionExpression>("is_null",
+                    std::initializer_list<TConstExpressionPtr>({
+                            Make<TReferenceExpression>("a")}))),
+            "not a is null"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            Make<TBinaryOpExpression>(EBinaryOp::Or,
                 Make<TBinaryOpExpression>(EBinaryOp::GreaterOrEqual,
                     Make<TReferenceExpression>("a"),
                     Make<TLiteralExpression>(MakeInt64(3))),
@@ -1663,23 +1685,46 @@ TEST_P(TCompareWithNullTest, Simple)
     auto& param = GetParam();
     auto& rowString = std::get<0>(param);
     auto& exprString = std::get<1>(param);
-    auto& expected = std::get<2>(param);
+    auto& nonCanonExpected = std::get<2>(param);
+    auto canonExpected = MakeNull();
 
-    TUnversionedValue result{};
+    TUnversionedValue nonCanonResult{};
+    TUnversionedValue canonResult{};
     TCGVariables variables;
     auto schema = GetSampleTableSchema();
 
-    auto row = YsonToSchemafulRow(rowString, *schema, true);
+    auto row = YsonToSchemafulRow(rowString, *schema, /*treatMissingAsNull*/ true);
     auto expr = PrepareExpression(exprString, *schema);
-    auto callback = Profile(expr, schema, nullptr, &variables)();
 
-    auto buffer = New<TRowBuffer>();
+    llvm::FoldingSetNodeID nonCanonId, canonId;
 
-    callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, row.Elements(), buffer.Get());
+    {
+        auto callback = Profile(expr, schema, &nonCanonId, &variables, /*useCanonicalNullRelations*/ false)();
 
-    EXPECT_EQ(result, expected)
+        auto buffer = New<TRowBuffer>();
+
+        callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &nonCanonResult, row.Elements(), buffer.Get());
+    }
+
+    {
+        auto callback = Profile(expr, schema, &canonId, &variables, /*useCanonicalNullRelations*/ true)();
+
+        auto buffer = New<TRowBuffer>();
+
+        callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &canonResult, row.Elements(), buffer.Get());
+    }
+
+    EXPECT_NE(nonCanonId, canonId);
+
+    EXPECT_EQ(nonCanonResult, nonCanonExpected)
         << "row: " << ::testing::PrintToString(rowString) << std::endl
-        << "expr: " << ::testing::PrintToString(exprString) << std::endl;
+        << "expr: " << ::testing::PrintToString(exprString) << std::endl
+        << "non-canonical null relations" << std::endl;
+
+    EXPECT_EQ(canonResult, canonExpected)
+        << "row: " << ::testing::PrintToString(rowString) << std::endl
+        << "expr: " << ::testing::PrintToString(exprString) << std::endl
+        << "canonical null relations" << std::endl;
 }
 
 INSTANTIATE_TEST_SUITE_P(

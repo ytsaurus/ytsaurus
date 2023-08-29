@@ -42,6 +42,7 @@ typedef TParser::token_type TToken;
     kw_on = 'on'i;
     kw_and = 'and'i;
     kw_or = 'or'i;
+    kw_is = 'is'i;
     kw_not = 'not'i;
     kw_null = 'null'i;
     kw_between = 'between'i;
@@ -53,7 +54,7 @@ typedef TParser::token_type TToken;
     kw_yson_true = '%true'i;
 
     keyword = kw_select | kw_from | kw_where | kw_having | kw_offset | kw_limit | kw_join | kw_using | kw_group_by
-        | kw_with_totals | kw_order_by | kw_asc | kw_desc | kw_left | kw_as | kw_on | kw_and | kw_or | kw_not
+        | kw_with_totals | kw_order_by | kw_asc | kw_desc | kw_left | kw_as | kw_on | kw_and | kw_or | kw_is | kw_not
         | kw_null | kw_between | kw_in | kw_transform | kw_false | kw_true | kw_yson_false | kw_yson_true;
 
     identifier = [a-zA-Z_][a-zA-Z_0-9]* - keyword;
@@ -109,6 +110,7 @@ typedef TParser::token_type TToken;
         kw_on => { type = TToken::KwOn; fbreak; };
         kw_and => { type = TToken::KwAnd; fbreak; };
         kw_or => { type = TToken::KwOr; fbreak; };
+        kw_is => { type = TToken::KwIs; fbreak; };
         kw_not => { type = TToken::KwNot; fbreak; };
         kw_null => { type = TToken::KwNull; fbreak; };
         kw_between => { type = TToken::KwBetween; fbreak; };

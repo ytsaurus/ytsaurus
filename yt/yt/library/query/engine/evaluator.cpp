@@ -102,7 +102,8 @@ public:
                 functionProfilers,
                 aggregateProfilers,
                 statistics,
-                options.EnableCodeCache);
+                options.EnableCodeCache,
+                options.UseCanonicalNullRelations);
 
             auto finalizer = Finally([&] () {
                 fragmentParams.Clear();
@@ -161,7 +162,8 @@ private:
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
         TQueryStatistics& statistics,
-        bool enableCodeCache)
+        bool enableCodeCache,
+        bool useCanonicalNullRelations)
     {
         llvm::FoldingSetNodeID id;
 
@@ -170,6 +172,7 @@ private:
             &id,
             &variables,
             joinProfiler,
+            useCanonicalNullRelations,
             functionProfilers,
             aggregateProfilers);
 

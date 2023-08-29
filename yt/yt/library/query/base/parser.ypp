@@ -82,6 +82,7 @@
 
 %token KwAnd "keyword `AND`"
 %token KwOr "keyword `OR`"
+%token KwIs "keyword `IS`"
 %token KwNot "keyword `NOT`"
 %token KwNull "keyword `NULL`"
 %token KwBetween "keyword `BETWEEN`"
@@ -144,6 +145,7 @@
 %type <TExpressionList> or-op-expr
 %type <TExpressionList> and-op-expr
 %type <TExpressionList> not-op-expr
+%type <TExpressionList> is-null-op-expr
 %type <TExpressionList> equal-op-expr
 %type <TExpressionList> relational-op-expr
 %type <TExpressionList> bitor-op-expr
@@ -410,9 +412,23 @@ and-op-expr
 ;
 
 not-op-expr
-    : KwNot equal-op-expr[expr]
+    : KwNot is-null-op-expr[expr]
         {
             $$ = MakeExpression<TUnaryOpExpression>(head, @$, EUnaryOp::Not, $expr);
+        }
+    | is-null-op-expr
+        { $$ = $1; }
+;
+
+is-null-op-expr
+    : equal-op-expr[expr] KwIs KwNull
+        {
+            $$ = MakeExpression<TFunctionExpression>(head, @$, "is_null", $expr);
+        }
+    | equal-op-expr[expr] KwIs KwNot KwNull
+        {
+            $$ = MakeExpression<TUnaryOpExpression>(head, @$, EUnaryOp::Not,
+                MakeExpression<TFunctionExpression>(head, @$, "is_null", $expr));
         }
     | equal-op-expr
         { $$ = $1; }

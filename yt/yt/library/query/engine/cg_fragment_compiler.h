@@ -110,7 +110,8 @@ TCodegenExpression MakeCodegenBinaryOpExpr(
     size_t lhsId,
     size_t rhsId,
     EValueType type,
-    TString name);
+    TString name,
+    bool useCanonicalNullRelations);
 
 TCodegenExpression MakeCodegenInExpr(
     std::vector<size_t> argIds,

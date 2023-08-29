@@ -339,11 +339,13 @@ public:
     TExpressionProfiler(
         llvm::FoldingSetNodeID* id,
         TCGVariables* variables,
-        const TConstFunctionProfilerMapPtr& functionProfilers)
+        const TConstFunctionProfilerMapPtr& functionProfilers,
+        bool useCanonicalNullRelations)
         : TSchemaProfiler(id)
         , Variables_(variables)
         , FunctionProfilers_(functionProfilers)
         , ComparerManager_(MakeComparerManager())
+        , UseCanonicalNullRelations_(useCanonicalNullRelations)
     {
         YT_VERIFY(Variables_);
     }
@@ -407,6 +409,7 @@ protected:
     TCGVariables* const Variables_;
     const TConstFunctionProfilerMapPtr FunctionProfilers_;
     const TComparerManagerPtr ComparerManager_;
+    const bool UseCanonicalNullRelations_;
 };
 
 size_t* TryGetSubexpressionRef(
@@ -581,6 +584,7 @@ size_t TExpressionProfiler::Profile(
     id.AddInteger(static_cast<int>(EFoldingObjectType::BinaryOpExpr));
     id.AddInteger(static_cast<ui8>(binaryOp->GetWireType()));
     id.AddInteger(static_cast<int>(binaryOp->Opcode));
+    id.AddInteger(UseCanonicalNullRelations_);
 
     size_t lhsOperand = Profile(binaryOp->Lhs, schema, fragments, isolated);
     id.AddInteger(lhsOperand);
@@ -595,7 +599,7 @@ size_t TExpressionProfiler::Profile(
     ++fragments->Items[lhsOperand].UseCount;
     ++fragments->Items[rhsOperand].UseCount;
     fragments->DebugInfos.emplace_back(binaryOp, std::vector<size_t>{lhsOperand, rhsOperand});
-    bool nullable = IsRelationalBinaryOp(binaryOp->Opcode)
+    bool nullable = IsRelationalBinaryOp(binaryOp->Opcode) && !UseCanonicalNullRelations_
         ? false
         : fragments->Items[lhsOperand].Nullable || fragments->Items[rhsOperand].Nullable;
     fragments->Items.emplace_back(MakeCodegenBinaryOpExpr(
@@ -603,7 +607,8 @@ size_t TExpressionProfiler::Profile(
         lhsOperand,
         rhsOperand,
         binaryOp->GetWireType(),
-        "{" + InferName(binaryOp, true) + "}"),
+        "{" + InferName(binaryOp, true) + "}",
+        UseCanonicalNullRelations_),
         binaryOp->GetWireType(),
         nullable);
     return fragments->Items.size() - 1;
@@ -796,8 +801,9 @@ public:
         llvm::FoldingSetNodeID* id,
         TCGVariables* variables,
         const TConstFunctionProfilerMapPtr& functionProfilers,
-        const TConstAggregateProfilerMapPtr& aggregateProfilers)
-        : TExpressionProfiler(id, variables, functionProfilers)
+        const TConstAggregateProfilerMapPtr& aggregateProfilers,
+        bool useCanonicalNullRelations)
+        : TExpressionProfiler(id, variables, functionProfilers, useCanonicalNullRelations)
         , AggregateProfilers_(aggregateProfilers)
     { }
 
@@ -1470,9 +1476,10 @@ TCGExpressionCallbackGenerator Profile(
     const TTableSchemaPtr& schema,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
+    bool useCanonicalNullRelations,
     const TConstFunctionProfilerMapPtr& functionProfilers)
 {
-    TExpressionProfiler profiler(id, variables, functionProfilers);
+    TExpressionProfiler profiler(id, variables, functionProfilers, useCanonicalNullRelations);
     TExpressionFragments fragments;
     auto exprId = profiler.Profile(expr, schema, &fragments);
 
@@ -1490,10 +1497,11 @@ TCGQueryCallbackGenerator Profile(
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
     TJoinSubqueryProfiler joinProfiler,
+    bool useCanonicalNullRelations,
     const TConstFunctionProfilerMapPtr& functionProfilers,
     const TConstAggregateProfilerMapPtr& aggregateProfilers)
 {
-    TQueryProfiler profiler(id, variables, functionProfilers, aggregateProfilers);
+    TQueryProfiler profiler(id, variables, functionProfilers, aggregateProfilers, useCanonicalNullRelations);
 
     size_t slotCount = 0;
     TCodegenSource codegenSource = &CodegenEmptyOp;
