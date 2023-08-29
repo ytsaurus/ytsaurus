@@ -202,6 +202,8 @@ TIndexedEntries<TBundleControllerState> MergeBundleStates(
 
 TString GetPodIdForInstance(const TString& name);
 
+TString GetInstanceSize(const TInstanceResourcesPtr& resource);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCellBalancer

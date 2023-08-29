@@ -7,6 +7,7 @@
 #include <util/string/subst.h>
 
 #include <compare>
+#include <cmath>
 
 namespace NYT::NCellBalancer {
 
@@ -934,6 +935,14 @@ THashMap<TString, TString> MapBundlesToShortNames(const TSchedulerInputState& in
     return bundleToShortName;
 }
 
+TString GetInstanceSize(const TInstanceResourcesPtr& resource)
+{
+    auto cpuCores = resource->Vcpu / 1000;
+    auto memoryGB = resource->Memory / 1_GB;
+
+    return Format("%vCPUx%vGB", cpuCores, memoryGB);
+}
+
 void CalculateResourceUsage(TSchedulerInputState& input)
 {
     THashMap<TString, TInstanceResourcesPtr> aliveResources;
@@ -951,7 +960,7 @@ void CalculateResourceUsage(TSchedulerInputState& input)
             const auto& resource = instanceInfo->Annotations->Resource;
             target->Vcpu += resource->Vcpu;
             target->Memory += resource->Memory;
-            ++countBySize[resource->Type];
+            ++countBySize[GetInstanceSize(resource)];
         }
     };
 
@@ -1483,9 +1492,11 @@ THashMap<TString, TZoneDisruptedState> GetZoneDisruptedState(TSchedulerInputStat
                 continue;
             }
 
-            YT_LOG_DEBUG("Node is offline (NodeName: %v, NannyService: %v)",
+            YT_LOG_DEBUG("Node is offline (NodeName: %v, NannyService: %v, Banned: %v, LastSeen: %v)",
                 nodeName,
-                nodeInfo->Annotations->NannyService);
+                nodeInfo->Annotations->NannyService,
+                nodeInfo->Banned,
+                nodeInfo->LastSeenTime);
 
             ++zoneOfflineNodeCount[zoneName];
         }
