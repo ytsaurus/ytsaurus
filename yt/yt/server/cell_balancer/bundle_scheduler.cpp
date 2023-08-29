@@ -1117,6 +1117,13 @@ THashMap<TString, THashSet<TString>> GetAliveNodes(
                 (bundleState->BundleNodeAssignments.count(nodeName) != 0 ||
                 bundleState->BundleNodeReleasements.count(nodeName) != 0);
 
+            if (nodeInfo->DisableTabletCells) {
+                YT_LOG_DEBUG("Tablet cells are disabled for the node (BundleName: %v, Node: %v)",
+                    bundleName,
+                    nodeName);
+                continue;
+            }
+
             if (!bundleInfo->NodeTagFilter.empty() && nodeInfo->Decommissioned && !internallyDecommissioned) {
                 YT_LOG_DEBUG("Node is externally decommissioned (BundleName: %v, Node: %v)",
                     bundleName,
