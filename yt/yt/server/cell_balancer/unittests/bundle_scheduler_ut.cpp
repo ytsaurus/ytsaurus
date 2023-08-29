@@ -3478,6 +3478,107 @@ TEST(TBundleSchedulerTest, DontRemoveTabletNodeCypressNodesFromBB)
     EXPECT_EQ(0, std::ssize(mutations.NodesToCleanup));
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TBundleSchedulerTest, CreateNewCellsCreationMultiPeer)
+{
+    auto input = GenerateSimpleInputContext(2, 5);
+    TSchedulerMutations mutations;
+
+    GenerateNodesForBundle(input, "bigd", 2);
+    GenerateTabletCellsForBundle(input, "bigd", 3);
+    const auto& bundleInfo = input.Bundles["bigd"];
+    bundleInfo->Options->PeerCount = 2;
+
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    EXPECT_EQ(0, std::ssize(mutations.CellsToRemove));
+    EXPECT_EQ(1, std::ssize(mutations.CellsToCreate));
+
+    EXPECT_EQ(2, mutations.CellsToCreate.at("bigd"));
+}
+
+TEST(TBundleSchedulerTest, CreateNewCellsNoRemoveNoCreateMultiPeer)
+{
+    auto input = GenerateSimpleInputContext(2, 5);
+    TSchedulerMutations mutations;
+
+    GenerateNodesForBundle(input, "bigd", 2);
+    GenerateTabletCellsForBundle(input, "bigd", 5);
+    const auto& bundleInfo = input.Bundles["bigd"];
+    bundleInfo->Options->PeerCount = 2;
+
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    EXPECT_EQ(0, std::ssize(mutations.CellsToCreate));
+    EXPECT_EQ(0, std::ssize(mutations.CellsToRemove));
+}
+
+TEST(TBundleSchedulerTest, CreateNewCellsRemoveMultiPeer)
+{
+    auto input = GenerateSimpleInputContext(2, 5);
+    TSchedulerMutations mutations;
+
+    GenerateNodesForBundle(input, "bigd", 2);
+    GenerateTabletCellsForBundle(input, "bigd", 13);
+    const auto& bundleInfo = input.Bundles["bigd"];
+    bundleInfo->Options->PeerCount = 2;
+
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    EXPECT_EQ(0, std::ssize(mutations.CellsToCreate));
+    EXPECT_EQ(8, std::ssize(mutations.CellsToRemove));
+}
+
+TEST(TNodeTagsFilterManager, TestMultiPeerBundleLookingForSpare)
+{
+    auto input = GenerateSimpleInputContext(0, 5);
+    auto& bundleInfo = input.Bundles["bigd"];
+    bundleInfo->EnableNodeTagFilterManagement = true;
+    GenerateNodesForBundle(input, "bigd", 1, SetNodeTagFilters);
+
+    static constexpr int PeerCount = 3;
+
+    GenerateTabletCellsForBundle(input, "bigd", 5, PeerCount);
+    bundleInfo->Options->PeerCount = PeerCount;
+    bundleInfo->TargetConfig->MemoryLimits->TabletStatic = 212212;
+
+    // Generate Spare nodes
+    auto zoneInfo = input.Zones["default-zone"];
+    zoneInfo->SpareTargetConfig->TabletNodeCount = 4;
+    auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 4, false, 0);
+
+    for (const auto& nodeName : spareNodes) {
+        const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+        nodeInfo->TabletSlots.clear();
+    }
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(2, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(2, std::ssize(mutations.ChangedNodeUserTags));
+    EXPECT_EQ(2, std::ssize(input.ZoneToSpareNodes["default-zone"].FreeNodes));
+    ApplyChangedStates(&input, mutations);
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    auto& zoneSpare = input.ZoneToSpareNodes["default-zone"];
+    EXPECT_EQ(2, std::ssize(zoneSpare.FreeNodes));
+    EXPECT_EQ(2, std::ssize(zoneSpare.UsedByBundle.at("bigd")));
+    EXPECT_EQ(0, std::ssize(zoneSpare.ReleasingByBundle));
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

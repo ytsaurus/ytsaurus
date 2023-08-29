@@ -1102,7 +1102,7 @@ struct TNodeRemoveOrder
 int GetTargetCellCount(const TBundleInfoPtr& bundleInfo)
 {
     const auto& targetConfig = bundleInfo->TargetConfig;
-    return targetConfig->TabletNodeCount * targetConfig->CpuLimits->WriteThreadPoolSize;
+    return targetConfig->TabletNodeCount * targetConfig->CpuLimits->WriteThreadPoolSize / bundleInfo->Options->PeerCount;
 }
 
 bool EnsureNodeDecommissioned(
@@ -1401,7 +1401,8 @@ void ManageSystemAccountLimit(const TSchedulerInputState& input, TSchedulerMutat
         }
 
         int cellCount = std::max<int>(GetTargetCellCount(bundleInfo), std::ssize(bundleInfo->TabletCellIds));
-        AddQuotaChanges(bundleName, bundleInfo, input, cellCount, quotaChanges);
+        int cellPeerCount = cellCount * bundleInfo->Options->PeerCount;
+        AddQuotaChanges(bundleName, bundleInfo, input, cellPeerCount, quotaChanges);
     }
 
     if (quotaChanges.empty()) {
