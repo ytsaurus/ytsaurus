@@ -30,11 +30,11 @@ TSpareProxiesInfo GetSpareProxiesInfo(
     }
 
     const auto& spareProxies = spareProxiesIt->second;
-    auto aliveProxies = GetAliveProxies(spareProxies, input, EGracePeriodBehaviour::Immediately);
+    auto aliveProxies = FlattenAliveInstancies(GetAliveProxies(spareProxies, input, EGracePeriodBehaviour::Immediately));
 
     TSpareProxiesInfo result;
 
-    for (const auto& spareProxy : spareProxies) {
+    for (const auto& spareProxy : aliveProxies) {
         auto proxyInfo = GetOrCrash(input.RpcProxies, spareProxy);
         TString bundleName;
 
@@ -102,13 +102,13 @@ void TryAssignSpareProxies(
 
 void SetProxyRole(
     const TString& bundleName,
-    const std::vector<TString>& bundleProxies,
+    const TDataCenterToInstanceMap& bundleProxies,
     const TSchedulerInputState& input,
     TSpareProxiesInfo& spareProxies,
     TSchedulerMutations* mutations)
 {
     const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
-    auto aliveProxies = GetAliveProxies(bundleProxies, input, EGracePeriodBehaviour::Immediately);
+    auto aliveProxies = FlattenAliveInstancies(GetAliveProxies(bundleProxies, input, EGracePeriodBehaviour::Immediately));
 
     TString proxyRole = bundleInfo->RpcProxyRole ? *bundleInfo->RpcProxyRole : bundleName;
 

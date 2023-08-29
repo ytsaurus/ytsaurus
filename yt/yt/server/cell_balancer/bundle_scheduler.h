@@ -17,6 +17,8 @@ struct TSpareNodesInfo
     THashMap<TString, std::vector<TString>> ReleasingByBundle;
 };
 
+using TPerDataCenterSpareNodesInfo = THashMap<TString, TSpareNodesInfo>;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSpareProxiesInfo
@@ -36,9 +38,11 @@ struct TInstanceRackInfo
     int RequiredSpareNodesCount = 0;
 };
 
+using TDataCenterRackInfo = THashMap<TString, TInstanceRackInfo>;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TZoneDisruptedState
+struct TDataCenterDisruptedState
 {
     int OfflineNodeCount = 0;
     int OfflineNodeThreshold = 0;
@@ -55,6 +59,15 @@ struct TZoneDisruptedState
     {
         return OfflineProxyThreshold > 0 && OfflineProxyCount > OfflineProxyThreshold;
     }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TDataCenterToInstanceMap = THashMap<TString, std::vector<TString>>;
+
+struct TZoneToInstanceInfo
+{
+    TDataCenterToInstanceMap PerDataCenter;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -76,20 +89,22 @@ struct TSchedulerInputState
     TIndexedEntries<TSystemAccount> SystemAccounts;
     TSystemAccountPtr RootSystemAccount;
 
-    using TBundleToInstanceMapping = THashMap<TString, std::vector<TString>>;
+    using TBundleToInstanceMapping = THashMap<TString, TDataCenterToInstanceMap>;
     TBundleToInstanceMapping BundleNodes;
     TBundleToInstanceMapping BundleProxies;
 
     THashMap<TString, TString> PodIdToInstanceName;
 
-    using TZoneToInstanceMap = THashMap<TString, std::vector<TString>>;
+    using TZoneToInstanceMap = THashMap<TString, TZoneToInstanceInfo>;
     TZoneToInstanceMap ZoneNodes;
     TZoneToInstanceMap ZoneProxies;
-    THashMap<TString, TInstanceRackInfo> ZoneToRacks;
+
+    THashMap<TString, TDataCenterRackInfo> ZoneToRacks;
 
     TBundlesDynamicConfig DynamicConfig;
 
-    THashMap<TString, TSpareNodesInfo> ZoneToSpareNodes;
+    THashMap<TString, TPerDataCenterSpareNodesInfo> ZoneToSpareNodes;
+
     THashMap<TString, TSpareProxiesInfo> ZoneToSpareProxies;
 
     THashMap<TString, TInstanceResourcesPtr> BundleResourceAlive;
@@ -102,7 +117,8 @@ struct TSchedulerInputState
     THashMap<TString, TInstanceCountBySize> AllocatedProxiesBySize;
     THashMap<TString, TInstanceCountBySize> AliveProxiesBySize;
 
-    THashMap<TString, TZoneDisruptedState> ZonesDisrupted;
+    using TQualifiedDCName = std::pair<TString, TString>;
+    THashMap<TQualifiedDCName, TDataCenterDisruptedState> DatacenterDisrupted;
 
     THashMap<TString, TString> BundleToShortName;
 };
@@ -174,14 +190,15 @@ DEFINE_ENUM(EGracePeriodBehaviour,
     ((Immediately)  (1))
 );
 
-THashSet<TString> GetAliveNodes(
+THashMap<TString, THashSet<TString>> GetAliveNodes(
     const TString& bundleName,
-    const std::vector<TString>& bundleNodes,
+    const TDataCenterToInstanceMap& bundleNodes,
     const TSchedulerInputState& input,
+    const TBundleControllerStatePtr& bundleState,
     EGracePeriodBehaviour gracePeriodBehaviour);
 
-THashSet<TString> GetAliveProxies(
-    const std::vector<TString>& bundleProxies,
+THashMap<TString, THashSet<TString>> GetAliveProxies(
+    const TDataCenterToInstanceMap& bundleProxies,
     const TSchedulerInputState& input,
     EGracePeriodBehaviour gracePeriodBehaviour);
 
@@ -203,6 +220,11 @@ TIndexedEntries<TBundleControllerState> MergeBundleStates(
 TString GetPodIdForInstance(const TString& name);
 
 TString GetInstanceSize(const TInstanceResourcesPtr& resource);
+
+// TODO(capone212): remove after
+THashSet<TString> FlattenAliveInstancies(const THashMap<TString, THashSet<TString>>& instancies);
+std::vector<TString> FlattenBundleInstancies(const THashMap<TString,std::vector<TString>>& instancies);
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

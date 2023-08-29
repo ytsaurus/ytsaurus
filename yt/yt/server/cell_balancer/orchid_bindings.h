@@ -10,7 +10,7 @@ DECLARE_REFCOUNTED_STRUCT(TInstanceInfo)
 DECLARE_REFCOUNTED_STRUCT(TAlert)
 DECLARE_REFCOUNTED_STRUCT(TAllocatingInstanceInfo)
 DECLARE_REFCOUNTED_STRUCT(TBundleInfo)
-DECLARE_REFCOUNTED_STRUCT(TZoneRacksInfo)
+DECLARE_REFCOUNTED_STRUCT(TDataCenterRacksInfo)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,6 +22,7 @@ struct TInstanceInfo
     TString PodId;
     TString YPCluster;
 
+    std::optional<TString> DataCenter;
     std::optional<bool> Removing;
 
     REGISTER_YSON_STRUCT(TInstanceInfo);
@@ -102,21 +103,22 @@ using TBundlesInfo = THashMap<TString, TBundleInfoPtr>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TZoneRacksInfo
+struct TDataCenterRacksInfo
     : public NYTree::TYsonStruct
 {
     THashMap<TString, int> RackToBundleNodes;
     THashMap<TString, int> RackToSpareNodes;
     int RequiredSpareNodesCount;
 
-    REGISTER_YSON_STRUCT(TZoneRacksInfo);
+    REGISTER_YSON_STRUCT(TDataCenterRacksInfo);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TZoneRacksInfo)
+DEFINE_REFCOUNTED_TYPE(TDataCenterRacksInfo)
 
-using TZonesRacksInfo = THashMap<TString, TZoneRacksInfoPtr>;
+using TDataCenterRackInfo = THashMap<TString, TDataCenterRacksInfoPtr>;
+using TZonesRacksInfo = THashMap<TString, TDataCenterRackInfo>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

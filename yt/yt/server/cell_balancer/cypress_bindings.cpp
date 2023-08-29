@@ -179,6 +179,18 @@ void TTabletCellInfo::Register(TRegistrar registrar)
         .Default();
 }
 
+void TDataCenterInfo::Register(TRegistrar registrar)
+{
+    registrar.Parameter("yp_cluster", &TThis::YPCluster)
+        .Default();
+    registrar.Parameter("tablet_node_nanny_service", &TThis::TabletNodeNannyService)
+        .Default();
+    registrar.Parameter("rpc_proxy_nanny_service", &TThis::RpcProxyNannyService)
+        .Default();
+    registrar.Parameter("forbidden", &TThis::Forbidden)
+        .Default(false);
+}
+
 void TBundleInfo::Register(TRegistrar registrar)
 {
     RegisterAttribute(registrar, "health", &TThis::Health)
@@ -222,15 +234,15 @@ void TBundleInfo::Register(TRegistrar registrar)
 
 void TZoneInfo::Register(TRegistrar registrar)
 {
-    RegisterAttribute(registrar, "yp_cluster", &TThis::YPCluster)
+    RegisterAttribute(registrar, "yp_cluster", &TThis::DefaultYPCluster)
         .Default();
     RegisterAttribute(registrar, "max_tablet_node_count", &TThis::MaxTabletNodeCount)
         .Default(10);
     RegisterAttribute(registrar, "max_rpc_proxy_count", &TThis::MaxRpcProxyCount)
         .Default(10);
-    RegisterAttribute(registrar, "tablet_node_nanny_service", &TThis::TabletNodeNannyService)
+    RegisterAttribute(registrar, "tablet_node_nanny_service", &TThis::DefaultTabletNodeNannyService)
         .Default();
-    RegisterAttribute(registrar, "rpc_proxy_nanny_service", &TThis::RpcProxyNannyService)
+    RegisterAttribute(registrar, "rpc_proxy_nanny_service", &TThis::DefaultRpcProxyNannyService)
         .Default();
     RegisterAttribute(registrar, "short_name", &TThis::ShortName)
         .Optional();
@@ -250,6 +262,13 @@ void TZoneInfo::Register(TRegistrar registrar)
 
     RegisterAttribute(registrar, "requires_minus_one_rack_guarantee", &TThis::RequiresMinusOneRackGuarantee)
         .Default(true);
+
+    RegisterAttribute(registrar, "redundant_data_center_count", &TThis::RedundantDataCenterCount)
+        .GreaterThanOrEqual(0)
+        .Default(0);
+
+    RegisterAttribute(registrar, "data_centers", &TThis::DataCenters)
+        .Default();
 }
 
 void TAllocationRequestSpec::Register(TRegistrar registrar)
@@ -324,6 +343,8 @@ void TBundleControllerState::Register(TRegistrar registrar)
         .Default();
     RegisterAttribute(registrar, "spare_node_assignments", &TThis::SpareNodeAssignments)
         .Default();
+    RegisterAttribute(registrar, "bundle_node_releasements", &TThis::BundleNodeReleasements)
+        .Default();
     RegisterAttribute(registrar, "spare_node_releasements", &TThis::SpareNodeReleasements)
         .Default();
 }
@@ -332,9 +353,10 @@ void TAllocationRequestState::Register(TRegistrar registrar)
 {
     registrar.Parameter("creation_time", &TThis::CreationTime)
         .Default();
-
     registrar.Parameter("pod_id_template", &TThis::PodIdTemplate)
         .Default();
+    registrar.Parameter("data_center", &TThis::DataCenter)
+        .Optional();
 }
 
 void TDeallocationRequestState::Register(TRegistrar registrar)
@@ -347,6 +369,8 @@ void TDeallocationRequestState::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("hulk_request_created", &TThis::HulkRequestCreated)
         .Default(false);
+    registrar.Parameter("data_center", &TThis::DataCenter)
+        .Optional();
 }
 
 void TRemovingTabletCellState::Register(TRegistrar registrar)
@@ -377,6 +401,8 @@ void TInstanceAnnotations::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("deallocation_strategy", &TThis::DeallocationStrategy)
         .Default();
+    registrar.Parameter("data_center", &TThis::DataCenter)
+        .Optional();
 }
 
 void TTabletSlot::Register(TRegistrar registrar)

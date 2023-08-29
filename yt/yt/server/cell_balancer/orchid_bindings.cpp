@@ -21,6 +21,8 @@ void TInstanceInfo::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("removing", &TThis::Removing)
         .Optional();
+    registrar.Parameter("data_center", &TThis::DataCenter)
+        .Optional();
 }
 
 void TAlert::Register(TRegistrar registrar)
@@ -84,7 +86,7 @@ void TBundleInfo::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TZoneRacksInfo::Register(TRegistrar registrar)
+void TDataCenterRacksInfo::Register(TRegistrar registrar)
 {
     registrar.Parameter("rack_to_bundle_nodes", &TThis::RackToBundleNodes)
         .Default();
@@ -96,8 +98,29 @@ void TZoneRacksInfo::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename TBundleToInstancies, typename TCollection>
+template <typename TBundleInstancies, typename TCollection>
 void PopulateInstancies(
+    const TBundleInstancies& bundleInstancies,
+    const TCollection& instanciesInfo,
+    THashMap<TString, TInstanceInfoPtr>& instancies)
+{
+    for (const auto& name : bundleInstancies) {
+        auto instance = New<TInstanceInfo>();
+        const auto& instanceInfo = GetOrCrash(instanciesInfo, name);
+        const auto& annotations = instanceInfo->Annotations;
+
+        instance->Resource = annotations->Resource;
+        instance->PodId = GetPodIdForInstance(name);
+        instance->YPCluster = annotations->YPCluster;
+
+        instance->DataCenter = annotations->DataCenter;
+
+        instancies[name] = instance;
+    }
+}
+
+template <typename TBundleToInstancies, typename TCollection>
+void PopulateInstanciesPerDC(
     const TString& bundleName,
     const TBundleToInstancies& bundleToInstancies,
     const TCollection& instanciesInfo,
@@ -108,17 +131,24 @@ void PopulateInstancies(
         return;
     }
 
-    for (const auto& name : it->second) {
-        auto instance = New<TInstanceInfo>();
-        const auto& instanceInfo = GetOrCrash(instanciesInfo, name);
-        const auto& annotations = instanceInfo->Annotations;
-
-        instance->Resource = annotations->Resource;
-        instance->PodId = GetPodIdForInstance(name);
-        instance->YPCluster = annotations->YPCluster;
-
-        instancies[name] = instance;
+    for (const auto& [_, dataCenterNodes] : it->second) {
+        PopulateInstancies(dataCenterNodes, instanciesInfo, instancies);
     }
+}
+
+template <typename TBundleToInstancies, typename TCollection>
+void PopulateInstanciesPerBundle(
+    const TString& bundleName,
+    const TBundleToInstancies& bundleToInstancies,
+    const TCollection& instanciesInfo,
+    THashMap<TString, TInstanceInfoPtr>& instancies)
+{
+    auto it = bundleToInstancies.find(bundleName);
+    if (it == bundleToInstancies.end()) {
+        return;
+    }
+
+    PopulateInstancies(it->second, instanciesInfo, instancies);
 }
 
 static const TString INITIAL_REQUEST_STATE = "REQUEST_CREATED";
@@ -174,19 +204,21 @@ TBundlesInfo GetBundlesInfo(const TSchedulerInputState& state, const TSchedulerM
         bundleOrchidInfo->ResourceAlive->Clear();
         bundleOrchidInfo->ResourceTarget->Clear();
 
-        PopulateInstancies(bundleName, state.BundleNodes, state.TabletNodes, bundleOrchidInfo->AllocatedTabletNodes);
-        PopulateInstancies(bundleName, state.BundleProxies, state.RpcProxies, bundleOrchidInfo->AllocatedRpcProxies);
+        PopulateInstanciesPerDC(bundleName, state.BundleNodes, state.TabletNodes, bundleOrchidInfo->AllocatedTabletNodes);
+        PopulateInstanciesPerDC(bundleName, state.BundleProxies, state.RpcProxies, bundleOrchidInfo->AllocatedRpcProxies);
 
         if (auto it = state.ZoneToSpareNodes.find(bundleInfo->Zone); it != state.ZoneToSpareNodes.end()) {
-            PopulateInstancies(
-                bundleName,
-                it->second.UsedByBundle,
-                state.TabletNodes,
-                bundleOrchidInfo->AssignedSpareTabletNodes);
+            for (const auto& [_, spareInfo] : it->second) {
+                PopulateInstanciesPerBundle(
+                    bundleName,
+                    spareInfo.UsedByBundle,
+                    state.TabletNodes,
+                    bundleOrchidInfo->AssignedSpareTabletNodes);
+            }
         }
 
         if (auto it = state.ZoneToSpareProxies.find(bundleInfo->Zone); it != state.ZoneToSpareProxies.end()) {
-            PopulateInstancies(
+            PopulateInstanciesPerBundle(
                 bundleName,
                 it->second.UsedByBundle,
                 state.RpcProxies,
@@ -249,12 +281,14 @@ TZonesRacksInfo GetZonesRacksInfo(const TSchedulerInputState& state)
 {
     TZonesRacksInfo zoneRacks;
 
-    for (const auto& [zoneName, racks] : state.ZoneToRacks) {
-        auto& orchidRack = zoneRacks[zoneName];
-        orchidRack = New<TZoneRacksInfo>();
-        orchidRack->RackToBundleNodes = racks.RackToBundleInstances;
-        orchidRack->RackToSpareNodes = racks.RackToSpareInstances;
-        orchidRack->RequiredSpareNodesCount = racks.RequiredSpareNodesCount;
+    for (const auto& [zoneName, zoneInfo] : state.ZoneToRacks) {
+        for (const auto& [dataCenterName, dataCenterInfo] : zoneInfo) {
+            auto& orchidRack = zoneRacks[zoneName][dataCenterName];
+            orchidRack = New<TDataCenterRacksInfo>();
+            orchidRack->RackToBundleNodes = dataCenterInfo.RackToBundleInstances;
+            orchidRack->RackToSpareNodes = dataCenterInfo.RackToSpareInstances;
+            orchidRack->RequiredSpareNodesCount = dataCenterInfo.RequiredSpareNodesCount;
+        }
     }
 
     return zoneRacks;
