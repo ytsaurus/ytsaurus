@@ -404,6 +404,8 @@ public:
     //! Network throttler limit is this smaller than NetworkBandwidth.
     std::optional<double> ThrottlerFreeBandwidthRatio;
 
+    bool UsePortoNetworkLimitInThrottler;
+
     REGISTER_YSON_STRUCT(TClusterNodeDynamicConfig);
 
     static void Register(TRegistrar registrar);
