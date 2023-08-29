@@ -551,10 +551,12 @@ void TBlockFetcher::RequestBlocks(
         auto blockIndices = std::move(indexPair.second);
         const auto& chunkReader = Chunks_[readerIndex].Reader;
 
-        YT_LOG_DEBUG("Requesting block group (ChunkId: %v, Blocks: %v, UncompressedSize: %v)",
+        YT_LOG_DEBUG("Requesting block group "
+            "(ChunkId: %v, Blocks: %v, UncompressedSize: %v, CompressionRatio: %v)",
             chunkReader->GetChunkId(),
             MakeShrunkFormattableView(blockIndices, TDefaultFormatter(), 3),
-            uncompressedSize);
+            uncompressedSize,
+            CompressionRatio_);
 
         auto future = [&] {
             std::optional<TTraceContextGuard> maybeGuard;
