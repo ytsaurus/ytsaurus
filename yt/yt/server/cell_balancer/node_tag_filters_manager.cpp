@@ -715,6 +715,20 @@ void SetNodeTagFilter(
     for (const auto& [dataCenterName, _] : zoneInfo->DataCenters) {
         const auto& aliveNodes = perDataCenterAliveNodes[dataCenterName];
 
+    int slotsBallance = usedSpareSlotCount  + actualSlotCount - requiredSlotCount;
+
+    YT_LOG_DEBUG("Checking tablet cell slots for bundle "
+        "(Bundle: %v, SlotsBallance: %v, SpareSlotCount: %v, BundleSlotCount: %v, RequiredSlotCount: %v)",
+        bundleName,
+        slotsBallance,
+        usedSpareSlotCount,
+        actualSlotCount,
+        requiredSlotCount);
+
+    if (slotsBallance > 0) {
+        TryCreateSpareNodesReleasements(bundleName, input, slotsBallance, &spareNodesInfo, bundleState);
+    } else {
+        TryCreateSpareNodesAssignment(bundleName, input, std::abs(slotsBallance), &spareNodesInfo, bundleState);
         if (dataCentersToPopulate.count(dataCenterName) != 0) {
             TryCreateBundleNodesAssignment(bundleName, input, aliveNodes, bundleState);
         } else {
