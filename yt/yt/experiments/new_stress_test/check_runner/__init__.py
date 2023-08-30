@@ -52,7 +52,8 @@ class TimeoutHandler():
             logging.info("Timeout handler thread joined")
 
 
-def run_and_track_success(callback, base_path, timeout, transaction_title, expiration_timeout=None):
+def run_and_track_success(callback, base_path, timeout, transaction_title,
+    failure_expiration_timeout=None, success_expiration_timeout=None):
     """
     Prepares environment for the Odin check, runs the callback and reports its status.
 
@@ -63,7 +64,7 @@ def run_and_track_success(callback, base_path, timeout, transaction_title, expir
         - run |callback| with a subdirectory path as an argument
         - if the callback finishes successfully:
           - set "@success" attribute at the subdirectory to True
-          - set "@expiration_time" attribute to now + |expiration_timeout|
+          - set "@expiration_time" attribute to now + |expiration_timeout| seconds
           - quit
         - if the callback throws an exception or does not terminate within |timeout|,
           terminate the program and set "@success" attribute to False.
@@ -91,43 +92,70 @@ def run_and_track_success(callback, base_path, timeout, transaction_title, expir
     timeout_handler = TimeoutHandler(timeout)
     timeout_handler.arm()
 
+    success_attribute_set = False
+
+    def _set_expiration_timeout(timeout):
+        if timeout is None:
+            return
+
+        logging.info(f"Set expiration timeout to {timeout} seconds")
+        expiration_time = datetime.datetime.utcnow() + datetime.timedelta(seconds=timeout)
+        client.set(path + "/@expiration_time", yt_common.datetime_to_string(expiration_time))
+
+    def _report_success():
+        nonlocal success_attribute_set
+        if success_attribute_set:
+            return
+
+        client.set(path + "/@success", True)
+        _set_expiration_timeout(success_expiration_timeout)
+        success_attribute_set = True
+
+    def _report_failure(error_message):
+        nonlocal success_attribute_set
+        if success_attribute_set:
+            return
+
+        client.set(path + "/@success", False)
+        client.set(path + "/@error_message", error_message)
+        _set_expiration_timeout(failure_expiration_timeout)
+        success_attribute_set = True
+
     try:
         with client.Transaction(transaction_id=tx.transaction_id):
             client.lock(path, mode="shared")
-
-            success = False
 
             try:
                 logging.info("Running callback")
                 callback(path)
                 logging.info("Finished OK")
 
-                client.set(path + "/@success", True)
-                success = True
-
-                if expiration_timeout is not None:
-                    expiration_time = datetime.datetime.utcnow() + datetime.timedelta(seconds=expiration_timeout)
-                    client.set(path + "/@expiration_time", yt_common.datetime_to_string(expiration_time))
+                _report_success()
 
             except Exception as e:
                 logging.info("Callback failed")
                 tb.print_exc()
 
-                client.set(path + "/@success", False)
                 if hasattr(e, "error_message"):
                     error_message = e.error_message
                 else:
                     error_message = str(e)
-                client.set(path + "/@error_message", error_message)
+
+                _report_failure(error_message)
 
         logging.info("Committing transaction")
         tx.commit()
 
         timeout_handler.disarm()
 
+    except KeyboardInterrupt:
+        _report_failure(f"Timed out after {timeout} seconds")
+        raise
     finally:
         children = multiprocessing.active_children()
         if children:
             logging.info("Terminating children")
             for process in children:
                 process.terminate()
+
+        logging.info(f"Instance {path} finished")

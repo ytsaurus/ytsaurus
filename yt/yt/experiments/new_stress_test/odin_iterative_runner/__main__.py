@@ -22,8 +22,7 @@ def main():
 
     raw_spec = lib.spec.spec_from_yson(config["preset"], config["mixins"], config["spec"])
     specs = lib.spec.variate_modes(raw_spec)
-    print(len(specs))
-    assert len(specs) == 1
+    assert len(specs) == 1, "Variating specs are not allowed"
     spec = specs[0][0]
     pprint.pprint(spec)
 
@@ -42,7 +41,8 @@ def main():
         config["path"],
         config["timeout"],
         config.get("transaction_title"),
-        config.get("expiration_timeout"))
+        config.get("failure_expiration_timeout"),
+        config.get("success_expiration_timeout", config.get("expiration_timeout")))
 
 
 if __name__ == "__main__":
