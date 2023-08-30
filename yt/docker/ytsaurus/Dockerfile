@@ -30,7 +30,6 @@ COPY ./init_operation_archive.py /usr/bin/init_operation_archive
 COPY ./chyt-controller /usr/bin/chyt-controller
 COPY ./clickhouse-trampoline.py /usr/bin/clickhouse-trampoline
 COPY ./ytserver-clickhouse /usr/bin/ytserver-clickhouse
-COPY ./ytserver-log-tailer /usr/bin/ytserver-log-tailer
 
 # SPYT pieces.
 COPY ./spyt_release/home/spark/conf/releases/${SPARK_VERSION}/metrics.properties /usr/bin/metrics.properties
@@ -46,7 +45,6 @@ COPY ./spyt_release/home/spark/bin/releases/${SPARK_VERSION}/spark-yt-launcher.j
 COPY ./credits/ytserver-all.CREDITS /usr/bin/ytserver-all.CREDITS
 COPY ./credits/chyt-controller.CREDITS  /usr/bin/chyt-controller.CREDITS
 COPY ./credits/ytserver-clickhouse.CREDITS /usr/bin/ytserver-clickhouse.CREDITS
-COPY ./credits/ytserver-log-tailer.CREDITS  /usr/bin/ytserver-log-tailer.CREDITS
 
 RUN apt-get update && apt-get install -y software-properties-common
 RUN add-apt-repository ppa:deadsnakes/ppa
