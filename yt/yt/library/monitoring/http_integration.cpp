@@ -79,6 +79,21 @@ void Initialize(
         "/monitoring",
         CreateVirtualNode((*monitoringManager)->GetService()));
 
+#ifdef _linux_
+    auto buildInfo = NYTProf::TBuildInfo::GetDefault();
+    buildInfo.BinaryVersion = GetVersion();
+
+    SetNodeByYPath(
+        *orchidRoot,
+        "/build_info",
+        NYTree::BuildYsonNodeFluently()
+            .BeginMap()
+                .Item("arc_revision").Value(buildInfo.ArcRevision)
+                .Item("binary_version").Value(buildInfo.BinaryVersion)
+                .Item("build_type").Value(buildInfo.BuildType)
+            .EndMap());
+#endif
+
     if (monitoringServer) {
         auto exporter = New<NProfiling::TSolomonExporter>(config);
         exporter->Register("/solomon", monitoringServer);
@@ -90,13 +105,8 @@ void Initialize(
             CreateVirtualNode(exporter->GetSensorService()));
 
 #ifdef _linux_
-        {
-            auto buildInfo = NYTProf::TBuildInfo::GetDefault();
-            buildInfo.BinaryVersion = GetVersion();
-            NYTProf::Register(monitoringServer, "/ytprof", buildInfo);
-        }
-
-        NBacktraceIntrospector::Register(monitoringServer);
+        NYTProf::Register(monitoringServer, "/ytprof", buildInfo);
+        NBacktraceIntrospector::Register(monitoringServer, "/backtrace");
 #endif
         monitoringServer->AddHandler(
             "/orchid/",
