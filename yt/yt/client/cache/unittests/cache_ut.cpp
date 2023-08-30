@@ -23,6 +23,12 @@ TEST(TClientsCacheTest, GetSameClient)
     auto client1 = cache->GetClient("localhost");
     auto client2 = cache->GetClient("localhost");
     EXPECT_TRUE(client1 == client2);
+
+    // This is needed for TConnection.OnProxyUpdate to stop
+    // and to remove references to TConnection that it's holding.
+    // It's because we don't actually create YT Server.
+    client1->GetConnection()->Terminate();
+    client2->GetConnection()->Terminate();
 }
 
 TEST(TClientsCacheTest, GetClientWithProxyRole)
@@ -32,6 +38,12 @@ TEST(TClientsCacheTest, GetClientWithProxyRole)
     auto client1 = cache->GetClient("bigb@localhost");
     auto client2 = cache->GetClient("localhost");
     EXPECT_TRUE(client1 != client2);
+
+    // This is needed for TConnection.OnProxyUpdate to stop
+    // and to remove references to TConnection that it's holding.
+    // It's because we don't actually create YT Server.
+    client1->GetConnection()->Terminate();
+    client2->GetConnection()->Terminate();
 }
 
 TEST(TClientsCacheTest, MultiThreads)
@@ -66,6 +78,13 @@ TEST(TClientsCacheTest, MultiThreads)
     }
     for (auto collision : collisions) {
         EXPECT_EQ(1u, collision);
+    }
+
+    // This is needed for TConnection.OnProxyUpdate to stop
+    // and to remove references to TConnection that it's holding.
+    // It's because we don't actually create YT Server.
+    for (auto& client : clients) {
+        client->GetConnection()->Terminate();
     }
 }
 
