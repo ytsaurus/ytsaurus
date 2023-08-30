@@ -198,21 +198,11 @@ private:
         ++batch->RowCount;
         batch->DataWeight += GetDataWeight(submittedRow.Row);
 
-        // COMPAT(gritukan)
+        writer->WriteCommand(submittedRow.Command);
+        writer->WriteUnversionedRow(submittedRow.Row);
+
         if (submittedRow.Command == EWireProtocolCommand::WriteAndLockRow) {
-            auto locks = submittedRow.Locks;
-            if (locks.HasNewLocks()) {
-                writer->WriteCommand(EWireProtocolCommand::WriteAndLockRow);
-                writer->WriteUnversionedRow(submittedRow.Row);
-                writer->WriteLockMask(locks);
-            } else {
-                writer->WriteCommand(EWireProtocolCommand::ReadLockWriteRow);
-                writer->WriteLegacyLockBitmap(locks.ToLegacyMask().GetBitmap());
-                writer->WriteUnversionedRow(submittedRow.Row);
-            }
-        } else {
-            writer->WriteCommand(submittedRow.Command);
-            writer->WriteUnversionedRow(submittedRow.Row);
+            writer->WriteLockMask(submittedRow.Locks);
         }
     }
 

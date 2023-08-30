@@ -82,13 +82,9 @@ TEST_F(TTabletRequestBatcherTest, SimpleSorted)
     EXPECT_EQ(row1, reader->ReadUnversionedRow(/*captureValues*/ true));
     EXPECT_EQ(EWireProtocolCommand::DeleteRow, reader->ReadCommand());
     EXPECT_EQ(row2, reader->ReadUnversionedRow(/*captureValues*/ true));
-    // COMPAT(gritukan)
-    EXPECT_EQ(EWireProtocolCommand::ReadLockWriteRow, reader->ReadCommand());
-    TLegacyLockMask legacyMask3;
-    legacyMask3.Set(0, ELockType::SharedWeak);
-    legacyMask3.Set(1, ELockType::SharedStrong);
-    EXPECT_EQ(legacyMask3.GetBitmap(), reader->ReadLegacyLockBitmap());
+    EXPECT_EQ(EWireProtocolCommand::WriteAndLockRow, reader->ReadCommand());
     EXPECT_EQ(row3, reader->ReadUnversionedRow(/*captureValues*/ true));
+    EXPECT_EQ(mask3, reader->ReadLockMask());
     EXPECT_TRUE(reader->IsFinished());
 }
 
@@ -265,13 +261,12 @@ TEST_F(TTabletRequestBatcherTest, RowMerger3)
     Batcher_->SubmitUnversionedRow(EWireProtocolCommand::WriteAndLockRow, row2, mask2);
 
     auto reader = GetSingularBatchReader();
-    // COMPAT(gritukan)
-    EXPECT_EQ(EWireProtocolCommand::ReadLockWriteRow, reader->ReadCommand());
-    TLegacyLockMask mask;
+    EXPECT_EQ(EWireProtocolCommand::WriteAndLockRow, reader->ReadCommand());
+    TLockMask mask;
     mask.Set(0, ELockType::Exclusive);
     mask.Set(1, ELockType::SharedWeak);
-    EXPECT_EQ(mask.GetBitmap(), reader->ReadLegacyLockBitmap());
     EXPECT_EQ(row2, reader->ReadUnversionedRow(/*captureValues*/ true));
+    EXPECT_EQ(mask, reader->ReadLockMask());
     EXPECT_TRUE(reader->IsFinished());
 }
 
