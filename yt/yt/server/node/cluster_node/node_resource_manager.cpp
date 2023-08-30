@@ -255,8 +255,7 @@ void TNodeResourceManager::UpdateMemoryFootprint()
         if (memoryCategory == EMemoryCategory::UserJobs ||
             memoryCategory == EMemoryCategory::Footprint ||
             memoryCategory == EMemoryCategory::AllocFragmentation ||
-            memoryCategory == EMemoryCategory::TmpfsLayers ||
-            memoryCategory == EMemoryCategory::SystemJobs)
+            memoryCategory == EMemoryCategory::TmpfsLayers)
         {
             continue;
         }
