@@ -229,25 +229,15 @@ class TestSchedulingSegments(YTEnvSetup):
         wait(lambda: are_almost_equal(self._get_usage_ratio(op2.id), 0.1))
 
     @authors("eshcherbin")
-    def test_satisfaction_margins(self):
+    def test_reserve_fair_resource_amount(self):
         # Just to check that it works with no core dump.
-        set("//sys/pool_trees/default/@config/scheduling_segments/satisfaction_margins", {"default": 1.0})
+        update_pool_tree_config_option("default", "scheduling_segments/reserve_fair_resource_amount", {"default": 1.0}, wait_for_orchid=False)
 
         set("//sys/pool_trees/default/large_gpu/@strong_guarantee_resources", {"gpu": 80})
-        set("//sys/pool_trees/default/@config/scheduling_segments/satisfaction_margins",
-            {
-                "large_gpu": {
-                    TestSchedulingSegments.DATA_CENTER: 8
-                }
-            })
-        set("//sys/pool_trees/default/@config/job_interrupt_timeout", 30000)
-
-        wait(lambda: are_almost_equal(
-            get(scheduler_orchid_default_pool_tree_config_path() +
-                "/scheduling_segments/satisfaction_margins/large_gpu/" +
-                TestSchedulingSegments.DATA_CENTER, default=0),
-            8))
-        wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/job_interrupt_timeout") == 30000)
+        update_pool_tree_config_option("default", "scheduling_segments/reserve_fair_resource_amount/large_gpu", {
+            TestSchedulingSegments.DATA_CENTER: 8.0,
+        })
+        update_pool_tree_config_option("default", "job_interrupt_timeout", 30000)
 
         filling_op = run_sleeping_vanilla(
             job_count=9,
@@ -848,9 +838,13 @@ class TestSchedulingSegments(YTEnvSetup):
         with pytest.raises(YtError):
             set("//sys/pool_trees/default/@config/scheduling_segments/data_centers", ["SAS", "VLA", ""])
         with pytest.raises(YtError):
-            set("//sys/pool_trees/default/@config/scheduling_segments/satisfaction_margins", {"default": {"SAS": "-3.0"}})
+            set("//sys/pool_trees/default/@config/scheduling_segments/reserve_fair_resource_amount", {"default": "-3.0"})
         with pytest.raises(YtError):
-            set("//sys/pool_trees/default/@config/scheduling_segments/satisfaction_margins", {"large_gpu": {"VLA": "-3.0"}})
+            set("//sys/pool_trees/default/@config/scheduling_segments/reserve_fair_resource_amount", {"default": {"SAS": "3.0"}})
+        with pytest.raises(YtError):
+            set("//sys/pool_trees/default/@config/scheduling_segments/reserve_fair_resource_amount", {"large_gpu": {"VLA": "3.0"}})
+        with pytest.raises(YtError):
+            set("//sys/pool_trees/default/@config/scheduling_segments/reserve_fair_resource_amount", {"large_gpu": {"SAS": "-3.0"}})
 
     @authors("eshcherbin")
     def test_only_gang_operations_in_large_segment(self):
@@ -1163,31 +1157,47 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
         wait(lambda: big_module == self._get_operation_module(op))
 
     @authors("eshcherbin")
-    def test_module_reconsideration(self):
+    def test_reserve_fair_resource_amount(self):
+        module = self._get_all_modules()[0]
+        update_pool_tree_config_option("default", "scheduling_segments/reserve_fair_resource_amount", {"large_gpu": {module: 8.0}})
+
+        profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default"})
+        fair_resource_amount_default_sensor = profiler.gauge(
+            "scheduler/segments/fair_resource_amount",
+            fixed_tags={"segment": "large_gpu", "module": module},
+        )
+        wait(lambda: are_almost_equal(fair_resource_amount_default_sensor.get(), 8.0))
+
         big_op = run_sleeping_vanilla(
-            job_count=5,
+            job_count=4,
+            spec={"pool": "large_gpu", "scheduling_segment_modules": [module]},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_usage_ratio(big_op.id), 0.4))
+        wait(lambda: self._get_operation_module(big_op) == module)
+
+        wait(lambda: are_almost_equal(fair_resource_amount_default_sensor.get(), 40.0))
+
+        op1 = run_sleeping_vanilla(
             spec={"pool": "large_gpu"},
             task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
         )
-        wait(lambda: are_almost_equal(self._get_usage_ratio(big_op.id), 0.5))
-        big_module = self._get_operation_module(big_op)
+        wait(lambda: are_almost_equal(self._get_usage_ratio(op1.id), 0.1))
+        wait(lambda: self._get_operation_module(op1) != module)
 
-        node_to_disappear = None
-        for node in ls("//sys/cluster_nodes"):
-            if self._get_node_module(node) == big_module:
-                node_to_disappear = node
-                break
-        assert node_to_disappear is not None
+        update_pool_tree_config_option("default", "scheduling_segments/reserve_fair_resource_amount", {"large_gpu": {module: 0.0}})
 
-        set("//sys/pool_trees/default/@config/nodes_filter", "!other")
-        create_pool_tree("other", config={"nodes_filter": "other", "main_resource": "gpu"})
-        set("//sys/cluster_nodes/{}/@user_tags/end".format(node_to_disappear), "other")
-        wait(lambda: are_almost_equal(self._get_usage_ratio(big_op.id), 4. / 9.))
+        op2 = run_sleeping_vanilla(
+            spec={"pool": "large_gpu", "scheduling_segment_modules": [module]},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_usage_ratio(op2.id), 0.1))
+        wait(lambda: self._get_operation_module(op2) == module)
 
-        set("//sys/pool_trees/default/@config/scheduling_segments/module_reconsideration_timeout", 5000)
-        wait(lambda: are_almost_equal(self._get_usage_ratio(big_op.id), 5. / 9.))
-        wait(lambda: big_module != self._get_operation_module(big_op))
-        wait(lambda: big_op.get_job_count("aborted") >= 5)
+        update_pool_tree_config_option("default", "scheduling_segments/reserve_fair_resource_amount", {"large_gpu": {module: 8.0}})
+        time.sleep(3.0)
+
+        wait(lambda: are_almost_equal(fair_resource_amount_default_sensor.get(), 40.0))
 
     @authors("eshcherbin")
     def test_module_reset_on_zero_fair_share(self):

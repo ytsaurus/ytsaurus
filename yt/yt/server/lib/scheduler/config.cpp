@@ -120,7 +120,7 @@ void TFairShareStrategySchedulingSegmentsConfig::Register(TRegistrar registrar)
     registrar.Parameter("mode", &TThis::Mode)
         .Default(ESegmentedSchedulingMode::Disabled);
 
-    registrar.Parameter("satisfaction_margins", &TThis::SatisfactionMargins)
+    registrar.Parameter("reserve_fair_resource_amount", &TThis::ReserveFairResourceAmount)
         .Default();
 
     registrar.Parameter("initialization_timeout", &TThis::InitializationTimeout)
@@ -175,20 +175,36 @@ void TFairShareStrategySchedulingSegmentsConfig::Register(TRegistrar registrar)
     registrar.Postprocessor([&] (TFairShareStrategySchedulingSegmentsConfig* config) {
         for (auto segment : TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
             if (!IsModuleAwareSchedulingSegment(segment)) {
+                auto value = config->ReserveFairResourceAmount.At(segment).GetOrDefault();
+                if (value < 0.0) {
+                    THROW_ERROR_EXCEPTION("Reserve fair resource amount must not be negative")
+                        << TErrorAttribute("segment", segment)
+                        << TErrorAttribute("value", value);
+                }
+
                 continue;
             }
 
             const auto& configuredModules = config->GetModules();
-            for (const auto& schedulingSegmentModule : config->SatisfactionMargins.At(segment).GetModules()) {
+            const auto& valuesPerModule = config->ReserveFairResourceAmount.At(segment);
+            for (const auto& schedulingSegmentModule : valuesPerModule.GetModules()) {
                 if (!schedulingSegmentModule) {
                     // This could never happen but I'm afraid to put YT_VERIFY here.
-                    THROW_ERROR_EXCEPTION("Satisfaction margin can be specified only for non-null modules");
+                    THROW_ERROR_EXCEPTION("Reserve fair resource amount can be specified only for non-null modules");
                 }
 
                 if (!configuredModules.contains(*schedulingSegmentModule)) {
-                    THROW_ERROR_EXCEPTION("Satisfaction margin can be specified only for configured modules")
+                    THROW_ERROR_EXCEPTION("Reserve fair resource amount can be specified only for configured modules")
                         << TErrorAttribute("configured_modules", configuredModules)
                         << TErrorAttribute("specified_module", schedulingSegmentModule);
+                }
+
+                auto value = valuesPerModule.GetOrDefaultAt(schedulingSegmentModule);
+                if (value < 0.0) {
+                    THROW_ERROR_EXCEPTION("Reserve fair resource amount must not be negative")
+                        << TErrorAttribute("segment", segment)
+                        << TErrorAttribute("module", schedulingSegmentModule)
+                        << TErrorAttribute("value", value);
                 }
             }
         }

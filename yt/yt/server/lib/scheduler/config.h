@@ -159,7 +159,7 @@ class TFairShareStrategySchedulingSegmentsConfig
 public:
     ESegmentedSchedulingMode Mode;
 
-    TSegmentToResourceAmount SatisfactionMargins;
+    TSegmentToResourceAmount ReserveFairResourceAmount;
 
     TDuration InitializationTimeout;
 

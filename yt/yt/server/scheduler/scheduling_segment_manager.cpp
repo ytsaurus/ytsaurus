@@ -218,7 +218,6 @@ void TSchedulingSegmentManager::DoUpdateSchedulingSegments(TUpdateSchedulingSegm
     ResetOperationModuleAssignments(context);
     CollectFairResourceAmountPerSegment(context);
     AssignOperationsToModules(context);
-    AdjustFairResourceAmountBySatisfactionMargins(context);
 
     // Process nodes.
     ValidateInfinibandClusterTags(context);
@@ -345,6 +344,7 @@ void TSchedulingSegmentManager::ResetOperationModuleAssignments(TUpdateSchedulin
 
 void TSchedulingSegmentManager::CollectFairResourceAmountPerSegment(TUpdateSchedulingSegmentsContext* context) const
 {
+    // First, collect fair share from operations that have been already assigned to modules.
     auto keyResource = GetSegmentBalancingKeyResource(Config_->Mode);
     for (auto& [operationId, operation] : context->OperationStates) {
         auto* element = context->TreeSnapshot->FindEnabledOperationElement(operationId);
@@ -366,6 +366,7 @@ void TSchedulingSegmentManager::CollectFairResourceAmountPerSegment(TUpdateSched
         }
     }
 
+    // Second, compute fair resource amounts.
     auto snapshotTotalKeyResourceLimit = GetResource(context->TreeSnapshot->ResourceLimits(), keyResource);
     for (auto segment : TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
         if (IsModuleAwareSchedulingSegment(segment)) {
@@ -378,6 +379,22 @@ void TSchedulingSegmentManager::CollectFairResourceAmountPerSegment(TUpdateSched
         } else {
             auto fairResourceAmount = context->FairSharePerSegment.At(segment).GetOrDefault() * snapshotTotalKeyResourceLimit;
             context->FairResourceAmountPerSegment.At(segment).Set(fairResourceAmount);
+        }
+    }
+
+    // Third, apply specified reserves.
+    for (auto segment: TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
+        if (IsModuleAwareSchedulingSegment(segment)) {
+            for (const auto& schedulingSegmentModule : Config_->GetModules()) {
+                auto reserve = std::min(
+                    Config_->ReserveFairResourceAmount.At(segment).GetOrDefaultAt(schedulingSegmentModule),
+                    context->RemainingCapacityPerModule[schedulingSegmentModule]);
+                context->FairResourceAmountPerSegment.At(segment).MutableAt(schedulingSegmentModule) += reserve;
+                context->RemainingCapacityPerModule[schedulingSegmentModule] -= reserve;
+            }
+        } else {
+            auto reserve = Config_->ReserveFairResourceAmount.At(segment).GetOrDefault();
+            context->FairResourceAmountPerSegment.At(segment).Mutable() += reserve;
         }
     }
 }
@@ -517,23 +534,6 @@ void TSchedulingSegmentManager::AssignOperationsToModules(TUpdateSchedulingSegme
             context->RemainingCapacityPerModule,
             context->TotalCapacityPerModule,
             operationId);
-    }
-}
-
-void TSchedulingSegmentManager::AdjustFairResourceAmountBySatisfactionMargins(TUpdateSchedulingSegmentsContext* context) const
-{
-    for (auto segment: TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
-        if (IsModuleAwareSchedulingSegment(segment)) {
-            for (const auto& schedulingSegmentModule : Config_->GetModules()) {
-                auto satisfactionMargin = Config_->SatisfactionMargins.At(segment).GetOrDefaultAt(schedulingSegmentModule);
-                auto& value = context->FairResourceAmountPerSegment.At(segment).MutableAt(schedulingSegmentModule);
-                value = std::max(value + satisfactionMargin, 0.0);
-            }
-        } else {
-            auto satisfactionMargin = Config_->SatisfactionMargins.At(segment).GetOrDefault();
-            auto& value = context->FairResourceAmountPerSegment.At(segment).Mutable();
-            value = std::max(value + satisfactionMargin, 0.0);
-        }
     }
 }
 
