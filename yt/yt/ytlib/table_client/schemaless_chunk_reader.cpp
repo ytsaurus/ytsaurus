@@ -14,6 +14,7 @@
 
 #include <yt/yt/ytlib/table_chunk_format/public.h>
 #include <yt/yt/ytlib/table_chunk_format/column_reader.h>
+#include <yt/yt/ytlib/table_chunk_format/column_reader_detail.h>
 #include <yt/yt/ytlib/table_chunk_format/null_column_reader.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
@@ -36,6 +37,8 @@
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/numeric_helpers.h>
+
+#include <library/cpp/yt/coding/zig_zag.h>
 
 namespace NYT::NTableClient {
 
@@ -79,8 +82,6 @@ int GetRowIndexId(TNameTablePtr readerNameTable, TChunkReaderOptionsPtr options)
 {
     if (options->EnableRowIndex) {
         return readerNameTable->GetIdOrRegisterName(RowIndexColumnName);
-        // Row index is a non-constant virtual column, so we do not form any virtual value here.
-        // TODO(max42): support row index in virtual values for columnar reader.
     }
     return -1;
 }
@@ -321,6 +322,11 @@ protected:
     int GetVirtualColumnCount() const
     {
         return VirtualValues_.GetTotalColumnCount() / 2 + (RowIndexId_ != -1);
+    }
+
+    int GetAllVirtualColumnCount() const
+    {
+        return VirtualValues_.GetTotalColumnCount() + (RowIndexId_ != -1);
     }
 
     void AddExtraValues(TMutableUnversionedRow& row, i64 rowIndex)
@@ -1906,8 +1912,8 @@ private:
             batchColumnCount += reader->GetBatchColumnCount();
         }
 
-        allBatchColumns->resize(batchColumnCount + VirtualValues_.GetTotalColumnCount());
-        rootBatchColumns->reserve(RowColumnReaders_.size() + VirtualValues_.Values().size());
+        allBatchColumns->resize(batchColumnCount + GetAllVirtualColumnCount());
+        rootBatchColumns->reserve(RowColumnReaders_.size() + GetVirtualColumnCount());
         int currentBatchColumnIndex = 0;
         for (int index = 0; index < std::ssize(RowColumnReaders_); ++index) {
             const auto& reader = RowColumnReaders_[index];
@@ -1933,9 +1939,31 @@ private:
             auto columnRange = TMutableRange<IUnversionedColumnarRowBatch::TColumn>(
                 allBatchColumns->data() + currentBatchColumnIndex,
                 columnCount);
-            VirtualValues_.FillColumns(columnRange, index, RowIndex_, rowCount);
+            VirtualValues_.FillColumns(columnRange, index, GetTableRowIndex(), rowCount);
             currentBatchColumnIndex += columnCount;
             rootBatchColumns->push_back(&columnRange.Front());
+        }
+
+        // Add row_index column.
+
+        if (RowIndexId_ != -1) {
+            auto dataValues = TMutableRange<ui64>(Pool_.AllocateUninitialized<ui64>(rowCount), rowCount);
+            for (int rowIdx = 0; rowIdx < rowCount; rowIdx++) {
+                dataValues[rowIdx] = ZigZagEncode64(GetTableRowIndex() + rowIdx);
+            }
+
+            ReadColumnarIntegerValues(
+                allBatchColumns->data() + currentBatchColumnIndex,
+                GetTableRowIndex(),
+                rowCount,
+                NTableClient::EValueType::Int64,
+                /* baseValue */ 0,
+                dataValues);
+            auto* rootColumn = allBatchColumns->data() + currentBatchColumnIndex;
+            rootColumn->Id = RowIndexId_;
+            rootColumn->Type =  MakeLogicalType(GetLogicalType(NTableClient::EValueType::Int64), /*required*/ false);
+            rootBatchColumns->push_back(rootColumn);
+            currentBatchColumnIndex += 1;
         }
 
         AdvanceRowIndex(rowCount);

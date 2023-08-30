@@ -1024,7 +1024,7 @@ TEST_F(TClearTmpTestBase, YTADMINREQ_33599)
     }
 }
 
-TEST_F(TClearTmpTestBase, TestArrowReadingWithRangeIndexColumn)
+TEST_F(TClearTmpTestBase, TestArrowReadingWithSystemColumns)
 {
     TRichYPath tablePath{"//tmp/test_arrow_reading_with_system_columns"};
     TCreateNodeOptions options;
@@ -1057,8 +1057,10 @@ TEST_F(TClearTmpTestBase, TestArrowReadingWithRangeIndexColumn)
     req->set_arrow_fallback_rowset_format(NRpcProxy::NProto::ERowsetFormat::RF_FORMAT);
     req->set_format("<format=text>yson");
 
-    // ask range_index column
+    // ask range_index and row_index column
+
     req->set_enable_range_index(true);
+    req->set_enable_row_index(true);
 
     ToProto(req->mutable_path(), tablePath);
     auto stream = WaitFor(NRpc::CreateRpcClientInputStream(req))
@@ -1080,11 +1082,10 @@ TEST_F(TClearTmpTestBase, TestArrowReadingWithRangeIndexColumn)
 
         if (descriptor.rowset_format() == NApi::NRpcProxy::NProto::RF_ARROW) {
             auto batch = MakeBatch(payloadRef.ToStringBuf());
-            EXPECT_EQ(batch->num_columns(), 2);
+            EXPECT_EQ(batch->num_columns(), 3);
         }
     }
 }
-
 
 TEST_F(TClearTmpTestBase, TestArrowReadingWithoutSystemColumns)
 {
