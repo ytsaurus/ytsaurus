@@ -254,6 +254,10 @@ void TryCreateSpareNodesReleasements(
         return;
     }
 
+    if (!bundleState->RemovingCells.empty()) {
+        return;
+    }
+
     const auto& usingSpareNodes = spareNodesInfo->UsedByBundle[bundleName];
     auto it = usingSpareNodes.begin();
 
@@ -357,6 +361,10 @@ void TryCreateBundleNodesReleasement(
     const THashSet<TString>& nodesToRelease,
     const TBundleControllerStatePtr& bundleState)
 {
+    if (!bundleState->RemovingCells.empty()) {
+        return;
+    }
+
     const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
     const auto& nodeTagFilter = bundleInfo->NodeTagFilter;
     auto now = TInstant::Now();

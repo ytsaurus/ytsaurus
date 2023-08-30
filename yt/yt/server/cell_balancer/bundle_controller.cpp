@@ -1105,7 +1105,13 @@ private:
     static void RemoveTabletCells(const ITransactionPtr& transaction, const std::vector<TString>& cellsToRemove)
     {
         for (const auto& cellId : cellsToRemove) {
-            WaitFor(transaction->RemoveNode(Format("%v/%v", TabletCellsPath, cellId)))
+            TString path = Format("%v/%v", TabletCellsPath, cellId);
+
+            YT_LOG_INFO("Removing tablet cell (CellId: %v, Path: %v)",
+                cellId,
+                path);
+
+            WaitFor(transaction->RemoveNode(path))
                 .ThrowOnError();
         }
     }
