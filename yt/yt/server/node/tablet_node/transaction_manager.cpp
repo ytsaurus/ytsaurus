@@ -999,9 +999,7 @@ private:
         if (transaction->GetTransient()) {
             // COMPAT(ifsmirnov)
             auto reign = static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign);
-            if (reign >= ETabletReign::RegisterTxActionsShouldPersistTx ||
-                (reign >= ETabletReign::RegisterTxActionsShouldPersistTx_23_1 &&
-                    reign < ETabletReign::Avenues))
+            if (reign >= ETabletReign::RegisterTxActionsShouldPersistTx_23_1)
             {
                 transaction = MakeTransactionPersistentOrThrow(transactionId);
             }
