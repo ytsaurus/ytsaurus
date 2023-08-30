@@ -508,7 +508,7 @@ type ReadTableOptions struct {
 	// Smart flag enables client side retries.
 	//
 	// When used outside of transaction, ReadTable automatically creates new transaction and
-	// acquired table snapshot lock.
+	// acquires table snapshot lock.
 	//
 	// When used inside of transaction, ReadTable does not create any additional transactions.
 	//
