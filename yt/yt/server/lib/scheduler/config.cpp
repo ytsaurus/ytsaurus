@@ -156,6 +156,9 @@ void TFairShareStrategySchedulingSegmentsConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_detailed_logs", &TThis::EnableDetailedLogs)
         .Default(false);
 
+    registrar.Parameter("enable_module_reset_on_zero_fair_share_and_usage", &TThis::EnableModuleResetOnZeroFairShareAndUsage)
+        .Default(false);
+
     registrar.Postprocessor([&] (TFairShareStrategySchedulingSegmentsConfig* config) {
         for (const auto& schedulingSegmentModule : config->DataCenters) {
             ValidateDataCenterName(schedulingSegmentModule);

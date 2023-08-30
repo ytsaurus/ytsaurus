@@ -179,6 +179,8 @@ public:
 
     bool EnableDetailedLogs;
 
+    bool EnableModuleResetOnZeroFairShareAndUsage;
+
     const THashSet<TString>& GetModules() const;
 
     REGISTER_YSON_STRUCT(TFairShareStrategySchedulingSegmentsConfig);

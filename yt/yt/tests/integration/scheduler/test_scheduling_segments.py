@@ -1199,6 +1199,31 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
         wait(lambda: are_almost_equal(fair_resource_amount_default_sensor.get(), 40.0))
 
     @authors("eshcherbin")
+    def test_module_reset_on_zero_fair_share(self):
+        update_pool_tree_config_option("default", "scheduling_segments/enable_module_reset_on_zero_fair_share_and_usage", True)
+
+        op = run_sleeping_vanilla(
+            spec={"pool": "large_gpu"},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
+        op_module = self._get_operation_module(op)
+
+        op.suspend(abort_running_jobs=True)
+
+        big_op = run_sleeping_vanilla(
+            job_count=5,
+            spec={"pool": "large_gpu", "scheduling_segment_modules": [op_module]},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_usage_ratio(big_op.id), 0.5))
+        wait(lambda: self._get_operation_module(big_op) == op_module)
+
+        op.resume()
+        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
+        wait(lambda: self._get_operation_module(op) != op_module)
+
+    @authors("eshcherbin")
     def test_rebalance_large_gpu_segment_nodes_between_modules(self):
         create_pool("large_gpu_other", attributes={"allow_regular_preemption": False})
         set("//sys/pools/large_gpu/@strong_guarantee_resources", {"gpu": 40})

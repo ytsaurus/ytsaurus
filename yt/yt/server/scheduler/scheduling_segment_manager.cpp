@@ -271,6 +271,10 @@ void TSchedulingSegmentManager::CollectCurrentResourceAmountPerSegment(TUpdateSc
 
 void TSchedulingSegmentManager::ResetOperationModuleAssignments(TUpdateSchedulingSegmentsContext* context) const
 {
+    if (context->Now <= InitializationDeadline_) {
+        return;
+    }
+
     for (const auto& [operationId, operation] : context->OperationStates) {
         auto* element = context->TreeSnapshot->FindEnabledOperationElement(operationId);
         if (!element) {
@@ -288,28 +292,52 @@ void TSchedulingSegmentManager::ResetOperationModuleAssignments(TUpdateSchedulin
             continue;
         }
 
+        auto& failingToScheduleAtModuleSince = operation->FailingToScheduleAtModuleSince;
+        auto resetOperationModule = [&] {
+            // NB: We will abort all jobs that are running in the wrong module.
+            schedulingSegmentModule.reset();
+            failingToScheduleAtModuleSince.reset();
+        };
+
         if (element->ResourceUsageAtUpdate() != element->ResourceDemand()) {
-            if (!operation->FailingToScheduleAtModuleSince) {
-                operation->FailingToScheduleAtModuleSince = context->Now;
+            if (!failingToScheduleAtModuleSince) {
+                failingToScheduleAtModuleSince = context->Now;
             }
 
-            if (*operation->FailingToScheduleAtModuleSince + Config_->ModuleReconsiderationTimeout < context->Now) {
+            if (*failingToScheduleAtModuleSince + Config_->ModuleReconsiderationTimeout < context->Now) {
                 YT_LOG_DEBUG(
                     "Operation has failed to schedule all jobs for too long, revoking its module assignment "
-                    "(OperationId: %v, SchedulingSegment: %v, PreviousModule: %v, ResourceUsage: %v, ResourceDemand: %v, Timeout: %v)",
+                    "(OperationId: %v, SchedulingSegment: %v, PreviousModule: %v, ResourceUsage: %v, ResourceDemand: %v, Timeout: %v, "
+                    "InitializationDeadline: %v)",
                     operationId,
                     segment,
                     schedulingSegmentModule,
                     element->ResourceUsageAtUpdate(),
                     element->ResourceDemand(),
-                    Config_->ModuleReconsiderationTimeout);
+                    Config_->ModuleReconsiderationTimeout,
+                    InitializationDeadline_);
 
-                // NB: We will abort all jobs that are running in the wrong module.
-                schedulingSegmentModule.reset();
-                operation->FailingToScheduleAtModuleSince.reset();
+                resetOperationModule();
             }
         } else {
-            operation->FailingToScheduleAtModuleSince.reset();
+            failingToScheduleAtModuleSince.reset();
+        }
+
+        bool hasZeroUsageAndFairShare = (element->ResourceUsageAtUpdate() == TJobResources()) &&
+            Dominates(TResourceVector::SmallEpsilon(), element->Attributes().FairShare.Total);
+        if (hasZeroUsageAndFairShare && Config_->EnableModuleResetOnZeroFairShareAndUsage) {
+            YT_LOG_DEBUG(
+                "Revoking operation module assignment because it has zero fair share and usage "
+                "(OperationId: %v, SchedulingSegment: %v, PreviousModule: %v, ResourceUsage: %v, ResourceDemand: %v, "
+                "InitializationDeadline: %v)",
+                operationId,
+                segment,
+                schedulingSegmentModule,
+                element->ResourceUsageAtUpdate(),
+                element->ResourceDemand(),
+                InitializationDeadline_);
+
+            resetOperationModule();
         }
     }
 }
