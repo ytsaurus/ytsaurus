@@ -22,6 +22,7 @@ option go_package = "go.ytsaurus.tech/library/cpp/porto/proto;myapi";
 
 package Porto;
 
+// List of error codes
 enum EError {
     // No errors occured.
     Success = 0;
@@ -658,10 +659,14 @@ message TContainerStatus {
 
     optional uint64 process_count = 30;        // out
     optional uint64 thread_count = 31;         // out
+
     optional TUintMap io_read = 32;        // out, bytes
     optional TUintMap io_write = 33;       // out, bytes
     optional TUintMap io_ops = 34;         // out, ops
+    optional TUintMap io_read_ops = 341;   // out, ops
+    optional TUintMap io_write_ops = 342;  // out, ops
     optional TUintMap io_time = 35;        // out, ns
+    optional TUintMap io_pressure = 351;   // out
 
     optional TUintMap place_usage = 36;
     optional uint64 memory_usage = 37;         // out, bytes
@@ -784,8 +789,10 @@ message TContainerSpec {
     optional string io_policy = 48;    // none|rt|high|normal|batch|idle
     optional double io_weight = 49;    // 0.01 .. 100
 
-    optional TUintMap io_limit = 50;       // bps
-    optional TUintMap io_ops_limit = 51;   // iops
+    optional TUintMap io_limit = 50;         // bps
+    optional TUintMap io_guarantee = 84;     // bps
+    optional TUintMap io_ops_limit = 51;     // iops
+    optional TUintMap io_ops_guarantee = 85; // iops
 
     optional uint64 memory_guarantee = 52;     // bytes
 
