@@ -2730,7 +2730,6 @@ TEST_P(TBundleSchedulerTest, OfflineRpcProxiesGracePeriod)
         proxyInfo->Alive.Reset();
         proxyInfo->ModificationTime = TInstant::Now() - OfflineInstanceGracePeriod * 2;
     }
-    EXPECT_EQ(1, std::ssize(mutations.RemovedProxyRole));
 
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
@@ -2873,7 +2872,6 @@ TEST_P(TBundleSchedulerTest, DeallocateAdoptedNodes)
             input.TabletNodes[nodeId]->Annotations = annotations;
         }
     }
-    EXPECT_EQ(1, std::ssize(mutations.RemovedProxyRole));
 
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
@@ -3157,7 +3155,7 @@ TEST(TProxyRoleManagement, TestBundleProxyRolesWithSpare)
         EXPECT_TRUE(usedSpare.count(proxyName) != 0);
         input.RpcProxies[proxyName]->Role = role;
     }
-    EXPECT_EQ(1, std::ssize(mutations.ChangedProxyRole));
+    EXPECT_EQ(1, std::ssize(mutations.RemovedProxyRole));
 
     // Check no more changes
     mutations = TSchedulerMutations{};
@@ -3254,7 +3252,7 @@ TEST(TProxyRoleManagement, TestBundleProxyCustomRolesWithSpare)
         EXPECT_EQ(role, "");
         input.RpcProxies[proxyName]->Role = role;
     }
-    EXPECT_EQ(1, std::ssize(mutations.ChangedProxyRole));
+    EXPECT_EQ(1, std::ssize(mutations.RemovedProxyRole));
 
     // Check no more changes
     mutations = TSchedulerMutations{};
