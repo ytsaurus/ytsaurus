@@ -16,9 +16,11 @@ target_link_libraries(yt-client-federated PUBLIC
   cpp-yt-string
   yt-yt-core
   yt-yt-client
+  yt-client-cache
 )
 target_sources(yt-client-federated PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/client/federated/client.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/federated/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/federated/connection.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/federated/cache.cpp
 )
