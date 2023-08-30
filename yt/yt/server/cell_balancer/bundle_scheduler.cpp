@@ -2213,6 +2213,11 @@ public:
             return false;
         }
 
+        if (proxyInfo->Role == TrashRole) {
+            mutations->RemovedProxyRole.insert(proxyName);
+            return false;
+        }
+
         const auto& annotations = proxyInfo->Annotations;
         if (auto changed = GetInstanceAnnotationsToSet(bundleName, dataCenterName, allocationInfo, annotations)) {
             mutations->ChangedProxyAnnotations[proxyName] = changed;
