@@ -332,9 +332,10 @@ private:
     void DoAbortAllJobsAtNode(const TExecNodePtr& node, EAbortReason reason);
 
     void ProcessHeartbeatJobs(
-        const TExecNodePtr& node,
         TScheduler::TCtxNodeHeartbeat::TTypedRequest* request,
         TScheduler::TCtxNodeHeartbeat::TTypedResponse* response,
+        const TExecNodePtr& node,
+        const INodeHeartbeatStrategyProxyPtr& strategyProxy,
         std::vector<TJobPtr>* runningJobs,
         bool* hasWaitingJobs);
 
@@ -344,11 +345,16 @@ private:
         TRspHeartbeat* response,
         TStatus* jobStatus);
 
-    bool IsHeartbeatThrottlingWithComplexity(const TExecNodePtr& node);
+    bool IsHeartbeatThrottlingWithComplexity(
+        const TExecNodePtr& node,
+        const INodeHeartbeatStrategyProxyPtr& strategyProxy);
     bool IsHeartbeatThrottlingWithCount(const TExecNodePtr& node);
 
     using TAllocationStateToJobList = TEnumIndexedVector<EAllocationState, std::vector<TJobPtr>>;
-    void LogOngoingJobsAt(TInstant now, const TExecNodePtr& node, const TAllocationStateToJobList& ongoingJobsByAllocationState) const;
+    void LogOngoingJobsOnHeartbeat(
+        const INodeHeartbeatStrategyProxyPtr& strategyProxy,
+        TInstant now,
+        const TAllocationStateToJobList& ongoingJobsByAllocationState) const;
 
     void SubtractNodeResources(const TExecNodePtr& node);
     void AddNodeResources(const TExecNodePtr& node);

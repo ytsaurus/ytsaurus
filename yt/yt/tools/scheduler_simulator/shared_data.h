@@ -206,7 +206,11 @@ public:
         TSchedulerStrategyHost& strategyHost,
         const IInvokerPtr& controlThreadInvoker);
 
-    void ProcessSchedulingHeartbeat(const NScheduler::ISchedulingContextPtr& schedulingContext, bool skipScheduleJobs);
+    NScheduler::INodeHeartbeatStrategyProxyPtr CreateNodeHeartbeatStrategyProxy(
+        NNodeTrackerClient::TNodeId nodeId,
+        const TString& address,
+        const TBooleanFormulaTags& tags,
+        NScheduler::TMatchingTreeCookie cookie) const;
 
     void PreemptJob(const NScheduler::TJobPtr& job);
 
@@ -217,11 +221,6 @@ public:
 
     void UnregisterOperation(NScheduler::IOperationStrategyHost* operation);
 
-    void BuildSchedulingAttributesStringForNode(
-        NNodeTrackerClient::TNodeId nodeId,
-        const TString& nodeAddress,
-        const TBooleanFormulaTags& nodeTags,
-        TDelimitedStringBuilderWrapper& delimitedBuilder) const;
     void BuildSchedulingAttributesForNode(
         NNodeTrackerClient::TNodeId nodeId,
         const TString& nodeAddress,

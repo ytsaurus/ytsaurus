@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "helpers.h"
 
 #include "scheduling_context.h"
 
@@ -52,7 +53,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TJobMap, IdToJob);
 
     //! A set of scheduling tags assigned to this node.
-    DEFINE_BYREF_RW_PROPERTY(TBooleanFormulaTags, Tags);
+    DEFINE_BYREF_RO_PROPERTY(TBooleanFormulaTags, Tags);
 
     //! Last time when logging of jobs on node took place.
     DEFINE_BYVAL_RW_PROPERTY(std::optional<NProfiling::TCpuInstant>, LastJobsLogTime);
@@ -112,6 +113,8 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(NYTree::IAttributeDictionaryPtr, SchedulingOptions);
 
+    DEFINE_BYVAL_RW_PROPERTY(TMatchingTreeCookie, MatchingTreeCookie);
+
 public:
     TExecNode(
         NNodeTrackerClient::TNodeId id,
@@ -153,6 +156,8 @@ public:
     void SetResourceUsage(const TJobResources& value);
 
     void SetDiskResources(const NNodeTrackerClient::NProto::TDiskResources& value);
+
+    void SetTags(TBooleanFormulaTags tags);
 
     void BuildAttributes(NYTree::TFluentMap fluent);
 

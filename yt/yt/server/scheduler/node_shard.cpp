@@ -504,6 +504,8 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker_);
 
+    const auto& strategy = ManagerHost_->GetStrategy();
+
     auto* request = &context->Request();
     auto* response = &context->Response();
 
@@ -563,6 +565,13 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     TLeaseManager::RenewLease(node->GetHeartbeatLease(), Config_->NodeHeartbeatTimeout);
     TLeaseManager::RenewLease(node->GetRegistrationLease(), Config_->NodeRegistrationTimeout);
 
+    auto strategyProxy = strategy->CreateNodeHeartbeatStrategyProxy(
+        node->GetId(),
+        node->GetDefaultAddress(),
+        node->Tags(),
+        node->GetMatchingTreeCookie());
+    node->SetMatchingTreeCookie(strategyProxy->GetMatchingTreeCookie());
+
     bool isThrottlingActive = false;
     {
         // We need to prevent context switched between checking node state and BeginNodeHeartbeatProcessing.
@@ -585,7 +594,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         }
 
         if (Config_->UseHeartbeatSchedulingComplexityThrottling) {
-            isThrottlingActive = IsHeartbeatThrottlingWithComplexity(node);
+            isThrottlingActive = IsHeartbeatThrottlingWithComplexity(node, strategyProxy);
         } else {
             isThrottlingActive = IsHeartbeatThrottlingWithCount(node);
             node->SetSchedulingHeartbeatComplexity(1);
@@ -611,9 +620,10 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     bool hasWaitingJobs = false;
     YT_PROFILE_TIMING("/scheduler/analysis_time") {
         ProcessHeartbeatJobs(
-            node,
             request,
             response,
+            node,
+            strategyProxy,
             &runningJobs,
             &hasWaitingJobs);
     }
@@ -663,7 +673,8 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         node,
         runningJobs,
         mediumDirectory);
-    Y_UNUSED(WaitFor(ManagerHost_->GetStrategy()->ProcessSchedulingHeartbeat(schedulingContext, skipScheduleJobs)));
+
+    Y_UNUSED(WaitFor(strategyProxy->ProcessSchedulingHeartbeat(schedulingContext, skipScheduleJobs)));
 
     ProcessScheduledAndPreemptedJobs(
         schedulingContext,
@@ -691,11 +702,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
     TStringBuilder schedulingAttributesBuilder;
     TDelimitedStringBuilderWrapper delimitedSchedulingAttributesBuilder(&schedulingAttributesBuilder);
-    ManagerHost_->GetStrategy()->BuildSchedulingAttributesStringForNode(
-        nodeId,
-        node->GetDefaultAddress(),
-        node->Tags(),
-        delimitedSchedulingAttributesBuilder);
+    strategyProxy->BuildSchedulingAttributesString(delimitedSchedulingAttributesBuilder);
     context->SetRawResponseInfo(schedulingAttributesBuilder.Flush(), /*incremental*/ true);
 
     if (!skipScheduleJobs) {
@@ -934,7 +941,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
 
         if (oldState == NNodeTrackerClient::ENodeState::Online && newState != NNodeTrackerClient::ENodeState::Online) {
             // NOTE: Tags will be validated when node become online, no need in additional check here.
-            execNode->Tags() = std::move(tags);
+            execNode->SetTags(std::move(tags));
             SubtractNodeResources(execNode);
             // State change must happen before aborting jobs.
             UpdateNodeState(execNode, newState, execNode->GetSchedulerState());
@@ -969,7 +976,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
                 if (oldState != NNodeTrackerClient::ENodeState::Online && newState == NNodeTrackerClient::ENodeState::Online) {
                     AddNodeResources(execNode);
                 }
-                execNode->Tags() = std::move(tags);
+                execNode->SetTags(std::move(tags));
                 UpdateNodeState(execNode, /* newMasterState */ newState, /* newSchedulerState */ execNode->GetSchedulerState());
             }
             ++nodeChangesCount;
@@ -1651,9 +1658,10 @@ void TNodeShard::DoAbortAllJobsAtNode(const TExecNodePtr& node, EAbortReason rea
 
 // TODO(eshcherbin): This method has become too big -- gotta split it.
 void TNodeShard::ProcessHeartbeatJobs(
-    const TExecNodePtr& node,
     TScheduler::TCtxNodeHeartbeat::TTypedRequest* request,
     TScheduler::TCtxNodeHeartbeat::TTypedResponse* response,
+    const TExecNodePtr& node,
+    const INodeHeartbeatStrategyProxyPtr& strategyProxy,
     std::vector<TJobPtr>* runningJobs,
     bool* hasWaitingJobs)
 {
@@ -1757,7 +1765,7 @@ void TNodeShard::ProcessHeartbeatJobs(
     HeartbeatCount_.Increment();
 
     if (shouldLogOngoingJobs) {
-        LogOngoingJobsAt(CpuInstantToInstant(now), node, ongoingJobsByAllocationState);
+        LogOngoingJobsOnHeartbeat(strategyProxy, CpuInstantToInstant(now), ongoingJobsByAllocationState);
     }
 
     if (checkMissingJobs) {
@@ -1786,9 +1794,11 @@ void TNodeShard::ProcessHeartbeatJobs(
     }
 }
 
-void TNodeShard::LogOngoingJobsAt(TInstant now, const TExecNodePtr& node, const TAllocationStateToJobList& ongoingJobsByAllocationState) const
+void TNodeShard::LogOngoingJobsOnHeartbeat(
+    const INodeHeartbeatStrategyProxyPtr& strategyProxy,
+    TInstant now,
+    const TAllocationStateToJobList& ongoingJobsByAllocationState) const
 {
-    const auto& strategy = ManagerHost_->GetStrategy();
     for (auto allocationState : TEnumTraits<EAllocationState>::GetDomainValues()) {
         const auto& jobs = ongoingJobsByAllocationState[allocationState];
         if (jobs.empty()) {
@@ -1797,7 +1807,15 @@ void TNodeShard::LogOngoingJobsAt(TInstant now, const TExecNodePtr& node, const 
 
         TStringBuilder attributesBuilder;
         TDelimitedStringBuilderWrapper delimitedAttributesBuilder(&attributesBuilder);
-        strategy->BuildSchedulingAttributesStringForOngoingJobs(node->GetDefaultAddress(), node->Tags(), jobs, now, delimitedAttributesBuilder);
+
+        strategyProxy->BuildSchedulingAttributesStringForOngoingJobs(
+            jobs,
+            now,
+            delimitedAttributesBuilder);
+
+        if (strategyProxy->HasMatchingTree()) {
+            continue;
+        }
 
         YT_LOG_DEBUG("Jobs are %lv (%v)",
             allocationState,
@@ -1954,9 +1972,11 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
     return job;
 }
 
-bool TNodeShard::IsHeartbeatThrottlingWithComplexity(const TExecNodePtr& node)
+bool TNodeShard::IsHeartbeatThrottlingWithComplexity(
+    const TExecNodePtr& node,
+    const INodeHeartbeatStrategyProxyPtr& strategyProxy)
 {
-    int schedulingHeartbeatComplexity = ManagerHost_->GetStrategy()->GetSchedulingHeartbeatComplexityForNode(node->GetDefaultAddress(), node->Tags());
+    int schedulingHeartbeatComplexity = strategyProxy->GetSchedulingHeartbeatComplexity();
     node->SetSchedulingHeartbeatComplexity(schedulingHeartbeatComplexity);
 
     if (ConcurrentHeartbeatComplexity_ >= Config_->SchedulingHeartbeatComplexityLimit) {

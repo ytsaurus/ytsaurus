@@ -97,6 +97,12 @@ void TExecNode::SetDiskResources(const NNodeTrackerClient::NProto::TDiskResource
     DiskResources_ = value;
 }
 
+void TExecNode::SetTags(TBooleanFormulaTags tags)
+{
+    Tags_ = std::move(tags);
+    MatchingTreeCookie_ = {};
+}
+
 void TExecNode::BuildAttributes(TFluentMap fluent)
 {
     auto oldState = MasterState_;

@@ -54,6 +54,22 @@ DEFINE_REFCOUNTED_TYPE(TFairShareTreeSnapshot)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TFairShareTreeSetSnapshot
+    : public TRefCounted
+{
+public:
+    TFairShareTreeSetSnapshot(std::vector<IFairShareTreePtr> trees, int topologyVersion);
+
+    THashMap<TString, IFairShareTreePtr> BuildIdToTreeMapping() const;
+
+    DEFINE_BYREF_RO_PROPERTY(std::vector<IFairShareTreePtr>, Trees);
+    DEFINE_BYVAL_RO_PROPERTY(int, TopologyVersion);
+};
+
+DEFINE_REFCOUNTED_TYPE(TFairShareTreeSetSnapshot)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TResourceUsageSnapshot final
 {
     NProfiling::TCpuInstant BuildTime;

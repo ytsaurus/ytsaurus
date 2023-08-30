@@ -558,7 +558,7 @@ public:
         TreeScheduler_->UnregisterNode(nodeId);
     }
 
-    TString GetId() const override
+    const TString& GetId() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

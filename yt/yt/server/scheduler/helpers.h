@@ -106,4 +106,15 @@ bool IsSchedulerTreeAlertType(ESchedulerAlertType alertType);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static constexpr int InvalidTreeSetTopologyVersion = -1;
+static constexpr int InvalidTreeIndex = -1;
+
+struct TMatchingTreeCookie
+{
+    int TreeSetTopologyVersion = InvalidTreeSetTopologyVersion;
+    int TreeIndex = InvalidTreeIndex;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NScheduler

@@ -111,16 +111,23 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeEvent& event)
     std::vector<TJobPtr> nodeJobs(jobsSet.begin(), jobsSet.end());
     // NB(eshcherbin): We usually create a lot of simulator node shards running over a small thread pool to
     // introduce artificial contention. Thus we need to reduce the shard id to the range [0, MaxNodeShardCount).
-    auto context = New<TSchedulingContext>(Id_, SchedulerConfig_, node, nodeJobs, MediumDirectory_);
-    context->SetNow(NProfiling::InstantToCpuInstant(event.Time));
+    auto schedulingContext = New<TSchedulingContext>(Id_, SchedulerConfig_, node, nodeJobs, MediumDirectory_);
+    schedulingContext->SetNow(NProfiling::InstantToCpuInstant(event.Time));
 
-    SchedulingStrategy_->ProcessSchedulingHeartbeat(context, /*skipScheduleJobs*/ false);
+    auto strategyProxy = SchedulingStrategy_->CreateNodeHeartbeatStrategyProxy(
+        node->GetId(),
+        node->GetDefaultAddress(),
+        node->Tags(),
+        node->GetMatchingTreeCookie());
 
-    node->SetResourceUsage(context->ResourceUsage());
+    WaitFor(strategyProxy->ProcessSchedulingHeartbeat(schedulingContext, /*skipScheduleJobs*/ false))
+        .ThrowOnError();
+
+    node->SetResourceUsage(schedulingContext->ResourceUsage());
 
     // Create events for all started jobs.
-    for (const auto& job : context->StartedJobs()) {
-        const auto& duration = GetOrCrash(context->GetStartedJobsDurations(), job->GetId());
+    for (const auto& job : schedulingContext->StartedJobs()) {
+        const auto& duration = GetOrCrash(schedulingContext->GetStartedJobsDurations(), job->GetId());
 
         // Notify scheduler.
         job->SetAllocationState(EAllocationState::Running);
@@ -147,7 +154,7 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeEvent& event)
     }
 
     // Process all preempted jobs.
-    for (const auto& preemptedJob : context->PreemptedJobs()) {
+    for (const auto& preemptedJob : schedulingContext->PreemptedJobs()) {
         auto& job = preemptedJob.Job;
         auto duration = event.Time - job->GetStartTime();
 
@@ -170,9 +177,9 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeEvent& event)
 
     TStringBuilder schedulingAttributesBuilder;
     TDelimitedStringBuilderWrapper delimitedSchedulingAttributesBuilder(&schedulingAttributesBuilder);
-    SchedulingStrategy_->BuildSchedulingAttributesStringForNode(node->GetId(), node->GetDefaultAddress(), node->Tags(), delimitedSchedulingAttributesBuilder);
+    strategyProxy->BuildSchedulingAttributesString(delimitedSchedulingAttributesBuilder);
 
-    const auto& statistics = context->GetSchedulingStatistics();
+    const auto& statistics = schedulingContext->GetSchedulingStatistics();
     YT_LOG_DEBUG(
         "Heartbeat finished "
         "(VirtualTimestamp: %v, NodeId: %v, NodeAddress: %v, "
@@ -184,8 +191,8 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeEvent& event)
         event.Time,
         event.NodeId,
         node->GetDefaultAddress(),
-        context->StartedJobs().size(),
-        context->PreemptedJobs().size(),
+        schedulingContext->StartedJobs().size(),
+        schedulingContext->PreemptedJobs().size(),
         statistics.ScheduledDuringPreemption,
         statistics.UnconditionallyPreemptibleJobCount,
         FormatResources(statistics.UnconditionalResourceUsageDiscount),

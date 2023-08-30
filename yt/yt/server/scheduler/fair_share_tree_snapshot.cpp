@@ -1,5 +1,5 @@
 #include "fair_share_tree_snapshot.h"
-
+#include "fair_share_tree.h"
 
 namespace NYT::NScheduler {
 
@@ -56,6 +56,24 @@ bool TFairShareTreeSnapshot::IsElementEnabled(const TSchedulerElement* element) 
     }
     return true;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFairShareTreeSetSnapshot::TFairShareTreeSetSnapshot(std::vector<IFairShareTreePtr> trees, int topologyVersion)
+    : Trees_(std::move(trees))
+    , TopologyVersion_(topologyVersion)
+{ }
+
+THashMap<TString, IFairShareTreePtr> TFairShareTreeSetSnapshot::BuildIdToTreeMapping() const
+{
+    THashMap<TString, IFairShareTreePtr> idToTree;
+    idToTree.reserve(Trees_.size());
+    for (const auto& tree : Trees_) {
+        idToTree.emplace(tree->GetId(), tree);
+    }
+    return idToTree;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TResourceUsageSnapshotPtr BuildResourceUsageSnapshot(const TFairShareTreeSnapshotPtr& treeSnapshot)

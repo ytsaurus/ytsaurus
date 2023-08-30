@@ -322,10 +322,13 @@ TSharedSchedulerStrategy::TSharedSchedulerStrategy(
     , ControlThreadInvoker_(controlThreadInvoker)
 { }
 
-void TSharedSchedulerStrategy::ProcessSchedulingHeartbeat(const ISchedulingContextPtr& schedulingContext, bool skipScheduleJobs)
+INodeHeartbeatStrategyProxyPtr TSharedSchedulerStrategy::CreateNodeHeartbeatStrategyProxy(
+    TNodeId nodeId,
+    const TString& address,
+    const TBooleanFormulaTags& tags,
+    TMatchingTreeCookie cookie) const
 {
-    WaitFor(SchedulerStrategy_->ProcessSchedulingHeartbeat(schedulingContext, skipScheduleJobs))
-        .ThrowOnError();
+    return SchedulerStrategy_->CreateNodeHeartbeatStrategyProxy(nodeId, address ,tags, cookie);
 }
 
 void TSharedSchedulerStrategy::PreemptJob(const TJobPtr& job)
@@ -348,15 +351,6 @@ void TSharedSchedulerStrategy::UnregisterOperation(NYT::NScheduler::IOperationSt
             .AsyncVia(ControlThreadInvoker_)
             .Run())
         .ThrowOnError();
-}
-
-void TSharedSchedulerStrategy::BuildSchedulingAttributesStringForNode(
-    TNodeId nodeId,
-    const TString& nodeAddress,
-    const TBooleanFormulaTags& nodeTags,
-    TDelimitedStringBuilderWrapper& delimitedBuilder) const
-{
-    return SchedulerStrategy_->BuildSchedulingAttributesStringForNode(nodeId, nodeAddress, nodeTags, delimitedBuilder);
 }
 
 void TSharedSchedulerStrategy::BuildSchedulingAttributesForNode(

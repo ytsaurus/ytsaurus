@@ -144,13 +144,42 @@ struct TCachedJobPreemptionStatuses
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct ISchedulerStrategy
+struct INodeHeartbeatStrategyProxy
     : public virtual TRefCounted
 {
     //! Processes running jobs and schedules new jobs.
-    virtual TFuture<void> ProcessSchedulingHeartbeat(const ISchedulingContextPtr& schedulingContext, bool skipScheduleJobs) = 0;
+    virtual TFuture<void> ProcessSchedulingHeartbeat(
+        const ISchedulingContextPtr& schedulingContext,
+        bool skipScheduleJobs) = 0;
 
-    virtual int GetSchedulingHeartbeatComplexityForNode(const TString& nodeAddress, const TBooleanFormulaTags& nodeTags) const = 0;
+    virtual int GetSchedulingHeartbeatComplexity() const = 0;
+
+    virtual void BuildSchedulingAttributesString(
+        TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
+
+    virtual void BuildSchedulingAttributesStringForOngoingJobs(
+        const std::vector<TJobPtr>& jobs,
+        TInstant now,
+        TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
+
+    virtual TMatchingTreeCookie GetMatchingTreeCookie() const = 0;
+
+    virtual bool HasMatchingTree() const = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(INodeHeartbeatStrategyProxy)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct ISchedulerStrategy
+    : public virtual TRefCounted
+{
+    //! Create proxy for handling node heartbeat.
+    virtual INodeHeartbeatStrategyProxyPtr CreateNodeHeartbeatStrategyProxy(
+        NNodeTrackerClient::TNodeId nodeId,
+        const TString& address,
+        const TBooleanFormulaTags& tags,
+        TMatchingTreeCookie cookie) const = 0;
 
     //! Notify strategy about job updates.
     virtual void ProcessJobUpdates(
@@ -299,22 +328,11 @@ struct ISchedulerStrategy
     virtual TFuture<void> GetFullFairShareUpdateFinished() = 0;
 
     //! These methods are used for diagnostics.
-    virtual void BuildSchedulingAttributesStringForNode(
-        NNodeTrackerClient::TNodeId nodeId,
-        const TString& nodeAddress,
-        const TBooleanFormulaTags& nodeTags,
-        TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
     virtual void BuildSchedulingAttributesForNode(
         NNodeTrackerClient::TNodeId nodeId,
         const TString& nodeAddress,
         const TBooleanFormulaTags& nodeTags,
         NYTree::TFluentMap fluent) const = 0;
-    virtual void BuildSchedulingAttributesStringForOngoingJobs(
-        const TString& nodeAddress,
-        const TBooleanFormulaTags& nodeTags,
-        const std::vector<TJobPtr>& jobs,
-        TInstant now,
-        TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
 
     //! These OnFairShare*At methods used for testing purposes in simulator.
     //! Called periodically to collect the metrics of tree elements.

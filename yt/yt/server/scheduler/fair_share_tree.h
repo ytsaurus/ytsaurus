@@ -144,7 +144,7 @@ struct IFairShareTree
     virtual void RegisterNode(NNodeTrackerClient::TNodeId nodeId) = 0;
     virtual void UnregisterNode(NNodeTrackerClient::TNodeId nodeId) = 0;
 
-    virtual TString GetId() const = 0;
+    virtual const TString& GetId() const = 0;
 
     virtual TError CheckOperationIsHung(
         TOperationId operationId,

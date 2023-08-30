@@ -1,6 +1,7 @@
 #include "fair_share_strategy.h"
 #include "fair_share_tree.h"
 #include "fair_share_tree_element.h"
+#include "fair_share_tree_snapshot.h"
 #include "persistent_scheduler_state.h"
 #include "public.h"
 #include "scheduler_strategy.h"
@@ -101,8 +102,11 @@ public:
 
     void OnUpdateResourceUsages()
     {
-        auto idToTree = SnapshottedIdToTree_.Load();
-        for (const auto& [_, tree] : idToTree) {
+        auto snapshot = TreeSetSnapshot_.Acquire();
+        if (!snapshot) {
+            return;
+        }
+        for (const auto& tree : snapshot->Trees()) {
             tree->UpdateResourceUsages();
         }
     }
@@ -147,7 +151,7 @@ public:
         YT_UNUSED_FUTURE(SchedulerTreeAlertsUpdateExecutor_->Stop());
 
         OperationIdToOperationState_.clear();
-        SnapshottedIdToTree_.Exchange(THashMap<TString, IFairShareTreePtr>());
+        TreeSetSnapshot_.Reset();
         IdToTree_.clear();
         Initialized_ = false;
         DefaultTreeId_.reset();
@@ -197,30 +201,23 @@ public:
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
-        auto idToTree = SnapshottedIdToTree_.Load();
-        for (const auto& [_, tree] : idToTree) {
+        auto snapshot = TreeSetSnapshot_.Acquire();
+        if (!snapshot) {
+            return;
+        }
+        for (const auto& tree : snapshot->Trees()) {
             tree->LogAccumulatedUsage();
         }
     }
 
-    TFuture<void> ProcessSchedulingHeartbeat(const ISchedulingContextPtr& schedulingContext, bool skipScheduleJobs) override
+    INodeHeartbeatStrategyProxyPtr CreateNodeHeartbeatStrategyProxy(
+        TNodeId nodeId,
+        const TString& address,
+        const TBooleanFormulaTags& tags,
+        TMatchingTreeCookie cookie) const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        const auto& nodeDescriptor = schedulingContext->GetNodeDescriptor();
-        if (auto tree = FindTreeForNode(nodeDescriptor.Address, nodeDescriptor.Tags)) {
-            return tree->ProcessSchedulingHeartbeat(schedulingContext, skipScheduleJobs);
-        }
-
-        return VoidFuture;
-    }
-
-    int GetSchedulingHeartbeatComplexityForNode(const TString& nodeAddress, const TBooleanFormulaTags& nodeTags) const override
-    {
-        if (auto tree = FindTreeForNode(nodeAddress, nodeTags)) {
-            return tree->GetSchedulingHeartbeatComplexity();
-        }
-        return 0;
+        auto [tree, newCookie] = FindTreeForNodeWithCookie(address, tags, cookie);
+        return New<TNodeHeartbeatStrategyProxy>(nodeId, tree, newCookie);
     }
 
     void RegisterOperation(
@@ -787,7 +784,12 @@ public:
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
-        auto idToTree = SnapshottedIdToTree_.Load();
+        THashMap<TString, IFairShareTreePtr> idToTree;
+        if (auto snapshot = TreeSetSnapshot_.Acquire()) {
+            idToTree = snapshot->BuildIdToTreeMapping();
+        } else {
+            return;
+        }
 
         THashMap<TString, THashMap<TOperationId, TJobMetrics>> treeIdToJobMetricDeltas;
 
@@ -859,8 +861,11 @@ public:
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
-        auto idToTree = SnapshottedIdToTree_.Load();
-        for (const auto& [treeId, tree] : idToTree) {
+        auto snapshot = TreeSetSnapshot_.Acquire();
+        if (!snapshot) {
+            return;
+        }
+        for (const auto& tree : snapshot->Trees()) {
             tree->ProfileFairShare();
         }
     }
@@ -880,12 +885,9 @@ public:
                 return lhs.second->GetOperationCount() > rhs.second->GetOperationCount();
             });
 
-        std::vector<TFuture<std::tuple<TString, TError, IFairShareTreePtr>>> futures;
+        std::vector<TFuture<std::pair<IFairShareTreePtr, TError>>> futures;
         for (const auto& [treeId, tree] : idToTree) {
-            futures.push_back(tree->OnFairShareUpdateAt(now).Apply(BIND([treeId = treeId] (const std::pair<IFairShareTreePtr, TError>& pair) {
-                const auto& [updatedTree, error] = pair;
-                return std::make_tuple(treeId, error, updatedTree);
-            })));
+            futures.push_back(tree->OnFairShareUpdateAt(now));
         }
 
         auto resultsOrError = WaitFor(AllSucceeded(futures));
@@ -898,12 +900,12 @@ public:
             TDelayedExecutor::WaitForDuration(*delay);
         }
 
-        THashMap<TString, IFairShareTreePtr> snapshottedIdToTree;
+        std::vector<IFairShareTreePtr> snapshottedTrees;
         std::vector<TError> errors;
 
         const auto& results = resultsOrError.Value();
-        for (const auto& [treeId, error, updatedTree] : results) {
-            snapshottedIdToTree.emplace(treeId, updatedTree);
+        for (const auto& [updatedTree, error] : results) {
+            snapshottedTrees.push_back(updatedTree);
             if (!error.IsOK()) {
                 errors.push_back(error);
             }
@@ -914,10 +916,29 @@ public:
             // This is necessary to maintain consistency between strategy and trees.
             TForbidContextSwitchGuard guard;
 
-            for (const auto& [_, tree] : snapshottedIdToTree) {
+            std::sort(
+                snapshottedTrees.begin(),
+                snapshottedTrees.end(),
+                [] (const auto& lhs, const auto& rhs) {
+                    return lhs->GetId() < rhs->GetId();
+                });
+
+            TTreeSetTopology treeSetTopology;
+            treeSetTopology.reserve(snapshottedTrees.size());
+            for (const auto& tree : snapshottedTrees) {
                 tree->FinishFairShareUpdate();
+                treeSetTopology.emplace_back(tree->GetId(), tree->GetConfig()->NodesFilter);
             }
-            SnapshottedIdToTree_.Exchange(std::move(snapshottedIdToTree));
+
+            if (treeSetTopology != TreeSetTopology_) {
+                ++TreeSetTopologyVersion_;
+                TreeSetTopology_ = treeSetTopology;
+            }
+
+            auto treeSetSnaphot = New<TFairShareTreeSetSnapshot>(
+                std::move(snapshottedTrees),
+                TreeSetTopologyVersion_);
+            TreeSetSnapshot_.Store(treeSetSnaphot);
 
             YT_LOG_DEBUG("Stored updated fair share tree snapshots");
         }
@@ -942,8 +963,11 @@ public:
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
-        auto idToTree = SnapshottedIdToTree_.Load();
-        for (const auto& [_, tree] : idToTree) {
+        auto snapshot = TreeSetSnapshot_.Acquire();
+        if (!snapshot) {
+            return;
+        }
+        for (const auto& tree : snapshot->Trees()) {
             tree->EssentialLogFairShareAt(now);
         }
     }
@@ -954,8 +978,11 @@ public:
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
-        auto idToTree = SnapshottedIdToTree_.Load();
-        for (const auto& [_, tree] : idToTree) {
+        auto snapshot = TreeSetSnapshot_.Acquire();
+        if (!snapshot) {
+            return;
+        }
+        for (const auto& tree : snapshot->Trees()) {
             tree->LogFairShareAt(now);
         }
     }
@@ -987,7 +1014,13 @@ public:
             jobUpdatesPerTree[jobUpdate.TreeId].push_back(jobUpdate);
         }
 
-        auto idToTree = SnapshottedIdToTree_.Load();
+        THashMap<TString, IFairShareTreePtr> idToTree;
+        if (auto snapshot = TreeSetSnapshot_.Acquire()) {
+            idToTree = snapshot->BuildIdToTreeMapping();
+        } else {
+            return;
+        }
+
         for (const auto& [treeId, treeJobUpdates] : jobUpdatesPerTree) {
             auto it = idToTree.find(treeId);
             if (it == idToTree.end()) {
@@ -1158,7 +1191,12 @@ public:
 
     TErrorOr<TString> ChooseBestSingleTreeForOperation(TOperationId operationId, TJobResources newDemand, bool considerGuaranteesForSingleTree) override
     {
-        auto idToTree = SnapshottedIdToTree_.Load();
+        THashMap<TString, IFairShareTreePtr> idToTree;
+        {
+            auto snapshot = TreeSetSnapshot_.Acquire();
+            YT_VERIFY(snapshot);
+            idToTree = snapshot->BuildIdToTreeMapping();
+        }
 
         // NB(eshcherbin):
         // First, we ignore all trees in which the new operation is not marked running.
@@ -1323,17 +1361,6 @@ public:
         return result;
     }
 
-    void BuildSchedulingAttributesStringForNode(
-        TNodeId nodeId,
-        const TString& nodeAddress,
-        const TBooleanFormulaTags& nodeTags,
-        TDelimitedStringBuilderWrapper& delimitedBuilder) const override
-    {
-        if (auto tree = FindTreeForNode(nodeAddress, nodeTags)) {
-            tree->BuildSchedulingAttributesStringForNode(nodeId, delimitedBuilder);
-        }
-    }
-
     void BuildSchedulingAttributesForNode(
         TNodeId nodeId,
         const TString& nodeAddress,
@@ -1345,18 +1372,6 @@ public:
             tree->BuildSchedulingAttributesForNode(nodeId, fluent);
         } else {
             fluent.Item("tree").Entity();
-        }
-    }
-
-    void BuildSchedulingAttributesStringForOngoingJobs(
-        const TString& nodeAddress,
-        const TBooleanFormulaTags& nodeTags,
-        const std::vector<TJobPtr>& jobs,
-        TInstant now,
-        TDelimitedStringBuilderWrapper& delimitedBuilder) const override
-    {
-        if (auto tree = FindTreeForNode(nodeAddress, nodeTags)) {
-            tree->BuildSchedulingAttributesStringForOngoingJobs(jobs, now, delimitedBuilder);
         }
     }
 
@@ -1393,7 +1408,12 @@ private:
     // NB(eshcherbin): Note that these fair share tree mapping are only *snapshot* of actual mapping.
     // We should not expect that the set of trees or their structure in the snapshot are the same as
     // in the current |IdToTree_| map. Snapshots could be a little bit behind.
-    TAtomicObject<THashMap<TString, IFairShareTreePtr>> SnapshottedIdToTree_;
+    TAtomicIntrusivePtr<TFairShareTreeSetSnapshot> TreeSetSnapshot_;
+
+    // Topology describes set of trees and their node filters.
+    using TTreeSetTopology = std::vector<std::pair<TString, TSchedulingTagFilter>>;
+    TTreeSetTopology TreeSetTopology_;
+    int TreeSetTopologyVersion_ = 0;
 
     TInstant ConnectionTime_;
     TInstant LastMeteringStatisticsUpdateTime_;
@@ -1515,30 +1535,74 @@ private:
         return result;
     }
 
-    IFairShareTreePtr FindTreeForNode(const TString& nodeAddress, const TBooleanFormulaTags& nodeTags) const
+    int FindTreeIndexForNode(
+        const std::vector<IFairShareTreePtr>& trees,
+        const TString& nodeAddress,
+        const TBooleanFormulaTags& nodeTags) const
     {
-        IFairShareTreePtr matchingTree;
-
-        auto idToTree = SnapshottedIdToTree_.Load();
-        for (const auto& [treeId, tree] : idToTree) {
-            if (tree->GetSnapshottedConfig()->NodesFilter.CanSchedule(nodeTags)) {
-                if (matchingTree) {
-                    // Found second matching tree, skip scheduling.
-                    YT_LOG_INFO("Node belong to multiple fair-share trees (Address: %v)",
-                        nodeAddress);
-                    return nullptr;
-                }
-                matchingTree = tree;
+        bool hasMultipleMatchingTrees = false;
+        int treeIndex = InvalidTreeIndex;
+        for (int index = 0; index < std::ssize(trees); ++index) {
+            const auto& tree = trees[index];
+            if (!tree->GetSnapshottedConfig()->NodesFilter.CanSchedule(nodeTags)) {
+                continue;
             }
+            if (treeIndex != InvalidTreeIndex) {
+                // Found second matching tree, skip scheduling.
+                treeIndex = InvalidTreeIndex;
+                hasMultipleMatchingTrees = true;
+                break;
+            }
+            treeIndex = index;
         }
 
-        if (!matchingTree) {
-            YT_LOG_INFO("Node does not belong to any fair-share tree (Address: %v)",
-                nodeAddress);
+        if (treeIndex == InvalidTreeIndex) {
+            if (hasMultipleMatchingTrees) {
+                YT_LOG_INFO("Node belongs to multiple fair-share trees (Address: %v)",
+                    nodeAddress);
+            } else {
+                YT_LOG_INFO("Node does not belong to any fair-share tree (Address: %v)",
+                    nodeAddress);
+            }
+        }
+        return treeIndex;
+    }
+
+    std::pair<IFairShareTreePtr, TMatchingTreeCookie> FindTreeForNodeWithCookie(
+        const TString& nodeAddress,
+        const TBooleanFormulaTags& nodeTags,
+        TMatchingTreeCookie cookie) const
+    {
+        auto snapshot = TreeSetSnapshot_.Acquire();
+        if (!snapshot) {
+            return {nullptr, TMatchingTreeCookie{}};
+        }
+
+        const auto& trees = snapshot->Trees();
+        if (cookie.TreeIndex != InvalidTreeIndex &&
+            snapshot->GetTopologyVersion() == cookie.TreeSetTopologyVersion)
+        {
+            return {trees[cookie.TreeIndex], std::move(cookie)};
+        }
+
+        auto treeIndex = FindTreeIndexForNode(trees, nodeAddress, nodeTags);
+        if (treeIndex == InvalidTreeIndex) {
+            return {nullptr, TMatchingTreeCookie{}};
+        } else {
+            return {trees[treeIndex], TMatchingTreeCookie{snapshot->GetTopologyVersion(), treeIndex}};
+        }
+    }
+
+    IFairShareTreePtr FindTreeForNode(const TString& nodeAddress, const TBooleanFormulaTags& nodeTags) const
+    {
+        auto snapshot = TreeSetSnapshot_.Acquire();
+        if (!snapshot) {
             return nullptr;
         }
 
-        return matchingTree;
+        const auto& trees = snapshot->Trees();
+        auto treeIndex = FindTreeIndexForNode(trees, nodeAddress, nodeTags);
+        return treeIndex == InvalidTreeIndex ? nullptr : trees[treeIndex];
     }
 
     TFuture<void> ValidateOperationPoolsCanBeUsed(const IOperationStrategyHost* operation, const TOperationRuntimeParametersPtr& runtimeParameters)
@@ -2109,13 +2173,13 @@ private:
 
         TMeteringMap newStatistics;
 
-        auto idToTree = SnapshottedIdToTree_.Load();
-        if (idToTree.empty()) {
-            // It usually means that scheduler just started and snapshotted mapping are not build yet.
+        auto snapshot = TreeSetSnapshot_.Acquire();
+        if (!snapshot) {
+            // It usually means that scheduler just started and tree snapshots have not been built yet.
             return;
         }
 
-        for (const auto& [_, tree] : idToTree) {
+        for (const auto& tree : snapshot->Trees()) {
             TMeteringMap newStatisticsPerTree;
             THashMap<TString, TString> customMeteringTags;
             tree->BuildResourceMetering(&newStatisticsPerTree, &customMeteringTags);
@@ -2237,6 +2301,65 @@ private:
         }
 
         const TIntrusivePtr<TFairShareStrategy> Strategy_;
+    };
+
+    class TNodeHeartbeatStrategyProxy
+        : public INodeHeartbeatStrategyProxy
+    {
+    public:
+        TNodeHeartbeatStrategyProxy(TNodeId nodeId, const IFairShareTreePtr& tree, TMatchingTreeCookie cookie)
+            : NodeId_(nodeId)
+            , Tree_(tree)
+            , Cookie_(cookie)
+        { }
+
+        TFuture<void> ProcessSchedulingHeartbeat(
+            const ISchedulingContextPtr& schedulingContext,
+            bool skipScheduleJobs) override
+        {
+            if (Tree_) {
+                return Tree_->ProcessSchedulingHeartbeat(schedulingContext, skipScheduleJobs);
+            }
+            return VoidFuture;
+        }
+
+        int GetSchedulingHeartbeatComplexity() const override
+        {
+            return Tree_ ? Tree_->GetSchedulingHeartbeatComplexity() : 0;
+        }
+
+        void BuildSchedulingAttributesString(
+            TDelimitedStringBuilderWrapper& delimitedBuilder) const override
+        {
+            if (Tree_) {
+                Tree_->BuildSchedulingAttributesStringForNode(NodeId_, delimitedBuilder);
+            }
+        }
+
+        void BuildSchedulingAttributesStringForOngoingJobs(
+            const std::vector<TJobPtr>& jobs,
+            TInstant now,
+            TDelimitedStringBuilderWrapper& delimitedBuilder) const override
+        {
+            if (Tree_) {
+                Tree_->BuildSchedulingAttributesStringForOngoingJobs(jobs, now, delimitedBuilder);
+            }
+        }
+
+        TMatchingTreeCookie GetMatchingTreeCookie() const override
+        {
+            return Cookie_;
+        }
+
+        bool HasMatchingTree() const override
+        {
+            return static_cast<bool>(Tree_);
+        }
+
+    private:
+        TNodeId NodeId_;
+        IFairShareTreePtr Tree_;
+        TMatchingTreeCookie Cookie_;
     };
 };
 

@@ -607,7 +607,7 @@ protected:
         execNode->SetResourceLimits(nodeResources.ToJobResources());
         execNode->SetDiskResources(diskResources);
 
-        execNode->Tags() = std::move(tags);
+        execNode->SetTags(std::move(tags));
 
         return execNode;
     }
