@@ -33,7 +33,7 @@
 #include <yt/yt/core/actions/cancelable_context.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
-#include <yt/yt/core/concurrency/nonblocking_batch.h>
+#include <yt/yt/core/concurrency/nonblocking_batcher.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/async_semaphore.h>
 
@@ -648,11 +648,11 @@ public:
         : Config_(std::move(config))
         , Bootstrap_(bootstrap)
         , Host_(host)
-        , RemoveBatcher_(New<TNonblockingBatch<TOperationId>>(
-            Config_->RemoveBatchSize,
+        , RemoveBatcher_(New<TNonblockingBatcher<TOperationId>>(
+            TBatchSizeLimiter(Config_->RemoveBatchSize),
             Config_->RemoveBatchTimeout))
-        , ArchiveBatcher_(New<TNonblockingBatch<TOperationId>>(
-            Config_->ArchiveBatchSize,
+        , ArchiveBatcher_(New<TNonblockingBatcher<TOperationId>>(
+            TBatchSizeLimiter(Config_->ArchiveBatchSize),
             Config_->ArchiveBatchTimeout))
         , Client_(Bootstrap_->GetClient()->GetNativeConnection()
             ->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::OperationsCleanerUserName)))
@@ -815,8 +815,8 @@ private:
     std::multimap<TInstant, TOperationId> ArchiveTimeToOperationIdMap_;
     THashMap<TOperationId, TArchiveOperationRequest> OperationMap_;
 
-    TIntrusivePtr<TNonblockingBatch<TOperationId>> RemoveBatcher_;
-    TIntrusivePtr<TNonblockingBatch<TOperationId>> ArchiveBatcher_;
+    TIntrusivePtr<TNonblockingBatcher<TOperationId>> RemoveBatcher_;
+    TIntrusivePtr<TNonblockingBatcher<TOperationId>> ArchiveBatcher_;
     std::deque<std::pair<TOperationId, TInstant>> LockedOperationQueue_;
 
     std::deque<TOperationAlertEvent> OperationAlertEventQueue_;
@@ -1033,10 +1033,10 @@ private:
             AnalysisExecutor_->SetPeriod(Config_->AnalysisPeriod);
         }
 
-        ArchiveBatcher_->UpdateMaxBatchSize(Config_->ArchiveBatchSize);
+        ArchiveBatcher_->UpdateBatchLimiter(TBatchSizeLimiter(Config_->ArchiveBatchSize));
         ArchiveBatcher_->UpdateBatchDuration(Config_->ArchiveBatchTimeout);
 
-        RemoveBatcher_->UpdateMaxBatchSize(Config_->RemoveBatchSize);
+        RemoveBatcher_->UpdateBatchLimiter(TBatchSizeLimiter(Config_->RemoveBatchSize));
         RemoveBatcher_->UpdateBatchDuration(Config_->RemoveBatchTimeout);
 
         YT_LOG_INFO("Operations cleaner config updated (Enable: %v, EnableOperationArchivation: %v, EnableOperationAlertEventArchivation: %v)",

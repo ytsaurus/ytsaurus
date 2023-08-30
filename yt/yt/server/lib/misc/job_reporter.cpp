@@ -32,7 +32,7 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
-#include <yt/yt/core/concurrency/nonblocking_batch.h>
+#include <yt/yt/core/concurrency/nonblocking_batcher.h>
 #include <yt/yt/core/concurrency/async_semaphore.h>
 
 #include <yt/yt/core/utilex/random.h>

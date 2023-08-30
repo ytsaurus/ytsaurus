@@ -7,7 +7,7 @@
 #include <yt/yt/client/table_client/name_table.h>
 
 #include <yt/yt/core/concurrency/async_semaphore.h>
-#include <yt/yt/core/concurrency/nonblocking_batch.h>
+#include <yt/yt/core/concurrency/nonblocking_batcher.h>
 
 #include <yt/yt/core/utilex/random.h>
 
@@ -117,7 +117,7 @@ public:
         , Version_(std::move(version))
         , Client_(std::move(client))
         , Limiter_(HandlerConfig_->MaxInProgressDataSize)
-        , Batcher_(New<TNonblockingBatch<std::unique_ptr<IArchiveRowlet>>>(ReporterConfig_->MaxItemsInBatch, ReporterConfig_->ReportingPeriod))
+        , Batcher_(New<TNonblockingBatcher<std::unique_ptr<IArchiveRowlet>>>(TBatchSizeLimiter(ReporterConfig_->MaxItemsInBatch), ReporterConfig_->ReportingPeriod))
         , EnqueuedCounter_(profiler.Counter("/enqueued"))
         , DequeuedCounter_(profiler.Counter("/dequeued"))
         , DroppedCounter_(profiler.Counter("/dropped"))
@@ -177,7 +177,7 @@ private:
     const NNative::IClientPtr Client_;
 
     NYT::NDetail::TLimiter Limiter_;
-    TNonblockingBatchPtr<std::unique_ptr<IArchiveRowlet>> Batcher_;
+    TNonblockingBatcherPtr<std::unique_ptr<IArchiveRowlet>> Batcher_;
 
     TCounter EnqueuedCounter_;
     TCounter DequeuedCounter_;
