@@ -367,6 +367,7 @@ private:
 
         SetProxyAttributes(transaction, AttributeBundleControllerAnnotations, mutations.ChangedProxyAnnotations);
         SetProxyAttributes(transaction, ProxyAttributeRole, mutations.ChangedProxyRole);
+        RemoveInstanceAttributes(transaction, RpcProxiesPath, ProxyAttributeRole, mutations.RemovedProxyRole);
 
         // We should not violate RootSystemAccountLimit when changing per-bundle ones, so we apply changes in specific order.
         SetInstanceAttributes(transaction, BundleSystemQuotasPath, AccountAttributeResourceLimits, mutations.LoweredSystemAccountLimit);
@@ -402,6 +403,7 @@ private:
         InstanceCypressNodeRemovalCounter_.Increment(mutations.ProxiesToCleanup.size() + mutations.NodesToCleanup.size());
 
         ChangedProxyRoleCounter_.Increment(mutations.ChangedProxyRole.size());
+        ChangedProxyRoleCounter_.Increment(mutations.RemovedProxyRole.size());
         ChangedProxyAnnotationCounter_.Increment(mutations.ChangedProxyAnnotations.size());
         ChangedSystemAccountLimitCounter_.Increment(mutations.LoweredSystemAccountLimit.size() + mutations.LiftedSystemAccountLimit.size());
         ChangedResourceLimitCounter_.Increment(mutations.ChangedTabletStaticMemory.size());
@@ -1006,6 +1008,26 @@ private:
 
             TSetNodeOptions setOptions;
             WaitFor(transaction->SetNode(path, ConvertToYsonString(attribute), setOptions))
+                .ThrowOnError();
+        }
+    }
+
+    static void RemoveInstanceAttributes(
+        const ITransactionPtr& transaction,
+        const TYPath& instanceBasePath,
+        const TString& attributeName,
+        const THashSet<TString>& instancies)
+    {
+        for (const auto& instanceName : instancies) {
+            auto path = Format("%v/%v/@%v",
+                instanceBasePath,
+                NYPath::ToYPathLiteral(instanceName),
+                attributeName);
+
+            YT_LOG_DEBUG("Removing attribute (Path: %v)",
+                path);
+
+            WaitFor(transaction->RemoveNode(path))
                 .ThrowOnError();
         }
     }

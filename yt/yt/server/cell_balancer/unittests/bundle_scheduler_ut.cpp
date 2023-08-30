@@ -2730,6 +2730,7 @@ TEST_P(TBundleSchedulerTest, OfflineRpcProxiesGracePeriod)
         proxyInfo->Alive.Reset();
         proxyInfo->ModificationTime = TInstant::Now() - OfflineInstanceGracePeriod * 2;
     }
+    EXPECT_EQ(1, std::ssize(mutations.RemovedProxyRole));
 
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
@@ -2872,6 +2873,7 @@ TEST_P(TBundleSchedulerTest, DeallocateAdoptedNodes)
             input.TabletNodes[nodeId]->Annotations = annotations;
         }
     }
+    EXPECT_EQ(1, std::ssize(mutations.RemovedProxyRole));
 
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
