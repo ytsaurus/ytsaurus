@@ -27,4 +27,4 @@ docs-viewer:
   index-page:
     hidden: true
     title: YT-public
-    description: "{{product-name}} public docs"
+    description: "YTsaurus public docs"

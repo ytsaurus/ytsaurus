@@ -1,18 +1,14 @@
-DOCS(docs)
+OWNER(g:data-ui)
 
-OWNER(
-    andozer
-    arivkin
-    pewit
-)
+DOCS()
+
+DOCS_DIR(yt/docs)
 
 DOCS_VARS(
     version=0
     audience=public
     product-name=YTsaurus
 )
-
-DOCS_DIR(yt/documentation)
 
 DOCS_INCLUDE_SOURCES(
     # Python examples
@@ -45,7 +41,6 @@ DOCS_INCLUDE_SOURCES(
     yt/python/examples/table_read_write_typed/example.py
     yt/python/examples/table_schema_typed/example.py
     yt/python/examples/table_switches_typed/example.py
-
 
     # C++ examples
     yt/cpp/mapreduce/examples/tutorial/simple_map_tnode/main.cpp
@@ -85,14 +80,10 @@ DOCS_INCLUDE_SOURCES(
     yt/java/ytsaurus-client-examples/read-write-entity-example/src/main/java/tech/ytsaurus/example/ExampleReadWriteEntity.java
     yt/java/ytsaurus-client-examples/read-write-ytree-example/src/main/java/tech/ytsaurus/example/ExampleReadWriteYTree.java
 
-    # Spark examples
+    # SPYT examples
     yt/spark/spark-over-yt/java-examples/src/main/java/tech/ytsaurus/spyt/example/SmokeTest.java
     yt/spark/spark-over-yt/java-examples/src/main/java/tech/ytsaurus/spyt/example/UdfExample.java
     yt/spark/spark-over-yt/java-examples/src/main/java/tech/ytsaurus/spyt/example/GroupingExample.java
 )
 
 END()
-
-RECURSE(
-    upload_tutorial_data
-)

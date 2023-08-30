@@ -8,9 +8,10 @@ Java API опубликовано в [maven](https://central.sonatype.com/artifa
 
 Перед использованием примеров прочитайте [инструкцию по получению токена](../../../user-guide/storage/auth.md).
 
-Нужно иметь специальные таблицы с данными на вашем YTsaurus кластере, их можно сгенерировать так:
+Нужно иметь специальные таблицы с данными на вашем {{product-name}} кластере, их можно сгенерировать так:
+
 ```bash
-./yt/documentation/upload_tutorial_data/upload_tutorial_data.py -gw --proxy <your-http-proxy>
+./yt/docs/upload_tutorial_data/upload_tutorial_data.py -gw --proxy <your-http-proxy>
 ```
 
 Примеры можно запускать с помощью gradle из директории примера:
@@ -50,9 +51,9 @@ YT_PROXY=<your-http-proxy> gradle run
 
 {% code '/yt/java/ytsaurus-client-examples/map-entity-example/src/main/java/tech/ytsaurus/example/ExampleMapEntity.java' lang='java' %}
 
-### Map operation (YTreeMapNode version)
+### Map операция (YTreeMapNode версия)
 
-The example is located at [yt/java/ytsaurus-client-examples/map-entity-example/src/main/java/tech/ytsaurus/example/ExampleMapEntity.java](https://github.com/ytsaurus/ytsaurus/blob/main/yt/java/ytsaurus-client-examples/map-entity-example/src/main/java/tech/ytsaurus/example/ExampleMapEntity.java).
+Пример находится в [yt/java/ytsaurus-client-examples/map-entity-example/src/main/java/tech/ytsaurus/example/ExampleMapEntity.java](https://github.com/ytsaurus/ytsaurus/blob/main/yt/java/ytsaurus-client-examples/map-entity-example/src/main/java/tech/ytsaurus/example/ExampleMapEntity.java).
 
 {% code '/yt/java/ytsaurus-client-examples/map-ytree-example/src/main/java/tech/ytsaurus/example/ExampleMapYTree.java' lang='java' %}
 

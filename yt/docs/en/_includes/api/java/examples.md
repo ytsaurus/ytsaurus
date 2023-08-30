@@ -10,7 +10,7 @@ Before using the examples, read the [instructions for obtaining the token](../..
 
 Also you need to have tutorial tables on your YTsaurus cluster. It can be generated using this script:
 ```bash
-./yt/documentation/upload_tutorial_data/upload_tutorial_data.py -gw --proxy <your-http-proxy>
+./yt/docs/upload_tutorial_data/upload_tutorial_data.py -gw --proxy <your-http-proxy>
 ```
 
 Every example can be run from its directory using gradle:

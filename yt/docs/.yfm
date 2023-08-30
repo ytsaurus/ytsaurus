@@ -1,0 +1,32 @@
+allowHTML: true
+apply-presets: true 
+varsPreset: public
+docs-viewer:
+  project-name: yt
+  abc-slug: yt
+  metrika: 52959211
+  langs: ['ru', 'en']
+  startrek:
+    queue: YTADMINREQ
+    ticket-type: task
+  show-revision: false
+  auto-release-to:
+    testing: true
+    prod: true
+  releasers:
+    - arivkin
+    - andozer
+  crawler:
+    notifications:
+      interval: weekly
+      receivers:
+        - arivkin
+        - andozer
+    exclude:
+      regexp:
+        - disk.yandex.ru/public/nda.*
+  index-page:
+    hidden: true
+    title: YT-public
+    description: "YTsaurus public docs"
+  is-external: true
