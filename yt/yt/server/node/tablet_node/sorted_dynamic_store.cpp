@@ -193,6 +193,10 @@ public:
             LockMask_.Enrich(ColumnLockCount_);
         } else {
             for (int columnIndex : columnFilter.GetIndexes()) {
+                if (columnIndex < Store_->KeyColumnCount_) {
+                    // Key columns don't have corresponding locks.
+                    continue;
+                }
                 int lockIndex = Store_->ColumnIndexToLockIndex_[columnIndex];
                 LockMask_.Set(lockIndex, ELockType::SharedWeak);
             }
