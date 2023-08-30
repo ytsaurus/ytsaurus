@@ -66,12 +66,12 @@ public:
             .StoreResult(&CellId_)
             .RequiredArgument("CELL ID");
         Opts_
-            .AddLongOption("replay-changelogs", "replay one or more consecutive master changelogs\n"
+            .AddLongOption("replay-changelogs", "replay one or more consecutive tablet cell changelogs\n"
                            "Usually used in conjunction with 'validate-snapshot' option to apply changelogs over a specific snapshot")
             .SplitHandler(&ChangelogFileNames_, ' ')
             .RequiredArgument("CHANGELOG");
         Opts_
-            .AddLongOption("build-snapshot", "save resulting state in a snapshot\n"
+            .AddLongOption("build-snapshot", "save resulting tablet cell state to a snapshot\n"
                                              "Path to a directory can be specified here\n"
                                              "By default snapshot will be saved in the working directory")
             .StoreResult(&SnapshotBuildDirectory_)

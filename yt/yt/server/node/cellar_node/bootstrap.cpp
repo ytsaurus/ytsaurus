@@ -261,7 +261,7 @@ private:
 
     IMasterConnectorPtr MasterConnector_;
 
-    ICellarOccupantPtr DryRunOccupant_ = nullptr;
+    ICellarOccupantPtr DryRunOccupant_;
 
     void EnsureDryRunOccupantCreated()
     {
@@ -280,7 +280,7 @@ private:
 
     void DoLoadSnapshot(
         const TString& fileName,
-        NHydra::NProto::TSnapshotMeta meta = {},
+        const NHydra::NProto::TSnapshotMeta& meta = {},
         bool dumpSnapshot = false)
     {
         YT_LOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Snapshot meta received (Meta: %v)",
@@ -310,7 +310,7 @@ private:
             auto changelogId = TryFromString<int>(NFS::GetFileNameWithoutExtension(changelogFileName));
             if (changelogId.Empty()) {
                 changelogId = InvalidSegmentId;
-                YT_LOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Can't parse changelog name as id, using id %v as substitute",
+                YT_LOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Cannot parse changelog name as id, using id %v as substitute",
                     changelogId);
             }
 
