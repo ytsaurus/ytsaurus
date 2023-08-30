@@ -215,9 +215,12 @@ def test_sorted_tables(base_path, spec, attributes, force):
             yt.move(registry.base + ".copy", registry.base, force=True)
             yt.mount_table(registry.base, sync=True)
 
-        # Verify selects and lookups.
-        if not spec.testing.skip_verify:
+        # Verify lookups.
+        if not spec.testing.skip_verify and not spec.testing.skip_lookup:
             verify_lookup(schema, registry.keys, registry.data, registry.base, registry.result, spec)
+
+        # Verify selects.
+        if not spec.testing.skip_verify and not spec.testing.skip_select:
             key_columns = schema.get_key_column_names()
             verify_select(
                 schema,
@@ -257,8 +260,11 @@ def test_sorted_tables(base_path, spec, attributes, force):
                 spec)
             mr_runner.run()
 
-        if not process_runner.join_processes() and not spec.testing.ignore_failed_mr:
-            raise Exception("Some operations failed")
+        if not spec.testing.ignore_failed_mr:
+            results = process_runner.join_processes()
+            errors = [r for r in results if r is not None]
+            if errors:
+                raise yt.YtError("Some operations failed", inner_errors=errors)
 
         # All the stuff we do later is kinda useless otherwise.
         if iteration + 1 == spec.size.iterations:

@@ -240,6 +240,8 @@ spec_template = {
         "skip_generation": False,
         "skip_write": False,
         "skip_verify": False,
+        "skip_lookup": False,
+        "skip_select": False,
         "ignore_failed_mr": False,
     },
 

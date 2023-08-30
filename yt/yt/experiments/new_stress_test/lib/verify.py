@@ -1,5 +1,5 @@
 from .job_base import JobBase
-from .helpers import create_client, equal_table_rows
+from .helpers import create_client, equal_table_rows, run_operation_and_wrap_error
 from .logger import logger
 
 import yt.wrapper as yt
@@ -27,7 +27,7 @@ class VerifierReducer(JobBase):
         if not equal_table_rows(self.schema.get_column_names(), rows[0], rows[1]):
             yield {"expected": rows[0], "actual": rows[1]}
 
-def verify_output(schema, data_table, dump_table, result_table, client=None):
+def verify_output(schema, data_table, dump_table, result_table, title="operation", client=None):
     logger.info("Verify output")
     key_columns = schema.get_key_column_names()
 
@@ -42,11 +42,10 @@ def verify_output(schema, data_table, dump_table, result_table, client=None):
         result_table,
         reduce_by=key_columns,
         format=yt.YsonFormat(control_attributes_mode="row_fields"),
-        spec={"title": "Verify operation output"})
+        spec={"title": f"Verify {title} output"})
 
-    rows = client.read_table(result_table, raw=False)
-    if next(rows, None) != None:
-        raise Exception("Verification failed")
+    if client.get(result_table + "/@row_count") != 0:
+        raise Exception(f"{title.capitalize()} failed: data mismatch")
     client.remove(dump_table)
     logger.info("Everything OK")
 

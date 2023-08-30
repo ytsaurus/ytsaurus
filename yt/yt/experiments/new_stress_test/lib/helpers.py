@@ -19,14 +19,48 @@ def create_client(proxy=None, config=yt.config.config, api_version=None):
     return YtClient(proxy, config=config)
 
 def wait_for_preload(table):
-    # XXX @preload_state
     if yt.get(table + "/@in_memory_mode") == "none":
         return
-    def check():
-        statistics = yt.get(table + "/@tablets/0/statistics")
-        return statistics["preload_pending_store_count"] == 0 and \
-               statistics["store_count"] > 0
-    wait(check, sleep_backoff=0.3)
+
+    # Polls a single attribute. Rather slow due to high tablet heartbeat period.
+    # Not used, left here in case if any problems with wait_via_node_orchid show up.
+    def wait_via_master():
+        wait(
+            lambda: yt.get(table + "/@preload_state") == "completed",
+            sleep_backoff=0.3,
+            timeout=120)
+
+    # Polls multiple node orchids. Does not depend on heartbeat period.
+    def wait_via_node_orchid():
+        node_set = set(
+            tablet["cell_leader_address"]
+            for tablet
+            in yt.get(table + "/@tablets"))
+
+        def _check():
+            batch_client = yt.create_batch_client()
+            node_list = list(node_set)
+            rsps : list[yt.batch_execution.BatchResponse] = []
+            for node in node_list:
+                rsps.append(batch_client.get(
+                    f"//sys/cluster_nodes/{node}/orchid/tablet_slot_manager" +
+                    "/memory_usage_statistics/tables" +
+                    "/" + table.replace("/", "\\/") +
+                    "/preload_pending_store_count"))
+
+            batch_client.commit_batch()
+
+            for node, rsp in zip(node_list, rsps):
+                if rsp.is_ok():
+                    pass
+                if rsp.get_result() == 0:
+                    node_set.discard(node)
+
+            return len(node_set) == 0
+
+        wait(_check, sleep_backoff=1, timeout=120)
+
+    wait_via_node_orchid();
 
 def mount_table(path):
     #  sys.stdout.write("Mounting table %s... " % (path))
@@ -144,3 +178,9 @@ def equal_table_rows(columns, lhs, rhs):
 def is_table_empty(table):
     assert yt.exists(table)
     return yt.get("{}/@row_count".format(table)) == 0
+
+def run_operation_and_wrap_error(op: yt.Operation, error_message):
+    try:
+        op.wait()
+    except yt.YtError as e:
+        raise yt.YtError(f"{error_message} operation failed: {op.url}", inner_errors=[e]) from None

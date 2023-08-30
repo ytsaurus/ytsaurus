@@ -1,39 +1,49 @@
 import logging
 
+class Extras:
+    iteration = None
+    generation = None
+    kind = None
+    pid = None
+    func = None
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def get_prefix(self):
+        extra = []
+        if self.generation is not None:
+            extra += ["gen {}".format(self.generation)]
+        if self.kind is not None:
+            extra += ["kind {}".format(self.kind)]
+        if self.iteration is not None:
+            extra += ["iter {}".format(self.iteration)]
+        if self.pid is not None:
+            extra += ["PID {}".format(self.pid)]
+        if self.func is not None:
+            extra += ["{}".format(self.func)]
+        return "[" + ", ".join(extra) + "] " if extra else ""
+
+class Adapter(logging.LoggerAdapter, Extras):
+    def __init__(self, logger):
+        super().__init__(logger, {})
+
+    def process(self, *args, **kwargs):
+        return super().process(*args, **kwargs)
+
 def setup_logger():
-    _logger = logging.getLogger("stress")
-    handler = logging.StreamHandler()
-    formatter = logging.Formatter("%(asctime)s\t%(levelname)s\t%(message)s")
-    handler.setFormatter(formatter)
-    _logger.handlers.clear()
-    _logger.addHandler(handler)
-    _logger.propagate = False
-
-    class Adapter(logging.LoggerAdapter):
-        def __init__(self, logger):
-            super(Adapter, self).__init__(logger, {})
-            self.iteration = None
-            self.generation = None
-            self.kind = None
-
-            self.warn = self.warning
-
-        def setLevel(self, *args, **kwargs):
-            self.logger.setLevel(*args, **kwargs)
-
-        def process(self, msg, kwargs):
-            extra = ["extra"]
-            if self.generation is not None:
-                extra += ["gen {}".format(self.generation)]
-            if self.kind is not None:
-                extra += ["kind {}".format(self.kind)]
-            if self.iteration is not None:
-                extra += ["iter {}".format(self.iteration)]
-            prefix = "[" + ", ".join(extra) + "] " if extra else ""
-            return prefix + msg, kwargs
-
     global logger
-    logger = Adapter(_logger)
-    logger.setLevel(logging.INFO)
+    logger = Adapter(logging.getLogger("stress"))
+
+    logging.basicConfig(format="%(asctime)s\t%(levelname)s\t%(message)s", level=logging.INFO)
+
+    old_factory = logging.getLogRecordFactory()
+
+    def record_factory(name, *args, **kwargs):
+        record = old_factory(name, *args, **kwargs)
+        record.msg = logger.get_prefix() + record.msg
+        return record
+
+    logging.setLogRecordFactory(record_factory)
 
 setup_logger()

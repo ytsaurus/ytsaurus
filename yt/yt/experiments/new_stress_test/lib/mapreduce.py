@@ -88,6 +88,7 @@ class MapreduceRunner(object):
             self.data_table,
             self.dump_table + suffix,
             self.result_table + suffix,
+            suffix[1:].replace("_", " "),
             client)
 
     @process_runner.run_in_process()

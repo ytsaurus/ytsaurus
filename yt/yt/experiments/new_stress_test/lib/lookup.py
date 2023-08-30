@@ -1,6 +1,6 @@
 from .job_base import JobBase
 from .logger import logger
-from .helpers import equal_table_rows
+from .helpers import equal_table_rows, run_operation_and_wrap_error
 
 import yt.wrapper as yt
 import yt.yson as yson
@@ -82,12 +82,15 @@ def verify_lookup(schema, key_table, data_table, table, result_table, spec):
         op_spec["scheduling_options_per_pool_tree"] = {
             "physical": {"resource_limits": {"user_slots": spec.get_read_user_slot_count()}}}
 
-    yt.run_reduce(
+    op = yt.run_reduce(
         LookupReducer(schema, table, spec),
         [key_table, data_table],
         result_table,
         reduce_by=schema.get_key_column_names(),
-        spec=op_spec)
+        spec=op_spec,
+        sync=False)
+    run_operation_and_wrap_error(op, "Lookup")
+
     if yt.get(result_table + "/@row_count") != 0:
-        raise Exception("Verification failed")
+        raise Exception("Lookup verification failed: data mismatch")
     logger.info("Everything OK")

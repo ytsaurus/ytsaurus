@@ -1,6 +1,6 @@
 from .job_base import JobBase
 from .process_runner import process_runner
-from .helpers import create_client
+from .helpers import create_client, run_operation_and_wrap_error
 from .verify import verify_output
 from .logger import logger
 
@@ -85,10 +85,12 @@ def verify_select(schema, key_table, data_table, table, dump_table, result_table
         op_spec["scheduling_options_per_pool_tree"] = {
             "physical": {"resource_limits": {"user_slots": spec.get_read_user_slot_count()}}}
 
-    client.run_reduce(
+    op = client.run_reduce(
         SelectReducer(table, spec, key_columns, data_key_columns),
         key_table,
         dump_table,
         reduce_by=key_columns,
-        spec=op_spec)
-    verify_output(schema, data_table, dump_table, result_table, client)
+        spec=op_spec,
+        sync=False)
+    run_operation_and_wrap_error(op, "Select")
+    verify_output(schema, data_table, dump_table, result_table, "select", client)
