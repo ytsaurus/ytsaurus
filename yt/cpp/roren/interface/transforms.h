@@ -722,6 +722,37 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/// Easy way to build transform from lambda function.
+template <typename TFunction>
+class TGenericTransform
+{
+public:
+    template <typename TFunctionArg>
+    explicit TGenericTransform(const TString& name, TFunctionArg&& function)
+        : Name_(name)
+        , Function_(std::forward<TFunctionArg>(function))
+    { }
+
+    TString GetName() const
+    {
+        return Name_;
+    }
+
+    auto ApplyTo(const auto& pCollection) const
+    {
+        return Function_(pCollection);
+    }
+
+private:
+    TString Name_;
+    TFunction Function_;
+};
+
+template <typename TFunctionArg>
+TGenericTransform(const TString& name, TFunctionArg&& function) -> TGenericTransform<std::remove_cvref_t<TFunctionArg>>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TNullWriteTransform
 {
 public:
