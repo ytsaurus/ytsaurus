@@ -426,8 +426,8 @@ class Migration(object):
         if client.exists(tables_path):
             current_version = client.get("{0}/@".format(tables_path)).get("version", self.initial_version)
         else:
-            self._initialize_migration(client, tables_path=tables_path)
             current_version = self.initial_version
+            self._initialize_migration(client, tables_path=tables_path, version=current_version)
         assert current_version >= self.initial_version, \
             "Expected tables version to be >= {}, got {}".format(self.initial_version, current_version)
 
