@@ -319,12 +319,12 @@ protected:
 
     NLogging::TLogger Logger;
 
-    int GetVirtualColumnCount() const
+    int GetRootSystemColumnCount() const
     {
         return VirtualValues_.GetTotalColumnCount() / 2 + (RowIndexId_ != -1);
     }
 
-    int GetAllVirtualColumnCount() const
+    int GetLeafSystemColumnCount() const
     {
         return VirtualValues_.GetTotalColumnCount() + (RowIndexId_ != -1);
     }
@@ -696,7 +696,7 @@ void THorizontalSchemalessRangeChunkReader::InitFirstBlock()
         SortOrders_,
         CommonKeyPrefix_,
         KeyWideningOptions_,
-        GetVirtualColumnCount()));
+        GetRootSystemColumnCount()));
 
     RowIndex_ = blockMeta.chunk_row_count() - blockMeta.row_count();
 
@@ -1112,7 +1112,7 @@ void THorizontalSchemalessLookupChunkReaderBase::InitFirstBlock()
         SortOrders_,
         CommonKeyPrefix_,
         KeyWideningOptions_,
-        GetVirtualColumnCount()));
+        GetRootSystemColumnCount()));
 }
 
 void THorizontalSchemalessLookupChunkReaderBase::InitNextBlock()
@@ -1912,8 +1912,8 @@ private:
             batchColumnCount += reader->GetBatchColumnCount();
         }
 
-        allBatchColumns->resize(batchColumnCount + GetAllVirtualColumnCount());
-        rootBatchColumns->reserve(RowColumnReaders_.size() + GetVirtualColumnCount());
+        allBatchColumns->resize(batchColumnCount + GetLeafSystemColumnCount());
+        rootBatchColumns->reserve(RowColumnReaders_.size() + GetRootSystemColumnCount());
         int currentBatchColumnIndex = 0;
         for (int index = 0; index < std::ssize(RowColumnReaders_); ++index) {
             const auto& reader = RowColumnReaders_[index];
@@ -1948,8 +1948,8 @@ private:
 
         if (RowIndexId_ != -1) {
             auto dataValues = TMutableRange<ui64>(Pool_.AllocateUninitialized<ui64>(rowCount), rowCount);
-            for (int rowIdx = 0; rowIdx < rowCount; rowIdx++) {
-                dataValues[rowIdx] = ZigZagEncode64(GetTableRowIndex() + rowIdx);
+            for (ssize_t rowIndex = 0; rowIndex < rowCount; rowIndex++) {
+                dataValues[rowIndex] = ZigZagEncode64(GetTableRowIndex() + rowIndex);
             }
 
             ReadColumnarIntegerValues(
@@ -1961,7 +1961,7 @@ private:
                 dataValues);
             auto* rootColumn = allBatchColumns->data() + currentBatchColumnIndex;
             rootColumn->Id = RowIndexId_;
-            rootColumn->Type =  MakeLogicalType(GetLogicalType(NTableClient::EValueType::Int64), /*required*/ false);
+            rootColumn->Type =  MakeLogicalType(ESimpleLogicalValueType::Int64, /*required*/ false);
             rootBatchColumns->push_back(rootColumn);
             currentBatchColumnIndex += 1;
         }
@@ -2052,7 +2052,7 @@ private:
         for (i64 index = 0; index < rowCount; ++index) {
             auto row = TMutableUnversionedRow::Allocate(
                 &Pool_,
-                RowColumnReaders_.size() + (SchemalessReader_ ? schemalessColumnCounts[index] : 0) + GetVirtualColumnCount());
+                RowColumnReaders_.size() + (SchemalessReader_ ? schemalessColumnCounts[index] : 0) + GetRootSystemColumnCount());
             row.SetCount(RowColumnReaders_.size());
             rows->push_back(row);
         }
@@ -2241,7 +2241,7 @@ private:
 
         auto row = TMutableUnversionedRow::Allocate(
             &Pool_,
-            RowColumnReaders_.size() + schemalessColumnCount + GetVirtualColumnCount());
+            RowColumnReaders_.size() + schemalessColumnCount + GetRootSystemColumnCount());
         row.SetCount(RowColumnReaders_.size());
 
         // Read values.
