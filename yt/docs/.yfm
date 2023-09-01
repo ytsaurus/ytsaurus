@@ -33,4 +33,3 @@ docs-viewer:
     service-url: //yt.yandex-team.ru
     url:
       production: //yt.yandex-team.ru/docs
-  is-external: true
