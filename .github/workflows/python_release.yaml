@@ -131,7 +131,7 @@ jobs:
         with:
           yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
           bucket: ${{ secrets.TEST_PYDOC_S3_BUCKET }}
-          root: ../build/ytsaurus_python/_build
+          root: ../build/ytsaurus_python/docs/_build
           include: |
             _sources/*
             _static/*
@@ -147,7 +147,6 @@ jobs:
             _modules/yt/yson/*
             _modules/yt/*
             _modules/*
-            index.html
             *
 
       - name: Publish package distributions to TestPyPI
