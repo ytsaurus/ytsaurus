@@ -460,7 +460,7 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("allowed_resource_usage_staleness", &TThis::AllowedResourceUsageStaleness)
-        .Default(TDuration::Seconds(5));
+        .Default(TDuration::MilliSeconds(100));
 
     registrar.Parameter("cached_job_preemption_statuses_update_period", &TThis::CachedJobPreemptionStatusesUpdatePeriod)
         .Default(TDuration::Seconds(15));
