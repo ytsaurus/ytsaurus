@@ -93,21 +93,28 @@ jobs:
           python3.11 -m venv ../venv
           source ../venv/bin/activate
           pip3 install -r ./yt/yt/scripts/pytest_requirements.txt
+
           YTSAURUS_PACKAGE_VERSION=${{ steps.tag.outputs.RELEASE_VERSION }} bash ./yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --ytsaurus-package-name ${{ steps.tag.outputs.PACKAGE_NAME }}
+
           ytsaurus_python=$(realpath "../build/ytsaurus_python")
           mv "${ytsaurus_python}/$(echo ${{ steps.tag.outputs.PACKAGE_NAME }} | sed -E "s/-/_/g")_dist" dist
 
           pip3 install sphinx
-          export DOCS_ROOT=$(realpath "../build/docs")
-          cp -r ./yt/python/packages/docs "$DOCS_ROOT"
+          # export DOCS_ROOT=$(realpath "../build/docs")
+
+          # cp -r ./yt/python/packages/docs "$DOCS_ROOT"
           cp -r ./yt/python/packages/docs "${ytsaurus_python}"
+
           cd "${ytsaurus_python}"
-          PYTHONPATH="${ytsaurus_python}" sphinx-apidoc -F -o "$DOCS_ROOT" yt yt/packages yt/test_helpers yt/testlib yt/tool yt/environment yt/local yt/entry yt/operations_archive '*tests*'
-          PYTHONPATH="${ytsaurus_python}" sphinx-build -b html "$DOCS_ROOT" "$DOCS_ROOT/_html"
-          echo "PYDOC_DIR=$DOCS_ROOT/_html" >> $GITHUB_OUTPUT
-          ls -la $DOCS_ROOT/_html
-          ls -la $DOCS_ROOT/_html/_modules
-          ls -la $DOCS_ROOT/_html/_modules/yt
+
+          PYTHONPATH="${ytsaurus_python}" sphinx-apidoc -F -o docs yt yt/packages yt/test_helpers yt/testlib yt/tool yt/environment yt/local yt/entry yt/operations_archive '*tests*'
+
+          PYTHONPATH="${ytsaurus_python}" sphinx-build -b html docs docs/_build
+          echo "PYDOC_DIR=${ytsaurus_python}/docs/_build" >> $GITHUB_OUTPUT
+          ls -la "${ytsaurus_python}/docs/_build"
+          ls -la "${ytsaurus_python}/docs/_build/_modules"
+          ls -la "${ytsaurus_python}/docs/_build/_modules/yt"
+          cat "${ytsaurus_python}/docs/_build/index.html"
 
   test_release:
     name: Run release TestPyPi
@@ -124,7 +131,7 @@ jobs:
         with:
           yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
           bucket: ${{ secrets.TEST_PYDOC_S3_BUCKET }}
-          root: ../build/pydoc/_html
+          root: ../build/ytsaurus_python/_build
           include: |
             _sources/*
             _static/*
@@ -140,6 +147,7 @@ jobs:
             _modules/yt/yson/*
             _modules/yt/*
             _modules/*
+            index.html
             *
 
       - name: Publish package distributions to TestPyPI
