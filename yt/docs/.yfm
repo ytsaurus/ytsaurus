@@ -29,5 +29,8 @@ docs-viewer:
   index-page:
     hidden: false
     title: YT
-    description: "Система распределенных вычислений"
+    description: Система распределенных вычислений
+    service-url: //yt.yandex-team.ru
+    url:
+      production: //yt.yandex-team.ru/docs
   is-external: true
