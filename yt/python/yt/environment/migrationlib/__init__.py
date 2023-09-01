@@ -302,7 +302,7 @@ class Migration(object):
         table_info.create_dynamic_table(client, table_path)
 
     def _initialize_migration(self, client, tables_path, version=None, tablet_cell_bundle=None, shard_count=1, mount=False):
-        if self.initial_version is None:
+        if version is None:
             version = self.initial_version
 
         table_infos = copy.deepcopy(self.initial_table_infos)
