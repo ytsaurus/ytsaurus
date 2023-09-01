@@ -431,7 +431,7 @@ public:
 
     void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config) override;
 
-    const std::vector<TSchedulerElementPtr>& EnabledChildren();
+    const std::vector<TSchedulerElementPtr>& EnabledChildren() const;
 
     //! Trunk node interface.
     virtual int GetMaxOperationCount() const = 0;

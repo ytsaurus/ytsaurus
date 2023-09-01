@@ -1017,7 +1017,7 @@ bool TSchedulerCompositeElement::HasHigherPriorityInFifoMode(const NVectorHdrf::
     return HasHigherPriorityInFifoMode(lhsElement, rhsElement);
 }
 
-const std::vector<TSchedulerElementPtr>& TSchedulerCompositeElement::EnabledChildren()
+const std::vector<TSchedulerElementPtr>& TSchedulerCompositeElement::EnabledChildren() const
 {
     return EnabledChildren_;
 }
