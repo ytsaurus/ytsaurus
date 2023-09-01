@@ -1,7 +1,6 @@
 from .logger import logger
 from .helpers import remove_existing, sync_flush_table, \
     mount_table, unmount_table, get_tablet_sizes
-#  from yt.test_helpers import wait
 from .schema import TInt64, Schema
 from .verify import verify_output
 from .table_creation import create_dynamic_table

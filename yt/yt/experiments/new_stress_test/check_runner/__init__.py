@@ -17,6 +17,15 @@ from yt.wrapper.http_helpers import get_token
 
 ##################################################################
 
+class ProcessTerminatedError(BaseException):
+    """
+    Used instead of ProcessTerminatedError because the latter is sometimes handled
+    in the internals.
+    """
+    pass
+
+##################################################################
+
 FORMAT = "%(asctime)s\t%(levelname)s\t%(message)s"
 logging.basicConfig(format=FORMAT)
 logging.getLogger().setLevel(logging.INFO)
@@ -121,6 +130,18 @@ def run_and_track_success(callback, base_path, timeout, transaction_title,
         _set_expiration_timeout(failure_expiration_timeout)
         success_attribute_set = True
 
+    main_pid = multiprocessing.current_process().pid
+    def _sigterm_handler(*args):
+        if multiprocessing.current_process().pid != main_pid:
+            return
+        with client.Transaction(transaction_id="0-0-0-0"):
+            logging.info("Caught SIGTERM, interrupting")
+            _report_failure("Interrupted")
+            timeout_handler.disarm()
+            raise ProcessTerminatedError
+
+    signal.signal(signal.SIGTERM, _sigterm_handler)
+
     try:
         with client.Transaction(transaction_id=tx.transaction_id):
             client.lock(path, mode="shared")
@@ -132,6 +153,8 @@ def run_and_track_success(callback, base_path, timeout, transaction_title,
 
                 _report_success()
 
+            except ProcessTerminatedError:
+                raise
             except Exception as e:
                 logging.info("Callback failed")
                 tb.print_exc()
@@ -151,11 +174,13 @@ def run_and_track_success(callback, base_path, timeout, transaction_title,
     except KeyboardInterrupt:
         _report_failure(f"Timed out after {timeout} seconds")
         raise
+    except ProcessTerminatedError:
+        pass
     finally:
         children = multiprocessing.active_children()
         if children:
             logging.info("Terminating children")
             for process in children:
-                process.terminate()
+                process.kill()
 
         logging.info(f"Instance {path} finished")

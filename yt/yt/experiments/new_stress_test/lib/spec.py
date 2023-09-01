@@ -71,6 +71,10 @@ class BoolVariable(Variable):
         super(BoolVariable, self).__init__([False, True], policy)
 
 
+class MapWithUnrecognizedChildren(dict):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
 ##################################################################
 
 def variate_modes(spec):
@@ -125,6 +129,9 @@ def merge_specs(full, extra, allow_unrecognized=False, path="", root=True):
         full = copy.deepcopy(full)
 
     assert isinstance(extra, dict)
+
+    if isinstance(full, MapWithUnrecognizedChildren):
+        allow_unrecognized = True
 
     for k, v in extra.items():
         if k not in full:
@@ -229,7 +236,7 @@ spec_template = {
         "allow_aggregates": True,
     },
 
-    "extra_attributes": None,
+    "extra_attributes": MapWithUnrecognizedChildren(),
 
     "retries": {
         "interval": 15,

@@ -15,12 +15,21 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
+    parser.add_argument("--preset", type=str)
+    parser.add_argument("--mixin-overrides", type=str, nargs="*")
+    parser.add_argument("--spec-patch", type=lambda x: yson.loads(x.encode()))
     args = parser.parse_args()
 
     with open(args.config, "rb") as f:
         config = yson.load(f)
 
-    raw_spec = lib.spec.spec_from_yson(config["preset"], config["mixins"], config["spec"])
+    raw_spec = lib.spec.spec_from_yson(
+        args.preset or config["preset"],
+        config["mixins"] if args.mixin_overrides is None else args.mixin_overrides,
+        config["spec"])
+    if args.spec_patch:
+        raw_spec = lib.spec.merge_specs(raw_spec, args.spec_patch)
+
     specs = lib.spec.variate_modes(raw_spec)
     assert len(specs) == 1, "Variating specs are not allowed"
     spec = specs[0][0]

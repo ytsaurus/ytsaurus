@@ -4,7 +4,7 @@ from .process_runner import process_runner
 import yt.wrapper as yt
 from yt.wrapper.client import YtClient
 from yt.wrapper.http_helpers import get_proxy_url
-from yt.test_helpers import wait
+from yt.common import wait, WaitFailed
 
 from time import sleep
 import random
@@ -45,20 +45,24 @@ def wait_for_preload(table):
                 rsps.append(batch_client.get(
                     f"//sys/cluster_nodes/{node}/orchid/tablet_slot_manager" +
                     "/memory_usage_statistics/tables" +
-                    "/" + table.replace("/", "\\/") +
-                    "/preload_pending_store_count"))
+                    "/" + table.replace("/", "\\/")))
 
             batch_client.commit_batch()
 
             for node, rsp in zip(node_list, rsps):
-                if rsp.is_ok():
-                    pass
-                if rsp.get_result() == 0:
+                if not rsp.is_ok():
+                    continue
+                rsp = rsp.get_result()
+                if rsp["preload_pending_store_count"] + rsp["preload_failed_store_count"] == 0:
                     node_set.discard(node)
 
             return len(node_set) == 0
 
-        wait(_check, sleep_backoff=1, timeout=120)
+        timeout = 120
+        try:
+            wait(_check, sleep_backoff=1, timeout=timeout)
+        except WaitFailed:
+            raise Exception(f"Chunk data did not preload in {timeout} seconds")
 
     wait_via_node_orchid();
 
