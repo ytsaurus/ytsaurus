@@ -49,6 +49,9 @@
   "yt/yt/scripts/run_integration_tests.sh":"yt/opensource/ytsaurus/github_toplevel/yt/yt/scripts/run_integration_tests.sh",
   "yt/yt/scripts/run_python_tests.sh":"yt/opensource/ytsaurus/github_toplevel/yt/yt/scripts/run_python_tests.sh",
   "yt/yt/scripts/run_unittests.sh":"yt/opensource/ytsaurus/github_toplevel/yt/yt/scripts/run_unittests.sh",
+  "yt/yt/scripts/upload_tutorial_data/README.md":"yt/opensource/ytsaurus/github_toplevel/yt/yt/scripts/upload_tutorial_data/README.md",
+  "yt/yt/scripts/upload_tutorial_data/data/data.tar.zst":"yt/opensource/ytsaurus/github_toplevel/yt/yt/scripts/upload_tutorial_data/data/data.tar.zst",
+  "yt/yt/scripts/upload_tutorial_data/upload_tutorial_data.py":"yt/opensource/ytsaurus/github_toplevel/yt/yt/scripts/upload_tutorial_data/upload_tutorial_data.py",
   "yt/yt/tests/integration/README.md":"yt/opensource/ytsaurus/github_toplevel/yt/yt/tests/integration/README.md",
   "yt/yt/tests/integration/pytest.ini":"yt/opensource/ytsaurus/github_toplevel/yt/yt/tests/integration/pytest.ini",
   "yt/yt/tests/integration/run_tests.sh":"yt/opensource/ytsaurus/github_toplevel/yt/yt/tests/integration/run_tests.sh"

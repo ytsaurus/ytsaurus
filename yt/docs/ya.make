@@ -96,13 +96,11 @@ DOCS_INCLUDE_SOURCES(
 END()
 
 RECURSE(
-    upload_tutorial_data
     ytsaurus
 )
 
 IF (NOT OPENSOURCE)
     RECURSE(
         yandex-specific
-        ru/yandex-specific/update_tutorial_data
     )
 ENDIF()

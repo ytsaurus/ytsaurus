@@ -11,7 +11,7 @@ Java API опубликовано в [maven](https://central.sonatype.com/artifa
 Нужно иметь специальные таблицы с данными на вашем {{product-name}} кластере, их можно сгенерировать так:
 
 ```bash
-./yt/docs/upload_tutorial_data/upload_tutorial_data.py -gw --proxy <your-http-proxy>
+./yt/yt/scripts/upload_tutorial_data/upload_tutorial_data.py --yt-directory //home/dev/tutorial --proxy <your-http-proxy> 
 ```
 
 Примеры можно запускать с помощью gradle из директории примера:
