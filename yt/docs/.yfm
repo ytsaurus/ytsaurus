@@ -3,7 +3,7 @@ apply-presets: true
 varsPreset: public
 langs: ['ru', 'en'] # Языки, участвующие в сборке
 docs-viewer:
-  project-name: yt
+  project-name: yt-public
   abc-slug: yt
   metrika: 52959211
   langs: ['ru', 'en']
@@ -27,9 +27,6 @@ docs-viewer:
       regexp:
         - disk.yandex.ru/public/nda.*
   index-page:
-    hidden: false
-    title: YT
+    hidden: true
+    title: YT-public
     description: Система распределенных вычислений
-    service-url: //yt.yandex-team.ru
-    url:
-      production: //yt.yandex-team.ru/docs
