@@ -12,6 +12,8 @@ COPY ./yql /usr/lib/yql
 
 RUN ln -s /usr/bin/ytserver-all /usr/bin/ytserver-query-tracker
 
+COPY ./init_query_tracker_state.py /usr/bin/init_query_tracker_state
+
 # CREDITS files with licenses for all binaries.
 COPY ./credits/ytserver-all.CREDITS /usr/bin/ytserver-all.CREDITS
 # TODO(nadya73): add other credits
