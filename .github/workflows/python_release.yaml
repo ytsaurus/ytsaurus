@@ -98,10 +98,9 @@ jobs:
           mv "${ytsaurus_python}/$(echo ${{ steps.tag.outputs.PACKAGE_NAME }} | sed -E "s/-/_/g")_dist" dist
 
           pip3 install sphinx
-          export DOCS_ROOT=$(realpath "../build/pydoc")
-          mkdir "$DOCS_ROOT"
-          cp -r ./yt/python/packages/docs/* "${ytsaurus_python}"
-          cp -r ./yt/python/packages/docs/* "$DOCS_ROOT"
+          export DOCS_ROOT=$(realpath "../build/docs")
+          cp -r ./yt/python/packages/docs "$DOCS_ROOT"
+          cp -r ./yt/python/packages/docs "${ytsaurus_python}"
           cd "${ytsaurus_python}"
           PYTHONPATH="${ytsaurus_python}" sphinx-apidoc -F -o "$DOCS_ROOT" yt yt/packages yt/test_helpers yt/testlib yt/tool yt/environment yt/local yt/entry yt/operations_archive '*tests*'
           PYTHONPATH="${ytsaurus_python}" sphinx-build -b html "$DOCS_ROOT" "$DOCS_ROOT/_html"
