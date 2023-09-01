@@ -28,6 +28,7 @@ public:
         , YqlAgent_(std::move(yqlAgent))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartQuery));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetQueryProgress));
     }
 
 private:
@@ -35,8 +36,6 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NYqlClient::NProto, StartQuery)
     {
-        context->SetRequestInfo("Async: %v, BuildRowsets: %v, RowCountLimit: %v", request->async(), request->build_rowsets(), request->row_count_limit());
-
         const auto& impersonationUser = context->GetAuthenticationIdentity().User;
 
         auto queryId = request->has_query_id()
@@ -44,6 +43,7 @@ private:
             : TQueryId::Create();
         ToProto(response->mutable_query_id(), queryId);
 
+        context->SetRequestInfo("QueryId: %v, Async: %v, BuildRowsets: %v, RowCountLimit: %v", queryId, request->async(), request->build_rowsets(), request->row_count_limit());
         context->SetResponseInfo("QueryId: %v", queryId);
 
         auto responseFuture = YqlAgent_->StartQuery(queryId, impersonationUser, *request);
@@ -60,6 +60,19 @@ private:
         response->MergeFrom(builtResponse);
         response->Attachments() = std::move(refs);
 
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NYqlClient::NProto, GetQueryProgress)
+    {
+        auto queryId = request->has_query_id()
+            ? FromProto<TQueryId>(request->query_id())
+            : TQueryId::Create();
+
+        context->SetRequestInfo("QueryId: %v", queryId);
+        context->SetResponseInfo("QueryId: %v", queryId);
+
+        response->MergeFrom(YqlAgent_->GetQueryProgress(queryId));
         context->Reply();
     }
 };

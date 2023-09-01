@@ -84,7 +84,7 @@ types:
         cpp_type: NYson::TYsonString
         column_name: progress
         column_type: Any
-        lock: query_tracker
+        lock: query_tracker_progress
 
       - cpp_name: Error
         cpp_type: std::optional<TError>

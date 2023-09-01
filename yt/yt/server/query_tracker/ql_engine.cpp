@@ -19,6 +19,7 @@ using namespace NApi;
 using namespace NYPath;
 using namespace NHiveClient;
 using namespace NYTree;
+using namespace NConcurrency;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -31,8 +32,9 @@ public:
         const NYPath::TYPath& stateRoot,
         const TEngineConfigBasePtr& config,
         const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery,
-        const NApi::IClientPtr& queryClient)
-        : TQueryHandlerBase(stateClient, stateRoot, config, activeQuery)
+        const NApi::IClientPtr& queryClient,
+        const IInvokerPtr& controlInvoker)
+        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery)
         , Query_(activeQuery.Query)
         , QueryClient_(queryClient)
     { }
@@ -82,6 +84,7 @@ public:
     TQlEngine(IClientPtr stateClient, TYPath stateRoot)
         : StateClient_(std::move(stateClient))
         , StateRoot_(std::move(stateRoot))
+        , ControlQueue_(New<TActionQueue>("QlEngineControl"))
         , ClusterDirectory_(DynamicPointerCast<NNative::IConnection>(StateClient_->GetConnection())->GetClusterDirectory())
     { }
 
@@ -90,7 +93,7 @@ public:
         auto settings = ConvertToAttributes(activeQuery.Settings);
         auto cluster = settings->Find<TString>("cluster").value_or(Config_->DefaultCluster);
         auto queryClient = ClusterDirectory_->GetConnectionOrThrow(cluster)->CreateClient(TClientOptions{.User = activeQuery.User});
-        return New<TQlQueryHandler>(StateClient_, StateRoot_, Config_, activeQuery, queryClient);
+        return New<TQlQueryHandler>(StateClient_, StateRoot_, Config_, activeQuery, queryClient, ControlQueue_->GetInvoker());
     }
 
     void OnDynamicConfigChanged(const TEngineConfigBasePtr& config) override
@@ -101,6 +104,7 @@ public:
 private:
     const IClientPtr StateClient_;
     const TYPath StateRoot_;
+    const TActionQueuePtr ControlQueue_;
     TQLEngineConfigPtr Config_;
     TClusterDirectoryPtr ClusterDirectory_;
 };

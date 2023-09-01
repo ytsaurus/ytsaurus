@@ -24,6 +24,7 @@ message TYqlResponse
     optional string plan = 2; // YSON
     optional string statistics = 3; // YSON
     optional string task_info = 4; // YSON
+    optional string progress = 5; // YSON
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -49,6 +50,19 @@ message TRspStartQuery
     // wire-encoded schema + schemaful rowset attachment.
     repeated NYT.NProto.TError rowset_errors = 3;
     repeated bool incomplete = 4;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetQueryProgress
+{
+    optional NYT.NProto.TGuid query_id = 1;
+}
+
+message TRspGetQueryProgress
+{
+    // May be missing if there are no changes in progress since last request.
+    optional TYqlResponse yql_response = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

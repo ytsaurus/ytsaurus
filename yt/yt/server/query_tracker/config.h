@@ -23,6 +23,7 @@ class TEngineConfigBase
 {
 public:
     TDuration QueryStateWriteBackoff;
+    TDuration QueryProgressWritePeriod;
     i64 RowCountLimit;
 
     REGISTER_YSON_STRUCT(TEngineConfigBase);
@@ -39,6 +40,7 @@ class TYqlEngineConfig
 {
 public:
     TString Stage;
+    TDuration QueryProgressGetPeriod;
 
     REGISTER_YSON_STRUCT(TYqlEngineConfig);
 

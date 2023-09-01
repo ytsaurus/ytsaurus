@@ -71,10 +71,12 @@ void ProcessRowset(TFinishedQueryResultPartial& newRecord, TSharedRef wireSchema
 TQueryHandlerBase::TQueryHandlerBase(
     const IClientPtr& stateClient,
     const NYPath::TYPath& stateRoot,
+    const IInvokerPtr controlInvoker,
     const TEngineConfigBasePtr& config,
     const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery)
     : StateClient_(stateClient)
     , StateRoot_(stateRoot)
+    , ControlInvoker_(std::move(controlInvoker))
     , Config_(config)
     , Query_(activeQuery.Query)
     , QueryId_(activeQuery.Key.QueryId)
@@ -83,8 +85,23 @@ TQueryHandlerBase::TQueryHandlerBase(
     , Engine_(activeQuery.Engine)
     , SettingsNode_(ConvertToNode(activeQuery.Settings))
     , Logger(NQueryTracker::Logger.WithTag("QueryId: %v, Engine: %v", activeQuery.Key.QueryId, activeQuery.Engine))
+    , ProgressWriter_(New<TPeriodicExecutor>(ControlInvoker_, BIND(&TQueryHandlerBase::TryWriteProgress, MakeWeak(this)), Config_->QueryProgressWritePeriod))
 {
     YT_LOG_INFO("Query handler instantiated");
+}
+
+void TQueryHandlerBase::StartProgressWriter()
+{
+    YT_LOG_INFO("Starting progress writer");
+    ProgressWriter_->Start();
+}
+
+void TQueryHandlerBase::StopProgressWriter()
+{
+    YT_LOG_INFO("Stopping progress writer");
+    if (ProgressWriter_) {
+        ProgressWriter_->Stop();
+    }
 }
 
 ITransactionPtr TQueryHandlerBase::StartIncarnationTransaction() const
@@ -126,11 +143,13 @@ ITransactionPtr TQueryHandlerBase::StartIncarnationTransaction() const
     return transaction;
 }
 
-void TQueryHandlerBase::OnProgress(const TYsonString& progress)
+void TQueryHandlerBase::OnProgress(TYsonString progress)
 {
-    YT_LOG_INFO("Query progress received (ProgressBytes: %v)", progress.AsStringBuf().size());
+    YT_LOG_DEBUG("Query progress received (ProgressBytes: %v)", progress.AsStringBuf().size());
 
-    Progress_ = progress;
+    auto guard = Guard(ProgressSpinLock_);
+    std::swap(Progress_, progress);
+    ProgressVersion_++;
 }
 
 void TQueryHandlerBase::OnQueryFailed(const TError& error)
@@ -181,6 +200,53 @@ void TQueryHandlerBase::OnQueryCompletedWire(const std::vector<TErrorOr<TSharedR
             break;
         }
         TDelayedExecutor::WaitForDuration(Config_->QueryStateWriteBackoff);
+    }
+}
+
+void TQueryHandlerBase::TryWriteProgress()
+{
+    TYsonString progress;
+    int progressVersion;
+    {
+        auto guard = Guard(ProgressSpinLock_);
+        if (LastSavedProgressVersion_ == ProgressVersion_) {
+           return;
+        }
+        progress = Progress_;
+        progressVersion = ProgressVersion_;
+    }
+
+    YT_LOG_DEBUG("Trying to save progress (Version: %v)", progressVersion);
+    try {
+        auto transaction = StartIncarnationTransaction();
+        auto rowBuffer = New<TRowBuffer>();
+        {
+            TActiveQueryPartial newRecord{
+                .Key = {.QueryId = QueryId_},
+                .Progress = progress,
+            };
+            std::vector newRows = {
+                newRecord.ToUnversionedRow(rowBuffer, TActiveQueryDescriptor::Get()->GetIdMapping()),
+            };
+            transaction->WriteRows(
+                StateRoot_ + "/active_queries",
+                TActiveQueryDescriptor::Get()->GetNameTable(),
+                MakeSharedRange(std::move(newRows), rowBuffer));
+        }
+        WaitFor(transaction->Commit())
+            .ThrowOnError();
+
+        LastSavedProgressVersion_ = progressVersion;
+
+        YT_LOG_DEBUG("Query progress written");
+    } catch (const std::exception& ex) {
+        if (const auto* errorException = dynamic_cast<const TErrorException*>(&ex)) {
+            if (errorException->Error().FindMatching(NQueryTrackerClient::EErrorCode::IncarnationMismatch)) {
+                YT_LOG_INFO(ex, "Stopping trying to write query progress due to incarnation mismatch");
+                Detach();
+            }
+        }
+        YT_LOG_ERROR(ex, "Failed to write query progress");
     }
 }
 

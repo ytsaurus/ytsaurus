@@ -31,6 +31,8 @@ struct IYqlAgent
         TQueryId queryId,
         const TString& impersonationUser,
         const NYqlClient::NProto::TReqStartQuery& request) = 0;
+
+    virtual NYqlClient::NProto::TRspGetQueryProgress GetQueryProgress(TQueryId queryId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IYqlAgent)

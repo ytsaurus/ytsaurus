@@ -26,6 +26,12 @@ using namespace NRpc;
 using namespace NYqlClient;
 using namespace NYqlClient::NProto;
 using namespace NYson;
+using namespace NConcurrency;
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! This macro may be used to extract std::optional<TYsonString> from protobuf message field of type string.
+#define YT_PROTO_YSON_OPTIONAL(message, field) (((message).has_##field()) ? std::make_optional(TYsonString((message).field())) : std::nullopt)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -58,21 +64,23 @@ public:
         const NYPath::TYPath& stateRoot,
         const TYqlEngineConfigPtr& config,
         const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery,
-        const NApi::NNative::IConnectionPtr& connection)
-        : TQueryHandlerBase(stateClient, stateRoot, config, activeQuery)
+        const NApi::NNative::IConnectionPtr& connection,
+        const IInvokerPtr& controlInvoker)
+        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery)
         , Query_(activeQuery.Query)
         , Config_(config)
         , Connection_(connection)
         , Settings_(ConvertTo<TYqlSettingsPtr>(SettingsNode_))
+        , Stage_(Settings_->Stage.value_or(Config_->Stage))
+        , YqlServiceProxy_(Connection_->GetYqlAgentChannelOrThrow(Stage_))
+        , ProgressGetterExecutor_(New<TPeriodicExecutor>(controlInvoker, BIND(&TYqlQueryHandler::GetProgress, MakeWeak(this)), Config_->QueryProgressGetPeriod))
     { }
 
     void Start() override
     {
-        auto stage = Settings_->Stage.value_or(Config_->Stage);
-        YT_LOG_DEBUG("Starting YQL query (Stage: %v)", stage);
+        YT_LOG_DEBUG("Starting YQL query (Stage: %v)", Stage_);
 
-        TYqlServiceProxy proxy(Connection_->GetYqlAgentChannelOrThrow(stage));
-        auto req = proxy.StartQuery();
+        auto req = YqlServiceProxy_.StartQuery();
         SetAuthenticationIdentity(req, TAuthenticationIdentity(User_));
         auto* yqlRequest = req->mutable_yql_request();
         req->set_row_count_limit(Config_->RowCountLimit);
@@ -82,17 +90,24 @@ public:
         req->set_build_rowsets(true);
         AsyncQueryResult_  = req->Invoke();
         AsyncQueryResult_.Subscribe(BIND(&TYqlQueryHandler::OnYqlResponse, MakeWeak(this)).Via(GetCurrentInvoker()));
+
+        ProgressGetterExecutor_->Start();
+        StartProgressWriter();
     }
 
     void Abort() override
     {
         // Nothing smarter than that for now.
+        ProgressGetterExecutor_->Stop();
+        StopProgressWriter();
         AsyncQueryResult_.Cancel(TError("Query aborted"));
     }
 
     void Detach() override
     {
         // Nothing smarter than that for now.
+        ProgressGetterExecutor_->Stop();
+        StopProgressWriter();
         AsyncQueryResult_.Cancel(TError("Query detached"));
     }
 
@@ -101,11 +116,47 @@ private:
     const TYqlEngineConfigPtr Config_;
     const NApi::NNative::IConnectionPtr Connection_;
     const TYqlSettingsPtr Settings_;
+    const TString Stage_;
+    const IInvokerPtr ProgressInvoker_;
+    TYqlServiceProxy YqlServiceProxy_;
+    TPeriodicExecutorPtr ProgressGetterExecutor_;
 
     TFuture<TTypedClientResponse<TRspStartQuery>::TResult> AsyncQueryResult_;
 
+    void GetProgress()
+    {
+        auto req = YqlServiceProxy_.GetQueryProgress();
+        ToProto(req->mutable_query_id(), QueryId_);
+
+        auto rspOrError = WaitFor(req->Invoke());
+        if (!rspOrError.IsOK()) {
+            YT_LOG_INFO(rspOrError, "Error getting query progress (QueryId: %v)", QueryId_);
+            return;
+        }
+
+        const auto& rsp = rspOrError.Value();
+        if (!rsp->has_yql_response()) {
+            // There are no changes in progress since last request.
+            return;
+        }
+
+        auto optionalPlan = YT_PROTO_YSON_OPTIONAL(rsp->yql_response(), plan);
+        auto optionalProgress = YT_PROTO_YSON_OPTIONAL(rsp->yql_response(), progress);
+
+        auto progress = BuildYsonStringFluently()
+            .BeginMap()
+                .OptionalItem("yql_plan", optionalPlan)
+                .OptionalItem("yql_progress", optionalProgress)
+            .EndMap();
+        OnProgress(std::move(progress));
+    }
+
     void OnYqlResponse(const TErrorOr<TTypedClientResponse<TRspStartQuery>::TResult>& rspOrError)
     {
+        // Waiting to exclude the possibility of overwriting the final progress.
+        WaitFor(ProgressGetterExecutor_->Stop())
+            .ThrowOnError();
+        StopProgressWriter();
         if (rspOrError.FindMatching(NYT::EErrorCode::Canceled)) {
             return;
         }
@@ -113,17 +164,22 @@ private:
             OnQueryFailed(rspOrError);
             return;
         }
+
         const auto& rsp = rspOrError.Value();
-        auto optionalPlan = rsp->yql_response().has_plan() ? std::make_optional(TYsonString(rsp->yql_response().plan())) : std::nullopt;
-        auto optionalStatistics = rsp->yql_response().has_statistics() ? std::make_optional(TYsonString(rsp->yql_response().statistics())) : std::nullopt;
-        auto optionalTaskInfo = rsp->yql_response().has_task_info() ? std::make_optional(TYsonString(rsp->yql_response().task_info())) : std::nullopt;
+
+        auto optionalPlan = YT_PROTO_YSON_OPTIONAL(rsp->yql_response(), plan);
+        auto optionalStatistics = YT_PROTO_YSON_OPTIONAL(rsp->yql_response(), statistics);
+        auto optionalProgress = YT_PROTO_YSON_OPTIONAL(rsp->yql_response(), progress);
+        auto optionalTaskInfo = YT_PROTO_YSON_OPTIONAL(rsp->yql_response(), task_info);
         auto progress = BuildYsonStringFluently()
             .BeginMap()
                 .OptionalItem("yql_plan", optionalPlan)
                 .OptionalItem("yql_statistics", optionalStatistics)
+                .OptionalItem("yql_progress", optionalProgress)
                 .OptionalItem("yql_task_info", optionalTaskInfo)
             .EndMap();
-        OnProgress(progress);
+        OnProgress(std::move(progress));
+
         std::vector<TErrorOr<TSharedRef>> wireRowsetOrErrors;
         for (int index = 0; index < rsp->rowset_errors_size(); ++index) {
             auto error = FromProto<TError>(rsp->rowset_errors()[index]);
@@ -144,6 +200,7 @@ public:
     TYqlEngine(IClientPtr stateClient, TYPath stateRoot)
         : StateClient_(std::move(stateClient))
         , StateRoot_(std::move(stateRoot))
+        , ControlQueue_(New<TActionQueue>("YqlEngineControl"))
     { }
 
     IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
@@ -153,7 +210,8 @@ public:
             StateRoot_,
             Config_,
             activeQuery,
-            DynamicPointerCast<NNative::IConnection>(StateClient_->GetConnection()));
+            DynamicPointerCast<NNative::IConnection>(StateClient_->GetConnection()),
+            ControlQueue_->GetInvoker());
     }
 
     void OnDynamicConfigChanged(const TEngineConfigBasePtr& config) override
@@ -164,6 +222,7 @@ public:
 private:
     const IClientPtr StateClient_;
     const TYPath StateRoot_;
+    const TActionQueuePtr ControlQueue_;
     TYqlEngineConfigPtr Config_;
 };
 

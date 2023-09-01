@@ -82,8 +82,9 @@ public:
         const TChytEngineConfigPtr& config,
         const IChannelFactoryPtr& channelFactory,
         const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery,
-        const TClusterDirectoryPtr& clusterDirectory)
-        : TQueryHandlerBase(stateClient, stateRoot, config, activeQuery)
+        const TClusterDirectoryPtr& clusterDirectory,
+        const IInvokerPtr& controlInvoker)
+        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery)
         , Settings_(ConvertTo<TChytSettingsPtr>(SettingsNode_))
         , Clique_(Settings_->Clique.value_or(config->DefaultClique))
         , Cluster_(Settings_->Cluster.value_or(config->DefaultCluster))
@@ -304,13 +305,14 @@ public:
     TChytEngine(IClientPtr stateClient, TYPath stateRoot)
         : StateClient_(std::move(stateClient))
         , StateRoot_(std::move(stateRoot))
+        , ControlQueue_(New<TActionQueue>("MockEngineControl"))
         , ClusterDirectory_(DynamicPointerCast<NNative::IConnection>(StateClient_->GetConnection())->GetClusterDirectory())
         , ChannelFactory_(CreateCachingChannelFactory(CreateTcpBusChannelFactory(New<NYT::NBus::TBusConfig>())))
     { }
 
     IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
     {
-        return New<TChytQueryHandler>(StateClient_, StateRoot_, ChytConfig_, ChannelFactory_, activeQuery, ClusterDirectory_);
+        return New<TChytQueryHandler>(StateClient_, StateRoot_, ChytConfig_, ChannelFactory_, activeQuery, ClusterDirectory_, ControlQueue_->GetInvoker());
     }
 
     void OnDynamicConfigChanged(const TEngineConfigBasePtr& config) override
@@ -321,6 +323,7 @@ public:
 private:
     const IClientPtr StateClient_;
     const TYPath StateRoot_;
+    const TActionQueuePtr ControlQueue_;
     TChytEngineConfigPtr ChytConfig_;
     TClusterDirectoryPtr ClusterDirectory_;
     IChannelFactoryPtr ChannelFactory_;

@@ -81,8 +81,9 @@ public:
         const NApi::IClientPtr& stateClient,
         const NYPath::TYPath& stateRoot,
         const TEngineConfigBasePtr& config,
-        const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery)
-        : TQueryHandlerBase(stateClient, stateRoot, config, activeQuery)
+        const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery,
+        const IInvokerPtr& controlInvoker)
+        : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery)
         , Settings_(ConvertTo<TMockSettingsPtr>(SettingsNode_))
     { }
 
@@ -154,7 +155,7 @@ public:
 
     IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
     {
-        return New<TMockQueryHandler>(StateClient_, StateRoot_, Config_, activeQuery);
+        return New<TMockQueryHandler>(StateClient_, StateRoot_, Config_, activeQuery, GetCurrentInvoker());
     }
 
     void OnDynamicConfigChanged(const TEngineConfigBasePtr& config) override

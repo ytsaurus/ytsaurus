@@ -1,6 +1,6 @@
 from yt.wrapper import YtClient, config
 
-from yt.environment.migrationlib import TableInfo, Migration
+from yt.environment.migrationlib import TableInfo, Migration, Conversion
 
 import argparse
 import logging
@@ -93,6 +93,40 @@ INITIAL_TABLE_INFOS = {
 INITIAL_VERSION = 0
 TRANSFORMS = {}
 ACTIONS = {}
+
+TRANSFORMS[1] = [
+    Conversion(
+        "active_queries",
+        table_info=TableInfo(
+            [
+                ("query_id", "string"),
+            ],
+            [
+                ("engine", "string", "client"),
+                ("query", "string", "client"),
+                ("files", "any", "client"),
+                ("settings", "any", "client"),
+                ("user", "string", "client"),
+                ("start_time", "timestamp", "client"),
+                ("filter_factors", "string", "client"),
+                ("state", "string", "common"),
+                ("incarnation", "int64", "query_tracker"),
+                ("ping_time", "timestamp", "query_tracker"),
+                ("assigned_tracker", "string", "query_tracker"),
+                ("progress", "any", "query_tracker_progress"),
+                ("error", "any", "query_tracker"),
+                ("result_count", "int64", "query_tracker"),
+                ("finish_time", "timestamp", "common"),
+                ("abort_request", "any", "client"),
+                ("annotations", "any", "client"),
+            ],
+            optimize_for="lookup",
+            attributes={
+                "tablet_cell_bundle": DEFAULT_BUNDLE_NAME,
+            },
+        )
+    )
+]
 
 MIGRATION = Migration(
     initial_table_infos=INITIAL_TABLE_INFOS,

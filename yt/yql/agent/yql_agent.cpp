@@ -102,6 +102,36 @@ public:
             .Run();
     }
 
+    TRspGetQueryProgress GetQueryProgress(TQueryId queryId) override
+    {
+        YT_LOG_DEBUG("Getting query progress (QueryId: %v)", queryId);
+
+        TRspGetQueryProgress response;
+
+        YT_LOG_DEBUG("Getting progress from YQL plugin");
+
+        try {
+            auto result = YqlPlugin_->GetProgress(queryId);
+            if (result.YsonError) {
+                auto error = ConvertTo<TError>(TYsonString(*result.YsonError));
+                THROW_ERROR error;
+            }
+            YT_LOG_DEBUG("YQL plugin progress call completed");
+
+            if (result.Plan || result.Progress) {
+                TYqlResponse yqlResponse;
+                ValidateAndFillYqlResponseField(yqlResponse, result.Plan, &TYqlResponse::mutable_plan);
+                ValidateAndFillYqlResponseField(yqlResponse, result.Progress, &TYqlResponse::mutable_progress);
+                response.mutable_yql_response()->Swap(&yqlResponse);
+            }
+            return response;
+        } catch (const std::exception& ex) {
+            auto error = TError("YQL plugin call failed") << TError(ex);
+            YT_LOG_INFO(error, "YQL plugin call failed");
+            THROW_ERROR error;
+        }
+    }
+
 private:
     const TYqlAgentConfigPtr Config_;
     const TClusterDirectoryPtr ClusterDirectory_;
@@ -133,7 +163,7 @@ private:
             }
             auto settings = yqlRequest.has_settings() ? TYsonString(yqlRequest.settings()) : EmptyMap;
             // This is a long blocking call.
-            auto result = YqlPlugin_->Run(impersonationUser, query, settings);
+            auto result = YqlPlugin_->Run(queryId, impersonationUser, query, settings);
             if (result.YsonError) {
                 auto error = ConvertTo<TError>(TYsonString(*result.YsonError));
                 THROW_ERROR error;
@@ -142,19 +172,11 @@ private:
             YT_LOG_INFO("YQL plugin call completed");
 
             TYqlResponse yqlResponse;
-
-            auto validateAndFillField = [&] (const std::optional<TString>& rawField, TString* (TYqlResponse::*mutableProtoFieldAccessor)()) {
-                if (!rawField) {
-                    return;
-                }
-                // TODO(max42): original YSON tends to unnecessary pretty.
-                *((&yqlResponse)->*mutableProtoFieldAccessor)() = *rawField;
-            };
-
-            validateAndFillField(result.YsonResult, &TYqlResponse::mutable_result);
-            validateAndFillField(result.Plan, &TYqlResponse::mutable_plan);
-            validateAndFillField(result.Statistics, &TYqlResponse::mutable_statistics);
-            validateAndFillField(result.TaskInfo, &TYqlResponse::mutable_task_info);
+            ValidateAndFillYqlResponseField(yqlResponse, result.YsonResult, &TYqlResponse::mutable_result);
+            ValidateAndFillYqlResponseField(yqlResponse, result.Plan, &TYqlResponse::mutable_plan);
+            ValidateAndFillYqlResponseField(yqlResponse, result.Statistics, &TYqlResponse::mutable_statistics);
+            ValidateAndFillYqlResponseField(yqlResponse, result.Progress, &TYqlResponse::mutable_progress);
+            ValidateAndFillYqlResponseField(yqlResponse, result.TaskInfo, &TYqlResponse::mutable_task_info);
             if (request.build_rowsets() && result.YsonResult) {
                 auto rowsets = BuildRowsets(ClientDirectory_, *result.YsonResult, request.row_count_limit());
                 for (const auto& rowset : rowsets) {
@@ -177,6 +199,15 @@ private:
             THROW_ERROR error;
         }
     }
+
+    void ValidateAndFillYqlResponseField(TYqlResponse& yqlResponse, const std::optional<TString>& rawField, TString* (TYqlResponse::*mutableProtoFieldAccessor)())
+    {
+        if (!rawField) {
+            return;
+        }
+        // TODO(max42): original YSON tends to unnecessary pretty.
+        *((&yqlResponse)->*mutableProtoFieldAccessor)() = *rawField;
+    };
 };
 
 IYqlAgentPtr CreateYqlAgent(

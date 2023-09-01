@@ -6,11 +6,15 @@
 
 #include <yt/yt/client/api/client.h>
 
+#include <yt/yt/core/concurrency/periodic_executor.h>
+
 #include <yt/yt/core/ypath/public.h>
 
 #include <yt/yt/core/yson/string.h>
 
 namespace NYT::NQueryTracker {
+
+using namespace NYson;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -21,6 +25,7 @@ public:
     TQueryHandlerBase(
         const NApi::IClientPtr& stateClient,
         const NYPath::TYPath& stateRoot,
+        const IInvokerPtr controlInvoker,
         const TEngineConfigBasePtr& config,
         const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery);
 
@@ -31,6 +36,7 @@ public:
 protected:
     const NApi::IClientPtr StateClient_;
     const NYPath::TYPath StateRoot_;
+    const IInvokerPtr ControlInvoker_;
     const TEngineConfigBasePtr Config_;
     const TString Query_;
     const TQueryId QueryId_;
@@ -41,13 +47,23 @@ protected:
 
     const NLogging::TLogger Logger;
 
-    NYson::TYsonString Progress_ = NYson::TYsonString(TString("{}"));
+    const NConcurrency::TPeriodicExecutorPtr ProgressWriter_;
 
-    void OnProgress(const NYson::TYsonString& progress);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ProgressSpinLock_);
+    TYsonString Progress_ = TYsonString(TString("{}"));
+    int ProgressVersion_ = 0;
+    int LastSavedProgressVersion_ = 0;
+
+    void StartProgressWriter();
+    void StopProgressWriter();
+
+    void OnProgress(TYsonString progress);
+
     void OnQueryFailed(const TError& error);
     void OnQueryCompleted(const std::vector<TErrorOr<NApi::IUnversionedRowsetPtr>>& rowsetOrErrors);
     void OnQueryCompletedWire(const std::vector<TErrorOr<TSharedRef>>& wireRowsetOrErrors);
 
+    void TryWriteProgress();
     bool TryWriteQueryState(EQueryState state, const TError& error, const std::vector<TErrorOr<TSharedRef>>& wireRowsetOrErrors);
 };
 

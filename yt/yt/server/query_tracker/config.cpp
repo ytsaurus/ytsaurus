@@ -14,6 +14,8 @@ void TEngineConfigBase::Register(TRegistrar registrar)
 {
     registrar.Parameter("query_state_write_backoff", &TThis::QueryStateWriteBackoff)
         .Default(TDuration::Seconds(1));
+    registrar.Parameter("query_progress_write_backoff", &TThis::QueryProgressWritePeriod)
+        .Default(TDuration::Seconds(1));
     registrar.Parameter("row_count_limit", &TThis::RowCountLimit)
         .Default(10'000);
 }
@@ -24,6 +26,8 @@ void TYqlEngineConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("stage", &TThis::Stage)
         .Default("production");
+    registrar.Parameter("update_progress_period", &TThis::QueryProgressGetPeriod)
+        .Default(TDuration::Seconds(1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
