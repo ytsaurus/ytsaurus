@@ -16,6 +16,7 @@ items:
     expanded: true
     items:
       - name: Аутентификация
+        when: audience == "public"
         href: user-guide/storage/auth.md
       - name: Хранение данных
         when: audience == "public"

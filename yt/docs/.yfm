@@ -1,6 +1,7 @@
 allowHTML: true
 apply-presets: true 
 varsPreset: public
+langs: ['ru', 'en'] # Языки, участвующие в сборке
 docs-viewer:
   project-name: yt
   abc-slug: yt
@@ -26,7 +27,7 @@ docs-viewer:
       regexp:
         - disk.yandex.ru/public/nda.*
   index-page:
-    hidden: true
-    title: YT-public
-    description: "YTsaurus public docs"
+    hidden: false
+    title: YT
+    description: "Система распределенных вычислений"
   is-external: true
