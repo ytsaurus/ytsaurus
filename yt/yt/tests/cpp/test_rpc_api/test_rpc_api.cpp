@@ -20,7 +20,6 @@
 #include <yt/yt/client/api/rpc_proxy/config.h>
 #include <yt/yt/client/api/rpc_proxy/connection.h>
 #include <yt/yt/client/api/rpc_proxy/helpers.h>
-#include <yt/yt/client/api/rpc_proxy/public.h>
 #include <yt/yt/client/api/rpc_proxy/row_stream.h>
 
 #include <yt/yt/client/object_client/public.h>
@@ -888,6 +887,12 @@ TEST_F(TClearTmpTestBase, TestErrorneousSkiffReading_YTADMINREQ_32428)
     EXPECT_THROW_WITH_SUBSTRING(stream->ReadAll(), "Unexpected type of");
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TArrowTestBase
+    : public TClearTmpTestBase
+{ };
+
 std::shared_ptr<arrow::RecordBatch> MakeBatch(TStringBuf buf)
 {
     auto buffer = arrow::Buffer(reinterpret_cast<const ui8*>(buf.data()), buf.size());
@@ -897,69 +902,54 @@ std::shared_ptr<arrow::RecordBatch> MakeBatch(TStringBuf buf)
     return batch;
 }
 
-std::vector<i64> ReadIntegerArray(std::shared_ptr<arrow::Array> array)
+std::vector<i64> ReadIntegerArray(const std::shared_ptr<arrow::Array>& array)
+{
+    auto int64Array = std::dynamic_pointer_cast<arrow::Int64Array>(array);
+    YT_VERIFY(int64Array);
+    return {int64Array->raw_values(), int64Array->raw_values() + int64Array->length()};
+}
+
+std::vector<ui32> ReadInterger32Array(const std::shared_ptr<arrow::Array>& array)
+{
+    auto int32Array = std::dynamic_pointer_cast<arrow::UInt32Array>(array);
+    YT_VERIFY(int32Array);
+    return {int32Array->raw_values(), int32Array->raw_values() + int32Array->length()};
+}
+
+std::vector<std::string> ReadStringArray(const std::shared_ptr<arrow::Array>& array)
 {
     auto arraySize = array->length();
-    auto int64Array = std::dynamic_pointer_cast<arrow::Int64Array>(array);
-    YT_VERIFY(int64Array != nullptr);
-    const i64* data = int64Array->raw_values();
-    std::vector<i64> result;
-    for (int i = 0; i < arraySize; i++) {
-        result.push_back(*data);
-        data++;
-    }
-    return result;
-}
-
-std::vector<ui32> ReadInterger32Array(std::shared_ptr<arrow::Array> array)
-{
-    auto sizeArray = array->length();
-    auto int32Array = std::dynamic_pointer_cast<arrow::UInt32Array>(array);
-    YT_VERIFY(int32Array != nullptr);
-
-    const ui32* data = int32Array->raw_values();
-    std::vector<ui32> result;
-    for (int idx = 0; idx < sizeArray; idx++) {
-        result.push_back(*data);
-        data++;
-    }
-    return result;
-}
-
-std::vector<std::string> ReadStringArray(std::shared_ptr<arrow::Array> array)
-{
-    auto sizeArray = array->length();
     auto binArray = std::dynamic_pointer_cast<arrow::BinaryArray>(array);
-    YT_VERIFY(binArray != nullptr);
+    YT_VERIFY(binArray);
 
     std::vector<std::string> stringArray;
-    for (int i = 0; i < sizeArray; i++) {
+    for (int i = 0; i < arraySize; i++) {
         stringArray.push_back(binArray->GetString(i));
     }
     return stringArray;
 }
 
-std::vector<std::string> ReadStringArrayFromDictionaryArray(std::shared_ptr<arrow::Array> array)
+std::vector<std::string> ReadStringArrayFromDictionaryArray(const std::shared_ptr<arrow::Array>& array)
 {
     auto dictArray = std::dynamic_pointer_cast<arrow::DictionaryArray>(array);
-    YT_VERIFY(dictArray != nullptr);
+    YT_VERIFY(dictArray);
 
     auto indices = ReadInterger32Array(dictArray->indices());
 
-    // get values array
+    // Get values array.
     auto values =  ReadStringArray(dictArray->dictionary());
 
     std::vector<std::string> result;
-    for (const auto& index : indices) {
+    for (auto index : indices) {
         auto value = values[index];
         result.push_back(value);
     }
     return result;
 }
 
-TEST_F(TClearTmpTestBase, YTADMINREQ_33599)
+TEST_F(TArrowTestBase, YTADMINREQ_33599)
 {
-    TRichYPath tablePath{"//tmp/test_arrow_reading"};
+    TRichYPath tablePath("//tmp/test_arrow_reading");
     TCreateNodeOptions options;
     options.Attributes = NYTree::CreateEphemeralAttributes();
     options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{{"StringColumn", EValueType::String}}));
@@ -1024,9 +1014,9 @@ TEST_F(TClearTmpTestBase, YTADMINREQ_33599)
     }
 }
 
-TEST_F(TClearTmpTestBase, TestArrowReadingWithSystemColumns)
+TEST_F(TArrowTestBase, TestArrowReadingWithSystemColumns)
 {
-    TRichYPath tablePath{"//tmp/test_arrow_reading_with_system_columns"};
+    TRichYPath tablePath("//tmp/test_arrow_reading_with_system_columns");
     TCreateNodeOptions options;
     options.Attributes = NYTree::CreateEphemeralAttributes();
     options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{{"IntColumn", EValueType::Int64}}));
@@ -1087,9 +1077,9 @@ TEST_F(TClearTmpTestBase, TestArrowReadingWithSystemColumns)
     }
 }
 
-TEST_F(TClearTmpTestBase, TestArrowReadingWithoutSystemColumns)
+TEST_F(TArrowTestBase, TestArrowReadingWithoutSystemColumns)
 {
-    TRichYPath tablePath{"//tmp/test_arrow_reading_without_system_columns"};
+    TRichYPath tablePath("//tmp/test_arrow_reading_without_system_columns");
     TCreateNodeOptions options;
     options.Attributes = NYTree::CreateEphemeralAttributes();
     options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{{"IntColumn", EValueType::Int64}}));
@@ -1102,9 +1092,9 @@ TEST_F(TClearTmpTestBase, TestArrowReadingWithoutSystemColumns)
     {
         auto writer = WaitFor(Client_->CreateTableWriter(tablePath))
             .ValueOrThrow();
-        auto ColumnId = writer->GetNameTable()->GetIdOrRegisterName("IntColumn");
+        auto columnId = writer->GetNameTable()->GetIdOrRegisterName("IntColumn");
 
-        auto value = MakeUnversionedInt64Value(1, ColumnId);
+        auto value = MakeUnversionedInt64Value(1, columnId);
         TUnversionedOwningRow owningRow(MakeRange(&value, 1));
 
         YT_VERIFY(writer->Write({owningRow}));
