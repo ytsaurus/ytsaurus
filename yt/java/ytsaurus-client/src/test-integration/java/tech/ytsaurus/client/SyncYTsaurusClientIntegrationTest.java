@@ -16,7 +16,6 @@ import tech.ytsaurus.client.operations.MapperSpec;
 import tech.ytsaurus.client.operations.Statistics;
 import tech.ytsaurus.client.request.MapOperation;
 import tech.ytsaurus.client.request.ReadTable;
-import tech.ytsaurus.client.request.SerializationContext;
 import tech.ytsaurus.client.request.WriteTable;
 import tech.ytsaurus.client.sync.SyncYTsaurusClient;
 import tech.ytsaurus.core.common.YTsaurusError;
@@ -38,13 +37,7 @@ public class SyncYTsaurusClientIntegrationTest extends YTsaurusClientTestBase {
                 new TableRow("two", "два"));
         List<TableRow> receivedRows = new ArrayList<>();
 
-        try (var writer = client.writeTable(
-                WriteTable.<TableRow>builder()
-                        .setPath(table)
-                        .setSerializationContext(new SerializationContext<>(TableRow.class))
-                        .setNeedRetries(true)
-                        .build())
-        ) {
+        try (var writer = client.writeTable(new WriteTable<>(table, TableRow.class))) {
             rows.forEach(writer);
         }
 
@@ -70,13 +63,7 @@ public class SyncYTsaurusClientIntegrationTest extends YTsaurusClientTestBase {
                 new InputType("b", 2)
         );
 
-        try (var writer = client.writeTable(
-                WriteTable.<InputType>builder()
-                        .setPath(inputTable)
-                        .setSerializationContext(new SerializationContext<>(InputType.class))
-                        .setNeedRetries(true)
-                        .build())
-        ) {
+        try (var writer = client.writeTable(new WriteTable<>(inputTable, InputType.class))) {
             rows.forEach(writer);
         }
 

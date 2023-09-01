@@ -39,21 +39,22 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
     private final int chunkSize;
 
     public WriteTable(YPath path, SerializationContext<T> serializationContext) {
-        this(WriteTable.<T>builder().setPath(path).setSerializationContext(serializationContext));
+        this(new Builder<T>().setPath(path).setSerializationContext(serializationContext));
     }
 
     public WriteTable(YPath path, Class<T> objectClass) {
-        this(WriteTable.<T>builder()
+        this(new Builder<T>()
                 .setPath(path)
                 .setSerializationContext(new SerializationContext<>(objectClass))
         );
     }
 
     public WriteTable(YPath path, SerializationContext<T> serializationContext, TableSchema tableSchema) {
-        this(WriteTable.<T>builder()
+        this(new Builder<T>()
                 .setPath(path)
                 .setSerializationContext(serializationContext)
-                .setTableSchema(tableSchema));
+                .setTableSchema(tableSchema)
+        );
     }
 
     public WriteTable(BuilderBase<T, ?> builder) {
@@ -71,8 +72,8 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
         this.chunkSize = builder.chunkSize;
     }
 
-    public static <T> Builder<T> builder() {
-        return new Builder<>();
+    public static <T> Builder<T> builder(Class<T> rowClass) {
+        return new Builder<T>().setSerializationContext(new SerializationContext<>(rowClass));
     }
 
     public SerializationContext<T> getSerializationContext() {
@@ -156,7 +157,7 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
 
     @Override
     public Builder<T> toBuilder() {
-        return WriteTable.<T>builder()
+        return new Builder<T>()
                 .setPath(path)
                 .setPath(stringPath)
                 .setSerializationContext(serializationContext)
@@ -176,6 +177,8 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
     }
 
     public static class Builder<T> extends BuilderBase<T, Builder<T>> {
+        private Builder() {
+        }
 
         @Override
         protected Builder<T> self() {
@@ -234,7 +237,7 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
         }
 
         /**
-         * If you need a writer with retries, set needRetries=true.
+         * If you don't need a writer with retries, set needRetries=false.
          * RetryPolicy should be set in RpcOptions
          *
          * @return self

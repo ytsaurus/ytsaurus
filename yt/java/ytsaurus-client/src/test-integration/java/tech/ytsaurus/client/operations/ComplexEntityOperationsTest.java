@@ -21,7 +21,6 @@ import tech.ytsaurus.client.request.MapOperation;
 import tech.ytsaurus.client.request.MapReduceOperation;
 import tech.ytsaurus.client.request.ReadTable;
 import tech.ytsaurus.client.request.ReduceOperation;
-import tech.ytsaurus.client.request.SerializationContext;
 import tech.ytsaurus.client.request.SortOperation;
 import tech.ytsaurus.client.request.WriteTable;
 import tech.ytsaurus.core.cypress.YPath;
@@ -256,10 +255,8 @@ public class ComplexEntityOperationsTest extends YTsaurusClientTestBase {
 
     private static <T> Set<T> read(YTsaurusClient yt, YPath path, Class<T> clazz) {
         TableReader<T> reader = yt.readTable(
-                ReadTable.<T>builder()
-                        .setPath(path)
-                        .setSerializationContext(new SerializationContext<>(clazz))
-                        .build()).join();
+                new ReadTable<>(path, clazz)
+        ).join();
 
         Set<T> result = new HashSet<>();
         List<T> currentRows;
@@ -280,11 +277,8 @@ public class ComplexEntityOperationsTest extends YTsaurusClientTestBase {
 
     private static <T> void write(YTsaurusClient yt, YPath path, List<T> rows, Class<T> clazz) {
         TableWriter<T> writer = yt.writeTable(
-                WriteTable.<T>builder()
-                        .setPath(path)
-                        .setSerializationContext(new SerializationContext<>(clazz))
-                        .setNeedRetries(true)
-                        .build()).join();
+                new WriteTable<>(path, clazz)
+        ).join();
 
         try {
             while (true) {

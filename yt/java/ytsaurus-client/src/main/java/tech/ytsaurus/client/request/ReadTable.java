@@ -47,19 +47,19 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
     }
 
     public ReadTable(YPath path, SerializationContext<T> serializationContext) {
-        this(ReadTable.<T>builder()
+        this(new Builder<T>()
                 .setPath(path)
                 .setSerializationContext(serializationContext));
     }
 
     public ReadTable(YPath path, Class<T> objectClass) {
-        this(ReadTable.<T>builder()
+        this(new Builder<T>()
                 .setPath(path)
                 .setSerializationContext(new SerializationContext<>(objectClass)));
     }
 
-    public static <T> Builder<T> builder() {
-        return new Builder<>();
+    public static <T> Builder<T> builder(Class<T> rowClass) {
+        return new Builder<T>().setSerializationContext(new SerializationContext<>(rowClass));
     }
 
     public SerializationContext<T> getSerializationContext() {
@@ -118,7 +118,7 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
 
     @Override
     public Builder<T> toBuilder() {
-        return ReadTable.<T>builder()
+        return new Builder<T>()
                 .setPath(path)
                 .setPath(stringPath)
                 .setSerializationContext(serializationContext)
@@ -135,6 +135,9 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
     }
 
     public static class Builder<T> extends BuilderBase<T, Builder<T>> {
+        private Builder() {
+        }
+
         @Override
         protected Builder<T> self() {
             return this;
