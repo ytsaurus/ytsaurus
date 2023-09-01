@@ -9,7 +9,7 @@ static class Informer {
 public:
     Informer() {
         fprintf(stderr, "WARNING: Binary built without instrumentation module"
-            " - see https://wiki.yandex-team.ru/yatool/fuzzing for proper build command\n");
+            " - see https://docs.yandex-team.ru/ya-make/manual/tests/fuzzing for proper build command\n");
         fflush(stderr);
     }
 } informer;
