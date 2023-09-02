@@ -2,7 +2,8 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, run_sleeping_vanilla, wait, get, set, exists, ls, check_permission,
-    create_pool, create_pool_tree, get_driver, raises_yt_error)
+    create_pool, create_pool_tree, get_driver, raises_yt_error,
+    wait_no_assert)
 
 from yt_scheduler_helpers import (
     scheduler_orchid_operations_by_pool_path, scheduler_orchid_operation_path,
@@ -87,9 +88,11 @@ class TestSchedulerOperationsByPoolOrchid(YTEnvSetup):
         create_pool("pool")
         create_pool("child", parent_name="pool", attributes={"weight": 3.0})
 
-        wait(lambda: ls(
-            scheduler_new_orchid_pool_tree_path("default") + "/pools") == ls(
-                scheduler_orchid_pool_tree_path("default") + "/pools"))
+        @wait_no_assert
+        def equal_list_results():
+            list_pools_result = ls(scheduler_orchid_pool_tree_path("default") + "/pools").sort()
+            list_pools_new_orchid_result = ls(scheduler_new_orchid_pool_tree_path("default") + "/pools").sort()
+            assert list_pools_result == list_pools_new_orchid_result
 
     @authors("omgronny")
     def test_pools_exist(self):
@@ -98,6 +101,66 @@ class TestSchedulerOperationsByPoolOrchid(YTEnvSetup):
         assert exists("//sys/scheduler/orchid/scheduler/pool_trees/default/pools")
         assert exists("//sys/scheduler/orchid/scheduler/pool_trees/default/pools/valid_pool")
         assert not exists("//sys/scheduler/orchid/scheduler/pool_trees/default/pools/invalid_pool")
+
+    @authors("omgronny")
+    def test_child_pools_by_pool(self):
+        create_pool("pool1")
+        create_pool("pool2")
+        create_pool("pool3", parent_name="pool1")
+        create_pool("pool4", parent_name="pool1")
+        create_pool("pool5", parent_name="pool2")
+
+        client = create_client_with_command_params(
+            YtClient(config={
+                "enable_token": False,
+                "backend": "native",
+                "driver_config": get_driver().get_config(),
+            }),
+            fields=["full_path"],
+        )
+
+        def child_pools_by_pool_orchid_path(pool):
+            return "//sys/scheduler/orchid/scheduler/pool_trees/default/child_pools_by_pool" + pool
+
+        assert client.get(child_pools_by_pool_orchid_path("")) == {
+            "<Root>": {
+                "pool2": {"full_path": "/pool2"},
+                "pool1": {"full_path": "/pool1"},
+            },
+            "pool3": {},
+            "pool2": {
+                "pool5": {"full_path": "/pool2/pool5"},
+            },
+            "pool5": {},
+            "pool4": {},
+            "pool1": {
+                "pool3": {"full_path": "/pool1/pool3"},
+                "pool4": {"full_path": "/pool1/pool4"},
+            },
+        }
+
+        assert client.get(child_pools_by_pool_orchid_path("/pool1")) == {
+            "pool3": {"full_path": "/pool1/pool3"},
+            "pool4": {"full_path": "/pool1/pool4"},
+        }
+        assert client.get(child_pools_by_pool_orchid_path("/pool2")) == {
+            "pool5": {"full_path": "/pool2/pool5"},
+        }
+        assert client.get(child_pools_by_pool_orchid_path("/pool5")) == {}
+
+        assert client.list(child_pools_by_pool_orchid_path("")) == ["<Root>", "pool1", "pool2", "pool3", "pool4", "pool5"]
+        assert client.list(child_pools_by_pool_orchid_path("/pool1")) == ["pool3", "pool4"]
+        assert client.list(child_pools_by_pool_orchid_path("/pool2")) == ["pool5"]
+        assert client.list(child_pools_by_pool_orchid_path("/pool5")) == []
+
+        assert client.exists(child_pools_by_pool_orchid_path(""))
+        assert client.exists(child_pools_by_pool_orchid_path("/pool2"))
+        assert not client.exists(child_pools_by_pool_orchid_path("/invalid_pool"))
+
+        assert client.list(child_pools_by_pool_orchid_path("/pool1/@")) == []
+        assert client.get(child_pools_by_pool_orchid_path("/pool1/@")) == {}
+        with raises_yt_error():
+            client.get(child_pools_by_pool_orchid_path("/pool1/@full_path"))
 
     @authors("pogorelov")
     def test_pools_single_pool(self):
