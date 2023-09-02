@@ -16,11 +16,14 @@ target_link_libraries(yt-client-formats PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-yt-client
+  client-arrow-fbs
   yt-library-skiff_ext
+  yt-library-column_converters
   yt_proto-yt-formats
   cpp-string_utils-base64
 )
 target_sources(yt-client-formats PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/arrow_writer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/dsv_parser.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/formats/dsv_writer.cpp
