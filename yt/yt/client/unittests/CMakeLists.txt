@@ -44,7 +44,6 @@ target_link_libraries(unittester-client PUBLIC
   yt-client-formats
   client-unittests-mock
   yt-library-named_value
-  yt-yt-ytlib
   yt_proto-yt-formats
   libs-apache-arrow
   library-cpp-resource
@@ -65,7 +64,6 @@ target_proto_messages(unittester-client PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/protobuf_format_ut.proto
 )
 target_sources(unittester-client PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/arrow_writer_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/check_schema_compatibility_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/check_type_compatibility_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/unittests/chunk_replica_ut.cpp
