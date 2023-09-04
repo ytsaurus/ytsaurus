@@ -305,7 +305,7 @@ public:
             container);
     }
 
-    // This method allocates porto "resources", so it should be uncancellable.
+    // This method allocates Porto "resources", so it should be uncancellable.
     TFuture<TString> CreateVolume(
         const TString& path,
         const THashMap<TString, TString>& properties) override
@@ -318,7 +318,7 @@ public:
             .ToUncancelable();
     }
 
-    // This method allocates porto "resources", so it should be uncancellable.
+    // This method allocates Porto "resources", so it should be uncancellable.
     TFuture<void> LinkVolume(
         const TString& path,
         const TString& name) override
@@ -331,7 +331,7 @@ public:
             .ToUncancelable();
     }
 
-    // This method deallocates porto "resources", so it should be uncancellable.
+    // This method deallocates Porto "resources", so it should be uncancellable.
     TFuture<void> UnlinkVolume(
         const TString& path,
         const TString& name) override
@@ -351,7 +351,7 @@ public:
             "ListVolumePaths");
     }
 
-    // This method allocates porto "resources", so it should be uncancellable.
+    // This method allocates Porto "resources", so it should be uncancellable.
     TFuture<void> ImportLayer(const TString& archivePath, const TString& layerId, const TString& place) override
     {
         return ExecutePortoApiAction(
@@ -363,7 +363,7 @@ public:
             .ToUncancelable();
     }
 
-    // This method deallocates porto "resources", so it should be uncancellable.
+    // This method deallocates Porto "resources", so it should be uncancellable.
     TFuture<void> RemoveLayer(const TString& layerId, const TString& place, bool async) override
     {
         return ExecutePortoApiAction(
@@ -749,7 +749,7 @@ private:
                     int exitStatus = FromString<int>(*optionalExitCode);
                     result.TrySet(exitStatus);
                 } catch (const std::exception& ex) {
-                    auto error = TError("Failed to parse porto exit status")
+                    auto error = TError("Failed to parse Porto exit status")
                         << TErrorAttribute("container_name", container)
                         << TErrorAttribute("exit_status", optionalExitCode.value());
                     error.MutableInnerErrors()->push_back(TError(ex));
@@ -930,7 +930,7 @@ private:
         YT_LOG_DEBUG("Porto API call started (Command: %v)", command);
 
         if (IsTestPortoTimeout()) {
-            YT_LOG_DEBUG("Testing porto timeout (Command: %v)", command);
+            YT_LOG_DEBUG("Testing Porto timeout (Command: %v)", command);
 
             auto config = DynamicConfig_.Acquire();
             TDelayedExecutor::WaitForDuration(config->ApiTimeout);
@@ -939,7 +939,7 @@ private:
         }
 
         if (IsTestPortoFailureEnabled()) {
-            YT_LOG_DEBUG("Testing porto failure (Command: %v)", command);
+            YT_LOG_DEBUG("Testing Porto failure (Command: %v)", command);
             THROW_ERROR CreatePortoError(GetFailedStubError(), "Porto stub error");
         }
 

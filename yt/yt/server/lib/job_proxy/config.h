@@ -226,7 +226,7 @@ public:
     //! Compat option for urgent disable of job shell audit.
     bool EnableJobShellSeccopm;
 
-    //! Enabled using porto kill for signalling instead of manual discovery of process pid.
+    //! Enabled using Porto kill for signalling instead of manual discovery of process pid.
     bool UsePortoKillForSignalling;
 
     bool ForceIdleCpuPolicy;

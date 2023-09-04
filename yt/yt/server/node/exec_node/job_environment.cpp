@@ -566,7 +566,7 @@ private:
 
     const TPortoJobEnvironmentConfigPtr Config_;
 
-    //! Main porto connection for container creation and lightweight operations.
+    //! Main Porto connection for container creation and lightweight operations.
     IPortoExecutorPtr PortoExecutor_;
 
     //! Porto connection used for container destruction, which is

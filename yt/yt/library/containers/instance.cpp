@@ -561,7 +561,7 @@ public:
 
         double cpuGuarantee;
         if (!cpuGuaranteeRsp.Value()) {
-            // XXX: hack for missing response from porto.
+            // XXX(ignat): hack for missing response from Porto.
             cpuGuarantee = 0.0;
         } else {
             YT_VERIFY(cpuGuaranteeRsp.Value().EndsWith('c'));

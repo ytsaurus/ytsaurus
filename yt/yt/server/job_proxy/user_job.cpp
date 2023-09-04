@@ -913,7 +913,7 @@ private:
                             << TErrorAttribute("signal_name", signal);
                     }
 #else
-                    THROW_ERROR_EXCEPTION("Signalling by porto is not supported at non-linux environment");
+                    THROW_ERROR_EXCEPTION("Signalling by Porto is not supported at non-linux environment");
 #endif
                 } else {
                     auto pids = GetPidsForInterrupt();

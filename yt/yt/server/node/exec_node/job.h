@@ -428,7 +428,7 @@ private:
 
     void OnWorkspacePreparationFinished(const TErrorOr<TJobWorkspaceBuildingResult>& resultOrError);
 
-    // Stop job proxy and porto containers.
+    // Stop job proxy and Porto containers.
     TFuture<void> StopJobProxy();
 
     // Finalization.

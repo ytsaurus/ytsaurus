@@ -54,7 +54,7 @@ void TPortoHealthChecker::OnDynamicConfigChanged(const TPortoExecutorDynamicConf
 
 void TPortoHealthChecker::OnCheck()
 {
-    YT_LOG_DEBUG("Run porto health check");
+    YT_LOG_DEBUG("Run Porto health check");
 
     auto result = WaitFor(Executor_->ListVolumePaths().AsVoid());
     if (result.IsOK()) {

@@ -381,7 +381,7 @@ void TPortoResourceTracker::DoUpdateResourceUsage() const
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(
             ex,
-            "Couldn't get metrics from porto");
+            "Couldn't get metrics from Porto");
     }
 }
 
@@ -685,7 +685,7 @@ TPortoResourceProfilerPtr CreatePortoProfilerWithTags(
 #ifdef __linux__
 void EnablePortoResourceTracker(const TPodSpecConfigPtr& podSpec)
 {
-    try {
+    BIND([=] {
         auto executor = CreatePortoExecutor(New<TPortoExecutorDynamicConfig>(), "porto-tracker");
 
         executor->SubscribeFailed(BIND([=] (const TError& error) {
@@ -695,9 +695,11 @@ void EnablePortoResourceTracker(const TPodSpecConfigPtr& podSpec)
         LeakyRefCountedSingleton<TPortoProfilers>(
             CreatePortoProfilerWithTags(GetSelfPortoInstance(executor), "daemon", podSpec),
             CreatePortoProfilerWithTags(GetRootPortoInstance(executor), "pod", podSpec));
-    } catch(const std::exception& exception) {
-        YT_LOG_ERROR(exception, "Failed to enable porto profiler");
-    }
+    }).AsyncVia(GetCurrentInvoker())
+    .Run()
+    .Subscribe(BIND([] (const TError& error) {
+        YT_LOG_ERROR_IF(!error.IsOK(), error, "Failed to enable Porto profiler");
+    }));
 }
 #else
 void EnablePortoResourceTracker(const TPodSpecConfigPtr& /*podSpec*/)

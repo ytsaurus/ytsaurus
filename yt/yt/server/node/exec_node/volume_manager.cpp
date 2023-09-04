@@ -1593,7 +1593,7 @@ public:
                 TArtifactKey key;
                 key.MergeFrom(layerMeta.artifact_key());
 
-                YT_LOG_DEBUG("Loading existing cached porto layer (LayerId: %v)", layerMeta.Id);
+                YT_LOG_DEBUG("Loading existing cached Porto layer (LayerId: %v)", layerMeta.Id);
 
                 auto layer = New<TLayer>(layerMeta, key, location);
                 auto cookie = BeginInsert(layer->GetKey());
@@ -1832,7 +1832,7 @@ private:
                     auto layerMeta = WaitFor(location->MountSquashfsLayer(artifactKey, artifactChunk->GetFileName(), tag))
                         .ValueOrThrow();
 
-                    YT_LOG_DEBUG("New squashfs porto layer initialized (LayerId: %v, Tag: %v)", layerMeta.Id, tag);
+                    YT_LOG_DEBUG("New squashfs Porto layer initialized (LayerId: %v, Tag: %v)", layerMeta.Id, tag);
                     auto layer = New<TLayer>(layerMeta, artifactKey, location);
                     layer->SetUnderlyingArtifact(artifactChunk);
                     return layer;
@@ -1858,7 +1858,7 @@ private:
                      artifactKey.data_source().path());
 
                   // NB(psushin): we limit number of concurrently imported layers, since this is heavy operation
-                  // which may delay light operations performed in the same IO thread pool inside porto daemon.
+                  // which may delay light operations performed in the same IO thread pool inside Porto daemon.
                   // PORTO-518
                   TAsyncSemaphoreGuard guard;
                   while (!(guard = TAsyncSemaphoreGuard::TryAcquire(Semaphore_))) {
