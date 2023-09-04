@@ -18,6 +18,7 @@
 #include "user.h"
 #include "user_proxy.h"
 #include "security_tags.h"
+#include "ace_iterator.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
@@ -1886,56 +1887,33 @@ public:
             return checker.GetResponse();
         }
 
-        // Slow lane: check ACLs through the object hierarchy.
         const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* currentObject = object;
-        TSubject* owner = nullptr;
-        int depth = 0;
-        while (currentObject) {
-            const auto& handler = objectManager->GetHandler(currentObject);
-            auto* acd = handler->FindAcd(currentObject);
 
-            // Check the current ACL, if any.
-            if (acd) {
-                if (!owner && currentObject == object) {
-                    owner = acd->GetOwner();
-                }
+        TAceIterator aceIter(objectManager, object);
+        auto end = TAceIterator::End();
 
-                for (const auto& ace: acd->Acl().Entries) {
-                    checker.ProcessAce(ace, owner, currentObject, depth);
-                    if (!checker.ShouldProceed()) {
-                        break;
-                    }
-                }
-
-                // Proceed to the parent object unless the current ACL explicitly forbids inheritance.
-                if (!acd->GetInherit()) {
-                    break;
-                }
+        // Slow lane: check ACLs through the object hierarchy.
+        for (; aceIter != end; ++aceIter) {
+            checker.ProcessAce(*aceIter, aceIter.GetOwner(), aceIter.GetObject(), aceIter.GetDepth());
+            if (!checker.ShouldProceed()) {
+                break;
             }
+        }
 
-            auto* parentObject = handler->GetParent(currentObject);
-
-            // XXX(shakurov): YT-3005, YT-10896: remove this workaround.
-            if (IsVersionedType(object->GetType())) {
-                // Check if current object is orphaned.
-                if (!parentObject &&
-                    !cypressManager->IsShardRoot(currentObject))
-                {
-                    checker.ProcessAce(
-                        TAccessControlEntry(
-                            ESecurityAction::Allow,
-                            GetEveryoneGroup(),
-                            EPermissionSet(EPermission::Read)),
-                        owner,
-                        currentObject,
-                        depth);
-                }
-            }
-
-            currentObject = parentObject;
-            ++depth;
+        // XXX(shakurov): YT-3005, YT-10896: remove this workaround.
+        if (aceIter.GetStopCause() == EAceIteratorStopCause::HasNoParent &&
+            IsVersionedType(aceIter.GetObject()->GetType()) &&
+            !cypressManager->IsShardRoot(aceIter.GetObject()))
+        {
+            checker.ProcessAce(
+                TAccessControlEntry(
+                    ESecurityAction::Allow,
+                    GetEveryoneGroup(),
+                    EPermissionSet(EPermission::Read)),
+                aceIter.GetOwner(),
+                aceIter.GetObject(),
+                aceIter.GetDepth());
         }
 
         return checker.GetResponse();

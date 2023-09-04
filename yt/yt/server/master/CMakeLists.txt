@@ -524,6 +524,7 @@ target_sources(yt-server-master PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/security_server/account_proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/security_server/account_resource_usage_lease.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/security_server/account_resource_usage_lease_proxy.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/security_server/ace_iterator.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/security_server/acl.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/security_server/cluster_resource_limits.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/security_server/cluster_resources.cpp
