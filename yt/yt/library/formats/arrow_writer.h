@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include <yt/yt/client/formats/public.h>
 
 #include <yt/yt/client/table_client/public.h>
 

@@ -45,7 +45,6 @@ target_link_libraries(unittester-client PUBLIC
   client-unittests-mock
   yt-library-named_value
   yt_proto-yt-formats
-  libs-apache-arrow
   library-cpp-resource
   contrib-libs-protobuf
 )
