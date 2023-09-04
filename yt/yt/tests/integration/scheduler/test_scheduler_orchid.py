@@ -2,8 +2,7 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, run_sleeping_vanilla, wait, get, set, exists, ls, check_permission,
-    create_pool, create_pool_tree, get_driver, raises_yt_error,
-    wait_no_assert)
+    create_pool, create_pool_tree, get_driver, raises_yt_error)
 
 from yt_scheduler_helpers import (
     scheduler_orchid_operations_by_pool_path, scheduler_orchid_operation_path,
@@ -88,11 +87,11 @@ class TestSchedulerOperationsByPoolOrchid(YTEnvSetup):
         create_pool("pool")
         create_pool("child", parent_name="pool", attributes={"weight": 3.0})
 
-        @wait_no_assert
         def equal_list_results():
             list_pools_result = ls(scheduler_orchid_pool_tree_path("default") + "/pools").sort()
             list_pools_new_orchid_result = ls(scheduler_new_orchid_pool_tree_path("default") + "/pools").sort()
-            assert list_pools_result == list_pools_new_orchid_result
+            return list_pools_result == list_pools_new_orchid_result
+        wait(equal_list_results)
 
     @authors("omgronny")
     def test_pools_exist(self):
