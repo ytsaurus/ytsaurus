@@ -26,15 +26,7 @@ public:
         NTableClient::TTableSchemaHash,
         NTableClient::TTableSchemaEquals
     >;
-    using TImportedTableSchemaToObjectMap = THashMap<
-        NTableClient::TCellTaggedTableSchemaPtr,
-        TMasterTableSchema*,
-        NTableClient::TCellTaggedTableSchemaHash,
-        NTableClient::TCellTaggedTableSchemaEquals
-    >;
-
     using TNativeTableSchemaToObjectMapIterator = TNativeTableSchemaToObjectMap::iterator;
-    using TImportedTableSchemaToObjectMapIterator = TImportedTableSchemaToObjectMap::iterator;
 
     using TCellTagToExportRefcount = THashMap<NObjectClient::TCellTag, int>;
 
@@ -48,8 +40,10 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TAccountToRefCounterMap, ReferencingAccounts);
 
     using TObject::TObject;
+    //! Constructs a native master table schema object.
     TMasterTableSchema(TMasterTableSchemaId id, TNativeTableSchemaToObjectMapIterator it);
-    TMasterTableSchema(TMasterTableSchemaId id, TImportedTableSchemaToObjectMapIterator it);
+    //! Constructs an imported master table schema object.
+    TMasterTableSchema(TMasterTableSchemaId id, NTableClient::TTableSchemaPtr);
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
@@ -85,20 +79,17 @@ private:
 
     using TBase = NObjectServer::TObject;
 
-    std::variant<TNativeTableSchemaToObjectMapIterator, TImportedTableSchemaToObjectMapIterator> TableSchemaToObjectMapIterator_;
+    // NB: only used for native (non-foreign) schema objects.
+    TNativeTableSchemaToObjectMapIterator NativeTableSchemaToObjectMapIterator_;
+
     NTableClient::TTableSchemaPtr TableSchema_;
 
     mutable TFuture<NYson::TYsonString> MemoizedYson_;
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MemoizedYsonLock_);
 
     TNativeTableSchemaToObjectMapIterator GetNativeTableSchemaToObjectMapIterator() const;
-    TImportedTableSchemaToObjectMapIterator GetImportedTableSchemaToObjectMapIterator() const;
-
     void SetNativeTableSchemaToObjectMapIterator(TNativeTableSchemaToObjectMapIterator it);
-    void SetImportedTableSchemaToObjectMapIterator(TImportedTableSchemaToObjectMapIterator it);
-
     void ResetNativeTableSchemaToObjectMapIterator();
-    void ResetImportedTableSchemaToObjectMapIterator();
 
     //! Increments export ref counter.
     void ExportRef(NObjectClient::TCellTag cellTag);

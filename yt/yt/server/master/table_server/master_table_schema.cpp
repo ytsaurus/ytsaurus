@@ -31,11 +31,11 @@ TMasterTableSchema::TMasterTableSchema(TMasterTableSchemaId id, TNativeTableSche
     SetNativeTableSchemaToObjectMapIterator(it);
 }
 
-TMasterTableSchema::TMasterTableSchema(TMasterTableSchemaId id, TImportedTableSchemaToObjectMapIterator it)
+TMasterTableSchema::TMasterTableSchema(TMasterTableSchemaId id, TTableSchemaPtr schema)
     : TBase(id)
+    , TableSchema_(std::move(schema))
 {
     SetForeign();
-    SetImportedTableSchemaToObjectMapIterator(it);
 }
 
 void TMasterTableSchema::Save(NCellMaster::TSaveContext& context) const
@@ -71,7 +71,9 @@ void TMasterTableSchema::Load(NCellMaster::TLoadContext& context)
             if (IsNative()) {
                 SetNativeTableSchemaToObjectMapIterator(tableManager->RegisterNativeSchema(this, std::move(tableSchema)));
             } else {
-                SetImportedTableSchemaToObjectMapIterator(tableManager->RegisterImportedSchema(this, std::move(tableSchema)));
+                // Imported schemas require no registration because reverse
+                // index for imported schemas is not necessary.
+                TableSchema_ = New<TTableSchema>(std::move(tableSchema));
             }
         } else {
             TableSchema_ = New<TTableSchema>(std::move(tableSchema));
@@ -211,37 +213,20 @@ void TMasterTableSchema::ResetExportRefCounters()
 
 TMasterTableSchema::TNativeTableSchemaToObjectMapIterator TMasterTableSchema::GetNativeTableSchemaToObjectMapIterator() const
 {
-    const auto* it = std::get_if<TNativeTableSchemaToObjectMapIterator>(&TableSchemaToObjectMapIterator_);
-    return it ? *it : TNativeTableSchemaToObjectMapIterator{};
-}
-
-TMasterTableSchema::TImportedTableSchemaToObjectMapIterator TMasterTableSchema::GetImportedTableSchemaToObjectMapIterator() const
-{
-    const auto* it = std::get_if<TImportedTableSchemaToObjectMapIterator>(&TableSchemaToObjectMapIterator_);
-    return it ? *it : TImportedTableSchemaToObjectMapIterator{};
+    YT_VERIFY(IsNative());
+    return NativeTableSchemaToObjectMapIterator_;
 }
 
 void TMasterTableSchema::SetNativeTableSchemaToObjectMapIterator(TNativeTableSchemaToObjectMapIterator it)
 {
-    TableSchemaToObjectMapIterator_.emplace<TNativeTableSchemaToObjectMapIterator>(it);
+    YT_VERIFY(IsNative());
+    NativeTableSchemaToObjectMapIterator_ = it;
     TableSchema_ = it->first;
-}
-
-void TMasterTableSchema::SetImportedTableSchemaToObjectMapIterator(TImportedTableSchemaToObjectMapIterator it)
-{
-    TableSchemaToObjectMapIterator_.emplace<TImportedTableSchemaToObjectMapIterator>(it);
-    TableSchema_ = it->first.TableSchema;
 }
 
 void TMasterTableSchema::ResetNativeTableSchemaToObjectMapIterator()
 {
-    TableSchemaToObjectMapIterator_ = {};
-    // NB: Retain TableSchema_ for possible future snapshot serialization.
-}
-
-void TMasterTableSchema::ResetImportedTableSchemaToObjectMapIterator()
-{
-    TableSchemaToObjectMapIterator_ = {};
+    NativeTableSchemaToObjectMapIterator_ = {};
     // NB: Retain TableSchema_ for possible future snapshot serialization.
 }
 

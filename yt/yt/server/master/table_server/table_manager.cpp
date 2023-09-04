@@ -350,14 +350,6 @@ public:
             : nullptr;
     }
 
-    TMasterTableSchema* FindImportedMasterTableSchema(const TTableSchema& tableSchema, const TCellTag cellTag) const override
-    {
-        auto it = ImportedTableSchemaToObjectMap_.find(TCellTaggedTableSchema(tableSchema, cellTag));
-        return it != ImportedTableSchemaToObjectMap_.end()
-            ? it->second
-            : nullptr;
-    }
-
     TMasterTableSchema* CreateImportedMasterTableSchema(
         const NTableClient::TTableSchema& tableSchema,
         TMasterTableSchemaId hintId) override
@@ -473,24 +465,10 @@ public:
             it->second = schema;
             YT_VERIFY(schema->GetNativeTableSchemaToObjectMapIterator()->second == schema);
         } else {
-            auto [it, emplaced] = ImportedTableSchemaToObjectMap_.emplace(
-                TCellTaggedTableSchemaPtr(std::move(sharedTableSchema), CellTagFromId(id)),
-                nullptr);
-
-            if (!emplaced) {
-                // This schema should become zombie, thus it's doomed.
-                auto* doomedSchema = it->second;
-                YT_VERIFY(doomedSchema->GetId() != hintId);
-                YT_LOG_DEBUG("Rewriting table schema (OldSchemaId: %v, NewSchemaId: %v)",
-                    doomedSchema->GetId(),
-                    hintId);
-                doomedSchema->ResetImportedTableSchemaToObjectMapIterator();
-            }
-
-            auto schemaHolder = TPoolAllocator::New<TMasterTableSchema>(id, it);
+            auto schemaHolder = TPoolAllocator::New<TMasterTableSchema>(
+                id,
+                std::move(sharedTableSchema));
             schema = MasterTableSchemaMap_.Insert(id, std::move(schemaHolder));
-            it->second = schema;
-            YT_VERIFY(schema->GetImportedTableSchemaToObjectMapIterator()->second == schema);
         }
 
         YT_VERIFY(schema->CellTagToExportCount().empty());
@@ -524,13 +502,8 @@ public:
                 NativeTableSchemaToObjectMap_.erase(it);
             }
             schema->ResetNativeTableSchemaToObjectMapIterator();
-        } else {
-            if (auto it = schema->GetImportedTableSchemaToObjectMapIterator()) {
-                ImportedTableSchemaToObjectMap_.erase(it);
-            }
-            schema->ResetImportedTableSchemaToObjectMapIterator();
         }
-
+        // There's no reverse index for imported schemas.
     }
 
     void ResurrectMasterTableSchema(TMasterTableSchema* schema) {
@@ -540,21 +513,15 @@ public:
         YT_LOG_DEBUG("Resurrecting master table schema object (SchemaId: %v)",
             schema->GetId());
 
-        const auto& tableSchema = schema->TableSchema_;
+        const auto& tableSchema = schema->AsTableSchema(/* crashOnZombie */ false);
         if (schema->IsNative()) {
             auto it = EmplaceOrCrash(
                 NativeTableSchemaToObjectMap_,
                 tableSchema,
                 schema);
             schema->SetNativeTableSchemaToObjectMapIterator(it);
-        } else {
-            auto cellTag = CellTagFromId(schema->GetId());
-            auto it = EmplaceOrCrash(
-                ImportedTableSchemaToObjectMap_,
-                TCellTaggedTableSchemaPtr(tableSchema, cellTag),
-                schema);
-            schema->SetImportedTableSchemaToObjectMapIterator(it);
         }
+        // There's no reverse index for imported schemas.
     }
 
     TMasterTableSchema::TNativeTableSchemaToObjectMapIterator RegisterNativeSchema(
@@ -566,19 +533,6 @@ public:
         return EmplaceOrCrash(
             NativeTableSchemaToObjectMap_,
             sharedTableSchema,
-            schema);
-    }
-
-    TMasterTableSchema::TImportedTableSchemaToObjectMapIterator RegisterImportedSchema(
-        TMasterTableSchema* schema,
-        TTableSchema tableSchema) override
-    {
-        YT_VERIFY(IsObjectAlive(schema));
-        auto cellTag = CellTagFromId(schema->GetId());
-        auto sharedTableSchema = New<TTableSchema>(std::move(tableSchema));
-        return EmplaceOrCrash(
-            ImportedTableSchemaToObjectMap_,
-            TCellTaggedTableSchemaPtr(std::move(sharedTableSchema), cellTag),
             schema);
     }
 
@@ -1182,7 +1136,6 @@ private:
     NHydra::TEntityMap<TMasterTableSchema> MasterTableSchemaMap_;
 
     TMasterTableSchema::TNativeTableSchemaToObjectMap NativeTableSchemaToObjectMap_;
-    TMasterTableSchema::TImportedTableSchemaToObjectMap ImportedTableSchemaToObjectMap_;
 
     // COMPAT(h0pless): Remove this after empty schema migration is complete.
     TMasterTableSchemaId PrimaryCellEmptyMasterTableSchemaId_;
@@ -1523,7 +1476,6 @@ private:
 
         MasterTableSchemaMap_.Clear();
         NativeTableSchemaToObjectMap_.clear();
-        ImportedTableSchemaToObjectMap_.clear();
         EmptyMasterTableSchema_ = nullptr;
         TableCollocationMap_.Clear();
         StatisticsUpdateRequests_.Clear();
@@ -1588,11 +1540,12 @@ private:
             // Un-import old empty schema.
             NativeTableSchemaToObjectMap_.erase(oldEmptyMasterTableSchema->GetNativeTableSchemaToObjectMapIterator());
             oldEmptyMasterTableSchema->ResetNativeTableSchemaToObjectMapIterator();
+            // The above iterator reset should've retained the actual
+            // TTableSchema inside the old object.
 
-            // Re-import old empty schema.
+            // Historically, this schema hasn't been flagged as foreign, even
+            // though it actually is.
             oldEmptyMasterTableSchema->SetForeign();
-            auto it = RegisterImportedSchema(oldEmptyMasterTableSchema, *oldEmptyMasterTableSchema->AsTableSchema());
-            oldEmptyMasterTableSchema->SetImportedTableSchemaToObjectMapIterator(it);
 
             // Allow it to die peacefully if need be.
             objectManager->UnrefObject(oldEmptyMasterTableSchema);
