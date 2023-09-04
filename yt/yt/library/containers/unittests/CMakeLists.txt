@@ -19,7 +19,6 @@ target_link_libraries(unittester-containers PUBLIC
   cpp-testing-gtest
   cpp-testing-gtest_main
   yt-yt-build
-  server-lib-io
   yt-library-containers
 )
 target_link_options(unittester-containers PRIVATE

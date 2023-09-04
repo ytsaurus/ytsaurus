@@ -2,8 +2,6 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
-#include <yt/yt/server/lib/io/io_engine.h>
-
 #include <util/system/fs.h>
 #include <util/system/tempfile.h>
 
@@ -19,7 +17,6 @@
 namespace NYT::NContainers {
 namespace {
 
-using namespace NIO;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -19,6 +19,7 @@ target_link_libraries(yt-library-containers PUBLIC
   contrib-libs-cxxsupp
   yutil
   cpp-porto-proto
+  yt-library-process
   yt-yt-core
   library-cpp-porto
 )
