@@ -154,6 +154,10 @@ message TUserJobSpec
     repeated TFileDescriptor files = 1;
     repeated TFileDescriptor layers = 34;
 
+    // The external docker image specified for operation,
+    // images from internal registry are resolved into layers.
+    optional string docker_image = 69;
+
     // The user command to be executed.
     required string shell_command = 2;
 
@@ -174,7 +178,7 @@ message TUserJobSpec
 
     // Transaction for creating chunks for stderr and core tables.
     required NYT.NProto.TGuid debug_transaction_id = 8;
-    
+
     // Transaction for creating job input context.
     optional NYT.NProto.TGuid input_transaction_id = 68;
 

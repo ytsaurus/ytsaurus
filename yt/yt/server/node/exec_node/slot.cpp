@@ -130,12 +130,12 @@ public:
                 YT_LOG_DEBUG("Finish making job proxy config (JobId: %v)", jobId);
 
                 auto result = JobEnvironment_->RunJobProxy(
+                    config,
                     SlotGuard_->GetSlotType(),
                     SlotIndex_,
                     Location_->GetSlotPath(SlotIndex_),
                     jobId,
                     operationId,
-                    config->StderrPath,
                     NumaNodeAffinity_);
 
                 if (auto delay = config->JobTestingOptions->DelayAfterRunJobProxy) {

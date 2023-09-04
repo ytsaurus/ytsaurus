@@ -309,6 +309,7 @@ private:
 
     std::vector<TArtifact> Artifacts_;
     std::vector<NDataNode::TArtifactKey> LayerArtifactKeys_;
+    std::optional<TString> DockerImage_;
 
     //! Artifact name -> index of the artifact in #Artifacts_ list.
     THashMap<TString, int> UserArtifactNameToIndex_;

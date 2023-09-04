@@ -89,12 +89,12 @@ public:
     }
 
     TFuture<void> RunJobProxy(
+        const TJobProxyConfigPtr& config,
         ESlotType slotType,
         int slotIndex,
         const TString& workingDirectory,
         TJobId jobId,
         TOperationId operationId,
-        const std::optional<TString>& stderrPath,
         const std::optional<TNumaNodeInfo>& numaNodeAffinity) override
     {
         ValidateEnabled();
@@ -110,7 +110,7 @@ public:
                     UpdateSlotCpuSet(slotIndex, slotType, EmptyCpuSet);
                 }
             }
-            auto process = CreateJobProxyProcess(slotIndex, slotType, jobId);
+            auto process = CreateJobProxyProcess(config, slotIndex, slotType, jobId);
 
             process->AddArguments({
                 "--config", ProxyConfigFileName,
@@ -118,6 +118,7 @@ public:
                 "--job-id", ToString(jobId)
             });
 
+            const auto& stderrPath = config->StderrPath;
             if (stderrPath) {
                 process->AddArguments({
                     "--stderr-path", *stderrPath
@@ -291,7 +292,11 @@ private:
         }
     }
 
-    virtual TProcessBasePtr CreateJobProxyProcess(int /*slotIndex*/, ESlotType /*slotType*/, TJobId /*jobId*/)
+    virtual TProcessBasePtr CreateJobProxyProcess(
+        const TJobProxyConfigPtr& /*config*/,
+        int /*slotIndex*/,
+        ESlotType /*slotType*/,
+        TJobId /*jobId*/)
     {
         return New<TSimpleProcess>(JobProxyProgramName);
     }
@@ -362,7 +367,11 @@ private:
 
     const TActionQueuePtr MounterThread_ = New<TActionQueue>("Mounter");
 
-    TProcessBasePtr CreateJobProxyProcess(int /*slotIndex*/, ESlotType /*slotType*/, TJobId /*jobId*/) override
+    TProcessBasePtr CreateJobProxyProcess(
+        const TJobProxyConfigPtr& /*config*/,
+        int /*slotIndex*/,
+        ESlotType /*slotType*/,
+        TJobId /*jobId*/) override
     {
         auto process = New<TSimpleProcess>(JobProxyProgramName);
         process->CreateProcessGroup();
@@ -788,7 +797,11 @@ private:
             slotContainer);
     }
 
-    TProcessBasePtr CreateJobProxyProcess(int slotIndex, ESlotType slotType, TJobId jobId) override
+    TProcessBasePtr CreateJobProxyProcess(
+        const TJobProxyConfigPtr& /*config*/,
+        int slotIndex,
+        ESlotType slotType,
+        TJobId jobId) override
     {
         auto launcher = CreateJobProxyInstanceLauncher(slotIndex, slotType, jobId);
         return New<TPortoProcess>(JobProxyProgramName, launcher);
@@ -959,10 +972,11 @@ public:
         TJobWorkspaceBuildingContext context,
         IJobDirectoryManagerPtr directoryManager) override
     {
-        return CreateSimpleJobWorkspaceBuilder(
+        return CreateCriJobWorkspaceBuilder(
             invoker,
             std::move(context),
-            directoryManager);
+            directoryManager,
+            Executor_);
     }
 
 private:
@@ -977,12 +991,20 @@ private:
 
     const TActionQueuePtr MounterThread_ = New<TActionQueue>("CriMounter");
 
-    TProcessBasePtr CreateJobProxyProcess(int slotIndex, ESlotType /*slotType*/, TJobId jobId) override
+    TProcessBasePtr CreateJobProxyProcess(
+        const TJobProxyConfigPtr& config,
+        int slotIndex,
+        ESlotType /*slotType*/,
+        TJobId jobId) override
     {
         auto spec = New<NCri::TCriContainerSpec>();
 
         spec->Name = "job-proxy";
-        spec->Image.Image = Config_->JobProxyImage;
+
+        // Run job proxy in docker image specified for the job.
+        // For now CRI job-environment does not isolate user jobs from job proxy.
+        spec->Image.Image = config->DockerImage.value_or(Config_->JobProxyImage);
+
         spec->Labels[YTJobIdLabel] = ToString(jobId);
 
         // FIXME(khlebnikov) user to run job proxy spec->Credentials.Uid = GetUserId(slotIndex);
