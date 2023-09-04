@@ -50,12 +50,6 @@ public:
     virtual TMasterTableSchema* FindNativeMasterTableSchema(
         const NTableClient::TTableSchema& tableSchema) const = 0;
 
-    //! Looks up a table schema and cellTag combination. Returns an existing schema object or nullptr if
-    //! no such pair exists. This is the means of schema deduplication.
-    virtual TMasterTableSchema* FindImportedMasterTableSchema(
-        const NTableClient::TTableSchema& tableSchema,
-        const NObjectClient::TCellTag cellTag) const = 0;
-
     //! Creates an imported schema with the specified id.
     /*!
      *  An artificial ref is taken to ensure that native cell controls object's lifetime.
@@ -109,9 +103,6 @@ public:
 
     // For loading from snapshot.
     virtual TMasterTableSchema::TNativeTableSchemaToObjectMapIterator RegisterNativeSchema(
-        TMasterTableSchema* schema,
-        NTableClient::TTableSchema tableSchema) = 0;
-    virtual TMasterTableSchema::TImportedTableSchemaToObjectMapIterator RegisterImportedSchema(
         TMasterTableSchema* schema,
         NTableClient::TTableSchema tableSchema) = 0;
 
