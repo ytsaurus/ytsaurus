@@ -167,6 +167,7 @@ DEFINE_ENUM(EMasterReign,
     ((ReliableNodeStateGossip)                                      (2352))  // aleksandra-zh
     ((ReadRequestComplexityLimitsToggle)                            (2353))  // kvk1920
     ((RTTforCopiedAndRestoredTables)                                (2354))  // akozhikhov
+    ((ThrowErrorOnMutatingRequestInFilteredChunksContain)           (2355))  // danilalexeev
 );
 
 ////////////////////////////////////////////////////////////////////////////////
