@@ -104,7 +104,7 @@ private:
 IResponseCheckerPtr CreateJsonResponseChecker(
     const NJson::TJsonFormatConfigPtr& jsonFormatConfig,
     TJsonErrorChecker errorChecker,
-    TCallback<bool(const TError&)> retryChecker)
+    TRetryChecker retryChecker)
 {
     return New<TJsonResponseChecker>(jsonFormatConfig,
         std::move(errorChecker),
