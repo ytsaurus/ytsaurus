@@ -1429,3 +1429,25 @@ class TestChunkCreationThrottler(YTEnvSetup):
         remove("//sys/@config/chunk_service/default_per_user_request_bytes_throttler_config")
         sleep(1)
         assert self._measure_write_time(throttled_user) < usual_time * 1.2
+
+
+##################################################################
+
+
+class TestChunkServerCypressIntegration(YTEnvSetup):
+    @authors("danilalexeev")
+    def test_filtered_virtual_map_mutating_attribute_request(self):
+        # Create lost chunk on purpose
+        create("table", "//tmp/t", attributes={"replication_factor": 1})
+        write_table("//tmp/t", {"a": "b"}, table_writer={"upload_replication_factor": 8})
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        node = get(f"#{chunk_id}/@stored_replicas")[0]
+        ban_node(node, "test_historically_non_vital")
+        wait(lambda: chunk_id in get("//sys/lost_chunks"))
+
+        with pytest.raises(YtError, match="Mutating request through virtual map is forbidden"):
+            set(f"//sys/lost_chunks/{chunk_id}/@a", "a")
+
+        # Should not raise
+        set(f"//sys/chunks/{chunk_id}/@a", "a")
+        assert get(f"//sys/chunks/{chunk_id}/@a") == "a"
