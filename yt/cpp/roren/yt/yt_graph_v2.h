@@ -21,7 +21,7 @@ class TYtGraphV2
 public:
     class TTableNode;
     using TTableNodePtr = std::shared_ptr<TTableNode>;
-    struct TOperationNode;
+    class TOperationNode;
     using TOperationNodePtr = std::shared_ptr<TOperationNode>;
 
     class TPlainGraph;
@@ -53,6 +53,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<TYtGraphV2> BuildYtGraphV2(const TPipeline& pipeline, const TYtPipelineConfig& config);
+std::unique_ptr<TYtGraphV2> BuildOptimizedYtGraphV2(const TPipeline& pipeline, const TYtPipelineConfig& config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

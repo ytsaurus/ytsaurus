@@ -28,9 +28,17 @@ public:
 
 public:
     std::vector<TPCollectionNodeId> AddParDo(IRawParDoPtr parDo, TPCollectionNodeId input);
+    THashMap<TPCollectionNodeId, TPCollectionNodeId> Fuse(const TParDoTreeBuilder& other, TPCollectionNodeId input);
+
     void MarkAsOutput(TPCollectionNodeId nodeId, const TDynamicTypeTag& typeTag = {});
     void MarkAsOutputs(const std::vector<TPCollectionNodeId>& nodeIds);
     IParDoTreePtr Build();
+
+    bool Empty() const
+    {
+        return ParDoNodes_.empty();
+
+    }
 
 private:
     struct TParDoNode

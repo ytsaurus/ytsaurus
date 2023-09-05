@@ -311,6 +311,7 @@ std::vector<TParDoTreeBuilder::TPCollectionNodeId> TParDoTreeBuilder::AddParDo(
         .Input = input,
         .Outputs = outputs,
     });
+
     return outputs;
 }
 
@@ -377,6 +378,38 @@ void TParDoTreeBuilder::CheckNoHangingPCollectionNodes() const
         auto isGlobalOutput = PCollectionNodes_[pCollectionIndex].GlobalOutputIndex != InvalidOutputIndex;
         Y_VERIFY(isGlobalOutput || parDoInputs.contains(pCollectionIndex));
     }
+}
+
+
+THashMap<TParDoTreeBuilder::TPCollectionNodeId, TParDoTreeBuilder::TPCollectionNodeId> TParDoTreeBuilder::Fuse(
+    const TParDoTreeBuilder& other,
+    TPCollectionNodeId input)
+{
+    THashMap<TPCollectionNodeId, TPCollectionNodeId> otherToThisMap;
+    THashMap<TPCollectionNodeId, TPCollectionNodeId> thisToOtherMap;
+    auto link = [&] (TPCollectionNodeId otherId, TPCollectionNodeId thisId) {
+        bool inserted;
+        inserted = otherToThisMap.emplace(otherId, thisId).second;
+        Y_VERIFY(inserted);
+        inserted = thisToOtherMap.emplace(thisId, otherId).second;
+        Y_VERIFY(inserted);
+    };
+    link(0, input);
+
+    for (const auto& otherParDoNode : other.ParDoNodes_) {
+        auto it = otherToThisMap.find(otherParDoNode.Input);
+        Y_VERIFY(it != otherToThisMap.end());
+        auto thisInputId = it->second;
+
+        auto thisOutputIds = AddParDo(otherParDoNode.ParDo, thisInputId);
+        Y_VERIFY(thisOutputIds.size() == otherParDoNode.Outputs.size());
+        for (ssize_t i = 0; i < std::ssize(thisOutputIds); ++i) {
+            auto otherId = otherParDoNode.Outputs[i];
+            auto thisId = thisOutputIds[i];
+            link(otherId, thisId);
+        }
+    }
+    return otherToThisMap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
