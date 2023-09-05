@@ -64,3 +64,12 @@ func Duration(v time.Duration) *time.Duration { return &v }
 
 // T returns pointer to provided value
 func T[T any](v T) *T { return &v }
+
+// From returns value from pointer
+func From[T any](v *T) T {
+	if v == nil {
+		return *new(T)
+	}
+
+	return *v
+}
