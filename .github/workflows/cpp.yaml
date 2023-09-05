@@ -106,12 +106,6 @@ jobs:
         run: |
           echo '${{ secrets.DOCKER_HUB_PASSWORD }}' | docker login --username ${{ secrets.DOCKER_HUB_LOGIN }} --password-stdin
 
-      - name: Download SPYT
-        uses: robinraju/release-downloader@v1.8
-        with:
-          latest: true
-          fileName: "spyt-1.69.tar"
-
       - name: Download YQL
         uses: robinraju/release-downloader@v1.8
         with:
@@ -122,9 +116,6 @@ jobs:
         shell: bash
         run: |
           mkdir -p ../docker-ytsaurus-build
-
-          tar -xf spyt-1.69.tar -C ../build
-          tar -xf yql-package.tar -C ../build
 
           if [[ $GITHUB_REF =~ main$ ]];
           then
@@ -137,10 +128,10 @@ jobs:
           fi
           IMAGE_TAG_DEBUG=${IMAGE_TAG}-debug
 
-          bash ./yt/docker/ytsaurus/build.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --ytsaurus-spyt-release-path ../build/spyt_release --ytsaurus-yql-package-path ../build/yql_package --output-path ../docker-ytsaurus-build --image-tag ${IMAGE_TAG}
+          bash ./yt/docker/ytsaurus/build.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --output-path ../docker-ytsaurus-build --image-tag ${IMAGE_TAG}
 
           mv ../build_debug/yt/yt/server/all/ytserver-all ../build/yt/yt/server/all/ytserver-all
-          bash ./yt/docker/ytsaurus/build.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --ytsaurus-spyt-release-path ../build/spyt_release --ytsaurus-yql-package-path ../build/yql_package --output-path ../docker-ytsaurus-build --image-tag ${IMAGE_TAG_DEBUG}
+          bash ./yt/docker/ytsaurus/build.sh --ytsaurus-source-path $(pwd) --ytsaurus-build-path ../build --output-path ../docker-ytsaurus-build --image-tag ${IMAGE_TAG_DEBUG}
 
           if [[ $IMAGE_TAG != "nopush" ]];
           then
