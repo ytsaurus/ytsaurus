@@ -1,22 +1,6 @@
 ru:
-    - from: /description/
-      to: /user-guide/
-      type: redirect
-
-    - from: /description/best_practice/
-      to: /user-guide/best-practice/
-      type: redirect
-
     - from: /description/best_practice/quota_monitoring.md
       to: /user-guide/best-practice/quota-monitoring.md
-      type: redirect
-
-    - from: /description/data_processing/
-      to: /user-guide/data-processing/
-      type: redirect
-
-    - from: /description/data_processing/chyt/
-      to: /user-guide/data-processing/chyt/
       type: redirect
 
     - from: /description/data_processing/chyt/about_chyt.md
@@ -25,10 +9,6 @@ ru:
 
     - from: /description/data_processing/chyt/cli_and_api.md
       to: /user-guide/data-processing/chyt/cli-and-api.md
-      type: redirect
-
-    - from: /description/data_processing/chyt/cliques/
-      to: /user-guide/data-processing/chyt/cliques/
       type: redirect
 
     - from: /description/data_processing/chyt/cliques/administration.md
@@ -59,10 +39,6 @@ ru:
       to: /user-guide/data-processing/chyt/general.md
       type: redirect
 
-    - from: /description/data_processing/chyt/queries/
-      to: /user-guide/data-processing/chyt/queries/
-      type: redirect
-
     - from: /description/data_processing/chyt/queries/anatomy.md
       to: /user-guide/data-processing/chyt/queries/anatomy.md
       type: redirect
@@ -73,10 +49,6 @@ ru:
 
     - from: /description/data_processing/chyt/queries/joins.md
       to: /user-guide/data-processing/chyt/queries/joins.md
-      type: redirect
-
-    - from: /description/data_processing/chyt/reference/
-      to: /user-guide/data-processing/chyt/reference/
       type: redirect
 
     - from: /description/data_processing/chyt/reference/configuration.md
@@ -109,10 +81,6 @@ ru:
 
     - from: /description/data_processing/chyt/yt_tables.md
       to: /user-guide/data-processing/chyt/yt-tables.md
-      type: redirect
-
-    - from: /description/data_processing/operations/
-      to: /user-guide/data-processing/operations/
       type: redirect
 
     - from: /description/data_processing/operations/automerge.md
@@ -175,16 +143,8 @@ ru:
       to: /user-guide/data-processing/operations/vanilla.md
       type: redirect
 
-    - from: /description/data_processing/porto/
-      to: /user-guide/data-processing/porto/
-      type: redirect
-
     - from: /description/data_processing/porto/layer_paths.md
       to: /user-guide/data-processing/porto/layer-paths.md
-      type: redirect
-
-    - from: /description/data_processing/scheduler/
-      to: /user-guide/data-processing/scheduler/
       type: redirect
 
     - from: /description/data_processing/scheduler/fair_share.md
@@ -227,14 +187,6 @@ ru:
       to: /user-guide/data-processing/scheduler/scheduling-ui.md
       type: redirect
 
-    - from: /description/data_processing/spyt/
-      to: /user-guide/data-processing/spyt/
-      type: redirect
-
-    - from: /description/data_processing/spyt/API/
-      to: /user-guide/data-processing/spyt/API/
-      type: redirect
-
     - from: /description/data_processing/spyt/API/spyt_java.md
       to: /user-guide/data-processing/spyt/API/spyt-java.md
       type: redirect
@@ -253,10 +205,6 @@ ru:
 
     - from: /description/data_processing/spyt/best_practices.md
       to: /user-guide/data-processing/spyt/best-practices.md
-      type: redirect
-
-    - from: /description/data_processing/spyt/cluster/
-      to: /user-guide/data-processing/spyt/cluster/
       type: redirect
 
     - from: /description/data_processing/spyt/cluster/cluster_desc.md
@@ -291,10 +239,6 @@ ru:
       to: /user-guide/data-processing/spyt/read-transaction.md
       type: redirect
 
-    - from: /description/data_processing/spyt/thesaurus/
-      to: /user-guide/data-processing/spyt/thesaurus/
-      type: redirect
-
     - from: /description/data_processing/spyt/thesaurus/read_options.md
       to: /user-guide/data-processing/spyt/thesaurus/read-options.md
       type: redirect
@@ -305,10 +249,6 @@ ru:
 
     - from: /description/data_processing/spyt/version.md
       to: /user-guide/data-processing/spyt/version.md
-      type: redirect
-
-    - from: /description/dynamic_tables/
-      to: /user-guide/dynamic-tables/
       type: redirect
 
     - from: /description/dynamic_tables/bulk_insert.md
@@ -367,10 +307,6 @@ ru:
       to: /user-guide/dynamic-tables/transactions.md
       type: redirect
 
-    - from: /description/dynamic_tables/tutorials/
-      to: /user-guide/dynamic-tables/tutorials/
-      type: redirect
-
     - from: /description/dynamic_tables/tutorials/add_remove_line.md
       to: /user-guide/dynamic-tables/tutorials/add-remove-line.md
       type: redirect
@@ -395,10 +331,6 @@ ru:
       to: /user-guide/import.md
       type: redirect
 
-    - from: /description/problems/
-      to: /user-guide/problems/
-      type: redirect
-
     - from: /description/problems/howtoreport.md
       to: /user-guide/problems/howtoreport.md
       type: redirect
@@ -413,10 +345,6 @@ ru:
 
     - from: /description/problems/slow_read.md
       to: /user-guide/problems/slow-read.md
-      type: redirect
-
-    - from: /description/proxy/
-      to: /user-guide/proxy/
       type: redirect
 
     - from: /description/proxy/about.md
@@ -437,14 +365,6 @@ ru:
 
     - from: /description/proxy/rpc.md
       to: /user-guide/proxy/rpc.md
-      type: redirect
-
-    - from: /description/storage/
-      to: /user-guide/storage/
-      type: redirect
-
-    - from: /description/common/
-      to: /user-guide/storage/
       type: redirect
 
     - from: /description/common/access_control.md
@@ -579,12 +499,91 @@ ru:
       to: /user-guide/storage/yson.md
       type: redirect
 
-    - from: /api/c++/
-      to: /api/c/
-      type: redirect
-
     - from: /api/java/examples_ytclient.md
       to: /api/java/examples.md
       type: redirect
 
+    - from: /api/c++/
+      to: /api/c/
+      type: redirect
+
+    - from: /description/best_practice/
+      to: /user-guide/best-practice/
+      type: redirect
+
+    - from: /description/data_processing/
+      to: /user-guide/data-processing/
+      type: redirect
+
+    - from: /description/data_processing/chyt/
+      to: /user-guide/data-processing/chyt/
+      type: redirect
+
+    - from: /description/data_processing/chyt/cliques/
+      to: /user-guide/data-processing/chyt/cliques/
+      type: redirect
+
+    - from: /description/data_processing/chyt/queries/
+      to: /user-guide/data-processing/chyt/queries/
+      type: redirect
+
+    - from: /description/data_processing/chyt/reference/
+      to: /user-guide/data-processing/chyt/reference/
+      type: redirect
+
+    - from: /description/data_processing/operations/
+      to: /user-guide/data-processing/operations/
+      type: redirect
+
+    - from: /description/data_processing/porto/
+      to: /user-guide/data-processing/porto/
+      type: redirect
+
+    - from: /description/data_processing/scheduler/
+      to: /user-guide/data-processing/scheduler/
+      type: redirect
+
+    - from: /description/data_processing/spyt/
+      to: /user-guide/data-processing/spyt/
+      type: redirect
+
+    - from: /description/data_processing/spyt/API/
+      to: /user-guide/data-processing/spyt/API/
+      type: redirect
+
+    - from: /description/data_processing/spyt/cluster/
+      to: /user-guide/data-processing/spyt/cluster/
+      type: redirect
+
+    - from: /description/data_processing/spyt/thesaurus/
+      to: /user-guide/data-processing/spyt/thesaurus/
+      type: redirect
+
+    - from: /description/dynamic_tables/
+      to: /user-guide/dynamic-tables/
+      type: redirect
+
+    - from: /description/dynamic_tables/tutorials/
+      to: /user-guide/dynamic-tables/tutorials/
+      type: redirect
+
+    - from: /description/problems/
+      to: /user-guide/problems/
+      type: redirect
+
+    - from: /description/proxy/
+      to: /user-guide/proxy/
+      type: redirect
+
+    - from: /description/storage/
+      to: /user-guide/storage/
+      type: redirect
+
+    - from: /description/common/
+      to: /user-guide/storage/
+      type: redirect
+
+    - from: /description/
+      to: /user-guide/
+      type: redirect
 
