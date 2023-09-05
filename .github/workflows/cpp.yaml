@@ -143,6 +143,9 @@ jobs:
 
           if [[ $GITHUB_REF =~ main$ ]];
           then
+            cd ../build_debug
+            ninja ytserver-clickhouse
+
             cd ../build_qt
             ninja libyqlplugin.so
             ninja libdatetime2_udf.so
@@ -200,6 +203,7 @@ jobs:
           mkdir -p ../docker-ytsaurus-build
           mkdir -p ../docker-local-build
           mkdir -p ../docker-query-tracker-build
+          mkdir -p ../docker-chyt-build
 
           tar -xf spyt-1.69.tar -C ../build
 
@@ -221,6 +225,9 @@ jobs:
           then
             # Build query-tracker image.
             bash ./ytsaurus/yt/docker/query-tracker/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --qt-build-path ../build_qt --output-path ../docker-query-tracker-build --image-tag ${IMAGE_TAG}
+
+             # Build chyt image.
+            bash ./ytsaurus/yt/docker/chyt/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --chyt-build-path ../build/yt/chyt --output-path ../docker-chyt-build --image-tag ${IMAGE_TAG}
           fi
 
           # Build yt local image.
@@ -232,13 +239,19 @@ jobs:
           if [[ $GITHUB_REF =~ main$ ]];
           then
             mv ../build_qt_debug/ydb/library/yql/tools/mrjob/mrjob ../build_qt/ydb/library/yql/tools/mrjob/mrjob
+            mv ../build_debug/yt/chyt/server/bin/ytserver-clickhouse ../build/yt/chyt/server/bin/ytserver-clickhouse
           fi
 
+          # Build ytsaurus core image with relwithdebinfo.
           bash ./ytsaurus/yt/docker/ytsaurus/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --ytsaurus-spyt-release-path ../build/spyt_release --output-path ../docker-ytsaurus-build --image-tag ${IMAGE_TAG_DEBUG}
 
           if [[ $GITHUB_REF =~ main$ ]];
           then
+            # Build query-tracker image with relwithdebinfo.
             bash ./ytsaurus/yt/docker/query-tracker/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --qt-build-path ../build_qt --output-path ../docker-query-tracker-build --image-tag ${IMAGE_TAG_DEBUG}
+
+            # Build chyt image with relwithdebinfo.
+            bash ./ytsaurus/yt/docker/chyt/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --chyt-build-path ../build/yt/chyt --output-path ../docker-chyt-build --image-tag ${IMAGE_TAG_DEBUG}
           fi
 
           bash ./ytsaurus/yt/docker/local/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --output-path ../docker-local-build --image-tag ${IMAGE_TAG_DEBUG}
@@ -262,6 +275,9 @@ jobs:
               docker push ytsaurus/query-tracker:${IMAGE_TAG_DEBUG}
               docker tag ytsaurus/query-tracker:${IMAGE_TAG_DEBUG} ytsaurus/query-tracker-nightly:${IMAGE_TAG_DEBUG}-${GITHUB_SHA}
               docker push ytsaurus/query-tracker-nightly:${IMAGE_TAG_DEBUG}-${GITHUB_SHA}
+
+              docker push ytsaurus/chyt:${IMAGE_TAG}
+              docker push ytsaurus/chyt:${IMAGE_TAG_DEBUG}
             fi
 
             docker push ytsaurus/local:${IMAGE_TAG}
