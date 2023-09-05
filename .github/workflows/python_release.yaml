@@ -167,7 +167,7 @@ jobs:
         with:
           yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
           bucket: ${{ secrets.PYDOC_S3_BUCKET }}
-          root: ../build/pydoc/_html
+          root: ../build/ytsaurus_python/docs/_build
           include: |
             _sources/*
             _static/*
