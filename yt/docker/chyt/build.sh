@@ -50,7 +50,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 ytserver_clickhouse="${chyt_build_path}/server/bin/ytserver-clickhouse"
-clickhouse_trampoline="${chyt_build_path}/trampoline/clickhouse-trampoline.py"
+clickhouse_trampoline="${ytsaurus_source_path}/yt/chyt/trampoline/clickhouse-trampoline.py"
 
 chyt_credits="${ytsaurus_source_path}/yt/docker/chyt/credits"
 dockerfile="${ytsaurus_source_path}/yt/docker/chyt/Dockerfile"
