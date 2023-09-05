@@ -249,6 +249,9 @@ public:
     int MinHunkCompactionChunkCount;
     int MaxHunkCompactionChunkCount;
 
+    bool EnableNarrowChunkViewCompaction;
+    double MaxChunkViewSizeRatio;
+
     // TODO(akozhikhov): Make these true by default.
     bool PrecacheChunkReplicasOnMount;
     bool RegisterChunkReplicasOnStoresUpdate;

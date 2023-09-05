@@ -50,6 +50,7 @@ DEFINE_ENUM(EStoreCompactionReason,
     (DiscardByTtl)
     (TooManyTimestamps)
     (TtlCleanupExpected)
+    (NarrowChunkView)
 );
 
 DEFINE_ENUM(EStoreRotationReason,

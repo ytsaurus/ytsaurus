@@ -52,10 +52,11 @@
 
 namespace NYT::NTabletNode {
 
-using namespace NClusterNode;
-using namespace NTableClient;
 using namespace NChunkClient;
+using namespace NClusterNode;
 using namespace NConcurrency;
+using namespace NObjectClient;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -404,10 +405,14 @@ private:
                 lsmStore->SetBackingStoreMemoryUsage(backingStore->GetDynamicMemoryUsage());
             }
 
-            // Asynchronously fetch versioned row digest meta.
             if (store->IsSorted()) {
                 auto sortedChunkStore = store->AsSortedChunk();
 
+                if (sortedChunkStore->GetChunkViewSizeFetchStatus() == EChunkViewSizeFetchStatus::CompactionRequired) {
+                    lsmStore->SetIsChunkViewTooNarrow(true);
+                }
+
+                // Asynchronously fetch versioned row digest meta.
                 if (auto digest = FindRowDigestGuarded(store->GetId())) {
                     lsmStore->RowDigest() = std::move(digest);
                 } else if (asyncRowDigestMeta) {
