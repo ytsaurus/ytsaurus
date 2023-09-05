@@ -957,6 +957,8 @@ public:
     // is deployed to tablet nodes!
     bool LockNonAtomicOutputDynamicTables;
 
+    bool UseColumnarStatisticsDefault;
+
     double UserJobMemoryDigestPrecision;
     double UserJobMemoryReserveQuantile;
     double JobProxyMemoryReserveQuantile;
