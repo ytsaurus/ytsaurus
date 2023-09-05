@@ -4858,6 +4858,74 @@ TEST(TDataCentersPriority, MinimizingTabletMoves)
     EXPECT_TRUE(releasingDC.count(offlineDC) != 0);
 }
 
+
+TEST(TDataCentersPriority, ChangeForbiddenSeveralTimes)
+{
+    constexpr int SlotCount = 5;
+
+    auto input = GenerateMultiDCInputContext(9, SlotCount);
+    auto dataCenters = THashSet<TString>{"dc-1", "dc-2", "dc-3"};
+    input.Bundles["bigd"]->EnableNodeTagFilterManagement = true;
+    auto bundleNodeTagFilter = input.Bundles["bigd"]->NodeTagFilter;
+
+    auto zoneInfo = input.Zones["default-zone"];
+
+    for (const auto& dataCenter : dataCenters) {
+        auto flags = TGenerateNodeOptions{.SetFilterTag=true, .SlotCount=SlotCount, .DC=dataCenter};
+        GenerateNodesForBundle(input, "bigd", 3, flags);
+    }
+
+    zoneInfo->DataCenters["dc-1"]->Forbidden = true;
+
+    GenerateTabletCellsForBundle(input, "bigd", SlotCount * 6);
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    CheckEmptyAlerts(mutations);
+    EXPECT_EQ(3, std::ssize(mutations.ChangedStates.at("bigd")->BundleNodeReleasements));
+
+    for (const auto& [nodeName, _] : mutations.ChangedStates.at("bigd")->BundleNodeReleasements) {
+        const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+        EXPECT_EQ(nodeInfo->Annotations->DataCenter, "dc-1");
+    }
+
+    EXPECT_EQ(3, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+
+    for (const auto& [nodeName, decommissioned] : mutations.ChangedDecommissionedFlag) {
+        EXPECT_TRUE(decommissioned);
+        const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+        nodeInfo->Decommissioned = decommissioned;
+    }
+
+    zoneInfo->DataCenters["dc-1"]->Forbidden = false;
+    zoneInfo->DataCenters["dc-2"]->Forbidden = true;
+
+    ApplyChangedStates(&input, mutations);
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(6, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(3, std::ssize(mutations.ChangedStates.at("bigd")->BundleNodeReleasements));
+
+    for (const auto& [nodeName, _] : mutations.ChangedStates.at("bigd")->BundleNodeReleasements) {
+        const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+        EXPECT_EQ(nodeInfo->Annotations->DataCenter, "dc-2");
+    }
+
+    for (const auto& [nodeName, decommissioned] : mutations.ChangedDecommissionedFlag) {
+        const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+        EXPECT_EQ(decommissioned, nodeInfo->Annotations->DataCenter == "dc-2");
+        nodeInfo->Decommissioned = decommissioned;
+    }
+
+    ApplyChangedStates(&input, mutations);
+    ScheduleBundles(input, &mutations);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

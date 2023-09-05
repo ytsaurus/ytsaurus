@@ -322,7 +322,8 @@ void TryCreateBundleNodesAssignment(
     const TString& bundleName,
     const TSchedulerInputState& input,
     const THashSet<TString>& aliveNodes,
-    const TBundleControllerStatePtr& bundleState)
+    const TBundleControllerStatePtr& bundleState,
+    TSchedulerMutations* mutations)
 {
     const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
     const auto& nodeTagFilter = bundleInfo->NodeTagFilter;
@@ -333,12 +334,20 @@ void TryCreateBundleNodesAssignment(
             continue;
         }
 
+        const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+
         if (bundleState->BundleNodeReleasements.count(nodeName) != 0) {
-            // TODO(capone212): Convert Releasements to assignment.
+            YT_LOG_WARNING("Trying to cancel bundle node release "
+            "(Bundle: %v, NodeName: %v, Decommissioned: %v, UserTags: %v)",
+                bundleName,
+                nodeName,
+                nodeInfo->Decommissioned,
+                nodeInfo->UserTags);
+
+            bundleState->BundleNodeReleasements.erase(nodeName);
+            mutations->ChangedDecommissionedFlag[nodeName] = false;
             continue;
         }
-
-        const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
 
         if (nodeInfo->UserTags.count(nodeTagFilter) == 0) {
             auto operation = New<TNodeTagFilterOperationState>();
@@ -764,7 +773,7 @@ void SetNodeTagFilter(
         const auto& aliveNodes = perDataCenterAliveNodes[dataCenterName];
 
         if (dataCentersToPopulate.count(dataCenterName) != 0) {
-            TryCreateBundleNodesAssignment(bundleName, input, aliveNodes, bundleState);
+            TryCreateBundleNodesAssignment(bundleName, input, aliveNodes, bundleState, mutations);
         } else {
             TryCreateBundleNodesReleasement(bundleName, input, aliveNodes, bundleState);
         }
