@@ -126,6 +126,7 @@ DEFINE_ENUM(EMasterReign,
     ((ReliableNodeStateGossip)                                      (2352))  // aleksandra-zh
     ((ReadRequestComplexityLimitsToggle)                            (2353))  // kvk1920
     ((RTTforCopiedAndRestoredTables)                                (2354))  // akozhikhov
+    ((ThrowErrorOnMutatingRequestInFilteredChunksContain)           (2355))  // danilalexeev
     // 23.2 starts here.
     ((TabletServants)                                               (2400))  // ifsmirnov
     ((MediumBase)                                                   (2401))  // gritukan
@@ -149,7 +150,6 @@ DEFINE_ENUM(EMasterReign,
     ((ForbidChangeBuiltinAttributesInExperiments)                   (2419))  // dave11ar
     ((InMemoryModeAndBundleInExperimentDescriptor)                  (2420))  // dave11ar
     ((PortalPermissionValidationBugFix)                             (2421))  // shakurov
-    ((ThrowErrorOnMutatingRequestInFileterChunkContain)             (2422))  // danilalexeev
 );
 
 ////////////////////////////////////////////////////////////////////////////////
