@@ -89,8 +89,8 @@ private:
         httpHeaders->Add("Authorization", Format("%v %v", Config_->AuthorizationHeaderPrefix, accessToken));
 
         auto jsonResponseChecker = CreateJsonResponseChecker(
-            BIND(&TOAuthService::DoCheckUserInfoResponse, MakeStrong(this)),
-            MakeJsonFormatConfig());
+            MakeJsonFormatConfig(),
+            BIND(&TOAuthService::DoCheckUserInfoResponse, MakeStrong(this)));
 
         const auto url = Format("%v://%v:%v/%v",
             Config_->Secure ? "https" : "http",
