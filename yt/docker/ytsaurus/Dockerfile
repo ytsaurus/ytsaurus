@@ -23,15 +23,11 @@ RUN ln -s /usr/bin/ytserver-all /usr/bin/ytserver-master && \
 
 COPY ./init_operation_archive.py /usr/bin/init_operation_archive
 
-# CHYT bits and pieces.
 COPY ./chyt-controller /usr/bin/chyt-controller
-COPY ./clickhouse-trampoline.py /usr/bin/clickhouse-trampoline
-COPY ./ytserver-clickhouse /usr/bin/ytserver-clickhouse
 
 # CREDITS files with licenses for all binaries.
 COPY ./credits/ytserver-all.CREDITS /usr/bin/ytserver-all.CREDITS
 COPY ./credits/chyt-controller.CREDITS  /usr/bin/chyt-controller.CREDITS
-COPY ./credits/ytserver-clickhouse.CREDITS /usr/bin/ytserver-clickhouse.CREDITS
 
 RUN apt-get update && apt-get install -y software-properties-common
 RUN add-apt-repository ppa:deadsnakes/ppa

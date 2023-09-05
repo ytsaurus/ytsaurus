@@ -51,18 +51,14 @@ done
 
 
 ytserver_all="${ytsaurus_build_path}/yt/yt/server/all/ytserver-all"
-ytserver_clickhouse="${ytsaurus_build_path}/yt/chyt/server/bin/ytserver-clickhouse"
 chyt_controller="${ytsaurus_source_path}/yt/chyt/controller/cmd/chyt-controller/chyt-controller"
 init_operation_archive="${ytsaurus_source_path}/yt/python/yt/environment/init_operation_archive.py"
-clickhouse_trampoline="${ytsaurus_source_path}/yt/chyt/trampoline/clickhouse-trampoline.py"
 credits="${ytsaurus_source_path}/yt/docker/ytsaurus/credits"
 dockerfile="${ytsaurus_source_path}/yt/docker/ytsaurus/Dockerfile"
 
 cp ${ytserver_all} ${output_path}
-cp ${ytserver_clickhouse} ${output_path}
 cp ${chyt_controller} ${output_path}
 cp ${init_operation_archive} ${output_path}
-cp ${clickhouse_trampoline} ${output_path}
 
 cp -r ${ytsaurus_build_path}/ytsaurus_python ${output_path}
 
