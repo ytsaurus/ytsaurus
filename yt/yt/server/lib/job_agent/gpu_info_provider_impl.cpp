@@ -201,8 +201,8 @@ void FromProto(TCondition* condition, const nvgpu::Condition& protoCondition)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TReqListDevices = nvgpu::Empty;
-using TRspListDevices = nvgpu::ListResponse;
+using TReqListGpuDevices = nvgpu::ListDevicesRequest;
+using TRspListGpuDevices = nvgpu::ListResponse;
 
 class TNvGpuManagerService
     : public NYT::NRpc::TProxyBase
@@ -212,7 +212,7 @@ public:
         : TProxyBase(std::move(channel), NYT::NRpc::TServiceDescriptor(std::move(serviceName)))
     { }
 
-    DEFINE_RPC_PROXY_METHOD(NJobAgent, ListDevices);
+    DEFINE_RPC_PROXY_METHOD(NJobAgent, ListGpuDevices);
 };
 
 void FromProto(TGpuInfo* gpuInfo, int index, const nvgpu::GpuDevice& device)
@@ -239,14 +239,21 @@ class TNvManagerGpuInfoProvider
     : public IGpuInfoProvider
 {
 public:
-    TNvManagerGpuInfoProvider(const TString& address, const TString serviceName, bool getGpuIndexesFromNvidiaSmi)
+    TNvManagerGpuInfoProvider(
+        const TString& address,
+        const TString& serviceName,
+        const std::optional<TString> devicesCgroupPath,
+        bool getGpuIndexesFromNvidiaSmi)
         : Channel_(CreateChannel(address))
-        , ServiceName_(std::move(serviceName))
+        , ServiceName_(serviceName)
+        , DevicesCgroupPath_(devicesCgroupPath)
         , GetGpuIndexesFromNvidiaSmi_(getGpuIndexesFromNvidiaSmi)
     { }
 
     virtual std::vector<TGpuInfo> GetGpuInfos(TDuration checkTimeout) override
     {
+        YT_LOG_INFO("List GPU devices with NvGpuManager (DevicesCgroupPath: %v)", DevicesCgroupPath_);
+
         // COMPAT(ignat): temporary fix for stable numeration.
         THashMap<TString, int> gpuIdToNumber;
         if (GetGpuIndexesFromNvidiaSmi_) {
@@ -254,13 +261,20 @@ public:
         }
 
         TNvGpuManagerService proxy(Channel_, ServiceName_);
-        auto req = proxy.ListDevices();
-        auto rsp = WaitFor(
-            req->Invoke()
-            .WithTimeout(checkTimeout))
+        auto req = proxy.ListGpuDevices();
+        if (DevicesCgroupPath_) {
+            req->set_devices_cgroup_path(*DevicesCgroupPath_);
+        }
+
+        auto rspFuture = req->Invoke()
+            .WithTimeout(checkTimeout);
+        auto rsp = WaitFor(rspFuture)
             .ValueOrThrow();
+
         std::vector<TGpuInfo> gpuInfos;
         gpuInfos.reserve(rsp->devices_size());
+
+        YT_LOG_INFO("GPU devices listed with NvGpuManager (Count: %v)", rsp->devices_size());
 
         int index = 0;
         for (const auto& device : rsp->devices()) {
@@ -270,7 +284,9 @@ public:
                     const auto& gpuId = device.spec().nvidia().uuid();
                     auto it = gpuIdToNumber.find(gpuId);
                     if (it == gpuIdToNumber.end()) {
-                        THROW_ERROR_EXCEPTION("Invalid 'nvidia-smi --query-gpu' output, gpu id %Qv is not found in 'nvidia-smi -q' output",
+                        THROW_ERROR_EXCEPTION(
+                            "Invalid output of ListGpuDevices method of NvGpuManager: "
+                            "GPU id %Qv is not found in 'nvidia-smi -q' output",
                             gpuId);
                     }
                     deviceIndex = it->second;
@@ -282,13 +298,15 @@ public:
             }
             ++index;
         }
+
         return gpuInfos;
     }
 
 private:
-    NRpc::IChannelPtr Channel_;
-    TString ServiceName_;
-    bool GetGpuIndexesFromNvidiaSmi_;
+    const NRpc::IChannelPtr Channel_;
+    const TString ServiceName_;
+    const std::optional<TString> DevicesCgroupPath_;
+    const bool GetGpuIndexesFromNvidiaSmi_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -306,7 +324,7 @@ public:
         auto remainingTimeout = checkTimeout - std::min((TInstant::Now() - startTime), checkTimeout);
 
         if (remainingTimeout == TDuration::Zero()) {
-            THROW_ERROR_EXCEPTION("Getting gpu information timed out");
+            THROW_ERROR_EXCEPTION("Getting GPU information timed out");
         }
 
         TGpuMetricsIndex Index;
@@ -384,6 +402,7 @@ IGpuInfoProviderPtr CreateGpuInfoProvider(const TGpuInfoSourceConfigPtr& gpuInfo
             return New<TNvManagerGpuInfoProvider>(
                 gpuInfoSource->NvGpuManagerServiceAddress,
                 gpuInfoSource->NvGpuManagerServiceName,
+                gpuInfoSource->NvGpuManagerDevicesCgroupPath,
                 gpuInfoSource->GpuIndexesFromNvidiaSmi);
         case EGpuInfoSourceType::NvidiaSmi:
             return New<TNvidiaSmiGpuInfoProvider>();

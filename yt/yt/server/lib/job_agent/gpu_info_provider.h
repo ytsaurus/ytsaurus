@@ -51,7 +51,7 @@ struct IGpuInfoProvider
 
 DEFINE_REFCOUNTED_TYPE(IGpuInfoProvider);
 
-IGpuInfoProviderPtr CreateGpuInfoProvider(const TGpuInfoSourceConfigPtr& gpuInfoSource);
+IGpuInfoProviderPtr CreateGpuInfoProvider(const TGpuInfoSourceConfigPtr& config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

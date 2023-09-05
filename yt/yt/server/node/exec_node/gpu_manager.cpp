@@ -163,7 +163,7 @@ void TGpuManager::OnDynamicConfigChanged(
     const TClusterNodeDynamicConfigPtr& /*oldNodeConfig*/,
     const TClusterNodeDynamicConfigPtr& newNodeConfig)
 {
-	auto gpuManagerConfig = newNodeConfig->ExecNode->JobController->GpuManager;
+    auto gpuManagerConfig = newNodeConfig->ExecNode->JobController->GpuManager;
 
     DynamicConfig_.Store(gpuManagerConfig);
 
@@ -178,6 +178,10 @@ void TGpuManager::OnDynamicConfigChanged(
         FetchDriverLayerExecutor_->SetPeriod(Config_->DriverLayerFetchPeriod);
     }
     if (gpuManagerConfig) {
+        // XXX(ignat): avoid this hack.
+        if (!gpuManagerConfig->GpuInfoSource->NvGpuManagerDevicesCgroupPath) {
+            gpuManagerConfig->GpuInfoSource->NvGpuManagerDevicesCgroupPath = Config_->GpuInfoSource->NvGpuManagerDevicesCgroupPath;
+        }
         GpuInfoProvider_.Store(CreateGpuInfoProvider(gpuManagerConfig->GpuInfoSource));
     } else {
         GpuInfoProvider_.Store(CreateGpuInfoProvider(Config_->GpuInfoSource));

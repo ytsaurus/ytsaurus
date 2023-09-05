@@ -33,25 +33,24 @@ static const TString ServiceName = "NvGpuManager";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TReqListDevices = nvgpu::Empty;
-using TRspListDevices = nvgpu::ListResponse;
+using TReqListGpuDevices = nvgpu::ListDevicesRequest;
+using TRspListGpuDevices = nvgpu::ListResponse;
 
 class TMockNvGpuManagerService
     : public NRpc::TServiceBase
 {
 public:
-    TMockNvGpuManagerService(
-        IInvokerPtr invoker)
-    : TServiceBase(
-        invoker,
-        NRpc::TServiceDescriptor(ServiceName),
-        NLogging::TLogger("TMockNvGpuManagerService"),
-        NRpc::NullRealmId)
+    TMockNvGpuManagerService(IInvokerPtr invoker)
+        : TServiceBase(
+            invoker,
+            NRpc::TServiceDescriptor(ServiceName),
+            NLogging::TLogger("TMockNvGpuManagerService"),
+            NRpc::NullRealmId)
     {
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ListDevices));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ListGpuDevices));
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NYT::NJobAgent, ListDevices)
+    DECLARE_RPC_SERVICE_METHOD(NYT::NJobAgent, ListGpuDevices)
     {
         {
             auto* dev = response->add_devices();
