@@ -185,12 +185,6 @@ jobs:
         run: |
           echo '${{ secrets.DOCKER_HUB_PASSWORD }}' | docker login --username ${{ secrets.DOCKER_HUB_LOGIN }} --password-stdin
 
-      - name: Download SPYT
-        uses: robinraju/release-downloader@v1.8
-        with:
-          latest: true
-          fileName: "spyt-1.69.tar"
-
       - name: Download benchmarks
         uses: robinraju/release-downloader@v1.8
         with:
@@ -205,8 +199,6 @@ jobs:
           mkdir -p ../docker-query-tracker-build
           mkdir -p ../docker-chyt-build
 
-          tar -xf spyt-1.69.tar -C ../build
-
           if [[ $GITHUB_REF =~ main$ ]];
           then
             IMAGE_TAG=dev
@@ -219,7 +211,7 @@ jobs:
           IMAGE_TAG_DEBUG=${IMAGE_TAG}-debug
 
           # Build ytsaurus core image.
-          bash ./ytsaurus/yt/docker/ytsaurus/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --ytsaurus-spyt-release-path ../build/spyt_release  --output-path ../docker-ytsaurus-build --image-tag ${IMAGE_TAG}
+          bash ./ytsaurus/yt/docker/ytsaurus/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --output-path ../docker-ytsaurus-build --image-tag ${IMAGE_TAG}
 
           if [[ $GITHUB_REF =~ main$ ]];
           then
@@ -243,7 +235,7 @@ jobs:
           fi
 
           # Build ytsaurus core image with relwithdebinfo.
-          bash ./ytsaurus/yt/docker/ytsaurus/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --ytsaurus-spyt-release-path ../build/spyt_release --output-path ../docker-ytsaurus-build --image-tag ${IMAGE_TAG_DEBUG}
+          bash ./ytsaurus/yt/docker/ytsaurus/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --output-path ../docker-ytsaurus-build --image-tag ${IMAGE_TAG_DEBUG}
 
           if [[ $GITHUB_REF =~ main$ ]];
           then

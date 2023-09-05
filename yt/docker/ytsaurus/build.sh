@@ -5,7 +5,6 @@ script_name=$0
 image_tag=""
 ytsaurus_source_path="."
 ytsaurus_build_path="."
-ytsaurus_spyt_release_path="./spyt_release"
 output_path="."
 
 print_usage() {
@@ -13,7 +12,6 @@ print_usage() {
 Usage: $script_name [-h|--help]
                     [--ytsaurus-source-path /path/to/ytsaurus.repo (default: $ytsaurus_source_path)]
                     [--ytsaurus-build-path /path/to/ytsaurus.build (default: $ytsaurus_build_path)]
-                    [--ytsaurus-spyt-release-path /path/to/ytsaurus-spyt-release (default: $ytsaurus_spyt_release_path)]
                     [--output-path /path/to/output (default: $output_path)]
                     [--image-tag some-tag (default: $image_tag)]
 EOF
@@ -34,10 +32,6 @@ while [[ $# -gt 0 ]]; do
         ;;
         --output-path)
         output_path="$2"
-        shift 2
-        ;;
-        --ytsaurus-spyt-release-path)
-        ytsaurus_spyt_release_path="$2"
         shift 2
         ;;
         --image-tag)
@@ -73,7 +67,6 @@ cp ${clickhouse_trampoline} ${output_path}
 cp -r ${ytsaurus_build_path}/ytsaurus_python ${output_path}
 
 cp ${dockerfile} ${output_path}
-cp -r ${ytsaurus_spyt_release_path} ${output_path}
 cp -r ${credits} ${output_path}
 
 cd ${output_path}

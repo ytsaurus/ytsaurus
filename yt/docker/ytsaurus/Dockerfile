@@ -4,9 +4,6 @@ USER root
 
 WORKDIR /tmp
 
-ARG SPYT_VERSION=1.69.3
-ARG SPARK_VERSION=1.69.0
-
 # Main binary.
 COPY ./ytserver-all /usr/bin/ytserver-all
 
@@ -30,16 +27,6 @@ COPY ./init_operation_archive.py /usr/bin/init_operation_archive
 COPY ./chyt-controller /usr/bin/chyt-controller
 COPY ./clickhouse-trampoline.py /usr/bin/clickhouse-trampoline
 COPY ./ytserver-clickhouse /usr/bin/ytserver-clickhouse
-
-# SPYT pieces.
-COPY ./spyt_release/home/spark/conf/releases/${SPARK_VERSION}/metrics.properties /usr/bin/metrics.properties
-COPY ./spyt_release/home/spark/conf/releases/${SPARK_VERSION}/solomon-agent.template.conf /usr/bin/solomon-agent.template.conf
-COPY ./spyt_release/home/spark/conf/releases/${SPARK_VERSION}/solomon-service-master.template.conf /usr/bin/solomon-service-master.template.conf
-COPY ./spyt_release/home/spark/conf/releases/${SPARK_VERSION}/solomon-service-worker.template.conf /usr/bin/solomon-service-worker.template.conf
-COPY ./spyt_release/home/spark/spark/releases/${SPARK_VERSION}/spark.tgz /usr/bin/spark.tgz
-COPY ./spyt_release/home/spark/spyt/releases/${SPYT_VERSION}/spark-yt-data-source.jar /usr/bin/spark-yt-data-source.jar
-COPY ./spyt_release/home/spark/spyt/releases/${SPYT_VERSION}/spyt.zip /usr/bin/spyt.zip
-COPY ./spyt_release/home/spark/bin/releases/${SPARK_VERSION}/spark-yt-launcher.jar /usr/bin/spark-yt-launcher.jar
 
 # CREDITS files with licenses for all binaries.
 COPY ./credits/ytserver-all.CREDITS /usr/bin/ytserver-all.CREDITS
@@ -65,16 +52,11 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
   libidn11-dev \
   python3.7-distutils
 
-RUN python3.7 -m pip install \
-    ytsaurus-spyt==${SPYT_VERSION}
-
 COPY ./ytsaurus_python /tmp/ytsaurus_python
 RUN for package in client yson local native_driver; \
   do \
     dist_dir="/tmp/ytsaurus_python/ytsaurus_${package}_dist"; \
     wheel_path="${dist_dir}/$(ls ${dist_dir} | grep "^ytsaurus_$package.*whl$")"; \
-    echo "DIST_DIR: ${dist_dir}"; \
-    echo "WHEEL_PATH: ${wheel_path}"; \
     python3.7 -m pip install ${wheel_path}; \
   done
 
