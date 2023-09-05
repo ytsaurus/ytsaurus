@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "cluster_resources.h"
+#include "ace_iterator.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 
@@ -44,6 +45,8 @@ struct TPermissionCheckOptions
     //! Should be given whenever RegisterQueueConsumer permission is checked; defined vitality
     //! of the consumer to be registered.
     std::optional<bool> Vital;
+
+    TAcdOverride LocalModification;
 };
 
 //! Describes the result of a permission check for a single entity.

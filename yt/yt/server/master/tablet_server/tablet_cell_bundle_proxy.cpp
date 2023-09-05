@@ -251,7 +251,7 @@ private:
         });
     }
 
-    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value, bool force) override
     {
         auto* cellBundle = GetThisImpl<TTabletCellBundle>();
 
@@ -285,7 +285,7 @@ private:
                 break;
         }
 
-        return TBase::SetBuiltinAttribute(key, value);
+        return TBase::SetBuiltinAttribute(key, value, force);
     }
 
     bool RemoveBuiltinAttribute(TInternedAttributeKey key) override

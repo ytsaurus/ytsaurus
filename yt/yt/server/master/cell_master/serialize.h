@@ -150,6 +150,7 @@ DEFINE_ENUM(EMasterReign,
     ((ForbidChangeBuiltinAttributesInExperiments)                   (2419))  // dave11ar
     ((InMemoryModeAndBundleInExperimentDescriptor)                  (2420))  // dave11ar
     ((PortalPermissionValidationBugFix)                             (2421))  // shakurov
+    ((ForbidIrreversibleChanges)                                    (2422))  // vovamelnikov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

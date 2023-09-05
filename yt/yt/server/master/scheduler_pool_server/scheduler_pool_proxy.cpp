@@ -96,7 +96,7 @@ bool TSchedulerPoolProxy::GetBuiltinAttribute(NYTree::TInternedAttributeKey key,
     return TNonversionedMapObjectProxyBase::GetBuiltinAttribute(key, consumer);
 }
 
-bool TSchedulerPoolProxy::SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value)
+bool TSchedulerPoolProxy::SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value, bool force)
 {
     auto* schedulerPool = GetThisImpl();
     key = TSchedulerPool::RemapDeprecatedKey(key);
@@ -119,7 +119,7 @@ bool TSchedulerPoolProxy::SetBuiltinAttribute(NYTree::TInternedAttributeKey key,
         schedulerPool->SpecifiedAttributes()[key] = value;
         return true;
     }
-    return TNonversionedMapObjectProxyBase::SetBuiltinAttribute(key, value);
+    return TNonversionedMapObjectProxyBase::SetBuiltinAttribute(key, value, force);
 }
 
 bool TSchedulerPoolProxy::RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key)

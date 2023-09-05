@@ -306,7 +306,7 @@ ISystemAttributeProvider* TVirtualMulticellMapBase::GetBuiltinAttributeProvider(
     return this;
 }
 
-bool TVirtualMulticellMapBase::SetBuiltinAttribute(TInternedAttributeKey /*key*/, const TYsonString& /*value*/)
+bool TVirtualMulticellMapBase::SetBuiltinAttribute(TInternedAttributeKey /*key*/, const TYsonString& /*value*/, bool /*force*/)
 {
     return false;
 }
@@ -731,15 +731,15 @@ private:
         return TBase::GetBuiltinAttributeAsync(key);
     }
 
-    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value, bool force) override
     {
         auto service = GetService();
         auto* provider = GetTargetBuiltinAttributeProvider(service);
-        if (provider && provider->SetBuiltinAttribute(key, value)) {
+        if (provider && provider->SetBuiltinAttribute(key, value, force)) {
             return true;
         }
 
-        return TBase::SetBuiltinAttribute(key, value);
+        return TBase::SetBuiltinAttribute(key, value, force);
     }
 
     static ISystemAttributeProvider* GetTargetBuiltinAttributeProvider(IYPathServicePtr service)

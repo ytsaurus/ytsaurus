@@ -27,7 +27,7 @@ protected:
         NYson::IYsonConsumer* consumer,
         bool showTabletAttributes);
 
-    bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value);
+    bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value, bool force);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

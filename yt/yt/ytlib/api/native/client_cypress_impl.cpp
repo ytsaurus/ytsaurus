@@ -813,6 +813,8 @@ void TClient::DoMultisetAttributesNode(
     SetSuppressAccessTracking(req, options);
     SetMutationId(req, options);
 
+    req->set_force(options.Force);
+
     auto children = attributes->GetChildren();
     std::sort(children.begin(), children.end());
     auto nestingLevelLimit = Connection_->GetConfig()->CypressWriteYsonNestingLevelLimit;

@@ -246,7 +246,7 @@ bool TCellBundleProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
     return TBase::GetBuiltinAttribute(key, consumer);
 }
 
-bool TCellBundleProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value)
+bool TCellBundleProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value, bool force)
 {
     const auto& cellManager = Bootstrap_->GetTamedCellManager();
 
@@ -289,7 +289,7 @@ bool TCellBundleProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
             break;
     }
 
-    return TBase::SetBuiltinAttribute(key, value);
+    return TBase::SetBuiltinAttribute(key, value, force);
 }
 
 void TCellBundleProxy::DoSerializeAccountViolatedResourceLimits(

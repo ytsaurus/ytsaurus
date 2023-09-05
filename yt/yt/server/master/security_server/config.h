@@ -48,6 +48,8 @@ public:
 
     int MaxAccountSubtreeSize;
 
+    bool ForbidIrreversibleAclChanges;
+
     REGISTER_YSON_STRUCT(TDynamicSecurityManagerConfig);
 
     static void Register(TRegistrar registrar);

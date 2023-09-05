@@ -199,7 +199,7 @@ private:
         return TBase::GetBuiltinAttributeAsync(key);
     }
 
-    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value, bool force) override
     {
         auto* replica = GetThisImpl();
 
@@ -217,7 +217,7 @@ private:
             }
         }
 
-        return TBase::SetBuiltinAttribute(key, value);
+        return TBase::SetBuiltinAttribute(key, value, force);
     }
 
     bool DoInvoke(const IYPathServiceContextPtr& context) override

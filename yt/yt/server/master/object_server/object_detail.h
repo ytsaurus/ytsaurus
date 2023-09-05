@@ -120,7 +120,7 @@ protected:
     const THashSet<NYTree::TInternedAttributeKey>& GetBuiltinAttributeKeys() override;
     bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
     TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(NYTree::TInternedAttributeKey key) override;
-    bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
+    bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value, bool force) override;
     bool RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key) override;
 
     virtual void LogAcdUpdate(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value);
@@ -208,6 +208,7 @@ protected:
 
 private:
     void ClearPrerequisiteTransactions(NRpc::IServiceContextPtr& context);
+    void ValidateModifiedPermission(NSecurityServer::TAcdOverride&& modification);
 
 public:
     template <class T>

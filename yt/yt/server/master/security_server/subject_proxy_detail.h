@@ -87,7 +87,7 @@ protected:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override
+    bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value, bool force) override
     {
         auto* subject = this->GetThisImpl();
         const auto& securityManager = this->Bootstrap_->GetSecurityManager();
@@ -108,7 +108,7 @@ protected:
                 break;
         }
 
-        return TBase::SetBuiltinAttribute(key, value);
+        return TBase::SetBuiltinAttribute(key, value, force);
     }
 };
 

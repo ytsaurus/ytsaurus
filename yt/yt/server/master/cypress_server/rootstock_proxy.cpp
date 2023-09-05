@@ -50,7 +50,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value, bool force) override
     {
         switch (key) {
             case EInternedAttributeKey::Opaque: {
@@ -65,7 +65,7 @@ private:
                 break;
         }
 
-        return TBase::SetBuiltinAttribute(key, value);
+        return TBase::SetBuiltinAttribute(key, value, force);
     }
 };
 

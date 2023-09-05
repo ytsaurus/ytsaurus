@@ -109,7 +109,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value, bool force) override
     {
         auto* cellBundle = GetThisImpl<TChaosCellBundle>();
         const auto& chaosManager = Bootstrap_->GetChaosManager();
@@ -126,7 +126,7 @@ private:
                 break;
         }
 
-        return TBase::SetBuiltinAttribute(key, value);
+        return TBase::SetBuiltinAttribute(key, value, force);
     }
 
     bool RemoveBuiltinAttribute(TInternedAttributeKey key) override

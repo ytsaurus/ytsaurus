@@ -87,7 +87,8 @@ private:
 
     bool SetBuiltinAttribute(
         TInternedAttributeKey key,
-        const TYsonString& value) override
+        const TYsonString& value,
+        bool /*force*/) override
     {
         auto* shard = GetThisImpl();
 

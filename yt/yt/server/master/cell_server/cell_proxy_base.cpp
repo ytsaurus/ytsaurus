@@ -260,7 +260,7 @@ bool TCellProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYson
     return TBase::GetBuiltinAttribute(key, consumer);
 }
 
-bool TCellProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value)
+bool TCellProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value, bool force)
 {
     const auto& cellManager = Bootstrap_->GetTamedCellManager();
 
@@ -278,7 +278,7 @@ bool TCellProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonS
             break;
     }
 
-    return TBase::SetBuiltinAttribute(key, value);
+    return TBase::SetBuiltinAttribute(key, value, force);
 }
 
 int TCellProxyBase::GetMaxHydraFileId(const TYPath& path) const

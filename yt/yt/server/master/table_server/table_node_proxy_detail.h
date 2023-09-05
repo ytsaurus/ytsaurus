@@ -35,7 +35,7 @@ protected:
     TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(NYTree::TInternedAttributeKey key) override;
     bool RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key) override;
 
-    bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
+    bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value, bool force) override;
     void ValidateCustomAttributeUpdate(
         const TString& key,
         const NYson::TYsonString& oldValue,
@@ -84,7 +84,7 @@ public:
 protected:
     void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
-    bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
+    bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value, bool force) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

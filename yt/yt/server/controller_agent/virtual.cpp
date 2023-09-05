@@ -157,7 +157,7 @@ ISystemAttributeProvider* TVirtualStaticTable::GetBuiltinAttributeProvider()
     return this;
 }
 
-bool TVirtualStaticTable::SetBuiltinAttribute(TInternedAttributeKey /*key*/, const TYsonString& /*value*/)
+bool TVirtualStaticTable::SetBuiltinAttribute(TInternedAttributeKey /*key*/, const TYsonString& /*value*/, bool /*force*/)
 {
     return false;
 }

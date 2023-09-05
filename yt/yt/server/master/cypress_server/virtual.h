@@ -55,7 +55,7 @@ protected:
     const THashSet<NYTree::TInternedAttributeKey>& GetBuiltinAttributeKeys() override;
     bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
     TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(NYTree::TInternedAttributeKey key) override;
-    bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
+    bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value, bool force) override;
     bool RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key) override;
 
     virtual bool NeedSuppressUpstreamSync() const;

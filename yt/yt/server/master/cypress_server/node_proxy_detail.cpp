@@ -378,7 +378,7 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetExternalBuiltinAttribu
     }));
 }
 
-bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value)
+bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value, bool force)
 {
     switch (key) {
         case EInternedAttributeKey::Account: {
@@ -473,7 +473,7 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey
             break;
     }
 
-    return TObjectProxyBase::SetBuiltinAttribute(key, value);
+    return TObjectProxyBase::SetBuiltinAttribute(key, value, force);
 }
 
 bool TNontemplateCypressNodeProxyBase::RemoveBuiltinAttribute(TInternedAttributeKey key)
@@ -2099,7 +2099,7 @@ bool TNontemplateCompositeCypressNodeProxyBase::GetBuiltinAttribute(TInternedAtt
     return TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(key, consumer);
 }
 
-bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value)
+bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value, bool force)
 {
     auto* node = GetThisImpl<TCompositeNodeBase>();
 
@@ -2180,7 +2180,7 @@ bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAtt
             break;
     }
 
-    return TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(key, value);
+    return TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(key, value, force);
 }
 
 void TNontemplateCompositeCypressNodeProxyBase::SetReplicationFactor(int replicationFactor)

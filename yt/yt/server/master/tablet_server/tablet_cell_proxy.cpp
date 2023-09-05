@@ -298,7 +298,7 @@ private:
         return TBase::GetBuiltinAttributeAsync(key);
     }
 
-    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value, bool force) override
     {
         auto* cell = GetThisImpl();
 
@@ -313,7 +313,7 @@ private:
                 Bootstrap_->GetTamedCellManager()->UpdatePeerCount(cell, ConvertTo<int>(value));
                 return true;
             default:
-                return TBase::SetBuiltinAttribute(key, value);
+                return TBase::SetBuiltinAttribute(key, value, force);
         }
     }
 

@@ -462,7 +462,8 @@ void TNonversionedMapObjectProxyBase<TObject>::DoRenameSelf(const TString& newNa
 template <class TObject>
 bool TNonversionedMapObjectProxyBase<TObject>::SetBuiltinAttribute(
     TInternedAttributeKey key,
-    const NYson::TYsonString& value)
+    const NYson::TYsonString& value,
+    bool force)
 {
     switch (key) {
         case EInternedAttributeKey::Name: {
@@ -494,7 +495,7 @@ bool TNonversionedMapObjectProxyBase<TObject>::SetBuiltinAttribute(
             break;
     }
 
-    return TObjectProxyBase::SetBuiltinAttribute(key, value);
+    return TObjectProxyBase::SetBuiltinAttribute(key, value, force);
 }
 
 template <class TObject>

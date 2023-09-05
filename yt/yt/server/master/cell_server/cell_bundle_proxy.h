@@ -22,7 +22,7 @@ protected:
     void ValidateRemoval() override;
     void ListSystemAttributes(std::vector<TAttributeDescriptor>* attributes) override;
     bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
-    bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
+    bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value, bool force) override;
 
 private:
     void DoSerializeAccountViolatedResourceLimits(

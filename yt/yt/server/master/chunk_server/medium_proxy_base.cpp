@@ -69,7 +69,7 @@ bool TMediumProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYs
     return TBase::GetBuiltinAttribute(key, consumer);
 }
 
-bool TMediumProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value)
+bool TMediumProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value, bool force)
 {
     auto* medium = GetThisImpl();
     const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -91,7 +91,7 @@ bool TMediumProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
             break;
     }
 
-    return TBase::SetBuiltinAttribute(key, value);
+    return TBase::SetBuiltinAttribute(key, value, force);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

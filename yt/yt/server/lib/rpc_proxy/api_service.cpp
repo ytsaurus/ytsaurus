@@ -1751,6 +1751,9 @@ private:
         TMultisetAttributesNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
         SetMutatingOptions(&options, request, context.Get());
+        if (request->has_force()) {
+            options.Force = request->force();
+        }
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }

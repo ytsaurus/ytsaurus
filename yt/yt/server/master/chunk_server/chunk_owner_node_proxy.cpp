@@ -1013,7 +1013,8 @@ TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(TInternedAtt
 
 bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
     TInternedAttributeKey key,
-    const TYsonString& value)
+    const TYsonString& value,
+    bool force)
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager;
@@ -1108,7 +1109,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
             THROW_ERROR_EXCEPTION("Hunk erasure codec can only be set for tables");
 
         case EInternedAttributeKey::Account: {
-            if (!TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(key, value)) {
+            if (!TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(key, value, force)) {
                 return false;
             }
 
@@ -1174,7 +1175,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
             break;
     }
 
-    return TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(key, value);
+    return TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(key, value, force);
 }
 
 void TChunkOwnerNodeProxy::OnStorageParametersUpdated()

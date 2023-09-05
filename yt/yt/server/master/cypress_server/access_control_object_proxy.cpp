@@ -232,7 +232,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value, bool force) override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto& principalAcd = GetThisImpl()->PrincipalAcd();
@@ -268,7 +268,7 @@ private:
                 break;
         }
 
-        return TBase::SetBuiltinAttribute(key, value);
+        return TBase::SetBuiltinAttribute(key, value, force);
     }
 
     bool RemoveBuiltinAttribute(TInternedAttributeKey key) override
@@ -469,7 +469,7 @@ protected:
         return std::nullopt;
     }
 
-    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value, bool force) override
     {
         if (!IsObjectAlive(Owner_)) {
             return false;
@@ -478,6 +478,7 @@ protected:
         auto forwardToParent = [&] (TInternedAttributeKey renamedKey) {
             auto req = TYPathProxy::Set("/@" + renamedKey.Unintern());
             req->set_value(value.ToString());
+            req->set_force(force);
             auto context = CreateYPathContext(req->Serialize(), Logger);
             auto typedContext = New<TCtxSet>(context, NRpc::THandlerInvocationOptions());
             YT_VERIFY(typedContext->DeserializeRequest());

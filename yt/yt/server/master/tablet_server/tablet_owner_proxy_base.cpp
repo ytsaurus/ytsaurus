@@ -225,7 +225,7 @@ bool TTabletOwnerProxyBase::DoGetBuiltinAttribute(
     return TBase::GetBuiltinAttribute(key, consumer);
 }
 
-bool TTabletOwnerProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value)
+bool TTabletOwnerProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value, bool force)
 {
     switch (key) {
         case EInternedAttributeKey::TabletCellBundle: {
@@ -257,7 +257,7 @@ bool TTabletOwnerProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const
             break;
     }
 
-    return TBase::SetBuiltinAttribute(key, value);
+    return TBase::SetBuiltinAttribute(key, value, force);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

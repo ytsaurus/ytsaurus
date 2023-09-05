@@ -1241,7 +1241,7 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
     return TBase::RemoveBuiltinAttribute(key);
 }
 
-bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value)
+bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value, bool force)
 {
     auto* table = GetThisImpl();
 
@@ -1597,7 +1597,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             break;
     }
 
-    return TBase::SetBuiltinAttribute(key, value);
+    return TBase::SetBuiltinAttribute(key, value, force);
 }
 
 void TTableNodeProxy::ValidateCustomAttributeUpdate(
@@ -2299,7 +2299,7 @@ bool TReplicatedTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, I
     return TTableNodeProxy::GetBuiltinAttribute(key, consumer);
 }
 
-bool TReplicatedTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value)
+bool TReplicatedTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value, bool force)
 {
     auto* table = TBase::GetThisImpl<TReplicatedTableNode>();
 
@@ -2317,7 +2317,7 @@ bool TReplicatedTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, c
             break;
     }
 
-    return TTableNodeProxy::SetBuiltinAttribute(key, value);
+    return TTableNodeProxy::SetBuiltinAttribute(key, value, force);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

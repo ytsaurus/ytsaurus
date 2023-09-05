@@ -32,6 +32,7 @@
 
 #include <yt/yt/server/master/security_server/account.h>
 #include <yt/yt/server/master/security_server/acl.h>
+#include <yt/yt/server/master/security_server/config.h>
 #include <yt/yt/server/master/security_server/security_manager.h>
 #include <yt/yt/server/master/security_server/user.h>
 #include <yt/yt/server/master/security_server/group.h>
@@ -79,6 +80,8 @@ using namespace NSecurityClient;
 using namespace NSecurityServer;
 using namespace NTableServer;
 using namespace NTransactionServer;
+
+using NSecurityClient::ESecurityAction;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -691,7 +694,7 @@ TFuture<TYsonString> TObjectProxyBase::GetBuiltinAttributeAsync(TInternedAttribu
     return std::nullopt;
 }
 
-bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value)
+bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value, bool force)
 {
     auto securityManager = Bootstrap_->GetSecurityManager();
     auto* acd = FindThisAcd();
@@ -704,6 +707,11 @@ bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
             ValidateNoTransaction();
 
             auto inherit = ConvertTo<bool>(value);
+
+            if (!force) {
+                ValidateModifiedPermission({.InheritAcl=inherit});
+            }
+
             if (inherit != acd->GetInherit()) {
                 acd->SetInherit(inherit);
 
@@ -720,6 +728,11 @@ bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
 
             TAccessControlList newAcl;
             Deserialize(newAcl, ConvertToNode(value), securityManager);
+
+            if (!force) {
+                ValidateModifiedPermission({.Acl=newAcl.Entries});
+            }
+
             acd->SetEntries(newAcl);
 
             LogAcdUpdate(key, value);
@@ -739,6 +752,10 @@ bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
                 THROW_ERROR_EXCEPTION(
                     NSecurityClient::EErrorCode::AuthorizationError,
                     "Access denied: can only set owner to self");
+            }
+
+            if (!force) {
+                ValidateModifiedPermission({.Owner=owner});
             }
 
             acd->SetOwner(owner);
@@ -951,6 +968,31 @@ void TObjectProxyBase::ClearPrerequisiteTransactions(NRpc::IServiceContextPtr& c
     if (context->RequestHeader().HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
         auto* prerequisitesExt = context->RequestHeader().MutableExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
         prerequisitesExt->Clear();
+    }
+}
+
+void TObjectProxyBase::ValidateModifiedPermission(TAcdOverride&& modification)
+{
+    auto forbidUnforcedIrreversibleAclChanges = Bootstrap_
+        ->GetConfigManager()
+        ->GetConfig()
+        ->SecurityManager
+        ->ForbidIrreversibleAclChanges;
+
+    if (!forbidUnforcedIrreversibleAclChanges) {
+        return;
+    }
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    auto result = securityManager->CheckPermission(
+        Object_,
+        securityManager->GetAuthenticatedUser(),
+        EPermission::Administer,
+        {.LocalModification = std::move(modification)});
+    YT_VERIFY(result.Action == ESecurityAction::Allow || result.Action == ESecurityAction::Deny);
+    if (result.Action == ESecurityAction::Deny) {
+        THROW_ERROR_EXCEPTION(
+            NSecurityClient::EErrorCode::IrreversibleAclModification,
+            "It will be impossible for this user to revert this modification, the \"force\" option should be specified");
     }
 }
 

@@ -1890,7 +1890,7 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto& cypressManager = Bootstrap_->GetCypressManager();
 
-        TAceIterator aceIter(objectManager, object);
+        TAceIterator aceIter(objectManager, object, std::move(options.LocalModification));
         auto end = TAceIterator::End();
 
         // Slow lane: check ACLs through the object hierarchy.

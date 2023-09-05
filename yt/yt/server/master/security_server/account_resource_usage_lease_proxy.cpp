@@ -79,7 +79,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value, bool force) override
     {
         auto* accountResourceUsageLease = GetThisImpl();
         const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -96,7 +96,7 @@ private:
                 break;
         }
 
-        return TBase::SetBuiltinAttribute(key, value);
+        return TBase::SetBuiltinAttribute(key, value, force);
     }
 };
 

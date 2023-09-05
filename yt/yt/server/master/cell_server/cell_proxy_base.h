@@ -29,7 +29,7 @@ protected:
     void RemoveSelf(TReqRemove* request, TRspRemove* response, const TCtxRemovePtr& context) override;
     void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
-    bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
+    bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value, bool force) override;
 
 private:
     int GetMaxHydraFileId(const NYPath::TYPath& path) const;

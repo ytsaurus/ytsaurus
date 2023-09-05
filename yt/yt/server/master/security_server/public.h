@@ -74,6 +74,8 @@ struct TAccessControlEntry;
 struct TAccessControlList;
 class TAccessControlDescriptor;
 
+struct TAcdOverride;
+
 struct TAccountStatistics;
 using TAccountMulticellStatistics = THashMap<NObjectClient::TCellTag, TAccountStatistics>;
 

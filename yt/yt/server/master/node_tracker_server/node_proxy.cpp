@@ -671,7 +671,7 @@ private:
         return TNonversionedObjectProxyBase::GetBuiltinAttribute(key, consumer);
     }
 
-    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value, bool force) override
     {
         auto* node = GetThisImpl();
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
@@ -717,7 +717,7 @@ private:
                 break;
         }
 
-        return TNonversionedObjectProxyBase::SetBuiltinAttribute(key, value);
+        return TNonversionedObjectProxyBase::SetBuiltinAttribute(key, value, force);
     }
 
     bool RemoveBuiltinAttribute(TInternedAttributeKey key) override

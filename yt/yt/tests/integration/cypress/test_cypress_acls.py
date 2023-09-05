@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup, wait
 
 from yt_commands import (
     authors, create, ls, get, set, copy, move, remove, create_domestic_medium,
-    exists, create_account,
+    exists, multiset_attributes, create_account,
     create_user, create_group, make_ace, check_permission, check_permission_by_acl, add_member, remove_group, remove_user, start_transaction, lock,
     read_table, write_table, alter_table,
     map, set_account_disk_space_limit, raises_yt_error,
@@ -648,7 +648,7 @@ class TestCypressAcls(CheckPermissionBase):
         create_user("u")
         create("table", "//tmp/t")
         set("//tmp/t/@acl/end", make_ace("allow", "u", "administer"))
-        set("//tmp/t/@acl", [], authenticated_user="u")
+        set("//tmp/t/@acl", [], authenticated_user="u", force=True)
 
     @authors("babenko")
     def test_administer_permission3(self):
@@ -1595,6 +1595,103 @@ class TestCypressAcls(CheckPermissionBase):
         with raises_yt_error("Access denied"):
             create("table", "//tmp/t", attributes={"primary_medium": "prohibited"}, authenticated_user="u")
 
+    def __test_set_attributes_request(self, path, key, value, user, force=False):
+        set(path + "/@" + key,
+            value,
+            authenticated_user=user,
+            force=force)
+
+    def __test_multiset_attributes_request(self, path, key, value, user, force=False):
+        multiset_attributes(
+            path + "/@",
+            {key: value},
+            authenticated_user=user,
+            force=force)
+
+    @authors("vovamelnikov")
+    @pytest.mark.parametrize("request_type", ["set", "multiset"])
+    @pytest.mark.parametrize("key", ["acl", "inherit_acl"])
+    def test_irreversible_modification(self, request_type, key):
+        set("//sys/@config/security_manager/forbid_irreversible_changes", True)
+        create_user("u")
+
+        create(
+            "map_node",
+            "//tmp/dir",
+            attributes={
+                "acl": [
+                    make_ace("allow", "u", ["administer", "read", "write"]),
+                ],
+            }
+        )
+        create(
+            "map_node",
+            "//tmp/dir/subdir1",
+        )
+
+        request_func = {
+            "set": self.__test_set_attributes_request,
+            "multiset": self.__test_multiset_attributes_request,
+        }[request_type]
+
+        path, value = {
+            "acl": ("//tmp/dir", [make_ace("deny", "u", "administer")]),
+            "inherit_acl": ("//tmp/dir/subdir1", False),
+        }[key]
+
+        with pytest.raises(YtError, match="It will be impossible for this user to revert this modification"):
+            request_func(
+                path=path,
+                key=key,
+                value=value,
+                user='u',
+                force=False)
+
+        request_func(
+            path=path,
+            key=key,
+            value=value,
+            user='u',
+            force=True)
+
+    @authors("vovamelnikov")
+    @pytest.mark.parametrize("request_type", ["set", "multiset"])
+    def test_irreversible_owner_modification(self, request_type):
+        set("//sys/@config/security_manager/forbid_irreversible_changes", True)
+        create_user("u1")
+        create_user("u2")
+
+        create(
+            "map_node",
+            "//tmp/dir",
+            attributes={
+                "acl": [
+                    make_ace("allow", "everyone", ["administer", "write"]),
+                    make_ace("deny", "owner", ["administer", "write"]),
+                ],
+                "owner": "u1"
+            }
+        )
+
+        request_func = {
+            "set": self.__test_set_attributes_request,
+            "multiset": self.__test_multiset_attributes_request,
+        }[request_type]
+
+        with pytest.raises(YtError, match="It will be impossible for this user to revert this modification"):
+            request_func(
+                path="//tmp/dir",
+                key="owner",
+                value="u2",
+                user="u2",
+                force=False)
+
+        request_func(
+            path="//tmp/dir",
+            key="owner",
+            value="u2",
+            user="u2",
+            force=True)
 
 ##################################################################
 

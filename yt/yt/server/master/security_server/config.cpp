@@ -42,6 +42,9 @@ void TDynamicSecurityManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("max_account_subtree_size", &TThis::MaxAccountSubtreeSize)
         .Default(1000);
+
+    registrar.Parameter("forbid_irreversible_changes", &TThis::ForbidIrreversibleAclChanges)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

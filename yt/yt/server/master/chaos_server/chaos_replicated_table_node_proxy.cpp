@@ -137,7 +137,7 @@ private:
         return TCypressNodeProxyBase::GetBuiltinAttribute(key, consumer);
     }
 
-    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value, bool force) override
     {
         switch (key) {
             case EInternedAttributeKey::ChaosCellBundle: {
@@ -183,7 +183,7 @@ private:
                 break;
         }
 
-        return TCypressNodeProxyBase::SetBuiltinAttribute(key, value);
+        return TCypressNodeProxyBase::SetBuiltinAttribute(key, value, force);
     }
 
     TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
