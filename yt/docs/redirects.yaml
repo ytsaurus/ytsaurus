@@ -123,7 +123,7 @@ ru:
       to: /user-guide/data-processing/operations/reduce.md
       type: redirect
 
-    - from: /description/data_processing/operations/regular_system_processes.md
+    - from: /description/common/regular_system_processes.md
       to: /user-guide/data-processing/operations/regular-system-processes.md
       type: redirect
 
@@ -135,8 +135,12 @@ ru:
       to: /user-guide/data-processing/operations/sort.md
       type: redirect
 
-    - from: /description/data_processing/operations/table_switch.md
+    - from: /user-guide/data-processing/operations/table_switch.md
       to: /user-guide/data-processing/operations/table-switch.md
+      type: redirect
+
+    - from: /user-guide/data-processing/porto/users_layers_task.md
+      to: /user-guide/data-processing/porto/delta-layers.md
       type: redirect
 
     - from: /description/data_processing/operations/vanilla.md
@@ -179,7 +183,7 @@ ru:
       to: /user-guide/data-processing/scheduler/preemption.md
       type: redirect
 
-    - from: /description/data_processing/scheduler/scheduler_and_pools.md
+    - from: /description/mr/scheduler/scheduler_and_pools.md
       to: /user-guide/data-processing/scheduler/scheduler-and-pools.md
       type: redirect
 
@@ -271,7 +275,7 @@ ru:
       to: /user-guide/dynamic-tables/faq.md
       type: redirect
 
-    - from: /description/dynamic_tables/mapreduce.md
+    - from: /description/dynamic_tables/dynamic_tables_mapreduce.md
       to: /user-guide/dynamic-tables/mapreduce.md
       type: redirect
 
@@ -280,6 +284,10 @@ ru:
       type: redirect
 
     - from: /description/dynamic_tables/ordered_dynamic_tables.md
+      to: /user-guide/dynamic-tables/ordered-dynamic-tables.md
+      type: redirect
+
+    - from: /user-guide/dynamic-tables/ordered_dynamic_tables.md
       to: /user-guide/dynamic-tables/ordered-dynamic-tables.md
       type: redirect
 
@@ -331,8 +339,8 @@ ru:
       to: /user-guide/import.md
       type: redirect
 
-    - from: /description/problems/howtoreport.md
-      to: /user-guide/problems/howtoreport.md
+    - from: /problems/
+      to: /user-guide/problems/
       type: redirect
 
     - from: /description/problems/jobshell_and_slowjobs.md
@@ -355,7 +363,7 @@ ru:
       to: /user-guide/proxy/grpc.md
       type: redirect
 
-    - from: /description/proxy/http_reference.md
+    - from: /description/proxy/http_proxy_reference.md
       to: /user-guide/proxy/http-reference.md
       type: redirect
 
@@ -503,11 +511,11 @@ ru:
       to: /api/java/examples.md
       type: redirect
 
-    - from: /api/c++/
+    - from: /api/c\+\+/
       to: /api/c/
       type: redirect
 
-    - from: /description/best_practice/
+    - from: /description/best_practices/
       to: /user-guide/best-practice/
       type: redirect
 
@@ -531,7 +539,7 @@ ru:
       to: /user-guide/data-processing/chyt/reference/
       type: redirect
 
-    - from: /description/data_processing/operations/
+    - from: /description/mr/
       to: /user-guide/data-processing/operations/
       type: redirect
 
@@ -581,6 +589,10 @@ ru:
 
     - from: /description/common/
       to: /user-guide/storage/
+      type: redirect
+
+    - from: /problems/
+      to: /user-guide/problems/
       type: redirect
 
     - from: /description/
