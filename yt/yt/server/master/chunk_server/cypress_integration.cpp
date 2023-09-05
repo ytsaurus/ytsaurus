@@ -163,6 +163,10 @@ private:
 
     bool FilteredChunksContain(TChunk* chunk) const
     {
+        if (NHydra::HasMutationContext()) {
+            THROW_ERROR_EXCEPTION("Mutating request through virtual map is forbidden");
+        }
+
         Bootstrap_->GetHydraFacade()->RequireLeader();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& chunkReplicator = chunkManager->GetChunkReplicator();
