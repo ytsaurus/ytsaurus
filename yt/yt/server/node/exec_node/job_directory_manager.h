@@ -57,4 +57,4 @@ IJobDirectoryManagerPtr CreateSimpleJobDirectoryManager(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NY::NExecNode
+} // namespace NYT::NExecNode

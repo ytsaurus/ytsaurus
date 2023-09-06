@@ -1821,7 +1821,7 @@ void TJob::OnExtraGpuCheckCommandFinished(const TError& error)
 
     YT_LOG_FATAL_IF(
         !Error_ || Error_->IsOK(),
-        "Job error is not set during running extra gpu check (Error: %v)",
+        "Job error is not set during running extra GPU check (Error: %v)",
         Error_);
 
     auto initialError = std::move(*Error_);

@@ -297,7 +297,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        YT_LOG_DEBUG("Gpu check is not supported in simple workspace");
+        YT_LOG_DEBUG("GPU check is not supported in simple workspace");
 
         ValidateJobPhase(EJobPhase::RunningSetupCommands);
         SetJobPhase(EJobPhase::RunningGpuCheckCommand);
@@ -676,7 +676,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        YT_LOG_DEBUG_IF(Context_.NeedGpuCheck, "Gpu check is not supported in CRI workspace");
+        YT_LOG_DEBUG_IF(Context_.NeedGpuCheck, "GPU check is not supported in CRI workspace");
 
         ValidateJobPhase(EJobPhase::RunningSetupCommands);
         SetJobPhase(EJobPhase::RunningGpuCheckCommand);

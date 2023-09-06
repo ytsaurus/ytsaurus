@@ -58,6 +58,7 @@ public:
     EGpuInfoSourceType Type;
     TString NvGpuManagerServiceAddress;
     TString NvGpuManagerServiceName;
+    std::optional<TString> NvGpuManagerDevicesCgroupPath;
     bool GpuIndexesFromNvidiaSmi;
 
     REGISTER_YSON_STRUCT(TGpuInfoSourceConfig);

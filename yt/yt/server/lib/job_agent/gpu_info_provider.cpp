@@ -17,7 +17,7 @@ DEFINE_REFCOUNTED_TYPE(TGpuInfoProviderMock)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_WEAK IGpuInfoProviderPtr CreateGpuInfoProvider(const TGpuInfoSourceConfigPtr& /*gpuInfoSource*/)
+Y_WEAK IGpuInfoProviderPtr CreateGpuInfoProvider(const TGpuInfoSourceConfigPtr& /*config*/)
 {
     return New<TGpuInfoProviderMock>();
 }
