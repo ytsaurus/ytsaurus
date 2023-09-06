@@ -116,8 +116,9 @@ object SpytPlugin extends AutoPlugin {
       confFile2
     }
 
-    def copySidecarConfigsToBuildDirectory(rootDirectory: File, files: Seq[File]): Unit = {
-      val sidecarConfDirectory = getBuildDirectory(rootDirectory) / "conf" / "sidecar_configs"
+    def copySidecarConfigsToBuildDirectory(rootDirectory: File, files: Seq[File],
+                                           dirName: String = "sidecar_configs"): Unit = {
+      val sidecarConfDirectory = getBuildDirectory(rootDirectory) / "conf" / dirName
       sidecarConfDirectory.mkdirs()
       files.foreach {
         file =>

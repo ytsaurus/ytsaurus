@@ -4,7 +4,8 @@ import json
 import os
 from os import listdir
 from os.path import join
-from typing import Dict, Any
+import shutil
+from typing import List, Dict, Any
 
 from local_manager import get_release_level, load_versions, Versions, ReleaseLevel
 from remote_manager import bin_remote_dir, conf_remote_dir, ClientBuilder, Client
@@ -63,6 +64,10 @@ SPARK_CONFS = {
 }
 
 
+def get_sidecar_configs_dir(conf_local_dir: str):
+    return join(conf_local_dir, 'sidecar_configs')
+
+
 def get_spark_conf(proxy: str):
     proxy_short = proxy.split(".")[0]
     if proxy_short in SPARK_CONFS:
@@ -76,16 +81,26 @@ def get_spark_conf(proxy: str):
         }
 
 
-def get_file_paths(conf_local_dir: str, root_path: str, versions: Versions):
-    sidecar_configs_dir = join(conf_local_dir, 'sidecar_configs')
+def get_file_paths(conf_local_dir: str, root_path: str, versions: Versions) -> List[str]:
     file_paths = [
         f"{root_path}/{bin_remote_dir(versions)}/spark.tgz",
         f"{root_path}/{bin_remote_dir(versions)}/spark-yt-launcher.jar"
     ]
     file_paths.extend([
-        f"{root_path}/{conf_remote_dir(versions)}/{config_name}" for config_name in listdir(sidecar_configs_dir)
+        f"{root_path}/{conf_remote_dir(versions)}/{config_name}"
+        for config_name in listdir(get_sidecar_configs_dir(conf_local_dir))
     ])
     return file_paths
+
+
+def prepare_sidecar_configs(conf_local_dir: str, os_release: bool):
+    sidecar_configs_dir = get_sidecar_configs_dir(conf_local_dir)
+    if os.path.isdir(sidecar_configs_dir):
+        logger.info(f"Sidecar configs are already prepared")
+    else:
+        raw_sidecar_configs_dir = join(conf_local_dir, 'sidecar-config' if os_release else 'inner-sidecar-config')
+        shutil.copytree(raw_sidecar_configs_dir, sidecar_configs_dir)
+        logger.info(f"Sidecar configs have been copied from {raw_sidecar_configs_dir}")
 
 
 def prepare_launch_config(conf_local_dir: str, client: Client, versions: Versions,
@@ -146,6 +161,8 @@ def make_configs(sources_path: str, client_builder: ClientBuilder, versions: Ver
 
     conf_local_dir = join(sources_path, 'conf')
 
+    logger.debug("Sidecar configs preparation")
+    prepare_sidecar_configs(conf_local_dir, os_release)
     logger.debug("Launch config file creation")
     launch_config = prepare_launch_config(conf_local_dir, client, versions, os_release)
     logger.info(f"Launch config: {launch_config}")
