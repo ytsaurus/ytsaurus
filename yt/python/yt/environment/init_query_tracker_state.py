@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+
 from yt.wrapper import YtClient, config
 
 from yt.environment.migrationlib import TableInfo, Migration, Conversion
