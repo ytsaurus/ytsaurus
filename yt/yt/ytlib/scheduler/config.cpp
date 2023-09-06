@@ -1968,10 +1968,10 @@ void TEphemeralSubpoolConfig::Register(TRegistrar registrar)
         .Default(ESchedulingMode::FairShare);
 
     registrar.Parameter("max_running_operation_count", &TThis::MaxRunningOperationCount)
-        .Default(10);
+        .Default();
 
     registrar.Parameter("max_operation_count", &TThis::MaxOperationCount)
-        .Default(10);
+        .Default();
 
     registrar.Parameter("resource_limits", &TThis::ResourceLimits)
         .DefaultNew();

@@ -1686,9 +1686,10 @@ private:
 
         pool->AttachParent(parent.Get());
 
-        YT_LOG_INFO("Pool registered (Pool: %v, Parent: %v)",
+        YT_LOG_INFO("Pool registered (Pool: %v, Parent: %v, IsEphemeral: %v)",
             pool->GetId(),
-            parent->GetId());
+            parent->GetId(),
+            pool->IsDefaultConfigured());
     }
 
     void ReconfigurePool(
@@ -1742,12 +1743,18 @@ private:
 
         // Create ephemeral pool.
         auto poolConfig = New<TPoolConfig>();
-        if (poolName.GetParentPool()) {
-            auto parentPoolConfig = GetPool(*poolName.GetParentPool())->GetConfig();
-            poolConfig->Mode = parentPoolConfig->EphemeralSubpoolConfig->Mode;
-            poolConfig->MaxOperationCount = parentPoolConfig->EphemeralSubpoolConfig->MaxOperationCount;
-            poolConfig->MaxRunningOperationCount = parentPoolConfig->EphemeralSubpoolConfig->MaxRunningOperationCount;
-            poolConfig->ResourceLimits = parentPoolConfig->EphemeralSubpoolConfig->ResourceLimits;
+
+        TSchedulerCompositeElement* parent = poolName.GetParentPool()
+            ? GetPool(*poolName.GetParentPool()).Get()
+            : GetDefaultParentPoolForUser(userName).Get();
+
+        if (!parent->IsRoot()) {
+            auto parentPool = dynamic_cast<TSchedulerPoolElement*>(parent);
+            auto ephemeralConfig = parentPool->GetConfig()->EphemeralSubpoolConfig;
+            poolConfig->Mode = ephemeralConfig->Mode;
+            poolConfig->MaxOperationCount = ephemeralConfig->MaxOperationCount;
+            poolConfig->MaxRunningOperationCount = ephemeralConfig->MaxRunningOperationCount;
+            poolConfig->ResourceLimits = ephemeralConfig->ResourceLimits;
         }
         pool = New<TSchedulerPoolElement>(
             StrategyHost_,
@@ -1760,16 +1767,12 @@ private:
             TreeId_,
             Logger);
 
-        pool->SetUserName(userName);
-
-        TSchedulerCompositeElement* parent;
-        if (poolName.GetParentPool()) {
-            parent = GetPool(*poolName.GetParentPool()).Get();
-        } else {
-            parent = GetDefaultParentPoolForUser(userName).Get();
+        if (!poolName.GetParentPool()) {
             pool->SetEphemeralInDefaultParentPool();
             UserToEphemeralPoolsInDefaultPool_[userName].insert(poolName.GetPool());
         }
+
+        pool->SetUserName(userName);
 
         RegisterPool(pool, parent);
         return pool;

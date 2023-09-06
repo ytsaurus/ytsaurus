@@ -1951,6 +1951,53 @@ class TestEphemeralPools(YTEnvSetup):
         release_breakpoint()
         op.track()
 
+    @authors("renadeen")
+    def test_default_ephemeral_hub_applies_ephemeral_subpool_config(self):
+        update_pool_tree_config("default", {"default_parent_pool": "research"})
+        create_pool(
+            "research",
+            attributes={
+                "ephemeral_subpool_config": {
+                    "mode": "fifo",
+                    "max_operation_count": 1,
+                    "resource_limits": {"cpu": 1},
+                },
+            })
+
+        op = run_sleeping_vanilla(spec={"pool": "ephemeral"})
+        wait(lambda: len(list(op.get_running_jobs())) == 1)
+
+        wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/ephemeral"))
+        pool_info = get(scheduler_orchid_default_pool_tree_path() + "/pools/ephemeral")
+        assert pool_info["parent"] == "research"
+        assert pool_info["mode"] == "fifo"
+        assert pool_info["resource_limits"]["cpu"] == 1.0
+        assert pool_info["max_operation_count"] == 1
+
+    @authors("renadeen")
+    def test_per_user_default_ephemeral_hub_applies_ephemeral_subpool_config(self):
+        create_user("u")
+        create_pool(
+            "default_for_u",
+            attributes={
+                "ephemeral_subpool_config": {
+                    "mode": "fifo",
+                    "max_operation_count": 1,
+                    "resource_limits": {"cpu": 1},
+                },
+            })
+        update_user_to_default_pool_map({"u": "default_for_u"})
+        update_pool_tree_config("default", {"use_user_default_parent_pool_map": True})
+
+        op = run_sleeping_vanilla(authenticated_user="u")
+        wait(lambda: len(list(op.get_running_jobs())) == 1)
+
+        wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/u"))
+        pool_info = get(scheduler_orchid_default_pool_tree_path() + "/pools/u")
+        assert pool_info["parent"] == "default_for_u"
+        assert pool_info["mode"] == "fifo"
+        assert pool_info["resource_limits"]["cpu"] == 1.0
+
 
 class TestSchedulerPoolsCommon(YTEnvSetup):
     NUM_MASTERS = 1
