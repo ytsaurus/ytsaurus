@@ -510,16 +510,17 @@ void TJob::Terminate(EJobState finalState, TError error)
 
             return;
 
-        case EJobPhase::DownloadingArtifacts:
-        case EJobPhase::RunningGpuCheckCommand:
-        case EJobPhase::RunningExtraGpuCheckCommand:
-        case EJobPhase::Running:
         case EJobPhase::PreparingNodeDirectory:
+        case EJobPhase::DownloadingArtifacts:
         case EJobPhase::PreparingSandboxDirectories:
-        case EJobPhase::PreparingArtifacts:
         case EJobPhase::PreparingRootVolume:
+        case EJobPhase::RunningSetupCommands:
+        case EJobPhase::RunningGpuCheckCommand:
         case EJobPhase::SpawningJobProxy:
+        case EJobPhase::PreparingArtifacts:
         case EJobPhase::PreparingJob:
+        case EJobPhase::Running:
+        case EJobPhase::RunningExtraGpuCheckCommand:
             doTerminate();
             StopJobProxy();
 
@@ -530,6 +531,8 @@ void TJob::Terminate(EJobState finalState, TError error)
                 "Cannot terminate job (JobState: %v, JobPhase: %v)",
                 JobState_,
                 JobPhase_);
+
+            YT_VERIFY(IsFinished());
             return;
     }
 }
