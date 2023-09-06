@@ -22,11 +22,8 @@ DEFINE_REFCOUNTED_TYPE(IResponseChecker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TRetryChecker = TCallback<bool(const TError&)>;
-
-////////////////////////////////////////////////////////////////////////////////
-
 using TJsonErrorChecker = TCallback<TError(const IResponsePtr&, const NYTree::INodePtr&)>;
+using TRetryChecker = TCallback<bool(const TError&)>;
 
 IResponseCheckerPtr CreateJsonResponseChecker(
     const NJson::TJsonFormatConfigPtr& jsonFormatConfig,

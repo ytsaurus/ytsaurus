@@ -1,9 +1,7 @@
 #include "config.h"
 
-#include "library/cpp/yt/logging/logger.h"
 #include "retrying_client.h"
 #include "private.h"
-#include "util/system/compiler.h"
 
 #include <yt/yt/core/http/client.h>
 #include <yt/yt/core/http/helpers.h>
@@ -206,18 +204,18 @@ private:
 
         const auto shouldRetry = [&] (const TError& error) {
             const auto isRetriableError = responseChecker->IsRetriableError(error);
-            auto err = TError("Request attempt %v failed", attempt)
+            auto attemptError = TError("Request attempt %v failed", attempt)
                 << error
                 << TErrorAttribute("attempt", attempt);
 
             YT_LOG_WARNING(
-                err,
+                attemptError,
                 "Request attempt failed (Url: %v, Attempt: %v, Retriable: %v)",
                 sanitizedUrl,
                 attempt,
                 isRetriableError);
             
-            accumulatedErrors.push_back(std::move(err));
+            accumulatedErrors.push_back(std::move(attemptError));
             return isRetriableError && TInstant::Now() < deadline && attempt < Config_->MaxAttemptCount;
         };
 
