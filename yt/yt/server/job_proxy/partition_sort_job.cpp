@@ -8,6 +8,7 @@
 
 #include <yt/yt/ytlib/job_proxy/helpers.h>
 
+#include <yt/yt/ytlib/table_client/config.h>
 #include <yt/yt/ytlib/table_client/partition_sort_reader.h>
 #include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
 
@@ -25,8 +26,6 @@ using namespace NTableClient;
 using namespace NObjectClient;
 using namespace NYTree;
 using namespace NYson;
-
-using NChunkClient::TDataSliceDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 

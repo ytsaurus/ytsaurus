@@ -13,6 +13,7 @@
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
+#include <yt/yt/ytlib/table_client/config.h>
 #include <yt/yt/ytlib/table_client/partitioner.h>
 #include <yt/yt/ytlib/table_client/partition_sort_reader.h>
 #include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>

@@ -8,11 +8,14 @@
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
 #include <yt/yt/ytlib/table_client/helpers.h>
+#include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
+
+#include <yt/yt/ytlib/chunk_client/data_source.h>
 
 #include <yt/yt/client/table_client/adapters.h>
 #include <yt/yt/client/table_client/name_table.h>
-#include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
-#include <yt/yt/ytlib/chunk_client/data_source.h>
+
+#include <yt/yt/client/formats/config.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/async_stream.h>

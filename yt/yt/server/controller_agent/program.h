@@ -8,7 +8,10 @@
 #include <yt/yt/library/program/program_config_mixin.h>
 #include <yt/yt/library/program/program_pdeathsig_mixin.h>
 #include <yt/yt/library/program/program_setsid_mixin.h>
+
 #include <yt/yt/ytlib/program/helpers.h>
+
+#include <yt/yt/ytlib/api/native/config.h>
 
 #include <library/cpp/yt/phdr_cache/phdr_cache.h>
 

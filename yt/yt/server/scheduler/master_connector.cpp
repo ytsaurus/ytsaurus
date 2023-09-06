@@ -30,6 +30,7 @@
 
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
+#include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -60,7 +61,6 @@ using namespace NTableClient;
 using namespace NObjectClient;
 using namespace NObjectClient::NProto;
 using namespace NChunkClient;
-using namespace NFileClient;
 using namespace NTransactionClient;
 using namespace NHiveClient;
 using namespace NRpc;
@@ -72,9 +72,7 @@ using namespace NTransactionServer;
 using NNodeTrackerClient::TAddressMap;
 using NNodeTrackerClient::GetDefaultAddress;
 
-using std::placeholders::_1;
 
-using NYT::FromProto;
 using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////

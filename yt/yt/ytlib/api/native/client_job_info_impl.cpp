@@ -14,6 +14,8 @@
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/record_helpers.h>
 
+#include <yt/yt/ytlib/api/native/config.h>
+
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
@@ -44,6 +46,8 @@
 #include <yt/yt/ytlib/scheduler/records/operation_id.record.h>
 #include <yt/yt/ytlib/scheduler/records/job_stderr.record.h>
 #include <yt/yt/ytlib/scheduler/records/job_spec.record.h>
+
+#include <yt/yt/client/chunk_client/config.h>
 
 #include <yt/yt/core/compression/codec.h>
 

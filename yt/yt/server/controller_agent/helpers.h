@@ -130,7 +130,7 @@ std::vector<TPartitionKey> BuildPartitionKeysBySamples(
     const std::vector<NTableClient::TSample>& samples,
     int partitionCount,
     const NTableClient::TComparator& comparator,
-    const NQueryClient::TRowBufferPtr& rowBuffer,
+    const NTableClient::TRowBufferPtr& rowBuffer,
     const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////

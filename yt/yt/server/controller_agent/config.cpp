@@ -1,8 +1,30 @@
 #include "config.h"
 
+#include <yt/yt/server/lib/chunk_pools/config.h>
+
+#include <yt/yt/server/lib/job_agent/config.h>
+
+#include <yt/yt/server/lib/misc/config.h>
+
+#include <yt/yt/ytlib/chunk_client/config.h>
+
+#include <yt/yt/ytlib/api/native/config.h>
+
+#include <yt/yt/ytlib/event_log/config.h>
+
+#include <yt/yt/ytlib/node_tracker_client/config.h>
+
+#include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
+
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
 
+#include <yt/yt/core/concurrency/config.h>
+
+#include <yt/yt/core/ytree/fluent.h>
+
 #include <yt/yt/library/re2/re2.h>
+
+#include <yt/yt/library/program/config.h>
 
 namespace NYT::NControllerAgent {
 
@@ -454,6 +476,14 @@ void TRemoteCopyOperationOptions::Register(TRegistrar registrar)
         .Default(NScheduler::TCpuResource(0.1));
     registrar.Parameter("networks", &TThis::Networks)
         .Default();
+}
+
+void TVanillaOperationOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("max_task_count", &TThis::MaxTaskCount)
+        .Default(100);
+    registrar.Parameter("max_total_job_count", &TThis::MaxTotalJobCount)
+        .Default(100 * 1000);
 }
 
 void TZombieOperationOrchidsConfig::Register(TRegistrar registrar)

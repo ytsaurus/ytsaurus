@@ -7,6 +7,8 @@
 
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
+#include <yt/yt/ytlib/object_client/config.h>
+
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
 #include <yt/yt/core/misc/finally.h>

@@ -12,6 +12,7 @@
 
 #include <yt/yt/ytlib/job_proxy/helpers.h>
 
+#include <yt/yt/ytlib/table_client/config.h>
 #include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
 

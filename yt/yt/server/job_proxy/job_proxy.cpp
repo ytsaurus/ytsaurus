@@ -57,6 +57,7 @@
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
+#include <yt/yt/client/table_client/config.h>
 #include <yt/yt/client/table_client/column_rename_descriptor.h>
 
 #include <yt/yt/core/bus/tcp/client.h>

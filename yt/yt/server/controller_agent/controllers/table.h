@@ -8,14 +8,16 @@
 
 #include <yt/yt/server/lib/controller_agent/serialize.h>
 
-#include <yt/yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
-
 #include <yt/yt/ytlib/chunk_pools/chunk_stripe_key.h>
 
 #include <yt/yt/ytlib/cypress_client/public.h>
 
-#include <yt/yt/client/table_client/column_rename_descriptor.h>
 #include <yt/yt/ytlib/table_client/table_upload_options.h>
+#include <yt/yt/ytlib/table_client/config.h>
+
+#include <yt/yt/client/table_client/column_rename_descriptor.h>
+
+#include <yt/yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
 
 namespace NYT::NControllerAgent::NControllers {
 

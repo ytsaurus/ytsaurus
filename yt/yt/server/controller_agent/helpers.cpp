@@ -16,6 +16,8 @@
 
 #include <yt/yt/ytlib/table_client/key_set.h>
 
+#include <yt/yt/ytlib/scheduler/job_resources_with_quota.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
@@ -40,7 +42,6 @@ using namespace NYTree;
 using namespace NApi;
 using namespace NLogging;
 
-using NYT::FromProto;
 using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////

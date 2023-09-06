@@ -14,6 +14,8 @@
 
 #include <yt/yt/ytlib/security_client/config.h>
 
+#include <yt/yt/ytlib/object_client/config.h>
+
 #include <yt/yt/ytlib/tablet_client/config.h>
 
 #include <yt/yt/ytlib/queue_client/config.h>

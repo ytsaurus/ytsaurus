@@ -2,20 +2,19 @@
 
 #include "public.h"
 
-#include <yt/yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
 #include <yt/yt/ytlib/controller_agent/public.h>
 
-#include <yt/yt/ytlib/object_client/config.h>
+#include <yt/yt/ytlib/object_client/public.h>
 
-#include <yt/yt/ytlib/table_client/config.h>
+#include <yt/yt/ytlib/table_client/public.h>
 
 #include <yt/yt/ytlib/security_client/public.h>
 
 #include <yt/yt/client/formats/format.h>
-#include <yt/yt/client/formats/config.h>
 
 #include <yt/yt/client/transaction_client/public.h>
 
@@ -502,11 +501,7 @@ public:
 
         REGISTER_YSON_STRUCT(TTestingOptions);
 
-        static void Register(TRegistrar registrar)
-        {
-            registrar.Parameter("pipe_delay", &TThis::PipeDelay)
-                .Default();
-        }
+        static void Register(TRegistrar registrar);
     };
 
     TIntrusivePtr<TTestingOptions> Testing;

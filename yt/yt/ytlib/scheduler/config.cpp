@@ -4,11 +4,19 @@
 
 #include "yt/yt/core/misc/error.h"
 
+#include <yt/yt/ytlib/api/native/config.h>
+
 #include <yt/yt/ytlib/controller_agent/helpers.h>
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
+#include <yt/yt/ytlib/object_client/config.h>
+
 #include <yt/yt/ytlib/scheduler/helpers.h>
+
+#include <yt/yt/ytlib/table_client/config.h>
+
+#include <yt/yt/client/formats/config.h>
 
 #include <yt/yt/client/security_client/acl.h>
 #include <yt/yt/client/security_client/helpers.h>
@@ -196,6 +204,12 @@ void TJobIOConfig::Register(TRegistrar registrar)
         config->DynamicTableWriter->DesiredChunkSize = 100_MB;
         config->DynamicTableWriter->BlockSize = 256_KB;
     });
+}
+
+void TJobIOConfig::TTestingOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("pipe_delay", &TThis::PipeDelay)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

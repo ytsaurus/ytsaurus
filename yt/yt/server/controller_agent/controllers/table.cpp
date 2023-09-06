@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
+#include <yt/yt/ytlib/table_client/config.h>
+
 namespace NYT::NControllerAgent::NControllers {
 
 using namespace NYTree;

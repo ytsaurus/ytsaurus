@@ -47,6 +47,7 @@
 
 #include <yt/yt/ytlib/query_client/functions_cache.h>
 
+#include <yt/yt/ytlib/table_client/config.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
 #include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>

@@ -14,6 +14,7 @@
 
 #include <yt/yt/server/lib/misc/update_executor.h>
 
+#include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -32,6 +33,8 @@
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/security_client/public.h>
+
+#include <yt/yt/ytlib/scheduler/helpers.h>
 
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
 

@@ -22,6 +22,8 @@
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
+#include <yt/yt/ytlib/object_client/config.h>
+
 #include <yt/yt/library/numeric/algorithm_helpers.h>
 
 #include <yt/yt/core/concurrency/async_rw_lock.h>

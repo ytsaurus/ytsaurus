@@ -12,6 +12,8 @@
 
 #include <yt/yt/ytlib/controller_agent/proto/output_result.pb.h>
 
+#include <yt/yt/client/formats/config.h>
+
 #include <yt/yt/client/table_client/row_buffer.h>
 
 #include <util/string/split.h>

@@ -2,9 +2,9 @@
 
 #include "private.h"
 
-#include <yt/yt/server/lib/chunk_pools/config.h>
+#include <yt/yt/server/lib/chunk_pools/public.h>
 
-#include <yt/yt/server/lib/job_agent/config.h>
+#include <yt/yt/server/lib/job_agent/public.h>
 
 #include <yt/yt/server/lib/misc/config.h>
 
@@ -12,28 +12,23 @@
 
 #include <yt/yt/ytlib/chunk_client/config.h>
 
-#include <yt/yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/yt/ytlib/event_log/config.h>
+#include <yt/yt/ytlib/event_log/public.h>
 
-#include <yt/yt/ytlib/node_tracker_client/config.h>
-
-#include <yt/yt/ytlib/object_client/object_service_proxy.h>
-
-#include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
-
-#include <yt/yt/library/program/config.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/yt/client/job_tracker_client/public.h>
 
 #include <yt/yt/client/ypath/rich.h>
 
-#include <yt/yt/core/concurrency/config.h>
+#include <yt/yt/core/concurrency/public.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
-#include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/library/re2/public.h>
+
+#include <yt/yt/library/program/config.h>
 
 #include <yt/yt/core/misc/phoenix.h>
 
@@ -581,13 +576,7 @@ public:
 
     REGISTER_YSON_STRUCT(TVanillaOperationOptions);
 
-    static void Register(TRegistrar registrar)
-    {
-        registrar.Parameter("max_task_count", &TThis::MaxTaskCount)
-            .Default(100);
-        registrar.Parameter("max_total_job_count", &TThis::MaxTotalJobCount)
-            .Default(100 * 1000);
-    }
+    static void Register(TRegistrar registrar);
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TVanillaOperationOptions, 0x93998ffa);

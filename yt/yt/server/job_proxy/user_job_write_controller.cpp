@@ -14,6 +14,7 @@
 #include <yt/yt/ytlib/job_proxy/user_job_io_factory.h>
 
 #include <yt/yt/ytlib/table_client/blob_table_writer.h>
+#include <yt/yt/ytlib/table_client/config.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
 #include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
@@ -48,8 +49,6 @@ using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NObjectClient;
 using namespace NYTree;
-
-using NChunkClient::TDataSliceDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 

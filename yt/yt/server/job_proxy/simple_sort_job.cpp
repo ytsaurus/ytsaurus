@@ -12,6 +12,7 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/ytlib/table_client/config.h>
 #include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
 #include <yt/yt/ytlib/table_client/sorting_reader.h>

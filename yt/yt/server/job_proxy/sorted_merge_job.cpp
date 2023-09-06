@@ -16,6 +16,7 @@
 #include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
 #include <yt/yt/ytlib/table_client/sorted_merging_reader.h>
+#include <yt/yt/ytlib/table_client/config.h>
 
 namespace NYT::NJobProxy {
 
@@ -27,8 +28,6 @@ using namespace NTableClient;
 using namespace NObjectClient;
 using namespace NYTree;
 using namespace NYson;
-
-using NChunkClient::TDataSliceDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
