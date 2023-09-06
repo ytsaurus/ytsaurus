@@ -1,5 +1,6 @@
 #include "config.h"
 
+#include "library/cpp/yt/logging/logger.h"
 #include "retrying_client.h"
 #include "private.h"
 #include "util/system/compiler.h"
@@ -23,8 +24,8 @@ class TResponseCheckerBase
     : public IResponseChecker
 {
 public:
-    TResponseCheckerBase(TRetryChecker retryChecker = BIND(&DefaultRetryChecker))
-        : RetryChecker_(std::move(retryChecker))
+    TResponseCheckerBase(TRetryChecker retryChecker = {})
+        : RetryChecker_(retryChecker ? std::move(retryChecker) : BIND(&DefaultRetryChecker))
     { }
 
     virtual bool IsRetriableError(const TError& error) override 
@@ -38,9 +39,7 @@ public:
 protected:
     static bool DefaultRetryChecker(const TError& error)
     {
-        // TODO: default retry checker
-        Y_UNUSED(error);
-        return false;
+        return !error.FindMatching(NRpc::EErrorCode::InvalidCredentials).has_value();
     }
 
 private:
