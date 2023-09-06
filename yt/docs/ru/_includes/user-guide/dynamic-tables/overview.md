@@ -35,7 +35,7 @@
 | chunk_row_count | Int   | Общее количество необъединённых строк во всех чанках таблицы. |
 | tablets[*](**)   | TabletInfo | Описание таблетов.   |
 | atomicity   | Atomicity | [Режим атомарности](../../../user-guide/dynamic-tables/transactions.md#atomicity). По умолчанию `full`.  |
-| in_memory_mode     | InMemoryMode | [In-memory-режим](../../../user-guide/dynamic-tables/sorted-dynamic-tables#in_memory) для таблиц. По умолчанию `none`.   |
+| in_memory_mode     | InMemoryMode | [In-memory-режим](overview#in_memory) для таблиц. По умолчанию `none`.   |
 
 Атрибут `chunk_row_count` может использоваться для оценки размера таблицы, но оценка является приближенной по следующим причинам:
 - в оценке не учтены строки, находящиеся в памяти узлов кластера;
