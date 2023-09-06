@@ -64,7 +64,7 @@ object SpytSnapshot {
     }
 
     def inc: SnapshotVersion = getVcsInfo()
-        .map(info => copy(dev = dev + 1, hash = info.hash, ticket = info.ticketNumber))
+        .map(info => copy(dev = SnapshotVersion.generateDev(), hash = info.hash, ticket = info.ticketNumber))
         .get
 
     def updateDev(other: Option[SnapshotVersion]): SnapshotVersion = {
@@ -143,6 +143,10 @@ object SpytSnapshot {
     private val defaultHash = 0
     private val defaultDev = 0
 
+    private def generateDev(): Int = {
+      (System.currentTimeMillis() / 10000).toInt
+    }
+
     private def intOrDefault(str: String, default: Int): Int = {
       Option(str).filter(_.nonEmpty).map(_.toInt).getOrElse(default)
     }
@@ -219,7 +223,7 @@ object SpytSnapshot {
                                versionSetting: SettingKey[String],
                                pythonPackage: String): State = {
     val rawCurVer = st.extract.get(versionSetting)
-    st.log.debug(s"Current raw version: $rawCurVer")
+    st.log.info(s"Current raw version: $rawCurVer")
 
     val curVer = SnapshotVersion.parse(rawCurVer)
     st.log.info(s"Current version: ${curVer.toScalaString}")
@@ -236,7 +240,7 @@ object SpytSnapshot {
                               st: State,
                               versionSetting: SettingKey[String]): State = {
     val rawCurVer = st.extract.get(versionSetting)
-    st.log.debug(s"Current raw version: $rawCurVer")
+    st.log.info(s"Current raw version: $rawCurVer")
 
     val curVer = SnapshotVersion.parse(rawCurVer)
     st.log.info(s"Current version: ${curVer.toScalaString}")
