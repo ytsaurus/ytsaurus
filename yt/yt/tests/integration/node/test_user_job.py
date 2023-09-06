@@ -17,6 +17,8 @@ from yt_commands import (
     make_random_string, raises_yt_error, update_controller_agent_config, update_scheduler_config)
 
 
+import subprocess
+
 import yt_error_codes
 
 from yt_helpers import profiler_factory
@@ -1309,6 +1311,47 @@ class TestUserJobIsolation(YTEnvSetup):
                 job_type="task")
 
         wait(lambda: check())
+
+    @authors("don-dron")
+    def test_job_processes_clean(self):
+        op = run_test_vanilla(
+            command="sleep 1234567",
+            track=False,
+            spec={
+                "job_count": 1,
+                "job_testing_options": {
+                    "delay_before_run_job_proxy": 5000,
+                }
+            }
+        )
+
+        def check_state_jp(state):
+            job_ids = op.list_jobs()
+
+            if len(job_ids) == 0:
+                return False
+
+            return op.get_job_phase(job_ids[0]) == state
+
+        wait(lambda: check_state_jp("spawning_job_proxy"))
+
+        op.abort()
+
+        try:
+            op.track()
+        except Exception:
+            pass
+
+        def check_command_ended():
+            output = subprocess.check_output(["ps", "aux"]).decode("utf-8")
+            process_count = 0
+            for line in output.split('\n'):
+                if "sleep 1234567" in line:
+                    process_count += 1
+            return process_count == 0
+
+        wait(lambda: check_command_ended())
+
 
 ##################################################################
 

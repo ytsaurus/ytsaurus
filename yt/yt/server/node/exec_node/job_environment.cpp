@@ -97,6 +97,8 @@ public:
         TOperationId operationId,
         const std::optional<TNumaNodeInfo>& numaNodeAffinity) override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         ValidateEnabled();
 
         try {
@@ -148,7 +150,6 @@ public:
 
             JobProxyProcesses_[slotIndex] = jobProxyProcess;
             return jobProxyProcess.Result;
-
         } catch (const std::exception& ex) {
             auto error = TError("Failed to spawn job proxy") << ex;
             Disable(error);
@@ -219,6 +220,8 @@ protected:
 
     virtual void DoInit(int slotCount, double /*cpuLimit*/, double /*idleCpuFraction*/)
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         for (int slotIndex = 0; slotIndex < slotCount; ++slotIndex) {
             CleanProcesses(slotIndex);
         }
@@ -236,6 +239,8 @@ protected:
 
     void EnsureJobProxyFinished(int slotIndex, bool kill)
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         auto it = JobProxyProcesses_.find(slotIndex);
         if (it != JobProxyProcesses_.end()) {
             if (kill) {
@@ -298,6 +303,8 @@ private:
         ESlotType /*slotType*/,
         TJobId /*jobId*/)
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         return New<TSimpleProcess>(JobProxyProgramName);
     }
 
@@ -320,6 +327,8 @@ public:
 
     void CleanProcesses(int slotIndex, ESlotType slotType) override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         ValidateEnabled();
 
         YT_LOG_DEBUG("Start clean processes (SlotIndex: %v)", slotIndex);
@@ -356,6 +365,8 @@ public:
         TJobWorkspaceBuildingContext context,
         IJobDirectoryManagerPtr directoryManager) override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         return CreateSimpleJobWorkspaceBuilder(
             invoker,
             std::move(context),
@@ -451,12 +462,15 @@ public:
 
     void CleanProcesses(int slotIndex, ESlotType slotType) override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         ValidateEnabled();
 
         YT_LOG_DEBUG("Start clean processes (SlotIndex: %v)", slotIndex);
 
         try {
             EnsureJobProxyFinished(slotIndex, true);
+
             auto slotContainer = GetFullSlotMetaContainerName(slotIndex, slotType);
 
             YT_LOG_DEBUG(
@@ -523,6 +537,8 @@ public:
         const std::optional<std::vector<TDevice>>& devices,
         int startIndex) override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         return BIND([this_ = MakeStrong(this), slotIndex, slotType, jobId, commands, rootFS, user, devices, startIndex] {
             for (int index = 0; index < std::ssize(commands); ++index) {
                 const auto& command = commands[index];
@@ -593,6 +609,8 @@ private:
 
     void DestroyAllSubcontainers(const TString& rootContainer)
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         YT_LOG_DEBUG(
             "Start destroy subcontainers (RootContainer: %v)",
             rootContainer);
@@ -803,6 +821,8 @@ private:
         ESlotType slotType,
         TJobId jobId) override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         auto launcher = CreateJobProxyInstanceLauncher(slotIndex, slotType, jobId);
         return New<TPortoProcess>(JobProxyProgramName, launcher);
     }
@@ -887,6 +907,8 @@ private:
         TJobWorkspaceBuildingContext context,
         IJobDirectoryManagerPtr directoryManager) override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         return CreatePortoJobWorkspaceBuilder(
             invoker,
             std::move(context),
@@ -939,6 +961,8 @@ public:
 
     void CleanProcesses(int slotIndex, ESlotType slotType) override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         ValidateEnabled();
 
         try {
@@ -972,6 +996,8 @@ public:
         TJobWorkspaceBuildingContext context,
         IJobDirectoryManagerPtr directoryManager) override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         return CreateCriJobWorkspaceBuilder(
             invoker,
             std::move(context),
@@ -997,6 +1023,8 @@ private:
         ESlotType /*slotType*/,
         TJobId jobId) override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         auto spec = New<NCri::TCriContainerSpec>();
 
         spec->Name = "job-proxy";

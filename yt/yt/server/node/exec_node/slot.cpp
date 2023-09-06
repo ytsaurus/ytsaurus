@@ -76,18 +76,24 @@ public:
 
     TFuture<void> CleanProcesses() override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         if (!CleanProcessesFuture_) {
             // First kill all processes that may hold open handles to slot directories.
             CleanProcessesFuture_ = BIND(&IJobEnvironment::CleanProcesses, JobEnvironment_)
                 .AsyncVia(Bootstrap_->GetJobInvoker())
                 .Run(SlotIndex_, SlotGuard_->GetSlotType());
+            return CleanProcessesFuture_;
+        } else {
+            return CleanProcessesFuture_.Apply(BIND(&IJobEnvironment::CleanProcesses, JobEnvironment_, SlotIndex_, SlotGuard_->GetSlotType())
+                .AsyncVia(Bootstrap_->GetJobInvoker()));
         }
-
-        return CleanProcessesFuture_;
     }
 
     void CleanSandbox() override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         WaitFor(Location_->CleanSandboxes(
             SlotIndex_))
             .ThrowOnError();
@@ -97,6 +103,8 @@ public:
 
     void CancelPreparation() override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         PreparationCanceled_ = true;
 
         for (const auto& future : PreparationFutures_) {
@@ -109,6 +117,8 @@ public:
         TJobId jobId,
         TOperationId operationId) override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         return RunPreparationAction(
             /*actionName*/ "RunJobProxy",
             // Job proxy preparation is uncancelable, otherwise we might try to kill
@@ -155,6 +165,8 @@ public:
         const TString& linkName,
         bool executable) override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         return RunPreparationAction(
             /*actionName*/ "MakeLink",
             /*uncancelable*/ false,
@@ -178,6 +190,8 @@ public:
         const TFile& destinationFile,
         const NDataNode::TChunkLocationPtr& sourceLocation) override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         return RunPreparationAction(
             /*actionName*/ "MakeCopy",
             /*uncancelable*/ false,
@@ -200,6 +214,8 @@ public:
         const std::function<void(IOutputStream*)>& producer,
         const TFile& destinationFile) override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         return RunPreparationAction(
             /*actionName*/ "MakeFile",
             /*uncancelable*/ false,
@@ -224,9 +240,12 @@ public:
         const TArtifactDownloadOptions& downloadOptions,
         const TUserSandboxOptions& options) override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         if (!VolumeManager_) {
             return MakeFuture<IVolumePtr>(TError("Porto layers and custom root FS are not supported"));
         }
+
         return RunPreparationAction(
             /*actionName*/ "PrepareRootVolume",
             /*uncancelable*/ false,
@@ -273,6 +292,8 @@ public:
     TFuture<std::vector<TString>> PrepareSandboxDirectories(
         const TUserSandboxOptions& options) override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         return RunPreparationAction(
             /*actionName*/ "PrepareSandboxDirectories",
             // Includes quota setting and tmpfs creation.
@@ -292,6 +313,8 @@ public:
         const std::optional<std::vector<TDevice>>& devices,
         int startIndex) override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         return RunPreparationAction(
             /*actionName*/ "RunSetupCommands",
             // Setup commands are uncancelable since they are run in separate processes.
@@ -316,6 +339,8 @@ public:
         const TString& artifactPath,
         const TError& error) override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         Location_->OnArtifactPreparationFailed(
             jobId,
             SlotIndex_,
@@ -329,6 +354,8 @@ public:
         IInvokerPtr invoker,
         TJobWorkspaceBuildingContext context) override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         return JobEnvironment_->CreateJobWorkspaceBuilder(
             invoker,
             std::move(context),
@@ -368,11 +395,15 @@ private:
 
     TFuture<void> CleanProcessesFuture_;
 
+    DECLARE_THREAD_AFFINITY_SLOT(JobThread);
+
     NLogging::TLogger Logger;
 
     template <class TName, CCallableReturningFuture TCallback>
     auto RunPreparationAction(const TName& actionName, bool uncancelable, const TCallback& action) -> decltype(action())
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         using TTypedFuture = decltype(action());
         using TUnderlyingReturnType = typename TFutureTraits<TTypedFuture>::TUnderlying;
 
