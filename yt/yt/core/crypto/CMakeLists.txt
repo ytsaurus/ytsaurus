@@ -6,7 +6,6 @@
 # original buildsystem will not be accepted.
 
 
-find_package(OpenSSL REQUIRED)
 add_subdirectory(unittests)
 
 add_library(yt-core-crypto)
@@ -18,7 +17,7 @@ target_link_libraries(yt-core-crypto PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-yt-core
-  OpenSSL::OpenSSL
+  contrib-libs-openssl
   cpp-openssl-io
 )
 target_sources(yt-core-crypto PRIVATE

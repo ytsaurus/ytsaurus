@@ -6,7 +6,6 @@
 # original buildsystem will not be accepted.
 
 
-find_package(OpenSSL REQUIRED)
 add_subdirectory(admin)
 add_subdirectory(cell_server)
 add_subdirectory(cellar_agent)
@@ -54,7 +53,7 @@ target_link_libraries(ytserver INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  OpenSSL::OpenSSL
+  contrib-libs-openssl
   contrib-libs-sparsehash
   cpp-streams-brotli
   streams-lz-lz4

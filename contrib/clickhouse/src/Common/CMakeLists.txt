@@ -6,7 +6,6 @@
 # original buildsystem will not be accepted.
 
 
-find_package(c-ares REQUIRED)
 
 add_library(clickhouse-src-Common)
 target_compile_options(clickhouse-src-Common PUBLIC
@@ -61,7 +60,7 @@ target_link_libraries(clickhouse-src-Common PUBLIC
   clickhouse-base-widechar_width
   libs-aws-sdk-cpp-aws-cpp-sdk-core
   libs-aws-sdk-cpp-aws-cpp-sdk-s3
-  c-ares::c-ares
+  contrib-libs-c-ares
   contrib-libs-cctz
   libs-cctz-tzdata
   contrib-libs-double-conversion
