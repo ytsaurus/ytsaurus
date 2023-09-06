@@ -1,6 +1,7 @@
 package tech.ytsaurus.spyt.serialization
 
 import org.apache.spark.sql.types._
+import org.apache.spark.sql.yson.UInt64Type
 import org.apache.spark.unsafe.types.UTF8String
 import tech.ytsaurus.core.common.Decimal.binaryToText
 import tech.ytsaurus.yson.{YsonError, YsonTags}
@@ -149,6 +150,7 @@ class YsonDecoder(bytes: Array[Byte], dataType: IndexedDataType) extends YsonBas
         dataType.sparkDataType match {
           case LongType => parseUInt64
           case IntegerType => parseUInt64.toInt
+          case UInt64Type => parseUInt64
           case DoubleType => java.lang.Double.parseDouble(java.lang.Long.toUnsignedString(parseUInt64))
           case BinaryType => first +: parseInt64AsBytes
           case NullType =>

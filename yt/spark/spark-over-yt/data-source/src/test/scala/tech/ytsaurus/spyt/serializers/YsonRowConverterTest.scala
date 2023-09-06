@@ -3,11 +3,13 @@ package tech.ytsaurus.spyt.serializers
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.util.{ArrayBasedMapData, ArrayData, MapData}
 import org.apache.spark.sql.types.{BooleanType, DoubleType, IntegerType, StringType, StructField, StructType}
+import org.apache.spark.sql.yson.{UInt64Long, UInt64Type}
 import org.apache.spark.unsafe.types.UTF8String
 import org.scalatest.{FlatSpec, Matchers}
 import tech.ytsaurus.typeinfo.TiType
 import tech.ytsaurus.ysontree.{YTree, YTreeNode}
 
+import java.util
 import scala.util.Random
 
 class YsonRowConverterTest extends FlatSpec with Matchers {
@@ -126,5 +128,18 @@ class YsonRowConverterTest extends FlatSpec with Matchers {
     val converter = YsonRowConverter.getOrCreate(
       sparkTupleStruct, YtTypeHolder(ytTupleStruct), config = YsonEncoderConfig(skipNulls = false, typeV3Format = true))
     serializeStruct(converter, Row(1, "str")) shouldBe buildList(1, "str")
+  }
+
+  it should "convert UInt64 value" in {
+    val converter = YsonRowConverter.getOrCreate(
+      StructType(Seq(StructField("value", UInt64Type))),
+      config = YsonEncoderConfig(skipNulls = false, typeV3Format = true)
+    )
+
+    val resultSmall = converter.serialize(Row(UInt64Long("12345")))
+    resultSmall shouldEqual Seq(123, 1, 10, 118, 97, 108, 117, 101, 61, 6, 0xB9, 0x60, 125).map(_.toByte).toArray
+
+    val resultBig = converter.serialize(Row(UInt64Long("18446744073709551358")))
+    resultBig shouldEqual Seq(123, 1, 10, 118, 97, 108, 117, 101, 61, 6, 0xFE, 0xFD, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01, 125).map(_.toByte).toArray
   }
 }

@@ -78,8 +78,10 @@ class YsonEncoder(stream: ByteArrayOutputStream) extends YsonConsumer {
     output.writeRawByte(YsonTags.END_MAP)
   }
 
-  // TODO: support uint64 in complex fields
-  override def onUnsignedInteger(l: Long): Unit = ???
+  override def onUnsignedInteger(l: Long): Unit = {
+    output.writeRawByte(YsonTags.BINARY_UINT)
+    output.writeUInt64NoTag(l)
+  }
 
   override def onString(bytes: Array[Byte], i: Int, i1: Int): Unit = {
     output.writeRawByte(YsonTags.BINARY_STRING)
