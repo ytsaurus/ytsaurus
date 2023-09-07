@@ -1,7 +1,8 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/client/formats/config.h>
-#include <yt/yt/client/formats/format.h>
+
+#include <yt/yt/library/formats/format.h>
 
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/name_table.h>

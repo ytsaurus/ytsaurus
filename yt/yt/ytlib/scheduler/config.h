@@ -14,7 +14,7 @@
 
 #include <yt/yt/ytlib/security_client/public.h>
 
-#include <yt/yt/client/formats/format.h>
+#include <yt/yt/client/formats/config.h>
 
 #include <yt/yt/client/transaction_client/public.h>
 
@@ -33,6 +33,8 @@
 #include <yt/yt/core/misc/arithmetic_formula.h>
 
 #include <yt/yt/core/misc/phoenix.h>
+
+#include <yt/yt/library/formats/format.h>
 
 #include <yt/yt/library/vector_hdrf/public.h>
 #include <yt/yt/library/vector_hdrf/job_resources.h>

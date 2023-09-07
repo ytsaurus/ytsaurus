@@ -4,7 +4,7 @@
 #include <yt/yt/client/arrow/fbs/Schema.fbs.h>
 
 #include <yt/yt/client/formats/public.h>
-#include <yt/yt/client/formats/schemaless_writer_adapter.h>
+#include <yt/yt/library/formats/schemaless_writer_adapter.h>
 
 #include <yt/yt/client/table_client/columnar.h>
 #include <yt/yt/client/table_client/logical_type.h>

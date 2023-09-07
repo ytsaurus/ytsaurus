@@ -16,7 +16,7 @@ target_link_libraries(yt-client-driver PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-yt-client
-  yt-client-formats
+  yt-library-formats
 )
 target_sources(yt-client-driver PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/client/driver/admin_commands.cpp
