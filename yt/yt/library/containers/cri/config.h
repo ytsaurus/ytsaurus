@@ -2,14 +2,14 @@
 
 #include "public.h"
 
-#include <yt/yt/core/ytree/yson_struct.h>
+#include <yt/yt/core/rpc/config.h>
 
 namespace NYT::NContainers::NCri {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCriExecutorConfig
-    : public NYTree::TYsonStruct
+    : public NRpc::TRetryingChannelConfig
 {
 public:
     //! gRPC endpoint for CRI container runtime service.
