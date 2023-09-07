@@ -68,6 +68,8 @@ void TQueueControllerDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("trimming_period", &TThis::TrimmingPeriod)
         .Default();
+    registrar.Parameter("export_period", &TThis::ExportPeriod)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -127,6 +127,9 @@ public:
     //! once in `ceil(TrimmingPeriod / PassPeriod)` queue controller passes.
     std::optional<TDuration> TrimmingPeriod;
 
+    //! Temporary field for testing export of queues into static tables.
+    std::optional<TDuration> ExportPeriod;
+
     REGISTER_YSON_STRUCT(TQueueControllerDynamicConfig);
 
     static void Register(TRegistrar registrar);

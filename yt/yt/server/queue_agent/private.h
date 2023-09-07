@@ -62,6 +62,8 @@ DECLARE_REFCOUNTED_CLASS(TQueueAgentServerDynamicConfig)
 
 DECLARE_REFCOUNTED_CLASS(TDynamicConfigManager)
 
+DECLARE_REFCOUNTED_CLASS(TQueueExporter)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 using TAgentId = TString;

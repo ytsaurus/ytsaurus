@@ -38,4 +38,5 @@ target_sources(yt-server-queue_agent PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/queue_agent_sharding_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/queue_controller.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/snapshot_representation.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/queue_agent/queue_static_table_exporter.cpp
 )

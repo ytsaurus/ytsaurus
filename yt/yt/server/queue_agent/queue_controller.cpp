@@ -5,12 +5,16 @@
 #include "config.h"
 #include "helpers.h"
 #include "profile_manager.h"
-#include "yt/yt/client/api/internal_client.h"
+#include "queue_static_table_exporter.h"
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
+
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+
+#include <yt/yt/client/api/internal_client.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
@@ -31,6 +35,7 @@
 
 namespace NYT::NQueueAgent {
 
+using namespace NApi;
 using namespace NHydra;
 using namespace NYTree;
 using namespace NConcurrency;
@@ -282,6 +287,13 @@ public:
                 .WithRequiredTag("queue_path", QueueRef_.Path)
                 .WithRequiredTag("queue_cluster", QueueRef_.Cluster),
             Logger))
+        , ExportExecutor_(New<TPeriodicExecutor>(
+                Invoker_,
+                BIND(&TOrderedDynamicTableController::Export, MakeWeak(this)),
+                TPeriodicExecutorOptions{
+                    .Period = dynamicConfig->ExportPeriod,
+                    .Splay = dynamicConfig->ExportPeriod.value_or(TDuration::Zero()),
+            }))
     {
         // Prepare initial erroneous snapshot.
         auto queueSnapshot = New<TQueueSnapshot>();
@@ -292,6 +304,16 @@ public:
         YT_LOG_INFO("Queue controller started");
 
         PassExecutor_->Start();
+
+        if (dynamicConfig->ExportPeriod) {
+            auto queueSnapshot = QueueSnapshot_.Acquire();
+            auto queueRef = queueSnapshot->Row.Ref;
+
+            auto client = ClientDirectory_->GetClientOrThrow(queueRef.Cluster);
+            const auto& connection = client->GetNativeConnection();
+            QueueExporter_ = New<TQueueExporter>(connection, client, Invoker_, Logger);
+            ExportExecutor_->Start();
+        }
     }
 
     void BuildOrchid(IYsonConsumer* consumer) const override
@@ -330,6 +352,7 @@ public:
         DynamicConfig_.Exchange(newConfig);
 
         PassExecutor_->SetPeriod(newConfig->PassPeriod);
+        ExportExecutor_->SetPeriod(newConfig->ExportPeriod);
 
         YT_LOG_DEBUG(
             "Updated queue controller dynamic config (OldConfig: %v, NewConfig: %v)",
@@ -370,6 +393,76 @@ private:
     const TLogger Logger;
     const TPeriodicExecutorPtr PassExecutor_;
     IQueueProfileManagerPtr ProfileManager_;
+
+    TPeriodicExecutorPtr ExportExecutor_;
+    TQueueExporterPtr QueueExporter_;
+
+    // For now, this function exhibits temporary behavior of validation for testing export from queue to static tables.
+    TError CheckExport(const NNative::IClientPtr& client)
+    {
+        auto proxy = CreateObjectServiceReadProxy(client, TMasterReadOptions().ReadFrom);
+
+        auto req = TYPathProxy::Get(QueueRef_.Path + "/@enable_export");
+        auto rspOrError = WaitFor(proxy.Execute(req));
+        if (!rspOrError.IsOK()) {
+            return rspOrError;
+        }
+
+        auto error = WaitFor(client->RemoveNode(QueueRef_.Path + "/@enable_export"));
+        if (!error.IsOK()) {
+            return error;
+        }
+        return TError();
+    }
+
+    void Export()
+    {
+        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_VERIFY(QueueExporter_);
+
+        auto queuePath = QueueRef_.Path;
+        auto destinationPath = GenerateStaticTableName(queuePath);
+
+        YT_LOG_DEBUG("Queue export to static table started (DestinationPath: %v)", destinationPath);
+
+        const auto& queueExporter = *QueueExporter_;
+
+        auto client = ClientDirectory_->GetClientOrThrow(QueueRef_.Cluster);
+
+        auto timestampProvider = client->GetTimestampProvider();
+        YT_VERIFY(timestampProvider);
+
+        auto latestTimestamp = WaitFor(timestampProvider->GenerateTimestamps())
+            .ValueOrThrow();
+
+        TQueueExportOptions exportOptions {
+            .LowerExportTimestamp = 0,
+            .UpperExportTimestamp = latestTimestamp,
+        };
+
+        if (auto exportError = CheckExport(client); !exportError.IsOK()) {
+            YT_LOG_DEBUG("Validation failed, skipping export");
+            return;
+        }
+
+        TCreateNodeOptions createOptions;
+        createOptions.Recursive = true;
+        createOptions.IgnoreExisting = true;
+
+        auto createError = WaitFor(client->CreateNode(destinationPath, EObjectType::Table, createOptions));
+        if (!createError.IsOK()) {
+            YT_LOG_DEBUG(createError, "Failed to create static table, skipping export");
+            return;
+        }
+
+        auto exportError = WaitFor(queueExporter.ExportToStaticTable(queuePath, destinationPath, exportOptions));
+        if (!exportError.IsOK()) {
+            YT_LOG_DEBUG(exportError, "Failed to perform export");
+            return;
+        }
+
+        YT_LOG_DEBUG("Queue export to static table finished (DestinationPath: %v)", destinationPath);
+    }
 
     void Pass()
     {
