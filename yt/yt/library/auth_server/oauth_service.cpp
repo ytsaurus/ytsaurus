@@ -3,6 +3,7 @@
 #include "config.h"
 #include "private.h"
 #include "helpers.h"
+#include "yt/yt/core/misc/public.h"
 
 #include <yt/yt/core/http/client.h>
 #include <yt/yt/core/http/helpers.h>
@@ -88,9 +89,13 @@ private:
         auto httpHeaders = New<THeaders>();
         httpHeaders->Add("Authorization", Format("%v %v", Config_->AuthorizationHeaderPrefix, accessToken));
 
+        const static auto retryChecker = BIND([] (const TError& error) {
+            return !error.FindMatching(NRpc::EErrorCode::InvalidCredentials).has_value();
+        });
         auto jsonResponseChecker = CreateJsonResponseChecker(
             MakeJsonFormatConfig(),
-            BIND(&TOAuthService::DoCheckUserInfoResponse, MakeStrong(this)));
+            BIND(&TOAuthService::DoCheckUserInfoResponse, MakeStrong(this)),
+            retryChecker);
 
         const auto url = Format("%v://%v:%v/%v",
             Config_->Secure ? "https" : "http",

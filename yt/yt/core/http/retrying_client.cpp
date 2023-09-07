@@ -35,9 +35,9 @@ public:
     virtual NYTree::INodePtr GetFormattedResponse() const override = 0;
 
 protected:
-    static bool DefaultRetryChecker(const TError& error)
+    static bool DefaultRetryChecker(const TError& /*error*/)
     {
-        return !error.FindMatching(NRpc::EErrorCode::InvalidCredentials).has_value();
+        return true;
     }
 
 private:
@@ -219,7 +219,7 @@ private:
             return isRetriableError && TInstant::Now() < deadline && attempt < Config_->MaxAttemptCount;
         };
 
-        do {
+        while (true) {
             ++attempt;
             auto future = BIND(func, UnderlyingClient_, url, std::forward<Args>(args)...)();
             const auto rspOrError = WaitFor(future.WithTimeout(Config_->AttemptTimeout));
@@ -242,7 +242,7 @@ private:
 
             auto now = TInstant::Now();
             TDelayedExecutor::WaitForDuration(std::min(Config_->BackoffTimeout, deadline - now));
-        } while(true);
+        }
 
         THROW_ERROR_EXCEPTION("HTTP request failed")
             << std::move(accumulatedErrors)
