@@ -36,7 +36,12 @@ private:
     using TBase = TChunkOwnerTypeHandler<TJournalNode>;
 
 public:
-    using TBase::TBase;
+    explicit TJournalNodeTypeHandler(TBootstrap* bootstrap)
+        : TBase(bootstrap)
+    {
+        // NB: Due to virtual inheritance bootstrap has to be explicitly initialized.
+        SetBootstrap(bootstrap);
+    }
 
     EObjectType GetObjectType() const override
     {
@@ -62,7 +67,7 @@ protected:
         TTransaction* transaction) override
     {
         return CreateJournalNodeProxy(
-            Bootstrap_,
+            GetBootstrap(),
             &Metadata_,
             transaction,
             trunkNode);
@@ -72,7 +77,7 @@ protected:
         TVersionedNodeId id,
         const TCreateNodeContext& context) override
     {
-        const auto& config = Bootstrap_->GetConfig()->CypressManager;
+        const auto& config = GetBootstrap()->GetConfig()->CypressManager;
         if (context.InheritedAttributes) {
             context.InheritedAttributes->Remove("compression_codec");
         }
@@ -132,7 +137,7 @@ protected:
         TJournalNode* branchedNode,
         const TLockRequest& lockRequest) override
     {
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkManager = GetBootstrap()->GetChunkManager();
         const auto* primaryMedium = chunkManager->GetMediumByIndex(originatingNode->GetPrimaryMediumIndex());
         YT_LOG_DEBUG(
             "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v, "
@@ -260,10 +265,10 @@ protected:
                 "Waiting for journal chunk to become sealed (NodeId: %v, ChunkId: %v)",
                 trunkNode->GetId(),
                 unsealedChunk->GetId());
-            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            const auto& chunkManager = GetBootstrap()->GetChunkManager();
             chunkManager->ScheduleChunkSeal(unsealedChunk);
         } else {
-            const auto& journalManager = Bootstrap_->GetJournalManager();
+            const auto& journalManager = GetBootstrap()->GetJournalManager();
             journalManager->SealJournal(trunkNode, nullptr);
         }
     }

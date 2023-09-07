@@ -39,7 +39,7 @@ private:
         TTransaction* transaction) override
     {
         return CreateDocumentNodeProxy(
-            Bootstrap_,
+            GetBootstrap(),
             &Metadata_,
             transaction,
             trunkNode);

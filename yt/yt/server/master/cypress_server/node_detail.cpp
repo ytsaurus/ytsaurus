@@ -79,6 +79,18 @@ TAcdList TNontemplateCypressNodeTypeHandlerBase::ListAcds(TCypressNode* trunkNod
     return {&trunkNode->Acd()};
 }
 
+void TNontemplateCypressNodeTypeHandlerBase::SetBootstrap(TBootstrap* bootstrap)
+{
+    YT_VERIFY(bootstrap);
+    Bootstrap_ = bootstrap;
+}
+
+TBootstrap* TNontemplateCypressNodeTypeHandlerBase::GetBootstrap() const
+{
+    YT_VERIFY(Bootstrap_);
+    return Bootstrap_;
+}
+
 bool TNontemplateCypressNodeTypeHandlerBase::IsLeader() const
 {
     return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsLeader();
@@ -1015,7 +1027,7 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoBranch(
             branchedNode->ChildCountDelta() = originatingNode->ChildCountDelta();
             branchedNode->AssignChildren(originatingNode->Children_);
         } else {
-            const auto& cypressManager = this->Bootstrap_->GetCypressManager();
+            const auto& cypressManager = this->GetBootstrap()->GetCypressManager();
 
             THashMap<TString, TCypressNode*> keyToChildStorage;
             const auto& originatingNodeChildren = GetMapNodeChildMap(
@@ -1082,7 +1094,7 @@ ICypressNodeProxyPtr TMapNodeTypeHandlerImpl<TImpl>::DoGetProxy(
     TTransaction* transaction)
 {
     return New<TMapNodeProxy>(
-        this->Bootstrap_,
+        this->GetBootstrap(),
         &this->Metadata_,
         transaction,
         trunkNode);
@@ -1100,7 +1112,7 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoClone(
 
     auto* transaction = factory->GetTransaction();
 
-    const auto& cypressManager = this->Bootstrap_->GetCypressManager();
+    const auto& cypressManager = this->GetBootstrap()->GetCypressManager();
 
     THashMap<TString, TCypressNode*> keyToChildMapStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
@@ -1149,7 +1161,7 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoBeginCopy(
 
     using NYT::Save;
 
-    const auto& cypressManager = this->Bootstrap_->GetCypressManager();
+    const auto& cypressManager = this->GetBootstrap()->GetCypressManager();
 
     THashMap<TString, TCypressNode*> keyToChildMapStorage;
     const auto& keyToChildMap = GetMapNodeChildMap(
@@ -1274,7 +1286,7 @@ ICypressNodeProxyPtr TListNodeTypeHandler::DoGetProxy(
     TTransaction* transaction)
 {
     return New<TListNodeProxy>(
-        Bootstrap_,
+        GetBootstrap(),
         &Metadata_,
         transaction,
         trunkNode);
@@ -1283,7 +1295,7 @@ ICypressNodeProxyPtr TListNodeTypeHandler::DoGetProxy(
 void TListNodeTypeHandler::DoDestroy(TListNode* node)
 {
     // Drop references to the children.
-    const auto& objectManager = Bootstrap_->GetObjectManager();
+    const auto& objectManager = GetBootstrap()->GetObjectManager();
     for (auto* child : node->IndexToChild()) {
         objectManager->UnrefObject(child);
     }
@@ -1302,7 +1314,7 @@ void TListNodeTypeHandler::DoBranch(
     branchedNode->ChildToIndex() = originatingNode->ChildToIndex();
 
     // Reference all children.
-    const auto& objectManager = Bootstrap_->GetObjectManager();
+    const auto& objectManager = GetBootstrap()->GetObjectManager();
     for (auto* child : originatingNode->IndexToChild()) {
         objectManager->RefObject(child);
     }
@@ -1315,7 +1327,7 @@ void TListNodeTypeHandler::DoMerge(
     TBase::DoMerge(originatingNode, branchedNode);
 
     // Drop all references held by the originator.
-    const auto& objectManager = Bootstrap_->GetObjectManager();
+    const auto& objectManager = GetBootstrap()->GetObjectManager();
     for (auto* child : originatingNode->IndexToChild()) {
         objectManager->UnrefObject(child);
     }
@@ -1334,7 +1346,7 @@ void TListNodeTypeHandler::DoClone(
 {
     TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
 
-    const auto& objectManager = Bootstrap_->GetObjectManager();
+    const auto& objectManager = GetBootstrap()->GetObjectManager();
     const auto& indexToChild = sourceNode->IndexToChild();
 
     for (int index = 0; index < static_cast<int>(indexToChild.size()); ++index) {
@@ -1367,7 +1379,7 @@ void TListNodeTypeHandler::DoBeginCopy(
 
     using NYT::Save;
 
-    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    const auto& cypressManager = GetBootstrap()->GetCypressManager();
 
     const auto& children = node->IndexToChild();
     TSizeSerializer::Save(*context, children.size());
@@ -1386,7 +1398,7 @@ void TListNodeTypeHandler::DoEndCopy(
 
     using NYT::Load;
 
-    const auto& objectManager = this->Bootstrap_->GetObjectManager();
+    const auto& objectManager = this->GetBootstrap()->GetObjectManager();
     auto& indexToChild = trunkNode->IndexToChild();
     auto& childToIndex = trunkNode->ChildToIndex();
 

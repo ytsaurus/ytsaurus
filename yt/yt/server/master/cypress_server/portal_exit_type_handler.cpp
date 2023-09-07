@@ -41,7 +41,7 @@ private:
         TTransaction* transaction) override
     {
         return CreatePortalExitProxy(
-            Bootstrap_,
+            GetBootstrap(),
             &Metadata_,
             transaction,
             trunkNode);
@@ -50,7 +50,7 @@ private:
     void DoDestroy(TPortalExitNode* node) override
     {
         if (node->IsTrunk()) {
-            const auto& portalManager = Bootstrap_->GetPortalManager();
+            const auto& portalManager = GetBootstrap()->GetPortalManager();
             portalManager->DestroyExitNode(node);
         }
 

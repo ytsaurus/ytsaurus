@@ -115,7 +115,7 @@ private:
         TTransaction* transaction) override
     {
         return New<TClusterNodeNodeProxy>(
-            Bootstrap_,
+            GetBootstrap(),
             &Metadata_,
             transaction,
             trunkNode);
@@ -149,7 +149,7 @@ private:
         TTransaction* transaction) override
     {
         return New<TMapNodeProxy>(
-            Bootstrap_,
+            GetBootstrap(),
             &Metadata_,
             transaction,
             trunkNode);

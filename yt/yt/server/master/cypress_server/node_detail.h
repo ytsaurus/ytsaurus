@@ -59,10 +59,10 @@ public:
     NObjectServer::TAcdList ListAcds(TCypressNode* trunkNode) const override;
 
 protected:
-    NCellMaster::TBootstrap* const Bootstrap_;
-
     NObjectServer::TObjectTypeMetadata Metadata_;
 
+    void SetBootstrap(NCellMaster::TBootstrap* bootstrap);
+    NCellMaster::TBootstrap* GetBootstrap() const;
 
     bool IsLeader() const;
     bool IsRecovery() const;
@@ -113,6 +113,9 @@ protected:
         TCypressNode* clonedTrunkNode,
         ICypressNodeFactory* factory,
         ENodeCloneMode mode);
+
+private:
+    NCellMaster::TBootstrap* Bootstrap_ = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -122,6 +125,10 @@ class TCypressNodeTypeHandlerBase
     : public TNontemplateCypressNodeTypeHandlerBase
 {
 public:
+    TCypressNodeTypeHandlerBase()
+        : TNontemplateCypressNodeTypeHandlerBase(/* bootstrap */ nullptr)
+    { }
+
     explicit TCypressNodeTypeHandlerBase(NCellMaster::TBootstrap* bootstrap)
         : TNontemplateCypressNodeTypeHandlerBase(bootstrap)
     { }
@@ -131,6 +138,11 @@ public:
         NTransactionServer::TTransaction* transaction) override
     {
         return DoGetProxy(trunkNode->As<TImpl>(), transaction);
+    }
+
+    NTableServer::TMasterTableSchema* FindSchema(TCypressNode* node) const override
+    {
+        return DoFindSchema(node->As<TImpl>());
     }
 
     i64 GetStaticMasterMemoryUsage() const override
@@ -146,7 +158,7 @@ public:
         nodeHolder->SetExternalCellTag(externalCellTag);
         nodeHolder->SetTrunkNode(nodeHolder.get());
 
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& multicellManager = GetBootstrap()->GetMulticellManager();
         if (nodeHolder->GetNativeCellTag() != multicellManager->GetCellTag()) {
             nodeHolder->SetForeign();
         }
@@ -158,7 +170,7 @@ public:
         TNodeId hintId,
         const TCreateNodeContext& context) override
     {
-        const auto& objectManager = Bootstrap_->GetObjectManager();
+        const auto& objectManager = GetBootstrap()->GetObjectManager();
         auto id = objectManager->GenerateId(GetObjectType(), hintId);
         return DoCreate(TVersionedNodeId(id), context);
     }
@@ -188,7 +200,7 @@ public:
 
         // TODO: Rewrite after removal implementation.
         if (node->IsTrunk()) {
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            const auto& cypressManager = GetBootstrap()->GetCypressManager();
             auto path = cypressManager->GetNodePath(node, /*transaction*/ nullptr);
             NSequoiaClient::NRecords::TResolveNodeKey key{
                 .Path = path,
@@ -338,6 +350,11 @@ protected:
         TImpl* trunkNode,
         NTransactionServer::TTransaction* transaction) = 0;
 
+    virtual NTableServer::TMasterTableSchema* DoFindSchema(TImpl* /*node*/) const
+    {
+        return nullptr;
+    }
+
     virtual std::unique_ptr<TImpl> DoCreate(
         NCypressServer::TVersionedNodeId id,
         const TCreateNodeContext& context)
@@ -346,13 +363,13 @@ protected:
         nodeHolder->SetExternalCellTag(context.ExternalCellTag);
         nodeHolder->SetTrunkNode(nodeHolder.get());
 
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& multicellManager = GetBootstrap()->GetMulticellManager();
         if (nodeHolder->GetNativeCellTag() != multicellManager->GetCellTag()) {
             nodeHolder->SetForeign();
             nodeHolder->SetNativeContentRevision(context.NativeContentRevision);
         }
 
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = GetBootstrap()->GetSecurityManager();
         auto* user = securityManager->GetAuthenticatedUser();
         securityManager->ValidatePermission(context.Account, user, NSecurityServer::EPermission::Use);
         // Null is passed as transaction because DoCreate() always creates trunk nodes.

@@ -75,7 +75,7 @@ public:
     // COMPAT(h0pless): RefactorSchemaExport
     virtual TMasterTableSchema* CreateImportedMasterTableSchema(
         const NTableClient::TTableSchema& tableSchema,
-        ISchemafulNode* schemaHolder,
+        TSchemafulNode* schemaHolder,
         TMasterTableSchemaId hintId) = 0;
 
     //! Looks up a schema or creates one if no such schema exists.
@@ -87,7 +87,7 @@ public:
      */
     virtual TMasterTableSchema* GetOrCreateNativeMasterTableSchema(
         const NTableClient::TTableSchema& schema,
-        ISchemafulNode* schemaHolder) = 0;
+        TSchemafulNode* schemaHolder) = 0;
 
     //! Same as above but associates resulting schema with a transaction instead
     //! of a schemaful node.
@@ -108,10 +108,10 @@ public:
 
     virtual TMasterTableSchema* GetEmptyMasterTableSchema() const = 0;
 
-    virtual void SetTableSchema(ISchemafulNode* table, TMasterTableSchema* schema) = 0;
-    virtual void SetTableSchemaOrThrow(ISchemafulNode* table, TMasterTableSchemaId schemaId) = 0;
-    virtual void SetTableSchemaOrCrash(ISchemafulNode* table, TMasterTableSchemaId schemaId) = 0;
-    virtual void ResetTableSchema(ISchemafulNode* table) = 0;
+    virtual void SetTableSchema(TSchemafulNode* table, TMasterTableSchema* schema) = 0;
+    virtual void SetTableSchemaOrThrow(TSchemafulNode* table, TMasterTableSchemaId schemaId) = 0;
+    virtual void SetTableSchemaOrCrash(TSchemafulNode* table, TMasterTableSchemaId schemaId) = 0;
+    virtual void ResetTableSchema(TSchemafulNode* table) = 0;
 
     // NB: Additional set methods are not needed for chunks, since chunks are immutable.
     // On top of that they use smart pointers over schemas, thus removing the need to use manual reset.

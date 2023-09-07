@@ -43,7 +43,7 @@ struct TDynamicTableLock
 
 class TTableNode
     : public NTabletServer::TTabletOwnerBase
-    , public ISchemafulNode
+    , public TSchemafulNode
 {
 private:
     using TTabletStateIndexedVector = TEnumIndexedVector<
@@ -97,7 +97,6 @@ private:
     };
 
 public:
-    DEFINE_BYVAL_RW_PROPERTY(NTableClient::ETableSchemaMode, SchemaMode, NTableClient::ETableSchemaMode::Weak);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetainedTimestamp, NTransactionClient::NullTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, UnflushedTimestamp, NTransactionClient::NullTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(TTableCollocation*, ReplicationCollocation);
@@ -165,9 +164,6 @@ public:
     void Save(NCellMaster::TSaveContext& context) const override;
     void Load(NCellMaster::TLoadContext& context) override;
 
-    void SaveTableSchema(NCellMaster::TSaveContext& context) const;
-    void LoadTableSchema(NCellMaster::TLoadContext& context);
-
     bool IsDynamic() const;
     bool IsQueue() const;
     bool IsTrackedQueueObject() const;
@@ -186,8 +182,6 @@ public:
     NTransactionClient::TTimestamp GetCurrentUnflushedTimestamp(
         NTransactionClient::TTimestamp latestTimestamp) const;
 
-    TMasterTableSchema* GetSchema() const override;
-    void SetSchema(TMasterTableSchema* schema) override;
     NSecurityServer::TAccount* GetAccount() const override;
 
     // COMPAT(h0pless): This is a temporary workaround until schemaful node typehandler is introduced.
@@ -225,8 +219,6 @@ public:
     NTabletServer::THunkStorageNode* GetHunkStorageNode() const;
 
 private:
-    TMasterTableSchema* Schema_ = nullptr;
-
     NTransactionClient::TTimestamp CalculateRetainedTimestamp() const;
     NTransactionClient::TTimestamp CalculateUnflushedTimestamp(
         NTransactionClient::TTimestamp latestTimestamp) const;

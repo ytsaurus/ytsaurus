@@ -43,7 +43,7 @@ private:
         TTransaction* transaction) override
     {
         return CreatePortalEntranceProxy(
-            Bootstrap_,
+            GetBootstrap(),
             &Metadata_,
             transaction,
             trunkNode);
@@ -55,7 +55,7 @@ private:
     {
         auto exitCellTag = context.ExplicitAttributes->GetAndRemove<TCellTag>("exit_cell_tag");
 
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& multicellManager = GetBootstrap()->GetMulticellManager();
 
         if (multicellManager->IsSecondaryMaster()) {
             THROW_ERROR_EXCEPTION("Portal entrance cannot be placed on the secondary cell");
@@ -89,7 +89,7 @@ private:
     void DoDestroy(TPortalEntranceNode* node) override
     {
         if (node->IsTrunk()) {
-            const auto& portalManager = Bootstrap_->GetPortalManager();
+            const auto& portalManager = GetBootstrap()->GetPortalManager();
             portalManager->DestroyEntranceNode(node);
         }
 

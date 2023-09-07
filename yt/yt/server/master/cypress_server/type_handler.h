@@ -50,6 +50,9 @@ struct INodeTypeHandler
     //! Returns the (static) node type.
     virtual NYTree::ENodeType GetNodeType() const = 0;
 
+    //! Returns node schema or |nullptr| if node is not schemaful.
+    virtual NTableServer::TMasterTableSchema* FindSchema(TCypressNode* node) const = 0;
+
     //! Returns static master memory usage.
     virtual i64 GetStaticMasterMemoryUsage() const = 0;
 

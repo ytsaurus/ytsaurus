@@ -13,7 +13,7 @@ from yt_commands import (
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_flush_table,
     suspend_coordinator, resume_coordinator, reshard_table, alter_table, remount_table,
     insert_rows, delete_rows, lookup_rows, select_rows, pull_rows, trim_rows, lock_rows,
-    create_replication_card, alter_table_replica,
+    create_replication_card, alter_table_replica, abort_transaction,
     build_snapshot, wait_for_cells, wait_for_chaos_cell, create_chaos_area,
     sync_create_chaos_cell, create_chaos_cell_bundle, generate_chaos_cell_id,
     align_chaos_cell_tag, migrate_replication_cards, alter_replication_card,
@@ -1149,30 +1149,67 @@ class TestChaos(ChaosTestBase):
         assert attributes["cluster_name"] == "remote_0"
 
     @authors("h0pless")
-    def test_chaos_table_lock(self):
+    def test_chaos_replicated_table_node_type_handler(self):
+        def branch_my_table():
+            tx = start_transaction()
+            lock("//tmp/table", mode="exclusive", tx=tx)
+            assert expected_new_schema == get("//tmp/table/@schema", tx=tx)
+            return tx
+
+        def alter_my_table(tx):
+            alter_table("//tmp/table", schema=original_schema, tx=tx)
+            assert expected_original_schema == get("//tmp/table/@schema", tx=tx)
+
+        original_schema = make_schema(
+            [
+                {"name": "headline", "type": "string"},
+                {"name": "something_something_pineapple", "type": "string"},
+                {"name": "coolness_factor", "type": "int64"},
+            ]
+        )
+        create("table", "//tmp/original_schema_holder", attributes={"schema": original_schema, "external": False})
+        expected_original_schema = get("//tmp/original_schema_holder/@schema")
+
+        new_schema = make_schema(
+            [
+                {"name": "weird_id", "type": "int64"},
+                {"name": "something_something_pomegranate", "type": "string"},
+                {"name": "normal_id", "type": "int64"},
+            ]
+        )
+        create("table", "//tmp/new_schema_holder", attributes={"schema": new_schema, "external": False})
+        expected_new_schema = get("//tmp/new_schema_holder/@schema")
+
         cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
         set("//sys/chaos_cell_bundles/chaos_bundle/@metadata_cell_id", cell_id)
+        create("chaos_replicated_table", "//tmp/table", attributes={"chaos_cell_bundle": "chaos_bundle", "schema": original_schema})
 
-        schema = yson.YsonList([
-            {"name": "key", "type": "int64", "sort_order": "ascending"},
-            {"name": "value", "type": "string"},
-        ])
-        create("chaos_replicated_table", "//tmp/crt", attributes={"chaos_cell_bundle": "chaos_bundle", "schema": schema})
+        # Test that alter still works
+        alter_table("//tmp/table", schema=new_schema)
+        assert expected_new_schema == get("//tmp/table/@schema")
 
-        def _validate_schema(schema):
-            actual_schema = get("//tmp/crt/@schema")
-            assert actual_schema.attributes["unique_keys"]
-            for column, actual_column in zip_longest(schema, actual_schema):
-                for name, value in column.items():
-                    assert actual_column[name] == value
-        _validate_schema(schema)
-
-        tx = start_transaction()
-        lock("//tmp/crt", mode="exclusive", tx=tx)
-        old_schema = get("//tmp/crt/@schema")
-        assert old_schema == get("//tmp/crt/@schema", tx=tx)
+        # Check that nothing changes from branching
+        tx = branch_my_table()
         commit_transaction(tx)
-        assert old_schema == get("//tmp/crt/@schema")
+        assert expected_new_schema == get("//tmp/table/@schema")
+
+        # Check that nothing changes if transaction is aborted
+        tx = branch_my_table()
+        alter_my_table(tx)
+        abort_transaction(tx)
+        assert expected_new_schema == get("//tmp/table/@schema")
+
+        # Check that changes made inside a transaction actually apply
+        tx = branch_my_table()
+        alter_my_table(tx)
+        commit_transaction(tx)
+        assert expected_original_schema == get("//tmp/table/@schema")
+
+        # Cross shard copy if portals are enabled
+        if self.ENABLE_TMP_PORTAL:
+            create("portal_entrance", "//non_tmp", attributes={"exit_cell_tag": 12})
+            copy("//tmp/table", "//non_tmp/table_copy")
+            assert get("//tmp/table/@schema") == get("//non_tmp/table_copy/@schema")
 
     @authors("savrus")
     def test_chaos_table_alter(self):

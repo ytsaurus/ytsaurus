@@ -2758,7 +2758,7 @@ private:
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             auto* emptySchema = Bootstrap_->GetTableManager()->GetEmptyMasterTableSchema();
 
-            auto maybeUpdateEmptySchema = [&] (ISchemafulNode* schemafulNode) {
+            auto maybeUpdateEmptySchema = [&] (TSchemafulNode* schemafulNode) {
                 auto* schema = schemafulNode->GetSchema();
                 if (!multicellManager->IsPrimaryMaster() && schema && *schema->AsTableSchema() == *emptySchema->AsTableSchema()) {
                     tableManager->SetTableSchema(schemafulNode, emptySchema);

@@ -76,12 +76,21 @@ bool IsCompressionCodecValidationSuppressed()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template<class TImpl>
+TTableNodeTypeHandlerBase<TImpl>::TTableNodeTypeHandlerBase(TBootstrap* bootstrap)
+    : TTabletOwnerTypeHandler(bootstrap)
+    , TSchemafulNodeTypeHandler(bootstrap)
+{
+    // NB: Due to virtual inheritance bootstrap has to be explicitly initialized.
+    this->SetBootstrap(bootstrap);
+}
+
 template <class TImpl>
 bool TTableNodeTypeHandlerBase<TImpl>::HasBranchedChangesImpl(
     TImpl* originatingNode,
     TImpl* branchedNode)
 {
-    if (TBase::HasBranchedChangesImpl(originatingNode, branchedNode))  {
+    if (TTabletOwnerTypeHandler::HasBranchedChangesImpl(originatingNode, branchedNode))  {
         return true;
     }
 
@@ -99,8 +108,8 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     TVersionedNodeId id,
     const TCreateNodeContext& context)
 {
-    const auto& cypressManagerConfig = this->Bootstrap_->GetConfig()->CypressManager;
-    const auto& chunkManagerConfig = this->Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager;
+    const auto& cypressManagerConfig = this->GetBootstrap()->GetConfig()->CypressManager;
+    const auto& chunkManagerConfig = this->GetBootstrap()->GetConfigManager()->GetConfig()->ChunkManager;
 
     if (!IsCompressionCodecValidationSuppressed()) {
         if (auto compressionCodecValue = context.ExplicitAttributes->FindYson("compression_codec")) {
@@ -147,7 +156,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     auto schemaId = combinedAttributes->GetAndRemove<TObjectId>("schema_id", NullObjectId);
     auto schemaMode = combinedAttributes->GetAndRemove<ETableSchemaMode>("schema_mode", ETableSchemaMode::Weak);
 
-    const auto& tableManager = this->Bootstrap_->GetTableManager();
+    const auto& tableManager = this->GetBootstrap()->GetTableManager();
     const auto* effectiveTableSchema = tableManager->ProcessSchemaFromAttributes(
         tableSchema,
         schemaId,
@@ -174,7 +183,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         THROW_ERROR_EXCEPTION("Replication progress can only be initialized for tables bound for chaos replication");
     }
 
-    const auto& tabletManager = this->Bootstrap_->GetTabletManager();
+    const auto& tabletManager = this->GetBootstrap()->GetTabletManager();
     auto* tabletCellBundle = optionalTabletCellBundleName
         ? tabletManager->GetTabletCellBundleByNameOrThrow(*optionalTabletCellBundleName, true /*activeLifeStageOnly*/)
         : tabletManager->GetDefaultTabletCellBundle();
@@ -312,17 +321,9 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
 }
 
 template <class TImpl>
-void TTableNodeTypeHandlerBase<TImpl>::DoZombify(TImpl* table)
-{
-    TBase::DoZombify(table);
-}
-
-template <class TImpl>
 void TTableNodeTypeHandlerBase<TImpl>::DoDestroy(TImpl* table)
 {
-    TBase::DoDestroy(table);
-
-    const auto& tableManager = this->Bootstrap_->GetTableManager();
+    const auto& tableManager = this->GetBootstrap()->GetTableManager();
     if (table->IsTrackedQueueObject()) {
         tableManager->UnregisterQueue(table);
     }
@@ -331,7 +332,8 @@ void TTableNodeTypeHandlerBase<TImpl>::DoDestroy(TImpl* table)
         tableManager->UnregisterConsumer(table);
     }
 
-    tableManager->ResetTableSchema(table);
+    TTabletOwnerTypeHandler::DoDestroy(table);
+    TSchemafulNodeTypeHandler::DoDestroy(table);
 
     // TODO(aleksandra-zh, gritukan): consider moving that to Zombify.
     table->ResetHunkStorageNode();
@@ -343,11 +345,10 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBranch(
     TImpl* branchedNode,
     const TLockRequest& lockRequest)
 {
-    const auto& tableManager = this->Bootstrap_->GetTableManager();
-    tableManager->SetTableSchema(branchedNode, originatingNode->GetSchema());
+    TTabletOwnerTypeHandler::DoBranch(originatingNode, branchedNode, lockRequest);
+    TSchemafulNodeTypeHandler::DoBranch(originatingNode, branchedNode, lockRequest);
 
     branchedNode->SetHunkStorageNode(originatingNode->GetHunkStorageNode());
-    branchedNode->SetSchemaMode(originatingNode->GetSchemaMode());
     branchedNode->SetOptimizeFor(originatingNode->GetOptimizeFor());
     branchedNode->SetHunkErasureCodec(originatingNode->GetHunkErasureCodec());
     branchedNode->SetProfilingMode(originatingNode->GetProfilingMode());
@@ -360,8 +361,6 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBranch(
     // Save current retained and unflushed timestamps in locked node.
     branchedNode->SetRetainedTimestamp(originatingNode->GetCurrentRetainedTimestamp());
     branchedNode->SetUnflushedTimestamp(originatingNode->GetCurrentUnflushedTimestamp(lockRequest.Timestamp));
-
-    TBase::DoBranch(originatingNode, branchedNode, lockRequest);
 }
 
 template <class TImpl>
@@ -369,18 +368,11 @@ void TTableNodeTypeHandlerBase<TImpl>::DoMerge(
     TImpl* originatingNode,
     TImpl* branchedNode)
 {
-    const auto& tableManager = this->Bootstrap_->GetTableManager();
-
     bool isQueueObjectBefore = originatingNode->IsTrackedQueueObject();
-
-    tableManager->SetTableSchema(originatingNode, branchedNode->GetSchema());
-
-    tableManager->ResetTableSchema(branchedNode);
 
     originatingNode->SetHunkStorageNode(branchedNode->GetHunkStorageNode());
     branchedNode->ResetHunkStorageNode();
 
-    originatingNode->SetSchemaMode(branchedNode->GetSchemaMode());
     originatingNode->MergeOptimizeFor(branchedNode);
     originatingNode->MergeHunkErasureCodec(branchedNode);
     originatingNode->SetProfilingMode(branchedNode->GetProfilingMode());
@@ -390,8 +382,10 @@ void TTableNodeTypeHandlerBase<TImpl>::DoMerge(
         *originatingNode->GetMutableMountConfigStorage() = *branchedMountConfig;
     }
 
-    TBase::DoMerge(originatingNode, branchedNode);
+    TTabletOwnerTypeHandler::DoMerge(originatingNode, branchedNode);
+    TSchemafulNodeTypeHandler::DoMerge(originatingNode, branchedNode);
 
+    const auto& tableManager = this->GetBootstrap()->GetTableManager();
     bool isQueueObjectAfter = originatingNode->IsTrackedQueueObject();
     if (isQueueObjectAfter != isQueueObjectBefore) {
         if (isQueueObjectAfter) {
@@ -410,14 +404,11 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     ENodeCloneMode mode,
     TAccount* account)
 {
-    TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
-
-    const auto& tableManager = this->Bootstrap_->GetTableManager();
-    tableManager->SetTableSchema(clonedTrunkNode, sourceNode->GetSchema());
+    TTabletOwnerTypeHandler::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
+    TSchemafulNodeTypeHandler::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
 
     clonedTrunkNode->SetHunkStorageNode(sourceNode->GetHunkStorageNode());
 
-    clonedTrunkNode->SetSchemaMode(sourceNode->GetSchemaMode());
     clonedTrunkNode->SetOptimizeFor(sourceNode->GetOptimizeFor());
     if (auto optionalChunkFormat = sourceNode->TryGetChunkFormat()) {
         clonedTrunkNode->SetChunkFormat(*optionalChunkFormat);
@@ -430,6 +421,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
             trunkSourceNode->GetCustomDynamicTableAttributes());
     }
 
+    const auto& tableManager = this->GetBootstrap()->GetTableManager();
     if (clonedTrunkNode->IsTrackedQueueObject()) {
         tableManager->RegisterQueue(clonedTrunkNode);
     }
@@ -440,7 +432,8 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBeginCopy(
     TImpl* node,
     TBeginCopyContext* context)
 {
-    TBase::DoBeginCopy(node, context);
+    TTabletOwnerTypeHandler::DoBeginCopy(node, context);
+    TSchemafulNodeTypeHandler::DoBeginCopy(node, context);
 
     if (node->IsDynamic()) {
         // This is just a precaution. Copying dynamic tables should be fine: yes,
@@ -448,7 +441,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBeginCopy(
         // to an external cell via Hive and a mount request arriving there via RPC
         // (as part of 2PC). This race, however, is prevented by both mounting and
         // externalization taking exclusive lock beforehand.
-        const auto& configManager = this->Bootstrap_->GetConfigManager();
+        const auto& configManager = this->GetBootstrap()->GetConfigManager();
         const auto& config = configManager->GetConfig()->CypressManager;
         if (!config->AllowCrossShardDynamicTableCopying) {
             THROW_ERROR_EXCEPTION("Dynamic tables do not support cross-cell copying");
@@ -462,15 +455,11 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBeginCopy(
 
     using NYT::Save;
 
-    auto* trunkNode = node->GetTrunkNode();
-
-    Save(*context, node->GetSchema());
-
-    Save(*context, node->GetSchemaMode());
     Save(*context, node->GetOptimizeFor());
     Save(*context, node->TryGetChunkFormat());
     Save(*context, node->GetHunkErasureCodec());
 
+    auto* trunkNode = node->GetTrunkNode();
     Save(*context, trunkNode->HasCustomDynamicTableAttributes());
     if (trunkNode->HasCustomDynamicTableAttributes()) {
         trunkNode->GetCustomDynamicTableAttributes()->BeginCopy(context);
@@ -483,17 +472,13 @@ void TTableNodeTypeHandlerBase<TImpl>::DoEndCopy(
     TEndCopyContext* context,
     ICypressNodeFactory* factory)
 {
-    TBase::DoEndCopy(node, context, factory);
+    TTabletOwnerTypeHandler::DoEndCopy(node, context, factory);
+    TSchemafulNodeTypeHandler::DoEndCopy(node, context, factory);
 
     // TODO(babenko): support copying dynamic tables
 
     using NYT::Load;
 
-    const auto& tableManager = this->Bootstrap_->GetTableManager();
-    auto* schema = Load<TMasterTableSchema*>(*context);
-    tableManager->SetTableSchema(node, schema);
-
-    node->SetSchemaMode(Load<ETableSchemaMode>(*context));
     node->SetOptimizeFor(Load<EOptimizeFor>(*context));
     if (auto optionalChunkFormat = Load<std::optional<EChunkFormat>>(*context)) {
         node->SetChunkFormat(*optionalChunkFormat);
@@ -506,6 +491,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoEndCopy(
     }
 
     // TODO(achulkov2): Add corresponding test once copying dynamic tables is supported. Please ping me :)
+    const auto& tableManager = this->GetBootstrap()->GetTableManager();
     if (node->IsTrackedQueueObject()) {
         tableManager->RegisterQueue(node);
     }
@@ -527,7 +513,7 @@ bool TTableNodeTypeHandlerBase<TImpl>::IsSupportedInheritableAttribute(const TSt
         return true;
     }
 
-    return TBase::IsSupportedInheritableAttribute(key);
+    return TTabletOwnerTypeHandler::IsSupportedInheritableAttribute(key);
 }
 
 template <class TImpl>
@@ -546,6 +532,13 @@ std::optional<std::vector<TString>> TTableNodeTypeHandlerBase<TImpl>::DoListColu
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTableNodeTypeHandler::TTableNodeTypeHandler(TBootstrap* bootstrap)
+    : TBase(bootstrap)
+{
+    // NB: Due to virtual inheritance bootstrap has to be explicitly initialized.
+    SetBootstrap(bootstrap);
+}
+
 EObjectType TTableNodeTypeHandler::GetObjectType() const
 {
     return EObjectType::Table;
@@ -556,7 +549,7 @@ ICypressNodeProxyPtr TTableNodeTypeHandler::DoGetProxy(
     TTransaction* transaction)
 {
     return CreateTableNodeProxy(
-        Bootstrap_,
+        GetBootstrap(),
         &Metadata_,
         transaction,
         trunkNode);
@@ -564,12 +557,26 @@ ICypressNodeProxyPtr TTableNodeTypeHandler::DoGetProxy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TReplicationLogTableNodeTypeHandler::TReplicationLogTableNodeTypeHandler(TBootstrap* bootstrap)
+    : TTableNodeTypeHandler(bootstrap)
+{
+    // NB: Due to virtual inheritance bootstrap has to be explicitly initialized.
+    SetBootstrap(bootstrap);
+}
+
 EObjectType TReplicationLogTableNodeTypeHandler::GetObjectType() const
 {
     return EObjectType::ReplicationLogTable;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TReplicatedTableNodeTypeHandler::TReplicatedTableNodeTypeHandler(TBootstrap* bootstrap)
+    : TBase(bootstrap)
+{
+    // NB: Due to virtual inheritance bootstrap has to be explicitly initialized.
+    SetBootstrap(bootstrap);
+}
 
 EObjectType TReplicatedTableNodeTypeHandler::GetObjectType() const
 {
@@ -589,7 +596,7 @@ ICypressNodeProxyPtr TReplicatedTableNodeTypeHandler::DoGetProxy(
     TTransaction* transaction)
 {
     return CreateReplicatedTableNodeProxy(
-        Bootstrap_,
+        GetBootstrap(),
         &Metadata_,
         transaction,
         trunkNode);

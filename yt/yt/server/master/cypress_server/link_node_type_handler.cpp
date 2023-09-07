@@ -46,7 +46,7 @@ private:
         TTransaction* transaction) override
     {
         return CreateLinkNodeProxy(
-            Bootstrap_,
+            GetBootstrap(),
             &Metadata_,
             transaction,
             trunkNode);
@@ -60,7 +60,7 @@ private:
 
         auto enableSymlinkCyclicityCheck = GetDynamicCypressManagerConfig()->EnableSymlinkCyclicityCheck;
         if (enableSymlinkCyclicityCheck) {
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            const auto& cypressManager = GetBootstrap()->GetCypressManager();
             auto originalLinkPath = cypressManager->GetNodePath(context.ServiceTrunkNode, context.Transaction) + context.UnresolvedPathSuffix;
 
             //  Make sure originalLinkPath and originalTargetPath get resolved properly.
@@ -84,7 +84,7 @@ private:
                 linkPath += "&";
             }
 
-            TPathResolver linkPathResolver(Bootstrap_, nullService, nullMethod, linkPath, context.Transaction);
+            TPathResolver linkPathResolver(GetBootstrap(), nullService, nullMethod, linkPath, context.Transaction);
             auto linkPathResolveResult = linkPathResolver.Resolve(TPathResolverOptions());
 
             TCypressNode* linkPathObject = getPayloadObject(linkPathResolveResult);
@@ -121,7 +121,7 @@ private:
                     // 4th resolve: //tmp/node1/symlink1/node2/symlink2/symlink3/node3
                     // 5th resolve: //tmp/node1/symlink1/node2/symlink2/symlink3/node3
                     // Resolve 4 and 5 returned the same object -> stop the resolve loop.
-                    TPathResolver pathResolver(Bootstrap_, nullService, nullMethod, currentResolvePath, context.Transaction);
+                    TPathResolver pathResolver(GetBootstrap(), nullService, nullMethod, currentResolvePath, context.Transaction);
                     auto pathResolveResult = pathResolver.Resolve(options);
                     auto pathObject = getPayloadObject(pathResolveResult);
                     // Patching resolve depth to make sure we don't go into an infinite loop.

@@ -2707,6 +2707,74 @@ class TestTables(YTEnvSetup):
         )
         assert read_table("//tmp/t_in") == rows
 
+    @authors("h0pless")
+    def test_schemaful_node_type_handler(self):
+        def create_table_on_specific_cell(path, schema):
+            if self.is_multicell():
+                create("table", path, attributes={"schema": schema, "external_cell_tag": 13})
+            else:
+                create("table", path, attributes={"schema": schema, "external": False})
+
+        def branch_my_table():
+            tx = start_transaction()
+            lock("//tmp/table", mode="exclusive", tx=tx)
+            assert new_schema_id == get("//tmp/table/@schema_id", tx=tx)
+            return tx
+
+        def alter_my_table(tx):
+            alter_table("//tmp/table", schema=original_schema, tx=tx)
+            assert original_schema_id == get("//tmp/table/@schema_id", tx=tx)
+
+        original_schema = make_schema(
+            [
+                {"name": "headline", "type": "string"},
+                {"name": "something_something_pineapple", "type": "string"},
+                {"name": "coolness_factor", "type": "int64"},
+            ]
+        )
+        create_table_on_specific_cell("//tmp/original_schema_holder", original_schema)
+        original_schema_id = get("//tmp/original_schema_holder/@schema_id")
+
+        new_schema = make_schema(
+            [
+                {"name": "weird_id", "type": "int64"},
+                {"name": "something_something_pomegranate", "type": "string"},
+                {"name": "normal_id", "type": "int64"},
+            ]
+        )
+        create_table_on_specific_cell("//tmp/new_schema_holder", new_schema)
+        new_schema_id = get("//tmp/new_schema_holder/@schema_id")
+
+        create_table_on_specific_cell("//tmp/table", original_schema)
+
+        # Test that alter still works
+        alter_table("//tmp/table", schema=new_schema)
+        assert new_schema_id == get("//tmp/table/@schema_id")
+
+        # Check that nothing changes from branching
+        tx = branch_my_table()
+        commit_transaction(tx)
+        assert new_schema_id == get("//tmp/table/@schema_id")
+
+        # Check that nothing changes if transaction is aborted
+        tx = branch_my_table()
+        alter_my_table(tx)
+        abort_transaction(tx)
+        assert new_schema_id == get("//tmp/table/@schema_id")
+
+        # Check that changes made inside a transaction actually apply
+        tx = branch_my_table()
+        alter_my_table(tx)
+        commit_transaction(tx)
+        assert original_schema_id == get("//tmp/table/@schema_id")
+
+        # Cross shard copy if portals are enabled
+        if self.ENABLE_TMP_PORTAL:
+            create("portal_entrance", "//non_tmp", attributes={"exit_cell_tag": 12})
+            copy("//tmp/table", "//non_tmp/table_copy")
+            assert get("//tmp/table/@schema") == get("//non_tmp/table_copy/@schema")
+
+
 ##################################################################
 
 

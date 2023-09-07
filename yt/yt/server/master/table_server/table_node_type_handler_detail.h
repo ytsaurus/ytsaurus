@@ -2,6 +2,8 @@
 
 #include "table_node.h"
 
+#include <yt/yt/server/master/table_server/schemaful_node_type_handler.h>
+
 #include <yt/yt/server/master/tablet_server/tablet_owner_type_handler_base.h>
 
 #include <yt/yt/core/ytree/public.h>
@@ -13,12 +15,14 @@ namespace NYT::NTableServer {
 template <class TImpl>
 class TTableNodeTypeHandlerBase
     : public NTabletServer::TTabletOwnerTypeHandlerBase<TImpl>
+    , public TSchemafulNodeTypeHandlerBase<TImpl>
 {
 private:
-    using TBase = NTabletServer::TTabletOwnerTypeHandlerBase<TImpl>;
+    using TTabletOwnerTypeHandler = NTabletServer::TTabletOwnerTypeHandlerBase<TImpl>;
+    using TSchemafulNodeTypeHandler = TSchemafulNodeTypeHandlerBase<TImpl>;
 
 public:
-    using TBase::TBase;
+    explicit TTableNodeTypeHandlerBase(NCellMaster::TBootstrap* bootstrap);
 
     bool IsSupportedInheritableAttribute(const TString& key) const override;
 
@@ -28,8 +32,6 @@ protected:
     std::unique_ptr<TImpl> DoCreate(
         NCypressServer::TVersionedNodeId id,
         const NCypressServer::TCreateNodeContext& context) override;
-
-    void DoZombify(TImpl* table) override;
 
     void DoDestroy(TImpl* table) override;
 
@@ -67,7 +69,7 @@ private:
     using TBase = TTableNodeTypeHandlerBase<TTableNode>;
 
 public:
-    using TBase::TBase;
+    explicit TTableNodeTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
     NObjectClient::EObjectType GetObjectType() const override;
 
@@ -83,7 +85,7 @@ class TReplicationLogTableNodeTypeHandler
     : public TTableNodeTypeHandler
 {
 public:
-    using TTableNodeTypeHandler::TTableNodeTypeHandler;
+    explicit TReplicationLogTableNodeTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
     NObjectClient::EObjectType GetObjectType() const override;
 };
@@ -97,7 +99,7 @@ private:
     using TBase = TTableNodeTypeHandlerBase<TReplicatedTableNode>;
 
 public:
-    using TBase::TBase;
+    explicit TReplicatedTableNodeTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
     NObjectClient::EObjectType GetObjectType() const override;
 

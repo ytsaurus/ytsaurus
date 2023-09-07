@@ -12,6 +12,7 @@
 
 #include <yt/yt/server/master/cell_server/tamed_cell_manager.h>
 
+#include <yt/yt/server/master/table_server/schemaful_node_type_handler.h>
 #include <yt/yt/server/master/table_server/table_manager.h>
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
@@ -39,10 +40,18 @@ static const auto& Logger = ChaosServerLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChaosReplicatedTableTypeHandler
-    : public TCypressNodeTypeHandlerBase<TChaosReplicatedTableNode>
+    : public TSchemafulNodeTypeHandlerBase<TChaosReplicatedTableNode>
 {
+private:
+    using TBase = TSchemafulNodeTypeHandlerBase<TChaosReplicatedTableNode>;
+
 public:
-    using TCypressNodeTypeHandlerBase::TCypressNodeTypeHandlerBase;
+    explicit TChaosReplicatedTableTypeHandler(TBootstrap* bootstrap)
+        : TBase(bootstrap)
+    {
+        // NB: Due to virtual inheritance bootstrap has to be explicitly initialized.
+        SetBootstrap(bootstrap);
+    }
 
     EObjectType GetObjectType() const override
     {
@@ -60,7 +69,7 @@ private:
         TTransaction* transaction) override
     {
         return CreateChaosReplicatedTableNodeProxy(
-            Bootstrap_,
+            GetBootstrap(),
             &Metadata_,
             transaction,
             trunkNode);
@@ -77,7 +86,7 @@ private:
             THROW_ERROR_EXCEPTION("\"chaos_cell_bundle\" is neither specified nor inherited");
         }
 
-        const auto& chaosManager = Bootstrap_->GetChaosManager();
+        const auto& chaosManager = GetBootstrap()->GetChaosManager();
         auto* chaosCellBundle = chaosManager->GetChaosCellBundleByNameOrThrow(*optionalChaosCellBundleName, /*activeLifeStageOnly*/ true);
 
         auto replicationCardId = combinedAttributes->GetAndRemove<TReplicationCardId>("replication_card_id", {});
@@ -90,7 +99,7 @@ private:
         auto tableSchema = combinedAttributes->FindAndRemove<TTableSchemaPtr>("schema");
         auto schemaId = combinedAttributes->GetAndRemove<TObjectId>("schema_id", NullObjectId);
 
-        const auto& tableManager = this->Bootstrap_->GetTableManager();
+        const auto& tableManager = this->GetBootstrap()->GetTableManager();
         // NB: Chaos replicated table is always native.
         auto* effectiveTableSchema = tableManager->ProcessSchemaFromAttributes(
             tableSchema,
@@ -99,7 +108,7 @@ private:
             /*chaos*/ true,
             /*nodeId*/ id);
 
-        auto nodeHolder = TCypressNodeTypeHandlerBase::DoCreate(id, context);
+        auto nodeHolder = TBase::DoCreate(id, context);
         auto* node = nodeHolder.get();
 
         try {
@@ -114,6 +123,9 @@ private:
                 tableManager->SetTableSchema(node, emptyTableSchema);
             }
 
+            // NB: Schema mode is always strong in chaos replicated tables.
+            node->SetSchemaMode(ETableSchemaMode::Strong);
+
             if (node->IsTrackedConsumerObject()) {
                 chaosManager->RegisterConsumer(node);
             }
@@ -123,6 +135,7 @@ private:
 
             return nodeHolder;
         } catch (const std::exception&) {
+            this->Zombify(node);
             this->Destroy(node);
             throw;
         }
@@ -138,14 +151,14 @@ private:
             return true;
         }
 
-        return TCypressNodeTypeHandlerBase::IsSupportedInheritableAttribute(key);
+        return TBase::IsSupportedInheritableAttribute(key);
     }
 
     void PostReplicationCardRemovalRequest(TChaosReplicatedTableNode* node)
     {
         auto cellTag = CellTagFromId(node->GetReplicationCardId());
 
-        const auto& cellManager = Bootstrap_->GetTamedCellManager();
+        const auto& cellManager = GetBootstrap()->GetTamedCellManager();
         auto* chaosCell = cellManager->FindCellByCellTag(cellTag);
         if (!IsObjectAlive(chaosCell)) {
             YT_LOG_WARNING("No chaos cell hosting replication card is known (ReplicationCardId: %v, CellTag: %v)",
@@ -154,7 +167,7 @@ private:
             return;
         }
 
-        const auto& hiveManager = Bootstrap_->GetHiveManager();
+        const auto& hiveManager = GetBootstrap()->GetHiveManager();
         auto* mailbox = hiveManager->FindMailbox(chaosCell->GetId());
         if (!mailbox) {
             YT_LOG_WARNING("No mailbox exists for chaos cell (ReplicationCardId: %v, ChaosCellId: %v)",
@@ -173,28 +186,18 @@ private:
         hiveManager->PostMessage(mailbox, request);
     }
 
-    void DoMerge(TChaosReplicatedTableNode* originatingNode, TChaosReplicatedTableNode* branchedNode) override
-    {
-        const auto& tableManager = Bootstrap_->GetTableManager();
-        tableManager->SetTableSchema(originatingNode, branchedNode->GetSchema());
-        tableManager->ResetTableSchema(branchedNode);
-    }
-
     void DoDestroy(TChaosReplicatedTableNode* node) override
     {
         if (node->IsTrunk() && node->GetOwnsReplicationCard()) {
             PostReplicationCardRemovalRequest(node);
         }
 
-        const auto& tableManager = Bootstrap_->GetTableManager();
-        tableManager->ResetTableSchema(node);
-
-        TCypressNodeTypeHandlerBase::DoDestroy(node);
+        TBase::DoDestroy(node);
     }
 
     void DoZombify(TChaosReplicatedTableNode* node) override
     {
-        const auto& chaosManager = Bootstrap_->GetChaosManager();
+        const auto& chaosManager = GetBootstrap()->GetChaosManager();
         if (node->IsTrackedConsumerObject()) {
             chaosManager->UnregisterConsumer(node);
         }
@@ -202,7 +205,7 @@ private:
             chaosManager->UnregisterQueue(node);
         }
 
-        TCypressNodeTypeHandlerBase::DoZombify(node);
+        TBase::DoZombify(node);
     }
 
     void DoBranch(
@@ -210,13 +213,10 @@ private:
         TChaosReplicatedTableNode* branchedNode,
         const TLockRequest& lockRequest) override
     {
-        TCypressNodeTypeHandlerBase::DoBranch(originatingNode, branchedNode, lockRequest);
+        TBase::DoBranch(originatingNode, branchedNode, lockRequest);
 
         branchedNode->SetReplicationCardId(originatingNode->GetReplicationCardId());
         branchedNode->SetOwnsReplicationCard(originatingNode->GetOwnsReplicationCard());
-
-        const auto& tableManager = Bootstrap_->GetTableManager();
-        tableManager->SetTableSchema(branchedNode, originatingNode->GetSchema());
     }
 
     void DoClone(
@@ -226,17 +226,15 @@ private:
         ENodeCloneMode mode,
         TAccount* account) override
     {
-        TCypressNodeTypeHandlerBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
+        TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
 
-        const auto& chaosManager = Bootstrap_->GetChaosManager();
+        const auto& chaosManager = GetBootstrap()->GetChaosManager();
         chaosManager->SetChaosCellBundle(clonedTrunkNode, sourceNode->ChaosCellBundle().Get());
 
         clonedTrunkNode->SetReplicationCardId(sourceNode->GetReplicationCardId());
         // NB: Cannot share ownership.
         clonedTrunkNode->SetOwnsReplicationCard(false);
 
-        const auto& tableManager = Bootstrap_->GetTableManager();
-        tableManager->SetTableSchema(clonedTrunkNode, sourceNode->GetSchema());
         if (clonedTrunkNode->IsTrackedQueueObject()) {
             chaosManager->RegisterQueue(clonedTrunkNode);
         }
@@ -246,13 +244,12 @@ private:
         TChaosReplicatedTableNode* node,
         TBeginCopyContext* context) override
     {
-        TCypressNodeTypeHandlerBase::DoBeginCopy(node, context);
+        TBase::DoBeginCopy(node, context);
 
         using NYT::Save;
         Save(*context, node->ChaosCellBundle());
         Save(*context, node->GetReplicationCardId());
         Save(*context, node->GetOwnsReplicationCard());
-        Save(*context, node->GetSchema());
     }
 
     void DoEndCopy(
@@ -260,20 +257,17 @@ private:
         TEndCopyContext* context,
         ICypressNodeFactory* factory) override
     {
-        TCypressNodeTypeHandlerBase::DoEndCopy(trunkNode, context, factory);
+        TBase::DoEndCopy(trunkNode, context, factory);
 
         using NYT::Load;
 
         auto* chaosCellBundle = Load<TChaosCellBundle*>(*context);
-        const auto& chaosManager = Bootstrap_->GetChaosManager();
+        const auto& chaosManager = GetBootstrap()->GetChaosManager();
         chaosManager->SetChaosCellBundle(trunkNode, chaosCellBundle);
 
         trunkNode->SetReplicationCardId(Load<TReplicationCardId>(*context));
         trunkNode->SetOwnsReplicationCard(Load<bool>(*context));
 
-        const auto& tableManager = this->Bootstrap_->GetTableManager();
-        auto* schema = Load<TMasterTableSchema*>(*context);
-        tableManager->SetTableSchema(trunkNode, schema);
         if (trunkNode->IsTrackedQueueObject()) {
             chaosManager->RegisterQueue(trunkNode);
         }

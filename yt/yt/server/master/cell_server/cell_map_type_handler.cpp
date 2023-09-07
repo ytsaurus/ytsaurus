@@ -41,7 +41,7 @@ private:
         TTransaction* transaction) override
     {
         return CreateCellMapProxy(
-            Bootstrap_,
+            GetBootstrap(),
             &Metadata_,
             transaction,
             trunkNode,

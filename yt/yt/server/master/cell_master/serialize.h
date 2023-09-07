@@ -151,6 +151,7 @@ DEFINE_ENUM(EMasterReign,
     ((InMemoryModeAndBundleInExperimentDescriptor)                  (2420))  // dave11ar
     ((PortalPermissionValidationBugFix)                             (2421))  // shakurov
     ((ForbidIrreversibleChanges)                                    (2422))  // vovamelnikov
+    ((AddSchemafulNodeTypeHandler)                                  (2423))  // h0pless
 );
 
 ////////////////////////////////////////////////////////////////////////////////
