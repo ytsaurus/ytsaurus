@@ -1,0 +1,17 @@
+commit 3215259d6168b02701005300f69cde957b7f6db8 (HEAD -> SPYT-483_return_spark_version, arcadia/users/alex-shishkin/SPYT-483_return_spark_version)
+author: alex-shishkin
+date: 2023-09-07T18:50:24+03:00
+
+    SPYT-483: Fix spark version
+
+--- yt/spark/spark/core/pom.xml	(79dd6849da60222b9a15d04e610f45527fde1681)
++++ yt/spark/spark/core/pom.xml	(3215259d6168b02701005300f69cde957b7f6db8)
+@@ -543,7 +543,7 @@
+                 <exec executable="bash">
+                   <arg value="${project.basedir}/../build/spark-build-info"/>
+                   <arg value="${project.build.directory}/extra-resources"/>
+-                  <arg value="${project.version}"/>
++                  <arg value="${project.parent.version}"/>
+                 </exec>
+               </target>
+             </configuration>

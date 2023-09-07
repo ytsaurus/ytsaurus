@@ -543,7 +543,7 @@
                 <exec executable="bash">
                   <arg value="${project.basedir}/../build/spark-build-info"/>
                   <arg value="${project.build.directory}/extra-resources"/>
-                  <arg value="${project.version}"/>
+                  <arg value="${project.parent.version}"/>
                 </exec>
               </target>
             </configuration>
