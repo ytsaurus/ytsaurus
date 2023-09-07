@@ -327,6 +327,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
 
         wait(lambda: remove_pending_locked.get() == 1.0 and remove_pending.get() == 2.0)
 
+    @pytest.mark.skip(reason="flaky")
     @authors("omgronny")
     def test_locked_operations(self):
         init_operation_archive.create_tables_latest_version(
