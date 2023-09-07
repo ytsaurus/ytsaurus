@@ -177,7 +177,7 @@ void TGpuManager::OnDynamicConfigChanged(
     } else {
         FetchDriverLayerExecutor_->SetPeriod(Config_->DriverLayerFetchPeriod);
     }
-    if (gpuManagerConfig) {
+    if (gpuManagerConfig && gpuManagerConfig->GpuInfoSource) {
         // XXX(ignat): avoid this hack.
         if (!gpuManagerConfig->GpuInfoSource->NvGpuManagerDevicesCgroupPath) {
             gpuManagerConfig->GpuInfoSource->NvGpuManagerDevicesCgroupPath = Config_->GpuInfoSource->NvGpuManagerDevicesCgroupPath;
