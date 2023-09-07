@@ -3,7 +3,6 @@
 #include "config.h"
 #include "private.h"
 #include "helpers.h"
-#include "yt/yt/core/misc/public.h"
 
 #include <yt/yt/core/http/client.h>
 #include <yt/yt/core/http/helpers.h>
