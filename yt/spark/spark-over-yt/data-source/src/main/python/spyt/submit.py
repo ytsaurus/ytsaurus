@@ -18,13 +18,16 @@ def launch_gateway(memory="512m",
                    java_home=None,
                    java_opts=None,
                    additional_jars=None,
-                   additional_environ=None):
+                   additional_environ=None,
+                   prefer_ipv6=False):  # Internal Yandex users must enable ipv6 option by default
     spark_home = _find_spark_home()
     java = os.path.join(java_home, "bin", "java") if java_home else "java"
     additional_jars = additional_jars or []
 
     command = [java, "-Xmx{}".format(memory)]
     command += java_opts or []
+    if prefer_ipv6:
+        command.append('-Djava.net.preferIPv6Addresses=true')
     command += ["-cp", ":".join(additional_jars + _submit_classpath()), "tech.ytsaurus.spyt.submit.PythonGatewayServer"]
 
     conn_info_dir = tempfile.mkdtemp()
@@ -62,8 +65,9 @@ def launch_gateway(memory="512m",
         shutil.rmtree(conn_info_dir)
 
     # Connect to the gateway (or client server to pin the thread between JVM and Python)
+    address = '::-1' if prefer_ipv6 else '127.0.0.1'
     gateway = JavaGateway(
-        gateway_parameters=GatewayParameters(port=gateway_port,
+        gateway_parameters=GatewayParameters(address=address, port=gateway_port,
                                              auth_token=gateway_secret,
                                              auto_convert=True))
 
