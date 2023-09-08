@@ -7,12 +7,14 @@ script_name=$0
 ytsaurus_source_path="."
 namespace=""
 image=""
+systest_image=""
 
 print_usage() {
     cat << EOF
 Usage: $script_name [-h|--help]
                     [--ytsaurus-source-path /path/to/ytsaurus.repo]
                     [--image registry/path/to/image:tag]
+                    [--systest-image registry/path/to/systest/image:tag]
                     [--namespace namespace]
 EOF
     exit 1
@@ -31,6 +33,10 @@ while [[ $# -gt 0 ]]; do
         ;;
         --image)
         image="$2"
+        shift 2
+        ;;
+        --systest-image)
+        systest_image="$2"
         shift 2
         ;;
         *)
@@ -52,7 +58,7 @@ tester_flags=""
 name_cluster="ytsaurus"
 name_tester="tester"
 name_systest="systest"
-name_new_stress_test="new_stress_test"
+name_new_stress_test="newstresstest"
 
 if [[ ${namespace} != "" ]]; then
   kubectl create namespace ${namespace}
@@ -61,7 +67,7 @@ if [[ ${namespace} != "" ]]; then
   name_cluster="ytsaurus-${namespace}"
   name_tester="tester-${namespace}"
   name_systest="systest-${namespace}"
-  name_new_stress_test="new_stress_test-${namespace}"
+  name_new_stress_test="newstresstest-${namespace}"
 fi
 
 helm install ${nsflags} ${name_cluster} --set YtsaurusImagePath=${image} ${ytsaurus_source_path}/yt/systest/helm/cluster
@@ -70,8 +76,9 @@ helm install ${nsflags} ${name_cluster} --set YtsaurusImagePath=${image} ${ytsau
 helm install ${nsflags} ${name_tester} --set YtsaurusImagePath=${image} ${ytsaurus_source_path}/yt/systest/helm/tester
 bash ${ytsaurus_source_path}/yt/systest/scripts/wait.sh --name tester ${tester_flags}
 
-helm install ${nsflags} ${name_systest} --set YtsaurusImagePath=${image} ${ytsaurus_source_path}/yt/systest/helm/systest
+helm install ${nsflags} ${name_systest} --set SystestImagePath=${systest_image} ${ytsaurus_source_path}/yt/systest/helm/systest
 bash ${ytsaurus_source_path}/yt/systest/scripts/wait.sh --wait-minutes 60  --name systest ${tester_flags}
 
-helm install ${nsflags} ${name_new_stress_test} --set YtsaurusImagePath=${image} ${ytsaurus_source_path}/yt/systest/helm/new_stress_test
-bash ${ytsaurus_source_path}/yt/systest/scripts/wait.sh --wait-minutes 60  --name new_stress_test ${tester_flags}
+# NOTE(orlovorlov) temporarily disable new_stress_test until a user job can run in a docker image. It needs numpy.
+#helm install ${nsflags} ${name_new_stress_test} --set SystestImagePath=${systest_image} ${ytsaurus_source_path}/yt/systest/helm/new_stress_test
+#bash ${ytsaurus_source_path}/yt/systest/scripts/wait.sh --wait-minutes 60  --name newstresstest ${tester_flags}

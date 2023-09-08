@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: new_stress_test
+  name: newstresstest
 spec:
   restartPolicy: OnFailure
   containers:
