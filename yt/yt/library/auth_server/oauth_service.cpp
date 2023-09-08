@@ -88,9 +88,13 @@ private:
         auto httpHeaders = New<THeaders>();
         httpHeaders->Add("Authorization", Format("%v %v", Config_->AuthorizationHeaderPrefix, accessToken));
 
+        const static auto retryChecker = BIND([] (const TError& error) {
+            return !error.FindMatching(NRpc::EErrorCode::InvalidCredentials).has_value();
+        });
         auto jsonResponseChecker = CreateJsonResponseChecker(
+            MakeJsonFormatConfig(),
             BIND(&TOAuthService::DoCheckUserInfoResponse, MakeStrong(this)),
-            MakeJsonFormatConfig());
+            retryChecker);
 
         const auto url = Format("%v://%v:%v/%v",
             Config_->Secure ? "https" : "http",
@@ -132,8 +136,12 @@ private:
 
     TError DoCheckUserInfoResponse(const IResponsePtr& rsp, const NYTree::INodePtr& rspNode) const
     {
-        if (rsp->GetStatusCode() != EStatusCode::OK) {
+        const auto statusCode = rsp->GetStatusCode();
+        if (statusCode != EStatusCode::OK) {
             auto error = TError("OAuth response has non-ok status code: %v", static_cast<int>(rsp->GetStatusCode()));
+            if (statusCode == EStatusCode::BadRequest || statusCode == EStatusCode::Unauthorized || statusCode == EStatusCode::Forbidden) {
+                error.SetCode(NRpc::EErrorCode::InvalidCredentials);
+            }
 
             if (rspNode->GetType() == ENodeType::Map && Config_->UserInfoErrorField) {
                 auto errorNode = rspNode->AsMap()->FindChild(*Config_->UserInfoErrorField);

@@ -90,6 +90,9 @@ class TestOAuth(TestOAuthBase):
                 bearer_token = auth_header
                 user = "u"
 
+            if bearer_token == "Bearer retry_token":
+                return mock_server.make_response(json={"error": "server error"}, status=500)
+
             if bearer_token != "Bearer good_token":
                 return mock_server.make_response(json={"error": "invalid token"}, status=403)
 
@@ -124,3 +127,7 @@ class TestOAuth(TestOAuthBase):
         data = rsp.json()
         assert data["login"] == "new_user"
         assert data["realm"] == "oauth:token"
+
+    @authors("kaikash", "ignat")
+    def test_http_proxy_oauth_server_error(self):
+        assert self._check_deny(cookie="retry_token")
