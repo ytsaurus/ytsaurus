@@ -64,7 +64,6 @@ DEFINE_ENUM(EJobEnvironmentType,
     (Simple)
     (Porto)
     (Testing)
-    (Cri)
 );
 
 DEFINE_ENUM(EUserJobSensorSource,
@@ -86,7 +85,6 @@ DECLARE_REFCOUNTED_CLASS(TJobEnvironmentConfig)
 DECLARE_REFCOUNTED_CLASS(TSimpleJobEnvironmentConfig)
 DECLARE_REFCOUNTED_CLASS(TTestingJobEnvironmentConfig)
 DECLARE_REFCOUNTED_CLASS(TPortoJobEnvironmentConfig)
-DECLARE_REFCOUNTED_CLASS(TCriJobEnvironmentConfig)
 DECLARE_REFCOUNTED_CLASS(TSlotManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TSlotManagerTestingConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulerConnectorConfig)

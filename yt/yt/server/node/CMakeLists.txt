@@ -85,7 +85,6 @@ target_link_libraries(yt-server-node PUBLIC
   server-lib-chaos_node
   server-lib-chunk_server
   yt-library-containers
-  library-containers-cri
   library-containers-disk_manager
   server-lib-exec_node
   server-lib-tablet_server

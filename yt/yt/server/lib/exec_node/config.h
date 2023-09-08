@@ -8,8 +8,6 @@
 
 #include <yt/yt/library/containers/config.h>
 
-#include <yt/yt/library/containers/cri/config.h>
-
 #include <yt/yt/library/dns_over_rpc/client/config.h>
 
 #include <yt/yt/server/lib/misc/config.h>
@@ -137,28 +135,6 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TPortoJobEnvironmentConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TCriJobEnvironmentConfig
-    : public TJobEnvironmentConfig
-{
-public:
-    NContainers::NCri::TCriExecutorConfigPtr CriExecutor;
-
-    TString JobProxyImage;
-
-    std::vector<NJobProxy::TBindConfigPtr> JobProxyBindMounts;
-
-    //! Do not bind mount jobproxy binary into container
-    bool UseJobProxyFromImage;
-
-    REGISTER_YSON_STRUCT(TCriJobEnvironmentConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TCriJobEnvironmentConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
