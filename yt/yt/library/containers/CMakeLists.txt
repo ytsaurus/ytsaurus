@@ -6,7 +6,6 @@
 # original buildsystem will not be accepted.
 
 
-add_subdirectory(cri)
 add_subdirectory(disk_manager)
 add_subdirectory(unittests)
 
