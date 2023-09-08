@@ -28,6 +28,8 @@
 
 #include <yt/yt/ytlib/job_proxy/private.h>
 
+#include <yt/yt/library/containers/cri/cri_executor.h>
+
 #include <yt/yt/library/program/program.h>
 
 #include <yt/yt/library/process/process.h>
@@ -48,6 +50,7 @@ using namespace NClusterNode;
 using namespace NConcurrency;
 using namespace NJobProxy;
 using namespace NContainers;
+using namespace NContainers::NCri;
 using namespace NDataNode;
 using namespace NYTree;
 using namespace NTools;
@@ -892,6 +895,139 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCriJobEnvironment
+    : public TProcessJobEnvironmentBase
+{
+public:
+    TCriJobEnvironment(
+        TCriJobEnvironmentConfigPtr config,
+        IBootstrap* bootstrap)
+        : TProcessJobEnvironmentBase(config, bootstrap)
+        , Config_(std::move(config))
+        , Executor_(CreateCriExecutor(Config_->CriExecutor))
+    { }
+
+    void DoInit(int slotCount, double cpuLimit, double /*idleCpuFraction*/) override
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        Executor_->CleanNamespace();
+
+        PodDescriptors_.clear();
+        PodSpecs_.clear();
+
+        {
+            std::vector<TFuture<TCriPodDescriptor>> podFutures;
+
+            podFutures.reserve(slotCount);
+            for (int slotIndex = 0; slotIndex < slotCount; ++slotIndex) {
+                auto podSpec = New<NCri::TCriPodSpec>();
+                podSpec->Name = Format("%s%d", SlotPodPrefix, slotIndex);
+                podSpec->Resources.CpuLimit = cpuLimit;
+                PodSpecs_.push_back(podSpec);
+                podFutures.push_back(Executor_->RunPodSandbox(podSpec));
+            }
+
+             PodDescriptors_ = WaitFor(AllSucceeded(std::move(podFutures))).
+                ValueOrThrow();
+             YT_VERIFY(std::ssize(PodDescriptors_) == slotCount);
+        }
+    }
+
+    void CleanProcesses(int slotIndex, ESlotType slotType) override
+    {
+        ValidateEnabled();
+
+        try {
+            EnsureJobProxyFinished(slotIndex, /*kill =*/ true);
+            Executor_->CleanPodSandbox(PodDescriptors_[slotIndex]);
+        } catch (const std::exception& ex) {
+            auto error = TError("Failed to clean processes")
+                << TErrorAttribute("slot_index", slotIndex)
+                << TErrorAttribute("slot_type", slotType)
+                << ex;
+            Disable(error);
+            THROW_ERROR error;
+        }
+    }
+
+    int GetUserId(int slotIndex) const override
+    {
+        return Config_->StartUid + slotIndex;
+    }
+
+    IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& path, int /*locationIndex*/) override
+    {
+        return CreateSimpleJobDirectoryManager(
+            MounterThread_->GetInvoker(),
+            path,
+            Bootstrap_->GetConfig()->ExecNode->SlotManager->DetachedTmpfsUmount);
+    }
+
+    TJobWorkspaceBuilderPtr CreateJobWorkspaceBuilder(
+        IInvokerPtr invoker,
+        TJobWorkspaceBuildingContext context,
+        IJobDirectoryManagerPtr directoryManager) override
+    {
+        return CreateSimpleJobWorkspaceBuilder(
+            invoker,
+            std::move(context),
+            directoryManager);
+    }
+
+private:
+    static constexpr TStringBuf SlotPodPrefix = "yt_slot_";
+    static constexpr TStringBuf LocalBinDir = "/usr/local/bin";
+
+    const TCriJobEnvironmentConfigPtr Config_;
+    const ICriExecutorPtr Executor_;
+
+    std::vector<TCriPodDescriptor> PodDescriptors_;
+    std::vector<TCriPodSpecPtr> PodSpecs_;
+
+    const TActionQueuePtr MounterThread_ = New<TActionQueue>("Mounter");
+
+    TProcessBasePtr CreateJobProxyProcess(int slotIndex, ESlotType /*slotType*/, TJobId jobId) override
+    {
+        auto spec = New<NCri::TCriContainerSpec>();
+
+        spec->Name = "job-proxy";
+        spec->Image.Image = Config_->JobProxyImage;
+        spec->Labels[YTJobIdLabel] = ToString(jobId);
+
+        // FIXME(khlebnikov) user to run job proxy spec->Credentials.Uid = GetUserId(slotIndex);
+
+        for (const auto& bind: Config_->JobProxyBindMounts) {
+            spec->BindMounts.emplace_back(NCri::TCriBindMount{
+                .ContainerPath = bind->InternalPath,
+                .HostPath = bind->ExternalPath,
+                .ReadOnly = bind->ReadOnly,
+            });
+        }
+
+        if (!Config_->UseJobProxyFromImage) {
+            auto jobProxyPath = Format("%v/%v", LocalBinDir, JobProxyProgramName);
+            auto execProgramPath = Format("%v/%v", LocalBinDir, ExecProgramName);
+
+            spec->Command = {jobProxyPath};
+            spec->BindMounts.emplace_back(NCri::TCriBindMount{
+                .ContainerPath = jobProxyPath,
+                .HostPath = ResolveBinaryPath(JobProxyProgramName).ValueOrThrow(),
+                .ReadOnly = true,
+            });
+            spec->BindMounts.emplace_back(NCri::TCriBindMount{
+                .ContainerPath = execProgramPath,
+                .HostPath = ResolveBinaryPath(ExecProgramName).ValueOrThrow(),
+                .ReadOnly = true,
+            });
+        }
+
+        return Executor_->CreateProcess(JobProxyProgramName, spec, PodDescriptors_[slotIndex], PodSpecs_[slotIndex]);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 IJobEnvironmentPtr CreateJobEnvironment(INodePtr configNode, IBootstrap* bootstrap)
 {
     auto config = ConvertTo<TJobEnvironmentConfigPtr>(configNode);
@@ -918,6 +1054,13 @@ IJobEnvironmentPtr CreateJobEnvironment(INodePtr configNode, IBootstrap* bootstr
             auto simpleConfig = ConvertTo<TTestingJobEnvironmentConfigPtr>(configNode);
             return New<TTestingJobEnvironment>(
                 simpleConfig,
+                bootstrap);
+        }
+
+        case EJobEnvironmentType::Cri: {
+            auto criConfig = ConvertTo<TCriJobEnvironmentConfigPtr>(configNode);
+            return New<TCriJobEnvironment>(
+                criConfig,
                 bootstrap);
         }
 
