@@ -121,7 +121,7 @@ jobs:
           ninja
 
           cd ../build_relwithdebinfo
-          ninja ytserver-all
+          ninja ytserver-all ytserver-yql-agent
 
       - name: Build chyt
         if: ${{ inputs.build-chyt }}
@@ -165,6 +165,27 @@ jobs:
           ninja mrjob
 
           cd ../build_qt_relwithdebinfo
+          ninja libyqlplugin.so
+          ninja libdatetime2_udf.so
+          ninja libhyperloglog_udf.so
+          ninja libjson_udf.so
+          ninja libset_udf.so
+          ninja libtop_udf.so
+          ninja libyson2_udf.so
+          ninja libdigest_udf.so
+          ninja libhyperscan_udf.so
+          ninja libmath_udf.so
+          ninja libstat_udf.so
+          ninja libtopfreq_udf.so
+          ninja libdsv_udf.so
+          ninja libip_udf.so
+          ninja libpire_udf.so
+          ninja libunicode_udf.so
+          ninja libhistogram_udf.so
+          ninja libjson2_udf.so
+          ninja libre2_udf.so
+          ninja libstring_udf.so
+          ninja liburl_udf.so
           ninja mrjob
 
       - name: Build Python packages
