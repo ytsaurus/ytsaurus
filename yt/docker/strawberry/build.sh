@@ -55,6 +55,7 @@ ytsaurus_credits="${ytsaurus_source_path}/yt/docker/ytsaurus/credits"
 dockerfile="${ytsaurus_source_path}/yt/docker/strawberry/Dockerfile"
 
 cp ${strawberry_controller} ${output_path}
+cp -r ${ytsaurus_build_path}/ytsaurus_python ${output_path}
 cp ${dockerfile} ${output_path}
 
 mkdir ${output_path}/credits
