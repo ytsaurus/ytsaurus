@@ -164,12 +164,8 @@ public:
 
     std::vector<TString> GpuDevices;
 
-    //! Path for container root, if root volume is already prepared.
+    //! Path for container root.
     std::optional<TString> RootPath;
-
-    //! Docker image to build root volume as part of a container.
-    std::optional<TString> DockerImage;
-
     bool MakeRootFSWritable;
 
     //! Path to write stderr (for testing purposes).

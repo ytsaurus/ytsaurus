@@ -13,8 +13,6 @@
 
 #include <yt/yt/library/containers/public.h>
 
-#include <yt/yt/library/containers/cri/public.h>
-
 #include <yt/yt/core/actions/public.h>
 #include <yt/yt/core/actions/future.h>
 
@@ -49,7 +47,6 @@ struct TJobWorkspaceBuildingContext
     std::vector<NContainers::TBind> Binds;
     std::vector<NDataNode::TArtifactKey> LayerArtifactKeys;
     std::vector<NJobAgent::TShellCommandConfigPtr> SetupCommands;
-    std::optional<TString> DockerImage;
 
     bool NeedGpuCheck;
     std::optional<TString> GpuCheckBinaryPath;
@@ -149,12 +146,6 @@ TJobWorkspaceBuilderPtr CreatePortoJobWorkspaceBuilder(
     IJobDirectoryManagerPtr directoryManager);
 
 #endif
-
-TJobWorkspaceBuilderPtr CreateCriJobWorkspaceBuilder(
-    IInvokerPtr invoker,
-    TJobWorkspaceBuildingContext context,
-    IJobDirectoryManagerPtr directoryManager,
-    NContainers::NCri::ICriExecutorPtr executor);
 
 ////////////////////////////////////////////////////////////////////////////////
 

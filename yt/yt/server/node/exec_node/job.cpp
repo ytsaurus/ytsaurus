@@ -1678,7 +1678,6 @@ void TJob::RunWithWorkspaceBuilder()
         .Binds = binds,
         .LayerArtifactKeys = LayerArtifactKeys_,
         .SetupCommands = GetSetupCommands(),
-        .DockerImage = DockerImage_,
 
         .NeedGpuCheck = NeedsGpuCheck(),
         .GpuCheckBinaryPath = UserJobSpec_
@@ -2200,12 +2199,6 @@ TJobProxyConfigPtr TJob::CreateConfig()
 
     if (RootVolume_) {
         proxyConfig->RootPath = RootVolume_->GetPath();
-    } else {
-        // Pass docker image if root volume is not materialized yet.
-        proxyConfig->DockerImage = DockerImage_;
-    }
-
-    if (RootVolume_ || DockerImage_) {
         proxyConfig->Binds = Config_->RootFSBinds;
 
         if (Config_->UseArtifactBinds) {
@@ -2425,10 +2418,6 @@ void TJob::InitializeArtifacts()
 
         for (const auto& layerKey : UserJobSpec_->layers()) {
             LayerArtifactKeys_.emplace_back(layerKey);
-        }
-
-        if (UserJobSpec_->has_docker_image()) {
-            DockerImage_ = UserJobSpec_->docker_image();
         }
     }
 

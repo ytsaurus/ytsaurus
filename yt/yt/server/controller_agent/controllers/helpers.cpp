@@ -1,9 +1,8 @@
 #include "helpers.h"
 #include "aggregated_job_statistics.h"
+#include "config.h"
 #include "table.h"
 #include "job_info.h"
-
-#include <yt/yt/server/controller_agent/config.h>
 
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/data_sink.h>
@@ -256,39 +255,20 @@ void UpdateAggregatedJobStatistics(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDockerImageSpec::TDockerImageSpec(const TString& dockerImage, const TDockerRegistryConfigPtr& config)
-{
-    TStringBuf imageTag;
-
-    // Format: [REGISTRY/]IMAGE[:TAG], where REGISTRY is FQDN[:PORT] - i.e. has at least one dot.
-    if (!StringSplitter(dockerImage).Split('/').Limit(2).TryCollectInto(&Registry, &imageTag) ||
-        !Registry.Contains('.'))
-    {
-        Registry = "";
-        imageTag = dockerImage;
-    } else if (Registry == config->InternalRegistryAddress) {
-        Registry = "";
-    }
-
-    if (!StringSplitter(imageTag).Split(':').Limit(2).TryCollectInto(&Image, &Tag)) {
-        Image = imageTag;
-        Tag = "latest";
-    }
-}
-
-bool TDockerImageSpec::IsInternal() const
-{
-    return Registry.empty();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 std::vector<TRichYPath> GetLayerPathsFromDockerImage(
     NNative::IClientPtr client,
-    const TDockerImageSpec& dockerImage)
+    const TString& dockerImage)
 {
     try {
-        auto tagsPath = TYPath::Join("//", dockerImage.Image, "/_tags");
+        TStringBuf image;
+        TStringBuf tag;
+
+        if (!StringSplitter(dockerImage).Split(':').Limit(2).TryCollectInto(&image, &tag)) {
+            image = dockerImage;
+            tag = "latest";
+        }
+
+        auto tagsPath = TYPath::Join("//", image, "/_tags");
 
         auto proxy = NObjectClient::CreateObjectServiceReadProxy(client, EMasterChannelKind::Follower);
         auto req = TYPathProxy::Get(tagsPath);
@@ -304,18 +284,18 @@ std::vector<TRichYPath> GetLayerPathsFromDockerImage(
             THROW_ERROR_EXCEPTION("Tags document %Qv is not a map", tagsPath);
         }
 
-        auto rspTag = rspTags->AsMap()->FindChild(dockerImage.Tag);
+        auto rspTag = rspTags->AsMap()->FindChild(TString(tag));
         if (!rspTag) {
             THROW_ERROR_EXCEPTION(
                 "No tag %Qv in %Qv, available tags are %v",
-                dockerImage.Tag,
+                tag,
                 tagsPath,
                 rspTags->AsMap()->GetKeys());
         }
 
         return ConvertTo<std::vector<TRichYPath>>(rspTag);
     } catch (const std::exception& exc) {
-        THROW_ERROR_EXCEPTION("Failed to load docker image %v:%v", dockerImage.Image, dockerImage.Tag)
+        THROW_ERROR_EXCEPTION("Failed to load docker image %Qv", dockerImage)
             << exc;
     }
 }

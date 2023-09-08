@@ -70,22 +70,9 @@ void UpdateAggregatedJobStatistics(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDockerImageSpec
-{
-    TString Registry;
-    TString Image;
-    TString Tag;
-
-    TDockerImageSpec(const TString& dockerImage, const TDockerRegistryConfigPtr& config);
-
-    bool IsInternal() const;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 std::vector<NYPath::TRichYPath> GetLayerPathsFromDockerImage(
     NApi::NNative::IClientPtr client,
-    const TDockerImageSpec& dockerImage);
+    const TString& dockerImage);
 
 ////////////////////////////////////////////////////////////////////////////////
 
