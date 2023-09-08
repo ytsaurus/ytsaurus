@@ -116,6 +116,8 @@ protected:
 
     void UpdateArtifactStatistics(i64 compressedDataSize, bool cacheHit);
 
+    void MakeArtifactSymlinks();
+
 private:
     template<TFuture<void>(TJobWorkspaceBuilder::*Step)()>
     TCallback<TFuture<void>()> MakeStep();
