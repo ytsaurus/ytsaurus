@@ -9,7 +9,7 @@ import tech.ytsaurus.spyt.wrapper.transaction.YtTransactionUtils
 import tech.ytsaurus.client.CompoundClient
 import tech.ytsaurus.client.request._
 import tech.ytsaurus.client.rows.WireRowDeserializer
-import tech.ytsaurus.core.GUID
+import tech.ytsaurus.core.{DataSize, GUID}
 import tech.ytsaurus.core.cypress.{CypressNodeType, YPath}
 import tech.ytsaurus.rpcproxy.EOperationType
 import tech.ytsaurus.ysontree.{YTreeBuilder, YTreeNode, YTreeTextSerializer}
@@ -159,5 +159,16 @@ trait YtTableUtils {
       throw new IllegalStateException(s"Merge operation finished with unsuccessful status $finalStatus, " +
         s"result is ${operationResult(guid)}")
     }
+  }
+
+
+  def splitTables(path: YPath, splitBytes: Long)(implicit yt: CompoundClient): Seq[MultiTablePartition] = {
+    import scala.collection.JavaConverters._
+
+    val request = new PartitionTables(
+      java.util.List.of[YPath](path), PartitionTablesMode.Ordered, DataSize.fromBytes(splitBytes)
+    )
+    val result = yt.partitionTables(request).join()
+    result.asScala.toList
   }
 }

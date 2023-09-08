@@ -1,9 +1,11 @@
 package tech.ytsaurus.spyt.fs
 
 import org.apache.hadoop.fs.Path
+import tech.ytsaurus.core.cypress.YPath
 import tech.ytsaurus.spyt.fs.YtStaticPath.toFileName
 import tech.ytsaurus.spyt.fs.path.YPathEnriched
 import tech.ytsaurus.spyt.fs.path.YPathEnriched.ypath
+import tech.ytsaurus.spyt.serializers.PivotKeysConverter
 import tech.ytsaurus.spyt.wrapper.YtWrapper.PivotKey
 import tech.ytsaurus.spyt.wrapper.table.OptimizeMode
 
@@ -13,6 +15,10 @@ sealed abstract class YtPath(val ypath: YPathEnriched, name: String) extends Pat
   def rowCount: Long
 
   def toStringPath: String = ypath.toStringPath
+
+  def isDynamic: Boolean
+
+  def toYPath: YPath
 }
 
 case class YtStaticPath(override val ypath: YPathEnriched,
@@ -20,6 +26,13 @@ case class YtStaticPath(override val ypath: YPathEnriched,
   def optimizedForScan: Boolean = attrs.optimizeMode == OptimizeMode.Scan
 
   override def rowCount: Long = attrs.rowCount
+
+  def isDynamic: Boolean = false
+
+  def toYPath: YPath = {
+    val res = ypath.toYPath.withRange(attrs.beginRow, attrs.beginRow + attrs.rowCount)
+    res
+  }
 }
 
 case class YtStaticPathAttributes(optimizeMode: OptimizeMode,
@@ -49,6 +62,16 @@ case class YtDynamicPath(override val ypath: YPathEnriched,
                          id: String,
                          keyColumns: Seq[String]) extends YtPath(ypath, id) {
   override def rowCount: Long = 1
+
+  def isDynamic: Boolean = true
+
+  def toYPath: YPath = {
+    val res = ypath.toYPath.withRange(
+      PivotKeysConverter.toRangeLimit(beginKey),
+      PivotKeysConverter.toRangeLimit(endKey)
+    )
+    res
+  }
 }
 
 object YtPath {

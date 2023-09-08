@@ -94,10 +94,10 @@ class YtTableFileSystem extends YtFileSystemBase {
                                     (implicit yt: CompoundClient): Array[FileStatus] = {
     val rowCount = YtWrapper.rowCount(attributes)
     val optimizeMode = YtWrapper.optimizeMode(attributes)
-    val chunkCount = YtWrapper.chunkCount(attributes)
     val tableSize = YtWrapper.dataWeight(attributes)
     val approximateRowSize = if (rowCount > 0) tableSize / rowCount else 0
     val modificationTime = YtWrapper.modificationTimeTs(attributes)
+    val chunkCount = YtWrapper.chunkCount(attributes)
 
     val filesCount = if (chunkCount > 0) chunkCount else 1
     val result = new Array[FileStatus](filesCount)
@@ -109,7 +109,7 @@ class YtTableFileSystem extends YtFileSystemBase {
     }
 
     if (chunkCount == 0) {
-      // add path for schema resolving
+      // Add path for schema resolving.
       val chunkPath = YtStaticPath(f, YtStaticPathAttributes(optimizeMode, 0, 0))
       result(0) = new YtFileStatus(chunkPath, approximateRowSize, modificationTime)
     }
@@ -119,12 +119,12 @@ class YtTableFileSystem extends YtFileSystemBase {
   private def listDynamicTableAsFiles(f: YPathEnriched,
                                       attributes: Map[String, YTreeNode])
                                      (implicit yt: CompoundClient): Array[FileStatus] = {
-    val pivotKeys = YtWrapper.pivotKeys(f.toYPath) :+ YtWrapper.emptyPivotKey
     val keyColumns = YtWrapper.keyColumns(attributes)
-    val result = new Array[FileStatus](pivotKeys.length - 1)
     val tableSize = YtWrapper.dataWeight(attributes)
-    val approximateChunkSize = if (result.length > 0) tableSize / result.length else 0
     val modificationTime = YtWrapper.modificationTimeTs(attributes)
+    val pivotKeys = YtWrapper.pivotKeys(f.toYPath) :+ YtWrapper.emptyPivotKey
+    val result = new Array[FileStatus](pivotKeys.length - 1)
+    val approximateChunkSize = if (result.length > 0) tableSize / result.length else 0
 
     pivotKeys.sliding(2).zipWithIndex.foreach {
       case (Seq(startKey, endKey), i) =>

@@ -38,9 +38,7 @@ case class YtInputSplit(file: YtPartitionedFile, schema: StructType,
 
   override def getLocations: Array[String] = Array.empty
 
-  private val originalFieldNames = schema.fields.map(x => x.metadata.getString(MetadataFields.ORIGINAL_NAME))
-  private val basePath: YPath = file.ypath.withAdditionalAttributes(java.util.Map.of("columns",
-    new YTreeBuilder().value(java.util.List.of(originalFieldNames: _*)).build()))
+  private val basePath: YPath = addColumnsList(file.ypath, schema)
 
   lazy val ytPath: YPath = calculateYtPath(pushing = false)
   lazy val ytPathWithFiltersDetailed: YPath = calculateYtPath(pushing = true, union = false)
@@ -234,5 +232,12 @@ object YtInputSplit {
 
   private def getRightPoints(array: Map[String, Segment], keys: Seq[Option[String]]): Seq[Point] = {
     getKeys(array, keys, s => s.right, PInfinity())
+  }
+
+  def addColumnsList(yPath: YPath, schema: StructType): YPath = {
+    val originalFieldNames = schema.fields.map(x => x.metadata.getString(MetadataFields.ORIGINAL_NAME))
+    val columns = java.util.List.of(originalFieldNames: _*)
+    val res = yPath.withAdditionalAttributes(java.util.Map.of("columns", new YTreeBuilder().value(columns).build()))
+    res
   }
 }

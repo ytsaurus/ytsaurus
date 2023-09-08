@@ -10,7 +10,7 @@ import org.slf4j.LoggerFactory
 import tech.ytsaurus.spyt.common.utils.TuplePoint
 import tech.ytsaurus.spyt.format.YtInputSplit
 import tech.ytsaurus.spyt.fs.YtClientConfigurationConverter.ytClientConfiguration
-import tech.ytsaurus.spyt.fs.conf.YT_MIN_PARTITION_BYTES
+import tech.ytsaurus.spyt.fs.conf.{SparkYtSparkSession, YT_MIN_PARTITION_BYTES}
 import tech.ytsaurus.spyt.fs.path.YPathEnriched.ypath
 import tech.ytsaurus.spyt.fs.{YtDynamicPath, YtPath, YtStaticPath}
 import tech.ytsaurus.spyt.serializers.{InternalRowDeserializer, PivotKeysConverter}
@@ -18,7 +18,7 @@ import tech.ytsaurus.spyt.wrapper.YtWrapper
 import tech.ytsaurus.client.CompoundClient
 import tech.ytsaurus.spyt.common.utils.{ExpressionTransformer, MInfinity, PInfinity}
 import tech.ytsaurus.spyt.format.YtPartitionedFile
-import tech.ytsaurus.spyt.format.conf.KeyPartitioningConfig
+import tech.ytsaurus.spyt.format.conf.{KeyPartitioningConfig, SparkYtConfiguration}
 import tech.ytsaurus.spyt.serializers.SchemaConverter
 import tech.ytsaurus.spyt.wrapper.client.YtClientProvider
 import tech.ytsaurus.ysontree.YTreeNode
@@ -94,7 +94,10 @@ object YtFilePartition {
                  filePath: Path,
                  isSplitable: Boolean,
                  maxSplitBytes: Long,
-                 partitionValues: InternalRow): Seq[PartitionedFile] = {
+                 partitionValues: InternalRow,
+                 readDataSchema: Option[StructType] = None): Seq[PartitionedFile] = {
+    import scala.collection.JavaConverters._
+
     def split(length: Long, splitSize: Long)
              (f: (Long, Long) => PartitionedFile): Seq[PartitionedFile] = {
       (0L until length by splitSize).map { offset =>
@@ -104,20 +107,48 @@ object YtFilePartition {
       }
     }
 
-    if (isSplitable) {
+    if (sparkSession.ytConf(SparkYtConfiguration.Read.YtPartitioningEnabled)) {
       YtPath.fromPath(file.getPath) match {
-        case yp: YtStaticPath =>
-          val maxSplitRows = Math.max(1, Math.ceil(maxSplitBytes.toDouble / file.getLen * yp.rowCount).toLong)
-          split(yp.rowCount, maxSplitRows) { case (offset, size) =>
-            getPartitionedFile(file, yp, offset, size, size * file.getBlockSize, partitionValues)
+        case yp: YtPath =>
+          implicit val yt: CompoundClient =
+            YtClientProvider.ytClient(ytClientConfiguration(sparkSession.sessionState.conf))
+          val yPath = yp.toYPath
+          val richYPath = readDataSchema.map(st => YtInputSplit.addColumnsList(yPath, st)).getOrElse(yPath)
+          // TODO(alex-shishkin): Lookup tables doesn't support using column list while partitioning
+          val multiTablePartitions = YtWrapper.splitTables(richYPath, maxSplitBytes)
+          multiTablePartitions.flatMap { multiTablePartition =>
+            val tableRanges = multiTablePartition.getTableRanges.asScala
+            tableRanges.flatMap { tableRange =>
+              // TODO(alex-shishkin): Legacy part, YtPartitionedFile used to contain at most one range
+              val ranges = tableRange.getRanges.asScala
+              ranges.map { range =>
+                val ypathWithSingleRange = tableRange.ranges(range)
+                YtPartitionedFile(yp.toStringPath, ypathWithSingleRange, maxSplitBytes,
+                  yp.isDynamic, file.getModificationTime, partitionValues)
+              }
+            }
           }
-        case _ =>
+        case p =>
           split(file.getLen, maxSplitBytes) { case (offset, size) =>
-            getPartitionedFile(file, offset, size, partitionValues)
+            PartitionedFile(partitionValues, p.toUri.toString, offset, size, Array.empty)
           }
       }
     } else {
-      Seq(getPartitionedFile(file, 0, file.getLen, partitionValues))
+      if (isSplitable) {
+        YtPath.fromPath(file.getPath) match {
+          case yp: YtStaticPath =>
+            val maxSplitRows = Math.max(1, Math.ceil(maxSplitBytes.toDouble / file.getLen * yp.rowCount).toLong)
+            split(yp.rowCount, maxSplitRows) { case (offset, size) =>
+              getPartitionedFile(file, yp, offset, size, size * file.getBlockSize, partitionValues)
+            }
+          case _ =>
+            split(file.getLen, maxSplitBytes) { case (offset, size) =>
+              getPartitionedFile(file, offset, size, partitionValues)
+            }
+        }
+      } else {
+        Seq(getPartitionedFile(file, 0, file.getLen, partitionValues))
+      }
     }
   }
 

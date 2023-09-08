@@ -161,7 +161,8 @@ case class YtScan(sparkSession: SparkSession,
           filePath = filePath,
           isSplitable = isSplitable(filePath),
           maxSplitBytes = maxSplitBytes,
-          partitionValues = partitionValues
+          partitionValues = partitionValues,
+          readDataSchema = Some(readDataSchema)
         )
       }.toArray.sorted(YtFilePartition.partitionedFilesOrdering)
     }

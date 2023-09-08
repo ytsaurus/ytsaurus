@@ -6,6 +6,7 @@ import org.apache.spark.sql.execution.datasources.PartitionedFile
 import org.apache.spark.sql.execution.datasources.v2.BatchScanExec
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types.{StringType, StructField, StructType}
+import org.apache.spark.sql.v2.Utils.{extractRawKeys, getParsedKeys}
 import org.mockito.scalatest.MockitoSugar
 import org.scalatest.{FlatSpec, Matchers}
 import tech.ytsaurus.spyt.common.utils.{TuplePoint, TupleSegment}
@@ -95,17 +96,15 @@ class SortedTablesKeyPartitioningTest extends FlatSpec with Matchers with LocalS
     }
   }
 
-  private def extractYtScan(plan: SparkPlan): YtScan = {
-    plan.collectFirst {
-      case BatchScanExec(_, scan: YtScan, _) => scan
-    }.get
+  def getParsedKeysByPath(paths: String*): Seq[(TuplePoint, TuplePoint)] = {
+    getParsedKeys(spark.read.yt(paths: _*))
   }
 
   it should "be satisfied by key partitioning" in {
     val data = (0 until 100).map(x => (x, x, -x))
     data.toDF("a", "b", "c").write.sortedBy("a", "b").yt(tmpPath)
 
-    val keys = getParsedKeys(tmpPath)
+    val keys = getParsedKeysByPath(tmpPath)
     keys should contain theSameElementsAs Seq(
       (TuplePoint(Seq(MInfinity())), TuplePoint(Seq(RealValue(25)))),
       (TuplePoint(Seq(RealValue(25))), TuplePoint(Seq(RealValue(50)))),
@@ -118,7 +117,7 @@ class SortedTablesKeyPartitioningTest extends FlatSpec with Matchers with LocalS
     val data = (0 until 100).map(x => (x / 100, x, -x))
     data.toDF("a", "b", "c").write.sortedBy("a", "b").yt(tmpPath)
 
-    val keys = getParsedKeys(tmpPath)
+    val keys = getParsedKeysByPath(tmpPath)
     keys should contain theSameElementsAs Seq(
       (TuplePoint(Seq(MInfinity())), TuplePoint(Seq(RealValue(0), RealValue(25)))),
       (TuplePoint(Seq(RealValue(0), RealValue(25))), TuplePoint(Seq(RealValue(0), RealValue(50)))),
@@ -131,7 +130,7 @@ class SortedTablesKeyPartitioningTest extends FlatSpec with Matchers with LocalS
     val data = (0 until 100).map(x => (x / 100, x / 100, -x))
     data.toDF("a", "b", "c").write.sortedBy("a", "b").yt(tmpPath)
 
-    val keys = getParsedKeys(tmpPath)
+    val keys = getParsedKeysByPath(tmpPath)
     keys should contain theSameElementsAs Seq(
       (TupleSegment.mInfinity, TupleSegment.pInfinity)
     )
@@ -141,7 +140,7 @@ class SortedTablesKeyPartitioningTest extends FlatSpec with Matchers with LocalS
     val data = (0 until 100).map(x => (x >= 50, -x))
     data.toDF("a", "b").write.sortedBy("a").yt(tmpPath)
 
-    val keys = getParsedKeys(tmpPath)
+    val keys = getParsedKeysByPath(tmpPath)
     keys should contain theSameElementsAs Seq(
       (TuplePoint(Seq(MInfinity())), TuplePoint(Seq(RealValue(false)))),
       (TuplePoint(Seq(RealValue(false))), TuplePoint(Seq(RealValue(true)))),
@@ -153,7 +152,7 @@ class SortedTablesKeyPartitioningTest extends FlatSpec with Matchers with LocalS
     val data = (0 until 100).map(x => (x / 49, x, -x))
     data.toDF("a", "b", "c").write.sortedBy("a", "b").yt(tmpPath)
 
-    val keys = getParsedKeys(tmpPath)
+    val keys = getParsedKeysByPath(tmpPath)
     keys should contain theSameElementsAs Seq(
       (TuplePoint(Seq(MInfinity())), TuplePoint(Seq(RealValue(0)))),
       (TuplePoint(Seq(RealValue(0))), TuplePoint(Seq(RealValue(1)))),
@@ -161,34 +160,11 @@ class SortedTablesKeyPartitioningTest extends FlatSpec with Matchers with LocalS
     )
   }
 
-  private def getParsedKeys(paths: String*): Seq[(TuplePoint, TuplePoint)] = {
-    getRawKeys(paths : _*).map {
-      case (a, b) => (a.get, b.get)
-    }
-  }
-
-  private def getRawKeys(paths: String*): Seq[(Option[TuplePoint], Option[TuplePoint])] = {
-    val res = spark.read.yt(paths : _*)
-    res.collect()
-
-    val ytScan = extractYtScan(res.queryExecution.executedPlan)
-    val partitions = ytScan.tryKeyPartitioning().getOrElse(ytScan)
-      .getPartitions.flatMap(f => extractRawKeys(f.files))
-    partitions
-  }
-
-  private def extractRawKeys(files: Seq[PartitionedFile]): Seq[(Option[TuplePoint], Option[TuplePoint])] = {
-    files.map {
-      case file: YtPartitionedFile =>
-        (file.beginPoint, file.endPoint)
-    }
-  }
-
   it should "process empty table" in {
     val data = Seq.empty[(Int, Int, Int)]
     data.toDF("a", "b", "c").write.sortedBy("a", "b").yt(tmpPath)
 
-    val keys = getParsedKeys(tmpPath)
+    val keys = getParsedKeysByPath(tmpPath)
     keys should contain theSameElementsAs Seq()
   }
 
@@ -196,7 +172,7 @@ class SortedTablesKeyPartitioningTest extends FlatSpec with Matchers with LocalS
     val data = Seq((0, 0, 0))
     data.toDF("a", "b", "c").write.sortedBy("a", "b").yt(tmpPath)
 
-    val keys = getParsedKeys(tmpPath)
+    val keys = getParsedKeysByPath(tmpPath)
     keys should contain theSameElementsAs Seq(
       (TuplePoint(Seq(MInfinity())), TuplePoint(Seq(PInfinity())))
     )
@@ -278,7 +254,7 @@ class SortedTablesKeyPartitioningTest extends FlatSpec with Matchers with LocalS
     )
     val res = pivots.zip(pivots.tail)
 
-    val keys = getParsedKeys(tmpPath)
+    val keys = getParsedKeysByPath(tmpPath)
     keys should contain theSameElementsAs res
   }
 
@@ -286,7 +262,7 @@ class SortedTablesKeyPartitioningTest extends FlatSpec with Matchers with LocalS
     Seq((0, 0, 0)).toDF("a", "b", "c").write.sortedBy("a", "b").yt(tmpPath)
     Seq((1, 0, 0)).toDF("a", "b", "c").write.sortedBy("a", "b").yt(tmpPath + "2")
 
-    val keys = getParsedKeys(tmpPath, tmpPath + "2")
+    val keys = getParsedKeysByPath(tmpPath, tmpPath + "2")
     keys should contain theSameElementsAs Seq(
       (TupleSegment.mInfinity, TupleSegment.pInfinity),
       (TupleSegment.mInfinity, TupleSegment.pInfinity)
@@ -309,7 +285,7 @@ class SortedTablesKeyPartitioningTest extends FlatSpec with Matchers with LocalS
     val data = Seq((null, 0), (null, 1), ("b", 2))
     data.toDF("a", "b").write.sortedBy("a").yt(tmpPath)
 
-    val keys = getParsedKeys(tmpPath)
+    val keys = getParsedKeysByPath(tmpPath)
     keys should contain theSameElementsAs Seq(
       (TuplePoint(Seq(MInfinity())), TuplePoint(Seq(RealValue(null)))),
       (TuplePoint(Seq(RealValue(null))), TuplePoint(Seq(RealValue("b")))),
@@ -369,7 +345,7 @@ class SortedTablesKeyPartitioningTest extends FlatSpec with Matchers with LocalS
     val tmpPath2 = tmpPath + "dynTable1"
     prepareTestTable(tmpPath2, testData, Seq(Seq(), Seq(3, 2), Seq(3, 3), Seq(3, 4)))
 
-    val keys = getParsedKeys(tmpPath2)
+    val keys = getParsedKeysByPath(tmpPath2)
     keys should contain theSameElementsAs Seq(
       (TupleSegment.mInfinity, TuplePoint(Seq(RealValue(3), RealValue(2)))),
       (TuplePoint(Seq(RealValue(3), RealValue(2))), TuplePoint(Seq(RealValue(3), RealValue(3)))),
@@ -382,7 +358,7 @@ class SortedTablesKeyPartitioningTest extends FlatSpec with Matchers with LocalS
     val tmpPath2 = tmpPath + "dynTable2"
     prepareTestTable(tmpPath2, testData, Seq(Seq(), Seq(3, 2), Seq(3, 3), Seq(6)))
 
-    val keys = getParsedKeys(tmpPath2)
+    val keys = getParsedKeysByPath(tmpPath2)
     keys should contain theSameElementsAs Seq(
       (TupleSegment.mInfinity, TuplePoint(Seq(RealValue(3)))),
       (TuplePoint(Seq(RealValue(3))), TuplePoint(Seq(RealValue(6)))),
