@@ -198,7 +198,7 @@ items:
         - name: Рекомендации
           when: audience == "public"
           href: user-guide/data-processing/operations/recommendations.md
-        - name: Porto слои
+        - name: Образы ФС
           when: audience == "public"
           href: user-guide/data-processing/porto/layer-paths.md
         - name: Переключение таблиц
@@ -301,10 +301,10 @@ items:
           items:
             - include: { mode: link, path: yql/toc.yaml }
       - name: Прокси
-        when: audience == "public" 
-        items: 
+        when: audience == "public"
+        items:
           - name: Обзор
-            href: user-guide/proxy/about.md 
+            href: user-guide/proxy/about.md
           - name: HTTP-прокси
             href: user-guide/proxy/http.md
           - name: RPC-прокси
