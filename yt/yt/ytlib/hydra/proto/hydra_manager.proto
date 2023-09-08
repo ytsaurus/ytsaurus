@@ -14,6 +14,7 @@ message TSnapshotMeta
     optional int32 last_segment_id = 6;
     optional int32 last_record_id = 7;
     optional int32 last_mutation_term = 8;
+    optional bool read_only = 10;
 }
 
 message TChangelogMeta

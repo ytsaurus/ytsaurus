@@ -13,6 +13,15 @@ def build_snapshot(cell_id=None, client=None):
     return make_request("build_snapshot", params=params, client=client)
 
 
+def exit_read_only(cell_id=None, client=None):
+    """Exit read-only at given master cell."""
+    params = {
+        "cell_id": cell_id,
+    }
+
+    return make_request("exit_read_only", params=params, client=client)
+
+
 def switch_leader(cell_id=None, new_leader_address=None, client=None):
     """Switch leader of given master cell."""
     params = {

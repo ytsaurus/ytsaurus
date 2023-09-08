@@ -94,7 +94,7 @@ TFuture<void> TCommitterBase::ScheduleApplyMutations(std::vector<TPendingMutatio
     return LastOffloadedMutationsFuture_;
 }
 
-TFuture<void> TCommitterBase::GeLastOffloadedMutationsFuture()
+TFuture<void> TCommitterBase::GetLastOffloadedMutationsFuture()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -185,13 +185,6 @@ TLeaderCommitter::TLeaderCommitter(
     FlushMutationsExecutor_->Start();
 }
 
-void TLeaderCommitter::SetReadOnly()
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    ReadOnly_ = true;
-}
-
 TFuture<void> TLeaderCommitter::GetLastMutationFuture()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -238,6 +231,8 @@ void TLeaderCommitter::SerializeMutations()
 
     NTracing::TNullTraceContextGuard traceContextGuard;
 
+    auto readOnly = EpochContext_->ReadOnly.load();
+
     std::vector<TMutationDraft> mutationDrafts;
     while (std::ssize(mutationDrafts) < config->MaxCommitBatchRecordCount) {
         TMutationDraft mutationDraft;
@@ -245,7 +240,11 @@ void TLeaderCommitter::SerializeMutations()
             break;
         }
 
-        if (ReadOnly_) {
+        if (mutationDraft.Request.Type == EnterReadOnlyMutationType) {
+            EpochContext_->ReadOnly = readOnly = true;
+        }
+
+        if (readOnly && !IsSystemMutationType(mutationDraft.Request.Type)) {
             auto error = TError(
                 EErrorCode::ReadOnly,
                 "Read-only mode is active");
@@ -992,7 +991,7 @@ void TLeaderCommitter::OnChangelogAcquired(const TError& error)
 
     BIND(&TDecoratedAutomaton::BuildSnapshot, DecoratedAutomaton_)
         .AsyncVia(EpochContext_->EpochUserAutomatonInvoker)
-        .Run(Changelog_->GetId(), snapshotSequenceNumber, ReadOnly_)
+        .Run(Changelog_->GetId(), snapshotSequenceNumber, EpochContext_->ReadOnly)
         .Subscribe(
             BIND(&TLeaderCommitter::OnLocalSnapshotBuilt, MakeStrong(this), Changelog_->GetId())
                 .Via(EpochContext_->EpochControlInvoker));

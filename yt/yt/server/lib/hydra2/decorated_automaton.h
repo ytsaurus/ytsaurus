@@ -99,6 +99,8 @@ struct TEpochContext
     bool AcquiringChangelog = false;
     bool CatchingUp = false;
 
+    std::atomic<bool> ReadOnly = false;
+
     TIntrusivePtr<NConcurrency::TAsyncBatcher<void>> LeaderSyncBatcher;
     std::optional<i64> LeaderSyncSequenceNumber;
     TPromise<void> LeaderSyncPromise;
@@ -226,6 +228,7 @@ public:
         int lastMutationTerm,
         TVersion version,
         i64 sequenceNumber,
+        bool readOnly,
         ui64 randomSeed,
         ui64 stateHash,
         TInstant timestamp,
@@ -250,6 +253,7 @@ public:
     bool IsBuildingSnapshotNow() const;
     int GetLastSuccessfulSnapshotId() const;
     bool GetLastSuccessfulSnapshotReadOnly() const;
+    bool GetReadOnly() const;
 
 private:
     friend class TUserLockGuard;
@@ -306,6 +310,7 @@ private:
     std::atomic<bool> BuildingSnapshot_ = false;
     std::atomic<int> LastSuccessfulSnapshotId_ = NHydra::InvalidSegmentId;
     std::atomic<bool> LastSuccessfulSnapshotReadOnly_ = false;
+    std::atomic<bool> ReadOnly_ = false;
 
     NProfiling::TTimeGauge SnapshotLoadTime_;
 

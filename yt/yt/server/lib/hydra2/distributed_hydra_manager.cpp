@@ -399,7 +399,10 @@ public:
                 "Snapshot is already being built"));
         }
 
-        SetReadOnly(setReadOnly);
+        if (setReadOnly) {
+            WaitFor(CommitMutation(MakeSystemMutationRequest(EnterReadOnlyMutationType)))
+                .ThrowOnError();
+        }
 
         return leaderCommitter->BuildSnapshot(waitForSnapshotCompletion, setReadOnly);
     }
@@ -519,11 +522,11 @@ public:
         }));
     }
 
-    TMutationRequest MakeHeartbeatMutationRequest()
+    TMutationRequest MakeSystemMutationRequest(const TString& mutationType)
     {
         return {
             .Reign = GetCurrentReign(),
-            .Type = HeartbeatMutationType
+            .Type = mutationType
         };
     }
 
@@ -539,6 +542,7 @@ public:
                         NRpc::EErrorCode::Unavailable,
                         "Leader has not recovered yet"));
                 }
+
                 return EnqueueMutation(std::move(request));
             }
 
@@ -570,7 +574,10 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return ReadOnly_.load();
+        if (auto epochContext = AtomicEpochContext_.Acquire()) {
+            return epochContext->ReadOnly;
+        }
+        return false;
     }
 
     TDistributedHydraManagerDynamicOptions GetDynamicOptions() const override
@@ -628,8 +635,6 @@ private:
 
     const TLeaderLeasePtr LeaderLease_ = New<TLeaderLease>();
     const TMutationDraftQueuePtr MutationDraftQueue_ = New<TMutationDraftQueue>();
-
-    std::atomic<bool> ReadOnly_ = false;
 
     int SnapshotId_ = -1;
     TFuture<TRemoteSnapshotParams> SnapshotFuture_;
@@ -711,6 +716,7 @@ private:
             RegisterMethod(RPC_SERVICE_METHOD_DESC(ForceRestart));
             RegisterMethod(RPC_SERVICE_METHOD_DESC(GetPeerState));
             RegisterMethod(RPC_SERVICE_METHOD_DESC(ResetStateHash));
+            RegisterMethod(RPC_SERVICE_METHOD_DESC(ExitReadOnly));
         }
 
     private:
@@ -799,6 +805,31 @@ private:
 
             auto mutation = CreateMutation(owner, *request);
             YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
+        }
+
+        DECLARE_RPC_SERVICE_METHOD(NHydra::NProto, ExitReadOnly)
+        {
+            context->SetRequestInfo();
+
+            auto owner = GetOwnerOrThrow();
+            if (!owner->IsActiveLeader()) {
+                THROW_ERROR_EXCEPTION(
+                    NRpc::EErrorCode::Unavailable,
+                    "Not an active leader");
+            }
+
+            owner->CommitMutation(owner->MakeSystemMutationRequest(ExitReadOnlyMutationType))
+                .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& result) {
+                    if (!result.IsOK()) {
+                        context->Reply(result);
+                        return;
+                    }
+
+                    if (owner->GetReadOnly()) {
+                        owner->ScheduleRestart(owner->ControlEpochContext_, TError("Exited read only mode"));
+                    }
+                    context->Reply();
+                }).Via(owner->ControlInvoker_));
         }
     };
     const TIntrusivePtr<THydraService> HydraService_;
@@ -1530,7 +1561,7 @@ private:
         YT_VERIFY(epochContext->LeaderCommitter);
         auto lastOffloadedSequenceNumber = epochContext->LeaderCommitter->GetLastOffloadedSequenceNumber();
         // We still do not want followers to apply mutations before leader.
-        WaitFor(epochContext->LeaderCommitter->GeLastOffloadedMutationsFuture())
+        WaitFor(epochContext->LeaderCommitter->GetLastOffloadedMutationsFuture())
             .ThrowOnError();
 
         return lastOffloadedSequenceNumber;
@@ -2012,9 +2043,6 @@ private:
                 epochContext.Get(),
                 Logger,
                 Profiler_);
-            if (ReadOnly_) {
-                epochContext->LeaderCommitter->SetReadOnly();
-            }
 
             epochContext->LeaderCommitter->SubscribeLoggingFailed(
                 BIND(&TDistributedHydraManager::OnLoggingFailed, MakeWeak(this)));
@@ -2033,6 +2061,8 @@ private:
                 Logger);
             WaitFor(epochContext->Recovery->Run())
                 .ThrowOnError();
+
+            MaybeSetReadOnlyOnRecovery();
 
             if (Config_->Get()->DisableLeaderLeaseGraceDelay) {
                 YT_LOG_WARNING("Leader lease grace delay disabled; cluster can only be used for testing purposes");
@@ -2072,7 +2102,7 @@ private:
             ControlLeaderRecoveryComplete_.Fire();
 
             YT_LOG_INFO("Committing initial heartbeat mutation");
-            WaitFor(ForceCommitMutation(MakeHeartbeatMutationRequest()))
+            WaitFor(ForceCommitMutation(MakeSystemMutationRequest(HeartbeatMutationType)))
                 .ThrowOnError();
             YT_LOG_INFO("Initial heartbeat mutation committed");
 
@@ -2322,6 +2352,8 @@ private:
             // NB: Do not discard CatchingUp.
 
             YT_LOG_INFO("Follower caught up");
+
+            MaybeSetReadOnlyOnRecovery();
 
             YT_VERIFY(ControlState_ == EPeerState::FollowerRecovery);
             ControlState_ = EPeerState::Following;
@@ -2782,9 +2814,9 @@ private:
 
         YT_LOG_DEBUG("Committing heartbeat mutation");
 
-        CommitMutation(MakeHeartbeatMutationRequest())
+        CommitMutation(MakeSystemMutationRequest(HeartbeatMutationType))
             .WithTimeout(Config_->Get()->HeartbeatMutationTimeout)
-            .Subscribe(BIND([=, this, this_ = MakeStrong(this), weakEpochContext = MakeWeak(ControlEpochContext_)] (const TErrorOr<TMutationResponse>& result){
+            .Subscribe(BIND([=, this, this_ = MakeStrong(this), weakEpochContext = MakeWeak(ControlEpochContext_)] (const TErrorOr<TMutationResponse>& result) {
                 if (result.IsOK()) {
                     YT_LOG_DEBUG("Heartbeat mutation commit succeeded");
                     return;
@@ -2809,24 +2841,30 @@ private:
             }));
     }
 
-
     void SetReadOnly(bool value)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (!value) {
+        if (ControlEpochContext_->ReadOnly == value) {
             return;
         }
 
-        auto controlState = GetControlState();
-        YT_VERIFY(controlState == EPeerState::Leading || controlState == EPeerState::Following);
+        YT_VERIFY(value ||
+            ControlState_ == EPeerState::LeaderRecovery ||
+            ControlState_ == EPeerState::FollowerRecovery);
 
-        if (!ReadOnly_.exchange(true)) {
-            YT_LOG_INFO("Read-only mode activated");
-            if (controlState == EPeerState::Leading) {
-                ControlEpochContext_->LeaderCommitter->SetReadOnly();
-            }
-        }
+        ControlEpochContext_->ReadOnly = value;
+
+        YT_LOG_INFO("Read-only mode %v", value ? "enabled" : "disabled");
+    }
+
+    void MaybeSetReadOnlyOnRecovery()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        YT_VERIFY(ControlState_ == EPeerState::LeaderRecovery || ControlState_ == EPeerState::FollowerRecovery);
+
+        SetReadOnly(DecoratedAutomaton_->GetReadOnly());
     }
 };
 

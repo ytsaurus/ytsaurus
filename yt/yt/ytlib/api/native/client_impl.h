@@ -610,6 +610,13 @@ public:
     IMPLEMENT_METHOD(TCellIdToSnapshotIdMap, BuildMasterSnapshots, (
         const TBuildMasterSnapshotsOptions& options),
         (options))
+    IMPLEMENT_METHOD(void, ExitReadOnly, (
+        NObjectClient::TCellId cellId,
+        const TExitReadOnlyOptions& options),
+        (cellId, options))
+    IMPLEMENT_METHOD(void, MasterExitReadOnly, (
+        const TMasterExitReadOnlyOptions& options),
+        (options))
     IMPLEMENT_METHOD(void, SwitchLeader, (
         NObjectClient::TCellId cellId,
         const TString& newLeaderAddress,
@@ -1614,6 +1621,11 @@ private:
         const TBuildSnapshotOptions& options);
     TCellIdToSnapshotIdMap DoBuildMasterSnapshots(
         const TBuildMasterSnapshotsOptions& options);
+    void DoExitReadOnly(
+        NObjectClient::TCellId cellId,
+        const TExitReadOnlyOptions& options);
+    void DoMasterExitReadOnly(
+        const TMasterExitReadOnlyOptions& options);
     void DoSwitchLeader(
         NObjectClient::TCellId cellId,
         const TString& newLeaderAddress,

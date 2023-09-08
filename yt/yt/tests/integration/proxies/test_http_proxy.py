@@ -76,7 +76,7 @@ class HttpProxyTestBase(YTEnvSetup):
         return self._get_proxy_address() + "/api/v4/build_snapshot"
 
     def _get_master_address(self):
-        return ls("//sys/primary_masters")[0]
+        return ls("//sys/primary_masters", suppress_transaction_coordinator_sync=True)[0]
 
     def _get_hydra_monitoring(self, master=None):
         if master is None:
@@ -901,7 +901,7 @@ class TestHttpProxyBuildSnapshotReadonly(TestHttpProxyBuildSnapshotBase):
         with Restarter(self.Env, MASTERS_SERVICE):
             pass
 
-        wait(lambda: not self._get_hydra_monitoring().get("read_only", None))
+        wait(lambda: self._get_hydra_monitoring().get("read_only", None))
 
     @authors("alexkolodezny")
     def test_read_only_proxy_availability(self):
@@ -915,4 +915,4 @@ class TestHttpProxyBuildSnapshotReadonly(TestHttpProxyBuildSnapshotBase):
         with Restarter(self.Env, MASTERS_SERVICE):
             pass
 
-        wait(lambda: not self._get_hydra_monitoring().get("read_only", None))
+        wait(lambda: self._get_hydra_monitoring().get("read_only", None))

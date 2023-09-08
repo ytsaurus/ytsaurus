@@ -70,7 +70,7 @@ class TestCypressRootCreationTime(YTEnvSetup):
 
 
 class TestCypress(YTEnvSetup):
-    NUM_TEST_PARTITIONS = 7
+    NUM_TEST_PARTITIONS = 12
 
     NUM_MASTERS = 3
     NUM_NODES = 0

@@ -51,7 +51,7 @@ public:
     DEFINE_SIGNAL(void(const TError& error), LoggingFailed);
 
     TFuture<void> GetLastLoggedMutationFuture();
-    TFuture<void> GeLastOffloadedMutationsFuture();
+    TFuture<void> GetLastOffloadedMutationsFuture();
 
 protected:
     const TConfigWrapperPtr Config_;
@@ -122,8 +122,6 @@ public:
     TFuture<int> BuildSnapshot(bool waitForCompletion, bool readOnly);
     std::optional<TFuture<int>> GetLastSnapshotFuture(bool waitForCompletion, bool readOnly);
 
-    void SetReadOnly();
-
     TFuture<void> GetLastMutationFuture();
 
     void Reconfigure();
@@ -162,8 +160,6 @@ private:
     i64 LastOffloadedSequenceNumber_ = 0;
     i64 NextLoggedSequenceNumber_ = 0;
     TVersion NextLoggedVersion_;
-
-    bool ReadOnly_ = false;
 
     bool AcquiringChangelog_ = false;
 

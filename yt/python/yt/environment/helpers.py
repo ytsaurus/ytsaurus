@@ -412,7 +412,8 @@ class Restarter(object):
             CONTROLLER_AGENTS_SERVICE: self.yt_instance.start_controller_agents,
             NODES_SERVICE: self.yt_instance.start_nodes,
             CHAOS_NODES_SERVICE: self.yt_instance.start_chaos_nodes,
-            MASTERS_SERVICE: lambda sync: self.yt_instance.start_all_masters(start_secondary_master_cells=True, set_config=False, sync=sync),
+            MASTERS_SERVICE: lambda sync: self.yt_instance.start_all_masters(
+                start_secondary_master_cells=True, set_config=False, sync=sync),
             MASTER_CACHES_SERVICE: self.yt_instance.start_master_caches,
             QUEUE_AGENTS_SERVICE: self.yt_instance.start_queue_agents,
             RPC_PROXIES_SERVICE: self.yt_instance.start_rpc_proxy,
