@@ -76,6 +76,16 @@ jobs:
 
           docker push ytsaurus/chyt:${IMAGE_TAG}
 
+      - name: Strawberry image
+        if: ${{ inputs.publish-strawberry }}
+        run: |
+          mkdir -p ../docker-strawberry-build
+          IMAGE_TAG=${{ inputs.image-tag }}
+
+          bash ./ytsaurus/yt/docker/strawberry/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --output-path ../docker-strawberry-build --image-tag ${IMAGE_TAG}
+
+          docker push ytsaurus/strawberry:${IMAGE_TAG}
+
       - name: Local image
         if: ${{ inputs.publish-local }}
         run: |
