@@ -150,7 +150,8 @@ public:
     TConnection(
         TConnectionStaticConfigPtr staticConfig,
         TConnectionDynamicConfigPtr dynamicConfig,
-        const TConnectionOptions& options)
+        const TConnectionOptions& options,
+        TClusterDirectoryPtr clusterDirectoryOverride)
         : StaticConfig_(std::move(staticConfig))
         , Config_(std::move(dynamicConfig))
         , Options_(options)
@@ -171,6 +172,7 @@ public:
             auto config = Config_.Acquire();
             return CreateColumnEvaluatorCache(config->ColumnEvaluatorCache);
         }))
+        , ClusterDirectoryOverride_(std::move(clusterDirectoryOverride))
     { }
 
     void Initialize()
@@ -249,7 +251,7 @@ public:
         CellDirectory_ = NHiveClient::CreateCellDirectory(
             config->CellDirectory,
             ChannelFactory_,
-            ClusterDirectory_,
+            GetClusterDirectory(),
             GetNetworks(),
             Logger);
         ConfigureMasterCells();
@@ -546,7 +548,7 @@ public:
         if (auto semicolonPosition = stage.find(":"); semicolonPosition != TString::npos) {
             auto cluster = stage.substr(0, semicolonPosition);
             clusterStage = stage.substr(semicolonPosition + 1);
-            clusterConnection = DynamicPointerCast<TConnection>(ClusterDirectory_->GetConnectionOrThrow(cluster));
+            clusterConnection = DynamicPointerCast<TConnection>(GetClusterDirectory()->GetConnectionOrThrow(cluster));
             YT_VERIFY(clusterConnection);
         }
         auto config = clusterConnection->Config_.Acquire();
@@ -628,9 +630,9 @@ public:
         return DownedCellTracker_;
     }
 
-    const NHiveClient::TClusterDirectoryPtr& GetClusterDirectory() override
+    NHiveClient::TClusterDirectoryPtr GetClusterDirectory() const override
     {
-        return ClusterDirectory_;
+        return (ClusterDirectoryOverride_ ? ClusterDirectoryOverride_ : ClusterDirectory_);
     }
 
     const NHiveClient::TClusterDirectorySynchronizerPtr& GetClusterDirectorySynchronizer() override
@@ -720,6 +722,7 @@ public:
         QueueConsumerRegistrationManager_->StopSync();
 
         ClusterDirectory_->Clear();
+        ClusterDirectoryOverride_.Reset();
         ClusterDirectorySynchronizer_->Stop();
 
         CellDirectory_->Clear();
@@ -836,6 +839,10 @@ private:
     const TCellTrackerPtr DownedCellTracker_ = New<TCellTracker>();
 
     TClusterDirectoryPtr ClusterDirectory_;
+    // NB: This memory leak is intentional.
+    // We assume that cluster directories are allocated in a singleton-like fashion throughout the life of the process.
+    // TODO(achulkov2, max42): Make cluster directories actual singletons?
+    TClusterDirectoryPtr ClusterDirectoryOverride_;
     TClusterDirectorySynchronizerPtr ClusterDirectorySynchronizer_;
 
     TMediumDirectoryPtr MediumDirectory_;
@@ -1030,7 +1037,7 @@ private:
         if (auto semicolonPosition = stage.find(":"); semicolonPosition != TString::npos) {
             auto cluster = stage.substr(0, semicolonPosition);
             clusterStage = stage.substr(semicolonPosition + 1);
-            clusterConnection = DynamicPointerCast<TConnection>(ClusterDirectory_->GetConnectionOrThrow(cluster));
+            clusterConnection = DynamicPointerCast<TConnection>(GetClusterDirectory()->GetConnectionOrThrow(cluster));
             YT_VERIFY(clusterConnection);
         }
         auto config = clusterConnection->Config_.Acquire();
@@ -1070,23 +1077,25 @@ TConnectionOptions::TConnectionOptions(IInvokerPtr invoker)
 IConnectionPtr CreateConnection(
     TConnectionStaticConfigPtr staticConfig,
     TConnectionDynamicConfigPtr dynamicConfig,
-    TConnectionOptions options)
+    TConnectionOptions options,
+    TClusterDirectoryPtr clusterDirectoryOverride)
 {
     NTracing::TNullTraceContextGuard nullTraceContext;
 
     if (!staticConfig->PrimaryMaster) {
         THROW_ERROR_EXCEPTION("Missing \"primary_master\" parameter in connection configuration");
     }
-    auto connection = New<TConnection>(std::move(staticConfig), std::move(dynamicConfig), std::move(options));
+    auto connection = New<TConnection>(std::move(staticConfig), std::move(dynamicConfig), std::move(options), std::move(clusterDirectoryOverride));
     connection->Initialize();
     return connection;
 }
 
 IConnectionPtr CreateConnection(
     TConnectionCompoundConfigPtr compoundConfig,
-    TConnectionOptions options)
+    TConnectionOptions options,
+    TClusterDirectoryPtr clusterDirectoryOverride)
 {
-    return CreateConnection(compoundConfig->Static, compoundConfig->Dynamic, std::move(options));
+    return CreateConnection(compoundConfig->Static, compoundConfig->Dynamic, std::move(options), std::move(clusterDirectoryOverride));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -66,7 +66,7 @@ struct IConnection
     virtual const NHiveClient::ICellDirectorySynchronizerPtr& GetCellDirectorySynchronizer() = 0;
     virtual const NChaosClient::IChaosCellDirectorySynchronizerPtr& GetChaosCellDirectorySynchronizer() = 0;
 
-    virtual const NHiveClient::TClusterDirectoryPtr& GetClusterDirectory() = 0;
+    virtual NHiveClient::TClusterDirectoryPtr GetClusterDirectory() const = 0;
     virtual const NHiveClient::TClusterDirectorySynchronizerPtr& GetClusterDirectorySynchronizer() = 0;
 
     virtual const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() = 0;
@@ -208,7 +208,8 @@ struct TConnectionOptions
 IConnectionPtr CreateConnection(
     TConnectionStaticConfigPtr staticConfig,
     TConnectionDynamicConfigPtr dynamicConfig,
-    TConnectionOptions options = {});
+    TConnectionOptions options = {},
+    NHiveClient::TClusterDirectoryPtr clusterDirectoryOverride = nullptr);
 
 //! A method for creating a connection from a compound config which
 //! contains both static and dynamic connection configurations.
@@ -217,7 +218,8 @@ IConnectionPtr CreateConnection(
 //! in legacy components during the transition period.
 IConnectionPtr CreateConnection(
     TConnectionCompoundConfigPtr compoundConfig,
-    TConnectionOptions options = {});
+    TConnectionOptions options = {},
+    NHiveClient::TClusterDirectoryPtr clusterDirectoryOverride = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 
