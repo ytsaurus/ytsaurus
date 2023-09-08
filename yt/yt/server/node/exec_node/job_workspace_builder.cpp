@@ -138,7 +138,7 @@ void TJobWorkspaceBuilder::MakeArtifactSymlinks()
 {
     const auto& slot = Context_.Slot;
 
-    YT_LOG_INFO(
+    YT_LOG_DEBUG(
         "Making artifact symlinks (ArtifactCount: %v)",
         std::size(Context_.Artifacts));
 
@@ -169,7 +169,7 @@ void TJobWorkspaceBuilder::MakeArtifactSymlinks()
                 .ThrowOnError();
 
             YT_LOG_INFO(
-                "Symlink for artifact is successfully made (FileName: %v, Executable: %v,"
+                "Symlink for artifact is successfully made(FileName: %v, Executable: %v,"
                 " SandboxKind: %v, CompressedDataSize: %v)",
                 artifact.Name,
                 artifact.Executable,
@@ -180,7 +180,7 @@ void TJobWorkspaceBuilder::MakeArtifactSymlinks()
         }
     }
 
-    YT_LOG_INFO("Artifact symlinks are made");
+    YT_LOG_DEBUG("Artifact symlinks are made");
 }
 
 TFuture<TJobWorkspaceBuildingResult> TJobWorkspaceBuilder::Run()
@@ -194,7 +194,7 @@ TFuture<TJobWorkspaceBuildingResult> TJobWorkspaceBuilder::Run()
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunSetupCommand>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunGpuCheckCommand>())
         .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& result) {
-            YT_LOG_INFO(result, "Job workspace building finished");
+            YT_LOG_DEBUG(result, "Job workspace building finished");
 
             ResultHolder_.Result = result;
             Context_.Slot.Reset();
@@ -345,8 +345,8 @@ public:
 private:
     void SetArtifactPermissions()
     {
-        YT_LOG_INFO(
-            "Setting permissions for artifacts (ArtifactCount: %v)",
+        YT_LOG_DEBUG(
+            "Setting permissions for artifactifacts (ArctifactCount: %v)",
             std::size(Context_.Artifacts));
 
         for (const auto& artifact : Context_.Artifacts) {
@@ -371,7 +371,7 @@ private:
             }
         }
 
-        YT_LOG_INFO("Permissions for artifacts set");
+        YT_LOG_DEBUG("Permissions for artifactifacts set");
     }
 
     TFuture<void> DoPrepareSandboxDirectories()
