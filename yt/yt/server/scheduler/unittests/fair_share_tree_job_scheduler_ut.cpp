@@ -1184,7 +1184,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestConditionalPreemption)
     }
 
     auto targetOperationPreemptionPriority = EOperationPreemptionPriority::Normal;
-    EXPECT_EQ(guaranteedPool.Get(), context->FindPreemptionBlockingAncestor(donorOperationElement.Get(), targetOperationPreemptionPriority));
+    EXPECT_EQ(guaranteedPool.Get(), context->FindPreemptionBlockingAncestor(donorOperationElement.Get(), EJobPreemptionLevel::Preemptible, targetOperationPreemptionPriority));
     for (int jobIndex = 10; jobIndex < 15; ++jobIndex) {
         const auto& job = donorJobs[jobIndex];
         auto preemptionStatus = treeScheduler->GetJobPreemptionStatusInTest(donorOperationElement.Get(), job->GetId());
