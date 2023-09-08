@@ -754,7 +754,7 @@ class YtClient(ClientState):
             self,
             path,
             max_size=None, attributes=None, format=None, read_from=None, cache_sticky_group_size=None,
-            suppress_transaction_coordinator_sync=None):
+            suppress_transaction_coordinator_sync=None, suppress_upstream_sync=None):
         """
         Gets Cypress node content (attribute tree).
 
@@ -774,7 +774,7 @@ class YtClient(ClientState):
             path,
             client=self,
             max_size=max_size, attributes=attributes, format=format, read_from=read_from, cache_sticky_group_size=cache_sticky_group_size,
-            suppress_transaction_coordinator_sync=suppress_transaction_coordinator_sync)
+            suppress_transaction_coordinator_sync=suppress_transaction_coordinator_sync, suppress_upstream_sync=suppress_upstream_sync)
 
     def get_attribute(
             self,
@@ -2280,7 +2280,8 @@ class YtClient(ClientState):
     def set(
             self,
             path, value,
-            format=None, recursive=False, force=None, suppress_transaction_coordinator_sync=None):
+            format=None, recursive=False, force=None, suppress_transaction_coordinator_sync=None,
+            suppress_upstream_sync=None):
         """
         Sets new value to Cypress node.
 
@@ -2296,7 +2297,8 @@ class YtClient(ClientState):
         return client_api.set(
             path, value,
             client=self,
-            format=format, recursive=recursive, force=force, suppress_transaction_coordinator_sync=suppress_transaction_coordinator_sync)
+            format=format, recursive=recursive, force=force, suppress_transaction_coordinator_sync=suppress_transaction_coordinator_sync,
+            suppress_upstream_sync=suppress_upstream_sync)
 
     def set_attribute(
             self,

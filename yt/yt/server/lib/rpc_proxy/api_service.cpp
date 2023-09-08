@@ -703,6 +703,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(BatchModifyRows));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(BuildSnapshot));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ExitReadOnly));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(MasterExitReadOnly));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GCCollect));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SuspendCoordinator));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ResumeCoordinator));
@@ -4192,6 +4194,39 @@ private:
                 auto* response = &context->Response();
                 response->set_snapshot_id(snapshotId);
                 context->SetResponseInfo("SnapshotId: %v", snapshotId);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ExitReadOnly)
+    {
+        TExitReadOnlyOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        auto cellId = FromProto<TCellId>(request->cell_id());
+
+        context->SetRequestInfo("CellId: %v", cellId);
+
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+        ExecuteCall(
+            context,
+            [=] {
+                return client->ExitReadOnly(cellId, options);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, MasterExitReadOnly)
+    {
+        TMasterExitReadOnlyOptions options;
+        SetTimeoutOptions(&options, context.Get());
+        options.Retry = request->retry();
+
+        context->SetRequestInfo("Retry: %v", options.Retry);
+
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+        ExecuteCall(
+            context,
+            [=] {
+                return client->MasterExitReadOnly(options);
             });
     }
 

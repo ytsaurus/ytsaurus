@@ -1694,6 +1694,15 @@ def build_master_snapshots(*args, **kwargs):
     return get_driver().build_master_snapshots(*args, **kwargs)
 
 
+def exit_read_only(cell_id, **kwargs):
+    kwargs["cell_id"] = cell_id
+    return execute_command("exit_read_only", kwargs)
+
+
+def master_exit_read_only(**kwargs):
+    return execute_command("master_exit_read_only", kwargs)
+
+
 def switch_leader(cell_id, new_leader_address):
     parameters = {"cell_id": cell_id, "new_leader_address": new_leader_address}
     return execute_command("switch_leader", parameters, parse_yson=True)

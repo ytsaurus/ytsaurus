@@ -41,4 +41,13 @@ TDistributedHydraManagerConfigPtr TConfigWrapper::Get() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsSystemMutationType(const TString& mutationType)
+{
+    return mutationType == NHydra::HeartbeatMutationType ||
+        mutationType == NHydra::ExitReadOnlyMutationType ||
+        mutationType == NHydra::EnterReadOnlyMutationType;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NHydra2

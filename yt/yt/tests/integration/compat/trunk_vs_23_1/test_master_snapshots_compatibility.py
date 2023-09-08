@@ -5,7 +5,7 @@ from yt_commands import (
     authors, create_tablet_cell_bundle, print_debug, build_master_snapshots, sync_create_cells, wait_for_cells,
     ls, get, set, retry, start_transaction, create, wait, write_table, get_driver, lock)
 
-from yt_helpers import profiler_factory
+from yt_helpers import profiler_factory, master_exit_read_only_sync
 
 from original_tests.yt.yt.tests.integration.master.test_master_snapshots \
     import MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
@@ -53,7 +53,11 @@ class MasterSnapshotsCompatibilityBase(YTEnvSetup):
             os.rename(master_path + "__BACKUP", master_path)
         super(MasterSnapshotsCompatibilityBase, self).teardown_method(method)
 
-    def restart_with_update(self, service, build_snapshots=True):
+    def restart_with_update(self, service, from_trunk=False, build_snapshots=True):
+        # COMPAT(danilalexeev)
+        if from_trunk:
+            master_exit_read_only_sync()
+
         if build_snapshots:
             build_master_snapshots(set_read_only=True)
 
@@ -64,6 +68,9 @@ class MasterSnapshotsCompatibilityBase(YTEnvSetup):
             os.rename(master_path, master_path + "__BACKUP")
             print_debug("Symlinking {} to {}".format(ytserver_all_trunk_path, master_path))
             os.symlink(ytserver_all_trunk_path, master_path)
+
+        if from_trunk:
+            master_exit_read_only_sync()
 
 
 ##################################################################
@@ -235,7 +242,7 @@ class TestBundleControllerAttribute(MasterSnapshotsCompatibilityBase):
 
         sleep(0.5)
 
-        retry(lambda: self.restart_with_update(MASTERS_SERVICE))
+        retry(lambda: self.restart_with_update(MASTERS_SERVICE, from_trunk=True))
 
         assert bundle_controller_config == get(config_path)
 
@@ -417,6 +424,6 @@ class TestSchemaMigration(MasterSnapshotsCompatibilityBase):
 
         self._check_table_schemas()
 
-        self.restart_with_update(MASTERS_SERVICE)
+        self.restart_with_update(MASTERS_SERVICE, from_trunk=True)
 
         self._check_table_schemas()

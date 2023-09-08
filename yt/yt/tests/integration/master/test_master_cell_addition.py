@@ -21,6 +21,7 @@ from yt_commands import (
     create_access_control_object_namespace, create_access_control_object,
     print_debug, decommission_node)
 
+from yt_helpers import master_exit_read_only_sync
 from yt.test_helpers import assert_items_equal
 
 import pytest
@@ -93,11 +94,14 @@ class TestMasterCellAddition(YTEnvSetup):
             for cell_id in cls.CELL_IDS:
                 build_snapshot(cell_id=cell_id, set_read_only=True)
 
-            with Restarter(cls.Env, MASTERS_SERVICE):
+            with Restarter(cls.Env, MASTERS_SERVICE, sync=False):
                 for i in range(len(cls.PATCHED_CONFIGS)):
                     cls.PATCHED_CONFIGS[i]["secondary_masters"].append(cls.STASHED_CELL_CONFIGS[i])
 
                 cls.Env.rewrite_master_configs()
+
+            master_exit_read_only_sync()
+            cls.Env.synchronize()
 
             cls.Env.rewrite_node_configs()
             cls.Env.rewrite_scheduler_configs()

@@ -9,7 +9,9 @@ from yt_commands import (
     get_account_disk_space, get_account_committed_disk_space, get_chunk_owner_disk_space,
     ban_node)
 
-from yt_helpers import get_chunk_owner_master_cell_counters, get_chunk_owner_master_cell_gauges
+from yt_helpers import (
+    get_chunk_owner_master_cell_counters, get_chunk_owner_master_cell_gauges,
+    master_exit_read_only_sync)
 
 import yt.yson as yson
 from yt.common import YtError
@@ -1146,8 +1148,10 @@ class TestChunkAutotomizer(TestJournalsBase):
         with Restarter(self.Env, MASTERS_SERVICE):
             pass
 
+        master_exit_read_only_sync()
+
         self._set_fail_jobs(False)
-        wait(lambda: self._check_simple_journal())
+        wait(lambda: self._check_simple_journal(), ignore_exceptions=True)
 
     @authors("gritukan")
     def test_abandon_autotomy(self):

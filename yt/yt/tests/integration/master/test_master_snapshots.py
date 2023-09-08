@@ -14,6 +14,7 @@ from yt_commands import (
     get_account_disk_space, create_dynamic_table, build_snapshot,
     build_master_snapshots, clear_metadata_caches, create_pool_tree, create_pool, move, create_domestic_medium,
     create_chaos_cell_bundle, sync_create_chaos_cell, generate_chaos_cell_id, select_rows)
+from yt_helpers import master_exit_read_only_sync
 
 from yt.common import YtError
 from yt_type_helpers import make_schema, normalize_schema
@@ -528,6 +529,38 @@ def check_performance_counters_refactoring():
     wait(lambda: get(perf_counter + "/dynamic_row_read_count") > 1)
 
 
+def get_monitoring(monitoring_prefix, master):
+    return get(
+        "{}/{}/orchid/monitoring/hydra".format(monitoring_prefix, master),
+        default=None,
+        suppress_transaction_coordinator_sync=True,
+        suppress_upstream_sync=True)
+
+
+def is_leader_in_read_only(monitoring_prefix, master_list):
+    for master in master_list:
+        monitoring = get_monitoring(monitoring_prefix, master)
+        if monitoring is not None and monitoring["state"] == "leading" and monitoring["read_only"]:
+            return True
+    return False
+
+
+def all_peers_in_read_only(monitoring_prefix, master_list):
+    for master in master_list:
+        monitoring = get_monitoring(monitoring_prefix, master)
+        if monitoring is None or not monitoring["read_only"]:
+            return False
+    return True
+
+
+def no_peers_in_read_only(monitoring_prefix, master_list):
+    for master in master_list:
+        monitoring = get_monitoring(monitoring_prefix, master)
+        if monitoring is None or monitoring["read_only"]:
+            return False
+    return True
+
+
 MASTER_SNAPSHOT_CHECKER_LIST = [
     check_simple_node,
     check_schema,
@@ -617,19 +650,7 @@ class TestMastersSnapshotsShardedTx(YTEnvSetup):
     }
 
     @authors("aleksandra-zh")
-    def test_reads_in_readonly(self):
-        def is_leader_in_readonly(monitoring_prefix, master_list):
-            for master in master_list:
-                monitoring = get(
-                    "{}/{}/orchid/monitoring/hydra".format(monitoring_prefix, master),
-                    default=None,
-                    suppress_transaction_coordinator_sync=True,
-                    suppress_upstream_sync=True)
-                if monitoring is not None and monitoring["state"] == "leading" and monitoring["read_only"]:
-                    return True
-
-            return False
-
+    def test_reads_in_read_only(self):
         tx = start_transaction(coordinator_master_cell_tag=11)
         create("map_node", "//tmp/m", tx=tx)
 
@@ -638,7 +659,7 @@ class TestMastersSnapshotsShardedTx(YTEnvSetup):
         primary = ls("//sys/primary_masters",
                      suppress_transaction_coordinator_sync=True,
                      suppress_upstream_sync=True)
-        wait(lambda: is_leader_in_readonly("//sys/primary_masters", primary))
+        wait(lambda: is_leader_in_read_only("//sys/primary_masters", primary))
 
         abort_transaction(tx)
 
@@ -650,37 +671,22 @@ class TestMastersSnapshotsShardedTx(YTEnvSetup):
                                 suppress_upstream_sync=True)
         for cell_tag in secondary_masters:
             addresses = list(secondary_masters[cell_tag].keys())
-            wait(lambda: is_leader_in_readonly("//sys/secondary_masters/{}".format(cell_tag), addresses))
+            wait(lambda: is_leader_in_read_only("//sys/secondary_masters/{}".format(cell_tag), addresses))
 
         # Must not hang on this.
         get("//sys/primary_masters/{}/orchid/monitoring/hydra".format(primary[0]),
             suppress_transaction_coordinator_sync=True,
             suppress_upstream_sync=True)
 
-        with Restarter(self.Env, MASTERS_SERVICE):
-            pass
-
     @authors("aleksandra-zh")
-    def test_all_peers_in_readonly(self):
-        def all_peers_in_readonly(monitoring_prefix, master_list):
-            for master in master_list:
-                monitoring = get(
-                    "{}/{}/orchid/monitoring/hydra".format(monitoring_prefix, master),
-                    default=None,
-                    suppress_transaction_coordinator_sync=True,
-                    suppress_upstream_sync=True)
-                if monitoring is None or not monitoring["read_only"] or not monitoring["last_snapshot_read_only"]:
-                    return False
-
-            return True
-
+    def test_all_peers_in_read_only(self):
         build_master_snapshots(set_read_only=True)
 
         primary = ls(
             "//sys/primary_masters",
             suppress_transaction_coordinator_sync=True,
             suppress_upstream_sync=True)
-        wait(lambda: all_peers_in_readonly("//sys/primary_masters", primary))
+        wait(lambda: all_peers_in_read_only("//sys/primary_masters", primary))
 
         secondary_masters = get(
             "//sys/secondary_masters",
@@ -688,10 +694,51 @@ class TestMastersSnapshotsShardedTx(YTEnvSetup):
             suppress_upstream_sync=True)
         for cell_tag in secondary_masters:
             addresses = list(secondary_masters[cell_tag].keys())
-            wait(lambda: all_peers_in_readonly("//sys/secondary_masters/{}".format(cell_tag), addresses))
+            wait(lambda: all_peers_in_read_only("//sys/secondary_masters/{}".format(cell_tag), addresses))
 
         # Must not hang on this.
         build_master_snapshots(set_read_only=True)
 
+
+class TestMastersPersistentReadOnly(YTEnvSetup):
+    @authors("danilalexeev")
+    def test_read_only_after_recovery(self):
+        build_master_snapshots(set_read_only=True)
+
+        primary = ls("//sys/primary_masters",
+                     suppress_transaction_coordinator_sync=True,
+                     suppress_upstream_sync=True)
+        wait(lambda: is_leader_in_read_only("//sys/primary_masters", primary))
+
+        secondary_masters = get(
+            "//sys/secondary_masters",
+            suppress_transaction_coordinator_sync=True,
+            suppress_upstream_sync=True)
+        for cell_tag in secondary_masters:
+            addresses = list(secondary_masters[cell_tag].keys())
+            wait(lambda: is_leader_in_read_only("//sys/secondary_masters/{}".format(cell_tag), addresses))
+
         with Restarter(self.Env, MASTERS_SERVICE):
             pass
+
+        wait(lambda: is_leader_in_read_only("//sys/primary_masters", primary))
+
+        with pytest.raises(YtError):
+            create("table", "//tmp/t1")
+
+        master_exit_read_only_sync()
+
+        create("table", "//tmp/t2")
+
+        with Restarter(self.Env, MASTERS_SERVICE):
+            pass
+
+        wait(lambda: no_peers_in_read_only("//sys/primary_masters", primary))
+
+        for cell_tag in secondary_masters:
+            addresses = list(secondary_masters[cell_tag].keys())
+            wait(lambda: no_peers_in_read_only("//sys/secondary_masters/{}".format(cell_tag), addresses))
+
+
+class TestMastersPersistentReadOnlyMulticell(TestMastersPersistentReadOnly):
+    NUM_SECONDARY_MASTER_CELLS = 2

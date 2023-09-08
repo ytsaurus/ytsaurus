@@ -17,7 +17,9 @@ DECLARE_REFCOUNTED_CLASS(TPeerConnectionConfig)
 DECLARE_REFCOUNTED_CLASS(TRemoteSnapshotStoreOptions)
 DECLARE_REFCOUNTED_CLASS(TRemoteChangelogStoreOptions)
 
-extern const TString HeartbeatMutationType;
+inline const TString HeartbeatMutationType;
+inline const TString EnterReadOnlyMutationType = "NYT.NHydra.NProto.TReqEnterReadOnly";
+inline const TString ExitReadOnlyMutationType = "NYT.NHydra.NProto.TReqExitReadOnly";
 
 ////////////////////////////////////////////////////////////////////////////////
 

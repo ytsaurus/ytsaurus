@@ -170,6 +170,89 @@ TCellIdToSnapshotIdMap TClient::DoBuildMasterSnapshots(const TBuildMasterSnapsho
     return cellIdToSnapshotId;
 }
 
+void TClient::DoExitReadOnly(
+    TCellId cellId,
+    const TExitReadOnlyOptions& options)
+{
+    ValidatePermissionsWithAcn(
+        EAccessControlObject::ExitReadOnly,
+        EPermission::Use);
+
+    auto channel = Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellId);
+
+    THydraServiceProxy proxy(channel);
+
+    auto req = proxy.ExitReadOnly();
+    req->SetTimeout(options.Timeout);
+
+    WaitFor(req->Invoke())
+        .ThrowOnError();
+}
+
+void TClient::DoMasterExitReadOnly(
+    const TMasterExitReadOnlyOptions& options)
+{
+    ValidatePermissionsWithAcn(
+        EAccessControlObject::MasterExitReadOnly,
+        EPermission::Use);
+
+    using TResponseFuture = TFuture<TIntrusivePtr<TTypedClientResponse<NHydra::NProto::TRspExitReadOnly>>>;
+    struct TExitReadOnlyRequest
+    {
+        TResponseFuture Future;
+        TCellId CellId;
+    };
+
+    auto constructRequest = [&] (IChannelPtr channel) {
+        THydraServiceProxy proxy(std::move(channel));
+        auto req = proxy.ExitReadOnly();
+        req->SetTimeout(options.Timeout);
+        return req;
+    };
+
+    std::vector<TCellId> cellIds;
+
+    cellIds.push_back(Connection_->GetPrimaryMasterCellId());
+
+    for (auto cellTag : Connection_->GetSecondaryMasterCellTags()) {
+        cellIds.push_back(Connection_->GetMasterCellId(cellTag));
+    }
+
+    THashMap<TCellId, IChannelPtr> channels;
+    for (auto cellId : cellIds) {
+        EmplaceOrCrash(channels, std::make_pair(cellId, GetHydraAdminChannelOrThrow(cellId)));
+    }
+
+    std::queue<TExitReadOnlyRequest> requestQueue;
+    auto enqueueRequest = [&] (TCellId cellId) {
+        YT_LOG_INFO("Requesting exiting read-only mode at cell (CellId: %v)", cellId);
+        auto request = constructRequest(channels[cellId]);
+        requestQueue.push({request->Invoke(), cellId});
+    };
+
+    for (auto cellId : cellIds) {
+        enqueueRequest(cellId);
+    }
+
+    while (!requestQueue.empty()) {
+        auto request = requestQueue.front();
+        requestQueue.pop();
+
+        auto cellId = request.CellId;
+        auto rspOrError = WaitFor(request.Future);
+        if (rspOrError.IsOK()) {
+            YT_LOG_INFO("Exited read-only mode (CellId: %v)", cellId);
+            continue;
+        }
+        if (options.Retry) {
+            YT_LOG_INFO(rspOrError, "Failed to exit read-only mode; retrying (CellId: %v)", cellId);
+            enqueueRequest(cellId);
+        } else {
+            THROW_ERROR(rspOrError);
+        }
+    }
+}
+
 void TClient::DoSwitchLeader(
     TCellId cellId,
     const TString& newLeaderAddress,

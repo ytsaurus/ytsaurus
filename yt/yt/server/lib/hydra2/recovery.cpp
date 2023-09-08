@@ -154,13 +154,15 @@ void TRecovery::DoRun()
         }
         auto snapshotRecordId = snapshotMeta.last_record_id();
         auto snapshotLastMutationTerm = snapshotMeta.last_mutation_term();
+        auto snapshotReadOnly = snapshotMeta.read_only();
 
         YT_VERIFY(snapshotSegmentId >= currentState.SegmentId);
         YT_VERIFY(snapshotSequenceNumber >= currentState.SequenceNumber);
 
-        YT_LOG_INFO("Snapshot opened (SnapshotSegmentId: %v, SnapshotSequenceNumber: %v)",
+        YT_LOG_INFO("Snapshot opened (SnapshotSegmentId: %v, SnapshotSequenceNumber: %v, ReadOnly: %v)",
             snapshotSegmentId,
-            snapshotSequenceNumber);
+            snapshotSequenceNumber,
+            snapshotReadOnly);
 
         if (snapshotSegmentId == currentState.SegmentId && snapshotSequenceNumber == currentState.SequenceNumber) {
             YT_LOG_INFO("No need to use snapshot for recovery");
@@ -177,6 +179,7 @@ void TRecovery::DoRun()
                     snapshotLastMutationTerm,
                     {snapshotSegmentId, snapshotRecordId},
                     snapshotSequenceNumber,
+                    snapshotReadOnly,
                     snapshoRandomSeed,
                     snapshotStateHash,
                     snapshotTimestamp,

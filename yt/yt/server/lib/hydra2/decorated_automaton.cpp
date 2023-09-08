@@ -290,6 +290,7 @@ public:
             meta.set_last_segment_id(automatonVersion.SegmentId);
             meta.set_last_record_id(automatonVersion.RecordId);
             meta.set_last_mutation_term(Owner_->LastMutationTerm_);
+            meta.set_read_only(SnapshotReadOnly_);
 
             SnapshotWriter_ = Owner_->SnapshotStore_->CreateWriter(SnapshotId_, meta);
 
@@ -933,6 +934,7 @@ void TDecoratedAutomaton::LoadSnapshot(
     int lastMutationTerm,
     TVersion version,
     i64 sequenceNumber,
+    bool readOnly,
     ui64 randomSeed,
     ui64 stateHash,
     TInstant timestamp,
@@ -998,7 +1000,8 @@ void TDecoratedAutomaton::LoadSnapshot(
     // After recovery leader may still ask us to build snapshot N, but we already downloaded it from another peer,
     // so just refuse.
     LastSuccessfulSnapshotId_ = snapshotId;
-    LastSuccessfulSnapshotReadOnly_ = false;
+    LastSuccessfulSnapshotReadOnly_ = readOnly;
+    ReadOnly_ = readOnly;
     LastMutationTerm_ = lastMutationTerm;
     MutationCountSinceLastSnapshot_ = 0;
     MutationSizeSinceLastSnapshot_ = 0;
@@ -1185,7 +1188,17 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* mutationContext, TVe
 
     {
         TMutationContextGuard mutationContextGuard(mutationContext);
-        Automaton_->ApplyMutation(mutationContext);
+        if (request.Type == EnterReadOnlyMutationType || request.Type == ExitReadOnlyMutationType) {
+            ReadOnly_ = request.Type == EnterReadOnlyMutationType;
+
+            YT_LOG_DEBUG("Recieved %v read-only mutation (Version: %v, SequenceNumber: %v, MutationId: %v)",
+                request.Type == EnterReadOnlyMutationType ? "enable" : "disable",
+                mutationContext->GetVersion(),
+                mutationContext->GetSequenceNumber(),
+                mutationId);
+        } else {
+            Automaton_->ApplyMutation(mutationContext);
+        }
 
         if (Options_.ResponseKeeper &&
             mutationId &&
@@ -1470,6 +1483,13 @@ bool TDecoratedAutomaton::GetLastSuccessfulSnapshotReadOnly() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return LastSuccessfulSnapshotReadOnly_.load();
+}
+
+bool TDecoratedAutomaton::GetReadOnly() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return ReadOnly_.load();
 }
 
 TReign TDecoratedAutomaton::GetCurrentReign() const

@@ -29,6 +29,7 @@ from yt.common import YtResponseError, format_error, update_inplace
 import yt.logger
 
 from yt_driver_bindings import reopen_logs
+from yt_helpers import master_exit_read_only_sync
 
 import pytest
 
@@ -997,10 +998,14 @@ class YTEnvSetup(object):
         for env in [self.Env] + self.remote_envs:
             env.check_liveness(callback_func=emergency_exit_within_tests)
 
-        for cluster_index in range(self.NUM_REMOTE_CLUSTERS + 1):
+        for cluster_index, env in enumerate([self.Env] + self.remote_envs):
             driver = yt_commands.get_driver(cluster=self.get_cluster_name(cluster_index))
             if driver is None:
                 continue
+
+            # COMPAT(danilalexeev)
+            if env.get_component_version("ytserver-master").abi >= (23, 2):
+                self._master_exit_read_only_sync(env, driver=driver)
 
             self._reset_nodes(driver=driver)
 
@@ -1025,6 +1030,15 @@ class YTEnvSetup(object):
             yt_commands.clear_metadata_caches(driver=driver)
 
         yt_commands.reset_events_on_fs()
+
+    def _master_exit_read_only_sync(self, yt_instance, driver=None):
+        logger = yt.logger.LOGGER
+        old_level = logger.level
+        logger.setLevel(logging.ERROR)
+
+        master_exit_read_only_sync(driver=driver)
+
+        logger.setLevel(old_level)
 
     def _abort_transactions(self, driver=None):
         abort_command = "abort_transaction" if driver.get_config()["api_version"] == 4 else "abort_tx"

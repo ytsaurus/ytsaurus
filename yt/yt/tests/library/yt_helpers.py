@@ -1,4 +1,4 @@
-from yt_commands import get, get_driver, set, ls, create_pool_tree, print_debug
+from yt_commands import get, get_driver, set, ls, create_pool_tree, print_debug, master_exit_read_only
 from yt.test_helpers import wait
 from yt.test_helpers.profiler import ProfilerFactory
 
@@ -222,3 +222,42 @@ def read_structured_log_single_entry(path, row_filter, from_barrier=None, to_bar
         source = inspect.getsource(row_filter)
         raise RuntimeError(f"Found {len(lines)} lines satisfying filter: {source}")
     return lines[0]
+
+
+def wait_no_peers_in_read_only(driver=None):
+    def no_peers_in_read_only(monitoring_prefix, master_list):
+        for master in master_list:
+            monitoring = get(
+                "{}/{}/orchid/monitoring/hydra".format(monitoring_prefix, master),
+                default=None,
+                suppress_transaction_coordinator_sync=True,
+                suppress_upstream_sync=True,
+                driver=driver,
+            )
+            if monitoring is None or monitoring["read_only"]:
+                return False
+
+        return True
+
+    primary = ls(
+        "//sys/primary_masters",
+        suppress_transaction_coordinator_sync=True,
+        suppress_upstream_sync=True,
+        driver=driver,
+    )
+    wait(lambda: no_peers_in_read_only("//sys/primary_masters", primary))
+
+    secondary_masters = get(
+        "//sys/secondary_masters",
+        suppress_transaction_coordinator_sync=True,
+        suppress_upstream_sync=True,
+        driver=driver,
+    )
+    for cell_tag in secondary_masters:
+        addresses = list(secondary_masters[cell_tag].keys())
+        wait(lambda: no_peers_in_read_only("//sys/secondary_masters/{}".format(cell_tag), addresses))
+
+
+def master_exit_read_only_sync(driver=None):
+    master_exit_read_only(driver=driver)
+    wait_no_peers_in_read_only(driver=driver)

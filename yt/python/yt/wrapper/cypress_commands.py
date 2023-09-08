@@ -63,7 +63,8 @@ def _is_batch_client(client):
 
 
 def get(path, max_size=None, attributes=None, format=None, read_from=None,
-        cache_sticky_group_size=None, suppress_transaction_coordinator_sync=None, client=None):
+        cache_sticky_group_size=None, suppress_transaction_coordinator_sync=None,
+        suppress_upstream_sync=None, client=None):
     """Gets Cypress node content (attribute tree).
 
     :param path: path to tree, it must exist!
@@ -84,6 +85,7 @@ def get(path, max_size=None, attributes=None, format=None, read_from=None,
         "max_size": max_size}
     set_param(params, "attributes", attributes)
     set_param(params, "suppress_transaction_coordinator_sync", suppress_transaction_coordinator_sync)
+    set_param(params, "suppress_upstream_sync", suppress_upstream_sync)
     set_master_read_params(params, read_from, cache_sticky_group_size)
     if get_api_version(client) == "v4":
         set_param(params, "return_only_value", True)
@@ -95,7 +97,8 @@ def get(path, max_size=None, attributes=None, format=None, read_from=None,
     return result
 
 
-def set(path, value, format=None, recursive=False, force=None, suppress_transaction_coordinator_sync=None, client=None):
+def set(path, value, format=None, recursive=False, force=None, suppress_transaction_coordinator_sync=None,
+        suppress_upstream_sync=None, client=None):
     """Sets new value to Cypress node.
 
     :param path: path.
@@ -119,6 +122,7 @@ def set(path, value, format=None, recursive=False, force=None, suppress_transact
     set_param(params, "recursive", recursive)
     set_param(params, "force", force)
     set_param(params, "suppress_transaction_coordinator_sync", suppress_transaction_coordinator_sync)
+    set_param(params, "suppress_upstream_sync", suppress_upstream_sync)
 
     return make_request(
         "set",

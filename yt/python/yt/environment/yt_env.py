@@ -1131,10 +1131,16 @@ class YTInstance(object):
                     client = self.create_native_client(master_name.replace("master", "driver"))
                 client.config["proxy"]["retries"]["enable"] = False
 
+                # `suppress_transaction_coordinator_sync` and `suppress_upstream_sync`
+                # are set True due to possibly enabled read-only mode.
                 if set_config:
-                    client.set("//sys/@config", get_dynamic_master_config())
+                    client.set("//sys/@config", get_dynamic_master_config(),
+                               suppress_transaction_coordinator_sync=True,
+                               suppress_upstream_sync=True)
                 else:
-                    client.get("//sys/@config")
+                    client.get("//sys/@config",
+                               suppress_transaction_coordinator_sync=True,
+                               suppress_upstream_sync=True)
 
                 return True
             except (requests.RequestException, YtError) as err:
@@ -1154,7 +1160,9 @@ class YTInstance(object):
                 if isinstance(result, tuple) and not result[0]:
                     return result
 
-                return cell_tag in primary_cell_client.get("//sys/@registered_master_cell_tags")
+                return cell_tag in primary_cell_client.get(
+                    "//sys/@registered_master_cell_tags",
+                    suppress_transaction_coordinator_sync=True)
 
             cell_ready = quorum_ready_and_cell_registered
 

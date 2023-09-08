@@ -7,6 +7,7 @@ from yt_commands import (
     create_rack, create_data_center, vanilla,
     build_master_snapshots, set_node_banned,
     add_maintenance, remove_maintenance)
+from yt_helpers import master_exit_read_only_sync
 
 import yt_error_codes
 
@@ -271,6 +272,8 @@ class TestNodeTracker(YTEnvSetup):
         # Shutdown masters and wait a bit.
         with Restarter(self.Env, MASTERS_SERVICE):
             time.sleep(3)
+
+        master_exit_read_only_sync()
 
         # Wait a bit after "update".
         time.sleep(3)
