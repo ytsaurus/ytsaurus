@@ -32,7 +32,7 @@ template <class TImpl>
 void TTabletOwnerTypeHandlerBase<TImpl>::DoDestroy(TImpl* owner)
 {
     if (owner->IsTrunk()) {
-        const auto& tabletManager = this->Bootstrap_->GetTabletManager();
+        const auto& tabletManager = this->GetBootstrap()->GetTabletManager();
         tabletManager->DestroyTabletOwner(owner);
     }
 
@@ -47,7 +47,7 @@ void TTabletOwnerTypeHandlerBase<TImpl>::DoClone(
     ENodeCloneMode mode,
     TAccount* account)
 {
-    const auto& tabletManager = this->Bootstrap_->GetTabletManager();
+    const auto& tabletManager = this->GetBootstrap()->GetTabletManager();
     tabletManager->ValidateCloneTabletOwner(
         sourceNode,
         mode,
@@ -72,7 +72,7 @@ void TTabletOwnerTypeHandlerBase<TImpl>::DoBeginCopy(
 {
     TBase::DoBeginCopy(node, context);
 
-    const auto& tabletManager = this->Bootstrap_->GetTabletManager();
+    const auto& tabletManager = this->GetBootstrap()->GetTabletManager();
     tabletManager->ValidateBeginCopyTabletOwner(node, context->GetMode());
 
     using NYT::Save;
@@ -95,12 +95,12 @@ void TTabletOwnerTypeHandlerBase<TImpl>::DoEndCopy(
 {
     TBase::DoEndCopy(node, context, factory);
 
-    const auto& tabletManager = this->Bootstrap_->GetTabletManager();
+    const auto& tabletManager = this->GetBootstrap()->GetTabletManager();
 
     using NYT::Load;
 
     if (auto* bundle = Load<TTabletCellBundle*>(*context)) {
-        const auto& objectManager = this->Bootstrap_->GetObjectManager();
+        const auto& objectManager = this->GetBootstrap()->GetObjectManager();
         objectManager->ValidateObjectLifeStage(bundle);
         tabletManager->SetTabletCellBundle(node, bundle);
     }

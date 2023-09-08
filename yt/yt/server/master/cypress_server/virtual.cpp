@@ -798,7 +798,7 @@ private:
         TTransaction* transaction) override
     {
         return New<TVirtualNodeProxy>(
-            Bootstrap_,
+            GetBootstrap(),
             &Metadata_,
             transaction,
             trunkNode,

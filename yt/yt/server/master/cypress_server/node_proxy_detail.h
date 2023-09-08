@@ -389,7 +389,7 @@ private:
         NTransactionServer::TTransaction* transaction) \
     { \
         return New<T##type##NodeProxy>( \
-            Bootstrap_, \
+            GetBootstrap(), \
             &Metadata_, \
             transaction, \
             node); \

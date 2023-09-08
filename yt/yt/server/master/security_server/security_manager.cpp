@@ -963,13 +963,14 @@ public:
         YT_ASSERT(chargedMasterMemoryUsage == TDetailedMasterMemory());
         node->ChargedDetailedMasterMemoryUsage() = chargedMasterMemoryUsage;
 
-        if (IsSchemafulType(node->GetType())) {
+        auto nodeType = node->GetType();
+        if (IsSchemafulType(nodeType)) {
             // NB: this may also be a replicated table.
-            // This dynamic cast is a temporary solution. It will be removed after TSchemfulTypeHandler is introduced.
-            const auto* schemafulNode = dynamic_cast<ISchemafulNode*>(node);
-            YT_VERIFY(schemafulNode);
-
-            UpdateMasterMemoryUsage(schemafulNode->GetSchema(), account, -1);
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            const auto& handler = cypressManager->FindHandler(nodeType);
+            if (auto* schema = handler->FindSchema(node)) {
+                UpdateMasterMemoryUsage(schema, account, -1);
+            }
         }
     }
 
@@ -995,12 +996,14 @@ public:
         YT_ASSERT(chargedMasterMemoryUsage == detailedMasterMemoryUsage);
         node->ChargedDetailedMasterMemoryUsage() = chargedMasterMemoryUsage;
 
-        if (accountChanged && IsSchemafulType(node->GetType())) {
+        auto nodeType = node->GetType();
+        if (accountChanged && IsSchemafulType(nodeType)) {
             // NB: this may also be a replicated table.
-            const auto* schemafulNode = dynamic_cast<ISchemafulNode*>(node);
-            YT_VERIFY(schemafulNode);
-
-            UpdateMasterMemoryUsage(schemafulNode->GetSchema(), account, 1);
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            const auto& handler = cypressManager->FindHandler(nodeType);
+            if (auto* schema = handler->FindSchema(node)) {
+                UpdateMasterMemoryUsage(schema, account, 1);
+            }
         }
     }
 

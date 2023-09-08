@@ -17,6 +17,12 @@ private:
 
 public:
     using TBase::TBase;
+    explicit TTabletOwnerTypeHandlerBase(NCellMaster::TBootstrap* bootstrap)
+        : TBase(bootstrap)
+    {
+        // NB: Due to virtual inheritance bootstrap has to be explicitly initialized.
+        this->SetBootstrap(bootstrap);
+    }
 
     bool IsSupportedInheritableAttribute(const TString& key) const override;
 

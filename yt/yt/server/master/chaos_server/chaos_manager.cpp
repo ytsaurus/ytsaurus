@@ -259,6 +259,9 @@ private:
     // COMPAT(cherepashka, achulkov2)
     bool NeedToAddChaosReplicatedQueues_ = false;
 
+    // COMPAT(h0pless): AddSchemafulNodeTypeHandler
+    bool NeedSetStrongSchemaMode_ = false;
+
     const THashSet<TChaosReplicatedTableNode*>& GetQueues() const override
     {
         Bootstrap_->VerifyPersistentStateRead();
@@ -533,6 +536,9 @@ private:
 
         // COMPAT(cherepashka, achulkov2)
         NeedToAddChaosReplicatedQueues_ = context.GetVersion() < EMasterReign::ChaosReplicatedQueuesAndConsumersList;
+
+        // COMPAT(h0pless)
+        NeedSetStrongSchemaMode_ = context.GetVersion() < EMasterReign::AddSchemafulNodeTypeHandler;
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -569,6 +575,16 @@ private:
                 }
             }
         }
+
+        if (NeedSetStrongSchemaMode_) {
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            for (auto [nodeId, node] : cypressManager->Nodes()) {
+                if (node->GetType() == EObjectType::ChaosReplicatedTable) {
+                    auto* chaosReplicatedTable = node->As<TChaosReplicatedTableNode>();
+                    chaosReplicatedTable->SetSchemaMode(ETableSchemaMode::Strong);
+                }
+            }
+        }
     }
 
     void Clear() override
@@ -582,6 +598,7 @@ private:
         Queues_.clear();
         Consumers_.clear();
         NeedToAddChaosReplicatedQueues_ = false;
+        NeedSetStrongSchemaMode_ = false;
     }
 
 

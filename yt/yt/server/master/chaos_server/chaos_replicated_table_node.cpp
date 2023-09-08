@@ -33,16 +33,6 @@ ENodeType TChaosReplicatedTableNode::GetNodeType() const
     return ENodeType::Entity;
 }
 
-TMasterTableSchema* TChaosReplicatedTableNode::GetSchema() const
-{
-    return Schema_;
-}
-
-void TChaosReplicatedTableNode::SetSchema(TMasterTableSchema* schema)
-{
-    Schema_ = schema;
-}
-
 TAccount* TChaosReplicatedTableNode::GetAccount() const
 {
     return TCypressNode::Account().Get();
@@ -61,23 +51,30 @@ bool TChaosReplicatedTableNode::IsExternal() const
 void TChaosReplicatedTableNode::Save(TSaveContext& context) const
 {
     TCypressNode::Save(context);
+    TSchemafulNode::Save(context);
 
     using NYT::Save;
     Save(context, ChaosCellBundle_);
     Save(context, ReplicationCardId_);
     Save(context, OwnsReplicationCard_);
-    Save(context, Schema_);
 }
 
 void TChaosReplicatedTableNode::Load(TLoadContext& context)
 {
     TCypressNode::Load(context);
 
+    // COMPAT(h0pless): AddSchemafulNodeTypeHandler
+    if (context.GetVersion() >= EMasterReign::AddSchemafulNodeTypeHandler) {
+        TSchemafulNode::Load(context);
+    }
+
     using NYT::Load;
     Load(context, ChaosCellBundle_);
     Load(context, ReplicationCardId_);
     Load(context, OwnsReplicationCard_);
-    Load(context, Schema_);
+    if (context.GetVersion() < EMasterReign::AddSchemafulNodeTypeHandler) {
+        Load(context, Schema_);
+    }
 }
 
 void TChaosReplicatedTableNode::CheckInvariants(NCellMaster::TBootstrap* bootstrap) const

@@ -28,7 +28,7 @@ private:
         TTransaction* transaction) override
     {
         return CreateSysNodeProxy(
-            Bootstrap_,
+            GetBootstrap(),
             &Metadata_,
             transaction,
             trunkNode);

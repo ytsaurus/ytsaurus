@@ -14,7 +14,7 @@ namespace NYT::NChunkServer {
 
 template <class TChunkOwner>
 class TChunkOwnerTypeHandler
-    : public NCypressServer::TCypressNodeTypeHandlerBase<TChunkOwner>
+    : virtual public NCypressServer::TCypressNodeTypeHandlerBase<TChunkOwner>
 {
 private:
     using TBase = NCypressServer::TCypressNodeTypeHandlerBase<TChunkOwner>;

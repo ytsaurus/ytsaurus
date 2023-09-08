@@ -38,7 +38,7 @@ private:
         TTransaction* transaction) override
     {
         return CreateScionProxy(
-            Bootstrap_,
+            GetBootstrap(),
             &Metadata_,
             transaction,
             trunkNode);
@@ -47,7 +47,7 @@ private:
     void DoDestroy(TScionNode* node) override
     {
         if (node->IsTrunk()) {
-            const auto& graftingManager = Bootstrap_->GetGraftingManager();
+            const auto& graftingManager = GetBootstrap()->GetGraftingManager();
             graftingManager->OnScionDestroyed(node);
         }
 

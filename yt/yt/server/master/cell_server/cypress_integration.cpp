@@ -152,7 +152,7 @@ private:
         TTransaction* transaction) override
     {
         return New<TCellNodeProxy>(
-            Bootstrap_,
+            GetBootstrap(),
             &Metadata_,
             transaction,
             trunkNode);

@@ -18,7 +18,7 @@ namespace NYT::NChaosServer {
 
 class TChaosReplicatedTableNode
     : public NCypressServer::TCypressNode
-    , public NTableServer::ISchemafulNode
+    , public NTableServer::TSchemafulNode
 {
 public:
     DEFINE_BYREF_RW_PROPERTY(NChaosServer::TChaosCellBundlePtr, ChaosCellBundle);
@@ -34,8 +34,6 @@ public:
 
     NYTree::ENodeType GetNodeType() const override;
 
-    virtual NTableServer::TMasterTableSchema* GetSchema() const override;
-    virtual void SetSchema(NTableServer::TMasterTableSchema* schema) override;
     virtual NSecurityServer::TAccount* GetAccount() const override;
 
     // COMPAT(h0pless): This is a temporary workaround until schemaful node typehandler is introduced.
@@ -53,9 +51,6 @@ public:
     bool IsTrackedConsumerObject() const;
     bool IsSorted() const;
     bool HasNonEmptySchema() const;
-
-private:
-    NTableServer::TMasterTableSchema* Schema_ = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

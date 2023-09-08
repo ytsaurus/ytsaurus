@@ -79,7 +79,7 @@ bool TChunkOwnerTypeHandler<TChunkOwner>::IsSupportedInheritableAttribute(const 
     static const THashSet<TString> SupportedInheritableAttributes{
         "compression_codec",
         "erasure_codec",
-        "media"
+        "media",
         "primary_medium",
         "replication_factor",
         "vital",
@@ -118,14 +118,14 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
     bool enableStripedErasure,
     EChunkListKind rootChunkListKind)
 {
-    const auto& chunkManager = this->Bootstrap_->GetChunkManager();
+    const auto& chunkManager = this->GetBootstrap()->GetChunkManager();
 
     auto combinedAttributes = OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);
 
     auto primaryMediumName = combinedAttributes->GetAndRemove<TString>("primary_medium", NChunkClient::DefaultStoreMediumName);
     auto* primaryMedium = chunkManager->GetMediumByNameOrThrow(primaryMediumName);
 
-    const auto& securityManager = this->Bootstrap_->GetSecurityManager();
+    const auto& securityManager = this->GetBootstrap()->GetSecurityManager();
     securityManager->ValidatePermission(primaryMedium, EPermission::Use);
 
     std::optional<TSecurityTags> securityTags;
@@ -151,7 +151,7 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
         node->SetChunkMergerMode(chunkMergerMode);
 
         if (securityTags) {
-            const auto& securityManager = this->Bootstrap_->GetSecurityManager();
+            const auto& securityManager = this->GetBootstrap()->GetSecurityManager();
             const auto& securityTagsRegistry = securityManager->GetSecurityTagsRegistry();
             node->SnapshotSecurityTags() = securityTagsRegistry->Intern(std::move(*securityTags));
         }
@@ -176,7 +176,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoDestroy(TChunkOwner* node)
     for (auto* chunkList : node->GetChunkLists()) {
         if (chunkList) {
             if (node->IsTrunk() && !node->IsExternal()) {
-                const auto& chunkManager = TBase::Bootstrap_->GetChunkManager();
+                const auto& chunkManager = TBase::GetBootstrap()->GetChunkManager();
                 chunkManager->ScheduleChunkRequisitionUpdate(chunkList);
             }
 
@@ -214,7 +214,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoBranch(
         branchedNode->SnapshotSecurityTags() = originatingNode->SnapshotSecurityTags();
     } else {
         // Slow path.
-        const auto& securityManager = TBase::Bootstrap_->GetSecurityManager();
+        const auto& securityManager = TBase::GetBootstrap()->GetSecurityManager();
         const auto& securityTagsRegistry = securityManager->GetSecurityTagsRegistry();
         branchedNode->SnapshotSecurityTags() = securityTagsRegistry->Intern(originatingNode->ComputeSecurityTags());
     }
@@ -226,7 +226,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoLogBranch(
     TChunkOwner* branchedNode,
     const TLockRequest& lockRequest)
 {
-    const auto& chunkManager = TBase::Bootstrap_->GetChunkManager();
+    const auto& chunkManager = TBase::GetBootstrap()->GetChunkManager();
     const auto* primaryMedium = chunkManager->GetMediumByIndex(originatingNode->GetPrimaryMediumIndex());
     YT_LOG_DEBUG(
         "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v, HunkChunkListId: %v, "
@@ -256,10 +256,10 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
 
     bool isExternal = originatingNode->IsExternal();
 
-    const auto& chunkManager = TBase::Bootstrap_->GetChunkManager();
-    const auto& securityManager = TBase::Bootstrap_->GetSecurityManager();
+    const auto& chunkManager = TBase::GetBootstrap()->GetChunkManager();
+    const auto& securityManager = TBase::GetBootstrap()->GetSecurityManager();
     const auto& securityTagsRegistry = securityManager->GetSecurityTagsRegistry();
-    const auto& chunkManagerDynamicConfig = TBase::Bootstrap_->GetConfigManager()->GetConfig();
+    const auto& chunkManagerDynamicConfig = TBase::GetBootstrap()->GetConfigManager()->GetConfig();
     auto enableFixRequisitionUpdateOnMerge = chunkManagerDynamicConfig->ChunkManager->EnableFixRequisitionUpdateOnMerge;
 
     auto* originatingChunkList = originatingNode->GetChunkList();
@@ -327,7 +327,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
             } else {
                 YT_VERIFY(branchedChunkList->GetKind() == EChunkListKind::SortedDynamicRoot);
                 if (branchedChunkList != originatingChunkList) {
-                    const auto& tabletManager = TBase::Bootstrap_->GetTabletManager();
+                    const auto& tabletManager = TBase::GetBootstrap()->GetTabletManager();
                     tabletManager->MergeTable(
                         originatingNode->template As<TTableNode>(),
                         branchedNode->template As<TTableNode>());
@@ -377,7 +377,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
             if (branchedChunkList->GetKind() == EChunkListKind::SortedDynamicRoot) {
                 if (originatingNode->IsTrunk()) {
                     if (branchedChunkList != originatingChunkList) {
-                        const auto& tabletManager = TBase::Bootstrap_->GetTabletManager();
+                        const auto& tabletManager = TBase::GetBootstrap()->GetTabletManager();
                         tabletManager->MergeTable(
                             originatingNode->template As<TTableNode>(),
                             branchedNode->template As<TTableNode>());
@@ -482,7 +482,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
         }
 
         if (!isExternal && isDynamic) {
-            const auto& tableManager = TBase::Bootstrap_->GetTableManager();
+            const auto& tableManager = TBase::GetBootstrap()->GetTableManager();
             tableManager->SendStatisticsUpdate(originatingNode);
         }
     }
@@ -506,7 +506,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoLogMerge(
     TChunkOwner* originatingNode,
     TChunkOwner* branchedNode)
 {
-    const auto& chunkManager = TBase::Bootstrap_->GetChunkManager();
+    const auto& chunkManager = TBase::GetBootstrap()->GetChunkManager();
     const auto* originatingPrimaryMedium = chunkManager->GetMediumByIndex(originatingNode->GetPrimaryMediumIndex());
     const auto* branchedPrimaryMedium = chunkManager->GetMediumByIndex(branchedNode->GetPrimaryMediumIndex());
     YT_LOG_DEBUG(
@@ -551,7 +551,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoClone(
     clonedTrunkNode->SnapshotStatistics() = sourceNode->ComputeTotalStatistics();
 
     auto securityTags = sourceNode->ComputeSecurityTags();
-    const auto& securityManager = TBase::Bootstrap_->GetSecurityManager();
+    const auto& securityManager = TBase::GetBootstrap()->GetSecurityManager();
     const auto& securityTagsRegistry = securityManager->GetSecurityTagsRegistry();
     clonedTrunkNode->SnapshotSecurityTags() = securityTagsRegistry->Intern(std::move(securityTags));
 
@@ -571,7 +571,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoClone(
             if (chunkList) {
                 chunkList->AddOwningNode(clonedTrunkNode);
                 if (clonedTrunkNode->IsTrunk() && sourceNode->Account() != clonedTrunkNode->Account()) {
-                    const auto& chunkManager = TBase::Bootstrap_->GetChunkManager();
+                    const auto& chunkManager = TBase::GetBootstrap()->GetChunkManager();
                     chunkManager->ScheduleChunkRequisitionUpdate(chunkList);
                 }
             }
@@ -586,7 +586,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoBeginCopy(
 {
     if (!node->IsExternal()) {
         // TODO(babenko): support cross-cell copying for non-external nodes
-        const auto& cypressManager = TBase::Bootstrap_->GetCypressManager();
+        const auto& cypressManager = TBase::GetBootstrap()->GetCypressManager();
         THROW_ERROR_EXCEPTION("Node %v must be external to support cross-cell copying",
             cypressManager->GetNodePath(node->GetTrunkNode(), context->GetTransaction()));
     }
@@ -595,7 +595,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoBeginCopy(
 
     using NYT::Save;
 
-    const auto& chunkManager = this->Bootstrap_->GetChunkManager();
+    const auto& chunkManager = this->GetBootstrap()->GetChunkManager();
     auto* medium = chunkManager->GetMediumByIndexOrThrow(node->GetPrimaryMediumIndex());
     Save(*context, medium);
 
@@ -635,7 +635,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoEndCopy(
     auto snapshotSecurityTags = Load<NSecurityServer::TInternedSecurityTags>(*context);
     auto deltaSecurityTags = Load<NSecurityServer::TInternedSecurityTags>(*context);
     auto securityTags = *snapshotSecurityTags + *deltaSecurityTags;
-    const auto& securityManager = TBase::Bootstrap_->GetSecurityManager();
+    const auto& securityManager = TBase::GetBootstrap()->GetSecurityManager();
     const auto& securityTagsRegistry = securityManager->GetSecurityTagsRegistry();
     trunkNode->SnapshotSecurityTags() = securityTagsRegistry->Intern(std::move(securityTags));
 

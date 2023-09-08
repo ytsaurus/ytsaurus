@@ -267,7 +267,7 @@ public:
         return EmptyMasterTableSchema_;
     }
 
-    void SetTableSchema(ISchemafulNode* table, TMasterTableSchema* schema) override
+    void SetTableSchema(TSchemafulNode* table, TMasterTableSchema* schema) override
     {
         if (!schema) {
             // During cross-shard copying of an opaque table, it is materialized
@@ -299,19 +299,19 @@ public:
         securityManager->UpdateMasterMemoryUsage(schema, tableAccount, 1);
     }
 
-    void SetTableSchemaOrThrow(ISchemafulNode* table, TMasterTableSchemaId schemaId) override
+    void SetTableSchemaOrThrow(TSchemafulNode* table, TMasterTableSchemaId schemaId) override
     {
         auto* existingSchema = GetMasterTableSchemaOrThrow(schemaId);
         SetTableSchema(table, existingSchema);
     }
 
-    void SetTableSchemaOrCrash(ISchemafulNode* table, TMasterTableSchemaId schemaId) override
+    void SetTableSchemaOrCrash(TSchemafulNode* table, TMasterTableSchemaId schemaId) override
     {
         auto* existingSchema = GetMasterTableSchema(schemaId);
         SetTableSchema(table, existingSchema);
     }
 
-    void ResetTableSchema(ISchemafulNode* table) override
+    void ResetTableSchema(TSchemafulNode* table) override
     {
         auto* oldSchema = table->GetSchema();
         if (!oldSchema) {
@@ -411,7 +411,7 @@ public:
 
     TMasterTableSchema* GetOrCreateNativeMasterTableSchema(
         const TTableSchema& schema,
-        ISchemafulNode* schemaHolder) override
+        TSchemafulNode* schemaHolder) override
     {
         auto* masterTableSchema = FindNativeMasterTableSchema(schema);
         if (!masterTableSchema) {
@@ -1653,11 +1653,11 @@ private:
             }
 
             auto* account = node->Account().Get();
-            auto* schemafulNode = dynamic_cast<ISchemafulNode*>(node);
-            YT_VERIFY(schemafulNode);
 
-            auto* schema = schemafulNode->GetSchema();
-            referenceAccount(schema, account);
+            const auto& handler = cypressManager->FindHandler(node->GetType());
+            if (auto* schema = handler->FindSchema(node)) {
+                referenceAccount(schema, account);
+            }
         }
 
         // Chunks reference schemas. Accounts are charged per-requisition.
@@ -1695,23 +1695,18 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         for (auto [nodeId, node] : cypressManager->Nodes()) {
             // NB: Zombie nodes still hold export ref.
-            if (!IsSchemafulType(node->GetType())) {
+            auto nodeType = node->GetType();
+            if (!IsSchemafulType(nodeType)) {
                 continue;
             }
             if (!node->IsExternal()) {
                 continue;
             }
 
-            auto externalCellTag = node->GetExternalCellTag();
-            auto* schemafulNode = dynamic_cast<ISchemafulNode*>(node);
-            YT_VERIFY(schemafulNode);
-
-            auto* schema = schemafulNode->GetSchema();
-            if (!schema) {
-                continue;
+            const auto& handler = cypressManager->FindHandler(nodeType);
+            if (auto* schema = handler->FindSchema(node)) {
+                increaseSchemaExportRefCounter(schema, node->GetExternalCellTag());
             }
-
-            increaseSchemaExportRefCounter(schema, externalCellTag);
         }
 
         // Exported chunks increase export ref counter.
@@ -1750,20 +1745,16 @@ private:
 
         // Schemaful nodes hold strong refs.
         for (auto [nodeId, node] : cypressManager->Nodes()) {
-            if (!IsSchemafulType(node->GetType())) {
+            auto nodeType = node->GetType();
+            if (!IsSchemafulType(nodeType)) {
                 continue;
             }
 
             // NB: Zombie nodes still hold ref.
-            auto* schemafulNode = dynamic_cast<ISchemafulNode*>(node);
-            YT_VERIFY(schemafulNode);
-
-            auto* schema = schemafulNode->GetSchema();
-            if (!schema) {
-                continue;
+            const auto& handler = cypressManager->FindHandler(nodeType);
+            if (auto* schema = handler->FindSchema(node)) {
+                ++schemaToRefCounter[schema];
             }
-
-            ++schemaToRefCounter[schema];
         }
 
         // Chunks hold strong refs.
@@ -2059,7 +2050,7 @@ private:
     // COMPAT(h0pless): RefactorSchemaExport
     TMasterTableSchema* CreateImportedMasterTableSchema(
         const NTableClient::TTableSchema& tableSchema,
-        ISchemafulNode* schemaHolder,
+        TSchemafulNode* schemaHolder,
         TMasterTableSchemaId hintId) override
     {
         auto* schema = FindMasterTableSchema(hintId);

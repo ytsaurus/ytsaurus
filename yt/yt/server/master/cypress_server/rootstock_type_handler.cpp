@@ -41,7 +41,7 @@ private:
         TTransaction* transaction) override
     {
         return CreateRootstockProxy(
-            Bootstrap_,
+            GetBootstrap(),
             &Metadata_,
             transaction,
             rootstock);
@@ -51,7 +51,7 @@ private:
         TVersionedNodeId id,
         const TCreateNodeContext& context) override
     {
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        const auto& cypressManager = GetBootstrap()->GetCypressManager();
         if (context.Shard != cypressManager->GetRootCypressShard()) {
             THROW_ERROR_EXCEPTION("Grafting can be performed only in root Cypress shard");
         }
@@ -69,7 +69,7 @@ private:
     void DoDestroy(TRootstockNode* node) override
     {
         if (node->IsTrunk()) {
-            const auto& graftingManager = Bootstrap_->GetGraftingManager();
+            const auto& graftingManager = GetBootstrap()->GetGraftingManager();
             graftingManager->OnRootstockDestroyed(node);
         }
 

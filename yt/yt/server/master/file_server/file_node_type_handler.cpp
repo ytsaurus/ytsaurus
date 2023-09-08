@@ -33,7 +33,12 @@ private:
     using TBase = TChunkOwnerTypeHandler<TFileNode>;
 
 public:
-    using TBase::TBase;
+    explicit TFileNodeTypeHandler(TBootstrap* bootstrap)
+        : TBase(bootstrap)
+    {
+        // NB: Due to virtual inheritance bootstrap has to be explicitly initialized.
+        SetBootstrap(bootstrap);
+    }
 
     EObjectType GetObjectType() const override
     {
@@ -46,7 +51,7 @@ protected:
         TTransaction* transaction) override
     {
         return CreateFileNodeProxy(
-            Bootstrap_,
+            GetBootstrap(),
             &Metadata_,
             transaction,
             trunkNode);
@@ -56,7 +61,7 @@ protected:
         TVersionedNodeId id,
         const TCreateNodeContext& context) override
     {
-        const auto& config = Bootstrap_->GetConfig()->CypressManager;
+        const auto& config = GetBootstrap()->GetConfig()->CypressManager;
         auto combinedAttributes = OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);
         auto replicationFactor = combinedAttributes->GetAndRemove("replication_factor", config->DefaultFileReplicationFactor);
         auto compressionCodec = combinedAttributes->GetAndRemove<NCompression::ECodec>("compression_codec", NCompression::ECodec::None);

@@ -554,22 +554,24 @@ target_sources(yt-server-master PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/cypress_integration.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/helpers.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/public.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/master_table_schema.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/master_table_schema_proxy.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/master_table_schema.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/mount_config_attributes.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/replicated_table_node.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/public.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/replicated_table_node_proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/replicated_table_node_type_handler.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/table_collocation.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/replicated_table_node.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/schemaful_node_type_handler.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/schemaful_node.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/table_collocation_proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/table_collocation_type_handler.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/table_collocation.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/table_manager.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/table_node.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/table_node_proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/table_node_proxy_detail.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/table_node_type_handler.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/table_node_proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/table_node_type_handler_detail.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/table_node_type_handler.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/table_server/table_node.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/tablet_server/backup_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/tablet_server/balancing_helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/tablet_server/chaos_helpers.cpp

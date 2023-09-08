@@ -357,10 +357,9 @@ TReplicationCardId TTableNode::GetReplicationCardId() const
 void TTableNode::Save(NCellMaster::TSaveContext& context) const
 {
     TTabletOwnerBase::Save(context);
+    TSchemafulNode::Save(context);
 
     using NYT::Save;
-    SaveTableSchema(context);
-    Save(context, SchemaMode_);
     Save(context, OptimizeFor_);
     Save(context, ChunkFormat_);
     Save(context, HunkErasureCodec_);
@@ -373,10 +372,9 @@ void TTableNode::Save(NCellMaster::TSaveContext& context) const
 void TTableNode::Load(NCellMaster::TLoadContext& context)
 {
     TTabletOwnerBase::Load(context);
+    TSchemafulNode::Load(context);
 
     using NYT::Load;
-    LoadTableSchema(context);
-    Load(context, SchemaMode_);
     Load(context, OptimizeFor_);
     // COMPAT(babenko)
     if (context.GetVersion() >= EMasterReign::ChunkFormat) {
@@ -394,20 +392,6 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
     } else {
         DynamicTableAttributes_.reset();
     }
-}
-
-void TTableNode::LoadTableSchema(NCellMaster::TLoadContext& context)
-{
-    using NYT::Load;
-
-    Load(context, Schema_);
-}
-
-void TTableNode::SaveTableSchema(NCellMaster::TSaveContext& context) const
-{
-    using NYT::Save;
-
-    Save(context, Schema_);
 }
 
 bool TTableNode::IsDynamic() const
@@ -495,16 +479,6 @@ TTimestamp TTableNode::CalculateRetainedTimestamp() const
         result = std::max(result, timestamp);
     }
     return result;
-}
-
-TMasterTableSchema* TTableNode::GetSchema() const
-{
-    return Schema_;
-}
-
-void TTableNode::SetSchema(TMasterTableSchema* schema)
-{
-    Schema_ = schema;
 }
 
 void TTableNode::ValidateNotBackup(TStringBuf message) const
