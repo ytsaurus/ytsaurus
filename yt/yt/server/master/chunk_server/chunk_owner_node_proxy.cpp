@@ -144,6 +144,7 @@ void CanonizeCellTags(TCellTagList* cellTags)
 
 void BuildChunkSpec(
     TChunk* chunk,
+    const TChunkLocationPtrWithReplicaInfoList& chunkReplicas,
     std::optional<i64> rowIndex,
     std::optional<int> tabletIndex,
     const TReadLimit& lowerLimit,
@@ -171,7 +172,7 @@ void BuildChunkSpec(
         : NErasure::GetCodec(erasureCodecId)->GetDataPartCount();
 
     TNodePtrWithReplicaAndMediumIndexList replicas;
-    replicas.reserve(chunk->StoredReplicas().size());
+    replicas.reserve(chunkReplicas.size());
 
     auto addReplica = [&] (TChunkLocationPtrWithReplicaInfo replica)  {
         if (replica.GetReplicaIndex() >= firstInfeasibleReplicaIndex) {
@@ -183,7 +184,7 @@ void BuildChunkSpec(
         return true;
     };
 
-    for (auto replica : chunk->StoredReplicas()) {
+    for (auto replica : chunkReplicas) {
         addReplica(replica);
     }
 
@@ -444,6 +445,8 @@ private:
         Bootstrap_->VerifyPersistentStateRead();
 
         const auto& configManager = Bootstrap_->GetConfigManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+
         const auto& dynamicConfig = configManager->GetConfig()->ChunkManager;
         if (RpcContext_->Response().chunks_size() >= dynamicConfig->MaxChunksPerFetch) {
             ReplyError(TError("Attempt to fetch too many chunks in a single request")
@@ -457,10 +460,27 @@ private:
             return false;
         }
 
+        auto ephemeralChunk = TEphemeralObjectPtr<TChunk>(chunk);
+        // This is context switch, chunk may die.
+        auto replicasOrError = chunkManager->GetChunkReplicas(ephemeralChunk);
+        if (!replicasOrError.IsOK()) {
+            ReplyError(replicasOrError);
+            return false;
+        }
+
+        if (!IsObjectAlive(ephemeralChunk)) {
+            ReplyError(TError("Chunk %v died during replica fetch",
+                ephemeralChunk->GetId()));
+            return false;
+        }
+
+        const auto& replicas = replicasOrError.Value();
+
         auto* chunkSpec = RpcContext_->Response().add_chunks();
 
         BuildChunkSpec(
             chunk,
+            replicas,
             rowIndex,
             tabletIndex,
             lowerLimit,
@@ -975,10 +995,12 @@ TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(TInternedAtt
             return ComputeChunkStatistics(
                 Bootstrap_,
                 chunkLists,
-                [] (const TChunk* chunk) -> std::optional<int> {
-                    if (chunk->StoredReplicas().empty()) {
-                        return std::nullopt;
-                    }
+                [chunkManager] (const TChunk* chunk) -> std::optional<int> {
+                    // TODO(aleksandra-zh): batch getting replicas.
+                    auto ephemeralChunk = TEphemeralObjectPtr<TChunk>(const_cast<TChunk*>(chunk));
+                    // This is context switch, chunk may die.
+                    auto replicas = chunkManager->GetChunkReplicas(ephemeralChunk)
+                        .ValueOrThrow();
 
                     // We should choose a single medium for the chunk if there are replicas
                     // with different media. We choose the most frequent medium if more than
@@ -986,7 +1008,7 @@ TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(TInternedAtt
                     int chosenMediumIndex = -1;
                     int chosenMediumReplicaCount = 0;
 
-                    for (auto replica : chunk->StoredReplicas()) {
+                    for (auto replica : replicas) {
                         int mediumIndex = replica.GetPtr()->GetEffectiveMediumIndex();
                         if (mediumIndex == chosenMediumIndex || chosenMediumReplicaCount == 0) {
                             chosenMediumIndex = mediumIndex;

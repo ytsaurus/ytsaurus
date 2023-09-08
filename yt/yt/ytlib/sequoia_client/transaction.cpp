@@ -35,6 +35,7 @@
 
 namespace NYT::NSequoiaClient {
 
+using namespace NApi;
 using namespace NApi::NNative;
 using namespace NConcurrency;
 using namespace NLogging;
@@ -118,6 +119,13 @@ public:
             tableDescriptor->GetRecordDescriptor()->GetNameTable(),
             std::move(keys),
             options);
+    }
+
+    virtual TFuture<TSelectRowsResult> SelectRows(
+        const TString& query,
+        const TSelectRowsOptions& options) override
+    {
+        return Client_->SelectRows(query, options);
     }
 
     void DatalessLockRow(
@@ -551,8 +559,7 @@ private:
 
     TYPath GetTablePath(const ITableDescriptor* tableDescriptor) const
     {
-        const auto& sequoiaPath = Client_->GetNativeConnection()->GetConfig()->SequoiaPath;
-        return sequoiaPath + "/" + NYPath::ToYPathLiteral(tableDescriptor->GetTableName());
+        return GetSequoiaTablePath(Client_, tableDescriptor);
     }
 };
 

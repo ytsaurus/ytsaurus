@@ -55,6 +55,7 @@ public:
     TNodeList AllocateWriteTargets(
         TDomesticMedium* medium,
         TChunk* chunk,
+        const TChunkLocationPtrWithReplicaInfoList& replicas,
         int desiredCount,
         int minCount,
         std::optional<int> replicationFactorOverride,
@@ -66,6 +67,7 @@ public:
     TNodeList AllocateWriteTargets(
         TDomesticMedium* medium,
         TChunk* chunk,
+        const TChunkLocationPtrWithReplicaInfoList& replicas,
         const TChunkReplicaIndexList& replicaIndexes,
         int desiredCount,
         int minCount,
@@ -77,7 +79,9 @@ public:
 
     // NB: Removal queue is stored in chunk location but actual deletion may happen
     // on different location of the same node.
-    TChunkLocation* GetRemovalTarget(TChunkPtrWithReplicaAndMediumIndex replica);
+    TChunkLocation* GetRemovalTarget(
+        TChunkPtrWithReplicaAndMediumIndex replica,
+        const TChunkLocationPtrWithReplicaInfoList& replicas);
 
     int GetMaxReplicasPerRack(
         const TMedium* medium,
@@ -131,6 +135,7 @@ private:
     TNodeList GetWriteTargets(
         TDomesticMedium* medium,
         TChunk* chunk,
+        const TChunkLocationPtrWithReplicaInfoList& replicas,
         const TChunkReplicaIndexList& replicaIndexes,
         int desiredCount,
         int minCount,
@@ -144,6 +149,7 @@ private:
     std::optional<TNodeList> FindConsistentPlacementWriteTargets(
         TDomesticMedium* medium,
         TChunk* chunk,
+        const TChunkLocationPtrWithReplicaInfoList& replicas,
         const TChunkReplicaIndexList& replicaIndexes,
         int desiredCount,
         int minCount,

@@ -582,9 +582,18 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .Default(0)
         .InRange(0, 100);
 
+    registrar.Parameter("sequoia_replica_removal_period", &TThis::SequoiaReplicaRemovalPeriod)
+        .Default(TDuration::Seconds(1));
+
+    registrar.Parameter("sequoia_replica_removal_batch_size", &TThis::SequoiaReplicaRemovalBatchSize)
+        .Default(1000);
+
     registrar.Parameter("sequoia_chunk_replicas_percentage", &TThis::SequoiaChunkReplicasPercentage)
         .Default(0)
         .InRange(0, 100);
+
+    registrar.Parameter("fetch_replicas_from_sequoia", &TThis::FetchReplicasFromSequoia)
+        .Default(false);
 
     registrar.Parameter("removal_job_schedule_delay", &TThis::RemovalJobScheduleDelay)
         .Default(TDuration::Minutes(3))

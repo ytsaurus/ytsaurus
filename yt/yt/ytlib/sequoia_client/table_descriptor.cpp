@@ -5,11 +5,18 @@
 #include <yt/yt/ytlib/sequoia_client/chunk_replicas.record.h>
 #include <yt/yt/ytlib/sequoia_client/location_replicas.record.h>
 
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
+
+#include <yt/yt/core/ytree/helpers.h>
 
 namespace NYT::NSequoiaClient {
 
 using namespace NQueryClient;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,6 +68,14 @@ const ITableDescriptor* ITableDescriptor::Get(ESequoiaTable table)
     }
 
     #undef XX
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TYPath GetSequoiaTablePath(const NApi::NNative::IClientPtr& client, const ITableDescriptor* tableDescriptor)
+{
+    const auto& sequoiaPath = client->GetNativeConnection()->GetConfig()->SequoiaPath;
+    return sequoiaPath + "/" + ToYPathLiteral(tableDescriptor->GetTableName());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

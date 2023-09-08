@@ -3,6 +3,12 @@ namespace: NYT::NSequoiaClient::NRecords
 types:
   - type_name: TLocationReplicas
     fields:
+      - cpp_name: CellTag
+        cpp_type: ui16
+        column_name: cell_tag
+        column_type: Uint32
+        sort_order: Ascending
+
       - cpp_name: NodeId
         cpp_type: ui32
         column_name: node_id
@@ -16,13 +22,13 @@ types:
         sort_order: Ascending
 
       - cpp_name: LocationUuid
-        cpp_type: TString
+        cpp_type: NChunkClient::TChunkLocationUuid
         column_name: location_uuid
         column_type: String
         sort_order: Ascending
 
       - cpp_name: ChunkId
-        cpp_type: TString
+        cpp_type: NChunkClient::TChunkId
         column_name: chunk_id
         column_type: String
 

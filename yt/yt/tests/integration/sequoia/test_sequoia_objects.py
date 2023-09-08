@@ -35,10 +35,6 @@ class TestSequoiaObjects(YTEnvSetup):
         }
     }
 
-    def teardown_method(self, method):
-        wait(sequoia_tables_empty)
-        super(TestSequoiaObjects, self).teardown_method(method)
-
     def _get_id_hash(self, chunk_id):
         id_part = chunk_id.split('-')[3]
         return int(id_part, 16)
@@ -117,9 +113,6 @@ class TestSequoiaObjectsMulticell(TestSequoiaObjects):
     def setup_class(cls):
         super(TestSequoiaObjectsMulticell, cls).setup_class()
 
-    def teardown_method(self, method):
-        super(TestSequoiaObjectsMulticell, self).teardown_method(method)
-
     @authors("aleksandra-zh")
     def test_remove_foreign_sequoia_chunk(self):
         create("table", "//tmp/t1", attributes={"external_cell_tag": 12})
@@ -160,7 +153,8 @@ class TestSequoiaReplicas(YTEnvSetup):
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "chunk_manager": {
-            "sequoia_chunk_replicas_percentage": 100
+            "sequoia_chunk_replicas_percentage": 100,
+            "fetch_replicas_from_sequoia": True
         }
     }
 
@@ -252,6 +246,25 @@ class TestSequoiaReplicas(YTEnvSetup):
             wait(lambda: len(select_rows("* from [//sys/sequoia/chunk_replicas]")) == 0)
 
         wait(lambda: len(select_rows("* from [//sys/sequoia/chunk_replicas]")) == 0)
+
+    @authors("aleksandra-zh")
+    def test_replication(self):
+        set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM), 10000)
+        create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM, "replication_factor": 2})
+
+        write_table("//tmp/t", [{"x": 1}], table_writer={"upload_replication_factor": 2})
+        wait(lambda: len(select_rows("* from [//sys/sequoia/chunk_replicas]")) == 2)
+
+        assert read_table("//tmp/t") == [{"x": 1}]
+
+        chunk_id = get_singular_chunk_id("//tmp/t")
+
+        set("//tmp/t/@replication_factor", 3)
+
+        wait(lambda: len(get("#{}/@stored_replicas".format(chunk_id))) == 3)
+        wait(lambda: len(select_rows("* from [//sys/sequoia/chunk_replicas]")) == 3)
+
+        remove("//tmp/t")
 
 
 class TestSequoiaReplicasMulticell(TestSequoiaReplicas):

@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/ytlib/api/native/public.h>
+
 #include <yt/yt/library/query/base/public.h>
 
 #include <yt/yt/client/table_client/public.h>
@@ -21,6 +23,10 @@ struct ITableDescriptor
 
     static const ITableDescriptor* Get(ESequoiaTable table);
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+NYPath::TYPath GetSequoiaTablePath(const NApi::NNative::IClientPtr& client, const ITableDescriptor* tableDescriptor);
 
 ////////////////////////////////////////////////////////////////////////////////
 

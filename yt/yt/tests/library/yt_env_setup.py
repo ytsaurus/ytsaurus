@@ -650,6 +650,7 @@ class YTEnvSetup(object):
                 attributes={
                     "dynamic": True,
                     "schema": [
+                        {"name": "cell_tag", "type": "uint16", "sort_order": "ascending"},
                         {"name": "node_id", "type": "uint32", "sort_order": "ascending"},
                         {"name": "id_hash", "type": "uint32", "sort_order": "ascending"},
                         {"name": "location_uuid", "type": "string", "sort_order": "ascending"},

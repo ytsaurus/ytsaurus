@@ -29,6 +29,7 @@ using namespace NObjectServer;
 using namespace NChunkClient;
 using namespace NNodeTrackerServer;
 using namespace NCellMaster;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,6 +44,7 @@ public:
         const TChunkPlacement* chunkPlacement,
         const TDomesticMedium* medium,
         const TChunk* chunk,
+        const TChunkLocationPtrWithReplicaInfoList& replicas,
         std::optional<int> replicationFactorOverride,
         bool allowMultipleReplicasPerNode,
         const TNodeList* forbiddenNodes,
@@ -73,7 +75,7 @@ public:
         };
 
         int mediumIndex = medium->GetIndex();
-        for (auto replica : chunk->StoredReplicas()) {
+        for (auto replica : replicas) {
             if (replica.GetPtr()->GetEffectiveMediumIndex() == mediumIndex) {
                 auto* node = GetChunkLocationNode(replica);
                 if (!AllowMultipleReplicasPerNode_) {
@@ -135,7 +137,6 @@ public:
 
 private:
     const TChunkPlacement* const ChunkPlacement_;
-
     const TDomesticMedium* const Medium_;
     const TChunk* const Chunk_;
 
@@ -299,6 +300,7 @@ bool TChunkPlacement::IsDataCenterFeasible(const TDataCenter* dataCenter) const
 TNodeList TChunkPlacement::AllocateWriteTargets(
     TDomesticMedium* medium,
     TChunk* chunk,
+    const TChunkLocationPtrWithReplicaInfoList& replicas,
     int desiredCount,
     int minCount,
     std::optional<int> replicationFactorOverride,
@@ -310,6 +312,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     auto targetNodes = GetWriteTargets(
         medium,
         chunk,
+        replicas,
         /*replicaIndexes*/ {},
         desiredCount,
         minCount,
@@ -388,6 +391,7 @@ void TChunkPlacement::RemoveFromLoadFactorMaps(TNode* node)
 TNodeList TChunkPlacement::GetWriteTargets(
     TDomesticMedium* medium,
     TChunk* chunk,
+    const TChunkLocationPtrWithReplicaInfoList& replicas,
     const TChunkReplicaIndexList& replicaIndexes,
     int desiredCount,
     int minCount,
@@ -403,6 +407,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
     auto consistentPlacementWriteTargets = FindConsistentPlacementWriteTargets(
         medium,
         chunk,
+        replicas,
         replicaIndexes,
         desiredCount,
         minCount,
@@ -436,6 +441,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
         this,
         medium,
         chunk,
+        replicas,
         replicationFactorOverride,
         Config_->AllowMultipleErasurePartsPerNode && chunk->IsErasure(),
         forbiddenNodes,
@@ -538,6 +544,7 @@ TNode* TChunkPlacement::FindPreferredNode(
 std::optional<TNodeList> TChunkPlacement::FindConsistentPlacementWriteTargets(
     TDomesticMedium* medium,
     TChunk* chunk,
+    const TChunkLocationPtrWithReplicaInfoList& replicas,
     const TChunkReplicaIndexList& replicaIndexes,
     int desiredCount,
     int minCount,
@@ -631,7 +638,7 @@ std::optional<TNodeList> TChunkPlacement::FindConsistentPlacementWriteTargets(
     };
 
     auto isNodeConsistent = [&] (TNode* node, int replicaIndex) {
-        for (auto replica : chunk->StoredReplicas()) {
+        for (auto replica : replicas) {
             if (replica.GetPtr()->GetEffectiveMediumIndex() != mediumIndex) {
                 continue;
             }
@@ -715,6 +722,7 @@ std::optional<TNodeList> TChunkPlacement::FindConsistentPlacementWriteTargets(
 TNodeList TChunkPlacement::AllocateWriteTargets(
     TDomesticMedium* medium,
     TChunk* chunk,
+    const TChunkLocationPtrWithReplicaInfoList& replicas,
     const TChunkReplicaIndexList& replicaIndexes,
     int desiredCount,
     int minCount,
@@ -725,6 +733,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     auto targetNodes = GetWriteTargets(
         medium,
         chunk,
+        replicas,
         replicaIndexes,
         desiredCount,
         minCount,
@@ -742,7 +751,9 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     return targetNodes;
 }
 
-TChunkLocation* TChunkPlacement::GetRemovalTarget(TChunkPtrWithReplicaAndMediumIndex chunkWithIndexes)
+TChunkLocation* TChunkPlacement::GetRemovalTarget(
+    TChunkPtrWithReplicaAndMediumIndex chunkWithIndexes,
+    const TChunkLocationPtrWithReplicaInfoList& replicas)
 {
     auto* chunk = chunkWithIndexes.GetPtr();
     auto replicaIndex = chunkWithIndexes.GetReplicaIndex();
@@ -753,7 +764,7 @@ TChunkLocation* TChunkPlacement::GetRemovalTarget(TChunkPtrWithReplicaAndMediumI
     // TODO(gritukan): YT-16557.
     TCompactFlatMap<const TDataCenter*, i8, 4> perDataCenterCounters;
 
-    for (auto replica : chunk->StoredReplicas()) {
+    for (auto replica : replicas) {
         if (replica.GetPtr()->GetEffectiveMediumIndex() != mediumIndex) {
             continue;
         }
@@ -807,7 +818,7 @@ TChunkLocation* TChunkPlacement::GetRemovalTarget(TChunkPtrWithReplicaAndMediumI
             : consistentPlacementNodes[replicaIndex] != node;
     };
 
-    for (auto replica : chunk->StoredReplicas()) {
+    for (auto replica : replicas) {
         if (chunk->IsJournal() && replica.GetReplicaState() != EChunkReplicaState::Sealed) {
             continue;
         }

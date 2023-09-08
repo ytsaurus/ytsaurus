@@ -152,6 +152,7 @@ DEFINE_ENUM(EMasterReign,
     ((PortalPermissionValidationBugFix)                             (2421))  // shakurov
     ((ForbidIrreversibleChanges)                                    (2422))  // vovamelnikov
     ((AddSchemafulNodeTypeHandler)                                  (2423))  // h0pless
+    ((UseSequoiaReplicas)                                           (2424))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////

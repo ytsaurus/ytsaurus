@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/yt/server/master/object_server/public.h>
+
 #include <yt/yt/server/lib/hydra_common/public.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
@@ -54,6 +56,8 @@ DECLARE_ENTITY_TYPE(TNode, NObjectClient::TObjectId, ::THash<NObjectClient::TObj
 DECLARE_ENTITY_TYPE(THost, THostId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TRack, TRackId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TDataCenter, TDataCenterId, NObjectClient::TDirectObjectIdHash)
+
+DECLARE_MASTER_OBJECT_TYPE(TNode)
 
 using TNodeList = TCompactVector<TNode*, NChunkClient::TypicalReplicaCount>;
 

@@ -308,7 +308,20 @@ private:
                 chunk,
                 chunkIdWithIndex.ReplicaIndex);
             subresponse->set_erasure_codec(ToProto<int>(chunk->GetErasureCodec()));
-            auto replicas = chunkManager->LocateChunk(chunkWithReplicaIndex);
+
+            auto ephemeralChunk = TEphemeralObjectPtr<TChunk>(chunk);
+            auto replicasOrError = chunkManager->LocateChunk(chunkWithReplicaIndex);
+            if (!replicasOrError.IsOK()) {
+                context->Reply(replicasOrError);
+                return;
+            }
+
+            if (!IsObjectAlive(ephemeralChunk)) {
+                subresponse->set_missing(true);
+                continue;
+            }
+
+            const auto& replicas = replicasOrError.Value();
             for (auto replica : replicas) {
                 subresponse->add_legacy_replicas(ToProto<ui32>(replica));
                 subresponse->add_replicas(ToProto<ui64>(replica));
@@ -379,12 +392,32 @@ private:
 
             if (dynamicStore->IsFlushed()) {
                 if (auto* chunk = dynamicStore->GetFlushedChunk()) {
+                    auto ephemeralChunk = TEphemeralObjectPtr<TChunk>(chunk);
+
+                    auto* spec = subresponse->mutable_chunk_spec();
+
+                    if (dynamicStore->GetType() == EObjectType::OrderedDynamicTabletStore) {
+                        spec->set_row_index_is_absolute(true);
+                    }
+
+                    if (ShouldFetchChunkMetaFromSequoia(chunk, fetchChunkMetaFromSequoia)) {
+                        metaFetchFutures.push_back(FetchChunkMetasFromSequoia(
+                            request->fetch_all_meta_extensions(),
+                            extensionTags,
+                            {spec},
+                            Bootstrap_));
+                    }
+
                     auto rowIndex = dynamicStore->GetType() == EObjectType::OrderedDynamicTabletStore
                         ? std::make_optional(dynamicStore->GetTableRowIndex())
                         : std::nullopt;
-                    auto* spec = subresponse->mutable_chunk_spec();
+
+                    auto replicas = chunkManager->GetChunkReplicas(ephemeralChunk)
+                        .ValueOrThrow();
+
                     BuildChunkSpec(
                         chunk,
+                        replicas,
                         rowIndex,
                         /*tabletIndex*/ {},
                         /*lowerLimit*/ {},
@@ -398,17 +431,7 @@ private:
                         Bootstrap_,
                         spec);
 
-                    if (dynamicStore->GetType() == EObjectType::OrderedDynamicTabletStore) {
-                        spec->set_row_index_is_absolute(true);
-                    }
 
-                    if (ShouldFetchChunkMetaFromSequoia(chunk, fetchChunkMetaFromSequoia)) {
-                        metaFetchFutures.push_back(FetchChunkMetasFromSequoia(
-                            request->fetch_all_meta_extensions(),
-                            extensionTags,
-                            {spec},
-                            Bootstrap_));
-                    }
                 }
             } else {
                 const auto& tabletManager = Bootstrap_->GetTabletManager();
@@ -470,6 +493,24 @@ private:
 
         TNodeDirectoryBuilder builder(response->mutable_node_directory());
 
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+
+        // Gather chunks.
+        std::vector<TEphemeralObjectPtr<TChunk>> chunks;
+        for (const auto& subrequest : request->subrequests()) {
+            auto sessionId = FromProto<TSessionId>(subrequest.session_id());
+            auto* chunk = chunkManager->FindChunk(sessionId.ChunkId);
+            // We will fill subresponse with error later.
+            if (!IsObjectAlive(chunk)) {
+                continue;
+            }
+
+            chunks.emplace_back(chunk);
+        }
+
+        auto replicas = chunkManager->GetChunkReplicas(chunks);
+
         for (const auto& subrequest : request->subrequests()) {
             auto sessionId = FromProto<TSessionId>(subrequest.session_id());
             int desiredTargetCount = subrequest.desired_target_count();
@@ -485,7 +526,6 @@ private:
 
             auto* subresponse = response->add_subresponses();
             try {
-                const auto& chunkManager = Bootstrap_->GetChunkManager();
                 auto* medium = chunkManager->GetMediumByIndexOrThrow(sessionId.MediumIndex);
                 if (medium->IsOffshore()) {
                     THROW_ERROR_EXCEPTION("Write targets allocation for offshore media is forbidden")
@@ -496,7 +536,16 @@ private:
                 }
                 auto* chunk = chunkManager->GetChunkOrThrow(sessionId.ChunkId);
 
-                const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+                auto it = replicas.find(sessionId.ChunkId);
+                // This is really weird.
+                if (it == replicas.end()) {
+                    THROW_ERROR_EXCEPTION("Replicas were not fetched for chunk")
+                        << TErrorAttribute("chunk_id", sessionId.ChunkId);
+                }
+
+                const auto& chunkReplicas = it->second
+                    .ValueOrThrow();
+
                 TNodeList forbiddenNodes;
                 for (const auto& address : forbiddenAddresses) {
                     if (auto* node = nodeTracker->FindNodeByAddress(address)) {
@@ -516,6 +565,7 @@ private:
                 auto targets = chunkManager->AllocateWriteTargets(
                     medium->AsDomestic(),
                     chunk,
+                    chunkReplicas,
                     desiredTargetCount,
                     minTargetCount,
                     replicationFactorOverride,

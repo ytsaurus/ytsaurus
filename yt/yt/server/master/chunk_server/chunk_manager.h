@@ -167,7 +167,8 @@ struct IChunkManager
     virtual bool IsSequoiaCreateChunkRequest(const NChunkClient::NProto::TReqCreateChunk& request) = 0;
     virtual bool IsSequoiaConfirmChunkRequest(const NChunkClient::NProto::TReqConfirmChunk& request) = 0;
 
-    virtual bool IsSequoiaChunkReplica(TChunkId chunkId, TChunkLocationUuid locationUuid) = 0;
+    virtual bool CanHaveSequoiaReplicas(TChunkId chunkId) const = 0;
+    virtual bool IsSequoiaChunkReplica(TChunkId chunkId, TChunkLocationUuid locationUuid) const = 0;
 
     using TCtxJobHeartbeat = NRpc::TTypedServiceContext<
         NJobTrackerClient::NProto::TReqHeartbeat,
@@ -197,6 +198,7 @@ struct IChunkManager
     virtual TNodeList AllocateWriteTargets(
         TDomesticMedium* medium,
         TChunk* chunk,
+        const TChunkLocationPtrWithReplicaInfoList& replicas,
         int desiredCount,
         int minCount,
         std::optional<int> replicationFactorOverride,
@@ -207,6 +209,7 @@ struct IChunkManager
     virtual TNodeList AllocateWriteTargets(
         TDomesticMedium* medium,
         TChunk* chunk,
+        const TChunkLocationPtrWithReplicaInfoList& replicas,
         int replicaIndex,
         int desiredCount,
         int minCount,
@@ -279,7 +282,7 @@ struct IChunkManager
     virtual void UnstageChunk(TChunk* chunk) = 0;
     virtual void UnstageChunkList(TChunkList* chunkList, bool recursive) = 0;
 
-    virtual TNodePtrWithReplicaAndMediumIndexList LocateChunk(TChunkPtrWithReplicaIndex chunkWithIndexes) = 0;
+    virtual TErrorOr<TNodePtrWithReplicaAndMediumIndexList> LocateChunk(TChunkPtrWithReplicaIndex chunkWithIndexes) = 0;
     virtual void TouchChunk(TChunk* chunk) = 0;
 
     virtual void ClearChunkList(TChunkList* chunkList) = 0;
@@ -307,9 +310,6 @@ struct IChunkManager
     virtual TChunkRequisitionRegistry* GetChunkRequisitionRegistry() = 0;
 
     virtual const THashSet<TChunk*>& ForeignChunks() const = 0;
-
-    //! Returns the total number of all chunk replicas.
-    virtual int GetTotalReplicaCount() = 0;
 
     virtual void ScheduleGlobalChunkRefresh() = 0;
 
@@ -392,6 +392,16 @@ struct IChunkManager
 
     virtual TFuture<NDataNodeTrackerClient::NProto::TRspModifyReplicas> ModifySequoiaReplicas(
         const NDataNodeTrackerClient::NProto::TReqModifyReplicas& request) = 0;
+
+    virtual TFuture<std::vector<NSequoiaClient::NRecords::TLocationReplicas>> GetSequoiaLocationReplicas(
+        TNodeId nodeId,
+        TChunkLocationUuid location) const = 0;
+    virtual TFuture<std::vector<NSequoiaClient::NRecords::TLocationReplicas>> GetSequoiaNodeReplicas(TNodeId nodeId) const = 0;
+    virtual TFuture<std::vector<NSequoiaClient::NRecords::TChunkReplicas>> GetSequoiaChunkReplicas(TChunkId chunkId) const = 0;
+
+    virtual TErrorOr<TChunkLocationPtrWithReplicaInfoList> GetChunkReplicas(const NObjectServer::TEphemeralObjectPtr<TChunk>& chunk) const = 0;
+    virtual THashMap<TChunkId, TErrorOr<TChunkLocationPtrWithReplicaInfoList>> GetChunkReplicas(const std::vector<NObjectServer::TEphemeralObjectPtr<TChunk>>& chunks) const = 0;
+
 
 private:
     friend class TChunkTypeHandler;

@@ -39,6 +39,7 @@ namespace NYT::NChunkServer {
 
 using namespace NYTree;
 using namespace NYson;
+using namespace NHydra;
 using namespace NJournalClient;
 using namespace NObjectClient;
 using namespace NCypressServer;
@@ -1201,6 +1202,10 @@ std::vector<TChunkViewMergeResult> MergeAdjacentChunkViewRanges(std::vector<TChu
 
 std::vector<NJournalClient::TChunkReplicaDescriptor> GetChunkReplicaDescriptors(const TChunk* chunk)
 {
+    if (!chunk->IsJournal()) {
+        YT_LOG_ALERT("Getting chunk replica descriptors for non-journal chunk");
+    }
+
     std::vector<TChunkReplicaDescriptor> replicas;
     for (auto replica : chunk->StoredReplicas()) {
         replicas.push_back({

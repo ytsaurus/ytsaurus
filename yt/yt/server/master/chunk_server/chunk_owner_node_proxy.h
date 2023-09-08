@@ -16,6 +16,7 @@ namespace NYT::NChunkServer {
 
 void BuildChunkSpec(
     TChunk* chunk,
+    const TChunkLocationPtrWithReplicaInfoList& chunkReplicas,
     std::optional<i64> rowIndex,
     std::optional<int> tabletIndex,
     const NChunkClient::TReadLimit& lowerLimit,

@@ -139,11 +139,18 @@ bool TMergeJob::FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const
 
     NNodeTrackerServer::TNodeDirectoryBuilder builder(jobSpecExt->mutable_node_directory());
 
+    const auto& chunkManager = bootstrap->GetChunkManager();
     for (const auto& chunk : InputChunks_) {
         auto* protoChunk = jobSpecExt->add_input_chunks();
         ToProto(protoChunk->mutable_id(), chunk->GetId());
 
-        auto replicas = chunk->StoredReplicas();
+        // This is context switch, but chunk is ephemeral pointer.
+        auto replicasOrError = chunkManager->GetChunkReplicas(chunk);
+        if (!replicasOrError.IsOK()) {
+            return false;
+        }
+
+        const auto& replicas = replicasOrError.Value();
         ToProto(protoChunk->mutable_legacy_source_replicas(), replicas);
         ToProto(protoChunk->mutable_source_replicas(), replicas);
         builder.Add(replicas);
@@ -1448,6 +1455,7 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
     auto targetNodes = chunkManager->AllocateWriteTargets(
         medium->AsDomestic(),
         outputChunk,
+        /*replicas*/ {}, // We know there are no replicas for output chunk yet.
         GenericChunkReplicaIndex,
         targetCount,
         targetCount,

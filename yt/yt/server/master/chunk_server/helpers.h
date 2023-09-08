@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "chunk_tree_statistics.h"
+#include "chunk_replica.h"
 
 #include <yt/yt/server/master/cypress_server/public.h>
 

@@ -105,6 +105,8 @@ public:
         jobSpecExt->set_row_count(Chunk_->GetPhysicalSealedRowCount());
 
         NNodeTrackerServer::TNodeDirectoryBuilder builder(jobSpecExt->mutable_node_directory());
+
+        // This one should not have sequoia replicas.
         const auto& replicas = Chunk_->StoredReplicas();
         builder.Add(replicas);
         for (auto replica : replicas) {
@@ -374,8 +376,9 @@ private:
         return false;
     }
 
-    static bool HasEnoughReplicas(TChunk* chunk)
+    bool HasEnoughReplicas(TChunk* chunk)
     {
+        // This one should not have sequoia replicas.
         return std::ssize(chunk->StoredReplicas()) >= chunk->GetReadQuorum();
     }
 
@@ -391,7 +394,7 @@ private:
         return true;
     }
 
-    static bool CanBeSealed(TChunk* chunk)
+    bool CanBeSealed(TChunk* chunk)
     {
         if (!IsSealNeeded(chunk) || !HasEnoughReplicas(chunk)) {
             return false;
@@ -674,13 +677,15 @@ private:
             return true;
         }
 
-        const auto& chunkReplicator = Bootstrap_->GetChunkManager()->GetChunkReplicator();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto& chunkReplicator = chunkManager->GetChunkReplicator();
         if (!chunkReplicator->ShouldProcessChunk(chunk)) {
             return true;
         }
 
         // NB: Seal jobs can be started even if chunk refresh is scheduled.
 
+        // This one should not have sequoia replicas.
         if (std::ssize(chunk->StoredReplicas()) < chunk->GetReadQuorum()) {
             return true;
         }

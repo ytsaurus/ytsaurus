@@ -57,6 +57,7 @@ using namespace NProfiling;
 using namespace NTableClient;
 using namespace NJournalClient;
 using namespace NNodeTrackerServer;
+using namespace NConcurrency;
 
 using NChunkClient::NProto::TMiscExt;
 using NTableClient::NProto::TBoundaryKeysExt;
@@ -279,7 +280,10 @@ private:
                     break;
                 }
 
-                TCompactVector<TChunkLocationPtrWithReplicaInfo, TypicalReplicaCount> replicas(chunk->StoredReplicas().begin(), chunk->StoredReplicas().end());
+                auto ephemeralChunk = TEphemeralObjectPtr<TChunk>(chunk);
+                // This is context switch, chunk may die.
+                auto replicas = chunkManager->GetChunkReplicas(ephemeralChunk)
+                    .ValueOrThrow();
                 SortBy(replicas, [] (TChunkLocationPtrWithReplicaInfo replica) {
                     return std::make_tuple(replica.GetReplicaIndex(), replica.GetPtr()->GetEffectiveMediumIndex());
                 });
@@ -354,7 +358,12 @@ private:
                         chunk->GetId());
                 }
 
-                auto statuses = chunkReplicator->ComputeChunkStatuses(chunk);
+                auto chunkHolder = TEphemeralObjectPtr<TChunk>(chunk);
+                // This is context switch, chunk may die.
+                auto replicas = chunkManager->GetChunkReplicas(chunkHolder)
+                    .ValueOrThrow();
+
+                auto statuses = chunkReplicator->ComputeChunkStatuses(chunkHolder.Get(), replicas);
 
                 BuildYsonFluently(consumer).DoMapFor(
                     statuses.begin(),
@@ -1100,9 +1109,12 @@ private:
 
         context->SetRequestInfo();
 
-        const auto* chunk = GetThisImpl();
+        auto chunk = TEphemeralObjectPtr<TChunk>(GetThisImpl());
 
-        auto replicas = chunk->StoredReplicas();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        // This is context switch, chunk may die.
+        auto replicas = chunkManager->GetChunkReplicas(chunk)
+            .ValueOrThrow();
 
         TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory());
         nodeDirectoryBuilder.Add(replicas);
