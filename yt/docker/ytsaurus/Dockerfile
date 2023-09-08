@@ -39,6 +39,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
   lsof \
   strace \
   telnet \
+  zstd \
   dnsutils \
   iputils-ping \
   lsb-release \
