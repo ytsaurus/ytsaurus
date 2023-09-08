@@ -64,4 +64,4 @@ cp -r ${ytsaurus_credits}/chyt-controller.CREDITS ${output_path}/credits
 
 cd ${output_path}
 
-docker build -t ytsaurus/strawberry-controller:${image_tag} .
+docker build -t ytsaurus/strawberry:${image_tag} .
