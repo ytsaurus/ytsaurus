@@ -7,7 +7,7 @@ import pytest
 import platform
 import os.path
 
-from yt_commands import (authors, wait, read_table, ls, create, write_table, set, update_nodes_dynamic_config)
+from yt_commands import (authors, wait, read_table, get, ls, create, write_table, set, update_nodes_dynamic_config)
 
 
 @authors("capone212")
@@ -16,6 +16,25 @@ class TestIoEngine(YTEnvSetup):
     NUM_NODES = 6
     NUM_SCHEDULERS = 0
     NODE_IO_ENGINE_TYPE = "thread_pool"
+
+    DELTA_NODE_CONFIG = {
+        "resource_limits": {
+            "memory_limits": {
+                "lookup_rows_cache": {
+                    "type": "static",
+                    "value": 0
+                },
+                "block_cache": {
+                    "type": "static",
+                    "value": 0
+                }
+            },
+            "tablet_static": {
+                "type": "static",
+                "value": 0
+            }
+        }
+    }
 
     def get_write_sensors(self, node):
         node_profiler = profiler_factory().at_node(node)
@@ -32,6 +51,12 @@ class TestIoEngine(YTEnvSetup):
             node_profiler.counter(name="location/read/request_count", tags={"location_type": "store"}),
             node_profiler.counter(name="location/read/total_time", tags={"location_type": "store"}),
         ]
+
+    def get_pending_read_memory(self, node):
+        return get("//sys/cluster_nodes/{}/@statistics/memory/pending_disk_read/used".format(node))
+
+    def get_pending_write_memory(self, node):
+        return get("//sys/cluster_nodes/{}/@statistics/memory/pending_disk_write/used".format(node))
 
     def check_node_sensors(self, node_sensors):
         for sensor in node_sensors:
@@ -58,6 +83,35 @@ class TestIoEngine(YTEnvSetup):
         assert len(read_table("//tmp/t")) != 0
         # we should receive read stats from at least one node
         wait(lambda: any(self.check_node_sensors(node_sensor) for node_sensor in read_sensors))
+
+    @authors("don-dron")
+    def test_pending_read_write_memory_tracking(self):
+        REPLICATION_FACTOR = 6
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "testing_options": {
+                    "delay_before_blob_session_block_free": 100000,
+                },
+            },
+        })
+
+        nodes = ls("//sys/cluster_nodes")
+        create(
+            "table",
+            "//tmp/test",
+            attributes={
+                "replication_factor": REPLICATION_FACTOR,
+            })
+
+        ys = [{"key": "x" * 1024} for i in range(1024)]
+        write_table("//tmp/test", ys)
+
+        wait(lambda: all(self.get_pending_write_memory(node) > 1024 for node in nodes))
+
+        read_table("//tmp/test")
+
+        wait(lambda: any(self.get_pending_read_memory(node) > 1024 for node in nodes))
 
     @authors("prime")
     def test_dynamic_sick_detector(self):

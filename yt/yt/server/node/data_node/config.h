@@ -496,6 +496,9 @@ public:
     //! The enable_early_exit field has to be set to true in the request options for this option to have any effect.
     double ColumnarStatisticsReadTimeoutFraction;
 
+    // Delay before blob session block free.
+    std::optional<TDuration> DelayBeforeBlobSessionBlockFree;
+
     REGISTER_YSON_STRUCT(TDataNodeTestingOptions);
 
     static void Register(TRegistrar registrar);
