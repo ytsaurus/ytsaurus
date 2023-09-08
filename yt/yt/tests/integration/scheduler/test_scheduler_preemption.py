@@ -1893,3 +1893,21 @@ class TestSsdPriorityPreemption(YTEnvSetup):
 
         ssd_op = self._run_sleeping_vanilla_with_ssd(job_count=1, spec={"pool": "protected"})
         wait(lambda: get(scheduler_orchid_operation_path(ssd_op.id) + "/resource_usage/cpu", default=0.0) == 1.0)
+
+    @authors("eshcherbin")
+    def test_ignore_preemption_blocking_ancestor_for_ssd_jobs(self):
+        update_pool_tree_config("default", {
+            "ssd_priority_preemption/enable": True,
+            "preemption_check_satisfaction": True,
+        })
+
+        create_pool("prod", attributes={"strong_guarantee_resources": {"cpu": 7.0}})
+        create_pool("research", attributes={"strong_guarantee_resources": {"cpu": 1.0}})
+
+        blocking_op = run_sleeping_vanilla(job_count=5, task_patch={"cpu_limit": 1.5}, spec={"pool": "prod"})
+        wait(lambda: get(scheduler_orchid_operation_path(blocking_op.id) + "/resource_usage/cpu", default=0.0) == 6.0)
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(blocking_op.id) + "/satisfaction_ratio"), 0.8))
+
+        ssd_op = self._run_sleeping_vanilla_with_ssd(job_count=1, spec={"pool": "research"})
+        wait(lambda: get(scheduler_orchid_operation_path(ssd_op.id) + "/resource_usage/cpu", default=0.0) == 1.0)
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(blocking_op.id) + "/satisfaction_ratio"), 4.5 / 7.0))
