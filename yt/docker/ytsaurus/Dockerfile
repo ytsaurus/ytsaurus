@@ -43,6 +43,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
   iputils-ping \
   lsb-release \
   openjdk-11-jdk \
+  libidn11-dev \
   python3.7 \
   python3-pip \
   python3.7-distutils
