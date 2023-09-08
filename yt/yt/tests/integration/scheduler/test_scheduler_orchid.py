@@ -13,6 +13,8 @@ from yt.wrapper import YtClient
 
 from yt.common import YtError
 
+from yt import yson
+
 import builtins
 import time
 
@@ -122,20 +124,12 @@ class TestSchedulerOperationsByPoolOrchid(YTEnvSetup):
             return "//sys/scheduler/orchid/scheduler/pool_trees/default/child_pools_by_pool" + pool
 
         assert client.get(child_pools_by_pool_orchid_path("")) == {
-            "<Root>": {
-                "pool2": {"full_path": "/pool2"},
-                "pool1": {"full_path": "/pool1"},
-            },
-            "pool3": {},
-            "pool2": {
-                "pool5": {"full_path": "/pool2/pool5"},
-            },
-            "pool5": {},
-            "pool4": {},
-            "pool1": {
-                "pool3": {"full_path": "/pool1/pool3"},
-                "pool4": {"full_path": "/pool1/pool4"},
-            },
+            "<Root>": yson.YsonEntity(),
+            "pool3": yson.YsonEntity(),
+            "pool2": yson.YsonEntity(),
+            "pool5": yson.YsonEntity(),
+            "pool4": yson.YsonEntity(),
+            "pool1": yson.YsonEntity(),
         }
 
         assert client.get(child_pools_by_pool_orchid_path("/pool1")) == {

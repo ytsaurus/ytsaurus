@@ -193,6 +193,12 @@ THashMap<TString, TPoolName> GetOperationPools(const TOperationRuntimeParameters
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto EmptyListYsonString = BuildYsonStringFluently()
+    .List(std::vector<TString>())
+    .ToString();
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! This class represents fair share tree.
 //!
 //! We maintain following entities:
@@ -1195,7 +1201,7 @@ private:
     {
     protected:
         explicit TPoolsOrchidServiceBase(TIntrusivePtr<const TFairShareTree> tree)
-            : FairShareTree_{std::move(tree)}
+            : FairShareTree_(std::move(tree))
         { }
 
 
@@ -1259,7 +1265,7 @@ private:
             // TODO(pogorelov): May be support limit here
             return TResolveResultThere{
                 GetRecursiveServiceProducer(std::move(fairShareTreeSnapshot), poolName),
-                NYPath::TYPath{tokenizer.GetSuffix()}
+                NYPath::TYPath(tokenizer.GetSuffix())
             };
         }
 
@@ -1317,10 +1323,7 @@ private:
 
         void ListAttribute(const TYPath& /*path*/, TReqList* /*request*/, TRspList* response, const TCtxListPtr& context) final
         {
-            auto ysonString = BuildYsonStringFluently()
-                .List(std::vector<TString>());
-
-            response->set_value(ysonString.ToString());
+            response->set_value(EmptyListYsonString);
             context->Reply();
         }
     };
@@ -1330,7 +1333,7 @@ private:
     {
     public:
         explicit TPoolsOrchidService(TIntrusivePtr<const TFairShareTree> tree)
-            : TPoolsOrchidServiceBase{std::move(tree)}
+            : TPoolsOrchidServiceBase(std::move(tree))
         { }
 
 
@@ -1338,9 +1341,8 @@ private:
         IYPathServicePtr GetSelfServiceProducer(TFairShareTreeSnapshotPtr&& fairShareTreeSnapshot) override
         {
             return TFairShareTree::FromProducer(BIND(
-                [fairShareTreeSnapshot{std::move(fairShareTreeSnapshot)}]
-                (IYsonConsumer* consumer, const TFieldsFilter& filter) mutable
-                {
+                [fairShareTreeSnapshot = std::move(fairShareTreeSnapshot)]
+                (IYsonConsumer* consumer, const TFieldsFilter& filter) mutable {
                     BuildYsonFluently(consumer).BeginMap()
                         .Do(
                             std::bind(
@@ -1355,9 +1357,8 @@ private:
         IYPathServicePtr GetRecursiveServiceProducer(TFairShareTreeSnapshotPtr&& fairShareTreeSnapshot, const TString& poolName) override
         {
             return TFairShareTree::FromProducer(BIND(
-                [fairShareTreeSnapshot{std::move(fairShareTreeSnapshot)}, poolName]
-                (IYsonConsumer* consumer, const TFieldsFilter& filter)
-                {
+                [fairShareTreeSnapshot = std::move(fairShareTreeSnapshot), poolName]
+                (IYsonConsumer* consumer, const TFieldsFilter& filter) {
                     BuildYsonFluently(consumer).BeginMap()
                         .Do([&] (TFluentMap fluent) {
                             if (poolName == RootPoolName) {
@@ -1393,9 +1394,8 @@ private:
         IYPathServicePtr GetSelfServiceProducer(TFairShareTreeSnapshotPtr&& fairShareTreeSnapshot) override
         {
             return TFairShareTree::FromProducer(BIND(
-                [fairShareTreeSnapshot{std::move(fairShareTreeSnapshot)}]
-                (IYsonConsumer* consumer, const TFieldsFilter& filter) mutable
-                {
+                [fairShareTreeSnapshot = std::move(fairShareTreeSnapshot)]
+                (IYsonConsumer* consumer, const TFieldsFilter& filter) mutable {
                     BuildYsonFluently(consumer).BeginMap()
                         .Do(
                             std::bind(
@@ -1410,9 +1410,8 @@ private:
         IYPathServicePtr GetRecursiveServiceProducer(TFairShareTreeSnapshotPtr&& fairShareTreeSnapshot, const TString& poolName) override
         {
             return TFairShareTree::FromProducer(BIND(
-                [fairShareTreeSnapshot{std::move(fairShareTreeSnapshot)}, poolName]
-                (IYsonConsumer* consumer, const TFieldsFilter& filter)
-                {
+                [fairShareTreeSnapshot = std::move(fairShareTreeSnapshot), poolName]
+                (IYsonConsumer* consumer, const TFieldsFilter& filter) {
                     BuildYsonFluently(consumer).BeginMap()
                         .Do(
                             std::bind(
@@ -2905,28 +2904,14 @@ private:
                 std::placeholders::_1));
     }
 
-    static void BuildChildPoolsByPoolInfos(const TFairShareTreeSnapshotPtr& treeSnapshot, const TFieldsFilter& filter, TFluentMap fluent)
+    static void BuildChildPoolsByPoolInfos(const TFairShareTreeSnapshotPtr& treeSnapshot, const TFieldsFilter& /*filter*/, TFluentMap fluent)
     {
         fluent
             .DoFor(treeSnapshot->PoolMap(), [&] (TFluentMap fluent, const TNonOwningPoolElementMap::value_type& pair) {
                 const auto& [poolName, pool] = pair;
-                fluent.Item(poolName)
-                    .BeginMap()
-                        .Do(std::bind(&TFairShareTree::DoBuildChildPoolsByPoolInfo,
-                            std::cref(treeSnapshot),
-                            std::cref(filter),
-                            pool,
-                            std::placeholders::_1))
-                    .EndMap();
+                fluent.Item(poolName).Entity();
             })
-            .Item(RootPoolName)
-                .BeginMap()
-                    .Do(std::bind(&TFairShareTree::DoBuildChildPoolsByPoolInfo,
-                        std::cref(treeSnapshot),
-                        std::cref(filter),
-                        treeSnapshot->RootElement().Get(),
-                        std::placeholders::_1))
-                .EndMap();
+            .Item(RootPoolName).Entity();
     }
 
     static void DoBuildChildPoolsByPoolInfo(
@@ -2938,12 +2923,11 @@ private:
         fluent
             .DoFor(parentPool->EnabledChildren(), [&] (TFluentMap fluent, const TSchedulerElementPtr& pool) {
                 fluent.Item(pool->GetId())
-                    .BeginMap()
-                        .Do(std::bind(&TFairShareTree::BuildPoolInfo,
-                            std::cref(treeSnapshot),
-                            static_cast<TSchedulerPoolElement*>(pool.Get()),
-                            std::cref(filter),
-                            std::placeholders::_1))
+                    .BeginMap().Do(std::bind(&TFairShareTree::BuildPoolInfo,
+                        std::cref(treeSnapshot),
+                        static_cast<TSchedulerPoolElement*>(pool.Get()),
+                        std::cref(filter),
+                        std::placeholders::_1))
                     .EndMap();
             });
     }
