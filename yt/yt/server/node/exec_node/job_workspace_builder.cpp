@@ -134,55 +134,6 @@ void TJobWorkspaceBuilder::UpdateArtifactStatistics(i64 compressedDataSize, bool
     UpdateArtifactStatistics_.Fire(compressedDataSize, cacheHit);
 }
 
-void TJobWorkspaceBuilder::MakeArtifactSymlinks()
-{
-    const auto& slot = Context_.Slot;
-
-    YT_LOG_DEBUG(
-        "Making artifact symlinks (ArtifactCount: %v)",
-        std::size(Context_.Artifacts));
-
-    for (const auto& artifact : Context_.Artifacts) {
-        // Artifact is passed into the job via symlink.
-        if (!artifact.BypassArtifactCache && !artifact.CopyFile) {
-            YT_VERIFY(artifact.Chunk);
-
-            YT_LOG_INFO(
-                "Making symlink for artifact (FileName: %v, Executable: "
-                "%v, SandboxKind: %v, CompressedDataSize: %v)",
-                artifact.Name,
-                artifact.Executable,
-                artifact.SandboxKind,
-                artifact.Key.GetCompressedDataSize());
-
-            auto sandboxPath = slot->GetSandboxPath(artifact.SandboxKind);
-            auto symlinkPath =
-                CombinePaths(sandboxPath, artifact.Name);
-
-            WaitFor(slot->MakeLink(
-                Context_.Job->GetId(),
-                artifact.Name,
-                artifact.SandboxKind,
-                artifact.Chunk->GetFileName(),
-                symlinkPath,
-                artifact.Executable))
-                .ThrowOnError();
-
-            YT_LOG_INFO(
-                "Symlink for artifact is successfully made(FileName: %v, Executable: %v,"
-                " SandboxKind: %v, CompressedDataSize: %v)",
-                artifact.Name,
-                artifact.Executable,
-                artifact.SandboxKind,
-                artifact.Key.GetCompressedDataSize());
-        } else {
-            YT_VERIFY(artifact.SandboxKind == ESandboxKind::User);
-        }
-    }
-
-    YT_LOG_DEBUG("Artifact symlinks are made");
-}
-
 TFuture<TJobWorkspaceBuildingResult> TJobWorkspaceBuilder::Run()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -227,6 +178,55 @@ public:
     }
 
 private:
+    void MakeArtifactSymlinks()
+    {
+        const auto& slot = Context_.Slot;
+
+        YT_LOG_DEBUG(
+            "Making artifact symlinks (SymlinkCount: %v)",
+            std::size(Context_.Artifacts));
+
+        for (const auto& artifact : Context_.Artifacts) {
+            // Artifact is passed into the job via symlink.
+            if (!artifact.BypassArtifactCache && !artifact.CopyFile) {
+                YT_VERIFY(artifact.Chunk);
+
+                YT_LOG_INFO(
+                    "Making symlink for artifact (FileName: %v, Executable: "
+                    "%v, SandboxKind: %v, CompressedDataSize: %v)",
+                    artifact.Name,
+                    artifact.Executable,
+                    artifact.SandboxKind,
+                    artifact.Key.GetCompressedDataSize());
+
+                auto sandboxPath = slot->GetSandboxPath(artifact.SandboxKind);
+                auto symlinkPath =
+                    CombinePaths(sandboxPath, artifact.Name);
+
+                WaitFor(slot->MakeLink(
+                    Context_.Job->GetId(),
+                    artifact.Name,
+                    artifact.SandboxKind,
+                    artifact.Chunk->GetFileName(),
+                    symlinkPath,
+                    artifact.Executable))
+                    .ThrowOnError();
+
+                YT_LOG_INFO(
+                    "Symlink for artifact is successfully made (FileName: %v, Executable: "
+                    "%v, SandboxKind: %v, CompressedDataSize: %v)",
+                    artifact.Name,
+                    artifact.Executable,
+                    artifact.SandboxKind,
+                    artifact.Key.GetCompressedDataSize());
+            } else {
+                YT_VERIFY(artifact.SandboxKind == ESandboxKind::User);
+            }
+        }
+
+        YT_LOG_DEBUG("Artifact symlinks are made");
+    }
+
     TRootFS MakeWritableRootFS()
     {
         VERIFY_THREAD_AFFINITY(JobThread);
@@ -343,6 +343,55 @@ public:
     }
 
 private:
+    void MakeArtifactSymlinks()
+    {
+        const auto& slot = Context_.Slot;
+
+        YT_LOG_DEBUG(
+            "Making artifact symlinks (ArtifactCount: %v)",
+            std::size(Context_.Artifacts));
+
+        for (const auto& artifact : Context_.Artifacts) {
+            // Artifact is passed into the job via symlink.
+            if (!artifact.BypassArtifactCache && !artifact.CopyFile) {
+                YT_VERIFY(artifact.Chunk);
+
+                YT_LOG_INFO(
+                    "Making symlink for artifact (FileName: %v, Executable: "
+                    "%v, SandboxKind: %v, CompressedDataSize: %v)",
+                    artifact.Name,
+                    artifact.Executable,
+                    artifact.SandboxKind,
+                    artifact.Key.GetCompressedDataSize());
+
+                auto sandboxPath = slot->GetSandboxPath(artifact.SandboxKind);
+                auto symlinkPath =
+                    CombinePaths(sandboxPath, artifact.Name);
+
+                WaitFor(slot->MakeLink(
+                    Context_.Job->GetId(),
+                    artifact.Name,
+                    artifact.SandboxKind,
+                    artifact.Chunk->GetFileName(),
+                    symlinkPath,
+                    artifact.Executable))
+                    .ThrowOnError();
+
+                YT_LOG_INFO(
+                    "Symlink for artifact is successfully made(FileName: %v, Executable: "
+                    "%v, SandboxKind: %v, CompressedDataSize: %v)",
+                    artifact.Name,
+                    artifact.Executable,
+                    artifact.SandboxKind,
+                    artifact.Key.GetCompressedDataSize());
+            } else {
+                YT_VERIFY(artifact.SandboxKind == ESandboxKind::User);
+            }
+        }
+
+        YT_LOG_DEBUG("Artifact symlinks are made");
+    }
+
     void SetArtifactPermissions()
     {
         YT_LOG_DEBUG(
