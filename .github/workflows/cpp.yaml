@@ -162,7 +162,7 @@ jobs:
           label: ${{ needs.start-vm.outputs.label }}
           instance-id: ${{ needs.start-vm.outputs.instance-id }}
 
-   send-notifications:
+  send-notifications:
     name: Send notifications
     needs:
       - stop-vm
