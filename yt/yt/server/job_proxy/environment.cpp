@@ -893,7 +893,7 @@ class TCriJobProxyEnvironment
     : public IJobProxyEnvironment
 {
 public:
-    explicit TCriJobProxyEnvironment(TCriJobEnvironmentConfigPtr config)
+    TCriJobProxyEnvironment(TCriJobEnvironmentConfigPtr config)
         : Config_(std::move(config))
     { }
 

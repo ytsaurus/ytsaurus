@@ -29,9 +29,9 @@ struct TCriImageDescriptor
     TString Image;
 };
 
-void FormatValue(TStringBuilderBase* builder, const TCriDescriptor& descriptor, TStringBuf spec);
-void FormatValue(TStringBuilderBase* builder, const TCriPodDescriptor& descriptor, TStringBuf spec);
-void FormatValue(TStringBuilderBase* builder, const TCriImageDescriptor& descriptor, TStringBuf spec);
+void FormatValue(TStringBuilderBase* builder, const TCriDescriptor& desc, TStringBuf spec);
+void FormatValue(TStringBuilderBase* builder, const TCriPodDescriptor& desc, TStringBuf spec);
+void FormatValue(TStringBuilderBase* builder, const TCriImageDescriptor& desc, TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,8 +59,7 @@ struct TCriBindMount
     bool ReadOnly;
 };
 
-struct TCriCredentials
-{
+struct TCriCredentials {
     std::optional<i64> Uid;
     std::optional<i64> Gid;
     std::vector<i64> Groups;

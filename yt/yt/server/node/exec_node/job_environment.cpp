@@ -922,7 +922,7 @@ public:
             podFutures.reserve(slotCount);
             for (int slotIndex = 0; slotIndex < slotCount; ++slotIndex) {
                 auto podSpec = New<NCri::TCriPodSpec>();
-                podSpec->Name = Format("%v%v", SlotPodPrefix, slotIndex);
+                podSpec->Name = Format("%s%d", SlotPodPrefix, slotIndex);
                 podSpec->Resources.CpuLimit = cpuLimit;
                 PodSpecs_.push_back(podSpec);
                 podFutures.push_back(Executor_->RunPodSandbox(podSpec));
@@ -985,7 +985,7 @@ private:
     std::vector<TCriPodDescriptor> PodDescriptors_;
     std::vector<TCriPodSpecPtr> PodSpecs_;
 
-    const TActionQueuePtr MounterThread_ = New<TActionQueue>("CriMounter");
+    const TActionQueuePtr MounterThread_ = New<TActionQueue>("Mounter");
 
     TProcessBasePtr CreateJobProxyProcess(int slotIndex, ESlotType /*slotType*/, TJobId jobId) override
     {
@@ -998,7 +998,7 @@ private:
         // FIXME(khlebnikov) user to run job proxy spec->Credentials.Uid = GetUserId(slotIndex);
 
         for (const auto& bind: Config_->JobProxyBindMounts) {
-            spec->BindMounts.push_back(NCri::TCriBindMount{
+            spec->BindMounts.emplace_back(NCri::TCriBindMount{
                 .ContainerPath = bind->InternalPath,
                 .HostPath = bind->ExternalPath,
                 .ReadOnly = bind->ReadOnly,
@@ -1010,12 +1010,12 @@ private:
             auto execProgramPath = Format("%v/%v", LocalBinDir, ExecProgramName);
 
             spec->Command = {jobProxyPath};
-            spec->BindMounts.push_back(NCri::TCriBindMount{
+            spec->BindMounts.emplace_back(NCri::TCriBindMount{
                 .ContainerPath = jobProxyPath,
                 .HostPath = ResolveBinaryPath(JobProxyProgramName).ValueOrThrow(),
                 .ReadOnly = true,
             });
-            spec->BindMounts.push_back(NCri::TCriBindMount{
+            spec->BindMounts.emplace_back(NCri::TCriBindMount{
                 .ContainerPath = execProgramPath,
                 .HostPath = ResolveBinaryPath(ExecProgramName).ValueOrThrow(),
                 .ReadOnly = true,
