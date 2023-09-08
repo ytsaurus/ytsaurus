@@ -5,8 +5,6 @@
 
 #include <yt/yt/core/rpc/grpc/channel.h>
 
-#include <yt/yt/core/rpc/retrying_channel.h>
-
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
@@ -199,8 +197,8 @@ public:
         TCriExecutorConfigPtr config,
         IChannelFactoryPtr channelFactory)
         : Config_(std::move(config))
-        , RuntimeApi_(CreateRetryingChannel(Config_, channelFactory->CreateChannel(Config_->RuntimeEndpoint)))
-        , ImageApi_(CreateRetryingChannel(Config_, channelFactory->CreateChannel(Config_->ImageEndpoint)))
+        , RuntimeApi_(channelFactory->CreateChannel(Config_->RuntimeEndpoint))
+        , ImageApi_(channelFactory->CreateChannel(Config_->ImageEndpoint))
     { }
 
     TString GetPodCgroup(TString podName) const override
