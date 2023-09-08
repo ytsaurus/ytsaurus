@@ -297,7 +297,7 @@ items:
             - name: Решение проблем
               href: user-guide/data-processing/spyt/problems.md
         - name: YQL
-          when: audience == "public"
+          when: audience == "public" 
           items:
             - include: { mode: link, path: yql/toc.yaml }
       - name: Прокси
