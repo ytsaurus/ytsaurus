@@ -1,4 +1,5 @@
 title: " {{product-name}} "
+when: audience == "public"
 href: index.md
 items:
    - name: " {{product-name}} "
@@ -14,6 +15,7 @@ items:
      expanded: true
      items:
        - name: Authentication
+         when: audience == "public"
          href: user-guide/storage/auth.md
        - name: Data storage
          when: audience == "public"

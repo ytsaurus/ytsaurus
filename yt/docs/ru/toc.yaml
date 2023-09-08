@@ -13,6 +13,7 @@ items:
     when: audience == "public"
     href: overview/try-yt.md
   - name: Руководство пользователя
+    when: audience == "public"
     expanded: true
     items:
       - name: Аутентификация
