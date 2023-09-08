@@ -26,6 +26,12 @@ void TYqlPluginConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("operation_attributes", &TThis::OperationAttributes)
         .Default();
+    registrar.Parameter("max_files_size_mb", &TThis::MaxFilesSizeMb)
+        .Default(1 << 14);
+    registrar.Parameter("max_file_count", &TThis::MaxFileCount)
+        .Default(8192);
+    registrar.Parameter("download_file_retry_count", &TThis::DownloadFileRetryCount)
+        .Default(3);
     registrar.Parameter("yt_token_path", &TThis::YTTokenPath)
         .Default();
     registrar.Parameter("yql_plugin_shared_library", &TThis::YqlPluginSharedLibrary)

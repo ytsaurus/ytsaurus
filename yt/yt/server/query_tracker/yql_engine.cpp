@@ -69,6 +69,7 @@ public:
         : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery)
         , Query_(activeQuery.Query)
         , Config_(config)
+        , Files_(ConvertTo<std::vector<TQueryFilePtr>>(activeQuery.Files))
         , Connection_(connection)
         , Settings_(ConvertTo<TYqlSettingsPtr>(SettingsNode_))
         , Stage_(Settings_->Stage.value_or(Config_->Stage))
@@ -87,6 +88,13 @@ public:
         ToProto(req->mutable_query_id(), QueryId_);
         yqlRequest->set_query(Query_);
         yqlRequest->set_settings(ConvertToYsonString(SettingsNode_).ToString());
+
+        for (const auto& file : Files_) {
+            auto* protoFile = yqlRequest->add_files();
+            protoFile->set_name(file->Name);
+            protoFile->set_content(file->Content);
+            protoFile->set_type(static_cast<TYqlQueryFile_EContentType>(file->Type));
+        }
         req->set_build_rowsets(true);
         AsyncQueryResult_  = req->Invoke();
         AsyncQueryResult_.Subscribe(BIND(&TYqlQueryHandler::OnYqlResponse, MakeWeak(this)).Via(GetCurrentInvoker()));
@@ -114,6 +122,7 @@ public:
 private:
     const TString Query_;
     const TYqlEngineConfigPtr Config_;
+    const std::vector<TQueryFilePtr> Files_;
     const NApi::NNative::IConnectionPtr Connection_;
     const TYqlSettingsPtr Settings_;
     const TString Stage_;

@@ -7,7 +7,7 @@ from .common import datetime_to_string, set_param, get_value
 from datetime import datetime
 
 
-def start_query(engine, query, settings=None, stage=None, client=None):
+def start_query(engine, query, settings=None, files=None, stage=None, client=None):
     """Start query.
 
     :param engine: one of "ql", "yql".
@@ -16,6 +16,8 @@ def start_query(engine, query, settings=None, stage=None, client=None):
     :type query: str
     :param settings: a dictionary of settings
     :type settings: dict or None
+    :param files: a YSON list of files, each of which is represented by a map with keys "name", "content", "type". Field "type" is one of "raw_inline_data", "url"
+    :type files: list or None
     :param stage: query tracker stage, defaults to "production"
     :type stage: str
     """
@@ -24,6 +26,7 @@ def start_query(engine, query, settings=None, stage=None, client=None):
         "engine": engine,
         "query": query,
         "settings": get_value(settings, {}),
+        "files" : get_value(files, []),
         "stage": get_value(stage, "production"),
     }
 
