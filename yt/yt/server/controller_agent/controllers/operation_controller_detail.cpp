@@ -9551,6 +9551,13 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     if (Spec_->EnableSquashFS) {
         jobSpec->set_enable_squashfs(*Spec_->EnableSquashFS);
     }
+
+    // Pass external docker image into job spec as is.
+    if (jobSpecConfig->DockerImage &&
+        !TDockerImageSpec(*jobSpecConfig->DockerImage, Config->DockerRegistry).IsInternal())
+    {
+        jobSpec->set_docker_image(*jobSpecConfig->DockerImage);
+    }
 }
 
 const std::vector<TUserFile>& TOperationControllerBase::GetUserFiles(const TUserJobSpecPtr& userJobSpec) const
@@ -10470,9 +10477,15 @@ std::vector<TRichYPath> TOperationControllerBase::GetLayerPaths(
     }
     std::vector<TRichYPath> layerPaths;
     if (userJobSpec->DockerImage) {
-        layerPaths = GetLayerPathsFromDockerImage(
-            Host->GetClient(),
-            *userJobSpec->DockerImage);
+        TDockerImageSpec dockerImage(*userJobSpec->DockerImage, Config->DockerRegistry);
+
+        // External docker images are not compatible with any additional layers.
+        if (!dockerImage.IsInternal()) {
+            return {};
+        }
+
+        // Resolve internal docker image into base layers.
+        layerPaths = GetLayerPathsFromDockerImage(Host->GetClient(), dockerImage);
     }
     std::copy(userJobSpec->LayerPaths.begin(), userJobSpec->LayerPaths.end(), std::back_inserter(layerPaths));
     if (layerPaths.empty() && Spec_->DefaultBaseLayerPath) {

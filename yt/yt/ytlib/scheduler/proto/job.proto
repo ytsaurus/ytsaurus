@@ -122,6 +122,10 @@ message TUserJobSpec
     repeated TFileDescriptor files = 1;
     repeated TFileDescriptor layers = 34;
 
+    // The external docker image specified for operation,
+    // images from internal registry are resolved into layers.
+    optional string docker_image = 69;
+
     // The user command to be executed.
     required string shell_command = 2;
 
@@ -235,7 +239,7 @@ message TUserJobSpec
     // The following options must be used only with network projects.
     // Enables NAT64 - YT-15665.
     optional bool enable_nat64 = 64;
-    
+
     // Disables networking inside the job.
     optional bool disable_network = 67;
 

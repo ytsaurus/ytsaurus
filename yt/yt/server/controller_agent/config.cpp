@@ -528,6 +528,12 @@ void TJobTrackerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(5));
 }
 
+void TDockerRegistryConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("internal_registry_address", &TThis::InternalRegistryAddress)
+        .Default();
+}
+
 void TControllerAgentConfig::Register(TRegistrar registrar)
 {
     registrar.UnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
@@ -895,6 +901,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("gpu_check_layer_directory_path", &TThis::GpuCheckLayerDirectoryPath)
         .Default();
+
+    registrar.Parameter("docker_registry", &TThis::DockerRegistry)
+        .DefaultNew();
 
     registrar.Parameter("schedule_job_statistics_log_backoff", &TThis::ScheduleJobStatisticsLogBackoff)
         .Default(TDuration::Seconds(1));

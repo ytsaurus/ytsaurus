@@ -5,6 +5,8 @@
 
 #include <yt/yt/server/lib/exec_node/helpers.h>
 
+#include <yt/yt/library/containers/cri/cri_executor.h>
+
 #include <yt/yt/core/actions/cancelable_context.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
@@ -15,6 +17,7 @@
 namespace NYT::NExecNode
 {
 
+using namespace NContainers::NCri;
 using namespace NConcurrency;
 using namespace NContainers;
 using namespace NJobAgent;
@@ -246,7 +249,7 @@ private:
         };
     }
 
-    TFuture<void> DoPrepareSandboxDirectories()
+    TFuture<void> DoPrepareSandboxDirectories() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -267,7 +270,7 @@ private:
         return VoidFuture;
     }
 
-    TFuture<void> DoPrepareRootVolume()
+    TFuture<void> DoPrepareRootVolume() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -279,7 +282,7 @@ private:
         return VoidFuture;
     }
 
-    TFuture<void> DoRunSetupCommand()
+    TFuture<void> DoRunSetupCommand() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -291,7 +294,7 @@ private:
         return VoidFuture;
     }
 
-    TFuture<void> DoRunGpuCheckCommand()
+    TFuture<void> DoRunGpuCheckCommand() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -374,7 +377,7 @@ private:
         YT_LOG_INFO("Permissions for artifacts set");
     }
 
-    TFuture<void> DoPrepareSandboxDirectories()
+    TFuture<void> DoPrepareSandboxDirectories() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -417,12 +420,17 @@ private:
         };
     }
 
-    TFuture<void> DoPrepareRootVolume()
+    TFuture<void> DoPrepareRootVolume() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         ValidateJobPhase(EJobPhase::PreparingSandboxDirectories);
         SetJobPhase(EJobPhase::PreparingRootVolume);
+
+        if (Context_.DockerImage) {
+            return MakeFuture(TError(EErrorCode::RootVolumePreparationFailed,
+                "Docker image is not supported in Porto job environment"));
+        }
 
         const auto& slot = Context_.Slot;
         const auto& layerArtifactKeys = Context_.LayerArtifactKeys;
@@ -463,7 +471,7 @@ private:
         }
     }
 
-    TFuture<void> DoRunSetupCommand()
+    TFuture<void> DoRunSetupCommand() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -496,7 +504,7 @@ private:
             /*startIndex*/ 0);
     }
 
-    TFuture<void> DoRunGpuCheckCommand()
+    TFuture<void> DoRunGpuCheckCommand() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -568,6 +576,134 @@ TJobWorkspaceBuilderPtr CreatePortoJobWorkspaceBuilder(
 }
 
 #endif
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCriJobWorkspaceBuilder
+    : public TJobWorkspaceBuilder
+{
+public:
+    TCriJobWorkspaceBuilder(
+        IInvokerPtr invoker,
+        TJobWorkspaceBuildingContext context,
+        IJobDirectoryManagerPtr directoryManager,
+        ICriExecutorPtr executor)
+        : TJobWorkspaceBuilder(
+            std::move(invoker),
+            std::move(context),
+            std::move(directoryManager))
+        , Executor_(std::move(executor))
+    { }
+
+private:
+    TFuture<void> DoPrepareSandboxDirectories() override
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::DownloadingArtifacts);
+        SetJobPhase(EJobPhase::PreparingSandboxDirectories);
+
+        YT_LOG_INFO("Started preparing sandbox directories");
+
+        const auto& slot = Context_.Slot;
+
+        ResultHolder_.TmpfsPaths = WaitFor(slot->PrepareSandboxDirectories(Context_.UserSandboxOptions))
+            .ValueOrThrow();
+
+        MakeArtifactSymlinks();
+
+        YT_LOG_INFO("Finished preparing sandbox directories");
+
+        return VoidFuture;
+    }
+
+    TFuture<void> DoPrepareRootVolume() override
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::PreparingSandboxDirectories);
+        SetJobPhase(EJobPhase::PreparingRootVolume);
+
+        if (!Context_.LayerArtifactKeys.empty()) {
+            return MakeFuture(TError(EErrorCode::RootVolumePreparationFailed,
+                "Proto layers are not supported in CRI job environment"));
+        }
+
+        if (const auto& dockerImage = Context_.DockerImage) {
+            VolumePrepareStartTime_ = TInstant::Now();
+            UpdateTimers_.Fire(MakeStrong(this));
+
+            TCriImageDescriptor imageDescriptor {
+                .Image = *dockerImage,
+            };
+
+            YT_LOG_INFO("Preparing root volume (Image: %v)", imageDescriptor);
+
+            return Executor_->PullImage(imageDescriptor)
+                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TCriImageDescriptor>& imageOrError) {
+                    if (!imageOrError.IsOK()) {
+                        YT_LOG_DEBUG("Failed to prepare root volume (Image: %v)", imageDescriptor);
+
+                        THROW_ERROR_EXCEPTION(
+                            TError(EErrorCode::RootVolumePreparationFailed, "Failed to prepare docker image")
+                                << imageOrError);
+                    }
+
+                    // TODO(khlebnikov) Result image may differ from requested?
+                    const auto& imageResult = imageOrError.Value();
+                    YT_LOG_INFO("Root volume prepared (Image: %v)", imageResult);
+
+                    VolumePrepareFinishTime_ = TInstant::Now();
+                    UpdateTimers_.Fire(MakeStrong(this));
+                }));
+        } else {
+            YT_LOG_DEBUG("Root volume preparation is not needed");
+            return VoidFuture;
+        }
+    }
+
+    TFuture<void> DoRunSetupCommand() override
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        YT_LOG_DEBUG_UNLESS(Context_.SetupCommands.empty(), "Setup command is not supported in CRI workspace");
+
+        ValidateJobPhase(EJobPhase::PreparingRootVolume);
+        SetJobPhase(EJobPhase::RunningSetupCommands);
+
+        return VoidFuture;
+    }
+
+    TFuture<void> DoRunGpuCheckCommand() override
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        YT_LOG_DEBUG_IF(Context_.NeedGpuCheck, "Gpu check is not supported in CRI workspace");
+
+        ValidateJobPhase(EJobPhase::RunningSetupCommands);
+        SetJobPhase(EJobPhase::RunningGpuCheckCommand);
+
+        return VoidFuture;
+    }
+
+private:
+    const ICriExecutorPtr Executor_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TJobWorkspaceBuilderPtr CreateCriJobWorkspaceBuilder(
+    IInvokerPtr invoker,
+    TJobWorkspaceBuildingContext context,
+    IJobDirectoryManagerPtr directoryManager,
+    ICriExecutorPtr executor)
+{
+    return New<TCriJobWorkspaceBuilder>(
+        std::move(invoker),
+        std::move(context),
+        std::move(directoryManager),
+        std::move(executor));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
