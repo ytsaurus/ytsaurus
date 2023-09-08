@@ -545,7 +545,7 @@ ru:
       type: redirect
 
     - from: /instructions/dynamic_tables/add_remove_line.md
-      to: /user-guide/dynamic-tables/tutorials/add_remove_line.md
+      to: /user-guide/dynamic-tables/tutorials/add-remove-line.md
       type: redirect
 
     - from: /instructions/dynamic_tables/backup_table.md
