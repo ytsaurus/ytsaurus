@@ -32,6 +32,10 @@ public:
         const NTableClient::TColumnFilter& columnFilter = {},
         std::optional<NTransactionClient::TTimestamp> timestamp = {});
 
+    virtual TFuture<NApi::TSelectRowsResult> SelectRows(
+        const TString& query,
+        const NApi::TSelectRowsOptions& options = {}) = 0;
+
     virtual void DatalessLockRow(
         NObjectClient::TCellTag masterCellTag,
         ESequoiaTable table,

@@ -573,6 +573,11 @@ public:
     //! Probability (in percents) that chunk replicas will be Sequoia.
     int SequoiaChunkReplicasPercentage;
 
+    TDuration SequoiaReplicaRemovalPeriod;
+    int SequoiaReplicaRemovalBatchSize;
+
+    bool FetchReplicasFromSequoia;
+
     //! When set of active chunk replicator shards is changed, no removal jobs
     //! will be scheduled within this period.
     TDuration RemovalJobScheduleDelay;

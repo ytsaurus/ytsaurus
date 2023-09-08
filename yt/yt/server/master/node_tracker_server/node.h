@@ -224,12 +224,11 @@ public:
     //!   Encodes chunk and one of its parts (for erasure chunks only, others use GenericChunkReplicaIndex).
     //! Value:
     //!   Indicates media where acting as replication targets for this chunk.
-    using TChunkPushReplicationQueue = THashMap<TChunkPtrWithReplicaIndex, TMediumSet>;
+    using TChunkPushReplicationQueue = THashMap<NChunkClient::TChunkIdWithIndex, TMediumSet>;
     using TChunkPushReplicationQueues = std::vector<TChunkPushReplicationQueue>;
     DEFINE_BYREF_RW_PROPERTY(TChunkPushReplicationQueues, ChunkPushReplicationQueues);
 
-    //! Has the same structure as push replication queues, but uses chunk ids instead
-    //! of chunk pointers to prevent danging pointers after chunk destruction.
+    //! Has the same structure as push replication queues.
     using TChunkPullReplicationQueue = THashMap<NChunkClient::TChunkIdWithIndex, TMediumSet>;
     using TChunkPullReplicationQueues = std::vector<TChunkPullReplicationQueue>;
     DEFINE_BYREF_RW_PROPERTY(TChunkPullReplicationQueues, ChunkPullReplicationQueues);
@@ -353,8 +352,8 @@ public:
     TChunkPtrWithReplicaInfo PickRandomReplica(int mediumIndex);
     void ClearReplicas();
 
-    void AddToChunkPushReplicationQueue(TChunkPtrWithReplicaIndex replica, int targetMediumIndex, int priority);
-    void AddToChunkPullReplicationQueue(TChunkPtrWithReplicaIndex replica, int targetMediumIndex, int priority);
+    void AddToChunkPushReplicationQueue(NChunkClient::TChunkIdWithIndex replica, int targetMediumIndex, int priority);
+    void AddToChunkPullReplicationQueue(NChunkClient::TChunkIdWithIndex replica, int targetMediumIndex, int priority);
     void RefChunkBeingPulled(TChunkId chunkId, int targetMediumIndex);
     void UnrefChunkBeingPulled(TChunkId chunkId, int targetMediumIndex);
 
@@ -362,7 +361,7 @@ public:
     void RemoveTargetReplicationNodeId(TChunkId chunkId, int targetMediumIndex);
     TNodeId GetTargetReplicationNodeId(TChunkId chunkId, int targetMediumIndex);
 
-    void RemoveFromChunkReplicationQueues(TChunkPtrWithReplicaIndex replica);
+    void RemoveFromChunkReplicationQueues(NChunkClient::TChunkIdWithIndex replica);
 
     void ClearSessionHints();
     void AddSessionHint(int mediumIndex, NChunkClient::ESessionType sessionType);
@@ -468,6 +467,8 @@ private:
     void SetResourceUsage(const NNodeTrackerClient::NProto::TNodeResources& resourceUsage);
     void SetResourceLimits(const NNodeTrackerClient::NProto::TNodeResources& resourceLimits);
 };
+
+DEFINE_MASTER_OBJECT_TYPE(TNode)
 
 ////////////////////////////////////////////////////////////////////////////////
 

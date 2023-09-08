@@ -752,17 +752,17 @@ void TNode::ClearReplicas()
     }
 }
 
-void TNode::AddToChunkPushReplicationQueue(TChunkPtrWithReplicaIndex replica, int targetMediumIndex, int priority)
+void TNode::AddToChunkPushReplicationQueue(TChunkIdWithIndex replica, int targetMediumIndex, int priority)
 {
     YT_ASSERT(ReportedDataNodeHeartbeat());
     ChunkPushReplicationQueues_[priority][replica].set(targetMediumIndex);
 }
 
-void TNode::AddToChunkPullReplicationQueue(TChunkPtrWithReplicaIndex replica, int targetMediumIndex, int priority)
+void TNode::AddToChunkPullReplicationQueue(TChunkIdWithIndex replica, int targetMediumIndex, int priority)
 {
     YT_ASSERT(ReportedDataNodeHeartbeat());
 
-    ChunkPullReplicationQueues_[priority][ToChunkIdWithIndex(replica)].set(targetMediumIndex);
+    ChunkPullReplicationQueues_[priority][replica].set(targetMediumIndex);
 }
 
 void TNode::RefChunkBeingPulled(TChunkId chunkId, int targetMediumIndex)
@@ -839,18 +839,17 @@ void TNode::UnrefChunkBeingPulled(TChunkId chunkId, int targetMediumIndex)
     }
 }
 
-void TNode::RemoveFromChunkReplicationQueues(TChunkPtrWithReplicaIndex replica)
+void TNode::RemoveFromChunkReplicationQueues(TChunkIdWithIndex replica)
 {
     for (auto& queue : ChunkPushReplicationQueues_) {
         queue.erase(replica);
     }
 
     for (auto& queue : ChunkPullReplicationQueues_) {
-        queue.erase(ToChunkIdWithIndex(replica));
+        queue.erase(replica);
     }
 
-    auto chunkId = replica.GetPtr()->GetId();
-    PushReplicationTargetNodeIds_.erase(chunkId);
+    PushReplicationTargetNodeIds_.erase(replica.Id);
 }
 
 void TNode::ClearSessionHints()

@@ -10,13 +10,13 @@ types:
         sort_order: Ascending
 
       - cpp_name: ChunkId
-        cpp_type: TString
+        cpp_type: NChunkClient::TChunkId
         column_name: chunk_id
         column_type: String
         sort_order: Ascending
 
       - cpp_name: LocationUuid
-        cpp_type: TString
+        cpp_type: NChunkClient::TChunkLocationUuid
         column_name: location_uuid
         column_type: String
         sort_order: Ascending

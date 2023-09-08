@@ -456,7 +456,13 @@ bool TReincarnationJob::FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) co
 
     const auto& chunkManager = bootstrap->GetChunkManager();
     if (auto* oldChunk = chunkManager->FindChunk(OldChunkId_)) {
-        builder.Add(oldChunk->StoredReplicas());
+        auto ephemeralChunk = TEphemeralObjectPtr<TChunk>(oldChunk);
+        auto replicasOrError = chunkManager->GetChunkReplicas(ephemeralChunk);
+        if (!replicasOrError.IsOK() || !IsObjectAlive(ephemeralChunk)) {
+            return false;
+        }
+        const auto& replicas = replicasOrError.Value();
+        builder.Add(replicas);
     }
 
     jobSpecExt->set_medium_index(MediumIndex_);
@@ -876,6 +882,7 @@ private:
         auto targetNodes = chunkManager->AllocateWriteTargets(
             medium->AsDomestic(),
             newChunk,
+            /*replicas*/ {}, // We know there are no replicas for newChunk yet.
             GenericChunkReplicaIndex,
             targetCount,
             targetCount,
@@ -886,9 +893,28 @@ private:
             return;
         }
 
+        auto ephemeralChunk = TEphemeralObjectPtr<TChunk>(oldChunk);
         TNodePtrWithReplicaAndMediumIndexList sourceReplicas;
-        sourceReplicas.reserve(oldChunk->StoredReplicas().size());
-        for (auto replica : oldChunk->StoredReplicas()) {
+        // This is context switch, chunk may die.
+        auto replicasOrError = chunkManager->GetChunkReplicas(ephemeralChunk);
+        if (!replicasOrError.IsOK()) {
+            return;
+        }
+
+        if (!IsObjectAlive(ephemeralChunk)) {
+            return;
+        }
+
+        auto replicas = replicasOrError.Value();
+
+        // Make sure chunk is still alive.
+        oldChunk = chunkManager->FindChunk(oldChunkId);
+        if (!IsObjectAlive(oldChunk)) {
+            return;
+        }
+
+        sourceReplicas.reserve(replicas.size());
+        for (auto replica : replicas) {
             const auto* location = replica.GetPtr();
             sourceReplicas.emplace_back(location->GetNode(), replica.GetReplicaIndex(), location->GetEffectiveMediumIndex());
         }

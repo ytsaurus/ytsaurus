@@ -93,6 +93,7 @@ public:
 
     void ScheduleChunkRefresh(TChunk* chunk);
     void ScheduleNodeRefresh(TNode* node);
+    void ScheduleNodeRefreshSequoia(TNodeId nodeId);
     void ScheduleGlobalChunkRefresh();
 
     void ScheduleRequisitionUpdate(TChunk* chunk);
@@ -100,8 +101,12 @@ public:
 
     void TouchChunk(TChunk* chunk);
 
-    TCompactMediumMap<EChunkStatus> ComputeChunkStatuses(TChunk* chunk);
-    ECrossMediumChunkStatus ComputeCrossMediumChunkStatus(TChunk* chunk);
+    TCompactMediumMap<EChunkStatus> ComputeChunkStatuses(
+        TChunk* chunk,
+        const TChunkLocationPtrWithReplicaInfoList& replicas);
+    ECrossMediumChunkStatus ComputeCrossMediumChunkStatus(
+        TChunk* chunk,
+        const TChunkLocationPtrWithReplicaInfoList& replicas);
 
     bool IsReplicatorEnabled();
     bool IsSealerEnabled();
@@ -115,7 +120,9 @@ public:
 
     TJobEpoch GetJobEpoch(TChunk* chunk) const;
 
-    bool IsDurabilityRequired(TChunk* chunk) const;
+    bool IsDurabilityRequired(
+        TChunk* chunk,
+        const TChunkLocationPtrWithReplicaInfoList& replicas) const;
 
     void OnProfiling(NProfiling::TSensorBuffer* buffer, NProfiling::TSensorBuffer* crpBuffer);
 
@@ -244,7 +251,8 @@ private:
         IJobSchedulingContext* context,
         TChunkPtrWithReplicaIndex chunkWithIndex,
         TDomesticMedium* targetMedium,
-        TNodeId targetNodeId);
+        TNodeId targetNodeId,
+        const TChunkLocationPtrWithReplicaInfoList& replicas);
     bool TryScheduleBalancingJob(
         IJobSchedulingContext* context,
         TChunkPtrWithReplicaAndMediumIndex chunkWithIndexes,
@@ -256,20 +264,27 @@ private:
     bool TryScheduleRepairJob(
         IJobSchedulingContext* context,
         EChunkRepairQueue repairQueue,
-        TChunkPtrWithReplicaAndMediumIndex chunkWithIndexes);
+        TChunkPtrWithReplicaAndMediumIndex chunkWithIndexes,
+        const TChunkLocationPtrWithReplicaInfoList& replicas);
 
     void OnRefresh();
     void RefreshChunk(TChunk* chunk);
 
     void ResetChunkStatus(TChunk* chunk);
-    void RemoveChunkFromQueuesOnRefresh(TChunk* chunk);
+    void RemoveChunkReplicasFromReplicationQueues(
+        TChunkId chunkId,
+        const TChunkLocationPtrWithReplicaInfoList& replicas);
     void RemoveChunkFromQueuesOnDestroy(TChunk* chunk);
 
     void MaybeRememberPartMissingChunk(TChunk* chunk);
 
-    TChunkStatistics ComputeChunkStatistics(const TChunk* chunk);
+    TChunkStatistics ComputeChunkStatistics(
+        const TChunk* chunk,
+        const TChunkLocationPtrWithReplicaInfoList& replicas);
 
-    TChunkStatistics ComputeRegularChunkStatistics(const TChunk* chunk);
+    TChunkStatistics ComputeRegularChunkStatistics(
+        const TChunk* chunk,
+        const TChunkLocationPtrWithReplicaInfoList& replicas);
     void ComputeRegularChunkStatisticsForMedium(
         TPerMediumChunkStatistics& result,
         const TChunk* chunk,
@@ -297,7 +312,9 @@ private:
         bool hasMediumOnWhichUnderreplicated,
         bool hasMediumOnWhichSealedMissing);
 
-    TChunkStatistics ComputeErasureChunkStatistics(const TChunk* chunk);
+    TChunkStatistics ComputeErasureChunkStatistics(
+        const TChunk* chunk,
+        const TChunkLocationPtrWithReplicaInfoList& replicas);
     void ComputeErasureChunkStatisticsForMedium(
         TPerMediumChunkStatistics& result,
         NErasure::ICodec* codec,
@@ -327,7 +344,9 @@ private:
     //!   - replication factors are capped by medium-specific bounds;
     //!   - additional entries may be introduced if the chunk has replicas
     //!     stored on a medium it's not supposed to have replicas on.
-    TChunkReplication GetChunkAggregatedReplication(const TChunk* chunk) const;
+    TChunkReplication GetChunkAggregatedReplication(
+        const TChunk* chunk,
+        const TChunkLocationPtrWithReplicaInfoList& replicas) const;
 
     //! Same as corresponding #TChunk method but the result is capped by the medium-specific bound.
     int GetChunkAggregatedReplicationFactor(const TChunk* chunk, int mediumIndex);
@@ -371,11 +390,13 @@ private:
     std::array<TChunkRepairQueue, MaxMediumCount>& ChunkRepairQueues(EChunkRepairQueue queue);
     TDecayingMaxMinBalancer<int, double>& ChunkRepairQueueBalancer(EChunkRepairQueue queue);
 
-    TCompactMediumMap<TNodeList> GetChunkConsistentPlacementNodes(const TChunk* chunk);
+    TCompactMediumMap<TNodeList> GetChunkConsistentPlacementNodes(
+        const TChunk* chunk,
+        const TChunkLocationPtrWithReplicaInfoList& replicas);
 
     void RemoveFromChunkReplicationQueues(
         TNode* node,
-        TChunkPtrWithReplicaIndex chunkWithIndex);
+        NChunkClient::TChunkIdWithIndex chunkIdWithIndex);
     void RemoveChunkFromPullReplicationSet(const TJobPtr& job);
     void UnrefChunkBeingPulled(
         TNodeId nodeId,

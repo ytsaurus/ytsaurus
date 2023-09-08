@@ -34,7 +34,7 @@ using namespace NCellMaster;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NYson;
-using namespace NYTree;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -171,9 +171,20 @@ private:
             THROW_ERROR_EXCEPTION("Mutating request through virtual map is forbidden");
         }
 
+        auto ephemeralChunk = TEphemeralObjectPtr<TChunk>(chunk);
+
         Bootstrap_->GetHydraFacade()->RequireLeader();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& chunkReplicator = chunkManager->GetChunkReplicator();
+
+        // This is context switch, chunk may die.
+        auto replicasOrError = chunkManager->GetChunkReplicas(ephemeralChunk);
+        // TODO(aleksandra-zh): maybe do smth else.
+        if (!replicasOrError.IsOK()) {
+            return false;
+        }
+
+        const auto& chunkReplicas = replicasOrError.Value();
 
         auto checkReplicatorCrossMediumStatus = [&] (
             ECrossMediumChunkStatus status,
@@ -184,12 +195,12 @@ private:
                 return false;
             }
 
-            auto chunkStatus = chunkReplicator->ComputeCrossMediumChunkStatus(chunk);
+            auto chunkStatus = chunkReplicator->ComputeCrossMediumChunkStatus(chunk, chunkReplicas);
             if (None(chunkStatus & status)) {
                 return false;
             }
 
-            return !vitalMap || chunkReplicator->IsDurabilityRequired(chunk);
+            return !vitalMap || chunkReplicator->IsDurabilityRequired(chunk, chunkReplicas);
         };
 
         auto checkReplicatorStatus = [&] (
@@ -201,7 +212,7 @@ private:
                 return false;
             }
 
-            auto chunkStatus = chunkReplicator->ComputeChunkStatuses(chunk);
+            auto chunkStatus = chunkReplicator->ComputeChunkStatuses(chunk, chunkReplicas);
             auto aggregateStatus = EChunkStatus::None;
             for (auto [mediumIndex, mediumState] : chunkStatus) {
                 aggregateStatus |= mediumState;
@@ -211,7 +222,7 @@ private:
                 return false;
             }
 
-            return !vitalMap || chunkReplicator->IsDurabilityRequired(chunk);
+            return !vitalMap || chunkReplicator->IsDurabilityRequired(chunk, chunkReplicas);
         };
 
         switch (Type_) {

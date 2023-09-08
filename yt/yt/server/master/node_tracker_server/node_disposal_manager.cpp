@@ -12,6 +12,8 @@
 
 #include <yt/yt/ytlib/data_node_tracker_client/location_directory.h>
 
+#include <yt/yt/ytlib/sequoia_client/location_replicas.record.h>
+
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/misc/serialize.h>
@@ -27,6 +29,8 @@ using namespace NObjectClient;
 using namespace NDataNodeTrackerClient::NProto;
 using namespace NChunkClient::NProto;
 using namespace NDataNodeTrackerClient;
+using namespace NSequoiaClient;
+using namespace NChunkClient;
 
 using NYT::FromProto;
 
@@ -261,6 +265,14 @@ private:
         }
         location->SetBeingDisposed(true);
 
+        auto sequoiaReplicasFuture = chunkManager->GetSequoiaLocationReplicas(node->GetId(), location->GetUuid());
+        auto errorOrSequoiaReplicas = WaitFor(sequoiaReplicasFuture);
+        if (!errorOrSequoiaReplicas.IsOK()) {
+            YT_LOG_ERROR(errorOrSequoiaReplicas, "Error getting sequoia location replicas");
+            return;
+        }
+        const auto& sequoiaReplicas = errorOrSequoiaReplicas.Value();
+
         YT_LOG_INFO("Disposing location (NodeId: %v, Address: %v, LocationIndex: %v, LocationUuid: %v)",
             node->GetId(),
             node->GetDefaultAddress(),
@@ -270,33 +282,12 @@ private:
         TReqModifyReplicas sequoiaRequest;
         TChunkLocationDirectory locationDirectory;
         sequoiaRequest.set_node_id(ToProto<ui32>(node->GetId()));
-        for (auto replica : location->Replicas()) {
-            auto* chunk = replica.GetPtr();
-            auto chunkId = chunk->GetId();
-            if (!chunkManager->IsSequoiaChunkReplica(chunkId, location->GetUuid())) {
-                continue;
-            }
-
+        for (const auto& replica : sequoiaReplicas) {
             TChunkRemoveInfo chunkRemoveInfo;
-            ToProto(chunkRemoveInfo.mutable_chunk_id(), chunkId);
+            ToProto(chunkRemoveInfo.mutable_chunk_id(), replica.ChunkId);
             chunkRemoveInfo.set_location_index(locationDirectory.GetOrCreateIndex(location->GetUuid()));
 
             *sequoiaRequest.add_removed_chunks() = chunkRemoveInfo;
-        }
-
-        for (const auto& destroyedReplicasSet : location->DestroyedReplicas()) {
-            for (auto replica : destroyedReplicasSet) {
-                auto chunkId = replica.Id;
-                if (!chunkManager->IsSequoiaChunkReplica(chunkId, location->GetUuid())) {
-                    continue;
-                }
-
-                TChunkRemoveInfo chunkRemoveInfo;
-                ToProto(chunkRemoveInfo.mutable_chunk_id(), chunkId);
-                chunkRemoveInfo.set_location_index(locationDirectory.GetOrCreateIndex(location->GetUuid()));
-
-                *sequoiaRequest.add_removed_chunks() = chunkRemoveInfo;
-            }
         }
 
         ToProto(sequoiaRequest.mutable_location_directory(), locationDirectory);
