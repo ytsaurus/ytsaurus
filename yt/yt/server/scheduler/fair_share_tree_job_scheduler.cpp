@@ -220,6 +220,30 @@ bool IsRegularPreemptionAllowed(const TSchedulerElement* element)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsSsdJobPreemptionLevel(EJobPreemptionLevel jobPreemptionLevel)
+{
+    switch (jobPreemptionLevel) {
+        case EJobPreemptionLevel::SsdNonPreemptible:
+        case EJobPreemptionLevel::SsdAggressivelyPreemptible:
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool IsSsdOperationPreemptionPriority(EOperationPreemptionPriority operationPreemptionPriority)
+{
+    switch (operationPreemptionPriority) {
+        case EOperationPreemptionPriority::SsdNormal:
+        case EOperationPreemptionPriority::SsdAggressive:
+            return true;
+        default:
+            return false;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1017,12 +1041,13 @@ void TScheduleJobsContext::AnalyzePreemptibleJobs(
             forcefullyPreemptibleJobs->insert(job.Get());
         }
 
-        bool isJobPreemptible = isJobForcefullyPreemptible || (GetJobPreemptionLevel(jobInfo) >= minJobPreemptionLevel);
+        auto jobPreemptionLevel = GetJobPreemptionLevel(jobInfo);
+        bool isJobPreemptible = isJobForcefullyPreemptible || (jobPreemptionLevel >= minJobPreemptionLevel);
         if (!isJobPreemptible) {
             continue;
         }
 
-        auto preemptionBlockingAncestor = FindPreemptionBlockingAncestor(operationElement, targetOperationPreemptionPriority);
+        auto preemptionBlockingAncestor = FindPreemptionBlockingAncestor(operationElement, jobPreemptionLevel, targetOperationPreemptionPriority);
         bool isUnconditionalPreemptionAllowed = isJobForcefullyPreemptible || preemptionBlockingAncestor == nullptr;
         bool isConditionalPreemptionAllowed = treeConfig->EnableConditionalPreemption &&
             !isUnconditionalPreemptionAllowed &&
@@ -1320,8 +1345,10 @@ void TScheduleJobsContext::SetDynamicAttributesListSnapshot(TDynamicAttributesLi
     DynamicAttributesListSnapshot_ = std::move(snapshot);
 }
 
+// TODO(eshcherbin): Reconsider this logic.
 const TSchedulerElement* TScheduleJobsContext::FindPreemptionBlockingAncestor(
     const TSchedulerOperationElement* element,
+    EJobPreemptionLevel jobPreemptionLevel,
     EOperationPreemptionPriority targetOperationPreemptionPriority) const
 {
     const auto& treeConfig = TreeSnapshot_->TreeConfig();
@@ -1329,6 +1356,11 @@ const TSchedulerElement* TScheduleJobsContext::FindPreemptionBlockingAncestor(
 
     if (spec->PreemptionMode == EPreemptionMode::Graceful) {
         return element;
+    }
+
+    // NB(eshcherbin): We ignore preemption blocking ancestors for jobs with SSD priority preemption.
+    if (IsSsdOperationPreemptionPriority(targetOperationPreemptionPriority) && !IsSsdJobPreemptionLevel(jobPreemptionLevel)) {
+        return {};
     }
 
     const TSchedulerElement* current = element;

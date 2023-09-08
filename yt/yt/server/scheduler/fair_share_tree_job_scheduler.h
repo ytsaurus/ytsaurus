@@ -384,6 +384,7 @@ public:
     // NB(eshcherbin): The following methods are public for testing purposes.
     const TSchedulerElement* FindPreemptionBlockingAncestor(
         const TSchedulerOperationElement* element,
+        EJobPreemptionLevel jobPreemptionLevel,
         EOperationPreemptionPriority operationPreemptionPriority) const;
 
     struct TPrepareConditionalUsageDiscountsContext
