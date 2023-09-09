@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/tablet_balancer/public.h>
 #include <yt/yt/server/lib/tablet_balancer/balancing_helpers.h>
+#include <yt/yt/server/lib/tablet_balancer/public.h>
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 
