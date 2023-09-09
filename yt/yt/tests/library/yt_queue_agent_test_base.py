@@ -391,7 +391,8 @@ class TestQueueAgentBase(YTEnvSetup):
             "offset": offset,
         } for partition_index, offset in partition_index_to_offset.items()])
 
-    def _flush_table(self, path, first_tablet_index=None, last_tablet_index=None):
+    @staticmethod
+    def _flush_table(path, first_tablet_index=None, last_tablet_index=None):
         sync_freeze_table(path, first_tablet_index=first_tablet_index, last_tablet_index=last_tablet_index)
         sync_unfreeze_table(path, first_tablet_index=first_tablet_index, last_tablet_index=last_tablet_index)
 

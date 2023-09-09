@@ -297,8 +297,14 @@ struct TReplicatedTableMappingTableRow
         const TCrossClusterReference& object,
         const NYTree::IAttributeDictionaryPtr& cypressAttributes);
 
-    std::vector<NYPath::TRichYPath> GetReplicas() const;
+    std::vector<NYPath::TRichYPath> GetReplicas(
+        std::optional<NTabletClient::ETableReplicaMode> mode = {},
+        std::optional<NTabletClient::ETableReplicaContentType> contentType = {}) const;
+
+    void Validate() const;
 };
+
+void Serialize(const TReplicatedTableMappingTableRow& row, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

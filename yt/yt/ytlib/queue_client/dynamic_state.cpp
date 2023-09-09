@@ -295,7 +295,7 @@ void Serialize(const TQueueTableRow& row, IYsonConsumer* consumer)
     BuildYsonFluently(consumer)
         .BeginMap()
             .Item("queue").Value(row.Ref)
-            .Item("row_revision").Value(row.Revision)
+            .Item("row_revision").Value(row.RowRevision)
             .Item("revision").Value(row.Revision)
             .Item("object_type").Value(row.ObjectType)
             .Item("dynamic").Value(row.Dynamic)
@@ -879,23 +879,75 @@ NApi::IUnversionedRowsetPtr TReplicatedTableMappingTableRow::DeleteRowRange(TRan
     return CreateRowset(TConsumerRegistrationTableDescriptor::Schema, rowsBuilder.Build());
 }
 
-std::vector<TRichYPath> TReplicatedTableMappingTableRow::GetReplicas() const
+std::vector<TRichYPath> TReplicatedTableMappingTableRow::GetReplicas(
+    std::optional<NTabletClient::ETableReplicaMode> mode,
+    std::optional<NTabletClient::ETableReplicaContentType> contentType) const
 {
     std::vector<TRichYPath> replicas;
 
     if (ObjectType && *ObjectType == EObjectType::ReplicatedTable && Meta && Meta->ReplicatedTableMeta) {
         for (const auto& replica : GetValues(Meta->ReplicatedTableMeta->Replicas)) {
-            replicas.push_back(TCrossClusterReference{replica->ClusterName, replica->ReplicaPath});
+            if (!mode || *mode == replica->Mode) {
+                replicas.push_back(TCrossClusterReference{replica->ClusterName, replica->ReplicaPath});
+            }
         }
     }
 
     if (ObjectType && *ObjectType == EObjectType::ChaosReplicatedTable && Meta && Meta->ChaosReplicatedTableMeta) {
         for (const auto& replica : GetValues(Meta->ChaosReplicatedTableMeta->Replicas)) {
-            replicas.push_back(TCrossClusterReference{replica->ClusterName, replica->ReplicaPath});
+            if ((!mode || *mode == replica->Mode) && (!contentType || *contentType == replica->ContentType)) {
+                replicas.push_back(TCrossClusterReference{replica->ClusterName, replica->ReplicaPath});
+            }
         }
     }
 
     return replicas;
+}
+
+void TReplicatedTableMappingTableRow::Validate() const
+{
+    if (!ObjectType) {
+        THROW_ERROR_EXCEPTION("Invalid replicated table mapping row for object %Qv: object type cannot be null", Ref);
+    }
+
+    if (!Meta) {
+        THROW_ERROR_EXCEPTION(
+            "Invalid replicated table mapping row for object %Qv of type %Qlv: meta cannot be null",
+            Ref,
+            *ObjectType);
+    }
+
+    switch (*ObjectType) {
+        case EObjectType::ReplicatedTable:
+            THROW_ERROR_EXCEPTION_IF(
+                !Meta->ReplicatedTableMeta,
+                "Invalid replicated table mapping row for replicated table %Qv: replicated table meta cannot be null",
+                Ref);
+            break;
+        case EObjectType::ChaosReplicatedTable:
+            THROW_ERROR_EXCEPTION_IF(
+                !Meta->ChaosReplicatedTableMeta,
+                "Invalid replicated table mapping row for replicated table %Qv: chaos replicated table meta cannot be null",
+                Ref);
+            break;
+        default:
+            THROW_ERROR_EXCEPTION(
+                "Invalid replicated table mapping row for object %Qv: incompatible type %Qlv",
+                Ref,
+                *ObjectType);
+    }
+}
+
+void Serialize(const TReplicatedTableMappingTableRow& row, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("object").Value(row.Ref)
+            .Item("revision").Value(row.Revision)
+            .Item("object_type").Value(row.ObjectType)
+            .Item("meta").Value(row.Meta)
+            .Item("synchronization_error").Value(row.SynchronizationError)
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

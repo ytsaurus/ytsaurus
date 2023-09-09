@@ -42,6 +42,7 @@ struct IObjectController
         const TQueueControllerDynamicConfigPtr& newConfig) = 0;
 
     virtual void OnRowUpdated(std::any row) = 0;
+    virtual void OnReplicatedTableMappingRowUpdated(const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& row) = 0;
 
     // Always returns non-null.
     virtual TRefCountedPtr GetLatestSnapshot() const = 0;

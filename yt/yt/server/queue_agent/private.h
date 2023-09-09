@@ -73,6 +73,7 @@ using TAgentId = TString;
 DECLARE_REFCOUNTED_STRUCT(IObjectStore)
 DECLARE_REFCOUNTED_STRUCT(IObjectController)
 DECLARE_REFCOUNTED_STRUCT(IQueueController)
+DECLARE_REFCOUNTED_CLASS(TQueueAgentClientDirectory)
 
 ////////////////////////////////////////////////////////////////////////////////
 

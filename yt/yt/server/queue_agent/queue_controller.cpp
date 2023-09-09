@@ -7,6 +7,9 @@
 #include "profile_manager.h"
 #include "queue_static_table_exporter.h"
 
+#include "yt/yt/client/api/internal_client.h"
+#include "yt/yt/client/api/table_client.h"
+
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
@@ -16,12 +19,16 @@
 
 #include <yt/yt/client/api/internal_client.h>
 
+#include <yt/yt/client/table_client/helpers.h>
+
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/yt/client/transaction_client/helpers.h>
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/client/queue_client/config.h>
+
+#include <yt/yt/client/chaos_client/replication_card.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
@@ -38,6 +45,7 @@ namespace NYT::NQueueAgent {
 using namespace NApi;
 using namespace NHydra;
 using namespace NYTree;
+using namespace NChaosClient;
 using namespace NConcurrency;
 using namespace NHiveClient;
 using namespace NTableClient;
@@ -68,11 +76,13 @@ class TQueueSnapshotBuildSession final
 public:
     TQueueSnapshotBuildSession(
         TQueueTableRow row,
+        std::optional<TReplicatedTableMappingTableRow> replicatedTableMappingRow,
         TQueueSnapshotPtr previousQueueSnapshot,
         std::vector<TConsumerRegistrationTableRow> registrations,
         TLogger logger,
-        TClientDirectoryPtr clientDirectory)
+        TQueueAgentClientDirectoryPtr clientDirectory)
         : Row_(std::move(row))
+        , ReplicatedTableMappingRow_(std::move(replicatedTableMappingRow))
         , PreviousQueueSnapshot_(std::move(previousQueueSnapshot))
         , Registrations_(std::move(registrations))
         , Logger(logger)
@@ -84,6 +94,7 @@ public:
         QueueSnapshot_->PassIndex = PreviousQueueSnapshot_->PassIndex + 1;
         QueueSnapshot_->PassInstant = TInstant::Now();
         QueueSnapshot_->Row = Row_;
+        QueueSnapshot_->ReplicatedTableMappingRow = ReplicatedTableMappingRow_;
 
         try {
             GuardedBuild();
@@ -98,10 +109,11 @@ public:
 
 private:
     const TQueueTableRow Row_;
+    const std::optional<TReplicatedTableMappingTableRow> ReplicatedTableMappingRow_;
     TQueueSnapshotPtr PreviousQueueSnapshot_;
     std::vector<TConsumerRegistrationTableRow> Registrations_;
     TLogger Logger;
-    TClientDirectoryPtr ClientDirectory_;
+    TQueueAgentClientDirectoryPtr ClientDirectory_;
 
     TQueueSnapshotPtr QueueSnapshot_ = New<TQueueSnapshot>();
 
@@ -111,24 +123,30 @@ private:
 
         auto queueRef = QueueSnapshot_->Row.Ref;
 
+        // TODO(achulkov2): Check partition count of control queue for replicated tables.
+        // TODO(achulkov2): Check schema for chaos_replicated_table object (we only check for a sync replica below)?
+
         QueueSnapshot_->Family = EQueueFamily::OrderedDynamicTable;
-        auto client = ClientDirectory_->GetClientOrThrow(queueRef.Cluster);
-        const auto& tableMountCache = client->GetTableMountCache();
-        const auto& cellDirectory = client->GetNativeConnection()->GetCellDirectory();
+        auto syncClientContext = ClientDirectory_->GetNativeSyncClient(QueueSnapshot_);
+        const auto& tableMountCache = syncClientContext.Client->GetTableMountCache();
+        const auto& cellDirectory = syncClientContext.Client->GetNativeConnection()->GetCellDirectory();
 
         // Fetch partition count (which is equal to tablet count).
 
-        auto tableInfo = WaitFor(tableMountCache->GetTableInfo(queueRef.Path))
+        auto tableInfo = WaitFor(tableMountCache->GetTableInfo(syncClientContext.Path))
             .ValueOrThrow();
 
         YT_LOG_DEBUG("Table info collected (TabletCount: %v)", tableInfo->Tablets.size());
 
         const auto& schema = tableInfo->Schemas[ETableSchemaKind::Primary];
+        if (!schema || schema->IsSorted()) {
+            THROW_ERROR_EXCEPTION("Invalid queue schema %v", schema);
+        }
         QueueSnapshot_->HasTimestampColumn = schema->HasTimestampColumn();
         QueueSnapshot_->HasCumulativeDataWeightColumn = schema->FindColumn(CumulativeDataWeightColumnName);
 
         auto& partitionCount = QueueSnapshot_->PartitionCount;
-        partitionCount = tableInfo->Tablets.size();
+        partitionCount = static_cast<int>(tableInfo->Tablets.size());
 
         auto& partitionSnapshots = QueueSnapshot_->PartitionSnapshots;
         partitionSnapshots.resize(partitionCount);
@@ -166,7 +184,7 @@ private:
             }
         }
 
-        auto tabletInfos = WaitFor(client->GetTabletInfos(queueRef.Path, tabletIndexes))
+        auto tabletInfos = WaitFor(syncClientContext.Client->GetTabletInfos(syncClientContext.Path, tabletIndexes))
             .ValueOrThrow();
 
         YT_VERIFY(std::ssize(tabletInfos) == std::ssize(tabletIndexes));
@@ -224,8 +242,8 @@ private:
             }
         }
 
-        const auto& client = ClientDirectory_->GetClientOrThrow(queueRef.Cluster);
-        auto result = NQueueAgent::CollectCumulativeDataWeights(queueRef.Path, client, tabletAndRowIndices, Logger);
+        const auto& clientContext = ClientDirectory_->GetDataReadContext(QueueSnapshot_);
+        auto result = NQueueAgent::CollectCumulativeDataWeights(clientContext.Path, clientContext.Client, tabletAndRowIndices, Logger);
 
         for (const auto& [tabletIndex, cumulativeDataWeights] : result) {
             auto& partitionSnapshot = QueueSnapshot_->PartitionSnapshots[tabletIndex];
@@ -263,12 +281,14 @@ public:
     TOrderedDynamicTableController(
         bool leading,
         TQueueTableRow queueRow,
+        std::optional<TReplicatedTableMappingTableRow> replicatedTableMappingRow,
         const IObjectStore* store,
         const TQueueControllerDynamicConfigPtr& dynamicConfig,
-        TClientDirectoryPtr clientDirectory,
+        TQueueAgentClientDirectoryPtr clientDirectory,
         IInvokerPtr invoker)
         : Leading_(leading)
         , QueueRow_(queueRow)
+        , ReplicatedTableMappingRow_(replicatedTableMappingRow)
         , QueueRef_(queueRow.Ref)
         , ObjectStore_(store)
         , DynamicConfig_(dynamicConfig)
@@ -298,6 +318,7 @@ public:
         // Prepare initial erroneous snapshot.
         auto queueSnapshot = New<TQueueSnapshot>();
         queueSnapshot->Row = std::move(queueRow);
+        queueSnapshot->ReplicatedTableMappingRow = std::move(replicatedTableMappingRow);
         queueSnapshot->Error = TError("Queue is not processed yet");
         QueueSnapshot_.Exchange(std::move(queueSnapshot));
 
@@ -329,6 +350,7 @@ public:
             .Item("pass_index").Value(queueSnapshot->PassIndex)
             .Item("pass_instant").Value(queueSnapshot->PassInstant)
             .Item("row").Value(queueSnapshot->Row)
+            .Item("replicated_table_mapping_row").Value(queueSnapshot->ReplicatedTableMappingRow)
             .Item("status").Do(std::bind(BuildQueueStatusYson, queueSnapshot, _1))
             .Item("partitions").Do(std::bind(BuildQueuePartitionListYson, queueSnapshot, _1))
         .EndMap();
@@ -341,6 +363,13 @@ public:
         const auto& queueRow = std::any_cast<const TQueueTableRow&>(row);
 
         QueueRow_.Store(queueRow);
+    }
+
+    void OnReplicatedTableMappingRowUpdated(const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& row) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        ReplicatedTableMappingRow_.Store(row);
     }
 
     void OnDynamicConfigChanged(
@@ -378,13 +407,14 @@ public:
 private:
     bool Leading_;
     TAtomicObject<TQueueTableRow> QueueRow_;
+    TAtomicObject<std::optional<TReplicatedTableMappingTableRow>> ReplicatedTableMappingRow_;
     const TCrossClusterReference QueueRef_;
     const IObjectStore* ObjectStore_;
 
     using TQueueControllerDynamicConfigAtomicPtr = TAtomicIntrusivePtr<TQueueControllerDynamicConfig>;
     TQueueControllerDynamicConfigAtomicPtr DynamicConfig_;
 
-    const TClientDirectoryPtr ClientDirectory_;
+    const TQueueAgentClientDirectoryPtr ClientDirectory_;
     const IInvokerPtr Invoker_;
 
     using TQueueSnapshotAtomicPtr = TAtomicIntrusivePtr<TQueueSnapshot>;
@@ -484,6 +514,7 @@ private:
 
         auto nextQueueSnapshot = New<TQueueSnapshotBuildSession>(
             QueueRow_.Load(),
+            ReplicatedTableMappingRow_.Load(),
             QueueSnapshot_.Acquire(),
             std::move(registrations),
             Logger,
@@ -536,6 +567,200 @@ private:
         }
     }
 
+    struct TPartitionTrimContext
+    {
+        int PartitionIndex;
+        TError PartitionError;
+
+        //! Signifies that the partition could (and should) be trimmed up to this point.
+        std::optional<i64> MinTrimmedRowCount;
+        //! Partition will not be trimmed past this point under any circumstances. Overrides the value above.
+        std::optional<i64> MaxTrimmedRowCount;
+
+        explicit operator bool() const
+        {
+            return PartitionError.IsOK();
+        }
+
+        //! NB: Verifies that no error is currently set.
+        void SetError(const TError& error)
+        {
+            YT_VERIFY(PartitionError.IsOK());
+            PartitionError = error;
+        }
+
+        void Update(const TPartitionTrimContext& other)
+        {
+            if (PartitionError.IsOK()) {
+                PartitionError = other.PartitionError;
+            }
+
+            MinTrimmedRowCount = std::max(MinTrimmedRowCount, other.MinTrimmedRowCount);
+
+            MaxTrimmedRowCount = MinOrValue(MaxTrimmedRowCount, other.MaxTrimmedRowCount);
+        }
+
+        std::optional<i64> GetUpdatedTrimmedRowCount(i64 currentTrimmedRowCount) const
+        {
+            if (!PartitionError.IsOK()) {
+                return {};
+            }
+
+            if (!MinTrimmedRowCount) {
+                return {};
+            }
+
+            i64 updatedTrimmedRowCount = *MinTrimmedRowCount;
+            if (MaxTrimmedRowCount) {
+                updatedTrimmedRowCount = std::min(*MaxTrimmedRowCount, updatedTrimmedRowCount);
+            }
+
+            if (updatedTrimmedRowCount > currentTrimmedRowCount) {
+                return updatedTrimmedRowCount;
+            }
+
+            return {};
+        }
+    };
+
+    struct TQueueTrimContext
+    {
+        TCrossClusterReference Ref;
+        TQueueSnapshotConstPtr ReplicaSnapshot;
+        TYPath ObjectPath;
+        std::vector<TPartitionTrimContext> Partitions;
+        // TODO(achulkov2): Add upstream replica id field + server-side check in Trim.
+
+        TQueueTrimContext(TCrossClusterReference ref, TQueueSnapshotConstPtr replicaSnapshot)
+            : Ref(std::move(ref)), ReplicaSnapshot(std::move(replicaSnapshot))
+        {
+            auto replicaQueueObjectId = ReplicaSnapshot->Row.ObjectId;
+            if (!replicaQueueObjectId) {
+                THROW_ERROR_EXCEPTION("Object id is not known for queue replica %Qv, trimming iteration skipped", Ref);
+            }
+            ObjectPath = FromObjectId(*replicaQueueObjectId);
+
+            YT_VERIFY(ReplicaSnapshot->PartitionCount == std::ssize(ReplicaSnapshot->PartitionSnapshots));
+
+            Partitions.resize(ReplicaSnapshot->PartitionCount);
+            for (int partitionIndex = 0; partitionIndex < ReplicaSnapshot->PartitionCount; ++partitionIndex) {
+                Partitions[partitionIndex].PartitionIndex = partitionIndex;
+            }
+        }
+    };
+
+    std::vector<TQueueTrimContext> GetReplicasToTrim(const TQueueSnapshotPtr& queueSnapshot)
+    {
+        YT_VERIFY(queueSnapshot->Row.ObjectType);
+        auto objectType = *queueSnapshot->Row.ObjectType;
+        switch (objectType) {
+            case EObjectType::Table:
+                return {{QueueRef_, queueSnapshot}};
+            case EObjectType::ReplicatedTable:
+                return GetReplicatedTableReplicasToTrim(queueSnapshot);
+            case EObjectType::ChaosReplicatedTable:
+                return GetChaosReplicatedTableReplicasToTrim(queueSnapshot);
+            default:
+                YT_ABORT();
+        }
+    }
+
+    std::vector<TQueueTrimContext> GetReplicatedTableReplicasToTrim(const TQueueSnapshotPtr& queueSnapshot)
+    {
+        std::vector<TQueueTrimContext> replicaContexts;
+
+        for (const auto& replica : queueSnapshot->ReplicatedTableMappingRow->GetReplicas()) {
+            auto replicaRef = TCrossClusterReference::FromRichYPath(replica);
+            auto replicaSnapshot = DynamicPointerCast<const TQueueSnapshot>(ObjectStore_->FindSnapshot(replicaRef));
+            if (!replicaSnapshot) {
+                THROW_ERROR_EXCEPTION("Trimming iteration skipped due to missing snapshot for queue replica %Qv", replicaRef);
+            }
+
+            replicaContexts.emplace_back(replicaRef, replicaSnapshot);
+            auto& replicaContext = replicaContexts.back();
+            for (const auto& [partitionContext, partitionSnapshot] : Zip(replicaContext.Partitions, replicaSnapshot->PartitionSnapshots)) {
+                partitionContext.Update({.MaxTrimmedRowCount = partitionSnapshot->UpperRowIndex});
+            }
+        }
+
+        return replicaContexts;
+    }
+
+    std::vector<TQueueTrimContext> GetChaosReplicatedTableReplicasToTrim(const TQueueSnapshotPtr& queueSnapshot)
+    {
+        auto federatedClient = ClientDirectory_->GetFederatedClient(GetRelevantReplicas(*queueSnapshot->ReplicatedTableMappingRow));
+
+        NApi::TGetReplicationCardOptions options;
+        options.IncludeProgress = true;
+        auto replicationCard = WaitFor(federatedClient->GetReplicationCard(
+            queueSnapshot->ReplicatedTableMappingRow->Meta->ChaosReplicatedTableMeta->ReplicationCardId,
+            options))
+            .ValueOrThrow();
+
+        std::vector<TQueueTrimContext> replicaContexts;
+        for (const auto& replicaInfo : GetValues(replicationCard->Replicas)) {
+            TCrossClusterReference replicaRef{
+                .Cluster = replicaInfo.ClusterName,
+                .Path = replicaInfo.ReplicaPath,
+            };
+            auto replicaSnapshot = DynamicPointerCast<const TQueueSnapshot>(ObjectStore_->FindSnapshot(replicaRef));
+            if (!replicaSnapshot) {
+                THROW_ERROR_EXCEPTION("Trimming iteration skipped due to missing replica snapshot %Qv", replicaRef);
+            }
+            replicaContexts.emplace_back(replicaRef, replicaSnapshot);
+        }
+
+        std::vector<std::optional<TTimestamp>> minReplicationTimestamps(queueSnapshot->PartitionCount);
+        for (const auto& [replicaInfo, replicaContext] : Zip(GetValues(replicationCard->Replicas), replicaContexts)) {
+            for (int partitionIndex = 0; partitionIndex < replicaContext.ReplicaSnapshot->PartitionCount; ++partitionIndex) {
+                minReplicationTimestamps[partitionIndex] = MinOrValue<TTimestamp>(
+                    minReplicationTimestamps[partitionIndex],
+                    GetReplicationProgressMinTimestamp(
+                        replicaInfo.ReplicationProgress,
+                        MakeUnversionedOwningRow(partitionIndex),
+                        MakeUnversionedOwningRow(partitionIndex + 1)));
+            }
+        }
+
+        std::vector<TFuture<std::vector<TErrorOr<i64>>>> asyncSafeTrimRowCounts;
+        std::vector<NApi::IInternalClientPtr> internalClients;
+        for (const auto& replicaContext : replicaContexts) {
+            auto internalClient = DynamicPointerCast<NApi::IInternalClient>(ClientDirectory_->GetClientOrThrow(replicaContext.Ref.Cluster));
+            std::vector<NApi::TGetOrderedTabletSafeTrimRowCountRequest> safeTrimRowCountRequests;
+            for (int partitionIndex = 0; partitionIndex < replicaContext.ReplicaSnapshot->PartitionCount; ++partitionIndex) {
+                YT_VERIFY(minReplicationTimestamps[partitionIndex]);
+                safeTrimRowCountRequests.push_back({
+                    .Path = replicaContext.ObjectPath,
+                    .TabletIndex = partitionIndex,
+                    .Timestamp = *minReplicationTimestamps[partitionIndex],
+                });
+            }
+            asyncSafeTrimRowCounts.push_back(internalClient->GetOrderedTabletSafeTrimRowCount(safeTrimRowCountRequests));
+            internalClients.push_back(internalClient);
+        }
+
+        auto asyncSafeTrimRowCountsOrErrors = WaitFor(AllSet(asyncSafeTrimRowCounts))
+            .ValueOrThrow();
+
+        for (const auto& [replicaContext, safeTrimRowCountsOrError] : Zip(replicaContexts, asyncSafeTrimRowCountsOrErrors)) {
+            if (!safeTrimRowCountsOrError.IsOK()) {
+                THROW_ERROR_EXCEPTION(
+                    "Unable to get safe trim row counts for replica %Qv, trimming iteration skipped",
+                    replicaContext.Ref)
+                    << safeTrimRowCountsOrError;
+            }
+
+            for (const auto& [partitionContext, safeTrimRowCountOrError] : Zip(replicaContext.Partitions, safeTrimRowCountsOrError.Value())) {
+                partitionContext.Update({.PartitionError = safeTrimRowCountOrError});
+                if (partitionContext) {
+                    partitionContext.Update({.MaxTrimmedRowCount = safeTrimRowCountOrError.Value()});
+                }
+            }
+        }
+
+        return replicaContexts;
+    }
+
     void GuardedTrim()
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
@@ -549,20 +774,9 @@ private:
                 << queueSnapshot->Error;
         }
 
-        auto queueObjectId = queueSnapshot->Row.ObjectId;
-        // This field should be initialized when reading from dynamic state.
-        if (!queueObjectId) {
-            THROW_ERROR_EXCEPTION("Trimming iteration skipped due to the absence of filled field \"object_id\"");
-        }
-
-        auto queueObjectPath = FromObjectId(*queueObjectId);
-
-        YT_LOG_DEBUG("Performing trimming iteration (Path: %v)", queueObjectPath);
-
         const auto& autoTrimConfig = queueSnapshot->Row.AutoTrimConfig;
         // This config should be initialized when reading from dynamic state.
         YT_VERIFY(autoTrimConfig);
-
         if (!autoTrimConfig->Enable) {
             YT_LOG_DEBUG(
                 "Trimming disabled; trimming iteration skipped (AutoTrimConfig: %v)",
@@ -570,204 +784,382 @@ private:
             return;
         }
 
-        auto registrations = ObjectStore_->GetRegistrations(QueueRef_, EObjectKind::Queue);
+        auto timestampProvider = ClientDirectory_->GetClientOrThrow(QueueRef_.Cluster)->GetTimestampProvider();
+        YT_VERIFY(timestampProvider);
 
-        THashMap<TCrossClusterReference, TSubConsumerSnapshotConstPtr> vitalConsumerSubSnapshots;
-        vitalConsumerSubSnapshots.reserve(registrations.size());
-        for (const auto& registration : registrations) {
-            if (!registration.Vital) {
-                continue;
-            }
-            auto consumerSnapshot = DynamicPointerCast<const TConsumerSnapshot>(ObjectStore_->FindSnapshot(registration.Consumer));
-            if (!consumerSnapshot) {
-                THROW_ERROR_EXCEPTION(
-                    "Trimming iteration skipped due to missing registered vital consumer %Qv",
-                    registration.Consumer);
-            } else if (!consumerSnapshot->Error.IsOK()) {
-                THROW_ERROR_EXCEPTION(
-                    "Trimming iteration skipped due to erroneous registered vital consumer %Qv",
-                    consumerSnapshot->Row.Ref)
-                    << consumerSnapshot->Error;
-            }
-            auto it = consumerSnapshot->SubSnapshots.find(QueueRef_);
-            if (it == consumerSnapshot->SubSnapshots.end()) {
-                THROW_ERROR_EXCEPTION(
-                    "Trimming iteration skipped due to vital consumer %Qv snapshot not containing information about queue",
-                    consumerSnapshot->Row.Ref);
-            }
-            vitalConsumerSubSnapshots[consumerSnapshot->Row.Ref] = it->second;
+        auto currentTimestampOrError = WaitFor(timestampProvider->GenerateTimestamps());
+        if (!currentTimestampOrError.IsOK()) {
+            THROW_ERROR_EXCEPTION("Cannot generate timestamp for cluster %Qv, trimming iteration skipped", QueueRef_.Cluster)
+                << currentTimestampOrError;
+        }
+        auto currentTimestamp = currentTimestampOrError.Value();
+
+        auto replicaContexts = GetReplicasToTrim(queueSnapshot);
+
+        std::vector<TIntrusivePtr<TQueueTrimSession>> trimSessions;
+        for (const auto& replicaContext : replicaContexts) {
+            trimSessions.push_back(New<TQueueTrimSession>(
+                QueueRef_,
+                queueSnapshot,
+                replicaContext,
+                currentTimestamp,
+                ClientDirectory_->GetClientOrThrow(replicaContext.Ref.Cluster),
+                ObjectStore_,
+                Logger));
+            // NB: We do not invoke sessions immediately, so that we don't waste resources in case of an incomplete cluster directory.
         }
 
-        if (vitalConsumerSubSnapshots.empty()) {
-            // TODO(achulkov2): This should produce some warning/misconfiguration alert to the client?
-            YT_LOG_DEBUG(
-                "Attempted trimming iteration on queue with no vital consumers (Queue: %v)",
-                queueSnapshot->Row.Ref);
-            return;
+        std::vector<TFuture<void>> asyncTrimSessions;
+        for (const auto& trimSession : trimSessions) {
+            asyncTrimSessions.push_back(trimSession->Run());
         }
+        auto trimSessionErrors = WaitFor(AllSet(asyncTrimSessions))
+            .ValueOrThrow();
 
-        auto client = ClientDirectory_->GetClientOrThrow(QueueRef_.Cluster);
-
-        const auto& lifetimeDuration = autoTrimConfig->RetainedLifetimeDuration;
-        std::vector<NApi::TGetOrderedTabletSafeTrimRowCountRequest> safeTrimRowCountRequests;
-        TTimestamp firstTimestampToRetainRows;
-        if (lifetimeDuration) {
-            safeTrimRowCountRequests.reserve(queueSnapshot->PartitionCount);
-            auto timestampProvider = client->GetTimestampProvider();
-            YT_VERIFY(timestampProvider);
-
-            auto latestTimestampOrError = WaitFor(timestampProvider->GenerateTimestamps());
-            if (!latestTimestampOrError.IsOK()) {
-                // Skip trimming, because unable to generate timestamp.
-                THROW_ERROR_EXCEPTION("Failed to generate latest timestamp")
-                    << latestTimestampOrError;
-            }
-            auto latestTimestamp = latestTimestampOrError.Value();
-            auto now = TimestampToInstant(latestTimestamp).first;
-            // InstantToTimestamp returns time span containing time instant passed to it, to guarantee trim of rows with MaxTimestamp < barrier time,
-            // we need to trim rows by left boundary of span, thus we will trim rows with MaxTimestamp < left boundary of span <= barrier time.
-            firstTimestampToRetainRows = InstantToTimestamp(now - *lifetimeDuration).first;
-        }
-
-        // We will be collecting partitions for which no error is set in the queue snapshot, nor in any of the consumer snapshots.
-        THashSet<int> partitionsToTrim;
-        for (int partitionIndex = 0; partitionIndex < queueSnapshot->PartitionCount; ++partitionIndex) {
-            const auto& partitionSnapshot = queueSnapshot->PartitionSnapshots[partitionIndex];
-
-            if (partitionSnapshot->TabletState != NTabletClient::ETabletState::Mounted) {
+        for (const auto& [replicaContext, trimSessionError] : Zip(replicaContexts, trimSessionErrors)) {
+            if (!trimSessionError.IsOK()) {
                 YT_LOG_DEBUG(
-                    "Not trimming partition since it is not mounted (PartitionIndex: %v, TabletState: %v)",
-                    partitionIndex,
-                    partitionSnapshot->TabletState);
-                continue;
+                    trimSessionError,
+                    "Unable to trim queue replica due to error (Replica: %v)",
+                    replicaContext.Ref);
             }
-            TError partitionError;
+        }
+    }
 
-            if (!partitionSnapshot->Error.IsOK()) {
-                partitionError = partitionSnapshot->Error;
-            } else {
-                for (const auto& [_, consumerSubSnapshot] : vitalConsumerSubSnapshots) {
-                    // NB: there is no guarantee that consumer snapshot consists of the same number of partitions.
-                    if (partitionIndex < std::ssize(consumerSubSnapshot->PartitionSnapshots)) {
-                        const auto& consumerPartitionSubSnapshot = consumerSubSnapshot->PartitionSnapshots[partitionIndex];
-                        if (!consumerPartitionSubSnapshot->Error.IsOK()) {
-                            partitionError = consumerPartitionSubSnapshot->Error;
+    struct TQueueTrimSession final
+    {
+        const TCrossClusterReference QueueRef;
+        const TQueueSnapshotPtr QueueSnapshot;
+        //! NB: Modified in process of the session.
+        TQueueTrimContext Context;
+        TTimestamp CurrentTimestamp;
+        //! Replica-cluster client.
+        const NApi::NNative::IClientPtr Client;
+        const IObjectStore* ObjectStore;
+        NLogging::TLogger Logger;
+
+        THashMap<TCrossClusterReference, TSubConsumerSnapshotConstPtr> VitalConsumerSubSnapshots;
+
+        TQueueTrimSession(
+            TCrossClusterReference queueRef,
+            TQueueSnapshotPtr queueSnapshot,
+            TQueueTrimContext context,
+            TTimestamp currentTimestamp,
+            NApi::NNative::IClientPtr client,
+            const IObjectStore* objectStore,
+            const NLogging::TLogger& logger)
+            : QueueRef(std::move(queueRef))
+            , QueueSnapshot(std::move(queueSnapshot))
+            , Context(std::move(context))
+            , CurrentTimestamp(currentTimestamp)
+            , Client(std::move(client))
+            , ObjectStore(objectStore)
+            , Logger(logger.WithTag("Replica: %v, ObjectPath: %v", Context.Ref, Context.ObjectPath))
+        { }
+
+        TFuture<void> Run()
+        {
+            return BIND(&TQueueTrimSession::DoRun, MakeStrong(this))
+                .AsyncVia(GetCurrentInvoker())
+                .Run();
+        }
+
+        void DoRun()
+        {
+            if (!Context.ReplicaSnapshot->Error.IsOK()) {
+                THROW_ERROR_EXCEPTION(
+                    "Trimming iteration skipped due to queue replica error")
+                    << Context.ReplicaSnapshot->Error;
+            }
+
+            if (QueueSnapshot->PartitionCount != Context.ReplicaSnapshot->PartitionCount) {
+                THROW_ERROR_EXCEPTION(
+                    "Cannot perform trimming iteration, control queue %Qv and replica queue %Qv do not "
+                    "have the same number of partitions: %v vs %v, respectively; this is probably a misconfiguration",
+                    QueueRef,
+                    Context.Ref,
+                    QueueSnapshot->PartitionCount,
+                    Context.ReplicaSnapshot->PartitionCount);
+            }
+
+            YT_LOG_DEBUG("Performing trimming iteration");
+
+            CollectVitalConsumerSubSnapshots();
+
+            ValidatePartitionContexts();
+
+            HandleSnapshotErrors();
+
+            const auto& autoTrimConfig = QueueSnapshot->Row.AutoTrimConfig;
+            HandleRetainedLifetimeDuration(autoTrimConfig);
+            HandleRetainedRows(autoTrimConfig);
+
+            HandleVitalConsumers();
+
+            RequestTrimming();
+            ReportErrors();
+        }
+
+        //! Collects vital consumer snapshots from queue consumer registrations and validates error-correctness.
+        void CollectVitalConsumerSubSnapshots()
+        {
+            auto registrations = ObjectStore->GetRegistrations(QueueRef, EObjectKind::Queue);
+
+            VitalConsumerSubSnapshots.reserve(registrations.size());
+            for (const auto& registration : registrations) {
+                if (!registration.Vital) {
+                    continue;
+                }
+                auto consumerSnapshot = DynamicPointerCast<const TConsumerSnapshot>(ObjectStore->FindSnapshot(registration.Consumer));
+                if (!consumerSnapshot) {
+                    THROW_ERROR_EXCEPTION(
+                        "Trimming iteration skipped due to missing registered vital consumer %Qv",
+                        registration.Consumer);
+                } else if (!consumerSnapshot->Error.IsOK()) {
+                    THROW_ERROR_EXCEPTION(
+                        "Trimming iteration skipped due to erroneous registered vital consumer %Qv",
+                        consumerSnapshot->Row.Ref)
+                        << consumerSnapshot->Error;
+                }
+                auto it = consumerSnapshot->SubSnapshots.find(QueueRef);
+                if (it == consumerSnapshot->SubSnapshots.end()) {
+                    THROW_ERROR_EXCEPTION(
+                        "Trimming iteration skipped due to vital consumer %Qv snapshot not containing information about queue",
+                        consumerSnapshot->Row.Ref);
+                }
+                VitalConsumerSubSnapshots[consumerSnapshot->Row.Ref] = it->second;
+            }
+
+            if (VitalConsumerSubSnapshots.empty()) {
+                // TODO(achulkov2): This should produce some warning/misconfiguration alert to the client?
+                THROW_ERROR_EXCEPTION(
+                    "Attempted trimming iteration on queue %Qv with no vital consumers",
+                    QueueRef);
+            }
+        }
+
+        //! Validates that the list of partition contexts is consistent with the queue snapshot.
+        void ValidatePartitionContexts()
+        {
+            YT_VERIFY(std::ssize(Context.Partitions) == QueueSnapshot->PartitionCount);
+            for (int partitionIndex = 0; partitionIndex < std::ssize(Context.Partitions); ++partitionIndex) {
+                YT_VERIFY(Context.Partitions[partitionIndex].PartitionIndex == partitionIndex);
+            }
+        }
+
+        //! Get timestamp past which we should not trim based on the specified retained lifetime duration.
+        TTimestamp GetMaxTimestampToTrim(TDuration lifetimeDuration) const
+        {
+            auto now = TimestampToInstant(CurrentTimestamp).first;
+            // InstantToTimestamp returns time span containing time instant passed to it, to guarantee trim of rows
+            // with MaxTimestamp < barrier time, we need to trim rows by left boundary of span, thus we will trim rows
+            // with MaxTimestamp < left boundary of span <= barrier time.
+            return InstantToTimestamp(now - lifetimeDuration).first;
+        }
+
+        //! Fills partition contexts with partition errors from both control and replica queue snapshots,
+        //! as well as any of the vital consumer snapshots.
+        void HandleSnapshotErrors()
+        {
+            for (int partitionIndex = 0; partitionIndex < QueueSnapshot->PartitionCount; ++partitionIndex) {
+                auto& partitionContext = Context.Partitions[partitionIndex];
+                if (!partitionContext) {
+                    continue;
+                }
+
+                const auto& queuePartitionSnapshot = QueueSnapshot->PartitionSnapshots[partitionIndex];
+                const auto& replicaPartitionSnapshot = Context.ReplicaSnapshot->PartitionSnapshots[partitionIndex];
+
+                if (replicaPartitionSnapshot->TabletState != NTabletClient::ETabletState::Mounted) {
+                    partitionContext.Update({.PartitionError = TError(
+                        "Not trimming partition %v since its tablet is in state %Qv and is not mounted",
+                        partitionIndex,
+                        replicaPartitionSnapshot->TabletState)});
+                    continue;
+                }
+
+                if (!queuePartitionSnapshot->Error.IsOK()) {
+                    partitionContext.Update({.PartitionError = queuePartitionSnapshot->Error});
+                } else if (!replicaPartitionSnapshot->Error.IsOK()) {
+                    partitionContext.Update({.PartitionError = replicaPartitionSnapshot->Error});
+                } else {
+                    for (const auto& [consumerRef, consumerSubSnapshot] : VitalConsumerSubSnapshots) {
+                        // NB: there is no guarantee that consumer snapshot consists of the same number of partitions.
+                        if (partitionIndex < std::ssize(consumerSubSnapshot->PartitionSnapshots)) {
+                            const auto& consumerPartitionSubSnapshot = consumerSubSnapshot->PartitionSnapshots[partitionIndex];
+                            if (!consumerPartitionSubSnapshot->Error.IsOK()) {
+                                partitionContext.Update({.PartitionError = consumerPartitionSubSnapshot->Error});
+                                break;
+                            }
+                        } else {
+                            partitionContext.Update({.PartitionError = TError(
+                                "Queue sub-snapshot for consumer %Qv does not contain a snapshot for partition %v",
+                                consumerRef,
+                                partitionIndex)});
                             break;
                         }
-                    } else {
-                        partitionError = TError("Consumer snapshot does not know about partition snapshot");
                     }
                 }
             }
-
-            if (partitionError.IsOK()) {
-                partitionsToTrim.insert(partitionIndex);
-                if (lifetimeDuration) {
-                    safeTrimRowCountRequests.push_back(
-                        NApi::TGetOrderedTabletSafeTrimRowCountRequest{
-                            queueObjectPath,
-                            partitionIndex,
-                            firstTimestampToRetainRows
-                        }
-                    );
-                }
-            } else {
-                YT_LOG_DEBUG(
-                    partitionError,
-                    "Not trimming partition due to partition error (PartitionIndex: %v)",
-                    partitionIndex);
-            }
         }
 
-        THashMap<int, i64> updatedTrimmedRowCounts;
-        std::vector<TErrorOr<i64>> safeTrimRowCountsOrErrors;
-        if (lifetimeDuration) {
-            // Get row indices for each partition's rows that live no more than firstTimestampToRetainRows.
-            auto internalClient = DynamicPointerCast<NApi::IInternalClient>(client);
-            safeTrimRowCountsOrErrors = WaitFor(internalClient->GetOrderedTabletSafeTrimRowCount(safeTrimRowCountRequests))
-                .ValueOrThrow();
-            // Update list for partitions to trim with collected indices.
+        //! Updates partition contexts in accordance with the retained_lifetime_duration parameter.
+        //! Only affects the maximum trimmed row count.
+        //! Internally, fetches safe row indexes to trim based on the current generated timestamp and the specified duration.
+        void HandleRetainedLifetimeDuration(const std::optional<TQueueAutoTrimConfig>& autoTrimConfig)
+        {
+            YT_VERIFY(autoTrimConfig);
+
+            const auto& lifetimeDuration = autoTrimConfig->RetainedLifetimeDuration;
+
+            if (!lifetimeDuration) {
+                return;
+            }
+
+            auto maxTimestampToTrim = GetMaxTimestampToTrim(*lifetimeDuration);
+
+            std::vector<NApi::TGetOrderedTabletSafeTrimRowCountRequest> safeTrimRowCountRequests;
+            safeTrimRowCountRequests.reserve(QueueSnapshot->PartitionCount);
+
+            for (const auto& partitionContext : Context.Partitions) {
+                if (!partitionContext) {
+                    // We don't need to check partitions with errors, since we will not be trimming them in any case.
+                    continue;
+                }
+
+                safeTrimRowCountRequests.push_back(
+                    NApi::TGetOrderedTabletSafeTrimRowCountRequest{
+                        Context.ObjectPath,
+                        partitionContext.PartitionIndex,
+                        maxTimestampToTrim
+                    }
+                );
+            }
+
+            auto internalClient = DynamicPointerCast<NApi::IInternalClient>(Client);
+
+            auto safeTrimRowCountsOrError = WaitFor(internalClient->GetOrderedTabletSafeTrimRowCount(safeTrimRowCountRequests));
+            if (!safeTrimRowCountsOrError.IsOK()) {
+                THROW_ERROR_EXCEPTION(
+                    "Unable to get safe trim row counts for replica %Qv to satisfy configured trimming parameters, trimming iteration skipped",
+                    Context.Ref)
+                    << safeTrimRowCountsOrError;
+            }
+            const auto& safeTrimRowCountsOrErrors = safeTrimRowCountsOrError.Value();
+
             for (int safeTrimRowCountsIndex = 0; safeTrimRowCountsIndex < std::ssize(safeTrimRowCountsOrErrors); ++safeTrimRowCountsIndex) {
                 const auto& safeTrimRowCountOrError = safeTrimRowCountsOrErrors[safeTrimRowCountsIndex];
                 int partitionIndex = safeTrimRowCountRequests[safeTrimRowCountsIndex].TabletIndex;
                 if (!safeTrimRowCountOrError.IsOK()) {
-                    YT_LOG_DEBUG(
-                        safeTrimRowCountOrError,
-                        "Error getting safe trim row count by timestamp, not trimming partition (PartitionIndex: %v)",
-                        partitionIndex);
-                    partitionsToTrim.erase(partitionIndex);
-                }
-            }
-        }
-
-        for (const auto& [consumerRef, consumerSubSnapshot] : vitalConsumerSubSnapshots) {
-            for (const auto& partitionIndex : partitionsToTrim) {
-                const auto& partitionSnapshot = consumerSubSnapshot->PartitionSnapshots[partitionIndex];
-
-                // NextRowIndex should always be present in the snapshot.
-                YT_LOG_DEBUG(
-                    "Updating trimmed row count (Partition: %v, NextRowIndex: %v, Consumer: %v)",
-                    partitionIndex,
-                    partitionSnapshot->NextRowIndex,
-                    consumerRef);
-                auto updatedTrimmedRowCountIt = updatedTrimmedRowCounts.find(partitionIndex);
-                if (updatedTrimmedRowCountIt != updatedTrimmedRowCounts.end()) {
-                    updatedTrimmedRowCountIt->second = std::min(updatedTrimmedRowCountIt->second, partitionSnapshot->NextRowIndex);
+                    // Requests were made for non-erroneous partitions only, so there should be no pre-existing error.
+                    Context.Partitions[partitionIndex].SetError(TError(
+                        "Error getting safe trim row count by timestamp %v, not trimming partition %v",
+                        maxTimestampToTrim,
+                        partitionIndex)
+                        << safeTrimRowCountOrError
+                    );
                 } else {
-                    updatedTrimmedRowCounts[partitionIndex] = partitionSnapshot->NextRowIndex;
+                    Context.Partitions[partitionIndex].Update({
+                        .MaxTrimmedRowCount = safeTrimRowCountOrError.Value(),
+                    });
                 }
             }
         }
 
-        if (lifetimeDuration) {
-            for (int safeTrimRowCountsIndex = 0; safeTrimRowCountsIndex < std::ssize(safeTrimRowCountsOrErrors); ++safeTrimRowCountsIndex) {
-                const auto& safeTrimRowCountOrError = safeTrimRowCountsOrErrors[safeTrimRowCountsIndex];
-                int partitionIndex = safeTrimRowCountRequests[safeTrimRowCountsIndex].TabletIndex;
-                if (safeTrimRowCountOrError.IsOK()) {
-                    auto updatedTrimmedRowCountIt = updatedTrimmedRowCounts.find(partitionIndex);
-                    if (updatedTrimmedRowCountIt != updatedTrimmedRowCounts.end()) {
-                        // We only need trim partitions with vital consumers, if partition wasn't added on previous cycle,
-                        // then no vital consumer read from it.
-                        updatedTrimmedRowCountIt->second = std::min(updatedTrimmedRowCountIt->second, safeTrimRowCountOrError.Value());
-                    }
+        //! Updates partition contexts in accordance with the retained_rows parameter.
+        //! Only affects the maximum trimmed row count.
+        void HandleRetainedRows(const std::optional<TQueueAutoTrimConfig>& autoTrimConfig)
+        {
+            YT_VERIFY(autoTrimConfig);
+
+            const auto& retainedRows = autoTrimConfig->RetainedRows;
+            if (!retainedRows) {
+                return;
+            }
+
+            for (const auto& [partitionContext, partitionSnapshot] : Zip(Context.Partitions, Context.ReplicaSnapshot->PartitionSnapshots)) {
+                partitionContext.Update({
+                    .MaxTrimmedRowCount = std::max<i64>(partitionSnapshot->UpperRowIndex - *retainedRows, 0),
+                });
+            }
+        }
+
+        //! Updates partition contexts in accordance with the offsets of vital consumers.
+        //! Only affects the minimum trimmed row count.
+        void HandleVitalConsumers()
+        {
+            for (auto& partitionContext : Context.Partitions) {
+                if (!partitionContext) {
+                    continue;
+                }
+
+                std::optional<i64> minTrimmedRowCount;
+                for (const auto& [consumerRef, consumerSubSnapshot] : VitalConsumerSubSnapshots) {
+                    minTrimmedRowCount = MinOrValue<i64>(
+                        minTrimmedRowCount,
+                        // NextRowIndex should always be present in the snapshot.
+                        consumerSubSnapshot->PartitionSnapshots[partitionContext.PartitionIndex]->NextRowIndex);
+                }
+
+                partitionContext.Update({
+                    .MinTrimmedRowCount = minTrimmedRowCount,
+                });
+            }
+        }
+
+        //! Performs and awaits individual trimming request for each partition.
+        void RequestTrimming()
+        {
+            std::vector<TFuture<void>> asyncTrims;
+            asyncTrims.reserve(QueueSnapshot->PartitionCount);
+
+            std::vector<int> trimmedPartitions;
+            trimmedPartitions.reserve(QueueSnapshot->PartitionCount);
+
+            for (const auto& partitionContext : Context.Partitions) {
+                auto partitionIndex = partitionContext.PartitionIndex;
+                const auto& partitionSnapshot = Context.ReplicaSnapshot->PartitionSnapshots[partitionIndex];
+                auto currentTrimmedRowCount = partitionSnapshot->LowerRowIndex;
+
+                // TODO(achulkov2): Ideally, we want to have more verbose per-partition logging (including min/max),
+                // but even the message below gets logged too much. We need to find a way to make the logging more compact,
+                // maybe by aggregating by queue and only logging changes for the first 100 or so partitions.
+                if (auto updatedTrimmedRowCount = partitionContext.GetUpdatedTrimmedRowCount(currentTrimmedRowCount)) {
+                    YT_LOG_DEBUG(
+                        "Trimming partition (Partition: %v, TrimmedRowCount: %v -> %v)",
+                        partitionIndex,
+                        currentTrimmedRowCount,
+                        *updatedTrimmedRowCount);
+                    asyncTrims.push_back(Client->TrimTable(
+                        Context.ObjectPath, partitionIndex, *updatedTrimmedRowCount));
+                    trimmedPartitions.push_back(partitionIndex);
+                }
+            }
+
+            auto trimmingResults = WaitFor(AllSet(asyncTrims))
+                .ValueOrThrow();
+            for (const auto& [partitionIndex, trimmingResult] : Zip(trimmedPartitions, trimmingResults)) {
+                if (!trimmingResult.IsOK()) {
+                    Context.Partitions[partitionIndex].SetError(TError(
+                        "Error occurred while executing trimming request for partition %v", partitionIndex)
+                        << trimmingResult
+                    );
                 }
             }
         }
 
-        std::vector<TFuture<void>> asyncTrims;
-        asyncTrims.reserve(updatedTrimmedRowCounts.size());
-        std::vector<int> trimmedPartitions;
-        trimmedPartitions.reserve(updatedTrimmedRowCounts.size());
-        for (auto [partitionIndex, updatedTrimmedRowCount] : updatedTrimmedRowCounts) {
-            const auto& queuePartitionSnapshot = queueSnapshot->PartitionSnapshots[partitionIndex];
-            auto currentTrimmedRowCount = queuePartitionSnapshot->LowerRowIndex;
-
-            if (const auto& retainedRows = autoTrimConfig->RetainedRows) {
-                updatedTrimmedRowCount = std::min(
-                    updatedTrimmedRowCount,
-                    std::max<i64>(queuePartitionSnapshot->UpperRowIndex - *retainedRows, 0));
-            }
-
-            if (updatedTrimmedRowCount > currentTrimmedRowCount) {
-                YT_LOG_DEBUG(
-                    "Trimming partition (Partition: %v, TrimmedRowCount: %v -> %v)",
-                    partitionIndex,
-                    currentTrimmedRowCount,
-                    updatedTrimmedRowCount);
-                asyncTrims.push_back(client->TrimTable(queueObjectPath, partitionIndex, updatedTrimmedRowCount));
-                trimmedPartitions.push_back(partitionIndex);
+        void ReportErrors()
+        {
+            for (const auto& partitionContext : Context.Partitions) {
+                if (!partitionContext) {
+                    YT_LOG_DEBUG(
+                        partitionContext.PartitionError,
+                        "Failed to trim partition (PartitionIndex: %v)",
+                        partitionContext.PartitionIndex);
+                }
             }
         }
-
-        auto trimmingResults = WaitFor(AllSet(asyncTrims))
-            .ValueOrThrow();
-        for (int trimmedPartitionIndex = 0; trimmedPartitionIndex < std::ssize(trimmingResults); ++trimmedPartitionIndex) {
-            const auto& trimmingResult = trimmingResults[trimmedPartitionIndex];
-            if (!trimmingResult.IsOK()) {
-                YT_LOG_DEBUG(trimmingResult, "Error trimming partition (PartitionIndex: %v)", trimmedPartitions[trimmedPartitionIndex]);
-            }
-        }
-    }
+    };
 };
 
 DEFINE_REFCOUNTED_TYPE(TOrderedDynamicTableController)
@@ -780,8 +1172,10 @@ class TErrorQueueController
 public:
     TErrorQueueController(
         TQueueTableRow row,
+        std::optional<TReplicatedTableMappingTableRow> replicatedTableMappingRow,
         TError error)
         : Row_(std::move(row))
+        , ReplicatedTableMappingRow_(std::move(replicatedTableMappingRow))
         , Error_(std::move(error))
         , Snapshot_(New<TQueueSnapshot>())
     {
@@ -795,7 +1189,12 @@ public:
 
     void OnRowUpdated(std::any /*row*/) override
     {
-        // Row update is handled in RecreateQueueController.
+        // Row update is handled in UpdateQueueController.
+    }
+
+    void OnReplicatedTableMappingRowUpdated(const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& /*row*/) override
+    {
+        // Row update is handled in UpdateQueueController.
     }
 
     TRefCountedPtr GetLatestSnapshot() const override
@@ -808,6 +1207,7 @@ public:
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("row").Value(Row_)
+                .Item("replicated_table_mapping_row").Value(ReplicatedTableMappingRow_)
                 .Item("status").BeginMap()
                     .Item("error").Value(Error_)
                 .EndMap()
@@ -827,6 +1227,7 @@ public:
 
 private:
     TQueueTableRow Row_;
+    std::optional<TReplicatedTableMappingTableRow> ReplicatedTableMappingRow_;
     TError Error_;
     const TQueueSnapshotPtr Snapshot_;
 };
@@ -839,9 +1240,10 @@ bool UpdateQueueController(
     IObjectControllerPtr& controller,
     bool leading,
     const TQueueTableRow& row,
+    const std::optional<TReplicatedTableMappingTableRow>& replicatedTableMappingRow,
     const IObjectStore* store,
     TQueueControllerDynamicConfigPtr dynamicConfig,
-    TClientDirectoryPtr clientDirectory,
+    TQueueAgentClientDirectoryPtr clientDirectory,
     IInvokerPtr invoker)
 {
     // Recreating an error controller on each iteration seems ok as it does
@@ -849,13 +1251,13 @@ bool UpdateQueueController(
     // is not stale.
 
     if (row.SynchronizationError && !row.SynchronizationError->IsOK()) {
-        controller = New<TErrorQueueController>(row, TError("Queue synchronization error") << *row.SynchronizationError);
+        controller = New<TErrorQueueController>(row, replicatedTableMappingRow, TError("Queue synchronization error") << *row.SynchronizationError);
         return true;
     }
 
-    auto queueFamily = DeduceQueueFamily(row);
+    auto queueFamily = DeduceQueueFamily(row, replicatedTableMappingRow);
     if (!queueFamily.IsOK()) {
-        controller = New<TErrorQueueController>(row, queueFamily);
+        controller = New<TErrorQueueController>(row, replicatedTableMappingRow, queueFamily);
         return true;
     }
 
@@ -870,6 +1272,7 @@ bool UpdateQueueController(
             controller = New<TOrderedDynamicTableController>(
                 leading,
                 row,
+                replicatedTableMappingRow,
                 store,
                 std::move(dynamicConfig),
                 std::move(clientDirectory),

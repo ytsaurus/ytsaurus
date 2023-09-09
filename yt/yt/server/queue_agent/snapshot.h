@@ -14,6 +14,7 @@ struct TQueueSnapshot
     : public TRefCounted
 {
     NQueueClient::TQueueTableRow Row;
+    std::optional<NQueueClient::TReplicatedTableMappingTableRow> ReplicatedTableMappingRow;
 
     TError Error;
 
@@ -75,6 +76,7 @@ struct TConsumerSnapshot
 {
     // This field is always set.
     NQueueClient::TConsumerTableRow Row;
+    std::optional<NQueueClient::TReplicatedTableMappingTableRow> ReplicatedTableMappingRow;
 
     TError Error;
 
