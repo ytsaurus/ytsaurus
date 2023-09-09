@@ -121,6 +121,7 @@ jobs:
     name: systest
     needs:
       - start-vm
+      - tag
       - check
     runs-on: ${{ needs.start-vm.outputs.label }}
     steps:
