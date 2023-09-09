@@ -71,8 +71,9 @@ void TGpuInfoSourceConfig::Register(TRegistrar registrar)
         .Default("nvgpu.NvGpuManager");
     registrar.Parameter("nv_gpu_manager_devices_cgroup_path", &TThis::NvGpuManagerDevicesCgroupPath)
         .Default();
+    // COMPAT(ignat)
     registrar.Parameter("gpu_indexes_from_nvidia_smi", &TThis::GpuIndexesFromNvidiaSmi)
-        .Default(true);
+        .Default(false);
 }
 
 void TGpuManagerConfig::Register(TRegistrar registrar)
