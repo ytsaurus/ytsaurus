@@ -43,8 +43,8 @@ struct TInterruptDescriptor
 
 // Return read limits relative to table (e.g. row index is calculated with addition of table row index).
 
-TLegacyReadLimit GetAbsoluteLowerReadLimit(const TDataSliceDescriptor& descriptor, bool versioned);
-TLegacyReadLimit GetAbsoluteUpperReadLimit(const TDataSliceDescriptor& descriptor, bool versioned);
+TLegacyReadLimit GetAbsoluteLowerReadLimit(const TDataSliceDescriptor& descriptor, bool versioned, bool sorted);
+TLegacyReadLimit GetAbsoluteUpperReadLimit(const TDataSliceDescriptor& descriptor, bool versioned, bool sorted);
 
 ////////////////////////////////////////////////////////////////////////////////
 
