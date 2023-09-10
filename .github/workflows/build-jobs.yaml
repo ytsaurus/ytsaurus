@@ -1,0 +1,197 @@
+on:
+  workflow_call:
+    inputs:
+      runs-on-value:
+        required: true
+        type: string
+      build-strawberry:
+        default: false
+        required: false
+        type: boolean
+      build-ytsaurus:
+        default: false
+        required: false
+        type: boolean
+      build-chyt:
+        default: false
+        required: false
+        type: boolean
+      build-query-tracker:
+        default: false
+        required: false
+        type: boolean
+      build-python:
+        default: false
+        required: false
+        type: boolean
+
+jobs:
+  build:
+    runs-on: ${{ inputs.runs-on-value }}
+    steps:
+      - name: Prepare python virtual environment
+        run: |
+          python3.11 -m venv ../venv
+
+      - name: Build strawberry controller
+        if: ${{ inputs.build-strawberry }}
+        run: |
+          cd ../ytsaurus/ytsaurus/yt/chyt/controller/cmd/chyt-controller
+          export HOME=${RUNNER_WORKSPACE}
+          /opt/go/bin/go build
+
+      - name: Configure ytsaurus
+        if: ${{ inputs.build-ytsaurus || inputs.build-chyt || inputs.build-query-tracker }}
+        run: |
+          mkdir -p ../build
+          cd ../build
+          rm -rf *
+          cmake \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/ytsaurus/clang.toolchain \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            ../ytsaurus/ytsaurus
+
+      - name: Configure ytsaurus (relwithdebinfo)
+        if: ${{ inputs.build-ytsaurus || inputs.build-chyt || inputs.build-query-tracker }}
+        run: |
+          mkdir -p ../build_relwithdebinfo
+          cd ../build_relwithdebinfo
+          rm -rf *
+          cmake \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/ytsaurus/clang.toolchain \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            ../ytsaurus/ytsaurus
+
+      - name: Configure query tracker
+        if: ${{ inputs.build-query-tracker }}
+        run: |
+          #TODO: install it inside vm image.
+          sudo apt-get -y install antlr3 libaio1 libaio-dev
+
+          #TODO: remove -DMKQL_DISABLE_CODEGEN after YT-19852.
+          mkdir -p ../build_qt
+          cd ../build_qt
+          rm -rf *
+          cmake \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER_LAUNCHER=/usr/local/bin/ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=/usr/local/bin/ccache \
+            -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/ydb/clang.toolchain \
+            -DCMAKE_C_FLAGS_RELEASE="-O2 -UNDEBUG -DMKQL_DISABLE_CODEGEN" \
+            -DCMAKE_CXX_FLAGS_RELEASE="-O2 -UNDEBUG -DMKQL_DISABLE_CODEGEN" \
+            -DCMAKE_C_FLAGS="-O2 -UNDEBUG -DMKQL_DISABLE_CODEGEN" \
+            -DCMAKE_CXX_FLAGS="-O2 -UNDEBUG -DMKQL_DISABLE_CODEGEN" \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=On \
+            ../ytsaurus/ydb
+
+      - name: Configure query tracker (relwithdebinfo)
+        if: ${{ inputs.build-query-tracker }}
+        run: |
+          mkdir -p ../build_qt_relwithdebinfo
+          cd ../build_qt_relwithdebinfo
+          rm -rf *
+          cmake \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_C_COMPILER_LAUNCHER=/usr/local/bin/ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=/usr/local/bin/ccache \
+            -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/ydb/clang.toolchain \
+            -DCMAKE_C_FLAGS="-O2 -UNDEBUG -DMKQL_DISABLE_CODEGEN" \
+            -DCMAKE_CXX_FLAGS="-O2 -UNDEBUG -DMKQL_DISABLE_CODEGEN" \
+            -DCMAKE_C_FLAGS_RELWITHDEBINFO="-O2 -UNDEBUG -DMKQL_DISABLE_CODEGEN" \
+            -DCMAKE_CXX_FLAGS_RELWITHDEBINFO="-O2 -UNDEBUG -DMKQL_DISABLE_CODEGEN" \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=On \
+            ../ytsaurus/ydb
+
+      - name: Build ytsaurus
+        if: ${{ inputs.build-ytsaurus || inputs.build-chyt || inputs.build-query-tracker }}
+        run: |
+          export CCACHE_BASEDIR="$(realpath ..)"
+          export CCACHE_REMOTE_ONLY=true
+          export CCACHE_REMOTE_STORAGE="${{ vars.CCACHE_REMOTE_STORAGE }}"
+
+          cd ../build
+          ninja
+
+          cd ../build_relwithdebinfo
+          ninja ytserver-all ytserver-yql-agent
+
+      - name: Build chyt
+        if: ${{ inputs.build-chyt }}
+        run: |
+          export CCACHE_BASEDIR="$(realpath ..)"
+          export CCACHE_REMOTE_ONLY=true
+          export CCACHE_REMOTE_STORAGE="${{ vars.CCACHE_REMOTE_STORAGE }}"
+
+          cd ../build_relwithdebinfo
+          ninja ytserver-clickhouse
+
+      - name: Build query tracker
+        if: ${{ inputs.build-query-tracker }}
+        run: |
+          export CCACHE_BASEDIR="$(realpath ..)"
+          export CCACHE_REMOTE_ONLY=true
+          export CCACHE_REMOTE_STORAGE="${{ vars.CCACHE_REMOTE_STORAGE }}"
+
+          cd ../build_qt
+          ninja libyqlplugin.so
+          ninja libdatetime2_udf.so
+          ninja libhyperloglog_udf.so
+          ninja libjson_udf.so
+          ninja libset_udf.so
+          ninja libtop_udf.so
+          ninja libyson2_udf.so
+          ninja libdigest_udf.so
+          ninja libhyperscan_udf.so
+          ninja libmath_udf.so
+          ninja libstat_udf.so
+          ninja libtopfreq_udf.so
+          ninja libdsv_udf.so
+          ninja libip_udf.so
+          ninja libpire_udf.so
+          ninja libunicode_udf.so
+          ninja libhistogram_udf.so
+          ninja libjson2_udf.so
+          ninja libre2_udf.so
+          ninja libstring_udf.so
+          ninja liburl_udf.so
+          ninja mrjob
+
+          cd ../build_qt_relwithdebinfo
+          ninja libyqlplugin.so
+          ninja libdatetime2_udf.so
+          ninja libhyperloglog_udf.so
+          ninja libjson_udf.so
+          ninja libset_udf.so
+          ninja libtop_udf.so
+          ninja libyson2_udf.so
+          ninja libdigest_udf.so
+          ninja libhyperscan_udf.so
+          ninja libmath_udf.so
+          ninja libstat_udf.so
+          ninja libtopfreq_udf.so
+          ninja libdsv_udf.so
+          ninja libip_udf.so
+          ninja libpire_udf.so
+          ninja libunicode_udf.so
+          ninja libhistogram_udf.so
+          ninja libjson2_udf.so
+          ninja libre2_udf.so
+          ninja libstring_udf.so
+          ninja liburl_udf.so
+          ninja mrjob
+
+      - name: Build Python packages
+        if: ${{ inputs.build-python }}
+        run: |
+          source ../venv/bin/activate
+          YTSAURUS_COMMIT_HASH=${GITHUB_SHA} bash ./ytsaurus/yt/python/packages/build_ytsaurus_packages.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build
+
+

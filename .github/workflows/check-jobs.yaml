@@ -1,0 +1,42 @@
+on:
+  workflow_call:
+    inputs:
+      runs-on-value:
+        required: true
+        type: string
+    secrets:
+      NEBIUS_TESTMO_TOKEN:
+        required: true
+
+jobs:
+  check:
+    runs-on: ${{ inputs.runs-on-value }}
+    steps:
+      - name: Unittests
+        shell: bash
+        run: |
+          cp ./ytsaurus/yt/yt/scripts/run_unittests.sh ../build/
+          cd ../build
+          ./run_unittests.sh
+
+      - name: Prepare pytest environment
+        shell: bash
+        run: |
+          ytsaurus/yt/yt/scripts/prepare_pytest_environment.sh
+
+      - name: Integration tests
+        shell: bash
+        run: |
+          ytsaurus/yt/yt/scripts/run_integration_tests.sh
+
+      - name: Python tests
+        shell: bash
+        run: |
+          ytsaurus/yt/yt/scripts/run_python_tests.sh
+
+      - name: Testmo unittests upload
+        shell: bash
+        run: |
+          export TESTMO_TOKEN="${{ secrets.NEBIUS_TESTMO_TOKEN }}"
+          testmo automation:run:submit --instance https://nebius.testmo.net --project-id 4 --name "Run ${{ github.run_id }}" --source "unittests" --results "../build/junit-*.xml"
+

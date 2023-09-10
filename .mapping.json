@@ -1,8 +1,12 @@
 {
   ".github/pull_request_template.md":"yt/github_toplevel/.github/pull_request_template.md",
+  ".github/workflows/build-jobs.yaml":"yt/github_toplevel/.github/workflows/build-jobs.yaml",
+  ".github/workflows/check-jobs.yaml":"yt/github_toplevel/.github/workflows/check-jobs.yaml",
   ".github/workflows/cpp.yaml":"yt/github_toplevel/.github/workflows/cpp.yaml",
+  ".github/workflows/docker-jobs.yaml":"yt/github_toplevel/.github/workflows/docker-jobs.yaml",
   ".github/workflows/go.yaml":"yt/github_toplevel/.github/workflows/go.yaml",
   ".github/workflows/java.yaml":"yt/github_toplevel/.github/workflows/java.yaml",
+  ".github/workflows/ytsaurus_release.yaml":"yt/github_toplevel/.github/workflows/ytsaurus_release.yaml",
   ".gitignore":"yt/github_toplevel/.gitignore",
   "AUTHORS":"yt/github_toplevel/AUTHORS",
   "BUILD.md":"yt/github_toplevel/BUILD.md",

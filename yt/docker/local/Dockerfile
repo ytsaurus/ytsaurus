@@ -2,30 +2,36 @@ FROM ubuntu:focal
 
 WORKDIR /tmp
 
-ARG YT_LOCAL_PATH=yt_local
-ARG YTSERVER_ALL_PATH=ytserver-all
+COPY ./ytserver-all /usr/bin/ytserver-all
+COPY ./ytserver-all.CREDITS /usr/bin/ytserver-all.CREDITS
 
-ARG YTSERVER_ALL_CREDITS_PATH=ytserver-all.CREDITS
-
-COPY ${YT_LOCAL_PATH} /usr/bin/yt_local
-COPY ${YTSERVER_ALL_PATH} /usr/bin/ytserver-all
-COPY ${YTSERVER_ALL_CREDITS_PATH} /usr/bin/ytserver-all.CREDITS
-
-COPY configure.sh .
+COPY ./configure.sh .
 RUN ./configure.sh /var/lib/yt/local-cypress
 RUN rm /tmp/configure.sh
 
-COPY start.sh /usr/bin/start.sh
+COPY ./start.sh /usr/bin/start.sh
 
 VOLUME /var/lib/yt/local-cypress
 EXPOSE 80
 
-RUN apt-get update && apt-get install -y \
-    python \
-    pip
+RUN apt-get update && apt-get install -y openjdk-11-jdk
 
-RUN pip install -i https://pypi.org/simple/ \
-    ytsaurus-local \
-    ytsaurus-client
+RUN apt-get update && apt-get install -y software-properties-common
+RUN add-apt-repository ppa:deadsnakes/ppa
+
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
+    python3.7 \
+    python3-pip \
+    python3.7-distutils
+
+COPY ./ytsaurus_python /tmp/ytsaurus_python
+RUN for package in client local; \
+  do \
+    dist_dir="/tmp/ytsaurus_python/ytsaurus_${package}_dist"; \
+    wheel_path="${dist_dir}/$(ls ${dist_dir} | grep "^ytsaurus_$package.*whl$")"; \
+    python3.7 -m pip install ${wheel_path}; \
+  done
+
+RUN ln -s /usr/lib/jvm/java-11-openjdk-amd64 /opt/jdk11
 
 ENTRYPOINT ["bash", "/usr/bin/start.sh"]
