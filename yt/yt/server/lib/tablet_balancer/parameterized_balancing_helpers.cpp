@@ -352,7 +352,7 @@ double TParameterizedReassignSolver::GetTabletMetric(const TTabletPtr& tablet) c
 {
     auto value = Evaluator_->Evaluate({
         ConvertToYsonString(tablet->Statistics.OriginalNode),
-        BuildTabletPerformanceCountersYson(tablet->PerformanceCountersProto, PerformanceCountersKeys_)
+        tablet->GetPerformanceCountersYson(PerformanceCountersKeys_)
     }).ValueOrThrow();
 
     switch (value.Type) {

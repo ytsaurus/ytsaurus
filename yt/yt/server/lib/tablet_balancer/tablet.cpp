@@ -19,15 +19,21 @@ TTablet::TTablet(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonString BuildTabletPerformanceCountersYson(
-    const TTablet::TPerformanceCountersProtoList& emaCounters,
-    const std::vector<TString>& performanceCountersKeys)
+NYson::TYsonString TTablet::GetPerformanceCountersYson(
+    const std::vector<TString>& performanceCountersKeys) const
 {
-    YT_VERIFY(emaCounters.size() == std::ssize(performanceCountersKeys));
+    if (auto performanceCounters = std::get_if<TYsonString>(&PerformanceCounters)) {
+        return *performanceCounters;
+    }
+
+    auto performanceCountersProto = std::get_if<TPerformanceCountersProtoList>(&PerformanceCounters);
+    YT_VERIFY(performanceCountersProto);
+
+    YT_VERIFY(performanceCountersProto->size() == std::ssize(performanceCountersKeys));
     return BuildYsonStringFluently()
         .DoMap([&] (TFluentMap fluent) {
             for (int i = 0; i < std::ssize(performanceCountersKeys); ++i) {
-                const auto& counter = emaCounters[i];
+                const auto& counter = performanceCountersProto->at(i);
                 fluent
                     .Item(performanceCountersKeys[i] + "_count").Value(counter.count())
                     .Item(performanceCountersKeys[i] + "_rate").Value(counter.rate())

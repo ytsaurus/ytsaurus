@@ -6,6 +6,7 @@
 # original buildsystem will not be accepted.
 
 
+add_subdirectory(dry_run)
 add_subdirectory(unittests)
 
 add_library(server-lib-tablet_balancer)
@@ -16,9 +17,10 @@ target_link_libraries(server-lib-tablet_balancer PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  yt-yt-ytlib
+  yt-yt-client
   yt-yt-core
   orm-library-query
+  yt-yt-ytlib
 )
 target_sources(server-lib-tablet_balancer PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/balancing_helpers.cpp

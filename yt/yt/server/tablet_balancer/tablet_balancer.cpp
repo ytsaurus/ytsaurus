@@ -171,7 +171,7 @@ private:
 
     void PickReshardPivotKeys(
         TReshardDescriptor* descriptor,
-        const TTable* table,
+        const TTablePtr& table,
         const TBundleStatePtr& bundleState,
         std::optional<double> slicingAccuracy,
         bool enableVerboseLogging) const;
@@ -692,7 +692,7 @@ void TTabletBalancer::BalanceViaMoveParameterized(const TBundleStatePtr& bundleS
         BIND(
             ReassignTabletsParameterized,
             bundleState->GetBundle(),
-            bundleState->DefaultPerformanceCountersKeys_,
+            bundleState->DefaultPerformanceCountersKeys,
             TParameterizedReassignSolverConfig{
                 .EnableSwaps = dynamicConfig->EnableSwaps,
                 .MaxMoveActionCount = dynamicConfig->MaxParameterizedMoveActionCount,
@@ -785,18 +785,24 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
         return;
     }
 
-    std::vector<TTabletPtr> tablets;
-    for (const auto& [id, tablet] : bundleState->Tablets()) {
-        if (IsTabletReshardable(tablet, /*ignoreConfig*/ false)) {
-            tablets.push_back(tablet);
+    std::vector<TTablePtr> tables;
+    for (const auto& [id, table] : bundleState->GetBundle()->Tables) {
+        if (TypeFromId(id) != EObjectType::Table) {
+            continue;
         }
+
+        if (table->GetBalancingGroup() != groupName) {
+            continue;
+        }
+
+        tables.push_back(table);
     }
 
     std::sort(
-        tablets.begin(),
-        tablets.end(),
-        [&] (const TTabletPtr lhs, const TTabletPtr rhs) {
-            return lhs->Table->Id < rhs->Table->Id;
+        tables.begin(),
+        tables.end(),
+        [&] (const TTablePtr lhs, const TTablePtr rhs) {
+            return lhs->Id < rhs->Id;
         });
 
     int actionCount = 0;
@@ -809,41 +815,33 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
     bool enableVerboseLogging = dynamicConfig->EnableReshardVerboseLogging ||
         bundleState->GetBundle()->Config->EnableVerboseLogging;
 
-    auto beginIt = tablets.begin();
-    while (beginIt != tablets.end()) {
+    for (const auto& table : tables) {
         if (actionLimitExceeded) {
             break;
         }
 
-        auto endIt = beginIt;
-        while (endIt != tablets.end() && (*beginIt)->Table == (*endIt)->Table) {
-            ++endIt;
+        std::vector<TTabletPtr> tablets;
+        for (const auto& tablet : table->Tablets) {
+            if (IsTabletReshardable(tablet, /*ignoreConfig*/ false)) {
+                tablets.push_back(tablet);
+            }
         }
 
-        if (TypeFromId((*beginIt)->Table->Id) != EObjectType::Table) {
-            beginIt = endIt;
+        if (tablets.empty()) {
             continue;
         }
-
-        if ((*beginIt)->Table->GetBalancingGroup() != groupName) {
-            beginIt = endIt;
-            continue;
-        }
-
-        auto table = (*beginIt)->Table;
-        auto tableTablets = std::vector<TTabletPtr>(beginIt, endIt);
-        beginIt = endIt;
 
         auto descriptors = WaitFor(
             BIND(
                 MergeSplitTabletsOfTable,
-                std::move(tableTablets),
+                std::move(tablets),
                 Logger)
             .AsyncVia(WorkerPool_->GetInvoker())
             .Run())
             .ValueOrThrow();
 
-        const auto& profilingCounters = bundleState->GetProfilingCounters(table, groupName);
+        const auto& profilingCounters = bundleState->GetProfilingCounters(table.Get(), groupName);
+
         for (auto descriptor : descriptors) {
             if (pickReshardPivotKeys) {
                 try {
@@ -926,7 +924,7 @@ void TTabletBalancer::RemoveBundleErrorsByTtl(TDuration ttl)
 
 void TTabletBalancer::PickReshardPivotKeys(
     TReshardDescriptor* descriptor,
-    const TTable* table,
+    const TTablePtr& table,
     const TBundleStatePtr& bundleState,
     std::optional<double> slicingAccuracy,
     bool enableVerboseLogging) const

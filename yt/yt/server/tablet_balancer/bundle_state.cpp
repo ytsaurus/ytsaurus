@@ -114,7 +114,7 @@ TBundleProfilingCounters::TBundleProfilingCounters(const NProfiling::TProfiler& 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const std::vector<TString> TBundleState::DefaultPerformanceCountersKeys_{
+const std::vector<TString> TBundleState::DefaultPerformanceCountersKeys{
     #define XX(name, Name) #name,
     ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)
     #undef XX
@@ -362,7 +362,7 @@ void TBundleState::DoFetchStatistics()
 
             tablet->Index = tabletResponse.Index;
             tablet->Statistics = std::move(tabletResponse.Statistics);
-            tablet->PerformanceCountersProto = std::move(tabletResponse.PerformanceCounters);
+            tablet->PerformanceCounters = std::move(tabletResponse.PerformanceCounters);
             tablet->State = tabletResponse.State;
             tablet->MountTime = tabletResponse.MountTime;
 
@@ -614,7 +614,7 @@ THashMap<TTableId, std::vector<TBundleState::TTabletStatisticsResponse>> TBundle
         Bundle_->Tables,
         [] (const NTabletClient::TMasterTabletServiceProxy::TReqGetTableBalancingAttributesPtr& request) {
             request->set_fetch_statistics(true);
-            ToProto(request->mutable_requested_performance_counters(), DefaultPerformanceCountersKeys_);
+            ToProto(request->mutable_requested_performance_counters(), DefaultPerformanceCountersKeys);
     });
 
     THashMap<TTableId, std::vector<TTabletStatisticsResponse>> tableStatistics;

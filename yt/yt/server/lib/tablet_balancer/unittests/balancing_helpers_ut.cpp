@@ -6,6 +6,9 @@
 #include <yt/yt/server/lib/tablet_balancer/tablet_cell.h>
 #include <yt/yt/server/lib/tablet_balancer/tablet_cell_bundle.h>
 
+#include <yt/yt/server/lib/tablet_balancer/dry_run/lib/helpers.h>
+#include <yt/yt/server/lib/tablet_balancer/dry_run/lib/holders.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/table_client/unversioned_row.h>
@@ -21,6 +24,7 @@
 namespace NYT::NTabletBalancer {
 namespace {
 
+using namespace NDryRun;
 using namespace NObjectClient;
 using namespace NYson;
 using namespace NYTree;
@@ -31,257 +35,30 @@ static const NLogging::TLogger Logger("BalancingHelpersUnittest");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TObjectId MakeSequentialId(EObjectType type)
+TObjectId MakeObjectId(EObjectType type, int index)
 {
-    static int counter = 0;
-    return MakeId(type, /*cellTag*/ MinValidCellTag, /*counter*/ 0, /*hash*/ counter++);
+    return MakeId(type, /*cellTag*/ MinValidCellTag, /*counter*/ 0, /*hash*/ index);
 }
 
-struct TTestTablet
-    : public TYsonStruct
+void FillObjectIdsInBundleHolder(const TBundleHolderPtr& bundle)
 {
-    i64 UncompressedDataSize;
-    i64 MemorySize;
-    int CellIndex;
-
-    TTabletPtr CreateTablet(
-        const TTabletId& tabletId,
-        const TTablePtr& table,
-        const std::vector<TTabletCellPtr>& cells) const
-    {
-        auto tablet = New<TTablet>(
-            tabletId,
-            table.Get());
-
-        tablet->Statistics.UncompressedDataSize = UncompressedDataSize;
-        tablet->Statistics.MemorySize = MemorySize;
-        tablet->Statistics.OriginalNode = BuildYsonNodeFluently()
-            .DoMap([&] (TFluentMap fluent) {
-                fluent
-                    .Item("memory_size").Value(MemorySize)
-                    .Item("uncompressed_data_size").Value(UncompressedDataSize);
-        });
-
-        tablet->Cell = cells[CellIndex];
-        EmplaceOrCrash(cells[CellIndex]->Tablets, tabletId, tablet);
-
-        return tablet;
+    for (const auto& cell : bundle->Cells) {
+        YT_VERIFY(!cell->CellId);
+        cell->CellId = MakeObjectId(EObjectType::TabletCell, cell->CellIndex);
     }
 
-    REGISTER_YSON_STRUCT(TTestTablet);
+    for (const auto& table : bundle->Tables) {
+        YT_VERIFY(!table->TableId);
+        table->TableId  = MakeObjectId(EObjectType::Table, table->TableIndex);
 
-    static void Register(TRegistrar registrar)
-    {
-        registrar.Parameter("uncompressed_data_size", &TThis::UncompressedDataSize)
-            .Default(100);
-        registrar.Parameter("memory_size", &TThis::MemorySize)
-            .Default(100);
-        registrar.Parameter("cell_index", &TThis::CellIndex)
-            .Default(0);
-    }
-};
+        for (const auto& tablet : table->Tablets) {
+            YT_VERIFY(!tablet->TabletId);
+            tablet->TabletId = MakeObjectId(EObjectType::Tablet, tablet->TabletIndex);
 
-DECLARE_REFCOUNTED_STRUCT(TTestTablet)
-DEFINE_REFCOUNTED_TYPE(TTestTablet)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TTestTable
-    : public TYsonStruct
-{
-    bool Sorted;
-    i64 CompressedDataSize;
-    i64 UncompressedDataSize;
-    EInMemoryMode InMemoryMode;
-
-    TTablePtr CreateTable(const TTabletCellBundlePtr& bundle) const
-    {
-        auto tableId = MakeSequentialId(EObjectType::Table);
-        auto table = New<TTable>(
-            Sorted,
-            ToString(tableId),
-            MinValidCellTag,
-            tableId,
-            bundle.Get());
-
-        table->Dynamic = true;
-        table->CompressedDataSize = CompressedDataSize;
-        table->UncompressedDataSize = UncompressedDataSize;
-        table->InMemoryMode = InMemoryMode;
-        return table;
-    }
-
-    REGISTER_YSON_STRUCT(TTestTable);
-
-    static void Register(TRegistrar registrar)
-    {
-        registrar.Parameter("sorted", &TThis::Sorted)
-            .Default(true);
-        registrar.Parameter("compressed_data_size", &TThis::CompressedDataSize)
-            .Default(100);
-        registrar.Parameter("uncompressed_data_size", &TThis::UncompressedDataSize)
-            .Default(100);
-        registrar.Parameter("in_memory_mode", &TThis::InMemoryMode)
-            .Default(EInMemoryMode::None);
-    }
-};
-
-DECLARE_REFCOUNTED_STRUCT(TTestTable)
-DEFINE_REFCOUNTED_TYPE(TTestTable)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TTestNode
-    : public TYsonStruct
-{
-    TString NodeAddress;
-    i64 Used;
-    std::optional<i64> Limit;
-
-    REGISTER_YSON_STRUCT(TTestNode);
-
-    static void Register(TRegistrar registrar)
-    {
-        registrar.Parameter("node_address", &TThis::NodeAddress)
-            .Default();
-        registrar.Parameter("used", &TThis::Used)
-            .Default(0);
-        registrar.Parameter("limit", &TThis::Limit)
-            .Default();
-    }
-};
-
-DECLARE_REFCOUNTED_STRUCT(TTestNode)
-DEFINE_REFCOUNTED_TYPE(TTestNode)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TTestTabletCell
-    : public TYsonStruct
-{
-    i64 MemorySize;
-    std::optional<TString> NodeAddress;
-
-    REGISTER_YSON_STRUCT(TTestTabletCell);
-
-    static void Register(TRegistrar registrar)
-    {
-        registrar.Parameter("memory_size", &TThis::MemorySize)
-            .Default(100);
-        registrar.Parameter("node_address", &TThis::NodeAddress)
-            .Default();
-    }
-};
-
-DECLARE_REFCOUNTED_STRUCT(TTestTabletCell)
-DEFINE_REFCOUNTED_TYPE(TTestTabletCell)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TTestBundle
-{
-    TTabletCellBundlePtr Bundle;
-    std::vector<TTabletCellPtr> Cells;
-    std::vector<TTableId> TableIds;
-    THashMap<TTabletId, TTabletPtr> Tablets;
-};
-
-using TTestTabletParams = TStringBuf;
-
-struct TTestTableParams
-{
-    TStringBuf TableSettings;
-    TStringBuf TableConfig;
-    std::vector<TTestTabletParams> Tablets;
-};
-
-struct TTestBundleParams
-{
-    TStringBuf Nodes = "[]";
-    TStringBuf Cells;
-    TStringBuf BundleConfig;
-    std::vector<TTestTableParams> Tables;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-TTestBundle CreateTabletCellBundle(
-    const TTestBundleParams& bundleParams)
-{
-    TTestBundle testBundle;
-    testBundle.Bundle = New<TTabletCellBundle>("bundle");
-    testBundle.Bundle->Config = ConvertTo<TBundleTabletBalancerConfigPtr>(TYsonStringBuf(bundleParams.BundleConfig));
-    testBundle.Bundle->Config->EnableVerboseLogging = true;
-
-    auto nodes = ConvertTo<std::vector<TTestNodePtr>>(TYsonStringBuf(bundleParams.Nodes));
-    for (const auto& node : nodes) {
-        auto statistics = TTabletCellBundle::TNodeMemoryStatistics{.Used = node->Used};
-        if (node->Limit.has_value()) {
-            statistics.Limit = *node->Limit;
+            YT_VERIFY(!tablet->CellId);
+            tablet->CellId = MakeObjectId(EObjectType::TabletCell, tablet->CellIndex);
         }
-
-        EmplaceOrCrash(
-            testBundle.Bundle->NodeMemoryStatistics,
-            node->NodeAddress,
-            std::move(statistics));
     }
-
-    std::vector<TTabletCellId> cellIds;
-    auto cells = ConvertTo<std::vector<TTestTabletCellPtr>>(TYsonStringBuf(bundleParams.Cells));
-    for (int index = 0; index < std::ssize(cells); ++index) {
-        cellIds.emplace_back(MakeSequentialId(EObjectType::TabletCell));
-    }
-
-    for (int index = 0; index < std::ssize(cells); ++index) {
-        if (cells[index]->NodeAddress.has_value()) {
-            EXPECT_TRUE(testBundle.Bundle->NodeMemoryStatistics.contains(*cells[index]->NodeAddress));
-        }
-
-        auto cell = New<TTabletCell>(
-            cellIds[index],
-            TTabletCellStatistics{.MemorySize = cells[index]->MemorySize},
-            TTabletCellStatus{.Health = NTabletClient::ETabletCellHealth::Good, .Decommissioned = false},
-            cells[index]->NodeAddress,
-            ETabletCellLifeStage::Running);
-        testBundle.Bundle->TabletCells.emplace(cellIds[index], cell);
-        testBundle.Cells.push_back(cell);
-    }
-
-    for (const auto& [tableSettings, tableConfig, tablets] : bundleParams.Tables) {
-        auto table = ConvertTo<TTestTablePtr>(TYsonStringBuf(tableSettings))->CreateTable(testBundle.Bundle);
-
-        table->TableConfig = ConvertTo<TTableTabletBalancerConfigPtr>(TYsonStringBuf(tableConfig));
-        table->TableConfig->EnableVerboseLogging = true;
-
-        std::vector<TTabletId> tabletIds;
-        for (int index = 0; index < std::ssize(tablets); ++index) {
-            tabletIds.emplace_back(MakeSequentialId(EObjectType::Tablet));
-        }
-
-        for (int index = 0; index < std::ssize(tablets); ++index) {
-            auto tablet = ConvertTo<TTestTabletPtr>(TYsonStringBuf(tablets[index]))->CreateTablet(
-                tabletIds[index],
-                table,
-                testBundle.Cells);
-            tablet->Index = std::ssize(table->Tablets);
-            table->Tablets.push_back(tablet);
-            EmplaceOrCrash(testBundle.Tablets, tabletIds[index], std::move(tablet));
-        }
-
-        EmplaceOrCrash(testBundle.Bundle->Tables, table->Id, table);
-        testBundle.TableIds.push_back(table->Id);
-    }
-
-    for (const auto& [id, cell] : testBundle.Bundle->TabletCells) {
-        i64 tabletsSize = 0;
-        for (const auto& [tabletId, tablet] : cell->Tablets) {
-            tabletsSize += GetTabletBalancingSize(tablet);
-        }
-
-        EXPECT_LE(tabletsSize, cell->Statistics.MemorySize);
-    }
-
-    return testBundle;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -289,16 +66,21 @@ TTestBundle CreateTabletCellBundle(
 struct TTestMoveDescriptor
     : public TYsonStruct
 {
-    int TableIndex;
     int TabletIndex;
     int CellIndex;
+
+    TMoveDescriptor CreateMoveDescriptor() const
+    {
+        return TMoveDescriptor{
+            .TabletId = MakeObjectId(EObjectType::Tablet, TabletIndex),
+            .TabletCellId = MakeObjectId(EObjectType::TabletCell, CellIndex)
+        };
+    }
 
     REGISTER_YSON_STRUCT(TTestMoveDescriptor);
 
     static void Register(TRegistrar registrar)
     {
-        registrar.Parameter("table_index", &TThis::TableIndex)
-            .Default(0);
         registrar.Parameter("tablet_index", &TThis::TabletIndex)
             .Default(0);
         registrar.Parameter("cell_index", &TThis::CellIndex)
@@ -309,14 +91,13 @@ struct TTestMoveDescriptor
 DECLARE_REFCOUNTED_STRUCT(TTestMoveDescriptor)
 DEFINE_REFCOUNTED_TYPE(TTestMoveDescriptor)
 
-bool IsEqual(const TTestMoveDescriptorPtr& expected, const TMoveDescriptor& actual, const TTestBundle& bundle)
+void CheckEqual(
+    const TTestMoveDescriptorPtr& expected,
+    const TMoveDescriptor& actual)
 {
-    const auto& cell = bundle.Cells[expected->CellIndex];
-    const auto& table = bundle.TableIds[expected->TableIndex];
-    const auto& tablet = GetOrCrash(bundle.Bundle->Tables, table)->Tablets[expected->TabletIndex];
-    EXPECT_EQ(actual.TabletId, tablet->Id);
-    EXPECT_EQ(actual.TabletCellId, cell->Id);
-    return actual.TabletId == tablet->Id && actual.TabletCellId == cell->Id;
+    auto actualDescriptor = expected->CreateMoveDescriptor();
+    EXPECT_EQ(actual.TabletId, actualDescriptor.TabletId);
+    EXPECT_EQ(actual.TabletCellId, actualDescriptor.TabletCellId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -324,18 +105,24 @@ bool IsEqual(const TTestMoveDescriptorPtr& expected, const TMoveDescriptor& actu
 struct TTestReshardDescriptor
     : public TYsonStruct
 {
-    int TableIndex;
-    std::vector<int> TabletIndexes;
+    std::vector<int> Tablets;
     i64 DataSize;
     int TabletCount;
+
+    auto GetTabletIds() const
+    {
+        std::vector<TTabletId> tabletIds;
+        for (const auto& tabletIndex : Tablets) {
+            tabletIds.push_back(MakeObjectId(EObjectType::Tablet, tabletIndex));
+        }
+        return tabletIds;
+    }
 
     REGISTER_YSON_STRUCT(TTestReshardDescriptor);
 
     static void Register(TRegistrar registrar)
     {
-        registrar.Parameter("table_index", &TThis::TableIndex)
-            .Default(0);
-        registrar.Parameter("tablets", &TThis::TabletIndexes)
+        registrar.Parameter("tablets", &TThis::Tablets)
             .Default();
         registrar.Parameter("data_size", &TThis::DataSize)
             .Default(0);
@@ -347,17 +134,17 @@ struct TTestReshardDescriptor
 DECLARE_REFCOUNTED_STRUCT(TTestReshardDescriptor)
 DEFINE_REFCOUNTED_TYPE(TTestReshardDescriptor)
 
-void CheckEqual(const TTestReshardDescriptorPtr& expected, const TReshardDescriptor& actual, const TTestBundle& bundle, int tableIndex)
+void CheckEqual(
+    const TTestReshardDescriptorPtr& expected,
+    const TReshardDescriptor& actual)
 {
-    EXPECT_EQ(expected->TableIndex, tableIndex);
     EXPECT_EQ(expected->DataSize, actual.DataSize);
-    EXPECT_EQ(std::ssize(expected->TabletIndexes), std::ssize(actual.Tablets));
+    EXPECT_EQ(std::ssize(expected->Tablets), std::ssize(actual.Tablets));
     EXPECT_EQ(expected->TabletCount, actual.TabletCount);
 
-    const auto& tableId = bundle.TableIds[tableIndex];
-    const auto& table = GetOrCrash(bundle.Bundle->Tables, tableId);
-    for (int tabletIndex = 0; tabletIndex < std::ssize(actual.Tablets); ++tabletIndex) {
-        EXPECT_EQ(actual.Tablets[tabletIndex], table->Tablets[tabletIndex]->Id);
+    auto tabletIds = expected->GetTabletIds();
+    for (int index = 0; index < std::ssize(actual.Tablets); ++index) {
+        EXPECT_EQ(actual.Tablets[index], tabletIds[index]);
     }
 }
 
@@ -366,7 +153,7 @@ void CheckEqual(const TTestReshardDescriptorPtr& expected, const TReshardDescrip
 class TTestTabletBalancingHelpers
     : public ::testing::Test
     , public ::testing::WithParamInterface<std::tuple<
-        /*bundle*/ TTestBundleParams,
+        /*bundle*/ TStringBuf,
         /*expectedDescriptors*/ TStringBuf>>
 { };
 
@@ -379,10 +166,12 @@ class TTestReassignInMemoryTablets
 TEST_P(TTestReassignInMemoryTablets, SimpleWithSameTablets)
 {
     const auto& params = GetParam();
-    auto bundle = CreateTabletCellBundle(std::get<0>(params));
+    auto bundleHolder = ConvertTo<TBundleHolderPtr>(TYsonStringBuf(std::get<0>(params)));
+    FillObjectIdsInBundleHolder(bundleHolder);
+    auto bundle = bundleHolder->CreateBundle();
 
     auto descriptors = ReassignInMemoryTablets(
-        bundle.Bundle,
+        bundle,
         /*movableTables*/ std::nullopt,
         /*ignoreTableWiseConfig*/ false,
         Logger);
@@ -395,8 +184,7 @@ TEST_P(TTestReassignInMemoryTablets, SimpleWithSameTablets)
     });
 
     for (int index = 0; index < std::ssize(expected); ++index) {
-        EXPECT_TRUE(IsEqual(expected[index], descriptors[index], bundle))
-            << "index: " << index << Endl;
+        CheckEqual(expected[index], descriptors[index]);
     }
 }
 
@@ -405,42 +193,36 @@ INSTANTIATE_TEST_SUITE_P(
     TTestReassignInMemoryTablets,
     ::testing::Values(
         std::make_tuple(
-            TTestBundleParams{
-                .Cells = "[{memory_size=100}; {memory_size=0}]",
-                .BundleConfig = "{}",
-                .Tables = std::vector<TTestTableParams>{
-                    TTestTableParams{
-                        .TableSettings = "{sorted=%true; in_memory_mode=uncompressed}",
-                        .TableConfig = "{}",
-                        .Tablets = std::vector<TStringBuf>{
-                            TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
-                            TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"}}}}},
-            /*moveDescriptors*/ "[{tablet_index=0; cell_index=1};]"),
+            "{tables=[{in_memory_mode=uncompressed; tablets=["
+            "{tablet_index=1; cell_index=1;"
+                "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=50; partition_count=1}};"
+            "{tablet_index=2; cell_index=1;"
+                "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=50; partition_count=1}}]}];"
+            "cells=[{cell_index=1; memory_size=100};"
+                   "{cell_index=2; memory_size=0}]}",
+            /*moveDescriptors*/ "[{tablet_index=1; cell_index=2};]"),
         std::make_tuple(
-            TTestBundleParams{
-                .Cells = "[{memory_size=100}; {memory_size=0}]",
-                .BundleConfig = "{}",
-                .Tables = std::vector<TTestTableParams>{
-                    TTestTableParams{
-                        .TableSettings = "{sorted=%true; in_memory_mode=none}",
-                        .TableConfig = "{}",
-                        .Tablets = std::vector<TStringBuf>{
-                            TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
-                            TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"}}}}},
+            "{tables=[{in_memory_mode=none; tablets=["
+            "{tablet_index=1; cell_index=1;"
+                "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=50; partition_count=1}};"
+            "{tablet_index=2; cell_index=1;"
+                "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=50; partition_count=1}}]}];"
+            "cells=[{cell_index=1; memory_size=100};"
+                   "{cell_index=2; memory_size=0}]}",
             /*moveDescriptors*/ "[]"),
         std::make_tuple(
-            TTestBundleParams{
-                .Cells = "[{memory_size=150}; {memory_size=0}; {memory_size=0}]",
-                .BundleConfig = "{}",
-                .Tables = std::vector<TTestTableParams>{
-                    TTestTableParams{
-                        .TableSettings = "{sorted=%true; in_memory_mode=uncompressed}",
-                        .TableConfig = "{}",
-                        .Tablets = std::vector<TStringBuf>{
-                            TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
-                            TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
-                            TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"}}}}},
-            /*moveDescriptors*/ "[{tablet_index=0; cell_index=1}; {tablet_index=1; cell_index=2};]")));
+            "{tables=[{in_memory_mode=uncompressed; tablets=["
+            "{tablet_index=1; cell_index=1;"
+                "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=50; partition_count=1}};"
+            "{tablet_index=2; cell_index=1;"
+                "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=50; partition_count=1}};"
+            "{tablet_index=3; cell_index=1;"
+                "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=50; partition_count=1}}]}];"
+            "cells=[{cell_index=1; memory_size=150};"
+                   "{cell_index=2; memory_size=0};"
+                   "{cell_index=3; memory_size=0}]}",
+            /*moveDescriptors*/ "[{tablet_index=1; cell_index=2};"
+                "{tablet_index=2; cell_index=3}]")));
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -451,26 +233,27 @@ class TTestReassignOrdinaryTablets
 TEST_P(TTestReassignOrdinaryTablets, Simple)
 {
     const auto& params = GetParam();
-    auto bundle = CreateTabletCellBundle(std::get<0>(params));
+    auto bundleHolder = ConvertTo<TBundleHolderPtr>(TYsonStringBuf(std::get<0>(params)));
+    FillObjectIdsInBundleHolder(bundleHolder);
+    auto bundle = bundleHolder->CreateBundle();
 
     auto descriptors = ReassignOrdinaryTablets(
-        bundle.Bundle,
+        bundle,
         /*movableTables*/ std::nullopt,
         Logger);
 
     auto expected = ConvertTo<std::vector<TTestMoveDescriptorPtr>>(TYsonStringBuf(std::get<1>(params)));
     EXPECT_EQ(std::ssize(expected), std::ssize(descriptors));
 
-    EXPECT_EQ(std::ssize(bundle.Bundle->Tables), 1);
-    EXPECT_EQ(std::ssize(bundle.TableIds), 1);
+    EXPECT_EQ(std::ssize(bundle->Tables), 1);
 
-    auto table = bundle.Bundle->Tables[bundle.TableIds[0]];
+    auto table = bundle->Tables.begin()->second;
 
     const auto& anyTablet = table->Tablets[0];
     const auto& anyTabletCell = anyTablet->Cell.Lock();
     THashMap<TTabletCellId, THashSet<TTabletId>> cellToTablets;
-    for (const auto& cell : bundle.Cells) {
-        EmplaceOrCrash(cellToTablets, cell->Id, THashSet<TTabletId>{});
+    for (const auto& [id, cell] : bundle->TabletCells) {
+        EmplaceOrCrash(cellToTablets, id, THashSet<TTabletId>{});
     }
 
     for (const auto& tablet : table->Tablets) {
@@ -483,18 +266,20 @@ TEST_P(TTestReassignOrdinaryTablets, Simple)
 
     auto expectedCellToTablets = cellToTablets;
     for (const auto& descriptor : descriptors) {
-        const auto& tablet = GetOrCrash(bundle.Tablets, descriptor.TabletId);
+        auto tablet = FindTabletInBundle(bundle, descriptor.TabletId);
+        YT_VERIFY(tablet);
 
         InsertOrCrash(cellToTablets[descriptor.TabletCellId], descriptor.TabletId);
         EraseOrCrash(cellToTablets[tablet->Cell.Lock()->Id], descriptor.TabletId);
     }
 
     for (const auto& descriptor : expected) {
-        const auto& cell = bundle.Cells[descriptor->CellIndex];
-        const auto& tablet = table->Tablets[descriptor->TabletIndex];
+        auto expectedDescriptor = descriptor->CreateMoveDescriptor();
 
-        InsertOrCrash(expectedCellToTablets[cell->Id], tablet->Id);
-        EraseOrCrash(expectedCellToTablets[tablet->Cell.Lock()->Id], tablet->Id);
+        auto tablet = FindTabletInBundle(bundle, expectedDescriptor.TabletId);
+
+        InsertOrCrash(expectedCellToTablets[expectedDescriptor.TabletCellId], expectedDescriptor.TabletId);
+        EraseOrCrash(expectedCellToTablets[tablet->Cell.Lock()->Id], expectedDescriptor.TabletId);
     }
 
     for (const auto& [cellId, tablets] : cellToTablets) {
@@ -509,44 +294,39 @@ INSTANTIATE_TEST_SUITE_P(
     TTestReassignOrdinaryTablets,
     ::testing::Values(
         std::make_tuple(
-            TTestBundleParams{
-                .Cells = "[{memory_size=100}; {memory_size=0}]",
-                .BundleConfig = "{}",
-                .Tables = std::vector<TTestTableParams>{
-                    TTestTableParams{
-                        .TableSettings = "{sorted=%true; in_memory_mode=uncompressed}",
-                        .TableConfig = "{}",
-                        .Tablets = std::vector<TStringBuf>{
-                            TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
-                            TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"}}}}},
+            "{tables=[{in_memory_mode=uncompressed; tablets=["
+            "{tablet_index=1; cell_index=1;"
+                "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=50; partition_count=1}};"
+            "{tablet_index=2; cell_index=1;"
+                "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=50; partition_count=1}}]}];"
+            "cells=[{cell_index=1; memory_size=100};"
+                   "{cell_index=2; memory_size=0}]}",
             /*moveDescriptors*/ "[]"),
         std::make_tuple(
-            TTestBundleParams{
-                .Cells = "[{memory_size=100}; {memory_size=0}]",
-                .BundleConfig = "{}",
-                .Tables = std::vector<TTestTableParams>{
-                    TTestTableParams{
-                        .TableSettings = "{sorted=%true; in_memory_mode=none}",
-                        .TableConfig = "{}",
-                        .Tablets = std::vector<TStringBuf>{
-                            TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
-                            TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"}}}}},
-            /*moveDescriptors*/ "[{tablet_index=1; cell_index=1};]"),
+            "{tables=[{in_memory_mode=none; tablets=["
+            "{tablet_index=1; cell_index=1;"
+                "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=50; partition_count=1}};"
+            "{tablet_index=2; cell_index=1;"
+                "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=50; partition_count=1}}]}];"
+            "cells=[{cell_index=1; memory_size=100};"
+                   "{cell_index=2; memory_size=0}]}",
+            /*moveDescriptors*/ "[{tablet_index=2; cell_index=2}]"),
         std::make_tuple(
-            TTestBundleParams{
-                .Cells = "[{memory_size=150}; {memory_size=0}; {memory_size=0}]",
-                .BundleConfig = "{}",
-                .Tables = std::vector<TTestTableParams>{
-                    TTestTableParams{
-                        .TableSettings = "{sorted=%true; in_memory_mode=none}",
-                        .TableConfig = "{}",
-                        .Tablets = std::vector<TStringBuf>{
-                            TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
-                            TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
-                            TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"}}}}},
-            /*moveDescriptors*/ "[{tablet_index=1; cell_index=1}; {tablet_index=2; cell_index=2};]")));
+            "{tables=[{in_memory_mode=none; tablets=["
+            "{tablet_index=1; cell_index=1;"
+                "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=50; partition_count=1}};"
+            "{tablet_index=2; cell_index=1;"
+                "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=50; partition_count=1}};"
+            "{tablet_index=3; cell_index=1;"
+                "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=50; partition_count=1}}]}];"
+            "cells=[{cell_index=1; memory_size=150};"
+                   "{cell_index=2; memory_size=0};"
+                   "{cell_index=3; memory_size=0}]}",
+            /*moveDescriptors*/ "[{tablet_index=2; cell_index=2};"
+                "{tablet_index=3; cell_index=3}]")
+        ));
 
-////////////////////////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////////////////////////////
 
 class TTestMergeSplitTabletsOfTable
     : public TTestTabletBalancingHelpers
@@ -555,13 +335,16 @@ class TTestMergeSplitTabletsOfTable
 TEST_P(TTestMergeSplitTabletsOfTable, Simple)
 {
     const auto& params = GetParam();
-    auto bundle = CreateTabletCellBundle(std::get<0>(params));
+    auto bundleHolder = ConvertTo<TBundleHolderPtr>(TYsonStringBuf(std::get<0>(params)));
+    FillObjectIdsInBundleHolder(bundleHolder);
+    auto bundle = bundleHolder->CreateBundle();
 
     auto expected = ConvertTo<std::vector<TTestReshardDescriptorPtr>>(TYsonStringBuf(std::get<1>(params)));
     auto expectedDescriptorsIt = expected.begin();
 
-    for (int tableIndex = 0; tableIndex < std::ssize(bundle.TableIds); ++tableIndex) {
-        const auto& table = bundle.Bundle->Tables[bundle.TableIds[tableIndex]];
+    for (const auto& [id, table] : bundle->Tables) {
+        YT_VERIFY(table->CompressedDataSize);
+        YT_VERIFY(table->UncompressedDataSize);
 
         auto descriptors = MergeSplitTabletsOfTable(
             table->Tablets,
@@ -569,7 +352,7 @@ TEST_P(TTestMergeSplitTabletsOfTable, Simple)
 
         for (const auto& descriptor : descriptors) {
             EXPECT_NE(expectedDescriptorsIt, expected.end());
-            CheckEqual(*expectedDescriptorsIt, descriptor, bundle, tableIndex);
+            CheckEqual(*expectedDescriptorsIt, descriptor);
             ++expectedDescriptorsIt;
         }
     }
@@ -581,50 +364,32 @@ INSTANTIATE_TEST_SUITE_P(
     TTestMergeSplitTabletsOfTable,
     ::testing::Values(
         std::make_tuple(
-            TTestBundleParams{
-                .Cells = "[{memory_size=100}]",
-                .BundleConfig = "{}",
-                .Tables = std::vector<TTestTableParams>{
-                    TTestTableParams{
-                        .TableSettings = "{sorted=%true}",
-                        .TableConfig = "{desired_tablet_count=100}",
-                        .Tablets = std::vector<TStringBuf>{
-                            TTestTabletParams{"{uncompressed_data_size=100; memory_size=100}"}}}}},
-            /*reshardDescriptors*/ "[{tablets=[0;]; tablet_count=100; data_size=100};]"),
+            "{tables=[{in_memory_mode=none; uncompressed_data_size=100; compressed_data_size=100;"
+                      "config={desired_tablet_count=100};"
+                      "tablets=["
+            "{tablet_index=1; cell_index=1;"
+                "statistics={uncompressed_data_size=100; memory_size=100; compressed_data_size=100; partition_count=2}}]}];"
+            "cells=[{cell_index=1; memory_size=100}]}",
+            /*reshardDescriptors*/ "[{tablets=[1;]; tablet_count=100; data_size=100}]"),
         std::make_tuple(
-            TTestBundleParams{
-                .Cells = "[{memory_size=300}]",
-                .BundleConfig = "{min_tablet_size=200}",
-                .Tables = std::vector<TTestTableParams>{
-                    TTestTableParams{
-                        .TableSettings = "{sorted=%true}",
-                        .TableConfig = "{}",
-                        .Tablets = std::vector<TStringBuf>{
-                            TTestTabletParams{"{uncompressed_data_size=100; memory_size=100}"},
-                            TTestTabletParams{"{uncompressed_data_size=100; memory_size=100}"},
-                            TTestTabletParams{"{uncompressed_data_size=100; memory_size=100}"}}}}},
-            /*reshardDescriptors*/ "[{tablets=[0;1;]; tablet_count=1; data_size=200};]")));
+            "{config={min_tablet_size=200};"
+            "tables=[{in_memory_mode=none; uncompressed_data_size=300; compressed_data_size=300; tablets=["
+            "{tablet_index=1; cell_index=1;"
+                "statistics={uncompressed_data_size=100; memory_size=100; compressed_data_size=100; partition_count=1}};"
+            "{tablet_index=2; cell_index=1;"
+                "statistics={uncompressed_data_size=100; memory_size=100; compressed_data_size=100; partition_count=1}};"
+            "{tablet_index=3; cell_index=1;"
+                "statistics={uncompressed_data_size=100; memory_size=100; compressed_data_size=100; partition_count=1}}]}];"
+            "cells=[{cell_index=1; memory_size=300}]}",
+            /*reshardDescriptors*/ "[{tablets=[1;2;]; tablet_count=1; data_size=200}]")
+        ));
 
-////////////////////////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////////////////////////////
 
 class TTestTabletBalancingHelpersWithoutDescriptors
     : public ::testing::Test
-    , public ::testing::WithParamInterface<TTestBundleParams>
+    , public ::testing::WithParamInterface<TStringBuf>
 { };
-
-////////////////////////////////////////////////////////////////////////////////
-
-TTabletPtr FindTabletInBundle(const TTabletCellBundlePtr& bundle, TTabletId tabletId)
-{
-    for (const auto& [tableId, table] : bundle->Tables) {
-        for (const auto& tablet : table->Tablets) {
-            if (tablet->Id == tabletId) {
-                return tablet;
-            }
-        }
-    }
-    return nullptr;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -635,23 +400,25 @@ class TTestReassignInMemoryTabletsUniform
 TEST_P(TTestReassignInMemoryTabletsUniform, Simple)
 {
     const auto& params = GetParam();
-    auto bundle = CreateTabletCellBundle(params);
+    auto bundleHolder = ConvertTo<TBundleHolderPtr>(TYsonStringBuf(params));
+    FillObjectIdsInBundleHolder(bundleHolder);
+    auto bundle = bundleHolder->CreateBundle();
 
     auto descriptors = ReassignInMemoryTablets(
-        bundle.Bundle,
+        bundle,
         /*movableTables*/ std::nullopt,
         /*ignoreTableWiseConfig*/ false,
         Logger);
 
     i64 totalSize = 0;
     THashMap<TTabletCellId, i64> cellSizes;
-    for (const auto& cell : bundle.Cells) {
-        EmplaceOrCrash(cellSizes, cell->Id, cell->Statistics.MemorySize);
+    for (const auto& [id, cell] : bundle->TabletCells) {
+        EmplaceOrCrash(cellSizes, id, cell->Statistics.MemorySize);
         totalSize += cell->Statistics.MemorySize;
     }
 
     for (const auto& descriptor : descriptors) {
-        auto tablet = FindTabletInBundle(bundle.Bundle, descriptor.TabletId);
+        auto tablet = FindTabletInBundle(bundle, descriptor.TabletId);
         EXPECT_TRUE(tablet != nullptr);
         auto cell = tablet->Cell.Lock();
         EXPECT_TRUE(cell != nullptr);
@@ -675,27 +442,25 @@ INSTANTIATE_TEST_SUITE_P(
     TTestReassignInMemoryTabletsUniform,
     TTestReassignInMemoryTabletsUniform,
     ::testing::Values(
-        TTestBundleParams{
-            .Cells = "[{memory_size=100}; {memory_size=0}]",
-            .BundleConfig = "{}",
-            .Tables = std::vector<TTestTableParams>{
-                TTestTableParams{
-                    .TableSettings = "{sorted=%true; in_memory_mode=uncompressed}",
-                    .TableConfig = "{}",
-                    .Tablets = std::vector<TStringBuf>{
-                        TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
-                        TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"}}}}},
-        TTestBundleParams{
-            .Cells = "[{memory_size=150}; {memory_size=0}; {memory_size=0}]",
-            .BundleConfig = "{}",
-            .Tables = std::vector<TTestTableParams>{
-                TTestTableParams{
-                    .TableSettings = "{sorted=%true; in_memory_mode=uncompressed}",
-                    .TableConfig = "{}",
-                    .Tablets = std::vector<TStringBuf>{
-                        TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
-                        TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
-                        TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"}}}}}));
+        "{tables=[{in_memory_mode=uncompressed; tablets=["
+        "{tablet_index=1; cell_index=1;"
+            "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=50; partition_count=1}};"
+        "{tablet_index=2; cell_index=1;"
+            "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=50; partition_count=1}}]}];"
+        "cells=[{cell_index=1; memory_size=100};"
+               "{cell_index=2; memory_size=0}]}",
+
+        "{tables=[{in_memory_mode=uncompressed; tablets=["
+        "{tablet_index=1; cell_index=1;"
+            "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=50; partition_count=1}};"
+        "{tablet_index=2; cell_index=1;"
+            "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=50; partition_count=1}};"
+        "{tablet_index=3; cell_index=1;"
+            "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=50; partition_count=1}}]}];"
+        "cells=[{cell_index=1; memory_size=150};"
+               "{cell_index=2; memory_size=0};"
+               "{cell_index=3; memory_size=0}]}"
+    ));
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -706,22 +471,24 @@ class TTestReassignOrdinaryTabletsUniform
 TEST_P(TTestReassignOrdinaryTabletsUniform, Simple)
 {
     const auto& params = GetParam();
-    auto bundle = CreateTabletCellBundle(params);
+    auto bundleHolder = ConvertTo<TBundleHolderPtr>(TYsonStringBuf(params));
+    FillObjectIdsInBundleHolder(bundleHolder);
+    auto bundle = bundleHolder->CreateBundle();
 
     auto descriptors = ReassignOrdinaryTablets(
-        bundle.Bundle,
+        bundle,
         /*movableTables*/ std::nullopt,
         Logger);
 
     i64 totalSize = 0;
     THashMap<TTabletCellId, i64> cellSizes;
-    for (const auto& cell : bundle.Cells) {
-        EmplaceOrCrash(cellSizes, cell->Id, cell->Statistics.MemorySize);
+    for (const auto& [id, cell] : bundle->TabletCells) {
+        EmplaceOrCrash(cellSizes, id, cell->Statistics.MemorySize);
         totalSize += cell->Statistics.MemorySize;
     }
 
     for (const auto& descriptor : descriptors) {
-        auto tablet = FindTabletInBundle(bundle.Bundle, descriptor.TabletId);
+        auto tablet = FindTabletInBundle(bundle, descriptor.TabletId);
         EXPECT_TRUE(tablet != nullptr);
         auto cell = tablet->Cell.Lock();
         EXPECT_TRUE(cell != nullptr);
@@ -745,34 +512,32 @@ INSTANTIATE_TEST_SUITE_P(
     TTestReassignOrdinaryTabletsUniform,
     TTestReassignOrdinaryTabletsUniform,
     ::testing::Values(
-        TTestBundleParams{
-            .Cells = "[{memory_size=100}; {memory_size=0}]",
-            .BundleConfig = "{}",
-            .Tables = std::vector<TTestTableParams>{
-                TTestTableParams{
-                    .TableSettings = "{sorted=%true; in_memory_mode=none}",
-                    .TableConfig = "{}",
-                    .Tablets = std::vector<TStringBuf>{
-                        TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=0}"},
-                        TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=0}"}}}}},
-        TTestBundleParams{
-            .Cells = "[{memory_size=150}; {memory_size=0}; {memory_size=0}]",
-            .BundleConfig = "{}",
-            .Tables = std::vector<TTestTableParams>{
-                TTestTableParams{
-                    .TableSettings = "{sorted=%true; in_memory_mode=none}",
-                    .TableConfig = "{}",
-                    .Tablets = std::vector<TStringBuf>{
-                        TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=0}"},
-                        TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=0}"},
-                        TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=0}"}}}}}));
+        "{tables=[{in_memory_mode=none; tablets=["
+        "{tablet_index=1; cell_index=1;"
+            "statistics={uncompressed_data_size=50; memory_size=0; compressed_data_size=50; partition_count=1}};"
+        "{tablet_index=2; cell_index=1;"
+            "statistics={uncompressed_data_size=50; memory_size=0; compressed_data_size=50; partition_count=1}}]}];"
+        "cells=[{cell_index=1; memory_size=100};"
+               "{cell_index=2; memory_size=0}]}",
+
+        "{tables=[{in_memory_mode=none; tablets=["
+        "{tablet_index=1; cell_index=1;"
+            "statistics={uncompressed_data_size=50; memory_size=0; compressed_data_size=50; partition_count=1}};"
+        "{tablet_index=2; cell_index=1;"
+            "statistics={uncompressed_data_size=50; memory_size=0; compressed_data_size=50; partition_count=1}};"
+        "{tablet_index=3; cell_index=1;"
+            "statistics={uncompressed_data_size=50; memory_size=0; compressed_data_size=50; partition_count=1}}]}];"
+        "cells=[{cell_index=1; memory_size=150};"
+               "{cell_index=2; memory_size=0};"
+               "{cell_index=3; memory_size=0}]}"
+    ));
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTestReassignTabletsParameterized
     : public ::testing::Test
     , public ::testing::WithParamInterface<std::tuple<
-        /*bundle*/ TTestBundleParams,
+        /*bundle*/ TStringBuf,
         /*expectedDescriptors*/ TStringBuf,
         /*moveActionLimit*/ int,
         /*distribution*/ std::vector<int>,
@@ -782,17 +547,19 @@ class TTestReassignTabletsParameterized
 TEST_P(TTestReassignTabletsParameterized, SimpleViaMemorySize)
 {
     const auto& params = GetParam();
-    auto bundle = CreateTabletCellBundle(std::get<0>(params));
+    auto bundleHolder = ConvertTo<TBundleHolderPtr>(TYsonStringBuf(std::get<0>(params)));
+    FillObjectIdsInBundleHolder(bundleHolder);
+    auto bundle = bundleHolder->CreateBundle();
 
-    const auto& table = GetOrCrash(bundle.Bundle->Tables, bundle.TableIds[0]);
+    const auto& table = bundle->Tables.begin()->second;
     auto group = table->TableConfig->Group.value_or(DefaultGroupName);
 
     auto descriptors = ReassignTabletsParameterized(
-        bundle.Bundle,
+        bundle,
         /*performanceCountersKeys*/ {},
         TParameterizedReassignSolverConfig{
             .MaxMoveActionCount = std::get<2>(params)
-        }.MergeWith(GetOrCrash(bundle.Bundle->Config->Groups, group)->Parameterized),
+        }.MergeWith(GetOrCrash(bundle->Config->Groups, group)->Parameterized),
         group,
         Logger);
 
@@ -800,14 +567,14 @@ TEST_P(TTestReassignTabletsParameterized, SimpleViaMemorySize)
     EXPECT_EQ(std::ssize(expected), std::ssize(descriptors));
 
     THashMap<TTabletId, TTabletCellId> tabletToCell;
-    for (const auto& cell : bundle.Cells) {
+    for (const auto& [id, cell] : bundle->TabletCells) {
         for (const auto& [tabletId, tablet] : cell->Tablets) {
-            EmplaceOrCrash(tabletToCell, tabletId, cell->Id);
+            EmplaceOrCrash(tabletToCell, tabletId, id);
         }
     }
 
     for (const auto& descriptor : descriptors) {
-        auto tablet = FindTabletInBundle(bundle.Bundle, descriptor.TabletId);
+        auto tablet = FindTabletInBundle(bundle, descriptor.TabletId);
         EXPECT_TRUE(tablet != nullptr);
         auto cell = tablet->Cell.Lock();
         EXPECT_TRUE(cell != nullptr);
@@ -836,7 +603,7 @@ TEST_P(TTestReassignTabletsParameterized, SimpleViaMemorySize)
 
     THashMap<TTabletCellId, i64> cellToSize;
     for (auto [tabletId, cellId] : tabletToCell) {
-        auto tablet = FindTabletInBundle(bundle.Bundle, tabletId);
+        auto tablet = FindTabletInBundle(bundle, tabletId);
         cellToSize[cellId] += tablet->Statistics.MemorySize;
     }
 
@@ -859,100 +626,99 @@ INSTANTIATE_TEST_SUITE_P(
     TTestReassignTabletsParameterized,
     ::testing::Values(
         std::make_tuple( // NO ACTIONS
-            TTestBundleParams{
-                .Nodes = "[{node_address=home; used=100}]",
-                .Cells = "[{memory_size=100; node_address=home}; {memory_size=0; node_address=home}]",
-                .BundleConfig = "{groups={rex={parameterized={metric=\"int64([/statistics/memory_size]) + int64([/statistics/uncompressed_data_size])\"}}}}",
-                .Tables = std::vector<TTestTableParams>{
-                    TTestTableParams{
-                        .TableSettings = "{sorted=%true; in_memory_mode=uncompressed}",
-                        .TableConfig = "{enable_parameterized=%true; group=rex}",
-                        .Tablets = std::vector<TStringBuf>{
-                            TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
-                            TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"}}}}},
+            "{config={groups={rex={parameterized={metric=\"int64([/statistics/memory_size]) + int64([/statistics/uncompressed_data_size])\"}}}};"
+            "tables=[{in_memory_mode=uncompressed;"
+                     "config={enable_parameterized=%true; group=rex};"
+                     "tablets=["
+            "{tablet_index=1; cell_index=1;"
+                "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=50; partition_count=1}};"
+            "{tablet_index=2; cell_index=1;"
+                "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=50; partition_count=1}}]}];"
+            "cells=[{cell_index=1; memory_size=100; node_address=home};"
+                   "{cell_index=2; memory_size=0; node_address=home}];"
+            "nodes=[{node_address=home; memory_used=100}]}",
             /*moveDescriptors*/ "[]",
             /*moveActionLimit*/ 0,
             /*distribution*/ std::vector<int>{2, 0},
             /*cellSizes*/ std::vector<i64>{100, 0}),
         std::make_tuple( // MOVE
-            TTestBundleParams{
-                .Nodes = "[{node_address=home; used=100; limit=100}]",
-                .Cells = "[{memory_size=100; node_address=home}; {memory_size=0; node_address=home}]",
-                .BundleConfig = "{groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}}",
-                .Tables = std::vector<TTestTableParams>{
-                    TTestTableParams{
-                        .TableSettings = "{sorted=%true; in_memory_mode=uncompressed}",
-                        .TableConfig = "{enable_parameterized=%true}",
-                        .Tablets = std::vector<TStringBuf>{
-                            TTestTabletParams{"{uncompressed_data_size=60; cell_index=0; memory_size=60}"},
-                            TTestTabletParams{"{uncompressed_data_size=40; cell_index=0; memory_size=40}"}}}}},
-            /*moveDescriptors*/ "[{tablet_index=1; cell_index=1};]",
+            "{config={groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}};"
+            "tables=[{in_memory_mode=uncompressed;"
+                     "config={enable_parameterized=%true};"
+                     "tablets=["
+            "{tablet_index=1; cell_index=1;"
+                "statistics={uncompressed_data_size=60; memory_size=60; compressed_data_size=60; partition_count=1}};"
+            "{tablet_index=2; cell_index=1;"
+                "statistics={uncompressed_data_size=40; memory_size=40; compressed_data_size=40; partition_count=1}}]}];"
+            "cells=[{cell_index=1; memory_size=100; node_address=home};"
+                   "{cell_index=2; memory_size=0; node_address=home}];"
+            "nodes=[{node_address=home; memory_used=100; memory_limit=100}]}",
+            /*moveDescriptors*/ "[{tablet_index=2; cell_index=2};]",
             /*moveActionLimit*/ 1,
             /*distribution*/ std::vector<int>{1, 1},
             /*cellSizes*/ std::vector<i64>{60, 40}),
         std::make_tuple( // MOVE (group)
-            TTestBundleParams{
-                .Nodes = "[{node_address=home; used=0; limit=200}]",
-                .Cells = "[{memory_size=100; node_address=home}; {memory_size=0; node_address=home}]",
-                .BundleConfig = "{groups={rex={parameterized={metric=\"0\"}}; "
-                    "fex={parameterized={metric=\"int64([/statistics/memory_size]) + int64([/statistics/uncompressed_data_size])\"}}}}",
-                .Tables = std::vector<TTestTableParams>{
-                    TTestTableParams{
-                        .TableSettings = "{sorted=%true; in_memory_mode=uncompressed}",
-                        .TableConfig = "{group=fex; enable_parameterized=%true}",
-                        .Tablets = std::vector<TStringBuf>{
-                            TTestTabletParams{"{uncompressed_data_size=60; cell_index=0; memory_size=60}"},
-                            TTestTabletParams{"{uncompressed_data_size=40; cell_index=0; memory_size=40}"}}}}},
-            /*moveDescriptors*/ "[{tablet_index=1; cell_index=1};]",
+            "{config={groups={rex={parameterized={metric=\"0\"}};"
+                "fex={parameterized={metric=\"int64([/statistics/memory_size]) + int64([/statistics/uncompressed_data_size])\"}}}};"
+            "tables=[{in_memory_mode=uncompressed;"
+                     "config={group=fex; enable_parameterized=%true};"
+                     "tablets=["
+            "{tablet_index=1; cell_index=1;"
+                "statistics={uncompressed_data_size=60; memory_size=60; compressed_data_size=60; partition_count=1}};"
+            "{tablet_index=2; cell_index=1;"
+                "statistics={uncompressed_data_size=40; memory_size=40; compressed_data_size=40; partition_count=1}}]}];"
+            "cells=[{cell_index=1; memory_size=100; node_address=home};"
+                   "{cell_index=2; memory_size=0; node_address=home}];"
+            "nodes=[{node_address=home; memory_used=0; memory_limit=200}]}",
+            /*moveDescriptors*/ "[{tablet_index=2; cell_index=2};]",
             /*moveActionLimit*/ 1,
             /*distribution*/ std::vector<int>{1, 1},
             /*cellSizes*/ std::vector<i64>{60, 40}),
         std::make_tuple( // SWAP (available action count is more than needed)
-            TTestBundleParams{
-                .Nodes = "[{node_address=home; used=0; limit=200}]",
-                .Cells = "[{memory_size=70; node_address=home}; {memory_size=50; node_address=home}]",
-                .BundleConfig = "{enable_parameterized_by_default=%true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}}",
-                .Tables = std::vector<TTestTableParams>{
-                    TTestTableParams{
-                        .TableSettings = "{sorted=%true; in_memory_mode=uncompressed}",
-                        .TableConfig = "{}",
-                        .Tablets = std::vector<TStringBuf>{
-                            TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
-                            TTestTabletParams{"{uncompressed_data_size=20; cell_index=0; memory_size=20}"},
-                            TTestTabletParams{"{uncompressed_data_size=10; cell_index=1; memory_size=10}"},
-                            TTestTabletParams{"{uncompressed_data_size=40; cell_index=1; memory_size=40}"}}}}},
-            /*moveDescriptors*/ "[{tablet_index=1; cell_index=1}; {tablet_index=2; cell_index=0};]",
+            "{config={enable_parameterized_by_default=%true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}};"
+            "tables=[{in_memory_mode=uncompressed; tablets=["
+            "{tablet_index=1; cell_index=1;"
+                "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=0; partition_count=1}};"
+            "{tablet_index=2; cell_index=1;"
+                "statistics={uncompressed_data_size=20; memory_size=20; compressed_data_size=0; partition_count=1}};"
+            "{tablet_index=3; cell_index=2;"
+                "statistics={uncompressed_data_size=10; memory_size=10; compressed_data_size=0; partition_count=1}};"
+            "{tablet_index=4; cell_index=2;"
+                "statistics={uncompressed_data_size=40; memory_size=40; compressed_data_size=0; partition_count=1}}]}];"
+            "cells=[{cell_index=1; memory_size=70; node_address=home};"
+                   "{cell_index=2; memory_size=50; node_address=home}];"
+            "nodes=[{node_address=home; memory_used=0; memory_limit=200}]}",
+            /*moveDescriptors*/ "[{tablet_index=2; cell_index=2};"
+                "{tablet_index=3; cell_index=1};]",
             /*moveActionLimit*/ 3,
             /*distribution*/ std::vector<int>{2, 2},
             /*cellSizes*/ std::vector<i64>{60, 60}),
         std::make_tuple( // DISABLE BALANCING
-            TTestBundleParams{
-                .Nodes = "[{node_address=home; used=100; limit=200}]",
-                .Cells = "[{memory_size=100; node_address=home}; {memory_size=0; node_address=home}]",
-                .BundleConfig = "{groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}}",
-                .Tables = std::vector<TTestTableParams>{
-                    TTestTableParams{
-                        .TableSettings = "{sorted=%true; in_memory_mode=uncompressed}",
-                        .TableConfig = "{}",
-                        .Tablets = std::vector<TStringBuf>{
-                            TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
-                            TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"}}}}},
+            "{config={groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}};"
+            "tables=[{in_memory_mode=uncompressed; tablets=["
+            "{tablet_index=1; cell_index=1;"
+                "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=0; partition_count=1}};"
+            "{tablet_index=2; cell_index=1;"
+                "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=0; partition_count=1}}]}];"
+            "cells=[{cell_index=1; memory_size=100; node_address=home};"
+                   "{cell_index=2; memory_size=0; node_address=home}];"
+            "nodes=[{node_address=home; memory_used=100; memory_limit=200}]}",
             /*moveDescriptors*/ "[]",
             /*moveActionLimit*/ 3,
             /*distribution*/ std::vector<int>{2, 0},
             /*cellSizes*/ std::vector<i64>{100, 0}),
         std::make_tuple( // DISABLE BALANCING HARD
-            TTestBundleParams{
-                .Nodes = "[{node_address=home; used=100; limit=200}]",
-                .Cells = "[{memory_size=100; node_address=home}; {memory_size=0; node_address=home}]",
-                .BundleConfig = "{groups={default={parameterized={metric=\"1\"}}}}",
-                .Tables = std::vector<TTestTableParams>{
-                    TTestTableParams{
-                        .TableSettings = "{sorted=%true; in_memory_mode=uncompressed}",
-                        .TableConfig = "{enable_parameterized=%false}",
-                        .Tablets = std::vector<TStringBuf>{
-                            TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
-                            TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"}}}}},
+            "{config={groups={default={parameterized={metric=\"1\"}}}};"
+            "tables=[{in_memory_mode=uncompressed;"
+                     "config={enable_parameterized=%false};"
+                     "tablets=["
+            "{tablet_index=1; cell_index=1;"
+                "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=0; partition_count=1}};"
+            "{tablet_index=2; cell_index=1;"
+                "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=0; partition_count=1}}]}];"
+            "cells=[{cell_index=1; memory_size=100; node_address=home};"
+                   "{cell_index=2; memory_size=0; node_address=home}];"
+            "nodes=[{node_address=home; memory_used=100; memory_limit=200}]}",
             /*moveDescriptors*/ "[]",
             /*moveActionLimit*/ 3,
             /*distribution*/ std::vector<int>{2, 0},
@@ -963,25 +729,29 @@ INSTANTIATE_TEST_SUITE_P(
 class TTestReassignTabletsParameterizedErrors
     : public ::testing::Test
     , public ::testing::WithParamInterface<std::tuple<
-        /*bundle*/ TTestBundleParams,
+        /*bundle*/ TStringBuf,
         /*expectedDescriptors*/ TString>>
 { };
 
 TEST_P(TTestReassignTabletsParameterizedErrors, BalancingError)
 {
     const auto& params = GetParam();
-    auto bundle = CreateTabletCellBundle(std::get<0>(params));
+    auto bundleHolder = ConvertTo<TBundleHolderPtr>(TYsonStringBuf(std::get<0>(params)));
+    FillObjectIdsInBundleHolder(bundleHolder);
+    auto bundle = bundleHolder->CreateBundle();
 
-    const auto& table = GetOrCrash(bundle.Bundle->Tables, bundle.TableIds[0]);
+    const auto& table = bundle->Tables.begin()->second;
     auto group = table->TableConfig->Group.value_or(DefaultGroupName);
+
+    std::cout << bundle->TabletCells.begin()->second->Statistics.MemorySize << '\n';
 
     EXPECT_THROW_WITH_SUBSTRING(
         ReassignTabletsParameterized(
-            bundle.Bundle,
+            bundle,
             /*performanceCountersKeys*/ {},
             TParameterizedReassignSolverConfig{
                 .MaxMoveActionCount = 3
-            }.MergeWith(GetOrCrash(bundle.Bundle->Config->Groups, group)->Parameterized),
+            }.MergeWith(GetOrCrash(bundle->Config->Groups, group)->Parameterized),
             group,
             Logger),
         ToString(std::get<1>(params)));
@@ -992,34 +762,34 @@ INSTANTIATE_TEST_SUITE_P(
     TTestReassignTabletsParameterizedErrors,
     ::testing::Values(
         std::make_tuple(
-            TTestBundleParams{
-                .Nodes = "[{node_address=home; used=0; limit=200}]",
-                .Cells = "[{memory_size=70; node_address=home}; {memory_size=50}]",
-                .BundleConfig = "{groups={default={parameterized={metric=\"double([/statistics/memory_size]\"}}}}",
-                .Tables = std::vector<TTestTableParams>{
-                    TTestTableParams{
-                        .TableSettings = "{sorted=%true; in_memory_mode=uncompressed}",
-                        .TableConfig = "{}",
-                        .Tablets = std::vector<TStringBuf>{
-                            TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
-                            TTestTabletParams{"{uncompressed_data_size=20; cell_index=0; memory_size=20}"},
-                            TTestTabletParams{"{uncompressed_data_size=10; cell_index=1; memory_size=10}"},
-                            TTestTabletParams{"{uncompressed_data_size=40; cell_index=1; memory_size=40}"}}}}},
+            "{config={groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}};"
+            "tables=[{in_memory_mode=uncompressed; tablets=["
+            "{tablet_index=1; cell_index=1;"
+                "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=0; partition_count=1}};"
+            "{tablet_index=2; cell_index=1;"
+                "statistics={uncompressed_data_size=20; memory_size=20; compressed_data_size=0; partition_count=1}};"
+            "{tablet_index=3; cell_index=2;"
+                "statistics={uncompressed_data_size=10; memory_size=10; compressed_data_size=0; partition_count=1}};"
+            "{tablet_index=4; cell_index=2;"
+                "statistics={uncompressed_data_size=40; memory_size=40; compressed_data_size=0; partition_count=1}}]}];"
+            "cells=[{cell_index=1; memory_size=70; node_address=home};"
+                   "{cell_index=2; memory_size=50}];"
+            "nodes=[{node_address=home; memory_used=0; memory_limit=200}]}",
             /*errorText*/ "Not all cells are assigned to nodes"),
         std::make_tuple(
-            TTestBundleParams{
-                .Nodes = "[{node_address=home; used=0; limit=100}]",
-                .Cells = "[{memory_size=70; node_address=home}; {memory_size=50; node_address=home}]",
-                .BundleConfig = "{groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}}",
-                .Tables = std::vector<TTestTableParams>{
-                    TTestTableParams{
-                        .TableSettings = "{sorted=%true; in_memory_mode=uncompressed}",
-                        .TableConfig = "{}",
-                        .Tablets = std::vector<TStringBuf>{
-                            TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
-                            TTestTabletParams{"{uncompressed_data_size=20; cell_index=0; memory_size=20}"},
-                            TTestTabletParams{"{uncompressed_data_size=10; cell_index=1; memory_size=10}"},
-                            TTestTabletParams{"{uncompressed_data_size=40; cell_index=1; memory_size=40}"}}}}},
+            "{config={groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}};"
+            "tables=[{in_memory_mode=uncompressed; tablets=["
+            "{tablet_index=1; cell_index=1;"
+                "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=0; partition_count=1}};"
+            "{tablet_index=2; cell_index=1;"
+                "statistics={uncompressed_data_size=20; memory_size=20; compressed_data_size=0; partition_count=1}};"
+            "{tablet_index=3; cell_index=2;"
+                "statistics={uncompressed_data_size=10; memory_size=10; compressed_data_size=0; partition_count=1}};"
+            "{tablet_index=4; cell_index=2;"
+                "statistics={uncompressed_data_size=40; memory_size=40; compressed_data_size=0; partition_count=1}}]}];"
+            "cells=[{cell_index=1; memory_size=70; node_address=home};"
+                   "{cell_index=2; memory_size=50; node_address=home}];"
+            "nodes=[{node_address=home; memory_used=0; memory_limit=100}]}",
             /*errorText*/ "Node memory size limit is less than the actual cell memory size")));
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1031,17 +801,19 @@ class TTestReassignTabletsParameterizedByNodes
 TEST_P(TTestReassignTabletsParameterizedByNodes, SimpleManyNodesWithInMemoryTablets)
 {
     const auto& params = GetParam();
-    auto bundle = CreateTabletCellBundle(std::get<0>(params));
-    const auto& table = GetOrCrash(bundle.Bundle->Tables, bundle.TableIds[0]);
+    auto bundleHolder = ConvertTo<TBundleHolderPtr>(TYsonStringBuf(std::get<0>(params)));
+    FillObjectIdsInBundleHolder(bundleHolder);
+    auto bundle = bundleHolder->CreateBundle();
 
+    const auto& table = bundle->Tables.begin()->second;
     auto group = table->TableConfig->Group.value_or(DefaultGroupName);
 
     auto descriptors = ReassignTabletsParameterized(
-        bundle.Bundle,
+        bundle,
         /*performanceCountersKeys*/ {},
         TParameterizedReassignSolverConfig{
             .MaxMoveActionCount = std::get<2>(params)
-        }.MergeWith(GetOrCrash(bundle.Bundle->Config->Groups, group)->Parameterized),
+        }.MergeWith(GetOrCrash(bundle->Config->Groups, group)->Parameterized),
         group,
         Logger);
 
@@ -1050,14 +822,14 @@ TEST_P(TTestReassignTabletsParameterizedByNodes, SimpleManyNodesWithInMemoryTabl
     EXPECT_EQ(std::ssize(expected), std::ssize(descriptors));
 
     THashMap<TTabletId, TTabletCellId> tabletToCell;
-    for (const auto& cell : bundle.Cells) {
+    for (const auto& [id, cell] : bundle->TabletCells) {
         for (const auto& [tabletId, tablet] : cell->Tablets) {
             EmplaceOrCrash(tabletToCell, tabletId, cell->Id);
         }
     }
 
     for (const auto& descriptor : descriptors) {
-        auto tablet = FindTabletInBundle(bundle.Bundle, descriptor.TabletId);
+        auto tablet = FindTabletInBundle(bundle, descriptor.TabletId);
         EXPECT_TRUE(tablet != nullptr);
         auto cell = tablet->Cell.Lock();
         EXPECT_TRUE(cell != nullptr);
@@ -1074,7 +846,7 @@ TEST_P(TTestReassignTabletsParameterizedByNodes, SimpleManyNodesWithInMemoryTabl
     auto expectedDistribution = std::get<3>(params);
 
     std::vector<int> actualDistribution;
-    for (const auto& cell : bundle.Cells) {
+    for (const auto& [id, cell] : bundle->TabletCells) {
         if (auto it = tabletCounts.find(cell->Id); it != tabletCounts.end()) {
             actualDistribution.emplace_back(it->second);
         } else {
@@ -1088,29 +860,29 @@ TEST_P(TTestReassignTabletsParameterizedByNodes, SimpleManyNodesWithInMemoryTabl
 
     THashMap<TTabletCellId, i64> cellToSize;
     for (auto [tabletId, cellId] : tabletToCell) {
-        auto tablet = FindTabletInBundle(bundle.Bundle, tabletId);
+        auto tablet = FindTabletInBundle(bundle, tabletId);
         cellToSize[cellId] += tablet->Statistics.MemorySize;
     }
 
-    for (const auto& cell : bundle.Cells) {
+    for (const auto& [id, cell] : bundle->TabletCells) {
         cellToSize.emplace(cell->Id, 0);
     }
 
     auto expectedSizes = std::get<4>(params);
 
     std::vector<i64> cellSizes;
-    for (const auto& cell : bundle.Cells) {
+    for (const auto& [id, cell] : bundle->TabletCells) {
         cellSizes.emplace_back(GetOrCrash(cellToSize, cell->Id));
     }
 
     EXPECT_EQ(cellSizes, expectedSizes);
 
     THashMap<TString, i64> NodeMemoryUsed;
-    for (const auto& [cellId, cell] : bundle.Bundle->TabletCells) {
+    for (const auto& [cellId, cell] : bundle->TabletCells) {
         NodeMemoryUsed[*cell->NodeAddress] += GetOrCrash(cellToSize, cellId);
     }
 
-    for (const auto& [node, statistics] : bundle.Bundle->NodeMemoryStatistics) {
+    for (const auto& [node, statistics] : bundle->NodeMemoryStatistics) {
         i64 used = 0;
         if (auto it = NodeMemoryUsed.find(node); it != NodeMemoryUsed.end()) {
             used = it->second;
@@ -1129,74 +901,80 @@ INSTANTIATE_TEST_SUITE_P(
     TTestReassignTabletsParameterizedByNodes,
     ::testing::Values(
         std::make_tuple(
-            TTestBundleParams{
-                .Nodes = "[{node_address=home1; used=120}; {node_address=home2; used=0}]",
-                .Cells = "[{memory_size=70; node_address=home1}; {memory_size=50; node_address=home1}; {memory_size=0; node_address=home2}]",
-                .BundleConfig = "{enable_parameterized_by_default=%true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}}",
-                .Tables = std::vector<TTestTableParams>{
-                    TTestTableParams{
-                        .TableSettings = "{sorted=%true; in_memory_mode=uncompressed}",
-                        .TableConfig = "{}",
-                        .Tablets = std::vector<TStringBuf>{
-                            TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
-                            TTestTabletParams{"{uncompressed_data_size=20; cell_index=0; memory_size=20}"},
-                            TTestTabletParams{"{uncompressed_data_size=10; cell_index=1; memory_size=10}"},
-                            TTestTabletParams{"{uncompressed_data_size=40; cell_index=1; memory_size=40}"}}}}},
-            /*moveDescriptors*/ "[{tablet_index=0; cell_index=2}; {tablet_index=2; cell_index=0}]",
+            "{config={enable_parameterized_by_default=%true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}};"
+            "tables=[{in_memory_mode=uncompressed; tablets=["
+            "{tablet_index=1; cell_index=1;"
+                "statistics={uncompressed_data_size=50; memory_size=50; compressed_data_size=0; partition_count=1}};"
+            "{tablet_index=2; cell_index=1;"
+                "statistics={uncompressed_data_size=20; memory_size=20; compressed_data_size=0; partition_count=1}};"
+            "{tablet_index=3; cell_index=2;"
+                "statistics={uncompressed_data_size=10; memory_size=10; compressed_data_size=0; partition_count=1}};"
+            "{tablet_index=4; cell_index=2;"
+                "statistics={uncompressed_data_size=40; memory_size=40; compressed_data_size=0; partition_count=1}}]}];"
+            "cells=[{cell_index=1; memory_size=70; node_address=home1};"
+                   "{cell_index=2; memory_size=50; node_address=home1};"
+                   "{cell_index=3; memory_size=0; node_address=home2}];"
+            "nodes=[{node_address=home1; memory_used=120};"
+                   "{node_address=home2; memory_used=0}]}",
+            /*moveDescriptors*/ "[{tablet_index=1; cell_index=3}; {tablet_index=3; cell_index=1}]",
             /*moveActionLimit*/ 2,
             /*distribution*/ std::vector<int>{2, 1, 1},
             /*cellSizes*/ std::vector<i64>{30, 40, 50}),
         std::make_tuple(
-            TTestBundleParams{
-                .Nodes = "[{node_address=home1; used=60; limit=60}; {node_address=home2; used=0; limit=5}]",
-                .Cells = "[{memory_size=40; node_address=home1}; {memory_size=20; node_address=home1}; {memory_size=0; node_address=home2}]",
-                .BundleConfig = "{enable_parameterized_by_default=%true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}}",
-                .Tables = std::vector<TTestTableParams>{
-                    TTestTableParams{
-                        .TableSettings = "{sorted=%true; in_memory_mode=uncompressed}",
-                        .TableConfig = "{}",
-                        .Tablets = std::vector<TStringBuf>{
-                            TTestTabletParams{"{uncompressed_data_size=20; cell_index=0; memory_size=20}"},
-                            TTestTabletParams{"{uncompressed_data_size=20; cell_index=0; memory_size=20}"},
-                            TTestTabletParams{"{uncompressed_data_size=10; cell_index=1; memory_size=10}"},
-                            TTestTabletParams{"{uncompressed_data_size=10; cell_index=1; memory_size=10}"}}}}},
-            /*moveDescriptors*/ "[{tablet_index=0; cell_index=1}; {tablet_index=2; cell_index=0}]",
+            "{config={enable_parameterized_by_default=%true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}};"
+            "tables=[{in_memory_mode=uncompressed; tablets=["
+            "{tablet_index=1; cell_index=1;"
+                "statistics={uncompressed_data_size=20; memory_size=20; compressed_data_size=0; partition_count=1}};"
+            "{tablet_index=2; cell_index=1;"
+                "statistics={uncompressed_data_size=20; memory_size=20; compressed_data_size=0; partition_count=1}};"
+            "{tablet_index=3; cell_index=2;"
+                "statistics={uncompressed_data_size=10; memory_size=10; compressed_data_size=0; partition_count=1}};"
+            "{tablet_index=4; cell_index=2;"
+                "statistics={uncompressed_data_size=10; memory_size=10; compressed_data_size=0; partition_count=1}}]}];"
+            "cells=[{cell_index=1; memory_size=40; node_address=home1};"
+                   "{cell_index=2; memory_size=20; node_address=home1};"
+                   "{cell_index=3; memory_size=0; node_address=home2}];"
+            "nodes=[{node_address=home1; memory_used=60; memory_limit=60};"
+                   "{node_address=home2; memory_used=0; memory_limit=5}]}",
+            /*moveDescriptors*/ "[{tablet_index=1; cell_index=2}; {tablet_index=3; cell_index=1}]",
             /*moveActionLimit*/ 2,
             /*distribution*/ std::vector<int>{2, 2, 0},
             /*cellSizes*/ std::vector<i64>{30, 30, 0}),
         std::make_tuple(
-            TTestBundleParams{
-                .Nodes = "[{node_address=home1; used=40; limit=60}; {node_address=home2; used=20; limit=20}]",
-                .Cells = "[{memory_size=40; node_address=home1}; {memory_size=20; node_address=home2}]",
-                .BundleConfig = "{enable_parameterized_by_default=%true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}}",
-                .Tables = std::vector<TTestTableParams>{
-                    TTestTableParams{
-                        .TableSettings = "{sorted=%true; in_memory_mode=uncompressed}",
-                        .TableConfig = "{}",
-                        .Tablets = std::vector<TStringBuf>{
-                            TTestTabletParams{"{uncompressed_data_size=20; cell_index=0; memory_size=20}"},
-                            TTestTabletParams{"{uncompressed_data_size=20; cell_index=0; memory_size=20}"},
-                            TTestTabletParams{"{uncompressed_data_size=10; cell_index=1; memory_size=10}"},
-                            TTestTabletParams{"{uncompressed_data_size=10; cell_index=1; memory_size=10}"}}}}},
+            "{config={enable_parameterized_by_default=%true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}};"
+            "tables=[{in_memory_mode=uncompressed; tablets=["
+            "{tablet_index=1; cell_index=1;"
+                "statistics={uncompressed_data_size=20; memory_size=20; compressed_data_size=0; partition_count=1}};"
+            "{tablet_index=2; cell_index=1;"
+                "statistics={uncompressed_data_size=20; memory_size=20; compressed_data_size=0; partition_count=1}};"
+            "{tablet_index=3; cell_index=2;"
+                "statistics={uncompressed_data_size=10; memory_size=10; compressed_data_size=0; partition_count=1}};"
+            "{tablet_index=4; cell_index=2;"
+                "statistics={uncompressed_data_size=10; memory_size=10; compressed_data_size=0; partition_count=1}}]}];"
+            "cells=[{cell_index=1; memory_size=40; node_address=home1};"
+                   "{cell_index=2; memory_size=20; node_address=home2}];"
+            "nodes=[{node_address=home1; memory_used=40; memory_limit=60};"
+                   "{node_address=home2; memory_used=20; memory_limit=20}]}",
             /*moveDescriptors*/ "[]",
             /*moveActionLimit*/ 2,
             /*distribution*/ std::vector<int>{2, 2},
             /*cellSizes*/ std::vector<i64>{40, 20}),
         std::make_tuple(
-            TTestBundleParams{
-                .Nodes = "[{node_address=home1; used=50; limit=60}; {node_address=home2; used=10; limit=20}]",
-                .Cells = "[{memory_size=50; node_address=home1}; {memory_size=10; node_address=home2}]",
-                .BundleConfig = "{enable_parameterized_by_default=%true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}}",
-                .Tables = std::vector<TTestTableParams>{
-                    TTestTableParams{
-                        .TableSettings = "{sorted=%true; in_memory_mode=uncompressed}",
-                        .TableConfig = "{}",
-                        .Tablets = std::vector<TStringBuf>{
-                            TTestTabletParams{"{uncompressed_data_size=20; cell_index=0; memory_size=21}"},
-                            TTestTabletParams{"{uncompressed_data_size=20; cell_index=0; memory_size=19}"},
-                            TTestTabletParams{"{uncompressed_data_size=10; cell_index=0; memory_size=10}"},
-                            TTestTabletParams{"{uncompressed_data_size=10; cell_index=1; memory_size=10}"}}}}},
-            /*moveDescriptors*/ "[{tablet_index=2; cell_index=1}]",
+            "{config={enable_parameterized_by_default=%true; groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}};"
+            "tables=[{in_memory_mode=uncompressed; tablets=["
+            "{tablet_index=1; cell_index=1;"
+                "statistics={uncompressed_data_size=20; memory_size=21; compressed_data_size=0; partition_count=1}};"
+            "{tablet_index=2; cell_index=1;"
+                "statistics={uncompressed_data_size=20; memory_size=19; compressed_data_size=0; partition_count=1}};"
+            "{tablet_index=3; cell_index=1;"
+                "statistics={uncompressed_data_size=10; memory_size=10; compressed_data_size=0; partition_count=1}};"
+            "{tablet_index=4; cell_index=2;"
+                "statistics={uncompressed_data_size=10; memory_size=10; compressed_data_size=0; partition_count=1}}]}];"
+            "cells=[{cell_index=1; memory_size=50; node_address=home1};"
+                   "{cell_index=2; memory_size=10; node_address=home2}];"
+            "nodes=[{node_address=home1; memory_used=50; memory_limit=60};"
+                   "{node_address=home2; memory_used=10; memory_limit=20}]}",
+            /*moveDescriptors*/ "[{tablet_index=3; cell_index=2}]",
             /*moveActionLimit*/ 2,
             /*distribution*/ std::vector<int>{2, 2},
             /*cellSizes*/ std::vector<i64>{40, 20})));

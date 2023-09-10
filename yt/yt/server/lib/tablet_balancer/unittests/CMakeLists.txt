@@ -20,6 +20,7 @@ target_link_libraries(unittester-tablet-balancer-lib PUBLIC
   cpp-testing-gtest
   cpp-testing-gtest_main
   server-lib-tablet_balancer
+  tablet_balancer-dry_run-lib
   yt-core-test_framework
 )
 target_link_options(unittester-tablet-balancer-lib PRIVATE
