@@ -2123,6 +2123,12 @@ void TChunkReplicator::ScheduleRepairJobs(IJobSchedulingContext* context)
             auto mediumIndex = *winner;
             auto chunkIt = iteratorPerRepairQueue[mediumIndex].first++;
             auto* chunk = chunkIt->GetPtr();
+            if (!IsObjectAlive(chunk)) {
+                // Chunk should be removed from queues elsewhere.
+                ++misscheduledRepairJobs;
+                continue;
+            }
+
             chunks.emplace_back(chunk);
             chunkPartsInfo[chunk->GetId()].emplace_back(mediumIndex, queue);
         }
