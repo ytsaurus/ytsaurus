@@ -37,6 +37,7 @@ YT_DEFINE_ERROR_ENUM(
     ((ParameterizedBalancingFailed)                     (2903))
 
     ((ScheduleFormulaEvaluationFailed)                  (2910))
+    ((GroupActionLimitExceeded)                         (2911))
 );
 
 DECLARE_REFCOUNTED_CLASS(TTableRegistry)

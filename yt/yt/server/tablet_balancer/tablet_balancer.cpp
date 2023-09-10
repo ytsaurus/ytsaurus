@@ -433,6 +433,7 @@ void TTabletBalancer::BuildOrchid(IYsonConsumer* consumer) const
                         fluent.Item().Value(error);
                     });
                 })
+            .Item("last_iteration_start_time").Value(CurrentIterationStartTime_)
         .EndMap();
 }
 
@@ -604,6 +605,12 @@ void TTabletBalancer::BalanceViaMoveInMemory(const TBundleStatePtr& bundleState)
     if (!descriptors.empty()) {
         for (auto descriptor : descriptors) {
             if (!TryScheduleActionCreation(groupTag, descriptor)) {
+                SaveBundleError(groupTag.first, TError(
+                    EErrorCode::GroupActionLimitExceeded,
+                    "Group %Qv has exceeded the limit for creating actions. "
+                    "Failed to schedule in-memory move action",
+                    groupTag.second)
+                    << TErrorAttribute("limit", ActionCountLimiter_.GroupLimit));
                 break;
             }
 
@@ -652,6 +659,12 @@ void TTabletBalancer::BalanceViaMoveOrdinary(const TBundleStatePtr& bundleState)
     if (!descriptors.empty()) {
         for (auto descriptor : descriptors) {
             if (!TryScheduleActionCreation(groupTag, descriptor)) {
+                SaveBundleError(groupTag.first, TError(
+                    EErrorCode::GroupActionLimitExceeded,
+                    "Group %Qv has exceeded the limit for creating actions. "
+                    "Failed to schedule ordinary move action",
+                    groupTag.second)
+                    << TErrorAttribute("limit", ActionCountLimiter_.GroupLimit));
                 break;
             }
 
@@ -713,6 +726,12 @@ void TTabletBalancer::BalanceViaMoveParameterized(const TBundleStatePtr& bundleS
     if (!descriptors.empty()) {
         for (auto descriptor : descriptors) {
             if (!TryScheduleActionCreation(groupTag, descriptor)) {
+                SaveBundleError(groupTag.first, TError(
+                    EErrorCode::GroupActionLimitExceeded,
+                    "Group %Qv has exceeded the limit for creating actions. "
+                    "Failed to schedule parameterized move action",
+                    groupTag.second)
+                    << TErrorAttribute("limit", ActionCountLimiter_.GroupLimit));
                 break;
             }
 
@@ -859,6 +878,12 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState, cons
             }
 
             if (!TryScheduleActionCreation(groupTag, descriptor)) {
+                SaveBundleError(groupTag.first, TError(
+                    EErrorCode::GroupActionLimitExceeded,
+                    "Group %Qv has exceeded the limit for creating actions. "
+                    "Failed to schedule reshard action",
+                    groupTag.second)
+                    << TErrorAttribute("limit", ActionCountLimiter_.GroupLimit));
                 actionLimitExceeded = true;
                 break;
             }
