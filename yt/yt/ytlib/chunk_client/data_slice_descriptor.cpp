@@ -90,11 +90,11 @@ TString ToString(const TDataSliceDescriptor& dataSliceDescriptor)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLegacyReadLimit GetAbsoluteLowerReadLimit(const TDataSliceDescriptor& descriptor, bool versioned)
+TLegacyReadLimit GetAbsoluteLowerReadLimit(const TDataSliceDescriptor& descriptor, bool versioned, bool sorted)
 {
     TLegacyReadLimit result;
 
-    if (versioned) {
+    if (versioned && sorted) {
         for (const auto& chunkSpec : descriptor.ChunkSpecs) {
             TLegacyReadLimit readLimit;
             FromProto(&readLimit, chunkSpec.lower_limit());
@@ -114,6 +114,11 @@ TLegacyReadLimit GetAbsoluteLowerReadLimit(const TDataSliceDescriptor& descripto
             result.SetRowIndex(chunkSpec.table_row_index());
         }
 
+        if (versioned) {
+            YT_VERIFY(chunkSpec.has_tablet_index());
+            result.SetTabletIndex(chunkSpec.tablet_index());
+        }
+
         if (readLimit.HasLegacyKey()) {
             result.SetLegacyKey(readLimit.GetLegacyKey());
         };
@@ -122,11 +127,11 @@ TLegacyReadLimit GetAbsoluteLowerReadLimit(const TDataSliceDescriptor& descripto
     return result;
 }
 
-TLegacyReadLimit GetAbsoluteUpperReadLimit(const TDataSliceDescriptor& descriptor, bool versioned)
+TLegacyReadLimit GetAbsoluteUpperReadLimit(const TDataSliceDescriptor& descriptor, bool versioned, bool sorted)
 {
     TLegacyReadLimit result;
 
-    if (versioned) {
+    if (versioned && sorted) {
         for (const auto& chunkSpec : descriptor.ChunkSpecs) {
             TLegacyReadLimit readLimit;
             FromProto(&readLimit, chunkSpec.upper_limit());
@@ -144,6 +149,11 @@ TLegacyReadLimit GetAbsoluteUpperReadLimit(const TDataSliceDescriptor& descripto
             result.SetRowIndex(readLimit.GetRowIndex() + chunkSpec.table_row_index());
         } else {
             result.SetRowIndex(chunkSpec.table_row_index() + chunkSpec.row_count_override());
+        }
+
+        if (versioned) {
+            YT_VERIFY(chunkSpec.has_tablet_index());
+            result.SetTabletIndex(chunkSpec.tablet_index());
         }
 
         if (readLimit.HasLegacyKey()) {
