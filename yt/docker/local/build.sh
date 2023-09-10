@@ -2,20 +2,23 @@
 
 script_name=$0
 
-image_tag=""
-ytsaurus_source_path="."
-ytsaurus_build_path="."
-output_path="."
+ytserver_all_path=./ytserver-all
+ytserver_all_credits_path=../ytsaurus/credits/ytserver-all.CREDITS
+yt_local_path=../../python/yt/local/bin/yt_local
 
 image_tag=stable
 
 print_usage() {
     cat <<EOF
 Usage: $script_name [-h|--help]
-                    [--ytsaurus-source-path /path/to/ytsaurus.repo (default: $ytsaurus_source_path)]
-                    [--ytsaurus-build-path /path/to/ytsaurus.build (default: $ytsaurus_build_path)]
-                    [--output-path /path/to/output (default: $output_path)]
-                    [--image-tag some-tag (default: $image_tag)]
+                    [--ytserver-all ytserver_all_path]
+                    [--ytserver-all-credits ytserver_all_credits_path]
+                    [--yt-local yt_local_path]
+
+  --ytserver-all: Path to ytserver-all binary (default: $ytserver_all_path)
+  --ytserver-all-credits: Path to CREDITS file for ytserver-all binary (default: $ytserver_all_credits_path)
+  --yt-local: Path to yt_local script (default: $yt_local_path)
+  --image-tag: ytsaurus/local docker tag (default: $image_tag)
 
 EOF
     exit 0
@@ -25,16 +28,16 @@ EOF
 while [[ $# -gt 0 ]]; do
     key="$1"
     case $key in
-        --ytsaurus-source-path)
-        ytsaurus_source_path="$2"
+        --ytserver-all)
+        ytserver_all_path="$2"
         shift 2
         ;;
-        --ytsaurus-build-path)
-        ytsaurus_build_path="$2"
+        --ytserver-all-credits)
+        ytserver_all_credits_path="$2"
         shift 2
         ;;
-        --output-path)
-        output_path="$2"
+        --yt-local)
+        yt_local_path="$2"
         shift 2
         ;;
         --image-tag)
@@ -52,20 +55,15 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-ytserver_all="${ytsaurus_build_path}/yt/yt/server/all/ytserver-all"
-ytserver_all_credits="${ytsaurus_source_path}/yt/docker/ytsaurus/credits/ytserver-all.CREDITS"
-dockerfile="${ytsaurus_source_path}/yt/docker/local/Dockerfile"
-configure_file="${ytsaurus_source_path}/yt/docker/local/configure.sh"
-start_file="${ytsaurus_source_path}/yt/docker/local/start.sh"
+mkdir data
+cp $yt_local_path data/yt_local
+cp $ytserver_all_path data/ytserver-all
+cp $ytserver_all_credits_path data/ytserver-all.CREDITS
 
-cp ${ytserver_all} ${output_path}
-cp -r ${ytsaurus_build_path}/ytsaurus_python ${output_path}
+docker build -t ytsaurus/local:$image_tag \
+    --build-arg YT_LOCAL_PATH=data/yt_local \
+    --build-arg YTSERVER_ALL_PATH=data/ytserver-all \
+    --build-arg YTSERVER_ALL_CREDITS_PATH=data/ytserver-all.CREDITS \
+    .
 
-cp ${ytserver_all_credits} ${output_path}
-cp ${dockerfile} ${output_path}
-cp ${configure_file} ${output_path}
-cp ${start_file} ${output_path}
-
-cd ${output_path}
-
-docker build -t ytsaurus/local:${image_tag} .
+rm -rf data
