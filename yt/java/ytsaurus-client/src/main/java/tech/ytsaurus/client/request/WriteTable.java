@@ -218,6 +218,10 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
             return self();
         }
 
+        /**
+         * @deprecated prefer to use {@link #setPath(YPath)}
+         */
+        @Deprecated
         public TBuilder setPath(@Nullable String path) {
             this.stringPath = path;
             return self();

@@ -168,6 +168,10 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
             return self();
         }
 
+        /**
+         * @deprecated prefer to use {@link #setPath(YPath)}
+         */
+        @Deprecated
         public TBuilder setPath(@Nullable String stringPath) {
             this.stringPath = stringPath;
             return self();
