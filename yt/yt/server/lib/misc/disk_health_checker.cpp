@@ -75,20 +75,29 @@ void TDiskHealthChecker::DoRunCheck()
 {
     YT_LOG_DEBUG("Disk health check started");
 
-    if (NFS::Exists(NFS::CombinePaths(Path_, DisabledLockFileName))) {
-        THROW_ERROR_EXCEPTION("Lock file is found");
+    if (auto lockFilePath = NFS::CombinePaths(Path_, DisabledLockFileName); NFS::Exists(lockFilePath)) {
+        TError lockFileError;
+        try {
+            lockFileError = NYTree::ConvertTo<TError>(NYson::TYsonString(TFileInput(lockFilePath).ReadAll()));
+        } catch (const std::exception& ex) {
+            YT_LOG_INFO(ex, "Failed to extract error from location lock file");
+        }
+        auto error = TError("Lock file is found");
+        if (!lockFileError.IsOK()) {
+            error.MutableInnerErrors()->push_back(std::move(lockFileError));
+        }
+        THROW_ERROR(error);
     }
 
     std::vector<ui8> writeData(Config_->TestSize);
     std::vector<ui8> readData(Config_->TestSize);
-
     for (int i = 0; i < Config_->TestSize; ++i) {
         writeData[i] = RandomNumber<ui8>();
     }
 
-    auto fileName = NFS::CombinePaths(Path_, HealthCheckFileName);
-
     try {
+        auto fileName = NFS::CombinePaths(Path_, HealthCheckFileName);
+
         TEventTimerGuard totalGuard(TotalTimer_);
         {
             TEventTimerGuard totalGuard(WriteTimer_);
