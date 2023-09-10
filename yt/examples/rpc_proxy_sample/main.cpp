@@ -18,7 +18,7 @@
 #include <yt/yt/core/logging/config.h>
 
 #include <yt/yt/core/net/address.h>
-#include <yt/yt/core/net/dns_resolver.h>
+#include <yt/yt/core/dns/dns_resolver.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
 
