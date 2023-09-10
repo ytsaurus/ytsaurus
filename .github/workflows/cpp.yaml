@@ -60,7 +60,7 @@ jobs:
       build-query-tracker: true
       build-chyt: true
       build-python: true
-    uses: ./.github/workflows/build.yaml
+    uses: ./.github/workflows/build-jobs.yaml
 
   tag:
     name: Calculate docker tag
@@ -104,7 +104,7 @@ jobs:
     secrets:
       DOCKER_HUB_LOGIN: ${{ secrets.DOCKER_HUB_LOGIN }}
       DOCKER_HUB_PASSWORD: ${{ secrets.DOCKER_HUB_PASSWORD }}
-    uses: ./.github/workflows/docker.yaml
+    uses: ./.github/workflows/docker-jobs.yaml
 
   check:
     name: Check
@@ -115,7 +115,7 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
     secrets:
       NEBIUS_TESTMO_TOKEN: ${{ secrets.NEBIUS_TESTMO_TOKEN }}
-    uses: ./.github/workflows/check.yaml
+    uses: ./.github/workflows/check-jobs.yaml
 
   systest:
     name: systest

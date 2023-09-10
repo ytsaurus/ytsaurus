@@ -1,9 +1,9 @@
 {
   ".github/pull_request_template.md":"yt/opensource/repos/ytsaurus/github_toplevel/.github/pull_request_template.md",
-  ".github/workflows/build.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/build.yaml",
-  ".github/workflows/check.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/check.yaml",
+  ".github/workflows/build-jobs.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/build-jobs.yaml",
+  ".github/workflows/check-jobs.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/check-jobs.yaml",
   ".github/workflows/cpp.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/cpp.yaml",
-  ".github/workflows/docker.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/docker.yaml",
+  ".github/workflows/docker-jobs.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/docker-jobs.yaml",
   ".github/workflows/go.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/go.yaml",
   ".github/workflows/issue_notifications.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/issue_notifications.yaml",
   ".github/workflows/java.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/java.yaml",

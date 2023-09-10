@@ -56,7 +56,7 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       build-python: true
       build-query-tracker: true
-    uses: ./.github/workflows/build.yaml
+    uses: ./.github/workflows/build-jobs.yaml
 
   tag:
     name: Parse tag
@@ -84,7 +84,7 @@ jobs:
     secrets:
       DOCKER_HUB_LOGIN: ${{ secrets.DOCKER_HUB_LOGIN }}
       DOCKER_HUB_PASSWORD: ${{ secrets.DOCKER_HUB_PASSWORD }}
-    uses: ./.github/workflows/docker.yaml
+    uses: ./.github/workflows/docker-jobs.yaml
 
   stop-vm:
     name: Stop VM
