@@ -327,7 +327,6 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
 
         wait(lambda: remove_pending_locked.get() == 1.0 and remove_pending.get() == 2.0)
 
-    @pytest.mark.skip(reason="flaky")
     @authors("omgronny")
     def test_locked_operations(self):
         init_operation_archive.create_tables_latest_version(
@@ -367,11 +366,12 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         wait(lambda: get(CLEANER_ORCHID + "/remove_pending") == 2 and get(CLEANER_ORCHID + "/remove_pending_locked") == 1)
 
         config = {
-            "remove_batch_size": 2,
             "locked_operation_wait_timeout": 100
         }
         update_scheduler_config("operations_cleaner", config)
 
-        run_test_vanilla("sleep 1")
+        # We run 2 more operations to flush remove batcher with size 3
+        for _ in range(2):
+            run_test_vanilla("sleep 1")
 
         wait(lambda: get(CLEANER_ORCHID + "/remove_pending") == 0 and get(CLEANER_ORCHID + "/remove_pending_locked") == 0)
