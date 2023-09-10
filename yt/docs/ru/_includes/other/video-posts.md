@@ -4,6 +4,11 @@
 
 ##  Конференции, публикации
 
+### 2023: YTsaurus SPYT: помогаем планировщику Apache Spark быть ещё эффективнее
+- **Мероприятие**: Saint HighLoad++ 2023
+- **Материалы**: [YouTube](https://www.youtube.com/watch?v=Gk9K1NkYCww), [slides](https://bit.ly/3PdCyQc)
+- **Докладчик**: Алексей Шишкин
+
 ### 2023: Как вырастить динозавра: масштабирование платформы YTsaurus от 200 до 20 000 хостов
 - **Мероприятие**: CodeFest Russia 2023
 - **Материалы**: [YouTube](https://www.youtube.com/watch?v=CLUS_HokzI0), TODO: slides
