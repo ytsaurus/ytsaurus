@@ -55,7 +55,7 @@ jobs:
       - checkout
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
-      build-strawberry: ${{ github.ref_name == 'main' || contains(github.ref_name, 'test') }}
+      build-strawberry: true
       build-ytsaurus: true
       build-query-tracker: ${{ github.ref_name == 'main' || contains(github.ref_name, 'test') }}
       build-chyt: ${{ github.ref_name == 'main' || contains(github.ref_name, 'test') }}
