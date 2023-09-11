@@ -40,7 +40,7 @@ public:
             return false;
         }
 
-        const auto typeAny = OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any));
+        auto typeAny = OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any));
 
         std::vector<DB::Range> columnRanges;
         columnRanges.reserve(QueryRealColumnsSchema_->GetColumnCount());
