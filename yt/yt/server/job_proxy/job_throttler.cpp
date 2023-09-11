@@ -145,7 +145,8 @@ public:
 
     void Release(i64 /*amount*/) override
     {
-        YT_UNIMPLEMENTED();
+        // NB: This method may be called only if prefetching throttler is disabled.
+        return;
     }
 
     bool IsOverdraft() override
