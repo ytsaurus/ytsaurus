@@ -21,6 +21,10 @@ std::vector<NYPath::TRichYPath> CombineDataSlices(
     auto compareAbsoluteReadLimits = [] (const TLegacyReadLimit& lhs, const TLegacyReadLimit& rhs) -> bool {
         YT_VERIFY(lhs.HasRowIndex() == rhs.HasRowIndex());
 
+        if (lhs.HasTabletIndex() && lhs.GetTabletIndex() != rhs.GetTabletIndex()) {
+            return lhs.GetTabletIndex() < rhs.GetTabletIndex();
+        }
+
         if (lhs.HasRowIndex() && lhs.GetRowIndex() != rhs.GetRowIndex()) {
             return lhs.GetRowIndex() < rhs.GetRowIndex();
         }
@@ -39,18 +43,23 @@ std::vector<NYPath::TRichYPath> CombineDataSlices(
         }
     };
 
-    auto canMergeSlices = [] (const TDataSliceDescriptor& lhs, const TDataSliceDescriptor& rhs, bool versioned) {
+    auto canMergeSlices = [] (const TDataSliceDescriptor& lhs, const TDataSliceDescriptor& rhs, bool versioned, bool sorted) {
         if (lhs.GetRangeIndex() != rhs.GetRangeIndex()) {
             return false;
         }
 
-        auto lhsUpperLimit = GetAbsoluteUpperReadLimit(lhs, versioned);
-        auto rhsLowerLimit = GetAbsoluteLowerReadLimit(rhs, versioned);
+        auto lhsUpperLimit = GetAbsoluteUpperReadLimit(lhs, versioned, sorted);
+        auto rhsLowerLimit = GetAbsoluteLowerReadLimit(rhs, versioned, sorted);
 
         // TODO(galtsev): the following upto the return from lambda seem to be equvalent to
         // YT_VERIFY(!compareAbsoluteReadLimits(rhsLowerLimit, lhsUpperLimit));
         // return !compareAbsoluteReadLimits(lhsUpperLimit, rhsLowerLimit);
         // See also: https://a.yandex-team.ru/review/2538526/files/2#comment-3497326
+
+        YT_VERIFY(lhsUpperLimit.HasTabletIndex() == rhsLowerLimit.HasTabletIndex());
+        if (lhsUpperLimit.HasTabletIndex() && lhsUpperLimit.GetTabletIndex() != rhsLowerLimit.GetTabletIndex()) {
+            return false;
+        }
 
         YT_VERIFY(lhsUpperLimit.HasRowIndex() == rhsLowerLimit.HasRowIndex());
         if (lhsUpperLimit.HasRowIndex() && lhsUpperLimit.GetRowIndex() < rhsLowerLimit.GetRowIndex()) {
@@ -75,8 +84,8 @@ std::vector<NYPath::TRichYPath> CombineDataSlices(
     YT_VERIFY(!paths || paths->size() == slicesByTable.size());
 
     for (const auto& [tableIndex, dataSource] : Enumerate(dataSourceDirectory->DataSources())) {
-        bool versioned = dataSource.GetType() == EDataSourceType::VersionedTable &&
-            dataSource.Schema()->IsSorted();
+        bool versioned = dataSource.GetType() == EDataSourceType::VersionedTable;
+        bool sorted = dataSource.Schema()->IsSorted();
         auto& tableSlices = slicesByTable[tableIndex];
         std::sort(
             tableSlices.begin(),
@@ -86,8 +95,8 @@ std::vector<NYPath::TRichYPath> CombineDataSlices(
                     return lhs.GetRangeIndex() < rhs.GetRangeIndex();
                 }
 
-                auto lhsLowerLimit = GetAbsoluteLowerReadLimit(lhs, versioned);
-                auto rhsLowerLimit = GetAbsoluteLowerReadLimit(rhs, versioned);
+                auto lhsLowerLimit = GetAbsoluteLowerReadLimit(lhs, versioned, sorted);
+                auto rhsLowerLimit = GetAbsoluteLowerReadLimit(rhs, versioned, sorted);
 
                 return compareAbsoluteReadLimits(lhsLowerLimit, rhsLowerLimit);
             });
@@ -99,14 +108,14 @@ std::vector<NYPath::TRichYPath> CombineDataSlices(
         while (firstSlice < static_cast<int>(tableSlices.size())) {
             int lastSlice = firstSlice + 1;
             while (lastSlice < static_cast<int>(tableSlices.size())) {
-                if (!canMergeSlices(tableSlices[lastSlice - 1], tableSlices[lastSlice], versioned)) {
+                if (!canMergeSlices(tableSlices[lastSlice - 1], tableSlices[lastSlice], versioned, sorted)) {
                     break;
                 }
                 ++lastSlice;
             }
 
-            auto lowerLimit = GetAbsoluteLowerReadLimit(tableSlices[firstSlice], versioned);
-            auto upperLimit = GetAbsoluteUpperReadLimit(tableSlices[lastSlice - 1], versioned);
+            auto lowerLimit = GetAbsoluteLowerReadLimit(tableSlices[firstSlice], versioned, sorted);
+            auto upperLimit = GetAbsoluteUpperReadLimit(tableSlices[lastSlice - 1], versioned, sorted);
             ranges.emplace_back(
                 ReadLimitFromLegacyReadLimit(lowerLimit, /* isUpper */ false, keyLength),
                 ReadLimitFromLegacyReadLimit(upperLimit, /* isUpper */ true, keyLength));

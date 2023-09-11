@@ -1,7 +1,8 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, create, get, insert_rows, partition_tables, raises_yt_error, sync_create_cells, sync_flush_table, sync_mount_table, write_table)
+    authors, create, get, insert_rows, partition_tables, raises_yt_error, read_table,
+    sorted_dicts, sync_create_cells, sync_flush_table, sync_mount_table, sync_reshard_table, write_table)
 
 from yt.yson import dumps, to_yson_type
 
@@ -16,7 +17,7 @@ class TestPartitionTablesBase(YTEnvSetup):
         sync_create_cells(1)
 
     @staticmethod
-    def _create_table(table, chunk_count, rows_per_chunk, row_weight, dynamic=False, sorted=True, columnar=False):
+    def _create_table(table, chunk_count, rows_per_chunk, row_weight, dynamic=False, sorted=True, columnar=False, shard_count=None):
         schema = [
             {"name": "key_0", "type": "string"},
             {"name": "key_1", "type": "string"},
@@ -33,6 +34,9 @@ class TestPartitionTablesBase(YTEnvSetup):
             "dynamic": dynamic,
             "optimize_for": "scan" if columnar else "lookup",
         })
+        if shard_count is not None:
+            sync_reshard_table(table, shard_count)
+
         if dynamic:
             sync_mount_table(table)
 
@@ -58,6 +62,15 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
+
+    @staticmethod
+    def check_partitions(table, partitions):
+        rows = read_table(table)
+        partitioned_rows = []
+        for partition in partitions:
+            for table_range in partition["table_ranges"]:
+                partitioned_rows.extend(read_table(table_range))
+        assert sorted_dicts(rows) == sorted_dicts(partitioned_rows)
 
     @staticmethod
     def check_aggregate_statistics(partitions, chunk_count, row_count, data_weight=None):
@@ -92,13 +105,33 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
 
         # TODO(galtsev): yields unequal partitions for data_weight_per_partition=int(2 * row_weight * rows_per_chunk)
         partitions = partition_tables([table], data_weight_per_partition=data_weight // 3)
+        self.check_partitions(table, partitions)
         self.check_aggregate_statistics(partitions, chunk_count, chunk_count * rows_per_chunk, data_weight)
-        assert partitions == [
-            {
-                "table_ranges": [to_yson_type(table, attributes={"ranges": [{"lower_limit": {"row_index": lower_limit}, "upper_limit": {"row_index": lower_limit + 2000}}]})],
-            }
-            for lower_limit in range(0, 6000, 2000)
-        ]
+
+        expected_partitions = []
+        for lower_limit in range(0, 6000, 2000):
+            limits = {"lower_limit": {"row_index": lower_limit}, "upper_limit": {"row_index": lower_limit + 2000}}
+            if dynamic and not sorted:
+                limits["lower_limit"]["tablet_index"] = 0
+                limits["upper_limit"]["tablet_index"] = 0
+            partition = {"table_ranges": [to_yson_type(table, attributes={"ranges": [limits]})]}
+            expected_partitions.append(partition)
+
+        assert partitions == expected_partitions
+
+    @authors("galtsev")
+    def test_multishard_ordered_dynamic_table(self):
+        table = "//tmp/multishard_ordered_dynamic_table"
+        chunk_count = 6
+        rows_per_chunk = 1000
+        row_weight = 1000
+        data_weight = self._create_table(table, chunk_count, rows_per_chunk, row_weight, dynamic=True, sorted=False, shard_count=4)
+
+        partitions = partition_tables([table], data_weight_per_partition=data_weight // 3)
+        self.check_partitions(table, partitions)
+        self.check_aggregate_statistics(partitions, chunk_count, chunk_count * rows_per_chunk, data_weight)
+
+        assert len(partitions) >= 3
 
     @authors("galtsev")
     def test_unordered_one_table_with_columnar_statistics(self):
@@ -110,6 +143,9 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
 
         partitions_full = partition_tables([table], data_weight_per_partition=data_weight // 3)
         partitions_half = partition_tables([table + "{key_0,value_1}"],  data_weight_per_partition=data_weight // 3)
+
+        self.check_partitions(table, partitions_full)
+        self.check_partitions(table + "{key_0,value_1}", partitions_half)
 
         assert len(partitions_half) > 0
         assert len(partitions_half) < len(partitions_full)
@@ -123,6 +159,8 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
         self._create_table(table, chunk_count, rows_per_chunk, row_weight, dynamic=True)
 
         partitions = partition_tables([table], data_weight_per_partition=2 * row_weight * rows_per_chunk)
+
+        self.check_partitions(table, partitions)
 
         assert len(partitions) > 1
 
@@ -187,7 +225,10 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
 
         requested_rows = 10
 
-        partitions = partition_tables(['<"ranges"=[{"lower_limit"={"row_index"=0}; "upper_limit"={"row_index"=' + str(requested_rows) + '}}]>' + table], data_weight_per_partition=1)
+        in_table = '<"ranges"=[{"lower_limit"={"row_index"=0}; "upper_limit"={"row_index"=' + str(requested_rows) + '}}]>' + table
+        partitions = partition_tables([in_table], data_weight_per_partition=1)
+
+        self.check_partitions(in_table, partitions)
 
         assert len(partitions) == requested_rows
 
@@ -371,7 +412,9 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
         row_lower_limit = 111
         row_upper_limit = 5888
 
-        partitions = partition_tables([f"{table}[#{row_lower_limit}:#{row_upper_limit}]"], data_weight_per_partition=data_weight // 3)
+        in_table = f"{table}[#{row_lower_limit}:#{row_upper_limit}]"
+        partitions = partition_tables([in_table], data_weight_per_partition=data_weight // 3)
+        self.check_partitions(in_table, partitions)
         self.check_aggregate_statistics(partitions, chunk_count, row_upper_limit - row_lower_limit)
         assert partitions == [
             {
@@ -393,7 +436,9 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
         row_weight = 1000
         data_weight = self._create_table(table, chunk_count, rows_per_chunk, row_weight)
 
-        partitions = partition_tables([table + "{key_1, value_1}"], data_weight_per_partition=data_weight // 3)
+        in_table = table + "{key_1, value_1}"
+        partitions = partition_tables([in_table], data_weight_per_partition=data_weight // 3)
+        self.check_partitions(in_table, partitions)
         self.check_aggregate_statistics(partitions, chunk_count, chunk_count * rows_per_chunk)
         assert partitions == [
             {
@@ -423,8 +468,10 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
         row_weight = 1000
         data_weight = self._create_table(table, chunk_count, rows_per_chunk, row_weight)
 
-        attributes = "<timestamp=0; list=[1; [2; [3]]]; my_attribute=my_value; three_eighths=0.375; yes=%true>"
-        partitions = partition_tables([attributes + table + "{key_1, value_1}"], data_weight_per_partition=data_weight // 3)
+        attributes = "<int=0; list=[1; [2; [3]]]; my_attribute=my_value; three_eighths=0.375; yes=%true>"
+        in_table = attributes + table + "{key_1, value_1}"
+        partitions = partition_tables([in_table], data_weight_per_partition=data_weight // 3)
+        self.check_partitions(in_table, partitions)
         self.check_aggregate_statistics(partitions, chunk_count, chunk_count * rows_per_chunk)
         assert partitions == [
             {
@@ -436,7 +483,7 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
                             "list": [1, [2, [3]]],
                             "my_attribute": "my_value",
                             "three_eighths": 0.375,
-                            "timestamp": 0,
+                            "int": 0,
                             "yes": True,
                             "ranges": [
                                 {
