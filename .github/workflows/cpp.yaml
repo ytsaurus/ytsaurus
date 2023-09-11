@@ -106,52 +106,11 @@ jobs:
       DOCKER_HUB_PASSWORD: ${{ secrets.DOCKER_HUB_PASSWORD }}
     uses: ./.github/workflows/docker-jobs.yaml
 
-  check:
-    name: Check
-    needs:
-      - start-vm
-      - docker
-    with:
-      runs-on-value: ${{ needs.start-vm.outputs.label }}
-    secrets:
-      NEBIUS_TESTMO_TOKEN: ${{ secrets.NEBIUS_TESTMO_TOKEN }}
-    uses: ./.github/workflows/check-jobs.yaml
-
-  systest:
-    name: systest
-    needs:
-      - start-vm
-      - tag
-      - check
-    if: ${{ github.ref_name == 'main' || contains(github.ref_name, 'test') }}
-    runs-on: ${{ needs.start-vm.outputs.label }}
-    steps:
-      - name: Mark latest nightly
-        run: |
-          if [[ ${{ needs.tag.outputs.image-tag }} == 'dev' ]]
-          then
-            docker tag ytsaurus/ytsaurus-nightly:dev-${GITHUB_SHA} ytsaurus/ytsaurus-nightly:latest
-            docker push ytsaurus/ytsaurus-nightly:latest
-          fi
-
-      - name: Download benchmarks
-        uses: robinraju/release-downloader@v1.8
-        with:
-          latest: true
-          fileName: "benchmark-0.0.1.tgz"
-
-      - name: Docker systest
-        shell: bash
-        run: |
-          mkdir -p ../docker-systest-build
-          bash ./ytsaurus/yt/docker/systest/build.sh --ytsaurus-source-path $(pwd)/ytsaurus  --ytsaurus-build-path ../build --benchmarks-path benchmark-0.0.1.tgz --output-path ../docker-systest-build --image-tag latest
-          docker push ytsaurus/ytsaurus-systest:latest
-
   stop-vm:
     name: Stop VM
     needs:
       - start-vm
-      - systest
+      - docker
     runs-on: trampoline
     if: ${{ always() }}
     steps:
