@@ -47,9 +47,15 @@ private:
     {
         ESlotState State = ESlotState::Empty;
         NChunkClient::TBlock Block;
+
         TPromise<void> ReceivedPromise = NewPromise<void>();
         TPromise<void> WrittenPromise = NewPromise<void>();
+
+        // This guard accounts memory usage before the block was written.
         TPendingIOGuard PendingIOGuard;
+
+        // This guard accounts memory usage after the block was written, but before block release.
+        TMemoryUsageTrackerGuard MemoryUsageGuard;
     };
 
     TError Error_;

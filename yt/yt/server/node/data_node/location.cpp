@@ -207,6 +207,11 @@ void TPendingIOGuard::Release()
     }
 }
 
+TMemoryUsageTrackerGuard&& TPendingIOGuard::MoveMemoryTrackerGuard()
+{
+    return std::move(MemoryGuard_);
+}
+
 TPendingIOGuard::operator bool() const
 {
     return Owner_.operator bool();
@@ -648,6 +653,11 @@ i64 TChunkLocation::GetUsedSpace() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return UsedSpace_.load();
+}
+
+std::optional<TDuration> TChunkLocation::GetDelayBeforeBlobSessionBlockFree() const
+{
+    return DynamicConfigManager_->GetConfig()->DataNode->TestingOptions->DelayBeforeBlobSessionBlockFree;
 }
 
 i64 TChunkLocation::GetAvailableSpace() const

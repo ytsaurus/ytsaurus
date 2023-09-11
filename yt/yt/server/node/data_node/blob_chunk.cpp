@@ -204,6 +204,20 @@ void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
 
     session->SessionPromise.TrySet(std::move(blocks));
 
+    auto delayBeforeFree = Location_->GetDelayBeforeBlobSessionBlockFree();
+
+    if (delayBeforeFree) {
+        auto guard = session->PendingIOGuard.MoveMemoryTrackerGuard();
+        YT_LOG_DEBUG("Simulate delay before blob read session block free (BlockSize: %v, Delay: %v)", guard.GetSize(), *delayBeforeFree);
+
+        BIND([=] (TMemoryUsageTrackerGuard guard) {
+            TDelayedExecutor::WaitForDuration(*delayBeforeFree);
+            guard.Release();
+        })
+        .AsyncVia(GetCurrentInvoker())
+        .Run(std::move(guard));
+    }
+
     session->PendingIOGuard.Release();
 }
 
