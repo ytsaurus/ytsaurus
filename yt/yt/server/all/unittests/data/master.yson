@@ -115,18 +115,21 @@
         "rules" = [
             {
                 "min_level" = "info";
+                "family" = "plain_text";
                 "writers" = [
                     "info";
                 ];
             };
             {
                 "min_level" = "error";
+                "family" = "plain_text";
                 "writers" = [
                     "stderr";
                 ];
             };
             {
                 "min_level" = "debug";
+                "family" = "plain_text";
                 "exclude_categories" = [
                     "Bus";
                 ];
@@ -136,6 +139,7 @@
             };
             {
                 "min_level" = "debug";
+                "family" = "structured";
                 "writers" = [
                     "json";
                 ];

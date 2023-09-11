@@ -205,12 +205,14 @@
         "rules" = [
             {
                 "min_level" = "info";
+                "family" = "plain_text";
                 "writers" = [
                     "info";
                 ];
             };
             {
                 "min_level" = "debug";
+                "family" = "plain_text";
                 "exclude_categories" = [
                     "Bus";
                 ];

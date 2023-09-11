@@ -1552,6 +1552,7 @@ def init_logging(path, name,
     if enable_debug_logging:
         config["rules"].append({
             "min_level": "debug",
+            "family": "plain_text",
             "exclude_categories": ["Bus", "Concurrency"],
             "writers": ["debug"],
         })
@@ -1564,6 +1565,7 @@ def init_logging(path, name,
     if "YT_ENABLE_TRACE_LOGGING" in os.environ:
         config["rules"].append({
             "min_level": "trace",
+            "family": "plain_text",
             "exclude_categories": ["Bus"],
             "writers": ["trace"],
         })
