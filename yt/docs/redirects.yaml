@@ -121,7 +121,7 @@ ru:
       type: redirect
 
     - from: /description/chyt/reference/performance.md
-      to: /user-guide/dynamic-tables/operations.md
+      to: /user-guide/data-processing/chyt/reference/performance.md
       type: redirect
 
     - from: /description/chyt/reference/settings.md
@@ -177,7 +177,7 @@ ru:
       type: redirect
 
     - from: /description/common/examples/batch_requests.md
-      to: /user-guide/storage/
+      to: /api/python/userdoc.md
       type: redirect
 
     - from: /description/common/examples/cypress_example.md
@@ -238,10 +238,6 @@ ru:
 
     - from: /description/dynamic_tables/dynamic_tables_internals.md
       to: /user-guide/dynamic-tables/dynamic-tables-internals.md
-      type: redirect
-
-    - from: /description/dynamic_tables/dynamic_tables_mapreduce.md
-      to: /user-guide/dynamic-tables/mapreduce.md
       type: redirect
 
     - from: /description/dynamic_tables/dynamic_tables_mapreduce.md
@@ -528,10 +524,6 @@ ru:
       to: /user-guide/_transfer_manager.md
       type: redirect
 
-    - from: /faq/faq.md
-      to: /faq/faq.mduser-guide/dynamic-tables/faq.md
-      type: redirect
-
     - from: /instructions/chyt/change_acl_of_clique.md
       to: /instructions/chyt/change-acl-of-clique.md
       type: redirect
@@ -545,7 +537,7 @@ ru:
       type: redirect
 
     - from: /instructions/dynamic_tables/add_remove_line.md
-      to: /user-guide/dynamic-tables/tutorials/add-remove-line.md
+      to: /instructions/dynamic-tables/add-remove-line.md
       type: redirect
 
     - from: /instructions/dynamic_tables/backup_table.md
@@ -685,7 +677,7 @@ ru:
       type: redirect
 
     - from: /overview/about_YT.md
-      to: /overview/about-YT.md
+      to: /overview/about.md
       type: redirect
 
     - from: /overview/main_features.md
