@@ -17,7 +17,6 @@ target_link_libraries(yt-library-s3 PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-yt-core
-  yt-core-crypto
   yt-core-http
   cpp-xml-document
 )

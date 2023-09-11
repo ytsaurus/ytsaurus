@@ -19,7 +19,6 @@ target_link_libraries(unittester-core-crypto PUBLIC
   cpp-testing-gtest
   cpp-testing-gtest_main
   yt-yt-core
-  yt-core-crypto
   core-rpc-grpc
   yt-core-test_framework
 )
