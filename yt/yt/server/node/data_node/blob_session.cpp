@@ -649,6 +649,7 @@ void TBlobSession::OnBlocksWritten(int beginBlockIndex, int endBlockIndex, const
 
     for (int blockIndex = beginBlockIndex; blockIndex < endBlockIndex; ++blockIndex) {
         auto& slot = GetSlot(blockIndex);
+        slot.MemoryUsageGuard = slot.PendingIOGuard.MoveMemoryTrackerGuard();
         slot.PendingIOGuard = {};
         if (error.IsOK()) {
             YT_VERIFY(slot.State == ESlotState::Received);
@@ -773,10 +774,28 @@ void TBlobSession::ReleaseBlocks(int flushedBlockIndex)
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
     YT_VERIFY(WindowStartBlockIndex_ <= flushedBlockIndex);
 
+    auto delayBeforeFree = Location_->GetDelayBeforeBlobSessionBlockFree();
+
     while (WindowStartBlockIndex_ <= flushedBlockIndex) {
         auto& slot = GetSlot(WindowStartBlockIndex_);
         YT_VERIFY(slot.State == ESlotState::Written);
-        slot.Block = {};
+
+        if (delayBeforeFree) {
+            YT_LOG_DEBUG("Simulate delay before blob write session block free (BlockSize: %v, Delay: %v)", slot.Block.Size(), *delayBeforeFree);
+
+            slot.Block = {};
+
+            BIND([=] (TMemoryUsageTrackerGuard guard) {
+                TDelayedExecutor::WaitForDuration(*delayBeforeFree);
+                guard.Release();
+            })
+            .AsyncVia(GetCurrentInvoker())
+            .Run(std::move(slot.MemoryUsageGuard));
+        } else {
+            slot.Block = {};
+            slot.MemoryUsageGuard.Release();
+        }
+
         slot.PendingIOGuard.Release();
         slot.WrittenPromise.Reset();
         slot.ReceivedPromise.Reset();

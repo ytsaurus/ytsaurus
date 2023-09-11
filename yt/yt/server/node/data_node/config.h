@@ -486,6 +486,9 @@ public:
     // For testing purposes.
     bool FailReincarnationJobs;
 
+    // Delay before blob session block free.
+    std::optional<TDuration> DelayBeforeBlobSessionBlockFree;
+
     REGISTER_YSON_STRUCT(TDataNodeTestingOptions);
 
     static void Register(TRegistrar registrar);

@@ -115,6 +115,8 @@ public:
 
     void Release();
 
+    TMemoryUsageTrackerGuard&& MoveMemoryTrackerGuard();
+
     TPendingIOGuard& operator=(TPendingIOGuard&& other);
 
     explicit operator bool() const;
@@ -393,6 +395,8 @@ public:
     TCallback<T()> DisableOnError(const TCallback<T()> callback);
 
     const TChunkStorePtr& GetChunkStore() const;
+
+    std::optional<TDuration> GetDelayBeforeBlobSessionBlockFree() const;
 
 protected:
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;

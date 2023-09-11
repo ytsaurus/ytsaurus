@@ -450,6 +450,9 @@ void TDataNodeTestingOptions::Register(TRegistrar registrar)
         "fail_reincarnation_jobs",
         &TThis::FailReincarnationJobs)
         .Default(false);
+
+    registrar.Parameter("delay_before_blob_session_block_free", &TThis::DelayBeforeBlobSessionBlockFree)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
