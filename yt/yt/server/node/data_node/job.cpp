@@ -351,28 +351,29 @@ void TMasterJobBase::DoSetFinished(
 
     JobFinished_.Fire();
 
-    auto jobFuture = JobFuture_;
-    JobFuture_.Reset();
+    if (auto jobFuture = JobFuture_) {
+        jobFuture.Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
+            YT_LOG_DEBUG_IF(
+                !error.IsOK(),
+                error,
+                "Master job finished with error");
 
-    jobFuture.Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
-        YT_LOG_DEBUG_IF(
-            !error.IsOK(),
-            error,
-            "Master job finished with error");
+            // 5th step.
+            ReleaseCumulativeResources()
+                // 6th step.
+                .Apply(BIND(&TMasterJobBase::ReleaseResources, MakeStrong(this))
+                .AsyncVia(Bootstrap_->GetJobInvoker()))
+                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
+                    YT_LOG_FATAL_IF(
+                        !error.IsOK(),
+                        error,
+                        "Failed to release master job resources");
+                })
+                .Via(Bootstrap_->GetJobInvoker()));
+        }));
 
-        // 5th step.
-        ReleaseCumulativeResources()
-            // 6th step.
-            .Apply(BIND(&TMasterJobBase::ReleaseResources, MakeStrong(this))
-            .AsyncVia(Bootstrap_->GetJobInvoker()))
-            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
-                YT_LOG_FATAL_IF(
-                    !error.IsOK(),
-                    error,
-                    "Failed to release master job resources");
-            })
-            .Via(Bootstrap_->GetJobInvoker()));
-    }));
+        JobFuture_.Reset();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
