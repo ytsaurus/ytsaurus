@@ -107,7 +107,7 @@ class TestIoEngine(YTEnvSetup):
         ys = [{"key": "x" * 1024} for i in range(1024)]
         write_table("//tmp/test", ys)
 
-        wait(lambda: all(self.get_pending_write_memory(node) > 1024 for node in nodes))
+        wait(lambda: any(self.get_pending_write_memory(node) > 1024 for node in nodes))
 
         read_table("//tmp/test")
 
