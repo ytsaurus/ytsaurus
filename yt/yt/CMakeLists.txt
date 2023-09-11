@@ -8,6 +8,7 @@
 
 add_subdirectory(build)
 add_subdirectory(client)
+add_subdirectory(contrib)
 add_subdirectory(core)
 add_subdirectory(library)
 add_subdirectory(orm)

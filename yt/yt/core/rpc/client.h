@@ -445,9 +445,9 @@ struct TMethodDescriptor
     TMethodDescriptor& SetStreamingEnabled(bool value);
 };
 
-#define DEFINE_RPC_PROXY_METHOD(ns, method, ...) \
-    using TRsp##method = ::NYT::NRpc::TTypedClientResponse<ns::TRsp##method>; \
-    using TReq##method = ::NYT::NRpc::TTypedClientRequest<ns::TReq##method, TRsp##method>; \
+#define DEFINE_RPC_PROXY_METHOD_GENERIC(method, request, response, ...) \
+    using TRsp##method = ::NYT::NRpc::TTypedClientResponse<response>; \
+    using TReq##method = ::NYT::NRpc::TTypedClientRequest<request, TRsp##method>; \
     using TRsp##method##Ptr = ::NYT::TIntrusivePtr<TRsp##method>; \
     using TReq##method##Ptr = ::NYT::TIntrusivePtr<TReq##method>; \
     using TErrorOrRsp##method##Ptr = ::NYT::TErrorOr<TRsp##method##Ptr>; \
@@ -457,6 +457,9 @@ struct TMethodDescriptor
         static const auto Descriptor = ::NYT::NRpc::TMethodDescriptor(#method) __VA_ARGS__; \
         return CreateRequest<TReq##method>(Descriptor); \
     }
+
+#define DEFINE_RPC_PROXY_METHOD(ns, method, ...) \
+    DEFINE_RPC_PROXY_METHOD_GENERIC(method, ns::TReq##method, ns::TRsp##method, __VA_ARGS__)
 
 ////////////////////////////////////////////////////////////////////////////////
 

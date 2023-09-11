@@ -83,6 +83,22 @@ void TPortoJobEnvironmentConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TCriJobEnvironmentConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("cri_executor", &TThis::CriExecutor)
+        .DefaultNew();
+
+    registrar.Parameter("job_proxy_image", &TThis::JobProxyImage)
+        .NonEmpty();
+
+    registrar.Parameter("job_proxy_bind_mounts", &TThis::JobProxyBindMounts)
+        .Default();
+
+    registrar.Parameter("use_job_proxy_from_image", &TThis::UseJobProxyFromImage);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TSlotLocationConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("disk_quota", &TThis::DiskQuota)

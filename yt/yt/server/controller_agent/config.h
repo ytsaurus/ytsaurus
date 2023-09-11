@@ -723,6 +723,22 @@ DEFINE_REFCOUNTED_TYPE(TJobTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDockerRegistryConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    //! FQDN of internal docker registry for docker images stored in Cypress.
+    TString InternalRegistryAddress;
+
+    REGISTER_YSON_STRUCT(TDockerRegistryConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDockerRegistryConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TControllerAgentConfig
     : public TNativeSingletonsDynamicConfig
 {
@@ -1044,6 +1060,9 @@ public:
     // Cypress path to the directory with GPU check layers.  This layer is used to perform GPU check before user job start.
     // The layer is applied as an additional user layer on top of the other layers (if they are present).
     std::optional<TString> GpuCheckLayerDirectoryPath;
+
+    //! Controls handling docker images specified in user spec.
+    TDockerRegistryConfigPtr DockerRegistry;
 
     // Running jobs cached YSON string update period.
     TDuration CachedRunningJobsUpdatePeriod;

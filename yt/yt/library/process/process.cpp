@@ -142,22 +142,26 @@ TErrorOr<TString> ResolveBinaryPath(const TString& binary)
     return failure();
 }
 
+bool TryKillProcessByPid(int pid, int signal)
+{
+#ifdef _unix_
+    YT_VERIFY(pid != -1);
+    int result = ::kill(pid, signal);
+    // Ignore ESRCH because process may have died just before TryKillProcessByPid.
+    if (result < 0 && errno != ESRCH) {
+        return false;
+    }
+    return true;
+#else
+    THROW_ERROR_EXCEPTION("Unsupported platform");
+#endif
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
 
 #ifdef _unix_
-
-bool TryKill(int pid, int signal)
-{
-    YT_VERIFY(pid != -1);
-    int result = ::kill(pid, signal);
-    // Ignore ESRCH because process may have died just before TryKill.
-    if (result < 0 && errno != ESRCH) {
-        return false;
-    }
-    return true;
-}
 
 bool TryWaitid(idtype_t idtype, id_t id, siginfo_t *infop, int options)
 {
@@ -199,7 +203,7 @@ void Cleanup(int pid)
 {
     YT_VERIFY(pid > 0);
 
-    YT_VERIFY(TryKill(pid, 9));
+    YT_VERIFY(TryKillProcessByPid(pid, 9));
     YT_VERIFY(TryWaitid(P_PID, pid, nullptr, WEXITED));
 }
 
@@ -579,9 +583,9 @@ void TSimpleProcess::Kill(int signal)
 
     bool result = false;
     if (!CreateProcessGroup_) {
-        result = TryKill(ProcessId_, signal);
+        result = TryKillProcessByPid(ProcessId_, signal);
     } else {
-        result = TryKill(-1 * ProcessId_, signal);
+        result = TryKillProcessByPid(-1 * ProcessId_, signal);
     }
 
     if (!result) {

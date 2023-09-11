@@ -24,12 +24,12 @@ struct IJobEnvironment
     virtual void Init(int slotCount, double cpuLimit, double idleCpuFraction) = 0;
 
     virtual TFuture<void> RunJobProxy(
+        const NJobProxy::TJobProxyConfigPtr& config,
         ESlotType slotType,
         int slotIndex,
         const TString& workingDirectory,
         TJobId jobId,
         TOperationId operationId,
-        const std::optional<TString>& stderrPath,
         const std::optional<TNumaNodeInfo>& numaNodeAffinity) = 0;
 
     virtual void CleanProcesses(int slotIndex, ESlotType slotType = ESlotType::Common) = 0;

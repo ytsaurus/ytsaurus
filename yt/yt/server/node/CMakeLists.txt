@@ -85,6 +85,7 @@ target_link_libraries(yt-server-node PUBLIC
   server-lib-chaos_node
   server-lib-chunk_server
   yt-library-containers
+  library-containers-cri
   library-containers-disk_manager
   server-lib-exec_node
   server-lib-tablet_server
@@ -260,6 +261,8 @@ target_proto_addincls(yt-server-node
   ${CMAKE_SOURCE_DIR}/yt
   ${CMAKE_SOURCE_DIR}/yt
   ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${CMAKE_SOURCE_DIR}/yt/yt/contrib/cri-api
+  ${CMAKE_SOURCE_DIR}/yt/yt/contrib/gogoproto
   ${CMAKE_BINARY_DIR}
   ${CMAKE_SOURCE_DIR}/contrib/libs/protobuf/src
 )

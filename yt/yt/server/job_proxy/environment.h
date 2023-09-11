@@ -7,12 +7,15 @@
 
 #include <yt/yt/library/containers/cgroup.h>
 
+#include <yt/yt/library/process/process.h>
+
 #include <yt/yt/core/net/address.h>
 
 #include <yt/yt/core/ytree/public.h>
 #include <yt/yt/core/ytree/yson_struct.h>
 
-#include <yt/yt/library/process/process.h>
+#include <yt/yt/client/job_tracker_client/public.h>
+
 
 namespace NYT::NJobProxy {
 
@@ -153,7 +156,7 @@ struct IJobProxyEnvironment
     virtual void SetCpuLimit(double value) = 0;
     virtual void SetCpuPolicy(const TString& policy) = 0;
     virtual IUserJobEnvironmentPtr CreateUserJobEnvironment(
-        TGuid jobId,
+        NJobTrackerClient::TJobId jobId,
         const TUserJobEnvironmentOptions& options) = 0;
 };
 

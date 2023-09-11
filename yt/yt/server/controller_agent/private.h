@@ -39,6 +39,8 @@ DECLARE_REFCOUNTED_CLASS(TJobTracker)
 DECLARE_REFCOUNTED_CLASS(TJobTrackerOperationHandler)
 DECLARE_REFCOUNTED_CLASS(TJobTrackerConfig)
 
+DECLARE_REFCOUNTED_CLASS(TDockerRegistryConfig)
+
 struct TStartedJobInfo
 {
     TJobId JobId;
