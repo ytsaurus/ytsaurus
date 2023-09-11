@@ -19,7 +19,6 @@ target_link_libraries(unittester-core-bus PUBLIC
   cpp-testing-gtest
   cpp-testing-gtest_main
   yt-yt-core
-  yt-core-crypto
   yt-core-test_framework
   cpp-testing-common
 )

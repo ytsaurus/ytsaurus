@@ -919,7 +919,6 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   yt-library-random
   yt-yt-core
   yt-core-http
-  yt-core-crypto
   yt-library-auth_server
   yt-library-numeric
   yt-library-heavy_schema_validation
@@ -1573,7 +1572,6 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
   yt-library-random
   yt-yt-core
   yt-core-http
-  yt-core-crypto
   yt-library-auth_server
   yt-library-numeric
   yt-library-heavy_schema_validation

@@ -46,6 +46,7 @@ target_link_libraries(yt-yt-core PUBLIC
   contrib-libs-lz4
   contrib-libs-openssl
   cpp-openssl-init
+  cpp-openssl-io
   cpp-threading-thread_local
   cpp-streams-brotli
   cpp-yt-assert
@@ -91,6 +92,7 @@ target_sources(yt-yt-core PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/bus/tcp/client.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/bus/tcp/server.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/bus/tcp/ssl_context.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/bus/tcp/ssl_helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/compression/brotli.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/compression/bzip2.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/compression/codec.cpp
@@ -142,6 +144,9 @@ target_sources(yt-yt-core PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/thread_pool.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/throughput_throttler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/two_level_fair_share_thread_pool.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/crypto/config.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/crypto/crypto.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/crypto/tls.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/logging/compression.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/logging/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/logging/formatter.cpp
@@ -342,6 +347,7 @@ target_link_libraries(yt-yt-core.global PUBLIC
   contrib-libs-lz4
   contrib-libs-openssl
   cpp-openssl-init
+  cpp-openssl-io
   cpp-threading-thread_local
   cpp-streams-brotli
   cpp-yt-assert
