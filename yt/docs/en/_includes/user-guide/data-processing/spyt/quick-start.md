@@ -19,8 +19,7 @@ pip install ytsaurus-spyt
    --discovery-path my_discovery_path \
    --worker-cores 16 \
    --worker-num 5 \
-   --worker-memory 64G \
-   --spark-cluster-version 2.4.4-0.5.1
+   --worker-memory 64G
    ```
 
    Options:
@@ -40,7 +39,6 @@ pip install ytsaurus-spyt
    --proxy <cluster-name> \
    --discovery-path my_discovery_path \
    --deploy-mode cluster \
-   --spyt-version 0.5.2 \
    yt:///sys/spark/examples/smoke_test.py
    ```
 
@@ -63,7 +61,8 @@ pip install ytsaurus-spyt
    --discovery-path my_discovery_path \
    --worker-cores 16 \
    --worker-num 5 \
-   --worker-memory 64G
+   --worker-memory 64G \
+   --spark-cluster-version 1.72.0
    ```
 
 - **spark-discovery-yt**
@@ -83,7 +82,7 @@ pip install ytsaurus-spyt
    --proxy <cluster-name> \
    --discovery-path my_discovery_path \
    --deploy-mode cluster \
-   --spyt-version 0.5.2 \
+   --spyt-version 1.72.0 \
    yt:///sys/spark/examples/smoke_test.py
    ```
 
