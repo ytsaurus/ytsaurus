@@ -2482,6 +2482,7 @@ class TestQueueStaticTableExport(TestQueueAgentBase, ReplicatedObjectBase):
             create("table", "//tmp/q-export-result", attributes={"dynamic": False, "external_cell_tag": static_table_external_cell_tag})
 
         cypress_orchid.wait_fresh_pass()
+        queue_agent_orchid.wait_fresh_pass()
 
         insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "bar"}] * 7)
         queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
@@ -2560,6 +2561,7 @@ class TestQueueStaticTableExport(TestQueueAgentBase, ReplicatedObjectBase):
         self._create_queue("//tmp/q", partition_count=3)
 
         cypress_orchid.wait_fresh_pass()
+        queue_agent_orchid.wait_fresh_pass()
 
         insert_rows("//tmp/q", [{"$tablet_index": 2, "data": "third chunk"}] * 2)
         queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
@@ -2620,6 +2622,7 @@ class TestQueueStaticTableExportPortals(TestQueueAgentBase):
             create("table", "//tmp/q-export-result", attributes={"dynamic": False, "external_cell_tag": 12})
 
         cypress_orchid.wait_fresh_pass()
+        queue_agent_orchid.wait_fresh_pass()
 
         insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "some data that will be flushed"}] * 7)
         queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
