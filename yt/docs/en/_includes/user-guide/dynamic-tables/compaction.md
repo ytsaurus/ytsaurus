@@ -96,7 +96,7 @@ The listed attributes regulate Flush behavior.
 | compaction_data_size_ratio | double | 2.0 |  |
 
 ### Deleting old data { #ttl_attributes }
-For more information about these attributes, see Sorted dynamic tables.
+For more information about these attributes, see [Sorted dynamic tables](../../../_includes/user-guide/dynamic-tables/sorted-dynamic-tables.md).
 
 | Name | Type | Default |
 |--|--|--|

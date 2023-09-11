@@ -148,7 +148,7 @@ The `enable_input_table_index` option is found in the operation spec section des
 The value of this option overwrites the value in `enable_table_index` under `control_attributes`.
 
 The `enable_table_index` option enables and disables `table index` at the format level.
-Many formats have these indexes disabled by default; therefore, they must be enabled. Many formats have options responsible for representing `table_index` in this one. For more information on `table_index` in various formats, see Table switching. todo
+Many formats have these indexes disabled by default; therefore, they must be enabled. Many formats have options responsible for representing `table_index` in this one. For more information on `table_index` in various formats, see [Table switching](../../../user-guide/data-processing/table-switch.md).
 
 The `row_index`, `range_index`, and `key_switch`representations are only supported by the YSON and the JSON formats.
 

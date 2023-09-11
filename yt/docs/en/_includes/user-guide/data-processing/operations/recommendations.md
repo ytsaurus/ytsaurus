@@ -27,7 +27,7 @@ You need to set the `<mode>` attribute to `sorted` for a [sorted table](../../..
 
 In both the cases, merge will maintain data ordering. But for `sorted`, it will also maintain the table sort from the system standpoint: the table will remain `sorted` and keep all the relevant attributes.
 
-If you are using a python library (todo), you can specify the `auto_merge_output={action=merge}` configuration option which will make the library automatically aggregate the resulting tables if their chunks are too small.
+If you are using a [python library](../../../../api/python/userdoc.md), you can specify the `auto_merge_output={action=merge}` configuration option which will make the library automatically aggregate the resulting tables if their chunks are too small.
 
 ## MapReduce vs Map+Sort+Reduce
 

@@ -23,7 +23,7 @@ From there, they are moved to data proxies where they are unpacked, recoded as r
 1. **Network**. If data is hosted in one data center, and data are read from a different one, you might discover that bandwidth is the bottleneck.
 1. [**Format**](../../../user-guide/storage/formats.md) The fastest is skiff, followed by Protobuf and YSON.
 
-1. **Data proxy load**. TODO. The proxies are divided into groups (roles), and by default, everyone uses the `data` role; that is why, such proxies carry a higher load.
+1. **Data proxy load**. The proxies are divided into groups (roles), and by default, everyone uses the `data` role; that is why, such proxies carry a higher load.
 1. **Work on the cluster**. When cluster nodes are updating, for instance, disks may carry a higher load.
 
 ## Where do I start?

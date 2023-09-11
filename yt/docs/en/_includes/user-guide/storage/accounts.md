@@ -201,7 +201,7 @@ yt transfer-account-resources my_subaccount1 my_subaccount2 --resource-delta '{n
 
 The `resource-delta` argument is a yson structure of the `ClusterResources` type (see below). For example: `{node_count=5;disk_space_per_medium={default=1024}}`. You need to specify the volume of transferred resources, not the new limits. Missing quotas can be skipped.
 
-In case of the `argument command: invalid choice` error, update the `yt` utility. For more information, see the Installation todo section.
+In case of the `argument command: invalid choice` error, update the `yt` utility. For more information, see the [Installation](../../../overview/try-yt.md) section.
 
 {% endcut %}
 

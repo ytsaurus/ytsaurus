@@ -81,7 +81,7 @@ We recommend using the Reduce operation with the `enable_key_guarantee=%false` o
 
 ## Working with large keys — reduce_combiner
 
-The reduce phase has a special data processing stage for dealing with large keys??. This stage's jobs are called **reduce_combiner** jobs. They run on parts of "large" partitions?? and facilitate a partial Reduce without waiting for all partition parts to get sorted and for Reduce with the final Merge to start. As input, reduce jobs running on partitions like that receive merged outputs of several `reduce_combiner` jobs.
+The reduce phase has a special data processing stage for dealing with large keys. This stage's jobs are called **reduce_combiner** jobs. They run on parts of "large" partitions and facilitate a partial Reduce without waiting for all partition parts to get sorted and for Reduce with the final Merge to start. As input, reduce jobs running on partitions like that receive merged outputs of several `reduce_combiner` jobs.
 
 `Reduce_combiner` is triggered if the partition size exceeds `data_size_per_sort_job`. The amount of data in `reduce_combiner` equals `data_size_per_sort_job`. The default value for `data_size_per_sort_job` is set in the scheduler configuration, but can be overridden via an operation's specification (in bytes).
 

@@ -15,7 +15,7 @@ For brevity, in the below examples, we assume that `import yt.wrapper as yt` has
 ### Client and global client { #client }
 
 The functions and clauses are available from the yt.wrapper global environment of the module library and can change its global status. For example, they save the current transaction there. By changing yt.config, you're also changing the global configuration. If you want to have an option to work from several independent (that is, differently configured) clients, use the [YtClient](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient) class. This class provides almost all the functions from the [yt.wrapper](https://pydoc.ytsaurus.tech/yt.wrapper.html) module: you can call `client.run_map`, `client.read_table_structured`, `with client.Transaction()`, and so on. Note that the `YT_PROXY`, `YT_TOKEN` and other environment variables only set the configuration of the global client. That is, they affect only [yt.wrapper.config](https://pydoc.ytsaurus.tech/yt.wrapper.html#module-yt.wrapper.config) rather than the configuration of explicitly created `YtClient` instances.
-??
+
 ```python
 from yt.wrapper import YtClient
 client = YtClient(proxy=<cluster-name>, config={"backend": "rpc"})
@@ -32,7 +32,7 @@ Note that the library is not thread-safe: in order to work from different thread
 
 You can transmit a specified set of parameters to all the requests set up through the client (for example, `trace_id`). To do this, you can use the special [create_client_with_command_params](https://pydoc.ytsaurus.tech/yt.wrapper.html?highlight=create_client_with#yt.wrapper.client.create_client_with_command_params) method that enables you to specify an arbitrary set of options to be transmitted to all the API calls.
 
-Here is a todo example of how to use this feature for specifying prerequisites.
+<!--Here is a todo example of how to use this feature for specifying prerequisites.-->
 
 #### Thread safety { #threadsafety }
 
@@ -57,7 +57,7 @@ You can find an example in this [section](../../../api/python/examples.md#gevent
 ### Configuring { #configuration }
 
 The library supports rich configuration options determining its behavior in different scenarios. For example, you can change the path in Cypress where your temporary tables will be created by default: `yt.config["remote_temp_tables_directory"] = "//home/my_home_dir/tmp"`.
-To learn about options and their detailed descriptions, see the [code](http://pydoc.ytsaurus.tech/_modules/yt/wrapper/default_config.html)??.
+To learn about options and their detailed descriptions, see the [code](http://pydoc.ytsaurus.tech/_modules/yt/wrapper/default_config.html).
 
 The library is configured via one of the following methods:
 - Updating the `yt.config` object: `yt.config["proxy"]["url"] = "<cluster_name>"`.
@@ -67,7 +67,7 @@ The library is configured via one of the following methods:
 
 You can change some configuration options using environment variables. Such variables are: `YT_TOKEN`, `YT_PROXY`, `YT_PREFIX`. And also options for setting up the logging options (that are separate from the config): `YT_LOG_LEVEL` and `YT_LOG_PATTERN`.
 
-When using CLI todo, you can pass the configuration patch in the `--config` option.
+When using [CLI](../../../api/cli/cli.md), you can pass the configuration patch in the `--config` option.
 
 Be aware that the library configuration doesn't affect the client configuration, and when you are creating a client, a configuration using default values is created by default. To pass the configuration based on environment variables to the client: `client = yt.YtClient(..., config=yt.get_config_from_env())`. You can also update the current configuration by values from the environment variables using the `update_config_from_env(config)` function.
 
@@ -119,7 +119,7 @@ You can retrieve the token from the following places (listed in priority order).
 
 #### Setting up configuration retries { #configuration_retries }
 
-Commands in {{product-name}} are classified into light and heavy (to get the system's view on the list of commands, see the section) todo.
+Commands in {{product-name}} are classified into light and heavy (to get the system's view on the list of commands, see the section [Commands](../../../api/commands.md).
 
 Light commands are commands like `create, remove, set, list, get, ping`, and other similar ones. Before each request, the client also accesses a special proxy to get a list of commands that it supports. We recommend retrying such commands when errors or timeouts occur. You can set up the retry parameters in the `proxy/retries` configuration section.
 
@@ -131,7 +131,7 @@ There are two categories of heavy requests.
 The above-mentioned retries affect the processes of data uploads or exports from the cluster in the case of network faults, chunk unavailability, and other issues. Below is a description of actions that are initiated inside the cluster (running a MapReduce operation or a batch request).
 
 1. The `start_operation_retries` section regulates the retries of the operation start command, that is, instead of dealing with network issues, here we handle the errors like "concurrent operation limit exceeded," when many operations are running and the scheduler won't start new ones. In case of such errors, the client makes retries with big sleep intervals to allow enough time for some operations to complete.
-2. The `concatenate_retries` section regulates the retries of the concatenate command (see the page with the API) todo. This is not a light command because it can access different master cells and spend a long time there. That's why you can't use the retry settings for light commands in this case.
+2. The `concatenate_retries` section regulates the retries of the concatenate command (see the page with the [API](../../../api/python/start.md)). This is not a light command because it can access different master cells and spend a long time there. That's why you can't use the retry settings for light commands in this case.
 3. The `batch_requests_retries` section regulates the retries made from inside a batch request (see the description of the `execute_batch`) command. The client retries the requests that failed with such errors as the "request rate limit exceeded". That is, the client sends a batch of requests, of which some have completed and some have failed with the "request queue size per user exceeded" errors. In this case, the requests are delivered again with a new batch. This section regulates the policy of such retries.
 
 
@@ -152,7 +152,7 @@ The following errors describe more specific issues.
 - `stderrs`: List of dicts with details about the jobs that failed or jobs with stderr. This dict has the `host` field; it can also have the `stderr` and `error` fields, depending on whether the job had a stderr or had failed.
 - `state`: Operation status (for example, `failed`).
 
-To print the stderr output when an operation fails, you need to process the exception and explicitly print error messages. Otherwise, you will see them truncated in backtrace. There is a non-public decorator (you can use it, but it might be renamed) [add_failed_operation_stderrs_to_error_message](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.add_failed_operation_stderrs_to_error_message)?? that intercepts the [YtOperationFailedError](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.errors.YtOperationFailedError)  exception and enriches its message about the stderr error.
+To print the stderr output when an operation fails, you need to process the exception and explicitly print error messages. Otherwise, you will see them truncated in backtrace. There is a non-public decorator (you can use it, but it might be renamed) [add_failed_operation_stderrs_to_error_message](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.add_failed_operation_stderrs_to_error_message) that intercepts the [YtOperationFailedError](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.errors.YtOperationFailedError)  exception and enriches its message about the stderr error.
 
 [YtResponseError](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.errors.YtResponseError): The command (that is, the request to {{product-name}}) has failed. This class has the `error` field that stores the structured response describing the error cause.
 It provides the following useful methods:
@@ -246,7 +246,7 @@ If you have read the ujson documentation, and you are sure you that your input d
 
 ### YPath { #ypath }
 
-Paths in {{product-name}} are represented by [YPath](../../../user-guide/storage/ypath.md). For paths in the code, you can use the [YPath](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.ypath.YPath)?? class and its subclasses, [TablePath](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.ypath.TablePath)?? and [FilePath](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.ypath.FilePath)??. Among the constructors of the last two classes, you can specify relevant YPath attributes, for example, `schema`, `start_index`, `end_index` (for `TablePath`) and `append` and `executable` (for `FilePath`). To learn more about `TablePath`, see the [section](#tablepath_class).
+Paths in {{product-name}} are represented by [YPath](../../../user-guide/storage/ypath.md). For paths in the code, you can use the [YPath](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.ypath.YPath) class and its subclasses, [TablePath](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.ypath.TablePath) and [FilePath](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.ypath.FilePath). Among the constructors of the last two classes, you can specify relevant YPath attributes, for example, `schema`, `start_index`, `end_index` (for `TablePath`) and `append` and `executable` (for `FilePath`). To learn more about `TablePath`, see the [section](#tablepath_class).
 Use these classes for working with paths in your code instead of formatting YPath literals manually.
 
 There are other useful functions in [YPath](https://pydoc.ytsaurus.tech/yt.wrapper.html#module-yt.wrapper.ypath) modules, here are some of them:
@@ -277,7 +277,7 @@ else:
 ```
 When writing data, you can both leave the `YsonStringProxy`  object as it is (it will be automatically converted to a byte string) or return a byte string or Unicode string. Unicode strings will be encoded in UTF-8 (or other encoding).
 
-**Note that** you can't mix `bytes` and `str` in dict keys. When`encoding != None`, the only way to specify a byte key is to use the [yt.yson.make_byte_key](https://pydoc.ytsaurus.tech/yt.yson.html#yt.yson.yson_types.make_byte_key)?? function. The reason is that in Python 3, the strings `"a"` and `b"a"` are not equal. It is unacceptable for a dict in the format `{"a": 1, b"a": 1}` to be sent to the system implicitly, converted to a string with two identical `a` keys.
+**Note that** you can't mix `bytes` and `str` in dict keys. When`encoding != None`, the only way to specify a byte key is to use the [yt.yson.make_byte_key](https://pydoc.ytsaurus.tech/yt.yson.html#yt.yson.yson_types.make_byte_key) function. The reason is that in Python 3, the strings `"a"` and `b"a"` are not equal. It is unacceptable for a dict in the format `{"a": 1, b"a": 1}` to be sent to the system implicitly, converted to a string with two identical `a` keys.
 
 If needed, you can disable the decoding logic or select another encoding. Use the `encoding` parameter when creating a format in this case. If the `encoding` parameter is specified and is `None`, the library works with the records where all the rows are expected to be binary rows (both keys and values, both on write and on read). If you attempt to serialize a dict that includes Unicode strings with `encoding=None`, in most cases, you'll see an error.
 
@@ -289,7 +289,7 @@ An example of use with comments is [in a separate section](../../../api/python/e
 
 Low-level API:
 
-- [execute_batch](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.execute_batch): Accepts a set of request descriptions in the list format and returns a set of results. A simple wrapper for the API command (todo).
+- [execute_batch](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.execute_batch): Accepts a set of request descriptions in the list format and returns a set of results. A simple wrapper for the [API command](../../../api/commands.md#execute_batch).
 
 High level API:
 
@@ -314,11 +314,11 @@ For more information about batch requests, see the [tutorial](../../../user-guid
 
 Specifics of working with the batch client:
 
-- Both the [create_batch_client](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.create_batch_client)?? method and the client configuration has the `max_batch_size` parameter with a default value of 100. When the [commit_batch](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.batch_client.BatchClient.commit_batch) method is called on the client side, the requests are broken down into parts, `max_batch_size` each, and are executed in a step-by-step manner. This is because of natural restrictions on the request size.
+- Both the [create_batch_client](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.create_batch_client) method and the client configuration has the `max_batch_size` parameter with a default value of 100. When the [commit_batch](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.batch_client.BatchClient.commit_batch) method is called on the client side, the requests are broken down into parts, `max_batch_size` each, and are executed in a step-by-step manner. This is because of natural restrictions on the request size.
 
 - All the requests are sent with the client transaction from which the batch-client has been constructed. If the client is used inside a transaction, all its requests are executed in the context of this transaction. The batch client behaves similarly.
 
-- By default, you can handle all the errors that arise in requests by looking at [BatchResponse](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.batch_response.BatchResponse)?? returned by the batch client methods.
+- By default, you can handle all the errors that arise in requests by looking at [BatchResponse](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.batch_response.BatchResponse) returned by the batch client methods.
 
    Example:
 
@@ -351,7 +351,7 @@ except yt.YtBatchRequestFailedError as err:
 
 ## Commands { #commands }
 
-The yt library makes the todo systems available in the Python API. The public part of the library includes only the methods that are in `yt/wrapper/__init__.py` and `yt/yson/__init__.py`.
+The yt library makes the systems available in the Python API. The public part of the library includes only the methods that are in `yt/wrapper/__init__.py` and `yt/yson/__init__.py`.
 
 Some command options are shared by command classes. For more information, see the [section](../../../api/commands.md).
 
@@ -391,7 +391,7 @@ yt.set("//home/lst/end", "cabbage")
 yt.get("//home/lst")  # Output: [7L, "cabbage"]
 ```
 
-- [copy](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.copy)?? and [move](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.move): Copy/move the Cypress node. To learn more about the option value, see [section](../../../user-guide/storage/cypress-example.md#copy_move).
+- [copy](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.copy) and [move](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.move): Copy/move the Cypress node. To learn more about the option value, see [section](../../../user-guide/storage/cypress-example.md#copy_move).
 
 - [link](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.link): create a symlink to a Cypress node. [Read more](../../../user-guide/storage/cypress-example.md#link).
    To learn where the symlink points, read the value from the `@path` attribute. To access a `link` object, add `&` at the end of the path.
@@ -421,14 +421,14 @@ yt.get("//home/table/@path")
 
 An alias function for creating a directory.
 
-- [mkdir](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.mkdir)?? : Creates a directory, that is, a node of the `map_node` type.
+- [mkdir](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.mkdir): Creates a directory, that is, a node of the `map_node` type.
 
 {% cut "Alias functions for working with attributes" %}
 
-- [get_attribute](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.get_attribute)??
-- [has_attribute](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.has_attribute)??
-- [set_attribute](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.set_attribute)??
-- [remove_attribute](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.remove_attribute)??
+- [get_attribute](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.get_attribute)
+- [has_attribute](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.has_attribute)
+- [set_attribute](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.set_attribute)
+- [remove_attribute](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.remove_attribute)
 
 Note that these functions do not support access to nested attributes by design.
 To access nested attributes, use regular Cypress verbs and navigation using [YPath](../../../user-guide/storage/ypath.md).
@@ -437,13 +437,13 @@ To access nested attributes, use regular Cypress verbs and navigation using [YPa
 
 Merging files/tables:
 
-- [concatenate](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.concatenate)?? : merges chunks from tables or files.
+- [concatenate](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.concatenate): merges chunks from tables or files.
 
 Other commands:
 
-- [find_free_subpath](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.find_free_subpath)?? : Searches a free node whose path begins with `path`.
+- [find_free_subpath](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.find_free_subpath): Searches a free node whose path begins with `path`.
 
-- [search](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.search)?? : recursively traverses a subtree growing from the root node. By default, it outputs the absolute paths of all the nodes of the subtree. There's also a number of filters that allow you to select specific records. The `attributes` option specifies a list of attributes that must be retrieved with each node. The retrieved attributes are available in the `.attributes` field on the returned paths.
+- [search](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.search): recursively traverses a subtree growing from the root node. By default, it outputs the absolute paths of all the nodes of the subtree. There's also a number of filters that allow you to select specific records. The `attributes` option specifies a list of attributes that must be retrieved with each node. The retrieved attributes are available in the `.attributes` field on the returned paths.
 
    Example:
 
@@ -462,7 +462,7 @@ Other commands:
 
 For more information about files in Cypress, see [section](../../../user-guide/storage/files.md).
 
-- [read_file](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.read_file)??
+- [read_file](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.read_file)
 
    Read a file from Cypress to a local machine. Returns the [ResponseStream](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.response_stream.ResponseStream) object, which is a line iterator that has the following additional methods:
 
@@ -477,10 +477,10 @@ For more information about files in Cypress, see [section](../../../user-guide/s
 
 - Files can be transmitted as arguments of an operation. In that case, they are written to the root of the directory where your jobs will be run. For more information, see the [section](#run_operation_commands) and the [example](../../../api/python/examples.md#files).
 
-- [get_file_from_cache](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.get_file_from_cache)??
+- [get_file_from_cache](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.get_file_from_cache)
    Returns a path to the cached file based on the specified md5 sum
 
-- [put_file_to_cache](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.put_file_to_cache)??
+- [put_file_to_cache](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.put_file_to_cache)
    Upload the file existing at the given Cypress path to the cache. Note that the file should be uploaded to Cypress with a special option that enables md5 calculation.
 
 ### Working with tables { #table_commands }
@@ -500,7 +500,7 @@ class Row:
 
 The field type comes after the colon. This might be a regular Python type or a type from the [typing](https://docs.python.org/3/library/typing.html) module or a special type such as `OtherColumns`. For more information, see the [Data classes](../../../api/python/dataclass.md#types) section. Just as in the standard `dataclasses` module, you can create objects in the usual way: `row = Row(id=123, name="foo")`. In that case, for all the fields without default values (as for `robot: bool = False`), you need to pass relevant fields to the constructor. Otherwise, an exception will arise.
 
-The data classes support inheritance. For more information, see the [Data classes](../../../api/python/dataclass.md) section todo. See also the [example](../../../api/python/examples.md#dataclass).
+The data classes support inheritance. For more information, see the [Data classes](../../../api/python/dataclass.md) section. See also the [example](../../../api/python/examples.md#dataclass).
 
 #### Schemas { #table_schema }
 
@@ -544,7 +544,7 @@ All the commands used with tables (including operations), are not only accepting
 - `schema`: A [table schema](#table_schema); it makes sense when creating a table or writing to an empty or non-existing table.
 - `attributes`: Set any additional attributes.
 
-Ranges are semi-intervals (that is, they do not include the upper boundary). Note that some modifiers make sense only when you read data from a table (all the attributes related to ranges or columns), and some modifiers can only be used when writing to tables (append, sorted_by). As `name`, you can pass a string with ypath modifiers and ypath attributes, they will be read correctly and put to the `attributes` field. In the [TablePath](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.ypath.TablePath)?? object, the `attributes` field is both readable and writable.
+Ranges are semi-intervals (that is, they do not include the upper boundary). Note that some modifiers make sense only when you read data from a table (all the attributes related to ranges or columns), and some modifiers can only be used when writing to tables (append, sorted_by). As `name`, you can pass a string with ypath modifiers and ypath attributes, they will be read correctly and put to the `attributes` field. In the [TablePath](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.ypath.TablePath) object, the `attributes` field is both readable and writable.
 
 Example:
 
@@ -563,7 +563,7 @@ list(yt.read_table_structured(ranged_path, Row))
 
 #### Commands { #table_commands }
 
-- [create_temp_table](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.create_temp_table)??
+- [create_temp_table](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.create_temp_table)
 
    Creates a temporary table in the `path` directory with the `prefix`. If `path` is omitted, the directory will be taken from the config: `config["remote_temp_tables_directory"]`. For convenience, there's a wrapper that supports with_statement and accepts the same parameters as it.
    Example:
@@ -575,7 +575,7 @@ list(yt.read_table_structured(ranged_path, Row))
            yt.run_map(..., table1, table2, ...)
    ```
 
-- [write_table_structured](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.write_table_structured)??
+- [write_table_structured](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.write_table_structured)
 
    It writes the rows of `row_type` (it must be a [`yt_dataclass`](#dataclass)) from `input_stream` to the `table`.
    If the table is missing, first it is created together with a schema.     The command supports retries. You can set up retries using the `write_retries` config option.
@@ -602,13 +602,13 @@ list(yt.read_table_structured(ranged_path, Row))
    When writing to an empty or non-existing table, the schema is created automatically.
    In more complex cases, you might need to build the schema manually. For more information, see the [section](#table_schema) and the [example](../../../api/python/examples.md#table_schema).
 
-- [read_table_structured](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.read_table_structured)??
+- [read_table_structured](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.read_table_structured)
 
    Read the table as a sequence of rows of `row_type` (it must belong to [`yt_dataclass`](#dataclass)).
    The command supports retries (enabled by default). You can set up retries using the `read_retries` configuration option.
    The `table_reader` (dict) option enables you to specify a number of system [read parameters](../../../user-guide/storage/io-configuration.md#table_reader).
    The `unordered` (bool) option enables you to request unordered reading. In that case, the data might be read faster, but the read order isn't guaranteed.
-   The `response_parameters` (dict) option enables you to send a dict to it. This dict will be appended by special read command parameters (currently, there are two such parameters: `start_row_index` and `approximate_row_count`)??.
+   The `response_parameters` (dict) option enables you to send a dict to it. This dict will be appended by special read command parameters (currently, there are two such parameters: `start_row_index` and `approximate_row_count`).
 
    The iterator returned supports the `.with_context()` method that returns an iterator on the `(row, ctx)` pairs. The second item enables you to get the indexes of the current row and range using the `ctx.get_row_index()` and `ctx.get_range_index()` methods (a similar iterator inside the job  also enables you to get the table index: `ctx.get_table_index()`). See examples in the tutorial showing the context in [regular reading](../../../api/python/examples.md#read_write) and [inside operations](../../../api/python/examples.md#table_switches).
 
@@ -645,9 +645,9 @@ for row, ctx in rows.with_context():
 
 Alias functions for working with tables:
 
-- [row_count](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.row_count)?? : Returns the number of records in the table
-- [is_empty](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.is_empty)?? : Checks whether the table is empty
-- [is_sorted](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.is_sorted)?? : Checks whether the table is sorted
+- [row_count](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.row_count): Returns the number of records in the table
+- [is_empty](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.is_empty): Checks whether the table is empty
+- [is_sorted](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.is_sorted): Checks whether the table is sorted
 
 Examples:
 
@@ -664,7 +664,7 @@ yt.row_count("//home/table")  # Output: 2
 yt.is_sorted("//home/table") # Output: False
 ```
 
-- [write_table](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.write_table)??
+- [write_table](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.write_table)
    A non-typed analog of `write_table_structured`, **should be avoided**.
 
    {% cut "Read more" %}
@@ -713,7 +713,7 @@ yt.is_sorted("//home/table") # Output: False
    The `table_reader` (dict) option enables you to specify a number of system [read parameters](../../../user-guide/storage/io-configuration.md#table_reader).
    With the `control_attributes` (dict) option, you can request a number of [control attributes](../../../user-guide/storage/io-configuration.md#control_attributes)when reading data
    The `unordered` (bool) option enables you to request unordered reading. In that case, the data might be read faster, but the read order isn't guaranteed.
-   The `response_parameters` (dict) option enables you to send a dict to it. This dict will be appended by special read command parameters (in the current implementation, the two parameters are: start_row_index and approximate_row_count)??.
+   The `response_parameters` (dict) option enables you to send a dict to it. This dict will be appended by special read command parameters (in the current implementation, the two parameters are: start_row_index and approximate_row_count).
 
    See the [example](../../../user-guide/storage/examples.md#read_write_untyped) in the dedicated section.
 
@@ -821,7 +821,7 @@ To use this option, do the following:
 1. Set `zlib_fork_safe` if you run python2.
 2. Enable the following option in the config file: `config["write_parallel"]["enable"] = True`.
 
-After that, the standard commands [write_table](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.write_table)?? and [write_file](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.write_file)?? will work in multithreading mode
+After that, the standard commands [write_table](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.write_table) and [write_file](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.write_file) will work in multithreading mode
 
 Now, the client configuration includes a new `write_parallel` section with the following keys:
 
@@ -875,7 +875,7 @@ These functions produce the [YtResponseError](https://pydoc.ytsaurus.tech/yt.w
 
    {% endnote %}
 
-- [Transaction](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.transaction.Transaction)?? : **Single-thread** wrapper class for creating, committing, or aborting transactions. It supports the syntax of context manager (the `with` statement), that is, if the transaction exits the scope successfully, the transaction is committed; otherwise, it is aborted. All the commands in the scope run within the specified transaction. You can create nested scopes. The `ping` parameter (the default value is `True`) in the builder is responsible for running a pinging thread. If there is no ping, the operation will be forcibly aborted on timeout expiry.
+- [Transaction](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.transaction.Transaction): **Single-thread** wrapper class for creating, committing, or aborting transactions. It supports the syntax of context manager (the `with` statement), that is, if the transaction exits the scope successfully, the transaction is committed; otherwise, it is aborted. All the commands in the scope run within the specified transaction. You can create nested scopes. The `ping` parameter (the default value is `True`) in the builder is responsible for running a pinging thread. If there is no ping, the operation will be forcibly aborted on timeout expiry.
 
 Examples:
 
@@ -1010,7 +1010,7 @@ For the [run_map_reduce](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.
 When running an operation with the `sync=False` flag, it's more convenient to use the `abort, suspend, resume, complete` methods from the `Operation` class than the above methods (see the [Operation](#operation_class) section).
 
 
-- [run_job_shell](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.run_job_shell): Run a job-shell for the job. For this function, it's more convenient to use its CLI (../cli/cli.md) counterpart  todo
+- [run_job_shell](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.run_job_shell): Run a job-shell for the job. For this function, it's more convenient to use its [CLI](../cli/cli.md) counterpart.
 
 #### Getting information about jobs and operations { #operation_and_job_info_commands }
 This operation has a fairly non-trivial life cycle, and at certain points in time the information about the operation can be obtained from various sources:
@@ -1021,8 +1021,8 @@ This operation has a fairly non-trivial life cycle, and at certain points in tim
 
 Because you can get information about an operation from different sources (and not only the list of sources can change, but also the structure of each source), there exist the following methods that can collect information about an operation from the listed sources anytime.
 
-- [get_operation](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.get_operation): Get information about the operation based on its ID. A `dict` is returned with fields similar to the fields in the get_operation (../commands.md#get_operation) response todo
-- [list_operations](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.list_operations): Get information about a set of operations based on filters. The meaning of the fields is similar to `get_operation`. For a list of filters, see the section (../commands.md#list_operations) todo
+- [get_operation](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.get_operation): Get information about the operation based on its ID. A `dict` is returned with fields similar to the fields in the [get_operation](../commands.md#get_operation) response.
+- [list_operations](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.list_operations): Get information about a set of operations based on filters. The meaning of the fields is similar to `get_operation`. For a list of filters, see the [section](../commands.md#list_operations).
 - [iterate_operations](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.iterate_operations): Get an iterator for a set of operations. This function is similar to `list_operations`, but it doesn't set restrictions on the number of requested operations.
 
 An example is to output the types of the three latest operations run by `username`:
@@ -1047,8 +1047,8 @@ for op in client.iterate_operations(state="running"):
 ```
 
 The information about the operation's job is available in the scheduler and in the archive. The following methods enable you to get information about jobs.
-- [get_job](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.get_job): Get information about the job. A `dict` is returned with a field similar to the field in the get_job (../commands.md#get_job) response todo
-- [list_jobs](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.list_jobs): Get information about the set of jobs for the operation. The meaning of fields in the response is similar to that in `get_job`. For a list of filters, see the section (../commands.md#list_jobs) todo
+- [get_job](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.get_job): Get information about the job. A `dict` is returned with a field similar to the field in the [get_job](../commands.md#get_job) response.
+- [list_jobs](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.list_jobs): Get information about the set of jobs for the operation. The meaning of fields in the response is similar to that in `get_job`. For a list of filters, see the [section](../commands.md#list_jobs).
 - [get_job_stderr](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.get_job_stderr): Get the stderr of the job.
 - [get_job_input](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.get_job_input): Get the job's full input
 - [get_job_input_paths](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.operation_commands.get_job_input_paths): Get the list of input tables (with row ranges) for the job
@@ -1061,7 +1061,7 @@ When you call functions described in this section from inside themselves, they c
 
 {% endnote %}
 
-For debugging of failed jobs, it is convenient to use the job tool (../../problems/jobtool.md) todo. This utility enables you to prepare the environment similar to the job environment and run it with the same input data.
+For debugging of failed jobs, it is convenient to use the [job tool](../../user-guide/problems/jobstatistics.md). This utility enables you to prepare the environment similar to the job environment and run it with the same input data.
 
 #### Operation { #operation_class }
 

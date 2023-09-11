@@ -39,7 +39,7 @@ Availability of retry options and the mechanism of retries depends on the comma
 
 For non-mutating light commands, you can repeat the original query.
 
-The mutating light commands change the system status. That's why you need to hint the system that such a query has already been made. To do this, before executing the command, generate the `mutation_id` for the command (TODO example). This is a standard GUID that consists of four 32-bit numbers in the HEX format separated by a dash (`-`).
+The mutating light commands change the system status. That's why you need to hint the system that such a query has already been made. To do this, before executing the command, generate the `mutation_id` for the command. This is a standard GUID that consists of four 32-bit numbers in the HEX format separated by a dash (`-`).
 
 Specify the `mutation_id` generated both in the parameters of both the original query and in the retries.  In addition, you need to add, to the original query, the `retry` parameter with the value of `false`. To the retried queries, add the `retry` parameter with the value of `true`. Some light mutating commands do not support retries (an example is `concatenate`). If you need to retry such commands, you can use transactions.
 

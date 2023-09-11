@@ -67,7 +67,7 @@ map_node  dev          0.0B 2016-10-21 11:34 acid
 ...
 ```
 
-## Команды read/write
+## Команды read и write
 
 ```bash
 echo "x=10" | yt write //tmp/yt_cli_examples/table --format dsv
@@ -85,7 +85,7 @@ x=10   y=20
 
 Используя `  --format "<format=text>yson" --control-attributes '{enable_row_index=%true}'` можно узнать номер первой строки в заказанном диапазоне.
 
-## Команды upload/download
+## Команды upload и download
 
 ```bash
 cat binary | yt upload //tmp/yt_cli_examples/binary --executable

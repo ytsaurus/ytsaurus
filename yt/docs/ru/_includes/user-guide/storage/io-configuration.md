@@ -149,7 +149,7 @@ yt merge --mode auto --spec '{"force_transform"=true; "job_io"={"table_writer"={
 
 Опция `enable_table_index` позволяет включать и выключать `table index` на уровне формата. 
 Во многих форматах индексы выключены по умолчанию, поэтому их необходимо включать. Во многих форматах есть опции, отвечающие за представление `table_index` в данном формате. 
-Подробнее про `table_index` в разных форматах можно прочитать в разделе [Переключение таблиц](../../../user-guide/data-processing/operations/table-switch.md).
+Подробнее про `table_index` в разных форматах можно прочитать в разделе [Переключение таблиц](../../user-guide/data-processing/table-switch.md).
 
 Представление `row_index`, `range_index` и `key_switch`поддерживается только в форматах YSON и JSON.
 

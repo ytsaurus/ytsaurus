@@ -143,5 +143,5 @@ There are two issues with compaction. First, resources are needed. A single node
 
 Second, compaction heuristics are not perfect. If there are a lot of very small chunks in the table, the algorithm will become less efficient. The same happens if there is a very large chunk with a wide range of keys in the table. In the worst case, the table will get stuck and can only be repaired manually.
 
-Bulk insert can lead to a number of unusual scenarios. We have prepared the proper heuristics for many of them, but we have hardly taken everything into account???. Therefore, a test run on real volumes is an important next step.
+Bulk insert can lead to a number of unusual scenarios. We have prepared the proper heuristics for many of them, but we have hardly taken everything into account. Therefore, a test run on real volumes is an important next step.
 

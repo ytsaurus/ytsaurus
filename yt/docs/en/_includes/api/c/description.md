@@ -28,7 +28,7 @@ Please note, the C++ client is provided as-is, so:
 
 ## Logging { #logging }
 
-Logging is toggled with the `YT_LOG_LEVEL` environment variable, which can take one of the following values: `ERROR`, `WARNING` (equivalent to `ERROR` for compatibility with the Python API, TODO link), `INFO`, `DEBUG`.
+Logging is toggled with the `YT_LOG_LEVEL` environment variable, which can take one of the following values: `ERROR`, `WARNING` (equivalent to `ERROR` for compatibility with the [Python API](../../../api/python/userdoc.md)), `INFO`, `DEBUG`.
 In addition, you need to call the `NYT::Initialize()` method at the start of the program (see the next section).
 
 If possible, saving logs at the `DEBUG` level is recommended, especially for production processes. Should any API issues occur, such logs will make fixing them much easier and faster. Attaching these logs to emails about API-related problems is recommended.

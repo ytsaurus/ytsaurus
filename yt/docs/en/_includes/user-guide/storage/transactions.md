@@ -205,4 +205,4 @@ Changing the node state by a transaction is the following three-phase process:
 
 ## Using transactions in operations
 
-When starting operations, the scheduler creates a set of transactions to provide some atomicity of data processing in the operation. Learn more about the work schema in the Transaction processing of data section todo.
+When starting operations, the scheduler creates a set of transactions to provide some atomicity of data processing in the operation. Learn more about the work schema in the [Transaction processing of data](../../../user-guide/storage/transactions.md) section.

@@ -261,7 +261,7 @@ Or simply read the data:
 ------
 #### **Q: A running operation generates warning "Operation has jobs that use less than F% of requested tmpfs size". What does it mean?** { #unusedtmpfsspace }
 
-**A:** You request a tmpfs for jobs in the specification (you can view the warning attributes to find out which specific jobs) but are not using the entire file system (apart from certain thresholds)??. tmpfs size is included into the memory limit, which means that a job requests a lot of memory but does not use it in the end. First, this reduces actual memory utilization in your cluster. Second, large tmpfs requests may slow down job scheduling since it is much more likely that the cluster will have a slot with 1 GB of memory than one with 15 GB. You should order as much tmpfs as your jobs actually need. You can review warning attributes or look at the [statistic](../../../user-guide/problems/jobstatistics.md) for `user_job/tmpfs_size` to find out about actual use of tmpfs by jobs.
+**A:** You request a tmpfs for jobs in the specification (you can view the warning attributes to find out which specific jobs) but are not using the entire file system (apart from certain thresholds). tmpfs size is included into the memory limit, which means that a job requests a lot of memory but does not use it in the end. First, this reduces actual memory utilization in your cluster. Second, large tmpfs requests may slow down job scheduling since it is much more likely that the cluster will have a slot with 1 GB of memory than one with 15 GB. You should order as much tmpfs as your jobs actually need. You can review warning attributes or look at the [statistic](../../../user-guide/problems/jobstatistics.md) for `user_job/tmpfs_size` to find out about actual use of tmpfs by jobs.
 
 ------
 #### **Q: When I lunch an operation, I get error "No online node can satisfy the resource demand". What do I do?**
@@ -278,7 +278,7 @@ Or simply read the data:
 
 * When you are using [Reduce](../../../user-guide/data-processing/operations/reduce.md), and the input table has a monster key meaning that a single row in the first table corresponds to a large number of rows in another, as a result of the [Reduce](../../../user-guide/data-processing/operations/reduce.md) guarantee, all rows with this key must go into a single job, and the job will run indefinitely. You should use [MapReduce](../../../user-guide/data-processing/operations/mapreduce.md) with the trivial mapper and the reduce combiner to pre-process monster keys.
 * There are very many input tables being fed to an operation (100 or more) because chunks at the range boundary are not being counted precisely. The general observation is that the more input tables the less efficient the use of sorted input. You may want to use [MapReduce](../../../user-guide/data-processing/operations/mapreduce.md).
-* When using [Merge](../../../user-guide/data-processing/operations/merge.md), this error may result from suboptimal scheduler operation. You should contact the todo mailbox.
+* When using [Merge](../../../user-guide/data-processing/operations/merge.md), this error may result from suboptimal scheduler operation. You should contact the mailbox `community_ru@ytsaurus.tech`.
 
 The above recommendations notwithstanding, if you are certain that you would like to launch the operation anyway and are ready for it to take a very long time, you can increase the value of the `max_data_weight_per_job` parameter, which will start the operation.
 

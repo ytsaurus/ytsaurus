@@ -67,7 +67,7 @@ map_node  dev          0.0B 2016-10-21 11:34 acid
 ...
 ```
 
-## The read/write commands
+## The read and write commands
 
 ```bash
 echo "x=10" | yt write //tmp/yt_cli_examples/table --format dsv
@@ -85,7 +85,7 @@ The `--format` option is mandatory and regulates the [format](../../../user-guid
 
 Using `  --format "<format=text>yson" --control-attributes '{enable_row_index=%true}'`, you can find out the number of the first row in the ordered range.
 
-## The upload/download commands
+## The upload and download commands
 
 ```bash
 cat binary | yt upload //tmp/yt_cli_examples/binary --executable

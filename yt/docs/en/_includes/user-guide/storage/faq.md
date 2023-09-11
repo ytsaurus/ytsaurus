@@ -41,7 +41,7 @@ This will rebuild your table from larger chunks, thereby reducing the use of chu
 yt merge --src table --dst table --spec "{combine_chunks=true}"
 ```
 
-There is also a way of monitoring chunk usage without running a separate operation. For more information, see Merging chunks automatically on operation exit todo.
+There is also a way of monitoring chunk usage without running a separate operation. For more information, see [Merging chunks automatically on operation exit](../../../user-guide/data-processing/operations/automerge.md).
 
 In certain cases, files may use large numbers of chunks (for instance, when you are always appending small fragments to existing files).  At present, there are no ready-made recipes (similar to a merge operation) for combining file chunks. The simplest advice that we can give is to run the following combination: `yt read-file //path/to/file | yt write-file //path/to/file`.  This will make the entire data stream go through the client, of course.
 

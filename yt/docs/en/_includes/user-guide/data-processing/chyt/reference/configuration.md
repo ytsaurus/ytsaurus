@@ -43,8 +43,6 @@ The {{product-name}} part of the configuration is in the `yt` top-level section.
 
    Queries from Health Checker are currently executed on behalf of user `yt-clickhouse` who must have the `read` permissions to access the table.
 
-   If you need to start queries on other tables, contact the support chat (link TODO).
-
    {% endnote %}
 
    — `period` [60000]:The test triggering period in milliseconds.

@@ -96,7 +96,7 @@ yt remount-table //path/to/table
 | compaction_data_size_ratio | double | 2.0 |  |
 
 ### Удаление старых данных { #ttl_attributes }
-Подробно эти атрибуты описаны в разделе Сортированные динамические таблицы.
+Подробно эти атрибуты описаны в разделе [Сортированные динамические таблицы](../../../_includes/user-guide/dynamic-tables/sorted-dynamic-tables.md).
 
 | Имя | Тип | По умолчанию |
 |--|--|--|

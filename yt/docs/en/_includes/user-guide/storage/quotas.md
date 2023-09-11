@@ -61,6 +61,6 @@ Dynamic tables require a disk quota to write logs (medium ssd_journals) and snap
 
 {% note warning "Attention!" %}
 
-Users must monitor their own resource allocation quotas and order upgrades as required in a timely manner.??
+Users must monitor their own resource allocation quotas and order upgrades as required in a timely manner.
 
 {% endnote %}

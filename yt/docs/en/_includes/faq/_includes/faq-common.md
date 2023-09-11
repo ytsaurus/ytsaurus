@@ -97,7 +97,7 @@ Unless you specified `intermediate_data_account` (see [Operation settings](../..
 **A:** If you are getting an error that looks like
 `has failed with error <class 'yt.packages.requests.exceptions.ConnectionError'>, message: '('Connection aborted.', gaierror(-2, 'Name or service not known'))'`, or
 "Name or service not known", it is a DNS error that indicates that the requested DNS record is not found.
-Given {{product-name}} and reliable DNS, this most probably means that your service is attempting to resolve a record for a {{product-name}} host but {{product-name}} is an ipv6 only service, hence this is not working??. You service should work properly with an ipv6 network. In addition, the YT_FORCE_IPV4 environment variable may be set switching yt.wrapper to the ipv4 only mode. It must be eliminated.
+Given {{product-name}} and reliable DNS, this most probably means that your service is attempting to resolve a record for a {{product-name}} host but {{product-name}} is an ipv6 only service, hence this is not working. You service should work properly with an ipv6 network. In addition, the YT_FORCE_IPV4 environment variable may be set switching yt.wrapper to the ipv4 only mode. It must be eliminated.
 To view the {{product-name}} environment variable, run the following command in your terminal:
 `env | grep YT_`
 To remove the YT_FORCE_IPV4 variable from the environment:
