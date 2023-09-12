@@ -29,6 +29,8 @@ class CypressDiscoveryService(discoveryPath: String)(implicit yt: CompoundClient
 
   private def shsPath: String = s"$discoveryPath/shs"
 
+  private def livyPath: String = s"$discoveryPath/livy"
+
   private def clusterVersionPath: String = s"$discoveryPath/version"
 
   private def confPath: String = s"$discoveryPath/conf"
@@ -97,14 +99,21 @@ class CypressDiscoveryService(discoveryPath: String)(implicit yt: CompoundClient
     }
   }
 
-
-  override def registerSHS(address: HostAndPort): Unit = {
+  private def registerSimpleService(dirPath: String, address: HostAndPort): Unit = {
     val transaction = YtWrapper.createTransaction(None, 1 minute)
     val tr = Some(transaction.getId.toString)
     val addr = YtWrapper.escape(address.toString)
-    YtWrapper.removeDirIfExists(shsPath, recursive = true, tr)
-    YtWrapper.createDir(s"$shsPath/$addr", tr)
+    YtWrapper.removeDirIfExists(dirPath, recursive = true, tr)
+    YtWrapper.createDir(s"$dirPath/$addr", tr)
     transaction.commit().join()
+  }
+
+  override def registerSHS(address: HostAndPort): Unit = {
+    registerSimpleService(shsPath, address)
+  }
+
+  override def registerLivy(address: HostAndPort): Unit = {
+    registerSimpleService(livyPath, address)
   }
 
   private def cypressHostAndPort(path: String): Try[HostAndPort] = {

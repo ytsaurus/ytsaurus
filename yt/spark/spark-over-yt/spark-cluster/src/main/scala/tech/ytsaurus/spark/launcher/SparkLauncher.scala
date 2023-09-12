@@ -9,6 +9,7 @@ import tech.ytsaurus.spyt.wrapper.YtWrapper
 import tech.ytsaurus.spyt.wrapper.client.YtClientConfiguration
 import tech.ytsaurus.spyt.wrapper.discovery.{Address, CypressDiscoveryService, DiscoveryService}
 import tech.ytsaurus.client.CompoundClient
+import tech.ytsaurus.spyt.HostAndPort
 
 import java.io.File
 import java.nio.file.{Files, Path}
@@ -41,10 +42,25 @@ trait SparkLauncher {
     }
   }
 
-  private def sparkHome = new File(env("SPARK_HOME", "./spark")).getAbsolutePath
+  private def sparkHome: String = new File(env("SPARK_HOME", "./spark")).getAbsolutePath
+  private def livyHome: String = new File(env("LIVY_HOME", "./livy")).getAbsolutePath
 
   private def prepareSparkConf(): Unit = {
     copyToSparkConfIfExists("metrics.properties")
+  }
+
+  def prepareLivyConf(hostAndPort: HostAndPort, masterAddress: Address, maxSessions: Int): Unit = {
+    val src = Path.of(home, "livy.template.conf")
+    val preparedConfPath = createFromTemplate(src.toFile) { content =>
+      content
+        .replaceAll("\\$BIND_ADDRESS", hostAndPort.host)
+        .replaceAll("\\$BIND_PORT", hostAndPort.port.toString)
+        .replaceAll("\\$MASTER_ADDRESS", s"spark://${masterAddress.hostAndPort}")
+        .replaceAll("\\$LIVY_SESSIONS", maxSessions.toString)
+    }.toPath
+    val dst = Path.of(livyHome, "conf", "livy.conf")
+
+    Files.copy(preparedConfPath, dst)
   }
 
   private def configureJavaOptions(): Seq[String] = {
@@ -118,6 +134,46 @@ trait SparkLauncher {
     BasicService("Spark History Server", address.hostAndPort, thread)
   }
 
+  private def readLivyLogs(): String = {
+    val logsPath = f"$livyHome/logs/livy--server.out"
+    f"cat $logsPath".!!
+  }
+
+  private def runLivyProcess(log: Logger): Process = {
+    val livyRunner = f"$livyHome/bin/livy-server start"
+    log.info(s"Run command: $livyRunner")
+    val javaHome = env("JAVA_HOME", "/opt/jdk11")
+    val startProcess = Process(livyRunner, new File("."), "SPARK_HOME" -> sparkHome, "JAVA_HOME" -> javaHome)
+      .run(ProcessLogger(log.info(_)))
+    val startProcessCode = startProcess.exitValue()
+    log.info(f"Server started. Code: $startProcessCode")
+    if (startProcessCode == 0) {
+      val pid = ("cat /tmp/livy--server.pid".!!).trim
+      log.info(f"Attaching to livy process with pid $pid...")
+      Process("tail", Seq(f"--pid=$pid", "-f", "/dev/null")).run(ProcessLogger(log.info(_)))
+    } else {
+      startProcess
+    }
+  }
+
+  def startLivyServer(address: HostAndPort): BasicService = {
+    val thread = runDaemonThread(() => {
+      var process: Process = null
+      try {
+        val log = LoggerFactory.getLogger(self.getClass)
+        process = runLivyProcess(log)
+        log.warn(s"Livy exit value: ${process.exitValue()}")
+      } catch {
+        case e: Throwable =>
+          log.error(s"Livy failed with error: ${e.getMessage}")
+          process.destroy()
+          log.info("Livy process destroyed")
+      }
+      log.info("Logs:\n" + readLivyLogs())
+    }, "Livy thread")
+    BasicService("Livy Server", address, thread)
+  }
+
   def readAddressOrDie(name: String, timeout: Duration, thread: Thread): Address = {
     Try(readAddress(name, timeout)) match {
       case Success(address) => address
@@ -149,7 +205,7 @@ trait SparkLauncher {
                              systemProperties: Seq[String] = Nil,
                              namedArgs: Map[String, String] = Map.empty,
                              positionalArgs: Seq[String] = Nil): Thread = {
-    val thread = new Thread(() => {
+    runDaemonThread(() => {
       var process: Process = null
       try {
         val log = LoggerFactory.getLogger(self.getClass)
@@ -162,6 +218,10 @@ trait SparkLauncher {
           log.info("Spark process destroyed")
       }
     }, "Spark Thread")
+  }
+
+  private def runDaemonThread(runnable: Runnable, threadName: String = ""): Thread = {
+    val thread = new Thread(runnable, threadName)
     thread.setDaemon(true)
     thread.start()
     thread

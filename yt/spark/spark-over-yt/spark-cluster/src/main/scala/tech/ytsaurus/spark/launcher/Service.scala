@@ -51,8 +51,10 @@ sealed trait ServiceWithAddress extends Service {
   def isAddressAvailable(retry: Int = 0): Boolean = DiscoveryService.isAlive(address, retry)
 
   override def isAlive(retry: Int = 0): Boolean = {
-    val isAlive = isAddressAvailable(retry) && thread.isAlive
-    if (!isAlive) log.error(s"$name is not alive")
+    val isAddressAlive = isAddressAvailable(retry)
+    val isThreadAlive = thread.isAlive
+    val isAlive = isAddressAlive && isThreadAlive
+    if (!isAlive) log.error(s"$name is not alive (Address status: $isAddressAlive, Thread status: $isThreadAlive)")
     isAlive
   }
 

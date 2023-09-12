@@ -101,6 +101,7 @@ object E2ETestPlugin extends AutoPlugin {
         "--tmpfs-limit", "24G",
         "--spark-cluster-version", (ThisBuild / spytClusterVersion).value,
         "--enable-advanced-event-log",
+        "--enable-livy",
       )
       runProcess(
         sparkLaunchYtCommand.mkString(" "),

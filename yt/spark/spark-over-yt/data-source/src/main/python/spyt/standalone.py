@@ -43,6 +43,8 @@ class SparkDefaultArguments(object):
     SPARK_WORKER_LOG_TABLE_TTL = "7d"
     SPARK_WORKER_CORES_OVERHEAD = 0
     SPARK_WORKER_CORES_BYOP_OVERHEAD = 0
+    LIVY_MEMORY = "4G"
+    LIVY_SESSIONS = 2
 
     @staticmethod
     def get_params():
@@ -340,7 +342,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
                                network_project, tvm_id, tvm_secret,
                                advanced_event_log, worker_log_transfer, worker_log_json_mode,
                                worker_log_update_interval, worker_log_table_ttl,
-                               pool, enablers, client,
+                               pool, enablers, client, livy_memory, livy_sessions,
                                preemption_mode, job_types, driver_op_resources=None, driver_op_discovery_script=None,
                                extra_metrics_enabled=True, autoscaler_enabled=False):
     if job_types == [] or job_types == None:
@@ -350,22 +352,25 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
         spark_home = "."
     else:
         spark_home = "./tmpfs"
+    livy_tgz = "livy.tgz"
 
     def script_path(script):
         return "{}/{}".format(spark_home, driver_op_discovery_script)
 
-    def _launcher_command(component, xmx="512m", extra_java_opts=None):
+    def _unpack_command(archive_name, dest):
+        return "tar --warning=no-unknown-keyword -xf {} -C {}".format(archive_name, dest)
+
+    def _launcher_command(component, additional_commands=[], xmx="512m", extra_java_opts=None, launcher_opts=""):
         create_dir = "mkdir -p {}".format(spark_home)
-        unpack_tar = "tar --warning=no-unknown-keyword -xf spark.tgz -C {}".format(
-            spark_home)
         move_java = "cp -r /opt/jdk11 ./tmpfs/jdk11"
         extra_java_opts_str = " " + " ".join(extra_java_opts) if extra_java_opts else ""
-        run_launcher = "./tmpfs/jdk11/bin/java -Xmx{0} -cp spark-yt-launcher.jar{1}".format(
-            xmx, extra_java_opts_str)
+        run_launcher = "./tmpfs/jdk11/bin/java -Xmx{0} -cp spark-yt-launcher.jar{1}".format(xmx, extra_java_opts_str)
         spark_conf = get_spark_conf(config=config, enablers=enablers)
 
-        return "{5} && {0} && {1} && {2} {3} tech.ytsaurus.spark.launcher.{4}Launcher ".format(
-            unpack_tar, move_java, run_launcher, spark_conf, component, create_dir)
+        commands = [create_dir, move_java, _unpack_command("spark.tgz", spark_home)] + additional_commands + [
+            "{} {} tech.ytsaurus.spark.launcher.{}Launcher {}".format(run_launcher, spark_conf, component, launcher_opts)
+        ]
+        return " && ".join(commands)
 
     extra_java_opts = []
     if enablers.enable_preference_ipv6:
@@ -381,8 +386,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
         config["spark_conf"]["spark.workerLog.tablePath"] = worker_log_location
     if driver_op_discovery_script:
         script_absolute_path = _script_absolute_path(driver_op_discovery_script)
-        config["spark_conf"]["spark.worker.resource.driverop.amount"] = str(
-            driver_op_resources)
+        config["spark_conf"]["spark.worker.resource.driverop.amount"] = str(driver_op_resources)
         config["spark_conf"]["spark.worker.resource.driverop.discoveryScript"] = script_absolute_path
         config["spark_conf"]["spark.driver.resource.driverop.discoveryScript"] = script_absolute_path
     if extra_metrics_enabled:
@@ -395,12 +399,13 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
         config["spark_conf"]["spark.driver.resource.jobid.discoveryScript"] = _script_absolute_path(
             "spark/bin/job-id-discovery.sh")
 
-    worker_command = _launcher_command("Worker", "2g", extra_java_opts=extra_java_opts) + \
-        "--cores {0} --memory {1} --wait-master-timeout {2} --wlog-service-enabled {3} " \
-        "--wlog-enable-json {4} --wlog-update-interval {5} --wlog-table-path {6} " \
-        "--wlog-table-ttl {7}".format(
+    worker_launcher_opts = \
+        "--cores {0} --memory {1} --wait-master-timeout {2} --wlog-service-enabled {3} --wlog-enable-json {4} "\
+        "--wlog-update-interval {5} --wlog-table-path {6} --wlog-table-ttl {7}".format(
             worker.cores, worker.memory, worker.timeout, worker_log_transfer, worker_log_json_mode,
             worker_log_update_interval, worker_log_location, worker_log_table_ttl)
+    worker_command = _launcher_command("Worker", xmx="2g", extra_java_opts=extra_java_opts,
+                                       launcher_opts=worker_launcher_opts)
 
     if advanced_event_log:
         event_log_path = "ytEventLog:/{}".format(
@@ -410,9 +415,10 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
             shs_location or spark_discovery.event_log())
     if "spark.history.fs.numReplayThreads" not in config["spark_conf"]:
         config["spark_conf"]["spark.history.fs.numReplayThreads"] = history_server_cpu_limit
-    history_command = _launcher_command("HistoryServer", extra_java_opts=extra_java_opts) + \
-        "--log-path {} --memory {}".format(event_log_path,
-                                           history_server_memory_limit)
+    history_launcher_opts = "--log-path {} --memory {}".format(event_log_path, history_server_memory_limit)
+    history_command = _launcher_command("HistoryServer", extra_java_opts=extra_java_opts, launcher_opts=history_launcher_opts)
+
+    livy_command = _launcher_command("Livy", additional_commands=[_unpack_command('livy.tgz', spark_home)], extra_java_opts=extra_java_opts)
 
     user = get_user_name(client=client)
 
@@ -421,11 +427,9 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     if "master" in job_types:
         operation_spec["stderr_table_path"] = str(spark_discovery.stderr())
     elif "driver" in job_types:
-        operation_spec["stderr_table_path"] = str(
-            spark_discovery.stderr() + "_driver")
+        operation_spec["stderr_table_path"] = str(spark_discovery.stderr() + "_driver")
     else:
-        operation_spec["stderr_table_path"] = str(
-            spark_discovery.stderr()) + "_worker"
+        operation_spec["stderr_table_path"] = str(spark_discovery.stderr()) + "_worker"
 
     operation_spec["pool"] = pool
     if "title" not in operation_spec:
@@ -449,8 +453,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     environment = config["environment"]
     environment["YT_PROXY"] = get_proxy_url(required=True, client=client)
     environment["YT_OPERATION_ALIAS"] = operation_spec["title"]
-    environment["SPARK_BASE_DISCOVERY_PATH"] = str(
-        spark_discovery.base_discovery_path)
+    environment["SPARK_BASE_DISCOVERY_PATH"] = str(spark_discovery.base_discovery_path)
     environment["SPARK_DISCOVERY_PATH"] = str(spark_discovery.discovery())
     environment["JAVA_HOME"] = "$HOME/tmpfs/jdk11"
     environment["SPARK_HOME"] = "$HOME/{}/spark".format(spark_home)
@@ -470,9 +473,14 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
         "SPARK_YT_BYOP_ENABLED": str(enablers.enable_byop)
     }
     worker_environment = update(environment, worker_environment)
+    livy_environment = {
+        "LIVY_HOME": "$HOME/{}/livy".format(spark_home),
+        "SPARK_YT_LIVY_PORT": "27105",
+        "SPARK_YT_LIVY_SESSIONS": str(livy_sessions)
+    }
+    livy_environment = update(environment, livy_environment)
     if enablers.enable_byop:
-        ytserver_binary_name = ytserver_proxy_path.split(
-            "/")[-1] if ytserver_proxy_path else "ytserver-proxy"
+        ytserver_binary_name = ytserver_proxy_path.split("/")[-1] if ytserver_proxy_path else "ytserver-proxy"
         byop_worker_environment = {
             "SPARK_YT_BYOP_BINARY_PATH": "$HOME/{}".format(ytserver_binary_name),
             "SPARK_YT_BYOP_CONFIG_PATH": "$HOME/ytserver-proxy.template.yson",
@@ -497,14 +505,16 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
 
     worker_file_paths = copy.copy(common_task_spec["file_paths"])
     shs_file_paths = copy.copy(common_task_spec["file_paths"])
+    livy_file_paths = copy.copy(common_task_spec["file_paths"])
     if ytserver_proxy_path and enablers.enable_byop:
         worker_file_paths.append(ytserver_proxy_path)
-        operation_spec["description"]["BYOP"] = ytserver_proxy_attributes(
-            ytserver_proxy_path, client=client)
+        operation_spec["description"]["BYOP"] = ytserver_proxy_attributes(ytserver_proxy_path, client=client)
 
     if enablers.enable_profiling:
         worker_file_paths.append("//home/sashbel/profiler.zip")
         shs_file_paths.append("//home/sashbel/profiler.zip")
+
+    livy_file_paths.append("//home/spark/livy/{}".format(livy_tgz))
 
     secure_vault = {"YT_USER": user, "YT_TOKEN": get_token(client=client)}
 
@@ -528,6 +538,9 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     driver_environment = driver_task_spec["environment"]
     if driver_op_resources:
         driver_environment["SPARK_DRIVER_RESOURCE"] = str(driver_op_resources)
+
+    livy_task_spec = copy.deepcopy(common_task_spec)
+    livy_task_spec["environment"] = livy_environment
 
     builder = VanillaSpecBuilder()
     if "master" in job_types:
@@ -564,6 +577,15 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
             .cpu_limit(worker.cores + worker_cores_overhead) \
             .spec(driver_task_spec) \
             .file_paths(worker_file_paths) \
+            .end_task()
+    if "livy" in job_types:
+        builder.begin_task("livy") \
+            .job_count(1) \
+            .command(livy_command) \
+            .memory_limit(_parse_memory(livy_memory)) \
+            .cpu_limit(2) \
+            .spec(livy_task_spec) \
+            .file_paths(livy_file_paths) \
             .end_task()
 
     return builder \
@@ -611,12 +633,12 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
                         worker_log_table_ttl=SparkDefaultArguments.SPARK_WORKER_LOG_TABLE_TTL,
                         params=None, shs_location=None, spark_cluster_version=None, enablers=None, client=None,
                         preemption_mode="normal", enable_multi_operation_mode=False,
-                        dedicated_operation_mode=False,
-                        driver_cores=None, driver_memory=None, driver_num=None,
-                        driver_cores_overhead=None, driver_timeout=None,
-                        autoscaler_period=None, autoscaler_metrics_port=None,
-                        autoscaler_sliding_window=None, autoscaler_max_free_workers=None,
-                        autoscaler_slot_increment_step=None):
+                        dedicated_operation_mode=False, driver_cores=None, driver_memory=None, driver_num=None,
+                        driver_cores_overhead=None, driver_timeout=None, autoscaler_period=None,
+                        autoscaler_metrics_port=None, autoscaler_sliding_window=None,
+                        autoscaler_max_free_workers=None, autoscaler_slot_increment_step=None,
+                        enable_livy=False, livy_memory=SparkDefaultArguments.LIVY_MEMORY,
+                        livy_sessions=SparkDefaultArguments.LIVY_SESSIONS):
     """Start Spark cluster
     :param operation_alias: alias for the underlying YT operation
     :param pool: pool for the underlying YT operation
@@ -662,6 +684,9 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     :param autoscaler_sliding_window: size of autoscaler actions sliding window (in number of action) to downscale
     :param autoscaler_max_free_workers: maximum number of free workers
     :param autoscaler_slot_increment_step: autoscaler workers increment step
+    :param enable_livy: start livy server
+    :param livy_memory: memory limit for livy server
+    :param livy_sessions: session count limit for livy server
     :return:
     """
     worker = Worker(worker_cores, worker_memory, worker_num,
@@ -720,6 +745,12 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
 
     spark_discovery.create(client)
 
+    job_types = ['master', 'history']
+    if enable_livy:
+        job_types.append('livy')
+    if not enable_multi_operation_mode:
+        job_types.append('worker')
+
     args = {
         'operation_alias': operation_alias,
         'spark_discovery': spark_discovery,
@@ -746,12 +777,12 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
         'client': client,
         'preemption_mode': preemption_mode,
         'autoscaler_enabled': autoscaler_period is not None,
-        'job_types': ['master', 'history', 'worker']
+        'job_types': job_types,
+        'livy_memory': livy_memory,
+        'livy_sessions': livy_sessions
     }
 
     master_args = args.copy()
-    if enable_multi_operation_mode:
-        master_args['job_types'] = ['master', 'history']
     master_builder = build_spark_operation_spec(**master_args)
 
     op_child = None
@@ -819,6 +850,7 @@ def find_spark_cluster(discovery_path=None, client=None):
         operation_id=SparkDiscovery.getOption(
             discovery.operation(), client=client),
         shs_url=SparkDiscovery.getOption(discovery.shs(), client=client),
+        livy_url=SparkDiscovery.getOption(discovery.livy(), client=client),
         spark_cluster_version=SparkDiscovery.getOption(
             discovery.spark_cluster_version(), client=client),
         children_operation_ids=SparkDiscovery.getOptions(

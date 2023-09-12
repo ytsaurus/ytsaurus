@@ -22,12 +22,13 @@ logger = logging.getLogger(__name__)
 
 class SparkCluster(object):
     def __init__(self, master_endpoint, master_web_ui_url, master_rest_endpoint, operation_id, shs_url,
-                 spark_cluster_version, children_operation_ids):
+                 livy_url, spark_cluster_version, children_operation_ids):
         self.master_endpoint = master_endpoint
         self.master_web_ui_url = master_web_ui_url
         self.master_rest_endpoint = master_rest_endpoint
         self.operation_id = operation_id
         self.shs_url = shs_url
+        self.livy_url = livy_url
         self.spark_cluster_version = spark_cluster_version
         self.children_operation_ids = children_operation_ids
 
@@ -112,6 +113,9 @@ class SparkDiscovery(object):
     def shs(self):
         return self.discovery().join("shs")
 
+    def livy(self):
+        return self.discovery().join("livy")
+
     def stderr(self):
         return self.logs().join("stderr")
 
@@ -126,9 +130,10 @@ class SparkDiscovery(object):
 
 
 class ClusterInfo(object):
-    def __init__(self, master, shs, workers, operation, workers_operation, multiop_mode, max_workers_count, user_slots):
+    def __init__(self, master, shs, livy, workers, operation, workers_operation, multiop_mode, max_workers_count, user_slots):
         self.master = master
         self.shs = shs
+        self.livy = livy
         self.workers = workers
         self.operation = operation
         self.workers_operation = workers_operation
@@ -144,6 +149,7 @@ def cluster_info(yt_client, discovery_path):
     discovery = SparkDiscovery(discovery_path)
     master = SparkDiscovery.getOption(discovery.master_spark())
     shs = SparkDiscovery.getOption(discovery.shs())
+    livy = SparkDiscovery.getOption(discovery.livy())
     operation = SparkDiscovery.getOption(discovery.operation())
     children = SparkDiscovery.getOptions(discovery.children_operations())
     if not children:
@@ -168,7 +174,7 @@ def cluster_info(yt_client, discovery_path):
 
     workers = [j['address'] for j in jobs
                if 'address' in j and host(j['address']) != host(master) and host(j['address']) != host(shs)]
-    return ClusterInfo(master, shs, workers, operation, worker_operation, multiop_mode, max_job_count, user_slots)
+    return ClusterInfo(master, shs, livy, workers, operation, worker_operation, multiop_mode, max_job_count, user_slots)
 
 
 def parse_memory(memory):

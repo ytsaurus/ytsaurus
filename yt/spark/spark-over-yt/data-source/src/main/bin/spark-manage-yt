@@ -32,6 +32,7 @@ def info(yt_client, discovery_path):
     print("Cluster information:")
     print("  master=%s" % info.master)
     print("  shs=%s" % info.shs)
+    print("  livy=%s" % info.livy)
     print("  operation=%s" % info.operation)
     print("  multiop_mode=%s" % info.multiop_mode)
     print("  workers_count=%i" % info.workers_count())

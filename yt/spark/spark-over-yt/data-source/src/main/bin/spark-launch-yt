@@ -151,6 +151,11 @@ def main():
     subgroup.add_argument("--autoscaler-slot-increment-step", required=False,
                           type=int, help="autoscaler worker slots increment step")
 
+    subgroup = parser.add_argument_group("(experimental) Livy server")
+    subgroup.add_argument('--enable-livy', action='store_true', default=False)
+    subgroup.add_argument('--livy-memory', required=False, default="4G")
+    subgroup.add_argument('--livy-sessions', required=False, default=2, type=int)
+
     args, unknown_args = spark_utils.parse_args(parser)
 
     yt_client = YtClient(proxy=args.proxy, token=spark_utils.default_token())
@@ -207,7 +212,10 @@ def main():
                         autoscaler_metrics_port=args.autoscaler_metrics_port,
                         autoscaler_sliding_window=args.autoscaler_sliding_window,
                         autoscaler_max_free_workers=args.autoscaler_max_free_workers,
-                        autoscaler_slot_increment_step=args.autoscaler_slot_increment_step)
+                        autoscaler_slot_increment_step=args.autoscaler_slot_increment_step,
+                        enable_livy=args.enable_livy,
+                        livy_memory=args.livy_memory,
+                        livy_sessions=args.livy_sessions)
 
 
 if __name__ == '__main__':

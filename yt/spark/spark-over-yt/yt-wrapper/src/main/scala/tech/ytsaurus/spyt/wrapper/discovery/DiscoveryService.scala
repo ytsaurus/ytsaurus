@@ -24,6 +24,8 @@ trait DiscoveryService {
 
   def registerSHS(address: HostAndPort): Unit
 
+  def registerLivy(address: HostAndPort): Unit
+
   def registerWorker(operationId: String): Unit
 
   def discoverAddress(): Try[Address]
