@@ -434,7 +434,7 @@ TEST_P(TTestReassignInMemoryTabletsUniform, Simple)
     i64 expectedSize = totalSize / cellSizes.size();
     for (const auto& [cellId, memorySize] : cellSizes) {
         EXPECT_EQ(memorySize, expectedSize)
-            << "cell_id: " << ToString(cellId) << Endl;
+            << "cellId: " << ToString(cellId) << Endl;
     }
 }
 
@@ -730,7 +730,7 @@ class TTestReassignTabletsParameterizedErrors
     : public ::testing::Test
     , public ::testing::WithParamInterface<std::tuple<
         /*bundle*/ TStringBuf,
-        /*expectedDescriptors*/ TString>>
+        /*errorText*/ TString>>
 { };
 
 TEST_P(TTestReassignTabletsParameterizedErrors, BalancingError)
@@ -742,8 +742,6 @@ TEST_P(TTestReassignTabletsParameterizedErrors, BalancingError)
 
     const auto& table = bundle->Tables.begin()->second;
     auto group = table->TableConfig->Group.value_or(DefaultGroupName);
-
-    std::cout << bundle->TabletCells.begin()->second->Statistics.MemorySize << '\n';
 
     EXPECT_THROW_WITH_SUBSTRING(
         ReassignTabletsParameterized(
