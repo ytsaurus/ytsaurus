@@ -154,7 +154,7 @@ private:
                 YT_LOG_INFO("All tickets fetched successfully");
                 return;
             }
-            if (!backoff.NextRetry()) {
+            if (!backoff.Next()) {
                 break;
             }
 
