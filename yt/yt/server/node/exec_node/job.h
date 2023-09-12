@@ -3,6 +3,7 @@
 #include "chunk_cache.h"
 #include "controller_agent_connector.h"
 #include "gpu_manager.h"
+#include "job_info.h"
 #include "public.h"
 #include "volume_manager.h"
 
@@ -171,7 +172,7 @@ public:
     void SetTotalInputDataStatistics(NChunkClient::NProto::TDataStatistics dataStatistics);
     void SetOutputDataStatistics(std::vector<NChunkClient::NProto::TDataStatistics> dataStatistics);
 
-    void BuildOrchid(NYTree::TFluentMap fluent) const;
+    TBriefJobInfo GetBriefInfo() const;
 
     std::vector<NChunkClient::TChunkId> DumpInputContext();
 

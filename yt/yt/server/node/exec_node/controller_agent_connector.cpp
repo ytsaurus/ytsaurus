@@ -650,31 +650,24 @@ void TControllerAgentConnectorPool::OnRegisteredAgentSetReceived(
         "Received registered controller agents (ControllerAgentCount: %v)",
         std::size(controllerAgentDescriptors));
 
-    THashSet<TControllerAgentDescriptor> controllerAgentDescriptorsToRemove;
+    THashSet<TControllerAgentDescriptor> outdatedControllerAgentDescriptors;
     for (const auto& [descriptor, connector] : ControllerAgentConnectors_) {
         if (!controllerAgentDescriptors.contains(descriptor)) {
             YT_LOG_DEBUG(
                 "Found outdated controller agent connector, remove it (ControllerAgentDescriptor: %v)",
                 descriptor);
 
-            EmplaceOrCrash(controllerAgentDescriptorsToRemove, descriptor);
+            EmplaceOrCrash(outdatedControllerAgentDescriptors, descriptor);
         } else {
             EraseOrCrash(controllerAgentDescriptors, descriptor);
         }
     }
 
-    {
-        TForbidContextSwitchGuard guard;
-        for (const auto& descriptor : controllerAgentDescriptorsToRemove) {
-            EraseOrCrash(ControllerAgentConnectors_, descriptor);
-        }
-
-        for (const auto& job : Bootstrap_->GetJobController()->GetJobs()) {
-            if (controllerAgentDescriptorsToRemove.contains(job->GetControllerAgentDescriptor())) {
-                job->UpdateControllerAgentDescriptor(TControllerAgentDescriptor{});
-            }
-        }
+    for (const auto& descriptor : outdatedControllerAgentDescriptors) {
+        EraseOrCrash(ControllerAgentConnectors_, descriptor);
     }
+
+    Bootstrap_->GetJobController()->OnControllerAgentIncarnationOutdated(outdatedControllerAgentDescriptors);
 
     for (auto& descriptor : controllerAgentDescriptors) {
         YT_LOG_DEBUG("Add new controller agent connector (ControllerAgentDescriptor: %v)", descriptor);

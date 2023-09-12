@@ -1093,12 +1093,25 @@ void TJob::SetOutputDataStatistics(std::vector<TDataStatistics> dataStatistics)
     OutputDataStatistics_ = std::move(dataStatistics);
 }
 
-void TJob::BuildOrchid(NYTree::TFluentMap fluent) const
+TBriefJobInfo TJob::GetBriefInfo() const
 {
-    fluent
-        .Item("events").Value(JobEvents_)
-        .Item("core_infos").Value(CoreInfos_)
-        .Item("exec_attributes").Value(ExecAttributes_);
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    return TBriefJobInfo(
+        GetId(),
+        GetState(),
+        GetPhase(),
+        GetType(),
+        GetStored(),
+        GetSlotIndex(),
+        GetStartTime(),
+        TInstant::Now() - GetStartTime(),
+        GetStatistics(),
+        GetOperationId(),
+        GetResourceUsage(),
+        JobEvents_,
+        CoreInfos_,
+        ExecAttributes_);
 }
 
 std::vector<TChunkId> TJob::DumpInputContext()

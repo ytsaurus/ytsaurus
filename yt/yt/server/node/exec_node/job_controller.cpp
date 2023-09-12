@@ -3,6 +3,7 @@
 #include "bootstrap.h"
 #include "helpers.h"
 #include "job.h"
+#include "job_info.h"
 #include "private.h"
 #include "scheduler_connector.h"
 #include "slot_manager.h"
@@ -217,19 +218,15 @@ public:
         return it == RecentlyRemovedJobMap_.end() ? nullptr : it->second.Job;
     }
 
-    std::vector<TJobPtr> GetJobs() const override
+    void OnControllerAgentIncarnationOutdated(const THashSet<TControllerAgentDescriptor>& descriptorsToRemove) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(JobThread);
 
-        auto guard = ReaderGuard(JobMapLock_);
-
-        std::vector<TJobPtr> result;
-        result.reserve(JobMap_.size());
-        for (const auto& [id, job] : JobMap_) {
-            result.push_back(job);
+        for (TForbidContextSwitchGuard guard; const auto& [id, job ]: JobMap_) {
+            if (descriptorsToRemove.contains(job->GetControllerAgentDescriptor())) {
+                job->UpdateControllerAgentDescriptor(TControllerAgentDescriptor{});
+            }
         }
-
-        return result;
     }
 
     void SetDisableSchedulerJobs(bool value) override
@@ -348,25 +345,28 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto jobs = GetJobs();
+        auto jobsBriefInfoOrError = WaitFor(BIND([this, this_ = MakeStrong(this)]{
+            std::vector<TBriefJobInfo> result;
+            result.reserve(JobMap_.size());
+
+            for(TForbidContextSwitchGuard guard; const auto& [id, job] : JobMap_){
+                result.emplace_back(job->GetBriefInfo());
+            }
+
+            return result;
+        })
+            .AsyncVia(Bootstrap_->GetJobInvoker())
+            .Run());
+
+        YT_LOG_FATAL_IF(
+            !jobsBriefInfoOrError.IsOK(),
+            jobsBriefInfoOrError,
+            "Unexpected fail during getting job info");
 
         fluent.DoMapFor(
-            jobs,
-            [&] (TFluentMap fluent, const TJobPtr& job) {
-                fluent.Item(ToString(job->GetId()))
-                    .BeginMap()
-                        .Item("job_state").Value(job->GetState())
-                        .Item("job_phase").Value(job->GetPhase())
-                        .Item("job_type").Value(job->GetType())
-                        .Item("stored").Value(job->GetStored())
-                        .Item("slot_index").Value(job->GetSlotIndex())
-                        .Item("start_time").Value(job->GetStartTime())
-                        .Item("duration").Value(TInstant::Now() - job->GetStartTime())
-                        .OptionalItem("statistics", job->GetStatistics())
-                        .OptionalItem("operation_id", job->GetOperationId())
-                        .Item("resource_usage").Value(job->GetResourceUsage())
-                        .Do(std::bind(&TJob::BuildOrchid, job, std::placeholders::_1))
-                    .EndMap();
+            jobsBriefInfoOrError.Value(),
+            [&] (TFluentMap fluent, const TBriefJobInfo& job) {
+                fluent.Do(std::bind(&TBriefJobInfo::BuildOrchid, job, std::placeholders::_1));
             });
     }
 
@@ -421,7 +421,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        for (const auto& [id, job] : JobMap_) {
+        for (TForbidContextSwitchGuard guard; const auto& [id, job] : JobMap_) {
             if (job->GetControllerAgentDescriptor() == controllerAgentDescriptor) {
                 job->UpdateControllerAgentDescriptor({});
             }
@@ -453,7 +453,7 @@ public:
         std::vector<TJobPtr> jobsToRemove;
         jobsToRemove.reserve(std::size(JobMap_));
 
-        for (const auto& [jobId, job] : JobMap_) {
+        for (TForbidContextSwitchGuard guard; const auto& [jobId, job] : JobMap_) {
             YT_VERIFY(TypeFromId(jobId) == EObjectType::SchedulerJob);
 
             YT_LOG_INFO("Removing job due to fatal alert (JobId: %v)", jobId);
@@ -462,6 +462,8 @@ public:
             jobsToRemove.push_back(job);
             jobResourceReleaseFutures.push_back(job->GetCleanupFinishedEvent());
         }
+
+
 
         for (const auto& job : jobsToRemove) {
             RemoveJob(job, NControllerAgent::TReleaseJobFlags{});
@@ -558,6 +560,22 @@ private:
         return controllerAgentConnectorPool->SettleJobs(
             controllerAgentDescriptor,
             allocationInfos);
+    }
+
+    std::vector<TJobPtr> GetJobs()
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        TForbidContextSwitchGuard guard;
+
+        std::vector<TJobPtr> currentJobs;
+        currentJobs.reserve(JobMap_.size());
+
+        for(const auto& [id, job] : JobMap_) {
+            currentJobs.emplace_back(job);
+        }
+
+        return currentJobs;
     }
 
     void SettleAndStartJobs(std::vector<TAllocationStartInfo> allocationStartInfoProtos)
@@ -741,7 +759,8 @@ private:
 
         ActiveJobCountBuffer_->Update([this] (ISensorWriter* writer) {
             TWithTagGuard tagGuard(writer, "origin", FormatEnum(EJobOrigin::Scheduler));
-            writer->AddGauge("/active_job_count", GetJobs().size());
+
+            writer->AddGauge("/active_job_count", JobMap_.size());
         });
 
         const auto& gpuManager = Bootstrap_->GetExecNodeBootstrap()->GetGpuManager();
@@ -758,7 +777,8 @@ private:
         i64 totalUserJobMaxMemory = 0;
         i64 tmpfsSize = 0;
         i64 tmpfsUsage = 0;
-        for (const auto& job : GetJobs()) {
+
+        for (TForbidContextSwitchGuard guard; const auto& [id, job] : JobMap_) {
             YT_VERIFY(TypeFromId(job->GetId()) == EObjectType::SchedulerJob);
 
             if (job->GetState() != EJobState::Running || job->GetPhase() != EJobPhase::Running) {
@@ -850,7 +870,7 @@ private:
                     << TErrorAttribute("resource_delta", FormatResources(resourceDelta)));
             } else {
                 bool foundJobToAbort = false;
-                for (const auto& job : GetJobs()) {
+                for (TForbidContextSwitchGuard guard; const auto& [id, job] : JobMap_) {
                     if (job->GetState() == EJobState::Running && job->ResourceUsageOverdrafted()) {
                         job->Abort(TError(
                             NExecNode::EErrorCode::ResourceOverdraft,
@@ -861,6 +881,7 @@ private:
                         break;
                     }
                 }
+
                 if (!foundJobToAbort) {
                     currentJob->Abort(TError(
                         NExecNode::EErrorCode::NodeResourceOvercommit,
@@ -959,7 +980,8 @@ private:
         THashSet<TJobPtr> removedJobsToForcefullySend = context->JobsToForcefullySend;
 
         int confirmedJobCount = 0;
-        for (const auto& [jobId, job] : JobMap_) {
+
+        for (TForbidContextSwitchGuard guard; const auto& [jobId, job] : JobMap_) {
             removedJobsToForcefullySend.erase(job);
 
             bool jobConfirmationRequested = context->JobsToForcefullySend.contains(job);
@@ -1308,7 +1330,7 @@ private:
                 DynamicConfig_.Acquire()->OperationInfosRequestPeriod;
         THashSet<TOperationId> operationIdsToRequestInfo;
 
-        for (const auto& job : GetJobs()) {
+        for (TForbidContextSwitchGuard guard; const auto& [id, job] : JobMap_) {
             auto jobId = job->GetId();
 
             YT_VERIFY(TypeFromId(jobId) == EObjectType::SchedulerJob);
@@ -1533,7 +1555,7 @@ private:
 
         auto resourceAcquiringContext = JobResourceManager_->GetResourceAcquiringContext();
 
-        for (const auto& job : GetJobs()) {
+        for (TForbidContextSwitchGuard guard; const auto& [id, job] : JobMap_) {
             if (job->GetState() != EJobState::Waiting) {
                 continue;
             }
@@ -1952,7 +1974,7 @@ private:
         VERIFY_THREAD_AFFINITY(JobThread);
 
         std::vector<TJobPtr> schedulerJobs;
-        for (const auto& job : GetJobs()) {
+        for (TForbidContextSwitchGuard guard; const auto& [id, job] : JobMap_) {
             YT_VERIFY(TypeFromId(job->GetId()) == EObjectType::SchedulerJob);
 
             if (job->GetState() == EJobState::Running) {
