@@ -814,7 +814,7 @@ public:
     void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override
     {
         Y_VERIFY(context->GetExecutorName() == "yt");
-        Y_VERIFY(outputs.empty());
+        Y_VERIFY(outputs.empty(), "Size of outputs: %ld", outputs.size());
     }
 
     void Do(const void* rows, int count) override
@@ -829,6 +829,7 @@ public:
 
     const TFnAttributes& GetFnAttributes() const override
     {
+        static const TFnAttributes FnAttributes_;
         return FnAttributes_;
     }
 
@@ -843,7 +844,6 @@ private:
     IYtJobOutputPtr JobOutput_;
     TRowVtable RowVtable_;
 
-    TFnAttributes FnAttributes_;
     Y_SAVELOAD_DEFINE_OVERRIDE(JobOutput_, RowVtable_);
 };
 
@@ -873,7 +873,7 @@ public:
 
     std::vector<TDynamicTypeTag> GetOutputTags() const override
     {
-        return {};
+        return OutputTags_;
     }
 
     void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override
@@ -906,7 +906,7 @@ public:
     TDefaultFactoryFunc GetDefaultFactory() const override
     {
         return [] () -> IRawParDoPtr {
-            return ::MakeIntrusive<TYtJobOutputParDo>();
+            return ::MakeIntrusive<TImpulseJobInputParDo>();
         };
     }
 

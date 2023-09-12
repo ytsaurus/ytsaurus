@@ -56,6 +56,20 @@ class TOutputTableNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const TPCollectionNode* VerifiedGetSingleSource(const TTransformNodePtr& transform)
+{
+    Y_VERIFY(transform->GetSourceCount() == 1);
+    return transform->GetSource(0).Get();
+}
+
+const TPCollectionNode* VerifiedGetSingleSink(const TTransformNodePtr& transform)
+{
+    Y_VERIFY(transform->GetSinkCount() == 1);
+    return transform->GetSink(0).Get();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <typename TDerived>
 class TNodeHierarchyRoot
 {
@@ -63,7 +77,7 @@ public:
     virtual ~TNodeHierarchyRoot() = default;
 
     template <typename T>
-    T* CheckedAsPtr()
+    T* VerifiedAsPtr()
     {
         static_assert(std::is_base_of_v<TDerived, T>, "Class is not derived from TNodeHierarchyRoot");
         auto* result = dynamic_cast<T*>(this);
@@ -72,7 +86,7 @@ public:
     }
 
     template <typename T>
-    const T* CheckedAsPtr() const
+    const T* VerifiedAsPtr() const
     {
         static_assert(std::is_base_of_v<TDerived, T>, "Class is not derived from TNodeHierarchyRoot");
         const auto* result = dynamic_cast<const T*>(this);
@@ -111,7 +125,7 @@ public:
 
     virtual EOperationType GetOperationType() const = 0;
 
-    TTableNode* CheckedGetSingleInput() const
+    TTableNode* VerifiedGetSingleInput() const
     {
         Y_VERIFY(InputTables.size() == 1);
         return InputTables[0];
@@ -160,13 +174,21 @@ class TMapReduceOperationNode
     : public TYtGraphV2::TOperationNode
 {
 public:
-    TParDoTreeBuilder MapperBuilder;
+    TRowVtable MapperIntermediateOutputVtable;
+    TParDoTreeBuilder::TPCollectionNodeId MapperIntermediateOutputNodeId;
+
+    std::vector<TParDoTreeBuilder> MapperBuilderList;
     TParDoTreeBuilder ReducerBuilder;
 
 public:
-    explicit TMapReduceOperationNode(TString firstName)
+    TMapReduceOperationNode(
+        TString firstName,
+        ssize_t inputCount)
         : TYtGraphV2::TOperationNode(firstName)
-    { }
+        , MapperBuilderList(inputCount)
+    {
+        Y_VERIFY(inputCount >= 1);
+    }
 
     EOperationType GetOperationType() const override
     {
@@ -175,8 +197,10 @@ public:
 
     std::shared_ptr<TOperationNode> Clone() override
     {
-        auto result = std::make_shared<TMapReduceOperationNode>(GetFirstName());
-        result->MapperBuilder = MapperBuilder;
+        auto result = std::make_shared<TMapReduceOperationNode>(GetFirstName(), ssize(MapperBuilderList));
+        result->MapperBuilderList = MapperBuilderList;
+        result->MapperIntermediateOutputNodeId = MapperIntermediateOutputNodeId;
+        result->MapperIntermediateOutputVtable = MapperIntermediateOutputVtable;
         result->ReducerBuilder = ReducerBuilder;
         return result;
     }
@@ -331,8 +355,9 @@ class TIntermediateTableNode
     : public TYtGraphV2::TTableNode
 {
 public:
-    TIntermediateTableNode(TRowVtable vtable)
+    TIntermediateTableNode(TRowVtable vtable, TString temporaryDirectory)
         : TYtGraphV2::TTableNode(std::move(vtable))
+        , TemporaryDirectory_(std::move(temporaryDirectory))
     { }
 
     ETableType GetTableType() const override
@@ -342,12 +367,12 @@ public:
 
     virtual IYtJobInputPtr CreateJobInput() const override
     {
-        Y_FAIL("TIntermediateTableNode::CreateJobInput is not implemented yet");
+        return CreateDecodingJobInput(Vtable);
     }
 
-    virtual IYtJobOutputPtr CreateJobOutput(ssize_t /*sinkIndex*/) const override
+    virtual IYtJobOutputPtr CreateJobOutput(ssize_t sinkIndex) const override
     {
-        Y_FAIL("TIntermediateTableNode::CreateJobOutput is not implemented yet");
+        return CreateEncodingJobOutput(Vtable, sinkIndex);
     }
 
     virtual NYT::TRichYPath GetPath() const override
@@ -364,7 +389,7 @@ public:
                     return "Reduce";
             }
             Y_FAIL("unreachable");
-        }() << "." << OutputOf.Connector.second;
+        } () << "." << OutputOf.Connector.second;
 
         return TemporaryDirectory_ + "/" + tableName.Str();
     }
@@ -372,11 +397,11 @@ public:
 private:
     std::shared_ptr<TTableNode> Clone() const override
     {
-        return std::make_shared<TIntermediateTableNode>(Vtable);
+        return std::make_shared<TIntermediateTableNode>(Vtable, TemporaryDirectory_);
     }
 
 private:
-    TString TemporaryDirectory_;
+    const TString TemporaryDirectory_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -416,6 +441,14 @@ public:
         return {operation.get(), table.get()};
     }
 
+    TMapReduceOperationNode* CreateMapReduceOperation(std::vector<TTableNode*> inputs, TString firstName)
+    {
+        auto operation = std::make_shared<TMapReduceOperationNode>(std::move(firstName), std::ssize(inputs));
+        Operations.push_back(operation);
+        LinkWithInputs(std::move(inputs), operation.get());
+        return operation.get();
+    }
+
     TInputTableNode* CreateInputTable(TRowVtable vtable, const IRawYtReadPtr& rawYtRead)
     {
         auto table = std::make_shared<TInputTableNode>(std::move(vtable), rawYtRead);
@@ -442,9 +475,10 @@ public:
     TIntermediateTableNode* CreateIntermediateTable(
         TOperationNode* operation,
         TOperationConnector connector,
-        TRowVtable vtable)
+        TRowVtable vtable,
+        TString temporaryDirectory)
     {
-        auto table = std::make_shared<TIntermediateTableNode>(std::move(vtable));
+        auto table = std::make_shared<TIntermediateTableNode>(std::move(vtable), std::move(temporaryDirectory));
         Tables.push_back(table);
         auto inserted = operation->OutputTables.emplace(connector, table.get()).second;
         Y_VERIFY(inserted);
@@ -607,7 +641,7 @@ private:
         {
             auto matchProducerConsumerPattern = [] (const TOperationNode* operationNode) -> TOperationNode* {
                 if (operationNode->GetOperationType() == EOperationType::Map) {
-                    auto originalInput = operationNode->CheckedGetSingleInput();
+                    auto originalInput = operationNode->VerifiedGetSingleInput();
                     auto originalPreviousOperation = originalInput->OutputOf.Operation;
                     if (originalPreviousOperation && originalPreviousOperation->GetOperationType() == EOperationType::Map) {
                         return originalPreviousOperation;
@@ -624,7 +658,7 @@ private:
                 auto clonedFusionDestination = FusionMap_[originalPreviousOperation];
                 Y_VERIFY(clonedFusionDestination);
 
-                auto connectTo = ResolveNewConnection(originalOperation->CheckedGetSingleInput());
+                auto connectTo = ResolveNewConnection(originalOperation->VerifiedGetSingleInput());
                 FuseMapTo(originalOperation, clonedFusionDestination, connectTo);
             } else {
                 std::vector<TYtGraphV2::TTableNode*> clonedInputs;
@@ -647,7 +681,7 @@ private:
 
                     Y_VERIFY(std::ssize(clonedOperation->OutputTables) == std::ssize(originalOperation->OutputTables));
                     // 1. Fuse all siblings.
-                    const auto* originalInput = originalOperation->CheckedGetSingleInput();
+                    const auto* originalInput = originalOperation->VerifiedGetSingleInput();
                     for (const auto& inputFor : originalInput->InputFor) {
                         const auto* originalSibling = inputFor.Operation;
                         if (originalSibling != originalOperation && originalSibling->GetOperationType() == EOperationType::Map) {
@@ -662,8 +696,8 @@ private:
         {
             bool inserted = false;
 
-            const auto* originalMap = originalOperation->CheckedAsPtr<TMapOperationNode>();
-            auto* destinationMap = destination->CheckedAsPtr<TMapOperationNode>();
+            const auto* originalMap = originalOperation->VerifiedAsPtr<TMapOperationNode>();
+            auto* destinationMap = destination->VerifiedAsPtr<TMapOperationNode>();
 
             auto originalToDestinationConnectorMap = destinationMap->MapperBuilder.Fuse(originalMap->MapperBuilder, fusionPoint);
             inserted = FusionMap_.emplace(originalOperation, destination).second;
@@ -721,8 +755,8 @@ private:
                 Y_VERIFY(oldClonedTable->GetTableType() == ETableType::Output);
                 Y_VERIFY(originalTable->GetTableType() == ETableType::Output);
 
-                oldClonedTable->CheckedAsPtr<TOutputTableNode>()->MergeFrom(
-                    *originalTable->CheckedAsPtr<TOutputTableNode>()
+                oldClonedTable->VerifiedAsPtr<TOutputTableNode>()->MergeFrom(
+                    *originalTable->VerifiedAsPtr<TOutputTableNode>()
                 );
                 RegisterTableProjection(originalTable, oldClonedTable);
             }
@@ -823,8 +857,7 @@ public:
                 break;
             case ERawTransformType::ParDo: {
                 // 1. Посмотреть к чему привязан вход
-                Y_VERIFY(transformNode->GetSourceCount() == 1);
-                const auto* sourcePCollection = transformNode->GetSource(0).Get();
+                const auto* sourcePCollection = VerifiedGetSingleSource(transformNode);
                 auto* inputTable = GetPCollectionImage(sourcePCollection);
                 auto rawParDo = rawTransform->AsRawParDo();
 
@@ -843,7 +876,8 @@ public:
                     auto* outputTable = PlainGraph_->CreateIntermediateTable(
                         mapOperation,
                         {EJobType::Map, id},
-                        pCollection->GetRowVtable()
+                        pCollection->GetRowVtable(),
+                        Config_->GetWorkingDir()
                     );
                     RegisterPCollection(pCollection, outputTable);
                 }
@@ -852,6 +886,28 @@ public:
                 break;
             }
             case ERawTransformType::GroupByKey: {
+                const auto* sourcePCollection = VerifiedGetSingleSource(transformNode);
+                auto* inputTable = GetPCollectionImage(sourcePCollection);
+
+                auto* mapReduceOperation = PlainGraph_->CreateMapReduceOperation({inputTable}, transformNode->GetName());
+                mapReduceOperation->MapperIntermediateOutputNodeId = 0;
+                mapReduceOperation->MapperIntermediateOutputVtable = inputTable->Vtable;
+
+                auto nodeIdList = mapReduceOperation->ReducerBuilder.AddParDo(
+                    CreateGbkImpulseReadParDo(transformNode->GetRawTransform()->AsRawGroupByKey()),
+                    TParDoTreeBuilder::RootNodeId
+                );
+                Y_VERIFY(nodeIdList.size() == 1);
+
+                const auto* sinkPCollection = VerifiedGetSingleSink(transformNode);
+                auto* outputTable = PlainGraph_->CreateIntermediateTable(
+                    mapReduceOperation,
+                    {EJobType::Reduce, nodeIdList[0]},
+                    sinkPCollection->GetRowVtable(),
+                    Config_->GetWorkingDir()
+                );
+                RegisterPCollection(sinkPCollection, outputTable);
+                break;
             }
             case ERawTransformType::CoGroupByKey:
             case ERawTransformType::StatefulTimerParDo:
@@ -972,7 +1028,7 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
     const auto& operation = PlainGraph_->Operations[nodeId];
     switch (operation->GetOperationType()) {
         case EOperationType::Map: {
-            const auto* mapOperation = operation->CheckedAsPtr<TMapOperationNode>();
+            const auto* mapOperation = operation->VerifiedAsPtr<TMapOperationNode>();
 
             NYT::TRawMapOperationSpec spec;
             Y_VERIFY(operation->InputTables.size() == 1);
@@ -989,7 +1045,7 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
                 Y_VERIFY(std::ssize(operation->OutputTables) == 1);
                 for (const auto &[_, table] : operation->OutputTables) {
                     auto output = table->GetPath();
-                    output.Schema(table->CheckedAsPtr<TOutputTableNode>()->GetSchema());
+                    output.Schema(table->VerifiedAsPtr<TOutputTableNode>()->GetSchema());
                     spec.Output(table->GetPath());
                 }
                 return client->Merge(spec, NYT::TOperationOptions{}.Wait(false));
@@ -1015,7 +1071,78 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
             }
         }
         case EOperationType::MapReduce: {
-            Y_FAIL("not implemented yet");
+            const auto* mapReduceOperation = operation->VerifiedAsPtr<TMapReduceOperationNode>();
+
+            Y_VERIFY(operation->InputTables.size() == 1, "Multiple MapReduce inputs are not supported yet");
+            Y_VERIFY(operation->InputTables.size() == mapReduceOperation->MapperBuilderList.size());
+
+            NYT::TRawMapReduceOperationSpec spec;
+            const auto* inputTable = operation->InputTables[0];
+            spec.AddInput(inputTable->GetPath());
+
+            // For now we support only single input MapReduces and we checked it several lines above.
+            auto tmpMapperBuilder = mapReduceOperation->MapperBuilderList[0];
+            auto reducerBuilder = mapReduceOperation->ReducerBuilder;
+            ssize_t mapperOutputIndex = 1;
+            ssize_t reducerOutputIndex = 0;
+            for (const auto& [connector, outputTable] : mapReduceOperation->OutputTables) {
+                std::vector<TParDoTreeBuilder::TPCollectionNodeId> nodeIdList;
+                switch (connector.first) {
+                    case EJobType::Map:
+                        nodeIdList = tmpMapperBuilder.AddParDo(
+                            CreateOutputParDo(outputTable->CreateJobOutput(mapperOutputIndex), outputTable->Vtable),
+                            connector.second
+                        );
+                        Y_VERIFY(nodeIdList.empty());
+                        spec.AddMapOutput(outputTable->GetPath());
+                        ++mapperOutputIndex;
+                        break;
+                    case EJobType::Reduce:
+                        nodeIdList = reducerBuilder.AddParDo(
+                            CreateOutputParDo(outputTable->CreateJobOutput(reducerOutputIndex), outputTable->Vtable),
+                            connector.second
+                        );
+                        Y_VERIFY(nodeIdList.empty());
+                        spec.AddOutput(outputTable->GetPath());
+                        ++reducerOutputIndex;
+                        break;
+                }
+            }
+
+            tmpMapperBuilder.AddParDo(
+                CreateOutputParDo(
+                    CreateKvJobOutput(0, std::vector{mapReduceOperation->MapperIntermediateOutputVtable}),
+                    mapReduceOperation->MapperIntermediateOutputVtable
+                ),
+                mapReduceOperation->MapperIntermediateOutputNodeId
+            );
+
+            TParDoTreeBuilder mapBuilder;
+            auto impulseOutputIdList = mapBuilder.AddParDo(
+                CreateImpulseInputParDo(
+                    inputTable->CreateJobInput(),
+                    std::vector<TDynamicTypeTag>{{"ImpulseOutput", inputTable->Vtable}},
+                    0
+                ),
+                TParDoTreeBuilder::RootNodeId
+            );
+            Y_VERIFY(impulseOutputIdList.size() == 1);
+            mapBuilder.Fuse(tmpMapperBuilder, impulseOutputIdList[0]);
+
+            auto mapperJob = CreateImpulseJob(mapBuilder.Build());
+            auto reducerJob = CreateImpulseJob(reducerBuilder.Build());
+
+            spec.MapperFormat(NYT::TFormat::YsonBinary());
+            spec.ReducerFormat(NYT::TFormat::YsonBinary());
+            spec.ReduceBy({"key"});
+
+            return client->RawMapReduce(
+                spec,
+                mapperJob,
+                nullptr,
+                reducerJob,
+                NYT::TOperationOptions().Wait(false)
+            );
         }
     }
 }
@@ -1051,7 +1178,7 @@ std::set<TString> TYtGraphV2::GetEdgeDebugStringSet() const
                     TStringStream tableRepresentation;
                     {
                         bool first = true;
-                        auto pathSchemaList = outputTable->CheckedAsPtr<TOutputTableNode>()->GetPathSchemaList();
+                        auto pathSchemaList = outputTable->VerifiedAsPtr<TOutputTableNode>()->GetPathSchemaList();
                         for (const auto& pair : pathSchemaList) {
                             if (first) {
                                 first = false;

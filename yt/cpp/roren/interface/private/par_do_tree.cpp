@@ -49,22 +49,6 @@ using TPipePCollectionNodePtr = ::TIntrusivePtr<TPipePCollectionNode>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TParDoTreeBuilder::TParDoNode::Save(IOutputStream* os) const
-{
-    SaveSerializable(os, ParDo);
-    ::Save(os, Input);
-    ::Save(os, Outputs);
-}
-
-void TParDoTreeBuilder::TParDoNode::Load(IInputStream* is)
-{
-    LoadSerializable(is, ParDo);
-    ::Load(is, Input);
-    ::Load(is, Outputs);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TParDoTreeBuilder::TParDoTree
     : public IParDoTree
 {
@@ -181,6 +165,11 @@ public:
         }
         out << "}";
         return out.Str();
+    }
+
+    void PrintDebugDescription() const
+    {
+        Cerr << GetDebugDescription() << Endl;
     }
 
 private:

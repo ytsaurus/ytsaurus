@@ -37,7 +37,6 @@ public:
     bool Empty() const
     {
         return ParDoNodes_.empty();
-
     }
 
 private:
@@ -47,8 +46,7 @@ private:
         TPCollectionNodeId Input;
         std::vector<TPCollectionNodeId> Outputs;
 
-        void Save(IOutputStream* os) const;
-        void Load(IInputStream* is);
+        Y_SAVELOAD_DEFINE(ParDo, Input, Outputs);
     };
 
     struct TPCollectionNode
