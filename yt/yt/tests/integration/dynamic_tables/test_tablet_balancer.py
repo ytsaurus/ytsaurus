@@ -1,5 +1,5 @@
 from yt_dynamic_tables_base import DynamicTablesBase
-from .test_tablet_actions import TabletBalancerBase
+from .test_tablet_actions import TabletBalancerBase, TabletActionsBase
 
 from yt_commands import (
     authors, set, get, ls, update, wait, sync_mount_table, sync_reshard_table,
@@ -190,7 +190,7 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
         wait(lambda: get("//tmp/t4/@tablet_count") == 1)
 
 
-class TestStandaloneTabletBalancerSlow(TestStandaloneTabletBalancer):
+class TestStandaloneTabletBalancerSlow(TestStandaloneTabletBalancerBase, TabletActionsBase):
     @classmethod
     def modify_tablet_balancer_config(cls, config):
         super(TestStandaloneTabletBalancerSlow, cls).modify_tablet_balancer_config(config)
