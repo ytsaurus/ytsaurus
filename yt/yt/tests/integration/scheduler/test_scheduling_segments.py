@@ -114,9 +114,9 @@ class TestSchedulingSegments(YTEnvSetup):
     def setup_method(self, method):
         super(TestSchedulingSegments, self).setup_method(method)
 
-        create_pool("cpu", attributes={"allow_regular_preemption": False}, wait_for_orchid=False)
-        create_pool("small_gpu", attributes={"allow_regular_preemption": False}, wait_for_orchid=False)
-        create_pool("large_gpu", attributes={"allow_regular_preemption": False})
+        create_pool("cpu", attributes={"allow_normal_preemption": False}, wait_for_orchid=False)
+        create_pool("small_gpu", attributes={"allow_normal_preemption": False}, wait_for_orchid=False)
+        create_pool("large_gpu", attributes={"allow_normal_preemption": False})
         set("//sys/pool_trees/default/@config/scheduling_segments", {
             "mode": "large_gpu",
             "initialization_timeout": 10000,
@@ -306,10 +306,10 @@ class TestSchedulingSegments(YTEnvSetup):
             parent_name="large_gpu",
             attributes={
                 "strong_guarantee_resources": {"gpu": 72},
-                "allow_regular_preemption": False,
+                "allow_normal_preemption": False,
             },
         )
-        create_pool("research_large", parent_name="large_gpu", attributes={"allow_regular_preemption": False})
+        create_pool("research_large", parent_name="large_gpu", attributes={"allow_normal_preemption": False})
 
         blocking_op1 = run_sleeping_vanilla(
             spec={"pool": "research_large"},
@@ -1028,9 +1028,9 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
     def setup_method(self, method):
         super(BaseTestSchedulingSegmentsMultiModule, self).setup_method(method)
 
-        create_pool("cpu", attributes={"allow_regular_preemption": False}, wait_for_orchid=False)
-        create_pool("small_gpu", attributes={"allow_regular_preemption": False}, wait_for_orchid=False)
-        create_pool("large_gpu", attributes={"allow_regular_preemption": False})
+        create_pool("cpu", attributes={"allow_normal_preemption": False}, wait_for_orchid=False)
+        create_pool("small_gpu", attributes={"allow_normal_preemption": False}, wait_for_orchid=False)
+        create_pool("large_gpu", attributes={"allow_normal_preemption": False})
         set("//sys/pool_trees/default/@config/scheduling_segments", {
             "mode": "large_gpu",
             "initialization_timeout": 10000,
@@ -1226,7 +1226,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_rebalance_large_gpu_segment_nodes_between_modules(self):
-        create_pool("large_gpu_other", attributes={"allow_regular_preemption": False})
+        create_pool("large_gpu_other", attributes={"allow_normal_preemption": False})
         set("//sys/pools/large_gpu/@strong_guarantee_resources", {"gpu": 40})
         set("//sys/pools/small_gpu/@strong_guarantee_resources", {"gpu": 40})
 
@@ -1752,8 +1752,8 @@ class TestRunningJobStatistics(YTEnvSetup):
     def setup_method(self, method):
         super(TestRunningJobStatistics, self).setup_method(method)
 
-        create_pool("small_gpu", attributes={"allow_regular_preemption": False}, wait_for_orchid=False)
-        create_pool("large_gpu", attributes={"allow_regular_preemption": False})
+        create_pool("small_gpu", attributes={"allow_normal_preemption": False}, wait_for_orchid=False)
+        create_pool("large_gpu", attributes={"allow_normal_preemption": False})
         set("//sys/pool_trees/default/@config/scheduling_segments", {
             "mode": "large_gpu",
             "initialization_timeout": 10000,

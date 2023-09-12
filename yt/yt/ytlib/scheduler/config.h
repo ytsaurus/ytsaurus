@@ -116,7 +116,7 @@ public:
 
     // NB(eshcherbin): Intended for testing purposes only.
     // Should not be used in real clusters, unless something extraordinary happens.
-    bool AllowRegularPreemption;
+    bool AllowNormalPreemption;
 
     REGISTER_YSON_STRUCT(TPoolPreemptionConfig);
 
