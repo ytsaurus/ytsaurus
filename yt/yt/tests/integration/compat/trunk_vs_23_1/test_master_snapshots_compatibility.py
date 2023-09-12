@@ -120,6 +120,13 @@ def check_chunk_creation_time_histogram():
             for cell_tag, address in master_addresses[1:]
         ]
 
+        def profilers_ready():
+            for profiler in profilers:
+                if not profilers[0].histogram("chunk_server/histograms/chunk_creation_time_histogram").get_bins():
+                    return False
+            return True
+        wait(profilers_ready)
+
         histogram = [
             bin["count"]
             for bin in profilers[0].histogram("chunk_server/histograms/chunk_creation_time_histogram").get_bins()
