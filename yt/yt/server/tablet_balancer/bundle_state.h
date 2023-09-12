@@ -57,7 +57,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TTableProfilingCounterMap, ProfilingCounters);
     DEFINE_BYVAL_RW_PROPERTY(bool, HasUntrackedUnfinishedActions, false);
 
-    static const std::vector<TString> DefaultPerformanceCountersKeys_;
+    static const std::vector<TString> DefaultPerformanceCountersKeys;
 
 public:
     TBundleState(

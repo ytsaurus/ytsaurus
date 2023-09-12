@@ -37,21 +37,19 @@ struct TTablet final
     TInstant MountTime;
 
     TTabletStatistics Statistics;
-    TPerformanceCountersProtoList PerformanceCountersProto;
+
+    // TYsonString is only used in tests.
+    std::variant<TPerformanceCountersProtoList, NYson::TYsonString> PerformanceCounters;
     ETabletState State = ETabletState::Unmounted;
 
     TTablet(
         TTabletId tabletId,
         TTable* table);
+
+    NYson::TYsonString GetPerformanceCountersYson(const std::vector<TString>& performanceCountersKeys) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTablet)
-
-////////////////////////////////////////////////////////////////////////////////
-
-NYson::TYsonString BuildTabletPerformanceCountersYson(
-    const TTablet::TPerformanceCountersProtoList& emaCounters,
-    const std::vector<TString>& performanceCountersKeys);
 
 ////////////////////////////////////////////////////////////////////////////////
 

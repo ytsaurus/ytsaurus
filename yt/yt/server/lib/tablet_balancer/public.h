@@ -6,8 +6,6 @@
 
 #include <yt/yt/client/tablet_client/public.h>
 
-#include <yt/yt/core/misc/intrusive_ptr.h>
-
 namespace NYT::NTabletBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
