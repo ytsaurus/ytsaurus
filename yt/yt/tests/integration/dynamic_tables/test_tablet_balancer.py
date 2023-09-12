@@ -239,6 +239,9 @@ class TestStandaloneTabletBalancerSlow(TestStandaloneTabletBalancer):
         assert [[], [2], [3]] == [tablet["pivot_key"] for tablet in tablets]
 
         wait(lambda: get("//tmp/t/@tablet_count") == 2)
+        self._apply_dynamic_config_patch({
+            "max_actions_per_group": 100
+        })
 
 
 class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTablesBase):
