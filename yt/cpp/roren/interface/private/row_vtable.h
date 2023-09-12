@@ -137,12 +137,8 @@ public:
     TRawRowHolder& operator=(TRawRowHolder&& rhs)
     {
         if (this != &rhs) {
-            if (RowVtable_.Destructor != nullptr) {
-                RowVtable_.Destructor(GetData());
-            }
-            Data_ = std::move(rhs.Data_);
-            RowVtable_ = rhs.RowVtable_;
-            rhs.RowVtable_ = TRowVtable{};
+            std::swap(Data_, rhs.Data_);
+            std::swap(RowVtable_, rhs.RowVtable_);
         }
         return *this;
     }
@@ -157,7 +153,7 @@ public:
         return Data_.data();
     }
 
-    [[nodiscard]] const void* GetData() const
+    const void* GetData() const
     {
         return Data_.data();
     }
@@ -165,6 +161,9 @@ public:
     void CopyFrom(const void* row)
     {
         Y_ASSERT(RowVtable_.CopyConstructor);
+        if (RowVtable_.Destructor != nullptr) {
+            RowVtable_.Destructor(GetData());
+        }
         RowVtable_.CopyConstructor(GetData(), row);
     }
 
