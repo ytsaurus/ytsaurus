@@ -4,6 +4,8 @@
 #include <yt/cpp/roren/interface/private/raw_data_flow.h>
 #include <yt/cpp/mapreduce/interface/format.h>
 #include <yt/cpp/mapreduce/interface/io.h>
+#include <yt/cpp/mapreduce/io/node_table_reader.h>
+#include <yt/cpp/mapreduce/io/stream_table_reader.h>
 
 #include <library/cpp/yson/writer.h>
 #include <library/cpp/yson/node/node_visitor.h>
@@ -784,6 +786,145 @@ IYtJobOutputPtr CreateTeeJobOutput(std::vector<IYtJobOutputPtr> outputs)
 IYtJobOutputPtr CreateParDoJobOutput(IRawParDoPtr rawParDo, std::vector<IYtJobOutputPtr> outputs)
 {
     return ::MakeIntrusive<TParDoJobOutput>(std::move(rawParDo), std::move(outputs));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TYtJobOutputParDo
+    : public IRawParDo
+{
+public:
+    TYtJobOutputParDo() = default;
+
+    TYtJobOutputParDo(IYtJobOutputPtr jobOutput, TRowVtable rowVtable)
+        : JobOutput_(std::move(jobOutput))
+        , RowVtable_(std::move(rowVtable))
+    { }
+
+    std::vector<TDynamicTypeTag> GetInputTags() const override
+    {
+        return {TDynamicTypeTag("TYtJobOutputParDo.Input", RowVtable_)};
+    }
+
+    std::vector<TDynamicTypeTag> GetOutputTags() const override
+    {
+        return {};
+    }
+
+    void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override
+    {
+        Y_VERIFY(context->GetExecutorName() == "yt");
+        Y_VERIFY(outputs.empty());
+    }
+
+    void Do(const void* rows, int count) override
+    {
+        JobOutput_->AddRaw(rows, count);
+    }
+
+    void Finish() override
+    {
+        JobOutput_->Close();
+    }
+
+    const TFnAttributes& GetFnAttributes() const override
+    {
+        return FnAttributes_;
+    }
+
+    TDefaultFactoryFunc GetDefaultFactory() const override
+    {
+        return [] () -> IRawParDoPtr {
+            return ::MakeIntrusive<TYtJobOutputParDo>();
+        };
+    }
+
+private:
+    IYtJobOutputPtr JobOutput_;
+    TRowVtable RowVtable_;
+
+    TFnAttributes FnAttributes_;
+    Y_SAVELOAD_DEFINE_OVERRIDE(JobOutput_, RowVtable_);
+};
+
+IRawParDoPtr CreateOutputParDo(IYtJobOutputPtr output, TRowVtable rowVtable)
+{
+    return ::MakeIntrusive<TYtJobOutputParDo>(std::move(output), std::move(rowVtable));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TImpulseJobInputParDo
+    : public IRawParDo
+{
+public:
+    TImpulseJobInputParDo() = default;
+
+    TImpulseJobInputParDo(IYtJobInputPtr jobInput, std::vector<TDynamicTypeTag> outputTags, ssize_t outputIndex)
+        : JobInput_(std::move(jobInput))
+        , OutputTags_(std::move(outputTags))
+        , OutputIndex_(outputIndex)
+    { }
+
+    std::vector<TDynamicTypeTag> GetInputTags() const override
+    {
+        return {TDynamicTypeTag("TYtJobOutputParDo.Input", MakeRowVtable<int>())};
+    }
+
+    std::vector<TDynamicTypeTag> GetOutputTags() const override
+    {
+        return {};
+    }
+
+    void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override
+    {
+        Y_VERIFY(context->GetExecutorName() == "yt");
+        Outputs_ = std::move(outputs);
+        Y_VERIFY(std::ssize(Outputs_) > OutputIndex_);
+    }
+
+    void Do(const void* rows, int count) override
+    {
+        Y_VERIFY(!Processed_);
+        Y_VERIFY(count == 1);
+        Y_VERIFY(*static_cast<const int*>(rows) == 0);
+        Processed_ = true;
+
+        while (const auto* row = JobInput_->NextRaw()) {
+            Outputs_[OutputIndex_]->AddRaw(row, 1);
+        }
+    }
+
+    void Finish() override
+    { }
+
+    const TFnAttributes& GetFnAttributes() const override
+    {
+        return FnAttributes_;
+    }
+
+    TDefaultFactoryFunc GetDefaultFactory() const override
+    {
+        return [] () -> IRawParDoPtr {
+            return ::MakeIntrusive<TYtJobOutputParDo>();
+        };
+    }
+
+private:
+    IYtJobInputPtr JobInput_;
+    std::vector<TDynamicTypeTag> OutputTags_;
+    ssize_t OutputIndex_ = 0;
+
+    TFnAttributes FnAttributes_;
+    std::vector<IRawOutputPtr> Outputs_;
+    bool Processed_ = false;
+
+    Y_SAVELOAD_DEFINE_OVERRIDE(JobInput_, OutputTags_, OutputIndex_);
+};
+
+IRawParDoPtr CreateImpulseInputParDo(IYtJobInputPtr input, std::vector<TDynamicTypeTag> dynamicTypeTag, ssize_t outputIndex)
+{
+    return ::MakeIntrusive<TImpulseJobInputParDo>(std::move(input), std::move(dynamicTypeTag), outputIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

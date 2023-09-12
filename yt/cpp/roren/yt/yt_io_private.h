@@ -198,4 +198,16 @@ IYtJobOutputPtr CreateParDoJobOutput(IRawParDoPtr rawParDo, std::vector<IYtJobOu
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Wrap output into ParDo.
+// This ParDo returns void
+IRawParDoPtr CreateOutputParDo(IYtJobOutputPtr output, TRowVtable rowVtable);
+
+// Creates ParDo that wraps given input.
+//
+// ParDo expects "impulse" as input (i.e. single integer of value '0')
+// When it receives it it starts reading data and passes it down the pipeline.
+IRawParDoPtr CreateImpulseInputParDo(IYtJobInputPtr input, std::vector<TDynamicTypeTag> dynamicTypeTag, ssize_t outputIndex);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NRoren::NPrivate

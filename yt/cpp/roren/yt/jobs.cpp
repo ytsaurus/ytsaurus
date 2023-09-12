@@ -64,6 +64,53 @@ NYT::TTableRangesReaderPtr<TNode> CreateRangesTableReader(IInputStream* stream)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TImpulseRawJob
+     : public NYT::IRawJob
+{
+public:
+    TImpulseRawJob() = default;
+
+    explicit TImpulseRawJob(IRawParDoPtr parDo)
+        : ParDo_(std::move(parDo))
+    { }
+
+    void Do(const TRawJobContext& /*jobContext*/) override
+    {
+        signal(SIGSEGV, [] (int) {PrintBackTrace(); Y_FAIL("FAIL");});
+
+        try {
+            auto executionContext = ::MakeIntrusive<TYtExecutionContext>();
+            ParDo_->Start(executionContext, {});
+            int impulse = 0;
+            ParDo_->Do(&impulse, 1);
+            ParDo_->Finish();
+        } catch (const std::exception& ex) {
+            Cerr << "Error in TImpulseRawJob" << Endl;
+            Cerr << ex.what() << Endl;
+            Cerr << TBackTrace::FromCurrentException().PrintToString() << Endl;
+            throw;
+        } catch (...) {
+            Cerr << "Unknown error in TImpulseRawJob" << Endl;
+            Cerr << TBackTrace::FromCurrentException().PrintToString() << Endl;
+            throw;
+        }
+    }
+
+private:
+    IRawParDoPtr ParDo_;
+
+public:
+    Y_SAVELOAD_JOB(ParDo_);
+};
+REGISTER_RAW_JOB(TImpulseRawJob);
+
+NYT::IRawJobPtr CreateImpulseJob(const IRawParDoPtr& rawParDo)
+{
+    return ::MakeIntrusive<TImpulseRawJob>(std::move(rawParDo));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TParDoMap
     : public NYT::IRawJob
 {
@@ -174,55 +221,79 @@ REGISTER_RAW_JOB(TSplitKvMap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJoinKvReduce
-    : public NYT::IRawJob
+class TGbkImpulseReadParDo
+    : public IRawParDo
 {
 public:
-    TJoinKvReduce() = default;
+    TGbkImpulseReadParDo(IRawGroupByKeyPtr rawGroupByKey)
+        : RawGroupByKey_(rawGroupByKey)
+    { }
 
-    TJoinKvReduce(const IRawGroupByKeyPtr& rawComputation, const TRowVtable& inVtable, const IYtJobOutputPtr& output)
+    void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override
     {
-        State_[ComputationKey_] = SerializableToNode(*rawComputation);
-        State_[InVtableKey_] = SaveToNode(inVtable);
-        State_[OutputKey_] = SerializableToNode(*output);
+        Y_VERIFY(context->GetExecutorName() == "yt");
+
+        Y_VERIFY(outputs.size() == 1);
+        Processed_ = false;
+        Output_ = outputs[0];
     }
 
-    void Do(const TRawJobContext& /*jobContext*/) override
+    void Do(const void* rows, int count) override
     {
-        signal(SIGSEGV, [] (int) {PrintBackTrace(); Y_FAIL("FAIL");});
-        try {
-            auto output = SerializableFromNode<IYtJobOutput>(State_.At(OutputKey_));
+        Y_VERIFY(count == 1);
+        Y_VERIFY(*static_cast<const int*>(rows) == 0);
+        Y_VERIFY(!Processed_);
+        Processed_ = true;
 
-            auto inRowVtable = LoadVtableFromNode(State_.At(InVtableKey_));
-            auto rawComputation = SerializableFromNode<IRawGroupByKey>(State_.At(ComputationKey_));
-            auto rangesReader = CreateRangesTableReader(&Cin);
+        const auto gbkInputTags = RawGroupByKey_->GetInputTags();
+        Y_VERIFY(gbkInputTags.size() == 1);
+        const auto& rowVtable = gbkInputTags[0].GetRowVtable();
 
-            for (; rangesReader->IsValid(); rangesReader->Next()) {
-                auto range = &rangesReader->GetRange();
-                auto input = CreateSplitKvJobInput(std::vector{inRowVtable}, range);
-                rawComputation->ProcessOneGroup(input, output);
-            }
+        auto rangesReader = CreateRangesTableReader(&Cin);
 
-            output->Close();
-        } catch (...) {
-            Cerr << "Error in TJoinKvReduce" << Endl;
-            Cerr << TBackTrace::FromCurrentException().PrintToString() << Endl;
-            throw;
+        for (; rangesReader->IsValid(); rangesReader->Next()) {
+            auto range = &rangesReader->GetRange();
+            auto input = CreateSplitKvJobInput(std::vector{rowVtable}, range);
+            RawGroupByKey_->ProcessOneGroup(input, Output_);
         }
     }
 
-private:
-    TNode State_;
+    void Finish() override
+    { }
+
+    const TFnAttributes& GetFnAttributes() const override
+    {
+        static TFnAttributes attributes;
+        return attributes;
+    }
+
+    TDefaultFactoryFunc GetDefaultFactory() const override
+    {
+        return [] () -> IRawParDoPtr {
+            return ::MakeIntrusive<TGbkImpulseReadParDo>(nullptr);
+        };
+    }
+
+    std::vector<TDynamicTypeTag> GetInputTags() const override
+    {
+        return {
+            {"input", MakeRowVtable<int>()}
+        };
+    }
+
+    std::vector<TDynamicTypeTag> GetOutputTags() const override
+    {
+        return RawGroupByKey_->GetOutputTags();
+    }
 
 private:
-    static constexpr TStringBuf ComputationKey_ = "computation";
-    static constexpr TStringBuf InVtableKey_ = "in_row_vtable";
-    static constexpr TStringBuf OutputKey_ = "out_row_vtable";
+    IRawGroupByKeyPtr RawGroupByKey_;
 
-public:
-    Y_SAVELOAD_JOB(State_);
+    Y_SAVELOAD_DEFINE_OVERRIDE(RawGroupByKey_);
+
+    IRawOutputPtr Output_;
+    bool Processed_ = false;
 };
-REGISTER_RAW_JOB(TJoinKvReduce);
 
 void ProcessOneGroup(const IRawCoGroupByKeyPtr& rawComputation, const IYtNotSerializableJobInputPtr& input, const IRawOutputPtr& rawOutput)
 {
@@ -509,12 +580,9 @@ IRawJobPtr CreateSplitKvMap(
     return CreateSplitKvMap(std::vector{std::move(rowVtable)});
 }
 
-IRawJobPtr CreateJoinKvReduce(
-    const IRawGroupByKeyPtr& rawComputation,
-    const TRowVtable& inVtable,
-    const IYtJobOutputPtr& output)
+IRawParDoPtr CreateGbkImpulseReadParDo(IRawGroupByKeyPtr rawGroupByKey)
 {
-    return ::MakeIntrusive<TJoinKvReduce>(rawComputation, inVtable, output);
+    return ::MakeIntrusive<TGbkImpulseReadParDo>(std::move(rawGroupByKey));
 }
 
 IRawJobPtr CreateMultiJoinKvReduce(

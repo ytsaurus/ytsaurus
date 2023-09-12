@@ -1,6 +1,7 @@
 #include "yt_graph.h"
 
 #include "jobs.h"
+#include "yt/cpp/roren/interface/private/par_do_tree.h"
 
 #include <yt/cpp/roren/interface/roren.h>
 #include <yt/cpp/roren/yt/proto/config.pb.h>
@@ -545,9 +546,21 @@ private:
     ::TIntrusivePtr<IRawJob> CreateReducer(const IYtJobOutputPtr& output)
     {
         switch (RawTransform_->GetType()) {
-            case ERawTransformType::GroupByKey:
+            case ERawTransformType::GroupByKey: {
                 Y_VERIFY(IntermediateVtables_.size() == 1);
-                return CreateJoinKvReduce(RawTransform_->AsRawGroupByKey(), IntermediateVtables_.front(), output);
+                TParDoTreeBuilder userLogic;
+                auto nodeIdList = userLogic.AddParDo(
+                    CreateGbkImpulseReadParDo(RawTransform_->AsRawGroupByKey()),
+                    TParDoTreeBuilder::RootNodeId
+                );
+                Y_VERIFY(nodeIdList.size() == 1);
+                nodeIdList = userLogic.AddParDo(
+                    CreateOutputParDo(output, OutputVtable_),
+                    nodeIdList[0]
+                );
+                Y_VERIFY(nodeIdList.size() == 0);
+                return CreateImpulseJob(userLogic.Build());
+            }
             case ERawTransformType::CoGroupByKey:
                 return CreateMultiJoinKvReduce(RawTransform_->AsRawCoGroupByKey(), IntermediateVtables_, output);
             case ERawTransformType::CombinePerKey:

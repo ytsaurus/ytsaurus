@@ -14,6 +14,9 @@ namespace NRoren::NPrivate {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NYT::IRawJobPtr CreateImpulseJob(const IRawParDoPtr& rawParDo);
+IRawParDoPtr CreateGbkImpulseReadParDo(IRawGroupByKeyPtr rawComputation);
+
 NYT::IRawJobPtr CreateParDoMap(
     const IRawParDoPtr& rawParDo,
     const IYtJobInputPtr& input,
@@ -24,11 +27,6 @@ NYT::IRawJobPtr CreateSplitKvMap(
 
 NYT::IRawJobPtr CreateSplitKvMap(
     const std::vector<TRowVtable>& rowVtables);
-
-NYT::IRawJobPtr CreateJoinKvReduce(
-    const IRawGroupByKeyPtr& rawComputation,
-    const TRowVtable& inVtable,
-    const IYtJobOutputPtr& output);
 
 NYT::IRawJobPtr CreateMultiJoinKvReduce(
     const IRawCoGroupByKeyPtr& rawComputation,

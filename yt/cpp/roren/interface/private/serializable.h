@@ -135,3 +135,19 @@ void LoadThroughYson(IInputStream* input, T& value)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRoren::NPrivate
+
+template <typename T>
+    requires std::is_base_of_v<NRoren::NPrivate::ISerializable<T>, T>
+class TSerializer<TIntrusivePtr<T>>
+{
+public:
+    static void Save(IOutputStream* out, const TIntrusivePtr<T>& ptr)
+    {
+        NRoren::NPrivate::SaveSerializable(out, ptr);
+    }
+
+    static void Load(IInputStream* out, TIntrusivePtr<T>& ptr)
+    {
+        NRoren::NPrivate::LoadSerializable(out, ptr);
+    }
+};
