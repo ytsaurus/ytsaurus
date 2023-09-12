@@ -415,7 +415,7 @@ private:
             retryIndex,
             BackoffStrategy_.GetRetryCount());
 
-        if (BackoffStrategy_.NextRetry()) {
+        if (BackoffStrategy_.Next()) {
             auto backoff = BackoffStrategy_.GetBackoff();
             YT_LOG_DEBUG("Waiting before next tablet sessions commit attempt (Backoff: %v)",
                 backoff);
