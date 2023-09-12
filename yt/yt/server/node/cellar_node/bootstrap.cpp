@@ -159,7 +159,6 @@ public:
             cellarConfig->Occupant->HiveManager = GetConfig()->TabletNode->HiveManager;
             cellarConfig->Occupant->TransactionSupervisor = GetConfig()->TabletNode->TransactionSupervisor;
             cellarConfig->Occupant->ResponseKeeper = GetConfig()->TabletNode->HydraManager->ResponseKeeper;
-            cellarConfig->Occupant->UseNewHydra = GetConfig()->TabletNode->HydraManager->UseNewHydra;
             cellarConfig->Occupant->EnableDryRun = GetConfig()->DryRun->EnableDryRun;
 
             auto cellarManagerConfig = CloneYsonStruct(config);

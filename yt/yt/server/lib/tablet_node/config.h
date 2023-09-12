@@ -43,7 +43,6 @@ class TTabletHydraManagerConfig
 {
 public:
     NRpc::TResponseKeeperConfigPtr ResponseKeeper;
-    bool UseNewHydra;
 
     REGISTER_YSON_STRUCT(TTabletHydraManagerConfig);
 

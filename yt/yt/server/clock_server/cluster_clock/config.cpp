@@ -25,8 +25,6 @@ void TClusterClockConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("bus_client", &TThis::BusClient)
         .DefaultNew();
-    registrar.Parameter("use_new_hydra", &TThis::UseNewHydra)
-        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

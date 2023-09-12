@@ -24,8 +24,6 @@ void TTabletHydraManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("response_keeper", &TThis::ResponseKeeper)
         .DefaultNew();
-    registrar.Parameter("use_new_hydra", &TThis::UseNewHydra)
-        .Default(true);
 
     registrar.Preprocessor([] (TThis* config) {
         config->PreallocateChangelogs = true;
