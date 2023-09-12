@@ -423,6 +423,7 @@ public:
         // Thus we may defer constructing #missingMap until we actually discover one.
         if (foundKnownCells < std::ssize(CellIdToEntry_)) {
             THashMap<TCellId, const TEntry*> missingMap;
+            missingMap.reserve(ssize(CellIdToEntry_));
 
             for (const auto& [cellId, entry] : CellIdToEntry_) {
                 EmplaceOrCrash(missingMap, cellId, &entry);
