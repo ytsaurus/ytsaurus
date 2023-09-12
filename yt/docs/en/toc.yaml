@@ -437,5 +437,7 @@ items:
    - name: How to report
      when: audience == "public"
      href: user-guide/problems/howtoreport.md
+   - name: Event presentations, publications, and workshops
+     href: other/video-posts.md
 
 
